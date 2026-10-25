@@ -1,4 +1,4 @@
-import { escapeHtml } from "@molis-ai/molis-work-design-system";
+import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { GoalRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 
 export interface TerminalPaneModel {

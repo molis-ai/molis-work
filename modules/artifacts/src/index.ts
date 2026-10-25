@@ -111,7 +111,7 @@ export function projectVersionStores(options: ArtifactsModuleOptions): ProjectVe
 
 /**
  * A pair of stores of their own on a library, never the shared pair above: the Host opens it for a restore from a bundle, whose
- * `declared` check is the only one that takes a version from a producer the project has not installed (S-75).
+ * `declared` check is the only one that takes a version from a producer the project has not installed (S-81).
  */
 export function restoreVersionStores(options: ArtifactsModuleOptions): ProjectVersionStores {
   const { homeOwner: _homeOwner, ...rest } = options;

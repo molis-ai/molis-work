@@ -28,10 +28,12 @@ AI 固定指令统一定义于 `src/prompts.ts`，`ALCHEMIST_INSTRUCTIONS` 由 H
 
 ## 开发要求
 
+公开 `ALCHEMIST_STUDIO_BASELINE` 与已有搜索库基线供离线快照核当前结构/版本；不另写库版本或从宿主查询工作室业务表。实际双分区读回见 `tests/home-snapshot-content.test.ts`。
+
 - 负责：按项目隔离的 Alchemist 工作室：方向探索、有证据的研究与创始人决策。
 - 不负责：宿主模型凭据、其他插件的实现。
 - 公开入口：`@molis-ai/molis-work-plugin-alchemist`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-storage`、`@molis-ai/molis-work-plugin-sdk`；第三方依赖见 `package.json`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-storage`、`@molis-ai/molis-work-plugin-sdk`；第三方依赖见 `package.json`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 未配置模型时保留输入并提示，不生成演示卡。方向卡与研究卡上因缺模型而停下的炼化或研究只说一次「还没有可用模型」并带「打开模型设置」（模型之后配好了就不再说），不显示状态、等待标签或内部错误码。
   - 哪些动作要模型由插件自己声明：凡声明了 `alchemist:generate` 权限（`ALCHEMIST_GENERATE_PERMISSION`）的动作，`createAlchemistActionHandlers` 都为它绑上可用性判断，「用户本人的页面一律可用」这条规则也在这里；宿主（`AlchemistHostService`）不留动作清单，只经 `modelAvailability` 端口回答「这个 Home 有没有炼金术士能跑的模型」，答案来自 Prologue 端口 `listModels` 提供的同一份列表（`alchemistModelChoices`），所以「能不能跑」只有一个答案。炼金术士的端口不认开发用环境变量里的密钥，因此只在那一种开发模式下，这个答案可能与其他插件宿主侧的 `hostCompleteText` 不同；真实 Home 里两者一致。新增一个调模型的动作，只要声明这个权限就受同一判断；`tests/model-unavailable-declarations.test.ts` 按声明遍历，不抄动作清单。

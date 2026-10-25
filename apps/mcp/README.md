@@ -54,15 +54,17 @@ node scripts/run-tests.mjs tests/host-entry-consistency.test.ts
   - Runtime 与 Session 身份由 Host 写入，工具参数不能自填用户、批准或身份。连接工具（绑定、解绑、拒绝建议、新建并绑定、删项目）也不收 `actor_id`：操作者是 Host 记下的 MCP 客户端与 Runtime 会话（`ports.actorFor`），参数里带身份字段被 `mcp.unexpected_field` 拒绝，什么也不写；删项目交给 Host 的删除服务（`ports.deleteProject`），本包不自己开项目目录删。
   - 三个管理工具各调用一个 Goals 动作：`initialize` → `goals.board.initialize`（版本 2，S8：只收 `project_id` 与 `idempotency_key`，不再收 `title`），`event_decide` → `goals.decisions.record`，`goal_tree_decide` → `goals.tree.decide`。Host 私有的 `bindGoalsManagementActions` 复用命令行的本人身份、management 出处、动作自己的权限和单一授权；本包没有 Host 客户端、typed Goals 描述符或第二份工厂，Runtime 只得到 null 端口。
   - `goal_tree_decide` 不收身份：schema 里没有 `actor_id`、`actor_kind`、`audit_actor_id`、`runtime_actor_id`，`authority` 只指向对话出处，带 `actor_id`、`actor_kind`、`authority_source` 被宿主拒绝；决定记本机这个人，没有 Runtime 转交。`event_decide` 只取当前 schema 的业务字段，额外身份或 `authority` 仍以 `mcp.unexpected_field` 拒绝；Host 为它生成管理入口默认的对话出处。`initialize` 仍手选并转字符串，额外身份字段忽略。
-  - 项目路径仍由 Host 解析，参数 `database_path` 优先于 `MOLIS_WORK_DATABASE`，没有默认路径。Host只在 `!owned` 时保留原 `client(reference).withScope(() => undefined)` 空预打开，绑定原项目与库身份、不运行typed业务；随后校验payload。当前Home目录登记的项目通过resident端口交给常驻Host的同一管理工厂，未连接或独立数据库保留原进程内动作路径。前置身份、authority 或未知字段拒绝可无动作行、无编号；真正进入动作的调用只结算一次，结果或错误里的编号能查到这一行，客户端自带的 `_meta` 编号不读。
+  - 项目路径仍由 Host 解析，参数 `database_path` 优先于 `MOLIS_WORK_DATABASE`，没有默认路径。生产管理 MCP 先校验 wire 与身份/出处，经同一按需启动服务就绪后只向 Home 转发；不在 MCP 里准备目录、打开 Catalog/项目库或调用本地管理动作，项目归属由常驻 Host 再核。显式嵌入式管理入口保留原独立数据库路径及空预打开；前置身份、authority 或未知字段拒绝可无动作行、无编号。真正进入动作的调用只结算一次，结果或错误里的编号能查到这一行，客户端自带的 `_meta` 编号不读。
   - 精确授权但暂不可用的动作保留调用条目，`tools/list`隐藏；按原名字调用进入同一动作服务并保留原因、code与实际已记录的编号，未授权或provider/version不匹配仍拒绝。
   - 平台工具只有连接工具与受信管理入口的工具；其余能力都是动作工具，不进本包的静态目录，也不按名称写 `if`。
-  - 生产启动器走常驻服务通道，不回退到本地 typed Host。
+  - 生产启动器走常驻服务通道，缺宿主时只尝试当前 Home 的既有安装入口。健康签名验证通过后复核调用身份/取消再转发，不回退到本地 Host。缺入口等启动不可用时仍可发现静态连接工具，真正调用返回具体原因；结果未知不重放。
+  - stdio 普通请求串行，最多排队 32 条；等待期间照常观察匹配请求的 cancellation 与输入 EOF，取消该请求的可信 AbortSignal。EOF 丢弃尚未派出的请求并结束在途 IO，不终止已常驻的 Host；工具参数和 `_meta` 都不能提供取消信号或 Host 停止权限。
   - Host 的 Runtime 安装验证只运行自己的 launcher 子进程；stdin 管道失败或退出经现有失败收口，收口后的 stdout（含同一 chunk 的后续消息）不再发送请求。管道监听保留到该子进程关闭，10 秒验证限额不变；失败由现有安装服务恢复配置、Skill 和既存 receipt，再次正常 launcher 可重新接入。
   - 说明或恢复目录不可读时返回真实连接并把对应内容置 null、附错误字段；不伪报空项目、不自动重新绑定。
-management audience 的三个 Goals 管理工具对当前 Home 目录登记的数据库借常驻 Host 执行，实际动作沿用本次工具操作号。目录只读、同库别名使用目录路径；未连接或独立数据库走原进程内路径，明确拒绝、取消、送出后结果未知不回退。Runtime audience 继续原动作网关。
+生产 management audience 的三个 Goals 管理工具通过同一个常驻 Host 执行，实际动作沿用本次工具操作号；Host 验证目标是当前 Home 已登记的项目。显式嵌入式管理入口的独立数据库路径不变。Runtime audience 继续原动作网关。两者都不把明确拒绝、取消或送出后结果未知当成重发许可。
 
 - 改动后必跑：`node scripts/run-tests.mjs tests/mcp-protocol.test.ts tests/mcp-action-grants.test.ts tests/mcp-action-settings.test.ts tests/action-mcp.test.ts tests/mcp-goal-events.test.ts tests/mcp-connection-identity.test.ts tests/runtime-skill-flow.test.ts tests/management-door-identity.test.ts`；安装验证改动另跑：`node scripts/run-tests.mjs tests/runtime-integration.test.ts`。
+- 按需启动或 stdio 生命周期改动另跑：`node scripts/run-tests.mjs tests/mcp-stdio-lifetime.test.ts tests/security-invariants-mcp-autostart.test.ts tests/mcp-resident-autostart.test.ts`；最后一项使用隔离 Home 的真实安装产物与进程，安全拒绝文件也进入 `pnpm test:security`。
 - 管理动作端口或 wire 适配改动另跑：`node scripts/run-tests.mjs tests/mcp-management-actions.test.ts tests/mcp.test.ts tests/mcp-goal-events-state.test.ts tests/proposal-entry-chain.test.ts tests/goals-query-boundaries.test.mjs tests/cli-goals-actions.test.ts`；同片同步 S-17 与 `pnpm test:security` 的公开管理拒绝用例。
 - 相关手册：[docs/mcp.md](../../docs/mcp.md)、[specs/action-architecture/spec.md](../../specs/action-architecture/spec.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 

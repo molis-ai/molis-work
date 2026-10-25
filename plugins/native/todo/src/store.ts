@@ -1,5 +1,4 @@
-import { openBaselineHomeSqlite, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
-import type { DatabaseSync } from "node:sqlite";
+import type { HomeStoreDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { TodoChange, TodoItem } from "@molis-ai/molis-work-contracts/modules/todo";
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { addDays } from "./dates.js";
@@ -8,7 +7,7 @@ import { TODO_DATABASE } from "./database.js";
 export { TODO_DATABASE };
 import { TodoStoreWrites } from "./store-writes.js";
 import { changeFromRow, changeRows, invalid, restore } from "./store-support.js";
-import type { TodoAccess, TodoBatchChange, TodoFields, TodoSql } from "./store-types.js";
+import type { TodoAccess, TodoBatchChange, TodoFields } from "./store-types.js";
 
 export { todoRequestKey } from "./store-types.js";
 export type { TodoAccess, TodoBatchChange, TodoCreateInput, TodoFields, TodoLinkInput, TodoSql, TodoSqlValue } from "./store-types.js";
@@ -121,24 +120,6 @@ export class TodoStore extends TodoStoreWrites {
   }
 }
 
-
-export function openTodoStore(homeDirectory: string, now?: () => Date): TodoStore {
-  const db = openBaselineHomeSqlite(homeDirectory, TODO_HOME_STORE.path, TODO_DATABASE);
-  db.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;");
-  const sql: TodoSql = {
-    get: (text, parameters = []) => db.prepare(text).get(...parameters),
-    all: (text, parameters = []) => db.prepare(text).all(...parameters),
-    run: (text, parameters = []) => db.prepare(text).run(...parameters),
-  };
-  return new TodoStore(sql, run => immediate(db, run), () => db.close(), now);
-}
-
-function immediate<T>(db: DatabaseSync, run: () => T): T {
-  if (db.isTransaction) return run();
-  db.exec("BEGIN IMMEDIATE");
-  try { const result = run(); db.exec("COMMIT"); return result; }
-  catch (error) { db.exec("ROLLBACK"); throw error; }
-}
 
 /** This plugin's store in the Home's store registry (W4-11): `todo/todo.db` at its one baseline. */
 export const TODO_HOME_STORE: HomeStoreDeclaration = { path: TODO_DATABASE.store_name, library: { baseline: TODO_DATABASE } };

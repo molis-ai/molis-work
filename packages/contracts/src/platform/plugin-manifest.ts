@@ -1,4 +1,4 @@
-import type { UiCommandDeclaration, UiViewDeclaration } from "./ui.js";
+import type { UiViewDeclaration } from "./ui.js";
 import type { PluginEventsDeclaration } from "./plugin-events.js";
 import type { PluginPortsDeclaration } from "./plugin-wiring.js";
 import type { AgentManifest } from "./plugin-agent.js";
@@ -100,6 +100,16 @@ export interface ArtifactLinkDeclaration {
   proposal?: boolean;
 }
 
+/** The dual-instance mark (docs/system/GLOSSARY.md) is not here: only the Host's registration can say it (S-48). */
+export interface PluginRuntimeDeclaration {
+  readonly scope: "home";
+}
+/** A Plugin's words by stable key, each in both page languages. */
+export type PluginMessagesDeclaration = Readonly<Record<string, { readonly zh: string; readonly en: string }>>;
+
+/** A Plugin's English for words still keyed by their Chinese source text. */
+export type PluginTranslationsDeclaration = Readonly<Record<string, string>>;
+
 export interface PluginManifest {
   /** 1 is the original shape. 2 adds ports, events, views, commands, routes and agent. */
   schema_version: 1 | 2;
@@ -158,8 +168,21 @@ export interface PluginManifest {
     embedded_plugins?: string[];
     /** v2: where each contribution is placed. Absent means the Host places nothing. */
     views?: UiViewDeclaration[];
-    /** v2: commands offered to the command menu and content actions. */
-    commands?: UiCommandDeclaration[];
+    /**
+     * v2: the Plugin's UI words in both page languages, by stable key (`<owner>.<area>.<name>`, 2 to 5 lowercase segments).
+     * Plain data in the Manifest, so a built-in and a third-party Plugin bring their words the same way; the Host reads
+     * them from the Manifests of the Plugins that are installed, never from a list of its own. A key one Plugin has
+     * declared is refused to another.
+     */
+    messages?: PluginMessagesDeclaration;
+    /**
+     * v2: English for UI words still written as their Chinese source text (`{ "保存": "Save" }`), until the words have
+     * stable keys (specs/repository-anti-corruption PG-071). Any publisher's Plugin may declare it. It applies only to
+     * what this Plugin draws itself (its frame and its contributions) and to the text it supplies where the Host draws it
+     * (an action's title, a deletion dialog's data description): the same Chinese sentence on the Host's pages or in another
+     * Plugin is not changed by it, and the Host's own English wins. New words use `messages`.
+     */
+    translations?: PluginTranslationsDeclaration;
   };
   /** v2: named, typed connection points wired by the user inside a project. */
   ports?: PluginPortsDeclaration;
@@ -187,6 +210,14 @@ export interface PluginManifest {
   model_configuration?: import("./plugin-model-configuration.js").PluginModelConfigurationDeclaration;
   /** The image connections this plugin uses (`services.imageGeneration`, PG-102): the namespace its bindings live in and the permissions that read, bind and generate. */
   image_generation?: import("./plugin-image-generation.js").PluginImageGenerationDeclaration;
+  /**
+   * Where this plugin runs, written here and nowhere else (PG-011). Left out, it is a project plugin. `home` is the Host's own Home
+   * Runtime; only code of the Host's build may be started there, so an installed or generated plugin that writes it is refused at
+   * install (`plugin.home_scope_unavailable`) until the sandbox host can run a Home instance.
+   */
+  runtime?: PluginRuntimeDeclaration;
+  /** The command-line tools this plugin looks for on this machine (`services.localTools`, PG-112): names and directories declared here, found by the platform, never run by it. */
+  local_tools?: import("./plugin-local-tools.js").PluginLocalToolsDeclaration;
   /** v2: the kinds of subject its objects are for Attention, with `attention:write` (`services.attention`, PG-087). */
   attention?: import("./plugin-attention.js").PluginAttentionDeclaration;
   /** v2: places where the plugin may use an account the person binds, with `connections:use` (`services.connections`, S-57). */

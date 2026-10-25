@@ -7,13 +7,13 @@ import { activeOutgoingDependsOn, findGoalTreeItem as findGoalView, goalWorkSati
 export const GOALS_TREE_UI_CONTRIBUTION_ID = "io.molis.work.native.goals.tree.v1";
 
 function createTreeRenderer(primitives: GoalsTreeUiPrimitives) {
-  const { translate: L, escapeHtml, currentLocale, listJoin, icon, renderStatus, renderActionStatus, renderVisibleGoalStatus, displayStatuses: GOAL_DISPLAY_STATUSES } = primitives;
+  const { translate: L, escapeHtml, listJoin, icon, renderStatus, renderActionStatus, renderVisibleGoalStatus, displayStatuses: GOAL_DISPLAY_STATUSES } = primitives;
   function renderGoalRootEntry(count: number, active: boolean): string {
     return `<button class="desktop-module-item${active ? " is-current" : ""}" type="button" data-work-surface-open="goal"${active ? ' aria-current="page"' : ""}>${icon("target")}<span><strong>Goals</strong><small>${L("{count} 个 Goal", { count: count })}</small></span>${icon("chevron-right")}</button>`;
   }
 function quotedGoalNames(names: string[]): string {
-  const quote = currentLocale() === "en" ? ["“", "”"] as const : ["「", "」"] as const;
-  return listJoin(names.map((name) => `${quote[0]}${name}${quote[1]}`));
+  const [open, close] = [L("goals.quote.open"), L("goals.quote.close")];
+  return listJoin(names.map((name) => `${open}${name}${close}`));
 }
 
 

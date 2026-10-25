@@ -4,6 +4,11 @@ import type { UiViewDeclaration } from "@molis-ai/molis-work-contracts/platform/
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 import { renderWorkbenchContribution, WORKBENCH_UI_SLOTS } from "./ui-composition.js";
 
+/** The contribution a Manifest view names, or its existing plugin-and-view default. Kept inside the workbench package. */
+export function viewContributionId(manifest: PluginManifest, view: UiViewDeclaration): string {
+  return view.contribution_id ?? `${manifest.plugin_id}.${view.view_id}`;
+}
+
 /** The view that opens a plugin's stage: its `stage` view, else its directory entry. */
 export function stageOpeningView(manifest: PluginManifest): UiViewDeclaration | undefined {
   const views = manifest.ui?.views ?? [];
@@ -13,7 +18,7 @@ export function stageOpeningView(manifest: PluginManifest): UiViewDeclaration | 
 /** The contribution that draws a plugin's stage; a host path that draws the stage itself reports this id. */
 export function stageContributionId(manifest: PluginManifest): string | undefined {
   const view = stageOpeningView(manifest);
-  return view ? view.contribution_id ?? `${manifest.plugin_id}.${view.view_id}` : undefined;
+  return view ? viewContributionId(manifest, view) : undefined;
 }
 
 /**

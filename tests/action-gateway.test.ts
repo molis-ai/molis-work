@@ -271,7 +271,7 @@ test("gateway rejects non-loopback destinations before reading a credential or m
 });
 
 
-test("RAC-105-A-09: production stdio lists context tools offline and refuses them without a local business fallback", { timeout: 20_000 }, async () => {
+test("RAC-105-A-09 RAC-625: production stdio lists context tools offline and reports the missing installed entry without a local business fallback", { timeout: 20_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "action-gateway-offline-"));
   const sdk = new Client({ name: "offline-fixture", version: "1" });
   const transport = new StdioClientTransport({ command: process.execPath, args: ["--import", "tsx",
@@ -286,15 +286,15 @@ test("RAC-105-A-09: production stdio lists context tools offline and refuses the
     assert.ok(tools.every(tool => isRuntimeContextMcpTool(tool.name)));
     const result = await sdk.callTool({ name: "molis_work_v1_context_resolve", arguments: {} });
     assert.equal(result.isError, true, JSON.stringify(result));
-    assert.match(JSON.stringify(result), /actions.service_unavailable/);
+    assert.match(JSON.stringify(result), /mcp.startup_entry_missing/);
     const create = await sdk.callTool({ name: "molis_work_v1_context_create_and_bind", arguments: {
       display_name: "Must not be created offline", user_confirmed: true, idempotency_key: "offline-create",
     } });
     assert.equal(create.isError, true);
-    assert.match(JSON.stringify(create), /actions.service_unavailable/);
+    assert.match(JSON.stringify(create), /mcp.startup_entry_missing/);
     const unavailable = await sdk.callTool({ name: molisWorkActionToolName(save), arguments: { text: "offline" } });
     assert.equal(unavailable.isError, true);
-    assert.match(JSON.stringify(unavailable), /actions.service_unavailable/);
+    assert.match(JSON.stringify(unavailable), /mcp.startup_entry_missing/);
     assert.deepEqual(await readdir(home), [], "listing and refused calls create no Catalog, SDK, owner or business files");
   } finally { await sdk.close(); await rm(home, { recursive: true, force: true }); }
 });

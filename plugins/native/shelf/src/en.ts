@@ -55,7 +55,7 @@ export const SHELF_EN: Record<string, string> = {
   "长 · 1000 字": "Long · 1000 words",
   "提纲": "Outline",
   "要点": "Key points",
-  "待办": "Tasks",
+  "待办": "Todo",
   "引用与数据": "Quotes and figures",
   "全量 JSON": "Full JSON",
   "中文": "Chinese",

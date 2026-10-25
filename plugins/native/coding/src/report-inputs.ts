@@ -1,5 +1,5 @@
 import type { AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { RECEIPT_WORDS } from "@molis-ai/molis-work-design-system";
+import { RECEIPT_WORDS } from "@molis-ai/molis-work-contracts/platform/ui";
 
 /**
  * The report's 补充要求 (§4.7, RCPT-341–343): one entry per supplement, read only from the round's own view, which the

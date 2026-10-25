@@ -1,18 +1,14 @@
-import { escapeHtml } from "@molis-ai/molis-work-design-system";
-import {
-  icon,
-  renderIconSprite,
-  THEME_BOOTSTRAP_SCRIPT as BASE_THEME_BOOTSTRAP_SCRIPT,
-  VISUAL_FOUNDATION_CLIENT_SCRIPT,
-} from "@molis-ai/molis-work-design-system";
+import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderIconSprite, THEME_BOOTSTRAP_SCRIPT as BASE_THEME_BOOTSTRAP_SCRIPT, VISUAL_FOUNDATION_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
 import type { GoalPolicy, PlanningMethodComposition, PlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
-import type { FeedItemRecord, InboxEntryRecord } from "@molis-ai/molis-work-plugin-feed";
+import { FEED_PLUGIN_ID, type FeedItemRecord, type InboxEntryRecord } from "@molis-ai/molis-work-plugin-feed";
 import {
   buildDecisionGroups,
   buildGoalsNavigationItems,
   countGoalDecisions,
   createGoalStateExplainer,
   GOAL_DISPLAY_STATUSES,
+  GOALS_PLUGIN_ID,
   type GoalsDocumentView as WebGoalView,
   partOfChildViews,
   sortGoalTreeItems,
@@ -21,7 +17,7 @@ import { createWorkbenchFeedProjectionRenderer, type FeedSupplementalEntry } fro
 import { createWorkbenchFocusSections } from "./focus-sections.js";
 import { createWorkbenchGoalsFragmentRenderer } from "./goals-fragment-renderer.js";
 import { createWorkbenchGoalsPageRenderer } from "./shell-page-renderer.js";
-import type { createWorkbenchLocale, WebLocale } from "./i18n.js";
+import { inWordsOf, type createWorkbenchLocale, type WebLocale } from "./i18n.js";
 import { createWorkbenchInboxProjectionRenderer } from "./inbox-projection-ui.js";
 import { createWorkbenchScheduleProjectionRenderer } from "./schedule-projection-ui.js";
 import { createWorkbenchOnboardingRenderer } from "./onboarding-renderer.js";
@@ -63,14 +59,14 @@ export interface WorkbenchRendererPorts {
 
 /** Compose application pages from registered UI owners; request and desktop state belong to the Host. */
 export function createWorkbenchRenderer(ports: WorkbenchRendererPorts) {
-  const { L, currentLocale, htmlLang, dateTimeLocale, listJoin, localeSwitchHref, clientI18nScript } = ports.locale;
+  const { L, currentLocale, htmlLang, dateTimeLocale, listJoin, localeSwitchHref, clientI18nScript } = ports.locale, goalsL = inWordsOf(GOALS_PLUGIN_ID, L), feedL = inWordsOf(FEED_PLUGIN_ID, L);
   const { appendDesktopQueryToLocalHrefs, withDesktopQuery, bootstrapScript: NATIVE_DESKTOP_BOOTSTRAP_SCRIPT } = ports.desktop;
   const { defaultPolicy: DEFAULT_GOAL_POLICY, composePlanningMethodPacks } = ports.goals;
 const { sectionHeading, subsectionHeading, renderFocusSectionDeck } = createWorkbenchFocusSections({ L, escapeHtml });
 
-const { renderGoalTreeProposalDecision, renderGoalTreeProposalList } = createWorkbenchGoalsProposalRenderer({ translate: L, escapeHtml, icon, renderList });
+const { renderGoalTreeProposalDecision, renderGoalTreeProposalList } = createWorkbenchGoalsProposalRenderer({ translate: goalsL, escapeHtml, icon, renderList });
 
-const { buildFeedNativePluginModel, renderFeedNativePluginPersistedDetail, renderFeedNativePluginSurface } = createWorkbenchFeedProjectionRenderer({ L, dateTimeLocale });
+const { buildFeedNativePluginModel, renderFeedNativePluginPersistedDetail, renderFeedNativePluginSurface } = createWorkbenchFeedProjectionRenderer({ L: feedL, dateTimeLocale });
 const { buildInboxNativePluginModel, renderInboxNativePluginSurface } = createWorkbenchInboxProjectionRenderer({ L, dateTimeLocale });
 const { buildScheduleNativePluginModel, renderScheduleNativePluginSurface } = createWorkbenchScheduleProjectionRenderer({ L, dateTimeLocale });
 // Feed, Inbox and Schedule still draw their stage from this page's view; every other declared stage gets the shared primitives.
@@ -80,7 +76,7 @@ const stageModels: ReadonlyMap<string, (view: MolisWorkWebView) => unknown> = ne
 const declaredStageModel = (projectPluginId: string, view: MolisWorkWebView): unknown =>
   stageModels.get(projectPluginId)?.(view) ?? { route_prefix: view.route_prefix, shown_plugins: view.shown_plugins ?? view.enabled_plugins ?? [], primitives: { escape: escapeHtml, text: L } };
 
-const { explainWorkState, explainParentCompletion } = createGoalStateExplainer(L);
+const { explainWorkState, explainParentCompletion } = createGoalStateExplainer(goalsL);
 
 const THEME_BOOTSTRAP_SCRIPT = `${BASE_THEME_BOOTSTRAP_SCRIPT}${NATIVE_DESKTOP_BOOTSTRAP_SCRIPT}`;
 
@@ -144,34 +140,34 @@ function renderList(values: string[], empty: string): string {
   return `<ul class="doc-list">${values.map((value) => `<li>${escapeHtml(value)}</li>`).join("")}</ul>`;
 }
 
-const { renderStatus, renderActionStatus, renderVisibleGoalStatus, visibleGoalStatusIcon } = createWorkbenchGoalsStatusRenderer({ translate: L, escapeHtml, icon });
+const { renderStatus, renderActionStatus, renderVisibleGoalStatus, visibleGoalStatusIcon } = createWorkbenchGoalsStatusRenderer({ translate: goalsL, escapeHtml, icon });
 
 function sortGoals(items: WebGoalView[]): WebGoalView[] {
   return sortGoalTreeItems(items);
 }
 
 const goalsTreeRenderer = createWorkbenchGoalsTreeRenderer({
-  translate: L, escapeHtml, currentLocale, listJoin, icon,
+  translate: goalsL, escapeHtml, listJoin, icon,
   renderStatus, renderActionStatus, renderVisibleGoalStatus, displayStatuses: GOAL_DISPLAY_STATUSES,
 });
 
 const { renderGoalMomentum, renderMomentumPlaceholder, renderGoalKanban } = createWorkbenchGoalsMomentumRenderer({
-  translate: L, escapeHtml, currentLocale, icon, renderVisibleGoalStatus,
+  translate: goalsL, escapeHtml, currentLocale, icon, renderVisibleGoalStatus,
 });
 
-const goalsRelationRenderer = createWorkbenchGoalsRelationRenderer({ translate: L, escapeHtml, icon });
+const goalsRelationRenderer = createWorkbenchGoalsRelationRenderer({ translate: goalsL, escapeHtml, icon });
 
 function renderRelations(item: WebGoalView, view: MolisWorkWebView, editable = true): string {
   return goalsRelationRenderer.renderRelations(item, view, editable);
 }
 
 const { renderChildProgress, renderContractCoverage } = createWorkbenchGoalsContextRenderer({
-  translate: L, escapeHtml, icon, currentLocale,
+  translate: goalsL, escapeHtml, icon, currentLocale,
   subsectionHeading, explainWorkState, explainParentCompletion,
 });
 
 const { renderProjectPolicyDocument, renderPolicyEditor } = createWorkbenchGoalsPolicyRenderer({
-  translate: L, escapeHtml, formatDate, icon, defaultPolicy: DEFAULT_GOAL_POLICY,
+  translate: goalsL, escapeHtml, formatDate, icon, defaultPolicy: DEFAULT_GOAL_POLICY,
 });
 
 function renderPersistedFeedItemDetail(
@@ -200,7 +196,7 @@ function renderScheduleWorkbenchFragment(view: MolisWorkWebView): string {
   return prefixLocalLinks(renderScheduleNativePluginSurface(view, "workbench"), view.route_prefix);
 }
 
-const goalsFactorsRenderer = createWorkbenchGoalsFactorsRenderer({ translate: L, escapeHtml, icon, renderFocusSectionDeck });
+const goalsFactorsRenderer = createWorkbenchGoalsFactorsRenderer({ translate: goalsL, escapeHtml, icon, renderFocusSectionDeck });
 
 function renderGoalFactors(item: WebGoalView, view: MolisWorkWebView): string {
   return goalsFactorsRenderer(item, {
@@ -210,7 +206,7 @@ function renderGoalFactors(item: WebGoalView, view: MolisWorkWebView): string {
 }
 
 const goalsDocumentRenderer = createWorkbenchGoalsDocumentRenderer({
-  translate: L, escapeHtml, icon, formatDate, renderVisibleGoalStatus, renderStatus, sectionHeading,
+  translate: goalsL, escapeHtml, icon, formatDate, renderVisibleGoalStatus, renderStatus, sectionHeading,
 });
 
 const { renderTrashGoalDocument } = goalsDocumentRenderer;
@@ -251,7 +247,7 @@ const {
 });
 
 /** Event history content remains with the execution/records owner, not the route adapter. */
-const goalsDialogsRenderer = createWorkbenchGoalsDialogsRenderer({ translate: L, escapeHtml, icon });
+const goalsDialogsRenderer = createWorkbenchGoalsDialogsRenderer({ translate: goalsL, escapeHtml, icon });
 
 const { renderGoalTrashDialog } = goalsDialogsRenderer;
 

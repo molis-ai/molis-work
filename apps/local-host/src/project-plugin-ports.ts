@@ -1,8 +1,9 @@
-import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { AgentHostComposition } from "./agent-host-composition.js";
 import { observeReviewSettlements, type AgentWritePlaces } from "./review-settlement-events.js";
 import { ensureInstalledPlugins } from "./installed-plugin-host.js";
+import type { InstalledRelease } from "./installed-release.js";
 import type { LocalHost } from "./local-host.js";
 import type { MolisWorkLocalHostOptions, MolisWorkProjectRuntime } from "./project-host.js";
 import { ensureProjectPlugins } from "./project-plugins.js";
@@ -12,7 +13,7 @@ import { hostDependencyCheck } from "./plugin-actions-client.js";
  * What the project's plugin ports are read from. `agents` is read when a call needs it, not when the Host is built: the
  * Agent service is attached to the Host afterwards.
  */
-interface ProjectPluginHost {
+export interface ProjectPluginHost {
   readonly host: LocalHost<MolisWorkProjectRuntime>;
   readonly options: MolisWorkLocalHostOptions;
   agents(): AgentHostComposition | undefined;
@@ -20,15 +21,29 @@ interface ProjectPluginHost {
 
 /** The plugins installed in this project (generated, installed from the market): their actions join the project's directory. */
 export async function prepareInstalledPlugins(source: ProjectPluginHost, reference: LocalHostProjectReference, runtime: MolisWorkProjectRuntime): Promise<void> {
+  if (!source.options.homeDirectory) return;
+  await (await installedPluginsOf(source, reference, runtime)).refreshPublicActions();
+}
+
+function installedPluginsOf(source: ProjectPluginHost, reference: LocalHostProjectReference, runtime: MolisWorkProjectRuntime) {
   const { host, options } = source;
-  if (!options.homeDirectory) return;
-  const installed = await ensureInstalledPlugins({ store: runtime.store, projectId: runtime.project_id, homeDirectory: options.homeDirectory, actorId: LOCAL_PERSON_ACTOR_ID,
+  return ensureInstalledPlugins({ store: runtime.store, projectId: runtime.project_id, homeDirectory: options.homeDirectory!, actorId: LOCAL_PERSON_ACTOR_ID,
     routePrefix: options.projectRoutePrefix?.(reference.project_id) ?? `/projects/${encodeURIComponent(reference.project_id)}`,
     dependencyCheck: hostDependencyCheck(host.client(reference)),
     actions: { registry: host.actionRegistry(reference), client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, project_id: reference.project_id,
       // This internal directory is already in a prepared Host; recursing through the public entry would wait on itself.
       inspect: caller => host.inspectActions(caller, reference) } });
-  await installed.refreshPublicActions();
+}
+
+/** Installs a release read from a signed package in the project the person is in; the project's installed plugins are the ones that run it. */
+export async function installPackageInProject(source: ProjectPluginHost, projectId: string, release: InstalledRelease): Promise<void> {
+  const reference = source.host.projects().find(row => row.project_id === projectId);
+  if (!reference || !source.options.homeDirectory) throw new ActionError("actions.scope_mismatch", "安装需要一个打开的项目");
+  await source.host.withRuntime(reference, async runtime => {
+    const installed = await installedPluginsOf(source, reference, runtime);
+    await installed.installPackage(release, { consent: true });
+    await installed.refreshPublicActions();
+  });
 }
 
 /** The project's built-in Runtime plugins (Coding, Files, Git, ...): started once per project, their actions registered. */

@@ -18,7 +18,7 @@ Owner 在写入前拒绝超过 80 个 Unicode 字符的列名，仍限制最多 
 
 页面的客户端是 `src/browser/` 下的 TypeScript：`tsconfig.browser.json` 做类型检查，构建时 esbuild 从 `src/browser/factory.ts` 打成 `dist/dataset-client.js`（banner/footer 包成工作台要的 `(host) => {…}` 工厂），`src/client.ts` 只读这份包；请求经共同的 `molisWorkRequest`，路径来自 `host.pluginRoute`，浏览器代码里不写插件 id。
 
-页面上的字是稳定键（`dataset.<区域>.<名称>`），中英文都在 `src/messages.ts`，登记在 `registration.ts` 的 `messages`，不经工作台的 `i18n/en.ts` import。`src/en.ts` 的 `DATASET_EN` 只留 15 条宿主还按中文原文翻译的词（服务端标签与错误、别的主人在查的词，BL-460）。
+页面上的字是稳定键（`dataset.<区域>.<名称>`），中英文都在 `src/messages.ts`，在 `manifest.ts` 的 `ui.messages` 声明，不经工作台的 `i18n/en.ts` import。`src/en.ts` 的 `DATASET_EN` 只留 15 条宿主还按中文原文翻译的词（服务端标签与错误、别的主人在查的词，BL-460）。
 
 - Status: `partial`
 - Contract: `@molis-ai/molis-work-contracts/platform/plugin`
@@ -29,7 +29,7 @@ Owner 在写入前拒绝超过 80 个 Unicode 字符的列名，仍限制最多 
 - 负责：表格目录、编辑、CSV 与版本。
 - 不负责：Goal 与 Artifact 事实、模型提供方、托管表格。
 - 公开入口：`@molis-ai/molis-work-plugin-dataset`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-plugin-sdk`（`defineErrorCodes`，错误码都是 `dataset.<原因>`，状态由错误种类决定，Dataset 不自带状态表）、`@molis-ai/molis-work-storage`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（`defineErrorCodes`，错误码都是 `dataset.<原因>`，状态由错误种类决定，Dataset 不自带状态表）。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 数据按 Host 注入的 canonical `project_id` 分区。
   - 冲突保留本地输入，并阻止发布或切表。

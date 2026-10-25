@@ -29,16 +29,20 @@ export function installationGrants(current: PluginInstanceRecord | null, manifes
   return normalizeGrants(manifest, requested ?? held ?? []);
 }
 
-/** A non-retaining uninstall must finish its Host cleanup before another installation can see that installation id's data. */
+/** Every reinstall first revokes its earlier installation's authorization; private cleanup follows the existing retention choice. */
 export function prepareInstallationData(executor: PluginExecutor, previous: PluginInstanceRecord | null, manifest: PluginManifest, host: boolean, discard: boolean): void {
   const refusal = keptDataRefusal(previous, manifest, host, discard);
   if (refusal) throw pluginErrors.kept_data_incompatible(refusal);
-  if (previous?.state !== "uninstalled" || previous.retain_private_data) return;
-  if (!executor.keptDataDiscarded) {
-    if (executor.uninstalled) throw pluginErrors.state_invalid("Plugin 的宿主没有同步数据清理能力，暂不能重装这个不保留数据的安装");
-    return;
+  if (previous?.state !== "uninstalled") return;
+  try {
+    executor.prepareReinstall?.(previous);
+    if (previous.retain_private_data) return;
+    if (!executor.keptDataDiscarded) {
+      if (executor.uninstalled) throw pluginErrors.state_invalid("Plugin 的宿主没有同步数据清理能力，暂不能重装这个不保留数据的安装");
+      return;
+    }
+    executor.keptDataDiscarded(previous);
   }
-  try { executor.keptDataDiscarded(previous); }
   catch (error) {
     if (error instanceof ActionError) throw error;
     throw pluginErrors.executor_failed("Plugin 已卸载数据清理失败，暂不能重装，请重试清理");
@@ -126,7 +130,7 @@ export function validateInstalledManifest(manifest: PluginManifest, owners?: Dec
 /** Whoever the Host says declares the names the platform keeps one owner for, asked about the Manifest that wants to declare some. It throws when it cannot tell. */
 export type DeclarationOwners = (manifest: PluginManifest) => readonly DeclarationOwner[];
 
-/** What a start needs besides a running host: the grants its Manifest requires, and its names still being its own (S-76: a start is where an enable lands). */
+/** What a start needs besides a running host: the grants its Manifest requires, and its names still being its own (S-82: a start is where an enable lands). */
 export function assertStartable(manifest: PluginManifest, grants: readonly string[], owners?: DeclarationOwners): void {
   assertRequiredGrants(manifest, grants);
   assertDeclarationsFree(manifest, owners);

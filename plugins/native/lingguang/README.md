@@ -16,7 +16,7 @@
 
 页面的客户端是 `src/browser/` 下的 TypeScript：`tsconfig.browser.json` 做类型检查，构建时 esbuild 从 `src/browser/factory.ts` 打成 `dist/lingguang-client.js`（banner/footer 包成工作台要的 `(host) => {…}` 工厂，`--minify`）；`src/client.ts` 的 `LINGGUANG_CLIENT_FACTORY_SCRIPT` 只读这个包。页面状态在一个 `LingguangPage` 对象里（`page.ts`），编辑与空白灵光的丢弃（`editor.ts`，空白灵光怎样离开的完整说明在它的开头注释）、列表与它的读取（`list.ts`、`load.ts`）、读取文件与链接（`material.ts`）、头脑风暴与交给助理（`chat.ts`）、按钮命令表（`commands.ts`）各是一个部件，在启动时把自己的操作装到这个对象上；请求只经工作台的 `molisWorkRequest`（`request.ts`，带 `scope`，离开页面即取消），不直接 `fetch`；插件路径来自 `host.pluginRoute`，插件 id 来自 `host.pluginId`，浏览器代码里不写 id。esbuild 是包的直接开发依赖，版本与根相同；升级后的资源增长仍须按资源规则评审。
 
-页面上的字是稳定键（`lingguang.<区域>.<名称>`），中英文都在 `src/messages.ts`，登记在 `registration.ts` 的 `messages`，不经工作台的 `i18n/en.ts` import。`src/en.ts` 的 `LINGGUANG_EN` 只留 7 条宿主还按中文原文翻译的词（灵光自己的服务端标签与错误，BL-459），新页面文字一律加稳定键。
+页面上的字是稳定键（`lingguang.<区域>.<名称>`），中英文都在 `src/messages.ts`，在 `manifest.ts` 的 `ui.messages` 声明，不经工作台的 `i18n/en.ts` import。`src/en.ts` 的 `LINGGUANG_EN` 只留 7 条宿主还按中文原文翻译的词（灵光自己的服务端标签与错误，BL-459），新页面文字一律加稳定键。
 
 - Status: `partial`
 - Contract: `@molis-ai/molis-work-contracts/platform/plugin`
@@ -29,7 +29,7 @@
 - 负责：临时灵感池与围绕灵感的对话。
 - 不负责：Goal 与 Artifact 事实、模型提供方、托管服务。
 - 公开入口：`@molis-ai/molis-work-plugin-lingguang`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-plugin-sdk`（`defineErrorCodes`，错误码都是 `lingguang.<原因>`，状态由错误种类决定，Lingguang 不自带状态表）、`@molis-ai/molis-work-storage`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（`defineErrorCodes`，错误码都是 `lingguang.<原因>`，状态由错误种类决定，Lingguang 不自带状态表）。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 编辑基于实际填入字段的那份记录；列表刷新只更新目录，不能确认未显示的外部编辑。连续排队的本人保存只推进同一次打开的编辑基准，外部更新后保存仍冲突并保留输入。
   - 失败或取消不保存半轮消息；生成期间材料变化时拒绝过期结果。

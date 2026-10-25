@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -21,7 +22,8 @@ test("unknown plugin HTTP adapter executes through the shared Kernel and revokes
   const privateStorage = new SqlitePluginPrivateStorage(store.db);
   const action: ActionDefinition<{ value: number }, { doubled: number }> = {
     capability_id: "unknown.double", version: 1, operation: "query", action: {
-      title: "Double", description: "Pure arithmetic", kind: "query", scope: "project", audiences: ["user", "mcp", "workflow"], permissions: [], subject_kinds: [],
+      // `plugin`: the activation also calls its own action outside every call (PG-028 gives that self-call the plugin audience).
+      title: "Double", description: "Pure arithmetic", kind: "query", scope: "project", audiences: ["user", "mcp", "workflow", "plugin"], permissions: [], subject_kinds: [],
       input_schema: { type: "object", properties: { value: { type: "number" } }, required: ["value"], additionalProperties: false },
       output_schema: { type: "object", properties: { doubled: { type: "number" } }, required: ["doubled"], additionalProperties: false },
     },
@@ -42,7 +44,7 @@ test("unknown plugin HTTP adapter executes through the shared Kernel and revokes
   };
   const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions, project_id: DEMO_PROJECT_ID, actor_id: "owner", artifacts, processItems,
     dependencyCheck: () => ({ available: true }),
-    ui: new UiHost(), privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) }), { actions });
+    ui: new UiHost(), privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) }), { hostIds: ISOLATED_HOST_IDS, actions });
   try {
     const installed = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: [] }).install;
     await runtime.start(installed.install_id);

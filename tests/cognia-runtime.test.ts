@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { COGNIA_PLUGIN_ID, COGNIA_ACTION_PERMISSIONS, cogniaActions as actions, openCogniaStore } from "@molis-ai/molis-work-plugin-cognia";
+import { COGNIA_PLUGIN_ID, COGNIA_ACTION_PERMISSIONS, cogniaActions as actions } from "@molis-ai/molis-work-plugin-cognia";
+import { openCogniaStore } from "./fixtures/plugin-home-stores.js";
 import { deferred, person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 const root = "/api/plugins/io.molis.work.cognia/library";

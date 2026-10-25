@@ -1,7 +1,9 @@
 import type { ProjectPluginId, ProjectPluginRegistry } from "@molis-ai/molis-work-contracts/modules/projects";
+import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.generated.js";
 import type { HomePluginEntry } from "./home-plugins.js";
+import { declaresProjectCoordination } from "./plugin-project-coordination.js";
 
 // The platform's facts about the plugins this build ships, derived in this one place from the plugins' own registrations
 // (W5-02 PR-B, PG-065 in specs/repository-anti-corruption/privileges.md). scripts/generate-plugin-registry.mjs writes the list
@@ -29,14 +31,38 @@ export function catalogProblems(catalog: readonly PluginRegistration[]): string[
   once("the catalog position", catalog.map(entry => entry.catalog_order));
   const listed = new Set(catalog.map(entry => entry.project_plugin_id));
   for (const entry of catalog) {
+    if ((entry.manifest.runtime?.scope === "home") !== (entry.runtime !== undefined)) {
+      problems.push(`${entry.project_plugin_id}: the Manifest's runtime.scope and the registration's runtime (the code a Home instance starts from) go together`);
+    }
+    if (entry.runtime && !entry.runtime.dual_instance && declaresProjectCoordination(entry.manifest)) {
+      problems.push(`${entry.project_plugin_id}: a Home instance is given no 成果, ports or events; declaring them takes a dual-instance plugin (the project half gets them)`);
+    }
     const named: Array<readonly [string, string]> = [
       ...(entry.companions ?? []).map(id => ["companions", id] as const),
       ...(entry.workbench.clientUses ?? []).map(id => ["workbench.clientUses", id] as const),
     ];
     for (const [field, id] of named) if (!listed.has(id)) problems.push(`${entry.project_plugin_id} names ${id} in ${field}, which is not in the catalog`);
   }
+  // Extra class prefixes a plugin declares for its own rules (PG-070): they decide which rules leave the shared sheet, so one
+  // must not equal or cover a plugin's id namespace or repeat another prefix; the platform's own prefixes are not a plugin's.
+  const claimed = new Map<string, string>();
+  for (const entry of catalog) {
+    for (const prefix of entry.workbench.stylesheetPrefixes ?? []) {
+      if (!/^[a-z][a-z0-9]*-$/u.test(prefix)) problems.push(`${entry.project_plugin_id}: stylesheet prefix ${prefix} is not a lowercase class prefix ending in -`);
+      else if (PLATFORM_STYLE_PREFIXES.has(prefix)) problems.push(`${entry.project_plugin_id}: stylesheet prefix ${prefix} is the platform's`);
+      else if ([...listed].some(id => id === prefix.slice(0, -1) || id.startsWith(prefix))) problems.push(`${entry.project_plugin_id}: stylesheet prefix ${prefix} repeats a plugin's id`);
+      const owner = claimed.get(prefix);
+      if (owner !== undefined) problems.push(owner === entry.project_plugin_id
+        ? `${entry.project_plugin_id} lists stylesheet prefix ${prefix} twice`
+        : `${owner} and ${entry.project_plugin_id} both claim stylesheet prefix ${prefix}`);
+      else claimed.set(prefix, entry.project_plugin_id);
+    }
+  }
   return problems;
 }
+
+/** The platform's own class prefixes, which no plugin's extra prefix may take. */
+const PLATFORM_STYLE_PREFIXES = new Set(["mw-", "pc-"]);
 
 const CATALOG_PROBLEMS = catalogProblems(PLATFORM_PLUGIN_REGISTRATIONS);
 if (CATALOG_PROBLEMS.length > 0) throw new Error(`Built-in plugin catalog: ${CATALOG_PROBLEMS.join("; ")}`);
@@ -96,10 +122,35 @@ export function availableProjectPluginIds(
   return available;
 }
 
+/** Whether a catalog entry runs in the Home: its Manifest says so (PG-011), and `catalogProblems` holds that to the registration's code. */
+export const runsInHome = (entry: PluginRegistration): boolean => entry.manifest.runtime?.scope === "home";
+
+/** Each Home plugin's definition as the owner-files and scope checks read it, with the dual-instance mark its registration gives it. */
+export function homeDefinitionEntries(): { definition: PluginDefinition; dual_instance?: true }[] {
+  return PLATFORM_PLUGIN_REGISTRATIONS.flatMap(entry => entry.runtime
+    ? [{ definition: entry.runtime.create(), ...entry.runtime.dual_instance ? { dual_instance: true as const } : {} }] : []);
+}
+
 /** The Home Runtime's start list: each registration that runs there, under its project key, with what deleting a project clears of it. */
 export function homePluginEntries(): HomePluginEntry[] {
-  return PLATFORM_PLUGIN_REGISTRATIONS.flatMap(entry => entry.runtime ? [{ ...entry.runtime, key: entry.project_plugin_id, manifest: entry.manifest,
+  return PLATFORM_PLUGIN_REGISTRATIONS.flatMap(entry => entry.runtime ? [{ ...entry.runtime, scope: "home" as const, key: entry.project_plugin_id, manifest: entry.manifest,
     project_data: { owner_id: entry.project_plugin_id, ...(entry.project_data ? { declaration: entry.project_data } : {}) } }] : []);
+}
+
+/** A project instance a registration declares (PG-067): the factory the project supervisor starts, and where its library is. */
+export interface ProjectRuntimeDeclaration {
+  readonly key: ProjectPluginId;
+  readonly create: () => PluginDefinition;
+  readonly package_name: string;
+  readonly factory_export: string;
+  /** Its library is the Manifest's `databases.home`, so it runs only where the project has a Home. */
+  readonly home_library: boolean;
+}
+
+/** Each project's built-in start list, in catalog order: every registration that declares a project instance. */
+export function projectRuntimeDeclarations(): ProjectRuntimeDeclaration[] {
+  return PLATFORM_PLUGIN_REGISTRATIONS.flatMap(entry => entry.project_runtime ? [{ ...entry.project_runtime, key: entry.project_plugin_id,
+    home_library: entry.manifest.databases?.home !== undefined }] : []);
 }
 
 function entryFor(projectPluginId: ProjectPluginId): PluginRegistration | undefined {

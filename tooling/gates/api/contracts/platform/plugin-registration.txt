@@ -25,19 +25,19 @@ export interface PluginRegistration {
     readonly default_enabled?: true;
     readonly companions?: readonly string[];
     readonly runtime?: {
-        readonly scope: "home";
         readonly create: () => PluginDefinition;
         readonly package_name: string;
         readonly factory_export: string;
         readonly keys?: string;
         readonly dual_instance?: true;
     };
+    readonly project_runtime?: {
+        readonly create: () => PluginDefinition;
+        readonly package_name: string;
+        readonly factory_export: string;
+    };
     readonly project_data?: ProjectDataDeclaration;
     readonly home_store?: HomeStoreDeclaration;
-    readonly messages?: Readonly<Record<string, {
-        readonly zh: string;
-        readonly en: string;
-    }>>;
     readonly workbench: PluginWorkbenchRegistration;
 }
 
@@ -54,6 +54,9 @@ export interface PluginWorkbenchRegistration {
     readonly order: number;
     readonly contributions: readonly UiContribution[];
     readonly stylesheet?: string;
+    readonly stylesheetShared?: readonly string[];
+    readonly stylesheetPrefixes?: readonly string[];
+    readonly stylesheetUses?: readonly string[];
     readonly clientFactory?: string;
     readonly clientServed?: true;
     readonly clientUses?: readonly string[];

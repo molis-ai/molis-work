@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync, existsSync } from "node:fs";
@@ -19,7 +20,7 @@ test("Plugin private storage persists opaque values, isolates signatures and rej
     async sync() { return { ok: true, mode: "fixture", items: [], cursor: null }; },
   }) });
   async function install(signature: string, grant = true) {
-    const runtime = new PluginRuntime();
+    const runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS });
     let storage!: PluginPrivateStorage;
     const manifest = { ...base.manifest, publisher: { ...base.manifest.publisher, signature },
       permissions: [...base.manifest.permissions,
@@ -93,11 +94,11 @@ test("startup never upgrades an installed version; an explicit upgrade validates
   const old = make("1.0.0"), next = make("1.1.0", { migratableFrom: ["1.0.0"], validate: true });
   const grants = ["network:github.com", "secret:github", "storage:private"];
   try {
-    const runtime = new PluginRuntime(repository);
+    const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS });
     const first = runtime.install({ trust: { level: "unsigned" }, definition: old, deployment: "local", grants });
     await runtime.start(first.install.install_id);
     storage.set("draft:one", "未发送的需求");
-    const restarted = new PluginRuntime(repository);
+    const restarted = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS });
     assert.throws(() => restarted.install({ trust: { level: "unsigned" }, definition: next, deployment: "local" }), /市场确认升级/);
     assert.equal(restarted.get(first.install.install_id).version, "1.0.0");
     assert.equal(restarted.get(first.install.install_id).grants.join(","), grants.join(","));
@@ -106,7 +107,7 @@ test("startup never upgrades an installed version; an explicit upgrade validates
     assert.equal(changed.install.install_id, first.install.install_id);
     assert.equal(changed.install.version, "1.1.0");
     assert.equal(storage.get("draft:one"), "未发送的需求");
-    const freshRuntime = new PluginRuntime(repository);
+    const freshRuntime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS });
     const sameVersionChanged = { ...next, manifest: { ...next.manifest, name: "Different same-version manifest" } };
     assert.throws(() => freshRuntime.install({ trust: { level: "unsigned" }, definition: sameVersionChanged, deployment: "local", grants }), /递增版本/);
 
@@ -164,7 +165,7 @@ test("failed candidate startup restores private data and leaves the previous ins
     },
   };
   try {
-    const runtime = new PluginRuntime(repository, executor);
+    const runtime = new PluginRuntime(repository, executor, { hostIds: ISOLATED_HOST_IDS });
     const supervisor = new PluginSupervisor(runtime);
     const grants = ["network:github.com", "secret:github", "storage:private"];
     await supervisor.start([{ definition: old, grants }]);
@@ -237,7 +238,7 @@ test("incompatible upgrade preflight failure leaves the old plugin available and
     },
   };
   try {
-    const runtime = new PluginRuntime(repository, executor);
+    const runtime = new PluginRuntime(repository, executor, { hostIds: ISOLATED_HOST_IDS });
     const supervisor = new PluginSupervisor(runtime);
     const started = await supervisor.start([{ definition: old }]);
     assert.deepEqual(started.running, [oldManifest.plugin_id]);
@@ -281,11 +282,11 @@ test("persisted running state rehydrates a plugin contribution after process res
   // still refuses a start without them.
   const { ActionService } = await import("@molis-ai/molis-work-kernel");
   const process = () => ({ actions: { registry: new ActionService(), project_id: "project-rehydrate" } });
-  const first = new PluginRuntime(repository, undefined, process());
+  const first = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, ...process() });
   const installed = first.install({ trust: { level: "unsigned" },definition,deployment:"local",grants:["artifact:read","artifact:write","goals:read","goals:write","knowledge:read","model:read","search:read","storage:private","workspace:read","review:git-worktree","review:git-integration"]});
   await first.start(installed.install.install_id);
   // A new Runtime models a new process; the database still records running.
-  const reopened = new PluginRuntime(repository, undefined, process());
+  const reopened = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, ...process() });
   const replayedInstall = reopened.install({ trust: { level: "unsigned" },definition,deployment:"local",grants:["artifact:read","artifact:write","goals:read","goals:write","knowledge:read","model:read","search:read","storage:private","workspace:read","review:git-worktree","review:git-integration"]});
   assert.equal(replayedInstall.replayed,true);
   assert.equal(reopened.contribution(installed.install.install_id),null);

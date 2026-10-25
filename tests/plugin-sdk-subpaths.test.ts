@@ -144,7 +144,7 @@ test("PG062-08: /diff-view loads only the SDK's own files and the contracts, hol
   assert.match(html, /«a <b>»/u); assert.doesNotMatch(html, /&lt;|&amp;/u, "the SDK escapes nothing itself");
   for (const label of ["T(K.before:a.ts,1)", "T(K.pinned:W)", "T(K.created)", "T(K.comment_before:1)", "T(K.comment_after:1)", "T(K.delete)", "T(K.insert)"]) assert.ok(html.includes(label), label);
   const { before: _before, after: _after, pinned: _pinned, ...withoutSides } = labels;
-  assert.doesNotMatch(diffView.renderDiff({ view, labels: withoutSides, primitives }), /diff-sides/u, "without the header's labels there is no header");
+  assert.doesNotMatch(diffView.renderDiff({ view, labels: withoutSides, primitives }), /mw-diff-sides/u, "without the header's labels there is no header");
   assert.match(diffView.renderDiff({ view: diffView.emptyDiffView("g", "nothing"), labels, primitives: { escape: String, text: key => key, icon: name => `I(${name})` } }), /I\(git-compare\)/u);
 });
 

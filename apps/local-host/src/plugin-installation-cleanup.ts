@@ -7,15 +7,17 @@ import { pluginHeldElsewhere } from "./plugin-holders.js";
 import { removeSandboxOwnerFiles, type SandboxOwnerFilesScope } from "./plugin-sandbox-owner-files.js";
 
 /**
- * What the Host keeps in the Home beside an installation's data, for this project (or its Home-level activation): the original files it
- * registered, and in a project the accounts bound to its records there (BL-356). They go when the data goes, so a reinstall under the same
- * installation id reads none of them back. The account bound to its installation slot is every project's and stays (BL-596).
+ * An installation's authorization in this project (or its Home-level activation): original-file registrations, and in a project the
+ * accounts bound to its records (BL-356). Every uninstall drops these even when private data is kept; a reinstall needs a new file
+ * selection and binding. Files and accounts themselves stay. Installation slots and a Home installation's project bindings stay (BL-596).
+ * The default rules the plugin declared are data, not authorization: they go only when the data goes (`dataGoes`, by default what the
+ * record says; the discard of kept data says it does), never with an uninstall that keeps the data (RAC-503).
  */
-export function forgetInstallationRecords(scope: SandboxOwnerFilesScope, record: PluginInstanceRecord): void {
+export function forgetInstallationRecords(scope: SandboxOwnerFilesScope, record: PluginInstanceRecord, dataGoes: boolean = !record.retain_private_data): void {
   if (!scope.home) return;
   forgetInstallationOriginalFiles(scope.home.directory, record.plugin_id, record.install_id, scope.project_id ?? "");
   if (scope.project_id) forgetInstallationProjectBindings(scope.home.directory, record.install_id, scope.project_id);
-  forgetInstallationRules(scope.home.directory, record, scope.project_id ?? null);
+  if (dataGoes) forgetInstallationRules(scope.home.directory, record, scope.project_id ?? null);
 }
 
 /**
@@ -34,5 +36,5 @@ export function discardInstallationOwnerData(scope: SandboxOwnerFilesScope, reco
   if (!record.retain_private_data && !deleteInstallationData) throw pluginErrors.state_invalid("Plugin 的宿主没有本安装的 KV 数据清理能力，暂不能重装");
   if (record.execution === "sandbox") removeSandboxOwnerFiles(scope, record.install_id);
   if (!record.retain_private_data) deleteInstallationData?.(record.install_id);
-  forgetInstallationRecords(scope, record);
+  forgetInstallationRecords(scope, record, true);
 }

@@ -2,7 +2,9 @@ import type { PluginDevelopmentInput, PluginDevelopmentResult } from "@molis-ai/
 import type { PluginRuntimeRepository } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { loadDevelopmentPlugin, PluginRuntime, UNSIGNED_TRUST } from "@molis-ai/molis-work-plugin-runtime";
 import { PluginHostExecutor, type PluginHostExecutorOptions } from "./plugin-executor.js";
+import { HOST_PLUGIN_IDS } from "./host-plugin-ids.js";
 import { hostReservedRuleKeys } from "./scene-rule-admission.js";
+import type { InstalledArtifactView } from "./artifact-type-registry.js";
 
 /** Who the development run acts as: the Host fixes it for this door, so a caller's arguments never name it. */
 export const PLUGIN_DEVELOPMENT_ACTOR_ID = "local-plugin-developer";
@@ -10,12 +12,19 @@ export const PLUGIN_DEVELOPMENT_ACTOR_ID = "local-plugin-developer";
 /** Public developer fixture, with the same real owner ports used by the application Host. */
 export async function runPluginDevelopment(input: PluginDevelopmentInput, options: PluginHostExecutorOptions & {
   repository: PluginRuntimeRepository;
+  /**
+   * Lets the project's version stores ask this run what its installation declares (A3): a write is judged by the Manifest of an
+   * installation in effect in the project, and this run has no supervisor of its own. Returns the way to let go of it.
+   */
+  bindInstallation?: (view: InstalledArtifactView) => () => void;
 }): Promise<PluginDevelopmentResult> {
   if (input.allow_unsigned_development !== true) throw new Error("需要明确授权运行未签名本地开发代码");
   const definition = await loadDevelopmentPlugin(input.directory);
-  const runtime = new PluginRuntime(options.repository, new PluginHostExecutor({ ...options, record: id => options.repository.get(id) }), { actions: options.actions, reservedRuleKeys: hostReservedRuleKeys });
+  const runtime = new PluginRuntime(options.repository, new PluginHostExecutor({ ...options, record: id => options.repository.get(id) }), { actions: options.actions, hostIds: HOST_PLUGIN_IDS, reservedRuleKeys: hostReservedRuleKeys });
   const installed = runtime.install({ definition, deployment: "local", trust: UNSIGNED_TRUST, grants: input.grants, retain_private_data: true });
   const id = installed.install.install_id;
+  const inEffect = () => { const state = runtime.get(id)?.state; return state === "installed" || state === "running"; };
+  const release = options.bindInstallation?.({ alive: () => true, effectiveManifests: () => inEffect() ? [definition.manifest] : [], knownPluginIds: () => [definition.manifest.plugin_id] });
   let result: Omit<PluginDevelopmentResult, "installation">;
   try {
     await runtime.start(id);
@@ -36,7 +45,8 @@ export async function runPluginDevelopment(input: PluginDevelopmentInput, option
       .filter(value => value.producer_plugin_id === definition.manifest.plugin_id
         && value.producer_binding_signature === definition.manifest.publisher.signature && value.created_by === options.actor_id) };
   } finally {
-    await runtime.uninstall(id, { retain_private_data: true });
+    try { await runtime.uninstall(id, { retain_private_data: true }); }
+    finally { release?.(); }
   }
   return { ...result, installation: runtime.get(id) };
 }

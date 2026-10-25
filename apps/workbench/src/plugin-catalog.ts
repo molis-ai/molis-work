@@ -1,7 +1,7 @@
 import type { ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
 import { UiViewRegistry, type UiPlacedView } from "@molis-ai/molis-work-ui-host";
 import { browserSiteDeclarations, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { UiViewGroup } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { UiViewGroup, UiViewRail } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 import { sanitizePluginDirectory, type PluginDirectory, type PluginDirectoryEntry } from "./plugin-directory.js";
@@ -18,8 +18,19 @@ export interface PluginMarketCard {
   readonly sites: readonly string[];
 }
 
-/** The plugins the Dock keeps until the person chooses others (their choice is kept in the browser, per viewer). */
-export const DOCK_DEFAULT_PINS: readonly string[] = ["goals", "inbox", "feed"];
+/**
+ * The plugins the Dock keeps until the person chooses others (their choice is kept in the browser, per viewer): the ones whose
+ * navigator view declares `pinned_default`, in the order of their views. Only a plugin the project chooses can be one.
+ */
+export function dockDefaultPins(directory: PluginDirectory = builtinPluginDirectory()): string[] {
+  const chosen = directory.filter(entry => entry.chosen);
+  return railEntries(chosen.map(entry => entry.id), chosen).filter(entry => entry.pinned_default).map(entry => entry.id);
+}
+
+/** The shell keys of the plugins that are a way to extend the workbench (a navigator view with `rail: "extend"`), kept out of the list of tools. */
+export function extendPluginIds(directory: PluginDirectory = builtinPluginDirectory()): ReadonlySet<string> {
+  return new Set(directory.filter(entry => entry.chosen && entry.ui.views.some(view => view.slot === "navigator" && view.rail === "extend")).map(entry => entry.id));
+}
 
 /**
  * Plugins whose page parts the workbench wires once, when the page loads and cannot change after, so adding or removing one
@@ -35,6 +46,10 @@ export interface RailEntry {
   glyph: string;
   /** The rail group the plugin's view names (W5-06 2b); null is 更多. */
   group: UiViewGroup | null;
+  /** The view's place in the rail apart from its group: `core` (the backbone) or `extend` (a way to extend the workbench); null is an ordinary tool. */
+  rail: UiViewRail | null;
+  /** Whether the Dock keeps the plugin until the person chooses others (the view's `pinned_default`). */
+  pinned_default: boolean;
   /** Whether the project's plugin list chooses it (a built-in); a plugin installed at run time is in the project because it runs there. */
   chosen: boolean;
 }
@@ -42,6 +57,8 @@ export interface RailEntry {
 /** A kind a person can make new from a Goal, as the plugin's view declares it (`creates`). */
 export interface PluginCreatableKind {
   readonly id: ProjectPluginId;
+  /** The plugin (its Manifest `plugin_id`) whose words translate `title`: the text is its own, whoever published it. */
+  readonly plugin_id: string;
   /** The plugin's create station, which `placement.create` calls. */
   readonly station: string;
   /** The kind's name; a new one is called 未命名 followed by it. */
@@ -51,6 +68,8 @@ export interface PluginCreatableKind {
 /** One way to start something from the project home, as the plugin's view declares it (`start`); it opens that plugin. */
 export interface PluginHomeStart {
   readonly id: ProjectPluginId;
+  /** The plugin (its Manifest `plugin_id`) whose words translate `title` and `hint`. */
+  readonly plugin_id: string;
   readonly title: string;
   readonly hint: string;
   readonly glyph: string;
@@ -122,7 +141,9 @@ function placedViews(directory: PluginDirectory, enabled: readonly ProjectPlugin
 }
 
 function railEntry({ id, entry, view }: { id: ProjectPluginId; entry: PluginDirectoryEntry; view: UiPlacedView }): RailEntry {
-  return { id, surface: id, label: view.slot === "stage" ? entry.name : view.title, glyph: view.icon ?? "package", group: view.group, chosen: entry.chosen };
+  return { id, surface: id, label: view.slot === "stage" ? entry.name : view.title, glyph: view.icon ?? "package", group: view.group,
+    // Only a plugin the project chooses can be the backbone, an extend entry or pinned by default, whoever built the directory.
+    rail: entry.chosen ? view.rail ?? null : null, pinned_default: entry.chosen && view.pinned_default === true, chosen: entry.chosen };
 }
 
 /** Navigator entries for the enabled set, in the order the Manifests declare. */
@@ -152,13 +173,13 @@ function stageOnlyViews(directory: PluginDirectory, enabled: readonly ProjectPlu
  */
 export function creatableKinds(enabled: readonly ProjectPluginId[], directory: PluginDirectory = builtinPluginDirectory()): PluginCreatableKind[] {
   return [...placedViews(directory, enabled, "navigator"), ...placedViews(directory, enabled, "island")]
-    .flatMap(({ id, view }) => view.creates ? [{ id, station: view.creates.station, title: view.creates.title }] : []);
+    .flatMap(({ id, entry, view }) => view.creates ? [{ id, plugin_id: entry.plugin_id, station: view.creates.station, title: view.creates.title }] : []);
 }
 
 /** The project home's ways to start with the enabled plugins (their views' `start`), in the same order as `creatableKinds`. */
 export function homeStarts(enabled: readonly ProjectPluginId[], directory: PluginDirectory = builtinPluginDirectory()): PluginHomeStart[] {
-  return [...placedViews(directory, enabled, "navigator"), ...placedViews(directory, enabled, "island")].flatMap(({ id, view }) => view.start
-    ? [{ id, title: view.start.title, hint: view.start.hint, glyph: view.start.icon ?? view.icon ?? "package" }] : []);
+  return [...placedViews(directory, enabled, "navigator"), ...placedViews(directory, enabled, "island")].flatMap(({ id, entry, view }) => view.start
+    ? [{ id, plugin_id: entry.plugin_id, title: view.start.title, hint: view.start.hint, glyph: view.start.icon ?? view.icon ?? "package" }] : []);
 }
 
 /**
@@ -234,11 +255,11 @@ export function pluginTabGlyphs(): Record<string, string> {
 }
 
 /** One sentence per plugin (the market summary) for the page heading's description line, keyed by work surface; a plugin that opens in the side panel has none (`sideOpenedPlugins`). */
-export function pluginStageSummaries(): Record<string, string> {
+export function pluginStageSummaries(): Record<string, { readonly plugin_id: string; readonly summary: string }> {
   const side = sideOpenedPlugins();
   return Object.fromEntries(BUILTIN_PLUGIN_CATALOG
     .filter((entry) => Boolean(entry.manifest.summary) && !Object.hasOwn(side, entry.project_plugin_id))
-    .map((entry) => [entry.project_plugin_id, entry.manifest.summary as string]));
+    .map((entry) => [entry.project_plugin_id, { plugin_id: entry.manifest.plugin_id, summary: entry.manifest.summary as string }]));
 }
 
 /**

@@ -15,7 +15,6 @@ import { activateConnectorConnection, type ConnectorActivation } from "./connect
 import { verifyEnabledConnection } from "./connector-check-service.js";
 import type { ConnectorMcpDirectory } from "./connector-mcp-actions.js";
 
-import { connectionChanged } from "./connection-change-events.js";
 export { refreshFeedConnectionState } from "./connector-source-state.js";
 
 const ITEM_PATH = /^\/api\/settings\/connectors\/connections\/([a-z0-9-]+)$/u;
@@ -72,20 +71,22 @@ export async function handleConnectorConnectionsHttp(
     }
     if (item && request.method === "PATCH") {
       const body = await readLocalWebBody(request);
-      const setup = typeof body.token === "string" ? startConnectorSetupSubmission(homeDirectory, typeof body.setup_id === "string" ? body.setup_id : undefined,
-        { service_id: withConnectorConnections(homeDirectory, store => store.require(item[1]!).service_id), method: "token", connection_id: item[1]! }) : undefined;
-      if (setup && typeof body.token === "string") {
+      const completion: ConnectorActivation | undefined = typeof body.token === "string" ? withConnectorConnections(homeDirectory, store => {
+        const current = store.require(item[1]!);
+        return { kind: "token", input: { serviceId: current.service_id, displayName: typeof body.display_name === "string" ? body.display_name : current.display_name, token: body.token as string },
+          target: { connectionId: current.connection_id, expectedRevision: current.updated_at } };
+      }) : undefined;
+      const setup = completion ? startConnectorSetupSubmission(homeDirectory, typeof body.setup_id === "string" ? body.setup_id : undefined,
+        { service_id: completion.input.serviceId, method: "token", connection_id: item[1]! }) : undefined;
+      if (setup && completion) {
         try {
-          const current = withConnectorConnections(homeDirectory, store => store.require(item[1]!));
-          const result = setup.submit({ kind: "token", input: { serviceId: current.service_id, displayName: typeof body.display_name === "string" ? body.display_name : current.display_name, token: body.token },
-            target: { connectionId: current.connection_id, expectedRevision: current.updated_at } });
+          const result = setup.submit(completion);
           sendJson(response, result.status === "pending" ? 202 : 200, result); return true;
         } catch (error) { setup.fail(); throw error; }
       }
-      const connection = withConnectorConnections(homeDirectory, (store) => {
+      const connection = completion ? activateConnectorConnection(homeDirectory, completion) : withConnectorConnections(homeDirectory, (store) => {
         let updated = store.require(item[1]!);
         if (typeof body.display_name === "string") updated = store.rename(updated.connection_id, body.display_name);
-        if (typeof body.token === "string") updated = store.replaceToken(updated.connection_id, body.token);
         return store.view(updated);
       });
       if (typeof body.enabled === "boolean") {
@@ -93,7 +94,6 @@ export async function handleConnectorConnectionsHttp(
         const verification = body.enabled && remember ? await verifyEnabledConnection(homeDirectory, item[1]!, remember) : undefined;
         sendJson(response, 200, { ...result, ...(verification ? { verification } : {}) }); return true;
       }
-      if (typeof body.token === "string") connectionChanged(homeDirectory, item[1]!);
       sendJson(response, 200, { connection });
       return true;
     }

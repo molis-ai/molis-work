@@ -7,7 +7,7 @@ type Owner = { plugin_id: string; artifacts: PluginManifest["artifacts"] };
 
 /**
  * Who owns the 成果 type ids and link kinds on this Home, for the Plugin Runtime to refuse an install, a version change or an enable
- * that would give a name a second owner (S-76). One namespace for the whole Home: the owners are the plugins this build ships (their
+ * that would give a name a second owner (S-82). One namespace for the whole Home: the owners are the plugins this build ships (their
  * names stay reserved), the Host's own producers, and every installation the Home still holds, in the Home's plugin store and in
  * each project's, by the Manifest it was started with. A disabled installation still holds its names; the last one to be
  * uninstalled without its data lets them go. What cannot be read refuses.

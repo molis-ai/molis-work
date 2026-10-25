@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -36,7 +37,7 @@ async function openDual(t: TestContext) {
   const homeInstall = () => host.homePlugins!.installation(PLUGIN_ID)!;
   // The project instance, installed into the project's own database the way a project's Plugin Runtime does.
   const repository = await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db));
-  const runtime = new PluginRuntime(repository, undefined, { actions: { registry: host.actionRegistry(reference), project_id: reference.project_id } });
+  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: host.actionRegistry(reference), project_id: reference.project_id } });
   const installId = runtime.install({ trust: { level: "unsigned" }, definition: half(projectAction, "project"), deployment: "local", grants: [PERMISSION] }).install.install_id;
   t.after(async () => { await runtime.stop(installId).catch(() => undefined); await host.close(); await rm(home, { recursive: true, force: true }); });
   const setHomeGrants = async (grants: string[]) => {

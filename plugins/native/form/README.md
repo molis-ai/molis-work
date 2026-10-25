@@ -8,7 +8,7 @@
 
 页面的客户端是 `src/browser/` 下的 TypeScript：`tsconfig.browser.json` 做类型检查，构建时 esbuild 从 `src/browser/factory.ts` 打成 `dist/form-client.js`（banner/footer 包成工作台要的 `(host) => {…}` 工厂，`--minify`）；`src/client.ts` 的 `FORM_CLIENT_FACTORY_SCRIPT` 只读这个包。页面状态在一个 `FormPage` 对象里（`page.ts`），按钮是 `commands.ts` 里按顺序匹配的命令表；请求只经工作台的 `molisWorkRequest`（`request.ts`）。客户端宿主从公共 `UiPluginClientHost` 取实际使用的能力，插件路由由 `host.pluginRoute` 按 Manifest 身份与当前项目提供；请求的全局声明通过 Plugin SDK 的类型导入取得。
 
-页面上的字是稳定键（`form.<区域>.<名称>`），中英文都在 `src/messages.ts`，登记在 `registration.ts` 的 `messages`，不经工作台的 `i18n/en.ts` import。`src/en.ts` 的 `FORM_EN` 只留 51 条宿主还按中文原文翻译的词（服务端标签与错误、导出填写页文件里的来源词、别的主人在查的词，BL-462）；`tests/form-client-bundle.test.ts` 用真实翻译扫描器钉住键与词的对应，页面里没有动态翻译。
+页面上的字是稳定键（`form.<区域>.<名称>`），中英文都在 `src/messages.ts`，在 `manifest.ts` 的 `ui.messages` 声明，不经工作台的 `i18n/en.ts` import。`src/en.ts` 的 `FORM_EN` 只留 51 条宿主还按中文原文翻译的词（服务端标签与错误、导出填写页文件里的来源词、别的主人在查的词，BL-462）；`tests/form-client-bundle.test.ts` 用真实翻译扫描器钉住键与词的对应，页面里没有动态翻译。
 
 “按题目加题”只做本地追加；“AI 生成题目”（`form.questions.draft`）显式使用系统文字模型和连接，另需 `model:invoke`：要求说得不够时先返回 `needs_input` 和几道选择题（宿主把它画成共享问卷卡），回答按问过的题检查后再拟题，只追问一次；问过的题只存在插件进程里（至多 32 组、一天）。缺模型禁用 AI，保留本地操作。模型等待期间问卷被编辑、删除，或调用取消、连接撤销时不追加过期结果。
 
@@ -29,7 +29,7 @@
 - 负责：问卷目录、题目、预览填写与结果。
 - 不负责：Goal 与 Artifact 事实、模型提供方、托管收集服务。
 - 公开入口：`@molis-ai/molis-work-plugin-form`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-plugin-sdk`（`defineErrorCodes`，错误码都是 `form.<原因>`，状态由错误种类决定，Form 不自带状态表）、`@molis-ai/molis-work-storage`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（`defineErrorCodes`，错误码都是 `form.<原因>`，状态由错误种类决定，Form 不自带状态表）。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 每题回答沿现行 4000 字上限，原生填写与导出离线页在输入/提交时执行；多选合成后也检查。离线超限保留输入，不生成成功文件。两种页面的题名、必填状态和选项组都有可访问关联。
   - 缺模型时禁用 AI，保留本地操作。

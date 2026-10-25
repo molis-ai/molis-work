@@ -36,7 +36,13 @@ const branch = (name: string, mutate: () => void) => {
 // A scratch product: the Workbench dictionary (apps/workbench/src/i18n/en.ts builds the catalog the Host serves from the two
 // plugins' dictionaries and its own entries), two plugins with a dictionary each ("说明" is translated two ways, the one
 // frozen conflict), a server-rendered UI, and a browser script in a template literal. "旧的" is a dead key.
+// The two plugins are packages from the start, as the built-ins whose dictionaries the Workbench serves are: a plugin that only
+// became a package on a scenario's branch would be a new plugin named outside its package (the import in en.ts), which the
+// assembly gate refuses (W5-02 PR-C), and these scenarios are about translations.
+const pluginPackage = (owner: string) => put(`plugins/native/${owner}/package.json`, JSON.stringify({ name: `@scratch/${owner}` }));
 const base = () => {
+  pluginPackage("alpha");
+  pluginPackage("beta");
   put("tooling/gates/limits.json", JSON.stringify({ file: 800, classLines: 300, classMethods: 25, functionLines: 150, vendoredPrologueSdk: 2 }, null, 2) + "\n");
   put("specs/demo/spec.md", "# Demo\n\n状态：进行中\n");
   put("apps/workbench/src/i18n/en.ts", [
@@ -87,19 +93,17 @@ const gamma = (entries: string) => 'export const GAMMA_EN: Record<string, string
 const addToRoot = (import_: string, use: string) => put("apps/workbench/src/i18n/en.ts", read("apps/workbench/src/i18n/en.ts").replace('import { ALPHA_EN } from "@scratch/alpha";', `import { ALPHA_EN } from "@scratch/alpha";\n${import_}`).replace("  ...ALPHA_EN,", `  ...ALPHA_EN,\n${use}`));
 const addGamma = (entries: string) => { put("plugins/native/gamma/src/en.ts", gamma(entries)); addToRoot('import { GAMMA_EN } from "@scratch/gamma";', "  ...GAMMA_EN,"); };
 const messages = (owner: string, entries: string) => `export const ${owner.toUpperCase()}_MESSAGES = {\n${entries}\n};\n`;
-/**
- * An owner's dictionary registered the way a built-in does it (W5-02): its package's own src/registration.ts names it, and the
- * generated catalog lists that registration (a catalog written by hand is refused, RAC-566). `field` is the registration's field.
- */
-const registration = (owner: string, field = "messages") => {
-  put(`plugins/native/${owner}/package.json`, JSON.stringify({ name: `@scratch/${owner}` }));
-  put(`plugins/native/${owner}/src/registration.ts`, `import { ${owner.toUpperCase()}_MESSAGES } from "./messages.js";\nexport const registration = { ${field}: ${owner.toUpperCase()}_MESSAGES };\n`);
+// A plugin registers its words in its Manifest (`ui.messages`), and the built catalog lists the plugin's registration (PG-071).
+const catalogListing = (owner: string) => {
+  pluginPackage(owner);
+  put(`plugins/native/${owner}/src/registration.ts`, `export const registration = { project_plugin_id: "${owner}" };\n`);
+  return `import { registration as ${owner}Registration } from "@scratch/${owner}/registration";\nexport const BUILTIN_PLUGIN_CATALOG = [${owner}Registration];\n`;
 };
-const catalog = (owner: string, alias: string, list: string) =>
-  put(MESSAGES_ROOT, `import { registration as ${alias} } from "@scratch/${owner}/registration";\n${list}\n`);
-const registerMessages = (owner: string, alias = `${owner}Registration`) => {
-  registration(owner);
-  catalog(owner, alias, `export const BUILTIN_PLUGIN_CATALOG = [${alias}];`);
+const manifestFor = (owner: string, ui: string, alias = `${owner.toUpperCase()}_MESSAGES`, before = "") => put(`plugins/native/${owner}/src/manifest.ts`,
+  `import { ${owner.toUpperCase()}_MESSAGES as ${alias} } from "@scratch/${owner}";\n${before}export const manifest = { ui: { ${ui.replaceAll("{alias}", alias)} } };\n`);
+const registerMessages = (owner: string, alias = `${owner.toUpperCase()}_MESSAGES`) => {
+  put(MESSAGES_ROOT, catalogListing(owner));
+  manifestFor(owner, "messages: {alias}", alias);
 };
 
 
@@ -222,6 +226,14 @@ const missing: Scenario[] = [
   }), expect: [/no English for "新的" \(plugins\/native\/beta\/src\/program-flows\.ts:3\)/] },
   { name: "a key with placeholders that no dictionary has", mutate: () => put("apps/workbench/src/renderer.ts", `${read("apps/workbench/src/renderer.ts")}export const n = (L: (zh: string, vars?: Record<string, number>) => string) => L("共 {count} 项", { count: 3 });\n`),
     expect: [/no English for "共 \{count\} 项"/] },
+  // RAC-775: a Plugin's own text is drawn with LF(pluginId, text), or a wrapper bound to it; a script that calls only those (no L())
+  // is still read, and a Chinese key that no dictionary has is still missing.
+  { name: "an LF(pluginId, text) in a browser script that never calls L()", mutate: () => put("plugins/native/beta/src/bound.ts",
+    "export const BOUND = String.raw`\n  document.title = LF('io.example.beta', '新的');\n`;\n"),
+    expect: [/no English for "新的" \(plugins\/native\/beta\/src\/bound\.ts:2\)/] },
+  { name: "a wrapper bound to LF(pluginId, text) in a browser script that never calls L()", mutate: () => put("plugins/native/beta/src/bound.ts",
+    "export const BOUND = String.raw`\n  const FL = (text, vars) => LF('io.example.beta', text, vars);\n  document.title = FL('新的');\n`;\n"),
+    expect: [/no English for "新的" \(plugins\/native\/beta\/src\/bound\.ts:3\)/] },
 ];
 
 const failsAndStaysFailing = (scenario: Scenario) => {
@@ -238,6 +250,13 @@ const failsAndStaysFailing = (scenario: Scenario) => {
   });
 };
 for (const scenario of missing) failsAndStaysFailing(scenario);
+
+test("RAC-775 LF(pluginId, text) and a wrapper bound to it are translator calls, the plugin id is not a key", () => {
+  const text = "export const BOUND = String.raw`\n  const FL = (text, vars) => LF('io.example.beta', text, vars);\n  document.title = FL('新的') + LF('io.example.beta', '另一个');\n`;\n";
+  const found = scanFile("plugins/native/beta/src/bound.ts", text);
+  assert.deepEqual(found.calls.map((call: { callee: string; key: string }) => [call.callee, call.key]).sort(), [["FL", "新的"], ["LF", "另一个"]]);
+  assert.deepEqual(found.dynamic, [], "forwarding the parameter is not a dynamic call");
+});
 
 // The sharing stops where the program stops: a file that neither imports a script nor is imported by one keeps its own names (its
 // own `tx` is not the program's), and so does a file of another plugin, even when it imports the program.
@@ -512,9 +531,12 @@ test("this repository: every dictionary is part of the English the Host serves, 
   assert.ok(root, `${SERVED_ROOT} is not a scanned file: move SERVED_ROOT in scripts/gates/translations.mjs with it`);
   assert.ok(root.dictionaries.some((item: { name: string }) => item.name === "EN"));
   const rootUses = new Set([...root.usesBy.values()].flatMap((names: Set<string>) => [...names]));
-  assert.ok(rootUses.size >= 30 && rootUses.has("IMAGES_EN") && rootUses.has("FUNCTIONS_EN"), `the root uses ${rootUses.size} dictionaries`);
-  // Mutations on the real tree: the root stops using a plugin's dictionary, or a new dictionary appears that nothing uses.
-  const without = (name: string) => scan.files.map((file: { file: string; usesBy: Map<string, Set<string>> }) => (file.file === SERVED_ROOT
+  assert.ok(rootUses.size >= 10 && rootUses.has("FUNCTIONS_EN") && !rootUses.has("IMAGES_EN"), `the root uses ${rootUses.size} dictionaries; a plugin's own English is declared in its Manifest, not imported here`);
+  // A plugin's dictionaries are served through its Manifest's `ui.translations` (PG-071).
+  const imagesManifest = scan.files.find((file: { file: string }) => file.file === "plugins/native/images/src/manifest.ts");
+  assert.ok(imagesManifest?.usesBy.get("")?.has("IMAGES_EN"), "Images' Manifest names IMAGES_EN");
+  // Mutations on the real tree: a Manifest stops naming its plugin's dictionary, or a new dictionary appears that nothing uses.
+  const without = (name: string) => scan.files.map((file: { file: string; usesBy: Map<string, Set<string>> }) => (file.file === "plugins/native/images/src/manifest.ts"
     ? { ...file, usesBy: new Map([...file.usesBy].map(([owner, names]) => [owner, new Set([...names].filter((use) => use !== name))])) } : file));
   assert.deepEqual(unservedDictionaries(without("IMAGES_EN")).map((item: { name: string; file: string }) => `${item.name} ${item.file}`), ["IMAGES_EN plugins/native/images/src/en.ts"]);
   const extra = scanFile("plugins/native/images/src/more-en.ts", 'export const IMAGES_MORE_EN: Record<string, string> = { "更多": "More" };\n');
@@ -529,6 +551,30 @@ test("without the catalog root there is nothing to serve from, and the rule stay
   assert.deepEqual(unservedDictionaries([...files, scanFile(SERVED_ROOT, "export const NOT_THE_CATALOG = 1;\n")]), []);
   const withRoot = [...files, scanFile(SERVED_ROOT, 'export const EN: Record<string, string> = { "设置": "Settings" };\n')];
   assert.deepEqual(unservedDictionaries(withRoot).map((item: { name: string }) => item.name), ["GAMMA_EN"]);
+});
+
+test("RAC-755: a dictionary a plugin's Manifest names in ui.translations is served; one only another file of the plugin uses is not", () => {
+  const root = scanFile(SERVED_ROOT, 'export const EN: Record<string, string> = { "设置": "Settings" };\n');
+  const dictionary = scanFile("plugins/native/gamma/src/en.ts", 'export const GAMMA_EN: Record<string, string> = { "伽马": "Gamma" };\n');
+  const named = scanFile("plugins/native/gamma/src/manifest.ts", 'import { GAMMA_EN } from "./en.js";\nexport const manifest = { ui: { translations: GAMMA_EN } };\n');
+  const elsewhere = scanFile("plugins/native/gamma/src/ui.ts", 'import { GAMMA_EN } from "./en.js";\nexport const words = GAMMA_EN;\n');
+  assert.deepEqual(unservedDictionaries([root, dictionary, named]), []);
+  assert.deepEqual(unservedDictionaries([root, dictionary]).map((item: { name: string }) => item.name), ["GAMMA_EN"]);
+  assert.deepEqual(unservedDictionaries([root, dictionary, elsewhere]).map((item: { name: string }) => item.name), ["GAMMA_EN"]);
+  // A dictionary the Manifest's dictionary spreads is served with it.
+  const part = scanFile("plugins/native/gamma/src/part-en.ts", 'export const GAMMA_PART_EN: Record<string, string> = { "部分": "Part" };\n');
+  const whole = scanFile("plugins/native/gamma/src/en.ts", 'import { GAMMA_PART_EN } from "./part-en.js";\nexport const GAMMA_EN: Record<string, string> = { ...GAMMA_PART_EN, "伽马": "Gamma" };\n');
+  assert.deepEqual(unservedDictionaries([root, part, whole, named]), []);
+  assert.deepEqual(unservedDictionaries([root, part, whole]).map((item: { name: string }) => item.name).sort(), ["GAMMA_EN", "GAMMA_PART_EN"]);
+});
+
+test("RAC-755 this repository: Goals' dictionaries are served through its Manifest, and dropping that declaration is caught", () => {
+  const manifest = "plugins/native/goals/src/manifest.ts";
+  const text = readFileSync(path.join(repoRoot, manifest), "utf8");
+  assert.match(text, /translations: \{[^}]*GOALS_POLICY_EN/u, "the Manifest names Goals' dictionaries");
+  const cut = scanFile(manifest, text.replace(/ {4}translations: \{[^}]*\},\n/u, ""));
+  const unserved = unservedDictionaries(real.scan.files.map((file: { file: string }) => file.file === manifest ? cut : file)).map((item: { name: string }) => item.name);
+  assert.ok(unserved.length >= 12 && unserved.includes("GOALS_POLICY_EN") && unserved.includes("GOALS_PROPOSAL_EN"), unserved.join(", "));
 });
 
 test("TSCAN-02 this repository: every dictionary file is found, wherever it lives", () => {
@@ -603,15 +649,15 @@ test("the command line lists missing keys, conflicts, dead keys and owners; a ba
 });
 
 
-for (const mode of ["missing catalog", "import only", "unrelated object", "wrong field"] as const) {
+for (const mode of ["missing manifest", "import only", "unrelated object", "wrong field", "plugin not in the catalog"] as const) {
   test(`RAC-59: a stable dictionary with ${mode} fails, and updating the baseline cannot hide it`, () => {
     branch("unserved-stable", () => {
       put("plugins/native/alpha/src/messages.ts", stableAlpha);
-      if (mode === "missing catalog") return;
-      registration("alpha", mode === "wrong field" ? "unused" : "messages");
-      catalog("alpha", "alphaRegistration", mode === "import only" ? "export const BUILTIN_PLUGIN_CATALOG = [];" :
-        mode === "unrelated object" ? "const unused = [alphaRegistration]; export const BUILTIN_PLUGIN_CATALOG = [];" :
-          "export const BUILTIN_PLUGIN_CATALOG = [alphaRegistration];");
+      if (mode !== "missing manifest") {
+        put(MESSAGES_ROOT, mode === "plugin not in the catalog" ? "export const BUILTIN_PLUGIN_CATALOG = [];\n" : catalogListing("alpha"));
+        manifestFor("alpha", mode === "wrong field" ? "unused: {alias}" : mode === "plugin not in the catalog" ? "messages: {alias}" : "",
+          "ALPHA_MESSAGES", mode === "unrelated object" ? "const unused = { messages: ALPHA_MESSAGES };\n" : "");
+      }
     });
     for (const flags of [[], ["--base", "main"]]) {
       const run = gate(...flags);

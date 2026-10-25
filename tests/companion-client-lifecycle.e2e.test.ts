@@ -16,7 +16,7 @@ import { createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 import { createDiffPlugin, DIFF_LABELS, DIFF_MESSAGES, DIFF_TEMPLATES, type DiffView } from "@molis-ai/molis-work-plugin-diff";
 import { diffViewText, renderDiff } from "@molis-ai/molis-work-plugin-sdk/diff-view";
-import { icon } from "@molis-ai/molis-work-design-system";
+import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { UiHost, UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { pluginActions, withFakeAgentHost } from "./fixtures/plugin-actions.js";

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   applyRunEvent,
+  closeInterruptedPrologueStream,
   emptyPrologueStreamState,
   prologuePhaseOf,
   settleProloguePending,
@@ -147,6 +148,96 @@ test("an approval arriving as awaiting-input is not double counted", () => {
   );
   assert.equal(state.awaiting_approval.length, 1);
   assert.deepEqual(state.awaiting_input, [], "审批不重复登记成普通提问");
+});
+
+test("a call still waiting for approval when the round ends reads as not executed, not as unknown (BL-100)", () => {
+  const readCall: NonNullable<Parameters<typeof closeInterruptedPrologueStream>[1]> = waiting =>
+    waiting.effect_id === "effect-1" && waiting.pending_id === "pending-1" ? "edit-1" : undefined;
+  const stopped = emptyPrologueStreamState();
+  apply(stopped,
+    { type: "tool-call", call: { id: "edit-1", name: "edit", input: { path: "src/report.md" } } },
+    { type: "awaiting-approval", effectRef: { id: "effect-1" }, pendingRef: { id: "pending-1" }, why: "要改 src/report.md" });
+  applyRunEvent(stopped, { type: "cancelled" }, AT, readCall);
+  assert.equal(stopped.phase, "cancelled");
+  assert.deepEqual(stopped.activity.map((entry) => [entry.name, entry.state]), [["edit", "failed"]]);
+  assert.match(stopped.activity[0]!.summary, /等待批准时这一轮结束，没有执行/u);
+
+  // A restart replays the same events; the waiting call was never dispatched either.
+  const restored = emptyPrologueStreamState();
+  apply(restored,
+    { type: "tool-call", call: { id: "edit-1", name: "edit", input: { path: "src/report.md" } } },
+    { type: "awaiting-approval", effectRef: { id: "effect-1" }, pendingRef: { id: "pending-1" }, why: "要改 src/report.md" });
+  closeInterruptedPrologueStream(restored, readCall);
+  assert.deepEqual(restored.activity.map((entry) => [entry.name, entry.state]), [["edit", "failed"]]);
+  assert.match(restored.activity[0]!.summary, /等待批准时这一轮结束，没有执行/u);
+
+  // A call that had already been dispatched keeps the honest "unknown": it may have happened.
+  const dispatched = emptyPrologueStreamState();
+  apply(dispatched, { type: "tool-call", call: { id: "edit-2", name: "edit", input: { path: "src/a.md" } } });
+  closeInterruptedPrologueStream(dispatched);
+  assert.deepEqual(dispatched.activity.map((entry) => [entry.name, entry.state]), [["edit", "unknown"]]);
+});
+
+test("BL-100: exact pending origins close every matching call and leave another unfinished dispatch unknown", () => {
+  for (const ending of ["cancelled", "failed", "tripped", "completed", "prefix", "run-recovered"] as const) {
+    const state = emptyPrologueStreamState();
+    apply(state,
+      { type: "tool-call", call: { id: "edit-1", name: "edit" } },
+      { type: "tool-call", call: { id: "edit-2", name: "edit" } },
+      { type: "tool-call", call: { id: "already-dispatched", name: "run-command" } },
+      { type: "awaiting-approval", effectRef: { kind: "effect", id: "effect-1", revision: 3 }, pendingRef: { kind: "pending", id: "pending-1", revision: 5 }, why: "first" },
+      { type: "awaiting-approval", effectRef: { kind: "effect", id: "effect-2", revision: 7 }, pendingRef: { kind: "pending", id: "pending-2", revision: 9 }, why: "second" });
+    const readCall: NonNullable<Parameters<typeof closeInterruptedPrologueStream>[1]> = waiting => {
+      if (waiting.effect_id === "effect-1" && waiting.pending_id === "pending-1") {
+        assert.equal(waiting.effect_revision, 3); assert.equal(waiting.pending_revision, 5); return "edit-1";
+      }
+      if (waiting.effect_id === "effect-2" && waiting.pending_id === "pending-2") {
+        assert.equal(waiting.effect_revision, 7); assert.equal(waiting.pending_revision, 9); return "edit-2";
+      }
+      return undefined;
+    };
+    if (ending === "prefix") closeInterruptedPrologueStream(state, readCall);
+    else applyRunEvent(state, ending === "run-recovered"
+      ? { type: ending, atMs: 1, transcript: "durable-prefix", operations: [] }
+      : ending === "failed" ? { type: ending, error: { code: "RUN_INTERRUPTED", safeMessage: "interrupted" } }
+      : ending === "tripped" ? { type: ending, stage: "input", rail: "fixture", why: "stop" } : { type: ending }, AT, readCall);
+    assert.deepEqual(state.activity.slice(0, 2).map(item => item.state), ["failed", "failed"], ending);
+    assert.ok(state.activity.slice(0, 2).every(item => item.summary.includes("等待批准时这一轮结束，没有执行")), ending);
+    // Ending surfaces map a started call to unknown; an interrupted prefix stores unknown itself.
+    assert.equal(state.activity[2]!.state, ending === "prefix" || ending === "run-recovered" ? "unknown" : "started", ending);
+    assert.doesNotMatch(state.activity[2]!.summary, /没有执行/u);
+  }
+});
+
+test("BL-100: unavailable or ambiguous approval origins never prove that an activity was not executed", () => {
+  for (const relation of ["missing", "duplicate", "reused-completed-id", "answered"] as const) {
+    const state = emptyPrologueStreamState();
+    apply(state, { type: "tool-call", call: { id: "same-call", name: "edit" } });
+    if (relation === "reused-completed-id") apply(state, { type: "tool-result", callId: "same-call", name: "edit", text: "saved", outcome: "returned" });
+    if (relation === "duplicate" || relation === "reused-completed-id") apply(state, { type: "tool-call", call: { id: "same-call", name: "edit" } });
+    apply(state, { type: "awaiting-approval", effectRef: { id: "effect-original" }, pendingRef: { id: "pending-original" }, why: "wait" });
+    let unanswered = true;
+    const readCall = () => relation === "missing" || !unanswered ? undefined : "same-call";
+    if (relation === "answered") unanswered = false; // Even a stale waiting entry is not a current approval fact.
+    closeInterruptedPrologueStream(state, readCall);
+    assert.deepEqual(state.activity.map(item => item.state), relation === "reused-completed-id" ? ["completed", "unknown"] : relation === "duplicate" ? ["unknown", "unknown"] : ["unknown"], relation);
+    assert.ok(state.activity.every(item => !item.summary.includes("没有执行")), relation);
+  }
+});
+
+test("BL-100: answered and completed calls keep their original evidence when another approval is open", () => {
+  const state = emptyPrologueStreamState();
+  apply(state,
+    { type: "tool-call", call: { id: "completed", name: "edit" } },
+    { type: "tool-result", callId: "completed", name: "edit", text: "saved bytes", outcome: "returned" },
+    { type: "awaiting-approval", effectRef: { id: "old-effect" }, pendingRef: { id: "answered" }, why: "old" },
+    { type: "tool-call", call: { id: "approved-without-receipt", name: "edit" } },
+    { type: "awaiting-approval", effectRef: { id: "new-effect" }, pendingRef: { id: "open" }, why: "new" });
+  assert.equal(settleProloguePending(state, "answered"), true);
+  closeInterruptedPrologueStream(state, waiting => waiting.pending_id === "open" ? "completed" : "approved-without-receipt");
+  assert.deepEqual(state.activity.map(item => item.state), ["completed", "unknown"]);
+  assert.equal(state.activity[0]!.output, "saved bytes");
+  assert.ok(state.activity.every(item => !item.summary.includes("没有执行")));
 });
 
 test("a guardrail stop is terminal but is not a failure", () => {

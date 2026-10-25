@@ -527,8 +527,8 @@ export const PLACEMENT_FACTORY_SCRIPT = `(host) => {
     event.preventDefault();
     button.disabled = true;
     const station = button.dataset.placementCreate, goalId = button.dataset.goalId || null;
-    // What this kind is called is the title its plugin's view declares; the button carries it (goal-inputs-html.ts).
-    const kind = L(button.dataset.placementCreateTitle || "");
+    // What this kind is called is the title its plugin's view declares; the button carries it (goal-inputs-html.ts), worded with that plugin's words.
+    const kind = (button.textContent || "").trim() || L(button.dataset.placementCreateTitle || "");
     try {
       const result = await api("create", { station, project_id: here(), goal_id: goalId, request_id: crypto.randomUUID(), title: L("未命名") + kind });
       invalidate();

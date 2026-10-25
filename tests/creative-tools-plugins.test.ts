@@ -13,28 +13,17 @@ import { fileURLToPath } from "node:url";
 import {
   BUILTIN_PLUGIN_CATALOG, pluginMarketCards, railEntries,
 } from "@molis-ai/molis-work-app-workbench";
-import {
-  datasetActions,
-  mergeDatasetDraftRows,
-  openDatasetStore,
-  parseCsv,
-  toCsv,
-} from "@molis-ai/molis-work-plugin-dataset";
-import {
-  FORM_CLIENT_FACTORY_SCRIPT,
-  FORM_EN,
-  FORM_STYLES,
-  formActions,
-  openFormStore,
-} from "@molis-ai/molis-work-plugin-form";
-import {
-  openPptStore,
-  pptActions,
-} from "@molis-ai/molis-work-plugin-ppt";
+import { datasetActions, mergeDatasetDraftRows, parseCsv, toCsv } from "@molis-ai/molis-work-plugin-dataset";
+import { openDatasetStore } from "./fixtures/plugin-home-stores.js";
+import { FORM_CLIENT_FACTORY_SCRIPT, FORM_EN, FORM_STYLES, formActions } from "@molis-ai/molis-work-plugin-form";
+import { openFormStore } from "./fixtures/plugin-home-stores.js";
+import { pptActions } from "@molis-ai/molis-work-plugin-ppt";
+import { openPptStore } from "./fixtures/plugin-home-stores.js";
 import {
   renderMolisWorkWeb,
   renderMolisWorkWorkbenchClientScript,
   renderMolisWorkWorkbenchStylesheet,
+  renderMolisWorkWorkbenchWithPluginStylesheets,
   type MolisWorkWebView,
 } from "./workbench-renderer-fixture.js";
 import { PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, builtinMarketDirectory } from "@molis-ai/molis-work-app-local-host";
@@ -179,7 +168,7 @@ test("工作台 HTML 挂上三个创作入口，确认与工具条不在 label �
   assert.match(html, /class="ppt-meta"/);
   assert.match(html, /role="tab"/);
   assert.match(html, /data-ppt-editor-status/);
-  assert.match(renderMolisWorkWorkbenchStylesheet(), /--tab-tone: var\(--plugin-form/);
+  assert.match(renderMolisWorkWorkbenchWithPluginStylesheets(), /--tab-tone: var\(--ink-soft\)/);
   // A form pane arrives with the product's one rise on the state clock; the plugin writes no keyframes of its own.
   assert.match(renderMolisWorkWorkbenchStylesheet(), /@keyframes craft-rise \{/);
   assert.match(FORM_STYLES, /\[data-form-pane\]:not\(\[hidden\]\) \{ animation: craft-rise var\(--dur-move\)/);

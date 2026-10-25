@@ -1,14 +1,109 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { cp, mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
+import { spawn } from "node:child_process";
+import { createServer } from "node:http";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { createPrologueNodeAdapter, PrologueAgentAdapter, type PrologueRuntimePort, type PrologueEvent, type PrologueRunTiming } from "@molis-ai/molis-work-service-agent-host";
-import type { AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentRunRef, AgentSessionRef, AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { startModelStandIn } from "./fixtures/model-stand-in.ts";
 
 const owner = { project_id: "recovery-board", plugin_id: "io.molis.work.coding", install_id: "recovery-install" };
 const model = { protocol: "anthropic-compatible", endpoint: "https://127.0.0.1:1/v1/messages", model: "offline-fixture", credential_ref: "fixture" };
+
+test("BL-100: packed SDK crash prefix closes the original pending call, not the later tool-call, after cold restart", { timeout: 60_000 }, async t => {
+  const root = await mkdtemp(join(tmpdir(), "molis-approval-prefix-"));
+  await writeFile(join(root, "report.txt"), "ORIGINAL\n");
+  let requests = 0;
+  const provider = createServer(async (request, response) => {
+    for await (const _chunk of request) { /* consume this real protocol request */ }
+    const calls = ++requests === 1
+      ? [{ id: "read-source", name: "read", input: { path: "report.txt" } }]
+      : [{ id: "approval-edit", name: "write", input: { path: "report.txt", text: "CHANGED\n" } },
+        { id: "later-read", name: "read", input: { path: "report.txt" } }];
+    response.writeHead(200, { "content-type": "text/event-stream" });
+    response.write(`data: ${JSON.stringify({ id: `reply-${requests}`, model: "stand-in", choices: [{ index: 0, delta: { role: "assistant", tool_calls: calls.map((call, index) => ({ index, id: call.id, type: "function", function: { name: call.name, arguments: JSON.stringify(call.input) } })) }, finish_reason: null }] })}\n\n`);
+    response.end(`data: ${JSON.stringify({ id: `reply-${requests}`, choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }], usage: { prompt_tokens: 3, completion_tokens: 2 } })}\n\ndata: [DONE]\n\n`);
+  });
+  await new Promise<void>(resolve => provider.listen(0, "127.0.0.1", resolve));
+  const address = provider.address(); assert.ok(address && typeof address === "object");
+  const endpoint = `http://127.0.0.1:${address.port}/v1/chat/completions`;
+  const app = { appId: "io.molis.work.approval-prefix", appVersion: "1.0.0" };
+  const child = spawn(process.execPath, ["--input-type=module", "--eval", `
+    import { AgentReviewQueue, createPrologueNodeAdapter } from '@molis-ai/molis-work-service-agent-host';
+    const root = ${JSON.stringify(root)};
+    const adapter = await createPrologueNodeAdapter({ app: ${JSON.stringify(app)}, storageRoot: root + '/runtime', reviewQueue: new AgentReviewQueue(),
+      modelConfiguration: async () => ({ protocol: 'openai-compatible', endpoint: ${JSON.stringify(endpoint)}, model: 'stand-in', credential_ref: 'fixture' }), resolveCredential: () => 'stand-in-key' });
+    const owner = ${JSON.stringify(owner)}, directory = { canonical_path: root, realpath_verified: true };
+    const session = await adapter.createSession({ ...owner, directory, title: 'Pending prefix' });
+    const handle = await adapter.start({ ...owner, session, directory, task: 'Read then change report.txt.', role_id: 'writer',
+      role: { role_id: 'writer', version: 1, execution: 'text-edit', host_tools: ['read-file', 'write'], prompts: [] } });
+    await new Promise((resolve, reject) => { adapter.observe(handle.ref, view => {
+      if (view.phase === 'awaiting-review' && view.activity.some(item => item.call_id === 'later-read')) resolve();
+      else if (['failed', 'completed', 'cancelled'].includes(view.phase)) reject(new Error(JSON.stringify(view)));
+    }); });
+    // Let the SDK's queued progress commit finish; the cold read below must prove that this prefix actually survived.
+    await new Promise(resolve => setTimeout(resolve, 250));
+    process.stdout.write(JSON.stringify({ session, ref: handle.ref }) + '\\n');
+    process.stdin.resume(); await new Promise(resolve => process.stdin.once('end', resolve));
+  `], { cwd: process.cwd(), stdio: ["pipe", "pipe", "pipe"] });
+  const exited = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>(resolve => child.once("exit", (code, signal) => resolve({ code, signal })));
+  let stderr = "", adapter: Awaited<ReturnType<typeof createPrologueNodeAdapter>> | undefined;
+  child.stderr.on("data", data => { stderr = (stderr + data).slice(-4000); });
+  t.after(async () => {
+    if (child.exitCode === null && child.signalCode === null) child.kill("SIGKILL");
+    await exited; await adapter?.close();
+    await new Promise<void>(resolve => { provider.closeAllConnections(); provider.close(() => resolve()); });
+    await rm(root, { recursive: true, force: true });
+  });
+  const saved = await new Promise<{ session: AgentSessionRef; ref: AgentRunRef }>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(`SDK did not reach its approval: ${stderr}`)), 20_000);
+    let output = "";
+    child.stdout.on("data", data => { output += data; if (output.includes("\n")) { clearTimeout(timer); resolve(JSON.parse(output.slice(0, output.indexOf("\n")))); } });
+    child.once("error", error => { clearTimeout(timer); reject(error); });
+    child.once("exit", code => { clearTimeout(timer); reject(new Error(`child ended before its durable prefix (${code}): ${stderr}`)); });
+  });
+  assert.equal(requests, 2);
+  child.kill("SIGKILL"); assert.equal((await exited).signal, "SIGKILL");
+  // A copied crash prefix still says awaiting-approval, but the original SDK may now say it was answered.
+  // Keep all original ids and events; answer the actual pending through the public SDK without dispatching it.
+  const answeredRoot = join(root, "answered-runtime");
+  await cp(join(root, "runtime"), answeredRoot, { recursive: true });
+  const requireSdk = createRequire(new URL("../horizontal/agent-host/package.json", import.meta.url));
+  const { createRuntime } = await import(requireSdk.resolve("@prologue/sdk"));
+  const { createNodeHost } = await import(requireSdk.resolve("@prologue/sdk/node"));
+  const sdk = await createRuntime({ app, host: createNodeHost({ storageRoot: answeredRoot }), preset: "local-agent" });
+  try {
+    const pending = (await sdk.effects.pendings.readByOrigin({ session: saved.session.session_id, run: saved.ref.run_id }))
+      .find(item => item.kind === "effect-approval" && item.state === "open");
+    assert.ok(pending?.effectRef); assert.equal(pending.origin?.toolCall, "approval-edit");
+    assert.notEqual(pending.effectRef.id, "approval-edit", "the effect id is not the tool call id");
+    await sdk.effects.pendings.answer(pending.ref, { kind: "effect-approval", answer: "allow" }, await sdk.readClock());
+    assert.equal(sdk.effects.get(pending.effectRef)?.state, "authorized");
+  } finally { await sdk.shutdown(); }
+  adapter = await createPrologueNodeAdapter({ app, storageRoot: answeredRoot,
+    modelConfiguration: async () => { throw new Error("answered history must not request a model"); } });
+  const answered = (await adapter.readSession(saved.session)).latest_run!;
+  assert.deepEqual(answered.activity.map(item => [item.call_id, item.state]), [["read-source", "completed"], ["approval-edit", "unknown"], ["later-read", "unknown"]]);
+  assert.ok(answered.activity.every(item => !item.summary.includes("没有执行")));
+  await adapter.close(); adapter = undefined;
+  const make = () => createPrologueNodeAdapter({ app, storageRoot: join(root, "runtime"),
+    modelConfiguration: async () => { throw new Error("recovery must not request a model"); } });
+  for (let read = 0; read < 2; read += 1) {
+    adapter = await make();
+    assert.equal((await adapter.readSessionStatus(saved.session)).status.latest_phase, "reconcile-required");
+    const view = (await adapter.readSession(saved.session)).latest_run!;
+    assert.deepEqual(view.ref, saved.ref);
+    assert.deepEqual(view.activity.map(item => [item.call_id, item.state]), [["read-source", "completed"], ["approval-edit", "failed"], ["later-read", "unknown"]]);
+    assert.match(view.activity[1]!.summary, /等待批准时这一轮结束，没有执行/u);
+    assert.doesNotMatch(view.activity[2]!.summary, /没有执行/u);
+    assert.equal(await readFile(join(root, "report.txt"), "utf8"), "ORIGINAL\n");
+    assert.equal(requests, 2, "cold history is observation; no new model or tool dispatch");
+    await adapter.close(); adapter = undefined;
+  }
+});
 
 for (const result of ["saved", "failed"] as const) {
   test(`steer ${result}: control route waits for the SDK receipt and propagates failure`, async () => {
@@ -490,3 +585,127 @@ test("R38-RECOVERY-LIVE-03: closing an inspected interruption refreshes the same
     assert.equal(calls, 1);
   } finally { release(); await adapter.close(); }
 });
+
+const storeDirectory = { canonical_path: "/tmp/store-session", realpath_verified: true };
+function storeStartRequest(session: AgentStartRequest["session"]): AgentStartRequest {
+  return { ...owner, actor_id: "user", session, directory: storeDirectory, task: "read", role_id: "reader",
+    role: { role_id: "reader", version: 1, execution: "read-only", host_tools: [], prompts: [] } };
+}
+
+for (const restorable of [true, false]) {
+  test(`R38-STORE-01: start holds only its session and releases failure; restore=${restorable}`, { timeout: 10_000 }, async () => {
+    const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+    const failure = new Error("start intent saved without a handle");
+    const calls = new Map<string, number>(), titles = new Map<string, string>();
+    const restored: string[] = [], unsubscribed: string[] = [];
+    let created = 0, shutdown = 0;
+    const runtime: PrologueRuntimePort = {
+      sessions: { create: async input => {
+        const id = `session-${++created}`; titles.set(id, input.title); return { ref: { id } };
+      }, ...(restorable ? { restore: async (id: string) => { restored.push(id); return { title: titles.get(id)!, owner, runs: [] }; } } : {}) },
+      startAgentRun: async input => {
+        const id = input.session_id, count = (calls.get(id) ?? 0) + 1; calls.set(id, count);
+        if (id === "session-1" && count === 1) {
+          entered.resolve(); await release.promise; titles.set(id, "saved start intent"); throw failure;
+        }
+        return { run: { ref: { id: `${id}-run-${count}` }, subscribe: () => () => { unsubscribed.push(id + ":events"); }, cancel: async () => {} },
+          control: { state: "running", stop() {}, pause() {}, resume() {}, steer() {}, subscribe: () => () => { unsubscribed.push(id + ":control"); } } };
+      }, shutdown: async () => { shutdown++; },
+    };
+    const adapter = new PrologueAgentAdapter({ runtime, modelConfiguration: async () => model });
+    const first = await adapter.createSession({ ...owner, actor_id: "user", title: "first", directory: storeDirectory });
+    const second = await adapter.createSession({ ...owner, actor_id: "user", title: "second", directory: storeDirectory });
+    const starting = adapter.start(storeStartRequest(first));
+    try {
+      await entered.promise;
+      await assert.rejects(adapter.start(storeStartRequest(first)), { code: "agent.session_busy" });
+      const other = await adapter.start(storeStartRequest(second));
+      assert.equal(calls.get(second.session_id), 1, "another session starts before the first is released");
+      assert.equal(calls.get(first.session_id), 1);
+      // R38-STORE-03: registering a run still makes it readable, associated and followed.
+      assert.equal((await adapter.read(other.ref)).turns[0]?.text, "read");
+      assert.deepEqual((await adapter.readSession(second)).runs, [other.ref]);
+      release.resolve();
+      await assert.rejects(starting, error => error === failure);
+      assert.deepEqual(restored, [], "failed start invalidates only; it must not reload immediately");
+      const afterFailure = await adapter.readSession(first);
+      assert.equal(afterFailure.title, restorable ? "saved start intent" : "first");
+      assert.deepEqual(restored, restorable ? [first.session_id] : []);
+      const retry = await adapter.start(storeStartRequest(first));
+      assert.equal(calls.get(first.session_id), 2, "the failed operation released its session");
+      assert.equal((await adapter.read(retry.ref)).phase, "running");
+    } finally { release.resolve(); await starting.catch(() => undefined); await adapter.close(); }
+    assert.equal(shutdown, 1);
+    assert.deepEqual(unsubscribed.sort(), ["session-1:control", "session-1:events", "session-2:control", "session-2:events"]);
+  });
+}
+
+for (const operation of ["recovery", "checkpoint"] as const) {
+  test(`R38-STORE-02: ${operation} holds through rejection, releases synchronous throws and reloads only success`, { timeout: 10_000 }, async () => {
+    const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+    const rejected = new Error("operation rejected"), thrown = new Error("operation threw synchronously");
+    const calls = new Map<string, number>(), restores = new Map<string, number>(), closed = new Set<string>();
+    let created = 0, starts = 0, otherEffects = 0;
+    const perform = (id: string): Promise<void> => {
+      const count = (calls.get(id) ?? 0) + 1; calls.set(id, count);
+      if (id === "session-1" && count === 1) { entered.resolve(); return release.promise.then(() => { throw rejected; }); }
+      if (id === "session-1" && count === 2) throw thrown;
+      return Promise.resolve();
+    };
+    const report = (id: string) => ({ session_id: id, blockers: [], runs: closed.has(id) ? [] : [{ run_id: `child-${id}`, version: 1,
+      live: false, waiting: 0, can_close: true, blockers: [], operations: [], subagent: { subagent_id: `subtask-${id}` } }] });
+    const recovery: NonNullable<PrologueRuntimePort["recovery"]> = {
+      inspect: async session => report(session.session_id),
+      close(session, runId, version) {
+        assert.equal(this, recovery); assert.equal(runId, `child-${session.session_id}`); assert.equal(version, 1);
+        if (operation !== "recovery") { otherEffects++; throw new Error("held checkpoint must exclude recovery"); }
+        return perform(session.session_id).then(() => { closed.add(session.session_id); return report(session.session_id); });
+      },
+    };
+    const checkpoints: NonNullable<PrologueRuntimePort["checkpoints"]> = {
+      busy: () => false, list: async () => [],
+      prepareRewind(session, checkpointId) {
+        assert.equal(this, checkpoints); assert.equal(checkpointId, "checkpoint");
+        if (operation !== "checkpoint") { otherEffects++; throw new Error("held recovery must exclude rewind"); }
+        return perform(session.session_id).then(() => ({ review_id: `review-${session.session_id}`, run: null,
+          operation: { operation_id: `rewind-${session.session_id}`, session_id: session.session_id, kind: "checkpoint-rewind" as const },
+          project_id: owner.project_id, plugin_id: owner.plugin_id, kind: "rewind" as const,
+          document: { kind: "rewind" as const, checkpoint_id: checkpointId, files: [] }, requested_at: "2026-10-25T00:00:00Z", expires_at: null }));
+      },
+    };
+    const runtime: PrologueRuntimePort = {
+      recovery, checkpoints,
+      sessions: { create: async () => ({ ref: { id: `session-${++created}` } }), restore: async id => {
+        restores.set(id, (restores.get(id) ?? 0) + 1); return { title: closed.has(id) ? "closed" : id, owner, runs: [] };
+      } },
+      startAgentRun: async () => { starts++; throw new Error("held operation must exclude start"); }, shutdown: async () => {},
+    };
+    const adapter = new PrologueAgentAdapter({ runtime, modelConfiguration: async () => model });
+    const first = await adapter.createSession({ ...owner, actor_id: "user", title: "session-1", directory: storeDirectory });
+    const second = await adapter.createSession({ ...owner, actor_id: "user", title: "session-2", directory: storeDirectory });
+    const invoke = (session: AgentStartRequest["session"]) => operation === "recovery"
+      ? adapter.recovery!.close(session, `child-${session.session_id}`, 1) : adapter.checkpoints!.prepareRewind(session, "checkpoint");
+    const pending = invoke(first);
+    try {
+      await entered.promise;
+      await assert.rejects(adapter.start(storeStartRequest(first)), { code: "agent.session_busy" });
+      await assert.rejects(adapter.recovery!.close(first, `child-${first.session_id}`, 1), { code: "agent.session_busy" });
+      await assert.rejects(adapter.checkpoints!.prepareRewind(first, "checkpoint"), { code: "agent.session_busy" });
+      await assert.rejects(adapter.recovery!.close(first, `child-${second.session_id}`, 1), { code: "agent.run_unknown" });
+      await invoke(second);
+      assert.equal(calls.get(second.session_id), 1, "a different session can finish while the first is held");
+      assert.equal(calls.get(first.session_id), 1);
+      release.resolve(); await assert.rejects(pending, error => error === rejected);
+      assert.equal(restores.get(first.session_id), undefined, "rejection must not evict/reload the session");
+      assert.equal(closed.has(first.session_id), false);
+      assert.equal((await adapter.readSession(first)).title, "session-1");
+      await assert.rejects(invoke(first), error => error === thrown);
+      assert.equal(restores.get(first.session_id), undefined, "synchronous failure also must not reload");
+      await invoke(first);
+      assert.equal(calls.get(first.session_id), 3);
+      assert.equal(restores.get(first.session_id), operation === "recovery" ? 1 : undefined);
+      assert.equal((await adapter.readSession(first)).title, operation === "recovery" ? "closed" : "session-1");
+      assert.equal(starts, 0); assert.equal(otherEffects, 0);
+    } finally { release.resolve(); await pending.catch(() => undefined); await adapter.close(); }
+  });
+}

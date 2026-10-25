@@ -10,7 +10,7 @@ import { writerIntegrationCapabilities, type CodingChangeSet } from "@molis-ai/m
 import type { ActionLocale } from "@molis-ai/molis-work-contracts/platform/actions";
 import { compareRunChangeSet, DIFF_LABELS } from "@molis-ai/molis-work-plugin-diff";
 import { renderDiff, unifiedPatch } from "@molis-ai/molis-work-plugin-sdk/diff-view";
-import { escapeHtml, icon } from "@molis-ai/molis-work-design-system";
+import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
 import { fakeWriterActions, pluginActions, withFakeAgentHost } from "./fixtures/plugin-actions.js";
@@ -20,7 +20,7 @@ import { diffPageText } from "./fixtures/diff-page-text.js";
 // preview itself, with the plugin SDK's `/diff-view`; the server here runs no Coding route hooks, so nothing else could have.
 const CODING = "io.molis.work.coding", HAN = /[一-鿿]/u;
 /** What the Host drew with before: the page's translator as Diff's renderer used it, the design system's escape and icons. */
-const pagePrimitives = (locale: ActionLocale) => ({ escape: (value: unknown) => escapeHtml(String(value)), text: diffPageText(locale), icon: (name: string) => icon(name as Parameters<typeof icon>[0]) });
+const pagePrimitives = (locale: ActionLocale) => ({ escape: (value: unknown) => escapeHtml(String(value)), text: diffPageText(locale, "coding"), icon: (name: string) => icon(name as Parameters<typeof icon>[0]) });
 
 type ChangeBody = { change: CodingChangeSet; reference: { version: number } | null; html: string; patch: string; view_mode: string; net_groups: unknown[] };
 type IntegrationBody = { files: Array<{ path: string[]; before_text?: string | null; after_text?: string | null; diff_html?: string }> };

@@ -1,6 +1,6 @@
 # 放置的关联由声明登记、UI 贡献的 plugin_id 由平台填
 
-状态：实现中（2026-10-25，防腐线 ac-platform，叠在 `d13fd0f48` 上；统筹已按 D1～D5 裁定，见 §5）。做的是 `privileges.md` 的 PG-032、PG-098、PG-100，PG-099 的剩余部分核实后不用写代码（§1.4）。验收号用 RAC-630～638（§3），BL 号不新增。
+状态：实现中（2026-10-25，防腐线 ac-platform，叠在 `d13fd0f48` 上；统筹已按 D1～D5 裁定，见 §5）。做的是 `privileges.md` 的 PG-032、PG-098、PG-100，PG-099 的剩余部分核实后不用写代码（§1.4）。验收号用 RAC-630～645（§3），BL 号不新增。Codex 的放置歧义后继修复固定从 `43049e2ab` 开始，保留原作者的关系 guard 和 RAC-639，只补移动/复制选择与同根拒绝副作用。
 
 ## 1. 重核结果
 
@@ -55,6 +55,10 @@
 
 一个关联在一个目录里只有一个提供方：放置服务按提供方分组，同一个关联名被不止一个可用的提供方声明，所有操作（`describe`、候选、挂上、取消、建成）一律 `placement.relation_ambiguous`（kind `conflict`，信息点出各个提供方），一个提供方的动作也不调，五个角色不混着取。
 
+放置歧义后继修复（2026-10-25，FIRST 非阻塞 3）：移动、复制也按当前分区、对象种类、协议和可用性筛选动作。匹配超过一个时明确拒绝为现有的 `placement.target_unavailable`（kind `conflict`、`details.actions` 列出可信提供方及动作引用，沿用现有不可用文案），不取首项；移回原处使用相同的选择规则。只执行移动或复制时，仅解析所需协议；另一协议的歧义不阻断唯一的所需动作。描述会解析两种协议，歧义拒绝不能被工具发现的 catch 吞成空结果；分区打不开或目录读失败仍保留现行空工具语义。
+
+验证使用真实 `ActionService` 的注册目录和生产 `PlacementService` 公开入口，调换注册和能力排序；关联用两个可信 `provider_id`、同一 `plugin_id` 检查原 guard，不另写一份关系选择。歧义动作零调用、放置账本零写入、对象和副本不变。`describe`、`bindGoal`、`convert` 选择目标前的既有对象读取及其标题缓存另行核对，不算歧义动作调用。无可用读取器而带 payload 的 convert，只在目标创建成功且原调用控制允许写入后缓存标题。回退目录才发生歧义时，初始成功的搬移属于已发生的部分效果；保留原拒绝并附回退失败原因，不调用任一歧义 mover。
+
 ### 2.2 PG-098：贡献的 plugin_id 由平台填，插件不写
 
 - `packages/contracts/src/platform/ui.ts`：插件写的 `UiContribution.descriptor` 换成 `UiContributionDeclaration`（没有 `plugin_id`）；`UiContributionDescriptor`（带 `plugin_id`）是平台这一侧的，`OwnedUiContribution` 是进了登记表的那份，`ownedContribution(声明, 插件 id)` 合成它；`declaresOwner(声明)` 判断一份声明有没有自己写了 `plugin_id`。
@@ -81,6 +85,12 @@
 - **RAC-637**：启动返回的视图声明里没有 `plugin_id` 才能兑现，自带 `plugin_id` 的失败；对不上 Manifest 声明的 `contribution_id` 仍失败；
 - **RAC-638**：`derived_into` 的目标带所属插件的名字，灵光的标签读它；所属插件缺失（插件已停用）时显示「已转出」；灵光的 `list.ts` 里不再有 `todo`/`page`/`jelly`/`goal` 字符串（读源码）。
 - **RAC-639**：同一个目录里两个可用的提供方声明同一个关联名（五个角色全在两边，或分在两边）：`describe`、候选、挂上、取消、建成都是 `placement.relation_ambiguous`，两个提供方的动作都没被调；其中一个不可用时，另一个独自管这个关联；
+- **RAC-640**：真实动作目录中，同一 `plugin_id` 下两个可信 `provider_id` 的 `topic` 角色完整或拆分，调换注册与能力排序后，五个公开入口均保持 `placement.relation_ambiguous`；只有既有源对象读取，关系动作零调用、放置账本零写入。
+- **RAC-641**：同种对象有多个可用 mover 或 copier 时，`describe` 及对应 `move`/`copy` 明确拒绝；两种顺序下均零协议调用、零账本写入、对象位置和副本数不变；Home mover 和同一 provider 的多个匹配动作也不能任意选择。
+- **RAC-642**：单一提供方、不可用或其他分区的竞争者、用户受众/权限、目录失败和有效移动/复制保持；另一协议的歧义不阻断所需的唯一动作。拒绝后停用竞争者再重试，只有剩余提供方执行，后续描述和位置索引与业务对象一致。
+- **RAC-643**：源读取器不可用而 convert 带 payload，目标关联歧义仍明确拒绝；关系动作、账本和 payload 标题缓存均零写入。
+- **RAC-644**：初始移动已提交、原调用随后被拒绝，回退分区有多个 mover 时不调用任何回退动作；原拒绝保留且原因明确，已发生的初始移动单独报告，不伪造回退成功。
+- **RAC-645**：唯一关联提供方缺少/不可用某个角色时，不从不可用的另一提供方补齐；对应操作保留现行拒绝或空结果，其余唯一角色仍可用。
 
 ## 4. 碰的文件（预计）
 
@@ -106,3 +116,35 @@
 ## 7. 本机验证计划（做完代码后）
 
 只构建改到的包（contracts、plugin-sdk、plugin-runtime、ui-host、placement、workbench、local-host、改过的插件）；`pnpm api:update`、`pnpm actions:update`；`check-health-gates --base origin/main`、`boundary:check`、`secrets:check`；直接相关的非浏览器用例：`work-placement*`、`placement*`、`plugin-manifest-v2`、`action-contract-snapshot`、新测试文件；不跑 affected-tests 的全集、浏览器用例和全量。
+
+### 放置歧义后继验证（Codex，2026-10-25）
+
+固定父提交 `43049e2abba79b6d01d108f9eba27a7a31162ff5`。保留该提交的关系 guard、RAC-639、Reader @2 及 UI 修复；本后继仅修改放置实现、README、本节与 RAC-640～645 的真实目录回归。
+
+- 历史证据保留：`c645b170e` 的整体构建与原四文件 34 项通过；旧负例 54 项中 12 通过、42 失败（含父子测试），保全提交 `b85aab384`。
+- 新父源的整体构建通过，已核对本树 contracts/placement 的 `dist` 来源和读取器版本 2。原关系用例 8/8 通过；本后继新回归在未修生产代码时 63 项中 38 通过、25 失败，完整/拆角色的真实目录关系用例全部转绿，剩余失败明确落在工具选择、回退与 payload 拒绝后的缓存。
+- 候选整体 `pnpm build` 通过（4 个包重建、66 个复用）；`pnpm boundary:check` 和 `node scripts/check-health-gates.mjs --base 43049e2abba79b6d01d108f9eba27a7a31162ff5` 通过。源码冻结后运行 README 指定的五文件，共 98 项通过；RAC-640～645 对应的新文件 63/63 通过，涵盖零调用/写入、重试恢复、原调用控制与已发生的部分效果。
+- 原始日志：`/tmp/placement-provider-ambiguity-red.log`、`/tmp/placement-provider-ambiguity-baseline-placement.log`、`/tmp/placement-provider-ambiguity-43049-before.log`、`/tmp/placement-provider-ambiguity-candidate-build-gates.log`、`/tmp/placement-provider-ambiguity-candidate-tests.log`。独立双核按同一固定来源的后继候选交接；不重复运行共享核心全量，不把服务级验证记作一骏本人验收。
+
+## 8. C 组迁移回归（准确 f77，placement 专职）
+
+状态：实现中。按统筹 #1287 的 C 组分工及 Root 补充，从 `f77e0d0bda62c65c17d803a47328f9d8af07f7f9` 开独立后继树；原 `8f4d018` 的实现与重启取消证据保持冻结，后者第一次 86/87 的取消仍是 UNKNOWN，由 TEST 与唯一 Claude carrier 在下一准确组合既有相关／全量回归中接续。本组不展开 Host／SDK 调度，不改 RAC-438（由统筹 `20f0902bb` 处理）、A1、B 组或门禁。
+
+当前证据：`pages-actions` 把除 create 外所有动作都钉在 @1；四份 MCP 测试的工具列表预期漏了升级到 @2 的对象读取器。`fakeGoalDirectory` 只提供 `goals.list` 的分页目录，却继承了该真实动作的 `candidates` 关联角色；SDK 因同提供方没有 `list` 角色而在注册时拒绝，早于 Coding 端口调用。真实 Goals Manifest 是否完整由实际 SDK／ActionService 注册正控证明，不能由此替身的失败推断生产声明有缺陷。
+
+修复边界：只按真实 action id 列出现行版本，保留其他动作版本、工具全集及业务断言；只读目录替身保留 Goals 公开 id、版本、输入输出 schema、标题与调用者语义，移除它并未提供的关联角色声明，不虚构挂接／取消／创建处理器。生产关联声明与完整性校验保持原样，不增加兼容入口、API 或快照。允许文件为五份版本测试、`tests/fixtures/plugin-actions.ts`、直接三份 Coding 证明、`tests/placement-relation-declarations.test.ts` 与本 spec。
+
+沿用 RAC-633／634 的迁移子项：
+
+- **RAC-633-MIG-01**：`pages-actions`、`alchemist-mcp`、`form-mcp`、`ppt-mcp`、`dataset-mcp` 的完整动作／工具列表精确对应现行版本；只有真实升版的动作预期 @2，其余仍受原版本断言约束。
+- **RAC-634-MIG-01**：真实 Goals Manifest 的五个关联角色齐全，经 SDK 和真实 ActionService 注册成功；只有 candidates 而无 list 的声明仍以 `actions.definition_invalid` 拒绝，处理器零调用、目录零注册。
+- **RAC-634-MIG-02**：只读目录替身能经真实 ActionService 注册与调用，只暴露原 `goals.list`；除不实关联角色外，定义与公开合同一致，分页、标题、可信调用者和重复装配行为保留。
+- **RAC-634-MIG-03**：原 `coding-surface`、`coding-input-ports`、`coding-companion-stages` 的受影响用例恢复，保留标题读取／观察持久化／重启、插件身份与 companion 槽位断言。其他浏览器空页只能在调用链与修后证据支持时归为同因，不据此整组结清。
+
+验证：先在未改测试的准确 f77 整体构建，按官方运行器 `--jobs 2 --retries 0 --verbose` 跑上述九份文件，保留改前失败；实现后复用同一生产构建跑原文件及新增正负控，RAC-438 只报告旧红、不搬统筹的补丁。不改生产源码则不重复构建；如出现生产缺陷先补本节依据，再最小修复并整体构建。浏览器只在证明需要时选代表路径，经独立测试浏览器与机器槽位，不跑全量。旧 f77 的 PlacementService 301 行门禁原红保留；#1289 已 actual `54437998`，组合树的门禁由 PIPE／Claude 按现行规则与内聚理由核定，不硬拆、不改阈值或登记未经评审的例外。交付准确 head 与 scoped diff 给 REVIEW／TEST／PIPE，无新 PR。
+
+本机证据（2026-10-25）：准确 f77 整体构建通过；改前九文件 28/46，18 fail、无取消／跳过，只有原声明检查文件全绿。修后五份版本测试全部通过（Pages 17、Alchemist 2、Form／PPT／Dataset 各 1），`coding-surface` 4/4、`coding-input-ports` 9/9；`coding-companion-stages` 7/8，唯一原 RAC-438 仍红，由统筹已有补丁接续，六条因替身注册失败的用例已恢复。新增正控最初误把仅 Agent／MCP 可见的 `goals.events.acknowledge` 算进 user 目录，已按真实 audience 合同修正；最终声明检查 6/6、原放置关联 8/8，无生产改动或新增重跑／时限放宽。有效证据合计原九文件 48/49（唯一 RAC-438）及额外关联文件 8/8；不把重复运行累加。原件：`/tmp/placement-c-group-baseline-build.log`、`/tmp/placement-c-group-before.log`、`/tmp/placement-c-group-after.log`、`/tmp/placement-c-group-contracts.log`。
+
+浏览器归因边界：列出的八份浏览器文件走 `openGoalBrowser` → 真实 `MolisWorkLocalHost`；它们及两个共享 fixture 没有引用 `fakeGoalDirectory`。真实宿主 `goalsActionProvider` 从 Manifest 选全部 project 动作，五个关联角色都在这份定义中。因此本轮纯测试替身改动不能据此修复或结清这八份浏览器失败，仍交准确组合既有回归定位，未扩大重跑浏览器。未改生产定义、完整性检查、RAC-438、任何 gate／snapshot／构建配置或真实 Home；整个批次 Ready 与旧重启 UNKNOWN 均未由本证据替代。
+
+`pnpm boundary:check` 零错误；`check-health-gates --base f77e0d0bda62c65c17d803a47328f9d8af07f7f9` 通过，只证明本组未增加相对准确父版本的门禁问题（原件 `/tmp/placement-c-group-boundary.log`、`/tmp/placement-c-group-health.log`），不回填旧 f77 对 main 的 301 行原红。

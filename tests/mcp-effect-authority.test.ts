@@ -4,7 +4,8 @@ import test from "node:test";
 import { ActionError, bindActionClient, retainActionAuthority, type ActionDefinition, type RetainedActionAuthority } from "@molis-ai/molis-work-contracts/platform/actions";
 import { recordedCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { readMcpToolPreference } from "@molis-ai/molis-work-app-local-host";
-import { formActions, openFormStore } from "@molis-ai/molis-work-plugin-form";
+import { formActions } from "@molis-ai/molis-work-plugin-form";
+import { openFormStore } from "./fixtures/plugin-home-stores.js";
 import type { FormRecord } from "@molis-ai/molis-work-contracts/modules/form";
 import { openTestHome } from "./fixtures/test-home.js";
 

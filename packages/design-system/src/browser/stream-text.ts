@@ -1,4 +1,5 @@
-import { freshStart, type StreamTextOptions, type StreamTextResult } from "../stream-text.js";
+import type { StreamTextOptions, StreamTextResult } from "@molis-ai/molis-work-plugin-sdk/page-globals";
+import { freshStart } from "../stream-text.js";
 
 /**
  * Put a streamed reply's latest HTML into its container (specs/visual-ui-experience §stream-rendering, VUX-14/15):

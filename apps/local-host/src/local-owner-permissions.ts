@@ -5,6 +5,8 @@ import { HOME_ACTION_PERMISSIONS, HOME_PROVIDER_ID } from "./home-actions.js";
 import { CONNECTOR_ACCOUNT_PERMISSIONS, CONNECTOR_PROVIDER_ID } from "./connector-account-actions.js";
 import { CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE } from "./connector-management-actions.js";
 import { connectorRecordActions } from "./connector-record-actions.js";
+import { PLUGIN_CONSENT_PERMISSIONS, PLUGIN_CONSENT_PROVIDER_ID } from "./installed-plugin-consent-actions.js";
+import { PLUGIN_INSTALL_PERMISSIONS, PLUGIN_INSTALL_PROVIDER_ID } from "./plugin-install-actions.js";
 import { informationActions, INFORMATION_PROVIDER_ID } from "./information-actions.js";
 import { PERSONAL_PLANNING_PERMISSIONS, PERSONAL_PLANNING_PROVIDER_ID } from "./personal-planning-actions.js";
 import { ASSISTANT_RULES_PROVIDER, ASSISTANT_RULE_ACTIONS, ASSISTANT_FOLLOW_UP_ACTIONS } from "./assistant/assistant-rule-actions.js";
@@ -39,6 +41,8 @@ function ownerProviders(): ReadonlyMap<string, readonly string[]> {
       .map(entry => [entry.manifest.plugin_id, asks(entry.manifest.actions ?? [])] as const),
     [HOME_PROVIDER_ID, HOME_ACTION_PERMISSIONS],
     [CONNECTOR_PROVIDER_ID, [...CONNECTOR_ACCOUNT_PERMISSIONS, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE, ...connectorRecordActions.read.action.permissions]],
+    [PLUGIN_CONSENT_PROVIDER_ID, PLUGIN_CONSENT_PERMISSIONS],
+    [PLUGIN_INSTALL_PROVIDER_ID, PLUGIN_INSTALL_PERMISSIONS],
     [INFORMATION_PROVIDER_ID, asks(Object.values(informationActions))],
     [FUNCTIONS_PROVIDER_ID, asks([...Object.values(functionsActions), ...Object.values(functionAuthoringActions), ...Object.values(functionContextActions)])],
     [PROJECT_WORKSPACE_PROVIDER_ID, asks(Object.values(projectWorkspaceActions))],

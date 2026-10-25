@@ -1,5 +1,5 @@
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
-import { DATASET_MESSAGES, DATASET_PROJECT_PLUGIN_ID, datasetManifest, DATASET_CLIENT_FACTORY_SCRIPT, DATASET_STYLES, datasetUiContribution } from "./index.js";
+import { createDatasetPlugin, DATASET_PROJECT_PLUGIN_ID, datasetManifest, DATASET_CLIENT_FACTORY_SCRIPT, DATASET_STYLES, datasetUiContribution } from "./index.js";
 
 /**
  * This plugin's entry in the built-in catalog (W5-02). `node scripts/generate-plugin-registry.mjs` lists it in
@@ -8,7 +8,7 @@ import { DATASET_MESSAGES, DATASET_PROJECT_PLUGIN_ID, datasetManifest, DATASET_C
 export const registration: PluginRegistration = {
   project_plugin_id: DATASET_PROJECT_PLUGIN_ID, catalog_order: 17,
   manifest: datasetManifest,
-  messages: DATASET_MESSAGES,
+  project_runtime: { create: createDatasetPlugin, package_name: "@molis-ai/molis-work-plugin-dataset", factory_export: "createDatasetPlugin" },
   personal: true,
   workbench: {
     order: 11,

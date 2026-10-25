@@ -16,7 +16,7 @@ export { TODO_MESSAGES } from "./messages.js";
 export { TODO_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { createTodoPlugin } from "./plugin.js";
 export { TODO_PLUGIN_ID, TODO_PROJECT_PLUGIN_ID, todoManifest } from "./manifest.js";
-export { openTodoStore, ownTodoStores, TodoStore, TODO_DATABASE, TODO_HOME_STORE } from "./store.js";
+export { ownTodoStores, TodoStore, TODO_DATABASE, TODO_HOME_STORE } from "./store.js";
 export type { TodoAccess, TodoBatchChange, TodoCreateInput, TodoFields, TodoLinkInput, TodoSql, TodoSqlValue, TodoStores } from "./store.js";
 export { todoErrors } from "./error.js";
 export { todoActions, TODO_ACTIONS, TODO_ACTION_PERMISSIONS, createTodoActionHandlers, todoAccess } from "./actions.js";
@@ -29,7 +29,7 @@ export { todoOrganizeActions, createTodoOrganizeHandlers, batchText, TODO_BATCH_
 export type { TodoOrganizePorts } from "./organize-actions.js";
 export { TodoOrganizer, materialSourceKey } from "./organize.js";
 export type { TodoApplyResult, TodoCandidateDecision } from "./organize.js";
-export { TODO_ORGANIZE_MATERIAL_CHARS, phraseWrittenAt, readDatePhrase, organizeJson, organizeParts, organizePrompt, parseOrganizeOutput, passageFound, normalizeForMatch } from "./organize-model.js";
+export { phraseWrittenAt, readDatePhrase, organizeJson, organizeParts, organizePrompt, parseOrganizeOutput, passageFound, normalizeForMatch } from "./organize-model.js";
 export type { TodoCandidateDraft, TodoOrganizeMaterial, TodoOrganizeParse } from "./organize-model.js";
 export { parseTodoQuickText } from "./quick-parse.js";
 export type { TodoQuickParse, TodoQuickPart } from "./quick-parse.js";

@@ -15,7 +15,7 @@ import { lookingForArea, withSelectedEventDocument, type WebViewOptions } from "
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import type { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
-import { escapeHtml } from "@molis-ai/molis-work-design-system";
+import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { L } from "./web-locale.js";
 import { ensureProjectPlugins } from "./project-plugins.js";
 import { renderProjectRuntimeStages, type ProjectPluginSurfacePorts } from "./project-plugin-stages.js";
@@ -156,8 +156,8 @@ export function createLocalGoalsReadHttp(ports: {
           hidden: catalog.listHiddenPlugins(options.project!.project_id),
           workspaces: catalog.listWorkspaceDirectory(options.project!.project_id),
         })) : null;
-        if (projectConfiguration) view = { ...view, enabled_plugins: projectConfiguration.plugins, hidden_plugins: projectConfiguration.hidden,
-          shown_plugins: shownProjectPlugins(projectConfiguration.plugins, projectConfiguration.hidden) };
+        // `shown_plugins` comes with the view (`projectWebView`), the one projection the page, its refresh and its fragments share.
+        if (projectConfiguration) view = { ...view, enabled_plugins: projectConfiguration.plugins, hidden_plugins: projectConfiguration.hidden };
         // The project's Runtime draws its plugins' panels and stages; one that is not running gets the unavailable shell (W5-06).
         // Only the fixture server (one database, no project catalog: `fixtureWebBoardOptions`) has no project here; no Runtime
         // runs there, so the shell draws the declared stages from the catalog.

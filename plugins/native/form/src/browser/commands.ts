@@ -1,5 +1,5 @@
 import type { FormQuestionType } from "@molis-ai/molis-work-contracts/modules/form";
-import type { Reflow } from "@molis-ai/molis-work-design-system";
+import type { Reflow } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import { arrive } from "./dom.js";
 import { renderPreview } from "./fields.js";
 import { openFillPage } from "./fill-page.js";

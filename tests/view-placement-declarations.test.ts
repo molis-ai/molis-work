@@ -3,22 +3,27 @@
 // not honour; the workbench reads the declarations and keeps only the group names and their order.
 import assert from "node:assert/strict";
 import test from "node:test";
-import { UI_VIEW_GROUPS, type UiContributionDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
+import { UI_VIEW_GROUPS, UI_VIEW_HUES, type UiContributionDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
 import {
   BUILTIN_PLUGIN_CATALOG, creatableKinds, findPluginSettingsNavItem, homeStarts, listPluginSettingsNavItems, pluginSettingsNavItemsFrom,
 } from "@molis-ai/molis-work-app-workbench";
-import { defineWorkflowContentActions } from "@molis-ai/molis-work-plugin-sdk";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { defineWorkflowContentActions, parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { DECLARATION_PLUGIN_ID, declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
 import { renderMolisWorkWeb, type MolisWorkWebView } from "./workbench-renderer-fixture.js";
 import { PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, shownProjectPlugins } from "@molis-ai/molis-work-app-local-host";
 
 type Part = Record<string, unknown>;
 
+/** The Manifest `plugin_id` of a built-in by its project key: whose words translate what its views declare. */
+const pluginIdOf = (projectPluginId: string): string => BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === projectPluginId)!.manifest.plugin_id;
+
 const STATION = { id: "notes", title: "Notes", icon: "note", subject_kind: "note", read_permissions: [], write_permissions: [] };
 const creating = defineWorkflowContentActions({ ...STATION, create: true });
 const listing = defineWorkflowContentActions(STATION);
 const CREATES = [creating.list, creating.read, creating.receive, creating.create];
 const GROUPS = `（${UI_VIEW_GROUPS.join("、")}）`;
+const HUES = `（${UI_VIEW_HUES.join("、")}）`;
 
 /** A Manifest with one view, `main`, in the navigator, laid over by `over`; its actions are a station that can create `notes`. */
 function placed(over: Part = {}, actions: unknown = CREATES): Record<string, unknown> {
@@ -28,6 +33,19 @@ function placed(over: Part = {}, actions: unknown = CREATES): Record<string, unk
   });
 }
 
+test("SH1303-02 public Manifest parsing retains colour names and refuses non-string hues", () => {
+  for (const hue of UI_VIEW_HUES) assert.equal(parsePluginManifest(placed({ hue })).ui?.views?.[0]?.hue, hue);
+  for (const hue of [7, ["indigo"], [["indigo"]], null, true, {}]) {
+    assert.throws(() => parsePluginManifest(placed({ hue })), (error: unknown) => {
+      assert.ok(error instanceof ActionError);
+      assert.equal(error.code, "plugin.declaration_invalid");
+      assert.equal(error.kind, "invalid");
+      assert.equal(error.message, `视图 main 的 hue ${String(hue)} 不是设计系统的颜色名${HUES}`);
+      return true;
+    }, "reject " + JSON.stringify(hue));
+  }
+});
+
 const RULES: ReadonlyArray<{ rule: string; manifest: Record<string, unknown>; expected: string }> = [
   { rule: "a view that declares none of them", manifest: placed(), expected: "" },
   { rule: "a navigator view that declares all of them", manifest: placed({ group: "make", creates: { station: "notes", title: "笔记" }, start: { title: "写一条笔记", hint: "先写下来。", icon: "note" } }), expected: "" },
@@ -35,6 +53,11 @@ const RULES: ReadonlyArray<{ rule: string; manifest: Record<string, unknown>; ex
   // icon
   { rule: "an icon that is not a name", manifest: placed({ icon: 3 }), expected: "视图 main 的 icon 必须是图标名" },
   { rule: "a blank icon", manifest: placed({ icon: " " }), expected: "视图 main 的 icon 必须是图标名" },
+  // hue (RAC-701): any view may name its plugin's tab-strip colour, and only by a design-system colour name
+  { rule: "a design-system hue on a navigator view", manifest: placed({ hue: "indigo" }), expected: "" },
+  { rule: "a design-system hue on a side view", manifest: placed({ slot: "side", hue: "slate" }), expected: "" },
+  { rule: "a hue the design system does not have", manifest: placed({ hue: "magenta" }), expected: `视图 main 的 hue magenta 不是设计系统的颜色名${HUES}` },
+  { rule: "a colour value in place of a name", manifest: placed({ hue: "#ff0000" }), expected: `视图 main 的 hue #ff0000 不是设计系统的颜色名${HUES}` },
   // group
   { rule: "a group the workbench does not have", manifest: placed({ group: "tools" }), expected: `视图 main 的 group tools 不是工作台的分组${GROUPS}` },
   { rule: "a group that is not a name", manifest: placed({ group: 7 }), expected: `视图 main 的 group 7 不是工作台的分组${GROUPS}` },
@@ -63,6 +86,68 @@ const RULES: ReadonlyArray<{ rule: string; manifest: Record<string, unknown>; ex
 for (const { rule, manifest, expected } of RULES) {
   test(`RAC-75 W5-06-PLACE-01 view placement: ${rule}`, () => {
     assert.equal(manifestProblems(manifest), expected);
+  });
+}
+
+// W5-02 PR-D (PG-074, RAC-693): a navigator view alone says its plugin is part of the backbone or an extend entry, and is pinned by default.
+const RAIL_RULES: ReadonlyArray<{ rule: string; manifest: Record<string, unknown>; expected: string }> = [
+  { rule: "a navigator view with a backbone place and a default pin", manifest: placed({ rail: "core", pinned_default: true }), expected: "" },
+  { rule: "a navigator view that is an extend entry", manifest: placed({ rail: "extend" }), expected: "" },
+  { rule: "rail on an island view", manifest: placed({ slot: "island", rail: "core" }), expected: "视图 main 的 rail 只用于 navigator 视图" },
+  { rule: "pinned_default on a settings view", manifest: placed({ slot: "settings", pinned_default: true }), expected: "视图 main 的 pinned_default 只用于 navigator 视图" },
+  { rule: "a rail place the workbench does not have", manifest: placed({ rail: "top" }), expected: "视图 main 的 rail top 不是 core 或 extend" },
+  { rule: "pinned_default that is not true", manifest: placed({ pinned_default: false }), expected: "视图 main 的 pinned_default 只能是 true" },
+];
+
+for (const { rule, manifest, expected } of RAIL_RULES) {
+  test(`RAC-693 view placement: ${rule}`, () => {
+    assert.equal(manifestProblems(manifest), expected);
+  });
+}
+
+// W5-02 PR-D (PG-072, RAC-696): a settings view alone names the read action its page gets its data with, and the SDK refuses one
+// the Host could not call as the person (a command, a write, an action for others, an action the Manifest does not have).
+const readAction = (over: Part = {}, id = "notes.snapshot", version = 1) => ({ capability_id: id, version, operation: "query", action: {
+  title: "读取", description: "读取设置页的数据", kind: "query", scope: "home", audiences: ["user"], permissions: [], subject_kinds: [],
+  input_schema: { type: "object" }, output_schema: { type: "object" }, ...over } });
+const settingsView = (over: Part = {}, actions: unknown[] = [readAction()]) =>
+  placed({ slot: "settings", settings_data: { action: "notes.snapshot" }, ...over }, [...CREATES, ...actions]);
+const NO_ACTION = "视图 main 的 settings_data 指向 notes.snapshot，本 Manifest 没有这个只读、面向用户（audience user）、只有一个版本的查询动作";
+
+const DATA_RULES: ReadonlyArray<{ rule: string; manifest: Record<string, unknown>; expected: string }> = [
+  { rule: "a settings view that names a read action of its own for the person", manifest: settingsView(), expected: "" },
+  { rule: "a settings view that names none", manifest: placed({ slot: "settings" }), expected: "" },
+  { rule: "settings_data on a navigator view", manifest: placed({ settings_data: { action: "notes.snapshot" } }, [...CREATES, readAction()]), expected: "视图 main 的 settings_data 只用于 settings 视图" },
+  { rule: "settings_data without an action", manifest: settingsView({ settings_data: {} }), expected: "视图 main 的 settings_data 必须写明 action" },
+  { rule: "settings_data that is not an object", manifest: settingsView({ settings_data: "notes.snapshot" }), expected: "视图 main 的 settings_data 必须写明 action" },
+  { rule: "an action the Manifest does not have", manifest: settingsView({ settings_data: { action: "notes.other" } }),
+    expected: "视图 main 的 settings_data 指向 notes.other，本 Manifest 没有这个只读、面向用户（audience user）、只有一个版本的查询动作" },
+  { rule: "a command", manifest: settingsView({}, [{ ...readAction(), operation: "command", action: { ...readAction().action, kind: "operation" } }]), expected: NO_ACTION },
+  { rule: "a query that writes", manifest: settingsView({}, [readAction({ effect: "write" })]), expected: NO_ACTION },
+  { rule: "an action that is not for the person", manifest: settingsView({}, [readAction({ audiences: ["workflow", "agent"] })]), expected: NO_ACTION },
+  { rule: "an action declared in two versions", manifest: settingsView({}, [readAction(), readAction({}, "notes.snapshot", 2)]), expected: NO_ACTION },
+];
+
+for (const { rule, manifest, expected } of DATA_RULES) {
+  test(`RAC-696 settings data: ${rule}`, () => {
+    assert.equal(manifestProblems(manifest), expected);
+  });
+}
+
+test("FIX-4 a settings view can request runtimes with or without a data action", () => {
+  assert.equal(manifestProblems(settingsView({ settings_runtimes: true })), "");
+  assert.equal(manifestProblems(settingsView({ settings_data: undefined, settings_runtimes: true })), "");
+});
+
+for (const slot of ["navigator", "stage", "side", "island"]) {
+  test(`FIX-4 the SDK refuses a runtime-list request on ${slot}`, () => {
+    assert.equal(manifestProblems(placed({ slot, settings_runtimes: true })), "视图 main 的 settings_runtimes 只用于 settings 视图");
+  });
+}
+
+for (const value of [false, null, "true", 1, {}, []]) {
+  test(`FIX-4 the SDK refuses settings_runtimes=${JSON.stringify(value)}`, () => {
+    assert.equal(manifestProblems(settingsView({ settings_runtimes: value })), "视图 main 的 settings_runtimes 只能是 true");
   });
 }
 
@@ -149,10 +234,10 @@ test("RAC-77 W5-06-PLACE-03 a settings page's icon is its view's, also when foun
 test("RAC-78 W5-06-PLACE-04 what a project can make new comes from the views that declare it, directory views by order, then islands", () => {
   const all = [...PROJECT_SCOPED_PLUGIN_IDS, ...PERSONAL_PLUGIN_IDS];
   assert.deepEqual(creatableKinds(all), [
-    { id: "pages", station: "pages", title: "文档" },
-    { id: "form", station: "form", title: "问卷" },
-    { id: "dataset", station: "dataset", title: "数据表" },
-    { id: "ppt", station: "ppt", title: "演示稿" },
+    { id: "pages", plugin_id: pluginIdOf("pages"), station: "pages", title: "文档" },
+    { id: "form", plugin_id: pluginIdOf("form"), station: "form", title: "问卷" },
+    { id: "dataset", plugin_id: pluginIdOf("dataset"), station: "dataset", title: "数据表" },
+    { id: "ppt", plugin_id: pluginIdOf("ppt"), station: "ppt", title: "演示稿" },
   ]);
   assert.deepEqual(creatableKinds(["goals", "ppt"]).map(kind => kind.id), ["ppt"], "only the plugins the project shows");
   assert.deepEqual(creatableKinds(["goals"]), []);
@@ -161,9 +246,9 @@ test("RAC-78 W5-06-PLACE-04 what a project can make new comes from the views tha
 test("RAC-78 W5-06-PLACE-04 the project home's ways to start come from the views that declare them, in the same order", () => {
   const all = [...PROJECT_SCOPED_PLUGIN_IDS, ...PERSONAL_PLUGIN_IDS];
   assert.deepEqual(homeStarts(all), [
-    { id: "goals", title: "推进一个目标", hint: "明确要做成什么，接着往下走。", glyph: "target" },
-    { id: "pages", title: "写一份文档", hint: "把思路写下来，逐步整理成作品。", glyph: "file" },
-    { id: "lingguang", title: "记下一点灵感", hint: "还没想清楚，也可以先留下。", glyph: "idea" },
+    { id: "goals", plugin_id: pluginIdOf("goals"), title: "推进一个目标", hint: "明确要做成什么，接着往下走。", glyph: "target" },
+    { id: "pages", plugin_id: pluginIdOf("pages"), title: "写一份文档", hint: "把思路写下来，逐步整理成作品。", glyph: "file" },
+    { id: "lingguang", plugin_id: pluginIdOf("lingguang"), title: "记下一点灵感", hint: "还没想清楚，也可以先留下。", glyph: "idea" },
   ]);
   assert.deepEqual(homeStarts(["goals", "lingguang"]).map(start => start.id), ["goals", "lingguang"], "only the plugins the project shows");
 });

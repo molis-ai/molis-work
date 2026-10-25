@@ -4,11 +4,11 @@
 
 - 基线是 origin/main `15c20920`（2026-10-07）。每一行都由代码推出，并写出打开它的代码位置；代码改了，对应行跟着改，行号会漂移。
 - 第 10 节的真实 Home 清单只用 `ls`、`stat`、`find`、`du` 看了名字、大小和日期，没有打开任何库或数据文件，也没有读任何密钥文件。所以真实库当前盖的是哪个版本，没有核对。只有一处例外，是为了回答旧启动脚本还有没有人在用：读了启动脚本 `bin/goalboard-mcp` 本身（约 1 KB，不含密钥），用 `grep -o` 只取出 Runtime 配置里含 `molis-work` 或 `goalboard` 的路径，用 `ps` 看了在跑的进程的命令行。
-- Home 存储的统一登记已有（W4-11，2026-10-15）：`apps/local-host/src/home-stores.ts` 的 `homeStores()` 列出 Home 里每个有数据的条目和它的 owner，库另带基线；各 owner 在打开它的代码旁声明（插件经目录条目的 `home_store` 带进来，类型在 `contracts/platform/plugin` 的 `HomeStoreDeclaration`），卸载清除、插件库的发放和基线用例都读它（见第 9 节）。还没有的：产品里的备份命令（W5-16）、备份类在登记里的记录（本表第 7 节仍是唯一出处）。本表与登记都要改；本表记得更细（子路径、版本、备份类），登记记的是 owner 与清除范围。
+- Home 存储的统一登记已有（W4-11，2026-10-15）：`apps/local-host/src/home-stores.ts` 的 `homeStores()` 列出 Home 里每个有数据的条目和它的 owner，库另带基线；各 owner 在打开它的代码旁声明（插件经目录条目的 `home_store` 带进来，类型在 `contracts/platform/plugin` 的 `HomeStoreDeclaration`），卸载清除、插件库的发放和基线用例都读它（见第 9 节）。W5-16 的离线 snapshot 由同一登记提供 owner、库基线、排除项、密封策略和原 key 依赖；带 Home 的枚举还经 installed-library owner 纳入实际动态库。CLI 不另列存储名单。恢复命令仍在后续实施，本表给出更细的子路径与恢复边界。
 
 ## 1. 怎么读
 
-W5-16 A：Home 的排他使用由 storage 的同一 SQLite owner 提供，锁仍为 `agent-runtime/.molis-runtime-owner.db`。Host 在任何业务初始化之前取得它，Agent 借用同一个 owner，关闭全部实际资源后才释放；空闲 Host 也不会给离线操作让出窗口。锁和 SQLite 侧车不是业务数据、不进入快照；恢复必须保留原锁 inode 及 `agent-runtime` 父目录，不能用整个目录替换绕过锁。当前只是完整 Home 备份的前置片，产品 snapshot/restore 命令仍未实现。
+W5-16 A：Home 的排他使用由 storage 的同一 SQLite owner 提供，锁仍为 `agent-runtime/.molis-runtime-owner.db`。Host 在任何业务初始化之前取得它，Agent 借用同一个 owner，关闭全部实际资源后才释放；空闲 Host 也不会给离线操作让出窗口。锁和 SQLite 侧车不是业务数据、不进入快照；恢复必须保留原锁 inode 及 `agent-runtime` 父目录，不能用整个目录替换绕过锁。离线 snapshot 复用该 owner；完整 restore 命令仍待实施。
 
 路径从仓库根写起；`installer/X` 指 `apps/local-host/src/installer/X`；一行里以 `src/` 开头的文件，相对这一行前面写出的包目录；`:N` 紧跟在上一个文件后，指同一个文件的第 N 行。Prologue SDK 的文件写作 `node_modules/@prologue/sdk/<路径>`：包本体是 `vendor/prologue-sdk/` 里的 .tgz，里面的文件在 `vendor/` 下找不到；`pnpm install` 后解在 `horizontal/agent-host/node_modules/@prologue/sdk/`（只有 agent-host 依赖它）。
 
@@ -27,7 +27,7 @@ Home 里有 31 种 SQLite 文件：权威库 27 种（Home 级 24 种，按项�
 | 版本方案 | 个数 | 哪些 |
 | --- | --- | --- |
 | `PRAGMA user_version`，经 `applySqliteBaseline` | 26 | 项目库（8）、Alchemist 工作室库与搜索库、assistant（2）、memory（2）、placement、agent-definitions、agent-declarations、connectors、context-onboarding、plugin-originals、functions（3）、11 个个人插件库、Home Runtime 安装库、server、characters |
-| 自己的 meta 表 | 2 | `projects/catalog.db`（`catalog_meta`，22）、`sessions/sessions.db`（`session_meta`，7；已下线，无代码打开） |
+| 自己的 meta 表 | 2 | `projects/catalog.db`（`catalog_meta`，22）、`sessions/sessions.db`（`session_meta`，7；已下线，仅离线备份技术读取） |
 
 派生库 `search/search.db` 用 `search_meta`，版本不符就重建，不属于“拒绝”。
 
@@ -44,7 +44,7 @@ Home 里有 31 种 SQLite 文件：权威库 27 种（Home 级 24 种，按项�
 | `projects/.staging-<project_id>-<uuid>/` | `apps/local-host/src/managed-project-files.ts:42`：新建项目库时的暂存目录 | 目录 | 临时 | purge（在 `projects/` 内） |
 | `projects/.staging-<project_id>/` | `apps/local-host/src/demo-project-lifecycle.ts:56`：新建示例项目的暂存目录，建成后改名为 `projects/<project_id>/`，失败时删（`:69`） | 目录 | 临时 | purge（在 `projects/` 内） |
 | `projects/.resetting-<project_id>-<uuid>/`、`projects/.reset-backup-<project_id>-<uuid>/` | `apps/local-host/src/demo-project-lifecycle.ts:87-88`：重置示例项目时的新库暂存目录，和被换下的旧库。成功后 `.reset-backup-*` 被删（`:121`），失败时尝试改回（`:113`）；改回也失败就抛 `AggregateError`，消息里写出两个路径（`:116`） | 目录 | 临时（进程在中途被杀时 `.reset-backup-*` 是示例项目的旧库，示例项目可重建） | purge（在 `projects/` 内） |
-| `sessions/sessions.db` | `apps/local-host`（只在 `src/home-stores.ts` 登记；Sessions 插件已下线，没有代码打开或建表，见 4.3） | SQLite 自带版本 · WAL · `session_meta.schema_version` = 7（留在旧库里，不再有代码读它） | 必备份，与 `sessions/content/` 同一时点 | purge（`installer/uninstall.ts:51`） |
+| `sessions/sessions.db` | `apps/local-host`（只在 `src/home-stores.ts` 登记；Sessions 插件已下线，无业务 reader/建表，见 4.3） | SQLite 自带版本 · WAL · `session_meta.schema_version` = 7（仅离线备份核原 owner/meta 版本 7，不读业务事实） | 必备份，与 `sessions/content/` 同一时点 | purge（`installer/uninstall.ts:51`） |
 | `sessions/content/blobs/**` 与 `sessions/content/content.key` | `apps/local-host`（只在 `src/home-stores.ts` 登记；写入它们的实现已随 Sessions 插件删除） | 加密文件（AES-256-GCM，每个 blob 封套 `v: 1`）；密钥是一个 32 字节文件 | blobs 必备份；`content.key` 是密钥：没有密钥 blob 读不出，不能换新密钥 | purge（`installer/uninstall.ts:51`，整个 `sessions/`） |
 
 ### 3.2 助理与平台服务（Home 级）
@@ -60,6 +60,7 @@ Home 里有 31 种 SQLite 文件：权威库 27 种（Home 级 24 种，按项�
 | `connectors/connectors.db` | 连接、绑定、目标、协议、授权会话与技术观察的表结构归 `horizontal/connector-host`（`src/connection-store.ts`、`src/protocol-store.ts`、`src/connection-observations.ts`）；宿主在 `apps/local-host/src/connectors-store.ts` 定义授权结果表 `connector_authorization_results` 并组装、打开基线 | SQLite 带版本 · 2 | 必备份。启用状态独立保留，移除后保留失效引用；只存 `credential_ref`，凭据本体在 `feed/secrets.json` | purge（`plugin-connections` 已登记：删项目时清插件为该项目里的记录选的账号绑定，账号本身不动） |
 | `context-onboarding/context-onboarding.db` | 宿主；`apps/local-host/src/context-onboarding-store.ts:46` 打开、`:51` 套用，`:44` 基线 | SQLite 带版本 · 1 | 必备份 | purge |
 | `plugin-originals/plugin-originals.db` | 宿主；`apps/local-host/src/material-original-files.ts` 打开并套用基线（`plugin_original_files`，主键 plugin_id + install_id + 激活所在的项目（Home 级激活为空串，各项目共用）+ 插件自己的记录键，存的是宿主入口交来的原始文件的真实路径）；只由 `materials:original` 服务读写，插件拿不到路径 | SQLite 带版本 · 1 | 必备份（登记的是人导入过的原始文件的位置） | purge（`plugin-originals` 已登记；删项目时按 `project_id` 清登记，原始文件本身不动） |
+| `plugin-directories/plugin-directories.db` | 宿主；`apps/local-host/src/plugin-directory-store.ts` 打开并套用基线（`plugin_directory_grants`：人经系统选择器授权给插件读的本机目录，一条绑定插件、安装、项目（Home 级激活为空串）与人，记目录的真实路径和设备号、inode；`plugin_directory_reads`：每次读的时间、发起来源、调用者与结果，不记文件名和内容，每条授权留最近 200 条）；只由 `apps/local-host/src/plugin-directory-service.ts` 读写，插件只拿到授权 id（PG-049，用户 2026-10-25） | SQLite 带版本 · 1 | 必备份（人给出的授权，撤回之前一直有效） | purge（`plugin-directories` 已登记；删项目时按 `project_id` 删授权与记录，卸载时按安装删，目录本身不动） |
 | `functions/functions.db` | Functions 模块；`modules/functions/src/service.ts:53` 的 `createFunctionsService` 经 `openFunctionsStore` 打开（`modules/functions/src/store.ts:284`），基线 `modules/functions/src/store-schema.ts:7` | SQLite 带版本 · 3 | 必备份 | purge |
 | `characters/characters.sqlite` | `modules/characters/src/open.ts`，由 `apps/local-host/src/characters-host.ts:72` 打开（还有 `:118`）；原生执行记录由 `apps/local-host/src/character-native-execution.ts` 经 `openCharacterRuns` 打开 | SQLite 带版本 · 2（v1 → v2 加 `character_runs`，真实 Home 待维护，见 `specs/repository-anti-corruption/spec.md` §4.1 的库版本维护清单），`CHARACTERS_STORE_BASELINE` 经 `applySqliteBaseline` 套用（无版本的表、别的版本都拒绝，原库不动） | 必备份 | purge |
 
@@ -168,7 +169,7 @@ owner 们仍会在打开时对自己的表执行 `IF NOT EXISTS`，在这里是�
 
 ### 4.3 `sessions/sessions.db`（v7，已下线）
 
-Sessions 插件下线（SC-4）后，没有任何代码打开 `sessions/sessions.db` 或 `sessions/content/`：库里的表（`session_meta`、`sessions`、`session_messages`、`session_events`、`session_handoffs`）与加密内容块是旧数据，留在原处，不读、不迁移、不转换。它们仍登记在 `apps/local-host/src/home-stores.ts`（owner 是 `apps/local-host`），所以备份照旧包含、`uninstall --purge-user-data` 照旧删除整个 `sessions/`。
+Sessions 插件下线（SC-4）后，没有业务代码打开 `sessions/sessions.db` 或 `sessions/content/`：库里的表（`session_meta`、`sessions`、`session_messages`、`session_events`、`session_handoffs`）与加密内容块是旧数据，留在原处，不读、不迁移、不转换。它们仍登记在 `apps/local-host/src/home-stores.ts`（owner 是 `apps/local-host`），所以备份照旧包含、`uninstall --purge-user-data` 照旧删除整个 `sessions/`。W5-16 只在原登记内给出纯字面离线元数据；持同一 Home lease 的通用备份链核原 owner/meta 版本 7 与 SQLite 完整性，backup API 包含已提交 WAL，密封 blob 原字节同点保留，原 key 仅记录同 Home 依赖。未知版本、坏库或缺必要 key 拒绝，不读 Session 业务表、不解密正文、不迁移、不恢复业务服务；正常 Host 首次启动与重启仍不得打开或初始化它。
 
 删除项目不再有 `sessions` 所有者：旧库里属于被删项目的 Session 记录不会被清（已接受的遗留，随旧库留到 SC-5）。SC-5 才会在备份副本上清理 `<home>/sessions/`，需要用户逐步批准；真实 Home 不在本片动。Sessions 重做时的数据形状另议（BL-177），不沿用这个库。
 
@@ -233,7 +234,7 @@ Sessions 插件下线（SC-4）后，没有任何代码打开 `sessions/sessions
 | `images/assets/` | `plugins/native/images/src/service.ts:37`：生成的图片文件 | 文件目录 · 无版本 | 必备份 | purge（`images` 目录） |
 | `lingguang/imports/<sha256><ext>` | 旧版本留下的上传原始副本；现行 `apps/local-host/src/material-home.ts` 不再写，也没有代码读，上传的文件只在内存里提取文字（读取不保存灵光，副本没有读者也没有主人）。旧 Home 里已有的文件可以直接删除 | 文件目录 · 无版本 | 可重建（不会再被读取；删除不影响任何记录） | purge（`lingguang` 目录） |
 | `lingguang/models/` | `apps/local-host/src/material-home.ts` 的 `modelCacheDirectory`：平台材料服务拥有的音视频转写模型缓存；路径沿用既有名称。只有可信 user 调用且明确允许时，原生辅助程序才可下载（`apps/local-host/src/material-native.ts`）；读取音视频时按需创建目录 | 目录 · 无版本 | 可重建（重新下载） | purge（`lingguang` 目录） |
-| `directory-access/bookmarks.json` | `apps/desktop/adapters/tauri/src/context_directories.rs:109-125`：桌面壳保存的目录授权书签。设了 `MOLIS_WORK_HOME` 时在 Home 里，否则在应用数据目录（第 8 节） | JSON · 无版本 | 授权书签与机器绑定，换机后失效，按可重建对待 [推断，未读格式] | purge |
+| `directory-access/bookmarks.json` | `apps/desktop/adapters/tauri/src/context_directories.rs:109-125`：桌面壳保存的目录授权书签。设了 `MOLIS_WORK_HOME` 时在 Home 里，否则在应用数据目录（第 8 节） | JSON · 无版本 | Home 内原字节及权限由现有 Home payload owner 密封；限原机器原路径，OS 拒绝后须重选；外部 AppData 不复制 | purge |
 
 ### 6.3 配置、日志与安装物
 
@@ -284,9 +285,9 @@ B2b 的 owner 接口目前在内存中生成完整结果：所有安装合计最
 
 ## 7. 备份：必须取同一时点的组
 
-产品里没有备份命令；`docs/installation.md` 的“离线备份与恢复边界”只说明退出后整份拷贝，`tests/home-backup-recovery.test.ts` 的两条用例只覆盖目录库、项目库、会话库（含加密正文与密钥）和成果版本，不覆盖下面其余的组。SQLite 文件在 WAL 模式下旁边有 `-wal`、`-shm`，只拷 `.db` 会丢最近的提交。
+`molis-work home snapshot --to <新目录> [--home <原Home>] [--json]` 的实施使用同一 Home lease，在业务初始化前取得所有权，从唯一 `homeStores()` 捕获实际 SQLite 库、分区与必要非 SQLite 文件。SQLite 使用 backup API，包含已提交 WAL，不直接拷贝 `.db` 或侧车。用法、失败清理和原路径约束见 [CLI 与开发](../cli-and-development.md#home-离线快照)。`tests/home-backup-recovery.test.ts` 的旧局部恢复用例不能证明全部 owner 覆盖。
 
-W5-16 实施中的新命令不导出 raw master、Keychain、会话/SDK/构建 run 的 `.key`；下表的配对描述依赖关系，新的同 Home 恢复只保存非敏感依赖引用并校验原钥匙。B2a 已提供 Runtime 配置备份密封与只读 vault 预检；B2b 已提供 CLI 私有状态密封和完整内存预检 owner，早期互斥、统一发布/回滚与完整 snapshot/restore 仍待实施，不能用既有局部恢复用例宣称全部覆盖。逐项现行登记的凭据策略见 [W5-16 slice](../../specs/repository-anti-corruption/slices/w5-16-home-snapshot.md)。
+W5-16 新命令不导出 raw master、Keychain、会话/SDK/构建 run 的 `.key`；下表描述依赖配对，快照只保存非敏感 key 引用。B2a 的 vault/Runtime 与 B2b 的 CLI 私有状态预检沿原 owner 认证，A 早期互斥已接入本实现。SDK 原 key 与密文的零源写认证端口尚未闭合，不能把文件摘要称为可恢复证明；完整 restore、统一发布/回滚与重启续写仍待实施。逐项现行登记、认证缺口与工程证据见 [W5-16 slice](../../specs/repository-anti-corruption/slices/w5-16-home-snapshot.md)。
 
 | 组 | 成员 | 为什么要同一时点 |
 | --- | --- | --- |
@@ -299,7 +300,7 @@ W5-16 实施中的新命令不导出 raw master、Keychain、会话/SDK/构建 r
 
 不必备份：`releases/`、`bin/`（可重装），`search/`、`cache/`、`lingguang/models/`（可重建），`logs/`，`browser/profile/`、`browser/downloads/`、`browser/uploads/`，所有锁与暂存。
 
-浏览器 profile 的排除意味着恢复后重新登录，`browser/sites.json` 的站点授权仍保留。`directory-access/bookmarks.json` 含目录授权能力，现表“可重建”仍是推断，完整命令前须由桌面 owner 核实密封/本机重新授权边界，不能当普通配置导出或静默排除。CLI `.home` 的独有配置和登录文件没有浏览器的排除，必须密封保存。预留的 `backups/` 若非空而没有现行 owner 解释内容，拒绝分类，不能默认为派生缓存。
+浏览器 profile 的排除意味着恢复后重新登录，`browser/sites.json` 的站点授权仍保留。`directory-access/bookmarks.json` 含目录授权能力，显式 Home 内只密封保存原字节及权限，不能当普通配置导出、刷新或伪造授权；OS 不接受时由用户重选，Home 外 AppData 不复制。CLI `.home` 的独有配置和登录文件必须密封保存。预留的 `backups/` 若非空而没有现行 owner 解释内容，拒绝分类，不能默认为派生缓存。
 
 ## 8. Home 之外的状态
 
@@ -365,6 +366,7 @@ purge 之后仍留下的（由代码推出，没有在真实 Home 上试过）�
 - 共享日志表 `events`、`idempotency_records` 的跨 owner 语句已清零：Goals 与 Governance 两个模块改用宿主注入的日志端口（PG-094 S9-1），`shared` 两条登记已删。其余跨 owner 直接 SQL 已由 W2-06 清零并有门禁。
 - 没有备份命令和快照；第 7 节的同一时点组没有工具保证（W5-16）。
 - 目录库存项目库的绝对路径（W5-17）。
+- W5-17 真实维护前的只读清单还须按各项目与 Home 的 Runtime 库分别列出违反 S-75 的安装：宿主保留 ID 或点分段嵌套、unsigned 同/异标签嵌套、不同 pinned key 嵌套及签名与信任不符；输出安装编号、插件号、信任等级与拒绝码，不输出私有数据或密钥。本片只记录后继检查要求，不扫描或改写真实 Home；正常启动重验拒绝并记诊断，既存记录的处置仍需维护窗口授权。
 - 旧 `goalboard-*` 的 release 与启动脚本卸载不认，而 `bin/goalboard-mcp` 还有进程在用（W4-11 的清除范围决策）。
 - purge 的用例读登记（W4-11），`sessions/`、`shelf/`、`logs/`、`backups/`、`runtime-integrations/` 也在遍历用例里写入再断言被删。`tests/uninstall.test.ts` 仍有一份写死的目录，只是它自己的场景，不再是清单。
 - 结构由宿主文件定义的库（assistant、placement、agent-definitions、context-onboarding、connectors、项目库的几段）按“库归 owner 包”看是错放，处理在 W3-06 与 W5-01。

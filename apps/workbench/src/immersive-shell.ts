@@ -1,7 +1,8 @@
 import { UI_VIEW_GROUPS, type UiViewGroup } from "@molis-ai/molis-work-contracts/platform/ui";
-import { icon as glyph, renderButton, type MolisWorkIcon } from "@molis-ai/molis-work-design-system";
+import { icon as glyph, renderButton, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { withPluginWords } from "./i18n.js";
 import { renderPluginEventRecovery } from "./plugin-event-recovery.js";
-import { DIRECT_WORK_SURFACE_IDS, DOCK_DEFAULT_PINS, RELOAD_ON_MEMBERSHIP_IDS, builtinPluginDirectory, islandEntries, pluginLabel, pluginMarketCards, railEntries, pluginStageSummaries } from "./plugin-catalog.js";
+import { DIRECT_WORK_SURFACE_IDS, RELOAD_ON_MEMBERSHIP_IDS, builtinPluginDirectory, dockDefaultPins, extendPluginIds, islandEntries, pluginLabel, pluginMarketCards, railEntries, pluginStageSummaries } from "./plugin-catalog.js";
 import type { PluginDirectory } from "./plugin-directory.js";
 import { renderAssistantDock } from "./assistant-dock.js";
 import { renderSidePanel, type SidePanelPluginTab } from "./side-panel.js";
@@ -10,7 +11,7 @@ import { renderHomePluginNavigation } from "./home-plugin-navigation.js";
 export interface ImmersiveShellPrimitives {
   L(value: string): string;
   escapeHtml(value: unknown): string;
-  icon(name: MolisWorkIcon): string;
+  icon(name: PluginIconName): string;
   /** The page's language ("en" for English); plugin names and lists follow it. */
   htmlLang?(): string;
 }
@@ -36,15 +37,16 @@ function directoryPlugins(directory: PluginDirectory, enabled: readonly string[]
     id: entry.id,
     surface: SURFACE_OVERRIDES[entry.id] ?? entry.surface,
     label: pluginLabel(entry.id, entry.label, inEnglish),
-    glyph: entry.glyph as MolisWorkIcon,
+    glyph: entry.glyph as PluginIconName,
     group: entry.group,
+    rail: entry.rail,
     chosen: entry.chosen,
   }));
 }
 
 function pluginLink(
   { L, icon, escapeHtml }: ImmersiveShellPrimitives,
-  rawPlugin: { id: string; surface: string; label: string; glyph: MolisWorkIcon; hint?: string; chosen?: boolean },
+  rawPlugin: { id: string; surface: string; label: string; glyph: PluginIconName; hint?: string; chosen?: boolean },
   extraClass = "",
   suffix = "",
 ): string {
@@ -73,8 +75,9 @@ function islandPlugins(directory: PluginDirectory, enabled: readonly string[], i
     id: entry.id,
     surface: SURFACE_OVERRIDES[entry.id] ?? entry.surface,
     label: pluginLabel(entry.id, entry.label, inEnglish),
-    glyph: entry.glyph as MolisWorkIcon,
+    glyph: entry.glyph as PluginIconName,
     group: entry.group,
+    rail: entry.rail,
     chosen: entry.chosen,
   }));
 }
@@ -94,8 +97,6 @@ function islandPlugins(directory: PluginDirectory, enabled: readonly string[], i
  * (`group`, W5-06 2b), and one that names none, including one added later, lands in 更多, so adding
  * a Plugin never edits the shell.
  */
-const RAIL_CORE_ORDER = ["goals", "inbox", "feed"];
-const RAIL_CORE_PLUGIN_IDS = new Set(RAIL_CORE_ORDER);
 /**
  * The names of the groups a view can name, which the Host owns (their order is `UI_VIEW_GROUPS`'): 推进 (the backbone plus
  * its helpers), 写与做 (things one makes), 个人 (what belongs to the person), 研究, 编码. See
@@ -103,7 +104,6 @@ const RAIL_CORE_PLUGIN_IDS = new Set(RAIL_CORE_ORDER);
  */
 const RAIL_GROUP_LABELS: Readonly<Record<UiViewGroup, string>> = { advance: "推进", make: "写与做", personal: "个人", research: "研究", code: "编码" };
 const RAIL_HOME_HINT = "今天的工作、当天的事件和回到手边的入口。";
-const RAIL_EXTEND_PLUGIN_IDS = new Set(["plugin-builder"]);
 
 /**
  * The person's entries, the backbone, this project's tools (recent first, the rest one click away), the account.
@@ -124,18 +124,21 @@ export function renderPluginRail(
 ): string {
   const { L, icon, escapeHtml } = primitives;
   const have = new Set(enabled);
+  const extendIds = extendPluginIds(directory), pinned = new Set(dockDefaultPins(directory));
   const cards = pluginMarketCards(options, directory);
-  const addable = cards.map(card => card.id).filter(id => !have.has(id) && !RAIL_EXTEND_PLUGIN_IDS.has(id));
+  const addable = cards.map(card => card.id).filter(id => !have.has(id) && !extendIds.has(id));
   const everyone = [...enabled, ...addable];
   const entries = directoryPlugins(directory, everyone, english(primitives));
   const islands = islandPlugins(directory, everyone, english(primitives));
   const join = (values: readonly string[]) => values.join(L("、"));
-  const hints = pluginStageSummaries();
+  const summaries = pluginStageSummaries();
+  // A summary is the Plugin's own text, so it is English in that Plugin's own words and nobody else's.
+  const hints = Object.fromEntries(Object.entries(summaries).map(([id, { plugin_id, summary }]) => [id, withPluginWords(plugin_id, () => L(summary))]));
   const names = new Map<string, string>([...entries, ...islands].map(plugin => [plugin.id, plugin.label]));
   const sitesOf = new Map(cards.map(card => [card.id, card.sites]));
   const zoned = (html: string, zone: string) => html.replace("<button ", `<button data-rail-zone="${zone}" `).replace("<a ", `<a data-rail-zone="${zone}" `);
-  const link = (plugin: { id: string; surface: string; label: string; glyph: MolisWorkIcon; hint?: string; chosen?: boolean }, zone: string, suffix = "") =>
-    zoned(pluginLink(primitives, { ...plugin, hint: plugin.hint ?? (hints[plugin.id] ? L(hints[plugin.id]) : undefined) }, "plugin-rail-item", suffix), zone);
+  const link = (plugin: { id: string; surface: string; label: string; glyph: PluginIconName; hint?: string; chosen?: boolean }, zone: string, suffix = "") =>
+    zoned(pluginLink(primitives, { ...plugin, hint: plugin.hint ?? hints[plugin.id] }, "plugin-rail-item", suffix), zone);
   // What adding one adds with it, and what removing one takes with it (the Projects service applies both, so the tile says so). Both
   // read the Host's marks on the directory (W5-02 B1); the Host's own registry decides, whatever the page says.
   const marks = new Map(directory.map(entry => [entry.id, entry]));
@@ -153,7 +156,7 @@ export function renderPluginRail(
   const named = (ids: readonly string[]) => ids.map(id => names.get(id) ?? id).join("|");
   // The pin: kept in the Dock (graphite) or not (grey); out of reach until the plugin is in the project.
   const pinButton = (plugin: { id: string; label: string }, owned: boolean) => {
-    const kept = owned && DOCK_DEFAULT_PINS.includes(plugin.id);
+    const kept = owned && pinned.has(plugin.id);
     return renderButton({ variant: kept ? "primary" : "secondary", size: "sm", icon: "pin", iconOnly: true, className: "dock-keep", disabled: !owned,
       label: say(L, "常驻 Dock：{name}", { name: plugin.label }), attrs: { "data-dock-choice": plugin.id, "aria-pressed": String(kept), title: L("常驻 Dock") } });
   };
@@ -171,24 +174,23 @@ export function renderPluginRail(
   };
   // At rest the end of the tile shows only a small pin when the plugin is kept; looked at, the buttons replace it.
   const mark = `<i class="plugin-rail-mark" aria-hidden="true">${icon("pin")}</i><small class="plugin-rail-confirm" aria-hidden="true"></small>`;
-  const tile = (plugin: { id: string; surface: string; label: string; glyph: MolisWorkIcon; chosen?: boolean }, zone: string) => {
+  const tile = (plugin: { id: string; surface: string; label: string; glyph: PluginIconName; chosen?: boolean }, zone: string) => {
     // A plugin installed at run time is in the project because it runs there; taking it out is whoever installed it, not this list.
     const installed = plugin.chosen === false;
     const owned = installed || have.has(plugin.id);
     const label = escapeHtml(plugin.label);
-    const kept = owned && DOCK_DEFAULT_PINS.includes(plugin.id);
+    const kept = owned && pinned.has(plugin.id);
     const along = owned ? [] : alongWith(plugin.id), dependents = owned ? dependentsOf(plugin.id) : [];
-    const hint = hints[plugin.id] ? `<small class="plugin-rail-hint">${L(hints[plugin.id])}</small>` : "";
+    const hint = hints[plugin.id] ? `<small class="plugin-rail-hint">${hints[plugin.id]}</small>` : "";
     const main = owned ? link(plugin, zone, mark)
       : `<button class="immersive-plugin-link plugin-rail-item" type="button" data-rail-zone="${zone}" aria-disabled="true" tabindex="-1" aria-label="${say(L, "{name}（未添加）", { name: label })}">${icon(plugin.glyph)}<span>${label}</span>${hint}${mark}</button>`;
     return `<div class="plugin-rail-tile${owned ? "" : " is-available"}${kept ? " is-kept" : ""}" data-plugin-tile="${plugin.id}"${along.length ? ` data-along="${escapeHtml(named(along))}"` : ""}${dependents.length ? ` data-dependents="${escapeHtml(named(dependents))}"` : ""}>${main}<span class="plugin-rail-ops" role="group" aria-label="${label}">${pinButton(plugin, owned)}${installed ? "" : toggleButton(plugin, owned, along)}</span></div>`;
   };
   const subgroup = (label: string, buttons: string) => buttons ? `<p class="plugin-rail-subgroup" data-rail-zone="more">${label}</p>${buttons}` : "";
   const home = link({ id: "home", surface: "home", label: L("项目首页"), glyph: "home", hint: L(RAIL_HOME_HINT) }, "core");
-  const core = entries.filter(plugin => RAIL_CORE_PLUGIN_IDS.has(plugin.id))
-    .sort((a, b) => RAIL_CORE_ORDER.indexOf(a.id) - RAIL_CORE_ORDER.indexOf(b.id)).map(plugin => tile(plugin, "core")).join("");
+  const core = entries.filter(plugin => plugin.rail === "core").map(plugin => tile(plugin, "core")).join("");
   // 灵光 is a plugin like any other: an island leads the group its view names (个人).
-  const tools = [...islands, ...entries].filter(plugin => !RAIL_CORE_PLUGIN_IDS.has(plugin.id) && !RAIL_EXTEND_PLUGIN_IDS.has(plugin.id));
+  const tools = [...islands, ...entries].filter(plugin => plugin.rail === null);
   const grouped = UI_VIEW_GROUPS.map((group, index) => {
     const links = tools.filter(plugin => plugin.group === group).map(plugin => tile(plugin, "tool")).join("");
     // The backbone already sits under the first heading; its helpers follow without a second one.
@@ -206,9 +208,9 @@ export function renderPluginRail(
 /** The ways to extend the workbench — the market and the plugin studio — offered from the Dock menu. */
 export function renderAccountGlobalItems(primitives: ImmersiveShellPrimitives, enabled: readonly string[]): string {
   const { L } = primitives;
-  const item = (plugin: { id: string; surface: string; label: string; glyph: MolisWorkIcon }, suffix = "") =>
+  const item = (plugin: { id: string; surface: string; label: string; glyph: PluginIconName }, suffix = "") =>
     pluginLink(primitives, plugin, "account-global-item", suffix);
-  const builder = directoryPlugins(builtinPluginDirectory(), enabled, english(primitives)).filter(plugin => RAIL_EXTEND_PLUGIN_IDS.has(plugin.id)).map(plugin => item(plugin)).join("");
+  const builder = directoryPlugins(builtinPluginDirectory(), enabled, english(primitives)).filter(plugin => plugin.rail === "extend").map(plugin => item(plugin)).join("");
   const market = item({ id: "market", surface: "market", label: L("插件市场"), glyph: "grid" },
     `<b class="plugin-rail-update-count" data-market-update-count hidden aria-live="polite"></b>`);
   return `${market}${builder}`;
@@ -221,12 +223,12 @@ export function renderAccountGlobalItems(primitives: ImmersiveShellPrimitives, e
  */
 export function renderPickerExtend(primitives: ImmersiveShellPrimitives, enabled: readonly string[]): string {
   const { L } = primitives;
-  const button = (plugin: { id: string; surface: string; label: string; glyph: MolisWorkIcon }, suffix = "") => {
+  const button = (plugin: { id: string; surface: string; label: string; glyph: PluginIconName }, suffix = "") => {
     const html = renderButton({ variant: "secondary", size: "sm", icon: plugin.glyph, label: plugin.label, className: "plugin-picker-extend-btn",
       attrs: { "data-plugin-id": plugin.id, ...(DIRECT_WORK_SURFACE_IDS.has(plugin.id) ? {} : { "data-directory-open": plugin.id }), "data-work-surface-open": plugin.surface, title: plugin.label } });
     return html.replace(/<\/button>$/, `${suffix}</button>`);
   };
-  const builder = directoryPlugins(builtinPluginDirectory(), enabled, english(primitives)).filter(plugin => RAIL_EXTEND_PLUGIN_IDS.has(plugin.id)).map(plugin => button(plugin)).join("");
+  const builder = directoryPlugins(builtinPluginDirectory(), enabled, english(primitives)).filter(plugin => plugin.rail === "extend").map(plugin => button(plugin)).join("");
   const market = button({ id: "market", surface: "market", label: L("插件市场"), glyph: "grid" },
     `<b class="plugin-rail-update-count" data-market-update-count hidden aria-live="polite"></b>`);
   return `<div class="plugin-picker-extend" data-global-menu role="group" aria-label="${L("添加与创作插件")}">${market}${builder}</div>`;
@@ -349,7 +351,7 @@ export function renderPluginMarket(primitives: ImmersiveShellPrimitives, options
   // Sites a Plugin says it uses in the side panel browser are read before it is added (specs/archive/side-panel D16).
   const sites = (plugin: { sites: readonly string[] }) => plugin.sites.length
     ? `<small class="plugin-market-sites" data-market-sites>${say(L, "会在侧栏浏览器里使用：{sites}", { sites: join(plugin.sites.map(site => escapeHtml(site))) })}</small>` : "";
-  const rows = pluginMarketCards(options, directory).map(card => ({ ...card, label: pluginLabel(card.id, card.label, english(primitives)) })).map(plugin => `<article class="mw-card" data-market-plugin="${plugin.id}" data-market-runtime-id="${plugin.runtime_id}"${plugin.personal ? " data-market-personal" : ""}><div class="plugin-market-icon">${icon(plugin.glyph as MolisWorkIcon)}</div><div class="plugin-market-copy"><h2>${plugin.label}</h2><p>${L(plugin.copy)}</p>${sites(plugin)}<small class="plugin-market-version" data-market-version hidden></small></div><button class="mw-btn mw-btn--secondary" type="button" data-market-upgrade hidden disabled>${L("升级")}</button><button class="mw-btn mw-btn--secondary" type="button" data-market-open="${plugin.id}" hidden>${L("打开")}</button><button class="mw-btn mw-btn--secondary" type="button" data-market-add="${plugin.id}" disabled>${L("添加")}</button></article>`).join("");
+  const rows = pluginMarketCards(options, directory).map(card => ({ ...card, label: pluginLabel(card.id, card.label, english(primitives)) })).map(plugin => `<article class="mw-card" data-market-plugin="${plugin.id}" data-market-runtime-id="${plugin.runtime_id}"${plugin.personal ? " data-market-personal" : ""}><div class="plugin-market-icon">${icon(plugin.glyph as PluginIconName)}</div><div class="plugin-market-copy"><h2>${plugin.label}</h2><p>${withPluginWords(plugin.runtime_id, () => L(plugin.copy))}</p>${sites(plugin)}<small class="plugin-market-version" data-market-version hidden></small></div><button class="mw-btn mw-btn--secondary" type="button" data-market-upgrade hidden disabled>${L("升级")}</button><button class="mw-btn mw-btn--secondary" type="button" data-market-open="${plugin.id}" hidden>${L("打开")}</button><button class="mw-btn mw-btn--secondary" type="button" data-market-add="${plugin.id}" disabled>${L("添加")}</button></article>`).join("");
   return `<div class="plugin-market-body">
     <header class="plugin-market-heading"><div><h1>${L("插件")}</h1><p>${L("给这个项目添加插件，或打开已经在用的。")}</p></div><div class="plugin-market-destination"><label id="plugin-market-destination-label" for="plugin-market-project-trigger">${L("添加到")}</label><button type="button" class="plugin-market-project-trigger" id="plugin-market-project-trigger" data-market-project-trigger popovertarget="plugin-market-project-menu" aria-labelledby="plugin-market-destination-label plugin-market-project-label" aria-haspopup="listbox" aria-expanded="false" disabled><strong id="plugin-market-project-label" data-market-project-label></strong>${icon("chevron-down")}</button><div id="plugin-market-project-menu" popover="auto" class="plugin-market-project-popover" data-market-project-popover role="listbox" aria-labelledby="plugin-market-destination-label"><nav data-market-project-options></nav></div><select data-market-project hidden tabindex="-1" aria-hidden="true" disabled></select><template data-market-project-check>${icon("check")}</template></div></header>
     <label class="plugin-market-search mw-input-group">${icon("search")}<input class="mw-input" type="search" data-market-search placeholder="${L("搜索插件")}" aria-label="${L("搜索插件")}" autocomplete="off"></label>

@@ -14,7 +14,7 @@ export const DATASET_STYLES = `
   }
   @media (prefers-reduced-motion: reduce) { .creative-artifact-act { transition: none; } }
   .dataset-stage-chrome { pointer-events: auto; }
-  [data-dataset=workbench] { --plugin-tint: var(--plugin-dataset); }
+  [data-dataset=workbench] { --plugin-tint: var(--ink-soft); }
   [data-dataset-stage-workspace] > .plugin-stage-detail-bar { min-width: 0; max-width: 100%; overflow-x: auto; }
   .dataset-workspace {
     display: flex; flex-direction: column; gap: 16px;
@@ -45,7 +45,7 @@ export const DATASET_STYLES = `
     box-shadow: inset 0 0 0 1px var(--line);
   }
   .dataset-table-wrap tbody tr { transition: background-color var(--dur-hover, 130ms) var(--ease-quint); }
-  .dataset-table-wrap tbody tr:hover td { background: color-mix(in srgb, var(--plugin-dataset, var(--ink)) 6%, transparent); }
+  .dataset-table-wrap tbody tr:hover td { background: color-mix(in srgb, var(--ink-soft) 6%, transparent); }
   .dataset-table-wrap:has([data-dataset-table-empty]:not([hidden])),
   .dataset-table-wrap:has([data-dataset-filter-empty]:not([hidden])) { width: min(100%, 28rem); }
   .dataset-table-empty { margin: 4px 8px; font-size: 13px; color: var(--muted); }

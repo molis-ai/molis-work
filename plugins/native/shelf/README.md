@@ -49,7 +49,7 @@ pnpm test:run tests/shelf-plugin.test.ts tests/shelf-project-knowledge-http.test
 - 负责：Shelf 目录、预览与副本任务界面。
 - 不负责：Goal 与 Artifact 的事实和 Store、桌面轮盘与热键。
 - 公开入口：`@molis-ai/molis-work-plugin-shelf`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-module-shelf`、`@molis-ai/molis-work-plugin-sdk`（`bindOwnerPluginAction`、`bindPluginActionRoute`）；第三方依赖见 `package.json`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-module-shelf`、`@molis-ai/molis-work-plugin-sdk`（`bindOwnerPluginAction`、`bindPluginActionRoute`）；第三方依赖见 `package.json`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 架子的文件声明是 `SHELF_OWNER_FILES`（`catalog.json`、`files/`、`jobs/`，插件包导出）。Home 动作和项目里的动作（存到项目资料、接收项目成果）都由 Shelf 的 Runtime 实例提供（`src/registration.ts` 的 `runtime: { scope: "home", dual_instance }`，文件声明在 `src/manifest.ts` 的 `owner_files`，`src/home-plugin.ts`），文件走平台的 `services.ownerFiles`；Host 不再按这份声明装配自己的文件客户端（Shelf S4 删了 `shelf-actions.ts`，PG-026-S1），演示数据的示例由常驻宿主调 Shelf 的 `shelf.sample.seed` 放回（`apps/local-host/src/demo-plugin-seed.ts` 的 `seedDemoHomeSamples`，Shelf 没装上、没在跑或没授权就不动，演示照常做好）；动作端口里改架子的方法返回 `T | Promise<T>`，处理器都 `await`。
   - 文件夹放入整个不超过 32 MB（各文件之和；Store、桌面壳 `shelf_http.rs` 与面板三处同一个数，超了整个拒绝并说「拆成几个小一点的文件夹」，Shelf S3 起由 64 MB 改小；文件夹路由的请求体上限 45 MB，留给 base64 的膨胀）。

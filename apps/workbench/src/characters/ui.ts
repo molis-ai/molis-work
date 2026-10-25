@@ -1,4 +1,4 @@
-import { icon } from "@molis-ai/molis-work-design-system";
+import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { CHARACTER_IMPORT_HTML, CHARACTER_SOURCE_HTML } from "./import-ui.js";
 
 // 角色 is the Host's own page since CHR-1 (decision #26): Settings › 角色 is a host section, and inside a project the page below

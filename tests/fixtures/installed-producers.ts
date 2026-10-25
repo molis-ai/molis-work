@@ -6,7 +6,7 @@ import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plu
 export interface TestProducer { plugin_id: string; artifact_types?: readonly string[]; process_types?: readonly string[] }
 
 /**
- * Makes the project whose database is `db` answer for these producers as installations in effect (S-75): a version store writes
+ * Makes the project whose database is `db` answer for these producers as installations in effect (S-81): a version store writes
  * for a producer only when the project's own supervisor says it is installed there, so a test that writes through a store with no
  * platform names its producers here. Each type is declared at schema version 1. Returns the way to let them go.
  */

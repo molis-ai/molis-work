@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -41,7 +42,7 @@ test("real Home HTTP and capability library use installed plugin grants without 
   let stopImposter: (() => void) | undefined;
   try {
     const repository = await host.withProject(reference, projectRuntime => new SqlitePluginRuntimeRepository(projectRuntime.store.db));
-    runtime = new PluginRuntime(repository, undefined, { actions: { registry: host.actionRegistry(reference), project_id: reference.project_id } });
+    runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: host.actionRegistry(reference), project_id: reference.project_id } });
     installId = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: [] }).install.install_id;
     await runtime.start(installId);
     const imposter = { ...definition, capability_id: "ungranted.same-permission" };
@@ -107,7 +108,7 @@ test("scene-only plugins obtain local-user discovery and configuration from thei
     async start() { return { kind: "app", action_scenes: [{ ...scene,
       targets: () => [{ binding_id: "original-slot", title: "原审核位置", revision: null }], bindings: () => [], bind: () => {}, consume: () => ({}) }] }; } });
   const repository = await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db));
-  const runtime = new PluginRuntime(repository, undefined, { actions: { registry: host.actionRegistry(reference), project_id: reference.project_id } });
+  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: host.actionRegistry(reference), project_id: reference.project_id } });
   const installed = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: [...scene.permissions, ...scene.configuration_permissions] }).install;
   await runtime.start(installed.install_id);
   try {
@@ -141,11 +142,11 @@ test("a Runtime plugin registered under its plugin_id gets its local-user grants
     ui: { contributions: [] }, actions: [pluginRead] }, async start() { return { kind: "app", actions: [{ ...pluginRead, handle: () => "plugin" }] }; } });
   const repository = await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db));
   // The Host's rule for a plugin that ships with it: the plugin id, where an installation id would otherwise be.
-  const runtime = new PluginRuntime(repository, undefined, { actions: { registry: host.actionRegistry(reference), project_id: reference.project_id, providerId: record => record.plugin_id } });
+  const runtime = new PluginRuntime(repository, undefined, { hostIds: new Set([pluginId]), actions: { registry: host.actionRegistry(reference), project_id: reference.project_id, providerId: record => record.plugin_id } });
   // What the Host assembles by hand for the same plugin (Shelf has such providers), under the same id and with no installation behind it.
   const withdrawHost = host.actionRegistry(reference).registerProvider({ provider: { provider_id: pluginId, plugin_id: pluginId, title: "宿主", kind: "plugin", project_id: reference.project_id },
     definitions: [hostRead], handlers: [{ ...hostRead, handle: () => "host" }] });
-  const installId = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["shared:read"] }).install.install_id;
+  const installId = runtime.install({ trust: { level: "host" }, definition: plugin, deployment: "local", grants: ["shared:read"] }).install.install_id;
   await runtime.start(installId);
   try {
     const caller = await localWebActionContext(host, reference, []);
@@ -179,8 +180,8 @@ test("a scene-only plugin registered under its plugin_id obtains local-user disc
     async start() { return { kind: "app", action_scenes: [{ ...scene,
       targets: () => [{ binding_id: "original-slot", title: "原审核位置", revision: null }], bindings: () => [], bind: () => {}, consume: () => ({}) }] }; } });
   const repository = await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db));
-  const runtime = new PluginRuntime(repository, undefined, { actions: { registry: host.actionRegistry(reference), project_id: reference.project_id, providerId: record => record.plugin_id } });
-  const installed = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: [...scene.permissions, ...scene.configuration_permissions] }).install;
+  const runtime = new PluginRuntime(repository, undefined, { hostIds: new Set([plugin.manifest.plugin_id]), actions: { registry: host.actionRegistry(reference), project_id: reference.project_id, providerId: record => record.plugin_id } });
+  const installed = runtime.install({ trust: { level: "host" }, definition: plugin, deployment: "local", grants: [...scene.permissions, ...scene.configuration_permissions] }).install;
   await runtime.start(installed.install_id);
   try {
     const caller = await localWebActionContext(host, reference, []);
@@ -435,7 +436,7 @@ test("S-15 RAC-651 the permissions a route names reach a Runtime plugin's action
       reads++; return subjectContext({ subject: { kind: "capped-note", id: (input as { subject_id: string }).subject_id }, revision: "1", title: "t", content: "正文", goal_ids: [] });
     } }] }; } });
   const repository = await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db));
-  const runtime = new PluginRuntime(repository, undefined, { actions: { registry: host.actionRegistry(reference), project_id: reference.project_id } });
+  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: host.actionRegistry(reference), project_id: reference.project_id } });
   const installId = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: [] }).install.install_id;
   await runtime.start(installId);
   try {

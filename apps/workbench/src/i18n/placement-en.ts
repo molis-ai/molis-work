@@ -29,7 +29,7 @@ export const PLACEMENT_EN: Record<string, string> = {
   "已新建{kind}《{title}》": "Created {kind} “{title}”",
   "存到 {place}": "Saved to {place}",
   "放在 {place}": "In {place}",
-  "放在": "In",
+  "放在": "Put in",
   "文件在浏览器的下载位置": "The file is in your browser's downloads",
   "已打开打印": "Print dialog opened",
   "在打印窗口里选“存储为 PDF”即可得到 PDF 文件": "Choose “Save as PDF” in the print dialog to get a PDF file",

@@ -17,7 +17,7 @@ test("RCPT-352/353 the AI's new task waits on the plan card for the person; the 
   if (!browser) { rmSync(directory, { recursive: true, force: true }); t.skip("没有可用的 Chrome"); return; }
   try {
     const page = await browser.page();
-    await page.evaluate(`(()=>{${pageTextScript("zh")}})()`); // the scripts read the page's translator, `L`
+    await page.evaluate(`(()=>{${pageTextScript("zh", "coding")}})()`); // the scripts read the page's translator, `L`
     const result = await page.evaluate<{ offers: string[]; steps: string[][]; dashed: string; prefilled: string; posted: unknown[]; endedOffers: number; badges: string[][]; opened: string[] }>(`(async()=>{
       document.body.innerHTML='<section data-coding-board><h2 data-coding-board-title></h2><p data-coding-board-meta></p><div data-coding-board-list></div><p data-coding-board-status></p></section>';
       ${STATE_RING_CLIENT_SCRIPT}
@@ -68,7 +68,7 @@ test("VUX-40: the plan card and the TaskBoard speak English in English", { timeo
   if (!browser) { rmSync(directory, { recursive: true, force: true }); t.skip("没有可用的 Chrome"); return; }
   try {
     const page = await browser.page();
-    await page.evaluate(`(()=>{${pageTextScript("en")}})()`);
+    await page.evaluate(`(()=>{${pageTextScript("en", "coding")}})()`);
     const result = await page.evaluate<{ han: string[]; badge: string; count: string; offer: string; board: string; titles: string; outline: string }>(`(async()=>{
       document.body.innerHTML='<section data-coding-board><h2 data-coding-board-title></h2><p data-coding-board-meta></p><div data-coding-board-list></div><p data-coding-board-status></p></section><section data-coding-board-outline><p data-coding-outline-meta hidden></p><div data-coding-outline-list></div><p data-coding-outline-status></p></section>';
       ${STATE_RING_CLIENT_SCRIPT}
@@ -83,12 +83,12 @@ test("VUX-40: the plan card and the TaskBoard speak English in English", { timeo
       // Every owner kind the Host draws with a word of its own, spelled the way the Host spells it (Chinese), plus both
       // words a report's author can be, and one expired claim: none of it may reach the English page.
       const now=Date.now();
-      const nodes=[{id:'step-1',state:'running',owner:{kind:'session'},reports:[{note:'started',at_ms:now,by:'本会话'}]},
+      const nodes=[{id:'step-1',state:'running',owner:{kind:'session'},reports:[{note:'started',at_ms:now,by:{kind:'session',label:'本会话'}}]},
         {id:'step-2',state:'blocked',depends_on:['step-1'],owner:{kind:'none'},reports:[]},
-        {id:'step-3',state:'running',owner:{kind:'subtask',label:'子任务「two」',subagent_id:'c1'},reports:[{note:'working',at_ms:now,by:'子任务「two」'}]},
-        {id:'step-4',state:'running',owner:{kind:'person'},reports:[{note:'your call',at_ms:now,by:'用户'}]},
-        {id:'step-5',state:'running',owner:{kind:'other',label:'会话「A」'},reports:[{note:'handed over',at_ms:now,by:'改派'}]},
-        {id:'step-6',state:'running',owner:{kind:'session',label:'本会话（认领已过期，3 小时没有动静）',expired:true},reports:[{note:'quiet',at_ms:now,by:'本会话'}]},
+        {id:'step-3',state:'running',owner:{kind:'subtask',label:'子任务「two」',title:'two',subagent_id:'c1'},reports:[{note:'working',at_ms:now,by:{kind:'subtask',label:'子任务「two」',title:'two'}}]},
+        {id:'step-4',state:'running',owner:{kind:'person'},reports:[{note:'your call',at_ms:now,by:{kind:'person',label:'用户'}}]},
+        {id:'step-5',state:'running',owner:{kind:'other',label:'会话「A」'},reports:[{note:'handed over',at_ms:now,by:{kind:'handover',label:'改派'}}]},
+        {id:'step-6',state:'running',owner:{kind:'session',label:'本会话（认领已过期，3 小时没有动静）',expired:true},reports:[{note:'quiet',at_ms:now,by:{kind:'session',label:'本会话'}}]},
         {id:'user-1',state:'not-started',inserted:true,title:'Export',depends_on:['step-2'],reports:[]}];
       const run={ref:{run_id:'r1'},phase:'running',started_at:new Date().toISOString(),frozen:{role_id:'builder',model_id:'m'},turns,activity:[]};
       const entry={run_id:'r1',revision:2,plan,board:{project_id:'b',version:3,terminal:false,nodes},verdicts:{}};

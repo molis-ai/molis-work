@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { openJellyStore } from "@molis-ai/molis-work-plugin-jelly";
+import { openJellyStore } from "./fixtures/plugin-home-stores.js";
 import { jellySourceHash } from "@molis-ai/molis-work-plugin-jelly";
 import { jellyMarkdownToBlocks, jellyBlocksToMarkdown, jellyBlocksToHtml, jellyHtmlToBlocks } from "@molis-ai/molis-work-plugin-jelly";
 import { decodeJellyImport } from "@molis-ai/molis-work-plugin-jelly";

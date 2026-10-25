@@ -48,7 +48,7 @@ const sameScope = (a: InstallScope, b: InstallScope): boolean => a.kind === b.ki
 /**
  * Every installation that holds a claim anywhere in the Home, with the scope it lives in (the Home's plugin store, or a project's id):
  * the Home's own plugin store and each project's, read as they are on disk. This is where a plugin's names are kept one owner for
- * (S-76) and where the last holder of a plugin's rules is told, so what cannot be read is not guessed at: it throws, and the caller
+ * (S-82) and where the last holder of a plugin's rules is told, so what cannot be read is not guessed at: it throws, and the caller
  * refuses (or counts the plugin as held). `current` is the database of the installation scope asking, read as it is open.
  */
 export function heldInstalls(home: string | null, current?: { readonly db: RuntimeDatabase; readonly scope: InstallScope }): HeldInstall[] {
@@ -65,7 +65,6 @@ export function heldInstalls(home: string | null, current?: { readonly db: Runti
     for (const project of listCatalogProjectsForUninstall(catalog.db)) {
       const file = resolve(project.database_path);
       if (!file.startsWith(root)) throw new Error(`项目库 ${project.project_id} 不在本 Home 的项目目录里，读不了其中的安装`);
-      if (!existsSync(file)) continue;
       const db = new LocalSqliteStorage(file, { readonly: true });
       try {
         // A project that never ran a Plugin Runtime has no table, and so holds nothing.

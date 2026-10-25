@@ -38,7 +38,7 @@ async function fixture(t: test.TestContext) {
   seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath);
   const coordinator = new GoalProjectApplication(store), library = openProjectVersionStores(store);
-  // Installed in this project (S-75): the fixture's own writer, which also writes other owners' type ids to prove it gets no preview of theirs.
+  // Installed in this project (S-81): the fixture's own writer, which also writes other owners' type ids to prove it gets no preview of theirs.
   installProducers(store.db, { plugin_id: "io.example.writer", artifact_types: ["io.example.report", "io.molis.work.goal.delivery", "io.molis.work.feed.capture", "io.molis.work.pages.document", "coding.report.v1"] },
     { plugin_id: "com.example.installed", artifact_types: ["coding.changeset.v1"] });
   const server = createMolisWorkWebServer({ databasePath, projectId: DEMO_PROJECT_ID, homeDirectory: directory,

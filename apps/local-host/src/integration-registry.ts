@@ -4,6 +4,7 @@ import type { IntegrationBinding, IntegrationKind, PluginConnectionServiceDeclar
 import { HOST_BUILD_TRUST, MemoryPluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { IntegrationDeclarations, type RegisteredConnectionService, type RegisteredIntegration } from "./integration-declarations.js";
+import { HOST_PLUGIN_IDS } from "./host-plugin-ids.js";
 
 /**
  * The Home's integration registry (PG-046): built only from the declarations of the plugins enabled in it, plus the platform's own
@@ -20,7 +21,7 @@ export class IntegrationRegistry {
   private tail: Promise<unknown> = Promise.resolve();
 
   constructor(options: { platform?: readonly PluginConnectionServiceDeclaration[]; now?: () => Date } = {}) {
-    this.runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { now: options.now ?? (() => new Date()) });
+    this.runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { now: options.now ?? (() => new Date()), hostIds: HOST_PLUGIN_IDS });
     this.declarations = new IntegrationDeclarations(options.platform);
   }
 

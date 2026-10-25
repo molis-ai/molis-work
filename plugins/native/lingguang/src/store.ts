@@ -1,6 +1,5 @@
 import { createHash } from "node:crypto";
-import { openBaselineHomeSqlite, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
-import type { DatabaseSync } from "node:sqlite";
+import type { HomeStoreDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { LINGGUANG_BODY_LIMIT } from "@molis-ai/molis-work-contracts/modules/lingguang";
 import type {
@@ -269,19 +268,6 @@ export class LingguangStore {
   }
 }
 
-
-export function openLingguangStore(homeDirectory: string): LingguangStore {
-  const db = openBaselineHomeSqlite(homeDirectory, LINGGUANG_HOME_STORE.path, LINGGUANG_DATABASE);
-  const sql: LingguangSql = { get: (text, parameters = []) => db.prepare(text).get(...parameters),
-    all: (text, parameters = []) => db.prepare(text).all(...parameters), run: (text, parameters = []) => db.prepare(text).run(...parameters) };
-  return new LingguangStore(sql, run => immediate(db, run), () => db.close());
-}
-
-function immediate<T>(db: DatabaseSync, run: () => T): T {
-  db.exec("BEGIN IMMEDIATE");
-  try { const result = run(); db.exec("COMMIT"); return result; }
-  catch (error) { db.exec("ROLLBACK"); throw error; }
-}
 
 function insertConversation(
   db: LingguangSql,

@@ -1,5 +1,5 @@
 import type { EditorView } from "prosemirror-view";
-import { pinAt } from "@molis-ai/molis-work-design-system/floating";
+import { pinAt } from "@molis-ai/molis-work-plugin-sdk/browser";
 
 export function createHandlePosition(view: EditorView, handle: HTMLElement) {
   let pos = -1;

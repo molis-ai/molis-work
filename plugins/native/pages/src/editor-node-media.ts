@@ -1,6 +1,6 @@
 // Media node views and the code-highlighting plugin they use.
 // The type brings `window.molisCopy`, which the workbench page provides; nothing of the package is bundled.
-import type { CopyLabels } from "@molis-ai/molis-work-design-system";
+import type { CopyLabels } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import { Node } from "prosemirror-model";
 import { NodeSelection, Plugin, PluginKey } from "prosemirror-state";
 import { Decoration, DecorationSet, EditorView, ViewMutationRecord } from "prosemirror-view";

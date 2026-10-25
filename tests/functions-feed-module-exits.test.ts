@@ -20,6 +20,7 @@ import * as feedModule from "@molis-ai/molis-work-module-feed";
 import * as functionsModule from "@molis-ai/molis-work-module-functions";
 import { createFunctionsService } from "@molis-ai/molis-work-module-functions";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
+import { HOME_DOCK } from "./fixtures/home-dock-scene.js";
 
 const REPOSITORY_NAME = /(?:Repository|Store)$/;
 const ROOT = new URL("../", import.meta.url);
@@ -29,14 +30,7 @@ async function withHome<T>(run: (home: string) => Promise<T> | T): Promise<T> {
   try { return await run(home); } finally { await rm(home, { recursive: true, force: true }); }
 }
 
-/** The Home dock scene as the Host declares it, to the extent seeding reads it: its rule, and that its recommendations are other plugins' offers. */
-const HOME_DOCK: ActionSceneDefinition = {
-  scene_id: "home.dock", version: 1, title: "首页下一步", description: "首页", trigger: "事项到达", scope: "project", subject_kinds: [], permissions: [],
-  input_schema: { type: "object" }, result_schema: { type: "object" }, recommendation_source: "subject-offers",
-  default_rule: { function_key: SYSTEM_HOME_DOCK_FUNCTION_KEY, name: "首页事项处理建议", instructions: "根据事项原文推荐完成或忽略。", subject_kinds: ["inbox_entry"],
-    options: [{ key: INBOX_DONE_BEHAVIOR_ID, description: "做完了" }, { key: INBOX_DISMISS_BEHAVIOR_ID, description: "忽略" }] },
-};
-/** The scenes the shipped Feed and Inbox declare, from the built-in catalog's public export, with the Home dock above: the three rules. */
+// BFTC-01: the Feed and Inbox declarations come from the catalog; the Host rule uses the shared, manually maintained test input.
 /** The provider the rules below are declared by: one stand-in for the Host and the shipped plugins, since these tests read what is seeded, not who declared it. */
 const DECLARING_PROVIDER = { provider_id: "test.declarer", title: "测试", kind: "system" } as const;
 const shippedScenes = (): ActionSceneDefinition[] => [...BUILTIN_PLUGIN_CATALOG.flatMap(entry => entry.manifest.action_scenes ?? []), HOME_DOCK];
@@ -119,7 +113,7 @@ test("RAC-173 the resolver is given each rule's scene, subject kinds and option 
 
 /**
  * RAC-176: an offer id two declarations answer to is left unmapped rather than guessed (PG-010's ambiguity branch). The one
- * composition point the Host reads is its own registrations' public export, so a second declaration of Inbox's offers is pushed
+ * composition point the Host reads is its own registration list (`PLATFORM_PLUGIN_REGISTRATIONS`, W5-02 PR-B), so a second declaration of Inbox's offers is pushed
  * there for this test and removed in `finally`; no test-only entry point is added.
  */
 test("RAC-176 an offer id that two declarations answer to is left unmapped, not guessed", async () => {

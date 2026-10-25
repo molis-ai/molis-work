@@ -1,6 +1,6 @@
 import { PagesComments } from "./comments-store.js";
 import { extractFromPagesBody, unpublishedKnowledgePages } from "./extract.js";
-import type { HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
+import type { HomeStoreDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ActionError, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PagesBody, PagesFolder, PagesRecord } from "@molis-ai/molis-work-contracts/modules/pages";
 import { EMPTY_PAGES_BODY, parsePagesBody } from "./document.js";

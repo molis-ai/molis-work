@@ -1,5 +1,5 @@
 import type { UiContribution, UiContributionDeclaration, UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
-import { icon, renderPluginStageShell } from "@molis-ai/molis-work-design-system";
+import { icon, renderPluginStageShell } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { IMAGES_UI_CONTRIBUTION_ID } from "./manifest.js";
 
 export interface ImagesUiModel {

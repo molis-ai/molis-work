@@ -81,8 +81,9 @@ async function openProbe() {
     ] };
   } });
   const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined,
-    { actions: { registry: service, project_id: "project-one", providerId: () => PLUGIN } });
-  const installed = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: [MODEL] }).install;
+    { hostIds: new Set([PLUGIN]), actions: { registry: service, project_id: "project-one", providerId: () => PLUGIN } });
+  // This fixture Host ships the definition; the stable plugin-id provider requires the Host's evidence.
+  const installed = runtime.install({ trust: { level: "host" }, definition, deployment: "local", grants: [MODEL] }).install;
   await runtime.start(installed.install_id);
   const caller: ActionCallContext = { actor_id: "alice", audience: "user", project_id: "project-one", permissions: [MODEL] };
   return { service, caller, ask: ask.definition, start: start.definition, seen, rows, settled: () => background };

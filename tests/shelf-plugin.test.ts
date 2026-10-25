@@ -469,7 +469,9 @@ test("Shelf UI contribution paints stage folds and DropAgent command chrome", ()
   assert.ok(sheet.indexOf(INTERACTION_TEXTURE_STYLES) < sheet.lastIndexOf("--da-action: var(--content-accent)"));
   assert.match(SHELF_STYLES, /--da-accent: var\(--accent\);/);
   assert.match(SHELF_STYLES, /\.shelf-primary \{[^}]*background: var\(--da-action\);/);
-  assert.match(sheet, /\[data-plugin-id="shelf"\][\s\S]*--plugin-tint: var\(--plugin-shelf\)/);
+  // PG-075 (#1303): no plugin has an identity colour of its own; Shelf's rail entry takes the neutral tint every plugin takes.
+  assert.match(sheet, /\.plugin-rail \[data-plugin-id\][^{]*\{ --plugin-tint: var\(--ink-soft\); \}/);
+  assert.doesNotMatch(sheet, /--plugin-shelf\b/);
   assert.match(INTERACTION_TEXTURE_STYLES, /--content-accent: var\(--action\)/);
   assert.match(INTERACTION_TEXTURE_STYLES, /--content-side: var\(--surface-soft\)/);
   assert.match(INTERACTION_TEXTURE_STYLES, /--mark-clay: #B27460;/);
@@ -546,11 +548,11 @@ test("PG-026-S4-01 PG-026-S4-02 demo HTTP restores samples and preserves a succe
 
 test("the Shelf plugin routes admit, extract, and do not expose origin paths", async (t) => {
   const homeDirectory = await mkdtemp(join(tmpdir(), "molis-work-shelf-http-"));
-  const agentSetting = process.env.MOLIS_WORK_SHELF_AGENT;
-  process.env.MOLIS_WORK_SHELF_AGENT = "off";
+  const agentSetting = process.env.MOLIS_WORK_LOCAL_TOOLS;
+  process.env.MOLIS_WORK_LOCAL_TOOLS = "off";
   t.after(() => {
-    if (agentSetting === undefined) delete process.env.MOLIS_WORK_SHELF_AGENT;
-    else process.env.MOLIS_WORK_SHELF_AGENT = agentSetting;
+    if (agentSetting === undefined) delete process.env.MOLIS_WORK_LOCAL_TOOLS;
+    else process.env.MOLIS_WORK_LOCAL_TOOLS = agentSetting;
   });
   const token = "shelf-plugin-http-token-01234567890123";
   const server = createMolisWorkWebServer({ homeDirectory, controlToken: token });

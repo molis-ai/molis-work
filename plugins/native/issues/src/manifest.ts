@@ -3,6 +3,7 @@ import { ISSUES_ACTIONS } from "./actions.js";
 import { issuesMethods } from "./methods.js";
 import { ISSUES_DATABASE } from "./database.js";
 
+import { ISSUES_MESSAGES } from "./messages.js";
 export const ISSUES_PLUGIN_ID = "io.molis.work.issues";
 export const ISSUES_UI_CONTRIBUTION_ID = "io.molis.work.native.issues.ui.v1";
 export const issuesManifest: PluginManifest = {
@@ -16,6 +17,7 @@ export const issuesManifest: PluginManifest = {
   ],
   capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, actions: ISSUES_ACTIONS,
   methods: issuesMethods.map(({ body: _body, ...method }) => ({ ...method, tools: [...method.tools] })),
+  runtime: { scope: "home" },
   databases: { home: ISSUES_DATABASE },
   routes: [
     { route_id: "issues.prepare", method: "POST", path: "/prepare", permission: "issues:write" },
@@ -30,7 +32,7 @@ export const issuesManifest: PluginManifest = {
     { route_id: "issues.update", method: "POST", path: "/update", permission: "issues:write" },
     { route_id: "issues.delete", method: "POST", path: "/delete", permission: "issues:write" },
   ],
-  ui: { contributions: [ISSUES_UI_CONTRIBUTION_ID], views: [
+  ui: { messages: ISSUES_MESSAGES, contributions: [ISSUES_UI_CONTRIBUTION_ID], views: [
     { view_id: "directory", slot: "navigator", title: "Issue", contribution_id: ISSUES_UI_CONTRIBUTION_ID, icon: "circle-alert", order: 57 },
     { view_id: "issues", slot: "stage", title: "Issue", contribution_id: ISSUES_UI_CONTRIBUTION_ID },
     { view_id: "capture", slot: "side", title: "Issue", contribution_id: ISSUES_UI_CONTRIBUTION_ID, icon: "circle-alert" },

@@ -76,89 +76,7 @@ export class PlacementService {
     return { object: { ...object, project_id: partition }, moved: partition !== object.project_id };
   }
 
-  async describe(input: PlacedObject): Promise<PlacementDescription> {
-    const spaces = await this.ports.spaces();
-    const located = this.locate(input);
-    const object = located.object;
-    const read = await this.read(object);
-    const title = read.context?.title || this.ports.titles.get(object.kind, object.id) || placementText(this.ports, "未命名");
-    const location = read.state === "missing" && read.reason === PROJECT_GONE ? null
-      : object.project_id === null ? homePlacementLocation(this.ports, placementBelongsOf(read), spaces) : placementLocation(this.ports, object.project_id, spaces);
-    const associations: PlacementAssociation[] = [];
-    for (const edge of this.edges(TYPES.used).filter(edge => sameObject(edge.source, object.kind, object.id))) {
-      const project = spaces.find(space => space.project_id === edge.target.id);
-      associations.push({ key: edge.key, type: "used_in", label: project ? placementText(this.ports, "用于 项目「{name}」", { name: project.title }) : placementText(this.ports, "用于 一个已删除的项目"),
-        target: { kind: "project", project_id: edge.target.id, title: project?.title ?? placementText(this.ports, "已删除的项目") }, since: edge.recorded_at, removable: true });
-    }
-    // Goals keep the bindings in their own project: the one it lives in, and every project it was bound in from elsewhere or before a move.
-    const boundIn = new Set<string>(object.project_id === null ? [] : [object.project_id]);
-    for (const edge of this.edges(TYPES.goal)) if (sameObject(edge.source, object.kind, object.id)) boundIn.add(edge.target.id);
-    // The owner of the relation is whoever declares it in that project's directory (`placement_relation`), so the lookups below name no plugin.
-    const relations = new Map<string, Promise<PlacementRelation>>();
-    const relationIn = (projectId: string | null) => {
-      const cached = relations.get(projectId ?? HOME);
-      return cached ?? relations.set(projectId ?? HOME, placementRelation(this.ports, projectId)).get(projectId ?? HOME)!;
-    };
-    const bound: { project_id: string; binding_id: string; goal_id: string; created_at: string; noun: string; target_kind: string }[] = [];
-    for (const projectId of boundIn) {
-      const relation = await relationIn(projectId);
-      for (const binding of await placementBindings(this.ports, projectId, relation, { kind: object.kind, id: object.id })) bound.push({ ...binding, project_id: projectId, noun: relation.noun, target_kind: relation.target_kind });
-    }
-    for (const binding of bound) {
-      const goal = await this.targetTitle(binding.project_id, binding.target_kind, binding.goal_id);
-      const name = goal ?? placementText(this.ports, "（读不到标题）");
-      associations.push({ key: key("goal", binding.project_id, binding.goal_id, binding.binding_id), type: "goal",
-        label: binding.project_id === object.project_id ? placementText(this.ports, "{noun}「{name}」", { noun: binding.noun, name })
-          : placementText(this.ports, "{noun}「{name}」 · {place}", { noun: binding.noun, name, place: placementLocation(this.ports, binding.project_id, spaces).title }),
-        target: { kind: "goal", project_id: binding.project_id, goal_id: binding.goal_id, title: goal ?? "" }, since: binding.created_at, removable: true });
-    }
-    const kept = read.context?.goal_ids ?? [];
-    const keptRelation = kept.length ? await relationIn(object.project_id) : null;
-    for (const goalId of kept) {
-      if (object.kind === keptRelation!.target_kind && goalId === object.id) continue;
-      if (bound.some(binding => binding.goal_id === goalId && binding.project_id === object.project_id)) continue;
-      const goal = object.project_id === null ? null : await this.targetTitle(object.project_id, keptRelation!.target_kind, goalId);
-      // Kept by the plugin itself (a document's “挂到 Goal”): changed there, not here.
-      associations.push({ key: null, type: "goal", label: placementText(this.ports, "{noun}「{name}」 · {plugin}里挂接", { noun: keptRelation!.noun, name: goal ?? placementText(this.ports, "（读不到标题）"), plugin: read.plugin?.title ?? "" }),
-        target: { kind: "goal", project_id: object.project_id, goal_id: goalId, title: goal ?? "" }, since: null, removable: false });
-    }
-    // A conversion names what the other end is (a Goal, or the plugin that keeps it), so a document and a Goal made from one spark read apart.
-    const origin = (label: (title: string, noun: string | null) => string, kind: PlacementAssociation["type"]) => async (edge: ContextEdge, other: ObjectRef) => {
-      const found = this.locate({ kind: other.object_type ?? "", id: other.id, project_id: null }).object;
-      const otherRead = await this.read(found);
-      const otherTitle = otherRead.context?.title || this.ports.titles.get(found.kind, found.id) || placementText(this.ports, "未命名");
-      const where = otherRead.state === "missing" ? placementText(this.ports, "原对象已删除") : placementLocation(this.ports, found.project_id, spaces).title;
-      const foundRelation = await relationIn(found.project_id);
-      const noun = found.kind === foundRelation.target_kind ? foundRelation.noun : null;
-      const what = kind.startsWith("derived") && !noun ? otherRead.plugin?.title ?? "" : "";
-      associations.push({ key: null, type: kind, label: [label(otherTitle, noun), what, where].filter(Boolean).join(" · "),
-        target: { kind: "object", object: found, title: otherTitle, state: otherRead.state, location: otherRead.state === "ok" ? placementLocation(this.ports, found.project_id, spaces) : null, plugin: otherRead.plugin },
-        since: edge.recorded_at, removable: false });
-    };
-    const derivedFrom = this.ports.ledger.query.get(ACCESS, key("derived_from", object.kind, object.id));
-    if (derivedFrom) await origin((title, noun) => noun ? placementText(this.ports, "来自 {noun}《{title}》", { noun, title }) : placementText(this.ports, "来自《{title}》", { title }), "derived_from")(derivedFrom, derivedFrom.target);
-    for (const edge of this.edges(TYPES.derived).filter(edge => sameObject(edge.target, object.kind, object.id))) {
-      await origin((title, noun) => noun ? placementText(this.ports, "已建成 {noun}《{title}》", { noun, title }) : placementText(this.ports, "已转成《{title}》", { title }), "derived_into")(edge, edge.source);
-    }
-    const copiedFrom = this.ports.ledger.query.get(ACCESS, key("copied_from", object.kind, object.id));
-    if (copiedFrom) await origin(title => placementText(this.ports, "复制自《{title}》", { title }), "copied_from")(copiedFrom, copiedFrom.target);
-    for (const edge of this.edges(TYPES.copied).filter(edge => sameObject(edge.target, object.kind, object.id))) {
-      await origin(title => placementText(this.ports, "复制到《{title}》", { title }), "copied_into")(edge, edge.source);
-    }
-    const tools = read.state === "ok" ? await placementTools(this.ports, object) : { mover: null, copier: null };
-    const here = object.project_id ?? placementBelongsOf(read);
-    if (object.project_id === null && read.state === "ok") { await this.ports.beforeEffect?.(); this.rememberBelonging(object, here); }
-    // A Home-kept object that changed where it belongs remembers where it was, as a moved object does.
-    const belonged = object.project_id === null ? this.ports.ledger.query.get(ACCESS, key("belonged_to", object.kind, object.id)) : null;
-    const before = belonged && belonged.target.id !== (here ?? PERSONAL_SPACE_PROJECT_ID) ? belonged.target.id : null;
-    return {
-      state: read.state, reason: read.reason, object, title, plugin: read.plugin, location,
-      moved_from: located.moved ? placementLocation(this.ports, input.project_id, spaces) : before ? homePlacementLocation(this.ports, before, spaces) : null,
-      associations,
-      can: { move: !!tools.mover, copy: !!tools.copier, use_in_project: read.state === "ok" && spaces.some(space => space.kind === "project" && space.project_id !== here) },
-      open: read.context?.open ? { project_id: placementOpenProject(object, read), surface: read.context.open.surface, id: read.context.open.id } : null,
-    };
-  }
+  describe(input: PlacedObject): Promise<PlacementDescription> { return describePlacement(this.ports, this.access(), input); }
 
   /** Objects from the personal space or other projects used in this project, each with whether it still opens. */
   async related(projectId: string): Promise<PlacementRelatedItem[]> {
@@ -262,7 +180,7 @@ export class PlacementService {
     if (object.project_id === null) return this.moveHome(object, to, spaces);
     if (!spaces.some(space => space.project_id === to)) throw new ActionError("placement.project_missing", placementText(this.ports, "找不到要移到的位置"));
     if (object.project_id === to) throw new ActionError("placement.same_location", placementText(this.ports, "它已经在这个位置"));
-    const { mover } = await placementTools(this.ports, object);
+    const { mover } = await placementTools(this.ports, object, "move");
     if (!mover) throw new ActionError("placement.not_movable", placementText(this.ports, "这个插件的内容还不能移动；可以复制或用于项目"));
     const scope = await this.ports.scope(object.project_id);
     const result = await scope.client.invoke(scope.caller, mover, { subject: { kind: object.kind, id: object.id }, to_project_id: to }) as PlacementResult;
@@ -281,7 +199,7 @@ export class PlacementService {
    */
   private async moveHome(object: PlacedObject, to: string, spaces: readonly PlacementSpaceView[]): Promise<PlacementMoveResponse> {
     if (!spaces.some(space => space.project_id === to)) throw new ActionError("placement.project_missing", placementText(this.ports, "找不到要移到的位置"));
-    const { mover } = await placementTools(this.ports, object);
+    const { mover } = await placementTools(this.ports, object, "move");
     if (!mover) throw new ActionError("placement.not_movable", placementText(this.ports, "这类内容只放在个人空间；可以用于项目，但不能移动"));
     const read = await this.read(object);
     if (read.state !== "ok") throw new ActionError(`placement.${read.state}`, read.reason ?? placementText(this.ports, "暂时读不到这个对象"));
@@ -302,18 +220,12 @@ export class PlacementService {
   }
 
   copy(input: PlacedObject, to: string, requestId: string): Promise<PlacementMoveResponse> {
-    return copyPlacement(this.ports, {
-      locate: object => this.locate(object), read: object => this.read(object),
-      remember: object => this.remember(object), openOf: object => this.openOf(object),
-    }, input, to, requestId);
+    return copyPlacement(this.ports, this.access(), input, to, requestId);
   }
 
   /** The source hands its content (or what it chooses to hand over) to another plugin; the new object records where it came from. */
   convert(request: PlacementConvertRequest): Promise<PlacementConvertResponse> {
-    return convertPlacement(this.ports, {
-      locate: object => this.locate(object), read: object => this.read(object),
-      remember: object => this.remember(object), openOf: object => this.openOf(object),
-    }, request);
+    return convertPlacement(this.ports, this.access(), request);
   }
 
   /** Read one object from its owner in its own partition. Deleted and unreadable stay distinct. */
@@ -363,6 +275,16 @@ export class PlacementService {
   }
 
   private edges(type: string): ContextEdge[] { return this.ports.ledger.query.list(ACCESS, { type }); }
+
+  /** This instance's reads and ledger writes, for the steps kept outside the class (describe, copy, convert). */
+  private access(): PlacementInstanceAccess {
+    return {
+      locate: object => this.locate(object), read: object => this.read(object),
+      remember: object => this.remember(object), openOf: object => this.openOf(object),
+      edges: type => this.edges(type), targetTitle: (projectId, kind, id) => this.targetTitle(projectId, kind, id),
+      rememberBelonging: (object, belongs) => this.rememberBelonging(object, belongs),
+    };
+  }
 }
 
 const ref = (view: ActionView): ActionReference => ({ capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id });
@@ -400,9 +322,9 @@ async function moveBack(ports: PlacementPorts, object: PlacedObject, at: string 
   // A Home-kept object (a todo) is moved by a Home action, which a project catalog does not list. A project object is moved
   // from the partition it just arrived in, so the caller's project is the place the plugin already wrote.
   const scope = await (ports.revert ?? ports.scope)(object.project_id === null ? null : at);
-  const view = (await scope.client.discover(scope.caller)).find(entry => isObjectMover(entry.action) && entry.action.subject_kinds.includes(object.kind) && entry.availability.available);
-  if (!view) throw new ActionError("placement.not_movable", t("移回原处时找不到移动动作"));
-  const result = await scope.client.invoke(scope.caller, ref(view), { subject: { kind: object.kind, id: object.id }, to_project_id: to }) as PlacementResult;
+  const mover = placementToolOf(ports, await scope.client.discover(scope.caller), object.kind, "move");
+  if (!mover) throw new ActionError("placement.not_movable", t("移回原处时找不到移动动作"));
+  const result = await scope.client.invoke(scope.caller, mover, { subject: { kind: object.kind, id: object.id }, to_project_id: to }) as PlacementResult;
   if (result.project_id !== to || result.subject.id !== object.id) throw new ActionError("placement.result_mismatch", t("移回原处的结果与请求不一致"));
 }
 
@@ -414,6 +336,94 @@ interface PlacementInstanceAccess {
   read(object: PlacedObject): Promise<Read>;
   remember(object: PlacedObject): void;
   openOf(object: PlacedObject): Promise<PlacementOpen | null>;
+  edges(type: string): ContextEdge[];
+  targetTitle(projectId: string, kind: string, id: string): Promise<string | null>;
+  rememberBelonging(object: PlacedObject, belongs: string | null): void;
+}
+
+/** What an object is, where it lives and what it is linked to, read through one service instance (`PlacementService.describe`). */
+async function describePlacement(ports: PlacementPorts, self: PlacementInstanceAccess, input: PlacedObject): Promise<PlacementDescription> {
+  const spaces = await ports.spaces();
+  const located = self.locate(input);
+  const object = located.object;
+  const read = await self.read(object);
+  const title = read.context?.title || ports.titles.get(object.kind, object.id) || placementText(ports, "未命名");
+  const location = read.state === "missing" && read.reason === PROJECT_GONE ? null
+    : object.project_id === null ? homePlacementLocation(ports, placementBelongsOf(read), spaces) : placementLocation(ports, object.project_id, spaces);
+  const associations: PlacementAssociation[] = [];
+  for (const edge of self.edges(TYPES.used).filter(edge => sameObject(edge.source, object.kind, object.id))) {
+    const project = spaces.find(space => space.project_id === edge.target.id);
+    associations.push({ key: edge.key, type: "used_in", label: project ? placementText(ports, "用于 项目「{name}」", { name: project.title }) : placementText(ports, "用于 一个已删除的项目"),
+      target: { kind: "project", project_id: edge.target.id, title: project?.title ?? placementText(ports, "已删除的项目") }, since: edge.recorded_at, removable: true });
+  }
+  // Goals keep the bindings in their own project: the one it lives in, and every project it was bound in from elsewhere or before a move.
+  const boundIn = new Set<string>(object.project_id === null ? [] : [object.project_id]);
+  for (const edge of self.edges(TYPES.goal)) if (sameObject(edge.source, object.kind, object.id)) boundIn.add(edge.target.id);
+  // The owner of the relation is whoever declares it in that project's directory (`placement_relation`), so the lookups below name no plugin.
+  const relations = new Map<string, Promise<PlacementRelation>>();
+  const relationIn = (projectId: string | null) => {
+    const cached = relations.get(projectId ?? HOME);
+    return cached ?? relations.set(projectId ?? HOME, placementRelation(ports, projectId)).get(projectId ?? HOME)!;
+  };
+  const bound: { project_id: string; binding_id: string; goal_id: string; created_at: string; noun: string; target_kind: string }[] = [];
+  for (const projectId of boundIn) {
+    const relation = await relationIn(projectId);
+    for (const binding of await placementBindings(ports, projectId, relation, { kind: object.kind, id: object.id })) bound.push({ ...binding, project_id: projectId, noun: relation.noun, target_kind: relation.target_kind });
+  }
+  for (const binding of bound) {
+    const goal = await self.targetTitle(binding.project_id, binding.target_kind, binding.goal_id);
+    const name = goal ?? placementText(ports, "（读不到标题）");
+    associations.push({ key: key("goal", binding.project_id, binding.goal_id, binding.binding_id), type: "goal",
+      label: binding.project_id === object.project_id ? placementText(ports, "{noun}「{name}」", { noun: binding.noun, name })
+        : placementText(ports, "{noun}「{name}」 · {place}", { noun: binding.noun, name, place: placementLocation(ports, binding.project_id, spaces).title }),
+      target: { kind: "goal", project_id: binding.project_id, goal_id: binding.goal_id, title: goal ?? "" }, since: binding.created_at, removable: true });
+  }
+  const kept = read.context?.goal_ids ?? [];
+  const keptRelation = kept.length ? await relationIn(object.project_id) : null;
+  for (const goalId of kept) {
+    if (object.kind === keptRelation!.target_kind && goalId === object.id) continue;
+    if (bound.some(binding => binding.goal_id === goalId && binding.project_id === object.project_id)) continue;
+    const goal = object.project_id === null ? null : await self.targetTitle(object.project_id, keptRelation!.target_kind, goalId);
+    // Kept by the plugin itself (a document's “挂到 Goal”): changed there, not here.
+    associations.push({ key: null, type: "goal", label: placementText(ports, "{noun}「{name}」 · {plugin}里挂接", { noun: keptRelation!.noun, name: goal ?? placementText(ports, "（读不到标题）"), plugin: read.plugin?.title ?? "" }),
+      target: { kind: "goal", project_id: object.project_id, goal_id: goalId, title: goal ?? "" }, since: null, removable: false });
+  }
+  // A conversion names what the other end is (a Goal, or the plugin that keeps it), so a document and a Goal made from one spark read apart.
+  const origin = (label: (title: string, noun: string | null) => string, kind: PlacementAssociation["type"]) => async (edge: ContextEdge, other: ObjectRef) => {
+    const found = self.locate({ kind: other.object_type ?? "", id: other.id, project_id: null }).object;
+    const otherRead = await self.read(found);
+    const otherTitle = otherRead.context?.title || ports.titles.get(found.kind, found.id) || placementText(ports, "未命名");
+    const where = otherRead.state === "missing" ? placementText(ports, "原对象已删除") : placementLocation(ports, found.project_id, spaces).title;
+    const foundRelation = await relationIn(found.project_id);
+    const noun = found.kind === foundRelation.target_kind ? foundRelation.noun : null;
+    const what = kind.startsWith("derived") && !noun ? otherRead.plugin?.title ?? "" : "";
+    associations.push({ key: null, type: kind, label: [label(otherTitle, noun), what, where].filter(Boolean).join(" · "),
+      target: { kind: "object", object: found, title: otherTitle, state: otherRead.state, location: otherRead.state === "ok" ? placementLocation(ports, found.project_id, spaces) : null, plugin: otherRead.plugin },
+      since: edge.recorded_at, removable: false });
+  };
+  const derivedFrom = ports.ledger.query.get(ACCESS, key("derived_from", object.kind, object.id));
+  if (derivedFrom) await origin((title, noun) => noun ? placementText(ports, "来自 {noun}《{title}》", { noun, title }) : placementText(ports, "来自《{title}》", { title }), "derived_from")(derivedFrom, derivedFrom.target);
+  for (const edge of self.edges(TYPES.derived).filter(edge => sameObject(edge.target, object.kind, object.id))) {
+    await origin((title, noun) => noun ? placementText(ports, "已建成 {noun}《{title}》", { noun, title }) : placementText(ports, "已转成《{title}》", { title }), "derived_into")(edge, edge.source);
+  }
+  const copiedFrom = ports.ledger.query.get(ACCESS, key("copied_from", object.kind, object.id));
+  if (copiedFrom) await origin(title => placementText(ports, "复制自《{title}》", { title }), "copied_from")(copiedFrom, copiedFrom.target);
+  for (const edge of self.edges(TYPES.copied).filter(edge => sameObject(edge.target, object.kind, object.id))) {
+    await origin(title => placementText(ports, "复制到《{title}》", { title }), "copied_into")(edge, edge.source);
+  }
+  const tools = read.state === "ok" ? await placementTools(ports, object) : { mover: null, copier: null };
+  const here = object.project_id ?? placementBelongsOf(read);
+  if (object.project_id === null && read.state === "ok") { await ports.beforeEffect?.(); self.rememberBelonging(object, here); }
+  // A Home-kept object that changed where it belongs remembers where it was, as a moved object does.
+  const belonged = object.project_id === null ? ports.ledger.query.get(ACCESS, key("belonged_to", object.kind, object.id)) : null;
+  const before = belonged && belonged.target.id !== (here ?? PERSONAL_SPACE_PROJECT_ID) ? belonged.target.id : null;
+  return {
+    state: read.state, reason: read.reason, object, title, plugin: read.plugin, location,
+    moved_from: located.moved ? placementLocation(ports, input.project_id, spaces) : before ? homePlacementLocation(ports, before, spaces) : null,
+    associations,
+    can: { move: !!tools.mover, copy: !!tools.copier, use_in_project: read.state === "ok" && spaces.some(space => space.kind === "project" && space.project_id !== here) },
+    open: read.context?.open ? { project_id: placementOpenProject(object, read), surface: read.context.open.surface, id: read.context.open.id } : null,
+  };
 }
 
 function placementText(ports: PlacementPorts, zh: string, vars: Record<string, string | number> = {}): string {
@@ -443,16 +453,26 @@ function placementLocation(ports: PlacementPorts, projectId: string | null, spac
   return { kind: "project", project_id: projectId, title: placementText(ports, "项目「{name}」", { name: space?.title ?? placementText(ports, "已删除的项目") }), access: "project", access_label: placementText(ports, "项目内可见") };
 }
 
-async function placementTools(ports: PlacementPorts, object: PlacedObject): Promise<{ mover: ActionReference | null; copier: ActionReference | null }> {
+function placementToolOf(ports: PlacementPorts, views: readonly ActionView[], kind: string, operation: "move" | "copy"): ActionReference | null {
+  const protocol = operation === "move" ? isObjectMover : isObjectCopier;
+  const matches = views.filter(view => protocol(view.action) && view.action.subject_kinds.includes(kind) && view.availability.available);
+  if (matches.length > 1) {
+    throw new ActionError("placement.target_unavailable", placementText(ports, operation === "move"
+      ? "这个插件的内容还不能移动；可以复制或用于项目" : "这个插件的内容还不能复制到别处"),
+    { kind: "conflict", details: { operation, subject_kind: kind, actions: matches.map(ref) } });
+  }
+  return matches[0] ? ref(matches[0]) : null;
+}
+
+async function placementTools(ports: PlacementPorts, object: PlacedObject, operation?: "move" | "copy"): Promise<{ mover: ActionReference | null; copier: ActionReference | null }> {
+  let views: readonly ActionView[];
   try {
     const scope = await ports.scope(object.project_id);
-    const views = await scope.client.discover(scope.caller);
-    const find = (test: (action: ActionView["action"]) => boolean) => {
-      const view = views.find(view => test(view.action) && view.action.subject_kinds.includes(object.kind) && view.availability.available);
-      return view ? ref(view) : null;
-    };
-    return { mover: find(isObjectMover), copier: find(isObjectCopier) };
+    views = await scope.client.discover(scope.caller);
   } catch { return { mover: null, copier: null }; }
+  // Discovery can be unavailable; a discovered conflict must reach the caller rather than look like an absent tool.
+  return { mover: operation === "copy" ? null : placementToolOf(ports, views, object.kind, "move"),
+    copier: operation === "move" ? null : placementToolOf(ports, views, object.kind, "copy") };
 }
 
 /** The wire vocabulary's name for the relation (association type `goal`), and what a person reads it as when its owner is not there to say. */
@@ -543,7 +563,7 @@ async function copyPlacement(ports: PlacementPorts, access: PlacementInstanceAcc
   const object = access.locate(input).object;
   if (object.project_id === null) throw new ActionError("placement.not_copyable", placementText(ports, "这类内容只放在个人空间，请在插件里另存"));
   if (!spaces.some(space => space.project_id === to)) throw new ActionError("placement.project_missing", placementText(ports, "找不到要复制到的位置"));
-  const { copier } = await placementTools(ports, object);
+  const { copier } = await placementTools(ports, object, "copy");
   if (!copier) throw new ActionError("placement.not_copyable", placementText(ports, "这个插件的内容还不能复制到别处"));
   const scope = await ports.scope(object.project_id);
   const result = await scope.client.invoke(scope.caller, copier, { subject: { kind: object.kind, id: object.id }, to_project_id: to, request_id: requestId }) as PlacementResult;
@@ -568,7 +588,7 @@ async function convertPlacement(ports: PlacementPorts, access: PlacementInstance
   const title = (request.payload?.title ?? read.context!.title).trim() || placementText(ports, "未命名");
   const body = request.payload?.body ?? read.context!.content;
   const sourceTitle = read.context?.title ?? request.payload!.title;
-  if (!read.context) { await ports.beforeEffect?.(); ports.titles.set(source.kind, source.id, sourceTitle); }
+  if (!read.context) await ports.beforeEffect?.();
   const from = read.plugin ? `${read.plugin.title} · ${sourceTitle}` : sourceTitle;
   const scope = await ports.scope(request.to_project_id);
   const views = await scope.client.discover(scope.caller);
@@ -591,6 +611,7 @@ async function convertPlacement(ports: PlacementPorts, access: PlacementInstance
     created = { kind, id: item.item_id, project_id: request.to_project_id };
   }
   await ports.beforeEffect?.();
+  if (!read.context) ports.titles.set(source.kind, source.id, sourceTitle);
   access.remember(source);
   access.remember(created);
   ports.ledger.commands.put(ACCESS, { key: key("derived_from", created.kind, created.id), type: TYPES.derived,

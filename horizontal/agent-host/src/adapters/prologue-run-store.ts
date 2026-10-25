@@ -39,10 +39,10 @@ export interface RunRecord {
  * published to their observers as views.
  */
 export class PrologueRunStore {
-  readonly sessions = new Map<string, SessionRecord>();
-  readonly runs = new Map<string, RunRecord>();
+  readonly #sessions = new Map<string, SessionRecord>();
+  readonly #runs = new Map<string, RunRecord>();
   /** Sessions starting a round, closing an interrupted one or preparing a rewind: one at a time each. */
-  readonly startingSessions = new Set<string>();
+  readonly #startingSessions = new Set<string>();
   readonly #restoring = new Map<string, Promise<SessionRecord>>();
   readonly #runtime: PrologueRuntimePort;
   readonly #approvals: PrologueApprovalBridge | undefined;
@@ -54,25 +54,54 @@ export class PrologueRunStore {
     this.#approvals = approvals;
   }
 
+  get sessions(): ReadonlyMap<string, SessionRecord> { return this.#sessions; }
+  get runs(): ReadonlyMap<string, RunRecord> { return this.#runs; }
+  get startingSessions(): ReadonlySet<string> { return this.#startingSessions; }
+
+  rememberSession(sessionId: string, session: SessionRecord): void {
+    this.#sessions.set(sessionId, session);
+  }
+
+  rememberRun(session: SessionRecord, record: RunRecord): void {
+    this.#runs.set(record.view.ref.run_id, record);
+    session.runs.push(record.view.ref);
+  }
+
+  /** The caller has just checked its original busy conditions; hold until all of its work has settled. */
+  async withSessionHeld<T>(sessionId: string, work: () => Promise<T>): Promise<T> {
+    this.#startingSessions.add(sessionId);
+    try { return await work(); }
+    finally { this.#startingSessions.delete(sessionId); }
+  }
+
+  invalidateSession(sessionId: string): void {
+    this.#sessions.delete(sessionId);
+  }
+
+  reloadSession(sessionId: string): Promise<SessionRecord> {
+    this.invalidateSession(sessionId);
+    return this.loadSession(sessionId);
+  }
+
   /** A detail restore under way, which a cold status read must wait for rather than race. */
   restoring(sessionId: string): Promise<SessionRecord> | undefined {
     return this.#restoring.get(sessionId);
   }
 
   requireSession(sessionId: string): SessionRecord {
-    const record = this.sessions.get(sessionId);
+    const record = this.#sessions.get(sessionId);
     if (!record) throw agentErrors.session_unknown("找不到这条会话");
     return record;
   }
 
   requireRun(runId: string): RunRecord {
-    const record = this.runs.get(runId);
+    const record = this.#runs.get(runId);
     if (!record) throw agentErrors.run_unknown("找不到这次执行");
     return record;
   }
 
   async loadSession(sessionId: string): Promise<SessionRecord> {
-    const existing = this.sessions.get(sessionId);
+    const existing = this.#sessions.get(sessionId);
     if (existing) return existing;
     const held = this.#restoring.get(sessionId);
     if (held) return held;
@@ -94,7 +123,7 @@ export class PrologueRunStore {
     const session: SessionRecord = { title: restored.title, owner: restored.owner, workspace: restored.workspace ?? "required", runs: [],
       ...(restored.recovery ? { recovery: restored.recovery } : {}) };
     for (const saved of restored.runs) {
-      const { state, endedAt } = restorePrologueRun(saved);
+      const { state, endedAt } = restorePrologueRun(saved, waiting => this.#runtime.unexecutedApprovalCall?.(saved.ref, waiting));
       // Replayed records are immutable observations. A new Run continues the
       // same SDK session; old control handles cannot be resurrected.
       const unavailable = (): never => { throw agentErrors.capability_unavailable("历史执行没有活动控制句柄，不能重放停止、回答或继续指令"); };
@@ -102,11 +131,11 @@ export class PrologueRunStore {
         stop: unavailable, pause: unavailable, resume: unavailable, steer: unavailable, subscribe: () => () => {} };
       const view: AgentRunView = { ref: saved.ref, frozen: saved.frozen, started_at: saved.started_at, ended_at: endedAt,
         phase: state.phase, turns: [], activity: [], usage: state.usage, awaiting_input: [] };
-      this.runs.set(saved.ref.run_id, { view, state, control, unsubscribe: () => {}, listeners: new Set(), timingReady: true });
+      this.#runs.set(saved.ref.run_id, { view, state, control, unsubscribe: () => {}, listeners: new Set(), timingReady: true });
       session.runs.push(saved.ref);
       this.publish(saved.ref.run_id, false);
     }
-    this.sessions.set(sessionId, session);
+    this.#sessions.set(sessionId, session);
     return session;
   }
 
@@ -124,7 +153,7 @@ export class PrologueRunStore {
         if (event.text === task) return;
       }
       const at = this.now().toISOString();
-      if (!applyRunEvent(record.state, event, at)) return;
+      if (!applyRunEvent(record.state, event, at, waiting => this.#runtime.unexecutedApprovalCall?.(ref, waiting))) return;
       // A held ending reads as what was wrong with it; one that ended still only announcing says nothing was done.
       if (event.type === "model-response-repair" && event.reason === "stop-held") {
         const label = ports.stopHeld?.(ref.run_id), held = [...record.state.activity].reverse().find(item => item.call_id.startsWith("model-held-"));
@@ -151,7 +180,7 @@ export class PrologueRunStore {
    * state before that event: the next Run would read incomplete history.
    */
   publish(runId: string, stampTerminal = true): void {
-    const record = this.runs.get(runId);
+    const record = this.#runs.get(runId);
     if (!record) return;
     const controlPhase = prologuePhaseOf(record.control.state);
     const awaitingCommit = isEnded(controlPhase) && !isEnded(record.state.phase);
@@ -222,7 +251,7 @@ export class PrologueRunStore {
         run: { ...run },
       });
     } catch (error) {
-      const record = this.runs.get(run.run_id);
+      const record = this.#runs.get(run.run_id);
       if (record) {
         record.state.activity.push({
           call_id: `approval-mirror-${event.pendingRef.id}`,
@@ -256,7 +285,7 @@ export function isEnded(phase: string): boolean {
 }
 
 /** One interpretation of persisted progress for both the directory and full history. */
-export function restorePrologueRun(saved: PrologueRestoredSession["runs"][number]) {
+export function restorePrologueRun(saved: PrologueRestoredSession["runs"][number], readCall?: Parameters<typeof closeInterruptedPrologueStream>[1]) {
   const state = runStreamState(saved.frozen.model_context?.prompt_includes_cache ?? false, saved);
   state.turns.push({ turn_id: "user-1", kind: "user", text: saved.task, at: saved.started_at, sequence: 0 });
   let firstPrompt = true;
@@ -268,7 +297,7 @@ export function restorePrologueRun(saved: PrologueRestoredSession["runs"][number
     }
     const atMs = (event as { atMs?: unknown }).atMs;
     const at = typeof atMs === "number" && Number.isFinite(atMs) ? new Date(atMs).toISOString() : null;
-    applyRunEvent(state, event, at);
+    applyRunEvent(state, event, at, readCall);
     if (isEnded(state.phase) && typeof atMs === "number") endedAt = at;
   }
   if (saved.timing) {
@@ -282,7 +311,7 @@ export function restorePrologueRun(saved: PrologueRestoredSession["runs"][number
     if (!state.awaiting_input.some(held => held.pending_id === question.pending_id)) state.awaiting_input.push({ ...question, sequence: state.next_sequence++ });
   }
   if (!saved.events || !isEnded(state.phase)) {
-    closeInterruptedPrologueStream(state);
+    closeInterruptedPrologueStream(state, readCall);
     if (saved.terminal) {
       // The runtime sealed the run; only its progress stopped short (the service went down while it was ending).
       // Nothing is left to reconcile for it — an operation with an unknown outcome would still be open work, and that

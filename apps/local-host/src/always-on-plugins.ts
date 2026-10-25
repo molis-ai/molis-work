@@ -3,7 +3,7 @@ import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import type { ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { PluginInstanceRecord, PluginLifecycleState } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
-import { alwaysOnAgreed, readPluginRuntimeRecords, SqlitePluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
+import { alwaysOnAgreed, consentSubject, pluginManifestDigest, readPluginRuntimeRecords, SqlitePluginConsentLedger, type PluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
 import { openReadOnlyHomePluginStore } from "./home-plugin-store.js";
 
 // 常开插件 from records (ac-trust T3, specs/repository-anti-corruption/slices/ac-trust-install.md §3.4). A built-in plugin is on in every
@@ -46,3 +46,16 @@ export function alwaysOnCatalogEntries(home: string): PluginRegistration[] {
 
 /** The keys the projects of this Home use for their 常开 plugins (`ProjectPluginRegistry.alwaysOn`). */
 export const alwaysOnProjectPlugins = (home: string): ProjectPluginId[] => alwaysOnCatalogEntries(home).map(entry => entry.project_plugin_id);
+
+/**
+ * At Host startup the Host agrees, for its own build, to the 常开 plugins that no supervisor installs (a supervisor records its own plugins'
+ * consents when it installs them). Without the row a person has nothing to take back. `record` writes nothing when any row exists, a
+ * revoked one included, so a person's decision stands across restarts; queries never call this.
+ */
+export function recordHostAlwaysOnAgreements(ledger: PluginConsentLedger, supervised: ReadonlySet<string>, at: string): void {
+  for (const { manifest } of PLATFORM_PLUGIN_REGISTRATIONS) {
+    if (manifest.always_on !== true || supervised.has(manifest.plugin_id)) continue;
+    ledger.record({ plugin_id: manifest.plugin_id, publisher_signature: manifest.publisher.signature, manifest_digest: pluginManifestDigest(manifest),
+      granted_by: "host_build", grants: [{ kind: "always_on", subject: consentSubject.alwaysOn() }], at });
+  }
+}

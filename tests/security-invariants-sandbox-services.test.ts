@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -52,6 +53,9 @@ test("S-60 RAC-238 a sandboxed plugin asking for a service the sandbox is not gi
     ["notifications", declaring({}, {}, [permission("notifications:write", true)]), []],
     ["installations", declaring({}, {}, [permission("plugins:read", true)]), []],
     ["actions", declaring({}, {}, [permission("actions:delegate", true)]), []],
+    // PG-112 RAC-734: the Manifest's local_tools (or the permission) asks for the Host's look for command-line tools, which answers with paths outside the sandbox.
+    ["localTools", declaring({}, { local_tools: { tools: [{ tool_id: "probe", binaries: ["probe"] }] } }, [permission("local-tools:read", true)]), []],
+    ["localTools", declaring({}, {}, [permission("local-tools:read", false)]), ["local-tools:read"]],
     // Project artifacts, process items, ports and events: each declaration, and the artifact permissions, ask for the services the sandbox is not given.
     ["artifacts", declaring({}, { artifacts: { produces: [{ type: "probe" } as never], consumes: [] } }), []],
     ["artifacts", declaring({}, { artifacts: { produces: [], consumes: [{ type: "probe" } as never] } }), []],
@@ -132,7 +136,7 @@ test("S-60 RAC-238 the Host stops a sandboxed installation that asks for a servi
   const actions = { registry: local.actionRegistry(project), client: { ...local.actionClient(project), ...local.syncActionClient(project) }, project_id: project.project_id };
   const executor = new PluginHostExecutor({ actions, project_id: project.project_id, actor_id: "web-user", artifacts, processItems, ui: new UiHost(), dependencyCheck: hostDependencyCheck(local.client(project)),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) });
-  const runtime = new PluginRuntime(undefined, executor);
+  const runtime = new PluginRuntime(undefined, executor, { hostIds: ISOLATED_HOST_IDS });
   t.after(async () => { await local.close(); store.close(); await rm(home, { recursive: true, force: true }); });
   const started: string[] = [];
   const definition = (id: string, execution: PluginDefinition["execution"], modelConfiguration = false): PluginDefinition => ({

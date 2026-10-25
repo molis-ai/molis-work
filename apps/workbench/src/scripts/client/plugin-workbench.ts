@@ -1,5 +1,8 @@
 import { PLUGIN_EVENT_RECOVERY_CLIENT } from "./plugin-event-recovery.js";
-import { ARTIFACT_GOAL_INPUT_CLIENT_SCRIPT, ARTIFACT_WORKS_CLIENT_SCRIPT, ARTIFACT_HANDOFF_CLIENT_SCRIPT, ARTIFACT_PORT_INPUT_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-artifacts";
+import { ARTIFACTS_PLUGIN_ID, ARTIFACT_GOAL_INPUT_CLIENT_SCRIPT, ARTIFACT_WORKS_CLIENT_SCRIPT, ARTIFACT_HANDOFF_CLIENT_SCRIPT, ARTIFACT_PORT_INPUT_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-artifacts";
+
+/** The Artifacts snippets share this script's scope and say their words with `L`; here `L` is the page's, so they say them with `AL`, Artifacts' own words (none of them has a name that ends in `L` before a parenthesis). */
+const inArtifactsWords = (script: string): string => script.replaceAll("L(", "AL(");
 
 /** Workbench composes bundled project entries and exact Artifact contributions. The menus holding the market's update count
  * light their dot from `data-market-updates`: a style rule that looked inside them restyled each whole menu on every change. */
@@ -305,7 +308,8 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
       detail.replaceChildren(message, button);
     } finally { if (controller === artifactRequest) artifactRequest = null; }
   };
-  ${ARTIFACT_GOAL_INPUT_CLIENT_SCRIPT}${ARTIFACT_WORKS_CLIENT_SCRIPT}${ARTIFACT_HANDOFF_CLIENT_SCRIPT}${ARTIFACT_PORT_INPUT_CLIENT_SCRIPT}
+  const AL = (key, vars) => LF(${JSON.stringify(ARTIFACTS_PLUGIN_ID)}, key, vars);
+  ${inArtifactsWords(ARTIFACT_GOAL_INPUT_CLIENT_SCRIPT + ARTIFACT_WORKS_CLIENT_SCRIPT + ARTIFACT_HANDOFF_CLIENT_SCRIPT + ARTIFACT_PORT_INPUT_CLIENT_SCRIPT)}
   // 「从这一版继续」 (A4b): the chosen plugin starts a new object from this version and it opens here.
   const continueFrom = async (button) => {
     if (button.disabled) return;

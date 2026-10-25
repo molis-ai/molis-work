@@ -1,6 +1,7 @@
-import { escapeHtml, icon } from "@molis-ai/molis-work-design-system";
+import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { PluginBoardSpecimenPorts, PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { BUILTIN_PLUGIN_CATALOG } from "./plugin-catalog.js";
+import { pluginSurfaceClients } from "./plugin-workbench.js";
 import { boardFrameParam, type BoardFrameParam } from "./condition-specimens.js";
 
 /**
@@ -20,6 +21,13 @@ export function renderBoardPluginRows(L: Say, sample: PluginBoardSpecimenPorts["
     </figure>`));
   return `<section data-board-plugin-rows><h2>${escapeHtml(L("插件行视图"))}</h2><p class="mw-cond-note">${escapeHtml(L("插件自己的行渲染器画出的样例：数据是固定样例，行就是插件页面画的那一行。目录里的行按一栏的宽度排，主区的视图占满。"))}</p>
     <div class="mw-cond-plugins">${figures.join("")}</div></section>`;
+}
+
+/** The sheets the specimens' plugins bring beside the workbench sheet (and those of the plugins their rows draw), so a specimen is styled as its page is. */
+export function boardPluginStyleLinks(catalog: readonly PluginRegistration[] = BUILTIN_PLUGIN_CATALOG): string {
+  const drawn = new Set(catalog.filter((entry) => entry.workbench.specimens).map((entry) => entry.project_plugin_id));
+  const ids = new Set(pluginSurfaceClients().filter((client) => drawn.has(client.id)).flatMap((client) => client.styles));
+  return [...ids].map((id) => `<link rel="stylesheet" href="/assets/molis-work-plugins/${encodeURIComponent(id)}.css">`).join("");
 }
 
 /** The board page's own rule for the section's frame: as tall as its rows need, not the conditions frame's height. */

@@ -8,6 +8,7 @@ type SdkBoard = ReturnType<Runtime["boards"]["get"]>;
 type TaskNode = SdkBoard["nodes"][number];
 type Assignee = TaskNode["assignee"];
 type Report = TaskNode["reports"][number];
+type ReportAuthor = NonNullable<AgentStepBoard["nodes"][number]["reports"][number]["by"]>;
 /** The round's inputs as its record has them right now. */
 export type RoundLedger = () => readonly AgentTurnView[];
 
@@ -86,7 +87,7 @@ function ownerOf(runtime: Runtime, assignee: Assignee, session: string): AgentSt
     if (assignee.id === session) return { kind: "session", label: "本会话" };
     const child = runtime.subagents.list().find(one => one.session.id === assignee.id);
     // The key the coordinator chose when dispatching it, after the round's own part.
-    if (child) return { kind: "subtask", label: `子任务「${child.key.slice(child.key.indexOf(".") + 1)}」`, subagent_id: child.ref.id };
+    if (child) { const title = child.key.slice(child.key.indexOf(".") + 1); return { kind: "subtask", label: `子任务「${title}」`, title, subagent_id: child.ref.id }; }
     return { kind: "other", label: "另一个会话" };
   }
   return { kind: "other", label: "另一个角色" };
@@ -110,11 +111,13 @@ function claimOf(runtime: Runtime, node: TaskNode, session: string, alive?: (ses
 
 const STATE_WORDS: Record<TaskNode["state"], string> = { "not-started": "等前置", ready: "可开始", running: "进行中", waiting: "在等", succeeded: "已完成", failed: "失败", cancelled: "已跳过", blocked: "受阻", "needs-reconciliation": "需核对" };
 
-function reportBy(runtime: Runtime, report: Report, session: string): string | undefined {
-  if (report.handover) return "改派";
-  if (report.human) return "用户";
-  if (report.session) return ownerOf(runtime, report.session, session).label;
-  return undefined;
+function reportBy(runtime: Runtime, report: Report, session: string): ReportAuthor | undefined {
+  if (report.handover) return { kind: "handover", label: "改派" };
+  if (report.human) return { kind: "person", label: "用户" };
+  if (!report.session) return undefined;
+  // A session's report: this session, a subtask, or another session (never a person or no one).
+  const { kind, label, title } = ownerOf(runtime, report.session, session);
+  return { kind: kind === "session" || kind === "subtask" ? kind : "other", label, ...(title ? { title } : {}) };
 }
 
 /** A report's text; a handover says who it passed between, in the product's words rather than the SDK's. */
@@ -129,7 +132,8 @@ function reportNote(runtime: Runtime, report: Report, session: string): string {
 /** One step in a line, by its id on the board (what the round's tools take): what it is, where it stands, who holds it, the latest word. */
 export function stepLine(runtime: Runtime, node: TaskNode, place: PlanPlace, session: string, alive?: (session: string) => boolean): string {
   const last = node.reports.at(-1), owner = claimOf(runtime, node, session, alive);
-  const latest = last ? `；最近：${reportBy(runtime, last, session) ? reportBy(runtime, last, session) + "：" : ""}${reportNote(runtime, last, session).slice(0, 120)}` : "";
+  const by = last && reportBy(runtime, last, session)?.label;
+  const latest = last ? `；最近：${by ? by + "：" : ""}${reportNote(runtime, last, session).slice(0, 120)}` : "";
   return `- ${node.id}「${title(node, place).slice(0, 60)}」${STATE_WORDS[node.state]}（${node.state}），负责：${owner.label}${latest}`;
 }
 

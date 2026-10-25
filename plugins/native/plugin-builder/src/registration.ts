@@ -25,6 +25,10 @@ export const registration: PluginRegistration = {
     contributions: [builderUiContribution],
     // The studio is drawn in the plugin's stage; generated plugin parts in its canvas use the plugin components.
     stylesheet: AGENT_STUDIO_STYLES + PLUGIN_COMPONENT_STYLES,
+    // The studio's own classes predate its id (`as-`, `pb-`); the components every generated plugin shares (`pc-`) are not its
+    // own and stay in the shared sheet, as do the two classes the Host's preview page draws (PG-070).
+    stylesheetPrefixes: ["as-", "pb-"],
+    stylesheetShared: ["as-preview-page", "pb-surface"],
     clientFactory: AGENT_STUDIO_WORKBENCH_CLIENT_FACTORY_SCRIPT,
   },
 };

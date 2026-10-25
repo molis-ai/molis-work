@@ -1,9 +1,9 @@
 import { pluginPageRequest } from "./plugin-page-authority.js";
-import { escapeHtml } from "@molis-ai/molis-work-design-system";
+import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { HomePluginHost, HomePluginPlatform } from "./home-plugins.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { renderHomePluginPage, sideOpenedPlugins, stageContributionId, type UnavailablePluginStage } from "@molis-ai/molis-work-app-workbench";
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { inWordsOf, renderHomePluginPage, sideOpenedPlugins, stageContributionId, type UnavailablePluginStage } from "@molis-ai/molis-work-app-workbench";
+import { PLATFORM_PLUGIN_REGISTRATIONS, runsInHome } from "./plugin-registry.js";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
@@ -84,7 +84,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
     const view = contribution?.kind === "app" ? contribution.views?.find(view => (!sideView || view.descriptor.contribution_id === sideView.contribution_id)
       && view.descriptor.surfaces?.some(surface => surface.target_slot_id === slot)) : undefined;
     const surface = view?.descriptor.surfaces?.find(surface => surface.target_slot_id === slot);
-    const html = view && surface ? view.render({ contribution_id: view.descriptor.contribution_id, surface: surface.surface_id, model: { ...homeViewModel(), project_id: project?.project_id ?? null, route_prefix: project ? `/projects/${encodeURIComponent(project.project_id)}` : "", view_id: side } }) : null;
+    const html = view && surface ? view.render({ contribution_id: view.descriptor.contribution_id, surface: surface.surface_id, model: { ...homeViewModel(pluginId), project_id: project?.project_id ?? null, route_prefix: project ? `/projects/${encodeURIComponent(project.project_id)}` : "", view_id: side } }) : null;
     response.writeHead(200, { "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": csp });
     response.end(renderHomePluginPage(pageEntry(entry), html, platform.supervisor.state(pluginId)?.message ?? null, controlToken, { L, htmlLang, clientI18nScript }, false, Boolean(sideView), project));
     return true;
@@ -145,7 +145,7 @@ async function routeProject(segment: string, pluginId: string, projectPlugins: H
   try { projectId = decodeURIComponent(segment); } catch { return new ActionError("actions.missing", "找不到这个项目"); }
   const found = projectPlugins ? await projectPlugins(projectId) : null;
   if (!found) return new ActionError("actions.missing", "找不到这个项目");
-  const shipped = PLATFORM_PLUGIN_REGISTRATIONS.some(item => item.runtime?.scope === "home" && item.manifest.plugin_id === pluginId);
+  const shipped = PLATFORM_PLUGIN_REGISTRATIONS.some(item => runsInHome(item) && item.manifest.plugin_id === pluginId);
   if (!found.reaches(pluginId) && (shipped || !dualInstance)) return new ActionError("actions.plugin_disabled", "此项目未启用该插件");
   return { ...molisWorkHostProjectReference({ databasePath: found.database_path, projectId }), display_name: found.display_name };
 }
@@ -176,8 +176,8 @@ function homePageContext(request: IncomingMessage, url: URL, registered: ReturnT
 const pageEntry = (entry: ReturnType<HomePluginHost["registered"]>[number]) => ({ project_plugin_id: entry.key, manifest: entry.manifest });
 
 /** What a Home view is drawn with: the page's own escaping and language, as the workbench gives its built-in stages. */
-function homeViewModel() {
-  return { primitives: { escape: (value: unknown) => escapeHtml(String(value)), text: L } };
+function homeViewModel(pluginId: string) {
+  return { primitives: { escape: (value: unknown) => escapeHtml(String(value)), text: inWordsOf(pluginId, L) } };
 }
 
 /**
@@ -201,7 +201,7 @@ export async function renderHomePluginStages(host?: HomePluginHost): Promise<{ h
     const install = host.installation(entry.manifest.plugin_id);
     const contribution = install?.state === "running" ? platform?.runtime.contribution(install.install_id) : null;
     const view = contribution?.kind === "app" ? contribution.views?.find(view => view.descriptor.surfaces?.some(surface => surface.surface_id === "workbench")) : undefined;
-    if (view) return [view.render({ contribution_id: view.descriptor.contribution_id, surface: "workbench", model: homeViewModel() })];
+    if (view) return [view.render({ contribution_id: view.descriptor.contribution_id, surface: "workbench", model: homeViewModel(entry.manifest.plugin_id) })];
     unavailable.push({ surface: entry.project_plugin_id, label: entry.manifest.name, scope: "home",
       reason: L(failure ?? platform?.supervisor.state(entry.manifest.plugin_id)?.message ?? (install?.state === "running" ? "插件页面未注册" : "插件已停用")) });
     return [];

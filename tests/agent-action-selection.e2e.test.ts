@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -31,7 +32,7 @@ test("Character and Coding discover authorized unknown actions, preserve exact s
     permissions: ["notes:read", "notes:write"].map(permission => ({ permission, required: false, reason: "访问原笔记" })),
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [read, write] },
     async start() { return { kind: "app", actions: [read, write].map(def => ({ ...def, handle: () => "原笔记" })) }; } });
-  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(b.store.db), undefined, { actions: { registry: localHost.actionRegistry(project), project_id: projectId } });
+  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(b.store.db), undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: localHost.actionRegistry(project), project_id: projectId } });
   const install = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["notes:read", "notes:write"] }).install;
   await runtime.start(install.install_id);
   // Stopped once in the middle of the test to withdraw the provider; the store is closed by then.

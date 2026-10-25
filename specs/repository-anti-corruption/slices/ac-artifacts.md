@@ -1,8 +1,26 @@
 # ac-artifacts：成果库去插件身份，成为平台事实的主人（设计稿）
 
-状态：设计稿已审定，A1、A2a（客户端与 owner 操作）已随 batch-27 落地；A2b（动作处理器、浏览、导入、原件存取、项目引用、目标引用搬进 `modules/artifacts`，宿主停止 import 成果库插件包）2026-10-24 开发完成，等评审。A3（PG-064、PG-079、PG-077：成果类型登记表搬进宿主并读有效安装的 Manifest，`consumes[].file`，Goals 链接种类 `artifacts.links`，安装时拒重复属主，宿主这一层拒装上的产出者写未声明的类型）2026-10-25 开发完成，在分支 `anticorr/ac-artifacts-a3`，RAC-415～421；§5.1 的 S-69.1、S-70.4 暂记为 S-75，S-70.2、S-70.3 暂记为 S-76（S-69、S-70 已被连接扩展占用，合入时由统筹核号）。A3 之后的实现片要等 ac-registry 的 PG-024 片。
+状态：设计稿已审定，A1、A2a（客户端与 owner 操作）已随 batch-27 落地；A2b（动作处理器、浏览、导入、原件存取、项目引用、目标引用搬进 `modules/artifacts`，宿主停止 import 成果库插件包）2026-10-24 开发完成，等评审。A3（PG-064、PG-079、PG-077：成果类型登记表搬进宿主并读有效安装的 Manifest，`consumes[].file`，Goals 链接种类 `artifacts.links`，安装时拒重复属主，宿主这一层拒装上的产出者写未声明的类型）2026-10-25 开发完成，在分支 `anticorr/ac-artifacts-a3`，RAC-415～421；§5.1 的 S-69.1、S-70.4 暂记为 S-81，S-70.2、S-70.3 暂记为 S-82（S-69、S-70 已被连接扩展占用，合入时由统筹核号）。A3 之后的实现片要等 ac-registry 的 PG-024 片。
 
 A2b 的取舍（受「插件不能 import 模块」限制，插件在 A6 删除前仍要自己的 Manifest 与登记）：模块持有完整的 `artifact-actions.ts`（动作清单加处理器）、`artifact-provider.ts`（`ARTIFACTS_PROVIDER`：id、名称、版本、签名）及其依赖；插件只留动作清单（`actions.ts`）、`browser-view.ts`（页面视图类型与版本路径）、Home 存储登记与项目删除清理（`original-store.ts`）和界面。两份清单与提供方字段由 `tests/plugin-artifact-schemas.test.ts` 对照（RAC-414），A6 删插件时重复随之消失。
+
+### A3 修复 WO：恢复连接与缺失项目库（2026-10-25，负责人 Codex）
+
+状态：实现与定向产品回归完成，独立审验待交接，准确 parent `8ec03a0979e81a723c06ff5332a8b91645b2df8a`；仅处理 [增量评审的两个 P1](https://github.com/molis-ai/molis-work/pull/1294#issuecomment-6399755660)，不重做 FIRST，不代表 A3 或防腐线完成。
+
+根因与方案：`restoreWorkAssets` 重新打开项目连接，没有 `createPluginPlatform → bindProjectArtifacts` 的 WeakMap 视图。恢复专用判断改经 Runtime 公开的持久安装与精确 release Manifest 读取函数，在恢复事务内读取目标库；已装与停用安装都按该安装的 Manifest 判断，缺发行物或读取失败拒绝，不靠启动插件。只有确实没有该产出者安装记录才用既定历史例外；已卸载记录不能冒充从未安装。普通写入仍只问项目监督器，恢复范围限制、版本比较、原样内容、警告和事务不变。`heldInstalls` 对 catalog 已登记项目的缺文件改为抛出不可读，继续由现有声明检查拒绝安装、清理调用端保留规则和样例；不另写 reader，不改 scope + install_id 排除合同。
+
+范围：`apps/local-host/src/declared-types.ts`、`plugin-holders.ts`，必要的真实恢复接线、对应 tests/fixtures、本 WO 和 S-81/S-82 引用。复用 Runtime 公开读取，不跨 owner 写 SQL，不新增 SDK/Contract 或公开恢复口。FI2 caller、F5/C2、PG049、其他工作树及真实 Home 均不在范围。目标是两个 P1 的功能修复与临时 Home 定向工程证据；独立审验、组批与合入归原流水线。
+
+| 验收编号 | 可观察结果及证据 |
+| --- | --- |
+| RAC-416-R1 | 经生产 `restoreWorkAssets` 新连接，已装/停用者未声明类型均拒绝；混合包在后项拒绝时前项也回滚，成果版本与业务事件零新增；目标库重开后仍可观察。 |
+| RAC-416-R2 | 真正未安装者的历史原样恢复并带原警告；重复恢复不重复写，普通写入仍拒绝；读取安装或精确发行物失败拒绝，不借其他版本 Manifest 放行。已装/停用者合法声明的历史恢复无需启动插件。 |
+| RAC-417-R1 | 隔离 Home 中暂移 catalog 另一项目库，实际 Runtime 安装被拒且零安装记录；真实卸载保留规则、属主和用户样例；finally 恢复文件后正常判断与最后持有者清理。不同项目同 install_id、不同版本及保留数据边界沿原合同。 |
+
+实测记录：RAC-416-R1/R2、RAC-417-R1 均通过。未修 8ec 上新生产入口用例实际复现已装/停用与缺发行物误放行，缺项目库的安装误放行与规则/样例误删；未安装历史正控通过（7 项含子用例，1 通过、6 失败；无取消/跳过）。修后整批 5 文件 38/38，分别为声明 18、规则生命周期 4、跨设备接续 1、网关 2、CLI 13，无失败/取消/跳过。整体构建、相对 origin/main merge-base 的健康门禁及经公共 FIFO 运行的边界门禁均通过。首轮测试夹具遗漏包的 `supersedes_version: null`，修正夹具后重新取得上述有效 RED，首轮日志保留但不当产品复现。未跑 full/CI/browser、通用 Host README 宽批或 TEST 的 5 个独立安装身份 probe；不是用户验收。
+
+验证：先补回归在未修源码上取得定向 RED，再改生产源码并整体 `pnpm build`（公共 build FIFO），运行 `node scripts/run-tests.mjs --jobs 2 --verbose tests/security-invariants-artifact-declarations.test.ts tests/scene-default-rule-lifecycle.test.ts tests/cross-device-continuity.test.ts tests/cross-device-gateway.test.ts tests/server-cli.test.ts`；按实际修改补相关定向用例及 `pnpm boundary:check`、`node scripts/check-health-gates.mjs --base origin/main`、`git diff --check`。不新跑 full/CI/browser，不重已知旧失败。保留原日志、exit、取消/未选边界；推送前 fetch 与 `pnpm secrets:check`，只正常 push 自己 feature，不改原 PR 头、不新 PR、不合并。
 
 A2b 一轮修复合同（FIX6，2026-10-24，首评 `6390053800`）：只收齐本轮四项有效意见，原 FIRST 结论保留。S-55 的 `originalFileOf` 引用改指模块现址，HOME-DATA 对应行改用现行 `openArtifactOriginal`。全仓核对模块新增的 `artifactsProjectData`、`purgeArtifactOriginals` 只有本测试的 label 对照，没有生产消费者，删除这两项声明及出口；项目删除继续由插件已登记的 `artifactsProjectData.purge` 执行，不提前做 A6。模块的 `consumerTypes` 合入已有 `plugin-action-schemas.ts`，动作处理器复用它，删除第三份 schema 文件。
 

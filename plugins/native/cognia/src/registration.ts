@@ -1,6 +1,5 @@
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { COGNIA_PROJECT_PLUGIN_ID, cogniaManifest, COGNIA_CLIENT_FACTORY_SCRIPT, COGNIA_STYLES, cogniaUiContribution, createCogniaPlugin } from "./index.js";
-import { COGNIA_MESSAGES } from "./messages.js";
 
 /**
  * This plugin's entry in the built-in catalog (W5-02). `node scripts/generate-plugin-registry.mjs` lists it in
@@ -8,8 +7,7 @@ import { COGNIA_MESSAGES } from "./messages.js";
  */
 export const registration: PluginRegistration = {
   project_plugin_id: COGNIA_PROJECT_PLUGIN_ID, catalog_order: 2,
-  runtime: { scope: "home", create: createCogniaPlugin, package_name: "@molis-ai/molis-work-plugin-cognia", factory_export: "createCogniaPlugin" },
-  messages: COGNIA_MESSAGES,
+  runtime: { create: createCogniaPlugin, package_name: "@molis-ai/molis-work-plugin-cognia", factory_export: "createCogniaPlugin" },
   manifest: cogniaManifest,
   personal: true,
   workbench: {

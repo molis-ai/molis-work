@@ -149,13 +149,18 @@ export function bindGoalsManagementActions(client: ActionClient, reference: Loca
   return {
     project_id: projectId,
     async invoke<Input, Output>(definition: ActionDefinition<Input, Output>, input: Input, evidence?: unknown): Promise<Output> {
-      const refused = MANAGEMENT_REFUSED_IDENTITY[definition.capability_id];
-      if (refused && typeof input === "object" && input !== null) refusePayloadIdentity(input, refused);
-      return await invokeGoals(client, { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user", project_id: projectId,
-        permissions: definition.action.permissions, ...(transport.signal ? { signal: transport.signal } : {}),
-        user_action: managementUserAction(projectId, definition.capability_id, input, evidence) }, definition, input);
+      return await invokeGoals(client, goalsManagementContext(projectId, definition, input, evidence, transport.signal), definition, input);
     },
   };
+}
+
+/** The same identity/evidence refusal runs before a production MCP may start the resident and again at its actual dispatch. */
+export function goalsManagementContext(projectId: string, definition: ActionDefinition, input: unknown, evidence?: unknown, signal?: AbortSignal): ActionCallContext {
+  const refused = MANAGEMENT_REFUSED_IDENTITY[definition.capability_id];
+  if (refused && typeof input === "object" && input !== null) refusePayloadIdentity(input, refused);
+  return { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user", project_id: projectId,
+    permissions: definition.action.permissions, ...(signal ? { signal } : {}),
+    user_action: managementUserAction(projectId, definition.capability_id, input, evidence) };
 }
 
 /** The existing CLI/MCP management action subset, resolved against the owner's definitions and exact version. */

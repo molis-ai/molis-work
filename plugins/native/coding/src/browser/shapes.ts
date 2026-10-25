@@ -1,13 +1,17 @@
 /** The JSON the Coding routes answer, as far as the page reads it (src/routes-*.ts write it). */
+import type { AgentStepBoard } from "@molis-ai/molis-work-contracts/services/agent-host";
 
-export interface StepReport { readonly by?: string; readonly note: string; readonly at_ms?: number; readonly inputs?: readonly { readonly input_id: string }[] }
+/** Who the Host says made a report: a kind the page words itself, the Host's own label, and a subtask's title. */
+export type StepReportAuthor = NonNullable<AgentStepBoard["nodes"][number]["reports"][number]["by"]>;
+
+export interface StepReport { readonly by?: StepReportAuthor; readonly note: string; readonly at_ms?: number; readonly inputs?: readonly { readonly input_id: string }[] }
 
 export interface StepNode {
   readonly id: string;
   readonly title?: string;
   readonly state: string;
   readonly inserted?: boolean;
-  readonly owner?: { readonly kind: string; readonly label?: string; readonly expired?: boolean; readonly subagent_id?: string };
+  readonly owner?: AgentStepBoard["nodes"][number]["owner"];
   readonly depends_on?: readonly string[];
   /** The supplements that asked for the step. */
   readonly origins?: readonly { readonly input_id: string }[];

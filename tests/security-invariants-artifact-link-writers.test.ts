@@ -9,7 +9,7 @@ import { artifactLinkKinds } from "@molis-ai/molis-work-app-local-host";
 import { artifactsManifest } from "@molis-ai/molis-work-plugin-artifacts";
 import { eventCursorOf, pinnedArtifact } from "./fixtures/artifacts.js";
 
-// ac-artifacts A3 (slices/ac-artifacts.md §3.5), RAC-421 / S-76: a link kind belongs to the Plugin that declares it. An edge of that
+// ac-artifacts A3 (slices/ac-artifacts.md §3.5), RAC-421 / S-82: a link kind belongs to the Plugin that declares it. An edge of that
 // kind written by another module does not count as its link, and once the owner is not in effect the versions it linked stay readable.
 const projectId = "link-writers", person: ActionCallContext = { actor_id: "web-user", audience: "user", project_id: projectId, permissions: ["artifacts:read"] };
 
@@ -36,7 +36,7 @@ function rig(t: test.TestContext, linkKinds: ReturnType<typeof artifactLinkKinds
   return { artifacts, edge, links: () => actions.invoke(person, artifactsActions.links, { reference: { artifact_id: "a", version: 1 } }) };
 }
 
-test("RAC-421 S-76 an edge of a Goals link kind written by another module is not a Goal's link", async t => {
+test("RAC-421 S-82 an edge of a Goals link kind written by another module is not a Goal's link", async t => {
   const r = rig(t, artifactLinkKinds());
   r.edge("example", "X1");
   assert.deepEqual(await r.links(), { goals: [], other: 1 }, "counted as some other link, never listed as a Goal");
@@ -44,7 +44,7 @@ test("RAC-421 S-76 an edge of a Goals link kind written by another module is not
   assert.deepEqual(await r.links(), { goals: [{ goal_id: "G1", title: "Goal G1", role: "input" }], other: 1 }, "the owner's own edge is");
 });
 
-test("RAC-421 S-76 with the owner out of effect its kinds are gone, and the versions it linked stay readable", async t => {
+test("RAC-421 S-82 with the owner out of effect its kinds are gone, and the versions it linked stay readable", async t => {
   const r = rig(t, new Map());
   r.edge("goals", "G1");
   assert.deepEqual(await r.links(), { goals: [], other: 1 }, "no kind, so no Goal link and no failure");

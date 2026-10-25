@@ -1,4 +1,4 @@
-import { escapeHtml, renderPluginStageShell } from "@molis-ai/molis-work-design-system";
+import { escapeHtml, renderPluginStageShell } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /** What the Host may offer for a project plugin that does not run: start it again, or release its quarantine and start it. */
 export type PluginRestartOffer = "restart" | "release-quarantine";
@@ -19,10 +19,15 @@ export interface UnavailablePluginStage {
 }
 
 /** An unavailable instance has no page authority or client; only the Host explains why it cannot open, and may offer to start it again. */
+export function renderUnavailablePluginStatus(stage: UnavailablePluginStage,
+  L: (text: string, values?: Record<string, string | number>) => string): string {
+  return `<div class="mw-empty" role="alert"><h2>${escapeHtml(L("{plugin} 暂不可用", { plugin: L(stage.label) }))}</h2><p>${escapeHtml(L(stage.reason))}</p>${stage.scope === "home" ? homeHint(stage, L) : projectHint(stage, L)}</div>`;
+}
+
 export function renderUnavailablePluginStage(stage: UnavailablePluginStage,
   L: (text: string, values?: Record<string, string | number>) => string): string {
   return renderPluginStageShell({ surface: stage.surface, label: L(stage.label), dataset: `${stage.scope}-plugin-unavailable`,
-    body: `<div class="mw-empty" role="alert"><h2>${escapeHtml(L("{plugin} 暂不可用", { plugin: L(stage.label) }))}</h2><p>${escapeHtml(L(stage.reason))}</p>${stage.scope === "home" ? homeHint(stage, L) : projectHint(stage, L)}</div>` });
+    body: renderUnavailablePluginStatus(stage, L) });
 }
 
 function homeHint(stage: UnavailablePluginStage, L: (text: string) => string): string {

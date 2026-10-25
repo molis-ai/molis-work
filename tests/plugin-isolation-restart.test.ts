@@ -224,3 +224,34 @@ test("RAC-637 a Plugin names no owner for a view: not another Plugin's, and not 
   const supervisor = new PluginSupervisor(new PluginRuntime());
   assert.equal((await supervisor.start([{ definition: honest.definition }])).running.length, 1);
 });
+
+test("RAC-635 RAC-636 a Runtime view with a spread owner is refused while the original healthy view stays intact", async () => {
+  for (const claimed of ["io.molis.work.impostor", "io.molis.work.honest"]) {
+    const runtime = new PluginRuntime(), supervisor = new PluginSupervisor(runtime);
+    const healthy = appPlugin({ id: "io.molis.work.honest" });
+    await supervisor.start([{ definition: healthy.definition }]);
+    const original = supervisor.contribution(healthy.definition.manifest.plugin_id);
+    assert.ok(original?.kind === "app");
+    const descriptor = structuredClone(original.views![0]!.descriptor);
+    assert.equal(descriptor.label, "main");
+    assert.equal(Object.hasOwn(descriptor, "plugin_id"), false, "the Runtime still holds the original unowned declaration");
+    const claiming = appPlugin({ id: "io.molis.work.impostor", contribution: manifest => {
+      const own = view(manifest.plugin_id, "main"), owner = { plugin_id: claimed };
+      return { kind: "app", views: [{ ...own, descriptor: { ...own.descriptor, ...owner }, render: () => "replaced by spread" }] };
+    } });
+    try {
+      const report = await supervisor.start([{ definition: claiming.definition }]);
+      assert.match(report.failed.find(item => item.plugin_id === claiming.definition.manifest.plugin_id)?.message ?? "", /自己写了插件身份/u);
+      assert.equal(supervisor.contribution(claiming.definition.manifest.plugin_id), null);
+      const current = supervisor.contribution(healthy.definition.manifest.plugin_id);
+      assert.ok(current?.kind === "app");
+      assert.deepEqual(current.views![0]!.descriptor, descriptor);
+      assert.equal(current.views![0]!.render({ contribution_id: descriptor.contribution_id, surface: "main", model: null }), '<section data-view="main"></section>');
+      assert.equal(supervisor.state(healthy.definition.manifest.plugin_id)?.status, "running");
+      assert.equal(healthy.starts(), 1, "the original instance was not replaced");
+    } finally {
+      const installId = supervisor.state(healthy.definition.manifest.plugin_id)?.install_id;
+      if (installId) await runtime.stop(installId);
+    }
+  }
+});

@@ -58,10 +58,12 @@
 ### 2.2 PG-098：贡献的 plugin_id 由平台填，插件不写
 
 - `packages/contracts/src/platform/ui.ts`：插件写的 `UiContribution.descriptor` 换成 `UiContributionDeclaration`（没有 `plugin_id`）；`UiContributionDescriptor`（带 `plugin_id`）是平台这一侧的，`OwnedUiContribution` 是进了登记表的那份，`ownedContribution(声明, 插件 id)` 合成它；`declaresOwner(声明)` 判断一份声明有没有自己写了 `plugin_id`。
-- `ui-host` 的 `register` 只收 `OwnedUiContribution`：`plugin-client.ts` 用安装上下文的 `context.plugin_id` 合成，声明自带 `plugin_id`（哪怕等于自己的）一律 `plugin_denied`，不覆盖、不兜底；内置的 `registration.workbench.contributions` 在 `pluginWorkbenchPacks` 里用登记项的 `manifest.plugin_id` 合成；Runtime 的视图契约检查（`contribution.ts`）把「`plugin_id` 对不上」换成「声明里不许有 `plugin_id`」，其余照旧。
+- `ui-host` 的 `register` 只收 `OwnedUiContribution`：`plugin-client.ts` 用安装上下文的 `context.plugin_id` 合成，声明自带 `plugin_id`（哪怕等于自己的）一律 `plugin_denied`，不覆盖、不兜底；内置的 `registration.workbench.contributions` 在 `pluginWorkbenchPacks` 生成目录时先拒绝自带 `plugin_id` 的声明，错误标明插件和贡献 id，合法声明才用登记项的 `manifest.plugin_id` 合成；Runtime 的视图契约检查（`contribution.ts`）把「`plugin_id` 对不上」换成「声明里不许有 `plugin_id`」，其余照旧。三条入口都检查实际声明对象，经对象展开带入的 owner 同样拒绝。
 - 各插件 UI 文件里的描述（实数 60 个文件含测试、示例与脚手架）各删 `plugin_id`，类型换成 `UiContributionDeclaration`；SDK 多导出 `UiContributionDeclaration`；GLOSSARY 的「UI 描述里的 `plugin_id` 与 Manifest 不一致」那条改成「已由平台填」。
 
 这样「插件冒用别的插件的名字登记贡献」不是被检查拒绝，而是没有地方写（类型上不能写，运行时写了也拒）。`plugin_denied`（不在 Manifest 的 `ui.contributions` 里就拒）保留。外部插件作者的影响：声明里写了 `plugin_id` 的插件，类型检查和注册都会失败，删掉那一行即可。
+
+源码扫描是运行时拒绝之外的兜底：只读内置插件 `src` 下的 `.ts`、`.tsx`、`.mts`、`.cts`、`.js`、`.jsx`、`.mjs`、`.cjs`；识别对象自身属性、直接展开的对象字面量，以及同文件同作用域可解析的 `const` 对象或别名展开（含括号和类型断言）。不跨模块追踪导入，不计算函数返回、属性读取、动态键或赋值后的数据流；这些未静态覆盖的声明仍受三条真实入口的 owner 拒绝约束。
 
 ### 2.3 PG-100：对象种类的显示名从登记读
 
@@ -76,8 +78,8 @@
 - **RAC-632**：关联的提供方缺任何一个角色或不可用：对应的操作是 `placement.target_unavailable`，别的角色的动作没被调；
 - **RAC-633**：`goal_ids` 缺省的读取器能被 `describe` 照常处理；带 `goal_ids` 的读取器仍显示「挂接」；
 - **RAC-634**：Goals 的 5 个动作带声明；SDK 的声明检查拒绝：角色不在列表里、同一个关联同一角色出现两次、`relation` 不是小写词、`target` 写在非 `list` 角色上、`list` 角色缺 `target`；
-- **RAC-635**：内置贡献的声明里没有 `plugin_id`（读 TypeScript 语法树，不论属性顺序、简写、带引号的键）；工作台登记后的描述 `plugin_id` 等于登记项 Manifest 的；声明自带 `plugin_id`（哪怕等于自己的）时 `pluginWorkbenchPacks` 抛错，信息里有插件和贡献 id，不覆盖；
-- **RAC-636**：插件经 `ui:register` 登记不在自己 Manifest `ui.contributions` 里的 id，`plugin_denied`；声明自带 `plugin_id`（哪怕等于自己的），`plugin_denied`，且没有登记；
+- **RAC-635**：内置贡献声明不写 `plugin_id`：原有属性顺序、简写、带引号的键检查保留，常规 TS/JS 源码扩展名和直接/同文件 `const` 展开有真实扫描反例；合法声明仍按 Manifest owner 登记并渲染。自带自己或别人的 `plugin_id`（含展开带入）时，`pluginWorkbenchPacks` 生成目录即抛错并标明插件与贡献 id；`ui:register` 和 Runtime 视图入口同样拒绝展开带入的 owner，合法声明仍可用；
+- **RAC-636**：`ui:register` 拒绝未声明的贡献 id、自带别人或自己的 `plugin_id`（含展开带入），错误仍是 `plugin_denied`。每次尝试前保存真实原条目，拒绝后其完整描述（label、Manifest owner、surfaces）与原内容的实际渲染均不变；内置目录生成失败和 Runtime 视图启动失败也不替换既有合法贡献或健康运行实例，不仅核对数量；
 - **RAC-637**：启动返回的视图声明里没有 `plugin_id` 才能兑现，自带 `plugin_id` 的失败；对不上 Manifest 声明的 `contribution_id` 仍失败；
 - **RAC-638**：`derived_into` 的目标带所属插件的名字，灵光的标签读它；所属插件缺失（插件已停用）时显示「已转出」；灵光的 `list.ts` 里不再有 `todo`/`page`/`jelly`/`goal` 字符串（读源码）。
 - **RAC-639**：同一个目录里两个可用的提供方声明同一个关联名（五个角色全在两边，或分在两边）：`describe`、候选、挂上、取消、建成都是 `placement.relation_ambiguous`，两个提供方的动作都没被调；其中一个不可用时，另一个独自管这个关联；

@@ -113,16 +113,27 @@ test("Host gives a real Plugin private storage, Artifact exchange and revocable 
     assert.equal(ui.mount({ slot: { slot_id: "main", version: 1, accepts: ["html"] },
       contribution: { contribution_id: "example.notes", surface: "main", model: null } }).html, "<p>Visit 1</p>");
     assert.deepEqual(old.artifacts.read({ artifact_id: "hosted-note", version: 1 })!.payload, { visits: 1 });
+    const registeredNotes = structuredClone(ui.list());
+    const assertNotesUnchanged = () => {
+      assert.deepEqual(ui.list(), registeredNotes, "RAC-636 refusal preserves the original label, Manifest owner and surfaces");
+      assert.equal(ui.mount({ slot: { slot_id: "main", version: 1, accepts: ["html"] },
+        contribution: { contribution_id: "example.notes", surface: "main", model: null } }).html, "<p>Visit 1</p>", "RAC-636 refusal preserves the original renderer");
+    };
     // UIERR-01: an actual Plugin client cannot remove another owner or register undeclared content.
     assert.throws(() => old.ui.unregister("another-plugin"), (error: unknown) => error instanceof ActionError && error.code === "ui_host.plugin_denied" && error.kind === "forbidden");
     assert.throws(() => old.ui.register({ descriptor: { contribution_id: "undeclared",
       kind: "primary-page", label: "No", slots: [] }, render: () => "bad" }), (error: unknown) => error instanceof ActionError && error.code === "ui_host.plugin_denied" && error.kind === "forbidden");
+    assertNotesUnchanged();
     // RAC-636: a declaration that names an owner is refused, another plugin's and its own alike; the Host fills it, so there is nothing to compare.
     for (const claimed of ["another-plugin", id]) {
       assert.throws(() => old.ui.register({ descriptor: { contribution_id: "example.notes", plugin_id: claimed, kind: "primary-page", label: "Claimed", slots: [] }, render: () => "bad" } as never),
         (error: unknown) => error instanceof ActionError && error.code === "ui_host.plugin_denied" && error.kind === "forbidden", claimed);
+      assertNotesUnchanged();
+      const owner = { plugin_id: claimed };
+      assert.throws(() => old.ui.register({ descriptor: { ...owner, contribution_id: "example.notes", kind: "primary-page", label: "Spread claim", slots: [] }, render: () => "replaced by spread" } as never),
+        (error: unknown) => error instanceof ActionError && error.code === "ui_host.plugin_denied" && error.kind === "forbidden", `RAC-636 spread owner ${claimed}`);
+      assertNotesUnchanged();
     }
-    assert.equal(ui.list().length, 1);
     await runtime.reportCrash(installId);
     assert.deepEqual(ui.list(), []);
     assert.deepEqual(pluginActions(store, DEMO_PROJECT_ID).registry.registry.descriptors(), [], "crash must release SDK actions");

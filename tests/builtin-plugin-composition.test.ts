@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { readdirSync, readFileSync, existsSync } from 'node:fs';
+import { readdirSync, readFileSync, existsSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
+import { tmpdir } from 'node:os';
 import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
 import type { ActionDefinition } from '@molis-ai/molis-work-contracts/platform/actions';
@@ -45,7 +46,7 @@ test('one unknown bundled entry supplies actual UI mounting, ordered assets, cli
   assert.deepEqual(mounted.map(args => [...args as unknown[]]), [['future', 'project-1'], ['future.settings', 'project-1']]);
 });
 
-test('RAC-635 a built-in contribution is registered under the plugin its Manifest names, whatever the contribution itself says', () => {
+test('RAC-635 a built-in contribution without an owner is registered under the plugin its Manifest names', () => {
   // Native UI is composed statically, not redeemed as a Runtime contribution; the platform fills the owner from the catalog entry's Manifest (PG-098).
   const ui = createWorkbenchUiHost().list();
   const owners = new Map(BUILTIN_PLUGIN_CATALOG.flatMap(entry => (entry.workbench?.contributions ?? []).map(item => [item.descriptor.contribution_id, entry.manifest.plugin_id] as const)));
@@ -58,7 +59,8 @@ test('RAC-635 a built-in contribution is registered under the plugin its Manifes
   const first = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === 'todo')?.workbench?.contributions[0]?.descriptor.contribution_id;
   assert.ok(first);
   for (const claimed of ['io.example.someone-else', 'io.molis.work.todo']) {
-    assert.throws(() => pluginWorkbenchPacks(withOwner(claimed)), (error: Error) => error.message.includes('todo') && error.message.includes(first) && error.message.includes('plugin_id'), claimed);
+    assert.throws(() => pluginWorkbenchPacks(withOwner(claimed)), (error: unknown) => error instanceof Error && error.message.includes(first)
+      && error.message.replaceAll(first, '').includes('todo') && error.message.includes('plugin_id'), claimed);
   }
   const pack = pluginWorkbenchPacks().find(candidate => candidate.project_plugin_id === 'todo');
   assert.ok(pack?.contributions.length);
@@ -67,41 +69,109 @@ test('RAC-635 a built-in contribution is registered under the plugin its Manifes
   assert.equal(ui.find(entry => entry.contribution_id === 'io.molis.work.native.work.terminal.v1'), undefined);
 });
 
-test('RAC-635 no plugin source writes a plugin_id into a contribution declaration, in whatever order or shape', () => {
+// Only object literals and same-file const initializers: the checker supplies lexical bindings, never cross-module data flow.
+function contributionKeys(expression: ts.Expression, checker: ts.TypeChecker, source: ts.SourceFile, seen = new Set<ts.Node>()): string[] {
+  if (seen.has(expression)) return [];
+  const next = new Set(seen).add(expression);
+  if (ts.isParenthesizedExpression(expression) || ts.isAsExpression(expression) || ts.isTypeAssertionExpression(expression) || ts.isSatisfiesExpression(expression)) {
+    return contributionKeys(expression.expression, checker, source, next);
+  }
+  if (ts.isIdentifier(expression)) {
+    const declaration = checker.getSymbolAtLocation(expression)?.valueDeclaration;
+    return declaration && ts.isVariableDeclaration(declaration) && declaration.getSourceFile() === source
+      && ts.isVariableDeclarationList(declaration.parent) && (declaration.parent.flags & ts.NodeFlags.Const) && declaration.initializer
+      ? contributionKeys(declaration.initializer, checker, source, next) : [];
+  }
+  if (!ts.isObjectLiteralExpression(expression)) return [];
+  return expression.properties.flatMap(property => {
+    if (ts.isSpreadAssignment(property)) return contributionKeys(property.expression, checker, source, next);
+    return ts.isIdentifier(property.name) || ts.isStringLiteral(property.name) ? [property.name.text] : [];
+  });
+}
+
+function contributionOwnerLines(text: string, path = 'probe.ts'): number[] {
+  const found: number[] = [], source = ts.createSourceFile(path, text, ts.ScriptTarget.Latest, true);
+  const options: ts.CompilerOptions = { noResolve: true, noLib: true, allowJs: true, target: ts.ScriptTarget.Latest };
+  const host = ts.createCompilerHost(options);
+  host.getSourceFile = name => name === path ? source : undefined;
+  const checker = ts.createProgram([path], options, host).getTypeChecker();
+  const visit = (node: ts.Node) => {
+    if (ts.isObjectLiteralExpression(node)) {
+      const names = contributionKeys(node, checker, source);
+      if (names.includes('contribution_id') && names.includes('plugin_id')) found.push(source.getLineAndCharacterOfPosition(node.getStart()).line + 1);
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  return found;
+}
+
+function contributionOwnerSources(directory: string): string[] {
   const found: string[] = [];
-  const named = (property: ts.ObjectLiteralElementLike) => {
-    if (!ts.isPropertyAssignment(property) && !ts.isShorthandPropertyAssignment(property) && !ts.isMethodDeclaration(property)) return null;
-    return ts.isIdentifier(property.name) || ts.isStringLiteral(property.name) ? property.name.text : null;
-  };
-  const scan = (path: string) => {
-    const source = ts.createSourceFile(path, readFileSync(path, 'utf8'), ts.ScriptTarget.Latest, true);
-    const visit = (node: ts.Node) => {
-      if (ts.isObjectLiteralExpression(node)) {
-        const names = node.properties.map(named);
-        if (names.includes('contribution_id') && names.includes('plugin_id')) found.push(`${path}:${source.getLineAndCharacterOfPosition(node.getStart()).line + 1}`);
-      }
-      ts.forEachChild(node, visit);
-    };
-    visit(source);
-  };
   const walk = (directory: string) => {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       const path = join(directory, entry.name);
       if (entry.isDirectory()) { if (entry.name !== 'node_modules' && entry.name !== 'dist') walk(path); continue; }
-      if (entry.name.endsWith('.ts')) scan(path);
+      if (/\.(?:[cm]?[jt]s|[jt]sx)$/.test(entry.name)) for (const line of contributionOwnerLines(readFileSync(path, 'utf8'), path)) found.push(`${path}:${line}`);
     }
   };
+  walk(directory);
+  return found;
+}
+
+test('RAC-635 no plugin source writes a plugin_id into a contribution declaration', () => {
   const root = new URL('../plugins/native', import.meta.url).pathname;
-  for (const plugin of readdirSync(root)) if (existsSync(join(root, plugin, 'src'))) walk(join(root, plugin, 'src'));
+  const found = readdirSync(root).flatMap(plugin => existsSync(join(root, plugin, 'src')) ? contributionOwnerSources(join(root, plugin, 'src')) : []);
   assert.ok(found.length === 0, found.join('\n'));
   // The scan sees what the old adjacency regex missed: another property between the two, a shorthand, a quoted key, a different order.
-  const probe = (text: string) => { const file = ts.createSourceFile('probe.ts', text, ts.ScriptTarget.Latest, true); let hit = false;
-    const visit = (node: ts.Node) => { if (ts.isObjectLiteralExpression(node)) { const names = node.properties.map(named); if (names.includes('contribution_id') && names.includes('plugin_id')) hit = true; } ts.forEachChild(node, visit); };
-    visit(file); return hit; };
+  const probe = (text: string) => contributionOwnerLines(text).length > 0;
   assert.ok(probe(`const a = { contribution_id: 'x', slot: 'main', plugin_id: 'p' };`));
   assert.ok(probe(`const a = { plugin_id, slot: 'main', contribution_id: 'x' };`));
   assert.ok(probe(`const a = { "plugin_id": 'p',\n contribution_id: 'x' };`));
   assert.ok(!probe(`const a = { contribution_id: 'x', slot: 'main' }; const b = { plugin_id: 'p' };`));
+});
+
+test('RAC-635 the source scan follows direct and local const spreads and respects local shadowing', () => {
+  for (const text of [
+    `const descriptor = { ...{ plugin_id: 'p' }, contribution_id: 'x' };`,
+    `const base = { plugin_id: 'p' }; const descriptor = { ...base, contribution_id: 'x' };`,
+    `const base = { plugin_id: 'p' } as const; const alias = base; const descriptor = { contribution_id: 'x', ...alias };`,
+    `const identity = { plugin_id: 'p' }; const base = { ...identity }; const descriptor = { ...base, contribution_id: 'x' };`,
+    `const base = {}; function scope() { const base = { plugin_id: 'p' }; return { ...base, contribution_id: 'x' }; }`,
+  ]) assert.ok(contributionOwnerLines(text).length > 0, text);
+  for (const text of [
+    `const base = { plugin_id: 'p' }; function scope(base) { return { ...base, contribution_id: 'x' }; }`,
+    `const base = { plugin_id: 'p' }; function scope() { const base = {}; return { ...base, contribution_id: 'x' }; }`,
+    `const descriptor = { contribution_id: 'x', nested: { plugin_id: 'p' } };`,
+    `import { base } from './other.js'; const descriptor = { ...base, contribution_id: 'x' };`,
+    `const base = createDescriptor(); const descriptor = { ...base, contribution_id: 'x' };`,
+  ]) assert.deepEqual(contributionOwnerLines(text), [], text);
+});
+
+test('RAC-635 the source scan reads the usual TS and JS source extensions', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'molis-contribution-sources-'));
+  const files = ['panel.ts', 'panel.tsx', 'panel.mts', 'panel.cts', 'panel.js', 'panel.jsx', 'panel.mjs', 'panel.cjs'];
+  try {
+    for (const file of files) writeFileSync(join(directory, file), "const descriptor = { contribution_id: 'x', label: 'Panel', plugin_id: 'p' };");
+    writeFileSync(join(directory, 'notes.md'), "const descriptor = { contribution_id: 'not-source', plugin_id: 'p' };");
+    assert.deepEqual(contributionOwnerSources(directory).sort(), files.map(file => `${join(directory, file)}:1`).sort());
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+test('RAC-635 RAC-636 catalog rejection of a spread owner leaves the original contribution and renderer intact', () => {
+  const entry = futurePlugin(), host = createWorkbenchUiHost(pluginWorkbenchPacks([entry]));
+  const original = structuredClone(host.list()), contributionId = entry.workbench!.contributions[0]!.descriptor.contribution_id;
+  assert.equal(original[0]!.label, 'Future');
+  assert.equal(original[0]!.plugin_id, entry.manifest.plugin_id);
+  for (const claimed of ['io.example.someone-else', entry.manifest.plugin_id]) {
+    const owner = { plugin_id: claimed };
+    const invalid: PluginRegistration = { ...entry, workbench: { ...entry.workbench!, contributions: entry.workbench!.contributions.map(item =>
+      ({ ...item, descriptor: { ...item.descriptor, ...owner }, render: () => 'replaced' })) } };
+    assert.throws(() => pluginWorkbenchPacks([invalid]), (error: unknown) => error instanceof Error && error.message.includes(contributionId)
+      && error.message.replaceAll(contributionId, '').includes(entry.project_plugin_id) && error.message.includes('plugin_id'));
+    assert.deepEqual(host.list(), original);
+    assert.equal(host.mount({ slot: WORKBENCH_UI_SLOTS.main, contribution: { contribution_id: contributionId, surface: 'panel', model: { title: 'Original content' } } }).html, '<article>Original content</article>');
+  }
 });
 
 test('W4-03-05 the Coding companions borrow Coding\'s client: one bundle is served, none of them ships a copy', () => {

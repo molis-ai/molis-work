@@ -1,4 +1,4 @@
-import type { FormRecord } from "@molis-ai/molis-work-contracts/modules/form";
+import type { FormRecord } from "../contract.js";
 import { remember } from "./list.js";
 import type { FormAnswer, FormPage } from "./page.js";
 import { questionsFromDom } from "./questions.js";

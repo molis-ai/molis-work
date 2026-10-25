@@ -2,7 +2,7 @@ import { PagesComments } from "./comments-store.js";
 import { extractFromPagesBody, unpublishedKnowledgePages } from "./extract.js";
 import type { HomeStoreDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ActionError, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PagesBody, PagesFolder, PagesRecord } from "@molis-ai/molis-work-contracts/modules/pages";
+import type { PagesBody, PagesFolder, PagesRecord } from "./contract.js";
 import { EMPTY_PAGES_BODY, parsePagesBody } from "./document.js";
 import { pagesErrors } from "./error.js";
 import { PagesGenerationStore } from "./store-generations.js";

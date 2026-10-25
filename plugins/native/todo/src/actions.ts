@@ -1,5 +1,5 @@
 import { ActionError, FRAGMENT_ANY_OBJECT, PERSONAL_SPACE_PROJECT_ID, defineFragmentOffersAction, type FragmentActionOffer, type FragmentOffersInput, assertDueReminderWindow, bindHomeObjectMoveHandler, defineDueRemindersAction, defineObjectMoveAction, withActionEffect, withinDueReminderWindow, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
-import { TODO_PROJECT_PLUGIN_ID, TODO_SUBJECT_KIND, type TodoChange, type TodoItem, type TodoPlacement, type TodoStatus, type TodoView } from "@molis-ai/molis-work-contracts/modules/todo";
+import { TODO_PROJECT_PLUGIN_ID, TODO_SUBJECT_KIND, type TodoChange, type TodoItem, type TodoPlacement, type TodoStatus, type TodoView } from "./contract.js";
 import { isTodoDate, localDate } from "./dates.js";
 import { todoCallerProject } from "./caller.js";
 import { withProjectReach } from "./reach.js";

@@ -1,4 +1,4 @@
-import type { FormRecord } from "@molis-ai/molis-work-contracts/modules/form";
+import type { FormRecord } from "../contract.js";
 import { arrive, firstLine, icon, make, textCell, whenOf } from "./dom.js";
 import { renderPreview } from "./fields.js";
 import type { FormList, FormPage } from "./page.js";

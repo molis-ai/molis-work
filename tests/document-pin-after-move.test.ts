@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID, nextPinnedVersion, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { PPT_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/ppt";
+import { PPT_SUBJECT_KIND } from "@molis-ai/molis-work-plugin-ppt/contract";
 import { pagesActions, PAGES_ACTION_PERMISSIONS, PAGES_SUBJECT_KIND } from "@molis-ai/molis-work-plugin-pages";
 import { formActions, FORM_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-form";
 import { datasetActions, DATASET_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-dataset";

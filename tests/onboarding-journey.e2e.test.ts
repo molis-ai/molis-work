@@ -5,7 +5,7 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import type { TodoBatch } from "@molis-ai/molis-work-contracts/modules/todo";
+import type { TodoBatch } from "@molis-ai/molis-work-plugin-todo/contract";
 import { TODO_ACTION_PERMISSIONS, todoOrganizeActions } from "@molis-ai/molis-work-plugin-todo";
 import { withContextJourneys, type ContextJourney, type ContextReference } from "../apps/local-host/dist/context-onboarding-store.js";
 import { startContextJourney, waitContextJourney } from "@molis-ai/molis-work-app-local-host";

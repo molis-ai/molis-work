@@ -3,7 +3,7 @@ import { buildPptx, pptxFilename, PPTX_MIME_TYPE } from "./pptx.js";
 import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { slidesFromMarkdown } from "./content-actions.js";
 import { PPT_DRAFT_OUTLINE } from "./prompts.js";
-import { PPT_ARTIFACT_TYPE_ID, PPT_PLUGIN_ID, PPT_PROJECT_PLUGIN_ID, type PptRecord, type PptSlideInput, PPT_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/ppt";
+import { PPT_ARTIFACT_TYPE_ID, PPT_PLUGIN_ID, PPT_PROJECT_PLUGIN_ID, type PptRecord, type PptSlideInput, PPT_SUBJECT_KIND } from "./contract.js";
 import { promotePpt, type PptLineHeadPort, type PptPublishArtifactPort, type PptReadArtifactPort } from "./promote.js";
 import type { PptStore, PptStores } from "./store.js";
 import type { PluginModelResult } from "@molis-ai/molis-work-contracts/platform/plugin";

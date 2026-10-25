@@ -1,5 +1,5 @@
 import { bindWorkflowContentHandlers, defineWorkflowContentActions, type ActionCallContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import { PPT_SUBJECT_KIND, type PptRecord, type PptSlideInput } from "@molis-ai/molis-work-contracts/modules/ppt";
+import { PPT_SUBJECT_KIND, type PptRecord, type PptSlideInput } from "./contract.js";
 import { pptErrors } from "./error.js";
 import type { PptStores } from "./store.js";
 

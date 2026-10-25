@@ -1,5 +1,5 @@
 import { ActionError, bindFileEntriesHandler, bindSearchEntriesHandler, defineFileContentAction, defineFileEntriesAction, defineSearchEntriesAction, defineSubjectContextAction, fileContentOf, searchText, subjectContext, type ActionCallContext, type ActionHandlerBinding, type FileContentInput } from "@molis-ai/molis-work-contracts/platform/actions";
-import { DATASET_PROJECT_PLUGIN_ID, type DatasetRecord } from "@molis-ai/molis-work-contracts/modules/dataset";
+import { DATASET_PROJECT_PLUGIN_ID, type DatasetRecord } from "./contract.js";
 import type { DatasetStore } from "./store.js";
 import { datasetErrors } from "./error.js";
 

@@ -1,13 +1,3 @@
-import type { ContractDescriptor } from "../platform/package.js";
-
-export const modulesLingguangContract = {
-  contractId: "io.molis.work.module.lingguang.v1",
-  kind: "module",
-  schemaVersion: 1,
-  maturity: "partial",
-  ssot: "docs/SSOT-MATRIX.md",
-} as const satisfies ContractDescriptor;
-
 export const LINGGUANG_PLUGIN_ID = "io.molis.work.lingguang";
 export const LINGGUANG_PROJECT_PLUGIN_ID = "lingguang";
 /** A spark may hold text read from a file or page, not only a line typed in. */

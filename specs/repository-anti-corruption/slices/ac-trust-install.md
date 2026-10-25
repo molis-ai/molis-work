@@ -123,6 +123,8 @@ Manifest 里有三类声明会改变「这个插件在别处的效果」，装�
 
 **T2 落地（2026-10-25，与 T5、T8 叠在 `claude/ac-trust-t8`）：**安装服务、预览与确认、发布者固定、`verifyPluginPackage` 接上、`plugin install` 命令（S-84，RAC-382/383/387/393）。
 
+编号：T2 的不变量在 batch-39 上排在 S-84（S-80 是 PG-011，S-81、S-82 是 A3，S-83 是 PG-049）；下面各条审查记录里的 S-80、S-81 是当时的临时号。
+
 - **沙箱包是公开格式**（统筹 10-25 裁定 A 的约束 1）：五个文件（`manifest.json`、`plugin.mjs`、`contract.json`、`interface.json`、`prompts.json`），字段写在 `docs/platform/PLUGIN-DEVELOPMENT.md`「沙箱包格式与安装」，类型在 contracts（`SANDBOX_PACKAGE_FILES`、`SandboxPackageInterface`、`SandboxPackagePrompt`）。读它的是 `apps/local-host/src/sandbox-package.ts`，不引创作台的任何实现；创作台发布现在也把 `parts` 写进 `interface.json`（它是这个格式的一个作者，仍走自己的 release 目录，BL-589 让它出签名包）。
 - **不是这个格式的包**（约束 2）：签名验过之后、写任何记录之前，以 `plugin.declaration_invalid` 拒绝；`tests/security-invariants-plugin-install.test.ts` 的 RAC-383 用例逐项断言 11 种不合格（多一个文件、缺 `prompts.json`、缺 `contract.json`、合同是另一个插件的、`interface.json` 多余键、没有 `parts`、零件读区域里没有的操作、组件不在可选范围、坏的 prompt、清单多一条路由、清单的视图被改）并确认没有固定的发布者、没有保存的包、没有安装。
 - **沙箱形态映射不了的声明**（§7 T2 的 CI 点）：沙箱清单只有一种形状（`sandboxPluginManifest`），所以沙箱包不可能声明常开、默认连线、默认输入组或本机目录；`declarationsNeedingConsent` 对它恒为空，预览里没有同意项可列。信任等级固定是 `pinned`，指纹就是清单的 `publisher.signature`（S-75 ① 检查）。

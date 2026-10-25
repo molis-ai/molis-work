@@ -9,10 +9,10 @@ import type { PluginInstanceRecord, PluginManifest, PluginPackageBundle } from "
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { MemoryPluginConsentLedger, SqlitePluginRuntimeRepository, type PluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
 import { DEMO_PROJECT_ID, HomeConsentLedger, LocalProjectDatabase, MolisWorkLocalHost, PLUGIN_INSTALL_PERMISSIONS, PluginInstallService, SandboxPackageStore, molisWorkHostProjectReference,
-  pluginInstallActions, registerPluginTrustActions, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+  pluginConsentProvider, pluginInstallActions, pluginInstallProvider, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { PACKAGE_PLUGIN_ID, newPublisher, packageFiles, payloadOf, signedPackage, type PackageFiles } from "./fixtures/sandbox-package.js";
 
-// S-81 (ac-trust T2): a plugin is installed from a signed package only through one path the person walks, and the Host checks the package
+// S-84 (ac-trust T2): a plugin is installed from a signed package only through one path the person walks, and the Host checks the package
 // before it writes anything. Unsigned, altered, wrongly signed, from a revoked publisher, or not in the sandbox package format: refused at
 // the preview; the confirmation takes only a preview the Host made for this person here, pins a publisher only when the person says so,
 // and every one of these actions is the person's own (audience `user`, a protected entry's `user_action`).
@@ -35,7 +35,7 @@ async function harness(ledger: PluginConsentLedger = new MemoryPluginConsentLedg
   return { home, ledger, service, installed, nothingWritten, done: () => rm(home, { recursive: true, force: true }) };
 }
 
-test("RAC-387 S-81 a package with no signature is refused at the preview with plugin.signature_invalid, and nothing is written", async () => {
+test("RAC-387 S-84 a package with no signature is refused at the preview with plugin.signature_invalid, and nothing is written", async () => {
   const h = await harness();
   try {
     const { files, manifest } = packageFiles(newPublisher().identity);
@@ -45,7 +45,7 @@ test("RAC-387 S-81 a package with no signature is refused at the preview with pl
   } finally { await h.done(); }
 });
 
-test("RAC-382 S-81 a package altered after it was signed is refused with plugin.signature_invalid; a key its Manifest does not name with plugin.signer_mismatch", async () => {
+test("RAC-382 S-84 a package altered after it was signed is refused with plugin.signature_invalid; a key its Manifest does not name with plugin.signer_mismatch", async () => {
   const h = await harness();
   try {
     const publisher = newPublisher(), bundle = signedPackage(publisher);
@@ -77,7 +77,7 @@ const NOT_IN_THE_FORMAT: Array<[string, (files: PackageFiles, manifest: PluginMa
   ["a Manifest whose view is somewhere else", (_files, manifest) => { manifest.ui!.views![0]!.title = "Another"; }],
 ];
 
-test("RAC-383 S-81 a package that verifies but is not in the sandbox package format is refused with plugin.declaration_invalid, before anything is written", async () => {
+test("RAC-383 S-84 a package that verifies but is not in the sandbox package format is refused with plugin.declaration_invalid, before anything is written", async () => {
   for (const [name, change] of NOT_IN_THE_FORMAT) {
     const h = await harness();
     try {
@@ -88,7 +88,7 @@ test("RAC-383 S-81 a package that verifies but is not in the sandbox package for
   }
 });
 
-test("RAC-382 S-81 a publisher the person has not pinned is pinned only when they give a name, and a preview confirms once", async () => {
+test("RAC-382 S-84 a publisher the person has not pinned is pinned only when they give a name, and a preview confirms once", async () => {
   const h = await harness();
   try {
     const publisher = newPublisher(), bundle = signedPackage(publisher);
@@ -116,7 +116,7 @@ test("RAC-382 S-81 a publisher the person has not pinned is pinned only when the
   } finally { await h.done(); }
 });
 
-test("RAC-382 S-81 a publisher whose pin was revoked is refused at the preview and again at the confirmation", async () => {
+test("RAC-382 S-84 a publisher whose pin was revoked is refused at the preview and again at the confirmation", async () => {
   const memory = new MemoryPluginConsentLedger();
   let revoked = false;
   const h = await harness(Object.assign(Object.create(memory) as PluginConsentLedger, {
@@ -133,11 +133,11 @@ test("RAC-382 S-81 a publisher whose pin was revoked is refused at the preview a
   } finally { await h.done(); }
 });
 
-test("RAC-393 S-81 only the person's own action installs: no other audience reaches it, and a user call without the protected entry's user_action is refused", async () => {
+test("RAC-393 S-84 only the person's own action installs: no other audience reaches it, and a user call without the protected entry's user_action is refused", async () => {
   const h = await harness();
   try {
     const actions = new ActionService();
-    registerPluginTrustActions(actions, { ledger: h.ledger, install: h.service });
+    actions.registerProvider(pluginConsentProvider(h.ledger)); actions.registerProvider(pluginInstallProvider(h.service));
     const caller = (extra: Partial<ActionCallContext> = {}): ActionCallContext => ({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: who.project_id, permissions: PLUGIN_INSTALL_PERMISSIONS, ...extra });
     const bundle = signedPackage(newPublisher());
     const preview = (context: ActionCallContext) => actions.invoke(context, { capability_id: pluginInstallActions.preview.capability_id, version: 1 }, { bundle });
@@ -160,7 +160,7 @@ test("RAC-393 S-81 only the person's own action installs: no other audience reac
   } finally { await h.done(); }
 });
 
-test("S-81 a kept package is read back with the checks it was installed with: its signature, its code, the installation it belongs to", async () => {
+test("S-84 a kept package is read back with the checks it was installed with: its signature, its code, the installation it belongs to", async () => {
   const h = await harness();
   try {
     const publisher = newPublisher(), preview = h.service.preview({ bundle: signedPackage(publisher) }, who);
@@ -178,7 +178,7 @@ test("S-81 a kept package is read back with the checks it was installed with: it
 
 const mac = { skip: process.platform !== "darwin", timeout: 60_000 };
 
-test("RAC-382 S-81 confirming in a real Host installs the package under pinned trust and starts it in the sandbox", mac, async () => {
+test("RAC-382 S-84 confirming in a real Host installs the package under pinned trust and starts it in the sandbox", mac, async () => {
   const home = await mkdtemp(join(tmpdir(), "molis-work-install-host-"));
   const databasePath = join(home, "project.sqlite");
   await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();

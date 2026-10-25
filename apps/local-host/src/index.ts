@@ -126,7 +126,7 @@ export { PLUGIN_CONSENT_PERMISSIONS, pluginConsentActions, pluginConsentProvider
 export { PLUGIN_INSTALL_PERMISSIONS, pluginInstallActions } from "./plugin-install-actions.js";
 export { PluginInstallService } from "./plugin-install-service.js";
 export { runLocalPluginInstall, type LocalPluginInstallInput } from "./plugin-install-client.js";
-export { registerPluginTrustActions } from "./plugin-trust-actions.js";
+export { pluginInstallProvider } from "./plugin-trust-actions.js";
 export { readSandboxPackage } from "./sandbox-package.js";
 export { sandboxPluginManifest } from "./sandbox-plugin-manifest.js";
 export { SandboxPackageStore } from "./sandbox-package-store.js";

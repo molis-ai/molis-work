@@ -12,7 +12,7 @@ import { HomeConsentLedger } from "@molis-ai/molis-work-app-local-host";
 import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage } from "./fixtures/sandbox-package.js";
 import { residentManagement } from "./fixtures/resident-management.js";
 
-// S-81 (ac-trust T2), the command line's side: `molis-work plugin install` is made to the Home's resident Host, which runs the same two
+// S-84 (ac-trust T2), the command line's side: `molis-work plugin install` is made to the Home's resident Host, which runs the same two
 // person-only actions the interface does. The route is behind the resident service's gate; a package that does not verify or is not in the
 // format is refused before anything is written; without --confirm nothing is installed; no resident Host means no install in the command's own process.
 
@@ -41,7 +41,7 @@ async function setup(t: Parameters<typeof residentManagement>[0]) {
   return { ...env, homeId, send, records, nothingWritten, cli };
 }
 
-test("RAC-393 S-81 the install route is behind the resident service's gate, takes only POST, and names its Home and project", async t => {
+test("RAC-393 S-84 the install route is behind the resident service's gate, takes only POST, and names its Home and project", async t => {
   const env = await setup(t);
   const bundle = signedPackage(newPublisher());
   assert.equal((await env.send({ bundle }, { "x-molis-work-control-token": undefined })).status >= 400, true, "no control token");
@@ -54,7 +54,7 @@ test("RAC-393 S-81 the install route is behind the resident service's gate, take
   await env.nothingWritten();
 });
 
-test("RAC-382 S-81 through the route an unsigned, altered or not-in-the-format package is refused, and nothing is written", async t => {
+test("RAC-382 S-84 through the route an unsigned, altered or not-in-the-format package is refused, and nothing is written", async t => {
   const env = await setup(t);
   const unsigned = { ...signedPackage(newPublisher()), signature: null, publisher_key: null };
   const altered = signedPackage(newPublisher());
@@ -66,7 +66,7 @@ test("RAC-382 S-81 through the route an unsigned, altered or not-in-the-format p
   await env.nothingWritten();
 });
 
-test("RAC-382 S-81 through the route a preview changes nothing; confirming a publisher that is not pinned needs a name, and then installs", mac, async t => {
+test("RAC-382 S-84 through the route a preview changes nothing; confirming a publisher that is not pinned needs a name, and then installs", mac, async t => {
   const env = await setup(t);
   const publisher = newPublisher(), bundle = signedPackage(publisher);
   const preview = await env.send({ bundle });
@@ -82,7 +82,7 @@ test("RAC-382 S-81 through the route a preview changes nothing; confirming a pub
   assert.deepEqual(new HomeConsentLedger(env.home).publishers().map(pin => [pin.key_id, pin.label]), [[publisher.identity, "Example"]]);
 });
 
-test("RAC-382 S-81 molis-work plugin install previews without --confirm and installs with it; with no resident Host it stops", mac, async t => {
+test("RAC-382 S-84 molis-work plugin install previews without --confirm and installs with it; with no resident Host it stops", mac, async t => {
   const env = await setup(t);
   const publisher = newPublisher(), file = join(env.home, "package.json");
   await writeFile(file, JSON.stringify(signedPackage(publisher)));

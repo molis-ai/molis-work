@@ -122,6 +122,8 @@ consumes: Array<{ artifact_type_id; schema_version; continue?;
 
 `packages/storage` 的 Home 存储注册表（`home-stores.ts`）已经要求每个路径登记主人；改名后的两个路径在表里登记为平台主人，不是 Feed 或灵光。
 
+**A7 非目录部分已做（分支 `anticorr/ac-artifacts-a7`，2026-10-24）**：环境变量已改为 `MOLIS_MATERIAL_NATIVE_HELPER`、`MOLIS_MATERIAL_WHISPER_HELPER`，旧名不读；`resolveFeedSecurityDirectory` 改为 `resolveHomeSecurityDirectory`（返回的路径仍是 `{home}/feed`，目录改名等维护时段）；客户端包路由本来就只发宿主构建里的包（`pluginWorkbenchClientAsset`），不看目录，现由测试钉住。测试 `tests/platform-naming-pg097.test.ts`（RAC-412、RAC-427）；**开发机的环境变量要换名**。RAC-428 随目录部分。
+
 ### 3.9 与相邻条目的衔接
 
 - **提供方换成 `system.artifacts`（PG-077 的最后一步）**：能力 id 与版本不变，只换 `registered_provider`。这会碰到真实 Home 里的 MCP 授权和工作流引用（引用里带提供方），所以放在 A5，随一次维护脚本一起落，**代码只认新提供方，旧引用显式失败，不兜底**；真实 Home 的执行列进维护时段计划，交用户时一并确认，未经用户批准不动（§6、§10 B 类）。A5 只换动作的提供方，「成果」入口仍由原目录条目的界面提供，入口照常可用；目录条目的删除在 A6 同一片里做（§7）。与 ac-trust 的 S-68.3（提供方 id 规则）一致：系统提供方用 `system.*`，插件不得注册 `system.*` 或平台能力 id（RAC-423）。

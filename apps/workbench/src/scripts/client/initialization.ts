@@ -378,12 +378,19 @@ export const CLIENT_INITIALIZATION_SCRIPT = `    });
         if (referenceRequest === request && referenceDialog.open) body.textContent = text;
       } catch (error) { if (referenceRequest === request && referenceDialog.open && !request.signal.aborted) molisWorkRequest.show(body,error,L("项目内引用无法打开")); }
     });
+    const restartWorkspace = document.querySelector("[data-tab-workspace]");
     document.addEventListener("click", async (event) => {
-      const button = event.target?.closest?.("[data-project-plugin-restart]");
-      if (!button || button.disabled) return;
+      const button = event.target?.closest?.("button[data-project-plugin-restart]");
+      const stage = button?.closest("[data-work-surface]"), parent = stage?.parentElement;
+      const holder = parent?.matches("[data-tab-pane-body]") ? parent.parentElement?.parentElement : parent;
+      const operation = button?.dataset.projectPluginRestart, pluginId = button?.dataset.restartPlugin;
+      if (!button || button.disabled || !pluginId || !["restart", "release-quarantine"].includes(operation)
+        || !stage?.matches('[data-project-plugin-unavailable="workbench"]') || button.parentElement !== stage.firstElementChild
+        || parent?.closest("[data-work-surface]") || holder?.parentElement !== restartWorkspace
+        || !holder?.matches("[data-surface-pool], [data-tab-panes], [data-tab-exclusive]")) return;
       button.disabled = true;
-      try { await molisWorkRequest(route("/api/plugins/" + encodeURIComponent(button.dataset.restartPlugin) + (button.dataset.projectPluginRestart === "restart" ? "/restart" : "/release-quarantine")), { body: {}, fallback: L("插件状态未能更改") }); location.reload(); }
-      catch (error) { const note = button.nextElementSibling; molisWorkRequest.show(note, error); note.hidden = false; button.disabled = false; }
+      try { await molisWorkRequest(route("/api/plugins/" + encodeURIComponent(pluginId) + "/" + operation), { body: {}, fallback: L("插件状态未能更改") }); location.reload(); }
+      catch (error) { const note = button.nextElementSibling; if (error.status === 409 && typeof error.body?.state?.message === "string") error.message = error.body.state.message; molisWorkRequest.show(note, error); note.hidden = false; button.disabled = false; }
     });
     updateRelationPreviews();
     updateAllRelationFormPreviews();

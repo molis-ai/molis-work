@@ -81,14 +81,16 @@ PG-060 其余在工作台里仍按名字的行，核过，**不归本线**：`re
 
 不新增页面（插件只提供内容、挂在工作台位置，不出整页）。做法：项目级不可用占位（`unavailable-plugin-stage.ts` 的 `scope: "project"` 分支）在原因下面加两样：
 
-- 状态行：监督器说的状态（启动失败、已被阻止）、原因、错误码（读 `supervisor.state()` 的 `status/message/code`，由 `project-plugin-stages.ts` 的 `unavailableStage` 带进 `UnavailablePluginStage`）；监督器记 `running`（实例只是停了或崩溃）或 `plugin.revoked`（用户停用）时不画状态行，免得「暂不可用」下面写着「运行中」或「启动失败」。
+- 状态行：监督器说的状态（启动失败、已被阻止）、原因、错误码（读 `supervisor.state()` 的 `status/message/code`，由 `project-plugin-stages.ts` 的 `unavailableStage` 带进 `UnavailablePluginStage`）；监督器记 `running`（实例只是停了或崩溃）或 `plugin.revoked`（用户停用）时不画状态行，免得「暂不可用」下面写着「运行中」或「启动失败」。已卸载的实例仍按监督器报告显示状态行，不提供重启按钮。
 - 「重新启动」按钮**只在实例是失败、崩溃或被隔离时显示**：宿主按 `supervisor.state()` 与 `runtime.get(install_id).state` 算出 `restart: "restart" | "release-quarantine" | null` 带进 `UnavailablePluginStage`——监督器 `status: "failed"` 或安装是 `crashed`（运行中崩溃时监督器仍记 `running`，所以两个都看）、`code` 不是 `plugin.revoked`、安装没卸载 → `restart`；安装是 `quarantined` → `release-quarantine`（显示「解除隔离并重启」）；只被停止（`disabled`）的不画；用户停用或撤回同意（`plugin.revoked`，T5 以后同理）、`blocked`、已卸载 → `null`，占位只写状态，不画按钮。路由本身也拒：`supervisor.restart` 对撤销启用的插件不重新启用，返回 409（`plugin.revoked`），卸载的安装 `dispatchRuntimePluginRoute` 不接（落到 404）。按钮（`data-project-plugin-restart` 是操作名，`data-restart-plugin` 是插件 id）由工作台外壳的脚本（`initialization.ts` 里一个委托的点击处理）发 `POST <route>/api/plugins/<plugin_id>/restart`（或 `/release-quarantine`），带控制令牌，成功后重新读页面，失败在占位里写原因。占位仍是宿主画的静态内容，不执行插件客户端、不申请页面授权（S-47 的做法不变）。
 - Home 级占位保持「查看插件状态」链接，不动。
 
+**#1274 首评增量（固定来源 `4043ae2ff`）**：点击处理核对实际宿主工作区的 DOM 归属：控件必须是项目不可用占位的直属内容里的按钮，占位必须直接处于宿主的 surface pool、分栏 body 或独占区，且不嵌在另一个插件舞台里；插件内容即使伪造占位、pool 或同名属性，也不能借外壳派出请求。只接受 `restart`、`release-quarantine` 两个操作及非空插件 id。409 的原因按现行路由结果的 `state.message` 显示，经共同请求助手输出纯文字；按钮恢复可操作，成功仍重新读页面。不改服务端生命周期或授权政策。
+
 | 编号 | 验收 | 证明 |
 | --- | --- | --- |
-| RAC-612 | 项目里的 Form 实例失败后，占位显示状态与原因和「重新启动」；点击后实例恢复、占位消失、舞台恢复可用；重启失败时占位写出原因 | `tests/runtime-plugin-http-discovery.test.ts` 加断言（该文件已有 RAC-79 的停止/重启用例）；浏览器验证交 CI |
-| RAC-613 | 重启只接受外壳（控制令牌）发起；来自插件页面框架的同一请求被拒（沿用 `PLUGIN_MANAGEMENT_OPERATIONS` 的拒绝，不新增拒绝点）。**停用（撤销启用）的插件发 restart 被拒**，不被重新启用，占位也不画按钮；被卸载的、blocked 的同样不画。按钮只在失败或被隔离时画 | 停用被拒：已有断言 `tests/runtime-plugin-http-discovery.test.ts` 的 `formal Runtime HTTP entry discovers a new registered plugin without a Host ID list`（`restart must not re-enable a revoked plugin`，409），本片确认仍绿；页面框架被拒：`tests/security-invariants-home-route-project.test.ts` 与 `tests/plugin-route-operations.test.ts` 已有用例；按钮显隐（失败、隔离、停用、blocked、卸载五种）新增在 `tests/runtime-plugin-http-discovery.test.ts`；不新增 S 号 |
+| RAC-612 | 项目里的 Form 实例失败后，占位显示状态与原因和「重新启动」；点击后实例恢复、占位消失、舞台恢复可用；重启失败时占位写出原因，按钮可再次操作 | `tests/runtime-plugin-http-discovery.test.ts` 的真实 Host 状态断言及浏览器回归：执行生成的外壳脚本，核对项目路由、插件 id 编码、POST、409 原因与重试、成功刷新后的实例与舞台 |
+| RAC-613 | 重启只接受外壳（控制令牌）发起；插件内容伪造同名按钮或完整嵌套占位时点击零请求；未知操作零请求。来自插件页面框架的同一请求被拒（沿用 `PLUGIN_MANAGEMENT_OPERATIONS` 的拒绝，不新增拒绝点）。**停用（撤销启用）的插件发 restart 被拒**，不被重新启用，占位也不画按钮；被卸载的、blocked 的同样不画。按钮只在失败或被隔离时画 | 停用被拒：已有断言 `tests/runtime-plugin-http-discovery.test.ts` 的 `formal Runtime HTTP entry discovers a new registered plugin without a Host ID list`（`restart must not re-enable a revoked plugin`，409），本片确认仍绿；页面框架被拒：`tests/security-invariants-home-route-project.test.ts` 与 `tests/plugin-route-operations.test.ts` 已有用例；按钮显隐（失败、隔离、停用、blocked、卸载五种）与浏览器伪造按钮拒绝均在 `tests/runtime-plugin-http-discovery.test.ts`；不新增 S 号 |
 | RAC-614 | 中英文占位文案都在词典里；隔离状态显示「解除隔离并重启」 | `tests/runtime-plugin-http-discovery.test.ts`（已验中英文占位）、`pnpm health:check` 翻译组 |
 
 碰的文件：`apps/workbench/src/unavailable-plugin-stage.ts`、`scripts/client/` 里一个按钮处理（挂在现有外壳脚本上，不新增资源）、`apps/local-host/src/project-plugin-stages.ts`、`tests/runtime-plugin-http-discovery.test.ts`。`spec.md` W5-06 第 3 片里「项目状态与重启入口仍属 BL-430」改写为已做。

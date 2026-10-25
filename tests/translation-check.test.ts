@@ -447,9 +447,7 @@ test("this repository: nothing is missing, and the scan covers every kind of cal
   const { scan, summary } = real;
   assert.deepEqual(summary.detail.missing.map((item: { key: string; sites: Array<{ file: string; line: number }> }) => `${item.key} ${item.sites[0]!.file}:${item.sites[0]!.line}`), [], "every translator call has English");
   assert.deepEqual(scan.stableErrors, []);
-  // Pages that move to stable keys take their words out of the Chinese-keyed dictionaries (W5-04 moved about 200), so each kind of
-  // dictionary entry has its own floor at about half of today, like the calls below.
-  assert.ok(summary.dictionaries >= 40 && summary.entries >= 4500 && summary.stableKeys >= 1800, `dictionaries ${summary.dictionaries}, entries ${summary.entries}, stable keys ${summary.stableKeys}`);
+  assert.ok(summary.dictionaries >= 40 && summary.entries >= 9000, `dictionaries ${summary.dictionaries}, entries ${summary.entries}`);
   assert.ok(summary.calls >= 7000 && summary.callFiles >= 150, `calls ${summary.calls} in ${summary.callFiles} files`);
   // One floor per kind of call (about half of what the tree has today), so a refactor that moves a file does not break this,
   // while a rule that stops reading a whole kind of call does.

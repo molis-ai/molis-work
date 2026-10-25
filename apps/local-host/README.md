@@ -279,6 +279,8 @@ Work 助理的单轮材料接收最多 6 张图片、100000 字符文本，与 I
 
 有 owner 检查的快照 store 先复制完整的过滤后私有副本并认证，成功后才刷齐普通文件；所有文件、清单和目录仍在发布前持久化。拒绝的密文不再先逐个刷盘再丢弃。认证后刷盘失败仍清理暂存、保留原 Home，不发布半成品；原120秒认证组合、1002记录及跨页/owner/空正文/墓碑覆盖不变。
 
+快照拒绝的分类由 Home 边界保留：静态不合法为 `host.home_snapshot.invalid` / invalid，复制中观察到的变化为 `host.home_snapshot.changed` / conflict；不重解析消息。`home snapshot --json` 执行阶段的 `ActionError` 失败写 stderr JSON `{error:{code,kind,message}}`、退出 1、stdout 空；成功输出不变。取消、I/O 和源库原版本拒绝沿原错误传播。真实分类与退役库的窄只读证明见 `tests/home-snapshot-errors.test.ts`、`tests/home-snapshot-metadata.test.ts`。
+
 受管理 CLI 的包、原生发行物及前置配置都在现有 `CONNECTOR_CLIS` 适配表声明。原生下载按官方校验和固定，只提取指定普通文件；Graph 复用或补装固定 PowerShell，并用官方包管理器将固定认证模块保存在连接自身目录。飞书/Lark 配置向导继续使用该安装，完成后仍需账号登录；X 应用凭据只从受保护表单进入适配声明的环境变量，不进入参数或模型状态。CLI 输出按提交值遮蔽，重新打开原接入页恢复正在进行的交互。回归见 `tests/security-invariants-native-cli.test.ts`、`tests/security-invariants-graph-cli-install.test.ts` 与 `tests/security-invariants-cli-configuration.test.ts`。
 
 `connectors.usages.read` 从共同动作目录发现连接消费方查询，以当前调用者身份汇总真实使用位置；业务模块各读自己的来源、配置和绑定，Host 不存第二份关联。返回原业务动作引用与非敏感部分参数，当前目录不可调用的仍明确阻塞；Home 查询不打开其他项目。模型配置使用位置由 `model-connection-usages.ts` 从原 catalog 和连接引用投影，不增加模型调用通道。回归：`tests/connector-consumer-usages.test.ts`。

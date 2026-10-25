@@ -43,11 +43,12 @@ export const lookingForArea = <T>(run: () => Promise<T>): Promise<T> => expectin
  */
 export const feedPull = <T>(run: () => Promise<T>): Promise<T> => withCallId(newCallId(), () => lookingForArea(run));
 
-/** Optional areas disappear when their owner refuses access; unexpected failures must remain visible. */
-export async function optionalPluginQuery<I, O>(actions: BoundActionClient, definition: ActionDefinition<I, O>, input: I): Promise<O | undefined> {
+/** Optional areas disappear when their owner refuses access; unexpected failures must remain visible. `absent` is what counts as the area not being there. */
+export async function optionalPluginQuery<I, O>(actions: BoundActionClient, definition: ActionDefinition<I, O>, input: I,
+  absent: readonly string[] = ["actions.forbidden", "actions.plugin_disabled", "actions.missing"]): Promise<O | undefined> {
   try { return await lookingForArea(() => actions.invoke(definition, input)); }
   catch (error) {
-    if (error instanceof ActionError && ["actions.forbidden", "actions.plugin_disabled", "actions.missing"].includes(error.code)) return undefined;
+    if (error instanceof ActionError && absent.includes(error.code)) return undefined;
     throw error;
   }
 }
@@ -76,8 +77,9 @@ export async function cachedMolisWorkWebView(
   options: WebViewOptions,
   actions: BoundActionClient,
 ): Promise<MolisWorkWebView> {
-  // Always authorize through the shared service before reusing any cached content. A project without Goals (RAC-400) reads as one with none.
-  const collection = await optionalPluginQuery(actions, goalsActions.collection, {}) ?? emptyGoalsDocumentCollection(options.projectId);
+  // Always authorize through the shared service before reusing any cached content. A project without Goals (RAC-400) reads as one with none;
+  // a read Goals refuses (`actions.forbidden`) is an error to show, not a project that has no Goals.
+  const collection = await optionalPluginQuery(actions, goalsActions.collection, {}, ["actions.plugin_disabled", "actions.missing"]) ?? emptyGoalsDocumentCollection(options.projectId);
   const cursor = collection.snapshot.cursor;
   const optionsFingerprint = JSON.stringify({
     project_id: options.projectId,

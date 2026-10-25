@@ -12,6 +12,7 @@
 - **插件 Agent 的 Goals 提议按会话区分幂等键。** 作者和提交会话取宿主核过的运行记录；同一个幂等键在不同会话里会分别产生提议。升级前已用过的幂等键不再回放旧提议，重新提交前先查看已有提议，避免把同一内容再提交一份。
 - **Pages 迁到 Plugin Runtime**：每个项目一个实例；旧 `/api/pages/…` 路由返回 404。`pages.import.preview`、`pages.import`、`pages.artifacts.continue` 的权限集合变宽（加 `materials:read`），已经授权的 MCP 客户端需要在设置页重新授权；动作 id 与版本不变。见 [#847](https://github.com/molis-ai/molis-work/pull/847)。
 - **Pages 新建动作升到 2**：`pages.create@2` 加入请求号重放与只在首次创建时返回的撤销版本，替换原来的严格返回合同。固定 `pages.create@1` 的工作流程、绑定和外部插件需重新发现并绑定当前动作；MCP 工具改为 `pages.create__v2`，不保留旧工具别名。HTTP `/pages` 路径不变。
+- **签名包的安装预览动作升到 2**：`plugins.install.preview@2` 的输出里，每项权限多了插件写的理由和平台对这项权限的说明（`reason`、`meaning`），预览多了插件在后台常做的事（`jobs`），替换原来只有权限名和是否必需的形状。固定 `plugins.install.preview@1` 的引用须重新选择当前版本，旧版调用明确拒绝，不保留别名。这个动作只给本人（界面和 `plugin install` 命令调它），没有 MCP 工具，MCP 工具名不变；确认安装的 `plugins.install.confirm@1` 与发布者列表不变。
 - **助理添加提醒规则动作升到 2**：`assistant.rules.add@2` 接受已安装插件的页面 id，每条规则最多指定 20 个页面。固定 `assistant.rules.add@1` 的动作引用须重新选择当前版本，旧版调用明确拒绝；现有规则、设置页 HTTP 接口和其他提醒动作的版本不变。
 
 ### 变化

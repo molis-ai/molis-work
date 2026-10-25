@@ -89,7 +89,7 @@ async function installed() {
   const person = { ...caller, permissions: PLUGIN_INSTALL_PERMISSIONS, user_action: { source: "management" as const, conversation_ref: "s86:install", message_ref: "s86:confirm" } };
   const install = async (bundle: PluginPackageBundle) => {
     const client = host.actionClient(reference);
-    const preview = await client.invoke(person, { capability_id: pluginInstallActions.preview.capability_id, version: 1 }, { bundle }) as { preview_id: string };
+    const preview = await client.invoke(person, { capability_id: pluginInstallActions.preview.capability_id, version: 2 }, { bundle }) as { preview_id: string };
     return client.invoke(person, { capability_id: pluginInstallActions.confirm.capability_id, version: 1 }, { preview_id: preview.preview_id, consent: true, pin_label: "Example" });
   };
   const plugins = async () => (await host.actionClient(reference).invoke(person, { capability_id: pluginInstallActions.installed.capability_id, version: 1 }, {}) as

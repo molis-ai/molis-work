@@ -175,7 +175,7 @@ placement.unlink	1	system.placement	command	operation	home	write	-	user	placemen
 plugins.consents.list	1	plugin-consents	query	query	home	read	-	user	plugin-consents:read	-	-	-	0f4df4950e13	c45142d1cf02	-
 plugins.consents.revoke	1	plugin-consents	command	operation	home	write	-	user	plugin-consents:write	-	-	-	3d297df1d589	2d423fd6db8e	-
 plugins.install.confirm	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	1ac5b8aa902d	d14b3d6b0630	-
-plugins.install.preview	1	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	da2e9ff3ba28	39cf85b6a33c	-
+plugins.install.preview	2	plugin-install	command	operation	project	write	-	user	plugin-install:write	-	-	-	da2e9ff3ba28	39cf85b6a33c	-
 plugins.installed.list	1	plugin-install	query	query	project	read	-	user	plugin-install:read	-	-	-	99334726611c	7d61f2cc7e95	-
 plugins.publishers.list	1	plugin-install	query	query	home	read	-	user	plugin-install:read	-	-	-	99334726611c	a19dca1e2764	-
 plugins.publishers.revoke	1	plugin-install	command	operation	home	write	-	user	plugin-install:write	-	-	-	d1f041aa7b79	ef12c05bf93d	-

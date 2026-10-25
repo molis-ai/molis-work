@@ -735,7 +735,7 @@ async function signedInstallFixture() {
     user_action: { source: 'management' as const, conversation_ref: 't2-first:install', message_ref: 't2-first:confirm' } };
   const confirm = async (bundle: PluginPackageBundle) => {
     const client = host.actionClient(reference);
-    const preview = await client.invoke(person, { capability_id: pluginInstallActions.preview.capability_id, version: 1 }, { bundle }) as { preview_id: string };
+    const preview = await client.invoke(person, { capability_id: pluginInstallActions.preview.capability_id, version: 2 }, { bundle }) as { preview_id: string };
     return client.invoke(person, { capability_id: pluginInstallActions.confirm.capability_id, version: 1 }, { preview_id: preview.preview_id, consent: true, pin_label: 'Test publisher' });
   };
   const control = () => host.withProject(reference, runtime => ensureInstalledPlugins({ store: runtime.store, projectId: DEMO_PROJECT_ID, homeDirectory: home,

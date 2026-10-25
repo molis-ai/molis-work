@@ -38,7 +38,7 @@ const installedView = {
 };
 
 export const pluginInstallActions = {
-  preview: { capability_id: "plugins.install.preview", version: 1, operation: "command", action: { ...metadata, scope: "project",
+  preview: { capability_id: "plugins.install.preview", version: 2, operation: "command", action: { ...metadata, scope: "project",
     title: "预览插件包的安装", description: "检查一个签名的沙箱插件包：签名、发布者、包的格式，并说明装上它意味着什么（它要的权限、发布者有没有被固定）；不安装、不固定发布者。包不合格在这里就被拒，什么也不写。",
     kind: "operation", effect: "write", permissions: [PLUGIN_INSTALL_WRITE],
     input_schema: { type: "object", properties: { bundle: { type: "object" } }, required: ["bundle"], additionalProperties: false },
@@ -81,7 +81,7 @@ export function pluginInstallHandlers(service: PluginInstallService): ActionHand
     return { project_id: caller.project_id, actor_id: caller.actor_id };
   };
   return [
-    { capability_id: pluginInstallActions.preview.capability_id, version: 1, handle: async (caller, input) => {
+    { capability_id: pluginInstallActions.preview.capability_id, version: 2, handle: async (caller, input) => {
       const who = person(caller); await caller.beforeEffect();
       return service.preview(input as { bundle: unknown }, who);
     } },

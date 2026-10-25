@@ -13,13 +13,13 @@ import { HOME_EN } from "./home-en.js";
 import { FLOW_EN } from "./flow-en.js";
 import { MEMORY_EN } from "./memory-en.js";
 import { KNOWLEDGE_EN } from "./knowledge-en.js";
-import { PLUGIN_DECLARED_EN } from "./plugin-declared-en.js";
+import { SHARED_WORDS_EN } from "./shared-words-en.js";
 
 /** Existing Workbench English catalog, isolated from locale runtime state in AP3. */
 export const EN: Record<string, string> = {
   // Placement comes first so an existing translation of the same words wins.
   ...PLACEMENT_EN,
-  ...PLUGIN_DECLARED_EN,
+  ...SHARED_WORDS_EN,
   ...CONTEXTUAL_EN,
   ...SIDE_PANEL_EN,
   "保存后用于后续执行；文字生成期间更改模型或连接，需重新生成。": "Changes apply to subsequent runs. Restart text generation if its model or connection changes while it is running.",

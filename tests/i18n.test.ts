@@ -5,9 +5,11 @@ import { runInNewContext } from "node:vm";
 import { L, clientI18nScript, htmlLang, localeSetCookie, resolveWebLocale, runWithLocale, safeNextPath } from "@molis-ai/molis-work-app-local-host";
 import { BUILTIN_PLUGIN_CATALOG, EN, withPluginWords } from "@molis-ai/molis-work-app-workbench";
 import { IMAGES_MESSAGES, renderImagesWorkbench } from "@molis-ai/molis-work-plugin-images";
-import { createGoalStateExplainer, type GoalPresentationState } from "@molis-ai/molis-work-plugin-goals";
+import { GOALS_PLUGIN_ID, createGoalStateExplainer, type GoalPresentationState } from "@molis-ai/molis-work-plugin-goals";
 import { STABLE_KEY, isProductSource, scanTree, summarise, workingTreeSnapshot } from "../scripts/gates/translations.mjs";
-const { explainWorkState } = createGoalStateExplainer(L);
+// Goals' own sentences are English where Goals draws them, not on every page.
+const goalsL: typeof L = (text, values) => withPluginWords(GOALS_PLUGIN_ID, () => L(text, values));
+const { explainWorkState } = createGoalStateExplainer(goalsL);
 
 test("locale defaults to Chinese, then cookie, then Accept-Language", () => {
   assert.equal(resolveWebLocale(undefined, undefined), "zh");
@@ -41,7 +43,7 @@ test("L translates chrome in an English request and keeps Chinese as source", ()
     assert.equal(L("目标关系图"), "Goal Graph");
     assert.equal(L("目标聚焦"), "Goal Focus");
     assert.equal(L("绑定到 Goal"), "Bound to Goal");
-    assert.equal(L("共 {count} 个{suffix}目标", { count: 3, suffix: "" }), "3 Goals");
+    assert.equal(goalsL("共 {count} 个{suffix}目标", { count: 3, suffix: "" }), "3 Goals");
     assert.equal(htmlLang(), "en");
   });
   assert.equal(htmlLang(), "zh-CN");
@@ -185,7 +187,7 @@ test("VUX-40: the Pause control reads as a verb and the paused state as a state,
 
 test("RAC-56/RAC-57: owner messages reach the Host renderer and the actual browser translator in both languages", () => {
   for (const locale of ["zh", "en"] as const) runWithLocale(locale, () => {
-    const browser: { L?: typeof L } = {};
+    const browser: { L?: typeof L; LF?: (pluginId: string, key: string, vars?: Record<string, unknown>) => string } = {};
     runInNewContext(clientI18nScript(), browser);
     assert.ok(browser.L);
     for (const [key, message] of Object.entries(IMAGES_MESSAGES)) {
@@ -195,7 +197,7 @@ test("RAC-56/RAC-57: owner messages reach the Host renderer and the actual brows
     assert.equal(L("images.compose.generate"), locale === "en" ? "Generate image" : "生成图片");
     // This is the English actually displayed before migration, after the shared Chinese-key catalog was merged.
     assert.equal(L("images.result.title"), locale === "en" ? "Results" : "生成结果");
-    assert.equal(browser.L("共 {count} 个{suffix}目标", { count: 3, suffix: "" }), locale === "en" ? "3 Goals" : "共 3 个目标");
+    assert.equal(browser.LF?.(GOALS_PLUGIN_ID, "共 {count} 个{suffix}目标", { count: 3, suffix: "" }), locale === "en" ? "3 Goals" : "共 3 个目标");
     assert.equal(browser.L("设置"), locale === "en" ? "Settings" : "设置");
     assert.equal(browser.L("unregistered word"), "unregistered word");
     const page = renderImagesWorkbench({ primitives: { text: L, escape: String } });

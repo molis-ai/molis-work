@@ -3,12 +3,14 @@ import { dockDefaultPins, pluginStageSummaries } from "../../plugin-catalog.js";
 export const NAVIGATION_PRESENTATION_SCRIPT = `(L) => {
   // Plugin list pages draw their heading from the surface's own label (craft-finish, "Plugin list pages").
   // The label is set once on the shell, so a plugin that re-renders its list keeps the heading.
-  const STAGE_SUMMARIES = ${JSON.stringify(pluginStageSummaries())};
+  // [the Plugin's id, its summary] by work surface.
+  const STAGE_SUMMARIES = ${JSON.stringify(Object.fromEntries(Object.entries(pluginStageSummaries()).map(([id, { plugin_id, summary }]) => [id, [plugin_id, summary]])))};
   const titleStages = () => document.querySelectorAll('.plugin-stage-shell[data-work-surface-label]').forEach((shell) => {
     const title = JSON.stringify(L(shell.dataset.workSurfaceLabel || ''));
     if (shell.style.getPropertyValue('--stage-title') !== title) shell.style.setProperty('--stage-title', title);
     const summary = STAGE_SUMMARIES[shell.dataset.workSurface || ''];
-    const desc = JSON.stringify(summary ? L(summary) : '');
+    // The summary is the Plugin's own text: English from its own words.
+    const desc = JSON.stringify(summary ? LF(summary[0], summary[1]) : '');
     if (shell.style.getPropertyValue('--stage-desc') !== desc) shell.style.setProperty('--stage-desc', desc);
   });
   titleStages();

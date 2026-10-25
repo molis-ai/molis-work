@@ -185,10 +185,12 @@ const declaredTranslators = (source) => {
 // wrapper (`relationGroup(title, hint)` translates both), [] when it is not a translator.
 const NO_ARGUMENTS = Object.freeze([]);
 const FIRST_ARGUMENT = Object.freeze([0]);
+const SECOND_ARGUMENT = Object.freeze([1]);
 const argumentIndexes = (callee, wrappers, declared) => {
   if (callee === null) return NO_ARGUMENTS;
   if (callee === "L" || callee.endsWith(".L") || callee === "p.text" || callee === "primitives.text") return FIRST_ARGUMENT;
   if (callee === "translate" || callee.endsWith(".translate") || callee === "this.t") return FIRST_ARGUMENT;
+  if (callee === "LF" || callee.endsWith(".LF")) return SECOND_ARGUMENT; // LF(pluginId, text, vars): a Plugin's text with that Plugin's words
   const last = callee.slice(callee.lastIndexOf(".") + 1);
   if (declared.has(last) && (callee === last || callee.startsWith("this."))) return FIRST_ARGUMENT;
   const indexes = wrappers.get(callee.startsWith("this.") ? callee.slice(5) : callee);

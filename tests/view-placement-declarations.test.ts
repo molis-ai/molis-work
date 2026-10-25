@@ -14,6 +14,9 @@ import { PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, shownProjectPlugins } f
 
 type Part = Record<string, unknown>;
 
+/** The Manifest `plugin_id` of a built-in by its project key: whose words translate what its views declare. */
+const pluginIdOf = (projectPluginId: string): string => BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === projectPluginId)!.manifest.plugin_id;
+
 const STATION = { id: "notes", title: "Notes", icon: "note", subject_kind: "note", read_permissions: [], write_permissions: [] };
 const creating = defineWorkflowContentActions({ ...STATION, create: true });
 const listing = defineWorkflowContentActions(STATION);
@@ -211,10 +214,10 @@ test("RAC-77 W5-06-PLACE-03 a settings page's icon is its view's, also when foun
 test("RAC-78 W5-06-PLACE-04 what a project can make new comes from the views that declare it, directory views by order, then islands", () => {
   const all = [...PROJECT_SCOPED_PLUGIN_IDS, ...PERSONAL_PLUGIN_IDS];
   assert.deepEqual(creatableKinds(all), [
-    { id: "pages", station: "pages", title: "文档" },
-    { id: "form", station: "form", title: "问卷" },
-    { id: "dataset", station: "dataset", title: "数据表" },
-    { id: "ppt", station: "ppt", title: "演示稿" },
+    { id: "pages", plugin_id: pluginIdOf("pages"), station: "pages", title: "文档" },
+    { id: "form", plugin_id: pluginIdOf("form"), station: "form", title: "问卷" },
+    { id: "dataset", plugin_id: pluginIdOf("dataset"), station: "dataset", title: "数据表" },
+    { id: "ppt", plugin_id: pluginIdOf("ppt"), station: "ppt", title: "演示稿" },
   ]);
   assert.deepEqual(creatableKinds(["goals", "ppt"]).map(kind => kind.id), ["ppt"], "only the plugins the project shows");
   assert.deepEqual(creatableKinds(["goals"]), []);
@@ -223,9 +226,9 @@ test("RAC-78 W5-06-PLACE-04 what a project can make new comes from the views tha
 test("RAC-78 W5-06-PLACE-04 the project home's ways to start come from the views that declare them, in the same order", () => {
   const all = [...PROJECT_SCOPED_PLUGIN_IDS, ...PERSONAL_PLUGIN_IDS];
   assert.deepEqual(homeStarts(all), [
-    { id: "goals", title: "推进一个目标", hint: "明确要做成什么，接着往下走。", glyph: "target" },
-    { id: "pages", title: "写一份文档", hint: "把思路写下来，逐步整理成作品。", glyph: "file" },
-    { id: "lingguang", title: "记下一点灵感", hint: "还没想清楚，也可以先留下。", glyph: "idea" },
+    { id: "goals", plugin_id: pluginIdOf("goals"), title: "推进一个目标", hint: "明确要做成什么，接着往下走。", glyph: "target" },
+    { id: "pages", plugin_id: pluginIdOf("pages"), title: "写一份文档", hint: "把思路写下来，逐步整理成作品。", glyph: "file" },
+    { id: "lingguang", plugin_id: pluginIdOf("lingguang"), title: "记下一点灵感", hint: "还没想清楚，也可以先留下。", glyph: "idea" },
   ]);
   assert.deepEqual(homeStarts(["goals", "lingguang"]).map(start => start.id), ["goals", "lingguang"], "only the plugins the project shows");
 });

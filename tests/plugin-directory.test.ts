@@ -151,8 +151,8 @@ test("RAC-605-KEY-01 a Runtime publisher sharing a built-in Manifest id keeps it
     assert.deepEqual(directory.find(entry => entry.id === "pages"), market, "a different Runtime key does not remove the not-running built-in market entry");
     const rail = railEntries(["pages"], directory);
     assert.deepEqual(rail.filter(entry => entry.label === "Other publisher").map(entry => [entry.id, entry.surface, entry.chosen]), [[pluginId, pluginId, false]]);
-    assert.deepEqual(creatableKinds(["pages"], directory).filter(entry => entry.station === "publisher-notes"), [{ id: pluginId, station: "publisher-notes", title: "Other note" }]);
-    const start = { id: pluginId, title: "Start other publisher", hint: "Keep this publisher's surface", glyph: "note" };
+    assert.deepEqual(creatableKinds(["pages"], directory).filter(entry => entry.station === "publisher-notes"), [{ id: pluginId, plugin_id: pluginId, station: "publisher-notes", title: "Other note" }]);
+    const start = { id: pluginId, plugin_id: pluginId, title: "Start other publisher", hint: "Keep this publisher's surface", glyph: "note" };
     assert.deepEqual(homeStarts(["pages"], directory).find(entry => entry.title === start.title), start);
     const html = renderMolisWorkWeb({ ...view(running), enabled_plugins: ["pages"] });
     assert.ok(html.includes(`data-plugin-tile="${pluginId}"`), "the actual rail points to this publisher's shell surface");

@@ -245,7 +245,10 @@ const headErrors = (measured, budget, base) => {
 // PG-071 (#1302, scoped `ui.translations`): the frame hands its plugin's own English to the page it draws, `{ ...MOLIS_WORK_PLUGIN_WORDS[id],
 // ...MOLIS_WORK_MESSAGES }` instead of the page catalog alone, +54 B on top of batch-38's budget (the frame script is 38 B under main's).
 // Nothing in the file could give the bytes back; the merge-base figure is batch-38's, so this stops applying when the base is main.
-const APPROVED_CEILINGS = { "/assets/molis-work-plugin-frame.js": [190185, 190239] };
+// PG-071 (#1302, hub review 2026-10-25): a Plugin's text the page draws is English from that Plugin's own words (`LF`/`LFor` in the
+// page script, one id per Goals/Feed script scope, the Plugin's id beside each stage summary), +962 B on batch-38's budget. The
+// words that used to sit in the shell's own tables left the page's server side, not this file, so no byte here could be given back.
+const APPROVED_CEILINGS = { "/assets/molis-work-plugin-frame.js": [190185, 190239], "/assets/molis-work-workbench.js": [1124811, 1125773] };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its
 // first freeze; from the next PR on it only falls like every other.

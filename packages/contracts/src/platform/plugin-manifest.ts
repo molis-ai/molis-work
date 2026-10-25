@@ -154,8 +154,9 @@ export interface PluginManifest {
     /**
      * v2: English for UI words still written as their Chinese source text (`{ "保存": "Save" }`), until the words have
      * stable keys (specs/repository-anti-corruption PG-071). Any publisher's Plugin may declare it. It applies only to
-     * what this Plugin draws itself (its frame and its contributions): the same Chinese sentence on the Host's pages or
-     * in another Plugin is not changed by it, and the Host's own English wins. New words use `messages`.
+     * what this Plugin draws itself (its frame and its contributions) and to the text it supplies where the Host draws it
+     * (an action's title, a deletion dialog's data description): the same Chinese sentence on the Host's pages or in another
+     * Plugin is not changed by it, and the Host's own English wins. New words use `messages`.
      */
     translations?: PluginTranslationsDeclaration;
   };

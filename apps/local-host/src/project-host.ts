@@ -192,7 +192,7 @@ export class MolisWorkLocalHost {
       },
     });
     if (options.homeDirectory) this.homePlugins = new HomePluginHost({ home: options.homeDirectory, actorId: LOCAL_PERSON_ACTOR_ID,
-      registry: this.host.actionRegistry(), client: homePluginActions(this.host), entries: PLATFORM_PLUGIN_REGISTRATIONS.flatMap(entry => entry.runtime ? [{ ...entry.runtime, manifest: entry.manifest,
+      registry: this.host.actionRegistry(), client: homePluginActions(this.host), entries: PLATFORM_PLUGIN_REGISTRATIONS.flatMap(entry => entry.runtime ? [{ ...entry.runtime, key: entry.project_plugin_id, manifest: entry.manifest,
         project_data: { owner_id: entry.project_plugin_id, ...(entry.project_data ? { declaration: entry.project_data } : {}) },
       }] : []), fixtures: options.pluginFixtures?.home });
     if (this.personalPlanningHome) this.personalPlanning = new PersonalPlanningActions(this.personalPlanningHome, this.host.actionRegistry(),

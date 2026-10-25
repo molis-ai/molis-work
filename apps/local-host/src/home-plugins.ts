@@ -18,6 +18,8 @@ import type { PluginPlatform } from "./plugin-platform.js";
 
 export interface HomePluginEntry {
   readonly scope: "home";
+  /** The key its page and a project's plugin list use: a shipped plugin's project key. Without one it is its plugin id. */
+  readonly key?: string;
   readonly manifest: PluginManifest;
   readonly create: () => PluginDefinition;
   readonly project_data?: PluginProjectCleanup;
@@ -57,6 +59,14 @@ export class HomePluginHost {
       this.retryable = true;
       throw error;
     }
+  }
+  /**
+   * The plugins registered in the Home, as its pages and routes find them (#679, S-31): the start list's entries, then the Host's
+   * fixtures. A shipped plugin is keyed by its project key; any other by its plugin id, which has a dot where a project key has none.
+   */
+  registered(): readonly { readonly key: string; readonly manifest: PluginManifest }[] {
+    return [...this.options.entries.map(entry => ({ key: entry.key ?? entry.manifest.plugin_id, manifest: entry.manifest })),
+      ...pluginFixtureEntries(this.options.fixtures ?? []).map(entry => ({ key: entry.definition.manifest.plugin_id, manifest: entry.definition.manifest }))];
   }
   installations(): PluginInstanceRecord[] { return this.platform?.runtime.list() ?? []; }
   manifest(pluginId: string): PluginManifest | undefined {

@@ -32,13 +32,13 @@ agent.project-work.read.v1	1	platform	query	query	project	read	-	plugin	-	-	-	-	
 agent.project-work.release.v1	1	platform	command	operation	project	write	-	plugin	-	-	-	-	21673f095f49	-	-
 agent.roles.v1	1	platform	query	query	project	read	-	plugin	-	-	-	-	d840c5a0a551	cb50ef7c59b1	-
 agent.run.control.v1	1	platform	command	operation	project	write	-	plugin	-	-	-	-	632a0ef3732c	-	-
-agent.run.read.v1	1	platform	query	query	project	read	-	plugin	-	-	-	-	7a5b04060871	4d45dca8af9f	-
+agent.run.read.v1	2	platform	query	query	project	read	-	plugin	-	-	-	-	7a5b04060871	4d45dca8af9f	-
 agent.run.reviews.v1	1	platform	query	query	project	read	-	plugin	-	-	-	-	7a5b04060871	710c08a0c3d9	-
 agent.run.start.v1	1	platform	command	operation	project	write	-	plugin	-	-	-	-	a135c67e7581	0fdb50912f18	-
-agent.run.wait.v1	1	platform	query	query	project	read	concurrent	plugin	-	-	-	-	3ae8db7426c4	8576262188cb	046efc93b6ac
+agent.run.wait.v1	2	platform	query	query	project	read	concurrent	plugin	-	-	-	-	3ae8db7426c4	8576262188cb	046efc93b6ac
 agent.runtimes.v1	2	platform	query	query	project	read	-	plugin	-	-	-	-	9cecb8ebe607	49f5b25c9d4a	-
 agent.session.create.v1	1	platform	command	operation	project	write	-	plugin	-	-	-	-	36c1b12fe97d	8237effa9721	-
-agent.session.read.v1	1	platform	query	query	project	read	-	plugin	-	-	-	-	39ce5b1e5db9	066763997e3b	-
+agent.session.read.v1	2	platform	query	query	project	read	-	plugin	-	-	-	-	39ce5b1e5db9	066763997e3b	-
 agent.session.recover.v1	1	platform	command	operation	project	write	-	plugin	-	-	-	-	d6b6b8bc631d	6f8c8fdfd5a3	-
 agent.session.recovery.v1	1	platform	query	query	project	read	-	plugin	-	-	-	-	39ce5b1e5db9	6f8c8fdfd5a3	-
 agent.sessions.status.v1	1	platform	query	query	project	read	-	plugin	-	-	-	-	b1def1398a94	d41ff5436dd7	-
@@ -47,7 +47,7 @@ agent.skills.install.v1	1	platform	command	operation	project	write	-	plugin	-	-	
 agent.skills.list.v1	1	platform	query	query	project	read	-	plugin	-	-	-	-	d840c5a0a551	6727f8321ca8	-
 agent.skills.read.v1	1	platform	query	query	project	read	-	plugin	-	-	-	-	17cfc98dafec	a63d8363c888	-
 agent.subagents.cancel.v1	1	platform	command	operation	project	write	-	plugin	-	-	-	-	a6e720313ceb	-	-
-agent.subagents.list.v1	1	platform	query	query	project	read	-	plugin	-	-	-	-	7a5b04060871	231a17b2e911	-
+agent.subagents.list.v1	2	platform	query	query	project	read	-	plugin	-	-	-	-	7a5b04060871	231a17b2e911	-
 agent.write_checkers.list.v1	2	platform	query	query	project	read	-	user	-	project	-	-	99334726611c	26cb7ff8df01	-
 agent.write_checkers.save.v1	2	platform	command	operation	project	write	-	user	projects:settings	project	-	-	498e1a9ea182	20465c4fd1d3	-
 characters.actions.catalog	1	io.molis.work.characters	query	query	project	read	-	agent,mcp,user,workflow	artifact:read	character	-	-	d746974fa9af	42fe29f1a110	-

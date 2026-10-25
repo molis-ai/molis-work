@@ -424,7 +424,7 @@ export const agentHostCapabilities = {
       input_schema: { type: "array", minItems: 2, maxItems: 2, items: [runtimeId, createSessionInput], additionalItems: false }, output_schema: sessionRefOutput },
   } as ActionDefinition<[runtimeId: string, input: AgentCreateSessionInput], AgentSessionRef>,
   listSubagents: {
-    capability_id: "agent.subagents.list.v1", version: 1, operation: "query",
+    capability_id: "agent.subagents.list.v1", version: 2, operation: "query",
     action: { title: "列出一轮的子任务", description: "自己会话里一轮派出的子任务。", kind: "query", ...pluginOnly,
       input_schema: { type: "array", minItems: 2, maxItems: 2, items: [sessionRef, runRef], additionalItems: false }, output_schema: { type: "array", items: subagentOutput } },
   } as ActionDefinition<[session: AgentSessionRef, run: AgentRunRef], AgentSubagentView[]>,
@@ -435,7 +435,7 @@ export const agentHostCapabilities = {
       input_schema: { type: "array", minItems: 3, maxItems: 3, items: [sessionRef, runRef, entryId], additionalItems: false } },
   } as ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, subagentId: string], void>,
   readSession: {
-    capability_id: "agent.session.read.v1", version: 1, operation: "query",
+    capability_id: "agent.session.read.v1", version: 2, operation: "query",
     action: { title: "读 Agent 会话", description: "自己的一条会话：标题、各轮的引用和最近一轮。", kind: "query", ...pluginOnly,
       input_schema: { type: "array", minItems: 1, maxItems: 1, items: [sessionRef], additionalItems: false }, output_schema: sessionViewOutput },
   } as ActionDefinition<[session: AgentSessionRef], AgentSessionView>,
@@ -590,7 +590,7 @@ export const agentHostCapabilities = {
       output_schema: { type: "object", required: ["ref", "frozen"], additionalProperties: false, properties: { ref: runRefOutput, frozen: object } } },
   } as ActionDefinition<[runtimeId: string, input: AgentStartInput], AgentRunHandle>,
   readRun: {
-    capability_id: "agent.run.read.v1", version: 1, operation: "query",
+    capability_id: "agent.run.read.v1", version: 2, operation: "query",
     action: { title: "读一轮执行", description: "自己会话里一轮的过程、状态和用量。", kind: "query", ...pluginOnly,
       input_schema: { type: "array", minItems: 2, maxItems: 2, items: [sessionRef, runRef], additionalItems: false }, output_schema: runViewOutput },
   } as ActionDefinition<[session: AgentSessionRef, run: AgentRunRef], AgentRunView>,
@@ -619,7 +619,7 @@ export const agentHostCapabilities = {
    * a timer; nothing is replayed. Concurrent, beside the project's queue; the Host stops it at 30 s whatever it does.
    */
   waitRun: {
-    capability_id: "agent.run.wait.v1", version: 1, operation: "query",
+    capability_id: "agent.run.wait.v1", version: 2, operation: "query",
     action: { title: "等一轮执行变化", description: "自己会话里的一轮有了变化就回答，最多等 25 秒；到时还没变就回答它现在的样子。", kind: "query", ...pluginOnly,
       scheduling: "concurrent", execution: { timeout_ms: 30_000 },
       input_schema: { type: "array", minItems: 4, maxItems: 4, additionalItems: false,

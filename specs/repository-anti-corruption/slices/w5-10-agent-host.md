@@ -19,12 +19,14 @@
 
 - `readRun`、`readSession`（`latest_run`）、`waitRun` 的 `view`、`listSubagents` 共用的嵌套对象逐个写出字段：`frozen`、`turns`（含 `steer`）、`activity`、`usage`（含 `tokens`、`compaction`、`context`）、`awaiting_input`（含 `options`）、`step_board`（节点、报告、`by`、`owner`）、`memory_recalled`、`todo`、`turn_changes`（含 `files`）、`retry_wait`、`model_switch`、`offers`（含 `reference`、`missing`）、会话的 `queued_inputs`；子任务的 `activity`、`usage` 用同一份。
 - 只写仓库里调用方（Coding 的服务端与页面）读的字段，类型照 `agent-host-run-view.ts` 等处的接口；接口里必有的写进 `required`。Coding 不读的（`allows_free_text`、`attempt`、`action_digest`、`injected`、`left_by`、`ending_review`、`image_materials`、`continues_step_board_of`、`action_gateway`）不写。
-- 嵌套对象不加 `additionalProperties: false`：其余是运行时自己的记录，多带的字段照样放过。再往下一层（`frozen.execution`、`character`、`budget` 等）仍只写 `object`。
-- 不升 `version`：这些动作只给插件调（`audiences: ["plugin"]`），Coding 经 `services.agents` 调用，不写 `capability_id@version` 的固定引用，工作流、MCP 也调不到，所以没有固定引用会遇到另一份合同；合法的返回本来就符合新形状，收紧只拒掉不符合类型的返回。#1064 会把 `readRun`、`readSession`、`startRun`、`waitRun` 升到 2，与本片在 `runViewOutput` 那一行有一处文字冲突（它加 `original_input: object`），合并时两边都留。
+- 嵌套对象不加 `additionalProperties: false`：其余是运行时自己的记录，多带的字段照样放过。再往下一层（`frozen.character`、`budget`、`execution_plan` 等）仍只写 `object`。
+- 升 `version`（统筹 2026-10-25 裁）：`agent.run.read`、`agent.run.wait`、`agent.session.read`、`agent.subagents.list` 从 1 升到 2。`docs/system/CONTRACT-CHANGES.md` 第 3 条：有版本字段的合同，形状变了就升；网关按新 schema 核对输出，@1 的合同行为变了（测试里缺字段的假视图被拒就是证据），升不升不看今天有没有固定引用。现在不留兼容期，@1 直接换掉。
+  - 对调用方的影响：Coding 的 Manifest 按 `capability_id` 列 consumes（`Object.values(agentHostCapabilities)`），调用用合同里的描述符，跟着走；plugin-builder 的 Manifest 列的是描述符本身，也跟着走。这四个动作只给插件调（`audiences: ["plugin"]`）：工作流只收受众含 `workflow` 的动作（`plugins/native/workflows/src/actions.ts`），MCP 只列受众含 `mcp` 或 `agent` 的（`apps/local-host/src/mcp-action-grants.ts`），所以没有工作流步骤与绑定、没有 MCP 工具名；`skills/`、`examples/`、`tooling/plugin-cli`、插件 SDK 里都没有点名它们（`git grep` 核过）。
+  - 与 #1064 的关系：#1064（另一位作者的分支，本片不碰）也把 `agent.run.read`、`agent.session.read`、`agent.run.start`、`agent.run.wait` 升到 2，并在 `runViewOutput` 加 `original_input`。谁后落地谁对版本号：本片先落地，#1064 就要升到 3，或者把两边的形状并成一个版本；`runViewOutput` 那一行两边都留。
 
 | 编号 | 标准 |
 | --- | --- |
-| RAC-667 | 一轮视图和会话视图的嵌套对象按类型核对：完整视图（含 schema 没列的字段）原样通过；用量 token 不是数、轮次种类不在四种之内、活动缺时间、问题缺选项、步骤持有者缺 `label`、报告作者种类不在五种之内、冻结提示词的层不对、冻结预算不是对象或 null、建议缺提供方、写入的文件缺摘要、重试原因不在三种之内、待办状态不在四种之内，在 `readRun` 与 `readSession` 里都被 `actions.output_invalid` 拒；会话里待读输入的来源不在三种之内同样被拒。`tests/agent-view-schema.test.ts`。 |
+| RAC-667 | 一轮视图和会话视图的嵌套对象按类型核对：完整视图（含 schema 没列的字段）原样通过；用量 token 不是数、轮次种类不在四种之内、活动缺时间、问题缺选项、步骤持有者缺 `label`、报告作者种类不在五种之内、冻结提示词的层不对、冻结预算不是对象或 null、冻结的执行方式不在四种之内、建议缺提供方、写入的文件缺摘要、重试原因不在三种之内、待办状态不在四种之内，在 `readRun` 与 `readSession`（都是 @2）里都被 `actions.output_invalid` 拒；会话里待读输入的来源不在三种之内同样被拒。`tests/agent-view-schema.test.ts`。 |
 
 ## 验收
 

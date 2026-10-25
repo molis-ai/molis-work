@@ -75,6 +75,6 @@
 | `SAMPLE_PROJECT_PLUGINS`（`primitive-catalog.ts`，规格板的样例项目） | 留：是规格板自己的固定样例（开发工具，文件头写明），不是外壳行为；外壳画的目录读 `builtinPluginDirectory()` | 注释 |
 | `page-plugin-visibility.ts` 的缺省 `["goals","inbox","feed","artifacts"]` | 留：只在没有宿主给 `shown_plugins`、`enabled_plugins` 的页面（规格板、夹具）生效，文件头写明；宿主页面一律给 `shown_plugins` | 注释 |
 | PG-088 引导流程 | 已做，不再改 | W5-06 余项第 4 片 #1275（RAC-615～618）：`context-onboarding-service.ts` 不再 import `blocksFromMarkdown` 与 ProseMirror，Markdown→正文走 `pages.documents.body_from_markdown` |
-| PG-088 的 Pages 宿主提供方、根路由、构建期装配 | 已删，不需要再做 | #847 删宿主四个 Pages 文件与根路由；本分支 `apps/local-host/src` 里没有 `/api/pages`、没有 Pages 的提供方、没有 `resolveModelPrompt` 的 Pages 调用；宿主对 Pages 包的其余点名都在别的行（监督器条目与生成登记表是正路，`content-action-providers.ts` 的权限点名单是 PG-007，`inbox-actions.ts` 是 Inbox 线，`artifact-native-plugin-http.ts` 是 A6） |
+| PG-088 的 Pages 宿主提供方、根路由、构建期装配 | 已删，不需要再做 | #847 删宿主四个 Pages 文件与根路由；本分支 `apps/local-host/src` 里没有 `/api/pages`、没有 Pages 的提供方、没有 `resolveModelPrompt` 的 Pages 调用；宿主对 Pages 包的其余点名都在别的行（监督器条目与生成登记表是正路，`content-action-providers.ts` 的权限点名单是 PG-007，`inbox-actions.ts` 是 Inbox 线，`artifact-native-plugin-http.ts` 是 A6，`apps/local-host/src/web-assets.ts:115` 仍用 `requireAsset.resolve("@molis-ai/molis-work-plugin-pages/editor")` 为 `/assets/` 发放 Pages 编辑器资源，归 [PG-070](../privileges.md) / W5-04 的插件客户端包与页面资源职责） |
 
 privileges.md 的 PG-088 状态格已按上面写清依据（统筹 10-25 要求）；PG-060 的状态格由统筹在合入后改（本片之后外壳里按插件手写的行只剩上表中归别线的几项和 BL-636）。

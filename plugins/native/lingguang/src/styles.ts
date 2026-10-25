@@ -1,5 +1,5 @@
 export const LINGGUANG_STYLES = `
-  [data-work-surface="lingguang"] { --plugin-tint: var(--plugin-lingguang); }
+  [data-work-surface="lingguang"] { --plugin-tint: var(--ink-soft); }
   .lingguang-stage-chrome { pointer-events: auto; }
   .lingguang-selection-bar {
     display: flex; flex-wrap: nowrap; align-items: center; gap: 4px;

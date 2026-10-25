@@ -56,7 +56,7 @@ export const pptManifest: PluginManifest = {
   ui: {
     contributions: [PPT_UI_CONTRIBUTION_ID],
     views: [
-      { view_id: "directory", slot: "navigator", title: "PPT", contribution_id: PPT_UI_CONTRIBUTION_ID, icon: "presentation", order: 59, group: "make",
+      { view_id: "directory", slot: "navigator", title: "PPT", contribution_id: PPT_UI_CONTRIBUTION_ID, icon: "presentation", hue: "red", order: 59, group: "make",
         creates: { station: "ppt", title: "演示稿" } },
     ],
   },

@@ -3,7 +3,7 @@
 // not honour; the workbench reads the declarations and keeps only the group names and their order.
 import assert from "node:assert/strict";
 import test from "node:test";
-import { UI_VIEW_GROUPS, type UiContributionDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
+import { UI_VIEW_GROUPS, UI_VIEW_HUES, type UiContributionDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
 import {
   BUILTIN_PLUGIN_CATALOG, creatableKinds, findPluginSettingsNavItem, homeStarts, listPluginSettingsNavItems, pluginSettingsNavItemsFrom,
 } from "@molis-ai/molis-work-app-workbench";
@@ -19,6 +19,7 @@ const creating = defineWorkflowContentActions({ ...STATION, create: true });
 const listing = defineWorkflowContentActions(STATION);
 const CREATES = [creating.list, creating.read, creating.receive, creating.create];
 const GROUPS = `（${UI_VIEW_GROUPS.join("、")}）`;
+const HUES = `（${UI_VIEW_HUES.join("、")}）`;
 
 /** A Manifest with one view, `main`, in the navigator, laid over by `over`; its actions are a station that can create `notes`. */
 function placed(over: Part = {}, actions: unknown = CREATES): Record<string, unknown> {
@@ -35,6 +36,11 @@ const RULES: ReadonlyArray<{ rule: string; manifest: Record<string, unknown>; ex
   // icon
   { rule: "an icon that is not a name", manifest: placed({ icon: 3 }), expected: "视图 main 的 icon 必须是图标名" },
   { rule: "a blank icon", manifest: placed({ icon: " " }), expected: "视图 main 的 icon 必须是图标名" },
+  // hue (RAC-701): any view may name its plugin's tab-strip colour, and only by a design-system colour name
+  { rule: "a design-system hue on a navigator view", manifest: placed({ hue: "indigo" }), expected: "" },
+  { rule: "a design-system hue on a side view", manifest: placed({ slot: "side", hue: "slate" }), expected: "" },
+  { rule: "a hue the design system does not have", manifest: placed({ hue: "magenta" }), expected: `视图 main 的 hue magenta 不是设计系统的颜色名${HUES}` },
+  { rule: "a colour value in place of a name", manifest: placed({ hue: "#ff0000" }), expected: `视图 main 的 hue #ff0000 不是设计系统的颜色名${HUES}` },
   // group
   { rule: "a group the workbench does not have", manifest: placed({ group: "tools" }), expected: `视图 main 的 group tools 不是工作台的分组${GROUPS}` },
   { rule: "a group that is not a name", manifest: placed({ group: 7 }), expected: `视图 main 的 group 7 不是工作台的分组${GROUPS}` },

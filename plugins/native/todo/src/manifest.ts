@@ -55,7 +55,7 @@ export const todoManifest: PluginManifest = {
   ui: {
     contributions: [TODO_UI_CONTRIBUTION_ID],
     views: [
-      { view_id: "todo", slot: "navigator", title: "待办", contribution_id: TODO_UI_CONTRIBUTION_ID, icon: "list", order: 25, group: "personal" },
+      { view_id: "todo", slot: "navigator", title: "待办", contribution_id: TODO_UI_CONTRIBUTION_ID, icon: "list", hue: "green", order: 25, group: "personal" },
     ],
   },
 };

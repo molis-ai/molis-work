@@ -37,7 +37,15 @@
 | RAC-698 | Shelf、Coding 的设置页内容与改之前相同（同样的输入画出逐字相同的页面） | `tests/shell-declared-lists.test.ts`（RAC-698，对拍旧模型直接渲染）；整条路由由 `tests/coding-product-http.test.ts` 与 `tests/plugin-global-settings.test.ts` 过 |
 | RAC-699 | 外壳与设置的源码里，按插件名列的表只剩登记的例外（Goals S11、FI 线、A6 各一行，带理由），门禁数字对 merge-base 只许减少 | `node scripts/check-health-gates.mjs --base origin/main`（宿主文件里点名内置插件包的文件数少一份：`web-catalog.ts` 不再 import `plugin-shelf`、`plugin-coding`） |
 | RAC-700 | 舞台的「类型」标签（`.plugin-stage-kind`）没有按插件写的行：表单、数据集、PPT、页面、灵光五行都解析成 `--ink-soft`，与中性的那一条重复，删掉；样式表里只剩 `.plugin-stage-kind[data-kind]` 一条 | `tests/visual-foundation.test.ts`（RAC-700） |
-| RAC-701～709 | 留给 PR-D2（PG-075）和实现里发现的 | |
+| RAC-701 | `UiViewDeclaration.hue`（`UI_VIEW_HUES`，设计系统的 14 个色名）存在，任何槽的视图都可写；写了不认识的名字（或色值、非字符串）被 Manifest 检查拒绝；合同的色名与设计系统的 `MW_HUES` 是同一份 | `tests/view-placement-declarations.test.ts`（hue 四行）、`tests/plugin-hue-declaration.test.ts` |
+| RAC-702 | 23 个带颜色的内置插件在自己的 Manifest 里声明与删表前相同的色相（逐个钉死，issues 本来就没有） | `tests/plugin-hue-declaration.test.ts` |
+| RAC-703 | 目录只采信设计系统的色名，别的丢掉；页面数据 `data-plugin-directory` 给每个插件它第一个写了 `hue` 的视图的色，没有写 `null` | 同上 |
+| RAC-704 | 设计系统不再导出 `MW_PLUGINS`、`PLUGIN_ICON`；主题令牌与三份样式表里没有任何按插件的 `--plugin-<id>` | 同上 |
+| RAC-705 | 中性色规则（`--plugin-tint: var(--ink-soft)`）的选择器不点任何插件的 id；设置目录里没有按插件写的行 | 同上、`tests/primitives.test.ts` |
+| RAC-706 | 标签条的组色：插件取页面目录里它的 `hue`，工作台自己的几个面（home、characters、workspace、settings）取工作台的小表，其余按 id 在备用色里挑一个且稳定；标签页脚本里没有按插件的色表 | 同上（跑真实的组工厂）、`tests/plugin-tab-groups-multiselect.test.ts` |
+| RAC-707 | 规格板的图标清单与「每个插件图标唯一」读 Manifest（`pluginTabGlyphs()`），设计系统不留插件图标表 | 同上、`tests/soft-workbench-refinement.test.ts` |
+| RAC-708 | 运行时装进项目的插件（`chosen: false`）与内置插件待遇一样：它的 `hue` 同样进页面数据 | 同上 |
+| RAC-709 | 留给实现里发现的 | |
 
 ## 3. 开工前核对
 
@@ -78,3 +86,21 @@
 | PG-088 的 Pages 宿主提供方、根路由、构建期装配 | 已删，不需要再做 | #847 删宿主四个 Pages 文件与根路由；本分支 `apps/local-host/src` 里没有 `/api/pages`、没有 Pages 的提供方、没有 `resolveModelPrompt` 的 Pages 调用；宿主对 Pages 包的其余点名都在别的行（监督器条目与生成登记表是正路，`content-action-providers.ts` 的权限点名单是 PG-007，`inbox-actions.ts` 是 Inbox 线，`artifact-native-plugin-http.ts` 是 A6，`apps/local-host/src/web-assets.ts:115` 仍用 `requireAsset.resolve("@molis-ai/molis-work-plugin-pages/editor")` 为 `/assets/` 发放 Pages 编辑器资源，归 [PG-070](../privileges.md) / W5-04 的插件客户端包与页面资源职责） |
 
 privileges.md 的 PG-088 状态格已按上面写清依据（统筹 10-25 要求）；PG-060 的状态格由统筹在合入后改（本片之后外壳里按插件手写的行只剩上表中归别线的几项和 BL-636）。
+
+## 7. PG-075：插件名单从设计系统删掉（2026-10-25，叠在 PR-D1、#1296 上）
+
+等 #1284 的 `PluginIconName` 落进批后开工（batch-38 已含）。事实与做法：
+
+| 项 | 做法 |
+| --- | --- |
+| `MW_PLUGINS`（27 条：id、标签、色相） | 删。色相成了 Manifest 视图的一项声明 `hue`（合同 `UI_VIEW_HUES`，任何槽的视图可写，插件取它第一个写了的）；23 个内置插件各写自己的色，值与删表前相同（RAC-702）。读它的两处改成读页面的插件目录（`data-plugin-directory` 多一个 `hue`） |
+| 工作台自己的几个面（home、characters、workspace、settings） | 不是插件，没有 Manifest：标签条的组色放在 `plugin-tab-groups.ts` 的一张四行小表里（`SURFACE_HUES`），写明是工作台的 |
+| `--plugin-<id>` 二十七个自定义属性 | 删。它们全都等于 `var(--ink-soft)`，所以 `var(--plugin-x)` 换成 `var(--ink-soft)` 结果逐字节同值（`--ink-soft` 只在亮、暗主题的根上定义，没有子范围重定义）。改了 8 个插件包共 38 处、工作台 1 处、设计系统 5 处（后者随五行一起删） |
+| `renderPluginTintBindings()` | 不再按 27 个 id 展开，变成一条规则：画插件的地方（栏与灵光入口、目录区、市场卡、工作面、标签）`--plugin-tint` 一律 `--ink-soft`，选择器不带 id。Goals 的 `[data-goal-canvas-shell]` 一项留着，归 Goals S11 |
+| 设置目录里 shelf、pages、form、dataset、ppt 五行 `--plugin-tint` | 删。它们本来就落在设置区上，区的规则已给同一个值 |
+| `PLUGIN_ICON`、规格板的 `PLUGIN_NAMES` | 删。规格板的图标清单由工作台读 Manifest 填（`renderPrimitiveCatalog({ plugins })`，设计系统的参数默认空），平台自己的三个面（项目首页、Characters、插件市场）在 `primitive-catalog.ts` 里具名写 |
+| 「每个插件图标唯一」的测试 | 读 `pluginTabGlyphs()`（Manifest），不再有第二张表可对 |
+
+**接受的外观变化**（浏览器批请留意）：①原先不在表里的插件（第三方、issues，以及 `sources`、`market`、`root` 这几个面）此前的图标/标签用各处自己的备用色（`--faint`、`--muted`），现在与内置插件一样是 `--ink-soft`——这正是「待遇一样」；②标签页图标的 `--plugin-color` 不再按表查，一律 `--ink-soft`（原先表外的标签是 `--muted`）；③标签条上表外插件的组色改读目录，没写 `hue` 的仍按 id 在备用色里挑，与删表前一致。
+
+**没做**：Goals 的 `[data-goal-canvas-shell]` 与 `locked`/`SURFACE_OVERRIDES`（S11）；插件包自己样式表里按插件写的 `--plugin-tint: var(--ink-soft)` 行（dataset、form、todo、jelly、workflows、灵光各一行）是插件自己的样式、值与通用规则相同，留给各插件自己清。

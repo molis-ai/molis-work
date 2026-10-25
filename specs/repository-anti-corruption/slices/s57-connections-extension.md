@@ -81,6 +81,7 @@ binding: "installation" | "per_record"
 - 插件 A 用插件 B 绑过的记录键，用不上：绑定的键里有安装和插件。
 - `describe` 的返回里没有 `connection_id` 和凭据引用。
 - `release` 之后的请求是匿名的；插件没有办法重新绑上。
+- RAC-347：按安装的槽不能由插件 `release`，有无记录键都以 `plugin.connections_release_unsupported` 拒绝；`per_record` 槽仍按原规则校验记录键，以 `connections_record_key_invalid` 拒绝无效值。调用在解除前、或等待 `beforeEffect` 期间取消、撤权、停用，或原调用复查不通过时，拒绝解除，持久化绑定保持原样。沙箱查询操作不能解除；`describe` 和 `release` 都须声明并获准该槽的 `effects.connections`，拒绝不得到达宿主连接端口。
 
 ### 2.3 刷新：只给引用，只在宿主里刷新
 

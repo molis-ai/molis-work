@@ -48,7 +48,7 @@
 
 - `createFeedPlugin()`、`createInboxPlugin()` 两个 `PluginDefinition`，`start(context)` 只用 `context.services` 建自己的应用；在 `apps/local-host/src/project-plugins.ts` 里各是一个监督器条目，`BUILD_TIME_ASSEMBLED` 与 `NATIVE_PLUGIN_HTTP_FILES` 删掉 `feed`、`inbox`（只许减少）。
 - 场景处理器经定义的 `action_scenes` 贡献（`plugin-runtime/src/action-provider.ts` 已支持），宿主不写判断。
-- 来源 tick 与互斥：Feed 声明唤醒、用 `services.background` 的锁；用 Feed 自己的安装身份调用，不再借用 `workflow-events`（关 PG-040）。
+- 来源 tick 与互斥：Feed 声明唤醒；`services.background` 只受理一段有限的后续执行、自己没有锁，互斥由 Feed 实例自己在内存里记（一个项目一个实例，FI-6 设计稿 §3.6）；用 Feed 自己的安装身份调用，不再借用 `workflow-events`（关 PG-040）。
 - 成果经 `services.artifacts`，按 Manifest `produces` 检查（关 PG-080）。
 - 工作台的 `/api/feed*`、`/api/inbox*` 边删掉，客户端调公开动作，片段与脚本走插件客户端包（`slices/w5-04-plugin-client-bundles.md` 的做法）。
 - 宿主文件全删：上表除 `official-integrations` 一族（改成登记，FI-3）和跨项目两个文件（FI-4）外都消失。

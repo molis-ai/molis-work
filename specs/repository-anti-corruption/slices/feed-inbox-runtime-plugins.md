@@ -93,13 +93,13 @@ FI-5 的存储层只依赖 `FeedSql`；本片给它第二个适配器 `fromPlugi
 
 `feed.capture` 的版本写入改用 `services.artifacts`，类型 `feed.capture` 已在 `artifacts.produces` 声明；未声明的类型被宿主拒绝（`artifact-type-gate`）。`FeedArtifactProducer` 端口保留，生产端换成服务。`feed-application.ts` 里的 `as unknown as ArtifactsSqliteDatabase` 随文件删。
 
-## 4. 需要统筹裁的（推荐都写了，审完我照做）
+## 4. 需要统筹裁的（推荐都写了；统筹 10-25 已逐项裁定，写在各项末尾）
 
-- **D6-1 来源拉取的 SEL 组装放哪。** FI-3 明确把 `public_source`（rss、web-query、youtube，无账号）留在 `feed-source-runtime.ts`/`feed-source-service.ts` 里，没进登记。它需要：公开网络抓取（带 `ETag`/`Last-Modified` 条件头和 RSS 允许名单）、证据正文存储（`createEvidenceContentStore`，写 Home 里的文件）、不透明块表（`createSearchOpaqueBlobStore(db)`，基线里存储包拥有的表，系统搜索也用）、密钥库。`services.materials.readSource` 只做公开 HTTP GET，没有条件头，也没有证据正文存储。三条路：（a）**推荐**：把「按来源拉取并写证据」做成平台服务（`services.sourcePull`，输入路由与游标，输出条目、回执、写过的正文引用），内部就是今天这套 SEL 组装，所有插件同样可用；写过的正文引用交给 FI-4 的 Home 账。（b）Feed 自己组装 SEL，缺的端口逐个补成平台服务（网络、正文存储、块表）——服务多、面大。（c）宿主保留这块、Feed 经私有端口调——这是私路，同等待遇下不做。
-- **D6-2 平台通知怎样落到 Feed。** `plugin-notification-service.ts` 今天直接构造 Feed 应用往里写事项并建 Attention 条目。Feed 进 Runtime 后宿主不能再直接写 Feed 的表。推荐：Feed 公开一个接收通知的动作（只许 Host 提供方的身份调，输入通知的最小字段），平台通知服务调它；Feed 没装或停用的项目里，通知保持在通知服务自己的队列里（不丢、不写别处），用户在通知面板里仍看得到。备选：通知写入时不进 Feed，Feed 另订阅通知事件——要改通知服务的合同，面更大。
-- **D6-3 维护的范围（§3.5 的三项）。** 推荐：Attention 归属和情境账键做；日志历史不改写。要用户确认的是「不认识的主体类型保持无主并列报告」这一条。
-- **D6-4 Inbox 对 Feed 的检查。** 推荐 §3.4 的公开只读动作。
-- **D6-5 HTTP 边在哪一片删。** 父稿 §4 把 `/api/feed*`、`/api/inbox*` 边放在 FI-6，客户端放 FI-7。但边不能比客户端先删（29 行引用还在用）。推荐：FI-6 只让 Feed、Inbox 的**动作**由 Runtime 提供，边保留为一层薄转发（调同一批公开动作，不再碰 Feed 应用）；边的删除与门禁 `NATIVE_PLUGIN_HTTP_FILES` 的两个条目随 FI-7 在同一个 PR 里。整组仍是一个 PR。
+- **D6-1 来源拉取的 SEL 组装放哪。** FI-3 明确把 `public_source`（rss、web-query、youtube，无账号）留在 `feed-source-runtime.ts`/`feed-source-service.ts` 里，没进登记。它需要：公开网络抓取（带 `ETag`/`Last-Modified` 条件头和 RSS 允许名单）、证据正文存储（`createEvidenceContentStore`，写 Home 里的文件）、不透明块表（`createSearchOpaqueBlobStore(db)`，基线里存储包拥有的表，系统搜索也用）、密钥库。`services.materials.readSource` 只做公开 HTTP GET，没有条件头，也没有证据正文存储。三条路：（a）**推荐**：把「按来源拉取并写证据」做成平台服务（`services.sourcePull`，输入路由与游标，输出条目、回执、写过的正文引用），内部就是今天这套 SEL 组装，所有插件同样可用；写过的正文引用交给 FI-4 的 Home 账。（b）Feed 自己组装 SEL，缺的端口逐个补成平台服务（网络、正文存储、块表）——服务多、面大。（c）宿主保留这块、Feed 经私有端口调——这是私路，同等待遇下不做。 **统筹 10-25 定：选（a），新增平台服务（暂名 `services.sourcePull`），所有插件同等可用。约束是不放宽任何边界：地址校验、上限、允许名单沿用材料读取的 broker（S-57）；要凭据的只经 `services.connections`，插件拿不到密钥；证据正文写到 Home，其引用交给 FI-4 的 Home 账；Manifest 声明权限，新增 SI 行带拒绝测试（S 号到时问统筹）。实现时若发现必须放宽某条边界（私网、任意请求头、跟随跳转出允许名单等），停下回统筹，由统筹弹窗问用户**
+- **D6-2 平台通知怎样落到 Feed。** `plugin-notification-service.ts` 今天直接构造 Feed 应用往里写事项并建 Attention 条目。Feed 进 Runtime 后宿主不能再直接写 Feed 的表。推荐：Feed 公开一个接收通知的动作（只许 Host 提供方的身份调，输入通知的最小字段），平台通知服务调它；Feed 没装或停用的项目里，通知保持在通知服务自己的队列里（不丢、不写别处），用户在通知面板里仍看得到。备选：通知写入时不进 Feed，Feed 另订阅通知事件——要改通知服务的合同，面更大。 **统筹 10-25 定：按推荐，但宿主不点名 Feed：插件在 Manifest 里声明「接收平台通知」，平台通知服务按声明在目录里找接收方，不写 Feed 的 plugin_id；调用方身份是平台（Host 提供方），受众只许平台；没有接收方，或接收方没装、停用时，通知留在通知服务自己的队列里，不丢、不写别处**
+- **D6-3 维护的范围（§3.5 的三项）。** 推荐：Attention 归属和情境账键做；日志历史不改写。要用户确认的是「不认识的主体类型保持无主并列报告」这一条。 **统筹 10-25 定：Attention 归属和情境账键随同一次维护改；日志历史不改写，只让新事件带命名空间。「不认识的主体类型保持无主并列进维护报告」一条由统筹约维护时段时一并弹窗问用户，实现照推荐写。第 1 个提交前再 grep 一次按事件类型读日志的地方：有读取者就停下回统筹（读取兼容要用户确认），不自己加兼容**
+- **D6-4 Inbox 对 Feed 的检查。** 推荐 §3.4 的公开只读动作。 **统筹 10-25 定：同意，公开只读动作 `feed.items.admission`**
+- **D6-5 HTTP 边在哪一片删。** 父稿 §4 把 `/api/feed*`、`/api/inbox*` 边放在 FI-6，客户端放 FI-7。但边不能比客户端先删（29 行引用还在用）。推荐：FI-6 只让 Feed、Inbox 的**动作**由 Runtime 提供，边保留为一层薄转发（调同一批公开动作，不再碰 Feed 应用）；边的删除与门禁 `NATIVE_PLUGIN_HTTP_FILES` 的两个条目随 FI-7 在同一个 PR 里。整组仍是一个 PR。 **统筹 10-25 定：同意。FI-6 里 HTTP 边留一层薄转发，删边连同 `NATIVE_PLUGIN_HTTP_FILES` 的两条随 FI-7；FI-3～FI-7 整组一个 PR**
 
 ## 5. 提交顺序（一个 PR 里，每个提交单独跑得通）
 

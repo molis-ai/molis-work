@@ -20,6 +20,7 @@ import {
   SqlitePluginEventsRepository,
   SqlitePluginRuntimeReleaseArtifactRepository,
   SqlitePluginWiringRepository,
+  type PluginConsentLedger,
   type PluginEventsDatabase,
   type PluginSupervisorEntry,
   type PluginUpgradeCandidate,
@@ -87,6 +88,8 @@ export interface PluginPlatformOptions {
    * a Home, and nobody would notice.
    */
   home: PluginPlatformHome | null;
+  /** The consent ledger for a platform that has no Home of its own to take it from (a generated plugin's platform, a test). */
+  consents?: PluginConsentLedger;
   /**
    * Opaque scope key stamped on every Plugin output in this project, so the
    * Host can tell two inputs belong to the same scope. Defaults to the board.
@@ -107,10 +110,10 @@ export interface PluginPlatform {
   /** Stop input refresh/delivery and events before stopping plugins or closing storage. */
   closeCoordination(): Promise<void>;
   /**
-   * Whether the plugin running under this id ships with the Host: its active definition is one the Host's own start list
-   * given `host` trust (the same test that gives it its plugin_id as action provider), not anything a plugin declares.
+   * The consent ledger this platform installs against and reads defaults from (a default wiring binds only on a standing agreement),
+   * or `null` when it has none: then nothing is agreed to and no default binds.
    */
-  shipsWithHost(pluginId: string): boolean;
+  readonly consents: PluginConsentLedger | null;
   /** Built after `start`, from the Manifests that actually activated. */
   router(): PluginRouteRouter;
   start(entries: readonly PluginPlatformEntry[]): Promise<PluginSupervisorReport>;
@@ -129,6 +132,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   // plugin_id gets no more than an installation id.
   const identity = pluginEntryIdentity();
   const providerFor = identity.providerFor;
+  const consents = options.consents ?? options.home?.consents ?? null;
   // The Runtime and the executor read the same records: an activation's jobs check the installation the Runtime keeps.
   const records = pluginInstallRecords(options.db);
   const viewEpoch = randomUUID(), viewRevisions = new Map<string, number>();
@@ -161,7 +165,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   });
   // A project instance of a dual-instance plugin offers only its half; the other half is the Home's (specs/dual-instance-plugins).
   const runtime = new PluginRuntime(records, executor,
-    { redemption: definition => ({ partial: identity.dualInstance(definition) }), hostIds: HOST_PLUGIN_IDS, ...options.home ? { consents: options.home.consents } : {},
+    { redemption: definition => ({ partial: identity.dualInstance(definition) }), hostIds: HOST_PLUGIN_IDS, ...consents ? { consents } : {},
       actions: { ...options.actions, providerId: (record, definition) => providerFor(definition, record.install_id) } });
   const supervisor = new PluginSupervisor(runtime, {
     releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(options.db),
@@ -226,7 +230,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
       const manifest = supervisor.manifest(state.plugin_id);
       return manifest ? [manifest] : [];
     })),
-    shipsWithHost: pluginId => identity.shipsWithHost(supervisor.manifest(pluginId)),
+    consents,
     upgradeCandidates: () => supervisor.upgradeCandidates(),
     upgrade: (pluginId, definition, options) => supervisor.upgrade(pluginId, definition, options),
     rollback: (pluginId, definition) => supervisor.rollback(pluginId, definition),

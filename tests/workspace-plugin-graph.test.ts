@@ -6,6 +6,7 @@ import { join } from "node:path";
 import test from "node:test";
 
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { MemoryPluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import {
@@ -57,7 +58,7 @@ function project(directory: string, browsing?: () => unknown) {
     db: store.db,
     artifacts, processItems: new ProcessItemsModule({ db: store.db, appendEvent: (event) => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
     ui: new UiHost(),
-    home: null,
+    home: null, consents: new MemoryPluginConsentLedger(),
     ...(settings ? { dependencyCheck: settings.dependencyCheck } : {}),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
   });

@@ -34,13 +34,94 @@
 | `information-actions.ts`、`information-planner.ts` | 并进 Feed 包（PG-093） | 其提供方身份与调用方实现时核对，未验证 |
 | `demo-plugin-seed.ts`、`workflow-feed-options.ts`、`feed-goal-promotion.ts` | 经公开动作（`services.actions.directory`，PG-027） | `feed-goal-promotion.ts` 现在直接构造 Feed 应用 |
 
-### 1.2 Inbox 其实不拥有数据，它拥有的是对 Attention 的使用
+### 1.2 Inbox 不是 `services.attention` 上的薄壳；场景与判断的真实调用面（2026-10-25 夜更正，统筹同日裁定选 A）
 
-`inbox-actions.ts`（71 行）的列表与状态来自 `FeedApplication.listInboxEntries/getInboxEntry/setInboxEntryStatus`，实质是 Attention 条目。Feed 与 Inbox 的耦合只有两处：Feed 创建 `feed_item`/`source_fault` 类的条目（`ensureInboxEntryForFeedItem`、`createInboxEntry`），Inbox 重开条目时要核对那件事项没有被「忽略」（`setInboxEntryStatus` 里的 `assertNotIgnored`，一个 Feed 的事实）。
+**更正的前提。** 本稿原写「`inbox-actions.ts`（71 行）的列表与状态来自 `FeedApplication`，实质是 Attention 条目，耦合只有两处」。读代码后不成立：`inbox-actions.ts` 只是壳，Inbox 的动作背后接着 ①Pages 生成（经动作，可行）②读材料时核对 Feed 事项与来源（`feed.getFeedItem/getSource`，以及两个宿主函数 `inspectSourceAuthorization`、`hydrateFeedItemContent`）③下一步判断场景（`createInboxSceneRuntime`）④内容动作（`feed.ensureInboxEntryForFeedItem/setInboxEntryStatus/flushPendingInboxJudgments`）⑤Home 事件处理。Feed 一侧同样有捕获场景、三个判断回调和 `linked-context.ts`。`PluginHostServices` 里**没有**场景客户端、判断账、Functions 绑定服务。
+
+**统筹裁定（2026-10-25 夜）：选 A。** 跨插件的数据走 Feed 的公开动作，不进平台服务；平台本来拥有的事实（场景与判断账、Functions 绑定）各做一片平台服务（ac-platform 做），每片带安全不变量行与「拒绝」测试，只作用于调用方插件在自己 Manifest 里声明的场景与函数，不放宽任何边界；做不到不放宽时停下回统筹，由统筹问用户。不开「临时私路」例外（与 2026-10-18 同等待遇冲突）。本节给平台片的需求（1.2.6 的 P1–P4）。
+
+#### 1.2.1 先分清：谁拥有什么
+
+| 事实 | 现在在哪 | 主人 | 在 Runtime 里 |
+| --- | --- | --- | --- |
+| Feed 捕获场景的绑定（规则 → 判断函数） | Feed 的 `feed_out_rules`（`judgment_json`），`bind` 经 `saveOutRuleUpdate` 写 | Feed | 不变，仍在 Feed 自己的表里 |
+| Inbox 下一步场景的绑定（项目 → 判断函数） | Functions 持有者的 `function_scene_bindings(scene_id, project_id)`（Home 库，`modules/functions/src/judgments.ts`），经 `actionSceneBinding/saveActionSceneBinding` | **平台（Functions）**；Inbox 只是消费方 | 需要平台服务（P3），或把这一行搬回 Inbox（见 P3 备选） |
+| 判断账（每次判断的结果记录） | Functions 持有者的 `function_judgments`（Home 库），`recordSceneJudgment` / `latestSceneJudgments(projectId, sceneId)` | **平台（Functions）** | 需要平台服务（P2） |
+| 已发布规则清单与 `functionKey` | `FunctionsService.list()`；`publishedFunctionKey(reference)` 是纯函数 | 平台（Functions） | **不需要服务**：Inbox 的 `readJudgment` 已用 `actions.discover` 过滤 `kind === "judgment"`，规则名取自发现到的动作的 `title`，`function_key` 由引用推出 |
+| 场景的运行（`usages`/`runScene`/`bind`/`discoverScenes`/`targets`） | 内核 `ActionService`；宿主给每个项目一个 `ActionSceneClient`（`project-host.ts`） | 平台（内核） | 需要一个给插件用的场景客户端（P1） |
+| 项目日志里的 `judgment/judgment_completed` 事件 | 宿主（`project-host.ts:194`）与 Feed 应用（`application.ts:317,376`）各写 | 写它的插件 | 各自的 `tx.journal`；全仓库没有读它的地方，无兼容问题 |
+
+#### 1.2.2 Feed 捕获场景 `feed.capture@1`（场景与处理器都是 Feed 的；Runtime 已支持插件登记场景处理器：`contribution.action_scenes`）
+
+`scene-provider.ts pluginSceneHandler` 给各方法的作用域：`bindings/availability/targets/prepare` 是**只读场景作用域**，`bind/consume/failed` 是**可写场景作用域**。
+
+| 方法 | 读 | 写 | 作用域 |
+| --- | --- | --- | --- |
+| `bindings(caller)` | `outRules.list` | — | 只读 |
+| `targets(caller)` | `outRules.list` | — | 只读 |
+| `prepare(caller, {item_id, rule_id})` | `feed_items`（含证据正文，见下）、`outRules.list` | — | 只读 |
+| `bind(caller, binding, options)` | `outRules.list` | `feed_out_rules` 一行（`prepareOutRuleUpdate` + `saveOutRuleUpdate(expected_revision)`） | 可写；项目库事务 |
+| `consume` → `record` | `feed_items`、`outRules.list`、项目 Attention | ①判断账一行（Home 库，P2）②`ensureInboxEntryForFeedItem`（Attention 写；规则 `admission === "inbox"` 且结果为 `needs_review` 或建议 `inbox.admit`，且事项未被忽略）③日志事件 `judgment_completed`（`tx.journal`）④之后 `flushPendingInboxJudgments` 再触发 Inbox 下一步判断（1.2.4） | 可写场景作用域 |
+| `failed` | 同 `consume` | 同 `consume`（`needs_review`、带错误码） | 可写场景作用域 |
+
+**平台现状会拒绝 `consume`/`failed` 里的 Attention 与情境账写入。** `plugin-attention-service.ts` 的 `gate.write` 对 `"scene" in scope` 一律抛 `actions.forbidden`（「写入需要声明了这项权限的可等待并行动作」）；情境账同一道门；`plugin-action-dependencies.ts`、`plugin-notification-service.ts`、`connections-service.ts`、`plugin-agent-service.ts` 同样拒绝场景作用域。`project_database` 与 `tx.journal` 不拒场景（`plugin-database-partitions.ts`）。所以捕获场景第②项（入箱）今天在 Runtime 里写不进去 → P4。
+
+捕获场景读证据正文（今天是 `hydrateFeedItemContent(feed.getFeedItem(...))`，正文是 Home 里的加密文件，宿主函数 `feed-content.ts`）：Feed 进 Runtime 后读自己证据正文的口，与 D6-1 的 `services.sourcePull`（写正文）和 FI-4 的 Home 引用账配对，**在 Feed 一侧的设计里解**，不进场景/判断的平台片，ac-platform 不用管（1.2.6 的「留在 Feed 一侧」第 2 项）。
+
+规则页的判断选择（`createFeedSceneRuntime` 的 `selection`：`recommendations/catalog/preview/validate`）另用：`actions.discover(caller)`（过滤 `kind === "judgment"` 和 `subject_kinds`）、`scenes.discoverScenes(caller, reference)`、`scenes.usages(caller)`、`actions.invoke(caller, reference, {content})`（试跑一条判断函数）；以及读判断账 `latest(sceneId)`（P2）。
+
+#### 1.2.3 Inbox 下一步场景 `inbox.next@1`（场景与处理器是 Inbox 的）
+
+| 方法 | 读 | 写 | 作用域 |
+| --- | --- | --- | --- |
+| `bindings(caller)` | Functions 绑定表（P3） | — | 只读 |
+| `targets(caller)` | 同上（含 `revision`） | — | 只读 |
+| `prepare(caller, {entry_id})` | Attention 条目（`attention.get`）、条目指向的 Feed 事项含正文、来源 | — | 只读 |
+| `bind(caller, binding, options)` | — | Functions 绑定表一行（`saveActionSceneBinding(projectId, binding, expected_revision)`，P3） | 可写场景作用域 |
+| `consume` → `record` | 同 `prepare`（`checkedSubject` 再读一遍核对） | ①判断账一行（P2）②日志 `judgment_completed`（今天经 `feed.recordInboxJudgmentEvent`，实际是 `appendEvent`；Inbox 进 Runtime 后写自己的 `tx.journal`） | 可写场景作用域 |
+| `failed` | 同上 | 同上 | 可写场景作用域 |
+
+Inbox 的动作面另用（`createInboxSceneRuntime` 的 `ports`）：`readJudgment` = `actions.discover(caller)` + `scenes.discoverScenes(caller, ref)` + `scenes.usages(caller)`；`recommendations` = `scenes.usages(caller)` + `latest(sceneId)`（P2）+ 对每条重新 `resolve`；`writeJudgment` = `scenes.bind(caller, binding)`（停用时 `{...binding, enabled: false}`）；`evaluateJudgment` = `scenes.runScene(caller, inboxNextScene, bindingId, {entry_id})`（并发动作）。
+
+#### 1.2.4 三个判断回调（`captureJudgment` / `inboxJudgment` / `homeJudgment`，Feed 应用在排队、在 `judgeOwn/flush` 里调用）
+
+三者都是「`scenes.usages(caller)` 找出绑定，可用且启用就 `scenes.runScene(caller, 场景, bindingId, 事件)`，对一张固定的错误码表静默放过，其余再 `usages` 看绑定是否还在，不在也放过，否则抛」。差别只在场景是谁的：
+
+| 回调 | 场景 | 事件 | 场景的主人 | 在 Runtime 里 Feed 怎样触发 |
+| --- | --- | --- | --- | --- |
+| `captureJudgment({project_id, item_id, rule_ids})` | `feed.capture@1`，每条规则一个 binding（`feed.capture:<rule_id>`） | `{item_id, rule_id}` | **Feed 自己** | Feed 用 P1 的场景客户端跑**自己的**场景 |
+| `inboxJudgment({project_id, entry_id})` | `inbox.next@1`，binding `inbox.next:<project>` | `{entry_id}` | **Inbox** | 走 Inbox 的公开动作 `inbox.judgment.evaluate`（输入 `{entry_ids}`，已存在，`scheduling: "concurrent"`，要 `inbox:read` + `model:invoke`）；Feed 在 Manifest 声明可选依赖，不让 Feed 的场景客户端去跑别人的场景 |
+| `homeJudgment({kind, id, project_id})` | `home.dock@1`，binding `home.dock:<project>` | `{kind, id}`，`kind ∈ feed_item / inbox_entry` | **平台（宿主）** | 走 `home.judgment.evaluate`（输入 `{subjects}`，1–20 件，已存在，`concurrent`），Feed 声明可选依赖 |
+
+两处语义差要在实现里对齐（读代码得出，尚未用测试验证）：触发函数对「已完成或已忽略的条目」静默返回，而 `inbox.judgment.evaluate` 对非开放条目**抛** `actions.subject_unavailable`（`scene-runtime.ts evaluateJudgment`）；触发函数跑一个 binding 并容忍一串错误码，评估动作逐条跑并抛。Feed 一侧的触发器要在调用前自己过滤开放条目、并按同一张错误码表容忍。
+
+后台生产者（来源同步、定时 tick）没有人的调用者：今天宿主给 `workflow-events` 身份和固定权限（`workflow-feed-options.ts`）；Runtime 里是 Feed 的安装身份，它要调用得了这两个动作，即 Manifest `consumes`、权限，以及动作的 `audiences` 含 `plugin`。这一块归 Feed 一侧（1.2.6 第 1 项）。
+
+#### 1.2.5 `ContextMaterializationApi`：不需要平台服务
+
+`linked-context.ts` 的 `readLinkedFeedContext` 只做一件事：以一个 Goal 为根，取 `feed.goal` 类型的**入边**、深度 1，再逐个读事项。这正是 Feed 自己的边：`FeedLedgerPort.list(projectId, {type: "feed.goal", target: <goal>})`（`FeedGoalLinks.find` 已经在做），不需要图遍历。所以去掉 `createContextMaterializer`，直接用 `goalLinks.find(goalId)` + `getItem`；Goal 本身由 `services.actions` 调 Goals 的 `contract` 动作取（今天就是这样取的）。**无平台件。**
+
+#### 1.2.6 给 ac-platform 的需求（P1–P4）与留在 Feed 一侧的事
+
+| # | 平台件 | 必须做到的调用面（签名） | 读写什么，在什么事务里 | 约束（统筹的口径） |
+| --- | --- | --- | --- | --- |
+| **P1** | 给插件的场景客户端 `services.scenes`（Manifest 声明权限；场景要先在 Manifest `action_scenes` 里声明） | `usages(judgment?): Promise<Array<ActionSceneBinding & {availability}>>`；`runScene(scene: {scene_id, version}, bindingId, event): Promise<unknown>`；`bind(binding, options?: ActionSceneConfigureOptions): Promise<void>`；`discoverScenes(judgment?): ActionSceneView[]`；`targets(judgment?, selection?): Promise<ActionSceneTarget[]>`。调用者一律取当前 Runtime 动作的调用者（同 `services.actions` 的绑定调用，插件传不进调用者）。 | 不写项目库；`runScene` 走内核 `ActionService.runScene`，场景处理器的 `consume/failed` 在可写场景作用域里跑（见 P4）；`bind` 经场景处理器写。 | **只作用在调用方插件自己在 Manifest 声明的场景**（`scene_id` 不在自己声明里 → 拒绝）；调用者权限只减不增；判断函数与场景的兼容性、提供方身份、`validate_authority`、`beforeEffect` 全沿用内核现有检查，一条不放宽。要 SI 行与拒绝测试：别人的场景被拒、无声明被拒、调用者撤权后被拒。 |
+| **P2** | 判断账 `services.judgments`（或并进 P1 的 `services.scenes.judgments`） | `latest(sceneId): JudgmentRecord[]`（等价 `latestSceneJudgments(projectId, sceneId)`，项目取自调用，每个主体只给最新一条）；`record(input): JudgmentRecord`（等价 `recordSceneJudgment`，输入见 `RecordJudgmentInput`：`function` 引用、`subject{kind,id,project_id}`、`scene_id`、`scene_provenance`、`outcome`、`suggested_behavior_ids`、`error_code`；`function_key` 由平台从 `function` 推出，插件不传） | 写、读 Home 库的 `function_judgments`（Functions 持有者的表；**不在项目库事务里**，是另一个 SQLite 文件，不能与 `tx` 合一次提交）。`consume` 里的顺序：先 `record`，再写项目库（入箱、日志）；项目库一步失败时判断账那一行已经落了。这与今天一致（今天也是 Home 库先写、`recordCaptureJudgment` 在后），不是新退步，但设计稿不再声称原子。 | 只许读写**自己声明的场景**的判断（`scene_id` 必须是调用方 Manifest 声明的场景）；`subject.project_id` 取自调用，不接受别的项目；`record` 要求调用在可写作用域（`consume/failed` 或可写并发动作），并走 `beforeEffect`。SI 行加拒绝测试：别的场景、别的项目、只读调用。 |
+| **P3** | Functions 绑定（仅 Inbox 这类「绑定存在 Functions 表里」的消费场景） | `binding(sceneId): ActionSceneBinding \| null`（等价 `actionSceneBinding(sceneId, projectId)`，含 `revision`）；`saveBinding(binding, expectedRevision?: string \| null): ActionSceneBinding`（等价 `saveActionSceneBinding`；`revision` 过期 → `functions.conflict`） | 读写 Home 库 `function_scene_bindings`；单行乐观并发，不在项目库事务里。 | 只许对自己声明的场景读写；项目取自调用。**备选（请 ac-platform 或统筹定）：把 Inbox 的绑定搬进 Inbox 自己的项目表。** 它是 Inbox 的事实，放在 Functions 表里是历史遗留；这样 P3 不需要，代价是一次维护：把 `function_scene_bindings` 里 `scene_id = 'inbox.next'` 的行搬走，同时核对 Functions 的 `declared-rules.ts:119`（卸载规则时清绑定）与首页 dock 的读取。**我的推荐是备选**（少一个平台服务、事实回到主人），但这是你们的地盘，我不替定。 |
+| **P4** | 场景可写作用域里的 Attention 与情境账写入 | 不是新 API：放开 `plugin-attention-service.ts`（及情境账）`gate.write` 对 `"scene" in scope` 的一刀切拒绝，改为：场景**声明了**该权限（场景定义的 `permissions`/`configuration_permissions` 含 `attention:write`）、作用域是可写的（`!read_only`），且 `ActionSceneExecutionContext.beforeEffect()` 已在写前过过 | 写进插件当前的项目库事务（`project_database.transaction(beforeEffect, tx => attention.join(tx, …))`，与插件自己的行同一次提交）；场景作用域里这个事务目前已经允许（`plugin-database-partitions.ts`）。 | 不放宽：没声明的场景仍拒；`bindings/prepare/targets/availability`（只读作用域）仍只读；SI 行加拒绝测试：只读场景回调写被拒、未声明权限的场景被拒、撤权后被拒。**若发现必须放宽（比如要让场景不声明权限也能写），停下回统筹。** |
+
+**留在 Feed 一侧、不是平台片的事（我做）：**
+
+1. 后台生产者（来源同步、定时 tick）触发判断的调用者身份与权限：Feed 的安装身份调 `inbox.judgment.evaluate`、`home.judgment.evaluate` 所需的 Manifest `consumes`、权限与动作 `audiences`，以及两张错误码容忍表。
+2. 证据正文读口，以及 `hydrateFeedItemContent`、`inspectSourceAuthorization` 的去处：Feed 把它们声明成公开动作（来源授权由 Feed 用 `services.connections` 自核），Inbox 在 Manifest `consumes` 里声明、经 `services.actions` 调；平台不认识 Feed 的证据内容。
+3. Inbox 的 `ensure/reopen/flush`：Feed 的公开动作（添加到 Inbox、重开、冲刷判断），加上 D6-4 的 `feed.items.admission`。
+4. `linked-context.ts` 去掉材料化器（1.2.5）。
+
+**顺序。** 提交 3（Inbox 进 Runtime）和 4（Feed 进 Runtime）依赖 P1、P2、P4（以及 P3 或其备选）落地；落地前我做：Feed 一侧的公开动作（上面第 2、3 项）、tick/互斥、维护夹具（RAC-514）。
 
 ### 1.3 已核对为「现成」的平台件
 
-`PluginHostServices`（`plugin-host-services.ts`）已有：`project_database`、`attention`、`contextLedger`（S9-0b，已进 main）、`background`、`scheduler`、`artifacts`、`processItems`、`connections`、`materials`、`model`、`notifications`、`events`、`dependencies`/`directory`/`actions`（PG-027）、`ownerFiles`。**没有**：网络访问、文件/正文存储、密钥读取（密钥只给引用）、锁。
+`PluginHostServices`（`plugin-host-services.ts`）已有：`project_database`、`attention`、`contextLedger`（S9-0b，已进 main）、`background`、`scheduler`、`artifacts`、`processItems`、`connections`、`materials`、`model`、`notifications`、`events`、`dependencies`/`directory`/`actions`（PG-027）、`ownerFiles`。**没有**：网络访问、文件/正文存储、密钥读取（密钥只给引用）、锁，以及场景客户端、判断账、Functions 绑定（见 §1.2.6 的 P1–P3）。
 
 ## 2. 目标形状（对父稿 §2 的补充）
 
@@ -143,3 +224,4 @@ FI-5 的存储层只依赖 `FeedSql`；本片给它第二个适配器 `fromPlugi
 - **提交 2（服务版端口）已做。** `createFeedRuntimePorts`（`runtime-ports.ts`）把同样的四个端口接到 `services.project_database/attention/contextLedger`，外加 `within(tx, actorId, body)`：同步体内所有端口绑到这次写事务（事项、条目、情境账边、日志同一次提交），体外只读、写在发出语句前就被拒。应用只建一份（`JudgmentQueue` 的待判断队列跨调用保留），每次调用只绑定端口——所以不是「每次事务新建应用」（§3.2 原写法会丢队列，已更正）。`fromPluginReader/fromPluginTransaction` 在 `store/sql.ts`。端口守住项目（别的项目号被拒）与归属（条目一律是 Feed 的，替别的插件办事被拒）。`FeedApplication.listInboxEntries/getInboxEntry` 的过滤从「无主」改成「无主或 Feed 的」：宿主 Module 下行为不变，服务版下 Feed 只见自己的条目，别的插件的条目（Goals 的决定）Feed 找不到。验收：`tests/feed-runtime-ports.test.ts`（RAC-506～508 的端口一层；条目与事项同事务的真服务版证明随提交 4 的 Feed 真装配）。
 - **Attention 事件仍是宿主服务写的**（`plugin-attention-service.ts` 的 `ports.journal`，对象类型 `inbox_entry`，不带命名空间），不经 `tx.journal`；只有 Feed 自己的事项事件（`feed_item`、`judgment`）走 `tx.journal`，存为 `<plugin_id>:<名>`。
 - **§1.2 低估了 Inbox。** `inbox-actions.ts` 的 71 行只是壳：它还接着 Pages 生成（经动作，没问题）、读材料时核对 Feed 事项与来源、`inspectSourceAuthorization`（连接器授权）、`hydrateFeedItemContent`（正文解密）、下一步判断的 scene（`createInboxSceneRuntime`：`ActionSceneClient` 的 `usages/bind/runScene`，加 Functions 持有者的绑定表、已发布规则、判断账）、Home 事件处理与内容动作（`ensure/reopen/flush` 都是 Feed 应用的方法）。Feed 一侧同样：捕捉 scene（`createFeedSceneRuntime`）、`captureJudgment/homeJudgment/inboxJudgment` 三个回调、`linked-context.ts` 的 `ContextMaterializationApi`。**`PluginHostServices` 里没有场景客户端、判断账或 Functions 绑定的服务**（§1.3 的清单没列，也没写在「没有」里）。这些要么补成平台服务（同等待遇、各带 SI 行），要么留作缺口——不能留一条宿主私路。见提交 3 前向统筹提的问题。
+- **决定记录：§1.2 的前提改了（统筹 2026-10-25 夜裁定选 A）。** 原前提「Inbox 是 `services.attention` 上的薄壳、与 Feed 只有两处耦合」不成立（见上一条与新 §1.2）。裁定：①跨插件的数据（证据正文、来源授权、`ensure/reopen/flush`、准入检查）走 **Feed 的公开动作**，Inbox 在 Manifest `consumes` 里声明、经 `services.actions` 调，不进平台服务（Feed 的一侧，我做）；②平台本来拥有的事实各做一片平台服务（场景客户端 P1、判断账 P2、Functions 绑定 P3 或把 Inbox 的绑定搬回 Inbox、场景可写作用域的 Attention/情境账写入 P4），ac-platform 做，签名与事务边界见 §1.2.6；每片带 SI 行与拒绝测试，只作用于调用方在自己 Manifest 声明的场景与函数，不放宽边界，做不到不放宽就停下回统筹；③不开「临时私路」例外（与 2026-10-18 同等待遇冲突）。`ContextMaterializationApi` 不需要平台件（§1.2.5）。提交 3、4 等 P1/P2/P4 落地；之前做 Feed 公开动作、tick/互斥、维护夹具。

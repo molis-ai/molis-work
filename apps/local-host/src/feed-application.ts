@@ -31,8 +31,10 @@ import {
   saveListenerRun,
   writeListenerCursor,
 } from "@molis-ai/molis-work-service-listener-host";
-import { FEED_PLUGIN_ID, FeedApplication, FeedOutRuleStore, type FeedApplicationPorts, type FeedArtifactProducer } from "@molis-ai/molis-work-plugin-feed";
-import { projectVersionStores, type ArtifactsSqliteDatabase } from "@molis-ai/molis-work-module-artifacts";
+import { FEED_PLUGIN_ID, FeedApplication, FeedOutRuleStore, feedManifest, type FeedApplicationPorts, type FeedArtifactProducer } from "@molis-ai/molis-work-plugin-feed";
+import { createPluginArtifactOperations, projectVersionStores, type ArtifactsSqliteDatabase } from "@molis-ai/molis-work-module-artifacts";
+import { assertActionInput } from "@molis-ai/molis-work-kernel";
+import type { PluginArtifactClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createFeedHistoryRelease } from "./feed-history-release.js";
 import { projectPluginDatabaseRefusal } from "./project-plugin-databases.js";
@@ -94,7 +96,7 @@ export function createLocalFeedApplication(
       objectType, objectId, type, reason, payload, at });
   }
   // The project library's one pair of version stores, opened only when no producer was handed in (the first call that writes).
-  const artifactsModule = () => projectVersionStores({
+  const versionStores = () => projectVersionStores({
     db: db as unknown as ArtifactsSqliteDatabase,
     homeOwner: LOCAL_PERSON_ACTOR_ID,
     appendEvent: (input) => journal.appendEvent({
@@ -109,15 +111,29 @@ export function createLocalFeedApplication(
       at: input.at,
     }),
     eventCursor: (projectId) => journal.eventCursor(projectId),
-  }).artifacts;
+  });
+  // Feed writes its captures as any plugin does: through the platform's artifact client bound to Feed's Manifest (the producer it
+  // names, the types it declares in `artifacts.produces`), one per project. The Host runs this in the person's own process, so
+  // there is no grant to hold or caller to outlive.
+  const clients = new Map<string, PluginArtifactClient>();
+  const clientFor = (projectId: string): PluginArtifactClient => {
+    let client = clients.get(projectId);
+    if (!client) {
+      const stores = versionStores();
+      client = createPluginArtifactOperations({ api: stores.artifacts, process: stores.processItems, manifest: feedManifest, project_id: projectId,
+        actor_id: LOCAL_PERSON_ACTOR_ID, authorize: () => {}, assertCallerCurrent: () => {}, assertInput: assertActionInput }).client;
+      clients.set(projectId, client);
+    }
+    return client;
+  };
   return new FeedApplication({
     sources, feed: feedItems, attention, appendEvent,
     subscribeInboxCreated: listener => { inboxCreated = listener; },
     // A refused Feed library leaves the project without capture rules; the rest of Feed is the Modules' and goes on.
     ...projectPluginDatabaseRefusal(db, FEED_PLUGIN_ID) ? {} : { outRules: new FeedOutRuleStore(db) },
     artifacts: options.artifacts ?? {
-      registerVersion: (input) => artifactsModule().commands.registerVersion(input),
-      latestVersion: (projectId, artifactId) => artifactsModule().query.latestArtifactVersion(projectId, artifactId),
+      publish: (projectId, input) => clientFor(projectId).publish(input),
+      head: (projectId, artifactId) => clientFor(projectId).head(artifactId),
     },
     history: createFeedHistoryRelease(db),
     captureJudgment: options.captureJudgment,

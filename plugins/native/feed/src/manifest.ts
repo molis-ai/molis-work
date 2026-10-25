@@ -34,6 +34,8 @@ export const feedManifest: PluginManifest = {
   permissions: [
     ...[...new Set([...Object.values(feedContentActions), ...Object.values(feedQueryActions), ...Object.values(feedRuleActions), ...Object.values(feedItemActions), ...Object.values(feedSourceActions), feedHomeEventsAction].flatMap(d => d.action.permissions))].map(permission => ({ permission, required: false, reason: "读写 Feed 内容、捕捉规则与首页事项，处理消息去向与管理来源" })),
     { permission: "storage:private", required: true, reason: "项目里的消息出口规则" },
+    { permission: "artifact:read", required: false, reason: "按出口规则捕获消息前，查这条成果线的最新一版" },
+    { permission: "artifact:write", required: false, reason: "按出口规则把消息捕获为成果" },
   ],
   capabilities: { provides: [], consumes: [] },
   actions: [feedArtifactPreview, ...Object.values(feedContentActions), ...Object.values(feedQueryActions), ...Object.values(feedRuleActions), ...Object.values(feedItemActions), ...Object.values(feedSourceActions), feedSubjectAction, feedSourceSubjectAction, feedSearchEntriesAction, feedHomeEventsAction],

@@ -122,6 +122,8 @@ consumes: Array<{ artifact_type_id; schema_version; continue?;
 
 `packages/storage` 的 Home 存储注册表（`home-stores.ts`）已经要求每个路径登记主人；改名后的两个路径在表里登记为平台主人，不是 Feed 或灵光。
 
+**PG-080 Feed 部分已做（分支 `anticorr/ac-artifacts-b`，2026-10-25，没开 PR）**：Feed 的出站规则经平台成果客户端写成果，生产者随 Manifest；存量维护 `tests/fixtures/feed-producer-maintenance.sql` 已在隔离库演练（旧线先被新代码拒、维护后能读能续写、可重跑、只有半个旧生产者的行整体不动，RAC-670～673）。**不能先于维护单独合**，随 A5 的维护时段落。PG-064、PG-079（A3）等 batch-36/37 落地后再做。
+
 ### 3.9 与相邻条目的衔接
 
 - **提供方换成 `system.artifacts`（PG-077 的最后一步）**：能力 id 与版本不变，只换 `registered_provider`。这会碰到真实 Home 里的 MCP 授权和工作流引用（引用里带提供方），所以放在 A5，随一次维护脚本一起落，**代码只认新提供方，旧引用显式失败，不兜底**；真实 Home 的执行列进维护时段计划，交用户时一并确认，未经用户批准不动（§6、§10 B 类）。A5 只换动作的提供方，「成果」入口仍由原目录条目的界面提供，入口照常可用；目录条目的删除在 A6 同一片里做（§7）。与 ac-trust 的 S-68.3（提供方 id 规则）一致：系统提供方用 `system.*`，插件不得注册 `system.*` 或平台能力 id（RAC-423）。

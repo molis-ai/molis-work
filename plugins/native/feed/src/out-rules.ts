@@ -1,22 +1,13 @@
 import type { ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createHash, randomUUID } from "node:crypto";
 import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
-import type {
-  ArtifactJsonValue,
-  ArtifactVersionRecord,
-  ArtifactVersionResult,
-  RegisterArtifactVersionInput,
-} from "@molis-ai/molis-work-contracts/modules/artifacts";
+import type { ArtifactJsonValue, ArtifactVersionResult } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import type { ArtifactLineHead } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginArtifactPublishInput } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { FeedItemRecord, FeedOutRuleMatch, FeedOutRuleRecord } from "./projection.js";
 
 import { FEED_CAPTURE_ARTIFACT_TYPE_ID, FEED_CAPTURE_SCHEMA_VERSION } from "./identity.js";
-import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 export { FEED_CAPTURE_ARTIFACT_TYPE_ID, FEED_CAPTURE_SCHEMA_VERSION } from "./identity.js";
-export const FEED_ARTIFACT_PRODUCER = {
-  plugin_id: "io.molis.work.native.feed",
-  plugin_version: "0.0.0",
-  binding_signature: "native:feed",
-} as const;
 
 export interface FeedPluginSqliteDatabase {
   exec(sql: string): void;
@@ -27,9 +18,13 @@ export interface FeedPluginSqliteDatabase {
   };
 }
 
+/**
+ * Feed's author surface over the 成果库, for the project an item belongs to: the platform's `publish` and `head` (the Host binds
+ * project, user and producer from Feed's Manifest, and holds the write to its `artifacts.produces`).
+ */
 export interface FeedArtifactProducer {
-  registerVersion(input: RegisterArtifactVersionInput): ArtifactVersionResult;
-  latestVersion(projectId: string, artifactId: string): ArtifactVersionRecord | null;
+  publish(projectId: string, input: PluginArtifactPublishInput): ArtifactVersionResult;
+  head(projectId: string, artifactId: string): ArtifactLineHead | null;
 }
 
 export interface FeedOutRuleWrite {
@@ -204,19 +199,15 @@ export function registerFeedCaptureVersion(
   artifacts: FeedArtifactProducer,
   item: FeedItemRecord,
   rule: FeedOutRuleRecord,
-  actorId = LOCAL_PERSON_ACTOR_ID,
 ): ArtifactVersionResult {
   const artifactId = feedCaptureArtifactId(item.item_id, rule.rule_id);
   const payload = feedCapturePayload(item);
-  const latest = artifacts.latestVersion(item.project_id, artifactId);
-  const input = (version: number, supersedes: number | null): RegisterArtifactVersionInput => ({
-    project_id: item.project_id,
+  const latest = artifacts.head(item.project_id, artifactId);
+  const input = (version: number, supersedes: number | null): PluginArtifactPublishInput => ({
     artifact_id: artifactId,
     version,
-    actor_id: actorId,
     artifact_type_id: FEED_CAPTURE_ARTIFACT_TYPE_ID,
     schema_version: FEED_CAPTURE_SCHEMA_VERSION,
-    producer: { ...FEED_ARTIFACT_PRODUCER },
     content: { kind: "inline", payload },
     metadata: {
       feed_item_id: item.item_id,
@@ -229,10 +220,10 @@ export function registerFeedCaptureVersion(
     ...(supersedes != null ? { supersedes_version: supersedes } : {}),
   });
   try {
-    return artifacts.registerVersion(input(latest?.version ?? 1, null));
+    return artifacts.publish(item.project_id, input(latest?.version ?? 1, null));
   } catch (error) {
     if (!isVersionConflict(error) || latest == null) throw error;
-    return artifacts.registerVersion(input(latest.version + 1, latest.version));
+    return artifacts.publish(item.project_id, input(latest.version + 1, latest.version));
   }
 }
 

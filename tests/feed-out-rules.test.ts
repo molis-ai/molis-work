@@ -213,10 +213,10 @@ test("creating a rule does not backfill historical Feed Items", () => {
 test("registerVersion failure writes artifact_out_failed Attention and keeps the Feed Item", () => {
   const data = harness({
     artifacts: {
-      registerVersion() {
+      publish() {
         throw Object.assign(new Error("injected artifact failure"), { code: "artifacts.artifact.unavailable" });
       },
-      latestVersion() {
+      head() {
         return null;
       },
     },

@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { withFunctionsService, type FunctionsHostOptions } from "@molis-ai/molis-work-app-local-host";
+import { withFunctionsService } from "@molis-ai/molis-work-app-local-host";
 import {
   ActionError, type ActionCallContext, type ActionDefinition, type ActionProviderRegistration, type ActionSceneDefinition,
 } from "@molis-ai/molis-work-contracts/platform/actions";
-import { inspectActionDeclarations, parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
+import { actionErrorKind, inspectActionDeclarations, parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { openTestHome } from "./fixtures/test-home.js";
 
 const PROVIDER = "io.molis.work.example.rule-subjects";
-const OPTIONS: FunctionsHostOptions = { env: {}, credential: () => null };
+const OPTIONS = { env: {}, credential: () => null };
 const CALLER: ActionCallContext = { actor_id: "owner", project_id: null, audience: "user", permissions: [] };
 const BAD_KINDS = [[], ["outside_item"], ["fixture_item", "outside_item"]];
 
@@ -27,7 +27,7 @@ function manifest(scenes: readonly ActionSceneDefinition[]) {
 }
 
 function declarationError(code: string, message: string) {
-  return (error: unknown) => error instanceof ActionError && error.kind === "invalid" && error.code === code && error.message === message;
+  return (error: unknown) => error instanceof ActionError && actionErrorKind(error) === "invalid" && error.code === code && error.message === message;
 }
 
 test("RAC-487-A SDK inspection and Manifest parsing reject empty, outside and mixed default-rule subjects in a restricted scene", () => {
@@ -97,7 +97,7 @@ test("RAC-487-C Kernel registration refuses the whole provider before rule write
       assert.equal(written.scene_id, candidate.scene_id);
       assert.deepEqual(written.subject_kinds, candidate.default_rule!.subject_kinds);
     }
-    assert.deepEqual(await home.host.homeActionClient().call(CALLER, { capability_id: probe.capability_id, version: probe.version, provider_id: PROVIDER }, {}),
+    assert.deepEqual(await home.host.homeActionClient().invoke(CALLER, { capability_id: probe.capability_id, version: probe.version, provider_id: PROVIDER }, {}),
       { registered: true });
     assert.equal(calls, 1);
   } finally { dispose(); }

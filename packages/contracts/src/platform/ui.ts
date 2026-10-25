@@ -246,9 +246,12 @@ export interface UiSurfaceDescriptor {
   readonly format: string;
 }
 
-export interface UiContributionDescriptor {
+/**
+ * What a plugin writes for one contribution. Whose it is, is not here: the platform knows the owner from the Manifest it trusts and
+ * adds it when the contribution is registered (`ownedContribution`), so a plugin cannot name itself as someone else.
+ */
+export interface UiContributionDeclaration {
   readonly contribution_id: string;
-  readonly plugin_id: string;
   readonly kind: UiContributionKind;
   readonly navigation_id?: string;
   readonly label: string;
@@ -256,6 +259,16 @@ export interface UiContributionDescriptor {
   readonly surfaces?: readonly UiSurfaceDescriptor[];
   /** Slots this contribution opens for nested content from other Plugins. */
   readonly slots: readonly UiSlotDescriptor[];
+}
+
+/** A declaration as the platform holds it once registered: with the owning plugin it filled in. */
+export interface UiContributionDescriptor extends UiContributionDeclaration {
+  readonly plugin_id: string;
+}
+
+/** Whether a declaration names an owner of its own, which a plugin is never allowed to (the platform fills `plugin_id`). Every registration refuses it. */
+export function declaresOwner(declaration: object): boolean {
+  return "plugin_id" in declaration;
 }
 
 /**
@@ -286,12 +299,23 @@ export interface UiMountResult {
 }
 
 export interface UiContribution<TModel = unknown> {
+  readonly descriptor: UiContributionDeclaration;
+  render(request: UiRenderRequest<TModel>): string;
+}
+
+/** A contribution in the platform's registry: the plugin's, with the owner the platform filled in. */
+export interface OwnedUiContribution<TModel = unknown> {
   readonly descriptor: UiContributionDescriptor;
   render(request: UiRenderRequest<TModel>): string;
 }
 
+/** The registration the platform makes for `pluginId`, the plugin its trusted Manifest names. Callers refuse a declaration that names an owner (`declaresOwner`) first. */
+export function ownedContribution<TModel>(contribution: UiContribution<TModel>, pluginId: string): OwnedUiContribution<TModel> {
+  return { descriptor: { ...contribution.descriptor, plugin_id: pluginId }, render: contribution.render };
+}
+
 export interface UiHostApi {
-  register<TModel>(contribution: UiContribution<TModel>): void;
+  register<TModel>(contribution: OwnedUiContribution<TModel>): void;
   unregister(contributionId: string): void;
   list(): readonly UiContributionDescriptor[];
   render<TModel>(request: UiRenderRequest<TModel>): string;

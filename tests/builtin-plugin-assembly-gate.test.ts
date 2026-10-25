@@ -195,9 +195,13 @@ test("RAC-44: the Host keeps no Cognia wiring of its own; Cognia is assembled on
   assert.ok(!BUILD_TIME_ASSEMBLED.has("cognia") && !NATIVE_PLUGIN_HTTP_FILES.has("cognia"));
   const sources = await hostSourceFiles();
   assert.deepEqual(sources.filter(file => file.slice(file.lastIndexOf("/") + 1).startsWith("cognia")), [], "no Host file is named after Cognia");
+  // The platform's copy of the catalog (W5-02 PR-B) imports every plugin's registration; it is generated, never written by hand.
   const importing: string[] = [];
   for (const file of sources) if ((await readFile(join(repoRoot, file), "utf8")).includes("@molis-ai/molis-work-plugin-cognia")) importing.push(file);
-  assert.deepEqual(importing, [], "no Host source imports the Cognia package; it is reached through the catalog and the Runtime");
+  assert.deepEqual(importing, ["apps/local-host/src/plugin-registry.generated.ts"],
+    "no Host source imports the Cognia package; it is reached through the catalog and the Runtime");
+  assert.match(await readFile(join(repoRoot, "apps/local-host/src/plugin-registry.generated.ts"), "utf8"),
+    /import \{ registration as cogniaRegistration \} from "@molis-ai\/molis-work-plugin-cognia\/registration";/u, "and only its registration");
   assert.doesNotMatch(await readFile(join(repoRoot, "apps/local-host/src/project-host.ts"), "utf8"), /registerProvider\(\s*cognia/i);
 });
 

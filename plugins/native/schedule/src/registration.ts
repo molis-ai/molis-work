@@ -11,7 +11,6 @@ export const registration: PluginRegistration = {
   default_enabled: true,
   messages: SCHEDULE_MESSAGES,
   manifest: scheduleManifest,
-  summary: "定时跑对话任务，也替插件准时提醒。",
   workbench: {
     order: 7,
     contributions: [scheduleUiContribution],

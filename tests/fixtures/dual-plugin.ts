@@ -48,7 +48,7 @@ export function dualPlugin(name = "dualprobe", writes = false) {
     if (!found) throw new Error(`no action ${call} in this Manifest`);
     return found;
   };
-  const stage = { descriptor: { contribution_id: view, plugin_id: id, kind: "embedded" as const, label: name,
+  const stage = { descriptor: { contribution_id: view, kind: "embedded" as const, label: name,
     surfaces: [{ surface_id: "workbench", target_slot_id: "stage", format: "html" }], slots: [] }, render: () => `<section>${name}</section>` };
   /** One half's share of the Manifest; `extra` adds to it, for a half that offers more than its share. */
   const half = (which: Half, extra: (all: typeof actions) => Share = () => ({})): PluginDefinition => ({ manifest,

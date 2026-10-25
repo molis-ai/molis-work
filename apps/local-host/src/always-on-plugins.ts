@@ -1,5 +1,5 @@
 import path from "node:path";
-import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import type { ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { PluginInstanceRecord, PluginLifecycleState } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
@@ -29,7 +29,7 @@ function installedAndOn(records: readonly PluginInstanceRecord[], entry: PluginR
  * an installed plugin's claim; no third-party installation receives this default.
  */
 export function alwaysOnCatalogEntries(home: string): PluginRegistration[] {
-  const declared = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.manifest.always_on === true);
+  const declared = PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => entry.manifest.always_on === true);
   if (declared.length === 0) return [];
   const db = openReadOnlyHomePluginStore(path.resolve(home));
   if (!db) return declared;

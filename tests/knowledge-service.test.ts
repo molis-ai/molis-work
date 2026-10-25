@@ -139,7 +139,7 @@ test("PMAT-24 a Coding round carries the knowledge open to its Agent now, inside
   const offered = (capability_id: string, available = true, provider_id = "system.knowledge"): ActionView => ({ capability_id, version: 1, operation: "query",
     provider: { provider_id, title: "项目资料", kind: "system" }, availability: available ? { available: true } : { available: false, code: "mcp.action_revoked", reason: "已撤销" },
     action: { ...knowledgeActions.read.action } }) as ActionView;
-  const picked = [{ capability_id: "pages.subject.read", version: 1, provider_id: "pages" }];
+  const picked = [{ capability_id: "pages.subject.read", version: 2, provider_id: "pages" }];
   const directory = [offered("knowledge.search"), offered("knowledge.read"), offered("knowledge.grep", false), offered("pages.subject.read", true, "pages")];
   assert.deepEqual(withKnowledgeTools(picked, directory).map(ref => ref.capability_id), ["pages.subject.read", "knowledge.search", "knowledge.read"],
     "a revoked one is left out; a non-knowledge action is not added");

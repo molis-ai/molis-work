@@ -5,11 +5,7 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 import {
-  PERSONAL_PLUGIN_IDS,
-  PROJECT_SCOPED_PLUGIN_IDS,
-  islandEntries,
-  pluginMarketCards,
-  railEntries,
+  islandEntries, pluginMarketCards, railEntries,
 } from "@molis-ai/molis-work-app-workbench";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import {
@@ -30,6 +26,8 @@ import {
 import { serveLingguang } from "./fixtures/lingguang-runtime.js";
 import type { LingguangSpark } from "@molis-ai/molis-work-contracts/modules/lingguang";
 import type { LingguangConversationState } from "@molis-ai/molis-work-plugin-lingguang";
+import { PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, builtinMarketDirectory } from "@molis-ai/molis-work-app-local-host";
+import { withHostPluginFacts } from "./fixtures/host-plugin-facts.js";
 const PROJECT = "project-lingguang";
 
 test("PRR-10 material.read reports each extraction progress once", { timeout: 120_000 }, async t => {
@@ -109,7 +107,7 @@ test("灵光是个人插件，不进项目启用名单，岛上叫灵光、图�
   const entry = islandEntries([...enabled]).find((item) => item.id === "lingguang");
   assert.equal(entry?.label, "灵光");
   assert.equal(entry?.glyph, "idea");
-  const market = pluginMarketCards().find((card) => card.id === "lingguang");
+  const market = pluginMarketCards({}, builtinMarketDirectory()).find((card) => card.id === "lingguang");
   assert.equal(market?.personal, true);
   assert.equal(market?.copy, "先记下想法，再决定留下或丢掉。");
   parsePluginManifest(lingguangManifest);
@@ -124,20 +122,20 @@ test("PRR-12 the Manifest fallback only renders stages no host path already rend
     plugin_stage_ids: [LINGGUANG_UI_CONTRIBUTION_ID],
     plugin_stages: ['<section data-work-surface="lingguang" data-stage="host"></section>'],
   } as MolisWorkWebView;
-  const owner = renderMolisWorkWeb(view);
+  const owner = renderMolisWorkWeb(withHostPluginFacts(view));
   const html = owner + pluginDocuments(owner).join("\n");
   assert.equal((html.match(/data-stage="host"/g) ?? []).length, 1, "the host's stage is kept once");
   assert.doesNotMatch(html, /data-lingguang="directory"/, "the fallback did not render a second Lingguang stage");
   assert.match(html, /data-issue-root/, "Issues, which needs no model, still comes from the Manifest stage");
-  assert.match(pluginDocuments(renderMolisWorkWeb({ ...view, plugin_stage_ids: [], plugin_stages: [] } as MolisWorkWebView)).join("\n"), /data-lingguang="directory"/,
+  assert.match(pluginDocuments(renderMolisWorkWeb(withHostPluginFacts({ ...view, plugin_stage_ids: [], plugin_stages: [] } as MolisWorkWebView))).join("\n"), /data-lingguang="directory"/,
     "without the host's stage, Lingguang comes from its Manifest stage");
 
   const hiddenIssues = { ...view, enabled_plugins: ["goals", "lingguang"], hidden_plugins: ["issues"] } as MolisWorkWebView;
-  assert.doesNotMatch(pluginDocuments(renderMolisWorkWeb(hiddenIssues)).join("\n"), /data-issue-root/, "a plugin the project does not show gets no fallback stage");
+  assert.doesNotMatch(pluginDocuments(renderMolisWorkWeb(withHostPluginFacts(hiddenIssues))).join("\n"), /data-issue-root/, "a plugin the project does not show gets no fallback stage");
 });
 
 test("PRR-12 工作台挂上灵光空态、确认框和快记区，工作面由 Manifest 的 stage view 渲染", () => {
-  const owner = renderMolisWorkWeb(emptyView());
+  const owner = renderMolisWorkWeb(withHostPluginFacts(emptyView()));
   const html = owner + pluginDocuments(owner).join("\n");
   assert.match(html, /data-plugin-id="lingguang"/);
   // Unified bottom bar: the plugin switcher (every entry of the project) at the left, the assistant in the middle, the

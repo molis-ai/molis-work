@@ -20,6 +20,7 @@ export const pptManifest: PluginManifest = {
   plugin_id: PPT_PLUGIN_ID,
   version: "0.3.0",
   name: "PPT",
+  summary: "写大纲，放映或导出 PowerPoint。",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-ppt-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],

@@ -9,6 +9,8 @@ export const FILES_MESSAGES = {
   "files.directory.unreadable": { zh: "无法读取这个目录", en: "Couldn't read this folder" },
   "files.directory.empty": { zh: "这个目录是空的", en: "This folder is empty" },
   "files.directory.truncated": { zh: "目录较大，仅显示前 1000 个可访问条目", en: "A large folder: showing the first 1,000 entries that can be read" },
+  "files.directory.back": { zh: "返回文件列表", en: "Back to files" },
+  "files.error.workspace-unreadable": { zh: "无法读取文件工作区", en: "Couldn't read the file workspace" },
   "files.directory.not-regular": { zh: "非普通文件", en: "Not a regular file" },
   "files.directory.outside": { zh: "这个文件不在当前浏览的目录里", en: "This file is not in the folder you are browsing" },
   "files.reader.label": { zh: "文件阅读与快照", en: "File reader and snapshots" },

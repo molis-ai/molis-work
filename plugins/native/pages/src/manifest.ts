@@ -19,6 +19,7 @@ export const pagesManifest: PluginManifest = {
   plugin_id: PAGES_PLUGIN_ID,
   version: "0.3.0",
   name: "Pages",
+  summary: "写文档，可导出 Markdown / PDF。",
   // Offered to other Agents for business work; bodies in ./methods.ts.
   methods: pagesMethods.map(({ body: _body, ...declared }) => ({ ...declared, tools: [...declared.tools] })),
   kind: "native",

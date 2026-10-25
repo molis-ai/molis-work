@@ -36,7 +36,7 @@ async function fixture(t: Parameters<Parameters<typeof test>[1]>[0], todoModel: 
     actions: async (_home: string, projectId: string, original_file?: { path: string; install_id: string }) => {
       const project = await withCatalog({ homeDirectory: dir }, catalog => catalog.getProject(projectId));
       const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-      return bindActionClient(host.actionClient(reference), () => ({ actor_id: "web-user", project_id: projectId, audience: "user", permissions: ["pages:write", "artifacts:read", "artifacts:write", "todo:read", "todo:write"], ...original_file ? { original_file } : {} }));
+      return bindActionClient(host.actionClient(reference), () => ({ actor_id: "web-user", project_id: projectId, audience: "user", permissions: ["pages:read", "pages:write", "artifacts:read", "artifacts:write", "todo:read", "todo:write"], ...original_file ? { original_file } : {} }));
     },
     homeActions: (_home: string, signal: AbortSignal) => bindActionClient(host.homeActionClient(), () => ({ actor_id: "web-user", project_id: null, audience: "user", permissions: ["todo:read", "todo:write", "model:invoke"], signal })),
   };
@@ -62,7 +62,7 @@ test("onboarding gives an overview and todo drafts; the kept drafts become the n
   assert.equal(adopted.todo?.added?.length, 2);
   const store = openTodoStore(dir);
   try {
-    const items = store.list({ projectId: adopted.project_id, everything: true, actor: "user", actorId: "test" });
+    const items = store.list({ projectId: adopted.project_id, projectIds: [], actor: "user", actorId: "test" });
     const send = items.find(item => item.title === "发送新版方案")!, wait = items.find(item => item.title === "等待小李确认预算")!;
     assert.deepEqual([send.placement, send.project_id], ["project", adopted.project_id], "建议放进项目的进了新项目");
     assert.deepEqual([wait.placement, wait.status], ["personal", "waiting"]);
@@ -71,7 +71,7 @@ test("onboarding gives an overview and todo drafts; the kept drafts become the n
   } finally { store.close(); }
   await adoptContextJourney(dir, id, { title: "重复请求" }, ports);
   const again = openTodoStore(dir);
-  try { assert.equal(again.list({ projectId: null, everything: true, actor: "user", actorId: "test" }).length, 2, "重试不重复加入"); } finally { again.close(); }
+  try { assert.equal(again.list({ projectId: null, projectIds: adopted.project_id ? [adopted.project_id] : [], actor: "user", actorId: "test" }).length, 2, "重试不重复加入"); } finally { again.close(); }
   assert.equal(calls, 1, "草稿只整理一次");
   const actions = await ports.actions(dir, adopted.project_id);
   const { batches } = await actions.invoke((await import("@molis-ai/molis-work-plugin-todo")).todoOrganizeActions.list, {});

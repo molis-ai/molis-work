@@ -7,7 +7,7 @@ import { join } from "node:path";
 import { createServer } from "node:http";
 import { fileURLToPath } from "node:url";
 import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, handleProjectPluginHttp, runWithLocale, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
-import { CODING_CLIENT_FACTORY_SCRIPT, HISTORY_DIGEST_MARKER, codingRouteActions } from "@molis-ai/molis-work-plugin-coding";
+import { CODING_WORKBENCH_CLIENT_FACTORY_SCRIPT, HISTORY_DIGEST_MARKER, codingRouteActions } from "@molis-ai/molis-work-plugin-coding";
 import { renderRichText } from "@molis-ai/molis-work-plugin-sdk/rich-text";
 import { agentHostCapabilities as agent, type AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { pluginActions, withFakeAgentHost } from "./fixtures/plugin-actions.js";
@@ -120,10 +120,8 @@ test("PG062-07: the Markdown parser and sanitizer stay on Coding's server side, 
   const parsers = /markedjs|disallowedTagsMode/u;
   assert.match(readFileSync(coding.resolve("marked"), "utf8"), /markedjs/u);
   assert.match(readFileSync(coding.resolve("sanitize-html"), "utf8"), /disallowedTagsMode/u);
-  for (const bundle of ["workbench-bundle.js", "draft-bundle.js"]) {
-    assert.doesNotMatch(readFileSync(join(root, "plugins/native/coding/dist", bundle), "utf8"), parsers, bundle);
-  }
-  assert.doesNotMatch(CODING_CLIENT_FACTORY_SCRIPT, parsers);
+  assert.doesNotMatch(readFileSync(join(root, "plugins/native/coding/dist/workbench-bundle.js"), "utf8"), parsers, "workbench-bundle.js");
+  assert.doesNotMatch(CODING_WORKBENCH_CLIENT_FACTORY_SCRIPT, parsers);
   const hostManifest = JSON.parse(readFileSync(join(root, "apps/local-host/package.json"), "utf8")) as { dependencies?: Record<string, string> };
   for (const name of ["marked", "sanitize-html"]) assert.equal(hostManifest.dependencies?.[name], undefined, `the Host declares no ${name}`);
   const hostSources = join(root, "apps/local-host/src");

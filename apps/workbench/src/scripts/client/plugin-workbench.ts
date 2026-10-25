@@ -1,11 +1,9 @@
-import { PERSONAL_PLUGIN_IDS } from "../../plugin-catalog.js";
 import { PLUGIN_EVENT_RECOVERY_CLIENT } from "./plugin-event-recovery.js";
 import { ARTIFACT_GOAL_INPUT_CLIENT_SCRIPT, ARTIFACT_WORKS_CLIENT_SCRIPT, ARTIFACT_HANDOFF_CLIENT_SCRIPT, ARTIFACT_PORT_INPUT_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-artifacts";
 
 /** Workbench composes bundled project entries and exact Artifact contributions. The menus holding the market's update count
  * light their dot from `data-market-updates`: a style rule that looked inside them restyled each whole menu on every change. */
 export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
-  const PERSONAL_PLUGIN_IDS = ${JSON.stringify([...PERSONAL_PLUGIN_IDS])};
   const { route, translate: L, projectId, setSurface, saveUiState, setMobileView, openTabItem, openPlugin } = host;
   const market = document.querySelector('[data-work-surface="market"]');
   const selector = market.querySelector("[data-market-project]");
@@ -110,7 +108,7 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     market.querySelector("[data-market-installed]").hidden = installed.childElementCount === 0 || Boolean(query);
     let count = 0;
     market.querySelectorAll("[data-market-plugin]").forEach(card => {
-      const added = addedIds.includes(card.dataset.marketPlugin) || (PERSONAL_PLUGIN_IDS.includes(card.dataset.marketPlugin) && !hiddenIds.includes(card.dataset.marketPlugin));
+      const added = addedIds.includes(card.dataset.marketPlugin) || (card.hasAttribute("data-market-personal") && !hiddenIds.includes(card.dataset.marketPlugin));
       card.hidden = (onlyAdded && !added) || !((card.querySelector("h2").textContent + " " + card.querySelector("p").textContent).toLocaleLowerCase().includes(query));
       if (!card.hidden) count++;
       const button = card.querySelector("[data-market-add]");

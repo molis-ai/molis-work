@@ -52,12 +52,13 @@ test("W3-06-F-01 W3-06-F-02 concurrent discovery, scenes and HTTP share the Home
   assert.deepEqual(probe.seen.at(-1)?.page_context, { url: "/", title: null, provenance: "client_reported" });
   const scoped = await request(`/api/plugins/${probe.id}/project?project_id=${one.project_id}`);
   assert.equal(scoped.status, 400); assert.equal((await scoped.json()).code, "actions.project_required");
-  // Under a project's path a Home route runs in that project only when the project shows the plugin (S-31); a fixture has no place in
-  // any project's plugin list, so its routes there are refused, and the probe stays the person's own.
-  for (const prefix of [`/projects/${one.project_id}`, `/projects/${two.project_id}`]) {
-    const refused = await request(`${prefix}/api/plugins/${probe.id}/state?project_id=forged`, { headers: { referer: `${origin}${prefix}` } });
-    assert.equal(refused.status, 403, await refused.clone().text());
-    assert.equal((await refused.json()).code, "actions.plugin_disabled");
+  // Under a project's path a Home route runs in that project only when the project shows the plugin (S-31). A fixture is a Home plugin
+  // outside the build, personal and shown in every project that does not hide it (RAC-569), so it runs in the project the path names.
+  for (const current of [one, two]) {
+    const prefix = `/projects/${current.project_id}`;
+    const inside = await request(`${prefix}/api/plugins/${probe.id}/state?project_id=forged`, { headers: { referer: `${origin}${prefix}` } });
+    assert.equal(inside.status, 200, await inside.clone().text());
+    assert.deepEqual(await inside.json(), { value: "one Home", project_id: current.project_id }, "the path names the project, never the query");
   }
 });
 

@@ -14,6 +14,7 @@ export * from "./action-usages.js";
 export * from "./action-subjects.js";
 import type { HostCapabilityDescriptor } from "./app-host.js";
 import type { WorkflowContentStation } from "./workflow-content.js";
+import type { PlacementRelationDeclaration } from "./placement.js";
 export * from "./workflow-content.js";
 import type { SearchSourceDeclaration } from "./search-sources.js";
 export * from "./search-sources.js";
@@ -114,6 +115,13 @@ export interface ActionCallContext extends ActionCallOrigin {
   readonly user_action?: ActionUserAction;
   readonly project_id: string | null;
   readonly audience: ActionAudience;
+  /**
+   * The projects whose records of a Home-level plugin the person may read and change through this call (PG-014): set by the Host, fresh on
+   * every call, only on an action that declares `project_reach` for an installation holding `projects:reach`, and only for the person.
+   * It is not where the call is made (`project_id`). The plugin's handler never sees one a caller carried in; absent means "only the
+   * project the call is made in". Never business input.
+   */
+  readonly readable_project_ids?: readonly string[];
   /** Host-bound installation identity for private Plugin SDK services. */
   readonly plugin_install_id?: string;
   /** The Host-issued plugin caller this call is made for. Never accepted from business arguments or persisted. */
@@ -223,6 +231,18 @@ export interface ActionMetadata {
    * is off or not granted it is not called.
    */
   readonly home_aggregate?: true;
+  /**
+   * The Host gives this action, of a Home-level plugin, the projects the person may reach through it (`ActionCallContext.readable_project_ids`,
+   * PG-014): the plugin keeps the records of every project in one Home library and reads the list instead of judging the caller itself.
+   * Only a Home-scope action may declare it, and the Manifest must declare the `projects:reach` permission as well; the list is given only
+   * while the installation holds that grant, and only to the person (audience `user`).
+   */
+  readonly project_reach?: "person";
+  /**
+   * The part this action plays in a relation placement keeps for the person (PG-032): it lists what an object is attached to, attaches,
+   * releases, lists what can be attached to, or makes a target from content. Placement finds the relation's actions by this, never by name.
+   */
+  readonly placement_relation?: PlacementRelationDeclaration;
   /** Optional rule choices owned by this subject-offer query; each target is declared in the same registration, in the same scope, and handles the option's subject kinds. */
   readonly subject_offer_choices?: readonly SubjectOfferChoice[];
   /** Finite choices of a fragment-offer query (specs/archive/contextual-interaction §5.1); each target is declared in the same registration and scope. */

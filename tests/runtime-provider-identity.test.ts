@@ -119,7 +119,7 @@ test("a bundled entry registers under its plugin_id and names the installation w
     } finally { other.store.close(); }
   }));
 
-test("a plugin that declares a built-in plugin's id but is not on the Host's own bundled list is not installed (S-X2); a developed, sandboxed or fixture plugin under its own id keeps its installation id",
+test("a plugin that declares a built-in plugin's id but is not on the Host's own bundled list is not installed (S-75); a developed, sandboxed or fixture plugin under its own id keeps its installation id",
   withDirectory(async directory => {
     const host = hostProcess(directory);
     try {

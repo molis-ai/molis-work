@@ -3,7 +3,7 @@ import type { Readable } from "node:stream";
 import { fencedMaterials, instructed, type InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { ONBOARDING_NOTES, ONBOARDING_OWNER, ONBOARDING_PROPOSAL } from "./agent-definitions/system-prompts.js";
 import { createHash, randomUUID } from "node:crypto";
-import { pagesActions, blocksFromMarkdown } from "@molis-ai/molis-work-plugin-pages";
+import { pagesActions } from "@molis-ai/molis-work-plugin-pages";
 import type { PagesBody } from "@molis-ai/molis-work-contracts/modules/pages";
 import type { TodoBatch } from "@molis-ai/molis-work-contracts/modules/todo";
 import { withContextJourneys, type CallTiming, type ContextJourney, type ContextReference, type ImportFile } from "./context-onboarding-store.js";
@@ -383,21 +383,22 @@ async function draftTodos(home: string, journey: ContextJourney, references: Con
   }
   save();
 }
-function pageBody(text: string): PagesBody {
-  const nodes = blocksFromMarkdown(text);
-  return { type: "doc", content: nodes ? nodes.map(n => n.toJSON()) : [{ type: "paragraph", content: [{ type: "text", text }] }] } as PagesBody;
+/** Markdown as a Pages body, made by Pages (its public action); throws `pages.body_too_large` when the text converts to more than a document holds. */
+async function pageBody(actions: Pick<BoundActionClient, "invoke">, text: string): Promise<PagesBody> {
+  return (await actions.invoke(pagesActions.bodyFromMarkdown, { markdown: text })).body;
 }
 /** A Pages document's body is at most 1,500,000 characters encoded; parts start at 400,000 and halve until each fits. */
 const PAGE_PART_CHARS = 400_000, PAGE_BODY_MAX = 1_400_000;
-function* pageParts(text: string): Generator<PagesBody> {
+async function* pageParts(actions: Pick<BoundActionClient, "invoke">, text: string): AsyncGenerator<PagesBody> {
   for (const part of textParts(text, PAGE_PART_CHARS)) {
-    const body = pageBody(part);
-    if (JSON.stringify(body).length <= PAGE_BODY_MAX || part.length < 2) yield body;
-    else {
-      let half = Math.ceil(part.length / 2);
-      if (/[\uD800-\uDBFF]/u.test(part[half - 1]!)) half--;
-      yield* pageParts(part.slice(0, half)); yield* pageParts(part.slice(half));
-    }
+    let body: PagesBody | null = null;
+    // Pages refuses a part that converts to more than a document holds; such a part is halved like one over our own bound.
+    try { body = await pageBody(actions, part); }
+    catch (error) { if ((error as { code?: unknown }).code !== "pages.body_too_large" || part.length < 2) throw error; }
+    if (body && (part.length < 2 || JSON.stringify(body).length <= PAGE_BODY_MAX)) { yield body; continue; }
+    let half = Math.ceil(part.length / 2);
+    if (/[\uD800-\uDBFF]/u.test(part[half - 1]!)) half--;
+    yield* pageParts(actions, part.slice(0, half)); yield* pageParts(actions, part.slice(half));
   }
 }
 export async function adoptContextJourney(home: string, id: string, input: Record<string, unknown>, ports: ContextOnboardingPorts): Promise<ContextJourney> {
@@ -446,7 +447,8 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
           }
           if (!ref.documents) {
             // The whole text, in as many documents as Pages needs (“第 k / N 部分”); each part's request is its own, so a retry goes on.
-            const parts = [...pageParts(`原标题：${ref.title}\n\n来源：${ref.path} · 版本 ${ref.version}\n\n${await readStagedText(home, id, ref.text)}`)], documents: string[] = [];
+            const parts: PagesBody[] = [], documents: string[] = [];
+            for await (const body of pageParts(actions, `原标题：${ref.title}\n\n来源：${ref.path} · 版本 ${ref.version}\n\n${await readStagedText(home, id, ref.text)}`)) parts.push(body);
             for (const [index, body] of parts.entries()) {
               documents.push((await actions.invoke(pagesActions.importDocuments, { request_id: id + ":sources:" + ref.label + (parts.length > 1 ? ":" + (index + 1) : ""), request_hash: id,
                 documents: [{ title: partTitle(`[${ref.label}] ${ref.title}`, index + 1, parts.length, 80), body }] })).documents[0]!.id);
@@ -460,7 +462,7 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
         const text = journey.adoption!.body + (sources ? "\n\n## " + L("资料来源") + "\n\n" + sources : "");
         const summaryTitle = L("{title} · 工作摘要", { title: journey.adoption!.title });
         const summaryText = summaryTitle.length > 80 ? `${L("项目：{title}", { title: journey.adoption!.title })}\n\n${text}` : text;
-        const summary = (await actions.invoke(pagesActions.importDocuments, { request_id: id + ":summary", request_hash: createHash("sha256").update(JSON.stringify(journey.adoption)).digest("hex"), documents: [{ title: pageTitle(summaryTitle), body: summaryText ? pageBody(summaryText) : { type: "doc", content: [{ type: "paragraph" }] } }] })).documents[0]!;
+        const summary = (await actions.invoke(pagesActions.importDocuments, { request_id: id + ":summary", request_hash: createHash("sha256").update(JSON.stringify(journey.adoption)).digest("hex"), documents: [{ title: pageTitle(summaryTitle), body: summaryText ? await pageBody(actions, summaryText) : { type: "doc", content: [{ type: "paragraph" }] } }] })).documents[0]!;
         journey.document_id = summary.id;
         if (text.trim()) {
           const artifact = await actions.invoke(artifactsActions.importFile, { source: "file", filename: "summary.md", title: summaryTitle,

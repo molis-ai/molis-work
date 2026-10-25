@@ -111,7 +111,7 @@ export function sandboxedPluginDefinition(release: AgentRelease, approved: Sandb
             }
           } catch (error) { return { status: 400, body: { error: message(error), ...(outcomeUnknown ? { outcome: 'unknown' } : {}) } }; }
         } }],
-        views: [{ descriptor: { contribution_id: uiId, plugin_id: release.pluginId, kind: 'primary-page', label: release.design.title, slots: [] },
+        views: [{ descriptor: { contribution_id: uiId, kind: 'primary-page', label: release.design.title, slots: [] },
           render: () => '<main data-installed-plugin="' + release.pluginId + '"></main>' }],
       };
     },

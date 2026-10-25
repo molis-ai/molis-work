@@ -1,4 +1,4 @@
-import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { CHARACTERS_HOME_STORE } from "@molis-ai/molis-work-module-characters";
 import { FUNCTIONS_HOME_STORE } from "@molis-ai/molis-work-module-functions";
 import { KNOWLEDGE_CARDS_HOME_STORE, MEMORY_LEDGER_HOME_STORE, TEXT_SEARCH_HOME_STORE, homeStoreRegistry, type HomeStore, type HomeStoreDeclaration, type HomeStoreRegistry } from "@molis-ai/molis-work-storage";
@@ -36,7 +36,7 @@ export function homeStores(): HomeStoreRegistry {
     ...owned("modules/characters", CHARACTERS_HOME_STORE),
     ...owned("packages/storage", MEMORY_LEDGER_HOME_STORE, TEXT_SEARCH_HOME_STORE, KNOWLEDGE_CARDS_HOME_STORE, ...at("feed")),
     ...owned("server", DISCUSSION_HOME_STORE),
-    ...BUILTIN_PLUGIN_CATALOG.flatMap(entry => {
+    ...PLATFORM_PLUGIN_REGISTRATIONS.flatMap(entry => {
       const library = entry.manifest.databases?.home;
       return [
         ...entry.home_store ? [{ ...entry.home_store, owner: entry.manifest.plugin_id }] : [],

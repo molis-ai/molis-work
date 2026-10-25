@@ -35,13 +35,14 @@ test("RAC-160 every word the Files page says has a stable key with both language
   assert.doesNotMatch(drawn, /[一-鿿]/u, "no Chinese is drawn into the page directly");
 });
 
-test("RAC-161 the Files page's client is typed browser code bundled by esbuild, asks only through the host's request and names no route", () => {
+test("RAC-161 the Files page's client is typed browser code bundled by esbuild, asks the Host only in request.ts and names no plugin route", () => {
   for (const file of browserFiles()) {
     const source = readFileSync(file, "utf8");
     assert.doesNotMatch(source, /\bfetch\(/u, `${file} calls fetch directly`);
     assert.doesNotMatch(source, /:\s*any\b|as any\b|as unknown as|catch\s*(\([^)]*\))?\s*\{\s*\}/u, `${file} has an untyped escape or an empty catch`);
     assert.doesNotMatch(source, /window\.(confirm|alert|prompt)\(/u, `${file} opens a browser dialog`);
-    assert.doesNotMatch(source, /\/api\/plugins\/|molisWorkRequest/u, `${file} writes a route prefix or asks the Host itself: Coding's bundle owns the request`);
+    assert.doesNotMatch(source, /\/api\/plugins\/|io\.molis\.work\./u, `${file} writes a plugin route or id: the Host gives the route (host.pluginRoute)`);
+    if (!file.endsWith("/request.ts")) assert.doesNotMatch(source, /molisWorkRequest/u, `${file} asks the Host itself: request.ts owns the requests`);
   }
   const pkg = JSON.parse(readFileSync("plugins/native/files/package.json", "utf8")) as { scripts: Record<string, string>; devDependencies?: Record<string, string> };
   assert.match(pkg.scripts.build, /tsc -p tsconfig\.browser\.json/, "the build type-checks the browser code");
@@ -50,12 +51,12 @@ test("RAC-161 the Files page's client is typed browser code bundled by esbuild, 
   const root = JSON.parse(readFileSync("package.json", "utf8")) as { devDependencies: Record<string, string> };
   assert.equal(pkg.devDependencies?.esbuild, root.devDependencies.esbuild, "esbuild is the package's own dev dependency, at the root's version");
   assert.doesNotThrow(() => new Function(`return ${FILES_CLIENT_FACTORY_SCRIPT}`), "the bundle is a function expression");
-  assert.match(FILES_CLIENT_FACTORY_SCRIPT, /^\(host, browser\) => \{/u, "it takes the host and hands back what it mounted");
-  assert.match(FILES_CLIENT_FACTORY_SCRIPT, /return browser\}$/u);
+  assert.match(FILES_CLIENT_FACTORY_SCRIPT, /^\(host\) => \(\(host, icons, browser\) => \{/u, "it takes the host, is given the icons and hands back what it mounted");
+  assert.match(FILES_CLIENT_FACTORY_SCRIPT, /return browser\}\)\(host, \{"folder":/u);
   for (const mark of ["data-assistant-context", "molis-work:select-item", "/view-revision", "files.reader.too-large", "data-files-capture"]) {
     assert.ok(FILES_CLIENT_FACTORY_SCRIPT.includes(mark), `the bundle carries ${mark}`);
   }
-  // Hand it a root without Files' elements: it mounts nothing and hands back nothing.
+  // Hand it a root without Files' elements, as a page that gives its ports would: it mounts nothing and hands back nothing.
   const factory = new Function(`return ${FILES_CLIENT_FACTORY_SCRIPT}`)() as (host: unknown) => unknown;
-  assert.equal(factory({ root: { querySelector: () => null }, translate: (key: string) => key }), null);
+  assert.equal(factory({ root: { querySelector: () => null }, translate: (key: string) => key, openResult() {}, closeResult() {}, route: (path: string) => path, pluginRoute: (path: string) => path }), null);
 });

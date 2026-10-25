@@ -10,7 +10,7 @@ test("W2-18-TODO-DRAFT-01: failed save and empty title preserve every field and 
   const { command, sessionId, navigate, origin, projectId, homeDirectory } = browser;
   const child = await pluginFrameBrowser(t, browser, "todo");
   const { evaluate, waitFor, click } = child;
-  const access = { actor: "user" as const, actorId: "web-user", projectId: projectId!, everything: true };
+  const access = { actor: "user" as const, actorId: "web-user", projectId: projectId!, projectIds: [] };
   const setup = openTodoStore(homeDirectory);
   const [first, second] = (() => { try { return [setup.create({ title: "保存原件", notes: "原说明", placement: "project" }, access).item, setup.create({ title: "另一件", placement: "project" }, access).item]; } finally { setup.close(); } })();
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/?openPlugin=todo` }, sessionId));

@@ -27,7 +27,7 @@ export function gitClient(host: GitHost, sentences: GitSentenceTable): GitBrowse
       list.setAttribute("aria-busy", "false");
     };
   });
-  lifetime.watchRevision((signal) => host.request("git", "/view-revision", "GET", undefined, signal), async () => {
+  lifetime.watchRevision((signal) => host.request("/view-revision", "GET", undefined, signal), async () => {
     if (page.preparing || result.getAttribute("aria-busy") === "true" || (refreshButton.disabled && !page.initialRead)) return false;
     page.initialRead = false;
     await refresh(page);

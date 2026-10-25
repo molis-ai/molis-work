@@ -83,7 +83,7 @@ function listen(page: FilesPage): void {
 
 /**
  * The Files directory and reader: a folder tree, the file read as text (read-only), and pinning of the text or a selection as a
- * snapshot. Coding's bundle mounts it (`clientFrom`); what it shows follows the project's browsing workspace.
+ * snapshot. Its own page mounts it, and so does Coding for its panel; what it shows follows the project's browsing workspace.
  */
 export function filesClient(host: FilesHost): FilesBrowser | null {
   const scope = host.root ?? document;
@@ -99,7 +99,7 @@ export function filesClient(host: FilesHost): FilesBrowser | null {
     loading(page, true); page.notice(page.L("files.directory.reading-workspace"));
     return () => { page.generation++; page.readTicket++; page.loadingTicket++; result.setAttribute("aria-busy", "false"); loading(page, false); };
   });
-  lifetime.watchRevision(signal => host.request("files", "/view-revision", "GET", undefined, signal), async () => {
+  lifetime.watchRevision(signal => host.request("/view-revision", "GET", undefined, signal), async () => {
     if (page.captureBusy || (page.refresh.disabled && !page.initialRead)) return false;
     page.initialRead = false; loading(page, false); await load(page);
   });

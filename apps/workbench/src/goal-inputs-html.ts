@@ -19,9 +19,13 @@ interface GoalInputsPrimitives {
   renderReference(value: string, label?: string): string;
 }
 
-const CREATE = [["pages", "文档"], ["ppt", "演示稿"], ["form", "问卷"], ["dataset", "数据表"]] as const;
+/** A kind the project can make new for a Goal: a station of a plugin it shows, with the title that plugin's view declares (`creates`). */
+export interface GoalInputsCreatableKind {
+  readonly station: string;
+  readonly title: string;
+}
 
-export function renderGoalInputsHtml(item: GoalInputsItem, { L, escapeHtml, renderReference }: GoalInputsPrimitives): string {
+export function renderGoalInputsHtml(item: GoalInputsItem, { L, escapeHtml, renderReference }: GoalInputsPrimitives, creatable: readonly GoalInputsCreatableKind[]): string {
   const goalId = escapeHtml(item.goal.goal_id);
   const goalRoute = escapeHtml(`/api/goals/${encodeURIComponent(item.goal.goal_id)}`);
   const follows = `<span class="goal-input-mode" data-goal-input-mode="live">${L("跟着原文")}</span>`;
@@ -45,7 +49,8 @@ export function renderGoalInputsHtml(item: GoalInputsItem, { L, escapeHtml, rend
     return `<article class="placement-goal-material goal-input-fixed" data-goal-input-fixed><div><a href="#" data-workbench-item-plugin="artifacts" data-workbench-item-id="${escapeHtml(path)}" data-workbench-item-title="${escapeHtml(input.title)}"><strong>${escapeHtml(input.title)}</strong></a><span class="goal-input-mode" data-goal-input-mode="fixed">${escapeHtml(L("固定的第 {version} 版", { version: input.version }))}</span>${note ? `<small>${escapeHtml([note, input.reason].filter(Boolean).join(" · "))}</small>` : ""}</div><span class="placement-goal-material-actions"><button type="button" class="mw-btn mw-btn--ghost mw-btn--sm" data-goal-input-remove data-goal-input-post="${goalRoute}/artifact-inputs" data-goal-input-body="${escapeHtml(JSON.stringify({ reference: { artifact_id: input.artifact_id, version: input.version }, used: false }))}" data-goal-input-fail="${escapeHtml(L("没能移除"))}">${L("移除")}</button></span></article>`;
   });
   const rows = [...live, ...fixed].join("");
-  const create = CREATE.map(([station, label]) => `<button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-placement-create="${station}" data-goal-id="${goalId}">${escapeHtml(L(label))}</button>`).join("");
+  // The button carries the declared title; the placement client names a new object and its card from it, so no table by plugin lives there.
+  const create = creatable.map(({ station, title }) => `<button type="button" class="mw-btn mw-btn--secondary mw-btn--sm" data-placement-create="${escapeHtml(station)}" data-placement-create-title="${escapeHtml(title)}" data-goal-id="${goalId}">${escapeHtml(L(title))}</button>`).join("");
   return `<section class="placement-goal-materials" data-placement-goal-materials data-goal-inputs data-goal-id="${goalId}"><h3>${L("输入")}</h3>
     <div class="placement-goal-create"><button type="button" class="mw-btn mw-btn--primary mw-btn--sm" data-goal-input-add data-goal-id="${goalId}">${L("加输入…")}</button><span>${L("或为这个 Goal 新建")}</span>${create}</div>
     ${rows ? `<div class="bound-list">${rows}</div>` : `<p class="empty-row">${L("还没有输入。")}</p>`}

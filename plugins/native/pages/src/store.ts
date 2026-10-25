@@ -1,8 +1,6 @@
 import { PagesComments } from "./comments-store.js";
 import { extractFromPagesBody, unpublishedKnowledgePages } from "./extract.js";
-import { homeSqlitePath, openBaselineHomeSqlite, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
-import { realpathSync } from "node:fs";
-import type { DatabaseSync } from "node:sqlite";
+import type { HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import { ActionError, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PagesBody, PagesFolder, PagesRecord } from "@molis-ai/molis-work-contracts/modules/pages";
 import { EMPTY_PAGES_BODY, parsePagesBody } from "./document.js";
@@ -53,13 +51,6 @@ interface PagesReplay {
 }
 
 const IMPORT_REPLAY: PagesReplay = { changed: "这次导入的文件、选择或文件夹已改变，请重新预览后导入", removed: "这批导入已完成，但部分文档已删除；不会重新创建" };
-
-/**
- * Generation attempts this process started: true while in progress, false once the call ended without being allowed to
- * write (cancelled, revoked, disabled). Such a call leaves its running record untouched, and a new call in this process
- * may take the request over at once; attempts from other processes keep the stored lease. Memory only.
- */
-const attemptsByDatabase = new Map<string, Map<string, boolean>>();
 
 export class PagesStore extends PagesGenerationStore {
   readonly comments: PagesComments;
@@ -357,26 +348,6 @@ function keepPagesChange(db: PagesSql, before: PagesRecord, after: PagesRecord):
   db.run("INSERT INTO page_changes(change_id, page_id, to_version, before_json, created_at) VALUES (?, ?, ?, ?, ?)",
     [changeId, after.id, after.version, JSON.stringify({ title: before.title, body: before.body, folder_id: before.folder_id, starred: before.starred, goal_id: before.goal_id }), now.toISOString()]);
   return changeId;
-}
-
-
-export function openPagesStore(homeDirectory: string): PagesStore {
-  const db = openBaselineHomeSqlite(homeDirectory, PAGES_HOME_STORE.path, PAGES_DATABASE);
-  const database = realpathSync(homeSqlitePath(homeDirectory, PAGES_HOME_STORE.path));
-  let attempts = attemptsByDatabase.get(database);
-  if (!attempts) attemptsByDatabase.set(database, attempts = new Map());
-  const sql: PagesSql = {
-    get: (text, parameters = []) => db.prepare(text).get(...parameters),
-    all: (text, parameters = []) => db.prepare(text).all(...parameters),
-    run: (text, parameters = []) => db.prepare(text).run(...parameters),
-  };
-  return new PagesStore(sql, attempts, run => immediate(db, run), () => db.close());
-}
-
-function immediate<T>(db: DatabaseSync, run: () => T): T {
-  db.exec("BEGIN IMMEDIATE");
-  try { const result = run(); db.exec("COMMIT"); return result; }
-  catch (error) { db.exec("ROLLBACK"); throw error; }
 }
 
 function fromPageRow(row: SqlRow): PagesRecord {

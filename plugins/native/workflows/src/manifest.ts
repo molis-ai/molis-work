@@ -13,6 +13,7 @@ export const workflowsManifest: PluginManifest = {
   plugin_id: WORKFLOWS_PLUGIN_ID,
   version: "0.3.0",
   name: "工作流程",
+  summary: "把插件串成流程，一步步做完。",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-workflows-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],

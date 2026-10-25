@@ -1,7 +1,8 @@
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
-import { openPagesStore, nodeFromUnknown } from "@molis-ai/molis-work-plugin-pages";
+import { nodeFromUnknown } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
 import { openPptStore } from "@molis-ai/molis-work-plugin-ppt";
 import { openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
 import type { PagesRecord } from "@molis-ai/molis-work-contracts/modules/pages";

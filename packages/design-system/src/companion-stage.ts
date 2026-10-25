@@ -6,8 +6,8 @@ import { renderSidebar } from "./primitives/layout.js";
 
 /**
  * What a companion's stage is drawn with: the route prefix of the project page, the plugins the project shows and the shared
- * primitives. The stage of a plugin the Coding page embeds (Files, Git, Diff, Text Stats) is one of these two shapes; Coding's client
- * fills it, which is why the markup keeps its `data-companion` hooks.
+ * primitives. The stage of a plugin the Coding page embeds (Files, Git, Diff, Text Stats) is one of these two shapes; the plugin's own
+ * client fills it, which is why the markup keeps its `data-companion` hooks.
  */
 export interface CompanionStageModel {
   readonly route_prefix: string;

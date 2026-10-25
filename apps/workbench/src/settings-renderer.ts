@@ -209,7 +209,7 @@ function renderMolisWorkSettings(view: MolisWorkSettingsView, controlToken = "",
   ${renderIconSprite()}
   <header class="project-preferences-chrome"${desktopShell ? ' data-tauri-drag-region="deep"' : ""}><span>${capabilities ? L("能力") : projectManager ? L("项目管理") : L("全局设置")}</span><a href="${returnHref}" aria-label="${L(capabilities ? "关闭能力服务" : "关闭全局设置")}">${icon("x")}</a></header>
   <main class="settings-shell${projectManager ? " settings-shell--standalone" : ""}">
-    ${capabilities?.navigation ?? (projectManager ? "" : renderSettingsNavigation(view.section, contextProject, desktopShell, view.projects, view.enabled_plugins, view.hidden_plugins))}
+    ${capabilities?.navigation ?? (projectManager ? "" : renderSettingsNavigation(view.section, contextProject, desktopShell, view.projects, view.shown_plugins))}
     <div class="settings-content">${content}</div>
   </main>
   ${renderRuntimePlanDialog({ L, icon })}

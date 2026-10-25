@@ -3,13 +3,15 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
-import { projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
+import { PLATFORM_PLUGIN_REGISTRATIONS, projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
 import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 
-/** The catalog is one array shared by the process: a test that adds entries to it takes them out again. */
-const catalog: PluginRegistration[] = BUILTIN_PLUGIN_CATALOG as PluginRegistration[];
+/**
+ * The platform's registration list, which the Host reads since W5-02 PR-B (the shell's copy of the catalog is no longer what the
+ * deletion reads). It is one array shared by the process: a test that adds entries to it takes them out again.
+ */
+const catalog: PluginRegistration[] = PLATFORM_PLUGIN_REGISTRATIONS as PluginRegistration[];
 
 /** An entry for the test: a real entry's other parts (the deletion reads only `project_data` and the library), under its own id. */
 function declaringEntry(id: string, data: ProjectDataDeclaration): PluginRegistration {

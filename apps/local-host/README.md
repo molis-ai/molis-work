@@ -322,3 +322,5 @@ Character 的一般Memory mutation对目标及before原件均要求当前ledger�
 
 
 项目删除的当前 Memory 证明沿原 hold/固定 recovery plan 传 verifyMemory 与 assertCurrent；业务清理前及最终 Catalog commit 前核验覆盖穷尽和目标空态。旧 complete 只读核验、不重写历史；旧 memory complete/absent 不免检，当前无 Runtime 且 ledger 仅 prefs 的同步空态每次提交重验。
+
+原项目删除恢复独立 prepared/purged Session 的残留记忆时，仅承认 AgentHost 实际无正文 preview/逐项 purge 的调用证明。原删除 ALS 必须仍有效，Session 在可信集合；preview 限当前 scope，delete 仅在原 clear 执行区间逐项匹配持久计划的 ref/原 version 和精确 child operation，保留 SDK 同操作墓碑再物理移除的语义。普通读取、写入、清 meta、person/ui 或项目 hold 无此许可；scope/owner 和最终 current 继续走原 Memory policy。无新持久状态、schema 或通用 bypass。直接工程回归在 `tests/project-deletion-recovery.test.ts`，覆盖两种旧 Session 状态、并发拒绝、旧 ALS 失效和实际部分清除后重启同原计划续跑。

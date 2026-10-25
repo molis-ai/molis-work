@@ -110,6 +110,20 @@ export interface AgentSessionPurgePreview {
   resources: number;
   destroys_key: boolean;
 }
+/** Durable original preparation only; no Memory, SDK or business body has been deleted. */
+export interface AgentSessionPurgePreparation {
+  session: AgentSessionRef;
+  session_ref: { kind: "session"; id: string; revision: 1 };
+  decision: AgentSessionDecision;
+  preview: AgentSessionPurgePreview;
+}
+export interface AgentSessionPurgeWaitPage {
+  session: AgentSessionRef;
+  operation_id: string;
+  wait_ids: readonly string[];
+  cursor?: string;
+  exhausted: boolean;
+}
 export interface AgentSessionLifecycleView {
   session: AgentSessionRef;
   /** Unknown means the original decision needs reconciliation; missing never means purged. */
@@ -134,6 +148,8 @@ export interface AgentSessionLifecycle {
   /** Unlike historical Session restore, this changes the canonical lifecycle. */
   unarchive(session: AgentSessionRef, decision: AgentSessionDecision, owner: AgentSessionOwner): Promise<AgentSessionLifecycleReceipt>;
   previewPurge(session: AgentSessionRef, owner: AgentSessionOwner): Promise<AgentSessionPurgePreview>;
+  preparePurge(session: AgentSessionRef, decision: AgentSessionDecision, preview: AgentSessionPurgePreview, owner: AgentSessionOwner): Promise<AgentSessionPurgePreparation>;
+  purgeWaits(session: AgentSessionRef, decision: AgentSessionDecision, page: { limit: number; cursor?: string }, owner: AgentSessionOwner): Promise<AgentSessionPurgeWaitPage>;
   purge(session: AgentSessionRef, decision: AgentSessionDecision, preview: AgentSessionPurgePreview, owner: AgentSessionOwner): Promise<AgentSessionLifecycleReceipt>;
 }
 

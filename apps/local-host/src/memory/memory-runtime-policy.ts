@@ -21,6 +21,7 @@ export interface MemoryRuntimePolicyOwner {
   deletingScope?(scope: string, owner: string): boolean;
   deletingCoverage?(operationId: string, scopes: readonly { scope: string; owner: string }[]): boolean;
   deletingPersonal?(target: Request["target"]): boolean;
+  deletingSessionPurge?(sessionId: string, requests: readonly Request[], call: Parameters<NonNullable<Options["allowsSessionPurge"]>>[3]): boolean;
   deletionPending?(projectId: string | null, sessionId?: string): boolean;
 }
 
@@ -166,6 +167,11 @@ export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | u
       if (!state?.deletion || request.appId !== "io.molis.work" || request.purpose !== "owner-coverage"
         || state.owner.deletingCoverage?.(request.operationId, request.knownScopes) !== true)
         throw memoryErrors.forbidden("原删除覆盖检查已失效");
+    },
+    allowsSessionPurge(caller, requests, sessionId, call) {
+      const state = currentFacts(caller);
+      return !!state?.deletion && requestsAllowed(caller, requests, state)
+        && state.owner.deletingSessionPurge?.(sessionId, requests, call) === true;
     },
     async authorizeRecall(caller, request) {
       const state = await current(caller);

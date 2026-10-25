@@ -39,7 +39,9 @@ agent.run.wait.v1	3	platform	query	query	project	read	concurrent	plugin	-	-	-	-	
 agent.runtimes.v1	2	platform	query	query	project	read	-	plugin	-	-	-	-	9cecb8ebe607	49f5b25c9d4a	-
 agent.session.create.v1	1	platform	command	operation	project	write	-	plugin	-	-	-	-	36c1b12fe97d	8237effa9721	-
 agent.session.lifecycle.archive.v1	1	platform	command	operation	project	write	concurrent	plugin	-	-	-	-	bd1b830879f3	49b5a7ddfc1a	-
+agent.session.lifecycle.prepare-purge.v1	1	platform	command	operation	project	write	concurrent	plugin	-	-	-	-	c408539ee3bd	90977417556c	-
 agent.session.lifecycle.preview-purge.v1	1	platform	query	query	project	read	concurrent	plugin	-	-	-	-	2bf329391661	4479c9bb591d	-
+agent.session.lifecycle.purge-waits.v1	1	platform	query	query	project	read	concurrent	plugin	-	-	-	-	b6d5b7d5fc03	3d868c028fc8	-
 agent.session.lifecycle.purge.v1	1	platform	command	operation	project	write	concurrent	plugin	-	-	-	-	c408539ee3bd	49b5a7ddfc1a	-
 agent.session.lifecycle.read.v1	1	platform	query	query	project	read	concurrent	plugin	-	-	-	-	2bf329391661	a67448fb7bea	-
 agent.session.lifecycle.unarchive.v1	1	platform	command	operation	project	write	concurrent	plugin	-	-	-	-	bd1b830879f3	49b5a7ddfc1a	-

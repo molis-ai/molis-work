@@ -71,6 +71,8 @@ export class PrologueSessionCache {
       }
     };
     return { read: (session, owner) => port.read(session, owner), previewPurge: async (session, owner) => { quiet(session.session_id); return port.previewPurge(session, owner); },
+      preparePurge: (session, decision, preview, owner) => { const args = structuredClone({ session, decision, preview, owner }); return change(args.session.session_id, () => port.preparePurge(args.session, args.decision, args.preview, args.owner)); },
+      purgeWaits: (session, decision, page, owner) => port.purgeWaits(session, decision, page, owner),
       archive: (session, decision, owner) => { const args = structuredClone({ session, decision, owner }); return change(args.session.session_id, () => port.archive(args.session, args.decision, args.owner)); },
       unarchive: (session, decision, owner) => { const args = structuredClone({ session, decision, owner }); return change(args.session.session_id, () => port.unarchive(args.session, args.decision, args.owner)); },
       purge: (session, decision, preview, owner) => { const args = structuredClone({ session, decision, preview, owner }); return change(args.session.session_id, () => port.purge(args.session, args.decision, args.preview, args.owner)); },

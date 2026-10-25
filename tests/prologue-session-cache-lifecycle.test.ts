@@ -125,5 +125,6 @@ function command(review_id: string): AgentReviewRequest {
 function lifecycle(purged: Set<string>): AgentSessionLifecycle {
   return { read: async target => ({ session: target, state: purged.has(target.session_id) ? "purged" : "active", version: 1 }),
     previewPurge: async target => ({ ...preview, session: target }), archive: async () => { throw new Error("not used"); }, unarchive: async () => { throw new Error("not used"); },
+    preparePurge: async () => { throw new Error("not used"); }, purgeWaits: async () => { throw new Error("not used"); },
     purge: async (target: AgentSessionRef, decision) => { purged.add(target.session_id); return { scope: "agent-host-session", session: target, operation_id: decision.operation_id, action: "purge", state: "purged", version: 3 }; } };
 }

@@ -1,5 +1,5 @@
 import type { ActionDefinition } from "../platform/actions.js";
-import type { AgentSessionDecision, AgentSessionLifecycleReceipt, AgentSessionLifecycleView, AgentSessionPurgePreview, AgentSessionRef } from "./agent-host-runtime.js";
+import type { AgentSessionDecision, AgentSessionLifecycleReceipt, AgentSessionLifecycleView, AgentSessionPurgePreparation, AgentSessionPurgePreview, AgentSessionPurgeWaitPage, AgentSessionRef } from "./agent-host-runtime.js";
 
 const id = { type: "string", minLength: 1, maxLength: 200 } as const;
 const version = { type: "integer", minimum: 1 } as const;
@@ -26,6 +26,18 @@ export const agentSessionLifecycleActions = {
           properties: { action: { enum: ["archive", "unarchive", "purge"] }, decision, completed: { type: "boolean" }, preview, receipt } } } } } } as ActionDefinition<Target, AgentSessionLifecycleView>,
   previewPurge: { capability_id: "agent.session.lifecycle.preview-purge.v1", version: 1, operation: "query",
     action: { ...query, title: "预览会话清除", description: "固定静止会话的当前版本和清除计数；有进行中或未对账工作时拒绝。", input_schema: input, output_schema: preview } } as ActionDefinition<Target, AgentSessionPurgePreview>,
+  preparePurge: { capability_id: "agent.session.lifecycle.prepare-purge.v1", version: 1, operation: "command",
+    action: { ...command, title: "准备会话清除", description: "固定原清除决定并封住会话；不清除记忆、运行时或业务正文。",
+      input_schema: { ...change, required: ["session", "decision", "preview"], properties: { session, decision, preview } },
+      output_schema: { type: "object", required: ["session", "session_ref", "decision", "preview"], additionalProperties: false,
+        properties: { session, decision, preview, session_ref: { type: "object", required: ["kind", "id", "revision"], additionalProperties: false,
+          properties: { kind: { const: "session" }, id, revision: { const: 1 } } } } } } } as ActionDefinition<Change & { preview: AgentSessionPurgePreview }, AgentSessionPurgePreparation>,
+  purgeWaits: { capability_id: "agent.session.lifecycle.purge-waits.v1", version: 1, operation: "query",
+    action: { ...query, title: "读取原会话等待身份", description: "按原清除决定分页读取全部历史等待编号，不返回等待正文。",
+      input_schema: { ...change, required: ["session", "decision", "page"], properties: { session, decision,
+        page: { type: "object", required: ["limit"], additionalProperties: false, properties: { limit: { type: "integer", minimum: 1, maximum: 200 }, cursor: { type: "string", minLength: 1, maxLength: 4096 } } } } },
+      output_schema: { type: "object", required: ["session", "operation_id", "wait_ids", "exhausted"], additionalProperties: false,
+        properties: { session, operation_id: id, wait_ids: { type: "array", maxItems: 200, items: id }, exhausted: { type: "boolean" }, cursor: { type: "string", minLength: 1, maxLength: 4096 } } } } } as ActionDefinition<Change & { page: { limit: number; cursor?: string } }, AgentSessionPurgeWaitPage>,
   archive: { capability_id: "agent.session.lifecycle.archive.v1", version: 1, operation: "command",
     action: { ...command, title: "归档运行时会话", description: "按原版本和原操作归档静止会话；不停止正在进行的工作，不改变记忆期限。", input_schema: change, output_schema: receipt } } as ActionDefinition<Change, AgentSessionLifecycleReceipt>,
   unarchive: { capability_id: "agent.session.lifecycle.unarchive.v1", version: 1, operation: "command",

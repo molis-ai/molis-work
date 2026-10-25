@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import type { ExactRef, PurgePreview } from "@prologue/sdk";
-import type { AgentReviewReceipt, AgentRunRef, AgentWriteCheckNote, AgentSessionDecision, AgentSessionLifecycleReceipt } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentReviewReceipt, AgentRunRef, AgentWriteCheckNote, AgentSessionDecision, AgentSessionLifecycleReceipt, AgentSessionOwner } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentErrors } from "../errors.js";
 import type { PrologueRestoredSession, PrologueRunTiming, PrologueStartInput } from "./prologue.js";
 import type { PrologueRewindIntent } from "./prologue-checkpoints.js";
@@ -57,6 +57,10 @@ export interface SessionIndexStore {
   starting<T>(id: string, work: (current: () => void) => Promise<T>): Promise<T>;
   creating<T>(projectId: string, work: (current: () => void) => Promise<T>): Promise<T>;
   holdProject<T>(projectId: string, associated: readonly string[], work: (hold: ProjectHold) => Promise<T>): Promise<T>;
+  /** Same exact purge permission as the project hold; it never grants another Session or operation. */
+  holdSession<T>(id: string, operationId: string, work: () => Promise<T>): Promise<T>;
+  /** Original prepared decision proof only. The Memory owner must still authorize its exact scope and effect. */
+  inspectPurge(id: string, operationId: string, owner: AgentSessionOwner): Promise<{ session_ref: ExactRef<"session">; current(): void }>;
   enumerate(): Promise<SessionIndex[]>;
   /** Same per-Session write lane; pending decisions are readable only by their lifecycle owner. */
   lifecycle<T>(id: string, work: (index: SessionIndex, save: (value: SessionIndex) => Promise<void>) => Promise<T>, mutation?: LifecycleMutation): Promise<T>;
@@ -134,6 +138,19 @@ export function createSessionIndexStore(host: NodeHost, appId: string, projectDe
     assertLifecycle: admission.lifecycle,
     creating: admission.creating,
     holdProject: admission.hold,
+    holdSession: admission.holdSession,
+    async inspectPurge(id, operationId, owner) {
+      const current = capture(id, true), saved = await inspect(id);
+      current();
+      if (!saved || saved.lifecycle?.action !== "purge" || saved.lifecycle.phase !== "prepared"
+        || saved.lifecycle.decision.operation_id !== operationId
+        || !["project_id", "plugin_id", "install_id", "actor_id"].every(key => {
+          const field = key as keyof AgentSessionOwner;
+          return typeof owner[field] === "string" && !!owner[field] && owner[field] === saved.owner[field];
+        })) throw agentErrors.session_unknown("原清除决定与当前会话主人不一致");
+      const allowed = () => { current(); admission.lifecycle(id, { action: "purge", operation_id: operationId }); };
+      allowed(); return { session_ref: structuredClone(saved.ref), current: allowed };
+    },
     async enumerate() {
       const result: SessionIndex[] = []; let cursor: string | undefined;
       do {
@@ -198,6 +215,22 @@ function projectAdmission(pending: ((project: string, session?: string) => boole
       creating.set(project, (creating.get(project) ?? 0) + 1);
       try { return await work(current); }
       finally { const left = creating.get(project)! - 1; if (left) creating.set(project, left); else creating.delete(project); }
+    },
+    async holdSession<T>(id: string, operation_id: string, work: () => Promise<T>) {
+      const original = purges.getStore();
+      // Only the enclosing hold's exact grant can be reused, never just its project or owner.
+      if (original?.id === id && original.operation_id === operation_id) { original.current(); return work(); }
+      if (heldSessions.has(id) || busy(id)) throw denied();
+      const project = projects.get(id);
+      if (project) open(project, id);
+      heldSessions.add(id);
+      let active = true;
+      const current = () => {
+        const owner = projects.get(id);
+        if (!active || !heldSessions.has(id) || owner && (heldProjects.has(owner) || pending?.(owner, id))) throw denied();
+      };
+      try { return await purges.run({ id, operation_id, current }, work); }
+      finally { active = false; heldSessions.delete(id); }
     },
     async hold<T>(project: string, associated: readonly string[], work: (hold: ProjectHold) => Promise<T>) {
       if (heldProjects.has(project) || creating.get(project) || associated.some(id => heldSessions.has(id))

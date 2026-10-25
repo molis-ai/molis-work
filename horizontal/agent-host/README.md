@@ -39,6 +39,12 @@ Agent Runtime 的注册、能力矩阵、启动授权，以及宿主拥有的副
 
 ## 可信 Session 生命周期（M4 合同，定向工程验证通过）
 
+单 Session 清除准备增量（基础定向工程验证通过）：`preparePurge` 沿原可信 owner、静止检查和 Index 写 lane 只保存原 `prepared`，返回 canonical Session/ref 与原 decision/preview，不清正文。`purgeWaits` 在同原 prepared 下有界投影 SDK 原 waits 的全部历史 ID，不从当前 collaboration/board 推断。两口使用正式 Host Action 和当前 invocation 身份；limit 1–200，cursor 绑定原 Session/decision，异常或交叉页拒绝。既有 Index schema1 和三个 phase 不变。exact hold 复用原 admission，仅封目标 Session，与项目 hold 互斥，原项目 hold 的同 Session/operation purge 许可可复用；不开放 bypass。
+
+Memory 普通授权按 caller、target、before 的 Session 读取持久 Index pending，最终同步复核同一代际；准备与最终 purge 各占原短 lane，Memory I/O 留在 lane 外，不能持 lane 重入。专用 exact Memory inspection 尚未装配时拒绝，后继原 prepared 例外仍必须核 owner、原 operation 和当前 scope 权限。此片不含业务副本清除、私有 KV、UI 或 MEM-40，不将 AgentHost receipt 当作完整清除证明。不可配的是原身份、原决定、取消、代际与唯一写主人；Runtime adapter 可替换，App 传原请求和有界页，终端用户决定仍归业务入口。完整冻结合同见 [Memory spec](../../specs/prologue-memory-strategy/spec.md)「单 Session 清除基础」。
+
+项目恢复的例外（定向工程验证通过）：实际 Memory 无正文 purge preview/逐项 purge 入口才建立调用局部的原参数证明。App 可选同步窄口仅核原 Project 删除 ALS、可信 Session 集合、scope 与固定 ref/version/child operation；缺席拒绝，普通接口无此证明。preview 的 SDK action 也是 delete，不能靠 action 名识别入口。实际删除还需原 clear 主人正在执行；formal purge 的原输入 N 保持固定，SDK 的墓碑 N+1 与物理移除仍归同操作，candidate 保持 N。每次仍完整执行原 authorize/assertCurrent 和 Index 代际，最终复核撤权/失效；项目 hold 或 person/ui 本身不构成放行。持久 schema/phase 不变。真实 Node 隔离恢复、旧 ALS 失效、并发普通拒绝和部分清除重开见 `tests/project-deletion-recovery.test.ts`，最终同步撤权见 `tests/prologue-memory-current-authority.test.ts`。
+
 purge 还清除同 project/plugin/session 的 ReviewQueue 正文、处理器及本会话批准；无 Session 或其他会话的审查保留。迟到历史恢复和审批结果沿 Index 代际与原行身份拒绝发布。手动回退准备复用同一 admission，不在预检后插入新工作。
 
 命令输出在 Adapter 与 Node 的最后一次读取等待后复核 Session 代际。清理中的异步等待后和每次 surface close 前复核原 effects 权限；撤权不继续后续清理，已完成部分保留、prepared 原决定可续。重启遗留启动意图沿现 recovery 的完整 SDK 账判断：无未认领工作且无 unavailable 才允许继续，意图不删、不伪造 refused。

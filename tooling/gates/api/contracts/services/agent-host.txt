@@ -1609,6 +1609,11 @@ export interface AgentSessionLifecycle {
     archive(session: AgentSessionRef, decision: AgentSessionDecision, owner: AgentSessionOwner): Promise<AgentSessionLifecycleReceipt>;
     unarchive(session: AgentSessionRef, decision: AgentSessionDecision, owner: AgentSessionOwner): Promise<AgentSessionLifecycleReceipt>;
     previewPurge(session: AgentSessionRef, owner: AgentSessionOwner): Promise<AgentSessionPurgePreview>;
+    preparePurge(session: AgentSessionRef, decision: AgentSessionDecision, preview: AgentSessionPurgePreview, owner: AgentSessionOwner): Promise<AgentSessionPurgePreparation>;
+    purgeWaits(session: AgentSessionRef, decision: AgentSessionDecision, page: {
+        limit: number;
+        cursor?: string;
+    }, owner: AgentSessionOwner): Promise<AgentSessionPurgeWaitPage>;
     purge(session: AgentSessionRef, decision: AgentSessionDecision, preview: AgentSessionPurgePreview, owner: AgentSessionOwner): Promise<AgentSessionLifecycleReceipt>;
 }
 
@@ -1682,6 +1687,17 @@ export interface AgentSessionOwner {
     actor_id: string;
 }
 
+export interface AgentSessionPurgePreparation {
+    session: AgentSessionRef;
+    session_ref: {
+        kind: "session";
+        id: string;
+        revision: 1;
+    };
+    decision: AgentSessionDecision;
+    preview: AgentSessionPurgePreview;
+}
+
 export interface AgentSessionPurgePreview {
     session: AgentSessionRef;
     version: number;
@@ -1689,6 +1705,14 @@ export interface AgentSessionPurgePreview {
     runs: number;
     resources: number;
     destroys_key: boolean;
+}
+
+export interface AgentSessionPurgeWaitPage {
+    session: AgentSessionRef;
+    operation_id: string;
+    wait_ids: readonly string[];
+    cursor?: string;
+    exhausted: boolean;
 }
 
 export interface AgentSessionRef {
@@ -2173,6 +2197,15 @@ export declare const agentOfferActions: {
 export declare const agentSessionLifecycleActions: {
     readonly read: ActionDefinition<Target, AgentSessionLifecycleView>;
     readonly previewPurge: ActionDefinition<Target, AgentSessionPurgePreview>;
+    readonly preparePurge: ActionDefinition<Change & {
+        preview: AgentSessionPurgePreview;
+    }, AgentSessionPurgePreparation>;
+    readonly purgeWaits: ActionDefinition<Change & {
+        page: {
+            limit: number;
+            cursor?: string;
+        };
+    }, AgentSessionPurgeWaitPage>;
     readonly archive: ActionDefinition<Change, AgentSessionLifecycleReceipt>;
     readonly unarchive: ActionDefinition<Change, AgentSessionLifecycleReceipt>;
     readonly purge: ActionDefinition<Change & {

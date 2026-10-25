@@ -583,10 +583,11 @@ export const DOM_EVENTS = ${JSON.stringify(events)};`,
 });
 
 test("RAC-426: a page-state owner cannot mix plugin and platform files or two plugin packages", () => {
-  const shelfFiles = 'files: ["plugins/native/shelf/src/client.ts", "plugins/native/shelf/src/terminal-client.ts", "plugins/native/shelf/src/settings-client.ts"],';
+  const shelfFiles = /(\bshelf:\s*\{\s*)files:\s*\[[^\]]*\],/;
+  const shelfFile = PAGE_STATE_OWNERS.shelf.files[0];
   assert.deepEqual(domEventProblems(tree), []);
-  for (const mixed of [["plugins/native/shelf/src/client.ts", SIDE], ["plugins/native/shelf/src/client.ts", "plugins/native/coding/src/client.ts"]]) {
-    const problems = domEventProblems(withRegistry(shelfFiles, `files: ${JSON.stringify(mixed)},`));
+  for (const mixed of [[shelfFile, SIDE], [shelfFile, PAGE_STATE_OWNERS.coding.files[0]]]) {
+    const problems = domEventProblems(withRegistry(shelfFiles, `$1files: ${JSON.stringify(mixed)},`));
     assert.ok(problems.some(problem => /owner "shelf" mixes plugin and platform files or different plugin packages; split it into separate owners/.test(problem)), problems.join("\n"));
   }
 });

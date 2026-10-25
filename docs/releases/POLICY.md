@@ -1,6 +1,6 @@
 # 版本与发布策略
 
-状态：0.3.0 发布候选。产品载体及现行 26 个内置插件清单已统一为 0.3.0，版本脚本核对每个内置清单；第 7 节保留 2026-10-08 机制选择与实现的依据。GitHub 仅准备草稿，尚未公开发布。
+状态：0.3.0 发布候选。产品载体及现行内置插件清单（以 `plugins/native/*` 与构建后的 `BUILTIN_PLUGIN_CATALOG` 为准，2026-10-25 是 24 个）已统一为 0.3.0，版本脚本核对每个内置清单；第 7 节保留 2026-10-08 机制选择与实现的依据。GitHub 仅准备草稿，尚未公开发布。
 
 Molis Work 只有一个产品版本，每次发布都带发布说明、CHANGELOG 和一份发布前检查清单（含各库版本表与真实 Home 的处理）。这份策略落实用户 2026-10-08 的决定（`specs/repository-anti-corruption/spec.md` §1「版本与发布策略」）：一个产品版本、0.3.0 发布候选；根包、桌面端、Tauri 跟同一版本，内置插件 Manifest 跟宿主版本；工作区包保持私有 0.0.0。
 
@@ -19,7 +19,7 @@ Molis Work 只有一个产品版本，每次发布都带发布说明、CHANGELOG
 | 写在代码里的一处 | `apps/local-host/src/product-version.ts` 的 `PRODUCT_VERSION`。宿主报出产品版本的每个地方都从它取，不另写一份：Feed 的 User-Agent 与它和搜索运行时交给搜索证据层的 `app.version`、MCP 客户端（`connector-mcp.ts` 的两处 `Client`）的版本、Codex 会话传输的 `clientInfo.version`（`horizontal/runtime-host` 不持有版本，宿主在 `session-runtime-resources.ts` 以 `clientVersion` 选项传入）。新增要报出产品版本的地方，导入这个常量，不在脚本里再加一条载体 | 等于产品版本 | 脚本 |
 | 发布说明与 CHANGELOG | `docs/releases/v<版本>.md`、`docs/releases/CHANGELOG.md` 里的 `[<版本>]` 一节 | 当前产品版本两者都有；CHANGELOG 第一节永远是 `[Unreleased]` | 脚本 |
 | 工作区包 | 每个 `pnpm-workspace.yaml` 列出的包 | 私有，版本固定 0.0.0；它们不单独发布，随产品一起构建 | 脚本 |
-| 内置插件 Manifest | `plugins/native/*/src/manifest.ts` 的 `version` | 等于产品版本。当前 26 个内置插件统一为 0.3.0；Runtime 对 `bundled` 插件始终跟随当前构建（第 7 节），其安装身份与私有数据保留。官方集成、示例和第三方插件不在此范围 | 脚本；构建后的 `BUILTIN_PLUGIN_CATALOG` 由 `tests/builtin-manifests-contract.test.ts` 再核对 |
+| 内置插件 Manifest | `plugins/native/*/src/manifest.ts` 的 `version` | 等于产品版本。当前内置插件（以 `plugins/native/*` 为准，不在这里写死个数）统一为 0.3.0；Runtime 对 `bundled` 插件始终跟随当前构建（第 7 节），其安装身份与私有数据保留。官方集成、示例和第三方插件不在此范围 | 脚本；构建后的 `BUILTIN_PLUGIN_CATALOG` 由 `tests/builtin-manifests-contract.test.ts` 再核对 |
 | 各库的结构版本 | 见 [CHECKLIST.md](CHECKLIST.md) 的「各库版本表」 | 每个库自己一个数字，与产品版本无关；改库就升那个库的数字 | 脚本核对表与代码一致 |
 
 不属于这份策略的版本：非内置插件（第三方、生成的）的 Manifest 版本由插件自己定；`examples/plugin-sample` 是示例插件，自己的 2.0.0 不是产品版本；`vendor/` 里的包版本跟上游。官方集成（`plugins/official-integrations/*`：GitHub、Gmail、目录连接器、RSS、Web Query、YouTube）也不属于这份策略：内置插件指 `BUILTIN_PLUGIN_CATALOG` 里的条目（`docs/system/GLOSSARY.md` 第 3.2 节），官方集成另算，它们的 Manifest 版本（写在各自的 `src/index.ts` 里，现在 1.0.0 到 1.2.0）各自独立。它们没有持久的安装记录：`OfficialIntegrationRegistry`（`apps/local-host/src/official-integrations.ts`）为每个 Feed 来源在内存里装一个 Runtime（`MemoryPluginRuntimeRepository`），装进去的只有 GitHub、Gmail 和目录连接器，RSS、Web Query、YouTube 的 Manifest 现在没有任何调用把它们装进 Runtime；所以第 7 节的两种情形不会发生在它们身上。用户 2026-10-08 的决定没有说到它们，这个归类是起草时按上面的口径定的，等用户确认；要让它们也跟产品版本，就把它们并进上表「内置插件 Manifest」一行，并让脚本核对。

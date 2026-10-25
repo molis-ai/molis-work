@@ -56,7 +56,7 @@ import { HomePluginHost } from "./home-plugins.js";
 import { homeProjectReach } from "./project-reach.js";
 import { assertFixtureScopes } from "./plugin-scope-entries.js";
 import { homePluginActions, withPreparedActions } from "./plugin-actions-client.js";
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { homePluginEntries } from "./plugin-registry.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { hostLog, logSearchIndexFailure } from "./host-log.js";
 import { withoutRefusedPlugins } from "./project-plugin-databases.js";
@@ -196,9 +196,7 @@ export class MolisWorkLocalHost {
       },
     });
     if (options.homeDirectory) this.homePlugins = new HomePluginHost({ home: options.homeDirectory, actorId: LOCAL_PERSON_ACTOR_ID,
-      registry: this.host.actionRegistry(), client: homePluginActions(this.host), entries: PLATFORM_PLUGIN_REGISTRATIONS.flatMap(entry => entry.runtime ? [{ ...entry.runtime, key: entry.project_plugin_id, manifest: entry.manifest,
-        project_data: { owner_id: entry.project_plugin_id, ...(entry.project_data ? { declaration: entry.project_data } : {}) },
-      }] : []), fixtures: options.pluginFixtures?.home, projectReach: homeProjectReach(options.homeDirectory) });
+      registry: this.host.actionRegistry(), client: homePluginActions(this.host), entries: homePluginEntries(), fixtures: options.pluginFixtures?.home, projectReach: homeProjectReach(options.homeDirectory) });
     if (this.personalPlanningHome) this.personalPlanning = new PersonalPlanningActions(this.personalPlanningHome, this.host.actionRegistry(),
       () => readPersonalPlanningMethodPacks(this.personalPlanningHome!));
     if (options.homeDirectory) {

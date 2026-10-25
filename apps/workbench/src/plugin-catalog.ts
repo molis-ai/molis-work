@@ -255,8 +255,9 @@ const PLUGIN_ENGLISH_NAMES: Readonly<Record<string, string>> = {
 /** A built-in plugin's name in the interface language. */
 export const pluginLabel = (id: string, label: string, english: boolean): string => (english && PLUGIN_ENGLISH_NAMES[id]) || label;
 
-export function pluginTabTitles(english = false): Record<string, string> {
-  const market = builtinPluginDirectory(), enabled = market.map((entry) => entry.id);
+/** The rail and island titles of a directory's plugins; the Host passes its own (`builtinMarketDirectory`), a page drawn without one uses the catalog's. */
+export function pluginTabTitles(english = false, market: PluginDirectory = builtinPluginDirectory()): Record<string, string> {
+  const enabled = market.map((entry) => entry.id);
   return Object.fromEntries([...railEntries(enabled, market), ...islandEntries(enabled, market)].map((entry) => [entry.id, pluginLabel(entry.id, entry.label, english)]));
 }
 

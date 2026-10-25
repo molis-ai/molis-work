@@ -15,7 +15,8 @@ import {
 import {
   AttentionModule,
 } from "@molis-ai/molis-work-module-attention-resumption";
-import { fromBetterSqlite, type FeedSql } from "@molis-ai/molis-work-plugin-feed/store";
+import { fromBetterSqlite, type FeedLedgerPort, type FeedSql } from "@molis-ai/molis-work-plugin-feed/store";
+import type { ContextAccess, ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { assembleFeedApplication, FEED_PLUGIN_ID, type FeedApplication, FeedOutRuleStore, type FeedApplicationPorts, type FeedArtifactProducer } from "@molis-ai/molis-work-plugin-feed";
 import { projectVersionStores, type ArtifactsSqliteDatabase } from "@molis-ai/molis-work-module-artifacts";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -40,6 +41,17 @@ export function feedSql(db: SqliteDatabase): FeedSql {
     all: (statement, ...params) => (assertProjectPluginDatabase(db, FEED_PLUGIN_ID), sql.all(statement, ...params)),
     run: (statement, ...params) => (assertProjectPluginDatabase(db, FEED_PLUGIN_ID), sql.run(statement, ...params)),
     transaction: operation => (assertProjectPluginDatabase(db, FEED_PLUGIN_ID), sql.transaction(operation)),
+  };
+}
+
+/** Feed's edges in the host's ledger: Feed is the actor and the project is the scope of every call. */
+function feedLedger(ledger: ContextLedgerApi): FeedLedgerPort {
+  const access = (projectId: string): ContextAccess => ({ actor_id: "module:feed", scope: { kind: "personal", id: projectId } });
+  return {
+    get: (projectId, key) => ledger.query.get(access(projectId), key),
+    list: (projectId, query) => ledger.query.list(access(projectId), query),
+    put: (projectId, input) => ledger.commands.put(access(projectId), input),
+    remove: (projectId, key, cause, recordedAt) => ledger.commands.remove(access(projectId), key, cause, recordedAt),
   };
 }
 
@@ -89,7 +101,7 @@ export function createLocalFeedApplication(
         if (event.type === "inbox_entry.created") inboxCreated({ project_id: event.project_id, entry_id: event.entry_id });
       },
     }),
-    ledger: createContextLedger(db, { authorize: (access) => access.scope.kind === "personal" && access.actor_id === "module:feed" }),
+    ledger: feedLedger(createContextLedger(db, { authorize: (access) => access.scope.kind === "personal" && access.actor_id === "module:feed" })),
     subscribeInboxCreated: listener => { inboxCreated = listener; },
     // A refused Feed library leaves the project without capture rules; the rest of Feed is the Modules' and goes on.
     ...projectPluginDatabaseRefusal(db, FEED_PLUGIN_ID) ? {} : { outRules: new FeedOutRuleStore(sql) },

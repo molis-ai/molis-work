@@ -13,6 +13,7 @@ import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
 import { feedItemRecord, sourceRunRecord } from "./application-projection.js";
 import type { FeedApplicationPorts } from "./application-ports.js";
 import { retireFeedSource } from "./source-history.js";
+import { FEED_PLUGIN_ID } from "./identity.js";
 import { JudgmentQueue } from "./judgment-queue.js";
 import {
   feedOutRuleMatches,
@@ -61,11 +62,11 @@ export class FeedApplication {
   }
 
   listInboxEntries(projectId: string): InboxEntryRecord[] {
-    return this.ports.attention.query.list(projectId).filter(entry => entry.owner_plugin_id === null);
+    return this.ports.attention.query.list(projectId).filter(isFeedEntry);
   }
 
   getInboxEntry(projectId: string, entryId: string): InboxEntryRecord {
-    return requireUnassignedEntry(callAttention(
+    return requireFeedEntry(callAttention(
       () => this.ports.attention.query.get(projectId, entryId),
     ));
   }
@@ -516,8 +517,16 @@ export class FeedApplication {
 }
 
 /** Until Feed/Inbox resolve subjects by owner, their shared entry reader only resolves unassigned facts. */
-function requireUnassignedEntry(entry: AttentionEntryRecord): AttentionEntryRecord {
-  if (entry.owner_plugin_id !== null) throw inboxErrors.entry_not_found("找不到这个 Inbox Entry");
+/**
+ * The entries Feed's application lists and acts on: the unassigned ones the host's Attention Module still holds, and its own once the
+ * platform's service records the owner. Another plugin's entries (a Goal's decision) are that plugin's, and Feed does not find them.
+ */
+function isFeedEntry(entry: AttentionEntryRecord): boolean {
+  return entry.owner_plugin_id === null || entry.owner_plugin_id === FEED_PLUGIN_ID;
+}
+
+function requireFeedEntry(entry: AttentionEntryRecord): AttentionEntryRecord {
+  if (!isFeedEntry(entry)) throw inboxErrors.entry_not_found("找不到这个 Inbox Entry");
   return entry;
 }
 

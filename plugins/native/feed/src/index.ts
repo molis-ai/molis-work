@@ -41,6 +41,7 @@ export * from "./projection.js";
 
 export { FeedApplication } from "./application.js";
 export { assembleFeedApplication, type FeedAssemblyPorts, type FeedSubjects } from "./application-assembly.js";
+export { createFeedRuntimePorts, type FeedRuntimePorts, type FeedRuntimeServices } from "./runtime-ports.js";
 export type { FeedApplicationPorts } from "./application-ports.js";
 export { receiptContentRefs, FEED_RECEIPT_CONTENT_REFS, type FeedSourceHistory, type FeedSourceHistoryHolding, type FeedSourceHistoryRelease } from "./source-history.js";
 export * from "./application-errors.js";

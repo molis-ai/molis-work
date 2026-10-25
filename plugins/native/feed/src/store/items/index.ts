@@ -12,7 +12,7 @@ import { text, type Row } from "./rows.js";
 import type { FeedSql } from "../sql.js";
 import type { FeedAttentionPort, FeedModuleOptions } from "./types.js";
 
-export type { FeedAttentionPort, FeedJournalEvent, FeedModuleOptions } from "./types.js";
+export type { FeedAttentionPort, FeedJournalEvent, FeedLedgerPort, FeedModuleOptions } from "./types.js";
 export { FEED_ITEMS_SCHEMA_SQL } from "./schema.js";
 
 /** The evidence bodies the Feed materials in this database point at (`content_ref`), each once. */

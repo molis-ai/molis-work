@@ -121,7 +121,7 @@ test("RAC-25 RAC-27 materials from another installation or an expired action can
 });
 
 /**
- * The plugin's own call to one of its own actions keeps the audience of the call it is part of (S-69, PG-028), so a model download the
+ * The plugin's own call to one of its own actions keeps the audience of the call it is part of (S-73, PG-028), so a model download the
  * person alone may allow cannot be had by an Agent, an MCP client, a workflow or another plugin through the plugin's own code. The outer
  * action here is the probe's `source`; the inner one, reached through `services.actions.invoke`, is its `read`, which asks for the download.
  */
@@ -146,13 +146,13 @@ async function selfCallDownloads(t: Parameters<typeof serveHomeRuntime>[0], call
 }
 
 for (const audience of ["agent", "mcp", "workflow", "user"] as const) {
-  test(`S-39 RAC-587 S-69 a model download requested in the plugin's call to its own action is allowed only when the outer call is the person's (${audience})`, async t => {
+  test(`S-39 RAC-587 S-73 a model download requested in the plugin's call to its own action is allowed only when the outer call is the person's (${audience})`, async t => {
     const seen = await selfCallDownloads(t, (host, probe) => host.homeActionClient().invoke({ ...person(probe.permissions), audience }, probe.source, {}));
     assert.deepEqual(seen, audience === "user" ? [true, true] : [false, false]);
   });
 }
 
-test("S-39 RAC-588 S-69 a model download requested in the plugin's call to its own action is never allowed when the outer call is another plugin's (plugin)", async t => {
+test("S-39 RAC-588 S-73 a model download requested in the plugin's call to its own action is never allowed when the outer call is another plugin's (plugin)", async t => {
   const seen = await selfCallDownloads(t, async (host, probe, plugin) => host.homeActionClient().invoke(await callingPlugin(host, probe.permissions, plugin), probe.source, {}));
   assert.deepEqual(seen, [false, false]);
 });

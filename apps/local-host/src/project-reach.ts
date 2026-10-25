@@ -6,7 +6,7 @@ import { pluginCatalogFor } from "./home-side.js";
 import { pluginReachable, projectReachablePlugins } from "./project-action-availability.js";
 
 /**
- * The projects the person may reach through a Home-level plugin (PG-014, S-70): the projects in the catalog right now, excluding those
+ * The projects the person may reach through a Home-level plugin (PG-014, S-74): the projects in the catalog right now, excluding those
  * the Host is closing, in which the plugin is shown, with the one judgement actions and routes read (`projectReachablePlugins`, so a
  * project that hides the plugin is not in it). Read on every call, never kept. Only the local person gets one; the plugin runtime has
  * already checked the rest (the action declares `project_reach`, the installation holds `projects:reach`, the audience is `user`).

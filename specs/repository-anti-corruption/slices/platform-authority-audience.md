@@ -93,13 +93,13 @@
 1. **PPT 依赖 Pages**：PPT 的 Manifest `consumes` 了 `pages.content.read`、`pages.content.list`。隐藏 Pages 之后，那个项目里 PPT 读 Pages 会得到 `plugin_disabled`。建议：照 `privileges.md` 的字句，隐藏就拒；依赖的显示由 PPT 的页面解释（和项目级插件被关一样）。要保住的话，另选「被显示的插件 `consumes` 的个人插件也算可用」，那会多一条规则和一类测试，建议不做。
 2. **无外层的自调用（§2.2）改成 `plugin` 受众**：仓库里自调用都是带 control 的路由或动作里的嵌套，没有发现 `start`/定时器里的（开工前再扫一遍，见 §7）。发现有就按那处的需要处理，不为它保留 `user`。
 3. **`project_reach` 的名字与 Manifest 位置**：建议写在动作上、只许 Home 级动作用；备选是写在插件权限里（`projects:reach`）让安装确认直接问。前者简单，后者对第三方更明白。信任边界（安装确认的展示）归统筹定。
-4. **S 号**：三行暂定 S-68、S-69、S-70（§6），落地时按顺序定。
+4. **S 号**：三行暂定 S-72、S-73、S-74（§6），落地时按顺序定。
 
 ## 6. SECURITY-INVARIANTS（暂定）
 
-- S-68（PG-013）：个人插件在项目里隐藏后，动作（目录、MCP、Agent、工作流）和路由都拒，返回 `actions.plugin_disabled`；常开插件不能隐藏；无项目、项目不存在没有隐藏可言。测试：RAC-580～583。
-- S-69（PG-028）：插件调自己的动作沿用外层受众，`plugin` 外层不被洗成 `user`，没有外层的自调用是 `plugin`；`allowModelDownload`、原始文件认领、`directory` 都据此。测试：RAC-584～588。
-- S-70（PG-014）：跨项目读取范围只来自 Host 填的 `readable_project_ids`，只给本人、只给声明了 `project_reach` 的 Home 级动作，清单里没有隐藏了该插件和不存在的项目；插件不判断受众。测试：RAC-589～593。
+- S-72（PG-013）：个人插件在项目里隐藏后，动作（目录、MCP、Agent、工作流）和路由都拒，返回 `actions.plugin_disabled`；常开插件不能隐藏；无项目、项目不存在没有隐藏可言。测试：RAC-580～583。
+- S-73（PG-028）：插件调自己的动作沿用外层受众，`plugin` 外层不被洗成 `user`，没有外层的自调用是 `plugin`；`allowModelDownload`、原始文件认领、`directory` 都据此。测试：RAC-584～588。
+- S-74（PG-014）：跨项目读取范围只来自 Host 填的 `readable_project_ids`，只给本人、只给声明了 `project_reach` 的 Home 级动作，清单里没有隐藏了该插件和不存在的项目；插件不判断受众。测试：RAC-589～593。
 
 ## 7. 开工前再核
 
@@ -119,7 +119,7 @@
 1. PPT 依赖 Pages：隐藏了就拒，不加「被依赖就可用」的规则。
 2. 没有外层的自调用改成 `plugin` 受众；§7 第 1 条的扫描结果写进 PR。
 3. `project_reach` 要权限和动作声明两样都有（§2.3 已按此改），内置 Todo 同样。
-4. S 号暂定 S-68～70 可以，落地时统筹按顺序定。
+4. S 号暂定 S-72～70 可以，落地时统筹按顺序定。
 5. 「常开插件始终显示」：ac-trust T3（PR #1259）把常开改成从同意账本算（`ProjectPluginRegistry.alwaysOn()`，可撤回）。PG-013 的判断只读目录的列表（`listProjectPlugins`，已含常开的），不再有自己的常开特判；T3 进 batch-36 后，RAC-580 的常开断言改成经目录（统筹 2026-10-24 定）。
 6. `ui.embedded_plugins` 的闭包保留，但隐藏是终局：被隐藏的个人插件，嵌入那条路也不放（可用性分不出是不是经嵌入来的；统筹 2026-10-25 按代码的严口径定，RAC-580 已加断言）。
 7. `readable_project_ids` 每次调用现算；正在删除的项目不进清单；沙箱插件的执行上下文能带这个字段（数组），写一条沙箱路径的断言，或写明 PG-017 之后再补并开 BL。结果：沙箱 worker 没有调用上下文，声明了 `project_reach` 的沙箱插件默认拿不到清单（关着）；后续怎么给记在 BL-625。

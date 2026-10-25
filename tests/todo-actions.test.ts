@@ -29,7 +29,7 @@ function fixture(t: { after(fn: () => void): void }, now = () => new Date("2026-
   service.registerProvider({ provider: { provider_id: todoManifest.plugin_id, plugin_id: todoManifest.plugin_id, title: "待办", kind: "plugin" },
     definitions: [...todoManifest.actions!], handlers: createTodoActionHandlers({ ...ownTodoStores(run => run(store)), today: () => TODAY, now }) });
   t.after(() => { store.close(); rmSync(home, { recursive: true, force: true }); });
-  // The Host gives the person's own calls the list of projects they may reach (PG-014, S-70); an Agent's calls never have one. The plugin
+  // The Host gives the person's own calls the list of projects they may reach (PG-014, S-74); an Agent's calls never have one. The plugin
   // reads that list and nothing else, so what an audience may reach is the Host's to say (tests/security-invariants-project-reach.test.ts).
   const as = (project_id: string | null, audience: ActionCallContext["audience"] = "user") =>
     bindActionClient(service, () => ({ actor_id: audience === "user" ? "web-user" : "assistant", project_id, audience, permissions: TODO_ACTION_PERMISSIONS,
@@ -74,7 +74,7 @@ test("scope: personal and unplaced todos everywhere, a project's todos only in t
   assert.equal(edited.item.project_id, "project-b");
 });
 
-test("RAC-591 S-70 what a caller may reach is the Host's list alone: the same call is refused without one and the plugin compares no audience to decide it", async t => {
+test("RAC-591 S-74 what a caller may reach is the Host's list alone: the same call is refused without one and the plugin compares no audience to decide it", async t => {
   const f = fixture(t);
   const inB = (await f.inB.invoke(actions.create, { title: "B 项目的事", placement: "project" })).item;
   // The person's call, with the list the Host gives it, reaches another project's todo; the same call without a list does not, whoever makes it.

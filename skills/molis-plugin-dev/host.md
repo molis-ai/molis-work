@@ -273,9 +273,9 @@ HTML 解析也通过既有 Host worker 生命周期执行，不能让主线程�
 
 ### 跨项目读取：`project_reach`
 
-Home 级插件要在本人自己的页面里看到各个项目的内容（Todo 的“所有项目”），在动作上写 `project_reach: "person"`（只能写在 `scope: "home"` 的动作上），Manifest 声明可选权限 `projects:reach`（没声明就拒；用户确认时可以不给，不给时只处理当前项目）。宿主只在本机用户本人的调用里，把此刻在目录里、显示本插件的项目 id 放进 `caller.readable_project_ids`，每次调用现算；Agent、MCP、工作流和别的插件的调用没有这个字段，隐藏了本插件的项目和已删的项目不在清单里。插件只读这个字段，不自己比较 `audience`，也不把输入里的项目 id 当范围（宿主会剥掉调用方带来的同名字段，SECURITY-INVARIANTS S-70）。
+Home 级插件要在本人自己的页面里看到各个项目的内容（Todo 的“所有项目”），在动作上写 `project_reach: "person"`（只能写在 `scope: "home"` 的动作上），Manifest 声明可选权限 `projects:reach`（没声明就拒；用户确认时可以不给，不给时只处理当前项目）。宿主只在本机用户本人的调用里，把此刻在目录里、显示本插件的项目 id 放进 `caller.readable_project_ids`，每次调用现算；Agent、MCP、工作流和别的插件的调用没有这个字段，隐藏了本插件的项目和已删的项目不在清单里。插件只读这个字段，不自己比较 `audience`，也不把输入里的项目 id 当范围（宿主会剥掉调用方带来的同名字段，SECURITY-INVARIANTS S-74）。
 
-插件调自己的动作（`services.actions.invoke`）沿用外层调用的受众（S-69）：Agent 的调用经过插件的代码不会变成本人的；`start` 和定时器里没有外层调用，自调用按 `plugin` 受众，目标动作的 `audiences` 不放行 `plugin` 的就被拒。
+插件调自己的动作（`services.actions.invoke`）沿用外层调用的受众（S-73）：Agent 的调用经过插件的代码不会变成本人的；`start` 和定时器里没有外层调用，自调用按 `plugin` 受众，目标动作的 `audiences` 不放行 `plugin` 的就被拒。
 
 ### 用本人的服务账号发请求
 

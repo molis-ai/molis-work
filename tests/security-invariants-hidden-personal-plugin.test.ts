@@ -8,7 +8,7 @@ import { todoActions } from "@molis-ai/molis-work-plugin-todo";
 import { openTestHome, type TestHome, type TestProject } from "./fixtures/test-home.js";
 
 /**
- * S-68 (PG-013): a personal plugin the person hid from a project is out of reach there, for the action directory, MCP, the Agent and the
+ * S-72 (PG-013): a personal plugin the person hid from a project is out of reach there, for the action directory, MCP, the Agent and the
  * workflow engine alike (they all ask `projectActionAvailability`) and for the plugin's routes under the project's path. The one list they
  * share is `projectReachablePlugins`; every test here asserts a refusal, and that the owner's handler never ran.
  */
@@ -41,7 +41,7 @@ async function toolNames(mcp: LocalMcpServer): Promise<string[]> {
 const todoListTool = `molis_work_v1_action_${todoActions.list.capability_id}__v1`;
 const callsOf = (home: TestHome, capabilityId: string) => home.host.callLog!.recent(200).filter(row => row.capability_id === capabilityId);
 
-test("RAC-580 S-68 a personal plugin the project hides is not reached through a plugin that embeds it; an embed brings in only what is not hidden", () => {
+test("RAC-580 S-72 a personal plugin the project hides is not reached through a plugin that embeds it; an embed brings in only what is not hidden", () => {
   const goals = entry("goals"), todo = entry("todo");
   const embedding = { ...goals, project_plugin_id: "embedding", manifest: { ...goals.manifest, plugin_id: "io.example.embedding",
     ui: { ...goals.manifest.ui, embedded_plugins: [todo.manifest.plugin_id] } } };
@@ -55,7 +55,7 @@ test("RAC-580 S-68 a personal plugin the project hides is not reached through a 
   assert.deepEqual([...availableProjectPluginIds(["embedding"], [embeddedProjectPlugin, goals])].sort(), ["embedding", "goals"]);
 });
 
-test("RAC-580 S-68 an always-on plugin stays in reach because the project's catalog never lists it as hidden (the Home's agreement); the reach list holds no name of it", async t => {
+test("RAC-580 S-72 an always-on plugin stays in reach because the project's catalog never lists it as hidden (the Home's agreement); the reach list holds no name of it", async t => {
   const home = await openTestHome(t, { catalogPolicy: false });
   const project = await home.createProject("Always on", ["goals"]);
   await hide(home, project, "pages");
@@ -68,7 +68,7 @@ test("RAC-580 S-68 an always-on plugin stays in reach because the project's cata
   assert.equal((await availability(callerIn(project.project_id), view("pages"))).available, false);
 });
 
-test("RAC-580 S-68 the availability both the action directory and discovery use refuses a hidden personal plugin, only in the project that hid it", async t => {
+test("RAC-580 S-72 the availability both the action directory and discovery use refuses a hidden personal plugin, only in the project that hid it", async t => {
   const home = await openTestHome(t, { catalogPolicy: false });
   const hiding = await home.createProject("Hides Pages", ["goals"]), showing = await home.createProject("Shows Pages", ["goals"]);
   await hide(home, hiding, "pages");
@@ -93,7 +93,7 @@ test("RAC-580 S-68 the availability both the action directory and discovery use 
   }
 });
 
-test("RAC-581 S-68 the project's MCP lists no tool of a hidden personal plugin, and calling it is refused before the owner's handler runs", { timeout: 60_000 }, async t => {
+test("RAC-581 S-72 the project's MCP lists no tool of a hidden personal plugin, and calling it is refused before the owner's handler runs", { timeout: 60_000 }, async t => {
   const home = await openTestHome(t), project = await home.createProject("Hides Todo");
   await home.grant(clientId, null, [todoActions.list]);
   const mcp = mcpFor(home, project); t.after(() => mcp.close());
@@ -110,7 +110,7 @@ test("RAC-581 S-68 the project's MCP lists no tool of a hidden personal plugin, 
   assert.equal(callsOf(home, todoActions.list.capability_id).filter(row => row.ok).length, 0);
 });
 
-test("RAC-582 S-68 and RAC-583 the hidden plugin's routes under the project refuse at once and work again as soon as it is shown; the Home path is not touched", { timeout: 60_000 }, async t => {
+test("RAC-582 S-72 and RAC-583 the hidden plugin's routes under the project refuse at once and work again as soon as it is shown; the Home path is not touched", { timeout: 60_000 }, async t => {
   const home = await openTestHome(t), hiding = await home.createProject("Hides Todo"), showing = await home.createProject("Shows Todo");
   const homePath = "/api/plugins/io.molis.work.todo/items";
   await home.web.get(todoItems(hiding));
@@ -132,7 +132,7 @@ test("RAC-582 S-68 and RAC-583 the hidden plugin's routes under the project refu
   assert.equal(listed.counts.all, 1, "the owner's facts were never touched while it was hidden");
 });
 
-test("RAC-582 S-68 a project-level personal plugin's routes (Form) are refused in the project that hid it, from the same list the actions read, and work in one that did not", { timeout: 60_000 }, async t => {
+test("RAC-582 S-72 a project-level personal plugin's routes (Form) are refused in the project that hid it, from the same list the actions read, and work in one that did not", { timeout: 60_000 }, async t => {
   const home = await openTestHome(t), hiding = await home.createProject("Hides Form"), showing = await home.createProject("Shows Form");
   await home.web.get(formList(hiding));
   await hide(home, hiding, "form");

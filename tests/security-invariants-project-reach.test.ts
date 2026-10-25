@@ -9,7 +9,7 @@ import { callAs, callerPlugin, issuedCaller, registerProbe } from "./fixtures/pl
 import { openTestHome, type TestHome, type TestProject } from "./fixtures/test-home.js";
 
 /**
- * S-70 (PG-014): the projects a Home-level action may read across come from the Host alone. The Host puts `readable_project_ids` in the
+ * S-74 (PG-014): the projects a Home-level action may read across come from the Host alone. The Host puts `readable_project_ids` in the
  * context of an action that declares `project_reach: "person"`, for the local person's own call, to an installation that holds
  * `projects:reach`; it is the projects in the catalog right now in which the plugin is shown, worked out again at every call. A plugin
  * never decides it from the audience, and nothing it is given (input, a forged context, another call's) widens it.
@@ -71,7 +71,7 @@ function closingBarrier() {
     } };
 }
 
-test("RAC-590-CLOSE-01 S-70 a closing project with its catalog row still present is excluded by a real Home action; unopened and newly created projects remain readable", { timeout: 60_000 }, async t => {
+test("RAC-590-CLOSE-01 S-74 a closing project with its catalog row still present is excluded by a real Home action; unopened and newly created projects remain readable", { timeout: 60_000 }, async t => {
   const barrier = closingBarrier();
   let deleting: Promise<unknown> | undefined;
   t.after(async () => { barrier.release(); await deleting; });
@@ -108,7 +108,7 @@ test("RAC-590-CLOSE-01 S-70 a closing project with its catalog row still present
   assert.equal(existsSync(closing.database_path), false);
 });
 
-test("RAC-590-CLOSE-02 S-70 Todo all-projects reads exclude closing projects while live hidden state still changes on each call", { timeout: 60_000 }, async t => {
+test("RAC-590-CLOSE-02 S-74 Todo all-projects reads exclude closing projects while live hidden state still changes on each call", { timeout: 60_000 }, async t => {
   const barrier = closingBarrier();
   let deleting: Promise<unknown> | undefined;
   t.after(async () => { barrier.release(); await deleting; });
@@ -137,7 +137,7 @@ test("RAC-590-CLOSE-02 S-70 Todo all-projects reads exclude closing projects whi
   assert.deepEqual(await titles(), ["Readable item", "Visibility item"]);
 });
 
-test("RAC-590 S-70 the person's call to an action that declares project_reach gets the projects in the catalog now, worked out again at every call", async t => {
+test("RAC-590 S-74 the person's call to an action that declares project_reach gets the projects in the catalog now, worked out again at every call", async t => {
   const probe = reachProbe(), s = await setup(t, probe);
   await s.grant(true);
   const a = await s.home.createProject("A"), b = await s.home.createProject("B");
@@ -156,7 +156,7 @@ test("RAC-590 S-70 the person's call to an action that declares project_reach ge
   assert.equal((await s.call(probe.actions.plain, caller)).readable, null);
 });
 
-test("RAC-590 S-70 the Agent, MCP, workflow and plugin audiences get no list from the same action", async t => {
+test("RAC-590 S-74 the Agent, MCP, workflow and plugin audiences get no list from the same action", async t => {
   const caller = callerPlugin("reachcaller", "home", { [PROJECT_REACH_PERMISSION]: false }), probe = reachProbe();
   const s = await setup(t, probe, [caller.definition]);
   await s.grant(true);
@@ -172,7 +172,7 @@ test("RAC-590 S-70 the Agent, MCP, workflow and plugin audiences get no list fro
   assert.equal((await s.call(probe.actions.list, s.as("user", { actor_id: "someone-else" }))).readable, null);
 });
 
-test("RAC-590 S-70 an installation that holds no projects:reach gets no list, and loses it as soon as the grant is withdrawn", async t => {
+test("RAC-590 S-74 an installation that holds no projects:reach gets no list, and loses it as soon as the grant is withdrawn", async t => {
   const probe = reachProbe(), s = await setup(t, probe);
   await s.home.createProject("A");
   assert.equal((await s.call(probe.actions.list, s.as("user"))).readable, null, "declared in the Manifest, never granted");
@@ -182,7 +182,7 @@ test("RAC-590 S-70 an installation that holds no projects:reach gets no list, an
   assert.equal((await s.call(probe.actions.list, s.as("user"))).readable, null, "withdrawn");
 });
 
-test("RAC-593 S-70 nothing a plugin is handed widens the list: a forged field in the call, or in the input, is not the Host's", async t => {
+test("RAC-593 S-74 nothing a plugin is handed widens the list: a forged field in the call, or in the input, is not the Host's", async t => {
   const probe = reachProbe(), s = await setup(t, probe);
   await s.grant(true);
   const a = await s.home.createProject("A");
@@ -196,7 +196,7 @@ test("RAC-593 S-70 nothing a plugin is handed widens the list: a forged field in
   assert.equal(withInput, null);
 });
 
-test("RAC-593 S-70 the plugin's call to its own action carries the outer call's list: the person's has it, an Agent's does not", async t => {
+test("RAC-593 S-74 the plugin's call to its own action carries the outer call's list: the person's has it, an Agent's does not", async t => {
   const probe = reachProbe(), s = await setup(t, probe);
   await s.grant(true);
   const a = await s.home.createProject("A");
@@ -206,7 +206,7 @@ test("RAC-593 S-70 the plugin's call to its own action carries the outer call's 
   for (const audience of ["agent", "mcp", "workflow"] as const) assert.equal((await s.call(probe.actions.outer, s.as(audience, { actor_id: LOCAL_PERSON_ACTOR_ID }))).readable, null, audience);
 });
 
-test("RAC-590 RAC-592 S-70 a project that hides Todo is not in the list: its todos are not in the person's all-projects view and are not found by id, until it shows Todo again", { timeout: 60_000 }, async t => {
+test("RAC-590 RAC-592 S-74 a project that hides Todo is not in the list: its todos are not in the person's all-projects view and are not found by id, until it shows Todo again", { timeout: 60_000 }, async t => {
   const home = await openTestHome(t), a = await home.createProject("Reads"), b = await home.createProject("Hides Todo");
   const items = (project: TestProject) => `/projects/${encodeURIComponent(project.project_id)}/api/plugins/io.molis.work.todo/items`;
   type Listed = { items: Array<{ id: string; title: string; revision: number }> };

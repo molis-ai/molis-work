@@ -275,7 +275,7 @@ test("embedded plugin dependencies are explicit v2 IDs, not implicit grants or s
   }
 });
 
-test("RAC-589 S-70 project_reach is declared on Home-scoped actions only, and only together with the projects:reach permission", () => {
+test("RAC-589 S-74 project_reach is declared on Home-scoped actions only, and only together with the projects:reach permission", () => {
   const fresh = (): Record<string, unknown> => JSON.parse(JSON.stringify(todoManifest));
   const actionsOf = (manifest: Record<string, unknown>) => manifest.actions as Array<{ capability_id: string; action: Record<string, unknown> }>;
   const refused = (mutate: (manifest: Record<string, unknown>) => void, needle: string) => assert.throws(() => { const manifest = fresh(); mutate(manifest); parsePluginManifest(manifest); },

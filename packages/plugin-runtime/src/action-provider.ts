@@ -44,7 +44,7 @@ export function pluginActionProvider(manifest: PluginManifest, contribution: Plu
           return runInPluginAction({ install_id: installId, installation_generation, definition, caller: context, checked, begun },
             () => h.handle(before ? { ...view, beforeEffect: pluginActionBeforeEffect(before, checked) } : view, input));
         };
-        // The list is the Host's, read now, for the person only, and only for an action that declares it and an installation that holds the grant (S-70).
+        // The list is the Host's, read now, for the person only, and only for an action that declares it and an installation that holds the grant (S-74).
         const reaches = projectReach && definition.action.project_reach === "person" && context.audience === "user"
           && state.record()?.grants.includes(PROJECT_REACH_PERMISSION) === true;
         return reaches ? projectReach(manifest, context).then(run) : run();

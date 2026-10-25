@@ -47,7 +47,7 @@ function todoHost(t: { after(fn: () => void): void }) {
   t.after(() => { store.close(); rmSync(home, { recursive: true, force: true }); });
   const caller = (audience: ActionCallContext["audience"], project_id: string | null = null): ActionCallContext =>
     ({ actor_id: audience === "user" ? "web-user" : "mcp-client", project_id, audience, permissions: TODO_ACTION_PERMISSIONS,
-      // The Host gives the person's own calls the list of projects they may reach (S-70); an Agent's or MCP client's never have one.
+      // The Host gives the person's own calls the list of projects they may reach (S-74); an Agent's or MCP client's never have one.
       ...(audience === "user" ? { readable_project_ids: ["q4"] } : {}) });
   return { service, store, caller, person: bindActionClient(service, () => caller("user")) };
 }

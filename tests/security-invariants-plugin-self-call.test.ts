@@ -5,7 +5,7 @@ import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-
 import { openTestHome } from "./fixtures/test-home.js";
 
 /**
- * S-69 (PG-028): a plugin's call to one of its own actions (`services.actions.invoke`) is made in the audience of the call it is part
+ * S-73 (PG-028): a plugin's call to one of its own actions (`services.actions.invoke`) is made in the audience of the call it is part
  * of, so an Agent's, an MCP client's, a workflow's or another plugin's call does not become the person's by passing through the plugin's
  * own code. Without an outer call it is the installation's own (`plugin`) unless it runs in a route the person's page opened. Every test
  * asserts a refusal or a refused audience: the handler the call would have reached never runs.
@@ -71,7 +71,7 @@ async function setup(t: TestContext, probes: readonly Probe[], delegating: reado
 }
 
 for (const audience of ["user", "agent", "mcp", "workflow"] as const) {
-  test(`RAC-584 S-69 the plugin's call to its own action keeps the audience of the call it is part of (${audience})`, async t => {
+  test(`RAC-584 S-73 the plugin's call to its own action keeps the audience of the call it is part of (${audience})`, async t => {
     const probe = selfCallProbe("keeps");
     const s = await setup(t, [probe]);
     probe.behavior.outer = (context, caller) => context.services!.actions!.invoke(probe.actions.inner, {}, caller) as Promise<unknown>;
@@ -84,7 +84,7 @@ for (const audience of ["user", "agent", "mcp", "workflow"] as const) {
   });
 }
 
-test("RAC-584 S-69 an Agent's, an MCP client's or a workflow's call cannot reach, through the plugin's own code, an action offered to the person alone", async t => {
+test("RAC-584 S-73 an Agent's, an MCP client's or a workflow's call cannot reach, through the plugin's own code, an action offered to the person alone", async t => {
   const probe = selfCallProbe("userlock");
   const s = await setup(t, [probe]);
   probe.behavior.outer = (context, caller) => context.services!.actions!.invoke(probe.actions.userOnly, {}, caller) as Promise<unknown>;
@@ -97,7 +97,7 @@ test("RAC-584 S-69 an Agent's, an MCP client's or a workflow's call cannot reach
   assert.equal(probe.ran(probe.actions.userOnly), 1);
 });
 
-test("RAC-585 S-69 a call another plugin made (plugin audience) stays plugin through the callee's own action, which then cannot use the action directory", async t => {
+test("RAC-585 S-73 a call another plugin made (plugin audience) stays plugin through the callee's own action, which then cannot use the action directory", async t => {
   const callee = selfCallProbe("callee", { delegate: true }), caller = selfCallProbe("calleruser", { consumes: ["callee.outer"] });
   const s = await setup(t, [callee, caller], [callee]);
   callee.behavior.outer = (context, execution) => context.services!.actions!.invoke(callee.actions.inner, {}, execution) as Promise<unknown>;
@@ -113,7 +113,7 @@ test("RAC-585 S-69 a call another plugin made (plugin audience) stays plugin thr
   assert.deepEqual(s.targetRan, [OPEN.capability_id]);
 });
 
-test("RAC-586 S-69 a call made in a timer set up in start is the installation's own (plugin), and an action only the person is offered is refused without running", async t => {
+test("RAC-586 S-73 a call made in a timer set up in start is the installation's own (plugin), and an action only the person is offered is refused without running", async t => {
   const settled: Array<{ call: string; outcome: "done" | string }> = [];
   const timer = Promise.withResolvers<void>();
   const probe = selfCallProbe("startup", { atStart: (context, self) => {

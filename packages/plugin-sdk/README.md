@@ -64,7 +64,7 @@ Manifest、定义与 Runtime 拒绝共用 `ActionError`；作者捕获 SDK 导�
 
 - SDK 不带词。每个标签（两侧的标题、各条提示、行号上的评论按钮、行首符号的读屏文字、展开折叠的那一行）用调用方自己词表里的哪个键，由 `labels`（`DiffViewLabels`）给：`before`、`after` 填 `{path}`、`{version}`，`pinned` 填 `{workspace}`，两个评论标签填 `{number}`，`reveal` 填 `{count}`。头部的三个只在画头部时需要（`sides` 不为 false），不给就不画头部。
 - 转义、文字和图标都由调用方传进 `primitives`（`escape`、`text`、`icon`），SDK 自己不转义、不翻译、不画图标。插件一般传 SDK `/ui` 的 `escapeHtml`、`icon`，`text` 用 `diffViewText(messages, locale, templates)` 从自己的词表里取：带值的句子（包括 `parseUnifiedDiff` 拒绝时的三句）把键列进 `templates`，视图里写成中文的这类句子会先认出是哪一句，再按页面语言带着同样的值说出来。插件有自己的翻译函数时作为第四个参数 `say` 传入。词表照常在插件自己的 `messages` 里登记（翻译门禁要求每个键归它的主人）。
-- 这个子路径只加载 SDK 自己的文件和合同包，不需要任何第三方包；页面上的行号评论（`data-coding-line-side`、`data-coding-line`）、折叠（`data-diff-unfold`、`data-diff-folded`）与切换文件（`data-action="diff.show-file"`）这些属性的名字是合同的一部分，工作台的页面脚本按它们找元素。
+- 这个子路径只加载 SDK 自己的文件和合同包，不需要任何第三方包；页面上的行号评论（`data-diff-line-side`、`data-diff-line`）、折叠（`data-diff-unfold`、`data-diff-folded`）与切换文件（`data-action="diff.show-file"`）这些属性的名字是合同的一部分，工作台的页面脚本按它们找元素。
 - 改动来自哪里、怎样合并多次写入（例如 Coding 的净改动）是插件自己的事，SDK 只比较和画。`tests/plugin-sdk-subpaths.test.ts` 的 PG062-08 核对只加载合同包，PG062-10 核对仓库里只有这一份比较和画法。
 
 ## 界面部件子路径 `/ui`、`/browser`、`/page-globals`

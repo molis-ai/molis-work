@@ -56,7 +56,7 @@ function renderPolicyForm(
         <div class="policy-toggle-list">${renderPolicyToggle("human_approval", policy.human_approval, "用户最终确认", "完成前必须由用户确认工作结果")}</div>
       </section>
       <p class="form-error" data-policy-error role="alert" hidden></p>
-      <p class="settings-footnote">${L("旧规则会标记为已替换，历史仍保留。")}</p><footer class="form-actions mw-form__footer"><button class="mw-btn mw-btn--secondary" type="reset" data-policy-cancel>${L("取消")}</button><button class="mw-btn mw-btn--primary mw-btn--lg" type="submit">${L("保存")}${scopeLabel}</button></footer>
+      <p class="settings-footnote">${L("旧规则会标记为已替换，历史仍保留。")}</p><footer class="mw-actions mw-form__footer"><button class="mw-btn mw-btn--secondary" type="reset" data-policy-cancel>${L("取消")}</button><button class="mw-btn mw-btn--primary mw-btn--lg" type="submit">${L("保存")}${scopeLabel}</button></footer>
     </form>
   </details>`;
 }
@@ -94,7 +94,7 @@ function renderPolicyEditor(
         <section class="settings-section"><h2>${L("完成要求")}</h2>
           ${toggle("human_approval", projectPolicy.human_approval, "用户最终确认", "完成前必须由用户确认工作结果")}
         </section>
-        <p class="form-error" data-policy-error role="alert" hidden></p><footer class="settings-save-footer form-actions mw-form__footer"><button class="mw-btn mw-btn--secondary" type="reset" data-policy-cancel>${L("取消")}</button><button class="mw-btn mw-btn--primary" type="submit">${L("保存项目默认规则")}</button></footer>
+        <p class="form-error" data-policy-error role="alert" hidden></p><footer class="settings-save-footer mw-actions mw-form__footer"><button class="mw-btn mw-btn--secondary" type="reset" data-policy-cancel>${L("取消")}</button><button class="mw-btn mw-btn--primary" type="submit">${L("保存项目默认规则")}</button></footer>
       </form></div>
     </section>`;
   }

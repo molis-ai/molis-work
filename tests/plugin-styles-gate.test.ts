@@ -338,7 +338,7 @@ test("RAC-769 this repository's own build freezes the shell-drawn rules and the 
   const reported = run(repoRoot, "--report", "--json");
   assert.equal(reported.code, 0, reported.out);
   const report = JSON.parse(reported.out) as { measured: Record<string, number>; budget: Record<string, number>; budgetPrefixes: Record<string, string[]> };
-  assert.deepEqual(Object.keys(report.measured).sort(), ["coding", "feed", "form", "goals", "plugin-builder"],
+  assert.deepEqual(Object.keys(report.measured).sort(), ["coding", "feed", "goals", "plugin-builder"],
     "framed plugins keep only what their registration declares shared; the shell-drawn ones keep a frozen number");
   assert.deepEqual(report.budgetPrefixes?.["plugin-builder"], ["as-", "pb-"], "the studio prefixes are remembered so they cannot be dropped");
   for (const [id, rules] of Object.entries(report.measured)) assert.equal(report.budget[id], rules, `${id} is frozen at what this build measures`);

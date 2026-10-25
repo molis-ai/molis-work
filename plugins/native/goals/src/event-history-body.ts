@@ -157,7 +157,7 @@ function renderJournal(event: GoalsDecisionEvent, L: GoalsDocumentUiPrimitives["
     return `<article class="event event-relation"><header><span class="history-state" data-tone="${relation.removed ? "muted" : "positive"}">${relation.removed ? "−" : "+"} ${status}</span><h2>${L("Goal 关系变更")}</h2></header>
       <p class="event-meta">${escapeHtml(event.actor_id)} · ${escapeHtml(formatEventTime(event.at))}</p>
       <div class="history-relation-flow"><button type="button" data-select-goal="${escapeHtml(relation.from_id)}">${escapeHtml(relation.from_title)}</button><span class="history-relation-link">${escapeHtml(L(relation.label))}<span aria-hidden="true">↓</span></span><button type="button" data-select-goal="${escapeHtml(relation.to_id)}">${escapeHtml(relation.to_title)}</button></div>
-      ${relation.type === "depends_on" ? `<p class="form-note">${L("上方 Goal 收尾前，需要下方 Goal 先完成。")}</p>` : ""}
+      ${relation.type === "depends_on" ? `<p class="mw-note">${L("上方 Goal 收尾前，需要下方 Goal 先完成。")}</p>` : ""}
       <h3>${L("变更原因")}</h3><p>${escapeHtml(event.reason || L("未补充原因"))}</p>
       <details class="form-disclosure"><summary>${L("查看原始记录标识")}</summary><code>${escapeHtml(event.object_id)}</code></details></article>`;
   }

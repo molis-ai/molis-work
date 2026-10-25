@@ -85,7 +85,7 @@ export const GOALS_EVENT_DOCUMENT_STYLES = `
   .closure-deliverables [data-closure-deliverable-list] label { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; font-weight: 400; }
   .closure-deliverables [data-closure-deliverable-list] input[type="checkbox"] { width: auto; margin: 0; padding: 0; }
   .closure-deliverables [data-closure-deliverable-list] small { color: var(--muted); white-space: nowrap; }
-  .goal-event-document .event-form small, .goal-event-document .form-lead, .goal-event-document .form-note { color: var(--muted); font-size: 11px; }
+  .goal-event-document .event-form small, .goal-event-document .form-lead, .goal-event-document .mw-note { color: var(--muted); font-size: 11px; }
   .goal-event-document .event-form input, .goal-event-document .event-form select, .goal-event-document .event-form textarea { width: 100%; min-width: 0; padding: 8px 8px; border: 1px solid var(--line-strong); border-radius: 5px; background: var(--paper); color: var(--ink); }
   .goal-event-document .check-row { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 8px; }
   .goal-event-document .composer-bottom { display: flex; justify-content: space-between; gap: 12px; align-items: center; }

@@ -251,8 +251,8 @@ test("折叠只收起远离改动的未改变行，行号按钮仍在原处可�
   assert.match(html, /data-diff-unfold="0"[^>]*>.*展开 6 行未改变/, "改动上方离得远的 6 行收起");
   assert.match(html, /data-diff-unfold="1"[^>]*>.*展开 7 行未改变/, "改动下方离得远的 7 行收起");
   assert.equal(html.match(/data-diff-folded=/g)?.length, 13);
-  assert.match(html, /data-diff-folded="0" hidden><span class="mw-diff-before"><button[^>]*data-coding-line="1"/, "收起的行仍能按原行号评论");
-  assert.doesNotMatch(html, /data-diff-folded="\d+" hidden><span class="mw-diff-before"><button[^>]*data-coding-line="7"/, "改动前后 3 行保持可见");
+  assert.match(html, /data-diff-folded="0" hidden><span class="mw-diff-before"><button[^>]*data-diff-line="1"/, "收起的行仍能按原行号评论");
+  assert.doesNotMatch(html, /data-diff-folded="\d+" hidden><span class="mw-diff-before"><button[^>]*data-diff-line="7"/, "改动前后 3 行保持可见");
   const plain = renderDiff({ labels: DIFF_LABELS, view, primitives });
   assert.doesNotMatch(plain, /data-diff-unfold|data-diff-folded/, "不要求折叠时逐行展示");
   assert.match(plain, /mw-diff-sides/);
@@ -280,7 +280,7 @@ test("VUX-33 行的几何共用一份：行号列按最长的行号定宽；并�
   const rows = [...split.matchAll(/<li data-kind="(equal|change)"[^>]*>(.*?)<\/li>/g)];
   assert.equal(rows.length, 21, "改动的一对占一行，新增那行另起一行，未改变的各一行");
   for (const [, , cells] of rows) assert.match(cells!, /^<span class="mw-diff-before" data-kind="[^"]+">.*?<\/span><code class="mw-diff-left" data-kind="[^"]+">.*?<\/code><span class="mw-diff-after" data-kind="[^"]+">.*?<\/span><code class="mw-diff-right" data-kind="[^"]+">.*?<\/code>$/, "每行左右各有行号与代码");
-  const changed = rows.find(([, kind, cells]) => kind === "change" && cells!.includes("data-coding-line=\"10\""))![2]!;
+  const changed = rows.find(([, kind, cells]) => kind === "change" && cells!.includes("data-diff-line=\"10\""))![2]!;
   assert.match(changed, /<code class="mw-diff-left" data-kind="delete"><span class="mw-diff-sign" aria-label="删除">−<\/span>line 10<\/code>/, "删掉的原行在左");
   assert.match(changed, /<code class="mw-diff-right" data-kind="insert"><span class="mw-diff-sign" aria-label="新增">\+<\/span>changed<\/code>/, "替换它的新行与它同一行在右");
   const added = rows.find(([, , cells]) => cells!.includes(">added</code>"))![2]!;
@@ -290,8 +290,8 @@ test("VUX-33 行的几何共用一份：行号列按最长的行号定宽；并�
     assert.match(html, /展开 7 行未改变/);
     assert.equal(html.match(/<li data-kind="[^"]+" data-diff-folded=/g)?.length, 13, "两种视图收起同样的行");
   }
-  assert.equal(split.match(/data-coding-line-side="before"/g)?.length, unified.match(/data-coding-line-side="before"/g)?.length, "并排里修改前的每个行号仍可评论");
-  assert.equal(split.match(/data-coding-line-side="after"/g)?.length, unified.match(/data-coding-line-side="after"/g)?.length, "修改后也是");
+  assert.equal(split.match(/data-diff-line-side="before"/g)?.length, unified.match(/data-diff-line-side="before"/g)?.length, "并排里修改前的每个行号仍可评论");
+  assert.equal(split.match(/data-diff-line-side="after"/g)?.length, unified.match(/data-diff-line-side="after"/g)?.length, "修改后也是");
 });
 
 test("没有可比的内容时是共用的空态块：标记、说了什么、下一步，而不是一行小字", () => {

@@ -590,9 +590,9 @@ ${CODING_COMPOSER_BAR_STYLES}
 [data-coding-change-reader] .mw-diff .mw-diff-before,[data-coding-change-reader] .mw-diff .mw-diff-after { color:var(--faint); }
 [data-coding-change-reader] .mw-diff [data-kind=insert] .mw-diff-sign { color:var(--green); }
 [data-coding-change-reader] .mw-diff [data-kind=delete] .mw-diff-sign { color:var(--red); }
-[data-coding-change-reader] [data-coding-line] { all:unset; box-sizing:border-box; display:block; width:100%; padding-right:4px; border-radius:4px; text-align:right; cursor:pointer; }
-[data-coding-change-reader] [data-coding-line]:hover { background:color-mix(in srgb,var(--blue) 14%,transparent); color:var(--blue); }
-[data-coding-change-reader] [data-coding-line]:focus-visible { outline:var(--focus-stroke); outline-offset:-2px; color:var(--blue); }
+[data-coding-change-reader] [data-diff-line] { all:unset; box-sizing:border-box; display:block; width:100%; padding-right:4px; border-radius:4px; text-align:right; cursor:pointer; }
+[data-coding-change-reader] [data-diff-line]:hover { background:color-mix(in srgb,var(--blue) 14%,transparent); color:var(--blue); }
+[data-coding-change-reader] [data-diff-line]:focus-visible { outline:var(--focus-stroke); outline-offset:-2px; color:var(--blue); }
 [data-coding-change-reader] li[data-coding-commented] { box-shadow:inset 3px 0 0 var(--blue); }
 .coding-change-feedback { position:sticky; bottom:0; z-index:1; display:grid; gap:8px; margin-top:auto; padding:12px 12px 16px 24px; border-top:1px solid var(--line); background:var(--paper); }
 .coding-change-feedback > header { display:flex; align-items:baseline; gap:8px; }
@@ -616,7 +616,7 @@ ${CODING_COMPOSER_BAR_STYLES}
   .coding-change-actions { flex-wrap:wrap; }
   .coding-change-actions .mw-btn,.coding-change-write { min-height:44px; }
   .coding-change-actions .coding-change-close { width:44px; }
-  [data-coding-change-reader] [data-coding-line] { min-height:32px; line-height:32px; }
+  [data-coding-change-reader] [data-diff-line] { min-height:32px; line-height:32px; }
   .coding-change-feedback-foot { flex-direction:column; align-items:stretch; }
 }
 @media (prefers-reduced-motion:no-preference) {

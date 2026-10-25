@@ -43,7 +43,7 @@ export const GOALS_DELIVERABLES_SCRIPT = `    // The closure form's deliverables
           return row;
         });
         list.replaceChildren(...(pinnable.length || versions.length ? [...pinnable, ...versions]
-          : [Object.assign(document.createElement("p"), { className: "form-note", textContent: L("成果库里还没有版本。可以先在 Pages、问卷等插件里存为成果，或导入文件。") })]));
+          : [Object.assign(document.createElement("p"), { className: "mw-note", textContent: L("成果库里还没有版本。可以先在 Pages、问卷等插件里存为成果，或导入文件。") })]));
         box.dataset.loadedFor = currentGoal;
         if (reconcile) {
           delete box.dataset.pinUnknown;

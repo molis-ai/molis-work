@@ -101,7 +101,7 @@ test("PG062-09: Coding's change reader and integration preview draw their own ma
       }
       const write = await read<ChangeBody>(`${changeset}?change_index=1`, locale);
       assert.match(write.html, /latest &lt;script&gt;/); assert.doesNotMatch(write.html, /latest <script>/, "a line's text is escaped");
-      assert.match(write.html, /data-coding-line-side="before"/, "a saved change takes line feedback");
+      assert.match(write.html, /data-diff-line-side="before"/, "a saved change takes line feedback");
       assert.equal(write.patch, "--- a/cart.mjs\n+++ b/cart.mjs\n@@ -1 +1 @@\n-new\r\n+latest <script>\n");
       // The net change across both writes: offered, then drawn from the first write's before to the last write's after.
       assert.deepEqual(write.net_groups, [{ path: "cart.mjs", indices: [0, 1], available: true }]);

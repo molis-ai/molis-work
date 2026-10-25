@@ -30,7 +30,7 @@ export function renderAcknowledgementBody(
   });
   const treatment = L("处理方式：{treatment}", { treatment: L(RECEIPT_WORDS.TREATMENT[payload.treatment]) });
   return `${heading}<p>${escapeHtml(sentence)}</p><p>${escapeHtml(treatment)}</p><p>${escapeHtml(payload.note)}</p>`
-    + `<p class="form-note">${L("AI 自己说的，Molis 没有核对")}</p>`
+    + `<p class="mw-note">${L("AI 自己说的，Molis 没有核对")}</p>`
     + `<p><button type="button" class="mw-btn mw-btn--link" data-locate-event="${escapeHtml(payload.reference.event_id)}">${L("定位到被说明的记录")}</button></p></article>`;
 }
 

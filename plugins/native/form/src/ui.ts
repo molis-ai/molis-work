@@ -96,8 +96,8 @@ export function renderFormWorkbench(model: FormUiModel): string {
           </div>
         </details>
       </div>
-      <p class="form-note" data-form-note role="status" aria-live="polite" hidden></p>
-      <p class="form-note" data-form-publication-note hidden></p>
+      <p class="mw-note" data-form-note role="status" aria-live="polite" hidden></p>
+      <p class="mw-note" data-form-publication-note hidden></p>
       <div class="form-workspace" data-form-pane="editor">
         <div class="form-identity">
           <label class="form-field">${p.text("form.field.title")}<input class="mw-input" data-form-title autocomplete="off"></label>
@@ -129,11 +129,11 @@ export function renderFormWorkbench(model: FormUiModel): string {
           <button class="mw-btn mw-btn--ghost" type="button" data-form-generate-ai disabled>${icon("sparkles")}<span>${p.text("form.ai.draft")}</span></button>
         </div>
         <div class="form-draft-ask" data-form-draft-ask hidden></div>
-        <p class="form-note" data-form-ai-reason></p>
+        <p class="mw-note" data-form-ai-reason></p>
       </div>
       <form class="form-workspace" data-form-pane="preview" hidden>
         <div data-form-preview></div>
-        <div class="form-actions">
+        <div class="mw-actions">
           <button class="mw-btn mw-btn--primary" type="submit" data-form-submit>${p.text("form.fill.submit")}</button>
         </div>
       </form>

@@ -172,8 +172,8 @@ function renderComments(r: Reader) {
   const indices = r.netIndices;
   const shown = (remark: Remark) => r.net && indices ? (remark.side === "after" ? remark.change_index === indices.at(-1) : remark.change_index === indices[0]) : remark.change_index === r.index;
   const commented = new Set(r.comments.filter(shown).map(remark => remark.side + ":" + remark.line));
-  r.reader.querySelectorAll<HTMLElement>("[data-coding-line]").forEach(button => {
-    button.closest("li")?.toggleAttribute("data-coding-commented", commented.has(button.dataset.codingLineSide + ":" + button.dataset.codingLine));
+  r.reader.querySelectorAll<HTMLElement>("[data-diff-line]").forEach(button => {
+    button.closest("li")?.toggleAttribute("data-coding-commented", commented.has(button.dataset.diffLineSide + ":" + button.dataset.diffLine));
   });
 }
 
@@ -381,9 +381,9 @@ function addRemark(r: Reader, target: HTMLElement) {
     r.message.textContent = L("coding.change.too-many");
     return;
   }
-  const side = target.dataset.codingLineSide ?? "after", indices = r.netIndices;
+  const side = target.dataset.diffLineSide ?? "after", indices = r.netIndices;
   const at = r.net && indices ? (side === "after" ? indices.at(-1) ?? r.index : indices[0] ?? r.index) : r.index;
-  r.comments.push({ change_index: at, side, line: Number(target.dataset.codingLine), comment: "" });
+  r.comments.push({ change_index: at, side, line: Number(target.dataset.diffLine), comment: "" });
   remember(r);
   renderComments(r);
   q("[data-coding-feedback-list]").lastElementChild?.querySelector("textarea")?.focus();
@@ -448,7 +448,7 @@ async function onClick(r: Reader, event: Event) {
     await open(r, r.runId, true, r.index, r.fixed, r.net ? "1" : "0");
   } else if (button.hasAttribute("data-coding-change-output") && r.value?.reference) {
     await setOutput(r, button);
-  } else if (button.hasAttribute("data-coding-line") && r.value?.reference) {
+  } else if (button.hasAttribute("data-diff-line") && r.value?.reference) {
     addRemark(r, button);
   } else if (button.hasAttribute("data-coding-feedback-return") && r.value?.reference) {
     await returnRemarks(r, button);

@@ -1,9 +1,8 @@
 {
   "note": "Only decreases. For each plugin with a registered stylesheet, the rule blocks of its own namespace that the shared stylesheets still hold: the first slice's splitter finds the shared part, then a second pass counts every rule in it that names the plugin, without discounting stylesheetShared (declaring a class shared cannot hide a rule, and a frame does not make the number zero). stylesheetPrefixes are remembered per plugin and may only be added; the measurement uses the union with the build's. Goals counts the document styles page-assets imports into the shared sheets. Measured from the build by scripts/gates/plugin-styles.mjs; lower it with `node scripts/gates/plugin-styles.mjs --update --base origin/main` in the PR that moves rules out. CI compares this file with the merge-base's copy, so raising a number or adding a plugin here is refused.",
   "plugins": {
-    "coding": 9,
+    "coding": 5,
     "feed": 234,
-    "form": 6,
     "goals": 321,
     "plugin-builder": 5
   },

@@ -279,7 +279,7 @@ const rowNames = (model: DiffViewModel): Record<string, string> => {
 
 function lineNumberHtml(model: DiffViewModel, names: Record<string, string>, side: "before" | "after", number: number | undefined): string {
   return number === undefined ? ""
-    : model.line_feedback ? `<button type="button" class="mw-btn mw-btn--ghost" data-coding-line-side="${side}" data-coding-line="${number}" aria-label="${names[side]!.replace("\u0001", String(number))}">${number}</button>` : String(number);
+    : model.line_feedback ? `<button type="button" class="mw-btn mw-btn--ghost" data-diff-line-side="${side}" data-diff-line="${number}" aria-label="${names[side]!.replace("\u0001", String(number))}">${number}</button>` : String(number);
 }
 
 const signHtml = (kind: TextDiffRow["kind"], names: Record<string, string>): string =>

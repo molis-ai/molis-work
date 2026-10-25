@@ -191,7 +191,7 @@ export const COSS_CONTROL_STYLES = `
   .event-form-bottom .event-form-status:not([hidden]) { margin: 0 0 12px; border: 0; border-radius: 8px; background: var(--red-soft); }
   body.immersive-workbench .goal-event-document .event-form > [data-event-back] { display: none; }
   body.immersive-workbench .goal-event-document .event-form :is(label > span, legend) { font-size: 13px; }
-  body.immersive-workbench .goal-event-document .event-form :is(.form-lead,.form-note,small) { font-size: 13px; line-height: 1.65; }
+  body.immersive-workbench .goal-event-document .event-form :is(.form-lead,.mw-note,small) { font-size: 13px; line-height: 1.65; }
   body.immersive-workbench .goal-event-document .event-form button[type=submit] { align-self: flex-start; width: auto; min-height: 36px; background: var(--action); color: var(--action-ink); padding-inline: 16px; border-radius: 7px; }
   body.immersive-workbench .feed-stage-leading strong { font-size: 13px; }
   @media (max-width: 640px) {
@@ -223,12 +223,12 @@ export const COSS_CONTROL_STYLES = `
     [popover]:popover-open { animation: none; }
   }
 
-  .policy-form footer.form-actions, .project-preferences-page .settings-save-footer.form-actions, .feed-plan-actions { display: flex; flex-direction: row; align-items: center; justify-content: flex-end; gap: 8px; }
-  .form-actions > button { min-height: 36px; }
-  @media (max-width: 760px) { .form-actions > button, .feed-plan-actions > button { min-height: 44px; } }
+  .policy-form footer.mw-actions, .project-preferences-page .settings-save-footer.mw-actions, .feed-plan-actions { display: flex; flex-direction: row; align-items: center; justify-content: flex-end; gap: 8px; }
+  .mw-actions > button { min-height: 36px; }
+  @media (max-width: 760px) { .mw-actions > button, .feed-plan-actions > button { min-height: 44px; } }
 
-  :is(.form-actions, .event-form-actions, .feed-reader-footer) { --control-h: 36px; }
-  @media (max-width: 760px) { :is(.form-actions, .event-form-actions, .feed-reader-footer) { --control-h: 44px; } }
+  :is(.mw-actions, .event-form-actions, .feed-reader-footer) { --control-h: 36px; }
+  @media (max-width: 760px) { :is(.mw-actions, .event-form-actions, .feed-reader-footer) { --control-h: 44px; } }
   @media (max-width: 760px), (pointer: coarse) {
     :is(.frame-picker, .frame-goal-actions, .frame-empty) { --control-h: 44px; }
     .frame-goal-actions button, .frame-empty button, .frame-picker > header button { min-height: 44px; }

@@ -17,7 +17,7 @@ export const registration: PluginRegistration = {
     clientFactory: CODING_WORKBENCH_CLIENT_FACTORY_SCRIPT,
     stylesheet: CODING_STYLES,
     // The attributes the Characters import page and the shared diff view read or set.
-    stylesheetShared: ["data-coding-workbench", "data-coding-line"],
+    stylesheetShared: ["data-coding-workbench"],
     clientUses: ["git", "files"],
     specimens: codingBoardSpecimens,
   },

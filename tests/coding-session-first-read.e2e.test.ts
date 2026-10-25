@@ -174,7 +174,7 @@ test("AC-05: review notes handed back to a session whose first read failed are r
   const run = `/sessions/${encodeURIComponent(second)}/runs/run-fixed/changeset`;
   const file = { path: "note.txt", kind: "modified", added_lines: 1, removed_lines: 1, review: { decision: "approved", execution: "applied" } };
   await evaluate(`fakes.push({method:'GET',path:${JSON.stringify(run + "?")},body:${JSON.stringify({
-    html: '<ol class="mw-diff-rows"><li data-kind="insert"><button type="button" data-coding-line="1" data-coding-line-side="after">1</button>release notes go in CHANGES.md</li></ol>',
+    html: '<ol class="mw-diff-rows"><li data-kind="insert"><button type="button" data-diff-line="1" data-diff-line-side="after">1</button>release notes go in CHANGES.md</li></ol>',
     change: { files: [file] }, reference: { artifact_id: "artifact-fixed", version: 1 }, saved_at: "2026-10-19T00:00:00.000Z", view_mode: "write", net_groups: [], output: null,
   })}},{method:'POST',path:${JSON.stringify(run + "/feedback")},body:${JSON.stringify({ task: TASK })}})`);
   const reader = `document.querySelector('${coding} [data-coding-change-reader]')`, message = `document.querySelector('${coding} [data-coding-change-status]')`;
@@ -185,9 +185,9 @@ test("AC-05: review notes handed back to a session whose first read failed are r
   // The second session's fixed change is opened from elsewhere while the box shows the first one's words; its first read fails.
   await evaluate(`hold.except=${JSON.stringify(first)};hold.what='read';hold.fail=true;hold.next='read'`);
   await openItem(`coding-changeset:${encodeURIComponent(second)}:run-fixed`);
-  await waitFor(`hold.seen >= 1 && !${reader}.hidden && !!${reader}.querySelector('[data-coding-line]')`);
+  await waitFor(`hold.seen >= 1 && !${reader}.hidden && !!${reader}.querySelector('[data-diff-line]')`);
   assert.equal(await evaluate<string>("hold.id"), second);
-  await evaluate(`${reader}.querySelector('[data-coding-line]').click()`);
+  await evaluate(`${reader}.querySelector('[data-diff-line]').click()`);
   await evaluate(`(()=>{const node=document.querySelector('${coding} [data-coding-feedback-list] textarea');node.value='改成 CHANGELOG.md';node.dispatchEvent(new Event('input',{bubbles:true}));})()`);
   await handBack();
   await waitFor(`${message}.textContent.includes('会话还在读取')`);

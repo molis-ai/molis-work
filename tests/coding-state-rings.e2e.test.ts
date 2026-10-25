@@ -222,14 +222,14 @@ test("VUX-40: the step report dialog and the change set reader speak English in 
       const step=q('[data-coding-step-detail]').textContent.replace(/\\s+/g,' '),stepStatus=q('[data-coding-step-status]').textContent;
       q('[data-coding-step-dialog]').close();
       const changes=(${embeddedFactory("changeReview")})({lifetime,translate:L,root,q,turns:q('[data-coding-turns]'),current:()=>'s',closeReport:()=>{},returnToTask:()=>{},onRunOpen:()=>{},appendDraft:async()=>{},focusDraft:()=>{},
-        api:async()=>({view_mode:'write',html:'<ol class="mw-diff-rows"><li><button type="button" data-coding-line="3" data-coding-line-side="after">3</button></li></ol>',patch:'diff',
+        api:async()=>({view_mode:'write',html:'<ol class="mw-diff-rows"><li><button type="button" data-diff-line="3" data-diff-line-side="after">3</button></li></ol>',patch:'diff',
           reference:{artifact_id:'a',version:2},saved_at:Date.UTC(2026,9,20,9,30),output:null,net_groups:[{path:'a.ts',available:true,indices:[0,1]}],
           change:{files:[{path:'a.ts',kind:'modified',added_lines:2,removed_lines:1,review:{decision:'approved',execution:'applied'}},
             {path:'a.ts',kind:'modified',added_lines:1,removed_lines:0,review:{decision:'approved',execution:'failed'}},
             {path:'src/b.ts',kind:'added',added_lines:4,removed_lines:0,review:{decision:'rejected'}},{path:'c.ts',kind:'modified',added_lines:1,removed_lines:1}]}})});
       const opener=document.createElement('button');opener.dataset.codingChangeOpen='r';root.append(opener);opener.click();
       await new Promise(resolve=>setTimeout(resolve,20));
-      q('[data-coding-line]').click();
+      q('[data-diff-line]').click();
       const reader=q('[data-coding-change-reader]');
       const nodes=[reader,...reader.querySelectorAll('*'),q('[data-coding-step-dialog]'),...q('[data-coding-step-dialog]').querySelectorAll('*')];
       const han=nodes.flatMap(node=>[...node.childNodes].filter(child=>child.nodeType===3).map(child=>child.textContent).concat([...node.attributes].map(attr=>attr.value)))

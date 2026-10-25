@@ -17,7 +17,7 @@ export const FORM_STYLES = `
   [data-form=workbench] { --plugin-tint: var(--ink-soft); }
   [data-form-stage-workspace] > .plugin-stage-detail-bar { min-width: 0; max-width: 100%; flex-wrap: wrap; }
   .form-workspace > * { flex-shrink: 0; }
-  [data-form-stage-workspace] > .form-note { flex-shrink: 0; }
+  [data-form-stage-workspace] > .mw-note { flex-shrink: 0; }
   .form-tabs { display: flex; gap: 4px; margin-left: auto; }
   .form-tabs [data-form-tab=editor] { --tab-tone: var(--ink-soft); }
   .form-tabs [data-form-tab=preview] { --tab-tone: var(--tone-progress); }
@@ -37,7 +37,7 @@ export const FORM_STYLES = `
   }
   .form-identity [data-form-title] { font-size: 15px; letter-spacing: -0.02em; color: var(--ink); }
   .form-field { display: flex; flex-direction: column; gap: 8px; font-size: 12px; color: var(--muted); }
-  .form-toolbar, .form-prompt, .form-actions, .form-question-move {
+  .form-toolbar, .form-prompt, .form-question-move {
     display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
   }
   .form-toolbar {
@@ -46,8 +46,8 @@ export const FORM_STYLES = `
   }
   .form-toolbar strong { font-size: 12px; font-weight: var(--weight-control, 500); color: var(--muted); }
   .form-toolbar .mw-select, .form-toolbar .mw-select-picker { width: 112px; flex: none; }
-  .form-toolbar .mw-btn, .form-prompt .mw-btn, .form-actions .mw-btn { flex: none; width: auto; align-self: center; }
-  .form-actions:has([data-form-submit][hidden]) { display: none; }
+  .form-toolbar .mw-btn, .form-prompt .mw-btn { flex: none; width: auto; align-self: center; }
+  .mw-actions:has([data-form-submit][hidden]) { display: none; }
   .form-prompt { align-items: flex-end; max-width: 36rem; }
   .form-prompt .form-field { flex: 1 1 14rem; min-width: min(100%, 14rem); }
   [data-form-questions] { display: flex; flex-direction: column; gap: 12px; }
@@ -109,8 +109,6 @@ export const FORM_STYLES = `
   .form-result p span:last-child { color: var(--ink); overflow-wrap: anywhere; }
   .form-export-panel { max-width: 36rem; }
   .form-export-panel summary { cursor: pointer; font-size: 12px; color: var(--muted); }
-  .form-note { margin: 0 24px 16px; max-width: 40rem; font-size: 12px; color: var(--muted); }
-  .form-note.is-error { color: var(--red); }
   .form-export { margin: 8px 0 0; padding: 12px; border-radius: 8px; background: var(--rail); white-space: pre-wrap; font-size: 12px; }
   .plugin-stage-detail-bar [data-form-editor-status].mw-status {
     flex: none; color: var(--status-tone, var(--muted)); font-size: 11px;

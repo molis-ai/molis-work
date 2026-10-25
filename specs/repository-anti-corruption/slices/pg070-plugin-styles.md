@@ -97,3 +97,21 @@
 父片 page-assets 的 coding.js +45、workbench.js +642 红灯与旧 d8e 的构建绑定缺口继续保留；沿用已核实旧证据，不借本单改 ceiling、baseline、limits、CI 或重跑 171/full/浏览器/CSS 批。完成本候选后将精确 parent/head/diff、构建源绑定及 raw 交既有 REVIEW/TEST 双核；F2 亲读两份最终原文和 raw 后直接交 PIPE 与 Root，不等待载体 full/CI。
 
 作者验证：一次公共 FIFO 整体构建自然退出 0，`2026-10-25T19:58:47.012Z` 清单的 `c37d3c0aea786fa41658210d9cb917aa63c18ce8786bf5228222c3c9e6291803` 与公开重算一致。完整 styles-gate 22/22、既有 styles 11/11，自然退出 0，共 33 个用例；旧 aead 精确脚本（Git blob `e9c96c8ed077d177d7e171e3045163cb0d4ac9f0`）在另存的五个有限业务探针中 0/5、自然退出 1，修复脚本同样探针 5/5、自然退出 0，未把重叠探针加进 33。探针使用未改的真实构建 splitter/on-demand 函数，没有省略准备检查。真实 gate 对实际 merge-base aead 通过 5 插件 / 575 块；boundary、health（同父比较）、导入无混用均通过。预算文件、生产 splitter/注册/CSS 和资源门禁输入完整未改；raw 位于 `/tmp/molis-verify-2026-10-25/pg070-prefix-freeze/`。
+
+## 第 3 片：Coding 与 Form 的共用规则（2026-10-25，RAC-779～781）
+
+用户 2026-10-25 定「插件尽可能独立」：把门禁冻结的 Coding 9 条、Form 6 条共用规则随各自的包搬出去（Feed 234、Goals 321、插件创作台 5 不在这一片）。叠在 batch-40 上；批落后合并批头。编号 RAC-750～769 已用完，这三个暂用 RAC-779～781，统筹可改。
+
+- **Coding 自己的客户端（3b）**：已在 batch-40 里（`e8977dfea`），本片不再动：`src/browser/` 类型化、打包成 `dist/workbench-bundle.js`、请求只经共同 request helper、页面文字用稳定键。
+- **Form 6 → 0**：6 条规则是 `form-note`（Form 的提示行）与 `form-actions`（按钮行）。这两个类 Goals 的事件文档与策略页也画，所以不是 Form 的名字：改名为平台词汇 `mw-note`、`mw-actions`（没有现成的同名类；Coding 设置页里原有的 `mw-form__actions` 是另一个名字、不动，所以新名不借 `mw-form__` 前缀；也比旧名短，到达页与设置页的样式表不因改名变大），Form 与 Goals 都画新名，规则搬到 `apps/workbench/src/styles/form-vocabulary.ts`，**只进工作台样式表**（和它们在 Form 规则里时一样；设置页、到达页的样式表不带，所以没有为它们增加字节）。`coss-controls`、`linear-density` 与 Goals 事件文档样式里点名旧类的选择器同步改名。`stylesheetShared` 清空。
+- **Coding 9 → 5**：4 条是 SDK diff 视图的行按钮（`data-coding-line`、`data-coding-line-side`）。这是 SDK 组件写的标记，不该叫 Coding：改成 `data-diff-line`、`data-diff-line-side`（只改属性名，逻辑不变），Coding 的变更阅读器与样式跟着读新名，规则就能随 `coding.css` 搬出。`stylesheetShared` 只剩 `data-coding-workbench`。
+- **留下的 5 条**：`[data-coding-workbench]` 开头的规则。`apps/workbench/src/browser/characters/import-client.ts` 在自己的文档里查这个属性，再向 window 发 `molis-work:character-coding`，而 Coding 在不透明框架里，这条路在框架之间读不到（BL-658）。没有在不确定时盲改。
+- **没有改**：Feed、Goals、插件创作台的数字；`CODING_STYLES` 在设置页样式表里的整份（PG-072）；页面资源的 ceiling（统筹在批里写）。
+
+### 验收（第 3 片）
+
+| 编号 | 标准 | 证明 |
+| --- | --- | --- |
+| RAC-779 | Form 的样式表没有任何名字留在共用样式表（`stylesheetShared` 为空），`mw-note`/`mw-actions` 由工作台样式表定义、设置页样式表不带，Form 与 Goals 画的是新名 | `tests/plugin-styles.test.ts` |
+| RAC-780 | SDK diff 视图的行按钮标记是 `data-diff-line`、`data-diff-line-side`，Coding 的变更阅读器与样式用同一名字，旧名不再出现 | 同上、`tests/diff-plugin.test.ts`、`tests/coding-change-html.test.ts` |
+| RAC-781 | Coding 的 `stylesheetShared` 只剩 `data-coding-workbench`，门禁预算 coding 5、Form 无预算行 | 同上、`tests/plugin-styles-gate.test.ts`（`tooling/gates/plugin-styles.json`） |

@@ -234,3 +234,45 @@ test("RAC-768 the workbench's settings panel loads a fetched page's plugin sheet
   assert.ok(script.includes("ensureStyleSheets(html)"), "the panel reads the sheets a fetched page links");
   assert.ok(script.indexOf("ensureStyleSheets(html)") < script.indexOf("loadFromHtml(section, html, fetchPath)"), "and waits for them before it inserts the page");
 });
+
+const sourceOf = (file: string) => readFileSync(`${root}${file}`, "utf8");
+
+test("RAC-779 Form brings its whole own sheet: the button row and note classes it shares with Goals are the workbench's", () => {
+  const form = packs.find((pack) => pack.project_plugin_id === "form")!;
+  assert.deepEqual(form.stylesheetShared ?? [], [], "no name of Form's namespace is drawn outside Form");
+  const { shared } = splitPluginStylesheet(form.stylesheet!, "form", form.stylesheetShared, form.stylesheetPrefixes);
+  assert.doesNotMatch(normal(shared), /\.form-|data-form/u, "no rule of Form's own is left in the shared sheets");
+  assert.doesNotMatch(normal(form.stylesheet!), /^\s*\.mw-(?:note|actions)(?:\.is-error|\s+\.mw-btn)?\s*\{/mu, "Form's sheet defines neither shared class itself");
+  const vocabulary = /\.mw-note\s*\{[^}]*max-width:\s*40rem/u;
+  assert.match(renderMolisWorkWorkbenchStylesheet(), vocabulary, "the workbench sheet defines them");
+  assert.match(renderMolisWorkWorkbenchStylesheet(), /\.mw-actions\s*\{\s*display:\s*flex/u);
+  assert.doesNotMatch(renderMolisWorkSettingsStylesheet(), vocabulary, "the settings sheet never carried them");
+  for (const file of ["plugins/native/form/src/ui.ts", "plugins/native/goals/src/event-document-forms.ts", "plugins/native/goals/src/policy-ui.ts"]) {
+    assert.doesNotMatch(sourceOf(file), /["' ]form-(?:note|actions)["' ]/u, `${file} draws the platform names, not Form's old ones`);
+  }
+  assert.match(sourceOf("plugins/native/form/src/ui.ts"), /class="mw-note"/u);
+  assert.match(sourceOf("plugins/native/goals/src/event-document-forms.ts"), /class="mw-note"/u);
+  assert.match(sourceOf("plugins/native/goals/src/policy-ui.ts"), /class="[^"]*mw-actions/u);
+});
+
+test("RAC-780 the diff view marks a commentable line with data-diff-line, which Coding's change reader and sheet use", () => {
+  const view = sourceOf("packages/plugin-sdk/src/diff-view.ts");
+  assert.match(view, /data-diff-line-side=/u);
+  assert.match(view, /data-diff-line=/u);
+  for (const file of ["packages/plugin-sdk/src/diff-view.ts", "packages/plugin-sdk/README.md", "plugins/native/coding/src/browser/changeset.ts", "plugins/native/coding/src/styles.ts"]) {
+    assert.doesNotMatch(sourceOf(file), /data-coding-line|dataset\.codingLine/u, `${file} no longer names Coding in the SDK's markup`);
+  }
+  const coding = packs.find((pack) => pack.project_plugin_id === "coding")!;
+  assert.match(coding.stylesheet!, /\[data-diff-line\]/u, "Coding's sheet styles the line buttons by the SDK's name");
+});
+
+test("RAC-781 Coding's sheet leaves the shared ones except the one attribute the Characters page reads from the main document", () => {
+  const coding = packs.find((pack) => pack.project_plugin_id === "coding")!;
+  assert.deepEqual([...(coding.stylesheetShared ?? [])], ["data-coding-workbench"]);
+  const budget = JSON.parse(sourceOf("tooling/gates/plugin-styles.json")) as { plugins: Record<string, number> };
+  assert.equal(budget.plugins.coding, 5, "the rules that stay are the data-coding-workbench ones");
+  assert.equal(budget.plugins.form, undefined, "Form has no budget line: nothing is left to count");
+  const { shared } = splitPluginStylesheet(coding.stylesheet!, "coding", coding.stylesheetShared, coding.stylesheetPrefixes);
+  assert.match(normal(shared), /\[data-coding-workbench\]/u, "the declared attribute's rules stay in the shared sheet");
+  assert.doesNotMatch(normal(shared), /data-coding-line/u, "the line buttons' rules moved out with the SDK's rename");
+});

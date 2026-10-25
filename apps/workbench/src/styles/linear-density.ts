@@ -195,8 +195,8 @@ export const LINEAR_DENSITY_STYLES = `
   body.immersive-workbench .goal-event-document .reader-content,
   body.immersive-workbench .goal-event-document .event-form { padding: 12px 16px 24px; }
   body.immersive-workbench .goal-event-document .event p { line-height: 1.6; }
-  body.immersive-workbench :is(.form-actions, .event-form-actions, .feed-reader-footer) { --control-h: 32px; }
-  body.immersive-workbench .form-actions > button,
+  body.immersive-workbench :is(.mw-actions, .event-form-actions, .feed-reader-footer) { --control-h: 32px; }
+  body.immersive-workbench .mw-actions > button,
   body.immersive-workbench .goal-event-document .event-form button[type=submit] { min-height: 32px; }
   body.immersive-workbench dialog:is([data-create-dialog], [data-frame-picker]) :is(h2, .feed-task-dialog-shell h2) { font-size: 15px; }
   body.immersive-workbench dialog:is([data-create-dialog], [data-frame-picker]) header button[data-dialog-close] { width: 28px; height: 28px; }
@@ -248,9 +248,9 @@ export const LINEAR_DENSITY_STYLES = `
     body.immersive-workbench .feed-stage-search { height: 44px; }
     body.immersive-workbench .feed-stage-search input { font-size: 16px; }
     body.immersive-workbench .feed-reader-footer .feed-detail-actions button { min-height: 44px; }
-    body.immersive-workbench .form-actions > button,
+    body.immersive-workbench .mw-actions > button,
     body.immersive-workbench .goal-event-document .event-form button[type=submit] { min-height: 44px; }
-    body.immersive-workbench :is(.form-actions, .event-form-actions, .feed-reader-footer) { --control-h: 44px; }
+    body.immersive-workbench :is(.mw-actions, .event-form-actions, .feed-reader-footer) { --control-h: 44px; }
     body.immersive-workbench dialog:is([data-create-dialog], [data-frame-picker]) header button[data-dialog-close] { width: 44px; height: 44px; }
   }
   @media (max-width: 600px) {

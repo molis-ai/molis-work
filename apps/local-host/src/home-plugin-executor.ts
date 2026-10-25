@@ -16,6 +16,7 @@ import { homeLibraryFor } from "./plugin-database-entries.js";
 import { openInstalledPluginLibrary } from "./installed-plugin-libraries.js";
 import { beginPartitionClearing, openPartitionedPluginDatabase, partitionDeletions, type PartitionDeletions, type PartitionedPluginDatabase } from "./plugin-database-partitions.js";
 import { pluginHomeFor } from "./home-side.js";
+import { declaresProjectCoordination } from "./plugin-project-coordination.js";
 import { givenService } from "./plugin-declared-services.js";
 import { forgetPluginAgentDefinitions, registerPluginAgentDefinitions } from "./plugin-instructions.js";
 import { pluginModelFor } from "./plugin-model-service.js";
@@ -32,7 +33,7 @@ import { servicesUntilStopped } from "./plugin-stopped-services.js";
 import { realpathSync } from "node:fs";
 import { join } from "node:path";
 
-/** The Home service set deliberately contains no project Artifact, event, or wiring clients. */
+/** The Home service set deliberately contains no project Artifact, event, or wiring clients (`declaresProjectCoordination`, PG-025). */
 export class HomePluginExecutor implements PluginExecutor {
   private readonly sessions = new Map<string, { context: PluginStartContext; revoke(): void; dispose(): void; partitions?: PartitionedPluginDatabase;
     background?: ReturnType<typeof pluginBackgroundFor> }>();
@@ -61,9 +62,8 @@ export class HomePluginExecutor implements PluginExecutor {
     refuseUngivenSandboxServices(definition, context);
     const manifest = definition.manifest;
     // A dual-instance plugin's Home half leaves these to its project half, and is still given none of their services here.
-    if (!this.options.dualInstance(definition) && (manifest.ports?.inputs.length || manifest.ports?.outputs.length || manifest.events?.publishes.length || manifest.events?.subscribes.length
-      || manifest.artifacts.produces.length || manifest.artifacts.consumes.length || manifest.process_items?.produces.length || manifest.process_items?.consumes.length)) {
-      throw new Error("Home Runtime 尚未提供项目成果、端口或事件服务");
+    if (!this.options.dualInstance(definition) && declaresProjectCoordination(manifest)) {
+      throw new Error("Home 级插件不给项目成果、端口和事件：需要它们的插件作双实例，由项目那一半拿这些服务（specs/dual-instance-plugins）");
     }
     let active = true, stopped = false;
     const generation = this.options.record(context.install_id)?.installation_generation;

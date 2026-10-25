@@ -97,7 +97,13 @@ export class ChromeHarness {
     return new Promise<T>((resolve, reject) => {
       if (this.closed) { reject(new Error(`CDP connection closed before ${method}`)); return; }
       const expression = typeof params.expression === "string" ? ` · ${params.expression.slice(0, 320)}` : "";
-      const timer = setTimeout(() => { this.pending.delete(id); reject(new Error(`CDP timeout: ${method}${expression}`)); }, timeoutMs);
+      // Keep the command's caller, not only the timer callback, when a renderer stops answering.
+      const started = performance.now(), failure = new Error(`CDP timeout: ${method}${expression}`);
+      const timer = setTimeout(() => {
+        this.pending.delete(id);
+        failure.message += ` (elapsed ${Math.round(performance.now() - started)}ms; limit ${timeoutMs}ms)`;
+        reject(failure);
+      }, timeoutMs);
       this.pending.set(id, { resolve: (value) => resolve(value as T), reject, timer });
       this.socket.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }));
     });

@@ -102,11 +102,13 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
     owner.release = () => { unbind(); unbindBuilder(); };
     owners.set(localHost, owner);
     const dispose = service.dispose.bind(service);
-    let closing: Promise<void> | undefined, memoryClosed = false;
+    let closing: Promise<void> | undefined;
     service.dispose = () => closing ??= (async () => {
-      owner.release?.(); owners.delete(localHost);
-      if (!memoryClosed) { memory.close(); memoryClosed = true; }
+      memory.stopBusiness();
+      owner.release?.();
       await dispose();
+      memory.close();
+      owners.delete(localHost);
     })().catch(error => { closing = undefined; throw error; });
     return service;
   });

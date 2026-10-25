@@ -113,6 +113,8 @@ Runtime 原调用者查询委托由 `plugin-action-query.ts` 持有：只接受�
 
 项目与 Home 执行器在每次 `uninstalled` 都用 `forgetInstallationRecords` 撤销当前安装、激活范围的授权，与私有数据是否保留无关；插件声明的默认规则是数据不是授权，只在数据一并不留时由同一函数清（`dataGoes`，RAC-503），留数据的卸载不动它们。重装前的同步 `prepareReinstall` 复用同一 owner，补清卸载失败留下的原文件登记和项目记录绑定；仍失败时 Runtime 不注册代码、不保存新安装，恢复后再重试。这个端口不清私有 KV、文件或库，也不删除账号；Home 的项目绑定和共享安装槽仍按 BL-596 保留。验证见 `tests/security-invariants-installation-records.test.ts` 的成功路径与真实删除故障用例。
 
+关闭 Home 时，MemoryHost 先同步停止普通读写、撤下 provider，并阻止后续学习和维护入队；公开与后台业务共用受控 MemoryService，且要求 LocalHost 仍处于 running。原 ledger 与 Host 映射保留到 Adapter shutdown 及使用投影 flush 成功后才关闭。已发生的使用事实由可信 sink 向原未释放实例投影，项目查询 await 后仍同步复核实例身份；业务停止不撤销这项记账。actor、个人 Assistant 身份、已删除项目、遗忘屏障、去重与单调规则不变。关闭失败保留原 owner，显式重试同一关闭，不创建替代连接。补齐后台 await 后检查会使原注册函数超过 150 行门，因此把原学习/维护排程作为完整职责留在同文件的 memoryBackgroundWork；原队列、开关和关闭所有权不变，不以拆散 guard 或调高门槛通过。
+
 ## 开发要求
 
 不留数据的已卸载安装在重装前，由现有同步 `keptDataDiscarded` 先核 KV owner 端口、再清主人文件、最后删该安装 KV（RAC-357-U1）。`createPluginPlatform` / `PluginHostExecutorOptions` 的 `deleteInstallationData` 是可信组合端口，真实项目装配、安装宿主和本地开发入口接现有 `SqlitePluginPrivateStorage` 的公开方法；Home 复用自身 storage。不留数据而缺端口时明确拒绝，不以客户端工厂冒充可清理。路径拒绝不删 KV，后一步失败拒绝新安装并保留原卸载事实；旧保留数据且明确丢弃的路径时序及回滚不变。回归见 `tests/security-invariants-sandbox-owner-files.test.ts`、`tests/plugin-lifecycle-states.test.ts`。

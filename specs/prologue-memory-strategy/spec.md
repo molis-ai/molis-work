@@ -1348,3 +1348,22 @@ batch-33 集成实证：准确生产提交 `64210640729de77f8dddb97106eaff2a29cb
 准确 b3bac 的健康、75 份 API 快照、根/Host/Agent/Coding strict、包边界及原资源门通过。原计量确认 Workbench `1127729 → 1130922`（+3193 B）、Coding `289017 → 289629`（+612 B），其余29资源与 main相同；原 `--update --base` 冻结31资源共7,513,524 B，并只同步本地快查的主干条目迁移与真实下降，不增改门禁或 giant exception。冻结离线安装、原整体 build 与最终增量整体 build 均通过，最终源码与安装构建指纹一致；现有 xterm 导出警告保留。
 
 原选择器、相关 README 必跑、前批交点和本轮冲突的必要并集在上述实际源码上一次执行：269文件全部首跑通过，其中240 native、29 browser，共2780测试、零失败、零跳过、零重试，原 runner 固定 jobs2/browser1/retries0。覆盖两处 Coding 等待拒绝、非空记忆删除进程16项、原调用者16项、project_runtime登记16项、plugin-frame输入/回执6项（含新增故障保留）与readiness2项。原始日志与明确输入集合留在仓外 `/private/tmp/foundation-batch39-*-20261026.log`、`/private/tmp/foundation-batch39-necessary-tests-20261026.txt`。这仅为本轮有界集成工程及所覆盖自动化路径证据；未跑全量、未碰真实Home、未调用付费模型、未推送或合并PR，原CI首红、Cloudflare疑点、显式召回规模时延失败与最终产品/用户验收均不因此改变。
+
+### #1064 最终 CI 与关闭投影交点（2026-10-26，诊断中）
+
+准确52c普通CI的14项通过，Linux probe按原配置跳过。Full40238651435已经结束：16片15成功、1失败，原1516文件扣除29个macOS文件后，Linux1487文件中1481首过、5仅原一次重试后通过、1最终失败。最终失败为interaction-no-crosstalk：首跑AC-05/AC-08两处Runtime.releaseObject超时，第三处原输入Runtime.callFunctionOn与清理releaseObject同时超时，新withPoint已保留两者；原重试仍失败。仅重试通过的五文件为coding-input-receipts、content-editing-regressions、coding-question-card、alchemist-workbench、stream-text。成功文件stdout未完整保留，内部条件skip数量未知，不能称Full零跳过。全部16片原日志已核，不新增重试/重派Full，不以普通Verify宣布超时根因消除。
+
+下一步先缩窄证据：ChromeHarness在发命令处创建原超时Error，保留调用栈，超时时附实际单调钟经过时间和原限额，区分调用位置与定时器是否被阻塞；不改超时、重试、调度、CI、命令或产品行为，不记录参数/页面数据之外的新正文。此诊断只补原错误上下文，不能作为修复通过证据。
+
+独立静态审查还指出真实system-agent-service先释放MemoryHost账本，随后Adapter才shutdown/flush使用回执，存在晚到投影失败；SDK原Run事实仍在，重读Run可补账，不能说永久丢失。先核停止新业务、Catalog借用、在途投影与失败重试的实际链，再沿原主人修复；不得仅移动close而开放关闭期间新业务。此处尚未实现/验证，也不代表完整P0验收。
+
+关闭投影短合同（在独立实际调用链核对后实施）：沿MemoryHost同一实例增加内部stopBusiness，同步停止普通业务/provider及后续学习/维护入队；业务活性同时服从LocalHost原lifecycle，继续复用现controlledMemoryService，不能绕过授权。账本和原映射保留至原Adapter shutdown与usage.flush成功后才最终close，成功才移除实例。SystemAgentService失败沿原closing重置/显式重试及Home owner持有，不另建关闭状态机。可信recordMemoryUsage只向仍未最终释放的原实例投影：保留actor/个人Assistant身份及实时projectExists检查，await后同步核原实例仍有效再settleUses；普通业务停止不等于已经发生的使用事实失效。删除/遗忘、去重及单调投影原规则不改。
+
+已核Web Catalog在agents及home-plugins都关闭成功后才close，现runner借用可在Agent排空期间工作，不增加Catalog特权口或换库。生产允许仅memory/memory-host.ts与system-agent-service.ts及必要同职责接线；验证在现system-agent-service、security-invariants-home-storage-host、prologue-memory-run-context、memory-use-receipts等原用例加入真实临时Home/SDK使用/真实sink组合的在途回执、停止态、项目删除/遗忘及close失败原owner保留重试。重启先读账本验证，不能先读Run补账后自证。没有模型实付/真实Home/存储格式/SDK修改。源代码修正前已保留52c原失败和独审结论，尚未验收。
+
+
+关闭投影后续实现与有界验证：按上述短合同沿原两主人完成修正，后台学习/维护完整职责仍在memory-host同文件，只从过长注册函数移出；没有新模块/格式/策略。原整体build、Host strict、新增测试strict、10直接文件112项原runner零重试通过；真实临时Home/SDK/本机HTTP/原sink跨关闭排空后，第一次打开Ledger即见唯一response-observed记录，遗忘记录不复生。真实项目删除、await后的原Host失效、Adapter拒绝关闭与原DatabaseSync.close失败重试均保留原实例与Home owner。Root已独立核生产与测试diff及原日志。
+
+诊断版ChromeHarness的原interaction-no-crosstalk文件本机4/4、零重试通过；本机未复现Linux失败，不能把新增调用栈/实际elapsed上下文称为超时修复。当前源码的原test-kit strict、75份API、准确b3bac健康、边界、全部原资源门及secrets通过，构建身份与当前源码相同；局部验证不能替代下一提交的完整CI或最终用户验收。日志索引为仓外molis-foundation-52c-memory-drain-*、molis-foundation-52c-close-cdp-*、molis-foundation-52c-cdp-stack-diagnostic-20261026.log，既有首红不删除。关闭修复与诊断仍合入#1064，不另拆PR。
+
+独立复审已核关闭、实例与Catalog顺序，未发现新增生产P1/P2。失败边界仍沿旧合同：Adapter或Ledger的close抛错会保留原owner供显式重试；usage sink自身的I/O拒绝仍记录memory.receipt_unrecorded，flush只等待已接受队列完成，不保证每条投影成功，不能扩大为任意投影失败都会使close失败。本轮修复的是过早关闭账本，不增加投影持久队列或自动重放。

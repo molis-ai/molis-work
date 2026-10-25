@@ -2,9 +2,9 @@ import { ActionError as ContractsError } from "@molis-ai/molis-work-contracts/pl
 import * as goalsPluginExports from "@molis-ai/molis-work-plugin-goals";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { servePages } from "./fixtures/pages-runtime.js";
-import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, type ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MolisWorkLocalHost, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
-import { handleFunctionsHttp } from "@molis-ai/molis-work-app-local-host";
+import { handleFunctionsHttp, seedSceneRules } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { mkdtemp, mkdir, readFile, rm, writeFile, stat } from "node:fs/promises";
@@ -26,7 +26,7 @@ import {
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
-import { SYSTEM_HOME_DOCK_FUNCTION_KEY } from "@molis-ai/molis-work-contracts/modules/functions";
+import { INBOX_DISMISS_BEHAVIOR_ID, INBOX_DONE_BEHAVIOR_ID, SYSTEM_HOME_DOCK_FUNCTION_KEY } from "@molis-ai/molis-work-contracts/modules/functions";
 import { createFunctionsService, type TypeSafeProvider } from "@molis-ai/molis-work-module-functions";
 import {
   datasetManifest,
@@ -230,9 +230,24 @@ test("客户端使用当前插件路径，保留的 Host 适配按合同改写",
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /\/api\/functions/);
 });
 
+/**
+ * Since FI-2 a default rule comes with the scene that declares it, seeded when a host registers its scenes, not when the
+ * functions library opens. The Home dock scene as the Host declares it, to the extent seeding reads it (as in
+ * tests/functions-feed-module-exits.test.ts), and a stand-in for the Host as its declarer.
+ */
+const HOME_DOCK: ActionSceneDefinition = {
+  scene_id: "home.dock", version: 1, title: "首页下一步", description: "首页", trigger: "事项到达", scope: "project", subject_kinds: [], permissions: [],
+  input_schema: { type: "object" }, result_schema: { type: "object" }, recommendation_source: "subject-offers",
+  default_rule: { function_key: SYSTEM_HOME_DOCK_FUNCTION_KEY, name: "首页事项处理建议", instructions: "根据事项原文推荐完成或忽略。", subject_kinds: ["inbox_entry"],
+    options: [{ key: INBOX_DONE_BEHAVIOR_ID, description: "做完了" }, { key: INBOX_DISMISS_BEHAVIOR_ID, description: "忽略" }] },
+};
+const seedHomeDock = (home: string) => seedSceneRules(home, { provider_id: "test.declarer", title: "测试", kind: "system" }, [HOME_DOCK], { env: {}, credential: () => null });
+
 test("/api/plugins/functions 与 /api/functions 打到同一 handler", async () => {
   await withHome(async (home) => {
+    // The Host opens the Home first (a fresh Home adopts the current memory format), then registers its scenes.
     const dispatcher = await listenDispatcher(home);
+    seedHomeDock(home);
     try {
       const shortPath = await fetch(`${dispatcher.origin}/api/functions`);
       const platformPath = await fetch(`${dispatcher.origin}/api/plugins/functions`);
@@ -307,6 +322,7 @@ test("草稿 CAS：过期 updated_at 不能覆盖已写入的草稿、预览和�
 
 test("再次打开库不改已有 published 内置函数的 instructions", async () => {
   await withHome(async (home) => {
+    seedHomeDock(home);
     const functions = createFunctionsService({ home, credential: () => null });
     try {
       assert.ok(functions.getByKey(SYSTEM_HOME_DOCK_FUNCTION_KEY));
@@ -316,6 +332,8 @@ test("再次打开库不改已有 published 内置函数的 instructions", async
     const db = new DatabaseSync(homeSqlitePath(home, "functions"));
     db.prepare("UPDATE functions SET instructions = ? WHERE function_key = ?").run("用户改过", SYSTEM_HOME_DOCK_FUNCTION_KEY);
     db.close();
+    // The Host registers its scenes again on the next start; that seeds nothing over what the person changed.
+    seedHomeDock(home);
     const again = createFunctionsService({ home, credential: () => null });
     try {
       assert.equal(again.getByKey(SYSTEM_HOME_DOCK_FUNCTION_KEY)?.instructions, "用户改过");

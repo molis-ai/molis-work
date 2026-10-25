@@ -79,6 +79,8 @@ export {
   createWorkbenchGoalsTreeRenderer,
   createWorkbenchUiHost,
   renderPluginSettingsContribution,
+  renderWorkbenchDocument,
+  WORKBENCH_UI_SLOTS,
 } from "./ui-composition.js";
 export { createWorkbenchFeedProjectionRenderer, type FeedSupplementalEntry } from "./feed-projection-ui.js";
 export { createWorkbenchFocusSections, type FocusSectionCardOptions } from "./focus-sections.js";

@@ -20,6 +20,7 @@ const UI_COMPOSITION_NAMES = [
   "createWorkbenchGoalsDocumentRenderer", "createWorkbenchGoalsFactorsRenderer", "createWorkbenchGoalsMomentumRenderer",
   "createWorkbenchGoalsPlanningRenderer", "createWorkbenchGoalsPolicyRenderer", "createWorkbenchGoalsRelationRenderer",
   "createWorkbenchGoalsStatusRenderer", "createWorkbenchGoalsTreeRenderer", "createWorkbenchUiHost", "renderPluginSettingsContribution",
+  "renderWorkbenchDocument", "WORKBENCH_UI_SLOTS",
 ];
 
 test("RAC-710 the workbench entry has no export from a plugin package", () => {

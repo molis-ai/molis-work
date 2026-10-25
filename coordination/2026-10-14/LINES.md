@@ -31,6 +31,14 @@
 >   - `ac-shell`（`local_6e0d7986`，Sonnet xhigh；RAC-600～619、BL-635～644）：BL-387 页面一半 → BL-388 → PG-060 余项 → BL-430（先查 ac-kernel）→ PG-088 余项（引导改走 Pages 公开动作）；Goals S11 留在 ac-sc3。先写 `slices/w5-06-shell-remainder.md`。
 >   - 同时：ac-coding 接 T3 及之后各片、ac-giants 接 A4、ac-sc3 叠在 #1245 修复头上做 S9-1，各线一片做完直接接下一片。
 
+> **10-25 13:55 UTC 派单（统筹）**：
+> - `ac-kernel`：W5-10 agent-host 份（改代码只 `prologue-checkpoints`、`prologue-taskboard`、`agent-host-composition`；与 #1064 重叠的五个只在 HUGE-CLASS-MIGRATION 重判）→ BL-541 → BL-470，一个分支一个 PR，RAC-658～669。
+> - `ac-coding`：T8 快进进 #1285（T5+T8 一个 PR）；下一组 T7 界面 + BL-585（T3b），叠在 T8 上，一个 PR；之后 PG-054。
+> - `ac-sandbox-sched`：#1283 等二轮；FI-3～FI-6 叠一个分支，整组一个 PR。
+> - `ac-shell`：#1293 进 batch-38；下一组 BL-387 余下 → PG-060 余项 → PG-088 余项 → PG-075（#1284 后），叠在 ec3e0c3ad 上一个 PR。
+> - `ac-clients-1`：PG-070、PG-071 叠在 #1288（146fce17d）上一个 PR，RAC-750～769；资源涨超 10 KB 或新增资源先问。
+> - `ac-platform`：#1291 一轮挡 2 项（号段改 RAC-730～740、S-80/81；S-75/76 的拒绝测试进 `test:security`）。
+
 ## 1a. 在途但不在上表任何一条线里的 PR
 
 | PR | 谁在推 | 管的 PG 行 |

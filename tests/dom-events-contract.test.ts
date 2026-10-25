@@ -258,7 +258,7 @@ test("an owner's files exist, and an owner without events is deleted", () => {
   assert.ok(moved.some((problem) => /owner "placement" names apps\/workbench\/src\/scripts\/client\/placement-moved\.ts, which is not a tracked file/.test(problem)), moved.join("\n"));
   const unused = domEventProblems(withRegistry("  placement: {", '  nobody: {\n    files: ["apps/workbench/src/side-panel.ts"],\n    state: "No event.",\n  },\n  placement: {'));
   assert.ok(unused.some((problem) => /owner "nobody" owns no event; delete it/.test(problem)), unused.join("\n"));
-  const empty = domEventProblems(withRegistry('files: ["plugins/native/coding/src/client.ts"]', "files: []"));
+  const empty = domEventProblems(withRegistry('files: ["plugins/native/coding/src/browser/main/page.ts", "plugins/native/coding/src/browser/main/mount-events.ts"]', "files: []"));
   assert.ok(empty.some((problem) => /owner "coding" needs files/.test(problem)), empty.join("\n"));
 });
 

@@ -1,4 +1,4 @@
-import type { UiClientTranslate } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { UiClientTranslate, UiPageReviews } from "@molis-ai/molis-work-contracts/platform/ui";
 
 export type Translate = UiClientTranslate;
 
@@ -13,23 +13,42 @@ export interface GitLifetime {
   watchRevision(read: (signal: AbortSignal) => Promise<unknown>, refresh: (signal: AbortSignal) => Promise<boolean | void>): () => void;
 }
 
-/** One request to a plugin's routes in this project (the Coding bundle's `request`); a failure is an Error. */
-export type CompanionRequest = (plugin: string, path: string, method?: "GET" | "POST", body?: unknown, signal?: AbortSignal) => Promise<unknown>;
-
-/** How a Host review ended, as the review list tells the page (plugins/native/coding/src/browser/workbench.ts). */
+/** How a Host review ended, as the review list tells the page. */
 export interface DecisionOutcome { readonly workspaceId?: string | null; readonly sessionId?: string | null; readonly state: string }
 
-/** What Coding's bundle hands Git's client when it mounts it (plugins/native/coding/src/browser/workbench.ts). */
+/** What the Git bundle's factory gets: the page's host, or Coding's with the ports of the panel Coding mounts Git in. */
+export interface GitFactoryHost {
+  readonly root?: ParentNode;
+  readonly translate: Translate;
+  mountPluginClient(root: Element): GitLifetime | null;
+  /** A platform path in the current project. */
+  route(path: string): string;
+  /** A path under Git's own routes (Coding's host answers for Git here when it mounts it). */
+  pluginRoute(path: string): string;
+  /** The Host's review lists: a rendering hook that calls back with the outcome, never a decision. */
+  readonly reviews: UiPageReviews<Element>;
+  /** Opens another plugin's page (a link on Git's own page). */
+  openPlugin?(plugin: string): void;
+  /** Given only by the page that mounts Git in its own panel (Coding): where the result opens and closes. */
+  openResult?(): void;
+  closeResult?(): void;
+  /** Reads the browsing workspace again for every client on the page; Git alone refreshes when it is absent. */
+  refreshWorkspace?(): void;
+}
+
+/** What Git's client uses: the factory's host with the requests Git makes and the ports of the page it is mounted in. */
 export interface GitHost {
   readonly root?: ParentNode;
   readonly translate: Translate;
   mountPluginClient(root: Element): GitLifetime | null;
-  readonly request: CompanionRequest;
+  /** One request to Git's routes (a failure is an Error). */
+  request(path: string, method?: "GET" | "POST", body?: unknown, signal?: AbortSignal): Promise<unknown>;
+  /** The comparison Diff drew for a diff that was read and kept, by Diff's page action. */
+  diffState(reference: { readonly artifact_id: string; readonly version: number }, signal?: AbortSignal): Promise<unknown>;
   openResult(): void;
   closeResult(): void;
   /** Shows the Host's reviews of this workspace in `element`; resolves when they are drawn. */
   showReviews?(element: Element, refs: readonly { run_id: string }[], sessionId: string | null, workspaceId: string, query: undefined, control: { lifetime: GitLifetime; signal: AbortSignal | undefined }): Promise<unknown> | undefined;
-  /** Reads the browsing workspace again for every client on the page; Git alone refreshes when it is absent. */
   refreshWorkspace?(): void;
 }
 

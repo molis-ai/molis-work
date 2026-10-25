@@ -505,9 +505,6 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "未声明": "Not declared",
   "读图能力": "Image input",
   // What the Coding page's companions (Files, Git, Diff, Text Stats) say around their lists; their stage shells carry their own words.
-  "返回改动列表": "Back to changes",
-  "正在读取固定内容…": "Reading the pinned versions…",
-  "。请点击刷新重试。": ". Select Refresh to try again.",
   // Settings › Connectors: how a connector connects, what it is for, and what to do next.
   "登录账号": "Sign in to your account",
   "自定义应用授权": "Authorize with your own app",
@@ -560,7 +557,6 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "目录订阅": "Directory feeds",
   "网页搜索": "Web search",
   "开启（由模型决定想多少）": "On (the model decides how much to think)",
-  "无法读取文件工作区": "Couldn't read the file workspace",
   "无法关联工作区": "Unable to link workspace",
   "允许 {plugin} 为项目 {project} 关联目录？\n{path}": "Allow {plugin} to link this folder to project {project}?\n{path}",
   "项目连接失败": "Couldn't connect to the project",

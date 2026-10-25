@@ -1039,6 +1039,10 @@ importers:
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
+    devDependencies:
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
 
   plugins/native/feed:
     dependencies:
@@ -1337,6 +1341,10 @@ importers:
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
+    devDependencies:
+      esbuild:
+        specifier: ^0.28.2
+        version: 0.28.2
 
   plugins/native/todo:
     dependencies:

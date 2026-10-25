@@ -1,6 +1,6 @@
-import { gitClient } from "./client.js";
+import { mountGit } from "./mount.js";
 import type { GitSentenceTable } from "../say.js";
-import type { GitBrowser, GitHost } from "./types.js";
+import type { GitBrowser, GitFactoryHost } from "./types.js";
 
 /**
  * The bundle's entry. It runs inside the factory `(host, sentences, git) => { … return git }` that the build wraps around it
@@ -8,7 +8,7 @@ import type { GitBrowser, GitHost } from "./types.js";
  * templates, and `git` is the factory's slot for what it hands back (Coding's bundle calls its `show`, `refresh` and
  * `afterDecision`), filled here.
  */
-declare const host: GitHost;
+declare const host: GitFactoryHost;
 declare const sentences: GitSentenceTable;
 declare let git: GitBrowser | null;
-git = gitClient(host, sentences);
+git = mountGit(host, sentences);

@@ -50,33 +50,35 @@ test('composition preserves Native UI identities', () => {
   assert.equal(ui.find(entry => entry.contribution_id === 'io.molis.work.native.work.terminal.v1'), undefined);
 });
 
-test('W4-03-05 the Coding companions borrow Coding\'s client: one bundle is served, none of them ships a copy', () => {
+test('RAC-540 PG-070 every client is a bundle of its own: Files, Git, Diff and Text Stats borrow nothing from Coding', () => {
   const clients = new Map(pluginSurfaceClients().map(client => [client.id, client]));
-  const coding = pluginWorkbenchClientAsset('coding');
-  assert.ok(coding && clients.get('coding')?.bundle === 'coding');
-  for (const id of ['files', 'git', 'diff', 'text-stats']) {
-    assert.equal(clients.get(id)?.bundle, 'coding', `${id} mounts with Coding's client`);
-    assert.equal(clients.get(id)?.factory, clients.get('coding')?.factory, id);
-    assert.equal(pluginWorkbenchClientAsset(id), null, `the Host serves no ${id}.js`);
+  for (const id of ['coding', 'files', 'git', 'diff', 'text-stats']) {
+    assert.equal(clients.get(id)?.bundle, id, `${id} is its own bundle`);
+    assert.ok(pluginWorkbenchClientAsset(id), `the Host serves ${id}.js`);
   }
-  // Every other client is its own bundle.
-  for (const client of clients.values()) if (!['files', 'git', 'diff', 'text-stats'].includes(client.id)) assert.equal(client.bundle, client.id, client.id);
+  for (const id of ['files', 'git', 'diff', 'text-stats']) assert.notEqual(clients.get(id)?.factory, clients.get('coding')?.factory, `${id} has a client of its own`);
+  for (const client of clients.values()) assert.equal(client.bundle, client.id, client.id);
+  // Coding calls Files' and Git's clients, so the page loads their bundles before it mounts Coding's.
+  assert.deepEqual(clients.get('coding')?.assets, ['/assets/molis-work-plugins/git.js', '/assets/molis-work-plugins/files.js']);
 });
 
-test('W5-02-REG-08 a client gets the clients its registration names in clientUses, and the plugins it uses ship no bundle of their own', () => {
+test('RAC-541 W5-02-REG-08 a client gets the clients its registration names in clientUses, mounted as the plugin they belong to', () => {
   const entry = futurePlugin(), at = (id: string, order: number, workbench: Omit<PluginRegistration['workbench'], 'order' | 'contributions'>): PluginRegistration =>
     ({ ...entry, project_plugin_id: id, catalog_order: order, manifest: { ...entry.manifest, plugin_id: 'io.molis.work.' + id }, workbench: { order, contributions: [], ...workbench } });
-  const user = at('user', 1, { clientFactory: 'host => host.clients.lent(host)(host.reviews)', clientUses: ['lent'] });
-  const lent = at('lent', 2, { clientFactory: 'host => reviews => host.root + ":" + typeof reviews', clientFrom: 'user' });
+  const user = at('user', 1, { clientFactory: 'host => host.clients.lent({ root: "r" })', clientUses: ['lent'] });
+  const lent = at('lent', 2, { clientFactory: 'host => host.root + ":" + host.pluginId + ":" + host.pluginRoute("/x")' });
   const packs = pluginWorkbenchPacks([lent, user]);
-  assert.equal(packs.find(pack => pack.project_plugin_id === 'lent')?.clientFactory, undefined, 'the used plugin ships no bundle');
-  assert.equal(runInNewContext(`(${packs.find(pack => pack.project_plugin_id === 'user')?.clientFactory})({ root: 'r', reviews: () => 'Host-owned review' })`), 'r:function', 'its client and the Host\'s supplied review interface reach the user');
-  assert.throws(() => pluginWorkbenchPacks([{ ...user, workbench: { ...user.workbench, clientUses: undefined } }, lent]), /lent has a client and borrows the bundle of user, which does not name it in clientUses/);
-  assert.throws(() => pluginWorkbenchPacks([user, { ...lent, workbench: { ...lent.workbench, clientFrom: undefined } }]), /user uses the client of lent, which does not name it in clientFrom/);
-  // The build: Coding's bundle carries Git's and Files' clients; the workbench has no Coding-specific script.
+  const lentOwn = packs.find(pack => pack.project_plugin_id === 'lent');
+  assert.ok(lentOwn?.clientFactory, 'the used plugin ships a bundle of its own');
+  const used = packs.find(pack => pack.project_plugin_id === 'user');
+  assert.deepEqual(used?.clientAssets, ['/assets/molis-work-plugins/lent.js'], 'its bundle is loaded before the user mounts');
+  const factories: Record<string, unknown> = { lent: runInNewContext(`(${lentOwn?.clientFactory})`) };
+  assert.equal(runInNewContext(`(${used?.clientFactory})({ root: 'page', route: path => '/p' + path })`, { molisWorkbenchPluginFactories: factories }), 'r:io.molis.work.lent:/p/api/plugins/io.molis.work.lent/x', 'it mounts with its own plugin\'s identity, never the user\'s');
+  assert.throws(() => pluginWorkbenchPacks([user, { ...lent, workbench: { ...lent.workbench, clientFactory: undefined } }]), /user uses the client of lent, which has none/);
+  // The build: Coding calls Git's and Files' clients; the workbench has no Coding-specific script.
   assert.deepEqual(BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === 'coding')?.workbench.clientUses, ['git', 'files']);
-  for (const id of ['git', 'files']) assert.equal(pluginWorkbenchPacks().find(pack => pack.project_plugin_id === id)?.clientFactory, undefined, id);
-  assert.match(pluginWorkbenchClientAsset('coding') ?? '', /clients: \{ "git": \(.+\), "files": \(.+\) \}/s);
+  for (const id of ['git', 'files']) assert.ok(pluginWorkbenchPacks().find(pack => pack.project_plugin_id === id)?.clientFactory, id);
+  assert.match(pluginWorkbenchClientAsset('coding') ?? '', /clients: \{ "git": ports => .+, "files": ports => .+ \}/s);
 });
 
 test('a registration that sets clientServed is sent without its whole-line comments and indentation; one that does not, as written', () => {

@@ -11,10 +11,7 @@ import { originalTask } from "./continuation.js";
  * session come from the summaries, so nothing is dropped from them because it is not on screen.
  */
 
-/** Rounds a refresh carries in full. */
-export const SESSION_WINDOW = 6;
-/** Rounds one page back carries. */
-export const SESSION_PAGE = 10;
+export { SESSION_PAGE, SESSION_WINDOW } from "./session-window-sizes.js";
 
 /** One earlier round as the session's navigation, totals and results list need it; never its transcript. */
 export interface CodingRunSummary {

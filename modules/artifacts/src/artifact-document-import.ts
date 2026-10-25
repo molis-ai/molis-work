@@ -2,12 +2,12 @@ import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import type { ArtifactsApplicationApi, ArtifactJsonValue } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
-import { artifactsManifest } from "./manifest.js";
-import { artifactVersionPath } from "./browser.js";
+import { ARTIFACTS_PROVIDER } from "./artifact-provider.js";
+import { artifactVersionPath } from "./artifact-browser.js";
 
-import { DOCUMENT_ARTIFACT_TYPE } from "./document-type.js";
-import { ARTIFACT_ORIGINAL_INLINE_MAX_BYTES, type StoredArtifactOriginal } from "./original-store.js";
-export { DOCUMENT_ARTIFACT_TYPE } from "./document-type.js";
+import { DOCUMENT_ARTIFACT_TYPE } from "./artifact-document-type.js";
+import { ARTIFACT_ORIGINAL_INLINE_MAX_BYTES, type StoredArtifactOriginal } from "./artifact-original-store.js";
+export { DOCUMENT_ARTIFACT_TYPE } from "./artifact-document-type.js";
 /**
  * The most text one version keeps as its `content` (what agents, search and previews read). It bounds the record, not the import:
  * a longer text that comes with its original is cut here with a warning and kept whole in the original (onboarding limits,
@@ -135,8 +135,8 @@ export async function importArtifactDocument(input: Record<string, unknown>, por
     project_id: ports.projectId, actor_id: ports.actorId, owner_actor_id: ports.ownerActorId, artifact_id: artifactId,
     version: (latest?.version ?? 0) + 1,
     artifact_type_id: DOCUMENT_ARTIFACT_TYPE, schema_version: 1,
-    producer: { plugin_id: artifactsManifest.plugin_id, plugin_version: artifactsManifest.version,
-      binding_signature: artifactsManifest.publisher.signature },
+    producer: { plugin_id: ARTIFACTS_PROVIDER.plugin_id, plugin_version: ARTIFACTS_PROVIDER.version,
+      binding_signature: ARTIFACTS_PROVIDER.publisher.signature },
     content: { kind: "inline", payload },
     metadata: { source: document.source, source_id: document.source_id, source_url: document.source_url,
       title: document.title, imported_at: (ports.now ?? (() => new Date().toISOString()))(), ...(document.connection_id ? { connection_id: document.connection_id } : {}) },

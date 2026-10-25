@@ -11,7 +11,7 @@ import { join } from "node:path";
 import { createServer } from "node:http";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
-import { artifactsActions } from "@molis-ai/molis-work-plugin-artifacts";
+import { artifactsActions } from "@molis-ai/molis-work-module-artifacts";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { TODO_ORGANIZE_BASIC } from "@molis-ai/molis-work-plugin-todo";
 import { withContextJourneys } from "../apps/local-host/dist/context-onboarding-store.js";

@@ -1,6 +1,6 @@
 import type { ArtifactsQueryApi, ArtifactConsumerType } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
-import { readArtifactSelection, type ArtifactBrowserView } from "./browser.js";
+import { readArtifactSelection, type ArtifactBrowserView } from "./artifact-browser.js";
 
 export interface GoalArtifactEmbed {
   readonly relationship: "input" | "output";

@@ -123,7 +123,7 @@ PR 粒度（GitHub runner 槽位有限，开得多就积压）：
 
 ### 当前交付核实（PIPE，2026-10-25）
 
-**18:05Z 交付接续（head/包含核验时间分别保留）**：main仍为`4f4e59a33b6830839323f9c33f87a7ad9047943f`（#1287实际16:29:30 merge，源3686与actual完整tree同`64b0018ed3a074a926da7d275024a774e121287f`，普通CI40210712141 success）。38远端为`affe0c277af443e38924c993c70fa51a012d1e1a`，现实际包含I2/4f、C5/28f与BL541/6e；本地另有原作者mcp-context-actions测试/预算WIP，源对象不纳入未提交改动；本地39 clean核到`0cbc7649230d3317fbc76b421cfeaf2fe4f7e1ba`，已包含A3/da0与Home拒绝码/f7，尚未核到62569/a90/0e0/85af包含。计划、来源交付、候选采用与actual main分别记，原片不因候选入批关闭。
+**18:11Z 交付接续（head/包含核验时间分别保留）**：main仍为`4f4e59a33b6830839323f9c33f87a7ad9047943f`（#1287实际16:29:30 merge，源3686与actual完整tree同`64b0018ed3a074a926da7d275024a774e121287f`，普通CI40210712141 success）。38远端为`affe0c277af443e38924c993c70fa51a012d1e1a`，现实际包含I2/4f、C5/28f与BL541/6e；本地另有原作者mcp-context-actions测试/预算WIP，源对象不纳入未提交改动；本地39 clean核到`0cbc7649230d3317fbc76b421cfeaf2fe4f7e1ba`，已包含A3/da0与Home拒绝码/f7，尚未核到62569/a90/0e0/85af包含。计划、来源交付、候选采用与actual main分别记，原片不因候选入批关闭。
 
 **审验与新交付**：1294/da0 REVIEW6400499865+TEST6400702904独立7/7齐，PG031/62569 REVIEW6400607731+TEST6400720565独立5/5齐，两单题作者Root已正式归档/不为收据唤醒。F1 T2/a90 REVIEW6400339244+TEST6400673495真实Host2/2及S81 probe齐，最终源与proof构建只注释等价、摘要不匹配及完整S20继承缺76/77/80仍红；原件不回填新build绿。F5/0e REVIEW6400279300+TEST6400605627独立89/89/612fa9匹配/最终工程推送齐，44文件仍需按真实38+hostIds+F14组合，临时S75由carrier统一。F5新f7 REVIEW6400841002+TEST6400832848独立2/2/392d744匹配/工程推送齐，已实际入39；Root已正式归档F5，旧0e采用承接PIPE→Claude。I1/85af准确4595→7文件92/4，SOURCE REVIEW `/tmp/sh1303-review-85af6e2.md`、TEST `/tmp/molis-verify-2026-10-25/sh1303-85af-independent/TEST-85af.md` 最终新构建2/2/9.543s/ca2cf156匹配齐，writer已释放常设入口保留；叶资源gate1仅两资源各低42B由组合冻，不冒全PR绿。四待采用源集中交Claude6400920048，不重复已包含da0/f7/6e。
 
@@ -131,7 +131,9 @@ PR 粒度（GitHub runner 槽位有限，开得多就积压）：
 
 **当前实施与权限**：I2非Memory #1267 已交base0cab→代码03d64→最终450d379bb5c65a6e93328433ddeba2f08f187061（末提交仅spec），8文件82/18，准确8b81构建、作者SDK24含原17父22.469s/六文件73过；REVIEW6400976449与TEST6401003460独立完整SDK24/24齐（原17父29.315s、整文件71.867s），原两次120s NOTPASS保留，SDK包/Memory/3ec-F8-F19不重做。F2已交301e13bd→ef96ddeeffb682ac54e0e4a286bb0f737c69f8b8六文件74/16，Schedule/Shelf三个cap字符串与RAC576有限fixture/启动验证，PPT原本正确保持；源1c5c326a匹配，REVIEW6401096790+TEST6401183855独立2/2/14.434s齐，6401236287交唯一carrier，作者最终交接已核/已释放，不冒实际采用。F1按Root已实际接#784，BL-666在MERGE-QUEUE统筹号段CAS1be1ba6e唯一预留（完整646～665不复用/595连接项），已交a1ff→1e856ba506f5c2b481f1ad5ad2081a83a577010d两docs15/15，REVIEW6400951378过，无运行行为变化不排产品测试；两真实待办/历史CI/计数/QA结论不变，原PR仍a1ff OPEN非Draft，报告最后合。PG049新1bd只S72引号文档修，原kernel现39合并/UU不碰；Root已派释放后的I1独立做通知拒绝不写成功/中英两nonblock，原notices blob bc8a9de等1bd/无同hunk WIP，保来源/权限/job去重/SI/PG031，和clients词典按键串行；最终新头复审另核。PG070最新统筹WO6400811010及39的05d07f89e：第2片由外部DeepSeek `deepseek/pg070-slice2`/RAC763～769；原clients只PG071同等待遇阻塞，门禁口径先交Claude审，无第二CSS writer/不沿旧“接受248KB”或解释待决。Memory #1059/#1064/#1101与C2两Memory端口暂停，#734用户排除本轮合并保持。Claude唯一全线组批/full/队列/来源关闭，Root唯一巡检和新单初派，PIPE只交付接续/共享CAS；不写主检出/真实Home、不force/绕保护/取消CI。
 
-完整19项当前远端head/owner/下一动作见同目录`CODEX-TASKS.md`当前表；源审/独立TEST/候选包含/actualmain分别记。旧批35–36与来源贡献见协调提交`2697aebab6b397c7802c40555f00ec2789af233f`同文件，不以旧快照覆新事实。
+完整20项当前远端head/owner/下一动作见同目录`CODEX-TASKS.md`当前表；源审/独立TEST/候选包含/actualmain分别记。旧批35–36与来源贡献见协调提交`2697aebab6b397c7802c40555f00ec2789af233f`同文件，不以旧快照覆新事实。
+
+**最新Open范围**：Root鲜核20件，#1304当前Ready/1fc45750，FIRST仅请求6401066072尚未核实际认领；#1302新49b98a3d，作者6401182602已读，已6401303208交原Claude增量复评，48作者单元/三浏览器边界不冒独立放行。①翻译served门禁/②键owner碰撞未核到实际实施writer，交Root按优先级初派；③样式核对/④第三方CSS先同DeepSeek既有WO逐项核重叠，不另CSS writer。新增Draft#1305/627a15c7混BL183与Memory BL323，6401303433明确后者暂停，不追diff/测试/采用，保代码归属，非Memory183由原owner独立处理；1064仅可见头更新3b3e5221，不因此恢复。I1只目录通知，PG071词典同键实际交槽。
 
 > **统筹 10-24 晚（Claude）**：
 > - 载体 #1236（batch/1024-33@331）已19:02:08Z actual merge `bde02c59eb9a1d794a442419570819a80585708a`。原Claude唯一队列自然完成，未重复调用。#1223已Claude6388301030关；#1109/#1112已专职6388316807/6388317402核包含后关闭并归档。实际工程片与旧8指定合并目标已闭环，各nonblock/W5整线保留。

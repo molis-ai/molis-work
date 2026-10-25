@@ -227,10 +227,10 @@ SDK（`packages/plugin-sdk`）的公开 API 不变：Manifest 字段没有增减
 
 **T1 落地时的两处口径（2026-10-24）：**
 
-- C1「非 `host` 等级只在沙箱」在 T1 只强制一个方向：`host` 配沙箱定义被拒（`plugin.grant_denied`）。另一个方向（非 `host` 等级不得在宿主进程里跑）留给 T2：开发目录、宿主的测试夹具和 Feed 的官方集成今天仍在宿主进程里跑，T1 给它们 `unsigned`（官方集成给 `host`，与今天一致），不改它们的执行方式。RAC-383 里「映射不了沙箱形态的 Manifest 安装时拒绝」的那一半随 T2。
+- C1「非 `host` 等级只在沙箱」在 T1 只强制一个方向：`host` 配沙箱定义被拒（`plugin.grant_denied`）。另一个方向（非 `host` 等级不得在宿主进程里跑）留给 T2：开发目录和宿主的测试夹具今天仍在宿主进程里跑，T1 给它们 `unsigned`，不改它们的执行方式。Feed 的官方集成随宿主构建一起发布、由宿主构建目录登记，T1 给 `host`；以后若独立发布，再按它自己的签名定等级。RAC-383 里「映射不了沙箱形态的 Manifest 安装时拒绝」的那一半随 T2。
 - 已装插件不能换信任等级（`plugin.definition_conflict`）；卸载后重装可以。存量记录按 `execution` 补等级的维护见 §6 与检查清单第 4 节。
 
-### 7.1 #1250 本轮首评修复（2026-10-24，实施中）
+### 7.1 #1250 本轮首评修复（2026-10-24，修复已实现）
 
 本轮只处理固定 `d4dee51fa` 的首评 `6390022295`：移除 `tests/plugin-trust-rules.test.ts` 新增的双重断言，用 `Object.assign` 保留 Manifest 自称等级的真实额外字段和原拒绝断言；补包信封拒绝、T1 调用点、维护后真实临时 Host 启动的证据，并补齐 S-34 既有测试引用和同意跨库写入的说明。完成标准是本片修后必要定向及门禁通过、独立增量审验通过；不以作者原 334 项摘要代替本轮实跑，也不冒称整条 ac-trust 或实际合入完成。
 
@@ -239,9 +239,9 @@ SDK（`packages/plugin-sdk`）的公开 API 不变：Manifest 字段没有增减
 - **RAC-397-HOST**：维护后的隔离 Home 经真实 `MolisWorkLocalHost` 启动后，Shelf 的 `always_on` 同意实际落账，发布者、Manifest 与 `host_build` 来源正确；关闭后再次启动不重复，持久撤回后再次启动不复活。不因此声明 T3 的常开名单与移除限制、T5 的撤回入口已实现。
 - **RAC-398-T1**：S-34 仅补现有 `plugin.state_invalid`、`plugin.grant_denied`、`plugin.definition_conflict` 的文件与真实测试名引用，不新增 S 号；在 `recordInstallConsents` 旁说明安装记录与 Home 同意可能跨库部分成功、账本失败原样传播及下一次 replay 补账，失败策略与权限不变。
 
-官方集成的 `host`/`unsigned` 矛盾先保留为唯一待裁定 hunk：当前 `official-integrations.ts` 与 `trust-rules.ts` 注释及本节口径不一致，Root 已交 Claude 统筹仅确认本轮 T1 官方集成的过渡等级；决定返回后代码、注释与本稿一起统一，不自行选等级或提前实现 T2。项目库 9→10、与 #1245 的真实 owner 结构/四份 SQL 组合仍由唯一 carrier 处理，本轮不改版本或维护 SQL；#1246 的重装先清文件后清 KV、清完才发布新安装保持原样。
+官方集成的等级已按 [Claude 统筹裁定 6392849194](https://github.com/molis-ai/molis-work/pull/1250#issuecomment-6392849194) 统一：仅随宿主构建发布、由宿主构建目录登记的官方集成是 `host`，保留 `official-integrations.ts` 的现有实现，修正 `trust-rules.ts` 注释和本稿口径；独立发布后按自身签名定等级，不将外部定义一律视为 `host`，不提前实现 T2。项目库 9→10、与 #1245 的真实 owner 结构/四份 SQL 组合仍由唯一 carrier 处理，本轮不改版本或维护 SQL；#1246 的重装先清文件后清 KV、清完才发布新安装保持原样。
 
-验证先做一次独立树整体构建，按 Plugin Runtime README 必跑用例及上述精确定向运行，保留初败、复跑与未跑范围；共享核心的 full 仍由唯一 Claude 批次排期，禁止在真实 Home 演练。
+六项修复已在独立树整体构建后通过精确定向 5 文件 / 20 用例、Plugin Runtime README 必跑 20 文件及 Home 相关 6 文件与包清单 1 文件 / 596 用例，合计 32 文件 / 616 用例首次通过；包边界、版本核对、修正文档列后的健康门禁和 secret 扫描通过，原始初败与通过日志保留。本次等级裁定只改注释与文档，复用上述有效运行证据；最终交付核固定差异、健康门禁与 secret 扫描，并交独立增量审验。共享核心的 full 与维护组合仍由唯一 Claude 批次处理，未操作真实 Home。
 
 ## 8. 验收
 

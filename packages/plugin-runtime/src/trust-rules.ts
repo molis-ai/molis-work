@@ -36,8 +36,9 @@ export function assertPluginTrust(value: unknown): PluginTrust {
  * A level and the way the code runs must agree where it is a safety matter: code of the Host's build runs in the Host (a sandboxed
  * definition is a generated plugin's, whose permissions are what a person confirmed, never what its Manifest declares), and a
  * definition run in the sandbox never holds the Host's own level. Nothing in the other direction is refused here yet: the
- * development directory, the Host's test fixtures and the Feed's official integrations run in the Host without being its build,
- * as `unsigned`; mapping them onto the sandbox is the install service's (T2).
+ * development directory and the Host's test fixtures still run in the Host as `unsigned`; mapping them onto the sandbox is the
+ * install service's (T2). Official integrations shipped in the Host's build and registered by its build catalog have `host`
+ * trust. If an integration is later distributed independently, its trust follows its own signature instead.
  */
 export function assertTrustFitsExecution(trust: PluginTrust, execution: "host" | "sandbox"): void {
   if (trust.level === "host" && execution === "sandbox") throw pluginErrors.grant_denied("沙箱里的生成插件不能当作随宿主发布的插件：它的权限是人确认的，不是 Manifest 声明的全部");

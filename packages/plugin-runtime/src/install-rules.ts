@@ -118,8 +118,33 @@ export function abandonRefusal(current: PluginInstanceRecord, installed: PluginI
  * that changes its effect elsewhere (`always_on`, a default wiring, a default input group) is not refused here for where the
  * plugin came from: it takes effect only with a consent on the ledger (`trust-rules.ts`), whatever the plugin's trust level.
  */
-export function validateInstalledManifest(manifest: PluginManifest): void {
+export function validateInstalledManifest(manifest: PluginManifest, owners: readonly DeclarationOwner[] = []): void {
   validateManifest(manifest);
+  const refusal = declarationClaimRefusal(manifest, owners);
+  if (refusal) throw pluginErrors.definition_conflict(refusal);
+}
+
+/** What one Plugin or Host producer already declares of the names the platform keeps one owner for (S-70). */
+export interface DeclarationOwner {
+  readonly plugin_id: string;
+  readonly artifacts: { readonly produces: readonly { readonly artifact_type_id: string }[]; readonly links?: readonly { readonly kind: string }[] };
+}
+
+/**
+ * A 成果 type id and a link kind have one owner (S-70.2, S-70.3): an install or a version change whose Manifest declares one that
+ * another Plugin already declares is refused, so a second Plugin cannot take over what the first one's versions mean. The same
+ * Plugin declaring it again (an upgrade) is not another owner.
+ */
+export function declarationClaimRefusal(manifest: PluginManifest, owners: readonly DeclarationOwner[]): string | undefined {
+  for (const type of manifest.artifacts.produces) {
+    const owner = owners.find(item => item.plugin_id !== manifest.plugin_id && item.artifacts.produces.some(other => other.artifact_type_id === type.artifact_type_id));
+    if (owner) return `成果类型 ${type.artifact_type_id} 已由 ${owner.plugin_id} 声明，${manifest.plugin_id} 不能再声明`;
+  }
+  for (const link of manifest.artifacts.links ?? []) {
+    const owner = owners.find(item => item.plugin_id !== manifest.plugin_id && (item.artifacts.links ?? []).some(other => other.kind === link.kind));
+    if (owner) return `链接种类 ${link.kind} 已由 ${owner.plugin_id} 声明，${manifest.plugin_id} 不能再声明`;
+  }
+  return undefined;
 }
 
 export function assertMutable(record: PluginInstanceRecord): void {

@@ -2,6 +2,7 @@ import { CHARACTER_ARTIFACT_PRODUCER, characterArtifactPreviewAction } from "@mo
 import { isArtifactReferrersAction, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ArtifactLinkKinds } from "@molis-ai/molis-work-module-artifacts";
 import type { ArtifactFileDeclaration, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginRuntime, PluginSupervisor } from "@molis-ai/molis-work-plugin-runtime";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 
 // The platform's table of 成果 types, read from what each producer's Manifest declares (PG-079, PG-064 in
@@ -46,6 +47,7 @@ export interface ArtifactProducerSource {
   readonly name: string;
   readonly surface: string;
   readonly artifacts: PluginManifest["artifacts"];
+  readonly process_items?: PluginManifest["process_items"];
   readonly actions: readonly ActionDefinition[];
 }
 
@@ -66,13 +68,84 @@ export const HOST_ARTIFACT_PRODUCERS: readonly HostArtifactProducer[] = [
   { ...CHARACTER_ARTIFACT_PRODUCER, produces: [...CHARACTER_ARTIFACT_PRODUCER.produces], surface: "characters", actions: [characterArtifactPreviewAction] },
 ];
 
-/** Every producer the registry reads: the plugins this build ships, and the Host's own. */
+/** What one Plugin supervisor says is in effect: the Manifests of the installs that are enabled, and every Plugin it has held. */
+export interface InstalledArtifactView {
+  effectiveManifests(): readonly PluginManifest[];
+  knownPluginIds(): readonly string[];
+}
+
+/**
+ * The supervisors whose installs the registry reads (a project's, the Home's). The registry asks them each time it is read, so an
+ * install, an uninstall, an enable, a disable and an upgrade show at once, with nothing rebuilt (RAC-415).
+ */
+class InstalledArtifactDirectory {
+  readonly #views = new Set<InstalledArtifactView>();
+
+  watch(view: InstalledArtifactView): () => void {
+    this.#views.add(view);
+    return () => { this.#views.delete(view); };
+  }
+
+  effective(): PluginManifest[] {
+    const seen = new Set<string>();
+    return [...this.#views].flatMap(view => view.effectiveManifests()).filter(manifest => !seen.has(manifest.plugin_id) && seen.add(manifest.plugin_id));
+  }
+
+  known(): Set<string> {
+    return new Set([...this.#views].flatMap(view => view.knownPluginIds()));
+  }
+}
+
+export const installedArtifacts = new InstalledArtifactDirectory();
+
+/** What a supervisor and its Runtime say is in effect: the Manifests of enabled installs that are not uninstalled, and every Plugin they have held. */
+export function supervisedArtifacts(supervisor: PluginSupervisor, runtime: PluginRuntime): InstalledArtifactView {
+  return {
+    effectiveManifests: () => supervisor.enabledPluginIds().flatMap(pluginId => {
+      const manifest = supervisor.manifest(pluginId);
+      return manifest && supervisor.installation(pluginId) ? [manifest] : [];
+    }),
+    knownPluginIds: () => [...new Set([...supervisor.states().map(state => state.plugin_id), ...runtime.list().map(record => record.plugin_id)])],
+  };
+}
+
+const sourceOf = (manifest: PluginManifest, surface: string): ArtifactProducerSource => ({ plugin_id: manifest.plugin_id, name: manifest.name, surface,
+  artifacts: manifest.artifacts, ...manifest.process_items ? { process_items: manifest.process_items } : {}, actions: manifest.actions ?? [] });
+
+/**
+ * Every producer the registry reads: the plugins this build ships, the Host's own, and the plugins installed on this Host. A plugin
+ * that is installed and enabled is read from its installed Manifest (an upgrade shows); one that has been installed here but is no
+ * longer in effect (disabled, uninstalled) declares nothing, so its types and link kinds are no longer written.
+ */
 export function artifactProducerSources(): readonly ArtifactProducerSource[] {
+  const effective = installedArtifacts.effective(), byId = new Map(effective.map(manifest => [manifest.plugin_id, manifest] as const)), known = installedArtifacts.known();
+  const shipped = PLATFORM_PLUGIN_REGISTRATIONS.flatMap(entry => {
+    const installed = byId.get(entry.manifest.plugin_id);
+    if (installed) return [sourceOf(installed, entry.project_plugin_id)];
+    return known.has(entry.manifest.plugin_id) ? [] : [sourceOf(entry.manifest, entry.project_plugin_id)];
+  });
+  const shippedIds = new Set(PLATFORM_PLUGIN_REGISTRATIONS.map(entry => entry.manifest.plugin_id));
   return [
-    ...PLATFORM_PLUGIN_REGISTRATIONS.map(entry => ({ plugin_id: entry.manifest.plugin_id, name: entry.manifest.name, surface: entry.project_plugin_id,
-      artifacts: entry.manifest.artifacts, actions: entry.manifest.actions ?? [] })),
+    ...shipped,
     ...HOST_ARTIFACT_PRODUCERS.map(host => ({ plugin_id: host.plugin_id, name: host.name, surface: host.surface, artifacts: { produces: host.produces, consumes: [] }, actions: host.actions })),
+    ...effective.filter(manifest => !shippedIds.has(manifest.plugin_id)).map(manifest => sourceOf(manifest, manifest.plugin_id)),
   ];
+}
+
+/**
+ * Who declares the 成果 types and link kinds on this Host, for the Plugin Runtime to refuse an install that declares one another
+ * Plugin owns (S-70.2, S-70.3): the plugins this build ships (their names stay reserved while one is disabled), the Host's own
+ * producers, and the plugins installed and in effect.
+ */
+export function artifactDeclarationOwners() {
+  const shipped = PLATFORM_PLUGIN_REGISTRATIONS.map(entry => ({ plugin_id: entry.manifest.plugin_id, artifacts: entry.manifest.artifacts }));
+  return [...shipped, ...HOST_ARTIFACT_PRODUCERS.map(host => ({ plugin_id: host.plugin_id, artifacts: { produces: host.produces } })),
+    ...installedArtifacts.effective().map(manifest => ({ plugin_id: manifest.plugin_id, artifacts: manifest.artifacts }))];
+}
+
+/** A Plugin this Host has held that is not in effect: nothing it declares is written any more (S-70.4). */
+export function artifactProducerRetired(pluginId: string): boolean {
+  return installedArtifacts.known().has(pluginId) && !installedArtifacts.effective().some(manifest => manifest.plugin_id === pluginId);
 }
 
 /** For each 成果 type, the plugins that declare they can continue from it. */

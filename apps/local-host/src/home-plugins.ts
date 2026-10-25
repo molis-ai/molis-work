@@ -3,6 +3,7 @@ import { pluginInstallRecords } from "./plugin-install-records.js";
 import type { PluginDefinition, PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PLUGIN_PRESENTATION_CAPABILITY } from "@molis-ai/molis-work-design-system";
 import { randomUUID } from "node:crypto";
+import { artifactDeclarationOwners, installedArtifacts, supervisedArtifacts } from "./artifact-type-registry.js";
 import { HOST_BUILD_TRUST, leaveRefusal, PluginRouteRouter, PluginRuntime, PluginSupervisor, SqlitePluginConsentLedger, SqlitePluginRuntimeReleaseArtifactRepository, type PluginProjectReach } from "@molis-ai/molis-work-plugin-runtime";
 import { HomePluginExecutor } from "./home-plugin-executor.js";
 import { nativePluginReleaseArtifact } from "./native-plugin-release-artifact.js";
@@ -40,6 +41,7 @@ export class HomePluginHost {
   private closing?: Promise<void>;
   private retryable = false;
   private releaseProjectOwners?: () => void;
+  private unwatchArtifacts?: () => void;
   private readonly releaseRegistration: () => void;
   constructor(private readonly options: { home: string; actorId: string; registry: ActionRegistryPort; client: ActionClient;
     entries: readonly HomePluginEntry[]; fixtures?: readonly PluginFixture[]; projectReach?: PluginProjectReach }) {
@@ -126,6 +128,7 @@ export class HomePluginHost {
       }
     } finally {
       this.releaseProjectOwners?.(); this.releaseProjectOwners = undefined;
+      this.unwatchArtifacts?.(); this.unwatchArtifacts = undefined;
       this.db?.close();
       this.db = undefined; this.platform = undefined; this.executor = undefined;
     }
@@ -164,7 +167,7 @@ export class HomePluginHost {
       modelConfiguration: identity.modelConfigurationFor, imageGeneration: identity.imageGenerationFor, ownerFiles: identity.ownerFilesFor,
       providerFor: identity.providerFor, dualInstance: identity.dualInstance });
     // The Home half of a dual-instance plugin offers only its share, and no project reaches it: its ports and events are the project half's.
-    const runtime = new PluginRuntime(repository, executor, { consents: new SqlitePluginConsentLedger(db),
+    const runtime = new PluginRuntime(repository, executor, { consents: new SqlitePluginConsentLedger(db), declarationOwners: artifactDeclarationOwners,
       redemption: definition => identity.dualInstance(definition) ? { partial: true, outside_project: true } : {},
       actions: { registry: this.options.registry, providerId: (record, definition) => identity.providerFor(definition, record.install_id),
         ...(this.options.projectReach ? { projectReach: this.options.projectReach } : {}) } });
@@ -173,6 +176,7 @@ export class HomePluginHost {
     })), executor);
     const supervisor = new PluginSupervisor(runtime, { releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(db), hostCapabilities: [PLUGIN_PRESENTATION_CAPABILITY] });
     const epoch = randomUUID(), revisions = new Map<string, number>();
+    this.unwatchArtifacts = installedArtifacts.watch(supervisedArtifacts(supervisor, runtime));
     this.platform = { runtime, supervisor, upgrade: (pluginId, definition, options) => supervisor.upgrade(pluginId, definition, options),
       invalidateView: pluginId => {
         if (!this.closed && supervisor.state(pluginId)?.status === "running") revisions.set(pluginId, (revisions.get(pluginId) ?? 0) + 1);

@@ -1,4 +1,5 @@
 import { openPluginInstallationDirectory } from "./plugin-installation-directory.js";
+import { artifactDeclarationOwners, installedArtifacts, supervisedArtifacts } from "./artifact-type-registry.js";
 import { randomUUID } from "node:crypto";
 import { pluginInstallRecords } from "./plugin-install-records.js";
 import type { ArtifactsApplicationApi, ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
@@ -160,12 +161,14 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   });
   // A project instance of a dual-instance plugin offers only its half; the other half is the Home's (specs/dual-instance-plugins).
   const runtime = new PluginRuntime(records, executor,
-    { redemption: definition => ({ partial: identity.dualInstance(definition) }), ...options.home ? { consents: options.home.consents } : {},
+    { declarationOwners: artifactDeclarationOwners, redemption: definition => ({ partial: identity.dualInstance(definition) }), ...options.home ? { consents: options.home.consents } : {},
       actions: { ...options.actions, providerId: (record, definition) => providerFor(definition, record.install_id) } });
   const supervisor = new PluginSupervisor(runtime, {
     releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(options.db),
     hostCapabilities: [PLUGIN_PRESENTATION_CAPABILITY],
   });
+  // What this project's installs declare (成果 types, link kinds) is read from the supervisor while the platform is open.
+  const unwatchArtifacts = installedArtifacts.watch(supervisedArtifacts(supervisor, runtime));
   const wiring = new PluginInputGraph({
     projectId: options.project_id,
     lifecycle: supervisor,
@@ -214,7 +217,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     invalidateView,
     viewRevision(pluginId) { return `${viewEpoch}:${viewRevisions.get(pluginId) ?? 0}`; },
     async closeCoordination() {
-      closed = true; installations.dispose();
+      closed = true; installations.dispose(); unwatchArtifacts();
       stopArtifactRefresh?.();
       detachActivation();
       await wiring.close();

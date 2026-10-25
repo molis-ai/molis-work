@@ -1,6 +1,6 @@
 # ac-artifacts：成果库去插件身份，成为平台事实的主人（设计稿）
 
-状态：设计稿已审定，A1、A2a（客户端与 owner 操作）已随 batch-27 落地；A2b（动作处理器、浏览、导入、原件存取、项目引用、目标引用搬进 `modules/artifacts`，宿主停止 import 成果库插件包）2026-10-24 开发完成，等评审。A3 之后的实现片要等 ac-registry 的 PG-024 片。
+状态：设计稿已审定，A1、A2a（客户端与 owner 操作）已随 batch-27 落地；A2b（动作处理器、浏览、导入、原件存取、项目引用、目标引用搬进 `modules/artifacts`，宿主停止 import 成果库插件包）2026-10-24 开发完成，等评审。A3（PG-064、PG-079、PG-077：成果类型登记表搬进宿主并读有效安装的 Manifest，`consumes[].file`，Goals 链接种类 `artifacts.links`，安装时拒重复属主，宿主这一层拒装上的产出者写未声明的类型）2026-10-25 开发完成，在分支 `anticorr/ac-artifacts-a3`，RAC-415～421；§5.1 的 S-69.1、S-70.4 暂记为 S-75，S-70.2、S-70.3 暂记为 S-76（S-69、S-70 已被连接扩展占用，合入时由统筹核号）。A3 之后的实现片要等 ac-registry 的 PG-024 片。
 
 A2b 的取舍（受「插件不能 import 模块」限制，插件在 A6 删除前仍要自己的 Manifest 与登记）：模块持有完整的 `artifact-actions.ts`（动作清单加处理器）、`artifact-provider.ts`（`ARTIFACTS_PROVIDER`：id、名称、版本、签名）及其依赖；插件只留动作清单（`actions.ts`）、`browser-view.ts`（页面视图类型与版本路径）、Home 存储登记与项目删除清理（`original-store.ts`）和界面。两份清单与提供方字段由 `tests/plugin-artifact-schemas.test.ts` 对照（RAC-414），A6 删插件时重复随之消失。
 

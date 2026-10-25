@@ -1,3 +1,4 @@
+import { stepActorText } from "./step-actor.js";
 import { el, errorMessage } from "./dom.js";
 import type { Amendment, PlanEntry, StepNode } from "./shapes.js";
 import { settled, skipped, stepOf } from "./taskboard-steps.js";
@@ -126,12 +127,6 @@ function openForm(ports: ProgressPorts, card: HTMLElement, row: HTMLElement, fie
   inputs[0]?.focus();
 }
 
-/** Who holds a step, in the page's words; a subtask keeps its title (the key it was handed out under). */
-function holderText(L: Translate, value: NonNullable<StepNode["owner"]>) {
-  if (value.kind === "subtask") return value.title ? L("coding.board.holder-subtask", { title: value.title }) : L("coding.board.subtask");
-  return value.kind === "session" ? L("coding.board.this-session") : value.kind === "person" ? L("coding.board.you") : value.kind === "none" ? L("coding.board.unclaimed") : L("coding.board.holder-other");
-}
-
 /** The step's state: the verdict when the person has given one, else what the graph says. */
 function stateMark(d: Drawing, node: StepNode, decided: string | null) {
   const { ports, run } = d, { translate: L, word } = ports;
@@ -161,13 +156,13 @@ function depsChip(d: Drawing, node: StepNode) {
 /** When the step last moved, and who holds it: this session (its executor), a subtask, you, or no one. */
 function stepMeta(d: Drawing, node: StepNode) {
   const L = d.ports.translate, holder = node.owner;
-  const name = !holder || holder.kind === "session" ? d.who : holderText(L, holder);
+  const name = !holder || holder.kind === "session" ? d.who : stepActorText(L, holder);
   const last = node.reports.at(-1);
   const meta = el("span", "", "coding-board-meta"), time = el("time", last?.at_ms !== undefined ? clock(last.at_ms) : "", "coding-board-time" + (node.reports.length ? "" : " is-empty"));
   const avatar = el("span", holder?.kind === "none" ? "" : Array.from(name)[0] ?? "", "coding-board-avatar" + (holder?.kind === "none" ? " is-unknown" : ""));
   if (holder?.kind === "none") avatar.innerHTML = svg("user");
   else avatar.style.setProperty("--board-avatar-hue", String(holder && holder.kind !== "session" ? hueOf(name) : hueOf(d.who)));
-  avatar.title = L("coding.board.holder", { holder: holder ? (holder.kind === "session" ? L("coding.board.this-session") + " · " + d.who : holderText(L, holder)) : d.who }) + (holder?.expired ? " · " + L("coding.board.expired") : "");
+  avatar.title = L("coding.board.holder", { holder: holder ? (holder.kind === "session" ? L("coding.board.this-session") + " · " + d.who : stepActorText(L, holder)) : d.who }) + (holder?.expired ? " · " + L("coding.board.expired") : "");
   avatar.setAttribute("aria-label", avatar.title);
   meta.append(time, avatar);
   return meta;

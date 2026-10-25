@@ -1,4 +1,5 @@
-import type { PlanEntry, StepNode, StepReportAuthor } from "./shapes.js";
+import { stepActorText } from "./step-actor.js";
+import type { PlanEntry, StepNode } from "./shapes.js";
 import { clip, firstLine, oneLine, when } from "./taskboard-format.js";
 import { settled, skipped, stepOf } from "./taskboard-steps.js";
 import type { Board, BoardChild, BoardGroup, BoardRow, BoardRun, BoardSubagents, Executor, StateMark, TreeInput } from "./taskboard-types.js";
@@ -71,25 +72,13 @@ function childRow({ translate: L, words, ports }: TreeInput, run: BoardRun, { ch
   };
 }
 
-/** The Host labels a holder in the Host's language; the page says each kind with a page word, and keeps a subtask's title. */
-function holderText(L: Translate, value: { readonly kind: string; readonly title?: string }): string {
-  if (value.kind === "subtask") return value.title ? L("coding.board.holder-subtask", { title: value.title }) : L("coding.board.subtask");
-  return value.kind === "session" ? L("coding.board.this-session") : value.kind === "person" ? L("coding.board.you") : value.kind === "none" ? L("coding.board.unclaimed") : L("coding.board.holder-other");
-}
-
-/** Who a report says made it, in the page's words: a handover reads as reassigned, every other author as its holder would. */
-function byText(L: Translate, by: StepReportAuthor | undefined): string {
-  if (!by) return "";
-  return by.kind === "handover" ? L("coding.board.reassigned") : holderText(L, by);
-}
-
 /**
  * Who does a step: its holder on the graph, not whoever runs the round. A claim held quiet too long by a session with no round
  * running reads as expired, for you to reassign.
  */
 function doerOf({ input: { translate: L, ports }, executor }: StepScope, holder: StepNode["owner"], held: BoardChild | undefined): Executor {
   if (!holder) return executor;
-  const label = holderText(L, holder), expired = holder.expired ? { expired: true } : {};
+  const label = stepActorText(L, holder), expired = holder.expired ? { expired: true } : {};
   if (holder.kind === "session") return { name: executor.name, detail: L("coding.board.holder", { holder: label }) + " · " + executor.detail, ...expired };
   if (holder.kind === "subtask") return { name: label, detail: L("coding.board.holder", { holder: label }) + (held ? " · " + L("coding.board.held-subagent", { role: ports.roleName(held.role_id) || held.role_name || "" }) : "") };
   if (holder.kind === "person") return { name: L("coding.board.you"), detail: L("coding.board.holder-you"), person: true };
@@ -111,7 +100,7 @@ function stepState({ input: { translate: L, words }, run, entry, board }: StepSc
 
 function stepHint(L: Translate, acceptance: string, holderLabel: string, last: StepNode["reports"][number] | undefined): string {
   return (acceptance ? L("coding.board.acceptance", { acceptance }) : "") + (holderLabel ? "\n" + L("coding.board.holder", { holder: holderLabel }) : "")
-    + (last ? "\n" + L("coding.board.last-report", { report: (last.by ? byText(L, last.by) + L("coding.timeline.colon") : "") + last.note }) : "");
+    + (last ? "\n" + L("coding.board.last-report", { report: (last.by ? stepActorText(L, last.by) + L("coding.timeline.colon") : "") + last.note }) : "");
 }
 
 function stepRow(scope: StepScope, node: StepNode, position: number): BoardRow {
@@ -124,7 +113,7 @@ function stepRow(scope: StepScope, node: StepNode, position: number): BoardRow {
   const done = mine.length ? mine.filter(row => ["done", "accepted"].includes(row.state[2])).length : settled(node) || decided === "accepted" ? 1 : 0;
   return {
     key: "step-" + id + "-" + node.id, label: node.inserted ? L("coding.board.inserted") : "S" + (Number(node.id.replace("step-", "")) || position + 1), title: step.title,
-    hint: stepHint(L, step.acceptance, holder ? holderText(L, holder) : "", last), state, progress: { done, total: mine.length || 1 }, deps,
+    hint: stepHint(L, step.acceptance, holder ? stepActorText(L, holder) : "", last), state, progress: { done, total: mine.length || 1 }, deps,
     executor: doerOf(scope, holder, held), time: last ? when(last.at_ms) : null, target: { kind: "step", run_id: id, step_id: node.id }, children: mine, node,
     ...(editable ? { edit: { board, runId: id, position, live } } : {}),
   };

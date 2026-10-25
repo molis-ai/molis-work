@@ -1,3 +1,4 @@
+import { stepActorText } from "./step-actor.js";
 import { insertedAcceptance } from "../inserted-step.js";
 import { el, errorMessage } from "./dom.js";
 import type { PlanEntry, SessionRead, StepNode, StepVerdict } from "./shapes.js";
@@ -48,11 +49,11 @@ export function stepReports(ports: StepPorts): StepReports {
     const shown = step.inserted ? { title: step.title || step.id, acceptance: insertedAcceptance(step.reports) || L("coding.step.see-insert") } : planned ?? { title: step.title || step.id, acceptance: "" };
     detail.append(el("p", L("coding.step.run", { run: runId, revision: found.revision })), el("h3", shown.title), el("p", L("coding.step.acceptance", { acceptance: shown.acceptance })), el("p", states[step.state] || L("coding.step.state.unknown")));
     // Who holds the step now, and who made each report (a handover says so).
-    if (step.owner) detail.append(el("p", L("coding.step.owner", { owner: step.owner.kind === "person" ? L("coding.step.you") : step.owner.label ?? "" })));
+    if (step.owner) detail.append(el("p", L("coding.step.owner", { owner: stepActorText(L, step.owner) })));
     const reports = el("ol", "");
     // A report naming a supplement opens its receipt in the conversation, when this page drew one.
     for (const report of step.reports) {
-      const li = el("li", (report.by ? report.by.label + L("coding.timeline.colon") : "") + report.note);
+      const li = el("li", (report.by ? stepActorText(L, report.by) + L("coding.timeline.colon") : "") + report.note);
       for (const one of report.inputs || []) {
         const link = receipts.link(q("[data-coding-turns]"), one.input_id, () => dialog.close());
         if (link) li.append(" ", link);

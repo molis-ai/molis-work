@@ -30,7 +30,7 @@ function withAcme<T>(run: () => T): T {
   try { return run(); } finally { unregisterPluginMessages(ACME); unregisterPluginMessages(OTHER); }
 }
 
-test("RAC-763 a third-party Plugin's deletion-dialog description is English in that Plugin's own words, and the Host's own use of the sentence is not", () => withAcme(() => {
+test("RAC-770 a third-party Plugin's deletion-dialog description is English in that Plugin's own words, and the Host's own use of the sentence is not", () => withAcme(() => {
   const owner = { label: DATA, words_of: ACME };
   runWithLocale("en", () => {
     assert.equal(ownerLabel(owner), "Notebooks and the notes in them");
@@ -41,7 +41,7 @@ test("RAC-763 a third-party Plugin's deletion-dialog description is English in t
   runWithLocale("zh", () => assert.equal(ownerLabel(owner), DATA, "the Chinese page shows the source text"));
 }));
 
-test("RAC-764 a third-party Plugin's action title and description are English where the Host draws them as that Plugin's", () => withAcme(() => {
+test("RAC-771 a third-party Plugin's action title and description are English where the Host draws them as that Plugin's", () => withAcme(() => {
   runWithLocale("en", () => {
     const own = rows(entry(ACME));
     assert.match(own, /<h3>Tidy notes<\/h3><p>Gathers loose notes by topic<\/p>/);
@@ -52,7 +52,7 @@ test("RAC-764 a third-party Plugin's action title and description are English wh
   runWithLocale("zh", () => assert.match(rows(entry(ACME)), /<h3>整理笔记<\/h3><p>把散落的笔记按主题归到一起<\/p>/));
 }));
 
-test("RAC-765 a Plugin's dictionary cannot change what the Host or another Plugin draws, and a word the Host owns is not replaced", () => {
+test("RAC-772 a Plugin's dictionary cannot change what the Host or another Plugin draws, and a word the Host owns is not replaced", () => {
   const host = "设置";
   assert.deepEqual(registerPluginMessages(declared(ACME, { contributions: [], translations: { [host]: "Acme's Settings", [TITLE]: "Tidy notes" } })), []);
   try {
@@ -66,7 +66,7 @@ test("RAC-765 a Plugin's dictionary cannot change what the Host or another Plugi
   runWithLocale("en", () => assert.match(rows(entry(ACME)), /<h3>整理笔记<\/h3>/, "once it is unregistered its words are gone"));
 });
 
-test("RAC-766 the page hands a Plugin's frame its own dictionary through LF/LFor, and no one else's", () => withAcme(() => {
+test("RAC-773 the page hands a Plugin's frame its own dictionary through LF/LFor, and no one else's", () => withAcme(() => {
   const page = browser("en");
   assert.equal(page.LF?.(ACME, TITLE), "Tidy notes");
   assert.equal(page.LF?.(OTHER, TITLE), "Other's tidy-up");
@@ -77,7 +77,7 @@ test("RAC-766 the page hands a Plugin's frame its own dictionary through LF/LFor
   assert.equal(browser("zh").LF?.(ACME, TITLE), TITLE, "the Chinese page shows the source text");
 }));
 
-test("RAC-767 stable keys stay page-wide: a Plugin's ui.messages are English for every Plugin, a Chinese-keyed translation for none but its own", () => {
+test("RAC-774 stable keys stay page-wide: a Plugin's ui.messages are English for every Plugin, a Chinese-keyed translation for none but its own", () => {
   assert.deepEqual(registerPluginMessages(declared(ACME, { contributions: [], messages: { "words.panel.title": { zh: "词语", en: "Words" } }, translations: { [TITLE]: "Tidy notes" } })), []);
   try {
     const page = browser("en");

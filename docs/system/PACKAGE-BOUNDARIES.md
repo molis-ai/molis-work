@@ -154,6 +154,8 @@ pnpm workspace:verify # 门禁 + 所有目标 package 的 build（每个包的 t
 | `hybridPlugins` | 已由 Plugin Runtime 启动、宿主却还有同名文件或手工 `registerProvider(<插件>…Provider(…))` 的插件（现在：shelf、coding、git），报告里标出 | 混合装配既不是 Runtime 形状也不是冻结的构建期形状，名单看不出来。Characters 按 2026-10-08 决定第 26 项并进了宿主和 `modules/characters`，不再是 Runtime 插件（CHR-1，2026-10-22），名单里没有它了 |
 | `pluginOutsideMentions` | 每个内置插件的包名在它自己的包之外出现在多少个源码或配置文件里（import、`package.json` 依赖、工作区清单） | 加一个插件除了它自己的包还要改几处。新插件的额度是 0（W5-02 PR-C，统筹 10-23 定）：生成器写的两份文件不算，两个应用与根的 `package.json` 只在插件依赖正好等于生成文件 import 的那一组（根是两份的并集）时不算 |
 
+安装生命周期和发布类型这条链沿用 `apps/local-host/src/installed-plugin-host.ts` 作为创作台类型接缝：由它 `export type` 转出 `AgentBuilderPorts`、`AgentRelease`，`installed-plugin-lifecycle.ts`、`installed-plugin-version.ts`、`installed-release.ts` 再以 `import type` 取得所需类型，不增加运行时依赖。这一约定只限定上述类型链；其他创作台调用方和私路的后续处理见[特权清单](../../specs/repository-anti-corruption/privileges.md)。不得为压低 `pluginOutsideMentions` 数字，借该接缝加入新的运行时依赖。
+
 这些数字**看不到**的（没有类型检查器和跨文件数据流，靠评审；每个模块的文件头写得更细）：
 
 - 所有结构数字按文件记录，只扫 `apps`、`horizontal`、`modules`、`packages`、`plugins`、`server`、`tooling` 下的 `.ts`/`.mts` 源码，不含声明文件、`dist/`、`node_modules/`、`tests/` 目录和 `*.test.ts`；`tests/` 之外的 `fixtures/` 目录会扫，生产代码躲不进名叫 fixtures 的目录。**拆文件会红**：把带记录的文件拆成两个，只有 git 认作改名的那一半带着记录走，另一半里搬来的条目算新增。W2/W3 里拆 `apps/local-host/src/project-capabilities.ts`（49 处注册）这类文件的重构，要么让带记录的那部分留在被判为改名的文件里，要么在同一个 PR 里改门禁（过评审）。

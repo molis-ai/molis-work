@@ -261,6 +261,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     if (rest.startsWith("/guidance")) return "guidance";
     if (rest.startsWith("/memory")) return "memory";
     if (rest.startsWith("/knowledge")) return "knowledge";
+    if (rest.startsWith("/plugins")) return "plugins";
     if (rest.startsWith("/rules")) return "rules";
     if (rest.startsWith("/planning")) return "planning";
     return "";

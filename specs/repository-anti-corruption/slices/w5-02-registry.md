@@ -13,7 +13,7 @@
 | **A：删项目按声明删** | Home 库里按项目的行改成 Manifest 声明（`databases.home.project_rows`），平台按声明删；删掉各插件的 `purge` 和登记上的 `project_data` | PG-024（插件那一半）、PG-066 | 不变（同样的行被删） | #1251（ac-artifacts A2b）合入或与它同批 |
 | **B：PR-1b 平台读自己的登记** | 三个提交：B1 平台生成物、全部平台派生点切换；B2 Manifest 加 `summary`、`developer`；B3 #679 | PG-105、PG-065、PG-068（PR-1b 部分） | 只 B3 变（S-31） | A；batch-35（#1258，已含 #1243）落地 |
 | **B4：项目级监督器条目改成生成** | 单独一个 PR（统筹 10-24 拆） | PG-067 | 不变 | B；`project-plugins.ts` 还会被 FI-6（ac-sandbox-sched）、ac-clients-1 碰，冻结只从推送到合入，同批照 §1a 一起落 |
-| **C：PR-2 依赖改成生成，门禁 7→0** | 两个应用 `package.json` 的插件依赖由生成器写；`workspace-packages.mjs` 不再点名插件包；`NEW_PLUGIN_OUTSIDE_FILES` 7→0 | PG-069、PG-068（收尾的额度）、§5 第 7 条 | 不变 | B |
+| **C：PR-2 依赖改成生成，门禁 7→0** | 两个应用与根 `package.json` 的插件依赖由生成器写；`workspace-packages.mjs` 不再点名插件包；`NEW_PLUGIN_OUTSIDE_FILES` 7→0 | PG-069、PG-068（收尾的额度）、§5 第 7 条 | 不变 | B |
 | **D：PR-3 外壳与设置的手写名单** | 设置节、搜索标签、外壳分组与常驻、图标与色相、几张选项清单改成声明 | PG-072～076 | 不变（同样的界面） | B；与 W5-04 在途片错开 |
 | **E：W4-01 探针插件夹具** | 一个只有声明的探针插件，走安装→发现→调用→升级→停用→卸载，id 只在自己的包里 | W4-01（W6-02 的前置） | 不变（只加测试） | C |
 
@@ -134,13 +134,13 @@ PG-095、PG-111 不进这几个 PR，评估与统筹的裁定见 §7。
 
 - **应用依赖**：生成器把两个应用 `package.json` 的插件依赖写成生成文件 import 的那一组（workbench 读外壳那份，local-host 读平台那份），`--check` 核对：多一个、少一个各失败（用户 10-19 批的豁免条件，每种不符一条门禁测试）。`pnpm install --frozen-lockfile --offline` 照常过（锁文件同 PR 更新）。
 - **登记表不点名插件**：`scripts/workspace-packages.mjs` 里 24 条插件的 `entry(...)` 改成从 `plugins/native/*/package.json` 的 `molis-work` 块读（`path`、`kind`、`maturity`、`contract`、`migrationGoals` 已经在里面；把说明、不负责、`capabilities`、`extraWorkspaceDependencies`、`extraDependencies` 也搬进去）。两个应用条目的插件依赖由生成器给，不再手写。这接上 X-1 的插件依赖声明：插件自己的依赖写在自己的 `package.json`。
-- **根 `package.json`**：今天列了全部插件包，测试按包名取它们。统筹 10-24 定：由生成器写、加同样的豁免；这比用户 10-19 批的「两个应用」宽，C 开工前由统筹弹窗问用户。用户答复之前，C 按「两个应用」的范围设计，根这一项先空着。
+- **根 `package.json`**：今天列了全部插件包，测试按包名取它们。用户 10-25 定（统筹弹窗）：根的插件依赖也由生成器写，和两个应用用同样的豁免：只在 `--check` 通过、且依赖清单正好等于生成文件 import 的那一组时生效。根对应的那一组是两份生成文件（外壳那份与平台那份）import 的并集；`--check` 对根同样「多一个、少一个各失败」。
 - **门禁 7→0**：`NEW_PLUGIN_OUTSIDE_FILES` 改成 0（统筹 10-23 定，§5 第 7 条）。改门禁脚本本身，PR 正文写理由。
 - PG-070 的客户端打包那一半归 `ac-clients-1`，C 不碰 `page-assets.ts`、`initialization.ts`。
 
 | 编号 | 内容 |
 | --- | --- |
-| RAC-572 | 两个应用（和根，若取①）`package.json` 的插件依赖与生成文件 import 的那一组不符时 `--check` 失败：多一个、少一个各一条测试；相符时豁免生效、不符时不生效 |
+| RAC-572 | 两个应用与根的 `package.json`，插件依赖与生成文件 import 的那一组（根是两份的并集）不符时 `--check` 失败：三份各有多一个、少一个两条测试；相符时豁免生效、不符时不生效 |
 | RAC-573 | `workspace-packages.mjs` 不含任何插件包名；登记表从各插件 `package.json` 读出的条目与改之前逐字段相等（一次性比对贴进 PR） |
 | RAC-574 | 新插件只改自己的包（`registration.ts`、`package.json`、源码）再跑生成器与 `pnpm install`，就进目录、进监督器、进依赖，外壳与宿主一个文件不改（W5-02-REG-03 的完整版：在临时仓库副本里加一个最小包，跑 `--check` 与 `pluginOutsideMentions`，点名数为 0） |
 | RAC-575 | 门禁对新插件的额度是 0：临时副本里新插件被包外任一个手写文件点名，门禁失败 |
@@ -192,7 +192,7 @@ spec 10-15 定 W4-01 推迟到 W5-02 之后：bundled 插件得在 `project-plug
 
 1. 先后照稿：A → B → B4 → C → D → E。A 与 #1251 同批或排在它后面；B 等 batch-35（#1258，已含 #1243）落地后开工。
 2. 成果类型五项留给 A3（照推荐）。
-3. 根 `package.json` 由生成器写、加同样的豁免；C 开工前统筹弹窗问用户，答复前 C 按「两个应用」设计。
+3. 根 `package.json` 由生成器写、加同样的豁免；统筹弹窗问过用户，用户 10-25 定：照做（§4）。
 4. `project_rows` 按表声明照稿批准，S-暂A 批准；加三条必改（只删自己的库、沙箱库、`label` 与运行中的写连接），已写进 §2 与 RAC-561～563。
 5. B 拆成两个 PR：B1～B3 一个，B4 单独一个。
 6. PG-095：Images、Jelly 派 Codex（BL-617）；Shelf 合同归 `modules/shelf`（BL-618）。

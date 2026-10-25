@@ -87,8 +87,20 @@ const gamma = (entries: string) => 'export const GAMMA_EN: Record<string, string
 const addToRoot = (import_: string, use: string) => put("apps/workbench/src/i18n/en.ts", read("apps/workbench/src/i18n/en.ts").replace('import { ALPHA_EN } from "@scratch/alpha";', `import { ALPHA_EN } from "@scratch/alpha";\n${import_}`).replace("  ...ALPHA_EN,", `  ...ALPHA_EN,\n${use}`));
 const addGamma = (entries: string) => { put("plugins/native/gamma/src/en.ts", gamma(entries)); addToRoot('import { GAMMA_EN } from "@scratch/gamma";', "  ...GAMMA_EN,"); };
 const messages = (owner: string, entries: string) => `export const ${owner.toUpperCase()}_MESSAGES = {\n${entries}\n};\n`;
-const registerMessages = (owner: string, alias = `${owner.toUpperCase()}_MESSAGES`) => put(MESSAGES_ROOT,
-  `import { ${owner.toUpperCase()}_MESSAGES as ${alias} } from "@scratch/${owner}";\nexport const BUILTIN_PLUGIN_CATALOG = [{ messages: ${alias} }];\n`);
+/**
+ * An owner's dictionary registered the way a built-in does it (W5-02): its package's own src/registration.ts names it, and the
+ * generated catalog lists that registration (a catalog written by hand is refused, RAC-566). `field` is the registration's field.
+ */
+const registration = (owner: string, field = "messages") => {
+  put(`plugins/native/${owner}/package.json`, JSON.stringify({ name: `@scratch/${owner}` }));
+  put(`plugins/native/${owner}/src/registration.ts`, `import { ${owner.toUpperCase()}_MESSAGES } from "./messages.js";\nexport const registration = { ${field}: ${owner.toUpperCase()}_MESSAGES };\n`);
+};
+const catalog = (owner: string, alias: string, list: string) =>
+  put(MESSAGES_ROOT, `import { registration as ${alias} } from "@scratch/${owner}/registration";\n${list}\n`);
+const registerMessages = (owner: string, alias = `${owner}Registration`) => {
+  registration(owner);
+  catalog(owner, alias, `export const BUILTIN_PLUGIN_CATALOG = [${alias}];`);
+};
 
 
 // A browser program in three files of the beta plugin: program.ts defines tx and button, and joins the scripts of the files it
@@ -468,7 +480,13 @@ test("this repository: nothing is missing, and the scan covers every kind of cal
   assert.ok(count((call) => call.embedded) > 1500, "calls inside the browser scripts that live in template literals");
   assert.ok(count((call) => call.callee === "globalThis.L" && call.embedded) >= 1, "globalThis.L(…) inside a browser script");
   assert.ok(count((call) => !roots.has(call.callee)) > 250, "calls of wrappers and of translators injected as typed parameters");
-  assert.ok(count((call) => call.callee === "this.t") > 20 && count((call) => call.callee === "p.L") > 20, "this.t(…) and p.L(…)");
+  assert.ok(count((call) => call.callee === "p.L") > 20, "p.L(…)");
+  // No product file calls `this.t(…)` since the horizontal services were split (R-38): Placement's `placementText(ports, …)` hands its
+  // key to the port's `text(…)`, a translator its interface declares, and is read as a wrapper. The `this.t` rule stays, shown here on a
+  // file of its own, and the wrapper is shown on the real tree.
+  assert.deepEqual(scanFile("horizontal/sample/src/index.ts", 'class Sample { private t(zh: string): string { return zh; } title() { return this.t("未命名"); } }\n').calls
+    .filter((call: { callee: string }) => call.callee === "this.t").map((call: { key: string }) => call.key), ["未命名"], "this.t(…)");
+  assert.ok(count((call) => call.callee === "placementText" && call.file.startsWith("horizontal/placement/")) > 20, "a wrapper of a port's declared translator");
   assert.ok(count((call) => call.callee === "text") > 10, "an injected translator typed as a parameter (text: (value: string, values?: Record<string, string | number>) => string)");
 });
 
@@ -589,10 +607,11 @@ for (const mode of ["missing catalog", "import only", "unrelated object", "wrong
   test(`RAC-59: a stable dictionary with ${mode} fails, and updating the baseline cannot hide it`, () => {
     branch("unserved-stable", () => {
       put("plugins/native/alpha/src/messages.ts", stableAlpha);
-      if (mode !== "missing catalog") put(MESSAGES_ROOT, 'import { ALPHA_MESSAGES } from "@scratch/alpha";\n' +
-        (mode === "import only" ? 'export const BUILTIN_PLUGIN_CATALOG = [];\n' :
-          mode === "unrelated object" ? 'const unused = { messages: ALPHA_MESSAGES }; export const BUILTIN_PLUGIN_CATALOG = [];\n' :
-          'export const BUILTIN_PLUGIN_CATALOG = [{ unused: ALPHA_MESSAGES }];\n'));
+      if (mode === "missing catalog") return;
+      registration("alpha", mode === "wrong field" ? "unused" : "messages");
+      catalog("alpha", "alphaRegistration", mode === "import only" ? "export const BUILTIN_PLUGIN_CATALOG = [];" :
+        mode === "unrelated object" ? "const unused = [alphaRegistration]; export const BUILTIN_PLUGIN_CATALOG = [];" :
+          "export const BUILTIN_PLUGIN_CATALOG = [alphaRegistration];");
     });
     for (const flags of [[], ["--base", "main"]]) {
       const run = gate(...flags);
@@ -612,7 +631,7 @@ for (const mode of ["missing catalog", "import only", "unrelated object", "wrong
   });
 }
 
-test("RAC-59: the catalog may use an import alias for the owner's stable dictionary", () => {
+test("RAC-59: the catalog may import the owner's registration under any name", () => {
   branch("stable-alias", () => {
     put("plugins/native/alpha/src/messages.ts", stableAlpha);
     registerMessages("alpha", "WORDS");

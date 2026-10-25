@@ -1,3 +1,4 @@
+import { shownProjectPlugins } from "./plugin-registry.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { PlanningMethodPack, PlanningMethodPackInput } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -30,9 +31,10 @@ export function createLocalPlanningHttp(ports: {
     const contextProject = contextProjectId
       ? projects.find((project) => project.project_id === contextProjectId) ?? null : null;
     const planningDocument = request.method === "GET" && url.pathname.startsWith("/settings/planning");
+    // The settings navigation lists the plugins the context shows, as the Host works it out (W5-02 B1).
     const enabledPlugins = planningDocument && contextProject && homeDirectory
-      ? await withMolisWorkProjectCatalog({ homeDirectory }, (catalog) => catalog.listProjectPlugins(contextProject.project_id))
-      : [];
+      ? await withMolisWorkProjectCatalog({ homeDirectory }, (catalog) => shownProjectPlugins(catalog.listProjectPlugins(contextProject.project_id), catalog.listHiddenPlugins(contextProject.project_id)))
+      : shownProjectPlugins([]);
     const route = request.method === "GET" ? matchGoalsPlanningRoute(url.pathname, "personal") : null;
     let methods: PlanningMethodPack[] = [];
     if (route && !(route.kind === "method" && route.method_id === "new")) {

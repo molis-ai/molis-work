@@ -1,5 +1,5 @@
 import { messageOf } from "./dom.js";
-import { active, request, requestPlugin, reveal, showReviews } from "./page.js";
+import { active, diffState, request, reveal, showReviews } from "./page.js";
 import type { GitPage } from "./page.js";
 import { loadResults } from "./results.js";
 import type { DiffAnswer, HtmlAnswer, Selected } from "./types.js";
@@ -17,7 +17,7 @@ function title(page: GitPage, item: Selected): void {
 /** Shows the diff that was read and kept, with the action that stages or unstages it. */
 export async function fixed(page: GitPage, item: Selected, serial: number, epoch: number): Promise<void> {
   const { L, q, action, diffNotice } = page;
-  const value = await requestPlugin<HtmlAnswer>(page, "diff", `/state?artifact_id=${encodeURIComponent(item.reference.artifact_id)}&version=${item.reference.version}`);
+  const value = await diffState<HtmlAnswer>(page, item.reference);
   if (serial !== page.ticket || !active(page, epoch)) return;
   title(page, item);
   q("[data-git-diff]").innerHTML = value.html || "";

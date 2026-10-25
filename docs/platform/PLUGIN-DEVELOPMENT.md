@@ -6,7 +6,7 @@
 
 平台合同变了（Manifest 字段、actions / action_scenes、MCP、事件、Slot、plugin-stage、kind 语义），同一任务内更新该 Skill 与本页，不要只改代码。
 
-内置插件的共同目录是 `apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG`，由 `node scripts/generate-plugin-registry.mjs` 从各包的 `src/registration.ts` 生成，不手改；目录加载时自检（`plugin-catalog.ts` 的 `catalogProblems`）：重复的 id 与位置、悬空的 `companions` / `clientFrom` / `clientUses` 都让它起不来。每个条目绑定包导出的 Manifest、目录信息、Agent 正文及可选 `workbench` 资源。其中仍走构建期装配的旧路径插件，名单冻结为 `tests/builtin-plugin-assembly-gate.test.ts` 的 `BUILD_TIME_ASSEMBLED`、只许减少；Runtime 装配的插件在同一目录里也有条目，目录会随之增长。目录、Workbench UI 注册/样式/客户端从同一份 `registration` 派生；`workbench.order` 只控制原静态资源顺序，不覆盖导航声明。能力直接注册公共 actions。业务实现、真实 I/O 端口装配与权限仍由原 owner 负责，声明和可发现都不等于已授权。
+内置插件的共同目录是 `apps/workbench/src/builtin-plugins.ts` 的 `BUILTIN_PLUGIN_CATALOG`，由 `node scripts/generate-plugin-registry.mjs` 从各包的 `src/registration.ts` 生成，不手改；同一批登记另生成宿主那份 `apps/local-host/src/plugin-registry.generated.ts`，平台事实（启动名单、个人插件、连带、项目显示哪些插件）只在 `apps/local-host/src/plugin-registry.ts` 由它派生，工作台读宿主写在页面上的 `shown_plugins` 与目录标记，不另算（W5-02 B1）。宿主加载时自检（`plugin-registry.ts` 的 `catalogProblems`）：重复的 id 与位置、悬空的 `companions` / `clientUses` 都让它起不来。每个条目绑定包导出的 Manifest、目录信息、Agent 正文及可选 `workbench` 资源。其中仍走构建期装配的旧路径插件，名单冻结为 `tests/builtin-plugin-assembly-gate.test.ts` 的 `BUILD_TIME_ASSEMBLED`、只许减少；Runtime 装配的插件在同一目录里也有条目，目录会随之增长。目录、Workbench UI 注册/样式/客户端从同一份 `registration` 派生；`workbench.order` 只控制原静态资源顺序，不覆盖导航声明。能力直接注册公共 actions。业务实现、真实 I/O 端口装配与权限仍由原 owner 负责，声明和可发现都不等于已授权。
 
 ## 安装 Skill
 
@@ -112,6 +112,8 @@ node dist/cli/main.js plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state
 | `services.installations` | `plugins:read` | 只返回当前项目的安装 id、世代、版本、名字、发布者和状态；不返回授权、签名或路径。`list()` 排除已卸载记录，`get(id)` 保留其最小状态，供业务主人收尾。 |
 | `services.agents.run` | `agent:run` 与已声明的 role；任务、标题、可选工作区 id、时限 | 复用本 Home 的 Prologue，等待一轮完成并返回正文与运行引用。等待人工交互、超时或失去权限时取消本次运行。须在对应 concurrent command 或保留 job 内使用。 |
 | `services.notifications` | `notifications:write`；通知键、标题、摘要、正文与可选目标插件 id | `deliver(transaction, input)` 与业务记录同笔提交到 Feed/Inbox。提交后在原调用中等待 `receipt.settle()`；重复键不重复投递，回滚的回执不能触发后续判断。 |
+| `services.attention` | `attention:read` / `attention:write`；写还要在 Manifest 的 `attention.subjects` 里声明自己的对象种类（`feed_item`、`goal_decision`、`source_fault`） | 项目的 Inbox 条目。读 `list/get/findActiveForSubject/findForSubject/events`；写 `join(transaction, writer)` 加入当前项目库事务，`create`、`deleteSubject` 只能用声明过的种类，`setStatus` 任何持有 `attention:write` 的插件可用。写的动作自己的 `permissions` 要声明 `attention:write`；项目、行为人由调用给出。 |
+| `services.contextLedger` | `context-ledger:read` / `context-ledger:write` | 项目的关联边。读 `get/list/history`；写 `join(transaction, writer)` 的 `put`、`remove`，范围永远是本项目，行为人是调用者。写的动作自己的 `permissions` 要声明 `context-ledger:write`。 |
 | `services.actions.dependencies` | `actions:invoke` | `discover/check/invoke` 以本安装自己的 grants 和 plugin 受众访问当前项目的动态依赖；不能借用人的权限或 workflow 受众。固定提供方、版本和输入合同后再保存引用。 |
 
 项目库事务句柄只在原回调中有效，不能伪造、跨库或跨安装复用；调度的写回调必须同步完成。业务写、闹钟和通知全部回滚时，不中断此前仍有效的执行；成功提交的暂停、替换和删除才取消旧执行。唤醒运行时占用原 lease，完成后才提交到期点；崩溃后由业务的 pending/running/unknown 状态决定恢复，不能把不确定的外部效果自动再做一遍。
@@ -460,7 +462,9 @@ Integration 的 `health()` 可返回非敏感的 `account: { login, account_id? 
 "connections": { "slots": [{ "slot_id": "github", "service_id": "github", "reason": "读取本人的 GitHub 通知" }] }
 ```
 
-`service_id` 只能是平台登记了固定地址的服务（`CONNECTOR_REQUEST_SERVICES`，现在只有 `github` → `https://api.github.com`）；没有权限的槽、未登记的服务、多写的字段、重复的槽，解析 Manifest 时就拒（`plugin.declaration_invalid`）。槽绑哪个账号由人选（`connectors.plugin_slot.bind@1`，只对 `user` 开放；插件设置里的选择界面是 S0b-2b）；没绑时请求照发，不带凭据。
+`service_id` 只能是平台登记了固定地址的服务（`CONNECTOR_REQUEST_SERVICES`：GitHub、Gmail，以及目录里能把令牌作 `Bearer` 发到固定地址的服务，如 Google Calendar、Microsoft Graph 系、Notion、Slack；一项可以有几个来源，如 Cloudflare 的 API 与控制台；按租户分地址的 Jira、Confluence、Salesforce 不在里面）；没有权限的槽、未登记的服务、多写的字段、重复的槽，解析 Manifest 时就拒（`plugin.declaration_invalid`）。槽绑哪个账号由人选（`connectors.plugin_slot.bind@1`，只对 `user` 开放；插件设置里的选择界面是 S0b-2b）；没绑时请求照发，不带凭据。
+
+一条记录一个账号（例如每个订阅来源各用一个账号）时，槽写 `"binding": "per_record"`：人在某个项目里为插件的一条记录选账号（`connectors.plugin_slot.bind@2`，只对 `user`，项目取调用上下文），插件发请求时写 `record_key`（至多 128 个字符，不含 `/`、`:` 和控制字符），只在本项目的调用里有效；`describe(slot_id, record_key)` 读有没有绑、账号显示名和状态，看不到是哪条连接；插件删记录时用 `release(slot_id, record_key)` 解除，之后这条记录的请求不带凭据。插件不能绑账号。不写 `binding` 就是按安装（`installation`）：一个安装一个账号，各项目共用。绑了 OAuth 账号的请求得到 401 时，宿主刷新一次令牌、把同一个请求重发一次；第二次还是 401 就原样交回，插件看到的只有 `status`，看不到令牌。
 
 在本插件自己声明了 `connections:use` 的并发动作（`scheduling: "concurrent"`）里调：
 
@@ -475,7 +479,7 @@ await caller.beforeEffect(); // 写业务记录之前
 - 绑了账号时宿主加 `Bearer`，插件看不到凭据，`authenticated` 说这次带没带；绑的账号断开或不能用时拒绝（`connector.plugin_requests.connection_unavailable`），不改成匿名发。
 - 不跟随跳转（3xx 原样交回，`location` 在头里）；返回的头只留内容类型、缓存、`link`、`x-ratelimit-*` 等固定的一组；15 秒超时，1 MB 上限；令牌过期的 401 原样交回。
 - 只能在本实例自己的动作或保留的后台作业里用；`start`、路由、场景回调、别的安装的调用都拒（`plugin.connections_call_required`）。授权每次都重查，取消、撤权、停用后不发也不交回。
-- 沙箱插件没有这项服务。
+- 沙箱插件经 broker 用同一份客户端（`sdk.connections.request`、`describe`、`release`）：操作要在 `effects.connections` 里写出用的槽，人批准后才能用；查询操作只能发 GET/HEAD、不能 `release`；宿主的客户端再按上面各条查一遍（`docs/system/SECURITY-INVARIANTS.md` S-60）。
 
 规则与拒绝测试见 `docs/system/SECURITY-INVARIANTS.md` S-57。
 
@@ -493,7 +497,9 @@ await caller.beforeEffect(); // 写业务记录之前
 
 生图服务提供 connections/inspect/bind/unbind/generate，命名空间与权限来自 Manifest 的声明；只读发现不解密或 pin 目标。连接、凭据及派出归 Host/Connector/agent-host，插件保留任务调度、业务记录与字节验证。generate 返回当次结果和不透明 revision；调用方在后续文件/任务提交前按这一 revision 再检查，不能读取新 revision 来替代旧结果的版本。模型/连接/安装授权变化后，成功与失败业务记录均不写入。
 
-删项目时插件不被通知，也不跑自己的代码：平台在同一轮里先停掉它经 `services.background` 在这个项目里受理的执行和登记的作业（control 的 signal 中止，结果与失败都不交付），再关这个项目的库、跑声明的 project_data purge，中间不 await。项目只是关闭时，项目实例随项目停；Home 实例在这个项目里的作业也停，它受理的有限执行照旧带着原调用的授权。不经 `services.background`、自己在内存里另起的工作删项目时没有人去停，所以等模型或外部服务的工作要经它受理或登记。停用/卸载后没有运行实例时仍走原离线 purge，结束 Home 才释放 owner 注册。
+删项目时插件不被通知，也不跑自己的代码：平台在同一轮里先停掉它经 `services.background` 在这个项目里受理的执行和登记的作业（control 的 signal 中止，结果与失败都不交付），再删它的这个项目的数据，中间不 await。
+
+插件在 Home 库里按 `project_id` 一类的列记项目的行时，在 Manifest 的 `databases.home` 写 `project_rows`（合同 `PluginProjectRowsDeclaration`）：确认框里的 `label`、可选的先后 `order`，和要删的表 `tables`。每张表写 `table` 与记项目的 `column`；子表只记父表的键时写 `parent`（写在它后面、自己不带 `parent` 的一张表）和父表的键 `key`（默认 `id`），删的是父表里属于这个项目的那些键对应的行。平台照声明拼 `DELETE` 语句，只对这个插件自己的库、用宿主自己的连接、在一个写事务里删；实例正在写时等它（`busy_timeout`），等不到这一步留 pending，下次重试；库还不存在就不建。声明只能点这个库的 schema 建的表和列：SDK 查形状（小写标识符、不带库名），平台按建好的 schema 查列，不对就启动前拒绝，码 `plugin.declaration_invalid`。不能和 `partition: "project"` 同写（按项目分库的整份删）。不是内置的插件，确认框里的标签照原文显示在插件名后面，不翻译。沙箱插件暂不能声明，写了启动被拒（BL-619）。按项目分库的插件，平台关掉这个项目的库再删掉它。项目只是关闭时，项目实例随项目停；Home 实例在这个项目里的作业也停，它受理的有限执行照旧带着原调用的授权。不经 `services.background`、自己在内存里另起的工作删项目时没有人去停，所以等模型或外部服务的工作要经它受理或登记。停用/卸载后没有运行实例时仍走原离线 purge，结束 Home 才释放 owner 注册。
 
 非流式路由的 bytes 默认作为附件。PluginRouteResponse 可显式给 disposition 为 inline 或 attachment；Host 只保留 image/png、image/jpeg、image/webp，其他 MIME 强制 octet-stream 附件。nosniff、sandbox、no-store 始终由 Host 设置，插件不能覆盖。HTTP 项目来自已核对存在且显示该插件的路径，query/body 不授予身份。
 

@@ -141,19 +141,52 @@ export interface ConnectorDirectoryEntry {
 }
 
 /**
- * How the Host sends a person's credential to one connection service for a plugin (`services.connections`, S-57): the one origin it
- * is sent to, how it is written, and which kinds of connection hold a credential the Host can send (a CLI login keeps its secret in
- * the CLI). A plugin names the service; the origin and the scheme are the platform's.
+ * How the Host sends a person's credential to one connection service for a plugin (`services.connections`, S-57, S-69): the exact
+ * origins it is sent to, how it is written, which kinds of connection hold a credential the Host can send (a CLI login keeps its
+ * secret in the CLI), and whether the Host may refresh that credential. A plugin names the service; all of this is the platform's.
  */
 export interface ConnectorRequestService {
-  readonly origin: string;
+  /** Exact origins (scheme, host, port): a request to any other is refused, bound or not. */
+  readonly origins: readonly string[];
   readonly credential: "bearer";
   readonly auth_methods: readonly ("token" | "oauth")[];
+  /** `host`: the Host has a refresh path for this service's OAuth connections and alone may use it; `none`: sent as saved. */
+  readonly refresh: "host" | "none";
 }
 
-/** The services a plugin's connection slot may name, GitHub first (spec repository-anti-corruption S0b-2, user decision 2026-10-20). */
+/**
+ * The services a plugin's connection slot may name (spec repository-anti-corruption S0b-2, user decision 2026-10-20; extended by
+ * slice s57-connections-extension X1, user decision 2026-10-24): each takes the saved token as `Bearer` on fixed origins. A service
+ * on a tenant's own origin, one that signs requests or needs OAuth extras, or one reached through a CLI is not here.
+ */
 export const CONNECTOR_REQUEST_SERVICES: Readonly<Record<string, ConnectorRequestService>> = {
-  github: { origin: "https://api.github.com", credential: "bearer", auth_methods: ["token", "oauth"] },
+  github: { origins: ["https://api.github.com"], credential: "bearer", auth_methods: ["token", "oauth"], refresh: "host" },
+  gmail: { origins: ["https://gmail.googleapis.com"], credential: "bearer", auth_methods: ["token", "oauth"], refresh: "host" },
+  "google-calendar": { origins: ["https://www.googleapis.com"], credential: "bearer", auth_methods: ["token", "oauth"], refresh: "host" },
+  "google-drive": { origins: ["https://www.googleapis.com"], credential: "bearer", auth_methods: ["token", "oauth"], refresh: "host" },
+  outlook: { origins: ["https://graph.microsoft.com"], credential: "bearer", auth_methods: ["token", "oauth"], refresh: "host" },
+  onedrive: { origins: ["https://graph.microsoft.com"], credential: "bearer", auth_methods: ["token", "oauth"], refresh: "host" },
+  sharepoint: { origins: ["https://graph.microsoft.com"], credential: "bearer", auth_methods: ["token", "oauth"], refresh: "host" },
+  teams: { origins: ["https://graph.microsoft.com"], credential: "bearer", auth_methods: ["token", "oauth"], refresh: "host" },
+  dropbox: { origins: ["https://api.dropboxapi.com"], credential: "bearer", auth_methods: ["token", "oauth"], refresh: "host" },
+  box: { origins: ["https://api.box.com"], credential: "bearer", auth_methods: ["token", "oauth"], refresh: "host" },
+  notion: { origins: ["https://api.notion.com"], credential: "bearer", auth_methods: ["token", "oauth"], refresh: "host" },
+  slack: { origins: ["https://slack.com"], credential: "bearer", auth_methods: ["token", "oauth"], refresh: "host" },
+  zoom: { origins: ["https://api.zoom.us"], credential: "bearer", auth_methods: ["token", "oauth"], refresh: "host" },
+  vercel: { origins: ["https://api.vercel.com"], credential: "bearer", auth_methods: ["token", "oauth"], refresh: "host" },
+  // An OAuth connection reads its account on the dashboard origin; a token reads it on the API origin.
+  cloudflare: { origins: ["https://api.cloudflare.com", "https://dash.cloudflare.com"], credential: "bearer", auth_methods: ["token", "oauth"], refresh: "host" },
+  huggingface: { origins: ["https://huggingface.co"], credential: "bearer", auth_methods: ["token", "oauth"], refresh: "host" },
+  sentry: { origins: ["https://sentry.io"], credential: "bearer", auth_methods: ["token", "oauth"], refresh: "host" },
+  supabase: { origins: ["https://api.supabase.com"], credential: "bearer", auth_methods: ["token", "oauth"], refresh: "host" },
+  asana: { origins: ["https://app.asana.com"], credential: "bearer", auth_methods: ["token", "oauth"], refresh: "host" },
+  airtable: { origins: ["https://api.airtable.com"], credential: "bearer", auth_methods: ["token", "oauth"], refresh: "host" },
+  canva: { origins: ["https://api.canva.com"], credential: "bearer", auth_methods: ["token", "oauth"], refresh: "host" },
+  hubspot: { origins: ["https://api.hubapi.com"], credential: "bearer", auth_methods: ["token", "oauth"], refresh: "host" },
+  intercom: { origins: ["https://api.intercom.io"], credential: "bearer", auth_methods: ["token", "oauth"], refresh: "host" },
+  stripe: { origins: ["https://api.stripe.com"], credential: "bearer", auth_methods: ["token", "oauth"], refresh: "host" },
+  x: { origins: ["https://api.x.com"], credential: "bearer", auth_methods: ["token", "oauth"], refresh: "host" },
+  linkedin: { origins: ["https://api.linkedin.com"], credential: "bearer", auth_methods: ["token", "oauth"], refresh: "host" },
 };
 
 /** A single account or API credential managed at Home scope. Never contains plaintext. */

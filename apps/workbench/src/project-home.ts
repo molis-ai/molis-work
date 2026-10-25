@@ -1,12 +1,14 @@
 import type { ImmersiveShellPrimitives } from "./immersive-shell.js";
+import type { PluginHomeStart } from "./plugin-catalog.js";
 
 /**
  * Project home, as in the Soft Workbench design: today's heading, a horizontal day strip, the Goal in progress,
  * the day's events that open in place, and a margin with the things at hand.
- * The event detail keeps one node (`data-home-detail`) that the client moves into the open row.
+ * The event detail keeps one node (`data-home-detail`) that the client moves into the open row. The ways to start on an empty day are the
+ * enabled plugins' declared `start` (`data-home-starts`); the client keeps no list by plugin.
  */
-export function renderProjectHome(name: string, { L, escapeHtml: e, icon }: ImmersiveShellPrimitives): string {
-  return `<section class="desktop-work-surface immersive-home" data-work-surface="home" data-work-surface-label="${L("项目首页")}" data-event="off" data-dock="closed" aria-label="${e(name)} · ${L("项目首页")}" hidden>
+export function renderProjectHome(name: string, { L, escapeHtml: e, icon }: ImmersiveShellPrimitives, starts: readonly PluginHomeStart[]): string {
+  return `<section class="desktop-work-surface immersive-home" data-work-surface="home" data-home-starts="${e(JSON.stringify(starts))}" data-work-surface-label="${L("项目首页")}" data-event="off" data-dock="closed" aria-label="${e(name)} · ${L("项目首页")}" hidden>
     <div class="home-scroll" data-home-scroll>
       <header class="home-heading home-hero" data-home-hero>
         <time data-home-date></time>

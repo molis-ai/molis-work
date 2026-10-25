@@ -303,7 +303,7 @@ function sourceKeyOf(source: Pick<TodoSource, "subject" | "excerpt">): string {
 }
 
 function visible(batch: Pick<TodoBatch, "project_id">, access: TodoAccess): boolean {
-  return access.everything || batch.project_id === null || batch.project_id === access.projectId;
+  return batch.project_id === null || batch.project_id === access.projectId || access.projectIds.includes(batch.project_id);
 }
 
 function strip(material: StoredMaterial): TodoBatchMaterial {

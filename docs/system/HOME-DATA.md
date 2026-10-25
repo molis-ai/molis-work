@@ -8,6 +8,8 @@
 
 ## 1. 怎么读
 
+W5-16 A：Home 的排他使用由 storage 的同一 SQLite owner 提供，锁仍为 `agent-runtime/.molis-runtime-owner.db`。Host 在任何业务初始化之前取得它，Agent 借用同一个 owner，关闭全部实际资源后才释放；空闲 Host 也不会给离线操作让出窗口。锁和 SQLite 侧车不是业务数据、不进入快照；恢复必须保留原锁 inode 及 `agent-runtime` 父目录，不能用整个目录替换绕过锁。当前只是完整 Home 备份的前置片，产品 snapshot/restore 命令仍未实现。
+
 路径从仓库根写起；`installer/X` 指 `apps/local-host/src/installer/X`；一行里以 `src/` 开头的文件，相对这一行前面写出的包目录；`:N` 紧跟在上一个文件后，指同一个文件的第 N 行。Prologue SDK 的文件写作 `node_modules/@prologue/sdk/<路径>`：包本体是 `vendor/prologue-sdk/` 里的 .tgz，里面的文件在 `vendor/` 下找不到；`pnpm install` 后解在 `horizontal/agent-host/node_modules/@prologue/sdk/`（只有 agent-host 依赖它）。
 
 | 列 | 含义 |
@@ -55,7 +57,7 @@ Home 里有 31 种 SQLite 文件：权威库 27 种（Home 级 24 种，按项�
 | `placement/placement.db` | 宿主；`apps/local-host/src/placement-actions.ts:63-64` 打开，`:58` 基线 | SQLite 带版本 · 1 | 必备份 | purge |
 | `agent-definitions/agent-definitions.db` | 宿主；`apps/local-host/src/agent-definitions/agent-definitions.ts:316` 打开，`:20` 基线、`:57` 套用 | SQLite 带版本 · 1 | 必备份（用户改过的提示词与历史） | purge |
 | `agent-declarations/agent-declarations.db` | 宿主；`apps/local-host/src/agent-definitions/agent-declarations.ts` 的 `AgentDeclarations`（基线 `AGENT_DECLARATIONS_BASELINE`，表 `install_declarations`），由 `agentDeclarationsFor` 打开。每个安装最近一次登记的 Agent 声明（角色、Prompt、指令、方法），整份替换；Host 启动时按「未运行」恢复进登记册，只供设置里显示和本人先改，方法不给别的 Agent；卸载时删（PG-051 Q1 b） | SQLite 带版本 · 1 | 可重建（插件下次启动时重新登记），随 `agent-definitions` 一起备份 | purge |
-| `connectors/connectors.db` | 连接、绑定、目标、协议、授权会话与技术观察的表结构归 `horizontal/connector-host`（`src/connection-store.ts`、`src/protocol-store.ts`、`src/connection-observations.ts`）；宿主在 `apps/local-host/src/connectors-store.ts` 定义授权结果表 `connector_authorization_results` 并组装、打开基线 | SQLite 带版本 · 2 | 必备份。启用状态独立保留，移除后保留失效引用；只存 `credential_ref`，凭据本体在 `feed/secrets.json` | purge |
+| `connectors/connectors.db` | 连接、绑定、目标、协议、授权会话与技术观察的表结构归 `horizontal/connector-host`（`src/connection-store.ts`、`src/protocol-store.ts`、`src/connection-observations.ts`）；宿主在 `apps/local-host/src/connectors-store.ts` 定义授权结果表 `connector_authorization_results` 并组装、打开基线 | SQLite 带版本 · 2 | 必备份。启用状态独立保留，移除后保留失效引用；只存 `credential_ref`，凭据本体在 `feed/secrets.json` | purge（`plugin-connections` 已登记：删项目时清插件为该项目里的记录选的账号绑定，账号本身不动） |
 | `context-onboarding/context-onboarding.db` | 宿主；`apps/local-host/src/context-onboarding-store.ts:46` 打开、`:51` 套用，`:44` 基线 | SQLite 带版本 · 1 | 必备份 | purge |
 | `plugin-originals/plugin-originals.db` | 宿主；`apps/local-host/src/material-original-files.ts` 打开并套用基线（`plugin_original_files`，主键 plugin_id + install_id + 激活所在的项目（Home 级激活为空串，各项目共用）+ 插件自己的记录键，存的是宿主入口交来的原始文件的真实路径）；只由 `materials:original` 服务读写，插件拿不到路径 | SQLite 带版本 · 1 | 必备份（登记的是人导入过的原始文件的位置） | purge（`plugin-originals` 已登记；删项目时按 `project_id` 清登记，原始文件本身不动） |
 | `functions/functions.db` | Functions 模块；`modules/functions/src/service.ts:53` 的 `createFunctionsService` 经 `openFunctionsStore` 打开（`modules/functions/src/store.ts:284`），基线 `modules/functions/src/store-schema.ts:7` | SQLite 带版本 · 3 | 必备份 | purge |
@@ -178,7 +180,7 @@ Sessions 插件下线（SC-4）后，没有任何代码打开 `sessions/sessions
 
 规则：一张表只由建它的包读写，别的包要读写就走那个包导出的函数。门禁是 `scripts/gates/table-owners.mjs`（`pnpm health:check` 里跑，没有基线，出现一处就失败）；它从各包 TypeScript 源码的 SQL 字符串里找 `CREATE TABLE` 定出每张表的 owner 包，再找别的包里对这张表的 `SELECT … FROM`、`JOIN`、`INSERT INTO`、`UPDATE`、`DELETE FROM`、`ALTER TABLE`、`DROP TABLE`。读不到的写在门禁文件开头：表名不是字面量的（`FROM ${table}`，Artifacts 的 Repository 从选项取表名、助理清理项目时遍历一个表名数组）、拼接出来的 SQL、非 TypeScript 文件里的 SQL。
 
-- `events` 和 `idempotency_records` 由 `packages/storage` 定义（`src/sqlite.ts`），登记在 `tooling/gates/table-owners.json` 的 `shared`（写明 owner、用到的包和理由；门禁两头核对，登记的包不再用它就失败）。storage 自己的 `LocalSqliteJournal` 有完整的日志函数：`eventCursor`、`appendEvent`、`getIdempotency`、`putIdempotency`，都在项目库的同一条连接上，所以模块自己的事务里调用它，事件和它记的事实照样同事务提交。目前仍直接写这两张表的有两个模块：`modules/goals`（`src/repository.ts`，读游标、追加事件、读写幂等记录）和 `modules/governance-collaboration`（`src/repository.ts` 读游标、追加事件；`src/proposal-operation-store.ts` 读写幂等记录）。**理由是依赖方向，不是事务**：模块只依赖 `packages/contracts`，没有对 storage 的依赖，没法 import 日志函数，于是各抄了一份那几条语句。去掉它们的办法是宿主注入一个日志端口（`appendEvent`、`eventCursor`、幂等的读写），做法和 Artifacts 已经在用的一样；这是后续一步（见 `specs/repository-anti-corruption/spec.md` §4.11），做完后删掉这两条登记。`modules/artifacts` 已经这样做了：`appendEvent` 和 `eventCursor` 是装配时传入的函数（宿主传 storage 的），包内不再有 `events` 的 SQL，也不在登记里。
+- `events` 和 `idempotency_records` 由 `packages/storage` 定义（`src/sqlite.ts`），不属于任何模块或插件自己的声明。storage 自己的 `LocalSqliteJournal` 有完整的日志函数：`eventCursor`、`appendEvent`、`getIdempotency`、`putIdempotency`，都在项目库的同一条连接上，所以模块自己的事务里调用它，事件和它记的事实照样同事务提交。`modules/goals` 与 `modules/governance-collaboration` 只依赖 `packages/contracts`、没法 import storage，现在由宿主在装配时注入一个日志端口（`GoalsJournal`、`GovernanceJournal`，结构上就是 storage 的那四个函数；Artifacts 用函数注入，做法同类），两个模块里不再有指向这两张表的语句（PG-094 S9-1，`tests/goals-storage-plugin-legal-sql.test.ts`），`tooling/gates/table-owners.json` 里这两条 `shared` 登记已删。
 - 一个包新加一句 `CREATE TABLE <别的包已建的表>` 不会让它成为这张表的 owner：同一张表被不止一个包建，必须登记在 `same_name`（表名、建它的包、理由），门禁两头核对。现有两项：`workspaces`（`modules/projects` 的目录库、炼金术士每项目一个的 `studio.sqlite`）和 `jobs`（炼金术士的 `studio.sqlite`、Images 的 `images.db`），都是不同库里互不相干的表（`specs/repository-anti-corruption/spec.md` §9.5 第 9 条定为不改名）。
 - 原先 4 处跨 owner 直接 SQL 已去掉，门禁另量到 2 处，一并改了。都改成 owner 导出的函数：
   - `apps/local-host/src/coding-background-tasks.ts` 读 Coding 的 `coding_sessions`：当时改成 Coding 导出 `listCodingBackgroundSessions`，宿主的路由把它传给跨项目列表。2026-10-21（C4，PG-043）再改：这个文件和导出都删了，Coding 把列表声明成自己的查询 `coding.home.background-tasks@1`（`home_aggregate`，`plugins/native/coding/src/home-background.ts`），宿主的 `apps/local-host/src/home-background-tasks.ts` 对每个已打开的项目问这类查询（`apps/local-host/src/home-aggregate.ts`，S-49），不再打开任何项目库、也不认识 Coding。
@@ -226,7 +228,7 @@ Sessions 插件下线（SC-4）后，没有任何代码打开 `sessions/sessions
 | `cache/research-library/<sha256>/` | `apps/local-host/src/research-library-source.ts:17`：研究库仓库的 bare Git 缓存 | Git 目录 | 可重建 | purge |
 | `jelly/preferences.json` | `apps/local-host/src/model-configuration.ts`：可信 consumer 声明的 Jelly 模型选择 | JSON · `schema_version` = 1 | 必备份 | purge（`jelly` 目录） |
 | `characters/runs/character-*/` | `apps/local-host/src/character-native-execution.ts:16-19`：交给外部 Agent 执行时临时写出的角色包 | 目录 | 临时 | purge |
-| `artifacts/projects/<编码后的 project_id>/originals/<sha256>` | `plugins/native/artifacts/src/original-store.ts`（`storeArtifactOriginal`、`readArtifactOriginal`）：成果库导入的超过 6 MB 的原文件，按内容摘要存一份；6 MB 以内的仍在版本记录里（`original_file.data_base64`），两种都是现行形状，按大小选 | 文件目录 · 无版本 | 必备份（人导入的原件，版本记录只存摘要） | purge（`artifacts` 已登记；删项目时整个项目目录删掉） |
+| `artifacts/projects/<编码后的 project_id>/originals/<sha256>` | `modules/artifacts/src/artifact-original-store.ts`（`storeArtifactOriginal`、`openArtifactOriginal`）：成果库导入的超过 6 MB 的原文件，按内容摘要存一份；6 MB 以内的仍在版本记录里（`original_file.data_base64`），两种都是现行形状，按大小选 | 文件目录 · 无版本 | 必备份（人导入的原件，版本记录只存摘要） | purge（`artifacts` 已登记；删项目时整个项目目录删掉） |
 | `context-onboarding/journeys/<journey_id>/{files,texts,notes}/<sha256>` | 宿主；`apps/local-host/src/context-onboarding-staging.ts`：新建项目「来源」一轮的暂存（2026-10-22 起不限份数与大小）——人交来的文件、读出的全文、摘要分批的笔记，各按内容摘要存一份；整理记录只记摘要。项目采用完成后整轮目录删掉；超过 30 天没有继续的整理，宿主启动时与每 6 小时清一次暂存、保留记录（`removeIdleJourneyStaging`） | 文件目录 · 无版本 | 不必备份（采用前的暂存，采用后原件在成果库、全文在 Pages） | purge（随 `context-onboarding` 目录） |
 | `images/assets/` | `plugins/native/images/src/service.ts:37`：生成的图片文件 | 文件目录 · 无版本 | 必备份 | purge（`images` 目录） |
 | `lingguang/imports/<sha256><ext>` | 旧版本留下的上传原始副本；现行 `apps/local-host/src/material-home.ts` 不再写，也没有代码读，上传的文件只在内存里提取文字（读取不保存灵光，副本没有读者也没有主人）。旧 Home 里已有的文件可以直接删除 | 文件目录 · 无版本 | 可重建（不会再被读取；删除不影响任何记录） | purge（`lingguang` 目录） |
@@ -360,7 +362,7 @@ purge 之后仍留下的（由代码推出，没有在真实 Home 上试过）�
 - `lingguang/models/` 是平台材料服务的缓存，名称仍沿用灵光目录；W5-01 材料前置片只改服务归属与调用，不搬目录。今后改路径单列维护并核对已有授权和缓存，无需在读取时保留两条查找路径。
 
 - Home 存储已有单一登记（W4-11）。登记只认 owner 声明的条目，没有门禁去找代码里**没登记**就写进 Home 的新目录；这一点仍靠评审、本表和上面几条用例（讨论挂载那条用例的写法可以照搬到别的入口）。
-- 共享日志表 `events`、`idempotency_records` 还有 `modules/goals` 与 `modules/governance-collaboration` 各抄一份读写语句（依赖方向所致，见 4.5）；两个模块改用宿主注入的日志端口后，删掉 `tooling/gates/table-owners.json` 里这两条 `shared` 登记。其余跨 owner 直接 SQL 已由 W2-06 清零并有门禁。
+- 共享日志表 `events`、`idempotency_records` 的跨 owner 语句已清零：Goals 与 Governance 两个模块改用宿主注入的日志端口（PG-094 S9-1），`shared` 两条登记已删。其余跨 owner 直接 SQL 已由 W2-06 清零并有门禁。
 - 没有备份命令和快照；第 7 节的同一时点组没有工具保证（W5-16）。
 - 目录库存项目库的绝对路径（W5-17）。
 - 旧 `goalboard-*` 的 release 与启动脚本卸载不认，而 `bin/goalboard-mcp` 还有进程在用（W4-11 的清除范围决策）。

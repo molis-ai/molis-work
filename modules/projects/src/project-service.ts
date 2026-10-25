@@ -66,7 +66,7 @@ export class ProjectService {
   register(record: ProjectRecord, eventType: string, actorId: string): void {
     this.repository.transaction(() => {
       this.repository.insertProject(record);
-      for (const pluginId of new Set(["goals", ...this.plugins.initial?.() ?? []])) {
+      for (const pluginId of new Set(this.plugins.initial?.() ?? [])) {
         if (!this.plugins.has(pluginId)) throw catalogErrors.plugin_not_found("新项目的默认插件未在目录登记");
         this.repository.addProjectPlugin(record.project_id, pluginId, record.created_at);
       }
@@ -81,12 +81,20 @@ export class ProjectService {
     this.repository.removeProject(this.requiredProjectId(projectId));
   }
 
-  listPlugins(projectId: string): ProjectPluginId[] {
-    return this.repository.listProjectPlugins(this.get(projectId).project_id);
+  /**
+   * The members a project stored, and its 常开 plugins, which are members of every project without a stored row (ac-trust T3). A
+   * personal plugin is not a stored member whatever it is (it is on unless hidden), so a 常开 one adds nothing here.
+   */
+  listPlugins(projectId: string, alwaysOn: readonly ProjectPluginId[] = this.plugins.alwaysOn?.() ?? []): ProjectPluginId[] {
+    const stored = this.repository.listProjectPlugins(this.get(projectId).project_id);
+    const derived = alwaysOn.filter(id => this.plugins.isPersonal?.(id) !== true && !stored.includes(id));
+    return derived.length === 0 ? stored : [...stored, ...derived].sort();
   }
 
+  /** What the project hid. A hidden mark on a 常开 plugin (one made before it was) changes nothing, so it is not listed. */
   listHidden(projectId: string): ProjectPluginId[] {
-    return this.repository.listHiddenPlugins(this.get(projectId).project_id);
+    const alwaysOn = this.plugins.alwaysOn?.() ?? [];
+    return this.repository.listHiddenPlugins(this.get(projectId).project_id).filter(id => !alwaysOn.includes(id));
   }
 
   addPlugin(input: AddProjectPluginInput): ProjectPluginId[] {
@@ -117,13 +125,14 @@ export class ProjectService {
   removePlugin(input: RemoveProjectPluginInput): ProjectPluginMembership {
     const project = this.get(input.project_id);
     const actor = this.requiredActorId(input.actor_id);
-    if (this.plugins.isAlwaysOn?.(input.plugin_id) === true) throw catalogErrors.plugin_always_on("常开插件不能从项目里移除");
+    const alwaysOn = this.plugins.alwaysOn?.() ?? [];
+    if (alwaysOn.includes(input.plugin_id)) throw catalogErrors.plugin_always_on("常开插件不能从项目里移除");
     const personal = this.plugins.isPersonal?.(input.plugin_id) === true;
     if (!personal && !this.plugins.has(input.plugin_id)) {
       throw catalogErrors.plugin_not_found("找不到这个插件");
     }
     return this.repository.transaction(() => {
-      const stored = this.listPlugins(project.project_id);
+      const stored = this.listPlugins(project.project_id, alwaysOn);
       const removing = new Set<ProjectPluginId>([input.plugin_id]);
       let changed = true;
       while (changed) {
@@ -136,6 +145,8 @@ export class ProjectService {
           }
         }
       }
+      // A 常开 plugin that needs the one going would go with it, and it cannot.
+      if (alwaysOn.some(id => removing.has(id))) throw catalogErrors.plugin_always_on("常开插件依赖它，不能一起移除");
       for (const id of removing) {
         const deleted = this.repository.removeProjectPlugin(project.project_id, id);
         const hidden = personal && id === input.plugin_id
@@ -145,7 +156,7 @@ export class ProjectService {
         }
       }
       return {
-        plugins: this.listPlugins(project.project_id),
+        plugins: this.listPlugins(project.project_id, alwaysOn),
         hidden: this.repository.listHiddenPlugins(project.project_id),
       };
     });

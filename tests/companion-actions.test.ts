@@ -6,8 +6,8 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { DesktopPanelService } from "../apps/desktop/src/panels.js";
-import { createDesktopPanelTables, SqliteDesktopPanelRepository } from "../apps/desktop/src/adapters/sqlite-panels.js";
+import { DesktopPanelService } from "../apps/desktop/dist/panels.js";
+import { createDesktopPanelTables, SqliteDesktopPanelRepository } from "../apps/desktop/dist/adapters/sqlite-panels.js";
 import { MolisWorkProjectCatalog } from "@molis-ai/molis-work-app-local-host";
 import { textStatsActions } from "@molis-ai/molis-work-plugin-text-stats";
 import { filesActions } from "@molis-ai/molis-work-plugin-files";
@@ -18,6 +18,7 @@ import { projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
 import { createMcpActionGrant } from "../apps/local-host/dist/mcp-action-grants.js";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { readMcpToolPreference, writeMcpActionGrant } from "../apps/local-host/dist/mcp-settings-store.js";
+import { serveTestHost } from "./fixtures/test-home.js";
 
 test("headless runtime companions are discovered and called by the official MCP client with live project and client grants", { timeout: 120_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "companion-actions-"));
@@ -33,13 +34,14 @@ test("headless runtime companions are discovered and called by the official MCP 
     workspaceFor: async () => { workspaceReads++; return null; },
     completeText: async () => { completions++; throw new Error("Discovery must not call a model"); },
   });
+  const served = await serveTestHost(null, { home, host });
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const caller: ActionCallContext = { actor_id: "runtime:reader", project_id: project.project_id, audience: "mcp", permissions: ["artifact:read"] };
   const client = host.actionClient(reference), clients: Client[] = [];
   const connect = async (identity: string) => {
     const sdk = new Client({ name: "untrusted", version: "1" }); clients.push(sdk);
     const transport = new StdioClientTransport({ command: process.execPath, args: ["--import", "tsx",
-      fileURLToPath(new URL("./fixtures/production-action-mcp-server.ts", import.meta.url)), home, project.project_id, identity, project.database_path], stderr: "pipe" });
+      fileURLToPath(new URL("./fixtures/production-action-mcp-server.ts", import.meta.url)), home, project.project_id, identity, project.database_path, served.origin], stderr: "pipe" });
     let errors = ""; transport.stderr?.on("data", chunk => { errors += String(chunk); });
     try { await sdk.connect(transport); } catch (error) { throw new Error(`${String(error)}\n${errors}`); }
     return sdk;
@@ -82,7 +84,10 @@ test("headless runtime companions are discovered and called by the official MCP 
     await writeMcpActionGrant(home, countGrant);
     catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id: "coding", actor_id: "owner" });
     assert.equal((await reader.callTool({ name: countName, arguments: { text: "no" } })).isError, true);
-    await assert.rejects(client.invoke(caller, textStatsActions.count, { text: "no" }), { code: "actions.plugin_unavailable" });
+    assert.equal((await client.discover(caller)).some(row => row.capability_id === textStatsActions.count.capability_id), false,
+      "the resident Host withdraws the disabled Runtime's actions");
+    // RAC-105-A-GW-03: the resident has withdrawn this disabled provider; the MCP caller sees missing, not plugin_unavailable.
+    await assert.rejects(client.invoke(caller, textStatsActions.count, { text: "no" }), { code: "actions.missing" });
     assert.equal((await readMcpToolPreference(home)).action_grants?.length, 5, "disabling retains exact references");
     catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "coding", actor_id: "owner" });
     await reader.close();
@@ -91,5 +96,5 @@ test("headless runtime companions are discovered and called by the official MCP 
     assert.equal(reopened.find(row => row.capability_id === textStatsActions.count.capability_id)!.provider.provider_id, countGrant.provider_id);
     const restarted = await connect("reader");
     assert.equal((await restarted.callTool({ name: countName, arguments: { text: "" } })).isError, false);
-  } finally { await Promise.all(clients.map(client => client.close())); await host.close(); catalog.close(); await rm(home, { recursive: true, force: true }); }
+  } finally { await Promise.all(clients.map(client => client.close())); await served.close(); await host.close(); catalog.close(); await rm(home, { recursive: true, force: true }); }
 });

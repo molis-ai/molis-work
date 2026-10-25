@@ -1,7 +1,9 @@
+import { lstatSync } from "node:fs";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL, PLUGIN_RELEASE_ARTIFACTS_SCHEMA_SQL, PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL, PLUGIN_TRUST_SCHEMA_SQL,
   SqlitePluginConsentLedger, SqlitePluginPrivateStorage, type PluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
-import { describeSqliteBaseline, describeSqliteSchema, openBaselineHomeSqlite, type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
+import { describeSqliteBaseline, describeSqliteSchema, homeSqlitePath, openBaselineHomeSqlite, openReadOnlyHomeSqlite, SqliteSchemaVersionError,
+  type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 
 const HOME_PLUGIN_RUNTIME_BASELINE: SqliteBaseline = {
   version: 3,
@@ -16,6 +18,26 @@ export function openHomePluginStore(home: string) {
       throw new ActionError("actions.execution_failed", "Home 插件运行库结构与当前 v3 基线不一致，请保留故障库并检查其来源");
     }
     return { db, storage: new SqlitePluginPrivateStorage(db) };
+  } catch (error) { db.close(); throw error; }
+}
+
+/** An absent store has no ledger yet. An existing store must already have the complete current baseline; never repair it here. */
+export function openReadOnlyHomePluginStore(home: string) {
+  const file = homeSqlitePath(home, HOME_PLUGIN_RUNTIME_HOME_STORE.path);
+  try { lstatSync(file); }
+  catch (error) {
+    if (error instanceof Error && "code" in error && error.code === "ENOENT") return undefined;
+    throw error;
+  }
+  const db = openReadOnlyHomeSqlite(home, HOME_PLUGIN_RUNTIME_HOME_STORE.path);
+  try {
+    db.exec("BEGIN");
+    const found = db.prepare("PRAGMA user_version").get()!.user_version as number;
+    if (found !== HOME_PLUGIN_RUNTIME_BASELINE.version) throw new SqliteSchemaVersionError(file, found, HOME_PLUGIN_RUNTIME_BASELINE.version);
+    if (JSON.stringify(describeSqliteSchema(db)) !== JSON.stringify(describeSqliteBaseline(HOME_PLUGIN_RUNTIME_BASELINE))) {
+      throw new ActionError("actions.execution_failed", "Home 插件运行库结构与当前 v3 基线不一致，请保留故障库并检查其来源");
+    }
+    return db;
   } catch (error) { db.close(); throw error; }
 }
 

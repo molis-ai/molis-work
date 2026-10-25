@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
+import { copyFile, mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AgentBuilderStore, type AgentRelease } from '@molis-ai/molis-work-plugin-builder';
@@ -10,14 +10,15 @@ import type { ActionDefinition, ActionExecutionPolicy } from '@molis-ai/molis-wo
 import { PluginRuntime, SqlitePluginPrivateStorage, SqlitePluginRuntimeRepository } from '@molis-ai/molis-work-plugin-runtime';
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
-import { seedDemoBoard, DEMO_PROJECT_ID } from '@molis-ai/molis-work-app-local-host';
+import { seedDemoBoard, DEMO_PROJECT_ID, runningPluginDirectory } from '@molis-ai/molis-work-app-local-host';
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from '@molis-ai/molis-work-app-local-host';
 import { ensureInstalledPlugins, releaseInstalledPlugins } from '../apps/local-host/dist/installed-plugin-host.js';
 import { installedSignature, sandboxedPluginDefinition } from '../apps/local-host/dist/plugin-builder/installed.js';
 import { exposedActionId } from '../apps/local-host/dist/plugin-builder/exposed-actions.js';
 import { studioStorage } from '../apps/local-host/dist/plugin-builder/storage.js';
 import { buildManifest } from '../apps/local-host/dist/plugin-builder/build-project.js';
-import { scheduleServiceFor } from '@molis-ai/molis-work-app-local-host';
+import { scheduleServiceFor, withConnectorConnections } from '@molis-ai/molis-work-app-local-host';
+import { pluginBindingScope } from '@molis-ai/molis-work-service-connector-host';
 import { callAs, callerPlugin, issuedCaller, registerProbe, startProjectPlugins } from './fixtures/plugin-callers.js';
 import { agentDefinitionsFor } from '../apps/local-host/dist/agent-definitions/agent-definitions.js';
 import { builtinRegistrations } from '../apps/local-host/dist/agent-definitions/builtin-registrations.js';
@@ -554,27 +555,35 @@ test('an install that fails over kept data does not undo the person\'s choice to
   } finally { await rig.host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-test('after an uninstall the newer published version can be installed again, with the kept data or without it', mac, async () => {
+test('RAC-609-UNINSTALL-01 after an uninstall the directory loses the real installation and a newer published version can be installed again, with the kept data or without it', mac, async () => {
   const home = await mkdtemp(join(tmpdir(), 'installed-reinstall-newer-'));
   await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   const fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
   const action = (release: AgentRelease, operation: string) => ({ capability_id: exposedActionId(release, operation), version: release.version, provider_id: 'plugin:' + release.pluginId });
   try {
     const installed = await rig.control(), client = rig.host.actionClient(fixture.ref);
+    const listed = () => runningPluginDirectory(installed.platform.supervisor).some(entry => entry.plugin_id === fixture.release.pluginId);
     await client.invoke(caller, action(fixture.release, 'save'), { value: 'kept across versions' });
+    assert.equal(listed(), true, 'the installed plugin is in the real Host directory before the uninstall');
     await installed.lifecycle('uninstall', fixture.release, { keepData: true });
+    assert.equal(installed.platform.runtime.get(fixture.install.install_id).state, 'uninstalled');
+    assert.equal(listed(), false, 'the next directory read after a retaining Host uninstall has no entry');
     assert.deepEqual(installed.installations(), []);
 
     const v2 = { ...fixture.release, version: 2 }; installed.releases.release(v2);
     await installed.lifecycle('install', v2, { consent: true });
     assert.deepEqual(installed.installations().map(({ state, version }) => ({ state, version })), [{ state: 'running', version: 2 }]);
+    assert.equal(listed(), true, 'the new installation returns to the directory');
     assert.equal(await client.invoke(caller, action(v2, 'read'), null), 'kept across versions', 'the data the uninstall kept is there for the new version');
     assert.equal(installed.platform.runtime.get(fixture.install.install_id).installation_generation !== fixture.install.installation_generation, true, 'it is a new installation');
 
     await installed.lifecycle('uninstall', v2, { keepData: false });
+    assert.equal(installed.platform.runtime.get(fixture.install.install_id).state, 'uninstalled');
+    assert.equal(listed(), false, 'dropping private data also leaves no entry on the next directory read');
     const v3 = { ...fixture.release, version: 3 }; installed.releases.release(v3);
     await installed.lifecycle('install', v3, { consent: true });
     assert.deepEqual(installed.installations().map(({ state, version }) => ({ state, version })), [{ state: 'running', version: 3 }]);
+    assert.equal(listed(), true, 'installing after data deletion returns the fresh installation to the directory');
     assert.equal(await client.invoke(caller, action(v3, 'read'), null), 'empty', 'deleted data stays deleted');
   } finally { await rig.host.close(); await rm(home, { recursive: true, force: true }); }
 });
@@ -688,3 +697,27 @@ for (const choice of ['catalog-failure', 'disable', 'disable-enable'] as const)
       }
     } finally { release.resolve(); await releaseInstalledPlugins(store, DEMO_PROJECT_ID); store.close(); await rm(home, { recursive: true, force: true }); }
   });
+
+test('S-71 RAC-471 uninstalling in one project takes the per_record bindings of that project only; the other project and the installation slot keep theirs', mac, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'installed-connection-bindings-'));
+  const fixture = await publishedFixture(home, 'first'), copy = join(home, 'second.sqlite');
+  await copyFile(fixture.databasePath, copy);
+  // The same installation in two projects whose ids are a prefix pair: the anchored delete must tell them apart.
+  const projects = [DEMO_PROJECT_ID, DEMO_PROJECT_ID + '0'], stores = [fixture.databasePath, copy].map(path => new LocalProjectDatabase(path));
+  const install_id = fixture.install.install_id, pluginId = fixture.release.pluginId;
+  const bearer = 'fixture-bearer-value-for-s72';
+  const connection = withConnectorConnections(home, store => store.createToken({ serviceId: 'github', displayName: 'GitHub', token: bearer }));
+  const scopes = [...projects.map(project_id => pluginBindingScope({ install_id, project_id, record_key: 'src-1' })), pluginBindingScope({ install_id })];
+  for (const [index, scope] of scopes.entries()) {
+    withConnectorConnections(home, store => store.bind({ scopeId: scope, pluginId, slotId: index < 2 ? 'feed' : 'account', serviceId: 'github', connectionId: connection.connection_id }));
+  }
+  const left = () => scopes.filter((scope, index) => withConnectorConnections(home, store => store.binding(scope, pluginId, index < 2 ? 'feed' : 'account')) !== null);
+  try {
+    const [one, two] = await Promise.all(stores.map((store, index) => ensureInstalledPlugins({ store, projectId: projects[index]!, homeDirectory: home })));
+    await one.lifecycle('uninstall', fixture.release, { keepData: true });
+    assert.deepEqual(left(), [scopes[1], scopes[2]], 'the other project keeps its record binding and both keep the installation slot');
+    await two.lifecycle('uninstall', fixture.release, { keepData: false });
+    // Whether another project still installs it is only in each project's library, so the shared one stays for the person (BL-596).
+    assert.deepEqual(left(), [scopes[2]]);
+  } finally { for (const [index, store] of stores.entries()) { await releaseInstalledPlugins(store, projects[index]!); store.close(); } await rm(home, { recursive: true, force: true }); }
+});

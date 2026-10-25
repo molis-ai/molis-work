@@ -51,7 +51,7 @@ export interface GmailTokenRefs {
 export type GmailUsableTokenResult =
   | { ok: true; accessToken: string }
   | { ok: false; status: "none" }
-  | { ok: false; status: "needs_auth"; message: string; action: string };
+  | { ok: false; status: "needs_auth"; message: string; action: string; /** Google's token endpoint said no, not a network failure. */ refused?: true };
 
 export type GmailFetch = (
   input: string,

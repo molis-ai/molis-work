@@ -4,7 +4,8 @@ import { ActionError, retainActionAuthority, FRAGMENT_ANY_OBJECT, bindArtifactPr
 import { IMPORTED_DOCUMENT_TYPE, importedDocumentFile } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { createPagesCommentHandlers, pagesCommentActions } from "./comment-actions.js";
 import { createPagesLandingHandlers, definePagesLandingActions } from "./landing-actions.js";
-import { parsePagesBody } from "./document.js";
+import { MAX_BODY_CHARS, parsePagesBody } from "./document.js";
+import { blocksFromMarkdown } from "./paste-markdown.js";
 import { pagesErrors } from "./error.js";
 import { PAGES_ARTIFACT_TYPE_ID, PAGES_PLUGIN_ID, type PagesBody, type PagesFolder, type PagesRecord, type PagesInputSnapshot, type PagesGenerationRecord } from "@molis-ai/molis-work-contracts/modules/pages";
 import { PAGES_AI_COMMANDS, type PagesAiRequest, type PagesAiResult } from "./ai.js";
@@ -121,6 +122,13 @@ export const pagesActions = {
     object({ files, selected_keys: { ...array(id), minItems: 1, maxItems: 100, uniqueItems: true }, request_id: { type: "string", pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$" }, folder_id: text }, ["files", "selected_keys", "request_id"]), object({ documents: array(page), warnings: array(text) }), [...write, MATERIALS_READ], undefined, "concurrent"),
   importDocuments: define<{ request_id: string; request_hash: string; documents: { title: string; body: PagesBody }[]; folder_id?: string }, { documents: PagesRecord[] }>("documents.import", "保存材料文档", "批量保存已解析的文档；调用方提供已确认意图的稳定请求标识与摘要，重试返回原文档且不覆盖后续编辑", "command",
     object({ ...requestIdentity, documents: { ...array(object({ title: fields.title, body })), minItems: 1, maxItems: 1000 }, folder_id: text }, ["request_id", "request_hash", "documents"]), object({ documents: array(page) }), write),
+  /**
+   * Markdown as a Pages body, and nothing else: no document is read or written. The person's first-run flow converts the text it
+   * adopts with it, so it needs none of Pages' internals; it is offered to the person only (not to workflows, agents or MCP). The
+   * result never passes one document's limit: a text that converts to more gets `pages.body_too_large`, not a cut or a huge body.
+   */
+  bodyFromMarkdown: withAction(define<{ markdown: string }, { body: PagesBody }>("documents.body_from_markdown", "Markdown 转文档正文", "把 Markdown 转成 Pages 的文档正文；只转换，不读取也不写入任何文档。转换结果超过一篇文档能存的大小时返回 pages.body_too_large", "query",
+    object({ markdown: { type: "string", minLength: 1, maxLength: 1_000_000 } }), object({ body }), read), { audiences: ["user"], subject_kinds: [] }),
   generations: define<Record<string, never>, { records: PagesGenerationRecord[] }>("generations.list", "文稿生成记录", "查看当前项目生成任务的输入快照、状态和文档引用", "query", object({}), object({ records: array(generation) }), read),
   generation: define<{ request_id: string }, { record: PagesGenerationRecord | null }>("generations.get", "读取文稿生成任务", "读取一个稳定请求对应的生成记录；不存在时返回空", "query", object({ request_id: requestIdentity.request_id }), object({ record: { anyOf: [generation, { type: "null" }] } }), read),
   generate: define<{ request_id: string; request_hash: string; inputs: PagesInputSnapshot[]; title: string; instructions: string }, { document: PagesRecord; replayed: boolean }>("generate", "材料生成文稿", "按调用方提供的材料快照生成文稿并保存；同一请求重试使用原快照，保留已生成后的手工编辑", "command",
@@ -132,6 +140,13 @@ export const pagesActions = {
   promote: define<{ id: string; goal_id?: string; expected_version?: number }, { document: PagesRecord; artifact: { artifact_id: string; version: number }; recovered: boolean }>("promote", "发布文档成果", "将文档保存为成果；有未完成发布时恢复原快照，后续编辑可另存一版。可提供读取时的 version 避免过期发布", "command", object({ id, goal_id: fields.goal_id, expected_version: version }, ["id"]), object({ document: page, artifact: object({ artifact_id: id, version }), recovered: { type: "boolean" } }), [...read, ...write, "artifact:write"]),
   extract: define<{ id: string }, { document: PagesRecord; cards: number; created: PagesRecord[] }>("extract", "提取任务与知识", "从文档提取任务卡和知识页，一次事务保存全部结果", "command", object({ id }), object({ document: page, cards: { type: "integer", minimum: 0 }, created: array(page) }), [...read, ...write]),
 };
+/** The body of a Markdown text: Pages' own reader, else one paragraph; never one a document could not hold. */
+function bodyFromMarkdown(markdown: string): PagesBody {
+  const blocks = blocksFromMarkdown(markdown);
+  const body = { type: "doc", content: blocks ? blocks.map(block => block.toJSON()) : [{ type: "paragraph", content: [{ type: "text", text: markdown }] }] } as PagesBody;
+  if (JSON.stringify(body).length > MAX_BODY_CHARS) throw pagesErrors.body_too_large("转换后的正文超过一篇文档能存的大小");
+  return body;
+}
 export const PAGES_ACTIONS: readonly ActionDefinition[] = [...Object.values(pagesCommentActions), ...Object.values(pagesLandingActions), ...Object.values(pagesActions)];
 export const PAGES_ACTION_PERMISSIONS = [...new Set(PAGES_ACTIONS.flatMap(definition => definition.action.permissions))];
 export interface PagesActionPorts extends PagesStores {
@@ -277,6 +292,7 @@ export function createPagesActionHandlers(ports: PagesActionPorts): ActionHandle
     bind(pagesActions.artifactReferrers, (input, caller) => ports.read(store => ({ referrers: store.list(project(caller))
       .filter(document => linksToArtifactVersion(document.body, input.reference))
       .map(document => ({ subject: { kind: PAGES_SUBJECT_KIND, id: document.id }, title: document.title || "未命名文档", open: { surface: "pages", id: document.id } })) }))),
+    bind(pagesActions.bodyFromMarkdown, ({ markdown }) => ({ body: bodyFromMarkdown(markdown) })),
     bind(pagesActions.importDocuments, (input, caller) => ports.write(caller, store => ({ documents: store.importDocuments({ ...input, project_id: project(caller) }) }))),
     bind(pagesActions.generations, (_, caller) => ports.read(store => ({ records: store.generations(project(caller)) }))),
     bind(pagesActions.generation, (input, caller) => ports.read(store => ({ record: store.generation(project(caller), input.request_id) }))),

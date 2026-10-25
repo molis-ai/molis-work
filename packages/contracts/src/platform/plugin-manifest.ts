@@ -99,6 +99,10 @@ export interface PluginManifest {
    * declare it: the Runtime refuses to install or upgrade to a Manifest that does from anywhere else.
    */
   always_on?: boolean;
+  /** One sentence for the plugin market and the page heading, at most 120 characters once trimmed. Without one the market lists the plugin by its name. */
+  summary?: string;
+  /** Kept out of the plugin list (switcher and market) unless the Host is in developer mode; still installable, and shown where already added. Only `true`. */
+  developer?: true;
   entrypoints: PluginEntrypointManifest[];
   permissions: PluginPermissionDeclaration[];
   capabilities: {
@@ -159,6 +163,8 @@ export interface PluginManifest {
   model_configuration?: import("./plugin-model-configuration.js").PluginModelConfigurationDeclaration;
   /** The image connections this plugin uses (`services.imageGeneration`, PG-102): the namespace its bindings live in and the permissions that read, bind and generate. */
   image_generation?: import("./plugin-image-generation.js").PluginImageGenerationDeclaration;
+  /** v2: the kinds of subject its objects are for Attention, with `attention:write` (`services.attention`, PG-087). */
+  attention?: import("./plugin-attention.js").PluginAttentionDeclaration;
   /** v2: places where the plugin may use an account the person binds, with `connections:use` (`services.connections`, S-57). */
   connections?: import("./plugin-connections.js").PluginConnectionsDeclaration;
   /** v2: kept jobs and commands the platform may wake for this installation. */

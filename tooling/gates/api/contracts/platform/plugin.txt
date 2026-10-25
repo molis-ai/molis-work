@@ -407,6 +407,7 @@ export interface ActionCallContext extends ActionCallOrigin {
     readonly user_action?: ActionUserAction;
     readonly project_id: string | null;
     readonly audience: ActionAudience;
+    readonly readable_project_ids?: readonly string[];
     readonly plugin_install_id?: string;
     readonly host_plugin?: import("@molis-ai/molis-work-contracts/platform/app-host").HostPluginCaller;
     readonly original_file?: HostOfferedOriginalFile;
@@ -529,6 +530,8 @@ export interface ActionMetadata {
         readonly subject_kind: string;
     };
     readonly home_aggregate?: true;
+    readonly project_reach?: "person";
+    readonly placement_relation?: PlacementRelationDeclaration;
     readonly subject_offer_choices?: readonly SubjectOfferChoice[];
     readonly fragment_offer_choices?: readonly FragmentOfferChoice[];
     readonly intake?: ActionIntake;
@@ -754,7 +757,7 @@ export interface ActionSubjectContext {
     title: string;
     content: string;
     truncated: boolean;
-    goal_ids: string[];
+    goal_ids?: string[];
     open?: {
         surface: string;
         id: string;
@@ -2237,6 +2240,7 @@ export interface HomeOpenTarget {
 
 export interface HomePluginDatabaseDeclaration extends PluginDatabaseDeclaration {
     readonly partition?: "project";
+    readonly project_rows?: PluginProjectRowsDeclaration;
 }
 
 export interface HomeStoreDeclaration {
@@ -2434,6 +2438,8 @@ export declare const PLACEMENT_MOVE_INPUT_TYPE = "molis.placement.move.input.v1"
 
 export declare const PLACEMENT_MOVE_OUTPUT_TYPE = "molis.placement.move.output.v1";
 
+export declare const PLACEMENT_RELATION_ROLES: readonly ["list", "bind", "release", "candidates", "create"];
+
 export declare const PLACEMENT_RESULT_SCHEMA: {
     type: string;
     properties: {
@@ -2468,6 +2474,14 @@ export declare const PLACEMENT_RESULT_SCHEMA: {
     additionalProperties: boolean;
 };
 
+export declare const PLUGIN_ATTENTION_READ_PERMISSION = "attention:read";
+
+export declare const PLUGIN_ATTENTION_WRITE_PERMISSION = "attention:write";
+
+export declare const PLUGIN_CONTEXT_LEDGER_READ_PERMISSION = "context-ledger:read";
+
+export declare const PLUGIN_CONTEXT_LEDGER_WRITE_PERMISSION = "context-ledger:write";
+
 export declare const PLUGIN_EVENT_PAYLOAD_MAX_BYTES = 16384;
 
 export declare const PLUGIN_MODEL_LIMITS: {
@@ -2489,6 +2503,17 @@ export interface PlacementMoveInput {
     subject: ActionSubject;
     to_project_id: string;
 }
+
+export interface PlacementRelationDeclaration {
+    readonly relation: string;
+    readonly role: PlacementRelationRole;
+    readonly target?: {
+        readonly kind: string;
+        readonly noun: string;
+    };
+}
+
+export type PlacementRelationRole = (typeof PLACEMENT_RELATION_ROLES)[number];
 
 export interface PlacementResult {
     subject: ActionSubject;
@@ -2555,6 +2580,49 @@ export interface PluginArtifactPublishInput extends PluginProcessItemInput {
     trace?: ArtifactReference[];
 }
 
+export interface PluginAttentionClient {
+    list(): PluginAttentionEntryRecord[];
+    get(entryId: string): PluginAttentionEntryRecord;
+    findActiveForSubject(subject: PluginAttentionSubjectReference): PluginAttentionEntryRecord | null;
+    findForSubject(subject: PluginAttentionSubjectReference): PluginAttentionEntryRecord[];
+    events(entryId?: string): PluginAttentionEvent[];
+    join<T>(transaction: PluginDatabaseTransaction, write: (writer: PluginAttentionWriter) => T): T;
+}
+
+export interface PluginAttentionDeclaration {
+    readonly subjects: readonly AttentionSubjectType[];
+}
+
+export interface PluginAttentionEntryInput extends PluginAttentionSubjectReference {
+    readonly reason: AttentionReason;
+    readonly detail?: Record<string, unknown>;
+    readonly entry_id?: string;
+    readonly at?: string;
+}
+
+export type PluginAttentionEntryRecord = AttentionEntryRecord & {
+    owner_plugin_id: string;
+};
+
+export type PluginAttentionEvent = AttentionEvent & {
+    owner_plugin_id: string;
+};
+
+export interface PluginAttentionSubjectReference {
+    readonly owner_plugin_id: string;
+    readonly subject_type: AttentionSubjectType;
+    readonly subject_id: string;
+}
+
+export interface PluginAttentionWriter {
+    create(input: PluginAttentionEntryInput): {
+        entry: PluginAttentionEntryRecord;
+        created: boolean;
+    };
+    setStatus(entryId: string, status: AttentionStatus, expectedRevision?: number): AttentionEntryRecord;
+    deleteSubject(subject: PluginAttentionSubjectReference): number;
+}
+
 export interface PluginBackgroundClient {
     start<T>(work: (control: PluginExecutionControl) => Promise<T>, options?: {
         signal?: AbortSignal;
@@ -2580,6 +2648,18 @@ export interface PluginConsumableVersion extends ArtifactReference {
     artifact_type_id: string;
     schema_version: number;
     title: string | null;
+}
+
+export interface PluginContextLedgerClient {
+    get(key: string): ContextEdge | null;
+    list(query?: ContextEdgeQuery): ContextEdge[];
+    history(key: string): ContextEdge[];
+    join<T>(transaction: PluginDatabaseTransaction, write: (writer: PluginContextLedgerWriter) => T): T;
+}
+
+export interface PluginContextLedgerWriter {
+    put(input: ContextEdgeInput): ContextEdge;
+    remove(key: string, cause: string, recordedAt?: string): ContextEdge | null;
 }
 
 export type PluginContribution = PluginIntegrationContribution | PluginAppContribution;
@@ -2840,6 +2920,8 @@ export interface PluginExecutorHandle {
 export interface PluginHostServices {
     readonly notifications?: import("platform/plugin-notifications").PluginNotificationClient;
     readonly installations?: import("platform/plugin-installations").PluginInstallationClient;
+    readonly attention?: import("@molis-ai/molis-work-contracts/platform/plugin-attention").PluginAttentionClient;
+    readonly contextLedger?: import("@molis-ai/molis-work-contracts/platform/plugin-attention").PluginContextLedgerClient;
     readonly agents?: import("platform/plugin-agents").PluginAgentClient;
     readonly background?: import("platform/plugin-background").PluginBackgroundClient;
     readonly actions?: PluginActionClient;
@@ -3144,6 +3226,8 @@ export interface PluginManifest {
     };
     host_api_version: 1 | 2;
     always_on?: boolean;
+    summary?: string;
+    developer?: true;
     entrypoints: PluginEntrypointManifest[];
     permissions: PluginPermissionDeclaration[];
     capabilities: {
@@ -3208,6 +3292,7 @@ export interface PluginManifest {
     owner_files?: import("platform/plugin-owner-files").PluginOwnerFilesDeclaration;
     model_configuration?: import("platform/plugin-model-configuration").PluginModelConfigurationDeclaration;
     image_generation?: import("platform/plugin-image-generation").PluginImageGenerationDeclaration;
+    attention?: import("@molis-ai/molis-work-contracts/platform/plugin-attention").PluginAttentionDeclaration;
     connections?: import("@molis-ai/molis-work-contracts/platform/plugin-connections").PluginConnectionsDeclaration;
     background?: {
         jobs: readonly import("platform/plugin-background").PluginJobDeclaration[];
@@ -3581,6 +3666,22 @@ export interface PluginProjectDatabaseTransaction extends PluginDatabaseTransact
 
 export type PluginProjectRow = Record<string, null | number | string>;
 
+export interface PluginProjectRowsDeclaration {
+    readonly label: string;
+    readonly order?: number;
+    readonly tables: readonly PluginProjectRowsTable[];
+}
+
+export type PluginProjectRowsTable = {
+    readonly table: string;
+    readonly column: string;
+} | {
+    readonly table: string;
+    readonly column: string;
+    readonly parent: string;
+    readonly key?: string;
+};
+
 export interface PluginProjectStatement {
     readonly sql: string;
     readonly parameters: readonly (null | number | string)[];
@@ -3766,7 +3867,7 @@ export interface PluginUpgradeCompatibilityDeclaration {
 }
 
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
-    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "project_statements" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "notifications" | "interaction"> & {
+    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "project_statements" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "notifications" | "attention" | "contextLedger" | "interaction"> & {
         readonly storage?: Pick<PluginPrivateStorage, "get">;
     };
 };
@@ -4081,6 +4182,14 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA: {
             type: string[];
             maxLength: number;
         };
+        goal_ids: {
+            type: string;
+            items: {
+                type: string;
+                minLength: number;
+            };
+            uniqueItems: boolean;
+        };
         subject: {
             type: string;
             properties: {
@@ -4110,14 +4219,6 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA: {
         };
         truncated: {
             type: string;
-        };
-        goal_ids: {
-            type: string;
-            items: {
-                type: string;
-                minLength: number;
-            };
-            uniqueItems: boolean;
         };
     };
     required: string[];
@@ -4127,6 +4228,14 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA: {
 export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN: {
     type: string;
     properties: {
+        goal_ids: {
+            type: string;
+            items: {
+                type: string;
+                minLength: number;
+            };
+            uniqueItems: boolean;
+        };
         subject: {
             type: string;
             properties: {
@@ -4156,14 +4265,6 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN: {
         };
         truncated: {
             type: string;
-        };
-        goal_ids: {
-            type: string;
-            items: {
-                type: string;
-                minLength: number;
-            };
-            uniqueItems: boolean;
         };
     };
     required: string[];
@@ -4189,6 +4290,14 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_PROJECT: {
             required: string[];
             additionalProperties: boolean;
         };
+        goal_ids: {
+            type: string;
+            items: {
+                type: string;
+                minLength: number;
+            };
+            uniqueItems: boolean;
+        };
         subject: {
             type: string;
             properties: {
@@ -4218,14 +4327,6 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_PROJECT: {
         };
         truncated: {
             type: string;
-        };
-        goal_ids: {
-            type: string;
-            items: {
-                type: string;
-                minLength: number;
-            };
-            uniqueItems: boolean;
         };
     };
     required: string[];
@@ -4844,6 +4945,10 @@ export declare function isObjectMover(action: {
     output_type?: string;
 }): boolean;
 
+export declare function isPlacementRelation(action: {
+    placement_relation?: PlacementRelationDeclaration;
+}, relation: string, role: PlacementRelationRole): boolean;
+
 export declare function isReservedEventType(eventTypeId: string): boolean;
 
 export declare function isSearchEntriesSource(action: {
@@ -4920,6 +5025,7 @@ export declare const platformPluginWiringContract: {
 };
 
 export declare const pluginErrors: import("platform/action-errors").ErrorCodeRaisers<{
+    readonly always_on: "invalid";
     readonly capability_denied: "invalid";
     readonly consent_required: "invalid";
     readonly consent_revoked: "invalid";

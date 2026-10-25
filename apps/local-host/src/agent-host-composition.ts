@@ -12,7 +12,7 @@ import {
   type PrologueNodeAdapterOptions,
   type AgentPromptResolver,
 } from "@molis-ai/molis-work-service-agent-host";
-import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { CHARACTER_ARTIFACT_TYPE, CHARACTER_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/characters";
 import { freezeProjectCharacter } from "./characters-host.js";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -94,21 +94,31 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
   const agentHost = new AgentHost(options.prompts ? { prompts: options.prompts } : {});
 
   let prologue: Awaited<ReturnType<typeof createPrologueNodeAdapter>> | undefined;
+  let initialization: ReturnType<typeof createPrologueNodeAdapter> | undefined;
   let ready: Promise<void> | undefined;
   let markStarted!: () => void;
   const started = new Promise<void>(resolve => { markStarted = resolve; });
   let disposed = false, disposal: Promise<void> | undefined;
   const initialize = (): Promise<void> => {
     if (disposed) return Promise.reject(new Error("Agent 服务已关闭"));
-    return ready ??= (options.prologue === undefined ? Promise.resolve() : createPrologueNodeAdapter({
-      ...options.prologue,
-      // Documents people bring (PDF) are read by the runtime's own parser slot, with this parser plugged in.
-      documentParsers: [pdfDocumentParser],
-      // File, owner and background-job waits each recheck the authority of their own source.
-      checks: hostConditionChecks(options),
-      reviewQueue: agentHost.reviews,
-      app: { appId: "io.molis.work", appVersion: "0.0.0" },
-    }).then((adapter) => { prologue = adapter; agentHost.register(adapter); markStarted(); }))
+    return ready ??= (async () => {
+      if (options.prologue === undefined) return;
+      // A rejected start may still own resources. Finish that instance before creating another one.
+      await initialization?.close();
+      if (disposed) return;
+      initialization = createPrologueNodeAdapter({
+        ...options.prologue,
+        // Documents people bring (PDF) are read by the runtime's own parser slot, with this parser plugged in.
+        documentParsers: [pdfDocumentParser],
+        // File, owner and background-job waits each recheck the authority of their own source.
+        checks: hostConditionChecks(options),
+        reviewQueue: agentHost.reviews,
+        app: { appId: "io.molis.work", appVersion: "0.0.0" },
+      });
+      const adapter = await initialization;
+      if (disposed) return;
+      prologue = adapter; agentHost.register(adapter); markStarted();
+    })()
       .catch(error => { ready = undefined; throw error; });
   };
   // Connected external MCP tools join the project directory; they follow every list, save and connection change.
@@ -163,8 +173,8 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
     externalMcp.close();
     return disposal = (async () => {
       await ready?.catch(() => undefined);
-      await prologue?.close();
-    })();
+      await initialization?.close();
+    })().catch(error => { disposal = undefined; throw error; });
   } };
 }
 
@@ -223,7 +233,7 @@ async function startAuthority(
   // A plugin's Agent declarations come only from its running activation (PG-051 RAC-195). A call without one (the Characters host
   // listing actions) gets none: it lists what it may call, and a run of a plugin role finds no role and is refused.
   const declared = caller ? { manifest: caller.declaration.manifest.agent, prompts: caller.declaration.agent_prompts, skills: caller.declaration.agent_skills } : undefined;
-  const manifest = caller?.declaration.manifest ?? BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.plugin_id === pluginId)?.manifest;
+  const manifest = caller?.declaration.manifest ?? PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === pluginId)?.manifest;
   const consumesCharacters = manifest?.artifacts?.consumes?.some(type => type.artifact_type_id === CHARACTER_ARTIFACT_TYPE && type.schema_version === 1);
   const workspace = await workspaceFor(runtime.project_id);
   const workspaces = workspacesFor ? await workspacesFor(runtime.project_id) : workspace ? [workspace] : [];

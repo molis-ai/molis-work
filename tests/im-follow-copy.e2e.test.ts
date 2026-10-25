@@ -5,7 +5,7 @@ import { openGoalBrowser } from "./fixtures/goal-browser.js";
 // specs/visual-ui-experience VUX-26 and VUX-19 in the project discussion: the real side panel on a real Host opens the IM
 // page, which carries the shared scroll owner and copy feedback. A reader who scrolled up stays put when a message arrives;
 // 回到最新消息 brings them back and the stream follows again. Its copy buttons answer through the shared copy feedback.
-test("VUX-26 VUX-19: the discussion stream follows at the end, stays put for a reader, and its copy feedback answers on the button", { timeout: 120_000 }, async t => {
+test("RAC-129-IM / VUX-26 VUX-19: the discussion preserves DOM and focus, follows at the end, stays put for a reader, and answers copy on the button", { timeout: 120_000 }, async t => {
   const browser = await openGoalBrowser(t, true); if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId } = browser;
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
@@ -30,6 +30,8 @@ test("VUX-26 VUX-19: the discussion stream follows at the end, stays put for a r
   for (let index = 1; index <= 30; index++) assert.equal(await post(`第 ${index} 条：${"把要说的事说清楚。".repeat(4)}`), 200);
   await waitFor(`${stream}.textContent.includes('第 30 条')`, 20_000);
   await waitFor(`${stream}.dataset.follow === 'following' && ${stream}.scrollHeight - ${stream}.scrollTop - ${stream}.clientHeight <= 1`);
+  // Keep real DOM identities and a keyboard target across the next SSE render.
+  await evaluate(`(() => { const doc = ${im}; doc.defaultView.__rac129Row = doc.querySelector('[data-message]'); doc.querySelector('[data-action="new-topic"]').focus({ preventScroll: true }); })()`);
 
   // The person scrolls up with the wheel: detached; a new message does not move them, and 回到最新消息 is offered.
   const box = await evaluate<{ x: number; y: number }>(`(() => { const frame = document.querySelector('[data-side-body="discussion"] iframe').getBoundingClientRect(), r = ${stream}.getBoundingClientRect(); return { x: frame.x + r.x + r.width / 2, y: frame.y + r.y + r.height / 2 }; })()`);
@@ -41,6 +43,8 @@ test("VUX-26 VUX-19: the discussion stream follows at the end, stays put for a r
   await waitFor(`${stream}.textContent.includes('第 31 条')`, 20_000);
   await waitFor(`${im}.querySelector('[data-action="latest-group"]').hidden === false`);
   assert.equal(await evaluate<number>(`${stream}.scrollTop`), reading, "a message arriving does not move a reader who scrolled up");
+  assert.equal(await evaluate<boolean>(`(() => { const doc = ${im}, old = doc.defaultView.__rac129Row; return old.isConnected && doc.querySelector('[data-message="' + CSS.escape(old.dataset.message) + '"]') === old; })()`), true, "unchanged message DOM survives the actual redraw");
+  assert.equal(await evaluate<string>(`${im}.activeElement.dataset.action`), "new-topic", "chrome redraw preserves the focused action");
 
   // The pill is the one trip back; the stream follows again, and the next message lands in view.
   await evaluate(`${im}.querySelector('[data-action="latest-group"]').click()`);

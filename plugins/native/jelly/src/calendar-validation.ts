@@ -1,4 +1,4 @@
-import type { JellyItem, JellySchedule, JellySeries, JellyWorkspace } from "@molis-ai/molis-work-contracts/modules/jelly";
+import type { JellyItem, JellySchedule, JellySeries, JellyWorkspace } from "./contract.js";
 import { jellyAssert, jellyErrors } from "./error.js";
 
 export const JELLY_UNCATEGORIZED_ID = "uncategorized";

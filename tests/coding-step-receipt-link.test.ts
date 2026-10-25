@@ -27,8 +27,7 @@ test("RCPT-347, 3d-2: the step dialog links a report to the receipts this page d
       { note: "已改用新 fixture", inputs: [{ session_id: "sdk", input_id: "s1" }, { session_id: "sdk", input_id: "earlier" }] }, { note: "跑了测试" }] }] } }] };
   const steps = vm.runInNewContext(`(${CODING_STEPS_CLIENT_FACTORY_SCRIPT})`, {
     document: { createElement: (tag: string) => new Element(tag) }, location: { pathname: "/" }, sessionStorage: { getItem: () => null, setItem() {}, removeItem() {} },
-    L: pageText("zh"), // the main script's translator, which the inlined dialog uses
-  })({ lifetime: { alive: true, listen() {} }, q, api: async () => data, current: () => "app", status() {}, refresh: async () => {}, prepareRework() {}, receipts }) as { open(id: string, run: string, step: string): Promise<void> };
+  })({ lifetime: { alive: true, listen() {} }, translate: pageText("zh"), q, api: async () => data, current: () => "app", status() {}, refresh: async () => {}, prepareRework() {}, receipts }) as { open(id: string, run: string, step: string): Promise<void> };
   await steps.open("app", "r1", "step-1");
   const [named, plain] = nodes.get("[data-coding-step-detail]")!.all("ol")[0]!.children as Element[];
   assert.deepEqual(named!.all("button").map(button => button.textContent), ["关于补充「改用新 fixture」"], "RCPT-347 one button, for the receipt Coding's conversation drew; none for the earlier one it did not");

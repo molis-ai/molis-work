@@ -97,7 +97,7 @@ export const SANDBOX_SERVICE_FATE: { readonly [Service in keyof PluginHostServic
   project_database: 'replaced', ui: 'drawn',
   database: 'entry', files: 'entry', terminal: 'entry', imageGeneration: 'entry',
   model: 'given', background: 'given', agents: 'refused', scheduler: 'refused', directory: 'refused',
-  notifications: 'refused', installations: 'refused', actions: 'refused', artifacts: 'refused', processItems: 'refused', events: 'refused', inputs: 'refused', outputs: 'refused',
+  notifications: 'refused', attention: 'refused', contextLedger: 'refused', installations: 'refused', actions: 'refused', artifacts: 'refused', processItems: 'refused', events: 'refused', inputs: 'refused', outputs: 'refused',
 });
 
 export interface NotGiven {
@@ -144,6 +144,10 @@ export const SANDBOX_NOT_GIVEN: readonly NotGiven[] = [
     declared: (definition, held) => asksFor(definition, held, ['agent:run']) },
   { service: 'notifications', services: ['notifications'], reason: 'Delivering notifications (notifications:write) is not given to sandboxed plugins yet (PG-017 BL-494).',
     declared: (definition, held) => asksFor(definition, held, ['notifications:write']) },
+  { service: 'attention', services: ['attention'], reason: 'Reading and writing the project\'s Inbox entries (attention:read, attention:write) is not given to sandboxed plugins yet (BL-505).',
+    declared: (definition, held) => asksFor(definition, held, ['attention:read', 'attention:write']) },
+  { service: 'contextLedger', services: ['contextLedger'], reason: 'Reading and writing the project\'s reference edges (context-ledger:read, context-ledger:write) is not given to sandboxed plugins yet (BL-505).',
+    declared: (definition, held) => asksFor(definition, held, ['context-ledger:read', 'context-ledger:write']) },
   { service: 'installations', services: ['installations'], reason: 'Reading the installed plugins (plugins:read) is not given to sandboxed plugins yet (PG-017 BL-494).',
     declared: (definition, held) => asksFor(definition, held, ['plugins:read']) },
   { service: 'actions', services: ['actions'], reason: 'Calling the actions of others (actions:delegate) is not given to sandboxed plugins: a sandboxed package is reached as the actions it declares and calls nothing back (PG-017 BL-494).',

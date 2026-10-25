@@ -4,7 +4,7 @@ import type { BoardSnapshot, CreateGoalIntentInput, CreateGoalIntentResult, Goal
 import type { GoalTreeProposalCheckInput, GoalTreeProposalCheckResult, GoalTreeProposalDecideInput, GoalTreeProposalDecisionResult,
   GoalTreeProposalListQuery, GoalTreeProposalListResult, GoalTreeProposalRecord, GoalTreeProposalSubmitInput } from "./governance-collaboration.js";
 import { goalIntentSourceKinds } from "./goal-events.js";
-import { goalAction } from "./goal-action-definition.js";
+import { goalAction, inGoalRelation } from "./goal-action-definition.js";
 import { text, identifier, count, boolean, object, array, nullable, enumeration, scope, change, effect, decision, goalDirectoryItemSchema } from "./goal-event-action-schemas.js";
 import { boardSnapshotSchema } from "./goal-snapshot-action-schemas.js";
 import { projectGuidanceEntrySchema, projectGuidanceRevisionSchema } from "./goal-guidance-action-schemas.js";
@@ -97,13 +97,13 @@ export const goalEntryActions = {
   guidanceRead: goalAction<Record<string, never>, ProjectGuidanceView>("goals.guidance.read", "读取项目长期说明", "读取已确认的长期说明、停用项、完整修订和当前 Runtime Prompt 前缀", "query",
     object({}), object({ entries: array(projectGuidanceEntrySchema), inactive_entries: array(projectGuidanceEntrySchema), revisions: array(projectGuidanceRevisionSchema),
       virtual_document: text, runtime_prompt_prefix: text })),
-  create: goalAction<GoalCreateActionInput, CreateGoalIntentResult>("goals.create", "创建目标", "保存目标原始意图、要求及关系；创建本身不会完成目标。重试须保留相同 idempotency_key", "command",
+  create: inGoalRelation(goalAction<GoalCreateActionInput, CreateGoalIntentResult>("goals.create", "创建目标", "保存目标原始意图、要求及关系；创建本身不会完成目标。重试须保留相同 idempotency_key", "command",
     object({ title: identifier, outcome: text, why: text, business_logic: text, priority: { type: "number", minimum: 0, maximum: 100 },
       goal_id: text, parent_goal_id: text, dependency_goal_ids: { type: "array", items: text },
       requirements: { type: "array", items: object({ requirement_id: text, statement: identifier, human_decision_required: boolean }, ["statement"]) },
       source_kind: { enum: [...goalIntentSourceKinds] }, idempotency_key: identifier }, ["title", "idempotency_key"]),
     object({ goal: object({ goal_id: text, project_id: text, title: text, outcome: text }), replayed: boolean, observed_event_cursor: count,
-      recorded: { const: true }, completion_effect: { const: false } })),
+      recorded: { const: true }, completion_effect: { const: false } })), "create"),
   directoryItem: goalAction<{ goal_id: string }, GoalEventDirectoryItem | null>("goals.directory.read", "读取目标目录项", "按目标 ID 读取目录摘要；不存在、已归档或已丢弃时返回 null", "query",
     object({ goal_id: identifier }), nullable(goalDirectoryItemSchema)),
   inputsConfirm: goalAction<{ goal_id: string; source: { kind: "feed_item"; id: string }; name: string; snapshot_digest: string; reason: string }, { binding: GoalConfirmedInput; replayed: boolean }>("goals.inputs.confirm",

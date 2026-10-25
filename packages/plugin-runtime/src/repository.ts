@@ -19,6 +19,12 @@ export const PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL = `
       publisher_trust TEXT NOT NULL CHECK (publisher_trust IN ('host', 'pinned', 'unsigned')));
 `;
 
+/** Read existing installation records without constructing a repository that creates the table. */
+export function readPluginRuntimeRecords(db: Pick<PluginRuntimeDatabase, "prepare">): PluginInstanceRecord[] {
+  return db.prepare("SELECT record_json FROM plugin_runtime_installs ORDER BY install_id").all()
+    .map(row => JSON.parse((row as { record_json: string }).record_json) as PluginInstanceRecord);
+}
+
 /** Installation records owned by Plugin Runtime; no Goal/Artifact/Provider tables are read here. */
 export class SqlitePluginRuntimeRepository implements PluginRuntimeRepository {
   constructor(private readonly db: PluginRuntimeDatabase) {
@@ -29,8 +35,7 @@ export class SqlitePluginRuntimeRepository implements PluginRuntimeRepository {
     return row ? JSON.parse(row.record_json) as PluginInstanceRecord : null;
   }
   list(): PluginInstanceRecord[] {
-    return this.db.prepare("SELECT record_json FROM plugin_runtime_installs ORDER BY install_id").all()
-      .map(row => JSON.parse((row as { record_json: string }).record_json) as PluginInstanceRecord);
+    return readPluginRuntimeRecords(this.db);
   }
   save(record: PluginInstanceRecord): void {
     if (!["host", "pinned", "unsigned"].includes(record.publisher_trust)) throw pluginErrors.state_invalid("安装记录需要宿主给出的信任等级（publisher_trust）");

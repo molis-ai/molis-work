@@ -74,6 +74,10 @@ export interface PlacementAssociation {
         title: string;
         state: PlacementObjectState;
         location: PlacementLocation | null;
+        plugin: {
+            plugin_id: string;
+            title: string;
+        } | null;
     };
     since: string | null;
     removable: boolean;

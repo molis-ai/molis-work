@@ -36,7 +36,6 @@ function view(pluginId: string): UiContribution {
   return {
     descriptor: {
       contribution_id: `${pluginId}.main`,
-      plugin_id: pluginId,
       kind: "primary-page",
       label: "main",
       slots: [],

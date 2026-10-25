@@ -138,6 +138,7 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
       processItems: ports.processItems,
       ui: new UiHost(),
       privateStorageFor: (context, manifest) => storage.forPlugin(context, manifest),
+      deleteInstallationData: installId => storage.deleteInstallationData(installId),
       capturePrivateData: installId => storage.snapshotInstallationData(installId),
       restorePrivateData: (installId, snapshot) => storage.restoreInstallationData(installId, snapshot as ReturnType<typeof storage.snapshotInstallationData>),
       ...(ports.dependencyCheck ? { dependencyCheck: ports.dependencyCheck } : {}),

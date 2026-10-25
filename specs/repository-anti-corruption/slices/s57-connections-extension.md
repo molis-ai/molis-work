@@ -173,6 +173,17 @@ S 号按合入顺序取，下面写的都是暂定。合入时以 SECURITY-INVAR
 
 RAC-346～349 是本线旧号段（RAC-330～349）的末尾。X 片另用统筹 2026-10-24 给的号段：RAC-470～489、BL-595～604。表里的 S 号以 §4.1 为准（S-71、S-72、S-73）。
 
+### 5.1 卸载时回收授权（#1276，统筹 2026-10-25 裁定）
+
+连接绑定和原文件登记是安装的授权，不是插件自己的私有数据。项目或 Home 卸载安装时，不论 `retain_private_data`，共同执行器都调用现有 `forgetInstallationRecords`：项目只删该插件、安装在本项目的原文件登记与 `per_record` 绑定；Home 只删该插件、安装的空串项目原文件登记。文件本身、账号、其他项目（包括前缀相邻 id）、其他安装和项目操作之外的 Home 登记均保留。按安装的槽及 Home 安装分在各项目名下的按记录绑定仍按 BL-596 保留；X4 的项目卸载规则与创作台 RAC-471 的 `keepData: true` 也删除绑定保持不变。
+
+保留私有数据与 KV 的既有规则不变。保留数据后重装，也必须由本人重新选原文件、重新绑定账号。丢弃重装继续经 `keptDataDiscarded` → `discardInstallationOwnerData` 回收残留授权；#1255/FIX5 将该清理前移到新安装发布之前，本片保留 helper 内的授权清理，不另改 Runtime、私有库、KV 或 ledger 算法。与其回执合成时，`uninstalled` 顺序为原指令清理 → 既有按数据选择的私有清理 → 无条件授权清理 → 返回私有清理说明，不把授权清理放到 `return` 之后。
+
+| 验收编号 | 必须观察的结果 | 证明 |
+| --- | --- | --- |
+| RAC-472 | 真实项目 Runtime 的宿主内与 `execution: "sandbox"` 变体，保留/不保留数据卸载都立即拒绝旧原文件登记、删除本项目记录绑定；保留数据重装仍保留私有 KV，但不恢复授权；丢弃重装的既有 helper 也清理残留授权；相邻项目、Home 空串登记、相邻/另一安装、共享安装槽和账号不变，原文件内容不变 | `tests/security-invariants-installation-records.test.ts` 的 `S-45 S-71 RAC-472` 两个执行变体；创作台原入口另由 `tests/installed-plugin-host.test.ts` 的 RAC-471 保持 |
+| RAC-473 | 真实 Home Runtime 的两个执行变体，所有卸载选择均只清本安装的空串原文件登记；同安装各项目登记、另一安装、Home 安装在各项目的按记录绑定、按安装槽与账号均保留；保留私有 KV 后重装不能恢复原授权，丢弃重装仍清残留登记 | `tests/security-invariants-installation-records.test.ts` 的 `S-45 RAC-473` 两个执行变体 |
+
 ## 6. 还没核的
 
 - 目录连接器里有多少能直接用 `bearer` 加到固定来源，要在 X1 里逐项核。这里只按 `catalog.ts` 里出现的 API 地址粗看过，大约 30 个服务，其中 Salesforce 等是租户地址。

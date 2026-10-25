@@ -99,8 +99,8 @@ export class PluginHostExecutor implements PluginExecutor {
     forgetPluginAgentDefinitions(this.options.home, record.install_id);
     // A sandboxed installation that keeps no data keeps no files either (S-64); one that keeps it leaves its folder to the same installation id.
     if (record.execution === "sandbox" && !record.retain_private_data) removeSandboxOwnerFiles({ home: this.options.home, project_id: this.options.project_id }, record.install_id);
-    // Nor does it leave behind the original files it registered here, or the accounts bound to its records here (BL-356).
-    if (!record.retain_private_data) forgetInstallationRecords({ home: this.options.home, project_id: this.options.project_id }, record);
+    // File registrations and record bindings are authorization, removed on every uninstall even when private data is kept (BL-356).
+    forgetInstallationRecords({ home: this.options.home, project_id: this.options.project_id }, record);
   }
 
   keptDataDiscarded(record: PluginInstanceRecord): void {

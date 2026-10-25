@@ -185,7 +185,7 @@ export class HomePluginExecutor implements PluginExecutor {
   uninstalled(record: PluginInstanceRecord): void {
     forgetPluginAgentDefinitions(pluginHomeFor(this.options.home), record.install_id);
     if (record.execution === "sandbox" && !record.retain_private_data) removeSandboxOwnerFiles({ home: { directory: this.options.home }, project_id: null }, record.install_id);
-    if (!record.retain_private_data) forgetInstallationRecords({ home: { directory: this.options.home }, project_id: null }, record);
+    forgetInstallationRecords({ home: { directory: this.options.home }, project_id: null }, record);
   }
   keptDataDiscarded(record: PluginInstanceRecord): void {
     discardInstallationOwnerData({ home: { directory: this.options.home }, project_id: null }, record, id => this.options.storage.deleteInstallationData(id));

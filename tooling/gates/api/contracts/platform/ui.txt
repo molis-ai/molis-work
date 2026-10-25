@@ -118,8 +118,6 @@ export interface SettingsPagePrimitives {
     text(value: string, values?: Record<string, string | number>): string;
 }
 
-export declare const UI_COMMAND_INPUT_KINDS: readonly ["current", "object", "agent-session", "artifacts"];
-
 export declare const UI_VIEW_GROUPS: readonly ["advance", "make", "personal", "research", "code"];
 
 export declare const UI_VIEW_RAILS: readonly ["core", "extend"];
@@ -478,11 +476,6 @@ export interface UiViewDeclaration {
 }
 
 export type UiViewGroup = (typeof UI_VIEW_GROUPS)[number];
-
-export interface UiViewObjectRef {
-    readonly view_id: string;
-    readonly object_id: string;
-}
 
 export type UiViewRail = (typeof UI_VIEW_RAILS)[number];
 

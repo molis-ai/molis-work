@@ -33,7 +33,7 @@ import {
 } from "./page-assets.js";
 import { renderGoalInputsHtml } from "./goal-inputs-html.js";
 import type { MolisWorkWebView } from "./page-view.js";
-import { creatableKinds, shownProjectPlugins } from "./plugin-catalog.js";
+import { creatableKinds, pluginDirectoryFor, shownProjectPlugins } from "./plugin-catalog.js";
 import { createWorkbenchProjectChooserRenderer } from "./arrival/chooser.js";
 import { createWorkbenchProjectSettingsPages } from "./project-settings-pages.js";
 import { createWorkbenchSettingsNavigation } from "./settings-navigation.js";
@@ -216,7 +216,7 @@ const { renderTrashGoalDocument } = goalsDocumentRenderer;
 
 /** The Goal's inputs, followed and fixed, in one list with one 「加输入」 (goal-inputs-html.ts). */
 function renderInputBindingsHtml(item: WebGoalView, view: MolisWorkWebView): string {
-  return renderGoalInputsHtml(item, { L, escapeHtml, renderReference }, creatableKinds(shownProjectPlugins(view.enabled_plugins ?? [], view.hidden_plugins ?? [])));
+  return renderGoalInputsHtml(item, { L, escapeHtml, renderReference }, creatableKinds(shownProjectPlugins(view.enabled_plugins ?? [], view.hidden_plugins ?? []), pluginDirectoryFor(view.plugin_directory)));
 }
 
 function renderGoalDecisionHtml(item: WebGoalView, view: MolisWorkWebView): string {

@@ -18,9 +18,9 @@
 - RAC-81：灰格来自 `pluginMarketCards()` 的构建期目录，恰好是目录里样例项目未启用的插件，两种状态都出现在样张里；目录增减一个卡片，灰格跟着增减；灰格带 `is-available` 类（`tests/primitive-catalog-bar.test.ts`）。
 - RAC-82：developer 插件（Text Stats）不进 `pluginMarketCards()`，也就不进样张的格子和添加控件（`tests/primitive-catalog-bar.test.ts`）。
 - RAC-83：浏览器打开 `/__ui/catalog/bar`，亮格、灰格与「未添加」操作都能看到并可用；三宽度（1280/900/700）与明暗主题截图人工查看，无溢出、无错位（本机验证记录）。
-- RAC-84：来源说明——样张与搜索/开标签名单读的都是构建期目录，真实运行时 Manifest 目录见 BL-388，随 ② 的 2b 收口；本片不新增宿主路由或页面数据合同（本篇「范围」与 PR 正文「行为变化」段）。
+- RAC-84：来源说明——样张与搜索/开标签名单读的都是构建期目录，真实运行时 Manifest 目录已由 `w5-06-shell-remainder.md` 第 2 片（RAC-605～611）收口；本片不新增宿主路由或页面数据合同（本篇「范围」与 PR 正文「行为变化」段）。
 
 ## 没做、交给后面
 
 - BL-387：新建入口（`CREATE`）、默认标题（`names`）与项目首页起点（`starts`）三处手写行，已由 `w5-06-shell-remainder.md` 第 1 片（RAC-600～604）改读声明。
-- BL-388：按对象开标签的名单改从运行时目录读已启用插件的 Manifest；页面脚本在构建期把名单写成字面量，运行时目录要由宿主随页面下发，与 ② 的 2b 同一件事。
+- BL-388、BL-542：按对象开标签的名单、rail 的 `group/icon/order`、新建入口与首页起点，改从运行时目录读运行中插件的 Manifest，已由 `w5-06-shell-remainder.md` 第 2 片（RAC-605～611）做完。

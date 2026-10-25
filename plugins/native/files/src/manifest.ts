@@ -131,14 +131,6 @@ export const filesManifest: PluginManifest = {
   ui: {
     embedded_plugins: ["io.molis.work.diff", "io.molis.work.text-stats"],
     contributions: [FILES_UI_CONTRIBUTION_ID],
-    commands: [
-      {
-        command_id: "files.open-file",
-        title: "在 Files 中打开",
-        input_kinds: ["current", "object"],
-        opens_view_id: "tree",
-      },
-    ],
     views: [
       {
         view_id: "tree",

@@ -129,7 +129,6 @@ tests/coding-changeset-http.test.ts
 tests/coding-checkers-settings.test.ts
 tests/coding-client-scripts.test.ts
 tests/coding-collab-handoff.test.ts
-tests/coding-commands.test.ts
 tests/coding-commit-draft.test.ts
 tests/coding-companion-inputs.test.ts
 tests/coding-continuation.test.ts
@@ -434,7 +433,6 @@ tests/search-references.test.ts
 tests/secret-store-format.test.ts
 tests/server-cli.test.ts
 tests/server-database-baseline.test.ts
-tests/shelf-cli-probe.test.ts
 tests/shelf-job-runner.test.ts
 # PG-026-S1-S3-8: original registration failure keeps the copy; changed originals refuse processing.
 tests/shelf-original-feedback-http.test.ts

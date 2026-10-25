@@ -12,7 +12,7 @@ Manifest 写完不等于底栏插件切换里有入口：内置插件还要在�
 
 ### 个人 Home 插件
 
-个人数据跨项目一致、无项目也可用时，插件自己的 `registration` 声明 `runtime: { scope: "home", create, package_name, factory_export }`。Host 统一装配 Home Supervisor、安装授权、SQLite 与路由；不要在 `project-plugins.ts` 再启动它（双实例插件的项目一半除外，见下面「双实例」）。实际例子是 `plugins/native/issues`；合同、关闭、取消与持久化约束见 [开发手册的 Home Runtime 部分](../../docs/platform/PLUGIN-DEVELOPMENT.md#个人-home-runtime-与插件-sqlite)。Home 视图的 `render` 只拿到 `model: { primitives: { escape, text } }`（转义函数与页面语言翻译函数），形状写在上面那份手册的公共页面一段，合同类型还没有（补它归 ② 平台）。
+个人数据跨项目一致、无项目也可用时，Manifest 写 `runtime: { scope: "home" }`（运行范围是 Manifest 的），插件自己的 `registration` 再给 `runtime: { create, package_name, factory_export }`（Home 实例的代码，只来自这份宿主登记；两者必须同时有，宿主启动时检查）。只有随宿主发布的插件能这样用：装上的或生成的插件 Manifest 写了 `runtime`，安装时以 `plugin.home_scope_unavailable` 被拒，等沙箱宿主能跑 Home 实例再放开。Host 统一装配 Home Supervisor、安装授权、SQLite 与路由；不要在 `project-plugins.ts` 再启动它（双实例插件的项目一半除外，见下面「双实例」）。实际例子是 `plugins/native/issues`；合同、关闭、取消与持久化约束见 [开发手册的 Home Runtime 部分](../../docs/platform/PLUGIN-DEVELOPMENT.md#个人-home-runtime-与插件-sqlite)。Home 视图的 `render` 只拿到 `model: { primitives: { escape, text } }`（转义函数与页面语言翻译函数），形状写在上面那份手册的公共页面一段，合同类型还没有（补它归 ② 平台）。
 
 Home 级插件的数据按项目放、删项目时整份一起走（如 Alchemist 的工作室）时，在 Manifest 的 `databases.home` 写 `partition: "project"`，Home 存储登记里同一个库的 `library.partition` 也写 `"project"`，并在目录条目声明 `project_data`（`label` 必填，`purge` 可省：平台删这个项目的库）。插件拿到的 `services.database` API 不变，宿主按调用所在的项目给它那个项目的库：只有在项目里调用的动作和场景回调能读写，`start`、路由处理器本身、Home 路径下的动作答 `actions.project_required`；后台作业写进受理它的那个项目。打开、闲置关闭、停用关闭、删项目都归平台，插件不自己拼目录、不自己管连接。项目级插件不能声明。规则与验收见 `specs/plugin-project-partition/spec.md`。数据放在同一个库里、按列记项目的，在 `databases.home` 写 `project_rows`（标签、要删的表与列），删项目时平台照声明删行，插件不写清除代码；写法见 `docs/platform/PLUGIN-DEVELOPMENT.md`「Home 消费者的模型配置、生图与项目清理」。
 
@@ -36,9 +36,9 @@ Home 或项目里宿主自己运行的插件要调模型：Manifest 声明 `mode
 
 ### 双实例：同一个插件的 Home 实例和项目实例
 
-个人数据在 Home、又要在每个项目里读成果与过程项、接端口或事件时，不拆成两个插件：同一个 `plugin_id`、同一份 Manifest，Home 那一半在 `registration` 写 `runtime: { scope: "home", dual_instance: true, … }`，项目那一半照旧是 `project-plugins.ts` 启动名单里的条目。设计与验收见 [`specs/dual-instance-plugins`](../../specs/dual-instance-plugins/spec.md)。
+个人数据在 Home、又要在每个项目里读成果与过程项、接端口或事件时，不拆成两个插件：同一个 `plugin_id`、同一份 Manifest，Home 那一半的 Manifest 写 `runtime: { scope: "home" }`，登记里写 `runtime: { dual_instance: true, create, … }`，项目那一半照旧是 `project-plugins.ts` 启动名单里的条目。设计与验收见 [`specs/dual-instance-plugins`](../../specs/dual-instance-plugins/spec.md)。
 
-- **标记只在 Home 那一半、只来自宿主**：目录条目的 `runtime.dual_instance`；测试夹具写成 Home 夹具 `{ definition, dual_instance: true }`，项目夹具不带。Manifest、安装记录和项目条目都说不了，项目条目自己带标记在启动前被拒。同一个 `plugin_id` 不带标记出现在两份名单里、带标记却没有项目那一半，也都在启动前被拒。
+- **标记只在 Home 那一半、只来自宿主**：目录条目登记里的 `runtime.dual_instance`（Manifest 的 `runtime` 只认 `scope`，写 `dual_instance` 被拒）；测试夹具写成 Home 夹具 `{ definition, dual_instance: true }`，项目夹具不带。Manifest、安装记录和项目条目都说不了，项目条目自己带标记在启动前被拒。同一个 `plugin_id` 不带标记出现在两份名单里、带标记却没有项目那一半，也都在启动前被拒。
 - **两半要么都随宿主发布（`host` 信任），要么都不是**，这样两半登记同一个提供方，钉死的引用和 MCP 授权不分叉；不一致在启动前被拒，目录条目在评审时由门禁 `scripts/gates/dual-instance.mjs` 查。
 - **每一项各归一半**：Manifest 的每个动作、场景、路由、视图恰好由一半的 `start` 返回处理器，互相引用的（撤销、后台任务、片段与事项目标）放在同一半。端口、事件、成果与过程项归项目那一半：Home 那一半启动时不因 Manifest 有这些声明被拒，也拿不到这些服务。运行时只放宽「声明了没提供」，「提供了没声明」照旧拒绝。
 - **权限全部 `required: true`**（用户 2026-10-20 定，U1），门禁 `scripts/gates/dual-instance.mjs` 检查（`pnpm health:check`）：每条权限写成对象字面量、字面量 `required: true`，展开或算出来的它读不懂，也算失败。每个实例各一条授权记录，人只在 Home 那条上看和管，一个实例的授权不借给另一个。项目记录因此也持有只有 Home 一半才用的权限：项目一半没有那些处理器，用不到。
@@ -55,6 +55,10 @@ Home 或项目里宿主自己运行的插件要调模型：Manifest 声明 `mode
 ### Home 模型配置与生图
 
 消费者的独立模型设置在 Manifest 里声明 `model_configuration`，得到 `services.model.configuration`；真实生图在 Manifest 里声明 `image_generation`，得到 `services.imageGeneration`（声明了却不在宿主启动名单上的定义启动被拒，`plugin.declaration_invalid`；项目插件不能声明），任务调度和图片校验仍由插件拥有。不要把 Home 路径或凭据解析器交给插件。生成返回的 revision 必须用于后续写入复核；失效时成功和失败记录都不能写。删项目时平台先停掉插件经 `services.background` 在这个项目里受理的执行和保留的作业，再按原可信 project_data 清理，插件不被通知。调用范围、声明字段和路由字节响应见 [开发手册](../../docs/platform/PLUGIN-DEVELOPMENT.md#home-消费者的模型配置生图与项目清理)。
+
+### 本机命令行工具
+
+插件要在这台电脑上找命令行工具（例如终端 Agent），在 Manifest 里声明 `local_tools`（PG-112）：`tools` 写工具 id 和文件名（裸名字，不含路径），`directories` 写 `PATH` 之外也找的目录（`~/…` 或绝对路径），人在设置里自己选的路径要问就加 `custom_executables: true`；再声明 `local-tools:read` 权限。得到 `services.localTools`：`find()` 回每个工具的可执行文件路径（找不到是 null），`isExecutable(path)` 只回是或否，`refresh()` 清缓存。宿主只做文件系统查询，**不起进程**；插件包里不读 `process.env`、不 import `child_process`。只给 Home 实例；沙箱插件声明了会在启动时被拒（`sandbox.service_not_given`）。隔离试用与测试用 `MOLIS_WORK_LOCAL_TOOLS=off` 或 `MOLIS_WORK_LOCAL_TOOLS_PATH=<目录>` 钉死。
 
 ### 问题卡、操作卡与下一步行
 
@@ -114,7 +118,7 @@ Home 或项目里宿主自己运行的插件要调模型：Manifest 声明 `mode
 | 插件事件总线 | 下面「接到插件事件总线」；构建期 Native 不要抄 |
 | 新 Artifact 类型 | 合同 + Artifacts Module，不要只写在插件里 |
 | 设置页 | contribution + `settings` 槽 + `settingsClient` |
-| 图标名 | 必须是 `packages/design-system/src/icons.ts` 的 `MolisWorkIcon`（灵光用 `idea`）。写了不存在的名字，插件切换里那一行还在，图标是空的；不写 `icon` 才落到 `package`。不要往壳层塞 SVG |
+| 图标名 | 必须是 SDK `/ui` 的 `PluginIconName`（`packages/plugin-sdk/src/ui/icon.ts`；design-system 的图标表 `icons.ts` 按它逐个画）（灵光用 `idea`）。写了不存在的名字，插件切换里那一行还在，图标是空的；不写 `icon` 才落到 `package`。不要往壳层塞 SVG |
 | `agent` | 正文放在插件定义（`PluginDefinition`）的 `agent_prompts` / `agent_skills`，模型指令放 `instructions`、方法正文放 `methods`，不放在 `registration` 上；插件运行时由 Host 登记（PG-051）。Manifest 声明不等于已经提供正文，缺失由 `tests/builtin-plugin-agent-texts.test.ts` 拒绝 |
 | 重编辑器 IIFE | `apps/local-host/src/web-assets.ts` 挂 `/assets/…`，页面再引 script。只打 bundle、不挂路径，浏览器 404 |
 | 项目启用连带 | `registration` 上的 `companions`，写对方的短 id（今天只有 Feed→Inbox）；必选输入口的同伴由端口自动推出，不用写 |
@@ -186,7 +190,6 @@ Inbox 的 `GET/POST /api/inbox/pages` 由 Host 注入当前项目。POST 接收 
 - Manifest 每条 `views` → `contribution.views`
 - 每条 `routes` → `contribution.routes`
 - 每条 `actions` → `contribution.actions`（缺处理器的声明会让启动失败）
-- 有 `commands` → `commandAvailability` + `executeCommand`
 - 有 `events.subscribes` → `onEvent`
 - 有 `ports.inputs` → `onUpstreamReady` / `onUpstreamUnavailable`
 
@@ -287,7 +290,7 @@ Home 级插件要在本人自己的页面里看到各个项目的内容（Todo �
 
 ### 用本人的服务账号发请求
 
-插件要以本人身份调某个服务（如读 GitHub 通知），不自己存令牌、不让人把令牌填进插件：Manifest 声明权限 `connections:use` 和 `connections.slots`（`{ slot_id, service_id, reason }`，`service_id` 只能是平台登记了固定地址的服务，名单是 `CONNECTOR_REQUEST_SERVICES`：GitHub、Gmail 和目录里以 `Bearer` 发到固定地址的服务），在自己声明了 `connections:use` 的并发动作里调 `context.services.connections.request(slot_id, { url, method?, headers?, body? })`，返回 `{ status, headers, body, authenticated }`。槽绑哪个账号只由人选（`connectors.plugin_slot.bind@1`，只对 `user`）；绑了的由宿主加凭据、插件看不到，没绑就不带凭据。一条记录一个账号时槽写 `binding: "per_record"`：人按项目为一条记录选账号（`bind@2`），插件请求时写 `record_key`，用 `describe(slot_id, record_key)` 读有没有绑、`release(slot_id, record_key)` 在删记录时解除，不能自己绑。地址只能是该服务登记的来源之一，不能自己写 `Authorization`、`Cookie` 一类的头，跳转原样交回，只读动作只发 GET/HEAD；拿到结果后、写业务记录之前照样 `await caller.beforeEffect()`。沙箱插件经 broker 用同一份客户端，操作要在 `effects.connections` 里写出用的槽（S-60）。写法见 [插件开发手册](../../docs/platform/PLUGIN-DEVELOPMENT.md#用本人的服务账号发请求servicesconnections)，规则与测试见 `docs/system/SECURITY-INVARIANTS.md` S-57、S-69、S-71。
+插件要以本人身份调某个服务（如读 GitHub 通知），不自己存令牌、不让人把令牌填进插件：Manifest 声明权限 `connections:use` 和 `connections.slots`（`{ slot_id, service_id, reason }`，`service_id` 只能是平台登记了的服务，名单是 `CONNECTOR_REQUEST_SERVICES`：GitHub、Gmail、目录里发到固定地址的服务，和按租户分地址的 Salesforce、Jira、Confluence——地址是所绑账号连接时的那个站点，用 `describe(slot_id)` 读 `origin`），在自己声明了 `connections:use` 的并发动作里调 `context.services.connections.request(slot_id, { url, method?, headers?, body? })`，返回 `{ status, headers, body, authenticated }`。槽绑哪个账号只由人选（`connectors.plugin_slot.bind@1`，只对 `user`）；绑了的由宿主加凭据、插件看不到，没绑就不带凭据。一条记录一个账号时槽写 `binding: "per_record"`：人按项目为一条记录选账号（`bind@2`），插件请求时写 `record_key`，用 `describe(slot_id, record_key)` 读有没有绑、`release(slot_id, record_key)` 在删记录时解除，不能自己绑。地址只能是该服务登记的来源之一，不能自己写 `Authorization`、`Cookie`、`PRIVATE-TOKEN` 一类收凭据的头，跳转原样交回，只读动作只发 GET/HEAD；拿到结果后、写业务记录之前照样 `await caller.beforeEffect()`。沙箱插件经 broker 用同一份客户端，操作要在 `effects.connections` 里写出用的槽（S-60）。写法见 [插件开发手册](../../docs/platform/PLUGIN-DEVELOPMENT.md#用本人的服务账号发请求servicesconnections)，规则与测试见 `docs/system/SECURITY-INVARIANTS.md` S-57、S-69、S-71。
 
 ### 项目插件的闹钟、后台 Agent 与通知
 

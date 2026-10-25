@@ -1,8 +1,8 @@
 # ac-trust：一条安装路、常开与默认连线只认声明、同意可撤回（设计稿）
 
-状态：已定（2026-10-24）；七项待定都已定，#1098 已合入，实现按 §7 分片，T1 在分支 `claude/ac-trust-t1`，T3 在分支 `claude/ac-trust-t3`（叠在 T1 上）。
+状态：已定（2026-10-24）；七项待定都已定，#1098 已合入，实现按 §7 分片，T1 在分支 `claude/ac-trust-t1`，T3 在分支 `claude/ac-trust-t3`（叠在 T1 上），T4 在分支 `claude/ac-trust-t4`（叠在 batch-36 上），T5 在分支 `claude/ac-trust-t5`（叠在 batch-36 上）。T6 #1279 首评修复由 Codex 专职 writer 在 `feature/pr1279-install-identity` 从准确 `f99267b524ee6aa3552b60b6fb5b7c8bb8206dba` 接续；作者构建、定向回归与边界检查完成，独立增量审验及载体连续表门禁待结算，非 main 或本人验收。
 
-验收编号：RAC-380～399，另加一段 RAC-400～409（实现片也用它）。待办号：BL-555～564。安全不变量先写 S-67、S-68，合入时由统筹核连续。管 `privileges.md` 的 PG-001、PG-004、PG-005，并给 PG-049 提供它要用的同意账本；与 PG-002、PG-013、PG-015、PG-016 的衔接写在 §3.8。本片不改 `privileges.md` 状态列。
+验收编号：RAC-380～399，另加一段 RAC-400～409（实现片也用它）。待办号：BL-555～564。安装信任账本保留原 S-67 引用，T6 身份边界由 Claude 裁定 S-75；连续表由载体统筹结算。管 `privileges.md` 的 PG-001、PG-004、PG-005，并给 PG-049 提供它要用的同意账本；与 PG-002、PG-013、PG-015、PG-016 的衔接写在 §3.8。本片不改 `privileges.md` 状态列。
 
 方向来自用户 2026-10-18「插件不分官方、个人、创作台生成还是第三方，待遇一样，只有安装信任按发布者签名区分」，和统筹 2026-10-23 的口径：安装确认对所有插件一条路；`always_on` 与默认连线只认 Manifest 声明，不认「是不是内置」；没签名的插件声明了，要用户在安装确认里同意；内置插件默认同意、不打扰；同意可撤回。
 
@@ -75,6 +75,15 @@ Manifest 里有三类声明会改变「这个插件在别处的效果」，装�
 
 同意的对象带来源插件的发布者签名，是为了防抢注：宿主插件声明「默认从 `io.molis.work.coding` 读 changesets」，以后某个外部插件占了同一个 `plugin_id`，它的发布者签名对不上同意记录里的那一个，连线不绑（S-67）。
 
+**T4 首评后继（#1282 第 1、2 项，2026-10-25）：**补验现有默认连线合同，不改变安装、验签或撤回入口。证据调用生产 `createPluginPlatform` → `start`、`runtime.install` 记合法同意，再调 `bindDeclaredDefaults`；每次关闭后重新打开同一个项目库、重新创建平台，同意账本端口使用 `MemoryPluginConsentLedger` 并保留原记录，不冒充真实 Home 的进程重启或磁盘账本验证：
+
+- **RAC-389-T4-SWITCH**：有效同意下先绑上默认；启动名单里同一来源 `plugin_id` 换成另一 `publisher.signature` 后，旧默认解开，再评估不重绑，重新创建平台后仍未绑定。人手选的来源保持；来源与发布者的显示标签、版本和端口不变，不能代替同意主题里的签名。
+- **RAC-389-T4-RETURN**：来源从实际启动名单移出后，旧默认解开，反复评估仍不绑，人手选择保留。原来源带原签名返回、原同意仍有效时，默认恢复；绑定与人手选择都经过项目库重读，同意记录没有新增、撤回或改写。
+
+两项的证明是 `tests/security-invariants-default-consent.test.ts` 中同编号的测试。这里验证运行时消费已给定的签名与信任证据，不以夹具的插件名、发布者标签或签名字符串证明包验签；未签名插件同标签共用同意的问题仍归 T6，默认组撤回仍归 BL-587。
+
+本后继没有生产代码变化。独立树整体 `pnpm build`、包边界检查通过，直接文件首次 8/8 通过。仅在本树构建产物中临时跳过解绑，两条新增测试分别在换签名、来源缺席断言处失败；临时让解开后的来源永不恢复，返回测试在恢复断言处失败。两次均完整还原产物，还原后新增两项 2/2 通过（同两例复跑，不与首次 8 项相加）。严格测试类型检查有三处 `tests/fixtures/plugin-actions.ts` 诊断；干净 `80b309b` 工作树的原测试和夹具使用同一份准确基点的已构建公开依赖，复现相同三处诊断，属于基线遗留，未改夹具或放宽检查。没有跑全量、浏览器或真实 Home，独立增量审验及 carrier 采用另核。
+
 ### 3.3 同意账本与撤回（PG-049 的机制）
 
 同意是一行显式记录，不是推出来的状态。新表由 Plugin Runtime 拥有（`packages/plugin-runtime` 的仓库，Home 级库），别的包只经导出函数读：
@@ -89,6 +98,28 @@ Manifest 里有三类声明会改变「这个插件在别处的效果」，装�
 1. **收回在途调用**：并入 S-15/S-18 已有的授权世代检查，撤回让这个安装的授权世代前进，执行中的调用在 `beforeEffect()` 和每次写之前被拒，不再写任何业务记录；处理器开始之前被拒的，只留一行「未执行」的诊断行（硬约束，不记内容）。实现片先核 `validate_authority` 现在怎么算世代，再把「同意」并进去，不另写第二套收回。
 2. **效果随类**：`always_on` 撤回后，它不再出现在常开名单里（§3.4），人可以在项目里隐藏或移除它；`default_wiring` 撤回后，来源为 `default` 且对应这一项的绑定被解开，并且记着不再自动绑；`default_group` 同理；发布者撤回（`plugins.publisher.revoke`）后，这个发布者的所有已装插件停用、不能再升级，数据保留（`THIRD-PARTY-PLUGINS.md` §4）。
 3. **所有等级的同意都可撤**（用户 2026-10-24 定，不分等级）：`host` 等级的 `always_on` 仍是宿主代为同意、默认开，但和别的等级一样可撤；撤回后它就是普通插件，可以从项目里隐藏、移除。所以 `plugin_consents` 不需要 `revocable` 列。
+
+**T5 落地（2026-10-25）：**只做「同意撤回」一半，发布者撤销随 T2（没有固定过的发布者就没有可撤的）。
+
+- 账本多一个 `revoke(consent_id, at)`（只写第一次的 `revoked_at`，行不删）；`plugins.consents.list@1`（按插件列，含已撤回的）与 `plugins.consents.revoke@1` 两个只给本人的动作，在宿主的 `plugin-consents` 提供方下，处理器须核宿主设置入口凭据（下文首评修复合同；`apps/local-host/src/installed-plugin-consent-actions.ts`）。
+- **效果**：`always_on` 撤回后，下一次被问就不在名单里（T3 本来就每次现算），服务端不再拒绝移除、停用、卸载；默认连线撤回后，项目下一次碰到插件时对账解开（T4 的 `bindDeclaredDefaults`，由 `consent-revision.ts` 的计数让已开的项目知道要再看一次账本；一个 Home 一个执行进程，进程内计数就够）。默认组当前选择记录没有来源，撤回后不解开，归 T4 的 BL-587，本题不扩大它的行为。
+- **在途调用**：三类同意（常开、默认连线、默认组）都不是某一次调用的授权，没有「在途调用」要在 `beforeEffect()` 前收回；RAC-391 与 RAC-392 讲的是发布者撤销（停用，走既有的撤权路径），随 T2 的发布者固定一起做，BL-559 改记这一半。
+- 设计稿说的「授权世代」：安装记录的 `installation_generation` 只在新装时变，权限撤回走的是记录里的授权列表（`beforeEffect()` 每次重读），所以同意撤回不需要新的世代；发布者撤销停用安装用现成的 `stop`。
+- **宿主启动时为没有监督器安装的常开插件（Goals）代为同意**（`always-on-plugins.ts` 的 `recordHostAlwaysOnAgreements`，由 Home 插件宿主启动时调用）：Goals 不在任何监督器里，没有人替它写账本行，本人就没有可撤的东西；写入同样遵守「已有一行（含已撤回的）就不再写」，查询不写。
+- 恢复了 `tests/feed-promote-reader.test.ts` 里「项目没有 Goals 时不显示升格」的一半：撤回 Goals 的常开同意、移除、阅读页没有升格入口（BL-585 里 Feed 那一行的一部分）。
+
+**T5 #1285 首评修复合同（2026-10-25，Codex 负责，目标为功能可用；实现和本机有限验证已完成，独立审验待完成）：**依据 [FIRST](https://github.com/molis-ai/molis-work/pull/1285#issuecomment-6396776261) 与 [统筹裁定](https://github.com/molis-ai/molis-work/pull/1285#issuecomment-6396785921)，`list@1` 与 `revoke@1` 都只认宿主自己设置入口签发的本人操作。宿主新增两个薄 HTTP 接缝 `POST /api/settings/plugin-consents/list`、`POST /api/settings/plugin-consents/revoke`，从既有本地用户适配器取得身份和权限后调用原动作；页面 UI 留给 T7。入口在宿主私有弱集合里登记冻结的 `ActionUserAction` 对象，排队快照保留已签发对象的身份，请求结束即撤下。处理器先核对这份进程内凭据及本人受众，再读账本或调用写入 fence；单有 `user_action` 字段、相同字符串、提供方 id 或业务输入都不能取得入口身份。插件动作解析也在发现目标前做相同的窄检查，使插件页面与 `actions:delegate` 两条路径都明确返回 `actions.forbidden`。不新增公共合同、通用权限或代理能力。
+
+- **RAC-393-ENTRY / RAC-393-LIST：**四种非 user 受众均不能发现或调用这两个动作，拒绝码精确为 `actions.forbidden`；user 无入口凭据、仿造入口文字也拒绝。拒绝发生在 ledger 读取、写入之前，账本零变更。
+- **RAC-393-PAGE / RAC-393-DELEGATE：**经真实运行中插件页面路由（已有 `user_action`）及持有 `actions:delegate` 的插件自己的动作调用，两动作均拒绝；各路径的合法插件动作正控证明插件确实已运行、已授权，账本零变更。
+- **RAC-385-SETTINGS：**真实 Host 设置入口能列出并撤回本人同意；重复撤回保留最初时间戳与其余列，未知 id 仍为 `plugin.consent_unknown`。不把所有调用关闭当作修复。
+- **RAC-390-LIVE：**消费固定 T4 `80b309b5f36d5b1cac55ace47d05d8e4c02235ab`；真实 Host 的项目已运行并存在 `origin: "default"` 绑定，经可信设置入口撤回 `default_wiring` 后，在下一次该项目请求时对账解开，再请求不重绑。保留这个时间语义，不建同步广播；撤回到下一次项目请求之间仍可能投递来源的新输出。故障对照须证明移除 `reconciledAt` / `consentRevision()` 接线会使本条失败。
+
+允许改动只含同意动作、宿主设置入口及可信上下文快照接缝、必要的项目对账注释、本题测试和本段；T4 的实现/来源变化测试由另一个 writer 负责，不在本题改写。未签名发布者身份政策交 T6/统筹，公共 S-79 行由 carrier 接收窄 patch，README 总体整理归 T8。验证走机器 FIFO 整体构建一次，再跑本题、局部入口/插件委托/项目回归与适用门禁、密钥扫描；不另开全量。工程结果、独立复查、独立有限验证及入批状态分别记录。
+
+本机验证（2026-10-25）：`pnpm build`、定向 Biome lint、`node scripts/check-package-boundaries.mjs`（test-kit 已由整体构建生成，`errors: []`）与 `pnpm secrets:check` 通过。`tests/security-invariants-consent-revoke.test.ts` 6 项与 `tests/security-invariants-consent-settings.test.ts` 3 项通过；首轮新测试夹具把 `invokeQuery` 写成不存在的 `query`，出现 500，修正夹具后只重跑该文件，3/3 通过，首败原件保留。RAC-390-LIVE 的两项故障对照分别禁用项目对账分支、删除撤回计数通知，均在「下一项目请求仍有默认绑定」的业务断言失败，恢复原构建产物后同一用例通过。随后以 `node scripts/run-tests.mjs --jobs 2` 跑 14 份相关有限回归（本地用户动作、Host 排队、出处与写入 fence、插件委托/查询/页面、项目、Feed、常开、T4 默认同意与路由表），152/152 通过。
+
+健康门禁未整体通过：对已审 `eeaa744b` 的比较只报公共临时 S 号重复、旧测试名引用与新安全测试未登记；对 `origin/main` 的比较另报原 T5 已有的 `registerPluginConsentActions` 内一处 `registerProvider` 增长。前者的 S-79 窄 patch 交 carrier 串行写，后者保留原件交统筹，不改变门禁或改写登记方式规避计数。没有跑全量、浏览器或一骏本人验收；尚未合入，独立复查和独立有限验证另核。
 
 ### 3.4 常开从安装记录生成（PG-004）
 
@@ -139,11 +170,33 @@ Manifest 里有三类声明会改变「这个插件在别处的效果」，装�
 
 绑定仍走同一个 `wiring.bind`，`origin: "default"`。同意在**安装预览**里一次给出，对整个 Home 生效；项目里启用插件时不再重复弹窗，同意的清单在 `plugin-settings-catalog`（#1098）里的插件详情页常驻可看、可撤。
 
+**T4 落地（2026-10-25）：**`bindDeclaredDefaults` 改读账本：目标插件的发布者对「这个口默认读那个来源」（主题带来源**此刻**的发布者签名）有一行未撤回的 `default_wiring` 同意才绑，默认组同理；`PluginPlatform.shipsWithHost` 删了，换成 `consents`（Home 的账本，或平台自己给的账本；都没有就一个默认也不绑）。几个口径：
+
+- **宿主只同意从随宿主发布的来源读**：`startInstallInput` 记 `host_build` 同意时，来源的发布者签名只取启动名单里 `host` 等级的条目；来源是别的等级就不记（它没有可以同意的签名），所以内置插件把一个外部插件当默认来源也不会被接上，与原先「两端都随宿主发布」的结果一致。
+- **撤回的效果用对账，不用 C10 的投影**：每次评估默认时，先看已绑的 `origin: "default"` 连线是否还有同意（来源签名按此刻算），没有就解开，再绑新的。比「这条连线的同意是哪一行」的投影简单，且来源换了发布者时同样解开；撤回动作本身（`plugins.consents.revoke`）在 T5，它撤回后调一次评估。C10 因此不做。
+- **来源缺席与恢复也按同一份同意对账**：来源不在当前启动名单里时取不到签名，已绑默认会解开；相同 id 换签名也解开，再评估不重绑。原来源带原签名回到启动名单、原同意仍有效时，未被人另选的口恢复默认。整个过程不撤回、补记或改写原同意，人手选择保持。
+- **默认组的选择不记来源**：`PluginInputGroupSelectionRecord` 没有 `origin`，所以撤回 `default_group` 不会解开已选的组，只是以后不再自动选。要解开得给选择记录加来源，记为 BL-587。
+
+供 carrier 的 **S-78 窄补句 / PR 正文**：已绑的默认连线在来源退出当前启动名单或同 id 来源换了发布者签名后解开，再评估不重绑；原来源以原签名返回且原同意仍有效时，未被人另选的口恢复默认，人手选择不动。对应新增拒绝与恢复证据为 `RAC-389-T4-SWITCH`、`RAC-389-T4-RETURN`；公共安全表的连续编号及原测试名改号由 Claude carrier 合成，本后继不覆盖整表、不修改门禁。
+
 ### 3.6 提供方身份与 id 前缀（BL-506）
 
 - 动作提供方 id 的规则已经有了（`specs/action-architecture/spec.md` §3、`tooling/gates/README.md` 动作合同快照：随宿主发布的用 `plugin_id`，其余用 `plugin-install-<sha256(plugin_id, publisher.signature) 前 32 位>`）。本片只把「随宿主发布」改成「等级是 `host`」，其余不动。
-- **标签冒充指纹**：`unsigned` 的 `publisher.signature` 是作者自己写的字符串。它若写成 `ed25519:sha256:…` 的形状，就能和某个已固定发布者的指纹重合，拿到同一个提供方 id。所以安装时：等级不是 `pinned` 的，`publisher.signature` 一律不许是 `ed25519:sha256:` 开头（`plugin.signer_mismatch`）（S-68）。
-- **id 互为前缀（BL-506）**：同一个 Home 里，两个不同发布者的 `plugin_id` 不许按点分段互为前缀（`io.a.b` 与 `io.a.b.c` 来自两个发布者时拒绝安装后装的那个，`plugin.id_namespace_conflict`）；同一发布者之间允许。理由：日志与事件的命名空间按 `plugin_id` 前缀划分，前缀归属必须有主。BL-506 原话的上下文（命名空间的哪几处按前缀匹配）实现片开工时再核一遍（S-68）。
+- **标签冒充指纹**：`unsigned` 的 `publisher.signature` 是作者自己写的字符串。它若写成 `ed25519:sha256:…` 的形状，就能和某个已固定发布者的指纹重合，拿到同一个提供方 id。所以安装时：等级不是 `pinned` 的，`publisher.signature` 一律不许是 `ed25519:sha256:` 开头（`plugin.signer_mismatch`）（S-75）。
+- **id 互为前缀（BL-506）**：同一个 Runtime 安装库里，两个不同发布者的 `plugin_id` 不许按点分段互为前缀（`io.a.b` 与 `io.a.b.c` 来自两个发布者时拒绝安装后装的那个，`plugin.id_namespace_conflict`）；仅同一 pinned key 的安装和宿主构建之间允许；`unsigned` 即使标签相同也不许嵌套。理由：界面贡献 id 的点分段命名空间必须有主。BL-506 原话的上下文（命名空间的哪几处按前缀匹配）实现片开工时再核一遍（S-75）。
+
+**T6 首评修复合同（2026-10-25，Claude 裁定 S-75）：**保持 `install` 第一步的统一身份检查，拒绝先于安装、同意、私有数据准备或清理。非 `pinned` 标签去首尾空白并忽略大小写检查指纹形状；`pinned` 的 Manifest 签名必须与可信 `trust.publisher_key_id` 完全相同，发布者按该 key 判定。`unsigned` 没有可比较的发布者身份，即使标签相同也不许点分段嵌套；只有同一 pinned key 与宿主构建允许合法嵌套。`hostIds` 成为 Runtime 构造必填项，四个生产构造均传宿主实际目录；独立 Runtime 测试明确声明自己的宿主无随带插件，不能作为生产默认值。启动、恢复在执行插件和注册提供方前重用同一规则；违规存量拒绝、记同码诊断、不得注册处理器或提供方。两处提供方 id 继续只允许安装 id，或 `host` 等级的 `plugin_id`。几个口径：
+
+- 命名空间检查的范围是同一个 Runtime 安装库（项目的一份或 Home 的一份），与对应平台的界面贡献表范围一致。相同 `plugin_id`、不同发布者的既定 BL-586 仍不受本片处理。
+- `host` 等级的安装不做宿主名单和前缀检查：它是宿主自己的构建，名单就从它的目录来。某个 id 随新版本的宿主出现、而外部已经装了同一个 id 时，已装的那个仍留着，不在安装路上拒绝宿主。
+- 名单（`hostIds`）是宿主构建目录里全部的 `plugin_id`（`apps/local-host/src/host-plugin-ids.ts`）。检查是「相同或互为前缀」，所以 `io.molis.work.goals.extra`（在名单 id 之下）和 `io.molis.work`（在名单 id 之上）都被拒；后者本来也过不了 Manifest 形状检查（SDK 的 `PLUGIN_ID` 要求 `io.molis.work.` 之后还有一段），所以 §5.2 第 4 条点名的 `io.molis` 与 `io.molis.work` 不会出现在安装路上，不另列。
+- 提供方 id 对 `pinned` 仍是安装 id（§10 第 6 项），没变；`host` 等级之前只靠「宿主名单里的定义对象」认，现在加了等级这一条核对，两者缺一不可。
+
+验收仍用 RAC-394/395/396/399（§8），补充同/异标签上下级拒绝、不同 pinned key/伪造签名、host 与同 key 正控、非点分前缀、卸载释名；每次安装拒绝断言安装、同意及私有数据均无副作用。正常装载既存记录，在同/新 Runtime 启动验证 crashed 与未登记提供方，并验证拒绝后原合法安装可用。目标完成程度为本安全边界功能可用；整体构建、README 相关有限回归与安全测试走整机 FIFO，SDK/core 全量由 PIPE→Claude 载体统一，不运行真实 Home 维护。W5-17 后继只读清单须列出违规安装；本片只记录要求。B1 #1281 组合时 `host-plugin-ids.ts` 从平台 `PLATFORM_PLUGIN_REGISTRATIONS` 取名单，交 PIPE 精确 hunk；本 base 尚无该登记表，不复制第二份目录。S-75 与 S-72～74、F5/S-76 连续表由 Claude 载体结算，本片不造占位行或放宽门禁。
+
+**T6 本片作者验证（2026-10-25）：**`pnpm build` 通过；新增身份测试 9/9，相关 README/安全有限回归最终共 33 文件、646 测试通过，skip/cancel 0。原批次中双实例贡献夹具和模型指令来源夹具共 6 红；在准确 `f99267b5`、Git 干净的基线工作树整体构建后跑同两文件，复现相同 6 个失败（17/23），修正本片夹具的宿主信任证据与实际提供方后 23/23；所有原断言保留，原始日志亦保留。其余 70 份测试只有必填构造参数适配（提供方测试另将旧号改为 S-75）。`pnpm boundary:check` 通过；`node scripts/check-health-gates.mjs --base origin/main` 唯一失败为本 base 缺 S-72～74 的连续性，不是已通过完整 health。未改门禁、SDK、私有包、F14 数据清理或 T4/T5 同意逻辑。验证覆盖真实 Runtime/public 路径与 SQLite 装载、新 Runtime 对象及显式恢复；独立进程重启、真实 Home 与本人验收未执行。原日志和完整点名清单在 `/tmp/pr1279-identity/`。
+
+本片完成期间 #1279 头追加 `0380e0ea1`，只把 SI 行临时改为 S-72，没有身份生产实现；本片仍按 Claude 裁定使用 S-75、保持准确 f992 起点，该编号 hunk 与 B1 平台目录接线均由载体串行组合。
 
 ### 3.7 版本跟随（PG-016）
 
@@ -193,11 +246,12 @@ SDK（`packages/plugin-sdk`）的公开 API 不变：Manifest 字段没有增减
 4. 撤回按撤权处理：在途调用在最后一次检查处被拒、不再写业务记录；常开与默认连线随之失效；发布者撤销后其所有安装停用且不能升级，数据保留。
 5. `pinned` 等级每次安装、升级、回滚都验签；验不过 `plugin.signature_invalid`，指纹对不上 `plugin.signer_mismatch`，发布者没固定 `plugin.publisher_untrusted`，已撤销 `plugin.publisher_revoked`。没签名的包经 `plugin install` 一律 `plugin.signature_invalid`，不进 `unsigned` 等级。
 
-**S-68（暂定）提供方身份不可冒充。**
-1. 非 `pinned` 等级的 `publisher.signature` 不许是 `ed25519:sha256:` 形状。
-2. 两个不同发布者的 `plugin_id` 不许按点分段互为前缀。
+**S-75 安装身份拒绝与启动重验。**
+1. 非 `pinned` 的标签去首尾空白、忽略大小写后不许冒充 `ed25519:sha256:` 指纹；`pinned` 必须与可信 `trust.publisher_key_id` 完全相同，否则 `plugin.signer_mismatch`。拒绝先于安装、同意及私有数据准备/清理。
+2. 同一个 Runtime 安装库内，unsigned 的标签不构成身份，同/异标签均不得点分段嵌套；pinned 按可信 key 判断同一发布者，只有同 key 与 host 的合法嵌套正控放行。相同 plugin_id 不同发布者归 BL-586。
 3. 动作提供方 id：`host` 等级用 `plugin_id`，其余用 `plugin-install-<hash>`；一个等级不是 `host` 的安装不能登记成 `plugin_id` 作提供方。
-4. 宿主启动名单里全部的 `plugin_id`，连同它们点分段的前缀（名单里有 `io.molis.work.goals`，则 `io.molis.work` 与 `io.molis` 也算），不许由非 `host` 等级的安装使用（`plugin.id_namespace_conflict`）；这条与第 2 条是两件事：第 2 条管外部发布者之间，这条管外部与宿主之间。
+4. 宿主启动名单里全部的 `plugin_id`，连同它们点分段的前缀（名单里有 `io.molis.work.goals`，则 `io.molis.work` 与 `io.molis` 也算），不许由非 `host` 等级的安装使用（`plugin.id_namespace_conflict`）；`hostIds` 构造必填，所有生产入口传宿主实际目录；第 2 条管外部发布者之间，这条管外部与宿主之间。
+5. 启动及恢复使用同一规则；违规存量记 crashed 与同码诊断，不执行插件或登记提供方。live replay 也重验，冲突时撤销现存 provider；身份拒绝不耗执行器恢复重试预算。
 
 每条都要有断言**拒绝本身**的测试（§8 逐条对应）；写测试时找不到拒绝，就是缺陷，先补最小的拒绝。
 
@@ -232,7 +286,7 @@ SDK（`packages/plugin-sdk`）的公开 API 不变：Manifest 字段没有增减
 | T3 | 常开从记录生成：C7、C8、Goals 的 `always_on`、去掉写死的 `"goals"`、卸载与停用入口的拒绝（V-01 复现） | T1 | 与 PG-013 的可用性判断同一处，先看在途 PR |
 | T4 | 默认连线要同意：`bindDeclaredDefaults` 改读账本、来源签名核对、C10、S-67 的 2 与 3 | T1，T2（预览里要有同意项） | |
 | T5 | 撤回与世代：`consents.revoke`、发布者撤销、并入授权世代检查、S-67 的 4 | T1，T3，T4 | 和 S-18 的测试放一起 |
-| T6 | 提供方身份：S-68 三条、BL-506 前缀检查 | T1 | |
+| T6 | 提供方身份：S-75 安装拒绝与启动重验、BL-506 前缀检查 | T1 | |
 | T7 | 界面：安装预览、插件详情页里的同意清单与撤回、BL-353 与 BL-362 的文字 | T2，T5，#1098 | PG-002 的开关同在这一页，归 PG-002 那条线 |
 | T8 | 文档与手册：POLICY 7.8、THIRD-PARTY-PLUGINS、`skills/molis-plugin-dev`、PG-016 的版本跟随写明 | T1 | |
 
@@ -307,6 +361,10 @@ RAC-401 的针对性测试检查查询前后的实际文件、库内容和账本
 
 补尾自验：来源与目标源码均匹配 cd909 的既有构建指纹；整页门禁 3/3、两个坏库 HTTP 场景 2/2、RAC-402/403 反例 4/4、两份改动测试的严格类型检查及以 cd909 为基准的健康门禁通过。首轮整页检查早于产物复制完成，因缺失构建文件失败，原日志保留且不计为有效产品证据；上述通过记录均来自复制和指纹核对完成后的重跑。生产源码与已验证的 4e 显示行为未改变，独立补尾复核与 carrier 最终组合另行核证。
 
+### 7.4 T8 落地（2026-10-25）
+
+文档与手册，不改代码：`docs/releases/POLICY.md` 新增第 7.9 节（版本跟随算安装信任，条件是 `host` 信任等级）；`docs/system/THIRD-PARTY-PLUGINS.md` 新增第 4.1 节（三个等级与要同意的声明）并在安装步骤里加上逐项同意；`skills/molis-plugin-dev/elements.md` 改写 `always_on` 一条、新增「装的时候用户会被问哪些声明」；`privileges.md` 的 PG-016 一行记为已做。BL-562 做完，行已删。安装服务、预览与命令（T2）、界面（T7）落地后，这三处里写「随 T2」的话要跟着改。
+
 ## 8. 验收
 
 | 编号 | 内容 | 证据（测试文件待实现片定，名字里写编号） |
@@ -329,17 +387,17 @@ RAC-401 的针对性测试检查查询前后的实际文件、库内容和账本
 | RAC-390 | 撤回一项默认连线只解开对应的 `origin: "default"` 绑定，人手选的不动，且不再自动绑 | 同上 |
 | RAC-391 | 撤回按撤权处理：一个 `concurrent` 动作在 `beforeEffect()` 前被撤回，不写任何业务记录；处理器开始前被撤回，只留「未执行」诊断行（S-67.4） | 并入 S-18 的测试文件 |
 | RAC-392 | 撤销发布者：其所有安装停用、不能升级、数据保留 | Runtime 集成测试 |
-| RAC-393 | 安装、同意、撤回、固定的动作只接受带 `caller.user_action` 的人；模型、MCP、工作流、插件调用被拒（S-67.1） | `tests/security-invariants-*.test.ts` 新增一份 |
-| RAC-394 | 非 `pinned` 的 `publisher.signature` 不许是 `ed25519:sha256:` 形状（S-68.1） | 同上 |
-| RAC-395 | 两个不同发布者的 `plugin_id` 互为前缀被拒，同发布者允许（S-68.2，BL-506） | 同上 |
-| RAC-396 | 提供方 id：`host` 用 `plugin_id`，其余用 `plugin-install-…`；动作合同快照里内置插件的 `registered_provider` 不变（S-68.3） | `tests/action-contract-snapshot.test.ts` |
+| RAC-393 | 安装、同意、撤回、固定的动作只接受带 `caller.user_action` 的人；T5 的同意清单与撤回另须 §3.3 的宿主设置入口凭据；模型、MCP、工作流、插件调用被拒（S-67.1） | T5：`tests/security-invariants-consent-revoke.test.ts`、`tests/security-invariants-consent-settings.test.ts`；细项见 §3.3 |
+| RAC-394 | 非 `pinned` 标签去首尾空白/忽略大小写后不许冒充指纹；pinned Manifest 签名须等于可信 key，拒绝无记录/同意/私有数据副作用（S-75.1） | `tests/security-invariants-install-identity.test.ts` |
+| RAC-395 | 点分段嵌套拒绝且零副作用；unsigned 同/异标签都拒，仅同 pinned key/host 合法；启动重验冲突记 crashed、未登记提供方（S-75.2，BL-506） | `tests/security-invariants-install-identity.test.ts` |
+| RAC-396 | 提供方 id：`host` 用 `plugin_id`，其余用 `plugin-install-…`；动作合同快照里内置插件的 `registered_provider` 不变（S-75.3） | `tests/security-invariants-install-identity.test.ts`、`tests/runtime-provider-identity.test.ts`、`tests/action-contract-snapshot.test.ts` |
 | RAC-397 | 存量：旧基线的库被拒绝；新基线下 `publisher_trust` 与同意行由启动幂等补齐；在隔离 Home 演练维护步骤 | 隔离 Home 的演练记录 |
-| RAC-398 | 公开 API 与动作合同快照：只有 §4 列出的变化，PR 里逐项写对调用方的影响；文档一致：S-15、S-34、S-67、S-68 与 `SECURITY-INVARIANTS.md` 的测试列、POLICY 7.8、THIRD-PARTY-PLUGINS、手册 | `pnpm api:update`、`pnpm actions:update` 的 diff；`pnpm health:check` 的文档引用检查 |
-| RAC-399 | 宿主启动名单里的 `plugin_id` 及其点分段前缀，非 `host` 等级的安装使用时被拒（S-68.4） | 同 RAC-394 的测试文件 |
+| RAC-398 | 公开 API 与动作合同快照：只有 §4 列出的变化，PR 里逐项写对调用方的影响；文档一致：S-15、S-34、S-67、S-75 与 `SECURITY-INVARIANTS.md` 的测试列、POLICY 7.8、THIRD-PARTY-PLUGINS、手册 | `pnpm api:update`、`pnpm actions:update` 的 diff；`pnpm health:check` 的文档引用检查 |
+| RAC-399 | 宿主启动名单里的 `plugin_id` 及其点分段前缀，非 `host` 等级的安装使用时被拒（S-75.4） | 同 RAC-394 的测试文件 |
 
 ## 9. 待办
 
-BL-556～562 写在 `specs/BACKLOG.md`（T2～T8 各一行）；T1 的 BL-555 和 T1 开工前核 Home 库账本的 BL-563（结论在 §10 待定 4）都已做完，行已删；BL-564 空着。
+BL-556～561 写在 `specs/BACKLOG.md`（T2～T7 各一行；BL-562 即 T8 已做完，行已删）；T1 的 BL-555 和 T1 开工前核 Home 库账本的 BL-563（结论在 §10 待定 4）都已做完，行已删；BL-564 空着。
 
 ## 10. 待定
 
@@ -351,7 +409,8 @@ BL-556～562 写在 `specs/BACKLOG.md`（T2～T8 各一行）；T1 的 BL-555 �
 4. **外部插件的安装范围。统筹 10-24 定：本片不动。** 同意与发布者固定放在 Home 级，每个项目的安装记录仍各自一份。**BL-563 核完（T1，2026-10-24）：** PG-022 P1b 的账本 `plugin-libraries/plugin-libraries.db` 的表 `plugin_home_libraries` 只有 `plugin_id`、`publisher_signature`、`store_name`、`version`、`schema_digest`、`created_at`，记的是装进来的插件的 Home **库**（存储），不是安装记录，也没有信任或同意的列；所以同意账本 `plugin_consents` 与 `plugin_publishers` **独立建表**，放在 Home Runtime 库（`plugin-runtime/plugin-runtime.db`，基线 2 → 3）里，与那份账本互不引用。项目平台经 `PluginPlatformHome.consents` 读写同一份，Home Runtime 直接用自己打开的库。
 5. **包信封带公钥（C9）。统筹 10-24 定：带公钥。** 已有的签名包要重打，现在没有外部在用的包。
 6. **提供方 id 对 `pinned` 保持 `plugin-install-<hash>`。统筹 10-24 定。** 固定了提供方的引用在重装后显式失效。
-7. **BL-506 的前缀规则落在哪几处命名空间。统筹 10-24 定：T6 开工时核。** 核完若某处是精确匹配，规则可以放宽（S-68.4 的宿主名单规则同理）。
+7. **BL-506 的前缀规则落在哪几处命名空间。统筹 10-24 定：T6 开工时核。** 核完若某处是精确匹配，规则可以放宽（S-75.4 的宿主名单规则同理）。
+   **T6 核完（2026-10-25）：规则保留。**按前缀敏感的是界面贡献 id：`${plugin_id}.${view_id}`，`view_id` 是插件自由写的文本，登记在宿主的一张全局表里，重复登记就冲突（`UiHost.register` 的 `contribution_conflict`），先登记的占住。`io.a.b` 带一个视图 `c` 与 `io.a.b.c` 的插件本身，拼出来的是同一个 id，所以两个发布者的 `plugin_id` 互为前缀时，先装的能把后装的挡在外面。相同的 `plugin_id`、不同发布者也有同一个问题，规则没有覆盖，记为 BL-586（要先定换签名密钥的升级怎么走）。其余命名空间核过都是精确匹配：S9-0 / S9-0b 的日志键用冒号分隔，接线的 `retained` 键用 NUL 分隔，路由按路径段。因此第二、三条不放宽；四条里没有一条因这次核对而变。
 
 ## 11. 防腐复查
 

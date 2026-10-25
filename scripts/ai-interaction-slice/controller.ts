@@ -5,7 +5,7 @@ import { createRecommendation } from "./recommendation.ts";
 import { atEnd, find, show } from "./dom.ts";
 import { bindScene } from "./bindings.ts";
 import { paint } from "./paint.ts";
-import type { InteractionClient } from "../../packages/design-system/src/interaction-client.ts";
+import type { InteractionClient } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 
 const wide = () => matchMedia("(min-width: 1281px)").matches;
 

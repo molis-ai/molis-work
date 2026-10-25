@@ -148,6 +148,10 @@ const violations: Scenario[] = [
     put("packages/alpha/src/newclass.ts", klass("Fresh", 1, 10));
     put(EXCEPTIONS, registry(["class packages/alpha/src/newclass.ts#Fresh", { lines: 13 }]));
   }, expect: [/new giant unit: class packages\/alpha\/src\/newclass\.ts#Fresh \(13 lines, 1 methods\)/, /"size": \{"lines":13,"methods":1\}/], kind: "absolute" },
+  { name: "a new giant class registered with a field its size does not have", mutate: () => {
+    put("packages/alpha/src/newclass.ts", klass("Fresh", 1, 10));
+    put(EXCEPTIONS, registry(["class packages/alpha/src/newclass.ts#Fresh", { lines: 13, methods: 1, note: "extra" }]));
+  }, expect: [/new giant unit: class packages\/alpha\/src\/newclass\.ts#Fresh \(13 lines, 1 methods\)/, /"size": \{"lines":13,"methods":1\}/], kind: "absolute" },
   { name: "a new giant function registered as if it were a class", mutate: () => {
     put("packages/alpha/src/newfn.ts", fn("newFunction", 9));
     put(EXCEPTIONS, registry(["function packages/alpha/src/newfn.ts#newFunction", { lines: 12, methods: 0 }]));
@@ -263,6 +267,160 @@ test("moving a registered file passes when its entry moves with it", () => {
 });
 
 // A registry that cannot be read is exit 2 (like limits.json), never a silently empty one.
+test("W5-10-GUR-01: registration changes use the true merge-base and remain visible when another gate or --update fails", () => {
+  const base = git("rev-parse", "main").trim();
+  const fresh = "file packages/alpha/src/newtable.ts";
+  branch("review-registration", () => {
+    put("packages/alpha/src/table.ts", filler(25));
+    put("packages/alpha/src/newtable.ts", filler(30));
+    put(EXCEPTIONS, exceptionsFile({ [TABLE]: entry(26), [fresh]: entry(31) }));
+    put("packages/alpha/src/unmarked.ts", filler(27)); // A separate failure must not hide admitted changes.
+  });
+  // The requested target branch has already changed this entry, but the actual common ancestor still records 25.
+  git("checkout", "-q", "-b", "review-target", "main");
+  put("packages/alpha/src/table.ts", filler(25));
+  put(EXCEPTIONS, exceptionsFile({ [TABLE]: entry(26) }));
+  commit("target-only registration edit");
+  git("checkout", "-q", "review-registration");
+  for (const args of [["--base", "review-target"], ["--update", "--base", "review-target"]]) {
+    const run = gate(...args);
+    assert.equal(run.code, 1, run.out);
+    assert.ok(run.out.includes(`Giant exception changes against merge-base ${base}:`), run.out);
+    assert.ok(run.out.includes(`size changed: ${TABLE}: 25 → 26`), run.out);
+    assert.ok(run.out.includes(`added: ${fresh}: (not registered) → 31`), run.out);
+    assert.match(run.out, /new giant unit: file packages\/alpha\/src\/unmarked\.ts/);
+  }
+  const text = gate("--report", "--base", "review-target");
+  assert.equal(text.code, 0, text.out);
+  assert.ok(text.out.includes(`size changed: ${TABLE}: 25 → 26`), text.out);
+  const json = gate("--report", "--json", "--base", "review-target");
+  assert.equal(json.code, 0, json.out);
+  const report = JSON.parse(json.out);
+  assert.equal(report.mergeBase, base);
+  assert.deepEqual(report.giantExceptionChanges, [
+    { unit: TABLE, change: "size changed", before: 25, after: 26 },
+    { unit: fresh, change: "added", before: null, after: 31 },
+  ]);
+});
+
+test("W5-10-GUR-01/02: class size changes show both numbers; a reason or object-key order edit is not a size change", () => {
+  const unit = "class packages/alpha/src/longclass.ts#LongClass";
+  branch("class-registration-base", () => {
+    put(EXCEPTIONS, registry([unit, { lines: 13, methods: 1 }]));
+  });
+  git("tag", "class-registration-base");
+  put("packages/alpha/src/longclass.ts", klass("LongClass", 2, 11)); // 15 lines, two methods.
+  put(EXCEPTIONS, registry([unit, { lines: 15, methods: 2 }]));
+  commit("grow registered class");
+  const changed = gate("--base", "class-registration-base");
+  assert.equal(changed.code, 0, changed.out);
+  assert.ok(changed.out.includes(`size changed: ${unit}: {"lines":13,"methods":1} → {"lines":15,"methods":2}`), changed.out);
+  git("tag", "class-registration-grown");
+  put(EXCEPTIONS, exceptionsFile({ [TABLE]: tableEntry, [unit]: { ...entry({ methods: 2, lines: 15 }), reason: "a more precise reason for keeping this single responsibility whole" } }));
+  commit("explain entry and reorder size keys");
+  const same = gate("--base", "class-registration-grown");
+  assert.equal(same.code, 0, same.out);
+  assert.match(same.out, /Giant exception changes against merge-base [0-9a-f]{40}: none/);
+});
+
+test("W5-10-GUR-02: a class size has exactly lines and methods, with strict numeric values", () => {
+  const unit = "class packages/alpha/src/longclass.ts#LongClass";
+  branch("class-size-shapes", () => {});
+  for (const size of [
+    { lines: 13, methods: 1, spare: 0 }, { lines: 13, methods: 1, approvedBy: "reviewer" },
+    [13, 1], [], null, 13, "13", { lines: 13 }, { methods: 1 },
+    { lines: "13", methods: 1 }, { lines: 13, methods: "1" },
+  ]) {
+    put(EXCEPTIONS, registry([unit, size]));
+    const run = gate("--base", "main");
+    assert.equal(run.code, 1, `${JSON.stringify(size)}: ${run.out}`);
+    assert.ok(run.out.includes(`giant exception for ${unit}: "size" is`), run.out);
+  }
+  for (const size of [{ lines: 13, methods: 1 }, { methods: 1, lines: 13 }]) {
+    put(EXCEPTIONS, registry([unit, size]));
+    const run = gate("--base", "main");
+    assert.equal(run.code, 0, run.out);
+  }
+});
+
+const functionsOnlyLimits = () => {
+  put("tooling/gates/limits.json", JSON.stringify({ file: 1000, classLines: 1000, classMethods: 1000, functionLines: 8, vendoredPrologueSdk: 2 }));
+  put(EXCEPTIONS, exceptionsFile({})); // The original registered file is below this fixture's file limit.
+};
+const methodClass = (owner: string, pad: number) => `class ${owner} {\n${fn("handle", pad).replace("export function ", "")}}\n`;
+
+test("W5-10-GUR-04: same-name methods retain independent sizes, detect smaller growth and ignore lines inserted above", () => {
+  const file = "packages/alpha/src/owners.ts";
+  const original = methodClass("Big", 11) + methodClass("Small", 9); // 14 and 12, deliberately below the file/class limits.
+  branch("function-owners-base", () => { functionsOnlyLimits(); put(file, original); });
+  git("tag", "function-owners-base");
+  assert.equal(gate("--base", "function-owners-base").code, 0);
+  const report = JSON.parse(gate("--report", "--json", "--base", "function-owners-base").out);
+  assert.equal(report.head.giant[`function ${file}#Big.handle`], 14);
+  assert.equal(report.head.giant[`function ${file}#Small.handle`], 12);
+  assert.equal(report.head.giant[`function ${file}#handle`], undefined);
+  put(file, methodClass("Big", 11) + methodClass("Small", 10));
+  const grown = gate("--base", "function-owners-base");
+  assert.equal(grown.code, 1, grown.out);
+  assert.match(grown.out, /giant unit grew: function packages\/alpha\/src\/owners\.ts#Small\.handle 12 → 13/);
+  put(file, "\n".repeat(20) + original);
+  const moved = gate("--base", "function-owners-base");
+  assert.equal(moved.code, 0, moved.out);
+});
+
+test("W5-10-GUR-04: nested functions use their named lexical owners; overload signatures are one implementation", () => {
+  const file = "packages/alpha/src/nested.ts";
+  const nested = (pad: number) => `function left() {\n${fn("handle", 11).replace("export ", "")}}\nfunction right() {\n${fn("handle", pad).replace("export ", "")}}\n`;
+  branch("nested-owners-base", () => { functionsOnlyLimits(); put(file, nested(9)); });
+  git("tag", "nested-owners-base");
+  const nestedReport = JSON.parse(gate("--report", "--json").out);
+  assert.equal(nestedReport.head.giant[`function ${file}#left.handle`], 14);
+  assert.equal(nestedReport.head.giant[`function ${file}#right.handle`], 12);
+  assert.equal(gate("--base", "nested-owners-base").code, 0);
+  put(file, nested(10));
+  const grown = gate("--base", "nested-owners-base");
+  assert.equal(grown.code, 1, grown.out);
+  assert.match(grown.out, /giant unit grew: function packages\/alpha\/src\/nested\.ts#right\.handle 12 → 13/);
+  branch("overload-base", () => {
+    functionsOnlyLimits();
+    put(file, `function handle(value: string): number;\nfunction handle(value: number): number;\n${fn("handle", 11).replace("export function handle()", "function handle(value: unknown)")}`);
+  });
+  git("tag", "overload-base");
+  const overload = gate("--base", "overload-base");
+  assert.equal(overload.code, 0, overload.out);
+  const overloadReport = JSON.parse(gate("--report", "--json").out);
+  assert.equal(overloadReport.head.giant[`function ${file}#handle`], 14);
+  assert.equal(Object.keys(overloadReport.head.giant).filter(key => key.startsWith(`function ${file}#`)).length, 1);
+});
+
+test("W5-10-GUR-04: adding a same-name implementation changes keys conservatively and each reasonable unit can be marked", () => {
+  const file = "packages/alpha/src/second.ts";
+  branch("single-owner-base", () => { functionsOnlyLimits(); put(file, methodClass("Big", 11)); });
+  git("tag", "single-owner-base");
+  const before = JSON.parse(gate("--report", "--json").out);
+  assert.equal(before.head.giant[`function ${file}#handle`], 14);
+  put(file, methodClass("Big", 11) + methodClass("Small", 9));
+  const added = gate("--base", "single-owner-base");
+  assert.equal(added.code, 1, added.out);
+  assert.match(added.out, /new giant unit: function packages\/alpha\/src\/second\.ts#Big\.handle \(14\)/);
+  assert.match(added.out, /new giant unit: function packages\/alpha\/src\/second\.ts#Small\.handle \(12\)/);
+  put(EXCEPTIONS, exceptionsFile({ [`function ${file}#Big.handle`]: entry(14), [`function ${file}#Small.handle`]: entry(12) }));
+  const marked = gate("--base", "single-owner-base");
+  assert.equal(marked.code, 0, marked.out);
+});
+
+test("W5-10-GUR-04: implementations without distinct named lexical owners are explicitly refused", () => {
+  branch("ambiguous-owners", () => {
+    functionsOnlyLimits();
+    put("packages/alpha/src/ambiguous.ts", `if (true) {\n${fn("handle", 11).replace("export ", "")}} else {\n${fn("handle", 9).replace("export ", "")}}\n`);
+  });
+  const refused = gate("--base", "main");
+  assert.equal(refused.code, 2, refused.out);
+  assert.match(refused.out, /ambiguous giant function unit: function packages\/alpha\/src\/ambiguous\.ts#handle/);
+  assert.match(refused.out, /same named lexical owner "handle"/);
+  assert.doesNotMatch(refused.out, /Health gates passed/);
+});
+
 const unreadableRegistries: Array<[string, string]> = [["not JSON", "<<<<<<< ours\n"], ["without an exceptions object", '{"note":"x"}\n'], ["a list instead of an object", '{"exceptions":[]}\n']];
 for (const [state, text] of unreadableRegistries) {
   test(`a giant-exceptions.json ${state} is exit 2, never a skipped check`, () => {

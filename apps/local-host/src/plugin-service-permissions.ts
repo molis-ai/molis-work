@@ -1,4 +1,4 @@
-import type { PluginHostServices } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { PLUGIN_LOCAL_TOOLS_PERMISSION, type PluginHostServices } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PLUGIN_ATTENTION_READ_PERMISSION, PLUGIN_ATTENTION_WRITE_PERMISSION, PLUGIN_CONTEXT_LEDGER_READ_PERMISSION, PLUGIN_CONTEXT_LEDGER_WRITE_PERMISSION } from "@molis-ai/molis-work-contracts/platform/plugin-attention";
 import { PLUGIN_CONNECTIONS_PERMISSION } from "@molis-ai/molis-work-contracts/platform/plugin-connections";
 import { ACTIONS_DELEGATE_PERMISSION } from "./plugin-action-delegation.js";
@@ -24,6 +24,7 @@ export const HOST_SERVICE_PERMISSIONS: { readonly [Service in keyof PluginHostSe
   materials: MATERIAL_PERMISSIONS,
   connections: [PLUGIN_CONNECTIONS_PERMISSION],
   directory: [DIRECTORY_READ_PERMISSION],
+  localTools: [PLUGIN_LOCAL_TOOLS_PERMISSION],
   scheduler: [SCHEDULE_READ_PERMISSION, SCHEDULE_WRITE_PERMISSION],
   agents: [AGENT_RUN_PERMISSION],
   notifications: [NOTIFICATIONS_WRITE_PERMISSION],

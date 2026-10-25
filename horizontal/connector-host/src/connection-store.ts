@@ -167,8 +167,8 @@ export class ConnectorConnectionStore {
     return row?.origin ?? null;
   }
 
-  /** Prevent an API or MCP key from silently being sent to a different host. */
-  assertTarget(connectionId: string, serviceId: "model-api" | "image-api" | "mcp-bearer", address: string): string {
+  /** Prevent an API or MCP key, or a tenant's service account (BL-595), from silently being sent to a different host. */
+  assertTarget(connectionId: string, serviceId: "model-api" | "image-api" | "mcp-bearer" | "salesforce" | "jira" | "confluence", address: string): string {
     this.require(connectionId, serviceId);
     let endpoint: URL;
     try { endpoint = new URL(address); } catch { throw connectorErrors["connector.connection.invalid"]("服务地址无效"); }

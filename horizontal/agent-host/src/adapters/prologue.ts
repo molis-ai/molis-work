@@ -135,7 +135,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     assertSessionCreation(input, this.#runtime.workspaceNone, this.descriptor.supports_workspace_business);
     await execution?.beforeStart?.(); requireSynchronous(execution?.assertBeforeStart?.(), "最终授权检查必须同步完成");
     const session = await this.#runtime.sessions.create(input, execution);
-    this.#store.sessions.set(session.ref.id, { title: input.title, workspace: input.workspace ?? "required", runs: [], owner: { project_id: input.project_id, plugin_id: input.plugin_id, install_id: input.install_id, actor_id: input.actor_id } });
+    this.#store.rememberSession(session.ref.id, { title: input.title, workspace: input.workspace ?? "required", runs: [], owner: { project_id: input.project_id, plugin_id: input.plugin_id, install_id: input.install_id, actor_id: input.actor_id } });
     return { session_id: session.ref.id, runtime_id: PROLOGUE_RUNTIME_ID };
   }
 
@@ -219,14 +219,14 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
       || !this.#store.latestEnded(session)) {
       throw agentErrors.session_busy("这个会话仍在执行或保存上一轮；可以补充要求，结束后再开新一轮");
     }
-    this.#store.startingSessions.add(request.session.session_id);
-    try { return await startPrologueRun({ runtime: this.#runtime, ports: this.#ports, descriptor: this.descriptor, store: this.#store, read: run => this.read(run) }, request, session, execution); }
-    catch (error) {
-      // A durable start intent may exist even when no handle was returned.
-      if (this.#runtime.sessions.restore) this.#store.sessions.delete(request.session.session_id);
-      throw error;
-    }
-    finally { this.#store.startingSessions.delete(request.session.session_id); }
+    return this.#store.withSessionHeld(request.session.session_id, async () => {
+      try { return await startPrologueRun({ runtime: this.#runtime, ports: this.#ports, descriptor: this.descriptor, store: this.#store, read: run => this.read(run) }, request, session, execution); }
+      catch (error) {
+        // A durable start intent may exist even when no handle was returned.
+        if (this.#runtime.sessions.restore) this.#store.invalidateSession(request.session.session_id);
+        throw error;
+      }
+    });
   }
 
   async read(run: AgentRunRef): Promise<AgentRunView> {
@@ -312,7 +312,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
           }
           // The Run owns whether the question is closed; drop it from the view only after the execution owner accepted the
           // answer. A parked Run ended with it: the session is read again, its next round no longer waits for checking.
-          if (await answer(run, control) === "queued") { this.#store.sessions.delete(run.session_id); await this.#store.loadSession(run.session_id); }
+          if (await answer(run, control) === "queued") await this.#store.reloadSession(run.session_id);
           else settleProloguePending(record.state, control.pending_id);
           break;
         }

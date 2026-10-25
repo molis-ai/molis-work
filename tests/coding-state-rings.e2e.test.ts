@@ -5,7 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { codingTimelineWords, createCodingTimeline, createCodingTurnChanges, renderCodingWorkbench } from "@molis-ai/molis-work-plugin-coding";
-import { escapeHtml, icon, INPUT_RECEIPTS_CLIENT_SCRIPT, STATE_RING_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
+import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { INPUT_RECEIPTS_CLIENT_SCRIPT, STATE_RING_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { openStudioChrome } from "./fixtures/plugin-builder-browser.js";
 import { pageText, pageTextScript } from "./fixtures/page-text.js";
@@ -215,7 +216,7 @@ test("VUX-40: the step report dialog and the change set reader speak English in 
       const lifetime=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})()(root),errors=[],q=selector=>root.querySelector(selector);
       const steps=(${embeddedFactory("stepReports")})({lifetime,translate:L,q,current:()=>'s',status:message=>errors.push(message),refresh:async()=>{},prepareRework:()=>{},receipts:{link:()=>null},
         api:async()=>({runs:[{ref:{run_id:'r'},phase:'completed'}],taskboard_plans:[{run_id:'r',revision:2,plan:{content:{steps:[{title:'Write the parser',acceptance:'Tests pass'}]}},
-          board:{project_id:'p',version:3,nodes:[{id:'step-1',state:'succeeded',owner:{kind:'person'},reports:[{by:'Builder',note:'Done it'}]}]},
+          board:{project_id:'p',version:3,nodes:[{id:'step-1',state:'succeeded',owner:{kind:'person'},reports:[{by:{kind:'subtask',title:'Builder'},note:'Done it'}]}]},
           verdicts:{'step-1':{status:'needs-work',notes:'Missing an edge case',project_id:'p',board_version:2,revision:1}}}]})});
       await steps.open('s','r','step-1');
       const step=q('[data-coding-step-detail]').textContent.replace(/\\s+/g,' '),stepStatus=q('[data-coding-step-status]').textContent;
@@ -237,7 +238,7 @@ test("VUX-40: the step report dialog and the change set reader speak English in 
         comments:q('[data-coding-feedback-list]').querySelector('textarea').getAttribute('aria-label')};
     })()`);
     assert.deepEqual(result.han, [], "no Chinese in what the dialog and the reader draw");
-    assert.match(result.step, /Run r · plan revision 2.*Write the parser.*Done when: Tests pass.*The model reports success; for you to check.*Held by: you.*Builder: Done it/);
+    assert.match(result.step, /Run r · plan revision 2.*Write the parser.*Done when: Tests pass.*The model reports success; for you to check.*Held by: You.*Subtask “Builder”: Done it/);
     assert.match(result.step, /You asked for rework.*Missing an edge case.*This assessment is for an earlier report/);
     assert.equal(result.stepStatus, "The run has ended; the step reports keep their states, so check each one.");
     assert.match(result.files, /a\.ts\s*Writes: 2\s*Net change this turn.*Write 1.*Written.*Write 2.*Write failed/);
@@ -300,5 +301,55 @@ test("VUX-40: the model note, a turn's changes, the palette and the character an
     assert.match(result.characters, /No character.*Reviewer · v1.*The current runtime doesn't support character limits yet/);
     assert.match(result.characters, /Built-in tools: none\. MCP is still chosen.*Lint · needs a native Agent/);
     assert.match(result.actions, /Add a todo · v2.*Todo · The current way of running only allows queries.*gone\.action · v1.*The original capability, version or authorization isn't available/);
+  } finally { await browser.close(); rmSync(directory, { recursive: true, force: true }); }
+});
+
+// RAC-658-UI-01..03: real built step details word identities locally and keep task titles as data.
+test("RAC-658-UI-01..03: step details localize holders and authors while preserving whole subtask titles", { timeout: 30_000 }, async t => {
+  const directory = mkdtempSync(join(tmpdir(), "coding-step-identity-"));
+  const browser = await openStudioChrome(directory);
+  if (!browser) { rmSync(directory, { recursive: true, force: true }); t.skip("No test Chrome"); return; }
+  const html = renderCodingWorkbench({ route_prefix: "", face: "sessions", filter: "all", sessions: [], tools: [], workspace_path: null,
+    primitives: { escape: escapeHtml, icon, text: value => value, formatDate: value => value } });
+  try {
+    const page = await browser.page();
+    for (const locale of ["zh", "en"] as const) {
+      const result = await page.evaluate<{ rows: Array<{ kind: string; title: string | null; owner: string; reports: string[]; markup: boolean }>; leaked: boolean; errors: string[] }>(`(async () => {
+        ${pageTextScript(locale)}
+        document.documentElement.lang=${JSON.stringify(locale)};document.body.innerHTML=${JSON.stringify(html)};
+        const root=document.querySelector("[data-coding-workbench]");root.hidden=false;
+        const lifetime=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})()(root),q=selector=>root.querySelector(selector),rows=[],errors=[];
+        const titles=["Parser「two」 / café [x]",'Δ ["a"]:مرحبا <b>x & y</b>',null],authors=["session","person","other","handover","subtask"];
+        const node={id:"step-1",state:"succeeded",reports:[]};
+        const data={runs:[{ref:{run_id:"r"},phase:"completed"}],taskboard_plans:[{run_id:"r",revision:1,
+          plan:{content:{steps:[{title:"Review",acceptance:"Keep identities"}]}},board:{project_id:"p",version:1,nodes:[node]}}]};
+        const steps=(${embeddedFactory("stepReports")})({lifetime,translate:L,q,current:()=>"s",api:async()=>data,
+          status:message=>errors.push(message),refresh:async()=>{},prepareRework(){},receipts:{link:()=>null}});
+        for (const title of titles) for (const kind of ["session","person","none","other","subtask"]) {
+          const identity=kind=>({kind,label:"宿主中文原话不能作为页面身份",...(title===null?{}:{title})});
+          node.owner=identity(kind);node.reports=authors.map(kind=>({by:identity(kind),note:"report-"+kind}));
+          await steps.open("s","r","step-1");
+          const detail=q("[data-coding-step-detail]");
+          rows.push({kind,title,owner:detail.querySelectorAll("p")[3].textContent,
+            reports:[...detail.querySelectorAll("ol > li")].map(li=>li.textContent),markup:Boolean(detail.querySelector("b"))});
+        }
+        const leaked=q("[data-coding-step-detail]").textContent.includes("宿主中文原话不能作为页面身份");
+        q("[data-coding-step-dialog]").close();
+        return {rows,leaked,errors};
+      })()`);
+      for (const row of result.rows) {
+        const subtask = row.title === null ? (locale === "en" ? "Subtask" : "子任务") : locale === "en" ? `Subtask “${row.title}”` : `子任务「${row.title}」`;
+        const names: Record<string, string> = locale === "en"
+          ? { session: "this session", person: "You", none: "Unclaimed", other: "Other holder", handover: "Reassigned", subtask }
+          : { session: "本会话", person: "你", none: "没人认领", other: "其他负责人", handover: "改派", subtask };
+        assert.equal(row.owner, (locale === "en" ? "Held by: " : "负责：") + names[row.kind], `${locale} owner ${row.kind}`);
+        assert.deepEqual(row.reports, ["session", "person", "other", "handover", "subtask"].map(kind => names[kind] + (locale === "en" ? ": " : "：") + "report-" + kind));
+        assert.equal(row.markup, false, "a title is preserved as text, including its angle brackets");
+        assert.ok(!row.owner.includes("宿主中文原话"), "the owner never uses the Host label");
+        assert.ok(row.reports.every(text => !text.includes("宿主中文原话")), "reports never use the Host label");
+      }
+      assert.equal(result.leaked, false);
+      assert.deepEqual(result.errors, []);
+    }
   } finally { await browser.close(); rmSync(directory, { recursive: true, force: true }); }
 });

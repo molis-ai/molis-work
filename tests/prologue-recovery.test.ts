@@ -502,3 +502,127 @@ test("R38-RECOVERY-LIVE-03: closing an inspected interruption refreshes the same
     assert.equal(calls, 1);
   } finally { release(); await adapter.close(); }
 });
+
+const storeDirectory = { canonical_path: "/tmp/store-session", realpath_verified: true };
+function storeStartRequest(session: AgentStartRequest["session"]): AgentStartRequest {
+  return { ...owner, actor_id: "user", session, directory: storeDirectory, task: "read", role_id: "reader",
+    role: { role_id: "reader", version: 1, execution: "read-only", host_tools: [], prompts: [] } };
+}
+
+for (const restorable of [true, false]) {
+  test(`R38-STORE-01: start holds only its session and releases failure; restore=${restorable}`, { timeout: 10_000 }, async () => {
+    const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+    const failure = new Error("start intent saved without a handle");
+    const calls = new Map<string, number>(), titles = new Map<string, string>();
+    const restored: string[] = [], unsubscribed: string[] = [];
+    let created = 0, shutdown = 0;
+    const runtime: PrologueRuntimePort = {
+      sessions: { create: async input => {
+        const id = `session-${++created}`; titles.set(id, input.title); return { ref: { id } };
+      }, ...(restorable ? { restore: async (id: string) => { restored.push(id); return { title: titles.get(id)!, owner, runs: [] }; } } : {}) },
+      startAgentRun: async input => {
+        const id = input.session_id, count = (calls.get(id) ?? 0) + 1; calls.set(id, count);
+        if (id === "session-1" && count === 1) {
+          entered.resolve(); await release.promise; titles.set(id, "saved start intent"); throw failure;
+        }
+        return { run: { ref: { id: `${id}-run-${count}` }, subscribe: () => () => { unsubscribed.push(id + ":events"); }, cancel: async () => {} },
+          control: { state: "running", stop() {}, pause() {}, resume() {}, steer() {}, subscribe: () => () => { unsubscribed.push(id + ":control"); } } };
+      }, shutdown: async () => { shutdown++; },
+    };
+    const adapter = new PrologueAgentAdapter({ runtime, modelConfiguration: async () => model });
+    const first = await adapter.createSession({ ...owner, actor_id: "user", title: "first", directory: storeDirectory });
+    const second = await adapter.createSession({ ...owner, actor_id: "user", title: "second", directory: storeDirectory });
+    const starting = adapter.start(storeStartRequest(first));
+    try {
+      await entered.promise;
+      await assert.rejects(adapter.start(storeStartRequest(first)), { code: "agent.session_busy" });
+      const other = await adapter.start(storeStartRequest(second));
+      assert.equal(calls.get(second.session_id), 1, "another session starts before the first is released");
+      assert.equal(calls.get(first.session_id), 1);
+      // R38-STORE-03: registering a run still makes it readable, associated and followed.
+      assert.equal((await adapter.read(other.ref)).turns[0]?.text, "read");
+      assert.deepEqual((await adapter.readSession(second)).runs, [other.ref]);
+      release.resolve();
+      await assert.rejects(starting, error => error === failure);
+      assert.deepEqual(restored, [], "failed start invalidates only; it must not reload immediately");
+      const afterFailure = await adapter.readSession(first);
+      assert.equal(afterFailure.title, restorable ? "saved start intent" : "first");
+      assert.deepEqual(restored, restorable ? [first.session_id] : []);
+      const retry = await adapter.start(storeStartRequest(first));
+      assert.equal(calls.get(first.session_id), 2, "the failed operation released its session");
+      assert.equal((await adapter.read(retry.ref)).phase, "running");
+    } finally { release.resolve(); await starting.catch(() => undefined); await adapter.close(); }
+    assert.equal(shutdown, 1);
+    assert.deepEqual(unsubscribed.sort(), ["session-1:control", "session-1:events", "session-2:control", "session-2:events"]);
+  });
+}
+
+for (const operation of ["recovery", "checkpoint"] as const) {
+  test(`R38-STORE-02: ${operation} holds through rejection, releases synchronous throws and reloads only success`, { timeout: 10_000 }, async () => {
+    const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+    const rejected = new Error("operation rejected"), thrown = new Error("operation threw synchronously");
+    const calls = new Map<string, number>(), restores = new Map<string, number>(), closed = new Set<string>();
+    let created = 0, starts = 0, otherEffects = 0;
+    const perform = (id: string): Promise<void> => {
+      const count = (calls.get(id) ?? 0) + 1; calls.set(id, count);
+      if (id === "session-1" && count === 1) { entered.resolve(); return release.promise.then(() => { throw rejected; }); }
+      if (id === "session-1" && count === 2) throw thrown;
+      return Promise.resolve();
+    };
+    const report = (id: string) => ({ session_id: id, blockers: [], runs: closed.has(id) ? [] : [{ run_id: `child-${id}`, version: 1,
+      live: false, waiting: 0, can_close: true, blockers: [], operations: [], subagent: { subagent_id: `subtask-${id}` } }] });
+    const recovery: NonNullable<PrologueRuntimePort["recovery"]> = {
+      inspect: async session => report(session.session_id),
+      close(session, runId, version) {
+        assert.equal(this, recovery); assert.equal(runId, `child-${session.session_id}`); assert.equal(version, 1);
+        if (operation !== "recovery") { otherEffects++; throw new Error("held checkpoint must exclude recovery"); }
+        return perform(session.session_id).then(() => { closed.add(session.session_id); return report(session.session_id); });
+      },
+    };
+    const checkpoints: NonNullable<PrologueRuntimePort["checkpoints"]> = {
+      busy: () => false, list: async () => [],
+      prepareRewind(session, checkpointId) {
+        assert.equal(this, checkpoints); assert.equal(checkpointId, "checkpoint");
+        if (operation !== "checkpoint") { otherEffects++; throw new Error("held recovery must exclude rewind"); }
+        return perform(session.session_id).then(() => ({ review_id: `review-${session.session_id}`, run: null,
+          operation: { operation_id: `rewind-${session.session_id}`, session_id: session.session_id, kind: "checkpoint-rewind" as const },
+          project_id: owner.project_id, plugin_id: owner.plugin_id, kind: "rewind" as const,
+          document: { kind: "rewind" as const, checkpoint_id: checkpointId, files: [] }, requested_at: "2026-10-25T00:00:00Z", expires_at: null }));
+      },
+    };
+    const runtime: PrologueRuntimePort = {
+      recovery, checkpoints,
+      sessions: { create: async () => ({ ref: { id: `session-${++created}` } }), restore: async id => {
+        restores.set(id, (restores.get(id) ?? 0) + 1); return { title: closed.has(id) ? "closed" : id, owner, runs: [] };
+      } },
+      startAgentRun: async () => { starts++; throw new Error("held operation must exclude start"); }, shutdown: async () => {},
+    };
+    const adapter = new PrologueAgentAdapter({ runtime, modelConfiguration: async () => model });
+    const first = await adapter.createSession({ ...owner, actor_id: "user", title: "session-1", directory: storeDirectory });
+    const second = await adapter.createSession({ ...owner, actor_id: "user", title: "session-2", directory: storeDirectory });
+    const invoke = (session: AgentStartRequest["session"]) => operation === "recovery"
+      ? adapter.recovery!.close(session, `child-${session.session_id}`, 1) : adapter.checkpoints!.prepareRewind(session, "checkpoint");
+    const pending = invoke(first);
+    try {
+      await entered.promise;
+      await assert.rejects(adapter.start(storeStartRequest(first)), { code: "agent.session_busy" });
+      await assert.rejects(adapter.recovery!.close(first, `child-${first.session_id}`, 1), { code: "agent.session_busy" });
+      await assert.rejects(adapter.checkpoints!.prepareRewind(first, "checkpoint"), { code: "agent.session_busy" });
+      await assert.rejects(adapter.recovery!.close(first, `child-${second.session_id}`, 1), { code: "agent.run_unknown" });
+      await invoke(second);
+      assert.equal(calls.get(second.session_id), 1, "a different session can finish while the first is held");
+      assert.equal(calls.get(first.session_id), 1);
+      release.resolve(); await assert.rejects(pending, error => error === rejected);
+      assert.equal(restores.get(first.session_id), undefined, "rejection must not evict/reload the session");
+      assert.equal(closed.has(first.session_id), false);
+      assert.equal((await adapter.readSession(first)).title, "session-1");
+      await assert.rejects(invoke(first), error => error === thrown);
+      assert.equal(restores.get(first.session_id), undefined, "synchronous failure also must not reload");
+      await invoke(first);
+      assert.equal(calls.get(first.session_id), 3);
+      assert.equal(restores.get(first.session_id), operation === "recovery" ? 1 : undefined);
+      assert.equal((await adapter.readSession(first)).title, operation === "recovery" ? "closed" : "session-1");
+      assert.equal(starts, 0); assert.equal(otherEffects, 0);
+    } finally { release.resolve(); await pending.catch(() => undefined); await adapter.close(); }
+  });
+}

@@ -237,12 +237,11 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// #1064 keeps its already approved Memory controls and original-input sender on #1304.
-// The Dock change is already in main: only this same foundation delta is admitted, with no spare absolute ceiling.
-const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1124686, 1127879],
-  "/assets/molis-work-plugins/coding.js": [289788, 290388],
-};
+// batch-38 (#1300, coordinator review 2026-10-25): the combined batch grows workbench.js by +388 B against main (measured
+// against #1304's 1124686 after it landed first; PG-055 alone is -1 B; the growth comes from the batch's new client logic,
+// not measured slice by slice). Checked module by module with a metafile at W6 wrap-up; whatever can be saved is saved in
+// this same asset.
+const APPROVED_CEILINGS = { "/assets/molis-work-workbench.js": [1124686, 1125074] };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its
 // first freeze; from the next PR on it only falls like every other.

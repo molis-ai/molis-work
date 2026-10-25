@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./isolated-host.js";
 import { DatabaseSync } from "node:sqlite";
 import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { MemoryPluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
@@ -30,7 +31,7 @@ const plugin = definePlugin({ manifest: {
 }, async start() { return { kind: "app", actions: [write.handler, read.handler] }; } });
 const reference = { project_id: project, storage_key: database };
 const host = new LocalHost({ runtimeFactory: { open: () => db, close: value => value.close() } });
-const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { actions: { registry: host.actionRegistry(reference), project_id: project } });
+const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: host.actionRegistry(reference), project_id: project } });
 const installed = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["notes:write"] }).install;
 await runtime.start(installed.install_id);
 const ports = createActionMcpPorts({ service: host.actionClient(reference), serverInfo: { name: "molis-action-fixture", version: "1.0.0" },

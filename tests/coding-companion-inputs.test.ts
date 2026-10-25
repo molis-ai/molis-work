@@ -27,7 +27,7 @@ async function fixture() {
     return definition.start(context);
   } });
   const report = await platform.start([createFilesPlugin(), createGitPlugin(), createDiffPlugin(), createTextStatsPlugin()]
-    .map(definition => ({ definition: capture(definition) })));
+    .map(definition => ({ definition: capture(definition), trust: { level: "host" as const } })));
   assert.deepEqual(report.failed, []); assert.deepEqual(report.blocked, []);
   const bind = (target: string, targetPort: string, source: string, sourcePort: string) => platform.wiring.bind({
     project_id: DEMO_PROJECT_ID, actor_id: "tester", target_plugin_id: `io.molis.work.${target}`, target_port: targetPort,

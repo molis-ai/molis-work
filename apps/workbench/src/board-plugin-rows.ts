@@ -1,4 +1,4 @@
-import { escapeHtml, icon } from "@molis-ai/molis-work-design-system";
+import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { PluginBoardSpecimenPorts, PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { BUILTIN_PLUGIN_CATALOG } from "./plugin-catalog.js";
 import { boardFrameParam, type BoardFrameParam } from "./condition-specimens.js";

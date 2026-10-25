@@ -107,7 +107,7 @@ test("W3-06-F-01 Home/project overlap, sandbox and impersonated bundled identiti
   const home = mkdtempSync(join(tmpdir(), "home-scope-rejection-")), probe = homeProbe();
   try {
     assert.throws(() => new MolisWorkLocalHost({ homeDirectory: home, pluginFixtures: { home: [probe.definition], project: [probe.definition] } }), /不能同时在 Home 与项目/u);
-    const builtin = BUILTIN_PLUGIN_CATALOG.find(entry => entry.runtime?.scope === "home")!;
+    const builtin = BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.runtime?.scope === "home")!;
     const imposter = { ...probe.definition, manifest: { ...probe.definition.manifest, plugin_id: builtin.manifest.plugin_id } };
     assert.throws(() => new MolisWorkLocalHost({ homeDirectory: home, pluginFixtures: { home: [imposter] } }), /不能冒充内置/u);
     assert.throws(() => new MolisWorkLocalHost({ pluginFixtures: { home: [probe.definition] } }), /明确的 Home/u);

@@ -54,6 +54,12 @@ export interface PluginConsentLedger {
   record(entry: PluginConsentEntry): PluginConsentRecord[];
   /** Every row of a plugin, revoked ones included, oldest first. */
   consents(pluginId: string): PluginConsentRecord[];
+  /**
+   * Takes one agreement back: writes `revoked_at` on the row and answers it, or answers null when no row has that id. Revoking a row that
+   * is already revoked changes nothing (the first time stays). Only this call writes `revoked_at`; a revoked row is never deleted, and a
+   * host build's agreement is not written again after it (`record`).
+   */
+  revoke(consentId: string, at: string): PluginConsentRecord | null;
   /** The publishers pinned, revoked ones included. */
   publishers(): PluginPublisherPin[];
   pinPublisher(pin: Omit<PluginPublisherPin, "revoked_at">): PluginPublisherPin;
@@ -84,6 +90,12 @@ export class MemoryPluginConsentLedger implements PluginConsentLedger {
     return written.map(row => ({ ...row }));
   }
   consents(pluginId: string): PluginConsentRecord[] { return this.rows.filter(row => row.plugin_id === pluginId).map(row => ({ ...row })); }
+  revoke(consentId: string, at: string): PluginConsentRecord | null {
+    const index = this.rows.findIndex(row => row.consent_id === consentId);
+    if (index < 0) return null;
+    this.rows[index] = { ...this.rows[index]!, revoked_at: this.rows[index]!.revoked_at ?? at };
+    return { ...this.rows[index]! };
+  }
   publishers(): PluginPublisherPin[] { return [...this.pins.values()].map(pin => ({ ...pin })); }
   pinPublisher(pin: Omit<PluginPublisherPin, "revoked_at">): PluginPublisherPin {
     const pinned = this.pins.get(pin.key_id) ?? { ...pin, revoked_at: null };
@@ -114,6 +126,11 @@ export class SqlitePluginConsentLedger implements PluginConsentLedger {
   }
   consents(pluginId: string): PluginConsentRecord[] {
     return (this.db.prepare("SELECT * FROM plugin_consents WHERE plugin_id = ? ORDER BY rowid").all(pluginId) as ConsentRow[]).map(row => ({ ...row }));
+  }
+  revoke(consentId: string, at: string): PluginConsentRecord | null {
+    this.db.prepare("UPDATE plugin_consents SET revoked_at = ? WHERE consent_id = ? AND revoked_at IS NULL").run(at, consentId);
+    const row = this.db.prepare("SELECT * FROM plugin_consents WHERE consent_id = ?").get(consentId) as ConsentRow | undefined;
+    return row ? { ...row } : null;
   }
   publishers(): PluginPublisherPin[] {
     return (this.db.prepare("SELECT * FROM plugin_publishers ORDER BY rowid").all() as PluginPublisherPin[]).map(row => ({ ...row }));

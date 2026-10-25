@@ -9,7 +9,7 @@ export const registration: PluginRegistration = {
   project_plugin_id: TODO_PROJECT_PLUGIN_ID, catalog_order: 13,
   manifest: todoManifest,
   messages: TODO_MESSAGES,
-  runtime: { scope: "home", create: createTodoPlugin, package_name: "@molis-ai/molis-work-plugin-todo", factory_export: "createTodoPlugin" },
+  runtime: { create: createTodoPlugin, package_name: "@molis-ai/molis-work-plugin-todo", factory_export: "createTodoPlugin" },
   personal: true,
   workbench: {
     order: 14,

@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { execFileSync } from "node:child_process";
@@ -101,7 +102,7 @@ test("S-50 PG-009 a review kind outside the platform's list is refused when the 
   const unknown = worktreeManifest("unknown-kind", [{ permission: "review:git-reset", required: false, reason: "Not a platform review" }]);
   assert.throws(() => parsePluginManifest(unknown), { code: "plugin.permission_invalid" });
   assert.throws(() => parsePluginManifest(worktreeManifest("bare", [{ permission: "review:", required: false, reason: "No kind" }])), { code: "plugin.permission_invalid" });
-  assert.throws(() => new PluginRuntime().install({ trust: { level: "unsigned" }, definition: { manifest: unknown, async start() { return { kind: "app" }; } }, deployment: "local", grants: ["review:git-reset"] }),
+  assert.throws(() => new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }).install({ trust: { level: "unsigned" }, definition: { manifest: unknown, async start() { return { kind: "app" }; } }, deployment: "local", grants: ["review:git-reset"] }),
     { code: "plugin.manifest_invalid" });
   for (const kind of ["git-index", "git-operation", "git-worktree", "git-integration"]) {
     parsePluginManifest(worktreeManifest(kind, [{ permission: `review:${kind}`, required: true, reason: "A platform review" }]));

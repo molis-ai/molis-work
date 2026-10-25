@@ -1,4 +1,4 @@
-import type { MolisWorkIcon } from "@molis-ai/molis-work-design-system";
+import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { SIDE_CONTEXT_FACTORY } from "./side-panel-context.js";
 import { SIDE_FORWARD_SCRIPT } from "./scripts/client/pane-messages.js";
 import { renderSideBrowser } from "./side-panel-browser.js";
@@ -16,7 +16,7 @@ import { renderSideFiles } from "./side-panel-files.js";
 export interface SidePanelPrimitives {
   L(value: string): string;
   escapeHtml(value: unknown): string;
-  icon(name: MolisWorkIcon): string;
+  icon(name: PluginIconName): string;
 }
 
 /** A tab a plugin declared for the side slot; its document is served by the Host, never positioned by the plugin. */
@@ -24,7 +24,7 @@ export interface SidePanelPluginTab {
   /** `<plugin_id>/<view_id>`: the tab's identity in `molis:side-open`. */
   readonly key: string;
   readonly title: string;
-  readonly icon: MolisWorkIcon;
+  readonly icon: PluginIconName;
   readonly src: string;
   /** A Home tool's summon chord (`Mod+Shift+I`): opens and focuses the tab from anywhere, again closes it. */
   readonly keys?: string;
@@ -39,7 +39,7 @@ const OWN_TABS = [["files", "资料", "file", 20], ["browser", "浏览器", "glo
 
 export function renderSidePanel(primitives: SidePanelPrimitives, pluginTabs: readonly SidePanelPluginTab[] = [], projectTools = true): string {
   const { L, icon, escapeHtml } = primitives;
-  const tab = (id: string, label: string, glyph: MolisWorkIcon, extra = "") =>
+  const tab = (id: string, label: string, glyph: PluginIconName, extra = "") =>
     `<button class="side-panel-tab" type="button" role="tab" id="side-tab-${escapeHtml(id)}" aria-controls="side-body-${escapeHtml(id)}" aria-selected="false" tabindex="-1" data-side-tab="${escapeHtml(id)}" title="${escapeHtml(label)}"${extra}>${icon(glyph)}<span>${escapeHtml(label)}</span></button>`;
   const body = (id: string, label: string, inner: string, extra = "") =>
     `<div class="side-panel-body" id="side-body-${escapeHtml(id)}" role="tabpanel" aria-labelledby="side-tab-${escapeHtml(id)}" aria-label="${escapeHtml(label)}" data-side-body="${escapeHtml(id)}"${extra} hidden>${inner}</div>`;

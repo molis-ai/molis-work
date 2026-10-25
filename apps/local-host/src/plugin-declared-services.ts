@@ -14,7 +14,7 @@ export function givenService<Given>(definition: PluginDefinition, declared: unkn
 }
 
 const HOME_ONLY = [
-  ["owner_files", "Home 主人文件服务"], ["model_configuration", "模型设置服务"], ["image_generation", "图片生成服务"],
+  ["owner_files", "Home 主人文件服务"], ["model_configuration", "模型设置服务"], ["image_generation", "图片生成服务"], ["local_tools", "本机工具服务"],
 ] as const;
 
 /**

@@ -1,6 +1,5 @@
 import type {
   PluginAppContribution,
-  PluginCommandInput,
   PluginDefinition,
   PluginStartContext,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -19,20 +18,9 @@ import { filesRoutes } from "./routes.js";
  * failing at the first click.
  */
 export interface FilesPluginPorts {
-  /** The file currently in focus, if any, for the `current` command input. */
-  currentPath?(): readonly string[] | null;
   /** Whether the Host can list and read under the bound workspace right now. */
   readable?(): boolean;
   onStop?(context: PluginStartContext): void | Promise<void>;
-}
-
-function objectIdFor(input: PluginCommandInput, ports: FilesPluginPorts): string | null {
-  if (input.kind === "object") return input.ref.object_id;
-  if (input.kind === "current") {
-    const path = ports.currentPath?.() ?? null;
-    return path === null ? null : path.join("/");
-  }
-  return null;
 }
 
 export function createFilesPlugin(ports: FilesPluginPorts = {}): PluginDefinition {
@@ -48,20 +36,6 @@ export function createFilesPlugin(ports: FilesPluginPorts = {}): PluginDefinitio
         views: [filesUiContribution],
         routes: filesRoutes(context),
         actions: filesActionHandlers(context, folder),
-        commandAvailability: (commandId) => {
-          if (commandId !== "files.open-file") {
-            return { available: false, reason: `未知命令：${commandId}` };
-          }
-          if (ports.readable?.() !== true) {
-            return { available: false, reason: "还没有可读的工作目录" };
-          }
-          return { available: true };
-        },
-        executeCommand: (_commandId, input) => {
-          const objectId = objectIdFor(input, ports);
-          if (objectId === null) throw new Error("没有可打开的文件");
-          return { ref: { view_id: "tree", object_id: objectId }, title: objectId };
-        },
         onEvent: async (_event, delivery) => {
           // Coding wrote, Git moved the working tree, or the Host ran a
           // person-approved operation or an Agent's approved write in the

@@ -3,7 +3,7 @@ import type {
   UiContributionDeclaration,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
-import { icon, renderPluginStageShell } from "@molis-ai/molis-work-design-system";
+import { icon, renderPluginStageShell } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 export const LINGGUANG_UI_CONTRIBUTION_ID = "io.molis.work.lingguang.ui.v1";
 

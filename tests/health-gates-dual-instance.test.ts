@@ -28,7 +28,7 @@ function dualTree(change: { runtime?: string; manifest?: string; project?: strin
       `import { probeManifest, createProbePlugin } from "./index.js";`,
       "export const registration = {",
       `  manifest: ${change.manifest ?? "probeManifest"},`,
-      `  runtime: { scope: "home", create: createProbePlugin, package_name: "${PACKAGE}", factory_export: "createProbePlugin"${change.runtime ?? ", dual_instance: true"} },`,
+      `  runtime: { create: createProbePlugin, package_name: "${PACKAGE}", factory_export: "createProbePlugin"${change.runtime ?? ", dual_instance: true"} },`,
       "};"),
     "plugins/native/probe/src/index.ts": lines(`export * from "./manifest.js";`, `export { createProbePlugin } from "./plugin.js";`),
     "plugins/native/probe/src/manifest.ts": lines(

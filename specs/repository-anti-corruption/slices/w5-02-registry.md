@@ -168,7 +168,7 @@ PG-095、PG-111 不进这几个 PR，评估与统筹的裁定见 §7。
 
 `home-plugin-http.ts` 的 4 处改查宿主的 Home 登记（`host.homePlugins`）而不是目录：页面按短 id 找已登记的 Home 插件；`routeProject` 对每个 Home 插件（含装上的）都核「项目存在且显示它」，键对随宿主发布的是 `project_plugin_id`，对装上的是 plugin id（`PLUGIN_ID` 带点、短 id 不带，不撞）；`homePageContext`、`renderHomePluginStages` 遍历 Home 登记。项目里存的插件清单不改键。
 
-**统筹 10-25 定①**（插件同等待遇，用户 10-18）：不随宿主发布的 Home 插件按个人插件算，每个项目都显示，项目隐藏了才不显示。做法：宿主的 Home 登记（`HomePluginHost.outsideBuild()`：起动名单之外、没有项目一半的，按 plugin id）经 `apps/local-host/src/home-registration.ts` 交给目录的 `isPersonal`（隐藏清单只收登记里有的 id，请求给的不算）和 #1266 的同一个判断：`projectReachablePlugins` 加可选的 `outsideBuild`（默认空，不传就到不了），`reachEntry` 对这类插件给 `{ personal: true, project_plugin_id: <plugin id> }`；动作可用性、`homeProjectReach`、`homeRouteProjectPlugins` 都用它，不另写判断。双实例的照旧经项目一半。RAC-569 另加：别的项目隐藏它不影响这个项目；登记里没有的 id 不能隐藏。
+**统筹 10-25 定①**（插件同等待遇，用户 10-18）：不随宿主发布的 Home 插件按个人插件算，每个项目都显示，项目隐藏了才不显示。做法：宿主的 Home 登记（`HomePluginHost.outsideBuild()`：起动名单之外、没有项目一半的，按 plugin id）经 `apps/local-host/src/home-registration.ts` 交给目录的 `isPersonal`（隐藏清单只收登记里有的 id，请求给的不算）和 #1266 的同一个判断：`projectReachablePlugins` 加可选的 `outsideBuild`（默认空，不传就到不了），`reachEntry` 对这类插件给 `{ personal: true, project_plugin_id: <plugin id> }`；动作可用性、`homeProjectReach`、`homeRouteProjectPlugins` 都用它，不另写判断。双实例的照旧经项目一半。RAC-569 另加：真实 HTTP/Runtime 探针在可达时路由入口与动作处理器的调用记录增加，隐藏后的 403 不增加两份记录，另一项目和取消隐藏后的请求继续增加；登记里没有的 id 不能隐藏。
 
 ### PR-B4 项目级监督器条目改成生成（PG-067，单独一个 PR）
 
@@ -188,7 +188,7 @@ PG-095、PG-111 不进这几个 PR，评估与统筹的裁定见 §7。
 | RAC-576 | Q3 的拒绝用例：页面把 `personal`、`companions`、`always_on` 改了再提交（加、移除），宿主照自己的登记办：加 Text Stats 仍带上 Files，移除 Pages 仍是在这个项目隐藏，Goals 仍不能移除（`catalog.plugin_always_on`） | B1 |
 | RAC-577 | 目录上的标记只由宿主按自己的登记写：内置插件的 `personal` 与 `companions` 与登记相同；`always_on` 只认这个 Home 同意过的；跑着的插件只有 plugin id 与发布者都与内置相同时才带标记 | B1 |
 | RAC-568 | `summary`、`developer` 从 Manifest 读；SDK 检查拒绝空 `summary`、超长、`developer: false` 与非布尔；登记里再写这两项，`--check` 报不认识的键 | B2 |
-| RAC-569 | #679：夹具登记一个目录里没有的 Home 级插件，项目路径下能路由；项目隐藏它后是 `actions.plugin_disabled`；`/plugins/<键>` 能打开（S-31，进 `pnpm test:security`） | B3 |
+| RAC-569 | #679：夹具登记一个目录里没有的 Home 级插件，项目路径下能路由且调用记录增加；项目隐藏它后是 403、`actions.plugin_disabled`，路由入口与动作处理器的调用记录均不变；另一项目仍可调用，取消隐藏后恢复且记录继续增加；`/plugins/<键>` 能打开（S-31，进 `pnpm test:security`） | B3 |
 | RAC-570 | 生成的项目级条目与改之前手写的逐条相等（包名、工厂名、`bundled`、有无 Home 目录时的取舍），一次性比对贴进 PR | PR-B4 |
 | RAC-571 | 新的项目级插件只在自己的登记上写 `project_runtime` 再重生成，就由监督器装配，`project-plugins.ts` 不变 | PR-B4 |
 

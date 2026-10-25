@@ -1,5 +1,5 @@
 import { WORKSPACE_SKIPPED_FOLDERS } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import type { DropMark } from "@molis-ai/molis-work-design-system";
+import type { DropMark } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import { el, L, request } from "./common.js";
 
 const MAX_FILES = 200;

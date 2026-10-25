@@ -30,6 +30,7 @@ export const imagesManifest: PluginManifest = {
   publisher: { publisher_id: "molis", signature: "official-images-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   actions: Object.values(imagesActions),
+  runtime: { scope: "home" },
   databases: { home: IMAGES_DATABASE },
   owner_files: IMAGES_OWNER_FILES,
   image_generation: IMAGES_IMAGE_GENERATION,

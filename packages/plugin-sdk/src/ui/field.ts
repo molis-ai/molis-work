@@ -1,6 +1,6 @@
 import { type AttrValue, cx, escapeHtml, renderAttrs } from "./html.js";
 import { renderButton } from "./button.js";
-import { icon, type MolisWorkIcon } from "../icons.js";
+import { icon, type PluginIconName } from "./icon.js";
 
 type MwControlSize = "sm" | "md" | "lg";
 
@@ -288,7 +288,7 @@ export function renderToggle(options: {
  */
 export function renderChoice(options: {
   label: string;
-  icon?: MolisWorkIcon;
+  icon?: PluginIconName;
   selected?: boolean;
   href?: string;
   className?: string;

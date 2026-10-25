@@ -1,5 +1,6 @@
 import { renderModelSettingsDocument } from "./settings-models.js";
-import { renderHint, icon as modelIcon } from "@molis-ai/molis-work-design-system";
+import { icon as modelIcon } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderHint } from "@molis-ai/molis-work-design-system";
 import { SETTINGS_CLIENT_SCRIPT } from "./browser-assets.js";
 import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import type { RuntimeIntegrationDetection } from "@molis-ai/molis-work-contracts/platform/app-host";

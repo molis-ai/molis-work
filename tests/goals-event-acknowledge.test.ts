@@ -7,7 +7,7 @@ import { MolisWorkServer, openMolisWorkProjectCatalog, withMolisWorkProjectCatal
 import { MolisWorkLocalHost, createMolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions, renderWorkEventBody } from "@molis-ai/molis-work-plugin-goals";
 import { createWorkbenchLocale } from "@molis-ai/molis-work-app-workbench";
-import { RECEIPT_WORDS } from "@molis-ai/molis-work-design-system";
+import { RECEIPT_WORDS } from "@molis-ai/molis-work-contracts/platform/ui";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionAvailability, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { GoalWorkEventRecord } from "@molis-ai/molis-work-contracts/modules/goals";

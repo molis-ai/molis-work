@@ -1,4 +1,4 @@
-import { icon, type MolisWorkIcon } from "../icons.js";
+import { icon, type PluginIconName } from "./icon.js";
 import { type AttrValue, cx, escapeHtml, renderAttrs } from "./html.js";
 import { renderStatusMark, type MwStatusTone } from "./feedback.js";
 
@@ -8,11 +8,11 @@ export type DirectoryStatusTone = MwStatusTone;
 export interface DirectoryRow {
   title: string;
   caption?: string;
-  icon?: MolisWorkIcon;
+  icon?: PluginIconName;
   count?: number | string;
   status?: string;
   statusTone?: DirectoryStatusTone;
-  statusIcon?: MolisWorkIcon;
+  statusIcon?: PluginIconName;
   selected?: boolean;
   current?: boolean;
   hidden?: boolean;
@@ -32,7 +32,7 @@ export interface DirectoryRow {
 
 export interface DirectoryAddOptions {
   label: string;
-  icon?: MolisWorkIcon;
+  icon?: PluginIconName;
   className?: string;
   attrs?: Record<string, AttrValue>;
 }

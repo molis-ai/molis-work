@@ -15,6 +15,7 @@ export const jellyManifest: PluginManifest = {
   ],
   capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },
   actions: [...JELLY_ACTIONS],
+  runtime: { scope: "home" },
   databases: { home: JELLY_DATABASE },
   model_configuration: JELLY_MODEL_CONFIGURATION,
   routes: [

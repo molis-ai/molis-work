@@ -1,7 +1,7 @@
 import type { Node } from "prosemirror-model";
 import type { EditorView } from "prosemirror-view";
 import type { ContextActionChosen } from "@molis-ai/molis-work-contracts/services/contextual";
-import { placeOverlay } from "@molis-ai/molis-work-design-system/floating";
+import { placeOverlay } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { headingPath } from "./focus.js";
 
 /**

@@ -1,6 +1,11 @@
 import { readFileSync } from "node:fs";
+import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {
-  INPUT_RECEIPTS_CLIENT_SCRIPT, INTERACTION_CLIENT_SCRIPT_TYPED_DATES, THEME_BOOTSTRAP_SCRIPT, VISUAL_FOUNDATION_CLIENT_SCRIPT, escapeHtml, icon, renderIconSprite,
+  INPUT_RECEIPTS_CLIENT_SCRIPT,
+  INTERACTION_CLIENT_SCRIPT_TYPED_DATES,
+  THEME_BOOTSTRAP_SCRIPT,
+  VISUAL_FOUNDATION_CLIENT_SCRIPT,
+  renderIconSprite,
 } from "@molis-ai/molis-work-design-system";
 import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "./scripts/client/assistant-island.js";

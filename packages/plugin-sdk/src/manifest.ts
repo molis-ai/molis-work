@@ -1,6 +1,6 @@
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { SURFACE_BROWSER_PERMISSION, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { UI_COMMAND_INPUT_KINDS, UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
+import { UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
 import { PLUGIN_REVIEW_KINDS, PLUGIN_REVIEW_PERMISSION_PREFIX } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { inspectActionCrossReferences } from "./action-cross-references.js";
 import { inspectActionDeclarations, projectReachPermissionProblems } from "./action-declarations.js";
@@ -11,10 +11,10 @@ import { attentionDeclarationProblems } from "./attention-declarations.js";
 import { connectionDeclarationProblems } from "./connection-declarations.js";
 import { databaseDeclarationProblems } from "./database-declarations.js";
 import { ownerFilesDeclarationProblems } from "./owner-files-declaration.js";
-import { imageGenerationDeclarationProblems, modelConfigurationDeclarationProblems } from "./service-declarations.js";
+import { imageGenerationDeclarationProblems, localToolsDeclarationProblems, modelConfigurationDeclarationProblems, runtimeDeclarationProblems } from "./service-declarations.js";
 import { inspectContextDeclarations } from "./context-declarations.js";
 import { inspectEventDeclarations, inspectPortDeclarations } from "./wiring-declarations.js";
-import { createStations, viewPlacementProblems } from "./view-placement-declarations.js";
+import { createStations, settingsReadActions, viewPlacementProblems } from "./view-placement-declarations.js";
 import { PLUGIN_ID } from "./plugin-id.js";
 
 
@@ -84,7 +84,8 @@ export function parsePluginManifest(input: unknown): PluginManifest {
   const databaseProblems = databaseDeclarationProblems(manifest.databases, permissions);
   if (databaseProblems.length > 0) invalid(databaseProblems.join("；"));
   const serviceProblems = [...ownerFilesDeclarationProblems(manifest.owner_files, permissions), ...modelConfigurationDeclarationProblems(manifest.model_configuration, permissions),
-    ...imageGenerationDeclarationProblems(manifest.image_generation, permissions)];
+    ...imageGenerationDeclarationProblems(manifest.image_generation, permissions), ...localToolsDeclarationProblems(manifest.local_tools, permissions),
+    ...runtimeDeclarationProblems(manifest.runtime)];
   if (serviceProblems.length > 0) invalid(serviceProblems.join("；"));
   const capabilities = record(manifest.capabilities, "capabilities");
   strings(capabilities.provides, "capabilities.provides");
@@ -106,6 +107,7 @@ export function parsePluginManifest(input: unknown): PluginManifest {
   }
   const ui = record(manifest.ui, "ui");
   strings(ui.contributions, "ui.contributions");
+  if (ui.commands !== undefined) throw pluginErrors.declaration_invalid("ui.commands 已取消：没有界面调用插件的命令，请删掉这一项（BL-363）");
   if (ui.embedded_plugins !== undefined) {
     strings(ui.embedded_plugins, "ui.embedded_plugins");
     const ids = ui.embedded_plugins as string[];
@@ -204,7 +206,6 @@ function assertNoV2Blocks(manifest: Record<string, unknown>, ui: Record<string, 
     ["attention", manifest.attention],
     ["ui.embedded_plugins", ui.embedded_plugins],
     ["ui.views", ui.views],
-    ["ui.commands", ui.commands],
   ];
   for (const [name, value] of v2Blocks) {
     if (value !== undefined) {
@@ -246,7 +247,6 @@ function assertV2Blocks(parsed: PluginManifest, ui: Record<string, unknown>): vo
   ));
   problems.push(...inspectMethodDeclarations(parsed.methods));
   problems.push(...inspectViewDeclarations(parsed, ui));
-  problems.push(...inspectCommandDeclarations(parsed));
   problems.push(...inspectRouteDeclarations(parsed));
   problems.push(...inspectRequirementDeclarations(parsed));
   problems.push(...inspectPortPermissions(parsed));
@@ -264,7 +264,7 @@ function inspectViewDeclarations(parsed: PluginManifest, ui: Record<string, unkn
   if (!Array.isArray(ui.views)) return ["ui.views 必须为数组"];
   const problems: string[] = [];
   const contributions = new Set(parsed.ui.contributions);
-  const stations = createStations(parsed);
+  const stations = createStations(parsed), readables = settingsReadActions(parsed);
   const seen = new Set<string>();
   for (const view of views) {
     if (!text(view.view_id)) {
@@ -287,40 +287,7 @@ function inspectViewDeclarations(parsed: PluginManifest, ui: Record<string, unkn
     if (!contributions.has(contributionId)) {
       problems.push(`视图 ${view.view_id} 的 contribution ${contributionId} 未在 ui.contributions 声明`);
     }
-    problems.push(...viewPlacementProblems(view, stations));
-  }
-  return problems;
-}
-
-function inspectCommandDeclarations(parsed: PluginManifest): string[] {
-  const commands = parsed.ui.commands;
-  if (commands === undefined) return [];
-  const problems: string[] = [];
-  const views = new Set((parsed.ui.views ?? []).map((view) => view.view_id));
-  const seen = new Set<string>();
-  for (const command of commands) {
-    if (!text(command.command_id)) {
-      problems.push("命令缺少 ID");
-      continue;
-    }
-    if (seen.has(command.command_id)) {
-      problems.push(`命令重复：${command.command_id}`);
-      continue;
-    }
-    seen.add(command.command_id);
-    if (!text(command.title)) problems.push(`命令 ${command.command_id} 缺少标题`);
-    if (!Array.isArray(command.input_kinds) || command.input_kinds.length === 0) {
-      problems.push(`命令 ${command.command_id} 必须声明输入种类`);
-    } else {
-      for (const kind of command.input_kinds) {
-        if (!UI_COMMAND_INPUT_KINDS.includes(kind)) {
-          problems.push(`命令 ${command.command_id} 的输入种类 ${kind} 不合法`);
-        }
-      }
-    }
-    if (!views.has(command.opens_view_id)) {
-      problems.push(`命令 ${command.command_id} 打开的视图 ${command.opens_view_id} 未声明`);
-    }
+    problems.push(...viewPlacementProblems(view, stations, readables));
   }
   return problems;
 }

@@ -64,7 +64,9 @@ Workbench HTML Slot（贡献挂载，不是 views.slot）：`workbench.directory
 - 插件的工作要在侧栏浏览器里打开或操作某些网站，就在 `permissions` 里声明 `{ permission: "surface:browser", required, reason, origins: ["https://shop.example.com"] }`。`origins` 必须是完整来源，不带路径、查询串或片段，否则 Manifest 当场被拒；其他权限不能带 `origins`。声明会出现在插件市场的卡片上（「会在侧栏浏览器里使用：…」），`molis-work-plugin validate` 的输出里也会列出 `browser_sites`。声明只是告诉用户，不代替每一步的确认：动手仍按侧栏浏览器的规则逐步确认，上传文件永远要确认。
 - 门禁：`inspectManifest` 拒绝未知槽和未声明的 contribution；`tests/side-panel-platform.test.ts` 用一个未知插件只靠声明接入、停用后撤下。
 
-`settings-page` 只能挂 `workbench.settings`。来源账号、Inbox 列表仍是插件内容，不进全局设置。 设置分类是一张表（`apps/workbench/src/settings-sections.ts`）：`settings` view 的 `order` 决定位置（宿主 10 界面与语言、20 模型、30 助理、35 角色、40 提示词、50 AI 与执行工具、60 能力、90 诊断；不写为 100，进「插件」组）。宿主的一节自己渲染成工作面时（角色，`apps/workbench/src/characters/ui.ts`；Characters 不是插件），根元素标 `data-settings-page="<id>"`，工作台设置覆盖层直接挂载它；页面里指向 `/settings/*` 的链接一律在覆盖层里打开，不离开外壳。
+`settings-page` 只能挂 `workbench.settings`。设置页要自己的数据时，在 `settings` view 上写 `settings_data: { action: "<本 Manifest 里只读、面向 user 的查询>" }`；宿主用一条通用路调它，连同固定的平台上下文（`SettingsPageModel`：`context` 是项目、打开设置的项目、Agent 运行时，`data` 是动作的结果）交给你的 `render`，不为某个插件写分支。**目前设置贡献与 `settings_data` 的宿主接线只覆盖内置目录；已安装的 Runtime 插件虽会经过声明校验，设置贡献发现与数据动作调用尚未接入，写了声明也不会在全局设置中生效。** 来源账号、Inbox 列表仍是插件内容，不进全局设置。 设置分类是一张表（`apps/workbench/src/settings-sections.ts`）：`settings` view 的 `order` 决定位置（宿主 10 界面与语言、20 模型、30 助理、35 角色、40 提示词、50 AI 与执行工具、60 能力、90 诊断；不写为 100，进「插件」组）。宿主的一节自己渲染成工作面时（角色，`apps/workbench/src/characters/ui.ts`；Characters 不是插件），根元素标 `data-settings-page="<id>"`，工作台设置覆盖层直接挂载它；页面里指向 `/settings/*` 的链接一律在覆盖层里打开，不离开外壳。
+
+设置页实际需要平台的 Agent 运行时列表时，在同一个 `settings` view 声明 `settings_runtimes: true`（例如 Coding）。不声明时宿主不查询，`context.runtimes` 是未请求的空集合；声明后查询失败会走原 HTTP 错误链，不会伪装成「没有运行时」。这个声明独立于 `settings_data`，值只许 `true`，其他槽不能使用。现有内置设置接线范围同上，未扩为已安装 Runtime 插件的动态设置支持。
 
 不是所有一等入口都是「列表点开详情」：Goals 是树、画布和 Goal 文档；Feed 是文章列 + 阅读页；判断规则编辑器在「能力」；Sessions 是会话/终端；Shelf 是置物架。抄最近的同类，不要强套 plugin-stage。
 
@@ -73,7 +75,7 @@ Workbench HTML Slot（贡献挂载，不是 views.slot）：`workbench.directory
 一级入口用 Host 壳，不要自绘第二套外框：
 
 ```ts
-import { icon, renderPluginStageShell } from "@molis-ai/molis-work-design-system";
+import { icon, renderPluginStageShell } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 renderPluginStageShell({
   surface: "pages",
@@ -126,7 +128,7 @@ Feed / Inbox：没有这条 factory。列表、详情、来源对话框在 `apps
 
 ## 控件与视觉
 
-从 `@molis-ai/molis-work-design-system` 导入 `renderButton` / `renderChoice` / `icon` / 已有 `render*`。class 用 `mw-btn`、`mw-input`、`mw-status`、`mw-choice`。标本与组合：`/__ui/catalog`（含底栏与浮层的真实样例）。
+从 `@molis-ai/molis-work-plugin-sdk/ui` 导入 `renderButton` / `renderChoice` / `icon` / 已有 `render*`（外部作者装的就是这个包；插件不 import 私有的 design-system，规则 `plugin-private-ui-dependency`，只有创作台例外）。浏览器端工具（`placeFloating`、`followScroll` 等）从 `/browser` 取，页面全局的类型（`window.molisReflow` 等）用 `import type {} from "@molis-ai/molis-work-plugin-sdk/page-globals"`。class 用 `mw-btn`、`mw-input`、`mw-status`、`mw-choice`。标本与组合：`/__ui/catalog`（含底栏与浮层的真实样例）。
 
 - 字体：系统无衬线 + 平台中文字体（`--font`），代码与终端用 `--font-mono`。字重用角色：`--weight-title` 600、`--weight-control` 500、`--weight-body` 400；不写 700，不用 `!important` 改字重。
 - 面：桌面 `--page`，工作面 `--paper`，插件目录列与内层块 `--surface-soft`，局部分组洗色 `--rail`，分隔 `--line`。面板里的全幅画布用 `--canvas`（与工作面同色）。

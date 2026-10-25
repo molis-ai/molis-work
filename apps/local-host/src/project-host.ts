@@ -8,6 +8,7 @@ import { openProjectSchedulers, closeProjectSchedulers } from "./project-schedul
 import { precompileActionSchemas, refuseCall, type CallSettled } from "@molis-ai/molis-work-kernel";
 import { createConnectorMcpDirectory, type ConnectorMcpDirectory } from "./connector-mcp-actions.js";
 import { projectWorkspaceActionProvider } from "./project-workspace-actions.js";
+import { announceWorkspaceSettingsChange } from "./workspace-settings-events.js";
 import type { PtySpawnRequest, PtySpawnResult } from "@molis-ai/molis-work-contracts/services/runtime-host";
 import { artifactActionProvider } from "./artifact-actions.js";
 import { readPersonalPlanningMethodPacks } from "./personal-planning-methods.js";
@@ -166,7 +167,8 @@ export class MolisWorkLocalHost {
             bindPluginNotificationFeed(store.db, control => workflowEventsFeedOptions(scenes, reference.project_id, control));
             const providers: ActionProviderRegistration[] = [], add = (provider: ActionProviderRegistration) => { providers.push(provider); };
             add(goalsActionProvider(runtime, personalMethods, this.actionClient(reference)));
-            add(projectWorkspaceActionProvider(reference.project_id, () => this.personalPlanningHome && this.catalogRunner ? { home: this.personalPlanningHome, run: this.catalogRunner } : undefined));
+            add(projectWorkspaceActionProvider(reference.project_id, () => this.personalPlanningHome && this.catalogRunner ? { home: this.personalPlanningHome, run: this.catalogRunner } : undefined,
+              workspaceId => announceWorkspaceSettingsChange(store, reference.project_id, workspaceId)));
             add(artifactActionProvider(runtime, options, this.actionClient(reference)));
             for (const provider of nativeContentProviders(runtime, feed, options.homeDirectory, this.actionClient(reference), scenes, options.functions)) add(provider);
             add(inboxActionProvider(runtime, options.homeDirectory, { actions: this.actionClient(reference), scenes, functions: options.functions, readFunctions: this.systemFunctions?.read }, feed));

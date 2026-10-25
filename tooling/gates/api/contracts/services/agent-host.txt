@@ -1014,6 +1014,7 @@ export interface AgentRuntimeDescriptor {
     supports_action_tools?: boolean;
     supports_workspace_none?: boolean;
     supports_workspace_business?: boolean;
+    supports_character_limits?: boolean;
     runtime_id: string;
     display_name: string;
     provider_version: string;
@@ -1531,6 +1532,15 @@ export declare const PLUGIN_REVIEW_PERMISSION_PREFIX = "review:";
 
 export type PluginReviewKind = (typeof PLUGIN_REVIEW_KINDS)[number];
 
+export type ProjectRuntimeResolution = {
+    readonly runtime: AgentRuntimeDescriptor;
+    readonly picked: boolean;
+} | {
+    readonly runtime: null;
+    readonly picked: boolean;
+    readonly reason: string;
+};
+
 export declare const agentHostCapabilities: {
     readonly listActions: ActionDefinition<[runtimeId: string], readonly ActionView[]>;
     readonly listRuntimes: ActionDefinition<[], AgentRuntimeDescriptor[]>;
@@ -1619,9 +1629,15 @@ export declare const agentWriteCheckerActions: {
     readonly save: ActionDefinition<AgentWriteCheckerSave, AgentWriteCheckerList>;
 };
 
+export declare const defaultAgentRuntime: (runtimes: readonly AgentRuntimeDescriptor[]) => AgentRuntimeDescriptor | null;
+
+export declare const hostsAgentSessions: (runtime: AgentRuntimeDescriptor) => boolean;
+
 export declare function isTerminalAgentPhase(phase: AgentRunPhase): boolean;
 
 export declare function parseAgentRunBudget(value: AgentRunBudget | undefined): AgentRunBudget | undefined;
+
+export declare function resolveProjectRuntime(runtimes: readonly AgentRuntimeDescriptor[], pickedId: string | null): ProjectRuntimeResolution;
 
 export declare const servicesAgentHostContract: {
     readonly contractId: "io.molis.work.service.agent-host.v1";

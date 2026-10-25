@@ -8,7 +8,7 @@ import type { CodingActivation } from "./route-activation.js";
 import { codingActions, type CodingActionCall } from "./route-entry.js";
 import { unlessMissing } from "./route-selections.js";
 import { nextConfiguration } from "./run-inputs.js";
-import { projectRuntime, supports } from "./runtime-choice.js";
+import { projectRuntime, runtimeDirectory, supports } from "./runtime-choice.js";
 
 /** The ways a handed-over work may run: Coding's own that need nothing chosen first (collaborating and parallel writers are set up on the page). */
 export const CODING_EXECUTOR_MODES: readonly WorkExecutorMode[] = [{ id: "discuss", title: "讨论" }, { id: "plan", title: "规划" }, { id: "edit", title: "修改" },
@@ -74,7 +74,7 @@ export function codingExecutor(a: CodingActivation): void {
   action(codingExecutorActions.state, async (_input, { api, beforeWrite }) => {
     const actions = codingActions(a.context, beforeWrite);
     const workspace = await currentWorkspace(api), workspaces = await unlessMissing(api.invoke(projectSettingsCapabilities.workspaces, []), []);
-    const { runtime } = projectRuntime(await actions.invoke(agent.listRuntimes, []));
+    const { runtime } = projectRuntime(await runtimeDirectory(actions, api));
     return { modes: [...CODING_EXECUTOR_MODES], default_mode: DEFAULT_MODE, images: false, workspace_id: workspace?.workspace_id ?? null,
       workspaces: workspaces.map(row => ({ workspace_id: row.workspace_id, path: row.canonical_path,
         name: (row.display_name || row.canonical_path.split("/").filter(Boolean).at(-1) || row.canonical_path).slice(0, 200) })),

@@ -1,10 +1,11 @@
 import type { ImRoomState, ImThreadState } from '@molis-ai/molis-work-contracts/services/im';
 import type { ApiError } from './types.js';
-import type { ImCtx } from './controller-types.js';
+import type { ImBaseCtx, ImCtx } from './controller-types.js';
 /** Choosing a room and a thread, with their loading, restore and retry states. */
-export function createImRooms(c: ImCtx): Pick<ImCtx, 'selectRoom' | 'selectThread'> {
-  const { s, root, v, q, e, api, storage, latest } = c;
+export function createImRooms(base: ImBaseCtx, context: () => ImCtx): Pick<ImCtx, 'selectRoom' | 'selectThread'> {
+  const { s, root, v, q, e, api, storage, latest } = base;
   async function selectRoom(id: string) {
+    const c = context();
     c.rememberPosition();
     s.threadDraft = null;
     const version = ++s.epoch;
@@ -67,6 +68,7 @@ export function createImRooms(c: ImCtx): Pick<ImCtx, 'selectRoom' | 'selectThrea
     }
   }
   async function selectThread(id: string, focus = false) {
+    const c = context();
     if (!s.roomState || s.roomState.room.id !== s.roomId)
       return;
     if (s.threadId === id && s.threadState) {

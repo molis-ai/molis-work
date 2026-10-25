@@ -68,7 +68,7 @@ export interface AgentHostComposition {
    * What Characters asks of the built-in Agent in one project: the engines and the actions a round may be given. Characters is a
    * provider the Host registers itself, with no plugin caller, so it is answered here rather than through the plugin-only actions.
    */
-  charactersCatalog(runtime: MolisWorkProjectRuntime): { listRuntimes(): Promise<AgentRuntimeDescriptor[]>; listActions(): Promise<readonly ActionView[]> };
+  charactersCatalog(runtime: MolisWorkProjectRuntime): { listRuntimes(): Promise<AgentRuntimeDescriptor[]>; listActions(runtimeId: string): Promise<readonly ActionView[]> };
   /** Starts the runtime when it has not started yet. */
   readonly ready: Promise<void>;
   /** Settles once the runtime has started because something needed it; waiting on it never starts the runtime. */
@@ -172,10 +172,10 @@ export function composeAgentHost(options: AgentHostCompositionOptions): AgentHos
 function charactersCatalog(options: AgentHostCompositionOptions, agentHost: AgentHost, initialize: () => Promise<void>, runtime: MolisWorkProjectRuntime) {
   return {
     listRuntimes: async () => { await initialize(); return agentHost.descriptors(); },
-    listActions: async () => {
+    listActions: async (runtimeId: string) => {
       await initialize();
       const authority = await startAuthority(runtime, CHARACTER_PLUGIN_ID, options.workspaceFor, options.localHost, options.workspacesFor, options.homeDirectory);
-      return authority.actions ? (await authority.actions("prologue")).discover() : [];
+      return authority.actions ? (await authority.actions(runtimeId)).discover() : [];
     },
   };
 }

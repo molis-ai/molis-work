@@ -1,10 +1,11 @@
 import type { ImRoomState, ImThreadState, ImMessagePage, ImRoomList, ImReadState } from '@molis-ai/molis-work-contracts/services/im';
 import type { StreamKind, ApiError } from './types.js';
-import type { ImCtx } from './controller-types.js';
+import type { ImBaseCtx, ImCtx } from './controller-types.js';
 /** Keeping the page in step with the server: the event stream, the refresh cycle and older-history paging. */
-export function createImSync(c: ImCtx): Pick<ImCtx, 'connectEvents' | 'scheduleRefresh' | 'refresh' | 'history'> {
-  const { s, v, q, api, subscribe, merge, latest } = c;
+export function createImSync(base: ImBaseCtx, context: () => ImCtx): Pick<ImCtx, 'connectEvents' | 'scheduleRefresh' | 'refresh' | 'history'> {
+  const { s, v, q, api, subscribe, merge, latest } = base;
   function connectEvents() {
+    const c = context();
     s.events?.close();
     s.events = null;
     if (!s.roomId)
@@ -29,6 +30,7 @@ export function createImSync(c: ImCtx): Pick<ImCtx, 'connectEvents' | 'scheduleR
     s.refreshTimer = setTimeout(() => void refresh(), 100);
   }
   async function refresh() {
+    const c = context();
     if (!s.roomId)
       return;
     if (s.refreshing) {
@@ -89,6 +91,7 @@ export function createImSync(c: ImCtx): Pick<ImCtx, 'connectEvents' | 'scheduleR
     }
   }
   async function history(kind: StreamKind) {
+    const c = context();
     const page = kind === 'group' ? s.groupPage : s.threadPage;
     if (!page?.has_more)
       return;

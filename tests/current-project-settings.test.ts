@@ -4,11 +4,13 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Database from "better-sqlite3";
+import { DatabaseSync } from "node:sqlite";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { createPluginCapabilityClient } from "@molis-ai/molis-work-plugin-runtime";
 import { filesManifest } from "@molis-ai/molis-work-plugin-files";
 import { codingManifest } from "@molis-ai/molis-work-plugin-coding";
 import { projectSettingsCapabilities as settings, projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ProjectBrowsingSettings } from "../apps/local-host/dist/project-browsing-settings.js";
 
 const workspace = (id: string) => ({ workspace_id: id, canonical_path: "/test/" + id, realpath_verified: true, display_name: id });
@@ -69,4 +71,30 @@ test("empty and multi-directory settings do not invent a selection", () => {
     assert.equal(settings.read("a", [workspace("one"), workspace("two")]), null);
     assert.deepEqual(settings.read("a", [workspace("one")]), workspace("one"));
   } finally { db.close(); }
+});
+
+test("RAC-454 the project's Runtime pick is the person's own setting: Coding reads it by its declaration, nothing else picks it, a project that never picked has no table, and another project does not see it", async () => {
+  const home = await mkdtemp(join(tmpdir(), "project-runtime-pick-"));
+  const host = new MolisWorkLocalHost({ workspacesFor: id => [workspace(id)] });
+  const reference = (projectId: string) => molisWorkHostProjectReference({ databasePath: join(home, projectId + ".db"), projectId });
+  const a = reference("a"), b = reference("b");
+  const user = { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user" as const, audience: "user" as const, project_id: "a", permissions: ["projects:settings"] };
+  const hasTable = (projectId: string) => {
+    const database = new DatabaseSync(join(home, projectId + ".db"), { readOnly: true });
+    try { return database.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'project_runtime_settings'").all().length === 1; } finally { database.close(); }
+  };
+  try {
+    const coding = createPluginCapabilityClient(codingManifest, host.client(a)), codingOfB = createPluginCapabilityClient(codingManifest, host.client(b));
+    assert.equal(await coding.invoke(settings.runtime, []), null, "no pick is the Home default");
+    assert.equal(hasTable("a"), false, "reading leaves the project's database as it was");
+    assert.equal(await host.actionClient(a).invoke(user, settings.selectRuntime, ["engine-b"]), "engine-b");
+    assert.equal(await coding.invoke(settings.runtime, []), "engine-b");
+    assert.equal(hasTable("a"), true);
+    assert.equal(await codingOfB.invoke(settings.runtime, []), null, "another project does not see it");
+    await assert.rejects(createPluginCapabilityClient(filesManifest, host.client(a)).invoke(settings.runtime, []), /没有声明/);
+    await assert.rejects(coding.invoke(settings.selectRuntime, ["engine-c"]), /没有声明/, "a plugin reads the pick and never makes it");
+    for (const input of [[], [5], ["x", "y"], [""]]) await assert.rejects(host.actionClient(a).invoke(user, settings.selectRuntime, input as never), { code: "actions.input_invalid" });
+    assert.equal(await host.actionClient(a).invoke(user, settings.selectRuntime, [null]), null);
+    assert.equal(await coding.invoke(settings.runtime, []), null, "null puts the project back on the Home default");
+  } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });

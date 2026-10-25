@@ -14,7 +14,7 @@ export const CODING_CHARACTERS_CLIENT_FACTORY_SCRIPT = `(host) => {
     try{
       const data=await api('/sessions/'+encodeURIComponent(id)+'/characters');
       if(request!==ticket || current()!==id || !dialog.open)return;
-      rows=data.characters.map(item=>({...item,available:item.available && data.runtime_id==='prologue',reason:data.runtime_id==='prologue'?item.reason:L('coding.character.runtime')}));
+      rows=data.characters.map(item=>({...item,available:item.available && data.limits_verified,reason:data.limits_verified?item.reason:L('coding.character.runtime')}));
       if(candidate && !rows.some(item=>key(item.reference)===key(candidate)))rows.unshift({reference:candidate,title:titles.get(id) || L('coding.character.gone-title'),available:false,reason:L('coding.character.gone')});
       list.replaceChildren();
       const options=[{reference:null,title:L('coding.character.no-character'),available:true,instructions:L('coding.character.no-character-note')},...rows];

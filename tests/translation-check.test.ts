@@ -464,10 +464,10 @@ test("this repository: nothing is missing, and the scan covers every kind of cal
 
 test("this repository: wrappers are followed through every forwarded parameter and into the other files of a browser program", () => {
   const keys = (file: string, callee: string) => real.scan.calls.filter((call: { file: string; callee: string }) => call.file === file && call.callee === callee).map((call: { key: string }) => call.key);
-  // two labels, one call: the title and the hint (relationGroup, renderPolicyToggle), and a placeholder after a label (field)
+  // relationGroup forwards its title and hint; renderPolicyToggle forwards the confirmation label.
+  // The field-wrapper placeholder is covered by the dedicated mutation case above.
   assert.ok(keys("plugins/native/goals/src/relation-ui.ts", "relationGroup").includes("上游") && keys("plugins/native/goals/src/relation-ui.ts", "relationGroup").includes("这个 Goal 的归属与完成依赖"));
   assert.ok(keys("plugins/native/goals/src/policy-ui.ts", "renderPolicyToggle").includes("完成前必须由用户确认工作结果"));
-  assert.ok(keys("plugins/native/workflows/src/client.ts", "field").includes("标题规则") && keys("plugins/native/workflows/src/client.ts", "field").includes("{标题}"));
   // Alchemist: tx and button are defined in client.ts, section in client-views.ts, and the three other script files call them
   assert.ok(keys("plugins/native/alchemist/src/client-views.ts", "button").includes("归档方向"));
   assert.ok(keys("plugins/native/alchemist/src/client-views.ts", "tx").includes("实际使用次数"));

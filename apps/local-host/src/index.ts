@@ -111,6 +111,7 @@ export { connectorManagementActions, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGE
 export { connectorUsagesAction } from "./connector-usage-actions.js";
 export { connectorPluginSlotActions } from "./connector-plugin-slot-actions.js";
 export { createPluginConnectionsPort, pluginSlotScope } from "./connector-plugin-requests.js";
+export { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 export { connectorRecordActions, CONNECTOR_RECORDS_READ } from "./connector-record-actions.js";
 export { connectorSetupAction } from "./connector-setup.js";
 export { connectorSetupExecuteAction } from "./connector-setup-execute.js";
@@ -202,9 +203,8 @@ export {
 export { ASSISTANT_QUESTION_TYPES, CODING_QUESTION_TYPES, hostQuestionTypes, hostReferenceKinds, pluginReferenceKinds, projectReferenceKinds } from "./agent-question-surfaces.js";
 export { referenceKindsPort } from "./agent-reference-kinds.js";
 export { handleAgentReviewHttp, handleUnscopedAgentReviews, type AgentReviewHttpPorts } from "./agent-review-http.js";
-export { filesOutputsRefresh } from "./project-plugin-input-refresh.js";
 export { renderProjectRuntimeStages, type ProjectPluginSurfacePorts } from "./project-plugin-stages.js";
-export { handleProjectPluginHttp, type ProjectPluginHttpPorts, type ProjectPluginRouteHooks } from "./project-plugin-http.js";
+export { handleProjectPluginHttp, type ProjectPluginHttpPorts } from "./project-plugin-http.js";
 export { ensureProjectPlugins, projectPluginProblem, releaseProjectPlugins } from "./project-plugins.js";
 export { observeReviewSettlements, reviewSettlementForwarder, type AgentWritePlaces, type ObserveReviewSettlements, type ReviewSettlement } from "./review-settlement-events.js";
 export { createGitWorktreePort, type GitWorktreePort } from "./workspace-git-worktrees.js";

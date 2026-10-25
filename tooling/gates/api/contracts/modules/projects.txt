@@ -185,6 +185,8 @@ export declare const projectSettingsCapabilities: {
     readonly workspaces: ActionDefinition<[], readonly ProjectWorkspaceRef[]>;
     readonly browsingWorkspace: ActionDefinition<[], ProjectWorkspaceRef | null>;
     readonly selectBrowsingWorkspace: ActionDefinition<[workspaceId: string], ProjectWorkspaceRef>;
+    readonly runtime: ActionDefinition<[], string | null>;
+    readonly selectRuntime: ActionDefinition<[runtimeId: string | null], string | null>;
 };
 
 export declare const projectWorkspaceActions: {

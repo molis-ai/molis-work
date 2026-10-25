@@ -68,9 +68,9 @@ test("W5-01-CODING-20 面板来自运行中的插件，会话来自它自己的�
     assert.match(panel, /g1/);
 
     // 页面一打开就读 Coding 的路由；路由经 Goals 的公开读动作读标题并记下，之后目录画的就是标题。
-    const { filesOutputsRefresh, handleProjectPluginHttp } = await import("@molis-ai/molis-work-app-local-host");
+    const { handleProjectPluginHttp } = await import("@molis-ai/molis-work-app-local-host");
     const server = createServer((request, response) => {
-      void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host, filesOutputsRefresh).catch(error => { response.writeHead(500); response.end(String(error)); });
+      void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host).catch(error => { response.writeHead(500); response.end(String(error)); });
     });
     try {
       await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
@@ -126,7 +126,7 @@ test("没有会话时给出插件自己的空状态，而不是一段空白", as
 });
 
 test("recovery receipt lists cross the formal HTTP surface without being rendered as conversation turns", async () => {
-  const { filesOutputsRefresh, handleProjectPluginHttp } = await import("@molis-ai/molis-work-app-local-host");
+  const { handleProjectPluginHttp } = await import("@molis-ai/molis-work-app-local-host");
   const { agentHostCapabilities } = await import("@molis-ai/molis-work-contracts/services/agent-host");
   const directory = mkdtempSync(join(tmpdir(), "coding-recovery-http-"));
   const store = project(directory), sessions = codingSessions(store);
@@ -144,7 +144,7 @@ test("recovery receipt lists cross the formal HTTP surface without being rendere
   const host = { ...ports(store), capabilities: agentHost };
   fakeAgentHostActions(host.actions, (definition, input) => agentHost.invoke(definition, input));
   const server = createServer((request, response) => {
-    void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host, filesOutputsRefresh).catch(error => {
+    void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host).catch(error => {
       response.writeHead(500); response.end(String(error));
     });
   });

@@ -1,5 +1,6 @@
 import { hostErrors } from "./host-errors.js";
 import { ProjectBrowsingSettings } from "./project-browsing-settings.js";
+import { ProjectRuntimeSettings } from "./project-runtime-settings.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityInvocation } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { projectsCapabilities, projectSettingsCapabilities, projectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -10,6 +11,7 @@ import { readWorkspaceGit } from "./workspace-git.js";
 import { readWorkspaceFile } from "./workspace-files.js";
 import type { LocalHost } from "./local-host.js";
 import type { MolisWorkProjectRuntime } from "./project-host.js";
+import { announceWorkspaceSettingsChange } from "./workspace-settings-events.js";
 
 interface ProjectCapabilityPorts {
   /** Resolves the workspace a project is bound to. See `MolisWorkLocalHostOptions`. */
@@ -59,9 +61,18 @@ export function registerProjectCapabilities(
       if (!workspaces.some(item => item.workspace_id === workspaceId && item.realpath_verified)) throw hostErrors.workspace_unavailable("请选择当前项目已关联且可用的工作目录");
       await invocation.beforeEffect?.();
       invocation.assertAuthorityCurrent();
-      return new ProjectBrowsingSettings(runtime.store.db).select(runtime.project_id, workspaceId, workspaces);
+      const selected = new ProjectBrowsingSettings(runtime.store.db).select(runtime.project_id, workspaceId, workspaces);
+      await announceWorkspaceSettingsChange(runtime.store, runtime.project_id, selected.workspace_id);
+      return selected;
     });
   }
+  // The Runtime pick does not depend on where the project's folders are kept: it is registered with the other current-project settings.
+  host.registerAction(projectSettingsCapabilities.runtime, runtime => new ProjectRuntimeSettings(runtime.store.db).read(runtime.project_id));
+  host.registerAction(projectSettingsCapabilities.selectRuntime, async (runtime, [runtimeId], invocation) => {
+    await invocation.beforeEffect?.();
+    invocation.assertAuthorityCurrent();
+    return new ProjectRuntimeSettings(runtime.store.db).select(runtime.project_id, runtimeId);
+  });
   if (workspaceFor !== undefined) {
     // Scoped to the runtime's own project: the Capability takes no project id,
     // so a Plugin cannot ask about another project. The answer carries the

@@ -11,7 +11,11 @@ export interface HomeSnapshotFile {
   readonly sqlite?: SqliteSnapshotInfo;
   readonly binding?: string;
 }
-export interface HomeSnapshotDirectory { readonly kind: "directory"; readonly path: string; readonly mode: number }
+export interface HomeSnapshotDirectory {
+  readonly kind: "directory";
+  readonly path: string;
+  readonly mode: number;
+}
 export interface HomeSnapshotStoreManifest {
   readonly path: string;
   readonly owner: string;
@@ -19,7 +23,12 @@ export interface HomeSnapshotStoreManifest {
   readonly entries: readonly (HomeSnapshotFile | HomeSnapshotDirectory)[];
   readonly dependencies: readonly SnapshotKeyDependency[];
   readonly exclusions: readonly SnapshotExclusion[];
-  readonly owner_payload?: { readonly kind: "connector-private-state"; readonly payload_path: string; readonly size: number; readonly sha256: string };
+  readonly owner_payload?: {
+    readonly kind: "connector-private-state";
+    readonly payload_path: string;
+    readonly size: number;
+    readonly sha256: string;
+  };
 }
 
 /** Restore input for the original Home and original keys. Existence in the published directory means capture completed. */

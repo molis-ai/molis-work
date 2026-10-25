@@ -78,7 +78,7 @@ export const CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
       // Who holds the step on the graph: this session (its executor), a subtask, you, or no one; the page says each kind with a page
       // word, and keeps a subtask's title (the person's own words, quoted in 「」).
       const holder=node.owner,holderText=(value)=>{
-        if(value.kind==='subtask'){const title=/[「“"](.+?)[」”"]/.exec(value.label||'')?.[1];return title?L('coding.board.holder-subtask',{title}):L('coding.board.subtask');}
+        if(value.kind==='subtask')return value.title?L('coding.board.holder-subtask',{title:value.title}):L('coding.board.subtask');
         return value.kind==='session'?L('coding.board.this-session'):value.kind==='person'?L('coding.board.you'):value.kind==='none'?L('coding.board.unclaimed'):L('coding.board.holder-other');
       },name=!holder||holder.kind==='session'?who:holderText(holder);
       const meta=el('span','coding-board-meta'),time=el('time','coding-board-time'+(node.reports.length?'':' is-empty'),node.reports.length?clock(node.reports.at(-1).at_ms):''),avatar=el('span','coding-board-avatar'+(holder?.kind==='none'?' is-unknown':''),holder?.kind==='none'?'':Array.from(name)[0]);

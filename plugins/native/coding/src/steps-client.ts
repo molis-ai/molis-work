@@ -27,7 +27,7 @@ export const CODING_STEPS_CLIENT_FACTORY_SCRIPT = `(ports)=>{
       if(node.owner)detail.append(el('p',L('coding.step.owner',{owner:node.owner.kind==='person'?L('coding.step.you'):node.owner.label})));
       const reports=el('ol','');
       // A report naming a supplement opens its receipt in the conversation, when this page drew one.
-      for(const report of node.reports){const li=el('li',(report.by?report.by+L('coding.timeline.colon'):'')+report.note);for(const one of report.inputs||[]){const link=receipts.link(q('[data-coding-turns]'),one.input_id,()=>dialog.close());if(link)li.append(' ',link);}reports.append(li);}
+      for(const report of node.reports){const li=el('li',(report.by?report.by.label+L('coding.timeline.colon'):'')+report.note);for(const one of report.inputs||[]){const link=receipts.link(q('[data-coding-turns]'),one.input_id,()=>dialog.close());if(link)li.append(' ',link);}reports.append(li);}
       detail.append(reports);
       if(!node.reports.length)detail.append(el('p',L('coding.step.no-reports')));
       if(verdict){detail.append(el('p',verdict.status==='accepted'?L('coding.step.accepted'):L('coding.step.needs-work')),el('p',verdict.notes));if(verdict.project_id!==entry.board.project_id||verdict.board_version!==entry.board.version)detail.append(el('p',L('coding.step.stale-verdict')));}

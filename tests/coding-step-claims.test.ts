@@ -122,12 +122,13 @@ test("a coordinator hands a step to a subtask: only the subtask reports on it, t
     assert.deepEqual(nodes.map(node => [node.id, node.state, node.owner?.kind]), [["step-1", "succeeded", "session"], ["step-2", "succeeded", "session"], ["step-3", "succeeded", "session"]]);
     const two = nodes.find(node => node.id === "step-2")!;
     assert.match(childSaw, new RegExp(`board at version \\d+; ${esc(prefix)}\\.step-2 is running`), childSaw);
+    // RAC-658 (BL-541): who wrote each report is a kind, with a subtask's own title; a page reads these, not the Host's sentence.
     assert.deepEqual(two.reports.map(entry => [entry.by, entry.note]), [
-      ["改派", "本会话 → 子任务「two」（派出子任务时交给它）"],
-      ["子任务「two」", "开始改 b"],
-      ["改派", "子任务「two」 → 本会话（子任务结束时没做完，交回）"],
-      ["本会话", "子任务交回，接着改 b"],
-      ["本会话", "b 的测试通过"],
+      [{ kind: "handover", label: "改派" }, "本会话 → 子任务「two」（派出子任务时交给它）"],
+      [{ kind: "subtask", label: "子任务「two」", title: "two" }, "开始改 b"],
+      [{ kind: "handover", label: "改派" }, "子任务「two」 → 本会话（子任务结束时没做完，交回）"],
+      [{ kind: "session", label: "本会话" }, "子任务交回，接着改 b"],
+      [{ kind: "session", label: "本会话" }, "b 的测试通过"],
     ]);
     assert.ok(two.reports.filter(entry => entry.handover).length === 2);
   } finally { await b.close(); }
@@ -155,7 +156,7 @@ test("a person takes a step on, records its result, adds a step for themselves a
     await amend({ kind: "resolve", node: "step-1", state: "succeeded", note: "手动改了 a 并跑过测试" });
     const one = view.nodes.find(node => node.id === "step-1")!;
     assert.equal(one.state, "succeeded");
-    assert.deepEqual(one.reports.slice(-2).map(entry => [entry.by, entry.note]), [["用户", "用户开始处理"], ["用户", "用户完成：手动改了 a 并跑过测试"]]);
+    assert.deepEqual(one.reports.slice(-2).map(entry => [entry.by, entry.note]), [[{ kind: "person", label: "用户" }, "用户开始处理"], [{ kind: "person", label: "用户" }, "用户完成：手动改了 a 并跑过测试"]]);
     // A step the person adds for themselves is theirs from the start.
     await amend({ kind: "insert", after: "step-2", title: "手工核对页面", acceptance: "页面正常", mine: true });
     const added = view.nodes.find(node => node.inserted)!;

@@ -105,14 +105,10 @@ export const CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT = `(ports)=>{
         // A claim held quiet too long by a session with no round running reads as expired, for you to reassign.
         // The Host labels a holder in the Host's language; the page says each kind with a page word, and keeps a subtask's title.
         const holderText=(value)=>{
-          if(value.kind==='subtask'){const title=/[「“"](.+?)[」”"]/.exec(value.label||'')?.[1];return title?L('coding.board.holder-subtask',{title}):L('coding.board.subtask');}
+          if(value.kind==='subtask')return value.title?L('coding.board.holder-subtask',{title:value.title}):L('coding.board.subtask');
           return value.kind==='session'?L('coding.board.this-session'):value.kind==='person'?L('coding.board.you'):value.kind==='none'?L('coding.board.unclaimed'):L('coding.board.holder-other');
         };
-        const byText=(by)=>{
-          if(!by)return '';
-          const title=/^子任务[「“"](.+?)[」”"]$/.exec(by)?.[1];
-          return title?L('coding.board.holder-subtask',{title}):by==='本会话'?L('coding.board.this-session'):by==='用户'?L('coding.board.you'):by==='改派'?L('coding.board.reassigned'):by==='没人认领'?L('coding.board.unclaimed'):L('coding.board.holder-other');
-        };
+        const byText=(by)=>by.kind==='handover'?L('coding.board.reassigned'):holderText(by);
         const expired=holder?.expired?{expired:true}:{},holderLabel=holder?holderText(holder):'';
         const doer=!holder?executor:holder.kind==='session'?{name:executor.name,detail:L('coding.board.holder',{holder:holderLabel})+' · '+executor.detail,...expired}
           :holder.kind==='subtask'?{name:holderLabel,detail:L('coding.board.holder',{holder:holderLabel})+(held?' · '+L('coding.board.held-subagent',{role:roleName(held.role_id)||held.role_name}):'')}

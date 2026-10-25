@@ -1,11 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import type { DatabaseSync } from "node:sqlite";
-import type { MemoryCandidateRecord } from "@molis-ai/molis-work-contracts/services/memory";
 import { openReadOnlyHomeSqlite } from "../home-sqlite.js";
 import { MEMORY_LEDGER_STORE } from "./memory-ledger.js";
 import { changeMemoryLedgerAdoption, type MemoryLedgerAdoptionSnapshot } from "./memory-ledger-adoption.js";
-import { createMemoryLedgerRetention } from "./memory-ledger-retention.js";
+import { createMemoryLedgerRetention, dropMemoryLedgerCandidate, suppressMemoryLedgerSources } from "./memory-ledger-retention.js";
 
 export interface MemoryLedgerCleanupTarget {
   readonly ref: { readonly kind: "memory"; readonly id: string; readonly revision: number } | { readonly kind: "memory-candidate"; readonly id: string; readonly revision: number };
@@ -145,12 +144,8 @@ export function suppressMemoryLedgerCleanupSources(input: Maintenance & { decisi
     if (!isDeepStrictEqual(read(db, input.decision.operation_id), input.decision)) conflict();
     const item = input.decision.items[input.index];
     if (!item) return conflict();
-    for (const source of item.target.sources) {
-      const scope = item.target.identity.scope === "user" ? "personal" : item.target.identity.scope;
-      db.prepare("INSERT OR IGNORE INTO memory_markers(actor_id,key,at,body) VALUES (?,?,?,?)").run(source.actor_id,
-        `memory-source-forgotten:${JSON.stringify([scope, item.target.identity.owner, source.event_id])}`,
-        new Date().toISOString(), JSON.stringify({ event_id: source.event_id }));
-    }
+    for (const source of item.target.sources) suppressMemoryLedgerSources(db, source.actor_id,
+      item.target.identity.scope === "user" ? "personal" : item.target.identity.scope, item.target.identity.owner, [source]);
   }, input.assertCurrent);
 }
 export function completeMemoryLedgerCleanupTarget(input: Maintenance & { decision: MemoryLedgerCleanupDecision; index: number }): MemoryLedgerCleanupDecision {
@@ -159,15 +154,8 @@ export function completeMemoryLedgerCleanupTarget(input: Maintenance & { decisio
     const item = input.decision.items[input.index];
     if (!item) return conflict();
     if (item.target.ref.kind === "memory") createMemoryLedgerRetention(db, work => work()).forget(item.target.ref.id);
-    else {
-      const row = db.prepare("SELECT body FROM memory_candidates WHERE candidate_id=?").get(item.target.ref.id);
-      if (row) {
-        const note = JSON.parse(String(row.body)) as MemoryCandidateRecord;
-        const scope = item.target.identity.scope === "user" ? "personal" : item.target.identity.scope;
-        if (note.scope !== scope || note.owner !== item.target.identity.owner) conflict();
-        db.prepare("DELETE FROM memory_candidates WHERE candidate_id=?").run(item.target.ref.id);
-      }
-    }
+    else dropMemoryLedgerCandidate(db, item.target.ref.id, {
+      scope: item.target.identity.scope === "user" ? "personal" : item.target.identity.scope, owner: item.target.identity.owner });
     const items = input.decision.items.map((entry, index) => index === input.index ? { ...entry, completed: true } : entry);
     const decision: MemoryLedgerCleanupDecision = { ...input.decision, items, phase: items.every(entry => entry.completed) ? "committed" : "pending" };
     write(db, decision); return decision;

@@ -1,7 +1,7 @@
 import type { MemoryLedgerRecoveryFact as Fact, MemoryLedgerRecoveryIssue as Issue, MemoryLedgerRecoveryLocation as Location,
   MemoryLedgerRecoveryIdentity as Identity, MemoryLedgerRecoveryOperation as Operation, MemoryLedgerRecoveryFamily as Family } from "@molis-ai/molis-work-contracts/services/memory";
 import { decodeMemoryLedgerCleanupDecision } from "./memory-ledger-adoption-cleanup.js";
-import { decodeMemoryCandidateRelation, decodeMemoryOwnerRelation } from "./memory-ledger-relations.js";
+import { assertMemoryChangeIdentity, decodeMemoryCandidateRelation, decodeMemoryOwnerRelation } from "./memory-ledger-relations.js";
 
 type Body = Record<string, unknown>;
 type Base = { location: Location; actor_id: string; at?: string };
@@ -201,7 +201,7 @@ export function* projectMemoryLedgerRecoveryRow(location: Location, row: Body): 
       if (b.source_refs !== undefined) for (const fact of sources(base, b.source_refs, { candidate_id: id })) yield { fact };
       return;
     }
-    if (b.change_id !== row.change_id || b.actor_id !== actor || b.memory_id !== row.memory_id || b.at !== row.at) invalid();
+    assertMemoryChangeIdentity(row, b);
     const action = choice(b.kind, ["kept", "auto_kept", "replaced", "auto_replaced", "merged", "edited", "restored", "moved", "disabled",
       "auto_disabled", "enabled", "paused", "resumed", "removed", "accepted", "imported", "cleared"]);
     yield { fact: { ...base, kind: "change", ...identity(b, actor), change_id: text(b.change_id), memory_id: nullable(b.memory_id),

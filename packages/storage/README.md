@@ -73,6 +73,8 @@ pnpm test:run tests/feed-security.test.ts tests/web-home-isolation.test.ts tests
 
 `memory-ledger-adoption-cleanup` 是原离线采用的窄维护主人：直接复用 `BEGIN IMMEDIATE`，不经普通 `openMemoryLedger` 打开 ledger3。既有 memory-operation marker 固定无正文确认与每项子操作号；source-links、候选 source_refs 和原 promotion journal 提供已知来源，首次 SDK 删除前幂等保留 memory-source-forgotten。正式项沿 retention.forget 清历史、使用、成对记录与正文/undo，候选项只删准确投影；不按同源扩删 SDK 对象。每次事务核采用快照、原决定、当前权限和取消，未完成决定始终阻止 ledger4。相关回归 `tests/memory-ledger-adoption.test.ts`；新用例待正式 SDK 包集成后实跑。
 
+MEM-40原项目计划的冷retention由 `createMemoryLedgerProjectRetention` 提供（合同见Memory spec的同名段）。它固定Home及原项目/actor/operation/ID/scope/source，以四种语义方法抑制来源、移除原候选账注、遗忘原正式ID和最后清非个人scope；沿原retention与adoption事务执行，不暴露SQL/DB/万能mutation。每步接expected adoption snapshot，COMMIT成功后才返回同事务post，父frame据此接受自己的变更；异常不猜提交状态。original模式拒绝写，只读验证原对象全部retention后置条件与来源屏障，不能凭marker或当前scope空态清同ID后继。参数/当前授权不可扩大固定集合；个人scope只逐ID处理，scope收尾前SDK覆盖证明归上层。直接回归 `tests/memory-ledger-project-retention.test.ts`；不新增schema、registry或第二删除核。局部真实SQLite验证已覆盖提交前回滚、提交后未知结果不返回post、撤权/取消、计划外拒绝与同ID后继保持；完整冷Memory父frame接线与全主人恢复仍由上层集成。
+
 ## 离线搜索目标清理
 
 `clearProjectInExistingTextSearchIndex` 供 MEM-40 原项目删除步骤维护停写 target：调用者固定目标 Home、项目及原操作决定，持有原维护 owner；必填同步 `assertCurrent` 检查同一 frame 的当前 owner/权限，`signal` 检查取消。入口、事务删除前与提交前均复核，拒绝回滚。它复用搜索当前 DDL、结构描述器和 `removeProject` 的删除事务，只清该项目文档、来源与对应 FTS，不启动 SearchService 或 Runtime。
@@ -82,6 +84,10 @@ pnpm test:run tests/feed-security.test.ts tests/web-home-isolation.test.ts tests
 回归：[text-search-maintenance.test.ts](../../tests/text-search-maintenance.test.ts) 使用真实 SQLite，经公开包入口验证旁项目保持、重开、缺库、坏结构、链接、撤权与取消。
 
 ## 开发要求
+
+冷项目retention的实际Ledger路径由现 `inspectExistingSqlitePath` 固定：规范绝对路径、db与祖先身份、非链接/非硬链接侧车，current前后及SQLite打开/BEGIN等待后/写前/提交前重核；writer mode=rw不创建缺失库。changes与candidates须通过与原recovery/relations共用的列/body身份检查，矛盾持久化事实保留并拒绝，不能借scope删除消除。该边界不等于抵御同OS权限进程任意时刻换路径的原子锁。
+
+原retention五表的实际双存身份统一核对：changes四字段、candidates三字段沿原读取器；uses五字段、revisions.version、pairs.pair_id/state由同一relations职责核对。没有双存的revision memory_id和pair actor_id不制造JSON字段要求。此检查在冷写前及原对象证明前生效，不改变普通Ledger的删除SQL或新增格式。
 
 - 负责：SQLite、文件系统、Blob、事务、当前 schema 基线与版本校验、备份与本地密钥存储的技术端口；系统搜索的本地全文索引适配（`openTextSearchIndex`，`{home}/search/search.db`）。
 - 不负责：Module schema 的业务含义、跨 Module 查询；搜索来源的发现、同步与权限（归 `horizontal/search`）。

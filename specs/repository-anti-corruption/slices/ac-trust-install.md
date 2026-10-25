@@ -426,10 +426,10 @@ RAC-401 的针对性测试检查查询前后的实际文件、库内容和账本
 | RAC-385 | 同意不分等级都可撤（用户 2026-10-24）：`host` 等级的 `always_on` 默认同意、不弹窗；撤回后它不再出现在常开名单里，能被隐藏、移除；`pinned` 同意后可撤 | 同上 |
 | RAC-400 | Goals 不在项目里（常开被撤回后移除）时，首页、建项目与引导、Dock、搜索、项目页渲染、标签页、MCP/命令行的 goal 工具、Feed/成果库挂 Goal 的入口、Inbox/Sessions 等照常工作，不报错、不出空白；清单见 §3.4.1 | `tests/security-invariants-always-on-records.test.ts`（成员派生、建项目、移除）；`tests/goals-absent-project.test.ts`（页面、设置、画板、管理入口，用应用自己的 Host）；`tests/goals-absent-project.e2e.test.ts`（真实浏览器）；`tests/feed-promote-reader.test.ts`（阅读页没有升格） |
 | RAC-405 | 平台说明每一项平台权限的意思，站点与密钥按名字；没定义的权限不乱说（BL-353）；安装预览的每一项带插件的理由和平台的说明 | `tests/plugin-trust-view.test.ts` |
-| RAC-406 | 已装插件的详情有信任等级、发布者名、每项权限的理由与说明、后台作业、给过的每一项同意（含已撤回的）；`plugins.installed.list` 只给本人；项目设置有「插件」页（目录里与嵌入的一节） | `tests/plugin-trust-view.test.ts`、`tests/plugin-trust-http.test.ts` |
-| RAC-407 | 插件的网页路由要控制令牌与页面来源，只认它们列出的步骤，请求里自称是谁的一律拒 | `tests/plugin-trust-http.test.ts` |
+| RAC-406 | 已装插件的详情有信任等级、发布者名、每项权限的理由与说明、后台作业、给过的每一项同意（含已撤回的）；`plugins.installed.list` 只给本人；项目设置有「插件」页（目录里与嵌入的一节） | `tests/plugin-trust-view.test.ts`、`tests/security-invariants-plugin-trust-http.test.ts` |
+| RAC-407 | 插件的网页路由（S-85）要控制令牌与页面来源，只认它们列出的步骤（概览、预览、确认），请求里自称是谁的一律拒 | `tests/security-invariants-plugin-trust-http.test.ts` |
 | RAC-408 | 签名包先预览（什么也不写），再按人给的固定名安装，概览里列出它要的东西 | 同上 |
-| RAC-409 | 经路由撤回一项同意写下 `revoked_at`，概览显示已撤回 | 同上 |
+| RAC-409 | 页面经宿主设置入口（`/api/settings/plugin-consents/revoke`，S-77，插件页自己的路由上没有这一步）撤回一项同意，写下 `revoked_at`，概览显示已撤回 | 同上 |
 | RAC-401 | 常开查询只读、缺库或缺行的构建担保不落账；撤回、重新同意与安装状态即时生效；现有非法库拒绝且不修复；第三方未同意不获担保，Host 启动仍记账 | `tests/security-invariants-always-on-records.test.ts` 的 RAC-401；重启不重复和已撤回不复活另见 `tests/plugin-runtime-maintenance-v3.test.ts` |
 | RAC-402 | 已撤回、停用及移除/隐藏后再破坏 Home 版本或完整结构，授权仍拒绝、原记录不变；恢复页只显示存储事实，不提供插件内容 | `tests/security-invariants-always-on-records.test.ts` 的 RAC-402；原页面与 retry 不变量见 `tests/home-plugin-private-store.test.ts` 的 W3-06-F-05/F-08 |
 | RAC-403 | 只处理 Home store 自己的明确拒绝，同码/同消息的其他错误继续传播；合法结构恢复后即时复查，撤回不复活 | `tests/security-invariants-always-on-records.test.ts` 的 RAC-403 |

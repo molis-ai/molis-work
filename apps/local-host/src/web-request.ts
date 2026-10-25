@@ -246,7 +246,7 @@ const goalsAndArtifactRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
         changed: () => { webViewCache.delete(options.databasePath); },
       }),
     }, request, response, url) },
-  { id: "artifacts", handle: ({ request, response, url, options, userActions, controlToken, composition, serverOptions }) => composition.handleArtifactNativePluginHttp(request, response, url.pathname, {
+  { id: "artifacts", handle: ({ request, response, url, options, userActions, controlToken, composition, serverOptions, goalActions }) => composition.handleArtifactNativePluginHttp(request, response, url.pathname, {
     projectId: options.projectId, routePrefix: options.routePrefix ?? "",
     projectTitle: options.project?.display_name ?? "Molis Work",
     actions: userActions(ARTIFACT_ACTION_PERMISSIONS), controlToken,
@@ -254,6 +254,7 @@ const goalsAndArtifactRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
     offeredActions: original_file => userActions(ARTIFACT_ACTION_PERMISSIONS, { original_file }),
     // Each 成果 type's owner previews its own versions (A4): a plugin's preview runs on its installation's grants, not on the person's (V-21).
     ownerActions: permissions => userActions(permissions),
+    goalsAvailable: async () => await optionalPluginQuery(goalActions, goalsActions.list, { limit: 1 }) !== undefined,
     desktopShell: composition.isDesktopShellRequest(request, url), pageCsp: composition.PAGE_CSP,
   }) },
   { id: "goal-page", handle: context => context.composition.goalsReadHttp.page(context.request, context.response, context.url, context.options, context.serverOptions.homeDirectory,

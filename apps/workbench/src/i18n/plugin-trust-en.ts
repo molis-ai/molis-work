@@ -38,7 +38,6 @@ export const PLUGIN_TRUST_EN: Record<string, string> = {
   "常开": "Always on",
   "默认连线": "Default wiring",
   "默认输入组": "Default input group",
-  "本机目录": "Folder on this computer",
   "保存数据": "Saves data",
   "成果库": "Artifact library",
   "调用动作": "Calls actions",

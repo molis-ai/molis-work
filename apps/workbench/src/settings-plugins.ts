@@ -1,8 +1,9 @@
 /**
  * 插件 in a project's settings (ac-trust T7, specs/repository-anti-corruption/slices/ac-trust-install.md): what is installed in the project
  * with who signed it, what it asked for and why, what it keeps doing in the background and the agreements the person gave it; installing a
- * signed package (preview, then confirm); taking an agreement back. Everything it shows and changes goes through
- * `/projects/<id>/api/plugin-trust/*`, which invokes the shared `plugins.*` actions as the person.
+ * signed package (preview, then confirm); taking an agreement back. What it shows and installs goes through
+ * `/projects/<id>/api/plugin-trust/*`, which invokes the shared `plugins.*` actions as the person; an agreement is taken back through the
+ * Host's one settings door for it, `/api/settings/plugin-consents/revoke` (S-77), never through a route of the plugin page's own.
  */
 export function renderPluginTrustSettings({ L, projectId, chevron }: { L(text: string): string; projectId: string; chevron: string }): string {
   return `<section class="settings-document plugin-trust-settings" aria-labelledby="plugin-trust-title" data-plugin-trust-settings data-project="${projectId}">
@@ -89,7 +90,7 @@ const revoke = button(L("撤回同意"), "mw-btn--ghost");
 revoke.addEventListener("click", async () => {
 if (!await ask(L("撤回这条同意？"), L("{plugin} 的“{kind}”同意（{subject}）。撤回后立即生效；以后需要时可以重新同意。", { plugin: plugin.name, kind: L(KIND[consent.kind] || consent.kind), subject: consent.subject }), L("撤回"))) return;
 error.hidden = true;
-try { await api("/consents/revoke", { consent_id: consent.consent_id }); toast(L("同意已撤回")); await load(); } catch (failure) { fail(failure); }
+try { await molisWorkRequest("/api/settings/plugin-consents/revoke", { body: { consent_id: consent.consent_id } }); toast(L("同意已撤回")); await load(); } catch (failure) { fail(failure); }
 });
 item.append(revoke);
 }

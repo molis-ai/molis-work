@@ -242,18 +242,16 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// batch-40 (coordinator review 2026-10-25), each against main b3bac731b, both trees measured on the served asset:
-// - workbench.js +1,737 B: PG-070/071 (#1302, the user's 10-25 decision that plugin styles load on demand and each plugin's English
-//   ships with it): the loader that fetches a plugin's own stylesheet when its view first mounts, and stage summaries that carry
-//   each plugin's id so its own words apply. Tried in the same asset: R-55 rendered the connector slot picker's request path on the
-//   server and reused perform() with an undo, -111 B measured (1,129,577 -> 1,129,466, workbench-only rebuild over the same tree).
-//   The same change takes 303,332 B out of workbench.css and 36,506 B out of settings.css (budgets lowered below).
-// - plugin-frame.js +54 B: a frame merges its own plugin's English under the page's (PG-071), the one expression that does it.
-// - plugins/coding.js +45 B: the shared diff classes are drawn as mw-diff-* (PG-070's frozen shared prefix), 15 selectors x 3 B.
+// ac-trust T7, against main after batch-40 (the entries batch-40 used are gone): the project settings 插件 page (install preview, each
+// permission with its reason and the platform's meaning, jobs, agreements, revoke) is drawn by one inline client script, and the settings
+// cover embeds that page and binds it from the `molis-work:settings-embed` event, so the script has to be part of the workbench script:
+// - workbench.js +8,838 B (1,129,466 -> 1,138,304): 9.3 KB of UI text and DOM building. Tried: no second client or dialog library,
+//   one shared `el`/`button` helper, the install and revoke paths reuse `molisWorkRequest`; the rest is Chinese text that has to be there.
+// - workbench.css +1,369 B (1,234,610 -> 1,235,979): the page's rules (`styles/settings-plugins.ts`), written from the existing tokens.
+// No new asset. Each is under 10 KB.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1127729, 1129466],
-  "/assets/molis-work-plugin-frame.js": [190143, 190197],
-  "/assets/molis-work-plugins/coding.js": [289017, 289062],
+  "/assets/molis-work-workbench.js": [1129466, 1138304],
+  "/assets/molis-work-workbench.css": [1234610, 1235979],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

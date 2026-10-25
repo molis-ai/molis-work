@@ -27,15 +27,16 @@ async function setup(t: Parameters<typeof residentManagement>[0]) {
 test("RAC-407 the plugin routes need the control token, take only the steps they name, and refuse a body that says who the person is", mac, async t => {
   const env = await setup(t);
   const bundle = signedPackage(newPublisher());
-  for (const step of ["install/preview", "install/confirm", "consents/revoke"]) {
+  for (const step of ["install/preview", "install/confirm"]) {
     assert.equal((await env.send(`/api/plugin-trust/${step}`, { body: { bundle }, headers: { "x-molis-work-control-token": undefined } })).status >= 400, true, `${step} without the control token`);
   }
   assert.equal((await env.send("/api/plugin-trust/install/preview", { body: { bundle }, headers: { origin: "http://127.0.0.1:1" } })).status >= 400, true, "another origin");
   assert.equal((await env.send("/api/plugin-trust/install/preview", { method: "GET" })).status >= 400, true, "a read of a step");
   assert.equal((await env.send("/api/plugin-trust/nowhere", { body: {} })).status >= 400, true, "no such step");
-  const forged = await env.send("/api/plugin-trust/consents/revoke", { body: { consent_id: "x", user_action: { source: "web", conversation_ref: "a", message_ref: "b" } } });
+  const forged = await env.send("/api/plugin-trust/install/preview", { body: { bundle, user_action: { source: "web", conversation_ref: "a", message_ref: "b" } } });
   assert.equal(forged.body.code, "actions.input_invalid", "the entry stamps who acted; the body is not read for it");
-  assert.equal((await env.send("/api/plugin-trust/consents/revoke", { body: { consent_id: "no-such-consent" } })).body.code, "plugin.consent_unknown");
+  // An agreement is not taken back here: the one door for it is the Host's settings route (S-77), so this route has no such step.
+  assert.equal((await env.send("/api/plugin-trust/consents/revoke", { body: { consent_id: "x" } })).status >= 400, true, "no revoke step on the plugin page's routes");
 });
 
 test("RAC-408 a package is previewed (nothing is written), then installed under the pin the person gives, and the overview lists it with what it asked for", mac, async t => {
@@ -58,7 +59,7 @@ test("RAC-408 a package is previewed (nothing is written), then installed under 
   assert.equal(after.plugins.some(item => item.trust === "host"), true, "the plugins that ship with Molis Work are listed too, as such");
 });
 
-test("RAC-409 taking an agreement back through the route writes revoked_at, and the overview shows it as revoked", mac, async t => {
+test("RAC-409 taking an agreement back through the settings door writes revoked_at, and the overview shows it as revoked", mac, async t => {
   const env = await setup(t);
   const publisher = newPublisher();
   const preview = await env.send("/api/plugin-trust/install/preview", { body: { bundle: signedPackage(publisher) } });
@@ -67,8 +68,9 @@ test("RAC-409 taking an agreement back through the route writes revoked_at, and 
   const [given] = ledger.record({ plugin_id: PACKAGE_PLUGIN_ID, publisher_signature: publisher.identity, manifest_digest: "digest", granted_by: "user", grants: [{ kind: "always_on", subject: "plugin" }], at: "2026-10-25T00:00:00.000Z" });
   const listed = (await env.overview()).plugins.find(item => item.plugin_id === PACKAGE_PLUGIN_ID)!;
   assert.deepEqual(listed.consents.map(item => [item.consent_id, item.revoked_at]), [[given!.consent_id, null]]);
-  const revoked = await env.send("/api/plugin-trust/consents/revoke", { body: { consent_id: given!.consent_id } });
-  assert.equal(revoked.status, 200, JSON.stringify(revoked.body));
+  // The page takes an agreement back through the Host's settings door, the only one `plugins.consents.revoke@1` accepts (S-77).
+  const revoked = await fetch(`${env.origin}/api/settings/plugin-consents/revoke`, { method: "POST", headers: env.headers(), body: JSON.stringify({ consent_id: given!.consent_id }) });
+  assert.equal(revoked.status, 200, await revoked.clone().text());
   const after = (await env.overview()).plugins.find(item => item.plugin_id === PACKAGE_PLUGIN_ID)!;
   assert.equal(after.consents.length, 1);
   assert.notEqual(after.consents[0]!.revoked_at, null, "kept as a row, marked revoked");

@@ -7,7 +7,6 @@ import { pipeline } from "node:stream/promises";
 import { logPreviewFailure } from "./host-log.js";
 import type { BoundActionClient, HostOfferedOriginalFile } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
-import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import {
   ARTIFACTS_PLUGIN_ID, artifactsErrors, documentErrors, DOCUMENT_ARTIFACT_TYPE, matchArtifactBrowserRoute, artifactsActions, artifactVersionPath, importedFileOf, openArtifactOriginal,
   EXTERNAL_DOCUMENT_SOURCES, type ArtifactFileImport, type ArtifactExternalImport, type GoalArtifactEmbed,
@@ -19,7 +18,6 @@ import { importedDocumentFile, type ArtifactVersionRecord } from "@molis-ai/moli
 import type { ActionProgressEvent, ArtifactCompareResult, ArtifactContinueResult, ArtifactReferrersResult, FileContent } from "@molis-ai/molis-work-contracts/platform/actions";
 import { dateTimeLocale, L } from "./web-locale.js";
 import { requestHeader, sendLocalWebJson } from "./web-http.js";
-import { optionalPluginQuery } from "./web-view.js";
 import { readArtifactImportBody } from "./artifact-document-import.js";
 import { answerPluginRouteStream } from "./plugin-route-stream.js";
 
@@ -33,6 +31,8 @@ export interface ArtifactHttpContext {
   readonly offeredActions: (file: HostOfferedOriginalFile) => BoundActionClient;
   /** A type owner's actions, bound with the permissions its preview declares (A4). */
   readonly ownerActions?: (permissions: readonly string[]) => BoundActionClient;
+  /** Whether this project has a Goal to take a version as its input; a project without Goals (RAC-400) does not offer 「作为 Goal 的输入」. */
+  readonly goalsAvailable?: () => Promise<boolean>;
   readonly controlToken: string;
   readonly desktopShell: boolean;
   readonly pageCsp: string;
@@ -233,8 +233,7 @@ export function createLocalArtifactHttp() {
       const referrers = goals && reference && context.ownerActions ? (await Promise.all(artifactReferrerActions().map(item => context.ownerActions!(item.action.action.permissions)
         .invoke(item.action, { reference }).then(result => (result as ArtifactReferrersResult).referrers.map(row => ({ ...row, plugin_title: item.plugin_title }))).catch(() => [])))).flat() : [];
       const links = goals ? { ...goals, referrers } : undefined;
-      // 「作为 Goal 的输入」 needs a Goal to take it: a project without Goals (RAC-400) does not offer it.
-      const goalInput = !links || !context.ownerActions || await optionalPluginQuery(context.ownerActions(goalsActions.list.action.permissions), goalsActions.list, { limit: 1 }) !== undefined;
+      const goalInput = !links || !context.goalsAvailable || await context.goalsAvailable();
       // 「交给插件作为输入」 (2026-10-04): the input ports of running plugins that take a usable version's type.
       const pluginInputs = reference && route.kind === "detail" && selected?.availability === "available" && selected.lifecycle_state !== "archived"
         ? (await context.actions.invoke(artifactsActions.pluginInputs, { reference }).catch(() => ({ inputs: [] }))).inputs : [];

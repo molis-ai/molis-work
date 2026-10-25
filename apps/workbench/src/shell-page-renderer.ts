@@ -179,11 +179,8 @@ function renderMolisWorkWeb(
   const { selected, title, collectionTitle } = collection;
   const initialFeedPreset = "feed" as const;
   const initialDesktopDirectory = "root";
-  const enabledPlugins = shownPagePlugins(view);
-  const pluginEnabled = (id: string) => enabledPlugins.includes(id);
-  // Goals is a plugin like the others (ac-trust T3b, RAC-400): a project without it opens on its home and never opens a Goal view. The
-  // stage and dialogs stay in the page's hidden surface pool because the one workbench program binds them; nothing shows or opens them.
-  const goalsEnabled = pluginEnabled("goals");
+  const enabledPlugins = shownPagePlugins(view), pluginEnabled = (id: string) => enabledPlugins.includes(id), goalsEnabled = pluginEnabled("goals");
+  // Goals is a plugin like the others (ac-trust T3b, RAC-400): without it a project opens on its home; the stage stays hidden in the surface pool.
   const initialDesktopSurface = goalsEnabled && (requestedGoalId || archiveView || trashView) ? "goal" : "home";
   const projectOptions = view.projects.length ? view.projects : view.project ? [view.project] : [];
   const primitives = { L, escapeHtml, icon, htmlLang };

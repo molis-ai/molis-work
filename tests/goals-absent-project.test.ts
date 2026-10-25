@@ -42,7 +42,10 @@ test("RAC-400 a project without Goals draws its page, its settings and its board
   }
   const page = await fetch(env.prefix).then(response => response.text());
   assert.match(page, /data-desktop-surface="home"/, "the page opens on the project's home");
-  assert.doesNotMatch(page, /data-plugin-tile="goals"|data-plugin-id="goals"/, "the plugin list does not offer Goals");
+  // The plugin list carries the Host's marks: with the agreement taken back, Goals is one to add again (a tile "not added"), never one the
+  // project has, and there is no link into it.
+  assert.match(page, /class="plugin-rail-tile is-available" data-plugin-tile="goals"/, "Goals is one to add, not one the project has");
+  assert.doesNotMatch(page, /class="plugin-rail-tile(?: is-kept)?" data-plugin-tile="goals"|data-plugin-id="goals"/, "the project's plugin list does not hold Goals");
   const settings = await fetch(`${env.prefix}/settings/guidance`).then(response => response.text());
   assert.equal(/class="guidance-document"|<a href="[^"]*\/settings\/guidance"/.test(settings), false, "the project description page is Goals', so a project without Goals neither lists nor draws it");
   // A link to a Goal that is not there is answered as not found, never as a failure.

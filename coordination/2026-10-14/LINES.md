@@ -45,6 +45,12 @@
 > - 现在在跑：`ac-platform`（#1291 修复）、`ac-giants`（#1294 修复）；轻活 `ac-sc3`（开 S9-3～S12 的 PR）。
 > - 排队（工作树里的未提交改动都在，按序放）：`ac-coding`（T7，15 个文件）→ `ac-kernel`（W5-10 agent-host + BL-541，15 个文件）→ `ac-registry`（PG-069 组，31 个文件）→ `ac-clients-1`（PG-070/071，51 个文件）→ `ac-sandbox-sched`（FI-3）→ `ac-shell`（已推 `claude/ac-shell-rest` 58e877b21，待开 PR）。
 
+> **10-25 晚 再调整（用户：「可以安排多线程做开发，只是测试槽可以合理安排」）**：开发线不再限 2 条，排队的 6 条全部放开；限的是本机测试与构建的槽位：
+> - **测试整机一次一个**：本机跑测试一律写成 `node scripts/machine-slot.mjs run browser --label "<线名> tests" -- node scripts/run-tests.mjs --jobs 1 <文件…>`（借 `browser` 槽当整机测试槽，排队自动等），只跑改到的非浏览器文件；浏览器文件、affected 全集、全量交 CI 与统筹的整合批。
+> - **构建与门禁整机一次一个**：`pnpm build`/`build-workspace` 自动取 `build` 槽；单包构建与 `pnpm health:check` 也包一层 `node scripts/machine-slot.mjs run build --label "<线名>" -- …`。
+> - 不在本机做堆采样/`--inspect`；同一会话同一时间只开一个后台测试或构建；测试或构建被杀（137）先看 `memory_pressure`，别立刻重跑。
+> - 写代码、读代码、写 spec、开 PR 不限并行。
+
 ## 1a. 在途但不在上表任何一条线里的 PR
 
 | PR | 谁在推 | 管的 PG 行 |

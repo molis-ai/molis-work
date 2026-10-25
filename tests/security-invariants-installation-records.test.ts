@@ -16,7 +16,8 @@ import { ownerFilesProbe, ownerFilesProject } from "./fixtures/plugin-owner-file
 // authorization in its activation scope, even when its private data is kept. Original files and accounts themselves stay.
 function rows(t: test.TestContext) {
   const home = realpathSync(mkdtempSync(join(tmpdir(), "installation-records-")));
-  t.after(() => rmSync(home, { recursive: true, force: true }));
+  let close: () => void | Promise<void> = () => {};
+  t.after(async () => { try { await close(); } finally { rmSync(home, { recursive: true, force: true }); } });
   const file = join(home, "chosen.txt"), content = "the person's file";
   writeFileSync(file, content);
   const connection = withConnectorConnections(home, store => store.createToken({ serviceId: "github", displayName: "GitHub", token: randomUUID() }));
@@ -32,7 +33,7 @@ function rows(t: test.TestContext) {
     assert.equal(readFileSync(file, "utf8"), content, "unregistering a file does not delete or alter the person's file");
     assert.deepEqual(withConnectorConnections(home, store => store.get(connection.connection_id)), connection, "the account and its credential remain");
   };
-  return { home, original, readable, bind, bound, contentsUnchanged };
+  return { home, original, readable, bind, bound, contentsUnchanged, closeBeforeRemove: (operation: () => void | Promise<void>) => { close = operation; } };
 }
 
 /** Fail the real owner's DELETE without changing its data or mocking a lifecycle hook. */
@@ -58,7 +59,7 @@ for (const execution of ["native", "sandbox"] as const) {
       if (previous === null || previous === undefined) storage.set("private-marker", marker);
     };
     const project = ownerFilesProject(r.home, probe);
-    t.after(() => project.close());
+    r.closeBeforeRemove(() => project.close());
     const runtime = project.platform.runtime, definition = probe.withoutFiles();
     const install = async (discard = false) => {
       const record = runtime.install({ trust: { level: "unsigned" }, definition: { ...definition }, deployment: "local", grants: probe.permissions,
@@ -120,7 +121,7 @@ for (const execution of ["native", "sandbox"] as const) {
       if (previous === null || previous === undefined) storage.set("private-marker", marker);
     };
     const host = new HomePluginHost({ home: r.home, actorId: LOCAL_PERSON_ACTOR_ID, registry: actions, client: actions, entries: [], fixtures: [] });
-    t.after(() => host.close());
+    r.closeBeforeRemove(() => host.close());
     const runtime = (await host.ready()).runtime, definition = probe.withoutFiles();
     const install = async (discard = false) => {
       const record = runtime.install({ trust: { level: "unsigned" }, definition: { ...definition }, deployment: "local", grants: probe.permissions,
@@ -186,7 +187,7 @@ for (const scope of ["project", "home"] as const) for (const execution of ["nati
       return (await host.ready()).runtime;
     };
     const close = async () => { if (project) { await project.close(); project = undefined; } if (host) { await host.close(); host = undefined; } };
-    t.after(close);
+    r.closeBeforeRemove(close);
     let runtime = await open();
     const definition = probe.withoutFiles(), install = () => runtime.install({ trust: { level: "unsigned" }, definition: { ...definition }, deployment: "local", grants: probe.permissions }).install;
     const first = install(), install_id = first.install_id;

@@ -116,6 +116,16 @@ export function openJellyStore(home: string): JellyStore {
       get: (query, parameters = []) => db.prepare(query).get(...parameters) ?? null,
       all: (query, parameters = []) => db.prepare(query).all(...parameters),
       run: (query, parameters = []) => db.prepare(query).run(...parameters),
+      savepoint: <T>(body: () => { readonly keep: boolean; readonly value: T }): T => {
+        const name = "jelly_savepoint";
+        db.exec(`SAVEPOINT ${name}`);
+        try {
+          const result = body();
+          if (!result.keep) db.exec(`ROLLBACK TO ${name}`);
+          db.exec(`RELEASE ${name}`);
+          return result.value;
+        } catch (error) { db.exec(`ROLLBACK TO ${name}`); db.exec(`RELEASE ${name}`); throw error; }
+      },
     };
     const atomically = <T>(run: () => T): T => {
       if (db.isTransaction) return run();

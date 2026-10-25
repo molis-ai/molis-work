@@ -2656,6 +2656,10 @@ export interface PluginDatabaseTransaction extends PluginDatabaseReader {
     run(sql: string, parameters?: readonly PluginSqlValue[]): {
         changes: number | bigint;
     };
+    savepoint<T>(body: () => {
+        readonly keep: boolean;
+        readonly value: T;
+    }): T;
 }
 
 export interface PluginDefinition {

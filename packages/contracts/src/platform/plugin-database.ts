@@ -16,6 +16,15 @@ export interface PluginDatabaseReader {
  */
 export interface PluginDatabaseTransaction extends PluginDatabaseReader {
   run(sql: string, parameters?: readonly PluginSqlValue[]): { changes: number | bigint };
+  /**
+   * Runs `body` (synchronously) so that what it writes can be undone without ending the transaction: when `body` says `keep: false`,
+   * or throws, its writes are rolled back to the point it began, and the rest of the transaction goes on. A nested call undoes only
+   * its own writes. The platform makes and names the point; a plugin names none and sends no SQL for it. An async `body` is rolled
+   * back and refused, a retained handle is refused once the transaction is over, and every step asks the grants and the original
+   * caller again, as a statement does. What the writes registered to happen after the commit (a join of the scheduler, a notification)
+   * is dropped with them.
+   */
+  savepoint<T>(body: () => { readonly keep: boolean; readonly value: T }): T;
 }
 
 export interface PluginDatabase extends PluginDatabaseReader {

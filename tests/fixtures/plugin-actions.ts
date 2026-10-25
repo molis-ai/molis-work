@@ -135,14 +135,18 @@ const folderRef = (folder: Pick<ProjectWorkspaceRef, "workspace_id" | "canonical
  * A fake names only what its test reads; the rest of a session's or round's view takes neutral values here, so the answer
  * still fits the action's output contract (whose top level is listed in full, R8 batches 3 and 4) without every fake spelling it out.
  */
-const RUN_VIEW = { ref: { session_id: "session", run_id: "run" }, phase: "completed", frozen: {}, turns: [], activity: [], usage: {}, awaiting_input: [], started_at: "2026-01-01T00:00:00.000Z", ended_at: null };
+// The frozen start and the usage are typed below the top level too (BL-470), so they take neutral values field by field.
+const FROZEN = { role_id: "role", role_version: 1, execution: "read-only", model_id: "model", prompts: [], skills: [], mcp_tools: [], host_tools: [], text_materials: [], budget: null };
+const USAGE = { tokens: { input: 0, output: 0 } };
+const RUN_VIEW = { ref: { session_id: "session", run_id: "run" }, phase: "completed", frozen: FROZEN, turns: [], activity: [], usage: USAGE, awaiting_input: [], started_at: "2026-01-01T00:00:00.000Z", ended_at: null };
 const SESSION_VIEW = { owner: { project_id: "project", plugin_id: "plugin", install_id: "install" }, session: { session_id: "session", runtime_id: "runtime" }, title: "", runs: [], latest_run: null };
 const RUNTIME = { display_name: "", provider_version: "", capabilities: {} };
 const SKILL_TEXT = { version: 1, name: "", summary: "", tools: [] }, SKILL = { ...SKILL_TEXT, source: "installed", enabled: true };
 const MCP_SERVER = { id: "server", version: 0, label: "", enabled: true, transport: "http", timeout_ms: 1000, credential: "none", health: "disconnected", tools: [], resources: [] };
 const CANDIDATE = { candidate_id: "candidate", name: "", summary: "", source_label: "", files: [], body: "" };
 const isRecord = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === "object" && !Array.isArray(value);
-const runView = (value: unknown) => isRecord(value) ? { ...RUN_VIEW, ...value } : value;
+const runView = (value: unknown) => isRecord(value)
+  ? { ...RUN_VIEW, ...value, frozen: { ...FROZEN, ...(isRecord(value.frozen) ? value.frozen : {}) }, usage: { ...USAGE, ...(isRecord(value.usage) ? value.usage : {}) } } : value;
 const filled = (base: object) => (value: unknown) => isRecord(value) ? { ...base, ...value } : value;
 const eachFilled = (base: object) => (value: unknown) => Array.isArray(value) ? value.map(filled(base)) : value;
 function completeView(definition: ActionDefinition, value: unknown): unknown {

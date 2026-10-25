@@ -289,7 +289,8 @@ async function roundsSetup(t: TestContext, home = false) {
   t.after(async () => { if (!home) composition.dispose(); store.close(); await localHost.closeProject(reference); await localHost.close(); await rm(directory, { recursive: true, force: true }); });
   return { localHost, reference, seen, owner, consumer, bystander, observers };
 }
-const ROUND_VIEW = { ref: { session_id: "s1", run_id: "r1" }, phase: "running", frozen: {}, turns: [], activity: [], usage: { tokens: { input: 0, output: 0 } }, awaiting_input: [],
+const ROUND_VIEW = { ref: { session_id: "s1", run_id: "r1" }, phase: "running", turns: [],
+  frozen: { role_id: "reader", role_version: 1, execution: "read-only", model_id: "m", prompts: [], skills: [], mcp_tools: [], host_tools: [], text_materials: [], budget: null }, activity: [], usage: { tokens: { input: 0, output: 0 } }, awaiting_input: [],
   started_at: "2026-10-23T00:00:00.000Z", ended_at: null };
 
 test("RAC-199 a round's controls, receipts, recovery, checkpoints and subtasks are plugin-only actions on the caller's own session", async t => {

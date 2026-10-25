@@ -9,7 +9,22 @@
    - `adapters/prologue-taskboard.ts` 的 `createPrologueTaskBoards`（实测 129 行）已由 R-38 收尾在 Agent Host 表里标为阈值以下；`apps/local-host/src/agent-host-composition.ts` 的 `composeAgentHost`（实测 87 行）batch-37 没覆盖，本片只把 local-host 表的那一行改成「已在阈值以下」，不改代码。
    - `prologue.ts`、`index.ts`、`prologue-stream.ts`、`prologue-action-gateway.ts`、`capability-registration.ts` 的判定以 batch-37（R-38）在 Agent Host 表里写的为准，本片不另判。
 2. **BL-541**：计划步骤的持有者与报告作者改成结构化字段。`AgentStepOwner` 加 `title`（子任务的标题，即协调者派出时给的键）；报告的 `by` 从中文字符串改成 `AgentStepReportAuthor`（`kind`：`session`、`subtask`、`person`、`handover`、`other`；`label` 是宿主给本轮模型看的原话；子任务带 `title`）。W5-04 3b 已把 Coding 的三个浏览器客户端改成打包、类型检查的 TypeScript（`*-client.ts` 只读 bundle），所以读取一侧落在 `plugins/native/coding/src/browser/plan-progress.ts`、`browser/steps.ts`、`browser/taskboard-tree.ts`，类型从合同的 `AgentStepBoard` 取出。Coding 的任务板、计划进度与报告步骤只读 `kind` 和 `title`，不再用正则抠「子任务「…」」，也不再比 `本会话`、`用户`、`改派` 这些字面量。合同变了，按 `docs/system/CONTRACT-CHANGES.md` 不留兼容期，`pnpm api:update` 刷新快照。宿主给模型看的那一行（`stepLine`）照旧用 `label`。
-3. **BL-470**（`AgentRunView` / `AgentSessionView` 嵌套 schema 收紧）跳过：schema 在 `packages/contracts/src/services/agent-host.ts`，类型在 `agent-host-run-view.ts`，两份都在 #1064 里。为了不碰这两份，BL-541 的新类型也不经 `agent-host.ts` 转出，调用方从 `AgentStepBoard` 取出这个类型。
+3. **BL-470**（`AgentRunView` / `AgentSessionView` 嵌套 schema 收紧）：原先因 #1064 跳过，统筹 2026-10-25 改派，见下面「BL-470」一节。
+
+## BL-470：会话与一轮视图的嵌套对象（2026-10-25，ac-kernel）
+
+统筹 2026-10-25 改派。R8 第 3 批（`r8-agent-host-actions.md` §9.3①）只把顶层列全，嵌套对象只写 `object`：动作服务按输出 schema 核对返回，可只写 `object` 的地方什么形状都放得过，动作合同快照也看不出它变了。
+
+做法（`packages/contracts/src/services/agent-host.ts`）：
+
+- `readRun`、`readSession`（`latest_run`）、`waitRun` 的 `view`、`listSubagents` 共用的嵌套对象逐个写出字段：`frozen`、`turns`（含 `steer`）、`activity`、`usage`（含 `tokens`、`compaction`、`context`）、`awaiting_input`（含 `options`）、`step_board`（节点、报告、`by`、`owner`）、`memory_recalled`、`todo`、`turn_changes`（含 `files`）、`retry_wait`、`model_switch`、`offers`（含 `reference`、`missing`）、会话的 `queued_inputs`；子任务的 `activity`、`usage` 用同一份。
+- 只写仓库里调用方（Coding 的服务端与页面）读的字段，类型照 `agent-host-run-view.ts` 等处的接口；接口里必有的写进 `required`。Coding 不读的（`allows_free_text`、`attempt`、`action_digest`、`injected`、`left_by`、`ending_review`、`image_materials`、`continues_step_board_of`、`action_gateway`）不写。
+- 嵌套对象不加 `additionalProperties: false`：其余是运行时自己的记录，多带的字段照样放过。再往下一层（`frozen.execution`、`character`、`budget` 等）仍只写 `object`。
+- 不升 `version`：这些动作只给插件调（`audiences: ["plugin"]`），Coding 经 `services.agents` 调用，不写 `capability_id@version` 的固定引用，工作流、MCP 也调不到，所以没有固定引用会遇到另一份合同；合法的返回本来就符合新形状，收紧只拒掉不符合类型的返回。#1064 会把 `readRun`、`readSession`、`startRun`、`waitRun` 升到 2，与本片在 `runViewOutput` 那一行有一处文字冲突（它加 `original_input: object`），合并时两边都留。
+
+| 编号 | 标准 |
+| --- | --- |
+| RAC-667 | 一轮视图和会话视图的嵌套对象按类型核对：完整视图（含 schema 没列的字段）原样通过；用量 token 不是数、轮次种类不在四种之内、活动缺时间、问题缺选项、步骤持有者缺 `label`、报告作者种类不在五种之内、冻结提示词的层不对、冻结预算不是对象或 null、建议缺提供方、写入的文件缺摘要、重试原因不在三种之内、待办状态不在四种之内，在 `readRun` 与 `readSession` 里都被 `actions.output_invalid` 拒；会话里待读输入的来源不在三种之内同样被拒。`tests/agent-view-schema.test.ts`。 |
 
 ## 验收
 

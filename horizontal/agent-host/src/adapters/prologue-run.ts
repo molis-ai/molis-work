@@ -591,7 +591,7 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
   const surface = await roundSurface(deps, input, index, session, mode.business);
   const binding = await roundBinding(deps, input, index, session, materials.stepBoard);
   const { character, runTools, pinnedMemory } = await roundCharacter(deps, input, index, { mode, methods, childInstructions, childRoles, surface, stepBoard: materials.stepBoard, actionTools });
-  const referenceKinds = await roundReferenceKinds(deps.options, index.owner);
+  const referenceKinds = runTools.includes("ask-user") ? await roundReferenceKinds(deps.options, index.owner) : undefined;
   // Exchange our reference for one Prologue can resolve, before the Run is started rather than when it first calls out.
   const credentialRef = await deps.credentials.prologueRefFor(input.model.credential_ref);
   const { attemptIndex, abandon } = await recordAttempt(deps, input, { ...input.provenance, task: input.task, ...(root ? { root_ref: root.ref } : {}),

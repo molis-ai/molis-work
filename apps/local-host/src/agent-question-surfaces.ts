@@ -28,10 +28,14 @@ type Declared = Parameters<typeof isSubjectReader>[0] & { subject_kinds: readonl
 /**
  * One plugin's kinds a reference question may ask for (T2, AC-28-1), each with the name the plugin gives it: a kind the
  * plugin lists for search and also reads back, since a pick is found by search and named by its owner's reader (S-26).
+ * Reader-only declarations take part in ambiguity diagnostics; `searchable: false` keeps them out of the offered choices.
  */
 export function pluginReferenceKinds(plugin_id: string, installation: string, actions: readonly Declared[]): ReferenceKindCandidate[] {
   const read = new Set(actions.filter(action => isSubjectReader(action)).flatMap(action => action.subject_kinds));
-  return actions.flatMap(action => action.search_source?.kinds ?? []).filter(entry => read.has(entry.kind)).map(entry => ({ plugin_id, installation, kind: entry.kind, title: entry.title }));
+  const offered = actions.flatMap(action => action.search_source?.kinds ?? []).filter(entry => read.has(entry.kind));
+  const listed = new Set(offered.map(entry => entry.kind));
+  return [...offered.map(entry => ({ plugin_id, installation, kind: entry.kind, title: entry.title })),
+    ...[...read].filter(kind => !listed.has(kind)).map(kind => ({ plugin_id, installation, kind, title: kind, searchable: false }))];
 }
 
 /**

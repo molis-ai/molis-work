@@ -5,8 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { hostQuestionTypes, hostReferenceKinds, LOCAL_OWNER_PERMISSIONS, MolisWorkLocalHost, molisWorkHostProjectReference, projectReferenceKinds, referenceKindsPort } from "@molis-ai/molis-work-app-local-host";
-import { bindSearchEntriesHandler, isSubjectReader, LOCAL_PERSON_ACTOR_ID, resolveActionSubject, type ActionCallContext, type ActionClient, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ensureProjectPlugins, hostQuestionTypes, hostReferenceKinds, MolisWorkLocalHost, molisWorkHostProjectReference, projectReferenceKinds, referenceKindsPort } from "@molis-ai/molis-work-app-local-host";
+import { bindSearchEntriesHandler, isSubjectReader, LOCAL_PERSON_ACTOR_ID, resolveActionSubject, type ActionClient, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { AgentReviewQueue, boundReferenceKinds, createPrologueNodeAdapter, type ReferenceKindCandidate } from "@molis-ai/molis-work-service-agent-host";
 import { findReferenceCandidates, readReferences } from "@molis-ai/molis-work-service-search";
@@ -108,15 +108,33 @@ test("PG015-DUP-04 a bad title does not hide an installation's conflicting decla
   assert.doesNotMatch(JSON.stringify(result.kinds), /SYSTEM|坏/);
 });
 
+test("PG015-DUP-01 reader-only and search-unavailable installations cause ambiguity; unavailable readers and single reader-only kinds offer no extra choices", () => {
+  const builtin = offering({ provider_id: "io.molis.work.goals", plugin_id: "io.molis.work.goals" }, "goal", "目标");
+  const foreign = offering({ provider_id: "reader-only", plugin_id: "io.molis.work.a-reader", plugin_install_id: "reader-only" }, "goal", "外部目标");
+  const readers = foreign.filter(view => isSubjectReader(view.action));
+  for (const rows of [readers, foreign.map(view => isSubjectReader(view.action) ? view : { ...view, availability: { available: false as const, code: "actions.plugin_disabled", reason: "搜索暂不可用" } })]) {
+    const result = boundReferenceKinds(projectReferenceKinds([...builtin, ...rows], undefined, new Set()));
+    assert.deepEqual(result.kinds, []);
+    assert.deepEqual(result.problems.map(problem => problem.installation).sort(), ["builtin:io.molis.work.goals", "installed:reader-only"]);
+  }
+  const lone = boundReferenceKinds(projectReferenceKinds([...readers, ...readers], undefined, new Set()));
+  assert.deepEqual(lone.kinds, [], "a reader-only declaration never becomes an ordinary new choice");
+  assert.deepEqual(lone.problems, [], "the same installation's repeated reader is not another installation");
+  const unavailable = readers.map(view => ({ ...view, availability: { available: false as const, code: "actions.plugin_disabled", reason: "读取暂不可用" } }));
+  const restored = boundReferenceKinds(projectReferenceKinds([...builtin, ...unavailable], undefined, new Set()));
+  assert.deepEqual(restored, { kinds: [{ kind: "goal", title: "目标" }], problems: [] });
+});
+
 test("PG015-DUP-01 PG015-DUP-05 a real Runtime plugin's goal conflicts with Goals and neither reader is called by parsing, search or answer readback", { timeout: 60_000 }, async t => {
   const search = defineSearchEntriesAction("collision.goals.search", [{ kind: "goal", title: "外部目标", surface: "goals" }], "外部目标", []);
   const reader = defineSubjectContextAction("collision.goals.read", "goal", "外部目标", []);
-  let externalReads = 0, externalSearches = 0, externalEnabled = false;
+  let externalReads = 0, externalSearches = 0, externalEnabled = false, externalSearchEnabled = false;
   const availability = (): ActionView["availability"] => externalEnabled ? { available: true } : { available: false, code: "actions.plugin_disabled", reason: "测试中尚未启用" };
-  const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.a.collision-goals", version: "1.0.0", name: "外部目标", kind: "app",
+  const searchAvailability = (): ActionView["availability"] => externalSearchEnabled ? availability() : { available: false, code: "actions.plugin_disabled", reason: "搜索暂不可用" };
+  const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.a-collision-goals", version: "1.0.0", name: "外部目标", kind: "app",
     publisher: { publisher_id: "example", signature: "collision-goals" }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }], permissions: [],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [search, reader] },
-    async start() { return { kind: "app", actions: [bindSearchEntriesHandler(search, () => { externalSearches++; return [{ subject: { kind: "goal", id: "foreign-goal" }, revision: "1", title: "外部目标", summary: "外部目标", updated_at: null, content: "summary", open: null }]; }, availability),
+    async start() { return { kind: "app", actions: [bindSearchEntriesHandler(search, () => { externalSearches++; return [{ subject: { kind: "goal", id: "foreign-goal" }, revision: "1", title: "外部目标", summary: "外部目标", updated_at: null, content: "summary", open: null }]; }, searchAvailability),
       { ...reader, availability, handle: () => { externalReads++; return subjectContext({ subject: { kind: "goal", id: "foreign-goal" }, revision: "1", title: "外部目标", content: "目标内容", goal_ids: [] }); } }] }; } };
   const home = await mkdtemp(join(tmpdir(), "reference-kinds-collision-"));
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { project: [definition] } });
@@ -128,6 +146,12 @@ test("PG015-DUP-01 PG015-DUP-05 a real Runtime plugin's goal conflicts with Goal
   assert.ok(host.search);
   const port = referenceKindsPort(host, home, () => (options, operation) => withCatalog(options, operation));
   assert.ok(boundReferenceKinds(await port({ project_id: ref.project_id, actor_id: LOCAL_PERSON_ACTOR_ID })).kinds.some(entry => entry.kind === "goal"), "the currently unique goal is offered before the second installation becomes available");
+  const platform = await host.withProject(ref, runtime => ensureProjectPlugins({ store: runtime.store, artifacts: runtime.artifacts, processItems: runtime.processItems,
+    projectId: ref.project_id, actorId: LOCAL_PERSON_ACTOR_ID, homeDirectory: home,
+    actions: { registry: host.actionRegistry(ref), client: host.actionClient(ref), project_id: ref.project_id } }));
+  assert.ok(platform.platform, platform.error);
+  const installed = platform.platform.supervisor.state(definition.manifest.plugin_id);
+  assert.equal(installed?.status, "running", JSON.stringify(installed));
   const fetch = t.mock.method(globalThis, "fetch", async () => cogniaScriptedResponse({ name: "ask-user", input: { why: "关联目标", questions: [{ id: "goal", type: "reference", prompt: "目标", refKinds: ["goal"] }] } }));
   adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.real-reference-collision", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: new AgentReviewQueue(),
     questionTypes: hostQuestionTypes(), referenceKinds: hostReferenceKinds(), referenceKindsFor: port,
@@ -143,14 +167,14 @@ test("PG015-DUP-01 PG015-DUP-05 a real Runtime plugin's goal conflicts with Goal
     pending = (await adapter.read(handle.ref)).awaiting_input.find(item => item.answerable);
   }
   externalEnabled = true;
-  const caller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: ref.project_id, audience: "user", permissions: LOCAL_OWNER_PERMISSIONS };
+  const caller = await host.localPersonContext(ref);
   const original = host.actionClient(ref), readerCalls: string[] = [];
   const client: ActionClient = { discover: context => original.discover(context), invoke: async (context, action, input) => {
     readerCalls.push(action.capability_id); return original.invoke(context, action, input);
   } };
   const views = await client.discover(caller);
   const readers = views.filter(view => view.availability.available && isSubjectReader(view.action) && view.action.subject_kinds.includes("goal"));
-  assert.equal(readers.length, 2);
+  assert.equal(readers.length, 2, JSON.stringify(views.filter(view => isSubjectReader(view.action) && view.action.subject_kinds.includes("goal")).map(view => ({ provider: view.provider, availability: view.availability }))));
   const external = readers.find(view => view.provider.plugin_id === definition.manifest.plugin_id)!;
   assert.ok(external.provider.plugin_install_id && external.provider.provider_id !== definition.manifest.plugin_id, "the external plugin is actually installed and registered by Runtime");
   assert.ok(readers.some(view => view.provider.provider_id === "io.molis.work.goals"), "the other reader is the product's Goals");
@@ -170,6 +194,13 @@ test("PG015-DUP-01 PG015-DUP-05 a real Runtime plugin's goal conflicts with Goal
   assert.deepEqual(readerCalls, [], "neither exact provider is invoked by the reference paths");
   assert.equal(externalReads, 0);
   assert.equal(externalSearches, 0, "ambiguity is refused before search would index the external plugin");
+  externalSearchEnabled = true;
+  assert.equal(boundReferenceKinds(await port({ project_id: ref.project_id, actor_id: LOCAL_PERSON_ACTOR_ID })).kinds.some(entry => entry.kind === "goal"), false,
+    "making search available does not change the existing reader ambiguity");
+  externalEnabled = false;
+  const restored = boundReferenceKinds(await port({ project_id: ref.project_id, actor_id: LOCAL_PERSON_ACTOR_ID }));
+  assert.ok(restored.kinds.some(entry => entry.kind === "goal"), "an unavailable external reader no longer conflicts with Goals");
+  assert.equal(restored.problems.some(problem => problem.reason === "duplicate" && problem.kinds.includes("goal")), false);
 });
 
 test("S-32 a project's list leaves out a hidden plugin, a built-in it does not show, an unavailable action and a kind its plugin cannot read back", () => {

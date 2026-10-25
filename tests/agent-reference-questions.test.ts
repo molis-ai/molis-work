@@ -134,6 +134,13 @@ test("PG015-DUP-05 without any safe fallback kind the round explicitly refuses a
   const session = await adapter.createSession({ ...owner, workspace: "business", title: "歧义" });
   await assert.rejects(adapter.start({ ...owner, session, workspace: "business", role_id: helper.role_id, role: helper, task: "关联目标" }), { code: "actions.subject_ambiguous" });
   assert.equal(fetch.mock.callCount(), 0);
+  const role = { ...helper, host_tools: [] };
+  const handle = await adapter.start({ ...owner, session, workspace: "business", role_id: role.role_id, role, task: "回答一句话" });
+  for (const deadline = Date.now() + 20_000; !["completed", "failed", "cancelled"].includes((await adapter.read(handle.ref)).phase);) {
+    assert.ok(Date.now() < deadline, "the role without ask-user did not finish"); await new Promise(resolve => setTimeout(resolve, 10));
+  }
+  assert.equal((await adapter.read(handle.ref)).phase, "completed", "a role without ask-user is not refused for an unused reference schema");
+  assert.equal(fetch.mock.callCount(), 1);
 });
 
 // The SDK hands a round's own kinds to the subagents it dispatches (Prologue's surfaces.js, "子任务…同一份"). A Molis child role

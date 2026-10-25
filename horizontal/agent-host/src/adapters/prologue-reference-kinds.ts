@@ -9,7 +9,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
  * plugin's diagnostics, never for the model.
  */
 /** `installation` is the Host's key for the plugin installation the kind comes from: each has its own share of the limit. */
-export interface ReferenceKindCandidate { readonly plugin_id: string; readonly installation: string; readonly kind: string; readonly title: string }
+export interface ReferenceKindCandidate { readonly plugin_id: string; readonly installation: string; readonly kind: string; readonly title: string; /** A reader without an available search still participates in ambiguity, but never offers a choice. */ readonly searchable?: boolean }
 type ReferenceKindProblemReason = "kind" | "title" | "limit" | "duplicate";
 /** One per installation and reason; a collision is one per kind, with every installation that declares it. */
 export interface ReferenceKindProblem { readonly plugin_id: string; readonly installation: string; readonly reason: ReferenceKindProblemReason; readonly limit: number; readonly kinds: readonly string[]; readonly conflicting_installations?: readonly string[] }
@@ -51,6 +51,7 @@ export function boundReferenceKinds(candidates: readonly ReferenceKindCandidate[
       if (!owners.has(entry.kind)) owners.set(entry.kind, new Map());
       const installations = owners.get(entry.kind)!;
       if (!installations.has(entry.installation)) installations.set(entry.installation, entry);
+      if (entry.searchable === false) continue;
       if (!oneLine(entry.title, LIMITS.title)) note(entry, "title");
       else valid.push(entry);
     }

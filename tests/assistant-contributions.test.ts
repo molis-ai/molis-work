@@ -95,3 +95,17 @@ test("PG015-DUP-01 PG015-DUP-02 reference diagnostics belong to each installatio
   assert.equal(gaps("install-a").filter(gap => /bad_title.*显示名/.test(gap.text)).length, 1);
   assert.deepEqual(gaps("install-b"), [], "the other installation of the same plugin inherits neither collision nor invalid-title diagnostics");
 });
+
+test("PG015-DUP-01 reader-only installations appear in both providers' ambiguity diagnostics", () => {
+  const read = { input_type: SUBJECT_REFERENCE_TYPE, output_type: SUBJECT_CONTEXT_TYPE, subject_kinds: ["goal"] };
+  const builtin = "io.molis.work.goals", external = "external-reader";
+  const rows = [view(builtin, "goals.search", { audiences: ["user"], subject_kinds: ["goal"], search_source: { kinds: [{ kind: "goal", title: "目标", surface: "goals" }] } }),
+    view(builtin, "goals.read", read), view(external, "external.read", read)]
+    .map(row => ({ ...row, provider: { ...row.provider, plugin_id: row.provider.provider_id === builtin ? builtin : "io.molis.work.a-reader", plugin_install_id: row.provider.provider_id } }));
+  const reports = assistantContributions(rows);
+  for (const provider of [builtin, external]) {
+    const diagnostics = reports.find(row => row.provider_id === provider)!.gaps.filter(gap => /goal.*与其他可用安装重名/.test(gap.text));
+    assert.equal(diagnostics.length, 1);
+    assert.match(diagnostics[0]!.text, /builtin:io.molis.work.goals、installed:external-reader/);
+  }
+});

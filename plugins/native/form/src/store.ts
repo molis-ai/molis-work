@@ -9,7 +9,7 @@ import type {
   FormStatus,
   FormSubmissionRecord,
   FormSubmissionSource,
-} from "@molis-ai/molis-work-contracts/modules/form";
+} from "./contract.js";
 import { formErrors } from "./error.js";
 import { FORM_ANSWER_FORMAT, FORM_ANSWER_LIMIT } from "./fillpage.js";
 import type { FormPublicationIntent, FormPublicationSnapshot } from "./promote.js";

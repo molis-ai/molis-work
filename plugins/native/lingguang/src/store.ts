@@ -1,14 +1,14 @@
 import { createHash } from "node:crypto";
 import type { HomeStoreDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { LINGGUANG_BODY_LIMIT } from "@molis-ai/molis-work-contracts/modules/lingguang";
+import { LINGGUANG_BODY_LIMIT } from "./contract.js";
 import type {
   LingguangConversation,
   LingguangMessage,
   LingguangMessageRole,
   LingguangSpark,
   LingguangStatus,
-} from "@molis-ai/molis-work-contracts/modules/lingguang";
+} from "./contract.js";
 import { lingguangErrors } from "./error.js";
 import { LINGGUANG_DATABASE } from "./database.js";
 export { LINGGUANG_DATABASE };

@@ -1,5 +1,5 @@
 import { strToU8, zipSync, type Zippable } from "fflate";
-import type { PptRecord } from "@molis-ai/molis-work-contracts/modules/ppt";
+import type { PptRecord } from "./contract.js";
 
 /**
  * A real PowerPoint file (Office Open XML) from a saved deck: one 16:9 slide per page with its title, bullets and

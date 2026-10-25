@@ -1,13 +1,3 @@
-import type { ContractDescriptor } from "../platform/package.js";
-
-export const modulesPptContract = {
-  contractId: "io.molis.work.module.ppt.v1",
-  kind: "module",
-  schemaVersion: 1,
-  maturity: "partial",
-  ssot: "docs/SSOT-MATRIX.md",
-} as const satisfies ContractDescriptor;
-
 export const PPT_PLUGIN_ID = "io.molis.work.ppt";
 export const PPT_PROJECT_PLUGIN_ID = "ppt";
 /** The one kind name of a 演示稿 everywhere it is named: its actions, search, placement, the side panel and its 成果 origin. */

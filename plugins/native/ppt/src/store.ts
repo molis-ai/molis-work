@@ -1,6 +1,6 @@
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HomeStoreDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { PptRecord, PptSlide, PptSlideInput } from "@molis-ai/molis-work-contracts/modules/ppt";
+import type { PptRecord, PptSlide, PptSlideInput } from "./contract.js";
 import type { PptPublicationIntent, PptPublicationSnapshot } from "./promote.js";
 import { pptErrors } from "./error.js";
 import { PPT_DATABASE } from "./database.js";

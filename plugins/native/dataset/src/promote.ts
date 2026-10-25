@@ -1,5 +1,5 @@
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { DatasetRecord } from "@molis-ai/molis-work-contracts/modules/dataset";
+import type { DatasetRecord } from "./contract.js";
 import { datasetErrors } from "./error.js";
 import type { DatasetStores } from "./store.js";
 import { isDeepStrictEqual } from "node:util";

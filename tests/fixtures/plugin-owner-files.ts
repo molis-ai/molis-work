@@ -73,20 +73,24 @@ export function ownerFileActions(host: MolisWorkLocalHost, probe: ReturnType<typ
   };
 }
 
-/** The actual project platform, with an explicit Home owner registry; no Host fixture registration shortcut. */
-export function ownerFilesProject(home: string, probe: ReturnType<typeof ownerFilesProbe>, options: { withoutHome?: boolean; file?: string; withoutPrivateCleanup?: boolean } = {}) {
+/**
+ * The actual project platform, with an explicit Home owner registry; no Host fixture registration shortcut. `file` and `projectId` open an
+ * existing project (a catalog project of the Home) instead of seeding a demo board.
+ */
+export function ownerFilesProject(home: string, probe: ReturnType<typeof ownerFilesProbe>, options: { withoutHome?: boolean; file?: string; projectId?: string; withoutPrivateCleanup?: boolean } = {}) {
+  const projectId = options.projectId ?? DEMO_PROJECT_ID;
   const file = options.file ?? join(mkdtempSync(join(home, "project-")), "project.db");
   if (!options.file) seedDemoBoard(file);
-  const store = new LocalProjectDatabase(file), actions = pluginActions(store, DEMO_PROJECT_ID);
+  const store = new LocalProjectDatabase(file), actions = pluginActions(store, projectId);
   const privateStorage = new SqlitePluginPrivateStorage(store.db);
   const stores = homeStoreRegistry([...homeStores().stores, { path: probe.owner_files.store_name, owner: probe.id }]);
-  const ports = { db: store.db, appendEvent: (event: Parameters<LocalProjectDatabase["appendEvent"]>[0]) => store.appendEvent(event), eventCursor: (projectId: string) => store.eventCursor(projectId) };
-  const platform = createPluginPlatform({ actions, project_id: DEMO_PROJECT_ID, actor_id: "tester", db: store.db, journal: store,
+  const ports = { db: store.db, appendEvent: (event: Parameters<LocalProjectDatabase["appendEvent"]>[0]) => store.appendEvent(event), eventCursor: (id: string) => store.eventCursor(id) };
+  const platform = createPluginPlatform({ actions, project_id: projectId, actor_id: "tester", db: store.db, journal: store,
     artifacts: new ArtifactsModule(ports), processItems: new ProcessItemsModule(ports),
     ui: new UiHost(), privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest),
     ...(options.withoutPrivateCleanup ? {} : { deleteInstallationData: (installId: string) => privateStorage.deleteInstallationData(installId) }),
     home: options.withoutHome ? null : { directory: home, completeText: () => null, stores } });
-  return { platform, store, privateStorage, file, client: actions.client, projectId: DEMO_PROJECT_ID,
+  return { platform, store, privateStorage, file, client: actions.client, projectId,
     async close() {
       try { await platform.closeCoordination(); for (const instance of platform.runtime.list()) if (instance.state === "running") await platform.runtime.stop(instance.install_id); }
       finally { store.close(); }

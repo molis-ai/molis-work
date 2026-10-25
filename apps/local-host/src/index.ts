@@ -102,7 +102,7 @@ export { hydrateFeedItemContent, hydrateFeedSnapshotContent } from "./feed-conte
 export { createLocalFeedApplication } from "./feed-application.js";
 export { HOST_ARTIFACT_PRODUCERS, artifactTypeDeclarations, declaredArtifactTypes, artifactContinuers, artifactReferrerActions, continuerReadsFile, artifactProducerSources, artifactLinkKinds, linkKindProblems, installedArtifacts, supervisedArtifacts, artifactDeclarationOwners, artifactProducerRetired, type ArtifactProducerSource, type InstalledArtifactView } from "./artifact-type-registry.js";
 export { liveHostFunctionAuthoringCatalog } from "./behavior-catalog.js";
-export { withFunctionsService } from "./functions-host.js";
+export { seedSceneRules, withFunctionsService } from "./functions-host.js";
 
 export { createFeedSourceRuntime, type FeedSourceRuntime } from "./feed-source-runtime.js";
 export { createIntelligenceCollectAdapter, type IntelligenceCollectRequest, type IntelligenceCollectResult, type IntelligenceCollectAdapter } from "./search-intelligence-client.js";

@@ -96,6 +96,7 @@ test("Inbox consumes a registered judgment, retains the original binding and his
       const item = feed.ingestItem({ source, externalId: "article-1", title: "核对发布说明", summary: "尚未确认的数据", body: "原文内容", occurredAt: new Date().toISOString(), attention: false }).item;
       return feed.ensureInboxEntryForFeedItem(runtime.project_id, item.item_id, "manual").entry;
     });
+    await host.actionClient(reference).discover(caller); // the project's plugins register their scenes, and a scene's rule is written when it does
     const rule = withFunctionsService(home, service => service.list().find(rule => rule.function_key === "system_pick_inbox_next")!, options);
     const fn = publishedFunctionAction(rule);
     let scenes = host.sceneClient(reference), actions = host.actionClient(reference);
@@ -233,6 +234,7 @@ test("admission actions wait for the Inbox next-step judgment beside the project
     for (const action of [feedItemActions.inbox, feedContentActions.receive, inboxContentActions.receive]) {
       assert.equal(action.action.scheduling, "concurrent", `${action.capability_id} waits for a model, so it runs beside the project's queue`);
     }
+    await actions.discover(caller); // the project's plugins register their scenes, and a scene's rule is written when it does
     const rule = withFunctionsService(home, service => service.list().find(rule => rule.function_key === "system_pick_inbox_next")!, options);
     await actions.invoke(caller, inboxActions.writeJudgment, { function_key: rule.function_key });
     const { first, second, other } = await host.withProject(reference, runtime => {

@@ -53,6 +53,8 @@ export { type MolisWorkWebServiceAction, type MolisWorkWebServiceState, type Mol
 export { MolisWorkUninstallService } from "./installer/uninstall.js";
 export { type MolisWorkUninstallPlan, type MolisWorkUninstallResult, type MolisWorkUninstallServiceOptions, type MolisWorkUninstallChange, type UninstallProjectAccess } from "./installer/uninstall-contract.js";
 export { resolveWebControlToken, WEB_CONTROL_TOKEN_RELATIVE_PATH } from "./web-control-token.js";
+export { createMcpResidentStarter, type EnsureMcpResidentHost } from "./mcp-resident-start.js";
+export { reportMcpWebStartupFailure, watchMcpWebStartup } from "./mcp-web-startup.js";
 export { createMolisWorkRuntimePayload, type MolisWorkRuntimePayloadOptions } from "./installer/runtime-payload.js";
 export { createMolisWorkNpmPackageDirectory } from "./installer/npm-package.js";
 export { readPersonalPlanningMethodPacks } from "./personal-planning-methods.js";

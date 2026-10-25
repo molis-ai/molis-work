@@ -37,7 +37,7 @@ export function viewPlacementProblems(view: UiViewDeclaration, stations: Readonl
   const problems: string[] = [];
   const id = view.view_id;
   if (view.icon !== undefined && !words(view.icon)) problems.push(`视图 ${id} 的 icon 必须是图标名`);
-  if (view.hue !== undefined && !HUES.has(String(view.hue))) problems.push(`视图 ${id} 的 hue ${String(view.hue)} 不是设计系统的颜色名（${UI_VIEW_HUES.join("、")}）`);
+  if (view.hue !== undefined && (typeof view.hue !== "string" || !HUES.has(view.hue))) problems.push(`视图 ${id} 的 hue ${String(view.hue)} 不是设计系统的颜色名（${UI_VIEW_HUES.join("、")}）`);
   const opens = view.slot === "navigator" || view.slot === "island";
   for (const field of ["group", "creates", "start"] as const) {
     if (view[field] !== undefined && !opens) problems.push(`视图 ${id} 的 ${field} 只用于 navigator 或 island 视图`);

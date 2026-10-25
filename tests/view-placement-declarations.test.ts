@@ -7,7 +7,8 @@ import { UI_VIEW_GROUPS, UI_VIEW_HUES, type UiContributionDeclaration } from "@m
 import {
   BUILTIN_PLUGIN_CATALOG, creatableKinds, findPluginSettingsNavItem, homeStarts, listPluginSettingsNavItems, pluginSettingsNavItemsFrom,
 } from "@molis-ai/molis-work-app-workbench";
-import { defineWorkflowContentActions } from "@molis-ai/molis-work-plugin-sdk";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { defineWorkflowContentActions, parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { DECLARATION_PLUGIN_ID, declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
 import { renderMolisWorkWeb, type MolisWorkWebView } from "./workbench-renderer-fixture.js";
 import { PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, shownProjectPlugins } from "@molis-ai/molis-work-app-local-host";
@@ -28,6 +29,19 @@ function placed(over: Part = {}, actions: unknown = CREATES): Record<string, unk
     ui: { contributions: [`${DECLARATION_PLUGIN_ID}.main`], views: [{ view_id: "main", slot: "navigator", title: "Main", icon: "note", ...over }] },
   });
 }
+
+test("SH1303-02 public Manifest parsing retains colour names and refuses non-string hues", () => {
+  for (const hue of UI_VIEW_HUES) assert.equal(parsePluginManifest(placed({ hue })).ui?.views?.[0]?.hue, hue);
+  for (const hue of [7, ["indigo"], [["indigo"]], null, true, {}]) {
+    assert.throws(() => parsePluginManifest(placed({ hue })), (error: unknown) => {
+      assert.ok(error instanceof ActionError);
+      assert.equal(error.code, "plugin.declaration_invalid");
+      assert.equal(error.kind, "invalid");
+      assert.equal(error.message, `视图 main 的 hue ${String(hue)} 不是设计系统的颜色名${HUES}`);
+      return true;
+    }, "reject " + JSON.stringify(hue));
+  }
+});
 
 const RULES: ReadonlyArray<{ rule: string; manifest: Record<string, unknown>; expected: string }> = [
   { rule: "a view that declares none of them", manifest: placed(), expected: "" },

@@ -1,7 +1,8 @@
 /**
  * The group colour of the workbench's own surfaces on the tab strip, which no plugin declares. A plugin's colour is the `hue` its
  * Manifest declares, read from the page's plugin directory (`script[data-plugin-directory]`) and handed in as `hues`; the platform
- * does not keep a list of plugins (W5-02 PR-D, PG-075).
+ * does not keep a list of plugins (W5-02 PR-D, PG-075). If that directory script is absent, plugin groups use the same
+ * id-based spare hues as plugins that declare no hue.
  */
 const SURFACE_HUES = { home: "gray", characters: "purple", workspace: "slate", settings: "steel" };
 /** Hues a plugin outside the catalog (one built in the studio) may get, picked by its id so it keeps it. */

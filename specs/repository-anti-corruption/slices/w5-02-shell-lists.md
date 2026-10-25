@@ -132,3 +132,19 @@ Root 接受的 WO 绑定 #1293 的 `ec3e0c3ad5c4ca8f0a445a7259071e58b43ea7d4` �
 **接受的外观变化**（浏览器批请留意）：①原先不在表里的插件（第三方、issues，以及 `sources`、`market`、`root` 这几个面）此前的图标/标签用各处自己的备用色（`--faint`、`--muted`），现在与内置插件一样是 `--ink-soft`——这正是「待遇一样」；②标签页图标的 `--plugin-color` 不再按表查，一律 `--ink-soft`（原先表外的标签是 `--muted`）；③标签条上表外插件的组色改读目录，没写 `hue` 的仍按 id 在备用色里挑，与删表前一致。
 
 **没做**：Goals 的 `[data-goal-canvas-shell]` 与 `locked`/`SURFACE_OVERRIDES`（S11）；插件包自己样式表里按插件写的 `--plugin-tint: var(--ink-soft)` 行（dataset、form、todo、jelly、workflows、灵光各一行）是插件自己的样式、值与通用规则相同，留给各插件自己清。
+
+## 8. #1303 FIRST 后续（已接受 WO，2026-10-25）
+
+Root 将 FIRST 的三个非阻塞余项交给 I1，基于 `4595b4c50a0ae245520f52f987e05efa2d24965c` 单独补齐；不改原 PR、原作者树和上述已实现范围。完成目标是工程验证通过，并交独立 REVIEW / TEST 和 PIPE 采用；不宣称整条防腐线或用户验收完成。
+
+快捷键沿用实际渲染边界：候选只来自 `.dock-pins [data-dock-pin]` 与 `.plugin-rail-items [data-plugin-id]`，且必须可见。扩展入口在这两个容器之外；Dock 也只从插件列表取源按钮。因此删除设计系统的 `plugin-builder` 特判即可，不新增属性、不按 `rail: "extend"` 一概排除。保留现有编号、点击导航及输入/终端/菜单的按键边界。
+
+base 的 hue 四例已通过 `manifestProblems → parsePluginManifest` 验证合法和非法字符串，保留复用。Root 增补授权后，公开解析探针确认 `["indigo"]` 及嵌套数组被旧 `HUES.has(String(view.hue))` 接受且原样返回，违反现行色名字符串合同。本 WO 因此补入 SDK 的最小字符串类型拒绝：只改 `view-placement-declarations.ts` 的 hue 条件，不改其他字段、枚举、错误模型和公开接口；所有合法色名正控及 JSON 非字符串反例经过同一个公开解析入口。标签组注释说明页面缺少 `script[data-plugin-directory]` 时使用现有按 id 稳定选色的备用路径，不改算法。合同、安装身份、FI / Goals 具名分支、固定样例及其他需求线均不在本片；既有 RAC605-KEY-01 红项照实保留。
+
+| 编号 | 验收与证明 |
+| --- | --- |
+| SH1303-01 | 实际工作台的扩展入口不占 Alt/Option 1–9；可见普通插件与 Dock 仍按候选顺序触发原点击导航，隐藏项不占位。定向运行 `tests/plugin-picker-pins.e2e.test.ts` 的本编号，复用 `tests/plugin-picker-pins.test.ts` 的渲染约束。 |
+| SH1303-02 | 公开 `parsePluginManifest` 保留全部合法色名，并以原声明错误拒绝数值、数组（含可转成合法色名的单元素与嵌套数组）、null、布尔值及对象；既有非法字符串四例保留。运行 `tests/view-placement-declarations.test.ts`。 |
+| SH1303-03 | `plugin-tab-groups.ts` 注释准确说明目录脚本缺失时走备用色；算法不变，复用 `tests/plugin-hue-declaration.test.ts` 的 RAC-706。 |
+
+首次改动进行一次必要的 FIFO 整体 `pnpm build`；数组误接受的实测触发 Root 增补授权后，SDK 出现新的生产输入，因此再刷新一次必要整体构建。新构建只验证 hue 公开解析、内置声明正控与相关检查；快捷键原件按未变的 UI 源码范围复用，最终独立 TEST 绑定新构建实操。保留定向验证、边界与相对基线健康检查、推送前密钥检查，不跑全量或原大批。资源只记录相对本片 parent 的实测变化并交采用载体，不在本片放宽预算或门禁。独立 TEST 复用已绑定源码的构建产物，补必要行为实操，不重跑原大批次。

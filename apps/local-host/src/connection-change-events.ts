@@ -1,7 +1,7 @@
 import { HOST_CONNECTION_CHANGED_EVENT } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { refreshFeedConnectionState } from "./connector-source-state.js";
 import { hostLog } from "./host-log.js";
-import { runningProjectPlatforms } from "./project-plugins.js";
+import { runningProjectPlatforms } from "./running-project-platforms.js";
 
 /**
  * A connection of this Home changed (connected, enabled, disabled, disconnected, removed, or its token replaced): it goes out as

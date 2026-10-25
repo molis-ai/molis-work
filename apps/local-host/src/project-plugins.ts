@@ -16,6 +16,7 @@ import { createPptPlugin } from "@molis-ai/molis-work-plugin-ppt";
 import { createWorkflowsPlugin } from "@molis-ai/molis-work-plugin-workflows";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { createPluginPlatform, type PluginPlatform, type PluginPlatformEntry } from "./plugin-platform.js";
+import { noteProjectOpened, noteProjectReleased } from "./running-project-platforms.js";
 import type { LocalProjectDatabase } from "./project-database.js";
 import { HOST_BUILD_TRUST, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import type { PluginDependencyCheck } from "./plugin-actions-client.js";
@@ -70,22 +71,6 @@ export function projectPluginProblem(state: ProjectPluginState, store: LocalProj
 
 type StartedProject = { ports: ProjectPluginPorts; ready: Promise<ProjectPluginState> };
 const started = new WeakMap<LocalProjectDatabase, Map<string, StartedProject>>();
-/** Every project platform this process has opened, weakly: it is how a Home-wide event finds the projects that run, and keeps none alive. */
-const opened = new Set<WeakRef<StartedProject>>();
-
-/** The platforms of this Home's projects that are running now, with their project ids. Never starts one; one still opening is waited for. */
-export async function runningProjectPlatforms(homeDirectory: string): Promise<{ projectId: string; platform: PluginPlatform }[]> {
-  const running: { projectId: string; platform: PluginPlatform }[] = [];
-  for (const reference of [...opened]) {
-    const project = reference.deref();
-    if (!project) { opened.delete(reference); continue; }
-    if (project.ports.homeDirectory !== homeDirectory) continue;
-    const state = await project.ready.catch(() => null);
-    if (state?.platform) running.push({ projectId: project.ports.projectId, platform: state.platform });
-  }
-  return running;
-}
-
 /** A project's plugin platform when it is already running; never starts one. */
 export async function runningProjectPlatform(store: LocalProjectDatabase, projectId: string): Promise<PluginPlatform | null> {
   const opening = started.get(store)?.get(projectId);
@@ -98,7 +83,7 @@ export async function releaseProjectPlugins(store: LocalProjectDatabase, project
   const opening = boards?.get(projectId);
   if (!opening) return;
   boards!.delete(projectId);
-  for (const reference of opened) if (reference.deref() === opening) opened.delete(reference);
+  noteProjectReleased(opening);
   const record = await opening.ready;
   record.stopObservers?.();
   if (!record.platform) return;
@@ -138,7 +123,7 @@ export async function ensureProjectPlugins(ports: ProjectPluginPorts): Promise<P
   const opening = startPlatform(configuration);
   const project = { ports: configuration, ready: opening };
   boards.set(ports.projectId, project);
-  opened.add(new WeakRef(project));
+  noteProjectOpened(project);
   return opening;
 }
 

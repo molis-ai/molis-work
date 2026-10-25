@@ -2997,3 +2997,14 @@ withWriter({memoryPurges,sessionPlan},work) 属外层真实 SDK 装配，仅 Cat
 2026-10-26 关联复验：保持冷 owner `1b308e43` 不变，合入原 Session 主人修复 `a4a6d9ca85a9428af24b8920bcfabbe2a56ddf60`（父 `3b566a97`），合成 `8fdcdf5e6d308279fad5a70c9c41f00be3e45619`，保留双方独立祖先。修复沿原 holdProject 和 effect 前全计划 Index 观察复核；本片接口/删除核/frame 边界不变，不承诺任意直接 SDK 底层写入的原子性。
 
 在此实际新生产上，固定 Node24.14 原 FIFO build 成功；cold owner、project deletion、Session cold purge、Memory cold bridge、父 owner 五文件96项全部通过（jobs2/browser1/retries0，无skip），根类型、三相关测试文件严格类型、boundary（errors=[]）、准确新 merge-base `a4a6d9ca` health 和 diff 检查通过。日志前缀 `/private/tmp/molis-memory-cold-project-owner-raw-fixed-`，日期 `20261026`，含 build/tests/types/test-types/boundary/health。未重复全量、未push。本地复合证据仍不替代真实 Catalog prepared/frame 完整装配、完整T1/T0恢复、最终App或用户验收；上游两个 metadata 交错反例的独审证据由统筹保留。
+### #1064 大代码块 50ms 门槛失败诊断（2026-10-25）
+
+准确 `51a0c4ff96b8a3f68fc2e3553ca26f6477195e93` 的 Full suite `40201390414` shard 8 / job `121193118442` 在 `tests/code-scale.e2e.test.ts` 的 SYS-49/VUX-33 用例失败：75 片，最长 54.1ms，原一次重试仍失败；同文件其余 4 项通过。旧 d08 的 retry-only UNKNOWN 与 SYS-49 既往首帧布局超时保留，不用本机通过消除。
+
+只读调用链确认：现计时已经局限于生产 painter 的 RAF 回调及其后的 `code.getBoundingClientRect()` 强制布局，不是 RAF 间隔，也没有把其他回调执行时间直接混入。未改产品的本机单例 75 片最长 13.6ms；明确标注的 4 倍 CPU 降速诊断在同一阈值失败，首片 JS 4.3ms + 布局 53.3ms，另一片 JS 2.5ms + 布局 50.6ms。Chrome trace 显示布局根为整页 `#document`；采 trace 又改变时序，同步初始 paintInto 51.3ms、片内最长 39.7ms。以上只证明本机可出现布局预算失败，不能冒称已定位 Linux 那次 54.1ms 的具体原因，更不能据此归因为环境、字体或 GC。
+
+本刀最小合同：仅增强该现有用例的失败观察与本节；保留原样本、生产页面、全部断言、原 50ms 阈值与计时起止。原总耗时仍包括整个 callback 及强制布局，只额外记录中间时点以区分 JS 与布局；初始与逐片原始样本写入现有测试日志/忽略的评审目录，便于统筹从真实 CI 获取失败构成。不增 sleep、预先布局、空帧、retry、CI 设置或新的发布依赖；临时 CPU 降速与 trace 代码不进入提交。不做证据不足的生产优化，根因未闭合和最终 CI 仍明确待核验。
+
+诊断原始文件：`/private/tmp/molis-code-scale-baseline.{log,json,png}`、`/private/tmp/molis-code-scale-profile-4x.{log,json,png}`、`/private/tmp/molis-code-scale-traced-4x-captured.log`、`/private/tmp/molis-code-scale-4x-trace.json`，汇总 `/private/tmp/molis-code-scale-diagnosis.json`。均来自临时 Home、隔离 Chrome 和复用且已核验指纹的准确构建，没有真实 Home 或付费模型调用。
+
+候选观测补丁在原条件下跑完整 `code-scale.e2e` 5/5 通过、零跳过/重试；日志 `/private/tmp/molis-code-scale-observation-validation.log` 留存原始 75 片，最长 7.0ms。此结果仅证明观测补丁在本机仍通过原合同，**不是性能问题已修复**。原同步初始、每片 <50ms、至少15片、增量着色、回改、离页停止、400,000上限及真实 Coding/Assistant 重开等断言均原样保留；总计时起点仍在 step 前、终点仍在强制布局后，中间只多一次读时钟。末尾移除了候选中仅失败时额外抓图的一行，避免截图故障盖过原性能断言；真实失败构成由既有 diagnostic 日志与 JSON 提供，前述诊断截图保留。

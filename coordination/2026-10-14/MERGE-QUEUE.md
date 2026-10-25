@@ -515,3 +515,8 @@ Codex最新裁定：#1127 main红为独立Home设置宿主未消费open-settings
 
 
 **消费/新门禁补充（PIPE）**：SDK103补充Review6394544896/Test6394652329齐仍非原Claude严格FIRST/actual main；C2旧main adapter实际30个类型诊断，现成1064/9e055已有async与真实版本/操作号的Memory基础适配，1101/e7da仍Draft/SDK102扩展，须原Memory/采用owner用准确103包核真实兼容再指定C2串行vendor，不开第二Memory writer。C5精确production no-local-Catalog/fallback新接缝的Goals gate提案保F19 34b CLI收紧与原变异，Root/Review专项后承接。CI40171099469@ada0真实Gates单错PluginRuntime class623→624，Verify只聚合失败；Root正给实际writer，禁止调baseline/limits/屏蔽此错。Root另按一骏新请求从源头处理Cloudflare指定checks，PIPE不并行操作，未核配置结果不冒已关闭，其他CI/full门槛不变。
+
+
+**PIPE实际接续更新（2026-10-25）**：Prologue#103已actual dcaa982ad1d6cb1210e603205be3430dd8c615ec@07:25:30Z，actual/candidate5132 tree同0600eb185934e03451c224b402d280082f85fc18、父6523；严格FIRST6394809759+补充双核已齐，PIPE查询时已merged未重复操作。人类最新仅Prologue审查后直main免CICD，原账单CI红不改绿、不扩Molis；F6五组有效nonblock保WIP作后继窄增量。C2负责actual-main清洁隔离包准备/实测sha/来源草稿，正式vendor仍等原Memory1064准确包兼容与Claude采用组合，不将上游merge等同App已采用。
+
+#1272/ab34bc79与#1273/d97df5ab已分别由PIPE给Claude唯一FIRST入口6394904456/6394904846，37按36 actual之后真树统一，不派Codex重首评。当前CI PluginRuntime623→624原carrier已DIRTY单hunk处理，保持原writer、不另派修复者；固定/health未核之前红仍红。F5树消失已找到官方snapshot2b27655f（parent d0，25files604/-74、startup-cleanup），F5唯一恢复并核原fingerprint/逐文件，未证恢复成功、不认为已释放，原95Node只有相关Functions child超时/browsers未跑；旧40/d0不能冒新WIP。S11/SC4/S07与已通过F18/F8纯增量仍仅最终carrier写入/gates/actual才关。C5首gate proposal两实证漏检已回原实现1补强，原CLI/F19 v2不回退。Root已核关Cloudflare preview branch触发、production禁用选项仍ON，旧checks照留，仅该外部触发源关闭，Molis真实CI/full门槛不变。

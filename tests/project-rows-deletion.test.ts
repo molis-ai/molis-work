@@ -187,6 +187,7 @@ test("RAC-562 an existing catalog project plugin with a declared deletion owner 
   assert.deepEqual((await platform.start([{ definition, bundled: true }])).running, [definition.manifest.plugin_id]);
   assert.ok(schema.mock.calls.some(call => call.arguments[0] === library.schema), "a supported real startup exercises the observed schema exec");
   assert.ok(existsSync(homeSqlitePath(home, library.store_name)));
+  await platform.runtime.stop(platform.runtime.list()[0]!.install_id);
 });
 
 test("RAC-562 the project platform refuses a copied catalog Manifest even with the same plugin id and bundled flag", async t => {

@@ -12,6 +12,7 @@ import { CONTEXT_ONBOARDING_HOME_STORE } from "./context-onboarding-store.js";
 import { HOME_PLUGIN_RUNTIME_HOME_STORE } from "./home-plugin-store.js";
 import { INSTALLED_LIBRARIES_HOME_STORE } from "./installed-plugin-libraries.js";
 import { ORIGINAL_FILES_HOME_STORE } from "./material-original-files.js";
+import { DIRECTORY_GRANTS_HOME_STORE } from "./plugin-directory-store.js";
 import { DISCUSSION_HOME_STORE } from "./im-server.js";
 import { PLACEMENT_HOME_STORE } from "./placement-actions.js";
 
@@ -31,7 +32,7 @@ export function homeStores(): HomeStoreRegistry {
     ...owned("apps/local-host", ...at("sessions")),
     ...owned("apps/local-host/src/installer", ...at("backups")),
     ...owned("apps/local-host", HOME_PLUGIN_RUNTIME_HOME_STORE, INSTALLED_LIBRARIES_HOME_STORE, ASSISTANT_HOME_STORE, PLACEMENT_HOME_STORE, AGENT_DEFINITIONS_HOME_STORE, AGENT_DECLARATIONS_HOME_STORE,
-      CONNECTORS_HOME_STORE, CONNECTOR_TOOLS_HOME_STORE, CONTEXT_ONBOARDING_HOME_STORE, ALCHEMIST_HOME_STORE, ORIGINAL_FILES_HOME_STORE),
+      CONNECTORS_HOME_STORE, CONNECTOR_TOOLS_HOME_STORE, CONTEXT_ONBOARDING_HOME_STORE, ALCHEMIST_HOME_STORE, ORIGINAL_FILES_HOME_STORE, DIRECTORY_GRANTS_HOME_STORE),
     ...owned("modules/functions", FUNCTIONS_HOME_STORE),
     ...owned("modules/characters", CHARACTERS_HOME_STORE),
     ...owned("packages/storage", MEMORY_LEDGER_HOME_STORE, TEXT_SEARCH_HOME_STORE, KNOWLEDGE_CARDS_HOME_STORE, ...at("feed")),

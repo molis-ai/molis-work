@@ -184,6 +184,8 @@ export class HomePluginExecutor implements PluginExecutor {
   capturePrivateData(installId: string): unknown { return this.options.storage.snapshotInstallationData(installId); }
   uninstalled(record: PluginInstanceRecord): void {
     forgetPluginAgentDefinitions(pluginHomeFor(this.options.home), record.install_id);
+    // A Home-level installation's directory grants, in every project, go with it (PG-049); kept data does not keep them.
+    directoryForHome(this.options.home).forgetInstallation(record.install_id, null);
     if (record.execution === "sandbox" && !record.retain_private_data) removeSandboxOwnerFiles({ home: { directory: this.options.home }, project_id: null }, record.install_id);
   }
   keptDataDiscarded(record: PluginInstanceRecord): void {

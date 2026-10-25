@@ -27,7 +27,7 @@ function exampleManifest(): PluginManifest {
   };
 }
 
-test("RAC-386 S-X1 the Runtime refuses to uninstall a plugin while its 常开 agreement stands, and allows it once the agreement is revoked", async () => {
+test("RAC-386 S-34 the Runtime refuses to uninstall a plugin while its 常开 agreement stands, and allows it once the agreement is revoked", async () => {
   const db = new DatabaseSync(":memory:");
   db.exec(PLUGIN_TRUST_SCHEMA_SQL);
   const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { consents: new SqlitePluginConsentLedger(db) });
@@ -99,7 +99,7 @@ test("RAC-386 RAC-400 the 常开 plugins come from the ledger and the records: G
   } finally { store.close(); }
 });
 
-test("RAC-386 S-X1 the Home route refuses to switch off a 常开 plugin, however often it is asked, and enabling it stays allowed", async t => {
+test("RAC-386 S-34 the Home route refuses to switch off a 常开 plugin, however often it is asked, and enabling it stays allowed", async t => {
   const f = await serveHomeRuntime(t);
   const route = (operation: string) => f.request(`/api/plugins/${manifestId("shelf")}/${operation}`, { method: "POST", body: {} });
   for (let attempt = 0; attempt < 2; attempt++) {

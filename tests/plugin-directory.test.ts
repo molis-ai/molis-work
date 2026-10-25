@@ -260,6 +260,48 @@ test("RAC-605 the Host reads the directory from the Manifests the project's Runt
   }
 });
 
+test("RAC-609-BLOCK-01 an installed plugin blocked by a missing dependency leaves the real Host directory and page while its sibling remains", async () => {
+  const folder = mkdtempSync(join(tmpdir(), "directory-blocked-")), database = join(folder, "project.db");
+  seedDemoBoard(database); const store = new LocalProjectDatabase(database);
+  const ports = { db: store.db, appendEvent: (event: Parameters<typeof store.appendEvent>[0]) => store.appendEvent(event), eventCursor: (id: string) => store.eventCursor(id) };
+  const platform = createPluginPlatform({ db: store.db, project_id: DEMO_PROJECT_ID, actor_id: "tester", actions: pluginActions(store, DEMO_PROJECT_ID),
+    artifacts: new ArtifactsModule(ports), processItems: new ProcessItemsModule(ports), ui: new UiHost(), home: null,
+    privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) });
+  const blockedId = "io.molis.work.example.directory-blocked", siblingId = "io.molis.work.example.directory-sibling", starts: string[] = [];
+  const definition = (pluginId: string, missing = false): PluginDefinition => ({
+    manifest: { schema_version: 2, host_api_version: 2, plugin_id: pluginId, version: "1.0.0", name: pluginId, kind: "app",
+      publisher: { publisher_id: "directory-fixture", signature: pluginId }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
+      permissions: [], capabilities: { provides: [], consumes: missing ? ["directory.missing.v1"] : [] }, artifacts: { produces: [], consumes: [] },
+      ...(missing ? { requires: [{ capability_id: "directory.missing.v1", version: 1, reason: "Directory regression" }] } : {}),
+      ui: { contributions: [`${pluginId}.main`], views: [{ view_id: "main", slot: "navigator", title: pluginId,
+        start: { title: `Start ${pluginId}`, hint: "An actual Runtime entry" } }] } },
+    async start() { starts.push(pluginId); return { kind: "app", views: [{ descriptor: { contribution_id: `${pluginId}.main`, plugin_id: pluginId, kind: "primary-page", label: pluginId, slots: [] },
+      render: () => "<section>Directory fixture</section>" }] }; },
+  });
+  try {
+    const blocked = definition(blockedId, true);
+    const installed = platform.runtime.install({ definition: blocked, trust: { level: "unsigned" }, deployment: "local" });
+    assert.equal(platform.runtime.get(installed.install.install_id).state, "installed", "the blocked case has a real installation record");
+    const report = await platform.start([{ definition: blocked }, { definition: definition(siblingId) }]);
+    assert.deepEqual(report.running, [siblingId]); assert.deepEqual(report.failed, []);
+    assert.deepEqual(report.blocked.map(state => [state.plugin_id, state.status, state.code]), [[blockedId, "blocked", "plugin.capability_missing"]]);
+    assert.equal(platform.supervisor.state(blockedId)?.status, "blocked");
+    assert.equal(platform.runtime.get(installed.install.install_id).state, "installed", "dependency refusal does not pretend the installation was removed");
+    assert.deepEqual(starts, [siblingId], "the blocked factory never executes, while the independent sibling really runs");
+    const directory = runningPluginDirectory(platform.supervisor);
+    assert.deepEqual(directory.map(entry => entry.id), [siblingId], "the actual Host directory excludes the blocked install without hiding its running sibling");
+    const html = renderMolisWorkWeb(view(directory));
+    assert.equal((JSON.parse(directoryData(html)) as Array<{ id: string }>).some(entry => entry.id === blockedId), false);
+    assert.equal(headingOf(html, blockedId), undefined); assert.ok(headingOf(html, siblingId));
+    assert.equal(homeStartList(html).some(entry => entry.id === blockedId), false);
+    assert.equal(homeStartList(html).some(entry => entry.id === siblingId), true);
+  } finally {
+    await platform.closeCoordination();
+    for (const record of platform.runtime.list()) if (record.state === "running") await platform.runtime.stop(record.install_id);
+    store.close(); rmSync(folder, { recursive: true, force: true });
+  }
+});
+
 test("RAC-606 the page carries the directory for its scripts: a plugin that declares accepts_objects opens as a tab, and the script lists none", () => {
   const html = renderMolisWorkWeb(view([installed("notes", { accepts_objects: true }), installed("plain")]));
   const parsed = JSON.parse(directoryData(html)) as Array<{ id: string; accepts_objects: boolean }>;

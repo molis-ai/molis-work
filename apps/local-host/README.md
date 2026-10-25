@@ -107,6 +107,8 @@ Runtime 原调用者查询委托由 `plugin-action-query.ts` 持有：只接受�
 
 权限表与首页、连接、信息助手、判断规则、项目工作目录、个人规划的实际登记共用提供方 id；判断规则、工作目录和助理的权限从动作定义汇总。助理同一提供方还承载条件登记的评论线程 start/retry，因此保留它们声明的 `model:invoke`，规则读取本身仍不要求模型权限。`tests/local-web-actions.test.ts` 的 RAC-339-REVIEW-01/02 验证条件登记及两种外部 MCP 提供方的路由上限和拒绝。
 
+项目与 Home 执行器在每次 `uninstalled` 都用 `forgetInstallationRecords` 撤销当前安装、激活范围的授权，与私有数据是否保留无关。重装前的同步 `prepareReinstall` 复用同一 owner，补清卸载失败留下的原文件登记和项目记录绑定；仍失败时 Runtime 不注册代码、不保存新安装，恢复后再重试。这个端口不清私有 KV、文件或库，也不删除账号；Home 的项目绑定和共享安装槽仍按 BL-596 保留。验证见 `tests/security-invariants-installation-records.test.ts` 的成功路径与真实删除故障用例。
+
 ## 开发要求
 
 不留数据的已卸载安装在重装前，由现有同步 `keptDataDiscarded` 先核 KV owner 端口、再清主人文件、最后删该安装 KV（RAC-357-U1）。`createPluginPlatform` / `PluginHostExecutorOptions` 的 `deleteInstallationData` 是可信组合端口，真实项目装配、安装宿主和本地开发入口接现有 `SqlitePluginPrivateStorage` 的公开方法；Home 复用自身 storage。不留数据而缺端口时明确拒绝，不以客户端工厂冒充可清理。路径拒绝不删 KV，后一步失败拒绝新安装并保留原卸载事实；旧保留数据且明确丢弃的路径时序及回滚不变。回归见 `tests/security-invariants-sandbox-owner-files.test.ts`、`tests/plugin-lifecycle-states.test.ts`。

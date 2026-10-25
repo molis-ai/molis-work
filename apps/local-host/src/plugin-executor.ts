@@ -103,6 +103,10 @@ export class PluginHostExecutor implements PluginExecutor {
     forgetInstallationRecords({ home: this.options.home, project_id: this.options.project_id }, record);
   }
 
+  prepareReinstall(record: PluginInstanceRecord): void {
+    forgetInstallationRecords({ home: this.options.home, project_id: this.options.project_id }, record);
+  }
+
   keptDataDiscarded(record: PluginInstanceRecord): void {
     discardInstallationOwnerData({ home: this.options.home, project_id: this.options.project_id }, record, this.options.deleteInstallationData);
   }

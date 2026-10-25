@@ -2881,6 +2881,7 @@ export interface PluginExecutor {
     capturePrivateData?(installId: string): Promise<unknown> | unknown;
     restorePrivateData?(installId: string, snapshot: unknown): Promise<void> | void;
     uninstalled?(record: PluginInstanceRecord): Promise<void> | void;
+    prepareReinstall?(record: PluginInstanceRecord): void;
     keptDataDiscarded?(record: PluginInstanceRecord): void;
 }
 

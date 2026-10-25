@@ -33,6 +33,7 @@ import type { LocalSqliteJournal } from "@molis-ai/molis-work-storage";
 import { observePluginArtifacts } from "./plugin-artifact-refresh.js";
 import { assertDatabaseEntries } from "./plugin-database-entries.js";
 import { pluginEntryIdentity } from "./plugin-entry-identity.js";
+import { HOST_PLUGIN_IDS } from "./host-plugin-ids.js";
 import type { ProjectLibrary } from "./plugin-project-library.js";
 import { assertOwnerFilesEntries, homeOwnerFilesEntries, type PluginOwnerFilesEntry } from "./plugin-owner-files-entries.js";
 import type { PluginDependencyCheck } from "./plugin-actions-client.js";
@@ -160,7 +161,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   });
   // A project instance of a dual-instance plugin offers only its half; the other half is the Home's (specs/dual-instance-plugins).
   const runtime = new PluginRuntime(records, executor,
-    { redemption: definition => ({ partial: identity.dualInstance(definition) }), ...options.home ? { consents: options.home.consents } : {},
+    { redemption: definition => ({ partial: identity.dualInstance(definition) }), hostIds: HOST_PLUGIN_IDS, ...options.home ? { consents: options.home.consents } : {},
       actions: { ...options.actions, providerId: (record, definition) => providerFor(definition, record.install_id) } });
   const supervisor = new PluginSupervisor(runtime, {
     releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(options.db),

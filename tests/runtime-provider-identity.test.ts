@@ -119,25 +119,24 @@ test("a bundled entry registers under its plugin_id and names the installation w
     } finally { other.store.close(); }
   }));
 
-test("a plugin that declares a built-in plugin's id but is not on the Host's own bundled list never gets that id: a developed, sandboxed or fixture plugin keeps its installation id",
+test("a plugin that declares a built-in plugin's id but is not on the Host's own bundled list is not installed (S-X2); a developed, sandboxed or fixture plugin under its own id keeps its installation id",
   withDirectory(async directory => {
     const host = hostProcess(directory);
     try {
-      await host.platform.start([{ definition: plugin({ pluginId: "io.molis.work.todo", signature: "an-unsigned-copy" }) }]);
-      const unsigned = host.installOf("io.molis.work.todo");
-      assert.equal(host.registered[0]!.provider_id, unsigned.install_id, "the entry is not bundled, whatever it is called");
+      const copy = await host.platform.start([{ definition: plugin({ pluginId: "io.molis.work.todo", signature: "an-unsigned-copy" }) }]);
+      assert.deepEqual([copy.running, copy.failed.map(state => state.code)], [[], ["plugin.id_namespace_conflict"]], "the entry is not bundled, so it cannot be called what a bundled plugin is called");
+      assert.equal(host.registered.length, 0);
 
       // An installation made the way generated plugins are (explicit grants, sandboxed execution), outside the Host's list.
-      await host.platform.runtime.stop(unsigned.install_id);   // the capability ids are the fixture's, so only one copy at a time
-      const sandboxed = plugin({ pluginId: "io.molis.work.coding", signature: "generated-copy", execution: "sandbox" });
+      const sandboxed = plugin({ pluginId: "io.molis.work.example.generated", signature: "generated-copy", execution: "sandbox" });
       const id = host.platform.runtime.install({ trust: { level: "unsigned" }, definition: sandboxed, deployment: "local", grants: [WRITE] }).install.install_id;
       await host.platform.runtime.start(id);
       const provider = host.registered.at(-1)!;
-      assert.deepEqual([provider.provider_id, provider.plugin_install_id, provider.plugin_id], [id, id, "io.molis.work.coding"]);
+      assert.deepEqual([provider.provider_id, provider.plugin_install_id, provider.plugin_id], [id, id, "io.molis.work.example.generated"]);
     } finally { host.store.close(); }
   }));
 
-test("a PluginRuntime built without the Host's rule keeps registering under the installation id; with the rule it registers under what the rule says", async () => {
+test("a PluginRuntime built without the Host's rule keeps registering under the installation id; with the rule a Host-build install registers under what the rule says", async () => {
   const service = new ActionService();
   const providers: ActionProvider[] = [];
   const registry: ActionRegistryPort = { registerProvider: registration => { if (registration.provider.kind === "plugin") providers.push(registration.provider); return service.registerProvider(registration); } };
@@ -150,7 +149,7 @@ test("a PluginRuntime built without the Host's rule keeps registering under the 
 
   const ruled = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined,
     { actions: { registry, project_id: "p", providerId: record => record.plugin_id } });
-  const second = ruled.install({ trust: { level: "unsigned" }, definition: plugin({ pluginId: "io.molis.work.example.ruled", signature: "ruled" }), deployment: "local", grants: [WRITE] }).install.install_id;
+  const second = ruled.install({ trust: { level: "host" }, definition: plugin({ pluginId: "io.molis.work.example.ruled", signature: "ruled" }), deployment: "local", grants: [WRITE] }).install.install_id;
   await ruled.start(second);
   assert.deepEqual([providers[1]!.provider_id, providers[1]!.plugin_install_id], ["io.molis.work.example.ruled", second]);
 });

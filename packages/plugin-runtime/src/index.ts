@@ -7,7 +7,8 @@ import { assertContributionMatchesManifest, offeredManifest, redemptionIn, type 
 
 import { pluginManifestDigest } from "./identity.js";
 import { abandonRefusal, assertMutable, followHostBuild, installationGrants, normalizeGrants, prepareInstallationData, recordToFollow, saveInstalled, validateInstalledManifest } from "./install-rules.js";
-import { assertConsentsDeclared, assertPluginTrust, assertTrustFitsExecution, isHostTrust } from "./trust-rules.js";
+import { isHostTrust } from "./trust-rules.js";
+import { actionProviderId, assertInstallIdentity } from "./install-identity.js";
 import { InstallLocks } from "./install-locks.js";
 import { recordInstallConsents, type PluginConsentLedger } from "./consent-ledger.js";
 import { leaveRefusal } from "./always-on-rules.js";
@@ -154,6 +155,8 @@ export class PluginRuntime implements PluginRuntimeApi {
     private readonly options: { now?: () => Date; maxRecoveryAttempts?: number; redemption?(definition: PluginDefinition): RedemptionScope;
       /** Where consents are recorded (the Home's ledger). Without one a Runtime records none, so nothing it installs has any consent in effect. */
       consents?: PluginConsentLedger;
+      /** The `plugin_id`s the Host's build ships: an install of another level may not take one or nest with it (S-X2). */
+      hostIds?: ReadonlySet<string>;
       actions?: { registry: ActionRegistryPort; project_id?: string; providerId?(record: PluginInstanceRecord, definition: PluginDefinition): string } } = {},
   ) {}
 
@@ -168,9 +171,7 @@ export class PluginRuntime implements PluginRuntimeApi {
   }
 
   install(input: PluginInstallInput): PluginLifecycleReceipt {
-    const trust = assertPluginTrust(input.trust);
-    assertTrustFitsExecution(trust, input.definition.execution ?? "host");
-    assertConsentsDeclared(input.definition.manifest, input.consents ?? []);
+    const trust = assertInstallIdentity(input, this.repository.list(), this.options.hostIds);
     const receipt = this.installRecord(input, trust);
     recordInstallConsents(this.options.consents, receipt.install, trust, input.consents ?? [], this.now());
     return receipt;
@@ -691,7 +692,7 @@ export class PluginRuntime implements PluginRuntimeApi {
         const actions = this.options.actions;
         if (!actions) throw pluginErrors.contribution_unredeemed("宿主未提供系统动作注册服务");
         this.actionDisposers.set(record.install_id, actions.registry.registerProvider(pluginActionProvider(manifest, contribution, record,
-          actions.providerId?.(record, definition) ?? record.install_id, actions.project_id, { record: () => this.repository.get(record.install_id), live: () => this.contexts.has(record.install_id) })));
+          actionProviderId(actions, record, definition), actions.project_id, { record: () => this.repository.get(record.install_id), live: () => this.contexts.has(record.install_id) })));
       }
     } catch (error) {
       const live = this.liveContext(record.install_id);
@@ -739,7 +740,7 @@ export class PluginRuntime implements PluginRuntimeApi {
 
   private activateContext(record: PluginInstanceRecord, definition: PluginDefinition): PluginStartContext {
     this.revokeContext(record.install_id);
-    const activation = createActivationContext(record, definition, this.options.actions?.providerId?.(record, definition) ?? record.install_id);
+    const activation = createActivationContext(record, definition, actionProviderId(this.options.actions, record, definition));
     this.contexts.set(record.install_id, activation);
     return activation.context;
   }

@@ -1,6 +1,6 @@
 # ac-trust：一条安装路、常开与默认连线只认声明、同意可撤回（设计稿）
 
-状态：已定（2026-10-24）；七项待定都已定，#1098 已合入，实现按 §7 分片，T1 在分支 `claude/ac-trust-t1`，T3 在分支 `claude/ac-trust-t3`（叠在 T1 上）。
+状态：已定（2026-10-24）；七项待定都已定，#1098 已合入，实现按 §7 分片，T1 在分支 `claude/ac-trust-t1`，T3 在分支 `claude/ac-trust-t3`（叠在 T1 上），T6 在分支 `claude/ac-trust-t6`（叠在 batch-36 上）。
 
 验收编号：RAC-380～399，另加一段 RAC-400～409（实现片也用它）。待办号：BL-555～564。安全不变量先写 S-67、S-68，合入时由统筹核连续。管 `privileges.md` 的 PG-001、PG-004、PG-005，并给 PG-049 提供它要用的同意账本；与 PG-002、PG-013、PG-015、PG-016 的衔接写在 §3.8。本片不改 `privileges.md` 状态列。
 
@@ -144,6 +144,13 @@ Manifest 里有三类声明会改变「这个插件在别处的效果」，装�
 - 动作提供方 id 的规则已经有了（`specs/action-architecture/spec.md` §3、`tooling/gates/README.md` 动作合同快照：随宿主发布的用 `plugin_id`，其余用 `plugin-install-<sha256(plugin_id, publisher.signature) 前 32 位>`）。本片只把「随宿主发布」改成「等级是 `host`」，其余不动。
 - **标签冒充指纹**：`unsigned` 的 `publisher.signature` 是作者自己写的字符串。它若写成 `ed25519:sha256:…` 的形状，就能和某个已固定发布者的指纹重合，拿到同一个提供方 id。所以安装时：等级不是 `pinned` 的，`publisher.signature` 一律不许是 `ed25519:sha256:` 开头（`plugin.signer_mismatch`）（S-68）。
 - **id 互为前缀（BL-506）**：同一个 Home 里，两个不同发布者的 `plugin_id` 不许按点分段互为前缀（`io.a.b` 与 `io.a.b.c` 来自两个发布者时拒绝安装后装的那个，`plugin.id_namespace_conflict`）；同一发布者之间允许。理由：日志与事件的命名空间按 `plugin_id` 前缀划分，前缀归属必须有主。BL-506 原话的上下文（命名空间的哪几处按前缀匹配）实现片开工时再核一遍（S-68）。
+
+**T6 落地（2026-10-25）：**Runtime 的 `install` 第一步改成 `assertInstallIdentity`（`packages/plugin-runtime/src/install-identity.ts`），顺序是：证据的形状、证据与执行形态相配、同意只点声明过的、签名形状（第一条）、宿主名单（`hostIds`）与别的发布者的前缀（第二、三条）。两处注册提供方的地方经 `actionProviderId`：宿主给的 id 只有两种答案被接受——安装 id，或 `host` 等级安装的 `plugin_id`。几个口径：
+
+- 「发布者」是 `host`，或「等级加签名」（`pinned` 的签名是指纹，`unsigned` 的是作者写的标签）。同一发布者的 id 可以互相嵌套；相同的 `plugin_id`、不同发布者本来就是两个安装 id，不受影响。
+- `host` 等级的安装不做宿主名单和前缀检查：它是宿主自己的构建，名单就从它的目录来。某个 id 随新版本的宿主出现、而外部已经装了同一个 id 时，已装的那个仍留着，不在安装路上拒绝宿主。
+- 名单（`hostIds`）是宿主构建目录里全部的 `plugin_id`（`apps/local-host/src/host-plugin-ids.ts`）。检查是「相同或互为前缀」，所以 `io.molis.work.goals.extra`（在名单 id 之下）和 `io.molis.work`（在名单 id 之上）都被拒；后者本来也过不了 Manifest 形状检查（SDK 的 `PLUGIN_ID` 要求 `io.molis.work.` 之后还有一段），所以 §5.2 第 4 条点名的 `io.molis` 与 `io.molis.work` 不会出现在安装路上，不另列。
+- 提供方 id 对 `pinned` 仍是安装 id（§10 第 6 项），没变；`host` 等级之前只靠「宿主名单里的定义对象」认，现在加了等级这一条核对，两者缺一不可。
 
 ### 3.7 版本跟随（PG-016）
 
@@ -321,6 +328,7 @@ BL-556～562 写在 `specs/BACKLOG.md`（T2～T8 各一行）；T1 的 BL-555 �
 5. **包信封带公钥（C9）。统筹 10-24 定：带公钥。** 已有的签名包要重打，现在没有外部在用的包。
 6. **提供方 id 对 `pinned` 保持 `plugin-install-<hash>`。统筹 10-24 定。** 固定了提供方的引用在重装后显式失效。
 7. **BL-506 的前缀规则落在哪几处命名空间。统筹 10-24 定：T6 开工时核。** 核完若某处是精确匹配，规则可以放宽（S-68.4 的宿主名单规则同理）。
+   **T6 核完（2026-10-25）：规则保留。**按前缀敏感的是界面贡献 id：`${plugin_id}.${view_id}`，`view_id` 是插件自由写的文本，登记在宿主的一张全局表里，重复登记就冲突（`UiHost.register` 的 `contribution_conflict`），先登记的占住。`io.a.b` 带一个视图 `c` 与 `io.a.b.c` 的插件本身，拼出来的是同一个 id，所以两个发布者的 `plugin_id` 互为前缀时，先装的能把后装的挡在外面。相同的 `plugin_id`、不同发布者也有同一个问题，规则没有覆盖，记为 BL-586（要先定换签名密钥的升级怎么走）。其余命名空间核过都是精确匹配：S9-0 / S9-0b 的日志键用冒号分隔，接线的 `retained` 键用 NUL 分隔，路由按路径段。因此第二、三条不放宽；四条里没有一条因这次核对而变。
 
 ## 11. 防腐复查
 

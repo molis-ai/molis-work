@@ -128,7 +128,7 @@ for (const invalidation of ["cancel", "revoke", "withdraw"] as const) {
 
 const notices = (home: string) => {
   const db = new DatabaseSync(join(home, "assistant", "assistant.db"));
-  try { return db.prepare("SELECT body FROM assistant_notices WHERE kind = 'directory-read'").all().map(row => JSON.parse(String(row.body)) as { text: string }); }
+  try { return db.prepare("SELECT body FROM assistant_notices WHERE kind = 'directory-read'").all().map(row => JSON.parse(String(row.body)) as { text: string; text_params: { plugin: string; folder: string; origin: string } }); }
   finally { db.close(); }
 };
 
@@ -182,7 +182,11 @@ test("S-72 RAC-663 a background caller reads with the grant; every read is recor
   assert.equal(listed!.reads[1]!.caller, "mcp-client");
   const told = notices(f.home);
   assert.equal(told.length, 3, "one notice for each call that read");
-  assert.match(told.map(notice => notice.text).join("\n"), /外部客户端（MCP）/);
+  // PG049-N01: the saved template reflects the real result; values remain separate for current-language rendering.
+  assert.match(told.map(notice => notice.text_params.origin).join("\n"), /外部客户端（MCP）/);
+  assert.equal(told.filter(notice => notice.text.includes("但被拒绝")).length, 1);
+  assert.equal(told.filter(notice => notice.text.includes("读取了你授权")).length, 2);
+  assert.ok(told.every(notice => notice.text_params.plugin === "directorya" && notice.text_params.folder === "vault"));
   assert.doesNotMatch(JSON.stringify([listed, told]), /inside\.md|secret/, "no file names or content in the record or the notice");
 });
 
@@ -222,7 +226,8 @@ test("S-72 RAC-666 a kept background job reads with the grant, and the person is
   assert.deepEqual(listed!.reads.map(read => read.origin), ["background", "background", "background", "background"], "every read of the job is recorded");
   const told = notices(f.home);
   assert.equal(told.length, 3, "the job's first hour once, its own action's call once, and the job again an hour later");
-  assert.match(told[0]!.text, /由后台任务或定时发起/);
+  // PG049-N04: the original four reads / three notices and hour window remain asserted above.
+  assert.equal(told[0]!.text_params.origin, "由后台任务或定时发起");
 });
 
 test("S-72 RAC-665 a folder moved, swapped or replaced by a link is no longer the granted one", async t => {

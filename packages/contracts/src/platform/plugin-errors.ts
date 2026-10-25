@@ -6,6 +6,7 @@ export const pluginErrors = defineErrorCodes("plugin", {
   capability_denied: "invalid",
   consent_required: "invalid",
   consent_revoked: "invalid",
+  consent_unknown: "not_found",
   contribution_kind_invalid: "invalid",
   contribution_unredeemed: "invalid",
   declaration_invalid: "invalid",

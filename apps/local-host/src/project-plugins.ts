@@ -19,6 +19,7 @@ import { createPluginPlatform, type PluginPlatform, type PluginPlatformEntry } f
 import type { LocalProjectDatabase } from "./project-database.js";
 import { HOST_BUILD_TRUST, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import type { PluginDependencyCheck } from "./plugin-actions-client.js";
+import { consentRevision } from "./consent-revision.js";
 import { bindDeclaredDefaults } from "./plugin-default-bindings.js";
 import { nativePluginReleaseArtifact } from "./native-plugin-release-artifact.js";
 import { pluginHomeFor, projectFixtureEntries } from "./home-side.js";
@@ -56,6 +57,8 @@ export interface ProjectPluginState {
   updateObservers?(): void;
   stopObservers?(): void;
   refreshEnablement?(): Promise<void>;
+  /** The `consentRevision` this project last reconciled its default wirings at. */
+  reconciledAt?: number;
 }
 
 /**
@@ -115,6 +118,8 @@ export async function ensureProjectPlugins(ports: ProjectPluginPorts): Promise<P
     const state = await existing.ready;
     await state.refreshEnablement?.();
     state.updateObservers?.();
+    // Reconcile a changed consent ledger on this next project request; revoking itself does not broadcast to open projects.
+    if (state.platform && state.reconciledAt !== consentRevision()) { state.reconciledAt = consentRevision(); bindDeclaredDefaults(state.platform, ports.projectId, ports.actorId); }
     return state;
   }
   const configuration = { ...ports };
@@ -155,6 +160,7 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
     await platform.start(projectScopeEntries(withoutRefusedPlugins(ports.store.db, [...entries, ...projectFixtureEntries(ports.homeDirectory)], entry => entry.definition.manifest.plugin_id), ports.homeDirectory)
       .map(entry => ({ ...entry, enabled: enabled?.get(entry.definition.manifest.plugin_id) ?? true })));
     record.refreshEnablement = projectPluginEnablementRefresh(platform, ports.homeDirectory, ports.projectId);
+    record.reconciledAt = consentRevision();
     bindDeclaredDefaults(platform, ports.projectId, ports.actorId);
   } catch (error) {
     record.stopObservers?.();

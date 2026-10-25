@@ -1,6 +1,6 @@
 # ac-trust：一条安装路、常开与默认连线只认声明、同意可撤回（设计稿）
 
-状态：已定（2026-10-24）；七项待定都已定，#1098 已合入，实现按 §7 分片，T1 在分支 `claude/ac-trust-t1`，T3 在分支 `claude/ac-trust-t3`（叠在 T1 上），T4 在分支 `claude/ac-trust-t4`（叠在 batch-36 上）。T6 #1279 首评修复由 Codex 专职 writer 在 `feature/pr1279-install-identity` 从准确 `f99267b524ee6aa3552b60b6fb5b7c8bb8206dba` 接续；作者构建、定向回归与边界检查完成，独立增量审验及载体连续表门禁待结算，非 main 或本人验收。
+状态：已定（2026-10-24）；七项待定都已定，#1098 已合入，实现按 §7 分片，T1 在分支 `claude/ac-trust-t1`，T3 在分支 `claude/ac-trust-t3`（叠在 T1 上），T4 在分支 `claude/ac-trust-t4`（叠在 batch-36 上），T5 在分支 `claude/ac-trust-t5`（叠在 batch-36 上）。T6 #1279 首评修复由 Codex 专职 writer 在 `feature/pr1279-install-identity` 从准确 `f99267b524ee6aa3552b60b6fb5b7c8bb8206dba` 接续；作者构建、定向回归与边界检查完成，独立增量审验及载体连续表门禁待结算，非 main 或本人验收。
 
 验收编号：RAC-380～399，另加一段 RAC-400～409（实现片也用它）。待办号：BL-555～564。安装信任账本保留原 S-67 引用，T6 身份边界由 Claude 裁定 S-75；连续表由载体统筹结算。管 `privileges.md` 的 PG-001、PG-004、PG-005，并给 PG-049 提供它要用的同意账本；与 PG-002、PG-013、PG-015、PG-016 的衔接写在 §3.8。本片不改 `privileges.md` 状态列。
 
@@ -98,6 +98,28 @@ Manifest 里有三类声明会改变「这个插件在别处的效果」，装�
 1. **收回在途调用**：并入 S-15/S-18 已有的授权世代检查，撤回让这个安装的授权世代前进，执行中的调用在 `beforeEffect()` 和每次写之前被拒，不再写任何业务记录；处理器开始之前被拒的，只留一行「未执行」的诊断行（硬约束，不记内容）。实现片先核 `validate_authority` 现在怎么算世代，再把「同意」并进去，不另写第二套收回。
 2. **效果随类**：`always_on` 撤回后，它不再出现在常开名单里（§3.4），人可以在项目里隐藏或移除它；`default_wiring` 撤回后，来源为 `default` 且对应这一项的绑定被解开，并且记着不再自动绑；`default_group` 同理；发布者撤回（`plugins.publisher.revoke`）后，这个发布者的所有已装插件停用、不能再升级，数据保留（`THIRD-PARTY-PLUGINS.md` §4）。
 3. **所有等级的同意都可撤**（用户 2026-10-24 定，不分等级）：`host` 等级的 `always_on` 仍是宿主代为同意、默认开，但和别的等级一样可撤；撤回后它就是普通插件，可以从项目里隐藏、移除。所以 `plugin_consents` 不需要 `revocable` 列。
+
+**T5 落地（2026-10-25）：**只做「同意撤回」一半，发布者撤销随 T2（没有固定过的发布者就没有可撤的）。
+
+- 账本多一个 `revoke(consent_id, at)`（只写第一次的 `revoked_at`，行不删）；`plugins.consents.list@1`（按插件列，含已撤回的）与 `plugins.consents.revoke@1` 两个只给本人的动作，在宿主的 `plugin-consents` 提供方下，处理器须核宿主设置入口凭据（下文首评修复合同；`apps/local-host/src/installed-plugin-consent-actions.ts`）。
+- **效果**：`always_on` 撤回后，下一次被问就不在名单里（T3 本来就每次现算），服务端不再拒绝移除、停用、卸载；默认连线撤回后，项目下一次碰到插件时对账解开（T4 的 `bindDeclaredDefaults`，由 `consent-revision.ts` 的计数让已开的项目知道要再看一次账本；一个 Home 一个执行进程，进程内计数就够）。默认组当前选择记录没有来源，撤回后不解开，归 T4 的 BL-587，本题不扩大它的行为。
+- **在途调用**：三类同意（常开、默认连线、默认组）都不是某一次调用的授权，没有「在途调用」要在 `beforeEffect()` 前收回；RAC-391 与 RAC-392 讲的是发布者撤销（停用，走既有的撤权路径），随 T2 的发布者固定一起做，BL-559 改记这一半。
+- 设计稿说的「授权世代」：安装记录的 `installation_generation` 只在新装时变，权限撤回走的是记录里的授权列表（`beforeEffect()` 每次重读），所以同意撤回不需要新的世代；发布者撤销停用安装用现成的 `stop`。
+- **宿主启动时为没有监督器安装的常开插件（Goals）代为同意**（`always-on-plugins.ts` 的 `recordHostAlwaysOnAgreements`，由 Home 插件宿主启动时调用）：Goals 不在任何监督器里，没有人替它写账本行，本人就没有可撤的东西；写入同样遵守「已有一行（含已撤回的）就不再写」，查询不写。
+- 恢复了 `tests/feed-promote-reader.test.ts` 里「项目没有 Goals 时不显示升格」的一半：撤回 Goals 的常开同意、移除、阅读页没有升格入口（BL-585 里 Feed 那一行的一部分）。
+
+**T5 #1285 首评修复合同（2026-10-25，Codex 负责，目标为功能可用；实现和本机有限验证已完成，独立审验待完成）：**依据 [FIRST](https://github.com/molis-ai/molis-work/pull/1285#issuecomment-6396776261) 与 [统筹裁定](https://github.com/molis-ai/molis-work/pull/1285#issuecomment-6396785921)，`list@1` 与 `revoke@1` 都只认宿主自己设置入口签发的本人操作。宿主新增两个薄 HTTP 接缝 `POST /api/settings/plugin-consents/list`、`POST /api/settings/plugin-consents/revoke`，从既有本地用户适配器取得身份和权限后调用原动作；页面 UI 留给 T7。入口在宿主私有弱集合里登记冻结的 `ActionUserAction` 对象，排队快照保留已签发对象的身份，请求结束即撤下。处理器先核对这份进程内凭据及本人受众，再读账本或调用写入 fence；单有 `user_action` 字段、相同字符串、提供方 id 或业务输入都不能取得入口身份。插件动作解析也在发现目标前做相同的窄检查，使插件页面与 `actions:delegate` 两条路径都明确返回 `actions.forbidden`。不新增公共合同、通用权限或代理能力。
+
+- **RAC-393-ENTRY / RAC-393-LIST：**四种非 user 受众均不能发现或调用这两个动作，拒绝码精确为 `actions.forbidden`；user 无入口凭据、仿造入口文字也拒绝。拒绝发生在 ledger 读取、写入之前，账本零变更。
+- **RAC-393-PAGE / RAC-393-DELEGATE：**经真实运行中插件页面路由（已有 `user_action`）及持有 `actions:delegate` 的插件自己的动作调用，两动作均拒绝；各路径的合法插件动作正控证明插件确实已运行、已授权，账本零变更。
+- **RAC-385-SETTINGS：**真实 Host 设置入口能列出并撤回本人同意；重复撤回保留最初时间戳与其余列，未知 id 仍为 `plugin.consent_unknown`。不把所有调用关闭当作修复。
+- **RAC-390-LIVE：**消费固定 T4 `80b309b5f36d5b1cac55ace47d05d8e4c02235ab`；真实 Host 的项目已运行并存在 `origin: "default"` 绑定，经可信设置入口撤回 `default_wiring` 后，在下一次该项目请求时对账解开，再请求不重绑。保留这个时间语义，不建同步广播；撤回到下一次项目请求之间仍可能投递来源的新输出。故障对照须证明移除 `reconciledAt` / `consentRevision()` 接线会使本条失败。
+
+允许改动只含同意动作、宿主设置入口及可信上下文快照接缝、必要的项目对账注释、本题测试和本段；T4 的实现/来源变化测试由另一个 writer 负责，不在本题改写。未签名发布者身份政策交 T6/统筹，公共 S-79 行由 carrier 接收窄 patch，README 总体整理归 T8。验证走机器 FIFO 整体构建一次，再跑本题、局部入口/插件委托/项目回归与适用门禁、密钥扫描；不另开全量。工程结果、独立复查、独立有限验证及入批状态分别记录。
+
+本机验证（2026-10-25）：`pnpm build`、定向 Biome lint、`node scripts/check-package-boundaries.mjs`（test-kit 已由整体构建生成，`errors: []`）与 `pnpm secrets:check` 通过。`tests/security-invariants-consent-revoke.test.ts` 6 项与 `tests/security-invariants-consent-settings.test.ts` 3 项通过；首轮新测试夹具把 `invokeQuery` 写成不存在的 `query`，出现 500，修正夹具后只重跑该文件，3/3 通过，首败原件保留。RAC-390-LIVE 的两项故障对照分别禁用项目对账分支、删除撤回计数通知，均在「下一项目请求仍有默认绑定」的业务断言失败，恢复原构建产物后同一用例通过。随后以 `node scripts/run-tests.mjs --jobs 2` 跑 14 份相关有限回归（本地用户动作、Host 排队、出处与写入 fence、插件委托/查询/页面、项目、Feed、常开、T4 默认同意与路由表），152/152 通过。
+
+健康门禁未整体通过：对已审 `eeaa744b` 的比较只报公共临时 S 号重复、旧测试名引用与新安全测试未登记；对 `origin/main` 的比较另报原 T5 已有的 `registerPluginConsentActions` 内一处 `registerProvider` 增长。前者的 S-79 窄 patch 交 carrier 串行写，后者保留原件交统筹，不改变门禁或改写登记方式规避计数。没有跑全量、浏览器或一骏本人验收；尚未合入，独立复查和独立有限验证另核。
 
 ### 3.4 常开从安装记录生成（PG-004）
 
@@ -365,7 +387,7 @@ RAC-401 的针对性测试检查查询前后的实际文件、库内容和账本
 | RAC-390 | 撤回一项默认连线只解开对应的 `origin: "default"` 绑定，人手选的不动，且不再自动绑 | 同上 |
 | RAC-391 | 撤回按撤权处理：一个 `concurrent` 动作在 `beforeEffect()` 前被撤回，不写任何业务记录；处理器开始前被撤回，只留「未执行」诊断行（S-67.4） | 并入 S-18 的测试文件 |
 | RAC-392 | 撤销发布者：其所有安装停用、不能升级、数据保留 | Runtime 集成测试 |
-| RAC-393 | 安装、同意、撤回、固定的动作只接受带 `caller.user_action` 的人；模型、MCP、工作流、插件调用被拒（S-67.1） | `tests/security-invariants-*.test.ts` 新增一份 |
+| RAC-393 | 安装、同意、撤回、固定的动作只接受带 `caller.user_action` 的人；T5 的同意清单与撤回另须 §3.3 的宿主设置入口凭据；模型、MCP、工作流、插件调用被拒（S-67.1） | T5：`tests/security-invariants-consent-revoke.test.ts`、`tests/security-invariants-consent-settings.test.ts`；细项见 §3.3 |
 | RAC-394 | 非 `pinned` 标签去首尾空白/忽略大小写后不许冒充指纹；pinned Manifest 签名须等于可信 key，拒绝无记录/同意/私有数据副作用（S-75.1） | `tests/security-invariants-install-identity.test.ts` |
 | RAC-395 | 点分段嵌套拒绝且零副作用；unsigned 同/异标签都拒，仅同 pinned key/host 合法；启动重验冲突记 crashed、未登记提供方（S-75.2，BL-506） | `tests/security-invariants-install-identity.test.ts` |
 | RAC-396 | 提供方 id：`host` 用 `plugin_id`，其余用 `plugin-install-…`；动作合同快照里内置插件的 `registered_provider` 不变（S-75.3） | `tests/security-invariants-install-identity.test.ts`、`tests/runtime-provider-identity.test.ts`、`tests/action-contract-snapshot.test.ts` |

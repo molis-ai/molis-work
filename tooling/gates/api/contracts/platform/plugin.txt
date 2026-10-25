@@ -5018,6 +5018,7 @@ export declare const pluginErrors: import("platform/action-errors").ErrorCodeRai
     readonly capability_denied: "invalid";
     readonly consent_required: "invalid";
     readonly consent_revoked: "invalid";
+    readonly consent_unknown: "not_found";
     readonly contribution_kind_invalid: "invalid";
     readonly contribution_unredeemed: "invalid";
     readonly declaration_invalid: "invalid";

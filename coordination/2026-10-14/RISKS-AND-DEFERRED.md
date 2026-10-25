@@ -263,8 +263,10 @@ CI 状态是 10-23 17:40 的快照，以 PR 页面为准。「验证」写的是
 
 来源：[6395355069](https://github.com/molis-ai/molis-prologue/pull/104#issuecomment-6395355069)，绑定已actual f175的bea增量，挡合并0项。以下建议不重新打开已合104，也不改变Claude6395049480/Root接受的only103过渡WO。
 
-- **unsafe kind/id错误码与缺负例：有效后续，尚未实施。** 实施owner FIX6（01a16fa8-53d9-7622-8169-0c424357366c），依赖当前bridge源4e及doc尾项实现/独立审验完成。下一明确源题由Root按当前主线派启动：归档不安全kind/id应报归档错误而非调用方KEY_INVALID，保留CONFLICT等必要拒绝，并补真实目录/文件名负例；新固定PR/提交→独立复审/验证→actualmain才闭环。当前不往bridge/only103包暗带104或后继。
+- **unsafe kind/id错误码与缺负例：有效后续，尚未实施。** 实施owner FIX6（01a16fa8-53d9-7622-8169-0c424357366c），bridge最终ba源码与文档核收已齐并交C2，Root已实际给FIX6下一明确源题，从actualmain f175独立树启动：归档不安全kind/id应报归档错误而非调用方KEY_INVALID，保留CONFLICT等必要拒绝，并补真实目录/文件名负例；新固定PR/提交→独立复审/验证→actualmain才闭环。当前不往bridge/only103包暗带104或后继。
 - **二次读取/清单随规模增长：条件建议，当前未证性能缺陷。** Root已明确保留现有身份复核链；原真实替换/分页负例支持该链，不因建议削弱校验。下一动作由Root在有实际规模/延迟需求时给独立可验收性能任务，再指定source writer；目前不造未经授权缓存/修改读取语义，不将登记算优化已实施。
-- **Windows no-follow说明：适用范围待确认。** PIPE只读核main f175的根README、SDK README、Host README，三份均无Windows/win32/macOS/Linux支持声明，不能据此推断支持或不支持，也不把review对O_NOFOLLOW的推测写成已核平台保证。范围owner Root先核准确平台约定；若Node Host确承诺Windows，再由FIX6在前题结束后补准确限制/必要primary技术依据，不宣称已验证跨平台。
+- **Windows no-follow说明：适用范围待确认。** PIPE已检索main f175全部活Markdown（排除Archive），未见Windows/win32支持承诺；命中的Host现行要求只说缺OS能力须明确失败，不能据此推断具体Windows支持/不支持，也不把review对O_NOFOLLOW的推测写成已核平台保证。历史Archive平台计划不拿来当当前承诺。范围owner Root先核准确平台约定；若Node Host确承诺Windows，再由FIX6在前题结束后补准确限制/必要primary技术依据，不宣称已验证跨平台。
 
 评审末段建议过渡包加入104、provenance记main：**本次不采用**，与现行only103窄WO冲突。过渡源必须记真实2c7+final103及显式最小port固定头；dcaa参考包/main f175均不是该过渡来源。该处理保留Root裁定与后续明确范围变更入口，不用review建议替换人类/统筹工单。
+
+本节实际接续也已公开至 SDK104 的PIPE评论6395597509；bridge最终源交付见 Molis1267/6395547824。源ba交付不冒包、Molis采用或restore完成。

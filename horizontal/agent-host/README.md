@@ -240,7 +240,7 @@ ReviewQueue.observeSettlement 是 Host 投影通知口：只通知执行 owner �
 
 Memory renew 经现可信 caller、ExecutionControl 和 formal ref 解析直接调用公开 SDK memory.renew；Adapter 只映射 expires_at_ms，不修改状态、分类或来源，不补 Session 绑定。本片保留已采用的 SDK #96 交付包；接入新父后的验证结果见 Memory spec，不将旧父证据冒充本轮通过。
 
-离线 Memory 采用由 `openPrologueMemoryAdoption` 持现独占 owner，成功后同步 `onOwned` 建立 App 屏障，再打开 SDK 专用 maintenance（省略 sessionPurges 时 Session 清除集合为空），没有普通 Runtime 恢复或 shutdown。关闭先等待维护调用并关闭 SDK，再在原 owner 内运行可选同步 `afterSDKClosed` 发布，最后释放 owner；SDK close 失败不发布且保 owner，发布失败释放已安全关闭的 owner 并抛错。回调只能在第一次 close 传入、必须返回 undefined；普通 close() 幂等。账本提交后若 owner 释放失败，账本不回滚，API 抛错且 owner 仍保持互斥。`openPrologueMemoryAdoptionInspection` 提供原孤儿 cleanup preview、Session/Index 无正文读取与 close，不取得 owner、不创建 SDK key 或目录；两者固定 App、scope、策略并保留同步当前授权。回归：`tests/prologue-memory-adoption.test.ts`、`tests/memory-adoption-maintenance.test.ts`。
+离线 Memory 采用由 `openPrologueMemoryAdoption` 持现独占 owner，成功后同步 `onOwned` 建立 App 屏障，再打开 SDK 专用 maintenance（省略 sessionPurges 与 projectSessionPurges 时 Session 清除集合为空），没有普通 Runtime 恢复或 shutdown。关闭先等待维护调用并关闭受管 reader 与 SDK，再在原 owner 内运行可选同步 `afterSDKClosed` 发布，最后释放 owner；SDK close 失败不发布且保 owner，发布失败释放已安全关闭的 owner 并抛错。回调只能在第一次 close 传入、必须返回 undefined；普通 close() 幂等。账本提交后若 owner 释放失败，账本不回滚，API 抛错且 owner 仍保持互斥。`openPrologueMemoryAdoptionInspection` 提供原孤儿 cleanup preview、Session/Index 无正文读取与 close，不取得 owner、不创建 SDK key 或目录；两者固定 App、scope、策略并保留同步当前授权。回归：`tests/prologue-memory-adoption.test.ts`、`tests/memory-adoption-maintenance.test.ts`。
 
 Home 恢复 frame 可传真实可选 `storageOwner`，冷 writer 沿现 Storage owner 只借一个 child，close 只归还 child；父 owner 仍由 frame 持有至 Ledger/Catalog 最终发布与资源关闭。未传仍是独立采用的自有 owner。每次 current 复核原 capability、目录与 inode，不能将 scope/adoption 兑换为 owner；source inspection 和内部 SDK reader 不获取、不借锁。首次 close 永久取消业务调用并冻结回调，同一句柄清理失败保留借用且允许显式无参重试；SDK 成功清理不重复，发布至多尝试一次。发布失败保持失败，后续 close 只重试未完成释放而不重放发布；父 frame 的当前权限/CAS 仍由原发布回调核验。SDK 同句柄关闭重试须由正式依赖提供，本片不改 vendor。短合同见 Memory spec「接入 Home 父 owner 与失败重试」，直接回归增加 `tests/prologue-memory-parent-owner.test.ts`。
 
@@ -261,7 +261,9 @@ verifyPurgeCoverage 是内部无正文薄桥；inspection authority 只取真实
 
 ## MEM-40 冷维护 Session 清除
 
-本次 raw Session 窄口（实施前合同）：`projectSessionPurges?: readonly ProjectSessionDeletionPlan[]` 只接受可信 Catalog 已解码的完整固定项目计划。每个计划保持原父项在前的拓扑、owner、decision、preview 与 indexed；raw 必须继承计划内父 owner，关联的 indexed 根可属于其他项目。与旧 `sessionPurges` 重复拒绝；不同项目计划只有完整目标 tuple 相同才共享一个目标。调用仍只有 `purgeSessionTarget({session})`，不能改目标或操作号。indexed 沿原 prepared/sdk-complete/complete 状态机；raw 沿同一 Session hold，拒绝任何同 ID Index，以同 SDK maintenance.purgeSession 执行并核原 terminal preview/complete/version，absent 不证明完成，不创建 Index。
+任一受管临时 reader 关闭失败，原 bridge 立即永久停止业务，只允许原 `close()` 重试同一资源；清理成功后也不能恢复业务。所有 reader 与 SDK 清理成功前不发布、不归还父 owner 借用；外层是否重开仍由原父决定和当前权限负责。
+
+冷项目 Session 的固定计划合同：`projectSessionPurges?: readonly ProjectSessionDeletionPlan[]` 只接受可信 Catalog 已解码的完整固定项目计划。每个计划保持原父项在前的拓扑、owner、decision、preview 与 indexed；raw 必须继承计划内父 owner，关联的 indexed 根可属于其他项目。与旧 `sessionPurges` 重复拒绝；不同项目计划只有完整目标 tuple 相同才共享一个目标。调用仍只有 `purgeSessionTarget({session})`，不能改目标或操作号。indexed 沿原 prepared/sdk-complete/complete 状态机；raw 沿同一 Session hold，拒绝任何同 ID Index，以同 SDK maintenance.purgeSession 执行并核原 terminal preview/complete/version，absent 不证明完成，不创建 Index。
 
 只读 inspection 提供 `prepareProjectSessionPurge({sourcePlan,operationId,signal?})` 与 `verifyProjectSessionPurge({plan,signal?})`。首次准备只以 sourcePlan 固定 refs/owner/父关系，实际 target preview/CAS 来自 SDK 与原 Index exact 读取；target 已有 indexed purge 决定保留原 tuple。已有 target original 绝不重新准备。原件证明只核原 SDK terminal 及原 Index tuple/raw Index 缺席；当前同 ID 后继冲突拒绝并保留，不按当前关系扩选，不要求 T0 旧父 Run 额外 terminal。权限/取消和 reader 关闭继续走原冷桥，实际 SDK/Index 使用后复核 current；读写均不公开 storage、不造新状态账。
 
@@ -271,4 +273,4 @@ verifyPurgeCoverage 是内部无正文薄桥；inspection authority 只取真实
 
 `openPrologueMemoryAdoption` 可固定 `sessionPurges`，`purgeSessionTarget({session})` 仅执行该集合。独占 owner 内重核真实 Index/SDK 原决定，经在线共用 purge 用例保存 prepared、SDK 原清除、sdk-complete 与最小 Index complete；重试不换 owner/operation/version/preview。缺 Index、未知 owner、absent 或不一致的 SDK termination 拒绝。原空集合行为保留，未选对象不参与执行；inspection 的 `inspectSession` 仅映射 SDK 无正文 canonical 读取。
 
-整 factory signal/current/close 覆盖存储提交，不增加单次取消假口。无普通 Runtime 启停、模型、空 effects 或第二状态机；在线 quiet/cleanup/effects、preparePurge/purgeWaits 和当前准入仍由原主人执行。最终 Index 逐字段构造，未知附加属性也不保留。此为 MEM-40 前置，缺失 Index 的完整联结与恢复验收仍待上层实现。直接回归 `tests/prologue-session-cold-purge.test.ts`，保留 lifecycle、cache、inspection、adoption 与开发要求的影响面。
+整 factory signal/current/close 覆盖存储提交，不增加单次取消假口。无普通 Runtime 启停、模型、空 effects 或第二状态机；在线 quiet/cleanup/effects、preparePurge/purgeWaits 和当前准入仍由原主人执行。最终 Index 逐字段构造，未知附加属性也不保留。raw 只沿上面的完整原项目计划接入；跨主人完整恢复仍由外层验收。直接回归 `tests/prologue-session-cold-purge.test.ts` 与 `tests/prologue-project-deletion.test.ts`；连同原桥接、父 owner、Index、生命周期和缓存共8文件163项工程验证通过，完整 MEM-40 与用户验收未在本片证明。

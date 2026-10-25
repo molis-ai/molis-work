@@ -94,3 +94,60 @@ test("S-03/S-07 RAC-105-A-10: context transport refuses foreign authority, open 
   assert.equal((await send(describe, { "x-molis-work-idempotency-key": key })).status, 409);
   assert.deepEqual(homeStorageTree(resident.home), original);
 });
+
+test("S-03/S-07 RAC-105-A-GW-02: the retained context deletion gate refuses untrusted requests and only the confirmed service records an actor", { timeout: 60_000 }, async t => {
+  const resident = await homeContextHost(t);
+  const project = await resident.catalog({ homeDirectory: resident.home }, catalog => catalog.createProject({ display_name: "只能由现行服务删除", actor_id: "fixture-user" }));
+  const other = await resident.catalog({ homeDirectory: resident.home }, catalog => catalog.createProject({ display_name: "同一个键不能改删它", actor_id: "fixture-user" }));
+  const homeId = createHash("sha256").update(resolve(resident.home)).digest("hex"), endpoint = resident.origin + "/api/internal/runtime-context";
+  const input = { project_id: project.project_id, delete_confirmed: true, idempotency_key: "retained-context-delete" };
+  const envelope = { operation: "tool", home_id: homeId, instance_id: resident.host.instanceId,
+    metadata: { runtimeContext: { runtime_id: "codex", stable_work_context_id: "environment-session", host_declares_stable: true } },
+    protocol: { runtimeSessionId: "protocol-session", runtimeSessionIdSource: "threadId" }, call_id: randomUUID(),
+    tool: { name: "molis_work_v1_project_delete", arguments: input } };
+  const headers = () => ({ origin: resident.origin, "content-type": "application/json", "accept-language": "zh-CN", "x-molis-work-control-token": resident.token, "x-molis-work-idempotency-key": randomUUID() });
+  const post = (body: unknown, extra: Record<string, string> = {}) => fetch(endpoint, { method: "POST", headers: { ...headers(), ...extra }, body: JSON.stringify(body) });
+  const original = homeStorageTree(resident.home);
+  for (const method of ["GET", "PUT", "PATCH", "DELETE"]) {
+    const response = await fetch(endpoint, { method, headers: headers() });
+    assert.equal(response.status, 405, method);
+  }
+  const badHeaders: Record<string, string>[] = [{ "x-molis-work-control-token": "" }, { "x-molis-work-control-token": "wrong-token" }, { origin: "https://foreign.invalid" }];
+  for (const extra of badHeaders) {
+    const response = await post(envelope, extra); assert.equal(response.status, 403);
+    assert.equal((await response.json() as { code: string }).code, "host.request_refused");
+  }
+  assert.equal((await post(envelope, { "x-molis-work-idempotency-key": "" })).status, 400);
+  for (const [body, status, code] of [
+    [{ ...envelope, home_id: "another-home" }, 403, "actions.home_mismatch"],
+    [{ ...envelope, instance_id: "old-instance" }, 409, "actions.host_replaced"],
+    [{ ...envelope, actor_id: "web-user" }, 400, "actions.input_invalid"],
+    [{ ...envelope, metadata: { ...envelope.metadata, actor_id: "web-user" } }, 400, "actions.input_invalid"],
+    [{ ...envelope, protocol: { ...envelope.protocol, runtimeSessionId: " " } }, 400, "actions.input_invalid"],
+    [{ ...envelope, tool: { ...envelope.tool, arguments: { ...input, actor_id: "web-user" } } }, 400, "mcp.unexpected_field"],
+    [{ ...envelope, tool: { ...envelope.tool, arguments: { ...input, delete_confirmed: false } } }, 400, "catalog.delete_confirmation_required"],
+    [{ ...envelope, tool: { ...envelope.tool, arguments: { ...input, delete_confirmed: "yes" } } }, 400, "catalog.delete_confirmation_required"],
+    [{ ...envelope, tool: { ...envelope.tool, arguments: { ...input, delete_confirmed: undefined } } }, 400, "catalog.delete_confirmation_required"],
+  ] as const) {
+    const response = await post(body); assert.equal(response.status, status);
+    assert.equal((await response.json() as { code: string }).code, code);
+  }
+  // RAC-105-A-GW-01: the retired URL is no longer an alternative deletion entrance.
+  const retired = await fetch(resident.origin + "/api/internal/project-deletion", { method: "POST", headers: headers(),
+    body: JSON.stringify({ home_id: homeId, client_id: "runtime:codex", ...input }) });
+  assert.equal(retired.status, 400);
+  assert.deepEqual(await retired.json(), { error: "请先选择一个 Molis Work 项目" }, "the retired URL reaches the existing generic project guard, never a deletion handler");
+  assert.deepEqual(homeStorageTree(resident.home), original, "every refusal preserved all Home business bytes and wrote no deletion receipt");
+  const result = await post(envelope); assert.equal(result.status, 200);
+  const response = await result.json() as { result: string };
+  const receipt = JSON.parse(response.result) as { deletion: { actor_id: string }; replayed: boolean };
+  assert.equal(receipt.deletion.actor_id, "runtime:codex:protocol-session", "the Home-token holder supplies protocol metadata; tool arguments never choose the actor");
+  assert.equal(receipt.replayed, false);
+  const replay = await post(envelope); assert.equal(replay.status, 200);
+  assert.equal((JSON.parse((await replay.json() as { result: string }).result) as { replayed: boolean }).replayed, true);
+  const beforeConflict = homeStorageTree(resident.home);
+  const conflict = await post({ ...envelope, tool: { ...envelope.tool, arguments: { ...input, project_id: other.project_id } } });
+  assert.equal(conflict.status, 400);
+  assert.equal((await conflict.json() as { code: string }).code, "catalog.deletion_idempotency_conflict");
+  assert.deepEqual(homeStorageTree(resident.home), beforeConflict, "reusing the deletion key for another project does not delete or record anything");
+});

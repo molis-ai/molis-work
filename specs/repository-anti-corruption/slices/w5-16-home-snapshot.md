@@ -189,6 +189,22 @@ Host 关闭保留原 Home 绑定立即撤下、Alchemist 立即进入 closing �
 
 Studio 的 HTTPS 升级用例在本分支与干净 `bde02c59` 基线上仍同为 TLS 建连失败、同一断言 400 而非 200；最初一次基线给“结果未知”的不同正文也保留，不将它们混为同一根因。三个可选 live 条件未启用，不当作执行通过；没有商业模型、真实 Home、Keychain、全量或用户验收结论。`affected-tests` 建议 full（装配、存储、跨 4 包），选出 310 文件，其中 117 个建议项仍交 TEST/Claude 的后续窗口，full 只由 Claude 统一。完整 A 最小生产调用链和拒绝证据齐备后交正常非 Draft PR，作者验证不替代首评、独立审验或集成；完整快照与恢复仍未实现。
 
+#### A 首评旧删除通道退役（FIX7，#1254）
+
+状态：FIX7 实施中；基线 `b5211d8a5b9557783710ea7574a5e6d26751701e`，仅接完整 FIRST [6393270921](https://github.com/molis-ai/molis-work/pull/1254#issuecomment-6393270921) 的第 2～4 项。开工鲜核 PR 仍是该头，原评论没有另一条旧删除通道修复认领；全仓 `LocalProjectDeletionGatewayClient` 无生产调用，Web 仍注册其路由，嵌入式 MCP 仅借用了它的请求类型。Root 已将本题与 FIX4 的构造/factory 清理重试拆成独立工作树；本题不动 lifetime、初始化或 snapshot/restore。
+
+移除旧客户端、`/api/internal/project-deletion` handler/注册、无其它消费者的服务工厂，以及仅覆盖旧路由的测试；MCP 请求类型直接取现有 `McpRuntimeContextPorts.deleteProject` 合同。保留的生产 stdio 经 `/api/internal/runtime-context` 调原 handlers 和唯一 `ProjectDeletionService`，设置页与明确嵌入的 MCP 仍调同一服务。旧混合用例中的 MCP 主人错误与 details 拒绝保留，HTTP 部分改验现行 context 通道；安全断言对应保留的入口，另证旧 URL 不再执行删除。
+
+Home 控制令牌是本机转发进程的信任边界：持令牌者提供独立 metadata/protocol 中的 Runtime、Session、panel 元数据，Host 核形状、Home/实例/生命周期并由原 identity 工厂构造 actor；工具 arguments 不授予这些身份。它不是给一个持令牌本机进程签发另一层 Runtime 身份认证，也不扩信任。常驻 Host 缺失或没有令牌时，生产 stdio 的 context（含删除）返回既有 `actions.service_unavailable`，不在 stdio 打开本地可写 Catalog；断连或结果未知不回落、不自动重发。这是既有 A 段和单 Home 宿主约束的明确说明，本题不引入离线 MCP 新语义。
+
+改动限定旧通道及必要的 MCP 类型引用、原服务工厂/注释、实际拒绝回归、Host README、S-07、本调用链文档及本段。contracts/插件 SDK、MCP 工具名/参数和锁算法不变，不动门禁。PR 调用方影响文字交 PIPE 单次合成：插件停用后，常驻 Host 已撤下提供方，MCP 调原动作由 `actions.plugin_unavailable` 改为 `actions.missing`；这是现有 A 行为，不再改生产代码或并发覆盖 PR 正文。
+
+- RAC-105-A-GW-01：旧入口不再删除项目；现行 context/MCP 经唯一服务的确认、终端拒绝、释放、主人错误/details、幂等与 actor 回执保持。证明在 `tests/project-deletion-service.test.ts` 和 `tests/security-invariants-home-context.test.ts`。
+- RAC-105-A-GW-02：现行 context 删除入口拒绝错误方法、控制令牌/一次性键、跨 Home/旧实例、开放的传输对象、工具指定 actor、错误/缺失确认，且拒绝后项目和删除收据保持；合法请求能删并按原键重放。S-03/S-07 的原其它拒绝断言保留。
+- RAC-105-A-GW-03：常驻 Host 缺失继续 `actions.service_unavailable` 且无本地业务写；停用动作的 `actions.missing` 调用方影响、令牌与元数据边界、实际删除调用链写准。既有 `tests/action-gateway.test.ts`、`tests/companion-actions.test.ts`、`tests/mcp-context-actions.test.ts` 和 Home context 生命周期回归为行为证据，不用文档代替测试。
+
+验证：整机 build 槽内整体 `pnpm build`，README 必跑和实际 gateway/context/删除相关定向文件（`node scripts/run-tests.mjs <明确清单> --jobs 2`），scoped strict tsc、`pnpm boundary:check`（沿同一 build 槽）、`node scripts/check-health-gates.mjs --base origin/main`、按实际变化检查资源和公开合同，fresh-fetch 后 `pnpm secrets:check`。不另起 full，原 A 和 C2 的未完成边界保持；独立固定候选交 REVIEW/TEST，双过后由 PIPE 唯一吸收，原 PR 分支/正文不竞争推送。
+
 #### A 初始化清理重试补修（FIX4，#1254）
 
 TEST 在固定 `19ccdfa8ed41fee58038e9cedcd43abf3f48e65d` 用公开 API 和真实 SDK/MCP 订阅复现：初始化后段抛错，第一次退订也抛错，原 catch 报 AggregateError 并保留借用，却丢失清理闭包；重建报 agent.storage_busy，父 owner.release 报 storage.owner.borrowed，退订没有第二次调用。Host composition 又只保存成功返回的 adapter，dispose 够不到失败实例。原件为 `/tmp/molis-verify-2026-10-24/pr1254-19cc-test/initialization-cleanup-repro.{mjs,log,json}`。

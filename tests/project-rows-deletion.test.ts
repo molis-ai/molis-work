@@ -219,7 +219,7 @@ test("RAC-562 BL-620 an installed Home plugin outside the start list is refused 
   assert.equal(f.host.homePlugins!.installation(probe.id), null, "this definition is absent from the Home start list");
   assert.equal(existsSync(join(f.home, "plugin-libraries")), false);
   const schema = t.mock.method(DatabaseSync.prototype, "exec");
-  const installId = platform.runtime.install({ definition: probe.definition, deployment: "local", grants: PERMISSIONS.map(item => item.permission) }).install.install_id;
+  const installId = platform.runtime.install({ trust: { level: "unsigned" }, definition: probe.definition, deployment: "local", grants: PERMISSIONS.map(item => item.permission) }).install.install_id;
   await assert.rejects(platform.runtime.start(installId), /启动失败/u);
   assert.equal(platform.runtime.get(installId).last_error_code, "plugin.declaration_invalid");
   assert.notEqual(platform.runtime.get(installId).state, "running");
@@ -232,7 +232,7 @@ test("RAC-562 BL-620 an installed Home plugin outside the start list is refused 
 test("RAC-562 BL-619 a sandboxed plugin that declares project_rows is refused when it starts, not skipped", async t => {
   const home = withHome(t), sandboxed: PluginDefinition = { ...rowsProbe().definition, execution: "sandbox" };
   const platform = projectPlatform(t, home), schema = t.mock.method(DatabaseSync.prototype, "exec");
-  const installId = platform.runtime.install({ definition: sandboxed, deployment: "local", grants: PERMISSIONS.map(item => item.permission) }).install.install_id;
+  const installId = platform.runtime.install({ trust: { level: "unsigned" }, definition: sandboxed, deployment: "local", grants: PERMISSIONS.map(item => item.permission) }).install.install_id;
   // #1255 alone does not lift this refusal. BL-619 must reuse its PLIB-03 preflight before even a scratch SQLite executes the schema.
   await assert.rejects(platform.runtime.start(installId));
   assert.equal(platform.runtime.get(installId).last_error_code, "plugin.declaration_invalid");
@@ -247,7 +247,7 @@ test("RAC-563 external Runtime installation refuses project_rows labels with whi
     "next\u0085line", "control\u009flabel", "line\u2028break", "paragraph\u2029break", "中".repeat(201)];
   for (const label of labels) {
     const probe = rowsProbe(label);
-    assert.throws(() => platform.runtime.install({ definition: probe.definition, deployment: "local", grants: PERMISSIONS.map(item => item.permission) }),
+    assert.throws(() => platform.runtime.install({ trust: { level: "unsigned" }, definition: probe.definition, deployment: "local", grants: PERMISSIONS.map(item => item.permission) }),
       { code: "plugin.manifest_invalid", message: /project_rows.label/u }, JSON.stringify(label));
     assert.deepEqual(probe.calls, []);
   }
@@ -261,7 +261,7 @@ test("RAC-563 external Runtime installation keeps legal Unicode labels and the e
   for (const [index, label] of ["清单 café e\u0301 👨‍👩‍👧‍👦 العربية", "中".repeat(200)].entries()) {
     const probe = rowsProbe(label, `io.molis.work.example.rowslabel${index}`);
     assert.equal(parsePluginManifest(probe.definition.manifest).databases!.home!.project_rows!.label, label);
-    assert.equal(platform.runtime.install({ definition: probe.definition, deployment: "local", grants: PERMISSIONS.map(item => item.permission) }).install.state, "installed");
+    assert.equal(platform.runtime.install({ trust: { level: "unsigned" }, definition: probe.definition, deployment: "local", grants: PERMISSIONS.map(item => item.permission) }).install.state, "installed");
   }
 });
 

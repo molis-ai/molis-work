@@ -33,8 +33,11 @@ export function projectRowsStatements(library: HomePluginDatabaseDeclaration, pl
   });
 }
 
-/** One declared file list as the deletion reads it: the statement that selects the column for the project, and how to read names out of it. */
-interface ProjectRowFiles { readonly select: string; readonly key?: string; readonly directory: string }
+/**
+ * One declared file list as the deletion reads it: the statement that selects the column for the project, the one that selects it
+ * for every row left, and how to read names out of it.
+ */
+interface ProjectRowFiles { readonly select: string; readonly remaining: string; readonly key?: string; readonly directory: string }
 
 /**
  * The reads of the files the project's rows name (`project_rows.files`), each taking the project's id as its one parameter. Throws
@@ -50,7 +53,8 @@ function projectRowsFiles(library: HomePluginDatabaseDeclaration, pluginId: stri
     if (!owner) throw refuse(`${item.table} 不是 tables 里不带 parent 的表`);
     if (!shape[item.table]?.columns.some(column => column.name === item.column)) throw refuse(`${item.table} 没有列 ${item.column}`);
     if (!ownerFiles?.entries.some(entry => entry.name === item.directory && entry.kind === "directory")) throw refuse(`${item.directory} 不是 owner_files 声明的目录`);
-    return { select: `SELECT ${quoted(item.column)} AS names FROM ${quoted(item.table)} WHERE ${quoted(owner.column)} = ?`, ...item.key ? { key: item.key } : {}, directory: item.directory };
+    const read = `SELECT ${quoted(item.column)} AS names FROM ${quoted(item.table)}`;
+    return { select: `${read} WHERE ${quoted(owner.column)} = ?`, remaining: read, ...item.key ? { key: item.key } : {}, directory: item.directory };
   });
 }
 
@@ -106,17 +110,22 @@ export function sandboxRefusal(definition: PluginDefinition): Error {
  * Deletes one project's rows from the plugin's own library, straight from its file: one write transaction that waits for an
  * instance's write in progress (`busy_timeout`) rather than failing beside it, and a library that does not exist yet is not made. A
  * wait that runs out throws, and the deletion keeps the step pending in its receipt for the next attempt. The files the rows name
- * (`files`) are read in the same transaction and removed once it has committed, from the Manifest's own `owner_files`.
+ * (`files`) are read in the same transaction, and a name a row left behind (another project's) still gives is kept. They are removed
+ * from the Manifest's own `owner_files` before the transaction commits: a removal that fails rolls the rows back with it, so the
+ * next attempt finds the names again rather than leaving files no row names; a commit that fails after them leaves rows naming
+ * files already gone, which the next attempt deletes.
  */
 export function clearProjectRows(home: string, library: HomePluginDatabaseDeclaration, pluginId: string, projectId: string,
   ownerFiles?: PluginOwnerFilesDeclaration): void {
   const statements = projectRowsStatements(library, pluginId), files = projectRowsFiles(library, pluginId, ownerFiles);
   if (statements.length === 0) return;
-  const named = clearInExistingHomeSqlite(home, library.store_name, library, db => {
-    const found = files.map(item => ({ directory: item.directory,
-      names: (db.prepare(item.select).all(projectId) as Array<{ names: unknown }>).flatMap(row => namesIn(row.names, item.key)) }));
+  clearInExistingHomeSqlite(home, library.store_name, library, db => {
+    const read = (statement: string, item: ProjectRowFiles, ...params: string[]) =>
+      (db.prepare(statement).all(...params) as Array<{ names: unknown }>).flatMap(row => namesIn(row.names, item.key));
+    const named = files.map(item => ({ directory: item.directory, names: read(item.select, item, projectId) }));
     for (const statement of statements) db.prepare(statement).run(projectId);
-    return found;
+    const kept = new Map<string, Set<string>>();
+    for (const item of files) for (const name of read(item.remaining, item)) kept.set(item.directory, (kept.get(item.directory) ?? new Set()).add(name));
+    for (const { directory, names } of named) removeNamedFiles(home, ownerFiles!, directory, names.filter(name => !kept.get(directory)?.has(name)));
   });
-  for (const { directory, names } of named ?? []) removeNamedFiles(home, ownerFiles!, directory, names);
 }

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, linkSync, lstatSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, linkSync, lstatSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -314,13 +314,47 @@ test("RAC-577 S-86 the files a project's rows name go with them, and only plain 
 
   assert.equal(await projectDeletedHooksFor(home).clear("images", "pa"), true);
   assert.equal(existsSync(join(assets, "a.png")), false, "the project's own picture is removed");
-  assert.equal(existsSync(join(assets, "kept.png")), false, "a name the deleted rows give is theirs, whoever else names it");
+  assert.ok(existsSync(join(assets, "kept.png")), "a name another project's row still gives is that project's, and stays");
   for (const kept of [outside, join(root, "outside.png"), join(assets, "sub", "b.png"), join(assets, "folder.png"), join(home, "hard-source.png"), join(assets, "hard.png")]) {
     assert.ok(existsSync(kept), `${kept} is not one plain file of the declared directory, and stays`);
   }
   assert.ok(lstatSync(join(assets, "linked.png")).isSymbolicLink(), "a link is left, and what it points at with it");
   const left = new DatabaseSync(homeSqlitePath(home, "images"), { readOnly: true });
   try { assert.deepEqual(left.prepare("SELECT project_id FROM jobs ORDER BY project_id").all().map(row => row.project_id), ["pb"]); } finally { left.close(); }
+});
+
+test("RAC-577 S-86 a file two projects' rows name stays until the last of them goes, and a removal that fails keeps the rows", async t => {
+  const home = withHome(t);
+  const images = catalog.find(entry => entry.project_plugin_id === "images")!, library = images.manifest.databases!.home!;
+  const assets = join(home, "images", "assets");
+  const db = openBaselineHomeSqlite(home, library.store_name, library);
+  try {
+    for (const [project, names] of [["pa", ["shared.png"]], ["pb", ["shared.png"]], ["pc", ["own.png"]]] as const) {
+      db.prepare(`INSERT INTO jobs (id, project_id, request_id, input_hash, connection_id, connection_name, api_format, model, prompt, size,
+        aspect_ratio, status, images_json, error, created_at) VALUES (?, ?, ?, 'h', 'c', 'c', 'openai-images', 'm', 'p', '', '', 'succeeded', ?, '', 'now')`)
+        .run(`job-${project}`, project, `request-${project}`, JSON.stringify(names.map(filename => ({ filename, mime_type: "image/png" }))));
+    }
+  } finally { db.close(); }
+  mkdirSync(assets, { recursive: true });
+  for (const name of ["shared.png", "own.png"]) writeFileSync(join(assets, name), "png");
+  const projects = () => {
+    const left = new DatabaseSync(homeSqlitePath(home, "images"), { readOnly: true });
+    try { return left.prepare("SELECT project_id FROM jobs ORDER BY project_id").all().map(row => row.project_id); } finally { left.close(); }
+  };
+
+  assert.equal(await projectDeletedHooksFor(home).clear("images", "pa"), true);
+  assert.ok(existsSync(join(assets, "shared.png")), "pb still names it");
+  assert.equal(await projectDeletedHooksFor(home).clear("images", "pb"), true);
+  assert.equal(existsSync(join(assets, "shared.png")), false, "the last project that named it is gone");
+
+  chmodSync(assets, 0o555);
+  try {
+    await assert.rejects(() => projectDeletedHooksFor(home).clear("images", "pc"), { code: "EACCES" });
+    assert.ok(existsSync(join(assets, "own.png")));
+    assert.deepEqual(projects(), ["pc"], "the rows stay with the file they name, so the next attempt finds it again");
+  } finally { chmodSync(assets, 0o755); }
+  assert.equal(await projectDeletedHooksFor(home).clear("images", "pc"), true);
+  assert.deepEqual([existsSync(join(assets, "own.png")), projects()], [false, []]);
 });
 
 test("RAC-577 S-86 the SDK refuses files that do not hang on a project's own table or name a directory the Manifest does not declare", () => {

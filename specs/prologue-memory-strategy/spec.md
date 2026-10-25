@@ -2662,3 +2662,20 @@ Prologue #102 已按准确13c476a3完成原完整quality（70文件723项、干�
 上述独审补正验证：原整体 build、LocalHost typecheck、来源专项 35/35 与精确父 a8042a0 health 全部通过，零跳过/重试。35 项为原 32 项删除无依据的 actor 等号拒绝样本后新增 4 项公共入口用例；未把旧错误断言保留下来凑数。原 Projects/目录相关回归与 boundary 对未改变模块/依赖的证据继续有效，本轮未机械重跑。日志 `/private/tmp/catalog-source-review-{build,types,tests,health}.log`。仍只声明源读取工程路径，完整恢复边界不变。
 
 MEM-40 完整来源联结接线（2026-10-25，实施前）：App inspection 在原 factory 上增加 SDK 已公开的 sessionTerminations、inspectMemory、previewMemoryPurge 三个无正文薄映射。复用原固定 App/scopes/policy、perform 的取消/关闭等待和 SDK 当前权限检查；不暴露 raw storage，不新增 Runtime、写口、阈值或状态机。SDK 的 present/cleared/absent 和原 termination 原样保留，absent 不当成删除完成；只有后续上层联结才能决定目标。允许修改 AgentHost 原 adoption adapter、README、本 spec 与已有直接测试；公开构建真实持久验证非空分页、精确身份、越范围拒绝、取消/撤权/关闭与源文件字节不变，复用未变生产链的既有 README 结果，最后由集成分支跑完整验收。
+### MEM-40：源 Ledger 有界事实读取短合同（2026-10-25）
+
+状态：本片本地工程实现与定向验证完成，待统筹聚合 API 快照；不代表 MEM-40 完成或允许恢复删除。给定已停 writer 的完整 T1 工作副本，Storage 公开 `openMemoryLedgerRecoveryInspection({ homeDirectory, assertCurrent, signal? })`，以单 readonly SQLite 连接和同一 BEGIN 快照读取 Ledger 现事实；Memory 纯解释负责终止含义与精确身份，Catalog 由原 owner 另接。原件 T1/T0 不打开。无 Home/数据库/表/key 创建、迁移、checkpoint 或忽略 WAL；工作副本允许 SQLite 必要侧车。
+
+`next({ limit? })` 返回 facts/issues/exhausted；默认 40，整数范围 1–100，非法限额拒绝；总 fact+issue 不超过 limit。分页只保留当前计划与本页，不全库 all()+slice。行 JSON 可一次解析，条目跨页延续，不承诺合法单行的严格 byte 上限。同步 current 与取消在打开、页读取/交付、关闭检查；拒绝页保留待交付位置，不能跳页。close 幂等，取消或撤权仍先释放；关闭错误显式抛出。exhausted 仅表示扫描结束，issue/未知不因此变 complete。
+
+允许改 Storage 现 adapters 与完整 recovery reader、必要 Memory 合同 DTO/纯 codec、Memory 纯解释及公开出口/README、原 spec 与真实 SQLite 公开包用例。共用 adoption schema、cleanup decision decoder、relation 行级校验；Storage 不反向依赖 Memory，不交 raw body/db/SQL。覆盖 forgotten、source-forgotten、source-links、operation/step/promotion/upkeep、scope-clear、selection、project-clear/delete、adoption-cleanup、owner/candidate/change 身份；相关未知 kind、坏 JSON、矛盾显式 issue。无 text/why/reason/undo 内容。普通 closed、来源关联、未确认预览不授权删除；裸 forgotten 只联精确 scope/owner；source-forgotten 维持事件级；merge 只映射 drop、不删除 kept、不自动增来源屏障。
+
+硬边界：只读、同快照、当前授权、无正文、单一事实主人。可配置仅此 reader 的页限额；无新插件、配置 registry 或 schema；最终维护入口和用户选择归 App，本片不接 LocalHost/Catalog，不改 SDK/vendor/lock/UI/gates/普通 Runtime/target。验收：真实 SQLite 非空多页/未知、WAL、无创建、快照跨页、拒绝不跳页、关闭释放、删除语义反例与原件/T0 未改；正式 build 走机器 FIFO，定向与 README 影响面、准确父 health/types/boundary；不跑全量、不用真实 Home/模型。
+
+本片验证记录（2026-10-25）：在独立工作树以 `a8042a0feed0b3c587d41b56e3b4fa1fe870993c` 为父基线完成本地实现。原 `pnpm build` 经机器 FIFO 通过；Storage/Memory/contracts 的 README 必跑与新增影响面共 48 个文件通过（单 worker、零重试），最终 DTO/解释补充后复跑 5 个受影响文件通过，其中真实 SQLite 来源专项 10 项。三包 noEmit 通过，boundary 的 errors 为空，diff 检查通过。准确父 health 的结构/复杂度通过，仍有预期 contracts Memory API 快照差异，按分工留给统筹聚合生成；本片不修改门禁。使用临时 Home、真实 DB/WAL；未打开真实 Home、T1 原件或 T0，未调用模型，未跑全量，未做 LocalHost/Catalog 接线或 target 恢复。
+
+来源结果保留候选 `supersedes` 以及 `sources_known`，未记录来源不等于空来源；owner/candidate 对同一 scope/owner 给出矛盾项目与孤立 candidate-purge 由 Memory 明确返回 unresolved。`inspect-target` 仅用于进一步读源 SDK 对账，不是目标删除命令；candidate reservation/CAS、跨库完整联结、关闭前最终维护状态及 MEM-40 完整恢复仍由后续切片验证。本片工程证据不代替最终 App 产品实操与用户验收。
+
+独审 P2 修正短合同（2026-10-25）：真实 `clearTargets` 的 personal/character 计划只含自身 scope/owner，project 计划含自身与原选 character；Memory 解释同一个 `memory-clear` 的父决定与各 part，身份矛盾必须返回 `unresolved(identity-conflict)`，不能因 `started:true` 把外来 part 解释为 confirmed-plan。原计划必须保留自身 part（可为空），相同 scope/owner 不重复；project→character 不要求清理后仍存在 owner 行，仅现存明确相反的 project 归属构成冲突。Storage 继续只投影已校验持久事实，不新增规则主人或公开 API。通过真实 SQLite 公共包入口覆盖冲突反例和三个 scope 的合法组合，保留首次失败；本修正不接目标执行或 Catalog。
+
+本次 P2 工程验证：新公共包回归在原 `5e9dbd39462c6cc7ca5f24ddb72e2d5ccc16b751` 构建上 10 通过、1 失败，明确复现 foreign-project 被解释为 confirmed-plan；首败 `/private/tmp/molis-memory-source-ledger-parent-scope-before.log` 保留。修正后原 `pnpm build` 经 FIFO 通过；6 个相关文件 54 项通过（单 worker、零重试），其中来源专项 11 项覆盖父子冲突、重复/缺自身 part、合法 personal/character/project、空自身 part、缺 owner 与现存归属矛盾。Memory noEmit 与 boundary 通过；准确父 `5e9dbd39462c6cc7ca5f24ddb72e2d5ccc16b751` health 仅报原候选既有 contracts Memory API 快照待统筹更新，本次不改 API 或 gates。日志为 `/private/tmp/molis-memory-source-ledger-parent-scope-{build,targeted,types,boundary,health}.log`。未重复此前 48 文件全批；未运行完整 App/真实 Home/目标恢复或用户验收。

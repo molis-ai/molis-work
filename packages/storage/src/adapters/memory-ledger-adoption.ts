@@ -17,14 +17,19 @@ function conflict(message: string): never {
   throw Object.assign(new Error(message), { code: "memory.adoption_conflict" });
 }
 
-function snapshot(db: DatabaseSync, path: string): MemoryLedgerAdoptionSnapshot {
+export function assertMemoryLedgerAdoptionSchema(db: DatabaseSync, path: string): 3 | 4 {
   const found = Number(db.prepare("PRAGMA user_version").get()!.user_version);
   if (found !== 3 && found !== 4) throw new SqliteSchemaVersionError(path, found, MEMORY_LEDGER_BASELINE.version);
   if (!isDeepStrictEqual(describeSqliteSchema(db), describeSqliteBaseline(MEMORY_LEDGER_BASELINE))) {
     conflict("记忆账本结构不符合可采用的旧格式");
   }
+  return found;
+}
+
+function snapshot(db: DatabaseSync, path: string): MemoryLedgerAdoptionSnapshot {
+  const version = assertMemoryLedgerAdoptionSchema(db, path);
   return {
-    version: found,
+    version,
     profiles: db.prepare("SELECT actor_id, key, body FROM memory_prefs ORDER BY actor_id, key").all()
       .map(row => ({ actor_id: String(row.actor_id), key: String(row.key), prefs: JSON.parse(String(row.body)) as unknown })),
     adoptions: db.prepare("SELECT actor_id, at, body FROM memory_markers WHERE key='strategy-adoption' ORDER BY actor_id").all()

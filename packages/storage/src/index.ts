@@ -64,3 +64,4 @@ export { openTextSearchIndex, normalizeSearchText, searchTokens, searchQueryPlan
 
 export { inspectMemoryLedgerCleanupSources, copyMemoryLedgerCleanupTargets, readMemoryLedgerCleanupDecision, beginMemoryLedgerCleanup, suppressMemoryLedgerCleanupSources, completeMemoryLedgerCleanupTarget, type MemoryLedgerCleanupTarget, type MemoryLedgerCleanupDecision } from "./adapters/memory-ledger-adoption-cleanup.js";
 export { clearProjectInExistingTextSearchIndex, type TextSearchProjectCleanupInput, type TextSearchProjectCleanupResult } from "./adapters/text-search-maintenance.js";
+export { openMemoryLedgerRecoveryInspection, type MemoryLedgerRecoveryInspection } from "./adapters/memory-ledger-recovery.js";

@@ -3629,3 +3629,9 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
   - ac-platform：第 6 组 `ac-platform/group6-contracts` `13fc97401`（Form、灵光、PPT、Dataset 合同进各插件 `./contract`，RAC-820/821）。PG-111 剩下的合同统筹裁定：使用方按动作 id 调，自己声明字段，形状以动作 schema 为准（②）；只有已在 Manifest 声明为交换数据的才留平台合同，用中性名（①）。
   - ac-registry：给 RAC-790～799。
   - ac-sandbox-sched：已合 batch-40，FI-6 裁定写进设计稿 §4，FI-5 开工。
+- 10-25 22:55 UTC：**batch-40 全量 40233009349 红**（16 片里 10 片红，共 15 个文件）。归因：
+  - 已在 PR 头 `03cedfc97` 修的 5 个：Goals 集合模型的产品缺陷，以及 4 个测试跟随。
+  - #1302（PG-070/071）带来的 7 个，交 ac-clients-1 在 `claude/b40-pg071-fixes` 修：board-specimens（Shelf 的词在规格板上没登记）、project-deletion-hooks（删除对话框里 Pages 的数据说明没有英文）、goals-event-acknowledge（英文页上 Goals 时间线是中文）、shelf-plugin 与它的 e2e（Shelf 自己的样式没加载或被测试读错）、hover-actions（Pages 规则进了它自己的表）、workbench-entry-exports（i18n 多导出了 4 个名字）。
+  - #1267 W5-16 与 PG-022 P1b 冲突的 2 个，统筹自修：personal-plugins-review-fixes、installed-plugin-libraries（RAC-321）。快照对安装库账本严格读，purge 也读这一份。统筹定：账本有被改过的行时 purge 停在冲突、说出账本的问题，不绕开它删（宁停不猜）；RAC-321 行与测试同步改。另外两份夹具把用户家目录放进了 Home，按 FIX19 的规则改到 Home 外，并给账本补上现行版本号和 64 位十六进制摘要。
+  - work-placement.e2e「Inspected target navigated or closed」：本机复现排在槽位队列里，结果未知，不算时序。
+  - 教训（补充 21:55 那条）：叠在别的分支上、没跑过 CI 的 PR（#1302、#1267）并进批之前，要在批的合成树上先跑一遍 Verify 子集和它们改到的文件。

@@ -100,7 +100,7 @@ export {
 export { hydrateFeedItemContent, hydrateFeedSnapshotContent } from "./feed-content.js";
 
 export { createLocalFeedApplication } from "./feed-application.js";
-export { HOST_ARTIFACT_PRODUCERS, artifactTypeDeclarations, declaredArtifactTypes, artifactContinuers, artifactReferrerActions } from "./artifact-type-registry.js";
+export { HOST_ARTIFACT_PRODUCERS, artifactTypeDeclarations, declaredArtifactTypes, artifactContinuers, artifactReferrerActions, continuerReadsFile, artifactProducerSources, type ArtifactProducerSource } from "./artifact-type-registry.js";
 export { liveHostFunctionAuthoringCatalog } from "./behavior-catalog.js";
 export { withFunctionsService } from "./functions-host.js";
 

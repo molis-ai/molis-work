@@ -5,8 +5,6 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { pipeline } from "node:stream/promises";
 import { logPreviewFailure } from "./host-log.js";
-import { PAGES_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/pages";
-import { PAGES_READABLE_FILE } from "@molis-ai/molis-work-plugin-pages";
 import type { BoundActionClient, HostOfferedOriginalFile } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import {
@@ -14,7 +12,7 @@ import {
   EXTERNAL_DOCUMENT_SOURCES, type ArtifactFileImport, type ArtifactExternalImport, type GoalArtifactEmbed,
 } from "@molis-ai/molis-work-module-artifacts";
 import { artifactWorkbench } from "@molis-ai/molis-work-app-workbench";
-import { artifactTypeDeclarations, artifactContinuers, artifactReferrerActions, type ArtifactTypeDeclaration } from "./artifact-type-registry.js";
+import { artifactTypeDeclarations, artifactContinuers, artifactReferrerActions, continuerReadsFile, type ArtifactTypeDeclaration } from "./artifact-type-registry.js";
 import { renderFilePreviewHtml } from "@molis-ai/molis-work-design-system";
 import { importedDocumentFile, type ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { ActionProgressEvent, ArtifactCompareResult, ArtifactContinueResult, ArtifactReferrersResult, FileContent } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -217,10 +215,10 @@ export function createLocalArtifactHttp() {
       }
       const declarations = artifactTypeDeclarations();
       const presentation = await ownerPreview(view.selected, declarations, context);
-      // 「从这一版继续」 (A4b): who declares it for this type; Pages only for an imported file it can read.
+      // 「从这一版继续」 (A4b): who declares it for this type; for an imported file, those whose `file` declaration reads it.
       const selected = view.selected, file = importedDocumentFile(selected);
       const continuers = selected && selected.availability === "available" && selected.lifecycle_state !== "archived" ? (artifactContinuers().get(selected.artifact_type_id) ?? [])
-        .filter(item => !file || item.plugin_id !== PAGES_PLUGIN_ID || (file.stored ? Boolean(file.text?.trim()) : PAGES_READABLE_FILE.test(file.filename))).map(item => ({ plugin_id: item.plugin_id, plugin_title: item.plugin_title })) : [];
+        .filter(item => !file || continuerReadsFile(item, file)).map(item => ({ plugin_id: item.plugin_id, plugin_title: item.plugin_title })) : [];
       const reference = view.selected ? { artifact_id: view.selected.artifact_id, version: view.selected.version } : null;
       const goals = reference && route.kind === "detail" ? await context.actions.invoke(artifactsActions.links, { reference }) : undefined;
       // Documents and other objects that link to this version (五.1), each answered by its own plugin; one that cannot answer is left out.

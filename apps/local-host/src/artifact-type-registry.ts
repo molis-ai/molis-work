@@ -1,6 +1,6 @@
 import { CHARACTER_ARTIFACT_PRODUCER, characterArtifactPreviewAction } from "@molis-ai/molis-work-contracts/modules/characters";
 import { isArtifactReferrersAction, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { ArtifactFileDeclaration, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 
 // The platform's table of 成果 types, read from what each producer's Manifest declares (PG-079, PG-064 in
@@ -22,7 +22,22 @@ export interface ArtifactTypeDeclaration {
 }
 
 /** A plugin that can start new work from a 成果 type (「从这一版继续」, A4b), whether it owns the type or only reads it. */
-export interface ArtifactContinuer { readonly plugin_id: string; readonly plugin_title: string; readonly action: ActionDefinition }
+export interface ArtifactContinuer {
+  readonly plugin_id: string;
+  readonly plugin_title: string;
+  readonly action: ActionDefinition;
+  /** The files it reads when the type is an imported file (`artifacts.consumes[].file`); none means it takes every one. */
+  readonly file?: ArtifactFileDeclaration;
+}
+
+/** Whether a plugin that continues from an imported file can read this one: by its declared extensions, or by the text kept for a stored original. */
+export function continuerReadsFile(continuer: Pick<ArtifactContinuer, "file">, file: { filename: string; stored?: unknown; text?: string | null }): boolean {
+  const declared = continuer.file;
+  if (!declared) return true;
+  if (file.stored && declared.stored_text) return Boolean(file.text?.trim());
+  const name = file.filename.toLowerCase();
+  return declared.extensions.some(extension => name.endsWith(extension));
+}
 
 /** What the registry reads of one producer: the Manifest's declarations, and the workbench surface its work objects open on. */
 export interface ArtifactProducerSource {
@@ -64,7 +79,8 @@ export function artifactContinuers(sources: readonly ArtifactProducerSource[] = 
   const continuers = new Map<string, ArtifactContinuer[]>();
   for (const source of sources) for (const type of [...source.artifacts.produces, ...source.artifacts.consumes]) {
     const declared = type.continue, action = declared ? source.actions.find(item => item.capability_id === declared.capability_id && item.version === declared.version) : undefined;
-    if (action) continuers.set(type.artifact_type_id, [...continuers.get(type.artifact_type_id) ?? [], { plugin_id: source.plugin_id, plugin_title: source.name, action }]);
+    const file = "file" in type ? type.file : undefined;
+    if (action) continuers.set(type.artifact_type_id, [...continuers.get(type.artifact_type_id) ?? [], { plugin_id: source.plugin_id, plugin_title: source.name, action, ...(file ? { file } : {}) }]);
   }
   return continuers;
 }

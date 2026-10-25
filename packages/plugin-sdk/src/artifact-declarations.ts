@@ -27,13 +27,30 @@ export function artifactDeclarationProblems(manifest: Pick<PluginManifest, "sche
   const produced = records(manifest.artifacts?.produces), consumed = records(manifest.artifacts?.consumes);
   if (manifest.schema_version === 1) return versionOneProblems(produced, consumed);
   const actions = declaredActions(manifest.actions);
-  return [...produced.flatMap(type => producedTypeProblems(type, actions)), ...consumed.flatMap(type => roleProblems(type, "continue", actions))];
+  return [...produced.flatMap(type => producedTypeProblems(type, actions)), ...consumed.flatMap(type => [...roleProblems(type, "continue", actions), ...fileProblems(type)]),
+    ...produced.filter(type => type.file !== undefined).map(type => `成果类型 ${keyOf(type)} 是产出的类型，file 只能写在读取的类型（artifacts.consumes）上`)];
+}
+
+/** `file` names the extensions a plugin reads from an imported file; a type that is not continued from has nothing to filter. */
+function fileProblems(type: Part): string[] {
+  if (type.file === undefined) return [];
+  const key = keyOf(type), file = type.file as Part | null;
+  if (typeof file !== "object" || file === null || Array.isArray(file)) return [`成果类型 ${key} 的 file 必须是对象`];
+  const problems: string[] = [];
+  const extensions = file.extensions;
+  if (!Array.isArray(extensions) || extensions.length === 0 || !extensions.every(item => typeof item === "string" && /^\.[a-z0-9]+$/u.test(item))) {
+    problems.push(`成果类型 ${key} 的 file.extensions 必须是非空数组，每项为带点的小写扩展名（如 ".md"）`);
+  } else if (new Set(extensions).size !== extensions.length) problems.push(`成果类型 ${key} 的 file.extensions 有重复`);
+  if (file.stored_text !== undefined && typeof file.stored_text !== "boolean") problems.push(`成果类型 ${key} 的 file.stored_text 必须是布尔值`);
+  for (const name of Object.keys(file)) if (name !== "extensions" && name !== "stored_text") problems.push(`成果类型 ${key} 的 file 没有 ${name} 这一项`);
+  if (type.continue === undefined) problems.push(`成果类型 ${key} 声明了 file，必须同时声明继续动作（continue）`);
+  return problems;
 }
 
 function versionOneProblems(produced: Part[], consumed: Part[]): string[] {
   return [
     ...produced.map(type => `成果类型 ${keyOf(type)} 需要 schema_version 2：产出成果类型要有显示名和本插件的预览动作，v1 Manifest 不能声明动作`),
-    ...consumed.filter(type => type.continue !== undefined).map(type => `成果类型 ${keyOf(type)} 的继续动作需要 schema_version 2`),
+    ...consumed.filter(type => type.continue !== undefined || type.file !== undefined).map(type => `成果类型 ${keyOf(type)} 的继续动作需要 schema_version 2`),
   ];
 }
 

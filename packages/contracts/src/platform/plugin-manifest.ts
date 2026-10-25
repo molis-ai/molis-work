@@ -80,6 +80,15 @@ export interface PluginRouteDeclaration {
   stream?: "ndjson";
 }
 
+/**
+ * The files a plugin can read from an imported 成果: the lower-case extensions with their dot, and whether a file the 成果库 kept as
+ * extracted text (an original too big to hold inline) counts when that text is not empty.
+ */
+export interface ArtifactFileDeclaration {
+  extensions: string[];
+  stored_text?: boolean;
+}
+
 export interface PluginManifest {
   /** 1 is the original shape. 2 adds ports, events, views, commands, routes and agent. */
   schema_version: 1 | 2;
@@ -118,10 +127,12 @@ export interface PluginManifest {
    * matches the object, for 「原文已改」 (A4b).
    * A plugin that can start new work from a version declares `continue` (`defineArtifactContinueAction`) on that type,
    * whether it produces it or only consumes it (「从这一版继续」, A4b).
+   * A consumed type that is an imported file says which files it can read (`file`), so the 成果库 lists the plugin for the files it can
+   * continue from and no others (ac-artifacts A3, PG-079).
    */
   artifacts: {
     produces: Array<{ artifact_type_id: string; schema_version: number; title?: string; preview?: { capability_id: string; version: number }; pin?: { capability_id: string; version: number }; compare?: { capability_id: string; version: number }; continue?: { capability_id: string; version: number } }>;
-    consumes: Array<{ artifact_type_id: string; schema_version: number; continue?: { capability_id: string; version: number } }>;
+    consumes: Array<{ artifact_type_id: string; schema_version: number; continue?: { capability_id: string; version: number }; file?: ArtifactFileDeclaration }>;
   };
   /** Exchange data this Plugin records for others and reads from them; kept out of the 成果库. A type is either a 成果 type or a process item type. */
   process_items?: {

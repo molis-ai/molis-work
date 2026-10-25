@@ -1,6 +1,6 @@
 # 防腐 PR 专职会话分工
 
-状态：2026-10-24 23:06 UTC 交付接续核实。顶部当前角色/合同覆盖下方带日期的历史快照；源码以固定PR/head、公开认领和原始证据为准。
+状态：2026-10-25 03:18 UTC SDK新owner接续核实。顶部当前角色/合同覆盖下方带日期的历史快照；源码以固定PR/head、公开认领和原始证据为准。
 
 一骏最新纠偏：“整体还是听Claude统筹，可以从他那领取独立任务处理，不一定只解决问题和review问题，可以与他组织好领取独立任务，分配1-2个独立任务实现的session。”此前组织合并、持续接续评审与全部有效意见修复的要求保留。Claude是整条防腐线的总统筹，决定任务范围、优先级、跨线依赖和全量排期；下表Codex流水线职责只在Codex侧执行，不能替代Claude。
 
@@ -17,9 +17,10 @@
 | 修复4（本题source/独立阶段已交） | Root单题专职，gpt-6.1-sol/max | 01a16f15-e025-71a3-adac-2e84f0e83fdd | 1254固定b5211d8a5b9557783710ea7574a5e6d26751701e/direct19cc，REVIEW6391028363/TEST6391043853修复增量双PASS，原P1本增量收口；6391059350已交Claude | source/槽已释放，可由Root派下一独立题，旧题后续mustfix owner保留。原ready首红/208阶段并集保留，精确b521 CI40143551496已完成14success/1可选probe skip，完整A FIRST/full/actual仍待；有效树暂留，不改snapshot或当C2完成 |
 | 修复5（本题source/定向双核已交） | Root单题专职，gpt-6.1-sol/max | 01a16f24-7a33-76f2-80b4-f20c55006d09 | 1245修后e34b9130681e9d803c343d090fb958493d939f85，27files1048/-128，REVIEW6390234023/TEST6390259895定向PASS/source冻结释放 | 严格helper3诊断未过且无old基线；剩余Feed/Goals/Host/full及真实维护/S9-2保留。1250/1245真实schema/四dump/维护版本同carrier保两方，不冒整S9或防腐完成 |
 | 修复6（本题source/独立阶段已交） | Root单题专职，gpt-6.1-sol/max | 01a16fa8-53d9-7622-8169-0c424357366c | 1251固定267f四项双PASS6390380705/6390400572，16unique122，最终正文纯metadata重写已实际fetch比对一致；source冻结释放 | 原123归因/raw未认证/3browser与组成full保留，mergeable=true非Ready/actual，真实carrier保C2/1241等hunk，不启A6/新full |
+| 修复7（SDK独立依赖实际实施） | 专职修复7｜SDK 归档只读认证 · Codex，gpt-6.1-sol/max | 01a1710d-f78c-7aa1-8e98-829d787ce44b | 人类“你来，不在这里”后Root实际创建/START，本窄题唯一writer；真实SDK repo code/molis-prologue，新独立feature/树基线/必要依赖核查与实现已开始，固定提交/候选包未交付 | 仅C2-SDK-INSPECT双root零写全kind认证；不改/推原#102、不接受整102/1101、不合并/发布/换Molis vendor；Memory采用/空恢复另原领域owner。实际ready用公共machine-slot一次必要build/pack短窗，固定增量/真实Node证据直C2/PIPE/Root/REVIEW/TEST，接入仍C2串行 |
 | 两来源最终闭环（已交付归档） | 专职合并｜PR 1109、1112 收尾 · Codex | 01a16f02-8e7e-7a92-8976-fb7befe916fd | #1236已actual bde02c59；实际树/包含核实后仅1109/1112已19:05关闭，6388316807/6388317402；本人已向Root交付并官方归档该专职 | 未重复queue/full、未动原树；1223已原Claude6388301030关闭，旧三nonblock现FIX2新1253已TEST6390447468 PASS/待首评与actual，不因专职完成关闭整线 |
 | 独立实现 C1 / C3 / C4准备 | 专职实现1（完整原owner保持）· Codex | 01a16c97-0dde-7d82-9244-097a93f50770 | Gmail516已35吸收；横向1252固定8abab965c1f75bfb1ae1f695530a5d1a1312309f，15files533/-412/source释放，TEST6390184579 PASS/Claude FIRST6390137797待接 | C4原授权短准备已完，基FI3现实现缩3项WO待Claude6390280424，收到即实施不等旧CI/full/不自定信任，C1/C3完整未关 |
-| 独立实现 C2 | 专职实现2｜W5-16 Home 快照与恢复 · Codex | 01a16c97-5b6a-7343-b245-dc63b65e1e11 | e2d双核待A carrier；snapshot4f红/d8预案后Root已START SDK外restore，同一writer推进guard/owner纯读/新modules，指定hub未发现要停工的并写hunk | 两独立依赖：SDK双root认证；Molis Memory合法空快照目标投影的零写可重开判定/受控初始化。实际claim均待原入口，不混SDK/Molis职责/新writer，C2合法ledger恢复继续；空态RAC108仍未完，A只吸e2d，不关整线/真实Home验收 |
+| 独立实现 C2 | 专职实现2｜W5-16 Home 快照与恢复 · Codex | 01a16c97-5b6a-7343-b245-dc63b65e1e11 | e2d双核待A carrier；snapshot4f红/d8预案后Root已START SDK外restore，同一writer推进guard/owner纯读/新modules，指定hub未发现要停工的并写hunk | 两独立依赖：SDK双root认证已人类授权FIX7 01a1710d-f78c-7aa1-8e98-829d787ce44b实际接手，可直对接固定增量/包；Molis Memory已采用ledger的完整marker/prefs归档零写资格与合法空态受控恢复仍待原领域owner实际认领。本次不把Memory派给SDK；C2独立publisher/owner实现继续并在SDK短窗前后按同machine-slot串行整体build，Memory fail-closed、空态RAC108未完，A只吸e2d，不关整线/真实Home验收 |
 
 已有角色 owner 与有效技术裁定保持。独立树、独立明确问题且无真实重叠可多writer；同文件/合同/候选串行。Claude唯一组批/full/批PR队列；Root唯一定时发现/初始派单/复杂裁决；本流水线交付驱动接续与既有普通小PR合并职责保持。整机一份build、一批browser，machine-slot排队。
 

@@ -170,7 +170,11 @@ for (const execution of ["native", "sandbox"] as const) {
 
 for (const scope of ["project", "home"] as const) for (const execution of ["native", "sandbox"] as const) {
   const points: Array<"original" | "binding"> = scope === "project" ? ["original", "binding"] : ["original"];
-  for (const point of points) test(`S-45 ${scope === "project" ? "S-71 RAC-472" : "RAC-473"} retaining reinstall refuses failed authorization deletion in the same and a new Runtime (${scope}, ${execution}, ${point})`, { timeout: 60_000 }, async t => {
+  // Each title is written out in full, so the security table can name it (the S-20 gate reads a title's literal text).
+  const title = scope === "project"
+    ? `S-45 S-71 RAC-472 retaining reinstall refuses failed authorization deletion in the same and a new Runtime (${scope}, ${execution})`
+    : `S-45 RAC-473 retaining reinstall refuses failed authorization deletion in the same and a new Runtime (${scope}, ${execution})`;
+  for (const point of points) test(`${title} ${point}`, { timeout: 60_000 }, async t => {
     const r = rows(t), probe = ownerFilesProbe(`fault${scope}${execution}${point}`, scope);
     if (execution === "sandbox") probe.definition.execution = "sandbox";
     const valuesOnStart: unknown[] = [], marker = "private data survives authorization cleanup failures";

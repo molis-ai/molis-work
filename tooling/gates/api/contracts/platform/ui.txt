@@ -13,6 +13,11 @@ export interface InteractionNextStep {
     waitingLabel?: string;
 }
 
+export interface OwnedUiContribution<TModel = unknown> {
+    readonly descriptor: UiContributionDescriptor;
+    render(request: UiRenderRequest<TModel>): string;
+}
+
 export declare const RECEIPT_WORDS: {
     FACT: {
         received: string;
@@ -88,6 +93,7 @@ export type ReceiptWords = {
     STEP: Record<AgentStepState, string>;
     MARK: Partial<Record<AgentStepState, string>>;
 };
+
 export interface SettingsPageContext {
     readonly projects: ReadonlyArray<{
         readonly project_id: string;
@@ -149,18 +155,21 @@ export interface UiCommandDeclaration {
 export type UiCommandInputKind = (typeof UI_COMMAND_INPUT_KINDS)[number];
 
 export interface UiContribution<TModel = unknown> {
-    readonly descriptor: UiContributionDescriptor;
+    readonly descriptor: UiContributionDeclaration;
     render(request: UiRenderRequest<TModel>): string;
 }
 
-export interface UiContributionDescriptor {
+export interface UiContributionDeclaration {
     readonly contribution_id: string;
-    readonly plugin_id: string;
     readonly kind: UiContributionKind;
     readonly navigation_id?: string;
     readonly label: string;
     readonly surfaces?: readonly UiSurfaceDescriptor[];
     readonly slots: readonly UiSlotDescriptor[];
+}
+
+export interface UiContributionDescriptor extends UiContributionDeclaration {
+    readonly plugin_id: string;
 }
 
 export type UiContributionKind = "primary-page" | "embedded" | "overlay" | "settings-page";
@@ -177,7 +186,7 @@ export interface UiFailureView {
 }
 
 export interface UiHostApi {
-    register<TModel>(contribution: UiContribution<TModel>): void;
+    register<TModel>(contribution: OwnedUiContribution<TModel>): void;
     unregister(contributionId: string): void;
     list(): readonly UiContributionDescriptor[];
     render<TModel>(request: UiRenderRequest<TModel>): string;
@@ -522,6 +531,10 @@ export interface WorkbenchDocumentRenderRequest {
     readonly body_attributes?: Readonly<Record<string, string | boolean | null | undefined>>;
     readonly body_html: string;
 }
+
+export declare function declaresOwner(declaration: object): boolean;
+
+export declare function ownedContribution<TModel>(contribution: UiContribution<TModel>, pluginId: string): OwnedUiContribution<TModel>;
 
 export declare const platformUiContract: {
     readonly contractId: "io.molis.work.platform.ui.v1";

@@ -7,7 +7,8 @@ const escapeHtml = (value: unknown) => String(value).replace(/[&<>"']/g, char =>
 
 test('a plugin installed from the studio is a rail entry under 更多 that opens its own stage', () => {
   const html = renderPluginRail({ L: value => value, escapeHtml, icon }, [], '<footer></footer>', '',
-    [{ surface: 'app-9de886d4-ee8b-4024-a599-9fbba135933d', label: '随手记 <b>' }]);
+    [{ id: 'app-9de886d4-ee8b-4024-a599-9fbba135933d', plugin_id: 'io.molis.work.generated.9de886d4-ee8b-4024-a599-9fbba135933d', name: '随手记 <b>', chosen: false,
+      ui: { views: [{ view_id: 'app', slot: 'stage' as const, title: '随手记 <b>' }] } }]);
   const more = html.slice(html.indexOf('>更多<'), html.indexOf('>拓展<'));
   assert.match(more, /data-work-surface-open="app-9de886d4-ee8b-4024-a599-9fbba135933d"/, 'listed with the other project tools');
   assert.match(more, /<span>随手记 &lt;b&gt;<\/span>/, 'a model-written name is text, never markup');

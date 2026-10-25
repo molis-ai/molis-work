@@ -53,7 +53,7 @@ test("AC-28-3: a refused pick is worded on its own field, with the cap when ther
 type Tool = { name: string; input_schema: { properties: { questions: { items: { properties: Record<string, { items?: { enum?: string[] } }> } } } } };
 type Body = { tools?: Tool[]; messages?: unknown; system?: unknown };
 const enumOf = (body: Body | undefined) => body?.tools?.find(tool => tool.name === "ask-user")?.input_schema.properties.questions.items.properties.refKinds?.items?.enum;
-const external = (kind: string, title: string, plugin_id = "io.example.notes"): ReferenceKindCandidate => ({ plugin_id, builtin: false, kind, title });
+const external = (kind: string, title: string, plugin_id = "io.example.notes"): ReferenceKindCandidate => ({ plugin_id, installation: plugin_id, kind, title });
 const owner = { project_id: "questions", plugin_id: "io.molis.work.test", install_id: "test", actor_id: "person" };
 const helper = { role_id: "helper", version: 1, workspace: "business" as const, execution: "operate" as const, prompts: [], host_tools: ["ask-user"] };
 
@@ -95,10 +95,10 @@ test("BL-152: an external plugin's kind can be asked for, and the person gets th
 });
 
 test("BL-152: two rounds in one project see the same kinds in the same order, however the Host lists them", { timeout: 30_000 }, async t => {
-  const listed = [external("x_note", "笔记"), external("x_card", "卡片", "io.example.cards"), { plugin_id: "io.molis.work.goals", builtin: true, kind: "goal", title: "目标" }, external("x_board", "看板")];
+  const listed = [external("x_note", "笔记"), external("x_card", "卡片", "io.example.cards"), external("goal", "目标", "io.molis.work.goals"), external("x_board", "看板")];
   let calls = 0;
   const { bodies } = await rounds(t, async () => (calls++ % 2 ? [...listed].reverse() : listed), () => cogniaModelResponse("好"), 2);
-  assert.deepEqual(enumOf(bodies[0]), ["goal", "x_card", "x_board", "x_note"], "built-in first, then by plugin id and kind");
+  assert.deepEqual(enumOf(bodies[0]), ["x_card", "x_board", "x_note", "goal"], "by plugin id and kind, built-in or not (PG-015)");
   assert.deepEqual(enumOf(bodies[1]), enumOf(bodies[0]), "the tool schema does not change between rounds, so the prompt cache holds");
 });
 

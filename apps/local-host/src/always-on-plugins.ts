@@ -1,5 +1,5 @@
 import path from "node:path";
-import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import type { ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { PluginInstanceRecord, PluginLifecycleState } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
@@ -29,7 +29,7 @@ function installedAndOn(records: readonly PluginInstanceRecord[], entry: PluginR
  * an installed plugin's claim; no third-party installation receives this default.
  */
 export function alwaysOnCatalogEntries(home: string): PluginRegistration[] {
-  const declared = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.manifest.always_on === true);
+  const declared = PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => entry.manifest.always_on === true);
   if (declared.length === 0) return [];
   const db = openReadOnlyHomePluginStore(path.resolve(home));
   if (!db) return declared;
@@ -53,7 +53,7 @@ export const alwaysOnProjectPlugins = (home: string): ProjectPluginId[] => alway
  * revoked one included, so a person's decision stands across restarts; queries never call this.
  */
 export function recordHostAlwaysOnAgreements(ledger: PluginConsentLedger, supervised: ReadonlySet<string>, at: string): void {
-  for (const { manifest } of BUILTIN_PLUGIN_CATALOG) {
+  for (const { manifest } of PLATFORM_PLUGIN_REGISTRATIONS) {
     if (manifest.always_on !== true || supervised.has(manifest.plugin_id)) continue;
     ledger.record({ plugin_id: manifest.plugin_id, publisher_signature: manifest.publisher.signature, manifest_digest: pluginManifestDigest(manifest),
       granted_by: "host_build", grants: [{ kind: "always_on", subject: consentSubject.alwaysOn() }], at });

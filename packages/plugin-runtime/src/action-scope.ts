@@ -141,6 +141,15 @@ export function runInPluginAction<T>(scope: Omit<PluginActionScope, "begun"> & {
   return runOpen(running, { ...scope, begun: place(scope.begun) }, handle);
 }
 
+/**
+ * Takes the place the call about to run gets in the order, before it waits for anything: a handler that is started after an `await`
+ * (`pluginActionProvider` reads the project list first) passes it to `runInPluginAction`, so the wait does not move the call past a moment
+ * a service refuses everything already under way at (`lastBegunPluginInvocation`).
+ */
+export function reservePluginInvocationPlace(): number {
+  return place(undefined);
+}
+
 /** Runs a job's work in its own scope: services ask the job's checks, never those of the call that kept it. */
 export function runInPluginJob<T>(scope: Omit<PluginJobScope, "begun"> & { readonly begun?: number }, handle: () => T): T {
   return runOpen(running, { ...scope, begun: place(scope.begun) }, handle);

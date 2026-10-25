@@ -1,6 +1,6 @@
 import type {
   UiContribution,
-  UiContributionDescriptor,
+  UiContributionDeclaration,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
 import { icon, renderPluginStageShell } from "@molis-ai/molis-work-design-system";
@@ -19,9 +19,8 @@ export interface PptUiModel {
   readonly primitives: PptUiPrimitives;
 }
 
-export const pptUiDescriptor: UiContributionDescriptor = {
+export const pptUiDescriptor: UiContributionDeclaration = {
   contribution_id: PPT_UI_CONTRIBUTION_ID,
-  plugin_id: "io.molis.work.ppt",
   kind: "primary-page",
   navigation_id: "ppt",
   label: "PPT",

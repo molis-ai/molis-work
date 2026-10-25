@@ -1,7 +1,7 @@
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
 import { openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 

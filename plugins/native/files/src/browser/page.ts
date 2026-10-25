@@ -53,16 +53,22 @@ export const active = (page: FilesPage, epoch: number) =>
   page.lifetime.alive && page.lifetime.visible && !page.viewSignal?.aborted && epoch === page.generation;
 
 /**
- * One request to a plugin's routes while the view is shown. Reads are cancelled when the view is hidden; a write started
- * here is not (it runs to its end and its answer is dropped by the callers' tickets).
+ * One request while the view is shown. Reads are cancelled when the view is hidden; a write started here is not (it runs to
+ * its end and its answer is dropped by the callers' tickets).
  */
-export async function requestPlugin<T>(page: FilesPage, plugin: string, path: string, method: "GET" | "POST" = "GET", body?: unknown): Promise<T> {
-  const { lifetime, host } = page, signal = page.viewSignal;
+async function whileShown<T>(page: FilesPage, send: (signal: AbortSignal | undefined) => Promise<unknown>, write: boolean): Promise<T> {
+  const { lifetime } = page, signal = page.viewSignal;
   lifetime.assertCurrent(signal);
   if (!signal || !lifetime.visible) throw new DOMException("View hidden", "AbortError");
-  const value = await host.request(plugin, path, method, body, method === "GET" ? signal : lifetime.signal) as T;
+  const value = await send(write ? lifetime.signal : signal) as T;
   lifetime.assertCurrent(signal);
   return value;
 }
 
-export const request = <T>(page: FilesPage, path: string, method: "GET" | "POST" = "GET", body?: unknown) => requestPlugin<T>(page, "files", path, method, body);
+/** One request to Files' routes. */
+export const request = <T>(page: FilesPage, path: string, method: "GET" | "POST" = "GET", body?: unknown) =>
+  whileShown<T>(page, signal => page.host.request(path, method, body, signal), method !== "GET");
+
+/** A companion plugin's drawn state (Text Stats' counts, Diff's comparison), which its plugin answers to a page action. */
+export const companionState = <T>(page: FilesPage, plugin: "text-stats" | "diff") =>
+  whileShown<T>(page, signal => page.host.companionState(plugin, signal), false);

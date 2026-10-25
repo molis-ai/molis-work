@@ -14,7 +14,8 @@ import {
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 import { createContextLedger, type ContextLedgerDatabase } from "@molis-ai/molis-work-module-context-ledger";
 import { PlacementService, PLACEMENT_LEDGER_ACCESS } from "@molis-ai/molis-work-service-placement";
-import { pagesManifest, openPagesStore } from "@molis-ai/molis-work-plugin-pages";
+import { pagesManifest } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
 import { pptManifest, openPptStore, buildPptx, slidesFromMarkdown } from "@molis-ai/molis-work-plugin-ppt";
 import { formManifest, openFormStore, formFillPageHtml, formResultsCsv, FORM_ANSWER_FORMAT, questionsFromText } from "@molis-ai/molis-work-plugin-form";
 import { datasetManifest, openDatasetStore, parseCsv } from "@molis-ai/molis-work-plugin-dataset";

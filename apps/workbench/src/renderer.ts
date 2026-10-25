@@ -33,7 +33,8 @@ import {
 } from "./page-assets.js";
 import { renderGoalInputsHtml } from "./goal-inputs-html.js";
 import type { MolisWorkWebView } from "./page-view.js";
-import { shownProjectPlugins } from "./plugin-catalog.js";
+import { creatableKinds, pluginDirectoryFor } from "./plugin-catalog.js";
+import { shownPagePlugins } from "./page-plugin-visibility.js";
 import { createWorkbenchProjectChooserRenderer } from "./arrival/chooser.js";
 import { createWorkbenchProjectSettingsPages } from "./project-settings-pages.js";
 import { createWorkbenchSettingsNavigation } from "./settings-navigation.js";
@@ -77,7 +78,7 @@ const { buildScheduleNativePluginModel, renderScheduleNativePluginSurface } = cr
 const stageModels: ReadonlyMap<string, (view: MolisWorkWebView) => unknown> = new Map<string, (view: MolisWorkWebView) => unknown>([
   ["feed", view => buildFeedNativePluginModel(view, "feed", [], false)], ["inbox", buildInboxNativePluginModel], ["schedule", buildScheduleNativePluginModel]]);
 const declaredStageModel = (projectPluginId: string, view: MolisWorkWebView): unknown =>
-  stageModels.get(projectPluginId)?.(view) ?? { route_prefix: view.route_prefix, shown_plugins: shownProjectPlugins(view.enabled_plugins ?? [], view.hidden_plugins ?? []), primitives: { escape: escapeHtml, text: L } };
+  stageModels.get(projectPluginId)?.(view) ?? { route_prefix: view.route_prefix, shown_plugins: view.shown_plugins ?? view.enabled_plugins ?? [], primitives: { escape: escapeHtml, text: L } };
 
 const { explainWorkState, explainParentCompletion } = createGoalStateExplainer(L);
 
@@ -215,8 +216,8 @@ const goalsDocumentRenderer = createWorkbenchGoalsDocumentRenderer({
 const { renderTrashGoalDocument } = goalsDocumentRenderer;
 
 /** The Goal's inputs, followed and fixed, in one list with one 「加输入」 (goal-inputs-html.ts). */
-function renderInputBindingsHtml(item: WebGoalView): string {
-  return renderGoalInputsHtml(item, { L, escapeHtml, renderReference });
+function renderInputBindingsHtml(item: WebGoalView, view: MolisWorkWebView): string {
+  return renderGoalInputsHtml(item, { L, escapeHtml, renderReference }, creatableKinds(shownPagePlugins(view), pluginDirectoryFor(view.plugin_directory)));
 }
 
 function renderGoalDecisionHtml(item: WebGoalView, view: MolisWorkWebView): string {
@@ -233,7 +234,7 @@ function renderGoalDocument(item: WebGoalView, view: MolisWorkWebView, selected:
     artifactHtml: item.artifact_embed_html
       ? `<h3>${L("交付物")}</h3>${item.artifact_embed_html}`
       : "",
-    coverageHtml: `${renderInputBindingsHtml(item)}${renderContractCoverage(item, view)}${renderChildProgress(item, view)}`,
+    coverageHtml: `${renderInputBindingsHtml(item, view)}${renderContractCoverage(item, view)}${renderChildProgress(item, view)}`,
     decisionHtml: renderGoalDecisionHtml(item, view),
     eventDocument: item.event_document ?? null,
   }, selected);

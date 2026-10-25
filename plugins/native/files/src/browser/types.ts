@@ -13,18 +13,35 @@ export interface FilesLifetime {
   watchRevision(read: (signal: AbortSignal) => Promise<unknown>, refresh: (signal: AbortSignal) => Promise<boolean | void>): () => void;
 }
 
-/** One request to a plugin's routes in this project (the Coding bundle's `request`); a failure is an Error. */
-export type CompanionRequest = (plugin: string, path: string, method?: "GET" | "POST", body?: unknown, signal?: AbortSignal) => Promise<unknown>;
+/** What the Files bundle's factory gets: the page's host, or Coding's with the ports of the panel Coding mounts Files in. */
+export interface FilesFactoryHost {
+  readonly root?: ParentNode;
+  readonly translate: Translate;
+  mountPluginClient(root: Element): FilesLifetime | null;
+  /** A platform path in the current project. */
+  route(path: string): string;
+  /** A path under Files' own routes (Coding's host answers for Files here when it mounts it). */
+  pluginRoute(path: string): string;
+  /** Opens another plugin's page (a link on Files' own page). */
+  openPlugin?(plugin: string): void;
+  /** Told which workspace is browsed, so Git follows it. Given only by the page that mounts Files in its own panel. */
+  onWorkspaceSelected?(workspaceId: string): void;
+  /** Given only by the page that mounts Files in its own panel (Coding): where the result opens and closes. */
+  openResult?(): void;
+  closeResult?(): void;
+}
 
-/** What Coding's bundle hands Files' client when it mounts it (plugins/native/coding/src/browser/workbench.ts). */
+/** What Files' client uses: the factory's host with the requests Files makes and the ports of the page it is mounted in. */
 export interface FilesHost {
   readonly root?: ParentNode;
   readonly translate: Translate;
   mountPluginClient(root: Element): FilesLifetime | null;
-  readonly request: CompanionRequest;
+  /** One request to Files' routes (a failure is an Error). */
+  request(path: string, method?: "GET" | "POST", body?: unknown, signal?: AbortSignal): Promise<unknown>;
+  /** A companion plugin's drawn state, by its page action. */
+  companionState(plugin: "text-stats" | "diff", signal?: AbortSignal): Promise<unknown>;
   /** The folder and file icons, drawn by the design system on the Host. */
   readonly icons?: { readonly folder: string; readonly file: string };
-  /** Told which workspace is browsed, so Git follows it. */
   onWorkspaceSelected?(workspaceId: string): void;
   openResult(): void;
   closeResult(): void;

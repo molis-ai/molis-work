@@ -419,3 +419,32 @@ test("S-15 with images:read revoked from its installation, the Images jobs route
   assert.deepEqual([refused.status, (await refused.json() as { code: string }).code], [403, "actions.forbidden"]);
   assert.equal((await request(`/api/plugins/${plugin}/connections`)).status, 200, "the connections read it still holds keeps working");
 });
+
+// PG-008 (RAC-651): the routes that bound a hand-written client (the 成果库's owner previews, project references, the Shelf settings,
+// project onboarding) now bind the person's client. The permissions a route names bound what it reaches of the Host's own providers;
+// they add nothing to a Runtime plugin's installation, which the hand-written client let through to the provider on the person's word.
+test("S-15 RAC-651 the permissions a route names reach a Runtime plugin's action only through its installation's grants", { timeout: 90_000 }, async t => {
+  const { host, project } = await serveHomeRuntime(t);
+  const { reference } = await project("路由写下的权限");
+  const definition = defineSubjectContextAction("capped.notes.context", "capped-note", "路由上限", ["capped:read"]);
+  let reads = 0;
+  const plugin = definePlugin({ manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.capped", version: "1.0.0", name: "路由上限",
+    kind: "app", publisher: { publisher_id: "example", signature: "example-capped" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
+    permissions: [{ permission: "capped:read", required: false, reason: "读取" }], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [definition] },
+    async start() { return { kind: "app", actions: [{ ...definition, handle: (_caller, input) => {
+      reads++; return subjectContext({ subject: { kind: "capped-note", id: (input as { subject_id: string }).subject_id }, revision: "1", title: "t", content: "正文", goal_ids: [] });
+    } }] }; } });
+  const repository = await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db));
+  const runtime = new PluginRuntime(repository, undefined, { actions: { registry: host.actionRegistry(reference), project_id: reference.project_id } });
+  const installId = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: [] }).install.install_id;
+  await runtime.start(installId);
+  try {
+    await assert.rejects(bindLocalWebActions(host, reference, ["capped:read"]).invoke(definition, { subject_id: "n" }), { code: "actions.forbidden" });
+    assert.equal(reads, 0, "the route's own gate refused it; the provider never ran");
+    await runtime.stop(installId);
+    runtime.grant(installId, ["capped:read"]);
+    await runtime.start(installId);
+    assert.equal((await bindLocalWebActions(host, reference, ["capped:read"]).invoke(definition, { subject_id: "n" }) as { content: string }).content, "正文");
+    assert.equal(reads, 1);
+  } finally { if (runtime.get(installId).state === "running") await runtime.stop(installId); }
+});

@@ -20,6 +20,7 @@ export const artifactsManifest: PluginManifest = {
   plugin_id: ARTIFACTS_PLUGIN_ID,
   version: "0.3.0",
   name: "成果",
+  summary: "项目的固定成果，各版本可回看。",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-artifacts-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],

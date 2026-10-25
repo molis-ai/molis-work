@@ -43,8 +43,9 @@ export function pluginEntryIdentity() {
           actions: Object.freeze({ read: Object.freeze({ ...config.actions.read }), save: Object.freeze({ ...config.actions.save }) }),
         }));
         if (entry.definition.manifest.image_generation) images.set(entry.definition, Object.freeze({ ...entry.definition.manifest.image_generation }));
-        if (entry.project_data) projectData.set(entry.definition, Object.freeze({ owner_id: entry.project_data.owner_id,
-          declaration: Object.freeze({ ...entry.project_data.declaration }) }));
+        const owner = entry.project_data;
+        if (owner) projectData.set(entry.definition, Object.freeze({ owner_id: owner.owner_id,
+          ...owner.declaration ? { declaration: Object.freeze({ ...owner.declaration }) } : {} }));
       }
     },
   };

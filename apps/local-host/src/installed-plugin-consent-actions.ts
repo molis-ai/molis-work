@@ -4,7 +4,7 @@ import type { PluginConsentRecord } from "@molis-ai/molis-work-contracts/platfor
 import type { PluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
 import { consentsChanged } from "./consent-revision.js";
 
-// Taking an agreement back (ac-trust T5, specs/repository-anti-corruption/slices/ac-trust-install.md §3.3, S-X4). The Home's consent ledger
+// Taking an agreement back (ac-trust T5, specs/repository-anti-corruption/slices/ac-trust-install.md §3.3, S-79). The Home's consent ledger
 // holds one row for each declaration of a plugin that changes what it does elsewhere (常开, a default wiring, a default input group). Only
 // the person lists and takes them back: the audience is `user` and the handler wants the protected entry's `user_action`, so neither an
 // Agent, MCP, a workflow nor a plugin can withdraw (or by withdrawing, keep) an agreement. Revoking writes `revoked_at` on the row and

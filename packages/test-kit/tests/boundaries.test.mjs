@@ -85,6 +85,25 @@ test("rejects imports between Plugin implementations", () => {
   );
 });
 
+test("rejects a Plugin's ./testing entry from production sources: another package's, or the Plugin's own modules", () => {
+  const target = boundaryPackage("@molis-ai/molis-work-plugin-pages", "plugins/native/pages", "native-plugin", [], [".", "./testing"]);
+  const importer = boundaryPackage("@molis-ai/molis-work-app-local-host", "apps/local-host", "app", [target.name]);
+
+  assert.ok(
+    violationCodes({ importer, target, specifier: `${target.name}/testing`, sourceFile: "apps/local-host/src/index.ts" })
+      .has("plugin-testing-entry-import"),
+  );
+  assert.ok(
+    violationCodes({ importer: target, specifier: "./testing.js", sourceFile: "plugins/native/pages/src/index.ts" })
+      .has("plugin-testing-entry-import"),
+  );
+  // The public entry is not the test entry, and a foundation package's own `testing` subpath is another thing.
+  assert.ok(!violationCodes({ importer, target, specifier: target.name, sourceFile: "apps/local-host/src/index.ts" }).has("plugin-testing-entry-import"));
+  const contracts = boundaryPackage("@molis-ai/molis-work-contracts", "packages/contracts", "foundation", [], ["./platform/testing"]);
+  assert.ok(!violationCodes({ importer, target: contracts, specifier: `${contracts.name}/platform/testing`, sourceFile: "apps/local-host/src/index.ts" })
+    .has("plugin-testing-entry-import"));
+});
+
 test("rejects direct database drivers in Apps", () => {
   const importer = boundaryPackage(
     "@molis-ai/molis-work-app-workbench",

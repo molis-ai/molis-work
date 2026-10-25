@@ -7,7 +7,7 @@ import { GoalProjectApplication, molisWorkHostProjectReference } from "@molis-ai
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { SurfaceFocus } from "@molis-ai/molis-work-contracts/services/contextual";
 import { contextualCandidates } from "@molis-ai/molis-work-kernel/contextual";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 const SOURCE = "发布笔记";

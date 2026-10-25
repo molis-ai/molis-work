@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { renderPluginRail, renderWorkbenchBar } from "../apps/workbench/src/immersive-shell.ts";
-import { BUILTIN_PLUGIN_REGISTRY, DOCK_DEFAULT_PINS, RELOAD_ON_MEMBERSHIP_IDS, pluginMarketCards } from "../apps/workbench/src/plugin-catalog.ts";
+import { BUILTIN_PLUGIN_REGISTRY, DOCK_DEFAULT_PINS, RELOAD_ON_MEMBERSHIP_IDS, builtinPluginDirectory, pluginMarketCards } from "../apps/workbench/src/plugin-catalog.ts";
 
 // The switcher lists every plugin a project could have, once, as a tile that reads the same in both states, and each tile
 // carries the same two buttons (keep it in the Dock; add it to or remove it from the project) — specs/archive/plugin-picker-dock.
@@ -107,7 +107,7 @@ test("DOCK-06 what adding adds along, and what removing takes with it, is writte
   // Text Stats comes with Files; Feed with Inbox (the Projects service applies both, and the other way round on removal).
   assert.deepEqual(BUILTIN_PLUGIN_REGISTRY.companions("text-stats"), ["files"]);
   // Text Stats is offered to add only in developer mode (W2-18 decision 5); a project that has it shows it in either.
-  const missing = renderPluginRail(primitives, ["goals"], "", "", [], { developerMode: true });
+  const missing = renderPluginRail(primitives, ["goals"], "", "", builtinPluginDirectory(), { developerMode: true });
   assert.match(tileOf(missing, "text-stats").wrapper, /data-along="Files"/);
   assert.match(tileOf(missing, "text-stats").toggle, /添加会同时添加：Files/);
   assert.match(tileOf(missing, "feed").wrapper, /data-along="Inbox"/);
@@ -125,16 +125,20 @@ test("DOCK-08 no plugin brings the page back: the list of those that cannot chan
   assert.deepEqual([...RELOAD_ON_MEMBERSHIP_IDS], []);
 });
 
+/** A plugin that runs in the project without being one of the project's chosen plugins, as the Host reports it. */
+const installed = (id: string, name: string) => ({ id, plugin_id: `io.molis.work.generated.${id}`, name, chosen: false,
+  ui: { views: [{ view_id: "app", slot: "stage" as const, title: name }] } });
+
 test("a plugin the project installed at run time can be kept in the Dock, and is not this list's to remove", () => {
-  const html = renderPluginRail(primitives, ["goals"], "", "", [{ surface: "app-notes", label: "笔记" }]);
+  const html = renderPluginRail(primitives, ["goals"], "", "", [installed("app-notes", "笔记")]);
   const own = tileOf(html, "app-notes");
   assert.match(own.entry, /data-plugin-id="app-notes"/);
   assert.match(own.pin, /data-dock-choice="app-notes"/);
-  assert.equal(own.toggle, "", "taking it out of the project is the studio's");
+  assert.equal(own.toggle, "", "taking it out of the project is whoever installed it");
 });
 
 test("names and glyphs come out escaped", () => {
-  const html = renderPluginRail(primitives, ["goals"], "", "", [{ surface: 'app-"x"', label: "<b>笔记</b>" }]);
+  const html = renderPluginRail(primitives, ["goals"], "", "", [installed("app-x", "<b>笔记</b>")]);
   assert.doesNotMatch(html, /<b>笔记<\/b>/);
   assert.match(html, /&lt;b>笔记/);
 });

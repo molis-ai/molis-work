@@ -3,6 +3,7 @@ import type { FeedSnapshot, FeedSourceCatalogView, FeedUiModel } from "@molis-ai
 import type { ScheduleConversationTaskView, ScheduleJobView } from "@molis-ai/molis-work-plugin-schedule";
 import type { WebProjectNavigation } from "./settings-navigation.js";
 import type { UnavailablePluginStage } from "./unavailable-plugin-stage.js";
+import type { PluginDirectory } from "./plugin-directory.js";
 export interface MolisWorkWebView {
   /** Presentation-only: an embedded pane requests this plugin, never execution authority. */
   pane_plugin?: string;
@@ -19,8 +20,11 @@ export interface MolisWorkWebView {
   unavailable_plugin_stages?: readonly UnavailablePluginStage[];
   /** Contribution ids already rendered by a host stage path; the Manifest fallback skips them. */
   plugin_stage_ids?: readonly string[];
-  /** Rail entries for plugins installed at run time; each has a stage in plugin_stages. */
-  plugin_rail?: readonly { surface: string; label: string }[];
+  /**
+   * The declarations of the plugins the Host's Runtimes run in this project, read from their Manifests for this page: built-in
+   * and installed at run time alike (W5-06 余项 2). Absent means a page drawn with no Runtime, which reads the built-in catalog's.
+   */
+  plugin_directory?: PluginDirectory;
   snapshot: BoardSnapshot;
   project: WebProjectNavigation | null;
   projects: WebProjectNavigation[];

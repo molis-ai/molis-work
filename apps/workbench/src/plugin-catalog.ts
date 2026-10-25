@@ -6,6 +6,7 @@ import { isArtifactReferrersAction, type ActionDefinition } from "@molis-ai/moli
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 import { CHARACTER_ARTIFACT_PRODUCER, characterArtifactPreviewAction } from "@molis-ai/molis-work-contracts/modules/characters";
+import { sanitizePluginDirectory, type PluginDirectory, type PluginDirectoryEntry } from "./plugin-directory.js";
 export { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 
 /**
@@ -176,6 +177,8 @@ export interface RailEntry {
   glyph: string;
   /** The rail group the plugin's view names (W5-06 2b); null is 更多. */
   group: UiViewGroup | null;
+  /** Whether the project's plugin list chooses it (a built-in); a plugin installed at run time is in the project because it runs there. */
+  chosen: boolean;
 }
 
 /** A kind a person can make new from a Goal, as the plugin's view declares it (`creates`). */
@@ -199,23 +202,14 @@ function entryFor(projectPluginId: ProjectPluginId): PluginRegistration | undefi
   return BUILTIN_PLUGIN_CATALOG.find((entry) => entry.project_plugin_id === projectPluginId);
 }
 
-/** Navigator entries for the enabled set, in the order the Manifests declare. */
-export function railEntries(enabled: readonly ProjectPluginId[]): RailEntry[] {
-  return placedEntries(enabled, "navigator");
-}
-
-/** Personal island entries above the project card. */
-export function islandEntries(enabled: readonly ProjectPluginId[]): RailEntry[] {
-  return placedEntries(enabled, "island");
-}
-
 function shippedDirectoryIds(): string[] {
   const shipped = BUILTIN_PLUGIN_CATALOG
     .filter((entry) => entry.personal === true || Boolean(entry.summary))
     .map((entry) => entry.project_plugin_id);
+  const market = builtinPluginDirectory();
   const ids = [
-    ...railEntries(shipped).map((entry) => entry.id),
-    ...islandEntries(shipped).map((entry) => entry.id),
+    ...railEntries(shipped, market).map((entry) => entry.id),
+    ...islandEntries(shipped, market).map((entry) => entry.id),
   ];
   const unique = [...new Set(ids)];
   if (unique.includes("feed") && !unique.includes("sources")) unique.push("sources");
@@ -235,39 +229,77 @@ export const DIRECT_WORK_SURFACE_IDS: ReadonlySet<string> = new Set([
 /** Directory panels owned by a Plugin stage, including Feed's sources alias. */
 export const OWN_DIRECTORY_SURFACES: readonly string[] = shippedDirectoryIds();
 
-function registryFor(enabled: readonly ProjectPluginId[]): UiViewRegistry {
-  return new UiViewRegistry(BUILTIN_PLUGIN_CATALOG.map((entry) => ({
-    manifest: entry.manifest,
-    enabled: enabled.includes(entry.project_plugin_id),
-  })));
+/**
+ * The built-in catalog as a directory: what the market lists, and what a page drawn with no Runtime (the spec board, a fixture)
+ * is drawn from. A page drawn by the Host is drawn from `pluginDirectoryFor` instead.
+ */
+export function builtinPluginDirectory(): PluginDirectory {
+  return BUILTIN_PLUGIN_CATALOG.map(entry => ({ id: entry.project_plugin_id, plugin_id: entry.manifest.plugin_id, name: entry.manifest.name,
+    chosen: true, ui: { views: entry.manifest.ui.views ?? [] } }));
 }
 
-/** The enabled plugins' views in one slot, in the order the Manifests declare, each with its plugin's project key. */
-function placedViews(enabled: readonly ProjectPluginId[], slot: "navigator" | "island" | "side"): Array<{ id: ProjectPluginId; view: UiPlacedView }> {
-  return registryFor(enabled).slot(slot).map((view) => ({
-    id: BUILTIN_PLUGIN_CATALOG.find((item) => item.manifest.plugin_id === view.plugin_id)?.project_plugin_id ?? view.plugin_id,
-    view,
-  }));
+/**
+ * The directory a page is drawn with (W5-06 余项 2): the declarations of the plugins the Host's Runtimes run, and the market's for a
+ * built-in none runs in this project (it stays one to add). Without a Host-supplied directory it is the built-in catalog's. What a
+ * Runtime supplied is text from the plugin's publisher: it is sanitized here, the one place the shell takes it in.
+ */
+export function pluginDirectoryFor(running?: PluginDirectory): PluginDirectory {
+  const market = builtinPluginDirectory();
+  if (!running) return market;
+  const present = new Set(running.map(entry => entry.id));
+  return [...sanitizePluginDirectory(running), ...market.filter(entry => !present.has(entry.id))];
 }
 
-function placedEntries(enabled: readonly ProjectPluginId[], slot: "navigator" | "island"): RailEntry[] {
-  return placedViews(enabled, slot).map(({ id, view }) => ({ id, surface: id, label: view.title, glyph: view.icon ?? "package", group: view.group }));
+function registryFor(directory: PluginDirectory, enabled: readonly ProjectPluginId[]): UiViewRegistry {
+  return new UiViewRegistry(directory.map((entry) => ({ manifest: entry, enabled: !entry.chosen || enabled.includes(entry.id) })));
 }
 
-/** The views that open a plugin from the rail: its directory entries, then the personal islands. */
-const openingViews = (enabled: readonly ProjectPluginId[]) => [...placedViews(enabled, "navigator"), ...placedViews(enabled, "island")];
+/** The enabled plugins' views in one slot, in the order the Manifests declare, each with its plugin's shell key and whether the project chooses it. */
+function placedViews(directory: PluginDirectory, enabled: readonly ProjectPluginId[], slot: "navigator" | "island" | "side" | "stage"): Array<{ id: ProjectPluginId; entry: PluginDirectoryEntry; view: UiPlacedView }> {
+  const byManifest = new Map(directory.map(entry => [entry.plugin_id, entry]));
+  return registryFor(directory, enabled).slot(slot).flatMap((view) => {
+    const entry = byManifest.get(view.plugin_id);
+    return entry ? [{ id: entry.id, entry, view }] : [];
+  });
+}
+
+function railEntry({ id, entry, view }: { id: ProjectPluginId; entry: PluginDirectoryEntry; view: UiPlacedView }): RailEntry {
+  return { id, surface: id, label: view.slot === "stage" ? entry.name : view.title, glyph: view.icon ?? "package", group: view.group, chosen: entry.chosen };
+}
+
+/** Navigator entries for the enabled set, in the order the Manifests declare. */
+export function railEntries(enabled: readonly ProjectPluginId[], directory: PluginDirectory = builtinPluginDirectory()): RailEntry[] {
+  return [...placedViews(directory, enabled, "navigator"), ...stageOnlyViews(directory, enabled)].map(railEntry);
+}
+
+/** Personal island entries above the project card. */
+export function islandEntries(enabled: readonly ProjectPluginId[], directory: PluginDirectory = builtinPluginDirectory()): RailEntry[] {
+  return placedViews(directory, enabled, "island").map(railEntry);
+}
+
+/** The plugins the project does not choose that have no directory view: they open at their stage. */
+function stageOnlyViews(directory: PluginDirectory, enabled: readonly ProjectPluginId[]) {
+  const placed = new Set([...placedViews(directory, enabled, "navigator"), ...placedViews(directory, enabled, "island")].map(item => item.id));
+  const seen = new Set<string>();
+  return placedViews(directory, enabled, "stage").filter(item => {
+    if (item.entry.chosen || placed.has(item.id) || seen.has(item.id)) return false;
+    seen.add(item.id);
+    return true;
+  });
+}
 
 /**
  * What can be made new from a Goal with the enabled plugins (their views' `creates`; W5-06 2b, BL-387): the directory views by
  * their `order`, then the islands. Not the rail's order, which puts the islands first.
  */
-export function creatableKinds(enabled: readonly ProjectPluginId[]): PluginCreatableKind[] {
-  return openingViews(enabled).flatMap(({ id, view }) => view.creates ? [{ id, station: view.creates.station, title: view.creates.title }] : []);
+export function creatableKinds(enabled: readonly ProjectPluginId[], directory: PluginDirectory = builtinPluginDirectory()): PluginCreatableKind[] {
+  return [...placedViews(directory, enabled, "navigator"), ...placedViews(directory, enabled, "island")]
+    .flatMap(({ id, view }) => view.creates ? [{ id, station: view.creates.station, title: view.creates.title }] : []);
 }
 
 /** The project home's ways to start with the enabled plugins (their views' `start`), in the same order as `creatableKinds`. */
-export function homeStarts(enabled: readonly ProjectPluginId[]): PluginHomeStart[] {
-  return openingViews(enabled).flatMap(({ id, view }) => view.start
+export function homeStarts(enabled: readonly ProjectPluginId[], directory: PluginDirectory = builtinPluginDirectory()): PluginHomeStart[] {
+  return [...placedViews(directory, enabled, "navigator"), ...placedViews(directory, enabled, "island")].flatMap(({ id, view }) => view.start
     ? [{ id, title: view.start.title, hint: view.start.hint, glyph: view.start.icon ?? view.icon ?? "package" }] : []);
 }
 
@@ -293,21 +325,14 @@ export function sideOpenedPlugins(entries: readonly PlacedPluginDeclarations[] =
   return placed;
 }
 
-/** Plugins whose tab opens one object by id: a view of theirs declares `accepts_objects` (search, placement, side files). */
-export function objectTabPlugins(entries: readonly {
-  readonly project_plugin_id: string; readonly manifest: { readonly ui: { readonly views?: readonly { readonly accepts_objects?: boolean }[] } };
-}[] = BUILTIN_PLUGIN_CATALOG): string[] {
-  return entries.filter((entry) => entry.manifest.ui.views?.some((view) => view.accepts_objects === true)).map((entry) => entry.project_plugin_id);
-}
-
 /** Side panel tabs the enabled plugins declare (`slot: "side"`), in Manifest order; the Host serves each one's document. */
-export function sideEntries(enabled: readonly ProjectPluginId[]): Array<UiPlacedView & { project_plugin_id: string }> {
-  return placedViews(enabled, "side").map(({ id, view }) => ({ ...view, project_plugin_id: id }));
+export function sideEntries(enabled: readonly ProjectPluginId[], directory: PluginDirectory = builtinPluginDirectory()): Array<UiPlacedView & { project_plugin_id: string }> {
+  return placedViews(directory, enabled, "side").map(({ id, view }) => ({ ...view, project_plugin_id: id }));
 }
 
 /** Settings pages for the enabled set, in Manifest order. */
-export function settingsEntries(enabled: readonly ProjectPluginId[]): UiPlacedView[] {
-  return registryFor(enabled).slot("settings");
+export function settingsEntries(enabled: readonly ProjectPluginId[], directory: PluginDirectory = builtinPluginDirectory()): UiPlacedView[] {
+  return registryFor(directory, enabled).slot("settings");
 }
 
 export function manifestFor(projectPluginId: ProjectPluginId): PluginManifest | undefined {
@@ -336,12 +361,12 @@ export function pluginMarketCards(options: { readonly developerMode?: boolean } 
 }
 
 export function pluginTabGlyphs(): Record<string, string> {
-  const enabled = [...PROJECT_SCOPED_PLUGIN_IDS, ...PERSONAL_PLUGIN_IDS];
+  const enabled = [...PROJECT_SCOPED_PLUGIN_IDS, ...PERSONAL_PLUGIN_IDS], market = builtinPluginDirectory();
   return Object.fromEntries([
     ["home", "home"],
     ["market", "grid"],
-    ...railEntries(enabled).map((entry) => [entry.id, entry.glyph]),
-    ...islandEntries(enabled).map((entry) => [entry.id, entry.glyph]),
+    ...railEntries(enabled, market).map((entry) => [entry.id, entry.glyph]),
+    ...islandEntries(enabled, market).map((entry) => [entry.id, entry.glyph]),
   ]);
 }
 
@@ -366,8 +391,8 @@ const PLUGIN_ENGLISH_NAMES: Readonly<Record<string, string>> = {
 export const pluginLabel = (id: string, label: string, english: boolean): string => (english && PLUGIN_ENGLISH_NAMES[id]) || label;
 
 export function pluginTabTitles(english = false): Record<string, string> {
-  const enabled = [...PROJECT_SCOPED_PLUGIN_IDS, ...PERSONAL_PLUGIN_IDS];
-  return Object.fromEntries([...railEntries(enabled), ...islandEntries(enabled)].map((entry) => [entry.id, pluginLabel(entry.id, entry.label, english)]));
+  const enabled = [...PROJECT_SCOPED_PLUGIN_IDS, ...PERSONAL_PLUGIN_IDS], market = builtinPluginDirectory();
+  return Object.fromEntries([...railEntries(enabled, market), ...islandEntries(enabled, market)].map((entry) => [entry.id, pluginLabel(entry.id, entry.label, english)]));
 }
 
 /** A visible 成果 type as its owner declares it (specs/artifact-positioning A4). */

@@ -88,11 +88,18 @@ class InstalledArtifactDirectory {
 
   effective(): PluginManifest[] {
     const seen = new Set<string>();
-    return [...this.#views].flatMap(view => view.effectiveManifests()).filter(manifest => !seen.has(manifest.plugin_id) && seen.add(manifest.plugin_id));
+    return this.#ask(view => view.effectiveManifests()).filter(manifest => !seen.has(manifest.plugin_id) && seen.add(manifest.plugin_id));
   }
 
   known(): Set<string> {
-    return new Set([...this.#views].flatMap(view => view.knownPluginIds()));
+    return new Set(this.#ask(view => view.knownPluginIds()));
+  }
+
+  /** A view that can no longer answer (its project's database has closed) has no installs in effect: it is dropped, not allowed to fail the reader. */
+  #ask<T>(read: (view: InstalledArtifactView) => readonly T[]): T[] {
+    return [...this.#views].flatMap(view => {
+      try { return [...read(view)]; } catch { this.#views.delete(view); return []; }
+    });
   }
 }
 

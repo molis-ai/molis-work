@@ -107,3 +107,11 @@ test("RAC-416 S-75 the Host refuses an installed Plugin's undeclared type, and a
   await runtime.uninstall(supervisor.installation(PRODUCER)!.install_id);
   assert.throws(() => write("example.note", "uninstalled"), { code: "artifacts.artifact.type_undeclared", message: /已停用或已卸载/ }, "uninstalled");
 });
+
+test("RAC-415 a supervisor whose project closed under it no longer answers, and the registry goes on without it", () => {
+  const unwatch = installedArtifacts.watch({ effectiveManifests() { throw new Error("The database connection is not open"); }, knownPluginIds() { return []; } });
+  try {
+    assert.equal(types().includes(pagesManifest.artifacts.produces[0]!.artifact_type_id), true, "the shipped types are still read");
+    assert.doesNotThrow(() => artifactDeclarationOwners());
+  } finally { unwatch(); }
+});

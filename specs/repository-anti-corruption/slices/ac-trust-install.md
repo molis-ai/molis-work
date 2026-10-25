@@ -1,6 +1,6 @@
 # ac-trust：一条安装路、常开与默认连线只认声明、同意可撤回（设计稿）
 
-状态：已定（2026-10-24）；七项待定都已定，#1098 已合入，实现按 §7 分片，T1 在分支 `claude/ac-trust-t1`。
+状态：已定（2026-10-24）；七项待定都已定，#1098 已合入，实现按 §7 分片，T1 在分支 `claude/ac-trust-t1`，T3 在分支 `claude/ac-trust-t3`（叠在 T1 上）。
 
 验收编号：RAC-380～399，另加一段 RAC-400～409（实现片也用它）。待办号：BL-555～564。安全不变量先写 S-67、S-68，合入时由统筹核连续。管 `privileges.md` 的 PG-001、PG-004、PG-005，并给 PG-049 提供它要用的同意账本；与 PG-002、PG-013、PG-015、PG-016 的衔接写在 §3.8。本片不改 `privileges.md` 状态列。
 
@@ -94,9 +94,9 @@ Manifest 里有三类声明会改变「这个插件在别处的效果」，装�
 
 - 常开名单 = 状态为已安装且在运行的安装记录里，Manifest 声明了 `always_on` 并且有一行有效同意（未撤回）的插件。不再读内置目录，也不再有写死的 `"goals"`。
 - Goals 的 Manifest 加 `always_on: true`，`ProjectService.register` 里的 `new Set(["goals", ...])` 去掉；Shelf 已经声明。
-- 项目成员关系对常开插件是**派生**的：`listPlugins` 返回「存的成员 ∪ 常开名单」，不再靠建项目时写行，所以以后装上的外部常开插件对已有项目也立刻生效，撤回后也立刻不强制。Goals 与 Shelf 的区别（Goals 是项目级插件、Shelf 是个人插件）不再靠常开名单区分，仍由各自的 Manifest 和放置声明决定。
+- 项目成员关系对常开插件是**派生**的：`listPlugins` 返回「存的成员 ∪ 常开名单里的非个人插件」，不再靠建项目时写行，所以以后装上的常开插件对已有项目也立刻生效，撤回后也立刻不强制。个人插件（Shelf）本来就不存成员（没隐藏就开着），常开只让它「不能隐藏」：`listHidden` 不列常开插件的隐藏标记，旧标记不再起作用。Goals 与 Shelf 的区别（Goals 是项目级插件、Shelf 是个人插件）不再靠常开名单区分，仍由各自的 Manifest 和放置声明决定。
 - `ProjectPluginCatalog.isAlwaysOn?` 与「常开必须是 `personal`」的过滤（`plugin-catalog.ts:105`）都删掉，改成 `alwaysOn(): readonly ProjectPluginId[]`，每次求值，由宿主适配器从安装记录与同意账本算出。
-- 服务端拒绝卸载、停用、从项目里移除常开插件（`catalogErrors.plugin_always_on`，复现见 `privileges.md` V-01）；这一条拒绝现在只在 `removePlugin` 里，实现片补上卸载与停用两个入口。
+- 服务端拒绝卸载、停用、从项目里移除常开插件（`catalogErrors.plugin_always_on`、`pluginErrors.always_on`，复现见 `privileges.md` V-01）。三个入口各在自己的位置、都在改任何东西之前拒绝：从项目移除在 `ProjectService.removePlugin`（含依赖它的插件会被一起移除的情形）；Home 路由的停用在 `HomePluginHost.leaveRefusal`；卸载在 `PluginRuntime.uninstall`（作为后盾）。`PluginRuntime.stop` 不查：宿主关机、项目关闭都会停插件，那不是人的停用；人的停用只有 Home 路由这一个入口（项目级插件的停用就是从项目移除）。生成插件的平台没有 Home 账本、今天没有同意，所以不会常开，它的停用与卸载入口不查；T2 给它接上账本时一并加。
 
 #### 3.4.1 Goals 不在项目里时要核的地方（T1/T3 的验收）
 
@@ -116,6 +116,18 @@ Manifest 里有三类声明会改变「这个插件在别处的效果」，装�
 | Feed、成果库等挂 Goal 的地方 | Feed 条目、成果库、过程项、动量与回执里「挂到某个 Goal」的字段和入口 | 没有 Goals 时这些入口不显示；已有挂着 Goal 的记录原样保留、只读，不报错、不丢 |
 
 这些是现状的调用点，不是完整清单；T1 开工时用 `git grep` 补全，补出来的也归这一条验收。
+
+**T3 的核对结果（2026-10-25）**：服务端和数据的几处在 T3 做完并有用例；页面与客户端脚本里的几处在 T3 只核了现状，不能在没有浏览器的会话里验证，拆成 BL-585（T3b）：
+
+| 地方 | T3 的结果 |
+| --- | --- |
+| 建项目 | 做完。`register` 只写 `initial()`；`tests/security-invariants-always-on-records.test.ts` 在 Goals 被撤回后建项目成功、不存 Goals 行 |
+| 工作台外壳 | 部分。「Goals 不能移除」的锁改读 Manifest 的 `always_on`（`declaresAlwaysOn`），不再认名字 `"goals"`。`RAIL_CORE_ORDER`、`DOCK_DEFAULT_PINS` 是内置插件的默认顺序和默认固定，不假定 Goals 在，不改；插件选择器（`pluginMarketCards`）和锁仍读 Manifest 的声明而不是账本，撤回之后的显示归 BL-585 |
+| 宿主动作 | 核过，不用改。`readProjectGuidance` 在没有 Goals 时拒绝，两个调用方（`agent-host-composition.ts`、`assistant-authority.ts`）都吞掉拒绝、不加这一层 |
+| 调 Goal 动作的插件 | 核过，没有。`git grep` 在 `plugins/native` 里除 Goals 外找不到 Goals 的动作或能力 id |
+| 首页与搜索、标签页与分屏、项目页渲染、新建项目与引导 | 未做，归 BL-585。项目页渲染器无条件画 Goals 舞台（`goalStage`、`goalDocument`），客户端的 `tab-workspace.ts`、`frame-container.ts`、`editing-graph.ts`、`global-search.ts`、`placement.ts`、`project-home.ts` 里有 `"goals"` 的特判 |
+| MCP 与命令行的 goal 工具、`goal-advance` Skill | 未做，归 BL-585：`apps/mcp/src/goal-tools.ts` 的 v1 工具是固定列表，要用真实 MCP 会话核「没有 Goals 时的答复」 |
+| Feed、成果库等挂 Goal 的地方 | 未做，归 BL-585：已有记录的只读与不丢要逐处核 |
 
 ### 3.5 默认连线要同意（PG-005）
 
@@ -224,6 +236,13 @@ SDK（`packages/plugin-sdk`）的公开 API 不变：Manifest 字段没有增减
 | T7 | 界面：安装预览、插件详情页里的同意清单与撤回、BL-353 与 BL-362 的文字 | T2，T5，#1098 | PG-002 的开关同在这一页，归 PG-002 那条线 |
 | T8 | 文档与手册：POLICY 7.8、THIRD-PARTY-PLUGINS、`skills/molis-plugin-dev`、PG-016 的版本跟随写明 | T1 | |
 
+
+**T3 落地时的口径（2026-10-25）：**
+
+- 同意账本里的 `always_on` 行就是「声明了且同意了」：只有声明过这个字段的 Manifest 才能被记下这种同意，所以名单不必再读 Manifest。
+- 项目级的内置插件（Goals）的安装记录在各项目库里，Home 级的目录看不到；宿主的构建担保它被装，记录只在 Home 级的内置插件（Shelf）上能看到，看得到就看它的状态。宿主在第一次被问时代为同意，这样没启动过 Host 的 Home（只开目录）和启动过的答案一样。
+- 非目录的常开插件（外部装的）今天没有项目成员关系可派生：成员关系只定义在内置目录的插件上。它们的卸载与停用拒绝照样成立；让它们进项目的成员列表随 T2 的外部插件进项目一起做。
+- 个人插件不入 `listPlugins`（见 §3.4），这是对本稿原文「存的成员 ∪ 常开名单」的收窄，理由是不改变设置页和各处列表里个人插件现在的样子。
 
 **T1 落地时的两处口径（2026-10-24）：**
 

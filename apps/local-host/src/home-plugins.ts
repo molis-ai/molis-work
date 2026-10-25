@@ -3,7 +3,7 @@ import { pluginInstallRecords } from "./plugin-install-records.js";
 import type { PluginDefinition, PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PLUGIN_PRESENTATION_CAPABILITY } from "@molis-ai/molis-work-design-system";
 import { randomUUID } from "node:crypto";
-import { HOST_BUILD_TRUST, PluginRouteRouter, PluginRuntime, PluginSupervisor, SqlitePluginConsentLedger, SqlitePluginRuntimeReleaseArtifactRepository } from "@molis-ai/molis-work-plugin-runtime";
+import { HOST_BUILD_TRUST, leaveRefusal, PluginRouteRouter, PluginRuntime, PluginSupervisor, SqlitePluginConsentLedger, SqlitePluginRuntimeReleaseArtifactRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { HomePluginExecutor } from "./home-plugin-executor.js";
 import { nativePluginReleaseArtifact } from "./native-plugin-release-artifact.js";
 import { pluginEntryIdentity } from "./plugin-entry-identity.js";
@@ -72,6 +72,10 @@ export class HomePluginHost {
   }
   installation(providerId: string): PluginInstanceRecord | null {
     return this.installations().find(record => (record.plugin_id === providerId || record.install_id === providerId) && record.state !== "uninstalled") ?? null;
+  }
+  /** Why the plugin may not be switched off or uninstalled (it is 常开 and the person's agreement stands); asked before anything is touched. */
+  leaveRefusal(providerId: string, action: "停用" | "卸载"): ActionError | undefined {
+    return leaveRefusal(this.db ? new SqlitePluginConsentLedger(this.db) : undefined, this.installation(providerId), action);
   }
   invalidateView(providerId: string): void {
     const record = this.installation(providerId);

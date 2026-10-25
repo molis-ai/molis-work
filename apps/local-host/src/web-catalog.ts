@@ -1,6 +1,7 @@
 import { handleSearchHttp } from "./search-http.js";
 import { refreshOpenProjectPlugins } from "./project-plugin-enablement.js";
 import { connectorSettingsView } from "./web-connector-settings.js";
+import { handlePluginSlotsHttp } from "./plugin-connection-slots-http.js";
 import { handlePlacementHttp } from "./placement-http.js";
 import { bindLocalWebActions } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
@@ -16,7 +17,7 @@ import { callDiagnosticsView } from "./web-call-diagnostics.js";
 import type { CapabilitySection } from "@molis-ai/molis-work-app-workbench";
 import { modelTemplatePageData } from "./model-provider-setup.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import type { MolisWorkLocalHost } from "./project-host.js";
+import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
 import type { RuntimeIntegrationService } from "./installer/runtime-integration.js";
 import type { MolisWorkWebServiceManager } from "./installer/web-service.js";
 import type { WebServerOptions } from "./web-types.js";
@@ -162,7 +163,7 @@ export async function handleLocalCatalogWebRequest(
       shown_plugins: membership.shown,
       runtimes,
       mcp_access,
-      ...(section === "connectors" ? await connectorSettingsView(localHost, serverOptions.homeDirectory, url) : {}),
+      ...(section === "connectors" ? await connectorSettingsView(localHost, serverOptions.homeDirectory, url, contextProject ? molisWorkHostProjectReference({ databasePath: contextProject.database_path, projectId: contextProject.project_id }) : undefined) : {}),
       projects,
       web_service: await webService.detect(),
       diagnostics: installationDiagnostics(serverOptions.homeDirectory, projects.length), ...(section === "diagnostics" ? { ...callDiagnosticsView(localHost.callLog, url), periodic_tasks: composition.periodicTasks.list() } : {}),
@@ -219,7 +220,7 @@ export async function handleLocalCatalogWebRequest(
     }, controlToken, isDesktopShellRequest(request, url)));
     return;
   }
-  if (await handleConnectorConnectionsHttp(request, response, url, serverOptions.homeDirectory, localHost.connectorMcp?.remember, bindLocalWebActions(localHost, undefined, LOCAL_OWNER_PERMISSIONS))) return;
+  if (await handleConnectorConnectionsHttp(request, response, url, serverOptions.homeDirectory, localHost.connectorMcp?.remember, bindLocalWebActions(localHost, undefined, LOCAL_OWNER_PERMISSIONS)) || await handlePluginSlotsHttp(request, response, url, localHost, settingsProjectReference(projectSettings, serverOptions.homeDirectory))) return;
   if (await handleConnectorMethodsHttp(request, response, url, serverOptions.homeDirectory, localHost)) return;
   if (await handleLocalConnectorsSettingsHttp(request, response, url, serverOptions.homeDirectory)) return;
   if (await handleMcpActionSettingsHttp(request, response, url, serverOptions.homeDirectory, localHost, composition.withCatalog)) return;
@@ -292,6 +293,13 @@ function escapeSettingsHtml(value: unknown): string {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
 }
+
+/** A settings page's `?project=`, as the Host resolves it: the project's reference, or null when there is no such project. */
+const settingsProjectReference = (projectSettings: { settingsProjects(home: string | undefined): Promise<ReadonlyArray<{ project_id: string; database_path: string }>> }, home: string | undefined) =>
+  async (projectId: string) => {
+    const project = (await projectSettings.settingsProjects(home)).find(row => row.project_id === projectId);
+    return project ? molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id }) : null;
+  };
 
 async function renderCatalogPluginSettings(contributionId: string, host: MolisWorkLocalHost): Promise<string | null> {
   const primitives = { escape: escapeSettingsHtml, text: L };

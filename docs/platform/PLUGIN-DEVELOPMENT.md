@@ -462,7 +462,7 @@ Integration 的 `health()` 可返回非敏感的 `account: { login, account_id? 
 "connections": { "slots": [{ "slot_id": "github", "service_id": "github", "reason": "读取本人的 GitHub 通知" }] }
 ```
 
-`service_id` 只能是平台登记了固定地址的服务（`CONNECTOR_REQUEST_SERVICES`：GitHub、Gmail，以及目录里能把令牌作 `Bearer` 发到固定地址的服务，如 Google Calendar、Microsoft Graph 系、Notion、Slack；一项可以有几个来源，如 Cloudflare 的 API 与控制台；按租户分地址的 Jira、Confluence、Salesforce 不在里面）；没有权限的槽、未登记的服务、多写的字段、重复的槽，解析 Manifest 时就拒（`plugin.declaration_invalid`）。槽绑哪个账号由人选（`connectors.plugin_slot.bind@1`，只对 `user` 开放；插件设置里的选择界面是 S0b-2b）；没绑时请求照发，不带凭据。
+`service_id` 只能是平台登记了固定地址的服务（`CONNECTOR_REQUEST_SERVICES`：GitHub、Gmail，以及目录里能把令牌作 `Bearer` 发到固定地址的服务，如 Google Calendar、Microsoft Graph 系、Notion、Slack；一项可以有几个来源，如 Cloudflare 的 API 与控制台；按租户分地址的 Jira、Confluence、Salesforce 不在里面）；没有权限的槽、未登记的服务、多写的字段、重复的槽，解析 Manifest 时就拒（`plugin.declaration_invalid`）。槽绑哪个账号由人选（`connectors.plugin_slot.bind@1`，只对 `user` 开放，只认这里装着的、Manifest 里声明了这个按安装绑定的槽与服务；人在「服务连接 › 插件用的账号」里选）；没绑时请求照发，不带凭据。
 
 一条记录一个账号（例如每个订阅来源各用一个账号）时，槽写 `"binding": "per_record"`：人在某个项目里为插件的一条记录选账号（`connectors.plugin_slot.bind@2`，只对 `user`，项目取调用上下文），插件发请求时写 `record_key`（至多 128 个字符，不含 `/`、`:` 和控制字符），只在本项目的调用里有效；`describe(slot_id, record_key)` 读有没有绑、账号显示名和状态，看不到是哪条连接；插件删记录时用 `release(slot_id, record_key)` 解除，之后这条记录的请求不带凭据。插件不能绑账号。不写 `binding` 就是按安装（`installation`）：一个安装一个账号，各项目共用。绑了 OAuth 账号的请求得到 401 时，宿主刷新一次令牌、把同一个请求重发一次；第二次还是 401 就原样交回，插件看到的只有 `status`，看不到令牌。
 

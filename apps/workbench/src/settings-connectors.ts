@@ -6,6 +6,7 @@ import { connectorMark } from "./connector-marks.js";
 import type { ConnectorSettingsCardView, ConnectorSettingsConnection, MolisWorkSettingsView } from "./settings-view.js";
 import { renderConnectorRequest } from "./settings-connector-request.js";
 import { renderConnectionStatus } from "./settings-connection-status.js";
+import { renderPluginSlots } from "./settings-plugin-slots.js";
 
 function groupTitle(groupId: ConnectorDirectoryGroupId, L: ConnectorsSettingsPrimitives["L"]): string {
   if (groupId === "mail") return L("邮件与日历");
@@ -115,7 +116,7 @@ function renderNextSteps(card: ConnectorSettingsCardView, connections: readonly 
 }
 
 export function renderConnectorsSettings(
-  view: Pick<MolisWorkSettingsView, "connectors" | "connector_connections" | "connector_setup" | "capabilities" | "functions_settings">,
+  view: Pick<MolisWorkSettingsView, "connectors" | "connector_connections" | "connector_setup" | "capabilities" | "functions_settings" | "plugin_slots" | "context_project">,
   primitives: ConnectorsSettingsPrimitives,
 ): string {
   const { L, escapeHtml, icon } = primitives;
@@ -170,6 +171,7 @@ export function renderConnectorsSettings(
           ${connections.length ? `<div class="settings-connection-list">${connections.map((connection) => renderConnectionRow(connection, cards.find((card) => card.connector_id === connection.service_id), primitives)).join("")}</div>`
             : `<div class="settings-connection-empty"><strong>${L("从你常用的一个应用开始")}</strong><p>${L("选择下方服务，按提示登录或填写密钥。你可以稍后再添加其他账号。")}</p></div>`}
         </section>
+        ${renderPluginSlots(view, cards, connections, { L, escapeHtml, mark: serviceId => renderConnectorMark(serviceId, escapeHtml) })}
         <section class="settings-connector-catalog" data-connectors-catalog>
           <header><h2>${L("添加服务")}</h2><p>${L("点击“登录并连接”前往官方授权；标记为准备中的服务尚未开放直接登录。")}</p></header>
           <div class="settings-connector-filters"><label class="settings-connector-field"><span>${L("搜索服务")}</span><input class="mw-input" type="search" data-connectors-search placeholder="${L("搜索 Gmail、Notion、飞书…")}"></label><label class="settings-connector-field"><span>${L("分类")}</span><select class="mw-input" data-connectors-category><option value="">${L("所有服务")}</option>${(["mail", "files", "chat", "code", "work", "design", "crm", "social"] as const).map(id => `<option value="${id}">${groupTitle(id, L)}</option>`).join("")}</select></label></div>

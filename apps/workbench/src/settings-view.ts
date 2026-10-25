@@ -55,6 +55,8 @@ export interface MolisWorkSettingsView {
   connectors?: readonly ConnectorSettingsCardView[];
   connector_connections?: readonly ConnectorSettingsConnection[];
   connector_setup?: import("./settings-connector-request.js").ConnectorSetupView | null;
+  /** 服务连接 › 插件用的账号: the installation slots of the Home's plugins and the context project's, with the account bound to each (BL-350). */
+  plugin_slots?: ReadonlyArray<{ install_id: string; plugin_id: string; plugin_name: string; slot_id: string; service_id: string; reason: string; connection_id: string | null }>;
   projects: WebSettingsProject[];
   web_service: MolisWorkWebServiceDetection;
   diagnostics: WebInstallationDiagnostics;

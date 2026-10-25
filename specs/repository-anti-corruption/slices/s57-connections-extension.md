@@ -140,7 +140,7 @@ binding: "installation" | "per_record"
 | X3 | 401 后刷新一次再重发一次（BL-350 的刷新一半），过期前预先刷新沿用各服务已有的做法；令牌端点明确拒绝时在宿主进程里标 `reauth_required`（见 §4.1） | X1 |
 | X4 | 项目里卸载时删这个安装在本项目的 `per_record` 绑定，删项目时删该项目的 `per_record` 绑定（项目删除钩子，`ProjectDeletionService` 的删除跑）；按安装的绑定卸载时不删，见 §4.1 与 BL-596 | X2 |
 | X5 | Feed 迁 Runtime 时改走 `services.connections`，删宿主的 `resolveConnection`、`defaultProviderFor` 里取钥匙的分支和 `catalog-connector.ts`；`sources` 建库基线改为第 3 节的形状 | X2、X3；随 PG-093 |
-| — | 人选账号的界面（S0b-2b） | X2；归界面线 |
+| — | 人选账号的界面（S0b-2b）：按安装的槽在「服务连接 › 插件用的账号」里选（已做，BL-350，RAC-653）；`per_record` 槽在插件显示记录的地方选，随 X5 | X2 |
 
 - **S0b-2a**：BL-350 写的前置「S0b-2a 的外联服务先合入」，就是已合入的 #1081（`e0fe39027`，S-57）。统筹 2026-10-24 确认，没有另一片。
 - **顺序**（统筹 2026-10-24）：X1 → X2、X3 → X4，都本地叠片；PG-007 排在 X4 之后。X5 随 PG-093。

@@ -114,6 +114,58 @@ test("S-57 only the person binds a slot; a bound account that is no longer usabl
   assert.equal(unbound.connection, null);
 });
 
+// BL-350 (RAC-652): binding an installation slot reads the installation's Manifest, as binding a record's does (S-71). A slot the plugin
+// declares per_record, one it does not declare, another service, another plugin's installation, an installation that is not there:
+// each is refused and nothing is bound. Unbinding asks nothing, so a binding a plugin no longer declares can still be taken away.
+test("S-57 RAC-652 the person binds an installation slot only where an installation here declares it, for its service", async t => {
+  const probe = connectionsProbe("connectionsdeclared"), records = connectionsProbe("connectionsdeclaredrecords", { binding: "per_record" });
+  const { host, home } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition, records.definition] } });
+  const { install } = await grantConnections(host, probe), { install: recordsInstall } = await grantConnections(host, records);
+  const connection = withConnectorConnections(home, store => store.createToken({ serviceId: "github", displayName: "GitHub", token: BEARER_VALUE }));
+  const bind = { install_id: install.install_id, plugin_id: probe.id, slot_id: "github", service_id: "github", connection_id: connection.connection_id };
+  const client = host.homeActionClient(), invoke = (input: typeof bind) => client.invoke(person(MANAGEMENT), connectorPluginSlotActions.bind, input);
+  const stored = (install_id: string, plugin_id: string) => withConnectorConnections(home, store => store.binding(pluginSlotScope(install_id), plugin_id, "github"))?.connection_id ?? null;
+  await assert.rejects(invoke({ ...bind, slot_id: "gitlab" }), code("connector.plugin_slots.slot_undeclared"));
+  await assert.rejects(invoke({ ...bind, service_id: "gmail" }), code("connector.plugin_slots.slot_undeclared"));
+  await assert.rejects(invoke({ ...bind, install_id: recordsInstall.install_id, plugin_id: records.id }), code("connector.plugin_slots.slot_undeclared"), "a per_record slot is bound per record (bind@2)");
+  await assert.rejects(invoke({ ...bind, install_id: recordsInstall.install_id }), code("connector.plugin_slots.installation_missing"), "another plugin's installation");
+  await assert.rejects(invoke({ ...bind, install_id: `${install.install_id}0` }), code("connector.plugin_slots.installation_missing"));
+  assert.deepEqual([stored(install.install_id, probe.id), stored(recordsInstall.install_id, records.id), stored(`${install.install_id}0`, probe.id)], [null, null, null], "nothing was bound");
+  assert.equal(((await invoke(bind)) as { connection: { connection_id: string } | null }).connection?.connection_id, connection.connection_id);
+  // A binding left under a slot the Manifest does not declare (written before this check) is still the person's to remove.
+  withConnectorConnections(home, store => store.bind({ scopeId: pluginSlotScope(install.install_id), pluginId: probe.id, slotId: "gitlab", serviceId: "github", connectionId: connection.connection_id }));
+  assert.equal(((await invoke({ ...bind, slot_id: "gitlab", connection_id: null })) as { connection: unknown }).connection, null);
+  assert.equal(withConnectorConnections(home, store => store.binding(pluginSlotScope(install.install_id), probe.id, "gitlab")), null);
+});
+
+// BL-350 (RAC-653): 服务连接 lists each installation slot a plugin declares with the person's accounts of its service, and choosing one
+// saves it as the person through bind@1, which checks the installation's Manifest again: a slot it does not declare is refused there.
+test("S-57 RAC-653 the connections page lists a plugin's installation slot and the person's choice binds it, checked like any bind", async t => {
+  const probe = connectionsProbe("connectionspicker"), records = connectionsProbe("connectionspickerrecords", { binding: "per_record" });
+  const { host, home, request } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition, records.definition] } });
+  const { install } = await grantConnections(host, probe); await grantConnections(host, records);
+  const connection = withConnectorConnections(home, store => store.createToken({ serviceId: "github", displayName: "Work GitHub", token: BEARER_VALUE }));
+  const page = async () => { const response = await request("/settings/connectors"); assert.equal(response.status, 200); return response.text(); };
+  const listed = await page();
+  assert.ok(listed.includes(`data-install-id="${install.install_id}"`), "the installation slot is listed");
+  assert.ok(!listed.includes("connectionspickerrecords"), "a per_record slot is chosen where its plugin shows the record, not here");
+  assert.ok(listed.includes(`<option value="${connection.connection_id}">`), "the person's account of that service is offered, not yet chosen");
+  assert.equal(listed.includes(BEARER_VALUE), false);
+  const save = (body: Record<string, unknown>, path = "/api/settings/connectors/plugin-slots") => request(path, { method: "POST", body });
+  const slot = { install_id: install.install_id, plugin_id: probe.id, slot_id: "github", service_id: "github" };
+  const refused = await save({ ...slot, slot_id: "gitlab", connection_id: connection.connection_id });
+  assert.deepEqual([refused.status, (await refused.json() as { code: string }).code], [400, "connector.plugin_slots.slot_undeclared"]);
+  assert.equal((await save({ ...slot, connection_id: connection.connection_id }, "/api/settings/connectors/plugin-slots?project=no-such-project")).status, 404);
+  assert.equal(withConnectorConnections(home, store => store.binding(pluginSlotScope(install.install_id), probe.id, "github")), null, "nothing was bound");
+  const saved = await save({ ...slot, connection_id: connection.connection_id });
+  assert.equal(saved.status, 200, await saved.clone().text());
+  assert.equal(JSON.stringify(await saved.json()).includes(BEARER_VALUE), false);
+  assert.equal(withConnectorConnections(home, store => store.binding(pluginSlotScope(install.install_id), probe.id, "github"))?.connection_id, connection.connection_id);
+  assert.ok((await page()).includes(`<option value="${connection.connection_id}" selected>`), "the page shows the account it uses");
+  assert.equal((await save({ ...slot, connection_id: null })).status, 200);
+  assert.equal(withConnectorConnections(home, store => store.binding(pluginSlotScope(install.install_id), probe.id, "github")), null);
+});
+
 test("S-57 a request whose call lost its authority after DNS never leaves", async t => {
   const probe = connectionsProbe("connectionsrevoked"), { host } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
   await grantConnections(host, probe);

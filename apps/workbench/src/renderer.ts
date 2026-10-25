@@ -33,7 +33,8 @@ import {
 } from "./page-assets.js";
 import { renderGoalInputsHtml } from "./goal-inputs-html.js";
 import type { MolisWorkWebView } from "./page-view.js";
-import { shownProjectPlugins } from "./plugin-catalog.js";
+import { creatableKinds, pluginDirectoryFor, shownProjectPlugins } from "./plugin-catalog.js";
+import { shownPagePlugins } from "./page-plugin-visibility.js";
 import { createWorkbenchProjectChooserRenderer } from "./arrival/chooser.js";
 import { createWorkbenchProjectSettingsPages } from "./project-settings-pages.js";
 import { createWorkbenchSettingsNavigation } from "./settings-navigation.js";
@@ -215,8 +216,8 @@ const goalsDocumentRenderer = createWorkbenchGoalsDocumentRenderer({
 const { renderTrashGoalDocument } = goalsDocumentRenderer;
 
 /** The Goal's inputs, followed and fixed, in one list with one 「加输入」 (goal-inputs-html.ts). */
-function renderInputBindingsHtml(item: WebGoalView): string {
-  return renderGoalInputsHtml(item, { L, escapeHtml, renderReference });
+function renderInputBindingsHtml(item: WebGoalView, view: MolisWorkWebView): string {
+  return renderGoalInputsHtml(item, { L, escapeHtml, renderReference }, creatableKinds(shownPagePlugins(view), pluginDirectoryFor(view.plugin_directory)));
 }
 
 function renderGoalDecisionHtml(item: WebGoalView, view: MolisWorkWebView): string {
@@ -233,7 +234,7 @@ function renderGoalDocument(item: WebGoalView, view: MolisWorkWebView, selected:
     artifactHtml: item.artifact_embed_html
       ? `<h3>${L("交付物")}</h3>${item.artifact_embed_html}`
       : "",
-    coverageHtml: `${renderInputBindingsHtml(item)}${renderContractCoverage(item, view)}${renderChildProgress(item, view)}`,
+    coverageHtml: `${renderInputBindingsHtml(item, view)}${renderContractCoverage(item, view)}${renderChildProgress(item, view)}`,
     decisionHtml: renderGoalDecisionHtml(item, view),
     eventDocument: item.event_document ?? null,
   }, selected);

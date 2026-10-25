@@ -9,8 +9,11 @@ import { buildGoalCollectionModel, type GoalCollectionItem, type GoalCollectionV
 import type { MolisWorkIcon as PageIcon } from "@molis-ai/molis-work-design-system";
 import { renderDialog } from "@molis-ai/molis-work-design-system";
 import { renderDirectoryPluginSections, renderImmersiveHeader, renderImmersiveGoalHeader, renderGoalDetailsAside, renderImmersiveWorkTabs, renderWorkbenchBar, renderPluginRail, renderProjectHome, renderPluginMarket, renderGlobalSearchOverlay, renderWorkspaceChrome } from "./immersive-shell.js";
-import { shownProjectPlugins, sideEntries } from "./plugin-catalog.js";
+import { homeStarts, pluginDirectoryFor, sideEntries } from "./plugin-catalog.js";
+import { shownPagePlugins } from "./page-plugin-visibility.js";
+import { renderPluginDirectoryData, type PluginDirectory } from "./plugin-directory.js";
 import { renderDeclaredStages } from "./declared-stages.js";
+import { renderGoalFrameStage } from "./goal-frame-stage.js";
 import { homeToolKeysScript, homePluginSideTabs } from "./home-plugin-navigation.js";
 import { renderPersonalMenuItems, renderProjectSettingsDirectorySection, renderProjectSettingsWorkSurface, renderSettingsDirectorySection, renderSettingsWorkSurface } from "./settings-directory.js";
 import { renderRuntimePlanDialog } from "./settings-appearance.js";
@@ -64,8 +67,11 @@ export interface WorkbenchShellPageView<TItem extends GoalCollectionItem> extend
   unavailable_plugin_stages?: readonly UnavailablePluginStage[];
   /** Contribution ids already rendered by a host stage path; the Manifest fallback skips them. */
   plugin_stage_ids?: readonly string[];
-  /** Rail entries for plugins installed at run time; each has a stage in plugin_stages. */
-  plugin_rail?: readonly { surface: string; label: string }[];
+  /**
+   * The declarations of the plugins the Host's Runtimes run in this project, read from their Manifests for this page: built-in
+   * and installed at run time alike (W5-06 余项 2). Absent means a page drawn with no Runtime, which reads the built-in catalog's.
+   */
+  plugin_directory?: PluginDirectory;
   /** The Host runs in developer mode: the plugin list also offers what is otherwise kept out of it (Text Stats). */
   developer_mode?: boolean;
   project: ShellProject | null;
@@ -176,7 +182,9 @@ function renderMolisWorkWeb(
   const initialDesktopSurface = requestedGoalId || archiveView || trashView ? "goal" : "home";
   const projectOptions = view.projects.length ? view.projects : view.project ? [view.project] : [];
   const primitives = { L, escapeHtml, icon, htmlLang };
-  const enabledPlugins = shownProjectPlugins(view.enabled_plugins ?? ["goals", "inbox", "feed", "artifacts"], view.hidden_plugins ?? []);
+  const enabledPlugins = shownPagePlugins(view);
+  // What the Runtimes run in this project, as their Manifests declare it; a page drawn with no Runtime reads the built-in catalog.
+  const directory = pluginDirectoryFor(view.plugin_directory);
   const settingsDirectory = `${renderSettingsDirectorySection(primitives, enabledPlugins, view.hidden_plugins)}${view.project ? renderProjectSettingsDirectorySection(primitives) : ""}`;
   const settingsSurfaces = `${renderSettingsWorkSurface(primitives, `${view.route_prefix || ""}/?settings=appearance`)}${view.project ? renderProjectSettingsWorkSurface(primitives, view.project, desktopShell) : ""}`;
   const defer = deferredSurfaces(L, enabledPlugins, view.hidden_plugins, view.pane_plugin);
@@ -216,19 +224,7 @@ function renderMolisWorkWeb(
       </div>
     </section>
   </div>` : `${stageList}${goalDocument}`;
-  const frameStage = showTui ? `<section class="goal-frame-surface" data-goal-frame-surface aria-label="Frame" hidden>
-    <header class="frame-goal-summary"><div class="frame-goal-heading"><h1 data-frame-goal-title></h1><span data-frame-goal-status></span></div><p data-frame-goal-outcome></p>    <div class="frame-goal-actions mw-toolbar"><button class="mw-btn mw-btn--secondary" type="button" data-frame-add-content>${icon("plus")}${L("添加已有内容")}</button><button class="mw-btn mw-btn--secondary" type="button" data-frame-goal-work>${icon("terminal")}${L("打开工作区")}</button><button class="mw-btn mw-btn--ghost" type="button" data-frame-goal-locate>${icon("target")}${L("在关系画布中定位")}</button></div></header>
-    <div class="goal-frame-canvas" data-frame-canvas><div class="frame-empty mw-empty" data-frame-empty><strong>${L("把这项目标需要的内容放在这里")}</strong><p>${L("从目录拖入消息、会话或资料，在同一个画布上组织工作。")}</p><button type="button" class="mw-btn mw-btn--primary" data-frame-add-content>${icon("plus")}${L("添加已有内容")}</button></div>
-      <div class="goal-frame-world" data-frame-world></div>
-    </div>
-    <dialog class="frame-picker mw-dialog" data-frame-picker aria-labelledby="frame-picker-title">
-      <header><h2 id="frame-picker-title">${L("添加已有内容")}</h2><button type="button" class="mw-btn mw-btn--ghost mw-btn--icon-only" data-frame-picker-close aria-label="${L("关闭")}">${icon("x")}</button></header>
-      <div class="frame-picker-tools mw-input-group"><input class="mw-input" type="search" data-frame-picker-search placeholder="${L("搜索标题或来源")}" aria-label="${L("搜索标题或来源")}" autofocus><select class="mw-select" data-frame-picker-kind aria-label="${L("内容来源")}"><option value="all">${L("全部来源")}</option><option value="feed">Feed</option><option value="inbox">Inbox</option><option value="session">${L("会话")}</option><option value="artifact">${L("成果")}</option></select></div>
-      <div class="frame-picker-list mw-scroll" data-frame-picker-list></div>
-      <footer><span>${L("添加引用，原内容保持在所属来源。")}</span><button type="button" class="mw-btn mw-btn--secondary" data-frame-picker-close>${L("取消")}</button></footer>
-    </dialog>
-    <footer class="goal-canvas-tools goal-frame-tools"><div role="group" aria-label="${L("画布缩放")}"><button type="button" data-frame-zoom="out" aria-label="${L("缩小")}">−</button><output data-frame-zoom-value>100%</output><button type="button" data-frame-zoom="in" aria-label="${L("放大")}">+</button></div></footer>
-  </section>` : "";
+  const frameStage = showTui ? renderGoalFrameStage({ L, icon }) : "";
   const html = renderWorkbenchDocument({
     preamble_html: `<!--
 THESIS: 在连续工作区内阅读、记录和执行，内容贴齐标签页，避免浮窗套浮窗。
@@ -254,12 +250,13 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
     },
     body_html: `
   ${renderIconSprite()}
+  ${renderPluginDirectoryData(directory)}
   <div class="app">
     <main class="immersive-workspace${showTui ? " is-desktop-tui" : ""}${directoryEmpty ? " is-plugin-directory-empty" : ""}" data-workspace data-mobile-view="document" data-workspace-mode="graph">
       ${renderImmersiveHeader(primitives, desktopShell)}
       ${renderWorkbenchBar(primitives, {
         enabled: enabledPlugins,
-        rail: renderPluginRail(primitives, enabledPlugins, "", "", view.plugin_rail, { developerMode: view.developer_mode }),
+        rail: renderPluginRail(primitives, enabledPlugins, "", "", directory, { developerMode: view.developer_mode }),
         projectChrome: renderWorkspaceChrome(primitives, projectTitlebarChrome.replace("<!-- project-menu-extra -->", renderPersonalMenuItems(primitives))),
         sideTabs: projectSideTabs(enabledPlugins, view.route_prefix),
       })}
@@ -281,7 +278,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
           <div class="tab-workspace-panes" data-tab-panes></div>
           <div class="tab-workspace-exclusive" data-tab-exclusive hidden></div>
           <div class="tab-workspace-pool" data-surface-pool hidden>
-            ${renderProjectHome(view.project?.display_name || title, primitives)}
+            ${renderProjectHome(view.project?.display_name || title, primitives, homeStarts(enabledPlugins, directory))}
             ${goalStage}
             ${frameStage}
             ${renderFeedNativePluginSurface(view, "source-workbench", initialFeedPreset)}

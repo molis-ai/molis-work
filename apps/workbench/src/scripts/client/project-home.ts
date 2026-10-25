@@ -180,18 +180,18 @@ export const PROJECT_HOME_FACTORY_SCRIPT = `(host) => {
       }
       // An empty day keeps the ways to start something; another day also offers the way back to today.
       const otherDay = !day?.today;
-      const starts = [
-        { plugin: 'goals', title: '推进一个目标', copy: '明确要做成什么，接着往下走。', icon: 'target' },
-        { plugin: 'pages', title: '写一份文档', copy: '把思路写下来，逐步整理成作品。', icon: 'file' },
-        { plugin: 'lingguang', title: '记下一点灵感', copy: '还没想清楚，也可以先留下。', icon: 'idea' },
-      ].filter(item => document.querySelector('[data-plugin-id="' + item.plugin + '"]'));
+      // The plugins the project shows say how to start with them (the start of their views); the page carries the list in order.
+      const starts = (() => {
+        try { const list = JSON.parse(home.dataset.homeStarts || '[]'); return Array.isArray(list) ? list : []; }
+        catch (error) { return []; }
+      })();
       // The ways to start are one row of small buttons; the sentence of each is its hint.
       const chip = (attrs, glyph, label, hint) => '<button type="button" class="home-start-action" ' + attrs + (hint ? ' title="' + esc(L(hint)) + '"' : '') + '>' + ico(glyph) + '<span>' + esc(L(label)) + '</span></button>';
       paint('<div class="home-start"><p class="home-start__lead">' + (otherDay
           ? '<b>' + L('这一天还没有事件') + '</b>' + L('已有工作仍在，可以从当前目标继续，或从这里开始一件新的事。')
           : L('选一件想做的事，或继续已有的工作。')) + '</p><div class="home-start-actions">' +
         (otherDay ? chip('data-home-today', 'back', '回到今天') : '') +
-        starts.map(item => chip('data-home-start="' + item.plugin + '"', item.icon, item.title, item.copy)).join('') +
+        starts.map(item => chip('data-home-start="' + esc(item.id) + '"', item.glyph, item.title, item.hint)).join('') +
         chip('data-home-start="market"', 'grid', '浏览更多工具') + '</div></div>');
       return;
     }

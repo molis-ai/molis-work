@@ -1,5 +1,4 @@
 import { pluginErrors, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { readPluginRuntimeRecords } from "@molis-ai/molis-work-plugin-runtime";
 import { HOST_ARTIFACT_PRODUCERS } from "./artifact-type-registry.js";
 import { heldInstalls } from "./plugin-holders.js";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
@@ -13,7 +12,7 @@ type Owner = { plugin_id: string; artifacts: PluginManifest["artifacts"] };
  * each project's, by the Manifest it was started with. A disabled installation still holds its names; the last one to be
  * uninstalled without its data lets them go. What cannot be read refuses.
  */
-export function declarationOwnersFor(home: string | null, current: Parameters<typeof readPluginRuntimeRecords>[0]) {
+export function declarationOwnersFor(home: string | null, current: NonNullable<Parameters<typeof heldInstalls>[1]>) {
   const shipped: Owner[] = [...PLATFORM_PLUGIN_REGISTRATIONS.map(entry => ({ plugin_id: entry.manifest.plugin_id, artifacts: entry.manifest.artifacts })),
     ...HOST_ARTIFACT_PRODUCERS.map(host => ({ plugin_id: host.plugin_id, artifacts: { produces: host.produces, consumes: [] } }))];
   const shippedIds = new Set(shipped.map(owner => owner.plugin_id));

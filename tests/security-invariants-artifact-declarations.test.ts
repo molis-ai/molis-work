@@ -11,7 +11,7 @@ import { createPluginRuntimeReleaseArtifact, PluginRuntime, SqlitePluginRuntimeR
 import { homeStoreRegistry } from "@molis-ai/molis-work-storage";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, artifactLinkKinds, artifactTypeDeclarations, bindProjectArtifacts, createPluginPlatform, declaredArtifactTypes,
-  heldInstalls, homeStores, installedArtifacts, openProjectVersionStores, restoreArtifactVersions, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+  heldInstalls, pluginHeldElsewhere, homeStores, installedArtifacts, openProjectVersionStores, restoreArtifactVersions, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import { openTestHome } from "./fixtures/test-home.js";
 
@@ -211,6 +211,25 @@ test("RAC-417 S-76 a name has one owner in the whole Home: a disabled owner stil
   pb.runtime.install({ definition: plugin(PRODUCER, "1.0.0", ["example.note"], ["example.note.ref"]), deployment: "local", trust: UNSIGNED_TRUST, grants: [], discard_kept_data: true });
   await pb.runtime.uninstall(installId, { retain_private_data: false });
   assert.doesNotThrow(take(plugin(OTHER, "1.0.0", ["example.note"])), "the last holder gone without its data lets the name go");
+});
+
+test("RAC-417 S-76 every held installation names its own scope and install, and only that exact installation is left out of what others hold", { timeout: 180_000 }, async t => {
+  const { home, pa, pb } = await twoProjects(t);
+  const definition = plugin(PRODUCER, "1.0.0", ["example.note"]);
+  await pa.supervisor.start([entry(definition)]);
+  await pb.supervisor.start([entry(plugin(PRODUCER, "1.0.0", ["example.note"]))]);
+  const [ia, ib] = [pa.supervisor.installation(PRODUCER)!.install_id, pb.supervisor.installation(PRODUCER)!.install_id];
+  const held = heldInstalls(home).filter(item => item.record.plugin_id === PRODUCER);
+  assert.deepEqual(held.map(item => item.scope).sort((x, y) => JSON.stringify(x).localeCompare(JSON.stringify(y))),
+    [{ kind: "project", project_id: pa.projectId }, { kind: "project", project_id: pb.projectId }].sort((x, y) => JSON.stringify(x).localeCompare(JSON.stringify(y))), "each installation names the project it lives in");
+  assert.equal(held.find(item => item.scope.kind === "project" && item.scope.project_id === pa.projectId)!.record.install_id, ia);
+  const as = (projectId: string, installId: string) => ({ scope: { kind: "project" as const, project_id: projectId }, install_id: installId });
+  assert.equal(pluginHeldElsewhere(home, PRODUCER, as(pa.projectId, ia)), true, "the other project's installation holds");
+  assert.equal(pluginHeldElsewhere(home, PRODUCER, as(pb.projectId, ia)), true, "an install id under another scope is not the installation asking");
+  assert.equal(pluginHeldElsewhere(home, PRODUCER, null), true, "the Home's own activation leaves nothing out");
+  await pb.runtime.uninstall(ib, { retain_private_data: false });
+  assert.equal(pluginHeldElsewhere(home, PRODUCER, as(pa.projectId, ia)), false, "the last installation asking holds nothing else");
+  assert.equal(pluginHeldElsewhere(home, PRODUCER, as(pa.projectId, "another-install")), true, "an installation in the same scope that is not the one asking is not left out");
 });
 
 test("RAC-417 S-76 an enable asks too: a second owner that got in cannot be switched on, and an unreadable installation refuses", { timeout: 180_000 }, async t => {

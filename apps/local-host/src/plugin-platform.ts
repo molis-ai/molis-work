@@ -164,7 +164,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   });
   // A project instance of a dual-instance plugin offers only its half; the other half is the Home's (specs/dual-instance-plugins).
   const runtime = new PluginRuntime(records, executor,
-    { declarationOwners: declarationOwnersFor(options.home?.directory ?? null, options.db), redemption: definition => ({ partial: identity.dualInstance(definition) }), ...options.home ? { consents: options.home.consents } : {}, reservedRuleKeys: hostReservedRuleKeys,
+    { declarationOwners: declarationOwnersFor(options.home?.directory ?? null, { db: options.db, scope: { kind: "project", project_id: options.project_id } }), redemption: definition => ({ partial: identity.dualInstance(definition) }), ...options.home ? { consents: options.home.consents } : {}, reservedRuleKeys: hostReservedRuleKeys,
       actions: { ...options.actions, providerId: (record, definition) => providerFor(definition, record.install_id) } });
   const supervisor = new PluginSupervisor(runtime, {
     releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(options.db),

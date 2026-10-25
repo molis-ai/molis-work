@@ -103,7 +103,7 @@ export { createLocalFeedApplication } from "./feed-application.js";
 export { HOST_ARTIFACT_PRODUCERS, artifactTypeDeclarations, declaredArtifactTypes, artifactContinuers, artifactReferrerActions, continuerReadsFile, artifactProducerSources, artifactLinkKinds, linkKindProblems, installedArtifacts, supervisedArtifacts, type ArtifactProducerSource, type InstalledArtifactView } from "./artifact-type-registry.js";
 export { bindProjectArtifacts } from "./declared-types.js";
 export { declarationOwnersFor } from "./declaration-owners.js";
-export { heldInstalls } from "./plugin-holders.js";
+export { heldInstalls, pluginHeldElsewhere, type HeldInstall, type InstallRef, type InstallScope } from "./plugin-holders.js";
 export { liveHostFunctionAuthoringCatalog } from "./behavior-catalog.js";
 export { seedSceneRules, withFunctionsService } from "./functions-host.js";
 

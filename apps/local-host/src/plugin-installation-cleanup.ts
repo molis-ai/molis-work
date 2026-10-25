@@ -25,7 +25,7 @@ export function forgetInstallationRecords(scope: SandboxOwnerFilesScope, record:
  * calls them); a reinstall registers it again and finds them.
  */
 function forgetInstallationRules(home: string, record: PluginInstanceRecord, projectId: string | null): void {
-  const forgotten = forgetDeclaredRulesIn(home, record.plugin_id, projectId, pluginHeldElsewhere(home, record.plugin_id, projectId));
+  const forgotten = forgetDeclaredRulesIn(home, record.plugin_id, projectId, pluginHeldElsewhere(home, record.plugin_id, { scope: projectId === null ? { kind: "home" } : { kind: "project", project_id: projectId }, install_id: record.install_id }));
   if (forgotten && (forgotten.removed.length || forgotten.kept.length || forgotten.bindings)) hostLog.debug("functions", "declared_rules_forgotten", { plugin_id: record.plugin_id, project_id: projectId, ...forgotten });
 }
 

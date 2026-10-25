@@ -2638,15 +2638,15 @@ Prologue #102 已按准确13c476a3完成原完整quality（70文件723项、干�
 
 本片只完成已具可信 Index/owner 的目标 Session 前置；缺 Index 的跨主人联结与明确拒绝仍是完整 MEM-40 验收的一部分。source 全覆盖、Memory/Ledger/Catalog 完整恢复、最终集成全量/干净包/API 快照、真实 Home、付费模型、产品实操和用户验收均未由此片完成。只本地提交交统筹合回 #1101，不推送、不另建 PR。
 
-### MEM-40 Catalog target 冷接纳接口草案（2026-10-25，待统筹冻结接口后实施）
+### MEM-40 Catalog target 冷接纳冻结接口（2026-10-25）
 
 本刀基线 acca61f7a4cc6e36944aa884304256fb2f86e805，落实 MEM-40-CAT-02..04/FRAME-01；source reader 与 Ledger/Memory/Session 算法由各主人交付，本刀不复制。目标仍用同一 ManagedProjectDeletion、Catalog receipt/recovery_plan/owner steps；无新表/schema、身份别名链、hash 机制、普通启动 bypass、Runtime/Models/Search 服务。
 
 **实例依据。** 现 user onboarding 与 Demo 都可在原 complete 后同 ID 重建，created_at/项目ID不独立证明代际。生产 receipt 没有删除或原请求/原计划改写接口，但只有UUID和时间、没有单调序号。沿原“同一Home同一历史的完整T0备份、较晚停写T1工作副本”操作者前提，穷尽源与目标全部 receipt，以(actor,idempotency,fingerprint/project)联结：原target请求必须是source的兼容子集，原决定相同、step身份不删改，target complete不得在source退回pending；本轮或先前恢复重号只能由已持久source→target关联解释。多出的target请求、同键不同身份/计划、缺失/坏计划或未知状态拒绝整个接纳。这个可观察集合检查不自称证明停writer/跨库快照，也不靠sourceDTO的T1当前行猜删除时对象。
 
-**最小接口建议。** LocalHost提供 `openProjectDeletionRecoveryTarget`，只显式打开既有target Catalog。输入为可穷尽且成功关闭的现source inspection句柄、已有父marker的source→target引用、必填活维护`assertCurrent`、冷Memory owner、现平台panel清理Port、`recordTarget`和`catalogCommitted`回调。返回仅按原source deletion定位的恢复方法与close，不交一般Catalog/SQL/命令。source reader必须使用原唯一decoder；目标普通查询和原项目目录事实仍经Projects owner。新receipt生成target operation后先由recordTarget持久父marker的引用，Catalog同事务接受原计划与steps后才允许清理；该回调失败零owner clear。marker已存而receipt不存在可继续首次接受，receipt已存在只取原plan，不重预览。
+**最小接口。** LocalHost提供 `openProjectDeletionRecoveryTarget`，只显式打开既有target Catalog。输入为可穷尽且成功关闭的现source inspection句柄、已有父marker的source→target引用、必填活维护`assertCurrent`、冷Memory owner、现平台panel清理Port、`recordTargets`和`catalogCommitted`回调。返回仅按原source deletion定位的恢复方法与close，不交一般Catalog/SQL/命令。source reader必须使用原唯一decoder；穷尽source、成功close且全部前提核对后，预先生成整组target deletion ID；任一Catalog写入前，recordTargets一次持久整组source身份、target引用与共同T0处置依赖（primary target与dependent targets），不得边执行边补组。Catalog同事务接受原计划与steps后才允许清理；该回调失败零Catalog写入及owner clear。marker已存而receipt不存在可继续首次接受，receipt已存在只取原plan，不重预览。
 
-**碰撞与重试。** 首次无target请求且source-only已由完整兼容子集证明时，可选择T0当前该项目，按target当前Memory/Session身份和版本准备新计划；source complete/absent不替代target观察。同请求已有pending只续原target计划/子操作/步骤。已有complete只让冷Memory/Session owner执行原选集的精确只读证明，核target原steps全部完成，不调用业务owner.clear、目录rename/rm或范围重列；该精确证明窄口缺失/未知则incomplete，后继保持。未映射的同键不同deletion_id不是新别名，须与source原receipt一致或拒绝。多个source-only同项目先在首轮冻结同一组事实；不得把执行后才变空的结果改称初始absent。后续请求仅在前一已接受target决定完成且可对账时，由本次同组关系解释目标已清；具体引用/空态由父marker和原主人保存，不按时间猜顺序或重试重新判空。
+**碰撞与重试。** 首次无target请求且source-only已由完整兼容子集证明时，可选择T0当前该项目，按target当前Memory/Session身份和版本准备新计划；source complete/absent不替代target观察。同请求已有pending只续原target计划/子操作/步骤。已有complete只让冷Memory/Session owner执行原选集的精确只读证明，核target原steps全部完成，不调用业务owner.clear、目录rename/rm或范围重列；该精确证明窄口缺失/未知则incomplete，后继保持。未映射的同键不同deletion_id不是新别名，须与source原receipt一致或拒绝。多个source-only同项目先在首轮冻结同一组事实；不得把执行后才变空的结果改称初始absent。后续请求仅在primary已接受target决定完成后，由原主人验证该固定选集确已清除，才接受自己的明确空计划；该依赖和全部关联必须在首次实际写入前持久到既有父marker。不按时间猜顺序或重试重新判空。
 
 **冷Memory与提交接缝。** 原withRecovery注入同一个Memory owner。冷完成核验增加明确的原选集verify能力，不能用当前整个project scope空态覆盖后继，也不能传noop；其实现由Memory负责人提供。本刀提供原事务实际成功后的Catalog变化回调，内容是目标receipt/steps与retained-project的无正文before/after事实。变化在同一事务内由Projects读取，COMMIT成功后同步交catalogCommitted推进预期；回滚不回调，回调失败按已提交待对账处理，不能伪称ROLLBACK或重新读库覆盖旧预期。所有pending/error记账同样过维护checker。
 
@@ -2654,4 +2654,4 @@ Prologue #102 已按准确13c476a3完成原完整quality（70文件723项、干�
 
 允许路径为同ManagedProjectDeletion及必要冷装配、原ProjectDeletedPort/hooks/file-owner接线、CatalogCommit、现binding/panel公开装配、ProjectDataDeclaration与相关原owner/store的实际权限接缝、必要公开出口/README/原spec/测试和生成API快照。source reader及其decoder文件由原负责人持有，不改；Ledger父marker/frame、Memory冷算法、Session/SDK由统筹/原负责人接。无普通初始化绕过、UI/vendor/lock/CI/资源/门禁变化。
 
-验收用公开构建的真实SQLite/文件：完整两端兼容子集、新请求/原pending/回应丢失重开、同键身份/计划冲突、sourcecomplete与sourceabsent不跳target、旧complete后继保持、多个source-only同项目、缺owner、SDK/业务/目录部分失败、每个异步副作用后撤权和COMMIT拒绝、snapshot推进与回调失败。保留原README定向回归、整体build FIFO、严格类型、精确acca健康/boundary；不全量/浏览器/真实Home/模型/发布。本段为接口草案，待统筹冻结后实施，不代表首次source-only已实现或完整MEM-40通过。
+验收用公开构建的真实SQLite/文件：完整两端兼容子集、新请求/原pending/回应丢失重开、同键身份/计划冲突、sourcecomplete与sourceabsent不跳target、旧complete后继保持、多个source-only同项目、缺owner、SDK/业务/目录部分失败、每个异步副作用后撤权和COMMIT拒绝、snapshot推进与回调失败。保留原README定向回归、整体build FIFO、严格类型、精确acca健康/boundary；不全量/浏览器/真实Home/模型/发布。本段已由统筹冻结，授权本刀实施；合同冻结不代表首次source-only已实现或完整MEM-40通过。

@@ -22,7 +22,7 @@ export function renderPluginStoreUnavailablePage(input: {
     return `<li data-stored-project-plugin="${escapeHtml(pluginId)}" data-plugin-hidden="${hidden}">${escapeHtml(L(entry?.manifest.name ?? pluginId))}${hidden ? ` · ${escapeHtml(L("已隐藏"))}` : ""}</li>`;
   }).join("");
   // These are failure/status entries, not derived project members. Never invoke a running contribution while its ledger is unreadable.
-  const statuses = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.runtime?.scope === "home").map(entry =>
+  const statuses = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.manifest.runtime?.scope === "home").map(entry =>
     `<section class="mw-frame__panel" data-work-surface="${escapeHtml(entry.project_plugin_id)}" data-home-plugin-unavailable="workbench">${renderUnavailablePluginStatus({
       surface: entry.project_plugin_id, label: entry.manifest.name, scope: "home", reason: L("Home 插件运行库不可用"),
     }, L)}</section>`).join("");

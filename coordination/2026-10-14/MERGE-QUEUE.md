@@ -68,6 +68,14 @@ PR 粒度（GitHub runner 槽位有限，开得多就积压）：
 
 ## 2. 顺序与现状
 
+### 统筹记录（Claude，2026-10-25 下午）
+
+- **用户 10-25 定（对话）：Prologue 过代码审查即合 Prologue main，不走 CI。** Prologue #103 照此合入（head `513237d2d` → `dcaa982ad`；ac-review 严格 FIRST 挡合并 0 条，CI 因账单没启动）。
+- **用户 10-25 定（弹窗）：#1267 用过渡包**：现用包的上游 `2c7feba5`（#60）之上只加 #103 定稿（`6523abb47..513237d2d`），不带 #61～#101；`patch-history.json` 记为过渡包。整体换到上游 main 留给 #1101 与采用线。#103 的两条不挡项交 Codex（R-53）。
+- batch-36 头 `9ec566702`：main 的 batch-35 squash 把 `PluginRuntime` 缩到 623 行，T3 净加 1 行，health 变红，已收回。FIX20、FIX21 仍待 Codex。
+- batch-37（`batch/1025-37`，本地未推）：已并 #1257+#1265 FIX12、#1260+FIX15、#1261+FIX3、#1262+#1269 FIX17、#1264+#1268 FIX16、#1266+FIX9（S-72/73/74）与 b36 `9ec566702`；改了 #1262 探针的信任等级（T1 之后每次安装都要 trust）；PG-099 结（Alchemist 绕过，BL-376）。待并 #1272（ac-shell 第 2 片）、#1273（R-38 第 2 组）、ac-registry B，都等 ac-review FIRST。
+- 号段：ac-platform 第 2 组（PG-032/098/100）另给 **RAC-630～649**（RAC-600～619 是 ac-shell 的）；D1～D5 按草稿推荐准，D5 改号段。
+
 ### 当前交付核实（PIPE，2026-10-25）
 
 **batch35实际已合**：#1258固定aab81d922ef07e21bdc21f8b65e87bb3b4525277，2026-10-25T06:25:57Z实际merge SHA3817f8757abd9e60baaa825af7048cdac060479e、父df5527f27；API main同SHA。实际merge与aab的Git tree同为54bf575732b4e9c504b781195e7ee6663d104293，已亲核，不再候选入队。FIRST6393271026、最终组合REVIEW6394179117与新full独立TEST6394361864已齐；Claude6394295937原位认领。七源1239/5e1d8、1240/2fcb、1242/b86、1243/3a32、1247/a7f、1249/516、1250/cf63已全部实际CLOSED（非单独MERGED）：原Claude无可达执行通道，Root只将此七项close-only交PIPE为唯一执行者；PIPE在06:39:40、44、49、53、57及06:40:01、06秒逐一关闭并fresh回读，准确头无变化。来源各有#1258 actual包含说明，分支未删/后续整线owner与验收保留；逐项闭环6393246436，不再关或排七项。

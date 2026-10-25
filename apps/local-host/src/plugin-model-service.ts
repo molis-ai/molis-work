@@ -15,14 +15,14 @@ import type { PluginPlatformHome } from "./home-side.js";
 import { MODEL_PERMISSIONS } from "./plugin-service-permissions.js";
 
 /**
- * `services.model` for a plugin this Host runs itself: declared `model:read` or `model:invoke`, not sandboxed, on a platform that
- * reaches a Home. `model:read` reaches only the list and availability; the Runtime decides whether a call may be made (inside one of the plugin's concurrent `model:invoke` actions, with the call's
+ * `services.model` for a plugin this Host runs: declared `model:read` or `model:invoke`, on a platform that reaches a Home. A sandboxed
+ * package gets the same client (PG-017 P1, S-66): its broker forwards the three members a channel can carry and names the package's own instructions. `model:read` reaches only the list and availability; the Runtime decides whether a call may be made (inside one of the plugin's concurrent `model:invoke` actions, with the call's
  * `beforeEffect` agreeing before and after); the port below only makes it, through `hostTextGeneration`, which is agent-host's
  * Prologue inference and the one path every other caller of the Host's text model takes. No call id is passed on (user decision 2026-10-10).
  */
 export function pluginModelFor(home: PluginPlatformHome | null | undefined, definition: PluginDefinition, context: PluginStartContext,
   assertActive: () => void, declaration?: PluginModelConfigurationDeclaration): PluginModelClient | undefined {
-  if (!home || definition.execution === "sandbox" || !definition.manifest.permissions.some(item => MODEL_PERMISSIONS.includes(item.permission))) return undefined;
+  if (!home || !definition.manifest.permissions.some(item => MODEL_PERMISSIONS.includes(item.permission))) return undefined;
   const gate = { install_id: context.install_id, installation_generation: context.installation_generation, assertActive, requireGrant: (permission: string) => context.requireGrant(permission) };
   return Object.freeze({ ...createPluginModelClient(definition.manifest, createPluginModelPort(home, definition.instructions ?? []), gate),
     ...(declaration ? { configuration: createPluginModelConfigurationClient(definition.manifest, declaration, createConsumerModelConfiguration(home.directory, declaration), gate) } : {}),

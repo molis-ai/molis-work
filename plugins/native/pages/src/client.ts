@@ -1,24 +1,9 @@
-import { PAGES_CLIENT_ACTIONS } from "./client-actions.js";
-import { PAGES_CLIENT_DOCUMENT } from "./client-document.js";
-import { PAGES_CLIENT_LIST } from "./client-list.js";
-import { PAGES_CLIENT_MENUS } from "./client-menus.js";
-import { PAGES_CLIENT_SETUP } from "./client-setup.js";
+import { readFileSync } from "node:fs";
 
-/** Pages workbench client: library, autosave, ProseMirror host. */
-export const PAGES_CLIENT_FACTORY_SCRIPT = `(host) => {
-${PAGES_CLIENT_SETUP}
-  const request = async (method, path, body) => {
-    const payloadBody = body === undefined ? undefined : { ...body, project_id: projectId() };
-    const response = await fetch(route(withProject(path)), {
-      method, headers: headers(),
-      body: payloadBody === undefined || method === "GET" ? undefined : JSON.stringify(payloadBody),
-    });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw Object.assign(new Error((method === "GET" && host.readRefusal?.(response.status, payload.code)) || payload.error || L("文档请求失败")), { status: response.status });
-    return payload;
-  };
-${PAGES_CLIENT_MENUS}
-${PAGES_CLIENT_LIST}
-${PAGES_CLIENT_DOCUMENT}
-${PAGES_CLIENT_ACTIONS}
-}`;
+/**
+ * The Pages page's client, as the workbench mounts it: a factory `(host) => …`. Its code is the type-checked TypeScript in
+ * `src/browser/` (tsconfig.browser.json), bundled by esbuild into `dist/pages-client.js` when the package builds, already
+ * wrapped in the factory (the build's banner and footer), whose `host` the bundle's entry (`src/browser/factory.ts`) uses. This reads it.
+ * The editor is the other script of the page (`dist/pages-editor.js`, from `src/editor-browser.ts`); this client uses it through `window`.
+ */
+export const PAGES_CLIENT_FACTORY_SCRIPT = readFileSync(new URL("./pages-client.js", import.meta.url), "utf8").trim();

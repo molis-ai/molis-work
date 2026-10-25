@@ -8,7 +8,6 @@ import test from "node:test";
 import {
   DEMO_PROJECT_ID,
   ensureProjectPlugins,
-  filesOutputsRefresh,
   LocalProjectDatabase,
   openProjectVersionStores,
   releaseProjectPlugins,
@@ -159,32 +158,21 @@ test("RAC-438 the Host has no file of its own for Coding: coding-surface.ts is g
   assert.deepEqual(importers("git"), ["project-plugins.ts"]);
   assert.deepEqual(importers("diff"), ["project-plugins.ts"]);
   assert.deepEqual(importers("text-stats"), ["project-plugins.ts"]);
-  assert.deepEqual(importers("files"), ["project-plugin-input-refresh.ts", "project-plugins.ts"]);
+  assert.deepEqual(importers("files"), ["project-plugins.ts"]);
   // The one stage module draws any plugin's page from its declarations: it names no plugin.
   assert.doesNotMatch(readFileSync(join(dir, "project-plugin-stages.ts"), "utf8"), /molis-work-plugin-|["'`](coding|files|git|diff|text-stats)["'`]/);
 });
 
-test("RAC-439 the route hook that is left is named for what it does and reads Files only for a consumer of its outputs", async () => {
-  assert.equal(existsSync(join(repoRoot, "apps/local-host/src/project-plugin-input-refresh.ts")), true);
+test("RAC-439 BL-521 the Host has no route hook that reads Files for a consumer of its outputs: a change of the workspace settings reaches Files as an event", () => {
   const dir = join(repoRoot, "apps/local-host/src");
-  const old = readdirSync(dir).filter(file => file.endsWith(".ts") && /codingRouteHooks/.test(readFileSync(join(dir, file), "utf8")));
-  assert.deepEqual(old, [], "the Coding-named hook is gone");
-
-  const manifests: Record<string, unknown> = {
-    "io.molis.work.files": { artifacts: { produces: [{ artifact_type_id: "files.snapshot", schema_version: 1 }] } },
-    "consumer": { artifacts: { consumes: [{ artifact_type_id: "files.snapshot", schema_version: 1 }] } },
-    "bystander": { artifacts: { consumes: [{ artifact_type_id: "other.thing", schema_version: 1 }] } },
-  };
-  let drained = 0;
-  const platform = { supervisor: { manifest: (pluginId: string) => manifests[pluginId] }, wiring: { drain: async () => { drained++; } } };
-  const dispatched: string[] = [];
-  const router = { dispatch: async (request: { pathname: string }) => { dispatched.push(request.pathname); return {}; } };
-  const run = async (pluginId: string) => filesOutputsRefresh({ platform, pluginId, ports: { actorId: "web-user" } } as never).beforeDispatch!(router as never);
-  await run("bystander");
-  assert.deepEqual(dispatched, [], "a plugin that does not consume Files' outputs causes no Files read");
-  await run("consumer");
-  assert.deepEqual(dispatched, ["/api/plugins/io.molis.work.files/state"]);
-  assert.equal(drained, 1);
+  assert.equal(existsSync(join(dir, "project-plugin-input-refresh.ts")), false, "the file that held the hook is gone");
+  const left = readdirSync(dir).filter(file => file.endsWith(".ts")
+    && /codingRouteHooks|filesOutputsRefresh|readsFilesOutputs|ProjectPluginRouteHooks/.test(readFileSync(join(dir, file), "utf8")));
+  assert.deepEqual(left, [], "no file of the Host names the hook or reads Files' outputs on its own");
+  // The route entry takes no hook before a route; it only lets the input graph settle after the plugin answered.
+  const entry = readFileSync(join(dir, "project-plugin-http.ts"), "utf8");
+  assert.doesNotMatch(entry, /hooks|beforeDispatch/);
+  assert.doesNotMatch(readFileSync(join(dir, "plugin-route-operations.ts"), "utf8"), /beforeDispatch/);
 });
 
 test("RAC-449 every surface an embedded plugin puts into Coding's page targets a slot Coding declares and in a format the slot accepts", async () => {

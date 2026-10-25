@@ -162,16 +162,15 @@ test('unknown plugin long results survive a late navigation response and render 
     });
     try {
       await evaluate(`(() => {
-        const original = window.fetch;
+        const original = window.molisWorkRequest;
         window.__workflowOldReadDone = false;
-        window.fetch = async (...args) => {
-          const response = await original(...args);
-          if (String(args[0]).endsWith('/api/plugins/io.molis.work.native.workflows/workflows/${prior.workflow_id}')) {
-            await response.clone().text();
+        window.molisWorkRequest = Object.assign(async (url, init) => {
+          const answer = await original(url, init);
+          if (String(url).endsWith('/api/plugins/io.molis.work.native.workflows/workflows/${prior.workflow_id}')) {
             requestAnimationFrame(() => requestAnimationFrame(() => { window.__workflowOldReadDone = true; }));
           }
-          return response;
-        };
+          return answer;
+        }, original);
       })()`);
       await click(`[data-wf-open="${prior.workflow_id}"]`);
       await readingOld.promise;

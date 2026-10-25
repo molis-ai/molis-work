@@ -47,7 +47,7 @@ Web 和进程内嵌入式 MCP 通过 `ensureSystemAgentService` 装配 Agent/Git
 | [src/plugin-host-services.ts](src/plugin-host-services.ts) | 一个插件启动时宿主交给它的身份和服务（动作、私人存储、成果、事件、输入输出）；`PluginHostExecutor` 只管启停 |
 | [src/plugin-interaction.ts](src/plugin-interaction.ts) | `services.interaction`（PG-062）：插件自己的页面要的问题卡、操作卡与下一步行，用助理同一套画法、按调用的语言画；只画不写、不要权限，交来的值形状不对就拒（S-56） |
 | [src/plugin-route-operations.ts](src/plugin-route-operations.ts) | Runtime 插件 HTTP 共用的那一段：重启、解除隔离、升级、未运行的 503、视图版本号、已声明路由的分发；不认识任何插件，属于某个插件或项目输入图的部分由调用方经钩子给（项目一侧的调用方是 `project-plugin-http.ts`） |
-| [src/project-plugin-http.ts](src/project-plugin-http.ts) | 项目插件的 HTTP 入口，与 Home 一侧的 `home-plugin-http.ts` 对称：升级候选、事件的恢复与跳过、`/api/plugins/<插件 id>/…` 都在这里，交给 `plugin-route-operations.ts`；不认识任何插件，还要做的一段（`project-plugin-input-refresh.ts` 的 `filesOutputsRefresh`：读 Files 产物的插件先刷新一次；BL-521 让工作区设置的变化通知 Files 之后，这个钩子和文件一起删）由调用方经路由前的钩子给；插件回答之后不再加料（PG-062） |
+| [src/project-plugin-http.ts](src/project-plugin-http.ts) | 项目插件的 HTTP 入口，与 Home 一侧的 `home-plugin-http.ts` 对称：升级候选、事件的恢复与跳过、`/api/plugins/<插件 id>/…` 都在这里，交给 `plugin-route-operations.ts`；不认识任何插件，路由前后也没有调用方塞进来的步骤（读 Files 产物的插件先刷新一次的钩子随 BL-521 删掉：工作区设置的变化经 `host.workspace.changed@1` 通知 Files）；插件回答之后不再加料（PG-062） |
 | [src/project-plugin-ports.ts](src/project-plugin-ports.ts) | 项目里内置插件和已安装插件用到的端口（`MolisWorkLocalHost` 的两个入口转到这里） |
 | [src/home-side.ts](src/home-side.ts) | 宿主与它的 Home 的登记：宿主构造时绑定（`bindHomeSide`，Agent 服务照旧在这里装配）、关闭时撤下；项目的插件平台经它拿到本宿主的 Home（模型注入在调用时读，不在启动时拷）和测试夹具，`PluginPlatformOptions.home` 的值（`pluginHomeFor`）也由它给 |
 | [src/plugin-model-service.ts](src/plugin-model-service.ts)、[src/plugin-instructions.ts](src/plugin-instructions.ts) | 插件的模型服务端口（`hostTextGeneration` → agent-host）与插件运行时的 Agent 定义登记（指令、Agent 提示词、方法，PG-051） |
@@ -103,7 +103,9 @@ node scripts/run-tests.mjs tests/local-host.test.ts tests/web-home-isolation.tes
 
 阅读测试中的输入与断言，可以看到接入方式、结果和错误分支。
 
-Runtime 原调用者查询委托由 `plugin-action-query.ts` 持有：只接受当前同安装动作 scope，保留原调用者并交给同一动作服务检查。HTTP 在既有 routedControls 保存可信 caller；项目来自已核路径，Home 无项目不借项目，复制 control 不能取得身份。本机 owner 的 native 读取集合由原 LOCAL_OWNER_PERMISSIONS 提供，来源插件自身仍必须声明并持有目标权限。请求 signal 归 route control，接受前断开拒绝；已接受的后台工作保留现 entry-owned lifetime。Home 插件内使用底层已有 client，避免 start 内 discover 重入 Home ready；公开入口仍负责原 Runtime 准备。相关验证：`tests/plugin-action-query-http.test.ts`、`tests/plugin-action-query-home-http.test.ts`、`tests/plugin-action-query-mcp.test.ts` 与 `tests/security-invariants-plugin-background.test.ts`。
+Runtime 原调用者查询委托由 `plugin-action-query.ts` 持有：只接受当前同安装动作 scope，保留原调用者并交给同一动作服务检查。HTTP 在既有 routedControls 保存可信 caller；项目来自已核路径，Home 无项目不借项目，复制 control 不能取得身份。本机 owner 的 native 读取集合由原 LOCAL_OWNER_PERMISSIONS 提供，来源插件自身仍必须声明并持有目标权限。本人对宿主自己登记的提供方持有什么，按提供方给（PG-007 阶段 4）：`local-owner-permissions.ts` 的 `localOwnerPermissionsOver(provider_id)` 逐个写出，`localWebActionContext` 只在动作要的权限都在路由给的上限里、也都在本人对这个提供方持有的里面时放行；没写进去的宿主提供方，本人一项也调不到（`tests/local-web-actions.test.ts` 的 RAC-338、RAC-339）。请求 signal 归 route control，接受前断开拒绝；已接受的后台工作保留现 entry-owned lifetime。Home 插件内使用底层已有 client，避免 start 内 discover 重入 Home ready；公开入口仍负责原 Runtime 准备。相关验证：`tests/plugin-action-query-http.test.ts`、`tests/plugin-action-query-home-http.test.ts`、`tests/plugin-action-query-mcp.test.ts` 与 `tests/security-invariants-plugin-background.test.ts`。
+
+权限表与首页、连接、信息助手、判断规则、项目工作目录、个人规划的实际登记共用提供方 id；判断规则、工作目录和助理的权限从动作定义汇总。助理同一提供方还承载条件登记的评论线程 start/retry，因此保留它们声明的 `model:invoke`，规则读取本身仍不要求模型权限。`tests/local-web-actions.test.ts` 的 RAC-339-REVIEW-01/02 验证条件登记及两种外部 MCP 提供方的路由上限和拒绝。
 
 ## 开发要求
 

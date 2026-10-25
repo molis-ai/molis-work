@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, filesOutputsRefresh, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, releaseProjectPlugins, handleProjectPluginHttp, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 
@@ -23,7 +23,7 @@ test('Coding child controls bind original run, keep acceptance separate, reject 
     }};
   const host=()=>({store,...openProjectVersionStores(store),homeDirectory:home,projectId:DEMO_PROJECT_ID,actions:fakeAgentHostActions(pluginActions(store,DEMO_PROJECT_ID),(definition,input)=>agentHost.invoke(definition,input)),actorId:'web-user',escapeHtml:(v:unknown)=>String(v),translate:(v:string)=>v,
     capabilities:agentHost});
-  const server=createServer((req,res)=>{void handleProjectPluginHttp(req,res,new URL(req.url!,'http://localhost'),host(), filesOutputsRefresh).catch(error=>{res.writeHead(500);res.end(String(error));});});
+  const server=createServer((req,res)=>{void handleProjectPluginHttp(req,res,new URL(req.url!,'http://localhost'),host()).catch(error=>{res.writeHead(500);res.end(String(error));});});
   await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));const address=server.address();assert.ok(address&&typeof address!=='string');
   const post=async(body:any,child='child',run='parent')=>{const res=await fetch(`http://127.0.0.1:${address.port}/api/plugins/io.molis.work.coding/sessions/app/runs/${run}/subagents/${child}`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});return {status:res.status,body:await res.json()};};
   try{

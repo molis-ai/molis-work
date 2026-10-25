@@ -67,6 +67,12 @@ function scopeClearDecision(headers: readonly Extract<Fact, { kind: "plan" }>[],
 
 /** Pass the complete, issue-aware source set when linking; an exhausted page alone is never completeness evidence. */
 export function interpretMemoryLedgerRecoveryFact(fact: Fact, evidence: readonly Fact[] = []): MemoryRecoveryObservation {
+  if (fact.kind === "plan" && fact.family === "scope-clear" && fact.started !== undefined) {
+    const headers = evidence.filter((entry): entry is Extract<Fact, { kind: "plan" }> => entry.kind === "plan"
+      && entry.actor_id === fact.actor_id && entry.family === fact.family && entry.plan_id === fact.plan_id);
+    const decision = scopeClearDecision(headers, evidence);
+    return decision === "identity-conflict" ? { kind: "unresolved", reason: decision } : { kind: "none" };
+  }
   if (fact.kind === "owner" || fact.kind === "candidate") {
     const where = fact.kind === "owner" ? fact.relation : fact;
     const conflict = evidence.some(entry => {

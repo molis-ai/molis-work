@@ -235,6 +235,24 @@ test("contradictory owner relations and an isolated candidate purge remain unres
 });
 
 
+test("scope-clear empty plans retain contradictions even when no target fact exists", t => {
+  const { home, marker } = fixture(t);
+  const own = { ...preview([], "user", "person"), scope: "personal", owner: "person" };
+  const foreign = { ...preview([], "project", "foreign"), scope: "project", owner: "foreign" };
+  for (const [id, parts] of [["missing", []], ["duplicate", [own, own]], ["foreign", [foreign]], ["legal", [own]]] as const)
+    marker(`memory-clear:${id}`, { scope: "personal", owner: "person", started: true, parts });
+  const handle = inspect(home), result = pages(handle, 1); handle.close();
+  assert.deepEqual(result.flatMap(page => page.issues), []);
+  const facts = result.flatMap(page => page.facts);
+  assert.equal(facts.some(fact => fact.kind === "plan-target"), false);
+  for (const id of ["missing", "duplicate", "foreign", "legal"]) {
+    const parent = facts.find(fact => fact.kind === "plan" && fact.plan_id === id && fact.started !== undefined)!;
+    assert.ok(parent);
+    assert.deepEqual(interpretMemoryLedgerRecoveryFact(parent, facts), id === "legal" ? { kind: "none" }
+      : { kind: "unresolved", reason: "identity-conflict" });
+  }
+});
+
 test("scope-clear retains parent/part conflicts and accepts original legal plans without surviving owners", t => {
   const { home, db, marker } = fixture(t);
   const part = (scope: string, owner: string, ids: string[]) => ({

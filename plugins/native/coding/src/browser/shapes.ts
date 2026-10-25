@@ -11,7 +11,7 @@ export interface StepNode {
   readonly title?: string;
   readonly state: string;
   readonly inserted?: boolean;
-  readonly owner?: { readonly kind: string; readonly label?: string; readonly title?: string; readonly expired?: boolean; readonly subagent_id?: string };
+  readonly owner?: AgentStepBoard["nodes"][number]["owner"];
   readonly depends_on?: readonly string[];
   /** The supplements that asked for the step. */
   readonly origins?: readonly { readonly input_id: string }[];

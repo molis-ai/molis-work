@@ -210,7 +210,7 @@ function roundDiagnostics(workId: string, work: StoredWork | null, round: Stored
       ...(material.method ? { method: { method_id: material.method.method_id, ...(material.method.version !== undefined ? { version: material.method.version } : {}) } } : {}) })),
     usage: tokens ? { input: tokens.input, output: tokens.output, cached_input: tokens.cached_input ?? 0 } : null,
     failures: (view?.activity ?? []).filter(item => item.state === "failed" || item.state === "unknown")
-      .map(item => ({ tool: item.name, target: item.target.slice(0, 200), state: item.state as "failed" | "unknown", summary: item.summary.slice(0, 400) })),
+      .map(item => ({ tool: item.name, target: item.target.slice(0, 200), state: item.state as "failed" | "unknown", summary: item.summary.slice(0, 400), ...(item.output ? { detail: item.output.slice(0, 600) } : {}) })),
   };
 }
 

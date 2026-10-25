@@ -11,7 +11,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import {
-  ALWAYS_ON_PLUGIN_IDS,
+  BUILTIN_PLUGIN_CATALOG,
   PERSONAL_PLUGIN_IDS,
   PROJECT_SCOPED_PLUGIN_IDS,
   pluginMarketCards,
@@ -127,9 +127,10 @@ test("Forms / Dataset / PPT 是个人插件，不进项目启用名单", () => {
   );
   const market = pluginMarketCards();
   // Every personal plugin is in the market except the 常开插件 (Shelf), which nobody adds or removes.
-  assert.deepEqual(ALWAYS_ON_PLUGIN_IDS, ["shelf"]);
+  const alwaysOn = BUILTIN_PLUGIN_CATALOG.filter((entry) => entry.manifest.always_on === true).map((entry) => entry.project_plugin_id);
+  assert.deepEqual(alwaysOn, ["goals", "shelf"]);
   assert.deepEqual(market.filter((card) => card.personal).map((card) => card.id),
-    PERSONAL_PLUGIN_IDS.filter((id) => !ALWAYS_ON_PLUGIN_IDS.includes(id)));
+    PERSONAL_PLUGIN_IDS.filter((id) => !alwaysOn.includes(id)));
   assert.equal(market.find((card) => card.id === "form")?.copy, "建问卷，收答卷，看逐题汇总。");
 });
 

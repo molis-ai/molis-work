@@ -92,6 +92,8 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
       const state = await platform.supervisor.enable(pluginId);
       sendLocalWebJson(response, state.status === "running" ? 200 : 503, { state, ...(state.message ? { error: state.message } : {}) });
     } else {
+      const refusal = host.homePlugins.leaveRefusal(pluginId, "停用");
+      if (refusal) { const refused = actionErrorResponse(refusal); sendLocalWebJson(response, refused.status, refused.body); return true; }
       platform.supervisor.revoke(pluginId);
       if (install && install.state !== "disabled") await platform.runtime.stop(install.install_id);
       sendLocalWebJson(response, 200, { disabled: true });

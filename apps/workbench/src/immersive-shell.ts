@@ -1,7 +1,7 @@
 import { UI_VIEW_GROUPS, type UiViewGroup } from "@molis-ai/molis-work-contracts/platform/ui";
 import { icon as glyph, renderButton, type MolisWorkIcon } from "@molis-ai/molis-work-design-system";
 import { renderPluginEventRecovery } from "./plugin-event-recovery.js";
-import { BUILTIN_PLUGIN_REGISTRY, DIRECT_WORK_SURFACE_IDS, DOCK_DEFAULT_PINS, RELOAD_ON_MEMBERSHIP_IDS, islandEntries, pluginLabel, pluginMarketCards, railEntries, pluginStageSummaries } from "./plugin-catalog.js";
+import { BUILTIN_PLUGIN_REGISTRY, DIRECT_WORK_SURFACE_IDS, DOCK_DEFAULT_PINS, declaresAlwaysOn, RELOAD_ON_MEMBERSHIP_IDS, islandEntries, pluginLabel, pluginMarketCards, railEntries, pluginStageSummaries } from "./plugin-catalog.js";
 import { renderAssistantDock } from "./assistant-dock.js";
 import { renderSidePanel, type SidePanelPluginTab } from "./side-panel.js";
 import { renderHomePluginNavigation } from "./home-plugin-navigation.js";
@@ -152,16 +152,15 @@ export function renderPluginRail(
       label: say(L, "常驻 Dock：{name}", { name: plugin.label }), attrs: { "data-dock-choice": plugin.id, "aria-pressed": String(kept), title: L("常驻 Dock") } });
   };
   // One button, two states: a plus while the plugin is not in the project, a red trash can once it is. Both glyphs are in the
-  // button, so a change of state is the tile's class and nothing more; the stylesheet shows the one that fits. Goals is created
-  // with the project and stays.
+  // button, so a change of state is the tile's class and nothing more; the stylesheet shows the one that fits. A 常开 plugin stays.
   const toggleButton = (plugin: { id: string; label: string }, owned: boolean, along: readonly string[]) => {
-    const locked = owned && plugin.id === "goals";
+    const locked = owned && declaresAlwaysOn(plugin.id);
     const sites = sitesOf.get(plugin.id) ?? [];
     const alongNote = along.length ? say(L, "；添加会同时添加：{list}", { list: join(along.map(id => names.get(id) ?? id)) }) : "";
     const button = renderButton({ variant: owned ? "secondary" : "primary", size: "sm", icon: "plus", iconOnly: true, className: "plugin-toggle", disabled: locked,
       label: say(L, owned ? "移除：{name}" : "添加：{name}", { name: plugin.label }),
       attrs: { "data-plugin-toggle": plugin.id, "data-state": owned ? "added" : "available",
-        title: locked ? L("Goals 随项目一起创建，不能从项目移除") : owned ? L("从本项目移除") : `${L("添加到本项目")}${alongNote}${sites.length ? say(L, "；会在侧栏浏览器里使用：{sites}", { sites: join(sites) }) : ""}` } });
+        title: locked ? L("常开插件不能从项目移除") : owned ? L("从本项目移除") : `${L("添加到本项目")}${alongNote}${sites.length ? say(L, "；会在侧栏浏览器里使用：{sites}", { sites: join(sites) }) : ""}` } });
     return button.replace(glyph("plus"), glyph("plus", "plugin-toggle-add") + glyph("trash", "plugin-toggle-remove"));
   };
   // At rest the end of the tile shows only a small pin when the plugin is kept; looked at, the buttons replace it.

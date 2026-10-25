@@ -4909,6 +4909,7 @@ export declare const platformPluginWiringContract: {
 };
 
 export declare const pluginErrors: import("platform/action-errors").ErrorCodeRaisers<{
+    readonly always_on: "invalid";
     readonly capability_denied: "invalid";
     readonly consent_required: "invalid";
     readonly consent_revoked: "invalid";

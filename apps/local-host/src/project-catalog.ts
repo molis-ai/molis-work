@@ -5,6 +5,7 @@ import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-wor
 import { ManagedProjectFiles } from "./managed-project-files.js";
 import { isPersonalSpace, PERSONAL_SPACE_PROJECT_ID, PERSONAL_SPACE_TITLE } from "./personal-space.js";
 import { BUILTIN_PLUGIN_REGISTRY } from "@molis-ai/molis-work-app-workbench";
+import { alwaysOnProjectPlugins } from "./always-on-plugins.js";
 import { ManagedProjectDeletion } from "./managed-project-deletion.js";
 import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
 import { DemoProjectLifecycle } from "./demo-project-lifecycle.js";
@@ -192,9 +193,9 @@ export class MolisWorkProjectCatalog {
     this.databasePath = path.join(this.projectsDirectory, "catalog.db");
     this.projects = new ProjectsModule({
       db,
-      // Which Plugins a project may enable comes from what this build ships, not
-      // from a list compiled into Projects.
-      plugins: BUILTIN_PLUGIN_REGISTRY,
+      // Which Plugins a project may enable comes from what this build ships, not from a list compiled into Projects;
+      // which are 常开 is worked out from the install records and the Home's consent ledger each time it is asked.
+      plugins: { ...BUILTIN_PLUGIN_REGISTRY, alwaysOn: () => alwaysOnProjectPlugins(homeDirectory) },
     });
     this.runtimeContexts = createRuntimeContextModule({
       db, ledger, projects: this.projects, validation: contextBindingValidation,

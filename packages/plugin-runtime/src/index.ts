@@ -10,6 +10,7 @@ import { abandonRefusal, assertMutable, followHostBuild, hostBuildGrants, keptDa
 import { assertConsentsDeclared, assertPluginTrust, assertTrustFitsExecution, isHostTrust } from "./trust-rules.js";
 import { InstallLocks } from "./install-locks.js";
 import { recordInstallConsents, type PluginConsentLedger } from "./consent-ledger.js";
+import { leaveRefusal } from "./always-on-rules.js";
 import { pluginActionProvider } from "./action-provider.js";
 import { outsidePluginAction } from "./action-scope.js";
 import { OfferedContributions } from "./offered-contributions.js";
@@ -21,6 +22,7 @@ import { createActivationContext } from "./activation-context.js";
 export { SqlitePluginPrivateStorage, PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL } from "./private-storage.js";
 export type { PluginPrivateStorageDatabase } from "./private-storage.js";
 export { SqlitePluginRuntimeRepository, PLUGIN_RUNTIME_INSTALLS_SCHEMA_SQL } from "./repository.js";
+export { alwaysOnAgreed, leaveRefusal } from "./always-on-rules.js";
 export { MemoryPluginConsentLedger, PLUGIN_TRUST_SCHEMA_SQL, SqlitePluginConsentLedger } from "./consent-ledger.js";
 export type { PluginConsentEntry, PluginConsentLedger } from "./consent-ledger.js";
 export { HOST_BUILD_TRUST, UNSIGNED_TRUST, assertConsentsDeclared, assertPluginTrust, assertTrustFitsExecution, consentGranter, consentSubject, declarationsNeedingConsent, hostBuildConsents, isHostTrust } from "./trust-rules.js";
@@ -614,6 +616,8 @@ export class PluginRuntime implements PluginRuntimeApi {
     installId: string,
     options: { retain_private_data?: boolean } = {},
   ): Promise<PluginLifecycleReceipt> {
+    const refusal = leaveRefusal(this.options.consents, this.repository.get(installId), "卸载");
+    if (refusal) return Promise.reject(refusal);
     return this.locks.run(installId, () => this.uninstallOnce(installId, options));
   }
 

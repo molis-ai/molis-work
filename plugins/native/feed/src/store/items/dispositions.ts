@@ -34,11 +34,11 @@ export class FeedDispositions {
         return this.records.get(projectId, itemId);
       }
       const at = this.records.now().toISOString();
-      this.records.db.prepare(`
+      this.records.db.run(`
         UPDATE feed_items
         SET disposition = ?, revision = revision + 1, updated_at = ?
         WHERE project_id = ? AND item_id = ?
-      `).run(disposition, at, projectId, itemId);
+      `, disposition, at, projectId, itemId);
       settleActiveAttention(this.attention, projectId, itemId, disposition === "processing"
         ? "in_progress"
         : disposition === "archived"
@@ -54,7 +54,7 @@ export class FeedDispositions {
         at,
       );
       return this.records.get(projectId, itemId);
-    }).immediate();
+    });
   }
 
   restore(projectId: string, itemId: string, expectedRevision?: number): FeedItemRecord {
@@ -65,11 +65,11 @@ export class FeedDispositions {
       }
       if (current.disposition !== "archived") return current;
       const at = this.records.now().toISOString();
-      this.records.db.prepare(`
+      this.records.db.run(`
         UPDATE feed_items
         SET disposition = 'inbox', revision = revision + 1, updated_at = ?
         WHERE project_id = ? AND item_id = ?
-      `).run(at, projectId, itemId);
+      `, at, projectId, itemId);
       settleActiveAttention(this.attention, projectId, itemId, "dismissed");
       this.records.appendEvent(
         projectId,
@@ -81,7 +81,7 @@ export class FeedDispositions {
         at,
       );
       return this.records.get(projectId, itemId);
-    }).immediate();
+    });
   }
 
   markRead(projectId: string, itemId: string): FeedItemRecord {
@@ -89,10 +89,10 @@ export class FeedDispositions {
       const current = this.records.get(projectId, itemId);
       if (current.read_at) return current;
       const at = this.records.now().toISOString();
-      this.records.db.prepare(`
+      this.records.db.run(`
         UPDATE feed_items SET read_at = ?, updated_at = ?
         WHERE project_id = ? AND item_id = ?
-      `).run(at, at, projectId, itemId);
+      `, at, at, projectId, itemId);
       this.records.appendEvent(
         projectId,
         itemId,
@@ -103,7 +103,7 @@ export class FeedDispositions {
         at,
       );
       return this.records.get(projectId, itemId);
-    }).immediate();
+    });
   }
 
   linkGoal(
@@ -120,11 +120,11 @@ export class FeedDispositions {
       if (current.linked_goal_id === goalId && current.disposition === disposition) return current;
       const at = this.records.now().toISOString();
       this.records.goalLinks.set(projectId, itemId, goalId, at);
-      this.records.db.prepare(`
+      this.records.db.run(`
         UPDATE feed_items
         SET disposition = ?, revision = revision + 1, updated_at = ?
         WHERE project_id = ? AND item_id = ?
-      `).run(disposition, at, projectId, itemId);
+      `, disposition, at, projectId, itemId);
       settleActiveAttention(this.attention, projectId, itemId, disposition === "processing" ? "in_progress" : "done");
       this.records.appendEvent(
         projectId,
@@ -136,14 +136,12 @@ export class FeedDispositions {
         at,
       );
       return this.records.get(projectId, itemId);
-    }).immediate();
+    });
   }
 
   deleteBySource(projectId: string, sourceId: string): string[] {
     const { db } = this.records;
-    const itemIds = (db.prepare(
-      "SELECT item_id FROM feed_items WHERE project_id = ? AND source_id = ? ORDER BY item_id",
-    ).all(projectId, sourceId) as Array<{ item_id: string }>).map((row) => row.item_id);
+    const itemIds = (db.all("SELECT item_id FROM feed_items WHERE project_id = ? AND source_id = ? ORDER BY item_id", projectId, sourceId) as Array<{ item_id: string }>).map((row) => row.item_id);
     if (itemIds.length === 0) return [];
     return db.transaction(() => {
       const at = this.records.now().toISOString();
@@ -151,8 +149,7 @@ export class FeedDispositions {
         this.records.goalLinks.remove(projectId, itemId);
         this.attention.commands.deleteSubject(projectId, "feed_item", itemId);
       }
-      db.prepare("DELETE FROM feed_items WHERE project_id = ? AND source_id = ?")
-        .run(projectId, sourceId);
+      db.run("DELETE FROM feed_items WHERE project_id = ? AND source_id = ?", projectId, sourceId);
       for (const itemId of itemIds) {
         this.records.appendEvent(
           projectId,
@@ -165,7 +162,7 @@ export class FeedDispositions {
         );
       }
       return itemIds;
-    }).immediate();
+    });
   }
 
   private openManualAttention(projectId: string, itemId: string): void {

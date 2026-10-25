@@ -7,7 +7,7 @@ import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contra
 import type { IntegrationProviderPort } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { FEED_SOURCE_ACTIONS, createFeedSourceHandlers, feedQueryActions, feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
-import { SignalsModule } from "@molis-ai/molis-work-module-signals";
+import { fromBetterSqlite, SignalsModule } from "@molis-ai/molis-work-plugin-feed/store";
 import { DEMO_PROJECT_ID, seedDemoBoard, LocalProjectDatabase, createLocalFeedSourceService, createLocalFeedApplication, createLocalFeedConnectorSync, listFeedSourceCatalog } from "@molis-ai/molis-work-app-local-host";
 import { accountSourceRecord } from "./fixtures/feed-account-source.js";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
@@ -216,7 +216,7 @@ for (const mode of ["revoked", "paused", "cancelled", "disconnected", "revoked-p
     const account = withConnectorConnections(home, rows => rows.createToken({ serviceId: "github", displayName: "Fixture account", token: "fixture-account-token" }));
     const source = feed.upsertSource(accountSourceRecord("github", { status: "active", credential_ref: account.credential_ref, config: { connection_id: account.connection_id } }));
     if (mode === "scheduled-revoked") sources.configureSchedule(source.source_id, { mode: "interval", enabled: true, interval_minutes: 5 });
-    const signals = new SignalsModule(store.db), actions = new ActionService();
+    const signals = new SignalsModule(fromBetterSqlite(store.db)), actions = new ActionService();
     const dispose = actions.registerProvider({ provider: { provider_id: "io.molis.work.feed", title: "Feed", kind: "plugin", project_id: DEMO_PROJECT_ID }, definitions: FEED_SOURCE_ACTIONS,
       handlers: createFeedSourceHandlers(DEMO_PROJECT_ID, { feed: () => feed, sources: () => sources, connectorSync: () => connectorSync }) });
     const context: ActionCallContext = { ...caller, validate_authority: () => { if (!allowed) throw new ActionError("actions.revoked", "Revoked"); } };

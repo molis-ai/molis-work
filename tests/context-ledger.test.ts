@@ -5,7 +5,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import type { ContextAccess, ContextLedgerApi, ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
-import { FeedModule } from "@molis-ai/molis-work-module-feed";
+import { fromBetterSqlite, FeedModule } from "@molis-ai/molis-work-plugin-feed/store";
 import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
 
 const access: ContextAccess = { actor_id: "alice", scope: { kind: "personal", id: "project-a" } };
@@ -78,7 +78,7 @@ function feedHarness() {
   let fail = false;
   const attention = new AttentionModule(db, { exists: (projectId, _type, itemId) => feed.query.exists(projectId, itemId) });
   const open = (api: ContextLedgerApi = ledger) => {
-    feed = new FeedModule(db, attention, { ledger: api, eventSink: () => { if (fail) throw new Error("event failed"); } });
+    feed = new FeedModule(fromBetterSqlite(db), attention, { ledger: api, eventSink: () => { if (fail) throw new Error("event failed"); } });
     return feed;
   };
   const ingest = (id: string) => feed.commands.ingest({ project_id: "project-a", source_id: "source-a",

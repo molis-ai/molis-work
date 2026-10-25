@@ -73,9 +73,6 @@ importers:
       '@molis-ai/molis-work-module-context-ledger':
         specifier: workspace:*
         version: link:modules/context-ledger
-      '@molis-ai/molis-work-module-feed':
-        specifier: workspace:*
-        version: link:modules/feed
       '@molis-ai/molis-work-module-functions':
         specifier: workspace:*
         version: link:modules/functions
@@ -94,12 +91,6 @@ importers:
       '@molis-ai/molis-work-module-shelf':
         specifier: workspace:*
         version: link:modules/shelf
-      '@molis-ai/molis-work-module-signals':
-        specifier: workspace:*
-        version: link:modules/signals
-      '@molis-ai/molis-work-module-sources':
-        specifier: workspace:*
-        version: link:modules/sources
       '@molis-ai/molis-work-plugin-alchemist':
         specifier: workspace:*
         version: link:plugins/native/alchemist
@@ -193,9 +184,6 @@ importers:
       '@molis-ai/molis-work-service-knowledge':
         specifier: workspace:*
         version: link:horizontal/knowledge
-      '@molis-ai/molis-work-service-listener-host':
-        specifier: workspace:*
-        version: link:horizontal/listener-host
       '@molis-ai/molis-work-service-memory':
         specifier: workspace:*
         version: link:horizontal/memory
@@ -365,9 +353,6 @@ importers:
       '@molis-ai/molis-work-module-context-ledger':
         specifier: workspace:*
         version: link:../../modules/context-ledger
-      '@molis-ai/molis-work-module-feed':
-        specifier: workspace:*
-        version: link:../../modules/feed
       '@molis-ai/molis-work-module-functions':
         specifier: workspace:*
         version: link:../../modules/functions
@@ -386,12 +371,6 @@ importers:
       '@molis-ai/molis-work-module-shelf':
         specifier: workspace:*
         version: link:../../modules/shelf
-      '@molis-ai/molis-work-module-signals':
-        specifier: workspace:*
-        version: link:../../modules/signals
-      '@molis-ai/molis-work-module-sources':
-        specifier: workspace:*
-        version: link:../../modules/sources
       '@molis-ai/molis-work-plugin-alchemist':
         specifier: workspace:*
         version: link:../../plugins/native/alchemist
@@ -485,9 +464,6 @@ importers:
       '@molis-ai/molis-work-service-knowledge':
         specifier: workspace:*
         version: link:../../horizontal/knowledge
-      '@molis-ai/molis-work-service-listener-host':
-        specifier: workspace:*
-        version: link:../../horizontal/listener-host
       '@molis-ai/molis-work-service-memory':
         specifier: workspace:*
         version: link:../../horizontal/memory
@@ -703,12 +679,6 @@ importers:
         specifier: workspace:*
         version: link:../../packages/contracts
 
-  horizontal/listener-host:
-    dependencies:
-      '@molis-ai/molis-work-contracts':
-        specifier: workspace:*
-        version: link:../../packages/contracts
-
   horizontal/memory:
     dependencies:
       '@molis-ai/molis-work-contracts':
@@ -772,15 +742,6 @@ importers:
         specifier: workspace:*
         version: link:../../packages/contracts
 
-  modules/feed:
-    dependencies:
-      '@molis-ai/molis-work-contracts':
-        specifier: workspace:*
-        version: link:../../packages/contracts
-      '@molis-ai/molis-work-storage':
-        specifier: workspace:*
-        version: link:../../packages/storage
-
   modules/functions:
     dependencies:
       '@molis-ai/molis-work-contracts':
@@ -832,18 +793,6 @@ importers:
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../packages/plugin-sdk
-
-  modules/signals:
-    dependencies:
-      '@molis-ai/molis-work-contracts':
-        specifier: workspace:*
-        version: link:../../packages/contracts
-
-  modules/sources:
-    dependencies:
-      '@molis-ai/molis-work-contracts':
-        specifier: workspace:*
-        version: link:../../packages/contracts
 
   packages/contracts: {}
 

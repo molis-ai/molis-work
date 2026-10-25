@@ -10,26 +10,15 @@ import { FeedGoalLinks } from "./goal-links.js";
 import { FeedIngest } from "./ingest.js";
 import { FeedRecords } from "./records.js";
 import { text, type Row } from "./rows.js";
-import { FEED_SCHEMA_SQL } from "./schema.js";
-import type { FeedModuleOptions, FeedSqliteDatabase } from "./types.js";
+import type { FeedSql } from "../sql.js";
+import type { FeedModuleOptions } from "./types.js";
 
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-module-feed",
-  packagePath: "modules/feed",
-  kind: "module",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/modules/feed",
-  migrationGoals: ["goal-reorg-f2", "goal-reorg-fd2"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["feed.query.v1", "feed.command.v1"],
-} as const;
-
-export type { FeedJournalEvent, FeedModuleOptions, FeedSqliteDatabase } from "./types.js";
+export type { FeedJournalEvent, FeedModuleOptions } from "./types.js";
 export { FEED_SCHEMA_SQL } from "./schema.js";
 
 /** The evidence bodies the Feed materials in this database point at (`content_ref`), each once. */
-export function listFeedMaterialContentRefs(db: Pick<FeedSqliteDatabase, "prepare">): string[] {
-  return (db.prepare("SELECT DISTINCT content_ref FROM feed_materials WHERE content_ref IS NOT NULL").all() as Row[])
+export function listFeedMaterialContentRefs(db: Pick<FeedSql, "all">): string[] {
+  return (db.all("SELECT DISTINCT content_ref FROM feed_materials WHERE content_ref IS NOT NULL") as Row[])
     .map((row) => text(row.content_ref));
 }
 
@@ -38,8 +27,7 @@ export class FeedModule implements FeedApi {
   readonly commands: FeedApi["commands"];
   readonly events: FeedApi["events"];
 
-  constructor(db: FeedSqliteDatabase, attention: AttentionApi, options: FeedModuleOptions) {
-    db.exec(FEED_SCHEMA_SQL);
+  constructor(db: FeedSql, attention: AttentionApi, options: FeedModuleOptions) {
     const records = new FeedRecords(db, new FeedGoalLinks(options.ledger), options);
     const ingest = new FeedIngest(records, attention);
     const dispositions = new FeedDispositions(records, attention);
@@ -66,5 +54,3 @@ export class FeedModule implements FeedApi {
     this.events = { list: (projectId: string, itemId?: string) => records.listEvents(projectId, itemId) };
   }
 }
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;

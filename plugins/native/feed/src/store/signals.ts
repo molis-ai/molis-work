@@ -1,3 +1,4 @@
+import type { FeedSql } from "./sql.js";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createHash, randomUUID } from "node:crypto";
 
@@ -9,29 +10,7 @@ import type {
   SignalsApi,
 } from "@molis-ai/molis-work-contracts/modules/signals";
 
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-module-signals",
-  packagePath: "modules/signals",
-  kind: "module",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/modules/signals",
-  migrationGoals: ["goal-reorg-f2", "goal-reorg-fd1"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["signals.query.v1", "signals.command.v1"],
-} as const;
-
 type Row = Record<string, unknown>;
-type Statement = {
-  all(...params: unknown[]): unknown[];
-  get(...params: unknown[]): unknown;
-  run(...params: unknown[]): { changes: number | bigint };
-};
-export interface SignalsSqliteDatabase {
-  exec(sql: string): void;
-  prepare(sql: string): Statement;
-  transaction<T>(operation: () => T): (() => T) & { immediate(): T };
-}
-
 const signalErrors = defineErrorCodes("signals", { not_found: "invalid", invalid_draft: "invalid" });
 
 /** The signal tables, as one current schema; the host composes them into the project database baseline. */
@@ -101,28 +80,20 @@ export class SignalsModule implements SignalsApi {
   };
 
   constructor(
-    private readonly db: SignalsSqliteDatabase,
+    private readonly db: FeedSql,
     private readonly now: () => Date = () => new Date(),
-  ) {
-    db.exec(SIGNALS_SCHEMA_SQL);
-  }
+  ) {}
 
   private get(projectId: string, signalId: string): SignalRecord {
-    const row = this.db.prepare(
-      "SELECT * FROM signals WHERE project_id = ? AND signal_id = ?",
-    ).get(projectId, signalId) as Row | undefined;
+    const row = this.db.get("SELECT * FROM signals WHERE project_id = ? AND signal_id = ?", projectId, signalId) as Row | undefined;
     if (!row) throw signalErrors.not_found("找不到这个 Signal");
     return mapSignal(row);
   }
 
   private list(projectId: string, sourceId?: string): SignalRecord[] {
     const rows = sourceId == null
-      ? this.db.prepare(
-          "SELECT * FROM signals WHERE project_id = ? ORDER BY observed_at DESC, signal_id",
-        ).all(projectId)
-      : this.db.prepare(
-          "SELECT * FROM signals WHERE project_id = ? AND source_id = ? ORDER BY observed_at DESC, signal_id",
-        ).all(projectId, sourceId);
+      ? this.db.all("SELECT * FROM signals WHERE project_id = ? ORDER BY observed_at DESC, signal_id", projectId)
+      : this.db.all("SELECT * FROM signals WHERE project_id = ? AND source_id = ? ORDER BY observed_at DESC, signal_id", projectId, sourceId);
     return (rows as Row[]).map(mapSignal);
   }
 
@@ -138,10 +109,10 @@ export class SignalsModule implements SignalsApi {
       provenance: normalized.provenance,
     }));
     return this.db.transaction(() => {
-      const existingRow = this.db.prepare(`
+      const existingRow = this.db.get(`
         SELECT * FROM signals
         WHERE project_id = ? AND source_id = ? AND provider_dedupe_id = ?
-      `).get(normalized.project_id, normalized.source_id, normalized.provider_dedupe_id) as Row | undefined;
+      `, normalized.project_id, normalized.source_id, normalized.provider_dedupe_id) as Row | undefined;
       const acceptedAt = this.now().toISOString();
       if (existingRow) {
         const existing = mapSignal(existingRow);
@@ -149,29 +120,14 @@ export class SignalsModule implements SignalsApi {
           return { signal: existing, created: false, changed: false, deduped: true };
         }
         const revision = existing.revision + 1;
-        this.db.prepare(`
+        this.db.run(`
           UPDATE signals SET
             kind = ?, occurred_at = ?, observed_at = ?, payload_json = ?,
             content_refs_json = ?, raw_event_id = ?, adapter_plugin_id = ?,
             adapter_version = ?, provenance_json = ?, revision = ?,
             content_hash = ?, updated_at = ?
           WHERE project_id = ? AND signal_id = ?
-        `).run(
-          normalized.kind,
-          normalized.occurred_at,
-          normalized.observed_at,
-          JSON.stringify(normalized.payload),
-          JSON.stringify(normalized.content_refs ?? []),
-          normalized.raw_event_id,
-          normalized.adapter.plugin_id,
-          normalized.adapter.version,
-          JSON.stringify(normalized.provenance),
-          revision,
-          contentHash,
-          acceptedAt,
-          normalized.project_id,
-          existing.signal_id,
-        );
+        `, normalized.kind, normalized.occurred_at, normalized.observed_at, JSON.stringify(normalized.payload), JSON.stringify(normalized.content_refs ?? []), normalized.raw_event_id, normalized.adapter.plugin_id, normalized.adapter.version, JSON.stringify(normalized.provenance), revision, contentHash, acceptedAt, normalized.project_id, existing.signal_id);
         this.insertRevision(existing.signal_id, revision, contentHash, normalized, acceptedAt);
         this.insertEvent(existing.signal_id, normalized.source_id, revision, "signal.changed", acceptedAt, normalized.project_id);
         return {
@@ -183,7 +139,7 @@ export class SignalsModule implements SignalsApi {
       }
 
       const signalId = `signal-${sha256(`${normalized.project_id}\u0000${normalized.source_id}\u0000${normalized.provider_dedupe_id}`).slice(0, 32)}`;
-      this.db.prepare(`
+      this.db.run(`
         INSERT INTO signals (
           project_id, signal_id, source_id, provider_dedupe_id, kind,
           occurred_at, observed_at, payload_json, content_refs_json,
@@ -191,24 +147,7 @@ export class SignalsModule implements SignalsApi {
           revision, content_hash, validation, superseded_by, withdrawn_at,
           created_at, updated_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, 'accepted', NULL, NULL, ?, ?)
-      `).run(
-        normalized.project_id,
-        signalId,
-        normalized.source_id,
-        normalized.provider_dedupe_id,
-        normalized.kind,
-        normalized.occurred_at,
-        normalized.observed_at,
-        JSON.stringify(normalized.payload),
-        JSON.stringify(normalized.content_refs ?? []),
-        normalized.raw_event_id,
-        normalized.adapter.plugin_id,
-        normalized.adapter.version,
-        JSON.stringify(normalized.provenance),
-        contentHash,
-        acceptedAt,
-        acceptedAt,
-      );
+      `, normalized.project_id, signalId, normalized.source_id, normalized.provider_dedupe_id, normalized.kind, normalized.occurred_at, normalized.observed_at, JSON.stringify(normalized.payload), JSON.stringify(normalized.content_refs ?? []), normalized.raw_event_id, normalized.adapter.plugin_id, normalized.adapter.version, JSON.stringify(normalized.provenance), contentHash, acceptedAt, acceptedAt);
       this.insertRevision(signalId, 1, contentHash, normalized, acceptedAt);
       this.insertEvent(signalId, normalized.source_id, 1, "signal.accepted", acceptedAt, normalized.project_id);
       return {
@@ -217,7 +156,7 @@ export class SignalsModule implements SignalsApi {
         changed: false,
         deduped: false,
       };
-    }).immediate();
+    });
   }
 
   private insertRevision(
@@ -227,28 +166,17 @@ export class SignalsModule implements SignalsApi {
     draft: SignalDraft,
     acceptedAt: string,
   ): void {
-    this.db.prepare(`
+    this.db.run(`
       INSERT INTO signal_revisions (
         project_id, signal_id, revision, content_hash, draft_json, accepted_at
       ) VALUES (?, ?, ?, ?, ?, ?)
-    `).run(
-      draft.project_id,
-      signalId,
-      revision,
-      contentHash,
-      JSON.stringify(draft),
-      acceptedAt,
-    );
+    `, draft.project_id, signalId, revision, contentHash, JSON.stringify(draft), acceptedAt);
   }
 
   private listEvents(projectId: string, sourceId?: string): SignalEvent[] {
     const rows = sourceId == null
-      ? this.db.prepare(
-          "SELECT * FROM signal_events WHERE project_id = ? ORDER BY at, event_id",
-        ).all(projectId)
-      : this.db.prepare(
-          "SELECT * FROM signal_events WHERE project_id = ? AND source_id = ? ORDER BY at, event_id",
-        ).all(projectId, sourceId);
+      ? this.db.all("SELECT * FROM signal_events WHERE project_id = ? ORDER BY at, event_id", projectId)
+      : this.db.all("SELECT * FROM signal_events WHERE project_id = ? AND source_id = ? ORDER BY at, event_id", projectId, sourceId);
     return (rows as Row[]).map((row) => ({
       event_id: text(row.event_id),
       project_id: text(row.project_id),
@@ -268,19 +196,11 @@ export class SignalsModule implements SignalsApi {
     at: string,
     projectId: string,
   ): void {
-    this.db.prepare(`
+    this.db.run(`
       INSERT INTO signal_events (
         event_id, project_id, signal_id, source_id, type, revision, at
       ) VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      `signal-event-${randomUUID()}`,
-      projectId,
-      signalId,
-      sourceId,
-      type,
-      revision,
-      at,
-    );
+    `, `signal-event-${randomUUID()}`, projectId, signalId, sourceId, type, revision, at);
   }
 }
 
@@ -367,5 +287,3 @@ function json<T>(value: unknown, fallback: T): T {
     return fallback;
   }
 }
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;

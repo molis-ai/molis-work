@@ -3,15 +3,14 @@ import { createHash } from "node:crypto";
 import { LocalSqliteJournal, resolveMolisWorkHome, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
 import { ConnectorHost } from "@molis-ai/molis-work-service-connector-host";
-import { ListenerHost } from "@molis-ai/molis-work-service-listener-host";
-import { SignalsModule } from "@molis-ai/molis-work-module-signals";
+import { ListenerHost, SignalsModule } from "@molis-ai/molis-work-plugin-feed/store";
 import { gmailAccountPresentation } from "@molis-ai/molis-work-integration-gmail";
 import { githubAccountPresentation } from "@molis-ai/molis-work-integration-github";
 import { catalogAccountPresentation } from "@molis-ai/molis-work-integration-catalog";
 import { pluginErrors, type IntegrationProviderItem } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { IntegrationBinding } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { FeedConnectorSync, integrationKeyOf, type FeedApplication, type FeedSourceRecord } from "@molis-ai/molis-work-plugin-feed";
-import { createLocalFeedApplication } from "./feed-application.js";
+import { createLocalFeedApplication, feedSql } from "./feed-application.js";
 import { homeIntegrationRegistry } from "./builtin-integrations.js";
 import type { IntegrationProviderFactory } from "./integration-providers.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
@@ -45,8 +44,9 @@ export function createLocalFeedConnectorSync(
       const connectionId = `source:${source.source_id}`;
       connector.registerDriver(integration.connector_driver);
       connector.connect({ connection_id: connectionId, driver_id: integration.connector_driver.driver_id });
-      const signals = new SignalsModule(db);
-      const listener = new ListenerHost(db, connector, signals.commands, {
+      const sql = feedSql(db);
+      const signals = new SignalsModule(sql);
+      const listener = new ListenerHost(sql, connector, signals.commands, {
         afterSignalAccepted(event, receipt) {
           return afterAccepted(event.payload as unknown as IntegrationProviderItem, receipt.signal, event.occurred_at);
         },

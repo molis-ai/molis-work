@@ -2,11 +2,11 @@ import { LOCAL_JOURNAL_SCHEMA_SQL, LOCAL_OPAQUE_BLOB_SCHEMA_SQL, type SqliteBase
 import { PROJECT_ROOT_SCHEMA_SQL } from "@molis-ai/molis-work-module-projects";
 import { ARTIFACTS_SCHEMA_SQL, PROCESS_ITEMS_SCHEMA_SQL } from "@molis-ai/molis-work-module-artifacts";
 import { CONTEXT_LEDGER_SCHEMA } from "@molis-ai/molis-work-module-context-ledger";
-import { SOURCES_SCHEMA_SQL } from "@molis-ai/molis-work-module-sources";
-import { SIGNALS_SCHEMA_SQL } from "@molis-ai/molis-work-module-signals";
+import { SOURCES_SCHEMA_SQL } from "@molis-ai/molis-work-plugin-feed/store";
+import { SIGNALS_SCHEMA_SQL } from "@molis-ai/molis-work-plugin-feed/store";
 import { ATTENTION_SCHEMA_SQL } from "@molis-ai/molis-work-module-attention-resumption";
-import { FEED_SCHEMA_SQL } from "@molis-ai/molis-work-module-feed";
-import { LISTENER_HOST_SCHEMA_SQL } from "@molis-ai/molis-work-service-listener-host";
+import { FEED_SCHEMA_SQL } from "@molis-ai/molis-work-plugin-feed/store";
+import { LISTENER_HOST_SCHEMA_SQL } from "@molis-ai/molis-work-plugin-feed/store";
 import { SCHEDULER_SCHEMA_SQL } from "@molis-ai/molis-work-service-scheduler";
 import {
   PLUGIN_EVENTS_SCHEMA_SQL,

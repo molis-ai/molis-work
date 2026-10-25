@@ -8,7 +8,7 @@ import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { callAttention } from "@molis-ai/molis-work-plugin-feed";
 
 import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
-import { FeedModule } from "@molis-ai/molis-work-module-feed";
+import { fromBetterSqlite, FeedModule } from "@molis-ai/molis-work-plugin-feed/store";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 
 import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
@@ -23,7 +23,7 @@ function feedModules(store: LocalProjectDatabase): {
     exists: (projectId, subjectType, subjectId) =>
       subjectType === "feed_item" && feed.query.exists(projectId, subjectId),
   });
-  feed = new FeedModule(store.db, attention, {
+  feed = new FeedModule(fromBetterSqlite(store.db), attention, {
     ledger: createContextLedger(store.db, { authorize: (access) => access.scope.kind === "personal" }),
   });
   return { attention, feed };

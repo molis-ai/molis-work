@@ -17,25 +17,23 @@ import {
   AttentionModule,
 } from "@molis-ai/molis-work-module-attention-resumption";
 import {
-  FeedModule,
-} from "@molis-ai/molis-work-module-feed";
-
-import { SourcesModule } from "@molis-ai/molis-work-module-sources";
-import {
   deleteListenerSourceState,
+  FeedModule,
+  fromBetterSqlite,
   getListenerRunByOperationId,
   listListenerRuns,
-  LISTENER_HOST_SCHEMA_SQL,
   readListenerCheckpoint,
   recoverInterruptedListenerRuns,
   saveListenerRun,
+  SourcesModule,
   writeListenerCursor,
-} from "@molis-ai/molis-work-service-listener-host";
+  type FeedSql,
+} from "@molis-ai/molis-work-plugin-feed/store";
 import { FEED_PLUGIN_ID, FeedApplication, FeedOutRuleStore, type FeedApplicationPorts, type FeedArtifactProducer } from "@molis-ai/molis-work-plugin-feed";
 import { projectVersionStores, type ArtifactsSqliteDatabase } from "@molis-ai/molis-work-module-artifacts";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createFeedHistoryRelease } from "./feed-history-release.js";
-import { projectPluginDatabaseRefusal } from "./project-plugin-databases.js";
+import { assertProjectPluginDatabase, projectPluginDatabaseRefusal } from "./project-plugin-databases.js";
 export interface LocalFeedApplicationOptions {
   artifacts?: FeedArtifactProducer;
   captureJudgment?: FeedApplicationPorts["captureJudgment"];
@@ -43,15 +41,29 @@ export interface LocalFeedApplicationOptions {
   inboxJudgment?: FeedApplicationPorts["inboxJudgment"];
 }
 
+/**
+ * What Feed's tables are read and written through: this library's connection, and Feed's declaration with it (FI-5). The tables are
+ * the declaration's, so when the library refused it every path to them throws that refusal rather than "no such table", and only
+ * Feed stops.
+ */
+export function feedSql(db: SqliteDatabase): FeedSql {
+  const sql = fromBetterSqlite(db);
+  return {
+    get: (statement, ...params) => (assertProjectPluginDatabase(db, FEED_PLUGIN_ID), sql.get(statement, ...params)),
+    all: (statement, ...params) => (assertProjectPluginDatabase(db, FEED_PLUGIN_ID), sql.all(statement, ...params)),
+    run: (statement, ...params) => (assertProjectPluginDatabase(db, FEED_PLUGIN_ID), sql.run(statement, ...params)),
+    transaction: operation => (assertProjectPluginDatabase(db, FEED_PLUGIN_ID), sql.transaction(operation)),
+  };
+}
+
 /** Assemble every Feed operation against the same local connection. */
 export function createLocalFeedApplication(
   db: SqliteDatabase,
   options: LocalFeedApplicationOptions = {},
 ): FeedApplication {
-  const sources = new SourcesModule(db);
+  const sql = feedSql(db);
+  const sources = new SourcesModule(sql);
   const journal = new LocalSqliteJournal(db);
-  // Listener Host's storage is plain functions, so it has no constructor to create its tables; the other owners do.
-  db.exec(LISTENER_HOST_SCHEMA_SQL);
   const goals = createGoalReadServices(db, journal).query;
   let feedItems!: FeedModule;
   let inboxCreated: (entry: { project_id: string; entry_id: string }) => void = () => {};
@@ -75,7 +87,7 @@ export function createLocalFeedApplication(
       if (event.type === "inbox_entry.created") inboxCreated({ project_id: event.project_id, entry_id: event.entry_id });
     },
   });
-  feedItems = new FeedModule(db, attention, {
+  feedItems = new FeedModule(sql, attention, {
     ledger: createContextLedger(db, { authorize: (access) => access.scope.kind === "personal" && access.actor_id === "module:feed" }),
     eventSink: (event) => appendEvent(
       event.project_id,
@@ -125,13 +137,13 @@ export function createLocalFeedApplication(
     homeJudgment: options.homeJudgment,
     transaction: (operation) => db.transaction(operation).immediate(),
     listener: {
-      listRuns: (projectId) => listListenerRuns(db, projectId),
-      getRunByOperationId: (projectId, operationId) => getListenerRunByOperationId(db, projectId, operationId),
-      saveRun: (run) => saveListenerRun(db, run),
-      recoverInterruptedRuns: (projectId) => recoverInterruptedListenerRuns(db, projectId),
-      checkpoint: (projectId, sourceId, at) => readListenerCheckpoint(db, projectId, sourceId, at),
-      writeCursor: (projectId, sourceId, cursor, at) => writeListenerCursor(db, projectId, sourceId, cursor, at),
-      deleteSourceState: (projectId, sourceId) => deleteListenerSourceState(db, projectId, sourceId),
+      listRuns: (projectId) => listListenerRuns(sql, projectId),
+      getRunByOperationId: (projectId, operationId) => getListenerRunByOperationId(sql, projectId, operationId),
+      saveRun: (run) => saveListenerRun(sql, run),
+      recoverInterruptedRuns: (projectId) => recoverInterruptedListenerRuns(sql, projectId),
+      checkpoint: (projectId, sourceId, at) => readListenerCheckpoint(sql, projectId, sourceId, at),
+      writeCursor: (projectId, sourceId, cursor, at) => writeListenerCursor(sql, projectId, sourceId, cursor, at),
+      deleteSourceState: (projectId, sourceId) => deleteListenerSourceState(sql, projectId, sourceId),
     },
   });
 }

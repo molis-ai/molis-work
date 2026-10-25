@@ -1,3 +1,4 @@
+import type { FeedSql } from "./sql.js";
 import { sourceDeletedAt, sourceErrors } from "@molis-ai/molis-work-contracts/modules/sources";
 import { randomUUID } from "node:crypto";
 
@@ -11,30 +12,7 @@ import type {
   SourceSyncKind,
 } from "@molis-ai/molis-work-contracts/modules/sources";
 
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-module-sources",
-  packagePath: "modules/sources",
-  kind: "module",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/modules/sources",
-  migrationGoals: ["goal-reorg-f2", "goal-reorg-fd1"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["sources.query.v1", "sources.command.v1"],
-} as const;
-
 type Row = Record<string, unknown>;
-type Statement = {
-  all(...params: unknown[]): unknown[];
-  get(...params: unknown[]): unknown;
-  run(...params: unknown[]): { changes: number | bigint };
-};
-export interface SourcesSqliteDatabase {
-  exec(sql: string): void;
-  prepare(sql: string): Statement;
-  pragma(sql: string): unknown;
-  transaction<T>(operation: () => T): (() => T) & { immediate(): T };
-}
-
 const FEED_SOURCES_COLUMNS = `
       project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
       source_id TEXT NOT NULL,
@@ -80,10 +58,6 @@ export const SOURCES_SCHEMA_SQL = `
       ON source_events(project_id, source_id, at, event_id);
 `;
 
-function hasStoredSources(db: Pick<SourcesSqliteDatabase, "prepare">): boolean {
-  return Boolean(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'feed_sources'").get());
-}
-
 function storedSourceConfig(value: unknown): Record<string, unknown> {
   const parsed = parseJson<unknown>(value, {});
   return parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)
@@ -91,15 +65,14 @@ function storedSourceConfig(value: unknown): Record<string, unknown> {
 }
 
 /** Connection availability changes Source state through its normal command/event path. */
-export function refreshSourceConnectionState(db: SourcesSqliteDatabase, input: {
+export function refreshSourceConnectionState(db: FeedSql, input: {
   connection_id: string; available: boolean; at?: string;
 }): number {
-  if (!hasStoredSources(db)) return 0;
   const sources = new SourcesModule(db);
   const at = input.at ?? new Date().toISOString();
   return db.transaction(() => {
-    const rows = db.prepare(`SELECT project_id, source_id, enabled, config_json FROM feed_sources
-      WHERE sync_kind IN ('github', 'gmail', 'connector')`).all() as Row[];
+    const rows = db.all(`SELECT project_id, source_id, enabled, config_json FROM feed_sources
+      WHERE sync_kind IN ('github', 'gmail', 'connector')`) as Row[];
     let changed = 0;
     for (const row of rows) {
       const config = storedSourceConfig(row.config_json);
@@ -114,7 +87,7 @@ export function refreshSourceConnectionState(db: SourcesSqliteDatabase, input: {
       changed++;
     }
     return changed;
-  }).immediate();
+  });
 }
 
 export class SourcesModule implements SourcesApi {
@@ -145,20 +118,14 @@ export class SourcesModule implements SourcesApi {
     list: (projectId: string, sourceId?: string) => this.listEvents(projectId, sourceId),
   };
 
-  constructor(private readonly db: SourcesSqliteDatabase) {
-    db.exec(SOURCES_SCHEMA_SQL);
-  }
+  constructor(private readonly db: FeedSql) {}
 
   private list(projectId: string): SourceRecord[] {
-    return (this.db.prepare(
-      "SELECT * FROM feed_sources WHERE project_id = ? ORDER BY updated_at DESC, name COLLATE NOCASE, source_id",
-    ).all(projectId) as Row[]).map(mapSource).filter((source) => sourceDeletedAt(source) === null);
+    return (this.db.all("SELECT * FROM feed_sources WHERE project_id = ? ORDER BY updated_at DESC, name COLLATE NOCASE, source_id", projectId) as Row[]).map(mapSource).filter((source) => sourceDeletedAt(source) === null);
   }
 
   private get(projectId: string, sourceId: string): SourceRecord {
-    const row = this.db.prepare(
-      "SELECT * FROM feed_sources WHERE project_id = ? AND source_id = ?",
-    ).get(projectId, sourceId) as Row | undefined;
+    const row = this.db.get("SELECT * FROM feed_sources WHERE project_id = ? AND source_id = ?", projectId, sourceId) as Row | undefined;
     if (!row) throw sourceErrors.not_found("找不到这个来源");
     return mapSource(row);
   }
@@ -169,9 +136,7 @@ export class SourcesModule implements SourcesApi {
     definitionId: string | null,
     configFingerprint?: string,
   ): SourceRecord | null {
-    const rows = this.db.prepare(
-      "SELECT * FROM feed_sources WHERE project_id = ? AND sync_kind = ?",
-    ).all(projectId, syncKind) as Row[];
+    const rows = this.db.all("SELECT * FROM feed_sources WHERE project_id = ? AND sync_kind = ?", projectId, syncKind) as Row[];
     return rows.map(mapSource).filter((source) => sourceDeletedAt(source) === null).find((source) => {
       if (definitionId !== null && source.definition_id !== definitionId) return false;
       return configFingerprint == null || source.config.config_fingerprint === configFingerprint;
@@ -184,11 +149,9 @@ export class SourcesModule implements SourcesApi {
   ): SourceRecord {
     assertSchedule(source.schedule);
     return this.db.transaction(() => {
-      const current = this.db.prepare(
-        "SELECT * FROM feed_sources WHERE project_id = ? AND source_id = ?",
-      ).get(source.project_id, source.source_id) as Row | undefined;
+      const current = this.db.get("SELECT * FROM feed_sources WHERE project_id = ? AND source_id = ?", source.project_id, source.source_id) as Row | undefined;
       if (current) assertStatusTransition(mapSource(current).status, source.status);
-      this.db.prepare(`
+      this.db.run(`
       INSERT INTO feed_sources (
         project_id, source_id, kind, definition_id, sync_kind, name, description,
         status, enabled, item_count, origin, config_json, schedule_json,
@@ -212,27 +175,7 @@ export class SourcesModule implements SourcesApi {
         last_outcome = excluded.last_outcome,
         last_error_code = excluded.last_error_code,
         updated_at = excluded.updated_at
-      `).run(
-        source.project_id,
-        source.source_id,
-        source.kind,
-        source.definition_id,
-        source.sync_kind,
-        source.name,
-        source.description,
-        source.status,
-        source.enabled ? 1 : 0,
-        "molis_work",
-        JSON.stringify(source.config),
-        JSON.stringify(source.schedule),
-        source.connection_ref,
-        source.account_label,
-        source.last_sync_at,
-        source.last_outcome,
-        source.last_error_code,
-        source.imported_at,
-        source.updated_at,
-      );
+      `, source.project_id, source.source_id, source.kind, source.definition_id, source.sync_kind, source.name, source.description, source.status, source.enabled ? 1 : 0, "molis_work", JSON.stringify(source.config), JSON.stringify(source.schedule), source.connection_ref, source.account_label, source.last_sync_at, source.last_outcome, source.last_error_code, source.imported_at, source.updated_at);
       const eventType = forcedEventType
         ?? (current == null
           ? "source.created"
@@ -241,7 +184,7 @@ export class SourcesModule implements SourcesApi {
             : "source.updated");
       this.appendEvent(source, eventType);
       return this.get(source.project_id, source.source_id);
-    }).immediate();
+    });
   }
 
   private setEnabled(projectId: string, sourceId: string, enabled: boolean, at?: string): SourceRecord {
@@ -284,12 +227,8 @@ export class SourcesModule implements SourcesApi {
 
   private listEvents(projectId: string, sourceId?: string): SourceEvent[] {
     const rows = sourceId == null
-      ? this.db.prepare(
-          "SELECT * FROM source_events WHERE project_id = ? ORDER BY at, event_id",
-        ).all(projectId)
-      : this.db.prepare(
-          "SELECT * FROM source_events WHERE project_id = ? AND source_id = ? ORDER BY at, event_id",
-        ).all(projectId, sourceId);
+      ? this.db.all("SELECT * FROM source_events WHERE project_id = ? ORDER BY at, event_id", projectId)
+      : this.db.all("SELECT * FROM source_events WHERE project_id = ? AND source_id = ? ORDER BY at, event_id", projectId, sourceId);
     return (rows as Row[]).map((row) => ({
       event_id: asText(row.event_id),
       project_id: asText(row.project_id),
@@ -301,17 +240,10 @@ export class SourcesModule implements SourcesApi {
   }
 
   private appendEvent(source: SourceRecord, type: SourceEvent["type"]): void {
-    this.db.prepare(`
+    this.db.run(`
       INSERT INTO source_events (event_id, project_id, source_id, type, payload_json, at)
       VALUES (?, ?, ?, ?, ?, ?)
-    `).run(
-      `source-event-${randomUUID()}`,
-      source.project_id,
-      source.source_id,
-      type,
-      JSON.stringify({ status: source.status, enabled: source.enabled }),
-      source.updated_at,
-    );
+    `, `source-event-${randomUUID()}`, source.project_id, source.source_id, type, JSON.stringify({ status: source.status, enabled: source.enabled }), source.updated_at);
   }
 }
 
@@ -387,5 +319,3 @@ function parseJson<T>(value: unknown, fallback: T): T {
     return fallback;
   }
 }
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;

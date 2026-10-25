@@ -234,7 +234,7 @@ function checkMigratedIntegrationOwnership(repositoryRoot) {
     errors.push(`${servicePath}: Feed must consume a Host-composed Listener backed by the Home's integration registry`);
   }
 
-  const listenerPath = "horizontal/listener-host/src/index.ts";
+  const listenerPath = "plugins/native/feed/src/store/listener.ts";
   const listener = fs.readFileSync(path.join(repositoryRoot, listenerPath), "utf8");
   if (/io\.molis\.work\.integration\.|\b(?:github|gmail|youtube)\b/iu.test(listener)) {
     errors.push(`${listenerPath}: Listener Host must remain Provider-neutral`);

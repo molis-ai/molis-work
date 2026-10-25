@@ -17,6 +17,10 @@
     "./registration": {
       "types": "./dist/registration.d.ts",
       "import": "./dist/registration.js"
+    },
+    "./store": {
+      "types": "./dist/store/index.d.ts",
+      "import": "./dist/store/index.js"
     }
   },
   "files": [

@@ -1,3 +1,4 @@
+import type { FeedSql } from "./sql.js";
 import { createHash } from "node:crypto";
 
 import type { SignalCommands, SignalReceipt } from "@molis-ai/molis-work-contracts/modules/signals";
@@ -14,29 +15,7 @@ import type {
   RawEventAdapter,
 } from "@molis-ai/molis-work-contracts/services/listener-host";
 
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-service-listener-host",
-  packagePath: "horizontal/listener-host",
-  kind: "horizontal",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/services/listener-host",
-  migrationGoals: ["goal-reorg-f2", "goal-reorg-fd1"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["listener.host.v1"],
-} as const;
-
 type Row = Record<string, unknown>;
-type Statement = {
-  all(...params: unknown[]): unknown[];
-  get(...params: unknown[]): unknown;
-  run(...params: unknown[]): { changes: number | bigint };
-};
-export interface ListenerSqliteDatabase {
-  exec(sql: string): void;
-  prepare(sql: string): Statement;
-  transaction<T>(operation: () => T): (() => T) & { immediate(): T };
-}
-
 import { listenerErrors } from "@molis-ai/molis-work-contracts/services/listener-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 
@@ -110,82 +89,79 @@ export const LISTENER_HOST_SCHEMA_SQL = `
 `;
 
 export function readListenerCheckpoint(
-  db: ListenerSqliteDatabase,
+  db: FeedSql,
   projectId: string,
   sourceId: string,
   at = new Date().toISOString(),
 ): ListenerCheckpoint {
   ensureCheckpointRow(db, projectId, sourceId, at);
-  const row = db.prepare(`
+  const row = db.get(`
     SELECT * FROM listener_instances WHERE project_id = ? AND source_id = ?
-  `).get(projectId, sourceId) as Row;
+  `, projectId, sourceId) as Row;
   return mapCheckpoint(row);
 }
 
 export function writeListenerCursor(
-  db: ListenerSqliteDatabase,
+  db: FeedSql,
   projectId: string,
   sourceId: string,
   cursor: unknown,
   at = new Date().toISOString(),
 ): ListenerCheckpoint {
   ensureCheckpointRow(db, projectId, sourceId, at);
-  db.prepare(`
+  db.run(`
     UPDATE listener_instances SET cursor_json = ?, updated_at = ?
     WHERE project_id = ? AND source_id = ?
-  `).run(JSON.stringify(cursor ?? {}), at, projectId, sourceId);
+  `, JSON.stringify(cursor ?? {}), at, projectId, sourceId);
   return readListenerCheckpoint(db, projectId, sourceId, at);
 }
 
 export function deleteListenerSourceState(
-  db: ListenerSqliteDatabase,
+  db: FeedSql,
   projectId: string,
   sourceId: string,
 ): void {
-  db.prepare("DELETE FROM listener_deliveries WHERE project_id = ? AND source_id = ?")
-    .run(projectId, sourceId);
-  db.prepare("DELETE FROM feed_source_runs WHERE project_id = ? AND source_id = ?")
-    .run(projectId, sourceId);
-  db.prepare("DELETE FROM listener_instances WHERE project_id = ? AND source_id = ?")
-    .run(projectId, sourceId);
+  db.run("DELETE FROM listener_deliveries WHERE project_id = ? AND source_id = ?", projectId, sourceId);
+  db.run("DELETE FROM feed_source_runs WHERE project_id = ? AND source_id = ?", projectId, sourceId);
+  db.run("DELETE FROM listener_instances WHERE project_id = ? AND source_id = ?", projectId, sourceId);
 }
 
 export function getListenerRunByOperationId(
-  db: ListenerSqliteDatabase,
+  db: FeedSql,
   projectId: string,
   operationId: string,
 ): ListenerRunRecord | null {
-  const row = db.prepare(`
+  const row = db.get(`
     SELECT * FROM feed_source_runs WHERE project_id = ? AND operation_id = ?
-  `).get(projectId, operationId) as Row | undefined;
+  `, projectId, operationId) as Row | undefined;
   return row ? mapRun(row) : null;
 }
 
 export function listListenerRuns(
-  db: ListenerSqliteDatabase,
+  db: FeedSql,
   projectId: string,
 ): ListenerRunRecord[] {
-  return (db.prepare(`
+  return (db.all(`
     SELECT * FROM feed_source_runs WHERE project_id = ? ORDER BY started_at DESC, run_id
-  `).all(projectId) as Row[]).map(mapRun);
+  `, projectId) as Row[]).map(mapRun);
 }
 
 /**
  * The connector receipts the run ledger holds, of every project in the database, parsed. A receipt that does not parse throws:
  * a caller that asks which evidence is still referenced must not count a receipt it could not read as holding nothing.
  */
-export function listListenerRunReceipts(db: Pick<ListenerSqliteDatabase, "prepare">): unknown[] {
-  return (db.prepare("SELECT receipt_json FROM feed_source_runs WHERE receipt_json IS NOT NULL").all() as Row[])
+export function listListenerRunReceipts(db: Pick<FeedSql, "all">): unknown[] {
+  return (db.all("SELECT receipt_json FROM feed_source_runs WHERE receipt_json IS NOT NULL") as Row[])
     .map((row) => JSON.parse(text(row.receipt_json)) as unknown);
 }
 
 export function saveListenerRun(
-  db: ListenerSqliteDatabase,
+  db: FeedSql,
   run: ListenerRunRecord,
 ): ListenerRunRecord {
   const current = getListenerRunByOperationId(db, run.project_id, run.operation_id);
   if (current) assertRunTransition(current.phase, run.phase);
-  db.prepare(`
+  db.run(`
     INSERT INTO feed_source_runs (
       project_id, run_id, operation_id, source_id, phase, outcome, empty,
       error_code, receipt_json, created_count, deduped_count, recovery_count,
@@ -202,43 +178,27 @@ export function saveListenerRun(
       recovery_count = excluded.recovery_count,
       completed_at = excluded.completed_at,
       updated_at = excluded.updated_at
-  `).run(
-    run.project_id,
-    run.run_id,
-    run.operation_id,
-    run.source_id,
-    run.phase,
-    run.outcome,
-    run.empty ? 1 : 0,
-    run.error_code,
-    run.connector_receipt == null ? null : JSON.stringify(run.connector_receipt),
-    run.created_count,
-    run.deduped_count,
-    run.recovery_count,
-    run.started_at,
-    run.completed_at,
-    run.updated_at,
-  );
+  `, run.project_id, run.run_id, run.operation_id, run.source_id, run.phase, run.outcome, run.empty ? 1 : 0, run.error_code, run.connector_receipt == null ? null : JSON.stringify(run.connector_receipt), run.created_count, run.deduped_count, run.recovery_count, run.started_at, run.completed_at, run.updated_at);
   return getListenerRunByOperationId(db, run.project_id, run.operation_id)!;
 }
 
 export function recoverInterruptedListenerRuns(
-  db: ListenerSqliteDatabase,
+  db: FeedSql,
   projectId: string,
   at = new Date().toISOString(),
 ): number {
-  const result = db.prepare(`
+  const result = db.run(`
     UPDATE feed_source_runs
     SET phase = 'interrupted', error_code = 'listener.process_interrupted', updated_at = ?
     WHERE project_id = ? AND phase = 'running'
-  `).run(at, projectId);
-  db.prepare(`
+  `, at, projectId);
+  db.run(`
     UPDATE listener_instances
     SET state = 'retry_wait', attempt = attempt + 1,
         last_error_code = 'listener.process_interrupted', lease_owner = NULL,
         lease_expires_at = NULL, updated_at = ?
     WHERE project_id = ? AND state = 'listening'
-  `).run(at, projectId);
+  `, at, projectId);
   return Number(result.changes);
 }
 
@@ -254,13 +214,11 @@ interface ListenerHostOptions {
 
 export class ListenerHost implements ListenerHostApi {
   constructor(
-    private readonly db: ListenerSqliteDatabase,
+    private readonly db: FeedSql,
     readonly connector: ConnectorHostApi,
     private readonly signals: SignalCommands,
     private readonly options: ListenerHostOptions = {},
-  ) {
-    db.exec(LISTENER_HOST_SCHEMA_SQL);
-  }
+  ) {}
 
   checkpoint(projectId: string, sourceId: string): ListenerCheckpoint {
     return readListenerCheckpoint(this.db, projectId, sourceId, this.now().toISOString());
@@ -445,27 +403,27 @@ export class ListenerHost implements ListenerHostApi {
   }
 
   private pendingDeliveries(projectId: string, sourceId: string, operationId: string): Delivery[] {
-    return (this.db.prepare(`
+    return (this.db.all(`
       SELECT * FROM listener_deliveries
       WHERE project_id = ? AND source_id = ? AND operation_id = ?
         AND state IN ('pending', 'retry_wait')
       ORDER BY created_at, raw_event_id
-    `).all(projectId, sourceId, operationId) as Row[]).map(mapDelivery);
+    `, projectId, sourceId, operationId) as Row[]).map(mapDelivery);
   }
 
   private hasQuarantinedDelivery(projectId: string, sourceId: string, operationId: string): boolean {
-    return Boolean(this.db.prepare(`
+    return Boolean(this.db.get(`
       SELECT 1 FROM listener_deliveries
       WHERE project_id = ? AND source_id = ? AND operation_id = ? AND state = 'quarantined'
       LIMIT 1
-    `).get(projectId, sourceId, operationId));
+    `, projectId, sourceId, operationId));
   }
 
   private delivery(projectId: string, sourceId: string, rawEventId: string): Delivery {
-    const row = this.db.prepare(`
+    const row = this.db.get(`
       SELECT * FROM listener_deliveries
       WHERE project_id = ? AND source_id = ? AND raw_event_id = ?
-    `).get(projectId, sourceId, rawEventId) as Row | undefined;
+    `, projectId, sourceId, rawEventId) as Row | undefined;
     if (!row) throw listenerErrors.delivery_failed("Raw Event 没有先持久化");
     return mapDelivery(row);
   }
@@ -478,39 +436,39 @@ export class ListenerHost implements ListenerHostApi {
     this.ensureCheckpoint(projectId, sourceId);
     const at = this.now();
     const expiresAt = new Date(at.getTime() + (this.options.leaseMs ?? 60_000)).toISOString();
-    const result = this.db.prepare(`
+    const result = this.db.run(`
       UPDATE listener_instances
       SET state = 'listening', lease_owner = ?, lease_expires_at = ?, updated_at = ?
       WHERE project_id = ? AND source_id = ?
         AND (lease_owner IS NULL OR lease_owner = ? OR lease_expires_at <= ?)
-    `).run(operationId, expiresAt, at.toISOString(), projectId, sourceId, operationId, at.toISOString());
+    `, operationId, expiresAt, at.toISOString(), projectId, sourceId, operationId, at.toISOString());
     if (Number(result.changes) !== 1) {
       throw listenerErrors.lease_busy("这个 Source 已有 Listener 正在处理");
     }
   }
 
   private releaseLease(projectId: string, sourceId: string, operationId: string): void {
-    this.db.prepare(`
+    this.db.run(`
       UPDATE listener_instances
       SET lease_owner = NULL, lease_expires_at = NULL
       WHERE project_id = ? AND source_id = ? AND lease_owner = ?
-    `).run(projectId, sourceId, operationId);
+    `, projectId, sourceId, operationId);
   }
 
   private advanceCursor(projectId: string, sourceId: string, cursor: unknown): void {
     this.ensureCheckpoint(projectId, sourceId);
-    this.db.prepare(`
+    this.db.run(`
       UPDATE listener_instances SET cursor_json = ?, updated_at = ?
       WHERE project_id = ? AND source_id = ?
-    `).run(JSON.stringify(cursor ?? {}), this.now().toISOString(), projectId, sourceId);
+    `, JSON.stringify(cursor ?? {}), this.now().toISOString(), projectId, sourceId);
   }
 
   private resetCheckpoint(projectId: string, sourceId: string, at: string): void {
-    this.db.prepare(`
+    this.db.run(`
       UPDATE listener_instances
       SET state = 'idle', attempt = 0, retry_at = NULL, last_error_code = NULL, updated_at = ?
       WHERE project_id = ? AND source_id = ?
-    `).run(at, projectId, sourceId);
+    `, at, projectId, sourceId);
   }
 
   private updateCheckpointFailure(
@@ -525,11 +483,11 @@ export class ListenerHost implements ListenerHostApi {
     const computedRetry = retryAt ?? new Date(
       this.now().getTime() + Math.min(300_000, 1_000 * (2 ** Math.min(checkpoint.attempt, 8))),
     ).toISOString();
-    this.db.prepare(`
+    this.db.run(`
       UPDATE listener_instances
       SET state = ?, attempt = attempt + 1, retry_at = ?, last_error_code = ?, updated_at = ?
       WHERE project_id = ? AND source_id = ?
-    `).run(state, state === "retry_wait" ? computedRetry : null, errorCode, this.now().toISOString(), projectId, sourceId);
+    `, state, state === "retry_wait" ? computedRetry : null, errorCode, this.now().toISOString(), projectId, sourceId);
   }
 
   private now(): Date {
@@ -637,17 +595,17 @@ function assertRunTransition(
 }
 
 function ensureCheckpointRow(
-  db: ListenerSqliteDatabase,
+  db: FeedSql,
   projectId: string,
   sourceId: string,
   at: string,
 ): void {
-  db.prepare(`
+  db.run(`
     INSERT OR IGNORE INTO listener_instances (
       project_id, source_id, cursor_json, state, attempt, retry_at,
       last_error_code, lease_owner, lease_expires_at, updated_at
     ) VALUES (?, ?, '{}', 'idle', 0, NULL, NULL, NULL, NULL, ?)
-  `).run(projectId, sourceId, at);
+  `, projectId, sourceId, at);
 }
 
 function sha256(value: string): string {
@@ -672,11 +630,10 @@ function json<T>(value: unknown, fallback: T): T {
   }
 }
 
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 async function acceptListenerDelivery(
   dependencies: {
-    db: ListenerSqliteDatabase;
+    db: FeedSql;
     signals: SignalCommands;
     options: ListenerHostOptions;
     now: () => Date;
@@ -709,12 +666,12 @@ async function acceptListenerDelivery(
     await options.afterSignalAccepted?.(delivery.event, receipt);
     await beforeEffect();
     const at = now().toISOString();
-    db.prepare(`
+    db.run(`
       UPDATE listener_deliveries
       SET state = 'accepted', attempt = attempt + 1, signal_id = ?,
           last_error_code = NULL, updated_at = ?
       WHERE project_id = ? AND source_id = ? AND raw_event_id = ?
-    `).run(receipt.signal.signal_id, at, delivery.project_id, delivery.source_id, delivery.event.raw_event_id);
+    `, receipt.signal.signal_id, at, delivery.project_id, delivery.source_id, delivery.event.raw_event_id);
     if (delivery.event.cursor_after !== undefined) {
       advanceCursor(delivery.project_id, delivery.source_id, delivery.event.cursor_after);
     }
@@ -724,25 +681,25 @@ async function acceptListenerDelivery(
     const nextAttempt = delivery.attempt + 1;
     const quarantined = nextAttempt >= (options.maxDeliveryAttempts ?? 5);
     const at = now().toISOString();
-    db.prepare(`
+    db.run(`
       UPDATE listener_deliveries
       SET state = ?, attempt = ?, last_error_code = ?, updated_at = ?
       WHERE project_id = ? AND source_id = ? AND raw_event_id = ?
-    `).run(
-      quarantined ? "quarantined" : "retry_wait",
-      nextAttempt,
-      quarantined ? "listener.delivery_quarantined" : "listener.delivery_failed",
-      at,
-      delivery.project_id,
-      delivery.source_id,
-      delivery.event.raw_event_id,
-    );
+    `, quarantined ? "quarantined" : "retry_wait", nextAttempt, quarantined ? "listener.delivery_quarantined" : "listener.delivery_failed", at, delivery.project_id, delivery.source_id, delivery.event.raw_event_id);
     throw listenerFailures[quarantined ? "listener.delivery_quarantined" : "listener.delivery_failed"]("Raw Event 尚未得到 Signal Receipt，cursor 不会推进");
   }
 }
 
+const INSERT_LISTENER_DELIVERY_SQL = `
+  INSERT OR IGNORE INTO listener_deliveries (
+    project_id, source_id, operation_id, raw_event_id, provider_dedupe_id,
+    raw_event_json, cursor_after_json, adapter_plugin_id, adapter_version,
+    state, attempt, signal_id, last_error_code, created_at, updated_at
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, NULL, NULL, ?, ?)
+`;
+
 function persistListenerDeliveries(
-  db: ListenerSqliteDatabase,
+  db: FeedSql,
   now: () => Date,
   input: {
     project_id: string;
@@ -752,17 +709,10 @@ function persistListenerDeliveries(
   },
   events: ConnectorRawEvent[],
 ): void {
-  const insert = db.prepare(`
-    INSERT OR IGNORE INTO listener_deliveries (
-      project_id, source_id, operation_id, raw_event_id, provider_dedupe_id,
-      raw_event_json, cursor_after_json, adapter_plugin_id, adapter_version,
-      state, attempt, signal_id, last_error_code, created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, NULL, NULL, ?, ?)
-  `);
   const at = now().toISOString();
   db.transaction(() => {
     for (const event of events) {
-      insert.run(
+      db.run(INSERT_LISTENER_DELIVERY_SQL,
         input.project_id,
         input.source_id,
         input.operation_id,
@@ -776,5 +726,5 @@ function persistListenerDeliveries(
         at,
       );
     }
-  }).immediate();
+  });
 }

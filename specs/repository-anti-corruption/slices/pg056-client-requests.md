@@ -25,5 +25,5 @@
 
 | 编号 | 标准 | 证明 |
 | --- | --- | --- |
-| RAC-556 | 在上述扫描范围和识别写法内，除 `BYPASSED` 里的两个插件外，未检出 `fetch`、`XMLHttpRequest`、`EventSource`、`sendBeacon` 传输调用或模板、字符串中的对应写法 | `tests/plugin-client-request.test.ts` |
+| RAC-556 | 除 `BYPASSED` 里的两个插件外，没有插件的页面代码自己调 `fetch`、`XMLHttpRequest`、`EventSource`、`sendBeacon`，不论在代码里还是在送进页面的字符串里 | `tests/plugin-client-request.test.ts` 仅覆盖上述扫描范围和已列写法，不能据此证明所有网络路径 |
 | RAC-557 | 绕过名单里的每个插件仍有自己的请求，名单不会留着已迁完的条目；扫描器认得 `fetch(`、`x.fetch(`、`new EventSource(`、字符串里的 `fetch(`，不误报 `prefetch` 和注释 | 同上 |

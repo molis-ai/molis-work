@@ -30,13 +30,20 @@ function state(value: unknown): "pending" | "complete" {
   if (value !== "pending" && value !== "complete") throw invalid();
   return value;
 }
+function projectIdentity(row: Row): ProjectDeletionSourceIdentity {
+  if (row.data_class !== "user" && row.data_class !== "regenerable_demo") throw invalid();
+  return { project_id: text(row.project_id), data_class: row.data_class, created_at: text(row.created_at) };
+}
+/** All retained Catalog project identities, including pending deletion; no display defaults or private fields. */
+export function readProjectDeletionCatalogIdentities(db: ProjectsSqliteDatabase): ProjectDeletionSourceIdentity[] {
+  return (db.prepare("SELECT project_id, data_class, created_at FROM projects ORDER BY project_id").all() as Row[]).map(projectIdentity);
+}
 function identity(db: ProjectsSqliteDatabase, projectId: string) {
   const row = db.prepare(`SELECT project_id, data_class, created_at,
     EXISTS (SELECT 1 FROM project_deletions d WHERE d.project_id=projects.project_id AND d.cleanup_state='pending') AS pending
     FROM projects WHERE project_id=?`).get(projectId) as Row | undefined;
   if (!row) return { current_project: null, retained_project: null };
-  if (row.data_class !== "user" && row.data_class !== "regenerable_demo") throw invalid();
-  const project: ProjectDeletionSourceIdentity = { project_id: text(row.project_id), data_class: row.data_class, created_at: text(row.created_at) };
+  const project = projectIdentity(row);
   return { current_project: row.pending ? null : project, retained_project: project };
 }
 function steps(db: ProjectsSqliteDatabase, deletionId: string) {

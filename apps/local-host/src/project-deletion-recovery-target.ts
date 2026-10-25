@@ -2,7 +2,7 @@ import path from "node:path";
 import { lstatSync } from "node:fs";
 import { isDeepStrictEqual } from "node:util";
 import { LocalSqliteStorage, clearProjectInExistingTextSearchIndex, inspectExistingSqlitePath } from "@molis-ai/molis-work-storage";
-import { ProjectsModule, normalizeProjectWorkspace, readProjectDeletionRecoveryPage,
+import { ProjectsModule, normalizeProjectWorkspace, readProjectDeletionRecoveryPage, readProjectDeletionCatalogIdentities,
   type ProjectDeletionSourceIdentity } from "@molis-ai/molis-work-module-projects";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { createRuntimeContextModule, createRuntimeProjectBindingValidation } from "@molis-ai/molis-work-module-private-work-context";
@@ -66,7 +66,7 @@ function catalogFile(home: string): string {
   return filename;
 }
 
-function snapshot(storage: LocalSqliteStorage, projects: ProjectsModule): ProjectDeletionCatalogSnapshot {
+function snapshot(storage: LocalSqliteStorage): ProjectDeletionCatalogSnapshot {
   const receipts: ProjectDeletionRecoverySource[] = [];
   let after: string | undefined;
   for (;;) {
@@ -76,11 +76,7 @@ function snapshot(storage: LocalSqliteStorage, projects: ProjectsModule): Projec
     if (page.exhausted) break;
     after = page.items[page.items.length - 1]!.deletion_id;
   }
-  const projectIds = new Set([...projects.query.listProjects().map(row => row.project_id), ...receipts.map(row => row.project_id)]);
-  return { receipts, projects: [...projectIds].sort().flatMap(id => {
-    const row = projects.lifecycle.retainedProject(id);
-    return row ? [{ project_id: row.project_id, data_class: row.data_class, created_at: row.created_at }] : [];
-  }) };
+  return { receipts, projects: readProjectDeletionCatalogIdentities(storage.db) };
 }
 
 /** The outer frame compares this fresh committed projection with its expected facts. Control must not recurse into read. */
@@ -103,7 +99,7 @@ export function openProjectDeletionCatalogObservation(input: {
       storage.db.exec("BEGIN");
       try {
         assertOwnedCatalog(storage, "目标 Catalog"); assertCurrentCatalog(storage, "目标 Catalog");
-        const value = snapshot(storage, new ProjectsModule({ db: storage.db, plugins: BUILTIN_PLUGIN_REGISTRY }));
+        const value = snapshot(storage);
         current();
         return value;
       } finally { storage.db.exec("ROLLBACK"); }
@@ -152,7 +148,7 @@ export async function openProjectDeletionRecoveryTarget(input: ProjectDeletionRe
   try {
     reader.db.exec("BEGIN");
     assertOwnedCatalog(reader, "目标 Catalog"); assertCurrentCatalog(reader, "目标 Catalog");
-    before = snapshot(reader, new ProjectsModule({ db: reader.db, plugins: BUILTIN_PLUGIN_REGISTRY }));
+    before = snapshot(reader);
     reader.db.exec("ROLLBACK");
   } finally { reader.close(); }
   current();
@@ -163,7 +159,7 @@ export async function openProjectDeletionRecoveryTarget(input: ProjectDeletionRe
   try {
     check();
     const projects = new ProjectsModule({ db: storage.db, plugins: BUILTIN_PLUGIN_REGISTRY });
-    if (!isDeepStrictEqual(before, snapshot(storage, projects))) throw invalid("接纳前目标 Catalog 已变化");
+    if (!isDeepStrictEqual(before, snapshot(storage))) throw invalid("接纳前目标 Catalog 已变化");
     const options = { ...input, homeDirectory: home, memory, projectRuntime, signal,
       catalogCommitted(change: { before: ProjectDeletionCatalogSnapshot; after: ProjectDeletionCatalogSnapshot }) {
         try { synchronous(() => catalogCommitted(change)); }
@@ -206,7 +202,7 @@ function assembleTarget(storage: LocalSqliteStorage, projects: ProjectsModule, p
     appendProjectEvent(projectId, type, actorId, payload) { current(); projects.lifecycle.appendEvent(projectId, type, actorId, payload); },
   } });
   const commit = createCatalogCommit(storage.db, current, {
-    read: () => snapshot(storage, projects),
+    read: () => snapshot(storage),
     committed: change => synchronous(() => input.catalogCommitted(change)),
   });
   return new ManagedProjectDeletion(projects, path.join(input.homeDirectory, "projects"), {

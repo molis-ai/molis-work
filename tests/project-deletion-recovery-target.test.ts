@@ -281,6 +281,7 @@ test("MEM-40: current Catalog reads see committed WAL and share the target's act
   const observe = openProjectDeletionCatalogObservation({ homeDirectory: f.home, assertCurrent() {} });
   t.after(() => observe.close());
   const before = observe.read();
+  assert.deepEqual(before.projects, [f.gone, f.kept].map(({ project_id, data_class, created_at }) => ({ project_id, data_class, created_at })).sort((a, b) => a.project_id.localeCompare(b.project_id)));
   assert.equal(before.projects.length, 2);
   assert.equal(before.receipts.length, 0);
   const db = new Database(join(f.home, "projects", "catalog.db"));
@@ -320,7 +321,8 @@ test("MEM-40: Catalog observation rejects revoked control and linked storage", a
 
 test("MEM-40: failed observation close retains its original read-only connection", async t => {
   const f = await fixture(t);
-  const observe = openProjectDeletionCatalogObservation({ homeDirectory: f.home, assertCurrent() {} });
+  let checks = 0;
+  const observe = openProjectDeletionCatalogObservation({ homeDirectory: f.home, assertCurrent() { checks++; } });
   observe.read();
   const original = LocalSqliteStorage.prototype.close;
   let connection: Database.Database | undefined, attempts = 0;
@@ -328,6 +330,8 @@ test("MEM-40: failed observation close retains its original read-only connection
     if (this.path === join(f.home, "projects", "catalog.db") && this.db.readonly) {
       connection ??= this.db;
       assert.equal(this.db, connection);
+      assert.equal(this.db.inTransaction, false, "every observation read rolls back before returning");
+      assert.throws(() => this.db.prepare("UPDATE projects SET data_class='user'").run(), { code: "SQLITE_READONLY" });
       if (++attempts === 1) throw new Error("actual observation close interrupted");
     }
     original.call(this);
@@ -335,9 +339,86 @@ test("MEM-40: failed observation close retains its original read-only connection
   try {
     assert.throws(() => observe.close(), /actual observation close interrupted/);
     assert.equal(connection?.open, true);
+    const beforeClosedRead = checks;
     assert.throws(() => observe.read(), invalid);
+    assert.equal(checks, beforeClosedRead, "a closed observer never reenters authorization or database reads");
     observe.close(); observe.close();
     assert.equal(attempts, 2);
     assert.equal(connection?.open, false);
   } finally { hook.mock.restore(); observe.close(); }
+});
+
+test("MEM-40: observation rejects malformed ordinary project identities instead of normalizing them", async t => {
+  const f = await fixture(t), db = new Database(join(f.home, "projects", "catalog.db"));
+  const observe = openProjectDeletionCatalogObservation({ homeDirectory: f.home, assertCurrent() {} });
+  try {
+    const before = observe.read();
+    assert.equal(before.receipts.length, 0, "this ordinary project has no receipt that could validate its identity");
+    db.pragma("ignore_check_constraints=ON");
+    for (const [field, value] of [["data_class", "unknown"], ["created_at", ""]] as const) await t.test(field, () => {
+      const original = db.prepare(`SELECT ${field} FROM projects WHERE project_id=?`).get(f.kept.project_id) as Record<string, string>;
+      try {
+        db.prepare(`UPDATE projects SET ${field}=? WHERE project_id=?`).run(value, f.kept.project_id);
+        assert.throws(() => observe.read(), invalid);
+      } finally { db.prepare(`UPDATE projects SET ${field}=? WHERE project_id=?`).run(original[field], f.kept.project_id); }
+      assert.deepEqual(observe.read(), before, "a rejected read ends its transaction and the same observer sees the repaired commit");
+    });
+  } finally { observe.close(); db.close(); }
+});
+
+test("MEM-40: observation retains pending project identities and releases failed plan/control snapshots", async t => {
+  const f = await fixture(t), source = f.sourceReceipt({ cleanup_state: "pending", cleaned_at: null });
+  f.projects.lifecycle.insertDeletion(source); f.projects.lifecycle.insertDeletionSteps(source.deletion_id, f.ownerIds);
+  assert.equal(f.projects.query.listProjects().some(row => row.project_id === f.gone.project_id), false);
+  const db = new Database(join(f.home, "projects", "catalog.db"));
+  let checks = 0, rejectAt = Infinity;
+  const observe = openProjectDeletionCatalogObservation({ homeDirectory: f.home,
+    assertCurrent() { if (++checks === rejectAt) throw new Error("withdraw after snapshot"); } });
+  try {
+    const before = observe.read();
+    assert.deepEqual(before.projects.map(row => row.project_id), [f.gone.project_id, f.kept.project_id].sort());
+    assert.equal(before.receipts[0]!.retained_project?.project_id, f.gone.project_id);
+    assert.equal(before.receipts[0]!.current_project, null);
+    assert.deepEqual(before.projects.find(row => row.project_id === f.gone.project_id), {
+      project_id: f.gone.project_id, data_class: f.gone.data_class, created_at: f.gone.created_at,
+    });
+    for (const forbidden of ["source private name", "/source-only/do-not-copy", f.home, "display_name", "database_path", "staged_directory"])
+      assert.equal(JSON.stringify(before).includes(forbidden), false, forbidden);
+    db.prepare("UPDATE project_deletions SET recovery_plan='{}' WHERE deletion_id=?").run(source.deletion_id);
+    assert.throws(() => observe.read(), invalid);
+    db.prepare("UPDATE project_deletions SET recovery_plan=? WHERE deletion_id=?").run(source.recovery_plan, source.deletion_id);
+    assert.deepEqual(observe.read(), before, "decoder failure rolls back its read transaction");
+    rejectAt = checks + 2;
+    assert.throws(() => observe.read(), /withdraw after snapshot/);
+    rejectAt = Infinity;
+    assert.deepEqual(observe.read(), before, "final authority refusal also rolls back instead of poisoning the connection");
+    assert.equal((db.prepare("SELECT recovery_plan FROM project_deletions WHERE deletion_id=?").get(source.deletion_id) as { recovery_plan: string }).recovery_plan, source.recovery_plan);
+  } finally { observe.close(); db.close(); }
+});
+
+test("MEM-40: observation refuses replaced database, linked WAL and linked ancestor before returning facts", async t => {
+  const f = await fixture(t), filename = join(f.home, "projects", "catalog.db");
+  const observe = openProjectDeletionCatalogObservation({ homeDirectory: f.home, assertCurrent() {} });
+  try {
+    const before = observe.read();
+    const saved = filename + ".original";
+    await fs.rename(filename, saved);
+    try {
+      await fs.copyFile(saved, filename);
+      assert.throws(() => observe.read(), { code: "storage.maintenance_path" });
+    } finally { await fs.unlink(filename); await fs.rename(saved, filename); }
+    assert.deepEqual(observe.read(), before);
+    const walAlias = join(f.home, "wal-alias");
+    await fs.link(filename + "-wal", walAlias);
+    try { assert.throws(() => observe.read(), { code: "storage.maintenance_path" }); }
+    finally { await fs.unlink(walAlias); }
+    assert.deepEqual(observe.read(), before);
+    const directory = join(f.home, "projects"), moved = join(f.home, "original-projects");
+    await fs.rename(directory, moved);
+    try {
+      await fs.symlink(moved, directory, "dir");
+      assert.throws(() => observe.read(), { code: "storage.maintenance_path" });
+    } finally { await fs.unlink(directory); await fs.rename(moved, directory); }
+    assert.deepEqual(observe.read(), before);
+  } finally { observe.close(); }
 });

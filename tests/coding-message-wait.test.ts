@@ -112,7 +112,12 @@ test("a round that ends waiting on an answer or a background command waits as th
     const read = await call("/sessions/b");
     assert.equal(read.status, 200, JSON.stringify(read.body));
     assert.deepEqual([read.body.session.queued.waiting_for, read.body.session.queued.after_title], ["reply", "会话「改接口」的答复"]);
-    assert.equal((await call("/sessions/b/runs", send("别的事"))).status, 400);
+    const startsBeforeRefusal = starts.length;
+    const refused = await call("/sessions/b/runs", send("别的事"));
+    assert.equal(refused.status, 409);
+    assert.equal(refused.body.code, "coding.waiting");
+    assert.equal(starts.length, startsBeforeRefusal);
+    assert.equal(sessions.get(DEMO_PROJECT_ID, "b").state, "queued");
     // The answer comes: B goes on with its original task, in the same way of working (the answer itself reaches it
     // through the task graph), and the continuation is taken up. The next round waits again, on a check it starts.
     parks.push({ wait_id: "w2", condition: { kind: "command", ref: "bg-0", label: "后台命令 npm test结束" }, reason: "再等一次测试" });

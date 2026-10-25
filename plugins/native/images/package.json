@@ -57,7 +57,8 @@
       "images.generation.v1"
     ],
     "extraWorkspaceDependencies": [
-      "@molis-ai/molis-work-plugin-sdk"
+      "@molis-ai/molis-work-plugin-sdk",
+      "@molis-ai/molis-work-storage"
     ],
     "extraDependencies": {},
     "registration": "./registration"

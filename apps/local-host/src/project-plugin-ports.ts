@@ -48,10 +48,11 @@ export async function installPackageInProject(source: ProjectPluginHost, project
   });
 }
 
-/** The plugins installed in a project, each with the Manifest it was installed with. */
+/** The plugins installed in a project, each with the Manifest it was installed with; the project's built-in plugins are started first so they are listed too. */
 export async function installedPluginsInProject(source: ProjectPluginHost, projectId: string): Promise<InstalledPluginEntry[]> {
   const reference = source.host.projects().find(row => row.project_id === projectId);
   if (!reference) throw new ActionError("actions.scope_mismatch", "需要一个打开的项目");
+  await ensureProjectPluginActions(source, reference);
   return await source.host.withRuntime(reference, runtime => installedPluginEntries(runtime.store.db));
 }
 

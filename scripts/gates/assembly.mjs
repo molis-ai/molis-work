@@ -12,22 +12,19 @@
 //   pluginOutsideMentions  per built-in plugin, the files outside its own package that name its package (imports, package.json
 //                          dependencies, the workspace map): what adding or removing that plugin touches besides itself
 //                          The two files scripts/generate-plugin-registry.mjs writes are not counted (their exact paths;
-//                          whether they are exactly its output is the absolute rule its --check is), and neither is an app's
-//                          package.json whose plugin dependencies are exactly the packages its generated file imports
-//                          (user 10-19; W5-02 PR-B pulls it forward from PR-C for the Host's new file).
-// A plugin that is new at the reference starts at NEW_PLUGIN_OUTSIDE_FILES for the last one; everything else starts at 0.
+//                          whether they are exactly its output is the absolute rule its --check is), and neither is a manifest
+//                          it writes the plugin dependencies of (the two apps' and the root's) while those are exactly the
+//                          packages its generated files import (user 10-19 for the apps; user 10-25 for the root, the union of
+//                          both files).
+// A plugin that is new at the reference starts at NEW_PLUGIN_OUTSIDE_FILES (0: W5-02 PR-C, hub 10-23); everything else starts at 0.
 import ts from "typescript";
+import { PLUGIN_DEPENDENCY_MANIFESTS } from "../generate-plugin-registry.mjs";
 import { homeRuntimePackages, projectRuntimePackages } from "./home-runtime-entries.mjs";
 import { hasPath, recordMetric } from "./record-metric.mjs";
 
 const HOST_SRC = /^apps\/local-host\/src\//;
 const PLUGIN_PACKAGE = /^plugins\/native\/([^/]+)\/package\.json$/;
 const PROJECT_PLUGINS = "apps/local-host/src/project-plugins.ts";
-/** Each generated registry file (scripts/generate-plugin-registry.mjs) and the app manifest whose plugin dependencies it needs. */
-const GENERATED_REGISTRIES = [
-  { file: "apps/workbench/src/builtin-plugins.ts", manifest: "apps/workbench/package.json" },
-  { file: "apps/local-host/src/plugin-registry.generated.ts", manifest: "apps/local-host/package.json" },
-];
 
 /**
  * Text the assembly gates read besides source files: plugin package manifests (names), the root and app manifests and the
@@ -38,11 +35,10 @@ export const assemblyWantsText = (file) => hasPath(file, PLUGIN_PACKAGE, "packag
 /** The singular a Host file may use for a plural plugin directory (artifact-actions.ts for plugins/native/artifacts). */
 export const NAME_ALIASES = { artifacts: ["artifact"] };
 /**
- * What a new built-in plugin may be named in outside its own package, today: the smallest complete plugin (text-stats) is
- * named in this many files. The target is 0 (declaration-only registration, W4-01); no new plugin may take more than the
- * smallest existing one.
+ * What a new built-in plugin may be named in outside its own package: none (W5-02 PR-C; hub 10-23). Its registration, its
+ * package.json entry and the generator put it in the catalog, the supervisors and the dependencies, and no hand-written file.
  */
-export const NEW_PLUGIN_OUTSIDE_FILES = 7;
+export const NEW_PLUGIN_OUTSIDE_FILES = 0;
 
 const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const camelCase = (name) => name.replace(/-([a-z0-9])/g, (_, letter) => letter.toUpperCase());
@@ -70,11 +66,16 @@ export function describePlugins(snapshot) {
  */
 export function generatedMentionFiles(snapshot, pluginNames) {
   const files = new Set();
-  for (const { file, manifest } of GENERATED_REGISTRIES) {
+  const imports = new Map();
+  for (const { files: generated } of PLUGIN_DEPENDENCY_MANIFESTS) for (const file of generated) {
     const text = snapshot.read(file);
-    if (text === null) continue;
+    if (text === null || imports.has(file)) continue;
     files.add(file);
-    const imported = new Set([...text.matchAll(/from "([^"]+)\/registration";/g)].map((match) => match[1]));
+    imports.set(file, new Set([...text.matchAll(/from "([^"]+)\/registration";/g)].map((match) => match[1])));
+  }
+  for (const { manifest, files: generated } of PLUGIN_DEPENDENCY_MANIFESTS) {
+    if (!generated.every((file) => imports.has(file))) continue;
+    const imported = new Set(generated.flatMap((file) => [...imports.get(file)]));
     let dependencies;
     try { dependencies = Object.keys(JSON.parse(snapshot.read(manifest) ?? "null")?.dependencies ?? {}); } catch { continue; }
     const plugins = dependencies.filter((name) => pluginNames.has(name));
@@ -191,7 +192,7 @@ export const assemblyMetrics = (helpers) => {
       }
       return record;
     },
-    message: (key, was, now, isNew) => `plugin ${key.split("#")[0]} is named in ${now} files outside its package (${isNew ? `a new plugin may be named in at most ${was}` : `was ${was}`}); a built-in plugin is registered by its own declaration, not by a name written into another package`,
+    message: (key, was, now, isNew) => `plugin ${key.split("#")[0]} is named in ${now} files outside its package (${isNew ? `a new plugin may be named in ${was === 0 ? "none" : `at most ${was}`}` : `was ${was}`}); a built-in plugin is registered by its own declaration, not by a name written into another package`,
   });
 
   return [hostPluginFiles, registerProviderSites, hybridPlugins, pluginOutsideMentions];

@@ -42,6 +42,11 @@
     "kind": "native-plugin",
     "maturity": "partial",
     "contract": "@molis-ai/molis-work-contracts/platform/plugin",
+    "summary": "Protected first-party Lingguang directory and inspiration pool.",
+    "notResponsibleFor": "Goal/Artifact facts, model providers, or a hosted inspiration service.",
+    "legacySources": [
+      "src/web/render.ts"
+    ],
     "migrationGoals": [
       "goal-reorg-f2"
     ],
@@ -50,6 +55,12 @@
       "lingguang.ui-contribution.v1",
       "lingguang.http-routes.v1"
     ],
+    "extraWorkspaceDependencies": [
+      "@molis-ai/molis-work-plugin-sdk",
+      "@molis-ai/molis-work-design-system",
+      "@molis-ai/molis-work-storage"
+    ],
+    "extraDependencies": {},
     "registration": "./registration"
   }
 }

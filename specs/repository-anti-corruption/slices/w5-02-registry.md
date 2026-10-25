@@ -216,6 +216,13 @@ PG-095、PG-111 不进这几个 PR，评估与统筹的裁定见 §7。
 
 **开工前核对**：谁读 `WORKSPACE_PACKAGES` 的插件字段（`package-owners.mjs`、`check-package-boundaries.mjs`、`package-inventory.mjs`、`module-repository-exports.mjs`）；README「开发要求」检查是否依赖条目上的说明文字。
 
+**实现（2026-10-25，叠在 B4 上）**：
+
+- 24 个插件的 `molis-work` 块补进说明、不负责、`legacySources`、`capabilities`、`extraWorkspaceDependencies`、`extraDependencies`（`owner` 仍按目录由 `package-owners.mjs` 的规则得出）；`workspace-packages.mjs` 读 `plugins/native/*/package.json` 得出这 24 条，导出 `REGISTERED_PLUGINS`，两个应用条目用 `registeredPluginDependencies: true` 由它推出插件依赖。RAC-573：改前改后逐字段比对，24 条无一字段不同。`capabilities` 以登记表那份为准（插件 `package.json` 里原有的旧单子没人读，一并换掉）。
+- 生成器的 `PLUGIN_DEPENDENCY_MANIFESTS`（workbench → 外壳那份、local-host → 平台那份、根 → 两份的并集）：`--check` 报多一个、少一个、不是 `workspace:*`；写模式只在插件依赖不对时改写，依赖按码点排序（三份 `package.json` 这次按它重排了一遍，内容不变）。门禁的豁免读同一张表，不另写名单。
+- 门禁：`NEW_PLUGIN_OUTSIDE_FILES = 0`，超额的提示写「a new plugin may be named in none」。`tests/health-gates-structure.test.ts` 里原来「8 个超额、7 个通过」两条是预期变化，改成新语义：包外 1 个文件（宿主源码、脚本各一条）就失败，0 个通过。
+- RAC-574 写在 `tests/plugin-registry-generation.test.ts`：以 text-stats 为样本在仓库树上加一个带 `project_runtime` 的新包，只跑生成器，包外变的只有两份生成文件和三份 `package.json`，项目监督器读得到它，门禁的量法（放宽到全部受跟踪的文本文件）点名数为 0；再加一个手写文件或让一份 `package.json` 偏离生成结果，点名数变 1（RAC-575）。没有拷整个仓库：生成器与门禁都是读快照的纯函数，在快照上改与在副本上改等价，又快得多。
+
 ## 5. PR-D：PR-3，外壳与设置的手写名单（PG-072～076）
 
 D 移交 ac-shell（统筹 10-25）：下面是移交时的核对与拆法，验收号由 ac-shell 从自己的号段给，不再用 RAC-576～578。

@@ -39,6 +39,9 @@
     "kind": "native-plugin",
     "maturity": "partial",
     "contract": "@molis-ai/molis-work-contracts/platform/plugin",
+    "summary": "Project workflows that chain existing plugins with typed handoffs.",
+    "notResponsibleFor": "Plugin item storage, model providers, or Feed/Inbox/Pages internals.",
+    "legacySources": [],
     "migrationGoals": [
       "goal-reorg-f2"
     ],
@@ -47,6 +50,12 @@
       "workflows.ui-contribution.v1",
       "workflows.http-routes.v1"
     ],
+    "extraWorkspaceDependencies": [
+      "@molis-ai/molis-work-plugin-sdk",
+      "@molis-ai/molis-work-design-system",
+      "@molis-ai/molis-work-storage"
+    ],
+    "extraDependencies": {},
     "registration": "./registration"
   },
   "devDependencies": {

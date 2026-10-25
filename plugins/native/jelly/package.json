@@ -43,6 +43,9 @@
     "kind": "native-plugin",
     "maturity": "partial",
     "contract": "@molis-ai/molis-work-contracts/platform/plugin",
+    "summary": "Personal Jelly calendar, notes, and inspiration workspace.",
+    "notResponsibleFor": "Original Jelly App data, project Goal facts, or a second runtime.",
+    "legacySources": [],
     "migrationGoals": [
       "goal-reorg-f2"
     ],
@@ -51,6 +54,12 @@
       "jelly.ui-contribution.v1",
       "jelly.workspace.v1"
     ],
+    "extraWorkspaceDependencies": [
+      "@molis-ai/molis-work-design-system",
+      "@molis-ai/molis-work-storage",
+      "@molis-ai/molis-work-plugin-sdk"
+    ],
+    "extraDependencies": {},
     "registration": "./registration"
   }
 }

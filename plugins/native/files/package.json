@@ -38,6 +38,9 @@
     "kind": "native-plugin",
     "maturity": "partial",
     "contract": "@molis-ai/molis-work-contracts/platform/plugin",
+    "summary": "First-party Files tree and reader: captures bounded text snapshots and selections.",
+    "notResponsibleFor": "Directory reads, filesystem grants, or comparison rendering.",
+    "legacySources": [],
     "migrationGoals": [
       "goal-reorg-f2",
       "goal-plugin-platform-v2"
@@ -47,6 +50,11 @@
       "files.artifact-types.v1",
       "files.ui-contribution.v1"
     ],
+    "extraWorkspaceDependencies": [
+      "@molis-ai/molis-work-design-system",
+      "@molis-ai/molis-work-plugin-sdk"
+    ],
+    "extraDependencies": {},
     "registration": "./registration"
   },
   "devDependencies": {

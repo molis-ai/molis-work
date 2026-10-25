@@ -38,6 +38,9 @@
     "kind": "native-plugin",
     "maturity": "partial",
     "contract": "@molis-ai/molis-work-contracts/platform/plugin",
+    "summary": "Personal Home issue capture, reading, editing and deletion through one Runtime.",
+    "notResponsibleFor": "Runtime lifecycle, authorization, opening databases, team workflows or automatic analysis.",
+    "legacySources": [],
     "migrationGoals": [
       "goal-reorg-f2",
       "goal-plugin-platform-v2"
@@ -46,6 +49,11 @@
     "capabilities": [
       "issues.ui-contribution.v1"
     ],
+    "extraWorkspaceDependencies": [
+      "@molis-ai/molis-work-design-system",
+      "@molis-ai/molis-work-plugin-sdk"
+    ],
+    "extraDependencies": {},
     "registration": "./registration"
   },
   "devDependencies": {

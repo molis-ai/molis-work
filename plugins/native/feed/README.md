@@ -70,7 +70,7 @@ node scripts/run-tests.mjs tests/feed-native-plugin.test.ts tests/feed-goal-prom
 - 负责：Feed 导航、来源工作台、界面、处置与模块组合。
 - 不负责：Source/Signal/Feed/Attention 事实、Provider 实现。
 - 公开入口：`@molis-ai/molis-work-plugin-feed`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-plugin-sdk`；第三方依赖见 `package.json`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`；第三方依赖见 `package.json`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 捕捉场景的判断（规则可用哪些判断、哪些建议仍成立、怎样记录）在本包的 `createFeedSceneRuntime`；Host 的 `feed-scene.ts` 只接判断账本与可读的消息，不写判断（`tests/feed-inbox-scene-runtime.test.ts`）。
   - 不拥有 Source、Signal、Feed 的表，不直接实现 GitHub 或 Gmail 协议。

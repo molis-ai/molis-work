@@ -1,4 +1,4 @@
-import type {} from "@molis-ai/molis-work-design-system";
+import type {} from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import type { PptRecord, PptSlide } from "@molis-ai/molis-work-contracts/modules/ppt";
 import type { UiClientTranslate as Translate, UiPluginClientHost } from "@molis-ai/molis-work-contracts/platform/ui";
 

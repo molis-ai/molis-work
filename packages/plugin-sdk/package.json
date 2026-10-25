@@ -25,6 +25,18 @@
     "./diff-view": {
       "types": "./dist/diff-view.d.ts",
       "import": "./dist/diff-view.js"
+    },
+    "./ui": {
+      "types": "./dist/ui.d.ts",
+      "import": "./dist/ui.js"
+    },
+    "./browser": {
+      "types": "./dist/browser.d.ts",
+      "import": "./dist/browser.js"
+    },
+    "./page-globals": {
+      "types": "./dist/page-globals.d.ts",
+      "import": "./dist/page-globals.js"
     }
   },
   "files": [

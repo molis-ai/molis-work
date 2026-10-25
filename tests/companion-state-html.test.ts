@@ -11,7 +11,7 @@ import { createPluginPlatform, DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBo
 import { createDiffPlugin, DIFF_LABELS, DIFF_PLUGIN_ID, diffActions, type DiffView } from "@molis-ai/molis-work-plugin-diff";
 import { renderDiff } from "@molis-ai/molis-work-plugin-sdk/diff-view";
 import { createTextStatsPlugin, TEXT_STATS_PLUGIN_ID, textStatsActions, renderTextStats, type TextStatsView } from "@molis-ai/molis-work-plugin-text-stats";
-import { escapeHtml, icon } from "@molis-ai/molis-work-design-system";
+import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";

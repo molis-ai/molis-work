@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createArtifactReferenceRenderer, isProjectReference } from "@molis-ai/molis-work-app-workbench";
-import { icon } from "@molis-ai/molis-work-design-system";
+import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { L, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 
 const render = createArtifactReferenceRenderer({

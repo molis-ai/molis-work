@@ -1,4 +1,4 @@
-import { cx, escapeHtml } from "./primitives/html.js";
+import { cx, escapeHtml } from "./html.js";
 import { ringSegmentPath, stateRingGeometry } from "./state-ring-geometry.js";
 import { stateRingFamily, type StateRingState } from "./state-ring-states.js";
 

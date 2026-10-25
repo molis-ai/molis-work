@@ -1,9 +1,8 @@
+import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {
   ARRIVAL_MOTION_CLIENT_SCRIPT,
   THEME_BOOTSTRAP_SCRIPT,
   VISUAL_FOUNDATION_CLIENT_SCRIPT,
-  escapeHtml,
-  icon,
   renderIconSprite,
   renderPrimitiveCatalog,
   renderProjectMonogram,

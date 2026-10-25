@@ -106,6 +106,21 @@ test("clean developer project uses packed public SDK from CLI scaffold through i
     execFileSync("npm", ["install", "--offline", "--ignore-scripts", "--no-audit", "--no-fund", "--cache", join(directory, "npm-cache"),
       join(directory, "molis-ai-molis-work-contracts-0.0.0.tgz"), join(directory, "molis-ai-molis-work-plugin-sdk-0.0.0.tgz")],
     { cwd: repositorySample, encoding: "utf8" });
+    // RAC-553 (PG-055): an author who installed only the contracts and the SDK draws with the SDK's public UI parts.
+    const drawing = spawnSync(process.execPath, ["--input-type=module", "-e", `
+      import { icon, renderButton, renderPluginStageShell } from "@molis-ai/molis-work-plugin-sdk/ui";
+      import { placeFloating } from "@molis-ai/molis-work-plugin-sdk/browser";
+      import "@molis-ai/molis-work-plugin-sdk/page-globals";
+      console.log(JSON.stringify({ icon: icon("folder"), button: renderButton({ label: "Go" }),
+        shell: renderPluginStageShell({ surface: "demo", label: "Demo", dataset: "demo", body: "<p>x</p>" }), placed: typeof placeFloating }));`],
+    { cwd: repositorySample, encoding: "utf8" });
+    assert.equal(drawing.status, 0, drawing.stderr);
+    const drawn = JSON.parse(drawing.stdout) as { icon: string; button: string; shell: string; placed: string };
+    assert.match(drawn.icon, /<use href="#icon-folder">/u);
+    assert.match(drawn.button, /class="mw-btn mw-btn--primary/u);
+    assert.match(drawn.shell, /data-work-surface="demo"/u);
+    assert.equal(drawn.placed, "function");
+    assert.ok(existsSync(join(repositorySample, "node_modules/@molis-ai/molis-work-plugin-sdk/dist/page-globals.d.ts")));
     const repositoryRun = dev(join(directory, "repository-state"), grants, "--allow-unsigned-development", repositorySample);
     assert.equal(repositoryRun.status, 0, repositoryRun.stderr);
     const repositoryResult = JSON.parse(repositoryRun.stdout);

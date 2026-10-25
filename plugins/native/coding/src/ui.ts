@@ -6,7 +6,7 @@ import type {
   UiNestedContentModel,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
-import { icon, renderButton, renderDirectoryPanel, renderDirectoryHeading, renderSidebar } from "@molis-ai/molis-work-design-system";
+import { icon, renderButton, renderDirectoryHeading, renderDirectoryPanel, renderSidebar } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { AgentRunUsage } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { CodingIdentityView } from "./identity.js";
 import {

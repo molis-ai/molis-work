@@ -5,7 +5,7 @@ import { GOALS_CONTEXT_UI_CONTRIBUTION_ID, type GoalsContextItem, type GoalsCont
 import type { GoalRelationRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import { L, currentLocale } from "@molis-ai/molis-work-app-local-host";
 import { createGoalStateExplainer } from "@molis-ai/molis-work-plugin-goals";
-import { icon } from "@molis-ai/molis-work-design-system";
+import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 const { explainWorkState, explainParentCompletion } = createGoalStateExplainer(L);
 
 const escapeHtml = (v: unknown) => String(v ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");

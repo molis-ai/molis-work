@@ -852,6 +852,9 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../plugin-sdk
       lucide:
         specifier: ^1.31.0
         version: 1.31.0
@@ -864,6 +867,9 @@ importers:
       '@molis-ai/molis-work-design-system':
         specifier: workspace:*
         version: link:../design-system
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../plugin-sdk
 
   packages/kernel:
     dependencies:
@@ -943,9 +949,6 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
-        specifier: workspace:*
-        version: link:../../../packages/design-system
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
@@ -974,18 +977,15 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
+      '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
-        version: link:../../../packages/design-system
+        version: link:../../../packages/plugin-sdk
 
   plugins/native/coding:
     dependencies:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
-        specifier: workspace:*
-        version: link:../../../packages/design-system
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
@@ -1001,9 +1001,6 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
-        specifier: workspace:*
-        version: link:../../../packages/design-system
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
@@ -1020,9 +1017,6 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
-        specifier: workspace:*
-        version: link:../../../packages/design-system
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
@@ -1039,9 +1033,6 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
-        specifier: workspace:*
-        version: link:../../../packages/design-system
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
@@ -1061,9 +1052,6 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
-        specifier: workspace:*
-        version: link:../../../packages/design-system
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
@@ -1073,9 +1061,6 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
-        specifier: workspace:*
-        version: link:../../../packages/design-system
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
@@ -1089,9 +1074,6 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
-        specifier: workspace:*
-        version: link:../../../packages/design-system
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
@@ -1108,9 +1090,6 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
-        specifier: workspace:*
-        version: link:../../../packages/design-system
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
@@ -1124,9 +1103,6 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
-        specifier: workspace:*
-        version: link:../../../packages/design-system
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
@@ -1136,9 +1112,6 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
-        specifier: workspace:*
-        version: link:../../../packages/design-system
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
@@ -1161,9 +1134,6 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
-        specifier: workspace:*
-        version: link:../../../packages/design-system
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
@@ -1177,9 +1147,6 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
-        specifier: workspace:*
-        version: link:../../../packages/design-system
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
@@ -1192,9 +1159,6 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
-        specifier: workspace:*
-        version: link:../../../packages/design-system
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
@@ -1211,9 +1175,6 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
-        specifier: workspace:*
-        version: link:../../../packages/design-system
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
@@ -1281,9 +1242,6 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
-        specifier: workspace:*
-        version: link:../../../packages/design-system
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
@@ -1316,9 +1274,6 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
-        specifier: workspace:*
-        version: link:../../../packages/design-system
       '@molis-ai/molis-work-module-shelf':
         specifier: workspace:*
         version: link:../../../modules/shelf
@@ -1341,9 +1296,6 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
-        specifier: workspace:*
-        version: link:../../../packages/design-system
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
@@ -1357,9 +1309,6 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
-        specifier: workspace:*
-        version: link:../../../packages/design-system
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
@@ -1376,9 +1325,6 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../../packages/contracts
-      '@molis-ai/molis-work-design-system':
-        specifier: workspace:*
-        version: link:../../../packages/design-system
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk

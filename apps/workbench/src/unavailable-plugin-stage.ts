@@ -1,4 +1,4 @@
-import { escapeHtml, renderPluginStageShell } from "@molis-ai/molis-work-design-system";
+import { escapeHtml, renderPluginStageShell } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /** What the Host may offer for a project plugin that does not run: start it again, or release its quarantine and start it. */
 export type PluginRestartOffer = "restart" | "release-quarantine";

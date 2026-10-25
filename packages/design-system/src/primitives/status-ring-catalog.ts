@@ -1,5 +1,4 @@
-import { renderStateRing } from "../state-ring.js";
-import { STATE_RING_FAMILIES, STATE_RING_LABELS } from "../state-ring-states.js";
+import { renderStateRing, STATE_RING_FAMILIES, STATE_RING_LABELS } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 export function renderStateRingCatalog(): string {
   const choices = STATE_RING_FAMILIES.map(family => `<div class="mw-ring-catalog__family">${renderStateRing({ state: family.key, size: 28 })}<div><strong>${family.label}</strong><div class="mw-ring-catalog__aliases">${family.states.map(state => `<button type="button" class="mw-btn mw-btn--ghost" data-ring-choice="${state}" aria-pressed="${state === "done"}">${STATE_RING_LABELS[state]}</button>`).join("")}</div></div></div>`).join("");

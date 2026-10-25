@@ -1,4 +1,5 @@
-import { renderCaption, renderWordmark, type MolisWorkIcon } from "@molis-ai/molis-work-design-system";
+import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderCaption, renderWordmark } from "@molis-ai/molis-work-design-system";
 import { homePluginSideTabs, renderHomePluginNavigation } from "../home-plugin-navigation.js";
 import { renderSidePanel, SIDE_PANEL_SCRIPT, SIDE_PANEL_STYLES } from "../side-panel.js";
 
@@ -9,7 +10,7 @@ import { renderSidePanel, SIDE_PANEL_SCRIPT, SIDE_PANEL_STYLES } from "../side-p
 export interface ArrivalShellPrimitives {
   L(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
-  icon(name: MolisWorkIcon): string;
+  icon(name: PluginIconName): string;
   withDesktopQuery(path: string): string;
   htmlLang(): string;
   renderIconSprite(): string;
@@ -60,7 +61,7 @@ export function createArrivalShell(p: ArrivalShellPrimitives) {
   const caption = () => renderCaption({ label: L("暂停标题动画"), playLabel: L("播放标题动画"), title: L("点按暂停或播放") });
 
   function tools(desktopShell: boolean, options: ArrivalTitlebarOptions): string {
-    const link = (path: string, glyph: MolisWorkIcon, label: string, aria: string) =>
+    const link = (path: string, glyph: PluginIconName, label: string, aria: string) =>
       `<a class="mw-btn mw-btn--ghost mw-btn--md" data-slot="button" href="${href(desktopShell, path)}" aria-label="${escapeHtml(aria)}">${icon(glyph)}<span data-slot="button-label">${escapeHtml(label)}</span></a>`;
     const background = `<span class="arrival-bg"><button class="mw-btn mw-btn--ghost mw-btn--md background-tasks-button" data-slot="button" type="button" data-background-tasks aria-label="${L("后台任务")}" title="${L("后台任务")}" hidden>${icon("activity")}<span data-slot="button-label">${L("后台任务")}</span></button><span data-background-tasks-count hidden>0</span></span>`;
     const theme = options.theme

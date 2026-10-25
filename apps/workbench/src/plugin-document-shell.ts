@@ -1,4 +1,5 @@
-import { escapeHtml, renderIconSprite, THEME_BOOTSTRAP_SCRIPT } from "@molis-ai/molis-work-design-system";
+import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderIconSprite, THEME_BOOTSTRAP_SCRIPT } from "@molis-ai/molis-work-design-system";
 import { UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT, UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { renderPluginFrameSurface } from "./plugin-frame.js";
 

@@ -1,6 +1,7 @@
 export {
   APP_IMPORT_ALLOWLIST,
   PLUGIN_MODULE_IMPORT_ALLOWLIST,
+  PRIVATE_UI_EXEMPT_PLUGINS,
   evaluateImportBoundary,
   extractImportSpecifiers,
   findDependencyCycles,

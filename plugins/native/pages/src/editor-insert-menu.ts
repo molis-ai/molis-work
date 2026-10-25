@@ -1,7 +1,7 @@
 import type { Node } from "prosemirror-model";
 import { Plugin, PluginKey } from "prosemirror-state";
 import type { EditorView } from "prosemirror-view";
-import { followScroll, placeOverlay } from "@molis-ai/molis-work-design-system/floating";
+import { followScroll, placeOverlay } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { applySlash, slashSession, dismissedMenuRange, menuKey, hoverMenuIndex } from "./commands.js";
 import { ownPagesTransient, readPagesImage } from "./editor-transient.js";
 import { pagesSchema } from "./schema.js";

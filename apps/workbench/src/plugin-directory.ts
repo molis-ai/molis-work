@@ -1,4 +1,4 @@
-import { UI_VIEW_GROUPS, UI_VIEW_SLOTS, type UiViewDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
+import { UI_VIEW_GROUPS, UI_VIEW_RAILS, UI_VIEW_SLOTS, type UiViewDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
 import { registeredIconNames } from "@molis-ai/molis-work-design-system";
 
 /**
@@ -41,7 +41,7 @@ function line(value: unknown, max: number): string | null {
 
 const key = (value: unknown): string | null => typeof value === "string" && KEY.test(value) ? value : null;
 
-function sanitizeView(view: UiViewDeclaration, icons: ReadonlySet<string>): UiViewDeclaration | null {
+function sanitizeView(view: UiViewDeclaration, icons: ReadonlySet<string>, chosen: boolean): UiViewDeclaration | null {
   const viewId = key(view.view_id), title = line(view.title, 80);
   if (!viewId || !title || !(UI_VIEW_SLOTS as readonly string[]).includes(view.slot)) return null;
   const known = (name: unknown) => typeof name === "string" && icons.has(name) ? name : undefined;
@@ -54,6 +54,9 @@ function sanitizeView(view: UiViewDeclaration, icons: ReadonlySet<string>): UiVi
     ...(view.accepts_objects === true ? { accepts_objects: true } : {}),
     ...(typeof view.order === "number" && Number.isFinite(view.order) ? { order: view.order } : {}),
     ...(view.group && (UI_VIEW_GROUPS as readonly string[]).includes(view.group) ? { group: view.group } : {}),
+    // The backbone, the extend entries and the Dock's default pins are the Host's to give: a plugin installed at run time is none of them.
+    ...(chosen && view.slot === "navigator" && view.rail && (UI_VIEW_RAILS as readonly string[]).includes(view.rail) ? { rail: view.rail } : {}),
+    ...(chosen && view.slot === "navigator" && view.pinned_default === true ? { pinned_default: true as const } : {}),
     ...(station && createTitle ? { creates: { station, title: createTitle } } : {}),
     ...(startTitle && hint ? { start: { title: startTitle, hint, ...(startIcon ? { icon: startIcon } : {}) } } : {}),
   };
@@ -73,8 +76,8 @@ export function sanitizePluginDirectory(directory: PluginDirectory): PluginDirec
     const id = key(entry.id), pluginId = key(entry.plugin_id), name = line(entry.name, 80);
     if (!id || !pluginId || !name || seen.has(id)) continue;
     seen.add(id);
-    const views = (entry.ui.views ?? []).slice(0, MAX_VIEWS).flatMap(view => { const clean = sanitizeView(view, icons); return clean ? [clean] : []; });
     const chosen = entry.chosen === true;
+    const views = (entry.ui.views ?? []).slice(0, MAX_VIEWS).flatMap(view => { const clean = sanitizeView(view, icons, chosen); return clean ? [clean] : []; });
     entries.push({ id, plugin_id: pluginId, name, chosen, ...(chosen ? trustedMarks(entry) : {}), ui: { views } });
   }
   return entries;

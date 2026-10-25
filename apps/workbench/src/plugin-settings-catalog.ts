@@ -1,7 +1,8 @@
 import type { ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
+import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { UiContributionDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
 import { registeredIconNames, type MolisWorkIcon } from "@molis-ai/molis-work-design-system";
-import { builtinPluginDirectory, settingsEntries } from "./plugin-catalog.js";
+import { BUILTIN_PLUGIN_CATALOG, builtinPluginDirectory, settingsEntries } from "./plugin-catalog.js";
 import { listWorkbenchUiContributions, WORKBENCH_UI_SLOTS } from "./ui-composition.js";
 
 /** 能力 is four settings categories served from /capabilities/<id> (specs/artifact-positioning S6b). */
@@ -29,6 +30,21 @@ function declaredSettingsIcons(): ReadonlyMap<string, MolisWorkIcon> {
   settingsIcons = new Map(settingsEntries(builtinPluginDirectory().map((entry) => entry.id))
     .flatMap((view) => view.icon && known.has(view.icon) ? [[view.contribution_id, view.icon as MolisWorkIcon] as const] : []));
   return settingsIcons;
+}
+
+/**
+ * The read action a settings page gets its data with, as its Manifest view declares it (`settings_data`, W5-02 PR-D, PG-072), by the
+ * page's contribution: the Manifest's own definition of it, which the SDK has checked is a query for the person that only reads.
+ * The Host calls it and hands the answer to the page; it knows no plugin by name.
+ */
+let settingsDataActions: ReadonlyMap<string, ActionDefinition> | undefined;
+export function pluginSettingsDataAction(contributionId: string): ActionDefinition | undefined {
+  settingsDataActions ??= new Map(BUILTIN_PLUGIN_CATALOG.flatMap(entry => (entry.manifest.ui?.views ?? []).flatMap(view => {
+    const declared = view.slot === "settings" ? view.settings_data?.action : undefined;
+    const action = declared ? entry.manifest.actions?.find(item => item.capability_id === declared) : undefined;
+    return action ? [[view.contribution_id ?? `${entry.manifest.plugin_id}.${view.view_id}`, action] as const] : [];
+  })));
+  return settingsDataActions.get(contributionId);
 }
 
 export function pluginSettingsNavItemsFrom(

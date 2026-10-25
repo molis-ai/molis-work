@@ -7,9 +7,35 @@ export interface OwnedUiContribution<TModel = unknown> {
     render(request: UiRenderRequest<TModel>): string;
 }
 
+export interface SettingsPageContext {
+    readonly projects: ReadonlyArray<{
+        readonly project_id: string;
+        readonly name: string;
+    }>;
+    readonly project: {
+        readonly project_id: string;
+        readonly name: string;
+        readonly href: string;
+    } | null;
+    readonly runtimes: readonly AgentRuntimeDescriptor[];
+}
+
+export interface SettingsPageModel<Data = unknown> {
+    readonly context: SettingsPageContext;
+    readonly data?: Data;
+    readonly primitives: SettingsPagePrimitives;
+}
+
+export interface SettingsPagePrimitives {
+    escape(value: unknown): string;
+    text(value: string, values?: Record<string, string | number>): string;
+}
+
 export declare const UI_COMMAND_INPUT_KINDS: readonly ["current", "object", "agent-session", "artifacts"];
 
 export declare const UI_VIEW_GROUPS: readonly ["advance", "make", "personal", "research", "code"];
+
+export declare const UI_VIEW_RAILS: readonly ["core", "extend"];
 
 export declare const UI_VIEW_SLOTS: readonly ["navigator", "stage", "settings", "island", "side"];
 
@@ -253,6 +279,10 @@ export interface UiRequestScope {
     assertCurrent(signal?: AbortSignal): void;
 }
 
+export interface UiSettingsDataDeclaration {
+    readonly action: string;
+}
+
 export interface UiSideContext {
     readonly plugin_id: string;
     readonly pane_id: string;
@@ -374,6 +404,9 @@ export interface UiViewDeclaration {
     readonly objects?: readonly string[];
     readonly order?: number;
     readonly group?: UiViewGroup;
+    readonly rail?: UiViewRail;
+    readonly pinned_default?: true;
+    readonly settings_data?: UiSettingsDataDeclaration;
     readonly creates?: UiViewCreateEntry;
     readonly start?: UiViewStartEntry;
 }
@@ -384,6 +417,8 @@ export interface UiViewObjectRef {
     readonly view_id: string;
     readonly object_id: string;
 }
+
+export type UiViewRail = (typeof UI_VIEW_RAILS)[number];
 
 export type UiViewSlot = (typeof UI_VIEW_SLOTS)[number];
 

@@ -262,8 +262,10 @@ test("Shelf settings page has the drop wheel and Molis appearance does not", () 
     localeSwitchHref: (locale, nextPath) => `/locale?lang=${locale}&next=${encodeURIComponent(nextPath)}`,
   }, "/settings/appearance");
   assert.doesNotMatch(appearance, /拖放轮盘|drop_wheel|data-shelf-drop-wheel/);
+  // The page is drawn from the answer of the read action its Manifest view declares (`settings_data`) and the platform's context.
   const mounted = renderPluginSettingsContribution(SHELF_SETTINGS_UI_CONTRIBUTION_ID, {
-    settings: shelfSettings(),
+    context: { projects: [], project: null, runtimes: [] },
+    data: { settings: shelfSettings() },
     primitives,
   });
   assert.match(mounted, /data-shelf-settings/);

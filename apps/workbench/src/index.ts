@@ -95,7 +95,7 @@ export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 export { createWorkbenchOnboardingRenderer, type MolisWorkOnboardingRenderOptions, type OnboardingRenderPrimitives } from "./onboarding-renderer.js";
 export { ONBOARDING_INTENT_FRAMES, onboardingIntentFrame, onboardingIntentFrameDefinition, onboardingPlanningHint, type OnboardingIntentFrame } from "./onboarding-intent.js";
 export { createWorkbenchSettingsNavigation, type WebProjectNavigation, type WebSettingsSection, type SettingsNavigationPrimitives } from "./settings-navigation.js";
-export { listPluginSettingsNavItems, findPluginSettingsNavItem, pluginSettingsNavItemsFrom, isHostGlobalSettingsSection } from "./plugin-settings-catalog.js";
+export { listPluginSettingsNavItems, findPluginSettingsNavItem, pluginSettingsDataAction, pluginSettingsNavItemsFrom, isHostGlobalSettingsSection } from "./plugin-settings-catalog.js";
 export { isProjectSettingsWorkbenchPath, projectSettingsPageFromPath, projectSettingsPath } from "./project-settings-stage.js";
 export { createWorkbenchProjectChooserRenderer, type ChooserArrival } from "./arrival/chooser.js";
 export { composeProjectBrief, currentBriefGoal, summarizeProjectBrief, type BriefEvent, type BriefGoal, type ProjectBriefInput, type ProjectBriefModel, type ProjectBriefSummary } from "./arrival/project-brief.js";
@@ -120,7 +120,7 @@ export { parseAssistantFrame, renderMolisWorkAssistantSpecimen, type AssistantFr
 export { assistantBoardSamples } from "./assistant-board-samples.js";
 export { createCapsuleWorkbench, type CapsuleRendererPorts } from "./capsule.js";
 export type * from "./capsule-view.js";
-export { BUILTIN_PLUGIN_CATALOG, DIRECT_WORK_SURFACE_IDS, OWN_DIRECTORY_SURFACES, manifestFor, pluginMarketCards, pluginTabGlyphs, pluginTabTitles, islandEntries, railEntries, settingsEntries, sideOpenedPlugins, creatableKinds, homeStarts, builtinPluginDirectory, pluginDirectoryFor } from "./plugin-catalog.js";
+export { BUILTIN_PLUGIN_CATALOG, DIRECT_WORK_SURFACE_IDS, OWN_DIRECTORY_SURFACES, manifestFor, pluginMarketCards, pluginTabGlyphs, pluginTabTitles, islandEntries, railEntries, settingsEntries, sideOpenedPlugins, creatableKinds, homeStarts, builtinPluginDirectory, pluginDirectoryFor, dockDefaultPins, extendPluginIds } from "./plugin-catalog.js";
 export { clientPluginDirectory, renderPluginDirectoryData, sanitizePluginDirectory, scriptJson, type PluginDirectory, type PluginDirectoryEntry } from "./plugin-directory.js";
 export type { PluginCreatableKind, PluginHomeStart, PluginMarketCard, RailEntry } from "./plugin-catalog.js";
 export { declaredStageContributionId, stageContributionId } from "./declared-stages.js";

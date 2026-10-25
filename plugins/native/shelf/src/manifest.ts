@@ -66,7 +66,7 @@ export const shelfManifest: PluginManifest = {
     views: [
       // The side panel's first tab (order 0, before 灵光's 10 and the panel's own tabs); it never opens in the work area.
       { view_id: "side", slot: "side", title: "Shelf", contribution_id: SHELF_UI_CONTRIBUTION_ID, icon: "library", order: 0 },
-      { view_id: "settings", slot: "settings", title: "Shelf", contribution_id: SHELF_SETTINGS_UI_CONTRIBUTION_ID, icon: "library" },
+      { view_id: "settings", slot: "settings", title: "Shelf", contribution_id: SHELF_SETTINGS_UI_CONTRIBUTION_ID, icon: "library", settings_data: { action: "shelf.snapshot" } },
     ],
   },
 };

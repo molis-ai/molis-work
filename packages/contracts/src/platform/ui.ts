@@ -1,5 +1,6 @@
 import type { ContractDescriptor } from "./package.js";
 import type { ActionReference } from "./actions.js";
+import type { AgentRuntimeDescriptor } from "../services/agent-host.js";
 
 /** The isolated page calls only its installation's own or declared consumed actions. Identity and grants stay with the Host. */
 /** The current contribution only; the Host chooses its address and rechecks its installation. */
@@ -134,6 +135,48 @@ export const UI_VIEW_GROUPS = ["advance", "make", "personal", "research", "code"
 
 export type UiViewGroup = (typeof UI_VIEW_GROUPS)[number];
 
+/**
+ * Where a `navigator` view's plugin sits in the rail apart from its `group` (W5-02 PR-D, PG-074). `core` is the backbone, listed
+ * under the first heading in the views' `order`; `extend` is a way to extend the workbench, offered from the Dock menu and the
+ * switcher's head instead of the list of tools. The Host honours either only for a built-in plugin the project chooses.
+ */
+export const UI_VIEW_RAILS = ["core", "extend"] as const;
+
+export type UiViewRail = (typeof UI_VIEW_RAILS)[number];
+
+/**
+ * Where a settings page gets what it shows (W5-02 PR-D, PG-072). `action` is the `capability_id` of one of the same Manifest's own
+ * actions: a query for the person (audience `user`) that only reads, with one version. The Host calls it with no input, in the Home,
+ * and the page receives the answer as `SettingsPageModel.data`; a page that needs nothing of its own declares none.
+ */
+export interface UiSettingsDataDeclaration {
+  readonly action: string;
+}
+
+/** The platform facts the Host gives every plugin's settings page, in this one shape, whatever the plugin is. */
+export interface SettingsPageContext {
+  /** The projects the person has, for a page that offers to open something in one. */
+  readonly projects: ReadonlyArray<{ readonly project_id: string; readonly name: string }>;
+  /** The project the settings were opened from (`?project=`), and the address of its workbench; null when opened from none. */
+  readonly project: { readonly project_id: string; readonly name: string; readonly href: string } | null;
+  /** The Agent Runtimes the Host has registered. */
+  readonly runtimes: readonly AgentRuntimeDescriptor[];
+}
+
+/** What the Host writes text and markup with on a settings page. */
+export interface SettingsPagePrimitives {
+  escape(value: unknown): string;
+  text(value: string, values?: Record<string, string | number>): string;
+}
+
+/** The model a plugin's settings page is rendered from: the platform context, and the answer of its declared `settings_data` action. */
+export interface SettingsPageModel<Data = unknown> {
+  readonly context: SettingsPageContext;
+  /** The `settings_data` action's answer; absent when the view declares none. */
+  readonly data?: Data;
+  readonly primitives: SettingsPagePrimitives;
+}
+
 /** A kind of thing a person can make new from a Goal: one of the Manifest's create stations, and the kind's name. */
 export interface UiViewCreateEntry {
   /** The `id` of a `workflow_content` station of the same Manifest whose role is `create`; `placement.create` calls it. */
@@ -177,6 +220,12 @@ export interface UiViewDeclaration {
   readonly order?: number;
   /** `navigator` and `island` views only: the rail group the plugin is listed in. Omitted means 更多. */
   readonly group?: UiViewGroup;
+  /** `navigator` views only: the plugin is part of the rail's backbone (`core`) or a way to extend the workbench (`extend`). Omitted means an ordinary tool. */
+  readonly rail?: UiViewRail;
+  /** `navigator` views only: the Dock keeps this plugin until the person chooses others. Their choice, once made, replaces it. */
+  readonly pinned_default?: true;
+  /** `settings` views only: the read action that gives the page its data. The Host calls it as the person and hands the answer to the page. */
+  readonly settings_data?: UiSettingsDataDeclaration;
   /** `navigator` and `island` views only: what a person can make new with this plugin from a Goal. */
   readonly creates?: UiViewCreateEntry;
   /** `navigator` and `island` views only: the project home's way to start with this plugin. */

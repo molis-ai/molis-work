@@ -7,8 +7,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { CONNECTOR_REQUEST_SERVICES } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { completeApiOAuth, createPluginConnectionsPort, listConnectorConnectionViews, pluginSlotScope, startApiOAuth, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import type { PluginConnectionDispatch } from "@molis-ai/molis-work-plugin-runtime";
+import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 
 // S-70 (docs/system/SECURITY-INVARIANTS.md, provisional number; slice s57-connections-extension X3): a 401 to a credential the Host can
 // refresh is refreshed in the Host once, and the same request sent once more. The refreshed token never reaches the plugin.
@@ -20,19 +22,19 @@ const code = (expected: string) => (error: unknown) => error instanceof ActionEr
 const target = { plugin_id: "io.molis.work.example.connectionrefresh", install_id: "install-s65", slot_id: "account", service_id: "asana" };
 
 /** A Home with an Asana account connected through API OAuth (access `stale-access`, refresh `refresh-1`), bound to the plugin's slot. */
-async function connected(t: TestContext) {
+async function connected(t: TestContext, refresh = "refresh-1") {
   const home = await mkdtemp(join(tmpdir(), "connection-refresh-home-")); t.after(() => rm(home, { recursive: true, force: true }));
-  const connection_id = await authorize(home, "stale-access");
+  const connection_id = await authorize(home, "stale-access", undefined, refresh);
   withConnectorConnections(home, store => store.bind({ scopeId: pluginSlotScope(target.install_id), pluginId: target.plugin_id, slotId: "account", serviceId: "asana", connectionId: connection_id }));
   return home;
 }
 
 /** The person authorizes Asana (again, when `connectionId` names the account): the token endpoint returns `access` and `refresh-1`. */
-async function authorize(home: string, access: string, connectionId?: string) {
+async function authorize(home: string, access: string, connectionId?: string, refresh = "refresh-1") {
   const started = await startApiOAuth(home, { serviceId: "asana", displayName: "Asana", clientId: "asana-app", clientSecret: "asana-secret", origin: ORIGIN, ...(connectionId ? { connectionId } : {}) });
   const state = new URL(started.authorization_url).searchParams.get("state")!;
   await completeApiOAuth(home, { origin: ORIGIN, state, code: "code-from-provider" }, (async (url: unknown) => String(url) === ASANA_TOKEN
-    ? json({ access_token: access, refresh_token: "refresh-1", expires_in: 3600 })
+    ? json({ access_token: access, ...(refresh ? { refresh_token: refresh } : {}), expires_in: 3600 })
     : json({ data: { gid: "someone", name: "Someone", email: "someone@example.test" } })) as typeof fetch);
   return started.connection_id;
 }
@@ -48,11 +50,11 @@ function tokenEndpoint(t: TestContext, answer: () => Response) {
   return refreshes;
 }
 
-/** app.asana.com, answering 401 to every token in `refused` and 200 to any other. */
-async function asana(t: TestContext, refused: readonly string[]) {
+/** A service's exact HTTPS origin, answering 401 to every token in `refused` and 200 to any other. */
+async function asana(t: TestContext, refused: readonly string[], hostname = "app.asana.com") {
   const dir = await mkdtemp(join(tmpdir(), "connection-refresh-"));
   t.after(() => rm(dir, { recursive: true, force: true }));
-  execFileSync("openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1", "-subj", "/CN=app.asana.com", "-addext", "subjectAltName=DNS:app.asana.com",
+  execFileSync("openssl", ["req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "1", "-subj", `/CN=${hostname}`, "-addext", `subjectAltName=DNS:${hostname}`,
     "-keyout", join(dir, "key.pem"), "-out", join(dir, "cert.pem")], { stdio: "ignore" });
   const [key, cert] = await Promise.all([readFile(join(dir, "key.pem")), readFile(join(dir, "cert.pem"))]);
   const seen: Array<string | undefined> = [];
@@ -124,6 +126,61 @@ test("S-70 RAC-349 a token connection is not refreshed: its 401 goes back to the
   const { seen, options } = await asana(t, ["pasted-token"]);
   const answer = await createPluginConnectionsPort(home, options).request(target, dispatch());
   assert.deepEqual([answer.status, seen.length, refreshes.length], [401, 1, 0]);
+});
+
+test("S-70 RAC-349 GitHub device OAuth has an ordinary secret and no refresh material: return the first 401 without resending", { timeout: 30_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "connection-refresh-home-")); t.after(() => rm(home, { recursive: true, force: true }));
+  // connector-github-device commits this same createToken shape after device authorization, with authMethod oauth.
+  const connection = withConnectorConnections(home, store => store.createToken({ serviceId: "github", displayName: "GitHub", token: "device-access", authMethod: "oauth" }));
+  assert.equal(connection.auth_method, "oauth");
+  assert.equal(connection.refresh_ref, null);
+  assert.match(connection.credential_ref!, /:token$/u);
+  const github = { ...target, service_id: "github" };
+  withConnectorConnections(home, store => store.bind({ scopeId: pluginSlotScope(github.install_id), pluginId: github.plugin_id, slotId: github.slot_id, serviceId: "github", connectionId: connection.connection_id }));
+  const refreshes = tokenEndpoint(t, () => assert.fail("a device credential cannot be refreshed"));
+  const { seen, options } = await asana(t, ["device-access"], "api.github.com");
+  const port = createPluginConnectionsPort(home, options);
+  const answer = await port.request(github, dispatch({ url: new URL("https://api.github.com/user") }));
+  assert.deepEqual([answer.status, answer.authenticated, answer.body, answer.headers["content-type"]],
+    [401, true, '{"errors":[{"message":"Not Authorized"}]}', "application/json"]);
+  assert.deepEqual(seen, ["Bearer device-access"]);
+  assert.equal(refreshes.length, 0);
+  assert.equal(port.describe(github).state, "connected");
+  assert.doesNotMatch(JSON.stringify(answer), /device-access|credential_ref|refresh_ref/u);
+});
+
+for (const missing of ["not-issued", "deleted"] as const) test(`S-70 RAC-349 API OAuth refresh material ${missing}: return the first 401 without refusing or marking the account`, { timeout: 30_000 }, async t => {
+  const home = await connected(t, missing === "not-issued" ? "" : "refresh-1");
+  const [connection] = withConnectorConnections(home, store => store.list("asana"));
+  if (missing === "deleted") {
+    assert.ok(connection!.refresh_ref);
+    runWithMolisWorkHome(home, () => createFileSecretStore().delete(connection!.refresh_ref!));
+  } else assert.equal(connection!.refresh_ref, null);
+  const refreshes = tokenEndpoint(t, () => assert.fail("no refresh material can be sent to the token endpoint"));
+  const { seen, options } = await asana(t, ["stale-access"]);
+  const port = createPluginConnectionsPort(home, options);
+  const answer = await port.request(target, dispatch());
+  assert.deepEqual([answer.status, answer.authenticated, answer.body, answer.headers["content-type"]],
+    [401, true, '{"errors":[{"message":"Not Authorized"}]}', "application/json"]);
+  assert.deepEqual([seen, refreshes.length], [["Bearer stale-access"], 0]);
+  assert.equal(port.describe(target).state, "connected");
+  assert.equal(listConnectorConnectionViews(home, "asana")[0]?.state, "connected");
+  assert.doesNotMatch(JSON.stringify(answer), /stale-access|refresh-1|credential_ref|refresh_ref/u);
+});
+
+test("S-70 RAC-349 refresh none returns the first 401 even with real OAuth refresh material", { timeout: 30_000 }, async t => {
+  const home = await connected(t);
+  // One declaration only, in this isolated process. Exercise the production branch without changing any registered service.
+  const original = Object.getOwnPropertyDescriptor(CONNECTOR_REQUEST_SERVICES, "asana")!;
+  Object.defineProperty(CONNECTOR_REQUEST_SERVICES, "asana", { ...original, value: { ...CONNECTOR_REQUEST_SERVICES.asana, refresh: "none" } });
+  t.after(() => Object.defineProperty(CONNECTOR_REQUEST_SERVICES, "asana", original));
+  const refreshes = tokenEndpoint(t, () => assert.fail("refresh none must not reach the token endpoint"));
+  const { seen, options } = await asana(t, ["stale-access"]);
+  const answer = await createPluginConnectionsPort(home, options).request(target, dispatch());
+  assert.deepEqual([answer.status, answer.authenticated, answer.body], [401, true, '{"errors":[{"message":"Not Authorized"}]}']);
+  assert.deepEqual([seen, refreshes.length], [["Bearer stale-access"], 0]);
+  assert.equal(listConnectorConnectionViews(home, "asana")[0]?.state, "connected");
+  assert.doesNotMatch(JSON.stringify(answer), /stale-access|refresh-1/u);
 });
 
 test("S-70 RAC-349 a refresh the token endpoint refuses marks the account for reconnecting: shown so, refused without asking again, cleared by reconnecting", { timeout: 30_000 }, async t => {

@@ -65,8 +65,9 @@ export interface PluginConnectionsPortOptions {
  * Requests reach only the slot's service origins, exactly. An unbound slot sends nothing but what the plugin wrote; a bound slot whose
  * account is gone, disabled, disconnected, of another service, pinned to another of the service's origins, or of a kind whose secret the Host cannot send,
  * is refused rather than sent without it. The person's credential is added here and nowhere else, and redirects come back unfollowed.
- * A 401 to a credential the Host can refresh (S-70 provisional: the service's `refresh: "host"` and an OAuth connection) is refreshed once
- * and the same request sent once more; a second 401 goes back to the plugin as it is, and a refresh that fails refuses the request.
+ * A 401 to a credential the Host can refresh (S-70 provisional: the service's `refresh: "host"` and real OAuth refresh material) is refreshed once
+ * and the same request sent once more; a second 401 goes back to the plugin as it is, and so does the first one when there is no refresh
+ * material. A failed refresh refuses the request.
  */
 export function createPluginConnectionsPort(home: string, options: PluginConnectionsPortOptions = {}): PluginConnectionsPort {
   return {
@@ -80,15 +81,18 @@ export function createPluginConnectionsPort(home: string, options: PluginConnect
       const { connection_id } = connection;
       return withConnectorRequest(home, connection_id, dispatch.signal, async signal => {
         // The token, refreshed or not, stays here: a refusal names no credential, and the refreshed token is not in the answer.
-        const token = async (refresh: boolean) => {
-          try { return (await resolveApiConnection(home, connection_id, target.service_id, refresh)).token; }
+        const access = async <T>(read: Promise<T>): Promise<T> => {
+          try { return await read; }
           catch { throw pluginRequestErrors.connection_unavailable("所绑定的账号需要重新授权，请在设置里检查连接"); }
         };
         const sent = { ...dispatch, signal };
-        const first = await send(sent, `Bearer ${await token(false)}`, options);
+        const initial = await access(resolveApiConnection(home, connection_id, target.service_id));
+        const first = await send(sent, `Bearer ${initial.token}`, options);
         if (first.status !== 401 || service.refresh !== "host" || connection.auth_method !== "oauth") return first;
+        const refreshed = await access(resolveApiConnection(home, connection_id, target.service_id, "if_available"));
+        if (refreshed === null) return first;
         // Once: the resend asks the call again after its own DNS (`beforeEffect`), so a call that ended meanwhile sends nothing more.
-        return send(sent, `Bearer ${await token(true)}`, options);
+        return send(sent, `Bearer ${refreshed.token}`, options);
       });
     },
     describe(target) {

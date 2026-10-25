@@ -1,6 +1,6 @@
 # W5-16 C5：MCP 按需启动常驻宿主
 
-状态：七个产品子路径已具分组有效证据，fresh-main 构建、必要新基底回归及余两项实装通过；待整片 FIRST、有限独立 TEST 收验与 S-77 公共行，health 仍有该引用失败（2026-10-25，洛杉矶）。负责人：Codex 实现 1。BL-645，验收 RAC-625～629；目标完成程度为隔离 Home 中功能可用，不把分组证据叫作一轮全八项通过，也不代表整个 W5-16/C1/C3 完成、C5 已进入 main、真实 App 或本人验收通过。
+状态：七个产品子路径已具分组有效证据，fresh-main 构建、必要新基底回归及余两项实装通过，有限独立 TEST 原件核收已齐；待整片 FIRST 与 S-77 公共行，health 仍有该引用失败（2026-10-25，洛杉矶）。负责人：Codex 实现 1。BL-645，验收 RAC-625～629；目标完成程度为隔离 Home 中功能可用，不把分组证据叫作一轮全八项通过，也不代表整个 W5-16/C1/C3 完成、C5 已进入 main、真实 App 或本人验收通过。
 
 统筹已在 [6394070792](https://github.com/molis-ai/molis-work/pull/1254#issuecomment-6394070792) 审定本稿：选 A 常驻；唯一 Home owner 允许短暂被拒的启动候选；20 秒总预算、1 秒探测、250 毫秒退避；EOF/cancellation 必须接通。初期按 Root 授权以 batch-36 `bb7137fc2550d8ae8fd7f8bb6caced55ee7cba9f` 为固定基底实施、只推自己的分支；#1254 的 A 实现现已随 #1270 在 11:14:03 UTC 实际进入 main `64a3ccc9c177ba6f3a2bbb44cf80dc1cce648f2a`，已鲜取并核对。整片完成后才交一个完整非 Draft PR。FIX4/FIX7/原 owner 关闭的生命周期 hunk 不在本片改写；S-77 正式共同行由 carrier 唯一登记，本片只交暂定引用、确切语义及拒绝测试。
 
@@ -161,4 +161,4 @@ fresh-main 接续已逐项核范围：`64a3ccc9 → c20fc04db` 为本片 35 文�
 
 实际已提交创建的响应被切断后，原请求收到 `actions.delivery_unknown`；新明确只读请求读回唯一项目，启动 attempts 未增加，原环境清理断言也通过。非法工具/参数/身份、缺 Home、port 0 与缺少同 Home 启动入口分别收到原拒绝，PATH 的另一安装未执行。全部 MCP 子进程正常退出，临时 Home 正常删除；12:18:47.731 UTC 实核原两槽和全部自有 PID 已释放，临时 Home 不存在，下一个原票于 12:14:52.052 UTC 接手 build。[结束记录](https://github.com/molis-ai/molis-work/pull/1270#issuecomment-6397503099) 及原件 `/tmp/c5-main-remaining-auto-7a63/` 保留实际 source/build、命令、结果与释放记录。
 
-此前 12:04:36 UTC 取得双槽后，作者保留的 GO 控制层在 12:05:36 UTC 到期，未启动安装或产品子场景，原件 `/tmp/c5-main-remaining-7a63/` 单列保留。随后彻底移除 stdin/GO 依赖，在不占槽的微型无交互路径验证后按正常 FIFO 取得上述窗口；不是产品重试，也不抵消原慢因 UNKNOWN。当前七个子路径的证据是四项同源复用、一次 offline 单场景、一次余两场景，均按原范围记录；原整批首败历史保留。独立 TEST 对 fixture 与单 offline 原件的限定核收已收到，本次余两项原件及整片 FIRST 仍待各自 owner 核收，正式 S-77 行仍由唯一 carrier 收口；本片不提前宣称 health 或整条工作完成。
+此前 12:04:36 UTC 取得双槽后，作者保留的 GO 控制层在 12:05:36 UTC 到期，未启动安装或产品子场景，原件 `/tmp/c5-main-remaining-7a63/` 单列保留。随后彻底移除 stdin/GO 依赖，在不占槽的微型无交互路径验证后按正常 FIFO 取得上述窗口；不是产品重试，也不抵消原慢因 UNKNOWN。当前七个子路径的证据是四项同源复用、一次 offline 单场景、一次余两场景，均按原范围记录；原整批首败历史保留。独立 TEST 已分别核收 fixture、单 offline 及本次余两项原件：最后一轮仅读既有 raw、83 条 observer、实际代码与释放记录，没有重新安装；也独立确认纯 spec 后继 `26e1f7d86` 的源码 digest 与本次 manifest 同为 `62c71585…ff2ba`。这些限定结论不代替 Claude 整片 FIRST、正式 S-77 公共行或最终组合收验；本片不提前宣称 health 或整条工作完成。

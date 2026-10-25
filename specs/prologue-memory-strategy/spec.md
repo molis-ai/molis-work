@@ -1332,3 +1332,13 @@ batch-33 集成实证：准确生产提交 `64210640729de77f8dddb97106eaff2a29cb
 两份native文件已按现行生产合同同步：assistant-executor的无签名样例插件显式传入空hostIds，不获得内置插件身份；coding-queued-round按既有coding.waiting/409拒绝第二次发送，进一步核验机器码、没有新Run、没有第二次排队且原Session仍为queued。生产权限、状态码与执行行为没有修改。原runner jobs2/browser1/retries0定向两文件16项通过，日志 `/private/tmp/molis-foundation-611-runtime-contract-fixes-20261026.log`；这只证明本机修改后的两份用例，原611远端失败记录保留。
 
 两份浏览器失败仍待定位：原日志出现Runtime.releaseObject/Runtime.callFunctionOn超时；本机故障探针证明清理异常可以遮蔽输入异常，最小错误传播修复正在验证，不能据此宣称CI根因已解决。未增加超时、重试、隔离或跳过，未修改CI门禁。
+
+### #1064 与 batch39 主干交点整合（2026-10-26，短合同）
+
+从准确 `45c534d6b7f04fb251738a50d45f51f9ce294e48` 建立独立工作树，整合已核对远端的 main `b3bac731b9d0f933577a21f0d2aec1feb001cffd`（#1307）。目标仅为 Memory P0 现有 Foundation 与 batch39 的同主人接线可组合；旧 Foundation 树、其它代理未提交文件、冻结 B1 工作树和正式 B1/B2 规模报告保持原样。本轮不改变 SDK 或 Memory 业务范围，不将已记录的规模时延失败写成通过。
+
+复杂度审查：这是既有合同交点的常规整合，复用原 Owner、原件、删除协调与插件装配；不新增缓存、状态台账、恢复解释器或跨仓合同。必须保留 main 的 project_runtime 登记与公开测试 fixture，同时保留 Memory 的可信本人/原调用者、Coding 初始输入与 Assistant 同一原件、撤权/取消拒绝和删除后不复活。两份 Coding 等待测试统一沿已合并的 `coding.waiting` / 409 合同，继续断言拒绝不产生额外 Run、不重复排队且原 Session 状态不变。删除进程测试从当前公开 fixture 取得插件 Store，仍以非空个人/项目记忆证明删除边界。
+
+允许路径是本次真实合并交点及其必要文档/测试：原五处文本冲突、自动合并的调用链与 owner 装配、相关 README、现有健康/API/资源快照和本节。资源只迁移原同一已批功能的精确净增：Workbench +3,193 B、Coding +612 B；以准确新 main 的实际基数和原工具复测为准，不借用余量、不改门禁判断。超出上述增长或发现安全、公开合同、写主人变化时先报告 Root，不扩设计。
+
+先完成静态合并与用例清单，整体 build、browser 与 native 均由 Root 安排机器时段。验证沿原命令与公开生产链：根/Host/Agent/Coding 严格类型、API/边界、准确 main 的健康与资源门，相关 README 必跑并集，以及 Original 输入、Assistant 原件、可信调用者、删除链、project_runtime 装配和五冲突用例；runner 固定 jobs2/browser1/retries0，不放宽断言、超时、重试、CI 或阈值。仅有效验证后可本地提交，不 push、不合并 PR、不跑全量、不付费调用模型；最终聚合、远端 #1064/#1101 与真人验收仍由 Root 负责。

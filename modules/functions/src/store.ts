@@ -14,7 +14,7 @@ import {
   type JudgmentSubject,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import { hashFunctionConfig } from "./hash.js";
-import { seedBuiltinFunctions, type BuiltinRuleSubject } from "./builtin.js";
+import { seedDeclaredRules, type DeclaredRuleSubject, type DeclaredSceneRule } from "./declared-rules.js";
 import {
   getActionSceneBinding, latestJudgment, latestSceneJudgments, listJudgments, recordJudgment, setActionSceneBinding,
   type RecordJudgmentInput,
@@ -36,6 +36,11 @@ export class FunctionsStore {
 
   close(): void {
     this.db.close();
+  }
+
+  /** Writes the rules scenes declare for themselves; one already in the library under the same key stays as it is. */
+  seedDeclared(rules: readonly DeclaredSceneRule[], sceneMap?: (rule: DeclaredRuleSubject) => FunctionSceneMap): void {
+    seedDeclaredRules(this.db, rules, sceneMap);
   }
 
   list(): FunctionRecord[] {
@@ -279,9 +284,6 @@ export class FunctionsStore {
   }
 }
 
-/** `builtinSceneMap`: option targets of a built-in rule that only the composition root can name, asked when the rule is first seeded. */
-export function openFunctionsStore(homeDirectory: string, options: { builtinSceneMap?: (rule: BuiltinRuleSubject) => FunctionSceneMap } = {}): FunctionsStore {
-  const db = openBaselineHomeSqlite(homeDirectory, FUNCTIONS_HOME_STORE.path, FUNCTIONS_STORE_BASELINE);
-  seedBuiltinFunctions(db, options.builtinSceneMap);
-  return new FunctionsStore(db);
+export function openFunctionsStore(homeDirectory: string): FunctionsStore {
+  return new FunctionsStore(openBaselineHomeSqlite(homeDirectory, FUNCTIONS_HOME_STORE.path, FUNCTIONS_STORE_BASELINE));
 }

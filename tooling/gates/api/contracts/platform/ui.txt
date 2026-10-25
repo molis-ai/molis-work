@@ -120,6 +120,8 @@ export interface SettingsPagePrimitives {
 
 export declare const UI_VIEW_GROUPS: readonly ["advance", "make", "personal", "research", "code"];
 
+export declare const UI_VIEW_HUES: readonly ["gray", "brown", "orange", "yellow", "green", "mint", "cyan", "blue", "indigo", "purple", "pink", "red", "steel", "slate"];
+
 export declare const UI_VIEW_RAILS: readonly ["core", "extend"];
 
 export declare const UI_VIEW_SLOTS: readonly ["navigator", "stage", "settings", "island", "side"];
@@ -467,6 +469,7 @@ export interface UiViewDeclaration {
     readonly context_binding?: "focused-object";
     readonly objects?: readonly string[];
     readonly order?: number;
+    readonly hue?: UiViewHue;
     readonly group?: UiViewGroup;
     readonly rail?: UiViewRail;
     readonly pinned_default?: true;
@@ -477,6 +480,8 @@ export interface UiViewDeclaration {
 }
 
 export type UiViewGroup = (typeof UI_VIEW_GROUPS)[number];
+
+export type UiViewHue = (typeof UI_VIEW_HUES)[number];
 
 export type UiViewRail = (typeof UI_VIEW_RAILS)[number];
 

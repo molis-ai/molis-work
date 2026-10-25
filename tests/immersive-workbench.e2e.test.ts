@@ -3,6 +3,7 @@ import test from "node:test";
 import { DEMO_PROJECT_ID, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
+import { installProducers } from "./fixtures/installed-producers.js";
 
 test("Project navigation preserves the fixed Goal workspace, terminal instance, and camera without writing Goal facts", { timeout: 60_000 }, async (t) => {
   const browser = await openGoalBrowser(t);
@@ -85,6 +86,7 @@ test("Bundled market adds to the selected project and Artifact versions stay in 
   if (!browser) return;
   const { store, projectId, command, sessionId, evaluate, waitFor, navigate, click, origin } = browser;
   const app = openProjectVersionStores(store);
+  installProducers(store.db, { plugin_id: "example.writer", artifact_types: ["example.note"] });
   for (const version of [1, 2]) app.artifacts.commands.registerVersion({ ...pinnedArtifact(version === 1 ? "Original result" : "Revised result", { kind: "item", id: "review-note" }, String(version)),
     project_id: projectId!, actor_id: "fixture", artifact_id: "review-note", version,
     artifact_type_id: "example.note", schema_version: 1,

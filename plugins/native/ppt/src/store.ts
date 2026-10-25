@@ -1,6 +1,5 @@
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { openBaselineHomeSqlite, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
-import type { DatabaseSync } from "node:sqlite";
+import type { HomeStoreDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PptRecord, PptSlide, PptSlideInput } from "@molis-ai/molis-work-contracts/modules/ppt";
 import type { PptPublicationIntent, PptPublicationSnapshot } from "./promote.js";
 import { pptErrors } from "./error.js";
@@ -222,22 +221,6 @@ export class PptStore {
   }
 }
 
-
-export function openPptStore(homeDirectory: string): PptStore {
-  const db = openBaselineHomeSqlite(homeDirectory, PPT_HOME_STORE.path, PPT_DATABASE);
-  const sql: PptSql = {
-    get: (text, parameters = []) => db.prepare(text).get(...parameters),
-    all: (text, parameters = []) => db.prepare(text).all(...parameters),
-    run: (text, parameters = []) => db.prepare(text).run(...parameters),
-  };
-  return new PptStore(sql, run => immediate(db, run), () => db.close());
-}
-
-function immediate<T>(db: DatabaseSync, run: () => T): T {
-  db.exec("BEGIN IMMEDIATE");
-  try { const result = run(); db.exec("COMMIT"); return result; }
-  catch (error) { db.exec("ROLLBACK"); throw error; }
-}
 
 function fromRow(row: PptRow): PptRecord {
   return {

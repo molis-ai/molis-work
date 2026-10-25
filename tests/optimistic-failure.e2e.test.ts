@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { openJellyStore } from "@molis-ai/molis-work-plugin-jelly";
+import { openJellyStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 

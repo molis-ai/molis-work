@@ -30,8 +30,7 @@
   },
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",
-    "@molis-ai/molis-work-plugin-sdk": "workspace:*",
-    "@molis-ai/molis-work-storage": "workspace:*"
+    "@molis-ai/molis-work-plugin-sdk": "workspace:*"
   },
   "devDependencies": {
     "esbuild": "^0.28.2"
@@ -41,6 +40,11 @@
     "kind": "native-plugin",
     "maturity": "partial",
     "contract": "@molis-ai/molis-work-contracts/platform/plugin",
+    "summary": "Protected first-party Dataset directory, table editing, CSV, and versions.",
+    "notResponsibleFor": "Goal/Artifact facts, model providers, or a hosted spreadsheet.",
+    "legacySources": [
+      "src/web/render.ts"
+    ],
     "migrationGoals": [
       "goal-reorg-f2"
     ],
@@ -49,6 +53,10 @@
       "dataset.ui-contribution.v1",
       "dataset.http-routes.v1"
     ],
+    "extraWorkspaceDependencies": [
+      "@molis-ai/molis-work-plugin-sdk"
+    ],
+    "extraDependencies": {},
     "registration": "./registration"
   }
 }

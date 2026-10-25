@@ -12,7 +12,7 @@ import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-co
 import { memoryActions, MEMORY_PERMISSIONS } from "@molis-ai/molis-work-contracts/services/memory";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { DEMO_PROJECT_ID, MolisWorkLocalHost, ensureSystemAgentService, molisWorkHostProjectReference, projectDeletedHooksFor, type ProjectDeletedOwner } from "@molis-ai/molis-work-app-local-host";
-import { openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
+import { openLingguangStore } from "./fixtures/plugin-home-stores.js";
 import { openMemoryLedger, openTextSearchIndex } from "@molis-ai/molis-work-storage";
 import { createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { homeBusinessTree } from "./fixtures/home-storage-files.js";

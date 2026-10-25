@@ -61,8 +61,8 @@ test("the bar toggles back, covers close four ways, and history walks covers and
   await click('[data-directory-open="settings"]');
   await waitFor(`${exclusive} === 'settings'`);
   // 能力 is four of the categories (specs/artifact-positioning S6b).
-  assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-directory-panel=settings] [data-settings-section]')].map(row => row.dataset.settingsSection).slice(0, 12)"),
-    ["appearance", "memory", "models", "assistant", "characters", "prompts", "runtimes", "library", "connections", "access", "history", "diagnostics"]);
+  assert.deepEqual(await evaluate("[...document.querySelectorAll('[data-directory-panel=settings] [data-settings-section]')].map(row => row.dataset.settingsSection).slice(0, 13)"),
+    ["appearance", "directories", "memory", "models", "assistant", "characters", "prompts", "runtimes", "library", "connections", "access", "history", "diagnostics"]);
   await click('[data-directory-panel=settings] [data-settings-section="characters"]');
   await waitFor("!document.querySelector('[data-settings-page=characters]').hidden && document.querySelector('[data-settings-page=characters]').closest('[data-work-surface=settings]')");
   await waitFor("!!document.querySelector('[data-character-builtin-list] a.characters-row')");

@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { pagesActions, pagesManifest, PAGES_SUBJECT_KIND } from "@molis-ai/molis-work-plugin-pages";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
+import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import type { ProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { servePages } from "./fixtures/pages-runtime.js";
 import { PAGES_ARTIFACT_TYPE_ID, PAGES_ARTIFACT_SCHEMA_VERSION, type PagesRecord } from "@molis-ai/molis-work-contracts/modules/pages";

@@ -6,6 +6,7 @@ import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from './fixtures/goal-browser.js';
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
+import { installProducers } from "./fixtures/installed-producers.js";
 
 const shots = reviewEvidenceUrl("product-experience-20260926/");
 
@@ -137,6 +138,7 @@ test('Artifact tabs restore the exact item after switching, reload and split', {
   try {
   const { origin, projectId, command, sessionId, navigate, evaluate, click, waitFor, reloadPage } = b;
   const app = openProjectVersionStores(b.store);
+  installProducers(b.store.db, { plugin_id: 'io.example.writer', artifact_types: ['io.molis.work.document'] });
   for (const id of ['polish/a', 'polish-b']) app.artifacts.commands.registerVersion({ ...pinnedArtifact(`验证 ${id}`),
     project_id: projectId!, actor_id: 'polish-test', artifact_id: id, version: 1,
     artifact_type_id: 'io.molis.work.document', schema_version: 1,

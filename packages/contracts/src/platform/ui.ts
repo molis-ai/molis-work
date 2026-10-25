@@ -148,6 +148,15 @@ export const UI_VIEW_RAILS = ["core", "extend"] as const;
 export type UiViewRail = (typeof UI_VIEW_RAILS)[number];
 
 /**
+ * The colours a plugin may take for its group on the tab strip (W5-02 PR-D, PG-075): the design system's hue names. The Host owns
+ * the colours, a view names one, and the plugin ships no colour value of its own. The same names as the design system's `MwHueId`;
+ * `tests/plugin-hue-declaration.test.ts` (RAC-701) holds the two lists together.
+ */
+export const UI_VIEW_HUES = ["gray", "brown", "orange", "yellow", "green", "mint", "cyan", "blue", "indigo", "purple", "pink", "red", "steel", "slate"] as const;
+
+export type UiViewHue = (typeof UI_VIEW_HUES)[number];
+
+/**
  * Where a settings page gets what it shows (W5-02 PR-D, PG-072). `action` is the `capability_id` of one of the same Manifest's own
  * actions: a query for the person (audience `user`) that only reads, with one version. The Host calls it with no input, in the Home,
  * and the page receives the answer as `SettingsPageModel.data`; a page that needs nothing of its own declares none.
@@ -221,6 +230,11 @@ export interface UiViewDeclaration {
   readonly objects?: readonly string[];
   /** Lower sorts earlier inside its slot. Ties fall back to view_id order. */
   readonly order?: number;
+  /**
+   * The colour of the plugin's group on the tab strip; any view of the plugin may say it, and the first one that does is the plugin's.
+   * Omitted means the Host picks one from a spare list by the plugin's id (a plugin has one colour on every device and every day).
+   */
+  readonly hue?: UiViewHue;
   /** `navigator` and `island` views only: the rail group the plugin is listed in. Omitted means 更多. */
   readonly group?: UiViewGroup;
   /** `navigator` views only: the plugin is part of the rail's backbone (`core`) or a way to extend the workbench (`extend`). Omitted means an ordinary tool. */

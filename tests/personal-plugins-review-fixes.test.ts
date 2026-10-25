@@ -4,7 +4,7 @@ import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { servePages } from "./fixtures/pages-runtime.js";
 import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MolisWorkLocalHost, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
-import { handleFunctionsHttp } from "@molis-ai/molis-work-app-local-host";
+import { handleFunctionsHttp, seedSceneRules } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { mkdtemp, mkdir, readFile, rm, writeFile, stat } from "node:fs/promises";
@@ -52,6 +52,7 @@ import { ensureProjectPlugins, releaseProjectPlugins } from "../apps/local-host/
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 import { seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { HOME_DOCK } from "./fixtures/home-dock-scene.js";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 
@@ -95,7 +96,7 @@ async function listenDispatcher(
 // W4-11: the Home's one store registry. The pinned list is what a Home holds today; a new store is added here on purpose.
 test("Home 存储登记列出全部个人库、讨论库 server/ 和 Home 里的其余数据", () => {
   assert.deepEqual(homeStores().stores.map(store => store.path).sort(), ["projects", "logs", "backups", "sessions", "shelf", "plugin-runtime", "plugin-libraries", "assistant",
-    "placement", "agent-definitions", "agent-declarations", "connectors", "runtime", "context-onboarding", "alchemist", "plugin-originals", "functions", "characters", "memory", "search", "knowledge", "feed", "server",
+    "placement", "agent-definitions", "agent-declarations", "connectors", "runtime", "context-onboarding", "alchemist", "plugin-originals", "plugin-directories", "functions", "characters", "memory", "search", "knowledge", "feed", "server",
     "issues", "cognia", "images", "jelly", "lingguang", "todo", "pages", "form", "dataset", "ppt", "workflows", "artifacts", "agent-runtime", "runtime-config-backups",
     "runtime-integrations", "runtime-integration-attempts", "browser", "plugin-builder", "plugin-files", "cache", "git-operation-details.json", "config/onboarding.json",
     "config/project-arrival.json", "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json", "directory-access"].sort());
@@ -230,9 +231,14 @@ test("客户端使用当前插件路径，保留的 Host 适配按合同改写",
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /\/api\/functions/);
 });
 
+// BFTC-01: FI-2 seeds a rule when its scene registers, after the Host opens the Home; both seeding tests use the same contract input.
+const seedHomeDock = (home: string) => seedSceneRules(home, { provider_id: "test.declarer", title: "测试", kind: "system" }, [HOME_DOCK], { env: {}, credential: () => null });
+
 test("/api/plugins/functions 与 /api/functions 打到同一 handler", async () => {
   await withHome(async (home) => {
+    // The Host opens the Home first (a fresh Home adopts the current memory format), then registers its scenes.
     const dispatcher = await listenDispatcher(home);
+    seedHomeDock(home);
     try {
       const shortPath = await fetch(`${dispatcher.origin}/api/functions`);
       const platformPath = await fetch(`${dispatcher.origin}/api/plugins/functions`);
@@ -307,6 +313,7 @@ test("草稿 CAS：过期 updated_at 不能覆盖已写入的草稿、预览和�
 
 test("再次打开库不改已有 published 内置函数的 instructions", async () => {
   await withHome(async (home) => {
+    seedHomeDock(home);
     const functions = createFunctionsService({ home, credential: () => null });
     try {
       assert.ok(functions.getByKey(SYSTEM_HOME_DOCK_FUNCTION_KEY));
@@ -316,6 +323,8 @@ test("再次打开库不改已有 published 内置函数的 instructions", async
     const db = new DatabaseSync(homeSqlitePath(home, "functions"));
     db.prepare("UPDATE functions SET instructions = ? WHERE function_key = ?").run("用户改过", SYSTEM_HOME_DOCK_FUNCTION_KEY);
     db.close();
+    // The Host registers its scenes again on the next start; that seeds nothing over what the person changed.
+    seedHomeDock(home);
     const again = createFunctionsService({ home, credential: () => null });
     try {
       assert.equal(again.getByKey(SYSTEM_HOME_DOCK_FUNCTION_KEY)?.instructions, "用户改过");

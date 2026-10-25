@@ -10,6 +10,8 @@ export const modulesTodoContract = {
 
 export const TODO_PLUGIN_ID = "io.molis.work.todo";
 export const TODO_PROJECT_PLUGIN_ID = "todo";
+/** Todo's organizer reads at most this much of one material; a caller with longer text sends it in parts of this size. */
+export const TODO_ORGANIZE_MATERIAL_CHARS = 60_000;
 /** The subject kind other modules (search, the Assistant's work relations) use for one todo. */
 export const TODO_SUBJECT_KIND = "todo_item";
 

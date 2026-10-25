@@ -256,18 +256,6 @@ const ICONS = {
   zap: Zap,
 } satisfies Record<PluginIconName, IconNode>;
 
-/**
- * Each plugin's one glyph: the Dock, the plugin switcher, tabs, the market, empty states and search all draw this one.
- * The Manifests are the source; a test holds this map to them and keeps every glyph unique.
- */
-export const PLUGIN_ICON = {
-  home: "home", goals: "target", inbox: "inbox", feed: "rss", schedule: "timer",
-  workflows: "workflow", pages: "note", form: "clipboard", dataset: "database", ppt: "presentation",
-  artifacts: "package", images: "image", jelly: "calendar", cognia: "book", shelf: "library", lingguang: "idea",
-  coding: "code", characters: "user", alchemist: "zap", "plugin-builder": "wand", market: "grid",
-  files: "folder-tree", git: "git-branch", diff: "git-compare", "text-stats": "hash",
-} as const satisfies Record<string, PluginIconName>;
-
 /** The fixed glyph for each state, shared by every plugin that shows one (DESIGN.md → Iconography). */
 export const STATUS_ICON = {
   todo: "status-todo",

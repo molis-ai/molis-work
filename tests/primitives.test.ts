@@ -308,10 +308,10 @@ test("catalog ships the Soft Workbench palette and complete icon library", () =>
   assert.match(html, /class="mw-icon-lib"/);
   assert.match(html, /Noto Sans SC/);
   assert.match(INTERACTION_TEXTURE_STYLES, /--hue-indigo: #5e6ad2;/);
-  assert.match(INTERACTION_TEXTURE_STYLES, /--plugin-goals: var\(--ink-soft\)/);
-  assert.match(INTERACTION_TEXTURE_STYLES, /\[data-work-surface="feed"\]/);
-  assert.match(INTERACTION_TEXTURE_STYLES, /\[data-work-surface="goal"\]/);
-  assert.match(INTERACTION_TEXTURE_STYLES, /\.tab-item\[data-plugin="feed"\]/);
+  // RAC-704/705 (PG-075): one neutral tint for every plugin surface; no custom property or selector per plugin.
+  assert.doesNotMatch(INTERACTION_TEXTURE_STYLES, /--plugin-goals/);
+  assert.match(INTERACTION_TEXTURE_STYLES, /\[data-work-surface\], \[data-goal-canvas-shell\], \.tab-item\[data-plugin\][^{}]*\{ --plugin-tint: var\(--ink-soft\); \}/);
+  assert.doesNotMatch(INTERACTION_TEXTURE_STYLES, /\[data-work-surface="feed"\]|\.tab-item\[data-plugin="feed"\]/);
   // The empty mark is the shared paper picture drawn by the final layer (spec → 第三轮 · 空状态插图); the texture
   // layer no longer tints it, and the board shows it.
   assert.doesNotMatch(INTERACTION_TEXTURE_STYLES, /\.mw-empty__mark/);

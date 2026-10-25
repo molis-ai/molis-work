@@ -1,4 +1,5 @@
-import { renderPluginStoreUnavailablePage, resolveGoalsPageRoute } from "@molis-ai/molis-work-app-workbench";
+import { renderPluginStoreUnavailablePage } from "@molis-ai/molis-work-app-workbench";
+import { resolveGoalsPageRoute } from "@molis-ai/molis-work-plugin-goals";
 import { isHomePluginStoreRefusal } from "./home-plugin-store.js";
 import type { MolisWorkProjectCatalog } from "./project-catalog.js";
 import type { WebRequestContext } from "./web-route-table.js";

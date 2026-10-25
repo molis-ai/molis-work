@@ -39,6 +39,7 @@
 视图上还有几项可选的声明，宿主照着放，不另写名单（W5-06 第 2b 片，合同在 `packages/contracts/src/platform/ui.ts`）：
 
 - `icon`：图标名（设计系统里登记的名字）。`settings` 视图的 `icon` 是设置目录里这一页的图标；没写、或宿主不认识这个名字，就用 `settings`。
+- `hue`（任何槽的视图都可以写，插件取它第一个写了 `hue` 的视图）：这个插件在标签条上那一组的颜色，取设计系统的颜色名之一（`gray`、`brown`、`orange`、`yellow`、`green`、`mint`、`cyan`、`blue`、`indigo`、`purple`、`pink`、`red`、`steel`、`slate`；清单在 `UI_VIEW_HUES`）。只有标签条的分组用它，其余各处插件都是同一个中性色；不写，宿主按插件 id 在备用色里挑一个，同一个插件总是同一个。随宿主发布的插件和运行时装进项目的插件**待遇一样**，宿主不留插件名单。
 - `group`（只用于 `navigator`、`island`）：插件切换列表里归哪一组，取 `advance`（推进）、`make`（写与做）、`personal`（个人）、`research`（研究）、`code`（编码）之一。组名和组的顺序归宿主；组内先是 `island` 视图，再按视图的 `order`、同 `order` 按插件 id 排。不写就在「更多」里。
 - `creates`（只用于 `navigator`、`island`）：`{ station, title }`，在目标的「材料」里给一个「新建」入口。`station` 必须是本 Manifest 里一个能新建的工作流内容站（`defineWorkflowContentActions({ …, create: true })` 的 `id`）；新建出来的默认标题是「未命名」加 `title`（如「未命名文档」）。不写就没有新建入口。
 - `start`（只用于 `navigator`、`island`）：`{ title, hint, icon? }`，项目首页当天没有事件时给的一个起点，点了打开这个插件；`icon` 不写就用视图的 `icon`。不写就不出现在首页。

@@ -412,11 +412,17 @@ const violations: Scenario[] = [
     expect: [/plugin one is named in 4 files outside its package \(was 3\)/] },
   { name: "a plugin package name is added to a script", mutate: () => put("scripts/other.mjs", 'export const n = "@fx/plugin-two";\n'),
     expect: [/plugin two is named in 4 files outside its package \(was 3\)/] },
-  { name: "a new plugin named in more files than the smallest existing plugin", mutate: () => {
+  // RAC-575: the allowance for a new plugin is 0 (W5-02 PR-C), so one file outside its package that names it fails.
+  { name: "RAC-575 a new plugin named in one file outside its package", mutate: () => {
     put("plugins/native/three/package.json", manifest("@fx/plugin-three"));
     put("plugins/native/three/src/index.ts", "export const three = 1;\n");
-    for (let index = 0; index < 8; index++) put(`apps/local-host/src/uses-${index}.ts`, `export const t${index} = "@fx/plugin-three";\n`);
-  }, expect: [/plugin three is named in 8 files outside its package \(a new plugin may be named in at most 7\)/] },
+    put("apps/local-host/src/uses-three.ts", 'export const t = "@fx/plugin-three";\n');
+  }, expect: [/plugin three is named in 1 files outside its package \(a new plugin may be named in none\)/] },
+  { name: "RAC-575 a new plugin named in a script", mutate: () => {
+    put("plugins/native/three/package.json", manifest("@fx/plugin-three"));
+    put("plugins/native/three/src/index.ts", "export const three = 1;\n");
+    put("scripts/other.mjs", 'export const n = "@fx/plugin-three";\n');
+  }, expect: [/plugin three is named in 1 files outside its package \(a new plugin may be named in none\)/] },
 ];
 
 for (const scenario of violations) {
@@ -534,11 +540,10 @@ test("changes that shrink or only move things pass against the merge-base", () =
   assert.equal(gate("--update", "--base", "main").code, 0, "lowering the baseline with the merge-base given is accepted");
 });
 
-test("a new plugin that stays within the allowance passes", () => {
+test("RAC-575 a new plugin named nowhere outside its package passes", () => {
   branch("small-plugin", () => {
     put("plugins/native/three/package.json", manifest("@fx/plugin-three"));
     put("plugins/native/three/src/index.ts", "export const three = 1;\n");
-    for (let index = 0; index < 7; index++) put(`apps/local-host/src/uses-${index}.ts`, `export const t${index} = "@fx/plugin-three";\n`);
   });
   const run = gate("--base", "main");
   assert.equal(run.code, 0, run.out);

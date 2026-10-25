@@ -7,6 +7,7 @@ import { SqlitePluginRuntimeRepository, SqlitePluginPrivateStorage } from "@moli
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { PLUGIN_DEVELOPMENT_ACTOR_ID, runPluginDevelopment } from "./plugin-development.js";
 import { refusePayloadIdentity } from "./goals-actions.js";
+import { bindProjectArtifacts } from "./declared-types.js";
 import type { PluginDevelopmentInput, PluginDevelopmentResult } from "@molis-ai/molis-work-contracts/platform/tooling";
 
 /** Development data is explicitly separate from the user's catalog and existing projects. */
@@ -48,7 +49,7 @@ export async function developInPrivateHost(host: MolisWorkLocalHost, reference: 
     return runPluginDevelopment(request, { project_id: runtime.project_id, actor_id: PLUGIN_DEVELOPMENT_ACTOR_ID,
       actions: { registry: host.actionRegistry(reference), client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, project_id: runtime.project_id },
       artifacts: runtime.artifacts, processItems: runtime.processItems, ui: new UiHost(),
-      repository: new SqlitePluginRuntimeRepository(runtime.store.db),
+      repository: new SqlitePluginRuntimeRepository(runtime.store.db), bindInstallation: view => bindProjectArtifacts(runtime.store.db, view),
       privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest),
       deleteInstallationData: id => privateStorage.deleteInstallationData(id) });
   });

@@ -132,6 +132,43 @@ Skill/README 的有限回归明确为 91 个非浏览器和四个浏览器文件
 
 RAC-107/108 的统一 restore 发布、回滚和重启续写仍归本 C2 后续；此处仅约定共享输入格式和原路径/key 约束，不把 owner 解密或手动读回称为 restore 命令完成。
 
+### FIX19：离线窗口覆盖实际卸载与 CLI 写入口（2026-10-24）
+
+状态：Codex 专职修复19候选功能已通过定向验证，待独立 purge 增量审验与唯一 carrier 接入；parent `1556d97b7eb35d72de8b83b7569fbfd48b239760`，只补 #1267 FIRST 非阻塞2，完整 C2/restore、SDK 来源和快照错误分类仍归原队列。目标为此互斥合同功能可用，作者工程证据与独立审验分别记录。
+
+已核真实链：snapshot 取得 `agentRuntimeDirectory(home)` 的 owner 并持到发布/清理结束；卸载 prepare 的 Catalog、RuntimeIntegration/WebService 预览只读，confirm 却在没有 owner 时写收据、移接入/服务、删 demo 与登记的 Home stores。purge 直接删除 `agent-runtime` 会使活锁 inode 脱离路径。CLI v1 的本地 fallback 构造未绑定 Home 的 Host，项目库在 runtime open 时写入；init 的 mkdir 更早。这两条确实绕过现有离线窗口，单文件 stat 不能补跨库一致性。
+
+Root 已裁定普通卸载的最小接线：只读预览保持；confirmed 可写窗口在任何可避免副作用前严格取得同一 owner，busy 不消费计划。已有 Host 先同步检查 `lifecycle()` running，再用原 `ensureHomeStorageOwner`、`retainHomeStorageResources` 接纳并保留 pending，最终 settle 才归还；不改 Host 方法或 close 实现，不重取或伪造 SDK 借用。若该模式的预览表明受管服务仍在运行，先拒绝，不能在被保留的卸载中 bootout 自己并等待自身退出。不同 Home、closing、失败回执与明确新预览重试分别验证。
+
+Claude 已在 [6394555141](https://github.com/molis-ai/molis-work/pull/1267#issuecomment-6394555141) 接受离线 purge：活 Host 时 busy 拒绝，使用者先关 App，再独立执行；不自动停宿主或借用活宿主。清空业务数据与密钥后，Home 只保留原 `agent-runtime/` 目录及其中确实存在的 `.molis-runtime-owner.db`、`.molis-runtime-owner.db-journal`、`.molis-runtime-owner.db-wal`、`.molis-runtime-owner.db-shm`；不生成缺失侧车，不按“技术文件”类别泛放行。原目录/锁 inode 全程不换，释放后可重取；未知 Home/config/bin 根项在副作用前拒绝，不盲删不归产品的文件，也不将残留报成成功。下一次 Host 启动按全新 Home 建当前基线。Root 已依据实际源码澄清：现 owner 只有 SQLite EXCLUSIVE 事务、进程 WeakMap，无持有表或业务表；验证无业务字段与实际释放，不为措辞新增进程/时间/世代表或协议。无第二把锁、lease 表或维护状态机；非合作外部文件写入不在互斥保证内。
+
+预览指纹仍负责旧计划是否过期，不替代同一 owner 的离线一致性。只规范化登记 owner 声明的具体 SQLite 路径：SHM 与 0-byte WAL 可由只读检查产生，不作为业务变化；非空 WAL、主库/业务文件、目录身份或业务条目变化仍使旧计划失效。原锁四路径在任何内容读取前排除。目录时间/大小不能代表业务内容，指纹递归保留目录身份和每个业务文件的身份/元数据，只读 metadata、不跟随链接、不打开锁或读取 SDK/key 内容，避免只读派生项造成假 stale。
+
+CLI fallback 仅在目标实际位于当前 Home 或由该 Home Catalog 登记时，通过 `ensureHomeStorageOwner` 绑定到本次 Host 的现有生命周期；拿锁早于 init mkdir、运行环境和 SQL。真实转发、明确拒绝/结果未知不回退的 S-07 合同不变，外部独立数据库不因本修复取得无关 Home owner。沿现有 owner 能完成的接线不修改 storage 公开结构。
+
+首轮整体 build 自然通过；boundary 的唯一失败是管理入口门禁把 CLI fallback AST 写死为直接返回单表达式，不接受此前置 owner。Root 与 REVIEW 对具体 v2 patch 核定为必要门禁收紧，已按原授权应用：准确 Home 分类与 owner 前置、Home init mkdir、原唯一 return 是强制规范，旧无 guard 形状与额外业务语句拒绝，MCP 的原单表达式及唯一 unprepared client、reference、signal、resident/dispatcher 约束不变。外部独立 init 保留原有 JSON 解码前的父目录创建，Home init 只在 fallback 实际接纳且持 owner 后创建。全部原门禁变异组与新增 14 种拒绝变异已正式通过；最终候选双审验另结，不用专项文本核验代替真实运行。
+
+| 编号 | 本修复验收 | 证明方式 |
+| --- | --- | --- |
+| RAC-105-S-06 | snapshot 占用时 confirmed 普通卸载/purge 在收据与安装/数据副作用前拒绝，原计划在释放后可重试成功 | 临时 Home、真实 snapshot 子进程与可释放 payload 屏障，源文件/安装数据/收据对照 |
+| RAC-105-S-07 | 清理持有窗口中 snapshot/第二 Host 拒绝；purge 到 owner 目录清理后也不能重建锁绕过，释放后可重取同 inode | 正式 purge 的最终收据删除边界中真实子进程；业务项移除与原目录/锁 inode 实查 |
+| RAC-105-S-08 | Home CLI fallback 与 snapshot 双向互斥，init 拒绝不建目标目录，释放后真实写入；外部独立库不被无关 Home 占用阻断 | 真实 CLI 与 runtime-open 子进程屏障，SQLite 实查/正式 snapshot 与源/目标对照 |
+| RAC-105-S-09 | 已持 owner Host 的正常卸载不二次获取，关闭等待已接纳卸载，closing 后不接纳新维护 | 现有 Host/lifetime 的真实并发交错，拒绝前业务不变、完成后同 inode 可重取 |
+| RAC-105-S-10 | 具体只读侧车/锁变化不消费旧计划；业务变化与非空 WAL 仍在任何卸载副作用前使计划失效 | 临时真实 SQLite owner 写入/子进程退出，保留有效业务值及安装/收据，指纹正反例 |
+| RAC-105-S-11 | purge 成功后精确只余上述原锁骨架；锁库无业务字段，释放后可重取，随后作为新 Home 建基线；未知项零副作用拒绝 | 实查剩余路径集合、SQLite schema、原目录/inode、真实 Host/Catalog 重开与新项目写入 |
+
+定向新用例为 `tests/security-invariants-home-snapshot-entries.test.ts`，受控进程夹具 `tests/fixtures/home-snapshot-entry-window.ts`；沿生产公开入口，不用 sleep 决定交错。原 parent 的 RED 与最终 GREEN raw 分开保留于 `/tmp/molis-fix19-snapshot-exclusion-20261024/`。最终按 Host/CLI 的 README 跑适用定向要求、整体 build（公共 machine-slot）、boundary、准确 merge-base health、test-imports、secrets；不重复 full，不接触真实 Home。S-07/S-12 仅将必要窄语义和准确拒绝测试引用交唯一 carrier 更新，避免覆盖 FIX4/FIX7 的共享表。
+
+普通卸载/CLI v2 阶段已实际完成：整体 build、70 包 boundary、8 条 S-08/S-09 真实交错/别名/登记项目后备/关闭与拒绝用例全绿；原 CLI 协议 5 项及完整管理门禁 7 项（其中含 14 种新增拒绝变异）全绿。按 Host 与 CLI README 第一条必跑清单去重的 62 文件自然通过 557/557（含父项），零 fail/cancel/skip/todo；包含 README 点名的一个浏览器文件，使用公共 test-kit、独立 profile 和 `MOLIS_WORK_TEST_CHROME` 指定 wrapper，并经公共 build/browser 槽。新用例 strict、8 文件 scoped Biome 与对实际 merge-base `52560f32` 的 health 通过。这些不是 full 或独立最终候选核收。
+
+原红分开保留：stdin 屏障的 ready/EPIPE 不能证明窗口，标夹具故障/未验证；FIFO 屏障加独立 busy 断言后的旧实现真实拒绝失败另存 `red-1556-controlled-fifo.log` 与 `red-1556-parent-and-uninstall.log`。普通 v1 的 10 文件批为 9 过/1 CLI 协议回归；恢复外部 init 原顺序后的 v2/62 文件结果单列，不抹首败。该阶段 purge 的 busy 之后同 plan 重试仍是 `plan_stale`，未计通过；独立诊断只见 Memory 的 0-byte WAL/32768-byte SHM、Agent 锁目录时间及项目目录派生项变化，不是业务修改。
+
+普通/CLI 固定头 `34b836efe095b8bdb89ac27fbec83dd2d3b40422` 已获独立 [REVIEW](https://github.com/molis-ai/molis-work/pull/1267#issuecomment-6394612061) 与 [TEST](https://github.com/molis-ai/molis-work/pull/1267#issuecomment-6394807993) 子范围通过；不把它记为完整 FIX19/C2 通过。上述 purge 合同裁定后，本树实现原锁保留、活 Host 拒绝、具体派生项规范化与副作用前完整预检。旧 34b 的成功 purge 假 stale、未知 Home/config 误成功及嵌套业务修改漏 stale 另留 `red-34b-purge-contract.log`、`red-34b-nested-business.log`。
+
+purge 新整体 build 与 boundary 已通过，只读重算源码/构建摘要同为 `f4d09c9b608ede7c959cecaa7849c23d2afd4e23832f65b6b6504b411e775b0b`。首次 entries 为 18/19，S-06/07/10/11 全过，唯一原有外部 CLI 子进程触发 15 秒超时；同一构建隔离复跑该条 1/1、约 6.5 秒，未改超时或生产语义，原失败保留。随后补未知 bin 同合同，root/config/bin 一组 4/4 全绿。原卸载 inspection 两条仍期待未知 `kept.txt` 可放行，与已批准的新保护合同冲突；只将这些状态与锁骨架预期同步，保留权限拒绝、恢复后登记路径可见、原内容与无收据断言，该文件修后 4/4。六文件批其余五文件自然全绿：实际安装/卸载/重装 4/4、Catalog 5/5、收据 4/4、snapshot CLI 3/3、lifecycle 9/9；29 项均已覆盖通过，未伪称首批六文件全绿。原件为 `purge-entries-green.log`、`purge-standalone-retry.log`、`purge-unknown-bin.log`、`purge-regressions.log`、`purge-inspection-contract.log`。
+
+新增 tests strict、scoped Biome、0/1446 进程混载已过；安全不变量表由唯一 carrier 逐行追加 S-07/S-12，窄补丁为 `/tmp/molis-fix19-snapshot-exclusion-20261024/fix19-security-invariants.patch`，本树不覆盖共享表。未经该行接入的作者 health 只报告 entries 新文件未被表引用，不声称最终门禁已全绿；固定增量的独立 REVIEW/TEST、组合头与实际 merge 仍分别结算。本题不跑 full，不改变原 #1267 冻结头或 SDK 来源，也不代表完整 C2/restore 完成。
+
 ## B1：只存哈希的邀请合同
 
 B1 实施前，`server/src/im/writes.ts` 将原文写入 `im_rooms.invite_token`，轮换回执又保存完整 `ImInvite`（token/path/url）；GET 从库取回原文，`packages/im-ui` 依赖它。B1 同改合同与客户端，避免只换列值导致现有页面失效。

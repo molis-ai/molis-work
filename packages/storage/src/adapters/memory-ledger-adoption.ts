@@ -1,9 +1,11 @@
 import { DatabaseSync } from "node:sqlite";
 import { isDeepStrictEqual } from "node:util";
+import { pathToFileURL } from "node:url";
 import { isCompleteMemoryPrefs, type MemoryPrefs, type MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
 import { homeSqlitePath, openReadOnlyHomeSqlite } from "../home-sqlite.js";
 import { describeSqliteBaseline, describeSqliteSchema, SqliteSchemaVersionError } from "../sqlite-baseline.js";
 import { MEMORY_LEDGER_BASELINE, MEMORY_LEDGER_STORE } from "./memory-ledger.js";
+import type { ExistingStoragePath } from "../storage-maintenance-path.js";
 
 export interface MemoryLedgerAdoptionProfile { readonly actor_id: string; readonly key: string; readonly prefs: MemoryPrefs }
 export interface MemoryLedgerAdoptionSnapshot {
@@ -49,15 +51,20 @@ export function inspectMemoryLedgerAdoption(input: { homeDirectory: string }): M
   } finally { db.close(); }
 }
 
-export function changeMemoryLedgerAdoption<T>(input: { homeDirectory: string; snapshot: MemoryLedgerAdoptionSnapshot }, work: (db: DatabaseSync) => T, assertCurrent?: () => void): T {
+export function changeMemoryLedgerAdoption<T>(input: { homeDirectory: string; snapshot: MemoryLedgerAdoptionSnapshot }, work: (db: DatabaseSync) => T, assertCurrent?: () => void, files?: ExistingStoragePath): T {
   // Opening read-only first prevents this explicit maintenance command from creating an absent store.
   const path = homeSqlitePath(input.homeDirectory, MEMORY_LEDGER_STORE);
+  files?.assertCurrent();
   const existing = openReadOnlyHomeSqlite(input.homeDirectory, MEMORY_LEDGER_STORE);
   existing.close();
-  const db = new DatabaseSync(path);
+  files?.assertCurrent();
+  const uri = pathToFileURL(path); uri.searchParams.set("mode", "rw");
+  const db = new DatabaseSync(uri.href);
   try {
+    files?.assertCurrent();
     db.exec("PRAGMA busy_timeout=5000; BEGIN IMMEDIATE");
     try {
+      files?.assertCurrent();
       if (!isDeepStrictEqual(memoryLedgerAdoptionSnapshot(db, path), input.snapshot)) conflict("记忆设置或采用记录已改变，请重新检查副本");
       const check = () => {
         const checked: unknown = assertCurrent?.();

@@ -1,6 +1,7 @@
 import type { MemoryCandidateRecord, MemoryChangeRecord, MemoryLedgerPort, MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
 import type { DatabaseSync } from "node:sqlite";
 import type { openHomeSqliteDatabase } from "../home-sqlite.js";
+import { assertMemoryChangeIdentity, assertMemoryPairIdentity, assertMemoryRevisionIdentity, assertMemoryUseIdentity, decodeMemoryCandidateRelation } from "./memory-ledger-relations.js";
 
 const retentionConflict = (): never => { throw Object.assign(new Error("原记忆的账本清理尚未完整证明"), { code: "memory.adoption_conflict" }); };
 const record = (body: unknown): Record<string, unknown> => {
@@ -11,6 +12,27 @@ const record = (body: unknown): Record<string, unknown> => {
 };
 const sourceKey = (scope: MemoryScope, owner: string, event: string) => `memory-source-forgotten:${JSON.stringify([scope, owner, event])}`;
 
+/** Refuse contradictory retained identities before any fixed-plan mutation or completion proof. */
+export function assertMemoryLedgerRetentionIdentities(db: DatabaseSync): void {
+  for (const row of db.prepare("SELECT * FROM memory_revisions").all()) {
+    try { assertMemoryRevisionIdentity(row, record(row.body)); } catch { retentionConflict(); }
+  }
+  for (const row of db.prepare("SELECT * FROM memory_uses").all()) {
+    try { assertMemoryUseIdentity(row, record(row.body)); } catch { retentionConflict(); }
+  }
+  for (const row of db.prepare("SELECT * FROM memory_pairs").all()) {
+    try { assertMemoryPairIdentity(row, record(row.body)); } catch { retentionConflict(); }
+  }
+  for (const row of db.prepare("SELECT * FROM memory_changes").all()) {
+    try { assertMemoryChangeIdentity(row, record(row.body)); } catch { retentionConflict(); }
+  }
+  for (const row of db.prepare("SELECT * FROM memory_candidates").all()) {
+    const candidate = record(row.body);
+    try { decodeMemoryCandidateRelation(row, candidate); } catch { retentionConflict(); }
+    if (candidate.memory_id !== null && typeof candidate.memory_id !== "string") retentionConflict();
+  }
+}
+
 /** Shared by the existing cleanup owner and fixed-project maintenance, inside their transaction. */
 export function suppressMemoryLedgerSources(db: DatabaseSync, actor: string, scope: MemoryScope, owner: string, sources: readonly { event_id: string }[]): void {
   for (const source of sources) db.prepare("INSERT OR IGNORE INTO memory_markers(actor_id,key,at,body) VALUES (?,?,?,?)")
@@ -18,9 +40,10 @@ export function suppressMemoryLedgerSources(db: DatabaseSync, actor: string, sco
 }
 
 export function dropMemoryLedgerCandidate(db: DatabaseSync, candidateId: string, identity: { scope: MemoryScope; owner: string }, actor?: string): void {
-  const row = db.prepare("SELECT actor_id,body FROM memory_candidates WHERE candidate_id=?").get(candidateId);
+  const row = db.prepare("SELECT * FROM memory_candidates WHERE candidate_id=?").get(candidateId);
   if (!row) return;
   const note = record(row.body);
+  if (actor !== undefined) { try { decodeMemoryCandidateRelation(row, note); } catch { retentionConflict(); } }
   if (note.scope !== identity.scope || note.owner !== identity.owner || actor !== undefined && (row.actor_id !== actor || note.actor_id !== actor || note.candidate_id !== candidateId)) retentionConflict();
   db.prepare("DELETE FROM memory_candidates WHERE candidate_id=?").run(candidateId);
 }
@@ -30,6 +53,7 @@ export function assertMemoryLedgerRetainedObjectsCleared(db: DatabaseSync, input
   actor_id: string; scopes: readonly { scope: MemoryScope; owner: string; memories: readonly { memory_id: string }[];
     candidates: readonly { candidate_id: string }[]; sources: readonly { event_id: string }[] }[];
 }): void {
+  assertMemoryLedgerRetentionIdentities(db);
   const memories = new Set(input.scopes.flatMap(scope => scope.memories.map(item => item.memory_id)));
   for (const target of input.scopes) {
     for (const item of target.candidates) if (db.prepare("SELECT 1 FROM memory_candidates WHERE candidate_id=?").get(item.candidate_id)) retentionConflict();
@@ -45,12 +69,12 @@ export function assertMemoryLedgerRetainedObjectsCleared(db: DatabaseSync, input
     if (forgotten.memory_id !== id || forgotten.state !== "forgotten") retentionConflict();
     if (db.prepare("SELECT 1 FROM memory_revisions WHERE memory_id=? LIMIT 1").get(id)
       || db.prepare("SELECT 1 FROM memory_uses WHERE memory_id=? LIMIT 1").get(id)) retentionConflict();
-    for (const row of db.prepare("SELECT body FROM memory_changes WHERE memory_id=?").all(id)) {
-      const change = record(row.body);
-      if (change.text !== "" || change.reason !== null || change.undoable !== false || change.undo !== null) retentionConflict();
-    }
   }
-  if (!memories.size) return;
+  for (const row of db.prepare("SELECT memory_id,body FROM memory_changes").all()) {
+    const change = record(row.body);
+    if (typeof row.memory_id === "string" && memories.has(row.memory_id)
+      && (change.text !== "" || change.reason !== null || change.undoable !== false || change.undo !== null)) retentionConflict();
+  }
   for (const row of db.prepare("SELECT body FROM memory_pairs").all()) {
     const pair = record(row.body);
     for (const name of ["a", "b"]) {
@@ -61,7 +85,6 @@ export function assertMemoryLedgerRetainedObjectsCleared(db: DatabaseSync, input
   }
   for (const row of db.prepare("SELECT body FROM memory_candidates").all()) {
     const candidate = record(row.body);
-    if (candidate.memory_id !== null && typeof candidate.memory_id !== "string") retentionConflict();
     if (typeof candidate.memory_id === "string" && memories.has(candidate.memory_id)) retentionConflict();
   }
 }

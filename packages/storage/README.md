@@ -85,6 +85,10 @@ MEM-40原项目计划的冷retention由 `createMemoryLedgerProjectRetention` 提
 
 ## 开发要求
 
+冷项目retention的实际Ledger路径由现 `inspectExistingSqlitePath` 固定：规范绝对路径、db与祖先身份、非链接/非硬链接侧车，current前后及SQLite打开/BEGIN等待后/写前/提交前重核；writer mode=rw不创建缺失库。changes与candidates须通过与原recovery/relations共用的列/body身份检查，矛盾持久化事实保留并拒绝，不能借scope删除消除。该边界不等于抵御同OS权限进程任意时刻换路径的原子锁。
+
+原retention五表的实际双存身份统一核对：changes四字段、candidates三字段沿原读取器；uses五字段、revisions.version、pairs.pair_id/state由同一relations职责核对。没有双存的revision memory_id和pair actor_id不制造JSON字段要求。此检查在冷写前及原对象证明前生效，不改变普通Ledger的删除SQL或新增格式。
+
 - 负责：SQLite、文件系统、Blob、事务、当前 schema 基线与版本校验、备份与本地密钥存储的技术端口；系统搜索的本地全文索引适配（`openTextSearchIndex`，`{home}/search/search.db`）。
 - 不负责：Module schema 的业务含义、跨 Module 查询；搜索来源的发现、同步与权限（归 `horizontal/search`）。
 - 公开入口：`@molis-ai/molis-work-storage`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/storage`。

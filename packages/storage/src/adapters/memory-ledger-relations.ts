@@ -4,6 +4,28 @@ import type { MemoryOwnerRelation } from "@molis-ai/molis-work-contracts/service
 const invalid = () => Object.assign(new Error("记忆归属身份不完整或互相矛盾，保留原件待核对"), { code: "memory.conflict" });
 const text = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
 
+/** A change has one persisted identity, shared by recovery projection and retention proof. */
+export function assertMemoryChangeIdentity(row: Record<string, unknown>, note: Record<string, unknown>): void {
+  if (!text(row.change_id) || !text(row.actor_id) || !text(row.at) || !(row.memory_id === null || text(row.memory_id))
+    || note.change_id !== row.change_id || note.actor_id !== row.actor_id || note.memory_id !== row.memory_id || note.at !== row.at) throw invalid();
+}
+
+export function assertMemoryUseIdentity(row: Record<string, unknown>, note: Record<string, unknown>): void {
+  if (!text(row.memory_id) || !text(row.receipt_id) || !text(row.at) || !text(row.state) || !(row.work_id === null || text(row.work_id))
+    || note.memory_id !== row.memory_id || note.receipt_id !== row.receipt_id || note.at !== row.at || note.work_id !== row.work_id || note.state !== row.state) throw invalid();
+}
+
+export function assertMemoryRevisionIdentity(row: Record<string, unknown>, note: Record<string, unknown>): void {
+  if (!Number.isSafeInteger(row.version) || Number(row.version) < 1 || note.version !== row.version) throw invalid();
+}
+
+export function assertMemoryPairIdentity(row: Record<string, unknown>, note: Record<string, unknown>): void {
+  if (!text(row.pair_id) || !text(row.state) || note.pair_id !== row.pair_id || note.state !== row.state) throw invalid();
+  for (const item of [note.a, note.b]) {
+    if (!item || typeof item !== "object" || Array.isArray(item) || !("memory_id" in item) || !text(item.memory_id)) throw invalid();
+  }
+}
+
 /** The ledger owns decoding; only the relation crosses this boundary, never candidate content. */
 export function readMemoryOwnerRelations(db: DatabaseSync): MemoryOwnerRelation[] {
   const found = new Map<string, MemoryOwnerRelation>();

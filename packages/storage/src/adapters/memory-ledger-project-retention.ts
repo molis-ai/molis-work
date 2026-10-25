@@ -3,9 +3,10 @@ import { isDeepStrictEqual } from "node:util";
 import type { DatabaseSync } from "node:sqlite";
 import type { MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
 import { homeSqlitePath, openReadOnlyHomeSqlite } from "../home-sqlite.js";
+import { inspectExistingSqlitePath } from "../storage-maintenance-path.js";
 import { MEMORY_LEDGER_STORE } from "./memory-ledger.js";
 import { changeMemoryLedgerAdoption, memoryLedgerAdoptionSnapshot, type MemoryLedgerAdoptionSnapshot } from "./memory-ledger-adoption.js";
-import { assertMemoryLedgerRetainedObjectsCleared, createMemoryLedgerRetention, dropMemoryLedgerCandidate, suppressMemoryLedgerSources } from "./memory-ledger-retention.js";
+import { assertMemoryLedgerRetainedObjectsCleared, assertMemoryLedgerRetentionIdentities, createMemoryLedgerRetention, dropMemoryLedgerCandidate, suppressMemoryLedgerSources } from "./memory-ledger-retention.js";
 
 /** Structurally accepts the original Catalog plan; Storage never owns or rebuilds that plan. */
 export interface MemoryLedgerProjectRetentionPlan {
@@ -67,7 +68,7 @@ function assertScopeSelection(db: DatabaseSync, plan: MemoryLedgerProjectRetenti
     if (owner.project_id === plan.project_id && !selected || selected && owner.project_id !== plan.project_id) conflict();
   }
   for (const table of ["memory_candidates", "memory_changes", "memory_pairs"]) {
-    for (const row of db.prepare(`SELECT body FROM ${table}`).all()) {
+    for (const row of db.prepare(`SELECT * FROM ${table}`).all()) {
       const record = body(row.body), selected = scopes.find(target => target.scope === record.scope && target.owner === record.owner);
       if (!selected) continue;
       if (table === "memory_candidates" && !selected.candidates.some(item => item.candidate_id === record.candidate_id)) conflict();
@@ -87,21 +88,25 @@ export function createMemoryLedgerProjectRetention(input: {
 }): MemoryLedgerProjectRetention {
   const { homeDirectory, mode, assertCurrent, signal } = input, plan = copyPlan(input.plan);
   if (!text(homeDirectory) || !isAbsolute(homeDirectory) || !["cleanup", "original"].includes(mode) || typeof assertCurrent !== "function") return conflict();
-  const current = () => {
+  const authority = () => {
     signal?.throwIfAborted();
     const result: unknown = assertCurrent();
     if (result !== undefined) { void Promise.resolve(result).catch(() => undefined); conflict(); }
     signal?.throwIfAborted();
   };
+  authority();
+  const files = inspectExistingSqlitePath(homeSqlitePath(homeDirectory, MEMORY_LEDGER_STORE));
+  const current = () => { files.assertCurrent(); authority(); files.assertCurrent(); };
   const change = (expected: Expected, mutation: (db: DatabaseSync, snapshot: MemoryLedgerAdoptionSnapshot) => void) => {
     const snapshot = structuredClone(expected.snapshot);
     if (mode !== "cleanup") return conflict();
     current();
     return changeMemoryLedgerAdoption({ homeDirectory, snapshot }, db => {
       if (!snapshot.adoptions.length || snapshot.adoptions.some(mark => !mark.body || typeof mark.body !== "object" || !("origin" in mark.body) || mark.body.origin !== "adopting")) conflict();
+      assertMemoryLedgerRetentionIdentities(db); current();
       mutation(db, snapshot);
       return memoryLedgerAdoptionSnapshot(db, homeSqlitePath(homeDirectory, MEMORY_LEDGER_STORE));
-    }, current);
+    }, current, files);
   };
   current();
   return Object.freeze({
@@ -134,6 +139,7 @@ export function createMemoryLedgerProjectRetention(input: {
       const snapshot = structuredClone(request.snapshot); current();
       const db = openReadOnlyHomeSqlite(homeDirectory, MEMORY_LEDGER_STORE);
       try {
+        current();
         db.exec("BEGIN");
         if (!isDeepStrictEqual(memoryLedgerAdoptionSnapshot(db, homeSqlitePath(homeDirectory, MEMORY_LEDGER_STORE)), snapshot)) conflict();
         current(); assertMemoryLedgerRetainedObjectsCleared(db, plan); current();

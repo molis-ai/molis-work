@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { Worker } from "node:worker_threads";
 import test, { type TestContext } from "node:test";
 import { beginMemoryLedgerAdoption, createMemoryLedgerProjectRetention, homeSqlitePath, inspectMemoryLedgerAdoption,
   MEMORY_LEDGER_BASELINE, MEMORY_LEDGER_STORE, type MemoryLedgerProjectRetentionPlan } from "@molis-ai/molis-work-storage";
@@ -19,21 +20,22 @@ function access<T>(home: string, work: (db: DatabaseSync) => T): T {
 }
 const state = (home: string) => access(home, db => Object.fromEntries(tables.map(table => [table, db.prepare(`SELECT * FROM ${table} ORDER BY rowid`).all()])));
 function fixture(t: TestContext) {
-  const home = mkdtempSync(join(tmpdir(), "molis-project-retention-")); t.after(() => rmSync(home, { recursive: true, force: true }));
+  const home = realpathSync(mkdtempSync(join(tmpdir(), "molis-project-retention-"))); t.after(() => rmSync(home, { recursive: true, force: true }));
   mkdirSync(join(home, MEMORY_LEDGER_STORE));
   access(home, db => {
     db.exec(MEMORY_LEDGER_BASELINE.schema); db.exec("PRAGMA user_version=3");
     for (const key of ["personal", "project-default", "project:project-a", "project:keep"]) db.prepare("INSERT INTO memory_prefs VALUES (?,?,?)").run("person", key, JSON.stringify({ form: true, key }));
     db.prepare("INSERT INTO memory_markers VALUES (?,?,?,?)").run("person", "strategy-adoption", "before", JSON.stringify({ origin: "existing-home" }));
     for (const id of ["memory-a", "keep"]) {
-      db.prepare("INSERT INTO memory_revisions VALUES (?,?,?)").run(id, 1, JSON.stringify({ memory_id: id, text: `${id} revision` }));
-      db.prepare("INSERT INTO memory_uses VALUES (?,?,?,?,?,?)").run(id, `receipt-${id}`, "before", null, "response-observed", JSON.stringify({ text: `${id} use` }));
+      db.prepare("INSERT INTO memory_revisions VALUES (?,?,?)").run(id, 1, JSON.stringify({ version: 1, text: `${id} revision` }));
+      db.prepare("INSERT INTO memory_uses VALUES (?,?,?,?,?,?)").run(id, `receipt-${id}`, "before", null, "response-observed", JSON.stringify({
+        memory_id: id, receipt_id: `receipt-${id}`, at: "before", work_id: null, state: "response-observed", consumer: "assistant", title: `${id} use` }));
       db.prepare("INSERT INTO memory_changes VALUES (?,?,?,?,?)").run(`change-${id}`, "person", id, "before", JSON.stringify({
-        memory_id: id, scope: id === "memory-a" ? "project" : "personal", owner: id === "memory-a" ? "project-a" : "person", text: `${id} change`, reason: "reason", undoable: true, undo: { text: "private undo" } }));
+        change_id: `change-${id}`, actor_id: "person", at: "before", memory_id: id, scope: id === "memory-a" ? "project" : "personal", owner: id === "memory-a" ? "project-a" : "person", text: `${id} change`, reason: "reason", undoable: true, undo: { text: "private undo" } }));
     }
-    db.prepare("INSERT INTO memory_pairs VALUES (?,?,?,?)").run("pair-a", "person", "open", JSON.stringify({ scope: "project", owner: "project-a", a: { memory_id: "memory-a" }, b: { memory_id: "keep" } }));
+    db.prepare("INSERT INTO memory_pairs VALUES (?,?,?,?)").run("pair-a", "person", "pending", JSON.stringify({ pair_id: "pair-a", state: "pending", scope: "project", owner: "project-a", a: { memory_id: "memory-a" }, b: { memory_id: "keep" } }));
     for (const id of ["candidate-a", "linked-copy"]) db.prepare("INSERT INTO memory_candidates VALUES (?,?,?,?)").run(id, "person", "pending", JSON.stringify({
-      candidate_id: id, actor_id: "person", scope: id === "candidate-a" ? "project" : "personal", owner: id === "candidate-a" ? "project-a" : "person",
+      candidate_id: id, actor_id: "person", state: "pending", project_id: id === "candidate-a" ? "project-a" : null, scope: id === "candidate-a" ? "project" : "personal", owner: id === "candidate-a" ? "project-a" : "person",
       memory_id: id === "candidate-a" ? null : "memory-a", text: `${id} text`, why: "source text" }));
     for (const [scope, owner, project] of [["project", "project-a", "project-a"], ["character", "character-a", "project-a"], ["project", "keep", "keep"]]) {
       db.prepare("INSERT INTO memory_owners VALUES (?,?,?,?,?)").run(scope!, owner!, project!, "title", owner!);
@@ -161,15 +163,15 @@ test("forgotten marker alone is insufficient, and every original object proof re
   access(raw.home, db => db.prepare("INSERT INTO memory_markers VALUES ('','memory-forgotten:memory-a','after',?)").run(JSON.stringify({ memory_id: "memory-a", state: "forgotten" })));
   assert.throws(() => raw.owner.verifyOriginal({ snapshot: raw.snapshot }), denied);
   const corruptions = [
-    "INSERT INTO memory_revisions VALUES ('memory-a',2,'{}')",
-    "INSERT INTO memory_uses VALUES ('memory-a','late','after',NULL,'response-observed','{}')",
-    `INSERT INTO memory_pairs VALUES ('late','person','open','{"a":{"memory_id":"keep"},"b":{"memory_id":"memory-a"}}')`,
-    `UPDATE memory_changes SET body='{"text":"leak","reason":null,"undoable":false,"undo":null}' WHERE memory_id='memory-a'`,
-    `INSERT INTO memory_candidates VALUES ('candidate-a','person','pending','{}')`,
-    `UPDATE memory_candidates SET body='{"memory_id":"memory-a","text":"late"}' WHERE candidate_id='linked-copy'`,
+    `INSERT INTO memory_revisions VALUES ('memory-a',2,'{"version":2,"text":"late"}')`,
+    `INSERT INTO memory_uses VALUES ('memory-a','late','after',NULL,'response-observed','{"memory_id":"memory-a","receipt_id":"late","at":"after","work_id":null,"state":"response-observed","consumer":"assistant","title":"late"}')`,
+    `INSERT INTO memory_pairs VALUES ('late','person','pending','{"pair_id":"late","state":"pending","a":{"memory_id":"keep"},"b":{"memory_id":"memory-a"}}')`,
+    `UPDATE memory_changes SET body=json_set(body,'$.text','leak') WHERE memory_id='memory-a'`,
+    `INSERT INTO memory_candidates VALUES ('candidate-a','person','pending','{"candidate_id":"candidate-a","actor_id":"person","state":"pending","scope":"project","owner":"project-a","project_id":"project-a","memory_id":null}')`,
+    `UPDATE memory_candidates SET body=json_set(body,'$.memory_id','memory-a','$.text','late') WHERE candidate_id='linked-copy'`,
     "DELETE FROM memory_markers WHERE key LIKE 'memory-source-forgotten:%'",
     "UPDATE memory_changes SET body='[]' WHERE memory_id='memory-a'",
-    "UPDATE memory_candidates SET body='{}' WHERE candidate_id='linked-copy'",
+    "UPDATE memory_candidates SET body=json_remove(body,'$.memory_id') WHERE candidate_id='linked-copy'",
   ];
   for (const corruption of corruptions) {
     const f = fixture(t), snapshot = cleanObjects(f); access(f.home, db => db.exec(corruption));
@@ -180,9 +182,9 @@ test("forgotten marker alone is insufficient, and every original object proof re
 
 test("scope close refuses an unselected later object and a newly attached owner even with a fresh adoption snapshot", t => {
   for (const extra of [
-    `INSERT INTO memory_candidates VALUES ('later','person','pending','{"candidate_id":"later","scope":"project","owner":"project-a","memory_id":null}')`,
-    `INSERT INTO memory_changes VALUES ('later','person','later','after','{"memory_id":"later","scope":"project","owner":"project-a"}')`,
-    `INSERT INTO memory_pairs VALUES ('later','person','open','{"scope":"project","owner":"project-a","a":{"memory_id":"later"},"b":{"memory_id":"keep"}}')`,
+    `INSERT INTO memory_candidates VALUES ('later','person','pending','{"candidate_id":"later","actor_id":"person","state":"pending","project_id":"project-a","scope":"project","owner":"project-a","memory_id":null}')`,
+    `INSERT INTO memory_changes VALUES ('later','person','later','after','{"change_id":"later","actor_id":"person","at":"after","memory_id":"later","scope":"project","owner":"project-a"}')`,
+    `INSERT INTO memory_pairs VALUES ('later','person','pending','{"pair_id":"later","state":"pending","scope":"project","owner":"project-a","a":{"memory_id":"later"},"b":{"memory_id":"keep"}}')`,
     `INSERT INTO memory_owners VALUES ('character','later','project-a','Later','later')`,
   ]) {
     const f = fixture(t); cleanObjects(f); access(f.home, db => db.exec(extra));
@@ -196,9 +198,9 @@ test("existing-complete only proves original IDs and preserves the whole same-ID
   access(f.home, db => {
     db.prepare("INSERT INTO memory_owners VALUES ('project','project-a','project-a','Successor','project-a')").run();
     db.prepare("INSERT INTO memory_prefs VALUES ('person','project:project-a',?)").run(JSON.stringify({ form: false, successor: true }));
-    db.exec(`INSERT INTO memory_candidates VALUES ('successor-candidate','person','pending','{"scope":"project","owner":"project-a","memory_id":null}');
-      INSERT INTO memory_revisions VALUES ('successor-memory',1,'{"text":"new private body"}');
-      INSERT INTO memory_pairs VALUES ('successor-pair','person','open','{"a":{"memory_id":"successor-memory"},"b":{"memory_id":"keep"}}');
+    db.exec(`INSERT INTO memory_candidates VALUES ('successor-candidate','person','pending','{"candidate_id":"successor-candidate","actor_id":"person","state":"pending","project_id":"project-a","scope":"project","owner":"project-a","memory_id":null}');
+      INSERT INTO memory_revisions VALUES ('successor-memory',1,'{"version":1,"text":"new private body"}');
+      INSERT INTO memory_pairs VALUES ('successor-pair','person','pending','{"pair_id":"successor-pair","state":"pending","a":{"memory_id":"successor-memory"},"b":{"memory_id":"keep"}}');
       INSERT INTO memory_signal_events VALUES ('successor-signal','person','project|project-a|signal','again','after');`);
   });
   const snapshot = inspectMemoryLedgerAdoption({ homeDirectory: f.home }), before = state(f.home), path = homeSqlitePath(f.home, MEMORY_LEDGER_STORE), bytes = readFileSync(path);
@@ -209,4 +211,94 @@ test("existing-complete only proves original IDs and preserves the whole same-ID
   assert.throws(() => owner.suppressSources({ snapshot, scope: "project", owner: "project-a", sources: plan().scopes[0]!.sources }), denied);
   assert.throws(() => owner.forgetScopes({ snapshot }), denied);
   assert.deepEqual(state(f.home), before); assert.deepEqual(readFileSync(path), bytes);
+});
+
+test("physical Ledger and ancestor redirection after capture is rejected while source and original target remain intact", t => {
+  for (const boundary of ["file", "directory", "home"]) {
+    const target = fixture(t), source = fixture(t), sourceBefore = state(source.home), targetBefore = state(target.home);
+    const targetPath = boundary === "file" ? homeSqlitePath(target.home, MEMORY_LEDGER_STORE) : boundary === "directory" ? join(target.home, MEMORY_LEDGER_STORE) : target.home;
+    const sourcePath = boundary === "file" ? homeSqlitePath(source.home, MEMORY_LEDGER_STORE) : boundary === "directory" ? join(source.home, MEMORY_LEDGER_STORE) : source.home;
+    const moved = `${targetPath}-original`;
+    renameSync(targetPath, moved); symlinkSync(sourcePath, targetPath);
+    try {
+      assert.throws(() => target.owner.forget({ snapshot: target.snapshot, memory_id: "memory-a" }), { code: "storage.maintenance_path" });
+      assert.throws(() => target.owner.verifyOriginal({ snapshot: target.snapshot }), { code: "storage.maintenance_path" });
+      assert.deepEqual(state(source.home), sourceBefore);
+    } finally { unlinkSync(targetPath); renameSync(moved, targetPath); }
+    assert.deepEqual(state(target.home), targetBefore);
+    target.owner.forget({ snapshot: target.snapshot, memory_id: "memory-a" });
+  }
+});
+
+test("db and every SQLite sidecar reject links, and a disappeared Ledger is never recreated", t => {
+  for (const suffix of ["", "-wal", "-shm", "-journal"]) for (const kind of ["symbolic", "hard"]) {
+    const target = fixture(t), source = fixture(t), path = homeSqlitePath(target.home, MEMORY_LEDGER_STORE) + suffix;
+    const sourcePath = homeSqlitePath(source.home, MEMORY_LEDGER_STORE), before = readFileSync(sourcePath);
+    if (!suffix) renameSync(path, `${path}-original`);
+    if (kind === "symbolic") symlinkSync(sourcePath, path); else linkSync(sourcePath, path);
+    try { assert.throws(() => target.owner.forget({ snapshot: target.snapshot, memory_id: "memory-a" }), { code: "storage.maintenance_path" }); }
+    finally { unlinkSync(path); if (!suffix) renameSync(`${path}-original`, path); }
+    assert.deepEqual(readFileSync(sourcePath), before);
+  }
+  const f = fixture(t), path = homeSqlitePath(f.home, MEMORY_LEDGER_STORE);
+  renameSync(path, `${path}-original`);
+  assert.throws(() => f.owner.forget({ snapshot: f.snapshot, memory_id: "memory-a" }), { code: "storage.maintenance_path" });
+  assert.equal(existsSync(path), false);
+});
+
+test("column and JSON identity contradictions refuse both proof and all fixed-plan writes without erasing the unselected row", t => {
+  for (const corruption of [
+    `UPDATE memory_changes SET memory_id='keep' WHERE memory_id='memory-a'`,
+    `INSERT INTO memory_candidates VALUES ('later-candidate','person','pending','{"candidate_id":"candidate-a","actor_id":"person","state":"pending","project_id":"project-a","scope":"project","owner":"project-a","memory_id":null}')`,
+    `UPDATE memory_uses SET body=json_set(body,'$.memory_id','memory-a') WHERE memory_id='keep'`,
+    `UPDATE memory_uses SET body=json_set(body,'$.receipt_id','other') WHERE memory_id='keep'`,
+    `UPDATE memory_uses SET body=json_set(body,'$.at','after') WHERE memory_id='keep'`,
+    `UPDATE memory_uses SET body=json_set(body,'$.work_id','other') WHERE memory_id='keep'`,
+    `UPDATE memory_uses SET body=json_set(body,'$.state','omitted') WHERE memory_id='keep'`,
+    `UPDATE memory_revisions SET body=json_set(body,'$.version',2) WHERE memory_id='keep'`,
+    `INSERT INTO memory_pairs VALUES ('later-pair','person','pending','{"pair_id":"other","state":"pending","a":{"memory_id":"keep"},"b":{"memory_id":"keep"}}')`,
+    `INSERT INTO memory_pairs VALUES ('later-pair','person','pending','{"pair_id":"later-pair","state":"resolved","a":{"memory_id":"keep"},"b":{"memory_id":"keep"}}')`,
+  ]) {
+    const f = fixture(t), snapshot = cleanObjects(f); access(f.home, db => db.exec(corruption));
+    const before = state(f.home), original = createMemoryLedgerProjectRetention({ ...f.input, mode: "original" });
+    assert.throws(() => original.verifyOriginal({ snapshot }), denied);
+    assert.throws(() => f.owner.forgetScopes({ snapshot }), denied);
+    assert.throws(() => f.owner.forget({ snapshot, memory_id: "memory-a" }), denied);
+    assert.throws(() => f.owner.suppressSources({ snapshot, scope: "project", owner: "project-a", sources: plan().scopes[0]!.sources }), denied);
+    assert.deepEqual(state(f.home), before);
+  }
+});
+
+test("a directory swapped by a second SQLite writer during BEGIN lock wait is refused before retention writes", async t => {
+  const target = fixture(t), source = fixture(t), before = state(source.home), original = state(target.home);
+  const directory = join(target.home, MEMORY_LEDGER_STORE), moved = `${directory}-original`, status = new Int32Array(new SharedArrayBuffer(8));
+  const worker = new Worker(`
+    const { workerData } = require('node:worker_threads');
+    const { DatabaseSync } = require('node:sqlite');
+    const { renameSync, symlinkSync } = require('node:fs');
+    const status = new Int32Array(workerData.status), db = new DatabaseSync(workerData.database);
+    db.exec('BEGIN IMMEDIATE'); Atomics.store(status, 0, 1); Atomics.notify(status, 0);
+    Atomics.wait(status, 1, 0, 5000);
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 200);
+    renameSync(workerData.directory, workerData.moved); symlinkSync(workerData.source, workerData.directory);
+    db.exec('ROLLBACK'); db.close();
+  `, { eval: true, workerData: { status: status.buffer, database: homeSqlitePath(target.home, MEMORY_LEDGER_STORE), directory, moved, source: join(source.home, MEMORY_LEDGER_STORE) } });
+  const finished = new Promise<void>((resolve, reject) => { worker.once("error", reject); worker.once("exit", code => code === 0 ? resolve() : reject(new Error(`worker exit ${code}`))); });
+  let armed = false;
+  const owner = createMemoryLedgerProjectRetention({ ...target.input, assertCurrent: () => {
+    if (armed) { armed = false; Atomics.store(status, 1, 1); Atomics.notify(status, 1); }
+  } });
+  try {
+    if (Atomics.load(status, 0) === 0) Atomics.wait(status, 0, 0, 5000);
+    assert.equal(Atomics.load(status, 0), 1); armed = true;
+    const started = performance.now();
+    assert.throws(() => owner.forget({ snapshot: target.snapshot, memory_id: "memory-a" }), { code: "storage.maintenance_path" });
+    assert.ok(performance.now() - started >= 150, "the independent SQLite writer held the write lock before releasing it after path substitution");
+    await finished;
+  } finally {
+    await worker.terminate();
+    if (existsSync(moved)) { unlinkSync(directory); renameSync(moved, directory); }
+  }
+  assert.deepEqual(state(source.home), before); assert.deepEqual(state(target.home), original);
+  owner.forget({ snapshot: target.snapshot, memory_id: "memory-a" });
 });

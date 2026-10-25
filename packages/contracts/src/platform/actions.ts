@@ -14,6 +14,7 @@ export * from "./action-usages.js";
 export * from "./action-subjects.js";
 import type { HostCapabilityDescriptor } from "./app-host.js";
 import type { WorkflowContentStation } from "./workflow-content.js";
+import type { PlacementRelationDeclaration } from "./placement.js";
 export * from "./workflow-content.js";
 import type { SearchSourceDeclaration } from "./search-sources.js";
 export * from "./search-sources.js";
@@ -237,6 +238,11 @@ export interface ActionMetadata {
    * while the installation holds that grant, and only to the person (audience `user`).
    */
   readonly project_reach?: "person";
+  /**
+   * The part this action plays in a relation placement keeps for the person (PG-032): it lists what an object is attached to, attaches,
+   * releases, lists what can be attached to, or makes a target from content. Placement finds the relation's actions by this, never by name.
+   */
+  readonly placement_relation?: PlacementRelationDeclaration;
   /** Optional rule choices owned by this subject-offer query; each target is declared in the same registration, in the same scope, and handles the option's subject kinds. */
   readonly subject_offer_choices?: readonly SubjectOfferChoice[];
   /** Finite choices of a fragment-offer query (specs/archive/contextual-interaction §5.1); each target is declared in the same registration and scope. */

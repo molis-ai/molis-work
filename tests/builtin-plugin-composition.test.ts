@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readdirSync, readFileSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { runInNewContext } from 'node:vm';
+import ts from 'typescript';
 import type { ActionDefinition } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { PluginRegistration } from '@molis-ai/molis-work-contracts/platform/plugin-registration';
 import { BUILTIN_PLUGIN_CATALOG, createWorkbenchUiHost, pluginSurfaceClients, pluginWorkbenchClientAsset, pluginWorkbenchPacks, WORKBENCH_UI_SLOTS } from '@molis-ai/molis-work-app-workbench';
@@ -18,7 +21,7 @@ function futurePlugin(): PluginRegistration {
       permissions: [{ permission: 'fixture:read', required: false, reason: 'read fixture' }], actions: [action],
       capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },
       ui: { contributions: [contribution], views: [{ view_id: 'panel', slot: 'stage', title: 'Future', contribution_id: contribution }] } },
-    workbench: { order: 0, contributions: [{ descriptor: { contribution_id: contribution, plugin_id: id, kind: 'primary-page', label: 'Future', slots: [],
+    workbench: { order: 0, contributions: [{ descriptor: { contribution_id: contribution, kind: 'primary-page', label: 'Future', slots: [],
       surfaces: [{ surface_id: 'panel', target_slot_id: 'workbench.main', format: 'declarative-html' }] },
       render: ({ model }) => `<article>${(model as { title: string }).title}</article>` }],
       stylesheet: '.future{color:red}', clientFactory: "api => api.mountPluginClient('future', api.projectId())",
@@ -42,12 +45,63 @@ test('one unknown bundled entry supplies actual UI mounting, ordered assets, cli
   assert.deepEqual(mounted.map(args => [...args as unknown[]]), [['future', 'project-1'], ['future.settings', 'project-1']]);
 });
 
-test('composition preserves Native UI identities', () => {
-  // Native UI is composed statically, not redeemed as a Runtime contribution; its old public identities stay stable.
+test('RAC-635 a built-in contribution is registered under the plugin its Manifest names, whatever the contribution itself says', () => {
+  // Native UI is composed statically, not redeemed as a Runtime contribution; the platform fills the owner from the catalog entry's Manifest (PG-098).
   const ui = createWorkbenchUiHost().list();
-  assert.equal(ui.find(entry => entry.contribution_id === 'io.molis.work.native.goals.proposal')?.plugin_id, 'io.molis.work.native.goals');
+  const owners = new Map(BUILTIN_PLUGIN_CATALOG.flatMap(entry => (entry.workbench?.contributions ?? []).map(item => [item.descriptor.contribution_id, entry.manifest.plugin_id] as const)));
+  assert.ok(ui.length > 20, 'the catalog registers its contributions');
+  for (const descriptor of ui) assert.equal(descriptor.plugin_id, owners.get(descriptor.contribution_id), descriptor.contribution_id);
+  assert.equal(ui.find(entry => entry.contribution_id === 'io.molis.work.native.goals.proposal')?.plugin_id, 'io.molis.work.goals');
+  // A contribution that names an owner of its own is refused, naming the plugin and the contribution; it is not overwritten with the Manifest's.
+  const withOwner = (plugin_id: string) => BUILTIN_PLUGIN_CATALOG.map(entry => entry.project_plugin_id === 'todo' && entry.workbench
+    ? { ...entry, workbench: { ...entry.workbench, contributions: entry.workbench.contributions.map(item => ({ ...item, descriptor: { ...item.descriptor, plugin_id } })) } } : entry);
+  const first = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === 'todo')?.workbench?.contributions[0]?.descriptor.contribution_id;
+  assert.ok(first);
+  for (const claimed of ['io.example.someone-else', 'io.molis.work.todo']) {
+    assert.throws(() => pluginWorkbenchPacks(withOwner(claimed)), (error: Error) => error.message.includes('todo') && error.message.includes(first) && error.message.includes('plugin_id'), claimed);
+  }
+  const pack = pluginWorkbenchPacks().find(candidate => candidate.project_plugin_id === 'todo');
+  assert.ok(pack?.contributions.length);
+  for (const item of pack.contributions) assert.equal(item.descriptor.plugin_id, 'io.molis.work.todo');
   // SC-3 (PG-082): the Goal terminal pane is the workbench's own surface (apps/workbench/src/terminal/pane.ts), no longer a Work contribution.
   assert.equal(ui.find(entry => entry.contribution_id === 'io.molis.work.native.work.terminal.v1'), undefined);
+});
+
+test('RAC-635 no plugin source writes a plugin_id into a contribution declaration, in whatever order or shape', () => {
+  const found: string[] = [];
+  const named = (property: ts.ObjectLiteralElementLike) => {
+    if (!ts.isPropertyAssignment(property) && !ts.isShorthandPropertyAssignment(property) && !ts.isMethodDeclaration(property)) return null;
+    return ts.isIdentifier(property.name) || ts.isStringLiteral(property.name) ? property.name.text : null;
+  };
+  const scan = (path: string) => {
+    const source = ts.createSourceFile(path, readFileSync(path, 'utf8'), ts.ScriptTarget.Latest, true);
+    const visit = (node: ts.Node) => {
+      if (ts.isObjectLiteralExpression(node)) {
+        const names = node.properties.map(named);
+        if (names.includes('contribution_id') && names.includes('plugin_id')) found.push(`${path}:${source.getLineAndCharacterOfPosition(node.getStart()).line + 1}`);
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(source);
+  };
+  const walk = (directory: string) => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) { if (entry.name !== 'node_modules' && entry.name !== 'dist') walk(path); continue; }
+      if (entry.name.endsWith('.ts')) scan(path);
+    }
+  };
+  const root = new URL('../plugins/native', import.meta.url).pathname;
+  for (const plugin of readdirSync(root)) if (existsSync(join(root, plugin, 'src'))) walk(join(root, plugin, 'src'));
+  assert.ok(found.length === 0, found.join('\n'));
+  // The scan sees what the old adjacency regex missed: another property between the two, a shorthand, a quoted key, a different order.
+  const probe = (text: string) => { const file = ts.createSourceFile('probe.ts', text, ts.ScriptTarget.Latest, true); let hit = false;
+    const visit = (node: ts.Node) => { if (ts.isObjectLiteralExpression(node)) { const names = node.properties.map(named); if (names.includes('contribution_id') && names.includes('plugin_id')) hit = true; } ts.forEachChild(node, visit); };
+    visit(file); return hit; };
+  assert.ok(probe(`const a = { contribution_id: 'x', slot: 'main', plugin_id: 'p' };`));
+  assert.ok(probe(`const a = { plugin_id, slot: 'main', contribution_id: 'x' };`));
+  assert.ok(probe(`const a = { "plugin_id": 'p',\n contribution_id: 'x' };`));
+  assert.ok(!probe(`const a = { contribution_id: 'x', slot: 'main' }; const b = { plugin_id: 'p' };`));
 });
 
 test('RAC-540 PG-070 every client is a bundle of its own: Files, Git, Diff and Text Stats borrow nothing from Coding', () => {

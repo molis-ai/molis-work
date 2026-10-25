@@ -228,6 +228,8 @@ export declare const identifier: {
     minLength: number;
 };
 
+export declare function inGoalRelation<Input, Output>(definition: ActionDefinition<Input, Output>, role: PlacementRelationRole): ActionDefinition<Input, Output>;
+
 export declare const judgment: Readonly<Record<string, unknown>>;
 
 export declare const nullable: (schema: ActionSchema) => ActionSchema;

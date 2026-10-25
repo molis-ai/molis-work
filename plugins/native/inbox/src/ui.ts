@@ -1,7 +1,7 @@
 import type { InboxJudgmentSummary } from "./route-handlers.js";
 import type {
   UiContribution,
-  UiContributionDescriptor,
+  UiContributionDeclaration,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
 import {
@@ -32,9 +32,8 @@ export interface InboxUiModel {
   readonly primitives: InboxUiPrimitives;
 }
 
-export const inboxUiDescriptor: UiContributionDescriptor = {
+export const inboxUiDescriptor: UiContributionDeclaration = {
   contribution_id: INBOX_UI_CONTRIBUTION_ID,
-  plugin_id: "io.molis.work.native.inbox",
   kind: "primary-page",
   navigation_id: "inbox",
   label: "Inbox",

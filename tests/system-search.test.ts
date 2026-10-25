@@ -196,7 +196,7 @@ test("project, personal and grant scopes: nothing leaks to a caller who cannot r
   const listingOnly: ActionCallContext = { ...client, permissions: ["notes:read", "search:read"], allowed_actions: [{ capability_id: entries.capability_id, version: 1, provider_id: "notes" }] };
   assert.deepEqual(ids(await ask(f, listingOnly, "甲方")), []);
   assert.deepEqual(ids(await ask(f, listingOnly, "合同")), []);
-  const withReader: ActionCallContext = { ...listingOnly, allowed_actions: [...listingOnly.allowed_actions!, { capability_id: reader.capability_id, version: 1, provider_id: "notes" }] };
+  const withReader: ActionCallContext = { ...listingOnly, allowed_actions: [...listingOnly.allowed_actions!, { capability_id: reader.capability_id, version: reader.version, provider_id: "notes" }] };
   assert.deepEqual(ids(await ask(f, withReader, "甲方")), ["a1"]);
   // Opening checks the same authority again.
   const hit = (await ask(f, owner("a"), "甲方")).hits[0]!;
@@ -214,7 +214,7 @@ test("a source revoked while the query waits for the index answers nothing from 
   const listed = new Promise<void>(resolve => { listing = resolve; });
   notes.hold = new Promise<void>(resolve => { release = resolve; });
   notes.onList = listing;
-  const granted = [{ capability_id: entries.capability_id, version: 1, provider_id: "notes" }, { capability_id: reader.capability_id, version: 1, provider_id: "notes" }];
+  const granted = [{ capability_id: entries.capability_id, version: 1, provider_id: "notes" }, { capability_id: reader.capability_id, version: reader.version, provider_id: "notes" }];
   const client: ActionCallContext = { actor_id: "mcp-client", project_id: "a", audience: "mcp", permissions: ["notes:read", "search:read"], allowed_actions: granted };
   const pending = ask(f, client, "合同");
   await listed;

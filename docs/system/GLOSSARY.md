@@ -257,15 +257,15 @@
 
 ### 3.3 内置插件的名字对照
 
-规则上 `plugin_id` 是 `io.molis.work.<project_plugin_id>`，目录和包名与 `project_plugin_id` 相同，界面 UI 描述（`UiContributionDescriptor`）里的 `plugin_id` 与 Manifest 的相同。下表列出全部 25 个，凡不规则的在最后一栏写明（2026-10-08 核对每个插件的 Manifest 和 UI 描述）；表后第 1–4 条是跨插件的说明。
+规则上 `plugin_id` 是 `io.molis.work.<project_plugin_id>`，目录和包名与 `project_plugin_id` 相同，界面 UI 声明（`UiContributionDeclaration`）里没有 `plugin_id`，登记时由平台按 Manifest 填（PG-098，2026-10-25）。下表列出全部 25 个，凡不规则的在最后一栏写明（2026-10-08 核对每个插件的 Manifest）；表后第 1–4 条是跨插件的说明。
 
 | `project_plugin_id` | `manifest.name` | 界面显示名 | 不规则之处 |
 | --- | --- | --- | --- |
-| `goals` | Goals | Goals | 12 个 UI 描述写成 `io.molis.work.native.goals`（见表后第 2 条） |
-| `inbox` | Inbox | Inbox | UI 描述写成 `io.molis.work.native.inbox`（表后第 2 条） |
-| `feed` | Feed | Feed | UI 描述写成 `io.molis.work.native.feed`（表后第 2 条）；出站规则生成的成果版本记着生产者 `io.molis.work.native.feed`（表后第 3 条） |
-| `schedule` | Schedule | Schedule | UI 描述写成 `io.molis.work.native.schedule`（表后第 2 条） |
-| `artifacts` | 成果 | 成果 | 2 个 UI 描述写成 `io.molis.work.native.artifacts`（表后第 2 条） |
+| `goals` | Goals | Goals | |
+| `inbox` | Inbox | Inbox | |
+| `feed` | Feed | Feed | 出站规则生成的成果版本记着生产者 `io.molis.work.native.feed`（表后第 3 条） |
+| `schedule` | Schedule | Schedule | |
+| `artifacts` | 成果 | 成果 | |
 | `coding` | Coding | Coding | |
 | `files` | Files | Files | |
 | `git` | Git | Git | |
@@ -290,7 +290,7 @@
 表外的几处不规则：
 
 1. **Manifest 的 `plugin_id` 多一段 `.native.`**：只有工作流程（`plugins/native/workflows/src/model.ts:7`）。它是安装记录、事件订阅、发行物留存和提示词覆盖（`owner_id`，`plugins/native/workflows/src/prompts.ts:5`）的键，改名属 R-B8。
-2. **UI 描述里的 `plugin_id` 与 Manifest 不一致**：5 个插件共 17 个描述写成 `io.molis.work.native.<x>`，而它们的 Manifest 是 `io.molis.work.<x>`。位置：Goals 12 个（`plugins/native/goals/src/` 下的 `context-ui.ts:20`、`decision-results-ui.ts:13`、`dialogs-ui.ts:94`、`document-ui.ts:60`、`factors-ui.ts:64`、`momentum-ui.ts:70`、`planning-ui.ts:26`、`policy-ui.ts:147`、`proposal-ui.ts:203`、`relation-ui.ts:145`、`status-ui.ts:81`、`tree-ui.ts:256`），Feed `ui.ts:164`，Inbox `ui.ts:37`，Schedule `ui.ts:33`，成果 `browser-ui.ts:223` 与 `reference-ui.ts:33`。Plugin Runtime 对经它装配的插件的视图描述会拒绝这种不一致（`packages/plugin-runtime/src/contribution.ts:51`），构建期装配的插件没有这道检查，所以没被发现。`descriptor.plugin_id` 只被这道检查和已安装插件的客户端加载（`packages/ui-host/src/plugin-client.ts:31`）读取，我没有找到把它存进库的地方，所以改名属 R-A9，不属 R-B。但 `tests/builtin-plugin-composition.test.ts:44-48` 的注释写着构建期 UI 的「旧公开身份保持稳定」，并断言了其中两个描述的 `plugin_id`，改前要先确认那条断言想钉的是 `plugin_id` 还是只是 `contribution_id`。
+2. **UI 声明里不写 `plugin_id`（PG-098，2026-10-25 已改）**：原来 5 个插件共 16 个描述写成 `io.molis.work.native.<x>`，而它们的 Manifest 是 `io.molis.work.<x>`，构建期装配的插件没有一致性检查，所以没被发现。现在插件写的 `UiContribution.descriptor` 是 `UiContributionDeclaration`，没有 `plugin_id`；平台登记时按受信任的 Manifest 填（`ownedContribution`：`ui:register` 用安装上下文的 `plugin_id`，内置的 `registration.workbench.contributions` 用登记项的 `manifest.plugin_id`），声明自己带 `plugin_id` 一律拒绝（`declaresOwner`）。所以不再有「描述里的身份与 Manifest 不一致」这件事，R-A9 作废。
 3. **成果版本里记着一个不同的生产者 id**：Feed 的出站规则生成成果版本时，生产者写的是 `FEED_ARTIFACT_PRODUCER`（`plugins/native/feed/src/out-rules.ts:16-17,221`），`plugin_id` 为 `io.molis.work.native.feed`，`binding_signature` 为 `native:feed`；Feed 的 Manifest 是 `io.molis.work.feed`（`plugins/native/feed/src/identity.ts:1`）。生产者存进成果表的 `producer_plugin_id`（`modules/artifacts/src/repository.ts:52`），所以这是已存数据，改名属 R-B9。它还有一个后果：宿主按声明检查内置插件的写入时用生产者的 `plugin_id` 查内置目录，查不到的生产者放行（`apps/local-host/src/declared-types.ts:11-17`），所以这条写入没有被对照 Feed 的 `artifacts.produces` 检查。
 4. **贡献 id（`contribution_id`）不是插件 id**：多数内置插件的贡献 id 以 `io.molis.work.native.<x>.` 开头（如 `io.molis.work.native.todo.ui.v1`，`plugins/native/todo/src/ui.ts:4`）。这是贡献 id 的命名空间，不要拿它推 `plugin_id`；它不在改名范围内。
 
@@ -409,7 +409,7 @@ B　说工作者本身的（做事、用自己的权限、请求授权和提问�
 | R-A6 | `AgentMethodView`、`AgentMethodRegistration`、`METHOD_TOOLS`、`inspectMethodDeclarations`、`method_owner`、`codingMethods`/`pagesMethods`/`todoMethods` 及其所在文件（`plugins/native/coding/src/methods.ts`、`plugins/native/pages/src/methods.ts`、`plugins/native/todo/src/roles.ts`） | `AgentSkill*`、`SKILL_TOOLS`、`inspectSkillDeclarations`、`skill_owner`、`*Skills`、`skills.ts` | 前五项源码 7 个文件，`codingMethods`/`pagesMethods`/`todoMethods` 11 个文件 | 只含类型、函数和文件名。Manifest 的 `methods` 键、`assistant.methods.*`、字段 `method_id` 和助理物料种类值 `"method"` 都是合同或已存数据，见 R-B5 |
 | R-A7 | （已作废，2026-10-23）目录 `plugins/native/work` 与包 `@molis-ai/molis-work-plugin-work` 随 Sessions 下线（SC-4）一起删除，改名不再需要 | — | — | 重做 Sessions 时按 BL-177 另起包名 |
 | R-A8 | 翻译表里找不到字面使用处、又含旧术语的键 | 删除 | 11 条：`apps/workbench/src/i18n/en.ts` 5 条（键里的字样有「Functions 行为总表」「Functions 出站动作」「判断函数 key」「Board 级事项」，前一个出现在一整句的键里）、`i18n/information-loop-en.ts` 3 条、`apps/workbench/src/functions/en.ts` 1 条、`plugins/native/feed/src/en.ts` 2 条 | 只按字面搜过。翻译换成稳定键（2.7，W5-03）后这些条目不带进新词典，所以不单独做；W1-08 的翻译检查落地后以它报告的无用键为准 |
-| R-A9 | 5 个插件共 17 个 UI 描述的 `plugin_id: "io.molis.work.native.<x>"`（Goals 12、Feed、Inbox、Schedule、成果 2，位置见 3.3 表后第 2 条） | 与各自 Manifest 的 `plugin_id` 相同：`io.molis.work.<x>` | 源码 17 个文件；测试：`tests/builtin-plugin-composition.test.ts` 断言了 Goals 提案的旧值 | 描述没找到持久化的位置（见 3.3）。改后可以让构建期装配也过 Plugin Runtime 同样的一致性检查。该测试的注释写着「旧公开身份保持稳定」，改前先确认它钉的是 `plugin_id` 还是只是 `contribution_id`，再按预期变化改断言 |
+| R-A9 | （已作废，2026-10-25）UI 描述里的 `plugin_id` 不再由插件写，平台按 Manifest 填（3.3 表后第 2 条） | — | — | PG-098 |
 | R-A11 | 注释与局部变量里把项目叫 board/Board 的，以及把 Agent role 叫 Characters 的 | 项目；Agent role | 无法按名计数，改 R-A1 时顺带 | 例：`modules/functions/src/store.ts` 的局部变量 `board`；`plugins/native/goals/src/document-collection.ts` 与 `goal-tree-materialization-order.ts` 里未用的 `_boardId` 参数；`packages/contracts/src/modules/goals.ts` 的注释；`apps/workbench/src/browser/characters/builtin.ts` 的注释把系统与插件的角色叫 Characters |
 
 ### R-B　持久化或合同里的标识符（改名等于改数据或合同）

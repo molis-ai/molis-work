@@ -4,7 +4,7 @@ import {mkdir, mkdtemp, rm, writeFile, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import type { UiContributionDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { UiContributionDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
 import {
   HOTKEY_MODIFIER_REQUIRED,
   chordFromKeyboardEvent,
@@ -91,10 +91,9 @@ const diagnostics = {
   launchers: [],
 };
 
-function settingsPage(overrides: Partial<UiContributionDescriptor> = {}): UiContributionDescriptor {
+function settingsPage(overrides: Partial<UiContributionDeclaration> = {}): UiContributionDeclaration {
   return {
     contribution_id: "io.molis.work.native.example.settings.v1",
-    plugin_id: "io.molis.work.native.example",
     kind: "settings-page",
     navigation_id: "example",
     label: "Example",

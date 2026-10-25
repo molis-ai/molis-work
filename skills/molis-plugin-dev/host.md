@@ -277,6 +277,14 @@ Home 级插件要在本人自己的页面里看到各个项目的内容（Todo �
 
 插件调自己的动作（`services.actions.invoke`）沿用外层调用的受众（S-73）：Agent 的调用经过插件的代码不会变成本人的；`start` 和定时器里没有外层调用，自调用按 `plugin` 受众，目标动作的 `audiences` 不放行 `plugin` 的就被拒。
 
+### 放置里的关联：`placement_relation`
+
+插件要让放置面板（对象放在哪、关联到什么）列出、挂上、取消它自己保存的“对象挂在某个目标上”这种关系（Goals 的“挂到 Goal”），在同一个关联的五个动作上各写 `placement_relation: { relation, role }`：`list`（这个对象挂在哪些目标上，同时写 `target: { kind, noun }`：目标的对象种类和人读的名词）、`bind`、`release`、`candidates`（能选的目标）、`create`（把内容建成一个目标）。放置服务在目录里按这项声明找动作，不按能力 id，也不点插件的名字；缺哪个角色就是那个操作 `placement.target_unavailable`。一个项目里同一个关联只能有一个提供方在管：两个可用的插件声明同一个 `relation`，放置服务的每个操作都 `placement.relation_ambiguous`，不挑一个、也不混着取。`relation` 是小写词（今天线上只有 `goal`），同一个关联同一个角色只能有一个动作，SDK 的声明检查拦下写错的。不写这项声明的动作，放置服务不会碰。写 `goals.*` 这样的 Goals 动作用 `inGoalRelation(定义, 角色)`（`@molis-ai/molis-work-contracts/modules/goal-actions`）。
+
+### UI 贡献里没有 `plugin_id`
+
+`ui.register` 与启动返回的视图写的是 `UiContributionDeclaration`：没有 `plugin_id`。贡献属于哪个插件由平台按 Manifest 填（`ui:register` 用安装上下文的插件 id，内置的用登记项的 `manifest.plugin_id`），声明里自己写了 `plugin_id`（哪怕写对了）一律被拒（`ui_host.plugin_denied`；启动返回的视图是启动失败；内置的 `registration.workbench.contributions` 里写了，工作台装配直接抛错，信息里有插件和贡献 id）；贡献 id 不在 Manifest 的 `ui.contributions` 里同样被拒。
+
 ### 用本人的服务账号发请求
 
 插件要以本人身份调某个服务（如读 GitHub 通知），不自己存令牌、不让人把令牌填进插件：Manifest 声明权限 `connections:use` 和 `connections.slots`（`{ slot_id, service_id, reason }`，`service_id` 只能是平台登记了固定地址的服务，名单是 `CONNECTOR_REQUEST_SERVICES`：GitHub、Gmail 和目录里以 `Bearer` 发到固定地址的服务），在自己声明了 `connections:use` 的并发动作里调 `context.services.connections.request(slot_id, { url, method?, headers?, body? })`，返回 `{ status, headers, body, authenticated }`。槽绑哪个账号只由人选（`connectors.plugin_slot.bind@1`，只对 `user`）；绑了的由宿主加凭据、插件看不到，没绑就不带凭据。一条记录一个账号时槽写 `binding: "per_record"`：人按项目为一条记录选账号（`bind@2`），插件请求时写 `record_key`，用 `describe(slot_id, record_key)` 读有没有绑、`release(slot_id, record_key)` 在删记录时解除，不能自己绑。地址只能是该服务登记的来源之一，不能自己写 `Authorization`、`Cookie` 一类的头，跳转原样交回，只读动作只发 GET/HEAD；拿到结果后、写业务记录之前照样 `await caller.beforeEffect()`。沙箱插件经 broker 用同一份客户端，操作要在 `effects.connections` 里写出用的槽（S-60）。写法见 [插件开发手册](../../docs/platform/PLUGIN-DEVELOPMENT.md#用本人的服务账号发请求servicesconnections)，规则与测试见 `docs/system/SECURITY-INVARIANTS.md` S-57、S-69、S-71。

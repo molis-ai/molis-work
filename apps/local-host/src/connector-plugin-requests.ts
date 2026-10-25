@@ -6,7 +6,8 @@ import { pluginBindingScope } from "@molis-ai/molis-work-service-connector-host"
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import type { PluginConnectionDispatch, PluginConnectionsPort, PluginConnectionTarget } from "@molis-ai/molis-work-plugin-runtime";
 import { resolveApiConnection } from "./connector-access.js";
-import { withConnectorConnections } from "./connector-connection-store.js";
+import { clearExistingProjectConnectionBindings, withConnectorConnections } from "./connector-connection-store.js";
+import type { ProjectDeletionControl } from "@molis-ai/molis-work-contracts/modules/projects";
 import { withConnectorRequest } from "./connector-lifecycle.js";
 import { shownState } from "./connector-refresh-refusals.js";
 import { sendPublicHttps, type PublicHttpsFailure, type PublicHttpsTestServer, type PublicLookup } from "./public-https.js";
@@ -31,7 +32,8 @@ export function pluginSlotScope(install_id: string): string {
 }
 
 /** A deleted project's `per_record` bindings, of every plugin (S-57 extension X4); a Home that never saved an account has none. */
-export function forgetProjectConnectionBindings(home: string, project_id: string): void {
+export function forgetProjectConnectionBindings(home: string, project_id: string, control?: ProjectDeletionControl): void {
+  if (control) return clearExistingProjectConnectionBindings(home, project_id, control);
   if (existsSync(homeSqlitePath(home, "connectors"))) withConnectorConnections(home, store => store.forgetProjectBindings(project_id));
 }
 

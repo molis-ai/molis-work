@@ -155,7 +155,7 @@ export function homeProjectOwners(home: string): ProjectDeletedOwner[] {
     // Where a project's plugins may read an imported file again: only the Host's record of the place goes, never the person's file.
     { id: "plugin-originals", label: null, clear: (projectId, _deletion, control) => { forgetProjectOriginalFiles(home, projectId, control); } },
     // Which account a plugin uses for each of its records in the project (`per_record` slots); the accounts are the person's and stay.
-    { id: "plugin-connections", label: null, clear: projectId => { forgetProjectConnectionBindings(home, projectId); } },
+    { id: "plugin-connections", label: null, clear: (projectId, _deletion, control) => { forgetProjectConnectionBindings(home, projectId, control); } },
     // Their services exist only in a Host: here they wait for it (the Host's own owners take these ids over while it runs).
     memoryOwnerWithoutService(home),
     searchOwnerWithoutService(home),

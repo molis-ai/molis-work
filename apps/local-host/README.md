@@ -338,3 +338,5 @@ Character 的一般Memory mutation对目标及before原件均要求当前ledger�
 维护的原目标还包含物理路径：数据库/现存侧车和 rm 祖先不能被链接重定向，异步清理后按原目录身份重核。Plugin Builder 的同一 control 进入原 secret owner 的 SQLite 等锁与原子 rename，外层最终拒绝不能替代该检查。专项 `tests/project-deletion-file-boundaries.test.ts` 覆盖真实重定向和拿锁后撤权；原 Images 清单回滚重试仍由 `project-deletion-file-control` 验证。
 
 维护 control 分支的目录删除在最终复核后同步执行，避免异步 rm 尚未完成时祖先目录被 JavaScript 中的另一个操作替换；普通入口仍异步。分区主人仍先等待声明 purge，返回后复核原目标再同步删除。`tests/project-deletion-directory-interleaving.test.ts` 通过公开 owner 和真实文件覆盖这个窗口；这不是对同 OS 权限进程任意竞态替换路径的原子防护。
+
+`plugin-connections` 项目文件主人消费同一 `ProjectDeletionControl`：维护清理走 Storage existing-only 库/结构/物理路径核验与显式写事务，拿锁后、实际绑定删除前、COMMIT 前复核，拒绝回滚。Connector 原 `forgetProjectBindings` 拥有项目选集；账号、凭据、别项目及按安装绑定保持。维护不初始化或修复库、不 chmod、不调用 Secrets Port；普通无 control 与安装卸载语义不变。公开 owner 真实回归 `tests/security-invariants-plugin-connection-maintenance.test.ts`，配合原 `tests/security-invariants-connection-records.test.ts` 与 `tests/connector-connections.test.ts`。

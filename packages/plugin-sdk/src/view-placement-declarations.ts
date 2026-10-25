@@ -25,7 +25,8 @@ export function createStations(parsed: PluginManifest): ReadonlySet<string> {
 
 /** The ids of the Manifest's own actions a settings page may read its data with: one version, a query that only reads, for the person. */
 export function settingsReadActions(parsed: PluginManifest): ReadonlySet<string> {
-  const actions = Array.isArray(parsed.actions) ? parsed.actions : [];
+  // Entries that are not objects are the shape rules' to report; this cross-declaration read skips them rather than throwing (W1-04).
+  const actions = Array.isArray(parsed.actions) ? parsed.actions.filter((action): boolean => isObject(action)) : [];
   const versions = new Map<string, number>();
   for (const action of actions) versions.set(action.capability_id, (versions.get(action.capability_id) ?? 0) + 1);
   return new Set(actions.filter(action => versions.get(action.capability_id) === 1 && action.operation === "query" && isObject(action.action)

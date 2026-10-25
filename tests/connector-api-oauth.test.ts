@@ -215,6 +215,10 @@ test("OAuth without refresh token is usable, and disconnect during refresh never
     const noRefresh = await startApiOAuth(directory, { serviceId: "clickup", displayName: "No refresh", clientId: "app", clientSecret: "secret", origin });
     await completeApiOAuth(directory, callback(noRefresh.authorization_url), (async url => String(url).includes("oauth/token") ? json({ access_token: "permanent-access" }) : String(url).endsWith("/team") ? json({ teams: [{ id: "team-one" }] }) : json({ user: { id: 9, username: "ClickUp user" } })) as typeof fetch);
     assert.equal(await resolveApiOAuthToken(directory, noRefresh.connection_id), "permanent-access");
+    // RAC-349: the plugin's optional refresh must not change existing API readers' boolean force-refresh contract.
+    assert.equal((await resolveApiConnection(directory, noRefresh.connection_id)).token, "permanent-access");
+    await assert.rejects(resolveApiOAuthToken(directory, noRefresh.connection_id, true), /重新授权/u);
+    await assert.rejects(resolveApiConnection(directory, noRefresh.connection_id, "clickup", true), /重新授权/u);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 test("expired and denied authorization removes temporary app credentials; HTTPS manual callback matches exactly", async () => {

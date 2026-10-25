@@ -1,9 +1,9 @@
 {
-  "giantUnits": 84,
+  "giantUnits": 80,
   "giant": {
-    "file apps/local-host/src/assistant/assistant-service.ts": 1837,
+    "file apps/local-host/src/assistant/assistant-service.ts": 1842,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
-      "lines": 1480,
+      "lines": 1491,
       "methods": 90
     },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
@@ -31,15 +31,15 @@
       "methods": 41
     },
     "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 217,
-    "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 179,
-    "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 176,
+    "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 154,
+    "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 151,
     "function apps/workbench/src/capsule-items.ts#createCapsuleItemProjection": 229,
     "function apps/workbench/src/feed-projection-ui.ts#createWorkbenchFeedProjectionRenderer": 251,
     "file apps/workbench/src/functions/client.ts": 1274,
     "file apps/workbench/src/i18n/en.ts": 3308,
     "function apps/workbench/src/project-settings-pages.ts#createWorkbenchProjectSettingsPages": 174,
     "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 284,
-    "file apps/workbench/src/scripts/client/assistant-island.ts": 2031,
+    "file apps/workbench/src/scripts/client/assistant-island.ts": 2046,
     "file apps/workbench/src/scripts/client/navigation-feed.ts": 955,
     "file apps/workbench/src/scripts/client/tab-workspace.ts": 1948,
     "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 181,
@@ -47,10 +47,10 @@
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 425,
     "function horizontal/agent-host/src/adapters/prologue-checkpoints.ts#createPrologueCheckpoints": 221,
     "function horizontal/agent-host/src/adapters/prologue-stream.ts#applyPrologueEvent": 198,
-    "file horizontal/agent-host/src/adapters/prologue.ts": 958,
+    "file horizontal/agent-host/src/adapters/prologue.ts": 965,
     "class horizontal/agent-host/src/adapters/prologue.ts#PrologueAgentAdapter": {
-      "lines": 589,
-      "methods": 19
+      "lines": 602,
+      "methods": 18
     },
     "function horizontal/agent-host/src/capability-registration.ts#registerAgentHostCapabilities": 346,
     "class horizontal/agent-host/src/index.ts#AgentHost": {
@@ -58,24 +58,12 @@
       "methods": 12
     },
     "function horizontal/agent-host/src/index.ts#start": 252,
-    "class horizontal/listener-host/src/index.ts#ListenerHost": {
-      "lines": 361,
-      "methods": 18
-    },
-    "file horizontal/memory/src/service.ts": 1151,
+    "file horizontal/memory/src/service.ts": 1259,
     "class horizontal/memory/src/service.ts#MemoryService": {
-      "lines": 1015,
-      "methods": 48
-    },
-    "class horizontal/placement/src/index.ts#PlacementService": {
-      "lines": 399,
-      "methods": 28
+      "lines": 1079,
+      "methods": 51
     },
     "function horizontal/scheduler/src/index.ts#createScheduleService": 215,
-    "class horizontal/search/src/index.ts#SearchService": {
-      "lines": 392,
-      "methods": 25
-    },
     "class modules/goals/src/event-facts-repository.ts#GoalEventFactsRepository": {
       "lines": 371,
       "methods": 29
@@ -115,7 +103,6 @@
     "function modules/shelf/src/store.ts#runJob": 183,
     "file packages/design-system/src/styles/momentum.ts": 819,
     "file packages/design-system/src/styles/primitives.ts": 1258,
-    "function packages/im-ui/src/views.ts#createViews": 162,
     "class packages/kernel/src/action-service.ts#ActionService": {
       "lines": 396,
       "methods": 15
@@ -386,7 +373,7 @@
     "tests/workspace-git-read.test.ts": 1,
     "tests/workspace-production-events.test.ts": 1
   },
-  "vendoredPrologueSdk": 2,
+  "vendoredPrologueSdk": 1,
   "schemaPatches": 0,
   "compatMarkerTotal": 8,
   "compatMarkers": {
@@ -610,10 +597,10 @@
   },
   "hybridPluginsTotal": 0,
   "hybridPlugins": {},
-  "pluginOutsideMentionsTotal": 270,
+  "pluginOutsideMentionsTotal": 260,
   "pluginOutsideMentions": {
     "alchemist#outside-files": 11,
-    "artifacts#outside-files": 19,
+    "artifacts#outside-files": 9,
     "coding#outside-files": 10,
     "cognia#outside-files": 6,
     "dataset#outside-files": 7,
@@ -1049,6 +1036,7 @@
     "tests/mcp-access-browser.test.ts": 1,
     "tests/mcp-action-settings.test.ts": 6,
     "tests/memory-agent-runs.test.ts": 2,
+    "tests/memory-learning.test.ts": 2,
     "tests/model-thinking.test.ts": 2,
     "tests/pages-cross-module.test.ts": 1,
     "tests/pages-input-rules.test.ts": 3,

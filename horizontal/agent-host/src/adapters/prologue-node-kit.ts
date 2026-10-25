@@ -40,7 +40,9 @@ export interface PrologueNodeAdapterOptions extends PrologueAdapterPorts {
   /** App identity Prologue records against this Runtime's work. */
   app: { readonly appId: string; readonly appVersion: string };
   /** Where the Node host keeps its own storage. A Host fact, never surfaced to Plugins. */
-  storageRoot?: string;
+  storageRoot: string;
+  /** A genuine live parent for this exact storage root; only the Host composition can pass it. */
+  storageOwner?: import("@molis-ai/molis-work-storage").StorageOwner;
   /**
    * Turns a Molis Work credential reference into the actual key.
    *

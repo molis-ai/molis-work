@@ -4,8 +4,8 @@ import type {
 } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { ARTIFACT_SUBJECT_KIND, artifactSubjectId, importedDocumentFile } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { ActionError, subjectContext, type ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { artifactsErrors } from "./errors.js";
-import { DOCUMENT_ARTIFACT_TYPE } from "./document-type.js";
+import { artifactsErrors } from "./artifact-errors.js";
+import { DOCUMENT_ARTIFACT_TYPE } from "./artifact-document-type.js";
 
 export interface ArtifactBrowserView {
   readonly versions: readonly ArtifactVersionRecord[];

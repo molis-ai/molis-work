@@ -2469,6 +2469,14 @@ export declare const PLACEMENT_RESULT_SCHEMA: {
     additionalProperties: boolean;
 };
 
+export declare const PLUGIN_ATTENTION_READ_PERMISSION = "attention:read";
+
+export declare const PLUGIN_ATTENTION_WRITE_PERMISSION = "attention:write";
+
+export declare const PLUGIN_CONTEXT_LEDGER_READ_PERMISSION = "context-ledger:read";
+
+export declare const PLUGIN_CONTEXT_LEDGER_WRITE_PERMISSION = "context-ledger:write";
+
 export declare const PLUGIN_EVENT_PAYLOAD_MAX_BYTES = 16384;
 
 export declare const PLUGIN_MODEL_LIMITS: {
@@ -2556,6 +2564,49 @@ export interface PluginArtifactPublishInput extends PluginProcessItemInput {
     trace?: ArtifactReference[];
 }
 
+export interface PluginAttentionClient {
+    list(): PluginAttentionEntryRecord[];
+    get(entryId: string): PluginAttentionEntryRecord;
+    findActiveForSubject(subject: PluginAttentionSubjectReference): PluginAttentionEntryRecord | null;
+    findForSubject(subject: PluginAttentionSubjectReference): PluginAttentionEntryRecord[];
+    events(entryId?: string): PluginAttentionEvent[];
+    join<T>(transaction: PluginDatabaseTransaction, write: (writer: PluginAttentionWriter) => T): T;
+}
+
+export interface PluginAttentionDeclaration {
+    readonly subjects: readonly AttentionSubjectType[];
+}
+
+export interface PluginAttentionEntryInput extends PluginAttentionSubjectReference {
+    readonly reason: AttentionReason;
+    readonly detail?: Record<string, unknown>;
+    readonly entry_id?: string;
+    readonly at?: string;
+}
+
+export type PluginAttentionEntryRecord = AttentionEntryRecord & {
+    owner_plugin_id: string;
+};
+
+export type PluginAttentionEvent = AttentionEvent & {
+    owner_plugin_id: string;
+};
+
+export interface PluginAttentionSubjectReference {
+    readonly owner_plugin_id: string;
+    readonly subject_type: AttentionSubjectType;
+    readonly subject_id: string;
+}
+
+export interface PluginAttentionWriter {
+    create(input: PluginAttentionEntryInput): {
+        entry: PluginAttentionEntryRecord;
+        created: boolean;
+    };
+    setStatus(entryId: string, status: AttentionStatus, expectedRevision?: number): AttentionEntryRecord;
+    deleteSubject(subject: PluginAttentionSubjectReference): number;
+}
+
 export interface PluginBackgroundClient {
     start<T>(work: (control: PluginExecutionControl) => Promise<T>, options?: {
         signal?: AbortSignal;
@@ -2581,6 +2632,18 @@ export interface PluginConsumableVersion extends ArtifactReference {
     artifact_type_id: string;
     schema_version: number;
     title: string | null;
+}
+
+export interface PluginContextLedgerClient {
+    get(key: string): ContextEdge | null;
+    list(query?: ContextEdgeQuery): ContextEdge[];
+    history(key: string): ContextEdge[];
+    join<T>(transaction: PluginDatabaseTransaction, write: (writer: PluginContextLedgerWriter) => T): T;
+}
+
+export interface PluginContextLedgerWriter {
+    put(input: ContextEdgeInput): ContextEdge;
+    remove(key: string, cause: string, recordedAt?: string): ContextEdge | null;
 }
 
 export type PluginContribution = PluginIntegrationContribution | PluginAppContribution;
@@ -2841,6 +2904,8 @@ export interface PluginExecutorHandle {
 export interface PluginHostServices {
     readonly notifications?: import("platform/plugin-notifications").PluginNotificationClient;
     readonly installations?: import("platform/plugin-installations").PluginInstallationClient;
+    readonly attention?: import("@molis-ai/molis-work-contracts/platform/plugin-attention").PluginAttentionClient;
+    readonly contextLedger?: import("@molis-ai/molis-work-contracts/platform/plugin-attention").PluginContextLedgerClient;
     readonly agents?: import("platform/plugin-agents").PluginAgentClient;
     readonly background?: import("platform/plugin-background").PluginBackgroundClient;
     readonly actions?: PluginActionClient;
@@ -3209,6 +3274,7 @@ export interface PluginManifest {
     owner_files?: import("platform/plugin-owner-files").PluginOwnerFilesDeclaration;
     model_configuration?: import("platform/plugin-model-configuration").PluginModelConfigurationDeclaration;
     image_generation?: import("platform/plugin-image-generation").PluginImageGenerationDeclaration;
+    attention?: import("@molis-ai/molis-work-contracts/platform/plugin-attention").PluginAttentionDeclaration;
     connections?: import("@molis-ai/molis-work-contracts/platform/plugin-connections").PluginConnectionsDeclaration;
     background?: {
         jobs: readonly import("platform/plugin-background").PluginJobDeclaration[];
@@ -3767,7 +3833,7 @@ export interface PluginUpgradeCompatibilityDeclaration {
 }
 
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
-    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "project_statements" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "notifications" | "interaction"> & {
+    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "project_statements" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "notifications" | "attention" | "contextLedger" | "interaction"> & {
         readonly storage?: Pick<PluginPrivateStorage, "get">;
     };
 };
@@ -4921,6 +4987,7 @@ export declare const platformPluginWiringContract: {
 };
 
 export declare const pluginErrors: import("platform/action-errors").ErrorCodeRaisers<{
+    readonly always_on: "invalid";
     readonly capability_denied: "invalid";
     readonly consent_required: "invalid";
     readonly consent_revoked: "invalid";

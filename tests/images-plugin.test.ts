@@ -10,7 +10,7 @@ import { SHELF_ADMIT_ACTION } from "@molis-ai/molis-work-contracts/modules/shelf
 import { shelfActions } from "@molis-ai/molis-work-plugin-shelf";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { IMAGE_PNG, imageReply } from "./fixtures/images-runtime.js";
-import type { ImageJob } from "@molis-ai/molis-work-contracts/modules/images";
+import type { ImageJob } from "@molis-ai/molis-work-plugin-images/contract";
 
 test("图片插件通过Manifest进入个人导航和市场，客户端可解析", () => {
   assert.equal(parsePluginManifest(imagesManifest).plugin_id, "io.molis.work.images");

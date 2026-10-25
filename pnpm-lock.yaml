@@ -395,9 +395,6 @@ importers:
       '@molis-ai/molis-work-plugin-alchemist':
         specifier: workspace:*
         version: link:../../plugins/native/alchemist
-      '@molis-ai/molis-work-plugin-artifacts':
-        specifier: workspace:*
-        version: link:../../plugins/native/artifacts
       '@molis-ai/molis-work-plugin-builder':
         specifier: workspace:*
         version: link:../../plugins/native/plugin-builder
@@ -681,6 +678,9 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@molis-ai/molis-work-storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
       '@prologue/sdk':
         specifier: file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-memory-p0.tgz
         version: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-memory-p0.tgz

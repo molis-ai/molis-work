@@ -468,7 +468,13 @@ test("this repository: nothing is missing, and the scan covers every kind of cal
   assert.ok(count((call) => call.embedded) > 1500, "calls inside the browser scripts that live in template literals");
   assert.ok(count((call) => call.callee === "globalThis.L" && call.embedded) >= 1, "globalThis.L(…) inside a browser script");
   assert.ok(count((call) => !roots.has(call.callee)) > 250, "calls of wrappers and of translators injected as typed parameters");
-  assert.ok(count((call) => call.callee === "this.t") > 20 && count((call) => call.callee === "p.L") > 20, "this.t(…) and p.L(…)");
+  assert.ok(count((call) => call.callee === "p.L") > 20, "p.L(…)");
+  // No product file calls `this.t(…)` since the horizontal services were split (R-38): Placement's `placementText(ports, …)` hands its
+  // key to the port's `text(…)`, a translator its interface declares, and is read as a wrapper. The `this.t` rule stays, shown here on a
+  // file of its own, and the wrapper is shown on the real tree.
+  assert.deepEqual(scanFile("horizontal/sample/src/index.ts", 'class Sample { private t(zh: string): string { return zh; } title() { return this.t("未命名"); } }\n').calls
+    .filter((call: { callee: string }) => call.callee === "this.t").map((call: { key: string }) => call.key), ["未命名"], "this.t(…)");
+  assert.ok(count((call) => call.callee === "placementText" && call.file.startsWith("horizontal/placement/")) > 20, "a wrapper of a port's declared translator");
   assert.ok(count((call) => call.callee === "text") > 10, "an injected translator typed as a parameter (text: (value: string, values?: Record<string, string | number>) => string)");
 });
 

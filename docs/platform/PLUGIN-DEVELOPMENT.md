@@ -112,6 +112,8 @@ node dist/cli/main.js plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state
 | `services.installations` | `plugins:read` | 只返回当前项目的安装 id、世代、版本、名字、发布者和状态；不返回授权、签名或路径。`list()` 排除已卸载记录，`get(id)` 保留其最小状态，供业务主人收尾。 |
 | `services.agents.run` | `agent:run` 与已声明的 role；任务、标题、可选工作区 id、时限 | 复用本 Home 的 Prologue，等待一轮完成并返回正文与运行引用。等待人工交互、超时或失去权限时取消本次运行。须在对应 concurrent command 或保留 job 内使用。 |
 | `services.notifications` | `notifications:write`；通知键、标题、摘要、正文与可选目标插件 id | `deliver(transaction, input)` 与业务记录同笔提交到 Feed/Inbox。提交后在原调用中等待 `receipt.settle()`；重复键不重复投递，回滚的回执不能触发后续判断。 |
+| `services.attention` | `attention:read` / `attention:write`；写还要在 Manifest 的 `attention.subjects` 里声明自己的对象种类（`feed_item`、`goal_decision`、`source_fault`） | 项目的 Inbox 条目。读 `list/get/findActiveForSubject/findForSubject/events`；写 `join(transaction, writer)` 加入当前项目库事务，`create`、`deleteSubject` 只能用声明过的种类，`setStatus` 任何持有 `attention:write` 的插件可用。写的动作自己的 `permissions` 要声明 `attention:write`；项目、行为人由调用给出。 |
+| `services.contextLedger` | `context-ledger:read` / `context-ledger:write` | 项目的关联边。读 `get/list/history`；写 `join(transaction, writer)` 的 `put`、`remove`，范围永远是本项目，行为人是调用者。写的动作自己的 `permissions` 要声明 `context-ledger:write`。 |
 | `services.actions.dependencies` | `actions:invoke` | `discover/check/invoke` 以本安装自己的 grants 和 plugin 受众访问当前项目的动态依赖；不能借用人的权限或 workflow 受众。固定提供方、版本和输入合同后再保存引用。 |
 
 项目库事务句柄只在原回调中有效，不能伪造、跨库或跨安装复用；调度的写回调必须同步完成。业务写、闹钟和通知全部回滚时，不中断此前仍有效的执行；成功提交的暂停、替换和删除才取消旧执行。唤醒运行时占用原 lease，完成后才提交到期点；崩溃后由业务的 pending/running/unknown 状态决定恢复，不能把不确定的外部效果自动再做一遍。
@@ -460,7 +462,9 @@ Integration 的 `health()` 可返回非敏感的 `account: { login, account_id? 
 "connections": { "slots": [{ "slot_id": "github", "service_id": "github", "reason": "读取本人的 GitHub 通知" }] }
 ```
 
-`service_id` 只能是平台登记了固定地址的服务（`CONNECTOR_REQUEST_SERVICES`，现在只有 `github` → `https://api.github.com`）；没有权限的槽、未登记的服务、多写的字段、重复的槽，解析 Manifest 时就拒（`plugin.declaration_invalid`）。槽绑哪个账号由人选（`connectors.plugin_slot.bind@1`，只对 `user` 开放；插件设置里的选择界面是 S0b-2b）；没绑时请求照发，不带凭据。
+`service_id` 只能是平台登记了固定地址的服务（`CONNECTOR_REQUEST_SERVICES`：GitHub、Gmail，以及目录里能把令牌作 `Bearer` 发到固定地址的服务，如 Google Calendar、Microsoft Graph 系、Notion、Slack；一项可以有几个来源，如 Cloudflare 的 API 与控制台；按租户分地址的 Jira、Confluence、Salesforce 不在里面）；没有权限的槽、未登记的服务、多写的字段、重复的槽，解析 Manifest 时就拒（`plugin.declaration_invalid`）。槽绑哪个账号由人选（`connectors.plugin_slot.bind@1`，只对 `user` 开放；插件设置里的选择界面是 S0b-2b）；没绑时请求照发，不带凭据。
+
+一条记录一个账号（例如每个订阅来源各用一个账号）时，槽写 `"binding": "per_record"`：人在某个项目里为插件的一条记录选账号（`connectors.plugin_slot.bind@2`，只对 `user`，项目取调用上下文），插件发请求时写 `record_key`（至多 128 个字符，不含 `/`、`:` 和控制字符），只在本项目的调用里有效；`describe(slot_id, record_key)` 读有没有绑、账号显示名和状态，看不到是哪条连接；插件删记录时用 `release(slot_id, record_key)` 解除，之后这条记录的请求不带凭据。插件不能绑账号。不写 `binding` 就是按安装（`installation`）：一个安装一个账号，各项目共用。绑了 OAuth 账号的请求得到 401 时，宿主刷新一次令牌、把同一个请求重发一次；第二次还是 401 就原样交回，插件看到的只有 `status`，看不到令牌。
 
 在本插件自己声明了 `connections:use` 的并发动作（`scheduling: "concurrent"`）里调：
 
@@ -475,7 +479,7 @@ await caller.beforeEffect(); // 写业务记录之前
 - 绑了账号时宿主加 `Bearer`，插件看不到凭据，`authenticated` 说这次带没带；绑的账号断开或不能用时拒绝（`connector.plugin_requests.connection_unavailable`），不改成匿名发。
 - 不跟随跳转（3xx 原样交回，`location` 在头里）；返回的头只留内容类型、缓存、`link`、`x-ratelimit-*` 等固定的一组；15 秒超时，1 MB 上限；令牌过期的 401 原样交回。
 - 只能在本实例自己的动作或保留的后台作业里用；`start`、路由、场景回调、别的安装的调用都拒（`plugin.connections_call_required`）。授权每次都重查，取消、撤权、停用后不发也不交回。
-- 沙箱插件没有这项服务。
+- 沙箱插件经 broker 用同一份客户端（`sdk.connections.request`、`describe`、`release`）：操作要在 `effects.connections` 里写出用的槽，人批准后才能用；查询操作只能发 GET/HEAD、不能 `release`；宿主的客户端再按上面各条查一遍（`docs/system/SECURITY-INVARIANTS.md` S-60）。
 
 规则与拒绝测试见 `docs/system/SECURITY-INVARIANTS.md` S-57。
 

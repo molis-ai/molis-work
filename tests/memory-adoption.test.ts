@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -10,6 +10,7 @@ import { openMemoryLedger, openHomeSqliteDatabase, homeSqlitePath, MEMORY_LEDGER
 import { MemoryService, isCompletePrefs, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
 import { MolisWorkLocalHost, ensureSystemAgentService, prologueMemoryBackend, hostTextGeneration, ASSISTANT_STORE_NAME, AssistantStore } from "@molis-ai/molis-work-app-local-host";
 import { createDesktopWebHost, MolisWorkServer, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { homeBusinessTree } from "./fixtures/home-storage-files.js";
 
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AgentMemorySourceSnapshot } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -149,15 +150,9 @@ test("adopted effective defaults retain automatic writing, project overrides and
   }
 });
 
-function files(directory: string): Record<string, string> {
-  if (!existsSync(directory)) return {};
-  const result: Record<string, string> = {};
-  for (const entry of readdirSync(directory, { withFileTypes: true })) {
-    const path = join(directory, entry.name);
-    if (entry.isDirectory()) for (const [name, body] of Object.entries(files(path))) result[`${entry.name}/${name}`] = body;
-    else result[entry.name] = readFileSync(path).toString("base64");
-  }
-  return result;
+/** Keep all business-file bytes, modes and mtimes. Opening/closing a SQLite WAL may change only its containing directory's mtime. */
+function files(directory: string) {
+  return Object.fromEntries(Object.entries(homeBusinessTree(directory)).filter(([, state]) => "bytes" in state));
 }
 
 // MEM-24/MEM-40: three supported product entrances plus late Home binding refuse before SDK writes or inference binding.
@@ -185,7 +180,7 @@ for (const shape of ["missing-ledger", "wrong-version", "missing-prefs", "partia
       ledger.close();
       if (shape === "wrong-version") { const db = new DatabaseSync(homeSqlitePath(home, MEMORY_LEDGER_STORE)); db.exec("PRAGMA user_version = 2"); db.close(); }
     }
-    const before = files(join(home, "agent-runtime"));
+    const before = files(home);
     const directories = readdirSync(home).sort();
     const refused = { code: shape === "wrong-version" ? "storage.schema_version_mismatch" : "memory.unavailable" };
     assert.throws(() => new MolisWorkLocalHost({ homeDirectory: home, completeText: null }), refused);
@@ -199,7 +194,7 @@ for (const shape of ["missing-ledger", "wrong-version", "missing-prefs", "partia
       assert.ok(generate);
       await assert.rejects(generate("must not dispatch", { timeoutMs: 500 }), { code: "actions.service_unavailable", message: "AI 执行服务尚未就绪或已停止，请稍后重试；材料已保留" });
     } finally { await unbound.close(); }
-    assert.deepEqual(files(join(home, "agent-runtime")), before);
+    assert.deepEqual(files(home), before, "RAC-105-A-07: rejected entrances preserve all business bytes, modes and mtimes, excluding owner bookkeeping before it is read");
     assert.deepEqual(readdirSync(home).sort(), directories, "the refused startup created no other Home stores");
     if (shape === "missing-ledger") assert.equal(existsSync(homeSqlitePath(home, MEMORY_LEDGER_STORE)), false);
   });

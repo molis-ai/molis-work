@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
-import { existsSync } from "node:fs";
+import { hasStorageBusinessFiles } from "@molis-ai/molis-work-storage";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { MemoryLedgerPort } from "@molis-ai/molis-work-contracts/services/memory";
 import { memoryErrors, purgeProjectMemories, type MemoryBackendPort } from "@molis-ai/molis-work-service-memory";
@@ -18,7 +18,7 @@ export function registerMemoryProjectDeletion(ports: {
   let runtimeHere = false;
   void ports.started?.().then(() => { runtimeHere = true; }).catch(() => undefined);
   const executes = () => ports.executes() || runtimeHere;
-  const runtimeExists = () => existsSync(agentRuntimeDirectory(ports.homeDirectory));
+  const runtimeExists = () => hasStorageBusinessFiles(agentRuntimeDirectory(ports.homeDirectory));
   const elsewhere = memoryOwnerWithoutService(ports.homeDirectory);
   const whileRuntimeIsOurs = async <T>(work: () => Promise<T>): Promise<T> => {
     try { return await work(); }

@@ -81,12 +81,15 @@ binding: "installation" | "per_record"
 - 插件 A 用插件 B 绑过的记录键，用不上：绑定的键里有安装和插件。
 - `describe` 的返回里没有 `connection_id` 和凭据引用。
 - `release` 之后的请求是匿名的；插件没有办法重新绑上。
+- RAC-347：按安装的槽不能由插件 `release`，有无记录键都以 `plugin.connections_release_unsupported` 拒绝；`per_record` 槽仍按原规则校验记录键，以 `connections_record_key_invalid` 拒绝无效值。调用在解除前、或等待 `beforeEffect` 期间取消、撤权、停用，或原调用复查不通过时，拒绝解除，持久化绑定保持原样。沙箱查询操作不能解除；`describe` 和 `release` 都须声明并获准该槽的 `effects.connections`，拒绝不得到达宿主连接端口。
 
 ### 2.3 刷新：只给引用，只在宿主里刷新
 
 - 刷新用的东西（`refresh_ref`、`expires_ref` 和刷新后的新令牌）只存在宿主的连接库和密钥库里。插件的库里不再抄任何引用，见第 3 节。
 - 发请求前，宿主发现令牌已过期，就先刷新再发。Gmail 今天的 `resolveUsableGmailAccessToken` 就是这样做的。
 - 宿主带着凭据发出、固定来源答 401 时：登记了 `refresh: "host"`、连接也有刷新材料的，宿主强制刷新一次，再用同一个请求重发一次（BL-350）。
+  - 没有可用刷新材料时，首次 401 的状态、可见响应头与正文原样交回，不问令牌端点、不重发、不标成要重连（RAC-349）。包括 GitHub 设备登录保存的普通密钥、API OAuth 未返回 refresh token，以及刷新引用仍在但对应材料已不存在的连接。
+  - 插件请求用宿主内部的「有材料才强制刷新」模式；结果明确区分没有材料与已刷新。原有 API 读取者的普通读取、布尔强制刷新语义保持。材料存在时的令牌端点拒绝、网络错误、超时和 5xx 继续按 §4.1 处理，不当成没有材料。
   - 重发前再核一次原调用（`beforeEffect`），已取消、撤权、停用的就不重发。
   - 第二次还是 401，就把这个答复原样交回插件，不再重试，也不换账号。
   - 刷新本身失败时：把连接标成 `reauth_required`，拒绝这次请求，报 `connector.plugin_requests.connection_unavailable`，不改成匿名发出。
@@ -99,6 +102,8 @@ binding: "installation" | "per_record"
 - 重发前调用被取消，就不重发；服务端收到的请求数不增加。
 - `refresh: "none"` 的服务遇到 401，原样交回，不刷新。
 - 刷新失败不匿名重发。
+
+本段修复的定向验证：`node scripts/run-tests.mjs tests/security-invariants-connection-refresh.test.ts tests/connector-api-oauth.test.ts`。RAC-349 的无材料用例断言真实 HTTPS 服务只收到一次带凭据请求、令牌端点零请求、连接仍可读；`refresh: "none"` 用例只在隔离测试进程内替换单个服务的刷新声明，保留真实 OAuth 材料与生产请求链，不修改服务登记表。
 
 ## 3. 存量 Feed 来源的账号怎样改成现行形状
 

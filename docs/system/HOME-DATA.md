@@ -8,6 +8,8 @@
 
 ## 1. 怎么读
 
+W5-16 A：Home 的排他使用由 storage 的同一 SQLite owner 提供，锁仍为 `agent-runtime/.molis-runtime-owner.db`。Host 在任何业务初始化之前取得它，Agent 借用同一个 owner，关闭全部实际资源后才释放；空闲 Host 也不会给离线操作让出窗口。锁和 SQLite 侧车不是业务数据、不进入快照；恢复必须保留原锁 inode 及 `agent-runtime` 父目录，不能用整个目录替换绕过锁。当前只是完整 Home 备份的前置片，产品 snapshot/restore 命令仍未实现。
+
 路径从仓库根写起；`installer/X` 指 `apps/local-host/src/installer/X`；一行里以 `src/` 开头的文件，相对这一行前面写出的包目录；`:N` 紧跟在上一个文件后，指同一个文件的第 N 行。Prologue SDK 的文件写作 `node_modules/@prologue/sdk/<路径>`：包本体是 `vendor/prologue-sdk/` 里的 .tgz，里面的文件在 `vendor/` 下找不到；`pnpm install` 后解在 `horizontal/agent-host/node_modules/@prologue/sdk/`（只有 agent-host 依赖它）。
 
 | 列 | 含义 |
@@ -55,7 +57,7 @@ Home 里有 31 种 SQLite 文件：权威库 27 种（Home 级 24 种，按项�
 | `placement/placement.db` | 宿主；`apps/local-host/src/placement-actions.ts:63-64` 打开，`:58` 基线 | SQLite 带版本 · 1 | 必备份 | purge |
 | `agent-definitions/agent-definitions.db` | 宿主；`apps/local-host/src/agent-definitions/agent-definitions.ts:316` 打开，`:20` 基线、`:57` 套用 | SQLite 带版本 · 1 | 必备份（用户改过的提示词与历史） | purge |
 | `agent-declarations/agent-declarations.db` | 宿主；`apps/local-host/src/agent-definitions/agent-declarations.ts` 的 `AgentDeclarations`（基线 `AGENT_DECLARATIONS_BASELINE`，表 `install_declarations`），由 `agentDeclarationsFor` 打开。每个安装最近一次登记的 Agent 声明（角色、Prompt、指令、方法），整份替换；Host 启动时按「未运行」恢复进登记册，只供设置里显示和本人先改，方法不给别的 Agent；卸载时删（PG-051 Q1 b） | SQLite 带版本 · 1 | 可重建（插件下次启动时重新登记），随 `agent-definitions` 一起备份 | purge |
-| `connectors/connectors.db` | 连接、绑定、目标、协议、授权会话与技术观察的表结构归 `horizontal/connector-host`（`src/connection-store.ts`、`src/protocol-store.ts`、`src/connection-observations.ts`）；宿主在 `apps/local-host/src/connectors-store.ts` 定义授权结果表 `connector_authorization_results` 并组装、打开基线 | SQLite 带版本 · 2 | 必备份。启用状态独立保留，移除后保留失效引用；只存 `credential_ref`，凭据本体在 `feed/secrets.json` | purge |
+| `connectors/connectors.db` | 连接、绑定、目标、协议、授权会话与技术观察的表结构归 `horizontal/connector-host`（`src/connection-store.ts`、`src/protocol-store.ts`、`src/connection-observations.ts`）；宿主在 `apps/local-host/src/connectors-store.ts` 定义授权结果表 `connector_authorization_results` 并组装、打开基线 | SQLite 带版本 · 2 | 必备份。启用状态独立保留，移除后保留失效引用；只存 `credential_ref`，凭据本体在 `feed/secrets.json` | purge（`plugin-connections` 已登记：删项目时清插件为该项目里的记录选的账号绑定，账号本身不动） |
 | `context-onboarding/context-onboarding.db` | 宿主；`apps/local-host/src/context-onboarding-store.ts:46` 打开、`:51` 套用，`:44` 基线 | SQLite 带版本 · 1 | 必备份 | purge |
 | `plugin-originals/plugin-originals.db` | 宿主；`apps/local-host/src/material-original-files.ts` 打开并套用基线（`plugin_original_files`，主键 plugin_id + install_id + 激活所在的项目（Home 级激活为空串，各项目共用）+ 插件自己的记录键，存的是宿主入口交来的原始文件的真实路径）；只由 `materials:original` 服务读写，插件拿不到路径 | SQLite 带版本 · 1 | 必备份（登记的是人导入过的原始文件的位置） | purge（`plugin-originals` 已登记；删项目时按 `project_id` 清登记，原始文件本身不动） |
 | `functions/functions.db` | Functions 模块；`modules/functions/src/service.ts:53` 的 `createFunctionsService` 经 `openFunctionsStore` 打开（`modules/functions/src/store.ts:284`），基线 `modules/functions/src/store-schema.ts:7` | SQLite 带版本 · 3 | 必备份 | purge |
@@ -226,7 +228,7 @@ Sessions 插件下线（SC-4）后，没有任何代码打开 `sessions/sessions
 | `cache/research-library/<sha256>/` | `apps/local-host/src/research-library-source.ts:17`：研究库仓库的 bare Git 缓存 | Git 目录 | 可重建 | purge |
 | `jelly/preferences.json` | `apps/local-host/src/model-configuration.ts`：可信 consumer 声明的 Jelly 模型选择 | JSON · `schema_version` = 1 | 必备份 | purge（`jelly` 目录） |
 | `characters/runs/character-*/` | `apps/local-host/src/character-native-execution.ts:16-19`：交给外部 Agent 执行时临时写出的角色包 | 目录 | 临时 | purge |
-| `artifacts/projects/<编码后的 project_id>/originals/<sha256>` | `plugins/native/artifacts/src/original-store.ts`（`storeArtifactOriginal`、`readArtifactOriginal`）：成果库导入的超过 6 MB 的原文件，按内容摘要存一份；6 MB 以内的仍在版本记录里（`original_file.data_base64`），两种都是现行形状，按大小选 | 文件目录 · 无版本 | 必备份（人导入的原件，版本记录只存摘要） | purge（`artifacts` 已登记；删项目时整个项目目录删掉） |
+| `artifacts/projects/<编码后的 project_id>/originals/<sha256>` | `modules/artifacts/src/artifact-original-store.ts`（`storeArtifactOriginal`、`openArtifactOriginal`）：成果库导入的超过 6 MB 的原文件，按内容摘要存一份；6 MB 以内的仍在版本记录里（`original_file.data_base64`），两种都是现行形状，按大小选 | 文件目录 · 无版本 | 必备份（人导入的原件，版本记录只存摘要） | purge（`artifacts` 已登记；删项目时整个项目目录删掉） |
 | `context-onboarding/journeys/<journey_id>/{files,texts,notes}/<sha256>` | 宿主；`apps/local-host/src/context-onboarding-staging.ts`：新建项目「来源」一轮的暂存（2026-10-22 起不限份数与大小）——人交来的文件、读出的全文、摘要分批的笔记，各按内容摘要存一份；整理记录只记摘要。项目采用完成后整轮目录删掉；超过 30 天没有继续的整理，宿主启动时与每 6 小时清一次暂存、保留记录（`removeIdleJourneyStaging`） | 文件目录 · 无版本 | 不必备份（采用前的暂存，采用后原件在成果库、全文在 Pages） | purge（随 `context-onboarding` 目录） |
 | `images/assets/` | `plugins/native/images/src/service.ts:37`：生成的图片文件 | 文件目录 · 无版本 | 必备份 | purge（`images` 目录） |
 | `lingguang/imports/<sha256><ext>` | 旧版本留下的上传原始副本；现行 `apps/local-host/src/material-home.ts` 不再写，也没有代码读，上传的文件只在内存里提取文字（读取不保存灵光，副本没有读者也没有主人）。旧 Home 里已有的文件可以直接删除 | 文件目录 · 无版本 | 可重建（不会再被读取；删除不影响任何记录） | purge（`lingguang` 目录） |

@@ -5,10 +5,11 @@ import { type MolisWorkProjectCatalog, type MolisWorkProjectCatalogOptions } fro
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody } from "./web-http.js";
 import { settingsProject, installationDiagnostics } from "./web-project-presentation.js";
 import { L } from "./web-locale.js";
-import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createProjectDeletionHttp, removeDemoThroughService, sendDeletionFailure } from "./web-project-deletion.js";
 import type { ProjectDeletionPorts } from "./project-deletion-service.js";
 import { hostLog } from "./host-log.js";
+import { projectPluginMembershipForPage } from "./web-home-plugin-recovery.js";
 
 export type LocalWebCatalogRunner = <T>(options: MolisWorkProjectCatalogOptions, operation: (catalog: MolisWorkProjectCatalog) => T | Promise<T>) => Promise<T>;
 
@@ -117,10 +118,11 @@ async function handlePluginSettings(withMolisWorkProjectCatalog: LocalWebCatalog
     if (request.method === "GET" && url.pathname === "/api/settings/project-plugins") {
       const projects = await withMolisWorkProjectCatalog({ homeDirectory }, catalog => catalog.listProjects().map(project => ({
         project_id: project.project_id, display_name: project.display_name,
-        plugins: catalog.listProjectPlugins(project.project_id),
-        hidden: catalog.listHiddenPlugins(project.project_id),
+        ...projectPluginMembershipForPage(catalog, project.project_id),
       })));
-      sendJson(response, 200, { projects });
+      const unavailable = projects.find(project => "unavailable" in project)?.unavailable;
+      const failure = unavailable ? actionErrorResponse(new ActionError("actions.execution_failed", unavailable, { kind: "unavailable" })) : null;
+      sendJson(response, failure?.status ?? 200, { projects, ...failure?.body });
       return true;
     }
     const pluginMatch = url.pathname.match(/^\/api\/settings\/projects\/([^/]+)\/plugins$/);

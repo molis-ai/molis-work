@@ -1227,3 +1227,11 @@ batch-33 集成实证：准确生产提交 `64210640729de77f8dddb97106eaff2a29cb
 最终430f已通过Verify及所有必需检查；产品子集40180408090的2/2分片与Full suite40180486942的12/16分片均在同一MEM-35用例失败。GitHub原artifact与本地准确430f复现一致：tests/assistant-executor.test.ts新插件直接调用PluginRuntime.install时遗漏主线现在必填的trust，在安装阶段收到plugin.state_invalid，未执行原身份/撤权断言。Full suite因此按既有bail/fail-fast取消9个分片，不能称完整通过；保留两次CI失败及被取消结果。
 
 只为测试样例补真实身份trust:{level:"unsigned"}，不把测试插件冒称host，不改生产安装检查、权限、任何原断言、时限、重试或CI。原整文件从14/15变为15/15，未跳过，日志 /private/tmp/molis-memory-1064-assistant-executor-{repro,trust}-20261025.log。产品子集原artifact /private/tmp/molis-memory-1064-product-subset-2-20261025.zip 保留。后继提交必须重跑最终CI及Full suite；此前旧Cloudflare失败影响和历史仅重试通过的UNKNOWN仍未由该局部修正消除。
+
+### #1064 接入 Home 存储归属主干（2026-10-25，合并验证中）
+
+准确 main `64a3ccc9c177ba6f3a2bbb44cf80dc1cce648f2a`（batch36）在业务初始化前取得 Home 所有权，SDK 只借用同一 owner；关闭失败保留 lease，明确重试继续关闭。此次沿用这条生命周期，同时保留 Memory 的可信原件、当前权限、删除回执与采用检查，不额外建立锁或恢复执行核。存储技术锁文件不代表已经存在 Memory 业务数据，原删除主人改用主干的 `hasStorageBusinessFiles`，只据此选择既有启动路径，不据此证明采用或删除完成。
+
+七处文本冲突：LocalHost README 保留两段原件合同及新 Home 生命周期；MemoryHost 保留现删除主人委托，并将主干的业务文件判断移到该主人；System Agent 同时传入 Memory 与 storageOwner、沿用可重试关闭；Prologue Node 保留 MemoryAuthority 并登记主干初始化失败的真实资源关闭；AgentHost 依赖与 workspace 登记同时保留 storage 和 SDK94；健康快查冲突先取主干快照，合并后按准确 merge-base 重新生成，只许降低。SDK102 和冷恢复实现仍留在 #1101，不混入基础 PR。
+
+原冻结离线安装及完整 `pnpm build` 通过；真实 Home 排他、初始化清理、SDK 借用、System Agent、采用/维护、Memory 权限和项目删除共 14 文件 115 项首次通过，无跳过或重试，日志 `/private/tmp/molis-memory-foundation-batch36-{install,build,direct}-20261025.log`。此前 d08 的普通 CI 与 Full suite 已通过，但只证明 d08；本合并结果仍需门禁、安装/备份及最终 head 的完整 CI。旧 Cloudflare 影响和历史首败 UNKNOWN 保留，尚未合并 main，也未完成产品/用户验收。

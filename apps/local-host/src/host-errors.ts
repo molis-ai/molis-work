@@ -6,6 +6,8 @@ import { defineErrorCodes } from "@molis-ai/molis-work-plugin-sdk";
  */
 export const hostErrors = defineErrorCodes("host", {
   closed: "invalid",
+  /** The caller's close deadline elapsed; the underlying resource cleanup and Home ownership continue. */
+  close_timeout: "timeout",
   project_invalid: "invalid",
   project_identity_conflict: "invalid",
   project_closing: "invalid",

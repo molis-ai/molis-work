@@ -2,6 +2,7 @@ import { defineErrorCodes } from "./action-errors.js";
 
 /** Current Runtime and authoring refusals; the transport classification remains the prior default 400. */
 export const pluginErrors = defineErrorCodes("plugin", {
+  always_on: "invalid",
   capability_denied: "invalid",
   consent_required: "invalid",
   consent_revoked: "invalid",

@@ -7,7 +7,7 @@ import { pluginPagesFor } from "./plugin-page-authority.js";
 import { pluginPageActions } from "./plugin-page-actions.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { PluginDatabase, PluginDefinition, PluginManifest, PluginModelClient, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDatabase, PluginDefinition, PluginManifest, PluginModelClient, PluginProjectDatabase, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginDirectoryService } from "@molis-ai/molis-work-contracts/platform/plugin-directory";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import { createPluginArtifactClient } from "@molis-ai/molis-work-module-artifacts";
@@ -26,6 +26,7 @@ import { openPluginDatabase } from "./plugin-database.js";
 import { homeLibraryFor } from "./plugin-database-entries.js";
 import { openInstalledPluginLibrary } from "./installed-plugin-libraries.js";
 import { openPluginProjectLibrary } from "./plugin-project-library.js";
+import { pluginAttentionFor, pluginContextLedgerFor } from "./plugin-attention-service.js";
 import type { PluginHostExecutorOptions } from "./plugin-executor.js";
 import { registerPluginAgentDefinitions } from "./plugin-instructions.js";
 import { pluginModelFor } from "./plugin-model-service.js";
@@ -135,6 +136,16 @@ function openProjectTables(options: PluginHostExecutorOptions, definition: Plugi
   return openPluginProjectLibrary(options.projectLibrary, definition.manifest, permission => { assertActive(); context.requireGrant(permission); }, context);
 }
 
+/** `services.attention` and `services.contextLedger` (PG-087, S9-0b): the project's Inbox entries and reference edges, joined to the plugin's own transaction. */
+function projectServices(options: PluginHostExecutorOptions, manifest: PluginManifest, context: PluginStartContext,
+  database: PluginProjectDatabase | undefined, assertActive: () => void) {
+  const ports = { project_id: options.project_id, actor_id: options.actor_id, connection: options.projectLibrary?.db, journal: options.projectLibrary?.journal?.writer };
+  const record = () => options.record?.(context.install_id) ?? null;
+  const attention = pluginAttentionFor(manifest, context, database, ports, assertActive, record);
+  const contextLedger = pluginContextLedgerFor(manifest, context, database, ports, assertActive, record);
+  return { ...(attention ? { attention } : {}), ...(contextLedger ? { contextLedger } : {}) };
+}
+
 function hostPluginCaller(options: PluginHostExecutorOptions, definition: PluginDefinition, context: PluginStartContext, assertActive: () => void): HostPluginCaller {
   const manifest = definition.manifest;
   return Object.freeze({
@@ -190,6 +201,7 @@ function hostedContext(options: PluginHostExecutorOptions, manifest: PluginManif
       ...(actions ? { actions } : {}),
       notifications: pluginNotificationsFor(manifest, context, parts.project_database, options.projectLibrary?.db, options.project_id, assertActive, () => options.record?.(context.install_id) ?? null, options.installations),
       installations: pluginInstallationsFor(manifest, context, options.project_id, options.installations, assertActive),
+      ...projectServices(options, manifest, context, parts.project_database, assertActive),
       storage: manifest.permissions.some(item => item.permission === "storage:private")
         ? options.privateStorageFor(context, manifest) : undefined,
       artifacts: artifactService.client,

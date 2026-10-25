@@ -100,13 +100,14 @@
 
 ## 插件样式预算（`scripts/gates/plugin-styles.mjs`，PG-070、RAC-769）
 
-共用样式表里属于插件的规则按插件计数、只许减少；范围与口径见 `specs/repository-anti-corruption/slices/pg070-plugin-styles.md`。单位是**规则块**，不是字节（字节归 `pnpm page-assets:check`）：对每个注册了 `stylesheet` 的插件，从构建产物 `apps/workbench/dist/plugin-workbench.js` 取包，用 `apps/workbench/dist/plugin-styles.js` 里第 1 片的 splitter（`splitPluginStylesheet`，传入注册的 `stylesheetShared` 与 `stylesheetPrefixes`）算出「本该搬进按需表、却还留在共用表」的规则块数。已经按需加载（`pluginOnDemandStylesheet` 非空）的插件为 0、不出现在文件里；Goals 没有注册样式表，数的是 `apps/workbench/src/page-assets.ts` 直接拼进共用表的 `GOALS_DOCUMENT_STYLES`、`TRASH_GOAL_STYLES`、`PLANNING_SETTINGS_STYLES`；Feed 还没有框架，冻结成它拿到框架后能搬走的数量。
+共用样式表里属于插件的规则按插件计数、只许减少；范围与口径见 `specs/repository-anti-corruption/slices/pg070-plugin-styles.md`。单位是**规则块**，不是字节（字节归 `pnpm page-assets:check`）：对每个注册了 `stylesheet` 的插件，从构建产物 `apps/workbench/dist/plugin-workbench.js` 取包，用 `apps/workbench/dist/plugin-styles.js` 里第 1 片的 splitter 先找出共用表里的那部分（已经按需加载的插件取 `shared`，没有框架的插件整张都在共用表），再**不扣 `stylesheetShared`** 地数这部分里点名该插件（名字空间或 `stylesheetPrefixes`）的规则块。声明共用、或页面跑在框架里，都不能把数字变成 0（门禁第一版被评审指出的绕过口）。Goals 没有注册样式表，数的是 `apps/workbench/src/page-assets.ts` 直接拼进共用表的 `GOALS_DOCUMENT_STYLES`、`TRASH_GOAL_STYLES`、`PLANNING_SETTINGS_STYLES`。现在冻结五个插件：Coding 9、Feed 234、Form 6、Goals 321、插件创作台 5 —— Coding/Form 是注册里声明共用的属性/类规则，创作台是宿主预览页画的 `as-preview-page`/`pb-surface`，Feed/Goals 没有框架、由外壳画。
 
-- 文件：`tooling/gates/plugin-styles.json`，`{ note, plugins: { "<project_plugin_id>": <rule blocks> } }`，只许下降。搬走规则后用 `node scripts/gates/plugin-styles.mjs --update --base origin/main` 在同一个 PR 里降数。
+- 文件：`tooling/gates/plugin-styles.json`，`{ note, plugins: { "<project_plugin_id>": <rule blocks> }, prefixes: { "<project_plugin_id>": [<prefix>] } }`，只许下降。搬走规则后用 `node scripts/gates/plugin-styles.mjs --update --base origin/main` 在同一个 PR 里降数。
+- 前缀：文件记住每个插件声明过的 `stylesheetPrefixes`，只许增加；测量用「文件记的 ∪ 构建声明的」。删掉一项会被判失败（规则会回到共用表），所以删前缀不能用来降数。
 - 防止就地改预算：CI 与 `--base` 把这份文件和 merge-base 里的比（与 page-assets 同一套）：PR 里调大数字、加插件、或删掉仍在计数的条目都失败；`--update` 对任何增长（含未知插件 >0）拒绝写入。删条目只在构建里真的不再计数后允许。
 - 位置：CI 的 `architecture-boundaries` 任务，在 `pnpm workspace:verify`（构建）与 Page asset budgets 之后；本机 `pnpm plugin-styles:check`。退出码 2 表示构建缺失或 git 读不了，不是通过。
-- 看不到的（已知限制，不是决定）：只认注册的 `stylesheet` 与 page-assets 导入的 Goals 常量；宿主模块里手抄的插件规则、以及没声明 `stylesheetPrefixes` 的插件（今天 Text Stats 的 `stats-`）都按 0；字节不在这里。
-- 测试：`tests/plugin-styles-gate.test.ts`（增长、就地抬预算、`--update` 拒绝、新插件、缺构建、首冻结、缩小，全部带 RAC-769），最后一条跑真实仓库构建并断言 `measured` 只有 `feed`、`goals`。
+- 看不到的（已知限制，不是决定）：只认注册的 `stylesheet` 与 page-assets 导入的 Goals 常量；宿主模块里手抄的插件规则、以及没声明 `stylesheetPrefixes` 的插件（今天 Text Stats 的 `stats-`）都按 0；只数「名字属于插件」的规则，插件规则点名宿主元素的部分归宿主；字节不在这里。
+- 测试：`tests/plugin-styles-gate.test.ts`（增长、就地抬预算、`--update` 拒绝、新插件、缺构建、首冻结、缩小、声明共用不能藏规则、前缀只许加，全部带 RAC-769），最后一条跑真实仓库构建并断言实测与文件逐项相等。
 
 ## 公开 API 快照
 

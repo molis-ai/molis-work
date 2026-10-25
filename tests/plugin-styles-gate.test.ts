@@ -5,11 +5,13 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
+import { splitPluginStylesheet } from "@molis-ai/molis-work-app-workbench";
+import { countRules, rulesInSharedSheet } from "../scripts/gates/plugin-styles.mjs";
 
 // PG-070 (RAC-769): a plugin's own rules do not belong in the shared stylesheets. The gate counts, per plugin, the rule
-// blocks that are still there although an on-demand sheet could carry them (the first slice's splitter; Goals' document
-// styles, which page-assets imports straight into the shared sheets). Each number only falls, and a plugin whose page runs
-// in a frame must not appear at all.
+// blocks that name it and are still there (the first slice's splitter; Goals' document styles, which page-assets imports
+// straight into the shared sheets). A frame does not make the count zero and declaring a class shared does not hide a rule.
+// Each number only falls.
 //
 // The rules are mutation-verified here on a small scratch repository: one violation added on a branch makes `--base main`
 // fail, and the laundering move (raising the committed count to what is built, or `--update`) neither makes it pass nor is
@@ -28,9 +30,10 @@ const git = (...args: string[]) => gitAt(repo, ...args);
 const put = (file: string, text: string, dir = repo) => { mkdirSync(path.dirname(path.join(dir, file)), { recursive: true }); writeFileSync(path.join(dir, file), text); };
 const read = (file: string, dir = repo) => readFileSync(path.join(dir, file), "utf8");
 const commit = (message: string) => { git("add", "-A"); git("commit", "-q", "--allow-empty", "-m", message); };
-const budgetText = (plugins: Record<string, number>) => `${JSON.stringify({ note: "fixture", plugins }, null, 2)}\n`;
-const putBudget = (plugins: Record<string, number>) => put(BUDGET, budgetText(plugins));
-const budgetOf = (dir = repo) => (JSON.parse(read(BUDGET, dir)) as { plugins: Record<string, number> }).plugins;
+const budgetText = (plugins: Record<string, number>, prefixes: Record<string, string[]> = {}) => `${JSON.stringify({ note: "fixture", plugins, prefixes }, null, 2)}\n`;
+const putBudget = (plugins: Record<string, number>, prefixes: Record<string, string[]> = {}) => put(BUDGET, budgetText(plugins, prefixes));
+const parsedBudget = (dir = repo) => JSON.parse(read(BUDGET, dir)) as { plugins: Record<string, number>; prefixes?: Record<string, string[]> };
+const budgetOf = (dir = repo) => parsedBudget(dir).plugins;
 const run = (dir: string, ...args: string[]) => {
   const result = spawnSync(process.execPath, [script, "--root", dir, ...args], { encoding: "utf8" });
   return { code: result.status, out: `${result.stdout}${result.stderr}` };
@@ -40,6 +43,26 @@ const gate = (...args: string[]) => {
   writeFileSync(path.join(work, "counts.json"), JSON.stringify(counts));
   return run(repo, "--counts", path.join(work, "counts.json"), ...args);
 };
+
+
+// The loophole this gate closes: a framed plugin's shared half is what its own sheet does not carry. Declaring one of its
+// own classes shared moves that rule back into the shared sheets; the measurement counts it there instead of discounting it.
+test("RAC-769 a plugin cannot hide its rules by declaring them shared", () => {
+  const sheet = ".sample-card{color:red}\n.sample-card__title{font-weight:600}\n.sample-list{display:grid}\n";
+  assert.equal(rulesInSharedSheet(splitPluginStylesheet, sheet, "sample"), 0, "a framed plugin's own sheet carries its rules");
+  const declared = rulesInSharedSheet(splitPluginStylesheet, sheet, "sample", { sharedClasses: ["sample-card", "sample-card__title", "sample-list"] });
+  assert.equal(declared, 3, "the declaration that keeps them shared is measured, not discounted");
+  assert.equal(countRules(sheet), 3);
+});
+
+// A plugin without a frame keeps its whole sheet in the shared ones; naming the same classes shared changes nothing.
+test("RAC-769 declaring a class shared does not lower a plugin without a frame", () => {
+  const sheet = ".feed-card{color:red}\n.feed-list{display:grid}\n";
+  const free = rulesInSharedSheet(splitPluginStylesheet, sheet, "feed", { framed: false });
+  const declared = rulesInSharedSheet(splitPluginStylesheet, sheet, "feed", { sharedClasses: ["feed-card", "feed-list"], framed: false });
+  assert.equal(free, 2);
+  assert.equal(declared, free, "the shared list cannot hide rules it is not meant to move");
+});
 
 const BASE = { feed: 234, goals: 321 };
 
@@ -130,6 +153,14 @@ for (const scenario of violations) {
   });
 }
 
+
+test("RAC-769 a stylesheet prefix the budget remembers must still be declared", () => {
+  branch("prefix", () => putBudget(BASE, { feed: ["feed-"] }));
+  const caught = gate();
+  assert.equal(caught.code, 1, caught.out);
+  assert.match(caught.out, /feed no longer declares stylesheet prefix feed-; without it those rules fall back into the shared sheets \(prefixes may only be added\)/);
+});
+
 test("RAC-769 shrinking passes once the number is lowered, and --update does it", () => {
   branch("shrink", () => { counts.feed = 200; counts.goals = 300; });
   assert.equal(gate("--base", "main").code, 1);
@@ -163,11 +194,13 @@ test("RAC-769 a missing build is exit 2, never a pass", () => {
   assert.match(missing.out, /apps\/workbench\/dist\/plugin-workbench\.js is missing \(the registered plugin packs\); build the workspace first/);
 });
 
-test("RAC-769 this repository's own build keeps rules only for Feed and Goals", () => {
+test("RAC-769 this repository's own build freezes the shell-drawn rules and the few declared-shared leftovers", () => {
   const reported = run(repoRoot, "--report", "--json");
   assert.equal(reported.code, 0, reported.out);
-  const report = JSON.parse(reported.out) as { measured: Record<string, number>; budget: Record<string, number> };
-  assert.deepEqual(Object.keys(report.measured).sort(), ["feed", "goals"], "every framed plugin has its own sheet; the shell-drawn ones keep a frozen number");
+  const report = JSON.parse(reported.out) as { measured: Record<string, number>; budget: Record<string, number>; budgetPrefixes: Record<string, string[]> };
+  assert.deepEqual(Object.keys(report.measured).sort(), ["coding", "feed", "form", "goals", "plugin-builder"],
+    "framed plugins keep only what their registration declares shared; the shell-drawn ones keep a frozen number");
+  assert.deepEqual(report.budgetPrefixes?.["plugin-builder"], ["as-", "pb-"], "the studio prefixes are remembered so they cannot be dropped");
   for (const [id, rules] of Object.entries(report.measured)) assert.equal(report.budget[id], rules, `${id} is frozen at what this build measures`);
   const passed = run(repoRoot);
   assert.equal(passed.code, 0, passed.out);

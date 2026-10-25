@@ -269,9 +269,11 @@ const APPROVED_NEW_ASSETS = {
   "/assets/molis-work-plugins/git.js": 29496,
   "/assets/molis-work-plugins/text-stats.js": 1281,
   "/assets/molis-work-plugins/alchemist.css": 151,
-  // PG-070 slice 2 renamed the shared diff view's classes to `mw-diff-*`; Coding's own rules that name them grew by
-  // 24 bytes (and its bundle by 45), so the first freeze is what this branch measures, not the pre-slice-2 number.
-  "/assets/molis-work-plugins/coding.css": 74600,
+  // PG-070 slice 2 renamed the shared diff view's classes to `mw-diff-*`, including the ancestor selectors Coding's rules
+  // use; coding.css and the settings sheet that also embeds Coding's rules each grew by 24 bytes, so the first freeze is what
+  // this branch measures, not the pre-slice-2 number. (The coding.js bundle grew by 45 bytes and workbench.js by 642; both are
+  // existing assets, listed in the delivery comment and admitted by the merge queue, not here.)
+  "/assets/molis-work-plugins/coding.css": 74624,
   "/assets/molis-work-plugins/cognia.css": 8283,
   "/assets/molis-work-plugins/dataset.css": 6916,
   "/assets/molis-work-plugins/files.css": 3199,

@@ -117,7 +117,7 @@ test("VUX-33: a large change reads whole at once and is coloured a slice a frame
     const full = await evaluate(`(() => { const rows = ${list}; delete rows.dataset.diffSized; const full = ${geometry}; rows.dataset.diffSized = ''; return full; })()`);
     assert.deepEqual(actual, full, `${width}px: remembered rows have the same scroll range as full layout`);
   }
-  await evaluate(`{ const font = document.createElement('style'); font.id = 'diff-test-font'; font.textContent = '.diff .mw-diff-rows { font-family: Courier New, monospace !important; font-size:14px !important; line-height:24px !important; }'; document.head.append(font); }`);
+  await evaluate(`{ const font = document.createElement('style'); font.id = 'diff-test-font'; font.textContent = '.mw-diff .mw-diff-rows { font-family: Courier New, monospace !important; font-size:14px !important; line-height:24px !important; }'; document.head.append(font); }`);
   await settle();
   const withFont = await evaluate(geometry);
   const fullFont = await evaluate(`(() => { const rows = ${list}; delete rows.dataset.diffSized; const full = ${geometry}; rows.dataset.diffSized = ''; return full; })()`);
@@ -128,7 +128,7 @@ test("VUX-33: a large change reads whole at once and is coloured a slice a frame
   const beforeCodeFont = await evaluate(metrics);
   // An already available font can change code widths without changing the row height or the line-number font.
   assert.equal(await evaluate("document.fonts.check('12px Arial')"), true);
-  await evaluate(`{ const font = document.createElement('style'); font.id = 'diff-test-font'; font.textContent = '.diff .mw-diff-rows code { font-family:Arial !important; }'; document.head.append(font); }`);
+  await evaluate(`{ const font = document.createElement('style'); font.id = 'diff-test-font'; font.textContent = '.mw-diff .mw-diff-rows code { font-family:Arial !important; }'; document.head.append(font); }`);
   await settle();
   assert.deepEqual(await evaluate(metrics), beforeCodeFont, "the code-only font change leaves row height and number width unchanged");
   const withCodeFont = await evaluate(geometry);

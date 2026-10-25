@@ -67,7 +67,7 @@ test("VUX-33: change rows keep their numbers and code together under zoom, fract
     // Zooming the page (the browser's or the desktop's) scales device pixels and narrows the page in CSS pixels.
     ["zoomed to 125%", () => command("Emulation.setDeviceMetricsOverride", { width: 1088, height: 720, deviceScaleFactor: 1.25, mobile: false }, sessionId)],
     ["zoomed to 90%", () => command("Emulation.setDeviceMetricsOverride", { width: 1511, height: 1000, deviceScaleFactor: 0.9, mobile: false }, sessionId)],
-    ["a missing code font", async () => { await evaluate("const style = document.createElement('style'); style.textContent = '.diff .mw-diff-rows { font-family: MolisMissingMono, monospace !important; }'; document.head.append(style)"); }],
+    ["a missing code font", async () => { await evaluate("const style = document.createElement('style'); style.textContent = '.mw-diff .mw-diff-rows { font-family: MolisMissingMono, monospace !important; }'; document.head.append(style)"); }],
   ];
   for (const [name, apply] of conditions) {
     await apply();

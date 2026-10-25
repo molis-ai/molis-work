@@ -12,7 +12,7 @@ function welcome(page: Page, all: readonly RunView[]) {
   const { input, q, root, turns } = page;
   turns.toggleAttribute("data-coding-welcoming", !all.length);
   if (all.length) {
-    q("[data-coding-welcome]")?.remove();
+    root.querySelector("[data-coding-welcome]")?.remove();
   } else if (!root.querySelector("[data-coding-welcome]")) {
     turns.append(q<HTMLTemplateElement>("[data-coding-welcome-template]").content.cloneNode(true));
     const name = root.dataset.codingWorkspaceName;

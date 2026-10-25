@@ -154,6 +154,10 @@ binding: "installation" | "per_record"
   3. 删项目时删该项目的 `per_record` 绑定：connector-host 导出按项目删的函数，同样带分隔符锚定（`/project:<项目>/record:`），由 `ProjectDeletionService` 调；测试里放一对互为前缀的项目 id。放在 X4，和卸载一起做。
   4. 编码写在这里和 `connection-store.ts` 的注释里；表的主人不变。以后真要拆成列，再走维护时段，这轮不做。
 - **卸载时删哪些绑定（X4，统筹 2026-10-24 裁 ①）**：安装编号在每个项目和 Home 里都一样，按安装的绑定由各处的同一安装共用。所以项目里卸载只删这个安装在本项目的 `per_record` 绑定（前缀锚定到 `plugin-installation:<安装>/project:<项目>/record:`），删项目删该项目所有插件的 `per_record` 绑定（项目删除钩子 `plugin-connections`）。按安装的那条本应在「最后一处也卸载」时删，但 Home 目录库的 `project_plugins` 只收内置插件，第三方与创作台生成的插件只记在各项目库，宿主问不到；不开全部项目库去扫，这条留到人解除，记 BL-596。
+- **项目卸载的共同出口（#1256 FIRST 第 2 条后半，FIX14）**：本安装、本项目的绑定由 `PluginHostExecutor.uninstalled` 统一清理，复用 Connector owner 的 `forgetInstallationProjectBindings`，不再挂在创作台安装的局部 `forget` 上。不受 `retain_private_data` 影响；停用、停止、撤权不解除绑定。没有 Home 服务的创作台平台仍保持 `home: null`，只把现有 owner 清理端口接给共同出口，不因此给插件 Home 服务。停止失败时尚未到卸载出口，绑定保留；出口清理失败向上传播，Runtime 已保存的卸载和保留选择不重写，后续卸载重试继续清本域。Home 全域及「最后一处安装」仍属 BL-596，不在此修复内。
+  - **RAC-471-RT**：`tests/plugin-connection-uninstall.test.ts` 通过真实项目平台和 Runtime 卸载，分别保留/不保留私有数据，重装不恢复本项目记录绑定；互为前缀的项目与安装、其他安装、安装级绑定、Home 绑定、账号均保留。原创作台入口继续由 `tests/installed-plugin-host.test.ts` 的 RAC-471 覆盖。
+  - **RAC-471-STOP**：同一新回归覆盖真实停用/启用与停止失败，绑定保留；未知安装卸载被拒也不写。
+  - **RAC-471-RETRY**：真实 Connector 库被另一连接占写锁时，卸载清理失败且各域绑定不变；释放锁后重新打开项目平台重试，只清本域，保留原卸载记录和私有数据选择。
 - **刷新被拒的标记（X3，统筹裁）**：不改库、不删密钥，在宿主进程里标。只在令牌端点明确拒绝时标（OAuth `invalid_grant`、`invalid_client`，或 HTTP 400、401）；网络错误、超时、5xx 不标，只拒这一次。标了之后连接列表、插件连接槽的读取（X2 起还有 `describe`）显示 `reauth_required`，带它的请求在发出之前就以 `connection_unavailable` 拒，不再每次打令牌端点。标记跟着连接的版本（`updated_at`）走：人重连或强制刷新成功就清，宿主重启后没有，下次请求再试一次刷新、被拒再标。它是从令牌端点的回答推出来的状态，不是存下来的事实；以后要持久化再走维护时段。
 
 ## 5. 安全不变量与验收编号（暂定）

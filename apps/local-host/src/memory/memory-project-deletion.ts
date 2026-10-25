@@ -70,7 +70,7 @@ export function registerMemoryProjectDeletion(ports: MemoryProjectDeletionPorts)
           const frame: Frame = { project: input.project_id, active: true, sessions: sessionIds, operation_id: input.operation_id };
           const projection = readMemoryOwnerCoverage({ ...ports, projectId: input.project_id });
           frame.scopes = projection.scopes;
-          const current = () => {
+          const current = (coveredScopes?: typeof projection.knownScopes) => {
             if (!frame.active || !ports.alive()) throw memoryErrors.unavailable("原项目删除主人已关闭");
             const observed = readMemoryOwnerCoverage({ ...ports, projectId: input.project_id });
             const known = new Set(observed.knownScopes.map(scope => JSON.stringify([scope.scope, scope.owner])));
@@ -78,6 +78,7 @@ export function registerMemoryProjectDeletion(ports: MemoryProjectDeletionPorts)
             if (!isDeepStrictEqual(observed.scopes, projection.scopes)
               || projection.knownScopes.some(scope => !known.has(JSON.stringify([scope.scope, scope.owner]))))
               throw memoryErrors.conflict("原删除归属已变化，须从首页重新核验且不能扩大原计划");
+            if (coveredScopes && !isDeepStrictEqual(observed.knownScopes, coveredScopes)) throw memoryErrors.conflict("记忆覆盖读取后的归属已变化，须用原操作重新核验");
           };
           frame.coverage = { operation: input.operation_id, projection, current };
           const control: AgentMemoryExecutionControl = { beforeEffect: async () => { current(); }, assert_current: current };
@@ -102,12 +103,9 @@ export function registerMemoryProjectDeletion(ports: MemoryProjectDeletionPorts)
                   { sessions: sessions.sessions.map(item => ({ kind: "session", id: item.session.session_id, revision: 1 })), scopes: projection.scopes }) };
               frame.plan = plan;
               const verifyMemory = async () => {
+                current();
                 const knownScopes = readMemoryOwnerCoverage({ ...ports, projectId: input.project_id }).knownScopes;
-                const assertCovered = () => {
-                  current();
-                  if (!isDeepStrictEqual(readMemoryOwnerCoverage({ ...ports, projectId: input.project_id }).knownScopes, knownScopes))
-                    throw memoryErrors.conflict("记忆覆盖读取后的归属已变化，须用原操作重新核验");
-                };
+                const assertCovered = () => current(knownScopes);
                 await verifyProjectMemoryEmpty(backend, { scopes: projection.scopes, actor: caller.actor_id,
                   sessions: plan.kind === "runtime" ? plan.sessions.sessions.map(item => item.session.session_id) : [] }, current);
                 await covered(); assertCovered();

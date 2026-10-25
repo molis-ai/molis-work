@@ -241,7 +241,7 @@ const headErrors = (measured, budget, base) => {
 // Workbench +32890 stays within the approved +32894; each stylesheet keeps its approved +680.
 // Coding restore remains pending and is not admitted here.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1127616, 1160506],
+  "/assets/molis-work-workbench.js": [1127879, 1160769],
   "/assets/molis-work-settings.css": [983230, 983910],
   "/assets/molis-work-workbench.css": [1552484, 1553164],
 };

@@ -7,7 +7,7 @@ export type CliMemoryRecovery = (input: MemoryHomeRecoveryRequest) => Promise<Me
 /** Parse one explicit offline maintenance request; all storage and recovery decisions remain with its owner. */
 export async function dispatchCliMemoryCommand(args: string[], recover?: CliMemoryRecovery): Promise<number> {
   if (!args.length || args.includes("--help") || args.includes("-h")) {
-    printCliLine("molis-work memory recover-home --source-home PATH --target-home PATH --operation-id ID --confirm [--json]\n\n两个路径必须为同一 Home、同一历史的停写完整工作副本，且另有完整备份。source 为较新的 T1，target 为要恢复的 T0。不会停止服务、复制备份或使用默认 Home；失败后只用原操作号明确重试。");
+    printCliLine("molis-work memory recover-home --source-home PATH --target-home PATH --operation-id ID --confirm [--json]\n\n两个路径必须为同一 Home、同一历史的停写完整工作副本，且另有完整备份。source 为较新的 T1；target 为已放回原 Home 绝对路径的 T0 工作副本，命令不重定位项目路径。不会停止服务、复制备份或使用默认 Home；失败后只用原操作号明确重试。");
     return 0;
   }
   if (args[0] !== "recover-home") throw new Error("未知记忆维护命令；请运行 molis-work memory --help");

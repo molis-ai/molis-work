@@ -83,7 +83,7 @@ PG-060 其余在工作台里仍按名字的行，核过，**不归本线**：`re
 
 目录先清洗，再按有效条目的外壳键排除市场重复项。各条目分别经现有 `UiViewRegistry` 解释，保留其外壳键、`chosen`、视图与贡献 id，再按原先的 `order → plugin_id → view_id` 顺序组合；不同键不因共享 Manifest id 而互相覆盖，也不删除另一发布者的市场入口。只改 `plugin-catalog.ts` 中目录组合和视图映射、`tests/plugin-directory.test.ts` 与本节；不动 B1 标记/权限/信任、内置 blocked 产品行为、FIRST 第 2～4 项或作者后续片。
 
-- **RAC-605-KEY-01**：真实临时 Plugin Runtime 运行一个与内置项同 Manifest id、不同发布者签名的插件，经 `runningPluginDirectory → pluginDirectoryFor → rail/creates/start/真实页面` 仍用其自己的外壳键，未获内置 `chosen` 或标记；未运行内置项的市场条目保留，标题与入口不串到它。
+- **RAC-605-KEY-01**：真实临时 Plugin Runtime 启动一个与内置项同 Manifest id、不同发布者签名的插件（S-75 起启动被拒 `plugin.id_namespace_conflict`，启动失败的插件在目录里仍有位置），经 `runningPluginDirectory → pluginDirectoryFor → rail/creates/start/真实页面` 仍用其自己的外壳键，未获内置 `chosen` 或标记；未运行内置项的市场条目保留，标题与入口不串到它。
 - **RAC-605-KEY-02**：同 Manifest id 的两个有效不同键逐条保留 navigator/island/side/stage 的归属，视图 id 与默认贡献 id 不改，顺序仍为原排序。`chosen` 条目受 enabled 控制，非 chosen 的运行项保持可见；不同 Manifest id 的合法条目照旧。
 - **RAC-605-KEY-03**：只有清洗后有效的 Runtime 条目优先于同键市场项；无效项不能遮掉市场项。已有重复键、文本/图标/slot 清洗及不可信文本转义断言完整保留；本片不改变清洗或信任合同。
 

@@ -7,7 +7,7 @@ import type { PluginPlatform } from './plugin-platform.js';
 export const PUBLISHER_REVOKED_MESSAGE = '这个插件的发布者已被你撤销信任：它不再运行，数据还在，可以卸载';
 
 /**
- * Whether the publisher behind an installed package is still one the person trusts (ac-trust T5b, BL-559, S-86). A package installation
+ * Whether the publisher behind an installed package is still one the person trusts (ac-trust T5b, BL-559, S-87). A package installation
  * holds the key it was signed with (`publisher_signature`) and may run only while the Home's ledger has that key pinned and not taken
  * back. What the ledger says is kept until the person next changes an agreement in this process (`consentRevision`: pinning and taking
  * back both count), so it is asked once between changes and not on every call. A ledger that cannot be read trusts nobody: the

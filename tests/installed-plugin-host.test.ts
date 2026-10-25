@@ -795,7 +795,7 @@ test('T2-FIX-05 pinned upgrade and rollback return plugin.state_invalid without 
   } finally { await h.close(); }
 });
 
-test('RAC-392 S-86 an installation of a publisher taken back is stopped when the project opens, cannot be enabled, is not read back from its package, and says why', mac, async () => {
+test('RAC-392 S-87 an installation of a publisher taken back is stopped when the project opens, cannot be enabled, is not read back from its package, and says why', mac, async () => {
   const h = await signedInstallFixture(), publisher = newPublisher(), bundle = signedPackage(publisher);
   try {
     await h.confirm(bundle);
@@ -811,5 +811,22 @@ test('RAC-392 S-86 an installation of a publisher taken back is stopped when the
     };
     await stopped();
     await h.reopen(); await stopped();
+  } finally { await h.close(); }
+});
+
+test('RAC-392 S-87 a Host restarted right after a publisher was taken back, before any project looked, does not start what it signed, although the package verifies as pinned', mac, async () => {
+  const h = await signedInstallFixture(), publisher = newPublisher(), bundle = signedPackage(publisher);
+  try {
+    await h.confirm(bundle);
+    const running = await h.control();
+    assert.equal(running.platform.runtime.list().find(row => row.plugin_id === PACKAGE_PLUGIN_ID)?.state, 'running', 'it was running when the publisher was taken back');
+    const release = h.packages.load(PACKAGE_PLUGIN_ID, publisher.identity, '1.0.0');
+    new PluginInstallService({ ledger: h.ledger, packages: h.packages, install: async () => undefined, installed: async () => [] }).revokePublisher(publisher.identity);
+    // The restart is the first thing that looks: the installation's record still says it runs, and the package on disk still verifies against its pin.
+    const restarted = await h.reopen();
+    assert.notEqual(restarted.platform.runtime.list().find(row => row.plugin_id === PACKAGE_PLUGIN_ID)?.state, 'running', 'not started again');
+    assert.notEqual(restarted.platform.supervisor.state(PACKAGE_PLUGIN_ID)?.status, 'running', 'the Supervisor does not run it either');
+    await assert.rejects(restarted.lifecycle('enable', release, {}), (error: unknown) => error instanceof ActionError && error.code === 'plugin.publisher_revoked');
+    assert.match(restarted.recoveryErrors.get(PACKAGE_PLUGIN_ID) ?? '', /撤销/, 'the person is told why');
   } finally { await h.close(); }
 });

@@ -92,7 +92,7 @@ export class PluginInstallService {
   publishers(): PluginPublisherPin[] { return this.ports.ledger.publishers(); }
 
   /**
-   * Takes a publisher back (BL-559, S-86): its pin is revoked for good, and every installation of a package it signed stops running, its data
+   * Takes a publisher back (BL-559, S-87): its pin is revoked for good, and every installation of a package it signed stops running, its data
    * kept. The stop is each project's own: an installation is denied at its next effect, and stopped when its project next looks.
    */
   revokePublisher(keyId: string): PluginPublisherPin {

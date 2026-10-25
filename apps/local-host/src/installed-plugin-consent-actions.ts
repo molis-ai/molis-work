@@ -60,7 +60,7 @@ export function pluginConsentHandlers(ledger: PluginConsentLedger, now: () => st
 
 /** Refuse plugin resolution before directory filtering can turn this entry restriction into a missing-dependency error. */
 export function assertPluginConsentActionEntry(caller: ActionCallContext, reference: ActionReference): void {
-  // Taking a publisher back is a withdrawal like taking an agreement back: the same entry, the same refusal (S-77, S-86).
+  // Taking a publisher back is a withdrawal like taking an agreement back: the same entry, the same refusal (S-77, S-87).
   if ([...Object.values(pluginConsentActions), pluginInstallActions.revokePublisher].some(action => action.capability_id === reference.capability_id && action.version === reference.version)) {
     assertPluginConsentSettingsEntry(caller);
   }

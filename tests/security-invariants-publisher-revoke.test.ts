@@ -13,7 +13,7 @@ import { DEMO_PROJECT_ID, HomeConsentLedger, MolisWorkLocalHost, PLUGIN_INSTALL_
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage, type PackageFiles } from "./fixtures/sandbox-package.js";
 
-// S-86 (ac-trust T5b, BL-559): a publisher the person pinned can be taken back, and only the person can: at the Host's settings entry,
+// S-87 (ac-trust T5b, BL-559): a publisher the person pinned can be taken back, and only the person can: at the Host's settings entry,
 // the same one that takes an agreement back (S-77). Taking one back is for good. What it signed can no longer be installed; what is
 // installed from it can no longer do anything (denied at its next effect, whatever began before), is stopped when its project next looks,
 // is not started again by a restart and cannot be enabled; its data stays, and the person can uninstall it.
@@ -24,7 +24,7 @@ const pin = (keyId = KEY): Omit<PluginPublisherPin, "revoked_at"> => ({ key_id: 
 const refused = (code: string) => (error: unknown) => error instanceof ActionError && error.code === code;
 const REVOKE: ActionReference = { capability_id: pluginInstallActions.revokePublisher.capability_id, version: 1 };
 
-test("RAC-392 S-86 a ledger takes a publisher back once: the first time stays, the pin stays and is never lifted by pinning again, and a key nobody pinned answers null", () => {
+test("RAC-392 S-87 a ledger takes a publisher back once: the first time stays, the pin stays and is never lifted by pinning again, and a key nobody pinned answers null", () => {
   const ledger = new MemoryPluginConsentLedger();
   ledger.pinPublisher(pin());
   assert.equal(ledger.revokePublisher("ed25519:sha256:" + "b".repeat(64), AT), null);
@@ -35,7 +35,7 @@ test("RAC-392 S-86 a ledger takes a publisher back once: the first time stays, t
   assert.deepEqual(ledger.publishers(), [first]);
 });
 
-test("RAC-392 S-86 only the person at the Host's settings entry takes a publisher back; an Agent, MCP, a workflow, a plugin and a user call without that entry are refused, and nothing is written", async () => {
+test("RAC-392 S-87 only the person at the Host's settings entry takes a publisher back; an Agent, MCP, a workflow, a plugin and a user call without that entry are refused, and nothing is written", async () => {
   const ledger = new MemoryPluginConsentLedger();
   ledger.pinPublisher(pin());
   const service = new PluginInstallService({ ledger, packages: new SandboxPackageStore("/nonexistent"), now: () => LATER, install: async () => undefined, installed: async () => [] });
@@ -53,7 +53,7 @@ test("RAC-392 S-86 only the person at the Host's settings entry takes a publishe
   assert.equal(ledger.publishers()[0]!.revoked_at, null, "nothing was written");
 });
 
-test("RAC-392 S-86 the settings entry takes a publisher back over HTTP, answers the pin, keeps the first time, and refuses an unauthorized call and an unknown key", async t => {
+test("RAC-392 S-87 the settings entry takes a publisher back over HTTP, answers the pin, keeps the first time, and refuses an unauthorized call and an unknown key", async t => {
   const f = await serveHomeRuntime(t);
   const ledger = new HomeConsentLedger(f.home);
   ledger.pinPublisher(pin());
@@ -107,7 +107,7 @@ async function installed() {
     async close() { try { await host.close(); } finally { await rm(home, { recursive: true, force: true }); } } };
 }
 
-test("RAC-391 RAC-392 S-86 a publisher taken back: what it signed does nothing from then on (no write), stops, cannot be enabled or restarted, keeps its data, and its next package is refused", mac, async () => {
+test("RAC-391 RAC-392 S-87 a publisher taken back: what it signed does nothing from then on (no write), stops, cannot be enabled or restarted, keeps its data, and its next package is refused", mac, async () => {
   const h = await installed(), publisher = newPublisher();
   try {
     await h.install(signedPackage(publisher, readsAndWrites));

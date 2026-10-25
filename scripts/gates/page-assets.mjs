@@ -237,11 +237,14 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// batch-38 (#1300, coordinator review 2026-10-25): the combined batch grows workbench.js by +388 B against main (measured
-// against #1304's 1124686 after it landed first; PG-055 alone is -1 B; the growth comes from the batch's new client logic,
-// not measured slice by slice). Checked module by module with a metafile at W6 wrap-up; whatever can be saved is saved in
-// this same asset.
-const APPROVED_CEILINGS = { "/assets/molis-work-workbench.js": [1124686, 1125074] };
+// Memory P0 (#1064, same reviewed feature; rebased on batch-38 fc1e03c3, 2026-10-26): the actual served bundles retain
+// the original workbench +3193 B and Coding +612 B (within its previously reviewed +717 B). Coding keeps main's typed
+// uncertainty guard and the original-input envelope; its 12 B difference from the previous compact guard is not new scope.
+// These exact pairs replace already consumed main/earlier-merge admissions; no old asset ceiling or spare allowance carries over.
+const APPROVED_CEILINGS = {
+  "/assets/molis-work-workbench.js": [1125074, 1128267],
+  "/assets/molis-work-plugins/coding.js": [289017, 289629],
+};
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its
 // first freeze; from the next PR on it only falls like every other.

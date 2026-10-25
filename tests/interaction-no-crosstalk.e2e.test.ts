@@ -6,9 +6,8 @@ import { createHash } from "node:crypto";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { GoalProjectApplication, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { GoalProjectApplication, withConnectorConnections, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
-import { PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-workbench";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { asideReply } from "./fixtures/ending-review.js";
 

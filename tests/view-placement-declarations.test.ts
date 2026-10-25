@@ -5,12 +5,12 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { UI_VIEW_GROUPS, type UiContributionDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
 import {
-  BUILTIN_PLUGIN_CATALOG, PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, creatableKinds, findPluginSettingsNavItem, homeStarts,
-  listPluginSettingsNavItems, pluginSettingsNavItemsFrom,
+  BUILTIN_PLUGIN_CATALOG, creatableKinds, findPluginSettingsNavItem, homeStarts, listPluginSettingsNavItems, pluginSettingsNavItemsFrom,
 } from "@molis-ai/molis-work-app-workbench";
 import { defineWorkflowContentActions } from "@molis-ai/molis-work-plugin-sdk";
 import { DECLARATION_PLUGIN_ID, declarationManifest, manifestProblems } from "./fixtures/declaration-manifest.js";
 import { renderMolisWorkWeb, type MolisWorkWebView } from "./workbench-renderer-fixture.js";
+import { PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, shownProjectPlugins } from "@molis-ai/molis-work-app-local-host";
 
 type Part = Record<string, unknown>;
 
@@ -132,7 +132,7 @@ test("RAC-76 W5-06-PLACE-02 the rail lists each plugin under the group its view 
 // ---- settings icons -----------------------------------------------------------------------------------------------------
 
 test("RAC-77 W5-06-PLACE-03 a settings page's icon is its view's, also when found by its own URL", () => {
-  const icons = Object.fromEntries(listPluginSettingsNavItems(["goals", "coding"]).map(item => [item.section_id, item.icon]));
+  const icons = Object.fromEntries(listPluginSettingsNavItems(shownProjectPlugins(["goals", "coding"])).map(item => [item.section_id, item.icon]));
   assert.deepEqual(icons, { shelf: "library", planning: "workflow", "coding-settings": "code" });
   assert.equal(findPluginSettingsNavItem("coding-settings")?.icon, "code", "a project that does not show Coding still finds its page with its icon");
   assert.equal(findPluginSettingsNavItem("shelf")?.icon, "library");

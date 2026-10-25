@@ -176,6 +176,8 @@ PG-095、PG-111 不进这几个 PR，评估与统筹的裁定见 §7。
 | RAC-565 | 装进 Home 的包带着 `molis-work.registration` 和 `registration` 导出，不进启动名单、不拿 `bundled`、不能用内置 plugin id 作提供方（S-08、S-15，进 `pnpm test:security`）。「提供方身份」与 ac-trust T6（S-68、BL-506）重叠：实现前看 T6 的状态，只留一处检查，这里只断言结果 | B1 |
 | RAC-566 | 门禁的旧读法被拒：手写数组形式的目录、手写的平台名单，`catalog-entries.mjs` 与 `--check` 都失败 | B1 |
 | RAC-567 | `--check` 对两份生成文件都核：任一份过期、手改、缺一份都失败 | B1 |
+| W5-02-MARK-01 | Q3 的拒绝用例：页面把 `personal`、`companions`、`always_on` 改了再提交（加、移除），宿主照自己的登记办：加 Text Stats 仍带上 Files，移除 Pages 仍是在这个项目隐藏，Goals 仍不能移除（`catalog.plugin_always_on`）。RAC-560～579 已用完，号用本稿的 `W5-02-…` 写法，统筹要改 RAC 号时只改测试名 | B1 |
+| W5-02-MARK-02 | 目录上的标记只由宿主按自己的登记写：内置插件的 `personal` 与 `companions` 与登记相同；`always_on` 只认这个 Home 同意过的；跑着的插件只有 plugin id 与发布者都与内置相同时才带标记 | B1 |
 | RAC-568 | `summary`、`developer` 从 Manifest 读；SDK 检查拒绝空 `summary`、超长、`developer: false` 与非布尔；登记里再写这两项，`--check` 报不认识的键 | B2 |
 | RAC-569 | #679：夹具登记一个目录里没有的 Home 级插件，项目路径下能路由；项目隐藏它后是 `actions.plugin_disabled`；`/plugins/<键>` 能打开（S-31，进 `pnpm test:security`） | B3 |
 | RAC-570 | 生成的项目级条目与改之前手写的逐条相等（包名、工厂名、`bundled`、有无 Home 目录时的取舍），一次性比对贴进 PR | PR-B4 |

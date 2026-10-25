@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { LocalMcpServer, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
-import { availableProjectPluginIds, BUILTIN_PLUGIN_CATALOG, shownProjectPlugins } from "@molis-ai/molis-work-app-workbench";
+import { LocalMcpServer, projectActionAvailability, availableProjectPluginIds, shownProjectPlugins } from "@molis-ai/molis-work-app-local-host";
+import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import type { ActionCallContext, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { todoActions } from "@molis-ai/molis-work-plugin-todo";
 import { openTestHome, type TestHome, type TestProject } from "./fixtures/test-home.js";

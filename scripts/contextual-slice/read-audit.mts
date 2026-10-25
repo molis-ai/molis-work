@@ -10,8 +10,7 @@
 import { join } from "node:path";
 import { writeFileSync } from "node:fs";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-workbench";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
 import { SEARCH_ENTRIES_INPUT_TYPE, SUBJECT_REFERENCE_TYPE, type ActionView, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { localWebActionContext } from "../../apps/local-host/dist/local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "../../apps/local-host/dist/local-owner-permissions.js";

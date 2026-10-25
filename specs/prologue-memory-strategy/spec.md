@@ -1221,3 +1221,9 @@ batch-33 集成实证：准确生产提交 `64210640729de77f8dddb97106eaff2a29cb
 准确合并 d5f320d3c 的后续验证：主线3817健康、boundary、API/Action、资源与secrets均通过；本地现有快查基线也以只读方式通过且没有待降低项，无需写基线。自动审批曾拒绝一次更新基线请求，未执行该写入，未改变基线或门禁。独立深审核对主线Action/原件/后台/撤权调用链，无阻塞；四个独立边界用例最终通过，沙箱内回环EPERM伴随的Node原生失败日志保留。
 
 平台补验首次6/8文件通过：install 22/23，原因是本次资源脚本更新使原构建指纹过期，真实安装正确拒绝；另一个失败是统筹误填不存在的backup.test.ts，未运行备份用例。随后原pnpm build刷新最终指纹，install 23/23、实际home-backup-recovery 1/1及runtime-config-backup-maintenance 6/6均通过。原日志与复验日志分别为 /private/tmp/molis-memory-main3817-platform-20261025.log、/private/tmp/molis-memory-main3817-install-backup-final-20261025.log。未修改生产、断言、重试或门禁处理这两项失败。最终普通CI/Full suite仍待运行，旧Cloudflare未知及用户验收边界继续保留。
+
+### #1064 最终 CI 的安装夹具修正（2026-10-25）
+
+最终430f已通过Verify及所有必需检查；产品子集40180408090的2/2分片与Full suite40180486942的12/16分片均在同一MEM-35用例失败。GitHub原artifact与本地准确430f复现一致：tests/assistant-executor.test.ts新插件直接调用PluginRuntime.install时遗漏主线现在必填的trust，在安装阶段收到plugin.state_invalid，未执行原身份/撤权断言。Full suite因此按既有bail/fail-fast取消9个分片，不能称完整通过；保留两次CI失败及被取消结果。
+
+只为测试样例补真实身份trust:{level:"unsigned"}，不把测试插件冒称host，不改生产安装检查、权限、任何原断言、时限、重试或CI。原整文件从14/15变为15/15，未跳过，日志 /private/tmp/molis-memory-1064-assistant-executor-{repro,trust}-20261025.log。产品子集原artifact /private/tmp/molis-memory-1064-product-subset-2-20261025.zip 保留。后继提交必须重跑最终CI及Full suite；此前旧Cloudflare失败影响和历史仅重试通过的UNKNOWN仍未由该局部修正消除。

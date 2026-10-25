@@ -42,9 +42,15 @@ test("PART-01 the entry and the Home's store registry agree on the partition, ei
 test("PART-03 a partitioned library needs a project data owner and may leave purge to the Host; any other owner needs purge", async t => {
   const unowned = partitionHome(t, [probeEntry({ project_data: undefined })]);
   await assert.rejects(unowned.host.ready(), /project_data/u);
+  // Todo's library kept whole, its rows not declared (`project_rows` left out): an owner the start list names must clear it itself.
   const todo = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "todo")!;
-  const purgeless = partitionHome(t, [{ ...todo.runtime!, manifest: todo.manifest, project_data: { owner_id: "todo", declaration: { label: "待办" } } }]);
+  const { project_rows: rows, ...undeclared } = todo.manifest.databases!.home!;
+  assert.ok(rows, "Todo declares its project's rows, which the next case relies on");
+  const purgeless = partitionHome(t, [{ ...todo.runtime!, manifest: todo.manifest, create: () => withLibrary(todo.runtime!.create(), undeclared), project_data: { owner_id: "todo", declaration: { label: "待办" } } }]);
   await assert.rejects(purgeless.host.ready(), /purge/u);
+  // Rows the Manifest declares and a way to clear them on the start list: one or the other, never both, even with a purge.
+  const both = partitionHome(t, [{ ...todo.runtime!, manifest: todo.manifest, project_data: { owner_id: "todo", declaration: { label: "待办", purge: () => undefined } } }]);
+  await assert.rejects(both.host.ready(), /不能两样都有/u);
   await partitionHome(t, [probeEntry({ project_data: { owner_id: PROBE, declaration: { label: "分区探针的笔记" } } })]).ready();
 
   // The deletion's owners come from the build's catalog as well (project-deleted-owners.ts): there, too, only a partitioned one may leave out purge.

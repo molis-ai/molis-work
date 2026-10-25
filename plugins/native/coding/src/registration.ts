@@ -11,7 +11,6 @@ export const registration: PluginRegistration = {
   project_plugin_id: CODING_PROJECT_PLUGIN_ID, catalog_order: 22,
   messages: CODING_MESSAGES,
   manifest: codingManifest,
-  summary: "和 Agent 一起写代码，留每轮记录。",
   workbench: {
     order: 20,
     // The stage as the shell draws it when no instance runs (no session directory); a running instance draws its own (plugin.ts).

@@ -11,7 +11,6 @@ export const registration: PluginRegistration = {
   messages: TODO_MESSAGES,
   runtime: { scope: "home", create: createTodoPlugin, package_name: "@molis-ai/molis-work-plugin-todo", factory_export: "createTodoPlugin" },
   personal: true,
-  summary: "记下要做的事，分清今天、在等谁。",
   workbench: {
     order: 14,
     contributions: [todoUiContribution],

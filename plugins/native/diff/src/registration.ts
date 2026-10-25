@@ -12,5 +12,4 @@ export const registration: PluginRegistration = {
   messages: DIFF_MESSAGES,
   manifest: diffManifest,
   workbench: { order: 23, contributions: [diffUiContribution], clientFrom: "coding", specimens: diffBoardSpecimens },
-  summary: "比较固定版本，逐项阅读差异。",
 };

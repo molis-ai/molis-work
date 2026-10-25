@@ -10,7 +10,6 @@ export const registration: PluginRegistration = {
   manifest: workflowsManifest,
   messages: WORKFLOWS_MESSAGES,
   personal: true,
-  summary: "把插件串成流程，一步步做完。",
   workbench: {
     order: 16,
     contributions: [workflowsUiContribution],

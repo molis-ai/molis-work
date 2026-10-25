@@ -10,7 +10,6 @@ export const registration: PluginRegistration = {
   manifest: datasetManifest,
   messages: DATASET_MESSAGES,
   personal: true,
-  summary: "做表格，导入 CSV，可回到旧版。",
   workbench: {
     order: 11,
     contributions: [datasetUiContribution],

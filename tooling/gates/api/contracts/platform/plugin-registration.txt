@@ -21,8 +21,6 @@ export interface PluginRegistration {
     readonly project_plugin_id: string;
     readonly catalog_order: number;
     readonly manifest: PluginManifest;
-    readonly summary: string;
-    readonly developer?: true;
     readonly personal?: true;
     readonly default_enabled?: true;
     readonly companions?: readonly string[];

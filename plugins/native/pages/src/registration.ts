@@ -10,7 +10,6 @@ export const registration: PluginRegistration = {
   manifest: pagesManifest,
   messages: PAGES_MESSAGES,
   personal: true,
-  summary: "写文档，可导出 Markdown / PDF。",
   workbench: {
     order: 9,
     contributions: [pagesUiContribution],

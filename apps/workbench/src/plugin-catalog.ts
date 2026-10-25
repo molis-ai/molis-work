@@ -64,7 +64,7 @@ function entryFor(projectPluginId: ProjectPluginId): PluginRegistration | undefi
 
 function shippedDirectoryIds(): string[] {
   const shipped = BUILTIN_PLUGIN_CATALOG
-    .filter((entry) => entry.personal === true || Boolean(entry.summary))
+    .filter((entry) => entry.personal === true || Boolean(entry.manifest.summary))
     .map((entry) => entry.project_plugin_id);
   const market = builtinPluginDirectory();
   const ids = [
@@ -207,7 +207,7 @@ export function manifestFor(projectPluginId: ProjectPluginId): PluginManifest | 
 export function pluginMarketCards(options: { readonly developerMode?: boolean } = {}, directory: PluginDirectory = builtinPluginDirectory()): readonly PluginMarketCard[] {
   const marked = new Map(directory.map((entry) => [entry.id, entry]));
   return BUILTIN_PLUGIN_CATALOG.flatMap((entry) => {
-    if (!entry.summary || entry.manifest.always_on === true || (entry.developer && !options.developerMode)) return [];
+    if (!entry.manifest.summary || entry.manifest.always_on === true || (entry.manifest.developer && !options.developerMode)) return [];
     // A plugin whose page lives only in settings (角色) is part of the settings, not something a project adds or
     // removes: it stays out of the market (decision 2026-10-01, specs/post-merge-review §9).
     const views = entry.manifest.ui?.views ?? [];
@@ -218,7 +218,7 @@ export function pluginMarketCards(options: { readonly developerMode?: boolean } 
       runtime_id: entry.manifest.plugin_id,
       label: nav.title ?? entry.manifest.name,
       glyph: nav.icon ?? "package",
-      copy: entry.summary,
+      copy: entry.manifest.summary,
       personal: marked.get(entry.project_plugin_id)?.personal === true,
       sites: browserSiteDeclarations(entry.manifest),
     }];
@@ -239,8 +239,8 @@ export function pluginTabGlyphs(): Record<string, string> {
 export function pluginStageSummaries(): Record<string, string> {
   const side = sideOpenedPlugins();
   return Object.fromEntries(BUILTIN_PLUGIN_CATALOG
-    .filter((entry) => Boolean(entry.summary) && !Object.hasOwn(side, entry.project_plugin_id))
-    .map((entry) => [entry.project_plugin_id, entry.summary as string]));
+    .filter((entry) => Boolean(entry.manifest.summary) && !Object.hasOwn(side, entry.project_plugin_id))
+    .map((entry) => [entry.project_plugin_id, entry.manifest.summary as string]));
 }
 
 /**

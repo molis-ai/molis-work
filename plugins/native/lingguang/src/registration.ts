@@ -10,7 +10,6 @@ export const registration: PluginRegistration = {
   manifest: lingguangManifest,
   messages: LINGGUANG_MESSAGES,
   personal: true,
-  summary: "先记下想法，再决定留下或丢掉。",
   workbench: {
     order: 13,
     contributions: [lingguangUiContribution],

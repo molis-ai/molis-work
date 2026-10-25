@@ -10,7 +10,6 @@ export const registration: PluginRegistration = {
   manifest: formManifest,
   messages: FORM_MESSAGES,
   personal: true,
-  summary: "建问卷，收答卷，看逐题汇总。",
   workbench: {
     order: 10,
     contributions: [formUiContribution],

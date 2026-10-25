@@ -103,6 +103,20 @@ PR 粒度（GitHub runner 槽位有限，开得多就积压）：
     - C #1277（`__v1`→`@2` 漏迁：pages-actions、alchemist/form/ppt/dataset-mcp；Goal 目录替身缺 list 角色：coding-surface、coding-companion-stages、coding-input-ports，疑带出 Coding 浏览器用例一串）→ Codex placement 唯一 writer；PlacementService 301 行等 #1289（门禁「标明即可」，已请 ac-review 评审）。
     - host-pages-error-model 第 7 例（artifact edge）堆内存溢出：38fc2ab33 已有，b36 无，正在取样；security-invariants-plugin-pages 超时同查。
     - 修复头齐了统筹并进批次、重 build、起一次全量；batch-38 等 batch-37 落地。
+  - **10-25 13:30 UTC 统筹进展**：
+    - #1289（巨大单元「标明即可」）已合 main `54437998c`。评审的第 2～4 项统筹做在 `claude/giant-gate-review-fixes` `a34d70623`；第 1 项由 Codex F1 叠在它上面做。随 batch-38。
+    - batch-37：已并 B `ba976a532`（ac-registry，显示投影待返修）、C `cc7811da7`（Codex）、A2 `20f0902bb`、main `54437998c`，头 `08f3f8ffe`。
+      - A1（#1266 的 5 个文件，含 host-pages-error-model 堆内存溢出）改派 Codex：ac-platform 的上下文压缩后丢了单子。
+      - PlacementService 不标明（多职责），由 placement writer 把 `describe` 搬出类。
+    - batch-38 新增候选：
+      - #1288 PG-056（`146fce17d`，一轮可合）
+      - #1290 PG-045（`3c15b41bf`，一轮可合，第 1 项已修，workbench.js 放行 [1124423, 1125249]，组批时按合成树重定）
+      - #1292 C5（要补暂定 S-77 行）
+      - #1293 ac-shell PR-D1（ac-review-2 一轮中）
+      - #1291 ac-platform 第 3 组（ac-review 一轮中）
+      - #1294 ac-giants A3（排在 ac-review 的 #1291 之后）
+      - #1283 FI-2 二轮修复 `42d024679`（等 Codex 复审）
+      - #1285 T5：平台动作走 project-host 的 `hostPlatformProviders` 一个登记处（统筹 10-25 裁定）
   - **batch-38 已组（10-25 晚，分支 `batch/1025-38` 头 `df6454c24`，叠在 batch-37 `f7422dc66` 上，未开 PR、未 build）**：#1276 FIX14 `33312c934`（SI S-71 行取 FIX14 版本、S-72～74 保留）、#1281 S-31 处理器未执行证明 `59e1e257a`、#1284 PG-055 `d67cf115a`（与 batch-37 的 15 处冲突已解：插件 ui.ts 取 `plugin-sdk/ui`、settings 与 immersive-shell 用 `PluginIconName`；`ui.txt` 与 page-assets 待 build 后重生成）、ac-trust T8 `acb410201`（#1286 已按 PR 粒度关掉，直接合分支；与 #1280 的 PG-016 重复以 POLICY 7.8「信任」为准、7.9 只留新内容）。T8 文档写到 T4/T5/T6 的行为，**必须与 #1282、#1285、#1279 同批落**。等进：#1279/#1283（Codex 修）、#1282/#1285（待一轮）、#1255（组合核证）、#1267+#1271（App 回归）、#1280/#1277/#1284 的 Codex 修复。batch-37 的 full 起之前不 build batch-38（C5 窗口另留 8 分钟）。
   - 线分配：W5-02 PR-D（PG-072～076）移交 ac-shell（RAC-690～709、BL-656～665）；ac-registry 续 B4→C→E（RAC-710～729）；PG-063 已由 R11 #1169 做完。
 

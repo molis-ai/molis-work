@@ -1,6 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { CONNECTOR_REQUEST_SERVICES } from "@molis-ai/molis-work-contracts/services/connector-host";
 import type { MolisWorkSettingsView } from "@molis-ai/molis-work-app-workbench";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
@@ -35,7 +36,7 @@ export async function pluginSlotRows(host: MolisWorkLocalHost, reference: LocalH
       if ((slot.binding ?? "installation") !== "installation") continue;
       const { connection } = await actions.invoke(connectorPluginSlotActions.read, { install_id: record.install_id, plugin_id: record.plugin_id, slot_id: slot.slot_id });
       rows.push({ install_id: record.install_id, plugin_id: record.plugin_id, plugin_name: manifest.name, slot_id: slot.slot_id, service_id: slot.service_id,
-        reason: slot.reason, connection_id: connection?.connection_id ?? null });
+        reason: slot.reason, connection_id: connection?.connection_id ?? null, tenant: Boolean(CONNECTOR_REQUEST_SERVICES[slot.service_id]?.tenant) });
     }
   }
   return rows;

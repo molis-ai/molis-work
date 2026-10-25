@@ -6,7 +6,7 @@ import { connectorErrors } from "@molis-ai/molis-work-contracts/services/connect
 import { withConnectorConnections, type ConnectorConnectionStore } from "./connector-connection-store.js";
 import { withConnectorProtocols, type ConnectorProtocolConfiguration } from "./connector-protocol-store.js";
 import { refreshFeedConnectionState } from "./connector-source-state.js";
-import { connectionTenantOrigin } from "./connector-request-credentials.js";
+import { connectionTenantOrigin, serviceTenant } from "./connector-request-credentials.js";
 
 type Input<K extends "createToken" | "upsertOAuth" | "saveProtocol" | "saveCli"> = Parameters<ConnectorConnectionStore[K]>[0];
 type Target = { connectionId: string; expectedRevision?: string };
@@ -30,6 +30,9 @@ export function activateConnectorConnection(home: string, completion: ConnectorA
       return { previous, pinned: tenantOrigin && previous ? store.targetOrigin(previous.connection_id) : null };
     });
     if (previous?.updated_at !== completion.target.expectedRevision) throw connectorErrors["connector.connection.invalid"]("原连接在等待期间已变化，请重新准备接入");
+    if ((completion.kind === "token" || completion.kind === "oauth") && serviceTenant(completion.input.serviceId) && !tenantOrigin) {
+      throw connectorErrors["connector.connection.invalid"]("无法确认账号所属的站点，请在「服务连接」里重新连接");
+    }
     if (pinned && pinned !== tenantOrigin) throw connectorErrors["connector.connection.service_mismatch"](`这条连接是 ${pinned} 的；要连 ${tenantOrigin}，请新增连接`);
   }
   if (completion.kind === "oauth" || completion.kind === "mcp") {

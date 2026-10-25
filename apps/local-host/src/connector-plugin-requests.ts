@@ -130,7 +130,8 @@ function describeBinding(home: string, target: PluginConnectionTarget): PluginCo
     const state = connection.service_id === target.service_id ? shownState(home, connection, store.state(connection)) : "disconnected";
     const origin = Object.hasOwn(CONNECTOR_REQUEST_SERVICES, target.service_id) && CONNECTOR_REQUEST_SERVICES[target.service_id]!.tenant
       ? store.targetOrigin(connection.connection_id) : null;
-    return { bound: true, display_name: connection.display_name, state, ...(origin ? { origin } : {}) };
+    const needsReconnect = state === "connected" && !origin && Boolean(CONNECTOR_REQUEST_SERVICES[target.service_id]?.tenant);
+    return { bound: true, display_name: connection.display_name, state: needsReconnect ? "reauth_required" : state, ...(origin ? { origin } : {}) };
   });
 }
 
@@ -144,9 +145,12 @@ function boundConnection(home: string, target: PluginConnectionTarget, service: 
     if (!binding) return null;
     const connection = store.get(binding.connection_id);
     const usable = connection && connection.service_id === target.service_id && shownState(home, connection, store.state(connection)) === "connected"
-      && (connection.auth_method === "token" || connection.auth_method === "oauth") && service.credential[connection.auth_method] !== undefined
-      && (store.targetOrigin(connection.connection_id) ?? (service.tenant ? null : origin)) === origin;
+      && (connection.auth_method === "token" || connection.auth_method === "oauth") && service.credential[connection.auth_method] !== undefined;
     if (!usable) throw pluginRequestErrors.connection_unavailable("所绑定的账号已不可用，请在设置里重新选择或解除绑定");
+    const pinned = store.targetOrigin(connection.connection_id);
+    // A tenant's connection saved before its origin was pinned (BL-595) is usable again once the person connects it again.
+    if (service.tenant && pinned === null) throw pluginRequestErrors.connection_unavailable("所绑定的账号还没记下它的站点，请在设置的「服务连接」里重新连接这个账号，插件才能用它");
+    if ((pinned ?? origin) !== origin) throw pluginRequestErrors.connection_unavailable(`所绑定的账号只能请求 ${pinned}`);
     return { connection_id: connection.connection_id, auth_method: connection.auth_method as "token" | "oauth" };
   });
 }

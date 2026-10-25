@@ -8,7 +8,7 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { connectorPluginSlotActions, createPluginConnectionsPort, pluginSlotScope, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { activateConnectorConnection, connectorPluginSlotActions, createPluginConnectionsPort, pluginSlotScope, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { createPluginConnectionsClient, type PluginConnectionDispatch, type PluginConnectionsPort } from "@molis-ai/molis-work-plugin-runtime";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { connectionsProbe, grantConnections } from "./fixtures/connections-runtime.js";
@@ -165,6 +165,31 @@ test("S-57 RAC-653 the connections page lists a plugin's installation slot and t
   assert.ok((await page()).includes(`<option value="${connection.connection_id}" selected>`), "the page shows the account it uses");
   assert.equal((await save({ ...slot, connection_id: null })).status, 200);
   assert.equal(withConnectorConnections(home, store => store.binding(pluginSlotScope(install.install_id), probe.id, "github")), null);
+});
+
+// BL-595 (RAC-657): for a service on each tenant's own site, the page says what is true: with no account the plugin sends nothing, and an
+// account saved before its site was pinned needs connecting again, which is the one way it becomes usable.
+test("S-57 RAC-657 the connections page tells the truth about a tenant's service: no account sends nothing, an unpinned account needs reconnecting", async t => {
+  const probe = connectionsProbe("connectionstenant", { service: "jira" });
+  const { host, home, request } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
+  const { install } = await grantConnections(host, probe);
+  const pinned = activateConnectorConnection(home, { kind: "token", input: { serviceId: "jira", displayName: "Acme Jira", token: `acme.atlassian.net|me@example.com|${BEARER_VALUE}` } });
+  const old = withConnectorConnections(home, store => store.createToken({ serviceId: "jira", displayName: "Old Jira", token: `acme.atlassian.net|me@example.com|${BEARER_VALUE}` }));
+  const page = async () => { const response = await request("/settings/connectors"); assert.equal(response.status, 200); return response.text(); };
+  const listed = await page();
+  assert.ok(listed.includes("不用账号（插件不能请求这个服务）") && !listed.includes("不用账号（请求不带凭据）"), "no account means no request, and the page says so");
+  assert.ok(listed.includes(`<option value="${pinned.connection_id}">Acme Jira</option>`), "an account with its site pinned is offered as it is");
+  assert.ok(listed.includes(`<option value="${old.connection_id}" disabled data-needs-reconnect>Old Jira · 需要重新连接</option>`), "an unpinned account says it needs reconnecting and cannot be chosen");
+  // One bound before BL-595 stays shown as chosen, says it needs reconnecting, and the page offers to reconnect it.
+  withConnectorConnections(home, store => store.bind({ scopeId: pluginSlotScope(install.install_id), pluginId: probe.id, slotId: "github", serviceId: "jira", connectionId: old.connection_id }));
+  const bound = await page();
+  assert.ok(bound.includes(`<option value="${old.connection_id}" selected data-needs-reconnect>Old Jira · 需要重新连接</option>`));
+  assert.ok(bound.includes('data-connector-open="jira">重新连接 Jira</button>'), "the page offers to connect the account again");
+  // The plugin's request says the same: connect the account again, not choose another or unbind.
+  await assert.rejects(createPluginConnectionsPort(home).request({ plugin_id: probe.id, install_id: install.install_id, slot_id: "github", service_id: "jira" },
+    { url: new URL("https://acme.atlassian.net/rest/api/3/myself"), method: "GET", headers: {}, signal: new AbortController().signal, beforeEffect: async () => {} }),
+  (error: unknown) => code("connector.plugin_requests.connection_unavailable")(error) && /重新连接/.test((error as Error).message) && !/解除/.test((error as Error).message));
+  assert.equal(bound.includes(BEARER_VALUE), false);
 });
 
 test("S-57 a request whose call lost its authority after DNS never leaves", async t => {

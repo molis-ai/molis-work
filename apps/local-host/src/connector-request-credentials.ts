@@ -1,5 +1,5 @@
 import { catalogCloudOrigin, getCatalogSpec, isCatalogConnectorId } from "@molis-ai/molis-work-integration-catalog";
-import { CONNECTOR_REQUEST_SERVICES, type ConnectorRequestCredential, type ConnectorRequestTenant } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { CONNECTOR_REQUEST_SERVICES, connectorErrors, type ConnectorRequestCredential, type ConnectorRequestTenant } from "@molis-ai/molis-work-contracts/services/connector-host";
 
 // How a bound connection's credential goes on a plugin's request (`services.connections`, S-69): written the way the platform's registry
 // says for the kind of connection (s57-connections-extension §4.1), and, for a service on each tenant's own origin, the tenant origin the
@@ -36,15 +36,17 @@ export function serviceTenant(service_id: string): ConnectorRequestTenant | unde
 
 /**
  * The tenant origin a new or reauthorized connection is checked on, `null` for a service on fixed origins or when the connection names
- * no valid one (its plugin requests are then refused: nothing is pinned). A token connection names it in its secret; an OAuth connection
+ * no origin. Malformed material is refused through the connection owner's error contract. A token connection names it in its secret; an OAuth connection
  * in what the Host read back when it was authorized (Salesforce's `instance_url`, the Atlassian site it matched).
  */
 export function connectionTenantOrigin(service_id: string, connection: { token: string } | { context?: Record<string, string> }): string | null {
   const tenant = serviceTenant(service_id);
   if (!tenant) return null;
-  const extra = "token" in connection ? tokenParts(service_id, connection.token).extra : connection.context ?? {};
-  const named = tenant.domain === "salesforce.com" ? extra.instance : extra.site_url ?? extra.site;
-  try { return named ? catalogCloudOrigin(named, tenant.domain) : null; } catch { return null; }
+  try {
+    const extra = "token" in connection ? tokenParts(service_id, connection.token).extra : connection.context ?? {};
+    const named = tenant.domain === "salesforce.com" ? extra.instance : extra.site_url ?? extra.site;
+    return named ? catalogCloudOrigin(named, tenant.domain) : null;
+  } catch { throw connectorErrors["connector.connection.invalid"]("无法确认账号所属的站点，请在「服务连接」里重新连接"); }
 }
 
 /**

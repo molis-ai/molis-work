@@ -154,11 +154,16 @@ test("RAC-438 the Host has no file of its own for Coding: coding-surface.ts is g
   assert.match(gate, /HYBRID_RUNTIME_PLUGINS: ReadonlySet<string> = new Set<string>\(\);/);
   const dir = join(repoRoot, "apps/local-host/src");
   const importers = (pluginName: string) => readdirSync(dir).filter(file => file.endsWith(".ts"))
-    .filter(file => new RegExp(`from "@molis-ai/molis-work-plugin-${pluginName}"`).test(readFileSync(join(dir, file), "utf8")));
-  assert.deepEqual(importers("git"), ["project-plugins.ts"]);
-  assert.deepEqual(importers("diff"), ["project-plugins.ts"]);
-  assert.deepEqual(importers("text-stats"), ["project-plugins.ts"]);
-  assert.deepEqual(importers("files"), ["project-plugins.ts"]);
+    .filter(file => new RegExp(`from "@molis-ai/molis-work-plugin-${pluginName}(/registration)?"`).test(readFileSync(join(dir, file), "utf8")));
+  // Since PG-067 the supervisor starts a companion from its registration's `project_runtime`, and the Host reaches that registration
+  // only through the generated registry (#1299 PR-B4): no other Host file names a companion's package. Files is the one factory that
+  // needs Host ports, so `project-plugins.ts` also imports it (BL-616).
+  const registry = "plugin-registry.generated.ts";
+  assert.deepEqual(importers("git"), [registry]);
+  assert.deepEqual(importers("diff"), [registry]);
+  assert.deepEqual(importers("text-stats"), [registry]);
+  assert.deepEqual(importers("files"), [registry, "project-plugins.ts"]);
+  assert.match(readFileSync(join(dir, "project-plugins.ts"), "utf8"), /projectRuntimeDeclarations\(\)[^;]*create\(\)/s, "the supervisor starts the companions from their registrations' project_runtime");
   // The one stage module draws any plugin's page from its declarations: it names no plugin. The Plugin Runtime and the plugin
   // SDK are the platform, not plugins, so their package names are not a plugin's name (#1274 reads the supervisor's state type).
   assert.doesNotMatch(readFileSync(join(dir, "project-plugin-stages.ts"), "utf8"), /molis-work-plugin-(?!runtime"|sdk["/])|["'`](coding|files|git|diff|text-stats)["'`]/);

@@ -10,4 +10,4 @@ import { icon } from "@molis-ai/molis-work-design-system";
  */
 const FILES_CLIENT_BUNDLE = readFileSync(new URL("./files-client.js", import.meta.url), "utf8").trim();
 
-export const FILES_CLIENT_FACTORY_SCRIPT = `(host) => (${FILES_CLIENT_BUNDLE})(host, ${JSON.stringify({ folder: icon("folder"), file: icon("file") })})`;
+export const FILES_CLIENT_FACTORY_SCRIPT = ["(host) => (", FILES_CLIENT_BUNDLE, ")(host, ", JSON.stringify({ folder: icon("folder"), file: icon("file") }), ")"].join("");

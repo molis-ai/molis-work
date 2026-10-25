@@ -115,9 +115,12 @@ test("RAC-625 RAC-626 RAC-628 RAC-629: installed MCP cold start, contention, can
   await t.test("a committed real create with a severed response reports delivery_unknown and never replays", async st => {
     st.after(f.cleanupCase); await f.release();
     const marker = join(f.root, "response-cut"), preload = fileURLToPath(new URL("./fixtures/mcp-autostart-cut-response.mjs", import.meta.url));
-    const peer = await f.connect("unknown-session", { MOLIS_WORK_TEST_C5_CUT_ONCE: marker,
+    // The Home entry is test-owned. Client NODE_OPTIONS and unknown test variables must never cross the production boundary.
+    await f.configureWeb({ MOLIS_WORK_TEST_C5_CUT_ONCE: marker,
       MOLIS_WORK_TEST_C5_WEB_ENV: join(f.root, "web-env"),
-      NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ""} --import=${JSON.stringify(preload)}` });
+      NODE_OPTIONS: `--import=${JSON.stringify(preload)}` });
+    st.after(() => f.configureWeb());
+    const peer = await f.connect("unknown-session");
     const input = { display_name: "C5-delivery-cut", user_confirmed: true, idempotency_key: "delivery-unknown-create" };
     const reply = await peer.request("tools/call", { name: "molis_work_v1_context_create_and_bind", arguments: input }).promise;
     assert.match(JSON.stringify(reply), /actions\.delivery_unknown/); assert.equal(await readFile(marker, "utf8"), "response cut after the real result\n");

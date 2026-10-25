@@ -113,9 +113,10 @@ async function startResident(home: string, origin: string, controller: AbortCont
 }
 
 function residentEnvironment(home: string, origin: string): NodeJS.ProcessEnv {
-  const environment: NodeJS.ProcessEnv = { ...process.env, MOLIS_WORK_HOME: home, MOLIS_WORK_WEB_URL: origin, PWD: home, [MCP_WEB_STARTUP_ENV]: "1" };
-  for (const key of ["MOLIS_WORK_MCP_AUDIENCE", "MOLIS_WORK_RUNTIME_ID", "MOLIS_WORK_SESSION_ID", "MOLIS_WORK_WORK_CONTEXT_ID",
-    "MOLIS_WORK_WORK_CONTEXT_STABLE", "MOLIS_WORK_PANEL_ID", "MOLIS_WORK_GOAL_ID", "CODEX_THREAD_ID", "CLAUDE_CODE_SESSION_ID",
-    "CLAUDE_SESSION_ID", "CLAUDE_CODE_SESSION_NAME"]) delete environment[key];
-  return environment;
+  const environment: NodeJS.ProcessEnv = {};
+  // The installed Node entry needs executable lookup, user files, locale and temporary/time settings, not client config.
+  for (const [key, value] of Object.entries(process.env)) {
+    if (["PATH", "HOME", "LANG", "TMPDIR", "TZ"].includes(key) || key.startsWith("LC_")) environment[key] = value;
+  }
+  return { ...environment, MOLIS_WORK_HOME: home, MOLIS_WORK_WEB_URL: origin, PWD: home, [MCP_WEB_STARTUP_ENV]: "1" };
 }

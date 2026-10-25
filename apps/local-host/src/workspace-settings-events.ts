@@ -37,8 +37,7 @@ export function announceProjectOpened(platform: PluginPlatform, ports: Pick<Proj
   const earlier = opened.get(platform);
   if (earlier) return earlier;
   const announcing: Promise<void> = Promise.resolve().then(async () => {
-    const workspaces = ports.workspacesFor ? await ports.workspacesFor() : [];
-    const selected = await new ProjectBrowsingSettings(ports.store.db).read(ports.projectId, workspaces);
+    const selected = new ProjectBrowsingSettings(ports.store.db).read(ports.projectId, await ports.workspacesFor());
     platform.hostEvents.broadcast({ event_type_id: HOST_WORKSPACE_CHANGED_EVENT, type_version: 1, payload: { workspace_id: selected?.workspace_id ?? "", cause: "project-opened" } });
     await platform.hostEvents.drain();
   }).catch(error => {

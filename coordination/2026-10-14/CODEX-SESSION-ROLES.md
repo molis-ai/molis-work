@@ -1,6 +1,6 @@
 # 防腐 PR 专职会话分工
 
-状态：2026-10-25 actual main544（1289），batch36/九源已完成；batch37原f77 full最终31FAIL+1TIMEOUT，原A1/B/C writer实际接修。C5七路径分组核收/完整PR入口明确；C2本地同103有限通过而Memory两端口/正常restore未完；T4/T5等限定来源双核/归档不冒载体main。
+状态：2026-10-25 Memory按人类最新明确暂停；防腐batch37现6312已含B/A2/main544、原f77 full31FAIL+1TIMEOUT保留，A1/C唯一writer继续；C5非Draft1292@91e已交整片FIRST/S77与组合，限定证据不冒最终main。
 
 一骏最新纠偏：“整体还是听Claude统筹，可以从他那领取独立任务处理，不一定只解决问题和review问题，可以与他组织好领取独立任务，分配1-2个独立任务实现的session。”此前组织合并、持续接续评审与全部有效意见修复的要求保留。Claude是整条防腐线的总统筹，决定任务范围、优先级、跨线依赖和全量排期；下表Codex流水线职责只在Codex侧执行，不能替代Claude。
 
@@ -32,8 +32,8 @@
 | 修复19（维护入口同Home互斥） | Root单题专职，gpt-6.1-sol/max | 01a1719f-51af-7e22-ae84-ea6790e94ea7 | 34b普通路径与最终1dbc增量已有限双核，source/buildf4d；Root已官方归档本专项，leaf SI引用health仍红，实际补/后续full/main由carrier6395294516承接 | 已由Root官方归档，不为一般回执唤醒；源码与有限审验完成不等于leaf health/full/main通过，S07/S12实际同行采用后由PIPE→Claude核。 |
 | #1274重启专项（已双核归档） | Root单题/既有专职，gpt-6.1-sol/max | 01a17224-396a-7ea2-aed3-ef5359eaf305 | f957单parent4043固定，REVIEW6395537884/TEST6395647000齐，Root已官方归档 | 来源+690B必要性已review，原541非全覆盖；carrier与1278/1284真实树核预算/生成物，未采用/full/main不冒完成，不唤醒收据 |
 | 两来源最终闭环（已交付归档） | 专职合并｜PR 1109、1112 收尾 · Codex | 01a16f02-8e7e-7a92-8976-fb7befe916fd | #1236已actual bde02c59；实际树/包含核实后仅1109/1112已19:05关闭，6388316807/6388317402；本人已向Root交付并官方归档该专职 | 未重复queue/full、未动原树；1223已原Claude6388301030关闭，旧三nonblock现FIX2新1253已TEST6390447468 PASS/待首评与actual，不因专职完成关闭整线 |
-| 独立实现 C1/C3/C4/C5 | 既有完整owner，gpt-6.1-sol/max | 01a16c97-0dde-7d82-9244-097a93f50770 | C5生产7a63→最终91e仅spec尾，七路径4+1+2分组有效/TEST原件齐，已获具体入口开唯一完整非Draft PR交Claude FIRST | health S77红透明、row提案由carrier连续表写；FIRST不是开PR前置，原首整组/控制miss/真实App边界保；OAuth C4三WO不改 |
-| 独立实现 C2 | 既有完整owner，gpt-6.1-sol/max | 01a16c97-5b6a-7343-b245-dc63b65e1e11 | only103 ba75包来源REVIEW PASS；消费0cab原父TEST6397009834 NOTPASS，旧新各120s超时/未完整builder；独立restore063f仅同包metadata在跑必要有限 | 不重整父/擅涨时限/假定无回归，Memory两真实端口仍原owner，当前Draft头号不代资格；不混SDK104105/整个Draft/F19，未Ready |
+| 独立实现 C1/C3/C4/C5 | 既有完整owner，gpt-6.1-sol/max | 01a16c97-0dde-7d82-9244-097a93f50770 | C5完整非Draft#1292@91e/base544已创建，七路径4+1+2分组核齐，限定REVIEW6397949240/TEST6397962905绑最终源 | 整片FIRST唯一Claude入口6397953606、S77正文/row-only提案carrier连续表写；leaf引用health红、组合CI/full/App/本人验收保持，原OAuth C4三WO不改 |
+| 独立实现 C2 | 既有完整owner，gpt-6.1-sol/max | 01a16c97-5b6a-7343-b245-dc63b65e1e11 | only103来源PASS，原两父120s NOTPASS/补builder9窄过，本地restore f0ad有限48+缺root3未push | Memory两端口/1064追审原件与新增验证按人类最新暂停，不接手/不催/不取消CI；完整恢复未完。非Memory已成防腐证据保留，原归属不变 |
 | #1275 Markdown（已归档） | Root单题专职，gpt-6.1-sol/max | 01a17243-393f-7ab0-87b9-a62217751e67 | 1294单parent761，最终双核；只converter用户语义/减半持久化验收 | 不改V18/§6+，carrier一次合叠层，root归档不唤醒收据 |
 | #1277 placement（接续batch37 C修复） | Root单题专职，gpt-6.1-sol/max | 01a1725d-9275-72b0-a50f-67eba05e23e1 | 原8f→最终2af仅spec8行限定交付释放；现Root实际派准确f77五read@2消费/fakeGoalDirectory/直接Coding证明 | 首86/87一cancel UNKNOWN随唯一carrier既定组合回归/full跟，不重复旧测/扩调度；先核真实声明与替身，保原生产guard |
 | #1277 UI（双核已归档） | Root单题专职，gpt-6.1-sol/max | 01a17260-f086-75f1-9d25-00e5288cbdc7 | ac7/43049 REVIEW6396653070/TEST6397059682三完整文件22/22，Root已归档 | 仅tests/spec/dist不变，保guard/@2/1278与placement真实hunk；实际carrier/main另核，不唤醒收据 |

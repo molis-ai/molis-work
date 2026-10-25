@@ -4,7 +4,7 @@ import { backupSnapshotSqlite, copySnapshotFile, readSnapshotFile, sealExistingH
 import type { HomeSnapshotFile, HomeSnapshotStoreManifest } from "./home-snapshot-contract.js";
 import type { SnapshotSourceEntry, SnapshotStoreInventory } from "./home-snapshot-inventory.js";
 import { homeSnapshotErrors, type SnapshotKeyDependency } from "./home-store-snapshot.js";
-import { writeSnapshotJson } from "./home-snapshot-publication.js";
+import { syncSnapshotPath, writeSnapshotJson } from "./home-snapshot-publication.js";
 
 interface CaptureControl { readonly signal?: AbortSignal; assertCurrent(): void }
 const sourcePath = (inventory: SnapshotStoreInventory, entry: SnapshotSourceEntry) => entry.relative ? inventory.store.path + "/" + entry.relative : inventory.store.path;
@@ -31,6 +31,8 @@ export async function captureSnapshotStore(home: string, stage: string, inventor
   const base = { path: inventory.store.path, owner: inventory.store.owner, state: inventory.state, exclusions: inventory.exclusions };
   if (inventory.state !== "captured") return { ...base, entries: [], dependencies: [] };
   assertRetainedKey(inventory);
+  // Authenticate the actual private payload before paying for its durability; rejected ciphertext is discarded.
+  const deferFlush = inventory.store.snapshot.inspect !== undefined;
   const keys = dependencies(), entries: HomeSnapshotStoreManifest["entries"][number][] = [];
   for (const directory of inventory.directories) {
     const path = sourcePath(inventory, directory);
@@ -68,12 +70,17 @@ export async function captureSnapshotStore(home: string, stage: string, inventor
       writeSnapshotJson(destination, { schema_version: 1, binding, payload });
       captured = { ...snapshotFileDigest(destination), mode: entry.info.mode & 0o777 };
     } else captured = entry.database ? await backupSnapshotSqlite(entry.path, destination, { ...entry.database, signal: control.signal })
-      : await copySnapshotFile(entry.path, destination, control.signal);
+      : await copySnapshotFile(entry.path, destination, control.signal, !deferFlush);
     control.assertCurrent(); control.signal?.throwIfAborted();
     entries.push({ kind: entry.disposition.kind === "sealed" ? "sealed" : "file", path, payload_path: payloadPath, ...captured, ...(binding ? { binding } : {}) });
   }
   await inventory.store.snapshot.inspect?.(join(stage, "data", inventory.store.path), join(home, inventory.store.path),
     [...inventory.directories, ...inventory.files].map(entry => entry.relative), control);
   control.assertCurrent(); control.signal?.throwIfAborted();
+  if (deferFlush) for (const entry of entries) if (entry.kind === "file" && !entry.sqlite) {
+    control.assertCurrent(); control.signal?.throwIfAborted();
+    syncSnapshotPath(join(stage, entry.payload_path));
+    await new Promise<void>(resolve => setImmediate(resolve));
+  }
   return { ...base, entries, dependencies: keys.all(), ...(ownerPayload ? { owner_payload: ownerPayload } : {}) };
 }

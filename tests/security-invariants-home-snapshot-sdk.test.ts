@@ -32,6 +32,29 @@ if(sealed) {
  await storage.commit({kind:'another-owner~records',id:'kept',expectedVersion:0,metadata:{retained:true},secureBody:Buffer.from('test-only other kind')});
 }else await storage.remove({kind,id:'00001',expectedVersion:1});`;
 
+/** Observe real staged-record fsync completion, or fail that exact I/O boundary; source and directory flushes are untouched. */
+function sdkRecordFlushes(t: TestContext, beforeFlush?: () => void): Set<string> {
+  const paths = new Map<number, string>(), flushed = new Set<string>();
+  const originalOpen = fs.openSync, originalClose = fs.closeSync, originalSync = fs.fsyncSync;
+  const opening = t.mock.method(fs, "openSync", (...args: unknown[]): number => {
+    const descriptor = Reflect.apply(originalOpen, fs, args), path = String(args[0]), index = path.lastIndexOf("/records/");
+    if (path.includes("/.molis-home-snapshot-") && index >= 0 && path.endsWith(".json")) paths.set(descriptor, path.slice(index + "/records/".length));
+    return descriptor;
+  });
+  const closing = t.mock.method(fs, "closeSync", (...args: unknown[]): void => {
+    try { return Reflect.apply(originalClose, fs, args); } finally { paths.delete(args[0] as number); }
+  });
+  const syncing = t.mock.method(fs, "fsyncSync", (...args: unknown[]): void => {
+    const path = paths.get(args[0] as number);
+    if (path) beforeFlush?.();
+    Reflect.apply(originalSync, fs, args);
+    if (path) flushed.add(path);
+  });
+  syncBuiltinESMExports();
+  t.after(() => { opening.mock.restore(); closing.mock.restore(); syncing.mock.restore(); syncBuiltinESMExports(); });
+  return flushed;
+}
+
 async function sdkHome(t: TestContext, partition: "agent" | "builder", sealed: boolean) {
   const f = await smallSnapshotHome(t), relative = partition === "agent" ? "agent-runtime" : "plugin-builder/project/runs/build", root = join(f.home, relative);
   const result = spawnSync(process.execPath, ["--input-type=module", "--eval", seed, root, sealed ? "sealed" : "metadata"], {
@@ -47,17 +70,18 @@ async function sdkHome(t: TestContext, partition: "agent" | "builder", sealed: b
 test("S-12 RAC-104-S-04: actual SDK cipher authentication covers every page, kind, empty body and tombstone without changing source", { timeout: 120_000 }, async t => {
   for (const partition of ["agent", "builder"] as const) await t.test(partition, async t => {
     const f = await sdkHome(t, partition, true), keyPath = join(f.root, "storage.key"), originalKey = await readFile(keyPath);
+    const flushed = sdkRecordFlushes(t);
     await t.test("wrong valid-size key", async () => {
       await writeFile(keyPath, randomBytes(32));
-      try { await assertSnapshotRefused(f); } finally { await writeFile(keyPath, originalKey); await rm(f.snapshot, { recursive: true, force: true }); }
+      try { await assertSnapshotRefused(f); assert.equal(flushed.size, 0, "rejected SDK payloads are not flushed"); } finally { await writeFile(keyPath, originalKey); await rm(f.snapshot, { recursive: true, force: true }); }
     });
     await t.test("missing original key", async () => {
       await rm(keyPath);
-      try { await assertSnapshotRefused(f); } finally { await writeFile(keyPath, originalKey, { mode: 0o600 }); await rm(f.snapshot, { recursive: true, force: true }); }
+      try { await assertSnapshotRefused(f); assert.equal(flushed.size, 0, "missing-key payloads are not flushed"); } finally { await writeFile(keyPath, originalKey, { mode: 0o600 }); await rm(f.snapshot, { recursive: true, force: true }); }
     });
     await t.test("invalid key bytes", async () => {
       await writeFile(keyPath, randomBytes(31));
-      try { await assertSnapshotRefused(f); } finally { await writeFile(keyPath, originalKey); await rm(f.snapshot, { recursive: true, force: true }); }
+      try { await assertSnapshotRefused(f); assert.equal(flushed.size, 0, "invalid-key payloads are not flushed"); } finally { await writeFile(keyPath, originalKey); await rm(f.snapshot, { recursive: true, force: true }); }
     });
     for (const [kind, id] of [["io.molis.snapshot~records", "00000"], ["io.molis.snapshot~records", "00001"], ["io.molis.snapshot~records", "01001"], ["another-owner~records", "kept"]] as const) await t.test("tampered " + kind + "/" + id, async () => {
       const file = join(f.root, "records", kind, id + ".json"), bytes = await readFile(file);
@@ -66,9 +90,10 @@ test("S-12 RAC-104-S-04: actual SDK cipher authentication covers every page, kin
       assert.equal(typeof record.secure?.tag, "string", "the controlled fixture really retained a sealed body");
       const tag = Buffer.from(record.secure.tag, "base64"); tag[0] = tag[0]! ^ 1; record.secure.tag = tag.toString("base64");
       await writeFile(file, JSON.stringify(record));
-      try { await assertSnapshotRefused(f); } finally { await writeFile(file, bytes); await rm(f.snapshot, { recursive: true, force: true }); }
+      try { await assertSnapshotRefused(f); assert.equal(flushed.size, 0, "tampered payloads are not flushed"); } finally { await writeFile(file, bytes); await rm(f.snapshot, { recursive: true, force: true }); }
     });
     const before = await snapshotBusinessFingerprint(f.home), records = await lstat(join(f.root, "records"));
+    const expectedFlushed = new Set([...Array.from({ length: 1002 }, (_, index) => "io.molis.snapshot~records/" + String(index).padStart(5, "0") + ".json"), "another-owner~records/kept.json"]);
     const originalWrite = fs.writeSync, originalRename = fs.renameSync; let probed = false, probedAfterInspection = false;
     const peer = `import{acquireStorageOwner}from'@molis-ai/molis-work-storage';try{const owner=acquireStorageOwner(process.argv[1]);owner.release();process.stdout.write(JSON.stringify({acquired:true}));}catch(error){process.stdout.write(JSON.stringify({code:error.code}));}`;
     const mocked = t.mock.method(fs, "writeSync", (...args: unknown[]): number => {
@@ -81,6 +106,7 @@ test("S-12 RAC-104-S-04: actual SDK cipher authentication covers every page, kin
     });
     const publication = t.mock.method(fs, "renameSync", (...args: unknown[]): void => {
       if (args[1] === f.snapshot) {
+        assert.deepEqual(flushed, expectedFlushed, "every original SDK record, including every page/owner/tombstone, is durable before publication");
         probedAfterInspection = true;
         const held = spawnSync(process.execPath, ["--input-type=module", "--eval", peer, join(f.home, "agent-runtime")], { env: process.env, encoding: "utf8", timeout: 15_000 });
         assert.equal(held.status, 0, held.stderr); assert.deepEqual(JSON.parse(held.stdout), { code: "storage.owner.busy" });
@@ -154,5 +180,10 @@ test("S-12 RAC-104-S-04: authentication inspects the actual private payload even
     try { await assertSnapshotRefused(f); }
     finally { opening.mock.restore(); writing.mock.restore(); syncBuiltinESMExports(); }
     assert.equal(tampered, true, "only the staged ciphertext was changed, before the real owner inspection");
+    let flushFailed = false;
+    sdkRecordFlushes(t, () => { flushFailed = true; throw new Error("fixture authenticated SDK payload flush failed"); });
+    await assertSnapshotRefused(f, undefined, /fixture authenticated SDK payload flush failed/u);
+    assert.equal(flushFailed, true, "a valid SDK payload still requires its real file flush before publication");
+    const owner = acquireStorageOwner(join(f.home, "agent-runtime")); owner.release();
   });
 });

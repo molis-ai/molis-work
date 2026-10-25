@@ -70,7 +70,7 @@ pnpm test:run tests/feed-security.test.ts tests/web-home-isolation.test.ts tests
 
 ## 开发要求
 
-`backupSnapshotSqlite` 只读源库、使用 SQLite backup API 包含已提交 WAL，在私有副本核 owner 版本、schema、integrity/外键并刷盘；`copySnapshotFile` 与摘要端口拒绝链接、特殊文件和读取期间的改动，普通文件使用有界内存流式复制。调用方须先排除所有权锁及其侧车，不能打开它们做摘要。Home 路径、存储集合、同 Home lease 和原 key 策略由 Host 编排，不在 storage 复制业务名单；原 key 只记身份，不导出。回归包含 `tests/home-snapshot-content.test.ts`、`tests/security-invariants-home-snapshot-inputs.test.ts` 与 `tests/security-invariants-home-snapshot-lifecycle.test.ts`。
+`backupSnapshotSqlite` 只读源库、使用 SQLite backup API 包含已提交 WAL，在私有副本核 owner 版本、schema、integrity/外键并刷盘；`copySnapshotFile` 与摘要端口拒绝链接、特殊文件和读取期间的改动，普通文件使用有界内存流式复制，默认在返回前刷盘。持离线 lease 的快照 owner 可明确延后私有副本的刷盘，先认证实际副本，再在发布前刷齐每个文件；认证或刷盘失败均不发布，不能把这个参数用于省略成功产物的持久化。调用方须先排除所有权锁及其侧车，不能打开它们做摘要。Home 路径、存储集合、同 Home lease 和原 key 策略由 Host 编排，不在 storage 复制业务名单；原 key 只记身份，不导出。回归包含 `tests/home-snapshot-content.test.ts`、`tests/security-invariants-home-snapshot-inputs.test.ts` 与 `tests/security-invariants-home-snapshot-lifecycle.test.ts`。
 
 - 负责：SQLite、文件系统、Blob、事务、当前 schema 基线与版本校验、备份与本地密钥存储的技术端口；系统搜索的本地全文索引适配（`openTextSearchIndex`，`{home}/search/search.db`）。
 - 不负责：Module schema 的业务含义、跨 Module 查询；搜索来源的发现、同步与权限（归 `horizontal/search`）。

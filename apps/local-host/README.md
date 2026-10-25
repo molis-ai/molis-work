@@ -269,6 +269,8 @@ Work 助理的单轮材料接收最多 6 张图片、100000 字符文本，与 I
 
 `createHomeSnapshot` 是离线维护入口，先取得同一存储 lease，再按 `homeStores(home)` 唯一集合枚举文件、实际安装库及项目分区；不启动业务 Host、插件或调度。registry 保留各 owner 的版本检查与密钥/排除策略，Host 不跨 owner 查业务表。SDK 各实际 root 在最终私有 payload 中经 agent-host 的原 SDK reader 认证，key 只从原 Home 读，全部 kind/分页、空正文与保留密文墓碑均验证，无 sealed 数据不补 key。输出完成后一次发布，原锁和父目录保持；普通失败清理，发布后刷盘失败明确保留。完整 restore 仍在 W5-16 后续，限制及恢复步骤见 [CLI 与开发](../../docs/cli-and-development.md#home-离线快照)。回归：`node scripts/run-tests.mjs tests/home-snapshot-cli.test.ts tests/home-snapshot-content.test.ts tests/security-invariants-home-snapshot-inputs.test.ts tests/security-invariants-home-snapshot-lifecycle.test.ts tests/security-invariants-home-snapshot-sdk.test.ts tests/sessions-offline.test.ts`。
 
+有 owner 检查的快照 store 先复制完整的过滤后私有副本并认证，成功后才刷齐普通文件；所有文件、清单和目录仍在发布前持久化。拒绝的密文不再先逐个刷盘再丢弃。认证后刷盘失败仍清理暂存、保留原 Home，不发布半成品；原120秒认证组合、1002记录及跨页/owner/空正文/墓碑覆盖不变。
+
 受管理 CLI 的包、原生发行物及前置配置都在现有 `CONNECTOR_CLIS` 适配表声明。原生下载按官方校验和固定，只提取指定普通文件；Graph 复用或补装固定 PowerShell，并用官方包管理器将固定认证模块保存在连接自身目录。飞书/Lark 配置向导继续使用该安装，完成后仍需账号登录；X 应用凭据只从受保护表单进入适配声明的环境变量，不进入参数或模型状态。CLI 输出按提交值遮蔽，重新打开原接入页恢复正在进行的交互。回归见 `tests/security-invariants-native-cli.test.ts`、`tests/security-invariants-graph-cli-install.test.ts` 与 `tests/security-invariants-cli-configuration.test.ts`。
 
 `connectors.usages.read` 从共同动作目录发现连接消费方查询，以当前调用者身份汇总真实使用位置；业务模块各读自己的来源、配置和绑定，Host 不存第二份关联。返回原业务动作引用与非敏感部分参数，当前目录不可调用的仍明确阻塞；Home 查询不打开其他项目。模型配置使用位置由 `model-connection-usages.ts` 从原 catalog 和连接引用投影，不增加模型调用通道。回归：`tests/connector-consumer-usages.test.ts`。

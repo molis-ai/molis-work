@@ -1,8 +1,24 @@
 # W5-16：Home 离线快照与恢复
 
-状态：Codex C2 实施中；本树是冻结 snapshot `1556d97b7` 的独立过渡 SDK 消费后继，按 Root/PIPE 已确认的基点和范围执行，最终 SDK 源固定 `ba75c9f8`。两目录重建与本应用验证正在进行；原 #1267、恢复 WIP、FIX8/18/19 和唯一 carrier 保持原分工。本后继未 Ready、不代表完整 snapshot/restore 或本人验收完成。负责人：Codex 实现2；目标仍是完整命令功能可用，工程、临时 Home 实操、本人验收分别结算。
+状态：完整 Codex C2 仍未完成；Root 2026-10-25 仅重新授权实现2处理 #1267 非 Memory 的 SDK 快照认证父测试超时。本树准确从固定 SDK 消费者 `0cabdc7a4fa0ac22e3d422aad939921121976826` 分出，SDK 源仍固定 `ba75c9f8`，不重做已双核包或分类/格式片。Memory #1059/#1064/#1101、两端口及 dependency_unavailable 接续继续暂停；这不是恢复整个 C2。本题验证完成、独立审验和 carrier 采用分别结算，不冒 Ready、完整 snapshot/restore 或本人验收完成。
 
 ## 目标、依据与交付顺序
+
+### #1267 非 Memory 认证父项超时（2026-10-25 接受 WO）
+
+唯一 writer 为 Codex 实现2，分支 `feature/codex-pr1267-snapshot-auth-timeout`，父为准确 `0cabdc7a4fa0ac22e3d422aad939921121976826`；原 PR `1556d97b7eb35d72de8b83b7569fbfd48b239760`、SDK 包/provenance 及其他工作树保持。目标只关闭原 `S-12 RAC-104-S-04: actual SDK cipher authentication covers every page, kind, empty body and tombstone without changing source` 的组合父项超时，沿用 RAC-104-S-04 / RAC-104-S-10，不新增全局编号。
+
+已核 [TEST 6397009834](https://github.com/molis-ai/molis-work/pull/1267#issuecomment-6397009834) 的原件 `/tmp/molis-verify-2026-10-25/c2-0cab-control-test/`：1556 为 pass3/fail4/cancel3、父120111ms；0cab 为 pass6/fail1/cancel3、父120008ms；相同1002记录、原fixture/runner、串行FIFO，均为 NOTPASS，原根因仍 UNKNOWN。builder-only 9/9、55.436秒只覆盖该分区，不能代替组合父项。保留首红、未选与取消；本题不重跑已完成的其他分类/格式/103包采用工作。
+
+先定位，再修复：读取实际 capture→逐文件耐久复制→SDK只读认证→发布/清理链，并以透明进程内计时区分 seed子进程、指纹、复制/刷盘、SDK认证及退出；不启动真实Host/Runtime/模型。当前可验证假设是每个认证负例在到达只读SDK前都重新复制并fsync全部1003文件，重复耐久写可能主导总耗时；已有一次局部诊断仅证明其单次成本，尚不能归因为原父项。新的有限诊断须能区分这一假设与认证/关闭等待或fixture问题，不把抽选/插桩结果冒充完整产品通过。
+
+允许改现有 snapshot tests/fixtures、实际根因涉及的最小快照模块及本段。若测试组织有误，保持原完整语义再修组织；若生产缺陷则修完整必要调用链。SDK源码或发布包确需变化时先携具体证据/最小改动交 Root 与原上游/pack owner 串行，本题不自行替换或改 provenance。
+
+验收保持原120秒父项，1002同kind记录加其他owner、跨页、空secure body、保留密文墓碑、错/缺/坏key、四个tag拒绝、零源写、完整正控、两次跨进程lease排斥及无初始化断言全部保留；不得增加timeout、减记录/断言/owner、以环境绿或builder-only代替。最终须真实完整组合自然通过，并跑相关原快照用例，才能关闭本题。测试仅隔离Home，重活走公共FIFO，不新增full/CI/browser批；普通push前fresh-fetch/secrets，固定 parent/head、根因、完整diff与原件直接交 REVIEW/TEST/PIPE/Root，由Claude唯一采用。验证事实在本段后续回填。
+
+诊断更新：候选原源码/构建摘要匹配 `bb52fb123a1897b7fc2b686836ed94bd1e7737f7571bac17db17d3156f64efab`。外置透明FS/spawn计时下，未修改的完整父项本次17/17、87.687秒；这只证明该次运行，不抹原红。16次capture的16054次records文件/目录fsync共58.819秒，其中14个负控各1003次文件fsync，合计51.625秒；认证读取窗口每次最多108ms，清理每次37～78ms，两个seed共9.309秒，source观察共2.684秒。已确认重复持久化最终被认证拒绝的私有副本是主要结构性成本；历史两次未插桩的具体停顿仍保留边界。原件在 `/tmp/molis-pr1267-snapshot-auth-timeout-20261025/phase-original/`，不计为修复通过。
+
+实施收敛：仅有 owner `inspect` 的快照store把普通文件刷盘延到该次完整私有payload认证成功之后；仍逐个刷齐，在manifest/目录最终flush及发布之前完成。普通复制默认即时刷盘，不改其他消费者。SDK仍只认证经过原排除规则的真实暂存payload，不新增原目录预验（原目录可能含既定排除的未完成claim/tmp）、解密器、缓存或另一套owner协议。保留原摘要/源稳定检查、离线lease、失败清理与发布后flush失败语义。原测试增加负控无record刷盘、成功发布前全1003个record已刷盘、认证成功后的刷盘故障拒绝与零源写；不减少原认证组合或改120秒。
 
 ### #1267 final103 过渡 SDK 消费（2026-10-25 当前合同）
 

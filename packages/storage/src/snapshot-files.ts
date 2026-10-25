@@ -53,8 +53,8 @@ export function readSnapshotFile(file: string, maximumBytes: number): Buffer {
   } finally { closeSync(descriptor); }
 }
 
-/** Stream one ordinary file into a private new payload, preserving its mode only as metadata. */
-export async function copySnapshotFile(file: string, destination: string, signal?: AbortSignal): Promise<{ size: number; sha256: string; mode: number }> {
+/** Stream one ordinary file into a private new payload. A caller deferring flush must sync the validated payload before publication. */
+export async function copySnapshotFile(file: string, destination: string, signal?: AbortSignal, flush = true): Promise<{ size: number; sha256: string; mode: number }> {
   const { descriptor, before } = openFile(file);
   let target: number | undefined;
   try {
@@ -72,7 +72,7 @@ export async function copySnapshotFile(file: string, destination: string, signal
       await new Promise<void>(resolve => setImmediate(resolve));
     }
     unchanged(file, descriptor, before);
-    fsyncSync(target);
+    if (flush) fsyncSync(target);
     return { size: offset, sha256: hash.digest("hex"), mode: before.mode & 0o777 };
   } finally { if (target !== undefined) closeSync(target); closeSync(descriptor); }
 }

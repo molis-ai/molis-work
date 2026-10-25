@@ -3,16 +3,16 @@ import { basename, dirname, join, relative, resolve, sep } from "node:path";
 import { snapshotDirectoryInfo } from "./home-snapshot-inventory.js";
 import { homeSnapshotErrors } from "./home-store-snapshot.js";
 
-export function syncSnapshotDirectory(directory: string): void {
-  const descriptor = openSync(directory, "r");
+/** Flush a completed private payload file or one of its publication directories. */
+export function syncSnapshotPath(path: string): void {
+  const descriptor = openSync(path, "r");
   try { fsyncSync(descriptor); } finally { closeSync(descriptor); }
 }
 
 export function writeSnapshotJson(file: string, contents: unknown): void {
   mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
   writeFileSync(file, JSON.stringify(contents) + "\n", { flag: "wx", mode: 0o600 });
-  const descriptor = openSync(file, "r");
-  try { fsyncSync(descriptor); } finally { closeSync(descriptor); }
+  syncSnapshotPath(file);
 }
 
 function outside(home: string, destination: string): boolean {
@@ -49,7 +49,7 @@ export function snapshotDestination(home: string, requested: string) {
         reservation = lstatSync(path);
         assertParent();
         renameSync(stage, path); published = true; reservation = undefined;
-        try { syncSnapshotDirectory(parent); }
+        try { syncSnapshotPath(parent); }
         catch { throw homeSnapshotErrors.published_unconfirmed(`快照目录已发布，持久化未确认。请保留并核验 ${path}，不要当作零产物重试覆盖`); }
         return path;
       },

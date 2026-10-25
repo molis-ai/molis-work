@@ -5,7 +5,7 @@ import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 import { captureSnapshotStore } from "./home-snapshot-capture.js";
 import type { HomeSnapshotDirectory, HomeSnapshotManifest, HomeSnapshotResult, HomeSnapshotStoreManifest } from "./home-snapshot-contract.js";
 import { assertSnapshotHomeInventory, inventorySnapshotStore, snapshotDirectoryInfo } from "./home-snapshot-inventory.js";
-import { snapshotDestination, syncSnapshotDirectory, writeSnapshotJson } from "./home-snapshot-publication.js";
+import { snapshotDestination, syncSnapshotPath, writeSnapshotJson } from "./home-snapshot-publication.js";
 import { homeSnapshotErrors } from "./home-store-snapshot.js";
 import { homeStores } from "./home-stores.js";
 import { resolveConfiguredHome } from "./product-home.js";
@@ -55,7 +55,7 @@ export async function createHomeSnapshot(options: HomeSnapshotOptions): Promise<
       while (directory !== publication.stage) { directories.add(directory); directory = dirname(directory); }
     }
     for (const store of stores) if (store.owner_payload) directories.add(dirname(join(publication.stage, store.owner_payload.payload_path)));
-    for (const directory of [...directories].sort((a, b) => b.length - a.length)) syncSnapshotDirectory(directory);
+    for (const directory of [...directories].sort((a, b) => b.length - a.length)) syncSnapshotPath(directory);
     assertCurrent();
     const published = publication.publish();
     return { status: "created", home_directory: home, snapshot_directory: published, stores: stores.length,

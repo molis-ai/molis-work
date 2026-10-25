@@ -51,6 +51,12 @@ const builtinOf = (view: ActionView) => {
   return entry && view.provider.provider_id === pluginId ? entry : undefined;
 };
 
+/** The same installation key for candidate collection and the provider's reference diagnostics. */
+export function referenceKindInstallation(view: ActionView): string {
+  const pluginId = view.provider.plugin_id ?? view.provider.provider_id;
+  return builtinOf(view) ? `builtin:${pluginId}` : `installed:${view.provider.plugin_install_id ?? pluginId}`;
+}
+
 /**
  * The kinds a round in a project may ask for (BL-152): those of the plugins installed and shown in it. An action that is
  * not available here, a built-in plugin the project does not show, and a plugin the project hid are left out, as the side
@@ -62,7 +68,7 @@ export function projectReferenceKinds(views: readonly ActionView[], shown: Reado
     const pluginId = view.provider.plugin_id ?? view.provider.provider_id, builtin = builtinOf(view);
     if (!view.availability.available || hidden.has(builtin?.project_plugin_id ?? pluginId) || (builtin && shown && !shown.has(builtin.project_plugin_id))) continue;
     // One installation is one plugin: another installation that names a built-in plugin's id is not that plugin.
-    const key = builtin ? `builtin:${pluginId}` : `installed:${view.provider.plugin_install_id ?? pluginId}`;
+    const key = referenceKindInstallation(view);
     if (!plugins.has(key)) plugins.set(key, { pluginId, installation: key, views: [] });
     plugins.get(key)!.views.push(view);
   }

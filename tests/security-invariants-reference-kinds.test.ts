@@ -12,7 +12,10 @@ import { defineSearchEntriesAction, defineSubjectContextAction } from "@molis-ai
 import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
 
 const requireSdk = createRequire(new URL("../horizontal/agent-host/package.json", import.meta.url));
-const { QUESTIONNAIRE_LIMITS } = await import(requireSdk.resolve("@prologue/sdk")) as { QUESTIONNAIRE_LIMITS: { maxRefKindChars: number; maxRefKindTitleChars: number; maxAppRefKinds: number } };
+const { QUESTIONNAIRE_LIMITS, resolveModuleConfig } = await import(requireSdk.resolve("@prologue/sdk")) as {
+  QUESTIONNAIRE_LIMITS: { maxRefKindChars: number; maxRefKindTitleChars: number; maxAppRefKinds: number };
+  resolveModuleConfig: (config: { tool: { askUserQuestionTypes: readonly string[]; askUserReferenceKinds: readonly { kind: string; title: string }[] } }) => unknown;
+};
 
 /**
  * S-32 (BL-152): an external plugin's kinds and display names reach the model's tool schema only as bounded, one-line names
@@ -63,6 +66,23 @@ const offering = (provider: Partial<ActionView["provider"]>, kind: string, title
   const reader = defineSubjectContextAction(`${provider.provider_id}.subject.read`, kind, title, []).action;
   return [view(provider, search, available), ...(read ? [view(provider, reader, available)] : [])];
 };
+
+// PG015-DUP-01/02/05: diagnostic preparation only; choosing and reading both providers needs a provider-aware contract.
+test("PG015-DUP-01 PG015-DUP-02 each colliding installation is diagnosed once, including the first, and declaration order is stable", () => {
+  const foreign = offering({ provider_id: "foreign-goals", plugin_id: "io.a.goals", plugin_install_id: "foreign-goals", title: "外部目标" }, "goal", "外部目标");
+  const builtin = offering({ provider_id: "io.molis.work.goals", plugin_id: "io.molis.work.goals", title: "Goals" }, "goal", "目标");
+  const rows = [...foreign, ...foreign, ...builtin];
+  const result = boundReferenceKinds(projectReferenceKinds(rows, undefined, new Set()));
+  assert.deepEqual(result.problems.filter(problem => problem.reason === "duplicate").map(problem => [problem.plugin_id, problem.installation, problem.kinds]), [
+    ["io.a.goals", "installed:foreign-goals", ["goal"]], ["io.molis.work.goals", "builtin:io.molis.work.goals", ["goal"]],
+  ], "both installations get one diagnostic; repeated search declarations are not another installation");
+  assert.deepEqual(boundReferenceKinds(projectReferenceKinds([...rows].reverse(), undefined, new Set())), result);
+  const repeated = boundReferenceKinds(projectReferenceKinds([...foreign, ...foreign], undefined, new Set()));
+  assert.equal(repeated.kinds.length, 1);
+  assert.deepEqual(repeated.problems, [], "one installation repeating its declaration is not a collision");
+  assert.doesNotThrow(() => resolveModuleConfig({ tool: { askUserQuestionTypes: hostQuestionTypes(), askUserReferenceKinds: result.kinds } }),
+    "PG015-DUP-05: diagnostic preparation must not hand duplicate kinds to the real SDK and stop the whole round");
+});
 
 test("S-32 a project's list leaves out a hidden plugin, a built-in it does not show, an unavailable action and a kind its plugin cannot read back", () => {
   const views = [

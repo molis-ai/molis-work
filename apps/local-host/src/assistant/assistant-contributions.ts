@@ -6,7 +6,7 @@
 import { actionEffect, isSubjectReader, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantContribution } from "@molis-ai/molis-work-contracts/services/assistant";
 import { boundReferenceKinds, type ReferenceKindProblem } from "@molis-ai/molis-work-service-agent-host";
-import { projectReferenceKinds } from "../agent-question-surfaces.js";
+import { projectReferenceKinds, referenceKindInstallation } from "../agent-question-surfaces.js";
 
 type Schema = { properties?: Record<string, { title?: unknown; description?: unknown }> };
 
@@ -15,12 +15,13 @@ const REFERENCE_GAPS: Record<ReferenceKindProblem["reason"], (problem: Reference
   kind: problem => `对象种类 ${problem.kinds.join("、")} 的写法不是标识（小写字母开头，只用小写字母、数字和 _ . -，最长 ${problem.limit} 个字符）：助理的对象引用题问不到它。`,
   title: problem => `对象种类 ${problem.kinds.join("、")} 的显示名是空的、不止一行或超过 ${problem.limit} 个字：助理的对象引用题问不到它。`,
   limit: problem => `对象种类 ${problem.kinds.join("、")} 超出了一个项目最多 ${problem.limit} 种的上限（按插件标识排，每个插件分同样的份额，列得多的用别人剩下的）：助理的对象引用题问不到它。`,
+  duplicate: problem => `对象种类 ${problem.kinds.join("、")} 与其他安装重名：当前对象引用题的协议不能区分提供方，需要补齐提供方选择和回读。`,
 };
 
 export function assistantContributions(views: readonly ActionView[]): AssistantContribution[] {
   const referenceGaps = new Map<string, AssistantContribution["gaps"]>();
   for (const problem of boundReferenceKinds(projectReferenceKinds(views, undefined, new Set())).problems) {
-    referenceGaps.set(problem.plugin_id, [...referenceGaps.get(problem.plugin_id) ?? [], { area: "context", text: REFERENCE_GAPS[problem.reason](problem) }]);
+    referenceGaps.set(problem.installation, [...referenceGaps.get(problem.installation) ?? [], { area: "context", text: REFERENCE_GAPS[problem.reason](problem) }]);
   }
   const agents = views.filter(view => view.action.audiences.includes("agent"));
   // A result is read back by whichever provider reads its kind, as the Assistant's work does.
@@ -40,7 +41,7 @@ export function assistantContributions(views: readonly ActionView[]): AssistantC
     const searchable = rows.some(view => Boolean((view.action as { search_source?: unknown }).search_source));
     const undescribed = rows.filter(view => !view.action.description?.trim() || view.action.description.trim() === view.action.title.trim());
     const untitled = rows.filter(view => Object.values((view.action.input_schema as Schema | undefined)?.properties ?? {}).some(field => !field.title && !field.description));
-    const gaps: AssistantContribution["gaps"] = [...referenceGaps.get(provider.plugin_id ?? provider.provider_id) ?? []];
+    const gaps: AssistantContribution["gaps"] = [...referenceGaps.get(referenceKindInstallation(rows[0]!)) ?? []];
     const unread = kinds.filter(kind => !readableAnywhere.has(kind));
     if (unread.length && !readable.length) gaps.push({ area: "context", text: `它的对象（${unread.join("、")}）没有读取动作：助理不能回到对象读当前内容，也看不出你手动改过什么。按约定声明 subject.read（defineSubjectContextAction）。` });
     else for (const kind of unread) gaps.push({ area: "context", text: `对象种类 ${kind} 没有读取动作，助理不能读回这种对象。` });

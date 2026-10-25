@@ -139,8 +139,8 @@ test("W2-18-DIFF-FILE-01: a real Coding frozen output selects distinct files and
     receipt: { review_id: "review-" + index, status: "approved", effect_settled: true, effect_error: null },
   }));
   const privateValues = new Map<string, string>();
-  // The fake Agent Host answers its actions (R8 batch 3) and the typed capabilities still left from one table.
-  const agentHost = withFakeAgentHost({ actions: pluginActions(store, DEMO_PROJECT_ID), capabilities: { async invoke<I, O>(definition: { capability_id: string }, _input: I): Promise<O> {
+  // The fake Agent Host answers its actions (R8 batch 3) from one table.
+  const agentHost = withFakeAgentHost({ actions: pluginActions(store, DEMO_PROJECT_ID), agentHost: { async invoke<I, O>(definition: { capability_id: string }, _input: I): Promise<O> {
     reads++; if (!readable) throw new Error("runtime unavailable after capture");
     // Like a Host whose runtime has no task graph: Coding's wake loop ends here instead of retrying in the background
     // (each retry would land on a later read, after the capture, when the run is slower than its 5 s back-off).
@@ -154,9 +154,8 @@ test("W2-18-DIFF-FILE-01: a real Coding frozen output selects distinct files and
     artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: id => store.eventCursor(id) }),
     processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: id => store.eventCursor(id) }), ui: new UiHost(), home: null,
     privateStorageFor: () => ({ get: key => privateValues.get(key) ?? null, set: (key, value) => { privateValues.set(key, value); }, delete: key => privateValues.delete(key) }),
-    capabilities: agentHost.capabilities,
   });
-  const started = await platform.start([{ definition: createCodingPlugin(), bundled: true }, { definition: createDiffPlugin(), bundled: true }]);
+  const started = await platform.start([{ definition: createCodingPlugin(), trust: { level: "host" } }, { definition: createDiffPlugin(), trust: { level: "host" } }]);
   t.after(async () => { await platform.closeCoordination(); store.close(); await rm(directory, { recursive: true, force: true }); });
   assert.deepEqual(started.failed, []); assert.deepEqual(started.blocked, []);
   const dispatch = async (pathname: string, method: "GET" | "POST" = "GET", body?: unknown, query: Record<string, string> = {}) => {

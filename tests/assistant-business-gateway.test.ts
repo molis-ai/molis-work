@@ -1328,13 +1328,13 @@ test("the project layer of a project work is the project's guidance, read throug
 
     const [layer] = await assistantProjectPrompts(host, work);
     assert.equal(layer?.prompt_id, "project-guidance"); assert.match(layer!.body, /保留源文件/);
-    assert.deepEqual(settled.map(row => [row.capability_id, row.path, row.actor_id, row.ok]), [["goals.guidance.read", undefined, "web-user", true]], "one Goals action, no typed capability");
+    assert.deepEqual(settled.map(row => [row.capability_id, row.actor_id, row.ok]), [["goals.guidance.read", "web-user", true]], "one Goals action");
     const providers = new Set((await host.actionClient(project_ref, false).discover({ actor_id: "web-user", actor_kind: "user", audience: "user", project_id: "assistant-guided", permissions: ["goals:read"] })).map(view => view.provider.provider_id));
     assert.deepEqual(["io.molis.work.coding", "io.molis.work.shelf"].filter(plugin => providers.has(plugin)), [], "reading the guidance started no Runtime plugin");
 
     settled.length = 0; removed = true;
     assert.deepEqual(await assistantProjectPrompts(host, work), [], "without Goals the work has no project layer");
-    assert.deepEqual(settled.map(row => [row.capability_id, row.path, row.ok, row.code]), [["goals.guidance.read", undefined, false, "actions.plugin_disabled"]]);
+    assert.deepEqual(settled.map(row => [row.capability_id, row.ok, row.code]), [["goals.guidance.read", false, "actions.plugin_disabled"]]);
     assert.deepEqual(await assistantProjectPrompts(host, { work_id: "personal" } as StoredWork), [], "personal work has no project");
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });

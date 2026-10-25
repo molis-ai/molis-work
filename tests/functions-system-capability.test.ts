@@ -29,6 +29,8 @@ import {
   functionsErrors,
   createFunctionsService,
   publishedFunctionAction,
+  publishedFunctionReference,
+  publishedFunctionKey,
   type TypeSafeProvider,
 } from "@molis-ai/molis-work-module-functions";
 import { feedManifest } from "@molis-ai/molis-work-plugin-feed";
@@ -41,6 +43,16 @@ import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.j
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
+
+test("FI-1 RAC-482 published rule references keep their owner, key and exact version without a full definition", () => {
+  const identity = { function_key: "next_step_v7", status: "published" as const, version: 7 };
+  const reference = publishedFunctionReference(identity);
+  assert.deepEqual(reference, { capability_id: "functions.published.next_step_v7", version: 7, provider_id: "system.functions" });
+  assert.equal(publishedFunctionKey(reference), "next_step_v7");
+  for (const record of [{ ...identity, status: "draft" as const }, { ...identity, version: null }, { ...identity, version: 0 }]) {
+    assert.throws(() => publishedFunctionReference(record), { code: "actions.function_unpublished" });
+  }
+});
 
 function fixtureProvider(choice: string | null): TypeSafeProvider {
   return {

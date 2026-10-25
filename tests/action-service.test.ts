@@ -53,7 +53,7 @@ test("unknown SDK plugin registers a real write and read through Runtime; stoppi
   const repository = new MemoryPluginRuntimeRepository();
   const runtime = new PluginRuntime(repository, undefined, { actions: { registry: service, project_id: context.project_id! } });
   try {
-    const installed = runtime.install({ definition: plugin, deployment: "local", grants: ["notes:write"] }).install;
+    const installed = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["notes:write"] }).install;
     assert.deepEqual(service.discover(context), []);
     await runtime.start(installed.install_id);
     assert.deepEqual(service.discover(context).map(x => x.capability_id), [write.definition.capability_id, read.definition.capability_id]);
@@ -393,7 +393,7 @@ test("unknown Runtime scene exposes actual configuration targets and preserves o
     }] }; } });
   const repository = new MemoryPluginRuntimeRepository();
   const runtime = new PluginRuntime(repository, undefined, { actions: { registry: service, project_id: context.project_id! } });
-  const installed = runtime.install({ definition: plugin, deployment: "local", grants: [] }).install;
+  const installed = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: [] }).install;
   await runtime.start(installed.install_id);
   try {
     const fn = { ...judgment, provider_id: provider.provider_id };

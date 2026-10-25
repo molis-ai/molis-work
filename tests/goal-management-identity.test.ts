@@ -11,11 +11,9 @@ import * as goalsPlugin from "@molis-ai/molis-work-plugin-goals";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
-import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionMetadata, type ActionReference, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { HostCapabilityCallOptions, HostCapabilityDefinition, HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
+import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionDefinition, type ActionMetadata, type ActionReference, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { managementCaller, managementGoals } from "./goal-management-caller.js";
-import { createPluginCapabilityClient } from "@molis-ai/molis-work-plugin-runtime";
-import { filesManifest } from "@molis-ai/molis-work-plugin-files";
 import { callAs, callerPlugin, issuedCaller, registerProbe, startProjectPlugins } from "./fixtures/plugin-callers.js";
 
 /**
@@ -41,7 +39,7 @@ const formerDoors = (goal_id: string, cursor: number): FormerDoor[] => [
 /**
  * The CLI and the management MCP are the management door. They have no caller identity of their own, so they record the person on
  * this machine and refuse an actor_id or actor_kind carried in the arguments instead of trusting it (specs/goal-closure-identity).
- * Goals management writes are actions; only Coding's four typed protocols remain. The action caller supplies the project and identity,
+ * Goals management writes are actions. The action caller supplies the project and identity,
  * so a foreign project stays a scope mismatch and an input cannot supply the writer.
  */
 test("every management write records the person on this machine and refuses an identity in its arguments", async () => {
@@ -86,7 +84,7 @@ test("every management write records the person on this machine and refuses an i
     const forgedCheck = { proposal_id: "p", idempotency_key: "refused-check", actor_id: "someone-else" };
     await assert.rejects(management.invoke(goalsActions.treeCheck, forgedCheck as never), { code: "actions.input_invalid" });
     await assert.rejects(actions.invoke(managementCaller("foreign"), goalsActions.treeCheck, forgedCheck as never), { code: "actions.scope_mismatch" });
-    // The progress capability Coding uses has no project in its input; the typed Host client is the management door there too.
+    // The progress action Coding uses has no project in its input; the management caller is the door there too.
     for (const identity of [{ actor_id: "someone-else" }, { actor_kind: "runtime" }]) {
       await assert.rejects(management.invoke(goalPluginActions.progress, { goal_id, based_on_cursor: before, summary: "进展", idempotency_key: "refused-record", ...identity } as never),
         { code: "actions.input_invalid" });
@@ -126,7 +124,9 @@ test("W3-07-5-01 / W3-07-8-02: all fourteen retired Goals literals refuse Host a
   const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "Plugin", actor_id: "user" }));
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
   const writer = callerPlugin("goalwriter", "project", { "goals:read": true, "goals:write": true });
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { project: [writer.definition] } });
+  // A plugin whose Manifest still lists every retired literal: listing one does not bring it back.
+  const retired = callerPlugin("goalretired", "project", {}, RETIRED_GOALS_ENTRIES.map(([capability_id]) => capability_id));
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { project: [writer.definition, retired.definition] } });
   const typed = host.client(ref), project_id = project.project_id, goal_id = "PLUGIN-GOAL";
   const management = managementGoals(host.actionClient(ref), project_id);
   const event = (eventId: string) => host.withProject(ref, runtime => runtime.coordinator.goalEvents.readEvent(project_id, goal_id, eventId));
@@ -136,13 +136,12 @@ test("W3-07-5-01 / W3-07-8-02: all fourteen retired Goals literals refuse Host a
     const probe = registerProbe(host.actionRegistry(ref), "project");
     await startProjectPlugins(host, ref);
     const issued = await issuedCaller(probe, writer, project_id);
-    const asPlugin: HostCapabilityCallOptions = { consumer: "plugin", before_effect: async () => {}, plugin_caller: issued };
     const forged: HostPluginCaller = { ...issued, assertActive: () => {} };
     await management.invoke(goalsActions.create, { goal_id, title: "插件", outcome: "不能冒充本机这个人", idempotency_key: "create" });
     const before = await management.invoke(goalsActions.snapshot, {});
-    const descriptors = RETIRED_GOALS_ENTRIES.map(([capability_id, operation]) => ({ capability_id, version: 1, operation }) as HostCapabilityDefinition<unknown, unknown>);
-    const sdk = createPluginCapabilityClient({ ...filesManifest, plugin_id: "io.molis.work.test.goal-writer",
-      capabilities: { provides: [], consumes: descriptors.map(entry => entry.capability_id) } }, typed);
+    // A descriptor with no action behind it: what an old caller still holding the literal would pass.
+    const descriptors = RETIRED_GOALS_ENTRIES.map(([capability_id, operation]) => ({ capability_id, version: 1, operation }) as ActionDefinition<unknown, unknown>);
+    const sdk = retired.actions(project_id), control = { beforeEffect: async () => {} };
     for (const descriptor of descriptors) {
       for (const availability of [typed.availability(descriptor), sdk.availability(descriptor)]) {
         assert.equal(availability.available, false, descriptor.capability_id);
@@ -150,12 +149,11 @@ test("W3-07-5-01 / W3-07-8-02: all fourteen retired Goals literals refuse Host a
       }
       const input = { project_id, title: "不可复活", goal_id: "PLUGIN-SECOND", idempotency_key: "retired" };
       const callId = newCallId();
-      await withCallId(callId, () => assert.rejects(typed.invoke(descriptor, input), { code: "actions.dependency_missing" }, descriptor.capability_id));
+      await withCallId(callId, () => assert.rejects(typed.invoke(descriptor, input), { code: "actions.missing" }, descriptor.capability_id));
       const rows = host.callLog!.find(callId);
       assert.equal(rows.length, 1, "the refused call has one findable diagnostic row");
-      assert.deepEqual([rows[0]!.code, rows[0]!.refused, rows[0]!.path, rows[0]!.message], ["actions.dependency_missing", true, "typed", undefined]);
-      await assert.rejects(sdk.invoke(descriptor, input), { code: "actions.dependency_missing" }, descriptor.capability_id);
-      await assert.rejects(typed.invoke(descriptor, input, asPlugin), { code: "actions.dependency_missing" }, descriptor.capability_id);
+      assert.deepEqual([rows[0]!.code, rows[0]!.refused, rows[0]!.operation, rows[0]!.message], ["actions.missing", true, "unknown", undefined]);
+      await assert.rejects(sdk.invoke(descriptor, input, control), { code: "actions.dependency_missing" }, descriptor.capability_id);
     }
     assert.deepEqual(await management.invoke(goalsActions.snapshot, {}), before, "retired entries write no Goal, active selection or proposal");
     assert.deepEqual(Object.values(goalsPlugin).filter(value => value && typeof value === "object" && "capability_id" in value

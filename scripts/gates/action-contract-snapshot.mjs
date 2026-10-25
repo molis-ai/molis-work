@@ -45,11 +45,11 @@
 //   registered_provider   (actions.tsv and scenes.tsv) the id the Host registers the Manifest's action or scene under, read from the
 //              Host's directory. THIS is the provider a persisted reference holds (a workflow step's `provider_id`, `allowed_actions`,
 //              the Feed and Inbox scene references), and the kernel refuses a call whose reference names another one
-//              (`actions.provider_changed`). A plugin the Host's own start list marks `bundled` (every built-in, whether the Host
+//              (`actions.provider_changed`). A plugin the Host's own start list gives `trust: HOST_BUILD_TRUST` (every built-in, whether the Host
 //              assembles it by hand or the Plugin Runtime does) is registered under its `plugin_id` (user decision 2026-10-10,
 //              W3-06 C). Any other Runtime plugin (generated, unsigned development, third party, a test fixture) is registered under
 //              `plugin-install-<sha256(plugin_id, publisher.signature)>`; none of those is in this snapshot. So what changes the
-//              column for every action of a built-in plugin is the Host no longer marking it `bundled` or the plugin getting
+//              column for every action of a built-in plugin is the Host no longer giving it that trust or the plugin getting
 //              another `plugin_id`, not a move between the native and the Runtime assembly, and the check names each action.
 //              The check ties a Host view to the plugin by `provider.plugin_id`. Without a Host (the Manifest layer alone, which
 //              the gate's own tests use) the column is carried over from the committed file, not checked.

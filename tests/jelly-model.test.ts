@@ -261,7 +261,7 @@ test("W5-01-JMC-02 real configuration rejects stopped, revoked and replaced inst
       if (change === "revoke") f.platform.runtime.grant(f.install.install_id, f.install.grants.filter(grant => grant !== "storage:private"));
       if (change === "reinstall") {
         await f.platform.runtime.uninstall(f.install.install_id);
-        const replacement = f.platform.runtime.install({ definition: f.definitions[0]!, deployment: "local", grants: f.install.grants }).install;
+        const replacement = f.platform.runtime.install({ trust: { level: "unsigned" }, definition: f.definitions[0]!, deployment: "local", grants: f.install.grants }).install;
         assert.notEqual(replacement.installation_generation, f.install.installation_generation);
         await f.platform.runtime.start(replacement.install_id);
       }

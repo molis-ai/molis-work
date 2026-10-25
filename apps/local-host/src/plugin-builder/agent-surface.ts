@@ -47,7 +47,7 @@ export interface AgentStudioOptions {
   choice?: { choose: NonNullable<AgentBuilderPorts['choose']>; selectionAvailable(): boolean };
   browserExecutable?: string;
   actorId?: string;
-  capabilities?: PluginPlatformOptions['capabilities'];
+  dependencyCheck?: PluginPlatformOptions['dependencyCheck'];
   actions?: PluginPlatformOptions['actions'] & Pick<ProjectActions, 'inspect'>;
   /** Enables a built-in plugin in this project (by its manifest id), as project settings would. */
   enablePlugin?(pluginId: string): Promise<void>;

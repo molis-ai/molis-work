@@ -4,7 +4,7 @@ import { execFileSync } from "node:child_process";
 import { mkdtemp, mkdir, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { workspaceReadActions } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { readMcpActionAccess } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { openTestHome } from "./fixtures/test-home.js";
@@ -66,7 +66,7 @@ test("project folders are readable through one action id by the person and by ex
   assert.match(read.text, /发布计划/);
   await assert.rejects(reader.client.invoke(reader.caller, gitRef, { workspace_id: workspace.workspace_id, kind: "summary" }), { code: "mcp.action_revoked" }, "a grant for file reads does not open Git");
 
-  // The Host's own typed client has no second door to the same read.
-  await assert.rejects(host.client(reference).invoke({ capability_id: "projects.workspace.file.read.v1", version: 1, operation: "query" },
-    { workspace_id: workspace.workspace_id, path: ["docs", "plan.md"], kind: "text" }), { code: "actions.dependency_missing" });
+  // The Host's own project client has no second door to the same read: an id with no registered action is missing.
+  await assert.rejects(host.client(reference).invoke({ capability_id: "projects.workspace.file.read.v1", version: 1, operation: "query" } as ActionDefinition,
+    { workspace_id: workspace.workspace_id, path: ["docs", "plan.md"], kind: "text" }), { code: "actions.missing" });
 });

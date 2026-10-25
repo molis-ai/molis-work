@@ -33,7 +33,7 @@ async function started(definition: PluginDefinition, redemption: RedemptionScope
     actions: { registry: service, ...(projectId ? { project_id: projectId } : {}), providerId: () => definition.manifest.plugin_id } });
   const grants = definition.manifest.permissions.map(declared => declared.permission);
   try {
-    const { install } = runtime.install({ definition, deployment: "local", bundled: true, grants });
+    const { install } = runtime.install({ definition, deployment: "local", trust: { level: "host" }, grants });
     await runtime.start(install.install_id);
     const contribution = runtime.contribution(install.install_id);
     return contribution?.kind === "app" ? contribution : "没有给出 app 贡献";

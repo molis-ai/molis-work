@@ -224,6 +224,26 @@ PG-095、PG-111 不进这几个 PR，评估与统筹的裁定见 §7。
 - 门禁：`NEW_PLUGIN_OUTSIDE_FILES = 0`，超额的提示写「a new plugin may be named in none」。`tests/health-gates-structure.test.ts` 里原来「8 个超额、7 个通过」两条是预期变化，改成新语义：包外 1 个文件（宿主源码、脚本各一条）就失败，0 个通过。
 - RAC-574 写在 `tests/plugin-registry-generation.test.ts`：以 text-stats 为样本在仓库树上加一个带 `project_runtime` 的新包，只跑生成器，包外变的只有两份生成文件和三份 `package.json`，项目监督器读得到它，门禁的量法（放宽到全部受跟踪的文本文件）点名数为 0；再加一个手写文件或让一份 `package.json` 偏离生成结果，点名数变 1（RAC-575）。没有拷整个仓库：生成器与门禁都是读快照的纯函数，在快照上改与在副本上改等价，又快得多。
 
+### PR-C 补充工单（#1299，2026-10-25，F2）
+
+状态：已接受，作者实现与定向验证通过，候选待独立双审及采用。固定起点 `301e13bdeddb5522bd2a817a58f9c58737d09269`；对应 FIRST `6400258584`、作者修订 `6400447721`、增量评审 `6400500866` 的三项非阻塞建议。完成目标是声明准确、真实门禁夹具可重复运行，以及现有 Files/Git/Diff 用户动线实操通过；不把它扩成整条防腐线或发布验收。
+
+- 核对 Schedule、Shelf、PPT 的包声明、公开 `packageDescriptor` 与实际处理器。Schedule 补已实现的对话任务及动作，Shelf 补已实现的动作；当前 PPT 两处均声明 `ppt.pptx-export.v1`，且导出处理器调用 `buildPptx`，保留有效声明。只修缺漏元数据，不增加能力、动作、导出或版本。
+- RAC-576 以 `git ls-files -z` 的受跟踪文件建立干净副本，仅链接真实检查需要的已安装依赖（TypeScript 和 test-kit 的公开构建入口）；不复制检出里的未跟踪目录、其他工作树、缓存或构建输出。先跑未修改副本的正控制，再分别修改 kind 与 maturity，保留真实检查器、插件专属错误与 120 秒用例时限。用一个很小的未跟踪嵌套哨兵证明复制边界，结束时清理自建目录。
+- 读取目录、监督器依赖启动、就绪与默认端口绑定链，核实顺序变化。复用现有有限用户动线验证实际文件内容、固定快照和 Git 差异；浏览器使用隔离 Home、独立资料目录及公共 FIFO，结束时关闭本次浏览器。若发现真实启动回归，先报告根因和影响，再做必要修复。
+
+接线核对：`projectRuntimeDeclarations()` 按目录列出条目，`projectPluginEntries()` 末尾加 Files；`PluginSupervisor.start()` 先录取条目，再由 `resolvePluginActivation()` 按插件 ID 排序、解析并排序能力依赖，逐个等待实际激活。`platform.start()` 等监督器返回后重算 wiring、恢复事件；项目随后执行 `bindDeclaredDefaults()`，按已运行的 Manifest、端口类型与已选来源建立默认连线并再次求值。Files/Git 在自己的动作中读取当前项目工作区，Diff 读取固定版本或已绑定输入；三者的 `start()` 不要求另一个伴随插件已按名单的相邻位置启动。因此当前实现中目录顺序不决定最终激活顺序，端口也在启动完成后统一连线；真实可用性仍以本工单的用户动线为准。
+
+| 编号 | 验收与证据 |
+| --- | --- |
+| W5-02-REG-04 | 三个插件的包能力清单与已核实实现的公开描述一致；`tests/plugin-registry-generation.test.ts` 直接读取包声明并比较公开导出，相关 Schedule/Shelf/PPT 现有用例验证处理器。PPT 不因旧评审提示而删除有效导出。 |
+| W5-02-REG-05 | RAC-576 的未修改副本通过真实 `scripts/check-package-boundaries.mjs`；kind→foundation、maturity→contract-only 各自只报 text-stats 对应的精确错误；未跟踪嵌套哨兵未进入副本，原 120 秒时限保持。 |
+| W5-02-REG-06 | 记录真实启动/就绪/默认连线顺序；`tests/coding-workbench.e2e.test.ts` 在本次同源构建上实际读取 Files 内容、捕获前后快照、显示 Diff 变化及 Git 差异，`tests/coding-companion-http.test.ts` 补独立启用和真实端口内容验证；不得仅以名单或状态存在认定可用。 |
+
+允许修改：本 slice、Schedule/Shelf/PPT 的必要包能力声明、现有 registry 测试及有证据需要的相关验证。保留路径决定的 kind/maturity、可信 `project_runtime` 身份与 PG-069 的生成依赖唯一来源；不碰 #1301 存储声明、Images 在途字段或其他切片。源代码与包元数据准备完后只做一次必要的公共 FIFO 整体构建，再运行上述定向用例、生成器 `--check`、真实边界检查、health 与推送前 secrets；不跑全量，不改生产门禁、阈值、CI 或 Verify，不新建 PR。
+
+作者验证（2026-10-25）：公共 FIFO 整体构建通过，后续公开指纹计算与该次构建一致。registry 最终 16/16；Schedule actions、conversation tasks、Shelf actions、PPT actions、companion HTTP 五文件 23/23；专用测试浏览器的现有 Coding workbench 动线 1/1、未跳过，含实际前后文本、暂存/未暂存文本与嵌入 Files 读取。真实边界检查、生成器检查、最终 health 与 31 项资源预算通过。首轮 registry 因复制目录符号链接失败，改为显式复制链接或普通文件后重跑通过；首轮失败保留，未改拒绝语义或时限。全仓 lint 仍退出 1（649 项）；准确父源码临时副本有 644 项，额外 5 项来自本次未修改的两个文件，未建立完全等价的全仓 lint 环境，不能据此宣称全仓 lint 通过。改动范围内的 4 项原有 `any` 与父源码对照一致；未放宽规则或做无关清理。
+
 ## 5. PR-D：PR-3，外壳与设置的手写名单（PG-072～076）
 
 D 移交 ac-shell（统筹 10-25）：下面是移交时的核对与拆法，验收号由 ac-shell 从自己的号段给，不再用 RAC-576～578。

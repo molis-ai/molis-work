@@ -59,7 +59,8 @@
     "ssot": "docs/SSOT-MATRIX.md",
     "capabilities": [
       "shelf.ui-contribution.v1",
-      "shelf.http-routes.v1"
+      "shelf.http-routes.v1",
+      "shelf.actions.v1"
     ],
     "extraWorkspaceDependencies": [
       "@molis-ai/molis-work-design-system",

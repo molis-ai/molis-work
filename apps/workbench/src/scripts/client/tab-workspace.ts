@@ -121,9 +121,10 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
       apply();
       return;
     }
+    const offeredPlugin = (plugin) => Boolean(document.querySelector('[data-global-menu] [data-plugin-id="' + CSS.escape(plugin) + '"], [data-plugin-strip] [data-plugin-id="' + CSS.escape(plugin) + '"]')); // a link opens only a plugin this project offers: its menu or strip lists the plugins it has on (Goals included, RAC-400)
     try {
       const stored = JSON.parse(localStorage.getItem(storageKey) || "null");
-      const plugins = { ...PLUGIN_TAB_ICON };
+      const plugins = { ...PLUGIN_TAB_ICON }; if (!offeredPlugin("goals")) delete plugins.goals; // a layout saved with Goals starts fresh in a project without it, as for any plugin gone
       document.querySelectorAll("[data-settings-page]").forEach(node => { plugins[node.dataset.settingsPage] = true; });
       if (isCurrent(stored, plugins)) {
         state = ops.ensureHome(stored);
@@ -135,7 +136,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     let requestedPlugin = paneParams.get("openPlugin"), requestedItem = paneParams.get("openItem");
     // A side-panel plugin takes the link there (plugin-place).
     if (requestedPlugin && openInSide(requestedPlugin, requestedItem || paneParams.get("openRecord"), paneParams.get("openTitle"))) { dropParams("openPlugin", "openItem", "openTitle", "openRecord"); requestedPlugin = null; }
-    if (requestedPlugin && Object.hasOwn(PLUGIN_TAB_ICON, requestedPlugin) && requestedItem) {
+    if (requestedPlugin && Object.hasOwn(PLUGIN_TAB_ICON, requestedPlugin) && requestedItem && offeredPlugin(requestedPlugin)) {
       ops.setExclusive(state, null);
       const opened = ops.openItem(state, requestedPlugin, requestedItem, paneParams.get("openTitle") || undefined);
       // A Goal opened for its materials lands on its work view rather than the Frame canvas.
@@ -146,8 +147,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     const requestedRecord = paneParams.get("openRecord");
     // Only the plugin asked for: open its page, if this project offers it (its menu lists the plugins it has on).
     if (requestedPlugin && !requestedItem && !requestedRecord && Object.hasOwn(PLUGIN_TAB_ICON, requestedPlugin)) {
-      const offered = document.querySelector('[data-global-menu] [data-plugin-id="' + CSS.escape(requestedPlugin) + '"], [data-plugin-strip] [data-plugin-id="' + CSS.escape(requestedPlugin) + '"]');
-      if (offered) {
+      if (offeredPlugin(requestedPlugin)) {
         ops.setExclusive(state, null);
         state.focusedPaneId = ops.focused(state).id;
         ops.openPlugin(state, requestedPlugin);
@@ -161,7 +161,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
     }
     // Resolve an explicit Goal link before applying saved tabs; applying the old
     // active item first can enqueue a stale document read over the requested Goal.
-    if (requestedGoalId) {
+    if (requestedGoalId && offeredPlugin("goals")) {
       ops.setExclusive(state, null);
       ops.openItem(state, "goals", requestedGoalId, titleForItem("goals", requestedGoalId));
       setDirectory("goals", false, false);

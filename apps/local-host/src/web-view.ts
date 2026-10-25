@@ -1,4 +1,4 @@
-import { goalsActions, type GoalsDocumentCollectionView } from "@molis-ai/molis-work-plugin-goals";
+import { emptyGoalsDocumentCollection, goalsActions, type GoalsDocumentCollectionView } from "@molis-ai/molis-work-plugin-goals";
 import { ActionError, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { expectingRefusal, newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { feedQueryActions, type FeedSnapshot } from "@molis-ai/molis-work-plugin-feed";
@@ -72,8 +72,8 @@ export async function cachedMolisWorkWebView(
   options: WebViewOptions,
   actions: BoundActionClient,
 ): Promise<MolisWorkWebView> {
-  // Always authorize through the shared service before reusing any cached content.
-  const collection = await actions.invoke(goalsActions.collection, {});
+  // Always authorize through the shared service before reusing any cached content. A project without Goals (RAC-400) reads as one with none.
+  const collection = await optionalPluginQuery(actions, goalsActions.collection, {}) ?? emptyGoalsDocumentCollection(options.projectId);
   const cursor = collection.snapshot.cursor;
   const optionsFingerprint = JSON.stringify({
     project_id: options.projectId,

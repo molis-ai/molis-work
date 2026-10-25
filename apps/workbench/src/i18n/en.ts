@@ -31,7 +31,6 @@ import { FLOW_EN } from "./flow-en.js";
 import { MEMORY_EN } from "./memory-en.js";
 import { KNOWLEDGE_EN } from "./knowledge-en.js";
 import { PLUGIN_TRUST_EN } from "./plugin-trust-en.js";
-
 /** Existing Workbench English catalog, isolated from locale runtime state in AP3. */
 export const EN: Record<string, string> = {
   // Placement comes first so an existing translation of the same words wins.

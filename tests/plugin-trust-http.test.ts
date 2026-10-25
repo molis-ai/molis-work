@@ -6,9 +6,9 @@ import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage } from "./fixtures/sandb
 import { residentManagement } from "./fixtures/resident-management.js";
 
 // ac-trust T7, the interface's door: a project's 插件 page reads what is installed and installs a signed package, and takes an agreement
-// back, through `/projects/<id>/api/plugin-trust/*`. RAC-432 every step that changes something is behind the control token and the page's origin, and the routes read nothing the entry says about
-// who the person is; RAC-433 a package is previewed, then installed under the pin the person gives; RAC-434 an agreement is taken back
-// and the overview says so; RAC-435 the page is in the project's settings.
+// back, through `/projects/<id>/api/plugin-trust/*`. RAC-407 every step that changes something is behind the control token and the page's origin, and the routes read nothing the entry says about
+// who the person is; RAC-408 a package is previewed, then installed under the pin the person gives; RAC-409 an agreement is taken back
+// and the overview says so; RAC-406 the page is in the project's settings.
 
 const mac = { skip: process.platform !== "darwin", timeout: 240_000 };
 interface Overview { plugins: PluginInstalledView[]; publishers: Array<{ key_id: string; label: string }> }
@@ -16,15 +16,15 @@ interface Overview { plugins: PluginInstalledView[]; publishers: Array<{ key_id:
 async function setup(t: Parameters<typeof residentManagement>[0]) {
   const env = await residentManagement(t, { completeText: null });
   const prefix = `${env.origin}/projects/${env.project.project_id}`;
-  const send = async (path: string, init: { method?: string; body?: unknown; headers?: Record<string, string | undefined> } = {}) => {
+  const send = async <Body = Record<string, unknown>>(path: string, init: { method?: string; body?: unknown; headers?: Record<string, string | undefined> } = {}) => {
     const response = await fetch(prefix + path, { method: init.method ?? "POST", headers: env.headers(init.headers), ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }) });
-    return { status: response.status, body: await response.json() as Record<string, unknown> };
+    return { status: response.status, body: await response.json() as Body };
   };
-  const overview = async () => (await send("/api/plugin-trust/overview", { method: "GET" })).body as unknown as Overview;
+  const overview = async () => (await send<Overview>("/api/plugin-trust/overview", { method: "GET" })).body;
   return { ...env, prefix, send, overview };
 }
 
-test("RAC-432 the plugin routes need the control token, take only the steps they name, and refuse a body that says who the person is", mac, async t => {
+test("RAC-407 the plugin routes need the control token, take only the steps they name, and refuse a body that says who the person is", mac, async t => {
   const env = await setup(t);
   const bundle = signedPackage(newPublisher());
   for (const step of ["install/preview", "install/confirm", "consents/revoke"]) {
@@ -38,13 +38,13 @@ test("RAC-432 the plugin routes need the control token, take only the steps they
   assert.equal((await env.send("/api/plugin-trust/consents/revoke", { body: { consent_id: "no-such-consent" } })).body.code, "plugin.consent_unknown");
 });
 
-test("RAC-433 a package is previewed (nothing is written), then installed under the pin the person gives, and the overview lists it with what it asked for", mac, async t => {
+test("RAC-408 a package is previewed (nothing is written), then installed under the pin the person gives, and the overview lists it with what it asked for", mac, async t => {
   const env = await setup(t);
   const publisher = newPublisher(), bundle = signedPackage(publisher);
   const before = await env.overview();
-  const preview = await env.send("/api/plugin-trust/install/preview", { body: { bundle } });
+  const preview = await env.send<{ preview_id: string; preview: { permissions: Array<{ permission: string; reason: string; meaning: string | null }> } }>("/api/plugin-trust/install/preview", { body: { bundle } });
   assert.equal(preview.status, 200, JSON.stringify(preview.body));
-  const shown = preview.body as unknown as { preview_id: string; preview: { permissions: Array<{ permission: string; reason: string; meaning: string | null }> } };
+  const shown = preview.body;
   assert.deepEqual(shown.preview.permissions.map(item => [item.permission, item.reason, item.meaning === null]), [["storage:private", "保存这个插件自己的数据", false]]);
   assert.deepEqual((await env.overview()).plugins.length, before.plugins.length, "a preview installs nothing");
   assert.equal((await env.send("/api/plugin-trust/install/confirm", { body: { preview_id: shown.preview_id, consent: true } })).body.code, "plugin.publisher_untrusted");
@@ -58,7 +58,7 @@ test("RAC-433 a package is previewed (nothing is written), then installed under 
   assert.equal(after.plugins.some(item => item.trust === "host"), true, "the plugins that ship with Molis Work are listed too, as such");
 });
 
-test("RAC-434 taking an agreement back through the route writes revoked_at, and the overview shows it as revoked", mac, async t => {
+test("RAC-409 taking an agreement back through the route writes revoked_at, and the overview shows it as revoked", mac, async t => {
   const env = await setup(t);
   const publisher = newPublisher();
   const preview = await env.send("/api/plugin-trust/install/preview", { body: { bundle: signedPackage(publisher) } });
@@ -74,7 +74,7 @@ test("RAC-434 taking an agreement back through the route writes revoked_at, and 
   assert.notEqual(after.consents[0]!.revoked_at, null, "kept as a row, marked revoked");
 });
 
-test("RAC-435 the project's settings has a 插件 page, in the directory and as an embedded section", mac, async t => {
+test("RAC-406 the project's settings has a 插件 page, in the directory and as an embedded section", mac, async t => {
   const env = await setup(t);
   const page = await fetch(`${env.prefix}/settings/plugins`).then(response => response.text());
   assert.match(page, /data-plugin-trust-settings/);

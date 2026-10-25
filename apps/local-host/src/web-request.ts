@@ -25,7 +25,7 @@ import fs from "node:fs";
 import { goalsActions, goalsManifest, goalsRoutes } from "@molis-ai/molis-work-plugin-goals";
 import type { MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host";
-import { cachedMolisWorkWebView, lookingForArea, type MolisWorkWebViewCache } from "./web-view.js";
+import { cachedMolisWorkWebView, lookingForArea, optionalPluginQuery, type MolisWorkWebViewCache } from "./web-view.js";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import { handleInboxNativePluginHttp } from "./inbox-native-plugin-http.js";
 import { handleAlchemistNativePluginHttp } from "./alchemist-native-plugin-http.js";
@@ -221,8 +221,9 @@ const capsuleRoute: WebRoute<ProjectRuntimeContext> = { id: "capsule", handle: a
     sendJson(response, 400, { error: L("请先选择一个 Molis Work 项目") });
     return true;
   }
-  const directory = await goalActions.invoke(goalsActions.list, { limit: 100 });
-  sendJson(response, 200, composition.buildCapsuleSnapshot(await readWebView(), directory.goals));
+  // A project without Goals has none to list (RAC-400).
+  const directory = await optionalPluginQuery(goalActions, goalsActions.list, { limit: 100 });
+  sendJson(response, 200, composition.buildCapsuleSnapshot(await readWebView(), directory?.goals ?? []));
   return true;
 } };
 

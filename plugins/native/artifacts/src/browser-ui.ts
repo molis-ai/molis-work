@@ -28,6 +28,8 @@ export interface ArtifactBrowserUiModel {
   readonly links?: { readonly goals: ReadonlyArray<{ goal_id: string; title: string; role: "input" | "deliverable" | "proposed" | "proposed_input" }>; readonly other: number;
     /** Objects of other plugins that link to the version (a Pages document), each opening in its plugin (五.1). */
     readonly referrers?: ReadonlyArray<{ title: string; open: { surface: string; id: string }; plugin_title: string }> };
+  /** False when the project has no Goals (RAC-400): there is no Goal to take the selected version as an input, so the form is not offered. */
+  readonly goalInput?: boolean;
   /** Plugin input ports that take the selected version's type, and what they read now (artifact-positioning, 2026-10-04). */
   readonly pluginInputs?: ReadonlyArray<ArtifactPluginInput>;
   readonly primitives: {
@@ -148,7 +150,7 @@ function detail(model: ArtifactBrowserUiModel, embedded: boolean): string {
     ${!embedded && model.continuers?.length ? continueActions(model.continuers, artifact, p) : ""}
     ${!embedded ? handoffActions(artifact, p) : ""}
     ${preview}
-    ${!embedded && model.links ? linksSection(model.links, routePrefix, p, artifact) : ""}
+    ${!embedded && model.links ? linksSection(model.links, routePrefix, p, artifact, model.goalInput !== false) : ""}
     ${!embedded && model.pluginInputs?.length ? renderArtifactPortInputs(model.pluginInputs, { artifact_id: artifact.artifact_id, version: artifact.version }, p) : ""}
     <dl class="artifact-facts">
       <div><dt>${p.text("结果类型")}</dt><dd>${p.escape(artifactTypeLabel(artifact.artifact_type_id, model.typeTitles, p))} · ${p.escape(artifact.artifact_type_id)} · Schema ${artifact.schema_version}</dd></div>
@@ -183,14 +185,14 @@ function handoffActions(artifact: NonNullable<ArtifactBrowserView["selected"]>, 
 
 const LINK_ROLES = { input: "输入", deliverable: "交付物", proposed: "提议的交付物", proposed_input: "提议的输入" } as const;
 /** 「被谁引用」: the Goals that use this version, each opening in the workbench, the Assistant's works, and how many other links there are. */
-function linksSection(links: NonNullable<ArtifactBrowserUiModel["links"]>, routePrefix: string, p: ArtifactBrowserUiModel["primitives"], artifact: NonNullable<ArtifactBrowserView["selected"]>): string {
+function linksSection(links: NonNullable<ArtifactBrowserUiModel["links"]>, routePrefix: string, p: ArtifactBrowserUiModel["primitives"], artifact: NonNullable<ArtifactBrowserView["selected"]>, goalInput = true): string {
   const goals = links.goals.map(link => `<li><a href="${p.escape(`${routePrefix}/goals/${encodeURIComponent(link.goal_id)}`)}">${p.escape(link.title)}</a><span>${p.text(LINK_ROLES[link.role])}</span></li>`).join("");
   const referrers = (links.referrers ?? []).map(row => `<li><a href="#" data-workbench-item-plugin="${p.escape(row.open.surface)}" data-workbench-item-id="${p.escape(row.open.id)}" data-workbench-item-title="${p.escape(row.title)}">${p.escape(row.title)}</a><span>${p.escape(row.plugin_title)} · ${p.text("链接了这一版")}</span></li>`).join("");
   const other = links.other ? `<p class="artifact-links-other">${p.text("另有其他引用")} · ${links.other}</p>` : "";
   // 「作为 Goal 的输入」 (A4b): only a version people can still use is offered.
   const usable = artifact.availability === "available" && artifact.lifecycle_state !== "archived";
   const reference = p.escape(JSON.stringify({ artifact_id: artifact.artifact_id, version: artifact.version }));
-  const asInput = usable ? `<details class="artifact-goal-input" data-artifact-goal-input><summary>${p.text("作为 Goal 的输入")}</summary><form data-artifact-goal-input-form data-artifact-reference="${reference}"><select class="mw-select" name="goal" required aria-label="${p.text("选择目标")}"><option value="">${p.text("正在读取目标…")}</option></select><button class="mw-btn" type="submit">${p.text("记为输入")}</button><span data-artifact-goal-input-status role="status"></span></form></details>` : "";
+  const asInput = usable && goalInput ? `<details class="artifact-goal-input" data-artifact-goal-input><summary>${p.text("作为 Goal 的输入")}</summary><form data-artifact-goal-input-form data-artifact-reference="${reference}"><select class="mw-select" name="goal" required aria-label="${p.text("选择目标")}"><option value="">${p.text("正在读取目标…")}</option></select><button class="mw-btn" type="submit">${p.text("记为输入")}</button><span data-artifact-goal-input-status role="status"></span></form></details>` : "";
   // Assistant works that started from this version, took it as material or produced it: the Assistant keeps these in its
   // own store, so the 成果 client reads them once the detail shows. A version is named by its subject or, from a tab, its path
   // (with the project's prefix when the tab came from a direct link).

@@ -237,7 +237,13 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-const APPROVED_CEILINGS = {};
+// ac-trust T7: the project settings 插件 page (install preview, permissions, jobs, agreements, revoke) is drawn by one inline client
+// script that the settings cover also embeds, so it is part of the workbench script (+8798 B, 9.2 KB of UI text and DOM building), and its
+// stylesheet part is +1369 B. No new asset; recompute against the merge-base when it moves.
+const APPROVED_CEILINGS = {
+  "/assets/molis-work-workbench.js": [1126567, 1133221],
+  "/assets/molis-work-workbench.css": [1552484, 1553853],
+};
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its
 // first freeze; from the next PR on it only falls like every other.

@@ -204,10 +204,19 @@ export function manifestFor(projectPluginId: ProjectPluginId): PluginManifest | 
  * The market's cards. Whether one is the person's (`personal`) is the Host's mark on the page's directory (W5-02 B1); a page drawn with
  * no Host has none, so none of its cards is.
  */
-export function pluginMarketCards(options: { readonly developerMode?: boolean } = {}, directory: PluginDirectory = builtinPluginDirectory()): readonly PluginMarketCard[] {
+export interface PluginMarketOptions {
+  readonly developerMode?: boolean;
+  /**
+   * The directory carries the Host's marks (`always_on` is what this Home agreed to now, not what a Manifest declares): a plugin whose
+   * agreement the person took back is one to add again. Without it the Manifest's declaration decides, as for a page drawn with no Host.
+   */
+  readonly marksFromHost?: boolean;
+}
+export function pluginMarketCards(options: PluginMarketOptions = {}, directory: PluginDirectory = builtinPluginDirectory()): readonly PluginMarketCard[] {
   const marked = new Map(directory.map((entry) => [entry.id, entry]));
   return BUILTIN_PLUGIN_CATALOG.flatMap((entry) => {
-    if (!entry.manifest.summary || entry.manifest.always_on === true || (entry.manifest.developer && !options.developerMode)) return [];
+    const alwaysOn = options.marksFromHost ? marked.get(entry.project_plugin_id)?.always_on === true : entry.manifest.always_on === true;
+    if (!entry.manifest.summary || alwaysOn || (entry.manifest.developer && !options.developerMode)) return [];
     // A plugin whose page lives only in settings (角色) is part of the settings, not something a project adds or
     // removes: it stays out of the market (decision 2026-10-01, specs/post-merge-review §9).
     const views = entry.manifest.ui?.views ?? [];

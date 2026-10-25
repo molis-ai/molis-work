@@ -1,7 +1,7 @@
 import { UI_VIEW_GROUPS, type UiViewGroup } from "@molis-ai/molis-work-contracts/platform/ui";
 import { icon as glyph, renderButton, type MolisWorkIcon } from "@molis-ai/molis-work-design-system";
 import { renderPluginEventRecovery } from "./plugin-event-recovery.js";
-import { DIRECT_WORK_SURFACE_IDS, DOCK_DEFAULT_PINS, RELOAD_ON_MEMBERSHIP_IDS, builtinPluginDirectory, islandEntries, pluginLabel, pluginMarketCards, railEntries, pluginStageSummaries } from "./plugin-catalog.js";
+import { DIRECT_WORK_SURFACE_IDS, DOCK_DEFAULT_PINS, RELOAD_ON_MEMBERSHIP_IDS, builtinPluginDirectory, islandEntries, pluginLabel, pluginMarketCards, railEntries, pluginStageSummaries, type PluginMarketOptions } from "./plugin-catalog.js";
 import type { PluginDirectory } from "./plugin-directory.js";
 import { renderAssistantDock } from "./assistant-dock.js";
 import { renderSidePanel, type SidePanelPluginTab } from "./side-panel.js";
@@ -120,7 +120,7 @@ export function renderPluginRail(
   accountFooter: string,
   personalIsland = "",
   directory: PluginDirectory = builtinPluginDirectory(),
-  options: { readonly developerMode?: boolean } = {},
+  options: PluginMarketOptions = {},
 ): string {
   const { L, icon, escapeHtml } = primitives;
   const have = new Set(enabled);
@@ -343,7 +343,7 @@ export function renderGlobalSearchOverlay({ L, icon }: ImmersiveShellPrimitives)
   </dialog>`;
 }
 
-export function renderPluginMarket(primitives: ImmersiveShellPrimitives, options: { readonly developerMode?: boolean } = {}, directory: PluginDirectory = builtinPluginDirectory()): string {
+export function renderPluginMarket(primitives: ImmersiveShellPrimitives, options: PluginMarketOptions = {}, directory: PluginDirectory = builtinPluginDirectory()): string {
   const { L, icon, escapeHtml } = primitives;
   const join = (values: readonly string[]) => values.join(L("、"));
   // Sites a Plugin says it uses in the side panel browser are read before it is added (specs/archive/side-panel D16).

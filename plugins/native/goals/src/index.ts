@@ -104,7 +104,7 @@ export { GOALS_PRESENTATION_STATES, type GoalsDocumentView, type GoalsInputBindi
 
 export { countGoalDecisions } from "./decision-groups.js";
 
-export { buildGoalsDocumentCollection, type GoalsDocumentCollectionView } from "./document-collection.js";
+export { buildGoalsDocumentCollection, emptyGoalsDocumentCollection, type GoalsDocumentCollectionView } from "./document-collection.js";
 export type { GoalsDocumentReadPorts } from "./document-read-ports.js";
 export { goalsRoutes } from "./http/index.js";
 export type { GoalsRoutePorts } from "./http/types.js";

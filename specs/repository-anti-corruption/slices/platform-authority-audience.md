@@ -37,7 +37,7 @@
 
 ### 2.1 PG-013：可用性按「此刻在这个项目里显示不显示」判
 
-- `projectActionAvailability` 对个人插件不再返回 `null`：读项目的启用名单和隐藏名单，用 `shownProjectPlugins(启用, 隐藏)` 判；不在其中返回 `actions.plugin_disabled`（沿用现有文案「此项目未启用该插件」）。常开插件始终显示，所以不受影响。`ui.embedded_plugins` 的闭包照旧（被启用的插件嵌入的个人插件仍可用）。
+- `projectActionAvailability` 对个人插件不再返回 `null`：读项目的启用名单和隐藏名单，用 `shownProjectPlugins(启用, 隐藏)` 判；不在其中返回 `actions.plugin_disabled`（沿用现有文案「此项目未启用该插件」）。常开插件始终显示，所以不受影响。`ui.embedded_plugins` 的闭包照旧，但隐藏是终局：个人插件被隐藏后，不论有没有显示的插件嵌入它，都不可达（可用性判断分不出调用是不是经嵌入来的，统筹 2026-10-25 定）。
 - 无项目、`catalog.project_not_found` 的调用，个人插件放行；项目级插件的行为不变（无项目或项目不存在仍拒）。
 - 路由层 `runtimePluginsRoute` 去掉 `runtimeEntry?.personal ||`，改用同一个判断（一份函数，动作可用性与路由共用，不各写一份）。
 - 每次调用读目录，不跨调用缓存，取消隐藏后立即可用。
@@ -60,7 +60,7 @@
 
 ## 3. 验收
 
-- **RAC-580**（新 `tests/security-invariants-hidden-personal-plugin.test.ts`）：被嵌入（`ui.embedded_plugins`）的个人插件被隐藏后，只放行嵌入那一条路，不经嵌入直接调它的动作被拒；个人插件在项目 A 隐藏后，`projectActionAvailability` 的 `live` 与 `snapshotForDiscovery` 两条路对它的动作都返回 `actions.plugin_disabled`；没隐藏的项目 B 可用；常开的 Shelf 隐藏也可用；无项目、项目已删的调用，个人插件可用，项目级插件仍拒。
+- **RAC-580**（新 `tests/security-invariants-hidden-personal-plugin.test.ts`）：被嵌入（`ui.embedded_plugins`）的个人插件被隐藏后，嵌入也不放行（隐藏是终局），它的动作被拒；个人插件在项目 A 隐藏后，`projectActionAvailability` 的 `live` 与 `snapshotForDiscovery` 两条路对它的动作都返回 `actions.plugin_disabled`；没隐藏的项目 B 可用；常开的 Shelf 隐藏也可用；无项目、项目已删的调用，个人插件可用，项目级插件仍拒。
 - **RAC-581**（同文件，走项目 MCP 的真实路径）：隐藏了 Pages 的项目，MCP 的工具列表里没有 `pages.*`；直接调用被拒 `actions.plugin_disabled`，处理器没跑。
 - **RAC-582**（同文件，走项目 Runtime 路由）：隐藏了的个人插件的 `/projects/<id>/api/plugins/<插件>/…` 返回 `actions.plugin_disabled`；没隐藏的照常；Home 级路径（无项目）不受影响。
 - **RAC-583**（同文件）：取消隐藏后立即可用，加上不缓存的断言（隐藏、调用被拒、取消隐藏、再调用成功，同一个 Host 里连续做）。
@@ -118,6 +118,7 @@
 3. `project_reach` 要权限和动作声明两样都有（§2.3 已按此改），内置 Todo 同样。
 4. S 号暂定 S-68～70 可以，落地时统筹按顺序定。
 5. 「常开插件始终显示」：ac-trust T3（PR #1259）把常开改成从同意账本算（`ProjectPluginRegistry.alwaysOn()`，可撤回）。PG-013 的判断用 T3 的这个来源；T3 没合入之前按现状读 Manifest 的 `always_on`，这一处在 PR 里点名，后合入的改成同一个来源。
-6. `ui.embedded_plugins` 的闭包保留，只放行嵌入那一条路（RAC-580 已加断言）。
-7. `readable_project_ids` 每次调用现算；正在删除的项目不进清单；沙箱插件的执行上下文能带这个字段（数组），写一条沙箱路径的断言，或写明 PG-017 之后再补并开 BL。
+6. `ui.embedded_plugins` 的闭包保留，但隐藏是终局：被隐藏的个人插件，嵌入那条路也不放（可用性分不出是不是经嵌入来的；统筹 2026-10-25 按代码的严口径定，RAC-580 已加断言）。
+7. `readable_project_ids` 每次调用现算；正在删除的项目不进清单；沙箱插件的执行上下文能带这个字段（数组），写一条沙箱路径的断言，或写明 PG-017 之后再补并开 BL。结果：沙箱 worker 没有调用上下文，声明了 `project_reach` 的沙箱插件默认拿不到清单（关着）；后续怎么给记在 BL-625。
 8. 和 ac-registry 对齐：它的 B1 会把 `shownProjectPlugins` 这类平台事实搬进 `apps/local-host/src/plugin-registry.ts`。本片的判断函数只写一份，先放在 local-host 平台这一侧；两边谁后到谁重基，同批评审就照 `MERGE-QUEUE.md` §1a 同批落。
+8. （统筹 2026-10-25）`homeProjectReach` 与 `project-plugin-enablement` 改用 `projectReachablePlugins` / `pluginReachable` 同一个函数，不留第二份判断；Todo 动作不升版（只改了 traits，schema 没变）；S 号由统筹落地时统一改。

@@ -49,7 +49,7 @@ async function projectPluginStages(ports: ProjectPluginSurfacePorts, view: Molis
 async function withProjectPluginSurfaces(view: MolisWorkWebView, input: {
   store: LocalProjectDatabase; projectId: string; homeDirectory: string | undefined;
   configuration: { readonly plugins: readonly string[]; readonly hidden: readonly string[]; readonly workspaces: ProjectPluginSurfacePorts["workspaces"] };
-  pluginServices: Pick<ProjectPluginSurfacePorts, "capabilities" | "actions" | "homeDirectory" | "artifacts" | "processItems">;
+  pluginServices: Pick<ProjectPluginSurfacePorts, "dependencyCheck" | "actions" | "homeDirectory" | "artifacts" | "processItems">;
   stageModel: (projectPluginId: string, view: MolisWorkWebView) => unknown;
 }): Promise<MolisWorkWebView> {
   const { store, homeDirectory, pluginServices } = input;
@@ -61,7 +61,7 @@ async function withProjectPluginSurfaces(view: MolisWorkWebView, input: {
   // Installed execution supplies rail entries and stages independently of opening the authoring studio.
   const installed = await installedPluginStages({ store, projectId: input.projectId, homeDirectory, routePrefix: view.route_prefix,
     models: async () => homeDirectory ? configuredModelChoices(homeDirectory) : [], actorId: LOCAL_PERSON_ACTOR_ID, actions: pluginServices.actions,
-    ...(pluginServices.capabilities ? { capabilities: pluginServices.capabilities } : {}) }).catch(noInstalledStages);
+    ...(pluginServices.dependencyCheck ? { dependencyCheck: pluginServices.dependencyCheck } : {}) }).catch(noInstalledStages);
   return { ...view, plugin_stages: [...(view.plugin_stages ?? []), ...installed.map(item => item.stage)],
     plugin_directory: mergePluginDirectories(builtin.directory, view.plugin_directory ?? [], installed.map(item => item.directory)) };
 }

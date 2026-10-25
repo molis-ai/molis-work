@@ -297,6 +297,16 @@ RAC-401 的针对性测试检查查询前后的实际文件、库内容和账本
 
 隔离测试浏览器已实测浅/深色与 1440/1024/390 三档无横向溢出，Home 状态、显式重试与 desktop 查询态链接可达，坏库字节不变。目视发现标题栏文字挤压后改用共享图标；真实 coarse-pointer 检查发现通用设置页规则把按钮最小高度固定为 32px，覆盖了恢复页的控件变量。最终仅在恢复页范围让按钮最小宽高取现有 `--control-h:44px`，不改共享样式；整体构建后的六态实测均为 44px，手机 coarse-pointer、关闭与状态控件、单一 Issue 阶段、无插件 composer、无横向溢出及原重试均通过。此证据不代替原生安装包或一骏本人验收，批次 full 仍由唯一 Claude 负责。原候选 `5dc2da402` 的 P1 与服务端边界已独立 REVIEW PASS，最后一行显示修正与本段证据只需最终窄复核，不据此冒称 TEST、组合或实际合入已完成。
 
+#### #1270 页面生产者登记补尾（2026-10-25，Codex 修复13）
+
+`4e1385937` 已由 batch-36 的 `cd9099265` 采用。[CI 原件](https://github.com/molis-ai/molis-work/actions/runs/40183726897/job/121139990735) 的整页门禁前两项通过，第三项只报告本节已接受的 `apps/workbench/src/plugin-store-unavailable.ts` 未登记。该文件属于 Host 在原读页地址返回的静态故障文档，不是插件自行提供的整页；按既有生产者合同登记进 `PAGE_PRODUCERS`，不增加路由、整页 URL 例外或插件入口，不修改扫描器、判词或现有断言。
+
+- **RAC-404**：版本错与结构错的真实 HTTP 恢复响应各只有一份 HTML 文档；没有插件文档、iframe、外部脚本客户端、composer 或另开标签页的入口。只保留 Host 故障说明、持久成员投影、插件状态及原显式重试；原坏库字节不变。健康工作台仍遵守整页门禁全部三项。
+
+本次仅改生产者登记、对应 HTTP 断言和本规格。生产源码与 `cd9099265` 相同，先核对该头的干净源码与成功构建指纹一致，再在独立工作树复用其构建；以官方 runner 跑整页门禁三项、两个坏库恢复场景及相关 RAC-402/403 反例，另做必要静态检查。不重跑旧包级集合、不另开 full/CI、不修改在途 carrier；候选独立推送并交 REVIEW/TEST/PIPE，待原 full 结束后由 PIPE 组合。
+
+补尾自验：来源与目标源码均匹配 cd909 的既有构建指纹；整页门禁 3/3、两个坏库 HTTP 场景 2/2、RAC-402/403 反例 4/4、两份改动测试的严格类型检查及以 cd909 为基准的健康门禁通过。首轮整页检查早于产物复制完成，因缺失构建文件失败，原日志保留且不计为有效产品证据；上述通过记录均来自复制和指纹核对完成后的重跑。生产源码与已验证的 4e 显示行为未改变，独立补尾复核与 carrier 最终组合另行核证。
+
 ## 8. 验收
 
 | 编号 | 内容 | 证据（测试文件待实现片定，名字里写编号） |
@@ -311,6 +321,7 @@ RAC-401 的针对性测试检查查询前后的实际文件、库内容和账本
 | RAC-401 | 常开查询只读、缺库或缺行的构建担保不落账；撤回、重新同意与安装状态即时生效；现有非法库拒绝且不修复；第三方未同意不获担保，Host 启动仍记账 | `tests/security-invariants-always-on-records.test.ts` 的 RAC-401；重启不重复和已撤回不复活另见 `tests/plugin-runtime-maintenance-v3.test.ts` |
 | RAC-402 | 已撤回、停用及移除/隐藏后再破坏 Home 版本或完整结构，授权仍拒绝、原记录不变；恢复页只显示存储事实，不提供插件内容 | `tests/security-invariants-always-on-records.test.ts` 的 RAC-402；原页面与 retry 不变量见 `tests/home-plugin-private-store.test.ts` 的 W3-06-F-05/F-08 |
 | RAC-403 | 只处理 Home store 自己的明确拒绝，同码/同消息的其他错误继续传播；合法结构恢复后即时复查，撤回不复活 | `tests/security-invariants-always-on-records.test.ts` 的 RAC-403 |
+| RAC-404 | 坏库恢复是单一 Host 故障文档，没有插件客户端或独立整页；原字节、状态与重试保留，健康整页门禁不放宽 | `tests/home-plugin-private-store.test.ts` 的 RAC-404；`tests/shell-page-gate.test.ts` |
 | RAC-386 | 常开从记录生成：外部常开插件对已有项目立刻生效；撤回后立刻不强制；服务端拒绝卸载、停用、移除（V-01）；Goals 与 Shelf 常开仍然成立，建项目不再写死 `"goals"` | `tests/project-plugins.test.ts` 扩展 |
 | RAC-387 | 没签名的包经 `plugin install` 被拒（`plugin.signature_invalid`），不会得到 `unsigned` 等级；`unsigned` 只有开发目录和创作台产物两个来源 | `tests/plugin-package.test.ts` 扩展 |
 | RAC-388 | 默认连线：`unsigned`/`pinned` 声明的 `default_source` 没有同意不绑，有同意才绑；`host` 等级的行为与今天一致 | `tests/plugin-default-bindings.test.ts` 扩展 |

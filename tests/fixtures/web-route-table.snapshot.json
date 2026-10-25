@@ -448,6 +448,7 @@
       "schedule_jobs",
       "schedule_operations",
       "schedule_tasks",
+      "shown_plugins",
       "snapshot",
       "trashed_goals",
       "unavailable_plugin_stages"
@@ -899,6 +900,7 @@
       "schedule_jobs",
       "schedule_operations",
       "schedule_tasks",
+      "shown_plugins",
       "snapshot",
       "trashed_goals",
       "unavailable_plugin_stages"

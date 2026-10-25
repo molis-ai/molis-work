@@ -514,7 +514,7 @@ non-block只表示不挡当前PR，仍须有具体实施owner、可执行下一�
 1. `plugins/official-integrations/**`（约 6 个）。只拆不搬；OAuth 搬迁是 W5-11 的另一片。
 2. `horizontal/{placement,search,listener-host}` 与 `packages/im-ui`。不含 `horizontal/memory`（等记忆那条链合完再拆）和 `horizontal/scheduler`（归另一条线）。PlacementService、SearchService 在包内拆（spec §1 N-03 决定：不搬包）。
 
-做法：`node scripts/check-health-gates.mjs --report --top 60` 看逐单元数字；拆法照 `docs/system/HUGE-CLASS-MIGRATION.md` 对每个单元的判定（单一职责的文案表、样式表、静态数据可以登记例外，但登记不放行新增，见 `AGENTS.md`）。公开 API 不变（`pnpm api:update` 后快照无差异，有差异就是拆错了）。拆完跑 `node scripts/check-health-gates.mjs --update --base origin/main`。只跑被拆文件直接相关的少量测试。
+做法：`node scripts/check-health-gates.mjs --report --top 60` 看逐单元数字；拆法照 `docs/system/HUGE-CLASS-MIGRATION.md` 对每个单元的判定。**10-25 改（用户：「只要本身合理，可以不做硬性拆分，标明即可」，门禁 PR #1289）**：先看单元是不是只做一件事；本身合理的（文案表、样式表、静态数据、生成代码、内聚的状态机或解析器）不拆，在 `tooling/gates/giant-exceptions.json` 标明 `kind`、理由和门禁报错给出的 `size`，并把迁移表那一行改判「例外」；混了几件事的才拆。#1289 合入前按旧门禁。公开 API 不变（`pnpm api:update` 后快照无差异，有差异就是拆错了）。拆完跑 `node scripts/check-health-gates.mjs --update --base origin/main`。只跑被拆文件直接相关的少量测试。
 
 ### C4 PG-095：Images、Jelly 的插件合同挪进插件
 

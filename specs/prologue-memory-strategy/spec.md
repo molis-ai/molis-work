@@ -2870,3 +2870,23 @@ Prologue [#106](https://github.com/molis-ai/molis-prologue/pull/106) 已按私�
 统筹在该聚合上完成原整体 `pnpm build`，随后 12 个实际文件 177 项通过，jobs2/browser1/retries0、零跳过，覆盖冷 retention、采用/恢复/事务、Memory retention roundtrip、SDK 采用、Catalog 原 Memory 计划与恢复、连接绑定维护、Web 与 Home 文件。根 TypeScript、准确 `3a2dea91e` health、boundary errors=[]、72 份 API 快照通过；页面资源仍仅 Coding 374,756 B 对已批准 373,423 B 超出 1,333 B，未放行。日志 `/private/tmp/molis-memory-retention-aggregate-{build,direct,types,health,boundary,api-final,assets}-20261025.log`；API 首次误传不支持的 `--check` 参数只产生用法错误，改用原默认检查后通过，原错误日志保留。
 
 #1064 的 `3a2dea91e` 普通 CI 已通过，Full suite `40197949022` 尚未结束，旧 e801 的 Full shard11 失败不重写为通过。下一步仍集中在 #1101 补原 SDK 桥接、冷 Memory owner 与完整 MEM-40；上述仅局部聚合工程验证。Coding 原两项待定、单 Session 业务副本清理、最终非空旅程、真实模型质量/token 与用户验收保持原要求。没有新增资源、真实 Home 操作、发布或付费模型调用。
+
+#### MEM-40 冷 Memory 归属覆盖与固定 Session 预览薄桥（2026-10-25，实施前短合同）
+
+准确 App 基线 `a9768da4e347c815205a4c31a9846c221d994a69` 已使用正式 SDK #106。现冷桥没有 verifyPurgeCoverage、维护态 inspectMemory/previewMemoryPurge，也未传固定 purgeSelections 或提供独立 purge-inspection 当前授权。目标是让现冷恢复主人通过 AgentHost 窄口取得真实 SDK 无正文检查结果；本片不接外层恢复 frame、不创建删除引擎，后续 Memory owner 仍复用 applyProjectMemoryPurge。
+
+输入仅增加可选 purgeInspection，固定原 operationId、整 Home knownScopes 和 Session selections（只含 Session exact ref 与父 operationId）；打开时复制，之后请求替换原操作、范围或 selection 拒绝。原 scopes 保持当前项目的身份读取与变更边界，普通 adoption 调用无需新参数。整 Home coverage 使用单独的临时 SDK existing-only inspection：其声明 scopes 可含固定 knownScopes，但条目授权拒绝，独立检查权限只允许原 owner-coverage；此句柄不交外层、不执行普通查询或变更。knownScopes 不是新删除许可；covered 也不是正文健康或删除完成证明。
+
+两个冷入口均提供 verifyPurgeCoverage；维护桥补 inspectMemory/previewMemoryPurge。SDK Maintenance 本身没有后两方法，沿现冷 Session 用例的真实临时 inspection 方式每次新开、结束关闭，避免写后继续用旧 reader 版本。Session preview 只接受打开时固定只读选择，并与原 scopes、当前条目 delete 权限求交，不根据预览补造持久原决定。
+
+实际冷 Memory owner 同批需要写入，沿既有 sessionPurges 模式增加可选 memoryPurges，包含原 ref/identity/expectedVersion/子 operationId/selection（如有）完整 tuple；调用方须先持久化原计划，再创建受控 writer。打开时克隆固定，重复 ref、范围不符或无效版本/操作号拒绝，不能打开后追加。purgeMemoryTarget 只收 ref 与 signal，从原固定列表选择，不能替换参数；session-purge 独立权限必须与该完整 tuple 匹配，Session preview 许可不授写。SDK purgeSelections 为只读与固定写目标的 selection 并集，但 preview 仍只认只读名单。执行调用原 SDK purgeMemory，present/cleared/absent、当前权限、CAS 与原决定重试保持 SDK 合同；没有新删除核或 operation 注册表。旧 purgeCleanupTarget 与 Session 清除合同不变。
+
+每次调用沿 current/perform/stop/pending，await 后同步复验权限与取消；读句柄成功 close 才释放跟踪，失败留下原句柄供 bridge close 重试，SDK/读资源未关完不发布、不归还父 owner。关闭不重新授权工作，成功后不能继续调用。硬边界是固定 App/原决定/范围/当前权限与单一 owner；SDK 公开 Node 工厂是现适配实现，分页沿原 SDK 参数与预算，不新增用户配置；用户确认留在原 App 删除决定。
+
+允许路径：AgentHost 原 prologue-memory-adoption 桥及必要同职责内部文件、README、本 spec、真实正式 SDK 包回归及必要公开 API 快照登记；不改 vendor、lock、SDK 仓、外层 frame、生产 Memory 删除算法或门禁。MEM-COLD-BRIDGE-01：非空真实 SDK coverage/preview，无正文无源写入、不同项目严格保留。MEM-COLD-BRIDGE-02：原 operation/knownScopes/selection 固定，缺新权限与伪造替换拒绝，宽 coverage 不能读取或删除另一项目。MEM-COLD-BRIDGE-03：空/非空结果取消撤权、关闭交错与父 owner/失败清理保持原语义。
+
+验证使用固定 Node 24.14、真实 SDK 公开 Runtime/Node 构造临时资料，业务方法只走 AgentHost 公共桥，不使用完整假 Backend；定向 adoption/inspection/Session/父owner 回归，原 FIFO build、类型、boundary、准确 a976 health。保留首次失败与未验证边界，不全量、不push、不另开PR。
+
+工程结果：新增14项覆盖 source/maintenance 的整 Home metadata 与窄 scope 隔离、原 operation/knownScopes/selection 固定、缺许可/未知 owner 拒绝、正式 Memory 与 candidate 固定 tuple 清除及同决定重试、真实 SDK CAS/Session 绑定/absent 拒绝、空与非空结果在实际文件读取后撤权/取消/关闭，以及临时 reader close 故障下父 owner 保持和同句柄清理重试。原采用、父 owner、冷 Session、Index、生命周期/缓存、Memory 维护及存储 SDK 相邻回归共9文件162项通过，jobs2/browser1/retries0，无跳过。scope 内检查返回无正文，knownScopes 随 caller 原 cursor 绑定，不把 cursor 中调用方已提供的范围误当新发现身份。
+
+固定 Node24.14 的原 FIFO build、AgentHost/根/新增测试类型、boundary（errors=[]）、已登记新测试后的准确 a976 health 与 diff 检查通过；最终仅回调缩进整理后刷新原构建并补验新增14项。未改 vendor、lock、SDK、外层 frame、API快照、资源或门禁。首轮包类型检查早于依赖 dist 准备，日志保留；测试编写时错误 fixture 路径/缺少显式类型/采用清理 item 字段已修正。首轮运行因 candidate 真实创建未传 expectedVersion=0 与原 operationId 失败，第二轮8/10，余2项是错误地把 caller 的 cursor 范围算作新披露；按SDK既有结果字段/cursor合同改观察后通过，未改变生产权限。日志统一前缀 `/private/tmp/molis-memory-cold-purge-bridge-`，保留 `direct-first-20261025.log`、`direct-second-20261025.log`、`adjacent-20261025.log`、`build-final-20261025.log`、`final-20261025.log`、`health-final-20261025.log`。本片仅工程桥接，完整冷 Memory owner与恢复、真实Home、App实操和用户验收仍未完成。

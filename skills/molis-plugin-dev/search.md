@@ -15,7 +15,7 @@
 
    export const notesSearchEntries = defineSearchEntriesAction("notes.search.entries",
      [{ kind: "note", title: "笔记", surface: "notes" }],   // 对象种类、给人看的名字、工作台打开它的插件标识
-     "笔记", ["notes:read"]);                               // 第五个参数 "home" 表示个人范围（不属于任何项目）
+     "笔记", ["notes:read"]);                               // 不传第五个参数就是项目范围，处理器按 caller.project_id 列；个人范围见下
 
    bindSearchEntriesHandler(notesSearchEntries, caller => store.list(caller.project_id!).map(note => ({
      subject: { kind: "note", id: note.id },
@@ -29,6 +29,10 @@
    ```
 
    `bindSearchEntriesHandler` 负责排序、分页和集合版本；你只返回当前完整列表。列表里不要放已删除、已丢弃、已归档的对象——不在列表里，就会从索引里删掉。
+
+   个人范围的来源（第五个参数传 `"home"`，不属于任何项目）处理器里没有项目：`defineSearchEntriesAction("x.search.entries", kinds, "名字", ["x:read"], "home")`，处理器列个人的条目，不读 `caller.project_id`。
+
+   **Home 级实例、数据按项目放**的插件（库按项目分区）声明两个来源，读同一份存储：个人范围的（`"home"`，列个人与未放置的条目，索引一次）和项目范围的（列这个项目的条目，随该项目索引）。项目里的搜索只找到该项目的条目，个人索引里没有它们。写法见 `plugins/native/todo/src/search.ts`（`entries` 与 `projectEntries`）。
 
 3. **能按 id 打开。** `open.surface` 是工作台插件标识，`open.id` 是对象在你页面里的 id。工作台先经 `search.open` 让你的读取器核对对象还在，再打开：支持条目标签的插件用 `molis-work:select-item`；其余在工作台插件表里声明目录行（`searchRow: { selector, idDataset }`），工作台等那一行出现后点它。打开后工作台在你的页面里滚动到命中文字并高亮，前提是正文在页面上是可见文字。
 
@@ -61,6 +65,7 @@ Agent 问「挂在哪个 Goal 下」这类要人挑对象的题时，候选来�
 
 ## 样例与验证
 
+- 个人与项目两个来源读同一份存储：Todo（`todo.search.entries` 个人、`todo.search.project_entries` 项目）。
 - 项目内容：Form（`plugins/native/form/src/search.ts`）、Pages（`pages.search.entries`）、Goals（版本与读取器一致）。
 - 只给摘要：Feed（`feed.search.entries`，保留正文加密）、Inbox、Sessions。
 - 个人范围：Cognia、Jelly（三种对象、三个读取器）。

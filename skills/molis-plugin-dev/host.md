@@ -14,7 +14,7 @@ Manifest 写完不等于底栏插件切换里有入口：内置插件还要在�
 
 个人数据跨项目一致、无项目也可用时，Manifest 写 `runtime: { scope: "home" }`（运行范围是 Manifest 的），插件自己的 `registration` 再给 `runtime: { create, package_name, factory_export }`（Home 实例的代码，只来自这份宿主登记；两者必须同时有，宿主启动时检查）。只有随宿主发布的插件能这样用：装上的或生成的插件 Manifest 写了 `runtime`，安装时以 `plugin.home_scope_unavailable` 被拒，等沙箱宿主能跑 Home 实例再放开。Host 统一装配 Home Supervisor、安装授权、SQLite 与路由；不要再写 `project_runtime`（双实例插件的项目一半除外，见下面「双实例」）。实际例子是 `plugins/native/issues`；合同、关闭、取消与持久化约束见 [开发手册的 Home Runtime 部分](../../docs/platform/PLUGIN-DEVELOPMENT.md#个人-home-runtime-与插件-sqlite)。Home 视图的 `render` 只拿到 `model: { primitives: { escape, text } }`（转义函数与页面语言翻译函数），形状写在上面那份手册的公共页面一段，合同类型还没有（补它归 ② 平台）。
 
-Home 级插件的数据按项目放、删项目时整份一起走（如 Alchemist 的工作室）时，在 Manifest 的 `databases.home` 写 `partition: "project"`，Home 存储登记里同一个库的 `library.partition` 也写 `"project"`，并在目录条目声明 `project_data`（`label` 必填，`purge` 可省：平台删这个项目的库）。插件拿到的 `services.database` API 不变，宿主按调用所在的项目给它那个项目的库：只有在项目里调用的动作和场景回调能读写，`start`、路由处理器本身、Home 路径下的动作答 `actions.project_required`；后台作业写进受理它的那个项目。打开、闲置关闭、停用关闭、删项目都归平台，插件不自己拼目录、不自己管连接。项目级插件不能声明。规则与验收见 `specs/plugin-project-partition/spec.md`。数据放在同一个库里、按列记项目的，在 `databases.home` 写 `project_rows`（标签、要删的表与列），删项目时平台照声明删行，插件不写清除代码；写法见 `docs/platform/PLUGIN-DEVELOPMENT.md`「Home 消费者的模型配置、生图与项目清理」。
+Home 级插件的数据按项目放、删项目时整份一起走时，只在 Manifest 的 `databases.home` 写 `partition: "project"`：库与分区由宿主从 Manifest 生成（`apps/local-host/src/home-stores.ts`），登记上不写库；`project_data` 只给库以外还有东西要清的（`label` 必填，`purge` 可省），不能与 `project_rows` 同用，分区库本身删项目时由平台删。目前没有内置插件使用分区库，可对照 `specs/plugin-project-partition/spec.md` 与夹具 `tests/fixtures/partition-probe.ts`。插件拿到的 `services.database` API 不变，宿主按调用所在的项目给它那个项目的库：只有在项目里调用的动作和场景回调能读写，`start`、路由处理器本身、Home 路径下的动作答 `actions.project_required`；后台作业写进受理它的那个项目。打开、闲置关闭、停用关闭、删项目都归平台，插件不自己拼目录、不自己管连接。项目级插件不能声明。卸载默认保留各项目的分区库，`uninstall --purge-user-data` 逐项目删；升级后库版本与声明不符时怎么办，规格里还没有定（BL-639），先不要依赖。规则与验收见 `specs/plugin-project-partition/spec.md`；这类插件的搜索来源写法见 [search.md](search.md)。数据放在同一个库里、按列记项目的，在 `databases.home` 写 `project_rows`（标签、要删的表与列），删项目时平台照声明删行，插件不写清除代码；写法见 `docs/platform/PLUGIN-DEVELOPMENT.md`「Home 消费者的模型配置、生图与项目清理」。
 
 `personal: true` 不等于已经迁到 Home Runtime。业务库与 SQL 归插件，连接来自 `context.services.database`；写入必须 `transaction(caller.beforeEffect, tx => …)`，回调同步。Home 不提供项目 artifacts、端口和事件，不能用假项目补齐。只有可信 bundled 定义对象用插件 ID，其余用安装 ID；Home/项目执行器共用此规则，安装记录和 generation 仍约束执行；MCP 保留自己的 caller，不伪装成 owner。
 
@@ -22,7 +22,7 @@ Home 的 `services.storage` 是 v2 Home Runtime 库里的安装隔离 KV；升�
 
 项目里宿主自己运行的内置插件（登记上的 `project_runtime`）要有 Home 里的库，也是同一个 `context.services.database`：在 Manifest 写 `databases.home`（条目上不再有 `database`）；库名由 Manifest 决定，动作入参选不了。登记上的定义对象拿登记里的库，项目没有 Home 时宿主不启动它；不在名单上、由宿主自己运行的插件（开发中的、装进来的）经 `plugin-libraries/` 的账本拿：首次打开记下发布者（取自安装记录）、版本和表，之后换了发布者、版本、表或库名都拒绝启动，库名不能是宿主已有的存储或目录，也不能按项目分开。库必须在 Home 存储登记中归该插件所有、与登记的基线一致，并列入 `docs/releases/CHECKLIST.md` 的各库版本表；Manifest 声明 `storage:private` 和库的读写权限，沙箱插件拿不到。数据由插件自己按项目分区，写入必须 `transaction(caller.beforeEffect, tx => …)`。Dataset、Form、灵光、Pages、PPT、Workflows 已这样装配。
 
-项目库里插件自己的表（`specs/plugin-project-database`）：Manifest 写 `databases: { project: { store_name, version, schema, read_permission, write_permission } }`，`parsePluginManifest` 检查形状，两个权限必须在 `permissions` 里，自己的表两项都写 `storage:private`。`schema` 只能是 `CREATE TABLE` 与 `CREATE [UNIQUE] INDEX`，外键只指自己的表或 `project_root(project_id)`，不用 `AUTOINCREMENT`，名字不能和库里已有的对象重。宿主开库时为内置的项目级插件经平台的打开函数第一次建表、在账本 `plugin_project_databases` 记下发布者和版本，之后每次打开核对，不符只停这个插件（动作不进目录，页面说明原因），不修补、不重建；经 Plugin Runtime 启动的插件（项目里的 Runtime 插件、装进项目的插件、沙箱插件）启动时由平台用同一个打开函数建表或核对，被拒就不启动。Home 级插件没有项目库。改表就升 `version`，同时改 `docs/releases/CHECKLIST.md` §3 那一行并写维护。例子：`plugins/native/coding/src/database.ts`。
+项目库里插件自己的表（`specs/plugin-project-database`）：Manifest 写 `databases: { project: { store_name, version, schema, read_permission, write_permission } }`，`parsePluginManifest` 检查形状，两个权限必须在 `permissions` 里，自己的表两项都写 `storage:private`。`schema` 只能是 `CREATE TABLE` 与 `CREATE [UNIQUE] INDEX`，外键只指自己的表或 `project_root(project_id)`，不用 `AUTOINCREMENT`，名字不能和库里已有的对象重。宿主开库时为内置的项目级插件经平台的打开函数第一次建表、在账本 `plugin_project_databases` 记下发布者和版本，之后每次打开核对，不符只停这个插件（动作不进目录，页面说明原因），不修补、不重建；经 Plugin Runtime 启动的插件（项目里的 Runtime 插件、装进项目的插件、沙箱插件）启动时由平台用同一个打开函数建表或核对，被拒就不启动。Home 级插件没有项目库。改表就升 `version`，同时改 `docs/releases/CHECKLIST.md` §3 那一行并写维护；新库在 §3 新增一行，改完跑 `node scripts/verify-release-versions.mjs`。例子：`plugins/native/coding/src/database.ts`。
 
 运行时读写自己的表用 `context.services.project_database`，与 Home 库同一个 `PluginDatabase` 接口，经 Plugin Runtime 启动、Manifest 声明了 `databases.project` 的插件才有：读用 `get`、`all`，只认 `SELECT`、`WITH`；写只在 `transaction(caller.beforeEffect, tx => …)` 里，回调同步，`tx.run` 一次一句，只认 `INSERT`、`UPDATE`、`DELETE`。每一句运行前平台用 `EXPLAIN` 带着参数核对它的步骤：只许碰本插件声明的表与索引，`project_root` 只许读（外键检查读它也算）；建、删、改表与索引，`PRAGMA`，事务控制，别的插件或平台的表，`temp` 与附加的库，都以 `plugin.project_database.statement_refused` 拒绝，语句一步也不运行。表结构只能升 `version` 走维护，运行时改不了。停用、撤权、取消之后句柄写不进去，与 Home 库相同。沙箱插件在操作的 effects 里写 `projectDatabase: ['read']` 或 `['read', 'write']`（查询只能读），人批准后经 `sdk.projectDatabase.get(sql, parameters)`、`all(sql, parameters)`、`transaction([{ sql, parameters }])` 走同一份检查；参数只许 null、有限数和字符串，BLOB 与超出 2^53 的整数传不回来，一个事务 1 到 64 句，一句被拒整个不写。沙箱侧由宿主接到异步 `services.project_statements`（不给同步 `project_database`），其中 `get(sql, parameters, { bytes }, signal)` 与 `all` 都传 512 KiB 上限，超限在 SQL Worker 内拒绝，插件收到 `sandbox.database_result_too_large`。子进程主线程独立执行单句与含提交的事务截止时间，宿主断开也杀整个进程；提交中断可能返回结果未知，不能自动重试。创作台生成的 Manifest 写不出 `databases.project`，所以生成插件用不上它；创作台防腐收尾后删除（BL-377）。
 
@@ -98,6 +98,8 @@ Home 或项目里宿主自己运行的插件要调模型：Manifest 声明 `mode
 9. **英文**：插件 `src/en.ts` 导出 `X_EN`，还要在 `apps/workbench/src/i18n/en.ts` `import` 并 `...X_EN`。只写插件文件，英文界面仍是中文 key。
 10. **构建**：`pnpm --filter @molis-ai/molis-work-plugin-<id> build`。根目录 `pnpm build` 含 workspace。
 11. **会点名插件名单的测试**：`tests/plugin-declarative-mounting.test.ts`（插件切换/常驻/个人插件）、`tests/creative-tools-plugins.test.ts` 的 `PERSONAL_PLUGIN_IDS`、`tests/uninstall.test.ts` 的 `{home}` 库名、有列表时 `tests/list-silent-refresh.test.ts` 的 factory 表。按需改 `tests/plugin-catalog-companions.test.ts`。
+12. **动作定义**：用 SDK 的 `defineAction` 写一份定义，同一份既进 Manifest 的 `actions`，也绑定运行实例的 `actions` 处理器（`packages/plugin-sdk/README.md`）；注册后自动进共同目录，UI、编排、Agent、MCP 共用它，没有另外的适配。
+13. **快照与预算**：改了动作或场景，`pnpm build` 后跑 `pnpm actions:update`（`tooling/gates/actions/`）；改了 contracts 子路径或 SDK 的公开 API，跑 `pnpm api:update`；插件的客户端包是 `/assets/` 下的新文件，要进 `tooling/gates/page-assets.json` 的预算，新增资源先问用户（`scripts/gates/page-assets.mjs`）。
 
 导航、设置位置、项目启用由 catalog 和 Manifest 推导；客户端与 i18n 仍需接线。公共动作注册后自动进入 MCP 目录，没有另外的 MCP 适配。
 
@@ -105,7 +107,7 @@ Home 或项目里宿主自己运行的插件要调模型：Manifest 声明 `mode
 
 `BUILD_TIME_ASSEMBLED` 里的旧插件仍是手写接线：Host 里的 `registerProvider(...)`（`project-host.ts`）、`apps/local-host/src/<id>-native-plugin-http.ts` 和目录条目（各包的 `registration`）。只有改这些旧插件时才看这一段，新插件不照抄。
 
-- 手写 HTTP 文件：实现 `<id>-native-plugin-http.ts`。Alchemist 的 HTTP 由 `apps/local-host/src/web-request.ts` 里的显式直连路由处理（`handleAlchemistNativePluginHttp`，不经适配桥）；Pages、灵光、Feed、Inbox、Schedule 等也是 `web-request.ts` 路由表里的条目，各调自己的 `handle<X>NativePluginHttp`。
+- 手写 HTTP 文件：实现 `<id>-native-plugin-http.ts`，冻结名单（`NATIVE_PLUGIN_HTTP_FILES`）里只剩 `alchemist`、`artifact`、`feed`、`inbox` 四个。Alchemist 的 HTTP 由 `apps/local-host/src/web-request.ts` 里的显式直连路由处理（`handleAlchemistNativePluginHttp`，不经适配桥）；Feed、Inbox 是该路由表里的条目，各调自己的 `handle<X>NativePluginHttp`。Pages、灵光、Schedule 等已迁完，路由是 Manifest `routes`。
 - Shelf 不属于这一份：它已由监督器启动（在 `RUNTIME_ASSEMBLED`，不在 `BUILD_TIME_ASSEMBLED`），路由从 Shelf S3 起是 Manifest 声明的插件路由（`/api/plugins/io.molis.work.shelf/…`），宿主里已没有 Shelf 名下的文件（Shelf S4：演示数据的示例由常驻宿主调 Shelf 自己的动作 `shelf.sample.seed` 放回），新插件不照抄。
 - `project_id` 同样由 Host 从当前项目注入，不要从请求 body 或 MCP schema 收。
 
@@ -169,7 +171,7 @@ Inbox 的显式判断与 Feed 入箱事件已这样接通，参考 `plugins/nati
 2. 同一个 `onEvent` 接收：`event.source_plugin_id` 是 `"host"`，`sequence` 是 0；`correlation_id` 在 `host.review.settled` 上是 `review_id`，在 `host.workspace.changed` 上是 null。
 3. 只在插件运行时投、至多一次，不落库、不重投，停着就错过：拿 `operation_id` 读操作的现状，不要把这条事件当唯一的事实来源。
 
-构建期 Native（Feed/Inbox/Pages/…）没有这条总线。不要为了「完整」给它们加 `events:`。Integration 的进来走 Signal，不是这条总线。Functions「事件去向」也不是。
+构建期 Native（冻结名单里的 Feed、Inbox 等）没有这条总线。不要为了「完整」给它们加 `events:`。Integration 的进来走 Signal，不是这条总线。Functions「事件去向」也不是。
 
 Workbench 标签选中是另一种纯 UI 通知：Host 在当前插件根节点派发 `molis-work:select-item`，`detail.itemId` 为对象 ID，回到插件列表时为 `null`。Pages 等插件通过自己的公开 HTTP 读取对象并恢复编辑器；切换时要保存未落盘输入，忽略过期读取。要的对象读不到（已删除）时：在条目本来的位置用自己的话说明（`mw-alert`，留在页面上，不用会消失的轻提示），并在插件根上发 `molis-work:item-unreadable`（`{ itemId }`，冒泡），工作台就不会按标签名给这个面命名、助理也不会把它当「正在看」带上；`detail.quiet` 为真时是人没要的重开（重新载入、后退），只发事件、不出声。读被 Host 的路由拒绝（403、`actions.*` 码：没有授权，或项目停用了这个插件）不是「已删除」：对读取请求把 `host.readRefusal(status, code)` 的返回当作错误文字（空串表示不是这类拒绝），照样放在条目本来的位置、照样发 `molis-work:item-unreadable`，且重开时也要说（条目还在，人可以去授权）。这个 DOM 通知不承担跨插件业务写入，也不是 Plugin Runtime 事件合同。
 
@@ -227,7 +229,7 @@ OAuth、目录连接器：[integrations.md](integrations.md)。
 | 凭据 | secret 引用 |
 | 给别的插件的瞬时协调 | 事件总线（仅经 Plugin Runtime 启动的插件，≤16 KiB） |
 
-卸载停代码和 binding；已形成的 Goal/Artifact/Signal 引用仍可显示。私人库默认不跟卸载清掉。
+卸载停代码和 binding；已形成的 Goal/Artifact/Signal 引用仍可显示。私人库默认不跟卸载清掉（分区库同样，`uninstall --purge-user-data` 才逐项目删）。
 
 ## 验证这一步
 

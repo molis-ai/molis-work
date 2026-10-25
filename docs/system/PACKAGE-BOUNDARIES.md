@@ -85,12 +85,24 @@ F2 创建目标地图里的全部 package。每个 package 必须有：
 
 `contract-only` package 只提供真实边界，不注册入口、不创建 Store、不返回伪成功。独立 package 默认是 Monorepo 私有包；只有 Contracts、Plugin SDK 和必要 UI Extension 类型进入潜在公共发布面。
 
+### 新增一个横向服务或平台服务
+
+照这个顺序做；`horizontal/knowledge` 是最近的完整样例。
+
+1. 目录 `horizontal/<名>/`，包名 `@molis-ai/molis-work-service-<名>`；合同放 `packages/contracts/src/services/<名>.ts`（公开 subpath）。
+2. 在 `scripts/workspace-packages.mjs` 加一条 `entry(路径, 包名, "horizontal", 合同子路径, 迁移目标, 一句话, 不负责什么, 旧来源, 状态)`。归属由 `scripts/package-owners.mjs` 的规则算出：`node scripts/package-owners.mjs --write` 刷新 SSOT 的「归属」列与 `.github/CODEOWNERS`。
+3. 包 README 写「开发要求」（写法见 `docs/system/DEVELOPMENT-REQUIREMENTS.md`），并在 `docs/horizontal/` 加手册。
+4. 要给页面、工作流、Agent、MCP、插件用的，都写成动作：动作定义写 `audiences`；Host 的装配点是 `apps/local-host/src/<名>-actions.ts`，返回 `registration: { provider, definitions, handlers }`（样例 `knowledge-actions.ts`）。插件使用它，要在自己的 Manifest `capabilities.consumes` 里声明。
+5. `pnpm build` 之后跑 `pnpm actions:update`（系统动作记在 `tooling/gates/actions/host-actions.tsv`），改了公开合同再跑 `pnpm api:update`，提交 `tooling/gates/`。
+6. `node scripts/gates/package-inventory.mjs --table` 重新生成 `specs/repository-anti-corruption/spec.md` §5.1 的包清单行。
+7. `pnpm boundary:check` 与 `node scripts/check-health-gates.mjs --base origin/main` 都要过。
+
 ## 5. Adapter 放置
 
 不设顶层 `adapters/`：
 
-- SQLite、Filesystem、Blob：`packages/storage/adapters/`
-- PTY：`horizontal/runtime-host/adapters/`
+- SQLite、Filesystem、Blob：`packages/storage/src/adapters/`
+- PTY：`horizontal/runtime-host/src/adapters/`
 - Tauri、Keychain、Updater：`apps/desktop/adapters/`
 - GitHub、Gmail、RSS 等：对应 `plugins/official-integrations/<provider>/`
 

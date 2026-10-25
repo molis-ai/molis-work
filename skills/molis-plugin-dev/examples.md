@@ -2,11 +2,13 @@
 
 挑最近的同类抄结构，不要混抄。
 
-三件都叫「事件」，对照前先认路：判断场景（`action_scenes`）是首页/Inbox/Feed 的判断去向；插件 `events` 是 Plugin Runtime 启动的插件之间的总线（Coding 族、Shelf 与已安装插件）；Integration 进来的是 Signal。
+三件都叫「事件」，对照前先认路：判断场景（`action_scenes`）是首页/Inbox/Feed 的判断去向；插件 `events` 是 Plugin Runtime 启动的插件之间的总线（登记上有 `project_runtime` 或 `runtime` 的内置插件与已安装插件）；Integration 进来的是 Signal。
 
 ## Feed：外来消息的去向
 
 人盯着一条 `feed_item`。详情上四条竞争处置：加入 Inbox、保存、升格 Goal、忽略。
+
+Feed、Inbox 还在构建期装配的冻结名单里（`tests/builtin-plugin-assembly-gate.test.ts`）：只对照产品行为（动作、场景、不进池的规则、搜索），装配与 HTTP 不要抄；新插件按 [host.md](host.md) 必改第 6、8 步。
 
 - UI：plugin-stage 外壳里的文章列 + 阅读页：来源收在列顶的来源菜单，时间线 + 全部 / 未读 / 已保存，点卡片在右侧读。
 - HTTP：Host `/api/feed/items/:id/(inbox|save|promote|archive|…)`。
@@ -48,7 +50,7 @@
 
 ## Schedule：到点叫醒
 
-人盯着定时任务。`kind: "native"` 但有 `agent`。HTTP 走 `web-request.ts` 路由表里的 schedule 条目。不要把 Coding 的 workspace-write 角色抄过来。
+人盯着定时任务。`kind: "native"` 但有 `agent`。HTTP 是 Manifest `routes`，经 `/api/plugins/<plugin_id>/`。不要把 Coding 的 workspace-write 角色抄过来。
 
 ## Sessions / Shelf / Artifacts / Goals
 

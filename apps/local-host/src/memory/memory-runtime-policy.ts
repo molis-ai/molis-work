@@ -3,7 +3,7 @@ import type { AgentMemoryCaller, AgentMemoryExtractor } from "@molis-ai/molis-wo
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
 import { MEMORY_CONSUMERS, type MemoryPrefs, type MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
-import { CANDIDATE_TTL_MS, characterOwner, consumerAccess, memoryClassReadAllowed, memoryClassReadPossible, memoryClassFormationAllowed } from "@molis-ai/molis-work-service-memory";
+import { CANDIDATE_TTL_MS, memoryErrors, characterOwner, consumerAccess, memoryClassReadAllowed, memoryClassReadPossible, memoryClassFormationAllowed } from "@molis-ai/molis-work-service-memory";
 
 type Options = NonNullable<PrologueNodeAdapterOptions["memory"]>;
 type Request = Parameters<Options["authorize"]>[1][number];
@@ -19,6 +19,7 @@ export interface MemoryRuntimePolicyOwner {
   /** Present only during the trusted project-deletion hook, never from an Action's input. */
   deletingProject(): string | undefined;
   deletingScope?(scope: string, owner: string): boolean;
+  deletingCoverage?(operationId: string, scopes: readonly { scope: string; owner: string }[]): boolean;
   deletingPersonal?(target: Request["target"]): boolean;
   deletionPending?(projectId: string | null, sessionId?: string): boolean;
 }
@@ -155,6 +156,17 @@ export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | u
       return requestsAllowed(caller, requests, await current(caller), operation);
     },
     assertCurrent: (caller, requests, operation) => requestsAllowed(caller, requests, currentFacts(caller), operation),
+    async authorizePurgeInspection(caller, request) {
+      const state = currentFacts(caller);
+      return !!state?.deletion && request.appId === "io.molis.work" && request.purpose === "owner-coverage"
+        && state.owner.deletingCoverage?.(request.operationId, request.knownScopes) === true;
+    },
+    assertPurgeInspectionCurrent(caller, request) {
+      const state = currentFacts(caller);
+      if (!state?.deletion || request.appId !== "io.molis.work" || request.purpose !== "owner-coverage"
+        || state.owner.deletingCoverage?.(request.operationId, request.knownScopes) !== true)
+        throw memoryErrors.forbidden("原删除覆盖检查已失效");
+    },
     async authorizeRecall(caller, request) {
       const state = await current(caller);
       // No readable scope means no storage scan; mixed off/on still admits its readable part and rechecks every entry.

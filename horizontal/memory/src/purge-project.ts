@@ -24,7 +24,7 @@ export async function previewProjectMemoryPurge(ports: { backend: MemoryBackendP
   if (!caller.operation_id || !caller.person || caller.project_id !== projectId) throw memoryErrors.forbidden("缺少原项目删除身份");
   if (!backend) throw memoryErrors.unavailable("原记忆运行时不可用，不能确认项目记忆已穷尽");
   const scopes: Array<{ scope: MemoryScope; owner: string }> = [{ scope: "project", owner: projectId }];
-  for (const found of [...ledger.owners(projectId), ...ledger.candidateOwners(projectId)]) {
+  for (const found of selection.scopes ?? [...ledger.owners(projectId), ...ledger.candidateOwners(projectId)]) {
     if (found.scope === "character" && !scopes.some(item => item.scope === found.scope && item.owner === found.owner)) scopes.push({ scope: found.scope, owner: found.owner });
   }
   for (const target of selection.scopes ?? []) {
@@ -80,7 +80,8 @@ export async function previewProjectMemoryPurge(ports: { backend: MemoryBackendP
 }
 
 /** No re-list or new decision on retry. Source suppression remains outside the ledger's removable marker set. */
-export async function applyProjectMemoryPurge(ports: { backend: MemoryBackendPort | null; ledger: MemoryLedgerPort; caller: MemoryCaller; control: AgentMemoryExecutionControl },
+export async function applyProjectMemoryPurge(ports: { backend: MemoryBackendPort | null; ledger: MemoryLedgerPort; caller: MemoryCaller; control: AgentMemoryExecutionControl;
+  verifyScopeCleanup(): Promise<void> },
   submitted: ProjectMemoryPurgePlan): Promise<void> {
   const plan = structuredClone(submitted), { ledger, caller } = ports;
   if (plan.actor_id !== caller.actor_id || plan.project_id !== caller.project_id || plan.operation_id !== caller.operation_id || !caller.person)
@@ -104,6 +105,8 @@ export async function applyProjectMemoryPurge(ports: { backend: MemoryBackendPor
       ledger.forget(entry.memory_id);
     }
   }
+  // Preserve unselected ledger evidence until the owner proves the whole scope can close.
+  await ports.verifyScopeCleanup(); current();
   // A personal scope is a fixed Session-bound selection, never the person's entire library.
   const scopes = plan.scopes.filter(item => item.scope !== "personal").map(({ scope, owner }) => ({ scope, owner }));
   await ports.control.beforeEffect(); current();

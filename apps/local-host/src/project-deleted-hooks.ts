@@ -2,7 +2,7 @@ import path from "node:path";
 import type { ProjectDeletionRecord } from "@molis-ai/molis-work-contracts/modules/projects";
 import { homeProjectOwners } from "./project-deleted-owners.js";
 import { ProjectDeletedDeferred } from "./project-deleted-deferred.js";
-import type { ProjectDeletionRecovery, ProjectDeletionPreparation, WithProjectDeletionRecovery, WithProjectRecreation } from "./project-deletion-recovery.js";
+import type { ProjectDeletionRecovery, ProjectDeletionPreparation, ProjectDeletionMemoryProof, WithProjectDeletionRecovery, WithProjectRecreation } from "./project-deletion-recovery.js";
 
 export { ProjectDeletedDeferred };
 type CommittedDeletion = Readonly<Pick<ProjectDeletionRecord, "deletion_id" | "project_id"> & { recovery: ProjectDeletionRecovery }>;
@@ -54,7 +54,7 @@ export interface ProjectDeletedOwner {
 
 /** What the deletion needs from the owners: who is registered, and a way to run one of them. */
 export interface ProjectDeletedPort {
-  withRecovery<T>(input: ProjectDeletionPreparation, work: (plan: ProjectDeletionRecovery) => Promise<T>): Promise<T>;
+  withRecovery<T>(input: ProjectDeletionPreparation, work: (plan: ProjectDeletionRecovery, proof: ProjectDeletionMemoryProof) => Promise<T>): Promise<T>;
   withRecreation: WithProjectRecreation;
   /** The owners that clear data of a deleted project, in the order they run. */
   owners(): ReadonlyArray<{ id: string; label: string | null }>;
@@ -88,7 +88,7 @@ export interface ProjectDeletedPort {
 export class ProjectDeletedHooks implements ProjectDeletedPort {
   private readonly stacks = new Map<string, ProjectDeletedOwner[]>();
 
-  withRecovery<T>(input: ProjectDeletionPreparation, work: (plan: ProjectDeletionRecovery) => Promise<T>): Promise<T> {
+  withRecovery<T>(input: ProjectDeletionPreparation, work: (plan: ProjectDeletionRecovery, proof: ProjectDeletionMemoryProof) => Promise<T>): Promise<T> {
     const owner = this.owners().find(item => item.id === "memory");
     if (!owner?.withRecovery) throw new ProjectDeletedDeferred("当前入口无法冻结 Memory 与会话的原删除范围，请由运行中的 Molis Work 重试", true);
     return owner.withRecovery(input, work);

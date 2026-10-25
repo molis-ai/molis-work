@@ -1,6 +1,9 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
+import { isDeepStrictEqual } from "node:util";
+import { readMemoryOwnerCoverage } from "./memory-owner-coverage.js";
+import { verifyMemoryCoverage, verifyProjectMemoryEmpty } from "./memory-project-coverage.js";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { MemoryLedgerPort } from "@molis-ai/molis-work-contracts/services/memory";
 import { memoryErrors, purgeProjectMemories, previewProjectMemoryPurge, applyProjectMemoryPurge, type MemoryBackendPort } from "@molis-ai/molis-work-service-memory";
@@ -22,7 +25,8 @@ interface MemoryProjectDeletionPorts {
   projectExists?(projectId: string): Promise<boolean | null>;
 }
 type Frame = { project: string; active: boolean; sessions: Set<string>; plan?: ProjectDeletionRecovery; purge?: () => Promise<void>;
-  scopes?: Array<{ scope: "project" | "character"; owner: string }>; empty?: () => void };
+  scopes?: Array<{ scope: "project" | "character"; owner: string }>; empty?: () => void;
+  coverage?: { operation: string; projection: ReturnType<typeof readMemoryOwnerCoverage>; current(): void } };
 
 /** The existing project-deletion receipt owns this exception to a project's normal live-owner check. */
 export function registerMemoryProjectDeletion(ports: MemoryProjectDeletionPorts) {
@@ -45,7 +49,7 @@ export function registerMemoryProjectDeletion(ports: MemoryProjectDeletionPorts)
     withRecreation: (input, work) => executes() ? recreateWithEmptyMemory(ports, deleting, held, input, work)
       : elsewhere.withRecreation!(input, work),
     withRecovery: async (input, work) => {
-      if (input.original?.kind === "absent") return elsewhere.withRecovery!(input, work);
+      if (input.original?.kind === "absent" && !runtimeExists()) return elsewhere.withRecovery!(input, work);
       if (!executes()) return elsewhere.withRecovery!(input, work);
       const controlledBackend = ports.controlledBackend, withEffect = ports.withEffect;
       if (!ports.projectDeletion || !controlledBackend || !withEffect) throw memoryErrors.unavailable("当前运行时缺少项目原计划清理能力");
@@ -57,30 +61,51 @@ export function registerMemoryProjectDeletion(ports: MemoryProjectDeletionPorts)
         const projectDeletion = ports.projectDeletion();
         const associated = input.original?.kind === "runtime"
           ? input.original.sessions.sessions.filter(item => item.indexed && item.owner.project_id !== input.project_id).map(({ session, owner }) => ({ session, owner }))
-          : assistantProjectSessions(ports.homeDirectory, input.project_id);
+          : input.original ? [] : assistantProjectSessions(ports.homeDirectory, input.project_id);
         return await projectDeletion.withHold({ project_id: input.project_id, associated_sessions: associated }, async active => {
           const sessions = input.original?.kind === "runtime" ? input.original.sessions : await active.preview(input.operation_id);
           for (const item of sessions.sessions) sessionIds.add(item.session.session_id);
           const frame: Frame = { project: input.project_id, active: true, sessions: sessionIds };
-          const current = () => { if (!frame.active || !ports.alive()) throw memoryErrors.unavailable("原项目删除主人已关闭"); };
+          const projection = readMemoryOwnerCoverage({ ...ports, projectId: input.project_id });
+          frame.scopes = projection.scopes;
+          const current = () => {
+            if (!frame.active || !ports.alive()) throw memoryErrors.unavailable("原项目删除主人已关闭");
+            if (!isDeepStrictEqual(readMemoryOwnerCoverage({ ...ports, projectId: input.project_id }), projection))
+              throw memoryErrors.conflict("原删除归属已变化，须从首页重新核验且不能扩大原计划");
+          };
+          frame.coverage = { operation: input.operation_id, projection, current };
           const control: AgentMemoryExecutionControl = { beforeEffect: async () => { current(); }, assert_current: current };
           const caller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: input.project_id, consumer: "ui" as const, person: true,
             current_scene: "common" as const, purpose: "management" as const, operation_id: input.operation_id };
           try {
             return await deleting.run(frame, async () => {
               frame.plan = input.original;
+              const backend = controlledBackend(control).withCaller(caller);
+              const covered = () => verifyMemoryCoverage(backend, { operation_id: input.operation_id, known_scopes: projection.knownScopes }, current);
+              await covered();
+              if (input.original?.kind === "absent" && sessions.sessions.length) throw memoryErrors.conflict("原空计划之外出现会话，不能扩大原删除决定");
+              if (input.original?.kind === "runtime") {
+                const planned = input.original.memory.scopes.filter(item => item.scope !== "personal").map(({ scope, owner }) => ({ scope, owner }));
+                if (projection.scopes.some(item => !planned.some(scope => scope.scope === item.scope && scope.owner === item.owner)))
+                  throw memoryErrors.conflict("当前归属超出原固定清单，不能追加删除");
+              }
               const plan: ProjectDeletionRecovery = input.original ?? { version: 1, kind: "runtime", project_id: input.project_id,
                 operation_id: input.operation_id, sessions,
                 memory: await previewProjectMemoryPurge({ backend: controlledBackend(control), ledger: ports.ledger, caller }, input.project_id,
-                  { sessions: sessions.sessions.map(item => ({ kind: "session", id: item.session.session_id, revision: 1 })) }) };
+                  { sessions: sessions.sessions.map(item => ({ kind: "session", id: item.session.session_id, revision: 1 })), scopes: projection.scopes }) };
               frame.plan = plan;
+              const verifyMemory = async () => {
+                await verifyProjectMemoryEmpty(backend, { scopes: projection.scopes, actor: caller.actor_id,
+                  sessions: plan.kind === "runtime" ? plan.sessions.sessions.map(item => item.session.session_id) : [] }, current);
+                await covered(); current();
+              };
               frame.purge = async () => {
-                if (plan.kind !== "runtime") throw memoryErrors.conflict("缺少原运行时清理计划");
-                await applyProjectMemoryPurge({ backend: controlledBackend(control), ledger: ports.ledger, caller, control }, plan.memory);
+                if (plan.kind === "absent") { await verifyMemory(); return; }
+                await applyProjectMemoryPurge({ backend: controlledBackend(control), ledger: ports.ledger, caller, control, verifyScopeCleanup: verifyMemory }, plan.memory);
                 current();
                 await withEffect(control, () => active.purge(plan.sessions));
               };
-              current(); return await work(structuredClone(plan));
+              current(); return await work(structuredClone(plan), { verifyMemory, assertCurrent: current });
             });
           } finally { frame.active = false; }
         });
@@ -90,7 +115,7 @@ export function registerMemoryProjectDeletion(ports: MemoryProjectDeletionPorts)
       const recreation = deleting.getStore();
       if (!receipt && recreation?.empty && recreation.project === projectId) { recreation.empty(); return; }
       if (receipt) {
-        if (receipt.recovery.kind === "absent") return elsewhere.clear(projectId, receipt);
+        if (receipt.recovery.kind === "absent" && !deleting.getStore()?.active) return elsewhere.clear(projectId, receipt);
         const frame = deleting.getStore();
         if (!frame?.active || frame.project !== projectId || frame.plan?.operation_id !== receipt.deletion_id || !frame.purge)
           throw memoryErrors.forbidden("项目清理必须在原持久计划的持有区间执行");
@@ -115,6 +140,11 @@ export function registerMemoryProjectDeletion(ports: MemoryProjectDeletionPorts)
       });
     } });
   return {
+    deletingCoverage: (operation: string, scopes: readonly { scope: string; owner: string }[]) => {
+      const frame = deleting.getStore();
+      if (!frame?.active || frame.coverage?.operation !== operation || !isDeepStrictEqual(scopes, frame.coverage.projection.knownScopes)) return false;
+      frame.coverage.current(); return true;
+    },
     deletingProject: () => { const frame = deleting.getStore(); return frame?.active ? frame.project : undefined; },
     deletingScope: (scope: string, owner: string) => {
       const frame = deleting.getStore();
@@ -144,10 +174,13 @@ async function recreateWithEmptyMemory<T>(ports: MemoryProjectDeletionPorts, del
   const plans = input.deletions.flatMap(item => item.recovery.kind === "runtime" ? [item.recovery] : []);
   const sessions = plans.flatMap(plan => plan.sessions.sessions);
   const sessionIds = new Set(sessions.map(item => item.session.session_id));
-  const scopes = plans.flatMap(plan => plan.memory.scopes.filter(item => item.scope !== "personal")
-    .map(item => ({ scope: item.scope as "project" | "character", owner: item.owner })));
-  const frame: Frame = { project: input.project_id, active: true, sessions: sessionIds, scopes };
-  const current = () => { if (!frame.active || !ports.alive()) throw memoryErrors.unavailable("示例记忆空态证明已结束，请重试"); };
+  const projection = readMemoryOwnerCoverage({ ...ports, projectId: input.project_id });
+  const frame: Frame = { project: input.project_id, active: true, sessions: sessionIds, scopes: projection.scopes };
+  const current = () => {
+    if (!frame.active || !ports.alive()) throw memoryErrors.unavailable("示例记忆空态证明已结束，请重试");
+    if (!isDeepStrictEqual(readMemoryOwnerCoverage({ ...ports, projectId: input.project_id }), projection)) throw memoryErrors.conflict("示例归属已变化，请重新核验");
+  };
+  frame.coverage = { operation: input.deletions[0]!.deletion_id, projection, current };
   const control: AgentMemoryExecutionControl = { beforeEffect: current, assert_current: current };
   held.set(input.project_id, sessionIds);
   try {
@@ -156,10 +189,10 @@ async function recreateWithEmptyMemory<T>(ports: MemoryProjectDeletionPorts, del
       associated_sessions: sessions.map(({ session, owner }) => ({ session, owner })) }, async () => deleting.run(frame, async () => {
       const caller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: input.project_id, person: true, consumer: "ui" as const,
         current_scene: "common" as const, purpose: "management" as const, operation_id: input.deletions[0]!.deletion_id };
-      const preview = await previewProjectMemoryPurge({ backend: ports.controlledBackend!(control), ledger: ports.ledger, caller }, input.project_id,
-        { sessions: [...sessionIds].map(id => ({ kind: "session", id, revision: 1 })), scopes });
+      const backend = ports.controlledBackend!(control).withCaller(caller);
+      await verifyProjectMemoryEmpty(backend, { scopes: projection.scopes, actor: caller.actor_id, sessions: [...sessionIds] }, current);
+      await verifyMemoryCoverage(backend, { operation_id: caller.operation_id, known_scopes: projection.knownScopes }, current);
       current();
-      if (preview.scopes.some(scope => scope.memories.length || scope.candidates.length)) throw memoryErrors.conflict("示例项目仍有当前记忆原件，不能用历史删除收据清理或覆盖");
       frame.empty = current;
       return work(current);
     }));

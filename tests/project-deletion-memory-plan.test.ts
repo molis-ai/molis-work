@@ -1,13 +1,26 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { applyProjectMemoryPurge, previewProjectMemoryPurge, type MemoryCaller, type MemoryService } from "@molis-ai/molis-work-service-memory";
+import { applyProjectMemoryPurge as applyFixedProjectMemoryPurge, previewProjectMemoryPurge, type MemoryCaller, type MemoryService } from "@molis-ai/molis-work-service-memory";
 import { prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
 import { memoryServiceHome, observeMemoryBackend, originalMemorySources, scriptedMemoryExtraction } from "./fixtures/memory-service-home.js";
 
 const caller = (operation_id: string): MemoryCaller => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", consumer: "ui",
   person: true, purpose: "management", current_scene: "common", operation_id });
 const control = { beforeEffect: async () => undefined, assert_current: () => undefined };
+// These lower-level tests supply the scope owner's current empty proof through the real backend.
+function applyProjectMemoryPurge(ports: Omit<Parameters<typeof applyFixedProjectMemoryPurge>[0], "verifyScopeCleanup">,
+  plan: Parameters<typeof applyFixedProjectMemoryPurge>[1]) {
+  return applyFixedProjectMemoryPurge({ ...ports, verifyScopeCleanup: async () => {
+    assert.ok(ports.backend);
+    for (const target of plan.scopes.filter(item => item.scope !== "personal")) for (const kind of ["memory", "memory-candidate"] as const) {
+      const page = await ports.backend.withCaller(ports.caller).previewPurge({ scope: target.scope, owner: target.owner, kind });
+      assert.equal(page.outcome, "completed"); assert.deepEqual(page.issues, []);
+      assert.deepEqual(page.items, []); assert.equal(page.exhausted, true);
+    }
+  } }, plan);
+}
+
 
 test("project deletion freezes tombstones and original versions, then resumes SDK deletion after ledger failure", async t => {
   const f = await memoryServiceHome(t, { projects: ["project-a", "project-b"] });

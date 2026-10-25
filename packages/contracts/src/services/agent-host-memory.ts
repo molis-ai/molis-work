@@ -307,6 +307,15 @@ export interface AgentMemoryPurgePage {
   cursor?: string;
   exhausted: boolean;
 }
+/** Internal owner coverage metadata only; no owner identities or bodies in the result. */
+export interface AgentMemoryPurgeCoverageQuery {
+  operation_id: string;
+  known_scopes: readonly { scope: AgentMemoryEntry["scope"]; owner: string }[];
+  limit?: number; cursor?: string; signal?: AbortSignal;
+}
+export interface AgentMemoryPurgeCoveragePage {
+  status: "covered" | "needs-reconcile"; issues: readonly { code: string }[]; exhausted: boolean; cursor?: string;
+}
 type AgentMemoryLocation = { scope: AgentMemoryEntry["scope"]; owner: string; memory_id: string };
 type AgentCandidateLocation = { scope: AgentMemoryEntry["scope"]; owner: string; candidate_id: string };
 
@@ -317,6 +326,7 @@ export interface AgentMemoryCapability {
   list(scope: AgentMemoryEntry["scope"], owner: string): Promise<AgentMemoryEntry[]>;
   page(input: AgentMemoryPageQuery): Promise<AgentMemoryPage>;
   previewPurge(input: AgentMemoryPurgeQuery): Promise<AgentMemoryPurgePage>;
+  verifyPurgeCoverage(input: AgentMemoryPurgeCoverageQuery): Promise<AgentMemoryPurgeCoveragePage>;
   /** Append maps operation_id to SDK idempotencyKey; it has no synthetic expected version. */
   write(input: { scope: AgentMemoryEntry["scope"]; owner: string; text: string; origin: string; tags?: string[]; meta?: AgentMemoryMeta; operation_id: string; signal?: AbortSignal }): Promise<AgentMemoryEntry>;
   update(input: AgentMemoryLocation & AgentMemoryMutation & { change: AgentMemoryChange }): Promise<AgentMemoryEntry>;

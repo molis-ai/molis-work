@@ -2459,3 +2459,22 @@ App复用memory_owners、可信候选账、原固定删除计划、Catalog全部
 唯一 README browser 文件首轮在 19 个子测试输出后由 runner 报 TIMEOUT（11785.4s，报告 killed after1200s），无整个文件通过结论，墙钟异常原因未证实。按统筹批准保留原参数单文件复验一次，20/20 项、28.0s 通过，包含最终真实 Form frame 停止/重启路径；未改变时限、重试或原断言。安装 store EPERM、Swift cache 写权限及嵌套 sandbox、非 browser 首批 loopback EPERM、类型初放 memory.ts 触发 giant 门的首败也全部保留；分别按真实权限运行原命令、移回既有类型落点收束，不掩盖失败。日志统一为 `/private/tmp/molis-memory-owner-relations-*-20261025.log`，最终 build-final、health-final、readme-approved、coverage-final、browser-repeat 对应上述结果。
 
 这只证明 body-free 关系投影前置，不是 SDK coverage/authority 接线、实际 Catalog complete、完整 P0/MEM-40、真实 Home 或用户验收。未运行全量、付费模型或跨库删除；只有历史 Round、裸 operation/adoption-cleanup 或 SDK 双缺且 App 无原据的 owner 仍是未知，不能称完整覆盖。
+
+
+#### 项目删除当前覆盖证明接线短合同（2026-10-25，统筹冻结）
+
+从聚合 0779c69b40d3656bbcd3483ea44b688444e7f5ff 开始，沿原项目删除 hold、Catalog recovery plan 和 owner steps 接线。AgentMemoryCapability/MemoryBackend 增加 verifyPurgeCoverage 薄桥；SDK inspection authority 只接受真实 bound caller，LocalHost 的活动删除 ALS 同时固定项目与原 operation，核对同一 readMemoryOwnerCoverage 的 knownScopes/目标 scopes，不借普通 manage-read 或 person/ui 字段授予扫描。每页、最后异步之后和 Catalog 同步提交前重核当前关系；变化即冲突，本次累计废弃，重试从首页开始，不将新集合接旧 cursor。
+
+WithProjectDeletionRecovery 回调新增仅在原 hold 有效的 verifyMemory/assertCurrent。新计划从同份关系冻结目标 scopes；重试仅执行原 ID/版本/operation，不重列或扩大计划。Memory/Session 清理后、业务主人清理前，以及最终 Catalog commit 的 beforeAcquire 必须再证明目标无残留及全部 coverage 页 covered/exhausted；事务体同步复核。旧 memory-step complete 也重新证明；旧 complete 只读核验后返回原收据，非空或未知向调用方抛冲突，不改写历史收据、不删除或重建 Demo。旧 absent 不作证明：当前确无 Runtime 目录且 ledger 仅 prefs 可沿原同步空态，每次 Catalog 提交重验；出现 Runtime 则须在线核验，缺服务 deferred。
+
+允许改 contracts agent-host Memory 合同/导出、AgentHost memory/authority 薄桥、Memory backend/purge-project、LocalHost memory-backend/runtime-policy/project-deletion 与 managed-project-deletion/recovery/hooks/owners 的完成缝、相关 README/spec/API 快照及直接测试；不改 Session lifecycle/index、SDK/vendor/lock/UI/CI 门禁。与 SingleSession 作者在 authority 文件仅共享原分支接入，不代做 exact 清除或 MEM-40 restore。无新表、全局 epoch、锁或持久证明标记。真实 Catalog complete、最后 await 撤权、关系分页变化、固定计划故障恢复及旁项目保持是必要验证；全部结论仍按实际工程证据，不代替真实 Home/用户验收。
+
+补充已复现顺序约束：旧固定计划遗漏的 SDK 原件会被原 forgetScopes 提前抹掉候选、历史与归属依据。因此 applyProjectMemoryPurge 在逐项原决定清理后、整组 ledger forgetScopes 前必须调用具名 verifyScopeCleanup 窄回调，复用同一当前空态与 coverage 证明；通过后同步检查当前 control，再清 scope，之后才允许 Session purge。最后 Catalog proof 保留。证明拒绝时保留未选 SDK/Session/ledger 原件；已按原决定逐项清理的 ledger.forget 不回滚。回调只用于本次 scope 收尾，不建通用 hook 或新持久状态。
+
+本片局部工程结果：已沿真实 AgentMemoryCapability → MemoryBackend → SDK verifyPurgeCoverage 接线，inspection 只接受绑定的删除 caller/原 operation 与当前 ALS 中同份 knownScopes。旧 complete 重放不改写收据；旧 memory-step complete 与 absent 都重新证明。未知 owner、分页间关系变化、最后异步后关系失效以及旧固定计划遗漏原件均不能提交新 complete；原计划不扩列。真实隔离 Catalog/Node/SQLite 已覆盖正常删除、重启恢复、无 Runtime 空态、旧 complete 后写入冲突、归档 Work 角色关系、未索引或已 purge Session 下的 canonical 原件与旁项目保持。
+
+顺序红例已保留：session-order-red 在旧实现中发现遗漏原件时 Session 已先 purge；补前置证明后，ledger-order-red-retained 进一步证实 forgetScopes 仍先清了未选 owner/candidate/change，尽管 Session 保持 active、Catalog pending。最终同一 verifyMemory 已放在具名 verifyScopeCleanup 内、forgetScopes 之前，后继 Session purge 及最后 Catalog proof 均保留。真实 Action 生成的正式历史/变更、旧未选候选与归属、两份 SDK 正式原件及 Session 状态在拒绝后逐项读回保持，固定 recovery_plan 字节不变；已选逐项清理不承诺回滚。测试中额外种入的旧 ledger 候选只证明保留待核对原据，不将其冒称有效 SDK 空来源候选。
+
+固定 Node24.14.0/pnpm11.9，最终原 pnpm build、根类型、准确父 0779c69b 的 health 均 exit 0；boundary errors=[]、72 个 API 快照匹配。唯一公开形状变化是 AgentMemoryCapability 增加必需 verifyPurgeCoverage 及查询/状态类型，给内部主人接线；没有新增 Action、插件全 Home 查询或普通 caller 扫描许可，真实适配已同步。四份 README 去重后的 103 个非 browser 文件 1164/1164 项先通过，直接影响文件另验；唯一 README browser runtime-plugin-http-discovery 20/20、34.9s 通过。最后收尾顺序修改后只复验受影响 10 文件 107/107 项（jobs2/retries0），包括 recovery 17、policy 26、fixed-plan 10；未重复无新增影响的整批和 browser。
+
+所有日志保留在 /private/tmp/molis-memory-project-coverage-*-20261025.log：最终 build-ledger-final、types-ledger-final、health-ledger-final、ledger-final；README 和 browser 分别为 readme/browser。首批调用夹具缺可信关系、错误文本预期、旧 Demo 重放入口、Session view 错读 state 以及新增 ledger 夹具未配 canonical 候选/空 sources 被拒绝等首败均保留，未改时限、重试、门禁或放宽生产约束。探索性的单独 strict tsc 测试文件探针 test-types 未通过（这些文件不属根生产 tsconfig，含既有夹具类型问题；未做精确父对照，不宣称该探针通过）；新增回调参数已显式归置类型，正式 build/types 通过。无 SDK/vendor/锁/index/lifecycle/UI 改动，无新表/epoch/锁，无全量、真实 Home、付费模型、SingleSession exact 清除或 MEM-40 restore 验收；本片是指定项目删除调用链的工程证据，不宣称完整 P0 或用户验收完成。

@@ -25,6 +25,7 @@ export interface MemoryBackendPort {
   page(input: Scoped<AgentMemoryPageQuery>): Promise<Omit<AgentMemoryPage, "items"> & { items: MemoryBackendEntry[] }>;
   /** Returned identities retain the Runtime's user scope spelling. */
   previewPurge(input: Scoped<AgentMemoryPurgeQuery>): Promise<AgentMemoryPurgePage>;
+  verifyPurgeCoverage: AgentMemoryCapability["verifyPurgeCoverage"];
   write(input: Scoped<Parameters<AgentMemoryCapability["write"]>[0]>): Promise<MemoryBackendEntry>;
   update(input: Formal & { change: AgentMemoryChange }): Promise<MemoryBackendEntry>;
   setMeta(input: Formal & { meta: AgentMemoryMeta }): Promise<MemoryBackendEntry>;

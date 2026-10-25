@@ -27,6 +27,8 @@ export interface PrologueMemoryOptions {
   assertCurrent?(caller: AgentMemoryCaller, requests: Parameters<MemoryAuthority["authorize"]>[0], operation?: "disable"): boolean;
   authorizeRecall(caller: AgentMemoryCaller, request: Parameters<NonNullable<MemoryAuthority["authorizeRecall"]>>[0]): ReturnType<NonNullable<MemoryAuthority["authorizeRecall"]>>;
   authorizeManagement(caller: AgentMemoryCaller, request: Parameters<NonNullable<MemoryAuthority["authorizeManagement"]>>[0]): ReturnType<NonNullable<MemoryAuthority["authorizeManagement"]>>;
+  authorizePurgeInspection?(caller: AgentMemoryCaller, request: Parameters<NonNullable<MemoryAuthority["authorizePurgeInspection"]>>[0]): Promise<boolean>;
+  assertPurgeInspectionCurrent?(caller: AgentMemoryCaller, request: Parameters<NonNullable<MemoryAuthority["assertPurgeInspectionCurrent"]>>[0]): void;
   /** Resolve a current trusted caller from the persistent owner, never from Agent query fields. */
   callerForSession(owner: AgentSessionView["owner"], sessionId: string): Promise<AgentMemoryCaller | undefined>;
 }
@@ -135,6 +137,19 @@ export function createPrologueMemoryAuthority(options: PrologueMemoryOptions | u
         const allowed = options.assertCurrent?.(caller, requests, bound ? calls.getStore()?.operation : undefined);
         requireSynchronous(allowed, "记忆最终授权检查必须同步完成");
         if (allowed === false) throw createPrologueError("MEMORY_SCOPE_DENIED", "记忆权限已变更");
+      },
+      async authorizePurgeInspection(request) {
+        await effects.beforeEffect(); effects.assertCurrent();
+        const caller = boundCaller(request.context);
+        return !!caller && !!options?.authorizePurgeInspection && await options.authorizePurgeInspection(caller, request);
+      },
+      assertPurgeInspectionCurrent(request) {
+        effects.assertCurrent();
+        const caller = boundCaller(request.context);
+        if (!caller || !options?.assertPurgeInspectionCurrent) throw createPrologueError("MEMORY_SCOPE_DENIED", "覆盖检查缺少原删除身份");
+        const result = options.assertPurgeInspectionCurrent(caller, request);
+        requireSynchronous(result, "覆盖检查必须同步完成");
+        if (result !== undefined) throw createPrologueError("MEMORY_SCOPE_DENIED", "覆盖检查不能返回授权替代值");
       },
       async authorizeRecall(request) {
         const caller = await callerFor(request.context);

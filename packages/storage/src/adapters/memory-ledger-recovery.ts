@@ -4,6 +4,7 @@ import { homeSqlitePath, openReadOnlyHomeSqlite } from "../home-sqlite.js";
 import { assertMemoryLedgerAdoptionSchema } from "./memory-ledger-adoption.js";
 import { MEMORY_LEDGER_STORE } from "./memory-ledger.js";
 import { projectMemoryLedgerRecoveryRow, type RecoveryEntry } from "./memory-ledger-recovery-facts.js";
+import { closeMemoryLedgerDatabase } from "./memory-ledger-close.js";
 
 const DEFAULT_RECOVERY_PAGE_SIZE = 40;
 const MAX_RECOVERY_PAGE_SIZE = 100;
@@ -42,7 +43,7 @@ export function openMemoryLedgerRecoveryInspection(input: {
     catch { throw failure("recovery_schema_invalid"); }
     current();
   } catch (error) {
-    try { db.close(); } catch { throw new AggregateError([error, failure("recovery_close_failed")], "来源检查与关闭失败"); }
+    closeMemoryLedgerDatabase(db, { error });
     throw error;
   }
   const queries = [

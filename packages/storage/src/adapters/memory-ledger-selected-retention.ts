@@ -7,6 +7,7 @@ import { inspectExistingSqlitePath } from "../storage-maintenance-path.js";
 import { MEMORY_LEDGER_STORE } from "./memory-ledger.js";
 import { changeMemoryLedgerAdoption, memoryLedgerAdoptionSnapshot, type MemoryLedgerAdoptionSnapshot } from "./memory-ledger-adoption.js";
 import { assertMemoryLedgerRetainedObjectsCleared, assertMemoryLedgerRetentionIdentities, createMemoryLedgerRetention, dropMemoryLedgerCandidate, suppressMemoryLedgerSources } from "./memory-ledger-retention.js";
+import { withMemoryLedgerDatabase } from "./memory-ledger-close.js";
 
 /** A source-forgotten barrier has no version; versioned sources retain their exact original tuple. */
 export interface MemoryLedgerSelectedRetentionSource { readonly event_id: string; readonly version?: string }
@@ -104,13 +105,12 @@ export function createMemoryLedgerRetentionCommands(input: RetentionInput) {
     },
     verifyOriginal(request) {
       const snapshot = structuredClone(request.snapshot); current();
-      const db = openReadOnlyHomeSqlite(homeDirectory, MEMORY_LEDGER_STORE);
-      try {
+      withMemoryLedgerDatabase(openReadOnlyHomeSqlite(homeDirectory, MEMORY_LEDGER_STORE), db => {
         current();
         db.exec("BEGIN");
         if (!isDeepStrictEqual(memoryLedgerAdoptionSnapshot(db, homeSqlitePath(homeDirectory, MEMORY_LEDGER_STORE)), snapshot)) conflict();
         current(); assertMemoryLedgerRetainedObjectsCleared(db, plan); current();
-      } finally { db.close(); }
+      });
     },
   } satisfies MemoryLedgerSelectedRetention);
   return { change, commands };

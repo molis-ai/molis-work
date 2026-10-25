@@ -2648,6 +2648,18 @@ P1修后局部验证：合入d54的frozen/offline安装与完整FIFO构建通过
 
 **MEM-40 Storage 非项目精确 retention（2026-10-25，实施前短合同）。** 准确基底 `25c5f44618c9d8074772837c186a2914085f5363`。独立遗忘、确认的 scope-clear 原项与事件屏障不能伪装项目计划：项目 forgetScopes 会清 owner、项目偏好及信号。本片在同一 Storage retention 主人提供 `createMemoryLedgerSelectedRetention`，不实现恢复父 marker/frame、Memory owner、AgentHost 或完整 MEM-40。
 
+**MEM-40-LEDGER-CLOSE，实际 Ledger 连接关闭失败恢复（2026-10-26，实施前短合同）。** 基底为 `e57f0d0fa0c736c6bd6aed691cd1c99de78caeb6` 合入已独审 `7cc836272e1df4fff96b51ae9fba2fe1238dda56` 的 `3752abc5769ed6a1633639cc4fffb85dd213a177`。真实只读 `inspectMemoryLedgerAdoption` 的 DatabaseSync.close 失败后原连接仍可读，但 finally 丢失句柄；首红 `/private/tmp/molis-ledger-close-probe-physical-20261026.log` 保留。
+
+- Storage 拥有原 SQLite 连接的最后关闭；公开失败只携结构化 `close(): Promise<void>`，不返回 DB、SQL、mutation 回调或补交业务结果。正常关闭后不暴露能力；失败交回原连接可重试关闭，成功后幂等，不按新路径重开连接，不调用 current、重放 work 或 COMMIT。
+- 业务失败与关闭失败分别保留在聚合错误中，cause 保留原业务错误；仅关闭失败时保留实际关闭错误。业务失败但关闭成功仍原样抛出。COMMIT 成功后的关闭失败发生在事务错误处理之外，不能再 ROLLBACK 或把原提交报告为未发生；不返回 post，关闭重试成功也不改变首次业务调用的失败。
+- 允许修改原 Storage Ledger 资源处理、adoption 只读检查/预检/事务、selected 原件证明与 recovery inspection 初始化失败、公开错误类型出口、Storage README、本段和直接测试。正常显式 reader 仍由原主人关闭。profiles/onlyPreferences、cleanup sources 的同型 finally 仅记录关联，尚非本次外层恢复必经，不顺手扩大修复。不依赖 LocalHost、不新增管理器/全局集合/锁/schema，不改原 retention SQL、身份、权限、scope 或父 marker/frame。
+- 原父 owner 的归还、原决定对账及最终发布由外层承担；外层须保留失败里的关闭能力。此片不提供父 marker 的原子发布，不把关闭完成当成持久业务完成。
+- 验收走公开 Storage 包和真实临时 SQLite：只读物理 close 失败能重试同连接；COMMIT 后 close 失败持久写已发生且关闭重试不再提交；work+close 双错完整、预开只读 close 失败零写；原回滚、撤权、selected/project 精确选择及原件 proof 不退化。故障只在实际 DatabaseSync.close 边界注入，不替代 SQL、事务或结果。按原 FIFO 构建、定向测试及类型/健康门；只本地提交，无全量、push、模型、真实用户 Home 或产品验收。
+
+本片工程证据：原物理 close 反例通过原公开导入命令重跑，失败对象现有 close function，原连接仍可读；保留 `/private/tmp/molis-ledger-close-probe-physical-20261026.log`，修后为 `/private/tmp/molis-memory-ledger-close-original-probe-green-20261026.log`。新增真实DB9项分别证明 readonly 两次失败后同连接第三次关闭成功且再关幂等、只读预检故障零写、实际COMMIT已持久但不交post、真实journal写后撤权且close双错/回滚完整、业务错关闭成功原样抛出、selected/project proof关闭不重新授权、source reader初始化失败保留原schema错及真实关闭错、物理已关后再抛错不重开。原adoption9、project14、recovery12、selected11、transaction1连同新增9，共6个不同文件56项通过，jobs2/retries0；最终类型断言改为实际属性收窄后，新增9项再次通过。
+
+原frozen/offline安装、完整FIFO build、严格测试类型、6文件Biome、boundary errors=[]、准确合成基线 `3752abc5769ed6a1633639cc4fffb85dd213a177` health、diff检查通过。统一日志前缀 `/private/tmp/molis-memory-ledger-close-`，有效记录 install/build/direct/final/test-types-final/lint/health/boundary；首次测试类型强制转换诊断保留在 test-types，修正收窄未改行为或放宽断言。只新增公开 `MemoryLedgerCloseFailure` 类型，未加错误类、新机器码或资源管理框架。父 frame 接住 close、阻止发布/归还 owner 及父决定持久对账尚由外层接线验证，不能由本片通过替代。
+
 - **MEM-40-SELECTED-01，固定选择。** plan 仅有 actor_id、operation_id、scopes；scope 项沿既有 scope/owner/memories/candidates/sources 结构，正式与候选项固定 ID/version。允许多个已授权 scope，personal owner 必须等于 actor；重复 scope、同类重复 ID（包括跨 scope）及非法身份拒绝。factory 在调用当前权限回调前复制原计划；命令不得调包或扩选。
 - **MEM-40-SELECTED-02，真实来源屏障。** selected sources 使用 `{event_id, version?:string}`；无 version 是原 source-forgotten 的真实形状，不伪造版本，存在时必须非空。suppressSources 只接受固定 scope 内完整相同的原元组，不能把带版本项换成无版本项或反向换包。原内部 suppressMemoryLedgerSources 本来仅消费 event_id。ProjectRetentionPlan 的 version 继续必填，公共项目语义不放宽。
 - **MEM-40-SELECTED-03，沿原写主人。** 仅提供 suppressSources、dropCandidate、forget、verifyOriginal，没有 project_id、forgetScopes、任意 DB/SQL/callback。三写复用原 mutation 与五表双存身份验证；正式 ID 的所有账本副本沿原 forget 清理，候选只按原 ID/actor/scope/owner 移除。不能删 owner、用户/项目偏好、信号或整理 marker；同 scope 未选邻居与别的 scope 保持。

@@ -2988,7 +2988,7 @@ Catalog observation 候选独立核验（2026-10-26）：原7ae的展示 `listPr
 
 原规划器只消费 bound previewPurge 与限定选集的 Ledger facts；在线只接线，保留原来源合并、forgotten、缺原件语义。SDK selected 页可跨授权 scope：先核整页 outcome/issues/cursor 和每项原 Session/范围，再按原 personal↔user 映射选当前 scope；不将跨 scope 页假装 personal-only，不以末页空覆盖先前 partial。原 applyProjectMemoryPurge 收窄为 bound purgeCandidate/purgeMemory 与 ledger suppressSources/dropCandidate/forget/forgetScopes，不提供假完整 Backend/Ledger。
 
-withWriter({memoryPurges,sessionPlan},work) 属外层真实 SDK 装配，仅 Catalog 原 plan prepared 落盘后的 clear 调用。同父 Home owner 全程保留、最多一个 SDK child；顺序 close/reopen 原桥不发布最终 Ledger 完成，失败关闭不得开下一 writer。owner 只取固定目标 purge 与无正文检查，不取得旧 purgeCleanupTarget 或宽写口。pending/new 逐项清除后先 scope 空态和全 metadata coverage，再 forgetScopes，之后 Session 原清除；complete 只 verifyOriginal 原 Memory/Session/Index 与 Storage 原选集，不扫后继，不调用 apply/forgetScopes，原空 complete 也不例外。
+withWriter({memoryPurges,sessionPlan},work) 属外层真实 SDK 装配，仅 Catalog 原 plan prepared 落盘后的 clear 调用。同父 Home owner 全程保留、最多一个 SDK child；顺序 close/reopen 原桥不发布最终 Ledger 完成，失败关闭不得开下一 writer。owner 只取固定目标 purge 与无正文检查，不取得旧 purgeCleanupTarget 或宽写口。pending/new 逐项清除后先 scope 空态和全 metadata coverage，再 forgetScopes，之后 Session 原清除；complete 只 verifyOriginal 原 Memory/Session/Index 与 Storage 原选集，不从当前数据重新选择后继或删除后继，不调用 apply/forgetScopes，原空 complete 也不例外。Storage 原件证明仍会读取账本行做结构与双存身份校验；这不是重新派生删除目标。
 
 每个 await 后 current；Storage 成功返回 post 后紧接 ledgerCommitted({before,after})，先核 frame 缓存 before，再推进 post，然后普通 current。失配 frame 失效，不重新 inspect 吸收未知。Ledger frame 只需 ledgerExpected()/ledgerCommitted；最终外层/Catalog/source 关联由统筹负责。原 selection/policy/CAS/owner/current 是不可配硬边界；SDK/Storage 原公开实现可装配，分页沿既有预算，无新配置或用户设置，用户确认仍是原删除决定。
 
@@ -3024,3 +3024,12 @@ withWriter({memoryPurges,sessionPlan},work) 属外层真实 SDK 装配，仅 Cat
 允许 `apps/local-host/src/project-deletion-recovery-target.ts`、既有 target 测试、LocalHost README 与本 spec。不改 Storage 构造器、父 frame、schema、SDK/vendor、CI、资源额度。验收用 BetterSqlite 原 close 故障注入，覆盖只读成功/失败、writer 原业务失败、实际已关闭再报错；保留错误、撤权后只清理、同连接反复失败后明确重试、禁 SQL 与物理关闭、已有真实关联文件/收据/项目文件不重放或伪回滚。先整体 FIFO build，跑 target/inspection 相邻回归、必要类型与门禁；子代理不跑全量。此刀不证明完整 Home 恢复或产品/用户验收。
 
 实施核验：准确 `0bc4b9f4` 原 build 上新增四个真实 BetterSqlite close 反例全部失败，原26项通过；三个连接实际仍 open，错误只有 closeError 且无 cleanup，另一项已经物理关闭但原业务失败也被覆盖。修后完整 FIFO build、target/inspection 两文件65项、LocalHost README必跑57文件共548项通过（jobs2/browser1/retries0）。根 TypeScript、这两份测试的严格 TypeScript、准确父基 health、boundary 与72份API快照通过，diff仅原target资源主人、测试和两份文档。初次测试strict发现新增用例的错误类型强转，已改成运行时缩窄并复验；README首批受沙箱listen EPERM影响，按已核实PID只停本批后以获准本机权限完整重跑，没有弱化断言。日志 `/private/tmp/catalog-init-{red-evidence,fixed-build,green,root-types,test-types,health,boundary,api,required,required-escalated}.log`。本地工程验证不替代父frame/全Home恢复、真实用户Home、产品实操或用户验收；未跑全量、未改Storage构造器，也未推送或发布。
+
+
+### 冷 Memory、精确账本与资源关闭聚合（2026-10-26）
+
+本次生产聚合 `041b7231f9c5bed4b8ea137aa59923e1114aa3e7` 合入冷项目主人及 raw Session 交错修正、非项目精确 retention 与无版本 cleared 分支、Ledger 原连接关闭能力、Catalog 当前观察与初始化关闭修正；沿原 #1101 交付，不另开 PR。统筹已核实际 diff；独立真实探针覆盖原件/后继、pending 新对象、部分 purge 后撤权，以及 COMMIT 后 close 失败和双错误保留，未发现这组改动新增阻塞。原失败日志与局部证据保留，不把子任务完成视为完整恢复。
+
+在此生产聚合上，原 FIFO build、17 文件252项实际回归全部通过（jobs2/browser1/retries0，零跳过），覆盖 Cold Memory/Session、Catalog、Selected/Project retention、adoption、事务与同资源关闭。根 TypeScript、准确基础 `070bdd282` health、boundary 和72份API快照通过；初次 boundary 命令误用不存在的脚本，原错误日志保留，后按 package.json 的原脚本检查通过。日志 `/private/tmp/molis-memory-cold-owner-aggregate-{build,tests,types,health,boundary-final,api,secrets}-20261026.log`。资源门仍只有 Coding 374756 B 对373423 B，超出1333 B，未登记放行；其余资源未扩额。
+
+基础 #1064 的准确 `070bdd28284d031de0602d27e1f588e315affc46` 普通CI通过；Full `40204714600` 的16份原始job日志均核对：runner计1438文件通过，无flaky或重试后通过；8个文件内合计14项由既有live/平台条件跳过，不能算已验证，可选Linux probe也跳过。此前51a的54.1ms失败仍保留，当前通过不等于根因已解决。最新main `54437998c` 三方合并无冲突，但其新健康门规则仍需合并结果核验；没有GitHub已提交评审或未解决线程，不等于真人批准。完整恢复父决定/最终发布、单Session业务副本、最终代表性旅程与模型质量/token收益、用户验收仍按原范围推进；未操作真实用户Home或调用付费模型。

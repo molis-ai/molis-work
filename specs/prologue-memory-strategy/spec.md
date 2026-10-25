@@ -2598,4 +2598,8 @@ Prologue #102 已按准确13c476a3完成原完整quality（70文件723项、干�
 
 本App从该干净13c原pnpm pack采用1,390,372 B/808个dist文件，已逐字节核对归档与完整质量构建；vendor无就地补丁，更新同名归档、sidecar、provenance、锁单一integrity及原来源断言。历史ee806归档仍可从Git取回。App也合入源Index ce5dda和Session原决定恢复ca741；冲突保留20ed的deletingCoverage、当前归属复核及verifyScopeCleanup先于抹除作用域的顺序，允许Session原清理的窄私有调用证明与这些检查共同成立，未放宽普通读写。新聚合实际安装/build、恢复/权限/源Index及相关影响面仍待实跑；上述SDK结果不代替App完整MEM-40、全量或用户验收。
 
-聚合首次验证保留：14文件13通过、recovery16/18；失败两例是新增测试withRecovery拦截器未转交20ed新增proof参数，触发assertCurrent读取undefined，尚未执行原部分删除断言。修正只转交原plan与proof，不伪造证明。准确d08健康同时拒绝新154行authority函数；将持久Session状态/代际及原purge同步许可检查抽为同文件完整职责，主装配仅传真实闭包，未改边界、阈值或门禁。其余已过用例不机械全跑；原构建及受影响权限/恢复组合需重验。新包实际安装808个dist与归档一致；资源仍仅Coding待批1,333 B，其他27项测量与前聚合一致。
+聚合首次验证保留：14文件13通过、recovery16/18；失败两例是新增测试withRecovery拦截器未转交20ed新增proof参数，触发assertCurrent读取undefined，尚未执行原部分删除断言。修正只转交原plan与proof，不伪造证明。准确d08健康同时拒绝新154行authority函数；将持久Session状态/代际及原purge同步许可检查抽为同文件完整职责，主装配仅传真实闭包，未改边界、阈值或门禁。其余已过用例不机械全跑；原构建及受影响权限/恢复组合需重验。新包实际安装808个dist与归档一致；资源仍仅Coding待批1,333 B，全部27项测量与前聚合一致。
+
+最终8743聚合复验：原完整build、根类型、准确d08健康、boundary、73份API（3038声明）与Action快照（587+311动作）均通过；authority体积门在职责拆出后通过，没有改门禁。原14文件批次13文件284项首次通过，唯一recovery首败16/18如上保留；修正proof转交后，recovery18/18连同plan、authority、lifecycle及policy五文件90项全部通过，零重试/跳过。此前13文件有效结果按各自影响面复用，不改写为14文件首轮全绿。最终独审确认原P1消除，额外执行区间错operation/version/ref与未选对象探针2/2、原恢复及同步撤权3/3通过；组合diff与最后职责拆出另做只读复核，报告 /private/tmp/molis-memory-session-ca741-independent-review-20261025.md。
+
+最终27项资源逐字节数仍与008706测量一致，共7,630,892 B；正式门只剩用户待定的Coding+1,333 B，不包含新增长。首败日志 /private/tmp/molis-memory-app-4087-sdk13c-{direct,health,assets-gate}-20261025.log；最终build/types/health/boundary/api/actions/direct日志 /private/tmp/molis-memory-app-session-proof-*-20261025.log；新包安装一致报告 /private/tmp/molis-memory-sdk102-13c-installed-match-20261025.json。本轮没有跑新聚合完整浏览器旅程或全量，不把SDK已合main或这些局部工程结果称为MEM-40/产品/用户验收完成。

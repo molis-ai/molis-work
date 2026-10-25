@@ -78,12 +78,9 @@ test("SYS-15-F2/F3 Shelf isolated page copies owned files through the shell and 
   const browser = await openGoalBrowser(t, true); if (!browser) return;
   const child = await pluginFrameBrowser(t, browser, "shelf"), bin = join(browser.homeDirectory, "shelf-test-bin"); await mkdir(bin);
   await writeFile(join(bin, "codex"), "#!/bin/sh\nprintf 'SHELF_TERMINAL_READY\\n'\nexec /bin/cat\n", { mode: 0o700 });
-  const prior = process.env.MOLIS_WORK_SHELF_AGENT, priorPath = process.env.MOLIS_WORK_SHELF_AGENT_PATH;
-  process.env.MOLIS_WORK_SHELF_AGENT = "codex"; process.env.MOLIS_WORK_SHELF_AGENT_PATH = bin;
-  t.after(() => {
-    if (prior === undefined) delete process.env.MOLIS_WORK_SHELF_AGENT; else process.env.MOLIS_WORK_SHELF_AGENT = prior;
-    if (priorPath === undefined) delete process.env.MOLIS_WORK_SHELF_AGENT_PATH; else process.env.MOLIS_WORK_SHELF_AGENT_PATH = priorPath;
-  });
+  const priorPath = process.env.MOLIS_WORK_LOCAL_TOOLS_PATH;
+  process.env.MOLIS_WORK_LOCAL_TOOLS_PATH = bin;
+  t.after(() => { if (priorPath === undefined) delete process.env.MOLIS_WORK_LOCAL_TOOLS_PATH; else process.env.MOLIS_WORK_LOCAL_TOOLS_PATH = priorPath; });
   // Only the final desktop IPC is captured. Real page authorization, owner-file resolution and trusted mouse activation run.
   await browser.command("Page.addScriptToEvaluateOnNewDocument", { source: "if(parent===window){globalThis.nativeCalls=[];globalThis.__TAURI__={core:{invoke:async(name,input)=>{nativeCalls.push({name,input})}}}}" }, browser.sessionId);
   const api = `/projects/${browser.projectId}/api/plugins/io.molis.work.shelf`;
@@ -95,10 +92,9 @@ test("SYS-15-F2/F3 Shelf isolated page copies owned files through the shell and 
     await child.waitFor("document.querySelector('[data-shelf-preview]')?.textContent.includes('owned file handed off')");
   };
   await open(); assert.equal(await child.evaluate("typeof globalThis.__TAURI__"), "undefined");
-  await child.click(`[data-shelf-item="${added.item.item_id}"] [data-shelf-row-action="copy"]`); await browser.waitFor("globalThis.nativeCalls.some(call=>call.name==='shelf_copy_files')");
-  const copied = await browser.evaluate<{ name: string; input: { paths: string[] } }>("globalThis.nativeCalls.find(call=>call.name==='shelf_copy_files')");
-  assert.equal(copied.name, "shelf_copy_files"); assert.equal(copied.input.paths.length, 1);
-  assert.ok(copied.input.paths[0]!.endsWith("/shelf/" + added.item.relative_path));
+  await child.click(`[data-shelf-item="${added.item.item_id}"] [data-shelf-row-action="copy"]`); await browser.waitFor("globalThis.nativeCalls.some(call=>call.name==='files_copy')");
+  const copied = await browser.evaluate<{ name: string; input: { paths: string[] } }>("globalThis.nativeCalls.find(call=>call.name==='files_copy')");
+  assert.equal(copied.name, "files_copy"); assert.deepEqual(copied.input.paths, [added.item.relative_path], "the window hands the shell the relative path, not a file path");
   await child.click('[data-shelf-act="talk"]');
   await child.waitFor("document.querySelector('.xterm-rows')?.textContent.includes('SHELF_TERMINAL_READY')");
   await child.click("[data-shelf-tty-input]");

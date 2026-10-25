@@ -12,7 +12,7 @@ import { homeSqlitePath, openBaselineHomeSqlite, clearInExistingHomeSqlite, type
  * the real path of the file the person gave the Host's entry in an import (material-original-entry.ts). A plugin never names a path;
  * the Host records the one it was handed. An installation's id is the same in every project, so `project_id` keeps one project's
  * registrations from another's; it is '' for a Home-level activation, whose registrations every project shares. A project's rows go
- * with the project (`forgetProjectOriginalFiles`), an installation's with its data (`forgetInstallationOriginalFiles`).
+ * with the project (`forgetProjectOriginalFiles`); an installation's go on every uninstall, even when its data is kept (`forgetInstallationOriginalFiles`).
  * Reading is read-only and re-resolves the path first: a path that now leads somewhere else (a symlink put in its place, a directory
  * swapped) is refused, a directory is never listed, and nothing here writes to the file or its folder.
  */

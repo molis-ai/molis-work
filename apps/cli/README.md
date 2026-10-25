@@ -62,7 +62,9 @@ node scripts/run-tests.mjs tests/cli-protocol.test.ts
   - 项目命令必须有明确的 `--db PATH`，没有默认路径：不按当前目录猜库，没给（缺值、空白，或后面紧跟另一个 `--` 旗标）就在打开任何东西之前报错。
 项目管理命令的 Local Host 接线会只读匹配当前 Home 目录；登记数据库借常驻 Host（`MOLIS_WORK_WEB_URL`）执行，别名使用目录路径。未连接或独立数据库保留进程内执行；明确拒绝、取消、送出后结果未知不回退。`--db`、JSON 与成功 stdout 格式保持。
 
-- 改动后必跑：`node scripts/run-tests.mjs tests/cli-protocol.test.ts tests/goal-management-identity.test.ts tests/goal-read-entry.test.ts tests/proposal-entry-chain.test.ts tests/management-door-identity.test.ts tests/cli-goals-actions.test.ts tests/goals-query-boundaries.test.mjs tests/command-entry-chain.test.ts`
+只有实际进入本地后备时，Home 内（含路径别名）或本 Home 登记的数据库才取得同一 Home owner，并随该 Host 关闭而释放；快照占用期间在 `init` 建目录或打开运行环境前拒绝。外部独立数据库不绑定无关 Home，仍保留原有 `init` 在解码 JSON 前准备父目录的行为。管理入口门禁要求准确的 Home 分类、owner 前置、受限目录准备和原唯一动作端口，不能删掉 guard 或改回无 owner 的后备。
+
+- 改动后必跑：`node scripts/run-tests.mjs tests/cli-protocol.test.ts tests/goal-management-identity.test.ts tests/goal-read-entry.test.ts tests/proposal-entry-chain.test.ts tests/management-door-identity.test.ts tests/cli-goals-actions.test.ts tests/goals-query-boundaries.test.mjs tests/command-entry-chain.test.ts`；Home 本地后备改动另跑 `node scripts/run-tests.mjs tests/cli-home-owner-entry.test.ts`。
 - 相关手册：[docs/cli-and-development.md](../../docs/cli-and-development.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

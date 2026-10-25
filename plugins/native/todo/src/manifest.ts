@@ -29,6 +29,7 @@ export const todoManifest: PluginManifest = {
   artifacts: { produces: [], consumes: [] },
   actions: [...TODO_ACTIONS],
   // Fixed paths before `/items/:id`, and each mapped to the action of the same name in ./plugin.ts.
+  runtime: { scope: "home" },
   databases: { home: TODO_DATABASE },
   routes: [
     { route_id: "todo.list", method: "GET", path: "/items" },

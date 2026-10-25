@@ -150,8 +150,7 @@ export async function startPrologueRun(context: RunStartContext, request: AgentS
 
   current();
   const record = memoryBinding.record({ view, state, control: started.control, model }, started.memory);
-  store.runs.set(ref.run_id, record);
-  session.runs.push(ref);
+  store.rememberRun(session, record);
   store.follow(record, request.task, started.run, context.ports);
   store.publish(ref.run_id);
   memoryBinding.ready(record);

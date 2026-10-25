@@ -58,19 +58,19 @@ PG-060 其余在工作台里仍按名字的行，核过，**不归本线**：`re
   - 写进 `<script type="application/json" data-plugin-directory>` 的 JSON 先转成安全形式：`<`、`>`、`&`、U+2028、U+2029 一律写成 `\u003c`、`\u003e`、`\u0026`、`\u2028`、`\u2029`，防 `</script>` 截断。这个序列化只在一处（工作台里一个函数），宿主与测试共用。
   - `icon`、`start.icon` 只认 design-system 图标集里的名字（`registeredIconNames`），不认 URL、SVG 或别的字符串；不认识的退回 `package`（rail）或 `settings`（设置页），与 2b 对设置图标的做法一致。
   - 客户端读目录后，文字只用 `textContent` 或经现有转义函数画，不拼进 `innerHTML`。
-- **宿主标记（与 W5-02 B1 约定，字段定义归本片）**：`PluginDirectoryEntry` 上平铺三项可选字段，缺省 = 没有该标记——`personal?: true`（跨项目持有个人数据的插件）、`always_on?: true`（每个项目都开、关不掉）、`companions?: readonly string[]`（一同显示、一同勾选的项目键，宿主算好的完整集合）。来源：宿主在 `apps/local-host/src/plugin-directory.ts` 的 `runningPluginDirectory` 里、内置命中时写，值取自宿主自己的可信登记（B1 把 `BUILTIN_PLUGIN_CATALOG` 换成 `plugin-registry.ts` 后从那里取），不读 Manifest；运行时装的插件、`chosen` 为 false 的条目一律不带。`sanitizePluginDirectory` 只认 `=== true` 的标记，`companions` 逐项过 `KEY`、去重、至多 32 项，`chosen` 为 false 的条目三项都去掉。页面里：只在服务端渲染（选择器勾选、侧栏）用，**不进** `data-plugin-directory` 的 JSON（客户端脚本只读 `id/name/accepts_objects`），所以不增页面资源。宿主的 POST、动作、路由只认 `ProjectPluginRegistry`，页面上的值只用来显示和帮着勾选；「页面改了再提交，宿主不认」的拒绝用例归 B1。本片只定义类型和清洗，不替 B1 取值。验收 RAC-619。
+- **宿主标记（与 W5-02 B1 约定，字段定义归本片）**：`PluginDirectoryEntry` 上平铺三项可选字段，缺省 = 没有该标记——`personal?: true`（跨项目持有个人数据的插件）、`always_on?: true`（每个项目都开、关不掉）、`companions?: readonly string[]`（一同显示、一同勾选的项目键，宿主算好的完整集合）。来源：宿主在 `apps/local-host/src/plugin-directory.ts` 的 `runningPluginDirectory` 里、内置命中时写，值取自宿主自己的可信登记（B1 把 `BUILTIN_PLUGIN_CATALOG` 换成 `plugin-registry.ts` 后从那里取），不读 Manifest；运行时装的插件、`chosen` 为 false 的条目一律不带。`sanitizePluginDirectory` 只认 `=== true` 的标记，`companions` 逐项过 `KEY`、去重、至多 32 项，`chosen` 为 false 的条目三项都去掉。页面里：只在服务端渲染（选择器勾选、侧栏）用，**不进** `data-plugin-directory` 的 JSON（客户端脚本只读 `id/accepts_objects`；FIRST 第 4 项删去未消费的 `name`，见 §3.3），所以不增页面资源。宿主的 POST、动作、路由只认 `ProjectPluginRegistry`，页面上的值只用来显示和帮着勾选；「页面改了再提交，宿主不认」的拒绝用例归 B1。本片只定义类型和清洗，不替 B1 取值。验收 RAC-619。
 - 停用、卸载、被拒绝的插件不在目录里；撤权后下一次读页面就没有入口（与 S-47 的页面授权拒绝一致，不新增拒绝点）。
 - `skills/molis-plugin-dev/ui.md` 里「目前只对随宿主发布的插件生效」的限定（BL-542 要求注明的）撤掉，改成与行为一致。注意在途的 #1253 也改了这个文件（对象标签文档），合入顺序上谁后到谁重基。
 
 | 编号 | 验收 | 证明 |
 | --- | --- | --- |
-| RAC-605 | 页面的 `plugin_directory` 来自项目 Runtime 里运行中安装的 Manifest；内置与运行时装的是同一形状。**不可信文本**：fixture 里加一个插件，名称、视图标题、`creates.title`、`start.title/hint` 里带 `</script><img src=x onerror=…>`、`<`、`&`、U+2028，断言：页面里的 JSON 没有裸 `<`、`>`、`&`、U+2028、U+2029，HTML 里不出现可执行的标签或事件属性，界面显示的是原文；`icon` 写成 URL 或 SVG 的退回默认图标，不进 `href`、`src`、`innerHTML` | 新 `tests/plugin-directory.test.ts`，用一个带 `group/creates/start/accepts_objects` 的 fixture 插件和一个带上述文本的恶意 fixture 装进临时项目；浏览器里「不执行」的一条交 CI |
-| RAC-606 | 对象标签名单（搜索、放置卡、侧栏文件）读下发的目录：fixture 插件声明 `accepts_objects` 即可按 id 开标签；脚本里没有构建期写死的名单 | 同上 + 扫描 `CLIENT_SCRIPT` |
+| RAC-605 | 页面的 `plugin_directory` 来自项目 Runtime 里运行中安装的 Manifest；内置与运行时装的是同一形状。**不可信文本**：fixture 里加一个插件，名称、视图标题、`creates.title`、`start.title/hint` 里带 `</script><img src=x onerror=…>`、`<`、`&`、U+2028，断言：页面里的 JSON 没有裸 `<`、`>`、`&`、U+2028、U+2029，HTML 里不出现可执行的标签或事件属性，界面显示的是原文；`icon` 写成 URL 或 SVG 的退回默认图标，不进 `href`、`src`、`innerHTML` | `tests/plugin-directory.test.ts` 分别验证真实 Runtime 目录链与恶意文本页面；RAC-605-CLIENT-02 直接测现有 `scriptJson` 五类字符转义并保服务端原文断言，见 §3.3。实际浏览器「不执行」交统一批，本窄片未运行 |
+| RAC-606 | 对象标签名单（搜索、放置卡、侧栏文件）读下发的目录：fixture 插件声明 `accepts_objects` 即可按 id 开标签；脚本里没有构建期写死的名单；客户端仅下发 `id/accepts_objects` | 同上 + 扫描 `CLIENT_SCRIPT`，RAC-606-CLIENT-01 见 §3.3 |
 | RAC-607 | rail 读运行中 Manifest 的 `group/icon/order`：fixture 的 `group: "make"` 在「写与做」下，不写的在「更多」 | 同上 |
 | RAC-608 | `creatableKinds`、`homeStarts` 对运行时装的插件生效（接第 1 片） | 同上 |
 | RAC-609 | 停用、卸载、被拒绝的插件，目录里没有；已打开的页面在下一次读时没有入口 | `tests/plugin-directory.test.ts` 保留撤销启用并补 RAC-609-BLOCK-01；`tests/installed-plugin-host.test.ts` 的 RAC-609-UNINSTALL-01 经真实 Host 卸载路径验证，见 §3.2 |
 | RAC-610 | `skills/molis-plugin-dev/ui.md` 的说法与行为一致 | `pnpm health:check` 文档引用组 + 文字核对 |
-| RAC-619 | 宿主标记：`personal`/`always_on` 只认 `true`，`companions` 逐项过 `KEY`、去重、至多 32 项，`chosen` 为 false 的条目不带；`data-plugin-directory` 里没有这三项 | `tests/plugin-directory.test.ts` |
+| RAC-619 | 宿主标记：`personal`/`always_on` 只认 `true`，`companions` 逐项过 `KEY`、去重、至多 32 项，`chosen` 为 false 的条目不带；`data-plugin-directory` 里没有这三项 | `tests/plugin-directory.test.ts`，RAC-619-CLIENT-03 继续核仅两字段，见 §3.3 |
 | RAC-611 | 页面资源：脚本里去掉名单字面量、加一次读取，预期不增；增长按 §7 的页面资源一条 | `pnpm page-assets:check` |
 
 与 `ac-registry` 对齐（统筹 10-25）：它的 B1 把平台事实搬进 `apps/local-host/src/plugin-registry.ts`，工作台需要的平台事实经渲染端口下发——本片的 `plugin_directory` 就是那条端口，它复用、不另开。`web-goals-read.ts`、`plugin-catalog.ts`、`immersive-shell.ts` 两边都会碰：谁后到谁重基，同时在评审就照 `MERGE-QUEUE.md` §1a 同批落。
@@ -83,7 +83,7 @@ PG-060 其余在工作台里仍按名字的行，核过，**不归本线**：`re
 
 目录先清洗，再按有效条目的外壳键排除市场重复项。各条目分别经现有 `UiViewRegistry` 解释，保留其外壳键、`chosen`、视图与贡献 id，再按原先的 `order → plugin_id → view_id` 顺序组合；不同键不因共享 Manifest id 而互相覆盖，也不删除另一发布者的市场入口。只改 `plugin-catalog.ts` 中目录组合和视图映射、`tests/plugin-directory.test.ts` 与本节；不动 B1 标记/权限/信任、内置 blocked 产品行为、FIRST 第 2～4 项或作者后续片。
 
-- **RAC-605-KEY-01**：真实临时 Plugin Runtime 运行一个与内置项同 Manifest id、不同发布者签名的插件，经 `runningPluginDirectory → pluginDirectoryFor → rail/creates/start/真实页面` 仍用其自己的外壳键，未获内置 `chosen` 或标记；未运行内置项的市场条目保留，标题与入口不串到它。
+- **RAC-605-KEY-01**：真实临时 Plugin Runtime 启动一个与内置项同 Manifest id、不同发布者签名的插件（S-75 起启动被拒 `plugin.id_namespace_conflict`，启动失败的插件在目录里仍有位置），经 `runningPluginDirectory → pluginDirectoryFor → rail/creates/start/真实页面` 仍用其自己的外壳键，未获内置 `chosen` 或标记；未运行内置项的市场条目保留，标题与入口不串到它。
 - **RAC-605-KEY-02**：同 Manifest id 的两个有效不同键逐条保留 navigator/island/side/stage 的归属，视图 id 与默认贡献 id 不改，顺序仍为原排序。`chosen` 条目受 enabled 控制，非 chosen 的运行项保持可见；不同 Manifest id 的合法条目照旧。
 - **RAC-605-KEY-03**：只有清洗后有效的 Runtime 条目优先于同键市场项；无效项不能遮掉市场项。已有重复键、文本/图标/slot 清洗及不可信文本转义断言完整保留；本片不改变清洗或信任合同。
 
@@ -108,6 +108,22 @@ health 对照 `origin/main` 的 merge-base `3817f875`、正式 boundary（70 包
 
 本地验证（FIX1，2026-10-25）：两个完整相关文件单次自然通过，目录 12/12、installed Host 21/21，合计 **2 个唯一文件、33 项，0 fail/cancel/skip/todo，无重试**；两个新验收在 macOS 实际执行。现行生产行为正确，本次没有生产修复或人为制造的业务红。
 离线安装、冻结构建复用、测试后源码绑定均通过：生产源码摘要与 `5a9` 原成功构建（2026-10-25T08:28:20.594Z）同为 `3f59a8f81d507aa21d1800ed170b5cbf9c08b8fc92f95878f3380de61b2aa396`，只复制 71 份既有 dist，未新跑构建。官方 FIFO health 对 `origin/main` 的 merge-base `3817f875` 自然退出 0，无门禁/预算/基线改写。原件与交接在 `/tmp/molis-plugin-directory-exclusions-20261025/`；提交后另做 fresh-fetch secrets，固定候选直交独立双核，不重复前片的 32/387 或整合验证。
+
+### 3.3 FIRST 第 4 项：客户端目录只下发已消费字段（FIX1）
+
+状态：已实现并完成本地有限验证，待独立 REVIEW/TEST；唯一基线为已双核冻结的 `5bdddabeb0d4ec0186aeca8e80d968324ece12ac`。开工时基线和作者 `8892990e2`、B1 `e62659a6f` 的唯一脚本消费者 `scripts/client/initialization.ts` 均只取 `id/accepts_objects`，没有 `name` 消费，目标文件无在途修改。删 `ClientDirectoryEntry.name` 和 `clientPluginDirectory` 的对应投影，改正其注释；服务端 `PluginDirectoryEntry.name`、清洗、rail/home/create 展示及 Host 标记合同保持，不动 FIRST 第 3 项或 B1、市场/blocked、权限/schema 与其他渲染路径。
+
+- **RAC-606-CLIENT-01**：直接投影和真实页面 `data-plugin-directory` 的每条记录恰为 `id/accepts_objects`，不含 `name`；对象接收标记和内置/运行时键不变，唯一脚本消费者仍按该标记取 id。
+- **RAC-605-CLIENT-02**：恶意名称/标题仍在服务端 rail/home 以原文显示且仅作文本，URL/SVG 图标仍拒绝。移出 JSON 的名称不再用来冒充序列化攻击输入；保留并直接调用现有公开 `scriptJson` 验 `<`、`>`、`&`、U+2028、U+2029 全部转义且可还原，无新 API、无删安全断言。
+- **RAC-619-CLIENT-03**：原标记精确值/清洗断言不变；实际目录 JSON 对标记条目仍只有两字段，宿主标记与服务端显示字段均不下发。
+
+只改 `apps/workbench/src/plugin-directory.ts`、`tests/plugin-directory.test.ts` 和本 slice 的对应合同/证明。先在冻结基线构建上运行新断言留真实字段不符的红，再改投影；保前片 KEY、RAC609 和作者 §4/§5。先核生产源码与原成功构建一致，可预热原 dist 与现有增量构建记录，仍由官方构建重新核输入/输出签名，任何不符照常重建；源码改后按整机 FIFO 跑一次整体 `pnpm build`，不用旧 manifest 冒新源码。
+
+验证：修改后的目录文件、workbench README 的 18 个必跑非浏览器文件（去重后有限批，jobs 2），再核新源码与本次实际 build manifest、health 对 `origin/main`、页面资源实际值及 merge-base（只降）、提交后 fresh-fetch secrets。其他前片 32/387、两文件 33/33、full 或无关浏览器不机械重跑；固定新候选正常 push 后直交独立 REVIEW/TEST/PIPE/Root，双核后再下一题。
+
+本地验证（FIX1，2026-10-25）：冻结基线运行新字段断言，12 项中 9 过、3 败，均因 JSON 多出 `name`，无夹具失败/取消/跳过。改投影后官方 FIFO 整体构建自然 0（5 包重建、65 未变），health 对 merge-base `3817f875`、页面资源实际值/merge-base 均通过（27 项、7,590,437 字节，无增长或预算/门禁改写）。
+README 的 18 个必跑文件加目录文件合计 **19 个唯一非浏览器文件、156/156，0 fail/cancel/skip/todo、无重试**。新源码与本次实际 build（2026-10-25T10:36:00.336Z）同为 `f8df959c27e251b92e83c22439fd7986a66db312014f6867f5d3f7c26d0463f7`，不同于基线 `3f59a8f…`，未拿旧 manifest 冒新源码。原件在 `/tmp/molis-plugin-directory-client-fields-20261025/`；提交后另做 fresh-fetch secrets 与独立双核。
+再次核作者 `eda7b8e0e`：唯一消费者仍只取两字段；其当前 `plugin-directory.ts` 在途改动是前段的 server rail/pinned 清洗，与本片末段三个 client hunk 不重叠，交组合方保留双方，不等待整组或改它的信任逻辑。前片 KEY/RAC609 及 §4/§5 均保留，没有旧 32/387、33/33、full、浏览器或真实 Home 验收声明。
 
 ## 4. 第 3 片：项目级 Runtime 插件的状态与重启入口（BL-430，RAC-612～614）
 

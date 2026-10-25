@@ -88,14 +88,17 @@ test("RAC-605 a plugin's name and declared texts come out escaped, and the direc
   const html = renderMolisWorkWeb(view([hostile]));
   const data = directoryData(html);
   assert.doesNotMatch(data, /[<>&\u2028\u2029]/u, "no bare `<`, `>`, `&`, U+2028 or U+2029 in the data element");
-  assert.match(data, /\\u003c\/script\\u003e\\u003cimg src=x onerror=alert\(1\)\\u003e\\u0026\\u2028tail/u);
-  const parsed = JSON.parse(data) as Array<{ id: string; name: string; accepts_objects: boolean }>;
-  assert.deepEqual(parsed.find(entry => entry.id === "evil"), { id: "evil", name: HOSTILE, accepts_objects: true }, "the script reads the text as it was written");
+  // RAC-605-CLIENT-02: untrusted text still exercises the existing serializer after names leave the client projection.
+  assert.match(scriptJson({ text: HOSTILE }), /\\u003c\/script\\u003e\\u003cimg src=x onerror=alert\(1\)\\u003e\\u0026\\u2028tail/u);
+  const parsed = JSON.parse(data) as Array<{ id: string; accepts_objects: boolean }>;
+  assert.deepEqual(parsed.find(entry => entry.id === "evil"), { id: "evil", accepts_objects: true }, "the client receives its routing fields without the unconsumed name");
+  assert.deepEqual(clientPluginDirectory([hostile]), [{ id: "evil", accepts_objects: true }], "the direct projection also omits the display name");
   // Nothing the plugin wrote is markup in the page: its tag is text, its icon names no artwork.
   assert.doesNotMatch(html, /<img\b[^>]*src=x/u);
   assert.doesNotMatch(html, /<svg onload/u);
   assert.doesNotMatch(html, /evil\.example/u);
   assert.match(html, /&lt;\/script&gt;&lt;img src=x onerror=alert\(1\)&gt;&amp;/u, "the interface shows the text as it was written");
+  assert.equal(railEntries(EVERYTHING, pluginDirectoryFor([hostile])).find(entry => entry.id === "evil")?.label, HOSTILE, "the server still keeps the rail's declared display text");
   const startsOnPage = homeStartList(html).find(start => start.id === "evil");
   assert.equal(startsOnPage?.title, HOSTILE);
   assert.equal(startsOnPage?.glyph, "package", "an icon the design system does not know is the default icon, never a URL or markup");
@@ -117,7 +120,7 @@ test("RAC-605 what is taken into the directory is held to plain keys, one line o
   assert.equal(entries.find(entry => entry.id === "group")!.ui.views[0]!.group, undefined);
 });
 
-test("RAC-605-KEY-01 a Runtime publisher sharing a built-in Manifest id keeps its own shell views and leaves the market entry intact", async () => {
+test("RAC-605-KEY-01 a Runtime publisher sharing a built-in Manifest id is refused to start (S-75) and its place keeps its own shell key and views and leaves the market entry intact", async () => {
   const folder = mkdtempSync(join(tmpdir(), "directory-publisher-")), database = join(folder, "project.db");
   seedDemoBoard(database); const store = new LocalProjectDatabase(database);
   const ports = { db: store.db, appendEvent: (event: Parameters<typeof store.appendEvent>[0]) => store.appendEvent(event), eventCursor: (id: string) => store.eventCursor(id) };
@@ -139,8 +142,10 @@ test("RAC-605-KEY-01 a Runtime publisher sharing a built-in Manifest id keeps it
   };
   try {
     assert.notEqual(definition.manifest.publisher.signature, builtin.manifest.publisher.signature);
+    // S-75: the Host's build owns its plugin ids, so the publisher's start is refused; a start that failed keeps its place in the directory.
     const report = await platform.start([{ definition }]);
-    assert.deepEqual(report.failed, []); assert.deepEqual(report.blocked, []); assert.ok(report.running.includes(pluginId));
+    assert.deepEqual(report.failed.map(entry => [entry.plugin_id, entry.code]), [[pluginId, "plugin.id_namespace_conflict"]]);
+    assert.deepEqual(report.blocked, []); assert.deepEqual(report.running, []);
     const running = runningPluginDirectory(platform.supervisor);
     assert.deepEqual(running.map(entry => [entry.id, entry.plugin_id, entry.chosen]), [[pluginId, pluginId, false]], "the real Host directory does not grant the built-in key or trust to a different publisher");
     assert.equal(running[0]!.personal, undefined); assert.equal(running[0]!.always_on, undefined);
@@ -213,6 +218,8 @@ test("RAC-619 the Host's marks (personal, always_on, companions) are kept only a
   assert.deepEqual(Object.keys(loose!).filter(name => ["personal", "always_on", "companions"].includes(name)), [], "only true counts as a flag, only an array as companions");
   assert.equal(many!.companions!.length, 32);
   assert.doesNotMatch(renderPluginDirectoryData([kept!]), /personal|always_on|companions/u, "the page's scripts get none of them");
+  // RAC-619-CLIENT-03: the marked server entry exposes only the two routing fields, with no display or Host fields.
+  assert.deepEqual(JSON.parse(directoryData(renderPluginDirectoryData([kept!]))), [{ id: "kept", accepts_objects: false }]);
 });
 
 test("RAC-605 the Host reads the directory from the Manifests the project's Runtime runs, built-in and installed alike", async () => {
@@ -305,6 +312,8 @@ test("RAC-609-BLOCK-01 an installed plugin blocked by a missing dependency leave
 test("RAC-606 the page carries the directory for its scripts: a plugin that declares accepts_objects opens as a tab, and the script lists none", () => {
   const html = renderMolisWorkWeb(view([installed("notes", { accepts_objects: true }), installed("plain")]));
   const parsed = JSON.parse(directoryData(html)) as Array<{ id: string; accepts_objects: boolean }>;
+  // RAC-606-CLIENT-01: both Runtime entries and market fallbacks use exactly the fields the real script consumes.
+  for (const entry of parsed) assert.deepEqual(Object.keys(entry).sort(), ["accepts_objects", "id"]);
   assert.deepEqual(parsed.filter(entry => entry.accepts_objects).map(entry => entry.id).includes("notes"), true);
   assert.equal(parsed.find(entry => entry.id === "plain")?.accepts_objects, false);
   assert.equal(parsed.find(entry => entry.id === "pages")?.accepts_objects, true, "a built-in the Host did not list is the market's, read the same way");

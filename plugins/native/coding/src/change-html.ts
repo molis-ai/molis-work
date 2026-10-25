@@ -1,6 +1,6 @@
 import { ActionError, type ActionLocale } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { CodingChangeSet } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import { escapeHtml, icon } from "@molis-ai/molis-work-design-system";
+import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { fillMessage } from "@molis-ai/molis-work-plugin-sdk";
 import {
   compareChange,

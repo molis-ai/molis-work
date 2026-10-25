@@ -34,10 +34,14 @@ export function resolveWebControlToken(options: {
 }
 
 /** SYS-14: a fresh challenge authenticates these exact health bytes without disclosing the Home key. */
+export function webHealthProof(token: string, challenge: string, body: Buffer | string): Buffer {
+  return createHmac("sha256", token).update(challenge + "\n").update(body).digest();
+}
+
 export function sendWebHealth(response: ServerResponse, status: number, payload: unknown, token: string, challenge: string | null): void {
   if (challenge !== null && !/^[A-Za-z0-9_-]{43}$/.test(challenge)) { response.writeHead(400); response.end(); return; }
   const body = JSON.stringify(payload);
-  const proof = challenge === null ? undefined : createHmac("sha256", token).update(challenge + "\n").update(body).digest("base64url");
+  const proof = challenge === null ? undefined : webHealthProof(token, challenge, body).toString("base64url");
   response.writeHead(status, { "content-type": "application/json; charset=utf-8", "cache-control": "no-store",
     "content-length": Buffer.byteLength(body), ...(proof ? { "x-molis-work-proof": proof } : {}) });
   response.end(body);

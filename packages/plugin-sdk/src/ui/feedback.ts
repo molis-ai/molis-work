@@ -1,7 +1,7 @@
-import { icon, type MolisWorkIcon } from "../icons.js";
+import { icon, type PluginIconName } from "./icon.js";
 import { type AttrValue, cx, escapeHtml, renderAttrs } from "./html.js";
-import { renderStateRing } from "../state-ring.js";
-import type { StateRingState } from "../state-ring-states.js";
+import { renderStateRing } from "./state-ring.js";
+import type { StateRingState } from "./state-ring-states.js";
 
 export type MwTone = "neutral" | "info" | "success" | "warning" | "danger";
 export type MwStatusTone = "idle" | "progress" | "attention" | "hold" | "blocked" | "done" | "quiet";
@@ -10,7 +10,7 @@ export function renderStatusMark(options: {
   label: string;
   state?: StateRingState;
   tone?: MwStatusTone;
-  icon?: MolisWorkIcon;
+  icon?: PluginIconName;
   plain?: boolean;
   className?: string;
   labelAttrs?: Record<string, AttrValue>;
@@ -39,7 +39,7 @@ export function renderAlert(options: {
 }
 
 export function renderEmpty(options: {
-  icon?: MolisWorkIcon;
+  icon?: PluginIconName;
   title: string;
   body: string;
   action?: string;

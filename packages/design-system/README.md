@@ -6,10 +6,11 @@
 
 ## 怎么用
 
-从包根导入 helper，产出带 `mw-*` class 和 `data-slot` 的 HTML：
+字符串部件（按钮、输入、图标、状态环、目录、舞台外壳等）在 Plugin SDK 的 `/ui`，一份实现，插件和宿主都直接从那里导入，本包不转出（PG-055）；它们产出带 `mw-*` class 和 `data-slot` 的 HTML，样式、图标表、主题与 AI 交互部件在本包：
 
 ```ts
-import { renderButton, icon, renderIconSprite } from "@molis-ai/molis-work-design-system";
+import { renderButton, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderIconSprite } from "@molis-ai/molis-work-design-system";
 
 renderButton({ label: "保存", variant: "primary" });
 icon("copy"); // 页面已注入 sprite 时也可以 <svg><use href="#icon-copy"></use></svg>
@@ -33,7 +34,7 @@ AI 交互部件（`renderInteractionQuestion`、`renderInteractionOperation`、`
 
 ## 文件
 
-公开入口：[src/index.ts](src/index.ts)，另有浏览器安全的叶子子路径 `/floating`（[src/floating.ts](src/floating.ts)）。生产只从这两个入口导入，不要深层 import 到 `src/`。
+公开入口：[src/index.ts](src/index.ts)。浏览器安全的叶子工具（浮层放置、跟随滚动）在 Plugin SDK 的 `/browser`（[floating 的源码](../plugin-sdk/src/browser.ts)），不在本包。生产只从包入口导入，不要深层 import 到 `src/`。
 
 | 路径 | 用途 |
 | --- | --- |
@@ -41,7 +42,7 @@ AI 交互部件（`renderInteractionQuestion`、`renderInteractionOperation`、`
 | [src/styles/primitives.ts](src/styles/primitives.ts) | `mw-*` CSS |
 | [src/palette.ts](src/palette.ts) | Soft Workbench token 的唯一来源：`renderShellTokens(theme)`（面、字色、状态、阴影、遮罩）、`renderShapeTokens()`（圆角、焦点、动效、图标尺寸）、`renderControlMetrics()`（控件高度，只在早层声明）；14 色相与插件表只作数据 |
 | [src/icons.ts](src/icons.ts) | 导航、动作、对象的 Lucide 库与 sprite；status-* 转到共享环刻 |
-| [src/state-ring.ts](src/state-ring.ts) | 轻量环刻静态呈现；同目录的 states / geometry / client 分别负责映射、几何与浏览器增强 |
+| [src/state-ring-client.ts](src/state-ring-client.ts) | 环刻的浏览器增强；静态呈现、状态映射与几何在 Plugin SDK 的 `/ui`（[state-ring.ts](../plugin-sdk/src/ui/state-ring.ts)） |
 | [src/typeface.ts](src/typeface.ts)、[fonts/](fonts) | `FONT_STACK`（系统无衬线优先，Inter / Noto Sans SC 仅作离线后备）、`MONO_FONT_STACK`、字重角色变量 |
 | [src/visual-foundation.ts](src/visual-foundation.ts) | 主题/密度/分层样式入口 |
 | [src/styles/](src/styles) | 工作台、设置、标题栏等表面层 |
@@ -52,7 +53,7 @@ AI 交互部件（`renderInteractionQuestion`、`renderInteractionOperation`、`
 | [src/interaction.ts](src/interaction.ts)、[src/styles/interaction.ts](src/styles/interaction.ts) | AI 交互部件：问卷（混合字段、推荐理由、逐字段错误）、选项组、操作卡（作用对象与版本、参数预览、状态、结果）、输入框旁的下一步。只收展示参数（`Interaction*View`），用 `data-ix-*` 钩子接行为；样式 `INTERACTION_STYLES` 单独导出，不在共享页面样式表里 |
 | [src/interaction-client.ts](src/interaction-client.ts) | 上面这些部件的浏览器端行为：`createInteractionClient(root, host)`（读写字段值、选项与对象切换、单选的箭头键与单一 Tab 停靠、步进器上下界、日历弹层、回车跳项与 ⌘/Ctrl+回车提交、中文输入法组合中不报变化、逐字段错误；对象引用题的搜索框：人停止打字 250 ms 后才调调用方给的 `host.references(source, query)`，只认最后一次的结果，结果是可用箭头键、回车、Esc 操作的列表，选中的对象成为可去掉的标签，多选到上限就停）。由三个不依赖 import 的函数组成，`INTERACTION_CLIENT_SCRIPT` 是它们拼成的脚本表达式，供不能 import 的插件客户端工厂内嵌；浏览器侧目前只能用这个字符串导出，不能从包根 import `createInteractionClient`，因为包根会带进只给 node 用的模块；不存任何值，值归调用方，写入从不夺走正在输入的字段 |
 | [src/catalog-examples.ts](src/catalog-examples.ts)、[src/interaction-example.ts](src/interaction-example.ts) | 组件板的示例区块（插件页面组合、AI 交互），在 `catalog.ts` 之外组合 |
-| [src/floating.ts](src/floating.ts) | 浮层放在哪：`placeFloating`（上、下、旁，留边距；上下那一半是 `placeStacked`，页面程序带的是它）、`placeOverlay`（在给定舞台里放，不超过自己的 CSS 上限）、`pinAt`（窗格成了 fixed 参照盒时按差值校正）、`followScroll`、`scrollShouldFollow`。叶子文件：没有 import，不碰 Node；经子路径 `@molis-ai/molis-work-design-system/floating` 给页面包（Pages 编辑器）单独取用，包根入口带 Node 模块，不能进浏览器包 |
+| [Plugin SDK 的 browser.ts](../plugin-sdk/src/browser.ts) | 浮层放在哪：`placeFloating`（上、下、旁，留边距；上下那一半是 `placeStacked`，页面程序带的是它）、`placeOverlay`（在给定舞台里放，不超过自己的 CSS 上限）、`pinAt`（窗格成了 fixed 参照盒时按差值校正）、`followScroll`、`scrollShouldFollow`。叶子文件：没有 import，不碰 Node；经子路径 `@molis-ai/molis-work-plugin-sdk/browser` 给页面包（Pages 编辑器）单独取用，设计系统的包根入口带 Node 模块，不能进浏览器包 |
 | [src/context-toolbar.ts](src/context-toolbar.ts)、[src/context-tools.ts](src/context-tools.ts)、[src/floating-source.ts](src/floating-source.ts)、[src/context-toolbar-example.ts](src/context-toolbar-example.ts) | 情境浮条：页面程序（`CONTEXT_TOOLBAR_CLIENT_SCRIPT`，同一份放置函数以源码形式带进去）与样式（`CONTEXT_TOOLBAR_STYLES`，只用令牌，工作台把它放进自己的样式表，不进共享样式表）、插件发布的工具的清洗（`sanitizeContextTools`，有界封闭）、以及组件板的一节（样式与示范程序内联在该节）。页面程序在发给浏览器前过 `compactScript`（[src/compact-script.ts](src/compact-script.ts)：去掉缩进、空行和整行注释，不并行、不改语句）：写源码的人照常缩进和写注释，页面不为它们付字节；含多行字符串或模板字面量的程序不要过它。三个页面事件 `molis:context-tools`、`molis:context-panel-open`、`molis:context-tool-invoke` 在事件登记表里归 `context-toolbar` |
 
 ## 硬规则
@@ -101,7 +102,7 @@ node --import tsx apps/desktop/launchers/web/server.ts --port 4182 --home /tmp/m
 - 负责：设计令牌、控件、图标、主题与无障碍基础。
 - 不负责：产品页业务决定、插件状态、路由。
 - 公开入口：`@molis-ai/molis-work-design-system`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/ui`。
-- 依赖：`@molis-ai/molis-work-contracts`；第三方依赖见 `package.json`。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（页面部件 `/ui`、`/browser`、`/page-globals`，设计系统的样式与图标表依它的类名与图标名）；第三方依赖见 `package.json`。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 服务端 HTML 的文字和属性值使用本包 `escapeHtml`，先处理 `&`，并覆盖单双引号；受信 HTML 槽与 JSON 脚本编码由各自合同处理。
   - 生产只从包名（或 `/floating`）导入，不深入 `src/`；改源码后编进 `dist`，预览和测试读的是包导出。`/floating` 必须保持叶子：不 import 任何东西、不碰 Node（`tests/design-system-floating.test.ts` 看住）。

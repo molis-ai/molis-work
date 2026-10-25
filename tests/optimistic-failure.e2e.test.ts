@@ -106,9 +106,9 @@ test("VUX-31: an item dropped on another day that could not be moved stays on it
 });
 
 test("VUX-31: a Shelf action dragged to another place that could not be saved goes back and the bar says why", { timeout: 120_000 }, async (t) => {
-  const agentSetting = process.env.MOLIS_WORK_SHELF_AGENT;
-  process.env.MOLIS_WORK_SHELF_AGENT = "off";
-  t.after(() => { if (agentSetting === undefined) delete process.env.MOLIS_WORK_SHELF_AGENT; else process.env.MOLIS_WORK_SHELF_AGENT = agentSetting; });
+  const agentSetting = process.env.MOLIS_WORK_LOCAL_TOOLS;
+  process.env.MOLIS_WORK_LOCAL_TOOLS = "off";
+  t.after(() => { if (agentSetting === undefined) delete process.env.MOLIS_WORK_LOCAL_TOOLS; else process.env.MOLIS_WORK_LOCAL_TOOLS = agentSetting; });
   const browser = await openGoalBrowser(t, true); if (!browser) return;
   const { navigate, command, sessionId, origin, projectId } = browser;
   const { evaluate, waitFor, click } = await pluginFrameBrowser(t, browser, "shelf");

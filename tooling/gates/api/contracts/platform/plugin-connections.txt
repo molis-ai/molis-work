@@ -12,6 +12,7 @@ export interface PluginConnectionDescription {
     readonly bound: boolean;
     readonly display_name?: string;
     readonly state?: "connected" | "reauth_required" | "disconnected";
+    readonly origin?: string;
 }
 
 export type PluginConnectionMethod = "GET" | "HEAD" | "POST" | "PUT" | "PATCH" | "DELETE";

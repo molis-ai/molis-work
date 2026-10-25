@@ -1,4 +1,4 @@
-import type { InteractionNextStep } from "@molis-ai/molis-work-design-system";
+import type { InteractionNextStep } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { CodingText } from "./words.js";
 
 /** The part of a round its follow-ups read: the same view its round card is drawn from (timeline.ts). */

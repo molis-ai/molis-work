@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -99,7 +100,7 @@ function process(file: string, options: {
   onReady?: (inputs: PluginUpstreamReadyInputs) => void;
 }) {
   const db = new Database(file);
-  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(db));
+  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(db), undefined, { hostIds: ISOLATED_HOST_IDS });
   const supervisor = new PluginSupervisor(runtime);
   const bus = new PluginEventBus({
     projectId: BOARD,

@@ -1,4 +1,4 @@
-import type { MolisWorkIcon } from "@molis-ai/molis-work-design-system";
+import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /** Standalone hub / embed fold stack. Workbench exclusive settings use project-settings-stage. */
 export type ProjectSettingsFoldId = "general" | "workspaces" | "guidance" | "memory" | "knowledge" | "rules" | "planning";
@@ -19,7 +19,7 @@ interface ProjectSettingsFoldContent {
 interface ProjectSettingsFoldsPrimitives {
   L(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;
-  icon(name: Extract<MolisWorkIcon, "settings" | "book" | "shield" | "workflow" | "chevron-right" | "chevron-down" | "tree" | "plus">, className?: string): string;
+  icon(name: Extract<PluginIconName, "settings" | "book" | "shield" | "workflow" | "chevron-right" | "chevron-down" | "tree" | "plus">, className?: string): string;
   withDesktopQuery(path: string): string;
 }
 

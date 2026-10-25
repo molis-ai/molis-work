@@ -30,7 +30,7 @@
       "lines": 267,
       "methods": 40
     },
-    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 212,
+    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 201,
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 154,
     "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 151,
     "function apps/workbench/src/capsule-items.ts#createCapsuleItemProjection": 229,
@@ -82,12 +82,12 @@
       "lines": 277,
       "methods": 29
     },
-    "file modules/shelf/src/store.ts": 1067,
+    "file modules/shelf/src/store.ts": 1061,
     "class modules/shelf/src/store.ts#ShelfStore": {
-      "lines": 666,
+      "lines": 660,
       "methods": 31
     },
-    "function modules/shelf/src/store.ts#runJob": 183,
+    "function modules/shelf/src/store.ts#runJob": 182,
     "file packages/design-system/src/styles/momentum.ts": 819,
     "file packages/design-system/src/styles/primitives.ts": 1258,
     "class packages/kernel/src/action-service.ts#ActionService": {
@@ -99,7 +99,7 @@
       "methods": 23
     },
     "class packages/plugin-runtime/src/index.ts#PluginRuntime": {
-      "lines": 623,
+      "lines": 619,
       "methods": 30
     },
     "class packages/plugin-runtime/src/supervisor.ts#PluginSupervisor": {
@@ -458,12 +458,12 @@
     "packages/design-system/src/file-preview.ts": 1,
     "packages/design-system/src/interaction-client.ts": 1,
     "packages/design-system/src/preferences.ts": 2,
-    "packages/design-system/src/primitives/field.ts": 1,
     "packages/design-system/src/select-menu-client.ts": 1,
     "packages/design-system/src/state-ring-client.ts": 1,
     "packages/design-system/src/styles/craft-finish.ts": 1,
     "packages/design-system/src/styles/micro-interactions.ts": 1,
     "packages/design-system/src/visual-foundation.ts": 1,
+    "packages/plugin-sdk/src/ui/field.ts": 1,
     "packages/ui-host/src/request-client.ts": 1,
     "plugins/native/git/src/client.ts": 1,
     "plugins/native/goals/src/dialogs-client.ts": 8,
@@ -482,12 +482,9 @@
     "plugins/native/goals/src/tree-client.ts": 7,
     "plugins/native/shelf/src/settings-client.ts": 1
   },
-  "rawFetchInScriptsTotal": 10,
+  "rawFetchInScriptsTotal": 6,
   "rawFetchInScripts": {
     "apps/desktop/src/capsule-shell.ts": 1,
-    "plugins/native/artifacts/src/goal-input-client.ts": 2,
-    "plugins/native/artifacts/src/works-client.ts": 1,
-    "plugins/native/artifacts/src/port-input-ui.ts": 1,
     "plugins/native/alchemist/src/client.ts": 1,
     "plugins/native/alchemist/src/client-flows.ts": 1,
     "plugins/native/plugin-builder/src/agent-studio.ts": 2,
@@ -537,7 +534,7 @@
     "apps/local-host/src/inbox-actions.ts#actions": 1,
     "apps/local-host/src/inbox-native-plugin-http.ts#native-plugin-http": 1
   },
-  "registerProviderSitesTotal": 17,
+  "registerProviderSitesTotal": 16,
   "registerProviderSites": {
     "apps/local-host/src/assistant/assistant-rule-actions.ts#register-provider": 1,
     "apps/local-host/src/connector-mcp-actions.ts#register-provider": 1,
@@ -549,16 +546,16 @@
     "apps/local-host/src/placement-actions.ts#register-provider": 1,
     "apps/local-host/src/plugin-builder/catalog.ts#register-provider": 1,
     "apps/local-host/src/plugin-builder/exposed-actions.ts#register-provider": 1,
-    "apps/local-host/src/project-host.ts#register-provider": 4,
+    "apps/local-host/src/project-host.ts#register-provider": 3,
     "apps/local-host/src/search-actions.ts#register-provider": 1
   },
   "hybridPluginsTotal": 0,
   "hybridPlugins": {},
-  "pluginOutsideMentionsTotal": 187,
+  "pluginOutsideMentionsTotal": 184,
   "pluginOutsideMentions": {
     "alchemist#outside-files": 8,
     "artifacts#outside-files": 7,
-    "coding#outside-files": 7,
+    "coding#outside-files": 6,
     "cognia#outside-files": 3,
     "dataset#outside-files": 4,
     "diff#outside-files": 3,
@@ -576,7 +573,7 @@
     "plugin-builder#outside-files": 15,
     "ppt#outside-files": 4,
     "schedule#outside-files": 8,
-    "shelf#outside-files": 9,
+    "shelf#outside-files": 7,
     "text-stats#outside-files": 3,
     "todo#outside-files": 4,
     "workflows#outside-files": 4

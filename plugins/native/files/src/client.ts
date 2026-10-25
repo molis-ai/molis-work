@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 
-import { icon } from "@molis-ai/molis-work-design-system";
+import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /**
  * Files' page client, as the workbench mounts it, and as Coding's bundle takes it for its panel: a factory `(host) => …` that

@@ -1,14 +1,16 @@
 import { codingUsageSummary } from "./usage.js";
 import { CODING_SESSION_MARKS } from "./session-marks.js";
 import type {
+  SettingsPageModel,
   UiContribution,
   UiContributionDeclaration,
   UiNestedContentModel,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
-import { icon, renderButton, renderDirectoryPanel, renderDirectoryHeading, renderSidebar } from "@molis-ai/molis-work-design-system";
+import { icon, renderButton, renderDirectoryHeading, renderDirectoryPanel, renderSidebar } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { AgentRunUsage } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { CodingIdentityView } from "./identity.js";
+import { codingAgentManifest } from "./roles.js";
 import {
   filterSessions,
   groupByGoal,
@@ -440,7 +442,7 @@ export interface CodingSettingsModel {
   readonly project_href?: string | null;
   readonly project_name?: string;
   readonly projects?: ReadonlyArray<{ project_id: string; name: string }>;
-  readonly primitives: CodingUiPrimitives;
+  readonly primitives: Pick<CodingUiPrimitives, "escape" | "text">;
 }
 
 export const codingSettingsDescriptor: UiContributionDeclaration = {
@@ -526,15 +528,35 @@ export function renderCodingSettings(model: CodingSettingsModel): string {
   </section>`;
 }
 
-function executionLabel(execution: string, p: CodingUiPrimitives): string {
+function executionLabel(execution: string, p: Pick<CodingUiPrimitives, "text">): string {
   if (execution === "read-only") return p.text("coding.settings.execution.read-only");
   if (execution === "text-edit") return p.text("coding.settings.execution.text-edit");
   return p.text("coding.settings.execution.command");
 }
 
-export const codingSettingsContribution: UiContribution<CodingSettingsModel> = {
+/**
+ * The page is drawn from the platform's settings context alone (its view declares no `settings_data`): the roles and the methods are
+ * this plugin's own, from its Agent Manifest, and the runtimes, projects and the project the page was opened from are the Host's.
+ */
+export function codingSettingsModel({ context, primitives }: SettingsPageModel): CodingSettingsModel {
+  return {
+    roles: codingAgentManifest.roles.map(role => ({ ...role, execution: role.execution ?? "read-only" })),
+    runtimes: context.runtimes.map(runtime => ({ ...runtime,
+      can_write: runtime.capabilities["text-edit"] !== "unsupported",
+      can_command: runtime.capabilities.command !== "unsupported",
+      methods: runtime.capabilities.skills,
+    })),
+    methods: codingAgentManifest.skills ?? [],
+    projects: context.projects.map(project => ({ project_id: project.project_id, name: project.name })),
+    project_name: context.project?.name,
+    project_href: context.project?.href ?? null,
+    primitives,
+  };
+}
+
+export const codingSettingsContribution: UiContribution<SettingsPageModel> = {
   descriptor: codingSettingsDescriptor,
-  render: (request) => renderCodingSettings(request.model),
+  render: (request) => renderCodingSettings(codingSettingsModel(request.model)),
 };
 
 export interface CodingPendingReview {

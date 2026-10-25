@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -27,7 +28,7 @@ async function fixture(run: (f: {
   const db = new DatabaseSync(join(home, "unknown-plugin.sqlite"));
   db.exec("CREATE TABLE drafts (id INTEGER PRIMARY KEY, project TEXT NOT NULL, title TEXT NOT NULL, body TEXT NOT NULL)");
   const service = new ActionService();
-  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { actions: { registry: service, project_id: caller.project_id! } });
+  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: service, project_id: caller.project_id! } });
   const register = async (version?: number) => {
     const actions = Object.fromEntries(Object.entries(declarations).map(([role, definition]) => [role, version === undefined ? definition : { ...definition, version }])) as unknown as WorkflowContentActions;
     const plugin = definePlugin({ manifest: {

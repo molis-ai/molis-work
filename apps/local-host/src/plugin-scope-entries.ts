@@ -1,4 +1,4 @@
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { PLATFORM_PLUGIN_REGISTRATIONS, homeDefinitionEntries, runsInHome } from "./plugin-registry.js";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginTrust } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import { homeFixtureEntries, pluginFixtureDeclarations, storesWithFixtures, type PluginFixture } from "./home-side.js";
@@ -10,7 +10,7 @@ const dualOf = (fixture: PluginFixture) => !("manifest" in fixture) && fixture.d
 /** Host configuration is checked before any Home or project instance can start. */
 export function assertFixtureScopes(fixtures: { home?: readonly PluginFixture[]; project?: readonly PluginFixture[] } | undefined, hasHome: boolean): void {
   const home = fixtures?.home ?? [];
-  assertOwnerFilesEntries([...(hasHome ? PLATFORM_PLUGIN_REGISTRATIONS.flatMap(entry => entry.runtime ? [{ ...entry.runtime, definition: entry.runtime.create() }] : []) : []),
+  assertOwnerFilesEntries([...(hasHome ? homeDefinitionEntries() : []),
     ...pluginFixtureDeclarations(home)], pluginFixtureDeclarations(fixtures?.project ?? []), hasHome ? { stores: storesWithFixtures(fixtures) } : null);
   if (home.length && !hasHome) throw new Error("Home 夹具需要明确的 Home 目录");
   for (const fixture of fixtures?.project ?? []) if (dualOf(fixture)) throw new Error(`项目夹具 ${definitionOf(fixture).manifest.plugin_id} 不能自称双实例：标记只写在 Home 那一半`);
@@ -38,7 +38,7 @@ export function projectScopeEntries<Entry extends { definition: PluginDefinition
     throw new Error(`项目插件 ${entry.definition.manifest.plugin_id} 不能自称双实例：标记只写在 Home 那一半`);
   }
   // A shipped plugin's Home half is in the catalog whether or not this host has a Home, so its project half is marked either way.
-  const homeSides = new Map<string, { dual: boolean; hostBuilt: boolean }>(PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => entry.runtime?.scope === "home")
+  const homeSides = new Map<string, { dual: boolean; hostBuilt: boolean }>(PLATFORM_PLUGIN_REGISTRATIONS.filter(runsInHome)
     .map(entry => [entry.manifest.plugin_id, { dual: entry.runtime!.dual_instance === true, hostBuilt: true }]));
   if (!home) return entries.map(entry => homeSides.get(entry.definition.manifest.plugin_id)?.dual ? { ...entry, dual_instance: true as const } : entry);
   for (const entry of homeFixtureEntries(home)) homeSides.set(entry.definition.manifest.plugin_id, { dual: entry.dual_instance === true, hostBuilt: false });

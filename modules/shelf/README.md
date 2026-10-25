@@ -57,7 +57,7 @@ node scripts/run-tests.mjs tests/shelf-plugin.test.ts
   - 任务使用 SDK 的执行生命周期；在途执行按 Home/root/job 隔离。异步等待后复查原 Action、任务和原件/副本 hash，再写输出、成果或失败记录。已取消/撤权的执行不补写失败；终止或重启后的旧 running 记录不自动重跑，也不继续阻塞材料。显式取消可以关闭原记录。
   - 失败都是 `ActionError`：码是 `shelf.<原因>`（`shelfErrors`），状态只由 kind 推出，模块没有错误类和状态表。带着模型运行回执的失败是 `ShelfFailure`（多一个 `execution`），任务记录据此留下回执；`isShelfFailure` 按码认自己的失败，不用 `instanceof`。
 - 运行前构建：`pnpm --filter @molis-ai/molis-work-module-shelf run build`；若改过源码或共享依赖，先在仓库根目录运行 `pnpm build`。
-- 改动后必跑：`node scripts/run-tests.mjs tests/shelf-plugin.test.ts tests/shelf-actions.test.ts tests/shelf-cli-probe.test.ts tests/shelf-project-results-http.test.ts tests/shelf-jelly-cognia-images-error-model.test.ts tests/shelf-current-format.test.ts tests/shelf-owner-files.test.ts`
+- 改动后必跑：`node scripts/run-tests.mjs tests/shelf-plugin.test.ts tests/shelf-actions.test.ts tests/plugin-local-tools-service.test.ts tests/shelf-settings.test.ts tests/shelf-project-results-http.test.ts tests/shelf-jelly-cognia-images-error-model.test.ts tests/shelf-current-format.test.ts tests/shelf-owner-files.test.ts`
 - 材料迁移额外验证：`node scripts/run-tests.mjs tests/shelf-material-extraction.test.ts tests/shelf-recipes.test.ts tests/shelf-settings.test.ts tests/material-extraction.test.ts`
 - 相关手册：[docs/modules/shelf.md](../../docs/modules/shelf.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
@@ -73,6 +73,6 @@ node scripts/run-tests.mjs tests/shelf-plugin.test.ts
 
 ## 被动发现与真实执行
 
-`runtime()` / `snapshot()` 和 Agent 目录只检查可执行文件，不启动 `--help`。人工终端与自动模型选择独立，`runJob()` 不探测或启动 CLI。显式 `pathEnvironment` 是完整搜索范围，默认发现才包含常用安装目录。AI 可用性由 Host 的模型目录提供；未注入 AI 端口时明确不可用，本机提取仍可执行。
+`runtime()` / `snapshot()` 和 Agent 目录只问平台的本机工具服务（`services.localTools`，PG-112：九个引擎和额外目录写在插件的 Manifest `local_tools` 里），不读环境变量、不启动 CLI，也不再问 `--help`。人工终端与自动模型选择独立，`runJob()` 不探测或启动 CLI。没有这项服务（项目里的那一半）就是找不到。AI 可用性由 Host 的模型目录提供；未注入 AI 端口时明确不可用，本机提取仍可执行。
 
 自动生成合同是 `ShelfAiPorts`，由插件的 Home 实例经 `services.model` 与 `services.materials` 实现（`plugins/native/shelf/src/ai.ts`），冻结副本经 Shelf 自己的 owner files 读；Module 拥有任务、输入 hash、结果和回执保存。模型端口返回后仍须通过原 Action 的 beforeEffect 并复查来源。AI 改动另跑 `tests/shelf-ai-host.test.ts` 与 `tests/shelf-job-runner.test.ts`。

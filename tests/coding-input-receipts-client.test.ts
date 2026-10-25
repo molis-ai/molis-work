@@ -35,6 +35,8 @@ function receipts(reply: (body: Record<string, unknown>) => Promise<Reply>, port
   const api = (path: string, _method: string, body: Record<string, unknown>) => { paths.push(path); sent.push(body); return reply(body); };
   return { ui: factory({ api, translate: pageText("zh"), refresh: () => { refreshed++; }, q: () => null, find: () => null, landed: () => {}, ...ports }), sent, paths, refreshed: () => refreshed };
 }
+/** A lost answer, as the page's request client reports it: the request may or may not have arrived. */
+const lostAnswer = () => Object.assign(new Error("ui_host"), { code: "ui_host.outcome_unknown" });
 /** The round's record before it shows the supplement. */
 const nothing = { turns: [] };
 const taken = (delivered: "run" | "queued" = "run", replayed = false): Promise<Reply> => Promise.resolve({ receipt: { input_id: "steer-1", replayed, delivered } });
@@ -78,7 +80,7 @@ test("RC-11: while a supplement is on its way it shows as sending; after a lost 
   let attempt = 0, release!: () => void;
   const { ui, sent } = receipts(() => {
     attempt++;
-    if (attempt === 1) return Promise.reject(Object.assign(new Error("Failed to fetch"), { code: "ui_host.outcome_unknown" }));
+    if (attempt === 1) return Promise.reject(lostAnswer());
     return new Promise<Reply>(resolve => { release = () => resolve({ receipt: { input_id: "steer-1", replayed: true, delivered: "run" } }); });
   });
   await assert.rejects(ui.steer("s", "r", "补上测试", "next-boundary"), /没确认送到：连接断了，或回复读不出。/u);
@@ -98,7 +100,7 @@ test("RC-11: while a supplement is on its way it shows as sending; after a lost 
   assert.equal(ui.bubble("s", nothing), null, "once the Host has it, the round's own record shows it");
   // Changed words, or another mode, are a new supplement; so is anything sent after a refusal.
   let calls = 0;
-  const changed = receipts(() => ++calls === 1 ? Promise.reject(Object.assign(new Error("offline"), { code: "ui_host.outcome_unknown" })) : taken());
+  const changed = receipts(() => ++calls === 1 ? Promise.reject(lostAnswer()) : taken());
   await assert.rejects(changed.ui.steer("s", "r", "看日志", "next-boundary"));
   await changed.ui.steer("s", "r", "看日志", "interrupt");
   assert.notEqual(changed.sent[1]!.key, changed.sent[0]!.key);
@@ -111,7 +113,7 @@ test("RC-11: while a supplement is on its way it shows as sending; after a lost 
 
 test("RC-17: after a lost answer, once the run's record shows that key, the bubble goes and the page says once that it arrived", async () => {
   const landed: string[] = [];
-  const { ui, sent } = receipts(() => Promise.reject(Object.assign(new Error("Failed to fetch"), { code: "ui_host.outcome_unknown" })), { landed: (one, said) => landed.push(one.text + "｜" + said) });
+  const { ui, sent } = receipts(() => Promise.reject(lostAnswer()), { landed: (one, said) => landed.push(one.text + "｜" + said) });
   await assert.rejects(ui.steer("s", "r", "补上测试", "next-boundary"));
   const key = sent[0]!.key;
   assert.ok(ui.bubble("s", { turns: [{ kind: "user", steer: { id: "steer-2", state: "received", key: "send.other" } }] }), "another supplement is not this one");
@@ -153,7 +155,7 @@ test("RCPT-326: from a receipt, the page takes a supplement back and sends a cor
     async () => ({ accepted: true, withdrawn: { input_id: "steer-1", from: "queued" } }),
     async () => ({ accepted: true, receipt: { input_id: "steer-2", replayed: false, delivered: "run" } }),
     async () => ({ accepted: true, receipt: { input_id: "steer-2", replayed: false, delivered: "queued" } }),
-    async () => { throw Object.assign(new Error("Failed to fetch"), { code: "ui_host.outcome_unknown" }); },
+    async () => { throw lostAnswer(); },
     async () => ({ accepted: true, receipt: { input_id: "steer-2", replayed: true, delivered: "run" } }),
   ];
   const { ui, sent, paths, refreshed } = receipts(() => replies.shift()!() as Promise<Reply>);

@@ -1,5 +1,5 @@
 import { declaredStageContributionId, type PluginRestartOffer, type UnavailablePluginStage } from "@molis-ai/molis-work-app-workbench";
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { PLATFORM_PLUGIN_REGISTRATIONS, runsInHome } from "./plugin-registry.js";
 import type { UiContribution, UiSlotDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { PluginSupervisorState } from "@molis-ai/molis-work-plugin-runtime";
 import { hostLog } from "./host-log.js";
@@ -36,7 +36,7 @@ export function renderProjectRuntimeStages(state: ProjectPluginState, store: Loc
   const html: string[] = [], ids: string[] = [];
   const unavailable: UnavailablePluginStage[] = [];
   for (const entry of PLATFORM_PLUGIN_REGISTRATIONS) {
-    if (entry.runtime?.scope === "home" || !runs.has(entry.manifest.plugin_id) || !shown.has(entry.project_plugin_id)) continue;
+    if (runsInHome(entry) || !runs.has(entry.manifest.plugin_id) || !shown.has(entry.project_plugin_id)) continue;
     const contributionId = declaredStageContributionId(entry);
     if (!contributionId || drawn.has(contributionId)) continue;
     ids.push(contributionId);

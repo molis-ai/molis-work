@@ -3217,3 +3217,17 @@ Session 业务维护 owner 固定创建时 Home、权威回调与 Catalog resolv
 #1304 已把 Coding 会话等待拒绝定义为 `coding.waiting`（`conflict`），由共享错误种类映射成 HTTP 409。整合回归发现原 `coding-message-wait` 仍期待 400；公开 HTTP 反例返回精确 409/code，启动次数保持 1→1、会话仍 queued。仅同步该旧断言为 409 并补机器码与零额外启动/原等待状态检查；保留原继续、重启和放弃链路断言，不修改生产分类或接受任意 4xx。
 
 本次工程边界：准确 `4db89e26d6d5740e3002dfcfa868b40876385ded` 的健康、API、包边界、根/Host/Agent 严格类型与正常资源门通过；原 `--update --base` 只将已消失的 Coding 路由状态码分支登记从 51 收紧到 46。原 FIFO 构建产物与 `computeBuildSourceDigest` 一致（`5a891fed7b8954effedd3af8ad51a68d8afaf98a22cd4d05e2e38c6c1f844900`）。原选择器及 README 必要并集最终 386 文件无失败：3908 个测试通过，5 个跳过（4 个 MiniMax 外部等待、1 个真实 npm HTTPS）。原 native 批的旧 400 断言首红和公开反例保留；仅该文件按已合并合同同步后重验，均为 `jobs 2 / browser-jobs 1 / retries 0`，没有自动重试。55 个浏览器文件全部通过，包括原输入回执、placement 与 busy-feedback；不据此推断旧 CI 性能首红根因。未跑本地全量、未调用付费模型、未推送。旧 `21db` 的远端 Full 属于不同提交，已有首红后重试通过且仍由 Root 审计，不能替代本次合成头的全量证据。
+
+### #1064 与 batch38 主干交点整合（2026-10-26，短合同）
+
+从准确 `fa60410105f9a4a4925dcd2da0fcd776176bb751` 整合已获取的主干 `fc1e03c3cf029a7c54ffd25a5274e1cab4ad6a6d`（共同基点 `4db89e26d6d5740e3002dfcfa868b40876385ded`）。本轮处理七处文本冲突及解释它们所必需的真实调用链：沿原 PrologueRunStore 的恢复解释器保留 Memory/原输入隔离和末尾 Usage，结合 main 的私有事实集合与受控变更方法；Coding 采用 main 现行稳定错误码判断，同时保留原输入信封、同键重发及实际请求助手回归。安全不变量与 security 用例取合同并集，不丢任何一方已成立的拒绝证明。
+
+复杂度审查结论：当前需要的是同一主人上的接线合并，没有新增存储、锁、恢复解释器、状态表或配置的必要。主干其它已自动整合功能保持其现状，不扩为重写 batch38。Memory 权限、原件不可重放、关闭最后事件仍记账是不可配置边界；不改 SDK 版本、发布、真实 Home、CI、阈值、重试或超时。
+
+资源沿原工具在新 main 真实基数测量，只迁移同一已批准基础功能的精确净增，不沿用旧绝对上限或余量；超出该授权时保留红证据并报告。按原机器槽协调整体构建与浏览器批，使用 jobs2/browser1/retries0 跑交点和双方相关 README 必要集合、严格类型、边界、API、准确新 main 健康和资源门。此代理不跑全量、不操作远端 CI、不推送；旧 Full 和此前 386 文件证据保留，不能称为本轮通过。Home577、App/CLI 树保持不变，最终聚合与验收由 Root 继续负责。
+
+合并保留 main 的新 AGENTS 巨单元规则，PARALLEL-DEVELOPMENT 无改动。PrologueRunStore 的历史记录仍由原 `restoredSessionRecords` 解释，再写入 main 的私有集合；外部变更改走 main 已有的 `rememberRun`、`withSessionHeld`、`invalidateSession` / `reloadSession`，不复制恢复规则。Coding 保留 main 的稳定错误码判断和 `lostAnswer` 夹具，同时保留原初始/补充输入信封、同身份显式重试及真实请求助手的网络/坏响应回归。安全表按各自事实行合并，security 命令保留全部原用例及 main 新增三份 local-tools / runtime-scope 回归；无重复或丢项。
+
+首轮资源门明确拒绝已保留：准确 fc1 上 Workbench `1125074 → 1128267`（+3193 B），Coding `289017 → 289629`（+612 B，保留 main 的对象/稳定码 guard，比旧 compact 写法多12 B，仍低于原已批 +717 B）。只登记上述实际起点/终点，删除已消费的 main pair；其余29资源与 main 相同。原 `--update --base fc1e03c3cf029a7c54ffd25a5274e1cab4ad6a6d` 冻结31资源共7,552,240 B，随后原整体 build 刷新门禁脚本对应的构建指纹，最后资源门通过。
+
+本轮有界工程验证：两次原整体 build、根与 AgentHost/Coding 生产严格类型、七冲突中的三份 TypeScript lint、包边界、75份 API 快照及准确 fc1 健康通过。快查 baseline 仅由原 `--update --base` 同步主干已有下降与条目迁移，未手拼数字或增改 giant exception。AgentHost/Coding README 必跑并集和原输入/恢复/权限/MemoryUsage 交点共87文件491项通过（84 native文件488项、3 browser文件3项），均为原 runner 的 jobs2/browser1/retries0，无失败或跳过。没有为通过修改生产分类、用例断言、超时、重试、CI 或阈值。原始构建、资源首红/最终、类型、健康与测试日志为 `/private/tmp/foundation-batch38-*-20261026.log`，明确用例集合为同前缀的 `necessary-tests-20261026.txt`。本轮没有跑全量、操作远端CI、触真实 Home 或付费模型；旧Full、Home恢复旅程和最终用户验收不能由这87文件代替。

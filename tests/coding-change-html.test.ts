@@ -10,7 +10,7 @@ import { writerIntegrationCapabilities, type CodingChangeSet } from "@molis-ai/m
 import type { ActionLocale } from "@molis-ai/molis-work-contracts/platform/actions";
 import { compareRunChangeSet, DIFF_LABELS } from "@molis-ai/molis-work-plugin-diff";
 import { renderDiff, unifiedPatch } from "@molis-ai/molis-work-plugin-sdk/diff-view";
-import { escapeHtml, icon } from "@molis-ai/molis-work-design-system";
+import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
 import { fakeWriterActions, pluginActions, withFakeAgentHost } from "./fixtures/plugin-actions.js";

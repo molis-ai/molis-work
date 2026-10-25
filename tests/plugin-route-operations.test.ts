@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
@@ -49,7 +50,7 @@ async function withCrashedCoding(run: (api: {
     const current = createCodingPlugin();
     const failing = { ...current, async start(): Promise<never> { throw new Error("fixture startup failure"); },
       manifest: { ...current.manifest, version: "1.30.0", upgrade_compatibility: undefined } };
-    const runtime = new PluginRuntime(repository, undefined, { maxRecoveryAttempts: 1 });
+    const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, maxRecoveryAttempts: 1 });
     const installed = runtime.install({ trust: { level: "host" }, definition: failing, deployment: "local", grants: failing.manifest.permissions.map(p => p.permission) }).install;
     await assert.rejects(runtime.start(installed.install_id), /Plugin entrypoint 启动失败/);
     await run({ base: `/projects/${projectId}`, request, repository, installId: installed.install_id });

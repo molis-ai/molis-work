@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   APP_IMPORT_ALLOWLIST,
   PLUGIN_MODULE_IMPORT_ALLOWLIST,
+  PRIVATE_UI_EXEMPT_PLUGINS,
   evaluateImportBoundary,
   extractImportSpecifiers,
   findDependencyCycles,
@@ -728,4 +729,29 @@ test("allows the Plugin SDK importing the contracts through a subpath", () => {
   const { sdk, kernel } = layerPackages();
   const kernelImportingSdk = { importer: boundaryPackage(kernel.name, kernel.path, kernel.kind, [sdk.name]), target: sdk, specifier: sdk.name, sourceFile: "packages/kernel/src/action-service.ts" };
   assert.deepEqual(evaluateImportBoundary(kernelImportingSdk), []);
+});
+
+// RAC-549 RAC-550
+test("rejects a Plugin importing a private UI package, and lets only Plugin Studio keep it", () => {
+  const designSystem = boundaryPackage("@molis-ai/molis-work-design-system", "packages/design-system", "foundation");
+  const importing = (path, name, target = designSystem) => ({
+    importer: boundaryPackage(name, path, "native-plugin", [target.name]),
+    target,
+    specifier: target.name,
+    sourceFile: `${path}/src/ui.ts`,
+  });
+  assert.ok(violationCodes(importing("plugins/native/files", "@molis-ai/molis-work-plugin-files")).has("plugin-private-ui-dependency"));
+  for (const other of [
+    boundaryPackage("@molis-ai/molis-work-im-ui", "packages/im-ui", "foundation"),
+    boundaryPackage("@molis-ai/molis-work-ui-host", "packages/ui-host", "foundation"),
+  ]) {
+    assert.ok(violationCodes(importing("plugins/native/files", "@molis-ai/molis-work-plugin-files", other)).has("plugin-private-ui-dependency"), other.name);
+  }
+  assert.deepEqual(PRIVATE_UI_EXEMPT_PLUGINS, ["plugins/native/plugin-builder"]);
+  assert.ok(!violationCodes(importing("plugins/native/plugin-builder", "@molis-ai/molis-work-plugin-builder")).has("plugin-private-ui-dependency"));
+  // An integration plugin is held to it too, and an App or the design system's own users are not.
+  const integration = { ...importing("plugins/integrations/gmail", "@molis-ai/molis-work-integration-gmail"), importer: boundaryPackage("@molis-ai/molis-work-integration-gmail", "plugins/integrations/gmail", "integration-plugin", [designSystem.name]) };
+  assert.ok(violationCodes(integration).has("plugin-private-ui-dependency"));
+  const workbench = { importer: boundaryPackage("@molis-ai/molis-work-app-workbench", "apps/workbench", "app", [designSystem.name]), target: designSystem, specifier: designSystem.name, sourceFile: "apps/workbench/src/renderer.ts" };
+  assert.ok(!violationCodes(workbench).has("plugin-private-ui-dependency"));
 });

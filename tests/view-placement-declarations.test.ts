@@ -66,6 +66,68 @@ for (const { rule, manifest, expected } of RULES) {
   });
 }
 
+// W5-02 PR-D (PG-074, RAC-693): a navigator view alone says its plugin is part of the backbone or an extend entry, and is pinned by default.
+const RAIL_RULES: ReadonlyArray<{ rule: string; manifest: Record<string, unknown>; expected: string }> = [
+  { rule: "a navigator view with a backbone place and a default pin", manifest: placed({ rail: "core", pinned_default: true }), expected: "" },
+  { rule: "a navigator view that is an extend entry", manifest: placed({ rail: "extend" }), expected: "" },
+  { rule: "rail on an island view", manifest: placed({ slot: "island", rail: "core" }), expected: "视图 main 的 rail 只用于 navigator 视图" },
+  { rule: "pinned_default on a settings view", manifest: placed({ slot: "settings", pinned_default: true }), expected: "视图 main 的 pinned_default 只用于 navigator 视图" },
+  { rule: "a rail place the workbench does not have", manifest: placed({ rail: "top" }), expected: "视图 main 的 rail top 不是 core 或 extend" },
+  { rule: "pinned_default that is not true", manifest: placed({ pinned_default: false }), expected: "视图 main 的 pinned_default 只能是 true" },
+];
+
+for (const { rule, manifest, expected } of RAIL_RULES) {
+  test(`RAC-693 view placement: ${rule}`, () => {
+    assert.equal(manifestProblems(manifest), expected);
+  });
+}
+
+// W5-02 PR-D (PG-072, RAC-696): a settings view alone names the read action its page gets its data with, and the SDK refuses one
+// the Host could not call as the person (a command, a write, an action for others, an action the Manifest does not have).
+const readAction = (over: Part = {}, id = "notes.snapshot", version = 1) => ({ capability_id: id, version, operation: "query", action: {
+  title: "读取", description: "读取设置页的数据", kind: "query", scope: "home", audiences: ["user"], permissions: [], subject_kinds: [],
+  input_schema: { type: "object" }, output_schema: { type: "object" }, ...over } });
+const settingsView = (over: Part = {}, actions: unknown[] = [readAction()]) =>
+  placed({ slot: "settings", settings_data: { action: "notes.snapshot" }, ...over }, [...CREATES, ...actions]);
+const NO_ACTION = "视图 main 的 settings_data 指向 notes.snapshot，本 Manifest 没有这个只读、面向用户（audience user）、只有一个版本的查询动作";
+
+const DATA_RULES: ReadonlyArray<{ rule: string; manifest: Record<string, unknown>; expected: string }> = [
+  { rule: "a settings view that names a read action of its own for the person", manifest: settingsView(), expected: "" },
+  { rule: "a settings view that names none", manifest: placed({ slot: "settings" }), expected: "" },
+  { rule: "settings_data on a navigator view", manifest: placed({ settings_data: { action: "notes.snapshot" } }, [...CREATES, readAction()]), expected: "视图 main 的 settings_data 只用于 settings 视图" },
+  { rule: "settings_data without an action", manifest: settingsView({ settings_data: {} }), expected: "视图 main 的 settings_data 必须写明 action" },
+  { rule: "settings_data that is not an object", manifest: settingsView({ settings_data: "notes.snapshot" }), expected: "视图 main 的 settings_data 必须写明 action" },
+  { rule: "an action the Manifest does not have", manifest: settingsView({ settings_data: { action: "notes.other" } }),
+    expected: "视图 main 的 settings_data 指向 notes.other，本 Manifest 没有这个只读、面向用户（audience user）、只有一个版本的查询动作" },
+  { rule: "a command", manifest: settingsView({}, [{ ...readAction(), operation: "command", action: { ...readAction().action, kind: "operation" } }]), expected: NO_ACTION },
+  { rule: "a query that writes", manifest: settingsView({}, [readAction({ effect: "write" })]), expected: NO_ACTION },
+  { rule: "an action that is not for the person", manifest: settingsView({}, [readAction({ audiences: ["workflow", "agent"] })]), expected: NO_ACTION },
+  { rule: "an action declared in two versions", manifest: settingsView({}, [readAction(), readAction({}, "notes.snapshot", 2)]), expected: NO_ACTION },
+];
+
+for (const { rule, manifest, expected } of DATA_RULES) {
+  test(`RAC-696 settings data: ${rule}`, () => {
+    assert.equal(manifestProblems(manifest), expected);
+  });
+}
+
+test("FIX-4 a settings view can request runtimes with or without a data action", () => {
+  assert.equal(manifestProblems(settingsView({ settings_runtimes: true })), "");
+  assert.equal(manifestProblems(settingsView({ settings_data: undefined, settings_runtimes: true })), "");
+});
+
+for (const slot of ["navigator", "stage", "side", "island"]) {
+  test(`FIX-4 the SDK refuses a runtime-list request on ${slot}`, () => {
+    assert.equal(manifestProblems(placed({ slot, settings_runtimes: true })), "视图 main 的 settings_runtimes 只用于 settings 视图");
+  });
+}
+
+for (const value of [false, null, "true", 1, {}, []]) {
+  test(`FIX-4 the SDK refuses settings_runtimes=${JSON.stringify(value)}`, () => {
+    assert.equal(manifestProblems(settingsView({ settings_runtimes: value })), "视图 main 的 settings_runtimes 只能是 true");
+  });
+}
+
 test("RAC-75 W5-06-PLACE-01 every bundled Manifest's placement declarations pass", () => {
   for (const entry of BUILTIN_PLUGIN_CATALOG) assert.equal(manifestProblems(entry.manifest), "", entry.project_plugin_id);
 });

@@ -8,7 +8,7 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalProjectDatabase, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { freezeProjectCharacter } from "../apps/local-host/dist/characters-host.js";
 import { renderCharacters, renderMolisWorkCharactersClientScript } from "@molis-ai/molis-work-app-workbench";
-import { escapeHtml } from "@molis-ai/molis-work-design-system";
+import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
 test("Character manager publishes confirmed personal drafts through real project Artifact routes without requiring Coding", async t => {

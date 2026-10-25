@@ -8,13 +8,8 @@
  * Every text a person reads comes from the caller, except a few control names that have overridable defaults.
  * Markup carries `data-ix-*` hooks so one client can wire behaviour without depending on class names.
  */
-import { renderStateRing } from "./state-ring.js";
-import type { StateRingState } from "./state-ring-states.js";
-import { icon, type MolisWorkIcon } from "./icons.js";
-import { renderButton } from "./primitives/button.js";
-import { renderCalendar } from "./primitives/calendar.js";
-import { renderChoice } from "./primitives/field.js";
-import { type AttrValue, cx, escapeHtml, renderAttrs } from "./primitives/html.js";
+import type { InteractionNextStep } from "@molis-ai/molis-work-contracts/platform/ui";
+import { cx, escapeHtml, icon, renderAttrs, renderButton, renderCalendar, renderChoice, renderStateRing, type AttrValue, type PluginIconName, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 export type InteractionTone = "waiting" | "progress" | "done" | "failed" | "quiet";
 export interface InteractionBadge { label: string; tone: InteractionTone; /** null for descriptions that do not express a state (such as an effect). */ state?: StateRingState | null }
@@ -27,7 +22,7 @@ export interface InteractionAction {
   disabled?: boolean;
   /** An internal destination; navigation does not dispatch an interaction action. */
   href?: string;
-  icon?: MolisWorkIcon;
+  icon?: PluginIconName;
   iconOnly?: boolean;
   attrs?: Record<string, AttrValue>;
 }
@@ -110,11 +105,6 @@ export interface InteractionOperationView {
   recovery?: InteractionAction[];
   result?: { title: string; body: string; actions?: InteractionAction[]; details?: { title: string; body: string } };
 }
-/**
- * One step beside a composer: a view of an existing record, never an execution by itself (§15.6). `waiting` marks a step
- * that waits on the person (an amber dot); `waitingLabel` is what a screen reader hears for it, in the caller's words.
- */
-export interface InteractionNextStep { id: string; label: string; source: string; primary?: boolean; busy?: boolean; disabled?: boolean; waiting?: boolean; waitingLabel?: string }
 /** `max`: draw that many steps in the caller's order and fold the rest into one button whose words `more(n)` gives. */
 export interface InteractionNextStepsOptions { max?: number; more?: (count: number) => string }
 
@@ -217,7 +207,7 @@ export function renderInteractionField(scope: string, field: InteractionField, o
       ${field.hint ? `<p class="mw-ix-hint" id="${esc(fieldId(scope, field.id, "hint"))}">${esc(field.hint)}</p>` : ""}<p class="mw-ix-error" id="${esc(fieldId(scope, field.id, "error"))}" data-ix-error${field.error ? "" : " hidden"}>${esc(field.error ?? "")}</p></div>
   </div>`;
 }
-const heading = (scope: string, view: { kicker: string; title: string; state?: StateRingState; badge?: InteractionBadge; about?: string }, glyph: MolisWorkIcon, extra = "") =>
+const heading = (scope: string, view: { kicker: string; title: string; state?: StateRingState; badge?: InteractionBadge; about?: string }, glyph: PluginIconName, extra = "") =>
   `<header class="mw-ix-head"><div class="mw-ix-heading"><span class="mw-ix-kicker">${view.state ? renderStateRing({ state: view.state }) : icon(glyph)}<span data-ix-kicker>${esc(view.kicker)}</span></span><h3 id="${esc(`${scope}-title`)}">${esc(view.title)}</h3>${view.about ? `<p class="mw-ix-about" data-ix-about>${esc(view.about)}</p>` : ""}</div>${renderInteractionBadge(view.badge)}${extra}</header>`;
 const targetLine = (t: { prefix: string; label: string; version?: string; changed?: boolean }) =>
   `<p class="mw-ix-target">${icon("target")}<span>${esc(t.prefix)}</span><strong>${esc(t.label)}</strong>${t.version ? `<span class="mw-ix-version" data-ix-version${t.changed ? " data-changed" : ""}>${esc(t.version)}</span>` : ""}</p>`;

@@ -43,10 +43,10 @@ export interface RunRecord {
  * published to their observers as views.
  */
 export class PrologueRunStore {
-  readonly sessions = new Map<string, SessionRecord>();
-  readonly runs = new Map<string, RunRecord>();
+  readonly #sessions = new Map<string, SessionRecord>();
+  readonly #runs = new Map<string, RunRecord>();
   /** Sessions starting a round, closing an interrupted one or preparing a rewind: one at a time each. */
-  readonly startingSessions = new Set<string>();
+  readonly #startingSessions = new Set<string>();
   readonly cache: PrologueSessionCache;
   readonly #runtime: PrologueRuntimePort;
   readonly #approvals: PrologueApprovalBridge | undefined;
@@ -56,7 +56,36 @@ export class PrologueRunStore {
     this.#runtime = runtime;
     this.now = now;
     this.#approvals = approvals;
-    this.cache = new PrologueSessionCache(runtime, this.sessions, this.runs, this.startingSessions, id => this.publish(id, false), ids => memoryUsage.flushRuns(ids));
+    this.cache = new PrologueSessionCache(runtime, this.#sessions, this.#runs, this.#startingSessions, id => this.publish(id, false), ids => memoryUsage.flushRuns(ids));
+  }
+
+  get sessions(): ReadonlyMap<string, SessionRecord> { return this.#sessions; }
+  get runs(): ReadonlyMap<string, RunRecord> { return this.#runs; }
+  get startingSessions(): ReadonlySet<string> { return this.#startingSessions; }
+
+  rememberSession(sessionId: string, session: SessionRecord): void {
+    this.#sessions.set(sessionId, session);
+  }
+
+  rememberRun(session: SessionRecord, record: RunRecord): void {
+    this.#runs.set(record.view.ref.run_id, record);
+    session.runs.push(record.view.ref);
+  }
+
+  /** The caller has just checked its original busy conditions; hold until all of its work has settled. */
+  async withSessionHeld<T>(sessionId: string, work: () => Promise<T>): Promise<T> {
+    this.#startingSessions.add(sessionId);
+    try { return await work(); }
+    finally { this.#startingSessions.delete(sessionId); }
+  }
+
+  invalidateSession(sessionId: string): void {
+    this.#sessions.delete(sessionId);
+  }
+
+  reloadSession(sessionId: string): Promise<SessionRecord> {
+    this.invalidateSession(sessionId);
+    return this.loadSession(sessionId);
   }
 
   /** A detail restore under way, which a cold status read must wait for rather than race. */
@@ -69,7 +98,7 @@ export class PrologueRunStore {
   }
 
   requireRun(runId: string): RunRecord {
-    const record = this.runs.get(runId);
+    const record = this.#runs.get(runId);
     if (!record) throw agentErrors.run_unknown("找不到这次执行");
     return record;
   }
@@ -127,7 +156,7 @@ export class PrologueRunStore {
    * state before that event: the next Run would read incomplete history.
    */
   publish(runId: string, stampTerminal = true): void {
-    const record = this.runs.get(runId);
+    const record = this.#runs.get(runId);
     if (!record) return;
     try { this.cache.capture(record.view.ref.session_id)(); } catch { return; }
     const controlPhase = prologuePhaseOf(record.control.state);
@@ -199,7 +228,7 @@ export class PrologueRunStore {
         run: { ...run },
       });
     } catch (error) {
-      const record = this.runs.get(run.run_id);
+      const record = this.#runs.get(run.run_id);
       if (record) {
         record.state.activity.push({
           call_id: `approval-mirror-${event.pendingRef.id}`,

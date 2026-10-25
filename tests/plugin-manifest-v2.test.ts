@@ -50,9 +50,6 @@ function v2Manifest(): Record<string, unknown> {
     ui: {
       contributions: [`${PLUGIN_ID}.session`],
       views: [{ view_id: "session", slot: "stage", title: "Coding", accepts_objects: true }],
-      commands: [
-        { command_id: "open-report", title: "打开已保存报告", input_kinds: ["current", "artifacts"], opens_view_id: "session" },
-      ],
     },
     ports: {
       inputs: [
@@ -174,7 +171,7 @@ test("events stay inside the Plugin namespace and subscriptions must name their 
   }, "来源声明无效");
 });
 
-test("views and commands must resolve to declared contributions and views", () => {
+test("views must resolve to declared contributions; ui.commands is retired and refused (BL-363)", () => {
   rejects((manifest) => {
     const ui = manifest.ui as { views: Array<{ slot: string }> };
     ui.views[0]!.slot = "floating";
@@ -184,9 +181,8 @@ test("views and commands must resolve to declared contributions and views", () =
     ui.contributions = [];
   }, "未在 ui.contributions 声明");
   rejects((manifest) => {
-    const ui = manifest.ui as { commands: Array<{ opens_view_id: string }> };
-    ui.commands[0]!.opens_view_id = "missing";
-  }, "打开的视图");
+    (manifest.ui as { commands?: unknown[] }).commands = [];
+  }, "ui.commands 已取消");
 });
 
 test("routes reject duplicate paths and permissions the Manifest never declared", () => {

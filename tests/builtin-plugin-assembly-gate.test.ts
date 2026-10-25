@@ -42,7 +42,7 @@ const RUNTIME_ASSEMBLED: ReadonlyMap<string, string> = new Map([
   ["workflows", "@molis-ai/molis-work-plugin-workflows"],
 ]);
 
-const HOME_RUNTIME_ENTRIES = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.runtime?.scope === "home");
+const HOME_RUNTIME_ENTRIES = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.manifest.runtime?.scope === "home");
 const HOME_RUNTIME_IDS = new Set(HOME_RUNTIME_ENTRIES.map(entry => entry.project_plugin_id));
 
 /** Frozen on 2026-09-30. Remove an id here once its plugin is started by the Runtime. */
@@ -188,9 +188,9 @@ test("W5-01-GIT-01..03: the Host keeps no Git wiring of its own; its workspace G
 // file named after it, no provider registered for it, no Host source that imports its package. That it really starts
 // from the declaration is the next test.
 test("RAC-44: the Host keeps no Cognia wiring of its own; Cognia is assembled only from its Home Runtime declaration", async () => {
-  const runtime = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "cognia")?.runtime;
+  const cognia = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "cognia"), runtime = cognia?.runtime;
   assert.ok(runtime, "Cognia's catalog entry declares a Home Runtime");
-  assert.equal(runtime.scope, "home");
+  assert.equal(cognia?.manifest.runtime?.scope, "home", "where it runs is its Manifest's");
   assert.equal(runtime.package_name, "@molis-ai/molis-work-plugin-cognia");
   assert.ok(!BUILD_TIME_ASSEMBLED.has("cognia") && !NATIVE_PLUGIN_HTTP_FILES.has("cognia"));
   const sources = await hostSourceFiles();

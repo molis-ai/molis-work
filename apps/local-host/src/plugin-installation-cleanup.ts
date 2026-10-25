@@ -4,9 +4,9 @@ import { forgetInstallationOriginalFiles } from "./material-original-files.js";
 import { removeSandboxOwnerFiles, type SandboxOwnerFilesScope } from "./plugin-sandbox-owner-files.js";
 
 /**
- * What the Host keeps in the Home beside an installation's data, for this project (or its Home-level activation): the original files it
- * registered, and in a project the accounts bound to its records there (BL-356). They go when the data goes, so a reinstall under the same
- * installation id reads none of them back. The account bound to its installation slot is every project's and stays (BL-596).
+ * An installation's authorization in this project (or its Home-level activation): original-file registrations, and in a project the
+ * accounts bound to its records (BL-356). Every uninstall drops these even when private data is kept; a reinstall needs a new file
+ * selection and binding. Files and accounts themselves stay. Installation slots and a Home installation's project bindings stay (BL-596).
  */
 export function forgetInstallationRecords(scope: SandboxOwnerFilesScope, record: PluginInstanceRecord): void {
   if (!scope.home) return;

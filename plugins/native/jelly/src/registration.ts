@@ -8,7 +8,7 @@ import { JELLY_MESSAGES } from "./messages.js";
  */
 export const registration: PluginRegistration = {
   project_plugin_id: JELLY_PROJECT_PLUGIN_ID, catalog_order: 5,
-  runtime: { scope: "home", create: createJellyPlugin,
+  runtime: { create: createJellyPlugin,
     package_name: "@molis-ai/molis-work-plugin-jelly", factory_export: "createJellyPlugin" },
   messages: JELLY_MESSAGES,
   manifest: jellyManifest,

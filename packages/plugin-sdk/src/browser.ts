@@ -1,7 +1,9 @@
+/// <reference lib="dom" />
+
 /**
  * Where a floating layer goes: beside, above or below what it belongs to, kept inside the screen or the stage the person is
  * working in. A leaf with no import and no use of Node, so a page bundle (the Pages editor) can take it by itself:
- * `@molis-ai/molis-work-design-system/floating`. The toolbar that sits next to a selection, the editor's own menus and the
+ * `@molis-ai/molis-work-plugin-sdk/browser`. The toolbar that sits next to a selection, the editor's own menus and the
  * popovers in a split pane all place themselves with these, in one way.
  */
 const MARGIN = 8;

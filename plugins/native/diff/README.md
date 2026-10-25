@@ -38,7 +38,7 @@ embedded reader keeps its own selector rather than rendering duplicate buttons.
 - 不负责：产生变更集、读文件、应用变更。
 - 公开入口：`@molis-ai/molis-work-plugin-diff`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
 - 页面的客户端是 `src/browser/` 下的 TypeScript：`tsconfig.browser.json` 做类型检查，构建时 esbuild 从 `src/browser/factory.ts` 打成 `dist/diff-client.js`（`(host) => { … }`，`--minify`），`src/client.ts` 读这个包，登记成 Diff 自己的 `clientFactory`。页面读 Diff 自己的 `/state`（`host.pluginRoute`），换文件重读，页面文字是 `src/messages.ts` 的稳定键；样式 `DIFF_STYLES` 也登记在 Diff 自己的 `stylesheet`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（逐行比较 `compareTexts` 等从 SDK 取，Diff 不再转出它们；比较视图的模型与画法 `compareChange`、`compareHunks`、`renderDiff`，unified diff 的读写 `parseUnifiedDiff`、`unifiedPatch` 都从 SDK 的 `/diff-view` 取，2026-10-23 从 Diff 搬过去，Diff 不再导出它们）、`@molis-ai/molis-work-design-system`（页面上的转义与图标）。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（逐行比较 `compareTexts` 等从 SDK 取，Diff 不再转出它们；比较视图的模型与画法 `compareChange`、`compareHunks`、`renderDiff`，unified diff 的读写 `parseUnifiedDiff`、`unifiedPatch` 都从 SDK 的 `/diff-view` 取，2026-10-23 从 Diff 搬过去，Diff 不再导出它们）。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 三类输入按 `input_groups` 互换，只有选中的一组生效。
   - 三类输入都可读取过程项或成果库里明确选定的固定版本；读取仍遵守 Manifest 消费类型与当前授权，固定输入失效时不改读最新版本。回归见 [plugin-fixed-input-sdk.test.ts](../../../tests/plugin-fixed-input-sdk.test.ts)。

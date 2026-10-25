@@ -1,6 +1,6 @@
-import { icon, type MolisWorkIcon } from "../icons.js";
+import { icon, type PluginIconName } from "./icon.js";
 import { type AttrValue, cx, escapeHtml, renderAttrs } from "./html.js";
-import { renderStateRing } from "../state-ring.js";
+import { renderStateRing } from "./state-ring.js";
 
 export type MwButtonVariant = "primary" | "secondary" | "ghost" | "danger" | "danger-outline" | "link";
 export type MwControlSize = "sm" | "md" | "lg" | "icon";
@@ -13,7 +13,7 @@ export interface MwButtonOptions {
   /** Same-origin navigation uses a real link, with the same control styling. */
   href?: string;
   loading?: boolean;
-  icon?: MolisWorkIcon;
+  icon?: PluginIconName;
   iconOnly?: boolean;
   label: string;
   /** The key the button names beside its label (“↵” on a step's primary action); the shortcut itself is the caller's. */

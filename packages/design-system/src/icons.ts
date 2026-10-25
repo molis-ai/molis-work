@@ -1,5 +1,4 @@
-import { renderStateRing } from "./state-ring.js";
-import { STATE_RING_ICON_STATES } from "./state-ring-states.js";
+import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {
   Activity,
   AlertTriangle,
@@ -255,9 +254,7 @@ const ICONS = {
   workflow: Workflow,
   x: X,
   zap: Zap,
-} satisfies Record<string, IconNode>;
-
-export type MolisWorkIcon = keyof typeof ICONS;
+} satisfies Record<PluginIconName, IconNode>;
 
 /**
  * Each plugin's one glyph: the Dock, the plugin switcher, tabs, the market, empty states and search all draw this one.
@@ -269,7 +266,7 @@ export const PLUGIN_ICON = {
   artifacts: "package", images: "image", jelly: "calendar", cognia: "book", shelf: "library", lingguang: "idea",
   coding: "code", characters: "user", alchemist: "zap", "plugin-builder": "wand", market: "grid",
   files: "folder-tree", git: "git-branch", diff: "git-compare", "text-stats": "hash",
-} as const satisfies Record<string, MolisWorkIcon>;
+} as const satisfies Record<string, PluginIconName>;
 
 /** The fixed glyph for each state, shared by every plugin that shows one (DESIGN.md → Iconography). */
 export const STATUS_ICON = {
@@ -280,9 +277,9 @@ export const STATUS_ICON = {
   blocked: "status-blocked",
   done: "status-done",
   cancelled: "status-cancelled",
-} as const satisfies Record<string, MolisWorkIcon>;
+} as const satisfies Record<string, PluginIconName>;
 
-export const ICON_LIBRARY: ReadonlyArray<{ id: string; label: string; icons: readonly MolisWorkIcon[] }> = [
+export const ICON_LIBRARY: ReadonlyArray<{ id: string; label: string; icons: readonly PluginIconName[] }> = [
   {
     id: "chrome",
     label: "栏",
@@ -350,15 +347,10 @@ export function renderIconSprite(): string {
   return `<svg class="icon-sprite" aria-hidden="true">${symbols}</svg>`;
 }
 
-export function icon(name: MolisWorkIcon, className = ""): string {
-  if (name in STATE_RING_ICON_STATES) return renderStateRing({ state: STATE_RING_ICON_STATES[name as keyof typeof STATE_RING_ICON_STATES], className });
-  return `<svg${className ? ` class="${escapeAttribute(className)}"` : ""} aria-hidden="true"><use href="#icon-${name}"></use></svg>`;
-}
-
-export function listedIconNames(): MolisWorkIcon[] {
+export function listedIconNames(): PluginIconName[] {
   return [...new Set(ICON_LIBRARY.flatMap((group) => group.icons))];
 }
 
-export function registeredIconNames(): MolisWorkIcon[] {
-  return Object.keys(ICONS) as MolisWorkIcon[];
+export function registeredIconNames(): PluginIconName[] {
+  return Object.keys(ICONS) as PluginIconName[];
 }

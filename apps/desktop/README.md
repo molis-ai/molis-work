@@ -62,6 +62,8 @@ node scripts/run-tests.mjs tests/desktop-tui.test.ts
 
 ## 开发要求
 
+生产 MCP 在需要宿主时按需启动当前 Home 已安装的 `bin/molis-work-web`，只传固定 Home 与配置端口，不注册登录服务。Web 初次就绪有界，Home 健康认证通过才转发；MCP 退出后宿主继续常驻，App 按现有规则复用外部宿主，不接管其 Child 或 owner。MCP 取消/EOF 只结束该请求的等待与 HTTP，Web 启动失败经私有 fd 3 返回安全错误码，详细规则及真实进程验收见 [W5-16 C5](../../specs/repository-anti-corruption/slices/w5-16-mcp-autostart.md)。
+
 - 负责：macOS 产品外壳与原生桥的组合根，以及 CLI、MCP、Web 的启动器（`launchers/`）。
 - 不负责：业务事实、Module 规则、Runtime 状态。
 - 公开入口：`@molis-ai/molis-work-app-desktop`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/app-host`。

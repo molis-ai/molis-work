@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 // W3-05-1: the cross-reference checks on a group of action declarations (`inspectActionCrossReferences`, plugin SDK). A declaration
 // that points at another action (undo, background job, fragment and subject options) or into its own output (the result object)
 // is held to what it points at: the target is in the same registration, is the kind of action the pointer needs, is in the same
@@ -292,9 +293,9 @@ test("a Manifest whose references do not hold is not a Manifest: parsing it name
 
 test("the Plugin Runtime does not install a plugin whose Manifest has a reference that does not hold", () => {
   const definition = (...actions: Part[]) => ({ manifest: declarationManifest({ actions }) as never, start: async () => ({ kind: "app" as const, actions: [] }) });
-  const runtime = new PluginRuntime();
+  const runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS });
   assert.doesNotThrow(() => runtime.install({ trust: { level: "unsigned" }, definition: definition(add(), remove()), deployment: "local", grants: [] }));
-  assert.throws(() => new PluginRuntime().install({ trust: { level: "unsigned" }, definition: definition(add()), deployment: "local", grants: [] }),
+  assert.throws(() => new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }).install({ trust: { level: "unsigned" }, definition: definition(add()), deployment: "local", grants: [] }),
     (error: unknown) => (error instanceof ActionError && error.kind === "invalid") && error.code === "plugin.manifest_invalid" && /撤销命令 notes\.remove@1 不在同一提供方的声明里/.test(error.message));
 });
 

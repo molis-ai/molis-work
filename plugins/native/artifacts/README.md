@@ -105,7 +105,7 @@ node scripts/run-tests.mjs tests/artifact-document-import.test.ts tests/document
 - 负责：Artifact 浏览、嵌入、文档导入与组合。
 - 不负责：Artifact 事实与 Store、生产方与消费方的实现。
 - 公开入口：`@molis-ai/molis-work-plugin-artifacts`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-storage`（项目原件维护删除复用物理路径检查，拒绝文件与祖先目录重定向）。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（页面部件 `/ui`）、`@molis-ai/molis-work-storage`（项目原件维护删除复用物理路径检查，拒绝文件与祖先目录重定向）。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - Host 注入项目、actor 与工作区，业务参数不能覆盖身份、producer、scope 或根目录。
   - 在线文档内容变化时新增版本，旧版本与精确引用保留；空正文、超限、权限错误和截断结果不产生成功的 Artifact。

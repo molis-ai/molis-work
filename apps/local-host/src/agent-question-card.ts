@@ -1,4 +1,5 @@
-import { renderInteractionQuestion, type InteractionControl, type InteractionField, type InteractionPicked, type InteractionValues } from "@molis-ai/molis-work-design-system";
+import type { InteractionPicked, InteractionValues } from "@molis-ai/molis-work-plugin-sdk/page-globals";
+import { renderInteractionQuestion, type InteractionControl, type InteractionField } from "@molis-ai/molis-work-design-system";
 import type { AgentPendingQuestion, AgentQuestion, AgentQuestionProblem, AgentQuestionProblemReason } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import { dateTimeLocale } from "./web-locale.js";
 

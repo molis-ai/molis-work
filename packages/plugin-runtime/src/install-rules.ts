@@ -29,16 +29,20 @@ export function installationGrants(current: PluginInstanceRecord | null, manifes
   return normalizeGrants(manifest, requested ?? held ?? []);
 }
 
-/** A non-retaining uninstall must finish its Host cleanup before another installation can see that installation id's data. */
+/** Every reinstall first revokes its earlier installation's authorization; private cleanup follows the existing retention choice. */
 export function prepareInstallationData(executor: PluginExecutor, previous: PluginInstanceRecord | null, manifest: PluginManifest, host: boolean, discard: boolean): void {
   const refusal = keptDataRefusal(previous, manifest, host, discard);
   if (refusal) throw pluginErrors.kept_data_incompatible(refusal);
-  if (previous?.state !== "uninstalled" || previous.retain_private_data) return;
-  if (!executor.keptDataDiscarded) {
-    if (executor.uninstalled) throw pluginErrors.state_invalid("Plugin 的宿主没有同步数据清理能力，暂不能重装这个不保留数据的安装");
-    return;
+  if (previous?.state !== "uninstalled") return;
+  try {
+    executor.prepareReinstall?.(previous);
+    if (previous.retain_private_data) return;
+    if (!executor.keptDataDiscarded) {
+      if (executor.uninstalled) throw pluginErrors.state_invalid("Plugin 的宿主没有同步数据清理能力，暂不能重装这个不保留数据的安装");
+      return;
+    }
+    executor.keptDataDiscarded(previous);
   }
-  try { executor.keptDataDiscarded(previous); }
   catch (error) {
     if (error instanceof ActionError) throw error;
     throw pluginErrors.executor_failed("Plugin 已卸载数据清理失败，暂不能重装，请重试清理");

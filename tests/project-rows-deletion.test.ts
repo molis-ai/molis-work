@@ -183,17 +183,17 @@ test("RAC-562 an existing catalog project plugin with a declared deletion owner 
   const home = withHome(t), platform = projectPlatform(t, home), definition = createFormPlugin();
   const schema = t.mock.method(DatabaseSync.prototype, "exec"), library = definition.manifest.databases!.home!;
   assert.ok(catalog.some(entry => entry.manifest === definition.manifest), "the deletion owner reads this same Manifest object");
-  assert.deepEqual((await platform.start([{ definition, bundled: true }])).running, [definition.manifest.plugin_id]);
+  assert.deepEqual((await platform.start([{ definition, trust: { level: "host" } }])).running, [definition.manifest.plugin_id]);
   assert.ok(schema.mock.calls.some(call => call.arguments[0] === library.schema), "a supported real startup exercises the observed schema exec");
   assert.ok(existsSync(homeSqlitePath(home, library.store_name)));
   await platform.runtime.stop(platform.runtime.list()[0]!.install_id);
 });
 
-test("RAC-562 the project platform refuses a copied catalog Manifest even with the same plugin id and bundled flag", async t => {
+test("RAC-562 the project platform refuses a copied catalog Manifest even with the same plugin id and Host trust", async t => {
   const home = withHome(t), platform = projectPlatform(t, home), original = createFormPlugin(), calls: string[] = [];
   const definition: PluginDefinition = { ...original, manifest: { ...original.manifest }, async start(context) { calls.push("start"); return original.start(context); } };
   const schema = t.mock.method(DatabaseSync.prototype, "exec"), library = definition.manifest.databases!.home!;
-  await assert.rejects(platform.start([{ definition, bundled: true }]), { code: "plugin.declaration_invalid" });
+  await assert.rejects(platform.start([{ definition, trust: { level: "host" } }]), { code: "plugin.declaration_invalid" });
   assert.deepEqual(calls, []);
   assert.deepEqual(platform.runtime.list(), []);
   assert.equal(schema.mock.calls.filter(call => call.arguments[0] === library.schema).length, 0);

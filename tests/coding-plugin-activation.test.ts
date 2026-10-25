@@ -13,6 +13,7 @@ import {
   createPluginPlatform,
   seedDemoBoard,
 } from "@molis-ai/molis-work-app-local-host";
+import { definePlugin } from "@molis-ai/molis-work-plugin-sdk";
 import { CODING_PLUGIN_ID, codingManifest, createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
 
 /**
@@ -50,7 +51,7 @@ test("Coding 由 Plugin Runtime 启动，并注册它声明的视图", async () 
   try {
     const { store, platform } = project(directory);
     const report = await platform.start([
-      { definition: createCodingPlugin() },
+      { definition: createCodingPlugin(), trust: { level: "host" } },
     ]);
     assert.deepEqual(report.failed, []);
     assert.deepEqual(report.blocked, []);
@@ -65,10 +66,13 @@ test("没拿到 artifact:write 就起不来，而不是起来之后在发布时�
   const directory = mkdtempSync(join(tmpdir(), "coding-activation-"));
   try {
     const { store, platform } = project(directory);
-    // grants 默认是 Manifest 声明的全部必需权限；明确给空数组才是「什么都没授」
-    const report = await platform.start([
-      { definition: createCodingPlugin(), grants: [] },
-    ]);
+    // grants 默认是 Manifest 声明的全部必需权限；明确给空数组才是「什么都没授」。随宿主发布的构建（Coding）一律拿到它声明的
+    // 全部权限（hostBuildGrants），缺授权只会发生在别的信任等级上：所以这里用一个不随宿主发布、同样必需 artifact:write 的插件。
+    const needsWrite = definePlugin({ manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.needs-write", version: "1.0.0", name: "需要写成果",
+      kind: "app", publisher: { publisher_id: "example", signature: "needs-write" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
+      permissions: [{ permission: "artifact:write", required: true, reason: "发布成果" }], capabilities: { provides: [], consumes: [] },
+      artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [] }, async start() { return { kind: "app" }; } });
+    const report = await platform.start([{ definition: needsWrite, grants: [] }]);
     assert.deepEqual(report.running, [], "缺授权就不该处于运行状态");
     assert.equal(report.failed.length + report.blocked.length, 1, "必须在激活期就被挡住");
     const problem = [...report.failed, ...report.blocked][0];
@@ -84,7 +88,7 @@ test("跑起来的贡献，恰好兑现 Manifest 声明的那两个视图", asyn
   const directory = mkdtempSync(join(tmpdir(), "coding-activation-"));
   try {
     const { store, platform } = project(directory);
-    const report = await platform.start([{ definition: createCodingPlugin() }]);
+    const report = await platform.start([{ definition: createCodingPlugin(), trust: { level: "host" } }]);
     assert.deepEqual(report.running, [CODING_PLUGIN_ID]);
 
     const contribution = platform.supervisor.contribution(CODING_PLUGIN_ID);

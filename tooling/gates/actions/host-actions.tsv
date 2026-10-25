@@ -182,6 +182,8 @@ placement.move	1	system.placement	command	operation	home	write	-	user	placement:
 placement.related	1	system.placement	query	query	home	read	concurrent	agent,user	placement:read	-	-	-	03636e556197	c77ce5a16d74	-
 placement.spaces	1	system.placement	query	query	home	read	concurrent	agent,user	placement:read	-	-	-	d746974fa9af	afb3d85a8f08	-
 placement.unlink	1	system.placement	command	operation	home	write	-	user	placement:read,placement:write	-	-	-	767463c0e660	ffe64f3e9a62	-
+plugins.consents.list	1	plugin-consents	query	query	home	read	-	user	plugin-consents:read	-	-	-	0f4df4950e13	c45142d1cf02	-
+plugins.consents.revoke	1	plugin-consents	command	operation	home	write	-	user	plugin-consents:write	-	-	-	3d297df1d589	2d423fd6db8e	-
 projects.settings.runtime.read.v1	1	platform	query	query	project	read	-	agent,mcp,user,workflow	-	project	-	project.runtime.optional	9cecb8ebe607	8c923fd28c9a	-
 projects.settings.runtime.select.v1	1	platform	command	operation	project	write	-	user	projects:settings	project	-	project.runtime.optional	65d08d19afe5	8c923fd28c9a	-
 projects.workspace.files.read	1	platform	query	query	project	read	-	agent,mcp,user,workflow	workspace:read	workspace	-	-	9a0d0d76ae5b	a2c799262a3c	-

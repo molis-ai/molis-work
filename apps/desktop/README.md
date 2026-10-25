@@ -71,6 +71,7 @@ node scripts/run-tests.mjs tests/desktop-tui.test.ts
   - 不直接写业务数据库；面板、Capsule、热键等原生适配不承载业务判断。
   - 构建、安装与签名/公证是不同步骤，构建通过不等于已公证或已发布。
 - 改动后必跑：`node scripts/run-tests.mjs tests/desktop-shell-bootstrap.test.ts tests/desktop-tui.test.ts tests/action-mcp-stdio.test.ts`
+- `openDesktopProjectDeletionRecoveryTarget` 仅将既有 Desktop Panel owner 接到 LocalHost 冷 Catalog 恢复口；不初始化 schema 或普通 Runtime。该装配额外验证 `tests/project-deletion-recovery-target.test.ts`。
 - 相关手册：[docs/platform/DESKTOP.md](../../docs/platform/DESKTOP.md)、[docs/platform/LOCAL-HOST.md](../../docs/platform/LOCAL-HOST.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
 ## 进一步阅读

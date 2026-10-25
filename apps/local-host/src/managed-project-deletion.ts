@@ -7,12 +7,20 @@ import { catalogErrors } from "./project-catalog-contract.js";
 import { randomUUID } from "node:crypto";
 import type { StoredProjectDeletion } from "@molis-ai/molis-work-module-projects";
 import type { DeleteProjectInput as DeleteMolisWorkProjectInput, ProjectDeletionResult as MolisWorkProjectDeletionResult, ProjectDeletionRecord as MolisWorkProjectDeletionRecord } from "@molis-ai/molis-work-contracts/modules/projects";
-import { managedProjectDirectory } from "./project-file-paths.js";
+import { managedProjectDirectory, holdProjectDeletionDirectory } from "./project-file-paths.js";
 import type { ProjectDeletedPort } from "./project-deleted-hooks.js";
 import { decodeProjectDeletionRecovery, type ProjectDeletionRecovery, type ProjectDeletionMemoryProof } from "./project-deletion-recovery.js";
+import type { ProjectDeletionControl } from "@molis-ai/molis-work-contracts/modules/projects";
 export interface ProjectDeletionCleanupPorts {
   removeBindings(projectId: string, actorId: string, at: string): number;
   removePanels(projectId: string): void;
+}
+/** Already reconciled by the cold Catalog owner against the complete source/target receipt histories. */
+export interface ProjectDeletionRecoveryAcceptance {
+  deletion_id: string; project_id: string; actor_id: string; idempotency_key: string; request_fingerprint: string;
+  owner_ids: readonly string[];
+  /** A previous fixed target plan in this persisted group has been verified cleared. */
+  require_empty: boolean;
 }
 /**
  * Freeze the trusted deletion plan before accepting it. Keep the Catalog and directory until Memory, Sessions and
@@ -23,7 +31,61 @@ export class ManagedProjectDeletion {
   constructor(private readonly projects: Pick<ProjectsModule, "query" | "lifecycle">,
     private readonly projectsDirectory: string, private readonly cleanup: ProjectDeletionCleanupPorts,
     private readonly validation: Pick<RuntimeProjectBindingValidation, "requiredActorId" | "requiredProjectId">, private readonly commit: CatalogCommit,
-    private readonly owners: ProjectDeletedPort) {}
+    private readonly owners: ProjectDeletedPort, private readonly maintenance?: ProjectDeletionControl) {}
+
+  /** The cold entry accepts a fresh target decision, or continues the existing target's exact plan and steps. */
+  async restoreProjectDeletion(input: ProjectDeletionRecoveryAcceptance): Promise<MolisWorkProjectDeletionRecord> {
+    if (!this.maintenance) throw catalogErrors.project_storage_invalid("恢复需要活维护权限");
+    this.maintenance.assertCurrent();
+    const requiredOwners = [...new Set([...this.owners.owners().map(owner => owner.id), ...input.owner_ids])];
+    const replay = this.projects.lifecycle.findDeletion(input.actor_id, input.idempotency_key);
+    if (replay) {
+      if (replay.deletion_id !== input.deletion_id || replay.project_id !== input.project_id || replay.request_fingerprint !== input.request_fingerprint)
+        throw catalogErrors.deletion_idempotency_conflict("恢复引用不属于原目标决定");
+      const steps = this.projects.lifecycle.deletionSteps(replay.deletion_id);
+      if (requiredOwners.some(owner => !steps.some(step => step.owner_id === owner)))
+        throw catalogErrors.project_storage_invalid("原目标决定缺少所需清理主人");
+      return replay.cleanup_state === "complete" ? this.verifyOriginalDeletion(replay) : this.finishProjectDeletionCleanup(replay);
+    }
+    const project = this.projects.lifecycle.retainedProject(input.project_id);
+    if (input.require_empty && project) throw catalogErrors.project_storage_invalid("前项目的原决定尚未清除");
+    const directory = project ? managedProjectDirectory(this.projectsDirectory, project) : path.join(this.projectsDirectory, input.project_id);
+    const stat = await fs.lstat(directory).catch(error => { if (error.code !== "ENOENT") throw error; return null; });
+    this.maintenance.assertCurrent();
+    if (project ? !stat?.isDirectory() || stat.isSymbolicLink() : stat !== null)
+      throw catalogErrors.project_storage_invalid("目标目录与已选项目不符");
+    return this.owners.withRecovery({ project_id: input.project_id, operation_id: input.deletion_id }, async (plan, proof) => {
+      if (input.require_empty && !emptyRecovery(plan)) throw catalogErrors.project_storage_invalid("前项目的原选集清除后目标仍非空");
+      const record = await this.commit(() => {
+        proof.assertCurrent();
+        if (this.projects.lifecycle.findDeletion(input.actor_id, input.idempotency_key) || this.projects.lifecycle.pendingDeletions(input.project_id).length)
+          throw catalogErrors.deletion_idempotency_conflict("目标请求已接受，请继续原决定");
+        const deletion: StoredProjectDeletion = { deletion_id: input.deletion_id, project_id: input.project_id, actor_id: input.actor_id,
+          idempotency_key: input.idempotency_key, request_fingerprint: input.request_fingerprint, display_name: project?.display_name ?? "已删除项目",
+          staged_directory: path.join(this.projectsDirectory, `.deleting-${input.project_id}-${randomUUID()}`),
+          deleted_binding_count: 0, cleanup_state: "pending", cleanup_error: null, deleted_at: new Date().toISOString(), cleaned_at: null,
+          recovery_plan: JSON.stringify(plan) };
+        this.projects.lifecycle.insertDeletion(deletion);
+        this.projects.lifecycle.insertDeletionSteps(deletion.deletion_id, requiredOwners);
+        return deletion;
+      });
+      return this.runHeldCleanup(record, plan, proof);
+    });
+  }
+
+  /** Completed target receipts are read-only. They cannot authorize another project's partition or directory. */
+  async verifyOriginalDeletion(record: StoredProjectDeletion): Promise<MolisWorkProjectDeletionRecord> {
+    this.maintenance?.assertCurrent();
+    const steps = this.projects.lifecycle.deletionSteps(record.deletion_id);
+    if (record.cleanup_state !== "complete" || !steps.length || steps.some(step => step.state !== "complete"))
+      throw catalogErrors.project_storage_invalid("原目标决定尚未完成");
+    const plan = decodeProjectDeletionRecovery(record.recovery_plan, record.project_id, record.deletion_id);
+    return this.owners.withRecovery({ project_id: record.project_id, operation_id: record.deletion_id, original: plan, verification: "original" }, async (_saved, proof) => {
+      if (!proof.verifyOriginal) throw catalogErrors.project_storage_invalid("原选集缺少精确核验主人");
+      await proof.verifyOriginal(); proof.assertCurrent(); this.maintenance?.assertCurrent();
+      return this.projects.lifecycle.deletionRecord(record);
+    });
+  }
 
   async deleteProject(input: DeleteMolisWorkProjectInput): Promise<MolisWorkProjectDeletionResult> {
     const projectId = this.validation.requiredProjectId(input.project_id);
@@ -103,6 +165,8 @@ export class ManagedProjectDeletion {
   }
 
   private async runHeldCleanup(record: StoredProjectDeletion, plan: ProjectDeletionRecovery, proof: ProjectDeletionMemoryProof): Promise<MolisWorkProjectDeletionRecord> {
+    const directory = this.maintenance ? holdProjectDeletionDirectory(this.projectsDirectory, record.project_id, record.staged_directory,
+      Boolean(this.projects.lifecycle.retainedProject(record.project_id)), this.maintenance.assertCurrent) : undefined;
     const steps = this.projects.lifecycle.deletionSteps(record.deletion_id);
     if (!steps.some(step => step.owner_id === "memory")) return this.pending(record, "原收据没有 Memory 清理主人，保留待核对");
     const problems: string[] = [];
@@ -116,8 +180,9 @@ export class ManagedProjectDeletion {
       }
       if (step.state !== "pending") continue;
       try {
+        this.maintenance?.assertCurrent();
         if (!await this.owners.clear(step.owner_id, record.project_id,
-          { deletion_id: record.deletion_id, project_id: record.project_id, recovery: plan })) {
+          { deletion_id: record.deletion_id, project_id: record.project_id, recovery: plan }, this.maintenance)) {
           problems.push(`${step.owner_id}：${step.error ?? "这一步要由有这项数据的 Molis Work 入口完成"}`);
         } else {
           if (step.owner_id === "memory") await proof.verifyMemory();
@@ -134,7 +199,8 @@ export class ManagedProjectDeletion {
     try {
       await proof.verifyMemory(); proof.assertCurrent();
       const source = path.join(this.projectsDirectory, record.project_id);
-      try { await fs.rename(source, record.staged_directory); }
+      this.maintenance?.assertCurrent();
+      try { if (directory) await directory.stage(); else await fs.rename(source, record.staged_directory); }
       catch (error) {
         if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
         const staged = await fs.stat(record.staged_directory).catch(failure => { if (failure.code !== "ENOENT") throw failure; return null; });
@@ -143,6 +209,7 @@ export class ManagedProjectDeletion {
       // The original row and installation bindings stay available until all owners above have succeeded.
       await this.commit(() => this.projects.lifecycle.transaction(() => {
         proof.assertCurrent();
+        directory?.assertCurrent();
         const now = new Date().toISOString();
         const removed = this.cleanup.removeBindings(record.project_id, record.actor_id, now)
           + this.projects.lifecycle.removeWorkspaceMembershipsForProject(record.project_id);
@@ -151,7 +218,9 @@ export class ManagedProjectDeletion {
         if (removed) this.projects.lifecycle.updateDeletionCleanup(record.deletion_id,
           { state: "pending", error: null, cleaned_at: null, add_binding_count: removed });
       }));
-      await fs.rm(record.staged_directory, { recursive: true, force: true });
+      proof.assertCurrent(); this.maintenance?.assertCurrent();
+      if (directory) await directory.remove(); else await fs.rm(record.staged_directory, { recursive: true, force: true });
+      this.maintenance?.assertCurrent();
       record = await this.commit(() => {
         proof.assertCurrent();
         return this.projects.lifecycle.updateDeletionCleanup(record.deletion_id, { state: "complete", error: null, cleaned_at: new Date().toISOString() });
@@ -202,4 +271,9 @@ export function requiredDeletionIdempotencyKey(value: string): string {
     );
   }
   return key;
+}
+
+function emptyRecovery(plan: ProjectDeletionRecovery): boolean {
+  return plan.kind === "absent" || (plan.sessions.sessions.length === 0
+    && plan.memory.scopes.every(scope => !scope.memories.length && !scope.candidates.length && !scope.sources.length));
 }

@@ -73,6 +73,8 @@ export { initializeProjectDatabase, validateManagedProject } from "./managed-pro
 
 export { ManagedProjectFiles } from "./managed-project-files.js";
 export { ManagedProjectDeletion, type ProjectDeletionCleanupPorts } from "./managed-project-deletion.js";
+export { openProjectDeletionRecoveryTarget, type ProjectDeletionRecoveryTarget, type ProjectDeletionRecoveryTargetInput,
+  type ProjectDeletionRecoveryGroup, type ProjectDeletionSourceRequest, type ProjectDeletionCatalogSnapshot } from "./project-deletion-recovery-target.js";
 export { ProjectDeletionService, type ProjectDeletionPorts } from "./project-deletion-service.js";
 export { ProjectDeletedHooks, projectDeletedHooksFor, type ProjectDeletedOwner, type ProjectDeletedPort } from "./project-deleted-hooks.js";
 export { DemoProjectLifecycle, type DemoProjectSeedPort } from "./demo-project-lifecycle.js";

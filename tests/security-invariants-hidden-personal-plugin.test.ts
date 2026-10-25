@@ -27,6 +27,7 @@ const callerIn = (projectId: string | null): ActionCallContext => ({ actor_id: "
 const projectPlugins = (projectId: string) => `/api/settings/projects/${encodeURIComponent(projectId)}/plugins`;
 const hide = (home: TestHome, project: TestProject, plugin: string) => home.web.delete(projectPlugins(project.project_id), { plugin_id: plugin });
 const unhide = (home: TestHome, project: TestProject, plugin: string) => home.web.post(projectPlugins(project.project_id), { plugin_id: plugin });
+const formList = (project: TestProject) => `/projects/${encodeURIComponent(project.project_id)}/api/plugins/io.molis.work.form/forms`;
 const todoItems = (project: TestProject) => `/projects/${encodeURIComponent(project.project_id)}/api/plugins/io.molis.work.todo/items`;
 
 function mcpFor(home: TestHome, project: TestProject) {
@@ -121,4 +122,15 @@ test("RAC-582 S-68 and RAC-583 the hidden plugin's routes under the project refu
   await unhide(home, hiding, "todo");
   const listed = await home.web.get<{ counts: { all: number } }>(todoItems(hiding));
   assert.equal(listed.counts.all, 1, "the owner's facts were never touched while it was hidden");
+});
+
+test("RAC-582 S-68 a project-level personal plugin's routes (Form) are refused in the project that hid it, from the same list the actions read, and work in one that did not", { timeout: 60_000 }, async t => {
+  const home = await openTestHome(t), hiding = await home.createProject("Hides Form"), showing = await home.createProject("Shows Form");
+  await home.web.get(formList(hiding));
+  await hide(home, hiding, "form");
+  await assert.rejects(home.web.get(formList(hiding)), { status: 403, code: "actions.plugin_disabled" });
+  await assert.rejects(home.web.post(formList(hiding), { title: "隐藏后不得写入" }), { status: 403, code: "actions.plugin_disabled" });
+  await home.web.get(formList(showing));
+  await unhide(home, hiding, "form");
+  await home.web.get(formList(hiding));
 });

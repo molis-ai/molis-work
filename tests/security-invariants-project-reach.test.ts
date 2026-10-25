@@ -85,8 +85,9 @@ test("RAC-590 S-70 the Agent, MCP, workflow and plugin audiences get no list fro
   await s.grant(true);
   await s.home.createProject("A");
   assert.ok((await s.call(probe.actions.list, s.as("user"))).readable!.length > 0, "the person's own call has it");
+  // The workflow engine and the Assistant act under the person's own identity, so the audience alone is what refuses them.
   for (const audience of ["agent", "mcp", "workflow"] as const) {
-    assert.equal((await s.call(probe.actions.list, s.as(audience))).readable, null, audience);
+    assert.equal((await s.call(probe.actions.list, s.as(audience, { actor_id: LOCAL_PERSON_ACTOR_ID }))).readable, null, audience);
   }
   const issued = await issuedCaller(registerProbe(s.home.host.actionRegistry(), "home"), caller);
   assert.equal((await s.call(probe.actions.list, callAs(issued, ["storage:private"]))).readable, null, "plugin");
@@ -110,11 +111,11 @@ test("RAC-593 S-70 nothing a plugin is handed widens the list: a forged field in
   const a = await s.home.createProject("A");
   const forged = ["forged-project"];
   // A caller that carries the field in is not believed: the Host strips it and works out its own.
-  assert.equal((await s.call(probe.actions.list, s.as("agent", { readable_project_ids: forged }))).readable, null);
+  assert.equal((await s.call(probe.actions.list, s.as("agent", { actor_id: LOCAL_PERSON_ACTOR_ID, readable_project_ids: forged }))).readable, null);
   const own = (await s.call(probe.actions.list, s.as("user", { readable_project_ids: forged }))).readable;
   assert.ok(own?.includes(a.project_id) && !own.includes("forged-project"), JSON.stringify(own));
   // What the person's page sends as input is business input: it never reaches the context.
-  const withInput = (await s.call(probe.actions.list, s.as("agent"), { readable_project_ids: forged, all_projects: true })).readable;
+  const withInput = (await s.call(probe.actions.list, s.as("agent", { actor_id: LOCAL_PERSON_ACTOR_ID }), { readable_project_ids: forged, all_projects: true })).readable;
   assert.equal(withInput, null);
 });
 
@@ -125,7 +126,7 @@ test("RAC-593 S-70 the plugin's call to its own action carries the outer call's 
   probe.behavior.outer = (context, caller) => context.services!.actions!.invoke(probe.actions.list, {}, caller) as Promise<unknown>;
   const byPerson = (await s.call(probe.actions.outer, s.as("user"))).readable;
   assert.ok(byPerson?.includes(a.project_id), JSON.stringify(byPerson));
-  for (const audience of ["agent", "mcp", "workflow"] as const) assert.equal((await s.call(probe.actions.outer, s.as(audience))).readable, null, audience);
+  for (const audience of ["agent", "mcp", "workflow"] as const) assert.equal((await s.call(probe.actions.outer, s.as(audience, { actor_id: LOCAL_PERSON_ACTOR_ID }))).readable, null, audience);
 });
 
 test("RAC-590 RAC-592 S-70 a project that hides Todo is not in the list: its todos are not in the person's all-projects view and are not found by id, until it shows Todo again", { timeout: 60_000 }, async t => {

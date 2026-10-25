@@ -2603,3 +2603,15 @@ Prologue #102 已按准确13c476a3完成原完整quality（70文件723项、干�
 最终8743聚合复验：原完整build、根类型、准确d08健康、boundary、73份API（3038声明）与Action快照（587+311动作）均通过；authority体积门在职责拆出后通过，没有改门禁。原14文件批次13文件284项首次通过，唯一recovery首败16/18如上保留；修正proof转交后，recovery18/18连同plan、authority、lifecycle及policy五文件90项全部通过，零重试/跳过。此前13文件有效结果按各自影响面复用，不改写为14文件首轮全绿。最终独审确认原P1消除，额外执行区间错operation/version/ref与未选对象探针2/2、原恢复及同步撤权3/3通过；组合diff与最后职责拆出另做只读复核，报告 /private/tmp/molis-memory-session-ca741-independent-review-20261025.md。
 
 最终27项资源逐字节数仍与008706测量一致，共7,630,892 B；正式门只剩用户待定的Coding+1,333 B，不包含新增长。首败日志 /private/tmp/molis-memory-app-4087-sdk13c-{direct,health,assets-gate}-20261025.log；最终build/types/health/boundary/api/actions/direct日志 /private/tmp/molis-memory-app-session-proof-*-20261025.log；新包安装一致报告 /private/tmp/molis-memory-sdk102-13c-installed-match-20261025.json。本轮没有跑新聚合完整浏览器旅程或全量，不把SDK已合main或这些局部工程结果称为MEM-40/产品/用户验收完成。
+
+### MEM-40 Catalog 接纳与维护范围：实施前冻结（2026-10-25）
+
+真实场景仍是把明确的 T0 完整备份恢复到原绝对路径，再参考停写 T1 的完整工作副本保留其删除与来源抑制决定；不支持顺便搬家，不操作 T0/T1 原件。沿现独占 storage owner、adopting、Ledger operation marker、Catalog 原收据/步骤及 SDK/Index 各主人；不加表、别名链、全局 epoch、第二删除服务或普通启动 bypass。以下冻结既有恢复合同的碰撞与自有删除细节，未减少 P0 验收，也不表示实现已经完成。
+
+- **MEM-40-CAT-01，全量源事实。** Catalog 只读入口使用同一 BEGIN 快照与有界 keyset 页，包含 pending 和 complete，复用唯一原计划 decoder。只投影原请求、计划、步骤及同 ID 当前/保留项目的身份字段；不交正文、显示名、错误文本或 staged_directory。未知结构、坏计划/步骤、缺失关联不能转成空页；exhausted 仅证明该来源读完。Projects 主人拥有 SQL 和持久行校验，LocalHost 只组合主人。
+- **MEM-40-CAT-02，首次目标决定与原决定续跑。** target 从未接受源请求时，按 target 当前身份/版本/preview 固定一次新 deletion_id、原计划和待办步骤；保留源 actor/idempotency/request_fingerprint 供幂等定位，历史 actor 不提供当前维护权限。恢复父 operation 的现 marker 只关联 source 决定与 target receipt，不复制 Catalog 计划或完成账。target 已有同请求收据时，无论由本轮恢复接受还是 T0 已保留，都沿其原计划、操作号与步骤对账；不得覆盖、重新预览扩选或另造竞争收据。不同 source/项目/请求身份碰撞必须拒绝。源 complete 不免除 target 的实际清理与证明。
+- **MEM-40-CAT-03，后继项目保护。** 固定项目 ID 可以在删除后重建。旧 complete 收据不授权清当前同 ID 项目、分区或目录；只有原请求/收据、原固定计划及 SDK/Index/目标主人事实能够证明的旧对象进入恢复选集。时间和 ID 本身都不能证明同一实例。不能证明归属的分支明确 incomplete，保留后继完整对象，不把拒绝当验收通过。必须分别验证“备份在删除前，目标真实执行全部步骤”与“备份已含旧 complete 及重建实例，后继全文/版本/目录保持”。
+- **MEM-40-CAT-04，同一删除主人与当前权限。** 冷维护仅装配既有 Catalog、Projects、binding/panel 主人、原 commit 与 ManagedProjectDeletion。步骤为源原要求与 target 当前声明的稳定并集，Memory 优先，缺席主人保持 pending。目录只能由 target 原决定构造，不能使用源绝对路径。维护 checker 必须进入 owner 的真实副作用和异步后边界，包含 pending/error 记账、目录 rename/rm、步骤及最终提交；不能仅在最后 complete 检查或传 noop。未决原件/coverage 阻断后续业务清除，关闭失败不发布。
+- **MEM-40-FRAME-01，自有删除不使维护失效。** 完整恢复的范围由可信 source 与 target 原固定计划确定；普通采用的活动项目重算规则保留。新的恢复 frame 同时核当前维护权限/取消、原 owner、adopting 与预期 Ledger/Catalog 身份快照。合法 forgetScopes/removeFacts 只能由实际主人事务返回其提交后的最新快照，再推进该 frame 的预期值；不得用任意重新读取覆盖预期、忽略差异或从清空后的关系猜完整性。失败或结果未知保持 adopting，重开沿持久原决定对账。SDK 的固定授权范围不因自身删掉关系而丢失，也不能因此增加选项或让普通 Runtime 获维护许可。
+
+依赖顺序：源 Ledger/Memory 解释、Catalog 读取和冷 Session 清除并行；统筹集成唯一恢复父 operation/frame 与 target Catalog 接纳，再完成全主人 T0/T1/T2、原请求重开、逐 owner 故障、WAL/缺钥/撤权、关闭与第二 owner 交错验证。当前来源读取和冷 Session 仅提供各自局部能力；完整 MEM-40、最终用户旅程与收益对照仍未通过。所有变更继续集中既有 #1101，先由 #1064 依原 CI/评审要求进入 main，不再为上述内部职责新开小 PR。

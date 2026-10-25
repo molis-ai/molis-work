@@ -10,13 +10,14 @@ import { assertMemoryLedgerRetainedObjectsCleared, assertMemoryLedgerRetentionId
 
 /** A source-forgotten barrier has no version; versioned sources retain their exact original tuple. */
 export interface MemoryLedgerSelectedRetentionSource { readonly event_id: string; readonly version?: string }
+type SelectedOriginal = { readonly version: number; readonly state?: never } | { readonly state: "cleared"; readonly version?: never };
 export interface MemoryLedgerSelectedRetentionPlan {
   readonly actor_id: string;
   readonly operation_id: string;
   readonly scopes: readonly {
     readonly scope: MemoryScope; readonly owner: string;
-    readonly memories: readonly { readonly memory_id: string; readonly version: number }[];
-    readonly candidates: readonly { readonly candidate_id: string; readonly version: number }[];
+    readonly memories: readonly ({ readonly memory_id: string } & SelectedOriginal)[];
+    readonly candidates: readonly ({ readonly candidate_id: string } & SelectedOriginal)[];
     readonly sources: readonly MemoryLedgerSelectedRetentionSource[];
   }[];
 }
@@ -35,6 +36,7 @@ const conflict = (): never => { throw Object.assign(new Error("原记忆清理�
 const text = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
 const positive = (value: unknown) => Number.isSafeInteger(value) && Number(value) > 0;
 const fields = (value: object, allowed: readonly string[]) => Object.keys(value).every(key => allowed.includes(key));
+const original = (item: SelectedOriginal) => "state" in item ? item.state === "cleared" && !("version" in item) : positive(item.version);
 
 function copyPlan(input: MemoryLedgerSelectedRetentionPlan): MemoryLedgerSelectedRetentionPlan {
   const plan = structuredClone(input);
@@ -47,11 +49,11 @@ function copyPlan(input: MemoryLedgerSelectedRetentionPlan): MemoryLedgerSelecte
       || !Array.isArray(target.memories) || !Array.isArray(target.candidates) || !Array.isArray(target.sources)) return conflict();
     const key = JSON.stringify([target.scope, target.owner]); if (scopes.has(key)) return conflict(); scopes.add(key);
     for (const item of target.memories) {
-      if (!item || !fields(item, ["memory_id", "version"]) || !text(item.memory_id) || !positive(item.version) || memories.has(item.memory_id)) return conflict();
+      if (!item || !fields(item, ["memory_id", "version", "state"]) || !text(item.memory_id) || !original(item) || memories.has(item.memory_id)) return conflict();
       memories.add(item.memory_id);
     }
     for (const item of target.candidates) {
-      if (!item || !fields(item, ["candidate_id", "version"]) || !text(item.candidate_id) || !positive(item.version) || candidates.has(item.candidate_id)) return conflict();
+      if (!item || !fields(item, ["candidate_id", "version", "state"]) || !text(item.candidate_id) || !original(item) || candidates.has(item.candidate_id)) return conflict();
       candidates.add(item.candidate_id);
     }
     for (const source of target.sources) if (!source || !fields(source, ["event_id", "version"]) || !text(source.event_id)

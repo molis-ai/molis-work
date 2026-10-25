@@ -2,7 +2,7 @@ import { handlePluginPageHttp } from "./plugin-page-http.js";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { projectSettingsCapabilities, projectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
-import { agentWriteCheckerActions, type AgentWriteCheckerList } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentWriteCheckerActions, hostsAgentSessions, resolveProjectRuntime, type AgentWriteCheckerList } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { availableProjectPluginIds, BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { escapeHtml } from "@molis-ai/molis-work-design-system";
 import { bindLocalWebActions } from "./local-web-actions.js";
@@ -92,6 +92,30 @@ export const projectWorkspacesRoute: WebRoute<ProjectRuntimeContext> = { id: "pr
   return true;
 } };
 
+/**
+ * The Runtime the project's Agent sessions run on: the registered project setting every caller uses (null is the Home default). This
+ * route adapts the form, and says which Runtimes can be picked now and, when the pick is no longer one of them, why: the picker
+ * stays in view then so the pick can be changed or reset.
+ */
+export const projectRuntimeRoute: WebRoute<ProjectRuntimeContext> = { id: "project-runtime", handle: async ({ request, response, url, options, localHost, hostReference, agentHost, agentReady }) => {
+  if (url.pathname !== "/api/project-settings/runtime" || !options.project || !["GET", "POST"].includes(request.method ?? "")) return false;
+  const actions = bindLocalWebActions(localHost, hostReference, ["projects:settings"]);
+  try {
+    if (request.method === "POST") {
+      const { runtime_id: runtimeId } = await readBody(request);
+      if (runtimeId !== null && typeof runtimeId !== "string") throw new ActionError("actions.input_invalid", "请选择一个运行时，或恢复为默认运行时");
+      await actions.invoke(projectSettingsCapabilities.selectRuntime, [runtimeId]);
+    }
+    // The directory is the Host's own (`agent.runtimes` is for plugins); the person's pick is the registered project setting.
+    await agentReady();
+    const runtimes = agentHost.descriptors(), selected = await actions.invoke(projectSettingsCapabilities.runtime, []);
+    const resolved = resolveProjectRuntime(runtimes, selected);
+    sendJson(response, 200, { runtimes: runtimes.filter(hostsAgentSessions).map(({ runtime_id, display_name }) => ({ runtime_id, display_name })),
+      selected, problem: resolved.picked && !resolved.runtime ? resolved.reason : null });
+  } catch (error) { const refusal = actionErrorResponse(error); sendJson(response, refusal.status, refusal.body); }
+  return true;
+} };
+
 /** Linking, repairing and unlinking the project's folders and the folder window, as the person under the project setting's permission. */
 export const workspaceMembershipRoute: WebRoute<ProjectRuntimeContext> = { id: "workspace-membership", handle: ({ request, response, url, options, localHost, hostReference }) =>
   handleProjectWorkspaceHttp({ method: request.method, pathname: url.pathname, hasProject: Boolean(options.project),
@@ -128,7 +152,7 @@ export const pluginStudioRoute: WebRoute<ProjectRuntimeContext> = { id: "plugin-
       if (!entry) throw new Error('这个插件不能在项目里启用：' + pluginId);
       await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.commit(() => catalog.addProjectPlugin({ project_id: options.project!.project_id, plugin_id: entry.project_plugin_id, actor_id: LOCAL_PERSON_ACTOR_ID })));
     } } : {}),
-    ...(pluginServices.capabilities ? { capabilities: pluginServices.capabilities } : {}) }, controlToken) };
+    ...(pluginServices.dependencyCheck ? { dependencyCheck: pluginServices.dependencyCheck } : {}) }, controlToken) };
 
 /**
  * Runtime plugins' HTTP and the plugin update stream. Bundled installations retain project policy; other plugins are

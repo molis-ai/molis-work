@@ -43,9 +43,9 @@ test("W3-02-G1-02 SDK owner binding preserves dependency and before-write availa
     handlers: [{ ...action, availability: () => unavailable, handle: () => { writes++; return null; } }] });
   const bound = bindActionClient(service, () => caller);
   const context: PluginStartContext = { actor_id: "owner", plugin_id: "io.molis.work.example.availability", install_id: "install", installation_generation: "1", version: "1.0.0",
-    deployment: "local", grants: [], requireGrant: () => undefined, services: { actions: bound,
-      ui: { register: () => undefined, unregister: () => undefined },
-      capabilities: { availability: () => unavailable, invoke: async () => { throw new Error("An unavailable dependency must not execute"); } } } };
+    // The dependency answers unavailable through the plugin's own action client, as `services.actions.availability` asks the Host.
+    deployment: "local", grants: [], requireGrant: () => undefined, services: { actions: { ...bound, availability: () => unavailable, invokeQuery: async () => null as never },
+      ui: { register: () => undefined, unregister: () => undefined } } };
   const beforeDependency = bindOwnerPluginAction(context, action, () => { writes++; return null; }, [action]);
   await assert.rejects(Promise.resolve(beforeDependency.handle(caller, {})), rejected);
   const beforeWrite = bindOwnerPluginAction(context, action, () => { writes++; return null; });

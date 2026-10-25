@@ -95,8 +95,9 @@ test("W3-06-F-02 Home consumes Host actions with its real identity and no projec
     try {
       await assert.rejects(registry.invoke({ project_id: one.project_id }, agentHostCapabilities.listRuntimes, []), { code: "agent.session_unknown" });
       assert.equal(effects, 0, "the Agent rejects Home scope before its effect barrier or Runtime dispatch");
-      // The Home session's own caller names no project: the typed port refuses it as the gateway does, an issued caller that does not match its call.
-      await assert.rejects(host.client(one.reference).invoke(agentHostCapabilities.listRuntimes, [], { consumer: "plugin", plugin_caller: caller }), { code: "host.plugin_caller_mismatch" });
+      // The Home session's own caller names no project: presented in a project, the gateway refuses it as an issued caller that does not match its call.
+      await assert.rejects(host.actionClient(one.reference).invoke({ actor_id: caller.actor_id, actor_kind: "user", project_id: one.project_id, audience: "plugin", permissions: [],
+        plugin_install_id: caller.install_id, host_plugin: caller }, agentHostCapabilities.listRuntimes, []), { code: "host.plugin_caller_mismatch" });
     } finally { dispose(); }
   } finally { unregister(); }
 });

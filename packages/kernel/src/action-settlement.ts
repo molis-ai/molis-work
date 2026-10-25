@@ -10,8 +10,6 @@ export interface CallDescription extends ActionReference {
   readonly operation: string;
   readonly title: string;
   readonly provider_title: string;
-  /** Called through the Host's typed port, with no action behind it. */
-  readonly path?: "typed";
 }
 /** How a call ended. `refused`: it was turned away before its handler ran, so nothing was done. */
 export type CallOutcome = { readonly ok: true } | { readonly ok: false; readonly code?: string; readonly message: string; readonly refused?: true };

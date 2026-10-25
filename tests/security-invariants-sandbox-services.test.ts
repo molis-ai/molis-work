@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { HOST_SERVICE_PERMISSIONS, HomePluginHost, LocalHost, LocalProjectDatabase, PluginHostExecutor } from "@molis-ai/molis-work-app-local-host";
+import { HOST_SERVICE_PERMISSIONS, HomePluginHost, LocalHost, LocalProjectDatabase, PluginHostExecutor, hostDependencyCheck } from "@molis-ai/molis-work-app-local-host";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginManifest, PluginPrivateStorage, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
@@ -123,7 +123,7 @@ test("S-60 RAC-238 the Host stops a sandboxed installation that asks for a servi
   const processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
   const local = new LocalHost({ runtimeFactory: { open: () => ({ project_id: project.project_id, store, artifacts }), close: () => {} } });
   const actions = { registry: local.actionRegistry(project), client: { ...local.actionClient(project), ...local.syncActionClient(project) }, project_id: project.project_id };
-  const executor = new PluginHostExecutor({ actions, project_id: project.project_id, actor_id: "web-user", artifacts, processItems, ui: new UiHost(), capabilities: local.client(project),
+  const executor = new PluginHostExecutor({ actions, project_id: project.project_id, actor_id: "web-user", artifacts, processItems, ui: new UiHost(), dependencyCheck: hostDependencyCheck(local.client(project)),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) });
   const runtime = new PluginRuntime(undefined, executor);
   t.after(async () => { await local.close(); store.close(); await rm(home, { recursive: true, force: true }); });

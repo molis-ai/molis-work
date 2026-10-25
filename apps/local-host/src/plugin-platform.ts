@@ -20,7 +20,6 @@ import {
   SqlitePluginEventsRepository,
   SqlitePluginRuntimeReleaseArtifactRepository,
   SqlitePluginWiringRepository,
-  type PluginCapabilityPort,
   type PluginEventsDatabase,
   type PluginSupervisorEntry,
   type PluginUpgradeCandidate,
@@ -36,6 +35,7 @@ import { assertDatabaseEntries } from "./plugin-database-entries.js";
 import { pluginEntryIdentity } from "./plugin-entry-identity.js";
 import type { ProjectLibrary } from "./plugin-project-library.js";
 import { assertOwnerFilesEntries, homeOwnerFilesEntries, type PluginOwnerFilesEntry } from "./plugin-owner-files-entries.js";
+import type { PluginDependencyCheck } from "./plugin-actions-client.js";
 
 /**
  * One project's v2 Plugin platform, assembled in a single place.
@@ -73,8 +73,8 @@ export interface PluginPlatformOptions {
   privateStorageFor(context: PluginUpgradeContext, manifest: PluginManifest): PluginPrivateStorage;
   capturePrivateData?(installId: string): Promise<unknown> | unknown;
   restorePrivateData?(installId: string, snapshot: unknown): Promise<void> | void;
-  /** Capabilities the Host exposes to Plugins that declared consuming them. */
-  capabilities?: PluginCapabilityPort;
+  /** Whether an action a plugin consumes is registered and ready in this project (`services.actions.availability`). */
+  dependencyCheck?: PluginDependencyCheck;
   scheduler?: PluginHostExecutorOptions["scheduler"];
   /** Shared system registry plus the trusted project identity for this activation. */
   actions: PluginHostExecutorOptions["actions"];
@@ -186,7 +186,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     events,
     hostEvents,
     wiring,
-    ...(options.capabilities === undefined ? {} : { capabilities: options.capabilities }),
+    ...(options.dependencyCheck === undefined ? {} : { dependencyCheck: options.dependencyCheck }),
     scopeKey: options.scopeKey ?? options.project_id,
   });
 

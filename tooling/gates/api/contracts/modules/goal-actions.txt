@@ -139,15 +139,14 @@ export declare const goalPluginActions: {
     readonly list: import("@molis-ai/molis-work-contracts/platform/actions").ActionDefinition<GoalListActionInput, GoalEventDirectoryPage>;
     readonly contract: {
         readonly version: 2;
-        readonly operation: "query" | "command";
-        readonly provider_id?: string;
-        readonly action: import("@molis-ai/molis-work-contracts/platform/actions").ActionMetadata;
         readonly __types__?: {
             input: GoalReadActionInput;
             output: GoalContractView;
         } | undefined;
+        readonly operation: "query" | "command";
+        readonly provider_id?: string;
+        readonly action: import("@molis-ai/molis-work-contracts/platform/actions").ActionMetadata;
         readonly capability_id: string;
-        readonly scheduling?: "concurrent";
         readonly action_provider?: import("@molis-ai/molis-work-contracts/platform/actions").ActionProvider;
     };
     readonly state: import("@molis-ai/molis-work-contracts/platform/actions").ActionDefinition<GoalReadActionInput, GoalEventStateView>;

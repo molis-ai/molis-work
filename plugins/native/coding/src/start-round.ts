@@ -15,6 +15,7 @@ import { attachMentions, workspaceFileReader } from "./mentions.js";
 import { confirmedPlan, executionSteps, planMaterial } from "./plans.js";
 import { reaskMaterial } from "./reask.js";
 import { QUESTION_REASK } from "@molis-ai/molis-work-plugin-sdk";
+import { limitsCharacters } from "./runtime-choice.js";
 import { CODING_HISTORY_SUMMARY } from "./prompts.js";
 import { type Capabilities, type CodingActivation, savedDigestUsage, sessionState } from "./route-activation.js";
 import { codingActions, codingActionControl, type CodingBeforeWrite } from "./route-entry.js";
@@ -44,7 +45,7 @@ const follow = (a: CodingActivation, execution: CodingExecution, sessionId: stri
   const job = context.services.background.keep("follow", async control => {
     const round = await accepted;
     if (!round) return;
-    const api = context.services!.capabilities!, { run } = round;
+    const api = context.services!.actions!, { run } = round;
     let since: string | null = null;
     for (;;) {
       // As the installation (R8): the job's signal ends the wait, and its check drops an answer that arrives after the job lost its authority.
@@ -146,7 +147,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   const character_skill_ids = body.character_skill_ids === undefined ? savedCharacterSkills(context, record.session_id) : characterSkillSelection(body.character_skill_ids);
   let characterTools: readonly import("@molis-ai/molis-work-contracts/platform/actions").ExactActionReference[] | null | undefined;
   if (character) {
-    if (record.runtime_id !== "prologue") throw codingFailure("coding.server.character-unverified");
+    if (!limitsCharacters(await codingActions(context, beforeWrite).invoke(agent.listRuntimes, []), record.runtime_id)) throw codingFailure("coding.server.character-unverified");
     characterTools = await execution.characters.actionTools(character, codingActionControl(beforeWrite));
   }
   const action_tools = withKnowledgeTools(body.action_tools === undefined ? savedActions(context, record.session_id) : parseExactActionReferences(body.action_tools),

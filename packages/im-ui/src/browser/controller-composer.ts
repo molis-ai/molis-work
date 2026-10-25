@@ -1,10 +1,11 @@
 import type { ImMessagePage, ImReadState, ImMarkReadInput } from '@molis-ai/molis-work-contracts/services/im';
 import type { StreamKind } from './types.js';
-import type { ImCtx } from './controller-types.js';
+import type { ImBaseCtx, ImCtx } from './controller-types.js';
 /** The conversation surface: drafts, quotes, drawing the streams, reading positions, search visibility and read marks. */
-export function createImComposer(c: ImCtx): Pick<ImCtx, 'restoreDraft' | 'readDraft' | 'render' | 'updateHeader' | 'rememberPosition' | 'restorePosition' | 'paintQuote' | 'quoteMessage' | 'closeSearch' | 'openSearch' | 'scheduleRead' | 'markVisible'> {
-  const { s, v, q, e, icon, api, storage, merge, drafts } = c;
+export function createImComposer(base: ImBaseCtx, context: () => ImCtx): Pick<ImCtx, 'restoreDraft' | 'readDraft' | 'render' | 'updateHeader' | 'rememberPosition' | 'restorePosition' | 'paintQuote' | 'quoteMessage' | 'closeSearch' | 'openSearch' | 'scheduleRead' | 'markVisible'> {
+  const { s, v, q, e, icon, api, storage, merge, drafts } = base;
   function restoreDraft(kind: StreamKind) {
+    const c = context();
     c.inputFor(kind).value = drafts.get(c.target(kind))?.body || '';
     paintQuote(kind);
     c.status(kind, '');
@@ -12,6 +13,7 @@ export function createImComposer(c: ImCtx): Pick<ImCtx, 'restoreDraft' | 'readDr
     c.resizeInput(kind);
   }
   function readDraft(kind: StreamKind) {
+    const c = context();
     const id = c.target(kind);
     if (!id)
       return;
@@ -31,6 +33,7 @@ export function createImComposer(c: ImCtx): Pick<ImCtx, 'restoreDraft' | 'readDr
     v.roomList(s.rooms, s.roomId);
   }
   function rememberPosition() {
+    const c = context();
     if (!s.member || !s.roomId)
       return;
     const kind = c.activeKind();
@@ -47,6 +50,7 @@ export function createImComposer(c: ImCtx): Pick<ImCtx, 'restoreDraft' | 'readDr
       s.streamCache.set(id, { messages: s.threadMessages, page: s.threadPage });
   }
   async function restorePosition(kind: StreamKind, version: number) {
+    const c = context();
     const anchor = s.anchors[c.target(kind)];
     if (!anchor)
       return;
@@ -69,11 +73,13 @@ export function createImComposer(c: ImCtx): Pick<ImCtx, 'restoreDraft' | 'readDr
     v.restoreScroll(kind, anchor);
   }
   function paintQuote(kind: StreamKind) {
+    const c = context();
     const draft = drafts.get(c.target(kind)), node = q('[data-quote="' + kind + '"]');
     node.hidden = !draft?.quote_id;
     node.innerHTML = draft?.quote_id ? '<span>引用 ' + e(draft.quote_author) + '：' + e(draft.quote_body) + '</span><button type="button" data-action="cancel-quote" aria-label="取消引用">' + icon('x') + '</button>' : '';
   }
   function quoteMessage(id: string) {
+    const c = context();
     const kind = c.activeKind(), message = (kind === 'group' ? s.groupMessages : s.threadMessages).find(m => m.id === id);
     if (!message)
       return;
@@ -83,6 +89,7 @@ export function createImComposer(c: ImCtx): Pick<ImCtx, 'restoreDraft' | 'readDr
     c.inputFor(kind).focus();
   }
   function closeSearch() {
+    const c = context();
     const wasSearching = !q('[data-search]').hidden;
     s.searchVersion++;
     q('[data-search]').hidden = true;
@@ -92,6 +99,7 @@ export function createImComposer(c: ImCtx): Pick<ImCtx, 'restoreDraft' | 'readDr
   function openSearch() { rememberPosition(); q('[data-search]').hidden = false; q('[data-conversations]').classList.add('is-searching'); q<HTMLInputElement>('[data-search] input').focus(); }
   function scheduleRead() { clearTimeout(s.readTimer); s.readTimer = setTimeout(() => void markVisible(), 500); }
   async function markVisible() {
+    const c = context();
     if (!s.hostVisible || document.visibilityState !== 'visible' || !s.roomState || s.threadDraft || s.readBusy || !q('[data-search]').hidden)
       return;
     const kind = c.activeKind(), stream = q('[data-stream="' + kind + '"]'), bounds = v.scroller(kind).getBoundingClientRect(), messages = kind === 'group' ? s.groupMessages : s.threadMessages;

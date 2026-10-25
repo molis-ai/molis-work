@@ -48,7 +48,7 @@ export function prologueDescriptor(options: PrologueAdapterOptions): AgentRuntim
     runtime_id: PROLOGUE_RUNTIME_ID,
     ...(options.runtime.workspaceNone ? { supports_workspace_none: true } : {}),
     ...(options.runtime.workspaceBusiness && options.runtime.actionTools ? { supports_workspace_business: true } : {}),
-    ...(options.runtime.actionTools ? { supports_action_tools: true } : {}),
+    ...(options.runtime.actionTools ? { supports_action_tools: true } : {}), supports_character_limits: true,
     display_name: "Prologue",
     provider_version: options.providerVersion ?? "0.0.0-rc.1",
     capabilities,

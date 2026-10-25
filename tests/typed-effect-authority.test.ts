@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
 import { ActionError, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginDefinition, PluginCapabilityClient } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDefinition, PluginActionClient } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { LocalHost, LocalProjectDatabase, PluginHostExecutor, readMcpToolPreference } from "@molis-ai/molis-work-app-local-host";
 import { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
-import type { HostCapabilityDefinition, HostCapabilityInvocation } from "@molis-ai/molis-work-contracts/platform/app-host";
+import type { HostCapabilityInvocation } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
@@ -103,76 +103,74 @@ test("W2-18-CODING-EFFECT-01 / W3-09-AUTH-03: a real MCP origin cannot borrow it
   assert.deepEqual(await goals.invoke(goalsActions.state, { goal_id }), after, "retry leaves the one original note fact");
 });
 
-for (const publishedAction of [false, true]) {
-  for (const change of ["origin", "cancel", "provider", "closing", "async-checker"] as const) {
-    test(`W3-09-AUTH-03 / W2-18-CODING-EFFECT-01: SDK ${publishedAction ? "action" : "typed"} tail refuses ${change} after its async check`, { timeout: 10_000 }, async t => {
-      const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
-      const controller = new AbortController();
-      const project = { project_id: randomUUID(), storage_key: "memory:typed-effect-tail" };
-      const descriptor: HostCapabilityDefinition<Record<string, never>, number> = {
-        capability_id: "fixture.typed.effect-tail", version: 1, operation: "command",
-        ...(publishedAction ? { action: { title: "Tail", description: "Actual Host owner effect", kind: "operation" as const,
-          scope: "project" as const, audiences: ["plugin" as const], scheduling: "concurrent" as const,
-          permissions: [], subject_kinds: [], input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "integer" } } } : {}),
-      };
-      let held = true, allowed = true, returnsPromise = false, effects = 0;
-      let captured: HostCapabilityInvocation | undefined;
-      const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
-      const handler = async (_runtime: object, _input: Record<string, never>, invocation: HostCapabilityInvocation) => {
-        captured = invocation;
-        await invocation.beforeEffect();
-        if (held) { entered.resolve(); await release.promise; }
-        invocation.assertAuthorityCurrent();
-        return ++effects;
-      };
-      const add = () => descriptor.action ? host.registerAction(descriptor as typeof descriptor & ActionDefinition, handler) : host.register(descriptor, handler);
-      let remove = add();
-      const store = new LocalProjectDatabase(":memory:");
-      const persistence = { db: store.db, appendEvent: (event: Parameters<typeof store.appendEvent>[0]) => store.appendEvent(event), eventCursor: (id: string) => store.eventCursor(id) };
-      const artifacts = new ArtifactsModule(persistence), processItems = new ProcessItemsModule(persistence);
-      const actions = { registry: host.actionRegistry(project), client: { ...host.actionClient(project), ...host.syncActionClient(project) }, project_id: project.project_id };
-      const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions, project_id: project.project_id, actor_id: "tail-fixture-actor",
-        artifacts, processItems, ui: new UiHost(), capabilities: host.client(project),
-        privateStorageFor: () => { throw new Error("This consumer declares no private storage"); } }), { actions });
-      let capturedSdk: PluginCapabilityClient | undefined;
-      const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.fixture.tail-consumer", version: "1.0.0", name: "Tail consumer", kind: "app",
-        publisher: { publisher_id: "fixture", signature: "tail" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }], permissions: [],
-        capabilities: { provides: [], consumes: [descriptor.capability_id] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [] },
-        async start(context) { capturedSdk = context.services?.capabilities; return { kind: "app" }; } };
-      const install = runtime.install({ definition, deployment: "local", grants: [] }).install;
-      t.after(async () => { await runtime.stop(install.install_id); store.close(); });
-      await runtime.start(install.install_id);
-      assert.ok(capturedSdk, "the production executor bound the capability port");
-      const sdk = capturedSdk;
-      // A promise fits TypeScript's void callback convention; the production tail must reject it at runtime.
-      const current = () => {
-        if (!allowed) throw new ActionError("fixture.origin_revoked", "The original authority is gone");
-        if (returnsPromise) return Promise.resolve();
-      };
-      t.signal.addEventListener("abort", () => release.resolve(), { once: true });
-      let closing: Promise<void> | undefined;
-      t.after(async () => { held = false; release.resolve(); remove(); await (closing ?? host.close()); });
-      const pending = sdk.invoke(descriptor, {}, { signal: controller.signal, assert_authority_current: current });
-      const expected = {
-        cancel: { name: "AbortError" }, origin: { code: "fixture.origin_revoked" },
-        provider: { code: publishedAction ? "actions.provider_changed" : "actions.provider_replaced" },
-        closing: { code: "actions.host_closed" }, "async-checker": { code: "actions.async_required" },
-      }[change];
-      const rejected = assert.rejects(pending, expected);
-      await Promise.race([entered.promise, pending.then(() => { throw new Error("The owner did not reach its tail barrier"); })]);
-      if (change === "origin") allowed = false;
-      else if (change === "cancel") controller.abort();
-      else if (change === "provider") { remove(); remove = add(); }
-      else if (change === "closing") closing = host.close();
-      else returnsPromise = true;
-      held = false; release.resolve(); await rejected;
-      assert.equal(effects, 0, "the real registered owner did not perform a late effect");
-      if (closing) { await closing; return; }
-      allowed = true; returnsPromise = false;
-      assert.equal(await sdk.invoke(descriptor, {}, { assert_authority_current: current }), 1, "a new authorized call remains usable");
-      assert.ok(captured);
-      assert.throws(() => captured.assertAuthorityCurrent(), { code: "actions.expired" }, "an ended invocation cannot be revived");
-      assert.equal(effects, 1);
-    });
-  }
+for (const change of ["origin", "cancel", "provider", "closing", "async-checker"] as const) {
+  test(`W3-09-AUTH-03 / W2-18-CODING-EFFECT-01: SDK action tail refuses ${change} after its async check`, { timeout: 10_000 }, async t => {
+    const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+    const controller = new AbortController();
+    const project = { project_id: randomUUID(), storage_key: "memory:typed-effect-tail" };
+    const descriptor: ActionDefinition<Record<string, never>, number> = {
+      capability_id: "fixture.typed.effect-tail", version: 1, operation: "command",
+      action: { title: "Tail", description: "Actual Host owner effect", kind: "operation",
+        scope: "project", audiences: ["plugin"], scheduling: "concurrent",
+        permissions: [], subject_kinds: [], input_schema: { type: "object", additionalProperties: false }, output_schema: { type: "integer" } },
+    };
+    let held = true, allowed = true, returnsPromise = false, effects = 0;
+    let captured: HostCapabilityInvocation | undefined;
+    const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
+    const handler = async (_runtime: object, _input: Record<string, never>, invocation: HostCapabilityInvocation) => {
+      captured = invocation;
+      await invocation.beforeEffect();
+      if (held) { entered.resolve(); await release.promise; }
+      invocation.assertAuthorityCurrent();
+      return ++effects;
+    };
+    const add = () => host.registerAction(descriptor, handler);
+    let remove = add();
+    const store = new LocalProjectDatabase(":memory:");
+    const persistence = { db: store.db, appendEvent: (event: Parameters<typeof store.appendEvent>[0]) => store.appendEvent(event), eventCursor: (id: string) => store.eventCursor(id) };
+    const artifacts = new ArtifactsModule(persistence), processItems = new ProcessItemsModule(persistence);
+    const actions = { registry: host.actionRegistry(project), client: { ...host.actionClient(project), ...host.syncActionClient(project) }, project_id: project.project_id };
+    const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions, project_id: project.project_id, actor_id: "tail-fixture-actor",
+      artifacts, processItems, ui: new UiHost(), dependencyCheck: reference => host.client(project).availability(reference, { consumer: "plugin" }),
+      privateStorageFor: () => { throw new Error("This consumer declares no private storage"); } }), { actions });
+    let capturedSdk: PluginActionClient | undefined;
+    const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.fixture.tail-consumer", version: "1.0.0", name: "Tail consumer", kind: "app",
+      publisher: { publisher_id: "fixture", signature: "tail" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }], permissions: [],
+      capabilities: { provides: [], consumes: [descriptor.capability_id] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [] },
+      async start(context) { capturedSdk = context.services?.actions; return { kind: "app" }; } };
+    const install = runtime.install({ definition, deployment: "local", grants: [] }).install;
+    t.after(async () => { await runtime.stop(install.install_id); store.close(); });
+    await runtime.start(install.install_id);
+    assert.ok(capturedSdk, "the production executor bound the action client");
+    const sdk = capturedSdk;
+    // A promise fits TypeScript's void callback convention; the production tail must reject it at runtime.
+    const current = () => {
+      if (!allowed) throw new ActionError("fixture.origin_revoked", "The original authority is gone");
+      if (returnsPromise) return Promise.resolve();
+    };
+    t.signal.addEventListener("abort", () => release.resolve(), { once: true });
+    let closing: Promise<void> | undefined;
+    t.after(async () => { held = false; release.resolve(); remove(); await (closing ?? host.close()); });
+    const pending = sdk.invoke(descriptor, {}, { signal: controller.signal, beforeEffect: async () => {}, assert_authority_current: current });
+    const expected = {
+      cancel: { name: "AbortError" }, origin: { code: "fixture.origin_revoked" },
+      provider: { code: "actions.provider_changed" },
+      closing: { code: "actions.host_closed" }, "async-checker": { code: "actions.async_required" },
+    }[change];
+    const rejected = assert.rejects(pending, expected);
+    await Promise.race([entered.promise, pending.then(() => { throw new Error("The owner did not reach its tail barrier"); })]);
+    if (change === "origin") allowed = false;
+    else if (change === "cancel") controller.abort();
+    else if (change === "provider") { remove(); remove = add(); }
+    else if (change === "closing") closing = host.close();
+    else returnsPromise = true;
+    held = false; release.resolve(); await rejected;
+    assert.equal(effects, 0, "the real registered owner did not perform a late effect");
+    if (closing) { await closing; return; }
+    allowed = true; returnsPromise = false;
+    assert.equal(await sdk.invoke(descriptor, {}, { beforeEffect: async () => {}, assert_authority_current: current }), 1, "a new authorized call remains usable");
+    assert.ok(captured);
+    assert.throws(() => captured.assertAuthorityCurrent(), { code: "actions.expired" }, "an ended invocation cannot be revived");
+    assert.equal(effects, 1);
+  });
 }

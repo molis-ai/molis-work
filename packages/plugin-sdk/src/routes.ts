@@ -46,7 +46,7 @@ export function bindOwnerPluginAction<Input, Output>(
   const availability = (caller: ActionCallContext): ActionAvailability => {
     if (!context.actor_id || caller.actor_id !== context.actor_id) return { available: false, code: "actions.owner_mismatch", reason: "此入口使用本地用户的个人状态与成果；当前调用者尚未接通独立归属，不能借用该用户身份" };
     for (const dependency of dependencies) {
-      const state = context.services?.capabilities?.availability?.(dependency);
+      const state = context.services?.actions?.availability(dependency);
       if (!state) return { available: false, code: "actions.dependency_unknown", reason: "宿主未提供依赖状态检查" };
       if (!state.available) return state;
     }

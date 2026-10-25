@@ -1,7 +1,9 @@
 /**
  * Project operations initialize independently of the Runtime settings dialog. The after-write checkers below the workspaces
  * (specs/prologue-adoption §6.0p.13) are a separate program, WRITE_CHECKERS_CLIENT_SCRIPT, that only the pages drawing that
- * section load; here the workspaces hand it `{ section, prefix, load }` when it is there and call the `load` it sets.
+ * section load; here the workspaces hand it `{ section, prefix, load }` when it is there and call the `load` it sets. The Runtime
+ * row on the general page (BL-372) is in view with more than one Runtime to pick, or when the picked one is gone, so it can be
+ * changed or put back to the default.
  */
 export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
   (() => {
@@ -69,6 +71,18 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
         });
       });
     };
+    const bindRuntime=(scope)=>{(scope||document).querySelectorAll('[data-project-runtime]').forEach(root=>{
+      if(root.dataset.bound==='1')return;root.dataset.bound='1';
+      const select=root.querySelector('select'),error=root.querySelector('.settings-form-error'),path=root.dataset.runtimePrefix+'/api/project-settings/runtime';
+      const show=state=>{
+        const gone=state.selected&&!state.runtimes.some(item=>item.runtime_id===state.selected);
+        root.hidden=state.runtimes.length<2&&!state.problem;
+        select.replaceChildren(new Option(L('默认运行时'),''),...state.runtimes.map(item=>new Option(item.display_name,item.runtime_id)),...(gone?[new Option(state.selected+L('（不可用）'),state.selected)]:[]));
+        select.value=state.selected||'';error.textContent=state.problem||'';error.hidden=!state.problem;
+      };
+      select.addEventListener('change',()=>molisWorkRequest(path,{body:{runtime_id:select.value||null},fallback:L('运行时选择失败')}).then(show,caught=>{molisWorkRequest.show(error,caught);error.hidden=false;}));
+      molisWorkRequest(path).then(show,()=>null);
+    });};
     const bindDelete = (scope) => {
       (scope || document).querySelectorAll("[data-project-delete-dialog]").forEach((dialog) => {
         if (dialog.dataset.bound === "1") return;
@@ -166,6 +180,7 @@ export const PROJECT_SETTINGS_CLIENT_SCRIPT = `
     globalThis.molisWorkBindProjectIdentity = (scope) => {
       bindWorkspaces(scope);
       bindRename(scope);
+      bindRuntime(scope);
       bindDelete(scope);
       bindDemo(scope);
     };

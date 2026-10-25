@@ -16,7 +16,9 @@ Contract: `@molis-ai/molis-work-contracts/platform/plugin`，记录结构见 `@m
 
 插件声明统一动作：`images.connections.list/save/delete`、`images.jobs.list/start/get/cancel/delete` 和 `images.images.read`。HTTP 仅转发到同一动作服务；标准 MCP 导出相同合同。配置操作遵守 Home 权限，任务和图片遵守项目权限；模型参数不能改变调用者的项目。启动返回持久任务，`request_id` 对相同输入去重；图片读取返回实际 Base64 字节、MIME 和文件名。
 
-数据：`{home}/images/images.db` 与 `{home}/images/assets/`。一个 Home Runtime 实例拥有配置与任务，Web、MCP 通过同一个动作服务调用；原表结构保持版本 1。数据库、文件和生图由宿主注入的有限服务提供，插件不持有 Home 路径或凭据解析器；文件声明在 Manifest 的 `owner_files`（`IMAGES_OWNER_FILES`：根 `images`，顶层目录 `assets`，读 `images:read`、写 `images:files:write`，根与自己的库同在），动作之内由动作和原调用者的权限决定，启动恢复在动作之外按安装当前的授权（`storage:private` 与 `images:files:write`）决定。任务在后台保留原调用者的可撤销授权，普通请求断开不取消已受理任务；撤权、停用和项目删除后不写晚到结果或失败记录。停止不写业务状态，下次启动把遗留 running 标为 interrupted，清理所有项目均未引用的图片文件，不重新调用厂商。
+数据：`{home}/images/images.db` 与 `{home}/images/assets/`。一个 Home Runtime 实例拥有配置与任务，Web、MCP 通过同一个动作服务调用；原表结构保持版本 1。数据库、文件和生图由宿主注入的有限服务提供，插件不持有 Home 路径或凭据解析器；文件声明在 Manifest 的 `owner_files`（`IMAGES_OWNER_FILES`：根 `images`，顶层目录 `assets`，读 `images:read`、写 `images:files:write`，根与自己的库同在），动作之内由动作和原调用者的权限决定。启动前由 Runtime 检查安装当前的必需授权（`storage:private` 与 `images:files:write`）。任务在后台保留原调用者的可撤销授权，普通请求断开不取消已受理任务；撤权、停用和项目删除后不写晚到结果或失败记录。停止不写业务状态。
+
+每次获准启动都先按 `storage:private` 授权，把数据库中遗留的 `running` 标为 `interrupted`，不依赖可选的 `images:read`，不重新调用厂商。随后单独回收所有项目均未引用的图片文件，还需当前安装的 `images:read` 授权，并保留文件写权限和启动生命周期的检查；缺少读取授权时仍可启动，未引用文件留到下次具备所需授权的启动再清理。
 
 此版不包含图生图、蒙版、多图批处理、异步厂商私有协议或 Artifact 发布。完整产品验收仍须覆盖真实 Host、MCP 和浏览器路径。
 
@@ -39,7 +41,7 @@ Contract: `@molis-ai/molis-work-contracts/platform/plugin`，记录结构见 `@m
   - 所选账号失效时保留选择并显示原因，不自动换账号；生成期间授权或连接版本改变不保存过期结果；按当次返回的 revision 在交付与写入前复核。
   - 同一 Home 只有一个执行进程，由共同 Host 监督器管理；插件不另外建立进程锁或打开数据库。
   - `images.jobs.start` 对助理、MCP、工作流和插件随服务状态可用；用户页面仍能配置服务。发现只读取现有配置与连接状态，不 pin 地址或调用模型。
-  - 项目被删除时共同 Home 生命周期回调先同步取消等待受理和执行中的任务，再由 `imagesProjectData` 清理项目任务与已引用图片；插件停用时仍可通过同一数据主人清理。未引用的部分生成文件在下一次启动恢复中清理。
+  - 项目被删除时共同 Home 生命周期回调先同步取消等待受理和执行中的任务，再由 `imagesProjectData` 清理项目任务与已引用图片；插件停用时仍可通过同一数据主人清理。未引用的部分生成文件留到下次具备所需读写授权的启动中回收，缺少 `images:read` 时保留。
   - HTTP 挂载在 `/api/plugins/io.molis.work.images/`，路由只调用共同动作；预览显式返回 inline，下载返回 attachment，Host 只保留 PNG/JPEG/WebP MIME；未知错误仍只回 images.internal 和原通用句，已知错误状态由 SDK 统一转换。
   - 配置、任务与文件的每次写入均等待当前授权后同步复查；并发生成维持每个 Home 最多两项，相同请求 ID 不重复调用厂商。
 - 运行前构建：`pnpm --filter @molis-ai/molis-work-plugin-images run build`；若改过源码或共享依赖，先在仓库根目录运行 `pnpm build`。

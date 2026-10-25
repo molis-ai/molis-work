@@ -4,7 +4,7 @@ import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { LocalProjectDatabase, PluginHostExecutor, type MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, PluginHostExecutor, type MolisWorkLocalHost, hostDependencyCheck } from "@molis-ai/molis-work-app-local-host";
 
 /*
  * A Host operation a person reviews is asked for by a plugin through its SDK, with the caller the Host issued its session, and
@@ -17,7 +17,7 @@ export function reviewPlugins(host: MolisWorkLocalHost, reference: LocalHostProj
   const store = new LocalProjectDatabase(databasePath);
   const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions: { registry: host.actionRegistry(reference),
     client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, project_id: reference.project_id },
-    project_id: reference.project_id, actor_id: LOCAL_PERSON_ACTOR_ID, ui: new UiHost(), capabilities: host.client(reference),
+    project_id: reference.project_id, actor_id: LOCAL_PERSON_ACTOR_ID, ui: new UiHost(), dependencyCheck: hostDependencyCheck(host.client(reference)),
     artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
     processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) }));

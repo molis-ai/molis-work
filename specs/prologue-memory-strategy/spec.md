@@ -2808,3 +2808,19 @@ P1 修正验证（2026-10-25）：新增公开包回归在旧构建上 12 项中
 本片结果：新增四项公开入口真实文件交错回归在 9b dist 全红，修复后全绿；原 13 项路径/密钥边界、9 项 file-control 与 30 项 Search 同轮保持通过。原独立脚本的正确期望版也确认三个目录主人只删原 target、source 不变。两个受影响包 README 必跑并集与实际 owner 影响面共 74 文件，已通过的三份专项不机械重跑，剩余 71 文件按 jobs2/browser1/retries0 运行，70 文件通过；唯一失败仍为准确父已有的 `verify-release-versions.test.ts` 21/22（发布清单仍指旧 `text-search-index.ts#SCHEMA_VERSION`）。这些文件及版本指针相对 9b 未改，本片不越界修它。连同 Search 额外回归，共 75 个不同文件、693/694 项通过，不能写成整批通过。
 
 固定 Node 24.14.0 的原整体 `pnpm build` 经机器 FIFO 通过；现构建上的 boundary 返回 errors=[]，新增测试 strict TypeScript 和 `git diff --check` 通过。health 对准确父 9b 仅报告原有 projects/Memory 两份 API 快照缺口，本片未改合同、快照、规则或阈值，仍交统筹聚合处理。日志前缀 `/private/tmp/molis-file-owner-directory-interleaving-`：`red-20261025.log`、`build-20261025.log`、`green-20261025.log`、`final-test-20261025.log`、`readme-20261025.log`、`boundary-20261025.log`、`types-20261025.log`、`health-20261025.log`；独立正确期望脚本与日志为 `/private/tmp/molis-file-owner-async-rm-secure-20261025.{mjs,log}`。工程证据只支持关闭本片已复现的 JavaScript 交错窗口，未作真实 Home、完整恢复或用户体验验收。
+
+
+#### MEM-40 plugin-connections 主人维护接线（2026-10-25，实施前短合同）
+
+准确基线 `030361c3620d74d77b45e9a4b7dd267caec8d7c8`。新 main 的 `plugin-connections` 未透传控制，公开 owner 的真实临时库反例已证明：target 库链接删除 source 所选绑定；已有零字节库被初始化为 version2/7表并改为0600；单条隐式 DELETE 等待真实写锁期间撤权，拿锁后仍提交，外层拒绝太晚。非零旧版本会拒绝迁移，但拒绝前仍 chmod。原反例和日志为 `/private/tmp/molis-plugin-connections-maintenance-probe-20261025.{mjs,log}`，只用于复现，不作为成功验收。
+
+本刀把现 `ProjectDeletionControl` 从 homeProjectOwners 传到 forgetProjectConnectionBindings；带控制时由现 Connector 装配主人经 Storage `clearInExistingHomeSqlite` 使用 mode=rw、精确 schema/对象及物理路径检查，并在 BEGIN 取得写锁后、原 DELETE 前、COMMIT 前核对原权限与目标。保留 ConnectorConnectionStore.forgetProjectBindings 和唯一 projectBindingsWhere，账号、凭据、别的项目与按安装绑定不动；拒绝回滚并关闭。缺库不创建，空库/未知结构/链接拒绝。无 control 普通项目删除及安装卸载沿原路径，不扩大到安装清理。
+
+复用现真实 Secrets Port 与 Store 的私有装配函数，维护删除不调用任何密钥方法；不伪造 Secrets 接口、不复制 SQL 或 scope 规则、不新增通用数据库公共口、锁、状态机、恢复框架或配置。普通连接的 foreign_keys 设置仍在事务前；维护只删 bindings 子表，不增加账号级联行为，不在 BEGIN 后伪设 PRAGMA。
+
+允许路径：apps/local-host 的 project-deleted-owners、connector-plugin-requests、connector-connection-store、README，本 spec、S-71 安全回归指针、新真实公共 owner 维护回归。验证缺库/空库/未知schema、库与祖先/侧车链接、真实双进程写锁后撤权与 COMMIT 前撤权、正常授权重试、原项目选集/账号保留、无control，以及原 fileowner/S-71/Connector影响面。固定 Node24.14，正式 build 走机器 FIFO，strict types/准确030 health/boundary；不全量、不触真实Home、不发布。
+
+
+本片工程结果：原 ConnectorConnectionStore 与 projectBindingsWhere 均未修改，生产只改上述三个 App 文件，真实 Secrets 装配仅提到同文件私有函数复用。固定 Node24.14 原整体 build/FIFO、最终 boundary（errors=[]）、严格测试 TypeScript、准确父030 health、diff检查通过。12个不同定向文件123项通过、零重试/skip：首批8文件76项，最终构建补验新维护14项与目录交错/Secret装配/Search 4文件47项；重复的新14项不重复计入123。原S-71 RAC-470/RAC-471、无control路径和账号/按安装/邻项目保持均通过。新增真实双进程测试在实际BEGIN尝试时通知另一writer撤权，并确认本进程确已拿到锁再拒绝；提交前测试执行真实DELETE后撤权，事务回滚保留全部绑定。
+
+中途工程问题均保留：测试的SQLite.run重载类型经unknown[]原样反射透传修正；App直接node:sqlite类型import被原边界拒绝，已改为现openConnectorsStore返回类型，未改规则；S-71文档首次检查找不到尚未跟踪的新测试，allowlist登记后通过。最终日志 `/private/tmp/molis-memory-plugin-connections-control-{build-final,boundary-final,types-final,health-final,direct,final}.log`。诊断原三反例及旧版本拒绝前chmod证据保持在原tmp文件；本片未push、不跑全量、不触真实Home、不宣称完整MEM-40/App产品实操或用户验收完成，待统筹独审后并入同一PR。

@@ -54,6 +54,15 @@
 > **10-25 晚 #1294 裁定（统筹）**：换设备恢复成果包（`apps/server/src/assets.ts` 的 `restoreWorkAssets`）遇到目标项目没装的产出者，选 (a) 照常导入并留警告：宿主内部的仅恢复入口，不经动作网关、不进 SDK/contracts 公开面，只有 `restoreWorkAssets` 调；只放包里原样带来的版本（producer、类型、哈希不改写）；产出者装好前不出预览、不进可写路径；拒绝测试证明普通写入照样 fail closed、恢复之外调用被拒。先恢复 X 的版本、后来 Y 先装占同名类型时的读取口径记 BL（PG-107）。
 > **10-25 晚 batch-37 A1 归因（统筹在批内修）**：AQD-04 pages-hidden 与两处自调用夹具按 §9.1/§9.2 改期望；`host-pages-error-model` 的 OOM 是测试替身的目录读取器经 PG-014 的 Todo 目录读回到自己（无限递归），夹具改成只让 MCP 自己那次失败；`security-invariants-plugin-pages` 是 #1266 的产品缺陷——页面动作的路由 control 不带 caller，PG-028 后落成 `plugin` 受众被拒，修成「宿主路由的 control 都算本人请求」（main 上页面动作本就是本人受众）。
 
+> **10-25 15:20 UTC 组 batch-38 与派单（统筹）**：
+> - batch-38 已收（工作树 `.claude/worktrees/ac-batch38`，未推）：batch-37 头 `46f894762`，#1272 FIRST-4，#1273 R-38 FIRST-3，#1277 放置后继，T6 #1279，T4 #1282，T5 #1285，T8 文档，#1284 PG-055，#1281，#1276 FIX14，#1288 PG-056，#1292 C5，FIX1 巨大单元登记评审，#1293 及其上的 #1296，#1290。S 号定为：S-72 PG-013、S-73 PG-028、S-74 PG-014、S-75 T6、S-76 T4、S-77 T5、S-78 C5 MCP 自启（测试名里的 S-X3、S-X4、S-79 已改）。
+> - **#1255 FIX5、#1297 改进 batch-39**：两者都和 batch-37 本身语义冲突，19 个文件和 7 个文件，统筹不代解。#1255 交 FIX 车道或原作者 merge batch-37 后重整（评论 6399324020）。#1297 交 ac-kernel：RAC-659 与 R-38 第 2 片重复，取 batch-37 的版本；RAC-658 搬进 `coding/src/browser/*.ts`（评论 6399324333）。
+> - **#1283 与 #1294 共用的 `plugin-holders`**：只由 ac-giants 在 #1294 里改，给出固定 commit；ac-sandbox-sched 在调用端按 {作用域, install_id} 精确排除，并补三组真实回归。
+> - `ac-registry`：W4-01 选方案 1，B4 + PG-069 开一个 PR；W4-01 探针在本地叠分支，安装那一半等 ac-trust T2；到期提醒、放置两项登记 BL。
+> - `ac-shell`：先做 PG-064（W5-08 工作台转出，含 `index.ts` 的 `export *`；RAC-710～719）；PG-075 等 batch-38 分支推上去后叠进 #1296。
+> - `ac-platform`：在 #1291 上叠下一组：写死名字 PG-032、098、100（还有 099，若仍开着），再做 PG-025、023、020；号段续 RAC-820～839。
+> - 待查：ac-trust T2（安装服务）还只在 `claude/ac-trust-t8` 上，没有 PR；ac-registry 的 W4-01 安装一半要等它。
+
 ## 1a. 在途但不在上表任何一条线里的 PR
 
 | PR | 谁在推 | 管的 PG 行 |

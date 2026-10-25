@@ -2599,3 +2599,25 @@ Prologue #102 已按准确13c476a3完成原完整quality（70文件723项、干�
 本App从该干净13c原pnpm pack采用1,390,372 B/808个dist文件，已逐字节核对归档与完整质量构建；vendor无就地补丁，更新同名归档、sidecar、provenance、锁单一integrity及原来源断言。历史ee806归档仍可从Git取回。App也合入源Index ce5dda和Session原决定恢复ca741；冲突保留20ed的deletingCoverage、当前归属复核及verifyScopeCleanup先于抹除作用域的顺序，允许Session原清理的窄私有调用证明与这些检查共同成立，未放宽普通读写。新聚合实际安装/build、恢复/权限/源Index及相关影响面仍待实跑；上述SDK结果不代替App完整MEM-40、全量或用户验收。
 
 聚合首次验证保留：14文件13通过、recovery16/18；失败两例是新增测试withRecovery拦截器未转交20ed新增proof参数，触发assertCurrent读取undefined，尚未执行原部分删除断言。修正只转交原plan与proof，不伪造证明。准确d08健康同时拒绝新154行authority函数；将持久Session状态/代际及原purge同步许可检查抽为同文件完整职责，主装配仅传真实闭包，未改边界、阈值或门禁。其余已过用例不机械全跑；原构建及受影响权限/恢复组合需重验。新包实际安装808个dist与归档一致；资源仍仅Coding待批1,333 B，其他27项测量与前聚合一致。
+
+### MEM-40 冷维护目标 Session 清除前置（2026-10-25，实施前短合同）
+
+冻结聚合 `8743baf542cb61ce2e2ffd63cb9bfc30f87b4354`。现 adoption factory 可选固定 `sessionPurges`（Session、可信完整 owner、目标原 decision 与 preview）；执行仅 `purgeSessionTarget({session})` 点名，不接受临时替换决定。只读 inspection 薄映射 SDK `inspectSession`，不交付正文或 raw storage。factory signal/current/close 控制整段维护，单项不新增无法覆盖真实 CAS 的独立取消域。
+
+取得原独占 owner 后、写 prepared 前真实复核目标 Index 与 SDK canonical 状态，所有持久阶段只接受固定原 owner/decision/preview。新决定须 canonical present 且版本/状态/preview 完全相同；prepared 可续同原 SDK cleaning/complete，sdk-complete/complete 须同原 SDK complete。absent、未知原始 purge、缺 Index/actor、坏行、相反决定和版本变化拒绝，不能猜完成。缺失关联仍属于后续 MEM-40 联结必须拒绝的验收，不能把本前置写成完整恢复或缩减原范围。
+
+在线与冷桥共用完整 purge 用例：prepared → SDK purge → sdk-complete → 最小 Index 清字段 → complete。Index 只窄化四方法 storage，decoder、holdSession/lifecycle、versions/admission/capture 与 CAS 原主人不变；在线 quiet、cleanup、effects、prepareOnly、purgeWaits 保持真实原语义。最终 Index 按稳定字段构造 ref/owner/lifecycle/receipt，清除未知附加正文，不 spread 旧 Index。无假 Runtime、空 effects、通用执行壳、新表、phase、registry 或 schema。
+
+允许路径：新 Session purge 用例与必要冷接线文件，现 session-lifecycle、session-index 窄存储参数、memory-adoption 及必要类型出口；AgentHost README、本 spec、对应真实 Node 测试。不改 authority、SDK/vendor/锁、gates、业务 schema、UI。固定集合、唯一写主人、当前授权和原决定不可配置；复用现 SDK Node 实现及 storage 窄口；App 提供冻结计划和当前权限，用户选择仍归原业务入口。
+
+验收沿 MEM-40：真实临时持久存储的 prepared/SDK cleaning/SDK complete/sdk-complete/complete 故障恢复仅续原 tuple，错 owner/相反决定/缺失/坏行拒绝；取消、撤权、关闭不开始下一写；同 Session 并发互斥；清理只留最小无正文 Index，未选原件、版本及字节保持。先定向再 README 必要影响面，构建测试走同 FIFO、固定 Node24/pnpm11、无全量/真实 Home/付费模型。工程结果与完整 MEM-40、产品实操和用户验收分开报告。
+
+本前置工程结果：独立树 `codex/memory-cold-session-purge` 以准确上述聚合头实施，只改九个允许文件。共享 purge 用例拥有原 tuple、prepareOnly 和 prepared/sdk-complete/complete；冷接线在原 owner 和 Index lane 内每次打开新的 SDK inspection 校验，避免跨自身写入保留旧 observation。在线 quiet/effects/cleanup、archive/unarchive、preparePurge/purgeWaits 保持现路径。最终 Index 和完成回执逐字段构造；无 SDK/vendor/锁/schema/gates 变更。
+
+真实 Node 冷清除 23/23：目标有实际免费 loopback Run 与原输入；prepared 前写失败、prepared、SDK cleaning、SDK complete、Index sdk-complete、complete 的实际原子落盘故障均命中并重开原 tuple，核 SDK 根/子 Run 与 Index 持久阶段；换 operation/owner/preview 拒绝。factory 取消/撤权/close 后不开始下一写，owner 内 canonical 读取期间取消/撤权与外部 Index CAS 冲突在 prepared 前拒绝；同 Session 并发只执行一份，调用者后改 plan 无效。缺失/墓碑/坏 Index、缺 actor、absent/变化/无原决定的 raw SDK purge 和相反原决定均零目标写。最终敏感字段清空，未选 Session、dispatching board、wait、过期 queue 原记录字节保持；维护段禁止网络，未启动普通 Runtime。
+
+固定 Node24.14.0/pnpm11.9.0 的 frozen/offline 安装、完整 `pnpm build`、根类型、新测试 strict TypeScript、准确 `--base 8743baf542cb61ce2e2ffd63cb9bfc30f87b4354` health、boundary 均 exit 0。README 19 文件及项目删除 145/145；源 Index/采用维护/冷清除四文件100/100；原生命周期23/23、缓存6/6、现 Memory authority13/13，合计27个不同文件287项通过，jobs2/browser1/retries0。日志 `/private/tmp/molis-memory-cold-session-purge-{build-final,direct-final,remaining,impact,root-types,test-types-final,health,boundary}-20261025.log`，精确定向命令保留同前缀的 `direct-final`、`impact`、`remaining` shell 文件。所有构建/测试用原机器 FIFO；没有全量。
+
+首败保留：首次 build 的 preparation revision 字面量类型不匹配已修正；第一次冷测试9例故障钩子使用 `/var` 路径，未命中 SDK canonical `/private/var`，改为 realpath 后实际命中，原拒绝/持久断言未删；未选 wait fixture 先只有 dispatching 而非 running，现用独立 running node 装真实 wait；影响面命令曾误写不存在的 authority 文件，正确现役文件已补跑，其他20文件未机械重跑。对应 `build`、`direct`、`direct-fixed`、`impact` 首败日志保留，不称所有尝试一次全绿。
+
+本片只完成已具可信 Index/owner 的目标 Session 前置；缺 Index 的跨主人联结与明确拒绝仍是完整 MEM-40 验收的一部分。source 全覆盖、Memory/Ledger/Catalog 完整恢复、最终集成全量/干净包/API 快照、真实 Home、付费模型、产品实操和用户验收均未由此片完成。只本地提交交统筹合回 #1101，不推送、不另建 PR。

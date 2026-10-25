@@ -678,3 +678,5 @@ export type { PrologueSessionIndexFact, PrologueSessionIndexPage } from "./adapt
 export type { PrologueMemoryOptions } from "./adapters/prologue-memory-authority.js";
 
 export type { PrologueProjectDeletion, ProjectSessionDeletionPlan } from "./adapters/prologue-project-deletion.js";
+
+export type { PrologueSessionPurgeTarget } from "./adapters/prologue-session-purge.js";

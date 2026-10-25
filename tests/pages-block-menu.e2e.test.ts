@@ -29,7 +29,7 @@ test("SYS-48/W5-10-PGM-02: block menu navigates, changes the selected blocks, un
   // W5-10-PGM-01: load the formal host assets and mount the public editor contract.
   await b.evaluate(`Promise.all([
     new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='/assets/molis-work-pages-editor.js';script.onload=resolve;script.onerror=reject;document.head.append(script)}),
-    new Promise((resolve,reject)=>{const css=document.createElement('link');css.rel='stylesheet';css.href='/assets/molis-work-workbench.css';css.onload=resolve;css.onerror=reject;document.head.append(css)})
+    Promise.all(['/assets/molis-work-workbench.css','/assets/molis-work-plugins/pages.css'].map(href=>new Promise((resolve,reject)=>{const css=document.createElement('link');css.rel='stylesheet';css.href=href;css.onload=resolve;css.onerror=reject;document.head.append(css)})))
   ]).then(()=>undefined)`);
   await b.evaluate(`(() => {
     const root=document.createElement('div');root.id='block-menu-fixture';root.className='pages-editor-host';

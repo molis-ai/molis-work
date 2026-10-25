@@ -33,6 +33,19 @@ export interface PluginWorkbenchRegistration {
   readonly order: number;
   readonly contributions: readonly UiContribution[];
   readonly stylesheet?: string;
+  /**
+   * A plugin whose page runs in a frame (it has a client) sends the rules of its own namespace (`.<project_plugin_id>-…`,
+   * `[data-<project_plugin_id>-…]`) as a sheet of its own, which only the frames that need it link; every other rule stays in
+   * the shared workbench sheet. These are the classes (no dot) of that namespace which something outside the plugin's own
+   * frame also draws, so the rules naming them stay in the shared sheet too. tests/plugin-styles.test.ts finds the classes
+   * this has to list.
+   */
+  readonly stylesheetShared?: readonly string[];
+  /**
+   * The plugins whose own sheet this plugin's frame links beside its own because it draws their classes (the plugins in
+   * `clientUses` are linked already). Their short ids.
+   */
+  readonly stylesheetUses?: readonly string[];
   readonly clientFactory?: string;
   /**
    * The shell sends `clientFactory` without its whole-line comments and indentation (the page does not run them). A script

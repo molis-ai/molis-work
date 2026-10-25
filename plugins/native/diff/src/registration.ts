@@ -9,5 +9,8 @@ import { diffBoardSpecimens } from "./board-specimens.js";
 export const registration: PluginRegistration = {
   project_plugin_id: DIFF_PROJECT_PLUGIN_ID, catalog_order: 25,
   manifest: diffManifest,
-  workbench: { order: 23, contributions: [diffUiContribution], clientFactory: DIFF_CLIENT_FACTORY_SCRIPT, stylesheet: DIFF_STYLES, specimens: diffBoardSpecimens },
+  workbench: { order: 23, contributions: [diffUiContribution], clientFactory: DIFF_CLIENT_FACTORY_SCRIPT, stylesheet: DIFF_STYLES,
+    // The SDK's diff view and the agent review surface draw these outside the Diff plugin's own frame.
+    stylesheetShared: ["diff", "diff-sides", "diff-source", "diff-notices", "diff-sign", "diff-before", "diff-after", "diff-fold"],
+    specimens: diffBoardSpecimens },
 };

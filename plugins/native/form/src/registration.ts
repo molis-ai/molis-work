@@ -13,6 +13,8 @@ export const registration: PluginRegistration = {
     order: 10,
     contributions: [formUiContribution],
     stylesheet: FORM_STYLES,
+    // Goals' event documents, drawn in the shell, use these two classes.
+    stylesheetShared: ["form-note", "form-actions"],
     clientFactory: FORM_CLIENT_FACTORY_SCRIPT,
     searchRow: { selector: "[data-form-id]", idDataset: "formId" },
   },

@@ -49,6 +49,8 @@ export interface PluginWorkbenchRegistration {
     readonly order: number;
     readonly contributions: readonly UiContribution[];
     readonly stylesheet?: string;
+    readonly stylesheetShared?: readonly string[];
+    readonly stylesheetUses?: readonly string[];
     readonly clientFactory?: string;
     readonly clientServed?: true;
     readonly clientUses?: readonly string[];

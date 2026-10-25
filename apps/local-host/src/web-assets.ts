@@ -1,4 +1,4 @@
-import { renderPluginFrameClientScript, pluginWorkbenchClientAsset, renderMolisWorkCapabilitiesClientScript, renderMolisWorkCharactersClientScript, renderMolisWorkKnowledgeClientScript } from "@molis-ai/molis-work-app-workbench";
+import { renderPluginFrameClientScript, pluginWorkbenchClientAsset, pluginOnDemandStylesheet, renderMolisWorkCapabilitiesClientScript, renderMolisWorkCharactersClientScript, renderMolisWorkKnowledgeClientScript } from "@molis-ai/molis-work-app-workbench";
 import { createHash } from "node:crypto";
 import fs from "node:fs";
 import { createRequire } from "node:module";
@@ -58,9 +58,10 @@ export function createLocalWebAssets(ports: {
     const key = currentLocale() + ":" + pathname;
     let asset = workbenchAssets.get(key);
     if (!asset) {
-      const plugin = pathname.match(/^\/assets\/molis-work-plugins\/([a-z0-9-]+)\.js$/);
-      const client = plugin ? pluginWorkbenchClientAsset(plugin[1]!) : null;
-      const loaded = client ? { body: client, contentType: "text/javascript; charset=utf-8" } : pathname === "/assets/molis-work-workbench.css"
+      const plugin = pathname.match(/^\/assets\/molis-work-plugins\/([a-z0-9-]+)\.(js|css)$/);
+      const client = plugin?.[2] === "js" ? pluginWorkbenchClientAsset(plugin[1]!) : null;
+      const styles = plugin?.[2] === "css" ? pluginOnDemandStylesheet(plugin[1]!) : null;
+      const loaded = client ? { body: client, contentType: "text/javascript; charset=utf-8" } : styles ? { body: styles, contentType: "text/css; charset=utf-8" } : pathname === "/assets/molis-work-workbench.css"
       ? { body: renderMolisWorkWorkbenchStylesheet(), contentType: "text/css; charset=utf-8" }
       : pathname === "/assets/molis-work-plugin-frame.js"
         ? { body: renderPluginFrameClientScript(), contentType: "text/javascript; charset=utf-8" }

@@ -1,6 +1,7 @@
 import type { PluginRegistration, PluginWorkbenchRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { declaresOwner, ownedContribution, type OwnedUiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
+import { splitPluginStylesheet, type SplitStylesheet } from "./plugin-styles.js";
 export type { PluginSearchRow } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 
 export interface BuiltinPluginWorkbenchPack extends Omit<PluginWorkbenchRegistration, "order" | "clientServed" | "clientUses" | "contributions"> {
@@ -50,7 +51,9 @@ export function pluginWorkbenchPacks(catalog: readonly PluginRegistration[] = BU
   return catalog.flatMap(entry => entry.workbench ? [{ project_plugin_id: entry.project_plugin_id, ...entry.workbench }] : [])
     .sort((a, b) => a.order - b.order)
     .map((registered, _at, all) => {
-      const { order: _order, clientServed: _served, clientUses, ...pack } = registered, factory = clientOf(registered);
+      const { order: _order, clientServed: _served, clientUses, ...rest } = registered, factory = clientOf(registered);
+      const styleUses = [...new Set([...(registered.stylesheetUses ?? []), ...(clientUses ?? [])])];
+      const pack = { ...rest, ...(styleUses.length > 0 ? { stylesheetUses: styleUses } : {}) };
       if (factory === undefined) return pack;
       const assets = [...(registered.clientAssets ?? []), ...(clientUses ?? []).map(bundleUrl)];
       return { ...pack, ...(assets.length > 0 ? { clientAssets: assets } : {}), clientFactory: clientUses ? withUsedClients(registered, factory, all, catalog) : factory };
@@ -65,8 +68,34 @@ export function pluginWorkbenchPacks(catalog: readonly PluginRegistration[] = BU
 }
 export const BUILTIN_PLUGIN_WORKBENCH: readonly BuiltinPluginWorkbenchPack[] = pluginWorkbenchPacks();
 
+const splits = new WeakMap<BuiltinPluginWorkbenchPack, SplitStylesheet | null>();
+
+/**
+ * A plugin whose page runs in a frame (it has a client) sends the rules of its own namespace as a sheet of its own, which the
+ * frames that need it link (PG-070). One whose surface the shell draws itself (no client) or that a settings page draws keeps its
+ * whole sheet in the shared one, where those pages find it.
+ */
+function splitOf(pack: BuiltinPluginWorkbenchPack): SplitStylesheet | null {
+  if (!pack.stylesheet || !pack.clientFactory || pack.settingsClient) return null;
+  let split = splits.get(pack);
+  if (split === undefined) splits.set(pack, split = splitPluginStylesheet(pack.stylesheet, pack.project_plugin_id, pack.stylesheetShared));
+  return split;
+}
+
+/** What the shared workbench sheet holds of the plugins' styles: everything a framed plugin does not bring itself. */
 export function pluginWorkbenchStyles(packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH): string {
-  return packs.map((pack) => pack.stylesheet ?? "").join("");
+  return packs.map((pack) => splitOf(pack)?.shared ?? pack.stylesheet ?? "").join("");
+}
+
+/** A framed plugin's own sheet (`/assets/molis-work-plugins/<id>.css`), or null when all its rules are shared. */
+export function pluginOnDemandStylesheet(id: string, packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH): string | null {
+  const pack = packs.find(candidate => candidate.project_plugin_id === id);
+  return (pack && splitOf(pack)?.scoped) || null;
+}
+
+/** The sheets a plugin's frame links: its own, then those of the plugins whose classes it draws. */
+function framedStyles(pack: BuiltinPluginWorkbenchPack, packs: readonly BuiltinPluginWorkbenchPack[]): string[] {
+  return [...new Set([pack.project_plugin_id, ...(pack.stylesheetUses ?? [])])].filter(id => pluginOnDemandStylesheet(id, packs) !== null);
 }
 
 export function pluginWorkbenchSettingsStyles(packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH): string {
@@ -101,12 +130,12 @@ export function pluginWorkbenchClientBootstrap(packs: readonly BuiltinPluginWork
 }
 
 /** A surface's client: the bundle that carries its factory and what it prepares first (the bundles of the clients it uses among them). */
-export interface PluginSurfaceClient { readonly id: string; readonly plugin_id: string; readonly bundle: string; readonly assets: readonly string[]; readonly factory: string; readonly searchRow?: PluginWorkbenchRegistration["searchRow"]; readonly recordRow?: PluginWorkbenchRegistration["recordRow"] }
+export interface PluginSurfaceClient { readonly id: string; readonly plugin_id: string; readonly bundle: string; readonly assets: readonly string[]; readonly styles: readonly string[]; readonly factory: string; readonly searchRow?: PluginWorkbenchRegistration["searchRow"]; readonly recordRow?: PluginWorkbenchRegistration["recordRow"] }
 
 /** Every surface with a client, each pointing at the one bundle that serves it. */
 export function pluginSurfaceClients(packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH): PluginSurfaceClient[] {
   return packs.flatMap((pack) => pack.clientFactory
-    ? [{ id: pack.project_plugin_id, plugin_id: BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === pack.project_plugin_id)?.manifest.plugin_id ?? "", bundle: pack.project_plugin_id, assets: pack.clientAssets ?? [], factory: pack.clientFactory, searchRow: pack.searchRow, recordRow: pack.recordRow }]
+    ? [{ id: pack.project_plugin_id, plugin_id: BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === pack.project_plugin_id)?.manifest.plugin_id ?? "", bundle: pack.project_plugin_id, assets: pack.clientAssets ?? [], styles: framedStyles(pack, packs), factory: pack.clientFactory, searchRow: pack.searchRow, recordRow: pack.recordRow }]
     : []);
 }
 
@@ -114,7 +143,7 @@ export function pluginSurfaceClients(packs: readonly BuiltinPluginWorkbenchPack[
 const HOST_SURFACE_CLIENTS: readonly Pick<PluginSurfaceClient, "id" | "bundle" | "assets">[] = [{ id: "characters", bundle: "characters", assets: [] }];
 
 /** Every surface the deferred loader mounts on first show: the plugins' and the Host's own. */
-export function deferredSurfaceClients(): (Pick<PluginSurfaceClient, "id" | "bundle" | "assets"> & Partial<Pick<PluginSurfaceClient, "plugin_id" | "searchRow" | "recordRow">>)[] {
+export function deferredSurfaceClients(): (Pick<PluginSurfaceClient, "id" | "bundle" | "assets"> & Partial<Pick<PluginSurfaceClient, "plugin_id" | "styles" | "searchRow" | "recordRow">>)[] {
   return [...pluginSurfaceClients(), ...HOST_SURFACE_CLIENTS];
 }
 

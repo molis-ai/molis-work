@@ -14,8 +14,11 @@ const errors = defineErrorCodes("plugin", {
 
 const METHODS: readonly PluginConnectionMethod[] = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"];
 const MAX_URL = 8 * 1024, MAX_HEADERS = 32, MAX_HEADER_VALUE = 8 * 1024, MAX_BODY = 256 * 1024;
-/** The person's credential is the Host's to add; a plugin cannot write one of its own beside or instead of it. */
-const CREDENTIAL_HEADERS = new Set(["authorization", "proxy-authorization", "cookie"]);
+/**
+ * The person's credential is the Host's to add; a plugin cannot write one of its own beside or instead of it, in any header a service
+ * takes it in (`ConnectorRequestCredential`).
+ */
+const CREDENTIAL_HEADERS = new Set(["authorization", "proxy-authorization", "cookie", "private-token", "x-figma-token"]);
 /** Headers the connection itself owns. */
 const TRANSPORT_HEADERS = new Set(["host", "connection", "content-length", "transfer-encoding", "upgrade", "keep-alive", "te", "trailer", "proxy-connection", "expect"]);
 const HEADER_NAME = /^[a-z0-9!#$%&'*+.^_`|~-]{1,128}$/u;

@@ -462,7 +462,7 @@ Integration 的 `health()` 可返回非敏感的 `account: { login, account_id? 
 "connections": { "slots": [{ "slot_id": "github", "service_id": "github", "reason": "读取本人的 GitHub 通知" }] }
 ```
 
-`service_id` 只能是平台登记了固定地址的服务（`CONNECTOR_REQUEST_SERVICES`：GitHub、Gmail，以及目录里能把令牌作 `Bearer` 发到固定地址的服务，如 Google Calendar、Microsoft Graph 系、Notion、Slack；一项可以有几个来源，如 Cloudflare 的 API 与控制台；按租户分地址的 Jira、Confluence、Salesforce 不在里面）；没有权限的槽、未登记的服务、多写的字段、重复的槽，解析 Manifest 时就拒（`plugin.declaration_invalid`）。槽绑哪个账号由人选（`connectors.plugin_slot.bind@1`，只对 `user` 开放，只认这里装着的、Manifest 里声明了这个按安装绑定的槽与服务；人在「服务连接 › 插件用的账号」里选）；没绑时请求照发，不带凭据。
+`service_id` 只能是平台登记了的服务（`CONNECTOR_REQUEST_SERVICES`：GitHub、Gmail，目录里发到固定地址的服务，如 Google Calendar、Microsoft Graph 系、Notion、Slack、Discord、GitLab、Figma、Linear、ClickUp、monday.com；一项可以有几个来源，如 Cloudflare 的 API 与控制台；还有按租户分地址的 Salesforce、Jira、Confluence，地址是人连接时的那个租户站点，绑定后用 `describe(slot_id)` 读 `origin`；先用应用凭据换令牌的飞书、Lark、企业微信不在里面）；没有权限的槽、未登记的服务、多写的字段、重复的槽，解析 Manifest 时就拒（`plugin.declaration_invalid`）。槽绑哪个账号由人选（`connectors.plugin_slot.bind@1`，只对 `user` 开放，只认这里装着的、Manifest 里声明了这个按安装绑定的槽与服务；人在「服务连接 › 插件用的账号」里选）；没绑时请求照发，不带凭据。
 
 一条记录一个账号（例如每个订阅来源各用一个账号）时，槽写 `"binding": "per_record"`：人在某个项目里为插件的一条记录选账号（`connectors.plugin_slot.bind@2`，只对 `user`，项目取调用上下文），插件发请求时写 `record_key`（至多 128 个字符，不含 `/`、`:` 和控制字符），只在本项目的调用里有效；`describe(slot_id, record_key)` 读有没有绑、账号显示名和状态，看不到是哪条连接；插件删记录时用 `release(slot_id, record_key)` 解除，之后这条记录的请求不带凭据。插件不能绑账号。不写 `binding` 就是按安装（`installation`）：一个安装一个账号，各项目共用。绑了 OAuth 账号的请求得到 401 时，宿主刷新一次令牌、把同一个请求重发一次；第二次还是 401 就原样交回，插件看到的只有 `status`，看不到令牌。
 
@@ -474,9 +474,9 @@ const response = await context.services.connections!.request("github", { url: "h
 await caller.beforeEffect(); // 写业务记录之前
 ```
 
-- 地址必须是该服务的固定来源；别的地址（没绑账号也一样）都是 `connector.plugin_requests.origin_refused`。
-- 不能自己写 `Authorization`、`Cookie`、`Proxy-Authorization`、`Host` 与连接类的头，不带账号密码与片段；GET/HEAD 不带内容，内容不超过 256 KB；只读动作只能发 GET/HEAD。
-- 绑了账号时宿主加 `Bearer`，插件看不到凭据，`authenticated` 说这次带没带；绑的账号断开或不能用时拒绝（`connector.plugin_requests.connection_unavailable`），不改成匿名发。
+- 地址必须是该服务的固定来源；别的地址（没绑账号也一样）都是 `connector.plugin_requests.origin_refused`。按租户分地址的服务只能发到所绑账号连接时的那个站点（`describe` 给的 `origin`），没绑账号时不发；Jira、Confluence 的 OAuth 账号也照写站点地址，宿主转到 Atlassian 网关。
+- 不能自己写 `Authorization`、`Cookie`、`Proxy-Authorization`、`PRIVATE-TOKEN`、`X-Figma-Token`、`Host` 与连接类的头，不带账号密码与片段；GET/HEAD 不带内容，内容不超过 256 KB；只读动作只能发 GET/HEAD。
+- 绑了账号时宿主按该服务要的写法加凭据（多数是 `Bearer`；Discord 令牌 `Bot`、GitLab 令牌 `PRIVATE-TOKEN`、Figma 令牌 `X-Figma-Token`、Linear/ClickUp/monday.com 令牌不带前缀、Jira/Confluence 令牌 `Basic`），插件看不到凭据，`authenticated` 说这次带没带；绑的账号断开或不能用时拒绝（`connector.plugin_requests.connection_unavailable`），不改成匿名发。
 - 不跟随跳转（3xx 原样交回，`location` 在头里）；返回的头只留内容类型、缓存、`link`、`x-ratelimit-*` 等固定的一组；15 秒超时，1 MB 上限；令牌过期的 401 原样交回。
 - 只能在本实例自己的动作或保留的后台作业里用；`start`、路由、场景回调、别的安装的调用都拒（`plugin.connections_call_required`）。授权每次都重查，取消、撤权、停用后不发也不交回。
 - 沙箱插件经 broker 用同一份客户端（`sdk.connections.request`、`describe`、`release`）：操作要在 `effects.connections` 里写出用的槽，人批准后才能用；查询操作只能发 GET/HEAD、不能 `release`；宿主的客户端再按上面各条查一遍（`docs/system/SECURITY-INVARIANTS.md` S-60）。

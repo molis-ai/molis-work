@@ -152,6 +152,7 @@ binding: "installation" | "per_record"
 
 - **S 号**：X1 是 S-69，X2 是 S-71，X3 是 S-70（batch-36 合入时的实际号，统筹 2026-10-25 改）；合入那批由统筹按当时的末号再核。SI 表门禁要求号连续，分支上暂用本基线的下一号（X1 写 S-64，X2、X3 各写 S-65），合入时改，测试名同步改。
 - **租户来源（X1）**：目录连接器的连接今天不在宿主里钉来源（`assertTarget` 只给模型、生图、MCP），租户型的服务登记不了，拆成 BL-595，排在 X4 之后：先在连接时把来源钉进连接记录，再登记 Jira、Confluence、Salesforce。凭据不是 `Bearer` 写法的几家（Discord、GitLab、Figma、Linear、ClickUp、Monday）另开「凭据加法」一片；飞书、Lark、企业微信与飞书 CLI 归 W5-11。
+  - **已做（PG-045 非 OAuth 余项，ac-kernel）**：BL-595 与「凭据加法」一起做完。登记表的 `credential` 改成按连接种类写法（`{ token?, oauth? }`，取 `bearer`、`bot`、`bare`、`private-token`、`x-figma-token`、`basic`），`auth_methods` 并进它；租户型服务写 `tenant: { domain, gateway? }`、不写来源。连接时（`activateConnectorConnection`）把凭据核过的租户来源钉进 `connector_connection_targets`，在别的租户上重新授权先拒；请求只到钉住的来源，没钉的连接（之前存下的）拒、要重连，不补钉。Jira、Confluence 的 OAuth 令牌经宿主转到 Atlassian 网关，插件照写站点地址；`describe` 给租户型服务钉住的来源。插件不能自己写 `PRIVATE-TOKEN`、`X-Figma-Token`。测试 RAC-654～656（S-69 行）。
 - **GitHub 的刷新（X1）**：GitHub App 的用户令牌 8 小时过期，API OAuth 本来就能刷新，登记成 `refresh: "host"`。
 - **`per_record` 绑定的存法（X2，统筹定 ①）**：沿用 Home connectors 库的 `connector_bindings`，不改结构、不升版本。`scope_id` 本来就是不透明的作用域键，扩成「安装 / 项目 / 记录」仍在这一列的本义里，真实 Home 不受影响。四条防隐患的要求：
   1. 只有 connector-host 里一个函数拼、一个函数解 `scope_id`，别处不写这个字符串。插件只给记录键：限长，不含 `/`、`:` 和控制字符，不合的以错误码拒（有拒绝测试）。项目只从调用上下文来。
@@ -167,7 +168,7 @@ S 号按合入顺序取，下面写的都是暂定。合入时以 SECURITY-INVAR
 
 | 暂定号 | 管什么 | 拒绝测试（每条至少一个） | 验收编号 |
 | --- | --- | --- | --- |
-| S-69 | 请求服务只能由平台登记；来源精确，租户型服务取连接记录上的来源；只有 `bearer` | 未登记的服务被 SDK 拒；登记来源之外的地址被拒（匿名也拒）；租户型服务请求别的租户来源被拒 | RAC-346 |
+| S-69 | 请求服务只能由平台登记；来源精确，租户型服务取连接记录上的来源；凭据按登记的写法（BL-595 后不止 `bearer`） | 未登记的服务被 SDK 拒；登记来源之外的地址被拒（匿名也拒）；租户型服务请求别的租户来源被拒 | RAC-346 |
 | S-71 | `per_record` 槽的绑定只由人建，键是安装、项目、槽、记录键；插件只能解除，只能看到不含凭据的视图；卸载时删干净 | 非 `user` 调绑定被拒；绑没声明的槽被拒；跨项目、跨插件用不上；`describe` 里没有凭据引用；`release` 后匿名；卸载后重装不沿用账号 | RAC-347、RAC-348 |
 | S-70 | 刷新只在宿主做，401 后刷新一次、重发一次；重发前复核调用；刷新材料和新令牌不进插件能看到的任何地方 | 第二次 401 原样交回；重发前取消就不发，服务端请求数不增加；`refresh: "none"` 不刷新；刷新失败不匿名重发；答复、错误、日志里都没有令牌 | RAC-349 |
 

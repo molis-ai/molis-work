@@ -117,6 +117,7 @@ export { connectorManagementActions, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGE
 export { connectorUsagesAction } from "./connector-usage-actions.js";
 export { connectorPluginSlotActions } from "./connector-plugin-slot-actions.js";
 export { createPluginConnectionsPort, pluginSlotScope } from "./connector-plugin-requests.js";
+export { activateConnectorConnection } from "./connector-activation.js";
 export { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 export { connectorRecordActions, CONNECTOR_RECORDS_READ } from "./connector-record-actions.js";
 export { connectorSetupAction } from "./connector-setup.js";

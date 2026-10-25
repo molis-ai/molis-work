@@ -77,7 +77,8 @@ test("S-57 a request is refused outside the instance's own concurrent action dec
   for (const url of ["http://api.github.com/user", "https://someone:pw@api.github.com/user", "https://api.github.com/user#x", "not a url"]) {
     await refusedIn({ url }, "plugin.connections_request_invalid");
   }
-  for (const headers of [{ Authorization: "Bearer forged" }, { cookie: "a=b" }, { "Proxy-Authorization": "x" }, { host: "evil.example" }, { "x-ok": "a\r\nb" }, { "x-ok": "a\u0001b" }, { "x-ok": "中文" }]) {
+  // Every header a service takes a credential in (RAC-656: GitLab's and Figma's too) is the Host's to write.
+  for (const headers of [{ Authorization: "Bearer forged" }, { cookie: "a=b" }, { "Proxy-Authorization": "x" }, { "PRIVATE-TOKEN": "x" }, { "X-Figma-Token": "x" }, { host: "evil.example" }, { "x-ok": "a\r\nb" }, { "x-ok": "a\u0001b" }, { "x-ok": "中文" }]) {
     await refusedIn({ url: "https://api.github.com/user", headers }, "plugin.connections_request_invalid");
   }
   await refusedIn({ url: "https://api.github.com/user", body: "{}" }, "plugin.connections_request_invalid");

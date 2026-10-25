@@ -109,7 +109,7 @@
 
 ## 8. C 组迁移回归（准确 f77，placement 专职）
 
-状态：实现中。按统筹 #1287 的 C 组分工及 Root 补充，从 `f77e0d0bda62c65c17d803a47328f9d8af07f7f9` 开独立后继树；原 `8f4d018` 的实现与重启取消证据保持冻结，后者第一次 86/87 的取消仍是 UNKNOWN，由 TEST 与唯一 Claude carrier 在下一准确组合既有相关／全量回归中接续。本组不展开 Host／SDK 调度，不改 RAC-438（由统筹 `20f0902bb` 处理）、A1、B 组或门禁。
+状态：本组工程修复与有限独立核收完成，生产和测试冻结于 `cc7811da7b337672f824d940fa3be7f1ac427a6b`；文档尾只同步本节。按统筹 #1287 的 C 组分工及 Root 补充，从 `f77e0d0bda62c65c17d803a47328f9d8af07f7f9` 开独立后继树；原 `8f4d018` 的实现与重启取消证据保持冻结，后者第一次 86/87 的取消仍是 UNKNOWN，由 TEST 与唯一 Claude carrier 在下一准确组合既有相关／全量回归中接续。本组不展开 Host／SDK 调度，不改 RAC-438（由统筹 `20f0902bb` 处理）、A1、B 组或门禁。
 
 当前证据：`pages-actions` 把除 create 外所有动作都钉在 @1；四份 MCP 测试的工具列表预期漏了升级到 @2 的对象读取器。`fakeGoalDirectory` 只提供 `goals.list` 的分页目录，却继承了该真实动作的 `candidates` 关联角色；SDK 因同提供方没有 `list` 角色而在注册时拒绝，早于 Coding 端口调用。真实 Goals Manifest 是否完整由实际 SDK／ActionService 注册正控证明，不能由此替身的失败推断生产声明有缺陷。
 
@@ -124,8 +124,10 @@
 
 验证：先在未改测试的准确 f77 整体构建，按官方运行器 `--jobs 2 --retries 0 --verbose` 跑上述九份文件，保留改前失败；实现后复用同一生产构建跑原文件及新增正负控，RAC-438 只报告旧红、不搬统筹的补丁。不改生产源码则不重复构建；如出现生产缺陷先补本节依据，再最小修复并整体构建。浏览器只在证明需要时选代表路径，经独立测试浏览器与机器槽位，不跑全量。旧 f77 的 PlacementService 301 行门禁原红保留；#1289 已 actual `54437998`，组合树的门禁由 PIPE／Claude 按现行规则与内聚理由核定，不硬拆、不改阈值或登记未经评审的例外。交付准确 head 与 scoped diff 给 REVIEW／TEST／PIPE，无新 PR。
 
-本机证据（2026-10-25）：准确 f77 整体构建通过；改前九文件 28/46，18 fail、无取消／跳过，只有原声明检查文件全绿。修后五份版本测试全部通过（Pages 17、Alchemist 2、Form／PPT／Dataset 各 1），`coding-surface` 4/4、`coding-input-ports` 9/9；`coding-companion-stages` 7/8，唯一原 RAC-438 仍红，由统筹已有补丁接续，六条因替身注册失败的用例已恢复。新增正控最初误把仅 Agent／MCP 可见的 `goals.events.acknowledge` 算进 user 目录，已按真实 audience 合同修正；最终声明检查 6/6、原放置关联 8/8，无生产改动或新增重跑／时限放宽。有效证据合计原九文件 48/49（唯一 RAC-438）及额外关联文件 8/8；不把重复运行累加。原件：`/tmp/placement-c-group-baseline-build.log`、`/tmp/placement-c-group-before.log`、`/tmp/placement-c-group-after.log`、`/tmp/placement-c-group-contracts.log`。
+本机证据（2026-10-25）：准确 f77 整体构建通过；改前九文件 28/46，18 fail、无取消／跳过，只有原声明检查文件全绿。修后五份版本测试全部通过（Pages 17、Alchemist 2、Form／PPT／Dataset 各 1），`coding-surface` 4/4、`coding-input-ports` 9/9；`coding-companion-stages` 7/8，唯一原 RAC-438 仍红，由统筹已有补丁接续，六条因替身注册失败的用例已恢复。新增正控最初误把仅 Agent／MCP 可见的 `goals.events.acknowledge` 算进 user 目录，已按真实 audience 合同修正；最终声明检查 6/6、原放置关联 8/8，无生产改动，未启用自动重试或放宽时限。有效证据合计原九文件 48/49（唯一 RAC-438）及额外关联文件 8/8；不把重复运行累加。原件：`/tmp/placement-c-group-baseline-build.log`、`/tmp/placement-c-group-before.log`、`/tmp/placement-c-group-after.log`、`/tmp/placement-c-group-contracts.log`。
 
 浏览器归因边界：列出的八份浏览器文件走 `openGoalBrowser` → 真实 `MolisWorkLocalHost`；它们及两个共享 fixture 没有引用 `fakeGoalDirectory`。真实宿主 `goalsActionProvider` 从 Manifest 选全部 project 动作，五个关联角色都在这份定义中。因此本轮纯测试替身改动不能据此修复或结清这八份浏览器失败，仍交准确组合既有回归定位，未扩大重跑浏览器。未改生产定义、完整性检查、RAC-438、任何 gate／snapshot／构建配置或真实 Home；整个批次 Ready 与旧重启 UNKNOWN 均未由本证据替代。
 
 `pnpm boundary:check` 零错误；`check-health-gates --base f77e0d0bda62c65c17d803a47328f9d8af07f7f9` 通过，只证明本组未增加相对准确父版本的门禁问题（原件 `/tmp/placement-c-group-boundary.log`、`/tmp/placement-c-group-health.log`），不回填旧 f77 对 main 的 301 行原红。
+
+固定增量 `f77 → cc781` 已获 [REVIEW 源码通过](https://github.com/molis-ai/molis-work/pull/1287#issuecomment-6398158339) 与 [TEST 有限核验通过](https://github.com/molis-ai/molis-work/pull/1287#issuecomment-6398261530)，均无本组当前必须修改项。TEST 复用准确 f77 的原构建，在公共 FIFO 内以原样测试／脚本副本、隔离 Home／cache、官方 jobs2／retries0／原时限独立执行声明 6/6、Coding 输入端口 9/9、Alchemist MCP 2/2，共 17/17，单次自然退出 0，70.506 秒，无取消或跳过；前后输入、head／clean 与产物一致。其余有效作者原件经独立核收复用，九文件最终去重仍是 48/49（唯一 RAC-438），额外 relation 8/8，不覆盖首轮 47/49。完整 TEST 原件在 `/tmp/molis-verify-2026-10-25/c37-cc781-independent/`；本 writer 已复核执行摘要、前后绑定和原样输入。本组按既定分工交唯一 Claude carrier，文档尾不改变上述代码或验证输入；准确组合的 A2、浏览器、旧重启 UNKNOWN 及 CI／full 仍由原 owner 接续，本记录不宣称整批或产品验收完成。

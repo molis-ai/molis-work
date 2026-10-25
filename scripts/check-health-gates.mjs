@@ -34,6 +34,7 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import path from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import ts from "typescript";
 import { SOURCE_COUNT_RULES } from "./gates/source-counts.mjs";
 import { browserWantsText } from "./gates/browser-graph.mjs";
@@ -118,7 +119,8 @@ const EXCEPTION_KINDS = ["translation-table", "stylesheet", "static-data", "gene
 const EXCEPTION_FIELDS = ["kind", "reason", "size"];
 const MIN_REASON_CHARACTERS = 20;
 const sameSize = (recorded, measured) => (typeof measured === "number" ? recorded === measured
-  : !!recorded && typeof recorded === "object" && recorded.lines === measured.lines && recorded.methods === measured.methods);
+  : !!recorded && typeof recorded === "object" && !Array.isArray(recorded) && Object.keys(recorded).sort().join() === "lines,methods"
+    && recorded.lines === measured.lines && recorded.methods === measured.methods);
 const recordedSize = (measured) => (typeof measured === "number" ? String(measured) : JSON.stringify({ lines: measured.lines, methods: measured.methods }));
 const problemsOfException = (entry, measured) => {
   if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [`the entry must be an object with "kind", "reason" and "size"`];
@@ -128,16 +130,16 @@ const problemsOfException = (entry, measured) => {
   if (measured !== undefined && !sameSize(entry.size, measured)) problems.push(`"size" is ${JSON.stringify(entry.size)} but the unit measures ${recordedSize(measured)}; record the measured size (it is reviewed in the diff)`);
   return problems;
 };
-const loadExceptions = () => {
-  if (!existsSync(exceptionsPath)) return {};
+const parseExceptions = (text, where) => {
+  if (text === null) return {};
   let parsed;
-  try { parsed = JSON.parse(readFileSync(exceptionsPath, "utf8")); } catch { fail(`${exceptionsPath} is not valid JSON`); }
+  try { parsed = JSON.parse(text); } catch { fail(`${where} is not valid JSON`); }
   if (!parsed || typeof parsed !== "object" || !parsed.exceptions || typeof parsed.exceptions !== "object" || Array.isArray(parsed.exceptions)) {
-    fail(`${exceptionsPath} needs an "exceptions" object keyed by giant unit`);
+    fail(`${where} needs an "exceptions" object keyed by giant unit`);
   }
   return parsed.exceptions;
 };
-const exceptions = loadExceptions();
+const exceptions = parseExceptions(existsSync(exceptionsPath) ? readFileSync(exceptionsPath, "utf8") : null, exceptionsPath);
 // An own entry only: a key such as "constructor" or "__proto__" must not resolve through the prototype.
 const registeredEntry = (unit) => (Object.hasOwn(exceptions, unit) ? exceptions[unit] : undefined);
 // A giant unit the merge-base comparison lets through: it has an entry with nothing wrong in it, its size included.
@@ -153,7 +155,7 @@ const isVendoredSdk = (file) => /^vendor\/prologue-sdk\/.*\.tgz$/.test(file);
 // cannot hide from them in a directory of that name. `tests/`, `dist/` and `node_modules/` are still skipped.
 const FIXTURES_DIR = /(^|\/)fixtures\//;
 const isStructureSource = (file) => isSource(file) || (FIXTURES_DIR.test(file) && isSource(file.replace(FIXTURES_DIR, "$1")));
-const needsText = (file) => isStructureSource(file) || isTestFile(file) || structureWantsText(file) || docGateInputs(file) || lintWantsText(file) || splitsWantText(file) || errorOwnersWantsText(file) || browserWantsText(file);
+const needsText = (file) => file === "tooling/gates/giant-exceptions.json" || isStructureSource(file) || isTestFile(file) || structureWantsText(file) || docGateInputs(file) || lintWantsText(file) || splitsWantText(file) || errorOwnersWantsText(file) || browserWantsText(file);
 
 // A snapshot is a file list plus a reader: the working tree for the head, a commit read from the object database for the
 // merge-base (no checkout, so it cannot disturb the working tree or another session's worktree).
@@ -201,6 +203,46 @@ const rekey = (record, renames, rename) => {
   return out;
 };
 
+const isFunctionUnit = (node) => ts.isFunctionDeclaration(node) || ts.isMethodDeclaration(node) || ts.isArrowFunction(node) || ts.isFunctionExpression(node);
+// Keep unique names unchanged. Only multiple implementations of a name need their named lexical owners; overload
+// signatures describe the same implementation. No line/ordinal identity: an unnameable collision cannot be measured safely.
+const functionOwners = (source, span) => {
+  const groups = new Map(), names = new Map();
+  const namedScope = (node) => ts.isClassDeclaration(node) || ts.isClassExpression(node) || isFunctionUnit(node)
+    || ts.isVariableDeclaration(node) || ts.isPropertyAssignment(node) || ts.isPropertyDeclaration(node) || ts.isModuleDeclaration(node);
+  const visit = (node) => {
+    if (isFunctionUnit(node)) {
+      const named = node.name && ts.isIdentifier(node.name) ? node
+        : (ts.isVariableDeclaration(node.parent) || ts.isPropertyAssignment(node.parent)) && ts.isIdentifier(node.parent.name) ? node.parent : undefined;
+      if (named) {
+        const owners = [named.name.text];
+        for (let outer = named.parent; outer; outer = outer.parent) {
+          if (namedScope(outer) && outer.name && ts.isIdentifier(outer.name)) owners.unshift(outer.name.text);
+        }
+        const name = named.name.text, group = groups.get(name) ?? [];
+        group.push({ node, owner: owners.join(".") });
+        groups.set(name, group);
+        names.set(node, name);
+      }
+    }
+    ts.forEachChild(node, visit);
+  };
+  visit(source);
+  for (const [name, group] of groups) {
+    const implementations = group.filter(({ node }) => node.body);
+    if (implementations.length < 2) continue;
+    const seen = new Set();
+    for (const { node, owner } of implementations) {
+      if (seen.has(owner) && group.some(({ node: candidate }) => span(candidate) > limits.functionLines)) {
+        fail(`ambiguous giant function unit: function ${source.fileName}#${name}: multiple implementations have the same named lexical owner "${owner}"; give them distinct named owners so their measured sizes can be reviewed separately`);
+      }
+      seen.add(owner);
+    }
+    for (const { node, owner } of group) names.set(node, owner);
+  }
+  return names;
+};
+
 const giantUnits = {
   id: "giant",
   // 1. Giant units (§4.5 thresholds): files over 800 lines, classes over 300 lines or 25 methods, functions over 150
@@ -214,12 +256,12 @@ const giantUnits = {
       if (lines > limits.file) giant[`file ${file}`] = lines;
       const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
       const span = (node) => source.getLineAndCharacterOfPosition(node.getEnd()).line - source.getLineAndCharacterOfPosition(node.getStart(source)).line + 1;
+      const names = functionOwners(source, span);
       // An unnamed function is named by the named function it sits in and its order among the giant ones there, so an
       // edit above it does not make it look new.
       const callbacks = {};
       const ownerOf = (node) => {
-        if (node.name && ts.isIdentifier(node.name)) return node.name.text;
-        if ((ts.isVariableDeclaration(node.parent) || ts.isPropertyAssignment(node.parent)) && ts.isIdentifier(node.parent.name)) return node.parent.name.text;
+        if (names.has(node)) return names.get(node);
         let outer = node.parent;
         while (outer && !((ts.isFunctionDeclaration(outer) || ts.isMethodDeclaration(outer) || ts.isVariableDeclaration(outer)) && outer.name && ts.isIdentifier(outer.name))) outer = outer.parent;
         const base = outer ? outer.name.text : "(module)";
@@ -233,7 +275,7 @@ const giantUnits = {
           const size = span(node);
           if (size > limits.classLines || methods > limits.classMethods) giant[key] = { lines: Math.max(giant[key]?.lines ?? 0, size), methods: Math.max(giant[key]?.methods ?? 0, methods) };
         }
-        if (ts.isFunctionDeclaration(node) || ts.isMethodDeclaration(node) || ts.isArrowFunction(node) || ts.isFunctionExpression(node)) {
+        if (isFunctionUnit(node)) {
           const size = span(node);
           if (size > limits.functionLines) {
             const key = `function ${file}#${ownerOf(node)}`;
@@ -480,11 +522,25 @@ if (options.base) {
   if (!mergeBase) fail(`HEAD and ${options.base} share no history in this clone; fetch the full history (CI: actions/checkout with fetch-depth: 0)`);
 }
 
+// Review visibility uses the actual merge-base registry, independently of admission and of any later gate failure.
+const baseSnapshot = mergeBase ? commitTree(mergeBase) : undefined;
+const baseExceptions = baseSnapshot ? parseExceptions(baseSnapshot.read("tooling/gates/giant-exceptions.json"), `${mergeBase}:tooling/gates/giant-exceptions.json`) : {};
+const giantExceptionChanges = mergeBase ? Object.entries(exceptions).flatMap(([unit, entry]) => {
+  const added = !Object.hasOwn(baseExceptions, unit);
+  const before = baseExceptions[unit]?.size ?? null, after = entry?.size ?? null;
+  return added || !isDeepStrictEqual(before, after) ? [{ unit, change: added ? "added" : "size changed", before, after }] : [];
+}) : [];
+if (mergeBase && !(report && flags.has("--json"))) {
+  console.log(`Giant exception changes against merge-base ${mergeBase}: ${giantExceptionChanges.length ? "" : "none"}`);
+  for (const { unit, change, before, after } of giantExceptionChanges) {
+    console.log(`- ${change}: ${unit}: ${change === "added" ? "(not registered)" : JSON.stringify(before)} → ${JSON.stringify(after)}`);
+  }
+}
 const head = measureAll(workingTree());
 const renames = new Map();
 let reference;
 if (mergeBase) {
-  reference = measureAll(commitTree(mergeBase));
+  reference = measureAll(baseSnapshot);
   // Renames between the merge-base and the working tree, so moving a file does not make its records look new.
   const fields = git(["diff", "-M", "-l", "5000", "--name-status", "--diff-filter=R", "-z", mergeBase]).split("\0");
   fields.forEach((field, index) => { if (/^R\d*$/.test(field)) renames.set(fields[index + 1], fields[index + 2]); });
@@ -533,7 +589,7 @@ const against = mergeBase ? `merge-base ${mergeBase.slice(0, 8)} (${options.base
 // ---- --report --------------------------------------------------------------------------------------------------------
 if (report) {
   if (flags.has("--json")) {
-    console.log(JSON.stringify({ limits, mergeBase: mergeBase || null, head, base: reference ?? null, giantExceptions: exceptions }, null, 2));
+    console.log(JSON.stringify({ limits, mergeBase: mergeBase || null, head, base: reference ?? null, giantExceptions: exceptions, giantExceptionChanges }, null, 2));
     process.exit(0);
   }
   const env = { top: options.top ? Number(options.top) : undefined };

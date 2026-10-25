@@ -4,8 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
-import { captureHostLog, type HostLogEntry, projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
-import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { captureHostLog, type HostLogEntry, PLATFORM_PLUGIN_REGISTRATIONS, projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
 import { homeStoreRegistry } from "@molis-ai/molis-work-storage";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDatabase } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -25,7 +24,7 @@ const IDLE_LOOK_MS = 10 * 60_000;
 const open = (home: string, projectId: string) => existsSync(`${partitionFile(home, projectId)}-wal`);
 
 test("PART-01 the entry and the Home's store registry agree on the partition, either way round, or the Home plugins do not start", async t => {
-  const todo = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "todo")!;
+  const todo = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.project_plugin_id === "todo")!;
   const partitionedTodo = partitionHome(t, [{ ...todo.runtime!, manifest: todo.manifest, create: () => withLibrary(todo.runtime!.create(), { ...todo.manifest.databases!.home!, partition: "project" }) }]);
   await assert.rejects(partitionedTodo.host.ready(), /分区方式不同/u, "a library the registry keeps whole cannot be opened per project");
   const whole = partitionHome(t, [probeEntry({ create: probeWithLibrary({ ...PROBE_DATABASE, partition: undefined }) })]);
@@ -43,7 +42,7 @@ test("PART-03 a partitioned library needs a project data owner and may leave pur
   const unowned = partitionHome(t, [probeEntry({ project_data: undefined })]);
   await assert.rejects(unowned.host.ready(), /project_data/u);
   // Todo's library kept whole, its rows not declared (`project_rows` left out): an owner the start list names must clear it itself.
-  const todo = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "todo")!;
+  const todo = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.project_plugin_id === "todo")!;
   const { project_rows: rows, ...undeclared } = todo.manifest.databases!.home!;
   assert.ok(rows, "Todo declares its project's rows, which the next case relies on");
   const purgeless = partitionHome(t, [{ ...todo.runtime!, manifest: todo.manifest, create: () => withLibrary(todo.runtime!.create(), undeclared), project_data: { owner_id: "todo", declaration: { label: "待办" } } }]);
@@ -53,8 +52,8 @@ test("PART-03 a partitioned library needs a project data owner and may leave pur
   await assert.rejects(both.host.ready(), /不能两样都有/u);
   await partitionHome(t, [probeEntry({ project_data: { owner_id: PROBE, declaration: { label: "分区探针的笔记" } } })]).ready();
 
-  // The deletion's owners come from the build's catalog as well (project-deleted-owners.ts): there, too, only a partitioned one may leave out purge.
-  const catalog = BUILTIN_PLUGIN_CATALOG as PluginRegistration[], shipped = catalog.find(entry => entry.project_plugin_id === PROBE)!;
+  // The deletion's owners come from the platform's registration list as well (project-deleted-owners.ts; W5-02 PR-B): there, too, only a partitioned one may leave out purge.
+  const catalog = PLATFORM_PLUGIN_REGISTRATIONS as PluginRegistration[], shipped = catalog.find(entry => entry.project_plugin_id === PROBE)!;
   const elsewhere = mkdtempSync(join(tmpdir(), "plugin-partition-owners-"));
   t.after(() => rmSync(elsewhere, { recursive: true, force: true }));
   catalog.push({ ...shipped, project_plugin_id: "purgeless", project_data: { label: "没有清理办法的数据" }, runtime: undefined });

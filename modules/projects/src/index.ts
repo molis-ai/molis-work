@@ -103,6 +103,10 @@ export class ProjectsModule implements ProjectsApplicationApi {
     this.deletionSteps = new ProjectDeletionSteps(options.db, now);
     const withSteps = (receipt: StoredProjectDeletion): ProjectDeletionRecord => ({ ...this.records.deletionRecord(receipt), owner_steps: this.deletionSteps.list(receipt.deletion_id) });
     this.query = {
+      storedProjectPluginMembership: projectId => {
+        this.records.get(projectId);
+        return { plugins: repository.listProjectPlugins(projectId), hidden: repository.listHiddenPlugins(projectId) };
+      },
       listProjectPlugins: (projectId) => this.records.listPlugins(projectId),
       listHiddenPlugins: (projectId) => this.records.listHidden(projectId),
       listProjects: () => this.records.list(),

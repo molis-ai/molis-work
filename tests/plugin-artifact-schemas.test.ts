@@ -65,9 +65,13 @@ test("RAC-414: the plugin's project deletion removes originals written by the mo
   } finally { await rm(home, { recursive: true, force: true }); }
 });
 
-test("RAC-413: the Host imports no 成果库 plugin package: its artifact code comes from the module", () => {
-  assert.ok(!read("apps/local-host/package.json").includes("molis-work-plugin-artifacts"), "the Host does not depend on the plugin package");
+// 统筹 10-25: the generated platform registry takes every plugin's registration, pure data, through the plugin's `/registration`
+// subpath; that is the one path every plugin has alike (W5-02 PR-B), so the Host's package depends on the plugin package for it.
+// Beyond it the Host takes nothing of the 成果库 plugin: no other file imports it, and that file imports no other subpath.
+test("RAC-413: the Host imports no 成果库 plugin code: only the generated registry takes its registration, its artifact code comes from the module", () => {
   const importers = readdirSync(new URL("../apps/local-host/src/", import.meta.url), { recursive: true }).filter(file => file.endsWith(".ts")
     && read(`apps/local-host/src/${file}`).includes("@molis-ai/molis-work-plugin-artifacts"));
-  assert.deepEqual(importers, []);
+  assert.deepEqual(importers, ["plugin-registry.generated.ts"], "no Host file but the generated registry names the plugin package");
+  const specifiers = [...read("apps/local-host/src/plugin-registry.generated.ts").matchAll(/["'](@molis-ai\/molis-work-plugin-artifacts[^"']*)["']/g)].map(match => match[1]);
+  assert.deepEqual(specifiers, ["@molis-ai/molis-work-plugin-artifacts/registration"], "and it takes the registration only");
 });

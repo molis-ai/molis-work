@@ -159,6 +159,8 @@ PG-095、PG-111 不进这几个 PR，评估与统筹的裁定见 §7。
 
 `home-plugin-http.ts` 的 4 处改查宿主的 Home 登记（`host.homePlugins`）而不是目录：页面按短 id 找已登记的 Home 插件；`routeProject` 对每个 Home 插件（含装上的）都核「项目存在且显示它」，键对随宿主发布的是 `project_plugin_id`，对装上的是 plugin id（`PLUGIN_ID` 带点、短 id 不带，不撞）；`homePageContext`、`renderHomePluginStages` 遍历 Home 登记。项目里存的插件清单不改键。
 
+**统筹 10-25 定①**（插件同等待遇，用户 10-18）：不随宿主发布的 Home 插件按个人插件算，每个项目都显示，项目隐藏了才不显示。做法：宿主的 Home 登记（`HomePluginHost.outsideBuild()`：起动名单之外、没有项目一半的，按 plugin id）经 `apps/local-host/src/home-registration.ts` 交给目录的 `isPersonal`（隐藏清单只收登记里有的 id，请求给的不算）和 #1266 的同一个判断：`projectReachablePlugins` 加可选的 `outsideBuild`（默认空，不传就到不了），`reachEntry` 对这类插件给 `{ personal: true, project_plugin_id: <plugin id> }`；动作可用性、`homeProjectReach`、`homeRouteProjectPlugins` 都用它，不另写判断。双实例的照旧经项目一半。RAC-569 另加：别的项目隐藏它不影响这个项目；登记里没有的 id 不能隐藏。
+
 ### PR-B4 项目级监督器条目改成生成（PG-067，单独一个 PR）
 
 - 登记加 `project_runtime?: { create; package_name; factory_export }`（与 `runtime` 分开：Shelf 是双实例，两半都要）。12 条不带端口的条目写进各自的登记；生成的平台文件带出它们；`project-plugins.ts` 只留 Files 一条手写（它要 `readable` 端口，等 PG-005 与 X-5，BL-616），其余按登记生成，库在 Home 的（`manifest.databases.home`）只在有 Home 目录时加，与今天的 `homeLibraryPlugins()` 一致。

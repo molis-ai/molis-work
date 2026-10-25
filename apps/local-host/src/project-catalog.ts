@@ -6,6 +6,7 @@ import { ManagedProjectFiles } from "./managed-project-files.js";
 import { isPersonalSpace, PERSONAL_SPACE_PROJECT_ID, PERSONAL_SPACE_TITLE } from "./personal-space.js";
 import { BUILTIN_PLUGIN_REGISTRY } from "./plugin-registry.js";
 import { alwaysOnProjectPlugins } from "./always-on-plugins.js";
+import { homePluginsOutsideBuild } from "./home-registration.js";
 import { ManagedProjectDeletion } from "./managed-project-deletion.js";
 import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
 import { DemoProjectLifecycle } from "./demo-project-lifecycle.js";
@@ -38,6 +39,7 @@ import type {
   AddProjectPluginInput,
   ProjectPluginId,
   ProjectPluginMembership,
+  ProjectPluginRegistry,
   RemoveProjectPluginInput,
   AddWorkspaceProjectInput,
   ChangeWorkspaceProjectInput,
@@ -161,6 +163,16 @@ async function prepareCatalogStorage(options: MolisWorkProjectCatalogOptions) {
 }
 
 /** Local catalog resource lifetime and explicit composition of Project, Session and platform owners. */
+/**
+ * The registry a Home's projects validate against. Which Plugins a project may enable comes from what this build ships, not from a list
+ * compiled into Projects; which are 常开 is worked out from the install records and the Home's consent ledger each time it is asked. The
+ * Home's own registration adds its personal plugins outside the build, so a project can hide those too (#679).
+ */
+function homeProjectPlugins(homeDirectory: string): ProjectPluginRegistry {
+  return { ...BUILTIN_PLUGIN_REGISTRY, alwaysOn: () => alwaysOnProjectPlugins(homeDirectory),
+    isPersonal: pluginId => BUILTIN_PLUGIN_REGISTRY.isPersonal?.(pluginId) === true || homePluginsOutsideBuild(homeDirectory).includes(pluginId) };
+}
+
 export class MolisWorkProjectCatalog {
   readonly homeDirectory: string;
   readonly projectsDirectory: string;
@@ -193,9 +205,7 @@ export class MolisWorkProjectCatalog {
     this.databasePath = path.join(this.projectsDirectory, "catalog.db");
     this.projects = new ProjectsModule({
       db,
-      // Which Plugins a project may enable comes from what this build ships, not from a list compiled into Projects;
-      // which are 常开 is worked out from the install records and the Home's consent ledger each time it is asked.
-      plugins: { ...BUILTIN_PLUGIN_REGISTRY, alwaysOn: () => alwaysOnProjectPlugins(homeDirectory) },
+      plugins: homeProjectPlugins(homeDirectory),
     });
     this.runtimeContexts = createRuntimeContextModule({
       db, ledger, projects: this.projects, validation: contextBindingValidation,

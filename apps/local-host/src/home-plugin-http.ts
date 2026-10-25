@@ -17,8 +17,8 @@ import { projectRouteControl } from "./plugin-actions-client.js";
 import { pluginRouteControl } from "./plugin-route-control.js";
 import { L, htmlLang, clientI18nScript } from "./web-locale.js";
 
-/** The project a Home route names: where its library is and the plugins it shows (personal ones unless hidden there); null when there is none. */
-export type HomeRouteProjectPlugins = (projectId: string) => Promise<{ readonly database_path: string; readonly display_name?: string; readonly plugins: readonly string[] } | null>;
+/** The project a Home route names: where its library is and whether it reaches a Home plugin (`projectReachablePlugins`); null when there is none. */
+export type HomeRouteProjectPlugins = (projectId: string) => Promise<{ readonly database_path: string; readonly display_name?: string; reaches(pluginId: string): boolean } | null>;
 
 /**
  * Called only after the common local transport Host/Origin/token checks. No business dispatch list lives here. A plugin's own route
@@ -72,9 +72,8 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   }
   if (operation === "retry") { sendLocalWebJson(response, 200, { ready: true }); return true; }
   let project: (LocalHostProjectReference & { display_name?: string }) | undefined;
-  const key = registered.find(item => item.manifest.plugin_id === pluginId)?.key ?? pluginId;
   if (prefixed) {
-    const found = await routeProject(prefixed[1]!, key, projectPlugins, split, shippedKey(key, pluginId));
+    const found = await routeProject(prefixed[1]!, pluginId, projectPlugins, split);
     if (found instanceof ActionError) { const refused = actionErrorResponse(found); sendLocalWebJson(response, refused.status, refused.body); return true; }
     project = found;
   }
@@ -116,7 +115,7 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
     abort.signal.throwIfAborted();
     routed = projectRouteControl(plain, project?.project_id ?? null, project ? host.actionClient(project) : host.homeActionClient(), async () => {
       if (!project || !prefixed) return;
-      const found = await routeProject(prefixed[1]!, key, projectPlugins, split, shippedKey(key, pluginId));
+      const found = await routeProject(prefixed[1]!, pluginId, projectPlugins, split);
       if (found instanceof ActionError) throw found;
     }, caller);
     const handled = await dispatchRuntimePluginRoute(platform, pluginId, operation, request, response, url, LOCAL_PERSON_ACTOR_ID, {}, {
@@ -134,23 +133,20 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   return true;
 }
 
-/** Whether a Home plugin's key is the project key of a plugin this build ships with that id. */
-function shippedKey(key: string, pluginId: string): boolean {
-  return PLATFORM_PLUGIN_REGISTRATIONS.some(item => item.runtime?.scope === "home" && item.project_plugin_id === key && item.manifest.plugin_id === pluginId);
-}
-
 /**
- * The project the path names, while it exists and shows this plugin (its Home key is in the project's list); otherwise why not. Asked
- * when the route starts and before each write. A dual-instance plugin the build does not ship (a Host's fixture) has no key in the
- * project's list: like its project half, which every project reaches, it is shown wherever the project exists.
+ * The project the path names, while it exists and reaches this plugin (the shared judgement: a shipped plugin while the project shows it,
+ * a personal Home plugin outside the build unless the project hid it); otherwise why not. Asked when the route starts and before each
+ * write. A dual-instance plugin the build does not ship (a Host's fixture) has no key in the project's list: like its project half,
+ * which every project reaches, it is shown wherever the project exists.
  */
-async function routeProject(segment: string, key: string, projectPlugins: HomeRouteProjectPlugins | undefined, dualInstance: boolean, shipped: boolean)
+async function routeProject(segment: string, pluginId: string, projectPlugins: HomeRouteProjectPlugins | undefined, dualInstance: boolean)
   : Promise<(LocalHostProjectReference & { display_name?: string }) | ActionError> {
   let projectId: string;
   try { projectId = decodeURIComponent(segment); } catch { return new ActionError("actions.missing", "找不到这个项目"); }
   const found = projectPlugins ? await projectPlugins(projectId) : null;
   if (!found) return new ActionError("actions.missing", "找不到这个项目");
-  if (!found.plugins.includes(key) && (shipped || !dualInstance)) return new ActionError("actions.plugin_disabled", "此项目未启用该插件");
+  const shipped = PLATFORM_PLUGIN_REGISTRATIONS.some(item => item.runtime?.scope === "home" && item.manifest.plugin_id === pluginId);
+  if (!found.reaches(pluginId) && (shipped || !dualInstance)) return new ActionError("actions.plugin_disabled", "此项目未启用该插件");
   return { ...molisWorkHostProjectReference({ databasePath: found.database_path, projectId }), display_name: found.display_name };
 }
 

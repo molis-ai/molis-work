@@ -3,14 +3,23 @@ import type { ActionAvailability, ActionCallContext, ActionView } from "@molis-a
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import type { MolisWorkProjectCatalog } from "./project-catalog.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
+import { homePluginsOutsideBuild } from "./home-registration.js";
 
 /**
  * The plugins a project's actions and routes may reach right now (PG-013): what it shows (enabled ones, and personal ones the person
  * did not hide there) and what those embed. `null` where there is no project record (a deleted project): nothing is hidden there.
- * The one list actions and routes share; it reads the catalog on every call, so hiding and unhiding count at once.
+ * The one list actions and routes share; it reads the catalog on every call, so hiding and unhiding count at once. `outsideBuild` is
+ * the Home's personal plugins its build does not ship (`homePluginsOutsideBuild`, #679): reached unless the project hid them. A caller
+ * that passes none reaches none of them.
  */
-export function projectReachablePlugins(catalog: Pick<MolisWorkProjectCatalog, "listProjectPlugins" | "listHiddenPlugins">, projectId: string): ReadonlySet<string> | null {
-  try { return availableProjectPluginIds(shownProjectPlugins(catalog.listProjectPlugins(projectId), catalog.listHiddenPlugins(projectId))); }
+export function projectReachablePlugins(catalog: Pick<MolisWorkProjectCatalog, "listProjectPlugins" | "listHiddenPlugins">, projectId: string,
+  outsideBuild: readonly string[] = []): ReadonlySet<string> | null {
+  try {
+    const hidden = catalog.listHiddenPlugins(projectId);
+    const reachable = new Set(availableProjectPluginIds(shownProjectPlugins(catalog.listProjectPlugins(projectId), hidden)));
+    for (const key of outsideBuild) if (!hidden.includes(key)) reachable.add(key);
+    return reachable;
+  }
   catch (error) {
     // Deleted or standalone projects have no catalog installation; never crash MCP discovery or grant access.
     if ((error as { code?: string })?.code === "catalog.project_not_found") return null;
@@ -23,12 +32,21 @@ export function pluginReachable(entry: Pick<PluginRegistration, "personal" | "pr
   return reachable === null ? entry.personal === true : reachable.has(entry.project_plugin_id);
 }
 
+/**
+ * What the reach judgement knows of a plugin in this Home: its catalog entry, or, for a personal Home plugin outside the build, the same
+ * shape keyed by its plugin id. Anything else (a project's own Runtime plugin) is not the catalog's to judge.
+ */
+export function reachEntry(homeDirectory: string | undefined, pluginId: string): Pick<PluginRegistration, "personal" | "project_plugin_id"> | undefined {
+  return PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === pluginId)
+    ?? (homePluginsOutsideBuild(homeDirectory).includes(pluginId) ? { personal: true, project_plugin_id: pluginId } : undefined);
+}
+
 /** Bundled plugins use the existing project installation record; Runtime plugins enforce their own grants. */
 export function projectActionAvailability(withCatalog: LocalWebCatalogRunner, homeDirectory: string) {
-  const entryOf = (action: Pick<ActionView, "provider">) => PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === action.provider.plugin_id);
+  const entryOf = (action: Pick<ActionView, "provider">) => action.provider.plugin_id ? reachEntry(homeDirectory, action.provider.plugin_id) : undefined;
   const read = async (caller: ActionCallContext): Promise<ReadonlySet<string> | null> => {
     if (!caller.project_id) return null;
-    return withCatalog({ homeDirectory }, catalog => projectReachablePlugins(catalog, caller.project_id!));
+    return withCatalog({ homeDirectory }, catalog => projectReachablePlugins(catalog, caller.project_id!, homePluginsOutsideBuild(homeDirectory)));
   };
   const state = (action: Pick<ActionView, "provider">, reachable: ReadonlySet<string> | null): ActionAvailability => {
     const entry = entryOf(action);

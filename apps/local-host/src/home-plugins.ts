@@ -15,6 +15,7 @@ import { pluginFixtureEntries, pluginHomeFor, fixtureDeclarationsFor, type Plugi
 import { assertOwnerFilesEntries } from "./plugin-owner-files-entries.js";
 import { openHomePluginStore } from "./home-plugin-store.js";
 import type { PluginPlatform } from "./plugin-platform.js";
+import { bindHomeRegistration } from "./home-registration.js";
 
 export interface HomePluginEntry {
   readonly scope: "home";
@@ -39,8 +40,11 @@ export class HomePluginHost {
   private closing?: Promise<void>;
   private retryable = false;
   private releaseProjectOwners?: () => void;
+  private readonly releaseRegistration: () => void;
   constructor(private readonly options: { home: string; actorId: string; registry: ActionRegistryPort; client: ActionClient;
-    entries: readonly HomePluginEntry[]; fixtures?: readonly PluginFixture[]; projectReach?: PluginProjectReach }) {}
+    entries: readonly HomePluginEntry[]; fixtures?: readonly PluginFixture[]; projectReach?: PluginProjectReach }) {
+    this.releaseRegistration = bindHomeRegistration(options.home, this, () => this.outsideBuild());
+  }
 
   ready(): Promise<HomePluginPlatform> {
     if (this.closed) return Promise.reject(new ActionError("actions.plugin_unavailable", "Home 插件宿主已关闭"));
@@ -68,6 +72,13 @@ export class HomePluginHost {
   registered(): readonly { readonly key: string; readonly manifest: PluginManifest }[] {
     return [...this.options.entries.map(entry => ({ key: entry.key ?? entry.manifest.plugin_id, manifest: entry.manifest })),
       ...pluginFixtureEntries(this.options.fixtures ?? []).map(entry => ({ key: entry.definition.manifest.plugin_id, manifest: entry.definition.manifest }))];
+  }
+  /**
+   * The registered Home plugins outside the start list that have no project half, by plugin id: personal plugins of every project
+   * unless it hides them (#679, B3). A dual-instance one is reached through its project half, as before.
+   */
+  outsideBuild(): readonly string[] {
+    return pluginFixtureEntries(this.options.fixtures ?? []).map(entry => entry.definition.manifest.plugin_id).filter(id => !this.dualInstance(id));
   }
   installations(): PluginInstanceRecord[] { return this.platform?.runtime.list() ?? []; }
   manifest(pluginId: string): PluginManifest | undefined {
@@ -97,6 +108,7 @@ export class HomePluginHost {
   }
   close(): Promise<void> {
     this.closed = true;
+    this.releaseRegistration();
     return this.closing ??= (async () => {
       try { await this.opening; } catch { /* Startup failure was reported to its callers and released by open(). */ }
       await this.release();

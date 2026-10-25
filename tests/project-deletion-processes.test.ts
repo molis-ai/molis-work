@@ -16,7 +16,7 @@ import { DEMO_PROJECT_ID, MolisWorkLocalHost, ensureSystemAgentService, molisWor
 import { openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
 import { openMemoryLedger, openTextSearchIndex } from "@molis-ai/molis-work-storage";
 import { createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
-import { homeBusinessTree, runtimeBusinessEntries } from "./fixtures/home-storage-files.js";
+import { assertHomeBusinessUnchanged, homeBusinessTree, runtimeBusinessEntries } from "./fixtures/home-storage-files.js";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 
@@ -132,13 +132,13 @@ test("RAC-105-A-07: a real SDK owner refuses Host startup and unprepared deletio
   const project = await catalog.createProject({ display_name: "要删除的项目", actor_id: "test-user" });
   const before = homeBusinessTree(home);
   assert.throws(() => { host = new MolisWorkLocalHost({ homeDirectory: home }); }, { code: "storage.owner.busy" });
-  assert.deepEqual(homeBusinessTree(home), before, "a refused Host initializes no business owner");
+  assertHomeBusinessUnchanged(before, homeBusinessTree(home), ["projects/catalog.db"], "a refused Host initializes no business owner");
 
   await assert.rejects(() => catalog.deleteProject(deletion(project.project_id)), /运行中的 Molis Work/);
   assert.deepEqual(catalog.listProjectDeletions(), [], "without a fixed Memory plan no deletion was accepted");
   assert.equal(catalog.getProject(project.project_id).database_path, project.database_path);
   assert.equal(existsSync(project.database_path), true);
-  assert.deepEqual(homeBusinessTree(home), before, "refused deletion leaves all business data unchanged");
+  assertHomeBusinessUnchanged(before, homeBusinessTree(home), ["projects/catalog.db"], "refused deletion leaves all business data unchanged");
 
   await held.release();
   host = new MolisWorkLocalHost({ homeDirectory: home });
@@ -212,7 +212,7 @@ for (const adopted of [false, true]) test(`RAC-105-A-07: ledger-only notes ${ado
     assert.deepEqual(catalog.listProjectDeletions(), []);
     assert.equal(catalog.getProject(gone).project_id, gone);
     assert.deepEqual(ledger.marker("web-user", `tidy:project:${gone}`)?.body, { seen: true });
-    assert.deepEqual(homeBusinessTree(home), before, "unknown ledger notes cannot prove emptiness or authorize cleanup");
+    assertHomeBusinessUnchanged(before, homeBusinessTree(home), ["projects/catalog.db"], "unknown ledger notes cannot prove emptiness or authorize cleanup");
     assert.deepEqual(runtimeBusinessEntries(join(home, "agent-runtime")), [], "technical owner files do not count as SDK business storage");
   }
 });

@@ -156,7 +156,7 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 
 | 文件 | 单元 | 判定 | 计划或理由 | PR |
 | --- | --- | --- | --- | ---: |
-| `agent-host-composition.ts` | `composeAgentHost` 函数 261 行 | 拆 · W5-10 | `composeAgentHost` 的 30 条语句里，大块是一段段“登记一类能力并留下撤销函数”：git 操作（19 和 20 行）、git 结果（25）、准备写入者（24），另有 `integrationSource`（27）。每一类各成一个 `register…` 函数，主函数按顺序调用并收集撤销函数。 | 7 |
+| `agent-host-composition.ts` | `composeAgentHost` 函数 261 行 | 已在阈值下（W5-10 agent-host 份核对） | main `54437998c` 实测 87 行，已不是巨大单元：各类能力的登记已在此前的改动里移出成独立函数。不用再拆。 | 7 |
 | `assistant/assistant-service.ts` | 文件 2,081 行<br>`AssistantService` 类 1,663 行 / 99 方法 | 拆 · W5-10 | 决定 #3 已定：先在原处按包形边界拆，再搬成独立包。W4-05 已做：提醒与跟进协作者 `AssistantFollowUps`（`assistant-followups.ts`：到期提醒、定时轮次、关注规则，带自己的表 `AssistantFollowUpRecords`，只经 `AssistantFollowUpPorts` 依赖宿主，测试 `tests/assistant-followups-collaborator.test.ts`）是样板；W5-10 再抽委派（`delegation`）、材料轮次（`roundMaterials`）、记忆桥（`memory*`）、建议与撤销（`recordOffer`、`runCard`、`undo`）；其余成组的方法也要有去处：通知与扫描（一次扫描新材料的逻辑已抽到 `assistant-material-scan.ts` 的 `scanNewMaterialOnce`，这只是第一步，还不是包形：`ScanEnvironment` 里放的是整个 `AssistantStore` 类，模块还直接导入兄弟文件 `assistant-relations.js` 的 `identity`；单次运行的保护 `#scanning` 和 `material_scan` 设置的写入仍在服务的 `scanNewMaterial` 里。别的通知方法照这个形状抽出，同时把 store 收窄成端口、去掉对兄弟实现的导入）、作业跟踪（prologue-adoption A3 已抽成 `AssistantJobs`，`assistant-jobs.ts`，作业的事实在工作图上）、派发与交接、预算与用量、工作对象读取、方法选择、恢复、角色、诊断。目标是每个协作者不超过 25 个方法、300 行。“包形”的意思是：协作者只通过自己的端口类型依赖宿主，不 import 兄弟协作者的实现，所以最后搬包是整目录移动。拆完后 W5-10 末尾搬成独立包。 | 15 |
 | `assistant/assistant-store.ts` | `AssistantStore` 类 267 行 / 39 方法 | 拆 · W5-10 | W4-05 已带走提醒与跟进的表（`store.followUps`）。其余方法按表分组：回合与卡片、通知（`raiseNotice`、`settleNotices`）、提醒与跟进（`followUps`、`saveFollowUp`、`unsettled`）、作业与撤销（`jobs`、`undos`）、用量（`recordUsage`、`usageOf`）、设置。每个协作者带走自己的表访问，随 `AssistantService` 的拆分一起切开。 | 10 |
 | `browser/browser-host.ts` | `BrowserPage` 类 443 行 / 45 方法 | 拆 · W5-10 | `BrowserPage` 的 45 个方法分四组：连接与目标（`attach`、`listenTo`、`targetGone`、`adoptPopup`）、视口与画面（`refreshScreencast`、`applyViewport`、`resize`、`capture`）、导航与历史、输入与对话框/文件/下载（`input`、`answerDialog`、`chooseFiles`、`download*`）。各成协作者，页面类只持有它们。 | 2 |
@@ -200,7 +200,7 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 
 ### Agent Host `horizontal/agent-host`（唯一直接依赖 `@prologue/sdk` 的包）
 
-15 个单元（拆 15），11 个文件。路径前缀 `horizontal/agent-host/src/`。
+15 个单元（已拆 6、已在阈值下 3、拆 5（代码等 #1064）、改判例外 1（代码等 #1064）；现存的 6 个巨大单元在 4 个文件里，全是 #1064 正在改的文件），11 个文件。路径前缀 `horizontal/agent-host/src/`。
 
 R-38 第 1 片的本轮评审修复（PR #1226，2026-10-24，Codex）：只修 `prologue-git.ts` 抽出的 `settleReview` 解构 `readDecision` 后丢失 Ports 接收者的问题，保留 `ports.readDecision(...)` 方法调用；不改变四文件拆分、权限、取消、SDK Effects 或公共 API。目标是这条既有端口合同的定向工程验证通过，之后交独立增量复查与共同集成，不代表 R-38 整线完成。
 
@@ -211,16 +211,16 @@ R-38 第 1 片的本轮评审修复（PR #1226，2026-10-24，Codex）：只修 
 | 文件 | 单元 | 判定 | 计划或理由 | PR |
 | --- | --- | --- | --- | ---: |
 | `adapters/plugin-builder.ts` | `createPluginBuilderAgent` 函数 204 行<br>`run` 函数 153 行 | 已拆（W5-10，R-38 第 1 片） | 已做：代码角色的权限钩子（`frozenAuthority`）、`plugin-checks`（`pluginChecks`）、Skill 挂载、截图入库、事件记账、重启时标记中断的记录各成模块级函数，`run` 只剩执行顺序。原计划：`run` 里 `execution` 一段 127 行，另有 `guard`（5）、`record`（3）；`createPluginBuilderAgent` 里 `authority` 16 行。执行体、守卫、记录、权限各成函数。`run` 内嵌在 `createPluginBuilderAgent` 里（同一段计两次）。 | 5 |
-| `adapters/prologue-action-gateway.ts` | `prologueActionGateway` 函数 174 行 | 拆 · W5-10 | `executors` 表（51 行）、`invoke`（30）、`tools` 装配（24）各成函数；`memoryExecutors`、`delegationExecutors` 已是模块级函数，和 `executors` 放进同一个目录。 | 4 |
-| `adapters/prologue-checkpoints.ts` | `createPrologueCheckpoints` 函数 221 行 | 拆 · W5-10 | `capability` 对象 125 行：`busy`、`restore`、`context` 等方法各抽成函数，`context` 里拼“宿主的实际操作记录”提示文字的一段单独成文件；`restore`（30）、`document`、`settle`（各 15）已是独立块。 | 1 |
+| `adapters/prologue-action-gateway.ts` | `prologueActionGateway` 函数 174 行 | 已在阈值下（W5-10 agent-host 份核对） | main `54437998c` 实测 148 行，已不是巨大单元（`executors` 等已在此前的改动里移出）；离 150 行很近，再加功能先把要加的部分放进模块级函数。代码在 #1064 里还会改，这里不动。 | 4 |
+| `adapters/prologue-checkpoints.ts` | `createPrologueCheckpoints` 函数 221 行 | 已拆（W5-10 agent-host 份） | 已做：闭包状态收进 `CheckpointState`，回退预览与审查请求（`rewindDocument`、`rewindRequest`）、结果收口（`settleRewind`）、重启后恢复（`restoreRewinds`）、给下一轮的“宿主的实际操作记录”（`rewindContext`）、检查点列表（`listCheckpoints`）、准备回退（`prepareRewind`）各成模块级函数，`createPrologueCheckpoints` 只装配；最大的 `prepareRewind` 67 行。纯搬移，行为不变。 | 1 |
 | `adapters/prologue-git.ts` | `createPrologueGitReviews` 函数 188 行 | 已拆（W5-10，R-38 第 1 片） | 已做：人工核对的绑定搬到 `prologue-git-recovery.ts`（`bindGitRecovery`），`requestOf`、读审查归属、结果收口成模块级函数。原计划：返回的对象 72 行、`bindRecovery` 50 行、`restore` 23 行；操作各成函数，恢复绑定独立成文件。 | 2 |
 | `adapters/prologue-mcp.ts` | `createPrologueMcpLibrary` 函数 232 行 | 已拆（W5-10，R-38 第 1 片） | 已做：读配置、关连接、视图、凭据解析、按传输方式建配置、连接、两种校验、已连接工具各成模块级函数，共用状态经 `McpState` 传入。原计划：`library` 对象 165 行：`list`、`save` 等方法各成函数，`save` 里按传输方式（stdio、http）的分支各成校验函数；`refreshSelected`（13）、`view`（10）随各自的操作。 | 2 |
 | `adapters/prologue-messages.ts` | `createSessionMessages` 函数 170 行 | 已拆（W5-10，R-38 第 1 片） | 已做：发信钩子（`guardSessionSend`）、给收信轮的文字、给人看的视图成模块级函数。原计划：只超 20 行。返回对象 85 行、钩子注册 33 行、`unsubscribe` 21 行；把钩子注册与返回对象分成两个函数。 | 0 |
-| `adapters/prologue-stream.ts` | `applyPrologueEvent` 函数 304 行 | 拆 · W5-10 | `applyPrologueEvent` 是一个 298 行的 `switch`；每种事件一个处理函数，`switch` 只分发。 | 6 |
-| `adapters/prologue-taskboard.ts` | `createPrologueTaskBoards` 函数 220 行 | 拆 · W5-10 | 返回对象 147 行、钩子 31 行、`unsubscribe` 17 行：钩子注册、跟随（`following`/`stopFollowing`）、返回的任务板操作各成函数。 | 2 |
-| `adapters/prologue.ts` | 文件 1,026 行<br>`PrologueAgentAdapter` 类 658 行 / 18 方法<br>`(module) callback 1` 函数 187 行 | 拆 · W5-10 | 文件、类、私有方法三个单元互相包含：文件 1,026 行 > `PrologueAgentAdapter` 658 行/18 方法 > 私有方法 `#start` 187 行（门禁里记作 `(module) callback 1`，见 §1）。`#start` 按阶段拆；类里还有 `constructor`（81）、`#publish`（63）；会话读写（`createSession`、`readSession`、`#loadSession`、`#restoreSession`）与运行控制（`start`、`control`、`observe`）分成两个协作者；类型与端口声明另放文件，文件回到 800 行以下。W4-06 不含它。 | 8 |
-| `capability-registration.ts` | `registerAgentHostCapabilities` 函数 393 行 | 拆 · W5-10 | `registerAgentHostCapabilities` 的 `disposers` 数组占 326 行；按能力族分成几个 `register…` 函数，主函数合并它们的撤销函数。 | 2 |
-| `index.ts` | `AgentHost` 类 409 行 / 12 方法<br>`start` 函数 267 行 | 拆 · W5-10 | `start` 267 行、53 条语句，`if` 块最大 22 行：预算与执行计划冻结、提示词解析、角色与运行时能力检查、工作区模式检查（含无工作区推理的限制）、起运行并回收（`handle` 23 行）各成函数；`AgentHost` 的 12 个方法其余部分（`availableRoles` 27、`createSession` 20）随之。`start` 在类里（类和方法各计一次）。 | 8 |
+| `adapters/prologue-stream.ts` | `applyPrologueEvent` 函数 198 行（原 304 行） | 改判例外 · 代码等 #1064 | 按新口径（2026-10-25）重判：它只做一件事，把 Prologue 的一种运行事件折进运行视图，`switch` 的每个分支是一种事件（`prompt`、各类增量、审批与提问、用量、压缩、结束三态），分支之间不共享别的职责，属协议适配的单一分发，标 `cohesive-unit`。`size` 必须等于门禁实测，而 #1064 正在改这个文件，条目等 #1064 合入后按当时的实测写。 | 6 |
+| `adapters/prologue-taskboard.ts` | `createPrologueTaskBoards` 函数 220 行 | 已在阈值下（W5-10 agent-host 份核对） | main `54437998c` 实测 129 行，已不是巨大单元（此前的改动已把钩子与跟随移出）；不用再拆。 | 2 |
+| `adapters/prologue.ts` | 文件 965 行<br>`PrologueAgentAdapter` 类 602 行 / 18 方法 | 拆 · 代码等 #1064 | 按新口径重判仍是拆：类里混着会话读写（`createSession`、`readSession`、`#loadSession`、`#restoreSession`）、运行控制（`start`、`control`、`observe`）与发布（`#publish`），是几件事，不是一个状态机。私有方法 `#start` 已降到阈值下，不再单列。会话读写与运行控制分成两个协作者，类型与端口声明另放文件，文件回到 800 行以下。#1064（记忆线）正在改这个文件，R-38 等它合入再动代码。 | 8 |
+| `capability-registration.ts` | `registerAgentHostCapabilities` 函数 346 行（原 393 行） | 拆 · 代码等 #1064 | 按新口径重判仍是拆：它是按能力族排的一串动作登记（运行时与角色、方法与 MCP、会话与运行、子代理、项目工作、人和会话的消息、后台与项目轮次），每族各有自己的授权检查，族之间互不依赖；会话动作和写后检查器已照这个形状搬成 `registerSessionActions`、`registerWriteCheckerActions`，其余各族照样各成一个 `register…` 函数，主函数合并撤销函数。#1064 正在改这个文件，代码等它合入。 | 2 |
+| `index.ts` | `AgentHost` 类 381 行 / 12 方法<br>`start` 函数 252 行 | 拆 · 代码等 #1064 | 按新口径重判仍是拆：`start` 依次做预算与执行计划冻结、提示词解析、角色与运行时能力检查、工作区模式检查（含无工作区推理的限制）、起运行并回收，是几件事；各成函数后 `AgentHost` 的行数随之回到阈值下。`start` 在类里（类和方法各计一次）。#1064 正在改这个文件，代码等它合入。 | 8 |
 
 ### 其他横向服务 `horizontal/*`（含平台产品服务：记忆、放置、搜索）
 

@@ -4,8 +4,8 @@ import type {
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
 import { pathLabel } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import { renderCompanionBrowserStage, type CompanionStageModel } from "@molis-ai/molis-work-design-system";
 
+import { renderCompanionBrowserStage, type CompanionStageModel } from "./companion-stage.js";
 import type { GitListItem, GitView } from "./projection.js";
 import { GIT_SENTENCE_TABLE, sayHostSentence, sayUpstream } from "./sentences.js";
 

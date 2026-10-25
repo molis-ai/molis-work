@@ -1,5 +1,5 @@
 import type { UiContribution, UiContributionDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
-import { icon, renderPluginStageShell } from "@molis-ai/molis-work-design-system";
+import { icon, renderPluginStageShell } from "@molis-ai/molis-work-plugin-sdk/ui";
 export const COGNIA_UI_CONTRIBUTION_ID = "io.molis.work.cognia.ui.v1";
 export interface CogniaUiModel { primitives: { escape(value: unknown): string; text(value: string): string } }
 export const cogniaUiDescriptor: UiContributionDescriptor = { contribution_id: COGNIA_UI_CONTRIBUTION_ID, plugin_id: "io.molis.work.cognia", kind: "primary-page", navigation_id: "cognia", label: "Cognia", surfaces: [{ surface_id: "directory", target_slot_id: "workbench.directory", format: "declarative-html" }, { surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" }], slots: [] };

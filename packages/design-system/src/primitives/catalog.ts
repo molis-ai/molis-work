@@ -1,12 +1,10 @@
 import { renderCatalogExamples } from "../catalog-examples.js";
-import { icon, ICON_LIBRARY, PLUGIN_ICON } from "../icons.js";
+import { icon, renderButton, renderDirectoryRow, renderStatusMark } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { ICON_LIBRARY, PLUGIN_ICON } from "../icons.js";
 import { renderStateRingCatalog } from "./status-ring-catalog.js";
 import { renderProjectMonogram } from "../monogram.js";
 import { MW_ACTION_TONES, MW_CONTENT_MARKS, MW_CONTENT_SURFACES, MW_HUES, MW_STATUS_TONES, MW_SURFACES, MW_TYPE_TONES } from "../palette.js";
-import { renderButton } from "./button.js";
 import { renderBarContext, renderBarStatus, renderBrief, renderBriefFocus, renderBriefRecent, renderBriefSection, renderBriefStatus, renderCaption, renderFileGroup, renderFileRow, renderGoalTrack, renderSteps, renderWordmark } from "./arrival.js";
-import { renderStatusMark } from "./feedback.js";
-import { renderDirectoryRow } from "./directory.js";
 import { section, mark, specimen } from "./catalog-parts.js";
 import { CATALOG_CLIENT_SCRIPT } from "../page-clients.js";
 import { choiceSection, composeSection } from "./catalog-compose.js";

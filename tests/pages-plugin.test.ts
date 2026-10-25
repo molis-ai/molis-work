@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
+import { placeFloating, scrollShouldFollow } from "@molis-ai/molis-work-plugin-sdk/browser";
 import {
   PERSONAL_PLUGIN_IDS,
   PROJECT_SCOPED_PLUGIN_IDS,
@@ -106,9 +107,7 @@ import {
   outdentListItem,
   removeCodeIndent,
   pagesSchema,
-  placeFloating,
   scrollChildIntoView,
-  scrollShouldFollow,
   replaceEnclosingRow,
   revealHeading,
   headingIndexAt,

@@ -8,7 +8,7 @@ import type {
   ShelfItemKind,
   ShelfItemRecord,
 } from "@molis-ai/molis-work-contracts/modules/shelf";
-import { icon, renderButton } from "@molis-ai/molis-work-design-system";
+import { icon, renderButton } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { SHELF_GLYPH, glyphForKind, toneForKind } from "./glyphs.js";
 
 export const SHELF_UI_CONTRIBUTION_ID = "io.molis.work.native.shelf.ui.v1";

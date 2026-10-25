@@ -1,10 +1,11 @@
-import { ARRIVAL_MOTION_CLIENT_SCRIPT, THEME_BOOTSTRAP_SCRIPT, VISUAL_FOUNDATION_CLIENT_SCRIPT, type MolisWorkIcon } from "@molis-ai/molis-work-design-system";
+import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { ARRIVAL_MOTION_CLIENT_SCRIPT, THEME_BOOTSTRAP_SCRIPT, VISUAL_FOUNDATION_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
 import { ONBOARDING_DISMISS_CLIENT_SCRIPT } from "./browser-assets.js";
 import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { renderContextOnboarding } from "./context-onboarding-renderer.js";
 import { createArrivalShell } from "./arrival/shell.js";
 
-type OnboardingIcon = MolisWorkIcon;
+type OnboardingIcon = PluginIconName;
 export interface OnboardingRenderPrimitives {
   L(text: string, values?: Record<string, string | number>): string;
   escapeHtml(value: unknown): string;

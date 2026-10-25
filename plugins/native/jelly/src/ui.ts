@@ -1,6 +1,6 @@
 import type { UiContribution, UiContributionDescriptor, UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import { JELLY_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/jelly";
-import { icon, renderDatePicker, renderPluginStageShell } from "@molis-ai/molis-work-design-system";
+import { icon, renderDatePicker, renderPluginStageShell } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 export const JELLY_UI_CONTRIBUTION_ID = "io.molis.work.jelly.ui.v1";
 export type JellyUiSurface = "directory" | "workbench";

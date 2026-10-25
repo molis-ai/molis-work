@@ -1,6 +1,7 @@
 import type { ProjectPluginId } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { UiContributionDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
-import { registeredIconNames, type MolisWorkIcon } from "@molis-ai/molis-work-design-system";
+import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { registeredIconNames } from "@molis-ai/molis-work-design-system";
 import { PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, settingsEntries } from "./plugin-catalog.js";
 import { listWorkbenchUiContributions, WORKBENCH_UI_SLOTS } from "./ui-composition.js";
 
@@ -12,7 +13,7 @@ interface PluginSettingsNavItem {
   readonly contribution_id: string;
   readonly plugin_id: string;
   readonly label: string;
-  readonly icon: MolisWorkIcon;
+  readonly icon: PluginIconName;
   /** Where the Manifest places the view among settings pages; host pages hold 10–90 (settings-sections.ts). */
   readonly order?: number;
 }
@@ -22,12 +23,12 @@ interface PluginSettingsNavItem {
  * a page is also found by its own URL. A name the Host does not know is left out, and the page shows `settings`. Both the
  * catalog and the icon set are fixed when the package is built, so the map is made once, on first use.
  */
-let settingsIcons: ReadonlyMap<string, MolisWorkIcon> | undefined;
-function declaredSettingsIcons(): ReadonlyMap<string, MolisWorkIcon> {
+let settingsIcons: ReadonlyMap<string, PluginIconName> | undefined;
+function declaredSettingsIcons(): ReadonlyMap<string, PluginIconName> {
   if (settingsIcons) return settingsIcons;
   const known = new Set<string>(registeredIconNames());
   settingsIcons = new Map(settingsEntries([...PROJECT_SCOPED_PLUGIN_IDS, ...PERSONAL_PLUGIN_IDS])
-    .flatMap((view) => view.icon && known.has(view.icon) ? [[view.contribution_id, view.icon as MolisWorkIcon] as const] : []));
+    .flatMap((view) => view.icon && known.has(view.icon) ? [[view.contribution_id, view.icon as PluginIconName] as const] : []));
   return settingsIcons;
 }
 

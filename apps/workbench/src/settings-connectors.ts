@@ -1,4 +1,4 @@
-import { icon as designIcon } from "@molis-ai/molis-work-design-system";
+import { icon as designIcon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderFunctionsSettings } from "./functions/settings-ui.js";
 import type { ConnectorConnectionView, ConnectorDirectoryGroupId } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { connectorPurpose, credentialInputs, pathLabel, renderConnectorSetup, recommendedMethod, readyAccountLogin } from "./settings-connector-guide.js";

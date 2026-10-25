@@ -3,7 +3,7 @@ import type {
   UiContributionDescriptor,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
-import { icon, renderPluginStageShell } from "@molis-ai/molis-work-design-system";
+import { icon, renderPluginStageShell } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { WORKFLOWS_PLUGIN_ID } from "./model.js";
 
 export const WORKFLOWS_UI_CONTRIBUTION_ID = "io.molis.work.workflows.ui.v1";

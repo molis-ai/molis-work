@@ -1,5 +1,9 @@
 import type { ContractDescriptor } from "./package.js";
 import type { ActionReference } from "./actions.js";
+import type { AgentStepBoard } from "../services/agent-host.js";
+import type { AgentInputImpact, AgentInputKind, AgentInputQuestion, AgentInputTarget, AgentInputTreatment, AgentTurnSteer } from "../services/agent-inputs.js";
+
+type AgentStepState = AgentStepBoard["nodes"][number]["state"];
 
 /** The isolated page calls only its installation's own or declared consumed actions. Identity and grants stay with the Host. */
 /** The current contribution only; the Host chooses its address and rechecks its installation. */
@@ -459,3 +463,31 @@ export interface UiFailureView {
 
 /** The shared request helper installed once per page. */
 export type UiRequest = UiRequestCall & UiFailureView;
+
+/**
+ * One step beside a composer: a view of an existing record, never an execution by itself (§15.6). `waiting` marks a step
+ * that waits on the person (an amber dot); `waitingLabel` is what a screen reader hears for it, in the caller's words.
+ */
+export interface InteractionNextStep { id: string; label: string; source: string; primary?: boolean; busy?: boolean; disabled?: boolean; waiting?: boolean; waitingLabel?: string }
+
+/**
+ * The words for the values on the ledger and in the model's statement, one table for every place that says them: the receipt
+ * (handed to the page program with it) and Coding's report (BL-158). Each set is the contract's closed set, read as it is.
+ */
+export const RECEIPT_WORDS = {
+  FACT: { received: "已送达", applied: "已放进上下文，等 AI 回应", read: "AI 已读到", unread: "这一轮结束时 AI 没读到，留给下一轮", withdrawn: "已撤回" },
+  TREATMENT: { "apply-now": "立即影响当前这一步", "later-step": "留到后面某一步", "new-task": "作为新任务", "needs-clarification": "需要你澄清", "not-adopted": "暂不采纳", answered: "已在回复里回答", noted: "记下，不改变执行", merged: "与另一条一起处理" },
+  KIND: { supplement: "补充", correction: "纠正", constraint: "约束", request: "新需求", question: "提问" },
+  IMPACT: { objective: "目标", scope: "范围", priority: "优先级", approach: "实现方案", acceptance: "验收条件", outputs: "已有成果", constraint: "约束" },
+  TARGET: { input: "另一条补充", "app-ref": "应用里的对象", todo: "这一轮的待办", pending: "一个问题", "board-node": "计划的一步" },
+  QUESTION: { open: "等你回答", settled: "已回答", expired: "已过期", cancelled: "已取消", unresolved: "这一轮结束时还没回答" },
+  // A step's state as the plan card says it: the model's report of done or failed is its report, not a check.
+  STEP: { "not-started": "等待前一步", ready: "可以开始", running: "进行中", waiting: "在等别的步骤", succeeded: "模型报告完成", failed: "模型报告失败", cancelled: "已取消", blocked: "受阻，等你决定", "needs-reconciliation": "重启后需要核对" },
+  // A step a person holds ends by their own mark, not by the model's report: the words Coding's plan card uses for it.
+  MARK: { succeeded: "你标记完成", failed: "你标记失败" },
+} satisfies ReceiptWords;
+export type ReceiptWords = {
+  FACT: Record<AgentTurnSteer["state"], string>; TREATMENT: Record<AgentInputTreatment, string>; KIND: Record<AgentInputKind, string>;
+  IMPACT: Record<AgentInputImpact, string>; TARGET: Record<AgentInputTarget["kind"], string>; QUESTION: Record<AgentInputQuestion["state"], string>;
+  STEP: Record<AgentStepState, string>; MARK: Partial<Record<AgentStepState, string>>;
+};

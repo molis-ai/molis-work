@@ -1,8 +1,5 @@
 // The catalog board's directory panel and shell-layout specimens.
-import { renderButton } from "./button.js";
-import { renderEmpty } from "./feedback.js";
-import { renderDirectoryHeading, renderDirectoryPanel, renderDirectoryRow } from "./directory.js";
-import { renderCard, renderFrame, renderGroup, renderScrollArea, renderSidebar, renderTable } from "./layout.js";
+import { renderButton, renderCard, renderDirectoryHeading, renderDirectoryPanel, renderDirectoryRow, renderEmpty, renderFrame, renderGroup, renderScrollArea, renderSidebar, renderTable } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { mark, section, specimen } from "./catalog-parts.js";
 
 export function directorySection(): string {

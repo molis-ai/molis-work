@@ -1,5 +1,5 @@
 import type { ActionLocale } from "@molis-ai/molis-work-contracts/platform/actions";
-import { escapeHtml, icon } from "@molis-ai/molis-work-design-system";
+import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderRichText } from "@molis-ai/molis-work-plugin-sdk/rich-text";
 import { codingChangeHtml } from "./change-html.js";
 import { HISTORY_DIGEST_MARKER } from "./continuation.js";

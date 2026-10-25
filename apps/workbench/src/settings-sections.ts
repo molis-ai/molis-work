@@ -1,4 +1,4 @@
-import type { MolisWorkIcon } from "@molis-ai/molis-work-design-system";
+import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { CAPABILITY_SETTINGS_SECTIONS, listPluginSettingsNavItems } from "./plugin-settings-catalog.js";
 
 /**
@@ -12,12 +12,12 @@ import { CAPABILITY_SETTINGS_SECTIONS, listPluginSettingsNavItems } from "./plug
 interface GlobalSettingsSection {
   readonly id: string;
   readonly label: string;
-  readonly icon: MolisWorkIcon;
+  readonly icon: PluginIconName;
   readonly group: string;
   readonly kind: "host" | "plugin";
 }
 
-interface HostSection { id: string; label: string; icon: MolisWorkIcon; group: string; order: number }
+interface HostSection { id: string; label: string; icon: PluginIconName; group: string; order: number }
 
 /** The address a global settings category is served from. */
 export function globalSettingsSectionPath(id: string): string {
@@ -49,7 +49,7 @@ function globalSettingsSections(enabled?: readonly string[], hidden?: readonly s
     ...listPluginSettingsNavItems(enabled, hidden).map((item) => ({
       id: item.section_id,
       label: item.label,
-      icon: item.icon as MolisWorkIcon,
+      icon: item.icon as PluginIconName,
       order: item.order ?? Number.MAX_SAFE_INTEGER,
       group: "",
       kind: "plugin" as const,

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { icon } from "@molis-ai/molis-work-design-system";
+import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderAccountGlobalItems, renderPluginMarket } from "../apps/workbench/dist/immersive-shell.js";
 import { PLUGIN_WORKBENCH_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/plugin-workbench.js";
 import { renderMolisWorkWorkbenchClientScript } from "./workbench-renderer-fixture.js";

@@ -4,8 +4,7 @@ import type {
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
 
-import { renderCompanionBrowserStage, type CompanionStageModel } from "@molis-ai/molis-work-design-system";
-
+import { renderCompanionBrowserStage, type CompanionStageModel } from "./companion-stage.js";
 import { pathLabel } from "./paths.js";
 import { previewMessage, type FilePreview } from "./preview.js";
 import type { FileTreeNode } from "./tree.js";

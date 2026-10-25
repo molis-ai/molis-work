@@ -1,13 +1,9 @@
+import { renderButton, renderDirectoryHeading, renderDirectoryRow, renderEmpty, renderKbd } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {
   ARRIVAL_MOTION_CLIENT_SCRIPT,
   INPUT_RECEIPTS_CLIENT_SCRIPT,
   INTERACTION_CLIENT_SCRIPT_TYPED_DATES,
   renderBarContext,
-  renderDirectoryHeading,
-  renderDirectoryRow,
-  renderEmpty,
-  renderButton,
-  renderKbd,
   renderProjectMonogram,
 } from "@molis-ai/molis-work-design-system";
 import { renderAssistantDock } from "../assistant-dock.js";

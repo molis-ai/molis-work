@@ -33,7 +33,7 @@ Contract: `@molis-ai/molis-work-contracts/platform/plugin`，记录结构见 `@m
 - 负责：个人图片生成、项目历史与已保存图片的预览。
 - 不负责：文字模型提供方、自动重试、其他插件的实现。
 - 公开入口：`@molis-ai/molis-work-plugin-images`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-storage`、`@molis-ai/molis-work-plugin-sdk`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-storage`、`@molis-ai/molis-work-plugin-sdk`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 服务框内的 Connectors 链接先关闭原生模态框，让设置接收点击与键盘；返回时保留服务字段，打开服务框主动刷新账号，失败留在框内并可重新打开重试。返回生成历史清空本页声明的当前任务，不取消已接受的服务端任务。
   - API Key 由宿主 SecretStore 加密保存；列表、任务与下载不返回 Key。

@@ -1,4 +1,4 @@
-import { escapeHtml, renderPluginStageShell } from "@molis-ai/molis-work-design-system";
+import { escapeHtml, renderPluginStageShell } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /** Host-owned presentation data, separate from untrusted plugin contribution HTML. */
 export interface UnavailablePluginStage {

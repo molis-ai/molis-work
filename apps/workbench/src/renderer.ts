@@ -1,10 +1,5 @@
-import { escapeHtml } from "@molis-ai/molis-work-design-system";
-import {
-  icon,
-  renderIconSprite,
-  THEME_BOOTSTRAP_SCRIPT as BASE_THEME_BOOTSTRAP_SCRIPT,
-  VISUAL_FOUNDATION_CLIENT_SCRIPT,
-} from "@molis-ai/molis-work-design-system";
+import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderIconSprite, THEME_BOOTSTRAP_SCRIPT as BASE_THEME_BOOTSTRAP_SCRIPT, VISUAL_FOUNDATION_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
 import type { GoalPolicy, PlanningMethodComposition, PlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { FeedItemRecord, InboxEntryRecord } from "@molis-ai/molis-work-plugin-feed";
 import {

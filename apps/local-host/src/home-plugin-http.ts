@@ -1,5 +1,5 @@
 import { pluginPageRequest } from "./plugin-page-authority.js";
-import { escapeHtml } from "@molis-ai/molis-work-design-system";
+import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { HomePluginHost, HomePluginPlatform } from "./home-plugins.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { BUILTIN_PLUGIN_CATALOG, renderHomePluginPage, sideOpenedPlugins, stageContributionId, type UnavailablePluginStage } from "@molis-ai/molis-work-app-workbench";

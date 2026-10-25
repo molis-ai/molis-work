@@ -1,4 +1,4 @@
-import { escapeHtml } from "@molis-ai/molis-work-design-system";
+import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { FONT_STACK, HIDDEN_SCROLLBAR_STYLES, renderShellTokens, SELECT_MENU_CLIENT_SCRIPT, SELECT_MENU_STYLES } from "@molis-ai/molis-work-design-system";
 
 export interface CapsuleProjectNavigation {

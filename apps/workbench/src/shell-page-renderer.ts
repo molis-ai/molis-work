@@ -6,7 +6,7 @@ import { listPluginSettingsNavItems } from "./plugin-settings-catalog.js";
 import type { WorkbenchDocumentRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
 import { buildGoalCollectionModel, type GoalCollectionItem, type GoalCollectionView, type GoalCollectionModel } from "@molis-ai/molis-work-plugin-goals";
 
-import type { MolisWorkIcon as PageIcon } from "@molis-ai/molis-work-design-system";
+import type { PluginIconName as PageIcon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderDialog } from "@molis-ai/molis-work-design-system";
 import { renderDirectoryPluginSections, renderImmersiveHeader, renderImmersiveGoalHeader, renderGoalDetailsAside, renderImmersiveWorkTabs, renderWorkbenchBar, renderPluginRail, renderProjectHome, renderPluginMarket, renderGlobalSearchOverlay, renderWorkspaceChrome } from "./immersive-shell.js";
 import { shownProjectPlugins, sideEntries } from "./plugin-catalog.js";

@@ -1,13 +1,14 @@
 // The workbench around the interaction, close enough to the product's geometry to judge fit: the desk, one work
 // sheet, the resident bar with the Assistant rising above its composer (DESIGN.md "The bottom bar"), and Coding's
 // directory · dialogue · review columns. Everything outside the interaction is decoration and says so.
-import { escapeHtml, icon, renderButton, renderInteractionComposerTarget, renderInteractionNextSteps, type MolisWorkIcon } from "../../packages/design-system/src/index.ts";
+import { escapeHtml, icon, renderButton, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderInteractionComposerTarget, renderInteractionNextSteps } from "../../packages/design-system/src/index.ts";
 import { renderThread } from "./render-cards.ts";
 import type { Layout } from "./model.ts";
 
 const diff = (lines: Array<[number, " " | "+" | "-", string]>) => lines.map(([number, mark, code]) =>
   `<span class="cd-line${mark === "+" ? " cd-add" : mark === "-" ? " cd-del" : ""}"><span class="cd-ln">${number}</span>${mark} ${escapeHtml(code)}</span>`).join("");
-const tiles = (names: MolisWorkIcon[]) => names.map(name => `<span class="pv-tile">${icon(name)}</span>`).join("");
+const tiles = (names: PluginIconName[]) => names.map(name => `<span class="pv-tile">${icon(name)}</span>`).join("");
 function bar(center: string, idle = false): string {
   return `<div class="pv-bar${idle ? " pv-bar--idle" : ""}">
     <div class="pv-tray" aria-hidden="true">${tiles(["grid", "home", "target", "file", "code"])}</div>

@@ -29,7 +29,7 @@
 - 负责：问卷目录、题目、预览填写与结果。
 - 不负责：Goal 与 Artifact 事实、模型提供方、托管收集服务。
 - 公开入口：`@molis-ai/molis-work-plugin-form`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-plugin-sdk`（`defineErrorCodes`，错误码都是 `form.<原因>`，状态由错误种类决定，Form 不自带状态表）、`@molis-ai/molis-work-storage`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（`defineErrorCodes`，错误码都是 `form.<原因>`，状态由错误种类决定，Form 不自带状态表）、`@molis-ai/molis-work-storage`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 每题回答沿现行 4000 字上限，原生填写与导出离线页在输入/提交时执行；多选合成后也检查。离线超限保留输入，不生成成功文件。两种页面的题名、必填状态和选项组都有可访问关联。
   - 缺模型时禁用 AI，保留本地操作。

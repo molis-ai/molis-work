@@ -12,7 +12,8 @@ import type { PluginPrivateStorage, PluginExecutionControl } from '@molis-ai/mol
 import type { SandboxJson, SandboxIdentity } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { assertContract, createSandboxRunner, type SandboxRunner, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import { prologueModelConfiguration } from '@molis-ai/molis-work-service-agent-host';
-import { resolvePluginComponentCall, escapeHtml, PLUGIN_COMPONENTS } from '@molis-ai/molis-work-design-system';
+import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { resolvePluginComponentCall, PLUGIN_COMPONENTS } from '@molis-ai/molis-work-design-system';
 import { AgentBuilderWorkflow, inDesignOrder, BUILDER_PLUGIN_ID, builderManifest, builderPromptVersion, type AgentBuild, type AgentBuilderPorts } from '@molis-ai/molis-work-plugin-builder';
 import type { LocalProjectDatabase } from '../project-database.js';
 import { openConfiguredModels } from '../configured-models.js';

@@ -4,8 +4,7 @@ import type {
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
 
-import { renderCompanionListStage, type CompanionStageModel } from "@molis-ai/molis-work-design-system";
-
+import { renderCompanionListStage, type CompanionStageModel } from "./companion-stage.js";
 import type { TextStatsView } from "./core.js";
 
 export const TEXT_STATS_UI_CONTRIBUTION_ID = "io.molis.work.native.text-stats.ui.v1";

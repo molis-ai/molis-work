@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { icon } from '@molis-ai/molis-work-design-system';
+import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderPluginRail } from '../apps/workbench/src/immersive-shell.ts';
 
 const escapeHtml = (value: unknown) => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!);

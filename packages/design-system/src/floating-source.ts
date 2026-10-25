@@ -1,4 +1,4 @@
-import { clampTo, FLOATING_GAP, FLOATING_MARGIN, pickSide, pinAt, placeStacked } from "./floating.js";
+import { clampTo, FLOATING_GAP, FLOATING_MARGIN, pickSide, pinAt, placeStacked } from "@molis-ai/molis-work-plugin-sdk/browser";
 
 /**
  * The placement as source text, for the page programs that are strings (the toolbar next to a selection): the same functions the Pages

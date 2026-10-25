@@ -4,7 +4,7 @@ import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { projectSettingsCapabilities, projectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { agentWriteCheckerActions, hostsAgentSessions, resolveProjectRuntime, type AgentWriteCheckerList } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { availableProjectPluginIds, BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
-import { escapeHtml } from "@molis-ai/molis-work-design-system";
+import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { bindLocalWebActions } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { HOME_ACTION_PERMISSIONS } from "./home-actions.js";

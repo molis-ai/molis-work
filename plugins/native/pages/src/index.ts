@@ -35,7 +35,7 @@ export { PAGES_TEMPLATES, pagesTemplateById, pagesTemplateSummaries } from "./te
 export { emptyDoc, nodeFromUnknown, pagesSchema, safePagesColumnShare, safePagesColumnWidth } from "./schema.js";
 export { columnDropAnchor, dragRows, nodesInSpan, nudgeSpan, placeCopySpan, previewCopySpan, previewDrop, previewSpan, reorderTopLevel, spanRoots } from "./reorder.js";
 export { convertedBlocks, convertedNodes } from "./convert.js";
-export { placeFloating, scrollChildIntoView, scrollShouldFollow } from "./floating.js";
+export { scrollChildIntoView } from "./floating.js";
 export { linkClickOpens, safePagesHref } from "./link.js";
 export { blocksFromMarkdown, markdownLooksStructured, nodesForSpanPaste, pasteMarkdown, pastePlain, pasteUrl } from "./paste-markdown.js";
 export { nodesToMarkdown } from "./to-markdown.js";

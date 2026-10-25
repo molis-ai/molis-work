@@ -1,5 +1,5 @@
 import { UI_VIEW_GROUPS, type UiViewGroup } from "@molis-ai/molis-work-contracts/platform/ui";
-import { icon as glyph, renderButton, type MolisWorkIcon } from "@molis-ai/molis-work-design-system";
+import { icon as glyph, renderButton, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderPluginEventRecovery } from "./plugin-event-recovery.js";
 import { BUILTIN_PLUGIN_REGISTRY, DIRECT_WORK_SURFACE_IDS, DOCK_DEFAULT_PINS, RELOAD_ON_MEMBERSHIP_IDS, islandEntries, pluginLabel, pluginMarketCards, railEntries, pluginStageSummaries } from "./plugin-catalog.js";
 import { renderAssistantDock } from "./assistant-dock.js";
@@ -9,7 +9,7 @@ import { renderHomePluginNavigation } from "./home-plugin-navigation.js";
 export interface ImmersiveShellPrimitives {
   L(value: string): string;
   escapeHtml(value: unknown): string;
-  icon(name: MolisWorkIcon): string;
+  icon(name: PluginIconName): string;
   /** The page's language ("en" for English); plugin names and lists follow it. */
   htmlLang?(): string;
 }
@@ -35,14 +35,14 @@ function directoryPlugins(enabled: readonly string[], inEnglish = false) {
     id: entry.id,
     surface: SURFACE_OVERRIDES[entry.id] ?? entry.surface,
     label: pluginLabel(entry.id, entry.label, inEnglish),
-    glyph: entry.glyph as MolisWorkIcon,
+    glyph: entry.glyph as PluginIconName,
     group: entry.group,
   }));
 }
 
 function pluginLink(
   { L, icon }: ImmersiveShellPrimitives,
-  plugin: { id: string; surface: string; label: string; glyph: MolisWorkIcon; hint?: string },
+  plugin: { id: string; surface: string; label: string; glyph: PluginIconName; hint?: string },
   extraClass = "",
   suffix = "",
 ): string {
@@ -68,7 +68,7 @@ function islandPlugins(enabled: readonly string[], inEnglish = false) {
     id: entry.id,
     surface: SURFACE_OVERRIDES[entry.id] ?? entry.surface,
     label: pluginLabel(entry.id, entry.label, inEnglish),
-    glyph: entry.glyph as MolisWorkIcon,
+    glyph: entry.glyph as PluginIconName,
     group: entry.group,
   }));
 }
@@ -131,7 +131,7 @@ export function renderPluginRail(
   const names = new Map<string, string>([...entries, ...islands].map(plugin => [plugin.id, plugin.label]));
   const sitesOf = new Map(cards.map(card => [card.id, card.sites]));
   const zoned = (html: string, zone: string) => html.replace("<button ", `<button data-rail-zone="${zone}" `).replace("<a ", `<a data-rail-zone="${zone}" `);
-  const link = (plugin: { id: string; surface: string; label: string; glyph: MolisWorkIcon; hint?: string }, zone: string, suffix = "") =>
+  const link = (plugin: { id: string; surface: string; label: string; glyph: PluginIconName; hint?: string }, zone: string, suffix = "") =>
     zoned(pluginLink(primitives, { ...plugin, hint: plugin.hint ?? (hints[plugin.id] ? L(hints[plugin.id]) : undefined) }, "plugin-rail-item", suffix), zone);
   // What adding one adds with it, and what removing one takes with it (the Projects service applies both, so the tile says so).
   const alongWith = (id: string): string[] => BUILTIN_PLUGIN_REGISTRY.companions(id).filter(other => other !== id && !have.has(other));
@@ -166,7 +166,7 @@ export function renderPluginRail(
   };
   // At rest the end of the tile shows only a small pin when the plugin is kept; looked at, the buttons replace it.
   const mark = `<i class="plugin-rail-mark" aria-hidden="true">${icon("pin")}</i><small class="plugin-rail-confirm" aria-hidden="true"></small>`;
-  const tile = (plugin: { id: string; surface: string; label: string; glyph: MolisWorkIcon }, zone: string) => {
+  const tile = (plugin: { id: string; surface: string; label: string; glyph: PluginIconName }, zone: string) => {
     const owned = have.has(plugin.id);
     const kept = owned && DOCK_DEFAULT_PINS.includes(plugin.id);
     const along = owned ? [] : alongWith(plugin.id), dependents = owned ? dependentsOf(plugin.id) : [];
@@ -201,7 +201,7 @@ export function renderPluginRail(
 /** The ways to extend the workbench — the market and the plugin studio — offered from the Dock menu. */
 export function renderAccountGlobalItems(primitives: ImmersiveShellPrimitives, enabled: readonly string[]): string {
   const { L } = primitives;
-  const item = (plugin: { id: string; surface: string; label: string; glyph: MolisWorkIcon }, suffix = "") =>
+  const item = (plugin: { id: string; surface: string; label: string; glyph: PluginIconName }, suffix = "") =>
     pluginLink(primitives, plugin, "account-global-item", suffix);
   const builder = directoryPlugins(enabled, english(primitives)).filter(plugin => RAIL_EXTEND_PLUGIN_IDS.has(plugin.id)).map(plugin => item(plugin)).join("");
   const market = item({ id: "market", surface: "market", label: L("插件市场"), glyph: "grid" },
@@ -216,7 +216,7 @@ export function renderAccountGlobalItems(primitives: ImmersiveShellPrimitives, e
  */
 export function renderPickerExtend(primitives: ImmersiveShellPrimitives, enabled: readonly string[]): string {
   const { L } = primitives;
-  const button = (plugin: { id: string; surface: string; label: string; glyph: MolisWorkIcon }, suffix = "") => {
+  const button = (plugin: { id: string; surface: string; label: string; glyph: PluginIconName }, suffix = "") => {
     const html = renderButton({ variant: "secondary", size: "sm", icon: plugin.glyph, label: plugin.label, className: "plugin-picker-extend-btn",
       attrs: { "data-plugin-id": plugin.id, ...(DIRECT_WORK_SURFACE_IDS.has(plugin.id) ? {} : { "data-directory-open": plugin.id }), "data-work-surface-open": plugin.surface, title: plugin.label } });
     return html.replace(/<\/button>$/, `${suffix}</button>`);
@@ -344,7 +344,7 @@ export function renderPluginMarket(primitives: ImmersiveShellPrimitives, options
   // Sites a Plugin says it uses in the side panel browser are read before it is added (specs/archive/side-panel D16).
   const sites = (plugin: { sites: readonly string[] }) => plugin.sites.length
     ? `<small class="plugin-market-sites" data-market-sites>${say(L, "会在侧栏浏览器里使用：{sites}", { sites: join(plugin.sites.map(site => escapeHtml(site))) })}</small>` : "";
-  const rows = pluginMarketCards(options).map(card => ({ ...card, label: pluginLabel(card.id, card.label, english(primitives)) })).map(plugin => `<article class="mw-card" data-market-plugin="${plugin.id}" data-market-runtime-id="${plugin.runtime_id}"><div class="plugin-market-icon">${icon(plugin.glyph as MolisWorkIcon)}</div><div class="plugin-market-copy"><h2>${plugin.label}</h2><p>${L(plugin.copy)}</p>${sites(plugin)}<small class="plugin-market-version" data-market-version hidden></small></div><button class="mw-btn mw-btn--secondary" type="button" data-market-upgrade hidden disabled>${L("升级")}</button><button class="mw-btn mw-btn--secondary" type="button" data-market-open="${plugin.id}" hidden>${L("打开")}</button><button class="mw-btn mw-btn--secondary" type="button" data-market-add="${plugin.id}" disabled>${L("添加")}</button></article>`).join("");
+  const rows = pluginMarketCards(options).map(card => ({ ...card, label: pluginLabel(card.id, card.label, english(primitives)) })).map(plugin => `<article class="mw-card" data-market-plugin="${plugin.id}" data-market-runtime-id="${plugin.runtime_id}"><div class="plugin-market-icon">${icon(plugin.glyph as PluginIconName)}</div><div class="plugin-market-copy"><h2>${plugin.label}</h2><p>${L(plugin.copy)}</p>${sites(plugin)}<small class="plugin-market-version" data-market-version hidden></small></div><button class="mw-btn mw-btn--secondary" type="button" data-market-upgrade hidden disabled>${L("升级")}</button><button class="mw-btn mw-btn--secondary" type="button" data-market-open="${plugin.id}" hidden>${L("打开")}</button><button class="mw-btn mw-btn--secondary" type="button" data-market-add="${plugin.id}" disabled>${L("添加")}</button></article>`).join("");
   return `<div class="plugin-market-body">
     <header class="plugin-market-heading"><div><h1>${L("插件")}</h1><p>${L("给这个项目添加插件，或打开已经在用的。")}</p></div><div class="plugin-market-destination"><label id="plugin-market-destination-label" for="plugin-market-project-trigger">${L("添加到")}</label><button type="button" class="plugin-market-project-trigger" id="plugin-market-project-trigger" data-market-project-trigger popovertarget="plugin-market-project-menu" aria-labelledby="plugin-market-destination-label plugin-market-project-label" aria-haspopup="listbox" aria-expanded="false" disabled><strong id="plugin-market-project-label" data-market-project-label></strong>${icon("chevron-down")}</button><div id="plugin-market-project-menu" popover="auto" class="plugin-market-project-popover" data-market-project-popover role="listbox" aria-labelledby="plugin-market-destination-label"><nav data-market-project-options></nav></div><select data-market-project hidden tabindex="-1" aria-hidden="true" disabled></select><template data-market-project-check>${icon("check")}</template></div></header>
     <label class="plugin-market-search mw-input-group">${icon("search")}<input class="mw-input" type="search" data-market-search placeholder="${L("搜索插件")}" aria-label="${L("搜索插件")}" autocomplete="off"></label>

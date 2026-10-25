@@ -1,4 +1,4 @@
-import { icon } from "@molis-ai/molis-work-design-system";
+import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 export interface FunctionsUiPrimitives {
   escape(value: unknown): string;

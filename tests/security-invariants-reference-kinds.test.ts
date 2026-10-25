@@ -123,6 +123,11 @@ test("PG015-DUP-01 reader-only and search-unavailable installations cause ambigu
   const unavailable = readers.map(view => ({ ...view, availability: { available: false as const, code: "actions.plugin_disabled", reason: "读取暂不可用" } }));
   const restored = boundReferenceKinds(projectReferenceKinds([...builtin, ...unavailable], undefined, new Set()));
   assert.deepEqual(restored, { kinds: [{ kind: "goal", title: "目标" }], problems: [] });
+  for (const [shown, hidden] of [[new Set<string>(), new Set<string>()], [new Set(["goals"]), new Set(["io.molis.work.a-reader"])]] as const) {
+    const result = boundReferenceKinds(projectReferenceKinds([...builtin, ...foreign], shown, hidden));
+    assert.deepEqual(result.kinds, [], "UI visibility cannot choose between two readers the caller can still invoke");
+    assert.equal(result.problems.filter(problem => problem.reason === "duplicate").length, 2);
+  }
 });
 
 test("PG015-DUP-01 PG015-DUP-05 a real Runtime plugin's goal conflicts with Goals and neither reader is called by parsing, search or answer readback", { timeout: 60_000 }, async t => {
@@ -215,7 +220,7 @@ test("S-32 a project's list leaves out a hidden plugin, a built-in it does not s
     ...offering({ provider_id: "inst-pose", plugin_id: "io.molis.work.goals", plugin_install_id: "inst-pose" }, "x_pose", "冒充的"),
   ];
   const candidates = projectReferenceKinds(views, new Set(["goals"]), new Set(["io.example.hidden"]));
-  assert.deepEqual(candidates.map(entry => [entry.plugin_id, entry.installation, entry.kind]).sort(), [
+  assert.deepEqual(candidates.filter(entry => entry.searchable !== false).map(entry => [entry.plugin_id, entry.installation, entry.kind]).sort(), [
     ["io.example.notes", "installed:inst-notes", "x_note"], ["io.molis.work.goals", "builtin:io.molis.work.goals", "goal"], ["io.molis.work.goals", "installed:inst-pose", "x_pose"],
   ], "todo is not shown here; the hidden, unavailable and unreadable plugins offer nothing");
   assert.deepEqual(boundReferenceKinds(candidates).kinds.map(entry => entry.kind), ["x_note", "goal", "x_pose"]);
@@ -223,10 +228,10 @@ test("S-32 a project's list leaves out a hidden plugin, a built-in it does not s
 
 test("PRR-13 a Runtime built-in plugin is recognized by its provider id, not by an install hash", () => {
   const todo = offering({ provider_id: "io.molis.work.todo", plugin_id: "io.molis.work.todo", plugin_install_id: "plugin-install-6ed43d717d2e579c2d6345b4e217c614" }, "todo_item", "待办");
-  assert.deepEqual(projectReferenceKinds(todo, new Set(["goals"]), new Set()), [], "a built-in the project does not show offers nothing");
+  assert.deepEqual(boundReferenceKinds(projectReferenceKinds(todo, new Set(["goals"]), new Set())), { kinds: [], problems: [] }, "a built-in the project does not show offers nothing");
   const shown = projectReferenceKinds(todo, new Set(["goals", "todo"]), new Set());
   assert.deepEqual(shown.map(entry => [entry.plugin_id, entry.installation, entry.kind]), [["io.molis.work.todo", "builtin:io.molis.work.todo", "todo_item"]]);
-  assert.deepEqual(projectReferenceKinds(todo, new Set(["goals", "todo"]), new Set(["todo"])), [], "a hidden built-in offers nothing");
+  assert.deepEqual(boundReferenceKinds(projectReferenceKinds(todo, new Set(["goals", "todo"]), new Set(["todo"]))), { kinds: [], problems: [] }, "a hidden built-in offers nothing");
 });
 
 // AAP-04: the project lookup is lightweight while actor/project isolation remains enforced.

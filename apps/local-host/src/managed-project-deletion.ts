@@ -37,16 +37,16 @@ export class ManagedProjectDeletion {
   async restoreProjectDeletion(input: ProjectDeletionRecoveryAcceptance): Promise<MolisWorkProjectDeletionRecord> {
     if (!this.maintenance) throw catalogErrors.project_storage_invalid("恢复需要活维护权限");
     this.maintenance.assertCurrent();
-    const requiredOwners = [...new Set([...this.owners.owners().map(owner => owner.id), ...input.owner_ids])];
     const replay = this.projects.lifecycle.findDeletion(input.actor_id, input.idempotency_key);
     if (replay) {
       if (replay.deletion_id !== input.deletion_id || replay.project_id !== input.project_id || replay.request_fingerprint !== input.request_fingerprint)
         throw catalogErrors.deletion_idempotency_conflict("恢复引用不属于原目标决定");
       const steps = this.projects.lifecycle.deletionSteps(replay.deletion_id);
-      if (requiredOwners.some(owner => !steps.some(step => step.owner_id === owner)))
+      if (input.owner_ids.some(owner => !steps.some(step => step.owner_id === owner)))
         throw catalogErrors.project_storage_invalid("原目标决定缺少所需清理主人");
       return replay.cleanup_state === "complete" ? this.verifyOriginalDeletion(replay) : this.finishProjectDeletionCleanup(replay);
     }
+    const requiredOwners = [...new Set([...this.owners.owners().map(owner => owner.id), ...input.owner_ids])];
     const project = this.projects.lifecycle.retainedProject(input.project_id);
     if (input.require_empty && project) throw catalogErrors.project_storage_invalid("前项目的原决定尚未清除");
     const directory = project ? managedProjectDirectory(this.projectsDirectory, project) : path.join(this.projectsDirectory, input.project_id);

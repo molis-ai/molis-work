@@ -106,23 +106,49 @@ test("a native pending target continues the original operation and never preview
   const original = f.projects.lifecycle.getDeletion(accepted.deletion.deletion_id);
   const source = f.sourceReceipt({ ...original, cleanup_state: "complete" });
   f.seen.length = 0;
-  const target = await f.open(), result = await target.restore(source.deletion_id);
+  let addedCalls = 0;
+  const target = await f.open({ projectRuntime: { id: "project-runtime", label: null, clear() { addedCalls++; } } });
+  const result = await target.restore(source.deletion_id);
   assert.equal(result.target_deletion_id, original.deletion_id); assert.equal(result.cleanup_state, "complete");
+  assert.equal(addedCalls, 0); assert.equal(f.projects.lifecycle.deletionSteps(original.deletion_id).some(step => step.owner_id === "project-runtime"), false);
   assert.deepEqual(f.seen.map(row => [row.operation, row.original]), [[original.deletion_id, true]]);
   assert.equal(f.projects.lifecycle.getDeletion(original.deletion_id).recovery_plan, original.recovery_plan);
 });
 
-test("native complete verifies its original empty selection and preserves a same-ID successor and its bytes", async t => {
+test("native complete ignores a newly declared owner, verifies its original selection and preserves a same-ID successor", async t => {
   const f = await fixture(t);
   const gone = await f.catalog.deleteProject({ project_id: f.gone.project_id, actor_id: "person", delete_confirmed: true, idempotency_key: "complete" });
   const source = f.sourceReceipt(f.projects.lifecycle.getDeletion(gone.deletion.deletion_id));
   await f.catalog.createProject({ project_id: f.gone.project_id, display_name: "Successor", actor_id: "person" });
   await writeFile(join(f.home, "projects", f.gone.project_id, "successor.txt"), "later bytes");
-  const target = await f.open(), result = await target.restore(source.deletion_id);
+  let addedCalls = 0;
+  assert.equal(f.ownerIds.includes("project-runtime"), false, "this owner was absent from the accepted original decision");
+  const target = await f.open({ projectRuntime: { id: "project-runtime", label: null, clear() { addedCalls++; } } });
+  const result = await target.restore(source.deletion_id);
   assert.equal(result.cleanup_state, "complete"); assert.equal(f.clearCount, 0); assert.equal(f.originalChecks, 1);
+  assert.equal(addedCalls, 0);
   assert.equal(f.changes.length, 0); assert.equal(f.seen[0]!.verification, "original");
   assert.equal(await readFile(join(f.home, "projects", f.gone.project_id, "successor.txt"), "utf8"), "later bytes");
   assert.equal(f.projects.query.getProject(f.gone.project_id).display_name, "Successor");
+});
+
+test("a mapped pending target missing an original source owner is refused without adding steps or running cleanup", async t => {
+  const f = await fixture(t), source = f.sourceReceipt({}, [...f.ownerIds, "required-original-owner"]);
+  const targetId = `project-deletion-${randomUUID()}`;
+  f.projects.lifecycle.insertDeletion({ ...source, deletion_id: targetId, cleanup_state: "pending", cleaned_at: null,
+    staged_directory: join(f.home, "projects", `.deleting-${f.gone.project_id}-${randomUUID()}`),
+    recovery_plan: JSON.stringify({ version: 1, kind: "absent", project_id: f.gone.project_id, operation_id: targetId }) });
+  f.projects.lifecycle.insertDeletionSteps(targetId, f.ownerIds);
+  const { deletion_id, project_id, actor_id, idempotency_key, request_fingerprint } = source;
+  f.groups.push({ project_id, sources: [{ deletion_id, project_id, actor_id, idempotency_key, request_fingerprint }],
+    targets: [{ source_deletion_id: deletion_id, target_deletion_id: targetId }], disposal: { primary_target: targetId, dependent_targets: [] } });
+  const original = f.projects.lifecycle.getDeletion(targetId), steps = f.projects.lifecycle.deletionSteps(targetId);
+  const target = await f.open();
+  await assert.rejects(target.restore(source.deletion_id), invalid);
+  assert.deepEqual(f.projects.lifecycle.getDeletion(targetId), original);
+  assert.deepEqual(f.projects.lifecycle.deletionSteps(targetId), steps);
+  assert.equal(f.clearCount, 0); assert.equal(f.seen.length, 0); assert.equal(f.changes.length, 0);
+  assert.equal(await readFile(join(f.home, "projects", f.gone.project_id, "original.txt"), "utf8"), "original target");
 });
 
 test("all source-only requests are associated before the primary write and later requests verify its fixed disposal", async t => {

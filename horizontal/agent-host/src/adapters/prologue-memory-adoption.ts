@@ -1,7 +1,10 @@
 import { isAbsolute } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import { type MemoryAdoptionCleanupItem, type MemoryAdoptionCleanupPage, type MemoryAdoptionPage, type MemoryAdoptionVerification } from "@prologue/sdk";
-import { openNodeRecoveryMaintenance, openNodeRecoveryInspection, type NodeRecoveryMaintenance, type NodeRecoveryInspectionInput } from "@prologue/sdk/node";
+import { openNodeRecoveryMaintenance, openNodeRecoveryInspection, type NodeRecoveryMaintenance, type NodeRecoveryInspectionInput, type NodeRecoveryInspection } from "@prologue/sdk/node";
+import type { AgentSessionLifecycleReceipt, AgentSessionRef } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { createColdSessionPurge } from "./prologue-session-cold-purge.js";
+import { sessionPurgePreview, sessionConflict, type PrologueSessionPurgeTarget } from "./prologue-session-purge.js";
 import { agentErrors } from "../errors.js";
 import type { PrologueMemoryOptions } from "./prologue-memory-authority.js";
 import { acquirePrologueStorageOwner } from "./prologue-storage-owner.js";
@@ -17,12 +20,15 @@ export interface PrologueMemoryAdoptionInput {
   readonly assertCurrent?: () => void;
   /** Synchronous barrier after exclusive ownership and before SDK opening; called once. */
   readonly onOwned?: () => void;
+  /** Fixed target decisions; execution cannot replace their owner, operation or preview. */
+  readonly sessionPurges?: readonly PrologueSessionPurgeTarget[];
 }
 export interface PrologueMemoryAdoptionBridge {
   adopt(input: PrologueMemoryAdoptionScope & { kind: "memory" | "memory-candidate"; cursor?: string; signal?: AbortSignal }): Promise<MemoryAdoptionPage>;
   verify(input: { scopes: readonly PrologueMemoryAdoptionScope[]; cursor?: string; signal?: AbortSignal }): Promise<MemoryAdoptionVerification>;
   previewCleanup(input: PrologueMemoryAdoptionScope & { kind: "memory" | "memory-candidate"; cursor?: string; signal?: AbortSignal }): Promise<MemoryAdoptionCleanupPage>;
   purgeCleanupTarget(input: { target: MemoryAdoptionCleanupItem; operation_id: string; signal?: AbortSignal }): Promise<void>;
+  purgeSessionTarget(input: { session: AgentSessionRef }): Promise<AgentSessionLifecycleReceipt>;
   /** Publish synchronously after SDK close, while this same owner is still held. Supplied on the first close only. */
   close(afterSDKClosed?: () => void): Promise<void>;
 }
@@ -30,10 +36,11 @@ export interface PrologueMemoryAdoptionBridge {
 export type PrologueMemoryAdoptionInspection = Pick<PrologueMemoryAdoptionBridge, "previewCleanup"> & {
   /** One bounded source page; empty/exhausted does not certify SDK/Catalog Session coverage. */
   inspectSessionIndexes(input: { limit?: number; cursor?: string; signal?: AbortSignal }): Promise<PrologueSessionIndexPage>;
+  inspectSession: NodeRecoveryInspection["inspectSession"];
   close(): Promise<void>;
 };
 
-function prepare(input: Omit<PrologueMemoryAdoptionInput, "onOwned">) {
+function prepare(input: Omit<PrologueMemoryAdoptionInput, "onOwned" | "sessionPurges">) {
   input = { ...input };
   input.signal?.throwIfAborted();
   if (!isAbsolute(input.storageRoot) || !input.appVersion || input.scopes.some(scope => !scope.owner
@@ -84,6 +91,9 @@ function prepare(input: Omit<PrologueMemoryAdoptionInput, "onOwned">) {
 /** Offline writer: same exclusive owner, with no Runtime startup or shutdown. */
 export async function openPrologueMemoryAdoption(input: PrologueMemoryAdoptionInput): Promise<PrologueMemoryAdoptionBridge> {
   const onOwned = input.onOwned;
+  const targets = structuredClone(input.sessionPurges ?? []);
+  const previews = targets.map(sessionPurgePreview);
+  if (new Set(targets.map(target => target.session.session_id)).size !== targets.length) throw sessionConflict();
   const { input: fixed, app, memory, current, allowed, stop, pending, perform } = prepare(input);
   const release = acquirePrologueStorageOwner(fixed.storageRoot);
   let maintenance: NodeRecoveryMaintenance;
@@ -96,8 +106,10 @@ export async function openPrologueMemoryAdoption(input: PrologueMemoryAdoptionIn
     }
     current();
     maintenance = await openNodeRecoveryMaintenance({ storageRoot: fixed.storageRoot, app, memory,
-      sessionPurges: [], assertCurrent: current, ...(fixed.signal ? { signal: fixed.signal } : {}) });
+      sessionPurges: previews, appStorageKind: sessionIndexKind(app.appId), assertCurrent: current, ...(fixed.signal ? { signal: fixed.signal } : {}) });
   } catch (error) { release(); throw error; }
+  const purgeSession = createColdSessionPurge(maintenance, { storageRoot: fixed.storageRoot, app, memory,
+    appStorageKind: sessionIndexKind(app.appId), assertCurrent: current }, targets, current);
   let closing: Promise<void> | undefined;
   const close = (afterSDKClosed?: () => void): Promise<void> => {
     if (closing) return afterSDKClosed === undefined ? closing
@@ -134,12 +146,13 @@ export async function openPrologueMemoryAdoption(input: PrologueMemoryAdoptionIn
         current(); signal.throwIfAborted();
       });
     },
+    purgeSessionTarget: request => perform(undefined, () => purgeSession(request.session)),
     close,
   };
 }
 
 /** Existing-only inspection: no writer owner, directory creation or SDK recovery. */
-export async function openPrologueMemoryAdoptionInspection(input: Omit<PrologueMemoryAdoptionInput, "onOwned">): Promise<PrologueMemoryAdoptionInspection> {
+export async function openPrologueMemoryAdoptionInspection(input: Omit<PrologueMemoryAdoptionInput, "onOwned" | "sessionPurges">): Promise<PrologueMemoryAdoptionInspection> {
   const { input: fixed, app, memory, current, stop, pending, perform } = prepare(input);
   const kind = sessionIndexKind(app.appId);
   const inspection = await openNodeRecoveryInspection({ storageRoot: fixed.storageRoot, app, memory, appStorageKind: kind, assertCurrent: current });
@@ -150,6 +163,7 @@ export async function openPrologueMemoryAdoptionInspection(input: Omit<PrologueM
   if (fixed.signal?.aborted) { await close(); fixed.signal.throwIfAborted(); }
   return {
     previewCleanup: request => perform(request.signal, signal => inspection.previewAdoptionCleanup({ ...request, signal })),
+    inspectSession: request => perform(request.signal, signal => inspection.inspectSession({ ...request, signal })),
     inspectSessionIndexes: request => {
       const { limit, cursor } = request;
       return perform(request.signal, async signal => {

@@ -67,7 +67,7 @@ export interface SessionIndexStore {
   inspect(id: string): Promise<SessionIndex | undefined>;
 }
 
-export function createSessionIndexStore(host: NodeHost, appId: string, projectDeletionPending?: (projectId: string, sessionId?: string) => boolean, sessionLive?: (id: string) => boolean): SessionIndexStore {
+export function createSessionIndexStore(host: { storage: Pick<NodeHost["storage"], "get" | "list" | "readSecure" | "commit"> }, appId: string, projectDeletionPending?: (projectId: string, sessionId?: string) => boolean, sessionLive?: (id: string) => boolean): SessionIndexStore {
   const indexKind = sessionIndexKind(appId);
   const versions = new Map<string, number>();
   const indexUpdates = new Map<string, Promise<void>>();

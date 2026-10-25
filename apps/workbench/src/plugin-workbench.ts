@@ -1,8 +1,13 @@
 import type { PluginRegistration, PluginWorkbenchRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
+import { ownedContribution, type OwnedUiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 export type { PluginSearchRow } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 
-export interface BuiltinPluginWorkbenchPack extends Omit<PluginWorkbenchRegistration, "order" | "clientServed" | "clientUses"> { readonly project_plugin_id: string }
+export interface BuiltinPluginWorkbenchPack extends Omit<PluginWorkbenchRegistration, "order" | "clientServed" | "clientUses" | "contributions"> {
+  readonly project_plugin_id: string;
+  /** The contributions as the platform registers them: each owned by the plugin its catalog entry's Manifest names (PG-098), never by what the contribution says. */
+  readonly contributions: readonly OwnedUiContribution[];
+}
 
 /**
  * Comments that fill whole lines (`// …` and `/* … *\/`) and the indentation in front of every line of a plugin's client script
@@ -35,6 +40,7 @@ function withUsedClients(user: Registered, factory: string, all: readonly Regist
 
 /** Derive the registered UI and assets from the same entries used by the Host catalog. */
 export function pluginWorkbenchPacks(catalog: readonly PluginRegistration[] = BUILTIN_PLUGIN_CATALOG): BuiltinPluginWorkbenchPack[] {
+  const owners = new Map(catalog.map(entry => [entry.project_plugin_id, entry.manifest.plugin_id]));
   return catalog.flatMap(entry => entry.workbench ? [{ project_plugin_id: entry.project_plugin_id, ...entry.workbench }] : [])
     .sort((a, b) => a.order - b.order)
     .map((registered, _at, all) => {
@@ -49,7 +55,8 @@ export function pluginWorkbenchPacks(catalog: readonly PluginRegistration[] = BU
         return borrowing;
       }
       return { ...pack, clientFactory: clientUses ? withUsedClients(registered, factory, all) : factory };
-    });
+    })
+    .map(pack => ({ ...pack, contributions: pack.contributions.map(contribution => ownedContribution(contribution, owners.get(pack.project_plugin_id)!)) }));
 }
 export const BUILTIN_PLUGIN_WORKBENCH: readonly BuiltinPluginWorkbenchPack[] = pluginWorkbenchPacks();
 

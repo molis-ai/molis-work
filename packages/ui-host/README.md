@@ -79,6 +79,7 @@ node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts tests/plugin-host
 - 依赖：`@molis-ai/molis-work-contracts`。方向：平台包只依赖 contracts/platform 与更低层平台包（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 挂载前检查 surface 与目标 slot 兼容、身份与格式。
+  - 贡献属于哪个插件由平台填，插件不写：`UiHost.register` 只收 `OwnedUiContribution`（`ownedContribution` 按受信任的 Manifest 合成）；`ui:register` 的声明自带 `plugin_id`（哪怕是自己的）一律 `ui_host.plugin_denied`（PG-098）。
   - `mountDeclared` 只在宿主自己的 slot 里找 surface 声明的那一个；找不到就拒绝（`ui_host.slot_incompatible`），不退回别的 slot。
   - 注册与渲染协议不等于任意 HTML 或脚本获得隔离执行。
   - 插件客户端的注册释放由 Host 生命周期负责；不解释 Goal、Feed、Artifact 状态。

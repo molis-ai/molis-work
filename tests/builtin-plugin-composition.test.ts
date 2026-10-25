@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readdirSync, readFileSync, existsSync } from 'node:fs';
+import { join } from 'node:path';
 import { runInNewContext } from 'node:vm';
 import type { ActionDefinition } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { PluginRegistration } from '@molis-ai/molis-work-contracts/platform/plugin-registration';
@@ -18,7 +20,7 @@ function futurePlugin(): PluginRegistration {
       permissions: [{ permission: 'fixture:read', required: false, reason: 'read fixture' }], actions: [action],
       capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },
       ui: { contributions: [contribution], views: [{ view_id: 'panel', slot: 'stage', title: 'Future', contribution_id: contribution }] } },
-    workbench: { order: 0, contributions: [{ descriptor: { contribution_id: contribution, plugin_id: id, kind: 'primary-page', label: 'Future', slots: [],
+    workbench: { order: 0, contributions: [{ descriptor: { contribution_id: contribution, kind: 'primary-page', label: 'Future', slots: [],
       surfaces: [{ surface_id: 'panel', target_slot_id: 'workbench.main', format: 'declarative-html' }] },
       render: ({ model }) => `<article>${(model as { title: string }).title}</article>` }],
       stylesheet: '.future{color:red}', clientFactory: "api => api.mountPluginClient('future', api.projectId())",
@@ -42,12 +44,36 @@ test('one unknown bundled entry supplies actual UI mounting, ordered assets, cli
   assert.deepEqual(mounted.map(args => [...args as unknown[]]), [['future', 'project-1'], ['future.settings', 'project-1']]);
 });
 
-test('composition preserves Native UI identities', () => {
-  // Native UI is composed statically, not redeemed as a Runtime contribution; its old public identities stay stable.
+test('RAC-635 a built-in contribution is registered under the plugin its Manifest names, whatever the contribution itself says', () => {
+  // Native UI is composed statically, not redeemed as a Runtime contribution; the platform fills the owner from the catalog entry's Manifest (PG-098).
   const ui = createWorkbenchUiHost().list();
-  assert.equal(ui.find(entry => entry.contribution_id === 'io.molis.work.native.goals.proposal')?.plugin_id, 'io.molis.work.native.goals');
+  const owners = new Map(BUILTIN_PLUGIN_CATALOG.flatMap(entry => (entry.workbench?.contributions ?? []).map(item => [item.descriptor.contribution_id, entry.manifest.plugin_id] as const)));
+  assert.ok(ui.length > 20, 'the catalog registers its contributions');
+  for (const descriptor of ui) assert.equal(descriptor.plugin_id, owners.get(descriptor.contribution_id), descriptor.contribution_id);
+  assert.equal(ui.find(entry => entry.contribution_id === 'io.molis.work.native.goals.proposal')?.plugin_id, 'io.molis.work.goals');
+  // A contribution that names an owner of its own is overwritten by nothing and registered by nothing else: the packs never read it.
+  const pack = pluginWorkbenchPacks(BUILTIN_PLUGIN_CATALOG.map(entry => entry.project_plugin_id === 'todo' && entry.workbench
+    ? { ...entry, workbench: { ...entry.workbench, contributions: entry.workbench.contributions.map(item => ({ ...item, descriptor: { ...item.descriptor, plugin_id: 'io.example.someone-else' } })) } } : entry))
+    .find(candidate => candidate.project_plugin_id === 'todo');
+  assert.ok(pack?.contributions.length);
+  for (const item of pack.contributions) assert.equal(item.descriptor.plugin_id, 'io.molis.work.todo');
   // SC-3 (PG-082): the Goal terminal pane is the workbench's own surface (apps/workbench/src/terminal/pane.ts), no longer a Work contribution.
   assert.equal(ui.find(entry => entry.contribution_id === 'io.molis.work.native.work.terminal.v1'), undefined);
+});
+
+test('RAC-635 no plugin source writes a plugin_id into a contribution declaration', () => {
+  const found: string[] = [];
+  const walk = (directory: string) => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const path = join(directory, entry.name);
+      if (entry.isDirectory()) { if (entry.name !== 'node_modules' && entry.name !== 'dist') walk(path); continue; }
+      if (!entry.name.endsWith('.ts')) continue;
+      if (/contribution_id:\s*[^,\n}]+,\s*plugin_id:|plugin_id:\s*[^,\n}]+,\s*contribution_id:/.test(readFileSync(path, 'utf8'))) found.push(path);
+    }
+  };
+  const root = new URL('../plugins/native', import.meta.url).pathname;
+  for (const plugin of readdirSync(root)) if (existsSync(join(root, plugin, 'src'))) walk(join(root, plugin, 'src'));
+  assert.deepEqual(found, []);
 });
 
 test('W4-03-05 the Coding companions borrow Coding\'s client: one bundle is served, none of them ships a copy', () => {

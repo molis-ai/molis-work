@@ -1,7 +1,7 @@
 import { renderPagesComments } from "./comment-side-view.js";
 import type {
   UiContribution,
-  UiContributionDescriptor,
+  UiContributionDeclaration,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
 import { icon, renderPluginStageShell } from "@molis-ai/molis-work-design-system";
@@ -20,9 +20,8 @@ export interface PagesUiModel {
   readonly primitives: PagesUiPrimitives;
 }
 
-export const pagesUiDescriptor: UiContributionDescriptor = {
+export const pagesUiDescriptor: UiContributionDeclaration = {
   contribution_id: PAGES_UI_CONTRIBUTION_ID,
-  plugin_id: "io.molis.work.pages",
   kind: "primary-page",
   navigation_id: "pages",
   label: "Pages",

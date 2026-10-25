@@ -23,7 +23,6 @@ function view(pluginId: string, viewId: string): UiContribution {
   return {
     descriptor: {
       contribution_id: `${pluginId}.${viewId}`,
-      plugin_id: pluginId,
       kind: "primary-page",
       label: viewId,
       slots: [],

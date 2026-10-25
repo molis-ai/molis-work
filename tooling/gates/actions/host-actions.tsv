@@ -66,7 +66,7 @@ characters.runnable	1	io.molis.work.characters	query	query	project	read	-	plugin
 characters.runs	2	io.molis.work.characters	query	query	project	read	-	user	-	character	-	-	de2f7e460673	d536ab86c0cc	-
 characters.search.entries	1	io.molis.work.characters	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	-	character	molis.search.entries.window.v1	molis.search.entries.page.v1	09d161bb4729	501913bfa17f	a3a409432585
 characters.state	1	io.molis.work.characters	command	operation	project	write	-	agent,mcp,user,workflow	-	character	-	-	a1b10c56536a	478e0598d946	-
-characters.subject.read	1	io.molis.work.characters	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	-	character	molis.subject-reference.v1	molis.subject-context.v1	ab53aeec266b	bfc8de56588a	-
+characters.subject.read	1	io.molis.work.characters	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	-	character	molis.subject-reference.v1	molis.subject-context.v1	ab53aeec266b	07aea27d3e00	-
 characters.update	1	io.molis.work.characters	command	operation	project	write	-	agent,mcp,user,workflow	-	character	-	-	4a1304bc13a6	478e0598d946	-
 characters.usages	1	io.molis.work.characters	query	query	project	read	concurrent	agent,mcp,plugin,user	-	-	molis.action-usages.input.v1	molis.action-usages.output.v1	8fc50332e9ea	d6491f838975	-
 connectors.account.read	1	system.connectors	query	query	home	read	concurrent	agent,mcp,user	connectors:account:read	connector	-	-	7d42269d0825	e14fa014b7b4	-

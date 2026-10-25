@@ -531,6 +531,7 @@ export interface ActionMetadata {
     };
     readonly home_aggregate?: true;
     readonly project_reach?: "person";
+    readonly placement_relation?: PlacementRelationDeclaration;
     readonly subject_offer_choices?: readonly SubjectOfferChoice[];
     readonly fragment_offer_choices?: readonly FragmentOfferChoice[];
     readonly intake?: ActionIntake;
@@ -744,7 +745,7 @@ export interface ActionSubjectContext {
     title: string;
     content: string;
     truncated: boolean;
-    goal_ids: string[];
+    goal_ids?: string[];
     open?: {
         surface: string;
         id: string;
@@ -2424,6 +2425,8 @@ export declare const PLACEMENT_MOVE_INPUT_TYPE = "molis.placement.move.input.v1"
 
 export declare const PLACEMENT_MOVE_OUTPUT_TYPE = "molis.placement.move.output.v1";
 
+export declare const PLACEMENT_RELATION_ROLES: readonly ["list", "bind", "release", "candidates", "create"];
+
 export declare const PLACEMENT_RESULT_SCHEMA: {
     type: string;
     properties: {
@@ -2487,6 +2490,17 @@ export interface PlacementMoveInput {
     subject: ActionSubject;
     to_project_id: string;
 }
+
+export interface PlacementRelationDeclaration {
+    readonly relation: string;
+    readonly role: PlacementRelationRole;
+    readonly target?: {
+        readonly kind: string;
+        readonly noun: string;
+    };
+}
+
+export type PlacementRelationRole = (typeof PLACEMENT_RELATION_ROLES)[number];
 
 export interface PlacementResult {
     subject: ActionSubject;
@@ -4137,6 +4151,14 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA: {
             type: string[];
             maxLength: number;
         };
+        goal_ids: {
+            type: string;
+            items: {
+                type: string;
+                minLength: number;
+            };
+            uniqueItems: boolean;
+        };
         subject: {
             type: string;
             properties: {
@@ -4166,14 +4188,6 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA: {
         };
         truncated: {
             type: string;
-        };
-        goal_ids: {
-            type: string;
-            items: {
-                type: string;
-                minLength: number;
-            };
-            uniqueItems: boolean;
         };
     };
     required: string[];
@@ -4183,6 +4197,14 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA: {
 export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN: {
     type: string;
     properties: {
+        goal_ids: {
+            type: string;
+            items: {
+                type: string;
+                minLength: number;
+            };
+            uniqueItems: boolean;
+        };
         subject: {
             type: string;
             properties: {
@@ -4212,14 +4234,6 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN: {
         };
         truncated: {
             type: string;
-        };
-        goal_ids: {
-            type: string;
-            items: {
-                type: string;
-                minLength: number;
-            };
-            uniqueItems: boolean;
         };
     };
     required: string[];
@@ -4245,6 +4259,14 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_PROJECT: {
             required: string[];
             additionalProperties: boolean;
         };
+        goal_ids: {
+            type: string;
+            items: {
+                type: string;
+                minLength: number;
+            };
+            uniqueItems: boolean;
+        };
         subject: {
             type: string;
             properties: {
@@ -4274,14 +4296,6 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_PROJECT: {
         };
         truncated: {
             type: string;
-        };
-        goal_ids: {
-            type: string;
-            items: {
-                type: string;
-                minLength: number;
-            };
-            uniqueItems: boolean;
         };
     };
     required: string[];
@@ -4899,6 +4913,10 @@ export declare function isObjectMover(action: {
     input_type?: string;
     output_type?: string;
 }): boolean;
+
+export declare function isPlacementRelation(action: {
+    placement_relation?: PlacementRelationDeclaration;
+}, relation: string, role: PlacementRelationRole): boolean;
 
 export declare function isReservedEventType(eventTypeId: string): boolean;
 

@@ -8,7 +8,7 @@ import {
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import { contextDeclarationProblems } from "./context-declarations.js";
 import {
-  fileSourceDeclarationProblems, fragmentOfferDeclarationProblems, placementDeclarationProblems, searchSourceDeclarationProblems,
+  fileSourceDeclarationProblems, fragmentOfferDeclarationProblems, placementDeclarationProblems, placementRelationListProblems, placementRelationProblems, searchSourceDeclarationProblems,
 } from "./source-declarations.js";
 import { workExecutorDeclarationProblems } from "./work-executor-declarations.js";
 
@@ -26,7 +26,7 @@ function definitionListProblems(definitions: unknown): string[] {
   if (definitions === undefined) return [];
   if (!Array.isArray(definitions)) return ["actions 必须是数组"];
   const seen = new Set<string>();
-  return definitions.flatMap(raw => definitionProblems(raw, seen));
+  return [...definitions.flatMap(raw => definitionProblems(raw, seen)), ...placementRelationListProblems(definitions)];
 }
 
 function definitionProblems(raw: unknown, seen: Set<string>): string[] {
@@ -51,6 +51,7 @@ function definitionProblems(raw: unknown, seen: Set<string>): string[] {
     ...fragmentOfferDeclarationProblems(key, action, raw.operation, canonicalSchema),
     ...fileSourceDeclarationProblems(key, action, raw.operation, canonicalSchema),
     ...placementDeclarationProblems(key, action, raw.operation, canonicalSchema),
+    ...placementRelationProblems(key, action, raw.operation),
     ...workExecutorDeclarationProblems(key, action, raw.operation, canonicalSchema),
     ...workflowContentProblems(key, raw.version, raw.operation, action),
     ...operationKindProblems(key, raw.operation, action),

@@ -3,7 +3,7 @@
 // not honour; the workbench reads the declarations and keeps only the group names and their order.
 import assert from "node:assert/strict";
 import test from "node:test";
-import { UI_VIEW_GROUPS, type UiContributionDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
+import { UI_VIEW_GROUPS, type UiContributionDeclaration } from "@molis-ai/molis-work-contracts/platform/ui";
 import {
   BUILTIN_PLUGIN_CATALOG, PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, creatableKinds, findPluginSettingsNavItem, homeStarts,
   listPluginSettingsNavItems, pluginSettingsNavItemsFrom,
@@ -136,8 +136,8 @@ test("RAC-77 W5-06-PLACE-03 a settings page's icon is its view's, also when foun
   assert.deepEqual(icons, { shelf: "library", planning: "workflow", "coding-settings": "code" });
   assert.equal(findPluginSettingsNavItem("coding-settings")?.icon, "code", "a project that does not show Coding still finds its page with its icon");
   assert.equal(findPluginSettingsNavItem("shelf")?.icon, "library");
-  const page: UiContributionDescriptor = {
-    contribution_id: "io.molis.work.native.example.settings.v1", plugin_id: "io.molis.work.native.example", kind: "settings-page",
+  const page: UiContributionDeclaration = {
+    contribution_id: "io.molis.work.native.example.settings.v1", kind: "settings-page",
     navigation_id: "example", label: "Example", slots: [],
     surfaces: [{ surface_id: "settings", target_slot_id: "workbench.settings", format: "declarative-html" }],
   };

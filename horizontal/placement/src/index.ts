@@ -1,6 +1,6 @@
 import {
-  ActionError, isObjectCopier, isObjectMover, isSubjectReader, PERSONAL_SPACE_PROJECT_ID,
-  type ActionCallContext, type ActionClient, type ActionReference, type ActionView, type PlacementResult,
+  ActionError, isObjectCopier, isObjectMover, isPlacementRelation, isSubjectReader, PERSONAL_SPACE_PROJECT_ID,
+  type ActionCallContext, type ActionClient, type ActionReference, type ActionView, type PlacementRelationRole, type PlacementResult,
   type WorkflowItemRef,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ContextAccess, ContextEdge, ContextLedgerApi, ObjectRef } from "@molis-ai/molis-work-contracts/modules/context-ledger";
@@ -41,6 +41,8 @@ export interface PlacementPorts {
   titles: { get(kind: string, id: string): string | null; set(kind: string, id: string, title: string): void };
   /** Text in the reader's language. Strings are Chinese with `{name}` slots; without it the slots are only filled in. */
   text?(zh: string, vars?: Record<string, string | number>): string;
+  /** Which declared relation (`placement_relation`) the Goal-shaped parts of this service keep; `goal`, the name the wire vocabulary uses. */
+  relation?: string;
 }
 
 const ACCESS: ContextAccess = { actor_id: "module:placement", scope: { kind: "personal", id: "placement" } };
@@ -91,38 +93,52 @@ export class PlacementService {
     // Goals keep the bindings in their own project: the one it lives in, and every project it was bound in from elsewhere or before a move.
     const boundIn = new Set<string>(object.project_id === null ? [] : [object.project_id]);
     for (const edge of this.edges(TYPES.goal)) if (sameObject(edge.source, object.kind, object.id)) boundIn.add(edge.target.id);
-    const bound: { project_id: string; binding_id: string; goal_id: string; created_at: string }[] = [];
-    for (const projectId of boundIn) for (const binding of await placementGoalBindings(this.ports, projectId, { kind: object.kind, id: object.id })) bound.push({ ...binding, project_id: projectId });
+    // The owner of the relation is whoever declares it in that project's directory (`placement_relation`), so the lookups below name no plugin.
+    const relations = new Map<string, Promise<PlacementRelation>>();
+    const relationIn = (projectId: string | null) => {
+      const cached = relations.get(projectId ?? HOME);
+      return cached ?? relations.set(projectId ?? HOME, placementRelation(this.ports, projectId)).get(projectId ?? HOME)!;
+    };
+    const bound: { project_id: string; binding_id: string; goal_id: string; created_at: string; noun: string; target_kind: string }[] = [];
+    for (const projectId of boundIn) {
+      const relation = await relationIn(projectId);
+      for (const binding of await placementBindings(this.ports, projectId, relation, { kind: object.kind, id: object.id })) bound.push({ ...binding, project_id: projectId, noun: relation.noun, target_kind: relation.target_kind });
+    }
     for (const binding of bound) {
-      const goal = await this.goalTitle(binding.project_id, binding.goal_id);
+      const goal = await this.targetTitle(binding.project_id, binding.target_kind, binding.goal_id);
       const name = goal ?? placementText(this.ports, "（读不到标题）");
       associations.push({ key: key("goal", binding.project_id, binding.goal_id, binding.binding_id), type: "goal",
-        label: binding.project_id === object.project_id ? placementText(this.ports, "Goal「{name}」", { name }) : placementText(this.ports, "Goal「{name}」 · {place}", { name, place: placementLocation(this.ports, binding.project_id, spaces).title }),
+        label: binding.project_id === object.project_id ? placementText(this.ports, "{noun}「{name}」", { noun: binding.noun, name })
+          : placementText(this.ports, "{noun}「{name}」 · {place}", { noun: binding.noun, name, place: placementLocation(this.ports, binding.project_id, spaces).title }),
         target: { kind: "goal", project_id: binding.project_id, goal_id: binding.goal_id, title: goal ?? "" }, since: binding.created_at, removable: true });
     }
-    for (const goalId of read.context?.goal_ids ?? []) {
-      if (object.kind === "goal" && goalId === object.id) continue;
+    const kept = read.context?.goal_ids ?? [];
+    const keptRelation = kept.length ? await relationIn(object.project_id) : null;
+    for (const goalId of kept) {
+      if (object.kind === keptRelation!.target_kind && goalId === object.id) continue;
       if (bound.some(binding => binding.goal_id === goalId && binding.project_id === object.project_id)) continue;
-      const goal = object.project_id === null ? null : await this.goalTitle(object.project_id, goalId);
+      const goal = object.project_id === null ? null : await this.targetTitle(object.project_id, keptRelation!.target_kind, goalId);
       // Kept by the plugin itself (a document's “挂到 Goal”): changed there, not here.
-      associations.push({ key: null, type: "goal", label: placementText(this.ports, "Goal「{name}」 · {plugin}里挂接", { name: goal ?? placementText(this.ports, "（读不到标题）"), plugin: read.plugin?.title ?? "" }),
+      associations.push({ key: null, type: "goal", label: placementText(this.ports, "{noun}「{name}」 · {plugin}里挂接", { noun: keptRelation!.noun, name: goal ?? placementText(this.ports, "（读不到标题）"), plugin: read.plugin?.title ?? "" }),
         target: { kind: "goal", project_id: object.project_id, goal_id: goalId, title: goal ?? "" }, since: null, removable: false });
     }
     // A conversion names what the other end is (a Goal, or the plugin that keeps it), so a document and a Goal made from one spark read apart.
-    const origin = (label: (title: string, goal: boolean) => string, kind: PlacementAssociation["type"]) => async (edge: ContextEdge, other: ObjectRef) => {
+    const origin = (label: (title: string, noun: string | null) => string, kind: PlacementAssociation["type"]) => async (edge: ContextEdge, other: ObjectRef) => {
       const found = this.locate({ kind: other.object_type ?? "", id: other.id, project_id: null }).object;
       const otherRead = await this.read(found);
       const otherTitle = otherRead.context?.title || this.ports.titles.get(found.kind, found.id) || placementText(this.ports, "未命名");
       const where = otherRead.state === "missing" ? placementText(this.ports, "原对象已删除") : placementLocation(this.ports, found.project_id, spaces).title;
-      const what = kind.startsWith("derived") && found.kind !== "goal" ? otherRead.plugin?.title ?? "" : "";
-      associations.push({ key: null, type: kind, label: [label(otherTitle, found.kind === "goal"), what, where].filter(Boolean).join(" · "),
-        target: { kind: "object", object: found, title: otherTitle, state: otherRead.state, location: otherRead.state === "ok" ? placementLocation(this.ports, found.project_id, spaces) : null },
+      const foundRelation = await relationIn(found.project_id);
+      const noun = found.kind === foundRelation.target_kind ? foundRelation.noun : null;
+      const what = kind.startsWith("derived") && !noun ? otherRead.plugin?.title ?? "" : "";
+      associations.push({ key: null, type: kind, label: [label(otherTitle, noun), what, where].filter(Boolean).join(" · "),
+        target: { kind: "object", object: found, title: otherTitle, state: otherRead.state, location: otherRead.state === "ok" ? placementLocation(this.ports, found.project_id, spaces) : null, plugin: otherRead.plugin },
         since: edge.recorded_at, removable: false });
     };
     const derivedFrom = this.ports.ledger.query.get(ACCESS, key("derived_from", object.kind, object.id));
-    if (derivedFrom) await origin((title, goal) => placementText(this.ports, goal ? "来自 Goal《{title}》" : "来自《{title}》", { title }), "derived_from")(derivedFrom, derivedFrom.target);
+    if (derivedFrom) await origin((title, noun) => noun ? placementText(this.ports, "来自 {noun}《{title}》", { noun, title }) : placementText(this.ports, "来自《{title}》", { title }), "derived_from")(derivedFrom, derivedFrom.target);
     for (const edge of this.edges(TYPES.derived).filter(edge => sameObject(edge.target, object.kind, object.id))) {
-      await origin((title, goal) => placementText(this.ports, goal ? "已建成 Goal《{title}》" : "已转成《{title}》", { title }), "derived_into")(edge, edge.source);
+      await origin((title, noun) => noun ? placementText(this.ports, "已建成 {noun}《{title}》", { noun, title }) : placementText(this.ports, "已转成《{title}》", { title }), "derived_into")(edge, edge.source);
     }
     const copiedFrom = this.ports.ledger.query.get(ACCESS, key("copied_from", object.kind, object.id));
     if (copiedFrom) await origin(title => placementText(this.ports, "复制自《{title}》", { title }), "copied_from")(copiedFrom, copiedFrom.target);
@@ -182,7 +198,7 @@ export class PlacementService {
     if (Array.isArray(parts) && parts[0] === "goal" && parts.length === 4 && parts.every(part => typeof part === "string")) {
       const [, projectId, goalId, bindingId] = parts as string[];
       const scope = await this.ports.scope(projectId!);
-      const release = await placementAction(scope, "goals.inputs.release");
+      const { release } = await placementRelationOf(this.ports, scope);
       if (!release) throw new ActionError("placement.target_unavailable", placementText(this.ports, "这个位置没有启用 Goals"));
       return { removed: (await scope.client.invoke(scope.caller, release, { goal_id: goalId, binding_id: bindingId }) as { released: boolean }).released };
     }
@@ -203,7 +219,7 @@ export class PlacementService {
     const read = await this.read(object);
     if (read.state !== "ok") throw new ActionError(`placement.${read.state}`, read.reason ?? placementText(this.ports, "暂时读不到这个对象"));
     const scope = await this.ports.scope(projectId);
-    const bind = await placementAction(scope, "goals.inputs.bind");
+    const { bind } = await placementRelationOf(this.ports, scope);
     if (!bind) throw new ActionError("placement.target_unavailable", placementText(this.ports, "这个位置没有启用 Goals，不能关联目标"));
     const result = await scope.client.invoke(scope.caller, bind, { goal_id: goalId, subject: { kind: object.kind, id: object.id }, title: read.context!.title || placementText(this.ports, "未命名") }) as { binding: { binding_id: string } };
     await this.ports.beforeEffect?.();
@@ -332,8 +348,9 @@ export class PlacementService {
     return read.context?.open ? { project_id: placementOpenProject(object, read), surface: read.context.open.surface, id: read.context.open.id } : null;
   }
 
-  private async goalTitle(projectId: string, goalId: string): Promise<string | null> {
-    const read = await this.read({ kind: "goal", id: goalId, project_id: projectId });
+  /** The title of what the relation points at, read from its owner like any object (the target kind comes from the relation's declaration). */
+  private async targetTitle(projectId: string, kind: string, id: string): Promise<string | null> {
+    const read = await this.read({ kind, id, project_id: projectId });
     return read.context?.title ?? null;
   }
 
@@ -436,17 +453,50 @@ async function placementTools(ports: PlacementPorts, object: PlacedObject): Prom
   } catch { return { mover: null, copier: null }; }
 }
 
-async function placementAction(scope: PlacementScope, capabilityId: string): Promise<ActionReference | null> {
-  const view = (await scope.client.discover(scope.caller)).find(entry => entry.capability_id === capabilityId && entry.availability.available);
-  return view ? ref(view) : null;
+/** The wire vocabulary's name for the relation (association type `goal`), and what a person reads it as when its owner is not there to say. */
+const DEFAULT_RELATION = "goal";
+const DEFAULT_NOUN = "Goal";
+
+/**
+ * The relation an owner keeps between an object and a target it owns (a document's Goal): the actions that play its parts in one
+ * partition, found by their `placement_relation` declaration, never by capability id. A part the owner does not offer (not declared,
+ * not enabled in this project) is null; with no owner at all the noun and target kind are the wire vocabulary's own.
+ */
+interface PlacementRelation {
+  noun: string;
+  target_kind: string;
+  list: ActionReference | null;
+  bind: ActionReference | null;
+  release: ActionReference | null;
+  candidates: ActionReference | null;
+  create: ActionReference | null;
 }
 
-async function placementGoalBindings(ports: PlacementPorts, projectId: string, subject: { kind: string; id: string }): Promise<{ binding_id: string; goal_id: string; created_at: string }[]> {
+async function placementRelationOf(ports: PlacementPorts, scope: PlacementScope): Promise<PlacementRelation> {
+  const name = ports.relation ?? DEFAULT_RELATION;
+  const views = (await scope.client.discover(scope.caller)).filter(view => view.availability.available);
+  const play = (role: PlacementRelationRole) => {
+    const view = views.find(entry => isPlacementRelation(entry.action, name, role));
+    return view ? ref(view) : null;
+  };
+  const declared = views.find(entry => isPlacementRelation(entry.action, name, "list"))?.action.placement_relation?.target;
+  return { noun: declared?.noun ?? DEFAULT_NOUN, target_kind: declared?.kind ?? name,
+    list: play("list"), bind: play("bind"), release: play("release"), candidates: play("candidates"), create: play("create") };
+}
+
+/** Like `placementRelationOf`, for a partition that may be gone: it has no relation parts and the wire vocabulary's own words. */
+async function placementRelation(ports: PlacementPorts, projectId: string | null): Promise<PlacementRelation> {
+  try { return await placementRelationOf(ports, await ports.scope(projectId)); } catch {
+    const name = ports.relation ?? DEFAULT_RELATION;
+    return { noun: DEFAULT_NOUN, target_kind: name, list: null, bind: null, release: null, candidates: null, create: null };
+  }
+}
+
+async function placementBindings(ports: PlacementPorts, projectId: string, relation: PlacementRelation, subject: { kind: string; id: string }): Promise<{ binding_id: string; goal_id: string; created_at: string }[]> {
   try {
+    if (!relation.list) return [];
     const scope = await ports.scope(projectId);
-    const list = await placementAction(scope, "goals.inputs.list");
-    if (!list) return [];
-    return (await scope.client.invoke(scope.caller, list, { subject }) as { bindings: { binding_id: string; goal_id: string; created_at: string }[] }).bindings;
+    return (await scope.client.invoke(scope.caller, relation.list, { subject }) as { bindings: { binding_id: string; goal_id: string; created_at: string }[] }).bindings;
   } catch { return []; }
 }
 
@@ -458,7 +508,7 @@ function placementOpenProject(object: PlacedObject, read: Read): string | null {
 /** Goals still open in one location, for choosing one to bind to. */
 async function placementGoals(ports: PlacementPorts, projectId: string): Promise<PlacementGoalView[]> {
   const scope = await ports.scope(projectId);
-  const list = await placementAction(scope, "goals.list");
+  const { candidates: list } = await placementRelationOf(ports, scope);
   if (!list) return [];
   const goals: PlacementGoalView[] = [];
   let after: string | undefined;
@@ -507,11 +557,11 @@ async function convertPlacement(ports: PlacementPorts, access: PlacementInstance
   const views = await scope.client.discover(scope.caller);
   let created: PlacedObject;
   if ("goal" in request.to) {
-    const create = views.find(view => view.capability_id === "goals.create" && view.availability.available);
-    if (!create) throw new ActionError("placement.target_unavailable", placementText(ports, "这个位置没有启用 Goals，不能建成 Goal"));
-    const result = await scope.client.invoke(scope.caller, ref(create), { title: title.slice(0, 200), outcome: body.slice(0, 2000),
+    const relation = await placementRelationOf(ports, scope);
+    if (!relation.create) throw new ActionError("placement.target_unavailable", placementText(ports, "这个位置没有启用 Goals，不能建成 Goal"));
+    const result = await scope.client.invoke(scope.caller, relation.create, { title: title.slice(0, 200), outcome: body.slice(0, 2000),
       why: placementText(ports, "来自 {source}", { source: from }), source_kind: "web", idempotency_key: `placement:${request.request_id}` }) as { goal: { goal_id: string } };
-    created = { kind: "goal", id: result.goal.goal_id, project_id: request.to_project_id };
+    created = { kind: relation.target_kind, id: result.goal.goal_id, project_id: request.to_project_id };
   } else {
     const station = request.to.station;
     const receive = views.find(view => view.action.workflow_content?.id === station && view.action.workflow_content.role === "receive" && view.availability.available);

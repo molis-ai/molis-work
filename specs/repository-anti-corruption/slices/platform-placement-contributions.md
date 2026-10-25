@@ -1,6 +1,6 @@
 # 放置的关联由声明登记、UI 贡献的 plugin_id 由平台填
 
-状态：草稿，等统筹看（2026-10-25，防腐线 ac-platform，叠在 `d13fd0f48` 上，对照 `origin/main` `3817f8757` 核过）。做的是 `privileges.md` 的 PG-032、PG-098、PG-100，PG-099 的剩余部分核实后不用写代码（§1.4）。验收号暂用 RAC-594 起，要比统筹给的 580～599 多（§5 第 5 条）。
+状态：实现中（2026-10-25，防腐线 ac-platform，叠在 `d13fd0f48` 上；统筹已按 D1～D5 裁定，见 §5）。做的是 `privileges.md` 的 PG-032、PG-098、PG-100，PG-099 的剩余部分核实后不用写代码（§1.4）。验收号用 RAC-630～638（§3），BL 号不新增。
 
 ## 1. 重核结果
 
@@ -38,14 +38,14 @@
 
 ### 2.1 PG-032：关联由动作上的声明登记，放置服务按声明找
 
-`ActionMetadata` 加一项可选的 `placement_relation: { relation: string; role: "list" | "bind" | "release" | "candidates" | "create" }`（紧挨 `workflow_content`，同样由 SDK 的声明检查把关）。一个关联（今天只有 `goal`）由同一个插件的五个动作各带一个角色：
+`ActionMetadata` 加一项可选的 `placement_relation: { relation: string; role: "list" | "bind" | "release" | "candidates" | "create"; target?: { kind: string; noun: string } }`（`target` 只在 `list` 角色上写：对方的对象种类和人读的名词；紧挨 `project_reach`，由 SDK 的声明检查把关）。一个关联（今天只有 `goal`）由同一个插件的五个动作各带一个角色：
 
 - `list`：这个对象挂在哪些目标上（Goals 的 `goals.inputs.list`）；
 - `bind` / `release`：挂上、取消（`goals.inputs.bind`、`goals.inputs.release`）；
 - `candidates`：能选的目标有哪些（`goals.list`）；
 - `create`：把内容建成一个目标（`goals.create`）。
 
-放置服务的 `placementAction(scope, "goals.…")` 和 `capability_id === "goals.create"` 换成 `placementRelationAction(scope, relation, role)`：在目录里按这项声明找，找不到或不可用就是现在的 `placement.target_unavailable`。`horizontal/placement` 里不再出现 `goals.` 字符串。显示用的名词（「Goal」）由 `list` 角色的声明带（`noun`），文案「Goal「…」」「已建成 Goal《…》」按它拼；关联键、边类型（`placement.goal_in`）按关联名拼，今天仍是同样的值。
+放置服务的 `placementAction(scope, "goals.…")` 和 `capability_id === "goals.create"` 换成 `placementRelationOf(ports, scope)`：在目录里一次按这项声明找出五个角色，找不到或不可用就是现在的 `placement.target_unavailable`。要找哪个关联由 `PlacementPorts.relation` 给，缺省是线上名字 `goal`（夹具用它换成别的关联名）。`horizontal/placement` 里不再出现 `goals.` 字符串。显示用的名词（「Goal」）由 `list` 角色的声明带（`noun`），文案「Goal「…」」「已建成 Goal《…》」按它拼；关联键、边类型（`placement.goal_in`）按关联名拼，今天仍是同样的值。
 
 不变的：放置规则（谁能移动、复制、转成；账本里的边；`describe` 的结果形状）；Goals 的动作 id、版本、输入输出；路由和系统动作的名字（见 D2）。
 
@@ -55,29 +55,29 @@
 
 ### 2.2 PG-098：贡献的 plugin_id 由平台填，插件不写
 
-- `packages/contracts/src/platform/ui.ts`：新类型 `UiContributionDeclaration = Omit<UiContributionDescriptor, "plugin_id">`，插件写的 `UiContribution.descriptor` 用它；`UiContributionDescriptor`（带 `plugin_id`）只是平台这一侧用的。
-- `ui-host` 的 `register` 带上登记它的插件 id（`plugin-client.ts` 用 `context.plugin_id`；内置的 `registration.workbench.contributions` 用 `registration.manifest.plugin_id`），由 host 合成完整的描述；Runtime 的视图契约检查（`contribution.ts:53`）跟着去掉这一个判断，其余照旧。
-- 各插件 UI 文件里的描述（约 35 个文件，开工时按实数）各删一行 `plugin_id: "…"`；GLOSSARY 的「UI 描述里的 `plugin_id` 与 Manifest 不一致」那条改成「已由平台填」。
+- `packages/contracts/src/platform/ui.ts`：插件写的 `UiContribution.descriptor` 换成 `UiContributionDeclaration`（没有 `plugin_id`）；`UiContributionDescriptor`（带 `plugin_id`）是平台这一侧的，`OwnedUiContribution` 是进了登记表的那份，`ownedContribution(声明, 插件 id)` 合成它；`declaresOwner(声明)` 判断一份声明有没有自己写了 `plugin_id`。
+- `ui-host` 的 `register` 只收 `OwnedUiContribution`：`plugin-client.ts` 用安装上下文的 `context.plugin_id` 合成，声明自带 `plugin_id`（哪怕等于自己的）一律 `plugin_denied`，不覆盖、不兜底；内置的 `registration.workbench.contributions` 在 `pluginWorkbenchPacks` 里用登记项的 `manifest.plugin_id` 合成；Runtime 的视图契约检查（`contribution.ts`）把「`plugin_id` 对不上」换成「声明里不许有 `plugin_id`」，其余照旧。
+- 各插件 UI 文件里的描述（实数 60 个文件含测试、示例与脚手架）各删 `plugin_id`，类型换成 `UiContributionDeclaration`；SDK 多导出 `UiContributionDeclaration`；GLOSSARY 的「UI 描述里的 `plugin_id` 与 Manifest 不一致」那条改成「已由平台填」。
 
-这样「插件冒用别的插件的名字登记贡献」不是被检查拒绝，而是没有地方写。`plugin_denied`（不在 Manifest 的 `ui.contributions` 里就拒）保留。
+这样「插件冒用别的插件的名字登记贡献」不是被检查拒绝，而是没有地方写（类型上不能写，运行时写了也拒）。`plugin_denied`（不在 Manifest 的 `ui.contributions` 里就拒）保留。外部插件作者的影响：声明里写了 `plugin_id` 的插件，类型检查和注册都会失败，删掉那一行即可。
 
 ### 2.3 PG-100：对象种类的显示名从登记读
 
-`PlacementAssociation.target` 的 `object` 一支加 `plugin: { plugin_id, title } | null`（放置服务已经在 `origin()` 里读到 `otherRead.plugin`）；灵光的 `fateLabel` 只读它：有就显示所属插件的名字，没有就「其他」。删掉 `lingguang.fate.goal/todo/page/jelly` 四个文案键，换一个「已转成 {name}」。放置服务的「来自 Goal《…》」「已转成《…》」两套文案也并成一套（`来自《{title}》 · {所属插件}`），不再有 `found.kind === "goal"` 的分支。
+`PlacementAssociation.target` 的 `object` 一支加 `plugin: { plugin_id, title } | null`（放置服务已经在 `origin()` 里读到 `otherRead.plugin`）；灵光的 `fateLabel` 只读它：有就显示「已转到 {所属插件}」，没有就「已转出」。删掉 `lingguang.fate.goal/todo/page/jelly` 四个文案键。放置服务的「来自 Goal《…》」「已建成 Goal《…》」仍按对方是不是关联的目标种类（`list` 声明的 `target.kind`）分两套，名词读声明的 `noun`，不再有 `found.kind === "goal"`。
 
 不新建种类登记表：对象种类已经是读取器动作的 `subject_kinds`，所属插件是读取器的提供方，放置服务早就按这个找人（`describe` 返回 `plugin`）。
 
-## 3. 验收（暂定号）
+## 3. 验收
 
-- **RAC-594**：`horizontal/placement/src` 里没有 `goals.` 能力 id 字符串（读源码的测试）；
-- **RAC-595**：一个夹具插件用另一个关联名（`topic`）声明五个角色，放置服务能列出、挂上、取消、列候选、建成，用的是同一套代码；换掉提供方后原来的提供方不再被调用；
-- **RAC-596**：关联的提供方缺任何一个角色或不可用：对应的操作是 `placement.target_unavailable`，别的角色的动作没被调；
-- **RAC-597**：`goal_ids` 缺省的读取器能被 `describe`、关联、移动照常处理；带 `goal_ids` 的读取器仍显示「挂接」；
-- **RAC-598**：Goals 的 5 个动作带声明，SDK 的声明检查拒绝：角色不在列表里、同一个关联同一角色出现两次、`relation` 不是小写词；
-- **RAC-599**：16 个内置贡献的描述里没有 `plugin_id`（读源码）；登记后的描述 `plugin_id` 等于登记者的 Manifest；
-- **RAC-600**：插件经 `ui:register` 登记不在自己 Manifest `ui.contributions` 里的 id，`plugin_denied`（原有的拒绝保留，换成断言它）；
-- **RAC-601**：启动返回的视图描述没有 `plugin_id` 也能兑现，对不上 Manifest 声明的 `contribution_id` 仍失败；
-- **RAC-602**：`derived_into` 的目标带所属插件的名字，灵光的标签读它；所属插件缺失（插件已停用）时显示「其他」；不再有 `todo`/`page`/`jelly`/`goal` 字符串（读源码）。
+- **RAC-630**：`horizontal/placement/src` 里没有 `goals.` 能力 id 字符串（读源码的测试）；
+- **RAC-631**：一个夹具提供方用另一个关联名（`topic`）声明五个角色，放置服务能列出、挂上、取消、列候选、建成，用的是同一套代码；换掉提供方后原来的提供方不再被调用；
+- **RAC-632**：关联的提供方缺任何一个角色或不可用：对应的操作是 `placement.target_unavailable`，别的角色的动作没被调；
+- **RAC-633**：`goal_ids` 缺省的读取器能被 `describe` 照常处理；带 `goal_ids` 的读取器仍显示「挂接」；
+- **RAC-634**：Goals 的 5 个动作带声明；SDK 的声明检查拒绝：角色不在列表里、同一个关联同一角色出现两次、`relation` 不是小写词、`target` 写在非 `list` 角色上、`list` 角色缺 `target`；
+- **RAC-635**：内置贡献的声明里没有 `plugin_id`（读源码）；工作台登记后的描述 `plugin_id` 等于登记项 Manifest 的；
+- **RAC-636**：插件经 `ui:register` 登记不在自己 Manifest `ui.contributions` 里的 id，`plugin_denied`；声明自带 `plugin_id`（哪怕等于自己的），`plugin_denied`，且没有登记；
+- **RAC-637**：启动返回的视图声明里没有 `plugin_id` 才能兑现，自带 `plugin_id` 的失败；对不上 Manifest 声明的 `contribution_id` 仍失败；
+- **RAC-638**：`derived_into` 的目标带所属插件的名字，灵光的标签读它；所属插件缺失（插件已停用）时显示「已转出」；灵光的 `list.ts` 里不再有 `todo`/`page`/`jelly`/`goal` 字符串（读源码）。
 
 ## 4. 碰的文件（预计）
 
@@ -85,21 +85,20 @@
 
 和别的线的重叠：Goals 五个动作的定义在 `packages/contracts/src/modules/goal-*.ts`，ac-sc3 的 S8/S9 在改 Goals 的存储与提供方，不改动作定义，冲突应该只在 `goal-entry-actions.ts` 附近；约 35 个 UI 文件里有 12 个是 Goals 的，ac-sc3 若在那边改 `*-ui.ts` 会撞。落地顺序由统筹定。
 
-## 5. 要统筹定的
+## 5. 统筹的裁定（2026-10-25）
 
-1. **D1 做不做 PG-032**：推荐做（§2.1，沿用 `workflow_content` 的声明方式，不新建登记表）。要不要等 T1 解冻、Goals 的提供方钉死（BL-500）之后再做？推荐不等：本 slice 不碰钉死的提供方，也不碰 `goalTitle` 端口。Goals 5 个动作 traits 变、版本不升，请再确认一次。
-2. **D2 外部名字**：推荐只搬实现、不改线上名字（`PlacementAssociationType` 的 `"goal"`、`placementGoalActions` 和三条 `/api/placement/*` 路由都留）。理由：这几个名字是 Pages 编辑器、Goals 页面等前端在用的，泛化要同时改它们，收益只在「第二个关联出现的时候」。代价：合同里还留着 `goal` 这个词，作为「Goals 登记的那个关联」的名字。要全泛化，就是 §4 里加上前端和路由的一整片，我会拆成第二个 PR。
-3. **D3 `goal_ids`**：推荐改成输出里可选（§2.1）。要彻底换成通用的 `relations` 对象，同 D2，等有第二个关联再做。
-4. **D4 PG-098 的做法**：推荐 §2.2（平台填，改合同，约 35 个文件各删一行）。更小的做法是只把 16 处值改对、加一道目录检查，但「插件自己写」这件事还在。
-5. **D5 验收号**：这一片要 RAC-594～602（9 个），比我的剩余号段（594～599）多，请把段延到 609。S 号：本片不加安全不变量行（放置用的仍是本人的客户端权限，没有新边界）；若统筹认为 PG-098 的「贡献身份由平台填」要进表，S 号请统筹给。BL 号：不新增。
-6. **PG-099**：§1.4，状态格请统筹改，我不动。
-7. **顺序**：#1266 还在评审；按「只推分支、做完整组再开 PR」，这片先只推分支，等统筹看过草稿再写代码。
+1. **D1**：做 PG-032。Goals 5 个动作只多 traits；`pnpm actions:update` 之后输入输出 schema 的哈希不变就不升版，变了就升版；PR 写对调用方的影响。
+2. **D2**：只搬实现，线上名字不改（`"goal"`、`placementGoalActions`、三条 `/api/placement/*` 路由）。
+3. **D3**：`goal_ids` 改成输出里可选，读它的一侧同一片里改，读取不兜底。
+4. **D4**：PG-098 按 §2.2 做，是合同变更：平台在登记时按受信任的 Manifest 填 `plugin_id`，插件不写，声明自带 `plugin_id` 一律拒；跑 `pnpm api:update`；PR 写对外部插件作者的影响；SDK 是共享核心，由统筹跑全量。
+5. **D5**：验收号 RAC-630～649，BL 号 625～634，不加 S 号。
+6. **PG-099**：状态格由统筹改；本片不写代码，PR 正文写一句。
 
 ## 6. 开工前再核
 
 - `origin/main` 若又动了 `horizontal/placement`、`placement.ts`、`ui.ts`、`plugin-client.ts` 或 Goals 的动作定义，再核行号；
 - 这些 UI 文件里是否有别的线在改；
-- 夹具插件（RAC-595）用 `pluginFixtures` 起一个带 `placement_relation` 的 Home 插件，放置服务的 scope 能不能看到它（`ports.scope(projectId)` 的目录）——开工第一步先试。
+- 夹具提供方（RAC-631）：`tests/work-placement.test.ts` 已有「假客户端 + `PlacementService`」的写法，夹具直接用一个返回自己拼的 `ActionView`（带 `placement_relation`）的假客户端，不起整个 Home。第一步的探测已做：真实的 Goals 动作经目录带着声明到了放置服务，`work-placement.test.ts` 17 个用例原样通过。
 
 ## 7. 本机验证计划（做完代码后）
 

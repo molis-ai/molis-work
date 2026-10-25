@@ -39,6 +39,8 @@ function ports(store: LocalProjectDatabase, titles: Readonly<Record<string, stri
     actorId: "web-user",
     escapeHtml,
     translate: (value: string) => value,
+    // No folder is set up for this project.
+    workspacesFor: async () => [],
   };
 }
 
@@ -55,10 +57,8 @@ test("W5-01-CODING-20 面板来自运行中的插件，会话来自它自己的�
       at: "2026-09-19T14:00:00Z",
     });
 
-    // The route reads titles through Goals' action and no Agent capability, so the Host's capability port is one that answers nothing.
-    const host = { ...ports(store, { g1: "让首次使用不再卡住" }), capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, _args: Input): Promise<Output> {
-      throw new Error(`unexpected capability ${definition.capability_id}`);
-    } } };
+    // The route reads titles through Goals' action and no Agent action, so no fake agent Host is registered.
+    const host = ports(store, { g1: "让首次使用不再卡住" });
     const panel = await codingView(host);
     assert.doesNotMatch(panel, /role="alert"/, "插件跑起来了就该给出面板");
     assert.match(panel, /data-coding-directory/);
@@ -141,7 +141,7 @@ test("recovery receipt lists cross the formal HTTP surface without being rendere
       return structuredClone(report) as Output;
     },
   };
-  const host = { ...ports(store), capabilities: agentHost };
+  const host = ports(store);
   fakeAgentHostActions(host.actions, (definition, input) => agentHost.invoke(definition, input));
   const server = createServer((request, response) => {
     void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host).catch(error => {

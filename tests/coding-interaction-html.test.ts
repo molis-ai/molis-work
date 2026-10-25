@@ -51,7 +51,7 @@ test("PG062-11, PG062-12: Coding's routes answer its page with its questions, ca
   ];
   const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: home, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
-    capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
+    agentHost: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       const values = args as ReadonlyArray<{ session_id?: string; run_id?: string }>;
       if (definition.capability_id === agent.readSession.capability_id) return { runs: runs.map(entry => entry.ref) } as Output;
       if (definition.capability_id === agent.readRun.capability_id) return structuredClone(runs.find(entry => entry.ref.run_id === values[1]?.run_id)) as Output;

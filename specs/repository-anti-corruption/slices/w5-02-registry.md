@@ -250,6 +250,8 @@ spec 10-15 定 W4-01 推迟到 W5-02 之后：bundled 插件得在 `project-plug
 - `scripts/replay-plugins.mjs` 的语料（plugin-sample、2～3 个创作台产物、一个打包的 Runtime 内置插件）：创作台产物从哪来，spec 10-15 第二行已定（隔离 Home 里用 MiniMax 真跑）。
 - 验收 RAC-579；号不够时向统筹要。E 的细节在 C 合入后补进本稿，再请统筹审。
 
+**统筹 10-25 定（方案 1）**：查实「装上的插件」今天没有安装入口（没有 `plugin install`，安装服务是 ac-trust T2，未合入），所以 E 分两步、叠在本地分支 `claude/ac-registry-w401` 上，整组补齐才推送、开 PR：先按内置在一次性 Home 里跑完整生命周期并加 `replay-plugins.mjs`；装上的那一半等 T2 合入再补。B4 + C 先开一个 PR。装上的插件声明不了的两项先不进探针，各记一行后续：到期提醒（只能是 Home 范围的动作，装上的插件没有 Home 一半，BL-621）、放置（要带 `project_rows` 的 Home 库，BL-620，BL-622）。
+
 ## 7. PG-095、PG-111 的评估（插件合同放在平台 contracts 里）
 
 登记这条线不依赖它们：`registration.ts` 只引用插件自己的 Manifest 与常量，不读 `contracts/modules/<插件>`。所以不进上面五个 PR。

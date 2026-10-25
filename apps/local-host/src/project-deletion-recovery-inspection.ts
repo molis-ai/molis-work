@@ -25,9 +25,21 @@ function readCatalog<T>(read: () => T): T {
 export async function openProjectDeletionRecoveryInspection(input: {
   homeDirectory: string; assertCurrent(): void; signal?: AbortSignal;
 }): Promise<ProjectDeletionRecoveryInspection> {
-  const home = path.resolve(input.homeDirectory), filename = path.join(home, "projects", "catalog.db");
+  const selectedHome = input.homeDirectory;
+  if (typeof selectedHome !== "string" || !selectedHome.trim() || !path.isAbsolute(selectedHome))
+    throw catalogErrors.project_storage_invalid("项目删除来源必须是明确的绝对 Home 路径");
+  const home = path.resolve(selectedHome), filename = path.join(home, "projects", "catalog.db");
   const assertCurrent = input.assertCurrent, signal = input.signal;
-  const current = () => { signal?.throwIfAborted(); assertCurrent(); signal?.throwIfAborted(); };
+  const current = () => {
+    signal?.throwIfAborted();
+    const checked: unknown = assertCurrent();
+    if (checked !== undefined) {
+      if (checked !== null && (typeof checked === "object" || typeof checked === "function") && "then" in checked)
+        void Promise.resolve(checked).catch(() => undefined);
+      throw catalogErrors.project_storage_invalid("项目删除来源权限必须由同步检查确认");
+    }
+    signal?.throwIfAborted();
+  };
   current();
   if (!existsSync(filename)) throw catalogErrors.project_storage_invalid("项目删除来源 Catalog 不存在");
   const storage = readCatalog(() => new LocalSqliteStorage(filename, { readonly: true, fileMustExist: true }));
@@ -54,8 +66,6 @@ export async function openProjectDeletionRecoveryInspection(input: {
         const page = readCatalog(() => readProjectDeletionRecoveryPage(storage.db, { after, limit }));
         const items = page.items.map(({ recovery_plan, ...record }) => {
           const recovery = decodeProjectDeletionRecovery(recovery_plan, record.project_id, record.deletion_id);
-          if (recovery.kind === "runtime" && recovery.memory.actor_id !== record.actor_id)
-            throw catalogErrors.project_storage_invalid("项目删除来源计划与原操作者不符");
           return { ...record, recovery };
         });
         current();

@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import Database from "better-sqlite3";
 import { createProjectsSchema, ProjectsModule } from "@molis-ai/molis-work-module-projects";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { LocalCatalogMetadata } from "@molis-ai/molis-work-storage";
 import { CATALOG_OWNER, CATALOG_SCHEMA_VERSION, openProjectDeletionRecoveryInspection } from "@molis-ai/molis-work-app-local-host";
 
@@ -128,7 +129,6 @@ test("the unique plan decoder refuses body, wrong receipt and contradictory Sess
   const variants = [
     (plan: ReturnType<typeof runtimePlan>) => ({ ...plan, body: "secret-body" }),
     (plan: ReturnType<typeof runtimePlan>) => ({ ...plan, operation_id: "other-decision" }),
-    (plan: ReturnType<typeof runtimePlan>) => ({ ...plan, memory: { ...plan.memory, actor_id: "other-person" } }),
     (plan: ReturnType<typeof runtimePlan>) => ({ ...plan, sessions: { ...plan.sessions, sessions: [...plan.sessions.sessions, ...plan.sessions.sessions] } }),
     (plan: ReturnType<typeof runtimePlan>) => { plan.sessions.sessions[0]!.preview.session = { runtime_id: "prologue", session_id: "other-session" }; return plan; },
     (plan: ReturnType<typeof runtimePlan>) => { plan.sessions.sessions[0]!.preview.version = 4; return plan; },
@@ -169,4 +169,57 @@ test("invalid retained identity and duplicate or NULL persisted owner steps are 
     }
     const handle = await f.open(); try { await assert.rejects(handle.next(), invalid); } finally { await handle.close(); }
   });
+});
+
+
+test("source Home must be explicitly absolute before checking permission or opening a Catalog", async t => {
+  const f = fixture(t);
+  for (const homeDirectory of ["", " ", ".", "./projects", "relative", null, undefined, 1]) {
+    let checks = 0;
+    await assert.rejects(Reflect.apply(openProjectDeletionRecoveryInspection, undefined, [{ homeDirectory,
+      assertCurrent() { checks++; } }]), { ...invalid, message: "项目删除来源必须是明确的绝对 Home 路径" });
+    assert.equal(checks, 0);
+  }
+  const selected = { homeDirectory: f.home, assertCurrent() { selected.homeDirectory = join(f.home, "other"); } };
+  const reader = await openProjectDeletionRecoveryInspection(selected);
+  try { assert.deepEqual(await reader.next(), { items: [], exhausted: true }); } finally { await reader.close(); }
+  assert.equal(existsSync(selected.homeDirectory), false, "checker mutation cannot retarget the frozen Home");
+});
+
+test("nonvoid and asynchronous permission checkers are refused before Catalog access and rejected promises are observed", async t => {
+  const f = fixture(t);
+  for (const check of [() => true, () => null, () => ({}), () => Promise.resolve(), () => Promise.reject(new Error("late denied"))]) {
+    let calls = 0;
+    await assert.rejects(openProjectDeletionRecoveryInspection({ homeDirectory: join(f.home, "missing"),
+      assertCurrent: () => { calls++; return check(); } }), { ...invalid, message: "项目删除来源权限必须由同步检查确认" });
+    assert.equal(calls, 1); assert.equal(existsSync(join(f.home, "missing")), false);
+  }
+  // node:test would report an unhandledRejection from a rejected checker after this event-loop turn.
+  await new Promise<void>(resolve => setImmediate(resolve));
+});
+
+test("a nonvoid or Promise final permission check cannot consume the last page", async t => {
+  const f = fixture(t); f.seed(1);
+  for (const invalidResult of [() => false, () => Promise.resolve(), () => Promise.reject(new Error("late denied"))]) {
+    let calls = 0, failAt = 0;
+    const reader = await f.open(() => { if (++calls === failAt) return invalidResult(); });
+    try {
+      failAt = calls + 2; await assert.rejects(reader.next(), invalid);
+      failAt = 0; const page = await reader.next();
+      assert.equal(page.items[0]!.deletion_id, "decision-0001"); assert.equal(page.exhausted, true);
+    } finally { await reader.close(); }
+  }
+  await new Promise<void>(resolve => setImmediate(resolve));
+});
+
+test("Catalog request actor and the Memory plan actor retain their distinct original owner meanings", async t => {
+  const f = fixture(t), seeded = f.seed(1), plan = runtimePlan(seeded.project, seeded.id);
+  plan.memory.actor_id = LOCAL_PERSON_ACTOR_ID;
+  f.db.prepare("UPDATE project_deletions SET actor_id=?, recovery_plan=?").run("authorized-request-actor", JSON.stringify(plan));
+  const reader = await f.open();
+  try {
+    const item = (await reader.next()).items[0]!;
+    assert.equal(item.actor_id, "authorized-request-actor"); assert.equal(item.recovery.kind, "runtime");
+    if (item.recovery.kind === "runtime") assert.equal(item.recovery.memory.actor_id, LOCAL_PERSON_ACTOR_ID);
+  } finally { await reader.close(); }
 });

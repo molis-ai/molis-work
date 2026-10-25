@@ -87,7 +87,7 @@ test("归档会话从活动目录移出，直接读取仍保留原执行引用",
   assert.equal(store.list(BOARD).length, 0);
   assert.equal(store.get(BOARD, "s1").runtime_session_id, "runtime-s1");
   await assert.rejects(store.archive(noEffect, BOARD, "s1", "2026-09-19T17:00:00Z"), /已归档/);
-  await assert.rejects(store.archive(noEffect, BOARD, "s1", "2026-09-19T17:00:00Z"), { code: "coding.session_unknown", message: "会话已归档", kind: "invalid" });
+  await assert.rejects(store.archive(noEffect, BOARD, "s1", "2026-09-19T17:00:00Z"), { code: "coding.session_unknown", message: "会话已归档", kind: "not_found" });
   assert.equal(store.get(BOARD, "s1").runtime_session_id, "runtime-s1");
   database.close();
 });

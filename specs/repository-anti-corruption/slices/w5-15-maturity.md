@@ -1,6 +1,6 @@
 # W5-15 成熟度词表与包描述清理（ac-maturity）：四个词定状态，包描述只写一处
 
-状态：阶段1 方案（2026-10-25，只读调研，未实现、未跑构建与测试）。事实按 `origin/batch/1025-39`（`0cbc76492`）重核；等统筹审过本方案、且 batch-39 进 `main` 后再开实现分支。manifest 版本重置与下一次发布不在本片（见 §5.4）。
+状态：阶段1 方案**已获统筹通过**（2026-10-25T18:09:26Z，PR #1300；Q1-Q7 裁定见 §7）。阶段2 开工条件：batch-39 进 `origin/main` 后，从 `origin/main` 新建 `deepseek/w5-15-maturity`；在那之前本分支只维护方案文档。事实按 `origin/batch/1025-39`（`0cbc76492`）重核。manifest 版本重置与下一次发布不在本片（见 §5.4）。
 
 依据：`specs/repository-anti-corruption/roadmap-2026-10-07.md` 第 89 行 W5-15；用户 2026-10-25 任务书（`deepseek-goal-C-w5-15-maturity.md`）；`docs/SSOT-MATRIX.md` §2；`specs/repository-anti-corruption/spec.md` §4.4/§4.12/§5.1；W5-02 登记线（`specs/repository-anti-corruption/slices/w5-02-registry.md`）。
 
@@ -10,10 +10,10 @@
 
 1. **词表目前没有区分度，但也没有检查。** 70 个包里 69 个 `partial`、1 个 `contract-only`（`packages/contracts`）；8 个 absent 行只是 SSOT 里的未来路径。SSOT 的「包成熟度」列没有任何脚本或测试读（`git grep 包成熟度 scripts/ tests/ docs/system/ tooling/` 为空），registry 里的 maturity 只与各 `package.json` 的同一字段对拍。所以「状态」今天是人写的注释，不是可执行的事实。
 2. **三处重复里两处已死，一处只有门禁在读。** `packageDescriptor`（70 个 `src/index.ts`，其中 52 个还导出 `MolisWorkPackageDescriptor` 类型）全仓零 import（只有 `scripts/workspace-packages.mjs:216` 用字符串包含检查它）；`legacySources` 全仓零读者（40 个包共 57 条，56 条路径已不存在）；`migrationGoals` 只有 registry、`package.json`、`src/index.ts`、README 之间的相等检查在读（29 个不同 goal id，全部带注入的 `goal-reorg-f2`）。没有任何运行时/产品代码消费这三样东西。
-3. **建议的单写源**（§4）：非插件包的包描述只写 `scripts/workspace-packages.mjs`；24 个内置插件的包描述只写各插件 `package.json` 的 `molis-work` 块（W5-02 已定的方向，本片收窄块内字段）；`src/index.ts` 的 `packageDescriptor`、70 个 README 里的 `Status`/`Contract entrypoint`/`Migration Goals` 三行、46 个非插件 `package.json` 的 `molis-work` 块全部删除；`legacySources`、`migrationGoals`（`summary`/`notResponsibleFor` 待 Q4）从数据和门禁里删除；`packages/contracts` 的 `PackageDescriptor`/`PackageKind`/`PackageMaturity` 删除，合同轴的成熟度改名为 `ContractMaturity`（取值不变）。
+3. **建议的单写源**（§4）：非插件包的包描述只写 `scripts/workspace-packages.mjs`；24 个内置插件的包描述只写各插件 `package.json` 的 `molis-work` 块（W5-02 已定的方向，本片收窄块内字段）；`src/index.ts` 的 `packageDescriptor`、70 个 README 里的 `Status`/`Contract entrypoint`/`Migration Goals` 三行、46 个非插件 `package.json` 的 `molis-work` 块全部删除；`legacySources`、`migrationGoals`、`summary`/`notResponsibleFor`（Q4 裁定同批删）从数据和门禁里删除；`packages/contracts` 的 `PackageDescriptor`/`PackageKind`/`PackageMaturity` 删除，合同轴的成熟度改名为 `ContractMaturity`（取值不变）。
 4. **词表**：`production`（已交付、按现行承诺维护）、`experimental`（存在但未承诺，行内必须写删除或默认关闭条件）、`slice`（目标已建包、已有真实实现，但目标契约还缺一片，行内写缺哪片和后续 Goal）、`absent`（目标包未创建）。判定顺序 absent → experimental → slice → production，证据只取 SSOT 行文 + 运行状态 + 迁移切片验收记录（§2）。
-5. **建议映射**：production 55、slice 13、experimental 2、absent 8（§3）。**production 集合是产品语义，最终由统筹/用户定**；标 ⚠ 的 10 行与 2 条语义问题单独列出（§3.2），机制（词表、单写源、门禁）与具体取值解耦。
-6. **需要统筹裁定的 7 个问题见 §7**：production 集合、experimental 两个候选、插件成熟度是否允许自报、`summary`/`notResponsibleFor` 是否同批删、SSOT 成熟度列用「校验」还是「生成」、`apps/workbench/src/functions` 非包行去留。
+5. **映射（统筹 2026-10-25 已逐行裁定，§3）**：production 54、slice 14、experimental 2、absent 8，另有 1 个非包行标 production。Q1 的 12 条裁定见 §3.2；机制（词表、单写源、门禁）与具体取值解耦。
+6. **统筹裁定（§7，已定）**：production 集合逐条裁定；两个 experimental 并写条件；插件 maturity 允许包内声明（四词枚举校验）；`summary`/`notResponsibleFor` 同批删；SSOT 成熟度列用**校验**不用生成；`apps/workbench/src/functions` 非包行保留标 production；`AGENTS.md` 加一句。
 
 实现分三个提交（阶段2，一个分支）：M1 词表与重标（SSOT + registry 值 + 新检查，不删东西）→ M2 单写源（删三处重复、收窄插件块、改门禁与测试、刷 API 快照）→ M3 收尾（capabilities 漂移、boundary 硬编码、技能/文档、全量验证）。M2 依赖 M1 的取值，M3 依赖 M2 的形状。
 
@@ -94,7 +94,7 @@ W5-02 已经把 24 个内置插件的条目改成从插件自己的 `package.jso
 
 ### 2.3 SSOT §2 改后长什么样
 
-替换为四个词一行一个（定义、判定证据、行内必写），并加两句说明：①本列只用于「包成熟度」格（含未来目标路径行），与「运行状态」不同；②每个词的判定证据来自行文与迁移切片验收，不读 `scripts/workspace-packages.mjs` 或 `package.json`（避免循环论证）。`scripts/package-owners.mjs` 按本文 §4.11 增加「成熟度格必须是四个词之一 + 与 registry 一致」的检查（Q5 决定是校验还是生成）。
+替换为四个词一行一个（定义、判定证据、行内必写），并加两句说明：①本列只用于「包成熟度」格（含未来目标路径行），与「运行状态」不同；②每个词的判定证据来自行文与迁移切片验收，不读 `scripts/workspace-packages.mjs` 或 `package.json`（避免循环论证）。`scripts/package-owners.mjs` 按本文 §4.11 增加「成熟度格必须是四个词之一 + 与 registry 一致」的检查（Q5 已定：校验）。
 
 ### 2.4 合同轴：`ContractMaturity`（取值不变，只改名）
 
@@ -106,11 +106,11 @@ export type ContractMaturity = "contract-only" | "partial" | "implemented";
 
 `ContractDescriptor.maturity` 改为 `ContractMaturity`，**49 个合同描述符一个字不改**（取值仍只有 `contract-only` 与 `partial`）。理由：合同描述符的 maturity 表达的是「这个合同子路径实现到什么程度」，与包的产品承诺不是同一件事；把两轴混成一个词表会让 49 个合同文件跟着改，且会把 `contract-only`（合同只有类型）误读成包状态。`packageContract` 常量保留（它的 maturity 就是合同轴的 `contract-only`）。
 
-## 3. 逐包映射（建议；production 集合待统筹/用户确认）
+## 3. 逐包映射（统筹 2026-10-25 已逐行裁定；裁定记录见 §3.2）
 
 ### 3.1 全表
 
-旧 = 当前 SSOT/registry 的 maturity；新 = 建议值；理由一列带证据。
+旧 = 当前 SSOT/registry 的 maturity；新 = 统筹裁定值；理由一列带证据。
 
 **Apps（6）**
 
@@ -119,7 +119,7 @@ export type ContractMaturity = "contract-only" | "partial" | "implemented";
 | `apps/desktop` | partial | production | 产品壳、原生 bridge、面板与发布工具已交付；行内无未完成目标能力 |
 | `apps/workbench` | partial | production | 产品 UI 组合根在用；行内无未完成目标能力 |
 | `apps/local-host` | partial | production | 唯一项目库与业务装配，真实 Home 在用 |
-| `apps/server` | partial | **experimental** ⚠ | 行文：独立启动器、无产品入口、只有跨设备测试在用、去留随功能迭代另定；roadmap 提案「标实验并写删除条件」；需产品语义确认 |
+| `apps/server` | partial | **experimental** | 统筹 Q1 裁定：没有产品入口；去留等正式的 Server/Exchange 功能 spec 立项时再定；在那之前不新增依赖它的产品路径（条件写进 SSOT 行） |
 | `apps/cli` | partial | production | root bin 与协议 adapter 已交付 |
 | `apps/mcp` | partial | production | 受保护的 MCP 入口与工具在用 |
 
@@ -133,16 +133,16 @@ export type ContractMaturity = "contract-only" | "partial" | "implemented";
 
 | package | 旧 | 新 | 理由 |
 | --- | --- | --- | --- |
-| `packages/contracts` | contract-only | production ⚠ | 公开类型/Schema 真实且被全部包依赖；旧词意为「无假实现」不是占位（R-11 已确认） |
+| `packages/contracts` | contract-only | production | 统筹 Q1 裁定：公开类型/Schema 真实且被全部包依赖；旧词意为「无假实现」不是占位（R-11 已确认） |
 | `packages/kernel` | partial | production | Capability registry 与 ActionService 主路径已验收 |
 | `packages/plugin-runtime` | partial | production | 安装/授权/生命周期/回滚已验收（FD3/DV3） |
 | `packages/plugin-sdk` | partial | production | 作者面 API 已交付，SDK 只依赖 contracts |
 | `packages/storage` | partial | production | SQLite/文件/事务/备份端口已交付 |
 | `packages/ui-host` | partial | **slice** | 行文：Installed Plugin 隔离与完整安全 bridge 仍待独立实现 |
-| `packages/design-system` | partial | production ⚠ | 实现在用；「Native 包布局待验」是验证待办，不改变目标职责 |
+| `packages/design-system` | partial | production | 统筹 Q1 裁定：「Native 包布局待验」是验证待办，不算缺片；实现在用 |
 | `packages/test-kit` | partial | **slice** | 行文：时钟、fake capability 与其余重复 harness 待迁移 |
 | `packages/im-ui` | partial | production | 行文：在用、还会迭代，不是待删实验（同 `spec.md` §1 决定） |
-| `packages/plugin-sandbox` | partial | production ⚠ | 创作台沙箱后端已交付；行内无未完成目标能力 |
+| `packages/plugin-sandbox` | partial | production | 统筹 Q1 裁定：沙箱安装（S-64、S-65 等）是在用的主路径，不只服务创作台 |
 | `tooling/plugin-cli` | partial | production | create/pack/dev 已交付 |
 
 **Modules（13 + server 已列）**
@@ -181,10 +181,10 @@ export type ContractMaturity = "contract-only" | "partial" | "implemented";
 
 | package | 旧 | 新 | 理由 |
 | --- | --- | --- | --- |
-| `plugins/native/alchemist` | partial | production | Direction/Lens/证据/Pulse 等已验收 |
-| `plugins/native/artifacts` | partial | production | AR3 已验收；「真实账号联调待验」是验证待办 |
+| `plugins/native/alchemist` | partial | **slice** | 统筹 Q1 裁定（Alchemist 同样处理）：缺片「重做（用户 10-25：不删、先绕过、后续重做，另立 Goal；BL-376）」；Direction/Lens/证据/Pulse 等主路径已验收 |
+| `plugins/native/artifacts` | partial | production | AR3 已验收；统筹 Q1：「真实账号联调待验」是验证待办，不算缺片 |
 | `plugins/native/coding` | partial | production | 19 项 coding.* 已交付（next-requirements 是后续） |
-| `plugins/native/cognia` | partial | **slice** ⚠ | 行文：Cognia 2（生成插件方向）需求书未实施 |
+| `plugins/native/cognia` | partial | production | 统筹 Q1 裁定：Cognia 2 是独立未来产品的 spec（`specs/archive/cognia-plugin/v2/spec.md`），不是本包的缺片；无对应 Goal/BL，按 production |
 | `plugins/native/dataset` | partial | production | 多维表格编辑/导入导出/回滚已交付 |
 | `plugins/native/diff` | partial | production | 变更集消费者与过程项已交付 |
 | `plugins/native/feed` | partial | **slice** | 行文：Inbox/Feed 拆插件切片 3 未完成 |
@@ -197,9 +197,9 @@ export type ContractMaturity = "contract-only" | "partial" | "implemented";
 | `plugins/native/issues` | partial | production | Home 库、页面、MCP 共用已交付 |
 | `plugins/native/jelly` | partial | production | Home 原库与有限服务已交付 |
 | `plugins/native/lingguang` | partial | production | 快记/导入/灵感转笔记已交付 |
-| `plugins/native/pages` | partial | production ⚠ | 行文只列已实现能力（ProseMirror、批注、卡、Promote）；「外部文件预览/批量导入与幂等收据」是否已达目标待统筹 |
-| `plugins/native/plugin-builder` | partial | production ⚠ | 创作台已交付（SSOT 插件创作工作台节） |
-| `plugins/native/ppt` | partial | production ⚠ | 导出明确不含图片与图表（范围限制，非缺目标片） |
+| `plugins/native/pages` | partial | production | 统筹 Q1 裁定：外部文件预览、批量导入等是验证或增强项，不算缺片 |
+| `plugins/native/plugin-builder` | partial | **slice** | 统筹 Q1 裁定：缺片「创作台重做（用户 10-25：不删、先绕过、后续重做，另立 Goal）」；删除计划见 BL-377 |
+| `plugins/native/ppt` | partial | production | 统筹 Q1 裁定：范围限制（导出不含图片与图表）写进行文，不算缺目标片 |
 | `plugins/native/schedule` | partial | **slice** | 行文：其他插件 job 仍只展示与暂停（创建/编辑未做） |
 | `plugins/native/shelf` | partial | **slice** | 行文：轮盘/抓页/CLI Recipe 待 Desktop |
 | `plugins/native/text-stats` | partial | production | 两个查询动作已交付 |
@@ -210,7 +210,7 @@ export type ContractMaturity = "contract-only" | "partial" | "implemented";
 
 | 行 | 旧 | 新 | 理由 |
 | --- | --- | --- | --- |
-| `apps/workbench/src/functions` | partial | production ⚠ | 非 workspace 包的目标路径行（「系统能力服务的判断编辑器」，入口在「能力」）；功能已交付。行本身是否保留见 Q6 |
+| `apps/workbench/src/functions` | partial | production | 统筹 Q1/Q6 裁定：保留该行并标 production（非 workspace 包的目标路径行，「系统能力服务的判断编辑器」入口在「能力」；功能已交付） |
 
 **官方接入（6）**
 
@@ -219,34 +219,38 @@ export type ContractMaturity = "contract-only" | "partial" | "implemented";
 | `plugins/official-integrations/catalog` | partial | production | 目录/OAuth/文档导入已交付 |
 | `plugins/official-integrations/github` | partial | production | Device OAuth/Provider/快照已交付 |
 | `plugins/official-integrations/gmail` | partial | production | OAuth/账号/scope/cursor 已交付 |
-| `plugins/official-integrations/rss` | partial | production | 目录/custom RSS/正文分类已交付（真实公开 RSS 拉取是验证待办） |
-| `plugins/official-integrations/web-query` | partial | **experimental** ⚠ | 唯一登记在案的非产品包（`package-inventory` 状态 `非产品`），无产品调用方；需写删除或默认关闭条件 |
+| `plugins/official-integrations/rss` | partial | production | 目录/custom RSS/正文分类已交付（统筹 Q1：真实公开 RSS 拉取是验证待办，不算缺片） |
+| `plugins/official-integrations/web-query` | partial | **experimental** | 统筹 Q1 裁定：唯一登记在案的非产品包（`package-inventory` 状态 `非产品`），无产品调用方；条件写进 SSOT 行：连续两个版本没有产品调用方，就默认关闭，并提交统筹决定是否删除 |
 | `plugins/official-integrations/youtube` | partial | production | Channel 标识与 Provider adapter 已交付 |
 
 **Absent（8）**
 
 `packages/exchange`、`packages/observability`、`modules/identity-team-access`、`modules/sync-replication`、`modules/actions`、`modules/automation`、`plugins/native/actions`、`plugins/native/automation` → 全部保持 `absent`。
 
-### 3.2 需统筹/用户确认的行（10 行标 ⚠，另加 2 条语义问题）
+### 3.2 统筹裁定记录（2026-10-25T18:09:26Z，PR #1300）
 
-1. `apps/server` → experimental？（生产入口/去留是产品语义，roadmap 有提案但未决）
-2. `packages/contracts` → production？（旧词唯一使用者；若统筹认为「只有类型、无实现」应算 slice，则改 slice 并写清缺哪片）
-3. `packages/design-system` → production 还是 slice（「Native 包布局待验」算验证待办还是缺片）
-4. `packages/plugin-sandbox` → production 还是 experimental（创作台实验属性）
-5. `plugins/native/pages` → production 还是 slice（「外部文件预览/批量导入与幂等收据」是目标缺口还是验证）
-6. `plugins/native/plugin-builder` → production 还是 slice（创作台 v3 的未完成项）
-7. `plugins/native/cognia` → slice 还是 production（Cognia 2 是产品目标还是后续方向）
-8. `plugins/native/ppt` → production（范围限制）还是 slice
-9. `apps/workbench/src/functions` 非包行 → production / slice / 删行（Q6）
-10. `plugins/official-integrations/web-query` → experimental 还是 slice / 直接删除（Q2）
-11. `server` 与 `packages/im-ui` → production 依据是 `spec.md` §1 的 2026-10-08 用户决定；若统筹认为 roadmap 的「实验线」提案更新，则两者改 experimental 并写条件
-12. 其余 production 行里，`plugins/native/artifacts`、`official-integrations/rss` 有「真实验证待办」；若统筹把「有未完成验证」也算 slice，这两行要改
+Q1 production 集合按 §3.1 建议，⚠ 行逐条裁定：
 
-### 3.3 分布
+1. `apps/server` → **experimental**（没有产品入口；去留等正式的 Server/Exchange 功能 spec 立项时再定；在那之前不新增依赖它的产品路径）。
+2. `packages/contracts` → **production**（R-11：`contract-only` 不等于占位）。
+3. `packages/design-system` → **production**（「Native 包布局待验」是验证待办，不算缺片）。
+4. `packages/plugin-sandbox` → **production**（沙箱安装 S-64/S-65 等是在用的主路径，不只服务创作台）。
+5. `plugins/native/pages` → **production**（外部文件预览、批量导入等是验证或增强项）。
+6. `plugins/native/plugin-builder` → **slice**，缺片「创作台重做（用户 10-25：不删、先绕过、后续重做，另立 Goal）」；Alchemist 若在表里同样处理 → `plugins/native/alchemist` 也标 **slice**（缺片「重做」，BL-376；用户 2026-10-23 改「不删，但是可以绕过先不理会，后续重做」）。
+7. `plugins/native/cognia` → 按方案建议值；若 slice 必须写出对应 Goal/BL，写不出就 production → 表里没有 Cognia 2 的 Goal/BL（v2 spec 是独立未来产品），故 **production**。
+8. `plugins/native/ppt` → **production**（范围限制「不含图片与图表」写进行文）。
+9. `apps/workbench/src/functions` 非包行 → 保留，标 **production**（Q6）。
+10. `plugins/official-integrations/web-query` → **experimental**（条件：连续两个版本没有产品调用方，就默认关闭，并提交统筹决定是否删除）。
+11. `server`、`packages/im-ui` → **production**（依据用户 10-08 决定）。
+12. `plugins/native/artifacts`、`plugins/official-integrations/rss` 的验证待办不算缺片 → **production**。
 
-- 建议值：**production 55、slice 13、experimental 2、absent 8**；另有 1 个非包行（production ⚠）。
-- 若统筹把 3.2 的 4、5、6、7 判成 slice，最多是 production 51 / slice 17；无论怎么调，机制不变，只改 SSOT 格与 registry 值。
-- sanity check：每个 `production` 行都能在 SSOT 行文里指出「主路径已验收」的证据；每个 `slice` 行都能指出缺的那片与后续 Goal/BL；每个 `experimental` 行都写了条件。
+Q2 条件写在 SSOT 行内（见上 1、10）。Q3 插件包可以在 `molis-work` 块里声明 maturity（四词枚举校验），再由 §4.11 的校验与 SSOT 对拍；`kind` 仍按目录判定，RAC-576 的这一半不变。Q4 `summary`/`notResponsibleFor` 同批删除。Q5 用校验、不用生成。Q6 见第 9 条。Q7 `AGENTS.md` 加一句（§5.3）。
+
+### 3.3 分布（裁定后）
+
+- **production 54、slice 14、experimental 2、absent 8**；另有 1 个非包行（production）。
+- 与方案初稿的差别：`plugins/native/alchemist`、`plugins/native/plugin-builder` 由 production 改 slice（+2），`plugins/native/cognia` 由 slice 改 production（−1）；净 production −1 / slice +1（初稿 55/13 → 54/14）。
+- sanity check：每个 `production` 行都能在 SSOT 行文里指出「主路径已验收」的证据；每个 `slice` 行都写了缺片与后续 Goal/BL；两个 `experimental` 行都写了条件。
 
 ## 4. 单一写入源设计（三处重复的去向）
 
@@ -283,7 +287,7 @@ export type ContractMaturity = "contract-only" | "partial" | "implemented";
 
 ### 4.5 相邻死字段 `summary` / `notResponsibleFor`
 
-两者**零读者**（README 的「负责/不负责」是给人看的另一份，`checkDevRequirements` 不读它们）。建议同批删除（非插件 entry 的形参、插件块的键），理由：与 `legacySources` 同类的死元数据，留着会继续变高。**但 W5-15 任务书没有点名它们，标为 Q4 由统筹决定；若裁定保留，本片不动，只删点名的三样。**
+两者**零读者**（README 的「负责/不负责」是给人看的另一份，`checkDevRequirements` 不读它们）。建议同批删除（非插件 entry 的形参、插件块的键），理由：与 `legacySources` 同类的死元数据，留着会继续变高。**Q4 裁定：同批删除。**
 
 ### 4.6 非插件 `package.json` 的 `molis-work` 块
 
@@ -353,7 +357,7 @@ W5-02 的块里有 13 个键；本片收窄为允许的 5 个键：
 | 同文件 `:225-233` | 删 | README Status/contract/migrationGoal 检查；`checkDevRequirements` 保留 |
 | 同文件（新） | 加 | 非插件包若有 `molis-work` 块报错；registry maturity 名不符报错（消息带包路径） |
 | `scripts/gates/module-repository-exports.mjs:23-43` | 改 | 按新签名解析路径；kind 由路径规则推 |
-| `scripts/package-owners.mjs` | 加 | SSOT「包成熟度」格：首反引号词 ∈ 四词；真实行 == registry maturity；absent 行 == `absent`；非包行（`apps/workbench/src/functions`）只查词表成员（Q5：校验还是生成） |
+| `scripts/package-owners.mjs` | 加 | SSOT「包成熟度」格：首反引号词 ∈ 四词；真实行 == registry maturity；absent 行 == `absent`；非包行（`apps/workbench/src/functions`）只查词表成员（Q5 已定：校验） |
 | `scripts/check-package-boundaries.mjs:431-440` | 改 | `modules/goals` 的 registry 条目 maturity 为 `production` 且包含 `goals.lifecycle.v1`/`planning.v1`/`query.v1`（意图保留，数据源改 registry） |
 | 同文件 `:690-697` | 改 | `modules/governance-collaboration` 的 registry 条目 `production` 且含两个 governance 能力 |
 | 同文件 `checkArtifactsOwnership`（899 起，976-1000） | 改 | 保留「入口不构造 Artifact Repository / 不改 owner 事实」的 forbidden 检查；入口 source 的 `maturity: "partial"`、4 个能力字符串改读 registry；插件侧从 `contract:`/goal id 字面量改为「插件块存在且 `registration` 合法、入口不含 modules/artifacts 与 ArtifactRepository」 |
@@ -405,12 +409,12 @@ W5-02 的块里有 13 个键；本片收窄为允许的 5 个键：
 - `docs/SSOT-MATRIX.md`：§2 词表换四个词；§1 第 21 行与 §8 的说明措辞跟着改；§3-§7 的 70 行成熟度格换词（保留必要括号注释）；构成句改成 70 = 6+1+10+13+9+24+6+1 并写日期；8 个 absent 行不动。
 - `skills/molis-plugin-dev/host.md:90`：插件块字段清单改成 §4.7 的 5 个键；删「kind 与 maturity 也由目录定」中关于 maturity 的部分，改成「maturity 由插件包声明，取值 ∈ 词表；kind/contract 由路径与常量定」；`legacySources`/`migrationGoals`/`summary`/`notResponsibleFor` 的提法删除。
 - `docs/SSOT-MATRIX.md:50` 与 `specs/repository-anti-corruption/spec.md` §4.4 的状态句：本片只改数字错误（构成句），不把 §4.4 标完成——那属于统筹归档。`spec.md` §5.1 表不动。
-- AGENTS.md：建议加一句「包成熟度词表在 SSOT §2，registry 与 SSOT 一致由 `scripts/package-owners.mjs` 检查」；是否改 AGENTS 由统筹定（AGENTS 是枢纽文件）。
+- AGENTS.md：Q7 裁定加一句，与「归属列」那句并列：「包成熟度词表在 SSOT §2 四个词（production/experimental/slice/absent），registry 与 SSOT 一致由 `scripts/package-owners.mjs` 检查」。（AGENTS 是枢纽文件，改动写进交付评论。）
 
 ### 5.4 不在本片（说明理由）
 
 - **Manifest 版本重置与下一次发布**：W5-15 roadmap 行还包含「Reset Manifest versions under the policy and cut the next release」，但用户任务书把这一段排除（版本由用户定）。现状：`docs/releases/POLICY.md:59,64` 与 `spec.md:2074/2745` 已记 0.3.0 跟随产品版本的 2026-10-08 决定；本片不动 `docs/releases/`、不改任何 Manifest 版本、不切版本。
-- **`summary`/`notResponsibleFor`**：只建议删，等 Q4。
+- **`summary`/`notResponsibleFor`**：Q4 已定同批删（§4.5）。
 - **registry 全量改成读 46 个非插件 `package.json`**（另一种单写源方向）：需要另做依赖期望来源（删掉「声明了没用」守卫），超出本片，留作后续片（roadmap 若要可另开）。
 - **`extraWorkspaceDependencies`/`extraDependencies` 与 `package.json` dependencies 的重复**：本片保留（它是今天的未用依赖守卫）；若要收口另开片。
 - **spec 归档、roadmap 勾选、release 记录**：统筹/用户。
@@ -450,19 +454,27 @@ W5-02 的块里有 13 个键；本片收窄为允许的 5 个键：
 | W5-15-15 | 本方案文档随阶段2 分支入 `specs/repository-anti-corruption/slices/w5-15-maturity.md`；PR 说明逐条对照本表 | 文件 + 评论 |
 | W5-15-16 | 未做清单写清楚（manifest/发布/release、summary 若 Q4 保留、spec 归档、另开片的重复项） | PR 说明末尾 |
 
-## 7. 待统筹裁定
+## 7. 统筹裁定（2026-10-25T18:09:26Z，PR #1300；阶段2 按此执行）
 
-| # | 问题 | 建议 |
-| --- | --- | --- |
-| Q1 | §3 的 production 集合（⚠ 行与 2 条语义问题）是否按建议定？ | 按 §3.1 建议；⚠ 行逐行确认或改，机制不变 |
-| Q2 | `apps/server` 与 `plugins/official-integrations/web-query` 标 experimental 是否可接受？删除/默认关闭条件由谁写？ | `apps/server`：无产品入口则保留到「正式 Server/Exchange 功能 Spec」立项时再定；`web-query`：给一个版本期限（如连续两个版本无产品调用方则删/默认关闭） |
-| Q3 | 插件 maturity 允许由插件包声明（枚举校验），还是仍由路径/常量定死？ | 允许声明：否则 24 个插件仍只有一个值，词表没有区分度 |
-| Q4 | `summary`/`notResponsibleFor` 是否同批删除？ | 删：零读者、与 legacySources 同源 |
-| Q5 | SSOT 成熟度列用「校验」（`package-owners` 校验词与 registry 一致，推荐）还是「生成」（`--write` 生成整列，会丢括号注释）？ | 校验；生成会丢「独立启动器/无产品入口」这类注释 |
-| Q6 | `apps/workbench/src/functions` 非包行：保留并标 production / 标 slice / 删行？ | 保留并标 production（功能已交付）；行作为目标路径的备注价值有限，若统筹要收 SSOT，可删行 |
-| Q7 | `AGENTS.md` 是否加一句成熟度词表归属？ | 加一句（与「归属列」那句并列） |
+| # | 裁定 |
+| --- | --- |
+| Q1 | production 集合按 §3.1 建议；⚠ 行逐条裁定见 §3.2（含 `alchemist`/`plugin-builder` 改 slice、`cognia` 留 production） |
+| Q2 | 两个 experimental 的删除/默认关闭条件写进对应 SSOT 行（§3.2 第 1、10 条） |
+| Q3 | 插件包可以在 `molis-work` 块里声明 maturity（四词枚举），与 SSOT 对拍；`kind` 仍按目录判定，RAC-576 这一半不变 |
+| Q4 | `summary`/`notResponsibleFor` 同批删除 |
+| Q5 | 用**校验**，不用生成 |
+| Q6 | `apps/workbench/src/functions` 非包行保留，标 production |
+| Q7 | `AGENTS.md` 加一句，与「归属列」那句并列 |
 
-## 8. 阶段2 执行与交付（等「方案通过」+ batch-39 进 main 后）
+**补充要求（统筹同条评论，阶段2 必须执行）**：
+
+- 合同变更：删 `PackageDescriptor`/`PackageKind`/`PackageMaturity`，新增 `ContractMaturity`，删 SDK 根导出的 `packageDescriptor`；交付评论写清对插件作者的影响（零 importer，不在文档化入口里）。
+- 门禁：「删检查」只在被检查的对象也一并删掉时成立；§4.11 每条删检查要在交付评论里一一对应写出「对象已删，意图转到哪里」。
+- 不改 `tooling/gates/limits.json`，不提交 `baseline.json`。
+- `check-package-boundaries.mjs` 的字面量检查（goals、governance、artifacts、private-work-context、runtime-host）：随 descriptor 删除改成读 registry 或 Manifest；不许只删不替。
+- 交付方式照原 Goal：在 #1300（或届时指定的批 PR）发评论，写分支、SHA、验证结果、与方案不同之处；不开 PR，不合并。
+
+## 8. 阶段2 执行与交付（已获方案通过；等 batch-39 进 main 后开工）
 
 ### 8.1 开工前核对
 
@@ -499,6 +511,7 @@ node scripts/machine-slot.mjs run browser --label w5-15-test -- node scripts/run
 
 - 推送 `deepseek/w5-15-maturity`（只推自己的 `deepseek/*` 分支；不推 batch/integration 分支，不 force push）。
 - 在 PR #1300（或统筹指定的批次 PR）发一条评论：分支、基线、SHA、三个提交各自做了什么、与方案不一致的地方（逐个说明）、§8.3 的验证结果、没跑的部分、Q1-Q7 的最终取值。
+- 交付评论必含：①§4.11 每条被删检查 ↔「对象已删，意图转到哪里」；②合同变更对插件作者的影响（零 importer、不在文档化入口里）；③Q1-Q7 最终取值与 §3.2 裁定执行情况。
 - 不自己开 PR、不合并；等统筹指示。
 
 ## 9. 重核数据（只读，2026-10-25，batch-39 `0cbc76492`）

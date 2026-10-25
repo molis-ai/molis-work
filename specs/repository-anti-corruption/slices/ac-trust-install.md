@@ -90,6 +90,15 @@ Manifest 里有三类声明会改变「这个插件在别处的效果」，装�
 2. **效果随类**：`always_on` 撤回后，它不再出现在常开名单里（§3.4），人可以在项目里隐藏或移除它；`default_wiring` 撤回后，来源为 `default` 且对应这一项的绑定被解开，并且记着不再自动绑；`default_group` 同理；发布者撤回（`plugins.publisher.revoke`）后，这个发布者的所有已装插件停用、不能再升级，数据保留（`THIRD-PARTY-PLUGINS.md` §4）。
 3. **所有等级的同意都可撤**（用户 2026-10-24 定，不分等级）：`host` 等级的 `always_on` 仍是宿主代为同意、默认开，但和别的等级一样可撤；撤回后它就是普通插件，可以从项目里隐藏、移除。所以 `plugin_consents` 不需要 `revocable` 列。
 
+**T5 落地（2026-10-25）：**只做「同意撤回」一半，发布者撤销随 T2（没有固定过的发布者就没有可撤的）。
+
+- 账本多一个 `revoke(consent_id, at)`（只写第一次的 `revoked_at`，行不删）；`plugins.consents.list@1`（按插件列，含已撤回的）与 `plugins.consents.revoke@1` 两个只给本人的动作，在宿主的 `plugin-consents` 提供方下，处理器要受保护入口的 `user_action`（`apps/local-host/src/installed-plugin-consent-actions.ts`）。
+- **效果**：`always_on` 撤回后，下一次被问就不在名单里（T3 本来就每次现算），服务端不再拒绝移除、停用、卸载；默认连线与默认组撤回后，项目下一次碰到插件时对账解开（T4 的 `bindDeclaredDefaults`，由 `consent-revision.ts` 的计数让已开的项目知道要再看一次账本；一个 Home 一个执行进程，进程内计数就够）。
+- **在途调用**：三类同意（常开、默认连线、默认组）都不是某一次调用的授权，没有「在途调用」要在 `beforeEffect()` 前收回；RAC-391 与 RAC-392 讲的是发布者撤销（停用，走既有的撤权路径），随 T2 的发布者固定一起做，BL-559 改记这一半。
+- 设计稿说的「授权世代」：安装记录的 `installation_generation` 只在新装时变，权限撤回走的是记录里的授权列表（`beforeEffect()` 每次重读），所以同意撤回不需要新的世代；发布者撤销停用安装用现成的 `stop`。
+- **宿主启动时为没有监督器安装的常开插件（Goals）代为同意**（`always-on-plugins.ts` 的 `recordHostAlwaysOnAgreements`，由 Home 插件宿主启动时调用）：Goals 不在任何监督器里，没有人替它写账本行，本人就没有可撤的东西；写入同样遵守「已有一行（含已撤回的）就不再写」，查询不写。
+- 恢复了 `tests/feed-promote-reader.test.ts` 里「项目没有 Goals 时不显示升格」的一半：撤回 Goals 的常开同意、移除、阅读页没有升格入口（BL-585 里 Feed 那一行的一部分）。
+
 ### 3.4 常开从安装记录生成（PG-004）
 
 - 常开名单按 Manifest 的 `always_on` 声明、同一发布者的有效同意（未撤回）与安装状态生成，不再有写死的 `"goals"`。T3 对宿主构建目录的只读投影在首次记账前使用构建担保，精确边界见 §7 的 T3 口径；不把第三方安装视为宿主构建。

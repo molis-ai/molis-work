@@ -82,7 +82,7 @@ savepoint<T>(body: () => { keep: boolean; value: T }): T
 | Attention（`AttentionApi` 的 `commands`/`query`，`GoalDecisionAttentionSync` 在用） | 小门面：`query.*` 转 `services.attention` 的读；`commands.create/setStatus` 在写窗口里转 `attention.join(tx, w => w.create(...))`。`owner_plugin_id` 由平台记（S9-0b），门面不传 |
 | Context Ledger（`GoalInputBindings`、`deliverables.ledger`） | 同上，转 `services.contextLedger`；键是 Goals 自己的裸键（S9-0b 已按插件号加前缀） |
 | `clock`、`randomUUID`、`now` | 不变 |
-| 成果库的读 `readArtifact`、`pin` | 只经成果库的公开动作（`services.actions`），不留宿主进程内的私路；动作形状不够（例如要按引用读固定版本）就先在成果库的主人那里补动作，作为本链最前面的一个小片（§9 片 A） |
+| 成果库的读 `readArtifact`、`pin`、`pinnableKinds` | **片 A 核对结果：不需要补成果库的动作。** 成果库已有公开动作 `artifacts.read`（输入 `reference`，输出 `selected`：整条 `ArtifactVersionRecord`，含 `title`、`artifact_type_id`、`availability`、`lifecycle_state`，Goals 要的四个字段都在）；固定与可固定种类本来就是动作（各主人的 `*.pin`，`pinActionSubject`/`pinnableSubjectKinds` 只是发现 + 调用）。Goals 的 Manifest 声明 `actions:delegate`（Workflows 的先例）并用 `services.actions.directory`：以原调用者的权限发现和调用，权限不到的在目标运行前被拒（S-43）。宿主进程内的 `runtime.artifacts.query` 和宿主的 `ActionClient` 都不再用 |
 
 ## 4. 为什么不在每次调用时重建对象图
 
@@ -146,7 +146,7 @@ savepoint<T>(body: () => { keep: boolean; value: T }): T
 
 | 片 | 内容 |
 | --- | --- |
-| A | 成果库公开动作核对与补动作（Goals 的 `readArtifact`、`pin`、`candidates` 要的形状） |
+| A | 成果库公开动作核对（已做，见 §3.5：`artifacts.read` 够用，不补动作）；`readArtifact` 与 `pin` 改走 `directory` 的两个差异在片 D 里按 §8.1 的断言验证：原来宿主直读不查权限，经 `directory` 要原调用者持有 `artifacts:read`，非用户调用者（助手、运行时提议成果）有没有这个权限要列成断言，不一致就停下来问统筹；`readArtifact` 是同步端口，改成「处理器先异步取好要用的几条成果头，再同步建视图」 |
 | B | 平台保存点原语（合同、客户端、SDK 快照、CONTRACT-CHANGES、SI 暂定号、拒绝用例） |
 | C | `PluginSqlite` 适配器与两模块接口收窄（Governance 去掉 `exec`/`pragma`），宿主仍装配，既有模块测试跑在适配器上 |
 | D | `createGoalsPlugin`、Manifest 权限与库声明、项目监督器条目，删宿主装配；动作合同快照 |

@@ -6,6 +6,7 @@ import { execFileSync } from "node:child_process";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
+// W5-02-REG-06: real generated-catalog startup, Files snapshots, Diff and Git readers, including Coding's embedded Files.
 test("Coding tools open real stages, preserve session tabs and read fixed workspace content", { timeout: 90000 }, async t => {
   const b = await openGoalBrowser(t, "seeded"); if (!b) return;
   const { command, sessionId } = b;
@@ -93,6 +94,8 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
       inset, column: list.clientWidth - inset - parseFloat(style.paddingRight), contentLeft: shell.querySelector('[data-companion-content]').getBoundingClientRect().left - box.left }; })()`);
   await open("diff");
   await waitFor("document.querySelector('[data-companion=" + '"diff"' + "] [data-phase=ready]')");
+  const compared = await evaluate<string>("document.querySelector('[data-companion=diff] [data-companion-content]').textContent");
+  assert.match(compared, /first/); assert.match(compared, /second/, "Diff reads both snapshots captured by Files");
   const diffStage = await stage("diff");
   assert.match(diffStage.heading, /Diff/); assert.deepEqual(diffStage.actions, ["刷新", "打开 Files"]);
   assert.ok(diffStage.inset >= 32 && diffStage.column <= 960 && diffStage.contentLeft >= 32, JSON.stringify(diffStage));
@@ -115,9 +118,14 @@ test("Coding tools open real stages, preserve session tabs and read fixed worksp
   await waitFor("!document.querySelector('[data-companion=git] [data-git-refresh]').disabled");
   await click('[data-companion="git"] [data-git-list] button');
   await waitFor("document.querySelector('[data-companion=" + '"git"' + "] [data-git-diff] [data-phase=ready]')");
+  const staged = await evaluate<string>("document.querySelector('[data-companion=git] [data-git-diff]').textContent");
+  assert.match(staged, /first/); assert.match(staged, /staged/, "Git reads the actual HEAD→index change");
   assert.equal(await evaluate("document.querySelectorAll('[data-companion=git] [data-git-list] .is-selected').length"), 1);
   await click('[data-companion="git"] [data-git-list] section:last-child button');
   await waitFor("document.querySelector('[data-companion=git] [data-git-scope]').textContent.includes('未暂存')");
+  await waitFor("document.querySelector('[data-companion=git] [data-git-diff]').textContent.includes('second')");
+  assert.match(await evaluate<string>("document.querySelector('[data-companion=git] [data-git-diff]').textContent"), /staged/,
+    "the worktree comparison reads the actual index→worktree change");
   assert.equal(await evaluate("document.querySelectorAll('[data-companion=git] [data-git-list] .is-selected').length"), 1, "same path on two Git sides has only one selected row");
   await capture("git-desktop");
 

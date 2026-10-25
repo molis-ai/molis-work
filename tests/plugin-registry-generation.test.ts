@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -8,6 +8,9 @@ import { fileURLToPath } from "node:url";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { catalogProblems } from "@molis-ai/molis-work-app-local-host";
+import { packageDescriptor as scheduleDescriptor } from "@molis-ai/molis-work-plugin-schedule";
+import { packageDescriptor as shelfDescriptor } from "@molis-ai/molis-work-plugin-shelf";
+import { packageDescriptor as pptDescriptor } from "@molis-ai/molis-work-plugin-ppt";
 import { CATALOG_FILE, PLATFORM_FILE, PLUGIN_DEPENDENCY_MANIFESTS, pluginDependencyManifests, pluginRegistry, pluginRegistryProblems } from "../scripts/generate-plugin-registry.mjs";
 import { WORKSPACE_PACKAGES } from "../scripts/workspace-packages.mjs";
 import { assemblyMetrics } from "../scripts/gates/assembly.mjs";
@@ -21,7 +24,7 @@ import { projectRuntimePackages } from "../scripts/gates/home-runtime-entries.mj
 // loader boundary, proving that module initialization itself refuses them.
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const tracked = execFileSync("git", ["ls-files"], { cwd: root, encoding: "utf8" }).split("\n").filter(Boolean);
+const tracked = execFileSync("git", ["ls-files", "-z"], { cwd: root, encoding: "utf8" }).split("\0").filter(Boolean);
 const FEED = "plugins/native/feed/src/registration.ts", FEED_PACKAGE = "plugins/native/feed/package.json";
 const readReal = (file: string): string | null => { try { return readFileSync(path.join(root, file), "utf8"); } catch { return null; } };
 
@@ -310,32 +313,52 @@ test("RAC-574 RAC-575 a new plugin with a project runtime changes only its own p
     "RAC-575 a manifest that is no longer exactly the generated imports is counted");
 });
 
+test("W5-02-REG-04 Schedule, Shelf and PPT package capabilities match their implemented public descriptors", () => {
+  for (const descriptor of [scheduleDescriptor, shelfDescriptor, pptDescriptor]) {
+    const manifest = JSON.parse(readReal(`${descriptor.packagePath}/package.json`)!);
+    assert.deepEqual(manifest["molis-work"].capabilities, descriptor.capabilities, descriptor.packagePath);
+  }
+});
+
 // The review of #1299: a plugin's package.json carries its "molis-work" block, but not its layer. The boundary rules and the
 // CODEOWNERS role follow `kind`, so the path decides it (and the maturity); a package that writes another value fails the real check.
-test("RAC-576 a plugin that writes another kind or maturity in its own package.json fails pnpm boundary:check", { timeout: 120_000 }, () => {
+test("RAC-576 W5-02-REG-05 a clean tracked fixture passes, then rejects another plugin kind or maturity", { timeout: 120_000 }, t => {
   const scratch = mkdtempSync(path.join(tmpdir(), "plugin-kind-")), repository = path.join(scratch, "repo");
+  const untracked = mkdtempSync(path.join(root, "rac576-untracked-"));
   try {
-    // A copy of the checkout without Git data; the installed dependencies are linked, not copied (each package's own node_modules
-    // holds relative links into them).
-    mkdirSync(repository);
-    for (const entry of readdirSync(root).filter(name => name !== ".git" && name !== "node_modules")) {
-      if (process.platform === "darwin") execFileSync("cp", ["-cR", path.join(root, entry), path.join(repository, entry)]);
-      else execFileSync("cp", ["-a", "--reflink=auto", path.join(root, entry), path.join(repository, entry)]);
+    const sentinel = path.join(path.relative(root, untracked), ".claude/worktrees/nested/untracked.txt");
+    mkdirSync(path.dirname(path.join(root, sentinel)), { recursive: true });
+    writeFileSync(path.join(root, sentinel), "untracked fixture sentinel\n");
+    // The checker reads tracked sources/manifests/docs, not dist. Keep tracked symlinks as links; never follow a checkout's
+    // ignored output or nested worktrees. Its only runtime imports are TypeScript and test-kit's public built entry.
+    for (const file of tracked) {
+      const source = path.join(root, file), destination = path.join(repository, file);
+      mkdirSync(path.dirname(destination), { recursive: true });
+      if (lstatSync(source).isSymbolicLink()) symlinkSync(readlinkSync(source), destination);
+      else copyFileSync(source, destination);
     }
     symlinkSync(path.join(root, "node_modules"), path.join(repository, "node_modules"));
+    assert.equal(existsSync(path.join(repository, sentinel)), false, "untracked nested worktrees are not copied");
     const sample = "plugins/native/text-stats/package.json", original = readReal(sample)!;
     const check = (block: Record<string, unknown>) => {
       const json = JSON.parse(original) as { "molis-work": Record<string, unknown> };
       writeFileSync(path.join(repository, sample), `${JSON.stringify({ ...json, "molis-work": { ...json["molis-work"], ...block } }, null, 2)}\n`);
       return spawnSync(process.execPath, ["scripts/check-package-boundaries.mjs"], { cwd: repository, encoding: "utf8" });
     };
+    const unchanged = check({});
+    assert.equal(unchanged.status, 0, unchanged.stdout + unchanged.stderr);
+    assert.deepEqual(JSON.parse(unchanged.stdout).errors, [], "the complete unmodified fixture passes the real checker");
+    t.diagnostic(`unchanged fixture: exit ${unchanged.status}, ${tracked.length} tracked files, untracked nested sentinel excluded`);
     const foundation = check({ kind: "foundation" });
-    assert.notEqual(foundation.status, 0, "a plugin that calls itself foundation is refused");
-    assert.match(foundation.stdout + foundation.stderr, /plugins\/native\/text-stats: molis-work\.kind mismatch/);
+    assert.equal(foundation.status, 1, foundation.stdout + foundation.stderr);
+    assert.deepEqual(JSON.parse(foundation.stdout).errors, ["[workspace-inventory] plugins/native/text-stats: molis-work.kind mismatch"]);
+    t.diagnostic(`kind mutation: exit ${foundation.status}, ${JSON.stringify(JSON.parse(foundation.stdout).errors)}`);
     const contractOnly = check({ maturity: "contract-only" });
-    assert.notEqual(contractOnly.status, 0, "a plugin that writes another maturity is refused");
-    assert.match(contractOnly.stdout + contractOnly.stderr, /plugins\/native\/text-stats: package maturity must be partial/);
+    assert.equal(contractOnly.status, 1, contractOnly.stdout + contractOnly.stderr);
+    assert.deepEqual(JSON.parse(contractOnly.stdout).errors, ["[workspace-inventory] plugins/native/text-stats: package maturity must be partial"]);
+    t.diagnostic(`maturity mutation: exit ${contractOnly.status}, ${JSON.stringify(JSON.parse(contractOnly.stdout).errors)}`);
   } finally {
     rmSync(scratch, { recursive: true, force: true });
+    rmSync(untracked, { recursive: true, force: true });
   }
 });

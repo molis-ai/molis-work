@@ -48,7 +48,9 @@
     "ssot": "docs/SSOT-MATRIX.md",
     "capabilities": [
       "schedule.ui-contribution.v1",
-      "schedule.http-routes.v1"
+      "schedule.http-routes.v1",
+      "schedule.conversation-tasks.v1",
+      "schedule.actions.v1"
     ],
     "extraWorkspaceDependencies": [
       "@molis-ai/molis-work-plugin-sdk"

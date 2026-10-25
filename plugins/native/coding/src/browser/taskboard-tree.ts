@@ -1,4 +1,4 @@
-import type { PlanEntry, StepNode } from "./shapes.js";
+import type { PlanEntry, StepNode, StepReportAuthor } from "./shapes.js";
 import { clip, firstLine, oneLine, when } from "./taskboard-format.js";
 import { settled, skipped, stepOf } from "./taskboard-steps.js";
 import type { Board, BoardChild, BoardGroup, BoardRow, BoardRun, BoardSubagents, Executor, StateMark, TreeInput } from "./taskboard-types.js";
@@ -25,8 +25,6 @@ const ENDED_PHASES = ["completed", "failed", "stopped", "cancelled"];
 const LIVE_PHASES = ["starting", "running", "compacting"];
 const HELD_PHASES = ["paused", "pausing", "awaiting-input", "awaiting-review"];
 
-/** How the Host names a step's holder in a report (its language, not the page's). */
-const HOLDER_BY = { session: "本会话", person: "用户", reassigned: "改派", none: "没人认领" };
 
 const unknown = (L: Translate): StateMark => [L("coding.board.state.unknown"), "verify", "idle"];
 
@@ -74,20 +72,15 @@ function childRow({ translate: L, words, ports }: TreeInput, run: BoardRun, { ch
 }
 
 /** The Host labels a holder in the Host's language; the page says each kind with a page word, and keeps a subtask's title. */
-function holderText(L: Translate, value: { readonly kind: string; readonly label?: string }): string {
-  if (value.kind === "subtask") {
-    const title = /[「“"](.+?)[」”"]/.exec(value.label || "")?.[1];
-    return title ? L("coding.board.holder-subtask", { title }) : L("coding.board.subtask");
-  }
+function holderText(L: Translate, value: { readonly kind: string; readonly title?: string }): string {
+  if (value.kind === "subtask") return value.title ? L("coding.board.holder-subtask", { title: value.title }) : L("coding.board.subtask");
   return value.kind === "session" ? L("coding.board.this-session") : value.kind === "person" ? L("coding.board.you") : value.kind === "none" ? L("coding.board.unclaimed") : L("coding.board.holder-other");
 }
 
-/** Who a report says made it, in the page's words. */
-function byText(L: Translate, by: string | undefined): string {
+/** Who a report says made it, in the page's words: a handover reads as reassigned, every other author as its holder would. */
+function byText(L: Translate, by: StepReportAuthor | undefined): string {
   if (!by) return "";
-  const title = /^子任务[「“"](.+?)[」”"]$/.exec(by)?.[1];
-  if (title) return L("coding.board.holder-subtask", { title });
-  return by === HOLDER_BY.session ? L("coding.board.this-session") : by === HOLDER_BY.person ? L("coding.board.you") : by === HOLDER_BY.reassigned ? L("coding.board.reassigned") : by === HOLDER_BY.none ? L("coding.board.unclaimed") : L("coding.board.holder-other");
+  return by.kind === "handover" ? L("coding.board.reassigned") : holderText(L, by);
 }
 
 /**

@@ -52,7 +52,7 @@ export function stepReports(ports: StepPorts): StepReports {
     const reports = el("ol", "");
     // A report naming a supplement opens its receipt in the conversation, when this page drew one.
     for (const report of step.reports) {
-      const li = el("li", (report.by ? report.by + L("coding.timeline.colon") : "") + report.note);
+      const li = el("li", (report.by ? report.by.label + L("coding.timeline.colon") : "") + report.note);
       for (const one of report.inputs || []) {
         const link = receipts.link(q("[data-coding-turns]"), one.input_id, () => dialog.close());
         if (link) li.append(" ", link);

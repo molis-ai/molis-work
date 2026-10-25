@@ -126,12 +126,9 @@ function openForm(ports: ProgressPorts, card: HTMLElement, row: HTMLElement, fie
   inputs[0]?.focus();
 }
 
-/** Who holds a step, in the page's words; a subtask keeps its title (the person's own words, quoted in 「」). */
+/** Who holds a step, in the page's words; a subtask keeps its title (the key it was handed out under). */
 function holderText(L: Translate, value: NonNullable<StepNode["owner"]>) {
-  if (value.kind === "subtask") {
-    const title = /[「“"](.+?)[」”"]/.exec(value.label || "")?.[1];
-    return title ? L("coding.board.holder-subtask", { title }) : L("coding.board.subtask");
-  }
+  if (value.kind === "subtask") return value.title ? L("coding.board.holder-subtask", { title: value.title }) : L("coding.board.subtask");
   return value.kind === "session" ? L("coding.board.this-session") : value.kind === "person" ? L("coding.board.you") : value.kind === "none" ? L("coding.board.unclaimed") : L("coding.board.holder-other");
 }
 

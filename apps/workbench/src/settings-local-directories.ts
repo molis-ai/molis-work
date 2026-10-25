@@ -6,7 +6,8 @@ export function renderLocalDirectorySettings({ L }: { L(text: string): string })
   return `<section class="settings-document local-directory-settings" aria-labelledby="settings-title" data-local-directory-settings>
     <header class="settings-heading"><div class="settings-heading-title"><h1 id="settings-title">${L("本机目录")}</h1></div>
       <p>${L("你允许插件读取的本机目录。授权一直有效，直到你在这里撤回；插件升级后照样有效，卸载插件或删除项目时自动撤回。")}</p>
-      <p>${L("插件、Agent、定时任务、工作流和外部客户端都可以用这份授权读取。每一次读取都记在这里，并会通知你。")}</p></header>
+      <p>${L("插件、Agent、定时任务、工作流和外部客户端都可以用这份授权读取。每一次读取都记在这里，并会通知你。")}</p>
+      <p>${L("备份恢复会保留读取历史；查看此页不会触发插件读取。")}</p></header>
     <div class="settings-section" data-local-directory-list><p class="settings-muted">${L("正在读取…")}</p></div>
     <p class="settings-form-error" data-local-directory-error role="alert" hidden></p>
   </section>`;
@@ -35,6 +36,9 @@ globalThis.molisWorkBindLocalDirectorySettings = (container = document, context 
     const item = el("article", "settings-row local-directory-grant");
     item.dataset.grantId = grant.grant_id;
     item.append(el("code", "local-directory-root", grant.root));
+    const changed = grant.directory_status === "changed";
+    item.append(el("p", changed ? "settings-form-error" : "settings-muted", changed
+      ? L("已失效：无法确认这是原授权的目录。请回到插件重新选择。") : L("目录有效")));
     item.append(el("p", "settings-muted", (grant.project_id ? L("项目") + "：" + grant.project_name : L("个人空间")) + " · " + L("授权于") + " " + when(grant.granted_at)));
     item.append(el("p", "settings-muted", grant.read_count ? L("读取次数") + " " + grant.read_count + " · " + L("最近一次") + " " + when(grant.last_read_at) : L("还没有读取过")));
     if (grant.reads.length) {
@@ -79,6 +83,9 @@ export const LOCAL_DIRECTORY_EN: Record<string, string> = {
   "本机目录": "Local folders",
   "你允许插件读取的本机目录。授权一直有效，直到你在这里撤回；插件升级后照样有效，卸载插件或删除项目时自动撤回。": "The folders on this Mac you let plugins read. A permission stands until you take it back here; it still holds after the plugin is updated, and goes when the plugin is uninstalled or the project is deleted.",
   "插件、Agent、定时任务、工作流和外部客户端都可以用这份授权读取。每一次读取都记在这里，并会通知你。": "Plugins, agents, scheduled tasks, workflows and external clients may all read with it. Every read is recorded here, and you are notified.",
+  "备份恢复会保留读取历史；查看此页不会触发插件读取。": "Backups keep read history. Viewing this page does not trigger a plugin read.",
+  "已失效：无法确认这是原授权的目录。请回到插件重新选择。": "No longer valid: the original folder could not be verified. Choose it again in the plugin.",
+  "目录有效": "Folder verified",
   "撤回": "Withdraw",
   "工作流": "Workflow",
   "你在页面上": "You, on a page",

@@ -15,7 +15,7 @@ export const DIRECTORY_READ_PERMISSION = "directory:read";
 type Selection = { plugin_id: string; project_id: string | null; actor_id: string };
 type Binding = Selection & { install_id: string; installation_generation: string; name: string; assertCurrent(): void };
 export type DirectorySelection = typeof pickLocalDirectory;
-export type DirectoryGrantListing = ReturnType<typeof listDirectoryGrants>;
+export type DirectoryGrantListing = (ReturnType<typeof listDirectoryGrants>[number] & { directory_status: "current" | "changed" })[];
 
 export interface DirectoryGrantService {
   /** Host executor only: each activation gets a separate identity and revocable client. */
@@ -23,7 +23,7 @@ export interface DirectoryGrantService {
   /** A trusted system picker supplies the path; a page can only name the plugin requesting it. */
   select(owner: Selection, picker?: DirectorySelection, signal?: AbortSignal): Promise<PluginDirectoryGrant | null>;
   /** Settings › 本机目录: every grant with its recent reads. */
-  list(): DirectoryGrantListing;
+  list(): Promise<DirectoryGrantListing>;
   /** The person takes back one grant, or all of one plugin's; a read under way fails at its next check and delivers nothing. */
   revoke(target: { grant_id: string } | { plugin_id: string }): number;
   /** An uninstall takes its grants: a project's installation those of that project, a Home-level one all of its own. */
@@ -138,7 +138,10 @@ export function directoryForHome(homeDirectory: string): DirectoryGrantService {
       saveDirectoryGrant(key, grant);
       return { grant_id: grant.grant_id, root, granted_at: grant.granted_at };
     },
-    list: () => listDirectoryGrants(key),
+    // Settings observes the same identity check as a read, without reading contents or changing the grant/history.
+    list: async () => Promise.all(listDirectoryGrants(key).map(async (grant): Promise<DirectoryGrantListing[number]> => ({
+      ...grant, directory_status: await sameDirectory(grant) ? "current" : "changed",
+    }))),
     revoke: target => removed("grant_id" in target ? revokeDirectoryGrant(key, target.grant_id) : revokePluginDirectoryGrants(key, target.plugin_id)),
     forgetInstallation(installId, projectId) { removed(forgetInstallationDirectoryGrants(key, installId, projectId)); },
   };

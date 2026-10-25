@@ -1,5 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { mkdir, rename, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { grantHomeProbe, homeProbe, person } from "./fixtures/home-runtime.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 // The request helper in a real page (W3-10): the settings page carries it, and what its unit tests show with fake ports holds
@@ -75,4 +78,61 @@ test("a failure with a call ID gets a diagnostic ID button, and a real click cop
   await evaluate("molisWorkRequest.show(document.querySelector('#helper-error'), new TypeError('Failed to fetch'), '没有完成，请重试')");
   assert.equal(await evaluate("document.querySelector('#helper-error').textContent"), "没有完成，请重试");
   assert.equal(await evaluate("document.querySelector('#helper-error [data-molis-call-id]')"), null);
+});
+
+
+test("PG049-STATUS-04 real settings shows invalid identity and prior history, and a real click withdraws it", { timeout: 90_000 }, async t => {
+  const probe = homeProbe("directorystatus");
+  probe.permissions.push("directory:read");
+  probe.definition.manifest.permissions = [...probe.definition.manifest.permissions,
+    { permission: "directory:read", reason: "Read the selected test folder", required: false }];
+  let chosen = "", reading = "";
+  probe.behavior.ask = async context => JSON.stringify(await context.services!.directory!.read({ grant_id: reading }));
+  const browser = await openGoalBrowser(t, "empty", undefined, null, undefined, undefined,
+    { chooseDirectory: async () => ({ status: "picked", path: chosen }) }, { home: [probe.definition] });
+  if (!browser) return;
+  const { localHost, homeDirectory, origin, command, sessionId, evaluate, waitFor, click, navigate } = browser;
+  assert.ok(localHost);
+  await grantHomeProbe(localHost, probe);
+  const broken = join(homeDirectory, "old-folder"), healthy = join(homeDirectory, "same-folder");
+  await mkdir(broken); await mkdir(healthy);
+  await writeFile(join(broken, "note.md"), "a real directory read before its identity changes");
+  const page = origin + "/settings/directories";
+  await navigate(() => command("Page.navigate", { url: page }, sessionId));
+  const select = () => evaluate<{ grant_id: string }>("molisWorkRequest('/api/host/directory-grants', { body: " + JSON.stringify({ plugin_id: probe.id }) + " })");
+  chosen = broken; const old = await select(); reading = old.grant_id;
+  assert.equal(JSON.parse(await localHost.homeActionClient().invoke<string>(person(probe.permissions), probe.ask, {})).outcome, "directory");
+  chosen = healthy; const current = await select();
+  await rename(broken, broken + "-old"); await mkdir(broken);
+  await navigate(() => command("Page.navigate", { url: page }, sessionId));
+  const oldRow = '[data-grant-id="' + old.grant_id + '"]', currentRow = '[data-grant-id="' + current.grant_id + '"]';
+  await waitFor("document.querySelector(" + JSON.stringify(oldRow + " .settings-form-error") + ")?.textContent.includes('已失效')");
+  assert.match(await evaluate<string>("document.querySelector(" + JSON.stringify(oldRow) + ").textContent"), /重新选择/);
+  assert.match(await evaluate<string>("document.querySelector(" + JSON.stringify(currentRow) + ").textContent"), /目录有效/);
+  assert.match(await evaluate<string>("document.querySelector('[data-local-directory-settings]').textContent"), /备份恢复会保留读取历史/);
+  assert.match(await evaluate<string>("document.querySelector(" + JSON.stringify(oldRow) + ").textContent"), /读取次数 1/);
+  await click(oldRow + " summary");
+  await waitFor("document.querySelector(" + JSON.stringify(oldRow + " details") + ")?.open === true");
+  assert.match(await evaluate<string>("document.querySelector(" + JSON.stringify(oldRow + " details") + ").textContent"), /directory/);
+  const captures = new URL("../../.impeccable/qa/review/directory-grant-status/", import.meta.url);
+  await mkdir(captures, { recursive: true });
+  for (const width of [1440, 1024, 390]) for (const theme of ["light", "dark"]) {
+    await command("Emulation.setDeviceMetricsOverride", { width, height: 1000, deviceScaleFactor: 1, mobile: width < 600 }, sessionId);
+    await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: theme }] }, sessionId);
+    const geometry = await evaluate<{ overflow: boolean; statusVisible: boolean }>("(() => { const status = document.querySelector(" + JSON.stringify(oldRow + " .settings-form-error") + "); return { overflow: document.documentElement.scrollWidth > innerWidth, statusVisible: status.getBoundingClientRect().height > 0 }; })()");
+    assert.equal(geometry.overflow, false, "settings stays within viewport at " + width + "/" + theme);
+    assert.equal(geometry.statusVisible, true);
+    const shot = await command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, sessionId);
+    await writeFile(new URL(width + "-" + theme + ".png", captures), Buffer.from(shot.data, "base64"));
+  }
+  const answers: Promise<unknown>[] = []; let confirmations = 0;
+  t.after(browser.on("Page.javascriptDialogOpening", (event, session) => {
+    if (event.type === "confirm") { confirmations++; answers.push(command("Page.handleJavaScriptDialog", { accept: true }, session)); }
+  }));
+  await click(oldRow + " button");
+  await waitFor("!document.querySelector(" + JSON.stringify(oldRow) + ") && document.querySelector(" + JSON.stringify(currentRow) + ")");
+  await Promise.all(answers); assert.equal(confirmations, 1);
+  const after = await evaluate<{ grants: Array<{ grant_id: string; directory_status: string; read_count: number }> }>("molisWorkRequest('/api/host/directory-grants')");
+  assert.deepEqual(after.grants.map(grant => [grant.grant_id, grant.directory_status, grant.read_count]), [[current.grant_id, "current", 0]]);
+  assert.equal(JSON.parse(await localHost.homeActionClient().invoke<string>(person(probe.permissions), probe.ask, {})).outcome, "denied");
 });

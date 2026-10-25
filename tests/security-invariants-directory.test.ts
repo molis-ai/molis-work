@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { syncBuiltinESMExports } from "node:module";
 import { promises as fs } from "node:fs";
-import { mkdirSync, realpathSync, renameSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, realpathSync, renameSync, symlinkSync, writeFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import { join } from "node:path";
 import { directoryForHome, projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
+import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import type { PluginDirectoryReadRequest, PluginDirectoryReadResult } from "@molis-ai/molis-work-contracts/platform/plugin-directory";
 import { deferred, grantHomeProbe, homeProbe, person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { jobProbe } from "./fixtures/plugin-jobs.js";
@@ -122,12 +123,14 @@ for (const invalidation of ["cancel", "revoke", "withdraw"] as const) {
       else assert.equal((await f.request(`/api/host/directory-grants/grant/${grant.grant_id}`, { method: "DELETE" })).status, 200);
     } finally { release.resolve(); }
     await rejected;
-    assert.deepEqual(f.listed().flatMap(item => item.reads), [], "what was not delivered is not recorded");
+    assert.deepEqual((await f.listed()).flatMap(item => item.reads), [], "what was not delivered is not recorded");
   });
 }
 
 const notices = (home: string) => {
-  const db = new DatabaseSync(join(home, "assistant", "assistant.db"));
+  const path = join(home, "assistant", "assistant.db");
+  if (!existsSync(path)) return [];
+  const db = new DatabaseSync(path, { readOnly: true });
   try { return db.prepare("SELECT body FROM assistant_notices WHERE kind = 'directory-read'").all().map(row => JSON.parse(String(row.body)) as { text: string }); }
   finally { db.close(); }
 };
@@ -137,7 +140,7 @@ test("S-83 RAC-662 the person takes a grant back at once, and only on the platfo
   f.a.reading({ grant_id: grant.grant_id });
   assert.equal((await f.read()).outcome, "directory");
   assert.equal((await f.select()).status, 200);
-  assert.equal(f.listed().length, 1, "choosing the same folder again reuses the grant");
+  assert.equal((await f.listed()).length, 1, "choosing the same folder again reuses the grant");
   for (const [path, method] of [[`/projects/${p.project_id}/api/host/directory-grants`, "GET"], [`/projects/${p.project_id}/api/host/directory-grants/grant/${grant.grant_id}`, "DELETE"]] as const) {
     assert.notEqual((await f.request(path, { method })).status, 200, `${method} from a project page`);
   }
@@ -149,7 +152,7 @@ test("S-83 RAC-662 the person takes a grant back at once, and only on the platfo
     [`/api/host/directory-grants/plugin/${encodeURIComponent(f.a.id)}`, "DELETE"]] as const) {
     assert.equal((await f.request(path, { method, headers })).status, 403, `${method} ${path} from a Home plugin's page`);
   }
-  assert.equal(f.listed().length, 1, "the page took nothing back");
+  assert.equal((await f.listed()).length, 1, "the page took nothing back");
   const listed = await (await f.request("/api/host/directory-grants")).json();
   assert.deepEqual(listed.grants.map((item: { grant_id: string; root: string }) => [item.grant_id, item.root]), [[grant.grant_id, realpathSync(f.vault)]]);
   assert.equal("install_id" in listed.grants[0] || "inode" in listed.grants[0], false, "the page is not given the binding's internals");
@@ -159,6 +162,83 @@ test("S-83 RAC-662 the person takes a grant back at once, and only on the platfo
   assert.notEqual(again.grant_id, grant.grant_id);
   assert.deepEqual(await (await f.request(`/api/host/directory-grants/plugin/${encodeURIComponent(f.a.id)}`, { method: "DELETE" })).json(), { revoked: 1 });
   assert.equal((await f.read()).outcome, "denied", "all of the plugin's taken back");
+});
+
+const directoryRows = (home: string) => {
+  const db = new DatabaseSync(homeSqlitePath(home, "plugin-directories"), { readOnly: true });
+  try { return {
+    grants: db.prepare("SELECT * FROM plugin_directory_grants ORDER BY grant_id").all(),
+    reads: db.prepare("SELECT * FROM plugin_directory_reads ORDER BY read_id").all(),
+  }; } finally { db.close(); }
+};
+
+test("S-83 PG049-STATUS-01 settings observes current identity and keeps prior read history without recording another read", async t => {
+  const f = await fixture(t), grant = await (await f.select()).json();
+  f.a.reading({ grant_id: grant.grant_id });
+  const fresh = await (await f.request("/api/host/directory-grants")).json();
+  assert.equal(fresh.grants[0].directory_status, "current");
+  assert.equal(fresh.grants[0].read_count, 0);
+  assert.deepEqual(notices(f.home), []);
+  assert.equal((await f.read()).outcome, "directory");
+  const before = directoryRows(f.home), told = notices(f.home), [recorded] = await f.listed();
+  for (const state of ["current", "changed"] as const) {
+    if (state === "changed") { renameSync(f.vault, f.vault + "-old"); mkdirSync(f.vault); }
+    for (let view = 0; view < 2; view++) {
+      const response = await f.request("/api/host/directory-grants"); assert.equal(response.status, 200);
+      const { grants } = await response.json();
+      assert.equal(grants[0].directory_status, state);
+      assert.equal(grants[0].grant_id, grant.grant_id);
+      assert.equal(grants[0].read_count, 1);
+      assert.equal(grants[0].last_read_at, recorded!.last_read_at);
+      assert.deepEqual(grants[0].reads, recorded!.reads);
+      for (const secret of ["install_id", "actor_id", "device", "inode"]) assert.equal(secret in grants[0], false);
+      assert.deepEqual(directoryRows(f.home), before, "viewing status preserves the grant and its previous reads");
+      assert.deepEqual(notices(f.home), told, "viewing is not a plugin read or a notification");
+    }
+  }
+});
+
+for (const change of ["missing", "replacement", "symlink", "device", "inode"] as const) {
+  test(`S-83 PG049-STATUS-02 PG049-STATUS-03 ${change} is visible before the first plugin read, which still refuses and revokes`, async t => {
+    const f = await fixture(t), grant = await (await f.select()).json();
+    f.a.reading({ grant_id: grant.grant_id });
+    if (change === "device" || change === "inode") {
+      // A restored record with a different identity is compared against the real filesystem, through the real HTTP owner.
+      const actual = lstatSync(f.vault), db = new DatabaseSync(homeSqlitePath(f.home, "plugin-directories"));
+      try { db.prepare(`UPDATE plugin_directory_grants SET ${change} = ? WHERE grant_id = ?`)
+        .run(String(BigInt(change === "device" ? actual.dev : actual.ino) + 1n), grant.grant_id); }
+      finally { db.close(); }
+    } else {
+      renameSync(f.vault, f.vault + "-old");
+      if (change === "replacement") mkdirSync(f.vault);
+      if (change === "symlink") symlinkSync(f.vault + "-old", f.vault);
+    }
+    const before = directoryRows(f.home), response = await f.request("/api/host/directory-grants");
+    assert.equal(response.status, 200);
+    const { grants } = await response.json();
+    assert.equal(grants.length, 1);
+    assert.equal(grants[0].directory_status, "changed");
+    assert.equal(grants[0].read_count, 0, "not even one plugin read has happened");
+    assert.deepEqual(directoryRows(f.home), before, "status does not revoke or rebind the stored grant");
+    assert.deepEqual(notices(f.home), []);
+    assert.equal((await f.read()).outcome, "changed", "the existing live read refuses the identity difference");
+    assert.deepEqual(await f.listed(), [], "the read still revokes a changed grant");
+    assert.equal((await f.read()).outcome, "denied");
+    assert.deepEqual(notices(f.home), [], "refused reads create no notices");
+  });
+}
+
+test("S-83 PG049-STATUS-03 an invalid grant stays withdrawable and an explicit new choice authorizes the replacement", async t => {
+  const f = await fixture(t), old = await (await f.select()).json();
+  renameSync(f.vault, f.vault + "-old"); mkdirSync(f.vault);
+  assert.equal((await f.listed())[0]!.directory_status, "changed");
+  assert.deepEqual(await (await f.request(`/api/host/directory-grants/grant/${old.grant_id}`, { method: "DELETE" })).json(), { revoked: 1 });
+  f.a.reading({ grant_id: old.grant_id }); assert.equal((await f.read()).outcome, "denied");
+  const fresh = await (await f.select()).json();
+  assert.notEqual(fresh.grant_id, old.grant_id);
+  assert.equal((await f.listed())[0]!.directory_status, "current");
+  assert.equal((await (await f.select()).json()).grant_id, fresh.grant_id, "a current same-folder choice still reuses the grant");
+  f.a.reading({ grant_id: fresh.grant_id }); assert.equal((await f.read()).outcome, "directory");
 });
 
 test("S-83 RAC-663 a background caller reads with the grant; every read is recorded and told, another person or plugin gets nothing", async t => {
@@ -176,7 +256,7 @@ test("S-83 RAC-663 a background caller reads with the grant; every read is recor
   const viaPlugin = async (from: typeof f.a) => JSON.parse(await from.contexts.at(-1)!.services!.actions!.invoke(f.a.ask, {}) as string) as PluginDirectoryReadResult;
   f.a.reading({ grant_id: grant.grant_id, path: ["inside.md"], kind: "text" });
   assert.equal((await viaPlugin(f.b)).outcome, "denied", "another plugin's direct call");
-  const [listed] = f.listed();
+  const [listed] = await f.listed();
   assert.equal(listed!.read_count, 3, "the refused callers left no read on the grant");
   assert.deepEqual(listed!.reads.map(read => [read.origin, read.outcome]), [["person", "denied"], ["mcp", "text"], ["person", "text"]]);
   assert.equal(listed!.reads[1]!.caller, "mcp-client");
@@ -218,7 +298,7 @@ test("S-83 RAC-666 a kept background job reads with the grant, and the person is
   assert.equal(await f.host.homeActionClient().invoke(person(job.permissions), job.keep, { id: "scan" }), "kept");
   await job.kept[0]!.done;
   assert.deepEqual(outcomes, ["text", "text", "text", "text"]);
-  const [listed] = directoryForHome(f.home).list();
+  const [listed] = await directoryForHome(f.home).list();
   assert.deepEqual(listed!.reads.map(read => read.origin), ["background", "background", "background", "background"], "every read of the job is recorded");
   const told = notices(f.home);
   assert.equal(told.length, 3, "the job's first hour once, its own action's call once, and the job again an hour later");
@@ -231,7 +311,7 @@ test("S-83 RAC-665 a folder moved, swapped or replaced by a link is no longer th
   renameSync(f.vault, f.vault + "-moved"); mkdirSync(f.vault);
   assert.equal((await f.read()).outcome, "changed");
   assert.equal((await f.read()).outcome, "denied", "the changed grant is void");
-  assert.deepEqual(f.listed(), []);
+  assert.deepEqual(await f.listed(), []);
 });
 
 test("S-83 RAC-664 a disabled installation reads nothing, an uninstall takes its grants", async t => {
@@ -240,9 +320,9 @@ test("S-83 RAC-664 a disabled installation reads nothing, an uninstall takes its
   const platform = await f.host.homePlugins!.ready();
   assert.equal((await f.request(`/api/plugins/${f.a.id}/disable`, { method: "POST", body: {} })).status, 200);
   await assert.rejects(f.read(), "a disabled plugin's action is not called");
-  assert.equal(f.listed().length, 1, "the grant waits for the next activation");
+  assert.equal((await f.listed()).length, 1, "the grant waits for the next activation");
   await platform.supervisor.enable(f.a.id); await grantHomeProbe(f.host, f.a);
   assert.equal((await f.read()).outcome, "directory");
   await platform.runtime.uninstall(f.host.homePlugins!.installation(f.a.id)!.install_id, { retain_private_data: true });
-  assert.deepEqual(f.listed(), [], "kept data does not keep a directory grant");
+  assert.deepEqual(await f.listed(), [], "kept data does not keep a directory grant");
 });

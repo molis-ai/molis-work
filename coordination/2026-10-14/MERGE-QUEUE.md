@@ -77,6 +77,8 @@ PR 粒度（GitHub runner 槽位有限，开得多就积压）：
 - **#1267 组批清单**（等过渡包与 FIX19 独立 TEST）：#1267 头 `1556d97b7` + FIX18 #1271 `3ec04da03` + FIX8 可读性 `9ee51808b` + FIX19 `1dbc5de08`（REVIEW 6395260782 过）+ 过渡 SDK 包（#60 + #103 定稿，待打包）；carrier 时采用两份 SI 窄补丁：`/tmp/molis-pipe-carrier-docs-20261025/s11-row-1556.patch`、`/tmp/molis-fix19-snapshot-exclusion-20261024/fix19-security-invariants.patch`（S-07/S-12），采用后 health 才会过（新 entries 文件要被表引用）。
 - batch-37 又并入 #1272（`ab34bc79b`）、#1273（`d97df5ab7`）、R-38 收尾文档 `0b5dcc0f8`；本机 build、health（巨大单元 73）、boundary、快照、27+35 个相关文件过。待并 #1274（+541 B 已准一次性放行）、#1275（V-18 选 (b)：`openPagesStore` 与 Map 挪到 `/testing` 子路径，61 个测试文件的 import 用可重跑命令改）、ac-registry B。
 - ac-kernel：R-38 代码完成（agent-host 无巨大单元），下一片 BL-356（#1246 让非沙箱插件能丢弃数据，触发条件成立）。
+- **#1255 共享 Home 库删除范围（统筹 10-25 裁，PR 评论）**：项目级安装的卸载与丢弃只清本项目数据，Home 共享库不动、回执写保留；Home 级安装（唯一实例）由 Home 执行器停实例后删、失败可重试；项目级共享库的回收没有可信的「最后一个安装」来源，不新建引用计数，记 BL 留空间不丢数据。
+- Prologue #104 事后严格评审过（ac-review，挡合并 0，[评论](https://github.com/molis-ai/molis-prologue/pull/104#issuecomment-6395355069)）；三条不挡建议（不安全 kind 目录的错误码无用例、密封记录读两遍、Windows 无 O_NOFOLLOW）交 Codex。
 - 号段：ac-platform 第 2 组（PG-032/098/100）另给 **RAC-630～649**（RAC-600～619 是 ac-shell 的）；D1～D5 按草稿推荐准，D5 改号段。
 
 ### 当前交付核实（PIPE，2026-10-25）

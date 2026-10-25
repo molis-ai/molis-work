@@ -103,15 +103,28 @@ test("S-31 a project that does not exist, or that hides the plugin, refuses the 
   const probeShown = await probeIn(hidden.project_id);
   assert.equal(probeShown.status, 200, await probeShown.clone().text());
   assert.equal((await probeShown.json()).project_id, hidden.project_id);
+  assert.deepEqual(probe.routed, [hidden.project_id], "the successful HTTP request reached the route handler");
+  assert.deepEqual(probe.seen.map(call => call.project_id), [hidden.project_id], "the successful route reached the action handler");
   const hideProbe = await request(`/api/settings/projects/${hidden.project_id}/plugins`, { method: "DELETE", body: { plugin_id: probe.id } });
   assert.equal(hideProbe.status, 200, await hideProbe.clone().text());
   assert.ok((await hideProbe.json()).hidden.includes(probe.id));
   const probeHidden = await probeIn(hidden.project_id);
   assert.equal(probeHidden.status, 403);
   assert.equal((await probeHidden.json()).code, "actions.plugin_disabled");
+  assert.deepEqual(probe.routed, [hidden.project_id], "RAC-569: the hidden request was refused before the route handler ran");
+  assert.deepEqual(probe.seen.map(call => call.project_id), [hidden.project_id], "the hidden request never reached the action handler");
   const probeElsewhere = await probeIn(shown.project_id);
   assert.equal(probeElsewhere.status, 200, "another project hiding it changes nothing here");
   assert.equal((await probeElsewhere.json()).project_id, shown.project_id);
+  assert.deepEqual(probe.routed, [hidden.project_id, shown.project_id]);
+  assert.deepEqual(probe.seen.map(call => call.project_id), [hidden.project_id, shown.project_id]);
+  const unhideProbe = await request(`/api/settings/projects/${hidden.project_id}/plugins`, { method: "POST", body: { plugin_id: probe.id } });
+  assert.equal(unhideProbe.status, 200, await unhideProbe.clone().text());
+  const probeRestored = await probeIn(hidden.project_id);
+  assert.equal(probeRestored.status, 200, await probeRestored.clone().text());
+  assert.equal((await probeRestored.json()).project_id, hidden.project_id);
+  assert.deepEqual(probe.routed, [hidden.project_id, shown.project_id, hidden.project_id], "unhiding restores the next route call");
+  assert.deepEqual(probe.seen.map(call => call.project_id), [hidden.project_id, shown.project_id, hidden.project_id]);
   // Only the Host's Home registration says which ids are such plugins: an id it does not register cannot be hidden, whatever the request says.
   const hideUnknown = await request(`/api/settings/projects/${hidden.project_id}/plugins`, { method: "DELETE", body: { plugin_id: "io.molis.work.example.unregistered" } });
   assert.equal(hideUnknown.status, 400, await hideUnknown.clone().text());

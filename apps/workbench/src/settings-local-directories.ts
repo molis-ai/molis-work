@@ -23,7 +23,7 @@ globalThis.molisWorkBindLocalDirectorySettings = (container = document, context 
   const focus = new URLSearchParams(address.search || "").get("plugin");
   const el = (tag, className, text) => { const node = document.createElement(tag); if (className) node.className = className; if (text !== undefined) node.textContent = text; return node; };
   const when = (value) => value ? new Date(value).toLocaleString() : "";
-  const BY = { person: L("你在页面上"), agent: L("Agent"), workflow: L("工作流"), mcp: L("外部客户端（MCP）"), plugin: L("其他插件"), background: L("后台任务") };
+  const BY = { person: L("你在页面上"), agent: L("Agent"), workflow: L("工作流"), mcp: L("外部客户端（MCP）"), background: L("后台任务或定时") };
   const failed = (failure) => { error.hidden = false; molisWorkRequest.show(error, failure); };
   const revoke = async (path, label) => {
     if (!confirm(label)) return;
@@ -83,8 +83,7 @@ export const LOCAL_DIRECTORY_EN: Record<string, string> = {
   "工作流": "Workflow",
   "你在页面上": "You, on a page",
   "外部客户端（MCP）": "External client (MCP)",
-  "其他插件": "Another plugin",
-  "后台任务": "Background job",
+  "后台任务或定时": "Background or scheduled task",
   "授权于": "Allowed on",
   "读取次数": "Reads",
   "最近一次": "last on",

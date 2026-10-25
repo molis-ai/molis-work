@@ -31,12 +31,21 @@ export interface DirectoryGrantService {
 }
 
 const byHome = new Map<string, DirectoryGrantService>();
+/** A kept background job is one call for as long as it runs: its reads are told again in each such window, so the person sees it still reads. */
+const JOB_NOTICE_WINDOW_MS = 60 * 60_000;
 const denied = () => new ActionError("actions.forbidden", "目录授权已撤回、已失效，或不属于这次插件调用");
 
-/** Who started the call, from the trusted invocation (never the plugin's input): a background job, else the call's audience. */
-function originOf(invocation: NonNullable<ReturnType<typeof currentPluginInvocation>>): DirectoryReadOrigin {
+/**
+ * Who started the call, from the trusted invocation (never the plugin's input): a background job, else the call's audience. Only the
+ * sources the person allowed read (user 2026-10-25): the person, an Agent, a scheduled or background job, a workflow, an MCP client.
+ * A plugin-audience call is this installation's own (its scheduled wake-up, a job's call, its own action) when the Host stamped it with
+ * this installation; another plugin calling this one's action directly is none of the allowed sources (null, refused). A workflow step
+ * reads as its workflow or its job.
+ */
+function originOf(invocation: NonNullable<ReturnType<typeof currentPluginInvocation>>, binding: Binding): DirectoryReadOrigin | null {
   if ("job" in invocation) return "background";
-  return ({ user: "person", agent: "agent", workflow: "workflow", mcp: "mcp", plugin: "plugin" } as const)[invocation.caller.audience];
+  if (invocation.caller.audience === "plugin") return invocation.caller.plugin_install_id === binding.install_id ? "background" : null;
+  return ({ user: "person", agent: "agent", workflow: "workflow", mcp: "mcp" } as const)[invocation.caller.audience];
 }
 
 /**
@@ -76,8 +85,8 @@ export function directoryForHome(homeDirectory: string): DirectoryGrantService {
       return { dispose: () => { bindings.delete(binding); }, client: { read: async (request, signal) => {
         const invocation = currentPluginInvocation();
         if (!invocation || !inPluginInstance(invocation, binding) || typeof request?.grant_id !== "string") return { outcome: "denied" };
-        const grant = directoryGrant(key, request.grant_id);
-        if (!grant || !holds(grant, binding, invocation.caller)) return { outcome: "denied" };
+        const origin = originOf(invocation, binding), grant = origin ? directoryGrant(key, request.grant_id) : null;
+        if (!origin || !grant || !holds(grant, binding, invocation.caller)) return { outcome: "denied" };
         let seen = revision;
         const check = () => {
           signal?.throwIfAborted(); assertCurrent();
@@ -89,12 +98,13 @@ export function directoryForHome(homeDirectory: string): DirectoryGrantService {
         check();
         const result: PluginDirectoryReadResult = await readGrantedDirectory(grant.root, request, check); check();
         // What is delivered is recorded and told first: a read that cannot be recorded is not delivered.
-        const origin = originOf(invocation), at = new Date().toISOString();
-        recordDirectoryRead(key, grant.grant_id, { at, origin, caller: invocation.caller.actor_id, outcome: result.outcome });
-        const shown = told.get(invocation) ?? new Set<string>();
-        if (!shown.has(grant.grant_id)) {
+        const now = Date.now();
+        recordDirectoryRead(key, grant.grant_id, { at: new Date(now).toISOString(), origin, caller: invocation.caller.actor_id, outcome: result.outcome });
+        // One notice for each call that read; a kept job, one for each window it reads in.
+        const shown = told.get(invocation) ?? new Set<string>(), notice = "job" in invocation ? `${grant.grant_id}:${Math.floor(now / JOB_NOTICE_WINDOW_MS)}` : grant.grant_id;
+        if (!shown.has(notice)) {
           tellDirectoryRead(key, grant.actor_id, { plugin_name: grant.plugin_name, folder: basename(grant.root) || grant.root, origin });
-          shown.add(grant.grant_id); told.set(invocation, shown);
+          shown.add(notice); told.set(invocation, shown);
         }
         check(); return result;
       } } };

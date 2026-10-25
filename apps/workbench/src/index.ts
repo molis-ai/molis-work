@@ -157,3 +157,4 @@ export { assistantTextHtml, assistantReviewHtml } from "./scripts/client/assista
 
 export { renderPluginFrameClientScript } from "./plugin-frame.js";
 export { renderPluginDocumentShell } from "./plugin-document-shell.js";
+export { renderPluginStoreUnavailablePage } from "./plugin-store-unavailable.js";

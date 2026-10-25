@@ -244,7 +244,7 @@ export class MolisWorkProjectCatalog {
           });
         },
         appendProjectEvent: (projectId, type, actorId, payload) => {
-          this.appendEvent(projectId, type, actorId, payload);
+          this.projects.lifecycle.appendEvent(projectId, type, actorId, payload);
         },
       },
     });
@@ -328,7 +328,7 @@ export class MolisWorkProjectCatalog {
   unbindRuntimeContext(input: UnbindRuntimeWorkContextInput): MolisWorkRuntimeContextUnbindResult { return this.runtimeContexts.commands.unbindRuntimeContext(input); }
   async createProjectAndBindRuntimeContext(input: CreateAndBindRuntimeContextInput, beforeEffect: () => void = () => undefined): Promise<MolisWorkRuntimeContextResolution> {
     return this.runtimeContexts.createProjectAndBindRuntimeContext(input, {
-      registerProject: (record, eventType, actorId) => { beforeEffect(); this.insertProjectInTransaction(record, eventType, actorId); },
+      registerProject: (record, eventType, actorId) => { beforeEffect(); this.projects.lifecycle.register(record, eventType, actorId); },
       provisionCreatedProject: (input, commit) => this.projectFiles.provisionCreatedProject(input, commit, beforeEffect),
     });
   }
@@ -435,12 +435,9 @@ export class MolisWorkProjectCatalog {
     return this.projects.commands.renameProject(projectId, displayName, actorId);
   }
 
-  private insertProjectInTransaction(record: MolisWorkProjectRecord, eventType: string, actorId: string): void {
-    this.projects.lifecycle.register(record, eventType, actorId);
-  }
-
-  private appendEvent(projectId: string, type: string, actorId: string, payload: Record<string, unknown>): void {
-    this.projects.lifecycle.appendEvent(projectId, type, actorId, payload);
+  /** Persisted page projection; callers must keep using listProjectPlugins for availability and command guards. */
+  storedProjectPluginMembership(projectId: string) {
+    return this.projects.query.storedProjectPluginMembership(projectId);
   }
 }
 

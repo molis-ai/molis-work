@@ -139,6 +139,7 @@ export interface ProjectsCommandApi {
 }
 
 export interface ProjectsQueryApi {
+    storedProjectPluginMembership(projectId: string): ProjectPluginMembership;
     listProjectPlugins(projectId: string): ProjectPluginId[];
     listHiddenPlugins(projectId: string): ProjectPluginId[];
     listProjects(): ProjectRecord[];

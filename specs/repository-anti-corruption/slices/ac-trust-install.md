@@ -279,6 +279,34 @@ RAC-401 的针对性测试检查查询前后的实际文件、库内容和账本
 
 文件检查保留 Runtime 所有文件、数据库、WAL 的逐字节比较及目录、大小、修改时间和权限检查。目录库现有 `catalog.db-shm` 是 SQLite 的读者协调区，实测只有读标记变化，所以对这一文件检查存在、大小与元数据，数据库和 WAL 仍逐字节比较；不把读标记当成业务写入。
 
+### 7.3 #1270 非法账本与页面恢复（2026-10-25，已实现并自验，待最终独立审验，Codex 修复13）
+
+承接 [P1 6394580457](https://github.com/molis-ai/molis-work/pull/1270#issuecomment-6394580457) 与 [统筹裁定 6394606641](https://github.com/molis-ai/molis-work/pull/1270#issuecomment-6394606641)。独立候选以 `cd4000a2a288d2b7dee1174bf4462df78dd7d7f1` 为 parent；该提交已撤回把非法库当缺库的回退，本片不重复实现撤回。`5f012d1cb` 的精确旧头已实际复现：合法账本先撤回 Goals/Shelf、停用 Shelf 并移除/隐藏，再将版本改错或删另一张必需表，原回退会复活 Goals、抹去 Shelf 隐藏投影并放行动作。仅比较账本字节不足以证明授权正确。
+
+目标是服务端功能可用：授权名单、隐藏/移除命令、动作与插件内容入口遇到非法账本仍明确拒绝；已知 HTML 读页在统一请求边界呈现「Home 插件运行库不可用」及原有插件状态/显式重试入口。恢复页只显示 Projects owner 提供的持久化成员与隐藏事实，不查询或伪造 Goals snapshot，不运行插件视图，不缓存授权。成员显示用 GET 返回同一显示投影与不可用原因、HTTP 503，使已打开的插件选择器走原有失败显示和禁用路径，不能将保存过的行当作当前可用性；命令和授权回调不消费它。版本错与结构错的识别来自 Home store 模块私有错误身份，保留原错误类型和 code；别处的同类版本错误、普通 `actions.execution_failed` 和其他故障继续传播，不按消息文字判断。
+
+模块边界：Home store 只标识自身的两类拒绝；Projects 合同增加只读的存储成员投影，经 Module 和 Catalog 转发，SQL 留在 owner 内；Host 仅在 GET 处理故障呈现：HTML 有静态恢复页，读页/内容 API 给 503 和原拒绝码、不给替代插件内容，只有成员显示 GET 附存储展示事实。POST/DELETE 及所有授权回调继续严格拒绝。Workbench 复用文档外壳与原不可用状态内容，静态显示故障，不给插件执行权。为增加必要的 Catalog 转发，将两个无逻辑的私有 lifecycle 转发直接还给原调用点，避免巨大单元增长。无迁移、兼容开关、硬编码 Goals 放行、账本修复、通用状态系统或新资源。FIX4/FIX15、Schedule 的 beforeEffect fixture 与其他批次改动保留。
+
+- **RAC-402**：合法账本先持久撤回、停用及移除/隐藏，再分别破坏版本或其他必需表；所有授权侧仍拒绝，动作不执行、无业务写入；页面 200、只显示原持久成员和隐藏事实，坏库与撤回/安装记录不变，Issues 只有一个不可用状态且无 composer，原状态与显式重试失败仍保留。
+- **RAC-403**：只有 Home store 自己产生的两类拒绝进入恢复页；其他库的版本错误与普通 execution_failed 不成为页面成功，也不返回持久成员兜底。恢复合法结构后下一次读立即恢复正常授权，撤回不复活。
+- W3-06-F-05/F-08 的页面 200、坏库原样、单个 Issues 不可用阶段及重试断言保留；其「Goals remains usable」改为真实默认可用性下明确拒绝，依据是 T3 信任合同，不能靠注入无可用性策略的 Host 来证明可用。
+
+验证先用公共机器槽整体 `pnpm build`，再以官方 runner 跑 `tests/security-invariants-always-on-records.test.ts`、`tests/home-plugin-private-store.test.ts` 与新增恢复边界用例；按改动包 README 跑有限必跑集合及相关真实浏览器检查。新查询刷新 `pnpm api:update`，不改动作合同。检查 `node scripts/check-health-gates.mjs --base origin/main`、包边界、资源变化及 fresh-fetch 后 secret 扫描。保留旧头红、cd 基线、修后绿与源码/构建绑定；独立 REVIEW/TEST、唯一 Claude full 和实际合入分别核证，不在本片启动 full 或操作真实 Home。
+
+直接 2 文件 / 20 项在最新源码与整体构建相符后通过。四个改动包的有限必跑集合共 99 文件 / 1088 项均有有效整文件通过证据，界面必跑 10 文件 / 33 项也已覆盖；这是分轮有效证据，不能说成一次全绿。首轮 beforeEffect 的 Pages 撤权场景 15 秒超时，整文件独立续跑 23/23 通过；Jelly 一条首屏导航未完成，原界面文件独立续跑 12/12 通过，两次首败保留，不据此认定偶发。新增侧栏负例先误用不存在的 Issue 入口，改为 Manifest 已声明的 Pages comments 入口，保留页面 200 与拒绝断言。包边界 70 包、严格测试类型、API 快照与 27 个页面资源检查通过；以 `cd4000a2a` 为基准的健康门禁通过。对主线 `3817f875` 的健康门禁唯一失败是本片未修改的 PluginRuntime 已增长一行，由 carrier 原 owner 处理；未改门禁或本地基线掩盖。
+
+隔离测试浏览器已实测浅/深色与 1440/1024/390 三档无横向溢出，Home 状态、显式重试与 desktop 查询态链接可达，坏库字节不变。目视发现标题栏文字挤压后改用共享图标；真实 coarse-pointer 检查发现通用设置页规则把按钮最小高度固定为 32px，覆盖了恢复页的控件变量。最终仅在恢复页范围让按钮最小宽高取现有 `--control-h:44px`，不改共享样式；整体构建后的六态实测均为 44px，手机 coarse-pointer、关闭与状态控件、单一 Issue 阶段、无插件 composer、无横向溢出及原重试均通过。此证据不代替原生安装包或一骏本人验收，批次 full 仍由唯一 Claude 负责。原候选 `5dc2da402` 的 P1 与服务端边界已独立 REVIEW PASS，最后一行显示修正与本段证据只需最终窄复核，不据此冒称 TEST、组合或实际合入已完成。
+
+#### #1270 页面生产者登记补尾（2026-10-25，Codex 修复13）
+
+`4e1385937` 已由 batch-36 的 `cd9099265` 采用。[CI 原件](https://github.com/molis-ai/molis-work/actions/runs/40183726897/job/121139990735) 的整页门禁前两项通过，第三项只报告本节已接受的 `apps/workbench/src/plugin-store-unavailable.ts` 未登记。该文件属于 Host 在原读页地址返回的静态故障文档，不是插件自行提供的整页；按既有生产者合同登记进 `PAGE_PRODUCERS`，不增加路由、整页 URL 例外或插件入口，不修改扫描器、判词或现有断言。
+
+- **RAC-404**：版本错与结构错的真实 HTTP 恢复响应各只有一份 HTML 文档；没有插件文档、iframe、外部脚本客户端、composer 或另开标签页的入口。只保留 Host 故障说明、持久成员投影、插件状态及原显式重试；原坏库字节不变。健康工作台仍遵守整页门禁全部三项。
+
+本次仅改生产者登记、对应 HTTP 断言和本规格。生产源码与 `cd9099265` 相同，先核对该头的干净源码与成功构建指纹一致，再在独立工作树复用其构建；以官方 runner 跑整页门禁三项、两个坏库恢复场景及相关 RAC-402/403 反例，另做必要静态检查。不重跑旧包级集合、不另开 full/CI、不修改在途 carrier；候选独立推送并交 REVIEW/TEST/PIPE，待原 full 结束后由 PIPE 组合。
+
+补尾自验：来源与目标源码均匹配 cd909 的既有构建指纹；整页门禁 3/3、两个坏库 HTTP 场景 2/2、RAC-402/403 反例 4/4、两份改动测试的严格类型检查及以 cd909 为基准的健康门禁通过。首轮整页检查早于产物复制完成，因缺失构建文件失败，原日志保留且不计为有效产品证据；上述通过记录均来自复制和指纹核对完成后的重跑。生产源码与已验证的 4e 显示行为未改变，独立补尾复核与 carrier 最终组合另行核证。
+
 ## 8. 验收
 
 | 编号 | 内容 | 证据（测试文件待实现片定，名字里写编号） |
@@ -291,6 +319,9 @@ RAC-401 的针对性测试检查查询前后的实际文件、库内容和账本
 | RAC-385 | 同意不分等级都可撤（用户 2026-10-24）：`host` 等级的 `always_on` 默认同意、不弹窗；撤回后它不再出现在常开名单里，能被隐藏、移除；`pinned` 同意后可撤 | 同上 |
 | RAC-400 | Goals 不在项目里（常开被撤回后移除）时，首页、建项目与引导、Dock、搜索、项目页渲染、标签页、MCP/命令行的 goal 工具、Feed/成果库挂 Goal 的入口、Inbox/Sessions 等照常工作，不报错、不出空白；清单见 §3.4.1 | **部分**：T3 的 `tests/security-invariants-always-on-records.test.ts` 只覆盖服务端成员派生、建项目与移除；余项与浏览器、真实 MCP 归原 ac-trust 与 T7/BL-585，不晚于撤回入口落地 |
 | RAC-401 | 常开查询只读、缺库或缺行的构建担保不落账；撤回、重新同意与安装状态即时生效；现有非法库拒绝且不修复；第三方未同意不获担保，Host 启动仍记账 | `tests/security-invariants-always-on-records.test.ts` 的 RAC-401；重启不重复和已撤回不复活另见 `tests/plugin-runtime-maintenance-v3.test.ts` |
+| RAC-402 | 已撤回、停用及移除/隐藏后再破坏 Home 版本或完整结构，授权仍拒绝、原记录不变；恢复页只显示存储事实，不提供插件内容 | `tests/security-invariants-always-on-records.test.ts` 的 RAC-402；原页面与 retry 不变量见 `tests/home-plugin-private-store.test.ts` 的 W3-06-F-05/F-08 |
+| RAC-403 | 只处理 Home store 自己的明确拒绝，同码/同消息的其他错误继续传播；合法结构恢复后即时复查，撤回不复活 | `tests/security-invariants-always-on-records.test.ts` 的 RAC-403 |
+| RAC-404 | 坏库恢复是单一 Host 故障文档，没有插件客户端或独立整页；原字节、状态与重试保留，健康整页门禁不放宽 | `tests/home-plugin-private-store.test.ts` 的 RAC-404；`tests/shell-page-gate.test.ts` |
 | RAC-386 | 常开从记录生成：外部常开插件对已有项目立刻生效；撤回后立刻不强制；服务端拒绝卸载、停用、移除（V-01）；Goals 与 Shelf 常开仍然成立，建项目不再写死 `"goals"` | `tests/project-plugins.test.ts` 扩展 |
 | RAC-387 | 没签名的包经 `plugin install` 被拒（`plugin.signature_invalid`），不会得到 `unsigned` 等级；`unsigned` 只有开发目录和创作台产物两个来源 | `tests/plugin-package.test.ts` 扩展 |
 | RAC-388 | 默认连线：`unsigned`/`pinned` 声明的 `default_source` 没有同意不绑，有同意才绑；`host` 等级的行为与今天一致 | `tests/plugin-default-bindings.test.ts` 扩展 |

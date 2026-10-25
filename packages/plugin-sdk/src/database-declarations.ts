@@ -2,13 +2,17 @@
 // what the statements may create, and whether they agree with what a project's library already holds, is for the platform to check when
 // it opens the library (packages/plugin-runtime `openPluginProjectDatabase`), and whether the Home's registry holds a `home` library
 // as this plugin's own is for the Host to check when it starts the plugin. `parsePluginManifest` is the one caller.
+import { projectRowsProblems } from "./project-rows-declarations.js";
 
 /** The name a plugin's store goes by, the same rule as a library in the Home. */
 const STORE_NAME = /^[a-z][a-z0-9-]*$/u;
 const SCOPES = ["project", "home"] as const;
 const DECLARATION_FIELDS = new Set(["store_name", "version", "schema", "read_permission", "write_permission"]);
-/** A library in the Home may also be partitioned by project; a project's library is one per project already. */
-const HOME_FIELDS = new Set([...DECLARATION_FIELDS, "partition"]);
+/**
+ * A library in the Home may also be partitioned by project, or say which of its rows belong to a project; a project's library is one
+ * per project already.
+ */
+const HOME_FIELDS = new Set([...DECLARATION_FIELDS, "partition", "project_rows"]);
 
 export function databaseDeclarationProblems(value: unknown, permissions: ReadonlySet<string>): string[] {
   if (value === undefined) return [];
@@ -37,6 +41,7 @@ function declarationProblems(scope: (typeof SCOPES)[number], declaration: unknow
     if (typeof permission !== "string" || !permissions.has(permission)) problems.push(`${path}.${field} 必须是这份 Manifest 在 permissions 里声明的权限`);
   }
   if (scope === "home" && declaration.partition !== undefined && declaration.partition !== "project") problems.push(`${path}.partition 只能是 "project"`);
+  if (scope === "home") problems.push(...projectRowsProblems(`${path}.project_rows`, declaration.project_rows, declaration.schema, declaration.partition !== undefined));
   return problems;
 }
 

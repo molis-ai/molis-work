@@ -1,4 +1,4 @@
-import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { HomePluginDatabaseDeclaration, PluginProjectRowsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 /**
  * The workflow store's one current schema (repository-anti-corruption §4.1): new stores are created from it, existing
@@ -31,6 +31,14 @@ const WORKFLOWS_SCHEMA = `
   CREATE INDEX instances_workflow ON instances (workflow_id, created_at);
 
 `;
+/**
+ * What goes when a project is deleted, which the platform deletes from this library itself (PG-024): its workflows go, the hidden
+ * ones too, with every instance that ran them.
+ */
+const WORKFLOWS_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: "工作流程及其运行记录", order: 50, tables: [
+  { table: "instances", column: "project_id" },
+  { table: "workflows", column: "project_id" },
+] };
 /** The library the Host's start list gives the running plugin (`services.database`); the store's own connection opens the same file. */
-export const WORKFLOWS_DATABASE: PluginDatabaseDeclaration = { store_name: "workflows", version: 1,
+export const WORKFLOWS_DATABASE: HomePluginDatabaseDeclaration = { project_rows: WORKFLOWS_PROJECT_ROWS, store_name: "workflows", version: 1,
   read_permission: "workflows:read", write_permission: "workflows:write", schema: WORKFLOWS_SCHEMA };

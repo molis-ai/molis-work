@@ -11,6 +11,7 @@ import { ProjectDeletedDeferred } from "./project-deleted-deferred.js";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 import { alchemistProjectDirectory } from "./alchemist-paths.js";
 import { pluginBuilderProjectOwner } from "./plugin-builder/project-data.js";
+import { clearProjectRows } from "./plugin-project-rows.js";
 import { purgeAssistantProject } from "./assistant/assistant-project-purge.js";
 import { forgetProjectOriginalFiles } from "./material-original-files.js";
 
@@ -49,24 +50,36 @@ function searchOwnerWithoutService(home: string): ProjectDeletedOwner {
 }
 
 /**
- * The owners of a project's data in the Home that are plain files, as the packages that keep them declare it. Each
- * built-in plugin says on its catalog entry (`project_data`) what it keeps and how to clear it, and those come from the
- * catalog without the Host naming them: a plugin added to the catalog with a declaration is cleared by the next deletion.
- * The one module that is no plugin, Functions, exports the same declaration, and the Host names it here. They run in the
- * order the declarations ask (`order`, then catalog order), which is the order the confirmation dialog lists them in.
+ * The owners of a project's data in the Home that are plain files, as the packages that keep them declare it. A built-in plugin's
+ * library says which of its rows belong to a project (`databases.home.project_rows` in its Manifest) and the platform deletes those
+ * rows itself, running no code of the plugin's (PG-024); a plugin whose data is more than rows (Images, BL-615) still says on its
+ * catalog entry (`project_data`) how to clear it. Both come from the catalog without the Host naming the plugin. The modules that are no
+ * plugin, Functions and Characters, export the same declaration, and the Host names them here. They run in the order the declarations
+ * ask (`order`, then catalog order), which is the order the confirmation dialog lists them in.
  */
 function declaredProjectOwners(home: string): ProjectDeletedOwner[] {
-  const declared: Array<{ id: string; data: ProjectDataDeclaration; partitioned?: string }> = [
-    ...BUILTIN_PLUGIN_CATALOG.flatMap(entry => entry.project_data ? [{ id: entry.project_plugin_id, data: entry.project_data,
-      ...entry.runtime && entry.manifest.databases?.home?.partition === "project" ? { partitioned: entry.manifest.databases.home.store_name } : {} }] : []),
+  const declared: Array<{ id: string; label: string; order?: number; clear: (projectId: string) => void | Promise<void> }> = [
+    ...BUILTIN_PLUGIN_CATALOG.flatMap(entry => {
+      const library = entry.manifest.databases?.home, pluginId = entry.manifest.plugin_id;
+      if (library?.project_rows) {
+        return [{ id: entry.project_plugin_id, label: library.project_rows.label, order: library.project_rows.order,
+          clear: (projectId: string) => clearProjectRows(home, library, pluginId, projectId) }];
+      }
+      if (!entry.project_data) return [];
+      const partitioned = entry.runtime && library?.partition === "project" ? library.store_name : undefined;
+      return [ownerOf(home, entry.project_plugin_id, entry.project_data, partitioned)];
+    }),
     // Characters keeps its native runs by project in a library of the Home; the drafts it also keeps are the person's and stay.
-    { id: "characters", data: charactersProjectData },
-    { id: "functions", data: functionsProjectData },
+    ownerOf(home, "characters", charactersProjectData),
+    ownerOf(home, "functions", functionsProjectData),
   ];
   return declared.map((item, position) => ({ ...item, position }))
-    .sort((a, b) => (a.data.order ?? Number.MAX_SAFE_INTEGER) - (b.data.order ?? Number.MAX_SAFE_INTEGER) || a.position - b.position)
-    .map(({ id, data, partitioned }) => ({ id, label: data.label,
-      clear: partitioned ? removePartition(home, data, partitioned) : purgeOf(home, id, data) }));
+    .sort((a, b) => (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER) || a.position - b.position)
+    .map(({ id, label, clear }) => ({ id, label, clear }));
+}
+
+function ownerOf(home: string, id: string, data: ProjectDataDeclaration, partitioned?: string) {
+  return { id, label: data.label, order: data.order, clear: partitioned ? removePartition(home, data, partitioned) : purgeOf(home, id, data) };
 }
 
 function purgeOf(home: string, id: string, data: ProjectDataDeclaration): (projectId: string) => void | Promise<void> {

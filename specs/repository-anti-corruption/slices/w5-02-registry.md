@@ -208,7 +208,7 @@ spec 10-15 定 W4-01 推迟到 W5-02 之后：bundled 插件得在 `project-plug
 ## 10. 号段
 
 - RAC：A 560～563；B 564～569；B4 570～571；C 572～575；D 576～578；E 579。
-- BL（随各 PR 写进 `specs/BACKLOG.md`）：BL-615 Images 的项目数据按声明删（等 PG-104、PG-106）；BL-616 Files 的监督器条目（等 PG-005、X-5）；BL-617 Images、Jelly 合同挪进插件（Codex）；BL-618 Shelf 合同挪进 `modules/shelf`、Images 按动作 id 调用；BL-619 沙箱插件的 `project_rows`（#1255 落地后把拒绝改成删除）；BL-620～624 留给实现中发现的。
+- BL（随各 PR 写进 `specs/BACKLOG.md`）：BL-615 Images 的项目数据按声明删（等 PG-104、PG-106）；BL-616 Files 的监督器条目（等 PG-005、X-5）；BL-617 Images、Jelly 合同挪进插件（Codex）；BL-618 Shelf 合同挪进 `modules/shelf`、Images 按动作 id 调用；BL-619 沙箱插件的 `project_rows`（#1255 落地后把拒绝改成删除）；BL-620 启动名单之外的 Home 插件与带 Home 库的项目插件的 `project_rows`（PR-A 中发现）；BL-621～624 留给实现中发现的。
 - 安全不变量：S-暂A（删项目只按声明删、不跑插件代码，PR-A）；S-08、S-15（B1）、S-31（B3）改代码列。
 
 ## 11. privileges.md 状态（合入后由统筹改）

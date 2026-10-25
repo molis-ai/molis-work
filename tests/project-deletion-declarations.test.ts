@@ -11,11 +11,12 @@ import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform
 /** The catalog is one array shared by the process: a test that adds entries to it takes them out again. */
 const catalog: PluginRegistration[] = BUILTIN_PLUGIN_CATALOG as PluginRegistration[];
 
-/** An entry for the test: a real entry's other parts (the deletion reads only `project_data`), under its own id. */
+/** An entry for the test: a real entry's other parts (the deletion reads only `project_data` and the library), under its own id. */
 function declaringEntry(id: string, data: ProjectDataDeclaration): PluginRegistration {
   const template = catalog.find(entry => entry.project_plugin_id === "pages");
   assert.ok(template);
-  return { ...template, project_plugin_id: id, project_data: data };
+  // Without its library's `project_rows`, which the deletion would read instead of `project_data`.
+  return { ...template, project_plugin_id: id, project_data: data, manifest: { ...template.manifest, databases: {} } };
 }
 
 /** A Home directory that has no registry yet in this process: the registry is made from the catalog the first time it is asked for. */
@@ -24,7 +25,7 @@ async function withFreshHome<T>(run: (home: string) => Promise<T>): Promise<T> {
   try { return await run(join(directory, "home")); } finally { await rm(directory, { recursive: true, force: true }); }
 }
 
-test("a plugin's project data is what its catalog entry declares, and the confirmation dialog lists it in the declared order", async () => {
+test("RAC-563 a plugin's project data is what it declares, and the confirmation dialog lists it in the declared order", async () => {
   await withFreshHome(async home => {
     const owners = projectDeletedHooksFor(home).owners();
     // The ids are the receipt's stable names, so a change here orphans the steps of receipts that are still pending.
@@ -37,9 +38,14 @@ test("a plugin's project data is what its catalog entry declares, and the confir
       "判断规则在这个项目里的场景绑定和判断记录", "灵光里的想法与对话", "图片生成记录和已生成的图片",
       "角色在这个项目里的执行记录", "成果库保存的大文件原件", "炼金术士的研究空间", "插件创作台的构建、发布包和已保存的密钥", "助理在这个项目里的工作", "项目资料的卡片与整理记录", "这个项目及其角色的记忆",
     ]);
-    const declared = catalog.filter(entry => entry.project_data);
-    assert.deepEqual(declared.map(entry => entry.project_plugin_id).sort(), ["artifacts", "dataset", "form", "images", "lingguang", "pages", "ppt", "todo", "workflows"]);
-    for (const entry of declared) assert.equal(owners.find(owner => owner.id === entry.project_plugin_id)?.label, entry.project_data!.label, entry.project_plugin_id);
+    // Rows a library declares in its Manifest (`project_rows`, PG-024), or what a catalog entry still says it keeps (`project_data`).
+    const declared = catalog.flatMap(entry => {
+      const label = entry.manifest.databases?.home?.project_rows?.label ?? entry.project_data?.label;
+      return label ? [{ id: entry.project_plugin_id, label }] : [];
+    });
+    assert.deepEqual(declared.map(entry => entry.id).sort(), ["artifacts", "dataset", "form", "images", "lingguang", "pages", "ppt", "todo", "workflows"]);
+    assert.deepEqual(catalog.filter(entry => entry.project_data).map(entry => entry.project_plugin_id).sort(), ["artifacts", "images"]);
+    for (const entry of declared) assert.equal(owners.find(owner => owner.id === entry.id)?.label, entry.label, entry.id);
   });
 });
 

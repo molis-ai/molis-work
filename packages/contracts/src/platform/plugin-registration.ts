@@ -114,9 +114,10 @@ export interface PluginRegistration {
     readonly dual_instance?: true;
   };
   /**
-   * What this plugin keeps in the Home for a project, and how to clear it. The Host runs it when a project is deleted (the
-   * owner's id in the receipt is `project_plugin_id`) and lists its label in the confirmation; absent when the plugin keeps
-   * nothing outside the project's own directory.
+   * What this plugin keeps in the Home for a project that is more than rows of its library, and how to clear it. The Host runs it
+   * when a project is deleted (the owner's id in the receipt is `project_plugin_id`) and lists its label in the confirmation.
+   * Rows are declared in the Manifest instead (`databases.home.project_rows`), and the platform deletes them without running the
+   * plugin's code; never both. 2026-10-18 改: only Images still has it (its files and jobs, BL-615), and then it goes (PG-024).
    */
   readonly project_data?: ProjectDataDeclaration;
   /**

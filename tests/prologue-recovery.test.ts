@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
+import { cp, mkdtemp, readFile, writeFile, rm } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -66,6 +67,28 @@ test("BL-100: packed SDK crash prefix closes the original pending call, not the 
   });
   assert.equal(requests, 2);
   child.kill("SIGKILL"); assert.equal((await exited).signal, "SIGKILL");
+  // A copied crash prefix still says awaiting-approval, but the original SDK may now say it was answered.
+  // Keep all original ids and events; answer the actual pending through the public SDK without dispatching it.
+  const answeredRoot = join(root, "answered-runtime");
+  await cp(join(root, "runtime"), answeredRoot, { recursive: true });
+  const requireSdk = createRequire(new URL("../horizontal/agent-host/package.json", import.meta.url));
+  const { createRuntime } = await import(requireSdk.resolve("@prologue/sdk"));
+  const { createNodeHost } = await import(requireSdk.resolve("@prologue/sdk/node"));
+  const sdk = await createRuntime({ app, host: createNodeHost({ storageRoot: answeredRoot }), preset: "local-agent" });
+  try {
+    const pending = (await sdk.effects.pendings.readByOrigin({ session: saved.session.session_id, run: saved.ref.run_id }))
+      .find(item => item.kind === "effect-approval" && item.state === "open");
+    assert.ok(pending?.effectRef); assert.equal(pending.origin?.toolCall, "approval-edit");
+    assert.notEqual(pending.effectRef.id, "approval-edit", "the effect id is not the tool call id");
+    await sdk.effects.pendings.answer(pending.ref, { kind: "effect-approval", answer: "allow" }, await sdk.readClock());
+    assert.equal(sdk.effects.get(pending.effectRef)?.state, "authorized");
+  } finally { await sdk.shutdown(); }
+  adapter = await createPrologueNodeAdapter({ app, storageRoot: answeredRoot,
+    modelConfiguration: async () => { throw new Error("answered history must not request a model"); } });
+  const answered = (await adapter.readSession(saved.session)).latest_run!;
+  assert.deepEqual(answered.activity.map(item => [item.call_id, item.state]), [["read-source", "completed"], ["approval-edit", "unknown"], ["later-read", "unknown"]]);
+  assert.ok(answered.activity.every(item => !item.summary.includes("没有执行")));
+  await adapter.close(); adapter = undefined;
   const make = () => createPrologueNodeAdapter({ app, storageRoot: join(root, "runtime"),
     modelConfiguration: async () => { throw new Error("recovery must not request a model"); } });
   for (let read = 0; read < 2; read += 1) {

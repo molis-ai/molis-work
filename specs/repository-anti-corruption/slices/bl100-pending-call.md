@@ -1,6 +1,6 @@
 # BL-100：结束与重放时按原审批事实识别未执行调用
 
-状态：实现中。范围仅 #1304 FIRST 非阻塞第4项；基点 `4db89e26d6d5740e3002dfcfa868b40876385ded`。原 #1267 候选450继续冻结，Memory接续暂停。本项目标为工程修复与真实SDK协议回归，不宣称产品实操、组合全量或main采用完成。
+状态：作者实现及必要定向验证完成，待独立REVIEW/TEST。范围仅 #1304 FIRST 非阻塞第4项；基点 `4db89e26d6d5740e3002dfcfa868b40876385ded`。原 #1267 候选450继续冻结，Memory接续暂停。本项目标为工程修复与真实SDK协议回归，不宣称产品实操、组合全量或main采用完成。
 
 ## 证据与行为
 
@@ -22,3 +22,15 @@
 - **BL-100 / 验证有效性**：新反例在原实现上确实失败；修后跑原完整stream、必要recovery/approval-attachment及展示词回归。原断言、时限和执行证据不放宽。
 
 命令：`pnpm install --frozen-lockfile --offline`；公共FIFO内按需构建；`node scripts/run-tests.mjs --jobs 1 --retries 0 --verbose tests/prologue-stream.test.ts tests/prologue-recovery.test.ts tests/prologue-approval-attachment.test.ts tests/assistant-tool-words.test.ts`；边界、严格test-imports、API、相对准确基点health、diff检查与fresh-fetch后的secrets。Root限定必要定向/回放，覆盖本改动的实际调用链，不扩跑所有Agent/Prologue文件、full或browser。失败先保留原件再定位，不机械重试。
+
+## 作者验证原件
+
+原件位于 `/tmp/molis-pr1304-pending-call-20261025/`，生产代码提交 `03244deb333e5e553f6f2c3fc5a44d7b3f7cc382`。公共FIFO整体build自然0；官方awaited源码摘要 `733acba830e4e2f7c521f54a53bf30c3566e31075e625c6f96f17daeddcd29b8`，匹配构建清单 `2026-10-25T19:13:17.416Z`。后续仅扩充同一recovery测试及本文，生产与构建不变。
+
+- `targeted-03244/`：原完整四文件33+18+7+5，共63/63，自然0，0fail/cancel/skip/todo。前后03244、clean。
+- `recovery-answered/`：随后只补真实已回答边界，完整recovery文件18/18，自然0；未重跑未变的另外45项，不相加成81项。
+- 真实SDK用例使用本机HTTP协议替身和临时Home：读原文件后同一模型回复发出write与后续read；自己的执行子进程在真实待审批时崩溃，冷重启两次仍准确显示write未执行、后续无回执read未知、先前read完成；原文件字节未变，无模型重发。在崩溃记录的自有副本上，经公开SDK回答原Pending，保留所有原id、origin及原事件且不dispatch，再由生产Node适配器冷读：审批call变为unknown，不能误写“没有执行”。
+- `parent-counterexample.*` / `counterexample.mjs`：从准确父提交提取原stream模块，TypeScript标准转译，只有未变依赖的相对导入定位到其构建位置；无产品源码或dist覆盖。相同两call/原effect-pending关联反例自然1：父模块实际得到“待批call unknown、另一call failed”，与独立期望正好相反。此为有限旧模块反证，不冒整棵干净父树回归。
+- `checks/`：边界、严格imports/chains、公开API快照及相对准确4db的health均0。首次误用不存在的 `pnpm api:check` 已原样保留，随后实际 `node scripts/gates/api-snapshot.mjs` 自然0；health也检查同一72份公开快照。未更新门禁、基准或API快照。
+
+当前live终态保留原started状态的其它活动由既有展示规则映射unknown；中断prefix直接投影为unknown，未扩大状态语义。多个open审批逐项投影的单元测试覆盖公开Effect/Pending可表达的情况；不声称当前串行模型写循环实际同时等待两笔，也不把started称为真实dispatch凭据。独立核验、最终推送及唯一carrier采用另记。

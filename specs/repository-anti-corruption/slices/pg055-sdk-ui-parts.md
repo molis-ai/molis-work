@@ -130,3 +130,5 @@ SDK 的现有 `tsconfig.json` 继续编译 Node 与纯字符串源码，排除�
 - PG055-10：只有 ES2022 与 DOM、无 Node 类型的独立项目可消费 `/browser` 与 `/page-globals`，包括宿主 Window 扩展及页面端口；给 DOM 工具错误的元素类型时实际失败，证明声明完整且仍有约束。
 
 验证命令：公共 FIFO 中整体 `pnpm build`；`node scripts/run-tests.mjs tests/plugin-sdk-environments.test.ts tests/plugin-sdk-exports.test.ts tests/plugin-sdk-subpaths.test.ts tests/sdk-ui-markup.test.ts`，以及 SDK README 要求的相关非浏览器用例；`pnpm --filter @molis-ai/molis-work-plugin-sdk run typecheck`、公开 API 快照与包边界检查。保留生成声明和构建来源证据。共享核心最终组合、full、CI 与合入仍由 Claude 统筹，本项不另起 full 或浏览器批次。
+
+本项验证（2026-10-25，生产与测试实现 `3053a8f969ec170cc83298bb1426fb3407ab66d7`）：PG055-08、09、10 均通过；整体构建、SDK 双配置 typecheck、包边界、76 份公开 API 快照、对 `origin/main`（merge-base `3817f875`）与准确父头的健康检查、页面资源检查均通过。原先生产 Program 对根入口和 `/ui` 注入的四处 DOM 误用返回零诊断，新配置实际拒绝；准确父头重新内存编译的 212 个输出路径与本次产物一致，53 份 `.d.ts` 字节一致。README 的 35 个文件加本项编译测试与 markup 测试，合计 37 个文件通过；其中打包后的两个公共包完成真实示例安装、私有成果与 UI 结果验证，按公共槽位单文件运行，没有启动 Chrome。构建、回归自然退出后源码与整体构建 manifest 仍匹配；这些结果不代表整批 full、CI、main 或用户验收通过。

@@ -242,6 +242,8 @@ Memory renew 经现可信 caller、ExecutionControl 和 formal ref 解析直接�
 
 离线 Memory 采用由 `openPrologueMemoryAdoption` 持现独占 owner，成功后同步 `onOwned` 建立 App 屏障，再打开 SDK 专用 maintenance（省略 sessionPurges 时 Session 清除集合为空），没有普通 Runtime 恢复或 shutdown。关闭先等待维护调用并关闭 SDK，再在原 owner 内运行可选同步 `afterSDKClosed` 发布，最后释放 owner；SDK close 失败不发布且保 owner，发布失败释放已安全关闭的 owner 并抛错。回调只能在第一次 close 传入、必须返回 undefined；普通 close() 幂等。账本提交后若 owner 释放失败，账本不回滚，API 抛错且 owner 仍保持互斥。`openPrologueMemoryAdoptionInspection` 提供原孤儿 cleanup preview、Session/Index 无正文读取与 close，不取得 owner、不创建 SDK key 或目录；两者固定 App、scope、策略并保留同步当前授权。回归：`tests/prologue-memory-adoption.test.ts`、`tests/memory-adoption-maintenance.test.ts`。
 
+Home 恢复 frame 可传真实可选 `storageOwner`，冷 writer 沿现 Storage owner 只借一个 child，close 只归还 child；父 owner 仍由 frame 持有至 Ledger/Catalog 最终发布与资源关闭。未传仍是独立采用的自有 owner。每次 current 复核原 capability、目录与 inode，不能将 scope/adoption 兑换为 owner；source inspection 和内部 SDK reader 不获取、不借锁。首次 close 永久取消业务调用并冻结回调，同一句柄清理失败保留借用且允许显式无参重试；SDK 成功清理不重复，发布至多尝试一次。发布失败保持失败，后续 close 只重试未完成释放而不重放发布；父 frame 的当前权限/CAS 仍由原发布回调核验。SDK 同句柄关闭重试须由正式依赖提供，本片不改 vendor。短合同见 Memory spec「接入 Home 父 owner 与失败重试」，直接回归增加 `tests/prologue-memory-parent-owner.test.ts`。
+
 
 verifyPurgeCoverage 是内部无正文薄桥；inspection authority 只取真实 bound caller，复用 execution control，并要求 App 提供异步授权与同步最终检查。缺口拒绝，普通管理许可不代替 owner coverage 许可。
 ## MEM-40 源 SessionIndex 读取

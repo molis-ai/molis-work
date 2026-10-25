@@ -3,7 +3,8 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { openPptStore, PPT_ACTION_PERMISSIONS, PPT_PROJECT_PLUGIN_ID } from "@molis-ai/molis-work-plugin-ppt";
+import { PPT_ACTION_PERMISSIONS, PPT_PROJECT_PLUGIN_ID } from "@molis-ai/molis-work-plugin-ppt";
+import { openPptStore } from "./fixtures/plugin-home-stores.js";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { LocalProjectDatabase, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
@@ -26,7 +27,7 @@ test("PPT standard MCP shares exports, concurrent edits and fixed publication ac
     try{await client.connect(transport);}catch(error){throw new Error(`${String(error)}\n${errors}`);}return client;
   };
   // W4-6-07: a tool is named by its capability version, and `content.receive` is at version 2; the other tools keep `__v1`.
-  const tool=(name:string)=>molisWorkActionToolName({capability_id:`ppt.${name}`,version:name==='content.receive'?2:1});
+  const tool=(name:string)=>molisWorkActionToolName({capability_id:`ppt.${name}`,version:name==='content.receive'||name==='subject.read'?2:1});
   const call=async(client:Client,name:string,args:Record<string,unknown>={})=>{
     const result=await client.callTool({name:tool(name),arguments:args});assert.equal(result.isError,false,JSON.stringify(result));return result.structuredContent as any;
   };

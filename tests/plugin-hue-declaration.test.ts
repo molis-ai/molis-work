@@ -74,6 +74,7 @@ test("RAC-705 the tint rule names no plugin, and no row of a directory or a tab 
   assert.match(sheet, /\.mw-catalog \[data-plugin-id\] \{ --plugin-tint: var\(--ink-soft\); \}/);
 });
 
+// SH1303-03: the empty hues map also covers a page with no plugin-directory script.
 test("RAC-706 the tab strip takes a plugin's colour from the page's directory, the workbench's own surfaces from the Host, the rest from a spare list", () => {
   const { outputFiles } = buildSync({ entryPoints: [fileURLToPath(new URL("../apps/workbench/src/scripts/client/plugin-tab-groups.ts", import.meta.url))],
     bundle: true, write: false, format: "iife", globalName: "TabGroups", platform: "browser", target: "es2022" });

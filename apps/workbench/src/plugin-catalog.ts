@@ -57,6 +57,8 @@ export interface RailEntry {
 /** A kind a person can make new from a Goal, as the plugin's view declares it (`creates`). */
 export interface PluginCreatableKind {
   readonly id: ProjectPluginId;
+  /** The plugin (its Manifest `plugin_id`) whose words translate `title`: the text is its own, whoever published it. */
+  readonly plugin_id: string;
   /** The plugin's create station, which `placement.create` calls. */
   readonly station: string;
   /** The kind's name; a new one is called 未命名 followed by it. */
@@ -66,6 +68,8 @@ export interface PluginCreatableKind {
 /** One way to start something from the project home, as the plugin's view declares it (`start`); it opens that plugin. */
 export interface PluginHomeStart {
   readonly id: ProjectPluginId;
+  /** The plugin (its Manifest `plugin_id`) whose words translate `title` and `hint`. */
+  readonly plugin_id: string;
   readonly title: string;
   readonly hint: string;
   readonly glyph: string;
@@ -169,13 +173,13 @@ function stageOnlyViews(directory: PluginDirectory, enabled: readonly ProjectPlu
  */
 export function creatableKinds(enabled: readonly ProjectPluginId[], directory: PluginDirectory = builtinPluginDirectory()): PluginCreatableKind[] {
   return [...placedViews(directory, enabled, "navigator"), ...placedViews(directory, enabled, "island")]
-    .flatMap(({ id, view }) => view.creates ? [{ id, station: view.creates.station, title: view.creates.title }] : []);
+    .flatMap(({ id, entry, view }) => view.creates ? [{ id, plugin_id: entry.plugin_id, station: view.creates.station, title: view.creates.title }] : []);
 }
 
 /** The project home's ways to start with the enabled plugins (their views' `start`), in the same order as `creatableKinds`. */
 export function homeStarts(enabled: readonly ProjectPluginId[], directory: PluginDirectory = builtinPluginDirectory()): PluginHomeStart[] {
-  return [...placedViews(directory, enabled, "navigator"), ...placedViews(directory, enabled, "island")].flatMap(({ id, view }) => view.start
-    ? [{ id, title: view.start.title, hint: view.start.hint, glyph: view.start.icon ?? view.icon ?? "package" }] : []);
+  return [...placedViews(directory, enabled, "navigator"), ...placedViews(directory, enabled, "island")].flatMap(({ id, entry, view }) => view.start
+    ? [{ id, plugin_id: entry.plugin_id, title: view.start.title, hint: view.start.hint, glyph: view.start.icon ?? view.icon ?? "package" }] : []);
 }
 
 /**
@@ -251,11 +255,11 @@ export function pluginTabGlyphs(): Record<string, string> {
 }
 
 /** One sentence per plugin (the market summary) for the page heading's description line, keyed by work surface; a plugin that opens in the side panel has none (`sideOpenedPlugins`). */
-export function pluginStageSummaries(): Record<string, string> {
+export function pluginStageSummaries(): Record<string, { readonly plugin_id: string; readonly summary: string }> {
   const side = sideOpenedPlugins();
   return Object.fromEntries(BUILTIN_PLUGIN_CATALOG
     .filter((entry) => Boolean(entry.manifest.summary) && !Object.hasOwn(side, entry.project_plugin_id))
-    .map((entry) => [entry.project_plugin_id, entry.manifest.summary as string]));
+    .map((entry) => [entry.project_plugin_id, { plugin_id: entry.manifest.plugin_id, summary: entry.manifest.summary as string }]));
 }
 
 /**

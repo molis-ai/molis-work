@@ -5,6 +5,19 @@ import { GOALS_TREE_UI_CONTRIBUTION_ID } from "./tree-ui.js";
 import { GOALS_ACTIONS } from "./actions.js";
 import { PERSONAL_PLANNING_ACTIONS } from "./personal-planning-actions.js";
 import { GOALS_PROJECT_DATABASE } from "./project-database.js";
+import { GOALS_MESSAGES } from "./messages.js";
+import { GOALS_CONTEXT_EN } from "./context-en.js";
+import { GOALS_DIALOGS_EN } from "./dialogs-en.js";
+import { GOALS_DOCUMENT_EN } from "./document-en.js";
+import { GOALS_MOMENTUM_EN } from "./momentum-en.js";
+import { GOALS_PLANNING_EN } from "./planning-en.js";
+import { GOALS_POLICY_EN } from "./policy-en.js";
+import { GOALS_PROPOSAL_EN } from "./proposal-en.js";
+import { GOALS_RELATION_EN } from "./relation-en.js";
+import { GOALS_SAFETY_EN } from "./safety-en.js";
+import { GOALS_STATUS_EN } from "./status-en.js";
+import { GOALS_TREE_EN } from "./tree-en.js";
+import { GOALS_WORKSPACE_EN } from "./workspace-en.js";
 
 export const GOALS_PLUGIN_ID = "io.molis.work.goals";
 /** What the project database stores for this Plugin. */
@@ -80,6 +93,22 @@ export const goalsManifest: PluginManifest = {
   databases: { project: GOALS_PROJECT_DATABASE },
   routes: GOALS_ROUTES,
   ui: {
+    messages: GOALS_MESSAGES,
+    // English for the words still keyed by their Chinese text (PG-071); the order is the one the Host's catalog used to merge them in.
+    translations: {
+      ...GOALS_POLICY_EN,
+      ...GOALS_SAFETY_EN,
+      ...GOALS_RELATION_EN,
+      ...GOALS_TREE_EN,
+      ...GOALS_MOMENTUM_EN,
+      ...GOALS_WORKSPACE_EN,
+      ...GOALS_DOCUMENT_EN,
+      ...GOALS_CONTEXT_EN,
+      ...GOALS_STATUS_EN,
+      ...GOALS_DIALOGS_EN,
+      ...GOALS_PLANNING_EN,
+      ...GOALS_PROPOSAL_EN,
+    },
     contributions: [GOALS_TREE_UI_CONTRIBUTION_ID, GOALS_SETTINGS_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "tree", slot: "navigator", title: "Goals", contribution_id: GOALS_TREE_UI_CONTRIBUTION_ID, icon: "target", hue: "blue", order: 10, rail: "core", pinned_default: true, accepts_objects: true,

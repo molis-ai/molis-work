@@ -42,6 +42,7 @@
     "api:update": "node scripts/gates/api-snapshot.mjs --update",
     "actions:update": "node scripts/gates/action-contract-snapshot.mjs --update",
     "page-assets:check": "node scripts/gates/page-assets.mjs",
+    "plugin-styles:check": "node scripts/gates/plugin-styles.mjs",
     "secrets:check": "node scripts/check-secrets.mjs",
     "boundary:test": "pnpm --filter @molis-ai/molis-work-test-kit test && node --test tests/workbench-registration-boundaries.test.mjs tests/package-owners.test.mjs",
     "build:clean": "MOLIS_WORK_BUILD_CLEAN=1 pnpm build",

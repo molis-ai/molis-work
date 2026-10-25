@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { DEMO_PROJECT_ID, EN, GoalProjectApplication, LocalProjectDatabase, runWithLocale, seedDemoBoard, PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, GoalProjectApplication, LocalProjectDatabase, runWithLocale, seedDemoBoard, PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
 import { BUILTIN_PLUGIN_CATALOG, CLIENT_SCRIPT } from "@molis-ai/molis-work-app-workbench";
 import { buildMolisWorkWebView } from "./fixtures/web-view.js";
 import { renderMolisWorkWeb, type MolisWorkWebView } from "./workbench-renderer-fixture.js";
@@ -79,12 +79,12 @@ test("RAC-602 the project home's starts are the shown plugins' declared `start`,
   assert.doesNotMatch(CLIENT_SCRIPT, /plugin: 'goals', title: |plugin: 'pages', title: |plugin: 'lingguang', title: /u);
 });
 
-test("RAC-603 every declared create title, start title and hint has its English in the dictionary the page translates with", () => {
+test("RAC-603 every declared create title, start title and hint is worded in English with its own plugin's words, not the page's", () => {
   withView((view, goalId) => {
-    const html = draw(showing(view, EVERYTHING), goalId);
-    const texts = [...creates(html).map(kind => kind.title), ...homeStarts(html).flatMap(start => [start.title, start.hint])];
+    const html = runWithLocale("en", () => draw(showing(view, EVERYTHING), goalId));
+    const texts = [...creates(html).map(kind => kind.label), ...homeStarts(html).flatMap(start => [start.title, start.hint])];
     assert.equal(texts.length, 4 + 3 * 2);
-    for (const text of texts) assert.ok(EN[text] && EN[text] !== text, `${text} has an English sentence`);
+    for (const text of texts) assert.doesNotMatch(text, /[\u4e00-\u9fff]/u, `${text} reads in English`);
   });
 });
 

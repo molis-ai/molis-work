@@ -80,6 +80,7 @@ export { ManagedProjectFiles } from "./managed-project-files.js";
 export { ManagedProjectDeletion, type ProjectDeletionCleanupPorts } from "./managed-project-deletion.js";
 export { ProjectDeletionService, type ProjectDeletionPorts } from "./project-deletion-service.js";
 export { ProjectDeletedHooks, projectDeletedHooksFor, type ProjectDeletedOwner, type ProjectDeletedPort } from "./project-deleted-hooks.js";
+export { ownerLabel } from "./web-project-deletion.js";
 export {
   BUILTIN_PLUGIN_REGISTRY, PERSONAL_PLUGIN_IDS, PLATFORM_PLUGIN_REGISTRATIONS, PROJECT_SCOPED_PLUGIN_IDS,
   availableProjectPluginIds, catalogProblems, projectRuntimeDeclarations, shownProjectPlugins, type ProjectRuntimeDeclaration,

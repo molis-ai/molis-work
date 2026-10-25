@@ -1,21 +1,4 @@
-import { FEED_EN } from "@molis-ai/molis-work-plugin-feed";
-import { COGNIA_EN } from "@molis-ai/molis-work-plugin-cognia";
-import { IMAGES_EN } from "@molis-ai/molis-work-plugin-images";
-import { JELLY_EN } from "@molis-ai/molis-work-plugin-jelly";
-import { GOALS_PROPOSAL_EN } from "@molis-ai/molis-work-plugin-goals";
-import { ARTIFACT_EN } from "@molis-ai/molis-work-plugin-artifacts";
-import { SHELF_EN } from "@molis-ai/molis-work-plugin-shelf";
 import { FUNCTIONS_EN } from "../functions/en.js";
-import { FORM_EN } from "@molis-ai/molis-work-plugin-form";
-import { PAGES_EN } from "@molis-ai/molis-work-plugin-pages";
-import { DATASET_EN } from "@molis-ai/molis-work-plugin-dataset";
-import { PPT_EN } from "@molis-ai/molis-work-plugin-ppt";
-import { LINGGUANG_EN } from "@molis-ai/molis-work-plugin-lingguang";
-import { TODO_EN } from "@molis-ai/molis-work-plugin-todo";
-import { ALCHEMIST_EN } from "@molis-ai/molis-work-plugin-alchemist";
-import { WORKFLOWS_EN } from "@molis-ai/molis-work-plugin-workflows";
-import { SCHEDULE_EN } from "@molis-ai/molis-work-plugin-schedule";
-import { GOALS_POLICY_EN, GOALS_SAFETY_EN, GOALS_RELATION_EN, GOALS_TREE_EN, GOALS_WORKSPACE_EN, GOALS_MOMENTUM_EN, GOALS_DOCUMENT_EN, GOALS_PLANNING_EN, GOALS_STATUS_EN, GOALS_DIALOGS_EN, GOALS_CONTEXT_EN } from "@molis-ai/molis-work-plugin-goals";
 import { GAP_EN } from "./gap-en.js";
 import { INFORMATION_LOOP_EN } from "./information-loop-en.js";
 import { ASSISTANT_EN } from "./assistant-en.js";
@@ -30,11 +13,13 @@ import { HOME_EN } from "./home-en.js";
 import { FLOW_EN } from "./flow-en.js";
 import { MEMORY_EN } from "./memory-en.js";
 import { KNOWLEDGE_EN } from "./knowledge-en.js";
+import { SHARED_WORDS_EN } from "./shared-words-en.js";
 
 /** Existing Workbench English catalog, isolated from locale runtime state in AP3. */
 export const EN: Record<string, string> = {
   // Placement comes first so an existing translation of the same words wins.
   ...PLACEMENT_EN,
+  ...SHARED_WORDS_EN,
   ...CONTEXTUAL_EN,
   ...SIDE_PANEL_EN,
   "保存后用于后续执行；文字生成期间更改模型或连接，需重新生成。": "Changes apply to subsequent runs. Restart text generation if its model or connection changes while it is running.",
@@ -90,7 +75,7 @@ export const EN: Record<string, string> = {
   "正在读取原任务…": "Reading the original task…",
   "本轮结束，待核对": "Run ended; review required",
   "状态暂不可读": "Status unavailable",
-  "结果待核对": "Result needs reconciliation",
+  "结果待核对": "Review the outcome",
   "处理本轮审查": "Review this run",
   "处理文件回退": "Review file rollback",
   "回退待处理": "Rollback needs attention",
@@ -132,7 +117,6 @@ export const EN: Record<string, string> = {
   ...ARRIVAL_EN,
   ...RENDERER_GAP_EN,
   ...HOME_EN,
-  ...IMAGES_EN,
   "待解决：{text}": "To resolve: {text}",
   "待你验收：{text}": "Awaiting your review: {text}",
   "尚待完成：{text}": "Still to complete: {text}",
@@ -158,7 +142,7 @@ export const EN: Record<string, string> = {
   "均分所有窗口": "Equalize all panes",
   "关闭当前窗口": "Close current pane",
   "返回 Goal 画布": "Back to Goal canvas",
-  "收起 Goal，返回关系画布": "Collapse Goal and return to the relation canvas",
+  "收起 Goal，返回关系画布": "Collapse Goal and return to the canvas",
   "窗口": "Windows",
   "拉取任务": "Fetch tasks",
   "本机路径": "Local paths",
@@ -227,7 +211,7 @@ export const EN: Record<string, string> = {
   "增加完成要求": "Add completion requirement",
   "修改当前约定": "Change current agreement",
   "今天与日历": "Today and calendar",
-  "日期": "Dates",
+  "日期": "Date",
   "当天": "Today",
   "当天的事件": "Today's events",
   "这件事": "This item",
@@ -243,7 +227,7 @@ export const EN: Record<string, string> = {
   "今天": "Today",
   "件": "items",
   "个人": "Personal",
-  "组织": "Org",
+  "组织": "Organize",
   "没有事件走进来": "Nothing arrived",
   "这一天还空着。": "This day is still empty.",
   "个人事件": "Personal event",
@@ -362,7 +346,7 @@ export const EN: Record<string, string> = {
   "比较固定版本，逐项阅读差异。": "Compare fixed versions and read each difference.",
   "统计文件快照的字数、字节与行数。": "Counts characters, bytes and lines in a file snapshot.",
   "今天的工作、当天的事件和回到手边的入口。": "Today's work, the day's events, and the things at hand.",
-  "推进": "Move forward",
+  "推进": "Advance",
   "写与做": "Write and make",
   "研究": "Research",
   "编码": "Coding",
@@ -392,33 +376,7 @@ export const EN: Record<string, string> = {
   "返回 Feed 列表": "Back to Feed list",
   "返回 Inbox 列表": "Back to Inbox list",
   "这个分组还没有事项": "Nothing in this group yet",
-  ...ARTIFACT_EN,
-  ...SHELF_EN,
   ...FUNCTIONS_EN,
-  ...FEED_EN,
-  ...PAGES_EN,
-  ...FORM_EN,
-  ...DATASET_EN,
-  ...PPT_EN,
-  ...LINGGUANG_EN,
-  ...TODO_EN,
-  ...JELLY_EN,
-  ...COGNIA_EN,
-  ...ALCHEMIST_EN,
-  ...WORKFLOWS_EN,
-  ...SCHEDULE_EN,
-  ...GOALS_POLICY_EN,
-  ...GOALS_SAFETY_EN,
-  ...GOALS_RELATION_EN,
-  ...GOALS_TREE_EN,
-  ...GOALS_MOMENTUM_EN,
-  ...GOALS_WORKSPACE_EN,
-  ...GOALS_DOCUMENT_EN,
-  ...GOALS_CONTEXT_EN,
-  ...GOALS_STATUS_EN,
-  ...GOALS_DIALOGS_EN,
-  ...GOALS_PLANNING_EN,
-  ...GOALS_PROPOSAL_EN,
   "Molis Work 已更新": "Molis Work has been updated",
   "你的 Project、Goal 和工作记录仍保存在本机。更新不会替你接受 Goal，也不会自动修改 Runtime 配置。": "Your Projects, Goals, and work history remain on this device. The update will not accept Goals for you or change Runtime settings automatically.",
   "新项目可以从一个真实结果开始": "A new Project can start with a concrete outcome",

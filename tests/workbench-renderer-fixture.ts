@@ -12,6 +12,11 @@ export {
   firstBlockedDescendant, unsatisfiedOutgoingDependencies, goalTreeReferenceLabel, goalTreeReferenceLabels,
 } from "@molis-ai/molis-work-plugin-goals";
 export type { GoalDocumentCollection } from "@molis-ai/molis-work-plugin-goals";
+import { BUILTIN_PLUGIN_CATALOG, pluginOnDemandStylesheet } from "@molis-ai/molis-work-app-workbench";
 export type { MolisWorkOnboardingRenderOptions } from "@molis-ai/molis-work-app-workbench";
 
 export const { renderMolisWorkProjectIndex, renderMolisWorkSettings, renderPersistedFeedItemDetail, renderFeedWorkbenchFragment, renderGoalDocumentFragment, renderMolisWorkMomentumFragment, renderMolisWorkOnboarding, renderMolisWorkProjectSettingsHub, renderMolisWorkProjectSettings, renderMolisWorkProjectGuidanceSettings, renderMolisWorkPlanningLibrary, renderMolisWorkPlanningMethodPage, renderMolisWorkPlanningSettings, renderMolisWorkWorkbenchStylesheet, renderMolisWorkArrivalStylesheet, renderMolisWorkSettingsStylesheet, renderMolisWorkWorkbenchClientScript, renderMolisWorkWeb, renderMolisWorkRefreshFragment } = createLocalHostWorkbenchRenderer(desktopWorkbenchRendererPorts);
+
+/** The workbench sheet and the sheets the plugins bring themselves (PG-070): the rules a page with every plugin frame loaded has. */
+export const renderMolisWorkWorkbenchWithPluginStylesheets = (): string => renderMolisWorkWorkbenchStylesheet()
+  + BUILTIN_PLUGIN_CATALOG.map((entry) => pluginOnDemandStylesheet(entry.project_plugin_id) ?? "").join("");

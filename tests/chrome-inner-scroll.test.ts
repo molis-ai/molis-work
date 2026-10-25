@@ -4,6 +4,7 @@ import {
   renderMolisWorkArrivalStylesheet,
   renderMolisWorkSettingsStylesheet,
   renderMolisWorkWorkbenchStylesheet,
+  renderMolisWorkWorkbenchWithPluginStylesheets,
 } from "./workbench-renderer-fixture.js";
 
 test("chooser, settings, and workbench keep titles pinned and scroll only the content lists", () => {
@@ -132,7 +133,7 @@ test("feed stage search keeps a single frame", () => {
 
 test("Functions and Form editors scroll inside their pinned workspace", () => {
   // Form is a workbench plugin stage; the Functions editor moved with rule authoring into Capabilities (settings sheet).
-  const workbench = renderMolisWorkWorkbenchStylesheet();
+  const workbench = renderMolisWorkWorkbenchWithPluginStylesheets();
   const settings = renderMolisWorkSettingsStylesheet();
   const functionsEditor = settings.match(/\.functions-editor \{[^}]+\}/)?.[0] ?? "";
   const functionsColumns = settings.match(/\.functions-columns \{[^}]+\}/)?.[0] ?? "";

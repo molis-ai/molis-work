@@ -26,6 +26,7 @@ import { createPluginModelGeneration } from './plugin-builder/model.js';
 import { buildSources, generatedRegistration, readPluginPrompts, registerGeneratedPrompts, unregisterGeneratedPrompts } from './plugin-builder/prompts.js';
 import { APPROVED_KEY, covered, installedLifecycle } from './installed-plugin-lifecycle.js';
 import { forgetInstallationProjectBindings } from './connector-plugin-requests.js';
+import { withPluginWords } from "@molis-ai/molis-work-app-workbench";
 
 export const INSTALLED_MODEL_KEY = 'plugin-builder:agent-studio:model';
 const SIGNATURE = installedSignature('');
@@ -91,7 +92,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     return catalogPending;
   };
   const privateStorage = new SqlitePluginPrivateStorage(store.db);
-  const platform = createPluginPlatform({ project_id: projectId, actor_id: options.actorId ?? 'web-user', db: store.db, journal: store, actions, ui: new UiHost(), home: null,
+  const platform = createPluginPlatform({ project_id: projectId, actor_id: options.actorId ?? 'web-user', db: store.db, journal: store, actions, ui: new UiHost({ drawingAs: withPluginWords }), home: null,
     ...openProjectVersionStores(store),
     privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest),
     deleteInstallationData: id => privateStorage.deleteInstallationData(id),

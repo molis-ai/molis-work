@@ -13,7 +13,7 @@ import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_PROJECT_
 import { createFeedContentHandlers, feedContentActions } from "@molis-ai/molis-work-plugin-feed";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import type { PagesGenerationRecord } from "@molis-ai/molis-work-contracts/modules/pages";
+import type { PagesGenerationRecord } from "@molis-ai/molis-work-plugin-pages/contract";
 import { hostCompleteText } from "@molis-ai/molis-work-app-local-host";
 import { planInformationWork } from "../apps/local-host/dist/information-planner.js";
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/assistant-island.js";

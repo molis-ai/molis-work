@@ -1,6 +1,6 @@
 import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { PAGES_GENERATE_FROM_MATERIALS } from "./prompts.js";
-import type { PagesBody, PagesGenerationRecord } from "@molis-ai/molis-work-contracts/modules/pages";
+import type { PagesBody, PagesGenerationRecord } from "./contract.js";
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginModelResult } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PagesStores } from "./store.js";

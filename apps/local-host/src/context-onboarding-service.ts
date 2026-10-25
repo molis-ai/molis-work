@@ -3,9 +3,7 @@ import type { Readable } from "node:stream";
 import { fencedMaterials, instructed, type InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { ONBOARDING_NOTES, ONBOARDING_OWNER, ONBOARDING_PROPOSAL } from "./agent-definitions/system-prompts.js";
 import { createHash, randomUUID } from "node:crypto";
-import { PAGES_PLUGIN_ID, type PagesBody } from "@molis-ai/molis-work-contracts/modules/pages";
-import { TODO_ORGANIZE_MATERIAL_CHARS, TODO_PLUGIN_ID, type TodoBatch } from "@molis-ai/molis-work-contracts/modules/todo";
-import { withContextJourneys, type CallTiming, type ContextJourney, type ContextReference, type ImportFile } from "./context-onboarding-store.js";
+import { withContextJourneys, type CallTiming, type ContextJourney, type ContextReference, type ImportFile, type OnboardingTodoBatch } from "./context-onboarding-store.js";
 import { contextFilePath, contextSources, readContextSource } from "./context-onboarding-sources.js";
 import { diskFull, dropStagedNotes, readStagedNote, readStagedText, removeJourneyStaging, stageContextUpload, stageNote, stagedFilePath, stagedFileSize, stagedJourneyIds, isStagedDigest } from "./context-onboarding-staging.js";
 import type { PeriodicTasks } from "./periodic-tasks.js";
@@ -336,15 +334,24 @@ function partTitle(title: string, part: number, parts: number, max: number): str
   return (title.length + suffix.length <= max ? title : title.slice(0, max - suffix.length - 1).replace(/[\uD800-\uDBFF]$/u, "") + "…") + suffix;
 }
 
+/**
+ * The providers the journey pins: the Todo and Pages that ship with the Host (#1207). It finds their actions in the catalog by
+ * `capability_id@version` and declares the fields it uses below; it imports neither plugin's contract (PG-111).
+ */
+const TODO_PLUGIN_ID = "io.molis.work.todo", PAGES_PLUGIN_ID = "io.molis.work.pages";
+/** A ProseMirror document as the `pages.documents.*` actions carry it; the journey passes it on without reading into it. */
+type ProseDocument = { readonly type: "doc"; readonly content?: readonly unknown[] };
+/** What Todo's organizer reads of one material (`todo.organize.extract` cuts a longer one), so longer text goes in parts of this size; pinned to Todo's own number by `tests/context-onboarding-todo.test.ts`. */
+export const TODO_PART_CHARS = 60_000;
 const TODO_MATERIALS = 50;
 /**
- * Every material for Todo's organizer, which takes 50 materials a call and reads the first TODO_ORGANIZE_MATERIAL_CHARS of each:
+ * Every material for Todo's organizer, which takes 50 materials a call and reads the first TODO_PART_CHARS of each:
  * long ones in parts of that size, so all of the text is read, 50 a batch.
  */
 async function* todoBatches(home: string, id: string, references: ContextReference[]): AsyncGenerator<{ title: string; text: string }[]> {
   let batch: { title: string; text: string }[] = [];
   for (const ref of references) {
-    const parts = textParts(await readStagedText(home, id, ref.text), TODO_ORGANIZE_MATERIAL_CHARS);
+    const parts = textParts(await readStagedText(home, id, ref.text), TODO_PART_CHARS);
     for (const [index, text] of parts.entries()) {
       if (!text.trim()) continue;
       batch.push({ title: partTitle(ref.title, index + 1, parts.length, 200), text });
@@ -370,7 +377,7 @@ async function draftTodos(home: string, journey: ContextJourney, references: Con
     const completed = todo.batches.length;
     if (total > completed) {
       const firstActions = ports.homeActions(home, AbortSignal.timeout(20 * 60_000));
-      const extract = await shipped<TodoExtract, { batch: TodoBatch }>(firstActions, "todo.organize.extract", 1, TODO_PLUGIN_ID);
+      const extract = await shipped<TodoExtract, { batch: OnboardingTodoBatch }>(firstActions, "todo.organize.extract", 1, TODO_PLUGIN_ID);
       let index = 0;
       for await (const materials of todoBatches(home, journey.id, references)) {
         if (++index <= completed) continue;
@@ -389,12 +396,12 @@ async function draftTodos(home: string, journey: ContextJourney, references: Con
   save();
 }
 /** Markdown as a Pages body, made by Pages' own public action; throws `pages.body_too_large` when the text converts to more than a document holds. */
-type PageBody = (markdown: string) => Promise<PagesBody>;
+type PageBody = (markdown: string) => Promise<ProseDocument>;
 /** A Pages document's body is at most 1,500,000 characters encoded; parts start at 400,000 and halve until each fits. */
 const PAGE_PART_CHARS = 400_000, PAGE_BODY_MAX = 1_400_000;
-async function* pageParts(pageBody: PageBody, text: string): AsyncGenerator<PagesBody> {
+async function* pageParts(pageBody: PageBody, text: string): AsyncGenerator<ProseDocument> {
   for (const part of textParts(text, PAGE_PART_CHARS)) {
-    let body: PagesBody | null = null;
+    let body: ProseDocument | null = null;
     // Pages refuses a part that converts to more than a document holds; such a part is halved like one over our own bound.
     try { body = await pageBody(part); }
     catch (error) { if ((error as { code?: unknown }).code !== "pages.body_too_large" || part.length < 2) throw error; }
@@ -414,7 +421,7 @@ async function shipped<I, O>(actions: BoundActionClient, capability_id: string, 
   if (!view) throw new ActionError("actions.dependency_missing", `${capability_id}@${version} 未在当前项目登记或未获授权`);
   return { ...view, provider_id } as ActionDefinition<I, O>;
 }
-type PagesImport = { request_id: string; request_hash: string; documents: { title: string; body: PagesBody }[] };
+type PagesImport = { request_id: string; request_hash: string; documents: { title: string; body: ProseDocument }[] };
 type TodoExtract = { origin: "onboarding"; title: string; request_id: string; materials: { title: string; text: string }[] };
 type TodoDecision = { candidate_id: string; action: "add" | "merge" | "update" | "complete" | "reopen" };
 export async function adoptContextJourney(home: string, id: string, input: Record<string, unknown>, ports: ContextOnboardingPorts): Promise<ContextJourney> {
@@ -449,7 +456,7 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
       {
         // Pages' own public actions: it turns the markdown into its body, and an import with the same request id and hash returns the
         // documents it made the first time on a retry.
-        const fromMarkdown = await shipped<{ markdown: string }, { body: PagesBody }>(actions, "pages.documents.body_from_markdown", 1, PAGES_PLUGIN_ID);
+        const fromMarkdown = await shipped<{ markdown: string }, { body: ProseDocument }>(actions, "pages.documents.body_from_markdown", 1, PAGES_PLUGIN_ID);
         const importDocuments = await shipped<PagesImport, { documents: { id: string }[] }>(actions, "pages.documents.import", 1, PAGES_PLUGIN_ID);
         const pageBody: PageBody = async markdown => (await actions.invoke(fromMarkdown, { markdown })).body;
         const refs = journey.adoption!.blank ? [] : journey.summary?.references ?? journey.sources.filter(s => s.selected).flatMap(s => s.references ?? []);
@@ -468,7 +475,7 @@ export async function adoptContextJourney(home: string, id: string, input: Recor
           }
           if (!ref.documents) {
             // The whole text, in as many documents as Pages needs (“第 k / N 部分”); each part's request is its own, so a retry goes on.
-            const parts: PagesBody[] = [], documents: string[] = [];
+            const parts: ProseDocument[] = [], documents: string[] = [];
             for await (const body of pageParts(pageBody, `原标题：${ref.title}\n\n来源：${ref.path} · 版本 ${ref.version}\n\n${await readStagedText(home, id, ref.text)}`)) parts.push(body);
             for (const [index, body] of parts.entries()) {
               documents.push((await actions.invoke(importDocuments, { request_id: id + ":sources:" + ref.label + (parts.length > 1 ? ":" + (index + 1) : ""), request_hash: id,
@@ -511,9 +518,9 @@ async function adoptTodoDrafts(journey: ContextJourney, actions: BoundActionClie
   const selected = new Set(journey.adoption?.todo_selected ?? []);
   if (!journey.todo?.batches.length || !selected.size || journey.todo.added) return;
   const relation = { same: "merge", update: "update", conflict: "update", maybe_done: "complete", reopen: "reopen" } as const;
-  const batches: TodoBatch[] = [];
-  const get = await shipped<{ id: string }, { batch: TodoBatch }>(actions, "todo.organize.get", 1, TODO_PLUGIN_ID);
-  const apply = await shipped<{ id: string; expected_revision: number; decisions: TodoDecision[] }, { batch: TodoBatch }>(actions, "todo.organize.apply", 1, TODO_PLUGIN_ID);
+  const batches: OnboardingTodoBatch[] = [];
+  const get = await shipped<{ id: string }, { batch: OnboardingTodoBatch }>(actions, "todo.organize.get", 1, TODO_PLUGIN_ID);
+  const apply = await shipped<{ id: string; expected_revision: number; decisions: TodoDecision[] }, { batch: OnboardingTodoBatch }>(actions, "todo.organize.apply", 1, TODO_PLUGIN_ID);
   for (const kept of journey.todo.batches) {
     let { batch } = await actions.invoke(get, { id: kept.batch_id });
     const decisions = batch.candidates.filter(candidate => selected.has(candidate.candidate_id) && !candidate.decision)

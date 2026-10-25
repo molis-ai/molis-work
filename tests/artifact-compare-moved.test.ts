@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { PAGES_ARTIFACT_TYPE_ID } from "@molis-ai/molis-work-contracts/modules/pages";
+import { PAGES_ARTIFACT_TYPE_ID } from "@molis-ai/molis-work-plugin-pages/contract";
 import { FORM_ARTIFACT_TYPE_ID } from "@molis-ai/molis-work-plugin-form/contract";
 import { DATASET_ARTIFACT_TYPE_ID } from "@molis-ai/molis-work-plugin-dataset/contract";
 import { PPT_ARTIFACT_TYPE_ID, PPT_SUBJECT_KIND } from "@molis-ai/molis-work-plugin-ppt/contract";

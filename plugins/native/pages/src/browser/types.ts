@@ -1,5 +1,5 @@
 import type { UiClientTranslate as Translate, UiPageMessages, UiPageView, UiPluginClientHost } from "@molis-ai/molis-work-contracts/platform/ui";
-import type { PagesBody, PagesFolder, PagesRecord } from "@molis-ai/molis-work-contracts/modules/pages";
+import type { PagesBody, PagesFolder, PagesRecord } from "../contract.js";
 import type * as EditorModule from "../editor-browser.js";
 
 export type { Translate, PagesBody, PagesFolder, PagesRecord };

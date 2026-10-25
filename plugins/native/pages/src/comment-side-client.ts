@@ -1,6 +1,6 @@
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import type { UiSideContext, UiPageMessage } from "@molis-ai/molis-work-contracts/platform/ui";
-import type { PagesCommentThread } from "@molis-ai/molis-work-contracts/modules/pages";
+import type { PagesCommentThread } from "./contract.js";
 import type { CommentSideHost, CommentDraft, CommentElements, CommentOpening, CommentStatus, CommentCommandResult, PendingCommentCommand } from "./comment-browser-types.js";
 import { commentErrorMessage } from "./comment-browser-types.js";
 

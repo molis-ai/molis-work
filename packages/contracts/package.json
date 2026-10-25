@@ -34,17 +34,9 @@
       "types": "./dist/modules/functions.d.ts",
       "import": "./dist/modules/functions.js"
     },
-    "./modules/pages": {
-      "types": "./dist/modules/pages.d.ts",
-      "import": "./dist/modules/pages.js"
-    },
     "./modules/goals": {
       "types": "./dist/modules/goals.d.ts",
       "import": "./dist/modules/goals.js"
-    },
-    "./modules/todo": {
-      "types": "./dist/modules/todo.d.ts",
-      "import": "./dist/modules/todo.js"
     },
     "./modules/alchemist": {
       "types": "./dist/modules/alchemist.d.ts",

@@ -1,4 +1,4 @@
-import type { PagesBody } from "@molis-ai/molis-work-contracts/modules/pages";
+import type { PagesBody } from "./contract.js";
 import { EMPTY_PAGES_BODY } from "./document.js";
 
 interface JsonNode {

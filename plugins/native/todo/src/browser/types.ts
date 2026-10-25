@@ -1,4 +1,4 @@
-import type { TodoBatch, TodoCandidate, TodoChange, TodoItem } from "@molis-ai/molis-work-contracts/modules/todo";
+import type { TodoBatch, TodoCandidate, TodoChange, TodoItem } from "../contract.js";
 
 export type { UiClientTranslate as Translate } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { UiClientTranslate as Translate, UiPluginClientHost } from "@molis-ai/molis-work-contracts/platform/ui";

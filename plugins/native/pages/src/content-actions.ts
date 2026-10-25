@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { ActionError, bindWorkflowContentHandlers, defineWorkflowContentActions, type ActionDefinition, type ActionExecutionContext, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { PAGES_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/pages";
+import { PAGES_PLUGIN_ID } from "./contract.js";
 import { pagesActions, PAGES_SUBJECT_KIND } from "./actions.js";
 import { nodeFromUnknown } from "./schema.js";
 import { nodesToMarkdown } from "./to-markdown.js";

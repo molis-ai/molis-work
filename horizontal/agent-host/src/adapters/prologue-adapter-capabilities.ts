@@ -65,14 +65,14 @@ export function guardedSubagents(subagents: AgentSubagentsCapability, read: (run
 }
 
 /** Closing an interrupted round: one of this session's (or a subtask's it lists), only while nothing else runs or rewinds in it. */
-export function guardedRecovery(store: PrologueRunStore, runtime: PrologueRuntimePort & { recovery: AgentRecoveryCapability }): AgentRecoveryCapability {
+export function guardedRecovery(store: PrologueRunStore, runtime: PrologueRuntimePort, recovery: AgentRecoveryCapability): AgentRecoveryCapability {
   return {
-    inspect: async session => { await store.loadSession(session.session_id); return runtime.recovery.inspect(session); },
+    inspect: async session => { await store.loadSession(session.session_id); return recovery.inspect(session); },
     close: async (session, runId, expectedVersion) => {
       const held = await store.loadSession(session.session_id);
       // One of this session's rounds, or a subtask's interrupted round that this session's recovery lists as its own.
       if (!held.runs.some(run => run.run_id === runId)
-        && !(await runtime.recovery.inspect(session)).runs.some(run => run.run_id === runId && run.subagent)) {
+        && !(await recovery.inspect(session)).runs.some(run => run.run_id === runId && run.subagent)) {
         throw agentErrors.run_unknown("这轮执行不属于当前会话");
       }
       const latest = held.runs.at(-1);
@@ -81,7 +81,7 @@ export function guardedRecovery(store: PrologueRunStore, runtime: PrologueRuntim
         || phase && phase !== "reconcile-required" && !isEnded(phase)) throw agentErrors.session_busy("会话仍在执行或回退，不能关闭中断轮次");
       store.startingSessions.add(session.session_id);
       try {
-        const report = await runtime.recovery.close(session, runId, expectedVersion);
+        const report = await recovery.close(session, runId, expectedVersion);
         store.sessions.delete(session.session_id);
         await store.loadSession(session.session_id);
         return report;

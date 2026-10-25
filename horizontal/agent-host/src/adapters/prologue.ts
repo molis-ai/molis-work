@@ -94,7 +94,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     if (runtime.memory) this.memory = runtime.memory;
     if (runtime.documents) this.documents = runtime.documents;
     if (runtime.subagents) this.subagents = guardedSubagents(runtime.subagents, run => this.read(run));
-    if (runtime.recovery) this.recovery = guardedRecovery(this.#store, { ...runtime, recovery: runtime.recovery });
+    if (runtime.recovery) this.recovery = guardedRecovery(this.#store, runtime, runtime.recovery);
     if (runtime.checkpoints) this.checkpoints = guardedCheckpoints(this.#store, runtime.checkpoints);
     this.skillLibrary = runtime.skillLibrary;
     this.mcpLibrary = runtime.mcpLibrary;

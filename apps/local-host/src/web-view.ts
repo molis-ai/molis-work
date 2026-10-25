@@ -9,6 +9,7 @@ import { developerMode } from "./developer-mode.js";
 import { listFeedSourceCatalog } from "./feed-source-service.js";
 import { scheduleActions } from "@molis-ai/molis-work-plugin-schedule";
 import { inboxActions } from "@molis-ai/molis-work-plugin-inbox";
+import { unselectedPagePlugins } from "./plugin-registry.js";
 
 export interface WebViewOptions {
   databasePath: string; projectId: string; demo?: boolean; projectRoot?: string;
@@ -62,6 +63,8 @@ export function buildMolisWorkWebView(_store: LocalProjectDatabase, collection: 
     archived_goals: collection.archived_goals, trashed_goals: collection.trashed_goals,
     counts: collection.counts, input_bindings: collection.input_bindings,
     policy_bindings: collection.policy_bindings, events: collection.events,
+    // Which plugins the page shows is the Host's fact (W5-02 PR-B); the project's page replaces it with the project's selection.
+    shown_plugins: unselectedPagePlugins(),
     ...projection,
   };
 }

@@ -27,7 +27,7 @@ export function renderPluginStoreUnavailablePage(input: {
     }, L)}</section>`).join("");
   const html = renderWorkbenchDocument({
     lang: locale.htmlLang(), title: L("Home 插件运行库不可用"),
-    head_html: `<script>${THEME_BOOTSTRAP_SCRIPT}${locale.desktop.bootstrapScript}</script><link rel="stylesheet" href="/assets/molis-work-settings.css">`,
+    head_html: `<script>${THEME_BOOTSTRAP_SCRIPT}${locale.desktop.bootstrapScript}</script><link rel="stylesheet" href="/assets/molis-work-settings.css"><style>body[data-home-plugin-store-unavailable] .mw-btn { min-height: var(--control-h); min-width: var(--control-h); }</style>`,
     body_attributes: { class: "settings-page project-preferences-page global-preferences-page", "data-home-plugin-store-unavailable": true,
       "data-desktop-shell": "false", "data-native-desktop": input.desktopShell ? "true" : false, style: "--control-h:44px" },
     body_html: `${renderIconSprite()}<header class="project-preferences-chrome"${input.desktopShell ? ' data-tauri-drag-region="deep"' : ""}><span>${escapeHtml(input.project?.display_name ?? "Molis Work")}</span><a class="mw-btn mw-btn--ghost mw-btn--icon-only" href="/" aria-label="${escapeHtml(L("返回项目列表"))}" title="${escapeHtml(L("返回项目列表"))}">${icon("x")}</a></header>

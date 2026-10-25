@@ -31,6 +31,7 @@ import { openPluginOwnerFiles } from "./plugin-owner-files.js";
 import { servicesUntilStopped } from "./plugin-stopped-services.js";
 import { realpathSync } from "node:fs";
 import { join } from "node:path";
+import { withPluginWords } from "@molis-ai/molis-work-app-workbench";
 
 /** The Home service set deliberately contains no project Artifact, event, or wiring clients. */
 export class HomePluginExecutor implements PluginExecutor {
@@ -81,7 +82,7 @@ export class HomePluginExecutor implements PluginExecutor {
       if (!activeRecord().grants.includes(permission)) throw new ActionError("actions.forbidden", "插件安装已变化或授权已撤销");
       context.requireGrant(permission);
     };
-    const ui = createPluginUiClient(new UiHost(), context, manifest,
+    const ui = createPluginUiClient(new UiHost({ drawingAs: withPluginWords }), context, manifest,
       { invalidate: () => this.options.invalidateView(manifest.plugin_id), active: () => active && this.options.active() });
     let database: ReturnType<typeof openPluginDatabase> | undefined;
     let partitions: PartitionedPluginDatabase | undefined;

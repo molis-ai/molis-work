@@ -8,6 +8,7 @@ import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { PLUGIN_DEVELOPMENT_ACTOR_ID, runPluginDevelopment } from "./plugin-development.js";
 import { refusePayloadIdentity } from "./goals-actions.js";
 import type { PluginDevelopmentInput, PluginDevelopmentResult } from "@molis-ai/molis-work-contracts/platform/tooling";
+import { withPluginWords } from "@molis-ai/molis-work-app-workbench";
 
 /** Development data is explicitly separate from the user's catalog and existing projects. */
 export async function runLocalPluginDevelopment(input: {
@@ -47,7 +48,7 @@ export async function developInPrivateHost(host: MolisWorkLocalHost, reference: 
     const privateStorage = new SqlitePluginPrivateStorage(runtime.store.db);
     return runPluginDevelopment(request, { project_id: runtime.project_id, actor_id: PLUGIN_DEVELOPMENT_ACTOR_ID,
       actions: { registry: host.actionRegistry(reference), client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, project_id: runtime.project_id },
-      artifacts: runtime.artifacts, processItems: runtime.processItems, ui: new UiHost(),
+      artifacts: runtime.artifacts, processItems: runtime.processItems, ui: new UiHost({ drawingAs: withPluginWords }),
       repository: new SqlitePluginRuntimeRepository(runtime.store.db),
       privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest),
       deleteInstallationData: id => privateStorage.deleteInstallationData(id) });

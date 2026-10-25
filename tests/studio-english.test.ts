@@ -4,7 +4,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
-import { createWorkbenchLocale } from "@molis-ai/molis-work-app-workbench";
+import { pageText } from "./fixtures/page-text.js";
 import { PLUGIN_COMPONENTS, PLUGIN_COMPONENT_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-design-system";
 import {
   AGENT_STUDIO_CLIENT_FACTORY_SCRIPT, AGENT_STUDIO_STYLES, AGENT_STUDIO_WORKBENCH_CLIENT_FACTORY_SCRIPT,
@@ -15,7 +15,8 @@ import {
 // states, phases and pointer labels. What the build record carries (the model's answers, the host's step labels and errors)
 // and the capability directory's titles are data and stay as written.
 
-const english = createWorkbenchLocale(() => "en").L, chinese = createWorkbenchLocale(() => "zh").L;
+// The studio is the plugin builder's: its English is the plugin's own, applied as the studio's frame and contribution get it.
+const english = pageText("en", "plugin-builder"), chinese = pageText("zh");
 const HAN = /\p{Script=Han}/u;
 
 test("the studio stage in English has no Chinese label, aria-label or title, and the Chinese stage keeps its labels", () => {

@@ -242,7 +242,10 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-const APPROVED_CEILINGS = {};
+// PG-071 (#1302, scoped `ui.translations`): the frame hands its plugin's own English to the page it draws, `{ ...MOLIS_WORK_PLUGIN_WORDS[id],
+// ...MOLIS_WORK_MESSAGES }` instead of the page catalog alone, +54 B on top of batch-38's budget (the frame script is 38 B under main's).
+// Nothing in the file could give the bytes back; the merge-base figure is batch-38's, so this stops applying when the base is main.
+const APPROVED_CEILINGS = { "/assets/molis-work-plugin-frame.js": [190185, 190239] };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its
 // first freeze; from the next PR on it only falls like every other.

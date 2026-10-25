@@ -14,7 +14,7 @@ ListenerHost.run 经 Connector 取得 Raw Event，再调用 Integration Adapter 
 
 | 文件 | 用途 |
 | --- | --- |
-| [src/index.ts](src/index.ts) | ListenerHost、表结构、checkpoint 和 Run 恢复 |
+| [src/index.ts](src/index.ts) | ListenerHost、表结构、checkpoint 与 Run 恢复；同文件的投递转换/回执提交与批量持久化函数 |
 
 可对照现有调用方 [apps/local-host/src/feed-application.ts](../../apps/local-host/src/feed-application.ts) 阅读装配方式。
 

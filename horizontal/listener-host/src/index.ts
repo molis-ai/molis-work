@@ -416,63 +416,15 @@ export class ListenerHost implements ListenerHostApi {
     }
   }
 
-  private async acceptDelivery(
+  private acceptDelivery(
     delivery: Delivery,
     adapter: RawEventAdapter,
     beforeEffect: () => Promise<void>,
   ): Promise<{ event: ConnectorRawEvent; receipt: SignalReceipt }> {
-    try {
-      await beforeEffect();
-      const partial = adapter.toSignalDraft(delivery.event, {
-        project_id: delivery.project_id,
-        source_id: delivery.source_id,
-      });
-      const receipt = this.signals.submitDraft({
-        ...partial,
-        project_id: delivery.project_id,
-        source_id: delivery.source_id,
-        provider_dedupe_id: delivery.event.provider_dedupe_id,
-        raw_event_id: delivery.event.raw_event_id,
-        adapter: adapter.adapter,
-        provenance: {
-          ...partial.provenance,
-          listener_operation_id: delivery.operation_id,
-          raw_event_id: delivery.event.raw_event_id,
-        },
-      });
-      await this.options.afterSignalAccepted?.(delivery.event, receipt);
-      await beforeEffect();
-      const at = this.now().toISOString();
-      this.db.prepare(`
-        UPDATE listener_deliveries
-        SET state = 'accepted', attempt = attempt + 1, signal_id = ?,
-            last_error_code = NULL, updated_at = ?
-        WHERE project_id = ? AND source_id = ? AND raw_event_id = ?
-      `).run(receipt.signal.signal_id, at, delivery.project_id, delivery.source_id, delivery.event.raw_event_id);
-      if (delivery.event.cursor_after !== undefined) {
-        this.advanceCursor(delivery.project_id, delivery.source_id, delivery.event.cursor_after);
-      }
-      return { event: delivery.event, receipt };
-    } catch (error) {
-      await beforeEffect();
-      const nextAttempt = delivery.attempt + 1;
-      const quarantined = nextAttempt >= (this.options.maxDeliveryAttempts ?? 5);
-      const at = this.now().toISOString();
-      this.db.prepare(`
-        UPDATE listener_deliveries
-        SET state = ?, attempt = ?, last_error_code = ?, updated_at = ?
-        WHERE project_id = ? AND source_id = ? AND raw_event_id = ?
-      `).run(
-        quarantined ? "quarantined" : "retry_wait",
-        nextAttempt,
-        quarantined ? "listener.delivery_quarantined" : "listener.delivery_failed",
-        at,
-        delivery.project_id,
-        delivery.source_id,
-        delivery.event.raw_event_id,
-      );
-      throw listenerFailures[quarantined ? "listener.delivery_quarantined" : "listener.delivery_failed"]("Raw Event 尚未得到 Signal Receipt，cursor 不会推进");
-    }
+    return acceptListenerDelivery(
+      this.db, this.signals, this.options, () => this.now(),
+      (projectId, sourceId, cursor) => this.advanceCursor(projectId, sourceId, cursor), delivery, adapter, beforeEffect,
+    );
   }
 
   private persistDeliveries(
@@ -484,31 +436,7 @@ export class ListenerHost implements ListenerHostApi {
     },
     events: ConnectorRawEvent[],
   ): void {
-    const insert = this.db.prepare(`
-      INSERT OR IGNORE INTO listener_deliveries (
-        project_id, source_id, operation_id, raw_event_id, provider_dedupe_id,
-        raw_event_json, cursor_after_json, adapter_plugin_id, adapter_version,
-        state, attempt, signal_id, last_error_code, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, NULL, NULL, ?, ?)
-    `);
-    const at = this.now().toISOString();
-    this.db.transaction(() => {
-      for (const event of events) {
-        insert.run(
-          input.project_id,
-          input.source_id,
-          input.operation_id,
-          event.raw_event_id,
-          event.provider_dedupe_id,
-          JSON.stringify(event),
-          event.cursor_after === undefined ? null : JSON.stringify(event.cursor_after),
-          input.adapter.adapter.plugin_id,
-          input.adapter.adapter.version,
-          at,
-          at,
-        );
-      }
-    }).immediate();
+    return persistListenerDeliveries(this.db, () => this.now(), input, events);
   }
 
   private pendingDeliveries(projectId: string, sourceId: string, operationId: string): Delivery[] {
@@ -740,3 +668,92 @@ function json<T>(value: unknown, fallback: T): T {
 }
 
 export type MolisWorkPackageDescriptor = typeof packageDescriptor;
+
+async function acceptListenerDelivery(db: ListenerSqliteDatabase, signals: SignalCommands, options: NonNullable<ConstructorParameters<typeof ListenerHost>[3]>, now: () => Date, advanceCursor: (projectId: string, sourceId: string, cursor: unknown) => void, delivery: Delivery, adapter: RawEventAdapter, beforeEffect: () => Promise<void>): Promise<{ event: ConnectorRawEvent; receipt: SignalReceipt }> {
+  try {
+    await beforeEffect();
+    const partial = adapter.toSignalDraft(delivery.event, {
+      project_id: delivery.project_id,
+      source_id: delivery.source_id,
+    });
+    const receipt = signals.submitDraft({
+      ...partial,
+      project_id: delivery.project_id,
+      source_id: delivery.source_id,
+      provider_dedupe_id: delivery.event.provider_dedupe_id,
+      raw_event_id: delivery.event.raw_event_id,
+      adapter: adapter.adapter,
+      provenance: {
+        ...partial.provenance,
+        listener_operation_id: delivery.operation_id,
+        raw_event_id: delivery.event.raw_event_id,
+      },
+    });
+    await options.afterSignalAccepted?.(delivery.event, receipt);
+    await beforeEffect();
+    const at = now().toISOString();
+    db.prepare(`
+      UPDATE listener_deliveries
+      SET state = 'accepted', attempt = attempt + 1, signal_id = ?,
+          last_error_code = NULL, updated_at = ?
+      WHERE project_id = ? AND source_id = ? AND raw_event_id = ?
+    `).run(receipt.signal.signal_id, at, delivery.project_id, delivery.source_id, delivery.event.raw_event_id);
+    if (delivery.event.cursor_after !== undefined) {
+      advanceCursor(delivery.project_id, delivery.source_id, delivery.event.cursor_after);
+    }
+    return { event: delivery.event, receipt };
+  } catch (error) {
+    await beforeEffect();
+    const nextAttempt = delivery.attempt + 1;
+    const quarantined = nextAttempt >= (options.maxDeliveryAttempts ?? 5);
+    const at = now().toISOString();
+    db.prepare(`
+      UPDATE listener_deliveries
+      SET state = ?, attempt = ?, last_error_code = ?, updated_at = ?
+      WHERE project_id = ? AND source_id = ? AND raw_event_id = ?
+    `).run(
+      quarantined ? "quarantined" : "retry_wait",
+      nextAttempt,
+      quarantined ? "listener.delivery_quarantined" : "listener.delivery_failed",
+      at,
+      delivery.project_id,
+      delivery.source_id,
+      delivery.event.raw_event_id,
+    );
+    throw listenerFailures[quarantined ? "listener.delivery_quarantined" : "listener.delivery_failed"]("Raw Event 尚未得到 Signal Receipt，cursor 不会推进");
+  }
+}
+
+
+function persistListenerDeliveries(db: ListenerSqliteDatabase, now: () => Date, input: {
+      project_id: string;
+      source_id: string;
+      operation_id: string;
+      adapter: RawEventAdapter;
+    }, events: ConnectorRawEvent[]): void {
+  const insert = db.prepare(`
+    INSERT OR IGNORE INTO listener_deliveries (
+      project_id, source_id, operation_id, raw_event_id, provider_dedupe_id,
+      raw_event_json, cursor_after_json, adapter_plugin_id, adapter_version,
+      state, attempt, signal_id, last_error_code, created_at, updated_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, NULL, NULL, ?, ?)
+  `);
+  const at = now().toISOString();
+  db.transaction(() => {
+    for (const event of events) {
+      insert.run(
+        input.project_id,
+        input.source_id,
+        input.operation_id,
+        event.raw_event_id,
+        event.provider_dedupe_id,
+        JSON.stringify(event),
+        event.cursor_after === undefined ? null : JSON.stringify(event.cursor_after),
+        input.adapter.adapter.plugin_id,
+        input.adapter.adapter.version,
+        at,
+        at,
+      );
+    }
+  }).immediate();
+}

@@ -223,3 +223,82 @@ test("Catalog request actor and the Memory plan actor retain their distinct orig
     if (item.recovery.kind === "runtime") assert.equal(item.recovery.memory.actor_id, LOCAL_PERSON_ACTOR_ID);
   } finally { await reader.close(); }
 });
+
+
+for (const scenario of ["begin", "schema", "current", "closed-error", "close-success"] as const) {
+  test(`MEM-40: source initialization ${scenario} retains its failure and actual connection cleanup`, async t => {
+    const f = fixture(t); f.seed(1);
+    if (scenario === "schema") f.metadata.setVersion(CATALOG_SCHEMA_VERSION + 1);
+    const originalClose = Database.prototype.close, originalExec = Database.prototype.exec;
+    const businessError = Object.assign(new Error("source authority withdrawn", { cause: new Error("original authority reason") }), { code: "test.source_withdrawn" });
+    const closeError = new Error("actual source SQLite close failed");
+    let connection: Database.Database | undefined, beginError: unknown, closes = 0, checks = 0;
+    const execHook = t.mock.method(Database.prototype, "exec", function (this: Database.Database, sql: string) {
+      if (scenario === "begin" && this.name === f.filename && this.readonly && sql === "BEGIN") {
+        try { return originalExec.call(this, "BEGIN; BEGIN"); }
+        catch (error) { beginError = error; throw error; }
+      }
+      return originalExec.call(this, sql);
+    });
+    const closeHook = t.mock.method(Database.prototype, "close", function (this: Database.Database) {
+      if (this.name === f.filename && this.readonly) {
+        connection ??= this; assert.equal(this, connection); closes++;
+        if (scenario === "closed-error") originalClose.call(this);
+        if (scenario !== "close-success" && (closes <= 2 || scenario === "closed-error")) throw closeError;
+      }
+      return originalClose.call(this);
+    });
+    try {
+      const failure: unknown = await f.open(() => {
+        if (++checks === 2) throw businessError;
+      }).then(() => assert.fail("initialization must remain failed"), error => error);
+      assert.equal(closes, 1, "initialization must not automatically retry close");
+      t.diagnostic(JSON.stringify({ scenario, closes, connectionOpen: connection?.open,
+        code: failure instanceof Error ? Reflect.get(failure, "code") : null,
+        cleanup: failure instanceof Error ? typeof Reflect.get(failure, "close") : "absent" }));
+      const beforeChecks = checks;
+      if (scenario === "close-success") {
+        assert.equal(failure, businessError, "successful cleanup cannot replace the original failure with success");
+        assert.equal(connection?.open, false);
+      } else {
+        assert.ok(failure instanceof AggregateError);
+        assert.equal(failure.errors[1], closeError, "the raw close error is retained without readCatalog erasing its cause");
+        assert.equal(failure.cause, failure.errors[0]);
+        if (scenario === "begin") {
+          assert.ok(beginError instanceof Error); assert.equal(Reflect.get(beginError, "code"), "SQLITE_ERROR");
+          assert.equal(Reflect.get(failure.errors[0], "cause"), beginError);
+          assert.equal(Reflect.get(failure, "code"), "catalog.project_storage_invalid");
+        } else if (scenario === "schema") {
+          assert.equal(Reflect.get(failure, "code"), "catalog.reader_too_old");
+        } else {
+          assert.equal(failure.errors[0], businessError); assert.equal(Reflect.get(failure, "code"), businessError.code);
+          assert.equal(failure.errors[0].cause, businessError.cause);
+        }
+        assert.ok("close" in failure && typeof failure.close === "function");
+        assert.equal(Object.keys(failure).includes("close"), false);
+        for (const method of ["exec", "prepare", "pragma"] as const)
+          t.mock.method(connection!, method, () => { throw new Error("cleanup must not execute SQL"); });
+        if (scenario !== "closed-error") {
+          assert.equal(connection?.open, true);
+          await assert.rejects(failure.close(), error => error === closeError);
+          assert.equal(connection?.open, true);
+        }
+        await Promise.all([failure.close(), failure.close()]);
+        await failure.close();
+        assert.equal(connection?.open, false);
+        assert.equal(closes, scenario === "closed-error" ? 1 : 3);
+      }
+      assert.equal(checks, beforeChecks, "cleanup never reenters authority");
+      f.seed(2);
+      assert.equal((f.db.pragma("wal_checkpoint(TRUNCATE)") as { busy: number }[])[0]!.busy, 0, "actual reader snapshot is released");
+      const reopened = new Database(f.filename, { readonly: true, fileMustExist: true });
+      try {
+        assert.deepEqual(reopened.prepare("SELECT deletion_id FROM project_deletions ORDER BY deletion_id").all(),
+          [{ deletion_id: "decision-0001" }, { deletion_id: "decision-0002" }], "cleanup does not erase or replay persistent decisions");
+      } finally { originalClose.call(reopened); }
+    } finally {
+      execHook.mock.restore(); closeHook.mock.restore();
+      if (connection?.open) originalClose.call(connection);
+    }
+  });
+}

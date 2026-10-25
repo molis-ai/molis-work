@@ -351,3 +351,6 @@ Character 的一般Memory mutation对目标及before原件均要求当前ledger�
 
 
 Catalog target 初始化的 readonly 预检和 writer 装配若收尾失败，异常按既有 `HomeInitializationFailure` 形状保留不可枚举的 `close(): Promise<void>`。AggregateError 同时保留原业务错误与实际关闭错误，cause/code 以原业务原因为准；没有业务失败时以关闭原因为准。显式 close 只关闭同一实际连接，不查 current、不发 SQL、不重开库、不重放关联或删除；反复失败可再试，实际已关闭后再报错也不再关或重开。成功返回的 target/observation 资源合同保持。回归：`tests/project-deletion-recovery-target.test.ts`；本行为仅保证初始化资源仍可清理，不宣称父恢复完成。
+
+
+来源 Catalog inspection 初始化在 BEGIN/schema/current 拒绝后也共用 `project-deletion-catalog-close.ts` 的原连接清理：初始化失败与 close 错误同时保留，readCatalog 的安全错误码/文案保持、底层原因进入非枚举 cause。异常的 close 只关闭同一 BetterSqlite 连接，由原生 close 释放读事务，不再查权限或发 SQL；关闭成功不把原初始化失败改成成功。重试/并发与已物理关闭后报错均不重开、不重放。回归：`tests/project-deletion-recovery-inspection.test.ts` 与原 target 回归；不代表 source/target 组合恢复完成。

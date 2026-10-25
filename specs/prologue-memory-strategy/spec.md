@@ -3067,3 +3067,14 @@ withWriter({memoryPurges,sessionPlan},work) 属外层真实 SDK 装配，仅 Cat
 在此生产聚合上，原 FIFO build、17 文件252项实际回归全部通过（jobs2/browser1/retries0，零跳过），覆盖 Cold Memory/Session、Catalog、Selected/Project retention、adoption、事务与同资源关闭。根 TypeScript、准确基础 `070bdd282` health、boundary 和72份API快照通过；初次 boundary 命令误用不存在的脚本，原错误日志保留，后按 package.json 的原脚本检查通过。日志 `/private/tmp/molis-memory-cold-owner-aggregate-{build,tests,types,health,boundary-final,api,secrets}-20261026.log`。资源门仍只有 Coding 374756 B 对373423 B，超出1333 B，未登记放行；其余资源未扩额。
 
 基础 #1064 的准确 `070bdd28284d031de0602d27e1f588e315affc46` 普通CI通过；Full `40204714600` 的16份原始job日志均核对：runner计1438文件通过，无flaky或重试后通过；8个文件内合计14项由既有live/平台条件跳过，不能算已验证，可选Linux probe也跳过。此前51a的54.1ms失败仍保留，当前通过不等于根因已解决。最新main `54437998c` 三方合并无冲突，但其新健康门规则仍需合并结果核验；没有GitHub已提交评审或未解决线程，不等于真人批准。完整恢复父决定/最终发布、单Session业务副本、最终代表性旅程与模型质量/token收益、用户验收仍按原范围推进；未操作真实用户Home或调用付费模型。
+
+
+### MEM-40 来源 Catalog 初始化失败的同连接清理（2026-10-26，实施前）
+
+准确 `37f0d5d36af76e1b92fdbcbd2b2d174f11110390` 的 public `openProjectDeletionRecoveryInspection` 真实临时 SQLite 反例确认：BEGIN 原生错误、未知 schema 和最终 current 拒绝进入初始化 catch 后，实际 BetterSqlite close 再失败时只留下无 cause 的通用读错误、没有 close 能力，三个连接仍开着。实际先关闭再抛错同样丢原业务原因。初始化失败而 close 成功的原行为正确：原业务错误仍失败。这里实际驱动是 `better-sqlite3 Database`，不是 Node DatabaseSync；故障注入直接落在其原 `Database.prototype.close`，BEGIN 用真实重复 BEGIN 产生原 SQLite 错误。
+
+本刀让 source 初始化 catch 直接关闭原连接；SQLite 原 close 负责释放读事务，不另发 ROLLBACK/SQL。把 target 现 `closeCatalogInitialization` 原样移入同 Catalog 恢复领域的 `project-deletion-catalog-close.ts`，由 source/target 两个资源主人共用，不让 source 导入 target 装配，不造通用框架。失败仍沿既有 `HomeInitializationFailure.close()` 形状保留不可枚举的纯清理能力，AggregateError 保留原业务错误、实际关闭错误和原 code/cause；readCatalog 保持安全 ActionError 的原码与文案，只在非枚举 cause 保留底层原因。明确重试只处理原连接，允许反复失败及并发调用，实际已关闭后不重复 close；不查 current、不发 SQL、不重开、不重放初始化或写入。成功关闭也继续抛原业务失败。成功返回的 inspection/target/observation 业务接口不变。
+
+允许原 source/target、同域共享关闭文件、原 inspection 测试、README 和本 spec。验收覆盖真实 BEGIN/schema/current 拒绝、关闭反复失败和实际先关闭后报错、显式并发重试、原原因链、原 WAL snapshot 释放、实际持久收据保留。原 FIFO build 后跑 source/target 相邻回归、根及两测试 strict 类型、准确37f health、boundary/API；子代理不跑全量，不改规则、Storage构造器、父frame、SDK/vendor、schema或额度，不push。本片只证明原连接清理能力，不替代完整Home恢复与用户验收。
+
+实施核验：准确37f原构建上新增五场景得到4红1绿（原35项均绿），日志逐项保留连接open状态与丢失cleanup事实。修后source40项/target30项全部通过；LocalHost README必跑57文件548项通过（合计59文件618项，jobs2/browser1/retries0，无skip）。原FIFO整体build、根与两份测试严格TypeScript、准确37f health、boundary errors=[]、72份API快照及diff检查通过；原computeBuildSourceDigest与最终manifest完全一致。日志 `/private/tmp/catalog-source-init-{red,fixed-build,green,required,root-types,test-types,health,boundary,api,digest}.log`。source原返回句柄的正常close流程没有改动；这刀只收束初始化失败资源与原错误原因链，target共享helper仅迁移、不变语义。未跑全量、未push、未动真实Home/付费模型；完整父frame/恢复发布与产品、用户验收仍待原范围验证。

@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { LocalSqliteStorage } from "@molis-ai/molis-work-storage";
 import { readProjectDeletionRecoveryPage, type ProjectDeletionSourceRecord } from "@molis-ai/molis-work-module-projects";
+import { closeCatalogInitialization } from "./project-deletion-catalog-close.js";
 import { assertCurrentCatalog, assertOwnedCatalog } from "./catalog-schema.js";
 import { catalogErrors } from "./project-catalog-contract.js";
 import { decodeProjectDeletionRecovery, type ProjectDeletionRecovery } from "./project-deletion-recovery.js";
@@ -17,7 +18,9 @@ function readCatalog<T>(read: () => T): T {
   try { return read(); }
   catch (error) {
     if (error instanceof ActionError) throw error;
-    throw catalogErrors.project_storage_invalid("项目删除来源 Catalog 无法读取");
+    const failure = catalogErrors.project_storage_invalid("项目删除来源 Catalog 无法读取");
+    Object.defineProperty(failure, "cause", { value: error });
+    throw failure;
   }
 }
 
@@ -73,5 +76,5 @@ export async function openProjectDeletionRecoveryInspection(input: {
         return { items, exhausted: page.exhausted };
       }, close,
     };
-  } catch (error) { await close(); throw error; }
+  } catch (error) { closed = true; closeCatalogInitialization(storage, { error }); throw error; }
 }

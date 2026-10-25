@@ -2745,3 +2745,18 @@ product-interaction.e2e、coding-workbench.e2e、code-scale.e2e 三文件仅依�
 原两实际文件 7 项及相邻管理安全、入口身份、操作号 3 文件 27 项在 Node 24.14.0 上通过，零跳过或重试；准确 main64a 健康门与全分支 secrets 通过。第一条绿色定向命令误列不存在的 `resident-management-gateway.test.ts`，该命令整体退出 1；这里只采信两份实际运行结果，保留清单错误，不记整条命令成功。确定性红/绿及相邻日志分别为 `/private/tmp/molis-memory-foundation-resident-observer-{red,green,adjacent}-20261025.log`。此前 85 文件 765 项也已完成并全部通过，原未完成记录保留为当时状态。新最终头仍须普通 CI 和 Full suite，Cloudflare 未核失败与最终产品/用户验收边界不变。
 
 推送前远端 main 前进至 `54437998cefbff245a107d919ae01975bd4b08ec`，仅 #1289 的巨大单元门禁规则、登记与文档，没有生产行为变更；三方合并检查无冲突。本次修正不借用新规则增加例外，仍通过原 main64a 的更严格检查，最终合并结果由普通 CI 核验。
+
+### 2026-10-25：SQLite 只读技术侧车的测试观察修正（实施前短合同）
+
+准确基线 `994357e9579f8a21d5753d71daa639f2655ce16a`。真实公开 reader 证明：旧 prefs 拒绝启动只增加 `memory/memory.db` 的零字节 WAL 和 SHM；项目拒绝用例只改变 `projects/catalog.db-shm` 的读锁/索引协调字节，DB 与非空 WAL 的 bytes/mode/mtime 均保持。`immutable=1` 会忽略非空 WAL、读到旧值，不能作为修复。根证据 `/private/tmp/molis-memory-sqlite-readonly-evidence-review-20261025.md`；不改生产读取、复制库、immutable、Runtime、SDK 或业务合同。
+
+最小实现沿现 `tests/fixtures/home-storage-files.ts` 的完整快照职责，在两份失败测试明确给定原数据库路径后，比较前后快照并记录允许的技术差别：只允许已知普通单链接 DB 的 SHM 协调内容变化/创建/移除，以及零字节 WAL 创建/移除；现存侧车权限保持。DB、非空 WAL（包括变空/出现非空）、journal、未知后缀/其他文件继续严格比较 bytes/mode/mtime；软链接、硬链接或其他类型不能靠后缀获豁免。只有确证侧车创建/移除才解释所在目录的 mtime，其他目录仍严格；原文件级拒绝快照不扩大为目录豁免。保留启动拒绝码、原 Ledger bytes、无新 store、无 Runtime/模型服务、项目/历史/删除决定全部断言。
+
+允许修改上述 helper、`memory-adoption.test.ts`、`project-deletion-processes.test.ts`、helper 的真实 SQLite 正负回归及本 spec。验证包括实际 reader 的无业务变化正例、UPDATE/非空 WAL 改变负例、DB/权限/目录/未知后缀/链接拒绝；定向失败文件与 helper 影响面、strict types、准确 994 health。隔离工作树固定 Node 24.14，必要构建走机器 FIFO；不全量、不触及真实 Home、不新增门禁豁免。
+
+
+本片工程验证：新隔离树原 `pnpm build` 经机器 FIFO 通过。最终 7 文件 84 项全部通过（jobs1、无重试/skip）：两份原失败文件 31 项、helper 真实 SQLite/文件正负对照 15 项，以及共用快照的四份现役安全回归 38 项。helper 正例实读 public Ledger 与包含已提交非空 WAL 的当前 reader；负例证明真实 UPDATE 保持主 DB 不变但改变非空 WAL 时仍拒绝，checkpoint、DB mtime、已有 SHM mode、无关目录 mtime、journal/未知后缀、软硬链接与链接祖先同样拒绝。只读副作用被列为明确 technical 变更；没有换用 immutable 或复制库。
+
+首轮新 helper 13/15，两个正例暴露新增的目录 nlink 采集在 APFS 随普通文件数量变化；目录 nlink 不属原验收，已移除这项额外采集，原目录 mode/mtime 仍保留，普通文件 nlink 与软链接目标仍记录。首轮原失败文件已 31/31。strict TypeScript 首次命令使用 ES2022 lib，遇到既有 connector 测试夹具的 `toReversed` 类型要求；以匹配 Node 24 能力的 ES2023 lib 重跑通过，未改仓库 tsconfig、实现或断言。证据 `/private/tmp/molis-memory-readonly-snapshot-{build,direct,final,types,types-final,health,health-final}.log`；这是测试观察修正的工程验证，不代表 MEM-40、完整 App 或用户验收完成。
+
+最终准确 `994357e9579f8a21d5753d71daa639f2655ce16a` health 与 `git diff --check` 通过；只改 5 个测试/spec 文件，没有生产、门禁、公开 API、SDK/vendor、锁文件或发布变更。

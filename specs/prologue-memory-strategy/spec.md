@@ -2646,6 +2646,17 @@ P1修后局部验证：合入d54的frozen/offline安装与完整FIFO构建通过
 
 依赖顺序：源 Ledger/Memory 解释、Catalog 读取和冷 Session 清除并行；统筹集成唯一恢复父 operation/frame 与 target Catalog 接纳，再完成全主人 T0/T1/T2、原请求重开、逐 owner 故障、WAL/缺钥/撤权、关闭与第二 owner 交错验证。当前来源读取和冷 Session 仅提供各自局部能力；完整 MEM-40、最终用户旅程与收益对照仍未通过。所有变更继续集中既有 #1101，先由 #1064 依原 CI/评审要求进入 main，不再为上述内部职责新开小 PR。
 
+**MEM-40 Storage 非项目精确 retention（2026-10-25，实施前短合同）。** 准确基底 `25c5f44618c9d8074772837c186a2914085f5363`。独立遗忘、确认的 scope-clear 原项与事件屏障不能伪装项目计划：项目 forgetScopes 会清 owner、项目偏好及信号。本片在同一 Storage retention 主人提供 `createMemoryLedgerSelectedRetention`，不实现恢复父 marker/frame、Memory owner、AgentHost 或完整 MEM-40。
+
+- **MEM-40-SELECTED-01，固定选择。** plan 仅有 actor_id、operation_id、scopes；scope 项沿既有 scope/owner/memories/candidates/sources 结构，正式与候选项固定 ID/version。允许多个已授权 scope，personal owner 必须等于 actor；重复 scope、同类重复 ID（包括跨 scope）及非法身份拒绝。factory 在调用当前权限回调前复制原计划；命令不得调包或扩选。
+- **MEM-40-SELECTED-02，真实来源屏障。** selected sources 使用 `{event_id, version?:string}`；无 version 是原 source-forgotten 的真实形状，不伪造版本，存在时必须非空。suppressSources 只接受固定 scope 内完整相同的原元组，不能把带版本项换成无版本项或反向换包。原内部 suppressMemoryLedgerSources 本来仅消费 event_id。ProjectRetentionPlan 的 version 继续必填，公共项目语义不放宽。
+- **MEM-40-SELECTED-03，沿原写主人。** 仅提供 suppressSources、dropCandidate、forget、verifyOriginal，没有 project_id、forgetScopes、任意 DB/SQL/callback。三写复用原 mutation 与五表双存身份验证；正式 ID 的所有账本副本沿原 forget 清理，候选只按原 ID/actor/scope/owner 移除。不能删 owner、用户/项目偏好、信号或整理 marker；同 scope 未选邻居与别的 scope 保持。
+- **MEM-40-SELECTED-04，真实事务与当前权限。** 共用原物理路径绑定、同步 current/取消与 existing-only BEGIN IMMEDIATE；比较调用开始复制的 expected adoption snapshot，核 adopting，执行原 mutation，取得同事务 post，末次 current 后 COMMIT，正常关闭后才返回 post。撤权、坏行、旧 snapshot、SQLite 提交失败不返回 post、不吞异常刷新 expected；不新建缺失库。snapshot 仍只含 schema/profiles/adoption/owners，不是全 Ledger CAS；SDK 固定删除及父 owner 先行由上层保证。
+- **MEM-40-SELECTED-05，原件证明。** original 模式三写全部拒绝，verifyOriginal 只读同一原选集：正式对象 revisions/uses/pairs 及候选副本不留正文，changes 已脱敏，原候选账注不存在，原 forgotten 与来源屏障完整；forgotten 单 marker 不证明完成。不要求 scope 空态，不影响同 ID 项目的后继对象。
+- **MEM-40-SELECTED-06，影响面与验收。** 只改 Storage 原 retention 相关实现、index/README、本 spec 和精确回归；不改 recovery inspection、Memory、AgentHost、schema、锁、registry 或质量门。真实 SQLite 经公共导入验证多 scope 邻居与全部 owner/偏好/signals 保持、越选/输入调包拒绝、撤权/取消、列与 JSON 身份矛盾、真实 COMMIT 失败与原决定重试、original 残留证明和缺库/路径重定向拒绝。原 ProjectRetention 范围收尾回归保持；固定 Node 24.14.0/pnpm 11.9.0、原 FIFO build 后运行 Storage README 与直接受影响定向用例、strict、Biome、准确基底 health、boundary/API 检查，不跑全量或真实 Home。该片通过只证明 Storage 局部工程边界。
+
+本片局部工程验证：固定 Node 24.14.0/pnpm 11.9.0、显式原 pnpm store 的 frozen/offline 安装与最终完整 FIFO build 成功。新增 selected 11 项、原 project retention 14 项直接通过；Storage README 及共享 retention 消费者影响面另 22 文件 187 项通过，共 24 个不同文件 212 项，jobs2/retries0。新增撤权/取消以真实 rollback journal 观察 mutation 后拒绝，COMMIT 失败由真实 SQLite reader 事务持锁造成 SQLITE_BUSY，确认不返回 post、完整回滚及同原选择重试，未 mock SQLite 执行。Storage 与新测试 strict、4 文件 Biome、准确 `--base 25c5f44618c9d8074772837c186a2914085f5363` health（含 72 文件 3052 API 声明）、boundary errors=[]、diff 检查通过。日志前缀 `/private/tmp/molis-memory-selected-retention-`，后缀 `-20261025.log`，有效记录为 install-store、build-final、direct、impact、types、lint、health、boundary。原 install/install-fixed-node 留存 pnpm11 误用默认临时 store 的离线缺包错误；首次 build 的回调参数类型错误已修，不改锁/门禁/断言。未运行全量、真实 Home 或完整 MEM-40 产品旅程；父 marker/frame、SDK 与最终发布继续由聚合装配证明。
+
 ### MEM-40 冷维护目标 Session 清除前置（2026-10-25，实施前短合同）
 
 冻结聚合 `8743baf542cb61ce2e2ffd63cb9bfc30f87b4354`。现 adoption factory 可选固定 `sessionPurges`（Session、可信完整 owner、目标原 decision 与 preview）；执行仅 `purgeSessionTarget({session})` 点名，不接受临时替换决定。只读 inspection 薄映射 SDK `inspectSession`，不交付正文或 raw storage。factory signal/current/close 控制整段维护，单项不新增无法覆盖真实 CAS 的独立取消域。

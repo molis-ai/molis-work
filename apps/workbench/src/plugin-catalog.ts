@@ -246,8 +246,9 @@ export function builtinPluginDirectory(): PluginDirectory {
 export function pluginDirectoryFor(running?: PluginDirectory): PluginDirectory {
   const market = builtinPluginDirectory();
   if (!running) return market;
-  const present = new Set(running.map(entry => entry.id));
-  return [...sanitizePluginDirectory(running), ...market.filter(entry => !present.has(entry.id))];
+  const clean = sanitizePluginDirectory(running);
+  const present = new Set(clean.map(entry => entry.id));
+  return [...clean, ...market.filter(entry => !present.has(entry.id))];
 }
 
 function registryFor(directory: PluginDirectory, enabled: readonly ProjectPluginId[]): UiViewRegistry {
@@ -256,11 +257,10 @@ function registryFor(directory: PluginDirectory, enabled: readonly ProjectPlugin
 
 /** The enabled plugins' views in one slot, in the order the Manifests declare, each with its plugin's shell key and whether the project chooses it. */
 function placedViews(directory: PluginDirectory, enabled: readonly ProjectPluginId[], slot: "navigator" | "island" | "side" | "stage"): Array<{ id: ProjectPluginId; entry: PluginDirectoryEntry; view: UiPlacedView }> {
-  const byManifest = new Map(directory.map(entry => [entry.plugin_id, entry]));
-  return registryFor(directory, enabled).slot(slot).flatMap((view) => {
-    const entry = byManifest.get(view.plugin_id);
-    return entry ? [{ id: entry.id, entry, view }] : [];
-  });
+  return directory.flatMap(entry => registryFor([entry], enabled).slot(slot).map(view => ({ id: entry.id, entry, view })))
+    .sort((left, right) => left.view.order - right.view.order
+      || left.view.plugin_id.localeCompare(right.view.plugin_id)
+      || left.view.view_id.localeCompare(right.view.view_id));
 }
 
 function railEntry({ id, entry, view }: { id: ProjectPluginId; entry: PluginDirectoryEntry; view: UiPlacedView }): RailEntry {

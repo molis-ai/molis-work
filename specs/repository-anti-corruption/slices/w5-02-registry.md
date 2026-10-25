@@ -1,6 +1,6 @@
 # W5-02 登记线（ac-registry）：平台读自己的登记、删项目按声明删、依赖与外壳名单改成声明
 
-状态：统筹 2026-10-24 审过方向，§8 的裁定已写进各节（PR-A 加三条必改、B 拆成两个 PR）；PR-A 开工，其余照先后。事实按 main `df5527f27` 重核；PR-1a（#840）、PG-051（#1124、#1138、#1147）、W5-06 链（#1098、#1107、#1112）已合入。
+状态：统筹 2026-10-24 审过方向，§8 的裁定已写进各节（PR-A 加三条必改、B 拆成两个 PR）；PR-A 已交（#1262，进 batch-37）；PR-B 的设计要点（§3.0）等统筹审。事实按 main `df5527f27` 重核；PR-1a（#840）、PG-051（#1124、#1138、#1147）、W5-06 链（#1098、#1107、#1112）已合入。
 
 依据：`privileges.md` 的 PG-024、065～069、072～076、095、105、111；§4 a、m；§5 第 7 条。10-19 的 PR-1 计划（协调分支 `notes/w5-02-pr1-plan.md`）的取舍与用户决定照旧有效（§9 抄了要用的几条），事实和拆片以本稿为准。
 
@@ -83,6 +83,50 @@ PG-095、PG-111 不进这几个 PR，评估与统筹的裁定见 §7。
 **开工前核对**：#1251 的状态；`project-deleted-owners.ts` 与 `plugin-project-cleanup.ts` 在宿主运行与不运行两种情况下的主人替换（运行中的实例替换声明主人那一段）；7 个库的 `schema` 基线里确有这些表；`docs/system/CALL-CHAINS.md` 链 2 步骤 7 跟着改。
 
 ## 3. PR-B（B1～B3，三个提交）与 PR-B4：平台读自己的登记
+
+### 3.0 PR-B 设计要点（开工前，2026-10-25，等统筹审）
+
+基于 `5be32d0f0`（PR-A 最后一个头）重核。#1258（batch-35）、#1243、#1261（ac-shell 的 `plugin_directory`）都还开着；信任 T6（BL-560，S-68）未实现。
+
+**事实**
+
+- local-host 有 27 个文件从工作台取平台事实：`BUILTIN_PLUGIN_CATALOG` 21 个，`shownProjectPlugins` 4 个，`availableProjectPluginIds` 3 个，`PROJECT_SCOPED_PLUGIN_IDS` 1 个，`BUILTIN_PLUGIN_REGISTRY` 1 个（`project-catalog.ts`）。成果类型的五项留给 A3。别的约 40 个从工作台 import 的名字是渲染（`createWorkbenchRenderer`、`render*`、`MolisWorkWebView` 等），宿主本来就由它渲染页面，不在本片范围。
+- 工作台自己也用平台事实：
+  - `renderer.ts`、`shell-page-renderer.ts` 算 `shownProjectPlugins`；
+  - `immersive-shell.ts` 用 `BUILTIN_PLUGIN_REGISTRY.companions` 算添加插件时一并带上的；
+  - `plugin-settings-catalog.ts` 用 `PERSONAL_PLUGIN_IDS`、`PROJECT_SCOPED_PLUGIN_IDS`；
+  - 客户端 `scripts/client/plugin-workbench.ts` 在构建时把 `PERSONAL_PLUGIN_IDS` 写进脚本；
+  - `primitive-catalog.ts` 的样例。
+- `MolisWorkLocalHost` 现为 361 行、24 个方法。
+
+**做法**
+
+1. **同一批登记，两份生成物。** 生成器在 `apps/workbench/src/builtin-plugins.ts` 之外再写 `apps/local-host/src/plugin-registry.generated.ts`（`PLATFORM_PLUGIN_REGISTRATIONS`），输入和顺序相同，`--check` 两份都核（RAC-567）。工作台那份只给外壳的资源：contributions、样式、客户端、样例、`messages`、`searchRow`。
+2. **平台的派生只在一处：** `apps/local-host/src/plugin-registry.ts`。从 `plugin-catalog.ts` 原样搬过来：
+   - `shownProjectPlugins`、`availableProjectPluginIds`；
+   - 个人、常开、可启用三组 id；
+   - 项目插件登记（今天的 `BUILTIN_PLUGIN_REGISTRY`，含 `requiredCompanions`）；
+   - Home 级和项目级条目（从 `project-host.ts` 搬出，`MolisWorkLocalHost` 只会变短）。
+
+   工作台的 `plugin-catalog.ts` 删掉这些导出。27 个文件在**同一个提交**里改读它（S-08、S-15 的启动名单只有一份）。
+3. **工作台要的平台事实由宿主传下来，不再另算一份：**
+   - `MolisWorkWebView.shown_plugins` 由宿主算。`renderer.ts`、`shell-page-renderer.ts` 读这个字段；字段在舞台模型里已经有了。
+   - `plugin_directory` 的每一项（#1261）由宿主从可信登记标上 `personal`、`always_on`、`companions`（宿主按依赖算好的完整集合）。Manifest 里没有这些，所以也不经 Manifest。`immersive-shell.ts`、设置目录、市场卡片都读这里；客户端改成读页面里的目录 JSON，不再在构建时写死。
+   - 组件板样例用固定的样例名单（开发工具）。
+4. **哪些算外壳渲染：** `sideOpenedPlugins`、`objectTabPlugins`、`pluginTabTitles` 留在工作台。宿主里用到它们的地方（`home-plugin-http.ts`、`assistant-pages.ts`）是渲染或路由，把宿主自己的登记作参数传进去（`sideOpenedPlugins(entries)` 已经收参数），不读工作台的目录。RAC-564 的 import 图只许宿主从工作台 import 渲染函数和成果类型五项。
+5. **门禁与 owner** 照 §3 B1：
+   - `pluginOutsideMentions` 按确切路径豁免两份生成文件，只在 `--check` 通过时生效；
+   - `catalog-entries.mjs` 删掉旧读法，补「旧写法被拒」的测试（RAC-566）；
+   - local-host 加 `plugin-issues` 依赖，`--base` 不让数字变大就把 C 的豁免提前进来；
+   - CODEOWNERS 加 `registration.ts` 的规则。
+6. **RAC-565：** T6 没做，只断言结果：装进 Home 的包即使带着 `registration` 导出，也不进启动名单，拿不到 `bundled`，不能用内置 plugin id 作提供方。不另写提供方身份的检查。T6 落地时测试不用改。
+7. B2、B3 照 §3。B3 改的 `home-plugin-http.ts` 正好也是第 4 条那一个宿主文件，放在同一个 PR 里，冲突只解一次。
+
+**待裁**
+
+- **Q1 B1 和 #1261 的先后。** 第 3 条要用 `plugin_directory`。推荐：B1 叠在 #1261 上做，#1261 合入后再开 PR；两个同时在评审就照 §1a 同批。另一种是 B1 先在 `MolisWorkWebView` 上加单独的字段，等 #1261 再并进去。这就是统筹 10-24 不要的平行端口，所以不推荐。
+- **Q2 工作台那份生成物还要不要。** 宿主本来就调用工作台的渲染器，也可以把登记作参数传给它：这样工作台完全不 import 插件包，只留一份生成物。但工作台客户端的打包和 21 个测试按包名从工作台取目录，一起改会让 B 变大。推荐这次照稿留两份，C 再看能不能删掉工作台那份。
+- **Q3 把 `personal`、`companions` 下发进页面。** 它们是可信字段，但只用来显示和帮着勾选；真正的判断还在宿主（`ProjectPluginRegistry`），页面上的值只影响显示。推荐下发。
 
 ### B1 平台生成物（PG-105、PG-065 平台那一半、PG-066、PG-068）
 

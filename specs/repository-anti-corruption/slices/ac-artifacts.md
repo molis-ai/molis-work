@@ -131,6 +131,14 @@ consumes: Array<{ artifact_type_id; schema_version; continue?;
 
 `packages/storage` 的 Home 存储注册表（`home-stores.ts`）已经要求每个路径登记主人；改名后的两个路径在表里登记为平台主人，不是 Feed 或灵光。
 
+**A7 非目录部分已做（分支 `anticorr/ac-artifacts-a7`，2026-10-24）**：环境变量已改为 `MOLIS_MATERIAL_NATIVE_HELPER`、`MOLIS_MATERIAL_WHISPER_HELPER`，旧名不读；`resolveFeedSecurityDirectory` 改为 `resolveHomeSecurityDirectory`（返回的路径仍是 `{home}/feed`，目录改名等维护时段）；客户端包路由本来就只发宿主构建里的包（`pluginWorkbenchClientAsset`），不看目录，现由测试钉住。测试 `tests/platform-naming-pg097.test.ts`（RAC-412、RAC-427）；**开发机的环境变量要换名**。RAC-428 随目录部分。
+
+**A7 验证补修（Codex 修复16，基于 #1264 `93ba2b5a7`，2026-10-24，本机定向通过，独立审验待齐）**：首评的三项非阻塞问题作为同一 RAC-427 验证主题补齐，生产改名与 RAC-412 的路由口径保持原范围。两个旧名检查共用一次 `git ls-files -z` 的文本快照，不按目录或扩展名挑代码；仅豁免 `specs/archive/` 下的历史 Markdown 和本稿描述旧名的行，测试刻意反例用字符串组装，不豁免其他测试或代码目录。读取先以有界前缀辨认二进制，二进制媒体不整文件读取；文本读取失败必须报错。临时 Git 仓库在原漏扫的 Swift、Rust、YAML、Python、`tooling/`、`.github/`、`examples/` 及无扩展名文件写回两种旧名，必须使同一检查失败；同时验证历史叙述、二进制和读失败的边界。
+
+RAC-427 的行为证据经现有 `extractUploadedMaterial` 入口实际进入 `extractHomeMaterial`，只替换原生可执行 helper：在任何运行平台用现有可信 Host 选项 `platform: "darwin"` 进入原生边界，新变量指向临时可执行助手，断言调用参数、收到的材料字节、返回正文、独立 marker 与临时目录清理；旧变量指向另一个助手，既验证新旧同时配置只调用新助手，也验证仅配置旧名时不调用旧助手、不回退。后一个场景以只读的空安装目录隔离默认助手发现，避免依赖本机是否构建过原生程序。环境变量与临时 Home/文件在 `finally` 恢复或清除，不下载模型、联网或访问真实 Home；这不宣称 Linux 原生提取可用。验收命令为整体构建后运行 `node scripts/run-tests.mjs --jobs 2 tests/platform-naming-pg097.test.ts tests/jelly-native-material.test.ts tests/material-extraction.test.ts tests/feed-local-history-delete.test.ts`，并核 `pnpm boundary:check`、`node scripts/check-health-gates.mjs --base origin/main`、`pnpm secrets:check`；原首评和作者五项测试保留其原证据范围，不能代替补修的独立审验。
+
+本机补修证据（macOS）：上述四文件 33 项全部通过、0 跳过；整体构建、包导入单一来源检查与 `health --base origin/main` 通过。临时把生产读取改为旧变量、以及给新变量加旧名回退，两次都使新增行为用例失败（分别抓到错误正文和未按预期拒绝），随后已原样恢复生产源码。`pnpm boundary:check` 已经公共构建槽执行通过；独立 REVIEW/TEST 与 Linux 主机实跑尚待；该行为用例自身没有平台 skip，但所在文件含已有原生用例，现行 Full suite 的整文件 macOS 标记会略过它，Linux probe 或独立验证须点名运行，不能把本机通过写成 Linux 实跑。补修增量 `affected-tests` 的 `full=[]`；原 #1264 的存储改名仍命中 full，由 Claude 统一组批。
+
 ### 3.9 与相邻条目的衔接
 
 - **提供方换成 `system.artifacts`（PG-077 的最后一步）**：能力 id 与版本不变，只换 `registered_provider`。这会碰到真实 Home 里的 MCP 授权和工作流引用（引用里带提供方），所以放在 A5，随一次维护脚本一起落，**代码只认新提供方，旧引用显式失败，不兜底**；真实 Home 的执行列进维护时段计划，交用户时一并确认，未经用户批准不动（§6、§10 B 类）。A5 只换动作的提供方，「成果」入口仍由原目录条目的界面提供，入口照常可用；目录条目的删除在 A6 同一片里做（§7）。与 ac-trust 的 S-68.3（提供方 id 规则）一致：系统提供方用 `system.*`，插件不得注册 `system.*` 或平台能力 id（RAC-423）。
@@ -217,7 +225,7 @@ consumes: Array<{ artifact_type_id; schema_version; continue?;
 | --- | --- | --- |
 | RAC-410 | 一个项目只有一份 `ArtifactsModule`：源码里 `new ArtifactsModule(` 只在工厂；同一项目取两次是同一个对象；删项目后释放 | 门禁式测试加单元测试 |
 | RAC-411 | 成果的 `head`、`readOwn` 同 id、不同签名被拒（`artifacts.plugin_denied`）；相同 id 与签名通过；成果与过程项共用一个 `ownsRecord`，过程项仍额外比 owner | `tests/artifacts-actions.test.ts` 扩展；单元测试 |
-| RAC-412 | 同源 `/assets` 路由只发宿主构建里的包，非 host 插件的客户端代码不进该路由（Runtime 插件的客户端仍走隔离框，S-47）；**这一条与目录改名无关，维护时段否了改名也保留** | 路由测试 |
+| RAC-412 | 同源 `/assets` 路由只发宿主构建里的包，非 host 插件的客户端代码不进该路由（Runtime 插件的客户端仍走隔离框，S-47）；**这一条与目录改名无关，维护时段否了改名也保留** | `tests/platform-naming-pg097.test.ts` 路由测试 |
 | RAC-413 | `plugin-host-services.ts` 与宿主 `artifact-*.ts` 不再 import 成果库插件包（边界规则，`pnpm boundary:check`） | 边界规则加名单只减 |
 | RAC-414 | 搬家后 17 个动作的合同快照不变（A5 前提供方仍是原值） | `tests/action-contract-snapshot.test.ts` |
 | RAC-415 | 登记表由有效安装的 Manifest 生成：安装、卸载、启用、停用后即时变化；不读 `BUILTIN_PLUGIN_CATALOG` | Runtime 集成测试 |
@@ -232,7 +240,7 @@ consumes: Array<{ artifact_type_id; schema_version; continue?;
 | RAC-424 | 「成果」入口是平台面，不是插件：不进插件市场与插件常开同意模型，一直在；Dock 上能不能收起跟 Dock 现行规则走，不另开特例。A6 同一片内完成换面与删目录条目，**每一片合入后入口都能用**；经 W5-06 挂载器挂上 | 浏览器冒烟一个 |
 | RAC-425 | 客户端模板随平台面发，`plugin-workbench.ts` 里没有成果库内联模板；`pnpm page-assets:check` 不变大 | 页面资源门禁 |
 | RAC-426 | `DOM_EVENT_PREFIXES` 不含任何插件专用前缀；`molis-<owner>-` 只给文件全属于同一插件包的主人，按完整前缀的最长匹配确定主人；平台使用该前缀、混合归属及主人不一致均拒绝；长、短主人合法事件及现有拒绝规则均回归，Shelf 现有事件名不变 | `scripts/gates/dom-events.mjs` 与 `tests/dom-events-contract.test.ts` |
-| RAC-427 | 代码里读不到 `MOLIS_JELLY_*`；新名生效；平台存储函数名不带 Feed、灵光 | 单元测试加 grep 门禁 |
+| RAC-427 | 代码里读不到 `MOLIS_JELLY_*`；新名生效；平台存储函数名不带 Feed、灵光 | `tests/platform-naming-pg097.test.ts` 的全 tracked 文本检查与故意写回反例；`tests/jelly-native-material.test.ts` 的真实 helper 调用及旧名拒绝 |
 | RAC-428 | 目录改名（按维护时段计划的结论执行）：隔离 Home 演练旧路径→新路径；旧路径在时启动显式报错，不回退；备份可还原 | 隔离 Home 演练记录 |
 | RAC-429 | 公开 API 与动作合同快照只有 §4 列出的变化，PR 里逐项写对调用方的影响；SSOT-MATRIX、`privileges.md`、`SECURITY-INVARIANTS.md` 同步 | `pnpm api:update`、`pnpm actions:update` 的 diff；`pnpm health:check` 的文档引用检查 |
 

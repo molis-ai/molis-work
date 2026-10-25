@@ -75,7 +75,7 @@ Workflows 已由 Plugin Runtime 装配（防腐 spec W5-01-WORKFLOWS）：宿主
 | Alchemist | 是 | Home 级 | 没有 Home 级的库；每个项目一个目录 `{home}/alchemist/projects/<id>/`，里面 `studio.sqlite`（工作室，`alchemist-service-host.ts`）与 `search.sqlite`（搜索，`alchemist-search.ts`） | 有：每个项目一个工作室库（`alchemist-service-host.ts`），决定里的「工作室与密钥」 | 没有 `*-actions.ts`（`AlchemistHostService`）、51 |
 | Inbox | 否 | 每个项目一个 | 项目库，表由 Attention 模块建（`ATTENTION_SCHEMA_SQL`） | 不需要：项目库随项目目录一起移走 | 70、92 |
 | Schedule | 否 | 每个项目一个 | 项目库，表由插件在 Manifest 的 `databases.project` 声明（`plugins/native/schedule/src/database.ts`），宿主开库时按声明建 | 不需要 | 26、92；另有 `scheduleReminderActionProvider` |
-| Feed | 否 | 每个项目一个 | 项目库，表由 Feed、Sources、Signals 模块建，出口规则由插件在 Manifest 的 `databases.project` 声明（`plugins/native/feed/src/database.ts`） | 项目库部分不需要；Home 里的 Feed 安全目录（`resolveFeedSecurityDirectory`，`packages/storage/src/adapters/local-security-paths.ts`）放密钥文件，有没有按项目分区的内容由 Feed 自己的计划核 | 没有 `feed-actions.ts`；`feed-native-plugin-http.ts` 113；在 `content-action-providers.ts` 的 `nativeContentProviders` 里登记；Feed 被 29 个宿主文件 import（`git grep -l "@molis-ai/molis-work-plugin-feed" -- apps/local-host/src`），单独成案 |
+| Feed | 否 | 每个项目一个 | 项目库，表由 Feed、Sources、Signals 模块建，出口规则由插件在 Manifest 的 `databases.project` 声明（`plugins/native/feed/src/database.ts`） | 项目库部分不需要；Home 里的 Feed 安全目录（`resolveHomeSecurityDirectory`，`packages/storage/src/adapters/local-security-paths.ts`）放密钥文件，有没有按项目分区的内容由 Feed 自己的计划核 | 没有 `feed-actions.ts`；`feed-native-plugin-http.ts` 113；在 `content-action-providers.ts` 的 `nativeContentProviders` 里登记；Feed 被 29 个宿主文件 import（`git grep -l "@molis-ai/molis-work-plugin-feed" -- apps/local-host/src`），单独成案 |
 
 **放置规则（落实 2026-10-07「个人插件装在一个 Home 级实例，按项目启用照旧」）。** 本计划按「提供方今天怎么登记」放：
 

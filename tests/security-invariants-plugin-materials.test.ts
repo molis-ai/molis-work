@@ -126,8 +126,8 @@ test("S-39 RAC-26 only a user's explicit choice reaches the speech helper as dow
   await grantMaterials(host, probe);
   const asPlugin = await callingPlugin(host, probe.permissions, caller);
   const helper = join(home, "speech-helper"), choices = join(home, "choices.jsonl"), downloaded = join(home, "downloaded");
-  const prior = process.env.MOLIS_JELLY_WHISPER_HELPER; process.env.MOLIS_JELLY_WHISPER_HELPER = helper;
-  t.after(() => { if (prior === undefined) delete process.env.MOLIS_JELLY_WHISPER_HELPER; else process.env.MOLIS_JELLY_WHISPER_HELPER = prior; });
+  const prior = process.env.MOLIS_MATERIAL_WHISPER_HELPER; process.env.MOLIS_MATERIAL_WHISPER_HELPER = helper;
+  t.after(() => { if (prior === undefined) delete process.env.MOLIS_MATERIAL_WHISPER_HELPER; else process.env.MOLIS_MATERIAL_WHISPER_HELPER = prior; });
   writeFileSync(helper, `#!${process.execPath}\nconst fs = require('node:fs'); const allowed = process.argv.includes('--allow-model-download'); fs.appendFileSync(${JSON.stringify(choices)}, JSON.stringify(allowed)+'\\n'); if (!allowed) { process.stdout.write(JSON.stringify({error:'model_required',message:'explicit download required'})); process.exit(1); } fs.writeFileSync(${JSON.stringify(downloaded)},'user approved'); process.stdout.write(JSON.stringify({text:'transcript',extractor:'fixture-speech',pages:[],coverage:{status:'sufficient',processed_pages:0,total_pages:0,issues:[]}}));\n`, { mode: 0o700 });
   let choice = true, audience: ActionAudience = "user";
   probe.behavior.read = async (context, caller) => {
@@ -206,8 +206,8 @@ for (const invalidation of ["cancel", "stop", "revoke", "upgrade"] as const) {
   test(`RAC-27 RAC-30 ${invalidation} during material extraction refuses late results and persistent business writes`, { timeout: 60_000, skip: process.platform !== "darwin" }, async t => {
     const probe = materialsProbe(), { host, home } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
     const { platform, install } = await grantMaterials(host, probe), helper = join(home, "waiting-helper"), release = join(home, "release");
-    const prior = process.env.MOLIS_JELLY_WHISPER_HELPER; process.env.MOLIS_JELLY_WHISPER_HELPER = helper;
-    t.after(() => { if (prior === undefined) delete process.env.MOLIS_JELLY_WHISPER_HELPER; else process.env.MOLIS_JELLY_WHISPER_HELPER = prior; });
+    const prior = process.env.MOLIS_MATERIAL_WHISPER_HELPER; process.env.MOLIS_MATERIAL_WHISPER_HELPER = helper;
+    t.after(() => { if (prior === undefined) delete process.env.MOLIS_MATERIAL_WHISPER_HELPER; else process.env.MOLIS_MATERIAL_WHISPER_HELPER = prior; });
     writeFileSync(helper, `#!${process.execPath}\nconst fs=require('node:fs');process.stderr.write(JSON.stringify({stage:'waiting',progress:0})+'\\n');const timer=setInterval(()=>{if(!fs.existsSync(${JSON.stringify(release)}))return;clearInterval(timer);process.stdout.write(JSON.stringify({text:'late material',extractor:'fixture-speech',pages:[],coverage:{status:'sufficient',processed_pages:0,total_pages:0,issues:[]}}));},10);\n`, { mode: 0o700 });
     const entered = deferred(), over = deferred(), abort = new AbortController(); let handed = false;
     probe.behavior.read = async (context, caller) => {

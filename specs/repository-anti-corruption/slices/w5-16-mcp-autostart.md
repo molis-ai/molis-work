@@ -1,6 +1,6 @@
 # W5-16 C5：MCP 按需启动常驻宿主
 
-状态：夹具增量收验与受控单 offline-owner 路径通过，父链实际落地已核实，正接续 fresh-main 构建和剩余原场景，整片实装收验未完成（2026-10-25，洛杉矶）。负责人：Codex 实现 1。BL-645，验收 RAC-625～629；目标完成程度为隔离 Home 中功能可用，下列既有通过范围不覆盖最终实装首败，也不代表整个 W5-16/C1/C3 完成、C5 已进入 main、真实 App 或本人验收通过。
+状态：七个产品子路径已具分组有效证据，fresh-main 构建、必要新基底回归及余两项实装通过；待整片 FIRST、有限独立 TEST 收验与 S-77 公共行，health 仍有该引用失败（2026-10-25，洛杉矶）。负责人：Codex 实现 1。BL-645，验收 RAC-625～629；目标完成程度为隔离 Home 中功能可用，不把分组证据叫作一轮全八项通过，也不代表整个 W5-16/C1/C3 完成、C5 已进入 main、真实 App 或本人验收通过。
 
 统筹已在 [6394070792](https://github.com/molis-ai/molis-work/pull/1254#issuecomment-6394070792) 审定本稿：选 A 常驻；唯一 Home owner 允许短暂被拒的启动候选；20 秒总预算、1 秒探测、250 毫秒退避；EOF/cancellation 必须接通。初期按 Root 授权以 batch-36 `bb7137fc2550d8ae8fd7f8bb6caced55ee7cba9f` 为固定基底实施、只推自己的分支；#1254 的 A 实现现已随 #1270 在 11:14:03 UTC 实际进入 main `64a3ccc9c177ba6f3a2bbb44cf80dc1cce648f2a`，已鲜取并核对。整片完成后才交一个完整非 Draft PR。FIX4/FIX7/原 owner 关闭的生命周期 hunk 不在本片改写；S-77 正式共同行由 carrier 唯一登记，本片只交暂定引用、确切语义及拒绝测试。
 
@@ -145,10 +145,20 @@
 | 两个真实 MCP 竞争、单 owner 与一次创建 | pass，34.256 秒 | 已按原并发冲突/回执合同读回唯一项目，复用，不重跑。 |
 | 取消、EOF 不创建而另一 MCP 接续 | pass，22.072 秒 | 独立子场景已完成断言及清理；夹具修复不改其成功路径，复用，不重跑。 |
 | 真实 offline owner 保持原 inode/数据、释放后新请求恢复 | MCP closed，16.928 秒，父期限中断 | 由上述同一原场景的受控真实安装补齐，单场景 1/1＋父测试 2/2；不再重复。原安装慢因仍 UNKNOWN。 |
-| 已提交真实创建的响应被切断，返回未知且不重放 | 因父清理后的安装入口缺失失败，产品断言未执行 | 旧 8/8 只作历史线索，不代替最终产物。下一有限批只运行这个原场景与下一行；仍用 public 完整安装、原断言和原预算。 |
-| 非法参数/身份/Home/port 与 PATH 其他安装拒绝 | 因父清理后的 attempts 目录缺失失败，产品断言未执行 | 最终产物证据仍缺，与上一行同批补齐，不重复前五行。 |
+| 已提交真实创建的响应被切断，返回未知且不重放 | 因父清理后的安装入口缺失失败，产品断言未执行 | 已由 fresh-main `7a63ac1a7` 的同一原场景补齐，18.006 秒；public 真实产物、原断言和原预算，详见下节。旧 8/8 不代替它。 |
+| 非法参数/身份/Home/port 与 PATH 其他安装拒绝 | 因父清理后的 attempts 目录缺失失败，产品断言未执行 | 已与上一行同批补齐，14.809 秒，真实拒绝和 PATH sentinel 未执行断言均通过；未重复前五行。 |
 | 父测试 240 秒取消 | cancelled | 原始取消与清理竞态记录保留；设施修复已有独立正例、实际删等待行反例和限定 REVIEW/TEST。安装慢因未定，有限场景通过不改写整批首轮历史。 |
 
-后续仅必要的两个原场景按现有 FIFO 执行；保持 20/240 秒和既有外层限额，不重全八、不抬预算、不把旧 8/8 代当前头。原 Claude 的整片 FIRST 入口为本分支固定头、同一 spec 与这份范围映射；专职 Codex 的 v2 门禁及夹具评审仍只限各自增量。
+必要的两个原场景已按现有 FIFO 执行；保持 20/240 秒和既有外层限额，不重全八、不抬预算、不把旧 8/8 代当前头。原 Claude 的整片 FIRST 入口为本分支固定头、同一 spec 与这份范围映射；专职 Codex 的 v2 门禁及夹具评审仍只限各自增量。
 
-fresh-main 接续已逐项核范围：`64a3ccc9 → c20fc04db` 为本片 35 文件 1,388/+、79/−；C5 生产文件、测试及门禁与旧固定分支逐字节相同，唯一重叠入口 `apps/local-host/src/index.ts` 保留了 main 新增的 `HomeInitializationFailure` 类型导出。`project-host.ts`、`home-storage-lifetime.ts`、公共 SI、baseline 与 API/动作快照均与 main 相同，没有改写原 owner 或父收尾修复。锁文件/依赖未变。后继须先按现有 FIFO 整体构建，再跑必要定向回归与两个原未验证场景；实际构建和执行结果尚未写成通过。
+fresh-main 接续已逐项核范围：`64a3ccc9 → c20fc04db` 为本片 35 文件 1,388/+、79/−；C5 生产文件、测试及门禁与旧固定分支逐字节相同，唯一重叠入口 `apps/local-host/src/index.ts` 保留了 main 新增的 `HomeInitializationFailure` 类型导出。`project-host.ts`、`home-storage-lifetime.ts`、公共 SI、baseline 与 API/动作快照均与 main 相同，没有改写原 owner 或父收尾修复。锁文件/依赖未变。随后仅补同片规格及 local-host README 生产管理入口的一段陈旧描述，固定 `7a63ac1a70a34a29189164d868d803bbaf318e77`（36 文件 1,391/+、80/−）完成下列新产物验证。
+
+### fresh-main 新产物与最后两个原场景
+
+整体 `pnpm build` 在公共 FIFO 自然 exit 0；原 manifest 创建时间 11:54:27.563 UTC，实际源码 digest `62c71585dbb43060607cc747c8513709b14be9fce5cf58e1db152ba6c28ff2ba`。边界检查在完整构建后直接执行原 checker，避免 `pnpm boundary:check` 再隐式并发构建 test-kit：70 包、2,832 源文件、12,896 imports、248 边、67 合同子路径，零错误；页面资源对实际 main `64a3ccc9` 为 27 项、7,590,829 字节，无增长。health 重新检查只报 S-77 文件缺公共 SI 行引用，仍为 FAIL，未放宽门禁。新基底与本片交点的两个既有回归 `desktop-entry-failures.test.ts` 14/14、`cli-home-owner-entry.test.ts` 2/2 单次 jobs=1 通过；旧 12/14 的历史不冒充当前失败。该组原件分别在 `/tmp/c5-fresh-main-build.log`、`/tmp/c5-fresh-main-boundary.log`、`/tmp/c5-fresh-main-assets.log`、`/tmp/c5-fresh-main-health.log`、`/tmp/c5-fresh-main-owner-entry-tests.log`。
+
+最后两个原场景使用同一 `7a63ac1a7` 新产物与 public 完整安装器，只排除前五个已具有效证据的子场景。12:13:22.198 UTC 实际 FIFO 取得 build PID 31833、browser PID 33936、driver PID 33942，[开始记录](https://github.com/molis-ai/molis-work/pull/1270#issuecomment-6397488630) 后由后台无交互地立即执行，12:14:49.711 UTC 自然 exit 0。两个子场景加父测试共 3/3，84.935 秒，零失败、取消或跳过，其他五项未在这次运行。原 20/240/480 秒未变，无重试、指纹绕过或安装实现替换。
+
+实际已提交创建的响应被切断后，原请求收到 `actions.delivery_unknown`；新明确只读请求读回唯一项目，启动 attempts 未增加，原环境清理断言也通过。非法工具/参数/身份、缺 Home、port 0 与缺少同 Home 启动入口分别收到原拒绝，PATH 的另一安装未执行。全部 MCP 子进程正常退出，临时 Home 正常删除；12:18:47.731 UTC 实核原两槽和全部自有 PID 已释放，临时 Home 不存在，下一个原票于 12:14:52.052 UTC 接手 build。[结束记录](https://github.com/molis-ai/molis-work/pull/1270#issuecomment-6397503099) 及原件 `/tmp/c5-main-remaining-auto-7a63/` 保留实际 source/build、命令、结果与释放记录。
+
+此前 12:04:36 UTC 取得双槽后，作者保留的 GO 控制层在 12:05:36 UTC 到期，未启动安装或产品子场景，原件 `/tmp/c5-main-remaining-7a63/` 单列保留。随后彻底移除 stdin/GO 依赖，在不占槽的微型无交互路径验证后按正常 FIFO 取得上述窗口；不是产品重试，也不抵消原慢因 UNKNOWN。当前七个子路径的证据是四项同源复用、一次 offline 单场景、一次余两场景，均按原范围记录；原整批首败历史保留。独立 TEST 对 fixture 与单 offline 原件的限定核收已收到，本次余两项原件及整片 FIRST 仍待各自 owner 核收，正式 S-77 行仍由唯一 carrier 收口；本片不提前宣称 health 或整条工作完成。

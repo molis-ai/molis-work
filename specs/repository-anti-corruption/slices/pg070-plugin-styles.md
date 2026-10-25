@@ -80,3 +80,20 @@
 作者验证：一次公共 FIFO 整体构建通过，公开重算与 `18:53:13.201Z` 构建的 `1e66c855d75d9c2e87301c079754da6b68222f02fb2a48cfd18050a0099eb341` 一致。registry 13/13、styles-gate 15/15、styles 11/11，自然退出 0；补强 id 中间子串的正控后，仅重跑 registry 13/13。有效覆盖并集 39，first-freeze 排前一次、其他场景后连续两次，均核共享 refs/预算/计数未变。真实 plugin-styles（5 插件、575 块）、boundary、最终 health（merge-base `54437998`）通过；本增量不改 API。
 
 资源门禁自然退出 1：coding.js 289351→289396（+45），workbench.js 1124811→1125453（+642），保留原片红灯，不写成全绿。原父树当前 clean，但尝试复用其现存构建时，清单 `57063e0c…39dbd0` 与现场公开重算 `c2371482…a51258` 不一致，探针在进入业务断言前停止；该准备失败原件保留，不作为有效父源码产品反例，不改或重建原树。二轮复审 `6401640865` 新增的两项 nonblock 由 Root 另定范围，本单不并入。
+
+### 第 2 片前缀冻结工单（F2，2026-10-25）
+
+状态：已接受，作者实现与定向验证通过，候选待双核及采用。唯一固定父 `aead2e0becc4417c56ec27516fe4280b4e86f2a7`；来源仅为 #1302 评审 `6401640865` 的 nonblock 1、2。本单交付可验证的门禁修复，不改生产 splitter、注册、CSS、资源预算或 PG-071。
+
+| 编号 | 行为与验收 |
+| --- | --- |
+| PG070-PF-01 | 每个插件的预算前缀与构建声明按集合相等校验：拒绝漏记新增声明，也拒绝不再声明的已记前缀。首次按需拆分只用当前声明，与生产 `splitOf` 一致；共享余量计数才用每个插件的 reference、当前预算、当前声明的并集，任何集合不得覆盖历史记忆。 |
+| PG070-PF-02 | check 与 update 用完整候选和同一 reference 约束：有 `--base` 时读真实 merge-base，无 `--base` 时读 HEAD 已提交预算；首次冻结仍允许。余量不增长时允许新增并记录前缀，即使该插件仍有正计数；两者均拒绝增长、reference 未登记的正计数插件、丢弃历史前缀。update 被拒绝时文件字节不变。 |
+| PG070-PF-03 | 用最小合成 dist 数据、真实生产量测与公开包的实际 splitter 验证漏记拒绝、正余量合法新增 update 后 check 通过；真实提交并推进 main 后，再提交同时删除声明和预算前缀，`--base` 必须失败，report 量到回流规则。另验 base/head 前缀并集和有/无 base 的无增长删除拒绝且不写文件。保留原增长、洗预算、新插件、删条目、首冻结前后重复、缺构建和真实仓库用例；保存准确旧 aead 脚本的有限业务反例。 |
+| PG070-PF-04 | 脚本头、README 与本 slice 明确已知盲区：混合选择器列表 `.feed-card,.other{…}` 因并非每项都点名插件而留共享且不计数；`:is(.feed-card){…}`、`:where(.feed-card){…}` 中唯一的名字空间会被剥去，同样不计数。本轮只补说明。Goals 仍只量 `GOALS_DOCUMENT_STYLES`、`TRASH_GOAL_STYLES`、`PLANNING_SETTINGS_STYLES` 三个枚举常量；第四个不会自动发现，新增时须同步量测与真实构建验证。 |
+
+允许写入 `scripts/gates/plugin-styles.mjs`、`tests/plugin-styles-gate.test.ts` 及必要的仅测试夹具、`tooling/gates/README.md` 和本 slice。`tooling/gates/plugin-styles.json` 默认不改，数值与 prefixes 映射须字节不变。独立分支 `feature/pg070-prefix-freeze`，保留原作者与旧候选工作树。一次公共 FIFO 整体构建后，跑完整 styles-gate 与既有 styles 定向回归、真实 gate、boundary、health、导入与构建绑定检查；推送前 fresh fetch/secrets。实际仓库应保持 5 插件 / 575 块；变化如实报告，不能抬预算。
+
+父片 page-assets 的 coding.js +45、workbench.js +642 红灯与旧 d8e 的构建绑定缺口继续保留；沿用已核实旧证据，不借本单改 ceiling、baseline、limits、CI 或重跑 171/full/浏览器/CSS 批。完成本候选后将精确 parent/head/diff、构建源绑定及 raw 交既有 REVIEW/TEST 双核；F2 亲读两份最终原文和 raw 后直接交 PIPE 与 Root，不等待载体 full/CI。
+
+作者验证：一次公共 FIFO 整体构建自然退出 0，`2026-10-25T19:58:47.012Z` 清单的 `c37d3c0aea786fa41658210d9cb917aa63c18ce8786bf5228222c3c9e6291803` 与公开重算一致。完整 styles-gate 22/22、既有 styles 11/11，自然退出 0，共 33 个用例；旧 aead 精确脚本（Git blob `e9c96c8ed077d177d7e171e3045163cb0d4ac9f0`）在另存的五个有限业务探针中 0/5、自然退出 1，修复脚本同样探针 5/5、自然退出 0，未把重叠探针加进 33。探针使用未改的真实构建 splitter/on-demand 函数，没有省略准备检查。真实 gate 对实际 merge-base aead 通过 5 插件 / 575 块；boundary、health（同父比较）、导入无混用均通过。预算文件、生产 splitter/注册/CSS 和资源门禁输入完整未改；raw 位于 `/tmp/molis-verify-2026-10-25/pg070-prefix-freeze/`。

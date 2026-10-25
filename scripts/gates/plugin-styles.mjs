@@ -14,9 +14,10 @@
 // studio's preview pages); those are frozen where they are, not exempted.
 //
 // `stylesheetPrefixes` is what lets a plugin whose classes predate its id declare them (`as-`, `pb-` for the studio). The
-// budget file remembers the prefixes each measured plugin declared; the measurement uses the union of those and the ones the
-// build declares, so deleting a prefix cannot make rules disappear from the count, and the check below refuses a prefix that
-// is no longer declared. Adding a prefix only adds rules to the count.
+// budget file must record exactly the build's declared prefix set, and a recorded prefix may never be dropped. The first
+// split uses only current declarations, as production splitOf does; the counting pass uses the per-plugin union of the
+// reference budget, current budget and build declarations, so rules returning to the shared sheet remain visible. A new
+// prefix may move rules into the plugin's own sheet; --update records it when the measured remainder does not grow.
 //
 // Goals is measured the same way in spirit: it has no registered stylesheet and no frame, and `apps/workbench/src/page-assets.ts`
 // imports `GOALS_DOCUMENT_STYLES`, `TRASH_GOAL_STYLES` and `PLANNING_SETTINGS_STYLES` straight into the shared sheets, so its
@@ -34,6 +35,9 @@
 //    `stylesheet` and, for Goals, the three constants named above are measured. A fourth Goals constant newly imported by
 //    page-assets is not counted automatically: add it to measureFromBuild's goalsStyles and update the real-build gate test
 //    when adding the constant, then run plugin-styles-gate.test.ts and plugin-styles --base. No other Goals exports are scanned.
+//  - The splitter requires every selector in a list to name the plugin: `.feed-card,.other{color:red}` stays shared and is
+//    not counted. Names only inside `:is()` or `:where()` are stripped before that verdict, so `:is(.feed-card){color:red}`
+//    and `:where(.feed-card){color:red}` also stay shared without being counted. This gate does not change those split rules.
 //  - The shared sheets are not searched for plugin rules that no registration names (a class copied by hand into a host
 //    stylesheet is invisible to the splitter too).
 //  - Sizes are not measured here; `/assets/` bytes are `scripts/gates/page-assets.mjs`. The two files can disagree about what a
@@ -98,10 +102,11 @@ export function countRules(css) {
 // `splitPluginStylesheet`; `framed` says whether the build already sends this plugin its own sheet (its shared half is then
 // the split's `shared`, otherwise the whole registered sheet is in the shared sheet). The second split deliberately passes
 // no shared classes: a rule that names the plugin is counted wherever the shared sheet has it, however the registration
-// labels it.
-export function rulesInSharedSheet(split, stylesheet, id, { sharedClasses = [], prefixes = [], framed = true } = {}) {
+// labels it. `prefixes` is the current declaration for production's first split; `countPrefixes` also remembers prefixes
+// from the reference and current budgets, which must not move rules out of the shared half during the first split.
+export function rulesInSharedSheet(split, stylesheet, id, { sharedClasses = [], prefixes = [], countPrefixes = prefixes, framed = true } = {}) {
   const sharedSheet = framed ? split(stylesheet, id, sharedClasses, prefixes).shared : stylesheet;
-  return countRules(split(sharedSheet, id, [], prefixes).scoped);
+  return countRules(split(sharedSheet, id, [], countPrefixes).scoped);
 }
 
 // ---- the executable part ---------------------------------------------------------------------------------------------
@@ -131,7 +136,8 @@ const NOTE = "Only decreases. For each plugin with a registered stylesheet, the 
   + "shared stylesheets still hold: the first slice's splitter finds the shared part, then a second pass counts every rule in "
   + "it that names the plugin, without discounting stylesheetShared (declaring a class shared cannot hide a rule, and a frame "
   + "does not make the number zero). stylesheetPrefixes are remembered per plugin and may only be added; the measurement uses "
-  + "the union with the build's. Goals counts the document styles page-assets imports into the shared sheets. Measured from "
+  + "the reference/current/build prefix union only for counting the remainder, after splitting by current declarations. "
+  + "Goals counts only GOALS_DOCUMENT_STYLES, TRASH_GOAL_STYLES and PLANNING_SETTINGS_STYLES. Measured from "
   + "the build by scripts/gates/plugin-styles.mjs; lower it with `node scripts/gates/plugin-styles.mjs --update --base "
   + "origin/main` in the PR that moves rules out. CI compares this file with the merge-base's copy, so raising a number or "
   + "adding a plugin here is refused.";
@@ -187,7 +193,7 @@ async function measureFromBuild(knownPrefixes) {
     const prefixesForCount = [...new Set([...(knownPrefixes?.[id] ?? []), ...declared])];
     const framed = workbench.pluginOnDemandStylesheet(id) !== null;
     const rules = rulesInSharedSheet(splitter.splitPluginStylesheet, pack.stylesheet, id,
-      { sharedClasses: pack.stylesheetShared ?? [], prefixes: prefixesForCount, framed });
+      { sharedClasses: pack.stylesheetShared ?? [], prefixes: declared, countPrefixes: prefixesForCount, framed });
     if (rules > 0) measured[id] = rules;
   }
 
@@ -219,10 +225,15 @@ const headErrors = (measured, declaredPrefixes, budget, base) => {
       if (!(declaredPrefixes[id] ?? []).includes(prefix)) errors.push(`${id} no longer declares stylesheet prefix ${prefix}; without it those rules fall back into the shared sheets (prefixes may only be added)`);
     }
   }
+  for (const [id, declared] of Object.entries(declaredPrefixes)) {
+    for (const prefix of declared) {
+      if (!(budget.prefixes[id] ?? []).includes(prefix)) errors.push(`${id} declares stylesheet prefix ${prefix} but ${BUDGET_FILE} does not record it; record every declared prefix with --update`);
+    }
+  }
   for (const id of [...new Set([...Object.keys(measured), ...Object.keys(budget.plugins)])].sort()) {
     const rules = measured[id], allowed = budget.plugins[id];
     if (allowed === undefined && base?.plugins?.[id] !== undefined) {
-      errors.push(`${id} (${rules} rule blocks) still keeps rules in the shared sheets but its entry was deleted from ${BUDGET_FILE} (the merge-base budgets ${base.plugins[id]}); deleting an entry does not exempt a plugin that keeps rules, restore it`);
+      errors.push(`${id} (${rules} rule blocks) still keeps rules in the shared sheets but its entry was deleted from ${BUDGET_FILE} (the reference budgets ${base.plugins[id]}); deleting an entry does not exempt a plugin that keeps rules, restore it`);
     } else if (allowed === undefined) {
       errors.push(`${id} keeps ${rules} rule blocks in the shared sheets with no budget in ${BUDGET_FILE}; a plugin whose page runs in a frame brings its own sheet, and a page the shell draws is frozen with a number at the change that holds it there, never added here without review`);
     } else if (rules === undefined) {
@@ -235,31 +246,26 @@ const headErrors = (measured, declaredPrefixes, budget, base) => {
   }
   return errors;
 };
-// base: the budget file against the merge-base's. Raising a number, adding a plugin, or dropping a remembered prefix is the
-// laundering move.
-const baseErrors = (budget, base) => {
+// Both check's complete budget and update's complete proposed budget obey the same reference contract. Only the diagnostic
+// wording differs: update reports measured growth, while check identifies an edited budget. The reference is the merge-base
+// when supplied, otherwise HEAD's committed budget. No reference means the first freeze.
+const referenceErrors = (budget, reference, updating = false) => {
   const errors = [];
   for (const [id, allowed] of Object.entries(budget.plugins)) {
-    if (base.plugins[id] === undefined) errors.push(`${BUDGET_FILE} adds ${id} (${allowed} rule blocks), which the merge-base did not budget; counts only fall and no plugin may be added`);
-    else if (allowed > base.plugins[id]) errors.push(`${BUDGET_FILE} raises ${id} ${base.plugins[id]} → ${allowed}; counts only fall`);
+    if (reference.plugins[id] === undefined) errors.push(updating
+      ? `${id} (${allowed} rule blocks) has no budget to lower`
+      : `${BUDGET_FILE} adds ${id} (${allowed} rule blocks), which the reference did not budget; counts only fall and no plugin may be added`);
+    else if (allowed > reference.plugins[id]) errors.push(updating
+      ? `${id} grew ${reference.plugins[id]} → ${allowed}`
+      : `${BUDGET_FILE} raises ${id} ${reference.plugins[id]} → ${allowed}; counts only fall`);
   }
-  for (const [id, remembered] of Object.entries(base.prefixes)) {
+  for (const [id, remembered] of Object.entries(reference.prefixes)) {
     for (const prefix of remembered) {
       if (!(budget.prefixes[id] ?? []).includes(prefix)) errors.push(`${BUDGET_FILE} drops the stylesheet prefix ${prefix} of ${id}; prefixes may only be added`);
     }
   }
   return errors;
 };
-// update: nothing may grow relative to the reference (the merge-base's budget, else the committed one); a missing
-// reference is the first freeze. A plugin the reference does not know is refused while it still keeps rules.
-const growthErrors = (measured, reference) => Object.entries(measured).flatMap(([id, rules]) => {
-  if (reference.plugins[id] === undefined) return rules > 0 ? [`${id} (${rules} rule blocks) has no budget to lower`] : [];
-  return rules > reference.plugins[id] ? [`${id} grew ${reference.plugins[id]} → ${rules}`] : [];
-});
-const prefixGrowthErrors = (budget, reference) => Object.entries(budget.prefixes).flatMap(([id, list]) => list
-  .filter((prefix) => !(reference.prefixes[id] ?? []).includes(prefix))
-  .filter((prefix) => (reference.plugins[id] ?? 0) > 0)
-  .map((prefix) => `${id} adds the stylesheet prefix ${prefix} while its rules are still counted; a prefix may only be added when it does not hide the rules already in the budget`));
 
 // ---- the merge-base's budget -----------------------------------------------------------------------------------------
 let mergeBase = "";
@@ -281,16 +287,27 @@ const budgetNow = () => {
   if (!existsSync(budgetPath)) return fail(`${budgetPath} is missing; create the freeze with --update`);
   return parseBudget(readFileSync(budgetPath, "utf8"), budgetPath);
 };
+const currentBudget = existsSync(budgetPath) ? budgetNow() : null;
+let reference = baseBudget;
+if (!mergeBase) {
+  const head = gitMaybe(["rev-parse", "--verify", "--quiet", "HEAD^{commit}"]);
+  if (head && git(["ls-tree", "--name-only", head, "--", BUDGET_FILE]).trim()) {
+    reference = parseBudget(git(["cat-file", "blob", `${head}:${BUDGET_FILE}`]), `HEAD:${BUDGET_FILE}`);
+  }
+}
 const knownPrefixes = {};
-if (baseBudget) Object.assign(knownPrefixes, baseBudget.prefixes);
-if (existsSync(budgetPath)) Object.assign(knownPrefixes, budgetNow().prefixes);
+for (const budget of [reference, currentBudget]) {
+  for (const [id, prefixes] of Object.entries(budget?.prefixes ?? {})) {
+    knownPrefixes[id] = [...new Set([...(knownPrefixes[id] ?? []), ...prefixes])];
+  }
+}
 
 const { measured, prefixes: declaredPrefixes } = await measure(knownPrefixes);
 const total = Object.values(measured).reduce((sum, rules) => sum + rules, 0);
 
 // ---- --report --------------------------------------------------------------------------------------------------------
 if (report) {
-  const budget = existsSync(budgetPath) ? budgetNow() : { plugins: {}, prefixes: {} };
+  const budget = currentBudget ?? { plugins: {}, prefixes: {} };
   const rows = Object.keys(measured).sort((a, b) => measured[b] - measured[a] || a.localeCompare(b));
   if (flags.has("--json")) {
     console.log(JSON.stringify({ mergeBase: mergeBase || null, measured, prefixes: declaredPrefixes, budget: budget.plugins, budgetPrefixes: budget.prefixes, baseBudget: baseBudget?.plugins ?? null }, null, 2));
@@ -304,16 +321,16 @@ if (report) {
 
 // ---- --update --------------------------------------------------------------------------------------------------------
 if (update) {
-  const reference = baseBudget ?? (!mergeBase && existsSync(budgetPath) ? budgetNow() : null);
+  const plugins = Object.fromEntries(Object.keys(measured).sort().map((id) => [id, measured[id]]));
+  const prefixes = Object.fromEntries(Object.keys(declaredPrefixes).sort().filter((id) => declaredPrefixes[id].length)
+    .map((id) => [id, [...new Set(declaredPrefixes[id])].sort()]));
   if (reference) {
-    const errors = [...growthErrors(measured, reference), ...prefixGrowthErrors({ prefixes: declaredPrefixes }, reference)];
+    const errors = referenceErrors({ plugins, prefixes }, reference, true);
     if (errors.length) {
-      console.error(`Budget not written: something grew relative to ${baseBudget ? against : BUDGET_FILE}:\n- ${errors.join("\n- ")}`);
+      console.error(`Budget not written: candidate violates the reference ${mergeBase ? against : `HEAD:${BUDGET_FILE}`}:\n- ${errors.join("\n- ")}`);
       process.exit(1);
     }
   }
-  const plugins = Object.fromEntries(Object.keys(measured).sort().map((id) => [id, measured[id]]));
-  const prefixes = Object.fromEntries(Object.keys(declaredPrefixes).sort().filter((id) => declaredPrefixes[id].length).map((id) => [id, declaredPrefixes[id]]));
   mkdirSync(path.dirname(budgetPath), { recursive: true });
   writeFileSync(budgetPath, `${JSON.stringify({ note: NOTE, plugins, prefixes }, null, 2)}\n`);
   console.log(`plugin style budget written: ${Object.keys(plugins).length} plugin${Object.keys(plugins).length === 1 ? "" : "s"}, ${total} rule blocks${notes.length ? `. Note: ${notes.join("; ")}.` : ""}`);
@@ -321,8 +338,8 @@ if (update) {
 }
 
 // ---- the verdict -----------------------------------------------------------------------------------------------------
-const budget = budgetNow();
-const errors = [...headErrors(measured, declaredPrefixes, budget, baseBudget), ...(baseBudget ? baseErrors(budget, baseBudget) : [])];
+const budget = currentBudget ?? budgetNow();
+const errors = [...headErrors(measured, declaredPrefixes, budget, reference), ...(reference ? referenceErrors(budget, reference) : [])];
 if (errors.length) {
   console.error(`Plugin style budgets failed against ${against}:\n- ${errors.join("\n- ")}`);
   process.exit(1);

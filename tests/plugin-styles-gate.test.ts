@@ -7,6 +7,7 @@ import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
 import { splitPluginStylesheet } from "@molis-ai/molis-work-app-workbench";
 import { countRules, rulesInSharedSheet } from "../scripts/gates/plugin-styles.mjs";
+import { pluginStylesBuildFixture } from "./fixtures/plugin-styles-build.ts";
 
 // PG-070 (RAC-769): a plugin's own rules do not belong in the shared stylesheets. The gate counts, per plugin, the rule
 // blocks that name it and are still there (the first slice's splitter; Goals' document styles, which page-assets imports
@@ -15,8 +16,8 @@ import { countRules, rulesInSharedSheet } from "../scripts/gates/plugin-styles.m
 //
 // The rules are mutation-verified here on a small scratch repository: one violation added on a branch makes `--base main`
 // fail, and the laundering move (raising the committed count to what is built, or `--update`) neither makes it pass nor is
-// accepted when it is given the merge-base. Counts come from a JSON file here (`--counts`); the last group runs the real
-// measurement on this repository's own build, which the architecture-boundaries job builds before it runs this file.
+// accepted against the reference. Numeric scenarios use a JSON input (`--counts`); prefix scenarios run production
+// measurement on synthetic registered data with the real built splitter, and the last test measures this repository's build.
 const script = fileURLToPath(new URL("../scripts/gates/plugin-styles.mjs", import.meta.url));
 const repoRoot = fileURLToPath(new URL("..", import.meta.url));
 const BUDGET = "tooling/gates/plugin-styles.json";
@@ -146,6 +147,8 @@ const violations: Scenario[] = [
     expect: [/feed is 34 rule blocks under its budget \(234 → built 200\); lower the budget with/] },
   { name: "a plugin no longer keeps rules in the shared sheets but keeps its budget", mutate: () => { delete counts.feed; },
     expect: [/feed has a budget but no longer keeps rules in the shared sheets/] },
+  { name: "a budget entry is deleted while its rules remain", mutate: () => putBudget({ goals: BASE.goals }),
+    expect: [/feed \(234 rule blocks\) still keeps rules in the shared sheets but its entry was deleted/, /deleting an entry does not exempt a plugin/] },
 ];
 
 for (const scenario of violations) {
@@ -157,12 +160,14 @@ for (const scenario of violations) {
 
     if (scenario.refused) {
       const before = read(BUDGET);
-      const refused = gate("--update", "--base", "main");
-      assert.equal(refused.code, 1, refused.out);
-      assert.match(refused.out, /Budget not written/);
-      assert.match(refused.out, scenario.refused);
-      assert.equal(read(BUDGET), before, "a refused --update leaves the budget file alone");
-      assert.equal(git("status", "--porcelain"), "");
+      for (const args of [["--update"], ["--update", "--base", "main"]]) {
+        const refused = gate(...args);
+        assert.equal(refused.code, 1, refused.out);
+        assert.match(refused.out, /Budget not written/);
+        assert.match(refused.out, scenario.refused);
+        assert.equal(read(BUDGET), before, "a refused --update leaves the budget file byte-for-byte unchanged");
+        assert.equal(git("status", "--porcelain"), "");
+      }
     }
     if (scenario.launder) {
       putBudget(scenario.launder.budget);
@@ -194,6 +199,126 @@ test("RAC-769 shrinking passes once the number is lowered, and --update does it"
   commit("lower the budget");
   const after = gate("--base", "main");
   assert.equal(after.code, 0, after.out);
+});
+
+test("RAC-769 PG070-PF-01 adding a prefix and lowering the count cannot omit the new prefix record", () => {
+  const fixture = pluginStylesBuildFixture(work);
+  try {
+    const stylesheet = ".probe-private{opacity:1}.probe-shared{color:red}.probe-retained{color:blue}.legacy-card{display:grid}";
+    fixture.writeBuild({ stylesheet, sharedClasses: ["probe-shared", "probe-retained"] });
+    fixture.writeBudget({ probe: 2 });
+    fixture.commit("main freezes two shared rules");
+    fixture.writeBuild({ stylesheet, prefixes: ["legacy-"], sharedClasses: ["probe-retained"] });
+    fixture.writeBudget({ probe: 1 });
+    const caught = run(fixture.root, "--base", "main");
+    assert.equal(caught.code, 1, caught.out);
+    assert.match(caught.out, /probe declares stylesheet prefix legacy- but .* does not record it/);
+    assert.deepEqual(JSON.parse(run(fixture.root, "--report", "--json").out).measured, { probe: 1 });
+  } finally { fixture.cleanup(); }
+});
+
+test("RAC-769 PG070-PF-02 a legitimate new prefix can update and check with a positive remainder", () => {
+  for (const args of [[], ["--base", "main"]]) {
+    const fixture = pluginStylesBuildFixture(work);
+    try {
+      fixture.writeBuild({ prefixes: ["legacy-"] });
+      const updated = run(fixture.root, "--update", ...args);
+      assert.equal(updated.code, 0, updated.out);
+      const budget = JSON.parse(fixture.budgetText());
+      assert.deepEqual(budget.plugins, { probe: 1 }, "adding the alias leaves a real positive shared remainder");
+      assert.deepEqual(budget.prefixes, { probe: ["legacy-"] });
+      const checked = run(fixture.root, ...args);
+      assert.equal(checked.code, 0, checked.out);
+    } finally { fixture.cleanup(); }
+  }
+});
+
+test("RAC-769 PG070-PF-03 after main records a prefix, a later commit cannot delete both records and hide returning rules", () => {
+  const fixture = pluginStylesBuildFixture(work);
+  try {
+    fixture.writeBuild({ prefixes: ["legacy-"] });
+    const updated = run(fixture.root, "--update");
+    assert.equal(updated.code, 0, updated.out);
+    fixture.commit("main records the legitimate alias");
+    const rememberedMain = fixture.git("rev-parse", "main").trim();
+    fixture.git("checkout", "-q", "-b", "next");
+    fixture.writeBuild();
+    fixture.writeBudget({ probe: 1 });
+    fixture.commit("delete declaration and budget prefix together");
+    const reported = run(fixture.root, "--report", "--json", "--base", "main");
+    assert.equal(reported.code, 0, reported.out);
+    const report = JSON.parse(reported.out);
+    assert.equal(report.mergeBase, rememberedMain, "reference is the actual advanced main commit");
+    assert.deepEqual(report.measured, { probe: 2 }, "the real first split leaves the returned legacy rule shared");
+    const caught = run(fixture.root, "--base", "main");
+    assert.equal(caught.code, 1, caught.out);
+    assert.match(caught.out, /budget 1 → built 2/);
+    assert.match(caught.out, /drops the stylesheet prefix legacy- of probe/);
+    const before = fixture.budgetText();
+    const refused = run(fixture.root, "--update", "--base", "main");
+    assert.equal(refused.code, 1, refused.out);
+    assert.match(refused.out, /probe grew 1 → 2/);
+    assert.match(refused.out, /drops the stylesheet prefix legacy- of probe/);
+    assert.equal(fixture.budgetText(), before);
+  } finally { fixture.cleanup(); }
+});
+
+test("RAC-769 PG070-PF-01 counting unions base, current budget and declarations per plugin without overwriting", () => {
+  const fixture = pluginStylesBuildFixture(work);
+  try {
+    const stylesheet = ".probe-private{opacity:1}.probe-shared{color:red}.legacy-card{display:grid}.other-card{display:flex}.fresh-shared{color:blue}";
+    fixture.writeBuild({ stylesheet, prefixes: ["legacy-"] });
+    fixture.writeBudget({ probe: 1 }, { probe: ["legacy-"] });
+    fixture.commit("main remembers legacy");
+    fixture.git("checkout", "-q", "-b", "different-head-memory");
+    fixture.writeBudget({ probe: 4 }, { probe: ["other-"] });
+    fixture.writeBuild({ stylesheet, prefixes: ["fresh-"], sharedClasses: ["probe-shared", "fresh-shared"] });
+    const reported = run(fixture.root, "--report", "--json", "--base", "main");
+    assert.equal(reported.code, 0, reported.out);
+    assert.deepEqual(JSON.parse(reported.out).measured, { probe: 4 },
+      "shared probe, base legacy, current other and currently declared/shared fresh all count; private stays on demand");
+  } finally { fixture.cleanup(); }
+});
+
+test("RAC-769 PG070-PF-02 prefix deletion without numeric growth is refused without writing, with and without base", () => {
+  for (const args of [[], ["--base", "main"]]) {
+    const fixture = pluginStylesBuildFixture(work);
+    try {
+      fixture.writeBuild({ prefixes: ["legacy-"] });
+      assert.equal(run(fixture.root, "--update").code, 0);
+      fixture.commit("main remembers legacy");
+      fixture.git("checkout", "-q", "-b", "delete-without-growth");
+      fixture.writeBuild({ stylesheet: ".probe-private{opacity:1}.probe-shared{color:red}" });
+      fixture.writeBudget({ probe: 1 });
+      // No --base must consult committed HEAD, not the edited working file. --base must still refuse after the edit is committed.
+      if (args.length) fixture.commit("delete declaration and file record without numeric growth");
+      const caught = run(fixture.root, ...args);
+      assert.equal(caught.code, 1, caught.out);
+      assert.match(caught.out, /drops the stylesheet prefix legacy- of probe/);
+      const before = fixture.budgetText();
+      const refused = run(fixture.root, "--update", ...args);
+      assert.equal(refused.code, 1, refused.out);
+      assert.match(refused.out, /drops the stylesheet prefix legacy- of probe/);
+      assert.equal(fixture.budgetText(), before, "deletion is refused even with no growth; no bytes are written");
+    } finally { fixture.cleanup(); }
+  }
+});
+
+test("RAC-769 PG070-PF-02 an edited working budget cannot launder growth without base", () => {
+  const fixture = pluginStylesBuildFixture(work);
+  try {
+    fixture.writeBuild({ stylesheet: ".probe-private{opacity:1}.probe-shared{color:red}.probe-extra{color:blue}",
+      sharedClasses: ["probe-shared", "probe-extra"] });
+    fixture.writeBudget({ probe: 2 });
+    const caught = run(fixture.root);
+    assert.equal(caught.code, 1, caught.out);
+    assert.match(caught.out, /raises probe 1 → 2/);
+    const before = fixture.budgetText();
+    const refused = run(fixture.root, "--update");
+    assert.equal(refused.code, 1, refused.out);
+    assert.match(refused.out, /probe grew 1 → 2/);
+    assert.equal(fixture.budgetText(), before);
+  } finally { fixture.cleanup(); }
 });
 
 test("PG070-NB-02 first-freeze repeats after the other scenarios without changing their fixture", () => {

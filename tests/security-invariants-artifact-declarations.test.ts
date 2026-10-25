@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, realpathSync, rmSync } from "node:fs";
+import { mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import test, { type TestContext } from "node:test";
 import { defineArtifactPreviewAction } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -11,7 +11,7 @@ import { createPluginRuntimeReleaseArtifact, PluginRuntime, SqlitePluginRuntimeR
 import { homeStoreRegistry } from "@molis-ai/molis-work-storage";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, artifactLinkKinds, artifactTypeDeclarations, bindProjectArtifacts, createPluginPlatform, declaredArtifactTypes,
-  heldInstalls, homeStores, installedArtifacts, openProjectVersionStores, openRestoreVersionStores, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+  heldInstalls, homeStores, installedArtifacts, openProjectVersionStores, restoreArtifactVersions, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import { openTestHome } from "./fixtures/test-home.js";
 
@@ -57,6 +57,21 @@ const write = (versions: ReturnType<typeof openProjectVersionStores>, projectId:
   project_id: projectId, actor_id: "web-user", artifact_id: artifactId, version: 1, artifact_type_id: type, schema_version: 1,
   producer: { plugin_id: producerId, plugin_version: "1.0.0", binding_signature: "sig" }, content: { kind: "inline", payload: { title: "笔记" } },
   origin: { kind: "pinned", subject: { kind: "item", id: artifactId }, revision: "1" }, title: "笔记", media_type: "application/json" });
+/** A version as a bundle records it. */
+const restored = (projectId: string, producerId: string, type: string, artifactId: string) => ({
+  artifact_id: artifactId, version: 1, artifact_type_id: type, schema_version: 1,
+  producer: { plugin_id: producerId, plugin_version: "1.0.0", binding_signature: "sig" }, content: { kind: "inline" as const, payload: { title: "笔记", for: projectId } },
+  origin: { kind: "pinned" as const, subject: { kind: "item", id: artifactId }, revision: "1" }, title: "笔记", media_type: "application/json" });
+/** Every product source file under `directory` (tests, builds and dependencies left out). */
+function productSources(directory: string, found: string[] = []): string[] {
+  for (const name of readdirSync(directory)) {
+    if (name === "node_modules" || name === "dist" || name === "tests" || name === ".git") continue;
+    const path = join(directory, name);
+    if (statSync(path).isDirectory()) productSources(path, found);
+    else if (/\.(ts|tsx|mts)$/u.test(name)) found.push(path);
+  }
+  return found;
+}
 const bareHome = (t: TestContext) => {
   const home = realpathSync(mkdtempSync(join(tmpdir(), "molis-artifact-declarations-")));
   t.after(() => rmSync(home, { recursive: true, force: true }));
@@ -155,12 +170,27 @@ test("RAC-416 S-75 a producer the project cannot be asked about is refused, neve
 });
 
 test("RAC-416 S-75 a project rebuilt from a bundle takes a producer it has not installed, and still holds an installed one to its Manifest", { timeout: 180_000 }, async t => {
-  const p = project(t, bareHome(t)), restoring = openRestoreVersionStores(p.store);
-  assert.throws(() => write(p.versions, p.projectId, OTHER, "example.note", "ordinary"), { ...undeclared, message: /不是这个项目里装着的插件|没有找到这个项目的插件监督器/ }, "an ordinary write for an uninstalled producer is refused");
-  assert.equal(write(restoring, p.projectId, OTHER, "example.note", "restored").replayed, false, "the restore takes the history of a producer not installed here");
+  const p = project(t, bareHome(t));
+  const asset = (producerId: string, type: string, artifactId: string) => ({ ...restored(p.projectId, producerId, type, artifactId), owner_actor_id: "web-user", availability: "available" as const, lifecycle_state: "active" as const });
+  assert.throws(() => write(p.versions, p.projectId, OTHER, "example.note", "ordinary"), undeclared, "an ordinary write for an uninstalled producer is refused");
+  assert.equal(restoreArtifactVersions(p.store, p.projectId, [asset(OTHER, "example.note", "restored")])[0]!.replayed, false, "the restore takes the history of a producer not installed here");
+  assert.equal(restoreArtifactVersions(p.store, p.projectId, [asset(OTHER, "example.note", "restored")])[0]!.replayed, true, "restoring again changes nothing");
+  assert.throws(() => write(p.versions, p.projectId, OTHER, "example.note", "after"), undeclared, "the restored producer still writes nothing until it is installed here");
+  assert.equal(p.versions.artifacts.query.getArtifactVersion(p.projectId, { artifact_id: "restored", version: 1 })?.producer_plugin_id, OTHER, "the version keeps the producer the bundle recorded");
+  assert.throws(() => restoreArtifactVersions(p.store, p.projectId, [asset(OTHER, "example.note", "second")]), { code: "actions.input_invalid" }, "outside a restore: a project that holds a version the bundle does not bring refuses");
+  assert.equal(p.versions.artifacts.query.getArtifactVersion(p.projectId, { artifact_id: "second", version: 1 }), null);
   await p.supervisor.start([entry(plugin(PRODUCER, "1.0.0", ["example.note"]))]);
-  assert.equal(write(restoring, p.projectId, PRODUCER, "example.note", "own").replayed, false);
-  assert.throws(() => write(restoring, p.projectId, PRODUCER, "example.other", "undeclared"), undeclared, "an installed producer is held to its Manifest in a restore too");
+  const own = asset(PRODUCER, "example.other", "undeclared");
+  assert.throws(() => restoreArtifactVersions(p.store, p.projectId, [asset(OTHER, "example.note", "restored"), own]), undeclared, "an installed producer is held to its Manifest in a restore too");
+});
+
+test("RAC-416 S-75 only the restore from a work-assets bundle calls the restore entry", () => {
+  // The entry that takes a version from an uninstalled producer: defined with the stores, exported by the Host, called by the restore.
+  const allowed = new Set(["apps/local-host/src/project-version-stores.ts", "apps/local-host/src/index.ts", "apps/server/src/assets.ts", "modules/artifacts/src/index.ts"]);
+  const root = join(import.meta.dirname, "..");
+  const users = ["apps", "packages", "modules", "plugins", "server", "horizontal"].flatMap(top => productSources(join(root, top)))
+    .map(file => relative(root, file)).filter(path => !allowed.has(path) && /restoreArtifactVersions|restoreVersionStores/u.test(readFileSync(join(root, path), "utf8")));
+  assert.deepEqual(users, []);
 });
 
 test("RAC-417 S-76 a name has one owner in the whole Home: a disabled owner still holds it, and so does one in another project", { timeout: 180_000 }, async t => {

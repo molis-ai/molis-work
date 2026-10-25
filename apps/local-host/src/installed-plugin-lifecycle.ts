@@ -4,7 +4,7 @@
  * the person gave, the secrets they typed in the consent dialog, the data an uninstall kept, the prompts and the actions
  * the plugin shows. An action that does not finish leaves none of that behind.
  */
-import type { PluginDefinition, PluginInstanceRecord, PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { pluginErrors, type PluginDefinition, type PluginInstanceRecord, type PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { AgentBuilderPorts } from './installed-plugin-host.js';
 import type { InstalledRelease } from './installed-release.js';
@@ -125,7 +125,7 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
     if (!record) throw new Error('这个插件还没有安装');
     if (action === 'upgrade' || action === 'rollback') {
       const verb = action === 'upgrade' ? '升级' : '回滚';
-      if (record.publisher_trust === 'pinned') throw new Error('从签名的包装进来的插件还不能' + verb + '：先卸载，再装新的包');
+      if (record.publisher_trust === 'pinned') throw pluginErrors.state_invalid('从签名的包装进来的插件还不能' + verb + '：先卸载，再装新的包');
       if (record.state === 'quarantined') throw new Error('插件多次启动失败，已被隔离，不能' + verb + '：请先卸载并保留数据，再重新安装');
       const approved = c.approvedFor(pluginId) ?? {};
       if (!covered(release.permissions, approved) && !consent) throw new Error('这个版本需要新的权限，请确认后再切换');

@@ -8,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { atomicWriteFileSync } from "./atomic-write.js";
-import { resolveFeedSecurityDirectory } from "./local-security-paths.js";
+import { resolveHomeSecurityDirectory } from "./local-security-paths.js";
 import { createFileSecretStore, type SecretStore } from "./file-secret-store.js";
 
 // Persisted names are deliberately unchanged so existing references and ciphertext remain readable.
@@ -54,7 +54,7 @@ export function createEvidenceContentStore(options: {
   rootDirectory?: string;
 } = {}): EvidenceContentStore {
   const secretStore = options.secretStore ?? createFileSecretStore();
-  const root = options.rootDirectory ?? path.join(resolveFeedSecurityDirectory(), "evidence");
+  const root = options.rootDirectory ?? path.join(resolveHomeSecurityDirectory(), "evidence");
   const recoveryRoot = `${root}-recovered-v2`;
 
   const readKey = (keyRef: string): Buffer | null => {

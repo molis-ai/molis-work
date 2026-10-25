@@ -1,6 +1,6 @@
 # ac-trust：一条安装路、常开与默认连线只认声明、同意可撤回（设计稿）
 
-状态：已定（2026-10-24）；七项待定都已定，#1098 已合入，实现按 §7 分片，T1 在分支 `claude/ac-trust-t1`。
+状态：已定（2026-10-24）；七项待定都已定，#1098 已合入，实现按 §7 分片，T1 在分支 `claude/ac-trust-t1`，T3 在分支 `claude/ac-trust-t3`（叠在 T1 上）。
 
 验收编号：RAC-380～399，另加一段 RAC-400～409（实现片也用它）。待办号：BL-555～564。安全不变量先写 S-67、S-68，合入时由统筹核连续。管 `privileges.md` 的 PG-001、PG-004、PG-005，并给 PG-049 提供它要用的同意账本；与 PG-002、PG-013、PG-015、PG-016 的衔接写在 §3.8。本片不改 `privileges.md` 状态列。
 
@@ -92,15 +92,15 @@ Manifest 里有三类声明会改变「这个插件在别处的效果」，装�
 
 ### 3.4 常开从安装记录生成（PG-004）
 
-- 常开名单 = 状态为已安装且在运行的安装记录里，Manifest 声明了 `always_on` 并且有一行有效同意（未撤回）的插件。不再读内置目录，也不再有写死的 `"goals"`。
+- 常开名单按 Manifest 的 `always_on` 声明、同一发布者的有效同意（未撤回）与安装状态生成，不再有写死的 `"goals"`。T3 对宿主构建目录的只读投影在首次记账前使用构建担保，精确边界见 §7 的 T3 口径；不把第三方安装视为宿主构建。
 - Goals 的 Manifest 加 `always_on: true`，`ProjectService.register` 里的 `new Set(["goals", ...])` 去掉；Shelf 已经声明。
-- 项目成员关系对常开插件是**派生**的：`listPlugins` 返回「存的成员 ∪ 常开名单」，不再靠建项目时写行，所以以后装上的外部常开插件对已有项目也立刻生效，撤回后也立刻不强制。Goals 与 Shelf 的区别（Goals 是项目级插件、Shelf 是个人插件）不再靠常开名单区分，仍由各自的 Manifest 和放置声明决定。
+- 项目成员关系对常开插件是**派生**的：`listPlugins` 返回「存的成员 ∪ 常开名单里的非个人插件」，不再靠建项目时写行，所以以后装上的常开插件对已有项目也立刻生效，撤回后也立刻不强制。个人插件（Shelf）本来就不存成员（没隐藏就开着），常开只让它「不能隐藏」：`listHidden` 不列常开插件的隐藏标记，旧标记不再起作用。Goals 与 Shelf 的区别（Goals 是项目级插件、Shelf 是个人插件）不再靠常开名单区分，仍由各自的 Manifest 和放置声明决定。
 - `ProjectPluginCatalog.isAlwaysOn?` 与「常开必须是 `personal`」的过滤（`plugin-catalog.ts:105`）都删掉，改成 `alwaysOn(): readonly ProjectPluginId[]`，每次求值，由宿主适配器从安装记录与同意账本算出。
-- 服务端拒绝卸载、停用、从项目里移除常开插件（`catalogErrors.plugin_always_on`，复现见 `privileges.md` V-01）；这一条拒绝现在只在 `removePlugin` 里，实现片补上卸载与停用两个入口。
+- 服务端拒绝卸载、停用、从项目里移除常开插件（`catalogErrors.plugin_always_on`、`pluginErrors.always_on`，复现见 `privileges.md` V-01）。三个入口各在自己的位置、都在改任何东西之前拒绝：从项目移除在 `ProjectService.removePlugin`（含依赖它的插件会被一起移除的情形）；Home 路由的停用在 `HomePluginHost.leaveRefusal`；卸载在 `PluginRuntime.uninstall`（作为后盾）。`PluginRuntime.stop` 不查：宿主关机、项目关闭都会停插件，那不是人的停用；人的停用只有 Home 路由这一个入口（项目级插件的停用就是从项目移除）。生成插件的平台没有 Home 账本、今天没有同意，所以不会常开，它的停用与卸载入口不查；T2 给它接上账本时，必须在 `installed-plugin-lifecycle` 的停用与卸载入口、撤授权和删密钥之前拒绝常开插件，不能只依赖末尾 `runtime.uninstall` 的后盾。接线仍由原 ac-trust 的 T2 实现，本片不提前改安装生命周期。
 
 #### 3.4.1 Goals 不在项目里时要核的地方（T1/T3 的验收）
 
-常开同意都可撤，所以 Goals 也可能被撤掉常开后从某个项目里移除。按插件同等待遇，别的部分本来就不该假定 Goals 在；实现片逐处核，每处写一条「Goals 不在时」的用例（RAC-400），不留隐患：
+常开同意都可撤，所以 Goals 也可能被撤掉常开后从某个项目里移除。成员查询不再代写同意：缺库或对应发布者从未有常开行时，只读使用宿主构建目录的担保；实际落账由 Host 启动的监督器完成，已有撤回行不复活。按插件同等待遇，别的部分本来就不该假定 Goals 在；实现片逐处核，每处写一条「Goals 不在时」的用例（RAC-400），不留隐患：
 
 | 地方 | 现状 | 要的结果 |
 | --- | --- | --- |
@@ -116,6 +116,18 @@ Manifest 里有三类声明会改变「这个插件在别处的效果」，装�
 | Feed、成果库等挂 Goal 的地方 | Feed 条目、成果库、过程项、动量与回执里「挂到某个 Goal」的字段和入口 | 没有 Goals 时这些入口不显示；已有挂着 Goal 的记录原样保留、只读，不报错、不丢 |
 
 这些是现状的调用点，不是完整清单；T1 开工时用 `git grep` 补全，补出来的也归这一条验收。
+
+**T3 的核对结果（2026-10-24）**：RAC-400 目前只有服务端的成员派生、建项目与移除用例，整条验收仍是部分覆盖。页面、客户端、MCP、Skill 等余项归 BL-585（T3b），由原 ac-trust 与 T7 界面统筹接续；BL-585 必须不晚于 T5 的撤回入口（若入口随 T7，则与 T7 同时）落地。T3 没有生产撤回入口，撤回动作归原 ac-trust 的 T5；不能把测试直接写入的撤回当成 T5 已实现。
+
+| 地方 | T3 的结果 |
+| --- | --- |
+| 建项目 | 做完。`register` 只写 `initial()`；`tests/security-invariants-always-on-records.test.ts` 在 Goals 被撤回后建项目成功、不存 Goals 行 |
+| 工作台外壳 | 部分。「Goals 不能移除」的锁改读 Manifest 的 `always_on`（`declaresAlwaysOn`），不再认名字 `"goals"`。`RAIL_CORE_ORDER`、`DOCK_DEFAULT_PINS` 是内置插件的默认顺序和默认固定，不假定 Goals 在，不改；插件选择器（`pluginMarketCards`）和锁仍读 Manifest 的声明而不是账本，撤回之后的显示归 BL-585 |
+| 宿主动作 | 核过，不用改。`readProjectGuidance` 在没有 Goals 时拒绝，两个调用方（`agent-host-composition.ts`、`assistant-authority.ts`）都吞掉拒绝、不加这一层 |
+| 调 Goal 动作的插件 | 核过，没有。`git grep` 在 `plugins/native` 里除 Goals 外找不到 Goals 的动作或能力 id |
+| 首页与搜索、标签页与分屏、项目页渲染、新建项目与引导 | 未做，归 BL-585。项目页渲染器无条件画 Goals 舞台（`goalStage`、`goalDocument`），客户端的 `tab-workspace.ts`、`frame-container.ts`、`editing-graph.ts`、`global-search.ts`、`placement.ts`、`project-home.ts` 里有 `"goals"` 的特判 |
+| MCP 与命令行的 goal 工具、`goal-advance` Skill | 未做，归 BL-585：`apps/mcp/src/goal-tools.ts` 的 v1 工具是固定列表，要用真实 MCP 会话核「没有 Goals 时的答复」 |
+| Feed、成果库等挂 Goal 的地方 | 未做，归 BL-585：已有记录的只读与不丢要逐处核 |
 
 ### 3.5 默认连线要同意（PG-005）
 
@@ -225,6 +237,13 @@ SDK（`packages/plugin-sdk`）的公开 API 不变：Manifest 字段没有增减
 | T8 | 文档与手册：POLICY 7.8、THIRD-PARTY-PLUGINS、`skills/molis-plugin-dev`、PG-016 的版本跟随写明 | T1 | |
 
 
+**T3 落地时的口径（2026-10-25）：**
+
+- 名单先检查当前 Manifest 的 `always_on` 声明，再核同一发布者的有效同意和安装状态。只有声明过这个字段的 Manifest 才能在安装时记下这种同意；首次记账之前只读构建担保的边界见下一条。
+- 项目级的内置插件（Goals）的安装记录在各项目库里，Home 级的目录看不到；宿主的构建担保它被装，记录只在 Home 级的内置插件（Shelf）上能看到，看得到就看它的状态。查询只读：Home Runtime 库不存在，或该插件、发布者从未有 `always_on` 行时，仅由宿主构建目录中的真实条目担保，不落账；已有撤回行不是缺失，已有库版本或结构不合法则明确拒绝。Host 启动的监督器仍实际记录 `host_build` 同意，且不复活撤回行。每次查询新读同一份现行账本和安装记录，不缓存，所以只开目录与已启动 Host 的答案一致；第三方安装不获得构建担保。
+- 非目录的常开插件（外部装的）今天没有项目成员关系可派生：成员关系只定义在内置目录的插件上。它们的卸载与停用拒绝照样成立；让它们进项目的成员列表随 T2 的外部插件进项目一起做。
+- 个人插件不入 `listPlugins`（见 §3.4），这是对本稿原文「存的成员 ∪ 常开名单」的收窄，理由是不改变设置页和各处列表里个人插件现在的样子。
+
 **T1 落地时的两处口径（2026-10-24）：**
 
 - C1「非 `host` 等级只在沙箱」在 T1 只强制一个方向：`host` 配沙箱定义被拒（`plugin.grant_denied`）。另一个方向（非 `host` 等级不得在宿主进程里跑）留给 T2：开发目录和宿主的测试夹具今天仍在宿主进程里跑，T1 给它们 `unsigned`，不改它们的执行方式。Feed 的官方集成随宿主构建一起发布、由宿主构建目录登记，T1 给 `host`；以后若独立发布，再按它自己的签名定等级。RAC-383 里「映射不了沙箱形态的 Manifest 安装时拒绝」的那一半随 T2。
@@ -243,6 +262,23 @@ SDK（`packages/plugin-sdk`）的公开 API 不变：Manifest 字段没有增减
 
 六项修复已在独立树整体构建后通过精确定向 5 文件 / 20 用例、Plugin Runtime README 必跑 20 文件及 Home 相关 6 文件与包清单 1 文件 / 596 用例，合计 32 文件 / 616 用例首次通过；包边界、版本核对、修正文档列后的健康门禁和 secret 扫描通过，原始初败与通过日志保留。本次等级裁定只改注释与文档，复用上述有效运行证据；最终交付核固定差异、健康门禁与 secret 扫描，并交独立增量审验。共享核心的 full 与维护组合仍由唯一 Claude 批次处理，未操作真实 Home。
 
+### 7.2 #1259 首评修复（2026-10-24，修复已实现）
+
+范围是 [FIRST 6393364629](https://github.com/molis-ai/molis-work/pull/1259#issuecomment-6393364629) 的四项，源 `10791b4f7`，T3 的 base 仍为 T1 `cf63b8e9e`，不改成 main。目标是服务端功能可用：查询无文件或账本写入、现行拒绝与撤回语义保持；独立审验和实际进批合入分别核证。
+
+1. **RAC-401 / FIRST-1（Codex 修复13）**：常开名单使用只读连接；仅缺库或本发布者无常开行时，宿主构建目录提供原有担保，不创建目录、库、表或同意行。现存库必须符合当前版本和完整结构，损坏、空库、旧版本和形状不符不当成缺库。安装记录经 Plugin Runtime 的只读口读取，不调用建表的 Repository 构造器；每次求值重新打开并关闭，不保存账本缓存。三个拒绝入口和无守卫的 `stop` 保持。
+2. **FIRST-2（说明由修复13；实现 owner 原 ac-trust T5 与 T7/BL-585）**：RAC-400 只覆盖服务端；撤回动作在 T5，BL-585 与撤回入口同时或更早落地。此处未实现撤回动作和新界面。
+3. **FIRST-3（说明由修复13；实现 owner 原 ac-trust T2）**：T2 接账本时，生成插件的停用、卸载必须在撤授权和删密钥之前检查。此处未实现 T2。
+4. **FIRST-4（Codex 修复13）**：两条 RAC-386 的暂定 `S-X1` 改为 `S-34`，同步安全表中的真实测试名，不改原断言或其他 S 号。
+
+RAC-401 的针对性测试检查查询前后的实际文件、库内容和账本：缺库答案；合法空账本不补账；撤回后反复读取不复活、人重新同意即时生效；安装状态变化即时生效；第三方未同意不被构建担保；现有非法库明确拒绝且不写。Host 启动仍落账、重启与撤回不复活复用 `tests/plugin-runtime-maintenance-v3.test.ts` 的真实 Host 路径。验证用整体 `pnpm build`（公共机器槽）、`node scripts/run-tests.mjs tests/security-invariants-always-on-records.test.ts tests/security-invariants-always-on.test.ts tests/plugin-runtime-maintenance-v3.test.ts tests/home-store-baselines.test.ts tests/project-plugins.test.ts`，以及改动包 README 必跑、`node scripts/check-health-gates.mjs --base origin/main`、`pnpm boundary:check` 和 fresh-fetch 后 `pnpm secrets:check`；只有实际合同变化才刷新快照。full 仍由唯一 Claude 组批，当前未操作真实 Home。
+
+整体构建、直接 5 文件 / 44 项、最终健康门禁（真实 merge-base `584112c6`）、严格测试类型检查通过；包边界在整体构建已生成 test-kit 后运行 `check-package-boundaries.mjs`，70 包无错。本次只新增 Plugin Runtime 的公开只读函数 `readPluginRuntimeRecords`，消费者是宿主名单适配器；contracts、SDK、动作形状和快照相对源头均无变化。
+
+两个包 README 与 T3 相邻消费者另计 81 个文件：79 个通过，`home-plugin-private-store` 的两个坏库页面恢复用例和 `action-before-effect` 的一个 Catalog 用例失败；三条均在干净原头 `10791b4f7` 复现，仍交原 ac-trust 与 PIPE 接续，不在本片改断言或把非法库默认放行。前者仍返回 500，后者仍试图移除已常开的 Goals、收尾关闭 Host 后遮住原预期拒绝。`goals-mcp-actions` 初批超时、单独重跑 1/1 通过，首败保留；会话中断遗漏的装配门禁已单独补跑 8/8。不能据此宣称整个 T3 或包回归全绿，独立审验与实际合入尚须各自核证。
+
+文件检查保留 Runtime 所有文件、数据库、WAL 的逐字节比较及目录、大小、修改时间和权限检查。目录库现有 `catalog.db-shm` 是 SQLite 的读者协调区，实测只有读标记变化，所以对这一文件检查存在、大小与元数据，数据库和 WAL 仍逐字节比较；不把读标记当成业务写入。
+
 ## 8. 验收
 
 | 编号 | 内容 | 证据（测试文件待实现片定，名字里写编号） |
@@ -253,7 +289,8 @@ SDK（`packages/plugin-sdk`）的公开 API 不变：Manifest 字段没有增减
 | RAC-383 | 非 `host` 等级只在沙箱：`execution` 与等级不一致被拒；映射不了沙箱形态的 Manifest 安装时拒绝 | Runtime 单元测试 |
 | RAC-384 | `unsigned` 声明 `always_on` 且没有同意：装得上、不生效（不在常开名单，可移除，依据统筹 10-24 定的待定 1）；有同意则生效（S-34 新语义） | 重写后的 `tests/security-invariants-always-on.test.ts` |
 | RAC-385 | 同意不分等级都可撤（用户 2026-10-24）：`host` 等级的 `always_on` 默认同意、不弹窗；撤回后它不再出现在常开名单里，能被隐藏、移除；`pinned` 同意后可撤 | 同上 |
-| RAC-400 | Goals 不在项目里（常开被撤回后移除）时，首页、建项目与引导、Dock、搜索、项目页渲染、标签页、MCP/命令行的 goal 工具、Feed/成果库挂 Goal 的入口、Inbox/Sessions 等照常工作，不报错、不出空白；清单见 §3.4.1，T1/T3 逐处补用例 | 新增非浏览器用例加两个浏览器冒烟（少量） |
+| RAC-400 | Goals 不在项目里（常开被撤回后移除）时，首页、建项目与引导、Dock、搜索、项目页渲染、标签页、MCP/命令行的 goal 工具、Feed/成果库挂 Goal 的入口、Inbox/Sessions 等照常工作，不报错、不出空白；清单见 §3.4.1 | **部分**：T3 的 `tests/security-invariants-always-on-records.test.ts` 只覆盖服务端成员派生、建项目与移除；余项与浏览器、真实 MCP 归原 ac-trust 与 T7/BL-585，不晚于撤回入口落地 |
+| RAC-401 | 常开查询只读、缺库或缺行的构建担保不落账；撤回、重新同意与安装状态即时生效；现有非法库拒绝且不修复；第三方未同意不获担保，Host 启动仍记账 | `tests/security-invariants-always-on-records.test.ts` 的 RAC-401；重启不重复和已撤回不复活另见 `tests/plugin-runtime-maintenance-v3.test.ts` |
 | RAC-386 | 常开从记录生成：外部常开插件对已有项目立刻生效；撤回后立刻不强制；服务端拒绝卸载、停用、移除（V-01）；Goals 与 Shelf 常开仍然成立，建项目不再写死 `"goals"` | `tests/project-plugins.test.ts` 扩展 |
 | RAC-387 | 没签名的包经 `plugin install` 被拒（`plugin.signature_invalid`），不会得到 `unsigned` 等级；`unsigned` 只有开发目录和创作台产物两个来源 | `tests/plugin-package.test.ts` 扩展 |
 | RAC-388 | 默认连线：`unsigned`/`pinned` 声明的 `default_source` 没有同意不绑，有同意才绑；`host` 等级的行为与今天一致 | `tests/plugin-default-bindings.test.ts` 扩展 |

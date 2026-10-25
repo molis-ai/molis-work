@@ -8,7 +8,7 @@ import { createServer } from "node:http";
 // Host and Coding surface come from the same modules, so one project platform serves both.
 import { seedDemoBoard, DEMO_PROJECT_ID, handleProjectPluginHttp, releaseProjectPlugins, hostDependencyCheck } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { CODING_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
+import { CODING_WORKBENCH_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
 import { agentHostCapabilities as agent, AGENT_RUNTIME_CAPABILITIES, type AgentRunView, type AgentRuntimeCapabilityMatrix, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -126,7 +126,7 @@ test("Coding freezes the selected real Goal, rejects changed/foreign/unavailable
   };
   const note = (goal_id: string, idempotency_key: string) => host.withProject(ref, ({ coordinator }) => coordinator.goalEvents.recordNote({ project_id: DEMO_PROJECT_ID, goal_id, actor_id: "web-user", actor_kind: "user", idempotency_key, body: "目标进展已更新" }));
   try {
-    new Function(`return (${CODING_CLIENT_FACTORY_SCRIPT})`);
+    new Function(`return (${CODING_WORKBENCH_CLIENT_FACTORY_SCRIPT})`);
     const created = await request("/sessions", "POST", { title: "目标关联" }); assert.equal(created.status, 200, JSON.stringify(created.body));
     const id = created.body.session.session_id, sessionPath = `/sessions/${id}`;
     const start = () => request(`${sessionPath}/runs`, "POST", { task: "只读已关联目标", intent: "discuss", workspace_id: "work", provider_id: "p", model_id: "m", goal_id: "foreign", text_materials: [{ text: "伪造目标与已验收" }] });

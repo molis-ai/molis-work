@@ -71,6 +71,8 @@ export interface PluginPlatformOptions {
   processItems: ProcessItemsApplicationApi;
   ui: UiHostApi;
   privateStorageFor(context: PluginUpgradeContext, manifest: PluginManifest): PluginPrivateStorage;
+  /** The owner of private KV supplies whole-installation cleanup for synchronous non-retaining reinstalls. */
+  deleteInstallationData?(installId: string): void;
   capturePrivateData?(installId: string): Promise<unknown> | unknown;
   restorePrivateData?(installId: string, snapshot: unknown): Promise<void> | void;
   /** Whether an action a plugin consumes is registered and ready in this project (`services.actions.availability`). */
@@ -152,6 +154,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     home: options.home,
     ui: options.ui,
     privateStorageFor: options.privateStorageFor,
+    deleteInstallationData: options.deleteInstallationData,
     capturePrivateData: options.capturePrivateData,
     restorePrivateData: options.restorePrivateData,
   });

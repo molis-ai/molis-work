@@ -35,7 +35,7 @@ Owner 在写入前拒绝超过 80 个 Unicode 字符的列名，仍限制最多 
   - 冲突保留本地输入，并阻止发布或切表。
   - 发布中断后可恢复原内容与版本并保留之后的编辑；未恢复的发布不能删除，表与快照在同一事务删除。
   - 发布的每个副作用（intent、成果、完成记录）先等这次调用的授权，库与成果服务在写入的同一回合里再问原调用方（S-18），插件不手写这一步：被取消或撤权的调用只留已经提交的阶段，不再多写成果（`tests/dataset-promote-authority.test.ts tests/dataset-client-bundle.test.ts tests/creative-tools-plugins.test.ts`）。
-  - 项目被删除时宿主按目录条目上的 `project_data`（`datasetProjectData`，`src/project-data.ts`：确认框里的标签与 `purgeDatasetProject`）调用清掉数据表与保存的版本，连同创建回执；只读库文件，库不存在时不创建，重复运行没有副作用。
+  - 项目被删除时平台按 Manifest 里 Home 库的 `project_rows`（`src/database.ts`：确认框里的标签与要删的表）删掉数据表与保存的版本，连同创建回执；插件的代码不参与，平台在自己的连接上删，库不存在时不创建，重复运行没有副作用（PG-024）。
 - 改动后必跑：`node scripts/run-tests.mjs tests/dataset-actions.test.ts tests/dataset-mcp.test.ts tests/creative-artifact-promote.test.ts tests/document-pin-after-move.test.ts tests/artifact-compare-moved.test.ts tests/project-deletion-owners.test.ts tests/document-plugins-error-model.test.ts tests/dataset-promote-authority.test.ts`
 - Owner 列名与跨 Form 转表改动加跑：`node scripts/run-tests.mjs tests/content-owner-regressions.test.ts tests/work-placement-plugins.e2e.test.ts`（后一份需要本机 Chrome）。
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/dataset-actions.e2e.test.ts tests/dataset-file-import.e2e.test.ts tests/model-ready-surfaces.e2e.test.ts`（页面在没有模型时显示「没有模型」，模型设置页宣布第一个模型（`molis-work:model-ready`）后它要重读；这个文件每个页面一条用例）。

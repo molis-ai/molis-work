@@ -33,16 +33,13 @@ test("the Feed reader shows 「升格为 Goal」 only while the project has Goal
       assert.equal(response.status, 200);
       return response.text();
     };
-    const member = (change: "add" | "remove") => withMolisWorkProjectCatalog({ homeDirectory: home }, c => c.commit(() => change === "add"
-      ? c.addProjectPlugin({ project_id: projectId, plugin_id: "goals", actor_id: "test" })
-      : c.removeProjectPlugin({ project_id: projectId, plugin_id: "goals", actor_id: "test" })));
     const withGoals = await detail();
     assert.match(withGoals, /data-feed-action="promote"/);
-    await member("remove");
-    const withoutGoals = await detail();
-    assert.doesNotMatch(withoutGoals, /data-feed-action="promote"/);
-    for (const action of ["inbox", "save", "archive"]) assert.match(withoutGoals, new RegExp(`data-feed-action="${action}"`));
-    await member("add");
+    for (const action of ["inbox", "save", "archive"]) assert.match(withGoals, new RegExp(`data-feed-action="${action}"`));
+    // Goals is 常开 (ac-trust T3): no project removes it, so the reader keeps offering the promotion. The project without Goals comes back
+    // when a person can withdraw the standing agreement (T5); this test then checks that the promotion leaves with it (BL-585).
+    await assert.rejects(withMolisWorkProjectCatalog({ homeDirectory: home }, c => c.commit(() =>
+      c.removeProjectPlugin({ project_id: projectId, plugin_id: "goals", actor_id: "test" }))), { code: "catalog.plugin_always_on" });
     assert.match(await detail(), /data-feed-action="promote"/);
   } finally {
     if (server.listening) await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));

@@ -5,10 +5,14 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { DEMO_PROJECT_ID, EN, GoalProjectApplication, LocalProjectDatabase, runWithLocale, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { BUILTIN_PLUGIN_CATALOG, CLIENT_SCRIPT, PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-workbench";
+import { DEMO_PROJECT_ID, EN, GoalProjectApplication, LocalProjectDatabase, runWithLocale, seedDemoBoard, PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
+import { BUILTIN_PLUGIN_CATALOG, CLIENT_SCRIPT } from "@molis-ai/molis-work-app-workbench";
 import { buildMolisWorkWebView } from "./fixtures/web-view.js";
 import { renderMolisWorkWeb, type MolisWorkWebView } from "./workbench-renderer-fixture.js";
+import { withHostPluginFacts } from "./fixtures/host-plugin-facts.js";
+
+/** The page as the Host draws it: the plugins it shows and the marked directory are the Host's (W5-02 B1). */
+const draw = (view: MolisWorkWebView, goalId?: string) => renderMolisWorkWeb(withHostPluginFacts(view), goalId);
 
 const EVERYTHING = [...PROJECT_SCOPED_PLUGIN_IDS, ...PERSONAL_PLUGIN_IDS];
 
@@ -37,19 +41,19 @@ const homeStarts = (html: string) => JSON.parse(unescape(/data-work-surface="hom
 
 test("RAC-600 the Goal's 「为这个 Goal 新建」 buttons are the shown plugins' declared `creates`, in the declared order", () => {
   withView((view, goalId) => {
-    assert.deepEqual(creates(renderMolisWorkWeb(showing(view, EVERYTHING), goalId)).map(({ station, title, label }) => [station, title, label]), [
+    assert.deepEqual(creates(draw(showing(view, EVERYTHING), goalId)).map(({ station, title, label }) => [station, title, label]), [
       ["pages", "文档", "文档"], ["form", "问卷", "问卷"], ["dataset", "数据表", "数据表"], ["ppt", "演示稿", "演示稿"],
     ]);
-    assert.deepEqual(creates(renderMolisWorkWeb(only(view, ["ppt"]), goalId)).map(kind => kind.station), ["ppt"], "only the plugins the project shows");
-    assert.deepEqual(creates(renderMolisWorkWeb(hiding(view, ["ppt"]), goalId)).map(kind => kind.station).includes("ppt"), false,
+    assert.deepEqual(creates(draw(only(view, ["ppt"]), goalId)).map(kind => kind.station), ["ppt"], "only the plugins the project shows");
+    assert.deepEqual(creates(draw(hiding(view, ["ppt"]), goalId)).map(kind => kind.station).includes("ppt"), false,
       "a plugin the person hid from the project makes nothing new");
-    assert.deepEqual(creates(renderMolisWorkWeb(only(view, []), goalId)), []);
+    assert.deepEqual(creates(draw(only(view, []), goalId)), []);
   });
 });
 
 test("RAC-600 RAC-603 the button reads in the request's language while the declared title stays the key the page names things by", () => {
   withView((view, goalId) => {
-    const english = runWithLocale("en", () => creates(renderMolisWorkWeb(only(view, ["ppt", "form"]), goalId)));
+    const english = runWithLocale("en", () => creates(draw(only(view, ["ppt", "form"]), goalId)));
     assert.deepEqual(english.map(({ title, label }) => [title, label]), [["问卷", "Form"], ["演示稿", "Presentation"]]);
   });
 });
@@ -62,14 +66,14 @@ test("RAC-601 a new object and its card are named from the declared title on the
 
 test("RAC-602 the project home's starts are the shown plugins' declared `start`, in the declared order, and the page script keeps none", () => {
   withView(view => {
-    assert.deepEqual(homeStarts(renderMolisWorkWeb(showing(view, EVERYTHING))), [
+    assert.deepEqual(homeStarts(draw(showing(view, EVERYTHING))), [
       { id: "goals", title: "推进一个目标", hint: "明确要做成什么，接着往下走。", glyph: "target" },
       { id: "pages", title: "写一份文档", hint: "把思路写下来，逐步整理成作品。", glyph: "file" },
       { id: "lingguang", title: "记下一点灵感", hint: "还没想清楚，也可以先留下。", glyph: "idea" },
     ]);
-    assert.deepEqual(homeStarts(renderMolisWorkWeb(only(view, ["lingguang"]))).map(start => start.id), ["goals", "lingguang"]);
-    assert.deepEqual(homeStarts(renderMolisWorkWeb(only(view, []))).map(start => start.id), ["goals"], "a project that shows only Goals starts with Goals");
-    assert.deepEqual(homeStarts(renderMolisWorkWeb(hiding(view, ["lingguang"]))).map(start => start.id), ["goals", "pages"]);
+    assert.deepEqual(homeStarts(draw(only(view, ["lingguang"]))).map(start => start.id), ["goals", "lingguang"]);
+    assert.deepEqual(homeStarts(draw(only(view, []))).map(start => start.id), ["goals"], "a project that shows only Goals starts with Goals");
+    assert.deepEqual(homeStarts(draw(hiding(view, ["lingguang"]))).map(start => start.id), ["goals", "pages"]);
   });
   assert.match(CLIENT_SCRIPT, /homeStarts/u, "the home client reads the list off the page");
   assert.doesNotMatch(CLIENT_SCRIPT, /plugin: 'goals', title: |plugin: 'pages', title: |plugin: 'lingguang', title: /u);
@@ -77,7 +81,7 @@ test("RAC-602 the project home's starts are the shown plugins' declared `start`,
 
 test("RAC-603 every declared create title, start title and hint has its English in the dictionary the page translates with", () => {
   withView((view, goalId) => {
-    const html = renderMolisWorkWeb(showing(view, EVERYTHING), goalId);
+    const html = draw(showing(view, EVERYTHING), goalId);
     const texts = [...creates(html).map(kind => kind.title), ...homeStarts(html).flatMap(start => [start.title, start.hint])];
     assert.equal(texts.length, 4 + 3 * 2);
     for (const text of texts) assert.ok(EN[text] && EN[text] !== text, `${text} has an English sentence`);
@@ -89,19 +93,19 @@ test("RAC-600 RAC-602 page defaults, an explicit empty selection, hidden persona
     const defaults = { ...view };
     delete defaults.enabled_plugins;
     delete defaults.hidden_plugins;
-    const defaultHtml = renderMolisWorkWeb(defaults, goalId);
+    const defaultHtml = draw(defaults, goalId);
     assert.deepEqual(creates(defaultHtml).map(kind => kind.station), ["pages", "form", "dataset", "ppt"]);
     assert.deepEqual(homeStarts(defaultHtml).map(start => start.id), ["goals", "pages", "lingguang"]);
 
-    const emptyHtml = renderMolisWorkWeb({ ...defaults, enabled_plugins: [] }, goalId);
+    const emptyHtml = draw({ ...defaults, enabled_plugins: [] }, goalId);
     assert.deepEqual(creates(emptyHtml).map(kind => kind.station), ["pages", "form", "dataset", "ppt"], "personal plugins still follow the existing visibility rule");
     assert.deepEqual(homeStarts(emptyHtml).map(start => start.id), ["pages", "lingguang"], "an explicit empty selection does not restore Goals");
 
-    const hiddenHtml = renderMolisWorkWeb({ ...defaults, hidden_plugins: ["pages", "form", "dataset", "ppt", "lingguang"] }, goalId);
+    const hiddenHtml = draw({ ...defaults, hidden_plugins: ["pages", "form", "dataset", "ppt", "lingguang"] }, goalId);
     assert.deepEqual(creates(hiddenHtml), []);
     assert.deepEqual(homeStarts(hiddenHtml).map(start => start.id), ["goals"], "defaults do not restore hidden personal plugins");
 
-    const explicitHtml = renderMolisWorkWeb(only(view, ["ppt"]), goalId);
+    const explicitHtml = draw(only(view, ["ppt"]), goalId);
     assert.deepEqual(creates(explicitHtml).map(kind => kind.station), ["ppt"]);
     assert.deepEqual(homeStarts(explicitHtml).map(start => start.id), ["goals"]);
   });
@@ -124,7 +128,7 @@ test("RAC-600 RAC-602 a default project's declared create reaches the real page,
     const defaults = { ...view };
     delete defaults.enabled_plugins;
     delete defaults.hidden_plugins;
-    const html = renderMolisWorkWeb(defaults, goalId);
+    const html = draw(defaults, goalId);
     assert.deepEqual(creates(html).map(kind => kind.station), ["default-goal", "pages", "form", "dataset", "ppt"]);
     assert.deepEqual(creates(html)[0], { station: "default-goal", title: "默认 &quot;&lt;/button&gt;&lt;script&gt;&amp;", label: "默认 &quot;&lt;/button&gt;&lt;script&gt;&amp;" });
     assert.doesNotMatch(html, /默认 "<\/button><script>&/u);
@@ -132,7 +136,7 @@ test("RAC-600 RAC-602 a default project's declared create reaches the real page,
     assert.deepEqual(homeStarts(html)[0], { id: "goals", title: '起点 "</script>&', hint: '说明 " onmouseover="alert(1)', glyph: "target" });
     assert.doesNotMatch(html, /起点 "<\/script>&/u);
 
-    const empty = renderMolisWorkWeb({ ...defaults, enabled_plugins: [] }, goalId);
+    const empty = draw({ ...defaults, enabled_plugins: [] }, goalId);
     assert.deepEqual(creates(empty).map(kind => kind.station), ["pages", "form", "dataset", "ppt"]);
     assert.deepEqual(homeStarts(empty).map(start => start.id), ["pages", "lingguang"]);
   });

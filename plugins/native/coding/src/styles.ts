@@ -1,6 +1,6 @@
 import { CODING_TIMELINE_STYLES } from "./timeline-styles.js";
-import { CODING_COMPOSER_MODEL_STYLES } from "./composer-model-client.js";
-import { CODING_PLAN_PROGRESS_STYLES } from "./plan-progress-client.js";
+import { CODING_COMPOSER_MODEL_STYLES } from "./composer-model-styles.js";
+import { CODING_PLAN_PROGRESS_STYLES } from "./plan-progress-styles.js";
 import { CODING_COMPOSER_BAR_STYLES } from "./composer-bar-styles.js";
 /** Layout only; controls, colors, and focus behavior use the shared system. */
 export const CODING_STYLES = `

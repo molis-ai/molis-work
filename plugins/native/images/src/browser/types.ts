@@ -1,4 +1,4 @@
-import type { GeneratedImage, ImageApiFormat, ImageConnection, ImageJob } from "@molis-ai/molis-work-contracts/modules/images";
+import type { GeneratedImage, ImageApiFormat, ImageConnection, ImageJob } from "../contract.js";
 import type { ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
 
 export type { GeneratedImage, ImageApiFormat, ImageConnection, ImageJob };

@@ -21,7 +21,6 @@ export type { FormLineHeadPort, FormPublishArtifactPort, FormReadArtifactPort, F
 export { FORM_PLUGIN_ID, FORM_PROJECT_PLUGIN_ID, formManifest } from "./manifest.js";
 export { openFormStore, ownFormStores, FormStore, FORM_HOME_STORE, FORM_DATABASE } from "./store.js";
 export type { FormSql, FormSqlValue, FormStores } from "./store.js";
-export { purgeFormProject, formProjectData } from "./project-data.js";
 export { formErrors } from "./error.js";
 
 export { formActions, FORM_ACTION_PERMISSIONS, createFormActionHandlers } from "./actions.js";

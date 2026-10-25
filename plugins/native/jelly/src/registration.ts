@@ -13,7 +13,6 @@ export const registration: PluginRegistration = {
   messages: JELLY_MESSAGES,
   manifest: jellyManifest,
   personal: true,
-  summary: "日历与笔记，按天安排。",
   workbench: {
     order: 3,
     contributions: [jellyUiContribution],

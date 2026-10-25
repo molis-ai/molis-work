@@ -11,7 +11,8 @@ import { join } from "node:path";
 import { createServer } from "node:http";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
-import { artifactsActions } from "@molis-ai/molis-work-plugin-artifacts";
+import { artifactsActions } from "@molis-ai/molis-work-module-artifacts";
+import { pagesActions } from "@molis-ai/molis-work-plugin-pages";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
 import { TODO_ORGANIZE_BASIC } from "@molis-ai/molis-work-plugin-todo";
 import { withContextJourneys } from "../apps/local-host/dist/context-onboarding-store.js";
@@ -497,6 +498,66 @@ test('ONB-LIM-04 a file over 6 MB with over 2 MB of text reaches adoption whole:
   const stored=await actions.invoke(artifactsActions.read,{reference:adopted.artifact_references![0]!});const payload=stored.selected!.payload as {original_file:{data_base64?:string;sha256?:string;size_bytes?:number}};
   assert.equal(payload.original_file.data_base64,undefined,'over 6 MB, the original is kept by reference');
   assert.equal(payload.original_file.size_bytes,Buffer.byteLength(big));assert.equal(payload.original_file.sha256,createHash('sha256').update(big).digest('hex'));
+});
+
+test('RAC-617 PG-088 a real Pages body_too_large refusal is halved by onboarding and all source text is saved in order',{timeout:240_000},async t=>{
+  const dir=await home(t),id=randomUUID();
+  await new MolisWorkLocalHost({homeDirectory:dir,completeText:null}).close();
+  withContextJourneys(dir,s=>s.create(id));
+  // Below the unchanged 400,000-character first part and 1,000,000-character action input bounds, but the many headings expand
+  // past Pages' real 1,500,000-character body bound. Distinct facts reveal any lost, repeated or reordered passage after halving.
+  const facts=Array.from({length:25_000},(_,i)=>'fact-'+String(i).padStart(5,'0'));
+  const markdown=facts.map(fact=>'# '+fact).join('\n\n')+'\n';
+  selectContextSources(dir,id,{sources:[{kind:'files',selected:true,files:[await staged(dir,id,'dense.md',markdown)]}]});
+  const base=pagesPorts(dir),conversions:{markdown:string;result:'ok'|'too_large'}[]=[];
+  const ports={...base,model:async()=>({}),actions:async(h:string,p:string,o?:{path:string;install_id:string}):Promise<BoundActionClient>=>{
+    const client=await base.actions(h,p,o);
+    return {discover:()=>client.discover(),invoke:async(definition,input)=>{
+      if(definition.capability_id!==pagesActions.bodyFromMarkdown.capability_id)return client.invoke(definition,input);
+      const markdown=(input as {markdown:string}).markdown;
+      try{
+        const result=await client.invoke(definition,input);
+        conversions.push({markdown,result:'ok'});return result;
+      }catch(error){
+        assert.equal((error as {code?:string}).code,'pages.body_too_large');
+        conversions.push({markdown,result:'too_large'});throw error;
+      }
+    }};
+  }};
+  startContextJourney(dir,id,ports);const read=await waitContextJourney(dir,id);
+  const ref=read.sources[0]!.references![0]!;
+  const source=await contextReferenceText(dir,id,ref.text.sha256);
+  assert.equal(source,markdown.trim(),'the complete Markdown reached staging');
+  const whole=`原标题：${ref.title}\n\n来源：${ref.path} · 版本 ${ref.version}\n\n${source}`;
+  assert.ok(whole.length<400_000,'one original part reaches the real converter');
+  const adopted=await adoptContextJourney(dir,id,{title:'Real conversion recovery',materials_only:true},ports);
+  assert.equal(adopted.phase,'complete',adopted.error??'');
+  const half=Math.ceil(whole.length/2);
+  assert.deepEqual(conversions.slice(0,3),[
+    {markdown:whole,result:'too_large'},
+    {markdown:whole.slice(0,half),result:'ok'},
+    {markdown:whole.slice(half),result:'ok'},
+  ],'the real rejected input is retried as its two original halves');
+  assert.equal(conversions.filter(call=>call.result==='too_large').length,1);
+  const textOf=(value:unknown):string=>{
+    const node=value as {text?:string;content?:unknown[]};
+    return node.text??(node.content??[]).map(textOf).join('');
+  };
+  const pages=openPagesStore(dir);try{
+    const parts=pages.list(adopted.project_id).filter(d=>d.id!==adopted.document_id).sort((a,b)=>a.title.localeCompare(b.title,'en',{numeric:true}));
+    assert.equal(parts.length,2);
+    assert.ok(parts.every((d,i)=>d.title.endsWith(` · 第 ${i+1} / 2 部分`)),parts.map(d=>d.title).join(', '));
+    const restored=parts.map(part=>{
+      const body=pages.get(part.id,adopted.project_id).body;
+      assert.ok(JSON.stringify(body).length<=1_400_000,'the persisted part fits onboarding and Pages');
+      return textOf(body);
+    }).join('');
+    const metadata=`原标题：${ref.title}来源：${ref.path} · 版本 ${ref.version}`;
+    assert.ok(restored.startsWith(metadata));
+    assert.deepEqual(restored.slice(metadata.length).match(/fact-\d{5}/gu),facts,'all source facts survive in their original order');
+    const expected=metadata+facts.join('');
+    assert.equal(restored.replace(/[#\s]/gu,''),expected.replace(/\s/gu,''),'the entire visible text survives, including source metadata');
+  }finally{pages.close();}
 });
 
 // W5-06 remainder slice 4 (PG-088, RAC-617): Pages converts the text through its public action; a part it refuses as too large is halved.

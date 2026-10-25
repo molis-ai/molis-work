@@ -1,6 +1,6 @@
 import type {
   UiContribution,
-  UiContributionDescriptor,
+  UiContributionDeclaration,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
 import { icon, renderPluginStageShell } from "@molis-ai/molis-work-design-system";
@@ -18,9 +18,8 @@ export interface FormUiModel {
   readonly primitives: FormUiPrimitives;
 }
 
-export const formUiDescriptor: UiContributionDescriptor = {
+export const formUiDescriptor: UiContributionDeclaration = {
   contribution_id: FORM_UI_CONTRIBUTION_ID,
-  plugin_id: "io.molis.work.form",
   kind: "primary-page",
   navigation_id: "form",
   label: "Forms",

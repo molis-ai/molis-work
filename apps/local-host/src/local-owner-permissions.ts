@@ -1,4 +1,4 @@
-import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { CHARACTER_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/characters";
 import { CHARACTER_ACTION_PERMISSIONS } from "@molis-ai/molis-work-module-characters";
 import { HOME_ACTION_PERMISSIONS, HOME_PROVIDER_ID } from "./home-actions.js";
@@ -35,7 +35,7 @@ const asks = (definitions: Iterable<{ readonly action?: { readonly permissions: 
  */
 function ownerProviders(): ReadonlyMap<string, readonly string[]> {
   const entries: Array<readonly [string, readonly string[]]> = [
-    ...BUILTIN_PLUGIN_CATALOG.filter(entry => entry.manifest.kind === "native" && !entry.runtime)
+    ...PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => entry.manifest.kind === "native" && !entry.runtime)
       .map(entry => [entry.manifest.plugin_id, asks(entry.manifest.actions ?? [])] as const),
     [HOME_PROVIDER_ID, HOME_ACTION_PERMISSIONS],
     [CONNECTOR_PROVIDER_ID, [...CONNECTOR_ACCOUNT_PERMISSIONS, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE, ...connectorRecordActions.read.action.permissions]],

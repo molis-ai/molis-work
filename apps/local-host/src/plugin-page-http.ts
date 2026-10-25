@@ -1,6 +1,6 @@
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { pluginPageRequest, pluginPagesFor } from "./plugin-page-authority.js";
 import { registeredPageRoutes } from "./plugin-page-routes.js";
@@ -45,7 +45,7 @@ export async function handlePluginPageHttp(context: WebRequestContext, project?:
       if (!page) throw new ActionError("actions.forbidden", "动作入口需要当前插件页面");
       if (!body || Object.keys(body).some(key => !["reference", "input"].includes(key))) throw new ActionError("actions.input_invalid", "动作请求无效");
       const beforeBackgroundEffect = async () => {
-        const entry = BUILTIN_PLUGIN_CATALOG.find(item => item.manifest.plugin_id === page.plugin_id);
+        const entry = PLATFORM_PLUGIN_REGISTRATIONS.find(item => item.manifest.plugin_id === page.plugin_id);
         if (shown && entry && !(await shown()).includes(entry.project_plugin_id)) throw new ActionError("actions.plugin_disabled", "此项目未启用该插件");
       };
       const beforeEffect = async () => { page.assertCurrent(); await beforeBackgroundEffect(); page.assertCurrent(); };
@@ -55,7 +55,7 @@ export async function handlePluginPageHttp(context: WebRequestContext, project?:
     }
     if (!body || Object.keys(body).some(key => key !== "plugin_id") || typeof body.plugin_id !== "string")
       throw new ActionError("actions.input_invalid", "请选择插件");
-    const entry = BUILTIN_PLUGIN_CATALOG.find(item => item.manifest.plugin_id === body.plugin_id);
+    const entry = PLATFORM_PLUGIN_REGISTRATIONS.find(item => item.manifest.plugin_id === body.plugin_id);
     const assertScope = async () => {
       if (shown && entry && !(await shown()).includes(entry.project_plugin_id)) throw new ActionError("actions.plugin_disabled", "此项目未启用该插件");
     };

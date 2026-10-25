@@ -68,7 +68,7 @@ PG-060 其余在工作台里仍按名字的行，核过，**不归本线**：`re
 | RAC-606 | 对象标签名单（搜索、放置卡、侧栏文件）读下发的目录：fixture 插件声明 `accepts_objects` 即可按 id 开标签；脚本里没有构建期写死的名单 | 同上 + 扫描 `CLIENT_SCRIPT` |
 | RAC-607 | rail 读运行中 Manifest 的 `group/icon/order`：fixture 的 `group: "make"` 在「写与做」下，不写的在「更多」 | 同上 |
 | RAC-608 | `creatableKinds`、`homeStarts` 对运行时装的插件生效（接第 1 片） | 同上 |
-| RAC-609 | 停用、卸载、被拒绝的插件，目录里没有；已打开的页面在下一次读时没有入口 | 同上 |
+| RAC-609 | 停用、卸载、被拒绝的插件，目录里没有；已打开的页面在下一次读时没有入口 | `tests/plugin-directory.test.ts` 保留撤销启用并补 RAC-609-BLOCK-01；`tests/installed-plugin-host.test.ts` 的 RAC-609-UNINSTALL-01 经真实 Host 卸载路径验证，见 §3.2 |
 | RAC-610 | `skills/molis-plugin-dev/ui.md` 的说法与行为一致 | `pnpm health:check` 文档引用组 + 文字核对 |
 | RAC-619 | 宿主标记：`personal`/`always_on` 只认 `true`，`companions` 逐项过 `KEY`、去重、至多 32 项，`chosen` 为 false 的条目不带；`data-plugin-directory` 里没有这三项 | `tests/plugin-directory.test.ts` |
 | RAC-611 | 页面资源：脚本里去掉名单字面量、加一次读取，预期不增；增长按 §7 的页面资源一条 | `pnpm page-assets:check` |
@@ -77,18 +77,52 @@ PG-060 其余在工作台里仍按名字的行，核过，**不归本线**：`re
 
 碰的文件（预估）：`apps/workbench/src/{plugin-catalog,immersive-shell,shell-page-renderer,page-view,primitive-catalog}.ts`、`scripts/client/{global-search,placement,initialization}.ts`、`apps/local-host/src/web-goals-read.ts`（在途 #1242、#1251 也改它）、`skills/molis-plugin-dev/ui.md`。可能要 `pnpm api:update`（若 `MolisWorkWebView` 的 `plugin_rail` 换名属公开导出，核对后定）。删 BL-542；`primitive-catalog.ts:24` 与 `slices/w5-06-shell-plugin-rows.md`、`spec.md`、`EXTENSION-POINTS.md` 里点名 BL-388 的句子改成已做。
 
+### 3.1 FIRST 第 1 项：相同 Manifest id 的目录键与视图归属（FIX1）
+
+状态：已实现并完成本地工程验证，待独立 REVIEW/TEST；唯一源 `ab34bc79b6168cd87c419ce025eb899a5149dbd7`（#1272）。FIRST6394942921 已指出：不同发布者可以使用同一 `plugin_id`，Host 给它们不同外壳键；市场补回未运行的内置项后，`placedViews` 的 `Map<plugin_id, entry>` 会把 Runtime 的视图归到后面的市场键。目标是保留原目录与 UI 语义，修复这些视图的主人，而不是按 Manifest id 认内置信任。
+
+目录先清洗，再按有效条目的外壳键排除市场重复项。各条目分别经现有 `UiViewRegistry` 解释，保留其外壳键、`chosen`、视图与贡献 id，再按原先的 `order → plugin_id → view_id` 顺序组合；不同键不因共享 Manifest id 而互相覆盖，也不删除另一发布者的市场入口。只改 `plugin-catalog.ts` 中目录组合和视图映射、`tests/plugin-directory.test.ts` 与本节；不动 B1 标记/权限/信任、内置 blocked 产品行为、FIRST 第 2～4 项或作者后续片。
+
+- **RAC-605-KEY-01**：真实临时 Plugin Runtime 运行一个与内置项同 Manifest id、不同发布者签名的插件，经 `runningPluginDirectory → pluginDirectoryFor → rail/creates/start/真实页面` 仍用其自己的外壳键，未获内置 `chosen` 或标记；未运行内置项的市场条目保留，标题与入口不串到它。
+- **RAC-605-KEY-02**：同 Manifest id 的两个有效不同键逐条保留 navigator/island/side/stage 的归属，视图 id 与默认贡献 id 不改，顺序仍为原排序。`chosen` 条目受 enabled 控制，非 chosen 的运行项保持可见；不同 Manifest id 的合法条目照旧。
+- **RAC-605-KEY-03**：只有清洗后有效的 Runtime 条目优先于同键市场项；无效项不能遮掉市场项。已有重复键、文本/图标/slot 清洗及不可信文本转义断言完整保留；本片不改变清洗或信任合同。
+
+先在未改生产代码的 `ab34` 构建上运行真实回归留红，再修复、整体构建后同用例留绿。按 workbench README 跑必跑非浏览器文件，加目录/视图声明相关回归、health 对照 `origin/main`、boundary、页面资源与 fresh-fetch secrets。整机 FIFO、有限份数；不跑 full 或本机浏览器、不碰真实 Home。固定独立候选直交 REVIEW、TEST、PIPE/Root，双核后才接下一题。
+
+本地验证（FIX1，2026-10-25）：离线安装、`ab34` 整体构建通过。未改生产代码时，`red-confirmed.log` 原 8 项通过、新 3 项失败：真实 Runtime 视图变成 `pages/pages/chosen=true`、重复 Manifest id 覆盖条目、无效条目遮掉市场。
+修复后整体构建通过，目录文件 11/11；README 18 个必跑文件及目录函数的直接消费方另 31 文件 376/376，合计 **32 个唯一非浏览器文件、387 项通过，0 fail/cancel/skip**。
+首次接线错误（测试入口未导出、夹具缺内容站声明）保留原件，不算业务红；首次绿跑 10/11 检出测试 HTML 解码器漏认生产输出的 `&#039;`，补齐单次解码，原断言和不可信文本要求未放宽。
+health 对照 `origin/main` 的 merge-base `3817f875`、正式 boundary（70 包无错误）及页面资源检查通过；27 项资源未增长，快照、预算和门禁未改。原件在 `/tmp/molis-plugin-publisher-views-20261025/`；提交后另做 fresh-fetch secrets 并固定双核。
+没有 full、浏览器点击或用户验收，其他三条 FIRST 不挡项仍不在本片。
+
+### 3.2 FIRST 第 2 项：blocked 与卸载后的真实目录验收（FIX1）
+
+状态：已补齐并完成本地有限验证，待独立 REVIEW/TEST；独立后继以已双核的 `5a9f2dd8a4244bcaf5a4e0a9ed24404dbc3293c9` 为唯一基线，不改第 1 项冻结候选。原 RAC-609 只跑了 `supervisor.revoke`。现行 `enabledPluginIds` 和目录函数会排除 blocked；正常 Host 卸载由 `installedLifecycle` 先 revoke，再调用 Runtime uninstall。本片补这两条真实路径的证明，不把单独调用底层 Runtime、绕过 Host 撤销启用的操作当作正常卸载入口。
+
+- **RAC-609-BLOCK-01**：在临时项目真实 Runtime 中安装带必需缺失能力的非内置插件，经真实 Supervisor 得到 `blocked / plugin.capability_missing`，安装记录保留且工厂不执行；同一个 Supervisor 的正常插件仍在目录里，受阻插件不出现在 `runningPluginDirectory`、页面目录、rail 或首页起点中。不造状态数组或 mock 目录。
+- **RAC-609-UNINSTALL-01**：复用真实已发布插件与 Host 安装入口，经 `installed.lifecycle('uninstall', …)` 分别保留和删除数据；断言实际 Runtime 记录已 uninstalled，下一次 `runningPluginDirectory(installed.platform.supervisor)` 没有该插件，重新安装后目录恢复。原停用、数据保留/删除及重新安装断言保留。
+
+只改 `tests/plugin-directory.test.ts`、`tests/installed-plugin-host.test.ts` 的现有安装夹具用例与本节/本片验收证明；不新增私有源码导入或生产导出。第 1 项 KEY 回归、作者 §4/§5 保持；不改内置 blocked 后市场补回的产品行为、B1 身份/权限/信任，FIRST 第 3/4 项另做。
+
+先核绑定基线源码摘要与已成功的实际 build manifest 一致，再将冻结构建产物复制到独立后继供测试使用；测试/spec 不在该源码摘要的输入内，验证后再核摘要。无生产变更时只跑两份实际涉及文件：`node scripts/run-tests.mjs --jobs 1 --verbose --retries 0 tests/plugin-directory.test.ts tests/installed-plugin-host.test.ts`，核实际通过/失败/跳过；installed Host 的既有 macOS 条件如实保留。再做 scoped diff、health 对 `origin/main` 与提交后 fresh-fetch secrets，不重复 whole build、README18/32文件、full 或浏览器，不碰真实 Home。若揭露生产缺陷，先保精确失败并更新本节，再按源码规则构建与有限回归。
+
+本地验证（FIX1，2026-10-25）：两个完整相关文件单次自然通过，目录 12/12、installed Host 21/21，合计 **2 个唯一文件、33 项，0 fail/cancel/skip/todo，无重试**；两个新验收在 macOS 实际执行。现行生产行为正确，本次没有生产修复或人为制造的业务红。
+离线安装、冻结构建复用、测试后源码绑定均通过：生产源码摘要与 `5a9` 原成功构建（2026-10-25T08:28:20.594Z）同为 `3f59a8f81d507aa21d1800ed170b5cbf9c08b8fc92f95878f3380de61b2aa396`，只复制 71 份既有 dist，未新跑构建。官方 FIFO health 对 `origin/main` 的 merge-base `3817f875` 自然退出 0，无门禁/预算/基线改写。原件与交接在 `/tmp/molis-plugin-directory-exclusions-20261025/`；提交后另做 fresh-fetch secrets，固定候选直交独立双核，不重复前片的 32/387 或整合验证。
+
 ## 4. 第 3 片：项目级 Runtime 插件的状态与重启入口（BL-430，RAC-612～614）
 
 不新增页面（插件只提供内容、挂在工作台位置，不出整页）。做法：项目级不可用占位（`unavailable-plugin-stage.ts` 的 `scope: "project"` 分支）在原因下面加两样：
 
-- 状态行：监督器说的状态（启动失败、已被阻止）、原因、错误码（读 `supervisor.state()` 的 `status/message/code`，由 `project-plugin-stages.ts` 的 `unavailableStage` 带进 `UnavailablePluginStage`）；监督器记 `running`（实例只是停了或崩溃）或 `plugin.revoked`（用户停用）时不画状态行，免得「暂不可用」下面写着「运行中」或「启动失败」。
+- 状态行：监督器说的状态（启动失败、已被阻止）、原因、错误码（读 `supervisor.state()` 的 `status/message/code`，由 `project-plugin-stages.ts` 的 `unavailableStage` 带进 `UnavailablePluginStage`）；监督器记 `running`（实例只是停了或崩溃）或 `plugin.revoked`（用户停用）时不画状态行，免得「暂不可用」下面写着「运行中」或「启动失败」。已卸载的实例仍按监督器报告显示状态行，不提供重启按钮。
 - 「重新启动」按钮**只在实例是失败、崩溃或被隔离时显示**：宿主按 `supervisor.state()` 与 `runtime.get(install_id).state` 算出 `restart: "restart" | "release-quarantine" | null` 带进 `UnavailablePluginStage`——监督器 `status: "failed"` 或安装是 `crashed`（运行中崩溃时监督器仍记 `running`，所以两个都看）、`code` 不是 `plugin.revoked`、安装没卸载 → `restart`；安装是 `quarantined` → `release-quarantine`（显示「解除隔离并重启」）；只被停止（`disabled`）的不画；用户停用或撤回同意（`plugin.revoked`，T5 以后同理）、`blocked`、已卸载 → `null`，占位只写状态，不画按钮。路由本身也拒：`supervisor.restart` 对撤销启用的插件不重新启用，返回 409（`plugin.revoked`），卸载的安装 `dispatchRuntimePluginRoute` 不接（落到 404）。按钮（`data-project-plugin-restart` 是操作名，`data-restart-plugin` 是插件 id）由工作台外壳的脚本（`initialization.ts` 里一个委托的点击处理）发 `POST <route>/api/plugins/<plugin_id>/restart`（或 `/release-quarantine`），带控制令牌，成功后重新读页面，失败在占位里写原因。占位仍是宿主画的静态内容，不执行插件客户端、不申请页面授权（S-47 的做法不变）。
 - Home 级占位保持「查看插件状态」链接，不动。
 
+**#1274 首评增量（固定来源 `4043ae2ff`）**：点击处理核对实际宿主工作区的 DOM 归属：控件必须是项目不可用占位的直属内容里的按钮，占位必须直接处于宿主的 surface pool、分栏 body 或独占区，且不嵌在另一个插件舞台里；插件内容即使伪造占位、pool 或同名属性，也不能借外壳派出请求。只接受 `restart`、`release-quarantine` 两个操作及非空插件 id。409 的原因按现行路由结果的 `state.message` 显示，经共同请求助手输出纯文字；按钮恢复可操作，成功仍重新读页面。不改服务端生命周期或授权政策。
+
 | 编号 | 验收 | 证明 |
 | --- | --- | --- |
-| RAC-612 | 项目里的 Form 实例失败后，占位显示状态与原因和「重新启动」；点击后实例恢复、占位消失、舞台恢复可用；重启失败时占位写出原因 | `tests/runtime-plugin-http-discovery.test.ts` 加断言（该文件已有 RAC-79 的停止/重启用例）；浏览器验证交 CI |
-| RAC-613 | 重启只接受外壳（控制令牌）发起；来自插件页面框架的同一请求被拒（沿用 `PLUGIN_MANAGEMENT_OPERATIONS` 的拒绝，不新增拒绝点）。**停用（撤销启用）的插件发 restart 被拒**，不被重新启用，占位也不画按钮；被卸载的、blocked 的同样不画。按钮只在失败或被隔离时画 | 停用被拒：已有断言 `tests/runtime-plugin-http-discovery.test.ts` 的 `formal Runtime HTTP entry discovers a new registered plugin without a Host ID list`（`restart must not re-enable a revoked plugin`，409），本片确认仍绿；页面框架被拒：`tests/security-invariants-home-route-project.test.ts` 与 `tests/plugin-route-operations.test.ts` 已有用例；按钮显隐（失败、隔离、停用、blocked、卸载五种）新增在 `tests/runtime-plugin-http-discovery.test.ts`；不新增 S 号 |
+| RAC-612 | 项目里的 Form 实例失败后，占位显示状态与原因和「重新启动」；点击后实例恢复、占位消失、舞台恢复可用；重启失败时占位写出原因，按钮可再次操作 | `tests/runtime-plugin-http-discovery.test.ts` 的真实 Host 状态断言及浏览器回归：执行生成的外壳脚本，核对项目路由、插件 id 编码、POST、409 原因与重试、成功刷新后的实例与舞台 |
+| RAC-613 | 重启只接受外壳（控制令牌）发起；插件内容伪造同名按钮或完整嵌套占位时点击零请求；未知操作零请求。来自插件页面框架的同一请求被拒（沿用 `PLUGIN_MANAGEMENT_OPERATIONS` 的拒绝，不新增拒绝点）。**停用（撤销启用）的插件发 restart 被拒**，不被重新启用，占位也不画按钮；被卸载的、blocked 的同样不画。按钮只在失败或被隔离时画 | 停用被拒：已有断言 `tests/runtime-plugin-http-discovery.test.ts` 的 `formal Runtime HTTP entry discovers a new registered plugin without a Host ID list`（`restart must not re-enable a revoked plugin`，409），本片确认仍绿；页面框架被拒：`tests/security-invariants-home-route-project.test.ts` 与 `tests/plugin-route-operations.test.ts` 已有用例；按钮显隐（失败、隔离、停用、blocked、卸载五种）与浏览器伪造按钮拒绝均在 `tests/runtime-plugin-http-discovery.test.ts`；不新增 S 号 |
 | RAC-614 | 中英文占位文案都在词典里；隔离状态显示「解除隔离并重启」 | `tests/runtime-plugin-http-discovery.test.ts`（已验中英文占位）、`pnpm health:check` 翻译组 |
 
 碰的文件：`apps/workbench/src/unavailable-plugin-stage.ts`、`scripts/client/` 里一个按钮处理（挂在现有外壳脚本上，不新增资源）、`apps/local-host/src/project-plugin-stages.ts`、`tests/runtime-plugin-http-discovery.test.ts`。`spec.md` W5-06 第 3 片里「项目状态与重启入口仍属 BL-430」改写为已做。
@@ -97,7 +131,7 @@ PG-060 其余在工作台里仍按名字的行，核过，**不归本线**：`re
 
 目标：`context-onboarding-service.ts` 不再 import Pages 的 Markdown→ProseMirror 转换；转换由 Pages 经公开动作提供。
 
-做法（B，本稿建议；待统筹裁定，见 §6 的 D3）：Pages 加一个**只读的转换动作**（暂名 `pagesActions.bodyFromMarkdown`，`documents.body_from_markdown`，输入 `{ markdown }`，输出 `{ body: PagesBody }`，权限 `pages:read`），内部用现有 `blocksFromMarkdown`。引导的 `pageBody` 改成调用它（变成 async，`pageParts` 随之变 async 生成器）。可见范围：只给需要的调用者——`audiences: ["user"]`（引导走的是「人在新项目里的动作」），不写 Pages 其他动作默认的 `workflow`、`agent`、`mcp`（`actions.ts` 的 `define` 默认四个都给），所以不进 MCP 工具名单，Agent 与工作流程也调不到；Pages 自己的内容交接处理器不用它（它有自己的转换）。`define` 加一个可选的 `audiences` 参数，其余动作不变。
+做法（B，统筹已裁定，见 §6 的 D3）：Pages 加一个**只读的转换动作**（`pagesActions.bodyFromMarkdown`，`documents.body_from_markdown`，输入 `{ markdown }`，输出 `{ body: PagesBody }`，权限 `pages:read`），内部用现有 `blocksFromMarkdown`。引导的 `pageBody` 改成调用它（变成 async，`pageParts` 随之变 async 生成器）。可见范围：只给需要的调用者——`audiences: ["user"]`（引导走的是「人在新项目里的动作」），不写 Pages 其他动作默认的 `workflow`、`agent`、`mcp`（`actions.ts` 的 `define` 默认四个都给），所以不进 MCP 工具名单，Agent 与工作流程也调不到；Pages 自己的内容交接处理器不用它（它有自己的转换）。只在这个动作的 `withAction` 覆写受众与 `subject_kinds: []`：转换输入不读取或修改文档，不宣称 `pages_document` 主体，按主体筛选的目录不应列出它；其余动作不变。
 
 **结果体积**（D3 补）：转换动作自己守 Pages 单文档正文上限（`document.ts` 的 `MAX_BODY_CHARS`，1,500,000 编码字符）：转换后超过就返回明确错误 `pages.body_too_large`（`error.ts` 里 `defineErrorCodes("pages", …)` 加一条，kind `invalid`），不截断、不返回超大结果。所以动作结果恒 ≤ 1.5 MB（核对过：Runtime 动作结果没有通用字节上限，所以由动作自己限）；输入 `markdown` 上限 1,000,000 字符（与 Pages 自己的 `markdown` 写入字段同一个数；原稿写 400,000，但引导的摘要页不拆分、整篇转换，摘要加资料来源行可以超过 400,000，收紧会让原来能存的摘要失败。结果体积仍由 `pages.body_too_large` 守住；统筹 2026-10-25 裁：准用 1,000,000）。引导的客户端权限列表加 `pages:read`（`web-onboarding.ts`）。引导照旧按减半重试：转换返回 `pages.body_too_large`，或返回的正文编码后超过引导自己的 `PAGE_BODY_MAX`（1,400,000），都把这一部分从中间减半再转换；部分长度小于 2 时把错误抛出，与现在一致。拆分、「第 k / N 部分」标题、按编码体积减半重试、每部分一个 `request_id` 的幂等，全部留在引导里不变（那是引导的策略，且用户 10-22 定了「来源不设上限」）。
 
@@ -106,11 +140,13 @@ PG-060 其余在工作台里仍按名字的行，核过，**不归本线**：`re
 | 编号 | 验收 | 证明 |
 | --- | --- | --- |
 | RAC-615 | 引导源码不 import `blocksFromMarkdown`、不 import ProseMirror；Markdown→正文走 Pages 的公开动作；同一段文字的结果与之前逐字相同（以现有引导用例的正文为准） | `tests/context-onboarding.test.ts`（已有用例读回 Pages 文档）、新增一条 Pages 动作的单测（`tests/pages-body-from-markdown.test.ts`） |
-| RAC-616 | 动作合同快照已更新并提交（`pnpm build` 后 `pnpm actions:update`），PR 写对调用方的影响（工作流程、MCP 工具名、Skill）；动作只在需要的调用者可见 | `tests/action-contract-snapshot.test.ts` |
-| RAC-617 | 长文拆分与重试保持：同一 `request_id` 重试返回同一份文档，超长文本仍按减半拆开。**结果体积**：转换后超过 1,500,000 编码字符的输入，动作返回 `pages.body_too_large`、不返回正文；引导遇到它按减半重试，最终每部分都能存下；部分长度小于 2 仍超限时错误抛出，不无限循环；动作结果恒不超过 1.5 MB。动作只对 `user` 受众可见，MCP 工具名单、Agent 与工作流程的动作目录里没有它 | `tests/context-onboarding.test.ts`、`tests/context-onboarding-documents.test.ts`；新 `tests/pages-body-from-markdown.test.ts`（用一千万个单字符行的病态输入验证 `pages.body_too_large`）；可见范围由 `tests/action-contract-snapshot.test.ts` 与 MCP 工具名单用例钉住 |
+| RAC-616 | 动作合同快照已更新并提交（`pnpm build` 后 `pnpm actions:update`），PR 写对调用方的影响（工作流程、MCP 工具名、Skill）；动作只在需要的调用者可见。实际 user 目录里的 `subject_kinds` 为空，按 `pages_document` 主体筛选不列出它；workflow、agent、mcp 的真实调用均准确报 `actions.forbidden` | `tests/action-contract-snapshot.test.ts`、`tests/pages-body-from-markdown.test.ts` |
+| RAC-617 | 长文拆分与重试保持：同一 `request_id` 重试返回同一份文档，超长文本仍按减半拆开。**结果体积**：转换后超过 1,500,000 编码字符的输入，动作返回 `pages.body_too_large`、不返回正文；引导遇到它按减半重试，最终每部分都能存下；部分长度小于 2 仍超限时错误抛出，不无限循环；动作结果恒不超过 1.5 MB。补一条真实链路：不改限额、不模拟拒绝，真实转换动作超限后，引导沿原逻辑减半，读回所有持久化正文，逐项核对完整内容及顺序。动作只对 `user` 受众可见，MCP 工具名单、Agent 与工作流程的动作目录里没有它 | `tests/context-onboarding.test.ts`（保留模拟拒绝的终止边界用例，另加真实动作超限到完整保存用例）、`tests/context-onboarding-documents.test.ts`；`tests/pages-body-from-markdown.test.ts`（25,000 个单字符标题验证真实 `pages.body_too_large`，保留原输入与正文限额断言）；可见范围由 `tests/action-contract-snapshot.test.ts` 与 MCP 工具名单用例钉住 |
 | RAC-618 | 门禁数字不增：`check-health-gates --base origin/main`、`boundary:check`；该文件对 Pages 包的点名只剩 `pagesActions`（动作描述符，与 `inbox-actions.ts`、`content-action-providers.ts` 同一做法） | 两条门禁命令 |
 
 碰的文件：`apps/local-host/src/context-onboarding-service.ts`（在途 #1251 改了其中一行 import，重基无冲突）、`plugins/native/pages/src/{actions,manifest}.ts`（动作与 Manifest 声明）、`tests/` 三份、`tooling/gates/actions/`。
+
+**FIRST 后第 1～3 项修复（2026-10-25，Codex）**：从冻结的 `76128186a3fe14b4cf0df944cb35cdd1a0c621a7` 做独立候选，只改这个动作、上述两个直接相关测试、本节与必要动作快照；V-18、§3 的目录、§4 的重启入口与生产拆分逻辑保持。按合同变更流程 §3.6，主体声明变化会列为同版本形状变化；保持 `@1`，原因是身份、提供方、输入输出、权限、受众与执行行为都不变，唯一生产调用方是引导按 `pagesActions.bodyFromMarkdown` 调用，不按主体绑定；该动作从未给 workflow、agent、mcp 发现或调用，没有这些入口的固定引用需要迁移。user 的文档主体列表去掉误列正是本次修正；Skill 和 MCP 工具名无需改变。构建后用 `pnpm actions:update` 生成精确差异，共同 spec 与快照交 Claude carrier 在合成树统一承接。有限验证：Pages README 的非浏览器必跑项、两个直接测试、引导 documents、动作快照与 MCP 目录测试，加边界与健康门禁、推送前密钥扫描；构建走整机 FIFO，不跑 full，不动真实 Home，第 4 项未来独立发包假设不实施。
 
 收口（RAC-619，统筹合入后做，不在片里改）：每片 PR 正文「privileges.md 状态」一节写好 PG-060（余项全部做完后「已做」，带 PR 与 RAC-600～618）和 PG-088（带 PR 与 RAC-615～618）该写的状态；统筹合入后统一改状态列（`SLICE-RULES.md` §2）。
 

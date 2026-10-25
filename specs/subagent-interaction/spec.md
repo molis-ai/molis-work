@@ -16,7 +16,7 @@
 | 个人助理 | “分出去的子任务”列表可以打开子工作，子工作沿现有输入路径继续交流 | 助理子工作与 SDK 子代理按同一用户体验呈现，父子导航、直接对话及回报语义一致；不能只覆盖某一种派发来源 |
 | Coding | 时间线内子任务卡片与结果面板；过程、审批、停止、评价、返工准备和成果整合 | 子代理专属对话与输入，结束后继续，以及从父任务进入、返回和读取更新的完整动线 |
 
-源码依据：[Coding 子任务卡片](../../plugins/native/coding/src/subagent-cards-client.ts)、[结果面板](../../plugins/native/coding/src/subagents-client.ts)、[助理子任务入口](../../apps/workbench/src/scripts/client/assistant-island.ts)、[助理发送路径](../../apps/local-host/src/assistant/assistant-service.ts)、[Agent Host 子代理投影](../../horizontal/agent-host/src/adapters/prologue-subagents.ts)。Prologue 当前[公开入口](https://github.com/molis-ai/prologue/blob/e51233699c1463e3c8f0a8b08658c5860c962769/packages/sdk/src/composition/core/runtime.ts#L344)只提供 list/get/cancel；[子代理需求](https://github.com/molis-ai/prologue/blob/e51233699c1463e3c8f0a8b08658c5860c962769/docs/product/requirements/engines/orchestration/subagent.md#L91)区分 App 查看与父代理发话。不能把模型转向工具直接当作用户对话入口。
+源码依据：[Coding 子任务卡片](../../plugins/native/coding/src/browser/subagent-cards.ts)、[结果面板](../../plugins/native/coding/src/browser/subagents.ts)、[助理子任务入口](../../apps/workbench/src/scripts/client/assistant-island.ts)、[助理发送路径](../../apps/local-host/src/assistant/assistant-service.ts)、[Agent Host 子代理投影](../../horizontal/agent-host/src/adapters/prologue-subagents.ts)。Prologue 当前[公开入口](https://github.com/molis-ai/prologue/blob/e51233699c1463e3c8f0a8b08658c5860c962769/packages/sdk/src/composition/core/runtime.ts#L344)只提供 list/get/cancel；[子代理需求](https://github.com/molis-ai/prologue/blob/e51233699c1463e3c8f0a8b08658c5860c962769/docs/product/requirements/engines/orchestration/subagent.md#L91)区分 App 查看与父代理发话。不能把模型转向工具直接当作用户对话入口。
 
 ## 2. 范围与保留项
 

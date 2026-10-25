@@ -26,13 +26,10 @@ export function installList(page: LingguangPage): void {
   const fateLabel = (description: PlacementDescription) => {
     const derived = (description.associations || []).filter((item) => item.type === "derived_into");
     if (!derived.length) return "";
+    // Where it went is named by whoever keeps the object (the placement service reads it from the owner); nothing here knows other plugins' kinds.
     const target = derived[derived.length - 1].target;
-    if (target.kind === "goal") return L("lingguang.fate.goal");
-    const kind = target.kind === "object" ? String(target.object.kind || "") : "";
-    if (kind.includes("todo")) return L("lingguang.fate.todo");
-    if (kind.includes("page") || kind.includes("document")) return L("lingguang.fate.page");
-    if (kind.includes("jelly")) return L("lingguang.fate.jelly");
-    return L("lingguang.fate.other");
+    const keeper = target.kind === "object" ? target.plugin : null;
+    return keeper ? L("lingguang.fate.into", { plugin: keeper.title }) : L("lingguang.fate.other");
   };
   const annotateFates = async (items: readonly Spark[]) => {
     const pending = items.filter((record) => !s.fates.has(record.id)).slice(0, 30);

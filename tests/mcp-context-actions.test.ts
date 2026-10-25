@@ -95,12 +95,15 @@ test("official MCP connection summaries obey live action grants, preserve bindin
     await contextCall("molis_work_v1_context_bind", { project_id: project.project_id,
       user_confirmed: true, rebind_confirmed: true });
     await grant(goalsActions.guidanceRead.capability_id, true);
+    const offlineBindings = await withCatalog({ homeDirectory: home }, c => c.listRuntimeContextBindings());
     await served.close();
-    result = await resolve();
-    assert.equal(result.status, "bound"); assert.equal(result.connection.project_id, project.project_id);
-    assert.equal(result.resume, null); assert.equal(result.project_guidance, null);
-    assert.equal(result.resume_error.code, "actions.service_unavailable"); assert.equal(result.project_guidance_error.code, "actions.service_unavailable");
-    assert.doesNotMatch(JSON.stringify(result), /Authorized goal content|Authorized project instruction/);
+    const offline = await sdk.callTool({ name: "molis_work_v1_context_resolve", arguments: {} });
+    assert.equal(offline.isError, true, JSON.stringify(offline));
+    // RAC-105-A-GW-03: production context stays on the resident-only path when that Host is unavailable.
+    assert.match(JSON.stringify(offline), /actions.service_unavailable/);
+    assert.doesNotMatch(JSON.stringify(offline), /Authorized goal content|Authorized project instruction/);
+    assert.deepEqual(await withCatalog({ homeDirectory: home }, c => c.listRuntimeContextBindings()), offlineBindings,
+      "RAC-105-A-09: the offline call does not resolve or rewrite a local binding");
   } finally {
     await sdk.close(); await served.close();
     await host.close(); await rm(home, { recursive: true, force: true });

@@ -11,7 +11,7 @@ export { MCP_TOOLS as TOOLS, RUNTIME_MCP_TOOLS as RUNTIME_TOOLS, MCP_SERVER_INFO
 async function runStdio(): Promise<void> {
   const runtimeHost = runtimeContextHostFromEnvironment();
   const server = new MolisWorkServer(undefined, undefined, runtimeHost, undefined,
-    runtimeHost?.homeDirectory ? runtimeHost.webBaseUrl ?? "http://127.0.0.1:4173" : undefined);
+    runtimeHost?.webBaseUrl ?? "http://127.0.0.1:4173");
   try {
     await serveMcpStdio({ handleMessage: message => server.handleMessage(message) });
   } finally {

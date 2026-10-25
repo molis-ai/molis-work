@@ -56,9 +56,22 @@ test("RAC-616 RAC-617 only the person is offered it: workflows, agents and MCP d
     for (const audience of ["workflow", "agent", "mcp"] as const) {
       const rows = await as(audience).discover();
       assert.ok(!rows.some(row => row.capability_id === capability), `${audience}: not in its catalog`);
-      await assert.rejects(as(audience).invoke(pagesActions.bodyFromMarkdown, { markdown: "# x" }), `${audience}: cannot call it`);
+      await assert.rejects(as(audience).invoke(pagesActions.bodyFromMarkdown, { markdown: "# x" }), { code: "actions.forbidden" }, `${audience}: cannot call it`);
     }
     assert.ok((await as("user").discover()).some(row => row.capability_id === capability), "the person sees it");
+  });
+});
+
+test("RAC-616 a conversion has no document subject in the user's live catalog", async () => {
+  await fixture(async ({ as }) => {
+    assert.deepEqual(pagesActions.bodyFromMarkdown.action.subject_kinds, []);
+    const rows = await as("user").discover();
+    const conversion = rows.find(row => row.capability_id === pagesActions.bodyFromMarkdown.capability_id);
+    assert.ok(conversion, "the person can still discover the conversion");
+    assert.deepEqual(conversion.action.subject_kinds, []);
+    const documentActions = rows.filter(row => row.action.subject_kinds.includes("pages_document"));
+    assert.ok(documentActions.some(row => row.capability_id === pagesActions.get.capability_id), "document actions keep their subject");
+    assert.ok(!documentActions.some(row => row.capability_id === conversion.capability_id), "converting text is not an action on a document");
   });
 });
 

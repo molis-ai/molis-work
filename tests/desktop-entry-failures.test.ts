@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test, { type TestContext } from "node:test";
+import { acquireStorageOwner } from "@molis-ai/molis-work-storage";
 import { openEntryEventStream, openEntryTerminal, seedEntryProject, entryRequestHeaders } from "./fixtures/desktop-entry-streams.js";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
@@ -191,9 +192,17 @@ test("RAC-119 Desktop Web disconnects an unfinished authorized HTTP request befo
 test("RAC-119 Desktop Web reports callback or Host cleanup failure without claiming success", async t => {
   for (const mode of ["transport-reject", "host-reject"]) await t.test(mode, async t => {
     const f = await web(t, mode);
+    // RAC-105-A-19: the child really holds the Home, including before any Agent work.
+    const storageRoot=join(f.directory,"agent-runtime");
+    assert.ok(existsSync(join(storageRoot,".molis-runtime-owner.db")));
+    assert.throws(()=>acquireStorageOwner(storageRoot),{code:"storage.owner.busy"});
     assert.equal(f.child.kill("SIGINT"), true);
     assert.deepEqual(await f.exited, { code: 1, signal: null });
-    assert.deepEqual(f.observed(), { transport: 1, transportClosed: true, host: 1, hostClosed: true, args: [], order: ["transport", "transport_done", "host"] });
+    assert.deepEqual(f.observed(), mode==="transport-reject"
+      ? { transport: 1, transportClosed: true, host: 0, hostClosed: false, args: [], order: ["transport", "transport_done"] }
+      : { transport: 1, transportClosed: true, host: 1, hostClosed: true, args: [], order: ["transport", "transport_done", "host"] });
+    // A transport refusal prevents actual resource disposal; only process exit releases this failed entry's owner.
+    const released=acquireStorageOwner(storageRoot);released.release();
     log(f.stderr(), f.directory, "shutdown_failed", "web");
   });
 });

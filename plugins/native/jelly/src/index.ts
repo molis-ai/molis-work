@@ -3,7 +3,7 @@ export const packageDescriptor = {
   contract: "@molis-ai/molis-work-contracts/platform/plugin", migrationGoals: ["goal-reorg-f2"], ssot: "docs/SSOT-MATRIX.md",
   capabilities: ["jelly.ui-contribution.v1", "jelly.workspace.v1"],
 } as const;
-export * from "@molis-ai/molis-work-contracts/modules/jelly";
+export * from "./contract.js";
 export * from "./manifest.js";
 export * from "./ui.js";
 export * from "./client.js";

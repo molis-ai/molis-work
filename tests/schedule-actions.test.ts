@@ -89,7 +89,7 @@ test("Schedule tasks register as project actions shared by HTTP, Host callers an
     await served.grant("runtime:scheduler", project.project_id, [s.list, s.createTask].map(definition => directory.find(row => row.capability_id === definition.capability_id)!));
     const sdk = new Client({ name: "untrusted-name", version: "1" }); clients.push(sdk);
     await sdk.connect(new StdioClientTransport({ command: process.execPath, args: ["--import", "tsx",
-      fileURLToPath(new URL("./fixtures/production-action-mcp-server.ts", import.meta.url)), home, project.project_id, "scheduler", project.database_path], stderr: "pipe" }));
+      fileURLToPath(new URL("./fixtures/production-action-mcp-server.ts", import.meta.url)), home, project.project_id, "scheduler", project.database_path, served.origin], stderr: "pipe" }));
     const tools = (await sdk.listTools()).tools.map(tool => tool.name);
     assert.ok(tools.includes(molisWorkActionToolName(s.createTask)));
     assert.ok(!tools.includes(molisWorkActionToolName(s.archiveTask)), "ungranted actions are not exported");

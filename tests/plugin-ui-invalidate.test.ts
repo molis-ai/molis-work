@@ -19,7 +19,7 @@ function viewProbe(name: string, views = true) {
   const touch: ActionDefinition<Record<string, never>, string> = { capability_id: `${name}.touch`, version: 1, operation: "command",
     action: { title: "改动", description: "改了以后让自己的页面重新读取", kind: "operation", scope: "project", audiences: ["user"], permissions: [write],
       subject_kinds: [], input_schema: { type: "object", additionalProperties: false } } };
-  const view = { contribution_id: `${id}.list`, plugin_id: id, kind: "embedded" as const, label: "列表", slots: [] };
+  const view = { contribution_id: `${id}.list`, kind: "embedded" as const, label: "列表", slots: [] };
   const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name, kind: "app",
     publisher: { publisher_id: "example", signature: `views-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
     permissions: [{ permission: write, required: true, reason: "改动自己的内容" }],
@@ -92,7 +92,7 @@ test("PG061-04 a plugin whose Manifest declares no view is refused", { timeout: 
 });
 
 test("PG061-05 PG061-03 BL411-04 a Home instance moves the Home route's revision until it is disabled", { timeout: 60_000 }, async t => {
-  const probe = homeProbe("homeviews"), view = { contribution_id: `${probe.id}.panel`, plugin_id: probe.id, kind: "embedded" as const, label: "面板", slots: [] };
+  const probe = homeProbe("homeviews"), view = { contribution_id: `${probe.id}.panel`, kind: "embedded" as const, label: "面板", slots: [] };
   probe.definition.manifest = { ...probe.definition.manifest, ui: { contributions: [view.contribution_id], views: [{ view_id: "panel", slot: "island", title: "面板" }] } };
   const start = probe.definition.start;
   probe.definition.start = async context => ({ ...await start(context), views: [{ descriptor: view, render: () => "<p>面板</p>" }] });

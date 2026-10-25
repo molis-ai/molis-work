@@ -16,7 +16,8 @@ export function runtimeSessionActor(host: MolisWorkRuntimeContextHost | null, ca
  * Who a connection tool (bind, unbind, reject a suggestion, create and bind, delete a project) acts as: the MCP client
  * (`runtime:<runtime_id>`) and, when the host declares a stable Session for the call, that Session after it. These tools
  * also work from a workspace alone, before any Session is known, so the Session is not required; the arguments never name
- * an actor. `client_id` and `runtime_session_id` are what a resident Host is sent so it derives the same actor.
+ * an actor. The resident context handler receives independent Runtime/protocol metadata from the Home-token holder and
+ * uses this same factory to construct the client, Session and actor.
  */
 export function runtimeConnectionIdentity(
   host: MolisWorkRuntimeContextHost | null,

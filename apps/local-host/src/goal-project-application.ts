@@ -56,6 +56,7 @@ export class GoalProjectApplication {
   ) {
     const governanceModule = new GovernanceCollaborationModule({
       db: this.store.db as unknown as GovernanceSqliteDatabase,
+      journal: this.store,
       now: () => this.clock().toISOString(),
     });
     this.governance = {
@@ -72,6 +73,7 @@ export class GoalProjectApplication {
     let goalsModule!: GoalsModule;
     goalsModule = new GoalsModule(
       this.store.db as unknown as GoalsSqliteDatabase,
+      this.store,
       {
         validateRelationGraph: (projectId, input) => goalsModule.planning.validateRelationAddition(projectId, input),
       },

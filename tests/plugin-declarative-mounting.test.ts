@@ -23,7 +23,6 @@ function view(pluginId: string, viewId: string): UiContribution {
   return {
     descriptor: {
       contribution_id: `${pluginId}.${viewId}`,
-      plugin_id: pluginId,
       kind: "primary-page",
       label: viewId,
       slots: [],
@@ -296,8 +295,8 @@ test("route parameters reach the handler as declared", async () => {
 });
 
 test("the bundled catalog reproduces the shell's navigation exactly", async () => {
-  const { railEntries, islandEntries, settingsEntries, PROJECT_SCOPED_PLUGIN_IDS, BUILTIN_PLUGIN_REGISTRY } =
-    await import("@molis-ai/molis-work-app-workbench");
+  const { railEntries, islandEntries, settingsEntries } = await import("@molis-ai/molis-work-app-workbench");
+  const { PROJECT_SCOPED_PLUGIN_IDS, BUILTIN_PLUGIN_REGISTRY } = await import("@molis-ai/molis-work-app-local-host");
 
   // "functions" may still be saved on older projects; rule authoring moved to Capabilities, so it has no rail entry.
   const everything = ["jelly", "goals", "todo", "inbox", "feed", "shelf", "lingguang", "functions", "pages", "form", "dataset", "ppt", "alchemist", "artifacts"];
@@ -364,11 +363,11 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
 });
 
 test("a 常开插件 is shown in every project, even one that once hid it, and is neither offered nor removable", async () => {
-  const { shownProjectPlugins, pluginMarketCards, BUILTIN_PLUGIN_REGISTRY } = await import("@molis-ai/molis-work-app-workbench");
-  assert.equal(BUILTIN_PLUGIN_REGISTRY.isAlwaysOn?.("shelf"), true);
-  assert.equal(BUILTIN_PLUGIN_REGISTRY.isAlwaysOn?.("lingguang"), false);
-  // A project that hid Shelf before it became always on still shows it; a hidden ordinary personal plugin stays hidden.
-  const shown = shownProjectPlugins(["goals"], ["shelf", "lingguang"]);
+  const { pluginMarketCards } = await import("@molis-ai/molis-work-app-workbench");
+  const { shownProjectPlugins } = await import("@molis-ai/molis-work-app-local-host");
+  // A project's list of hidden plugins leaves out a 常开 one (tests/security-invariants-always-on-records.test.ts), so a mark made before Shelf became
+  // always on never reaches here; a hidden ordinary personal plugin stays hidden.
+  const shown = shownProjectPlugins(["goals"], ["lingguang"]);
   assert.ok(shown.includes("shelf"));
   assert.equal(shown.includes("lingguang"), false);
   assert.equal(pluginMarketCards().some((card) => card.id === "shelf"), false, "nobody adds what is always on");
@@ -392,7 +391,7 @@ test("OPEN-PLACE-01 a plugin opens where its declarations put it: the work area 
   assert.deepEqual(sideOpenedPlugins(), { shelf: "plugin:shelf/side" });
 });
 
-test("PG-060 a plugin's tab opens one object when a Manifest view of it accepts objects, and is named by its views", async () => {
+test("RAC-84 PG-060 a plugin's tab opens one object when a Manifest view of it accepts objects, and is named by its views", async () => {
   const { builtinPluginDirectory, clientPluginDirectory, pluginTabTitles } = await import("@molis-ai/molis-work-app-workbench");
   // What the page's scripts read is the directory's `accepts_objects` per plugin; the same projection serves a plugin installed at run time.
   const objectTabs = (directory: Parameters<typeof clientPluginDirectory>[0]) => clientPluginDirectory(directory).filter(entry => entry.accepts_objects).map(entry => entry.id);

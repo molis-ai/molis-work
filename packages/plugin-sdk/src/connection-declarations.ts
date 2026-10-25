@@ -7,7 +7,8 @@ import { CONNECTOR_REQUEST_SERVICES } from "@molis-ai/molis-work-contracts/servi
 
 /** The name a slot goes by, the same rule as a background job's. */
 const SLOT_ID = /^[a-z][a-z0-9-]{0,63}$/u;
-const SLOT_FIELDS = new Set(["slot_id", "service_id", "reason"]);
+const SLOT_FIELDS = new Set(["slot_id", "service_id", "reason", "binding"]);
+const BINDINGS: readonly unknown[] = ["installation", "per_record"];
 
 export function connectionDeclarationProblems(value: unknown, permissions: ReadonlySet<string>): string[] {
   const declaresPermission = permissions.has(PLUGIN_CONNECTIONS_PERMISSION);
@@ -29,6 +30,7 @@ export function connectionDeclarationProblems(value: unknown, permissions: Reado
     const unknown = Object.keys(slot).filter(field => !SLOT_FIELDS.has(field));
     if (unknown.length > 0) problems.push(`连接槽 ${id} 不认这些字段：${unknown.join("、")}`);
     if (typeof slot.reason !== "string" || slot.reason.trim().length === 0) problems.push(`连接槽 ${id} 要写明用途（reason）`);
+    if (slot.binding !== undefined && !BINDINGS.includes(slot.binding)) problems.push(`连接槽 ${id} 的 binding 只能是 installation 或 per_record`);
     if (typeof slot.service_id !== "string" || !Object.hasOwn(CONNECTOR_REQUEST_SERVICES, slot.service_id)) {
       problems.push(`连接槽 ${id} 的 service_id 必须是平台登记了请求来源的服务：${Object.keys(CONNECTOR_REQUEST_SERVICES).join("、")}`);
     }

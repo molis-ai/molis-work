@@ -1,8 +1,13 @@
 import type { PluginRegistration, PluginWorkbenchRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
+import { declaresOwner, ownedContribution, type OwnedUiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 export type { PluginSearchRow } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 
-export interface BuiltinPluginWorkbenchPack extends Omit<PluginWorkbenchRegistration, "order" | "clientServed" | "clientUses"> { readonly project_plugin_id: string }
+export interface BuiltinPluginWorkbenchPack extends Omit<PluginWorkbenchRegistration, "order" | "clientServed" | "clientUses" | "contributions"> {
+  readonly project_plugin_id: string;
+  /** The contributions as the platform registers them: each owned by the plugin its catalog entry's Manifest names (PG-098), never by what the contribution says. */
+  readonly contributions: readonly OwnedUiContribution[];
+}
 
 /**
  * Comments that fill whole lines (`// …` and `/* … *\/`) and the indentation in front of every line of a plugin's client script
@@ -21,35 +26,42 @@ const clientOf = (workbench: Registered): string | undefined => workbench.client
   ? served(workbench.clientFactory)
   : workbench.clientFactory;
 
+/** Where a plugin's client bundle is served; a page loads it before it mounts the client. */
+const bundleUrl = (id: string): string => `/assets/molis-work-plugins/${encodeURIComponent(id)}.js`;
+
 /**
- * A client with the clients its registration names in `clientUses`, as `host.clients[<short id>]`, Each used plugin has a client and names this one in `clientFrom`, so it travels in this bundle.
+ * A client with the clients its registration names in `clientUses`, as `host.clients[<short id>]`. Each used plugin ships a
+ * bundle of its own, which the page loads beside this one (`bundleUrl`); its factory takes the ports of the panel it is mounted
+ * in and is given its own plugin's identity, so what it asks of its own plugin it asks as that plugin, never as this one.
  */
-function withUsedClients(user: Registered, factory: string, all: readonly Registered[]): string {
+function withUsedClients(user: Registered, factory: string, all: readonly Registered[], catalog: readonly PluginRegistration[]): string {
   const used = (user.clientUses ?? []).map(id => {
-    const lent = all.find(candidate => candidate.project_plugin_id === id), client = lent ? clientOf(lent) : undefined;
-    if (!lent || client === undefined || lent.clientFrom !== user.project_plugin_id) throw new Error(`${user.project_plugin_id} uses the client of ${id}, which does not name it in clientFrom`);
-    return `${JSON.stringify(id)}: (${client})`;
+    const lent = all.find(candidate => candidate.project_plugin_id === id), manifest = catalog.find(entry => entry.project_plugin_id === id)?.manifest;
+    if (!lent?.clientFactory || !manifest) throw new Error(`${user.project_plugin_id} uses the client of ${id}, which has none`);
+    const key = JSON.stringify(id), plugin = JSON.stringify(manifest.plugin_id);
+    return `${key}: ports => globalThis.molisWorkbenchPluginFactories[${key}]({ ...host, ...ports, pluginId: ${plugin}, pluginRoute: path => host.route("/api/plugins/" + ${plugin} + path) })`;
   });
   return `(host) => (${factory})({ ...host, clients: { ${used.join(", ")} } })`;
 }
 
 /** Derive the registered UI and assets from the same entries used by the Host catalog. */
 export function pluginWorkbenchPacks(catalog: readonly PluginRegistration[] = BUILTIN_PLUGIN_CATALOG): BuiltinPluginWorkbenchPack[] {
+  const owners = new Map(catalog.map(entry => [entry.project_plugin_id, entry.manifest.plugin_id]));
   return catalog.flatMap(entry => entry.workbench ? [{ project_plugin_id: entry.project_plugin_id, ...entry.workbench }] : [])
     .sort((a, b) => a.order - b.order)
     .map((registered, _at, all) => {
       const { order: _order, clientServed: _served, clientUses, ...pack } = registered, factory = clientOf(registered);
       if (factory === undefined) return pack;
-      if (pack.clientFrom !== undefined) {
-        // A client lent to the plugin whose bundle this one borrows: it travels there, and this plugin ships no bundle.
-        if (!all.find(user => user.project_plugin_id === pack.clientFrom)?.clientUses?.includes(pack.project_plugin_id)) {
-          throw new Error(`${pack.project_plugin_id} has a client and borrows the bundle of ${pack.clientFrom}, which does not name it in clientUses`);
-        }
-        const { clientFactory: _lent, ...borrowing } = pack;
-        return borrowing;
+      const assets = [...(registered.clientAssets ?? []), ...(clientUses ?? []).map(bundleUrl)];
+      return { ...pack, ...(assets.length > 0 ? { clientAssets: assets } : {}), clientFactory: clientUses ? withUsedClients(registered, factory, all, catalog) : factory };
+    })
+    .map(pack => ({ ...pack, contributions: pack.contributions.map(contribution => {
+      // The platform fills the owner from the Manifest; a contribution that writes one is refused, as the Runtime and `ui:register` refuse it, never overwritten.
+      if (declaresOwner(contribution.descriptor)) {
+        throw new Error(`${pack.project_plugin_id} 的贡献 ${contribution.descriptor.contribution_id} 自己写了插件身份；插件身份由平台按 Manifest 填写，请删掉 plugin_id`);
       }
-      return { ...pack, clientFactory: clientUses ? withUsedClients(registered, factory, all) : factory };
-    });
+      return ownedContribution(contribution, owners.get(pack.project_plugin_id)!);
+    }) }));
 }
 export const BUILTIN_PLUGIN_WORKBENCH: readonly BuiltinPluginWorkbenchPack[] = pluginWorkbenchPacks();
 
@@ -88,17 +100,14 @@ export function pluginWorkbenchClientBootstrap(packs: readonly BuiltinPluginWork
   }).join("\n    ");
 }
 
-/** A surface's client: the bundle that carries its factory (its own, or the one `clientFrom` names) and what it prepares first. */
+/** A surface's client: the bundle that carries its factory and what it prepares first (the bundles of the clients it uses among them). */
 export interface PluginSurfaceClient { readonly id: string; readonly plugin_id: string; readonly bundle: string; readonly assets: readonly string[]; readonly factory: string; readonly searchRow?: PluginWorkbenchRegistration["searchRow"]; readonly recordRow?: PluginWorkbenchRegistration["recordRow"] }
 
 /** Every surface with a client, each pointing at the one bundle that serves it. */
 export function pluginSurfaceClients(packs: readonly BuiltinPluginWorkbenchPack[] = BUILTIN_PLUGIN_WORKBENCH): PluginSurfaceClient[] {
-  return packs.flatMap((pack) => {
-    const source = pack.clientFrom ? packs.find(candidate => candidate.project_plugin_id === pack.clientFrom) : pack;
-    return source?.clientFactory
-      ? [{ id: pack.project_plugin_id, plugin_id: BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === pack.project_plugin_id)?.manifest.plugin_id ?? "", bundle: source.project_plugin_id, assets: source.clientAssets ?? [], factory: source.clientFactory, searchRow: pack.searchRow, recordRow: pack.recordRow }]
-      : [];
-  });
+  return packs.flatMap((pack) => pack.clientFactory
+    ? [{ id: pack.project_plugin_id, plugin_id: BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === pack.project_plugin_id)?.manifest.plugin_id ?? "", bundle: pack.project_plugin_id, assets: pack.clientAssets ?? [], factory: pack.clientFactory, searchRow: pack.searchRow, recordRow: pack.recordRow }]
+    : []);
 }
 
 /** Surfaces the Host renders itself with their own bundle, served under the plugin pack address (CHR-1 D5: 角色). */
@@ -109,7 +118,7 @@ export function deferredSurfaceClients(): (Pick<PluginSurfaceClient, "id" | "bun
   return [...pluginSurfaceClients(), ...HOST_SURFACE_CLIENTS];
 }
 
-/** Fixed-build client assets derived from the same registration as styles and UI: one per bundle, none for a borrowed client. */
+/** Fixed-build client assets derived from the same registration as styles and UI: one per bundle. */
 export function pluginWorkbenchClientAsset(id: string): string | null {
   const pack = BUILTIN_PLUGIN_WORKBENCH.find(pack => pack.project_plugin_id === id);
   return pack?.clientFactory ? `globalThis.molisWorkbenchPluginFactories ||= {}; globalThis.molisWorkbenchPluginFactories[${JSON.stringify(id)}] = ${pack.clientFactory};` : null;

@@ -1,15 +1,10 @@
-import { LocalMcpServer, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { LocalMcpServer } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { serveMcpStdio } from "@molis-ai/molis-work-app-mcp";
-const home = process.argv[2];
-if (!home) throw new Error("Missing fixture Home");
-// Only the remote judgment provider is a fixture; Host, catalog, transport and history are production code.
-const host = new MolisWorkLocalHost({ homeDirectory: home, functions: {
-  env: { TYPESAFE_API_KEY: "fixture-only" },
-  provider: { async evaluate(_key, record) { return { primitive: record.primitive,
-    choice: "yes", noul: null, score: null, legend: null, probabilities: { yes: 1 }, confidence: 1, model: "jev-1.13.0" }; } },
-} });
+const [home, origin] = process.argv.slice(2);
+if (!home || !origin) throw new Error("Missing resident fixture identity");
+// RAC-105-A-17: the HTTP and MCP calls use the same resident provider and judgment history.
 const server = new LocalMcpServer(withMolisWorkProjectCatalog, "runtime", null,
-  { homeDirectory: home, runtimeContext: { runtime_id: "codex", stable_work_context_id: null, host_declares_stable: false } }, host);
+  { homeDirectory: home, webBaseUrl: origin, runtimeContext: { runtime_id: "codex", stable_work_context_id: null, host_declares_stable: false } }, undefined, origin);
 try { await serveMcpStdio({ handleMessage: message => server.handleMessage(message) }); }
-finally { await server.close(); await host.close(); }
+finally { await server.close(); }

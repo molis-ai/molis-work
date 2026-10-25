@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { PagesRecord } from "@molis-ai/molis-work-contracts/modules/pages";
-import { pagesProjectData } from "@molis-ai/molis-work-plugin-pages";
+import { Worker } from "node:worker_threads";
 import { openPagesStore } from "@molis-ai/molis-work-plugin-pages/testing";
+import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { pagesIn } from "./fixtures/pages-runtime.js";
 
@@ -31,7 +32,8 @@ async function twoProjects(t: Parameters<typeof serveHomeRuntime>[0]) {
   return { gone, kept, held, remove };
 }
 
-// W5-01-PAGES-07 (RUNTIME-MIGRATION 6.10): the "project deleted" step still reaches Pages' library from the catalog's declaration,
+// W5-01-PAGES-07 (RUNTIME-MIGRATION 6.10): the "project deleted" step still reaches Pages' library from its Manifest's declaration
+// (`project_rows`, deleted by the platform, PG-024),
 // whether or not the project's Pages instance is running, and a failed step is finished by the same deletion asked again.
 test("W5-01-PAGES-07 deleting a project clears its Pages from the library, leaves the other project's, and the Runtime instance is no part of it", async t => {
   const f = await twoProjects(t);
@@ -48,20 +50,24 @@ test("W5-01-PAGES-07 deleting a project clears its Pages from the library, leave
   assert.deepEqual(still.documents.map(document => document.title), [`文稿 ${keptId}`], "and its Runtime instance still serves them");
 });
 
-test("W5-01-PAGES-07 a Pages step that fails stays pending, and asking for the same deletion again finishes it", async t => {
+test("W5-01-PAGES-07 a Pages step that fails stays pending, and asking for the same deletion again finishes it", { timeout: 60_000 }, async t => {
   const f = await twoProjects(t), goneId = f.gone.project.project_id;
-  const purge = pagesProjectData.purge;
-  let broken = true;
-  t.mock.method(pagesProjectData, "purge", (home: string, projectId: string) => {
-    if (broken) throw new Error("文稿库暂时清不掉");
-    purge(home, projectId);
-  });
+  // Another connection holds a write on the library past the deletion's wait (busy_timeout): the platform's delete fails like any write.
+  const holder = new Worker(`
+    const { DatabaseSync } = require("node:sqlite"); const { parentPort, workerData } = require("node:worker_threads");
+    const db = new DatabaseSync(workerData.file); db.exec("BEGIN IMMEDIATE"); parentPort.postMessage("locked");
+    parentPort.once("message", () => { db.exec("ROLLBACK"); db.close(); parentPort.close(); });
+  `, { eval: true, workerData: { file: homeSqlitePath(f.gone.home, "pages") } });
+  const exited = new Promise(resolve => holder.once("exit", resolve));
+  t.after(async () => { holder.postMessage("release"); await exited; });
+  await new Promise(resolve => holder.once("message", resolve));
   const first = await (await f.remove(goneId, "pages-delete-retry")).json() as Deletion;
   assert.equal(first.deletion.cleanup_state, "pending");
   assert.equal(stepOf(first)?.state, "pending");
   assert.match(first.deletion.cleanup_error ?? "", /pages/);
   assert.deepEqual(f.held(goneId), { documents: 1, folders: 1, receipts: 1 }, "nothing was half cleared");
-  broken = false;
+  holder.postMessage("release");
+  await exited;
   const retried = await (await f.remove(goneId, "pages-delete-retry")).json() as Deletion;
   assert.equal(retried.deletion.cleanup_state, "complete");
   assert.equal(stepOf(retried)?.state, "complete");

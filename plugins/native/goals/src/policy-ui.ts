@@ -115,7 +115,6 @@ export const GOALS_POLICY_UI_SURFACES = { renderPolicyForm: "form", renderPolicy
 export const goalsPolicyUiContribution: UiContribution<GoalsPolicyUiModel> = {
   descriptor: {
     contribution_id: GOALS_POLICY_UI_CONTRIBUTION_ID,
-    plugin_id: "io.molis.work.native.goals",
     kind: "embedded",
     label: "Goal work rules",
     surfaces: Object.values(GOALS_POLICY_UI_SURFACES).map(surface_id => ({ surface_id, target_slot_id: "workbench.main", format: "declarative-html" })),

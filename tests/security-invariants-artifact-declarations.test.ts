@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -5,6 +6,7 @@ import { join, relative } from "node:path";
 import test, { type TestContext } from "node:test";
 import { defineArtifactPreviewAction } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginTrust } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import { goalsManifest } from "@molis-ai/molis-work-plugin-goals";
 import { pagesManifest } from "@molis-ai/molis-work-plugin-pages";
 import { createPluginRuntimeReleaseArtifact, PluginRuntime, SqlitePluginRuntimeReleaseArtifactRepository, SqlitePluginRuntimeRepository, UNSIGNED_TRUST } from "@molis-ai/molis-work-plugin-runtime";
@@ -37,7 +39,7 @@ function plugin(id: string, version: string, types: string[], kinds: string[] = 
   async start() { return { kind: "app", views: [], actions: previews.map(preview => ({ ...preview, async handle() { return { media_type: "text/plain", text: "" }; } })) }; } } as PluginDefinition;
 }
 /** The entry a project's start list gives: the definition, and the release row that keeps its Manifest on disk. */
-const entry = (definition: PluginDefinition) => ({ definition, trust: UNSIGNED_TRUST, releaseArtifact: { capture: () => "export {}", restore: () => definition } });
+const entry = (definition: PluginDefinition, trust: PluginTrust = UNSIGNED_TRUST) => ({ definition, trust, releaseArtifact: { capture: () => "export {}", restore: () => definition } });
 
 /** A project of a Home with the real platform, and version stores that ask it before they write. */
 function project(t: TestContext, home: string, existing?: { file: string; projectId: string }) {
@@ -224,8 +226,9 @@ test("RAC-415 the registry follows an installed Plugin's Manifest through enable
 test("RAC-415 a built-in Plugin that is not in effect declares nothing, and Goals disabled leaves no link kinds", async t => {
   const p = project(t, bareHome(t));
   // Goals' declarations (its link kinds, its actions) with the pages and routes it serves left out, so a bare start redeems all it declares.
+  // Goals is the Host's own build, so it starts under Host trust, as the Host starts it.
   const manifest = { ...structuredClone(goalsManifest), ui: { contributions: [], views: [] }, routes: [] } as typeof goalsManifest;
-  const report = await p.supervisor.start([entry({ manifest, async start() { return { kind: "app", views: [], actions: (manifest.actions ?? []).map(action => ({ ...action, async handle() { return {}; } })) }; } } as PluginDefinition)]);
+  const report = await p.supervisor.start([entry({ manifest, async start() { return { kind: "app", views: [], actions: (manifest.actions ?? []).map(action => ({ ...action, async handle() { return {}; } })) }; } } as PluginDefinition, { level: "host" })]);
   assert.deepEqual(report.failed, []);
   assert.equal(artifactLinkKinds().has("goal.input"), true);
   p.supervisor.revoke(goalsManifest.plugin_id);
@@ -352,7 +355,7 @@ test("RAC-417 S-82 an enable asks too: a second owner that got in cannot be swit
   // A second owner of the name, put into B by a Runtime that was not asked (a record from before the rule, or a hand-made one).
   const y = plugin(OTHER, "1.0.0", ["example.note"]);
   new SqlitePluginRuntimeReleaseArtifactRepository(pb.store.db).save(createPluginRuntimeReleaseArtifact(y.manifest, "export {}"));
-  new PluginRuntime(new SqlitePluginRuntimeRepository(pb.store.db)).install({ definition: y, deployment: "local", trust: UNSIGNED_TRUST, grants: [] });
+  new PluginRuntime(new SqlitePluginRuntimeRepository(pb.store.db), undefined, { hostIds: ISOLATED_HOST_IDS }).install({ definition: y, deployment: "local", trust: UNSIGNED_TRUST, grants: [] });
   const state = await pa.supervisor.enable(PRODUCER);
   assert.equal(state.status, "failed", "the enable is refused");
   assert.equal(state.code, "plugin.definition_conflict");
@@ -361,7 +364,7 @@ test("RAC-417 S-82 an enable asks too: a second owner that got in cannot be swit
 
   // An installation whose Manifest was never kept cannot be read for its names, so it holds every name.
   const z = plugin("io.molis.work.example.unkept", "1.0.0", ["example.unkept"]);
-  new PluginRuntime(new SqlitePluginRuntimeRepository(pb.store.db)).install({ definition: z, deployment: "local", trust: UNSIGNED_TRUST, grants: [] });
+  new PluginRuntime(new SqlitePluginRuntimeRepository(pb.store.db), undefined, { hostIds: ISOLATED_HOST_IDS }).install({ definition: z, deployment: "local", trust: UNSIGNED_TRUST, grants: [] });
   assert.throws(() => pa.install(plugin("io.molis.work.example.third", "1.0.0", ["example.third"])), { ...refusal, message: /读不到已装插件 io\.molis\.work\.example\.unkept 的 Manifest/ });
   assert.equal(heldInstalls(home).some(held => held.record.plugin_id === z.manifest.plugin_id && held.manifest === null), true);
 });

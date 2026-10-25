@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { jellyAssert } from "./error.js";
-import type { JellyCategory, JellyCommand, JellyItem, JellyOccurrence, JellySchedule, JellySeries, JellyWorkspace } from "@molis-ai/molis-work-contracts/modules/jelly";
+import type { JellyCategory, JellyCommand, JellyItem, JellyOccurrence, JellySchedule, JellySeries, JellyWorkspace } from "./contract.js";
 import { JELLY_UNCATEGORIZED_ID, jellyAddDays, jellyDate, jellyDaysBetween, jellyLogicalOccurrence, jellyOccurrenceIdentity, jellyWeekday, jellyWithinSeries, validateJellyItem, validateJellySeries, validateJellyWorkspace } from "./calendar-validation.js";
 export { JELLY_UNCATEGORIZED_ID, validateJellyWorkspace } from "./calendar-validation.js";
 

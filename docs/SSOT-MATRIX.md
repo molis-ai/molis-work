@@ -201,14 +201,14 @@ Goal 是 Goals 插件拥有的一项事实（§5 `modules/goals`、§7 `plugins/
 
 | 责任 | Owner | 唯一事实源 |
 | --- | --- | --- |
-| 本机生图连接、项目任务、生成图片 | `plugins/native/images` | `{home}/images/images.db` 与 `assets/`；合同 `packages/contracts/src/modules/images.ts` |
+| 本机生图连接、项目任务、生成图片 | `plugins/native/images` | `{home}/images/images.db` 与 `assets/`；合同 `plugins/native/images/src/contract.ts` |
 | 连接凭据、授权与实际模型请求 | Connector owner / Home Host / agent-host | Connector 连接与绑定；可信声明选择命名空间，imageGeneration 服务只交回字节与当次 revision |
 
 协议、范围与验证边界：`specs/archive/images-plugin/spec.md`；不改变文字模型设置，不自动重试或声明 Artifact 发布。
 
 ## Jelly 私人工作区
 
-`plugins/native/jelly` 拥有个人日历、每周重复实例、分类、笔记块、关联和撤销历史；唯一写入库 `{home}/jelly/jelly.db`。收想法、读文件与网页在灵光（[合入后审查 PMR-22](../specs/archive/post-merge-review/spec.md)）。Home Runtime 注册全部 53 动作并提供 database、model 和 model.configuration；Host 的通用配置服务拥有模型选择解释与原 preferences.json v1，Jelly 拥有设置动作/UI与业务库。Workbench 只装配插件界面。原 Jelly App 的数据文件不参与写入。合同：`packages/contracts/src/modules/jelly.ts`；完整复刻范围与未验收项：`specs/archive/jelly-plugin/`。
+`plugins/native/jelly` 拥有个人日历、每周重复实例、分类、笔记块、关联和撤销历史；唯一写入库 `{home}/jelly/jelly.db`。收想法、读文件与网页在灵光（[合入后审查 PMR-22](../specs/archive/post-merge-review/spec.md)）。Home Runtime 注册全部 53 动作并提供 database、model 和 model.configuration；Host 的通用配置服务拥有模型选择解释与原 preferences.json v1，Jelly 拥有设置动作/UI与业务库。Workbench 只装配插件界面。原 Jelly App 的数据文件不参与写入。合同：`plugins/native/jelly/src/contract.ts`；完整复刻范围与未验收项：`specs/archive/jelly-plugin/`。
 
 ### 插件创作工作台
 

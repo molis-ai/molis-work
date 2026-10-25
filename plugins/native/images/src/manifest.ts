@@ -2,7 +2,7 @@ import { SHELF_ADMIT_ACTION } from "@molis-ai/molis-work-contracts/modules/shelf
 import { imagesActions, IMAGES_ACTION_PERMISSIONS } from "./actions.js";
 import { IMAGES_FILES_WRITE, IMAGES_OWNER_FILES } from "./owner-files.js";
 import type { PluginManifest, PluginRouteDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { IMAGES_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/images";
+import { IMAGES_PLUGIN_ID } from "./contract.js";
 import { IMAGES_DATABASE } from "./database.js";
 import { IMAGES_IMAGE_GENERATION } from "./image-generation.js";
 

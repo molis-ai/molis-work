@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { createExecutionLifetime } from "@molis-ai/molis-work-plugin-sdk";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginExecutionControl } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { GeneratedImage, ImageJob } from "@molis-ai/molis-work-contracts/modules/images";
+import type { GeneratedImage, ImageJob } from "./contract.js";
 import { imagesErrors, isImagesFailure } from "./error.js";
 import { generateProviderImages } from "./providers.js";
 import type { ImagesServiceOptions, ImagesControl } from "./service.js";

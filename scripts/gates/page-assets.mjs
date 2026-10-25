@@ -242,14 +242,19 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// batch-39 (#1307, coordinator review 2026-10-25): +2,655 B against main fc1e03c3c, both trees measured on the served script.
-// PG-049 (#1298) adds the platform settings page 本机目录, the user's decision (see and take back the local folders a plugin
-// may read, with each read); its client script is 3,584 B served, measured by taking it out of the same served script.
-// Everything else in the batch, PG-049's binding on the settings page and its read notice included, nets -929 B (the
-// remainder, not measured slice by slice; PG-075 dropping the per-plugin colour map is the largest part). The page reuses
-// molisWorkRequest and its error display, the settings renderer and the shared settings classes; no further saving was
-// tried in this batch. Not yet measured: one DOM-element helper shared by the settings scripts (each defines its own), R-55.
-const APPROVED_CEILINGS = { "/assets/molis-work-workbench.js": [1125074, 1127729] };
+// batch-40 (coordinator review 2026-10-25), each against main b3bac731b, both trees measured on the served asset:
+// - workbench.js +1,737 B: PG-070/071 (#1302, the user's 10-25 decision that plugin styles load on demand and each plugin's English
+//   ships with it): the loader that fetches a plugin's own stylesheet when its view first mounts, and stage summaries that carry
+//   each plugin's id so its own words apply. Tried in the same asset: R-55 rendered the connector slot picker's request path on the
+//   server and reused perform() with an undo, -111 B measured (1,129,577 -> 1,129,466, workbench-only rebuild over the same tree).
+//   The same change takes 303,332 B out of workbench.css and 36,506 B out of settings.css (budgets lowered below).
+// - plugin-frame.js +54 B: a frame merges its own plugin's English under the page's (PG-071), the one expression that does it.
+// - plugins/coding.js +45 B: the shared diff classes are drawn as mw-diff-* (PG-070's frozen shared prefix), 15 selectors x 3 B.
+const APPROVED_CEILINGS = {
+  "/assets/molis-work-workbench.js": [1127729, 1129466],
+  "/assets/molis-work-plugin-frame.js": [190143, 190197],
+  "/assets/molis-work-plugins/coding.js": [289017, 289062],
+};
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its
 // first freeze; from the next PR on it only falls like every other.

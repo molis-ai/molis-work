@@ -6,12 +6,12 @@
     "/assets/molis-work-capabilities.js": 54350,
     "/assets/molis-work-knowledge.js": 26940,
     "/assets/molis-work-pages-editor.js": 709471,
-    "/assets/molis-work-plugin-frame.js": 190143,
+    "/assets/molis-work-plugin-frame.js": 190197,
     "/assets/molis-work-plugins/alchemist.css": 151,
     "/assets/molis-work-plugins/alchemist.js": 52556,
     "/assets/molis-work-plugins/characters.js": 28395,
     "/assets/molis-work-plugins/coding.css": 74624,
-    "/assets/molis-work-plugins/coding.js": 289017,
+    "/assets/molis-work-plugins/coding.js": 289062,
     "/assets/molis-work-plugins/cognia.css": 8283,
     "/assets/molis-work-plugins/cognia.js": 22157,
     "/assets/molis-work-plugins/dataset.css": 6892,
@@ -45,9 +45,9 @@
     "/assets/molis-work-plugins/todo.js": 54057,
     "/assets/molis-work-plugins/workflows.css": 40735,
     "/assets/molis-work-plugins/workflows.js": 71581,
-    "/assets/molis-work-settings.css": 969244,
-    "/assets/molis-work-workbench.css": 1537942,
-    "/assets/molis-work-workbench.js": 1127729,
+    "/assets/molis-work-settings.css": 932738,
+    "/assets/molis-work-workbench.css": 1234610,
+    "/assets/molis-work-workbench.js": 1129466,
     "/assets/noto-sans-sc-400.woff2": 1141536
   }
 }

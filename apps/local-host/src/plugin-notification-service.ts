@@ -1,6 +1,7 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginDatabase, PluginInstallationClient, PluginInstanceRecord, PluginManifest, PluginNotificationClient, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDatabase, PluginInstanceRecord, PluginManifest, PluginNotificationClient, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { InstallationDirectoryClient } from "./plugin-installation-directory.js";
 import { assertCapturedPluginActionCurrent, currentPluginInvocation, pluginInvocationReadOnly } from "@molis-ai/molis-work-plugin-runtime";
 import type { SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { createLocalFeedApplication, type LocalFeedApplicationOptions } from "./feed-application.js";
@@ -17,7 +18,7 @@ export function bindPluginNotificationFeed(db: object, options: (control: Contro
 }
 
 export function pluginNotificationsFor(manifest: PluginManifest, context: PluginStartContext, database: PluginDatabase | undefined,
-  connection: object | undefined, projectId: string, assertActive: () => void, record: () => PluginInstanceRecord | null, installations?: PluginInstallationClient): PluginNotificationClient | undefined {
+  connection: object | undefined, projectId: string, assertActive: () => void, record: () => PluginInstanceRecord | null, installations?: InstallationDirectoryClient): PluginNotificationClient | undefined {
   if (!database || !connection || !("transaction" in connection) || typeof connection.transaction !== "function"
     || !manifest.permissions.some(entry => entry.permission === NOTIFICATIONS_WRITE_PERMISSION)) return undefined;
   const db = connection as SqliteDatabase, generation = record()?.installation_generation;

@@ -75,6 +75,7 @@ connectors.authorization.read	1	system.connectors	query	query	home	read	-	agent,
 connectors.cli.connect	1	system.connectors	command	operation	home	write	concurrent	agent,mcp,user	connectors:management:write	connector	-	-	f204a0118ca6	a2c799262a3c	eba6e6fcae54
 connectors.cli.install	1	system.connectors	command	operation	home	write	concurrent	agent,mcp,user	connectors:management:write	connector	-	-	f204a0118ca6	a2c799262a3c	eba6e6fcae54
 connectors.cli.prepare	1	system.connectors	command	operation	home	write	concurrent	agent,mcp,user	connectors:management:write	connector	-	-	b2081d792103	a2c799262a3c	-
+connectors.connection.availability	1	system.connectors	query	query	home	read	-	plugin	connections:observe	connector	-	-	319b056c62cd	84abf93e7873	-
 connectors.connection.check	1	system.connectors	query	query	home	read	concurrent	agent,mcp,user	connectors:management:read	connector	-	-	319b056c62cd	a2c799262a3c	-
 connectors.connection.control	2	system.connectors	command	operation	home	write	concurrent	agent,mcp,user	connectors:management:write	connector	-	-	b459aab0bc5b	a2c799262a3c	-
 connectors.connection.remove	1	system.connectors	command	operation	home	irreversible	concurrent	agent,mcp,user	connectors:management:write	connector	-	-	9c86452104b7	a2c799262a3c	-

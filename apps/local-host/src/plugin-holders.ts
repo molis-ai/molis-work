@@ -29,21 +29,39 @@ function heldInProject(file: string, pluginId: string): boolean {
   } finally { project.close(); }
 }
 
-function heldInOtherProject(home: string, pluginId: string, projectId: string | null): boolean {
+/** The projects whose library holds a claim of the plugin, and whether every project's records could be read; `except` is not read. The Home's own activation is not a project. */
+function projectsHolding(home: string, pluginId: string, except: string | null = null): { project_ids: string[]; complete: boolean } {
   const catalogPath = join(home, "projects", "catalog.db");
-  if (!existsSync(catalogPath)) return false;
+  if (!existsSync(catalogPath)) return { project_ids: [], complete: true };
   const catalog = new LocalSqliteStorage(catalogPath, { readonly: true });
   try {
-    if (!isOwnedCatalogOwner(new LocalCatalogMetadata(catalog.db).owner())) return true;
+    if (!isOwnedCatalogOwner(new LocalCatalogMetadata(catalog.db).owner())) return { project_ids: [], complete: false };
     const root = resolve(home, "projects") + sep;
-    return listCatalogProjectsForUninstall(catalog.db).some(project => {
-      if (project.project_id === projectId) return false;
+    const found: string[] = [];
+    let complete = true;
+    for (const project of listCatalogProjectsForUninstall(catalog.db)) {
+      if (project.project_id === except) continue;
       const file = resolve(project.database_path);
       // A project file this Host would not have put there is not read; what is in it cannot be told.
-      if (!file.startsWith(root)) return true;
-      return existsSync(file) && heldInProject(file, pluginId);
-    });
+      if (!file.startsWith(root)) { complete = false; continue; }
+      if (!existsSync(file)) continue;
+      try { if (heldInProject(file, pluginId)) found.push(project.project_id); }
+      catch (error) { complete = false; hostLog.warn("functions", "plugin_holders_unreadable", error, { plugin_id: pluginId, project_id: project.project_id }); }
+    }
+    return { project_ids: found, complete };
   } finally { catalog.close(); }
+}
+
+/**
+ * The projects the plugin is installed in, or uninstalled with its data kept: what it can be told about itself (`services.installations.projects()`).
+ * A project that cannot be read makes the answer incomplete rather than silently absent.
+ */
+export function pluginInstalledProjects(home: string, pluginId: string): { project_ids: string[]; complete: boolean } {
+  try { return projectsHolding(home, pluginId); }
+  catch (error) {
+    hostLog.warn("functions", "plugin_holders_unreadable", error, { plugin_id: pluginId });
+    return { project_ids: [], complete: false };
+  }
 }
 
 /**
@@ -53,7 +71,9 @@ function heldInOtherProject(home: string, pluginId: string, projectId: string | 
  */
 export function pluginHeldElsewhere(home: string, pluginId: string, projectId: string | null): boolean {
   try {
-    return (projectId !== null && heldInHomeStore(home, pluginId)) || heldInOtherProject(home, pluginId, projectId);
+    if (projectId !== null && heldInHomeStore(home, pluginId)) return true;
+    const { project_ids, complete } = projectsHolding(home, pluginId, projectId);
+    return !complete || project_ids.length > 0;
   } catch (error) {
     hostLog.warn("functions", "plugin_holders_unreadable", error, { plugin_id: pluginId, project_id: projectId });
     return true;

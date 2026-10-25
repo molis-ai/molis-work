@@ -15,7 +15,7 @@ import { activateConnectorConnection, type ConnectorActivation } from "./connect
 import { verifyEnabledConnection } from "./connector-check-service.js";
 import type { ConnectorMcpDirectory } from "./connector-mcp-actions.js";
 
-import { refreshFeedConnectionState } from "./connector-source-state.js";
+import { connectionChanged } from "./connection-change-events.js";
 export { refreshFeedConnectionState } from "./connector-source-state.js";
 
 const ITEM_PATH = /^\/api\/settings\/connectors\/connections\/([a-z0-9-]+)$/u;
@@ -93,7 +93,7 @@ export async function handleConnectorConnectionsHttp(
         const verification = body.enabled && remember ? await verifyEnabledConnection(homeDirectory, item[1]!, remember) : undefined;
         sendJson(response, 200, { ...result, ...(verification ? { verification } : {}) }); return true;
       }
-      if (typeof body.token === "string") refreshFeedConnectionState(homeDirectory, item[1]!);
+      if (typeof body.token === "string") connectionChanged(homeDirectory, item[1]!);
       sendJson(response, 200, { connection });
       return true;
     }

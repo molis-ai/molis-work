@@ -16,7 +16,8 @@ import { openTestHome } from "./fixtures/test-home.js";
  * and stops at the next one (or answers), so the refusal is the instance check's and nothing else's.
  *
  * Which half has what: the Host gives the project half the action dependencies, Agent, installations, notifications and scheduler,
- * the Home half the terminal (it needs the Home's owner files), and both halves an authorized directory.
+ * the Home half the terminal (it needs the Home's owner files) and its own installations (RAC-495a: which projects hold the plugin),
+ * and both halves an authorized directory.
  */
 
 const NAME = "dualservices", PLUGIN = `io.molis.work.example.${NAME}`;
@@ -109,6 +110,18 @@ test("BL-368, DUAL-16, S-48: the project half's installations are refused inside
   const own = await s.run("project", services => services.project.installations!.list());
   assert.equal(own.outcome, "ok", own.message);
   assert.ok((own.value as Array<{ plugin_id: string }>).some(item => item.plugin_id === PLUGIN));
+});
+
+test("RAC-495a, S-48: only the Home half is told which projects hold its plugin, and neither half's installations are used inside the other's action", { timeout: 60_000 }, async t => {
+  const s = await open(t);
+  assert.deepEqual(await s.run("home", services => services.home.installations!.projects()), { outcome: "ok", value: { project_ids: [s.project.project_id], complete: true } });
+  assert.deepEqual(await s.run("project", services => services.project.installations!.projects()),
+    { outcome: "actions.forbidden", message: "只有 Home 一半能查询本插件装在哪些项目" }, "a project instance knows its own project and no other");
+  assert.ok(otherInstance(await s.run("project", services => services.home.installations!.projects())));
+  assert.ok(otherInstance(await s.run("project", services => services.home.installations!.list())));
+  const own = await s.run("home", services => services.home.installations!.list());
+  assert.equal(own.outcome, "ok", own.message);
+  assert.ok(Array.isArray(own.value));
 });
 
 test("BL-368, DUAL-16, S-48: the project half's notifications are refused inside the Home half's action", { timeout: 60_000 }, async t => {

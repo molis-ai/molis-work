@@ -243,6 +243,7 @@ export type { PluginHostServices } from "@molis-ai/molis-work-contracts/platform
 export type { PluginIdempotencyPut } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginIdempotencyRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginInstallationClient } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginInstallationProjects } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginInstallationView } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginJournalAppend } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginJournalEvent } from "@molis-ai/molis-work-contracts/platform/plugin";

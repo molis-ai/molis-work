@@ -293,6 +293,6 @@ export { pluginErrors } from "./plugin-errors.js";
 
 export type { PluginAgentClient, PluginAgentRunInput, PluginAgentRunResult } from "./plugin-agents.js";
 
-export type { PluginInstallationClient, PluginInstallationView } from "./plugin-installations.js";
+export type { PluginInstallationClient, PluginInstallationProjects, PluginInstallationView } from "./plugin-installations.js";
 
 export type { PluginNotificationClient, PluginNotificationInput, PluginNotificationReceipt } from "./plugin-notifications.js";

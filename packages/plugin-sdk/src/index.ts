@@ -271,7 +271,7 @@ export type { MaterialSource, MaterialUpload, MaterialExtraction } from "@molis-
 
 export type { PluginAgentClient, PluginAgentRunInput, PluginAgentRunResult } from "@molis-ai/molis-work-contracts/platform/plugin";
 
-export type { PluginInstallationClient, PluginInstallationView } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginInstallationClient, PluginInstallationProjects, PluginInstallationView } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 export type { PluginNotificationClient, PluginNotificationInput, PluginNotificationReceipt } from "@molis-ai/molis-work-contracts/platform/plugin";
 export { canonicalJsonValue } from "./json-value.js";

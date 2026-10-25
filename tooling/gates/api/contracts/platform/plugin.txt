@@ -2158,6 +2158,10 @@ export declare const HOME_OPEN_TARGET_SCHEMA: {
     })[];
 };
 
+export declare const HOST_CONNECTIONS_OBSERVE_PERMISSION = "connections:observe";
+
+export declare const HOST_CONNECTION_CHANGED_EVENT = "host.connection.changed";
+
 export declare const HOST_EVENT_SOURCE = "host";
 
 export declare const HOST_EVENT_TYPES: readonly HostEventType[];
@@ -2253,6 +2257,10 @@ export interface HomeStoreDeclaration {
         readonly file?: string;
         readonly partition?: "project";
     };
+}
+
+export interface HostConnectionChangedPayload {
+    connection_id: string;
 }
 
 export interface HostEventType {
@@ -3082,6 +3090,12 @@ export interface PluginInputsClient {
 export interface PluginInstallationClient {
     list(): readonly PluginInstallationView[];
     get(installId: string): PluginInstallationView | null;
+    projects(): PluginInstallationProjects;
+}
+
+export interface PluginInstallationProjects {
+    readonly project_ids: readonly string[];
+    readonly complete: boolean;
 }
 
 export interface PluginInstallationView {

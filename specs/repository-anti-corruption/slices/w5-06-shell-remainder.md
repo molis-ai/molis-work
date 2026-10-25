@@ -1,6 +1,6 @@
 # W5-06 外壳余项：页面读声明、运行时目录、项目插件重启入口、引导走 Pages 公开动作（PG-060、PG-088）
 
-状态：统筹已审、必改已补（2026-10-25）；第 1 片已实现（#1261，一轮评审可合）、第 2 片已实现（#1272，叠在 #1261 FIX3 上，随 batch-37 落）、第 3 片已实现、叠在第 2 片上，只推分支，第 4 片接着做。事实按 `origin/main`（`df5527f27`）重核。分四片，每片一个 PR，依次做。D1～D5 已裁定，见 §6。
+状态：统筹已审、必改已补（2026-10-25）；第 1 片已实现（#1261，一轮评审可合）、第 2 片已实现（#1272，叠在 #1261 FIX3 上，随 batch-37 落）、第 3 片已实现（分支 `claude/ac-shell-slice3`，叠在 #1272 上）、第 4 片已实现（分支 `claude/ac-shell-slice4`，叠在第 3 片上），两片都只推分支。事实按 `origin/main`（`df5527f27`）重核。分四片，每片一个 PR，依次做。D1～D5 已裁定，见 §6。
 
 验收编号：RAC-600～619（各片的区间见下）。BL 号段 BL-635～644（本稿暂未取用）。
 
@@ -99,7 +99,7 @@ PG-060 其余在工作台里仍按名字的行，核过，**不归本线**：`re
 
 做法（B，本稿建议；待统筹裁定，见 §6 的 D3）：Pages 加一个**只读的转换动作**（暂名 `pagesActions.bodyFromMarkdown`，`documents.body_from_markdown`，输入 `{ markdown }`，输出 `{ body: PagesBody }`，权限 `pages:read`），内部用现有 `blocksFromMarkdown`。引导的 `pageBody` 改成调用它（变成 async，`pageParts` 随之变 async 生成器）。可见范围：只给需要的调用者——`audiences: ["user"]`（引导走的是「人在新项目里的动作」），不写 Pages 其他动作默认的 `workflow`、`agent`、`mcp`（`actions.ts` 的 `define` 默认四个都给），所以不进 MCP 工具名单，Agent 与工作流程也调不到；Pages 自己的内容交接处理器不用它（它有自己的转换）。`define` 加一个可选的 `audiences` 参数，其余动作不变。
 
-**结果体积**（D3 补）：转换动作自己守 Pages 单文档正文上限（`document.ts` 的 `MAX_BODY_CHARS`，1,500,000 编码字符）：转换后超过就返回明确错误 `pages.body_too_large`（`error.ts` 里 `defineErrorCodes("pages", …)` 加一条，kind `invalid`），不截断、不返回超大结果。所以动作结果恒 ≤ 1.5 MB（核对过：Runtime 动作结果没有通用字节上限，所以由动作自己限）；输入 `markdown` 上限 400,000 字符（引导的初始部分大小，减半只会更小）。引导照旧按减半重试：转换返回 `pages.body_too_large`，或返回的正文编码后超过引导自己的 `PAGE_BODY_MAX`（1,400,000），都把这一部分从中间减半再转换；部分长度小于 2 时把错误抛出，与现在一致。拆分、「第 k / N 部分」标题、按编码体积减半重试、每部分一个 `request_id` 的幂等，全部留在引导里不变（那是引导的策略，且用户 10-22 定了「来源不设上限」）。
+**结果体积**（D3 补）：转换动作自己守 Pages 单文档正文上限（`document.ts` 的 `MAX_BODY_CHARS`，1,500,000 编码字符）：转换后超过就返回明确错误 `pages.body_too_large`（`error.ts` 里 `defineErrorCodes("pages", …)` 加一条，kind `invalid`），不截断、不返回超大结果。所以动作结果恒 ≤ 1.5 MB（核对过：Runtime 动作结果没有通用字节上限，所以由动作自己限）；输入 `markdown` 上限 1,000,000 字符（与 Pages 自己的 `markdown` 写入字段同一个数；原稿写 400,000，但引导的摘要页不拆分、整篇转换，摘要加资料来源行可以超过 400,000，收紧会让原来能存的摘要失败。结果体积仍由 `pages.body_too_large` 守住）。引导的客户端权限列表加 `pages:read`（`web-onboarding.ts`）。引导照旧按减半重试：转换返回 `pages.body_too_large`，或返回的正文编码后超过引导自己的 `PAGE_BODY_MAX`（1,400,000），都把这一部分从中间减半再转换；部分长度小于 2 时把错误抛出，与现在一致。拆分、「第 k / N 部分」标题、按编码体积减半重试、每部分一个 `request_id` 的幂等，全部留在引导里不变（那是引导的策略，且用户 10-22 定了「来源不设上限」）。
 
 放弃的写法：(A) 给 `importDocuments` 的文档项加 `markdown` 字段——宿主就量不到编码后体积，减半重试要搬进 Pages，同时带着随界面语言的标题后缀，更大；(C) 做一个 Pages 负责拆分的 `importMarkdown`——同样要 Pages 知道标题后缀的语言。
 
@@ -113,6 +113,8 @@ PG-060 其余在工作台里仍按名字的行，核过，**不归本线**：`re
 碰的文件：`apps/local-host/src/context-onboarding-service.ts`（在途 #1251 改了其中一行 import，重基无冲突）、`plugins/native/pages/src/{actions,manifest}.ts`（动作与 Manifest 声明）、`tests/` 三份、`tooling/gates/actions/`。
 
 收口（RAC-619，统筹合入后做，不在片里改）：每片 PR 正文「privileges.md 状态」一节写好 PG-060（余项全部做完后「已做」，带 PR 与 RAC-600～618）和 PG-088（带 PR 与 RAC-615～618）该写的状态；统筹合入后统一改状态列（`SLICE-RULES.md` §2）。
+
+**V-18 结论（第 4 片开工前核对）**：`attemptsByDatabase`（`plugins/native/pages/src/store.ts`）只被同一文件的 `openPagesStore` 用；`openPagesStore` 在生产代码里没有调用者，只有四份测试（`context-landing-panes.e2e`、`context-pick-result.e2e`、`pages-project-deleted`、`security-invariants-plugin-pages`）和包的导出在用。所以这个模块级 Map 只为测试存在；本片不动它，删导出或留作测试工具交统筹裁。
 
 ## 6. 统筹裁定（2026-10-25，已定）
 

@@ -37,7 +37,7 @@ function pagesPorts(dir: string) {
     const project = await withCatalog({ homeDirectory: dir }, catalog => catalog.getProject(projectId));
     const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
     let host = hosts.get(dir); if (!host) { host = new MolisWorkLocalHost({ homeDirectory: dir, completeText: null }); hosts.set(dir, host); }
-    return bindActionClient(host.actionClient(reference), () => ({ actor_id: "context-test", project_id: projectId, audience: "user", permissions: ["pages:write", "artifacts:read", "artifacts:write"], ...original_file ? { original_file } : {} }));
+    return bindActionClient(host.actionClient(reference), () => ({ actor_id: "context-test", project_id: projectId, audience: "user", permissions: ["pages:read", "pages:write", "artifacts:read", "artifacts:write"], ...original_file ? { original_file } : {} }));
   } };
 }
 /** One chosen file, uploaded into the journey's staging the way the page does it; the selection names it by digest. */
@@ -497,6 +497,41 @@ test('ONB-LIM-04 a file over 6 MB with over 2 MB of text reaches adoption whole:
   const stored=await actions.invoke(artifactsActions.read,{reference:adopted.artifact_references![0]!});const payload=stored.selected!.payload as {original_file:{data_base64?:string;sha256?:string;size_bytes?:number}};
   assert.equal(payload.original_file.data_base64,undefined,'over 6 MB, the original is kept by reference');
   assert.equal(payload.original_file.size_bytes,Buffer.byteLength(big));assert.equal(payload.original_file.sha256,createHash('sha256').update(big).digest('hex'));
+});
+
+// W5-06 remainder slice 4 (PG-088, RAC-617): Pages converts the text through its public action; a part it refuses as too large is halved.
+test('RAC-617 PG-088 a part Pages refuses with pages.body_too_large is halved until each part fits; when a part of one character is refused the error is thrown',{timeout:240_000},async t=>{
+  const dir=await home(t),id=randomUUID();
+  await new MolisWorkLocalHost({ homeDirectory: dir, completeText: null }).close();
+  withContextJourneys(dir,s=>s.create(id));
+  const text='# Long record\n\n'+Array.from({length:7_000},(_,i)=>'Line '+i+' of the record, with ordinary work context.').join('\n')+'\nEND OF RECORD\n';
+  assert.ok(text.length>300_000&&text.length<400_000);
+  selectContextSources(dir,id,{sources:[{kind:'files',selected:true,files:[await staged(dir,id,'long.md',text)]}]});
+  const base=pagesPorts(dir),limit={chars:100_000};
+  const refusing={...base,model:async()=>({}),actions:async(h:string,p:string,o?:{path:string;install_id:string}):Promise<BoundActionClient>=>{
+    const client=await base.actions(h,p,o);
+    return {discover:()=>client.discover(),invoke:async(definition,input)=>{
+      if(definition.capability_id==='pages.documents.body_from_markdown'&&(input as {markdown:string}).markdown.length>limit.chars)
+        throw Object.assign(new Error('too large'),{code:'pages.body_too_large'});
+      return client.invoke(definition,input);
+    }};
+  }};
+  startContextJourney(dir,id,refusing);await waitContextJourney(dir,id);
+  const adopted=await adoptContextJourney(dir,id,{title:'Halved',materials_only:true},refusing);assert.equal(adopted.phase,'complete',adopted.error??'');
+  const pages=openPagesStore(dir);try{
+    const parts=pages.list(adopted.project_id).filter(d=>d.id!==adopted.document_id).sort((a,b)=>a.title.localeCompare(b.title,'en',{numeric:true}));
+    assert.equal(parts.length,4,'a 330,000-character text refused above 100,000 halves to four parts');
+    assert.ok(parts.every((d,i)=>d.title.endsWith(` · 第 ${i+1} / 4 部分`)),parts.map(d=>d.title).join(', '));
+    const joined=parts.map(d=>JSON.stringify(pages.get(d.id).body)).join('');
+    assert.match(joined,/原标题：Long record/);assert.match(joined,/Line 6999 of the record/);assert.match(joined,/END OF RECORD/);
+  }finally{pages.close();}
+  // Refused whatever its size, a part is halved down to one character and then the error comes out (no endless halving).
+  const id2=randomUUID();withContextJourneys(dir,s=>s.create(id2));
+  selectContextSources(dir,id2,{sources:[{kind:'files',selected:true,files:[await staged(dir,id2,'short.md','A short note, refused all the same.\n')]}]});
+  limit.chars=0;
+  startContextJourney(dir,id2,refusing);await waitContextJourney(dir,id2);
+  const failed=await adoptContextJourney(dir,id2,{title:'Refused',materials_only:true},refusing);
+  assert.equal(failed.phase,'failed');assert.match(failed.error!,/too large/);
 });
 
 // A full disk is the machine's failure, not a file's (review 2026-10-22): the round stops at that file with a plain reason instead of

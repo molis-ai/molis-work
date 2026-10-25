@@ -26,12 +26,8 @@ export const ARTIFACT_PORT_INPUT_CLIENT_SCRIPT = String.raw`
     const status = section.querySelector("[data-artifact-port-inputs-status]");
     button.disabled = true; status.textContent = "";
     try {
-      const response = await fetch(route("/api/artifacts/plugin-inputs"), { method: "POST",
-        headers: { ...(globalThis.molisWorkControlHeaders?.() || {}), "content-type": "application/json", "x-molis-work-idempotency-key": crypto.randomUUID() },
-        body: JSON.stringify({ reference: JSON.parse(section.dataset.artifactReference), plugin_id: row.dataset.pluginId, port: row.dataset.port,
-          restore: button.dataset.artifactPortInput === "restore" }) });
-      const payload = await response.json().catch(() => null);
-      if (!response.ok) throw new Error(payload?.error || L("没能改插件的输入"));
+      await molisWorkRequest(route("/api/artifacts/plugin-inputs"), { body: { reference: JSON.parse(section.dataset.artifactReference), plugin_id: row.dataset.pluginId, port: row.dataset.port,
+        restore: button.dataset.artifactPortInput === "restore" }, fallback: L("没能改插件的输入") });
       void loadArtifacts(artifactPath || route("/artifacts"), true);
     } catch (error) { status.textContent = error.message; button.disabled = false; }
   });

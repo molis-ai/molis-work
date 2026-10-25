@@ -9,6 +9,7 @@ import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, createPluginPlatform, homeStores, projectDeletedHooksFor, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
+import { createFormPlugin } from "@molis-ai/molis-work-plugin-form";
 import type { HomePluginDatabaseDeclaration, PluginDefinition, PluginManifest, PluginProjectRowsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
@@ -179,7 +180,27 @@ function projectPlatform(t: TestContext, home: string, stores = homeStores()) {
   return platform;
 }
 
-test("RAC-562 BL-620 the project platform refuses project_rows in a Home library before schema, installs or plugin effects", async t => {
+test("RAC-562 an existing catalog project plugin with a declared deletion owner still starts through the real platform", async t => {
+  const home = withHome(t), platform = projectPlatform(t, home), definition = createFormPlugin();
+  const schema = t.mock.method(DatabaseSync.prototype, "exec"), library = definition.manifest.databases!.home!;
+  assert.ok(catalog.some(entry => entry.manifest === definition.manifest), "the deletion owner reads this same Manifest object");
+  assert.deepEqual((await platform.start([{ definition, bundled: true }])).running, [definition.manifest.plugin_id]);
+  assert.ok(schema.mock.calls.some(call => call.arguments[0] === library.schema), "a supported real startup exercises the observed schema exec");
+  assert.ok(existsSync(homeSqlitePath(home, library.store_name)));
+});
+
+test("RAC-562 the project platform refuses a copied catalog Manifest even with the same plugin id and bundled flag", async t => {
+  const home = withHome(t), platform = projectPlatform(t, home), original = createFormPlugin(), calls: string[] = [];
+  const definition: PluginDefinition = { ...original, manifest: { ...original.manifest }, async start(context) { calls.push("start"); return original.start(context); } };
+  const schema = t.mock.method(DatabaseSync.prototype, "exec"), library = definition.manifest.databases!.home!;
+  await assert.rejects(platform.start([{ definition, bundled: true }]), { code: "plugin.declaration_invalid" });
+  assert.deepEqual(calls, []);
+  assert.deepEqual(platform.runtime.list(), []);
+  assert.equal(schema.mock.calls.filter(call => call.arguments[0] === library.schema).length, 0);
+  assert.equal(existsSync(join(home, library.store_name)), false);
+});
+
+test("RAC-562 BL-620 the project platform refuses project_rows without a catalog deletion owner before schema, installs or plugin effects", async t => {
   const home = withHome(t), probe = rowsProbe(), other = rowsProbe(ROWS.label, "io.molis.work.example.otherrows");
   const stores = homeStoreRegistry([...homeStores().stores, { path: LIBRARY.store_name, owner: probe.id, library: { baseline: LIBRARY } }]);
   const platform = projectPlatform(t, home, stores), schema = t.mock.method(DatabaseSync.prototype, "exec");

@@ -1,3 +1,4 @@
+import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { pluginErrors, type HomePluginDatabaseDeclaration, type PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { clearInExistingHomeSqlite, describeSqliteBaseline } from "@molis-ai/molis-work-storage";
 
@@ -32,15 +33,16 @@ export function projectRowsStatements(library: HomePluginDatabaseDeclaration, pl
 
 /**
  * Checks every `project_rows` on a start list before anything starts, as the libraries themselves are checked: a mistake is the
- * composition's. Only a Home start list has a deletion step for these rows (BL-620); sandboxed declarations stay refused (BL-619).
+ * composition's. A project's list keeps the catalog's existing deletion owners, by their actual Manifest objects; other project
+ * entries have no deletion step (BL-620). A Home start list has its own steps; sandboxed declarations stay refused (BL-619).
  */
 export function assertProjectRowsEntries(entries: readonly { readonly definition: PluginDefinition }[], scope: "home" | "project"): void {
   for (const { definition } of entries) {
     const library = definition.manifest.databases?.home;
     if (!library?.project_rows) continue;
     if (definition.execution === "sandbox") throw sandboxRefusal(definition);
-    if (scope === "project") {
-      throw pluginErrors.declaration_invalid(`插件 ${definition.manifest.plugin_id} 声明了 project_rows：项目插件的 Home 库还不能由平台按项目删（BL-620）`);
+    if (scope === "project" && !BUILTIN_PLUGIN_CATALOG.some(entry => entry.manifest === definition.manifest)) {
+      throw pluginErrors.declaration_invalid(`插件 ${definition.manifest.plugin_id} 声明了 project_rows：这个项目插件的 Home 库没有登记项目删除步骤（BL-620）`);
     }
     projectRowsStatements(library, definition.manifest.plugin_id);
   }

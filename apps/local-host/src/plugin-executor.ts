@@ -5,6 +5,7 @@ import { StoppedServiceCalls, type PluginEventBus, type PluginHostEvents, type P
 import type { PluginPlatformHome } from "./home-side.js";
 import { openHostSession, type HostSession } from "./plugin-host-services.js";
 import { forgetPluginAgentDefinitions } from "./plugin-instructions.js";
+import { forgetInstallationProjectBindings } from "./connector-plugin-requests.js";
 import { removeSandboxOwnerFiles } from "./plugin-sandbox-owner-files.js";
 import type { PluginDependencyCheck } from "./plugin-actions-client.js";
 import { discardInstallationOwnerData } from "./plugin-installation-cleanup.js";
@@ -52,6 +53,8 @@ export interface PluginHostExecutorOptions {
    */
   invalidateView?(pluginId: string): void;
   privateStorageFor(context: PluginUpgradeContext, manifest: PluginManifest): PluginPrivateStorage;
+  /** Connector owner cleanup for a project platform without Home services; a platform with a Home uses that Home. */
+  forgetConnectionBindings?(installId: string): void;
   /** The private KV owner's synchronous deletion port; required to reinstall a non-retaining uninstalled record. */
   deleteInstallationData?(installId: string): void;
   capturePrivateData?(installId: string): Promise<unknown> | unknown;
@@ -99,6 +102,9 @@ export class PluginHostExecutor implements PluginExecutor {
     forgetPluginAgentDefinitions(this.options.home, record.install_id);
     // A sandboxed installation that keeps no data keeps no files either (S-64); one that keeps it leaves its folder to the same installation id.
     if (record.execution === "sandbox" && !record.retain_private_data) removeSandboxOwnerFiles({ home: this.options.home, project_id: this.options.project_id }, record.install_id);
+    // Record bindings leave with this project installation even when its private data is kept (S-57 X4); shared slots/accounts stay.
+    if (this.options.home) forgetInstallationProjectBindings(this.options.home.directory, record.install_id, this.options.project_id);
+    else this.options.forgetConnectionBindings?.(record.install_id);
   }
 
   keptDataDiscarded(record: PluginInstanceRecord): void {

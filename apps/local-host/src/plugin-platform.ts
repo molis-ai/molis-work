@@ -71,6 +71,8 @@ export interface PluginPlatformOptions {
   processItems: ProcessItemsApplicationApi;
   ui: UiHostApi;
   privateStorageFor(context: PluginUpgradeContext, manifest: PluginManifest): PluginPrivateStorage;
+  /** The Connector owner cleanup port when this project platform has no Home services. */
+  forgetConnectionBindings?(installId: string): void;
   /** The owner of private KV supplies whole-installation cleanup for synchronous non-retaining reinstalls. */
   deleteInstallationData?(installId: string): void;
   capturePrivateData?(installId: string): Promise<unknown> | unknown;
@@ -155,6 +157,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     ui: options.ui,
     privateStorageFor: options.privateStorageFor,
     deleteInstallationData: options.deleteInstallationData,
+    forgetConnectionBindings: options.forgetConnectionBindings,
     capturePrivateData: options.capturePrivateData,
     restorePrivateData: options.restorePrivateData,
   });

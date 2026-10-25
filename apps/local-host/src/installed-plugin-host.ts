@@ -92,6 +92,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   };
   const privateStorage = new SqlitePluginPrivateStorage(store.db);
   const platform = createPluginPlatform({ project_id: projectId, actor_id: options.actorId ?? 'web-user', db: store.db, journal: store, actions, ui: new UiHost(), home: null,
+    forgetConnectionBindings: installId => forgetInstallationProjectBindings(homeDirectory, installId, projectId),
     ...openProjectVersionStores(store),
     privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest),
     deleteInstallationData: id => privateStorage.deleteInstallationData(id),
@@ -161,8 +162,6 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     forget(pluginId, installId) {
       unregisterGeneratedPrompts(homeDirectory, pluginId, promptScope(installId));
       for (const [key, entry] of definitions) if (entry.pluginId === pluginId) definitions.delete(key);
-      // The account it used for each of its records here goes with it; its installation slot's account is every project's (BL-596).
-      forgetInstallationProjectBindings(homeDirectory, installId, projectId);
     } });
   const close = async () => {
     if (closed) return;

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createWorkbenchGoalsPolicyRenderer, createWorkbenchUiHost, type GoalsPolicyItem } from "@molis-ai/molis-work-app-workbench";
-import { GOALS_POLICY_UI_CONTRIBUTION_ID } from "@molis-ai/molis-work-plugin-goals";
+import { createWorkbenchGoalsPolicyRenderer, createWorkbenchUiHost } from "@molis-ai/molis-work-app-workbench";
+import { GOALS_POLICY_UI_CONTRIBUTION_ID, type GoalsPolicyItem } from "@molis-ai/molis-work-plugin-goals";
 import { icon } from "@molis-ai/molis-work-design-system";
 import { L, currentLocale, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 

@@ -131,7 +131,7 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
 | W5-15 | 部分 | 成熟度词表；发版与版本号归用户 |
 | W5-16 | 进行中（仅B1已真实落地） | Codex C2 实现2；B1 #1190/bc016随#1202/645已合。B2a #1209/e20已双独立审验通过、source冻结释放，在Claude full29/52受测；该批唯一S15 Images启动红归原ac-sandbox，B2a尚无最终批真merge。B2b CLI必要状态/早期同Home lease/全库及非SQLite快照恢复仍未完成，按W5当前FIX2自然固定交槽后排实际source，合同见CODEX-TASKS/SESSION-ROLES；真实Home/R41统一窗口另核 |
 | W5-17 | 已派 | `ac-sandbox-sched`（#1113 已合；本地做，线上开着的 PR 合入一个再开）。10-24 用户定：和 Goals S9 同一个维护时段，先在真实 Home 拷贝上跑 `list` 交用户，维护做完前不合 |
-| W6-01～06 | 未开 | §4 |
+| W6-01～06 | W6-03 预演完成 | W6-03：DeepSeek 走查报告 `deepseek/w6-03-doc-walk`（e4cf619d2，70 条）；其中「现在就能改的」16 条已改在 `claude/w6-03-docs-now`（8390d72c8，D10 的 CHECKLIST 一半随 #1295，0.3.0 发布记录不改），随下一批落地；其余 54 条等 W6 统一改。W6-01/02/04/05/06 未开 |
 
 ## 统筹自用号段（10-24）
 

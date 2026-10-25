@@ -92,7 +92,7 @@ export type {
   PluginResolutionDiagnosticCode,
   PluginResolutionInput,
 } from "./resolution.js";
-export { pluginPublisherIdentity, assertPluginPackagePath, parsePluginPackage, pluginPackageSigningBytes, signPluginPackage, verifyPluginPackage } from "./package-verification.js";
+export { pluginPublisherIdentity, assertPluginPackagePath, parsePluginPackage, pluginPackageSigningBytes, signPluginPackage, verifyPluginPackage, verifyPluginPackageSignature } from "./package-verification.js";
 
 import type { PluginConsentGrant, PluginTrust } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import type {

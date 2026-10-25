@@ -100,6 +100,19 @@ export function verifyPluginPackage(input: unknown, trustedKey: KeyObject | stri
   return bundle;
 }
 
+/**
+ * Checks a signed package against the public key it carries (which `parsePluginPackage` already ties to the Manifest's publisher) and answers
+ * the package and that key. Whose key it is, is for the caller to decide: a package of a publisher the person has not pinned verifies the same.
+ */
+export function verifyPluginPackageSignature(input: unknown): { bundle: PluginPackageBundle; key_id: string; public_key_spki_base64: string } {
+  const bundle = parsePluginPackage(input);
+  if (!bundle.signature || !bundle.publisher_key) throw pluginErrors.signature_invalid("未签名的包不是已验证发行物");
+  if (!verify(null, pluginPackageSigningBytes(bundle.payload), publicKeyFromSpki(bundle.publisher_key.spki_base64), Buffer.from(bundle.signature.value_base64, "base64"))) {
+    throw pluginErrors.signature_invalid("Plugin 内容或签名已改变");
+  }
+  return { bundle, key_id: bundle.payload.manifest.publisher.signature, public_key_spki_base64: bundle.publisher_key.spki_base64 };
+}
+
 function canonical(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
   if (value && typeof value === "object") return `{${Object.entries(value).sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)

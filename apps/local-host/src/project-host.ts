@@ -22,7 +22,9 @@ import { actionUsagesProvider } from "./action-usage-actions.js";
 import { ActionCallLog } from "./action-call-log.js";
 import { connectorAccountActionProvider } from "./connector-account-actions.js";
 import { HomeConsentLedger } from "./home-plugin-store.js";
-import { registerPluginConsentActions } from "./installed-plugin-consent-actions.js";
+import { registerPluginTrustActions } from "./plugin-trust-actions.js";
+import { PluginInstallService } from "./plugin-install-service.js";
+import { SandboxPackageStore } from "./sandbox-package-store.js";
 import type { HostCompleteText } from "./host-complete-text.js";
 import { nativeContentProviders } from "./content-action-providers.js";
 import { createLocalFeedApplication } from "./feed-application.js";
@@ -30,7 +32,7 @@ import { SystemFunctionsActions } from "./functions-actions.js";
 import type { FunctionsHostOptions } from "./functions-host.js";
 import { releaseAgentStudio } from "./plugin-builder/agent-surface.js";
 import { releaseInstalledPlugins } from "./installed-plugin-host.js";
-import { ensureProjectPluginActions, prepareInstalledPlugins } from "./project-plugin-ports.js";
+import { ensureProjectPluginActions, installPackageInProject, prepareInstalledPlugins } from "./project-plugin-ports.js";
 import path from "node:path";
 import { prepareMemoryHome } from "./memory/memory-adoption.js";
 import { closeConnectorResources } from "./connector-lifecycle.js";
@@ -210,7 +212,11 @@ export class MolisWorkLocalHost {
       if (caller.project_id && !project) throw new ActionError("actions.scope_mismatch", "判断目录缺少当前项目运行环境");
       return { actions: project ? this.actionClient(project) : this.homeActionClient(), scenes: this.sceneClient(project), projectId: project?.project_id };
     });
-    if (options.homeDirectory) registerPluginConsentActions(this.host.actionRegistry(), new HomeConsentLedger(options.homeDirectory));
+    if (options.homeDirectory) {
+      const ledger = new HomeConsentLedger(options.homeDirectory), source = { host: this.host, options: this.options, agents: () => this.agents?.service };
+      registerPluginTrustActions(this.host.actionRegistry(), { ledger, install: new PluginInstallService({ ledger, packages: new SandboxPackageStore(options.homeDirectory),
+        install: (projectId, release) => installPackageInProject(source, projectId, release) }) });
+    }
     if (options.homeDirectory) this.host.actionRegistry().registerProvider(connectorAccountActionProvider(options.homeDirectory, (...args) => this.connectorMcp!.remember(...args), { library: async () => this.agents?.service.mcpLibrary(), refresh: async owner => { if (!this.agents) throw new Error("项目 MCP 运行服务未装配"); await this.agents.service.refreshExternalMcp(owner); } }, caller => this.inspectActions(caller, this.host.projects().find(project => project.project_id === caller.project_id)), caller => caller.project_id ? this.actionClient(this.host.projects().find(project => project.project_id === caller.project_id)!) : this.homeActionClient(), (caller, installId, pluginId) => installedConnectionSlots(installId, pluginId, this.homePlugins, reference => this.withProject(reference, runtime => installedPluginManifest(runtime.store.db, installId)), this.host.projects().find(project => project.project_id === caller.project_id))));
     if (options.homeDirectory) {
       // Remote MCP servers connected in 服务连接: what each last offered is back in the directory at start.

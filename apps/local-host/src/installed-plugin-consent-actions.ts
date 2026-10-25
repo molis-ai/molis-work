@@ -1,4 +1,4 @@
-import { ActionError, type ActionDefinition, type ActionHandlerBinding, type ActionProviderRegistration, type ActionRegistryPort } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionDefinition, type ActionHandlerBinding, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginConsentRecord } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import type { PluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
@@ -59,5 +59,3 @@ export function pluginConsentProvider(ledger: PluginConsentLedger): ActionProvid
     definitions: Object.values(pluginConsentActions) as ActionDefinition[], handlers: pluginConsentHandlers(ledger) };
 }
 
-/** The Host offers the person these two actions for the whole of its run, over the Home ledger (opened per call, as `HomeConsentLedger` does). */
-export const registerPluginConsentActions = (registry: ActionRegistryPort, ledger: PluginConsentLedger): (() => void) => registry.registerProvider(pluginConsentProvider(ledger));

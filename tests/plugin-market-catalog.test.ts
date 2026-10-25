@@ -51,7 +51,7 @@ test("plugin market client script stays valid JavaScript inside the workbench bu
   assert.match(script, /data-market-scope/);
   assert.match(script, /plugin-market-installed-item/);
   assert.match(script, /grey: "var\(--hue-gray\)"/);
-  const tabIcons = JSON.parse(script.match(/const PLUGIN_TAB_ICON = (\{[^\n]+\});/)![1]!);
+  const tabIcons = JSON.parse(script.match(/const PLUGIN_TAB_ICON = (\{[^{}\n]*\})/)![1]!);
   assert.equal(tabIcons.feed, "rss");
   assert.equal(tabIcons.inbox, "inbox");
   // No plugin borrows the AI mark: every plugin has its own glyph (spec → 第三轮 · 图标).

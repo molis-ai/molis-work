@@ -169,10 +169,11 @@ async function platform(t: TestContext) {
   const reader = probe("attnreader", [A_READ, L_READ], []), bare = probe("attnbare", [], []);
   // The action of `loose` does not declare the permissions it holds: holding them is not enough to write.
   const loose = probe("attnloose", all, ["goal_decision"], undefined, []);
+  // The probes stand in for plugins this Host ships (host trust), so the dotted pair needs no shared pinned key.
   // An install whose id is main's id and a dot more: with a dot as the separator, main's namespace would contain its names.
   const child = probe("attnchild", all, ["goal_decision"], undefined, undefined, `${main.id}.child`);
   const source = probe("attnsource", all, ["source_fault"]);
-  assert.deepEqual((await running.start([main, peer, reader, bare, loose, child, source].map(item => ({ definition: item.definition, bundled: true })))).running.toSorted(),
+  assert.deepEqual((await running.start([main, peer, reader, bare, loose, child, source].map(item => ({ definition: item.definition, trust: { level: "host" as const } })))).running.toSorted(),
     [main, peer, reader, bare, loose, child, source].map(item => item.id).toSorted());
   const noted = (short: string, name: string) => store.db.prepare(`SELECT 1 FROM ${short}_notes WHERE text = ?`).get(name) !== undefined;
   const entry = (name: string) => store.db.prepare("SELECT project_id, status, reason FROM inbox_entries WHERE subject_id = ?").get(name) as

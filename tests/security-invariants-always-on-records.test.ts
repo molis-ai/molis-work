@@ -265,7 +265,7 @@ for (const corruption of ["version", "structure"] as const) {
       const db = seedStore(home), ledger = new SqlitePluginConsentLedger(db), repository = new SqlitePluginRuntimeRepository(db);
       const shelf = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "shelf")!.manifest;
       const goals = BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === "goals")!.manifest;
-      const runtime = new PluginRuntime(repository, undefined, { consents: ledger });
+      const runtime = new PluginRuntime(repository, undefined, { consents: ledger, hostIds: new Set([shelf.plugin_id, goals.plugin_id]) });
       const { install } = runtime.install({ deployment: "local", trust: HOST_BUILD_TRUST, grants: [], consents: [ALWAYS_ON],
         definition: { manifest: shelf, async start() { return { kind: "app", views: [] }; }, async stop() {} } as PluginDefinition });
       ledger.record({ plugin_id: goals.plugin_id, publisher_signature: goals.publisher.signature, manifest_digest: pluginManifestDigest(goals),

@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -53,16 +54,16 @@ test("RAC-740 the Home plugins the Host ships say so in their Manifests, and the
 
 test("RAC-741 only the Host's own build can be installed with runtime.scope home: an unsigned, pinned or generated plugin that writes it is refused", () => {
   const home = definition(manifest({ scope: "home" }));
-  assert.throws(() => new PluginRuntime().install({ definition: home, deployment: "local", grants: [], trust: UNSIGNED_TRUST }), code("plugin.home_scope_unavailable"));
+  assert.throws(() => new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }).install({ definition: home, deployment: "local", grants: [], trust: UNSIGNED_TRUST }), code("plugin.home_scope_unavailable"));
   const pinned = { level: "pinned", publisher_key_id: `ed25519:sha256:${"a".repeat(64)}` } as const;
-  assert.throws(() => new PluginRuntime().install({ definition: home, deployment: "local", grants: [], trust: pinned }), code("plugin.home_scope_unavailable"));
+  assert.throws(() => new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }).install({ definition: home, deployment: "local", grants: [], trust: pinned }), code("plugin.home_scope_unavailable"));
   assert.throws(() => assertHomeScopeAllowed(home.manifest, UNSIGNED_TRUST), code("plugin.home_scope_unavailable"));
-  const runtime = new PluginRuntime();
+  const runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS });
   assert.equal(runtime.install({ definition: home, deployment: "local", trust: HOST_BUILD_TRUST }).install.publisher_trust, "host");
   // A project plugin is not asked: it writes no runtime.
-  assert.equal(new PluginRuntime().install({ definition: definition(manifest(undefined)), deployment: "local", grants: [], trust: UNSIGNED_TRUST }).install.publisher_trust, "unsigned");
+  assert.equal(new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }).install({ definition: definition(manifest(undefined)), deployment: "local", grants: [], trust: UNSIGNED_TRUST }).install.publisher_trust, "unsigned");
   // Nothing was recorded for the refused ones.
-  const refused = new PluginRuntime();
+  const refused = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS });
   assert.throws(() => refused.install({ definition: home, deployment: "local", grants: [], trust: UNSIGNED_TRUST }), code("plugin.home_scope_unavailable"));
   assert.deepEqual(refused.list(), []);
 });
@@ -74,12 +75,12 @@ test("RAC-742 only the Host's own build can be installed with local_tools: an un
   } as Partial<PluginManifest>));
   const pinned = { level: "pinned", publisher_key_id: `ed25519:sha256:${"b".repeat(64)}` } as const;
   for (const trust of [UNSIGNED_TRUST, pinned]) {
-    const refused = new PluginRuntime();
+    const refused = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS });
     assert.throws(() => refused.install({ definition: declared, deployment: "local", grants: [], trust }), code("plugin.declaration_invalid"));
     assert.deepEqual(refused.list(), [], "nothing is recorded for a refused install");
   }
   assert.throws(() => assertLocalToolsAllowed(declared.manifest, UNSIGNED_TRUST), code("plugin.declaration_invalid"));
   // The Host's own build is asked nothing, and a plugin that declares none is not asked either.
-  assert.equal(new PluginRuntime().install({ definition: declared, deployment: "local", trust: HOST_BUILD_TRUST }).install.publisher_trust, "host");
-  assert.equal(new PluginRuntime().install({ definition: definition(manifest(undefined)), deployment: "local", grants: [], trust: UNSIGNED_TRUST }).install.publisher_trust, "unsigned");
+  assert.equal(new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }).install({ definition: declared, deployment: "local", trust: HOST_BUILD_TRUST }).install.publisher_trust, "host");
+  assert.equal(new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }).install({ definition: definition(manifest(undefined)), deployment: "local", grants: [], trust: UNSIGNED_TRUST }).install.publisher_trust, "unsigned");
 });

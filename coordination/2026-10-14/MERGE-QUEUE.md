@@ -89,6 +89,12 @@ PR 粒度（GitHub runner 槽位有限，开得多就积压）：
   - #1277 挡合并 2 项转 ac-platform 修；裁：24 个对象读取器输出 schema 变了即升 @2（CONTRACT-CHANGES §3 第 3 条，阶段一不留旧版）。
   - batch-36 full 2（run 40176320950，78f15f2e6）：1404/1405，持续红只剩 `tests/home-plugin-private-store.test.ts`（W3-06-F-05/F-08 项目页 500），交 FIX13（候选 `5dc2da402` 未含显示层）；cognia-actions、busy-feedback 首败重试过，原因未明，不记成环境。
 
+- 10-25 傍晚（统筹）：
+  - **batch-36 定稿**：并 FIX13 最终头 `4e1385937`（账本恢复页 + 触控 44px），批头 `cd9099265`，已推 batch 与 carrier，full 第 3 轮 run 40183726008。
+  - **batch-37 收口**（`batch/1025-37` 已推 `d00ab909c`）：在原有之外又并 #1275 FIX `1294e4345`、#1278 `047826700`、#1280 `d654f9688`+FIX `d12c812c2`、#1281 `4e09f50f5`+FIX `a35e60dd6`、#1272 FIX `5bdddabeb`、#1277 `43049e2ab`（24 个读取器 @2）；批内修：project rows 改读宿主登记、registry 测试锚点、S-72 测试名、s57 slice 的 S 号、用完的 workbench.js 一次性放行删掉。本机门禁重跑中；过了再并 batch-36 最终头与 main、推 carrier 跑 full。
+  - **batch-38 候选**：#1279（ac-trust T6，S-75，host-plugin-ids 改读 plugin-registry）、#1276 FIX14（保留数据也删授权，P1 修中）、#1255+FIX5（S-76）、#1283（FI-2）、#1284（PG-055，叠在 #1278）、#1267+C2 包（只带 #103，R-53 留采用线）+FIX18/8/19+两份 SI 补丁、ac-shell PR-D1。
+  - 线分配：W5-02 PR-D（PG-072～076）移交 ac-shell（RAC-690～709、BL-656～665）；ac-registry 续 B4→C→E（RAC-710～729）；PG-063 已由 R11 #1169 做完。
+
 ### 当前交付核实（PIPE，2026-10-25）
 
 **batch35实际已合**：#1258固定aab81d922ef07e21bdc21f8b65e87bb3b4525277已06:25:57Z actual3817f8757abd9e60baaa825af7048cdac060479e，actual/candidate完整tree54bf575732b4e9c504b781195e7ee6663d104293已核，FIRST6393271026/REVIEW6394179117/TEST6394361864齐。Root窄移交后PIPE在06:39:40–06:40:06Z逐项close-only关闭1239/1240/1242/1243/1247/1249/1250并回读，均CLOSED/merged=false、准确源头未变，包含说明见6393246436，不再关闭/queue/full。PIPE当次未删分支；随后Root primary GraphQL核1239/1240/1242/1243/1247/1249与1258 headRef已null，1250 T1 ref仍在供1259，不能写所有分支现存。后续整线owner/验收保持。

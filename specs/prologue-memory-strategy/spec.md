@@ -2699,3 +2699,5 @@ product-interaction.e2e、coding-workbench.e2e、code-scale.e2e 三文件仅依�
 七处文本冲突：LocalHost README 保留两段原件合同及新 Home 生命周期；MemoryHost 保留现删除主人委托，并将主干的业务文件判断移到该主人；System Agent 同时传入 Memory 与 storageOwner、沿用可重试关闭；Prologue Node 保留 MemoryAuthority 并登记主干初始化失败的真实资源关闭；AgentHost 依赖与 workspace 登记同时保留 storage 和 SDK94；健康快查冲突先取主干快照，合并后按准确 merge-base 重新生成，只许降低。SDK102 和冷恢复实现仍留在 #1101，不混入基础 PR。
 
 原冻结离线安装及完整 `pnpm build` 通过；真实 Home 排他、初始化清理、SDK 借用、System Agent、采用/维护、Memory 权限和项目删除共 14 文件 115 项首次通过，无跳过或重试，日志 `/private/tmp/molis-memory-foundation-batch36-{install,build,direct}-20261025.log`。此前 d08 的普通 CI 与 Full suite 已通过，但只证明 d08；本合并结果仍需门禁、安装/备份及最终 head 的完整 CI。旧 Cloudflare 影响和历史首败 UNKNOWN 保留，尚未合并 main，也未完成产品/用户验收。
+
+合并 `914474507` 后，根类型、准确 main64a 健康门、boundary、72 份 API 快照及正式页面资源门均通过；27 资源仍为 7,594,739 B，只有此前批准的 workbench.js +3,193 B 与 coding.js +717 B，没有新增长。原健康命令确认相关超限项下降后，以 `--update --base 64a3ccc9` 生成本地快查，没有修改门禁脚本、阈值或例外。独立深审实际合并交集未发现确定新增 P1/P2，报告 `/private/tmp/molis-memory-foundation-914-independent-review-20261025.md`，结论仅限本次 Home/Memory 权限与关闭调用链。LocalHost/AgentHost README 必跑并集及安装、备份、macOS TUI 共 85 文件正在按原 runner、零重试验证，不能预记通过；最终 CI/Full suite 仍待本头推送后运行。

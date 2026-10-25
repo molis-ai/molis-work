@@ -242,6 +242,34 @@ Claude 6393455820 与 Root 同题补充：search、placement 关不掉仍挡住�
 
 作者验证（本片，尚待独立 REVIEW/TEST）：b521 四种 Host/Web 构造拒绝/挂起均复现无公开句柄，search/placement 的实际关闭挂起在推进10秒后调用仍未返回，另一进程始终 busy。整体 build 实际 exit0，公开来源指纹与构建记录同为 `0bad07efabb5207912290f614c4d4f67edefcb468496a91a667e250708d24973`。修正新增测试的公开导入/HTTP重载类型后，scoped strict、6文件 Biome 通过；同一生产源码下本文件23项、14个相关文件113项全过，无跳过，共15唯一文件136项。真实资源/SQLite锁运行，mock时钟仅推进等待期限；晚拒绝被观察、锁保持、无重入、恢复后立即重开及原inode均有断言。boundary、准确 merge-base `bde02c59eb9a1d794a442419570819a80585708a` 健康、1431测试进程引用检查与27资源预算通过；fresh origin/main 当时为 `df5527f278fa8e631919794d15c52cfd3f364155`。原生构建曾被宿主工具更新中断、首次测试类型失败均保留，未冒全绿。raw `/tmp/molis-pr1254-construction-cleanup-retry-20261024/` 中 build-fixed-02 与各03日志；原369分阶段/full/live及本题未跑的其余建议仍保原边界，S-07文字由PIPE/FIX7串行合入。
 
+#### A 的 full36 消费者与关闭补修（FIX15，A+D）
+
+状态：作者修复与有限回归完成，待独立 REVIEW/TEST 和集成 full。唯一基线为 batch-36 `ebf1e0ef60381f4e3203adfc19266c4cc5b154eb`，继承 FIX4 `39a444f89` 的构造清理与 10 秒有界 close；`8ac246913..ebf1e0ef6` 对本题测试和 MCP 夹具无改动。WO 是 #1270 的 [A 组派单](https://github.com/molis-ai/molis-work/pull/1270#issuecomment-6394523749) 与 [D 组追加](https://github.com/molis-ai/molis-work/pull/1270#issuecomment-6394614068)，实际唯一 writer 为既有 FIX15，不另建 FIX20。原 full `40168015099` attempt 1 的头是 `bb7137fc2`，原始失败保留；鲜读运行状态已 completed/failure，不称补修后的全量通过。
+
+基线整体构建后，原 A 七个顶层文件均复现失败：四个插件 MCP 夹具为每个客户端起新 Host，第二个同 Home owner 被拒；system-functions 的 HTTP 已有常驻 Host，MCP 夹具再建一个导致连接关闭。Images 一条仍期望旧的推理阶段错误，另一条在已经持有 Home 的 Host 上强行开第二 SQLite 排他锁，尚未调图片动作就 database locked。Desktop `transport-reject` 的实际 HTTP callback 拒绝发生在传输资源及 Host 收尾之前，原断言却声称 Host 已关闭。D 的 ASC-19/25 在真实安装下载中先关 Host：Host 等 retained Web 停止，Web 又等安装 HTTP，而安装 abort 被排在传输结束之后；含 FIX4 的原件复现 `host.close_timeout`，不是安装网络失败。
+
+修复沿现有合同：插件 MCP 客户端只运行 `LocalMcpServer`，通过常驻 Host 的真实 HTTP 动作网关、目录和授权转发；每个 Home 仅一个 Host。项目用注册表的 project plugin id，授权由现有 Test Home 的真实管理入口建立；按声明的作用域、MCP 受众和本测试已配置的权限选择，不把授权前的 forbidden 当成能力不可用，也不为未配置的模型授予调用权。授权设置使用现有批量合同（每次一个主项、最多 16 个同作用域同行，仍按既有依赖排序校验），每客户端/作用域只建一次；重连使用真正已保存的授权，不重复逐条写入来拖满原 45/120 秒界限。读写拒绝、跨项目/Home、CAS、固定出版/恢复、原始持久化断言保留。工具名使用现行生产 MCP 的动作命名函数，不加兼容别名。客户端进程重启不关闭常驻 Host，Home 重开仍须原 owner 实际关闭。system-functions 只把已有常驻服务地址传给子进程，HTTP 与 MCP 仍各执行一次同一 provider 并写同 Home。
+
+Images 按早期持有合同在构造时明确拒绝第二 Host，错误是 storage owner 的 `storage.owner.busy`，不应等图片动作或伪装成推理/厂商错误；真实 owner 占用时核零 provider 请求、零业务写入，释放后同 Home 可正常完成图片请求，原作业幂等与不重生成保持。Desktop 传输关闭拒绝仍必须安全诊断、退出 1；传输未收尾时不把 Host 未关闭写成已关闭。分别保留 transport/Host 失败的真实观测，并验证子进程退出后可重新取得原 Home owner；不改原 2 秒界限或成功关闭断言。
+
+D 是产品关闭顺序缺陷：`project-host.ts` 只将现有 connectors close tuple 移到已有 earlySteps，先取消并等待正在安装的子进程，使 retained Web 的 HTTP 能结束。仍等待所有传输、业务资源与 Catalog 的实际关闭才归还原 owner；不改 FIX4 的 attempt/pending/10 秒等待、不提前释放，不通过改测试为先关 Web 来避开原 Host.close 合同。保留在途安装被打断、无迟到连接/子进程及清理拒绝/重试证据。
+
+允许范围是八个顶层文件 `ppt-mcp`、`pages-mcp`、`jelly-mcp`、`cognia-mcp`、`system-functions-actions`、`images-actions`、`desktop-entry-failures`、`connector-managed-install` 及其直接 MCP 夹具，`project-host.ts` 上述一个调度 hunk、必要 README 与本 A 段。B/FIX13、T3 授权或页面恢复、S64、translation/Feed、snapshot/restore 与原 SQL 夹具候选均排除；不新建 Home owner 机制或 fallback。
+
+| 编号 | 本题可观察验收 | 证明方式 |
+| --- | --- | --- |
+| RAC-105-A-16 | 四个插件的多个真实 MCP 客户端共享一个常驻 Host；原读写拒绝、项目/Home 隔离、并发版本、固定产物及客户端重启后数据保持 | 四个原 MCP 全文件，经真实管理授权/网关与独立 stdio 进程，收尾所有客户端、传输、Host 和临时 Home |
+| RAC-105-A-17 | system-functions 的 HTTP 与 MCP 都到同一真实处理器，保持各一次持久结果及另一 Home 不可见 | 原完整 actions 文件，provider 仅沿原夹具注入，不为 MCP 另建业务 Host |
+| RAC-105-A-18 | 已持有 Home 时第二 Host 在业务启动前明确拒绝且零请求/零业务写；释放后同 Home 图片原行为与持久化保持 | 原 Images 全文件，真实 storage owner 与本地图片服务、拒绝及成功恢复 |
+| RAC-105-A-19 | Desktop transport 拒绝不冒充 Host 清理成功，仍退出 1/只记安全诊断；Host 拒绝与正常关闭保持，进程退出后原 Home 可重取 | 原 RAC-119 真实构建入口、子进程故障端口、OS 信号和父进程 owner 检查 |
+| RAC-105-A-20 | Host.close 在 Web 仍持有存储且安装 HTTP 在途时先取消安装，等实际子进程/传输清理后才释放；无迟到连接或子进程 | ASC-19/25 真实包下载、Host 关闭、进程退出与业务库/安装目录对照；原 timeout 红与修后绿分别保留 |
+
+验证按公共槽整体 build、八个完整文件和直接相关关闭/owner/MCP 消费者，保留源码/构建指纹、精确 parent/head、逐项根因与原始日志。boundary、对 merge-base 的 health、fresh fetch 后 secrets、实际 diff 均核；独立 REVIEW/TEST 后交 PIPE/Claude 唯一组批/full，不另跑全量或碰真实 Home。原件在 `/tmp/molis-fix15-full36-a/`。
+
+作者阶段证据：整体 build、boundary、含新增授权夹具的 scoped strict，以及对固定父 `ebf1e0ef6` 的 health 均通过；公开构建记录与独立生产来源指纹同为 `fef9825af672665469bdec1762e5732da6bade6dad38d843eb633ba37930d23e`。四个 MCP 原文件在 `fixed-mcp-04.log` 全部通过，约 16–45 秒，仍用原 45/120 秒界限；D、Images、Desktop 和 functions 的完整文件也各有通过原件。其后的有限 18 文件批次 `final-eighteen-01.log` 为 13/18 文件通过：D 6 项、Home owner/Host 30 项及相关关闭/Connector/MCP 消费者通过；四 MCP 原超时失败，Desktop 仅活跃 SSE/PTY 用例在 10 秒启动 IPC 握手处失败，尚未到关闭断言。该批同时存在其他构建和浏览器批次，负载影响仍是待核假设，不能据此抹去红结果或改超时。只对这五个失败文件占现有 browser 槽做一次 `--jobs 1` 复验（未启动 Chrome）：`controlled-five-01.log` 为 5/5 文件、18/18 项通过，PPT 59.2 秒、Pages 38.4 秒、Desktop 31.0 秒、Jelly 19.6 秒、Cognia 15.8 秒，原界限不变。合计 18 个唯一文件的 184 项各有通过证据，不能称扩展 18 文件同批全绿或集成 full 稳定；独立 REVIEW/TEST 与集成 full 尚未完成。
+
+对 fresh `origin/main` 的 health 另报继承的 `PluginRuntime` 类 623→624 行（当时 merge-base `3817f875`）；该文件对固定父没有本题差异，对 `ebf1e0ef6` 检查通过。已交 PIPE 在 carrier 处理，不在本修复改类、门禁或阈值。
+
 快照只在持 lease 的离线窗口枚举和读数据，逐库 backup，非 SQLite 与其引用取同一切点；写入私有暂存目录，全部验证后才发布完成清单。恢复先验证清单、所有文件、实际版本、完整性、摘要、密钥依赖和原路径；不自动盖版本或迁移。任何预检拒绝都不改原 Home。发布/回滚保留可观察状态和原数据，不复用旧数据库连接，不让半成品被宿主当成新 Home。
 
 ## 文件边界与验收

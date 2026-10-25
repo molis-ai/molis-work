@@ -389,11 +389,11 @@ export class MolisWorkLocalHost {
 
   close(): Promise<void> {
     return closeHomeStorageLifetime(this, this.closing, [
-        ["connectors", () => closeConnectorResources(this.options.homeDirectory, this.connectorMcp)],
         ["search", () => this.search?.close()], ["placement", () => this.placement?.close()],
         ["projects", () => this.host?.close()], ["functions", () => this.systemFunctions?.dispose()],
         ["agents", () => this.agents?.service.dispose()], ["home-plugins", () => this.homePlugins?.close()],
-    ], () => this.webCatalog?.access.close(), [["home-side", () => releaseHomeSide(this)], ["alchemist", () => this.alchemist?.close()]]);
+    ], () => this.webCatalog?.access.close(), [["connectors", () => closeConnectorResources(this.options.homeDirectory, this.connectorMcp)],
+      ["home-side", () => releaseHomeSide(this)], ["alchemist", () => this.alchemist?.close()]]);
   }
 
   get instanceId(): string {

@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import type {
@@ -91,7 +92,7 @@ function appPlugin(input: {
 test("one Plugin's start failure leaves its siblings running and names a reason", async () => {
   const healthy = appPlugin({ id: "io.molis.work.healthy" });
   const broken = appPlugin({ id: "io.molis.work.broken", failUntil: 1 });
-  const supervisor = new PluginSupervisor(new PluginRuntime());
+  const supervisor = new PluginSupervisor(new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }));
 
   const report = await supervisor.start([
     { definition: broken.definition },
@@ -109,7 +110,7 @@ test("one Plugin's start failure leaves its siblings running and names a reason"
 test("an explicit restart revives only its own Plugin and keeps siblings untouched", async () => {
   const healthy = appPlugin({ id: "io.molis.work.healthy" });
   const flaky = appPlugin({ id: "io.molis.work.flaky", failUntil: 1 });
-  const supervisor = new PluginSupervisor(new PluginRuntime());
+  const supervisor = new PluginSupervisor(new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }));
   await supervisor.start([{ definition: flaky.definition }, { definition: healthy.definition }]);
 
   const healthyBefore = supervisor.state("io.molis.work.healthy");
@@ -123,7 +124,7 @@ test("an explicit restart revives only its own Plugin and keeps siblings untouch
 
 test("concurrent restarts of the same Plugin create exactly one new instance", async () => {
   const flaky = appPlugin({ id: "io.molis.work.flaky", failUntil: 1 });
-  const supervisor = new PluginSupervisor(new PluginRuntime());
+  const supervisor = new PluginSupervisor(new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }));
   await supervisor.start([{ definition: flaky.definition }]);
   assert.equal(flaky.starts(), 1);
 
@@ -139,7 +140,7 @@ test("concurrent restarts of the same Plugin create exactly one new instance", a
 
 test("restarting a running Plugin stops it first and does not spend the recovery budget", async () => {
   const plugin = appPlugin({ id: "io.molis.work.steady" });
-  const runtime = new PluginRuntime();
+  const runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS });
   const supervisor = new PluginSupervisor(runtime);
   await supervisor.start([{ definition: plugin.definition }]);
 
@@ -159,7 +160,7 @@ test("a Plugin blocked by an unsatisfied dependency never starts and is not repo
     requires: [{ capability_id: "missing.v1", version: 1 }],
   });
   const independent = appPlugin({ id: "io.molis.work.independent" });
-  const supervisor = new PluginSupervisor(new PluginRuntime());
+  const supervisor = new PluginSupervisor(new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }));
 
   const report = await supervisor.start([
     { definition: dependent.definition },
@@ -179,7 +180,7 @@ test("a Plugin that does not deliver its declared views fails to start", async (
     id: "io.molis.work.unredeemed",
     contribution: () => ({ kind: "app", views: [] }),
   });
-  const supervisor = new PluginSupervisor(new PluginRuntime());
+  const supervisor = new PluginSupervisor(new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }));
   const report = await supervisor.start([{ definition: unredeemed.definition }]);
 
   assert.deepEqual(report.running, []);
@@ -195,7 +196,7 @@ test("a Plugin cannot contribute a view its Manifest never declared", async () =
       views: [view(manifest.plugin_id, "main"), view(manifest.plugin_id, "extra")],
     }),
   });
-  const supervisor = new PluginSupervisor(new PluginRuntime());
+  const supervisor = new PluginSupervisor(new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }));
   const report = await supervisor.start([{ definition: smuggler.definition }]);
 
   assert.deepEqual(report.running, []);
@@ -214,13 +215,13 @@ test("RAC-637 a Plugin names no owner for a view: not another Plugin's, and not 
     });
   };
   for (const claimed of [() => "io.molis.work.victim", (id: string) => id]) {
-    const supervisor = new PluginSupervisor(new PluginRuntime());
+    const supervisor = new PluginSupervisor(new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }));
     const report = await supervisor.start([{ definition: claiming(claimed).definition }]);
     assert.deepEqual(report.running, []);
     assert.match(report.failed[0]?.message ?? "", /自己写了插件身份/u);
   }
   // Without the field the same view is what the Manifest declared, and the plugin starts.
   const honest = appPlugin({ id: "io.molis.work.honest", contribution: () => ({ kind: "app", views: [view("io.molis.work.honest", "main")] }) });
-  const supervisor = new PluginSupervisor(new PluginRuntime());
+  const supervisor = new PluginSupervisor(new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }));
   assert.equal((await supervisor.start([{ definition: honest.definition }])).running.length, 1);
 });

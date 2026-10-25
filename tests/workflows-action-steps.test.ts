@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -47,7 +48,7 @@ test("a workflow step runs any registered action — even one the Host never hea
     permissions: [{ permission: "tickets:write", required: true, reason: "建工单" }], capabilities: { provides: [], consumes: [] },
     artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [create.definition] }, async start() { return { kind: "app", actions: [create.handler] }; } });
   const runtime = await host.withProject(reference, project => new PluginRuntime(new SqlitePluginRuntimeRepository(project.store.db), undefined,
-    { actions: { registry: host.actionRegistry(reference), project_id: PROJECT } }));
+    { hostIds: ISOLATED_HOST_IDS, actions: { registry: host.actionRegistry(reference), project_id: PROJECT } }));
   const installed = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["tickets:write"] }).install;
   await runtime.start(installed.install_id);
 

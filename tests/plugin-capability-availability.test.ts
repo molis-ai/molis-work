@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -47,7 +48,7 @@ async function startPlugin(host: LocalHost<unknown>, project: ReturnType<typeof 
   const executor = new PluginHostExecutor({ actions, project_id: project.project_id, actor_id: "owner", artifacts: new ArtifactsModule(modules), processItems: new ProcessItemsModule(modules), ui: new UiHost(),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
     ...(options.check === false ? {} : { dependencyCheck: dependency => raw.availability(dependency, { consumer: "plugin" }) }) });
-  const runtime = new PluginRuntime(undefined, executor, { actions });
+  const runtime = new PluginRuntime(undefined, executor, { hostIds: ISOLATED_HOST_IDS, actions });
   const { install } = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: [] });
   await runtime.start(install.install_id);
   return { actions: contexts[0]!.services!.actions!, stop: () => runtime.stop(install.install_id),

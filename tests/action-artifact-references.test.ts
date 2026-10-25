@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 // W3-05-2: a 成果 type is declared with a display name and the plugin's own actions (AGENTS.md「成果库」, specs/artifact-positioning
 // A1/A4b/A7). Until now only the built-in plugins were held to it, and only by a test (`artifact-type-gate`); a Manifest parsed
@@ -183,11 +184,11 @@ function definitionOf(manifest: Record<string, unknown>): PluginDefinition {
 
 test("Runtime refuses to install a plugin whose type has no preview, and installs one that has", () => {
   const unreadable = definitionOf(declarationManifest({ artifacts: { produces: [{ artifact_type_id: TYPE_ID, schema_version: 1, title: "笔记" }], consumes: [] } }));
-  assert.throws(() => new PluginRuntime().install({ trust: { level: "unsigned" }, definition: unreadable, deployment: "local" }),
+  assert.throws(() => new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }).install({ trust: { level: "unsigned" }, definition: unreadable, deployment: "local" }),
     (error: unknown) => (error instanceof ActionError && error.kind === "invalid") && error.code === "plugin.manifest_invalid" && error.message.includes(`成果类型 ${KEY} 缺少预览动作（preview）`));
   const note = artifactPreview(ID, TYPE_ID);
   const readable = definitionOf(declarationManifest({ actions: [note.definition], artifacts: { produces: [note.type], consumes: [] } }));
-  assert.equal(new PluginRuntime().install({ trust: { level: "unsigned" }, definition: readable, deployment: "local" }).install.plugin_id, ID);
+  assert.equal(new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS }).install({ trust: { level: "unsigned" }, definition: readable, deployment: "local" }).install.plugin_id, ID);
 });
 
 // ---- (f) the bundled plugins already meet it ----------------------------------------------------------------------------

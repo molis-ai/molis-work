@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ActionService } from "@molis-ai/molis-work-kernel";
@@ -81,7 +82,7 @@ async function openProbe() {
     ] };
   } });
   const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined,
-    { actions: { registry: service, project_id: "project-one", providerId: () => PLUGIN } });
+    { hostIds: ISOLATED_HOST_IDS, actions: { registry: service, project_id: "project-one", providerId: () => PLUGIN } });
   const installed = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: [MODEL] }).install;
   await runtime.start(installed.install_id);
   const caller: ActionCallContext = { actor_id: "alice", audience: "user", project_id: "project-one", permissions: [MODEL] };

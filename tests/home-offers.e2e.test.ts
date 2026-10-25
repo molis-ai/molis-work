@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -49,7 +50,7 @@ test("RAC-214: Home renders and executes unknown plugin offers and Inbox status 
       const result = store.db.prepare("UPDATE fixture_home_tags SET tag = ?, revision = revision + 1 WHERE id = ? AND revision = ?").run(input.tag, input.id, input.revision);
       assert.equal(result.changes, 1); writes++; return read();
     } }] }; } });
-  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { actions: { registry: localHost.actionRegistry(reference), project_id: projectId } });
+  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: localHost.actionRegistry(reference), project_id: projectId } });
   const installed = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["fixture:read", "fixture:write"] }).install;
   await runtime.start(installed.install_id);
   // Feed offers its own item actions beside the unknown plugin's; the checks name the plugin's offer instead of taking the first button.

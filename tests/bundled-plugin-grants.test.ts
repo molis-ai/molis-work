@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -217,7 +218,7 @@ test("PluginRuntime.install with host trust records every declared permission wh
   () => {
     const declared = [OPTIONAL.permission, REQUIRED.permission];
     for (const given of [undefined, [], [REQUIRED.permission], declared]) {
-      const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository());
+      const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS });
       const definition = build("1.0.0", [REQUIRED, OPTIONAL]);
       const label = JSON.stringify(given);
       const installed = runtime.install({ definition, deployment: "local", trust: { level: "host" }, ...(given ? { grants: given } : {}) });
@@ -229,7 +230,7 @@ test("PluginRuntime.install with host trust records every declared permission wh
       }
     }
 
-    const other = new PluginRuntime(new MemoryPluginRuntimeRepository());
+    const other = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS });
     const definition = build("1.0.0", [REQUIRED, OPTIONAL]);
     assert.deepEqual(other.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: [REQUIRED.permission] }).install.grants, [REQUIRED.permission], "any other plugin gets what it was given");
     assert.throws(() => other.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: declared }),
@@ -238,7 +239,7 @@ test("PluginRuntime.install with host trust records every declared permission wh
 
 test("PluginRuntime.install with host trust keeps a record's switched-off optional permission, and following a build switches on only what the record's own build did not declare",
   () => {
-    const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository());
+    const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS });
     const definition = build("1.0.0", [REQUIRED, OPTIONAL]);
     const installId = runtime.install({ definition, deployment: "local", trust: { level: "host" } }).install.install_id;
     runtime.grant(installId, [REQUIRED.permission]);
@@ -253,7 +254,7 @@ test("PluginRuntime.install with host trust keeps a record's switched-off option
   });
 
 test("PluginRuntime.install with host trust, not told what the record's own build declared, switches on no optional permission when it follows a build", () => {
-  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository());
+  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS });
   const installId = runtime.install({ definition: build("1.0.0", [REQUIRED, OPTIONAL]), deployment: "local", trust: { level: "host" } }).install.install_id;
   runtime.grant(installId, [REQUIRED.permission]);
   const followed = runtime.install({ definition: build("1.1.0", [REQUIRED, OPTIONAL, NEWER]), deployment: "local", trust: { level: "host" } });
@@ -266,7 +267,7 @@ test("PluginRuntime.install with host trust, not told what the record's own buil
 test("a sandboxed definition is never granted everything because an entry gives it host trust: the install is refused, with grants or without, and the supervisor records nothing",
   withDirectory(async directory => {
     const sandboxed = { ...build("1.0.0", [REQUIRED, OPTIONAL]), execution: "sandbox" as const };
-    const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository());
+    const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS });
     for (const grants of [undefined, [], [REQUIRED.permission], [OPTIONAL.permission, REQUIRED.permission]]) {
       assert.throws(() => runtime.install({ definition: sandboxed, deployment: "local", trust: { level: "host" }, ...(grants ? { grants } : {}) }),
         (error: unknown) => (error as { code?: string }).code === "plugin.grant_denied", `grants ${JSON.stringify(grants)}`);

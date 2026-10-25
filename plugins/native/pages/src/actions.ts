@@ -128,7 +128,7 @@ export const pagesActions = {
    * result never passes one document's limit: a text that converts to more gets `pages.body_too_large`, not a cut or a huge body.
    */
   bodyFromMarkdown: withAction(define<{ markdown: string }, { body: PagesBody }>("documents.body_from_markdown", "Markdown 转文档正文", "把 Markdown 转成 Pages 的文档正文；只转换，不读取也不写入任何文档。转换结果超过一篇文档能存的大小时返回 pages.body_too_large", "query",
-    object({ markdown: { type: "string", minLength: 1, maxLength: 1_000_000 } }), object({ body }), read), { audiences: ["user"] }),
+    object({ markdown: { type: "string", minLength: 1, maxLength: 1_000_000 } }), object({ body }), read), { audiences: ["user"], subject_kinds: [] }),
   generations: define<Record<string, never>, { records: PagesGenerationRecord[] }>("generations.list", "文稿生成记录", "查看当前项目生成任务的输入快照、状态和文档引用", "query", object({}), object({ records: array(generation) }), read),
   generation: define<{ request_id: string }, { record: PagesGenerationRecord | null }>("generations.get", "读取文稿生成任务", "读取一个稳定请求对应的生成记录；不存在时返回空", "query", object({ request_id: requestIdentity.request_id }), object({ record: { anyOf: [generation, { type: "null" }] } }), read),
   generate: define<{ request_id: string; request_hash: string; inputs: PagesInputSnapshot[]; title: string; instructions: string }, { document: PagesRecord; replayed: boolean }>("generate", "材料生成文稿", "按调用方提供的材料快照生成文稿并保存；同一请求重试使用原快照，保留已生成后的手工编辑", "command",

@@ -1,14 +1,17 @@
 import { actionPermissionDeclarations } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginManifest, PluginRouteDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { PLUGIN_ATTENTION_READ_PERMISSION, PLUGIN_ATTENTION_WRITE_PERMISSION, PLUGIN_CONTEXT_LEDGER_READ_PERMISSION, PLUGIN_CONTEXT_LEDGER_WRITE_PERMISSION, PROJECT_JOURNAL_PERMISSION, type PluginManifest, type PluginRouteDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { GOALS_SETTINGS_UI_CONTRIBUTION_ID } from "./settings-ui.js";
 import { GOALS_TREE_UI_CONTRIBUTION_ID } from "./tree-ui.js";
 import { GOALS_ACTIONS } from "./actions.js";
 import { PERSONAL_PLANNING_ACTIONS } from "./personal-planning-actions.js";
 import { GOALS_PROJECT_DATABASE } from "./project-database.js";
+import { GOALS_HOME_DATABASE } from "./home-database.js";
 
 export const GOALS_PLUGIN_ID = "io.molis.work.goals";
 /** What the project database stores for this Plugin. */
 export const GOALS_PROJECT_PLUGIN_ID = "goals";
+/** The one job Goals keeps: the board and the decision reminders catch up once when a project opens (it writes Attention, which only an action or a job may). */
+export const GOALS_CATCH_UP_JOB = "goals-catch-up";
 
 /** The nine writes to a Goal's event document, each its own route (`goals.event-configure` …). */
 const GOALS_EVENT_WRITES = ["event-configure", "event-report", "event-progress", "event-concern", "event-decision-request",
@@ -45,6 +48,18 @@ const GOALS_ROUTES: PluginRouteDeclaration[] = [
   { route_id: "goals.inputs", method: "POST", path: "/goals/:goalId/inputs" },
 ];
 
+/** What Goals asks of the platform's services (its own tables, the journal, Attention, the Context Ledger, other plugins' actions as the caller). */
+const SERVICE_PERMISSIONS = [
+  { permission: "storage:private", required: true, reason: "读写 Goals 自己在项目库和 Home 里的表" },
+  { permission: PROJECT_JOURNAL_PERMISSION, required: true, reason: "把目标的事件和幂等记录写进项目日志" },
+  { permission: PLUGIN_ATTENTION_READ_PERMISSION, required: true, reason: "读取待决定目标的提醒" },
+  { permission: PLUGIN_ATTENTION_WRITE_PERMISSION, required: true, reason: "为待决定的目标开启、完成提醒" },
+  { permission: PLUGIN_CONTEXT_LEDGER_READ_PERMISSION, required: true, reason: "读取目标的交付物和输入引用" },
+  { permission: PLUGIN_CONTEXT_LEDGER_WRITE_PERMISSION, required: true, reason: "记下目标的交付物和输入引用" },
+  { permission: "actions:delegate", required: true, reason: "以调用者的身份读取成果版本、请成果的所有者固定对象" },
+  { permission: "actions:invoke", required: true, reason: "读取 Home 里的个人规划方法" },
+] as const;
+
 /**
  * Declarative placement for this first-party Plugin.
  *
@@ -61,14 +76,18 @@ export const goalsManifest: PluginManifest = {
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-goals-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
+  // Goals runs as two instances of this one Manifest (the project's and the Home's), and every permission of such a Manifest is required.
   permissions: [
-    ...actionPermissionDeclarations([...GOALS_ACTIONS, ...PERSONAL_PLANNING_ACTIONS], "按调用者授权读取、推进和决定项目目标"),
-    { permission: "storage:private", required: true, reason: "读写 Goals 自己在项目库里的表" },
+    ...actionPermissionDeclarations([...GOALS_ACTIONS, ...PERSONAL_PLANNING_ACTIONS], "按调用者授权读取、推进和决定项目目标",
+      SERVICE_PERMISSIONS).map(declaration => ({ ...declaration, required: true })),
+    ...SERVICE_PERMISSIONS,
   ],
   capabilities: { provides: [], consumes: [] },
   actions: [...GOALS_ACTIONS, ...PERSONAL_PLANNING_ACTIONS],
   artifacts: { produces: [], consumes: [] },
-  databases: { project: GOALS_PROJECT_DATABASE },
+  attention: { subjects: ["goal_decision"] },
+  databases: { project: GOALS_PROJECT_DATABASE, home: GOALS_HOME_DATABASE },
+  background: { jobs: [{ job_id: GOALS_CATCH_UP_JOB, reason: "项目打开时补开目标板，补齐待决定的提醒", permissions: ["storage:private", "attention:read", "attention:write", "journal:project"] }] },
   routes: GOALS_ROUTES,
   ui: {
     contributions: [GOALS_TREE_UI_CONTRIBUTION_ID, GOALS_SETTINGS_UI_CONTRIBUTION_ID],

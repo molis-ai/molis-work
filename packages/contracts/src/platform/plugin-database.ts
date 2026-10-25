@@ -112,6 +112,11 @@ export interface PluginIdempotencyPut {
 export interface PluginJournalReader {
   eventCursor(objectType?: string): number;
   readEventsDescending(): PluginJournalEvent[];
+  /**
+   * The idempotency record this plugin stored under `operation` and `key` for `actorId`, or null. The actor is the call's (see
+   * `PluginJournalWriter`): a record is readable by whoever it was kept for, in a query as well as in a write.
+   */
+  getIdempotency(actorId: string, operation: string, key: string): PluginIdempotencyRecord | null;
 }
 
 /**
@@ -123,7 +128,6 @@ export interface PluginJournalReader {
  */
 export interface PluginJournalWriter extends PluginJournalReader {
   appendEvent(input: PluginJournalAppend): number;
-  getIdempotency(actorId: string, operation: string, key: string): PluginIdempotencyRecord | null;
   putIdempotency(input: PluginIdempotencyPut): void;
 }
 

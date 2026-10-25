@@ -1,5 +1,5 @@
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginDatabaseReader, PluginDatabaseTransaction, PluginSqlValue } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDatabaseReader, PluginDatabaseTransaction, PluginJournalReader, PluginJournalWriter, PluginSqlValue } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 const storageErrors = defineErrorCodes("goals.storage", {
   no_window: "internal",
@@ -27,6 +27,8 @@ interface SqliteWindow {
   readonly reader: PluginDatabaseReader;
   /** Absent in a read window: nothing written there commits, so a write is refused. */
   readonly transaction: PluginDatabaseTransaction | null;
+  /** The project's journal as this window sees it: the transaction's own (it writes) in a write window, the read-only one in a read window. */
+  readonly journal: PluginJournalReader | PluginJournalWriter | null;
 }
 
 /**
@@ -49,13 +51,33 @@ export class PluginSqlite implements PluginSqliteDatabase {
   private window: SqliteWindow | null = null;
 
   /** Runs `body` with the read-only connection. Writes in it are refused (`goals.storage.read_only`). */
-  read<T>(reader: PluginDatabaseReader, body: () => T): T {
-    return this.open({ reader, transaction: null }, body);
+  read<T>(reader: PluginDatabaseReader, body: () => T, journal: PluginJournalReader | null = null): T {
+    return this.open({ reader, transaction: null, journal }, body);
   }
 
   /** Runs `body` inside the write transaction the platform has begun for this call. */
   write<T>(transaction: PluginDatabaseTransaction, body: () => T): T {
-    return this.open({ reader: transaction, transaction }, body);
+    return this.open({ reader: transaction, transaction, journal: (transaction as { journal?: PluginJournalWriter }).journal ?? null }, body);
+  }
+
+  /** The transaction of this window, for the platform services that join it (Attention, Context Ledger). A read window has none. */
+  joined(what: string): PluginDatabaseTransaction {
+    return this.writer(what);
+  }
+
+  /** The project's journal for a read; the window must have been given one. */
+  journalReader(): PluginJournalReader {
+    const { journal } = this.current();
+    if (!journal) throw storageErrors.no_window("这个窗口没有项目日志");
+    return journal;
+  }
+
+  /** The project's journal for a write: only a write window has it, in the same transaction as the rows. */
+  journalWriter(what: string): PluginJournalWriter {
+    this.writer(what);
+    const { journal } = this.current();
+    if (!journal || !("appendEvent" in journal)) throw storageErrors.no_window("这个写窗口没有项目日志");
+    return journal;
   }
 
   prepare(sql: string): PluginSqliteStatement {

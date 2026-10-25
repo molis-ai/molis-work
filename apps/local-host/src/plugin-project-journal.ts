@@ -63,6 +63,7 @@ export function projectJournalBinding(ports: ProjectJournalPorts, authorize: (pe
       ask();
       return journal.readOwnedEventsDescending(projectId, namespace).map(event => ({ ...event, type: bare(event.type), object_type: bare(event.object_type) }));
     },
+    getIdempotency(actorId, operation, key) { ask(); actor(actorId); return journal.getIdempotency(projectId, actorId, named(operation), key); },
   });
   return {
     reader: check => reads(ports.reader, permit(check)),
@@ -74,7 +75,6 @@ export function projectJournalBinding(ports: ProjectJournalPorts, authorize: (pe
           ask(); actor(input.actorId);
           return ports.writer.appendEvent({ ...input, projectId, type: named(input.type), objectType: named(input.objectType) });
         },
-        getIdempotency(actorId, operation, key) { ask(); actor(actorId); return ports.writer.getIdempotency(projectId, actorId, named(operation), key); },
         putIdempotency(input) { ask(); actor(input.actorId); ports.writer.putIdempotency({ ...input, projectId, operation: named(input.operation) }); },
       };
       return Object.freeze(writer);

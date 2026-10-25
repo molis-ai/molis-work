@@ -38,7 +38,7 @@ export function assertCurrentCatalog(storage: LocalSqliteStorage, databasePath: 
   // The version alone cannot say whether the person's planning methods were moved out (the catalog and Goals' library share a release):
   // a catalog that still holds the table would open and quietly show none of them.
   if (storage.db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(PERSONAL_PLANNING_TABLE)) {
-    throw catalogErrors.unsupported_schema(`项目目录数据库里还有个人规划方法表 ${PERSONAL_PLANNING_TABLE}（现在放在 Goals 的 Home 库）：先退出 Molis Work，运行 node scripts/maintenance/goals-personal-planning-move.mjs move --home <Home 目录> --maintenance-window: ${databasePath}`);
+    throw catalogErrors.unsupported_schema(`项目目录数据库里还有个人规划方法表 ${PERSONAL_PLANNING_TABLE}（现在放在 Goals 的 Home 库）：先退出 Molis Work，按顺序运行两步维护：一、node scripts/maintenance/goals-journal-names.mjs rename --home <Home 目录> --maintenance-window（S9-2：项目库里 Goals 的旧名事件、幂等记录与引用关系改成现行形状；没做完之前第二步不删这张表），二、node scripts/maintenance/goals-personal-planning-move.mjs move --home <Home 目录> --maintenance-window（个人规划方法搬到 Goals 的 Home 库）: ${databasePath}`);
   }
 }
 

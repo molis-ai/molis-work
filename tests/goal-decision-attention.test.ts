@@ -153,7 +153,7 @@ test("Goal pending decisions appear in Inbox and on the Goal document, not in Fe
   }
 });
 
-test("RAC-716 the Inbox lists the decision reminder Goals keeps under its own id, and no other plugin's entry of the same kind", () => {
+test("RAC-806 the Inbox lists the decision reminder Goals keeps under its own id, and no other plugin's entry of the same kind", () => {
   const data = fixture();
   try {
     propose(data.app, "child-owner", "propose-owner");

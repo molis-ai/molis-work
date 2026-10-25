@@ -56,7 +56,7 @@ test("PLIB-12 Goals' Manifest declares its project library: the plugin entry's d
   assert.deepEqual(manifest.permissions.filter(permission => permission.permission === "storage:private").map(permission => permission.required), [true]);
 });
 
-test("RAC-707 every permission is required, and every permission an action asks of its caller is declared in the Manifest's written-out list", () => {
+test("RAC-797 every permission is required, and every permission an action asks of its caller is declared in the Manifest's written-out list", () => {
   const manifest = parsePluginManifest(structuredClone(goalsManifest));
   assert.ok(manifest.permissions.every(permission => permission.required === true), "a dual-instance plugin has no optional permission");
   const declared = new Set(manifest.permissions.map(permission => permission.permission));

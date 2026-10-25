@@ -40,6 +40,7 @@ const RUNTIME_ASSEMBLED: ReadonlyMap<string, string> = new Map([
   ["pages", "@molis-ai/molis-work-plugin-pages"],
   ["ppt", "@molis-ai/molis-work-plugin-ppt"],
   ["workflows", "@molis-ai/molis-work-plugin-workflows"],
+  ["goals", "@molis-ai/molis-work-plugin-goals"],
 ]);
 
 const HOME_RUNTIME_ENTRIES = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.runtime?.scope === "home");
@@ -47,7 +48,7 @@ const HOME_RUNTIME_IDS = new Set(HOME_RUNTIME_ENTRIES.map(entry => entry.project
 
 /** Frozen on 2026-09-30. Remove an id here once its plugin is started by the Runtime. */
 const BUILD_TIME_ASSEMBLED: ReadonlySet<string> = new Set([
-  "alchemist", "artifacts", "feed", "goals",
+  "alchemist", "artifacts", "feed",
   "inbox", "plugin-builder",
 ]);
 
@@ -128,8 +129,23 @@ test("the frozen lists name exactly what exists: no id, route file or Runtime pl
  * the Host's Settings.
  * Shelf left with S4: its actions, model calls and routes are the plugin's Runtime instances (S2, S3), and the demo puts its sample
  * back through `shelf.sample.seed` instead of opening Shelf's files in the Host.
+ * Goals joined on 2026-10-25 (PG-094 S9-3～S12, the coordinator's ruling on the review of #1295): it is a Runtime plugin now (its project half
+ * is a supervisor entry, its Home half a dual-instance `runtime`), and the Host still has code written for it: the callers that bind a
+ * person's act to its registered actions (`goal-callers.ts`, `web-goals-read.ts`, `feed-goal-promotion.ts`) and the page layer that takes
+ * `goalsActions`, `goalsManifest` and the route matchers from its package (`web-view.ts`, `web-request.ts`, `web-planning.ts`,
+ * `web-panel.ts`; the workbench takes its styles, scripts and dictionaries). What is left to remove is BL-386 (the route rewrite and the
+ * clients), PG-031's remaining imports, W6-01 and W5-06 (specs/repository-anti-corruption/privileges.md, PG-094). Goals leaves when
+ * that code is gone; no other plugin joins.
  */
-const HYBRID_RUNTIME_PLUGINS: ReadonlySet<string> = new Set<string>();
+const HYBRID_RUNTIME_PLUGINS: ReadonlySet<string> = new Set<string>(["goals"]);
+
+/**
+ * Host files written for a Runtime plugin that do not start with its id: a rename must not hide them from the check below
+ * (`goals-actions.ts` became `goal-callers.ts` in S12, and the name rule alone no longer saw it). A new entry needs the same ruling.
+ */
+const HOST_FILES_NAMED_FOR: ReadonlyMap<string, readonly string[]> = new Map([
+  ["goals", ["goal-callers.ts", "web-goals-read.ts", "feed-goal-promotion.ts"]],
+]);
 
 test("Runtime plugins that the Host also assembles by hand are named, and no plugin joins them", async () => {
   const sources = await hostSourceFiles();
@@ -138,7 +154,7 @@ test("Runtime plugins that the Host also assembles by hand are named, and no plu
   const hybrid = [...RUNTIME_ASSEMBLED.keys()].filter(id => {
     const named = sources.some(file => {
       const base = file.slice(file.lastIndexOf("/") + 1);
-      return base.startsWith(`${id}-`) || base === `${id}.ts`;
+      return base.startsWith(`${id}-`) || base === `${id}.ts` || (HOST_FILES_NAMED_FOR.get(id) ?? []).includes(base);
     });
     const registered = new RegExp(`registerProvider\\(\\s*${camel(id)}[A-Za-z]*Provider\\(`).test(projectHost);
     return named || registered;

@@ -9,6 +9,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { journalRows, writeOldNamedLibrary } from "./fixtures/goals-old-names.js";
 
 // PG-094 S13 (specs/repository-anti-corruption/slices/goals-s10-s11-runtime-switch.md §5.3): the person's planning methods leave the
 // project catalog for Goals' library in the Home. Only disposable Homes here; the script's real-Home refusals are tried by moving the
@@ -53,8 +54,10 @@ const homeRows = (directory: string) => {
 };
 const run = (args: string[], env: Record<string, string> = {}) =>
   spawnSync(process.execPath, [SCRIPT, ...args], { encoding: "utf8", env: { ...process.env, ...env } });
+const NAMES_SCRIPT = fileURLToPath(new URL("../scripts/maintenance/goals-journal-names.mjs", import.meta.url));
+const rename = (home: string) => spawnSync(process.execPath, [NAMES_SCRIPT, "rename", "--home", home], { encoding: "utf8" });
 
-test("RAC-709 list reads the catalog's methods and writes nothing", async t => {
+test("RAC-799 list reads the catalog's methods and writes nothing", async t => {
   const directory = await home(t), catalog = await oldCatalog(directory), before = digest(catalog);
   const listed = run(["list", "--home", directory]);
   assert.equal(listed.status, 0, listed.stderr);
@@ -64,7 +67,7 @@ test("RAC-709 list reads the catalog's methods and writes nothing", async t => {
   assert.equal(existsSync(join(directory, "goals", "goals.db")), false, "and Goals' library was not made");
 });
 
-test("RAC-709 move copies every row to Goals' Home library, reads them back, then drops the catalog's table; run again it changes nothing", async t => {
+test("RAC-799 move copies every row to Goals' Home library, reads them back, then drops the catalog's table; run again it changes nothing", async t => {
   const directory = await home(t), catalog = await oldCatalog(directory);
   const moved = run(["move", "--home", directory]);
   assert.equal(moved.status, 0, moved.stderr);
@@ -79,7 +82,7 @@ test("RAC-709 move copies every row to Goals' Home library, reads them back, the
   assert.equal(digest(join(directory, "goals", "goals.db")), libraryAfter, "and Goals' library");
 });
 
-test("RAC-709 move that meets a different method of the same id in Goals' library stops and leaves the catalog's table whole", async t => {
+test("RAC-799 move that meets a different method of the same id in Goals' library stops and leaves the catalog's table whole", async t => {
   const directory = await home(t), catalog = await oldCatalog(directory);
   assert.equal(run(["move", "--home", directory]).status, 0);
   // The person changed a method in the new library, then a catalog restored from a backup brings the old table back.
@@ -100,7 +103,7 @@ test("RAC-709 move that meets a different method of the same id in Goals' librar
   assert.equal(homeRows(directory).find(row => row.method_id === "personal-a")?.version, 9, "and the library keeps what the person changed");
 });
 
-test("RAC-709 a Home that is not under the temp directory is a real one: move needs the maintenance window and refuses another process holding the catalog", async t => {
+test("RAC-799 a Home that is not under the temp directory is a real one: move needs the maintenance window and refuses another process holding the catalog", async t => {
   const directory = await home(t), catalog = await oldCatalog(directory);
   const elsewhere = join(directory, "other-tmp");
   await mkdir(elsewhere);
@@ -129,7 +132,7 @@ test("RAC-709 a Home that is not under the temp directory is a real one: move ne
   assert.equal(homeRows(directory).length, ROWS.length);
 });
 
-test("RAC-709 a database that is not Molis Work's project catalog is left alone", async t => {
+test("RAC-799 a database that is not Molis Work's project catalog is left alone", async t => {
   const directory = await home(t);
   await mkdir(join(directory, "projects"), { recursive: true });
   const path = join(directory, "projects", "catalog.db");
@@ -142,7 +145,7 @@ test("RAC-709 a database that is not Molis Work's project catalog is left alone"
   assert.equal(existsSync(join(directory, "goals", "goals.db")), false);
 });
 
-test("RAC-710 a catalog that still holds the personal planning table is refused with the maintenance to run; a new catalog has none", async t => {
+test("RAC-800 a catalog that still holds the personal planning table is refused with both maintenances to run, in order; a new catalog has none", async t => {
   const directory = await home(t);
   const fresh = await openMolisWorkProjectCatalog({ homeDirectory: directory });
   fresh.close();
@@ -153,5 +156,40 @@ test("RAC-710 a catalog that still holds the personal planning table is refused 
   const db = new DatabaseSync(path);
   try { db.exec(`CREATE TABLE ${TABLE} (method_id TEXT PRIMARY KEY, version INTEGER, enabled INTEGER, pack_json TEXT, created_at TEXT, updated_at TEXT)`); } finally { db.close(); }
   await assert.rejects(openMolisWorkProjectCatalog({ homeDirectory: directory }), (error: { code?: string; message?: string }) =>
-    error.code === "catalog.unsupported_schema" && /goals-personal-planning-move\.mjs/u.test(error.message ?? ""));
+    error.code === "catalog.unsupported_schema" && /goals-journal-names\.mjs[\s\S]*goals-personal-planning-move\.mjs/u.test(error.message ?? ""));
 });
+
+test("RAC-799 move keeps the catalog's table and writes nothing while a project library still holds Goals' old names; after the rename it moves", async t => {
+  const directory = await home(t), catalog = await oldCatalog(directory), library = writeOldNamedLibrary(directory, "alpha");
+  const catalogBefore = digest(catalog), rowsBefore = journalRows(library);
+
+  const refused = run(["move", "--home", directory]);
+  assert.equal(refused.status, 1);
+  assert.match(refused.stderr, /goals-journal-names\.mjs rename/u, "it says which maintenance to run first");
+  assert.match(refused.stderr, /alpha/u);
+  assert.equal(digest(catalog), catalogBefore, "the catalog is byte for byte the same");
+  assert.equal(catalogHasTable(catalog), true, "and its table is still there to hold the refusal");
+  assert.equal(existsSync(join(directory, "goals", "goals.db")), false, "Goals' library was not made");
+  assert.equal(journalRows(library), rowsBefore, "move does not rename for the person");
+
+  assert.equal(rename(directory).status, 0);
+  const moved = run(["move", "--home", directory]);
+  assert.equal(moved.status, 0, moved.stderr);
+  assert.equal(catalogHasTable(catalog), false);
+  assert.deepEqual(homeRows(directory), ROWS.map(row => ({ ...row })));
+});
+
+test("RAC-799 move that finds no table left still says when a library holds Goals' old names, because nothing else would", async t => {
+  const directory = await home(t), catalog = await oldCatalog(directory);
+  const db = new DatabaseSync(catalog);
+  try { db.exec(`DROP TABLE ${TABLE}`); } finally { db.close(); }
+  writeOldNamedLibrary(directory, "alpha");
+  const warned = run(["move", "--home", directory]);
+  assert.equal(warned.status, 1);
+  assert.match(warned.stderr, /goals-journal-names\.mjs rename/u);
+  assert.equal(rename(directory).status, 0);
+  const quiet = run(["move", "--home", directory]);
+  assert.equal(quiet.status, 0, quiet.stderr);
+  assert.match(quiet.stdout, /已经没有个人规划表/u);
+});
+

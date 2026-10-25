@@ -32,7 +32,7 @@ const declared = (owners: Record<string, AttentionSubjectType[]>): AttentionInbo
   new Map(Object.entries(owners).map(([owner, kinds]) => [owner, new Set(kinds)]));
 const idsOf = (entries: Array<{ entry_id: string }>) => entries.map(entry => entry.entry_id).sort();
 
-test("RAC-717 the Inbox is the unassigned entries and the owned ones whose owner declared that kind; nothing else", () => {
+test("RAC-807 the Inbox is the unassigned entries and the owned ones whose owner declared that kind; nothing else", () => {
   const data = fixture();
   try {
     const unassigned = data.entry("feed_item", "item-1");
@@ -64,7 +64,7 @@ test("RAC-717 the Inbox is the unassigned entries and the owned ones whose owner
 
 const manifestOf = (pluginId: string, attention: PluginManifest["attention"]): PluginManifest => ({ ...goalsManifest, plugin_id: pluginId, attention }) as PluginManifest;
 
-test("RAC-718 Feed's Inbox follows the Manifests of the running installations in the project, and names no plugin of its own", () => {
+test("RAC-808 Feed's Inbox follows the Manifests of the running installations in the project, and names no plugin of its own", () => {
   const data = fixture();
   try {
     const install = (manifest: PluginManifest, state: PluginLifecycleState = "running") => recordInstallation(data.store.db, manifest, state);
@@ -101,7 +101,7 @@ test("RAC-718 Feed's Inbox follows the Manifests of the running installations in
   }
 });
 
-test("RAC-719 a Manifest's attention.inbox lists some of its attention.subjects, each once", () => {
+test("RAC-809 a Manifest's attention.inbox lists some of its attention.subjects, each once", () => {
   const manifest = (attention: unknown) => ({ ...goalsManifest, attention });
   const subjects = ["goal_decision", "source_fault"];
   parsePluginManifest(manifest({ subjects, inbox: ["source_fault"] }));

@@ -17,7 +17,7 @@ const code = (expected: string) => (error: unknown) => (error as { code?: string
 const count = (sqlite: PluginSqlite, database: ReturnType<typeof memoryPluginDatabase>): number =>
   sqlite.read(database, () => (sqlite.prepare("SELECT COUNT(*) AS n FROM notes").get() as { n: number }).n);
 
-test("RAC-700 the handle exists only inside the window of one synchronous call: before it, after it, in a kept statement, in a nested window and in an async body it is refused", async () => {
+test("RAC-790 the handle exists only inside the window of one synchronous call: before it, after it, in a kept statement, in a nested window and in an async body it is refused", async () => {
   const database = memoryPluginDatabase(SCHEMA);
   const sqlite = new PluginSqlite();
   try {
@@ -45,7 +45,7 @@ test("RAC-700 the handle exists only inside the window of one synchronous call: 
   } finally { database.close(); }
 });
 
-test("RAC-701 a write window runs the statements in the platform's transaction, an inner transaction is a savepoint that undoes only its own writes, and a read window refuses every write", async () => {
+test("RAC-791 a write window runs the statements in the platform's transaction, an inner transaction is a savepoint that undoes only its own writes, and a read window refuses every write", async () => {
   const database = memoryPluginDatabase(SCHEMA);
   const sqlite = new PluginSqlite();
   const insert = (id: string) => sqlite.prepare("INSERT INTO notes (id, body, blob) VALUES (?, ?, ?)").run(id, `${id}-body`, id === "bytes" ? new Uint8Array([1, 2]) : null);
@@ -81,7 +81,7 @@ test("RAC-701 a write window runs the statements in the platform's transaction, 
   } finally { database.close(); }
 });
 
-test("RAC-702 the one handle serves both repositories' shapes, and Governance's savepoint keeps, undoes or rethrows only its own writes", async () => {
+test("RAC-792 the one handle serves both repositories' shapes, and Governance's savepoint keeps, undoes or rethrows only its own writes", async () => {
   const database = memoryPluginDatabase(SCHEMA);
   const sqlite = new PluginSqlite();
   const goals: GoalsSqliteDatabase = sqlite;

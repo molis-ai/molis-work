@@ -9,12 +9,17 @@
 // same function the platform opens it with), reads them back and compares each column, and only then drops the catalog's table in one
 // transaction. Run again, it finds no table and changes nothing. A Home that is not under the system's temp directory is a real one:
 // `move` then needs `--maintenance-window` (the person has stopped Molis Work) and refuses while another process holds the catalog.
+//
+// The catalog's table is the one thing every Home made before Goals ran as a Runtime plugin still has, so it is also what stops that build
+// from opening such a Home before the other maintenance is done: Goals' old event, idempotency and ledger names in the project libraries
+// (`goals-journal-names.mjs rename`, S9-2). `move` therefore writes nothing and keeps the table while any library still holds them.
 import { existsSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { DatabaseSync } from "node:sqlite";
+import { pendingGoalsNames } from "./goals-journal-names.mjs";
 
 const TABLE = "personal_planning_method_packs";
 const COLUMNS = ["method_id", "version", "enabled", "pack_json", "created_at", "updated_at"];
@@ -66,7 +71,12 @@ async function main() {
   try {
     if (!isOwnedCatalogOwner(new LocalCatalogMetadata(catalog).owner())) fail(`${catalogPath} 不是 Molis Work 的项目目录库，不动它`);
     const rows = readRows(catalog);
-    if (rows === null) return console.log("目录库里已经没有个人规划表，什么都没改。");
+    if (rows === null) {
+      // No table is left to hold the refusal, so the other maintenance would go unnoticed: say it here.
+      const left = pendingGoalsNames(home);
+      if (left.length > 0) fail(`目录库里已经没有个人规划表，但 ${left.length} 个项目库里还留着 Goals 的旧名：运行 node scripts/maintenance/goals-journal-names.mjs rename --home <Home 目录> --maintenance-window`);
+      return console.log("目录库里已经没有个人规划表，什么都没改。");
+    }
     if (options.command === "list") {
       console.log(`目录库里有 ${rows.length} 条个人规划方法:`);
       for (const row of rows) console.log(`  ${row.method_id}  v${row.version}  ${row.enabled ? "启用" : "停用"}`);
@@ -77,6 +87,11 @@ async function main() {
       if (!options.window) fail("这是真实 Home：先退出 Molis Work，再加 --maintenance-window 运行");
       try { catalog.exec("PRAGMA busy_timeout = 0; BEGIN EXCLUSIVE; ROLLBACK;"); }
       catch { fail("目录库正被别的进程占用，先退出 Molis Work"); }
+    }
+
+    const unnamed = pendingGoalsNames(home);
+    if (unnamed.length > 0) {
+      fail(`${unnamed.length} 个项目库里还留着 Goals 的旧名（${unnamed.map(library => library.project).join("、")}）：先运行 node scripts/maintenance/goals-journal-names.mjs rename --home <Home 目录> --maintenance-window，再重新运行 move；这次什么都没写，目录库的表还在`);
     }
 
     const target = openBaselineHomeSqlite(home, "goals", { version: GOALS_HOME_DATABASE.version, schema: GOALS_HOME_DATABASE.schema });

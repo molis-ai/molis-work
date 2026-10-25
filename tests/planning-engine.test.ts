@@ -353,7 +353,7 @@ test("project methods persist without a second Goal truth model", async () => {
   store.close();
 });
 
-test("RAC-708 personal method versions and timestamps survive reopening Goals' library, and an invalid method is refused", async () => {
+test("RAC-798 personal method versions and timestamps survive reopening Goals' library, and an invalid method is refused", async () => {
   const root = mkdtempSync(path.join(os.tmpdir(), "molis-work-personal-methods-"));
   try {
     const method = { ...customMethod("domain-personal-test"), version: 7 };

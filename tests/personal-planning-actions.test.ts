@@ -32,7 +32,7 @@ function libraryMethods(home: string) {
   finally { db.close(); }
 }
 
-test("RAC-708 saved planning methods live in Goals' library in the Home: a second save is a new version, and a restarted Host reads them back", async () => {
+test("RAC-798 saved planning methods live in Goals' library in the Home: a second save is a new version, and a restarted Host reads them back", async () => {
   const home = await mkdtemp(join(tmpdir(), "planning-home-library-"));
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   let actions = bindActionClient(host.homeActionClient(), () => user);
@@ -54,7 +54,7 @@ test("RAC-708 saved planning methods live in Goals' library in the Home: a secon
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-test("RAC-708 the Web transport coming and going does not touch the saved methods: the Host keeps the library until it closes", async () => {
+test("RAC-798 the Web transport coming and going does not touch the saved methods: the Host keeps the library until it closes", async () => {
   const home = await mkdtemp(join(tmpdir(), "planning-web-host-lifetime-"));
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const actions = bindActionClient(host.homeActionClient(), () => user);

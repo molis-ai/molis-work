@@ -91,7 +91,7 @@ export function createPluginConnectionsPort(home: string, options: PluginConnect
         if (first.status !== 401 || service.refresh !== "host" || connection.auth_method !== "oauth") return first;
         const refreshed = await refreshConnectionAfter401(home, initial.connection, async () => {
           signal.throwIfAborted(); await sent.beforeEffect(); signal.throwIfAborted();
-        }, () => access(resolveApiConnection(home, connection_id, target.service_id, "if_available")));
+        }, () => access(resolveApiConnection(home, connection_id, target.service_id, "if_available")), signal);
         if (refreshed === null) return first;
         // Once: the resend asks the call again after its own DNS (`beforeEffect`), so a call that ended meanwhile sends nothing more.
         return send(sent, `Bearer ${refreshed.token}`, options);

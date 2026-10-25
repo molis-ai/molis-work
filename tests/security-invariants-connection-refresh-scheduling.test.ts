@@ -77,21 +77,30 @@ function reject401(response: ServerResponse, body = "first 401") {
 }
 function assertPrivate(answer: unknown) { assert.doesNotMatch(JSON.stringify(answer), /stale-access|fresh-access|refresh-\d|credential_ref|refresh_ref/u); }
 
-for (const ending of ["cancelled", "revoked"] as const) test(`S-70 RAC-349 ${ending} after the first 401 starts no refresh and sends nothing more`, { timeout: 30_000 }, async t => {
+for (const ending of ["cancelled", "revoked", "cancelled in the microtask gap"] as const) test(`S-70 RAC-349 ${ending} after the first 401 starts no refresh and sends nothing more`, { timeout: 30_000 }, async t => {
   const home = await homeFor(t); await authorize(home, "stale-access");
   const refreshes = endpoint(t, () => json({ access_token: "fresh-access", refresh_token: "refresh-2", expires_in: 3600 }));
   const { seen, options } = await resource(t, (_auth, response) => reject401(response));
   const controller = new AbortController(); let checks = 0;
   const request = dispatch({ signal: controller.signal, beforeEffect: async () => {
     if (++checks === 2) {
+      if (ending === "revoked") throw new ActionError("actions.not_authorized", "original authority ended");
       if (ending === "cancelled") controller.abort(new Error("original call ended"));
-      else throw new ActionError("actions.not_authorized", "original authority ended");
+      else {
+        // Pass the callback's inner tail check, then cancel before the coordinator resumes from its own await.
+        queueMicrotask(() => queueMicrotask(() => controller.abort(new Error("original call ended"))));
+      }
     }
   } });
   await assert.rejects(createPluginConnectionsPort(home, options).request(target, request),
     error => error instanceof Error && !/stale-access|fresh-access|refresh-\d/u.test(error.message));
   assert.deepEqual([seen.length, refreshes.length], [1, 0]);
   assert.equal(listConnectorConnectionViews(home, "asana")[0]?.state, "connected");
+  if (ending === "cancelled in the microtask gap") {
+    // Cancelled before maintenance starts: the next authorized caller must not inherit a cooldown.
+    const next = await createPluginConnectionsPort(home, options).request(target, dispatch());
+    assert.deepEqual([next.status, seen.length, refreshes.length], [401, 3, 1]); assertPrivate(next);
+  }
 });
 
 test("S-70 RAC-349 an in-flight refresh survives caller cancellation, saves rotation and never resends for that caller", { timeout: 30_000 }, async t => {

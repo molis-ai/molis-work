@@ -13,16 +13,18 @@ const COOLDOWN_MS = 60_000;
 
 /** Share maintenance without borrowing a consumer's cancellation; reconnecting never consumes an older revision's result. */
 export async function refreshConnectionAfter401(home: string, connection: Pick<ConnectorConnectionRecord, "connection_id" | "updated_at">,
-  beforeStart: () => Promise<void>, run: () => Promise<RefreshedAccess | null>): Promise<RefreshedAccess | null> {
+  beforeStart: () => Promise<void>, run: () => Promise<RefreshedAccess | null>, signal: AbortSignal): Promise<RefreshedAccess | null> {
   // Recheck after every wait, including when a reconnected account was waiting for its earlier refresh to finish.
   await beforeStart();
+  // The callback's completion is another async boundary: cancellation must win before any shared state is joined or created.
+  signal.throwIfAborted();
   const key = JSON.stringify([resolve(home), connection.connection_id]);
   const current = refreshes.get(key);
   if (current?.pending) {
     if (current.revision === connection.updated_at) return current.pending;
     // The previous revision's caller owns its error. A new revision must finish its predecessor, then check its own authority again.
     await current.pending.catch(() => undefined);
-    return refreshConnectionAfter401(home, connection, beforeStart, run);
+    return refreshConnectionAfter401(home, connection, beforeStart, run, signal);
   }
   if (current?.revision === connection.updated_at && current.settledAt !== undefined && Date.now() - current.settledAt < COOLDOWN_MS) return null;
   const state: RefreshState = { revision: connection.updated_at };

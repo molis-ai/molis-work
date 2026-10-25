@@ -118,7 +118,8 @@ const EXCEPTION_KINDS = ["translation-table", "stylesheet", "static-data", "gene
 const EXCEPTION_FIELDS = ["kind", "reason", "size"];
 const MIN_REASON_CHARACTERS = 20;
 const sameSize = (recorded, measured) => (typeof measured === "number" ? recorded === measured
-  : !!recorded && typeof recorded === "object" && recorded.lines === measured.lines && recorded.methods === measured.methods);
+  : !!recorded && typeof recorded === "object" && !Array.isArray(recorded) && Object.keys(recorded).sort().join() === "lines,methods"
+    && recorded.lines === measured.lines && recorded.methods === measured.methods);
 const recordedSize = (measured) => (typeof measured === "number" ? String(measured) : JSON.stringify({ lines: measured.lines, methods: measured.methods }));
 const problemsOfException = (entry, measured) => {
   if (!entry || typeof entry !== "object" || Array.isArray(entry)) return [`the entry must be an object with "kind", "reason" and "size"`];

@@ -148,6 +148,10 @@ const violations: Scenario[] = [
     put("packages/alpha/src/newclass.ts", klass("Fresh", 1, 10));
     put(EXCEPTIONS, registry(["class packages/alpha/src/newclass.ts#Fresh", { lines: 13 }]));
   }, expect: [/new giant unit: class packages\/alpha\/src\/newclass\.ts#Fresh \(13 lines, 1 methods\)/, /"size": \{"lines":13,"methods":1\}/], kind: "absolute" },
+  { name: "a new giant class registered with a field its size does not have", mutate: () => {
+    put("packages/alpha/src/newclass.ts", klass("Fresh", 1, 10));
+    put(EXCEPTIONS, registry(["class packages/alpha/src/newclass.ts#Fresh", { lines: 13, methods: 1, note: "extra" }]));
+  }, expect: [/new giant unit: class packages\/alpha\/src\/newclass\.ts#Fresh \(13 lines, 1 methods\)/, /"size": \{"lines":13,"methods":1\}/], kind: "absolute" },
   { name: "a new giant function registered as if it were a class", mutate: () => {
     put("packages/alpha/src/newfn.ts", fn("newFunction", 9));
     put(EXCEPTIONS, registry(["function packages/alpha/src/newfn.ts#newFunction", { lines: 12, methods: 0 }]));

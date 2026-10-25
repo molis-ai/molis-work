@@ -33,16 +33,16 @@
 
 ## 2. 现状
 
-147 个单元：32 个文件、37 个类、78 个函数。判定分布：
+146 个单元：31 个文件、37 个类、78 个函数。判定分布：
 
 | 判定 | 文件 | 类 | 函数 | 合计 |
 | --- | ---: | ---: | ---: | ---: |
 | 拆 | 13 | 36 | 75 | 124 |
 | 归线 | 15 | 1 | 3 | 19 |
-| 例外 | 4 | 0 | 0 | 4 |
-| 合计 | 32 | 37 | 78 | 147 |
+| 例外 | 3 | 0 | 0 | 3 |
+| 合计 | 31 | 37 | 78 | 146 |
 
-- **例外**（4 个）已登记在 `tooling/gates/giant-exceptions.json`：样式表 3 份（动量、基础控件、Coding）、连接器声明表 1 份。`--report` 在这些单元后面标 `[exception: …]`。看起来像例外、但没有登记的两处：Pages 的样式表只超 12 行，开头 12 行是用 `PAGES_TONES` 生成的色调规则，移到 `tone.ts` 就回到 800 行；组件规格板 `primitives/catalog.ts` 里有一段 175 行带分支的演示脚本，不是静态数据，脚本归 W5-04，剩下的样例标记已有章节函数的雏形，照样拆。英文词典 `en.ts` 也不是例外：决定 #16 已定词典按主人分，它归 W5-03（见下），所以 `translation-table` 这一类现在没有条目。
+- **例外**（3 个）已登记在 `tooling/gates/giant-exceptions.json`：样式表 2 份（动量、基础控件）、连接器声明表 1 份。Coding 的样式表 `plugins/native/coding/src/styles.ts` 已拆出编辑条与时间线两份样式、降到 748 行，不再是巨大单元，条目与下表的行都已删。`--report` 在这些单元后面标 `[exception: …]`。看起来像例外、但没有登记的两处：Pages 的样式表只超 12 行，开头 12 行是用 `PAGES_TONES` 生成的色调规则，移到 `tone.ts` 就回到 800 行；组件规格板 `primitives/catalog.ts` 里有一段 175 行带分支的演示脚本，不是静态数据，脚本归 W5-04，剩下的样例标记已有章节函数的雏形，照样拆。英文词典 `en.ts` 也不是例外：决定 #16 已定词典按主人分，它归 W5-03（见下），所以 `translation-table` 这一类现在没有条目。
 - **归线**（19 个）：浏览器脚本模板、旧皮肤和英文词典 `en.ts`（决定 #16，W5-03）等，路线里别的线会让它消失或换形态。归线的单元都有片号。Characters 的两个函数（`createCharactersPlugin`、`start`）曾挂在 W5-01 下，CHR-0 已把它们拆到阈值以下，不在清单里了（见下）。
 - **拆**（124 个，95 个文件）：其中 117 个归 W5-10（89 个文件，30 个批次；助理的 3 个单元 W4-05 已抽出提醒与跟进样板，仍超限，也在这 117 个里），其余 7 个归 W5-04、W5-07、W5-09（SC-3 的三个已搬出 Work 并拆完，W3-03 的两个已由 B2 拆完并搬进 SDK，W4-06 的三个、W4-07 的两个、W5-09 的一个、W5-07 的两个已拆完）。
 - 全部单元里，42 个只超出阈值不到 20%（8 个文件、26 个函数、8 个类；类按行数与方法数里超得多的那一项算），其中 34 个在 W5-10；5 个类只因方法数超标（行数没超）；这些超出不多，是 W5-10 里最便宜的一批。
@@ -279,7 +279,7 @@ R-38 第 1 片的本轮评审修复（PR #1226，2026-10-24，Codex）：只修 
 
 ### 内置插件 `plugins/native/*`
 
-41 个单元（拆 33、归线 7、例外 1），34 个文件、14 个包。路径前缀 `plugins/native/`。
+40 个单元（拆 33、归线 7），33 个文件、14 个包。路径前缀 `plugins/native/`。
 
 | 包 | 文件 | 单元 | 判定 | 计划或理由 | PR |
 | --- | --- | --- | --- | --- | ---: |
@@ -287,7 +287,6 @@ R-38 第 1 片的本轮评审修复（PR #1226，2026-10-24，Codex）：只修 
 | `alchemist` | `src/studio/server/db/pulse-repository.ts` | `SqlitePulseRepository` 类 381 行 / 23 方法 | 拆 · W5-10 | 23 个方法按表分组：来源设置、运行、采集与信号（`saveSourceCollection`、`listSignals`）、报告与机会（`saveReport` 69、`persistOpportunity`、`convertOpportunity`）。每组一个仓库。 | 0 |
 | `alchemist` | `src/studio/server/db/research-repository.ts` | `SqliteResearchRepository` 类 343 行 / 19 方法 | 拆 · W5-10 | 19 个方法按表分组：计划、运行、报告与证据（`saveReport` 85、`mapReport` 26、`linkClaimEvidence`）、MVP 范围（`ensureMvpScope` 35）。 | 0 |
 | `coding` | `src/client.ts` | 文件 1,656 行 | 归线 · §4.8 · W5-04 | 浏览器脚本模板（1,631/1,656 行）。 | 8 |
-| `coding` | `src/styles.ts` | 文件 851 行 | 例外 · 样式表 | `CODING_STYLES` 一个模板字符串，纯 CSS。 | 2 |
 | `coding` | `src/timeline.ts` | `createCodingTimeline` 函数 263 行 | 拆 · W5-04 | 对话时间线：`toString()` 注入浏览器，必须自包含（263 行，`renderFooter` 65、`renderGroup` 27、`KIND` 26、`FAILURES` 21）。W5-04 打包 Coding 的浏览器代码时，各块成模块并拆到阈值以下。（对 W5-04 范围的解释同 `tab-workspace-ops.ts`。） | 1 |
 | `coding` | `src/ui.ts` | `renderCodingWorkbench` 函数 214 行 | 拆 · W5-10 | `renderCodingWorkbench` 的返回里有一段 205 行的 HTML 模板。文件里已有 `renderCodingDirectory`、`renderCodingSettings`、`renderPendingQuestionCard`、`renderCodingIdentity` 这样的区块函数，工作台主体的其余区块照此各成函数。 | 2 |
 | `cognia` | `src/store.ts` | `CogniaStore` 类 122 行 / 28 方法 | 拆 · W5-10 | 122 行、28 个方法，每个方法很短；类不属于例外的四种。按表分四个仓库：域（`createDomain`、`renameDomain`、`deleteDomain`）、来源（`sources`、`renameSource`、`deleteSource`）、材料（`materials`、`preview`、`commit`、`createMaterial`、`updateMaterial`）、草稿（`drafts`、`addDraft`、`archiveDraft`、`saveDraft`；草稿的视图与采纳规则已在 `drafts.ts`，这一组只需带走表访问）。 | 2 |

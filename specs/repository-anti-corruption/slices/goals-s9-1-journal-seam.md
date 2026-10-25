@@ -42,7 +42,7 @@ S9 草稿（`goals-s8b-s9-runtime.md` §4、§5）设想「每片把一组表的
 - **RAC-284**：模块跑在其下的语句检查是真的：Goals 自己的表通过 `all/get/run` 正常读写，`events`、`idempotency_records`、别的主人的表和自由的 `exec` 都被拒。真实坏语句的 `iterate` 与其他未支持 statement 方法明确抛错，不读取结果、不执行 SQL 函数、不修改行；合法事务提交、失败回滚仍成立。（同上）
 - **RAC-285**：在这套用例实际执行到的 SQL 中，绕过插件语句检查的已知例外限定为 Goal Tree 预检的六条保存点语句，测试钉住实际观察到的集合与预检回滚效果。该运行时夹具不证明所有分支或全部 SQL 已执行；第 1 节的 13 句构造语句只有静态人工审阅证据。切到 Runtime 时换掉预检的做法再删保存点例外。（同上）
 
-FIX15 增量验证：整体 `pnpm build`；本文件对应回归与上述七个 fixture 消费用例（`node scripts/run-tests.mjs --jobs 2` 点名文件）；`pnpm boundary:check`；`node scripts/check-health-gates.mjs --base origin/main`；推送前鲜取 main 并 `pnpm secrets:check`。新增量验证待运行，原作者的 11/60 文件结果只保留其原范围；全量及 #1245 的合并冲突由 Claude 在批次处理，不在本片另跑。
+FIX15 增量工程验证（代码提交 `08058bc1f`）：整体 `pnpm build`、`pnpm boundary:check`、`node scripts/check-health-gates.mjs --base origin/main` 及 `pnpm secrets:check` 均通过。直接回归用 `node scripts/run-tests.mjs --jobs 2 --verbose` 点名本文件对应测试、上述七个 fixture 消费文件与 Goals 状态/边界、治理来源、项目库基线，共 13 文件、116 项通过。临时恢复父提交的旧 fixture 后，新增的未支持方法回归按预期失败；已还原修复并核对工作树。原作者的 11/60 文件结果只保留其原范围。独立 REVIEW/TEST 待结果，全量及 #1245 的合并冲突由 Claude 在批次处理，不在本片另跑。
 
 ## 4. 不做、留给后续
 

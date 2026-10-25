@@ -447,7 +447,7 @@ pages.content.receive	2	io.molis.work.pages	io.molis.work.pages	command	operatio
 pages.create	2	io.molis.work.pages	io.molis.work.pages	command	operation	project	write	-	agent,mcp,user,workflow	pages:write	pages_document	-	-	239e24bdec30	2aa903ce6e3f	05212c2ddb8d
 pages.delete	1	io.molis.work.pages	io.molis.work.pages	command	operation	project	irreversible	-	agent,mcp,user,workflow	pages:write	pages_document	-	-	61f64d4ce922	7606656fb550	-
 pages.discard	1	io.molis.work.pages	io.molis.work.pages	command	operation	project	irreversible	-	agent,mcp,user,workflow	pages:write	pages_document	-	-	53c7b7286799	7606656fb550	-
-pages.documents.body_from_markdown	1	io.molis.work.pages	io.molis.work.pages	query	query	project	read	-	user	pages:read	pages_document	-	-	492c7de433a7	2dd1fbf79a72	-
+pages.documents.body_from_markdown	1	io.molis.work.pages	io.molis.work.pages	query	query	project	read	-	user	pages:read	-	-	-	492c7de433a7	2dd1fbf79a72	-
 pages.documents.import	1	io.molis.work.pages	io.molis.work.pages	command	operation	project	write	-	agent,mcp,user,workflow	pages:write	pages_document	-	-	fa54ce0d4550	c46466cf751e	-
 pages.extract	1	io.molis.work.pages	io.molis.work.pages	command	operation	project	write	-	agent,mcp,user,workflow	pages:read,pages:write	pages_document	-	-	61f64d4ce922	3aba110c2b07	7dcfaf6b844e
 pages.files.content	1	io.molis.work.pages	io.molis.work.pages	query	query	project	read	concurrent	user	pages:read	pages_document	molis.files.content.request.v1	molis.files.content.v1	99b557e4a48f	3197f1792222	b56a7c14404d

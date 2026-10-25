@@ -97,7 +97,7 @@ PG-060 其余在工作台里仍按名字的行，核过，**不归本线**：`re
 
 目标：`context-onboarding-service.ts` 不再 import Pages 的 Markdown→ProseMirror 转换；转换由 Pages 经公开动作提供。
 
-做法（B，本稿建议；待统筹裁定，见 §6 的 D3）：Pages 加一个**只读的转换动作**（暂名 `pagesActions.bodyFromMarkdown`，`documents.body_from_markdown`，输入 `{ markdown }`，输出 `{ body: PagesBody }`，权限 `pages:read`），内部用现有 `blocksFromMarkdown`。引导的 `pageBody` 改成调用它（变成 async，`pageParts` 随之变 async 生成器）。可见范围：只给需要的调用者——`audiences: ["user"]`（引导走的是「人在新项目里的动作」），不写 Pages 其他动作默认的 `workflow`、`agent`、`mcp`（`actions.ts` 的 `define` 默认四个都给），所以不进 MCP 工具名单，Agent 与工作流程也调不到；Pages 自己的内容交接处理器不用它（它有自己的转换）。`define` 加一个可选的 `audiences` 参数，其余动作不变。
+做法（B，统筹已裁定，见 §6 的 D3）：Pages 加一个**只读的转换动作**（`pagesActions.bodyFromMarkdown`，`documents.body_from_markdown`，输入 `{ markdown }`，输出 `{ body: PagesBody }`，权限 `pages:read`），内部用现有 `blocksFromMarkdown`。引导的 `pageBody` 改成调用它（变成 async，`pageParts` 随之变 async 生成器）。可见范围：只给需要的调用者——`audiences: ["user"]`（引导走的是「人在新项目里的动作」），不写 Pages 其他动作默认的 `workflow`、`agent`、`mcp`（`actions.ts` 的 `define` 默认四个都给），所以不进 MCP 工具名单，Agent 与工作流程也调不到；Pages 自己的内容交接处理器不用它（它有自己的转换）。只在这个动作的 `withAction` 覆写受众与 `subject_kinds: []`：转换输入不读取或修改文档，不宣称 `pages_document` 主体，按主体筛选的目录不应列出它；其余动作不变。
 
 **结果体积**（D3 补）：转换动作自己守 Pages 单文档正文上限（`document.ts` 的 `MAX_BODY_CHARS`，1,500,000 编码字符）：转换后超过就返回明确错误 `pages.body_too_large`（`error.ts` 里 `defineErrorCodes("pages", …)` 加一条，kind `invalid`），不截断、不返回超大结果。所以动作结果恒 ≤ 1.5 MB（核对过：Runtime 动作结果没有通用字节上限，所以由动作自己限）；输入 `markdown` 上限 1,000,000 字符（与 Pages 自己的 `markdown` 写入字段同一个数；原稿写 400,000，但引导的摘要页不拆分、整篇转换，摘要加资料来源行可以超过 400,000，收紧会让原来能存的摘要失败。结果体积仍由 `pages.body_too_large` 守住；统筹 2026-10-25 裁：准用 1,000,000）。引导的客户端权限列表加 `pages:read`（`web-onboarding.ts`）。引导照旧按减半重试：转换返回 `pages.body_too_large`，或返回的正文编码后超过引导自己的 `PAGE_BODY_MAX`（1,400,000），都把这一部分从中间减半再转换；部分长度小于 2 时把错误抛出，与现在一致。拆分、「第 k / N 部分」标题、按编码体积减半重试、每部分一个 `request_id` 的幂等，全部留在引导里不变（那是引导的策略，且用户 10-22 定了「来源不设上限」）。
 
@@ -106,11 +106,13 @@ PG-060 其余在工作台里仍按名字的行，核过，**不归本线**：`re
 | 编号 | 验收 | 证明 |
 | --- | --- | --- |
 | RAC-615 | 引导源码不 import `blocksFromMarkdown`、不 import ProseMirror；Markdown→正文走 Pages 的公开动作；同一段文字的结果与之前逐字相同（以现有引导用例的正文为准） | `tests/context-onboarding.test.ts`（已有用例读回 Pages 文档）、新增一条 Pages 动作的单测（`tests/pages-body-from-markdown.test.ts`） |
-| RAC-616 | 动作合同快照已更新并提交（`pnpm build` 后 `pnpm actions:update`），PR 写对调用方的影响（工作流程、MCP 工具名、Skill）；动作只在需要的调用者可见 | `tests/action-contract-snapshot.test.ts` |
-| RAC-617 | 长文拆分与重试保持：同一 `request_id` 重试返回同一份文档，超长文本仍按减半拆开。**结果体积**：转换后超过 1,500,000 编码字符的输入，动作返回 `pages.body_too_large`、不返回正文；引导遇到它按减半重试，最终每部分都能存下；部分长度小于 2 仍超限时错误抛出，不无限循环；动作结果恒不超过 1.5 MB。动作只对 `user` 受众可见，MCP 工具名单、Agent 与工作流程的动作目录里没有它 | `tests/context-onboarding.test.ts`、`tests/context-onboarding-documents.test.ts`；新 `tests/pages-body-from-markdown.test.ts`（用一千万个单字符行的病态输入验证 `pages.body_too_large`）；可见范围由 `tests/action-contract-snapshot.test.ts` 与 MCP 工具名单用例钉住 |
+| RAC-616 | 动作合同快照已更新并提交（`pnpm build` 后 `pnpm actions:update`），PR 写对调用方的影响（工作流程、MCP 工具名、Skill）；动作只在需要的调用者可见。实际 user 目录里的 `subject_kinds` 为空，按 `pages_document` 主体筛选不列出它；workflow、agent、mcp 的真实调用均准确报 `actions.forbidden` | `tests/action-contract-snapshot.test.ts`、`tests/pages-body-from-markdown.test.ts` |
+| RAC-617 | 长文拆分与重试保持：同一 `request_id` 重试返回同一份文档，超长文本仍按减半拆开。**结果体积**：转换后超过 1,500,000 编码字符的输入，动作返回 `pages.body_too_large`、不返回正文；引导遇到它按减半重试，最终每部分都能存下；部分长度小于 2 仍超限时错误抛出，不无限循环；动作结果恒不超过 1.5 MB。补一条真实链路：不改限额、不模拟拒绝，真实转换动作超限后，引导沿原逻辑减半，读回所有持久化正文，逐项核对完整内容及顺序。动作只对 `user` 受众可见，MCP 工具名单、Agent 与工作流程的动作目录里没有它 | `tests/context-onboarding.test.ts`（保留模拟拒绝的终止边界用例，另加真实动作超限到完整保存用例）、`tests/context-onboarding-documents.test.ts`；`tests/pages-body-from-markdown.test.ts`（25,000 个单字符标题验证真实 `pages.body_too_large`，保留原输入与正文限额断言）；可见范围由 `tests/action-contract-snapshot.test.ts` 与 MCP 工具名单用例钉住 |
 | RAC-618 | 门禁数字不增：`check-health-gates --base origin/main`、`boundary:check`；该文件对 Pages 包的点名只剩 `pagesActions`（动作描述符，与 `inbox-actions.ts`、`content-action-providers.ts` 同一做法） | 两条门禁命令 |
 
 碰的文件：`apps/local-host/src/context-onboarding-service.ts`（在途 #1251 改了其中一行 import，重基无冲突）、`plugins/native/pages/src/{actions,manifest}.ts`（动作与 Manifest 声明）、`tests/` 三份、`tooling/gates/actions/`。
+
+**FIRST 后第 1～3 项修复（2026-10-25，Codex）**：从冻结的 `76128186a3fe14b4cf0df944cb35cdd1a0c621a7` 做独立候选，只改这个动作、上述两个直接相关测试、本节与必要动作快照；V-18、§3 的目录、§4 的重启入口与生产拆分逻辑保持。按合同变更流程 §3.6，主体声明变化会列为同版本形状变化；保持 `@1`，原因是身份、提供方、输入输出、权限、受众与执行行为都不变，唯一生产调用方是引导按 `pagesActions.bodyFromMarkdown` 调用，不按主体绑定；该动作从未给 workflow、agent、mcp 发现或调用，没有这些入口的固定引用需要迁移。user 的文档主体列表去掉误列正是本次修正；Skill 和 MCP 工具名无需改变。构建后用 `pnpm actions:update` 生成精确差异，共同 spec 与快照交 Claude carrier 在合成树统一承接。有限验证：Pages README 的非浏览器必跑项、两个直接测试、引导 documents、动作快照与 MCP 目录测试，加边界与健康门禁、推送前密钥扫描；构建走整机 FIFO，不跑 full，不动真实 Home，第 4 项未来独立发包假设不实施。
 
 收口（RAC-619，统筹合入后做，不在片里改）：每片 PR 正文「privileges.md 状态」一节写好 PG-060（余项全部做完后「已做」，带 PR 与 RAC-600～618）和 PG-088（带 PR 与 RAC-615～618）该写的状态；统筹合入后统一改状态列（`SLICE-RULES.md` §2）。
 

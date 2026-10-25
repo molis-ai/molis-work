@@ -1,4 +1,4 @@
-import { pluginActions } from "./fixtures/plugin-actions.js";
+import { fakeProjectSettings, pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -40,19 +40,25 @@ function capturing(
   };
 }
 
-function project(directory: string, capabilities?: Parameters<typeof createPluginPlatform>[0]["capabilities"]) {
+/** `browsing` answers the project's browsing folder, the only project setting the fixture serves; without it nothing is served. */
+function project(directory: string, browsing?: () => unknown) {
   const file = join(directory, "board.db");
   seedDemoBoard(file);
   const store = new LocalProjectDatabase(file);
   const artifacts = new ArtifactsModule({ db: store.db, appendEvent: (event) => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
-  const platform = createPluginPlatform({ actions: pluginActions(store, DEMO_PROJECT_ID),
+  const actions = pluginActions(store, DEMO_PROJECT_ID);
+  const settings = browsing && fakeProjectSettings(actions, definition => {
+    assert.equal(definition.capability_id, projectSettingsCapabilities.browsingWorkspace.capability_id);
+    return browsing();
+  }, [projectSettingsCapabilities.browsingWorkspace]);
+  const platform = createPluginPlatform({ actions,
     project_id: DEMO_PROJECT_ID,
     actor_id: "tester",
     db: store.db,
     artifacts, processItems: new ProcessItemsModule({ db: store.db, appendEvent: (event) => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
     ui: new UiHost(),
     home: null,
-    ...(capabilities ? { capabilities } : {}),
+    ...(settings ? { dependencyCheck: settings.dependencyCheck } : {}),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
   });
   return { store, platform, artifacts };
@@ -90,13 +96,7 @@ test("五个插件在真平台上一起起来，没有一个被依赖挡住", as
 test("Files reads browsing settings without a Workspace binding and rejects the retired input", async () => {
   const directory = mkdtempSync(join(tmpdir(), "workspace-settings-graph-"));
   let selected = { workspace_id: "one", display_name: "One", canonical_path: "/one", realpath_verified: true };
-  const { store, platform } = project(directory, {
-    availability: definition => definition.capability_id === projectSettingsCapabilities.browsingWorkspace.capability_id && definition.version === 1
-      ? { available: true } : { available: false, code: "fixture.missing", reason: "Fixture has only browsing settings" },
-    async invoke<Input, Output>(definition: { capability_id: string }, _input: Input): Promise<Output> {
-    assert.equal(definition.capability_id, projectSettingsCapabilities.browsingWorkspace.capability_id);
-    return selected as Output;
-  } });
+  const { store, platform } = project(directory, () => selected);
   try {
     const report = await platform.start([{ definition: createFilesPlugin() }]);
     assert.deepEqual(report.failed, []);
@@ -159,10 +159,10 @@ test("Coding fixed output reaches Diff through the production default binding wi
   try {
     // As the Host's start list gives them: default wiring applies only between plugins that ship with the Host (W4-03).
     await platform.start([
-      { definition: capturing(createCodingPlugin(), context => { coding = context; }), bundled: true },
-      { definition: createShelfPlugin(), bundled: true },
-      { definition: createFilesPlugin(), bundled: true }, { definition: createGitPlugin(), bundled: true },
-      { definition: createTextStatsPlugin(), bundled: true }, { definition: createDiffPlugin(), bundled: true },
+      { definition: capturing(createCodingPlugin(), context => { coding = context; }), trust: { level: "host" } },
+      { definition: createShelfPlugin(), trust: { level: "host" } },
+      { definition: createFilesPlugin(), trust: { level: "host" } }, { definition: createGitPlugin(), trust: { level: "host" } },
+      { definition: createTextStatsPlugin(), trust: { level: "host" } }, { definition: createDiffPlugin(), trust: { level: "host" } },
     ]);
     bindDeclaredDefaults(platform, DEMO_PROJECT_ID, "tester");
     assert.equal(platform.wiring.selectedGroup(DIFF_PLUGIN_ID), "snapshots", "publishing must not change the user's comparison group");
@@ -187,8 +187,8 @@ test("the default wiring leaves a 成果 version the person gave an input in pla
   const { store, platform, artifacts } = project(directory);
   try {
     await platform.start([
-      { definition: createCodingPlugin(), bundled: true }, { definition: createShelfPlugin(), bundled: true }, { definition: createFilesPlugin(), bundled: true },
-      { definition: createGitPlugin(), bundled: true }, { definition: createTextStatsPlugin(), bundled: true }, { definition: createDiffPlugin(), bundled: true },
+      { definition: createCodingPlugin(), trust: { level: "host" } }, { definition: createShelfPlugin(), trust: { level: "host" } }, { definition: createFilesPlugin(), trust: { level: "host" } },
+      { definition: createGitPlugin(), trust: { level: "host" } }, { definition: createTextStatsPlugin(), trust: { level: "host" } }, { definition: createDiffPlugin(), trust: { level: "host" } },
     ]);
     const shelfReport = () => platform.wiring.view().plugins.find(plugin => plugin.plugin_id === "io.molis.work.shelf")!.ports.find(port => port.port === "coding-report")!;
     bindDeclaredDefaults(platform, DEMO_PROJECT_ID, "tester");

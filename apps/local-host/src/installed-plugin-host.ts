@@ -36,7 +36,7 @@ interface InstalledPluginHostOptions {
   actorId?: string;
   routePrefix?: string;
   actions?: PluginPlatformOptions['actions'] & Pick<ProjectActions, 'inspect'>;
-  capabilities?: PluginPlatformOptions['capabilities'];
+  dependencyCheck?: PluginPlatformOptions['dependencyCheck'];
   /** Explicit fixture/embed replacement only; production uses the shared Home inference owner. */
   generate?: CapabilityImplementations['generate'];
 }
@@ -95,7 +95,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest),
     capturePrivateData: id => privateStorage.snapshotInstallationData(id),
     restorePrivateData: (id, snapshot) => privateStorage.restoreInstallationData(id, snapshot as ReturnType<typeof privateStorage.snapshotInstallationData>),
-    ...(options.capabilities ? { capabilities: options.capabilities } : {}) });
+    ...(options.dependencyCheck ? { dependencyCheck: options.dependencyCheck } : {}) });
   const records = () => platform.runtime.list().filter(item => item.publisher_signature.startsWith(SIGNATURE) && item.state !== 'uninstalled');
   const recordFor = (pluginId: string) => records().find(item => item.plugin_id === pluginId);
   const releaseFor = (pluginId: string) => {

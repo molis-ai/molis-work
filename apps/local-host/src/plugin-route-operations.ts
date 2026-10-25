@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginExecutionControl, PluginManifest, PluginRouteBinding, PluginRouteResponse } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { PLUGIN_ROUTE_PREFIX, pluginRouteMatcher, type PluginRouteMatch, type PluginRouteRouter } from "@molis-ai/molis-work-plugin-runtime";
+import { PLUGIN_ROUTE_PREFIX, pluginRouteMatcher, type PluginRouteMatch } from "@molis-ai/molis-work-plugin-runtime";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { hostErrors } from "./host-errors.js";
 import type { PluginPlatform } from "./plugin-platform.js";
@@ -20,8 +20,6 @@ export const PLUGIN_MANAGEMENT_OPERATIONS = new Set(["retry", "enable", "disable
  * nothing to add passes nothing.
  */
 export interface RuntimePluginRouteHooks {
-  /** Runs before the plugin's route is dispatched, with the router that will dispatch it. */
-  beforeDispatch?(router: PluginRouteRouter): Promise<void>;
   /** Runs after the plugin answered, before the answer is sent; may reshape `result.body`. */
   afterDispatch?(result: PluginRouteResponse): Promise<void>;
 }
@@ -99,7 +97,6 @@ export async function dispatchRuntimePluginRoute(
   // The Host's own entry may have put the person's chosen file on this request (material-original-entry.ts); only this request's
   // Host-made control carries it, and only to this installation's actions.
   if (active.install_id && controls.execution) offerRoutedOriginalFile(controls.execution, offeredOriginalFile(request, active.install_id));
-  await hooks.beforeDispatch?.(router);
   let body: unknown;
   if (!["GET", "HEAD"].includes(request.method ?? "GET")) {
     try {

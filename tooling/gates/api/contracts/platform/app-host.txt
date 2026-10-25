@@ -23,6 +23,7 @@ export interface DesktopPanelApi {
 }
 
 export interface DesktopPanelCatalogApi extends DesktopPanelApi {
+    listIds(projectId: string): string[];
     aliasSession(input: AliasDesktopPanelSessionInput): DesktopPanelRecord;
     findByWorkContext(runtimeId: string, workContextId: string): DesktopPanelRecord | null;
     deleteForProject(projectId: string): void;
@@ -65,6 +66,7 @@ export interface DesktopPanelRepository {
     insert(record: DesktopPanelRecord): void;
     addAlias(panelId: string, runtimeId: string, workContextId: string, createdAt: string): void;
     list(projectId: string, goalId?: string): DesktopPanelRecord[];
+    listIds(projectId: string): string[];
     get(panelId: string): DesktopPanelRecord | null;
     updateStatus(panelId: string, status: DesktopPanelRecord["status"], updatedAt: string): void;
     updateHostSession(panelId: string, hostSessionId: string, updatedAt: string): void;
@@ -84,29 +86,17 @@ export interface DesktopPanelServiceOptions {
 export interface HostCapabilityCallOptions {
     query_only?: true;
     signal?: AbortSignal;
-    plugin_caller?: HostPluginCaller;
     before_effect?: () => void | Promise<void>;
     assert_authority_current?: () => void;
-    consumer?: "plugin";
-}
-
-export interface HostCapabilityDefinition<Input = unknown, Output = unknown> extends HostCapabilityDescriptor {
-    readonly __types__?: {
-        input: Input;
-        output: Output;
-    };
 }
 
 export interface HostCapabilityDescriptor {
     capability_id: string;
     version: number;
     operation: HostCapabilityOperation;
-    readonly scheduling?: "concurrent";
     readonly action?: import("@molis-ai/molis-work-contracts/platform/actions").ActionMetadata;
     readonly action_provider?: import("@molis-ai/molis-work-contracts/platform/actions").ActionProvider;
 }
-
-export type HostCapabilityInput<Capability> = Capability extends HostCapabilityDefinition<infer Input, unknown> ? Input : never;
 
 export interface HostCapabilityInvocation extends ActionCallOrigin {
     readonly signal?: AbortSignal;
@@ -117,10 +107,6 @@ export interface HostCapabilityInvocation extends ActionCallOrigin {
 }
 
 export type HostCapabilityOperation = "query" | "command";
-
-export type HostCapabilityOutput<Capability> = Capability extends HostCapabilityDefinition<unknown, infer Output> ? Output : never;
-
-export type HostMethodCapability<Method> = Method extends (...args: infer Args) => infer Result ? HostCapabilityDefinition<Args, Result> : never;
 
 export interface HostPluginCaller {
     readonly plugin_id: string;
@@ -134,9 +120,11 @@ export interface HostPluginCaller {
 export interface LocalHostProjectClient {
     readonly host_instance_id: string;
     readonly project: LocalHostProjectReference;
-    availability(capability: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference, options?: Pick<HostCapabilityCallOptions, "consumer">): import("@molis-ai/molis-work-contracts/platform/actions").ActionAvailability;
+    availability(capability: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference, options?: {
+        readonly consumer?: "plugin";
+    }): import("@molis-ai/molis-work-contracts/platform/actions").ActionAvailability;
     withScope<Result>(operation: (client: LocalHostProjectClient) => Result | Promise<Result>): Promise<Result>;
-    invoke<Input, Output>(capability: HostCapabilityDefinition<Input, Output>, input: Input, options?: HostCapabilityCallOptions): Promise<Output>;
+    invoke<Input, Output>(capability: import("@molis-ai/molis-work-contracts/platform/actions").ActionDefinition<Input, Output>, input: Input, options?: HostCapabilityCallOptions): Promise<Output>;
 }
 
 export interface LocalHostProjectReference {

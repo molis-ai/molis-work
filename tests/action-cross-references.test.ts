@@ -293,8 +293,8 @@ test("a Manifest whose references do not hold is not a Manifest: parsing it name
 test("the Plugin Runtime does not install a plugin whose Manifest has a reference that does not hold", () => {
   const definition = (...actions: Part[]) => ({ manifest: declarationManifest({ actions }) as never, start: async () => ({ kind: "app" as const, actions: [] }) });
   const runtime = new PluginRuntime();
-  assert.doesNotThrow(() => runtime.install({ definition: definition(add(), remove()), deployment: "local", grants: [] }));
-  assert.throws(() => new PluginRuntime().install({ definition: definition(add()), deployment: "local", grants: [] }),
+  assert.doesNotThrow(() => runtime.install({ trust: { level: "unsigned" }, definition: definition(add(), remove()), deployment: "local", grants: [] }));
+  assert.throws(() => new PluginRuntime().install({ trust: { level: "unsigned" }, definition: definition(add()), deployment: "local", grants: [] }),
     (error: unknown) => (error instanceof ActionError && error.kind === "invalid") && error.code === "plugin.manifest_invalid" && /撤销命令 notes\.remove@1 不在同一提供方的声明里/.test(error.message));
 });
 

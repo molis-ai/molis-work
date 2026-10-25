@@ -45,7 +45,7 @@ const follow = (a: CodingActivation, execution: CodingExecution, sessionId: stri
   const job = context.services.background.keep("follow", async control => {
     const round = await accepted;
     if (!round) return;
-    const api = context.services!.capabilities!, { run } = round;
+    const api = context.services!.actions!, { run } = round;
     let since: string | null = null;
     for (;;) {
       // As the installation (R8): the job's signal ends the wait, and its check drops an answer that arrives after the job lost its authority.

@@ -20,6 +20,7 @@ import {
 import {
   SHELF_STYLES,
   SHELF_EN,
+  SHELF_MESSAGES,
   SHELF_CLIENT_FACTORY_SCRIPT,
   SHELF_UI_CONTRIBUTION_ID,
   renderShelfWorkbench,
@@ -39,7 +40,8 @@ const primitives: ShelfUiModel["primitives"] = {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;"),
-  text: (value) => value,
+  // The page's words are stable keys; the test reads the Chinese of each.
+  text: (key, values) => (SHELF_MESSAGES as Record<string, { zh: string }>)[key]?.zh.replace(/\{(\w+)[^}]*\}/g, (_, name) => String(values?.[name] ?? name)) ?? key,
 };
 
 function model(overrides: Partial<ShelfListModel> = {}): ShelfListModel {
@@ -52,6 +54,12 @@ function model(overrides: Partial<ShelfListModel> = {}): ShelfListModel {
     ...overrides,
   };
 }
+
+/** The key the Shelf page says a Chinese text by: its client carries the key, and the Host shows the words of the person's language. */
+const keyOf = (zh: string): string => Object.entries(SHELF_MESSAGES).find(([, text]) => text.zh === zh)?.[0] ?? assert.fail(`no key says "${zh}"`);
+/** English of a Chinese text: a Shelf page word has it in its message table, the settings page's and the module's in the dictionary. */
+const english = (zh: string): string | undefined => Object.values(SHELF_MESSAGES).find(text => text.zh === zh)?.en ?? SHELF_EN[zh];
+const clientSays = (zh: string) => SHELF_CLIENT_FACTORY_SCRIPT.includes(keyOf(zh));
 
 /** No terminal Agent: these tests describe the shelf, not this Mac's CLI. */
 const NO_AGENT = { disabled: true } as const;
@@ -351,9 +359,9 @@ test("Shelf UI contribution paints stage folds and DropAgent command chrome", ()
   assert.match(workbench, /data-shelf-multi aria-pressed="false">多选材料/);
   assert.match(workbench, /data-shelf="directory"[\s\S]*shelf-side-head[\s\S]*shelf-side-scroll[\s\S]*shelf-side-foot/);
   assert.match(workbench, /shelf-side-foot[\s\S]*副本工作区[\s\S]*⌘V 粘贴当前/);
-  assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /已选 \{count\} 份材料/);
-  assert.equal(SHELF_EN["副本工作区"], "Working copies");
-  assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /结束多选/);
+  assert.ok(clientSays("已选 {count} 份材料"));
+  assert.equal(english("副本工作区"), "Working copies");
+  assert.ok(clientSays("结束多选"));
   assert.doesNotMatch(SHELF_CLIENT_FACTORY_SCRIPT, /min-width: 761px/);
   // Wide enough (the panel widened), the list stays beside an open item; narrower, the item covers the list (a back button).
   assert.match(SHELF_STYLES, /@container shelf \(min-width: 640px\) \{[\s\S]*?\[data-shelf-stage-shell\]\[data-expanded="true"\] > \[data-shelf="directory"\] \{[^}]*width: 213px/);
@@ -392,10 +400,10 @@ test("Shelf UI contribution paints stage folds and DropAgent command chrome", ()
   assert.match(withClip, /class="shelf-name">本周待办<\/span>/);
   assert.match(withClip, /class="shelf-name">https:\/\/cdn\.example\.com\/file\.pdf<\/span>/);
   assert.doesNotMatch(withClip, /shelf-name__ext/);
-  assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /href="#icon-'\s*\+/);
-  assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /expandShelfStage/);
+  assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /href="#icon-/);
+  assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /data-expanded|dataset\.expanded/);
   assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /data-shelf-collapse/);
-  assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /copy: "copy", hide: "x", down: "download", trash: "trash"/);
+  assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /copy:"copy",hide:"x",down:"download",trash:"trash"/);
   // Soft Workbench (DESIGN.md → Typography): the confirm heading takes the 600 title role.
   assert.match(SHELF_STYLES, /shelf-confirm-title \{[^}]*font-weight: var\(--weight-title, 600\)/);
   assert.match(workbench, /data-shelf-confirm-out/);
@@ -406,7 +414,7 @@ test("Shelf UI contribution paints stage folds and DropAgent command chrome", ()
   assert.match(SHELF_STYLES, /\[aria-disabled="true"\]/);
   assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /application\/x-molis-shelf/);
   assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /data-shelf-act-rule/);
-  assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /整理动作/);
+  assert.ok(clientSays("整理动作"));
   assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /data-shelf-confirm-title/);
   assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /is-fail/);
   assert.doesNotMatch(SHELF_CLIENT_FACTORY_SCRIPT, /others\.forEach/);
@@ -417,21 +425,21 @@ test("Shelf UI contribution paints stage folds and DropAgent command chrome", ()
   assert.doesNotMatch(SHELF_STYLES, /shelf-settings-nav|shelf-settings-tab/);
   assert.match(SHELF_STYLES, /shelf-runtime-pick:has\(input:checked\)/);
   assert.match(SHELF_STYLES, /max-width: 640px/);
-  assert.equal(SHELF_EN["原材料已不在工作区，无法对照。"], "The source material is no longer in this workspace.");
+  assert.equal(english("原材料已不在工作区，无法对照。"), "The source material is no longer in this workspace.");
   assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /data-shelf-editor/);
   assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /data-shelf-compare-pane/);
   assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /\/edit/);
-  assert.equal(SHELF_EN["正在编辑副本。原文件保持不变。"], "Editing a copy. The original stays unchanged.");
-  assert.equal(SHELF_EN["将生成 pdf.md。原文件保持不变。"], "Creates pdf.md. Your original file stays unchanged.");
-  assert.equal(SHELF_EN["整理动作"], "Arrange actions");
-  assert.equal(SHELF_EN["快捷键"], "Shortcuts");
-  assert.equal(SHELF_EN["打开 / 关闭 Shelf"], "Open / close Shelf");
-  assert.equal(SHELF_EN["按下…"], "Press…");
-  assert.equal(SHELF_EN["默认"], "Default");
-  assert.equal(SHELF_EN["这个组合被占用。"], "This shortcut is already in use.");
+  assert.equal(english("正在编辑副本。原文件保持不变。"), "Editing a copy. The original stays unchanged.");
+  assert.equal(english("将生成 pdf.md。原文件保持不变。"), "Creates pdf.md. Your original file stays unchanged.");
+  assert.equal(english("整理动作"), "Arrange actions");
+  assert.equal(english("快捷键"), "Shortcuts");
+  assert.equal(english("打开 / 关闭 Shelf"), "Open / close Shelf");
+  assert.equal(english("按下…"), "Press…");
+  assert.equal(english("默认"), "Default");
+  assert.equal(english("这个组合被占用。"), "This shortcut is already in use.");
   assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /molis-shelf-notice/);
   assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /molis-shelf-refresh/);
-  assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /原材料已不在工作区，无法对照/);
+  assert.ok(clientSays("原材料已不在工作区，无法对照。"));
   assert.match(SHELF_STYLES, /--da-font: var\(--font\)/);
   assert.match(SHELF_STYLES, /--clay: var\(--mark-clay\)/);
   assert.match(SHELF_STYLES, /--da-panel: var\(--content-paper\)/);
@@ -444,7 +452,7 @@ test("Shelf UI contribution paints stage folds and DropAgent command chrome", ()
   assert.match(SHELF_STYLES, /\.shelf-row \.shelf-ops \{[\s\S]*display: flex;[\s\S]*opacity: 0/);
   assert.match(SHELF_STYLES, /\.shelf-row:is\(:hover, :focus-within, \.is-on\):not\(\.is-child\) \.shelf-ops \{ opacity: 1/);
   assert.doesNotMatch(SHELF_STYLES, /\.shelf-ops \{[^}]*display: none/);
-  assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /yieldName/);
+  assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /shelf-name__stem/);
   assert.match(SHELF_CLIENT_FACTORY_SCRIPT, /includes\(":\/\/"\)/);
   assert.doesNotMatch(SHELF_STYLES, /shelf-cap/);
   assert.doesNotMatch(SHELF_CLIENT_FACTORY_SCRIPT, /shelf-cap/);

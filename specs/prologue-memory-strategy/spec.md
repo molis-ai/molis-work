@@ -1202,3 +1202,17 @@ batch-33 集成实证：准确生产提交 `64210640729de77f8dddb97106eaff2a29cb
 **#1064 与新日志测试的最终整合（2026-10-25）。** `71d345f5f` 的普通 CI `40128787943` 在合并主干 #1238 后，Product subset 1/2 为214/215，唯一失败是 `assistant-http-logging.test.ts`（原重试后仍失败）；当时完整 Full `40128780824` 仍在运行，不能记为通过。准确 `71d + 584112c65` 的独立合并预览真实复现日志文件4/5，原因是故障夹具只传 task、没有本人原件，MEM-35 在 enqueue 前正确跳过，故等不到入队拒绝。最小测试修正保存公开 Runtime original_input，并精确断言 Runtime 回读及队列来源引用，原隐私、次数、失败/恢复断言保留；不改生产来源门、CI、超时或重试。
 
 现基础候选 `7d5ddfc39` 已正常合入准确 main `584112c65`，仅日志补丁来自诊断提交 `b0703c65a`；两树 `git diff b0703c65a 7d5ddfc39` 为空，完整构建与4文件21/21定向证据可复用，不机械重建同一源码。构建初次被 Swift 缓存权限拒绝，取得本机缓存访问后通过；日志原红 `/private/tmp/molis-memory-http-logging-red.log`、修后绿 `-green.log` 保留。统筹另在这一相同完整树检查根类型、准确584 health（含API/库登记）、boundary、真实临时Host动作快照、资源及全分支secrets，均exit0，日志 `/private/tmp/molis-memory-1064-http-merge-{types,health,boundary,actions,assets,secrets}-20261025.log`。27资源仍7,642,627 B，沿用原已批准净增，无新额度；未把上游自身变更冒称本任务新实现。旧 CI 重试UNKNOWN、Cloudflare原失败缺日志及产品/用户验收边界保留；最终新提交普通CI与Full需重新取得结果，不能由上述局部检查替代。
+
+
+### 2026-10-25：基础候选接入 main 3817 的短合同
+
+准确候选9e055220的普通CI与Full suite仍通过，但远端main已由52560f32推进到3817f8757abd9e60baaa825af7048cdac060479e（batch34/35），旧检查不证明新合并结果。本次在原干净基础集成树保留9e历史，合入该固定main，不新增PR或改写分支历史。范围仅双方真实冲突、原Memory调用链对已合平台合同的必要适配、相关快照与验证；不重做主线功能或引入兼容层。
+
+主线删除typed调用通道后，Memory本人原件仍必须由受保护HTTP及Host颁发，嵌套Action保持独立副本，背景控制不得继承当次原件。插件依赖动作同时保留主线目录可用性/当前安装权限与Memory最终提交检查，不能让一个授权替另一项放行。Coding保留original_input与正式Action入口，移除已删除的typed类型引用。安全文档保留全部主线条目，并合入Memory的S-13/S-18增量；测试同时保留主线Action网关与原Memory夹具。
+
+文本冲突五处：plugin-actions-client导入、Coding route-entry的原件类型、SDK效果测试导入/网关、安全表与资源账本。资源暂以最新main数字为基线，须真实构建后测量；只保留此前明确批准的Workbench+3,193 B与Coding+717 B净增，不能把旧绝对上限挪成通用额度，新增必要增长仍单独处理。SDK94/vendor内容保持本基础候选，不夹入#1101的后续SDK102。
+
+先原冻结离线安装及整体build，再types、准确3817 health/boundary/API/Action、资源与秘密检查；相关原件/取消撤权/Action依赖、Coding、安装/备份及实际主线影响回归后，最终提交重新跑普通CI和Full suite。保留所有首败并按调用链归因；旧Cloudflare93b失败仍未拿到原始错误，不因主线更新或GitHub Actions绿色忽略。此次尚在整合验证，不能宣称已推送、无冲突可合并或完整验收。
+
+
+本合并结果的首轮工程验证：原冻结离线安装、整体 build、根 typecheck、73 份 API 快照和正式 Action 快照均 exit 0；权限与本人原件、SDK 排队效果、撤权/晋升、采用、库基线和搜索共 15 文件 178 项首次通过，日志 `/private/tmp/molis-memory-main3817-direct-20261025.log`。真实资源测得 27 项共 7,594,739 B，仅 Workbench 1,126,567→1,129,760（+3,193 B）和 Coding 372,136→372,853（+717 B）相对准确 main 增长，其余逐项相同；仅按上述原授权净增重定位一次性配对。构建及类型日志为 `/private/tmp/molis-memory-main3817-{integration-build,types}-20261025.log`。合并提交后的准确主线健康、边界和秘密门以及最终 CI/Full suite 仍需完成，不把这批结果当作完整通过。

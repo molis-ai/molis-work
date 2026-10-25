@@ -137,7 +137,7 @@ test("real Host: the file tab lists and previews plugin files through the action
       ] }; } });
     const repository = await host.withProject(ref, projectRuntime => new SqlitePluginRuntimeRepository(projectRuntime.store.db));
     runtime = new PluginRuntime(repository, undefined, { actions: { registry: host.actionRegistry(ref), project_id: ref.project_id } });
-    const installId = runtime.install({ definition: plugin, deployment: "local", grants: ["newcomer:read"] }).install.install_id;
+    const installId = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["newcomer:read"] }).install.install_id;
     await runtime.start(installId);
     const joined = ((await get("/api/side/files/sources")).body.sources as typeof sources).find(source => source.kinds.some(kind => kind.kind === "newcomer-file"));
     assert.ok(joined, "declared and running: listed");

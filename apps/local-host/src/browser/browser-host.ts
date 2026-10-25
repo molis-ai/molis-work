@@ -10,6 +10,7 @@ import type {
 import { CdpConnection, type CdpParams } from "./cdp.js";
 import { locateBrowser, type LocatedBrowser } from "./locate.js";
 import { trackHostChildEndpoint } from "../host-endpoints.js";
+import { hostLog } from "../host-log.js";
 
 /**
  * The side panel's browser (specs/archive/side-panel D03/D04): one Chrome-family process per Home, started on first use with
@@ -41,6 +42,11 @@ interface Running {
 const MAX_CAPTURE_CHARS = 20_000;
 const DEFAULT_VIEWPORT: BrowserViewport = { width: 1024, height: 720, dpr: 1 };
 const SEARCH_URL = "https://www.bing.com/search?q=";
+
+function inputFailure(error: unknown, method: string): never {
+  hostLog.warn("browser", "input_dispatch_failed", error, { method });
+  throw browserErrors.load_failed("无法确认这次输入是否完成，请检查页面。");
+}
 
 /** What the person typed into the address bar → where to go. Only web addresses load; other schemes are refused. */
 export function browserAddress(input: string): { url: string } | { blocked: string } {
@@ -587,7 +593,7 @@ export class BrowserPage {
   async input(message: Extract<BrowserClientMessage, { type: "mouse" | "key" | "text" | "compose" }>): Promise<void> {
     const top = this.top;
     if (!top || !this.connection) return;
-    const send = (method: string, params: CdpParams) => this.connection!.send(method, params, top.sessionId).catch(() => undefined);
+    const send = (method: string, params: CdpParams) => this.connection!.send(method, params, top.sessionId).catch((error: unknown) => inputFailure(error, method));
     if (message.type === "mouse") {
       const type = { down: "mousePressed", up: "mouseReleased", move: "mouseMoved", wheel: "mouseWheel" }[message.event];
       await send("Input.dispatchMouseEvent", {

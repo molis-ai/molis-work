@@ -22,6 +22,6 @@ export { createFunctionsService, FunctionsService } from "./service.js";
 export type { FunctionsServiceOptions, TypeSafeProvider, TypeSafeEvaluateResult } from "./service.js";
 export { createTypeSafeProvider, type TypeSafeExecution, readAnswer, TYPESAFE_SYSTEMONE_URL } from "./provider.js";
 
-export { functionsActions, publishedFunctionAction, publishedFunctionKey, functionsActionProvider, publishedFunctionProvider } from "./actions.js";
+export { FUNCTIONS_PROVIDER_ID, functionsActions, publishedFunctionAction, publishedFunctionReference, publishedFunctionKey, functionsActionProvider, publishedFunctionProvider } from "./actions.js";
 export type { FunctionsActionPorts } from "./actions.js";
 export { functionAuthoringActions, functionContextActions } from "./authoring-actions.js";

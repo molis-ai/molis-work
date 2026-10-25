@@ -36,6 +36,8 @@ PR 粒度：没做完只推分支（只推分支不跑 CI），不开草稿 PR �
 
 ### 2026-10-25 当前交付接续（PIPE）
 
+**审验与CI接续（PIPE 16:19Z）**：#1287 A1/快照准确4af→689已REVIEW6399883192源码通过（6files18/-7，无8API快照增量），W5-07源码配套项关闭；运行证据仍TEST限定结算。C5最终702→28f已REVIEW6399925901通过、TEST未结清；BL541准确6bce→6e已本地正式REVIEW`/tmp/bl541-step-review-6e0ab6c.md`通过、必要TEST在原队列，leaf资源gate1仅下降待carrier冻结，不写全门禁绿。#1295/eb617 REVIEW6399580976+TEST6400000659限定齐：临时16项+真实HTTP/Runtime旧key重试1项分组通过，首次加载失败保留，只create路径，不进普通38/不等真实维护授权；EOF空行exit2原owner机械尾。38/1300普通CI40209248283现15作业终态：产品/安全各两组、Health1/2、Verify FAIL，其余8success/Linuxprobe skipped；原checkout仍TEST核。Health误报为ui属性STEP碰撞agent-collaboration私有const，被独立测试大写正则当helper，生产Gates绿；Root现行唯一writer01a173d6-4367-78d1-b059-0d3df6e72f80从f34只改test+W1-04 spec，公开6400011484。PIPE/F2新题派单窗口已撤回：F2实际completed回执核零树/WO/WIP/修改/test/push/进程，新专职原树clean已实际交其唯一接续，不存在双份实现；F2只保28f等TEST。各专职必要独立审验未结清不接第二题，不因等待集成CI/merge空占已结清writer。D8仍唯一Claude实际二分（6399805504，4dd1/1278前、PA24复现），page-interaction首红retry绿保UNKNOWN。F5 Runtime cohesive-unit仅按现行已合授权提交最终实测登记候选/同WO，Root已具体核，独立REVIEW仍须审单一生命周期责任及SQL/数据/授权外部owner，不放宽脚本/limits/全局门禁。
+
 **16:06Z已核当前事实**：Memory继续暂停；Root唯一巡检/新单初派，PIPE只交付驱动接续。main仍54437998cefbff245a107d919ae01975bd4b08ec；#1287当前689a7b9f63636ad06d1b398d0428065db82a10ca/open/base544，仅在46f后补W5-07两处shown_plugins快照。旧46f的唯一full40204783019 attempt1已15:53:50Z自然FAIL，16worker八失败/八成功，TEST正核九失败文件及全部原件；不能记仍运行、不能给689/38回填通过。旧08普通CI40197196365最终FAIL、6312自动取消、原f77 full31FAIL+1TIMEOUT及UNKNOWN边界保持，PIPE未取消CI/另起full。新#1300 batch38固定f34be2cddf5cb7c9a19ade8b93b4dc1eef250d97/open/base544；已实际含94095/b40/702/1957/328b/2db六来源，尚非main完成。4f仍待采用/独立TEST，A1增量REVIEW6399883192已通过源码核对，#1294/8ec两P1仍NOT READY。
 
 本节记精确候选与实际阶段，覆盖下方旧快照；不把源码释放、双核、入批和actual混为完成。Root唯一巡检/新独立单派发；交付后REVIEW、TEST、PIPE直接接续；独立writer并行，仅实际同hunk/合同串行，Claude唯一组批/full/批PR队列与来源关闭。

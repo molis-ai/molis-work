@@ -1,5 +1,6 @@
 import { lstatSync, realpathSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { acquireStorageOwner, assertStorageOwner } from "@molis-ai/molis-work-storage";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 import { captureSnapshotStore } from "./home-snapshot-capture.js";
@@ -60,6 +61,12 @@ export async function createHomeSnapshot(options: HomeSnapshotOptions): Promise<
     const published = publication.publish();
     return { status: "created", home_directory: home, snapshot_directory: published, stores: stores.length,
       databases: stores.reduce((total, store) => total + store.entries.filter(entry => entry.kind === "file" && entry.sqlite).length, 0) };
+  } catch (error) {
+    if (error !== options.signal?.reason && error instanceof ActionError) {
+      if (error.code === "actions.input_invalid") throw homeSnapshotErrors.invalid(error.message);
+      if (error.code === "actions.conflict") throw homeSnapshotErrors.changed(error.message);
+    }
+    throw error;
   } finally {
     try { publication?.cleanup(); } finally { owner.release(); }
   }

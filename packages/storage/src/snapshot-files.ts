@@ -1,9 +1,11 @@
 import { createHash } from "node:crypto";
 import { closeSync, constants, fstatSync, fsyncSync, lstatSync, openSync, readSync, realpathSync, writeSync, type Stats } from "node:fs";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 
 const same = (a: Stats, b: Stats) => a.dev === b.dev && a.ino === b.ino && a.size === b.size
-  && a.mode === b.mode && a.mtimeMs === b.mtimeMs && a.ctimeMs === b.ctimeMs;
-const invalid = (file: string) => new Error(`快照文件不是稳定的普通文件，或带有链接: ${file}`);
+  && a.mode === b.mode && a.nlink === b.nlink && a.mtimeMs === b.mtimeMs && a.ctimeMs === b.ctimeMs;
+const invalid = (file: string) => new ActionError("actions.input_invalid", `快照文件不是稳定的普通文件，或带有链接: ${file}`, { kind: "invalid" });
+const changed = (file: string) => new ActionError("actions.conflict", `快照文件不是稳定的普通文件，或带有链接: ${file}`, { kind: "conflict" });
 
 /** Metadata only: callers must exclude ownership databases before opening any file descriptor. */
 export function snapshotFileStat(file: string): Stats {
@@ -16,13 +18,13 @@ function openFile(file: string) {
   const before = snapshotFileStat(file);
   const descriptor = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
   try {
-    if (!same(before, fstatSync(descriptor))) throw invalid(file);
+    if (!same(before, fstatSync(descriptor))) throw changed(file);
     return { descriptor, before };
   } catch (error) { closeSync(descriptor); throw error; }
 }
 
 function unchanged(file: string, descriptor: number, before: Stats) {
-  if (!same(before, fstatSync(descriptor)) || !same(before, snapshotFileStat(file))) throw invalid(file);
+  if (!same(before, fstatSync(descriptor)) || !same(before, lstatSync(file)) || realpathSync(file) !== file) throw changed(file);
 }
 
 /** File-header classification, not a raw database copy. Never call this on an ownership lock. */
@@ -40,12 +42,12 @@ export function isSnapshotSqlite(file: string): boolean {
 export function readSnapshotFile(file: string, maximumBytes: number): Buffer {
   const { descriptor, before } = openFile(file);
   try {
-    if (before.size > maximumBytes) throw new Error(`快照元数据超出允许大小: ${file}`);
+    if (before.size > maximumBytes) throw new ActionError("actions.input_invalid", `快照元数据超出允许大小: ${file}`, { kind: "invalid" });
     const bytes = Buffer.alloc(before.size);
     let offset = 0;
     while (offset < bytes.length) {
       const read = readSync(descriptor, bytes, offset, bytes.length - offset, offset);
-      if (!read) throw invalid(file);
+      if (!read) throw changed(file);
       offset += read;
     }
     unchanged(file, descriptor, before);
@@ -64,7 +66,7 @@ export async function copySnapshotFile(file: string, destination: string, signal
     while (offset < before.size) {
       signal?.throwIfAborted();
       const read = readSync(descriptor, buffer, 0, Math.min(buffer.length, before.size - offset), offset);
-      if (!read) throw invalid(file);
+      if (!read) throw changed(file);
       hash.update(buffer.subarray(0, read));
       let written = 0;
       while (written < read) written += writeSync(target, buffer, written, read - written);
@@ -85,7 +87,7 @@ export function snapshotFileDigest(file: string): { size: number; sha256: string
     let offset = 0;
     while (offset < before.size) {
       const read = readSync(descriptor, buffer, 0, Math.min(buffer.length, before.size - offset), offset);
-      if (!read) throw invalid(file);
+      if (!read) throw changed(file);
       hash.update(buffer.subarray(0, read)); offset += read;
     }
     unchanged(file, descriptor, before);

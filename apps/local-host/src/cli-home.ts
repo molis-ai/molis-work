@@ -1,4 +1,5 @@
 import { printCliJson, printCliLine } from "@molis-ai/molis-work-app-cli";
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createHomeSnapshot } from "./home-snapshot.js";
 import { homeSnapshotErrors } from "./home-store-snapshot.js";
 
@@ -30,5 +31,9 @@ export async function runLocalHomeCli(args: string[]): Promise<number> {
     if (values.has("--json")) printCliJson(result);
     else printCliLine(`快照已保存：${result.snapshot_directory}\n${result.stores} 项登记，${result.databases} 个实际 SQLite 库。原密钥不在快照内，请保留同 Home 原依赖。`);
     return 0;
+  } catch (error) {
+    if (!values.has("--json") || !(error instanceof ActionError)) throw error;
+    process.stderr.write(JSON.stringify({ error: { code: error.code, kind: error.kind, message: error.message } }) + "\n");
+    return 1;
   } finally { process.off("SIGINT", cancelled); process.off("SIGTERM", cancelled); }
 }

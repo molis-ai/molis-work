@@ -96,15 +96,6 @@ export function availableProjectPluginIds(
   return available;
 }
 
-/**
- * The plugins a page shows before any project's selection is known (the fixture server's one database, a view drawn without a
- * project): the shell's page default and the personal plugins, by the Host's own registry. A project's page replaces it with the
- * project's own (`web-goals-read.ts`).
- */
-export function unselectedPagePlugins(): string[] {
-  return shownProjectPlugins(["goals", "inbox", "feed", "artifacts"]);
-}
-
 /** The Home Runtime's start list: each registration that runs there, under its project key, with what deleting a project clears of it. */
 export function homePluginEntries(): HomePluginEntry[] {
   return PLATFORM_PLUGIN_REGISTRATIONS.flatMap(entry => entry.runtime ? [{ ...entry.runtime, key: entry.project_plugin_id, manifest: entry.manifest,

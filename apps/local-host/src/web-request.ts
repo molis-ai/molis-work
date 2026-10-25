@@ -156,13 +156,16 @@ function projectRuntimeContext(context: ProjectRequestContext, runtime: MolisWor
 }
 
 /** What the project page shows: the board, with Feed's and Inbox's judgments where those plugins answer, and the Home plugins' stages. */
-function projectWebView({ options, webViewCache, store, homeActions, localHost, hostReference, serverOptions }: Omit<ProjectRuntimeContext, "readWebView">,
+function projectWebView({ options, webViewCache, store, homeActions, localHost, hostReference, serverOptions, shownPlugins }: Omit<ProjectRuntimeContext, "readWebView">,
   { includeStageIds = false }: { includeStageIds?: boolean } = {}) {
   const optional = (error: unknown) => {
     if (!(error instanceof Error && "code" in error && ["actions.forbidden", "actions.plugin_disabled", "actions.missing"].includes(String(error.code)))) throw error;
   };
   return async (): Promise<MolisWorkWebView> => {
     let view = await cachedMolisWorkWebView(webViewCache, store, options, homeActions);
+    // What the project shows is its Catalog's selection now (enabled, minus hidden, with the personal plugins), read per request
+    // and never kept behind the Goals cursor: the page, its refresh and its fragments all read this one view.
+    if (options.project) view = { ...view, shown_plugins: await shownPlugins(options.project.project_id) };
     const feedActions = bindLocalWebActions(localHost, hostReference, ["feed:read", "feed:write", "inbox:read", "inbox:write", "model:invoke", "functions:invoke"]);
     try {
       const [{ rules }, { recommendations }] = await Promise.all([lookingForArea(() => feedActions.invoke(feedRuleActions.list, {})), lookingForArea(() => feedActions.invoke(feedRuleActions.recommendations, {}))]);

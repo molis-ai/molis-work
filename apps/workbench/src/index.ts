@@ -1,5 +1,6 @@
 export { renderSideViewDocument, type SideViewDocumentInput, type SideViewModel } from "./side-view-document.js";
 export { createWorkbenchGoalsPageRenderer } from "./shell-page-renderer.js";
+export { PAGE_PLUGINS_WITHOUT_SELECTION } from "./page-plugin-visibility.js";
 export { renderWorkbenchPlanningRequest } from "./goals-planning-request.js";
 export type { WorkbenchPlanningPageOwners } from "./goals-planning-request.js";
 export type { WorkbenchShellPageView, WorkbenchShellPageOwners } from "./shell-page-renderer.js";

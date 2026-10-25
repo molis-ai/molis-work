@@ -1247,3 +1247,13 @@ batch-33 集成实证：准确生产提交 `64210640729de77f8dddb97106eaff2a29cb
 原两实际文件 7 项及相邻管理安全、入口身份、操作号 3 文件 27 项在 Node 24.14.0 上通过，零跳过或重试；准确 main64a 健康门与全分支 secrets 通过。第一条绿色定向命令误列不存在的 `resident-management-gateway.test.ts`，该命令整体退出 1；这里只采信两份实际运行结果，保留清单错误，不记整条命令成功。确定性红/绿及相邻日志分别为 `/private/tmp/molis-memory-foundation-resident-observer-{red,green,adjacent}-20261025.log`。此前 85 文件 765 项也已完成并全部通过，原未完成记录保留为当时状态。新最终头仍须普通 CI 和 Full suite，Cloudflare 未核失败与最终产品/用户验收边界不变。
 
 推送前远端 main 前进至 `54437998cefbff245a107d919ae01975bd4b08ec`，仅 #1289 的巨大单元门禁规则、登记与文档，没有生产行为变更；三方合并检查无冲突。本次修正不借用新规则增加例外，仍通过原 main64a 的更严格检查，最终合并结果由普通 CI 核验。
+
+### Web 健康用例等待真实 Catalog 准备（2026-10-25）
+
+本刀基于 `e801b45e8a286e2b8b0a2bdcefd5625ec9f15a07`，只修测试观察。最新 Full suite `40194256812` 的 shard 11 / job `121171604193` 在 `tests/web.test.ts:559` 得到 `starting !== ok`，原一次重试仍失败；6/16 分片通过，9 片取消，整套未通过。两份同名健康用例都把 HTTP listen 完成当成 Catalog 准备完成；实际 `createWebCatalogAccess` 要等异步开库与 `listProjects` 成功，`/health` 此前明确返回 503 / starting，PTY 则同步接上。
+
+范围仅 `tests/web.test.ts` 与本节。沿现有公开 Catalog 装配口、真实临时 Home 和 HTTP 路由等待准备，保留两份旧用例和两种 process id 原断言，并明确断言 HTTP 200；另用已有 `ensureWebCatalog` 的开库端口固定交错，在放行真实开库前检查 HTTP 503 / starting，放行并完成同一 Catalog 读取后检查 200 / ok。`MEM-WEB-READY-01`：监听成功不冒充服务就绪；`MEM-WEB-READY-02`：准备完成仍报告真实进程身份。不给生产新增 ready API，不读私有字段，不使用任意 sleep、延长 timeout/retry、把 starting 当成功或删除旧用例。生产准备、错误与关闭语义不变；测试失败/结束释放等待、关闭 Web 与借用 Host，并删除临时 Home。
+
+验证：复用准确基线的完整构建产物，保留确定性旧断言失败，再跑原 Web 文件及必要启动/安全相邻文件、类型与准确 e801 健康门。仅工程验证；不代表最终 App 产品实操、真实用户 Home 或用户验收，不启动全量、推送或 CI。
+
+实证：已复制基础树的 71 处 dist；原完整构建以来只有测试/spec 改动，使用原 `computeBuildSourceDigest` 核对复制后的 `.molis-work-build.json` 完全一致，没有重建或改指纹。Node 24.14.0 下公开开库口固定等待后，旧 `ok` 断言确定性失败为 `starting !== ok`（`/private/tmp/molis-memory-web-health-readiness-red-20261025.log`）。修后原 Web 19 项、Catalog 恢复 4 项、Home 存储宿主安全 23 项及本机入口安全 15 项，共 4 文件 61 项全部通过，jobs1/browser1/retries0，无跳过；日志 `-green-20261025.log`。根类型检查及准确 e801 健康门通过，生产、依赖、资源、门禁与 retry/timeout 均未改。额外严格编译整个旧 Web 测试文件时，候选与准确 e801 同样有 4 条旧诊断（ScheduleJobPort 缺 register、旧 contract/update 字面量及 GoalsCoverageItem 导出），仅行号偏移；保留 `-test-types-20261025.log` 与 `-base-test-types-20261025.log`，没有将这项额外检查报告为通过，也没有扩大本刀修复。最终提交的 CI/Full 与产品/用户验收仍未验证。

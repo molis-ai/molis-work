@@ -293,6 +293,51 @@ function webFixture() {
   return { databasePath, homeDirectory: directory };
 }
 
+test("MEM-WEB-READY-01 Web health waits for real Catalog preparation after listening", async t => {
+  const homeDirectory = mkdtempSync(join(tmpdir(), "molis-work-web-health-pending-"));
+  const localHost = new MolisWorkLocalHost({ homeDirectory, completeText: null });
+  const opening = Promise.withResolvers<void>();
+  const release = Promise.withResolvers<void>();
+  let opens = 0;
+  localHost.ensureWebCatalog(homeDirectory, async options => {
+    opens++;
+    opening.resolve();
+    await release.promise;
+    return openMolisWorkProjectCatalog(options);
+  });
+  const server = createMolisWorkWebServer({ homeDirectory, localHost });
+  t.after(async () => {
+    release.resolve();
+    server.closeAllConnections();
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    await localHost.close();
+    rmSync(homeDirectory, { recursive: true, force: true });
+  });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  await opening.promise;
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  const origin = `http://127.0.0.1:${address.port}`;
+  const pending = await webFetch(`${origin}/health`);
+  const health = await pending.json();
+  assert.equal(pending.status, 503);
+  assert.equal(health.status, "starting");
+  assert.equal(health.process_id, process.pid);
+  assert.equal(health.service_process_id, process.pid);
+
+  release.resolve();
+  const projects = await webFetch(`${origin}/api/settings/projects`);
+  assert.equal(projects.status, 200);
+  assert.deepEqual(await projects.json(), { projects: [] });
+  const ready = await webFetch(`${origin}/health`);
+  assert.equal(ready.status, 200);
+  const readyHealth = await ready.json();
+  assert.equal(readyHealth.status, "ok");
+  assert.equal(readyHealth.process_id, process.pid);
+  assert.equal(readyHealth.service_process_id, process.pid);
+  assert.equal(opens, 1, "HTTP and startup share the same real Catalog preparation");
+});
+
 test("Web health identifies the process serving the response", async () => {
   const homeDirectory = mkdtempSync(join(tmpdir(), "molis-work-web-health-"));
   const server = createMolisWorkWebServer({ homeDirectory });
@@ -300,7 +345,14 @@ test("Web health identifies the process serving the response", async () => {
   try {
     const address = server.address();
     assert.ok(address && typeof address === "object");
-    const health = await (await webFetch(`http://127.0.0.1:${address.port}/health`)).json() as {
+    // MEM-WEB-READY-02: listen is not Catalog readiness; this real read waits for preparation.
+    const origin = `http://127.0.0.1:${address.port}`;
+    const projects = await webFetch(`${origin}/api/settings/projects`);
+    assert.equal(projects.status, 200);
+    assert.deepEqual(await projects.json(), { projects: [] });
+    const response = await webFetch(`${origin}/health`);
+    assert.equal(response.status, 200);
+    const health = await response.json() as {
       status: string;
       process_id?: number;
       service_process_id?: number;
@@ -551,7 +603,14 @@ test("Web health identifies the process serving the response", async () => {
   try {
     const address = server.address();
     assert.ok(address && typeof address === "object");
-    const health = await (await webFetch(`http://127.0.0.1:${address.port}/health`)).json() as {
+    // MEM-WEB-READY-02: listen is not Catalog readiness; this real read waits for preparation.
+    const origin = `http://127.0.0.1:${address.port}`;
+    const projects = await webFetch(`${origin}/api/settings/projects`);
+    assert.equal(projects.status, 200);
+    assert.deepEqual(await projects.json(), { projects: [] });
+    const response = await webFetch(`${origin}/health`);
+    assert.equal(response.status, 200);
+    const health = await response.json() as {
       status: string;
       process_id?: number;
       service_process_id?: number;

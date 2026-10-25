@@ -11,6 +11,7 @@ import { isCompleteMemoryPrefs } from "@molis-ai/molis-work-contracts/services/m
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { homeSqlitePath, openHomeSqliteDatabase, openReadOnlyHomeSqlite } from "../home-sqlite.js";
 import { isDeepStrictEqual } from "node:util";
+import { readMemoryOwnerRelations } from "./memory-ledger-relations.js";
 import { createMemoryLedgerRetention } from "./memory-ledger-retention.js";
 import type { HomeStoreDeclaration } from "../home-stores.js";
 import { applySqliteBaseline, describeSqliteBaseline, describeSqliteSchema, SqliteSchemaVersionError, type SqliteBaseline } from "../sqlite-baseline.js";
@@ -176,6 +177,7 @@ export function openMemoryLedger(options: { homeDirectory: string }): MemoryLedg
     },
     owners: projectId => db.prepare("SELECT scope, owner, title, subject FROM memory_owners WHERE project_id=? ORDER BY rowid").all(projectId)
       .map(row => ({ scope: String(row.scope) as never, owner: String(row.owner), title: String(row.title), subject: row.subject === null || row.subject === undefined ? null : String(row.subject) })),
+    ownerRelations: () => readMemoryOwnerRelations(db),
     noteOwner: input => {
       const written = db.prepare(`INSERT INTO memory_owners(scope,owner,project_id,title,subject) VALUES (?,?,?,?,?)
         ON CONFLICT(scope,owner) DO UPDATE SET title=excluded.title, subject=COALESCE(memory_owners.subject, excluded.subject)

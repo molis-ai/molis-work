@@ -244,6 +244,7 @@ export { logMemoryLearning, prologueMemoryBackend } from "./memory/memory-host.j
 export { memoryRuntimePolicy, type MemoryRuntimePolicyOwner } from "./memory/memory-runtime-policy.js";
 export { memorySources, type MemorySourceOwner } from "./memory/memory-sources.js";
 export { memoryExtractor } from "./memory/memory-extractor.js";
+export { readMemoryOwnerCoverage } from "./memory/memory-owner-coverage.js";
 export { registerMemoryProjectDeletion } from "./memory/memory-project-deletion.js";
 export { adoptMemoryHome, previewMemoryHomeAdoptionCleanup, type MemoryHomeAdoptionCleanup, type MemoryHomeAdoptionCleanupPreview, type MemoryHomeAdoptionCleanupResult, type MemoryHomeAdoptionInput, type MemoryHomeAdoptionBridge, type MemoryHomeAdoptionScope, type MemoryHomeAdoptionResult } from "./memory/memory-home-adoption.js";
 export { ComputerRecords } from "./computer/computer-records.js";

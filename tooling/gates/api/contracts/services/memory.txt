@@ -324,6 +324,7 @@ export interface MemoryLedgerPort {
         title: string;
         subject: string | null;
     }>;
+    ownerRelations(): MemoryOwnerRelation[];
     noteOwner(input: {
         scope: MemoryScope;
         owner: string;
@@ -395,6 +396,13 @@ export interface MemoryMetaRecord {
     plugin_id: string | null;
     created_at: string | null;
     updated_at: string | null;
+}
+
+export interface MemoryOwnerRelation {
+    scope: MemoryScope;
+    owner: string;
+    project_id: string | null;
+    subject: string | null;
 }
 
 export interface MemoryPageFilter {

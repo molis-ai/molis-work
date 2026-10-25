@@ -2440,3 +2440,22 @@ App复用memory_owners、可信候选账、原固定删除计划、Catalog全部
 原冻结离线安装首先因store symlink写权限EPERM失败，原命令取得缓存访问后通过；不改变锁、验证选项或依赖。整体build、根类型、相对准确基础9e055220的health与diff检查通过。7个直接文件179项全部通过（来源78、SDK采用34、LocalHost采用28、ledger9、运行权限25、项目清除3、不可重绑定2），jobs2/retries0。日志 `/private/tmp/molis-memory-sdk102-coverage-{install,install-approved,build,types,health,direct}-20261025.log` 保留首败及有效结果。
 
 实测27项资源逐项等于前一聚合，总计7,678,780 B，本更新净增0 B；Coding未批准的+1,333 B仍使正式资源门失败，Assistant已批准+4,064 B不重复申请、不扩用。此处只证明新包接入的工程影响面，未运行新的App完整CI/Full suite、全部业务清除或MEM-40端到端，未代签产品实操及用户验收。
+
+#### App 无正文归属投影前置短合同（2026-10-25）
+
+独立树 `codex/memory-owner-relations` 从 `8eebf5e9972ee08acba34b4b212317369e0d2e39` 开始，仅补覆盖检查的可信关系输入，不接 SDK coverage 或 Catalog complete。沿现 MemoryLedgerPort 增加 ownerRelations，同一 Storage 主人读取全部 owner 和候选账身份，校验候选 SQL 索引与 JSON 身份一致，只交 scope/owner/project_id/subject。LocalHost 只读合并 Catalog 现项目及全部保留 pending/complete 原删除计划（经现 getDeletion 与 decodeProjectDeletionRecovery）、本人身份和 Assistant 同一持久 Work 中 project_ref/character 配对（含 archived）；不使用 title、正文、reason、history 或散列反推。StoredRound 未保存当时项目，不能把当前 Work 项目套给历史 Round；只有 Round 保留的旧角色仍无可证关系，须由后续 SDK coverage 阻断完整结论。
+
+同份合并关系同时派生 knownScopes 和目标项目 scopes，去重并稳定排序。无项目、坏身份、scope/owner 不符、跨来源项目或非空 subject 矛盾均明确拒绝；null subject 仅可由确证配对补充本次内存投影，不写回 ledger，不授予普通 mutation。原 plan 的个人 scope 归本人，不被误记作项目所有物。无新状态、表、registry、epoch、锁；不更改 adoption snapshot/CAS 或旧清理计划，不扩大固定计划或跨库删除。
+
+允许路径：contracts 的 services/memory 窄口、storage memory-ledger 与单职责关系投影、LocalHost memory/assistant 读取及公开测试入口、相关 README/spec/API 快照与直接测试。验证用真实 SQLite 主人覆盖全量关系、候选旧窗口、已删项目保留计划、同 owner 跨源冲突/坏身份、旁项目隔离及无正文输出；按机器槽协调构建，仅局部工程证据，不声明真实 Catalog complete 或 P0 完成。SDK 双缺且 App 无原据的 owner 不在本接口虚构补齐。
+
+
+投影来源边界复核：Catalog 的全部保留 recovery plan 是已有明确项目关系的原计划。普通 operation 与 adoption-cleanup 仅有 scope/owner/Session、没有项目/角色配对，不能据此补猜 Character 归属，也不能单独加入 knownScopes 遮蔽未知 owner；SDK coverage 必须据此阻止 complete。仅在同一持久 Work 的 project_ref 与 character.artifact_id、其项目 scope 及索引身份一致时采用角色关系，不把当前 Work 项目与历史 Round 角色拼接；只补本次内存投影的 null subject，不改原账或普通写权限。
+
+本投影局部工程结果：固定 Node24.14.0/pnpm11.9，frozen/offline 安装和最终原整体 build 通过；精确父 8eebf5e9 的 health、boundary 与 API 快照检查通过。新增必需 ownerRelations 仅供内部 App/Storage 主人合同，真实适配与受控 Proxy 均覆盖；无新增插件、Action、HTTP 或全 Home 用户查询入口。类型复用现 memory-queries 落点，未修改门禁。单条 SQLite UNION 保持 owner/candidate 同一次读取；跨 Catalog/ledger/Assistant 不承诺原子快照，后续接线必须重读并比较 knownScopes 与目标 scopes 两者，不能只比较白名单。
+
+真实隔离 SQLite 的四例全部通过，覆盖候选旧窗口、重开、旁项目、保留 pending/complete 删除计划、SQL/正文身份矛盾、跨源项目/subject 冲突及坏计划明确拒绝；普通无角色 Work 与生产 update 清除角色不会把旧 Round 角色补回。六个直接影响文件 47/47 项、两包 README 去重后的 63 个非 browser 文件 566/566 项通过，jobs2/retries0。最后增强拒绝负例及清角色断言后，仅新增投影整文件复验 4/4；没有把它们声称为重跑全部批次。
+
+唯一 README browser 文件首轮在 19 个子测试输出后由 runner 报 TIMEOUT（11785.4s，报告 killed after1200s），无整个文件通过结论，墙钟异常原因未证实。按统筹批准保留原参数单文件复验一次，20/20 项、28.0s 通过，包含最终真实 Form frame 停止/重启路径；未改变时限、重试或原断言。安装 store EPERM、Swift cache 写权限及嵌套 sandbox、非 browser 首批 loopback EPERM、类型初放 memory.ts 触发 giant 门的首败也全部保留；分别按真实权限运行原命令、移回既有类型落点收束，不掩盖失败。日志统一为 `/private/tmp/molis-memory-owner-relations-*-20261025.log`，最终 build-final、health-final、readme-approved、coverage-final、browser-repeat 对应上述结果。
+
+这只证明 body-free 关系投影前置，不是 SDK coverage/authority 接线、实际 Catalog complete、完整 P0/MEM-40、真实 Home 或用户验收。未运行全量、付费模型或跨库删除；只有历史 Round、裸 operation/adoption-cleanup 或 SDK 双缺且 App 无原据的 owner 仍是未知，不能称完整覆盖。

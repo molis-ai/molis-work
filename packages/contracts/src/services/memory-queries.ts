@@ -2,6 +2,14 @@ import type { ActionDefinition } from "../platform/actions.js";
 import type { MemoryItem, MemoryKind, MemoryFormalKind, MemoryScope, MemorySource, MemoryState } from "./memory.js";
 import type { AgentMemoryMeta, AgentMemoryPage } from "./agent-host-memory.js";
 
+/** Internal owner relation only: no content, titles or permission to read/write a scope. */
+export interface MemoryOwnerRelation {
+  scope: MemoryScope;
+  owner: string;
+  project_id: string | null;
+  subject: string | null;
+}
+
 /** Host-only Run read control. The selector belongs to the Memory owner, never a plugin or model input. */
 export interface MemoryRunReference {
   readonly scope: "user" | "project" | "character";

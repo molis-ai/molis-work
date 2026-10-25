@@ -1,7 +1,7 @@
 import { memoryBatchActions } from "./memory-batches.js";
 export { MEMORY_BATCH_MAX_ITEMS, type MemoryBatchItem, type MemoryBatchRequest, type MemoryBatchPreview, type MemoryBatchResult } from "./memory-batches.js";
-import { memoryPageAction, runMemoryReadSchema, type MemoryRunReadResult, type MemoryListRequest, type MemoryListResponse } from "./memory-queries.js";
-export type { MemoryRunReference, MemoryRunReadResult, MemoryRunReadControl, MemoryListRequest, MemoryListResponse, MemoryManagementKind, MemoryManagementItem, MemoryPageFilter, MemoryPageRequest, MemoryPageResponse } from "./memory-queries.js";
+import { memoryPageAction, runMemoryReadSchema, type MemoryRunReadResult, type MemoryListRequest, type MemoryListResponse, type MemoryOwnerRelation } from "./memory-queries.js";
+export type { MemoryOwnerRelation, MemoryRunReference, MemoryRunReadResult, MemoryRunReadControl, MemoryListRequest, MemoryListResponse, MemoryManagementKind, MemoryManagementItem, MemoryPageFilter, MemoryPageRequest, MemoryPageResponse } from "./memory-queries.js";
 import type { ContractDescriptor } from "../platform/package.js";
 import type { ActionDefinition } from "../platform/actions.js";
 
@@ -777,6 +777,8 @@ export interface MemoryLedgerPort {
   /** Scopes that hold memories besides the person's and the projects' (Characters), with their project and name. */
   /** Owners that stand for something (a Character in a project): its id, as the owner is only a short storage key. */
   owners(projectId: string): Array<{ scope: MemoryScope; owner: string; title: string; subject: string | null }>;
+  /** All retained owner/candidate relations, including projects no longer in Catalog. Invalid identities fail closed. */
+  ownerRelations(): MemoryOwnerRelation[];
   noteOwner(input: { scope: MemoryScope; owner: string; project_id: string | null; title: string; subject?: string | null }): void;
   /**
    * Scopes that hold a note about a waiting candidate in a project, found from the notes themselves: a Character's

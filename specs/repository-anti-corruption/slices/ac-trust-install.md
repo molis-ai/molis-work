@@ -99,7 +99,7 @@ Manifest 里有三类声明会改变「这个插件在别处的效果」，装�
 - **宿主启动时为没有监督器安装的常开插件（Goals）代为同意**（`always-on-plugins.ts` 的 `recordHostAlwaysOnAgreements`，由 Home 插件宿主启动时调用）：Goals 不在任何监督器里，没有人替它写账本行，本人就没有可撤的东西；写入同样遵守「已有一行（含已撤回的）就不再写」，查询不写。
 - 恢复了 `tests/feed-promote-reader.test.ts` 里「项目没有 Goals 时不显示升格」的一半：撤回 Goals 的常开同意、移除、阅读页没有升格入口（BL-585 里 Feed 那一行的一部分）。
 
-**T5 #1285 首评修复合同（2026-10-25，Codex 负责，目标为功能可用；实现和本机有限验证已完成，独立审验待完成）：**依据 [FIRST](https://github.com/molis-ai/molis-work/pull/1285#issuecomment-6396776261) 与 [统筹裁定](https://github.com/molis-ai/molis-work/pull/1285#issuecomment-6396785921)，`list@1` 与 `revoke@1` 都只认宿主自己设置入口签发的本人操作。宿主新增两个薄 HTTP 接缝 `POST /api/settings/plugin-consents/list`、`POST /api/settings/plugin-consents/revoke`，从既有本地用户适配器取得身份和权限后调用原动作；页面 UI 留给 T7。入口在宿主私有弱集合里登记冻结的 `ActionUserAction` 对象，排队快照保留已签发对象的身份，请求结束即撤下。处理器先核对这份进程内凭据及本人受众，再读账本或调用写入 fence；单有 `user_action` 字段、相同字符串、提供方 id 或业务输入都不能取得入口身份。插件动作解析也在发现目标前做相同的窄检查，使插件页面与 `actions:delegate` 两条路径都明确返回 `actions.forbidden`。不新增公共合同、通用权限或代理能力。
+**T5 #1285 首评修复合同（2026-10-25，Codex 负责，目标为功能可用；修复及独立有限审验已完成；整分支门禁仍未过）：**依据 [FIRST](https://github.com/molis-ai/molis-work/pull/1285#issuecomment-6396776261) 与 [统筹裁定](https://github.com/molis-ai/molis-work/pull/1285#issuecomment-6396785921)，`list@1` 与 `revoke@1` 都只认宿主自己设置入口签发的本人操作。宿主新增两个薄 HTTP 接缝 `POST /api/settings/plugin-consents/list`、`POST /api/settings/plugin-consents/revoke`，从既有本地用户适配器取得身份和权限后调用原动作；页面 UI 留给 T7。入口在宿主私有弱集合里登记冻结的 `ActionUserAction` 对象，排队快照保留已签发对象的身份，请求结束即撤下。处理器先核对这份进程内凭据及本人受众，再读账本或调用写入 fence；单有 `user_action` 字段、相同字符串、提供方 id 或业务输入都不能取得入口身份。插件动作解析也在发现目标前做相同的窄检查，使插件页面与 `actions:delegate` 两条路径都明确返回 `actions.forbidden`。不新增公共合同、通用权限或代理能力。
 
 - **RAC-393-ENTRY / RAC-393-LIST：**四种非 user 受众均不能发现或调用这两个动作，拒绝码精确为 `actions.forbidden`；user 无入口凭据、仿造入口文字也拒绝。拒绝发生在 ledger 读取、写入之前，账本零变更。
 - **RAC-393-PAGE / RAC-393-DELEGATE：**经真实运行中插件页面路由（已有 `user_action`）及持有 `actions:delegate` 的插件自己的动作调用，两动作均拒绝；各路径的合法插件动作正控证明插件确实已运行、已授权，账本零变更。
@@ -110,7 +110,9 @@ Manifest 里有三类声明会改变「这个插件在别处的效果」，装�
 
 本机验证（2026-10-25）：`pnpm build`、定向 Biome lint、`node scripts/check-package-boundaries.mjs`（test-kit 已由整体构建生成，`errors: []`）与 `pnpm secrets:check` 通过。`tests/security-invariants-consent-revoke.test.ts` 6 项与 `tests/security-invariants-consent-settings.test.ts` 3 项通过；首轮新测试夹具把 `invokeQuery` 写成不存在的 `query`，出现 500，修正夹具后只重跑该文件，3/3 通过，首败原件保留。RAC-390-LIVE 的两项故障对照分别禁用项目对账分支、删除撤回计数通知，均在「下一项目请求仍有默认绑定」的业务断言失败，恢复原构建产物后同一用例通过。随后以 `node scripts/run-tests.mjs --jobs 2` 跑 14 份相关有限回归（本地用户动作、Host 排队、出处与写入 fence、插件委托/查询/页面、项目、Feed、常开、T4 默认同意与路由表），152/152 通过。
 
-健康门禁未整体通过：对已审 `eeaa744b` 的比较只报公共临时 S 号重复、旧测试名引用与新安全测试未登记；对 `origin/main` 的比较另报原 T5 已有的 `registerPluginConsentActions` 内一处 `registerProvider` 增长。前者的 S-79 窄 patch 交 carrier 串行写，后者保留原件交统筹，不改变门禁或改写登记方式规避计数。没有跑全量、浏览器或一骏本人验收；尚未合入，独立复查和独立有限验证另核。
+健康门禁未整体通过：对已审 `eeaa744b` 的比较只报公共临时 S 号重复、旧测试名引用与新安全测试未登记；对 `origin/main` 的比较另报原 T5 已有的 `registerPluginConsentActions` 内一处 `registerProvider` 增长。前者的 S-79 窄 patch 交 carrier 串行写，后者保留原件交统筹，不改变门禁或改写登记方式规避计数。没有跑全量、浏览器或一骏本人验收；尚未合入，carrier 组合门禁、全量与主线状态另核。
+
+独立回执（固定代码头 `03d96a81745c017a00b5cb57dd5f53e48354d7b7`）：[REVIEW 6397457822](https://github.com/molis-ai/molis-work/pull/1285#issuecomment-6397457822) 未发现新增 Blocker/P1；[TEST 6397551888](https://github.com/molis-ai/molis-work/pull/1285#issuecomment-6397551888) 按官方 runner、jobs=1、无重试、隔离 Home/cache 独立跑两份完整文件，9/9 自然通过，0 失败/取消/跳过/todo。前后干净工作树与构建产物字节不变，源指纹与整体构建记录相同；真实设置正控、六路插件拒绝、四类受众与伪造出处、首次时间戳、重启及运行中下一请求对账均覆盖。本次回执只更新本段，生产与测试代码维持该固定头；T4 后继 `98a4c778` 仅测试/spec，不在该固定代码头内，最终由 carrier 同批组合，不借这份回执关闭 T4/T6/T7/T8 或 BL-587。
 
 ### 3.4 常开从安装记录生成（PG-004）
 

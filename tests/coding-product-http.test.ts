@@ -65,7 +65,9 @@ test("Coding formal routes preserve drafts and isolate projects across server re
     // A refusal about an archived session answers by its kind (BL-305): the code says 409, the route does not choose a status.
     const archived=await request(a+'/sessions','POST',{title:'归档后拒绝编辑'});
     const archivedId=archived.body.session.session_id;
-    assert.equal((await request(a+'/sessions/'+archivedId,'PATCH',{archive:true})).status,200);
+    const archivePreview=await request(a+'/sessions/'+archivedId+'/archive-preview');
+    assert.equal(archivePreview.status,200,JSON.stringify(archivePreview.body));
+    assert.equal((await request(a+'/sessions/'+archivedId,'PATCH',{archive:true,archive_decision:archivePreview.body.archive_decision})).status,200);
     const archivedEdit=await request(a+'/sessions/'+archivedId,'PATCH',{draft:'x'});
     assert.equal(archivedEdit.status,409);assert.equal(archivedEdit.body.code,'coding.archived_edit');
     // What Shelf saved is a piece of the project's knowledge, found like any other (specs/project-knowledge §9).

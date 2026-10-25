@@ -3231,3 +3231,20 @@ Session 业务维护 owner 固定创建时 Home、权威回调与 Catalog resolv
 首轮资源门明确拒绝已保留：准确 fc1 上 Workbench `1125074 → 1128267`（+3193 B），Coding `289017 → 289629`（+612 B，保留 main 的对象/稳定码 guard，比旧 compact 写法多12 B，仍低于原已批 +717 B）。只登记上述实际起点/终点，删除已消费的 main pair；其余29资源与 main 相同。原 `--update --base fc1e03c3cf029a7c54ffd25a5274e1cab4ad6a6d` 冻结31资源共7,552,240 B，随后原整体 build 刷新门禁脚本对应的构建指纹，最后资源门通过。
 
 本轮有界工程验证：两次原整体 build、根与 AgentHost/Coding 生产严格类型、七冲突中的三份 TypeScript lint、包边界、75份 API 快照及准确 fc1 健康通过。快查 baseline 仅由原 `--update --base` 同步主干已有下降与条目迁移，未手拼数字或增改 giant exception。AgentHost/Coding README 必跑并集和原输入/恢复/权限/MemoryUsage 交点共87文件491项通过（84 native文件488项、3 browser文件3项），均为原 runner 的 jobs2/browser1/retries0，无失败或跳过。没有为通过修改生产分类、用例断言、超时、重试、CI 或阈值。原始构建、资源首红/最终、类型、健康与测试日志为 `/private/tmp/foundation-batch38-*-20261026.log`，明确用例集合为同前缀的 `necessary-tests-20261026.txt`。本轮没有跑全量、操作远端CI、触真实 Home 或付费模型；旧Full、Home恢复旅程和最终用户验收不能由这87文件代替。
+
+
+### 2026-10-26：Root 合成 Home / CLI 与 batch-38
+
+应用聚合在同一 #1101 中合入 Home `577cffebd`、实际 CLI 接线与基础层 `611cf8523`；SDK 同批采用 Prologue #107 的源 `1cc80b052`，不拆出另一份 vendor PR。当前合成生产代码保持 Memory 最后覆盖证明、Session 永久屏障、原 ID 等待计划和实际资源关闭后才发布；main 的私有集合由原 cache 持有同一实例，不能新造集合或绕过屏障。Artifacts 的页面依赖沿 main 进入 plugin-sdk/ui，原件路径检查仍保留 storage 依赖。CLI 帮助明确 T0 工作副本须放回原 Home 绝对路径，命令不做目录重定位。
+
+最终归属校验复用原 current(coveredScopes?)：仍在读取前检查活性与目标归属，最终同步核对本次读取的完整 knownScopes；不再重复读取同一份归属。两条真实交错反例仍要求新空项目与有记忆的新项目都不能在未覆盖时错误 complete，原计划不扩大，邻近记忆保留，原操作重启可恢复。未增加锁、状态表或巨单元例外。
+
+合成版本 d74a0d508 的两次原整体 build、根严格类型、boundary、最终 health/API 已通过。必要并集按当前 README 和真实交点为219文件；主干已删除 coding-commands 原用例，使用其当前 local-tools-declaration/service 验证并集。首跑217文件1972项通过，两文件8项失败均保留：新 PluginRuntime 要求显式 hostIds，新增 Home Session 夹具尚用旧构造；main 新归档 HTTP 用例尚未传既有 archive-preview 的原决定。仅同步这两个测试入口，明确唯一 Coding 内置 ID、先预览再提交原决定，保留全部原恢复、隔离、状态及 archived_edit/409 断言；两文件8项复验通过。最终有界并集1980项，无条件跳过；不是一次首跑全绿，也不是完整 Full suite。日志为 /private/tmp/molis-memory-batch38-aggregate-{required,fixture-fix,build-final,health-final,boundary}-20261026.log。
+
+实际 built CLI 入口已在这份合成构建上通过：同历史 T0/T1 的非空两个项目、缺确认拒绝、真实 SDK owner 占用拒绝、原操作完成与重复调用、关闭重开、被选项目清理和邻近正文/ID/版本保留；默认 Home 路径没有创建。这里只证明指定临时完整副本的 CLI 路径，不代替所有最终产品旅程或用户验收。
+
+相对准确基础611，Workbench 1128267→1161157（+32890），settings.css 982835→983515（+680），workbench.css 1552089→1552769（+680），均为原已批同一功能净增；Coding 289629→291405（+1776，其中归档+570已批，恢复部分仍待原单独问题答复）。只迁移已批三项的精确pair。原资源 --update 因 Coding 未批准而原子拒绝写预算，所以普通资源门仍四项红，不能写成三项已通过或擅自登记剩余额度。
+
+基础611已推送原#1064与Full integration分支。旧21db Full最终15片成功，第5片被既有45分钟job上限取消；该片原日志两种接口均不可读，具体卡住用例未知。已读15片的10次首红后原重试通过、13项跳过与29个未进Linux的macOS文件仍保留。旧21db普通CI的人工取消没有重跑，旧“是否恢复该轮”的待答已过时。611新Full当前10/16片的interaction-no-crosstalk AC-08首跑报Runtime.releaseObject timeout，原一次文件重试仍失败但重试具体异常未知；本机单例/原四项通过不证明CI修复。实际故障注入已确认夹具cleanup能覆盖原输入错误，另行按最小范围修复错误传播；时限、重试、原断言不改。旧Cloudflare登录后错误核对仍未完成，不进入合并队列。
+
+真实模型对照按用户持续目标中“冻结B0/B1/B2方法与既定预算完成真实模型/Host对照”的已有授权推进，只包含原上限内一批B0/B2（192次含重试、每请求12000B、任务输出1024/总8192、形成输出1500、全批输出288000）；不额外叠加校准、补失败或重跑B1。最终树预检已ready，正式批尚未启动。旧B1报告保留，另补同Node24.14的零模型规模对照。TTL历史非等钟、task检索时延未知及纯SDK归因未做的边界继续保留；不能因正式批跑完便关闭这些验收项，人工质量复核和用户验收仍待对应产物。

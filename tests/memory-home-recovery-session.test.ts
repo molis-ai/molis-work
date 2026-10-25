@@ -72,7 +72,7 @@ async function fixture(t: TestContext, sourcePhase: "prepared" | "complete" = "c
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const project = await catalog.createProject({ display_name: "Original Coding project", actor_id: actor });
   catalog.close();
-  const store = new LocalProjectDatabase(project.database_path), runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db));
+  const store = new LocalProjectDatabase(project.database_path), runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: new Set([CODING_PLUGIN_ID]) });
   const install = runtime.install({ definition: createCodingPlugin(), deployment: "local", trust: { level: "host" },
     grants: codingManifest.permissions.map(item => item.permission) }).install;
   const binding = { project_id: project.project_id, actor_id: actor, plugin_id: CODING_PLUGIN_ID, install_id: install.install_id };

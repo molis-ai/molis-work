@@ -13,3 +13,9 @@
 | --- | --- | --- | --- | --- |
 | 真实 Home 的项目目录维护（catalog v23） | W5-17（`ac-sandbox-sched`，分支 `claude/ac-w517-catalog-paths`，未开 PR） | 先在真实 Home 的拷贝上跑 `list`，再约一个维护时段：停 4207 → 跑 `rewrite --maintenance-window` → 更新 main → 启动 | W5-17 删 `projects.database_path`，合入后真实 Home 不经维护就不能跑新 main。统筹在 W5-17 合入**前**问；没定时段之前 W5-17 不合 | **10-24 用户定：同一个维护时段**（按推荐）。先在真实 Home 的一次性拷贝上跑两份 `list`，结果交用户；时段由用户定，到时停 4207 → 跑两份维护脚本 → 更新 main → 启动。W5-17 与 Goals S9 的改写在维护做完前不合。**10-24 拷贝上的 S9 `list` 发现**：真实 Home 的 18 个项目库还在 v7，main 要 v9（v7 被拒打开），CHECKLIST §4.3「维护八」整套都没做（项目库 v7→v8→v9、Shelf `catalog.json` 1→2、Characters 安装记录清理、`characters.sqlite` 1→2）。窗口顺序：停 4207 → 整份备份 → 维护八 → W5-17 → S9 → 合 W5-17、S9 → 4207 换到新 main → 启动。先由 `ac-sc3` 在拷贝上整条演练、用 main+W5-17+S9 的临时构建打开拷贝核对，通过后整理成一份计划交用户定时间 |
 | Goals 事件与账键加插件前缀的存量改写 | Goals S9（`ac-sc3`，S9-0/0b 已在分支） | 和 W5-17 的目录维护放在同一个维护时段：先在拷贝上 `list`，再停 4207 一次跑完两份维护脚本 | 事件类型、对象类型、幂等操作名与情境账键要带 `<plugin_id>.` 前缀（S-63/S-64），真实 Home 里 Goals 已有的旧名要由维护改写；只认现行取值，不做读取兜底 | **10-24 用户定：和 W5-17 同一个维护时段**（见上一行） |
+
+## 2026-10-25 用户弹窗答复（PG-070、PG-071）
+
+- PG-070：插件样式拆成按需加载的 `/assets/molis-work-plugins/<id>.css`；同意新增约 20 个资源（9 个超 10 KB：coding 82、pages 54、feed 45、workflows 43、shelf 39、plugin-builder 35、jelly 20、todo 14、form 11 KB），总字节不增。
+- PG-071：插件包自带中文键→英文词典、Manifest 声明，平台对内置与第三方同样加载；翻译门禁改读声明（只许等价或更严）；「中文原文作键」写进保留机制。
+- 归 `ac-clients-1`（RAC-750～769，一个 PR）；组批时写进 spec §1。

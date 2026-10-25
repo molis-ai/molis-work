@@ -2,6 +2,10 @@
 
 状态：已定（用户 2026-10-25 弹窗定不建 Home 实例的项目级成果、端口、事件，改成目录检查加启动拒绝；防腐线 ac-platform，分支 `ac-platform/group5-home-services`）。做的是 `privileges.md` 的 PG-025 一行：不给 Home 实例成果、端口、事件服务，把「启动时抛一句话」换成目录检查加测试，并记下为什么现在不建这三样（§3、D5）。验收号 RAC-744、RAC-745。
 
+本轮代码收尾（#1301 首评 6400187202 第 1 项，固定基点 `16638d85c8b6872b1ec047365a9978e89b663908`）：仅为现有非双实例 Home 的项目协调声明启动拒绝补上现行错误码，保留原提示、拒绝条件、双实例身份判断与服务创建顺序。复用 `plugin.state_invalid`（现行 `invalid` 分类）：此 Home 实例的当前组合不允许启动这些声明；该基点 Runtime 已原样透传此码，而首评举例的 `plugin.declaration_invalid` 会被通用启动错误转换成 `plugin.executor_failed`，不能在不扩 Runtime 合同的前提下同时供监督器和安装记录准确区分。本片不改 Runtime、错误框架、产品方向或 D5，D5 决定原文由统筹另核；不修改存储迁移、共享门禁或其他评审收尾。
+
+验收仍归 RAC-745：沿真实 HomePluginHost→Supervisor→Runtime→HomePluginExecutor，监督器返回 `failed`、准确错误码与原提示，持久安装为 `crashed` 且 `last_error_code` 一致；插件自身 start 为零次、其 Home 数据库服务尚未创建。原无协调声明的 Home 插件与同声明的双实例 Home 正控均正常启动，确保没有扩大拒绝。只改本片、executor 的该拒绝分支及原协调测试。离线安装后在公共 FIFO 做本树一次整体 `pnpm build`、有限非浏览器回归、boundary 与固定基点 health；普通推送前 fresh-fetch 与 secrets。旧基点继承的 Pages/S-47 红及未运行的 full/浏览器/真实 Home 分开记录，不借原 FIX5 的构建或 89 例证据。本轮结果和独立复查回执交原 #1301 与统筹，最终组合归 carrier。
+
 ## 1. 重核结果
 
 `HomePluginExecutor.start` 在插件不是双实例、又声明了端口、事件、成果或过程项时抛 `Error("Home Runtime 尚未提供项目成果、端口或事件服务")`（`home-plugin-executor.ts`）。这一行写的是「待做」，§4 k 说 Home 级实例要能按调用所在的项目给出数据库、成果和路由。逐项核对现状：
@@ -30,7 +34,7 @@
 | 号 | 内容 | 证明 |
 | --- | --- | --- |
 | RAC-744 | 登记有 `runtime`、没有 `dual_instance`，Manifest 声明端口（入、出）、事件（发布、订阅）、成果（产出、消费）或过程项，`catalogProblems` 各报一条；同样的声明配 `dual_instance` 不报；出厂的目录没有问题 | `tests/home-plugin-coordination.test.ts` |
-| RAC-745 | 同样的 Home 插件交给 Home 监督器：不是双实例就不启动、插件自己的 `start` 一次也没被调；是双实例就正常启动 | 同上 |
+| RAC-745 | 同样的 Home 插件交给 Home 监督器：不是双实例且声明项目协调能力时，返回 failed、plugin.state_invalid 与原提示，安装记录为 crashed 且 last_error_code 同码，数据库服务未创建、插件自己的 start 一次也没被调；相同声明的双实例 Home 与无协调声明的普通 Home 均正常启动 | 同上 |
 
 ## 5. 裁定
 

@@ -14,9 +14,13 @@ import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/action
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 
+// Same launch cost as goals-actions.test.ts: tsx compiles the TS entry per spawn (~5 s cold; 8.55 s test, 11.54 s
+// file alone). 60 s left no margin on a loaded machine, so the ceiling is measured at 120 s instead of guessing.
+const LAUNCHER_TIMEOUT = 120_000;
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-test("Goals MCP action tools use client grants and the shared Host, and record the Session as author with replayable receipts", { timeout: 60_000 }, async t => {
+test("Goals MCP action tools use client grants and the shared Host, and record the Session as author with replayable receipts", { timeout: LAUNCHER_TIMEOUT }, async t => {
   const home = await mkdtemp(join(tmpdir(), "goals-mcp-aliases-"));
   const project = await withCatalog({ homeDirectory: home }, c => c.createProject({ display_name: "Legacy Goals", actor_id: "user" }));
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });

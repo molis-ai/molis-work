@@ -10,7 +10,7 @@ import { assistantAuthority } from "@molis-ai/molis-work-app-local-host";
 import { ASSISTANT_STORE_NAME, memoryRuntimePolicy, memorySources } from "@molis-ai/molis-work-app-local-host";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { registerMemoryHost } from "../apps/local-host/dist/memory/memory-host.js";
-import type { AgentMemoryExecutionControl } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentMemoryExecutionControl, AgentMemoryTools } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { MemoryService, recallKeywords, type MemoryServicePorts } from "@molis-ai/molis-work-service-memory";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { ASSISTANT_INSTALL_ID, ASSISTANT_PERSONAL_OWNER, ASSISTANT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/services/assistant";
@@ -66,9 +66,23 @@ async function gateKept(memory: MemoryService, adapter: Awaited<ReturnType<typeo
  * person, and (D32-b) that 允许记住 is on and the reason is on the card; why (not their words) stays on the suggestion they read.
  */
 async function heldAsNotTheirs(memory: MemoryService, person: Parameters<MemoryService["candidates"]>[0], call: Promise<unknown>, text: string, message?: string) {
-  await assert.rejects(call, (error: Error) => error.message.includes("没有直接记住，已作为建议放在工作面板，等用户认可") && error.message.includes("“允许记住”是开着的")
-    && error.message.includes("原因写在卡片的详情里") && !/原话|照抄/.test(error.message), message);
-  assert.match((await memory.candidates(person, { scope: "all", anywhere: true })).find(item => item.text === text)?.hold_reason ?? "", /原话/, message ?? text);
+  const result = await suggestedCard(call, message);
+  assert.match(result.note ?? "", /“允许记住”是开着的/, message);
+  assert.match(result.note ?? "", /原因写在卡片的详情里/, message);
+  assert.doesNotMatch(result.note ?? "", /原话|照抄/, message);
+  const candidate = (await memory.candidates(person, { scope: "all", anywhere: true })).find(item => item.text === text);
+  assert.ok(candidate, message ?? text);
+  assert.equal(result.candidate_id, candidate.candidate_id, "BL-323 returns this write's card, even when another suggestion already exists");
+  assert.match(candidate.hold_reason ?? "", /原话/, message ?? text);
+}
+
+/** BL-323: a held suggestion returns its card rather than a failed tool call. */
+async function suggestedCard(call: Promise<unknown>, message?: string) {
+  const result = await call as Awaited<ReturnType<NonNullable<AgentMemoryTools["remember"]>>>;
+  assert.equal(result.memory_id, "", message);
+  assert.ok(result.candidate_id, message);
+  assert.match(result.note ?? "", /没有直接记住，已作为建议放在工作面板，等用户认可/, message);
+  return result;
 }
 
 function platformMemory(host: AgentHost, home: string, t: { after(fn: () => void): void }) {
@@ -560,7 +574,7 @@ test("remember records 'you said' only for the whole of a message: a fragment, a
     // Their message whole is theirs; replacing what the person kept needs their words as well.
     const kept = await tools.remember!({ text: "以后周报都先写风险，别放最后，记住了", scope: "project", said: "周报都先写风险，别放最后" }, memoryToolControl());
     const other = await start("改规则", "以后周报都先写风险，别放最后，记住了");
-    await assert.rejects(service.memory.memoryTools(other)!.remember!({ text: "周报最后写风险", scope: "project", said: "记住", replaces: kept.memory_id }, memoryToolControl()), /没有直接记住/);
+    await suggestedCard(service.memory.memoryTools(other)!.remember!({ text: "周报最后写风险", scope: "project", said: "记住", replaces: kept.memory_id }, memoryToolControl()));
     assert.deepEqual((await service.memory.memories("project-a")).map(item => item.text), ["以后周报都先写风险，别放最后，记住了"]);
     assert.deepEqual((await memory.list(person)).items.map(item => item.source), ["said"]);
   } finally { service.continuations.close(); await adapter.close(); await rm(home, { recursive: true, force: true }); }
@@ -632,12 +646,12 @@ test("remember judges the text against the messages the Host saved, not against 
       ["Never auto-archive the old tickets", "Auto-archive the old tickets", "auto-archive the old tickets"],
     ];
     for (const [index, [message, text, said]] of quotes.entries()) {
-      await assert.rejects(service.memory.memoryTools(await start(`引文${index}`, message))!.remember!({ text, scope: "project", said }, memoryToolControl()), /没有直接记住/, `${text} / ${message}`);
+      await suggestedCard(service.memory.memoryTools(await start(`引文${index}`, message))!.remember!({ text, scope: "project", said }, memoryToolControl()), `${text} / ${message}`);
     }
     // Everything the last two re-reviews found: a ban before a colon or in a header above a list, a verdict after the words, a word that removes or stops something,
     // the front of a sentence before a number, a one-off made a rule, a ban or an exception dropped, a project's name put in.
     for (const [index, [message, text]] of NOT_THEIRS.entries()) {
-      await assert.rejects(service.memory.memoryTools(await start(`反着说${index}`, message))!.remember!({ text, scope: "project", said: message }, memoryToolControl()), /没有直接记住/, `${text} / ${message}`);
+      await suggestedCard(service.memory.memoryTools(await start(`反着说${index}`, message))!.remember!({ text, scope: "project", said: message }, memoryToolControl()), `${text} / ${message}`);
     }
     assert.deepEqual(await service.memory.memories("project-a"), [], "nothing was recorded as the person's words");
     assert.deepEqual((await memory.list(person)).items.map(item => item.source), []);
@@ -652,8 +666,8 @@ test("remember judges the text against the messages the Host saved, not against 
 
     // The same text said in two of their messages: the same words twice are theirs; once whole and once inside a message that goes on or says no, they are not.
     const twice = async (title: string, first: string, second: string) => originalWork(adapter, store, title, second, await start(title, first));
-    await assert.rejects(service.memory.memoryTools(await twice("两次不一样", "自动清理旧日志", "不要自动清理旧日志"))!.remember!({ text: "自动清理旧日志", scope: "project", said: "自动清理旧日志" }, memoryToolControl()), /没有直接记住/);
-    await assert.rejects(service.memory.memoryTools(await twice("两次也不一样", "自动清理旧快照", "自动清理旧快照的功能怎么样了"))!.remember!({ text: "自动清理旧快照", scope: "project", said: "自动清理旧快照" }, memoryToolControl()), /没有直接记住/);
+    await suggestedCard(service.memory.memoryTools(await twice("两次不一样", "自动清理旧日志", "不要自动清理旧日志"))!.remember!({ text: "自动清理旧日志", scope: "project", said: "自动清理旧日志" }, memoryToolControl()));
+    await suggestedCard(service.memory.memoryTools(await twice("两次也不一样", "自动清理旧快照", "自动清理旧快照的功能怎么样了"))!.remember!({ text: "自动清理旧快照", scope: "project", said: "自动清理旧快照" }, memoryToolControl()));
     const agreed = await service.memory.memoryTools(await twice("两次一样", "自动清理旧缓存", "自动清理旧缓存。"))!.remember!({ text: "自动清理旧缓存", scope: "project", said: "自动清理旧缓存" }, memoryToolControl());
     assert.equal((await memory.list(person)).items.find(entry => entry.memory_id === agreed.memory_id)!.source, "said");
   } finally { service.continuations.close(); await adapter.close(); await rm(home, { recursive: true, force: true }); }
@@ -675,7 +689,7 @@ test("remember cannot turn a memory the gate kept itself into the person's words
     const auto = await gateKept(memory, adapter, store, "周报都抄送老王");
     const tools = service.memory.memoryTools(await start("确认", "好的"))!;
     // Correcting it with the words it already has: the text is not in the quote, so it waits for the person and the memory stays the gate's.
-    await assert.rejects(tools.remember!({ text: "周报抄送老王", scope: "personal", said: "好的", replaces: auto.memory!.memory_id }, memoryToolControl()), /没有直接记住/);
+    await suggestedCard(tools.remember!({ text: "周报抄送老王", scope: "personal", said: "好的", replaces: auto.memory!.memory_id }, memoryToolControl()));
     // Saying it again with the same text: it is already kept, and nothing becomes the person's.
     const again = await tools.remember!({ text: "周报都抄送老王", scope: "personal", said: "好的" }, memoryToolControl());
     assert.equal(again.memory_id, auto.memory!.memory_id);
@@ -768,8 +782,8 @@ test("a timed round is written by the Host: it is marked, it is not among the pe
 
     // Its text, copied whole, and the standing request inside it are the Host's words: only suggested, whatever the model quotes.
     const tools = service.memory.memoryTools(store.get(LOCAL_PERSON_ACTOR_ID, workId))!;
-    await assert.rejects(tools.remember!({ text: rounds[1]!.text, scope: "personal", said: rounds[1]!.text }, memoryToolControl()), /没有直接记住/);
-    await assert.rejects(tools.remember!({ text: standing, scope: "personal", said: standing }, memoryToolControl()), /没有直接记住/);
+    await suggestedCard(tools.remember!({ text: rounds[1]!.text, scope: "personal", said: rounds[1]!.text }, memoryToolControl()));
+    await suggestedCard(tools.remember!({ text: standing, scope: "personal", said: standing }, memoryToolControl()));
     assert.deepEqual(await service.memory.memories(null), [], "nothing the timed round said was kept as the person's");
     assert.ok((await memory.candidates(person, { work_id: workId })).every(item => item.basis === "inferred"), "each waits as the Assistant's suggestion");
 
@@ -887,12 +901,12 @@ test("remember keeps what the person wrote and nothing the model changed: a supe
       ["预算最多给到 1002 元", "预算最多给到 100² 元"],
       ["do not send it", "do\uFEFFnot send it"],
     ];
-    for (const [index, [message, text]] of forms.entries()) await assert.rejects(service.memory.memoryTools(await start(`形似${index}`, message))!.remember!({ text, scope: "project", said: message }, memoryToolControl()), /没有直接记住/, text);
+    for (const [index, [message, text]] of forms.entries()) await suggestedCard(service.memory.memoryTools(await start(`形似${index}`, message))!.remember!({ text, scope: "project", said: message }, memoryToolControl()), text);
     assert.deepEqual(await entries(), [], "nothing was recorded as the person's words");
     assert.deepEqual((await memory.candidates(person, { scope: "project" })).map(item => `${item.text} · ${item.basis}`).sort(), forms.map(([, text]) => `${text} · inferred`).sort(), "each waits as the Assistant's suggestion");
     // ...and it does not replace what the person kept.
     const mine = (await memory.write(person, { scope: "project", text: "单笔超过100元要问我" })).memory!;
-    await assert.rejects(service.memory.memoryTools(await start("改", "单笔超过104元要问我"))!.remember!({ text: "单笔超过10⁴元要问我", scope: "project", said: "x", replaces: mine.memory_id }, memoryToolControl()), /没有直接记住/);
+    await suggestedCard(service.memory.memoryTools(await start("改", "单笔超过104元要问我"))!.remember!({ text: "单笔超过10⁴元要问我", scope: "project", said: "x", replaces: mine.memory_id }, memoryToolControl()));
     assert.deepEqual((await entries()).map(item => [item.text, item.source]), [["单笔超过100元要问我", "manual"]]);
 
     // A memory the gate kept itself becomes theirs only when its own text is their message. A comma that turns "don't" into "no, do", a symbol that turns a comparison round and a question mark
@@ -1014,7 +1028,7 @@ test("words the page writes itself (a canned note, a request a plugin sends for 
 
     // Copied whole later on, none of them is the person's either: each waits as the Assistant's suggestion and nothing is kept.
     const tools = service.memory.memoryTools(store.get(LOCAL_PERSON_ACTOR_ID, workId))!;
-    for (const text of [handback, delegated]) await assert.rejects(tools.remember!({ text, scope: "personal", said: text }, memoryToolControl()), /没有直接记住/, text);
+    for (const text of [handback, delegated]) await suggestedCard(tools.remember!({ text, scope: "personal", said: text }, memoryToolControl()), text);
     await assert.rejects(tools.remember!({ text: redo, scope: "personal", said: redo }, memoryToolControl()), /已经建议过/, "the redo text already waits as a suggestion, and is not the person's now either");
     assert.deepEqual(await service.memory.memories(null), [], "nothing the page wrote was kept as the person's words");
     assert.deepEqual((await memory.candidates(person, { work_id: workId })).map(item => [item.text, item.basis]).sort(), [redo, handback, delegated].map(text => [text, "inferred"]).sort());

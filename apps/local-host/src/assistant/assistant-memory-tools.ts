@@ -144,7 +144,9 @@ export function assistantMemoryTools(input: AssistantMemoryToolsInput): AgentMem
         if (result.outcome === "refused") throw assistantErrors.invalid(`没有记住：${result.reason}`);
         // Only the outcome: why the gate held it is the person's to read on the card, not a rule for the model to repeat (specs/ai-input-receipts D32).
         // A suggestion means 允许记住 is on for this scope (the memory service refuses outright when it is off), so the model is told that too, rather than guessing a reason (D32-b).
-        if (result.outcome === "candidate") throw assistantErrors.invalid("没有直接记住，已作为建议放在工作面板，等用户认可；这个范围的“允许记住”是开着的，没直接记住的原因写在卡片的详情里");
+        // BL-323: the card from this controlled write is the outcome; no second list read or unrelated card can replace it.
+        if (result.outcome === "candidate") return { memory_id: "", scope: request.scope, applies: result.applies_text, candidate_id: result.candidate!.candidate_id,
+          note: "没有直接记住，已作为建议放在工作面板，等用户认可；这个范围的“允许记住”是开着的，没直接记住的原因写在卡片的详情里" };
         return { memory_id: result.memory!.memory_id, scope: request.scope, applies: result.applies_text, ...(result.outcome === "duplicate" ? { note: result.reason } : {}) };
       } finally { invocation.dispose(); }
     } }),

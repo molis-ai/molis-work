@@ -269,8 +269,8 @@ FI-5 的存储层只依赖 `FeedSql`；本片给它第二个适配器 `fromPlugi
 - **4d 的维护脚本（RAC-495）。** `tests/fixtures/feed-content-ledger-maintenance.mjs`（`list` 只读、`backfill` 幂等、`--all-projects` 才写标记；退出码 0/1/2；测试 `tests/feed-content-ledger-maintenance.test.ts`，4 例）和 CHECKLIST 里的一行。动真实 Home 的维护窗口归用户定，合入前在 PR 正文里写明。
 - **4d 给 4c 的一条约束：`hold` 必须在写正文之前返回。** 账的超集不变式要求「先加后写」。`services.sourcePull` 现在若在一次调用里拉取并写正文，就没有地方插入 `hold`。所以 4c 的形状是两段式：`pull()` 只取回并缓存正文、返回引用与摘要，Feed 用这些引用 `hold`，再 `commit()` 写正文（或 `discard()` 丢掉缓存）。这要在 4c 的设计稿里请统筹确认，不是 4d 的内容。
 - **4d 与 RAC-492、493、518 的关系。** 这三条是项目一半的事（连接事件订阅、启动时对账、启动时对 `hold`），随 4e 的 `createFeedPlugin()` 做，不在 4d。
-- **第 4 步 4c-1 已做：`services.sourcePull`（2026-10-26，RAC-1016～1019，暂定 S-93）。** 合同 `plugin-source-pull.ts`；运行时客户端 `packages/plugin-runtime/src/source-pull-service.ts`（权限来自当前调用，和 `services.connections` 同一套规矩；请求闭合）；宿主一半 `plugin-source-pull-service.ts` 的 `createSourcePullPort`（复用 `createFeedSourceRuntime`，所以传输仍是 RSS 允许名单 + 自定义公网地址 + AnySearch，没有新的网络代码）与 `source-pull-intent.ts`（`buildExactRequest` 的宿主一份，与 Feed 那份逐字节一致；4e 删 Feed 的那份）。`createSearchContentPort` 加 `beforeWrite`，`createFeedSourceRuntime` 加 `beforeContentWrite`/`assertCurrent`/`beforeDispatch`（都可选，宿主版 Feed 不传）；存储包导出 `evidenceContentRef`。沙箱：`SANDBOX_SERVICE_FATE.sourcePull = 'refused'` 加 `SANDBOX_NOT_GIVEN` 一行。测试 `tests/security-invariants-plugin-source-pull.test.ts`（8 例，真实项目库 + 假 fetch）。与初稿的差别：不暂存、不 `commit()`，见上面「改定的做法」。
-- **第 4 步 4c-2 已做：`services.sourcePull.repository.read`（2026-10-26，RAC-1019，仍是 S-93）。** 权限 `sources:read_repository`；请求只有 `repository`（`owner/name`）与 `source_id`；宿主一半 `research-repository-read.ts`（`researchRepositorySnapshot` 是原 `research-library-source.ts` 里的 Git 缓存读取原样搬出，`readResearchRepository` 在它上面跑 `readResearchLibrary`，返回仓库、修订号与条目）。**条目写入搬进 Feed 随 4e**：今天宿主的 `syncResearchLibrarySource`（仍在 `research-library-source.ts`，已改成调 `readResearchRepository`，行为不变）在 4e 翻转时由 Feed 自己用 `repository.read` 的结果写条目与运行账，宿主那份删掉。Git 缓存读取共享同一次快照（同仓库并发读共用），所以调用的取消在快照前后检查，不传给共享的 `git`。测试 `tests/security-invariants-plugin-source-pull.test.ts` 加 2 例（假 `git` 经 `sourcePullGit` 接缝）。
+- **第 4 步 4c-1 已做：`services.sourcePull`（2026-10-26，RAC-1016～1019，暂定 S-99）。** 合同 `plugin-source-pull.ts`；运行时客户端 `packages/plugin-runtime/src/source-pull-service.ts`（权限来自当前调用，和 `services.connections` 同一套规矩；请求闭合）；宿主一半 `plugin-source-pull-service.ts` 的 `createSourcePullPort`（复用 `createFeedSourceRuntime`，所以传输仍是 RSS 允许名单 + 自定义公网地址 + AnySearch，没有新的网络代码）与 `source-pull-intent.ts`（`buildExactRequest` 的宿主一份，与 Feed 那份逐字节一致；4e 删 Feed 的那份）。`createSearchContentPort` 加 `beforeWrite`，`createFeedSourceRuntime` 加 `beforeContentWrite`/`assertCurrent`/`beforeDispatch`（都可选，宿主版 Feed 不传）；存储包导出 `evidenceContentRef`。沙箱：`SANDBOX_SERVICE_FATE.sourcePull = 'refused'` 加 `SANDBOX_NOT_GIVEN` 一行。测试 `tests/security-invariants-plugin-source-pull.test.ts`（8 例，真实项目库 + 假 fetch）。与初稿的差别：不暂存、不 `commit()`，见上面「改定的做法」。
+- **第 4 步 4c-2 已做：`services.sourcePull.repository.read`（2026-10-26，RAC-1019，仍是 S-99）。** 权限 `sources:read_repository`；请求只有 `repository`（`owner/name`）与 `source_id`；宿主一半 `research-repository-read.ts`（`researchRepositorySnapshot` 是原 `research-library-source.ts` 里的 Git 缓存读取原样搬出，`readResearchRepository` 在它上面跑 `readResearchLibrary`，返回仓库、修订号与条目）。**条目写入搬进 Feed 随 4e**：今天宿主的 `syncResearchLibrarySource`（仍在 `research-library-source.ts`，已改成调 `readResearchRepository`，行为不变）在 4e 翻转时由 Feed 自己用 `repository.read` 的结果写条目与运行账，宿主那份删掉。Git 缓存读取共享同一次快照（同仓库并发读共用），所以调用的取消在快照前后检查，不传给共享的 `git`。测试 `tests/security-invariants-plugin-source-pull.test.ts` 加 2 例（假 `git` 经 `sourcePullGit` 接缝）。
 
 ## 9. 第 4 步（Feed 进 Runtime）的拆法与缺口清单（2026-10-26，开工前读代码核的）
 
@@ -285,7 +285,7 @@ Feed 的动作要么全由宿主提供、要么全由 Runtime 提供（`BUILD_TI
 建议的次序（每步单独绿、单独推；翻转之前宿主版 Feed 照常工作）：
 1. **4a 平台通知接收方（D6-2）**：Manifest 声明接收、通知服务按声明找、没有接收方留队列。宿主版 Feed 先当接收方，删 `plugin-notification-service.ts` 里的 Feed 构造。
 2. **4b 首页 dock 判断动作 ③**（做完，见 §8：没有新增 Home 动作，现成的 `home.judgment.evaluate` 就是公开动作；Feed 一侧的触发器已写；发现一个要统筹裁定的缺口，决定前 4e 的后台判断不能翻转）。
-3. **4c `services.sourcePull` 与证据正文 ①**（4c-1 做完，见 §8 与 §10：`pull`/`plan`/`evidence.read`/`forget`；4c-2 `repository.read` 未做；沿用 S-10 的地址校验与允许名单，不放宽；S 号暂定 S-93）。
+3. **4c `services.sourcePull` 与证据正文 ①**（4c-1 做完，见 §8 与 §10：`pull`/`plan`/`evidence.read`/`forget`；4c-2 `repository.read` 未做；沿用 S-10 的地址校验与允许名单，不放宽；S 号暂定 S-99）。
 4. **4d Home 引用账 ④**（做完一半，见 §8：账的逻辑、两个动作、Home 一半与维护脚本已写，RAC-494、495；登记与项目一半的 RAC-492、493、518 随 4e）。
 5. **4e 翻转**：`createFeedPlugin()`、监督器条目、`background.wakeups` 的 tick、8 个构造点换成公开动作、删 `feed-native-plugin-http.ts` 与客户端迁移、`BUILD_TIME_ASSEMBLED` 与 `NATIVE_PLUGIN_HTTP_FILES` 去掉 `feed`（RAC-499、500、510～512、516、517）。
 
@@ -320,7 +320,7 @@ type SourcePullRequest =                       // 闭合：多一个字段就拒
 2. （已改定）不做暂存与 `commit()`：`hold` 回调在每份正文写之前被等待，见上。
 3. `evidence.read` 的范围：命名空间内任意引用（等于今天宿主的行为，引用是 256 位哈希、只能从本项目的行里得知）。更强的备选是平台再记一张「本安装在本项目写过 / 收到过哪些引用」，要读先查——那是第二本账，且要与 4d 的账对齐，推荐不做，SI 行里写明这个限度。
 4. （已无）没有行为变化：崩溃后检索记录与正文照旧留下、可重放。
-5. S 号用暂定 `S-93`（以合入时表的末号为准，不占 #1255 的 S-91）。
+5. S 号用暂定 `S-99`（以合入时表的末号为准，不占 #1255 的 S-91）。
 
 | 验收 | 内容 |
 | --- | --- |
@@ -334,7 +334,7 @@ type SourcePullRequest =                       // 闭合：多一个字段就拒
 - **① 失败、取消、撤权后已 hold 的引用**：选「由 4d 的整理收回没人引用的 hold」。先 hold 后写意味着任何失败（取数失败、取消、撤权、崩溃）之后，来源可能多持有若干正文，它的行并不指向它们；多持有是安全的一侧（超集）。账新增 `reclaim`（`content-ledger.ts`，动作 `feed.content.reclaim`，只给 Feed 自己的项目实例）：调用者给出「我登记过、但我的行不引用」的引用，账只放掉**这个来源**对它们的登记，再删没有别的来源或项目持有的正文；没有完整标记时什么都不动；调用者的前提是持有来源同步租约（同一来源同时只有一次取数在写）。Feed 在 4e-2 里：取数失败后、以及每次同步开始时，用「`hold` 回调记下的引用 − 来源的行实际引用的引用」调用它。测试：`tests/feed-content-ledger.test.ts` 的「holds a failed pull left behind are taken back」（只收本来源的、只收点名的、别人还持有的正文保留、重复收回不变、没有完整标记不动、调用被拒绝则不写）。
 - **② 检索记录写在哪、失败时留不留**：检索记录是 SEL 的运行与结果记录，写在**项目库**的 `feed_runtime_blobs`（不透明存储，命名空间 `…/data/operation/v1` 等），由平台的内容端口与存储端口写，不经插件的事务。取数中途失败、被取消或撤权后，**已经写下的记录留着**（与今天宿主版 Feed 一样：它们按操作号可重放，同一操作号再取一次接着用），不留半条的保证来自存储端口每次写之前复核调用。要删有两条路：`forget(operation_ids)`（只删本项目这几次取数自己的记录）和来源删除时 Feed 的 `history.release`。
 - **③ 取消或撤权之后不再写**：正文写之前，`hold` 之后端口再复核一次调用（`assertCurrent`）；检索记录每次插入、更新、删除之前同样复核。平台还把「调用已经不在」作为取数的失败原因返回（而不是搜索层包出来的 `persistence_failed`）。测试：`tests/security-invariants-plugin-source-pull.test.ts` 的「loses its authority once a body is held」（撤权发生在第一份正文已 hold 之后：后面的正文不写、检索记录的行数不再增加、取数失败码是 `actions.forbidden`）与既有的取消用例。
-- **S 号**：暂用 S-93（S-92 是 batch-43 里 P2e 的），合批时由统筹按表末给号，测试名跟着改。
+- **S 号**：暂用 S-99（S-92 是 batch-43 里 P2e 的），合批时由统筹按表末给号，测试名跟着改。
 
 ## 11. 第 4 步 4e：翻转的实现方案（2026-10-26，读 8 个宿主构造点与 Feed 的七组处理器后定，等统筹确认）
 
@@ -382,7 +382,7 @@ type SourcePullRequest =                       // 闭合：多一个字段就拒
 
 | 片 | 内容 | 平台件 |
 | --- | --- | --- |
-| 4c-3 | `services.sourcePull.vocabulary`（目录、规范化、游标）；SI 行并入 S-93；`SANDBOX_SERVICE_FATE` 沿用 | 合同 + Runtime 客户端 + 宿主构造 |
+| 4c-3 | `services.sourcePull.vocabulary`（目录、规范化、游标）；SI 行并入 S-99；`SANDBOX_SERVICE_FATE` 沿用 | 合同 + Runtime 客户端 + 宿主构造 |
 | 4e-2a（做完，见下） | 来源管理里只写不等的三个动作（`enabled`、`schedule`、`disconnect`）进 `createFeedPlugin()`，直接用 `writing()`；`register`、`update` 要词汇（等 4c-3），`delete` 之后要释放来源的正文和检索记录（`history.release` 是同步端口，Runtime 里要经 Home 账与 `forget`，归 4e-2b） | 无 |
 | 4e-2b | 公开来源 `sync`：`PublicSourceSync` 改用 `commit` 端口，拉取经 `sourcePull.pull` 并 `hold`，结果映射回 `IntelligenceCollectResult`；失败后调 `feed.content.reclaim`（4c-1 的条件①） | 无 |
 | 4e-2c | `tick` 用唤醒动作（`background.wakeups`）、研究库经 `repository.read` | 无 |
@@ -393,3 +393,6 @@ type SourcePullRequest =                       // 闭合：多一个字段就拒
 **请统筹确认或另裁：** 缺口一用 4c-3（平台给词汇）还是把函数搬进 Feed。我先按推荐做 4e-2a（不依赖这个裁定），4c-3 等回复再动。
 
 **4e-2a 实现记录（2026-10-26）。** `source-actions.ts` 的 `bind` 分成两个：只写不等的（`register`、`update`、`delete`、`schedule`、`enabled`、`disconnect`）直接返回同步结果、不再外包 `async`，这样 Runtime 的事务能整个装下；会等的（`sync`、`tick`）用 `bindWaiting`，先 `await caller.beforeEffect()`，行为同前。`createFeedPlugin()` 起一个 `FeedSourceService`（事务端口直接 `operation()`，因为已在动作自己的写事务里；`providers` 是「来源词汇」的占位，调用即失败，4c-3 接上），`enabled`、`schedule`、`disconnect` 加进 Runtime Manifest；`register`、`update`、`delete`、`sync`、`tick` 仍在 `NOT_YET`。测试（`feed-runtime-plugin`）：暂停与排程的日志事件是调用者的、类型带命名空间；公开来源 `disconnect` 报 `feed.source_invalid_state`；调用者在各检查点被撤权时，启停状态与事件同进同退。宿主版 Feed 的 52 个来源相关用例照旧通过。
+
+**4c-3 实现记录（2026-10-26，统筹同意，条件：纯函数、`sources:pull_feed`、并进同一行 SI、宿主那份到 4e-3 删）。** `services.sourcePull.vocabulary`（合同 `PluginSourceVocabulary`、`SourceCatalogEntry`）：目录（含 `enabled`、分类与分类名、限制说明）、自定义订阅地址与 YouTube 频道的规范化、订阅源的 HTTP 游标三个函数、三个固定名；宿主一侧 `apps/local-host/src/source-vocabulary.ts` 用 rss/youtube 集成包构造（宿主版 Feed 在翻转前仍用自己注入的那一份）。Runtime 客户端 `source-pull-service.ts`：随 `sources:pull_feed` 才有，调用要在本插件自己的调用里、动作声明并且调用者持有该权限，只读调用也可以问；参数是 1～2048 字符的文本或普通数据（超长、非文本、函数以 `plugin.source_pull_request_invalid` 拒绝），每个答案 `structuredClone` 一份。临时号改为 **S-99**（S-93、S-94 已被别的分支占用，S-20 的门禁要求数字号，所以不写字面的 S-9X；合批时统筹给号，文里、测试名、spec 里一起改）。
+**这带来一个产品后果：** Runtime Feed 的 `feed.sources.register` / `update` 在 Runtime Manifest 里声明了 `sources:pull_feed`（宿主版的定义不动），调用者要持有它才能调；翻转时这两个动作（和 4e-2b 的 `sync`）的合同权限列表会多这一项，`pnpm actions:update` 与 PR 说明里要写。Feed 的 Runtime 实例：`register`、`update` 已接上（`update` 的账号连接部分等 4e-2d）；测试：同一来源不重复登记、规范化为平台的正常形、被拒的地址不留痕迹。

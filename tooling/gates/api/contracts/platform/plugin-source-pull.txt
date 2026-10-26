@@ -21,11 +21,30 @@ export interface PluginSourcePullClient {
     forget?(operation_ids: readonly string[]): Promise<{
         readonly records_deleted: number;
     }>;
+    readonly vocabulary?: PluginSourceVocabulary;
     readonly repository?: {
         read(request: RepositoryReadRequest, options?: {
             readonly signal?: AbortSignal;
         }): Promise<RepositoryReadResult>;
     };
+}
+
+export interface PluginSourceVocabulary {
+    readonly custom_rss_definition_id: string;
+    readonly youtube_definition_id: string;
+    readonly youtube_feed_host: string;
+    catalog(): readonly SourceCatalogEntry[];
+    normalizeCustomRssUrl(value: string): string;
+    customRssHost(feed_url: string): string;
+    normalizeYouTubeChannel(value: string): string;
+    youTubeChannelFeedUrl(channel_id: string): string;
+    isRssSourceKind(kind: string): boolean;
+    rssFailureCount(cursor: unknown): number;
+    rssCursorAfterFailure(cursor: unknown): {
+        readonly cursor: unknown;
+        readonly failures: number;
+    };
+    rssCursorAfterSuccess(cursor: unknown, receipt: RssFetchReceipt | null, completed_at: string): unknown;
 }
 
 export interface RepositoryEntry {
@@ -48,6 +67,16 @@ export interface RepositoryReadResult {
     readonly repository: string;
     readonly revision: string;
     readonly entries: readonly RepositoryEntry[];
+}
+
+export interface SourceCatalogEntry {
+    readonly source_id: string;
+    readonly name: string;
+    readonly feed_url: string;
+    readonly enabled: boolean;
+    readonly category: string;
+    readonly category_label: string;
+    readonly limitations: readonly string[];
 }
 
 export type SourcePullKind = SourcePullRequest["kind"];

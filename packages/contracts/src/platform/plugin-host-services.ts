@@ -115,7 +115,7 @@ export interface PluginHostServices {
   readonly materials?: PluginMaterialsClient;
   /** Requests through the accounts the person bound to the Manifest's connection slots, when it declares `connections:use` (S-57). */
   readonly connections?: import("./plugin-connections.js").PluginConnectionsClient;
-  /** Pulling public sources and reading evidence bodies through the platform, when the Manifest declares `sources:pull_feed`, `sources:pull_query` or `evidence:read` (S-93, provisional). */
+  /** Pulling public sources and reading evidence bodies through the platform, when the Manifest declares `sources:pull_feed`, `sources:pull_query` or `evidence:read` (S-99, provisional). */
   readonly sourcePull?: import("./plugin-source-pull.js").PluginSourcePullClient;
   /** A person-authorized directory, only when the Manifest declares directory:read; the Host never lets the Plugin name an absolute path. */
   readonly directory?: import("./plugin-directory.js").PluginDirectoryService;

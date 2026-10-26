@@ -26,17 +26,23 @@ const PLATFORM_PERMISSIONS = [
   { permission: "context-ledger:write", required: true, reason: "记录消息与 Goal 的关联" },
   { permission: "journal:project", required: true, reason: "把消息的变化记进项目历史" },
   { permission: "evidence:read", required: false, reason: "读取留存的原始正文" },
+  { permission: "sources:pull_feed", required: false, reason: "按平台的公开订阅源目录与格式描述、规范来源" },
 ] as const;
+const VOCABULARY_PERMISSION = "sources:pull_feed";
 
 /**
  * What the Runtime Feed does not answer yet: sources and their sync, connector state, the link to a Goal's material, and the platform's
  * notifications. The slice's step 4e-2 adds them; until then they stay with the Host's Feed (`feedManifest` is still the registered one).
  */
 const NOT_YET: ReadonlySet<ActionDefinition> = new Set<ActionDefinition>([
-  // Registering and editing need the source vocabulary (4c-3), deleting releases a source's bodies (4e-2b), pulling and the clock are 4e-2b/c.
-  feedSourceActions.register, feedSourceActions.update, feedSourceActions.delete, feedSourceActions.sync, feedSourceActions.tick,
+  // Deleting releases a source's bodies (4e-2b), pulling and the clock are 4e-2b/c.
+  feedSourceActions.delete, feedSourceActions.sync, feedSourceActions.tick,
   ...FEED_NOTIFICATION_ACTIONS, feedQueryActions.connections, feedQueryActions.linkedContext,
 ]);
+/** The actions that describe a source with the platform's vocabulary: the platform lets a call use it only when its action declares the permission. */
+const NEEDS_VOCABULARY: ReadonlySet<ActionDefinition> = new Set<ActionDefinition>([feedSourceActions.register, feedSourceActions.update]);
+const withPermission = (definition: ActionDefinition, permission: string): ActionDefinition =>
+  ({ ...definition, action: { ...definition.action, permissions: [...definition.action.permissions, permission] } });
 const { notifications: _notifications, action_scenes: _scenes, ...BASE } = feedManifest;
 
 /**
@@ -45,7 +51,7 @@ const { notifications: _notifications, action_scenes: _scenes, ...BASE } = feedM
  */
 export const feedRuntimeManifest: PluginManifest = { ...BASE,
   permissions: [...feedManifest.permissions.filter(declared => !PLATFORM_PERMISSIONS.some(platform => platform.permission === declared.permission)), ...PLATFORM_PERMISSIONS],
-  actions: feedManifest.actions!.filter(definition => !NOT_YET.has(definition)),
+  actions: feedManifest.actions!.filter(definition => !NOT_YET.has(definition)).map(definition => NEEDS_VOCABULARY.has(definition) ? withPermission(definition, VOCABULARY_PERMISSION) : definition),
 };
 
 const idOf = (value: { capability_id: string; version: number }) => `${value.capability_id}@${value.version}`;
@@ -78,14 +84,18 @@ export function createFeedPlugin(): PluginDefinition {
       })) };
     };
     const later = (what: string) => (): never => { throw new ActionError("actions.dependency_missing", `${what}还没有接到平台服务`); };
-    // The source vocabulary (catalog, normalizers, the HTTP cursor) is the platform's to give (4c-3); until then the service answers only what needs none of it.
-    const vocabulary = later("来源词汇");
-    const providers: FeedSourceProviders = {
-      listCatalog: vocabulary,
-      customRss: { definitionId: "custom_rss", normalizeUrl: vocabulary, host: vocabulary },
-      youtube: { definitionId: "youtube_channel", host: "www.youtube.com", normalizeChannel: vocabulary, feedUrl: vocabulary },
-      gmail: { defaultScope: "", parseScope: vocabulary },
-      rss: { isSourceKind: vocabulary, failureCount: vocabulary, withFailure: vocabulary, withSuccess: vocabulary },
+    // The source vocabulary (catalog, normalizers, the HTTP cursor) is the platform's (`services.sourcePull.vocabulary`); without the permission, describing a source fails.
+    const vocabulary = services?.sourcePull?.vocabulary, noVocabulary = later("来源词汇");
+    const providers: FeedSourceProviders = vocabulary ? {
+      listCatalog: () => vocabulary.catalog().map(entry => ({ sourceId: entry.source_id, enabled: entry.enabled, feedUrl: entry.feed_url, name: entry.name })),
+      customRss: { definitionId: vocabulary.custom_rss_definition_id, normalizeUrl: vocabulary.normalizeCustomRssUrl, host: vocabulary.customRssHost },
+      youtube: { definitionId: vocabulary.youtube_definition_id, host: vocabulary.youtube_feed_host, normalizeChannel: vocabulary.normalizeYouTubeChannel, feedUrl: vocabulary.youTubeChannelFeedUrl },
+      gmail: { defaultScope: "", parseScope: later("Gmail 范围") },
+      rss: { isSourceKind: vocabulary.isRssSourceKind, failureCount: vocabulary.rssFailureCount, withFailure: vocabulary.rssCursorAfterFailure, withSuccess: vocabulary.rssCursorAfterSuccess },
+    } : {
+      listCatalog: noVocabulary, customRss: { definitionId: "", normalizeUrl: noVocabulary, host: noVocabulary },
+      youtube: { definitionId: "", host: "", normalizeChannel: noVocabulary, feedUrl: noVocabulary }, gmail: { defaultScope: "", parseScope: noVocabulary },
+      rss: { isSourceKind: noVocabulary, failureCount: noVocabulary, withFailure: noVocabulary, withSuccess: noVocabulary },
     };
     // Called inside the action's own write transaction, so a service that changes several rows needs no transaction of its own.
     const sources = new FeedSourceService({ feed, providers, acquireSync: createFeedSourceSyncLease(), createRuntime: later("来源拉取"), transaction: operation => operation(),

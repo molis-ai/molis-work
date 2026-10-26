@@ -2,7 +2,7 @@ import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/action
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
   PLUGIN_EVIDENCE_READ_PERMISSION, PLUGIN_SOURCE_PULL_FEED_PERMISSION, PLUGIN_SOURCE_PULL_QUERY_PERMISSION, PLUGIN_SOURCE_PULL_REPOSITORY_PERMISSION,
-  type PluginSourcePullClient, type RepositoryReadRequest, type RepositoryReadResult, type SourcePullKind, type SourcePullOptions, type SourcePullRequest, type SourcePullResult,
+  type PluginSourcePullClient, type PluginSourceVocabulary, type RepositoryReadRequest, type RepositoryReadResult, type SourcePullKind, type SourcePullOptions, type SourcePullRequest, type SourcePullResult,
 } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
 import { assertCapturedPluginActionCurrent, currentPluginInvocation, inPluginInstance, pluginInvocationReadOnly, type PluginInstance } from "./action-scope.js";
 
@@ -49,6 +49,8 @@ export interface PluginSourcePullPort {
   readEvidence(content_ref: string): string | null;
   forget(operation_ids: readonly string[]): number;
   readRepository(request: RepositoryReadRequest, run: Pick<PluginSourcePullRun, "signal" | "current" | "beforeEffect">): Promise<RepositoryReadResult>;
+  /** Pure: no I/O, no state. */
+  readonly vocabulary: PluginSourceVocabulary;
 }
 
 export interface PluginSourcePullGate extends PluginInstance {
@@ -118,6 +120,34 @@ export function createPluginSourcePullClient(manifest: PluginManifest, port: Plu
       current();
       return { records_deleted: port.forget([...new Set(operation_ids)]) };
     };
+  }
+  if (declared(PLUGIN_SOURCE_PULL_FEED_PERMISSION)) {
+    // Pure and read-only, so any call of this installation that holds the permission may ask; each answer is a copy of plain data.
+    const vocabulary = port.vocabulary;
+    const answer = <T>(use: () => T): T => {
+      const { scope, permission } = enter([PLUGIN_SOURCE_PULL_FEED_PERMISSION], false, false);
+      currentFor(scope, permission, scope.caller.signal)();
+      return structuredClone(use());
+    };
+    const word = (value: unknown, max = 2_048): string => {
+      if (typeof value !== "string" || value.length === 0 || value.length > max) throw errors.source_pull_request_invalid(`参数必须是 1 到 ${max} 个字符的文本`);
+      return value;
+    };
+    const plain = (value: unknown): unknown => {
+      try { return structuredClone(value); } catch { throw errors.source_pull_request_invalid("游标和回执必须是普通数据"); }
+    };
+    client.vocabulary = Object.freeze<PluginSourceVocabulary>({
+      custom_rss_definition_id: vocabulary.custom_rss_definition_id, youtube_definition_id: vocabulary.youtube_definition_id, youtube_feed_host: vocabulary.youtube_feed_host,
+      catalog: () => answer(() => vocabulary.catalog()),
+      normalizeCustomRssUrl: value => answer(() => vocabulary.normalizeCustomRssUrl(word(value))),
+      customRssHost: url => answer(() => vocabulary.customRssHost(word(url))),
+      normalizeYouTubeChannel: value => answer(() => vocabulary.normalizeYouTubeChannel(word(value))),
+      youTubeChannelFeedUrl: channel => answer(() => vocabulary.youTubeChannelFeedUrl(word(channel, 200))),
+      isRssSourceKind: kind => answer(() => vocabulary.isRssSourceKind(word(kind, 200))),
+      rssFailureCount: cursor => answer(() => vocabulary.rssFailureCount(plain(cursor))),
+      rssCursorAfterFailure: cursor => answer(() => vocabulary.rssCursorAfterFailure(plain(cursor))),
+      rssCursorAfterSuccess: (cursor, receipt, completedAt) => answer(() => vocabulary.rssCursorAfterSuccess(plain(cursor), receipt === null ? null : plain(receipt) as never, word(completedAt, 64))),
+    });
   }
   if (declared(PLUGIN_EVIDENCE_READ_PERMISSION)) {
     client.evidence = Object.freeze({

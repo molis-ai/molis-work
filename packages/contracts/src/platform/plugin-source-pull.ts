@@ -91,6 +91,38 @@ export interface RepositoryReadResult {
   readonly entries: readonly RepositoryEntry[];
 }
 
+/** One public feed a person may choose: the platform's catalog, which is also the list of feeds it will fetch. */
+export interface SourceCatalogEntry {
+  readonly source_id: string;
+  readonly name: string;
+  readonly feed_url: string;
+  readonly enabled: boolean;
+  readonly category: string;
+  readonly category_label: string;
+  readonly limitations: readonly string[];
+}
+
+/**
+ * What a plugin must know to describe a public source the way the platform will fetch it: the catalog, the normal form of a custom feed
+ * address and of a YouTube channel, and the HTTP cursor of a feed. Pure: nothing leaves, nothing is written, the same input gives the same
+ * answer, and every answer is plain data. The platform owns these because it reads the same catalog to decide where a pull may go and the
+ * same cursor to send a conditional request.
+ */
+export interface PluginSourceVocabulary {
+  readonly custom_rss_definition_id: string;
+  readonly youtube_definition_id: string;
+  readonly youtube_feed_host: string;
+  catalog(): readonly SourceCatalogEntry[];
+  normalizeCustomRssUrl(value: string): string;
+  customRssHost(feed_url: string): string;
+  normalizeYouTubeChannel(value: string): string;
+  youTubeChannelFeedUrl(channel_id: string): string;
+  isRssSourceKind(kind: string): boolean;
+  rssFailureCount(cursor: unknown): number;
+  rssCursorAfterFailure(cursor: unknown): { readonly cursor: unknown; readonly failures: number };
+  rssCursorAfterSuccess(cursor: unknown, receipt: RssFetchReceipt | null, completed_at: string): unknown;
+}
+
 export interface SourcePullOptions {
   /**
    * Told the references of the bodies the platform is about to write, and the write waits for it. A body is never on disk before the
@@ -115,5 +147,7 @@ export interface PluginSourcePullClient {
   /** Forgets the platform's search records of these pulls in this project; returns how many went. */
   forget?(operation_ids: readonly string[]): Promise<{ readonly records_deleted: number }>;
   /** The published findings of a research library repository, read by the platform: no path of its cache, no Git output, only the entries. */
+  /** Present with `sources:pull_feed`. Pure: usable in any call of this installation that declares the permission, read-only calls included. */
+  readonly vocabulary?: PluginSourceVocabulary;
   readonly repository?: { read(request: RepositoryReadRequest, options?: { readonly signal?: AbortSignal }): Promise<RepositoryReadResult> };
 }

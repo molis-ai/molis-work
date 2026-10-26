@@ -10,7 +10,7 @@ import type { RepositoryReadRequest, SourcePullRequest } from "@molis-ai/molis-w
 import { createEvidenceContentStore, resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { openTestHome } from "./fixtures/test-home.js";
 
-// FI-4 step 4c (S-93 provisional, specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §10): a plugin's `services.sourcePull` pulls public
+// FI-4 step 4c (S-99 provisional, specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §10): a plugin's `services.sourcePull` pulls public
 // feeds through the platform's own transports, tells the plugin each evidence body's reference before the body is written, reads bodies back
 // and forgets search records. RAC-1016 (hold before write), RAC-1017 (what it refuses), RAC-1018 (evidence), RAC-1019 (forget, and the research
 // library read of step 4c-2).
@@ -103,7 +103,7 @@ async function fixture(t: TestContext) {
 }
 const evidence = () => createEvidenceContentStore();
 
-test("S-93 RAC-1016: every body's reference is told to the plugin, and the write waits for it", { timeout: 120_000 }, async t => {
+test("S-99 RAC-1016: every body's reference is told to the plugin, and the write waits for it", { timeout: 120_000 }, async t => {
   const f = await fixture(t);
   const entry = f.catalog[0]!, probe = await f.start("pullorder", [FEED, EVIDENCE]);
   f.feeds.set(entry.feed_url, rss("Order feed", [{ id: "order-1", title: "Order one", text: "First body of the order test." }, { id: "order-2", title: "Order two", text: "Second body of the order test." }]));
@@ -120,7 +120,7 @@ test("S-93 RAC-1016: every body's reference is told to the plugin, and the write
   assert.match(String(await probe.in(services => services.sourcePull!.evidence!.read(result.materials[0]!.content_ref))), /body of the order test/u);
 });
 
-test("S-93 RAC-1016: a plugin that cannot hold a body stops the pull before the body is written", { timeout: 120_000 }, async t => {
+test("S-99 RAC-1016: a plugin that cannot hold a body stops the pull before the body is written", { timeout: 120_000 }, async t => {
   const f = await fixture(t);
   const entry = f.catalog[0]!, probe = await f.start("pullhold", [FEED]);
   f.feeds.set(entry.feed_url, rss("Hold feed", [{ id: "hold-1", title: "Hold one", text: "A body that is never written because nobody could hold it." }]));
@@ -144,7 +144,7 @@ test("S-93 RAC-1016: a plugin that cannot hold a body stops the pull before the 
   assert.equal(f.fetched.length, before);
 });
 
-test("S-93 RAC-1016: a call that loses its authority once a body is held writes no body and no search record after that", { timeout: 120_000 }, async t => {
+test("S-99 RAC-1016: a call that loses its authority once a body is held writes no body and no search record after that", { timeout: 120_000 }, async t => {
   const f = await fixture(t);
   const entry = f.catalog[0]!, probe = await f.start("pullrevoke", [FEED]);
   f.feeds.set(entry.feed_url, rss("Revoke feed", [{ id: "revoke-1", title: "Revoke one", text: "A body whose caller loses its authority while it is held." }, { id: "revoke-2", title: "Revoke two", text: "A second body that must not follow." }]));
@@ -159,7 +159,7 @@ test("S-93 RAC-1016: a call that loses its authority once a body is held writes 
   assert.equal(records(), recordsWhenRevoked, "and no search record was written after the authority went");
 });
 
-test("S-93 RAC-1016: the platform's fingerprint of a pull is the one the Feed records for the same source", { timeout: 120_000 }, async t => {
+test("S-99 RAC-1016: the platform's fingerprint of a pull is the one the Feed records for the same source", { timeout: 120_000 }, async t => {
   const f = await fixture(t);
   const entry = f.catalog[1]!, probe = await f.start("pullplan", [FEED]);
   f.feeds.set(entry.feed_url, rss("Plan feed", [{ id: "plan-1", title: "Plan one", text: "A body for the fingerprint comparison." }]));
@@ -172,11 +172,11 @@ test("S-93 RAC-1016: the platform's fingerprint of a pull is the one the Feed re
   assert.equal(f.fetched.length, 0, "planning fetches nothing");
 });
 
-test("S-93 RAC-1017: the service exists only for what the Manifest declares, and only inside the plugin's own concurrent action", { timeout: 120_000 }, async t => {
+test("S-99 RAC-1017: the service exists only for what the Manifest declares, and only inside the plugin's own concurrent action", { timeout: 120_000 }, async t => {
   const f = await fixture(t);
   const entry = f.catalog[0]!, none = await f.start("pullnone", ["storage:private"]), feedOnly = await f.start("pullfeed", [FEED]), readOnly = await f.start("pullread", [EVIDENCE]);
   assert.equal(none.services().sourcePull, undefined);
-  assert.deepEqual(Object.keys(feedOnly.services().sourcePull!).sort(), ["forget", "plan", "pull"]);
+  assert.deepEqual(Object.keys(feedOnly.services().sourcePull!).sort(), ["forget", "plan", "pull", "vocabulary"]);
   assert.deepEqual(Object.keys(readOnly.services().sourcePull!), ["evidence"]);
   const request: SourcePullRequest = { kind: "rss", operation_id: "pull-gate-1", source_name: entry.name, definition_id: entry.id };
   const options = { hold: async () => {} };
@@ -197,7 +197,43 @@ test("S-93 RAC-1017: the service exists only for what the Manifest declares, and
   assert.deepEqual(f.fetched, [], "none of these reached the transport");
 });
 
-test("S-93 RAC-1017: a request is the kind's own fields and nothing else, and a kind needs its own permission", { timeout: 120_000 }, async t => {
+test("S-99 RAC-1017: the source vocabulary is pure data, needs sources:pull_feed, and reaches nothing", { timeout: 120_000 }, async t => {
+  const f = await fixture(t);
+  const probe = await f.start("vocab", [FEED]), queryOnly = await f.start("vocabquery", [QUERY]), none = await f.start("vocabnone", ["storage:private"]);
+  assert.equal(queryOnly.services().sourcePull!.vocabulary, undefined, "another permission does not bring it");
+  assert.equal(none.services().sourcePull, undefined);
+  const vocabulary = () => probe.services().sourcePull!.vocabulary!;
+  // Outside every call, without the permission on the calling action, from another installation: refused.
+  assert.throws(() => vocabulary().catalog(), code("plugin.source_pull_call_required"));
+  await assert.rejects(probe.in(services => Promise.resolve(services.sourcePull!.vocabulary!.catalog()), probe.plain, []), code("plugin.source_pull_permission_undeclared"));
+  await assert.rejects(none.in(() => Promise.resolve(vocabulary().catalog()), none.run, ["storage:private"]), code("plugin.source_pull_call_required"));
+  // In a call that holds it, a read-only one included: data, the same each time, and a copy a plugin cannot use to change the next answer.
+  const answers = await probe.in(async services => {
+    const v = services.sourcePull!.vocabulary!;
+    const first = v.catalog(), again = v.catalog();
+    first[0]!.limitations.push?.("tampered");
+    return { first: v.catalog(), again, custom: v.normalizeCustomRssUrl("https://Example.com/feed.xml#top"), channel: v.normalizeYouTubeChannel("UCabcdefghijklmnopqrstuv"),
+      feedUrl: v.youTubeChannelFeedUrl("UCabcdefghijklmnopqrstuv"), kinds: [v.isRssSourceKind("rss"), v.isRssSourceKind("research_library")],
+      failure: v.rssCursorAfterFailure({}), success: v.rssCursorAfterSuccess({}, { status: 200, etag: "\"a\"" } as never, "2026-10-26T00:00:00.000Z"), failures: v.rssFailureCount(v.rssCursorAfterFailure({}).cursor) };
+  }) as { first: Array<{ source_id: string; limitations: string[] }>; again: unknown[]; custom: string; channel: string; feedUrl: string; kinds: boolean[]; failure: { failures: number }; success: { rss_http: { etag?: string } }; failures: number };
+  assert.deepEqual(answers.first, answers.again, "the same call, the same catalog");
+  assert.ok(answers.first.length > 0 && answers.first.every(entry => !entry.limitations.includes("tampered")), "an answer is a copy");
+  assert.deepEqual(answers.kinds, [true, false]);
+  assert.equal(answers.failure.failures, 1);
+  assert.equal(answers.failures, 1);
+  assert.equal(answers.success.rss_http.etag, "\"a\"");
+  assert.match(answers.feedUrl, /^https:\/\/www\.youtube\.com\//u);
+  const readOnly = await probe.in(services => Promise.resolve(services.sourcePull!.vocabulary!.catalog().length), probe.query);
+  assert.equal(readOnly, answers.first.length, "a read-only call may ask");
+  // Arguments are bounded text or plain data; what the integration refuses is refused.
+  await assert.rejects(probe.in(services => Promise.resolve(services.sourcePull!.vocabulary!.normalizeCustomRssUrl("x".repeat(3_000)))), code("plugin.source_pull_request_invalid"));
+  await assert.rejects(probe.in(services => Promise.resolve(services.sourcePull!.vocabulary!.normalizeCustomRssUrl(42 as never))), code("plugin.source_pull_request_invalid"));
+  await assert.rejects(probe.in(services => Promise.resolve(services.sourcePull!.vocabulary!.rssFailureCount((() => 1) as never))), code("plugin.source_pull_request_invalid"));
+  await assert.rejects(probe.in(services => Promise.resolve(services.sourcePull!.vocabulary!.normalizeCustomRssUrl("http://127.0.0.1/feed.xml"))));
+  assert.deepEqual(f.fetched, [], "the vocabulary never reached a transport");
+});
+
+test("S-99 RAC-1017: a request is the kind's own fields and nothing else, and a kind needs its own permission", { timeout: 120_000 }, async t => {
   const f = await fixture(t);
   const entry = f.catalog[0]!, probe = await f.start("pullclosed", [FEED]);
   const base = { operation_id: "pull-closed-1", source_name: entry.name };
@@ -220,7 +256,7 @@ test("S-93 RAC-1017: a request is the kind's own fields and nothing else, and a 
   assert.deepEqual(f.fetched, [], "no refused request reached the transport");
 });
 
-test("S-93 RAC-1018: evidence is read back only by an installation that holds evidence:read, only for the Home's evidence references", { timeout: 120_000 }, async t => {
+test("S-99 RAC-1018: evidence is read back only by an installation that holds evidence:read, only for the Home's evidence references", { timeout: 120_000 }, async t => {
   const f = await fixture(t);
   const probe = await f.start("pullevidence", [EVIDENCE]);
   const stored = evidence().write("# Evidence\n\nA body written for the read test.").contentRef;
@@ -234,7 +270,7 @@ test("S-93 RAC-1018: evidence is read back only by an installation that holds ev
   assert.equal(feedOnly.services().sourcePull!.evidence, undefined, "a plugin that only pulls cannot read bodies");
 });
 
-test("S-93 RAC-1019: forgetting search records takes the pull's own, in this project, and nothing else", { timeout: 120_000 }, async t => {
+test("S-99 RAC-1019: forgetting search records takes the pull's own, in this project, and nothing else", { timeout: 120_000 }, async t => {
   const f = await fixture(t);
   const entry = f.catalog[0]!, probe = await f.start("pullforget", [FEED]);
   f.feeds.set(entry.feed_url, rss("Forget feed", [{ id: "forget-1", title: "Forget one", text: "A body whose search record is forgotten." }]));
@@ -250,7 +286,7 @@ test("S-93 RAC-1019: forgetting search records takes the pull's own, in this pro
   assert.equal(records(), 0);
 });
 
-test("S-93 RAC-1016: a web query is planned without leaving, and a query that is too short is refused", { timeout: 120_000 }, async t => {
+test("S-99 RAC-1016: a web query is planned without leaving, and a query that is too short is refused", { timeout: 120_000 }, async t => {
   const f = await fixture(t);
   const probe = await f.start("pullquery", [QUERY]);
   const request: SourcePullRequest = { kind: "web_query", operation_id: "pull-query-1", source_name: "Weather", query: "  weather   in   Oslo " };
@@ -265,7 +301,7 @@ test("S-93 RAC-1016: a web query is planned without leaving, and a query that is
 
 const LIBRARY: RepositoryReadRequest = { repository: "fixture/research", source_id: "observations" };
 
-test("S-93 RAC-1019: repository.read returns a research library's entries and nothing of the platform's cache, running only the Git a fixed address needs", { timeout: 120_000 }, async t => {
+test("S-99 RAC-1019: repository.read returns a research library's entries and nothing of the platform's cache, running only the Git a fixed address needs", { timeout: 120_000 }, async t => {
   const f = await fixture(t);
   const probe = await f.start("pullrepo", [REPOSITORY]), published = publishLibrary(f.library);
   assert.deepEqual(Object.keys(probe.services().sourcePull!), ["repository"]);
@@ -286,7 +322,7 @@ test("S-93 RAC-1019: repository.read returns a research library's entries and no
   assert.equal(f.gitCalls.filter(args => args[0] === "show").length, 5, "the two indexes and the package's three files");
 });
 
-test("S-93 RAC-1019: repository.read refuses what is not a repository and a source, a call it is not offered to, an unpublished or edited library, and a cancelled call", { timeout: 120_000 }, async t => {
+test("S-99 RAC-1019: repository.read refuses what is not a repository and a source, a call it is not offered to, an unpublished or edited library, and a cancelled call", { timeout: 120_000 }, async t => {
   const f = await fixture(t);
   const probe = await f.start("pullrepo2", [REPOSITORY]), feedOnly = await f.start("pullrepo3", [FEED]);
   publishLibrary(f.library);

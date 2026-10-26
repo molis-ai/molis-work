@@ -10,6 +10,7 @@ import type { PluginDatabaseConnection } from "./plugin-database-client.js";
 import { readResearchRepository, type ResearchGit } from "./research-repository-read.js";
 import { forgetIntelligenceOperations, type IntelligenceCollectResult } from "./search-intelligence-client.js";
 import { buildSourcePullIntent, sourcePullFingerprint } from "./source-pull-intent.js";
+import { createSourceVocabulary } from "./source-vocabulary.js";
 
 type FetchPort = (input: string | URL, init?: RequestInit) => Promise<Response>;
 
@@ -30,13 +31,14 @@ export interface SourcePullPortOptions {
 }
 
 /**
- * `services.sourcePull`'s Host side (FI-4 step 4c, S-93 provisional): the transports, the search records and the evidence store of a plugin's pull.
+ * `services.sourcePull`'s Host side (FI-4 step 4c, S-99 provisional): the transports, the search records and the evidence store of a plugin's pull.
  * Every body is announced to the plugin (`run.hold`) before it is written, so what the plugin keeps always includes every body that exists.
  */
 export function createSourcePullPort(options: SourcePullPortOptions): PluginSourcePullPort {
   const secretStore = options.secretStore ?? createFileSecretStore();
   const content = options.content ?? createEvidenceContentStore({ secretStore });
   return {
+    vocabulary: createSourceVocabulary(),
     plan: request => ({ intent_fingerprint: sourcePullFingerprint(request) }),
     async pull(request, run) {
       const intent = buildSourcePullIntent(request);

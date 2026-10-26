@@ -5,7 +5,7 @@ import { CUSTOM_RSS_DEFINITION_ID, customRssFeedHost, listRegisterableFeeds, nor
 import { YOUTUBE_CHANNEL_DEFINITION_ID, YOUTUBE_PUBLIC_FEED_HOST, normalizeYouTubeChannelId, youtubeChannelFeedUrl } from "@molis-ai/molis-work-integration-youtube";
 import type { IntelligenceCollectRequest } from "./search-intelligence-client.js";
 
-// The request a plugin's pull becomes (`services.sourcePull`, S-93 provisional). The plugin names an address, a channel, a catalog entry or
+// The request a plugin's pull becomes (`services.sourcePull`, S-99 provisional). The plugin names an address, a channel, a catalog entry or
 // a query; the budget, the source policy and where the request may go are made here, from the platform's own catalog and normalizers.
 // Byte for byte what the Feed's `buildExactRequest` makes for the same source, so a pull's fingerprint is the same through either door.
 // The Feed's copy goes when the Feed pulls through this service (FI-4 step 4e).

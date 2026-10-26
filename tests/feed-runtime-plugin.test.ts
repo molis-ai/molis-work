@@ -133,6 +133,27 @@ test("RAC-506 a Runtime Feed changes a source's schedule and pause state in one 
   }
 });
 
+// RAC-506 (4e-2a, 4c-3)
+// A call that describes a source with the platform's vocabulary holds sources:pull_feed, as the action declares.
+const DESCRIBE = [...WRITE, "sources:pull_feed"];
+test("RAC-506 a Runtime Feed registers a source from the platform's vocabulary, once, under the original caller", async t => {
+  const { client, count } = await platform(t);
+  const sources = () => count("SELECT count(*) AS n FROM feed_sources");
+  const before = sources();
+  const custom = await client.invoke(caller(DESCRIBE).context, feedSourceActions.register, { kind: "custom_rss", feed_url: "https://Example.com/updates.xml#top", name: "Updates" }) as { source: { source_id: string; config: { feed_url: string } }; registered: boolean };
+  assert.equal(custom.registered, true);
+  assert.equal(custom.source.config.feed_url, "https://example.com/updates.xml", "the address is the platform's normal form");
+  assert.equal(sources(), before + 1);
+  assert.equal(count(`SELECT count(*) AS n FROM events WHERE object_type = '${FEED_PLUGIN_ID}:feed_source' AND object_id = ? AND actor_id = ?`, custom.source.source_id, OWNER), 1);
+  const again = await client.invoke(caller(DESCRIBE).context, feedSourceActions.register, { kind: "custom_rss", feed_url: "https://example.com/updates.xml" }) as { source: { source_id: string }; registered: boolean };
+  assert.deepEqual([again.registered, again.source.source_id, sources()], [false, custom.source.source_id, before + 1], "the same source is not added twice");
+  const youtube = await client.invoke(caller(DESCRIBE).context, feedSourceActions.register, { kind: "youtube_channel", channel_id: "UCabcdefghijklmnopqrstuv" }) as { registered: boolean };
+  assert.equal(youtube.registered, true);
+  // An address the platform refuses is refused, and nothing is left behind.
+  await assert.rejects(client.invoke(caller(DESCRIBE).context, feedSourceActions.register, { kind: "custom_rss", feed_url: "http://127.0.0.1/feed.xml" }));
+  assert.equal(sources(), before + 2);
+});
+
 /** A stand-in for a platform handle: only the members these cases exercise, the rest absent. */
 const standIn = <T extends object>(members: Partial<Record<keyof T, unknown>>): T => members as T;
 

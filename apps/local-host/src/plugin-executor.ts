@@ -16,7 +16,7 @@ export interface PluginHostExecutorOptions {
   artifacts: ArtifactsApplicationApi;
   /** Exchange data plugins record for each other, kept out of the 成果库 (specs/artifact-positioning A2). */
   processItems: ProcessItemsApplicationApi;
-  actions: { registry: import("@molis-ai/molis-work-contracts/platform/actions").ActionRegistryPort;
+  actions: { registry: import("@molis-ai/molis-work-contracts/platform/actions").ActionRegistryPort & Partial<Pick<import("@molis-ai/molis-work-kernel").ActionService, "sceneProvider">>;
     client: import("@molis-ai/molis-work-contracts/platform/actions").SyncActionClient & import("@molis-ai/molis-work-contracts/platform/actions").ActionClient; project_id: string;
     /** The kernel's scene client for this project: what `services.scenes` of a plugin that declares `scenes:use` is made from (PG-032 P1). */
     scenes?: import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneClient;

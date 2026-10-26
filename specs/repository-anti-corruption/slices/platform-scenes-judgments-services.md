@@ -157,3 +157,22 @@ export interface PluginJudgmentsClient {
 - **RAC-845 的“采用判断的核对”** 属于采用判断的插件（Feed、Inbox 的场景运行时，`scene_provenance` 复核），不在本服务；测试用 Feed 场景运行时自己的核对钉住它（登记册 R-60）：Home 库那一行在、项目库的行不在，这一行因对象不在、对象内容不是判断时那份而不被采用，同一行在一切仍成立时被采用，所以核对不是摆设。
 - **FIX（统筹 2026-10-26）：判断账按安装隔离。** 行带 `install_id`（Functions 库基线 v3→v4 加列，可空）；`latest` 只返回当前项目、本安装自己记的行，宿主自己记的行（`install_id` 为空）与别的安装的行同一场景号也不返回；`record` 写本安装的 `install_id`。选 `install_id` 而不是 `plugin_id`：它由插件 id 与发布者签名算出（`installIdentity`），重装不变，而同一插件 id 由别人签名得到另一个 id，所以“别人用同一个插件 id 冒领”也读不到。卸载清理走已有的 `forgetInstallationRecords`（不保留数据的卸载、丢弃保留的数据时删本安装在当前项目的行，保留数据的卸载不删），没有新服务。验收：RAC-850（卸载后另一个插件声明同一场景号读不到、账里的行仍在）、RAC-851（不保留数据的卸载与丢弃保留的数据删行，别的项目、宿主、别的插件的行不动）。库版本升级要真实 Home 维护（备份、副本演练、用户逐次同意），清单行已写进 spec §4.1；FI-6 把 Feed/Inbox 的存量判断行改成带 `install_id` 是 FI-6 自己的事（现在宿主的 Feed/Inbox 场景仍按 `install_id` 为空的行读写）。
 - **RAC-837 没做。** 一个只依赖 SDK 与 contracts、从包里装出来的外部写法插件，本片的测试用的是同一份 `PluginDefinition` 的内联探针插件（走同一个 Manifest、同一个平台装配），没有单独从 SDK 打包再装；这一条留给 FI-6 的 Feed/Inbox 迁移（它们就是外部写法的实例）。
+
+## 8. P2 实际提供方核对（R61 有限后继，2026-10-25）
+
+Root 接受 R61 正式评审 6407019767 的非阻塞第 3 项（原 6406616822 第 2 项），准确输入 `f6fbd6db90cebe110a7c5795d6f11578ac2ac17c`。按安装隔离已经挡住读取别人的行；本单修的是 Manifest 声明的场景号实际由其他提供方登记时，仍能记本安装账的正确性缺口，不将它升级为泄露或原 R61 阻塞。
+
+`latest`、`record` 保持同步，活实例动作外的 `latest` 仍可用。内核在现行场景 Map 上提供 composition 专用的同步提供方查询，与执行共用项目精确匹配、再回退 Home 的查找；返回身份副本，不调用 handler、availability、策略、运行环境准备或刷新，不新增缓存或登记名单。通过现有 Host `actions.registry` 内部组合口接给 P2，不修改公共 `ActionRegistryPort`、contracts 或 SDK，不给插件新入口，元数据查询不授予执行权限。
+
+P2 每次调用先走原 gate，再核对每个已声明版本的实际登记。只有 provider id 与会话的 `providerFor` 结果一致、插件 id 与可信启动安装一致、`plugin_install_id` 为当前安装，且解析项目属于当前项目或 Home 的插件登记，才可贡献该声明的 `subject_kinds`；没有这样的登记就以现有 `plugin.scene_not_declared` 拒绝。既有写前取消/撤权/停用检查、账的安装和项目隔离、Home 账不与项目事务原子提交的限制均不变。
+
+范围：Kernel 场景登记查询与必要的职责抽取、Host `actionRegistry` 组合及执行器内部类型/接线、P2 服务、原判断账回归与必要内核/Host 回归。本单不改 P1 场景客户端或其测试、不并入同 id 不同签名测试和 `latestJudgment` 清理、不动原 R61 库维护/迁移或其他 SI 行。原有验收编号保留，补充：
+
+| 编号 | 验收 |
+| --- | --- |
+| R61-P2-01 | 真实 Runtime 插件声明同一个场景号，但内核该号由其他实际提供方占有时，同步 `latest` 与可写动作内 `record` 均以 `plugin.scene_not_declared` 拒绝；全账逐行不变，没有新行或失败记账。只自报同一 plugin_id、实际 provider/安装不同也拒绝。 |
+| R61-P2-02 | 自己实际登记的场景保持同步写入和读取；动作外 `latest` 仍可读。只有实际属于本提供方的声明版本可贡献对象种类，别的登记版本不扩大许可；既有取消/撤权/停用、项目和 install_id 隔离回归继续通过。 |
+| R61-P2-03 | 每次调用读取当前登记；注销、缺少查询口或没有登记时拒绝；恢复本提供方真实登记后可恢复读写，不靠缓存。 |
+| R61-P2-04 | 内核与 Host 元数据口按现执行规则解析项目/Home 和版本，注销即时生效；返回身份副本，不暴露处理器或可变登记，不运行准备、策略或可用性回调。 |
+
+验证：准确候选整体构建；按 Kernel/Host README 与改动面跑必要定向回归、health/API/边界检查，不放宽门禁。Kernel 组合 full 由 PIPE 统一安排，本叶不另启 full；交付注明未由本叶验证的集成 full 和真实 Home 边界。测试仅临时 Home，不启动真实 4207；无新增页面批，README 明确要求的 `tests/runtime-plugin-http-discovery.test.ts` 单文件经公共 browser FIFO 与专用 test-kit 回归。

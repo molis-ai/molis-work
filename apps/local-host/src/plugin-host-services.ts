@@ -149,10 +149,11 @@ function projectServices(options: PluginHostExecutorOptions, manifest: PluginMan
 }
 
 /** `services.scenes` (PG-032 P1, S-89) and `services.judgments` (P2, S-90): the plugin's own consumption scenes and their judgment ledger, in the project the activation runs in. */
-function sceneServices(options: PluginHostExecutorOptions, manifest: PluginManifest, context: PluginStartContext, assertActive: () => void) {
+function sceneServices(options: PluginHostExecutorOptions, manifest: PluginManifest, context: PluginStartContext, assertActive: () => void, providerId: string) {
   const record = () => options.record?.(context.install_id) ?? null;
   const scenes = pluginScenesFor(manifest, context, { scenes: options.actions.scenes, project_id: options.project_id, assertActive, record });
-  const judgments = options.home ? pluginJudgmentsFor(manifest, context, { home_directory: options.home.directory, project_id: options.project_id, assertActive, record }) : undefined;
+  const judgments = options.home ? pluginJudgmentsFor(manifest, context, { home_directory: options.home.directory, project_id: options.project_id, assertActive, record,
+    provider_id: providerId, sceneProvider: options.actions.registry.sceneProvider?.bind(options.actions.registry) }) : undefined;
   return { ...(scenes ? { scenes } : {}), ...(judgments ? { judgments } : {}) };
 }
 
@@ -212,7 +213,7 @@ function hostedContext(options: PluginHostExecutorOptions, manifest: PluginManif
       notifications: pluginNotificationsFor(manifest, context, parts.project_database, options.projectLibrary?.db, options.project_id, assertActive, () => options.record?.(context.install_id) ?? null, options.installations),
       installations: pluginInstallationsFor(manifest, context, options.project_id, options.installations, assertActive),
       ...projectServices(options, manifest, context, parts.project_database, assertActive),
-      ...sceneServices(options, manifest, context, assertActive),
+      ...sceneServices(options, manifest, context, assertActive, providerId),
       storage: manifest.permissions.some(item => item.permission === "storage:private")
         ? options.privateStorageFor(context, manifest) : undefined,
       artifacts: artifactService.client,

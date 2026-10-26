@@ -16,6 +16,29 @@ const counter: ActionDefinition<{ amount: number }, number> = { capability_id: "
 const ref = (id: string) => ({ project_id: id, storage_key: `memory:${id}` });
 const context = (id: string): ActionCallContext => ({ actor_id: "alice", project_id: id, audience: "user", permissions: [] });
 
+test("R61-P2-04 the Host registry exposes synchronous scoped scene identity without preparing a runtime or querying policy", async () => {
+  let opened = 0, policy = 0, availability = 0;
+  const host = new LocalHost({ runtimeFactory: { open: () => { opened++; return {}; }, close: () => {} },
+    sceneAvailability: async () => { policy++; return { available: true }; } });
+  const project = ref("scene-identity"), registry = host.actionRegistry(project);
+  const scene: ActionSceneDefinition = { scene_id: "fixture.identity", version: 1, title: "identity", description: "identity inspection",
+    trigger: "event", scope: "project", subject_kinds: [], input_schema: {}, result_schema: {}, permissions: [] };
+  const dispose = registry.registerProvider({ provider: { provider_id: "identity", title: "identity", kind: "plugin", plugin_id: "identity", plugin_install_id: "identity-install" },
+    definitions: [], handlers: [], scenes: [scene], availability: () => { availability++; return { available: true }; },
+    scene_handlers: [{ ...scene, bindings: () => [], bind: () => {}, consume: () => {} }],
+  });
+  try {
+    assert.deepEqual(registry.sceneProvider(scene, project.project_id), { provider_id: "identity", title: "identity", kind: "plugin", plugin_id: "identity",
+      plugin_install_id: "identity-install", project_id: project.project_id });
+    assert.equal(registry.sceneProvider(scene, "other-project"), undefined, "the bound port cannot inspect another project");
+    assert.equal(host.actionRegistry().sceneProvider(scene), undefined, "Home sees no project-only registration");
+    dispose();
+    assert.equal(registry.sceneProvider(scene, project.project_id), undefined);
+    assert.deepEqual({ opened, policy, availability }, { opened: 0, policy: 0, availability: 0 });
+  } finally { await host.close(); }
+  assert.throws(() => registry.sceneProvider(scene, project.project_id), { code: "host.closed" });
+});
+
 test("a Plugin action can await a nested Host action without waiting behind itself", { timeout: 2_000 }, async () => {
   const host = new LocalHost({ runtimeFactory: { open: () => ({ value: 0 }), close: () => {} } });
   const read: ActionDefinition<undefined, number> = { capability_id: "nested.read", version: 1, operation: "query",

@@ -168,6 +168,40 @@ test("S-15 a scene is visible by person, project and permissions, never by audie
   for (const audience of ["agent", "workflow", "plugin", "mcp"] as const) assert.deepEqual(seen(audience), asUser, audience);
 });
 
+test("R61-P2-04 composition reads current scene provider copies by project and version without availability or handlers", () => {
+  const service = new ActionService();
+  let callbacks = 0;
+  const register = (provider_id: string, project_id?: string, version = 1) => service.registerProvider({
+    provider: { provider_id, title: provider_id, kind: "plugin", plugin_id: provider_id, plugin_install_id: `install-${provider_id}`, ...(project_id ? { project_id } : {}) },
+    definitions: [], handlers: [], scenes: [{ ...scene, version }],
+    availability: () => { callbacks++; return { available: true }; },
+    scene_handlers: [{ scene_id: scene.scene_id, version,
+      availability: () => { callbacks++; return { available: true }; },
+      configuration_availability: () => { callbacks++; return { available: true }; },
+      bindings: () => { callbacks++; return []; }, bind: () => { callbacks++; }, consume: () => { callbacks++; },
+    }],
+  });
+  const stopA = register("actual-a", "project-a"), stopB = register("actual-b", "project-b");
+  const stopHome = register("actual-home", undefined, 2);
+  assert.equal(service.sceneProvider(scene, "project-a")?.provider_id, "actual-a");
+  assert.equal(service.sceneProvider(scene, "project-b")?.provider_id, "actual-b");
+  assert.equal(service.sceneProvider(scene, "project-c"), undefined);
+  assert.equal(service.sceneProvider(scene), undefined, "a Home lookup does not read a project's registration");
+  assert.equal(service.sceneProvider({ ...scene, version: 2 }, "project-a")?.provider_id, "actual-home", "the project lookup falls back to the real Home registration");
+  assert.equal(service.sceneProvider({ ...scene, version: 3 }, "project-a"), undefined);
+  const copy = service.sceneProvider(scene, "project-a")!;
+  Object.assign(copy, { title: "changed", plugin_install_id: "forged" });
+  assert.equal(service.sceneProvider(scene, "project-a")?.title, "actual-a");
+  assert.equal(service.sceneProvider(scene, "project-a")?.plugin_install_id, "install-actual-a");
+  assert.deepEqual(Object.keys(copy).toSorted(), ["kind", "plugin_id", "plugin_install_id", "project_id", "provider_id", "title"], "only provider identity is returned");
+  stopA();
+  assert.equal(service.sceneProvider(scene, "project-a"), undefined, "disposal is visible immediately");
+  assert.equal(service.sceneProvider(scene, "project-b")?.provider_id, "actual-b");
+  stopB(); stopHome();
+  assert.equal(service.sceneProvider({ ...scene, version: 2 }, "project-a"), undefined);
+  assert.equal(callbacks, 0, "metadata inspection neither checks availability nor invokes a scene handler");
+});
+
 test("a changed binding during an asynchronous judgment cannot consume the stale result", async () => {
   const service = new ActionService();
   const bindings = new Map<string, ActionSceneBinding>([[binding.binding_id, { ...binding, function: { ...binding.function, provider_id: provider.provider_id } }]]);

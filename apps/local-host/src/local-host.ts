@@ -1,6 +1,6 @@
 import { hostErrors } from "./host-errors.js";
 import { snapshotHostUserAction } from "./plugin-consent-settings-entry.js";
-import { withSceneConfigurationActions } from "./scene-configuration-actions.js";
+import { hostActionRegistry, type HostActionRegistryPort } from "./local-host-action-registry.js";
 import { HomeLine } from "./home-line.js";
 import { randomUUID } from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
@@ -16,7 +16,7 @@ import { ActionService, CapabilityRegistry, judgmentRecommendationKeys, refuseCa
   type CallContext, type CallDescription, type CallOutcome, type CallSettled } from "@molis-ai/molis-work-kernel";
 import { projectCallCaller } from "./project-call-caller.js";
 import { sceneConfigurationActions, ActionError, requireSynchronous, type SyncActionClient, type ActionCallContext, type ActionClient, type ActionDefinition,
-  type ActionRegistryPort, type ActionProviderRegistration, type ActionAvailability, type ActionView, type ActionSceneClient, type ActionSceneDefinition, type ActionSceneView } from "@molis-ai/molis-work-contracts/platform/actions";
+  type ActionAvailability, type ActionView, type ActionSceneClient, type ActionSceneView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { hostLog } from "./host-log.js";
 import { admitPluginCall, dependencyCaller, verifiedCaller } from "./plugin-callers.js";
 
@@ -164,31 +164,21 @@ export class LocalHost<Runtime> {
   }
 
   /** Composition-only registration. Project authority comes from the owner, never the Plugin. */
-  actionRegistry(reference?: LocalHostProjectReference): ActionRegistryPort {
+  actionRegistry(reference?: LocalHostProjectReference): HostActionRegistryPort {
     const project = reference ? normalizeReference(reference) : undefined;
     const entry = project ? this.ensureEntry(project) : undefined;
-    return { registerProvider: (registration: ActionProviderRegistration) => {
-      this.assertRunning();
-      if (entry && (entry.state === "closing" || this.entries.get(entry.reference.storage_key) !== entry)) {
-        throw hostErrors.project_closing("能力来源所属项目已关闭");
-      }
-      if (registration.provider.project_id && registration.provider.project_id !== project?.project_id) {
-        throw new ActionError("actions.scope_mismatch", "能力来源不能注册到其他项目");
-      }
-      const bound = { ...registration.provider, ...(project ? { project_id: project.project_id } : {}) };
-      this.options.admitActionProvider?.(bound, registration.scenes);
-      const remove = this.actionService.registerProvider({ ...withSceneConfigurationActions(registration, this.sceneClient(project)),
-        provider: bound,
-        availability: caller => this.state !== "running" || entry?.state === "closing"
-          ? { available: false, code: "actions.host_closed", reason: "能力所在运行环境已关闭" }
-          : registration.availability?.(caller) ?? { available: true },
-      });
-      const owner = entry?.actionDisposers ?? this.globalActionDisposers;
-      const announce = (scenes?: readonly ActionSceneDefinition[]) => { try { this.options.actionProvidersChanged?.(bound, scenes); } catch { /* An observer never changes registration. */ } };
-      const dispose = () => { remove(); owner.delete(dispose); announce(); };
-      owner.add(dispose); announce(registration.scenes);
-      return dispose;
-    } };
+    return hostActionRegistry({ register: registration => this.actionService.registerProvider(registration),
+      sceneProvider: (scene, projectId) => this.actionService.sceneProvider(scene, projectId),
+    }, { project, scenes: () => this.sceneClient(project),
+      assertCurrent: () => {
+        this.assertRunning();
+        if (entry && (entry.state === "closing" || this.entries.get(entry.reference.storage_key) !== entry)) throw hostErrors.project_closing("能力来源所属项目已关闭");
+      },
+      available: () => this.state === "running" && entry?.state !== "closing",
+      disposers: entry?.actionDisposers ?? this.globalActionDisposers,
+      admitActionProvider: (provider, scenes) => this.options.admitActionProvider?.(provider, scenes),
+      actionProvidersChanged: (provider, scenes) => this.options.actionProvidersChanged?.(provider, scenes),
+    });
   }
 
   /** System capabilities share the registry but do not create a fictitious project Runtime. */

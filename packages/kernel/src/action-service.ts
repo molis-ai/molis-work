@@ -6,7 +6,7 @@ import {
   ActionError, requireSynchronous,
   type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionClient, type ActionDefinition,
   type ActionProvider, type ActionProviderRegistration, type ActionReference, type ActionRegistryPort,
-  type ActionSceneTarget, type ActionSceneConfigureOptions, type ActionSceneBinding, type ActionSceneDefinition, type ActionSceneHandlerBinding, type ActionView, type ActionSceneView,
+  type ActionSceneTarget, type ActionSceneConfigureOptions, type ActionSceneBinding, type ActionSceneDefinition, type ActionView, type ActionSceneView,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityDescriptor } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { CapabilityRegistry } from "./index.js";
@@ -16,17 +16,7 @@ import { actionSchemaAccepts, createActionSchemaCompiler, validateActionValue, t
 import { validateActionInput } from "./version-precondition.js";
 import { subjectOfferCompatibilityReason } from "./subject-offer-choices.js";
 import { createExecutionLifetime, inspectActionCrossReferences, inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
-
-interface RegisteredScene {
-  definition: ActionSceneDefinition;
-  provider: ActionProvider;
-  handler: ActionSceneHandlerBinding;
-  availability(context: ActionCallContext): ActionAvailability;
-  configurationAvailability(context: ActionCallContext): ActionAvailability;
-  validateEvent?: ActionValidator;
-  validateInput: ActionValidator;
-  validateResult: ActionValidator;
-}
+import { registeredScene, sceneViews, sceneVisible, scopedSceneKey, type RegisteredScene } from "./action-scene-directory.js";
 
 export type { ActionSceneView } from "@molis-ai/molis-work-contracts/platform/actions";
 
@@ -228,11 +218,13 @@ export class ActionService implements ActionClient, ActionRegistryPort {
   discoverScenes(context: ActionCallContext, judgment?: ActionReference): ActionSceneView[] {
     const directory = judgment ? this.discover(context) : [];
     const fn = judgment ? directory.find(d => actionKey(d) === actionKey(judgment)) : undefined;
-    return [...this.scenes.values()].filter(s => sceneVisible(s, context)).map(scene => {
-      const reason = judgment ? actionSceneCompatibilityReason(scene.definition, fn, judgment, directory, scene.provider) : undefined;
-      return { definition: structuredClone(scene.definition), provider: structuredClone(scene.provider),
-        configuration_availability: scene.configurationAvailability(context), availability: scene.availability(context), compatible: !reason, ...(reason ? { reason } : {}) };
-    });
+    return sceneViews(this.scenes, context, scene => judgment ? actionSceneCompatibilityReason(scene.definition, fn, judgment, directory, scene.provider) : undefined);
+  }
+
+  /** Composition-only identity inspection; it neither checks availability nor grants execution. */
+  sceneProvider(reference: Pick<ActionSceneDefinition, "scene_id" | "version">, projectId?: string | null): ActionProvider | undefined {
+    const scene = registeredScene(this.scenes, reference, projectId);
+    return scene && structuredClone(scene.provider);
   }
 
   async usages(context: ActionCallContext, judgment?: ActionReference): Promise<Array<ActionSceneBinding & { availability: ActionAvailability }>> {
@@ -384,9 +376,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
   }
 
   private requireScene(context: ActionCallContext, reference: { scene_id: string; scene_version: number }, purpose: "execute" | "configure" = "execute"): RegisteredScene {
-    const identity = { scene_id: reference.scene_id, version: reference.scene_version };
-    const scene = this.scenes.get(scopedSceneKey(identity, context.project_id ?? undefined))
-      ?? this.scenes.get(scopedSceneKey(identity));
+    const scene = registeredScene(this.scenes, { scene_id: reference.scene_id, version: reference.scene_version }, context.project_id);
     if (!scene || !sceneVisible(scene, context)) throw new ActionError("actions.scene_missing", "场景不存在或不可访问");
     assertAvailable(purpose === "configure" ? scene.configurationAvailability(context) : scene.availability(context));
     return scene;
@@ -439,11 +429,6 @@ function checkedActionResult(definition: ActionDefinition, validateOutput: Actio
   return value;
 }
 
-function sceneVisible(s: RegisteredScene, c: ActionCallContext): boolean {
-  return !!c.actor_id && (!s.provider.project_id || s.provider.project_id === c.project_id)
-    && (s.definition.permissions.every(p => c.permissions.includes(p))
-      || Boolean(s.handler.targets && s.definition.configuration_permissions?.every(p => c.permissions.includes(p))));
-}
 function bindingBelongsTo(b: ActionSceneBinding, s: ActionSceneDefinition, c: ActionCallContext): boolean {
   return b.scene_id === s.scene_id && b.scene_version === s.version && b.project_id === (s.scope === "home" ? null : c.project_id);
 }
@@ -473,7 +458,6 @@ function assertAvailable(value: ActionAvailability): void { if (!value.available
 function unavailable(code: string, reason: string): ActionAvailability { return { available: false, code, reason }; }
 function actionKey(v: ActionReference): string { return `${v.capability_id}@${v.version}`; }
 function sceneKey(v: { scene_id: string; version: number }): string { return `${v.scene_id}@${v.version}`; }
-function scopedSceneKey(v: { scene_id: string; version: number }, projectId?: string): string { return JSON.stringify([v.scene_id, v.version, projectId ?? null]); }
 function exactBindings<D, H>(definitions: readonly D[], handlers: readonly H[], key: (v: D | H) => string, label: string): Map<string, H> {
   const expected = new Set(definitions.map(key)), result = new Map<string, H>();
   for (const handler of handlers) {

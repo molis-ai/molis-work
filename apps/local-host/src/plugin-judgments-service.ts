@@ -4,6 +4,7 @@ import {
   type PluginInstanceRecord, type PluginJudgmentInput, type PluginJudgmentsClient, type PluginManifest, type PluginStartContext,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { publishedFunctionKey } from "@molis-ai/molis-work-module-functions";
+import type { ActionService } from "@molis-ai/molis-work-kernel";
 import { withFunctionsService } from "./functions-host.js";
 import { gateFor } from "./plugin-attention-service.js";
 
@@ -13,6 +14,8 @@ export interface PluginJudgmentsServicePorts {
   readonly project_id: string;
   readonly assertActive: () => void;
   readonly record: () => PluginInstanceRecord | null;
+  readonly provider_id: string;
+  readonly sceneProvider: ActionService["sceneProvider"] | undefined;
 }
 
 const declared = (manifest: PluginManifest, permission: string) => manifest.permissions.some(entry => entry.permission === permission);
@@ -22,7 +25,8 @@ const declared = (manifest: PluginManifest, permission: string) => manifest.perm
  * Reading needs `judgments:read`; recording needs `judgments:write` and a writable call (the gate `services.attention` writes through: a
  * concurrent action that declares the permission, a kept job, or a callback of the plugin's own scene that declares it once its
  * `beforeEffect` returned), and asks the original caller again right before the row is written, so a cancelled, revoked or stopped call
- * records nothing, not even a failure. The scene must be one the Manifest declares (`plugin.scene_not_declared`), the subject must be of
+ * records nothing, not even a failure. Each call synchronously checks the Manifest's scene versions against the kernel's current provider
+ * and installation identity (`plugin.scene_not_declared` if none belongs to this activation); the subject must be of
  * this project and of a kind the scene declares, and the function key is made from the function the plugin names, never passed.
  * The ledger is the Home's Functions library: a row commits there by itself and is not part of the plugin's project transaction.
  * A row is keyed by the installation that recorded it, not by the scene id (a scene id only says who declared it first): the installation id
@@ -35,8 +39,13 @@ export function pluginJudgmentsFor(manifest: PluginManifest, context: PluginStar
   const gate = gateFor(context, ports.project_id, ports.assertActive, ports.record);
   const kindsOf = (sceneId: string): ReadonlySet<string> => {
     const own = scenes.filter(scene => scene.scene_id === sceneId);
-    if (own.length === 0) throw pluginErrors.scene_not_declared(`场景 ${sceneId} 不是这个插件在 Manifest 里声明的`);
-    return new Set(own.flatMap(scene => scene.subject_kinds));
+    const registered = own.filter(scene => {
+      const provider = ports.sceneProvider?.(scene, ports.project_id);
+      return provider?.kind === "plugin" && provider.provider_id === ports.provider_id && provider.plugin_id === context.plugin_id
+        && provider.plugin_install_id === context.install_id && (!provider.project_id || provider.project_id === ports.project_id);
+    });
+    if (registered.length === 0) throw pluginErrors.scene_not_declared(`场景 ${sceneId} 不是本安装声明并登记的`);
+    return new Set(registered.flatMap(scene => scene.subject_kinds));
   };
   const ledger = <T>(run: Parameters<typeof withFunctionsService<T>>[1]): T => withFunctionsService(ports.home_directory, run);
   return Object.freeze<PluginJudgmentsClient>({

@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import { ActionError, type ActionCallContext, type ActionDefinition, type ActionReference, type ActionSceneBinding, type ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionDefinition, type ActionProvider, type ActionReference, type ActionSceneBinding, type ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDatabaseDeclaration, PluginDefinition, PluginHostServices, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPluginPlatform, DEMO_PROJECT_ID, homeStores, LocalProjectDatabase, seedDemoBoard, withFunctionsService } from "@molis-ai/molis-work-app-local-host";
 import { purgeFunctionsProject } from "@molis-ai/molis-work-module-functions";
@@ -29,7 +29,7 @@ const judgmentRef: ActionReference = { capability_id: judgment.capability_id, ve
 type Step = "latest" | "record" | "revoked" | "cancelled" | "borrow";
 type SceneStep = "scene-record" | "scene-no-wait" | "scene-revoked" | "scene-failed" | "scene-rollback" | "scene-late" | "prepare-record";
 interface StepInput { readonly step: Step; readonly scene?: string; readonly kind?: string; readonly project?: string; readonly subject?: string; readonly forged?: string }
-interface ProbeOptions { readonly grants?: readonly string[]; readonly scene?: boolean; readonly scenePermissions?: readonly string[]; readonly sceneId?: string }
+interface ProbeOptions { readonly grants?: readonly string[]; readonly scene?: boolean; readonly scenePermissions?: readonly string[]; readonly sceneId?: string; readonly omitScene?: boolean }
 
 /** A plugin of the test: actions that make the ledger call `step` names, and a scene whose callbacks do what `state.sceneStep` says, with a table of its own. */
 function probe(short: string, options: ProbeOptions = {}) {
@@ -77,7 +77,7 @@ function probe(short: string, options: ProbeOptions = {}) {
   const definition: PluginDefinition = { manifest, async start(context) {
     state.services = context.services;
     return { kind: "app", views: [], actions: [handler(wait), handler(bare), handler(serial), handler(look)],
-      ...(hasScene ? { action_scenes: [{ scene_id: scene.scene_id, version: 1, bindings: () => [...state.bindings.values()],
+      ...(hasScene && !options.omitScene ? { action_scenes: [{ scene_id: scene.scene_id, version: 1, bindings: () => [...state.bindings.values()],
         bind: (_caller: ActionCallContext, value: ActionSceneBinding) => { state.bindings.set(value.binding_id, value); },
         // A read-only callback: it is handed no way to write, and the ledger agrees.
         prepare: (_caller: ActionCallContext, event: unknown) => {
@@ -113,13 +113,14 @@ function probe(short: string, options: ProbeOptions = {}) {
   return { id, short, scene, definition, state, wait, bare, serial, look };
 }
 
-async function platform(t: TestContext) {
+async function platform(t: TestContext, partial: Probe[] = [], sceneQuery = true) {
   const home = mkdtempSync(join(tmpdir(), "plugin-judgments-")), file = join(home, "project.db");
   seedDemoBoard(file);
   const store = new LocalProjectDatabase(file), actions = pluginActions(store, DEMO_PROJECT_ID);
   const ports = { db: store.db, appendEvent: (event: Parameters<LocalProjectDatabase["appendEvent"]>[0]) => store.appendEvent(event),
     eventCursor: (projectId: string) => store.eventCursor(projectId) };
-  const running = createPluginPlatform({ actions, project_id: DEMO_PROJECT_ID, actor_id: "tester", db: store.db, journal: store,
+  const running = createPluginPlatform({ actions: sceneQuery ? actions : { ...actions, registry: { registerProvider: actions.registry.registerProvider.bind(actions.registry) } },
+    project_id: DEMO_PROJECT_ID, actor_id: "tester", db: store.db, journal: store,
     artifacts: new ArtifactsModule(ports), processItems: new ProcessItemsModule(ports), ui: new UiHost(),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
     home: { directory: home, completeText: () => null, stores: homeStoreRegistry(homeStores().stores) } });
@@ -131,8 +132,8 @@ async function platform(t: TestContext) {
   });
   const main = probe("judgemain"), other = probe("judgeother"), lean = probe("judgelean", { scenePermissions: [] }), readonly = probe("judgeread", { grants: [JR] });
   const ungranted = probe("judgeungranted", { grants: [] }), sceneless = probe("judgesceneless", { scene: false });
-  const all = [main, other, lean, readonly, ungranted, sceneless];
-  const started = await running.start(all.map(item => ({ definition: item.definition, trust: { level: "host" as const } })));
+  const all = [main, other, lean, readonly, ungranted, sceneless, ...partial];
+  const started = await running.start(all.map(item => ({ definition: item.definition, trust: { level: "host" as const }, dual_instance: partial.includes(item) })));
   assert.deepEqual(started.running.toSorted(), all.map(item => item.id).toSorted(), JSON.stringify(started));
   actions.registry.registerProvider({ provider: { provider_id: "system-judgments", title: "判断", kind: "system" }, definitions: [judgment, failing],
     handlers: [{ ...judgment, handle: () => ({ follow_up: true }) }, { ...failing, handle: () => { throw new ActionError("actions.service_unavailable", "the judgment is down"); } }] });
@@ -148,7 +149,7 @@ async function platform(t: TestContext) {
     return install.install_id;
   };
   const noted = (short: string, name: string) => store.db.prepare(`SELECT 1 FROM ${short}_notes WHERE text = ?`).get(name) !== undefined;
-  return { home, running, client: actions.client, main, other, lean, readonly, ungranted, sceneless, ledger, seed, noted, installOf, add };
+  return { home, running, registry: actions.registry, client: actions.client, main, other, lean, readonly, ungranted, sceneless, ledger, seed, noted, installOf, add };
 }
 
 type Env = Awaited<ReturnType<typeof platform>>;
@@ -182,6 +183,91 @@ async function runScene(env: Env, item: Probe, step: SceneStep, text: string, fn
 
 const refused = (error: { code?: string; message?: string } | undefined, code: string, why?: RegExp) => error?.code === code && (why === undefined || why.test(error.message ?? ""));
 const subjects = (env: Env, scene: string) => env.ledger().filter(row => row.scene_id === scene).map(row => `${row.subject.project_id}/${row.subject.id}`).toSorted();
+
+/** A real kernel scene registration for the half that this test leaves out of its project Runtime contribution. */
+const registerScene = (env: Env, scene: ActionSceneDefinition, provider: ActionProvider) => env.registry.registerProvider({
+  provider, definitions: [], handlers: [], scenes: [scene],
+  scene_handlers: [{ scene_id: scene.scene_id, version: scene.version, bindings: () => [], bind: () => {}, consume: () => {} }],
+});
+const sceneOwner = (env: Env, item: Probe): ActionProvider => ({ provider_id: item.id, plugin_id: item.id,
+  plugin_install_id: env.installOf(item), kind: "plugin", title: item.id, project_id: DEMO_PROJECT_ID });
+
+test("R61-P2-01 S-90 a partially registered plugin refuses the declared scene actually held by another provider without changing any ledger row", async t => {
+  const partial = probe("judgepartial", { sceneId: "io.molis.work.example.judgeother.arrived", omitScene: true });
+  const env = await platform(t, [partial]), scene = partial.scene.scene_id;
+  assert.equal(env.running.runtime.list().find(item => item.plugin_id === partial.id)?.state, "running", "the real partial Runtime has live actions but leaves its scene to the other half");
+  assert.equal(env.registry.sceneProvider(partial.scene, DEMO_PROJECT_ID)?.plugin_id, env.other.id, "the kernel really resolves the same declared id to the other plugin");
+  env.seed(scene, "old-own", DEMO_PROJECT_ID, "ok", env.installOf(partial));
+  env.seed(scene, "other-install", DEMO_PROJECT_ID, "ok", env.installOf(env.other));
+  env.seed(scene, "host", DEMO_PROJECT_ID); env.seed(scene, "other-project", OTHER_PROJECT, "ok", env.installOf(partial));
+  const before = env.ledger();
+  assert.throws(() => partial.state.services!.judgments!.latest(scene), { code: "plugin.scene_not_declared" }, "latest remains synchronous outside an action and rejects the foreign registration");
+  const write = await inAction(env, partial, { step: "record", subject: "must-not-land" });
+  assert.ok(refused(write.error, "plugin.scene_not_declared"), String(write.error?.message));
+  assert.deepEqual(env.ledger(), before, "neither a judgment nor failure accounting was added, and all existing rows are unchanged");
+});
+
+test("R61-P2-01 R61-P2-03 S-90 current provider and installation identity are checked on every synchronous read and write", async t => {
+  const partial = probe("judgeidentity", { omitScene: true }), env = await platform(t, [partial]);
+  const scene = partial.scene.scene_id, expected = sceneOwner(env, partial);
+  const before = env.ledger();
+  const refusedBoth = async () => {
+    assert.throws(() => partial.state.services!.judgments!.latest(scene), { code: "plugin.scene_not_declared" });
+    const write = await inAction(env, partial, { step: "record" });
+    assert.ok(refused(write.error, "plugin.scene_not_declared"), String(write.error?.message));
+    assert.deepEqual(env.ledger(), before);
+  };
+  await refusedBoth(); // The declared scene has no registration yet.
+  for (const provider of [{ ...expected, plugin_install_id: env.installOf(env.other) }, { ...expected, provider_id: "another-actual-provider" }]) {
+    const dispose = registerScene(env, partial.scene, provider);
+    try { assert.equal(env.registry.sceneProvider(partial.scene, DEMO_PROJECT_ID)?.plugin_id, partial.id); await refusedBoth(); }
+    finally { dispose(); }
+  }
+  const dispose = registerScene(env, partial.scene, expected);
+  const write = await inAction(env, partial, { step: "record", subject: "mine" });
+  assert.equal(write.error, undefined, String(write.error?.message));
+  const saved = partial.state.services!.judgments!.latest(scene);
+  assert.ok(Array.isArray(saved), "the live instance can still read synchronously outside an action");
+  assert.deepEqual(saved.map(row => row.subject.id), ["mine"]);
+  dispose();
+  const recorded = env.ledger();
+  assert.throws(() => partial.state.services!.judgments!.latest(scene), { code: "plugin.scene_not_declared" });
+  assert.ok(refused((await inAction(env, partial, { step: "record", subject: "after-stop" })).error, "plugin.scene_not_declared"));
+  assert.deepEqual(env.ledger(), recorded, "withdrawal takes effect immediately without deleting or appending ledger rows");
+  const restore = registerScene(env, partial.scene, expected);
+  try {
+    assert.deepEqual(partial.state.services!.judgments!.latest(scene), saved, "a real restored registration is observed without a cached miss");
+    const resumed = await inAction(env, partial, { step: "record", subject: "after-restore" });
+    assert.equal(resumed.error, undefined, String(resumed.error?.message));
+    assert.deepEqual(partial.state.services!.judgments!.latest(scene).map(row => row.subject.id).toSorted(), ["after-restore", "mine"]);
+  }
+  finally { restore(); }
+});
+
+test("R61-P2-02 S-90 another provider's version contributes no subject kind to this installation's declared scene", async t => {
+  const partial = probe("judgeversions"), foreign = { ...partial.scene, version: 2, subject_kinds: ["private_kind"] };
+  partial.definition.manifest = { ...partial.definition.manifest, action_scenes: [partial.scene, foreign] };
+  const env = await platform(t, [partial]);
+  const dispose = registerScene(env, foreign, sceneOwner(env, env.other));
+  try {
+    assert.equal(env.registry.sceneProvider(partial.scene, DEMO_PROJECT_ID)?.plugin_id, partial.id);
+    assert.equal(env.registry.sceneProvider(foreign, DEMO_PROJECT_ID)?.plugin_id, env.other.id);
+    const before = env.ledger(), rejected = await inAction(env, partial, { step: "record", kind: "private_kind" });
+    assert.ok(refused(rejected.error, "actions.forbidden"), String(rejected.error?.message));
+    assert.deepEqual(env.ledger(), before);
+    const own = await inAction(env, partial, { step: "record", subject: "own-kind" });
+    assert.equal(own.error, undefined, String(own.error?.message));
+    assert.deepEqual(partial.state.services!.judgments!.latest(partial.scene.scene_id).map(row => row.subject.id), ["own-kind"]);
+  } finally { dispose(); }
+});
+
+test("R61-P2-03 S-90 a Host without a synchronous scene identity port refuses ledger reads and writes", async t => {
+  const env = await platform(t, [], false), before = env.ledger();
+  assert.ok(env.registry.sceneProvider(env.main.scene, DEMO_PROJECT_ID), "the actual scene is registered, but the composition did not supply its lookup port");
+  assert.throws(() => env.main.state.services!.judgments!.latest(env.main.scene.scene_id), { code: "plugin.scene_not_declared" });
+  assert.ok(refused((await inAction(env, env.main, { step: "record" })).error, "plugin.scene_not_declared"));
+  assert.deepEqual(env.ledger(), before);
+});
 
 test("RAC-840 S-90 the service exists only for a plugin that declares judgments:read or judgments:write and has scenes of its own", async t => {
   const env = await platform(t);

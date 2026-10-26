@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import type { FixedVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { CodingResultDocument } from "@molis-ai/molis-work-contracts/modules/coding";
-import type { ShelfArtifactPreview } from "@molis-ai/molis-work-contracts/modules/shelf";
+import type { ShelfArtifactPreview } from "@molis-ai/molis-work-module-shelf/contract";
 import { shelfErrors } from "@molis-ai/molis-work-module-shelf";
 
 /** The answer must be the document's four fields; anything else is Coding's fault, not text to put on the shelf. */

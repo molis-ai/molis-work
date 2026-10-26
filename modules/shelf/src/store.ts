@@ -24,7 +24,7 @@ import type {
   ShelfMaterialPorts,
   ShelfAiPorts,
   ShelfAiStatus,
-} from "@molis-ai/molis-work-contracts/modules/shelf";
+} from "./contract.js";
 import { isShelfFailure, readShelfCopy, shelfErrors } from "./errors.js";
 import { assertOriginsUntouched, contentHash } from "./copy-checks.js";
 import { markdownFromExtract } from "./extract.js";

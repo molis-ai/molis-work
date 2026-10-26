@@ -4,7 +4,7 @@ import { shortcutActions } from "./model.js";
 import { expandShelfStage, paintPreview, syncShelfStage } from "./preview.js";
 import { post } from "./request.js";
 import type { SettingsPatch, ShelfPage } from "./types.js";
-import type { ShelfDeviceSettings, ShelfItemKind } from "@molis-ai/molis-work-contracts/modules/shelf";
+import type { ShelfDeviceSettings, ShelfItemKind } from "@molis-ai/molis-work-module-shelf/contract";
 
 /** Saves a patch of this device's settings and keeps the answer as the snapshot's. */
 export async function saveSettings(page: ShelfPage, patch: SettingsPatch): Promise<ShelfDeviceSettings> {

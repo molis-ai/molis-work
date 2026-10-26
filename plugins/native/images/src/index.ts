@@ -5,6 +5,7 @@ export const packageDescriptor = {
 } as const;
 export * from "./contract.js";
 export * from "./manifest.js";
+export { IMAGES_SHELF_ADMIT, type ShelfAdmitFile } from "./shelf-admit.js";
 export * from "./service.js";
 export * from "./error.js";
 export * from "./ui.js";

@@ -40,7 +40,7 @@
 
 | 合同 | 为什么不在这一片 |
 | --- | --- |
-| `shelf` | BL-618：合同的主人改成 `modules/shelf`；Images 的 `SHELF_ADMIT_ACTION` 既当权限清单又交给 `bindPluginActionRoute`，要改成按动作 id 调用，是 Images 路由和 SDK 路由绑定的改动 |
+| `shelf` | 已做，见 [bl618-shelf-contract.md](bl618-shelf-contract.md)：合同的主人改成 `modules/shelf`；Images 就地声明自己用到的那一部分、按动作 id 调用，不 import |
 | `feed` | 归 FI-5/FI-6（`slices/feed-inbox-runtime.md`，ac-sandbox-sched）：宿主 4 个文件、`modules/feed`、两个官方集成都在用，Feed 迁 Runtime 时一起挪 |
 | `characters`（含 `characters-errors`、`character-import`） | `modules/characters`、宿主 9 个文件、Coding、`horizontal` 在用：它是平台的 Character 名词，不是某个插件独有的事实，留在平台（统筹 2026-10-26 定） |
 | `goals` 与 `goal-*` | 随 Goals 上 Runtime（S11，PR #1295，ac-sc3 线）；使用方有 `modules/goals`（42 个文件）、宿主（11）、工作台（4）、MCP、CLI、测试套件 |

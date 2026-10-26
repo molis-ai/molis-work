@@ -7,7 +7,7 @@ import type {
   ShelfClipboardRecord,
   ShelfItemKind,
   ShelfItemRecord,
-} from "@molis-ai/molis-work-contracts/modules/shelf";
+} from "@molis-ai/molis-work-module-shelf/contract";
 import { icon, renderButton } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { SHELF_GLYPH, glyphForKind, toneForKind } from "./glyphs.js";
 

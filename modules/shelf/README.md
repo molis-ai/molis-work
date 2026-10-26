@@ -45,7 +45,7 @@ node scripts/run-tests.mjs tests/shelf-plugin.test.ts
 
 - 负责：个人置物架：材料副本、副本任务、Hash、提取结果组织与剪贴板历史。
 - 不负责：项目 Goal 事实、Artifact 版本、桌面轮盘与热键。
-- 公开入口：`@molis-ai/molis-work-module-shelf`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/shelf`。
+- 公开入口：`@molis-ai/molis-work-module-shelf`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-module-shelf/contract`（`src/contract.ts`，Shelf 的事实在这里，别的插件按动作 id 调用 `shelf.items.admit`，不 import 它）。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`。方向：只依赖 contracts/modules、contracts/services 与 plugin-sdk（执行生命周期）；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 不写回原件；原路径只用于事后 Hash 校验，不进 Prompt 或 API。
@@ -68,7 +68,7 @@ node scripts/run-tests.mjs tests/shelf-plugin.test.ts
 - [Shelf 插件需求](../../specs/archive/shelf-plugin/spec.md)
 
 - Status: `partial`
-- Contract entrypoint: `@molis-ai/molis-work-contracts/modules/shelf`
+- Contract entrypoint: `@molis-ai/molis-work-contracts/platform/plugin`（平台协议）；Shelf 自己的数据合同 `@molis-ai/molis-work-module-shelf/contract`
 - Migration Goals: `goal-reorg-f2`
 
 ## 被动发现与真实执行

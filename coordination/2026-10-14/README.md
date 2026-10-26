@@ -3655,3 +3655,17 @@ $L <标签> env LOCK_DIR=$B $L <标签>-browser node scripts/run-tests.mjs > 日
     - 跨插件数据走 Feed 公开动作，Inbox 在 consumes 里声明，包括证据内容、来源授权核查、ensure/reopen/flush。
     - 平台本来拥有的事实各做一片平台服务，交 ac-platform：场景加判断台账、Functions 绑定、ContextMaterialization 余项。每片带 SI 行和拒绝测试，只作用于自己声明的场景和函数，不放宽边界，非放宽不可的停下弹窗。
     - 设计稿 §1.2 原来把 Inbox 当成 attention 上的薄壳，这个前提作废。
+- 10-26 01:40 UTC：**batch-40（#1308）落地** main `2b3dc51de`，tree 与批头 `13931f51b` 相同。
+  - Verify 全绿（含 Security 2/2、Product 子集 2/2）。修复增量评审 6404309473 只挡 1 项，workbench.js 预算差 20 B，已修。
+  - 全量 40233009349 红的 15 个文件已逐个修复或归因。按用户 10-18 的规则不重跑全量。
+  - 已关 #1302、#1285、#1267、#1271。已删 `integration/carrier-1025-40`、`claude/b40-pg071-fixes`、`ac-clients-pg070-071`。`claude/ac-trust-t5`（#1285 源，T5 provider 列表重构没带进来，main 上已是终态）留给 ac-coding 清。R-55 关。
+  - batch-41 已并 batch-40 终头，并 `-s ours` main。又并进 #1306 + F1 `3c4aedbc5`、I1 目录状态 `99c6561a9`、RAC-773 可见说明 `3ebac8d0f`（PIPE 6404410441、REVIEW 6404412241）。
+  - **用户弹窗定三项**（都选推荐）：
+    - P4：场景作用域写 Attention 与情境账，有条件放开。交 ac-platform，叠在 `claude/ac-platform-scenes` 上。
+    - R-58：Linux probe 拆分片并装 uv。交 ac-shell。
+    - R-59：入口先解析 Home 真实路径，Home 内部的链接照拒。交 ac-shell，`claude/ac-shell-r58-r59`。
+  - 新登记 R-60：判断账和项目库两步写，不是原子的（FI-6 P2 的已知限制）。
+  - batch-41 还在等：
+    - T7+T3b：T5b 改号 S-87，restore/enable 补查撤回。
+    - PG-024：跨项目共用的文件不删。
+    - A3：重启后两个开发插件、版本对不上就拒、开发运行的 S-82。

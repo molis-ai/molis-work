@@ -71,7 +71,7 @@ async function fixture(t: import("node:test").TestContext) {
   return { reference, scenes: host.sceneClient(reference), person, feed, item, entry, start, judged: () => judged, caller: () => last! };
 }
 
-test("RAC-1014: Home's dock judgment is reachable by a plugin only with the grants the scene and its offers ask, and a plugin's own call is not widened to read an Inbox entry's Feed item", { timeout: 120_000 }, async t => {
+test("RAC-1014: Home's dock judgment is reachable by a plugin only with the grants the scene and its offers ask, and a plugin's own call reaches an Inbox entry's Feed item with its own grants", { timeout: 120_000 }, async t => {
   const f = await fixture(t);
   await f.person.invoke(WRITE_RULE, { function_key: "system_pick_home_dock" });
   const judge = await f.start("judge", [...JUDGE, ...OFFERED]), plain = await f.start("plain", JUDGE), nobody = await f.start("nobody", ["actions:invoke", "feed:read", ...OFFERED]);
@@ -82,14 +82,15 @@ test("RAC-1014: Home's dock judgment is reachable by a plugin only with the gran
   await assert.rejects(nobody.run(directory => directory.invoke(HOME_JUDGMENT_EVALUATE, { subjects: [entry] })));
   // The default rule covers Inbox entries; a Feed item is not its subject.
   await assert.rejects(judge.run(directory => directory.invoke(HOME_JUDGMENT_EVALUATE, { subjects: [{ kind: "feed_item", id: f.item.item_id }] })), { code: "actions.subject_incompatible" });
-  // The dock reads an entry through the Inbox, which reads the Feed item behind it for the caller (S-43). The caller here is a plugin's own grants,
-  // and the directory does not widen those to the workflow audience: the judgment is refused before the model, and nothing is recorded.
-  await assert.rejects(judge.run(directory => directory.invoke(HOME_JUDGMENT_EVALUATE, { subjects: [entry] })), { code: "actions.forbidden" });
-  assert.equal(f.judged(), 0, "no call reached the model");
-  assert.deepEqual((await f.person.invoke(RECOMMENDATIONS, {})).judgments, []);
+  // The dock reads an entry through the Inbox, which reads the Feed item behind it for the caller (S-43). The caller here is a plugin's own call;
+  // the directory keeps it that (user decision 2026-10-26): the Feed item is reached with the plugin's own grants, so the judgment is made.
+  const made = await judge.run(directory => directory.invoke(HOME_JUDGMENT_EVALUATE, { subjects: [entry] })) as { judgments: JudgmentRecord[] };
+  assert.equal(f.judged(), 1, "the call reached the model once");
+  assert.deepEqual(made.judgments.map(row => [row.outcome, row.subject.kind, row.subject.id]), [["ok", "inbox_entry", f.entry.entry_id]]);
+  assert.deepEqual((await f.person.invoke(RECOMMENDATIONS, {})).judgments.map(row => row.judgment_id), made.judgments.map(row => row.judgment_id));
 });
 
-test("RAC-1015: Feed's trigger passes over a dock with nothing to judge, and does not hide a refusal it cannot get past", { timeout: 120_000 }, async t => {
+test("RAC-1015: Feed's trigger passes over a dock with nothing to judge, judges an entry the dock covers, and does not hide a refusal it cannot get past", { timeout: 120_000 }, async t => {
   const f = await fixture(t);
   const judge = await f.start("judge", [...JUDGE, ...OFFERED]), plain = await f.start("plain", JUDGE);
   const entry = { kind: "inbox_entry" as const, id: f.entry.entry_id }, item = { kind: "feed_item" as const, id: f.item.item_id };
@@ -104,8 +105,8 @@ test("RAC-1015: Feed's trigger passes over a dock with nothing to judge, and doe
   assert.equal(f.judged(), 0, "a plugin that cannot reach what the rule recommends finds the dock unavailable and passes over it");
   await trigger(judge, item);
   assert.equal(f.judged(), 0, "an item the rule does not cover is passed over");
-  await assert.rejects(trigger(judge, entry), { code: "actions.forbidden" });
-  assert.equal(f.judged(), 0);
+  await trigger(judge, entry);
+  assert.equal(f.judged(), 1, "an entry the rule covers is judged as the plugin");
   await assert.rejects(trigger(judge, entry, "another-project"), { code: "actions.scope_mismatch" });
 });
 

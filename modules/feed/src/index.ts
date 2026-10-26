@@ -55,4 +55,3 @@ export class FeedModule implements FeedApi {
     this.events = { list: (projectId: string, itemId?: string) => records.listEvents(projectId, itemId) };
   }
 }
-

@@ -39,4 +39,3 @@ export function createWebQueryIntegrationPlugin(input: {
     now: input.now,
   });
 }
-

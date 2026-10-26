@@ -1,7 +1,7 @@
 import { LINGGUANG_ACTIONS, LINGGUANG_ACTION_PERMISSIONS } from "./actions.js";
 import { lingguangContentActions } from "./content-actions.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { LINGGUANG_PLUGIN_ID, LINGGUANG_PROJECT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/lingguang";
+import { LINGGUANG_PLUGIN_ID, LINGGUANG_PROJECT_PLUGIN_ID } from "./contract.js";
 import { LINGGUANG_UI_CONTRIBUTION_ID } from "./ui.js";
 import { LINGGUANG_DATABASE } from "./database.js";
 

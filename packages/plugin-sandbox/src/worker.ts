@@ -42,6 +42,11 @@ function sdk(callId: string): SandboxSdk {
       all: (sql, parameters) => invoke('projectDatabase.all', [sql, parameters ?? []]) as Promise<SandboxSqlRow[]>,
       transaction: statements => invoke('projectDatabase.transaction', [statements.map(item => ({ sql: item.sql, parameters: item.parameters ?? [] }))]) as Promise<Array<{ changes: number }>>,
     },
+    homeDatabase: {
+      get: (sql, parameters) => invoke('homeDatabase.get', [sql, parameters ?? []]) as Promise<SandboxSqlRow | null>,
+      all: (sql, parameters) => invoke('homeDatabase.all', [sql, parameters ?? []]) as Promise<SandboxSqlRow[]>,
+      transaction: statements => invoke('homeDatabase.transaction', [statements.map(item => ({ sql: item.sql, parameters: item.parameters ?? [] }))]) as Promise<Array<{ changes: number }>>,
+    },
     connections: {
       request: (slot, request) => answer<SandboxConnectionResponse>(invoke('connections.request', [slot, json(request)])),
       describe: (slot, record) => answer<SandboxConnectionDescription>(invoke('connections.describe', [slot, record ?? null])),

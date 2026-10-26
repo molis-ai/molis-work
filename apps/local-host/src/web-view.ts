@@ -1,4 +1,4 @@
-import { goalsActions, type GoalsDocumentCollectionView } from "@molis-ai/molis-work-plugin-goals";
+import { emptyGoalsDocumentCollection, goalsActions, type GoalsDocumentCollectionView } from "@molis-ai/molis-work-plugin-goals";
 import { ActionError, type ActionDefinition, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { expectingRefusal, newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { feedQueryActions, type FeedSnapshot } from "@molis-ai/molis-work-plugin-feed";
@@ -75,9 +75,11 @@ export async function cachedMolisWorkWebView(
   store: LocalProjectDatabase,
   options: WebViewOptions,
   actions: BoundActionClient,
+  goalsHere = true,
 ): Promise<MolisWorkWebView> {
-  // Always authorize through the shared service before reusing any cached content.
-  const collection = await actions.invoke(goalsActions.collection, {});
+  // Always authorize through the shared service before reusing any cached content. A project without Goals (RAC-400, by its plugin list)
+  // reads as one with none; in a project with Goals, a read Goals refuses is an error to show.
+  const collection = goalsHere ? await actions.invoke(goalsActions.collection, {}) : emptyGoalsDocumentCollection(options.projectId);
   const cursor = collection.snapshot.cursor;
   const optionsFingerprint = JSON.stringify({
     project_id: options.projectId,
@@ -88,6 +90,8 @@ export async function cachedMolisWorkWebView(
     projects: options.projects ?? [],
     route_prefix: options.routePrefix ?? "",
     home_directory: options.homeDirectory ?? "",
+    // A view drawn without Goals is not the one to reuse once Goals is added, even at the same cursor.
+    goals_here: goalsHere,
     // Materials bound to a Goal are written without a journal event, so the cursor alone would keep an old list.
     input_bindings: collection.input_bindings.map(binding => [binding.binding_id, binding.state]),
   });

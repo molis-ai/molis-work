@@ -55,13 +55,34 @@ export function assertTrustFitsExecution(trust: PluginTrust, execution: "host" |
 }
 
 /**
- * Where a plugin runs is its Manifest's (`runtime.scope`, PG-011), but nothing a plugin writes can start it in the Home: only code of
- * the Host's build is started there (its Home registration), so an installed or generated plugin that writes `runtime.scope: "home"`
- * is refused at install, until the sandbox host can run a Home instance. This is the one place that says so.
+ * Where a plugin runs is its Manifest's (`runtime.scope`, PG-011), but nothing a plugin writes can put its code in the Host's process:
+ * only code of the Host's build is started there (its Home registration). A plugin that writes `runtime.scope: "home"` is installed only
+ * when it is of the Host's build, or when it is a sandboxed definition under a pinned publisher, the one path S-84 verifies (signature,
+ * pinned publisher, the person's confirmation) and the one that runs its code in the sandbox, never in the Host (BL-628, S-80; the person
+ * decided 2026-10-26). An unsigned or generated plugin, and a pinned one that would run in the Host, are refused at install. This is the one
+ * place that says so.
  */
-export function assertHomeScopeAllowed(manifest: PluginManifest, trust: PluginTrust): void {
-  if (manifest.runtime?.scope === "home" && !isHostTrust(trust)) {
-    throw pluginErrors.home_scope_unavailable("Home 级插件要等沙箱宿主支持 Home 实例：现在只有随宿主发布的插件能在 Home 里运行，请删掉 Manifest 的 runtime");
+export function assertHomeScopeAllowed(manifest: PluginManifest, trust: PluginTrust, execution: "host" | "sandbox"): void {
+  if (manifest.runtime?.scope !== "home" || isHostTrust(trust)) return;
+  if (trust.level === "pinned" && execution === "sandbox") return;
+  throw pluginErrors.home_scope_unavailable("Home 级插件只有随宿主发布的、或来自已固定发布者的签名沙箱包才能装：请删掉 Manifest 的 runtime，或改用签名的沙箱包");
+}
+
+/**
+ * The Runtime a plugin is installed into is the one its Manifest names (BL-628): a plugin that is not of the Host's build and writes
+ * `runtime.scope: "home"` is never installed into a project's Runtime, and a signed package that writes none is never installed into the
+ * Home's. Without this an entry that guessed wrong, or a package whose scope was changed, would run in a place its Manifest never asked
+ * for. The Host's own build is not asked (the halves of a dual-instance plugin share one Manifest and run in both), and neither is a
+ * definition the Host itself was handed for a test (`unsigned`): only the Host's configuration can put one in the Home.
+ */
+export function assertScopeFitsRuntime(manifest: PluginManifest, trust: PluginTrust, runtimeScope: "home" | "project" | undefined): void {
+  if (runtimeScope === undefined || isHostTrust(trust)) return;
+  const declaredHome = manifest.runtime?.scope === "home";
+  if (runtimeScope === "project" && declaredHome) {
+    throw pluginErrors.home_scope_unavailable("这个插件的 Manifest 声明了 runtime.scope: home，只能装进 Home，不能装进项目");
+  }
+  if (runtimeScope === "home" && trust.level === "pinned" && !declaredHome) {
+    throw pluginErrors.home_scope_unavailable("这个插件的 Manifest 没有声明 runtime.scope: home，只能装进项目，不能装进 Home");
   }
 }
 
@@ -77,10 +98,11 @@ export function assertLocalToolsAllowed(manifest: PluginManifest, trust: PluginT
   }
 }
 
-/** What `install` asks of a definition's trust: it fits where the code runs, and a Home scope or a look for local tools in the Manifest is the Host build's alone. */
+/** What `install` asks of a definition's trust: it fits where the code runs, a Home scope in the Manifest is the Host build's or a pinned sandbox package's, and a look for local tools is the Host build's alone. */
 export function assertTrustFitsDefinition(definition: PluginDefinition, trust: PluginTrust): void {
-  assertTrustFitsExecution(trust, definition.execution ?? "host");
-  assertHomeScopeAllowed(definition.manifest, trust);
+  const execution = definition.execution ?? "host";
+  assertTrustFitsExecution(trust, execution);
+  assertHomeScopeAllowed(definition.manifest, trust, execution);
   assertLocalToolsAllowed(definition.manifest, trust);
 }
 

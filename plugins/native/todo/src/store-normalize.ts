@@ -1,4 +1,4 @@
-import type { TodoEditableField, TodoItem, TodoLinkKind, TodoRelation, TodoSource } from "@molis-ai/molis-work-contracts/modules/todo";
+import type { TodoEditableField, TodoItem, TodoLinkKind, TodoRelation, TodoSource } from "./contract.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { isTodoDate, isTodoInstant, isTodoTime } from "./dates.js";
 import { todoErrors } from "./error.js";

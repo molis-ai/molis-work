@@ -18,7 +18,7 @@ import {
 } from "./workbench-renderer-fixture.js";
 
 import { serveLingguang } from "./fixtures/lingguang-runtime.js";
-import type { LingguangSpark } from "@molis-ai/molis-work-contracts/modules/lingguang";
+import type { LingguangSpark } from "@molis-ai/molis-work-plugin-lingguang/contract";
 import type { LingguangConversationState } from "@molis-ai/molis-work-plugin-lingguang";
 import { PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, builtinMarketDirectory } from "@molis-ai/molis-work-app-local-host";
 import { withHostPluginFacts } from "./fixtures/host-plugin-facts.js";

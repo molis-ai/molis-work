@@ -1,18 +1,18 @@
 import { createHash } from "node:crypto";
 import { inboxErrors } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import { ActionError, type ActionCallContext, type ActionExecutionContext, type SubjectOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
-import { PAGES_PLUGIN_ID, type PagesGenerationRecord, type PagesInputSnapshot, type PagesRecord } from "@molis-ai/molis-work-contracts/modules/pages";
+import { PAGES_PROVIDER_ID, type InboxPagesDocument, type InboxPagesGeneration, type InboxPagesInputSnapshot } from "./pages-shapes.js";
 import type { InboxPagesInput, InboxPagesMaterialRef } from "./actions.js";
 
 interface InboxPagesPorts {
-  generation(requestId: string, caller: ActionCallContext): Promise<PagesGenerationRecord | null>;
-  generations(caller: ActionCallContext): Promise<PagesGenerationRecord[]>;
-  readDocument(id: string, caller: ActionCallContext): Promise<PagesRecord>;
-  generate(input: Pick<PagesGenerationRecord, "request_id" | "request_hash" | "inputs" | "title" | "instructions">, caller: ActionCallContext): Promise<{ document: PagesRecord; replayed: boolean }>;
-  readMaterial(entryId: string, caller: ActionCallContext): PagesInputSnapshot | Promise<PagesInputSnapshot>;
+  generation(requestId: string, caller: ActionCallContext): Promise<InboxPagesGeneration | null>;
+  generations(caller: ActionCallContext): Promise<InboxPagesGeneration[]>;
+  readDocument(id: string, caller: ActionCallContext): Promise<InboxPagesDocument>;
+  generate(input: Pick<InboxPagesGeneration, "request_id" | "request_hash" | "inputs" | "title" | "instructions">, caller: ActionCallContext): Promise<{ document: InboxPagesDocument; replayed: boolean }>;
+  readMaterial(entryId: string, caller: ActionCallContext): InboxPagesInputSnapshot | Promise<InboxPagesInputSnapshot>;
 }
 
-export function inboxPagesMaterialReference(material: PagesInputSnapshot): InboxPagesMaterialRef {
+export function inboxPagesMaterialReference(material: InboxPagesInputSnapshot): InboxPagesMaterialRef {
   const { captured_at: _captured, ...content } = material;
   return { entry_id: material.entry_id, item_id: material.item_id, revision: material.revision,
     content_digest: createHash("sha256").update(JSON.stringify(content)).digest("hex") };
@@ -30,7 +30,7 @@ export function inboxPagesRequestHash(input: InboxPagesInput): string {
 export function createInboxPagesHandlers(ports: InboxPagesPorts) {
   return {
     preparePages: async (input: SubjectOffersInput, caller: ActionCallContext): Promise<InboxPagesInput | null> => {
-      let material: PagesInputSnapshot;
+      let material: InboxPagesInputSnapshot;
       try { material = await ports.readMaterial(input.subject.id, caller); }
       catch (error) { caller.signal?.throwIfAborted(); if (error instanceof ActionError) return null; throw error; }
       return { request_id: `inbox-pages:${createHash("sha256").update(JSON.stringify([input.request_id, input.subject.id])).digest("hex")}`,
@@ -52,7 +52,7 @@ export function createInboxPagesHandlers(ports: InboxPagesPorts) {
       if (existing && existing.request_hash !== request_hash) throw inboxErrors.invalid("材料或要求已改变，请重新生成");
       if (existing?.status === "completed" && existing.document_id) return { document: await ports.readDocument(existing.document_id, caller),
         replayed: true, request_id: input.request_id, entry_ids: entryIds };
-      const matches = (materials: readonly PagesInputSnapshot[]) => {
+      const matches = (materials: readonly InboxPagesInputSnapshot[]) => {
         if (expected && (materials.length !== expected.length || materials.some(material => {
           const ref = expected.find(value => value.entry_id === material.entry_id), current = inboxPagesMaterialReference(material);
           return !ref || ref.item_id !== current.item_id || ref.revision !== current.revision || ref.content_digest !== current.content_digest;
@@ -67,7 +67,7 @@ export function createInboxPagesHandlers(ports: InboxPagesPorts) {
         if (expected) matches(await currentMaterials());
         await caller.beforeEffect();
       } };
-      await guarded.validate_authority!({ capability_id: "pages.generate", version: 1, provider_id: PAGES_PLUGIN_ID });
+      await guarded.validate_authority!({ capability_id: "pages.generate", version: 1, provider_id: PAGES_PROVIDER_ID });
       const result = await ports.generate({ request_id: input.request_id, request_hash, inputs, instructions, title }, guarded);
       return { ...result, request_id: input.request_id, entry_ids: entryIds };
     },

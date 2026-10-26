@@ -7,7 +7,7 @@ import { pluginPagesFor } from "./plugin-page-authority.js";
 import { pluginPageActions } from "./plugin-page-actions.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { PluginDatabase, PluginDefinition, PluginManifest, PluginModelClient, PluginProjectDatabase, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { pluginErrors, type PluginDatabase, type PluginDefinition, type PluginManifest, type PluginModelClient, type PluginProjectDatabase, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginDirectoryService } from "@molis-ai/molis-work-contracts/platform/plugin-directory";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import { createPluginArtifactClient } from "@molis-ai/molis-work-module-artifacts";
@@ -117,6 +117,10 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
  * nothing, its own `stop` hook included.
  */
 function openDeclaredLibrary(options: PluginHostExecutorOptions, definition: PluginDefinition, context: PluginStartContext, assertActive: () => void) {
+  // A sandboxed package's library in the Home is the Home Runtime's (`openSandboxHomeLibrary`): a project's platform has no process to run its statements in.
+  if (definition.execution === "sandbox" && definition.manifest.databases?.home) {
+    throw pluginErrors.declaration_invalid(`沙箱插件 ${definition.manifest.plugin_id} 声明了 Home 库 ${definition.manifest.databases.home.store_name}，项目里运行的沙箱插件没有 Home 库，只有 Home Runtime 里的有`);
+  }
   const library = homeLibraryFor(definition, options.databaseFor?.(definition), options.record?.(context.install_id) ?? null);
   if (library === undefined) return undefined;
   if (!options.home) throw new Error(`插件 ${definition.manifest.plugin_id} 声明了 Home 库，但这个插件平台没有 Home`);

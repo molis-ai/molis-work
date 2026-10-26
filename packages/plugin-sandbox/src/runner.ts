@@ -50,7 +50,7 @@ export async function createSandboxRunner(options: SandboxRunnerOptions): Promis
   assertContract(options.contract); assertEffects(options.grants);
   const contract = structuredClone(options.contract), grants = structuredClone(options.grants);
   const identity = Object.freeze(structuredClone(options.identity));
-  if (identity.pluginId !== contract.pluginId || !identity.projectId || !identity.installationId || !['preview', 'installed'].includes(identity.namespace)) throw new SandboxError('sandbox.invalid_identity', 'Host identity does not match contract');
+  if (identity.pluginId !== contract.pluginId || (identity.projectId !== null && !identity.projectId) || !identity.installationId || !['preview', 'installed'].includes(identity.namespace)) throw new SandboxError('sandbox.invalid_identity', 'Host identity does not match contract');
   const limits = { ...DEFAULT_SANDBOX_LIMITS, ...options.limits };
   for (const [key, value] of Object.entries(limits)) if (!Number.isSafeInteger(value) || value <= 0) throw new SandboxError('sandbox.invalid_limit', `${key} must be a positive integer`);
   if (limits.heapMb < 16 || limits.messageBytes > 1024 * 1024 || limits.rssMb < limits.heapMb) throw new SandboxError('sandbox.invalid_limit', 'Invalid memory or channel bounds');

@@ -1,7 +1,7 @@
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginDefinition, PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginConsentGrant, PluginTrust } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
-import { assertConsentsDeclared, assertPluginTrust, assertTrustFitsDefinition } from "./trust-rules.js";
+import { assertConsentsDeclared, assertPluginTrust, assertScopeFitsRuntime, assertTrustFitsDefinition } from "./trust-rules.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 
 // Who an install may say it is (ac-trust T6, specs/repository-anti-corruption/slices/ac-trust-install.md §3.6, S-75). A publisher's
@@ -24,11 +24,12 @@ const nested = (a: string, b: string): boolean => a.startsWith(`${b}.`) || b.sta
  */
 export function assertInstallIdentity(
   input: { readonly trust: unknown; readonly definition: PluginDefinition; readonly consents?: readonly PluginConsentGrant[] },
-  installed: readonly PluginInstanceRecord[], hostIds: ReadonlySet<string>,
+  installed: readonly PluginInstanceRecord[], hostIds: ReadonlySet<string>, runtimeScope?: "home" | "project",
 ): PluginTrust {
   const trust = assertPluginTrust(input.trust);
   const { plugin_id: id, publisher } = input.definition.manifest;
   assertTrustFitsDefinition(input.definition, trust);
+  assertScopeFitsRuntime(input.definition.manifest, trust, runtimeScope);
   assertConsentsDeclared(input.definition.manifest, input.consents ?? []);
   if (trust.level === "pinned" ? publisher.signature !== trust.publisher_key_id : publisher.signature.trim().toLowerCase().startsWith(FINGERPRINT_FORM)) {
     throw pluginErrors.signer_mismatch("发布者签名只有验过的固定公钥才能写成指纹的形式；自己写的标签不能冒充某个发布者");
@@ -47,10 +48,11 @@ export function assertInstallIdentity(
 }
 
 /** Recheck normally loaded records before any activation; persisted pinned signatures are the key bound at installation. */
-export function assertStartIdentity(record: PluginInstanceRecord, definition: PluginDefinition, installed: readonly PluginInstanceRecord[], hostIds: ReadonlySet<string>): void {
+export function assertStartIdentity(record: PluginInstanceRecord, definition: PluginDefinition, installed: readonly PluginInstanceRecord[], hostIds: ReadonlySet<string>,
+  runtimeScope?: "home" | "project"): void {
   const trust: PluginTrust = record.publisher_trust === "pinned"
     ? { level: "pinned", publisher_key_id: record.publisher_signature } : { level: record.publisher_trust };
-  assertInstallIdentity({ trust, definition }, installed, hostIds);
+  assertInstallIdentity({ trust, definition }, installed, hostIds, runtimeScope);
 }
 
 /** An identity conflict needs changed installation facts, not repeated executor recovery attempts. */

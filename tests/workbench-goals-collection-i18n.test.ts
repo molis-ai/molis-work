@@ -37,11 +37,11 @@ function userGoal(trash: boolean): MolisWorkWebView["goals"][number] {
 
 const collections = [
   { name: "archive", trash: false, label: "Archived", pageTitle: "Archived Goals · Molis Work", emptyTitle: "No archived Goal yet",
-    note: "Can be restored any time", detail: "Historical facts are not deleted",
+    note: "Can be restored any time", detail: "A finished Goal can be archived from the top of its document. Historical facts are not deleted.",
     zhLabel: "已归档", zhTitle: "已归档 Goal · Molis Work", zhNote: "可随时恢复" },
   // The existing Host EN entry for 回收站 is "In trash"; Host words retain priority over the plugin's short label.
   { name: "trash", trash: true, label: "In trash", pageTitle: "Trash · Molis Work", emptyTitle: "Trash is empty",
-    note: "Recoverable; history and relation handling stay", detail: "Goals in trash can be restored here.",
+    note: "Recoverable; history and relation handling stay", detail: "Goals in trash can be restored here. They will not clutter the everyday Goal Tree.",
     zhLabel: "回收站", zhTitle: "回收站 · Molis Work", zhNote: "可恢复；历史与关联处理记录会保留" },
 ] as const;
 const entries = [{ name: "page", render: renderMolisWorkWeb }, { name: "refresh", render: renderMolisWorkRefreshFragment }] as const;
@@ -53,7 +53,8 @@ for (const entry of entries) for (const collection of collections) {
     if (entry.name === "page") {
       assert.ok(html.includes(`<title>${collection.pageTitle}</title>`), "the production document title comes from the collection model");
       assert.equal(/id="goal-document-pane"[^>]*aria-label="([^"]*)"/.exec(html)?.[1], collection.label, "collectionTitle labels the real document pane");
-      assert.ok(html.includes(collection.detail), "the full collection explanation is English");
+      const emptyCollection = /<div class="archive-empty">([\s\S]*?)<\/div>/.exec(html)?.[1];
+      assert.equal(/<p>([^<]*)<\/p>/.exec(emptyCollection ?? "")?.[1], collection.detail, "the actual empty-collection paragraph is English");
     } else {
       assert.ok(html.includes(`<small>${collection.note}</small>`), "the actual refresh footer consumes the collection model's English note");
       assert.ok(!html.includes(`<small>${collection.zhNote}</small>`));

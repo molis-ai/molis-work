@@ -4,7 +4,7 @@
  * host process, and its interface is the host's component renderer, so no plugin script runs in the page either.
  */
 import type { PluginDefinition, PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
-import type { SandboxEffects, SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import type { SandboxEffects, SandboxIdentity, SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { createSandboxRunner, sandboxServicesFor, SandboxError, type SandboxRunner, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import { resolvePluginComponentCall, validatePluginPresentation } from '@molis-ai/molis-work-design-system';
 import type { AgentRelease } from '@molis-ai/molis-work-plugin-builder';
@@ -27,7 +27,9 @@ export function generatedPluginManifest(release: Pick<AgentRelease, 'pluginId' |
 }
 
 /** `host.capability` serves the platform capabilities the person approved; the broker still checks each call against them. */
-export function sandboxedPluginDefinition(release: AgentRelease, approved: SandboxEffects, compatibleFrom: readonly number[], host: { capability?: SandboxServices['capability']; network?: SandboxServices['network']; capabilities?(): Promise<readonly CapabilityExecution[]> } = {},
+export function sandboxedPluginDefinition(release: AgentRelease, approved: SandboxEffects, compatibleFrom: readonly number[], host: { capability?: SandboxServices['capability']; network?: SandboxServices['network']; capabilities?(): Promise<readonly CapabilityExecution[]>;
+    /** Throws when the installation (or the publisher behind it) is no longer one that may act; asked before every effect of every service, storage included. */
+    assertLive?(identity: Readonly<SandboxIdentity>): void } = {},
   /** What an installed package declared (already checked against `sandboxPluginManifest`); a generated plugin's is written from its release. */
   declared?: PluginManifest): PluginDefinition {
   if (release.design.presentation !== undefined) validatePluginPresentation(release.design.presentation, release.design.parts, release.design.contract);
@@ -42,10 +44,11 @@ export function sandboxedPluginDefinition(release: AgentRelease, approved: Sandb
       context.requireGrant('storage:private');
       // What the Host built for this activation goes to the sandbox through the broker, which still checks each call against the grants.
       const services = sandboxServicesFor(context.services, host);
+      const identity: SandboxIdentity = { projectId: context.project_id ?? null, installationId: context.install_id, pluginId: release.pluginId, namespace: 'installed' };
       const open = (lane: Lane) => {
         const existing = lanes.get(lane); if (existing) return existing;
         const created = createSandboxRunner({ bundlePath: release.bundlePath, contract: release.design.contract, grants: approved, services,
-          identity: { projectId: context.project_id ?? 'local', installationId: context.install_id, pluginId: release.pluginId, namespace: 'installed' } });
+          identity });
         lanes.set(lane, created);
         created.catch(() => { if (lanes.get(lane) === created) lanes.delete(lane); });
         return created;
@@ -77,13 +80,13 @@ export function sandboxedPluginDefinition(release: AgentRelease, approved: Sandb
             const binding = capabilityPolicyBinding(operation.effects, capabilities);
             let policyChanged = false;
             const beforeEffect = async () => {
-              await request.execution?.beforeEffect(); request.execution?.signal?.throwIfAborted();
+              await request.execution?.beforeEffect(); request.execution?.signal?.throwIfAborted(); host.assertLive?.(identity);
               if (!host.capabilities || !dependencies.length) return;
               if (capabilityPolicyBinding(operation.effects, await host.capabilities()) !== binding) {
                 policyChanged = true;
                 throw new SandboxError('plugin_builder.capability_changed', '依赖能力的提供方、版本或执行策略已变更，本次调用已停止；请检查结果后再决定是否重试');
               }
-              await request.execution?.beforeEffect(); request.execution?.signal?.throwIfAborted();
+              await request.execution?.beforeEffect(); request.execution?.signal?.throwIfAborted(); host.assertLive?.(identity);
             };
             await beforeEffect();
             const lane: Lane = slowOperations({ operations: [operation] }, capabilities).has(call.operationId) ? 'slow' : 'quick', pending = open(lane), active = await pending;

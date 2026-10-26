@@ -67,19 +67,18 @@ export interface HomeLibraryGrant {
  * The library a running definition is given, `given` being what the Host's start list holds for it (`pluginEntryIdentity`) and `record`
  * its install record. None when its Manifest declares none. A plugin on the list gets the library the registry holds as its own. One
  * that is not on it, run by the Host (not sandboxed), gets its declared library under the ledger, with the publisher the install
- * record fixed at install time (`openInstalledPluginLibrary`); a sandboxed one has none, and does not start without the service it
- * declared.
+ * record fixed at install time (`openInstalledPluginLibrary`). A sandboxed one has the same, and its statements run in a process the Host
+ * can kill (`openSandboxHomeLibrary`, BL-490); only the Home Runtime builds that, so a project's platform refuses a sandboxed package
+ * that declares one (`openDeclaredLibrary`).
  */
 export function homeLibraryFor(definition: PluginDefinition, given: HomePluginDatabaseDeclaration | undefined, record: PluginInstanceRecord | null): HomeLibraryGrant | undefined {
   const declared = definition.manifest.databases?.home, id = definition.manifest.plugin_id;
   if (declared === undefined) return undefined;
-  if (given !== undefined) return { declaration: given };
+  // Sandbox definitions use the installed owner even when a start list gives an unrelated native binding.
+  if (given !== undefined && definition.execution !== "sandbox") return { declaration: given };
   if (declared.project_rows && definition.execution === "sandbox") throw sandboxRefusal(definition);
   if (declared.project_rows) {
     throw pluginErrors.declaration_invalid(`插件 ${id} 声明了 project_rows：启动名单之外的 Home 库还不能由平台按项目删（BL-620）`);
-  }
-  if (definition.execution === "sandbox") {
-    throw pluginErrors.declaration_invalid(`沙箱插件 ${id} 声明了 Home 库 ${declared.store_name}，沙箱里的代码拿不到宿主进程里的库`);
   }
   if (record === null || record.plugin_id !== id) {
     throw pluginErrors.declaration_invalid(`插件 ${id} 声明了 Home 库 ${declared.store_name}，但没有它的安装记录：库的发布者取自安装记录`);

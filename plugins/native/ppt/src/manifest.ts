@@ -4,7 +4,7 @@ import {
   PPT_ARTIFACT_TYPE_ID,
   PPT_PLUGIN_ID,
   PPT_PROJECT_PLUGIN_ID,
-} from "@molis-ai/molis-work-contracts/modules/ppt";
+} from "./contract.js";
 import { PPT_UI_CONTRIBUTION_ID } from "./ui.js";
 import { pptActions, PPT_ACTION_PERMISSIONS } from "./actions.js";
 import { pptContentActions } from "./content-actions.js";

@@ -10,6 +10,9 @@ import type { AgentBuilderPorts } from './installed-plugin-host.js';
 import type { InstalledRelease } from './installed-release.js';
 import { leaveRefusal, UNSIGNED_TRUST, type SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
 import type { PluginPlatform } from './plugin-platform.js';
+
+/** What the install lifecycle uses of a platform: a project's, or the Home's (BL-628). */
+export type InstalledPluginPlatform = Pick<PluginPlatform, 'runtime' | 'supervisor' | 'start' | 'consents' | 'upgrade' | 'rollback'>;
 import type { PluginSecrets } from './plugin-builder/secrets.js';
 import { changeInstalledVersion } from './installed-plugin-version.js';
 
@@ -19,13 +22,15 @@ export const covered = (next: SandboxEffects, approved: SandboxEffects) =>
   Object.entries(next).every(([key, values]) => (values as string[]).every(value => ((approved as Record<string, string[]>)[key] ?? []).includes(value)));
 
 export interface InstalledLifecycleContext {
-  platform: PluginPlatform;
+  platform: InstalledPluginPlatform;
   /** The project's own store, where approvals live. */
   storage: PluginPrivateStorage;
   privateStorage: SqlitePluginPrivateStorage;
   secrets: PluginSecrets;
   recoveryErrors: Map<string, string>;
   closed(): boolean;
+  /** Whether the publisher behind a package installation is still trusted (BL-559); a record not from a package always is. */
+  trusted(record: PluginInstanceRecord): boolean;
   recordFor(pluginId: string): PluginInstanceRecord | undefined;
   releaseFor(pluginId: string): InstalledRelease | undefined;
   approvedFor(pluginId: string): SandboxEffects | null;
@@ -137,6 +142,7 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
     if (refusal) throw refusal;
     if (action === 'disable') { c.withdraw(pluginId); platform.supervisor.revoke(pluginId); await platform.runtime.stop(record.install_id); c.registerPrompts(c.releaseFor(pluginId) ?? release, 'disabled'); return; }
     if (action === 'enable') {
+      if (!c.trusted(record)) throw pluginErrors.publisher_revoked('这个插件的发布者已被撤销信任，不能再启用；数据还在，可以卸载');
       const approved = c.approvedFor(pluginId), installed = c.releaseFor(pluginId) ?? release, packaged = c.releaseFor(pluginId)?.packaged;
       if (!approved) throw new Error('找不到此安装的批准记录，请先卸载并重新确认安装');
       // A switched-off plugin is unknown to the Supervisor after a restart: it is registered now, started below.

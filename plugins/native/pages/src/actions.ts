@@ -7,7 +7,7 @@ import { createPagesLandingHandlers, definePagesLandingActions } from "./landing
 import { MAX_BODY_CHARS, parsePagesBody } from "./document.js";
 import { blocksFromMarkdown } from "./paste-markdown.js";
 import { pagesErrors } from "./error.js";
-import { PAGES_ARTIFACT_TYPE_ID, PAGES_PLUGIN_ID, type PagesBody, type PagesFolder, type PagesRecord, type PagesInputSnapshot, type PagesGenerationRecord } from "@molis-ai/molis-work-contracts/modules/pages";
+import { PAGES_ARTIFACT_TYPE_ID, PAGES_PLUGIN_ID, type PagesBody, type PagesFolder, type PagesRecord, type PagesInputSnapshot, type PagesGenerationRecord } from "./contract.js";
 import { PAGES_AI_COMMANDS, type PagesAiRequest, type PagesAiResult } from "./ai.js";
 import { runPagesAi } from "./ai-run.js";
 import type { PagesImportFile, PreparedPagesImport } from "./import-files.js";

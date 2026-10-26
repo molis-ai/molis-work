@@ -1,4 +1,4 @@
-import type { TodoItem } from "@molis-ai/molis-work-contracts/modules/todo";
+import type { TodoItem } from "../contract.js";
 import { arrive, fromLocalInput, toLocalInput } from "./dom.js";
 import { installWorks, renderHistory, renderLinks, renderSources, renderWorks } from "./detail-panels.js";
 import { undoOf } from "./page.js";

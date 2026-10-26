@@ -31,6 +31,8 @@ export interface ArtifactHttpContext {
   readonly offeredActions: (file: HostOfferedOriginalFile) => BoundActionClient;
   /** A type owner's actions, bound with the permissions its preview declares (A4). */
   readonly ownerActions?: (permissions: readonly string[]) => BoundActionClient;
+  /** Whether this project has a Goal to take a version as its input; a project without Goals (RAC-400) does not offer 「作为 Goal 的输入」. */
+  readonly goalsAvailable?: () => Promise<boolean>;
   readonly controlToken: string;
   readonly desktopShell: boolean;
   readonly pageCsp: string;
@@ -231,6 +233,7 @@ export function createLocalArtifactHttp() {
       const referrers = goals && reference && context.ownerActions ? (await Promise.all(artifactReferrerActions().map(item => context.ownerActions!(item.action.action.permissions)
         .invoke(item.action, { reference }).then(result => (result as ArtifactReferrersResult).referrers.map(row => ({ ...row, plugin_title: item.plugin_title }))).catch(() => [])))).flat() : [];
       const links = goals ? { ...goals, referrers } : undefined;
+      const goalInput = !links || !context.goalsAvailable || await context.goalsAvailable();
       // 「交给插件作为输入」 (2026-10-04): the input ports of running plugins that take a usable version's type.
       const pluginInputs = reference && route.kind === "detail" && selected?.availability === "available" && selected.lifecycle_state !== "archived"
         ? (await context.actions.invoke(artifactsActions.pluginInputs, { reference }).catch(() => ({ inputs: [] }))).inputs : [];
@@ -238,7 +241,7 @@ export function createLocalArtifactHttp() {
       response.writeHead(view.requested && !view.selected ? 404 : 200, {
         "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "vary": "x-molis-work-fragment",
       });
-      response.end(artifactWorkbench.fragments({ view, routePrefix: context.routePrefix, primitives, presentation, ...(links ? { links } : {}), continuers, pluginInputs,
+      response.end(artifactWorkbench.fragments({ view, routePrefix: context.routePrefix, primitives, presentation, ...(links ? { links } : {}), ...(goalInput ? {} : { goalInput }), continuers, pluginInputs,
         typeTitles: typeTitlesOf(declarations) }, compact ? "frame-block" : "detail"));
       return true;
     } catch (error) {

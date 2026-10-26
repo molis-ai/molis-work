@@ -21,7 +21,7 @@ test("Plan formal routes preserve confirmed revisions, reject stale/blocked/fore
   const content = { title: "修复运费边界", steps: [{ title: "核对 shipping.mjs", acceptance: "10000 分免运费，9999 分收 500 分" }], blockers: "", change_reason: "" };
   const makeRun = (id: string, role = "planner", text = JSON.stringify(content)): AgentRunView => ({
     ref: { session_id: "sdk-app", run_id: id }, phase: "completed", started_at: new Date().toISOString(), ended_at: new Date().toISOString(),
-    turns: [{ turn_id: "u", kind: "user", text: "检查并修复边界", sequence: 1 }, { turn_id: "a", kind: "assistant", text, sequence: 2 }], activity: [], awaiting_input: [],
+    turns: [{ turn_id: "u", kind: "user", text: "检查并修复边界", at: null, sequence: 1 }, { turn_id: "a", kind: "assistant", text, at: null, sequence: 2 }], activity: [], awaiting_input: [],
     frozen: { role_id: role, role_version: 1, execution: role === "planner" ? "read-only" : "workspace-write", model_id: "m", prompts: [], skills: [], mcp_tools: [], host_tools: ["read-file"], text_materials: [], budget: null, directory: { canonical_path: home, realpath_verified: true } },
     usage: { tokens: { input: 0, output: 0 } },
   } as unknown as AgentRunView);

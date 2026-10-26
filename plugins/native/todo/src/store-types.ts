@@ -1,4 +1,4 @@
-import type { TodoActorKind, TodoLink, TodoPlacement, TodoSource, TodoStatus, TodoWaiting } from "@molis-ai/molis-work-contracts/modules/todo";
+import type { TodoActorKind, TodoLink, TodoPlacement, TodoSource, TodoStatus, TodoWaiting } from "./contract.js";
 
 /**
  * Who is asking and what they may see. A caller inside a project sees personal, unplaced and that

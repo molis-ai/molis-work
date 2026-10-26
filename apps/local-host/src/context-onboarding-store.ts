@@ -1,6 +1,21 @@
 import { applySqliteBaseline, openHomeSqliteDatabase, type SqliteBaseline, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import type { TodoBatch } from "@molis-ai/molis-work-contracts/modules/todo";
+
+/**
+ * A Todo organizing result as the journey keeps it. Only the fields the journey reads are named; Todo's `todo.organize.*` output
+ * schema is the source of the shape, and the rest of the result rides along untouched to the page (PG-111: the journey calls Todo
+ * by action id and does not import its contract).
+ */
+export interface OnboardingTodoBatch {
+  readonly batch_id: string;
+  readonly revision: number;
+  readonly candidates: readonly OnboardingTodoCandidate[];
+}
+export interface OnboardingTodoCandidate {
+  readonly candidate_id: string;
+  readonly existing: null | { readonly relation: "same" | "update" | "conflict" | "maybe_done" | "reopen" };
+  readonly decision: null | { readonly item_id: string | null };
+}
 
 export type ContextSourceKind = "files" | "directory" | "downloads" | "documents" | "desktop" | "custom" | "browser" | "gmail" | "chat";
 /**
@@ -38,7 +53,7 @@ export interface ContextJourney {
   /** Todo drafts organized from the same materials; applied into the new project's todos on adoption. */
   /** Todo drafts, one organizer batch per 50 materials (or parts of long ones); `total` is how many the round needs. */
   /** `key` names the material set the batches came from: another set (the person went back and chose again) starts over. */
-  todo?: { status: "pending" | "ready" | "failed"; key: string; batches: TodoBatch[]; total: number; error: string | null; added?: string[]; timing: CallTiming };
+  todo?: { status: "pending" | "ready" | "failed"; key: string; batches: OnboardingTodoBatch[]; total: number; error: string | null; added?: string[]; timing: CallTiming };
   auto_start?: boolean;
   previewed?: boolean;
   artifact_references?: ArtifactReference[];

@@ -1,4 +1,4 @@
-import type { FormRecord } from "@molis-ai/molis-work-contracts/modules/form";
+import type { FormRecord } from "../contract.js";
 import type { FormClientHost, FormRequest, Translate } from "./types.js";
 
 /** What the model answered: either it needs a few things first, or the form with its new questions. */

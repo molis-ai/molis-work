@@ -1,7 +1,7 @@
 import { bindPluginActionRoute } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, type ActionAvailability, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginArtifactClient, PluginDefinition, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { PPT_ARTIFACT_SCHEMA_VERSION, PPT_ARTIFACT_TYPE_ID, PPT_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/ppt";
+import { PPT_ARTIFACT_SCHEMA_VERSION, PPT_ARTIFACT_TYPE_ID, PPT_SUBJECT_KIND } from "./contract.js";
 import { pptManifest } from "./manifest.js";
 import { createPptActionHandlers, pptActions, type PptActionPorts } from "./actions.js";
 import { createPptContentHandlers } from "./content-actions.js";

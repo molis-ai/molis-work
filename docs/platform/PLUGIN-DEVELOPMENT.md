@@ -124,11 +124,13 @@ Schedule 是这些服务的生产消费者，工厂见 `plugins/native/schedule/
 
 ## 个人 Home Runtime 与插件 SQLite
 
-数据属于个人 Home、切换项目不分开的新内置插件，Manifest 写 `runtime: { scope: "home" }`，在自己的 `registration` 里给出 `runtime: { create, package_name, factory_export, keys? }`（运行范围是 Manifest 的，Home 实例的代码来自登记，两者同时有；装上的插件写 `runtime` 安装时被拒，`plugin.home_scope_unavailable`）。`personal: true` 只是可见性，不会把现存 Form、Todo 等迁到 Runtime。当前 Issues、Todo 和 Cognia 使用 Home Runtime，迁移顺序见 `docs/system/RUNTIME-MIGRATION.md`。
+数据属于个人 Home、切换项目不分开的新内置插件，Manifest 写 `runtime: { scope: "home" }`，在自己的 `registration` 里给出 `runtime: { create, package_name, factory_export, keys? }`（运行范围是 Manifest 的，Home 实例的代码来自登记，两者同时有；装上的插件写 `runtime` 安装时被拒，`plugin.home_scope_unavailable`；唯一的例外是来自已固定发布者的签名沙箱包，见下一段）。`personal: true` 只是可见性，不会把现存 Form、Todo 等迁到 Runtime。当前 Issues、Todo 和 Cognia 使用 Home Runtime，迁移顺序见 `docs/system/RUNTIME-MIGRATION.md`。
+
+**装进 Home 的签名沙箱包**（BL-628，S-80、S-84）：沙箱包的清单写 `runtime: { scope: "home" }`，预览会返回 `runtime_scope: "home"`，确认后装进 Home：一个实例，所有项目共用，代码仍在沙箱里跑，权限仍是人在预览里批准的那些，发布者仍要被本人固定。它的批准、密钥和提示词登记放在 Home 里（不属于任何项目），它的调用没有项目（项目范围的动作够不到），库是 Home 库（S-91）、文件是主人文件（S-64）。它在每个项目里都能用，项目可以把它隐藏；停用、卸载（保留或不保留数据）走和项目里的签名包同一套生命周期。声明了 `always_on`、端口、事件、成果或过程项的包不能装进 Home；同一个 `plugin_id` 的范围不能更换。没有写 `runtime` 的包只能装进项目，写了的只能装进 Home。
 
 一个本机 Local Host 持有一个 `HomePluginHost`，并发动作、场景和 HTTP 共用启动 Promise。安装、授予、发行物和私有 KV 在 `{home}/plugin-runtime/plugin-runtime.db` v2，复用 PluginRuntime、Supervisor 和 Action Registry；不同版本或不完整结构拒绝并保留，不补表、不清空。MCP 子进程经已有本机 gateway 调同一个 Host，不打开插件库。Home 与项目共用提供方规则：只有可信启动条目给 `trust: HOST_BUILD_TRUST` 的定义对象使用插件 ID，其余使用安装 ID；provider 定位和 `install_id` / `installation_generation` 授权不能相互替代。
 
-Home 插件的数据按项目放时，Manifest 的 `databases.home` 写 `partition: "project"`（合同 `HomePluginDatabaseDeclaration`），登记里同一个库的 `library.partition` 也写 `"project"`，并声明 `project_data`：每个项目一个库，在 `{home}/<库名>/projects/<项目>/`，宿主按调用所在的项目给出，不在项目里的调用答 `actions.project_required`；闲置关闭、停用关闭与删项目都归平台，`purge` 可省。见 [specs/plugin-project-partition](../../specs/plugin-project-partition/spec.md)。
+Home 插件的数据按项目放时，Manifest 的 `databases.home` 写 `partition: "project"`（合同 `HomePluginDatabaseDeclaration`），库与分区由宿主从 Manifest 生成（`apps/local-host/src/home-stores.ts`），登记上不写库：每个项目一个库，在 `{home}/<库名>/projects/<项目>/`，宿主按调用所在的项目给出，不在项目里的调用答 `actions.project_required`；闲置关闭、停用关闭与删项目都归平台，删项目时整份删掉，确认框写「{插件名} 在这个项目里的数据」（PG-024）。见 [specs/plugin-project-partition](../../specs/plugin-project-partition/spec.md)。
 
 Host 绑定 `context.actor_id` 为 Home 所有人；实际动作 caller 保留页面、助理、MCP 的入口和身份。业务输入不得接收 owner、actor、install、provider 或数据库路径。Home 实例不提供项目 `artifacts`、端口、事件或假项目：`services.artifacts` 现在可缺省，项目消费者须明确要求该服务。
 
@@ -141,7 +143,7 @@ Home 库初始化失败由它自身的页面/API 明确报告，Goals 页面与�
 插件需要自己的文件（二进制、目录树）时，在 Manifest 里声明 `owner_files`（见下一节「Home 主人的私有文件树」），得到 `context.services.ownerFiles`；旧的启动条目 `files` 与 `context.services.files` 已删（PG-102/104，P2b）。单文件字节上限、文件名规则由插件自己管（Images 的上限在它的 provider 里）。
 
 
-Manifest 的 `databases.home`（`PluginDatabaseDeclaration`，PG-022；项目库见 `databases.project`）描述库名、当前基线和读写权限，插件拥有 schema 与 SQL；Host 选择路径、打开连接并提供 `context.services.database`。当前只给宿主启动名单上的 Native 插件（库要登记在 Home 的存储登记里；名单之外的插件还没有 Home 库，声明了就拒绝启动）；它是安装生命周期服务，不是 JavaScript 沙箱，也不向外部动作暴露 SQL。每个库独占 `{home}/<store_name>/<store_name>.db`，schema 基线不符时拒绝并保留原库，不自动迁移。
+Manifest 的 `databases.home`（`PluginDatabaseDeclaration`，PG-022；项目库见 `databases.project`）描述库名、当前基线和读写权限，插件拥有 schema 与 SQL；Host 选择路径、打开连接并提供 `context.services.database`。当前只给宿主启动名单上的 Native 插件（库要登记在 Home 的存储登记里；名单之外的插件还没有 Home 库，声明了就拒绝启动）；它是安装生命周期服务，不是 JavaScript 沙箱，也不向外部动作暴露 SQL。沙箱包在 Home Runtime 里声明 `databases.home`，用 `sdk.homeDatabase`（`get`、`all`、`transaction`，操作合同写 `effects.homeDatabase: ["read" | "write"]`，与 `projectDatabase` 同一套检查，S-91）；语句在宿主杀得掉的子进程里跑，宿主不留连接；项目里运行的沙箱包不能声明。每个库独占 `{home}/<store_name>/<store_name>.db`，schema 基线不符时拒绝并保留原库，不自动迁移。
 
 项目里宿主自己运行的内置插件也可以有 Home 里的库，用的是同一个 `services.database`，不是第二份服务（W3-06 D）：在 Manifest 写 `databases.home`，启动名单的条目上不再有 `database`。名单上的定义对象拿登记里的库；不在名单上、由宿主自己运行的插件（开发中的、装进来的）也可以在 Manifest 声明 `databases.home`，库经账本给：库首次打开时在 `plugin-libraries/` 记下插件 ID、发布者（取自安装记录）、库名、版本和表的哈希，之后换了发布者、版本、表或库名都拒绝启动；库名不能是宿主已有的存储、安装器的目录、别的插件的库或 Home 里已有的目录；按项目分开的库只有名单上的插件能有。首次的发布者是安装时 Manifest 的自报，安装时不校验签名是 PG-001 的缺口，账本只保证装上后不可换发布者。沙箱定义、没有 Home 的平台（`home: null`）也拿不到。库名必须在 Home 存储登记中归该插件所有，并与登记的库基线一致；Manifest 声明 `storage:private` 和库的读写权限，同一份名单不能重复占用库。名单有错整份不启动、不建库。所有项目的实例指向同一个库文件，数据由插件自己按项目分区；库随实例启动打开、停止关闭。Dataset、Form、灵光、Pages、PPT、Workflows 是当前生产里的这类插件。
 
@@ -417,7 +419,7 @@ Inbox → Pages 通过 Host 组合各插件公开能力，输入快照与幂等�
 | `interface.json` | `{ parts, nodes, presentation?, acceptance? }`：界面零件（`parts`，1–100 个）、每个零件选用的组件（`nodes`）、可选的整体呈现与验收步骤；零件读写的操作必须是合同里有的 |
 | `prompts.json` | 数组（可为空，至多 64 项），每项 `{ id, title, purpose, body }`，`id` 为小写字母数字与连字符，`body` 不超过 8000 字 |
 
-沙箱插件的清单只有一种形状：类型是应用（`kind: "app"`），入口 `./plugin.mjs`，权限只有 `storage:private`，一条 `POST /call` 路由，一个 `stage` 视图；作者能定的只有 `plugin_id`、`version`、`name`、`publisher` 和 `upgrade_compatibility`。所以沙箱包不能声明常开、默认连线、默认输入组或本机目录，Host 也就没有这些东西要在安装时请人同意。
+沙箱插件的清单只有一种形状：类型是应用（`kind: "app"`），入口 `./plugin.mjs`，权限只有 `storage:private`，一条 `POST /call` 路由，一个 `stage` 视图；作者能定的只有 `plugin_id`、`version`、`name`、`publisher`、`upgrade_compatibility` 和 `runtime`（只能写 `{ scope: "home" }`，见下）。所以沙箱包不能声明常开、默认连线、默认输入组或本机目录，Host 也就没有这些东西要在安装时请人同意。
 
 **集成包**（BL-530）：给 Feed 当来源的外部集成也是沙箱包，`payload.files` 只有 `manifest.json`、`contract.json`、`plugin.mjs` 三个文件，没有界面和提示词。清单是 Integration Plugin 的：`kind: "integration"`，入口 `./plugin.mjs`，权限只有 `storage:private`，没有路由、视图和 `runtime`，作者另外写自己的 `connection_services` 与 `integrations`（现在只收 `kind: "source"`）。平台请求表（`CONNECTOR_REQUEST_SERVICES`）里有的服务不写 `origins`，没有的必须写：一到八个正好是 `https://主机[:端口]` 的公开域名，带账号的请求只能发到这些来源（S-94）。合同只有平台定的操作，`kind`、输入输出 schema 和权限与 contracts 的 `SANDBOX_INTEGRATION_CONTRACT` 一字不差：`integration.health`、`integration.poll`，可选 `integration.account`；`errors` 和 `examples` 是作者的。拉取时插件经 `sdk.connections.request("source", …)` 用来源的账号，只能 GET 或 HEAD，这次调用结束就不能再用；游标是插件自己的文字，Feed 存着、下次原样交回。宿主读包用 `readSandboxIntegrationPackage`，在 Home 里装要等沙箱宿主的 Home 实例（BL-628）。
 
@@ -531,7 +533,7 @@ await caller.beforeEffect(); // 写业务记录之前
 
 删项目时插件不被通知，也不跑自己的代码：平台在同一轮里先停掉它经 `services.background` 在这个项目里受理的执行和登记的作业（control 的 signal 中止，结果与失败都不交付），再删它的这个项目的数据，中间不 await。
 
-插件在 Home 库里按 `project_id` 一类的列记项目的行时，在 Manifest 的 `databases.home` 写 `project_rows`（合同 `PluginProjectRowsDeclaration`）：确认框里的 `label`、可选的先后 `order`，和要删的表 `tables`。每张表写 `table` 与记项目的 `column`；子表只记父表的键时写 `parent`（写在它后面、自己不带 `parent` 的一张表）和父表的键 `key`（默认 `id`），删的是父表里属于这个项目的那些键对应的行。平台照声明拼 `DELETE` 语句，只对这个插件自己的库、用宿主自己的连接、在一个写事务里删；实例正在写时等它（`busy_timeout`），等不到这一步留 pending，下次重试；库还不存在就不建。声明只能点这个库的 schema 建的表和列：SDK 查形状（小写标识符、不带库名），平台按建好的 schema 查列，不对就启动前拒绝，码 `plugin.declaration_invalid`。不能和 `partition: "project"` 同写（按项目分库的整份删）。不是内置的插件，确认框里的标签照原文显示在插件名后面，不翻译。沙箱插件暂不能声明，写了启动被拒（BL-619）。按项目分库的插件，平台关掉这个项目的库再删掉它。项目只是关闭时，项目实例随项目停；Home 实例在这个项目里的作业也停，它受理的有限执行照旧带着原调用的授权。不经 `services.background`、自己在内存里另起的工作删项目时没有人去停，所以等模型或外部服务的工作要经它受理或登记。停用/卸载后没有运行实例时仍走原离线 purge，结束 Home 才释放 owner 注册。
+插件在 Home 库里按 `project_id` 一类的列记项目的行时，在 Manifest 的 `databases.home` 写 `project_rows`（合同 `PluginProjectRowsDeclaration`）：确认框里的 `label`、可选的先后 `order`，和要删的表 `tables`。每张表写 `table` 与记项目的 `column`；子表只记父表的键时写 `parent`（写在它后面、自己不带 `parent` 的一张表）和父表的键 `key`（默认 `id`），删的是父表里属于这个项目的那些键对应的行。行里记着插件自己文件的名字时写 `files`：每项是 `tables` 里一张不带 `parent` 的表、存名字的列（JSON 数组，元素是文件名；元素是对象时用 `key` 指出名字所在的字段）和 `owner_files` 里声明的一个目录（`directory`）。平台在同一个事务里先读出名字、再删行，提交后从那个目录删掉这些文件：只删名字是一段普通文件名、在那个目录里的普通文件，链接、文件夹、特殊节点、有多个硬链接的文件和带 `/`、`..` 的名字都不碰。平台照声明拼 `DELETE` 语句，只对这个插件自己的库、用宿主自己的连接、在一个写事务里删；实例正在写时等它（`busy_timeout`），等不到这一步留 pending，下次重试；库还不存在就不建。声明只能点这个库的 schema 建的表和列：SDK 查形状（小写标识符、不带库名），平台按建好的 schema 查列，不对就启动前拒绝，码 `plugin.declaration_invalid`。不能和 `partition: "project"` 同写（按项目分库的整份删）。不是内置的插件，确认框里的标签照原文显示在插件名后面，不翻译。沙箱插件暂不能声明，写了启动被拒（BL-619）。按项目分库的插件，平台关掉这个项目的库再删掉它。项目只是关闭时，项目实例随项目停；Home 实例在这个项目里的作业也停，它受理的有限执行照旧带着原调用的授权。不经 `services.background`、自己在内存里另起的工作删项目时没有人去停，所以等模型或外部服务的工作要经它受理或登记。停用、卸载后没有运行实例时，平台照同一份声明删；插件不提供清除代码，目录条目上也没有 `project_data`（PG-024）。
 
 非流式路由的 bytes 默认作为附件。PluginRouteResponse 可显式给 disposition 为 inline 或 attachment；Host 只保留 image/png、image/jpeg、image/webp，其他 MIME 强制 octet-stream 附件。nosniff、sandbox、no-store 始终由 Host 设置，插件不能覆盖。HTTP 项目来自已核对存在且显示该插件的路径，query/body 不授予身份。
 

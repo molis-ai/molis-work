@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { PagesRecord } from "@molis-ai/molis-work-contracts/modules/pages";
+import type { PagesRecord } from "@molis-ai/molis-work-plugin-pages/contract";
 import { Worker } from "node:worker_threads";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";

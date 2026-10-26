@@ -2,7 +2,7 @@ export { artifactReferenceUiContribution, ARTIFACT_REFERENCE_UI_CONTRIBUTION_ID,
 export type { ArtifactReferenceUiPrimitives, ArtifactReferenceUiModel } from "./reference-ui.js";
 export { artifactBrowserUiContribution, ARTIFACT_BROWSER_UI_CONTRIBUTION_ID } from "./browser-ui.js";
 export type { ArtifactBrowserUiModel } from "./browser-ui.js";
-export { artifactsProjectData, ARTIFACTS_HOME_STORE } from "./original-store.js";
+export { ARTIFACTS_HOME_STORE } from "./original-store.js";
 export { artifactVersionPath, type ArtifactBrowserView, type GoalArtifactEmbed } from "./browser-view.js";
 export { ARTIFACT_EN } from "./en.js";
 export { ARTIFACT_GOAL_INPUT_CLIENT_SCRIPT } from "./goal-input-client.js";

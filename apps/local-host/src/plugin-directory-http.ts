@@ -18,7 +18,7 @@ export async function handleDirectoryGrantHttp(context: WebRequestContext, proje
       if (!context.serverOptions.homeDirectory) throw new ActionError("actions.unavailable", "这个 Host 没有 Home，没有目录授权");
       if (pluginPageRequest(request)) throw new ActionError("actions.forbidden", "插件页面不能查看或撤回目录授权");
       const service = directoryForHome(context.serverOptions.homeDirectory);
-      if (request.method === "GET") { sendLocalWebJson(response, 200, { grants: await listGrants(context, service.list()) }); return true; }
+      if (request.method === "GET") { sendLocalWebJson(response, 200, { grants: await listGrants(context, await service.list()) }); return true; }
       const [kind, id] = url.pathname.slice(GRANTS.length + 1).split("/").map(decodeURIComponent);
       if (!id || !["grant", "plugin"].includes(kind!)) throw new ActionError("actions.input_invalid", "请指定要撤回的授权或插件");
       sendLocalWebJson(response, 200, { revoked: service.revoke(kind === "grant" ? { grant_id: id } : { plugin_id: id }) });
@@ -31,7 +31,7 @@ export async function handleDirectoryGrantHttp(context: WebRequestContext, proje
 }
 
 /** Each grant as the person reads it: which plugin, which folder, in which project, and what read it lately. */
-async function listGrants(context: WebRequestContext, grants: ReturnType<ReturnType<typeof directoryForHome>["list"]>) {
+async function listGrants(context: WebRequestContext, grants: Awaited<ReturnType<ReturnType<typeof directoryForHome>["list"]>>) {
   const names = grants.some(grant => grant.project_id) ? new Map(await context.composition.withCatalog({ homeDirectory: context.serverOptions.homeDirectory },
     catalog => catalog.listProjects().map(project => [project.project_id, project.display_name] as const))) : new Map<string, string>();
   return grants.map(({ install_id: _install, actor_id: _actor, device: _device, inode: _inode, ...grant }) => ({ ...grant,

@@ -52,7 +52,7 @@ UI Host 不解释 Goal、Feed 或 Artifact 状态。Plugin 客户端的注册释
 
 **保留到 W5-04 的两处**（不是兼容层，各有删除条件）：
 - `molisWorkControlHeaders()` 是同一助手只给头的入口，供还没迁的调用方使用（工作台主程序里还没迁的脚本、编进主程序的 Goals 工厂、插件客户端和约 25 个浏览器用例）。它会把令牌加到调用方给的任何地址上，所以「令牌只发同源」只对经助手本身发出的请求成立。删除条件：W5-04 迁完最后一个插件客户端、用例改用 `molisWorkRequest` 之后，若再无调用方就删（W5-04 收尾 PR 决定）。
-- PTY 客户端包（`apps/workbench/src/character-terminal-client.ts`，与 Shelf、工作台 `src/terminal/` 的终端客户端一起打成 `dist/web/pty-client.js`）认证 PTY socket 时自己读页面 meta：它是打包的 TypeScript，不发 HTTP 请求，读不到模板脚本里的全局。删除条件：W5-04 把工作台客户端段落改成打包代码时，从宿主注入的 `request.token()` 取。
+- PTY 客户端包（`apps/workbench/src/character-terminal-client.ts`，与工作台 `src/terminal/` 的终端客户端一起打成 `dist/web/pty-client.js`；Shelf 的终端井在 Shelf 自己的浏览器包里）认证 PTY socket 时自己读页面 meta：它是打包的 TypeScript，不发 HTTP 请求，读不到模板脚本里的全局。删除条件：W5-04 把工作台客户端段落改成打包代码时，从宿主注入的 `request.token()` 取。
 
 ## 本地开发
 

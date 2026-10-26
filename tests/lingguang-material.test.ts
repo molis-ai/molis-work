@@ -3,7 +3,7 @@ import test from "node:test";
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { LINGGUANG_BODY_LIMIT } from "@molis-ai/molis-work-contracts/modules/lingguang";
+import { LINGGUANG_BODY_LIMIT } from "@molis-ai/molis-work-plugin-lingguang/contract";
 import { lingguangActions as actions, LINGGUANG_ACTION_PERMISSIONS, createLingguangActionHandlers } from "@molis-ai/molis-work-plugin-lingguang";
 import { jellyContentActions, JELLY_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-jelly";
 

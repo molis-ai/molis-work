@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ARTIFACT_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { PPT_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/ppt";
+import { PPT_SUBJECT_KIND } from "@molis-ai/molis-work-plugin-ppt/contract";
 import { pptManifest } from "@molis-ai/molis-work-plugin-ppt";
 
 // A 演示稿 has one kind name everywhere (repository-anti-corruption §9.5 #8): its actions, its workflow station, search,

@@ -35,11 +35,37 @@ export interface PluginInstallPreview {
     readonly trust: PluginTrustLevel;
     readonly publisher_signature: string;
     readonly publisher_pinned: boolean;
-    readonly permissions: readonly {
-        readonly permission: string;
-        readonly required: boolean;
-    }[];
+    readonly permissions: readonly PluginPermissionView[];
     readonly declarations: readonly PluginDeclarationNeedingConsent[];
+    readonly jobs: readonly PluginJobView[];
+}
+
+export interface PluginInstalledView {
+    readonly install_id: string;
+    readonly plugin_id: string;
+    readonly name: string;
+    readonly version: string;
+    readonly state: string;
+    readonly trust: PluginTrustLevel;
+    readonly publisher_signature: string;
+    readonly publisher_label: string | null;
+    readonly manifest_available: boolean;
+    readonly permissions: readonly PluginPermissionView[];
+    readonly jobs: readonly PluginJobView[];
+    readonly consents: readonly PluginConsentRecord[];
+}
+
+export interface PluginJobView {
+    readonly job_id: string;
+    readonly reason: string;
+    readonly permissions: readonly string[];
+}
+
+export interface PluginPermissionView {
+    readonly permission: string;
+    readonly required: boolean;
+    readonly reason: string;
+    readonly meaning: string | null;
 }
 
 export interface PluginPublisherPin {
@@ -61,3 +87,5 @@ export type PluginTrust = {
 };
 
 export type PluginTrustLevel = "host" | "pinned" | "unsigned";
+
+export declare function platformPermissionMeaning(permission: string): string | null;

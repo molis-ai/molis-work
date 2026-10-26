@@ -1,7 +1,7 @@
 import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { LINGGUANG_CONVERSATION } from "./prompts.js";
 import { ActionError, FRAGMENT_ANY_OBJECT, bindObjectCopyHandler, bindObjectMoveHandler, defineFragmentOffersAction, defineObjectCopyAction, defineObjectMoveAction, type FragmentActionOffer, type FragmentOffersInput, type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
-import { LINGGUANG_BODY_LIMIT, type LingguangSpark } from "@molis-ai/molis-work-contracts/modules/lingguang";
+import { LINGGUANG_BODY_LIMIT, type LingguangSpark } from "./contract.js";
 import type { LingguangConversationState, LingguangStores } from "./store.js";
 import { createLingguangSearchHandlers, lingguangSearchActions, revisionOf } from "./search.js";
 import { lingguangErrors } from "./error.js";

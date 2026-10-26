@@ -67,6 +67,67 @@ export interface PluginInstallPreview {
   readonly publisher_signature: string;
   /** Whether the publisher is already pinned; a `pinned` install of a new publisher asks the person to pin it first. */
   readonly publisher_pinned: boolean;
-  readonly permissions: readonly { readonly permission: string; readonly required: boolean }[];
+  readonly permissions: readonly PluginPermissionView[];
   readonly declarations: readonly PluginDeclarationNeedingConsent[];
+  /** The background jobs the Manifest declares: what the plugin keeps doing without being opened, and on which permissions. */
+  readonly jobs: readonly PluginJobView[];
+}
+
+/** One permission as a person reads it: the plugin's own reason, and what the platform itself says it lets a plugin do (null for a permission the platform does not define). */
+export interface PluginPermissionView {
+  readonly permission: string;
+  readonly required: boolean;
+  readonly reason: string;
+  readonly meaning: string | null;
+}
+
+/**
+ * One plugin installed in a project, as the plugin's detail page shows it (ac-trust T7): who signed it and how far that is trusted, what it
+ * asked for and why, what it keeps doing in the background, and the agreements the person gave it. `manifest_available` is false when the
+ * Manifest it was installed with cannot be read; its permissions and jobs are then empty because they are unknown, not because there are none.
+ */
+export interface PluginInstalledView {
+  readonly install_id: string;
+  readonly plugin_id: string;
+  readonly name: string;
+  readonly version: string;
+  readonly state: string;
+  readonly trust: PluginTrustLevel;
+  readonly publisher_signature: string;
+  /** The name the person gave the publisher when pinning it; null for a publisher that is not pinned. */
+  readonly publisher_label: string | null;
+  readonly manifest_available: boolean;
+  readonly permissions: readonly PluginPermissionView[];
+  readonly jobs: readonly PluginJobView[];
+  readonly consents: readonly PluginConsentRecord[];
+}
+
+/** A background job a Manifest declares (`background.jobs`). */
+export interface PluginJobView {
+  readonly job_id: string;
+  readonly reason: string;
+  readonly permissions: readonly string[];
+}
+
+/**
+ * What the platform says a platform permission means, in its own words (BL-353): the plugin's `reason` is the plugin's account of why it
+ * wants it, this is the platform's account of what it is. A prefix entry (`network:`, `secret:`) names what follows it. Permissions a plugin
+ * defines for itself (`issues:write`) are not here, and have no platform meaning.
+ */
+const PLATFORM_PERMISSION_MEANINGS: Readonly<Record<string, string>> = {
+  "storage:private": "在这个插件自己的私有空间里保存和读取数据，别的插件读不到",
+  "actions:delegate": "以你的身份去调用动作目录里的动作。这是目前最宽的权限：它能做你能做的事",
+  "model:invoke": "调用你配置的模型来生成内容，可能产生模型费用",
+  "model:read": "查看有哪些模型、能不能用，不调用模型",
+  "surface:browser": "在侧栏浏览器里打开它声明的网站",
+  "network:": "连接到这个网站：",
+  "secret:": "读取你存放的这项密钥：",
+};
+
+export function platformPermissionMeaning(permission: string): string | null {
+  const exact = PLATFORM_PERMISSION_MEANINGS[permission];
+  if (exact !== undefined) return exact;
+  const prefix = permission.slice(0, permission.indexOf(":") + 1);
+  const named = prefix === "network:" || prefix === "secret:" ? PLATFORM_PERMISSION_MEANINGS[prefix] : undefined;
+  return named === undefined ? null : named + permission.slice(prefix.length);
 }

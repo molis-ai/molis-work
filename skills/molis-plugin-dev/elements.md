@@ -89,7 +89,7 @@ Manifest 里有三类声明会改变插件在别处的效果，安装预览把�
 两条路径，不要抄错：
 
 1. **Manifest `routes`（第三方插件与新的内置插件）**：`routes[]`（`route_id`、method、`path` 带 `:name`）。Host 挂 `/api/plugins/<plugin_id>/`，处理器用 `bindPluginActionRoute` 转调动作。未声明路径到不了插件。经 Plugin Runtime 启动的插件必须兑现每条 `routes[].handle`；请求体默认最多读 256 000 字节（Home 级实例的路由默认 12 MiB），某条路由要收更大的内容（如导入文件）就声明 `max_body_bytes`（至多 45 000 000 字节，`packages/plugin-sdk/src/manifest.ts` 的 `MAX_ROUTE_BODY_BYTES`，超过的 Manifest 解析时被拒）。
-2. **构建期 Native（冻结，只许减少）**：Host 文件把短名接到产品 API（`/api/feed/`、`/api/inbox/`、`/api/pages/`…），由 `*-native-plugin-http.ts` 调用。新的内置插件不走这条，走第 1 条。`project_id` 由 Host 从当前项目注入，不要从 body / MCP schema 收。
+2. **构建期 Native（冻结，只许减少）**：Host 文件把短名接到产品 API（`/api/feed/`、`/api/inbox/`），由 `*-native-plugin-http.ts` 调用。新的内置插件不走这条，走第 1 条。`project_id` 由 Host 从当前项目注入，不要从 body / MCP schema 收。
 
 写操作要 revision / 幂等；冲突可恢复。handler 用注入的 Module/端口，不 import 别的插件实现。
 
@@ -155,7 +155,7 @@ Manifest 里没有 `behaviors`、`function_scenes`、`judgment_subjects`（2026-
 - 处理前持久记录 delivering，确认前重查实例、版本和订阅。处理器已开始但崩溃或被撤销，结果未知则隔离，不能自动重试；启动失败且没有派出处理器时可以恢复。普通处理器异常记录后不自动重投，不能声称任意副作用 exactly-once。Host 关闭先 `await events.close()` 再关闭数据库。
 - 隔离事件由人从项目「插件 → 待核对的插件通知」核对，填写依据后明确 retry/skip。插件不能给自己恢复，普通启用不能补权。所见 revision、首条事件、安装世代与版本必须保持一致，决定及历史同事务保存；不替换原安装，不跳过后续事件。重试存在重复副作用的可能，必须在确认中说明。
 
-**总线只在 Plugin Runtime（`createPluginPlatform`）启动的插件里跑**：监督器里的 Coding 族、Shelf，以及已安装插件。Feed / Inbox / Pages 这类构建期 Native 没有；给它们抄 Coding 的 `events:` 块，运行时不会投递。
+**总线只在 Plugin Runtime（`createPluginPlatform`）启动的插件里跑**：登记上有 `project_runtime` 或 `runtime` 的内置插件，以及已安装插件。Feed、Inbox 这类冻结名单里的构建期 Native 没有；给它们抄 Coding 的 `events:` 块，运行时不会投递。
 
 对照：Files 订阅 Coding/Git 的文件变更；Coding 发布 file-changed / workspace-invalidated。
 

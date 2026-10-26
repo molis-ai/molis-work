@@ -14,15 +14,16 @@ const DECLARATION_FIELDS = new Set(["store_name", "version", "schema", "read_per
  */
 const HOME_FIELDS = new Set([...DECLARATION_FIELDS, "partition", "project_rows"]);
 
-export function databaseDeclarationProblems(value: unknown, permissions: ReadonlySet<string>): string[] {
+/** `ownerFiles`: the Manifest's `owner_files`, whose directories a library's `project_rows.files` may name. */
+export function databaseDeclarationProblems(value: unknown, permissions: ReadonlySet<string>, ownerFiles?: unknown): string[] {
   if (value === undefined) return [];
   if (!isRecord(value)) return ["databases 必须为对象"];
   const scopes = Object.keys(value).filter(scope => !(SCOPES as readonly string[]).includes(scope));
   if (scopes.length > 0) return [`databases 只能声明 project（项目库）和 home（Home 库），不认 ${scopes.join("、")}`];
-  return SCOPES.flatMap(scope => value[scope] === undefined ? [] : declarationProblems(scope, value[scope], permissions));
+  return SCOPES.flatMap(scope => value[scope] === undefined ? [] : declarationProblems(scope, value[scope], permissions, ownerFiles));
 }
 
-function declarationProblems(scope: (typeof SCOPES)[number], declaration: unknown, permissions: ReadonlySet<string>): string[] {
+function declarationProblems(scope: (typeof SCOPES)[number], declaration: unknown, permissions: ReadonlySet<string>, ownerFiles: unknown): string[] {
   const path = `databases.${scope}`;
   if (!isRecord(declaration)) return [`${path} 必须为对象`];
   const problems: string[] = [];
@@ -41,7 +42,7 @@ function declarationProblems(scope: (typeof SCOPES)[number], declaration: unknow
     if (typeof permission !== "string" || !permissions.has(permission)) problems.push(`${path}.${field} 必须是这份 Manifest 在 permissions 里声明的权限`);
   }
   if (scope === "home" && declaration.partition !== undefined && declaration.partition !== "project") problems.push(`${path}.partition 只能是 "project"`);
-  if (scope === "home") problems.push(...projectRowsProblems(`${path}.project_rows`, declaration.project_rows, declaration.schema, declaration.partition !== undefined));
+  if (scope === "home") problems.push(...projectRowsProblems(`${path}.project_rows`, declaration.project_rows, declaration.schema, declaration.partition !== undefined, ownerFiles));
   return problems;
 }
 

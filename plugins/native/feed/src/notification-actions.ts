@@ -32,7 +32,9 @@ export interface FeedNotificationPorts {
 }
 
 export function createFeedNotificationHandlers(projectId: string, ports: FeedNotificationPorts): ActionHandlerBinding[] {
-  return [{ capability_id: feedNotificationActions.receive.capability_id, version: feedNotificationActions.receive.version, handle: async (caller, raw) => {
+  // Not an `async` function: what it writes happens before its first wait, so a Runtime's writer commits it as one write, and a failure there
+  // (the wrong caller, a cancelled call) is thrown, not returned, and rolls the whole write back.
+  return [{ capability_id: feedNotificationActions.receive.capability_id, version: feedNotificationActions.receive.version, handle: (caller, raw) => {
     if (caller.actor_id !== PLUGIN_NOTIFICATION_DELIVERY_ACTOR || caller.audience !== "workflow") {
       throw new ActionError("actions.forbidden", "只有平台的通知服务能向 Feed 投递通知");
     }
@@ -48,7 +50,7 @@ export function createFeedNotificationHandlers(projectId: string, ports: FeedNot
       summary: input.summary, body: input.body, url: `/projects/${encodeURIComponent(projectId)}/plugins/${encodeURIComponent(input.open_plugin_id)}`,
       occurredAt: input.created_at, attention: { reason: "source_rule", detail: { plugin: input.sender_plugin_id, installation: input.sender_install_id } } });
     caller.signal?.throwIfAborted();
-    await feed.flushPendingJudgments().catch(error => { caller.assert_authority_current?.(); ports.judgmentFailed(error); });
-    return { item_id: result.item.item_id, created: result.created } satisfies PluginNotificationDeliveryReceipt;
+    const receipt = { item_id: result.item.item_id, created: result.created } satisfies PluginNotificationDeliveryReceipt;
+    return feed.flushPendingJudgments().then(() => receipt, error => { caller.assert_authority_current?.(); ports.judgmentFailed(error); return receipt; });
   } }];
 }

@@ -6,8 +6,10 @@ import test, { type TestContext } from "node:test";
 import Database from "better-sqlite3";
 import { ActionError, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { IntegrationProviderPort, PluginDefinition, PluginProjectDatabase, PluginProjectDatabaseTransaction, PluginSqlValue } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { PLUGIN_NOTIFICATION_DELIVERY_ACTOR } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { IntegrationBinding } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
-import { createPluginPlatform, DEMO_PROJECT_ID, homeIntegrationRegistry, homeStores, listFeedSourceCatalog, LocalProjectDatabase, scheduleServiceFor, seedDemoBoard, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { createNotificationDelivery, createPluginPlatform, declaredNotificationReceivers, DEMO_PROJECT_ID, homeIntegrationRegistry, homeStores, listFeedSourceCatalog, LocalProjectDatabase, scheduleServiceFor, seedDemoBoard, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { PluginNotificationQueue } from "@molis-ai/molis-work-plugin-runtime";
 import { pluginBindingScope } from "@molis-ai/molis-work-service-connector-host";
 import { createEvidenceContentStore, homeStoreRegistry } from "@molis-ai/molis-work-storage";
 import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
@@ -101,7 +103,7 @@ async function platform(t: TestContext, options: { fetch?: (input: string | URL)
   assert.deepEqual(started.running, [feedRuntimeManifest.plugin_id, ...(homeHalf ? [homeHalf.definition.manifest.plugin_id] : []), ...(options.goals ? ["io.molis.work.goals"] : [])], JSON.stringify(started));
   const count = (sql: string, ...parameters: unknown[]) => (store.db.prepare(sql).get(...parameters as never[]) as { n: number }).n;
   const installId = () => running.runtime.list().find(record => record.plugin_id === feedRuntimeManifest.plugin_id)!.install_id;
-  return { store, home, client: actions.client, count, holds: () => homeHalf?.holds() ?? [], clock: () => scheduleServiceFor(store.db), installId };
+  return { store, home, running, client: actions.client, count, holds: () => homeHalf?.holds() ?? [], clock: () => scheduleServiceFor(store.db), installId };
 }
 
 /** The original caller of an action, who can be cancelled or revoked from outside. */
@@ -589,4 +591,94 @@ test("RAC-1025 the Runtime Feed's Manifest asks for one slot per service the pla
   assert.ok(declared(feedInboxActions.material).includes("connections:use"));
   assert.ok(declared(feedQueryActions.connections).includes("sources:pull_connector"));
   assert.ok(!declared(feedQueryActions.connections).includes("connections:use"), "the status names no source and nothing of an account");
+  // 4e-2e: the platform finds the receiver by the Manifest's declaration, and the action is for the platform's own delivery only.
+  assert.deepEqual(feedRuntimeManifest.notifications, { receive: { capability_id: "feed.notifications.receive", version: 1 } });
+  assert.deepEqual([RECEIVER.reference, feedRuntimeManifest.actions!.find(action => action.capability_id === RECEIVER.reference.capability_id)!.action.audiences], [{ capability_id: "feed.notifications.receive", version: 1 }, ["workflow"]]);
+  assert.ok(RECEIVER.permissions.includes("attention:write"), "the delivery is given what admitting the item to the Inbox needs");
+});
+
+// RAC-1027 .. RAC-1028 (4e-2e; provisional numbers): the platform's notifications reach a Runtime Feed as the platform's own delivery, in one commit.
+const RECEIVER = declaredNotificationReceivers([feedRuntimeManifest])[0]!;
+const SENDER = "io.molis.work.example.sender";
+const delivery = (key: string, sender = SENDER) => ({ notification_id: `n-${key}`, sender_plugin_id: sender, sender_name: "Sender", sender_install_id: "install-1", sender_generation: "g1",
+  key, title: `Title ${key}`, summary: "A summary", body: `Body of ${key}`, open_plugin_id: sender, created_at: "2026-10-26T12:00:00.000Z" });
+/** The platform's notification service as a caller: the workflow audience under its own identity, holding what the receiving action declares. */
+function platformCaller(refuseFrom?: number, identity: { actor_id: string; audience: ActionCallContext["audience"] } = { actor_id: PLUGIN_NOTIFICATION_DELIVERY_ACTOR, audience: "workflow" }) {
+  let checks = 0;
+  const context: ActionCallContext = { ...identity, project_id: DEMO_PROJECT_ID, permissions: [...RECEIVER.permissions],
+    assert_authority_current: () => { checks += 1; if (refuseFrom !== undefined && checks >= refuseFrom) throw new ActionError("actions.forbidden", "the caller was revoked"); } };
+  return { context, checks: () => checks };
+}
+
+test("RAC-1027 a Runtime Feed takes the platform's notification as one write: the plugin's source, the item and its Inbox entry, once per key", async t => {
+  const f = await platform(t);
+  const receive = (key: string, sender = SENDER) => f.client.invoke(platformCaller().context, RECEIVER.reference, delivery(key, sender)) as Promise<{ item_id: string; created: boolean }>;
+  const first = await receive("one");
+  assert.equal(first.created, true);
+  assert.equal(f.count("SELECT count(*) AS n FROM feed_sources WHERE source_id = ?", `plugin-notifications:${SENDER}`), 1);
+  assert.equal(f.count("SELECT count(*) AS n FROM feed_items WHERE item_id = ? AND title = ?", first.item_id, "Title one"), 1);
+  assert.equal(f.count("SELECT count(*) AS n FROM inbox_entries WHERE subject_type = 'feed_item' AND subject_id = ?", first.item_id), 1, "the item is in the Inbox as it is received");
+  assert.ok(f.count("SELECT count(*) AS n FROM events WHERE object_id = ? AND actor_id = ?", first.item_id, PLUGIN_NOTIFICATION_DELIVERY_ACTOR) >= 1, "the journal names the platform's delivery");
+  // The same key is the same notification; another key from the same sender is another item in the same source.
+  const again = await receive("one");
+  assert.deepEqual([again.created, again.item_id], [false, first.item_id]);
+  const second = await receive("two");
+  assert.equal(second.created, true);
+  assert.deepEqual([f.count("SELECT count(*) AS n FROM feed_items WHERE source_id = ?", `plugin-notifications:${SENDER}`), f.count("SELECT count(*) AS n FROM feed_sources WHERE kind = 'plugin'")], [2, 1]);
+  // Another sender has a source of its own.
+  await receive("one", "io.molis.work.example.other");
+  assert.equal(f.count("SELECT count(*) AS n FROM feed_sources WHERE kind = 'plugin'"), 2);
+});
+
+test("RAC-1027 only the platform's notification service delivers: a person, a workflow or an Agent under another identity is refused, and nothing is written", async t => {
+  const f = await platform(t);
+  const written = () => f.count("SELECT (SELECT count(*) FROM feed_sources WHERE kind = 'plugin') + (SELECT count(*) FROM feed_items) + (SELECT count(*) FROM inbox_entries) AS n");
+  const before = written();
+  for (const identity of [{ actor_id: OWNER, audience: "user" as const }, { actor_id: OWNER, audience: "workflow" as const }, { actor_id: PLUGIN_NOTIFICATION_DELIVERY_ACTOR, audience: "user" as const },
+    { actor_id: PLUGIN_NOTIFICATION_DELIVERY_ACTOR, audience: "agent" as const }]) {
+    await assert.rejects(f.client.invoke(platformCaller(undefined, identity).context, RECEIVER.reference, delivery("refused")), ActionError, JSON.stringify(identity));
+  }
+  // The platform's identity without the permissions the action declares is refused too.
+  await assert.rejects(f.client.invoke({ ...platformCaller().context, permissions: ["feed:read"] }, RECEIVER.reference, delivery("no-permissions")), { code: "actions.forbidden" });
+  assert.equal(written(), before);
+});
+
+test("RAC-1028 a notification delivered by a caller who is revoked at any point is all there or not there: the source, the item and the Inbox entry together", async t => {
+  const f = await platform(t);
+  const probe = platformCaller();
+  await f.client.invoke(probe.context, RECEIVER.reference, delivery("probe", "io.molis.work.example.probe"));
+  const asked = probe.checks();
+  assert.ok(asked >= 2, "a delivery asks its caller more than once: " + asked);
+  // A later delivery asks a few more times than the first (the Inbox has more in it), so the sweep covers a good way past what the probe asked.
+  let cutOff = 0, committedFirst = 0;
+  for (let from = 1; from <= asked * 2; from += 1) {
+    const sender = `io.molis.work.example.sweep${from}`, source = `plugin-notifications:${sender}`;
+    const outcome = await f.client.invoke(platformCaller(from).context, RECEIVER.reference, delivery(`sweep-${from}`, sender)).then(() => "done" as const, () => "refused" as const);
+    const parts = [f.count("SELECT count(*) AS n FROM feed_sources WHERE source_id = ?", source), f.count("SELECT count(*) AS n FROM feed_items WHERE source_id = ?", source),
+      f.count("SELECT count(*) AS n FROM inbox_entries WHERE subject_type = 'feed_item' AND subject_id IN (SELECT item_id FROM feed_items WHERE source_id = ?)", source)];
+    // All of it or none of it; a caller revoked after the commit has delivered (the call is refused, the notification is there).
+    assert.ok(parts.every(count => count === parts[0]) && parts[0]! <= 1, `revoked at check ${from}: ${parts}`);
+    if (outcome === "done") assert.deepEqual(parts, [1, 1, 1]);
+    else if (parts[0] === 0) cutOff += 1; else committedFirst += 1;
+  }
+  assert.ok(cutOff >= 1 && committedFirst >= 1, `the sweep reached both sides of the commit (cut off before ${cutOff}, after ${committedFirst})`);
+});
+
+test("RAC-1028 the platform's own delivery hands a queued notification to the Runtime Feed, and keeps it queued while Feed is stopped", async t => {
+  const f = await platform(t);
+  const queue = new PluginNotificationQueue(f.store.db);
+  const row = (key: string) => ({ project_id: DEMO_PROJECT_ID, sender_plugin_id: SENDER, sender_install_id: "install-1", sender_generation: "g1", key, title: `Queued ${key}`, summary: "s",
+    body: `Body of ${key}`, open_plugin_id: SENDER, created_at: "2026-10-26T12:00:00.000Z" });
+  const flush = () => createNotificationDelivery({ project_id: DEMO_PROJECT_ID, queue, client: f.client, receivers: () => declaredNotificationReceivers([feedRuntimeManifest]), senderName: () => "Sender" }).flush();
+  const delivered = (key: string) => f.store.db.prepare("SELECT item_id, delivered_at, last_error_code FROM plugin_notifications WHERE key = ?").get(key) as { item_id: string | null; delivered_at: string | null; last_error_code: string | null };
+  queue.enqueue(row("live"));
+  await flush();
+  const live = delivered("live");
+  assert.ok(live.delivered_at && live.item_id, JSON.stringify(live));
+  assert.equal(f.count("SELECT count(*) AS n FROM feed_items WHERE item_id = ? AND title = ?", live.item_id!, "Queued live"), 1);
+  // Feed is stopped: the notification waits in the platform's queue, not lost and not written anywhere else.
+  await f.running.runtime.stop(f.installId());
+  queue.enqueue(row("waiting"));
+  await flush();
+  assert.deepEqual([delivered("waiting").delivered_at, f.count("SELECT count(*) AS n FROM feed_items WHERE title = ?", "Queued waiting")], [null, 0]);
 });

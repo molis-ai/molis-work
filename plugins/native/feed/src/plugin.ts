@@ -20,7 +20,7 @@ import { feedWakeAction, feedWakeJob, keepFeedWakeup } from "./runtime-wake.js";
 import { syncResearchLibrary } from "./research-library-sync.js";
 import { holdingsOfSnapshot, type FeedSourceHistory, type FeedSourceHistoryRelease } from "./source-history.js";
 import type { FeedSourceProviders } from "./source-ports.js";
-import { FEED_NOTIFICATION_ACTIONS } from "./notification-actions.js";
+import { createFeedNotificationHandlers, feedNotificationActions } from "./notification-actions.js";
 import { readLinkedFeedContext } from "./linked-context.js";
 import { feedUiContribution } from "./ui.js";
 import { authorizeRuntimeSource, connectorSlotOf, createRuntimeConnectorSync, releaseRuntimeAccount, runtimeConnectorStatus } from "./runtime-connector.js";
@@ -49,11 +49,6 @@ const FEED_PULL = "sources:pull_feed", QUERY_PULL = "sources:pull_query", REPOSI
 const CONNECTIONS = "connections:use", CONNECTOR_PULL = "sources:pull_connector";
 
 /**
- * What the Runtime Feed does not answer yet: the platform's notifications. The slice's step 4e-2e adds them; until then they stay with
- * the Host's Feed (`feedManifest` is still the registered one).
- */
-const NOT_YET: ReadonlySet<ActionDefinition> = new Set<ActionDefinition>(FEED_NOTIFICATION_ACTIONS);
-/**
  * The permissions an action's calls need of the platform beyond Feed's own: the platform lets a call use a service only when its action
  * declares the permission. Describing a source uses the vocabulary, deleting one forgets its search records, a sync pulls (a web query
  * has its own permission).
@@ -71,6 +66,8 @@ const PLATFORM_NEEDS: ReadonlyMap<ActionDefinition, readonly string[]> = new Map
   [feedSourceActions.disconnect, [CONNECTIONS]],
   // Reading an item's material asks whether its source's account still works; the status asks whether the Home has an account at all.
   [feedInboxActions.material, [CONNECTIONS]], [feedQueryActions.connections, [CONNECTOR_PULL]],
+  // A notification the platform delivers is admitted to the Inbox as it is received.
+  [feedNotificationActions.receive, ["attention:write"]],
 ]);
 /** Actions that commit for themselves, because what they write comes after something they must wait for. */
 const SELF_COMMITTING: ReadonlySet<ActionDefinition> = new Set<ActionDefinition>([feedSourceActions.sync, feedSourceActions.delete, feedSourceActions.tick]);
@@ -83,7 +80,7 @@ const runtimeAction = (definition: ActionDefinition): ActionDefinition => {
 /** What the platform's clock wakes: a tick, for the plugin audience, with the wakeup's input. */
 const WAKE = feedWakeAction(runtimeAction(feedSourceActions.tick));
 const GOAL_CONTRACT = { capability_id: "goals.contract.read", version: 2, provider_id: "io.molis.work.goals" };
-const { notifications: _notifications, action_scenes: _scenes, ...BASE } = feedManifest;
+const { action_scenes: _scenes, ...BASE } = feedManifest;
 
 /**
  * Feed as the Plugin Runtime will start it, derived from the registered Manifest so the two cannot drift while both exist. It becomes
@@ -97,7 +94,7 @@ export const feedRuntimeManifest: PluginManifest = { ...BASE,
   permissions: [...feedManifest.permissions.filter(declared => !PLATFORM_PERMISSIONS.some(platform => platform.permission === declared.permission)), ...PLATFORM_PERMISSIONS],
   // The person binds an account to each account source: one slot per service the platform can pull for (its own list is the only one), the record being the source.
   connections: { slots: Object.keys(CONNECTOR_REQUEST_SERVICES).map(service => ({ slot_id: service, service_id: service, reason: "读取你为这个来源选好的账号", binding: "per_record" as const })) },
-  actions: [...feedManifest.actions!.filter(definition => !NOT_YET.has(definition)).map(runtimeAction), WAKE],
+  actions: [...feedManifest.actions!.map(runtimeAction), WAKE],
   background: { jobs: [feedWakeJob], wakeups: [{ action: { capability_id: WAKE.capability_id, version: WAKE.version }, reason: WAKE.action.title }] },
 };
 
@@ -206,6 +203,8 @@ export function createFeedPlugin(): PluginDefinition {
       ...createFeedContentHandlers(feed, projectId, hydrate),
       ...createFeedQueryHandlers(feed, projectId, { hydrate, authStatus: connector ? () => runtimeConnectorStatus(connector) : later("连接状态"), linkedContext }),
       ...createFeedRuleHandlers(feed, projectId, hydrate),
+      // The platform's notifications are written in one commit, as the platform's notification service; judging them waits for the judgments (4e-2f), which report themselves.
+      ...createFeedNotificationHandlers(projectId, { feed: () => feed, judgmentFailed: () => {} }),
       ...createFeedInboxHandlers(feed, projectId, { hydrate, authorize: authorizeRuntimeSource(connections) }),
       // Disconnecting an account source also takes the person's binding off it (after the commit, as the platform's own binding is not Feed's).
       ...sourceHandlers.map(binding => binding.capability_id !== feedSourceActions.disconnect.capability_id || !connections ? binding : { ...binding, handle: (caller: ActionExecutionContext, input: unknown) => {

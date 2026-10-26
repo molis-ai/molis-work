@@ -245,13 +245,13 @@ const headErrors = (measured, budget, base) => {
 // ac-trust T7, against main after batch-40 (the entries batch-40 used are gone): the project settings 插件 page (install preview, each
 // permission with its reason and the platform's meaning, jobs, agreements, revoke) is drawn by one inline client script, and the settings
 // cover embeds that page and binds it from the `molis-work:settings-embed` event, so the script has to be part of the workbench script:
-// - workbench.js +9,467 B (1,129,466 -> 1,138,933): 9.3 KB of UI text and DOM building, of which +629 B is taking a publisher back (T5b: a
+// - workbench.js +9,467 B (1,129,446 -> 1,138,913): 9.3 KB of UI text and DOM building, of which +629 B is taking a publisher back (T5b: a
 //   button, its confirmation and the English text). Tried: no second client or dialog library, one shared `el`/`button` helper, the install
 //   and both revoke paths reuse `molisWorkRequest` and the one `ask` dialog; the rest is Chinese text that has to be there.
 // - workbench.css +1,369 B (1,234,610 -> 1,235,979): the page's rules (`styles/settings-plugins.ts`), written from the existing tokens.
 // No new asset. Each is under 10 KB.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1129466, 1138933],
+  "/assets/molis-work-workbench.js": [1129446, 1138913],
   "/assets/molis-work-workbench.css": [1234610, 1235979],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

@@ -1,4 +1,4 @@
-import type { PagesBody, PagesRecord, PagesGenerationRecord } from "@molis-ai/molis-work-contracts/modules/pages";
+import type { PagesBody, PagesRecord, PagesGenerationRecord } from "./contract.js";
 import { pagesErrors } from "./error.js";
 import type { PagesSql } from "./store.js";
 

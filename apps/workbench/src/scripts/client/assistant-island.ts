@@ -13,7 +13,7 @@ import { ASSISTANT_SIDE_CONTEXT_FACTORY_SCRIPT, ASSISTANT_SIDE_SURROUNDINGS_FACT
 import type { AssistantPendingReview, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ASSISTANT_REPLY_KIND } from "@molis-ai/molis-work-contracts/services/contextual";
 import { ARTIFACT_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { renderAssistantTextHtml, renderAssistantReviewHtml } from "../../assistant-text-html.js";
+import { renderAssistantTextHtml, renderAssistantReviewHtml, renderAssistantNoticeText } from "../../assistant-text-html.js";
 // The SDK's tokenizer is consumed here on the Host, never serialized into the Assistant's browser script.
 const assistantGrownTokens = assistantCodeColours(growCodeTokens, codeTokens);
 export const assistantTextHtml = (text: string, objects: AssistantWorkView["objects"], say: (text: string) => string): string =>
@@ -31,7 +31,7 @@ export const assistantReviewHtml = (review: AssistantPendingReview, say: (text: 
  * Notes kept out of the served script (a comment in it is bytes the browser downloads and never runs). `namedObject`: A name in 「…」 that this work knows (one of its objects) opens where it lives: the answer points at the thing itself. `list items`: A model sometimes drops the space after a list's dash on one line (“-30 分钟” among “- 60 分钟”): beside a real item, it is one too. `ownStop`: A round the runtime stopped on its own (a guard, a breaker) says why in its own words; one the person stopped says so. `notices`: What needs the person first; news about a work (done, a result, new material) folds below — it also shows on the work. `reminder open`: A reminder opens its item where it lives: here when it is this page's project, otherwise on its own project's page. `pane switcher`: Split into panes, the switcher names each one: the page being worked on is the focused pane, not all of them run together. `delegated Send`: A delegated Send reuses its message id, so the same message twice starts one work. Its words are the page's: pageText marks them. `retried Send`: A Send whose outcome is unknown (the connection dropped) is retried with the same id, so the Host starts nothing twice. `project`: The project the next new work belongs to. The project list changes it as the person looks from one project to another. `searchKey`: Search opens with ⌘K (Ctrl K elsewhere); a touch screen has no key to name. `answer busy`: While a question's answer is on its way its button shows the shared loading mark, and ⌘↵ (or a closed card with no button) sends nothing.
  */
 export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
-  const L = host.translate;
+  const L = host.translate, noticeText = (notice) => (${renderAssistantNoticeText.toString()})(notice, L);
   const island = document.querySelector("[data-assistant-island]");
   if (!island) return null;
   const panel = island.querySelector("[data-assistant-panel]");
@@ -1382,7 +1382,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (!noticePop) return;
     // Polling repaints only what changed, and keeps focus on the same button: a list rebuilt under the person's
     // finger or keyboard focus loses the tap or drops focus to the page.
-    const signature = JSON.stringify([pluginWaiting, notices.map((notice) => [notice.notice_id, notice.text, notice.held && notice.held.reason])]);
+    const signature = JSON.stringify([pluginWaiting, notices.map((notice) => [notice.notice_id, noticeText(notice), notice.held && notice.held.reason])]);
     if (!force && noticePop.dataset.signature === signature) return;
     noticePop.dataset.signature = signature;
     const focused = noticePop.contains(document.activeElement) ? document.activeElement : null;
@@ -1390,13 +1390,13 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     noticePop.replaceChildren(el("p", "assistant-popover-title", L("等你处理")));
     const open = notices.filter((notice) => !notice.held && URGENT.has(notice.kind)), news = notices.filter((notice) => !notice.held && !URGENT.has(notice.kind)), held = notices.filter((notice) => notice.held);
     const row = (notice) => {
-      const item = el("div", "assistant-notice");
-      item.append(el("p", "assistant-notice-text", notice.text));
+      const item = el("div", "assistant-notice"), text = noticeText(notice);
+      item.append(el("p", "assistant-notice-text", text));
       if (notice.held) item.append(el("p", "assistant-material-origin", L("按你的规则暂不提醒") + "：" + notice.held.reason));
       const actions = el("div", "assistant-notice-actions");
       const go = el("button", "mw-btn mw-btn--secondary", L("打开")); go.type = "button";
       go.dataset.noticeId = notice.notice_id; go.dataset.noticeAction = "open";
-      go.setAttribute("aria-label", L("打开") + "：" + notice.text);
+      go.setAttribute("aria-label", L("打开") + "：" + text);
       go.addEventListener("click", async () => {
         setNotices(false);
         if (notice.open) {
@@ -1411,7 +1411,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
       if ((notice.kind === "reminder" || notice.kind === "directory-read") && !notice.open) go.hidden = true;
       const done = el("button", "mw-btn mw-btn--ghost", L("知道了")); done.type = "button";
       done.dataset.noticeId = notice.notice_id; done.dataset.noticeAction = "dismiss";
-      done.setAttribute("aria-label", L("知道了") + "：" + notice.text);
+      done.setAttribute("aria-label", L("知道了") + "：" + text);
       done.addEventListener("click", () => settleNotice({ notice_id: notice.notice_id }, "dismissed"));
       actions.append(go, done);
       item.append(actions);

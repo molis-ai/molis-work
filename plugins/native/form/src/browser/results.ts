@@ -1,4 +1,4 @@
-import type { FormQuestion, FormSubmissionRecord } from "@molis-ai/molis-work-contracts/modules/form";
+import type { FormQuestion, FormSubmissionRecord } from "../contract.js";
 import { make } from "./dom.js";
 import { collectAnswers, missingRequired } from "./fields.js";
 import type { FormPage } from "./page.js";

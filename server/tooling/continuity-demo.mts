@@ -5,7 +5,8 @@ import { tmpdir } from "node:os";
 import { parseArgs } from "node:util";
 import { openServerDatabase, Identity, ServerEvents, ContinuityService, startServer, memberClientId, CONTINUITY_ACTIONS, createImDomain, type ActionFactory } from "@molis-ai/molis-work-server";
 import { renderImPage, IM_STYLES, IM_CLIENT_SCRIPT } from "@molis-ai/molis-work-im-ui";
-import { PAGES_ARTIFACT_SCHEMA_VERSION, PAGES_ARTIFACT_TYPE_ID, PAGES_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/pages";
+// The QA project's one document is saved as Pages itself would save it: the ids Pages declares in its Manifest (`artifacts.produces`).
+const PAGES_PLUGIN_ID = "io.molis.work.pages", PAGES_ARTIFACT_TYPE_ID = "io.molis.work.pages.document", PAGES_ARTIFACT_SCHEMA_VERSION = 1;
 
 const { values, positionals } = parseArgs({ options: { port: { type: "string", default: "4189" } }, allowPositionals: true });
 if (positionals.length !== 1) throw Error("Pass one explicit isolated QA directory and optionally --port 0");

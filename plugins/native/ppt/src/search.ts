@@ -1,5 +1,5 @@
 import { ActionError, bindFileEntriesHandler, bindSearchEntriesHandler, defineFileEntriesAction, defineSearchEntriesAction, defineSubjectContextAction, searchText, subjectContext, type ActionCallContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import { PPT_PROJECT_PLUGIN_ID, PPT_SUBJECT_KIND, type PptRecord } from "@molis-ai/molis-work-contracts/modules/ppt";
+import { PPT_PROJECT_PLUGIN_ID, PPT_SUBJECT_KIND, type PptRecord } from "./contract.js";
 import type { PptStore } from "./store.js";
 import { pptErrors } from "./error.js";
 

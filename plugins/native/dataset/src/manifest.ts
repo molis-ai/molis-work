@@ -4,7 +4,7 @@ import {
   DATASET_ARTIFACT_TYPE_ID,
   DATASET_PLUGIN_ID,
   DATASET_PROJECT_PLUGIN_ID,
-} from "@molis-ai/molis-work-contracts/modules/dataset";
+} from "./contract.js";
 import { DATASET_UI_CONTRIBUTION_ID } from "./ui.js";
 import { datasetActions, datasetContentActions, DATASET_ACTION_PERMISSIONS } from "./actions.js";
 import { DATASET_DATABASE } from "./database.js";

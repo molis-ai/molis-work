@@ -1,5 +1,5 @@
 import { assertHomeEventWindow, defineHomeEventsAction, type ActionCallContext, type ActionHandlerBinding, type HomeEvent, type HomeEventCollection, type HomeEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
-import { TODO_PROJECT_PLUGIN_ID, TODO_SUBJECT_KIND, type TodoItem } from "@molis-ai/molis-work-contracts/modules/todo";
+import { TODO_PROJECT_PLUGIN_ID, TODO_SUBJECT_KIND, type TodoItem } from "./contract.js";
 import { localDate } from "./dates.js";
 import type { TodoAccess, TodoStore } from "./store.js";
 import { todoCallerProject } from "./caller.js";

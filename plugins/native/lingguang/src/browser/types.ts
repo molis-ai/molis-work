@@ -1,4 +1,4 @@
-import type { LingguangConversation, LingguangMessage, LingguangSpark } from "@molis-ai/molis-work-contracts/modules/lingguang";
+import type { LingguangConversation, LingguangMessage, LingguangSpark } from "../contract.js";
 import type { UiClientScope, UiClientTranslate as Translate, UiPageView, UiPluginClientHost } from "@molis-ai/molis-work-contracts/platform/ui";
 // The type brings `window.molisCopy` and `window.molisFit`, which the workbench page provides; nothing of the package is bundled.
 import type {} from "@molis-ai/molis-work-plugin-sdk/page-globals";

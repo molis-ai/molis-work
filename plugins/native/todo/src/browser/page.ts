@@ -1,5 +1,5 @@
 import { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { TodoBatch, TodoCandidate, TodoItem } from "@molis-ai/molis-work-contracts/modules/todo";
+import type { TodoBatch, TodoCandidate, TodoItem } from "../contract.js";
 import { isoDay, make, pad } from "./dom.js";
 import { todoRequest } from "./request.js";
 import type { ItemPayload, NoteOptions, TodoClientHost, TodoElements, TodoPage, TodoState, UndoTarget } from "./types.js";

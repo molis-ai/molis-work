@@ -1,4 +1,4 @@
-import type { FormOption, FormQuestion, FormQuestionInput } from "@molis-ai/molis-work-contracts/modules/form";
+import type { FormOption, FormQuestion, FormQuestionInput } from "../contract.js";
 import { icon, make } from "./dom.js";
 import type { FormPage } from "./page.js";
 

@@ -126,8 +126,10 @@ test("Feed / Inbox 成功路径改走舞台刷新，工作台脚本含 refresh h
     // The toast is the shared request helper's error (with its 诊断编号 when the call left a row, W3-10), marked as a failure
     // (it carries the failure glyph, DESIGN.md → Toasts); the request names what could not be refreshed.
     assert.match(script, /showToast\(error,\s*true\)/);
-    assert.match(script, /fallback:\s*F?L\("无法更新 (Feed|Inbox) 列表"\s*\)/);
   }
+  // PG-071 / #1308 N3: each navigation script must use its own translator and fallback text.
+  assert.match(CLIENT_NAVIGATION_FEED_SCRIPT, /fallback:\s*FL\("无法更新 Feed 列表"\s*\)/);
+  assert.match(CLIENT_NAVIGATION_INBOX_SCRIPT, /fallback:\s*L\("无法更新 Inbox 列表"\s*\)/);
 });
 
 test("Inbox fragment and Schedule isolated view refresh retain their presentation boundaries", async () => {

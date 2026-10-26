@@ -292,11 +292,17 @@ async function roundsSetup(t: TestContext, home = false) {
   t.after(async () => { if (!home) composition.dispose(); store.close(); await localHost.closeProject(reference); await localHost.close(); await rm(directory, { recursive: true, force: true }); });
   return { localHost, reference, seen, owner, consumer, bystander, observers };
 }
-const ROUND_VIEW = { ref: { session_id: "s1", run_id: "r1" }, phase: "running", frozen: {}, turns: [], activity: [], usage: { tokens: { input: 0, output: 0 } }, awaiting_input: [],
+const ROUND_VIEW = { ref: { session_id: "s1", run_id: "r1" }, phase: "running", turns: [],
+  frozen: { role_id: "reader", role_version: 1, execution: "read-only", model_id: "m", prompts: [], skills: [], mcp_tools: [], host_tools: [], text_materials: [], budget: null }, activity: [], usage: { tokens: { input: 0, output: 0 } }, awaiting_input: [],
   original_input: { ref: { session_id: "s1", input_id: "original-1", version: 1 }, text: "Use pnpm", written_by: "person", occurred_at: "2026-10-23T00:00:00.000Z" },
+  memory_recalled: { method: "recall", injected: [{ memory_id: "m1", version: 1 }], omitted: [{ memory_id: "m2", version: 2 }], unavailable: [],
+    selected: [{ memory_id: "m1", version: 1 }], retrievals: [{ receipt_id: "retrieval-1", outcome: "ready" }],
+    contexts: [{ call_id: "call-1", status: "response-observed", tokens: 12, budget_tokens: 100,
+      basis: "conservative-estimate", references: [{ receipt_id: "use-1", memory_id: "m1", version: 1 }],
+      parts: [{ index: 0, tokens: 12, form: "entry" }] }], recording_error: "memory.receipt_unrecorded" } satisfies NonNullable<AgentRunView["memory_recalled"]>,
   started_at: "2026-10-23T00:00:00.000Z", ended_at: null };
 
-test("original-input Action shapes reject fixed version 1 through the real plugin dispatcher", async t => {
+test("merged original-input Action shapes reject prior fixed versions through the real plugin dispatcher", async t => {
   const { consumer, seen, owner } = await roundsSetup(t), actions = consumer.actions(PROJECT);
   owner.current = { project_id: PROJECT, plugin_id: consumer.id, install_id: consumer.context(PROJECT).install_id, actor_id: "web-user" };
   const session = { runtime_id: RUNTIME, session_id: "s1" }, run = { session_id: "s1", run_id: "r1" };
@@ -305,7 +311,9 @@ test("original-input Action shapes reject fixed version 1 through the real plugi
     [agent.startRun, [RUNTIME, { session, task: "Read the project", role_id: "reader" }]],
   ] as const;
   for (const [definition, input] of calls) {
-    await assert.rejects(actions.invoke({ ...definition, version: 1 } as ActionDefinition, input), { code: "actions.dependency_missing" }, definition.capability_id);
+    for (const version of definition === agent.startRun ? [1] : [1, 2]) {
+      await assert.rejects(actions.invoke({ ...definition, version } as ActionDefinition, input), { code: "actions.dependency_missing" }, `${definition.capability_id}@${version}`);
+    }
   }
   assert.deepEqual(seen, [], "none of the old references reached the Runtime");
 });
@@ -392,6 +400,8 @@ test("RAC-180 reading a session, its rounds, reviews and subtasks, and preparing
   assert.equal((await actions.invoke(agent.readRun, [session, run])).phase, "running");
   assert.deepEqual((await actions.invoke(agent.readRun, [session, run])).original_input, ROUND_VIEW.original_input);
   assert.deepEqual((await actions.invoke(agent.readSession, [session])).latest_run?.original_input, ROUND_VIEW.original_input);
+  assert.deepEqual((await actions.invoke(agent.readRun, [session, run])).memory_recalled, ROUND_VIEW.memory_recalled);
+  assert.deepEqual((await actions.invoke(agent.readSession, [session])).latest_run?.memory_recalled, ROUND_VIEW.memory_recalled);
   assert.deepEqual(await actions.invoke(agent.readRunReviews, [session, run]), []);
   assert.deepEqual(await actions.invoke(agent.listSubagents, [session, run]), []);
   // A rewind is prepared only for a role that edits files; this plugin declares none, so it is refused past the session check.
@@ -441,6 +451,7 @@ test("RAC-181 following a round is a concurrent plugin-only query on the caller'
   const first = await waitFor(null, 0);
   assert.equal(first.view.phase, "running");
   assert.deepEqual(first.view.original_input, ROUND_VIEW.original_input);
+  assert.deepEqual(first.view.memory_recalled, ROUND_VIEW.memory_recalled);
   // Nothing changed within the wait: the same round comes back, as a success, and the call log keeps no row of it.
   const quiet = await waitFor(first.version, 50);
   assert.equal(quiet.version, first.version, "a wait that reached its time answers the round as it is");

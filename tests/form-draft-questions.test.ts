@@ -5,7 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 
 import type { ActionExecutionContext, ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { FormRecord } from "@molis-ai/molis-work-contracts/modules/form";
+import type { FormRecord } from "@molis-ai/molis-work-plugin-form/contract";
 import type { AgentQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import { formActions, createFormActionHandlers, ownFormStores } from "@molis-ai/molis-work-plugin-form";
 import { openFormStore } from "./fixtures/plugin-home-stores.js";

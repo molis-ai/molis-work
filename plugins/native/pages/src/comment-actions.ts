@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { pagesErrors } from "./error.js";
 import { ActionError, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantThreadContext, AssistantThreadDraft } from "@molis-ai/molis-work-contracts/services/assistant";
-import type { PagesCommentThread } from "@molis-ai/molis-work-contracts/modules/pages";
+import type { PagesCommentThread } from "./contract.js";
 import type { PagesStores } from "./store.js";
 import type { AppendPagesComment } from "./comments-store.js";
 import { nodesToMarkdown } from "./to-markdown.js";

@@ -1,5 +1,5 @@
 import { instructed, type InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
-import type { FormQuestionInput, FormQuestionType, FormRecord } from "@molis-ai/molis-work-contracts/modules/form";
+import type { FormQuestionInput, FormQuestionType, FormRecord } from "./contract.js";
 import type { AgentQuestion, AgentQuestionProblem, InteractionRequest } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import { questionAnswer, questionProblems, questionSetFlaw } from "@molis-ai/molis-work-plugin-sdk";
 import { formErrors } from "./error.js";

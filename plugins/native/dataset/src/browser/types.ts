@@ -1,4 +1,4 @@
-import type { DatasetColumn, DatasetRecord, DatasetRow, DatasetVersionRecord } from "@molis-ai/molis-work-contracts/modules/dataset";
+import type { DatasetColumn, DatasetRecord, DatasetRow, DatasetVersionRecord } from "../contract.js";
 import type { UiClientTranslate as Translate, UiPluginClientHost } from "@molis-ai/molis-work-contracts/platform/ui";
 
 export type { Translate };

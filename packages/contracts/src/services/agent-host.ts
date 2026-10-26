@@ -288,29 +288,68 @@ const runControl = { oneOf: [
       question: { type: "integer", minimum: 0 }, indexes: { type: "array", maxItems: 500, items: { type: "integer", minimum: 0 } }, other: { type: "string", maxLength: 1_000_000 }, value: questionValue } } } } },
 ] } as const;
 /**
- * A session and its rounds as a plugin reads and starts them (R8 batch 3, §9.3): the top level of each view listed in full; a nested
- * object is only said to be one (BL-470), since its fields are the runtime's record and the action snapshot cannot see them change.
+ * A session and its rounds as a plugin reads and starts them (R8 batch 3, §9.3): the top level of each view listed in full. A nested
+ * object lists the fields callers in this repository read, with their types (BL-470, RAC-667); it stays open, since the rest is the
+ * runtime's record. A field no caller reads, or one nested deeper, is only said to be an object.
  */
 const object = { type: "object" } as const;
 const objects = { type: "array", items: object } as const;
 const text = (maxLength: number) => ({ type: "string", maxLength }) as const;
 const count = { type: "integer", minimum: 1 } as const;
+const number = { type: "number" } as const;
+const string = { type: "string" } as const;
+const shape = <R extends readonly string[], P extends Record<string, unknown>>(required: R, properties: P) => ({ type: "object", required, properties }) as const;
+const list = <I>(items: I) => ({ type: "array", items }) as const;
+const coverage = { enum: ["unknown", "reported", "estimated", "partial", "partial-estimated"] } as const;
+const turnOutput = shape(["turn_id", "kind", "text", "at"], { turn_id: string, kind: { enum: ["user", "assistant", "system", "notice"] }, text: string, at: { type: ["string", "null"] }, sequence: number,
+  steer: shape(["id", "state"], { id: string, state: { enum: ["received", "applied", "read", "unread", "withdrawn"] }, key: string, about: string, model_claim: object, questions: objects }) });
+const activityOutput = shape(["call_id", "name", "target", "state", "summary", "at"], { call_id: string, name: string, target: string, state: { enum: ["started", "completed", "failed", "unknown"] },
+  summary: string, output: string, output_truncated: { type: "boolean" }, output_hidden_lines: number, at: { type: ["string", "null"] }, sequence: number });
+const usageOutput = shape(["tokens"], { tokens: shape(["input", "output"], { input: number, output: number, cached_input: number, cache_creation: number, reasoning: number }),
+  compaction: shape(["recorded_calls", "incomplete"], { recorded_calls: number, incomplete: { type: "boolean" } }), cost_usd: number, coverage: object, unavailable_reason: string,
+  context: shape(["tokens", "coverage"], { tokens: number, coverage }) });
+const questionOutput = shape(["pending_id", "kind", "prompt", "options"], { pending_id: string, pending_revision: number, sequence: number, kind: string, prompt: string,
+  options: list(shape(["value", "label"], { value: string, label: string })), questions: objects, answerable: { type: "boolean" }, parked: { const: true }, unavailable_reason: string });
+const stepBoardOutput = shape(["project_id", "version", "terminal", "nodes"], { project_id: string, version: number, terminal: { type: "boolean" }, nodes: list(shape(["id", "state", "reports"], {
+  id: string, state: { enum: ["not-started", "ready", "running", "waiting", "succeeded", "failed", "cancelled", "blocked", "needs-reconciliation"] },
+  reports: list(shape(["note", "at_ms"], { note: string, at_ms: number, by: shape(["kind", "label"], { kind: { enum: ["session", "subtask", "person", "handover", "other"] }, label: string, title: string }), inputs: objects })),
+  owner: shape(["kind", "label"], { kind: { enum: ["session", "subtask", "person", "none", "other"] }, label: string, title: string, subagent_id: string, actor_id: string, expired: { const: true } }),
+  title: string, depends_on: strings, inserted: { type: "boolean" }, origins: objects })) });
+const memoryRef = shape(["memory_id", "version"], { memory_id: string, version: number });
+const frozenOutput = shape(["role_id", "role_version", "execution", "model_id", "prompts", "skills", "mcp_tools", "host_tools", "text_materials", "budget"], {
+  role_id: string, role_version: number, execution: { enum: ["read-only", "text-edit", "workspace-write", "operate"] }, model_id: string, budget: { type: ["object", "null"] },
+  workspace: { enum: ["required", "none", "business"] }, directory: object, call_id: string,
+  prompts: list(shape(["prompt_id", "version", "layer"], { prompt_id: string, version: number, layer: { enum: ["base", "role", "project", "task"] }, user_revision: number })),
+  skills: objects, mcp_tools: objects, mcp_sources: objects, host_tools: strings, action_tools: objects, character: object, character_skill_ids: strings, execution_plan: object, subagent_workspaces: objects,
+  text_materials: list(shape(["material_id", "source_artifact_id", "source_version"], { material_id: string, title: string, source_artifact_id: string, source_version: number })),
+  compaction: shape(["prompt_id", "version", "above_tokens"], { prompt_id: string, version: number, above_tokens: number }),
+  model_context: shape(["window_tokens", "prompt_includes_cache"], { window_tokens: number, prompt_includes_cache: { type: "boolean" } }),
+  history: { const: "digest" }, thinking: { const: "adaptive" }, reasoning_effort: { enum: ["low", "medium", "high"] } });
+const offerOutput = shape(["offer_id", "title", "summary", "reference", "offered_at"], { offer_id: string, title: string, summary: string, offered_at: string, input: {}, editable: strings,
+  reference: shape(["capability_id", "version", "provider_id"], { capability_id: string, version: number, provider_id: string }),
+  missing: list(shape(["field", "question"], { field: string, question: string })) });
 const sessionRefOutput = { type: "object", required: ["session_id", "runtime_id"], additionalProperties: false, properties: { session_id: { type: "string" }, runtime_id: { type: "string" } } } as const;
 const runRefOutput = { type: "object", required: ["run_id", "session_id"], additionalProperties: false, properties: { run_id: { type: "string" }, session_id: { type: "string" } } } as const;
 const runViewOutput = { type: "object", required: ["ref", "phase", "frozen", "turns", "activity", "usage", "awaiting_input", "started_at", "ended_at"], additionalProperties: false, properties: {
-  step_board: object, step_board_error: { type: "string" }, ref: runRefOutput, phase: { enum: RUN_PHASES }, frozen: object, turns: objects, activity: objects,
+  step_board: stepBoardOutput, step_board_error: { type: "string" }, ref: runRefOutput, phase: { enum: RUN_PHASES }, frozen: frozenOutput, turns: list(turnOutput), activity: list(activityOutput),
   command_outputs: { type: "array", items: { type: "object", required: ["call_id", "run_id"], properties: { call_id: { type: "string" }, run_id: { type: "string" } } } },
-  usage: object, awaiting_input: objects, stop_reason: { type: "string" }, original_input: object, memory_recalled: object, todo: objects, turn_changes: objects, sleeping_until: { type: "string" },
-  retry_wait: object, model_switch: object, offers: objects, started_at: { type: "string" }, ended_at: { type: ["string", "null"] } } } as const;
+  usage: usageOutput, awaiting_input: list(questionOutput), stop_reason: { type: "string" }, original_input: object,
+  memory_recalled: shape(["method", "omitted", "unavailable"], { method: { enum: ["pinned", "recall"] }, omitted: list(memoryRef), unavailable: strings }),
+  todo: list(shape(["id", "text", "state"], { id: string, text: string, state: { enum: ["pending", "in-progress", "done", "abandoned"] } })),
+  turn_changes: list(shape(["turn", "sequence", "at", "files"], { turn: number, sequence: number, at: { type: ["string", "null"] },
+    files: list(shape(["path", "byte_length", "digest", "checkpoint_id"], { path: string, byte_length: number, digest: string, checkpoint_id: string })) })),
+  sleeping_until: { type: "string" }, retry_wait: shape(["until", "reason"], { until: string, reason: { enum: ["rate-limited", "unavailable", "not-sent"] } }),
+  model_switch: shape([], { now: string, requested: string }), offers: list(offerOutput), started_at: { type: "string" }, ended_at: { type: ["string", "null"] } } } as const;
 const sessionViewOutput = { type: "object", required: ["owner", "session", "title", "runs", "latest_run"], additionalProperties: false, properties: {
   workspace: { enum: ["required", "none", "business"] }, checkpoint_busy: { type: "boolean" }, recovery: { type: "object", required: ["required", "reason"], properties: { required: { const: true }, reason: { type: "string" } } },
   owner: { type: "object", required: ["project_id", "plugin_id", "install_id"], properties: { project_id: { type: "string" }, plugin_id: { type: "string" }, install_id: { type: "string" }, actor_id: { type: "string" } } },
-  session: sessionRefOutput, title: { type: "string" }, runs: { type: "array", items: runRefOutput }, latest_run: { anyOf: [runViewOutput, { type: "null" }] }, queued_inputs: objects } } as const;
+  session: sessionRefOutput, title: { type: "string" }, runs: { type: "array", items: runRefOutput }, latest_run: { anyOf: [runViewOutput, { type: "null" }] },
+  queued_inputs: list(shape(["input_id", "text", "source"], { input_id: string, text: string, source: { enum: ["person", "host", "peer"] }, key: string, about: string })) } } as const;
 const reviewRequestOutput = { type: "object", required: ["review_id", "run", "project_id", "plugin_id", "kind", "document", "requested_at", "expires_at"], additionalProperties: false, properties: {
   review_id: { type: "string" }, run: { anyOf: [runRefOutput, { type: "null" }] }, operation: object, project_id: { type: "string" }, plugin_id: { type: "string" }, kind: { type: "string" },
   document: object, requested_at: { type: "string" }, expires_at: { type: ["string", "null"] } } } as const;
 const subagentOutput = { type: "object", required: ["subagent_id", "parent_run", "role_id", "task", "state", "result", "workspace_path"], additionalProperties: false, properties: {
-  child_run: runRefOutput, activity: objects, usage: object, host_tools: strings, error: { type: "string" }, subagent_id: { type: "string" }, parent_run: runRefOutput,
+  child_run: runRefOutput, activity: list(activityOutput), usage: usageOutput, host_tools: strings, error: { type: "string" }, subagent_id: { type: "string" }, parent_run: runRefOutput,
   role_id: { type: "string" }, role_name: { type: "string" }, task: { type: "string" }, state: { type: "string" }, result: { type: ["string", "null"] }, workspace_path: { type: ["string", "null"] } } } as const;
 /** A directory the Host granted, a fixed Artifact version: what a start names, never a raw path or a live object. */
 const runtimeOutput = { type: "object", required: ["runtime_id", "display_name", "provider_version", "capabilities"], additionalProperties: false, properties: {
@@ -392,7 +431,7 @@ export const agentHostCapabilities = {
       input_schema: { type: "array", minItems: 2, maxItems: 2, items: [runtimeId, createSessionInput], additionalItems: false }, output_schema: sessionRefOutput },
   } as ActionDefinition<[runtimeId: string, input: AgentCreateSessionInput], AgentSessionRef>,
   listSubagents: {
-    capability_id: "agent.subagents.list.v1", version: 1, operation: "query",
+    capability_id: "agent.subagents.list.v1", version: 2, operation: "query",
     action: { title: "列出一轮的子任务", description: "自己会话里一轮派出的子任务。", kind: "query", ...pluginOnly,
       input_schema: { type: "array", minItems: 2, maxItems: 2, items: [sessionRef, runRef], additionalItems: false }, output_schema: { type: "array", items: subagentOutput } },
   } as ActionDefinition<[session: AgentSessionRef, run: AgentRunRef], AgentSubagentView[]>,
@@ -403,7 +442,7 @@ export const agentHostCapabilities = {
       input_schema: { type: "array", minItems: 3, maxItems: 3, items: [sessionRef, runRef, entryId], additionalItems: false } },
   } as ActionDefinition<[session: AgentSessionRef, run: AgentRunRef, subagentId: string], void>,
   readSession: {
-    capability_id: "agent.session.read.v1", version: 2, operation: "query",
+    capability_id: "agent.session.read.v1", version: 3, operation: "query",
     action: { title: "读 Agent 会话", description: "自己的一条会话：标题、各轮的引用和最近一轮。", kind: "query", ...pluginOnly,
       input_schema: { type: "array", minItems: 1, maxItems: 1, items: [sessionRef], additionalItems: false }, output_schema: sessionViewOutput },
   } as ActionDefinition<[session: AgentSessionRef], AgentSessionView>,
@@ -558,7 +597,7 @@ export const agentHostCapabilities = {
       output_schema: { type: "object", required: ["ref", "frozen"], additionalProperties: false, properties: { ref: runRefOutput, frozen: object } } },
   } as ActionDefinition<[runtimeId: string, input: AgentStartInput], AgentRunHandle>,
   readRun: {
-    capability_id: "agent.run.read.v1", version: 2, operation: "query",
+    capability_id: "agent.run.read.v1", version: 3, operation: "query",
     action: { title: "读一轮执行", description: "自己会话里一轮的过程、状态和用量。", kind: "query", ...pluginOnly,
       input_schema: { type: "array", minItems: 2, maxItems: 2, items: [sessionRef, runRef], additionalItems: false }, output_schema: runViewOutput },
   } as ActionDefinition<[session: AgentSessionRef, run: AgentRunRef], AgentRunView>,
@@ -587,7 +626,7 @@ export const agentHostCapabilities = {
    * a timer; nothing is replayed. Concurrent, beside the project's queue; the Host stops it at 30 s whatever it does.
    */
   waitRun: {
-    capability_id: "agent.run.wait.v1", version: 2, operation: "query",
+    capability_id: "agent.run.wait.v1", version: 3, operation: "query",
     action: { title: "等一轮执行变化", description: "自己会话里的一轮有了变化就回答，最多等 25 秒；到时还没变就回答它现在的样子。", kind: "query", ...pluginOnly,
       scheduling: "concurrent", execution: { timeout_ms: 30_000 },
       input_schema: { type: "array", minItems: 4, maxItems: 4, additionalItems: false,

@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import { runInNewContext } from "node:vm";
-import ts from "typescript";
+import { buildSync } from "esbuild";
 import type { UiTerminalEvent, UiTerminalCommand, UiTerminalMountOptions } from "@molis-ai/molis-work-contracts/platform/ui";
 
-const compiled = ts.transpileModule(readFileSync(new URL("../plugins/native/shelf/src/terminal-client.ts", import.meta.url), "utf8"), {
-  compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
-}).outputText;
+// RAC-717: the terminal well is Shelf's own browser code (src/browser/terminal.ts); the platform's entry no longer carries it.
+const compiled = buildSync({ entryPoints: [fileURLToPath(new URL("../plugins/native/shelf/src/browser/terminal.ts", import.meta.url))],
+  bundle: true, write: false, format: "cjs", platform: "browser", target: "es2022" }).outputFiles[0]!.text;
 type Recovery = { texts: string[]; message: string };
 type Bridge = { open(): void; send(text: string): boolean; isLive(): boolean };
 const panelId = "installation-owned-terminal";
@@ -21,8 +21,7 @@ function fixture() {
   window.addEventListener("molis-shelf-tui-unsent", event => recovered.push(structuredClone((event as CustomEvent<Recovery>).detail)));
   const screen = { dataset: {} };
   const context = {
-    exports: {} as { startShelfTerminalClient(): void }, window, CustomEvent,
-    document: { querySelector: () => screen, body: { dataset: { routePrefix: "/projects/fixture" } } },
+    module: { exports: {} as { installTerminal(page: unknown): void } }, window, CustomEvent,
     molisWorkShelfTui: undefined as Bridge | undefined,
     async molisWorkRequest(path: string, options: { body: Record<string, unknown> }) {
       requests.push(path); assert.equal(JSON.stringify(options.body), "{}", "the page cannot choose a command or working directory");
@@ -36,7 +35,9 @@ function fixture() {
       async send(command: UiTerminalCommand) { if (failedWrite) throw new Error("连接已断开"); writes.push(structuredClone(command)); },
     },
   };
-  runInNewContext(compiled, context, { filename: "shelf-terminal-client.js" }); context.exports.startShelfTerminalClient();
+  const page = { bench: { querySelector: () => screen }, api: "/projects/fixture/api/plugins/io.molis.work.shelf",
+    lifetime: { signal: new AbortController().signal }, L: (key: string) => key };
+  runInNewContext(compiled, context, { filename: "shelf-terminal.js" }); context.module.exports.installTerminal(page);
   assert.ok(context.molisWorkShelfTui); const bridge = context.molisWorkShelfTui;
   return { bridge, recovered, requests, writes, get disposed() { return disposed; },
     event(event: UiTerminalEvent) { assert.ok(mounted); mounted.onEvent?.(event); },

@@ -1,5 +1,5 @@
 import { ActionError, bindSearchEntriesHandler, defineSearchEntriesAction, defineSubjectContextAction, searchText, subjectContext, type ActionCallContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import { LINGGUANG_PROJECT_PLUGIN_ID, type LingguangSpark } from "@molis-ai/molis-work-contracts/modules/lingguang";
+import { LINGGUANG_PROJECT_PLUGIN_ID, type LingguangSpark } from "./contract.js";
 import type { LingguangStore } from "./store.js";
 import { lingguangErrors } from "./error.js";
 

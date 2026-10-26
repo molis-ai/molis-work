@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { FormRecord, FormSubmissionRecord } from "@molis-ai/molis-work-contracts/modules/form";
+import type { FormRecord, FormSubmissionRecord } from "@molis-ai/molis-work-plugin-form/contract";
 import { FORM_ANSWER_FORMAT } from "@molis-ai/molis-work-plugin-form";
 import { openFormStore } from "./fixtures/plugin-home-stores.js";
 import { openTestHome } from "./fixtures/test-home.js";

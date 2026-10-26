@@ -1406,3 +1406,22 @@ f9e5b4fb 的普通 CI 40251451657 在 Package boundaries（job 121344061019）�
 真实反例与先红记录：首轮按裸 kind 寻址失败 ENOENT，只是夹具错误；SDK ScopedStorage 的实际归属目录为 `records/io.molis.work~pendings` / `io.molis.work~runs`。修正路径后，未改生产的第二轮已证明原故障：第一次 close 因 `STORAGE_RECONCILE_REQUIRED` 拒绝，恢复原字节后 B 的持久 Run 为 completed，明确 close 重试后首次 ledger 的 lastUse 仍为 undefined，败在 response-observed 断言。仅移动退订后同一交错通过。新增测试 strict 另发现沿旧夹具的 business createSession 缺 role_id，已明确传入 helper；未放宽断言，最后原文件 6/6、零跳过通过。
 
 最终生产差异仅成功分支退订，finally 仍排 timingCommit 与 usage。原整体 build、Agent Host strict、测试 strict、准确主干 `2b3dc51de` health 均退出 0；README 必跑与关闭/恢复必要并集 27 文件 176/176 通过、零 retry、零 browser。之后只将 try 改为正常多行并补原 build/指纹，没有重跑已绿并集；独立只读复审确认该 P2 在此范围内关闭，无新增确定阻塞。日志为仓外 `molis-foundation-291e-sdk-close-{red-first,red-second,green,file-final,related,types,test-types,test-types-final,build,build-final,health}-20261026.log`，首路径/类型失败保留。此为真实临时 Node/SQLite/loopback 的有界工程证据，未修改 SDK、未提交推送、未跑全量或外部模型；App 合成与最终验收仍由原任务继续。
+
+
+### 2026-10-26 Foundation 合入 batch-41：读取合同与原失败保留
+
+短合同（实现前）：将 #1064 的 `1f124ddd2` 与 main `29f1ffd4` 合成，仍由同一 Agent/Host/Memory 主人执行，不改变首期范围、存储版本或授权默认。双方分别在 `agent.run.read.v1`、`agent.session.read.v1`、`agent.run.wait.v1` 的 @2 改了输出形状；按 `docs/system/CONTRACT-CHANGES.md` 阶段一，合成三个读取口为 @3，拒绝旧 @1/@2，能力 id 不变。start 保留 @2、subagents.list 保留主干 @2、inputs.send 保留 v3@3。沿用主干严格嵌套 schema，保留 Memory 的可选 original_input 和开放 Context 字段，不能删除正文来源、contexts/selected/retrievals/recording_error 或信任输入 source:person。
+
+允许改动仅为本次六处合并冲突、当前调用说明、原 Agent/Context 针对性测试及由原工具生成的合同快照；保留安全测试双方并集。原已批 Workbench +3193 B 与 Coding +612 B 只迁到准确新主干的精确基点；主干已经消费的增长不叠加，资源值须由最终 build 实测后更新。验证三个读取口不让旧版本进入 Runtime、原件和完整 Context 经真实入口保留、错误嵌套字段仍拒绝，再跑必要集成、原门禁和最终 CI/Full。
+
+1f 普通 CI 40260900069 成功；Full 40260896732 保留 1503 文件中 6 首红、5 retry-only 及 crosstalk 原重试仍失败。一次原 AC-05 本机观测通过，只证明该次路径；同步插件查询造成 632–795ms CDP 等待。离线 CPU profile 显示固定参考 schema 重建约占总采样 0.92%，不据此添加缓存或宣称 Linux 根因关闭。旧失败、Cloudflare 原因/影响及后续实际验证仍待闭合。
+
+本轮另一个有界诊断变更：原 ChromeHarness 命令超时时，仅在 Error.cause 加入该命令等待期间的 Node 进程 CPU、主事件循环 active/idle 三个毫秒数，用于区分进程繁忙与对端未答。沿用原计时器、消息长度和原调用栈；不加轮询、额外 CDP 请求、重试或正文输出，不改 CI 步骤、1000ms 清理期限或判定。原 socket 协议用例检查数字可读及原超时仍发生；此诊断不能单独证明根因或把失败算通过。
+
+用户本轮决定：暂不恢复 21db 被人工取消的普通 CI；暂不查看 Cloudflare 私有构建日志，原因和影响保留未核清。该决定不作通过证据，不重新申请同一访问。
+
+实际验证（batch-41 本地合成，尚未推送或合并 main）：冻结离线安装、整体 70 包 build、Agent/test-kit 原项目类型检查、公开 API 检查及原动作快照生成均通过。原 runner 13 个必要文件、3 个 browser、jobs2/browser1/零重试，95/95 首轮通过，含三读版本拒绝、实际 HTTP 原件、SDK Context/回执、关闭失败恢复、crosstalk 4 例、模型控制和 socket 协议；不替代 Linux Full 或最终产品验收。独立静态复审曾发现新增 Context fixture 的 outcome/字段不完整，运行前已按公开类型修正为 ready、完整 basis/parts 并加 satisfies；修正后无新增确定 P1/P2。
+
+资源只读报告独立对照 29f 的实际预算：48 项中仅 Workbench 1,139,387→1,142,580（+3193）、Coding 289,062→289,674（+612），其余相同。先记录合成提交使准确 main 成为祖先，再用原 updater 和 `--base 29f1ffd4` 迁移实测预算并完成门禁；当前不把尚未执行的准确门记作通过。
+
+额外临时测试源码 strict/noEmit 实验未通过，保留两次原日志：初版遗漏 JS 输入和当前 Node API 的 lib；按实际 JS/ES2024 输入修正临时配置后仍有 27 个诊断，位于动作快照 JS 推断、既有动作夹具的结构/负向输入等。未修改仓库 tsconfig、降低 strict 或放宽运行断言，也不宣称该额外检查通过；上述生产项目类型与原运行测试是分别执行的事实，不作相互替代。日志前缀 `/private/tmp/molis-memory-foundation-batch41-`（install/build/focused/agent-types/test-kit-types/api/actions/assets-report/test-types/test-types-v2，20261026）。

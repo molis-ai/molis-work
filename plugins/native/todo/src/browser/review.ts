@@ -1,4 +1,4 @@
-import type { TodoBatch } from "@molis-ai/molis-work-contracts/modules/todo";
+import type { TodoBatch } from "../contract.js";
 import { arrive, make } from "./dom.js";
 import { renderBatchSection } from "./review-cards.js";
 import type { TodoPage } from "./types.js";

@@ -4,6 +4,18 @@
 
 验收编号：RAC-756～762。
 
+## hover 审计漏表窄工单（N2，2026-10-25）
+
+状态：作者实现与窄验证通过，候选待双核及采用。固定父 `2b3dc51ded348325edbf135a13c195ba89fba602`；仅处理 [#1308 原评 N2](https://github.com/molis-ai/molis-work/pull/1308#issuecomment-6404309473)。原第二个 stylesheet 审计在 frame 没链上自有表时得到 `own=[]`，仍可能靠共享 shell 的规则数通过，漏掉应审的插件规则。
+
+- `PG070-N2-01`：从公开 `pluginWorkbenchPacks` / `pluginOnDemandStylesheet` 声明判定被审插件是否应有自有表，不从现场 DOM 的非空链接反推预期；应有时必须存在真实 frame 及对应插件 CSS 链接，缺失即在原审计入口拒绝。沿用既有被审页面清单，不新增产品名单或例外。
+- `PG070-N2-02`：同一真实页面仅移掉一个由声明确认应有的 frame stylesheet link，共享 shell 和其余链接不变；原读取入口须抛出明确的缺表断言，随后在 finally 原位恢复该 link，恢复后同一读取及原 stylesheet 审计通过。负例的预期断言由现有用例捕获，不能冒充一次自然退出 1 的独立业务运行。
+- `PG070-N2-03`：保留原 hover/focus/touch 审计、例外断言及 PG070 生产加载和样式合同。只改 `tests/hover-actions.e2e.test.ts` 与本 WO；不改加载器、CSS、合同、预算、I1、N3、N4 或 PG071。
+
+验证仅运行原第二个 stylesheet 浏览器单例（inline `--test-name-pattern=every stylesheet rule`，原 runner jobs1/retries0/verbose）及最小相关静态检查；不重跑首个互动大用例、full 或 CI。优先核实固定 main 的正常生成构建与公开源码指纹，只有无匹配产物时才在公共 FIFO 做一次必要整体构建，不改写 manifest。独立 Home/profile、专用测试浏览器，改 TMPDIR 时显式保留 canonical 槽位目录，准确回收本次资源。普通推送前 fresh-fetch/secrets；锁头后交既有 REVIEW/TEST 窄核，作者亲读原件后交 PIPE/Root。源码修复、测试通过、载体采用和最终验收分别记录。
+
+作者验证：与固定 main 同 tree 的 ac-batch40 旧构建清单为 `bdcdb6e1…eebdc`，公开源码实算为 `cb362e33…dd79a`，主检出也不匹配，因此没有复用或改写它们。独立树一次公共 FIFO 整体构建自然退出 0，正常生成 `2026-10-25T23:20:12.487Z` 清单；公开重算完整 digest `cb362e330325461ec2ebef24ecf01be6438a4a01e67f844f3cf14c6944add79a` 与之相同。原第二个真实浏览器用例唯一一次运行 1/1、自然退出 0、零 skip（26.79 秒）：在 todo 真实 frame 移掉 `todo.css` 时，shell 仍有 9219 条规则且其 CSS 和其余链接未变，缺表断言以准确消息抛出并被预期捕获；finally 原位恢复后同入口及后续正常审计通过，保留原 Pages resize 的唯一例外。单文件 lint、导入无混用、diff-check 通过。本次独立 Home/Chrome/槽位残留为零，自己的 TMP/cache 已清。原件 `/tmp/molis-hover-n2-20261025/`；首个互动用例、其他浏览器批、full、CI、真实模型及平台发布均未运行。
+
 ## 范围
 
 - **拆分**（`apps/workbench/src/plugin-styles.ts`）：一条规则的每个选择器都点名了插件自己的类或 `data-` 属性（`.<id>`、`.<id>-…`、`[data-<id>…]`），且名字不在 `:not()`、`:is()`、`:where()` 里，规则才移出，所以它只能匹配到插件自己的元素；别的规则、`@keyframes`、`@font-face`、`@import` 原样留在共用样式表，`@media`/`@supports`/`@container` 里的规则在组内各自分开。拆分只看名字，不改任何一条规则适用的对象。

@@ -9,11 +9,13 @@ import { randomUUID } from 'node:crypto';
 import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
 import { pluginErrors, type PluginPackageBundle } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import type { PluginInstallPreview, PluginPublisherPin } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
+import type { PluginInstalledView, PluginInstallPreview, PluginPublisherPin } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
 import { declarationsNeedingConsent, verifyPluginPackageSignature, type PluginConsentLedger } from '@molis-ai/molis-work-plugin-runtime';
 import type { InstalledRelease } from './installed-release.js';
+import { consentsChanged } from './consent-revision.js';
 import { readSandboxPackage, type SandboxPackage } from './sandbox-package.js';
 import { packagedRelease, type SandboxPackageStore } from './sandbox-package-store.js';
+import { installedPluginViews, jobViews, permissionViews, type InstalledPluginEntry } from './plugin-installed-view.js';
 
 /** A preview waits this long for its confirmation, and at most this many wait at once. */
 const PREVIEW_TTL_MS = 15 * 60_000;
@@ -24,6 +26,8 @@ export interface PluginInstallPorts {
   packages: SandboxPackageStore;
   /** Installs a release in the project the person is in. */
   install(projectId: string, release: InstalledRelease): Promise<void>;
+  /** The plugins installed in the project, each with the Manifest it was installed with. */
+  installed(projectId: string): Promise<InstalledPluginEntry[]>;
   now?(): string;
 }
 
@@ -59,8 +63,7 @@ export class PluginInstallService {
     this.held.set(preview_id, { bundle, pkg, key_id, spki: public_key_spki_base64, project_id: who.project_id, actor_id: who.actor_id, expires: Date.now() + PREVIEW_TTL_MS });
     return { preview_id, name: manifest.name, effects: pkg.permissions, publisher: { key_id, pinned_label: pin?.label ?? null },
       preview: { plugin_id: manifest.plugin_id, version: manifest.version, trust: 'pinned', publisher_signature: manifest.publisher.signature, publisher_pinned: pin !== undefined,
-        permissions: manifest.permissions.map(item => ({ permission: item.permission, required: item.required })),
-        declarations: declarationsNeedingConsent(manifest, () => undefined) } };
+        permissions: permissionViews(manifest), declarations: declarationsNeedingConsent(manifest, () => undefined), jobs: jobViews(manifest) } };
   }
 
   /**
@@ -79,6 +82,7 @@ export class PluginInstallService {
       if (!label) throw pluginErrors.publisher_untrusted('这个发布者还没有被固定：要装它的包，请先确认信任它');
       if (label.length > 80) throw new ActionError('actions.input_invalid', '发布者的名称不超过 80 个字');
       this.ports.ledger.pinPublisher({ key_id: held.key_id, public_key_spki_base64: held.spki, label, pinned_at: this.now(), pinned_by: who.actor_id });
+      consentsChanged();
     }
     const directory = this.ports.packages.save(held.bundle, held.pkg);
     await this.ports.install(held.project_id, packagedRelease(held.pkg, directory, this.now()));
@@ -86,4 +90,18 @@ export class PluginInstallService {
   }
 
   publishers(): PluginPublisherPin[] { return this.ports.ledger.publishers(); }
+
+  /**
+   * Takes a publisher back (BL-559, S-87): its pin is revoked for good, and every installation of a package it signed stops running, its data
+   * kept. The stop is each project's own: an installation is denied at its next effect, and stopped when its project next looks.
+   */
+  revokePublisher(keyId: string): PluginPublisherPin {
+    const pin = this.ports.ledger.revokePublisher(keyId, this.now());
+    if (!pin) throw pluginErrors.publisher_untrusted('没有固定过这个发布者');
+    consentsChanged();
+    return pin;
+  }
+
+  /** The project's installed plugins as their detail page shows them: trust, permissions, jobs and the person's agreements. */
+  async installed(projectId: string): Promise<PluginInstalledView[]> { return installedPluginViews(await this.ports.installed(projectId), this.ports.ledger); }
 }

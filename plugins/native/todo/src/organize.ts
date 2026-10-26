@@ -1,5 +1,5 @@
-import type { TodoBatch, TodoBatchMaterial, TodoCandidate, TodoItem, TodoPlacement, TodoSource } from "@molis-ai/molis-work-contracts/modules/todo";
-import { TODO_ORGANIZE_MATERIAL_CHARS, TODO_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/todo";
+import type { TodoBatch, TodoBatchMaterial, TodoCandidate, TodoItem, TodoPlacement, TodoSource } from "./contract.js";
+import { TODO_ORGANIZE_MATERIAL_CHARS, TODO_SUBJECT_KIND } from "./contract.js";
 import { isTodoDate, isTodoTime } from "./dates.js";
 import { todoErrors } from "./error.js";
 import { normalizeForMatch, type TodoCandidateDraft, type TodoOrganizeMaterial } from "./organize-model.js";

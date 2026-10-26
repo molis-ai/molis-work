@@ -1,5 +1,5 @@
 import type { HomeStoreDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { TodoChange, TodoItem } from "@molis-ai/molis-work-contracts/modules/todo";
+import type { TodoChange, TodoItem } from "./contract.js";
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { addDays } from "./dates.js";
 import { todoErrors } from "./error.js";

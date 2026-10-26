@@ -82,7 +82,7 @@ export function parsePluginManifest(input: unknown): PluginManifest {
       throw pluginErrors.permission_invalid(`没有 ${permission.permission} 这种审查；能声明的只有 ${PLUGIN_REVIEW_KINDS.map(kind => PLUGIN_REVIEW_PERMISSION_PREFIX + kind).join("、")}`);
     }
   }
-  const databaseProblems = databaseDeclarationProblems(manifest.databases, permissions);
+  const databaseProblems = databaseDeclarationProblems(manifest.databases, permissions, manifest.owner_files);
   if (databaseProblems.length > 0) invalid(databaseProblems.join("；"));
   const serviceProblems = [...ownerFilesDeclarationProblems(manifest.owner_files, permissions), ...modelConfigurationDeclarationProblems(manifest.model_configuration, permissions),
     ...imageGenerationDeclarationProblems(manifest.image_generation, permissions), ...localToolsDeclarationProblems(manifest.local_tools, permissions),

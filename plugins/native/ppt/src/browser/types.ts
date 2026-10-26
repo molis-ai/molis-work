@@ -1,5 +1,5 @@
 import type {} from "@molis-ai/molis-work-plugin-sdk/page-globals";
-import type { PptRecord, PptSlide } from "@molis-ai/molis-work-contracts/modules/ppt";
+import type { PptRecord, PptSlide } from "../contract.js";
 import type { UiClientTranslate as Translate, UiPluginClientHost } from "@molis-ai/molis-work-contracts/platform/ui";
 
 export type { Translate };

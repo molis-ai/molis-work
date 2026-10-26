@@ -7,7 +7,7 @@ import test from "node:test";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { ActionService, CapabilityRegistry } from "@molis-ai/molis-work-kernel";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PagesBody, PagesCommentThread } from "@molis-ai/molis-work-contracts/modules/pages";
+import type { PagesBody, PagesCommentThread } from "@molis-ai/molis-work-plugin-pages/contract";
 import type { AssistantThreadContext } from "@molis-ai/molis-work-contracts/services/assistant";
 import { createPagesCommentHandlers, ownPagesStores, pagesCommentActions } from "@molis-ai/molis-work-plugin-pages";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";

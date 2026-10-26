@@ -17,10 +17,6 @@
     "./registration": {
       "types": "./dist/registration.d.ts",
       "import": "./dist/registration.js"
-    },
-    "./terminal-client": {
-      "types": "./dist/terminal-client.d.ts",
-      "import": "./dist/terminal-client.js"
     }
   },
   "files": [

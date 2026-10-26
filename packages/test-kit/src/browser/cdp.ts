@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { performance } from "node:perf_hooks";
 import { launchHeadlessChrome, type LaunchedChrome } from "./launch.js";
 import { locateTestChrome } from "./locate.js";
 import { ChromePage } from "./page.js";
@@ -99,8 +100,11 @@ export class ChromeHarness {
       const expression = typeof params.expression === "string" ? ` · ${params.expression.slice(0, 320)}` : "";
       // Keep the command's caller, not only the timer callback, when a renderer stops answering.
       const started = performance.now(), failure = new Error(`CDP timeout: ${method}${expression}`);
+      const cpuStarted = process.cpuUsage(), loopStarted = performance.eventLoopUtilization();
       const timer = setTimeout(() => {
         this.pending.delete(id);
+        const cpu = process.cpuUsage(cpuStarted), loop = performance.eventLoopUtilization(loopStarted);
+        failure.cause = { nodeCpuMs: Math.round((cpu.user + cpu.system) / 1000), eventLoopActiveMs: Math.round(loop.active), eventLoopIdleMs: Math.round(loop.idle) };
         failure.message += ` (elapsed ${Math.round(performance.now() - started)}ms; limit ${timeoutMs}ms)`;
         reject(failure);
       }, timeoutMs);

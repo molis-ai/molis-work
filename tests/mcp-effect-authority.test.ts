@@ -6,7 +6,7 @@ import { recordedCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { readMcpToolPreference } from "@molis-ai/molis-work-app-local-host";
 import { formActions } from "@molis-ai/molis-work-plugin-form";
 import { openFormStore } from "./fixtures/plugin-home-stores.js";
-import type { FormRecord } from "@molis-ai/molis-work-contracts/modules/form";
+import type { FormRecord } from "@molis-ai/molis-work-plugin-form/contract";
 import { openTestHome } from "./fixtures/test-home.js";
 
 const peer: ActionDefinition = { capability_id: "fixture.form.peer", version: 1, operation: "query", action: {

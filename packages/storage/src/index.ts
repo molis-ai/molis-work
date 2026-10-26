@@ -46,6 +46,7 @@ export {
 export {
   runWithMolisWorkHome,
   resolveMolisWorkHome,
+  resolveHomeDirectory,
   resolveHomeSecurityDirectory,
   readProductEnv,
   resolveProjectDatabaseFile,

@@ -23,7 +23,7 @@ export class MolisWorkUninstallService {
   private readonly plans = new Map<string, PreparedUninstallPlan>();
 
   constructor(private readonly options: MolisWorkUninstallServiceOptions) {
-    this.homeDirectory = path.resolve(options.homeDirectory ?? resolveConfiguredHome());
+    this.homeDirectory = resolveConfiguredHome(options.homeDirectory);
     this.receiptPath = path.join(this.homeDirectory, "config", "uninstall.json");
     this.runtimeIntegrations = options.runtimeIntegrationService
       ?? new RuntimeIntegrationService({ homeDirectory: this.homeDirectory });
@@ -251,7 +251,7 @@ export class MolisWorkUninstallService {
   ): void {
     if (
       confirmation
-      && path.resolve(confirmation.home_directory) === this.homeDirectory
+      && resolveConfiguredHome(confirmation.home_directory) === this.homeDirectory
       && confirmation.user_project_count === plan.user_project_count
     ) return;
     throw installerErrors["installer.uninstall.purge_confirmation_required"](`永久清除还需要再次确认精确目录 ${this.homeDirectory} 和用户项目数量 ${plan.user_project_count}`);

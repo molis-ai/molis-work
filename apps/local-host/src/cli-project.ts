@@ -1,7 +1,7 @@
 import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { existsSync, realpathSync } from "node:fs";
 import path from "node:path";
-import { readProductEnv, resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { readProductEnv, resolveHomeDirectory, resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { catalogManagementProject, residentManagementActions } from "./management-action-client.js";
 import { DEFAULT_RESIDENT_HOST_URL } from "./resident-host-request.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -72,7 +72,7 @@ function databaseInHome(home: string, database: string): boolean {
     ancestor = path.dirname(ancestor);
   }
   const target = path.resolve(realpathSync(ancestor), ...suffix);
-  const root = existsSync(home) ? realpathSync(home) : path.resolve(home);
+  const root = resolveHomeDirectory(home);
   const relative = path.relative(root, target);
   return relative === "" || relative !== ".." && !relative.startsWith(".." + path.sep) && !path.isAbsolute(relative);
 }

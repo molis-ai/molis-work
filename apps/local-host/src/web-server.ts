@@ -6,7 +6,7 @@ import { handlePluginInstallHttp } from "./plugin-install-gateway.js";
 import { handleActionGatewayHttp } from "./action-gateway-http.js";
 import { webProjectDeletionPorts } from "./project-deletion-service.js";
 import { handleMcpContextHttp } from "./mcp-context-gateway.js";
-import { resolveMolisWorkHome, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import fs from "node:fs";
 import http from "node:http";
@@ -36,6 +36,7 @@ import { trackHostListener } from "./host-endpoints.js";
 import { attachMolisWorkBrowserSocket } from "./browser/browser-socket.js";
 import { handleBrowserHttp } from "./browser/browser-http.js";
 import { createWebStorageResources } from "./web-storage-resources.js";
+import { resolveConfiguredHome } from "./product-home.js";
 import type { createWebCatalogAccess } from "./web-catalog-access.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { closeHostResourceSteps, retainHomeStorageResources, retainInitializationCleanup } from "./home-storage-lifetime.js";
@@ -60,7 +61,7 @@ function nativeTerminal() {
 
 export function createLocalWebServerFactory(platform: LocalWebPlatform) {
   return function createMolisWorkWebServer(options: WebServerOptions = {}): http.Server {
-    const storageHome = path.resolve(options.homeDirectory ?? resolveMolisWorkHome());
+    const storageHome = resolveConfiguredHome(options.homeDirectory);
     let catalogAccess: ReturnType<typeof createWebCatalogAccess> | undefined;
     const withCatalog: LocalWebCatalogRunner = (settings, operation) => (catalogAccess?.withCatalog ?? platform.withCatalog)(settings, operation);
     const serverOptions: WebServerOptions = { ...options, homeDirectory: storageHome };

@@ -16,7 +16,7 @@ import { prepareMemoryHome } from "../memory/memory-adoption.js";
 export async function installMolisWorkHome(
   options: MolisWorkHomeInstallOptions,
 ): Promise<MolisWorkHomeInstallResult> {
-  const homeDirectory = path.resolve(options.homeDirectory ?? resolveConfiguredHome());
+  const homeDirectory = resolveConfiguredHome(options.homeDirectory);
   const sourceDirectory = path.resolve(options.sourceDirectory);
   const source = await inspectSource(sourceDirectory, options.version);
   const releaseName = safeReleaseName(source.version);

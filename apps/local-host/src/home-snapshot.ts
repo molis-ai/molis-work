@@ -1,5 +1,5 @@
-import { lstatSync, realpathSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { lstatSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { acquireStorageOwner, assertStorageOwner } from "@molis-ai/molis-work-storage";
 import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
@@ -22,12 +22,11 @@ export interface HomeSnapshotOptions {
 export async function createHomeSnapshot(
   options: HomeSnapshotOptions,
 ): Promise<HomeSnapshotResult> {
-  const requested = resolve(resolveConfiguredHome(options.homeDirectory));
-  const source = lstatSync(requested);
+  const home = resolveConfiguredHome(options.homeDirectory);
+  const source = lstatSync(home);
   if (!source.isDirectory() || source.isSymbolicLink())
     throw homeSnapshotErrors.invalid("快照需要已经存在的普通 Home 目录");
-  const home = realpathSync(requested),
-    mode = snapshotDirectoryInfo(home).mode & 0o777;
+  const mode = snapshotDirectoryInfo(home).mode & 0o777;
   const destination = snapshotDestination(home, options.destination);
   options.signal?.throwIfAborted();
   const root = agentRuntimeDirectory(home),

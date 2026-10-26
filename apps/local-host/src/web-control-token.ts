@@ -17,7 +17,7 @@ export function resolveWebControlToken(options: {
     }
     return injected;
   }
-  const home = path.resolve(options.homeDirectory ?? resolveConfiguredHome());
+  const home = resolveConfiguredHome(options.homeDirectory);
   const filePath = path.join(home, WEB_CONTROL_TOKEN_RELATIVE_PATH);
   try {
     const existing = fs.readFileSync(filePath, "utf8").trim();

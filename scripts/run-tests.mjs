@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdtemp, readdir, rm } from "node:fs/promises";
+import { mkdtemp, readdir, realpath, rm } from "node:fs/promises";
 import { availableParallelism, tmpdir } from "node:os";
 import { join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -86,14 +86,17 @@ if (targets.length > 1) {
 } else {
   // Test processes, including spawned web servers, inherit an isolated credential
   // home. Production's Keychain selection and existing ciphertext stay untouched.
-  const home = await mkdtemp(join(tmpdir(), "molis-test-home-"));
+  // The real path of the temporary directory (macOS: /var is a link to /private/var), handed to the test as its tmpdir() too: a Home is
+  // resolved to its real path where it enters (S-11), and a test that builds one under tmpdir() then names it the way the product does.
+  const temporary = await realpath(tmpdir());
+  const home = await mkdtemp(join(temporary, "molis-test-home-"));
   try {
     const environment = { ...process.env };
     // This is a new test coordinator, including when a test verifies the runner.
     delete environment.NODE_TEST_CONTEXT;
     const child = spawn(process.execPath, ["--import", "tsx", "--test", "--test-concurrency=1", ...testArgs, ...targets], {
       stdio: "inherit",
-      env: { ...environment, NODE_ENV: "test", MOLIS_WORK_HOME: home,
+      env: { ...environment, NODE_ENV: "test", TMPDIR: temporary, MOLIS_WORK_HOME: home,
         MOLIS_WORK_SECRET_BACKEND: "file", MOLIS_WORK_ENCRYPTION_KEY: "" },
     });
     const interrupt = () => child.kill("SIGINT");

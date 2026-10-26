@@ -243,7 +243,7 @@ const headErrors = (measured, budget, base) => {
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
 // batch-41 (coordinator review 2026-10-25), against batch-40 as landed, both trees measured on the served asset:
-// - workbench.js +270 B (1,129,466 B base): PG-049's notice follow-up (8f18228e6, PIPE 6401600115): a local-directory read notice is
+// - workbench.js (1,129,446 B base, remeasured below): PG-049's notice follow-up (8f18228e6, PIPE 6401600115): a local-directory read notice is
 //   stored as a stable template with its parameters and drawn in the current UI language, its text and aria label alike. It reuses
 //   the assistant's existing text-to-HTML helper and L()/fill(); the author removed the duplicated body/aria wording before handoff.
 // - plugins/shelf.js +1,247 B: PG-053 (ac-shell): Shelf's terminal well moves from the platform's pty-client.js into Shelf's own
@@ -251,7 +251,7 @@ const headErrors = (measured, budget, base) => {
 //   shrinks by 3,196 B, and the frame no longer preloads that 0.5 MB script for Shelf. Tried in the same asset: the bridge reuses
 //   Shelf's `post` and page lifetime in place of its own request and observer code; the tui.ts reader of the bridge is unchanged.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1129466, 1129736],
+  "/assets/molis-work-workbench.js": [1129446, 1129736],
   "/assets/molis-work-plugins/shelf.js": [63376, 64623],
   // #1306 (with F1's review fixes) reuses arrival's choice/field/button styles instead of the settings document stylesheet. The
   // journey changes and the valid dark welcome pseudo-element selector net +135 B (681,352 -> 681,487). Shared glow declarations

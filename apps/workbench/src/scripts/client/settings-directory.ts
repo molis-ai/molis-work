@@ -54,7 +54,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     });
   const stylesheets = new Set();
   const ensureStyleSheets = (html) => {
-    const sources = [...new Set([...html.matchAll(/<link\b[^>]*>/g)].map((tag) => /href="([^"]*\.css)"/.exec(tag[0])?.[1]).filter((href) => typeof href === "string" && href.includes("/assets/molis-work-plugins/")))];
+    const sources = [...new Set([...html.matchAll(/<link\\b[^>]*>/g)].map((tag) => /href="([^"]*\\.css)"/.exec(tag[0])?.[1]).filter((href) => href?.includes("/assets/molis-work-plugins/")))];
     return Promise.all(sources.map((href) => new Promise((resolve) => {
       if (stylesheets.has(href) || document.querySelector('link[rel="stylesheet"][href="' + href + '"]')) return resolve();
       const link = document.createElement("link");

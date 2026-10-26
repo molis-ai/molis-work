@@ -21,6 +21,7 @@ export { charactersProvider, type CharactersProject } from "./characters-host.js
 export { collectHomeAggregate, homeAggregatePorts, type HomeAggregateAnswer, type HomeAggregateIssue, type HomeAggregatePorts, type HomeAggregateResult } from "./home-aggregate.js";
 export { openPluginDatabase } from "./plugin-database.js";
 export { openPluginProjectLibrary, type ProjectLibrary } from "./plugin-project-library.js";
+export { openSandboxHomeLibrary } from "./plugin-sandbox-home-library.js";
 export { createPluginPlatform } from "./plugin-platform.js";
 export { dispatchDeclaredPluginRoutes, type DeclaredPluginRoutes } from "./plugin-route-operations.js";
 export { bindDeclaredDefaults } from "./plugin-default-bindings.js";
@@ -34,19 +35,6 @@ export type { PluginPlatform, PluginPlatformDatabase, PluginPlatformEntry, Plugi
 export type { PluginHostExecutorOptions } from "./plugin-executor.js";
 export { runPluginDevelopment } from "./plugin-development.js";
 export type { LocalProjectStoragePreparation } from "./project-storage.js";
-
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-app-local-host",
-  packagePath: "apps/local-host",
-  kind: "app",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/platform/app-host",
-  migrationGoals: ["goal-reorg-f2","goal-reorg-ap2"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["local-host.client.v1", "local-host.single-writer.v1"],
-} as const;
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export * from "./local-host.js";
 export type { HomeInitializationFailure } from "./home-storage-lifetime.js";
@@ -126,7 +114,7 @@ export { connectorManagementActions, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGE
 export { connectorUsagesAction } from "./connector-usage-actions.js";
 export { connectorPluginSlotActions } from "./connector-plugin-slot-actions.js";
 export { PLUGIN_CONSENT_PERMISSIONS, pluginConsentActions, pluginConsentProvider } from "./installed-plugin-consent-actions.js";
-export { PLUGIN_INSTALL_PERMISSIONS, pluginInstallActions } from "./plugin-install-actions.js";
+export { PLUGIN_INSTALL_PERMISSIONS, pluginControlActions, pluginInstallActions } from "./plugin-install-actions.js";
 export { PluginInstallService } from "./plugin-install-service.js";
 export { installedPluginViews } from "./plugin-installed-view.js";
 export { runLocalPluginInstall, type LocalPluginInstallInput } from "./plugin-install-client.js";
@@ -154,7 +142,10 @@ export * from "./gmail-oauth.js";
 export { createGithubConnector } from "./github-connector.js";
 export { createGmailConnector } from "./gmail-connector.js";
 export { createCatalogConnector } from "./catalog-connector.js";
-export { OfficialIntegrationRegistry, type OfficialProviderFactory } from "./official-integrations.js";
+export { IntegrationRegistry } from "./integration-registry.js";
+export { homeIntegrationRegistry } from "./builtin-integrations.js";
+export { connectorDirectory } from "./connector-directory.js";
+export type { IntegrationProviderFactory } from "./integration-providers.js";
 
 export { createLocalFeedConnectorSync } from "./feed-connector-sync.js";
 
@@ -277,6 +268,9 @@ export { memoryExtractor } from "./memory/memory-extractor.js";
 export { registerMemoryProjectDeletion } from "./memory/memory-project-deletion.js";
 export { adoptMemoryHome, type MemoryHomeAdoptionInput, type MemoryHomeAdoptionBridge, type MemoryHomeAdoptionScope, type MemoryHomeAdoptionResult } from "./memory/memory-home-adoption.js";
 export { ComputerRecords } from "./computer/computer-records.js";
+export { handleComputerHttp, type ComputerShelf } from "./computer/computer-http.js";
+export { assistantRelatedAction, assistantRelatedRegistration, type RelatedWorksSource } from "./assistant/assistant-related-action.js";
+export { assistantThreadActions } from "./assistant/assistant-thread-actions.js";
 export { ComputerDesk } from "./computer/computer-desk.js";
 export { ComputerSettings } from "./computer/computer-settings.js";
 export { ComputerDriver, type DeskContext } from "./computer/computer-driver.js";

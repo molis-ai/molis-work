@@ -1,7 +1,7 @@
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import { labelOf, panelChordOf, panelLabel, PANEL_DEFAULTS, sameChord, samePanel } from "./keys.js";
 import type { Chord, Settings, SettingsPage } from "./types.js";
-import type { ShelfHotKeySlot, ShelfPanelKeySlot, ShelfSettingsPatch } from "@molis-ai/molis-work-contracts/modules/shelf";
+import type { ShelfHotKeySlot, ShelfPanelKeySlot, ShelfSettingsPatch } from "@molis-ai/molis-work-module-shelf/contract";
 
 export const invoke = (name: string, payload?: unknown): Promise<unknown> => {
   const fn = globalThis.__TAURI__?.core?.invoke;

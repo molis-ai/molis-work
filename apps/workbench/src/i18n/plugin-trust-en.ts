@@ -51,4 +51,12 @@ export const PLUGIN_TRUST_EN: Record<string, string> = {
   "撤销对这个发布者的信任？": "Revoke trust in this publisher?",
   "{name} 签的包不能再安装；已经装上的它的插件马上不能再做任何事，随后停用，数据保留，只能卸载。撤销不能撤回。": "Packages {name} signed can no longer be installed. Plugins already installed from them stop doing anything at once, then are turned off; their data stays and they can only be uninstalled. This cannot be undone.",
   "已撤销对这个发布者的信任": "Trust in this publisher revoked",
+  "停用这个插件？": "Switch this plugin off?",
+  "{plugin} 停用后不再运行，也不再提供动作；数据保留，可以随时重新启用。": "{plugin} stops running and offers no actions; its data is kept and you can switch it on again at any time.",
+  "卸载并保留数据": "Uninstall, keep data",
+  "卸载这个插件？": "Uninstall this plugin?",
+  "{plugin} 会被卸载，它的数据保留；以后再装同一个插件时会接着用。": "{plugin} is uninstalled and its data is kept; installing the same plugin again picks it up.",
+  "{plugin} 会被卸载，它的数据一并删除，不能恢复。": "{plugin} is uninstalled and its data is deleted. This cannot be undone.",
+  "已卸载": "Uninstalled",
+  "已装的是 {from}，装上后升级到 {to}；数据保留。": "Installed: {from}. Installing this upgrades it to {to}; its data is kept.",
 };

@@ -214,9 +214,6 @@ export type { MaterialExtraction } from "@molis-ai/molis-work-contracts/services
 export type { MaterialSource } from "@molis-ai/molis-work-contracts/services/materials";
 export type { MaterialSourceContent } from "@molis-ai/molis-work-contracts/services/materials";
 export type { MaterialUpload } from "@molis-ai/molis-work-contracts/services/materials";
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
-
 export { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export declare const PLUGIN_MESSAGE_LIMITS: {
@@ -434,7 +431,8 @@ export declare function definePlugin(definition: PluginDefinition): PluginDefini
 
 export declare function definePollingIntegrationPlugin(input: {
     manifest: PluginManifest;
-    createProvider(context: PluginStartContext): IntegrationProviderPort;
+    createProvider(context: PluginStartContext, binding: IntegrationBinding): IntegrationProviderPort;
+    presentAccount?(cursor: unknown, currentAccountLabel: string | null, binding: IntegrationBinding): IntegrationAccountPresentation | null;
     now?: () => Date;
 }): PluginDefinition;
 
@@ -478,17 +476,6 @@ export declare function messageDeclarationProblems(parsed: Pick<PluginManifest, 
 
 export { nextPinnedVersion } from "@molis-ai/molis-work-contracts/platform/actions";
 export { objectOrMissing } from "@molis-ai/molis-work-contracts/platform/actions";
-
-export declare const packageDescriptor: {
-    readonly packageName: "@molis-ai/molis-work-plugin-sdk";
-    readonly packagePath: "packages/plugin-sdk";
-    readonly kind: "foundation";
-    readonly maturity: "partial";
-    readonly contract: "@molis-ai/molis-work-contracts/platform/plugin";
-    readonly migrationGoals: readonly ["goal-reorg-f2", "goal-reorg-fd3", "goal-reorg-dv3"];
-    readonly ssot: "docs/SSOT-MATRIX.md";
-    readonly capabilities: readonly ["plugin.define.v1", "integration.polling.v1"];
-};
 
 export declare function parsePluginManifest(input: unknown): PluginManifest;
 

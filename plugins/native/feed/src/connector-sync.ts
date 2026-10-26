@@ -3,6 +3,7 @@ import { listenerErrors } from "@molis-ai/molis-work-contracts/services/listener
 import { isAccountConnectorSyncKind } from "@molis-ai/molis-work-contracts/modules/sources";
 import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
 import { type ListenerRunReceipt } from "@molis-ai/molis-work-contracts/services/listener-host";
+import type { IntegrationAccountPresentation } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import type { FeedApplication } from "./application.js";
 import type { FeedSourceRecord } from "./projection.js";
 import type { FeedSourceSyncResult, FeedSourceSyncInput } from "./source-ports.js";
@@ -80,8 +81,7 @@ export class FeedConnectorSync {
       const updatedAt = new Date().toISOString();
       const errorCode = error instanceof ActionError && error.code.startsWith("listener.")
         && Object.hasOwn(listenerErrors, error.code.slice("listener.".length)) ? error.code : safeErrorCode(error);
-      await this.ports.reportCrash(source.source_id, errorCode);
-      await beforeEffect();
+      // A source's failure is that source's: it is recorded on the source below and never stops the plugin for the others.
       const latest = this.feed.getSource(this.projectId, sourceId);
       this.feed.upsertSource({
         ...latest,
@@ -146,7 +146,7 @@ export class FeedConnectorSync {
       ...latest,
       status: mode === "live" ? "active" : "error",
       cursor,
-      ...this.ports.sourceMetadata(latest, cursor),
+      ...accountFields(latest, listener.account?.(cursor) ?? null),
       last_sync_at: completedAt,
       last_outcome: "completed",
       last_error_code: mode === "live" ? null : "feed.fixture_not_live",
@@ -193,4 +193,11 @@ export class FeedConnectorSync {
     }
   }
 
+}
+
+/** The source's account label and configuration after a pull, from what its integration said; nothing said keeps both. */
+function accountFields(source: FeedSourceRecord, presentation: IntegrationAccountPresentation | null): Pick<FeedSourceRecord, "account_label" | "config"> | Record<string, never> {
+  if (!presentation) return {};
+  const { account_label, ...configuration } = presentation;
+  return { account_label, config: { ...source.config, ...configuration } };
 }

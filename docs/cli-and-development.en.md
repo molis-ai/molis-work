@@ -33,7 +33,7 @@ Every command needs `--db PATH` to name the project database. There is no defaul
 
 ## Project structure
 
-> The repository is a plugin base plus many plugins in one monorepo: of 70 workspace packages, 69 are `partial` and one (contracts) is `contract-only`; the root package only assembles the product launchers and exports no code. See the [Architecture SSOT](SSOT-MATRIX.md) for status and ownership.
+> The repository is a plugin base plus many plugins in one monorepo: the 70 workspace packages are labelled with the four maturity words in [SSOT-MATRIX](SSOT-MATRIX.md) §2 (`production`, `experimental`, `slice`, `absent`); the root package only assembles the product launchers and exports no code. See the [Architecture SSOT](SSOT-MATRIX.md) for status and ownership.
 
 ```text
 apps/                        Six product-entry and composition-root boundaries
@@ -101,7 +101,7 @@ specs/molis-work-architecture-reorganization/spec.md
 
 - Root `pnpm build` builds all 70 workspace packages and then compiles the launchers; `workspace:*` commands run only the workspace packages, and `*:all` commands run both.
 - Cross-owner calls use public entrypoints only; deep imports, cross-Module Store access, and App database writes are forbidden.
-- `contract-only` means a real boundary without a fake provider, store, UI entry, or success response.
+- A package that exists has a real implementation: no fake provider, store, UI entry, or success response; targets that do not exist yet stay in the `absent` rows of the SSOT.
 - Every migration slice updates its package README and the affected Module/Service document.
 - See [giant units: list and verdicts](system/HUGE-CLASS-MIGRATION.md) for the owner, verdict and plan of every file, class and function over the limits.
 

@@ -26,7 +26,7 @@ export function createLocalInboxScene(home: string, projectId: string, feed: Fee
       .map(rule => ({ function_key: rule.function_key, name: rule.name,
         reference: publishedFunctionReference(rule) })),
     functionKey: publishedFunctionKey,
-    latestJudgments: sceneId => read(service => service.latestSceneJudgments(projectId, sceneId)),
+    latestJudgments: sceneId => read(service => service.latestSceneJudgments(projectId, sceneId, null)),
     recordJudgment: input => read(service => service.recordSceneJudgment({
       function_key: publishedFunctionKey(input.function) ?? input.function.capability_id, function_version: input.function.version,
       subject: input.subject, scene_id: input.scene_id, scene_provenance: input.scene_provenance,

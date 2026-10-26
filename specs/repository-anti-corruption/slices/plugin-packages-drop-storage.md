@@ -11,7 +11,7 @@
 | Todo、Form、灵光、Dataset、PPT | `store.ts` 里的 `openXStore(home)`：`openBaselineHomeSqlite` 开 Home 里的库文件，再包成 `XStore`；加 `*_HOME_STORE` 的类型 `HomeStoreDeclaration` | 没有。运行中的插件拿 Runtime 给的 `services.database`（`ownXStores`）。只有测试在用，Form 的注释写着「删项目时用」，现在也没有这条路 |
 | Pages | 单独的 `testing` 出口（`./testing`，边界规则 `plugin-testing-entry-import` 拦生产代码引用） | 没有，只有测试（59 个文件） |
 | Workflows、Jelly、Cognia | `openHomeSqliteDatabase` + `applySqliteBaseline` 开自己的库 | 没有；`ownJellyStores`、`ownWorkflowsStores` 没有调用方，生产走宿主的库 |
-| Images | `clearInExistingHomeSqlite`：删项目时按路径清自己的作业行 | **有**，是生产路径（PG-026 的一部分，删项目的清理归平台） |
+| Images | `clearInExistingHomeSqlite`：删项目时按路径清自己的作业行 | **有**，是生产路径（PG-026 的一部分，删项目的清理归平台）。2026-10-26 核：batch-41 的 PG-024 已让平台按 `project_rows` 删，Images 包里已经没有这个调用 |
 
 所以做法是：把「按路径开库」整个搬出插件包，放到测试夹具里。Pages 的 `./testing` 出口（`openPagesStore`）是同一件事，只是多一个导出子路径。Workflows、Jelly、Cognia 开库的写法略不同（先开库、再套基线，Jelly 开完还要 `initialize`），夹具里照原样写一份。
 

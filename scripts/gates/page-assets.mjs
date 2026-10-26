@@ -242,12 +242,14 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// Memory P0 (#1064), integrated with batch-41 29f1ffd4: carry only the same approved feature's
-// Workbench +3193 B and Coding +612 B to the new main's exact bases. Main's own admissions are consumed.
-// The final original build and resource measurement must confirm these pairs; no spare allowance carries over.
+// PR #1311 combined with main's Memory P0: main's prior admissions are consumed. The actual combined
+// build retains batch-42's reviewed Character terminal move (+1757 B), trusted thread source (+22 B),
+// and Workbench controls/thread reply (+1934 B). Those controls reuse the existing helpers and dialog;
+// their prior same-asset reductions are retained. All pairs use main 1b66fab5 and the measured final bytes.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1139387, 1142580],
-  "/assets/molis-work-plugins/coding.js": [289062, 289674],
+  "/assets/molis-work-plugins/characters.js": [28395, 30152],
+  "/assets/molis-work-plugin-frame.js": [190197, 190219],
+  "/assets/molis-work-workbench.js": [1142580, 1144514],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

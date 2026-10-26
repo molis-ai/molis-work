@@ -1,5 +1,5 @@
-import type { ActionDefinition, ActionSchema } from "../platform/actions.js";
-import type { ArtifactReference } from "./artifacts.js";
+import type { ActionDefinition, ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
 
 /** The input of `coding.results.document`: which fixed Coding report or change set to turn into text. */
 export interface CodingResultDocumentInput { reference: ArtifactReference }

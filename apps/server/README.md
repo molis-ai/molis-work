@@ -1,6 +1,5 @@
 # 本地 Server 启动器
 
-Status: `partial`  
 Contract: `@molis-ai/molis-work-contracts/platform/app-host`  
 Migration: `goal-reorg-f2`
 

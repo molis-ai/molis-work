@@ -1,5 +1,5 @@
 import { bindPluginActionRoute } from "@molis-ai/molis-work-plugin-sdk";
-import { SHELF_ADMIT_ACTION } from "@molis-ai/molis-work-contracts/modules/shelf";
+import { shelfAdmit } from "./shelf-admit.js";
 import { ACTION_ERROR_CODE, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRouteBinding, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { imagesActions } from "./actions.js";
@@ -32,7 +32,7 @@ export function imagesRoutes(context: PluginStartContext): PluginRouteBinding[] 
       if (result.status !== 200) return result;
       const file = result.body as { base64: string; mime_type: string; filename: string }, input = body(request);
       const filename = typeof input.filename === "string" && input.filename.trim() ? input.filename.trim() : file.filename;
-      return bindPluginActionRoute(context, SHELF_ADMIT_ACTION, () => ({ filename, mime: file.mime_type, bytes_base64: file.base64 }), "images.images.shelf").handle(request);
+      return bindPluginActionRoute(context, shelfAdmit, () => ({ filename, mime: file.mime_type, bytes_base64: file.base64 }), "images.images.shelf").handle(request);
     } },
   ];
 }

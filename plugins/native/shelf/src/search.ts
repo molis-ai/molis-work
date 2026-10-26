@@ -1,5 +1,5 @@
 import { bindFileEntriesHandler, bindSearchEntriesHandler, defineFileContentAction, defineFileEntriesAction, defineSearchEntriesAction, defineSubjectContextAction, fileContentOf, FILE_CONTENT_MAX_BYTES, searchRevisionOf, searchText, subjectContext, type ActionDefinition, type ActionHandlerBinding, type ActionSubjectContext, type SearchEntry } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { ShelfSnapshot } from "@molis-ai/molis-work-contracts/modules/shelf";
+import type { ShelfSnapshot } from "@molis-ai/molis-work-module-shelf/contract";
 import { shelfErrors } from "@molis-ai/molis-work-module-shelf";
 
 /**

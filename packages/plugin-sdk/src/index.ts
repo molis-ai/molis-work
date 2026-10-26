@@ -81,17 +81,7 @@ import type {
   PluginManifest,
   PluginStartContext,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
-
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-plugin-sdk",
-  packagePath: "packages/plugin-sdk",
-  kind: "foundation",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/platform/plugin",
-  migrationGoals: ["goal-reorg-f2", "goal-reorg-fd3", "goal-reorg-dv3"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["plugin.define.v1", "integration.polling.v1"],
-} as const;
+import type { IntegrationAccountPresentation, IntegrationBinding } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 
 
 
@@ -100,9 +90,15 @@ export function definePlugin(definition: PluginDefinition): PluginDefinition {
   return Object.freeze(definition);
 }
 
+/**
+ * An integration plugin that polls a provider. It starts once; `createProvider` is asked again for every source's binding, so what
+ * differs between sources (the connection they hold, their settings) arrives as references and a change needs no restart.
+ */
 export function definePollingIntegrationPlugin(input: {
   manifest: PluginManifest;
-  createProvider(context: PluginStartContext): IntegrationProviderPort;
+  createProvider(context: PluginStartContext, binding: IntegrationBinding): IntegrationProviderPort;
+  /** How a source's account reads after a pull (the cursor it left); `null` keeps the source's label and configuration as they are. */
+  presentAccount?(cursor: unknown, currentAccountLabel: string | null, binding: IntegrationBinding): IntegrationAccountPresentation | null;
   now?: () => Date;
 }): PluginDefinition {
   if (input.manifest.kind !== "integration") {
@@ -111,10 +107,12 @@ export function definePollingIntegrationPlugin(input: {
   return definePlugin({
     manifest: input.manifest,
     async start(context) {
-      const provider = input.createProvider(context);
       const now = input.now ?? (() => new Date());
       return {
         kind: "integration",
+        bind(binding) {
+          const provider = input.createProvider(context, binding);
+          return {
         connector_driver: {
           driver_id: `${input.manifest.plugin_id}:connector`,
           async health() {
@@ -185,6 +183,9 @@ export function definePollingIntegrationPlugin(input: {
             };
           },
         },
+        ...(input.presentAccount ? { account: (cursor: unknown, label: string | null) => input.presentAccount!(cursor, label, binding) } : {}),
+          };
+        },
       };
     },
   });
@@ -208,8 +209,6 @@ function digest(value: string): string {
 function normalizeDate(value: string | undefined, fallback: string): string {
   return value && Number.isFinite(Date.parse(value)) ? new Date(value).toISOString() : fallback;
 }
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export { defineWorkflowContentActions, bindWorkflowContentHandlers } from "@molis-ai/molis-work-contracts/platform/actions";
 export {

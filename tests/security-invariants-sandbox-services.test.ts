@@ -87,6 +87,9 @@ test("S-60 RAC-238 an optional permission the person did not approve is not an a
   // The project's own tables are given (S-59): declaring them is not refused.
   assert.doesNotThrow(() => assertSandboxDeclarations(declaring({}, { databases: { project: { store_name: "probe", version: 1, read_permission: "probe:read", write_permission: "probe:write", schema: "CREATE TABLE probe_rows (id INTEGER PRIMARY KEY);" } } },
     [permission("probe:read", true), permission("probe:write", true)]), ["probe:read", "probe:write"]));
+  // A library in the Home is given on the Home Runtime (BL-490, tests/security-invariants-sandbox-home-database.test.ts): declaring one is not refused here.
+  assert.doesNotThrow(() => assertSandboxDeclarations(declaring({}, { databases: { home: { store_name: "probehome", version: 1, read_permission: "probe:read", write_permission: "probe:write", schema: "CREATE TABLE probehome_rows (id INTEGER PRIMARY KEY);" } } },
+    [permission("probe:read", true), permission("probe:write", true)]), ["probe:read", "probe:write"]));
 });
 
 test("S-60 the broker's services are the ones the Host built for the activation, and storage is required", () => {
@@ -150,6 +153,14 @@ test("S-60 RAC-238 the Host stops a sandboxed installation that asks for a servi
   await assert.rejects(runtime.start(sandboxed.install_id), { code: "plugin.executor_failed" });
   assert.deepEqual({ state: runtime.get(sandboxed.install_id).state, code: runtime.get(sandboxed.install_id).last_error_code }, { state: "crashed", code: NOT_GIVEN.code });
   assert.deepEqual(started, [], "the sandboxed plugin's start never ran");
+  // A project's platform has no process to run a sandboxed package's Home statements in: a package that declares a library there is stopped before its code starts (BL-490).
+  const homeLibrary = { store_name: "sbxhomelib", version: 1, read_permission: "sbxhomelib:read", write_permission: "sbxhomelib:write", schema: "CREATE TABLE sbxhomelib_rows (id INTEGER PRIMARY KEY);" };
+  const withHome = runtime.install({ trust: { level: "unsigned" }, definition: { ...definition(`${PLUGIN_ID}.withhome`, "sandbox"), manifest: { ...manifest({ databases: { home: homeLibrary } }, [permission(homeLibrary.read_permission, true), permission(homeLibrary.write_permission, true)]), plugin_id: `${PLUGIN_ID}.withhome` } },
+    deployment: "local", grants: ["storage:private", homeLibrary.read_permission, homeLibrary.write_permission] }).install;
+  await assert.rejects(runtime.start(withHome.install_id), { code: "plugin.executor_failed" });
+  assert.equal(runtime.get(withHome.install_id).state, "crashed");
+  assert.equal(runtime.get(withHome.install_id).last_error_code, "plugin.declaration_invalid");
+  assert.deepEqual(started, [], "the package that declares a Home library never started in a project");
   const configured = runtime.install({ trust: { level: "unsigned" }, definition: definition(`${PLUGIN_ID}.configured`, "sandbox", true), deployment: "local", grants: ["storage:private", "model:invoke"] }).install;
   await assert.rejects(runtime.start(configured.install_id), { code: "plugin.executor_failed" });
   assert.equal(runtime.get(configured.install_id).last_error_code, NOT_GIVEN.code, "model_configuration is refused with the S-60 code before services are built");

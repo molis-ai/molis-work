@@ -11,17 +11,6 @@ import type {
   SourceSyncKind,
 } from "@molis-ai/molis-work-contracts/modules/sources";
 
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-module-sources",
-  packagePath: "modules/sources",
-  kind: "module",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/modules/sources",
-  migrationGoals: ["goal-reorg-f2", "goal-reorg-fd1"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["sources.query.v1", "sources.command.v1"],
-} as const;
-
 type Row = Record<string, unknown>;
 type Statement = {
   all(...params: unknown[]): unknown[];
@@ -387,5 +376,3 @@ function parseJson<T>(value: unknown, fallback: T): T {
     return fallback;
   }
 }
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;

@@ -47,7 +47,7 @@ goal-tree-propose | goal-tree-read | goal-tree-check | goal-tree-decide
 
 ## 项目结构
 
-> 仓库是插件基座加多插件的 Monorepo：70 个 workspace 包里 69 个 `partial`、1 个 `contract-only`（contracts）；根包只装配产品启动器，不导出代码。真实状态和 owner 见 [架构 SSOT 索引](SSOT-MATRIX.md)。
+> 仓库是插件基座加多插件的 Monorepo：70 个 workspace 包的成熟度按 [SSOT-MATRIX](SSOT-MATRIX.md) §2 的四个词（`production`、`experimental`、`slice`、`absent`）标注；根包只装配产品启动器，不导出代码。真实状态和 owner 见 [架构 SSOT 索引](SSOT-MATRIX.md)。
 
 ```text
 apps/                        6 个产品入口与 composition root 边界
@@ -117,7 +117,7 @@ specs/molis-work-architecture-reorganization/spec.md
 
 - 根 `pnpm build` 先构建全部 70 个 workspace 包再编译启动器；`workspace:*` 只跑 workspace 包，`*:all` 同时跑两者。
 - 新代码只能通过 public entrypoint 调用其他 owner；禁止 deep import、跨 Module Store 和 App 直写业务数据库。
-- `contract-only` 只表示边界存在，不得注册假 Provider、假 Store、UI 入口或伪成功 API。
+- 已建的 package 要有真实实现：不得注册假 Provider、假 Store、UI 入口或伪成功 API；还没建的目标只留在 SSOT 的 `absent` 行。
 - 每个迁移切片同时更新目标 package README 和对应 Module/Service 文档。
 - 巨大单元（超过阈值的文件、类、函数）的 owner、判定与计划见 [巨大单元清单与判定](system/HUGE-CLASS-MIGRATION.md)。
 

@@ -1,16 +1,3 @@
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-plugin-git",
-  packagePath: "plugins/native/git",
-  kind: "native-plugin",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/platform/plugin",
-  migrationGoals: ["goal-reorg-f2", "goal-plugin-platform-v2"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["git.artifact-types.v1", "git.ui-contribution.v1"],
-} as const;
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
-
 export {
   headLabel,
   projectGit,

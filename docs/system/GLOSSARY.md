@@ -366,7 +366,7 @@ A　指产品、导入来源或运行环境的（按 2.3 是 Runtime；已知是
 | `apps/local-host/src/character-import-plugins.ts:91` | 此 Agent 的插件启用索引尚未支持…… | 此 Runtime 的插件启用索引尚未支持…… |
 | `horizontal/agent-host/src/character-import.ts:16,20` | 请使用本地 Agent（两条报错） | 请使用本地 Runtime |
 | `plugins/native/coding/src/panels-messages.ts:466` | 技能名后的「· 需要原生 Agent」 | 「· 需要本地 Runtime」 |
-| `apps/workbench/src/character-terminal-client.ts:71` | 正在连接原生 Agent… | 正在连接本地 Runtime… |
+| `apps/workbench/src/browser/characters/terminal.ts:40` | 正在连接原生 Agent… | 正在连接本地 Runtime… |
 | `modules/characters/src/actions.ts:44,46,50,55,62` | 五个动作的标题与说明里的「用本机 Agent 运行」「查找可导入的 Agent」「本机 Agent 配置目录」「本机 Agent 设定」「启动本机 Agent 执行任务」（能力库和 Agent 看得到） | 同样只把「Agent」换成「Runtime」 |
 | `modules/shelf/src/runtimes.ts:182,186` | 未发现 Agent；未发现终端 Agent。 | 未发现 Runtime；未发现终端 Runtime。 |
 | `modules/shelf/src/runtimes.ts:195`、`plugins/native/shelf/src/browser/model.ts` | 还没有选定运行工具时的缺省名「Agent」 | 「Runtime」 |
@@ -380,7 +380,7 @@ B　说工作者本身的（做事、用自己的权限、请求授权和提问�
 | --- | --- | --- |
 | `apps/local-host/src/character-native-execution.ts:9` | 原生 Agent 使用自己的登录、模型和权限，仍会读取本机实时规则、插件与 MCP。…… | 外部 Agent 使用自己的登录…… |
 | `apps/workbench/src/characters/ui.ts:66` | 外部原生 Agent 使用自己的工具与权限 | 外部 Agent 使用自己的工具与权限 |
-| `apps/workbench/src/character-terminal-client.ts:42` | 原生 Agent · 授权、提问和操作状态显示在终端中 | 外部 Agent · 授权、提问和操作状态显示在终端中 |
+| `apps/workbench/src/browser/characters/terminal.ts:31` | 原生 Agent · 授权、提问和操作状态显示在终端中 | 外部 Agent · 授权、提问和操作状态显示在终端中 |
 | `modules/shelf/src/runtimes.ts:176` | Workspace Sandbox：Agent 只能写任务工作区 | Workspace Sandbox：外部 Agent 只能写任务工作区 |
 
 不在两张表里的几处：

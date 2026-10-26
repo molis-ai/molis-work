@@ -111,7 +111,7 @@ Runtime 原调用者查询委托由 `plugin-action-query.ts` 持有：只接受�
 
 权限表与首页、连接、信息助手、判断规则、项目工作目录、个人规划的实际登记共用提供方 id；判断规则、工作目录和助理的权限从动作定义汇总。助理同一提供方还承载条件登记的评论线程 start/retry，因此保留它们声明的 `model:invoke`，规则读取本身仍不要求模型权限。`tests/local-web-actions.test.ts` 的 RAC-339-REVIEW-01/02 验证条件登记及两种外部 MCP 提供方的路由上限和拒绝。
 
-项目与 Home 执行器在每次 `uninstalled` 都用 `forgetInstallationRecords` 撤销当前安装、激活范围的授权，与私有数据是否保留无关；插件声明的默认规则是数据不是授权，只在数据一并不留时由同一函数清（`dataGoes`，RAC-503），留数据的卸载不动它们。重装前的同步 `prepareReinstall` 复用同一 owner，补清卸载失败留下的原文件登记和项目记录绑定；仍失败时 Runtime 不注册代码、不保存新安装，恢复后再重试。这个端口不清私有 KV、文件或库，也不删除账号；Home 的项目绑定和共享安装槽仍按 BL-596 保留。验证见 `tests/security-invariants-installation-records.test.ts` 的成功路径与真实删除故障用例。
+项目与 Home 执行器在每次 `uninstalled` 都用 `forgetInstallationRecords` 撤销当前安装、激活范围的授权，与私有数据是否保留无关；插件声明的默认规则是数据不是授权，只在数据一并不留时由同一函数清（`dataGoes`，RAC-503），留数据的卸载不动它们。重装前的同步 `prepareReinstall` 复用同一 owner，补清卸载失败留下的原文件登记和项目记录绑定；仍失败时 Runtime 不注册代码、不保存新安装，恢复后再重试。这个端口不清私有 KV、文件或库，也不删除账号；共享安装槽和 Home 安装分在各项目名下的按记录绑定，随同一 `install_id` 的最后一处安装走（`forgetInstallationConnections`，问 `heldInstalls`，读不全就保留；删项目时 `forgetOrphanedInstallationBindings` 清已无安装的孤儿，BL-596）。验证见 `tests/security-invariants-installation-records.test.ts` 的成功路径与真实删除故障用例，以及 `tests/security-invariants-installation-bindings.test.ts`。
 
 关闭 Home 时，MemoryHost 先同步停止普通读写、撤下 provider，并阻止后续学习和维护入队；公开与后台业务共用受控 MemoryService，且要求 LocalHost 仍处于 running。原 ledger 与 Host 映射保留到 Adapter shutdown 及使用投影 flush 成功后才关闭。已发生的使用事实由可信 sink 向原未释放实例投影，项目查询 await 后仍同步复核实例身份；业务停止不撤销这项记账。actor、个人 Assistant 身份、已删除项目、遗忘屏障、去重与单调规则不变。关闭失败保留原 owner，显式重试同一关闭，不创建替代连接。补齐后台 await 后检查会使原注册函数超过 150 行门，因此把原学习/维护排程作为完整职责留在同文件的 memoryBackgroundWork；原队列、开关和关闭所有权不变，不以拆散 guard 或调高门槛通过。
 
@@ -219,9 +219,6 @@ Web 目录连接归每个服务实例及固定 Home 所有；传入外部 LocalH
 - [职责与接入说明](../../docs/platform/LOCAL-HOST.md)
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
-- Status: `partial`
-- Contract entrypoint: `@molis-ai/molis-work-contracts/platform/app-host`
-- Migration Goals: `goal-reorg-f2`, `goal-reorg-ap2`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
 

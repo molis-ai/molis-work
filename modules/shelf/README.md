@@ -14,7 +14,12 @@ Host 把用户 Home 下的 `shelf/`（声明的条目是 `catalog.json`、`files
 
 | 文件 | 用途 |
 | --- | --- |
-| [src/store.ts](src/store.ts) | 架子目录、进货、隐藏/删除、任务 |
+| [src/store.ts](src/store.ts) | `ShelfStore`：设置、运行环境探测、快照，其余转发给下面四个协作者 |
+| [src/catalog.ts](src/catalog.ts) | 目录文件的形状与唯一的读写入口（`ShelfCatalogAccess`） |
+| [src/admissions.ts](src/admissions.ts) | 进货：文件、文件夹、文字、链接、示例、结果再用作材料 |
+| [src/copies.ts](src/copies.ts) | 已在架子上的副本：读取、隐藏、登记原件、编辑、删除 |
+| [src/jobs.ts](src/jobs.ts)、[src/job-steps.ts](src/job-steps.ts) | 任务：计划、暂存、生成、提交、记失败，以及取消 |
+| [src/clipboard-store.ts](src/clipboard-store.ts) | 剪贴板历史，以及把一条变成材料 |
 | [src/copy-checks.ts](src/copy-checks.ts) | 副本的内容 Hash；任务开始前与每次写入前核对原件 |
 | [src/extract.ts](src/extract.ts) | 提取结果的产品 Markdown 与文件名 |
 | [src/pdf.ts](src/pdf.ts) | 示例 PDF 的生成与已知正文 |
@@ -45,7 +50,7 @@ node scripts/run-tests.mjs tests/shelf-plugin.test.ts
 
 - 负责：个人置物架：材料副本、副本任务、Hash、提取结果组织与剪贴板历史。
 - 不负责：项目 Goal 事实、Artifact 版本、桌面轮盘与热键。
-- 公开入口：`@molis-ai/molis-work-module-shelf`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/shelf`。
+- 公开入口：`@molis-ai/molis-work-module-shelf`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同入口 `@molis-ai/molis-work-contracts/platform/package`（包描述；Shelf 自己的合同是本包的 `@molis-ai/molis-work-module-shelf/contract`，`src/contract.ts`，PG-111 起由本包拥有，contracts 包里没有 Shelf 子路径）。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`。方向：只依赖 contracts/modules、contracts/services 与 plugin-sdk（执行生命周期）；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 不写回原件；原路径只用于事后 Hash 校验，不进 Prompt 或 API。
@@ -67,9 +72,6 @@ node scripts/run-tests.mjs tests/shelf-plugin.test.ts
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 - [Shelf 插件需求](../../specs/archive/shelf-plugin/spec.md)
 
-- Status: `partial`
-- Contract entrypoint: `@molis-ai/molis-work-contracts/modules/shelf`
-- Migration Goals: `goal-reorg-f2`
 
 ## 被动发现与真实执行
 

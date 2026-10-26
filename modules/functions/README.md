@@ -20,7 +20,6 @@ pnpm --filter @molis-ai/molis-work-module-functions build
 node scripts/run-tests.mjs tests/functions-system-capability.test.ts
 ```
 
-- Status: `partial`
 - Contract: `@molis-ai/molis-work-contracts/modules/functions`
 - Migration: `goal-reorg-f2`
 - SSOT: `specs/archive/functions-system-capability/spec.md`；事件去向动作范围 `specs/archive/function-scene-action-scope/spec.md`

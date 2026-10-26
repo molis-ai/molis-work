@@ -7,7 +7,7 @@ import ts from "typescript";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { ShelfSnapshot } from "@molis-ai/molis-work-contracts/modules/shelf";
+import type { ShelfSnapshot } from "@molis-ai/molis-work-module-shelf/contract";
 import * as shelfModule from "@molis-ai/molis-work-module-shelf";
 import * as cogniaPlugin from "@molis-ai/molis-work-plugin-cognia";
 import * as imagesPlugin from "@molis-ai/molis-work-plugin-images";

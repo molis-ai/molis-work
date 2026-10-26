@@ -152,7 +152,7 @@ export interface LocalCatalogPlatform {
 
 /** The Home adoption gate precedes the catalog's first filesystem or SQLite write. */
 async function prepareCatalogStorage(options: MolisWorkProjectCatalogOptions) {
-  const homeDirectory = path.resolve(options.homeDirectory ?? resolveConfiguredHome());
+  const homeDirectory = resolveConfiguredHome(options.homeDirectory);
   prepareMemoryHome(homeDirectory);
   const projectsDirectory = path.join(homeDirectory, "projects");
   await fs.mkdir(projectsDirectory, { recursive: true });

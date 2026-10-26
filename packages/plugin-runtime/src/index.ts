@@ -42,7 +42,7 @@ export type {
   PluginRuntimeReleaseArtifactRepository,
 } from "./release-artifacts.js";
 
-export { assertPluginActionCurrent, assertCapturedPluginActionCurrent, inPluginInstance, markPluginActionChecked, currentPluginAction, currentPluginInvocation, insideOpenPluginCall, lastBegunPluginInvocation, pluginInvocationReadOnly, outsidePluginAction, runInPluginAction } from "./action-scope.js";
+export { assertPluginActionCurrent, assertCapturedPluginActionCurrent, inPluginInstance, markPluginActionChecked, pluginSceneEffectPassed, currentPluginAction, currentPluginInvocation, insideOpenPluginCall, lastBegunPluginInvocation, pluginInvocationReadOnly, outsidePluginAction, runInPluginAction } from "./action-scope.js";
 export type { PluginInstance } from "./action-scope.js";
 export { inertAfterStop, StoppedServiceCalls, type StoppedServiceCall } from "./stopped-services.js";
 export { createPluginOwnerFilesClient } from "./owner-files-service.js";
@@ -110,17 +110,6 @@ import type {
   PluginUpgradeContext,
   ActionRegistryPort,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
-
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-plugin-runtime",
-  packagePath: "packages/plugin-runtime",
-  kind: "foundation",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/platform/plugin",
-  migrationGoals: ["goal-reorg-f2", "goal-reorg-fd3", "goal-reorg-dv3"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["plugin.lifecycle.v1", "plugin.grants.v1", "plugin.recovery.v1"],
-} as const;
 
 /** What an install is called with. */
 export interface PluginInstallInput {
@@ -220,7 +209,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       return this.receipt("install", moved, false);
     }
     const grants = installationGrants(current, manifest, host, input.grants);
-    prepareInstallationData(this.executor, current, manifest, host, input.discard_kept_data === true);
+    prepareInstallationData(this.executor, installId, current, manifest, host, input.discard_kept_data === true);
     this.register(input.definition);
     if (current && current.version !== manifest.version && current.state !== "uninstalled") {
       if (!(manifest.upgrade_compatibility?.compatible_from_versions ?? []).includes(current.version)) {
@@ -768,8 +757,6 @@ function forgetUninstalledDefinitions(definitions: Map<string, PluginDefinition>
     if (definition.manifest.plugin_id === current.plugin_id && definition.manifest.publisher.signature === current.publisher_signature) definitions.delete(key);
   }
 }
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 const runtimeFailureCodes = {
   "plugin.manifest_invalid": true,

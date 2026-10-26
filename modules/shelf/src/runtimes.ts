@@ -3,7 +3,7 @@ import type {
   ShelfIsolationGrade,
   ShelfRuntimeInstall,
   ShelfRuntimeStatus,
-} from "@molis-ai/molis-work-contracts/modules/shelf";
+} from "./contract.js";
 
 /**
  * DropAgent `AgentEngine` + `AgentService` + `HeadlessCLI`, in Node.

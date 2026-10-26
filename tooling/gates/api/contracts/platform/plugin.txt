@@ -2508,6 +2508,10 @@ export declare const PLUGIN_CONTEXT_LEDGER_WRITE_PERMISSION = "context-ledger:wr
 
 export declare const PLUGIN_EVENT_PAYLOAD_MAX_BYTES = 16384;
 
+export declare const PLUGIN_JUDGMENTS_READ_PERMISSION = "judgments:read";
+
+export declare const PLUGIN_JUDGMENTS_WRITE_PERMISSION = "judgments:write";
+
 export declare const PLUGIN_LOCAL_TOOLS_LIMITS: Readonly<{
     tools: 32;
     binaries: 4;
@@ -2522,6 +2526,8 @@ export declare const PLUGIN_MODEL_LIMITS: {
     readonly default_output_tokens: 5000;
     readonly max_output_tokens: 12000;
 };
+
+export declare const PLUGIN_SCENES_PERMISSION = "scenes:use";
 
 export declare const PROJECT_JOURNAL_PERMISSION = "journal:project";
 
@@ -2933,6 +2939,7 @@ export interface PluginExecutor {
     restorePrivateData?(installId: string, snapshot: unknown): Promise<void> | void;
     uninstalled?(record: PluginInstanceRecord): Promise<void> | void;
     prepareReinstall?(record: PluginInstanceRecord): void;
+    prepareNewInstall?(installId: string): void;
     keptDataDiscarded?(record: PluginInstanceRecord): void;
 }
 
@@ -2945,6 +2952,8 @@ export interface PluginHostServices {
     readonly installations?: import("platform/plugin-installations").PluginInstallationClient;
     readonly attention?: import("@molis-ai/molis-work-contracts/platform/plugin-attention").PluginAttentionClient;
     readonly contextLedger?: import("@molis-ai/molis-work-contracts/platform/plugin-attention").PluginContextLedgerClient;
+    readonly scenes?: import("@molis-ai/molis-work-contracts/platform/plugin-scenes").PluginSceneClient;
+    readonly judgments?: import("@molis-ai/molis-work-contracts/platform/plugin-judgments").PluginJudgmentsClient;
     readonly agents?: import("platform/plugin-agents").PluginAgentClient;
     readonly background?: import("platform/plugin-background").PluginBackgroundClient;
     readonly actions?: PluginActionClient;
@@ -2952,6 +2961,7 @@ export interface PluginHostServices {
     readonly database?: import("platform/plugin-database").PluginDatabase;
     readonly project_database?: import("platform/plugin-database").PluginProjectDatabase;
     readonly project_statements?: import("platform/plugin-database").PluginProjectStatements;
+    readonly database_statements?: import("platform/plugin-database").PluginProjectStatements;
     readonly scheduler?: import("platform/plugin-scheduler").PluginScheduleClient;
     readonly ownerFiles?: import("platform/plugin-owner-files").PluginOwnerFilesClient;
     readonly terminal?: PluginTerminalClient;
@@ -3142,8 +3152,11 @@ export interface PluginInstanceRecord {
 
 export interface PluginIntegrationContribution {
     kind: "integration";
-    connector_driver: ConnectorDriver;
-    signal_adapter: RawEventAdapter;
+    bind(binding: import("@molis-ai/molis-work-contracts/platform/plugin-integrations").IntegrationBinding): {
+        connector_driver: ConnectorDriver;
+        signal_adapter: RawEventAdapter;
+        account?(cursor: unknown, current_account_label: string | null): import("@molis-ai/molis-work-contracts/platform/plugin-integrations").IntegrationAccountPresentation | null;
+    };
     actions?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionHandlerBinding[];
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneHandlerBinding[];
 }
@@ -3217,6 +3230,21 @@ export interface PluginJournalWriter extends PluginJournalReader {
     appendEvent(input: PluginJournalAppend): number;
     getIdempotency(actorId: string, operation: string, key: string): PluginIdempotencyRecord | null;
     putIdempotency(input: PluginIdempotencyPut): void;
+}
+
+export interface PluginJudgmentInput {
+    readonly function: ActionReference;
+    readonly subject: JudgmentRecord["subject"];
+    readonly scene_id: string;
+    readonly scene_provenance: NonNullable<JudgmentRecord["scene_provenance"]>;
+    readonly outcome: JudgmentRecord["outcome"];
+    readonly suggested_behavior_ids: readonly string[];
+    readonly error_code: string | null;
+}
+
+export interface PluginJudgmentsClient {
+    latest(sceneId: string): readonly JudgmentRecord[];
+    record(input: PluginJudgmentInput): JudgmentRecord;
 }
 
 export interface PluginKeptJob {
@@ -3345,6 +3373,8 @@ export interface PluginManifest {
     local_tools?: import("platform/plugin-local-tools").PluginLocalToolsDeclaration;
     attention?: import("@molis-ai/molis-work-contracts/platform/plugin-attention").PluginAttentionDeclaration;
     connections?: import("@molis-ai/molis-work-contracts/platform/plugin-connections").PluginConnectionsDeclaration;
+    connection_services?: readonly import("@molis-ai/molis-work-contracts/platform/plugin-integrations").PluginConnectionServiceDeclaration[];
+    integrations?: readonly import("@molis-ai/molis-work-contracts/platform/plugin-integrations").PluginIntegrationDeclaration[];
     background?: {
         jobs: readonly import("platform/plugin-background").PluginJobDeclaration[];
         wakeups?: readonly import("platform/plugin-scheduler").PluginWakeupDeclaration[];
@@ -3867,6 +3897,17 @@ export interface PluginRuntimeRepository {
     save(record: PluginInstanceRecord): void;
 }
 
+export interface PluginSceneClient {
+    discoverScenes(judgment?: ActionReference): Promise<readonly ActionSceneView[]>;
+    usages(judgment?: ActionReference): Promise<readonly ActionSceneUsage[]>;
+    targets(judgment?: ActionReference, scene?: Pick<ActionSceneTarget, "scene_id" | "scene_version" | "provider_id">): Promise<readonly ActionSceneTarget[]>;
+    bind(binding: ActionSceneBinding, options?: ActionSceneConfigureOptions): Promise<void>;
+    runScene(scene: {
+        scene_id: string;
+        version: number;
+    }, bindingId: string, event: unknown): Promise<unknown>;
+}
+
 export interface PluginScheduleClient {
     list(): PluginScheduleJob[];
     get(jobId: string): PluginScheduleJob | null;
@@ -3937,7 +3978,7 @@ export interface PluginUpgradeCompatibilityDeclaration {
 }
 
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
-    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "project_statements" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "localTools" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "notifications" | "attention" | "contextLedger" | "interaction"> & {
+    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "project_statements" | "database_statements" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "localTools" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "notifications" | "attention" | "contextLedger" | "interaction"> & {
         readonly storage?: Pick<PluginPrivateStorage, "get">;
     };
 };
@@ -5135,6 +5176,8 @@ export declare const pluginErrors: import("platform/action-errors").ErrorCodeRai
     readonly home_scope_unavailable: "invalid";
     readonly id_namespace_conflict: "invalid";
     readonly install_replaced: "invalid";
+    readonly integration_declaration_conflict: "invalid";
+    readonly integration_unavailable: "unavailable";
     readonly kept_data_incompatible: "invalid";
     readonly manifest_invalid: "invalid";
     readonly package_invalid: "invalid";
@@ -5144,6 +5187,7 @@ export declare const pluginErrors: import("platform/action-errors").ErrorCodeRai
     readonly publisher_untrusted: "invalid";
     readonly quarantined: "invalid";
     readonly rule_key_reserved: "invalid";
+    readonly scene_not_declared: "forbidden";
     readonly signature_invalid: "invalid";
     readonly signer_mismatch: "invalid";
     readonly state_invalid: "invalid";

@@ -268,8 +268,8 @@ export class FunctionsStore {
     return listJudgments(this.db);
   }
 
-  latestSceneJudgments(projectId: string, sceneId: string): JudgmentRecord[] {
-    return latestSceneJudgments(this.db, projectId, sceneId);
+  latestSceneJudgments(projectId: string, sceneId: string, installId: string | null): JudgmentRecord[] {
+    return latestSceneJudgments(this.db, projectId, sceneId, installId);
   }
 
   latestJudgment(kind: JudgmentSubject["kind"], id: string, projectId?: string, sceneId?: string | null): JudgmentRecord | null {

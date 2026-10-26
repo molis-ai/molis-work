@@ -36,10 +36,10 @@ test("W5-01-D1-01: installed Plugins exchange exact Artifact versions by type, w
     for (const entry of [processItems, processItems.service, processItems.query, processItems.commands]) {
       assert.equal("repository" in entry, false);
     }
-    const base = createGithubIntegrationPlugin({ provider: {
+    const base = createGithubIntegrationPlugin({ providerFor: () => ({
       type: "fixture", async health() { return { ok: true, status: "connected", message: "ready" }; },
       async sync() { return { ok: true, mode: "fixture", items: [], cursor: null }; },
-    } });
+    }) });
     async function author(name: string, options: { read?: boolean; schema?: number; actor?: string } = {}) {
       let client!: PluginArtifactClient;
       let dispose = () => {};
@@ -147,10 +147,10 @@ test("W5-01-D1-01 W5-01-D1-04 W5-01-D1-05: SDK queries expose fixed contracts an
   // A plugin that declares actions (the preview of its 成果 type) is installed against the Kernel that holds them.
   const runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS, actions: pluginActions(store, DEMO_PROJECT_ID) });
   try {
-    const base = createGithubIntegrationPlugin({ provider: {
+    const base = createGithubIntegrationPlugin({ providerFor: () => ({
       type: "fixture", async health() { return { ok: true, status: "connected", message: "ready" }; },
       async sync() { return { ok: true, mode: "fixture", items: [], cursor: null }; },
-    } });
+    }) });
     async function install(name: string, actor: string, read = true) {
       let hosted!: ReturnType<typeof createPluginArtifactClient>;
       const preview = artifactPreview(`io.molis.work.example.${name}`);

@@ -1,4 +1,5 @@
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { AgentHostComposition } from "./agent-host-composition.js";
 import { observeReviewSettlements, type AgentWritePlaces } from "./review-settlement-events.js";
@@ -32,7 +33,7 @@ function installedPluginsOf(source: ProjectPluginHost, reference: LocalHostProje
   return ensureInstalledPlugins({ store: runtime.store, projectId: runtime.project_id, homeDirectory: options.homeDirectory!, actorId: LOCAL_PERSON_ACTOR_ID,
     routePrefix: options.projectRoutePrefix?.(reference.project_id) ?? `/projects/${encodeURIComponent(reference.project_id)}`,
     dependencyCheck: hostDependencyCheck(host.client(reference)),
-    actions: { registry: host.actionRegistry(reference), client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, project_id: reference.project_id,
+    actions: { registry: host.actionRegistry(reference), client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, scenes: host.sceneClient(reference), project_id: reference.project_id,
       // This internal directory is already in a prepared Host; recursing through the public entry would wait on itself.
       inspect: caller => host.inspectActions(caller, reference) } });
 }
@@ -45,6 +46,24 @@ export async function installPackageInProject(source: ProjectPluginHost, project
     const installed = await installedPluginsOf(source, reference, runtime);
     await installed.installPackage(release, { consent: true });
     await installed.refreshPublicActions();
+  });
+}
+
+/**
+ * Switches one signed-package installation of the project off or on, or takes it off (BL-623). Only an installation that came from a signed package
+ * is reached here; the package is read back without asking whether its publisher is still trusted, so a publisher taken back does not stop the
+ * person from taking its plugin off. Answers the state the installation is in afterwards.
+ */
+export async function controlPackageInProject(source: ProjectPluginHost, projectId: string, pluginId: string, action: "disable" | "enable" | "uninstall", input: { keep_data: boolean }): Promise<string> {
+  const reference = source.host.projects().find(row => row.project_id === projectId);
+  if (!reference || !source.options.homeDirectory) throw new ActionError("actions.scope_mismatch", "需要一个打开的项目");
+  return await source.host.withRuntime(reference, async runtime => {
+    const installed = await installedPluginsOf(source, reference, runtime);
+    const release = installed.packageOf(pluginId);
+    if (!release) throw pluginErrors.state_invalid("这个项目里没有从签名的包装进来的这个插件");
+    await installed.lifecycle(action, release, action === "uninstall" ? { keepData: input.keep_data } : {});
+    await installed.refreshPublicActions();
+    return installed.records().find(item => item.plugin_id === pluginId)?.state ?? "uninstalled";
   });
 }
 
@@ -67,7 +86,7 @@ export function ensureProjectPluginActions(source: ProjectPluginHost, reference:
   return host.withRuntime(reference, runtime => ensureProjectPlugins({
     store: runtime.store, artifacts: runtime.artifacts, processItems: runtime.processItems, projectId: runtime.project_id, actorId: LOCAL_PERSON_ACTOR_ID, homeDirectory: options.homeDirectory,
     dependencyCheck: hostDependencyCheck(host.client(reference)),
-    actions: { registry: host.actionRegistry(reference), client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, project_id: reference.project_id },
+    actions: { registry: host.actionRegistry(reference), client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, scenes: host.sceneClient(reference), project_id: reference.project_id },
     ...(agents() ? { observeReviewSettlements: listener => observeReviewSettlements(agents()!.agentHost.reviews, runtime.project_id, listener,
       agentWritePlaces(source, runtime.project_id)) } : {}),
   }));

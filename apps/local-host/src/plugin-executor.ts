@@ -7,7 +7,7 @@ import { openHostSession, type HostSession } from "./plugin-host-services.js";
 import { forgetPluginAgentDefinitions } from "./plugin-instructions.js";
 import { removeSandboxOwnerFiles } from "./plugin-sandbox-owner-files.js";
 import type { PluginDependencyCheck } from "./plugin-actions-client.js";
-import { discardInstallationOwnerData, forgetInstallationRecords } from "./plugin-installation-cleanup.js";
+import { discardInstallationOwnerData, forgetInstallationRecords, forgetLeftoverInstallationBindings } from "./plugin-installation-cleanup.js";
 import { directoryForHome } from "./plugin-directory-service.js";
 
 export interface PluginHostExecutorOptions {
@@ -18,6 +18,8 @@ export interface PluginHostExecutorOptions {
   processItems: ProcessItemsApplicationApi;
   actions: { registry: import("@molis-ai/molis-work-contracts/platform/actions").ActionRegistryPort;
     client: import("@molis-ai/molis-work-contracts/platform/actions").SyncActionClient & import("@molis-ai/molis-work-contracts/platform/actions").ActionClient; project_id: string;
+    /** The kernel's scene client for this project: what `services.scenes` of a plugin that declares `scenes:use` is made from (PG-032 P1). */
+    scenes?: import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneClient;
     /** Composition-only metadata of the whole directory (what the Plugin Builder's catalog is made from). */
     inspect?(caller: import("@molis-ai/molis-work-contracts/platform/actions").ActionCallContext): Promise<readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionView[]> };
   ui: UiHostApi;
@@ -108,6 +110,11 @@ export class PluginHostExecutor implements PluginExecutor {
 
   prepareReinstall(record: PluginInstanceRecord): void {
     forgetInstallationRecords({ home: this.options.home, project_id: this.options.project_id }, record);
+    this.prepareNewInstall(record.install_id);
+  }
+
+  prepareNewInstall(installId: string): void {
+    if (this.options.home) forgetLeftoverInstallationBindings(this.options.home.directory, installId, { kind: "project", project_id: this.options.project_id });
   }
 
   keptDataDiscarded(record: PluginInstanceRecord): void {

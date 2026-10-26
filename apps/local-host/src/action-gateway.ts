@@ -1,12 +1,13 @@
 import { createHash } from "node:crypto";
-import path from "node:path";
+import { resolveHomeDirectory } from "@molis-ai/molis-work-storage";
 import { ActionError, type ActionClient, type ActionCallContext, type ActionReference, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { currentCallId, markCallRecorded, newCallId } from "@molis-ai/molis-work-kernel";
 import { actionErrorFromResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { postToResidentHost, residentHostOrigin, type ResidentHostAnswer } from "./resident-host-request.js";
 
 export const ACTION_GATEWAY_PATH = "/api/internal/action-service";
-export const actionGatewayHomeId = (home: string) => createHash("sha256").update(path.resolve(home)).digest("hex");
+/** The id the Host and its clients both compute for a Home: its real path, so a Home reached through a link has one id. */
+export const actionGatewayHomeId = (home: string) => createHash("sha256").update(resolveHomeDirectory(home)).digest("hex");
 
 const CALL_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 /**

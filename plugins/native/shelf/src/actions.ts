@@ -2,8 +2,8 @@ import { ActionError, type ActionAvailability, type ActionResultView, type Actio
 import type {
   ShelfClipboardRecord, ShelfDeviceSettings, ShelfItemRecord, ShelfJobOutcome, ShelfJobRecord, ShelfRecipeId, ShelfSettingsPatch, ShelfSnapshot,
   ShelfAdmitFolderInput, ShelfAdmitInput, ShelfRunJobInput, ShelfExecutionControl, ShelfAdmitActionInput,
-} from "@molis-ai/molis-work-contracts/modules/shelf";
-import { SHELF_ADMIT_ACTION } from "@molis-ai/molis-work-contracts/modules/shelf";
+} from "@molis-ai/molis-work-module-shelf/contract";
+import { SHELF_ADMIT_ACTION } from "@molis-ai/molis-work-module-shelf/contract";
 import { isHttpUrl, parseSettingsWriteBody, shelfErrors, SHELF_RECIPES, SHELF_SHORTCUT_RECIPE, SHELF_JOB_TIMEOUT_MS } from "@molis-ai/molis-work-module-shelf";
 import { shelfTextMaterial } from "./material.js";
 import { createShelfSearchHandlers, shelfClipboardSearchEntriesAction, shelfFileContentAction, shelfFileEntriesAction, shelfSearchEntriesAction, shelfSubjectAction } from "./search.js";
@@ -188,7 +188,7 @@ export function createShelfActionHandlers(ports: ShelfActionPorts): ActionHandle
 }
 
 /** Saving a personal copy into a project writes a project Artifact owned by the person who confirmed it. */
-export interface ShelfMaterialPreview { payload: import("@molis-ai/molis-work-contracts/modules/shelf").ShelfTextMaterial; fingerprint: string }
+export interface ShelfMaterialPreview { payload: import("@molis-ai/molis-work-module-shelf/contract").ShelfTextMaterial; fingerprint: string }
 function defineProject<I, O>(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema,
   output: ActionSchema, permissions: readonly string[]): ActionDefinition<I, O> {
   return { capability_id: `shelf.${name}`, version: 1, operation, action: { title, description, kind: operation === "query" ? "query" : "operation",

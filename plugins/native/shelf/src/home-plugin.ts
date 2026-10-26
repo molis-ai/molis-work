@@ -3,7 +3,7 @@ import { ARTIFACT_FILE_IMPORT_ACTION } from "@molis-ai/molis-work-contracts/modu
 import { isLoopbackHttpUrl } from "@molis-ai/molis-work-contracts/platform/loopback";
 import type { PluginDefinition, PluginMaterialsClient, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { MaterialWebsiteReader } from "@molis-ai/molis-work-contracts/services/materials";
-import type { ShelfArtifactPreview, ShelfDeviceSettings, ShelfMaterialPorts, ShelfModelSelection } from "@molis-ai/molis-work-contracts/modules/shelf";
+import type { ShelfArtifactPreview, ShelfDeviceSettings, ShelfMaterialPorts, ShelfModelSelection } from "@molis-ai/molis-work-module-shelf/contract";
 import { initializeShelfFiles, openShelfStore, type ShelfStore } from "@molis-ai/molis-work-module-shelf";
 import { createShelfActionHandlers, createShelfProjectActionHandlers, SHELF_PROJECT_ACTIONS, shelfActions, type ShelfActionPorts } from "./actions.js";
 import { shelfAiPorts } from "./ai.js";

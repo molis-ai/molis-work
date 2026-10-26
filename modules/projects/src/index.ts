@@ -21,24 +21,6 @@ import {
 import { normalizeProjectWorkspace, ProjectWorkspaceService } from "./workspace.js";
 import { ProjectDeletionSteps } from "./deletion-steps.js";
 
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-module-projects",
-  packagePath: "modules/projects",
-  kind: "module",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/modules/projects",
-  migrationGoals: ["goal-reorg-f2", "goal-reorg-ap1"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: [
-    "project-identity",
-    "project-catalog",
-    "workspace-membership",
-    "project-deletion-receipts",
-  ],
-} as const;
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
-
 export interface ProjectsModuleOptions {
   db: ProjectsSqliteDatabase;
   now?: () => string;

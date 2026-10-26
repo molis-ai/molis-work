@@ -41,6 +41,16 @@ export function forgetInstallationProjectBindings(home: string, install_id: stri
   if (existsSync(homeSqlitePath(home, "connectors"))) withConnectorConnections(home, store => store.forgetInstallationProjectBindings(install_id, project_id));
 }
 
+/** Every binding of one installation, in every project: its installation slot's and all its `per_record` ones (BL-596). The accounts stay. */
+export function forgetInstallationBindings(home: string, install_id: string): void {
+  if (existsSync(homeSqlitePath(home, "connectors"))) withConnectorConnections(home, store => store.forgetInstallationBindings(install_id));
+}
+
+/** The installations that have any plugin binding at all (BL-596); none when the Home never saved an account. */
+export function installationIdsWithBindings(home: string): string[] {
+  return existsSync(homeSqlitePath(home, "connectors")) ? withConnectorConnections(home, store => store.bindingInstallationIds()) : [];
+}
+
 /** A target's scope: an installation slot's, or a `per_record` slot's, which is also the call's project's and the record's (S-71 provisional). */
 export function targetScope(target: Pick<PluginConnectionTarget, "install_id" | "project_id" | "record_key">): string {
   return target.project_id === undefined && target.record_key === undefined ? pluginSlotScope(target.install_id)

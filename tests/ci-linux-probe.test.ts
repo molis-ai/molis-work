@@ -325,6 +325,32 @@ test("--list shows the selection and marks and runs nothing", () => {
   assert.equal(existsSync(listOut), false, "--list wrote a report");
 });
 
+// R-58 (user 2026-10-26): one job never reached the whole list (the manual run spent its 85 minutes before 44 files started), so the list is
+// spread over several jobs. Every runnable file belongs to exactly one shard, the shards are as even as the list allows, and the browser
+// files, which no shard runs, are reported once (by the first), so the shards' reports add up to the list.
+test("RAC-714 --shard k/n gives every runnable file to exactly one of n probes, evenly, and reports the excluded ones once", () => {
+  const listed = (args: string[]) => {
+    const result = probe(["--list", ...args]);
+    assert.equal(result.code, 0, result.text);
+    return result.text.split("\n").flatMap((line) => { const found = /^(run|excluded)\s+(\S+)/.exec(line); return found ? [{ kind: found[1]!, file: found[2]! }] : []; });
+  };
+  const all = listed([]), names = (entries: { kind: string; file: string }[], kind: string) => entries.filter((item) => item.kind === kind).map((item) => item.file);
+  assert.ok(names(all, "run").length >= 20, "the scratch repository has enough runnable files to share out");
+  const shards = [1, 2, 3, 4, 5].map((k) => listed(["--shard", `${k}/5`]));
+  const ran = shards.map((entries) => names(entries, "run"));
+  assert.deepEqual(ran.flat().sort(), names(all, "run").sort(), "together the shards hold every runnable file");
+  assert.equal(new Set(ran.flat()).size, ran.flat().length, "no file is in two shards");
+  assert.ok(Math.max(...ran.map((files) => files.length)) - Math.min(...ran.map((files) => files.length)) <= 1, "the shards differ by at most one file");
+  assert.deepEqual(names(shards[0]!, "excluded"), names(all, "excluded"), "the first shard reports the excluded browser files");
+  for (const entries of shards.slice(1)) assert.deepEqual(names(entries, "excluded"), [], "no other shard repeats them");
+  assert.deepEqual(listed(["--shard", "1/1"]), all, "one shard of one is the whole list");
+  for (const bad of ["0/3", "4/3", "1/0", "x/3", "1/3/2", "2", "-1/3", "1.5/3"]) assert.equal(probe(["--list", "--shard", bad]).code, 2, `--shard ${bad} is refused`);
+  assert.equal(probe(["--list", "--shard", "1/2", "--only", "tests/pass\\.test"]).code, 0, "--only narrows the list before it is shared out");
+  const tooMany = probe(["--list", "--shard", "99/99"]);
+  assert.equal(tooMany.code, 2, "a shard with nothing to run is refused, not reported as a green run of nothing");
+  assert.match(tooMany.text, /nothing to run/);
+});
+
 test("the probe refuses to run when it cannot say what it measured", () => {
   const refusedOut = path.join(root, "refused-out");
   const wrongPlatform = probe(["--out", refusedOut, "--expect-platform", process.platform === "linux" ? "win32" : "linux"]);
@@ -450,4 +476,19 @@ test("ci.yml: the Linux probe is an ubuntu job that cannot fail the workflow and
 
 test("ci.yml: a blocking job runs the probe's own rules", () => {
   assert.ok(blockingTestRuns().some((words) => words.includes("tests/ci-linux-probe.test.ts")), `a job that verify needs (${blockingJobs().join(", ")}) runs tests/ci-linux-probe.test.ts`);
+});
+
+// R-58: the probe job is a matrix of six shards, each with uv at the version and action pin of the full suite (the managed Python installer test runs real uv).
+test("RAC-719 ci.yml: the Linux probe is six shards that cover the list, each installing uv as full-suite.yml does", () => {
+  const probeJob = jobBlock("linux-probe");
+  assert.deepEqual(/^        shard: \[([\d, ]+)\]$/m.exec(probeJob)?.[1]?.split(",").map((value) => Number(value.trim())), [1, 2, 3, 4, 5, 6], "the matrix is shard 1 to 6");
+  assert.match(probeJob, /^      fail-fast: false$/m, "one shard's trouble does not cancel the others");
+  assert.match(probeJob, /--shard \$\{\{ matrix\.shard \}\}\/6$/m, "the divisor is the number of shards in the matrix");
+  assert.match(probeJob, /name: linux-probe-\$\{\{ matrix\.shard \}\}$/m, "each shard keeps its own report");
+  const uv = (text: string) => ({ action: /uses: (astral-sh\/setup-uv@[0-9a-f]{40})/.exec(text)?.[1], version: /setup-uv@[\s\S]*?version: "([^"]+)"/.exec(text)?.[1] });
+  const full = readFileSync(fileURLToPath(new URL("../.github/workflows/full-suite.yml", import.meta.url)), "utf8");
+  assert.ok(uv(full).action && uv(full).version, "the full suite installs uv from a pinned action and a fixed version");
+  assert.deepEqual(uv(probeJob), uv(full), "the probe installs the same uv the same way");
+  assert.ok(probeJob.indexOf("setup-uv@") < probeJob.indexOf("run: pnpm build"), "uv is there before the build and the tests");
+  assert.match(probeJob, /^    continue-on-error: true$/m, "the probe still decides nothing");
 });

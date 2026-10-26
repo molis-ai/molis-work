@@ -105,9 +105,6 @@ Run 的启动/读取/控制/等待、接续的等待。每一条只给插件、�
 - [Coding 插件 UI 与交互设计](../../specs/coding-plugin/design.md)
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
-- Status: `partial`
-- Contract entrypoint: `@molis-ai/molis-work-contracts/services/agent-host`
-- Migration Goals: `goal-reorg-f2`, `goal-plugin-platform-v2`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
 只有一个 adapter：Prologue。曾经的 `claude` 命令行适配器默认注册却没有内置调用方，已删除（2026-10），公开入口不再导出它；外部 Agent 运行时按口径暂缓。

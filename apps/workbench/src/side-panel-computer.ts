@@ -192,17 +192,10 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
     if(action==='shelf'){await putOnShelf();return;}
     sendRaw({type:action});
   };
-  // Put the current round's record on the Shelf through its existing admit endpoint (specs/computer-use §5): the goal,
-  // the result and a short step summary as text, plus the latest screenshot as a png. The record itself stays the 成果.
+  // Put the current round's record on the Shelf (specs/computer-use §5): the goal, the result and a short step summary as text,
+  // in the person's words; the Host adds the latest screenshot and reaches Shelf through its public actions (PG-057). The record itself stays the 成果.
   const putComputerRecordOnShelf=async(env)=>{
     const id=env.state?.record_id;if(!id)return;
-    let itemId='';
-    const shelfItems='/api/plugins/io.molis.work.shelf/items';
-    const drop=async()=>{
-      if(!itemId)return;
-      const once=()=>env.request(shelfItems+'/'+encodeURIComponent(itemId)+'/delete',{body:{}}).then(()=>true).catch(()=>false);
-      if(!await once())await once();
-    };
     try{
       const result=await env.request(env.routePrefix+'/api/computer/records/'+encodeURIComponent(id));
       const record=result.record;if(!record)throw new Error(env.L('没能放进 Shelf。'));
@@ -210,21 +203,11 @@ export const SIDE_COMPUTER_SCRIPT = String.raw`(() => {
       const lines=[record.goal?env.L('目标：{goal}',{goal:record.goal}):'',env.L('结果：{outcome}',{outcome}),record.conclusion?env.L(record.conclusion):'',
         '',env.L('步骤（{n} 步）：',{n:record.steps.length}),...record.steps.slice(-40).map(step=>'- '+(step.app?('『'+step.app.name+'』'):'')+step.summary)].filter(Boolean);
       const title=(record.goal?record.goal.slice(0,40):env.L('电脑操作'))+'（'+new Date(record.started_at).toLocaleString()+'）';
-      const admitted=await env.request(shelfItems,{key:'cu-shelf-'+id+'-'+env.now,body:{title,text:lines.join('\n')},fallback:env.L('没能放进 Shelf。')});
-      itemId=(admitted&&admitted.item&&admitted.item.item_id)||'';
-      if(!itemId){env.say(env.L('没能放进 Shelf。'));return;}
-      const shot=[...record.steps].reverse().find(step=>step.shot)?.shot;
-      if(!shot){env.say(env.L('已放进 Shelf。'));return;}
-      const bytes=await env.request(env.routePrefix+'/api/computer/records/'+encodeURIComponent(id)+'/'+shot,{as:'response'});
-      if(!bytes.ok){await drop();env.say(env.L('没能放进 Shelf。'));return;}
-      const raw=new Uint8Array(await bytes.arrayBuffer());let binary='';
-      for(let i=0;i<raw.length;i+=8192)binary+=String.fromCharCode(...raw.subarray(i,i+8192));
-      try{await env.request(shelfItems,{key:'cu-shelf-shot-'+id+'-'+shot,body:{filename:shot,mime:'image/png',bytes_base64:btoa(binary)},fallback:env.L('没能放进 Shelf。')});}
-      catch(error){if(error.status!==409||!error.body||error.body.code==='request.in_flight')throw error;}
+      await env.request(env.routePrefix+'/api/computer/records/'+encodeURIComponent(id)+'/shelf',{body:{title,text:lines.join('\n')},fallback:env.L('没能放进 Shelf。')});
       env.say(env.L('已放进 Shelf。'));
-    }catch(error){await drop();env.sayError(error,env.L('没能放进 Shelf。'));}
+    }catch(error){env.sayError(error,env.L('没能放进 Shelf。'));}
   };
-  const putOnShelf=()=>putComputerRecordOnShelf({request:molisWorkRequest,routePrefix,say,sayError,L,state,now:Date.now()});
+  const putOnShelf=()=>putComputerRecordOnShelf({request:molisWorkRequest,routePrefix,say,sayError,L,state});
   root.addEventListener('click',event=>{
     const review=event.target.closest('[data-computer-review]');
     if(review){if(review.dataset.computerReview==='approve')decide('approve');else if(review.dataset.computerReview==='approve-round')decide('approve','app-this-round');else decide('reject');return;}

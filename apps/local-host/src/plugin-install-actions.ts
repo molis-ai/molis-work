@@ -74,6 +74,27 @@ export const pluginInstallActions = {
     output_schema: { type: "object", additionalProperties: false, required: ["plugins"], properties: { plugins: { type: "array", items: installedView } } } } } as ActionDefinition<Record<string, never>, { plugins: PluginInstalledView[] }>,
 };
 
+const controlOutput = { type: "object", additionalProperties: false, required: ["plugin_id", "state"], properties: { plugin_id: text, state: text } };
+const controlInput = { plugin_id: { type: "string", minLength: 1, maxLength: 200 } };
+const controlled = (title: string, description: string) => ({ ...metadata, scope: "project", title, description, kind: "operation", effect: "write", permissions: [PLUGIN_INSTALL_WRITE] }) as const;
+
+/**
+ * What the person does with a plugin installed from a signed package once it is installed (ac-trust BL-623): switch it off, switch it on,
+ * take it off. Upgrading is installing a newer package of the same plugin and publisher (`preview`, then `confirm`). Each is the person's act
+ * in a project, like the install: `user` audience and the protected entry's `user_action`.
+ */
+export const pluginControlActions = {
+  disable: { capability_id: "plugins.installed.disable", version: 1, operation: "command", action: { ...controlled("停用签名包装的插件",
+    "停用这个项目里一个从签名的包装进来的插件：它的动作停止提供，数据保留，之后可以再启用或卸载。有常开同意的插件不能停用。"),
+    input_schema: { type: "object", properties: controlInput, required: ["plugin_id"], additionalProperties: false }, output_schema: controlOutput } } as ActionDefinition<{ plugin_id: string }, { plugin_id: string; state: string }>,
+  enable: { capability_id: "plugins.installed.enable", version: 1, operation: "command", action: { ...controlled("启用签名包装的插件",
+    "启用这个项目里一个停用了的、从签名的包装进来的插件。发布者已被撤销信任的插件不能启用，只能卸载。"),
+    input_schema: { type: "object", properties: controlInput, required: ["plugin_id"], additionalProperties: false }, output_schema: controlOutput } } as ActionDefinition<{ plugin_id: string }, { plugin_id: string; state: string }>,
+  uninstall: { capability_id: "plugins.installed.uninstall", version: 1, operation: "command", action: { ...controlled("卸载签名包装的插件",
+    "把这个项目里一个从签名的包装进来的插件卸载：`keep_data` 为真时它的数据留下（以后重装可以接上），为假时数据一并删除，也删除它存的密钥。有常开同意的插件不能卸载。发布者已被撤销信任的插件可以卸载。"),
+    input_schema: { type: "object", properties: { ...controlInput, keep_data: { type: "boolean" } }, required: ["plugin_id", "keep_data"], additionalProperties: false }, output_schema: controlOutput } } as ActionDefinition<{ plugin_id: string; keep_data: boolean }, { plugin_id: string; state: string }>,
+};
+
 export function pluginInstallHandlers(service: PluginInstallService): ActionHandlerBinding[] {
   const person = (caller: Parameters<ActionHandlerBinding["handle"]>[0]) => {
     if (!caller.user_action) throw new ActionError("actions.forbidden", "安装插件只接受本人在界面或命令行里的操作");
@@ -95,6 +116,11 @@ export function pluginInstallHandlers(service: PluginInstallService): ActionHand
       await caller.beforeEffect();
       return { publisher: service.revokePublisher((input as { key_id: string }).key_id) };
     } },
+    ...(["disable", "enable", "uninstall"] as const).map((action): ActionHandlerBinding => ({ capability_id: pluginControlActions[action].capability_id, version: 1, handle: async (caller, input) => {
+      const who = person(caller); await caller.beforeEffect();
+      const { plugin_id, keep_data } = input as { plugin_id: string; keep_data?: boolean };
+      return { plugin_id, state: await service.control(action, { plugin_id, keep_data: keep_data === true }, who) };
+    } })),
     { capability_id: pluginInstallActions.installed.capability_id, version: 1, handle: async caller => {
       if (!caller.project_id) throw new ActionError("actions.project_required", "请选择一个项目");
       return { plugins: await service.installed(caller.project_id) };

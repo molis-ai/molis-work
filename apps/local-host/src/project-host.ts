@@ -38,6 +38,7 @@ import { prepareMemoryHome } from "./memory/memory-adoption.js";
 import { closeConnectorResources } from "./connector-lifecycle.js";
 import { randomUUID } from "node:crypto";
 import { LocalSqliteJournal } from "@molis-ai/molis-work-storage";
+import { resolveConfiguredHome } from "./product-home.js";
 import { LocalHost, type HostCapabilityHandler, type LocalHostOptions } from "./local-host.js";
 import { GoalProjectApplication } from "./goal-project-application.js";
 import { openProjectVersionStores, type ProjectVersionStores } from "./project-version-stores.js";
@@ -469,7 +470,9 @@ function prepareHostMemoryHome(host: MolisWorkLocalHost, home: string | undefine
 }
 
 export function createMolisWorkLocalHost(options: MolisWorkLocalHostOptions = {}): MolisWorkLocalHost {
-  const host = new MolisWorkLocalHost(options);
-  if (options.homeDirectory) registerProjectRuntimeOwner(host, path.resolve(options.homeDirectory));
+  // Where the Host starts: its Home is the real path from here on, the one every service it hands the Home to compares with.
+  const resolved = options.homeDirectory === undefined ? options : { ...options, homeDirectory: resolveConfiguredHome(options.homeDirectory) };
+  const host = new MolisWorkLocalHost(resolved);
+  if (resolved.homeDirectory) registerProjectRuntimeOwner(host, path.resolve(resolved.homeDirectory));
   return host;
 }

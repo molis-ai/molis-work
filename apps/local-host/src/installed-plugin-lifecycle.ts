@@ -4,6 +4,7 @@
  * the person gave, the secrets they typed in the consent dialog, the data an uninstall kept, the prompts and the actions
  * the plugin shows. An action that does not finish leaves none of that behind.
  */
+import { comparePluginVersions } from '@molis-ai/molis-work-plugin-sdk';
 import { pluginErrors, type PluginDefinition, type PluginInstanceRecord, type PluginPrivateStorage } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { AgentBuilderPorts } from './installed-plugin-host.js';
@@ -116,6 +117,24 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
       throw new AggregateError([error, ...unfinished], said(error) + '（撤销这次安装时也没有做完：' + unfinished.map(said).join('；') + '）', { cause: error });
     }
   };
+  /**
+   * A signed package is replaced by a newer package of the same plugin and publisher, and by nothing else (BL-623). The person's confirmation approves exactly
+   * the permissions the new package asks for. A switched-off installation is not registered with the Supervisor after a restart; the version moves under the new
+   * definition all the same and never starts it, as for any switched-off plugin.
+   */
+  const upgradePackage = async (release: InstalledRelease, record: PluginInstanceRecord, grants: Grants) => {
+    const pluginId = release.pluginId;
+    if (record.publisher_trust !== 'pinned' || !release.packaged) throw pluginErrors.definition_conflict('已装的插件和这个包不是同一种来源，不能互相替换：先卸载，再装');
+    if (!c.trusted(record)) throw pluginErrors.publisher_revoked('这个插件的发布者已被撤销信任，不能升级；数据还在，可以卸载');
+    if (record.state === 'quarantined') throw new Error('插件多次启动失败，已被隔离，不能升级：请先卸载并保留数据，再重新安装');
+    const installed = c.releaseFor(pluginId), approved = c.approvedFor(pluginId);
+    if (!installed?.packaged) throw new Error(c.recoveryErrors.get(pluginId) ?? '找不到已安装版本的包，不能升级');
+    if (!approved) throw new Error('找不到此安装的批准记录，请先卸载并重新确认安装');
+    const next = release.packaged.manifest;
+    if (comparePluginVersions(next.version, record.version) <= 0) throw pluginErrors.upgrade_required('这个包的版本是 ' + next.version + '，不高于已装的 ' + record.version + '：不是升级');
+    if (!(next.upgrade_compatibility?.compatible_from_versions ?? []).includes(record.version)) throw pluginErrors.upgrade_required('这个包的清单没有声明能从已装的 ' + record.version + ' 直接升级（upgrade_compatibility.compatible_from_versions）');
+    return changeInstalledVersion(c, 'upgrade', release, record, release.permissions, secretsOf(grants.secrets, release));
+  };
   return async (action, release, input) => {
     if (c.closed()) throw new Error('安装运行入口已关闭');
     const grants = (input ?? {}) as Grants, pluginId = release.pluginId, consent = grants.consent === true, record = c.recordFor(pluginId);
@@ -127,7 +146,8 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
     if (!record) throw new Error('这个插件还没有安装');
     if (action === 'upgrade' || action === 'rollback') {
       const verb = action === 'upgrade' ? '升级' : '回滚';
-      if (record.publisher_trust === 'pinned') throw pluginErrors.state_invalid('从签名的包装进来的插件还不能' + verb + '：先卸载，再装新的包');
+      if (record.publisher_trust === 'pinned' && action === 'rollback') throw pluginErrors.state_invalid('从签名的包装进来的插件还不能' + verb + '：先卸载，再装新的包');
+      if (record.publisher_trust === 'pinned' || (release as InstalledRelease).packaged) return upgradePackage(release, record, grants);
       if (record.state === 'quarantined') throw new Error('插件多次启动失败，已被隔离，不能' + verb + '：请先卸载并保留数据，再重新安装');
       const approved = c.approvedFor(pluginId) ?? {};
       if (!covered(release.permissions, approved) && !consent) throw new Error('这个版本需要新的权限，请确认后再切换');

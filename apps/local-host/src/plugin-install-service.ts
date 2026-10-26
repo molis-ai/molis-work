@@ -28,6 +28,8 @@ export interface PluginInstallPorts {
   install(projectId: string, release: InstalledRelease): Promise<void>;
   /** The plugins installed in the project, each with the Manifest it was installed with. */
   installed(projectId: string): Promise<InstalledPluginEntry[]>;
+  /** Switches one installation of a signed package off or on, or takes it off; answers the state it is in afterwards. */
+  control(projectId: string, pluginId: string, action: 'disable' | 'enable' | 'uninstall', input: { keep_data: boolean }): Promise<string>;
   now?(): string;
 }
 
@@ -77,6 +79,9 @@ export class PluginInstallService {
     if (input.consent !== true) throw pluginErrors.consent_required('安装前请确认插件要使用的权限');
     const pin = this.pinOf(held.key_id);
     if (pin?.revoked_at) throw pluginErrors.publisher_revoked('这个发布者的固定已被撤销，它的包不能再安装');
+    // A package of a plugin that is already installed here is its upgrade, and only its own publisher's: another publisher's is refused before it can be pinned.
+    const present = (await this.ports.installed(held.project_id)).find(item => item.record.plugin_id === held.pkg.manifest.plugin_id);
+    if (present && present.record.publisher_signature !== held.key_id) throw pluginErrors.definition_conflict('这个插件已经由另一个发布者装进了这个项目，两边不能互相替换：先卸载，再装');
     if (!pin) {
       const label = input.pin_label?.trim();
       if (!label) throw pluginErrors.publisher_untrusted('这个发布者还没有被固定：要装它的包，请先确认信任它');
@@ -87,6 +92,11 @@ export class PluginInstallService {
     const directory = this.ports.packages.save(held.bundle, held.pkg);
     await this.ports.install(held.project_id, packagedRelease(held.pkg, directory, this.now()));
     return { plugin_id: held.pkg.manifest.plugin_id, version: held.pkg.manifest.version, publisher_key_id: held.key_id };
+  }
+
+  /** Switches a signed-package installation of the project off or on, or takes it off (BL-623); a plugin that did not come from a signed package is not touched here. */
+  async control(action: 'disable' | 'enable' | 'uninstall', input: { plugin_id: string; keep_data: boolean }, who: { project_id: string }): Promise<string> {
+    return this.ports.control(who.project_id, input.plugin_id, action, { keep_data: input.keep_data });
   }
 
   publishers(): PluginPublisherPin[] { return this.ports.ledger.publishers(); }

@@ -25,7 +25,7 @@ export class RuntimeIntegrationService {
   private readonly preparedPlans = new Map<string, PreparedPlan>();
 
   constructor(options: RuntimeIntegrationServiceOptions = {}) {
-    this.homeDirectory = path.resolve(options.homeDirectory ?? resolveConfiguredHome());
+    this.homeDirectory = resolveConfiguredHome(options.homeDirectory);
     this.userHomeDirectory = path.resolve(options.userHomeDirectory ?? os.homedir());
     this.options = options;
     this.planner = new RuntimeIntegrationPlanner({ homeDirectory: this.homeDirectory, userHomeDirectory: this.userHomeDirectory, receiptPath: id => this.receiptPath(id), backupPath: (id, plan) => runtimeConfigBackupPath(this.homeDirectory, id, plan) });

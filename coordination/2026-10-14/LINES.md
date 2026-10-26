@@ -153,3 +153,12 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
 - **10-25 巨大单元不硬拆（用户原话：「对于oversized-unit，我们也不是硬拆，只要本身合理，可以不做硬性拆分，标明即可」）**：门禁改动 PR #1289（`claude/giant-units-register`）。本身合理、只做一件事的巨大单元（文案表、样式表、静态数据、生成代码、内聚的状态机或解析器，`kind: cohesive-unit`）在 `tooling/gates/giant-exceptions.json` 标明 `kind`、理由与门禁量出的 `size`，新增或变大都放行；`size` 与实测不等直接失败；混了几件事的照旧按职责拆。W5-10 各线（`ac-giants` 设计系统、`ac-kernel` agent-host、Codex C3）改为逐个复核「拆」的判定：合理的改判例外并标明，不为凑数字硬拆。#1289 合入前，各线的分支照旧按旧门禁过（先拆或不碰），合入后再标。
 - **10-25 号段与暂定 S 号（统筹）**：`ac-platform` 第 3 组 RAC-730～749（原拟 660～699 与 ac-kernel 650～669、ac-giants 670～689、ac-shell 690～709 撞）。暂定 S 号：S-75 T6 #1279、S-76 #1255、S-77 C5 mcp-autostart、S-78 T4 #1282、S-79 T5 #1285、S-80 起 ac-platform 第 3 组（PG-112 本机工具、PG-113 桌面 IPC）；组批时按落地顺序收紧连续。
 - **10-25 ac-platform 第 3 组裁定**：PG-112 Manifest `local_tools` + `services.localTools`（只探测不代跑、参数固定在 Manifest、只 `host` 等级可声明、新 SI 行带拒绝测试，第三方开放走同意账本另记 BL）；PG-113 只加固 Rust 一侧（plugin_files_*，限主人文件根、规范化、非链接、普通文件、nlink=1），一次性句柄后续片；PG-011 Manifest `runtime.scope` + 信任闸，非内置 Home 插件安装归 ac-sandbox-sched 队列；`MOLIS_WORK_SHELF_AGENT_*` 改 `MOLIS_WORK_LOCAL_TOOLS_*`、不留兼容，存量偏好进 W5-17 维护清单。
+- **10-26 派片（用户 10-26「继续推进工程开发进度（以合理的安排）」「with reasonable effort level and model」）**：新号段从 RAC-840、BL-670 起；S-91 给 #1255 BL-490（原暂定 S-68 与 main 的 S-68 撞）、S-92 给 PG-017 P2e。
+  - `ac-kernel`（Opus high）：PG-031 余项（inbox `pages.ts`、`content-action-providers.ts`、MCP 直接 import Goals 三处；避开 #1295）→ PG-057 的 `/api/assistant/*`、`/api/shelf` 一半（Feed/Inbox 一半归 FI）；RAC-840～859、BL-670～679。
+  - `ac-giants`（Sonnet xhigh，ac-artifacts 线）：PG-080 的 Pages 一半（Feed 一半随 FI）→ PG-078 余项（`services.artifacts`/`processItems` 由平台给）；RAC-860～869、BL-680～684。A5/A6 等维护时段。
+  - `ac-clients-1`（Sonnet high）：PG-111 余项 + PG-095 Shelf（BL-618）；先列 contracts 剩余子路径的归属；Feed、Goals、Alchemist、平台模块不动；RAC-870～889、BL-685～689。
+  - `ac-registry`（Opus high）：PG-046 先写设计稿 `slices/pg046-integrations-from-manifest.md`（与 FI、PG-045、W5-11 的边界），动安全边界或真实 Home 的先报，其余直接实现；RAC-890～899、BL-690～694。
+  - `ac-sandbox-sched`（Sonnet xhigh）：FI-6 第 3、4 步等 ac-platform P1/P2/P4；其间 #1255 改 S-91、P2e 改 S-92 合 main → 报评审 → BL-491 → BL-493。
+  - `ac-sc3`（Sonnet high）：PG-053 余项（`terminal-client.ts` 手列三个终端客户端、import Shelf 包）；RAC-900～909、BL-695～699。
+  - `ac-shell`（Sonnet xhigh）：R-58/R-59 评审过（6406465099），进 batch-42；probe 结果回报后做 W5-02 PR-D（PG-073/074）。
+  - `ac-coding`：T7 修复增量复审过（6406464748）已合进 batch-41 `281737558`；下一片叠在 `4ab01c098`：RAC-392 口径落文 → BL-623。

@@ -203,7 +203,7 @@ test("the CLI boundary rule reads every way into the Goals package and into a Ho
   assert.match(changed("dispatcher", source => source.replace("goalEntryActions.snapshot", "goalEntryActions.list").concat('\n// goalEntryActions.snapshot\nconst note = "goalEntryActions.snapshot";')), /goalEntryActions\.snapshot/);
 
   // The local fallback keeps its original reference and signal; the dispatcher receives the selected resident/local port.
-  const bind = "bindGoalsManagementActions((localHost ??= createMolisWorkLocalHost()).actionClient(reference), reference, { signal: options.signal })";
+  const bind = "bindGoalsManagementActions((localHost ??= createMolisWorkLocalHost({ homeDirectory: home })).actionClient(reference), reference, { signal: options.signal })";
   const source = read("apps/local-host/src/cli-project.ts");
   assert.ok(source.includes(bind), "the real cli-project.ts holds the call these mutations edit");
   for (const [mutation, edit] of [
@@ -232,16 +232,16 @@ test("the CLI boundary rule reads every way into the Goals package and into a Ho
 
 test("RAC-105-S-08: the CLI fallback requires ownership before Home init and retains its single management route", () => {
   const source = read("apps/local-host/src/cli-project.ts");
-  const own = "if (homeProject || homeDatabase) ensureHomeStorageOwner(localHost ??= createMolisWorkLocalHost(), home);";
+  const own = "if (homeProject || homeDatabase) ensureHomeStorageOwner(localHost ??= createMolisWorkLocalHost({ homeDirectory: home }), home);";
   const initialize = 'if (operation === "init" && homeDatabase) prepareLocalProjectStorage(databasePath, "create");';
-  const bind = "bindGoalsManagementActions((localHost ??= createMolisWorkLocalHost()).actionClient(reference, false), reference, { signal: options.signal })";
+  const bind = "bindGoalsManagementActions((localHost ??= createMolisWorkLocalHost({ homeDirectory: home })).actionClient(reference), reference, { signal: options.signal })";
   const guarded = `const fallback = () => {\n    ${own}\n    ${initialize}\n    return ${bind};\n  };`;
   assert.ok(source.includes(guarded), "mutations edit the actual canonical fallback");
   for (const [mutation, edit] of [
     ["old unguarded expression", text => text.replace(guarded, `const fallback = () => ${bind};`)],
     ["missing owner preparation", text => text.replace(own, "")],
     ["wrong Home predicate", text => text.replace("homeProject || homeDatabase", "homeProject")],
-    ["wrong Home argument", text => text.replace("createMolisWorkLocalHost(), home);", "createMolisWorkLocalHost(), otherHome);")],
+    ["wrong Home argument", text => text.replace("createMolisWorkLocalHost({ homeDirectory: home }), home);", "createMolisWorkLocalHost({ homeDirectory: home }), otherHome);")],
     ["mkdir before ownership", text => text.replace(`${own}\n    ${initialize}`, `${initialize}\n    ${own}`)],
     ["mkdir on every operation", text => text.replace(initialize, 'prepareLocalProjectStorage(databasePath, "create");')],
     ["wrong Home classification", text => text.replace("const homeDatabase = databaseInHome(home, databasePath);", "const homeDatabase = false;")],
@@ -250,7 +250,7 @@ test("RAC-105-S-08: the CLI fallback requires ownership before Home init and ret
     ["extra business statement", text => text.replace(`return ${bind};`, `writeBusinessData();\n    return ${bind};`)],
     ["early return", text => text.replace(`return ${bind};`, `return otherPort;\n    return ${bind};`)],
     ["lost original signal", text => text.replace("{ signal: options.signal }", "{ signal: otherSignal }")],
-    ["prepared client", text => text.replace("actionClient(reference, false)", "actionClient(reference, true)")],
+    ["explicit client preparation", text => text.replace("actionClient(reference)", "actionClient(reference, true)")],
     ["extra client path", text => text.replace(`return ${bind};`, `localHost.client(reference);\n    return ${bind};`)],
   ]) {
     assert.notEqual(edit(source), source, mutation);

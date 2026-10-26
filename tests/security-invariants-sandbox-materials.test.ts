@@ -145,7 +145,7 @@ test("S-60 RAC-235 RAC-237 the Host's own client refuses a read outside the plug
   await assert.rejects(none.call(operation("command", READ), "materials.imageTextAvailable", []), code("sandbox.service_unavailable"));
 });
 
-test("S-68 RAC-235 a page read needs materials: fetch and the page's host in the operation's approved network domains, and reads only from those hosts", async () => {
+test("S-92 RAC-235 a page read needs materials: fetch and the page's host in the operation's approved network domains, and reads only from those hosts", async () => {
   const r = rig();
   const outside = await r.call(operation("query", FETCH), "materials.readSource", [PAGE], { grants: FETCH, where: "outside" }).catch(error => error);
   assert.equal((outside as { code?: string }).code, "plugin.materials_action_required", "the Host's client still asks for the plugin's own concurrent action");
@@ -175,7 +175,7 @@ test("S-68 RAC-235 a page read needs materials: fetch and the page's host in the
   assert.throws(() => assertEffects({ materials: ["write"] }), code("sandbox.invalid_contract"));
 });
 
-test("S-68 RAC-235 a machine's own pages and the Host's saved originals are not a page read: their methods need their own effects, and a read has no method for what it is not", async () => {
+test("S-92 RAC-235 a machine's own pages and the Host's saved originals are not a page read: their methods need their own effects, and a read has no method for what it is not", async () => {
   const r = rig();
   for (const method of ["materials.fetch", "materials.original", "materials.fetch_local"]) {
     await assert.rejects(r.call(operation("command", READ), method as never, ["https://example.com/", {}]), code("sandbox.invalid_request"), method);

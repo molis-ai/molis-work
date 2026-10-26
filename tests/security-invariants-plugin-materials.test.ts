@@ -95,7 +95,7 @@ test("RAC-25 S-60 RAC-235 a sandboxed definition receives the Host's readers of 
     const local = materialsProbe("boxedlocal", { execution: "sandbox", permissions: ["materials:read", "materials:fetch_local", "materials:original"] });
     await platform.start([{ definition: local.definition, grants: local.permissions }]);
     assert.deepEqual(Object.keys(local.contexts[0]!.services!.materials!).sort(), ["claimOriginal", "extract", "imageTextAvailable", "readDocuments", "readLocalPage", "readOriginal", "readOriginalRange", "releaseOriginal"]);
-    // A package that asks to read a public page is started too: its client has the page reader, the broker the host check (S-68).
+    // A package that asks to read a public page is started too: its client has the page reader, the broker the host check (S-92).
     const pages = materialsProbe("boxedpages", { execution: "sandbox", permissions: ["materials:read", "materials:fetch"] });
     await platform.start([{ definition: pages.definition, grants: pages.permissions }]);
     assert.deepEqual(Object.keys(pages.contexts[0]!.services!.materials!).sort(), ["extract", "imageTextAvailable", "readDocuments", "readSource"]);

@@ -22,7 +22,7 @@ export async function startRound(page: Page, id: string, task: string | undefine
   const { L, s } = page, { composerModels } = page.refs, [provider_id, model_id] = JSON.parse(modelValue) as [string, string];
   // A round that carries a digest waits for the model to write it first; say so rather than look stuck.
   if (id === s.current && s.lastData?.next_history?.history === "digest") status(page, L("coding.digest.writing"));
-  const started = await api<StartedRound | null>(page, sessionPath(id) + "/runs", "POST", {
+  const started = await page.refs.inputReceipts.start<StartedRound | null>(id, {
     ...extra, task, intent, provider_id, model_id, ...composerModels.effort(), workspace_id: selection.workspace_id, methods: selection.methods,
     ...(selection.action_tools === undefined ? {} : { action_tools: selection.action_tools }),
     mcp_tools: selection.mcp_tools, mcp_sources: selection.mcp_sources, materials: selection.materials, character: selection.character,
@@ -59,7 +59,7 @@ export async function continueRound(page: Page, runId: string | null, reask?: { 
     // A parallel round goes on with the directories it was given; the saved split is what those subtasks used.
     const selection = currentSelection(page, id);
     if (intent === "parallel") selection.writer_assignments = structuredClone(s.configurations.get(id)?.writer_assignments || []);
-    await startRound(page, id, next.task, intent, modelValue, selection, next.continue_step_board_of ? { plan_revision: next.plan_revision, continue_step_board_of: next.continue_step_board_of } : { reask });
+    await startRound(page, id, next.task, intent, modelValue, selection, { ...(next.continue_step_board_of ? { plan_revision: next.plan_revision, continue_step_board_of: next.continue_step_board_of } : {}), ...(next.continued_from ? { continued_from: next.continued_from } : {}), ...(reask ? { reask } : {}) });
     if (!reask) status(page, L("coding.run.continued"));
     s.follow.resume();
     await refreshState(page);

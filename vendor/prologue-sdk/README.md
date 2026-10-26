@@ -1,17 +1,16 @@
 # Prologue SDK 构建来源
 
-本目录的规则见 [AGENTS.md](../../AGENTS.md)：只放当前使用的 Prologue 包（最多再加一份在途分支的），换新包时删掉旧包，旧包从 Git 历史取。
+本目录沿用 [AGENTS.md](../../AGENTS.md) 的受控包规则。当前唯一运行依赖为 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz`；`final103-bridge` 保留为上一主线包，不同时装成第二份 Runtime。
 
-目录里现在有这些东西：
+当前包为 **1,397,575 字节**，SHA-256 `6893801bb36df43630c0ea1cfe44eb08c2fcd0b57ae0b0abbffab42623ad5a78`。来源为已合并 Prologue [#107](https://github.com/molis-ai/molis-prologue/pull/107) 的干净提交 `1cc80b05253df798eeb34afff65d1bda06bee587`，与上游合并提交 `ccafbb74fb9db0e3a124ec502c57291677487e23` 整树一致，没有 vendor 补丁。沿用已验证包的原始字节，816 个 dist 文件曾逐一对照原构建；本次从 Git 中取回同一产物，不声称重新独立制包。
 
-- 当前包 `prologue-sdk-0.0.0-rc.1-node-storage-verification.tgz`（`horizontal/agent-host/package.json` 以 `file:` 依赖它）；
-- 它的 `.sha256` 和 `.provenance.json`：字节数、SHA-256、integrity、上游仓库与完整提交、构建用的 Node 与 pnpm，格式照另外两个 vendored 包的同类文件；
-- `patch-history.json`：已删除的 26 份历史补丁和 32 个没有补丁的历史包的记录（大小、SHA-256、git blob、基线、来源、产出的包），见下面「已删除的历史补丁」；
-- 本文件。
+它包含既有 Memory CAS、分类、可信来源、采用与恢复能力，以及后续维护修复。新主干快照依赖的 `verifyNodeStorageContents({storageRoot,keyRoot,assertCurrent,signal?})` 公共接口保留；当前组合仍须经过 Molis 实际离线快照、负例和恢复回归。本 Foundation 不采用尚在验证的集合读取优化 #108。
 
-另外两个 vendored 包各自带 `.sha256`、`.provenance.json` 和 `sbom.cdx.json`：[intelligence-client](../intelligence-client/)、[search-evidence-layer](../search-evidence-layer/)。这三个包的 tgz 按决定（2026-10-08，[spec](../../specs/repository-anti-corruption/spec.md) §1「Prologue SDK 收敛与私有包」）将来改从私有 registry 或 release 附件取，不再放进公开仓库；registry 就绪前仍留在仓库里（[方案](../../specs/repository-anti-corruption/dependencies-and-sdk-plan.md) §5）。`pnpm health:check` 限制本目录的 tgz 份数（`tooling/gates/limits.json` 的 `vendoredPrologueSdk`），并由 `scripts/gates/vendored-provenance.mjs` 核对三个包的 tgz 与各自的 `.sha256`、`.provenance.json` 相符、`alsoBuildableFrom` 点名的补丁在目录里且字节数、SHA-256 相符、`patch-history.json` 的格式对、已删的补丁没有回到目录里（只核对形状，不去 Git 里重算 `gitBlob` 的字节数与 SHA-256，见 [REPOSITORY-HYGIENE](../../docs/system/REPOSITORY-HYGIENE.md)）；`tests/vendor-provenance.test.ts` 给门禁的每一条检查各造一个违例，方法与限度也在那份文档里。
+相邻 `.sha256`、`.provenance.json` 记录实际产物和来源；`patch-history.json` 保留历史补丁、已替换包及此前上游祖先审计。旧 #94 的包和 sidecars 可从 Molis `c61508d5e15ab4850d256843a0e4110f9ecf1e20` 取回。来源记录不是应用采用、性能或用户验收结果；以 [Memory spec](../../specs/prologue-memory-strategy/spec.md) 为准。
 
-## 当前依赖：final103-bridge（2026-10-25，消费验证中）
+快照命令输出的 `manifest.json` 与 `data/` 是离线备份载荷，不含原 Home 密钥，不能直接当作 `recover-home` 的完整 T0/T1 工作副本。本次不增加解包、补密钥或另一套恢复流程。
+
+## 保留的上一主线依赖：final103-bridge（2026-10-25）
 
 `prologue-sdk-0.0.0-rc.1-final103-bridge.tgz` 为 **1,253,301 字节**，SHA-256 `884295c966ad85ee8be46c5bc6f162c3fa892217aa43a404e600adea7253a834`。准确来源是上游公开分支 `feature/node-storage-final103-bridge` 的 `ba75c9f8437018904b24dabeaaef6ded8054add5`：基点 `2c7feba5a6ea85e81e4a263671fb5e68f536d86a`（Prologue #60），只移植 #103 定稿 `6523abb47..513237d2` 的功能。它是已提交、已推送的过渡源码，**不是上游 main 的祖先**，不标作 main/dcaa/f175；不带 #61–#101、#104 或旧 `42ccc75` 候选。依据是 [accepted WO 6395049480](https://github.com/molis-ai/molis-work/pull/1267#issuecomment-6395049480) 和 Root/PIPE 的具体消费派单。
 

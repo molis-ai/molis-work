@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { createPrologueError, DEFAULT_TOOL_LIMITS, type ScenarioPack, type ToolRunner } from "@prologue/sdk";
 import { ActionError, actionEffect, actionFieldLabel, actionFieldValue, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentActionClient, AgentActionOffer, AgentFrozenRole } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -38,28 +39,29 @@ const memoryToolOffered = (name: string, memory: AgentActionClient["memory"]): b
   || (!!memory && (name !== MEMORY_TOOLS.remember || !!memory.remember) && (name !== MEMORY_TOOLS.forget || !!memory.forget) && (name !== MEMORY_TOOLS.propose || !!memory.propose));
 
 /** The person's memory tools; each refuses when the round was not given memory, or not that tool. */
-function memoryExecutors(given: AgentActionClient["memory"], guarded: (run: (args: Record<string, unknown>, signal: AbortSignal) => Promise<string>) => ToolRunner): Record<string, ToolRunner> {
+type GatewayToolRun = (args: Record<string, unknown>, signal: AbortSignal, operationId: string) => Promise<string>;
+function memoryExecutors(given: AgentActionClient["memory"], guarded: (run: GatewayToolRun) => ToolRunner): Record<string, ToolRunner> {
   const available = () => { if (!given) throw new ActionError("actions.forbidden", "Forming memories is switched off here; tell the person you did not keep it."); return given; };
   const without = (tool: string): never => { throw new ActionError("actions.forbidden", `This work has no ${tool} tool (a work handed to you by another work cannot keep or forget memories); tell the person or the work that handed it to you that nothing was kept or forgotten.`); };
   const text = (value: unknown, field: string, max: number) => { if (typeof value !== "string" || !value.trim() || value.length > max) throw new ActionError("actions.reference_invalid", `"${field}" must be 1–${max} characters.`); return value.trim(); };
   return {
-    [MEMORY_TOOLS.remember]: guarded(async args => {
+    [MEMORY_TOOLS.remember]: guarded(async (args, signal, operation_id) => {
       const scope = args.scope === "project" ? "project" : args.scope === "personal" ? "personal" : args.scope === "character" ? "character" : null;
       if (!scope) throw new ActionError("actions.reference_invalid", "\"scope\" must be personal, project or character.");
       const kind = args.kind === undefined ? undefined : ["preference", "convention", "fact", "experience"].includes(String(args.kind)) ? args.kind as "preference" | "convention" | "fact" | "experience" : null;
       if (kind === null) throw new ActionError("actions.reference_invalid", "\"kind\" must be preference, convention, fact or experience.");
       const remember = available().remember ?? without(MEMORY_TOOLS.remember);
       return JSON.stringify(await remember({ text: text(args.text, "text", 400), scope, said: text(args.said, "said", 400),
-        ...(kind ? { kind } : {}), ...(args.replaces !== undefined ? { replaces: text(args.replaces, "replaces", 200) } : {}) }));
+        ...(kind ? { kind } : {}), ...(args.replaces !== undefined ? { replaces: text(args.replaces, "replaces", 200) } : {}) }, { signal, operation_id }));
     }),
-    [MEMORY_TOOLS.list]: guarded(async () => JSON.stringify({ memories: await available().list() })),
-    [MEMORY_TOOLS.forget]: guarded(async args => { const forget = available().forget ?? without(MEMORY_TOOLS.forget); return JSON.stringify(await forget(text(args.memory_id, "memory_id", 200))); }),
-    [MEMORY_TOOLS.propose]: guarded(async args => {
+    [MEMORY_TOOLS.list]: guarded(async (_args, signal, operation_id) => JSON.stringify({ memories: await available().list({ signal, operation_id }) })),
+    [MEMORY_TOOLS.forget]: guarded(async (args, signal, operation_id) => { const forget = available().forget ?? without(MEMORY_TOOLS.forget); return JSON.stringify(await forget(text(args.memory_id, "memory_id", 200), { signal, operation_id })); }),
+    [MEMORY_TOOLS.propose]: guarded(async (args, signal, operation_id) => {
       const scope = args.scope === "project" ? "project" : args.scope === "personal" ? "personal" : null;
       if (!scope) throw new ActionError("actions.reference_invalid", "\"scope\" must be personal or project.");
       const propose = available().propose;
       if (!propose) throw new ActionError("actions.forbidden", "The person has not allowed suggestions to keep things; do not suggest, and do not say you kept anything.");
-      return JSON.stringify(await propose({ text: text(args.text, "text", 400), scope, why: text(args.why, "why", 300), applies: text(args.applies, "applies", 200) }));
+      return JSON.stringify(await propose({ text: text(args.text, "text", 400), scope, why: text(args.why, "why", 300), applies: text(args.applies, "applies", 200) }, { signal, operation_id }));
     }),
   };
 }
@@ -136,7 +138,7 @@ async function inputRefusal(error: unknown, schema: ActionView["action"]["input_
   return createPrologueError("TOOL_ARGUMENTS_INVALID", `输入不符合能力合同。The input must be a JSON value matching this schema: ${JSON.stringify(schema).slice(0, 2000)}. For object schemas, put every required capability field inside input, not in the button title or summary. Correct the arguments before calling again; do not repeat the same invalid input.`);
 }
 
-function guardGatewayTool(run: (args: Record<string, unknown>, signal: AbortSignal) => Promise<string>, runSignal?: AbortSignal): ToolRunner {
+function guardGatewayTool(run: GatewayToolRun, runSignal?: AbortSignal): ToolRunner {
   return async call => {
     const abort = new AbortController();
     const stop = () => abort.abort(new ActionError("actions.cancelled", "Agent action cancelled"));
@@ -144,7 +146,7 @@ function guardGatewayTool(run: (args: Record<string, unknown>, signal: AbortSign
     call.signal?.addEventListener("abort", stop, { once: true });
     runSignal?.addEventListener("abort", stop, { once: true });
     if (runSignal?.aborted || call.signal?.aborted || call.abort?.requested()) stop();
-    try { abort.signal.throwIfAborted(); return await run(call.args as Record<string, unknown>, abort.signal); }
+    try { abort.signal.throwIfAborted(); return await run(call.args as Record<string, unknown>, abort.signal, randomUUID()); }
     catch (error) {
       if (error instanceof ActionError && !abort.signal.aborted) {
         throw createPrologueError("HOST_RESPONSE_INVALID", `${error.code}: ${error.message}`);
@@ -168,7 +170,7 @@ export function prologueActionGateway(gateway: Gateway, timeoutMs = DEFAULT_TOOL
   // Exact identities this round has seen offered: one missing later was taken away, not guessed.
   const offered = new Set<string>();
   const declared = declaredCapabilities(gateway);
-  const guarded = (run: (args: Record<string, unknown>, signal: AbortSignal) => Promise<string>) => guardGatewayTool(run, runSignal);
+  const guarded = (run: GatewayToolRun) => guardGatewayTool(run, runSignal);
   const current = async (args: CapabilityArgs, write: boolean): Promise<ActionView> => {
     const views = await gateway.client.discover();
     const view = views.find(row => row.capability_id === args.capability_id && row.version === args.version && row.provider.provider_id === args.provider_id);

@@ -10,6 +10,7 @@ export function pluginCallbackContext<C extends ActionCallContext>(caller: C): C
     ...(caller.user_action ? { user_action: { ...caller.user_action } } : {}),
     ...(caller.scene_binding ? { scene_binding: { ...caller.scene_binding } } : {}),
     ...(caller.assistant_reply ? { assistant_reply: structuredClone(caller.assistant_reply) } : {}),
+    ...(caller.original_input ? { original_input: structuredClone(caller.original_input) } : {}),
   };
   Reflect.deleteProperty(view, "host_plugin");
   // The Host's own list of projects the person may reach (PG-014) is set by `pluginActionProvider` after this; what a caller carried in is not.

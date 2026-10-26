@@ -1,4 +1,4 @@
-import { MEMORY_CONSUMERS, MEMORY_KINDS, type MemoryConsumer, type MemoryKind, type MemoryPrefs, type MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
+import { MEMORY_CONSUMERS, MEMORY_KINDS, type MemoryConsumer, type MemoryKind, type MemoryPrefs, type MemoryPreset, type MemoryScope } from "@molis-ai/molis-work-contracts/services/memory";
 
 /**
  * The assisted base switches; Home creation explicitly persists reviewed instead. Completing a stored override
@@ -6,7 +6,7 @@ import { MEMORY_CONSUMERS, MEMORY_KINDS, type MemoryConsumer, type MemoryKind, t
  */
 export function defaultPrefs(scope: MemoryScope, preset: "reviewed" | "assisted" = "assisted"): MemoryPrefs {
   return {
-    form: true, auto: preset === "assisted", learn_from_work: true, learn_from_ui: true,
+    enabled: true, task_recall: true, form: true, auto: preset === "assisted", learn_from_work: true, learn_from_ui: true,
     consumers: { assistant: true, agent: true, ui: true, plugin: true, mcp: scope === "project" },
     plugins: {},
   };
@@ -20,27 +20,14 @@ export const PERSONAL_PREFS_KEY = "personal";
 export const PROJECT_DEFAULT_PREFS_KEY = "project-default";
 export const projectPrefsKey = (projectId: string) => `project:${projectId}`;
 
-/** Adoption requires a complete current profile: missing switches must not silently become enabled defaults. */
-export function isCompletePrefs(value: unknown): value is MemoryPrefs {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const prefs = value as Record<string, unknown>;
-  if (Object.keys(prefs).length !== 6 || !["form", "auto", "learn_from_work", "learn_from_ui"].every(key => typeof prefs[key] === "boolean")) return false;
-  const consumers = prefs.consumers, plugins = prefs.plugins;
-  if (!consumers || typeof consumers !== "object" || Array.isArray(consumers)
-    || Object.keys(consumers).length !== MEMORY_CONSUMERS.length
-    || !MEMORY_CONSUMERS.every(key => typeof (consumers as Record<string, unknown>)[key] === "boolean")) return false;
-  if (!plugins || typeof plugins !== "object" || Array.isArray(plugins)) return false;
-  return Object.values(plugins).every(rule => rule && typeof rule === "object" && !Array.isArray(rule)
-    && Object.keys(rule).length === 2 && typeof rule.allowed === "boolean" && Array.isArray(rule.kinds)
-    && rule.kinds.every((kind: unknown) => typeof kind === "string" && MEMORY_KINDS.includes(kind as MemoryKind)));
-}
+export { isCompleteMemoryPrefs as isCompletePrefs } from "@molis-ai/molis-work-contracts/services/memory";
 
 /** A stored (possibly partial or older) record, completed with the defaults; unknown keys are dropped. */
 export function completePrefs(scope: MemoryScope, ...layers: Array<Partial<MemoryPrefs> | null | undefined>): MemoryPrefs {
   const out = defaultPrefs(scope);
   for (const layer of layers) {
     if (!layer) continue;
-    for (const key of ["form", "auto", "learn_from_work", "learn_from_ui"] as const) if (typeof layer[key] === "boolean") out[key] = layer[key]!;
+    for (const key of ["enabled", "task_recall", "form", "auto", "learn_from_work", "learn_from_ui"] as const) if (typeof layer[key] === "boolean") out[key] = layer[key]!;
     if (layer.consumers && typeof layer.consumers === "object") for (const consumer of MEMORY_CONSUMERS)
       if (typeof layer.consumers[consumer] === "boolean") out.consumers[consumer] = layer.consumers[consumer];
     if (layer.plugins && typeof layer.plugins === "object") for (const [pluginId, rule] of Object.entries(layer.plugins)) {
@@ -53,8 +40,8 @@ export function completePrefs(scope: MemoryScope, ...layers: Array<Partial<Memor
 }
 
 /** Whether a consumer may read a scope's memories, and the kinds a plugin may read. */
-export function consumerAccess(prefs: MemoryPrefs, consumer: MemoryConsumer, pluginId?: string | null): { allowed: boolean; kinds: readonly MemoryKind[] | null } {
-  if (!prefs.consumers[consumer]) return { allowed: false, kinds: null };
+export function consumerAccess(prefs: MemoryPrefs, consumer: MemoryConsumer, pluginId?: string | null, readMode: "explicit" | "task" = "task"): { allowed: boolean; kinds: readonly MemoryKind[] | null } {
+  if (!prefs.enabled || (readMode === "task" && !prefs.task_recall) || !prefs.consumers[consumer]) return { allowed: false, kinds: null };
   if (consumer !== "plugin") return { allowed: true, kinds: null };
   const rule = pluginId ? prefs.plugins[pluginId] : undefined;
   if (rule) return { allowed: rule.allowed && rule.kinds.length > 0, kinds: rule.kinds };
@@ -64,3 +51,9 @@ export function consumerAccess(prefs: MemoryPrefs, consumer: MemoryConsumer, plu
 export const CONSUMER_LABELS: Record<MemoryConsumer, string> = {
   assistant: "助理", agent: "Agent 工作", ui: "界面推荐", plugin: "插件", mcp: "外部 AI 客户端",
 };
+
+/** A person's chosen recipe changes only its four controls, preserving finer permissions and learning choices. */
+export function presetPrefs(current: MemoryPrefs, preset: MemoryPreset): MemoryPrefs {
+  if (preset === "off") return { ...current, enabled: false };
+  return { ...current, enabled: true, task_recall: preset !== "manual", form: preset !== "manual", auto: preset === "assisted" };
+}

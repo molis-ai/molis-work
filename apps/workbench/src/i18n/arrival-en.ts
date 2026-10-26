@@ -95,7 +95,7 @@ export const ARRIVAL_EN: Record<string, string> = {
   "可以离开此页，回来时从断点继续。": "You can leave this page and pick up where it left off.",
   "文件夹里的条目太多，只扫描了一部分；未列出的文件不会读取，可以选更小的文件夹。": "The folder has too many entries to scan them all. Files not listed won't be read; choose a smaller folder.",
   "第 {k} / {n} 份": "{k} of {n}",
-  "整理分 {n} 批，第 {k} 批": "In {n} {n|batch|batches}: batch {k}",
+  "整理分 {n} 批，第 {k} 批": "Batch {k}/{n}",
   "待办草稿": "Todo drafts",
   "{done} / {total} 批": "{done} of {total} {total|batch|batches}",
   "逐项确认": "Confirm one by one",

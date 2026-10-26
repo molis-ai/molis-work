@@ -19,7 +19,9 @@
 tests/assistant-dock-ime.e2e.test.ts
 tests/context-onboarding-blank.e2e.test.ts
 tests/goals-refresh.e2e.test.ts
+tests/memory-formation.test.ts
 tests/project-management-navigation.e2e.test.ts
+tests/prologue-memory-formation.test.ts
 tests/shell-direct-links.e2e.test.ts
 
 # Main flows: the main action or HTTP flow of each product area, and the i18n test (W2-16).
@@ -107,6 +109,7 @@ tests/assistant-turns.test.ts
 tests/assistant-undo.test.ts
 tests/assistant-work-budget.test.ts
 tests/assistant-work-continuity.test.ts
+tests/assistant-continuation-control.test.ts
 
 # characters
 tests/characters-action-client.test.ts
@@ -237,6 +240,17 @@ tests/goals-tree-ui.test.ts
 # memory
 tests/memory-adoption.test.ts
 tests/memory-learning.test.ts
+tests/memory-plugin-save.test.ts
+tests/memory-runtime-policy.test.ts
+tests/memory-review-remember-cancellation.test.ts
+tests/memory-review-forget-revocation.test.ts
+tests/memory-list-revocation.test.ts
+tests/memory-source-snapshot-withdrawal.test.ts
+tests/memory-source-owner.test.ts
+tests/memory-promotion.test.ts
+tests/prologue-memory-promotion.test.ts
+tests/memory-use-receipts.test.ts
+tests/prologue-memory-run-context.test.ts
 tests/memory-spoken.test.ts
 tests/memory-text.test.ts
 tests/memory-upkeep.test.ts
@@ -470,6 +484,11 @@ tests/knowledge-cards.test.ts
 tests/knowledge-reads.test.ts
 tests/security-invariants-knowledge-lifecycle.test.ts
 tests/canonical-json-value.test.ts
+
+tests/coding-original-inputs.test.ts
+
+tests/memory-unknown-facts.test.ts
+tests/assistant-original-inputs.test.ts
 # W5-06 PRR-12: every shown plugin's stage page is drawn once, from the Manifest view that opens it.
 tests/declared-stages.test.ts
 # W5-16 RAC-104: original Runtime configuration recovery and read-only credential preflight through production owners.

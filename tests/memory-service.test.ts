@@ -1,39 +1,37 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { MemoryService, MEMORY_GATE_RULE, SIGNAL_THRESHOLD, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
-import { openMemoryLedger } from "@molis-ai/molis-work-storage";
-import type { MemoryLedgerPort, MemoryWriteRequest } from "@molis-ai/molis-work-contracts/services/memory";
+import type { MemoryWriteRequest } from "@molis-ai/molis-work-contracts/services/memory";
 import { prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
+import { memoryServiceHome, scriptedMemoryExtraction, originalMemorySources } from "./fixtures/memory-service-home.js";
+import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { NOT_THEIRS, THEIRS } from "./fixtures/memory-said-cases.js";
 
-/** A real Prologue runtime (its Memory is the store) and the Host ledger in a scratch Home; restartable. */
-async function memoryHome(t: { after(fn: () => Promise<void> | void): void }, clock?: () => Date) {
-  const home = await mkdtemp(join(tmpdir(), "molis-memory-service-"));
-  let adapter: Awaited<ReturnType<typeof createPrologueNodeAdapter>> | null = null, ledger: MemoryLedgerPort | null = null, host: AgentHost | null = null;
-  const open = async () => {
-    const queue = new AgentReviewQueue();
-    host = new AgentHost({ reviews: queue });
-    adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.memory-service-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
-      modelConfiguration: async () => null as never, resolveCredential: () => null });
-    host.register(adapter);
-    ledger = openMemoryLedger({ homeDirectory: home });
-    const current = host;
-    return new MemoryService({ backend: prologueMemoryBackend(async () => current.adapter("prologue").memory!), ledger, timeZone: "Asia/Shanghai", ...(clock ? { now: clock } : {}),
-      projectTitle: async id => id === "project-a" ? "项目甲" : "项目乙" });
-  };
-  const close = async () => { ledger?.close(); ledger = null; await adapter?.close(); adapter = null; };
-  t.after(async () => { await close(); await rm(home, { recursive: true, force: true }); });
-  /** Prologue Memory itself, as the first version wrote to it (no ledger facts). */
-  const raw = () => prologueMemoryBackend(async () => host!.adapter("prologue").memory!);
-  return { home, open, close, ledger: () => ledger!, raw, memory: () => adapter!.memory! };
+async function memoryHome(t: Parameters<typeof memoryServiceHome>[0], clock?: () => Date) {
+  const extraction = scriptedMemoryExtraction();
+  const originals = originalMemorySources(["project-a", "project-b"], () => clock?.().getTime() ?? Date.now());
+  const env = await memoryServiceHome(t, { projects: ["project-a", "project-b"], ...(clock ? { now: clock } : {}), sources: originals.port, generate: extraction.generate,
+    projectTitle: async id => id === "project-a" ? "项目甲" : "项目乙" });
+  return { ...env, async automatic(memory: MemoryService, text: string, scope: "personal" | "project" = "project") {
+    const operation = crypto.randomUUID();
+    const sources = [originals.add(`${operation}:first`, text), originals.add(`${operation}:second`, text), originals.add(`${operation}:trigger`, "以后按这些要求执行")];
+    extraction.set([{ text, scope, kind: scope === "project" ? "convention" : "preference", basis: "explicit", quote: text }]);
+    const learned = await memory.learnFromWork({ ...assistant(), operation_id: operation, work: { work_id: operation, title: "两份原始表态" } }, {
+      said: sources.map(source => source.text), sources,
+    });
+    assert.equal(learned.formation.outcome, "completed");
+    assert.equal(learned.recording_error, undefined);
+    const [result] = learned.learned;
+    assert.equal(result!.outcome, "written", "the automatic premise uses two canonical originals and the real SDK promotion");
+    const entry = (await memory.list(person(), { scope })).items.find(item => item.memory_id === result!.memory_id);
+    const change = memory.changes(person(), { scope }).find(item => item.memory_id === result!.memory_id);
+    assert.ok(entry); assert.ok(change);
+    return { ...result!, memory: entry, change_id: change.change_id, originals: sources.slice(0, 2) };
+  } };
 }
 
-const person = (project: string | null = "project-a"): MemoryCaller => ({ actor_id: "web-user", project_id: project, consumer: "ui", person: true });
-const assistant = (project: string | null = "project-a", work = { work_id: "work-1", title: "季度复盘" }): MemoryCaller => ({ actor_id: "web-user", project_id: project, consumer: "assistant", work });
+const person = (project: string | null = "project-a"): MemoryCaller => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project, consumer: "ui", person: true });
+const assistant = (project: string | null = "project-a", work = { work_id: "work-1", title: "季度复盘" }): MemoryCaller => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project, consumer: "assistant", work });
 /**
  * What the Host does when the Assistant's `remember` is called: it hands the gate the messages the person typed (the third argument of `write`), and the quote the model gives only
  * points at one of them. Most tests here are about the gate, not about the Assistant's tool, and state the person's message in `said`; this passes it on as the one the Host saved.
@@ -127,7 +125,7 @@ test("the gate records 'said' only when the text is the quote whole: a fragment,
   assert.equal((await memory.list(person())).items.length, 0, "nothing was recorded as the person's words");
 
   // Said again over a memory the gate kept itself: a quote that does not carry it does not turn it into the person's.
-  const auto = await memory.offer(assistant(), { scope: "project", text: "周报先写风险", kind: "convention", basis: "repeated", why: "两次都这样要求", from: "extraction" });
+  const auto = await env.automatic(memory, "周报先写风险");
   const again = await keep(memory, work(7), { scope: "project", text: "周报先写风险", said: "再说一遍" });
   assert.equal(again.outcome, "duplicate");
   assert.equal((await memory.list(person())).items.find(item => item.memory_id === auto.memory!.memory_id)!.source, "auto", "still the gate's, still takeable back");
@@ -223,7 +221,7 @@ test("a correction borrows no words from the memory it replaces, the person's ow
   const env = await memoryHome(t);
   const memory = await env.open();
   const work = (n: number) => assistant("project-a", { work_id: `work-${n}`, title: `工作 ${n}` });
-  const auto = (text: string) => memory.offer(assistant(), { scope: "project", text, kind: "convention", basis: "repeated", why: "两次都这样要求", from: "extraction" });
+  const auto = (text: string) => env.automatic(memory, text);
   const sources = async () => (await memory.list(person())).items.map(item => `${item.text} · ${item.source}`).sort();
   const undoable = (id: string | null) => memory.changes(person(), { scope: "project" }).find(item => item.change_id === id)!.undoable;
 
@@ -269,19 +267,18 @@ test("a correction borrows no words from the memory it replaces, the person's ow
 test("automatic writes follow the gate table, show in recent changes with their rule, and undo deletes them from the store", { timeout: 60_000 }, async t => {
   const env = await memoryHome(t);
   const memory = await env.open();
-  const auto = await memory.offer(assistant(), { scope: "project", text: "项目甲的周报把风险放最前面", kind: "convention", basis: "repeated", why: "你在两次工作里都这样要求", from: "extraction",
-    evidence: [{ kind: "said", text: "风险放最前面", at: new Date().toISOString() }] });
+  const auto = await env.automatic(memory, "项目甲的周报把风险放最前面");
   assert.equal(auto.outcome, "written");
   assert.equal(auto.memory!.source, "auto");
-  assert.deepEqual(auto.memory!.approved_by, { by: "policy", policy: "memory.write-gate", version: 2 });
+  assert.deepEqual(auto.memory!.approved_by, { by: "policy", policy: "memory.write-gate", version: 3 });
   // It went in as a promotion in Prologue's candidate box: the box wrote the approver on the entry, not the Host.
   assert.deepEqual((await env.raw().candidates.list("project", "project-a")).map(item => [item.state, item.memory_id]), [["promoted", auto.memory!.memory_id]]);
-  assert.deepEqual((await env.raw().list("project", "project-a"))[0]!.meta.approved_by, { by: "policy", policy: "memory.write-gate", version: 2 });
+  assert.deepEqual((await env.raw().list("project", "project-a"))[0]!.meta.approved_by, { by: "policy", policy: "memory.write-gate", version: 3 });
   assert.match(auto.memory!.origin, new RegExp(`^${MEMORY_GATE_RULE}`));
   const [change] = memory.changes(person(), { scope: "project" });
   assert.equal(change!.kind, "auto_kept");
   assert.equal(change!.rule, MEMORY_GATE_RULE);
-  assert.equal(change!.reason, "依据：你在两次工作里都这样要求");
+  assert.equal(change!.reason, "两份独立的本人原始表态，经当前规则复核");
   assert.equal(change!.undoable, true);
   assert.equal((await memory.list(person())).counts.auto_this_week, 1);
   // Only inferred, a background fact, or automatic writing switched off: candidates, never written.
@@ -307,7 +304,7 @@ test("automatic writes follow the gate table, show in recent changes with their 
 test("repeated experience waits across restart, then a person's acceptance replaces the entry and retires its automatic undo", { timeout: 60_000 }, async t => {
   const env = await memoryHome(t);
   const memory = await env.open();
-  const automatic = await memory.offer(assistant(), { scope: "project", text: "发布前先检查告警", kind: "convention", basis: "repeated", why: "两次明确约定", from: "extraction" });
+  const automatic = await env.automatic(memory, "发布前先检查告警");
   const held = await memory.offer(assistant(), { scope: "project", text: "缓存预热通常能减少发布告警", kind: "experience", basis: "repeated", why: "两次项目复盘提到", from: "extraction", supersedes: automatic.memory!.memory_id });
   assert.equal(held.outcome, "candidate");
   assert.match(held.reason, /经验.*认可/);
@@ -343,12 +340,14 @@ test("repeated experience waits across restart, then a person's acceptance repla
 });
 
 test("recall is scoped, filtered and bounded, honours each consumer's switch, and records where each memory was used", { timeout: 60_000 }, async t => {
-  const env = await memoryHome(t);
+  let now = new Date("2025-12-31T00:00:00.000Z");
+  const env = await memoryHome(t, () => now);
   const memory = await env.open();
   const style = (await keep(memory, assistant(), { scope: "personal", text: "回答用要点列表", said: "回答用要点列表" })).memory!;
   const nsm = (await keep(memory, assistant(), { scope: "project", text: "NSM 指北极星指标", kind: "fact", said: "NSM 指北极星指标" })).memory!;
   const pages = (await memory.write(person(), { scope: "personal", text: "在 Pages 里标题不超过十个字", applies: { plugin_ids: ["io.molis.work.pages"] } })).memory!;
   const old = (await memory.write(person(), { scope: "personal", text: "九月底前周报发给王总", expires_at: "2026-01-01T00:00:00.000Z" })).memory!;
+  now = new Date("2026-01-02T00:00:00.000Z");
 
   // Project A sees both; project B only the personal one; no other project's memory ever.
   const inA = await memory.recall(assistant(), { query: "NSM 这周怎么样" });
@@ -377,12 +376,12 @@ test("recall is scoped, filtered and bounded, honours each consumer's switch, an
   assert.match(ui.reason!, /界面推荐/);
   assert.equal((await memory.recall(assistant(), { query: "总结" })).state, "ok");
   // Plugins read only the kinds they are allowed: preferences and conventions by default, never facts.
-  const plugin = await memory.recall({ actor_id: "web-user", project_id: "project-a", consumer: "plugin", plugin_id: "io.example.notes" }, { query: "NSM 北极星" });
+  const plugin = await memory.recall({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", consumer: "plugin", plugin_id: "io.example.notes" }, { query: "NSM 北极星" });
   assert.ok(!plugin.items.some(item => item.kind === "fact"));
   memory.savePrefs(person(), "project", { plugins: { "io.example.notes": { allowed: false } } as never });
-  assert.ok(!(await memory.recall({ actor_id: "web-user", project_id: "project-a", consumer: "plugin", plugin_id: "io.example.notes" }, { query: "NSM" })).items.some(item => item.scope === "project"));
+  assert.ok(!(await memory.recall({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", consumer: "plugin", plugin_id: "io.example.notes" }, { query: "NSM" })).items.some(item => item.scope === "project"));
   // External clients never read personal memories unless the person allows it.
-  const mcp = await memory.recall({ actor_id: "web-user", project_id: "project-a", consumer: "mcp" }, { query: "NSM 北极星 要点" });
+  const mcp = await memory.recall({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", consumer: "mcp" }, { query: "NSM 北极星 要点" });
   assert.ok(mcp.items.every(item => item.scope === "project"));
 
   // Budget: what does not fit is listed as omitted, never silently dropped.
@@ -390,10 +389,10 @@ test("recall is scoped, filtered and bounded, honours each consumer's switch, an
   const tight = await memory.recall(assistant(), { query: "写作", budget_chars: 300 });
   assert.ok(tight.omitted.some(item => item.reason === "budget"));
   const used = memory.uses({ receipt_id: tight.receipt_id });
-  assert.deepEqual(new Set(used.map(item => item.state)), new Set(["used", "omitted"]));
-  // 最近用于: the work it was used in.
+  assert.deepEqual(new Set(used.map(item => item.state)), new Set(["returned", "omitted"]));
+  // Returning a recall result is not proof that it entered a model request.
   const listed = (await memory.list(person())).items.find(item => item.memory_id === tight.items[0]!.memory_id)!;
-  assert.equal(listed.last_used?.title, "工作「季度复盘」");
+  assert.equal(listed.last_used, null);
 });
 
 test("deleting a memory leaves nothing behind: not in the store, the ledger, recent changes, uses, or after a restart", { timeout: 60_000 }, async t => {
@@ -463,20 +462,23 @@ test("interface signals are counted once per event; single events never form a m
   assert.equal((await report("event-0005", "ctx-3")).state, "off");
 });
 
-test("facts live on the Prologue entry itself: kind, source, applies and expiry in its metadata, switched off as the entry paused; an entry without them is not the platform's", { timeout: 60_000 }, async t => {
+test("facts live on the Prologue entry itself: kind, source, applies and expiry in its metadata, switched off as the entry disabled; an entry without them is not the platform's", { timeout: 60_000 }, async t => {
   const env = await memoryHome(t);
-  const memory = await env.open();
+  let memory = await env.open();
   const kept = (await keep(memory, assistant(), { scope: "personal", text: "周报用要点列表", said: "周报用要点列表", applies: { task: "写周报时" }, expires_at: "2099-01-01T00:00:00.000Z" })).memory!;
   const [raw] = await env.raw().list("personal", "web-user");
   assert.deepEqual([raw!.meta.kind, raw!.meta.source, raw!.meta.basis, raw!.meta.applies_when?.task, raw!.meta.expires_at_ms, raw!.meta.approved_by], ["preference", "said", "explicit", "写周报时", Date.parse("2099-01-01T00:00:00.000Z"), { by: "person" }]);
   assert.equal(raw!.meta.evidence?.[0]?.text, "周报用要点列表");
   await memory.change(person(), { memory_id: kept.memory_id, action: "disable" });
-  assert.match((await env.raw().list("personal", "web-user"))[0]!.paused?.reason ?? "", /^disabled:/);
-  await memory.change(person(), { memory_id: kept.memory_id, action: "enable" });
+  assert.ok((await env.raw().list("personal", "web-user"))[0]!.disabled);
   assert.equal((await env.raw().list("personal", "web-user"))[0]!.paused, undefined);
+  await memory.change(person(), { memory_id: kept.memory_id, action: "enable" });
+  assert.equal((await env.raw().list("personal", "web-user"))[0]!.disabled, undefined);
 
   // Every entry the platform writes carries its facts; one written without them is not listed, recalled or changed here.
-  const foreign = await env.raw().write({ scope: "project", owner: "project-a", text: "发布前先跑回归", origin: "别处写入", tags: [], meta: {} });
+  memory = await env.seedUnclassified("project", "project-a", "historical-foreign", "发布前先跑回归");
+  const [foreign] = await env.raw().list("project", "project-a");
+  assert.ok(foreign); assert.equal(foreign.meta.classification, undefined);
   assert.equal((await memory.list(person())).items.some(item => item.memory_id === foreign.memory_id), false);
   assert.ok((await env.raw().list("project", "project-a")).some(item => item.memory_id === foreign.memory_id), "the entry itself is left as it is");
 });
@@ -495,7 +497,7 @@ test("a reworded second suggestion of what the gate already holds in the same wo
 test("undoing an automatic write cannot delete what the person has since said, accepted, replaced or edited themselves", { timeout: 60_000 }, async t => {
   const env = await memoryHome(t);
   const memory = await env.open();
-  const auto = (text: string) => memory.offer(assistant(), { scope: "project", text, kind: "convention", basis: "repeated", why: "两次都这样要求", from: "extraction" });
+  const auto = (text: string) => env.automatic(memory, text);
   const change = (id: string | null) => memory.changes(person(), { scope: "project" }).find(item => item.change_id === id)!;
   const sources = async () => (await memory.list(person())).items.map(item => [item.text, item.source]);
 
@@ -512,6 +514,10 @@ test("undoing an automatic write cannot delete what the person has since said, a
   // A record that still says it can be undone (made before this was closed) is refused at undo too: the entry is no longer the gate's.
   const record = env.ledger().change(first.change_id!)!;
   env.ledger().saveChange({ ...record, undoable: true, undo: { action: "remove" } });
+  await assert.rejects(memory.undo(person(), first.change_id!), { code: "memory.conflict" }, "current versioned receipts refuse a stale undo before writing");
+  // A genuinely old receipt has no applied-version fact; its ownership check must still protect the person's memory.
+  const { applied_version: _notRecorded, ...legacy } = record;
+  env.ledger().saveChange({ ...legacy, undoable: true, undo: { action: "remove" } });
   await assert.rejects(memory.undo(person(), first.change_id!), /你自己的记忆/);
   assert.equal(change(first.change_id).undoable, false, "and it stops offering itself");
   assert.deepEqual(await sources(), [["周报先写风险", "said"]]);
@@ -552,7 +558,7 @@ test("a recall cancelled before it settles records no receipts: the receipts are
   assert.deepEqual(memory.uses({}), [], "a cancelled or revoked recall leaves no 最近用于");
   const recalled = await memory.recall(assistant(), { query: "总结一下" }, { beforeEffect: async () => undefined });
   assert.equal(recalled.items.length, 1);
-  assert.deepEqual(memory.uses({ receipt_id: recalled.receipt_id }).map(use => use.state), ["used"]);
+  assert.deepEqual(memory.uses({ receipt_id: recalled.receipt_id }).map(use => use.state), ["returned"]);
 });
 
 test("the Assistant can only switch a memory off, recorded as its own and takeable back; editing and deleting for good stay the person's", { timeout: 60_000 }, async t => {
@@ -630,7 +636,7 @@ test("the gate judges the text against the messages the Host saved when it gives
 test("an Agent that is not the Assistant has none of the person's messages to be checked against: its own quote is never the message, so what it writes is the Assistant's suggestion and never 'you said'", { timeout: 60_000 }, async t => {
   const env = await memoryHome(t);
   const memory = await env.open();
-  const agent = (n: number): MemoryCaller => ({ actor_id: "web-user", project_id: "project-a", consumer: "agent", work: { work_id: `work-${n}`, title: `工作 ${n}` } });
+  const agent = (n: number): MemoryCaller => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", consumer: "agent", work: { work_id: `work-${n}`, title: `工作 ${n}` } });
   // The Host passes no message: a quote that is the text itself, whole, proves nothing, because the Agent wrote it.
   const alone = await memory.write(agent(1), { scope: "personal", text: "自动合并分支", said: "自动合并分支" });
   assert.deepEqual([alone.outcome, alone.candidate?.basis, alone.memory], ["candidate", "inferred", null]);
@@ -644,7 +650,7 @@ test("an Agent that is not the Assistant has none of the person's messages to be
   assert.deepEqual((await memory.list(person())).items, [], "nothing an Agent wrote was recorded as the person's words");
   assert.equal((await memory.candidates(person(), { scope: "personal" })).length, 4, "each waits for the person");
   // It cannot make a memory the gate kept itself the person's either, nor replace one of theirs.
-  const gate = await memory.offer(assistant(), { scope: "project", text: "周报先写风险", kind: "convention", basis: "repeated", why: "两次都这样要求", from: "extraction" });
+  const gate = await env.automatic(memory, "周报先写风险");
   const again = await memory.write(agent(5), { scope: "project", text: "周报先写风险", said: "周报先写风险" });
   assert.equal(again.outcome, "duplicate");
   assert.equal((await memory.list(person())).items.find(item => item.memory_id === gate.memory!.memory_id)!.source, "auto", "still the gate's, still takeable back");
@@ -661,7 +667,7 @@ test("a text is a duplicate only when it is the same words: what the person type
   const env = await memoryHome(t);
   const memory = await env.open();
   const work = (n: number) => assistant("project-a", { work_id: `work-${n}`, title: `工作 ${n}` });
-  const auto = (text: string, scope: "personal" | "project" = "personal") => memory.offer(assistant(), { scope, text, kind: scope === "project" ? "convention" : "preference", basis: "repeated", why: "两次都这样要求", from: "extraction" });
+  const auto = (text: string, scope: "personal" | "project" = "personal") => env.automatic(memory, text, scope);
   const sources = async () => (await memory.list(person())).items.map(item => `${item.text} · ${item.source}`).sort();
   const undoable = (id: string | null) => memory.changes(person(), { scope: "all" }).find(item => item.change_id === id)!.undoable;
 
@@ -683,7 +689,11 @@ test("a text is a duplicate only when it is the same words: what the person type
   const said = await memory.write(work(10), { scope: "personal", text: "NSM 是北极星指标", said: "NSM 是北极星指标。" }, { originals: ["NSM 是北极星指标。"] });
   assert.deepEqual([said.outcome, said.memory!.memory_id, said.memory!.source], ["duplicate", spaced.memory!.memory_id, "said"]);
   assert.equal(undoable(spaced.change_id), false, "and it is no longer the gate's to take back");
-  assert.deepEqual(said.memory!.evidence.map(item => item.text), ["NSM 是北极星指标。"]);
+  assert.deepEqual(said.memory!.evidence.slice(0, 2), spaced.originals.map(source => ({ kind: "said",
+    ref: { kind: "memory-source", id: source.event_id, revision: source.version }, at: new Date(source.occurred_at_ms).toISOString() })),
+  "both canonical original identities remain exact without copying their bodies into the ledger");
+  assert.equal(said.memory!.evidence.length, 3);
+  assert.equal(said.memory!.evidence[2]!.text, "NSM 是北极星指标。", "the new complete manual statement remains verbatim");
 
   // The person's own page is the same: a text with another comma is another memory, the same words with a mark at the end are the person keeping the gate's memory as theirs.
   const gate = await auto("不要删除旧文件");
@@ -761,7 +771,8 @@ test("a missing SDK candidate is refused unchanged, before and after restart", a
   const env = await memoryHome(t); let memory = await env.open();
   const offered = await memory.offer(assistant(), { scope: "personal", text: "回答用短句", kind: "preference", basis: "inferred", why: "fixture inference", from: "extraction" });
   const notes = env.ledger().candidates("web-user"), note = notes.find(one => one.candidate_id === offered.candidate!.candidate_id)!;
-  await env.raw().candidates.purge({ scope: note.scope, owner: note.owner, candidate_id: note.candidate_id });
+  const current = (await env.raw().candidates.list(note.scope, note.owner)).find(item => item.candidate_id === note.candidate_id)!;
+  await env.raw().candidates.purge({ scope: note.scope, owner: note.owner, candidate_id: note.candidate_id, expected_version: current.version, operation_id: "remove-sdk-candidate" });
   const unchanged = env.ledger().candidates("web-user");
   for (let read = 0; read < 2; read++) {
     await assert.rejects(memory.candidates(person()), /原记录不可读/);
@@ -775,21 +786,24 @@ test("a missing SDK candidate is refused unchanged, before and after restart", a
 });
 
 // W2-18-MEMORY-EFFECT-01 / -02: overlapping SDK operations retain separate final checks and successful facts.
-test("two SDK memory calls never exchange execution controls, and a committed entry survives another call's refusal", async t => {
-  const env = await memoryHome(t); await env.open(); const memory = env.memory();
-  const kept = await memory.write({ scope: "app", owner: "one", text: "original", origin: "fixture", tags: [] });
+test("two SDK memory calls never exchange execution controls, and a committed entry survives another call's refusal", { timeout: 30_000 }, async t => {
+  const env = await memoryHome(t); await env.open(); const caller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", consumer: "ui", person: true, current_scene: "common", purpose: "management" } as const;
+  const memory = env.memory().withCaller(caller);
+  const meta = { kind: "fact", source: "manual", approved_by: { by: "person" as const }, classification: { scenes: ["common"], lifecycle: "long-term" } };
+  const kept = await memory.write({ scope: "user", owner: LOCAL_PERSON_ACTOR_ID, text: "original", origin: "fixture", tags: [], meta, operation_id: "original" });
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(); let valid = true;
   const first = memory.withExecution!({ beforeEffect: async () => { entered.resolve(); await release.promise; }, assert_current: () => { if (!valid) throw new Error("original call cancelled"); } });
-  const pending = first.update({ scope: "app", owner: "one", memory_id: kept.memory_id, text: "forbidden update" });
+  const pending = first.update({ scope: "user", owner: LOCAL_PERSON_ACTOR_ID, memory_id: kept.memory_id, change: { text: "forbidden update" }, expected_version: kept.version, operation_id: "cancelled-update" });
   const rejection = assert.rejects(pending, /original call cancelled/);
   await entered.promise;
   let checks = 0;
   const second = memory.withExecution!({ beforeEffect: async () => {}, assert_current: () => { checks++; } });
-  await second.write({ scope: "app", owner: "two", text: "accepted independently", origin: "fixture", tags: [] });
-  assert.ok(checks > 0); valid = false; release.resolve(); await rejection;
-  assert.deepEqual((await memory.list("app", "one")).map(entry => entry.text), ["original"]);
-  assert.deepEqual((await memory.list("app", "two")).map(entry => entry.text), ["accepted independently"]);
+  const accepted = second.write({ scope: "project", owner: "project-a", text: "accepted independently", origin: "fixture", tags: [], meta, operation_id: "independent" });
+  // Calls overlap, but this SDK owner serializes commits. Release the first before awaiting the queued second.
+  valid = false; release.resolve(); await rejection; await accepted; assert.ok(checks > 0);
+  assert.deepEqual((await memory.list("user", LOCAL_PERSON_ACTOR_ID)).map(entry => entry.text), ["original"]);
+  assert.deepEqual((await memory.list("project", "project-a")).map(entry => entry.text), ["accepted independently"]);
   await env.close(); await env.open();
-  assert.deepEqual((await env.memory().list("app", "one")).map(entry => entry.text), ["original"]);
-  assert.deepEqual((await env.memory().list("app", "two")).map(entry => entry.text), ["accepted independently"]);
+  assert.deepEqual((await env.memory().withCaller(caller).list("user", LOCAL_PERSON_ACTOR_ID)).map(entry => entry.text), ["original"]);
+  assert.deepEqual((await env.memory().withCaller(caller).list("project", "project-a")).map(entry => entry.text), ["accepted independently"]);
 });

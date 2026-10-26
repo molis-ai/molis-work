@@ -8,11 +8,12 @@ import { createRequire } from "node:module";
 import { LocalHost, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter, registerAgentHostCapabilities } from "@molis-ai/molis-work-service-agent-host";
 import { agentHostCapabilities as agent, type AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { codingAgentManifest, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
 import { cogniaModelResponse, cogniaScriptedResponse } from "./fixtures/cognia-model-response.js";
 import { actionErrorBody, actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
+import { memoryServiceHome } from "./fixtures/memory-service-home.js";
 import { callAs, callerPlugin, issuedCaller, registerProbe, startPlugin } from "./fixtures/plugin-callers.js";
 
 /** A call made for the plugin the Host issued `caller` to, with the original call's own fence: what the plugin's SDK presents. */
@@ -22,6 +23,7 @@ const as = (caller: HostPluginCaller, fence: { signal?: AbortSignal; beforeEffec
 
 const requireSdk = createRequire(new URL("../horizontal/agent-host/package.json", import.meta.url));
 const { createNodeHost } = await import(requireSdk.resolve("@prologue/sdk/node"));
+const { createRuntime } = await import(requireSdk.resolve("@prologue/sdk"));
 
 test("I6-02: a real Node questionnaire refusal preserves each problem and the pending can still be answered", { timeout: 30_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "agent-question-errors-"));
@@ -95,15 +97,20 @@ test("I6-02: a real Node questionnaire refusal preserves each problem and the pe
 
 // W2-18-CODING-EFFECT-01: queued SDK effects keep the original checker after a failed/returned preparation scope.
 test("an SDK effect queued by an invocation cannot lose its guard just because the wrapper returned", async t => {
-  const home = await mkdtemp(join(tmpdir(), "agent-queued-effects-"));
-  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.queued-effects-test", appVersion: "1.0.0" }, storageRoot: home });
+  const fixture = await memoryServiceHome(t, { projects: [] }); await fixture.open();
+  const caller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, consumer: "ui", person: true, current_scene: "common", purpose: "management" as const };
+  const memory = () => fixture.memory().withCaller(caller);
+  assert.deepEqual(await memory().list("user", caller.actor_id), [], "the production authority admits this isolated personal scope");
   const release = Promise.withResolvers<void>(), committed = Promise.withResolvers<unknown>(); let current = true;
-  t.after(async () => { release.resolve(); await adapter.close(); await rm(home, { recursive: true, force: true }); });
-  await adapter.withEffect({ beforeEffect: async () => {}, assert_current: () => { if (!current) throw new Error("queued effect lost its original authority"); } }, async () => {
-    void release.promise.then(() => adapter.memory!.write({ scope: "app", owner: "original", text: "A queued SDK write", origin: "fixture" })).then(committed.resolve, committed.reject);
+  t.after(() => { release.resolve(); });
+  await fixture.adapter().withEffect({ beforeEffect: async () => {}, assert_current: () => { if (!current) throw new Error("queued effect lost its original authority"); } }, async () => {
+    void release.promise.then(() => memory().write({ scope: "user", owner: caller.actor_id, text: "A queued SDK write", origin: "fixture", operation_id: "queued-original",
+      meta: { kind: "convention", source: "manual", approved_by: { by: "person" }, classification: { scenes: ["common"], lifecycle: "long-term" } } })).then(committed.resolve, committed.reject);
   });
-  current = false; const rejected = assert.rejects(committed.promise); release.resolve(); await rejected;
-  assert.deepEqual(await adapter.memory!.list("app", "original"), []);
+  current = false; const rejected = assert.rejects(committed.promise, /queued effect lost its original authority/); release.resolve(); await rejected;
+  assert.deepEqual(await memory().list("user", caller.actor_id), []);
+  await fixture.close(); await fixture.open();
+  assert.deepEqual(await memory().list("user", caller.actor_id), [], "the rejected queued write left no persistent memory after restart");
 });
 
 // W2-18-CODING-EFFECT-02: the final SDK commit fence and the Host action gateway, including an independent peer.
@@ -174,7 +181,7 @@ test("plugin start revocation at SDK commit rejects only its invocation; accepte
 });
 
 // W2-18-CODING-EFFECT-03: check both commits of actual SDK Session creation, including rejected half completion.
-for (const phase of ["sdk-session", "owner-index"] as const) test(`new Session revoked at ${phase} leaves no unpublished SDK Session or index`, async t => {
+for (const phase of ["sdk-session", "owner-index"] as const) test(`new Session revoked at ${phase} leaves no readable unpublished SDK Session or index`, async t => {
   const home = await mkdtemp(join(tmpdir(), "agent-session-effects-")), appId = "io.molis.work.session-effects-test";
   const adapter = await createPrologueNodeAdapter({ app: { appId, appVersion: "1.0.0" }, storageRoot: home });
   const inspector = createNodeHost({ storageRoot: home }), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(); let current = true;
@@ -186,13 +193,30 @@ for (const phase of ["sdk-session", "owner-index"] as const) test(`new Session r
   }, assert_current: () => { if (!current) throw new Error("original session guard revoked"); } },
     () => adapter.createSession({ project_id: "project", plugin_id: "coding", install_id: "install", actor_id: "person", title: "Held", directory: { canonical_path: home, realpath_verified: true } }));
   const rejected = assert.rejects(pending); await entered.promise;
-  assert.equal((await inspector.storage.list({ kind: appId + "~sessions" })).records.length, phase === "owner-index" ? 1 : 0, "the second barrier is after the SDK's actual Session commit");
+  const before = (await inspector.storage.list({ kind: appId + "~sessions" })).records;
+  assert.equal(before.length, phase === "owner-index" ? 1 : 0, "the second barrier is after the SDK's actual Session commit");
   current = false; release.resolve(); await rejected;
-  assert.deepEqual((await inspector.storage.list({ kind: appId + "~sessions" })).records, [], "a rejected half-complete Session is purged by its SDK owner");
+  const after = (await inspector.storage.list({ kind: appId + "~sessions" })).records;
+  assert.equal(after.length, before.length, "only an already-created Session retains its body-free purge receipt");
+  for (const record of after) {
+    assert.equal(record.id, before[0]!.id);
+    assert.equal(record.hasSecureBody, false);
+    assert.deepEqual(record.metadata, { state: "purged", purge: { phase: "complete", preview: {
+      sessionRef: { kind: "session", id: record.id, revision: 1 }, atVersion: before[0]!.version,
+      destroysKey: true, runs: 0, resources: 0,
+    } } });
+    await assert.rejects(inspector.storage.readSecure({ kind: appId + "~sessions", id: record.id }));
+  }
   const indexKind = `molis-agent-index-${createHash("sha256").update(appId).digest("hex").slice(0, 24)}`;
   assert.deepEqual((await inspector.storage.list({ kind: indexKind })).records, []);
   const fresh = await adapter.createSession({ project_id: "project", plugin_id: "coding", install_id: "install", actor_id: "person", title: "Fresh", directory: { canonical_path: home, realpath_verified: true } });
   assert.equal((await adapter.readSession(fresh)).title, "Fresh");
+  await adapter.close();
+  const reopened = await createRuntime({ app: { appId, appVersion: "1.0.0" }, host: createNodeHost({ storageRoot: home }) });
+  try {
+    for (const record of after) assert.equal(await reopened.sessions.open({ kind: "session", id: record.id, revision: 1 }), undefined);
+    assert.ok(await reopened.sessions.open({ kind: "session", id: fresh.session_id, revision: 1 }), "an unrelated accepted Session remains usable after restart");
+  } finally { await reopened.shutdown(); }
 });
 
 

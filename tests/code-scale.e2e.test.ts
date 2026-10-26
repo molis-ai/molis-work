@@ -49,21 +49,26 @@ test("SYS-49/VUX-33: a large block reads at once and is coloured a slice a frame
     const expected = new Map(); window.matchesColour = (code, text) => {
       if (!expected.has(text)) expected.set(text, JSON.stringify(tokensOf(text, "ts")));
       return JSON.stringify(colourParts(code)) === expected.get(text); };
-    window.steps = []; const frame = window.requestAnimationFrame.bind(window);
+    window.steps = []; window.sliceCosts = []; const frame = window.requestAnimationFrame.bind(window);
     window.grown = 0; const grow = ${growCodeTokens.toString()};
     window.paint = (() => {
-      const requestAnimationFrame = (step) => frame((stamp) => { const start = performance.now(); step(stamp); window.code?.getBoundingClientRect(); window.steps.push(performance.now() - start); });
+      const requestAnimationFrame = (step) => frame((stamp) => { const start = performance.now(); step(stamp); const painted = performance.now(); window.code?.getBoundingClientRect(); const end = performance.now(); window.steps.push(end - start); window.sliceCosts.push({ js: painted - start, layout: end - painted, total: end - start }); });
       return (${createCodingCodePaint.toString()})(tokensOf, (last, text, language, tokens) => { const next = grow(last, text, language, tokens); window.grown += text.length - (next.starts[next.from] ?? text.length); return next; }, (hint) => hint); })();
     window.block = () => { document.querySelector('#scale')?.remove(); const pre = document.body.appendChild(document.createElement('pre')); pre.id = 'scale'; return pre.appendChild(document.createElement('code')); };`);
   const text = textOf(300_000);
   const first = await evaluate<{ coloured: boolean; reads: boolean; ms: number; spans: number }>(`(() => { window.text = ${JSON.stringify(text)}; window.code = block(); steps.length = 0;
     const start = performance.now(), coloured = paint.paintInto(code, text, 'ts'); return { coloured, reads: code.textContent === text, ms: performance.now() - start, spans:code.querySelectorAll('[class^=tok-]').length }; })()`);
+  t.diagnostic("code-scale initial: " + JSON.stringify(first));
   assert.deepEqual([first.coloured, first.reads], [true, true], "past the old 40,000-character cap it is coloured, and reads whole from the start");
   assert.ok(first.ms < 50, `the first slice is a frame's work: ${first.ms} ms`);
   assert.equal(first.spans, 0, "SYS-49: large text reads immediately; the first colouring slice waits for its own frame");
   // Done when the slices end on what colouring it whole gives.
   await waitFor("matchesColour(code, text)", 30_000);
   const steps = await evaluate<number[]>("steps.slice()");
+  const slices = await evaluate<Array<{ js: number; layout: number; total: number }>>("sliceCosts.slice()");
+  t.diagnostic("code-scale slices: " + JSON.stringify(slices));
+  const evidence = reviewEvidenceUrl("visual-ui-experience/"); await mkdir(evidence, { recursive: true });
+  await writeFile(new URL("code-scale-slices.json", evidence), JSON.stringify({ first, steps, slices }, null, 2));
   assert.ok(steps.length >= 15 && Math.max(...steps) < 50, `${steps.length} frames, the longest ${Math.max(...steps).toFixed(1)} ms`);
 
   // Growing while it is coloured: the job takes the longer text and goes on; nothing starts over.

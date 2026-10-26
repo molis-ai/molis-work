@@ -8,7 +8,7 @@ export const ONBOARDING_EN: Record<string, string> = {
   " · 第 {k} / {n} 部分": " · part {k} of {n}",
   "开始使用时整理的待办": "Todos found while getting started",
   "开始使用时整理的待办（第 {k} / {n} 批）": "Todos found while getting started (batch {k} of {n})",
-  "待办草稿分 {n} 批整理，第 {k} 批…": "Finding todos in {n} {n|batch|batches}: batch {k}…",
+  "待办草稿分 {n} 批整理，第 {k} 批…": "Finding todos: batch {k}/{n}…",
   "下载": "Downloads",
   "文稿": "Documents",
   "桌面": "Desktop",

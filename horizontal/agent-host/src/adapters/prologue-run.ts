@@ -1,3 +1,4 @@
+import { recordOriginalInput } from "./prologue-original-inputs.js";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
@@ -115,9 +116,9 @@ function roundGateway(deps: RunDeps, input: PrologueStartInput, none: boolean) {
   const gatewayForRun = input.action_gateway && client ? { ...input.action_gateway, client: { ...client,
     invoke: async (reference: ExactActionReference, value: unknown, signal?: AbortSignal) => { const result = await client.invoke(reference, value, signal); changesDone!.invoked.push(reference); return result; },
     ...(memory ? { memory: {
-      ...(memory.remember ? { remember: async (value: Parameters<NonNullable<typeof memory.remember>>[0]) => { const kept = await memory.remember!(value); memoryDone.keep += 1; return kept; } } : {}),
-      list: () => memory.list(),
-      ...(memory.forget ? { forget: async (id: string) => { const result = await memory.forget!(id); if (result.forgotten) memoryDone.forget += 1; return result; } } : {}),
+      ...(memory.remember ? { remember: async (...args: Parameters<NonNullable<typeof memory.remember>>) => { const kept = await memory.remember!(...args); memoryDone.keep += 1; return kept; } } : {}),
+      list: memory.list.bind(memory),
+      ...(memory.forget ? { forget: async (...args: Parameters<NonNullable<typeof memory.forget>>) => { const result = await memory.forget!(...args); if (result.forgotten) memoryDone.forget += 1; return result; } } : {}),
       ...(memory.propose ? { propose: memory.propose.bind(memory) } : {}),
     } } : {}),
   } } : input.action_gateway;
@@ -297,7 +298,8 @@ async function roundCharacter(deps: RunDeps, input: PrologueStartInput, index: S
   const tools = [...systemTools(input), ...mcpTools, ...(parts.actionTools?.names ?? []), ...surface.tools];
   const runTools = [...new Set([...tools, ...[...childRoles.values()].flatMap(role => role.host_tools.map(prologueToolName))])];
   // The memories the Host chose for this run, as exact references (one deleted meanwhile is simply not given).
-  const pinnedMemory = input.memory?.pinned.length ? await deps.platformMemory.refsFor(input.memory.pinned) : [];
+  const pinnedMemory = input.memory?.pinned.map(item => ({ scope: item.scope, owner: item.owner,
+    ref: { kind: "memory" as const, id: item.memory_id, revision: 1 as const }, ...(item.version === undefined ? {} : { version: item.version }) })) ?? [];
   const created = runtime.characters.create({
     // This is a projection of the frozen role, not a user-managed Character.
     // A project prompt may change without changing the package role version.
@@ -308,7 +310,7 @@ async function roundCharacter(deps: RunDeps, input: PrologueStartInput, index: S
     ...(instructions === undefined ? {} : { instructionsRef: instructions }),
     tools,
     // Reads memory only when the Host chose some for this run; never writes through the runtime's own path.
-    ...(pinnedMemory.length ? { memoryPolicy: { recall: true, write: false } } : {}),
+    ...(input.memory ? { memoryPolicy: { recall: true, write: false } } : {}),
   });
   return { character: runtime.characters.publish(created.ref), runTools, pinnedMemory };
 }
@@ -318,12 +320,21 @@ async function roundCharacter(deps: RunDeps, input: PrologueStartInput, index: S
  * initial durable Run commit. `abandon` takes back an intent the SDK never accepted.
  */
 async function recordAttempt(deps: RunDeps, input: PrologueStartInput, attempt: SessionIndex["attempts"][number]): Promise<{ attemptIndex: number; abandon: () => Promise<void> }> {
+  const intent = structuredClone({ ...attempt, ...(input.memory ? { memory_context: {
+    consumer: input.memory.consumer, current_scene: input.memory.current_scene,
+    ...(input.memory.facts ? { facts: input.memory.facts } : {}),
+    ...(input.memory.usage ? { usage: input.memory.usage } : {}),
+  } } : {}) });
   await input.beforeStart?.(); requireSynchronous(input.assertBeforeStart?.(), "最终授权检查必须同步完成");
   let attemptIndex = -1;
-  await deps.index.update(input.session_id, index => { attemptIndex = index.attempts.length; index.attempts.push(attempt); });
+  await deps.index.update(input.session_id, index => {
+    attemptIndex = index.attempts.length;
+    recordOriginalInput(index, intent, input.original_input);
+    index.attempts.push(intent);
+  });
   const abandon = () => deps.effects.detach(() => deps.index.update(input.session_id, saved => {
     const held = saved.attempts[attemptIndex];
-    if (held && !held.run_id && isDeepStrictEqual(held, attempt)) saved.attempts.splice(attemptIndex, 1);
+    if (held && !held.run_id && isDeepStrictEqual(held, intent)) saved.attempts.splice(attemptIndex, 1);
   }));
   return { attemptIndex, abandon };
 }
@@ -389,7 +400,7 @@ function sdkStart(deps: RunDeps, input: PrologueStartInput, index: SessionIndex,
   readonly session: Session; readonly root: { ref: ExactRef<"authorized-root"> } | undefined; readonly business: boolean; readonly credentialRef: ExactRef<"credential">;
   readonly childRoles: Map<string, ChildRole>; readonly childRoots: PrologueSubagentRoot[]; readonly runTools: string[];
   readonly character: { ref: ExactRef<"character"> }; readonly textResources: Array<{ ref: ExactRef<"resource">; as: "original" }>;
-  readonly pinnedMemory: Awaited<ReturnType<RunDeps["platformMemory"]["refsFor"]>>;
+  readonly pinnedMemory: Awaited<ReturnType<typeof roundCharacter>>["pinnedMemory"];
   readonly binding: { board: string; node: string; requestKey?: string } | undefined;
   readonly referenceKinds?: Array<{ kind: string; title: string }>;
 }): Parameters<Runtime["startAgentRun"]>[0] {
@@ -449,7 +460,12 @@ function sdkStart(deps: RunDeps, input: PrologueStartInput, index: SessionIndex,
       mcpConnections: [...new Set([...(input.mcp_tools ?? []), ...(input.mcp_sources ?? [])].map(mcpConnectionId))],
       characterRef: parts.character.ref,
       ...(parts.textResources.length ? { mount: { textResources: parts.textResources } } : {}),
-      ...(parts.pinnedMemory.length ? { memory: { pinned: parts.pinnedMemory, budgetChars: input.memory!.budget_chars } } : {}),
+      ...(input.memory ? { memory: { consumer: input.memory.consumer, currentScene: input.memory.current_scene,
+        ...(input.memory.facts ? { facts: { ...(input.memory.facts.plugins ? { plugins: input.memory.facts.plugins } : {}),
+          ...(input.memory.facts.object_kinds ? { objectKinds: input.memory.facts.object_kinds } : {}),
+          ...(input.memory.facts.goals ? { goals: input.memory.facts.goals } : {}) } } : {}),
+        scopes: input.memory.scopes, resident: parts.pinnedMemory, task: input.memory.task, skip: input.memory.skip,
+        budgetChars: input.memory.budget_chars, budgetTokens: input.memory.budget_tokens } } : {}),
       // This round's project's kinds replace the Runtime's built-in ones; its subagents keep them (BL-152).
       ...(parts.referenceKinds ? { askUserReferenceKinds: parts.referenceKinds } : {}),
     },
@@ -546,8 +562,8 @@ function roundHandle(deps: RunDeps, input: PrologueStartInput, at: {
         // the run actually ends. Repeated clicks reuse the first request.
         return at.stopping.current ??= (async () => {
           await deps.index.update(input.session_id, index => { index.attempts[at.attemptIndex]!.stop_intent = reason; });
-          actionController.abort();
-          control.stop(reason);
+          // The accepted Run owns its terminal settlement after this control invocation returns.
+          deps.effects.detach(() => { actionController.abort(); control.stop(reason); });
         })().catch(error => { at.stopping.current = undefined; throw error; });
       },
       pause: () => control.pause(), resume: () => control.resume(),

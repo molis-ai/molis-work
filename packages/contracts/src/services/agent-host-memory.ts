@@ -2,6 +2,7 @@
  * Memory and documents through the Agent Host's runtime: part of the `services/agent-host` contract (re-exported there),
  * declared in their own file.
  */
+import type { AgentMemoryFormationInput, AgentMemoryFormationResult } from "./agent-host-memory-formation.js";
 
 /** One remembered item in the runtime's memory store (Prologue Memory), in one scope and owner. */
 export interface AgentMemoryEntry {
@@ -17,6 +18,9 @@ export interface AgentMemoryEntry {
   meta: AgentMemoryMeta;
   /** Kept but never recalled (switched off, or what it rests on is gone). */
   paused?: { reason: string; at_ms: number };
+  disabled?: { reason: string; at_ms: number };
+  tombstoned: boolean;
+  key?: { domain: string; key: string };
   /** 0 for entries written before the runtime kept times. */
   created_at_ms: number;
   updated_at_ms: number;
@@ -24,6 +28,8 @@ export interface AgentMemoryEntry {
 
 /** What the platform memory keeps on an entry. Text is not repeated here. */
 export interface AgentMemoryMeta {
+  classification?: { scenes: string[]; lifecycle: string; extra?: Record<string, string[]> };
+  session_ref?: { kind: "session"; id: string; revision: number };
   kind?: string;
   source?: string;
   basis?: "explicit" | "repeated" | "inferred";
@@ -39,26 +45,41 @@ export interface AgentMemoryMeta {
 /** A candidate waiting for the person (Prologue's persistent candidate box). */
 export interface AgentMemoryCandidateEntry {
   candidate_id: string;
+  version: number;
+  sources?: AgentMemorySourceIdentity[];
+  replacement?: { memory_id: string; expected_version: number };
+  suggested_basis?: "explicit" | "inferred";
   scope: AgentMemoryEntry["scope"];
   owner: string;
   text: string;
   origin: string;
   tags: string[];
   meta: AgentMemoryMeta;
-  state: "pending" | "accepted" | "promoted" | "discarded" | "expired";
+  state: "pending" | "accepted" | "promoted" | "discarded" | "expired" | "cancelled";
   created_at_ms: number;
   settled_at_ms?: number;
   memory_id?: string;
 }
 
 /** A memory the Host chose for one run, by the Prologue scope and owner it lives in. */
-export interface AgentPinnedMemory { scope: "user" | "project" | "character"; owner: string; memory_id: string }
+export interface AgentPinnedMemory { scope: "user" | "project" | "character"; owner: string; memory_id: string; version?: number }
 
-/** What the Host recalled for a run: the Runtime re-reads each at start and injects it as data (specs/archive/memory-system §7.2). */
+/** App-owned reading recipe. Selection, current authorization and final token accounting belong to the SDK. */
 export interface AgentRecalledMemory {
+  /** Only explicitly selected resident references; initial Molis policy keeps this empty. */
   pinned: AgentPinnedMemory[];
+  consumer: string;
+  current_scene: string;
+  scopes: Array<{ scope: "user" | "project" | "character"; owner: string }>;
+  task: boolean;
+  skip: boolean;
+  budget_tokens: number;
   budget_chars: number;
-  /** The Host's own receipt for this choice, so it can reconcile with what the run really took. */
+  /** Trusted applicability facts, independently of model/search query input. */
+  facts?: { plugins?: string[]; object_kinds?: string[]; goals?: string[] };
+  /** Host display provenance, persisted with the attempt and never sent as model input. */
+  usage?: { title: string; work_id?: string };
+  /** App ledger correlation only; SDK per-retrieval/per-request receipts remain distinct. */
   receipt_id?: string;
 }
 
@@ -69,6 +90,27 @@ export interface AgentMemoryRecallFact {
   omitted: Array<{ memory_id: string; version: number }>;
   /** Named, but deleted, paused or expired by the time the run started. */
   unavailable: string[];
+  /** Retrieved/prepared references are not proof that a Provider received them. Older records may lack these facts. */
+  selected?: Array<{ memory_id: string; version: number }>;
+  retrievals?: Array<{ receipt_id: string; outcome: "ready" | "none" | "skip" | "unavailable" | "failed" | "timeout" | "cancelled"; error_code?: string }>;
+  /** Latest disposition of each prepared model call, measured with its complete memory wrapper. */
+  contexts?: Array<{ call_id: string; status: "prepared" | "not-dispatched" | "dispatched-or-unknown" | "response-observed";
+    tokens: number; budget_tokens: number; basis: "conservative-estimate" | "provider-reported";
+    references: Array<{ receipt_id: string; memory_id: string; version: number }>;
+    parts: Array<{ index: number; tokens: number; form: "entry" | "excerpt" | "summary" }> }>;
+  /** The Run facts remain available when the App's recent-reference projection could not be saved. */
+  recording_error?: "memory.receipt_unrecorded";
+}
+
+/** A body-free projection from an owned Run, never a model/Action-supplied command. */
+export interface AgentMemoryUseReceipt {
+  run: { session_id: string; run_id: string };
+  owner: { actor_id?: string; project_id: string; plugin_id: string; install_id: string };
+  /** Persisted round time, not a claim about the exact network-dispatch time. */
+  started_at: string;
+  consumer: string;
+  usage?: AgentRecalledMemory["usage"];
+  contexts: NonNullable<AgentMemoryRecallFact["contexts"]>;
 }
 
 /** A document parser the App supplies to the runtime (the SDK ships none): bounded text, or a failure — never empty text. */
@@ -95,46 +137,151 @@ export interface AgentMemoryExecutionControl {
   assert_current(): void;
 }
 
-/** Prologue Memory through the Host: each call names its scope and owner; the store keeps them apart. */
+export interface AgentMemorySourceRef { event_id: string; version: string }
+export interface AgentMemorySourceIdentity extends AgentMemorySourceRef {
+  speaker: { kind: "person" | "app" | "model" | "tool"; id: string };
+  derivation: "original" | "derived";
+  occurred_at_ms: number;
+  about?: AgentMemorySourceRef;
+}
+
+/** Ephemeral canonical source text supplied by its trusted owner, never a model claim. */
+export interface AgentMemorySourceSnapshot extends AgentMemorySourceIdentity { text: string }
+export interface AgentMemorySourceRequest {
+  app_id: string;
+  target: { scope: AgentMemoryEntry["scope"]; owner: string; namespace?: string };
+  signal?: AbortSignal;
+}
+
+/** One original candidate decision. Policy version and candidate version are distinct. */
+export interface AgentMemoryPromotionIdentity {
+  operation_id: string;
+  candidate: { candidate_id: string; version: number };
+  policy: string;
+  version: number;
+}
+export interface AgentMemoryPromotionRequest extends AgentMemoryPromotionIdentity {
+  proposed: AgentMemoryCandidateEntry;
+  sources: readonly AgentMemorySourceSnapshot[];
+  desired: { kind: "create" | "replace"; change: AgentMemoryChange; target?: { memory_id: string; expected_version: number } };
+  signal?: AbortSignal;
+}
+export interface AgentMemoryPromotionPreparation extends AgentMemoryPromotionIdentity {
+  before?: AgentMemoryEntry;
+  after: AgentMemoryEntry;
+  signal?: AbortSignal;
+}
+export interface AgentMemoryPromotionApplied extends AgentMemoryPromotionIdentity {
+  entry: AgentMemoryEntry;
+  signal?: AbortSignal;
+}
+export interface AgentMemoryPromotionReceipt extends AgentMemoryPromotionIdentity {
+  entry: { memory_id: string; version: number };
+  change_id: string;
+}
+/** Current App policy plus its existing durable history/undo owner; no SDK-side journal. */
+export interface AgentMemoryPromotion {
+  policy: string;
+  version: number;
+  decide(caller: AgentMemoryCaller, request: AgentMemoryPromotionRequest): "promote" | "hold" | Promise<"promote" | "hold">;
+  undo: {
+    prepare(caller: AgentMemoryCaller, request: AgentMemoryPromotionPreparation): Promise<void>;
+    record(caller: AgentMemoryCaller, request: AgentMemoryPromotionApplied): Promise<AgentMemoryPromotionReceipt>;
+  };
+}
+/** Formal storage has committed; complete the original operation instead of starting another one. */
+export interface AgentMemoryPromotionPendingError extends Error {
+  readonly code: "agent.memory_promotion_record_pending";
+  readonly operation_id: string;
+  readonly committed: { memory_id: string; version: number };
+}
+
+/** Version and operation identity are conditions, never authority. Retry keeps the complete original command. */
+export interface AgentMemoryMutation {
+  expected_version: number;
+  operation_id: string;
+  signal?: AbortSignal;
+}
+export interface AgentMemoryChange { text: string; origin?: string; meta?: AgentMemoryMeta }
+/** The actual maintenance command, checked before preparing App history; execution still rechecks authority. */
+export type AgentMemoryPreviewMutation = { kind: "update"; change: AgentMemoryChange }
+  | { kind: "pause" | "disable"; reason: string } | { kind: "resume" | "remove" };
+/** Supplied only by trusted App/Host code, independently of business/model input. */
+export interface AgentMemoryCaller {
+  actor_id: string;
+  character_id?: string;
+  project_id: string | null;
+  consumer: string;
+  plugin_id?: string | null;
+  person?: boolean;
+  session_id?: string;
+  current_scene?: string;
+  /** Host-owned source use, never model input or an authorization grant. Absent requires completed inputs. */
+  source_use?: "explicit" | "learning";
+  /** Host-frozen applicability identifiers; never taken from a recall query. */
+  facts?: AgentRecalledMemory["facts"];
+  purpose: "management" | "task";
+}
+export interface AgentMemoryDecisionReceipt {
+  outcome: "closed" | "needs-reconcile";
+  future_commit: "blocked" | "unknown";
+  past_commit: "committed" | "not-committed" | "unknown";
+  candidate: { candidate_id: string; version: number };
+  target: { memory_id: string; observed_version?: number; state: "present" | "cleared" | "unknown" };
+  operation_id: string;
+  decision_operation_id: string;
+}
+export interface AgentMemoryScopePreview {
+  count: number;
+  fingerprint: string;
+  operation_id: string;
+  items: Array<{ memory_id: string; version: number }>;
+  /** Fixed SDK purge decision, not permission; it carries no memory content. */
+  decision: { version: 1; binding: string; scope: AgentMemoryEntry["scope"]; owner: string;
+    items: readonly { ref: { kind: "memory"; id: string; revision: 1 }; expectedVersion: number;
+      operationId: string; mutation: { kind: "purge" } }[] };
+}
+export interface AgentMemoryClearResult {
+  items: Array<{ memory_id: string; outcome: "completed" | "already-absent" | "conflict" | "not-executed" | "unknown"; version?: number }>;
+}
+type AgentMemoryLocation = { scope: AgentMemoryEntry["scope"]; owner: string; memory_id: string };
+type AgentCandidateLocation = { scope: AgentMemoryEntry["scope"]; owner: string; candidate_id: string };
+
+/** One SDK owner, with an immutable caller binding and current Host authority before effects. */
 export interface AgentMemoryCapability {
-  /** Per-invocation facade; SDK preparation waits retain the same final authority check. */
+  withCaller(caller: AgentMemoryCaller): AgentMemoryCapability;
   withExecution?(control: AgentMemoryExecutionControl): AgentMemoryCapability;
   list(scope: AgentMemoryEntry["scope"], owner: string): Promise<AgentMemoryEntry[]>;
-  write(input: { scope: AgentMemoryEntry["scope"]; owner: string; text: string; origin: string; tags?: string[]; meta?: AgentMemoryMeta }): Promise<AgentMemoryEntry>;
-  update(input: { scope: AgentMemoryEntry["scope"]; owner: string; memory_id: string; text: string }): Promise<AgentMemoryEntry>;
-  /** Replaces the structured facts; the text and its version stay. */
-  setMeta?(input: { scope: AgentMemoryEntry["scope"]; owner: string; memory_id: string; meta: AgentMemoryMeta }): Promise<AgentMemoryEntry>;
-  /** Kept but not recalled until resumed. */
-  pause?(input: { scope: AgentMemoryEntry["scope"]; owner: string; memory_id: string; reason: string }): Promise<AgentMemoryEntry>;
-  resume?(input: { scope: AgentMemoryEntry["scope"]; owner: string; memory_id: string }): Promise<AgentMemoryEntry>;
-  /** Removed for good: purged from the store, never recalled again. */
-  remove(input: { scope: AgentMemoryEntry["scope"]; owner: string; memory_id: string }): Promise<boolean>;
-  /** `text`: the runtime splits it (Chinese two-character pieces); paused and expired entries never come back. */
+  /** Append maps operation_id to SDK idempotencyKey; it has no synthetic expected version. */
+  write(input: { scope: AgentMemoryEntry["scope"]; owner: string; text: string; origin: string; tags?: string[]; meta?: AgentMemoryMeta; operation_id: string; signal?: AbortSignal }): Promise<AgentMemoryEntry>;
+  update(input: AgentMemoryLocation & AgentMemoryMutation & { change: AgentMemoryChange }): Promise<AgentMemoryEntry>;
+  setMeta(input: AgentMemoryLocation & AgentMemoryMutation & { meta: AgentMemoryMeta }): Promise<AgentMemoryEntry>;
+  pause(input: AgentMemoryLocation & AgentMemoryMutation & { reason: string }): Promise<AgentMemoryEntry>;
+  disable(input: AgentMemoryLocation & AgentMemoryMutation & { reason: string }): Promise<AgentMemoryEntry>;
+  resume(input: AgentMemoryLocation & AgentMemoryMutation): Promise<AgentMemoryEntry>;
+  previewMutation(input: AgentMemoryLocation & AgentMemoryMutation & { mutation: AgentMemoryPreviewMutation }): Promise<void>;
+  /** Logical removal preserves the original SDK operation receipt for maintenance reconciliation. */
+  tombstone(input: AgentMemoryLocation & AgentMemoryMutation): Promise<AgentMemoryEntry>;
+  remove(input: AgentMemoryLocation & AgentMemoryMutation): Promise<void>;
   recall(input: { scope: AgentMemoryEntry["scope"]; owner: string; keywords?: string[]; text?: string; kinds?: string[]; limit?: number }): Promise<Array<{ entry: AgentMemoryEntry; score: number }>>;
-  /** The runtime's persistent, scoped candidate box: accept (the person) and promote (a Host policy) write through the one entry. */
-  candidates?: AgentMemoryCandidateCapability;
-  /**
-   * Prologue's own screening of text about to become memory: `hold` when it reads like instructions to the model
-   * (`screenInbound`), and the text with credentials and absolute paths taken out (`redactText`).
-   */
+  candidates: AgentMemoryCandidateCapability;
   screen?(text: string): Promise<{ hold: boolean; reasons: string[]; redacted: string }>;
-  /** Clearing a whole scope, step one: how many, and the fingerprint the confirmation must bring back. */
-  previewScope?(scope: AgentMemoryEntry["scope"], owner: string): Promise<{ count: number; fingerprint: string; memory_ids: string[] }>;
-  /** Step two: refused when anything changed since the preview; otherwise every entry is purged. */
-  clearScope?(input: { scope: AgentMemoryEntry["scope"]; owner: string; fingerprint: string }): Promise<string[]>;
+  previewScope(scope: AgentMemoryEntry["scope"], owner: string): Promise<AgentMemoryScopePreview>;
+  clearScope(input: { scope: AgentMemoryEntry["scope"]; owner: string; preview: AgentMemoryScopePreview; operation_id: string; signal?: AbortSignal }): Promise<AgentMemoryClearResult>;
 }
 
 export interface AgentMemoryCandidateCapability {
-  propose(input: { scope: AgentMemoryEntry["scope"]; owner: string; text: string; origin: string; tags?: string[]; meta?: AgentMemoryMeta }): Promise<AgentMemoryCandidateEntry>;
+  form(input: AgentMemoryFormationInput): Promise<AgentMemoryFormationResult>;
+  propose(input: { scope: AgentMemoryEntry["scope"]; owner: string; text: string; origin: string; tags?: string[]; meta?: AgentMemoryMeta; sources?: AgentMemorySourceRef[]; expected_version: 0; operation_id: string; signal?: AbortSignal }): Promise<AgentMemoryCandidateEntry>;
   list(scope: AgentMemoryEntry["scope"], owner: string): Promise<AgentMemoryCandidateEntry[]>;
-  /** The person accepts: the entry records them as its approver. `origin` / `meta`: what the App writes on the entry now. */
-  accept(input: { scope: AgentMemoryEntry["scope"]; owner: string; candidate_id: string; text?: string; origin?: string; meta?: AgentMemoryMeta }): Promise<AgentMemoryEntry>;
-  /** A Host policy promotes: the entry records the policy and its version as its approver. */
-  promote(input: { scope: AgentMemoryEntry["scope"]; owner: string; candidate_id: string; policy: string; version: number; origin?: string; meta?: AgentMemoryMeta }): Promise<AgentMemoryEntry>;
-  /** The candidate corrected an existing entry, whose text the Host already updated: settle it into that entry. */
-  settleInto(input: { scope: AgentMemoryEntry["scope"]; owner: string; candidate_id: string; memory_id: string;
+  accept(input: AgentCandidateLocation & AgentMemoryMutation & { text?: string; origin?: string; meta?: AgentMemoryMeta }): Promise<AgentMemoryEntry>;
+  promote(input: AgentCandidateLocation & AgentMemoryMutation & { policy: string; version: number; origin?: string; meta?: AgentMemoryMeta }): Promise<AgentMemoryEntry>;
+  /** The SDK changes the formal text/meta and then reconciles the candidate; the App never pre-updates it. */
+  settleInto(input: AgentCandidateLocation & { candidate_expected_version: number; operation_id: string; signal?: AbortSignal;
+    target: { memory_id: string; expected_version: number; change: AgentMemoryChange };
     by: { by: "person" } | { by: "policy"; policy: string; version: number } }): Promise<AgentMemoryEntry>;
-  discard(input: { scope: AgentMemoryEntry["scope"]; owner: string; candidate_id: string }): Promise<AgentMemoryCandidateEntry>;
-  expire(input: { scope: AgentMemoryEntry["scope"]; owner: string; candidate_id: string }): Promise<AgentMemoryCandidateEntry>;
-  purge(input: { scope: AgentMemoryEntry["scope"]; owner: string; candidate_id: string }): Promise<void>;
+  discard(input: AgentCandidateLocation & AgentMemoryMutation): Promise<AgentMemoryCandidateEntry>;
+  expire(input: AgentCandidateLocation & AgentMemoryMutation): Promise<AgentMemoryCandidateEntry>;
+  reconcileDecision(input: AgentCandidateLocation & AgentMemoryMutation): Promise<AgentMemoryDecisionReceipt>;
+  purge(input: AgentCandidateLocation & AgentMemoryMutation): Promise<void>;
 }

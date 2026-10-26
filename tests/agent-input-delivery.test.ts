@@ -4,7 +4,7 @@ import test from "node:test";
 import { AgentHost, PrologueAgentAdapter, emptyCapabilityMatrix, registerAgentHostCapabilities, runViewVersion, type PrologueEvent, type PrologueRuntimePort } from "@molis-ai/molis-work-service-agent-host";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { AgentRuntimeAdapter, AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentRuntimeAdapter } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentInputActions, type AgentInputSend } from "@molis-ai/molis-work-contracts/services/agent-inputs";
 
 /** What the runtime's own control is handed for a supplement. */
@@ -32,12 +32,13 @@ async function adapterFor(options: { steer: (input: Steer) => unknown; queue?: b
   };
   const adapter = new PrologueAgentAdapter({ runtime,
     modelConfiguration: async () => ({ protocol: "anthropic-messages", endpoint: "https://x.test", model: "m", credential_ref: "c" }) });
-  await adapter.createSession({ title: "t" });
+  const owner = { project_id: "project-1", actor_id: "person-1", plugin_id: "io.molis.work.coding", install_id: "coding-1" };
+  const directory = { canonical_path: "/tmp/ws", realpath_verified: true };
+  await adapter.createSession({ ...owner, title: "t", directory });
   const handle = await adapter.start({
-    plugin_id: "io.molis.work.coding", session: { session_id: "session-1", runtime_id: "prologue" }, task: "看看这段代码", role_id: "reader",
-    directory: { canonical_path: "/tmp/ws", realpath_verified: true },
+    ...owner, session: { session_id: "session-1", runtime_id: "prologue" }, task: "看看这段代码", role_id: "reader", directory,
     role: { role_id: "reader", version: 1, execution: "read-only", prompts: [{ prompt_id: "p", version: 1, body: "b" }], host_tools: [] },
-  } as AgentStartRequest);
+  });
   const send = (input: AgentInputSend, beforeQueue?: () => void) => adapter.inputs.send(handle.ref, input, beforeQueue);
   return { adapter, ref: handle.ref, send, steered, queued, taken, emit: (event: PrologueEvent) => { for (const listener of listeners) listener(event); } };
 }
@@ -164,7 +165,7 @@ test("RC-05: a cancelled or revoked call tells the round nothing and keeps nothi
   assert.deepEqual(late.sent, []);
   const fine = registered();
   assert.deepEqual(await fine.call({ ...input, key: "send.9" }, live()), { input_id: "steer-1", replayed: false, delivered: "queued" });
-  assert.deepEqual(fine.sent, [{ text: "顺便看日志", key: "send.9" }]);
+  assert.deepEqual(fine.sent, [{ text: "顺便看日志", key: "send.9", source: "host" }]);
 });
 
 test("RC-05: a round of another session is not reachable through this action", async () => {

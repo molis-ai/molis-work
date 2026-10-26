@@ -10,7 +10,7 @@ import Database from "better-sqlite3";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { HOST_BUILD_TRUST, MemoryPluginRuntimeRepository, PLUGIN_TRUST_SCHEMA_SQL, PluginRuntime, SqlitePluginConsentLedger, SqlitePluginRuntimeRepository, UNSIGNED_TRUST, alwaysOnAgreed, consentSubject, pluginManifestDigest } from "@molis-ai/molis-work-plugin-runtime";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
@@ -68,13 +68,13 @@ test("RAC-386 RAC-400 the 常开 plugins come from the ledger and the records: G
   for (const plugin_id of ["goals", "shelf"]) {
     assert.throws(() => catalog.removeProjectPlugin({ project_id: first.project_id, plugin_id, actor_id: "test" }), refused("catalog.plugin_always_on"), plugin_id);
   }
-  assert.deepEqual(catalog.listHiddenPlugins(first.project_id), []);
+  assert.deepEqual(catalog.projectPluginMembership(first.project_id).hidden, []);
 
   // A project that hid Shelf before it was 常开 keeps the mark, but it changes nothing and is not listed.
   const written = new Database(join(homeDirectory, "projects/catalog.db"));
   try { written.prepare("INSERT INTO project_plugin_exclusions (project_id, plugin_id, removed_at) VALUES (?, 'shelf', '2026-10-01T00:00:00.000Z')").run(first.project_id); }
   finally { written.close(); }
-  assert.deepEqual(catalog.listHiddenPlugins(first.project_id), []);
+  assert.deepEqual(catalog.projectPluginMembership(first.project_id).hidden, []);
 
   // The person takes the agreement back: at once Goals is an ordinary plugin, in no project's list, and a project can be made without it.
   const store = seedStore(homeDirectory);
@@ -148,7 +148,7 @@ async function catalogFixture(t: import("node:test").TestContext) {
 
 function readMembership(f: Awaited<ReturnType<typeof catalogFixture>>) {
   assert.deepEqual(f.catalog.listProjectPlugins(f.project.project_id), ["goals", "schedule"]);
-  assert.deepEqual(f.catalog.listHiddenPlugins(f.project.project_id), []);
+  assert.deepEqual(f.catalog.projectPluginMembership(f.project.project_id).hidden, []);
   for (const plugin_id of ["goals", "shelf"]) {
     assert.throws(() => f.catalog.removeProjectPlugin({ project_id: f.project.project_id, plugin_id, actor_id: "test" }), refused("catalog.plugin_always_on"));
   }
@@ -197,7 +197,7 @@ test("RAC-401 S-34 each query sees persisted revocation, new consent and install
   finally { writable.close(); }
   const hidden = (expected: string[]) => {
     const before = filesAt(f.home);
-    assert.deepEqual(f.catalog.listHiddenPlugins(f.project.project_id), expected);
+    assert.deepEqual(f.catalog.projectPluginMembership(f.project.project_id).hidden, expected);
     assert.deepEqual(filesAt(f.home), before);
   };
   hidden([]);
@@ -214,6 +214,74 @@ test("RAC-401 S-34 each query sees persisted revocation, new consent and install
     repository.save({ ...install, state });
     hidden(["installed", "crashed"].includes(state) ? [] : ["shelf"]);
   }
+});
+
+test("MEM-42 one discovery reads and validates the current Home plugin library once", async t => {
+  const f = await catalogFixture(t), db = seedStore(f.home);
+  t.after(() => db.close());
+  const file = db.location(), before = filesAt(f.home), connections = new Set<DatabaseSync>();
+  assert.ok(file);
+  let versionReads = 0;
+  const prepare = DatabaseSync.prototype.prepare;
+  const observation = t.mock.method(DatabaseSync.prototype, "prepare", function(this: DatabaseSync, sql: string) {
+    if (sql === "PRAGMA user_version" && this.location() === file) { versionReads++; connections.add(this); }
+    return prepare.call(this, sql);
+  });
+  const policy = projectActionAvailability(async (_options, work) => work(f.catalog), f.home), caller = person([], f.project.project_id);
+  try {
+    const discovery = await policy.snapshotForDiscovery(caller);
+    for (const key of ["goals", "shelf"]) {
+      const pluginId = manifestId(key);
+      assert.equal(discovery(caller, { provider: { provider_id: pluginId, plugin_id: pluginId, title: key, kind: "plugin" } }).available, true);
+    }
+  } finally { observation.mock.restore(); }
+  t.diagnostic(`Home plugin validation: ${versionReads} version reads on ${connections.size} connections`);
+  assert.equal(versionReads, 1, "one synchronous membership read shares its current always-on result between members and hidden marks");
+  assert.equal(connections.size, 1);
+  for (const connection of connections) assert.throws(() => connection.prepare("SELECT 1"), /not open/u, "the read retains no connection");
+  assert.deepEqual(filesAt(f.home), before, "discovery changes no files, agreements or installation records");
+});
+
+for (const corruption of ["version", "structure"] as const) test(`MEM-42 later discovery and live reads see consent changes and refuse ${corruption} damage before missing-project fallback`, async t => {
+  const f = await catalogFixture(t), db = seedStore(f.home);
+  t.after(() => db.close());
+  const ledger = new SqlitePluginConsentLedger(db), entries = ["goals", "shelf"].map(key => BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === key)!.manifest);
+  const record = (granted_by: "host_build" | "user", at: string) => entries.flatMap(manifest => ledger.record({
+    plugin_id: manifest.plugin_id, publisher_signature: manifest.publisher.signature, manifest_digest: pluginManifestDigest(manifest),
+    granted_by, grants: [ALWAYS_ON], at,
+  }));
+  const consents = record("host_build", "2026-10-25T00:00:00.000Z");
+  assert.equal(consents.length, 2);
+  // A historical personal-plugin exclusion is ineffective while its current always-on agreement stands.
+  const writable = new Database(join(f.home, "projects/catalog.db"));
+  try { writable.prepare("INSERT INTO project_plugin_exclusions (project_id, plugin_id, removed_at) VALUES (?, 'shelf', '2026-10-01T00:00:00.000Z')").run(f.project.project_id); }
+  finally { writable.close(); }
+  const policy = projectActionAvailability(async (_options, work) => work(f.catalog), f.home), caller = person([], f.project.project_id);
+  const actions: Array<Pick<ActionView, "provider">> = entries.map(manifest => ({ provider: {
+    provider_id: manifest.plugin_id, plugin_id: manifest.plugin_id, title: manifest.name, kind: "plugin",
+  } }));
+  const read = async (available: boolean) => {
+    const before = filesAt(f.home), discovery = await policy.snapshotForDiscovery(caller);
+    for (const action of actions) {
+      assert.equal(discovery(caller, action).available, available);
+      assert.equal((await policy(caller, action)).available, available, "live admission reads current membership independently");
+    }
+    assert.deepEqual(filesAt(f.home), before);
+  };
+  await read(true);
+  for (const consent of consents) ledger.revoke(consent.consent_id, "2026-10-25T01:00:00.000Z");
+  await read(false);
+  assert.equal(record("user", "2026-10-25T02:00:00.000Z").length, 2);
+  await read(true);
+  if (corruption === "version") db.exec("PRAGMA user_version = 2");
+  else db.exec("DROP TABLE plugin_private_values");
+  const before = filesAt(f.home), refusal = { code: corruption === "version" ? "storage.schema_version_mismatch" : "actions.execution_failed" };
+  for (const project_id of [f.project.project_id, "absent-project"]) {
+    const context = { ...caller, project_id };
+    await assert.rejects(policy.snapshotForDiscovery(context), refusal);
+    await assert.rejects(Promise.resolve(policy(context, actions[1]!)), refusal, "an absent project must not bypass the Home refusal for a personal plugin");
+  }
+  assert.deepEqual(filesAt(f.home), before, "refusal neither repairs the library nor revives consent");
 });
 
 test("RAC-401 S-34 a query before Host startup records nothing and the real supervisor still records consent at startup", async t => {
@@ -248,7 +316,7 @@ for (const [name, corrupt, expected] of [
     mkdirSync(join(f.home, "plugin-runtime")); corrupt(storePath(f.home));
     const before = filesAt(f.home);
     assert.throws(() => f.catalog.listProjectPlugins(f.project.project_id), expected);
-    assert.throws(() => f.catalog.listHiddenPlugins(f.project.project_id), expected);
+    assert.throws(() => f.catalog.projectPluginMembership(f.project.project_id).hidden, expected);
     assert.throws(() => f.catalog.removeProjectPlugin({ project_id: f.project.project_id, plugin_id: "goals", actor_id: "test" }), expected);
     assert.deepEqual(filesAt(f.home), before);
   });
@@ -278,7 +346,7 @@ for (const corruption of ["version", "structure"] as const) {
       const stored = { plugins: ["schedule"], hidden: ["shelf"] };
       assert.deepEqual(catalog.storedProjectPluginMembership(project.project_id), stored);
       assert.deepEqual(catalog.listProjectPlugins(project.project_id), stored.plugins);
-      assert.deepEqual(catalog.listHiddenPlugins(project.project_id), stored.hidden);
+      assert.deepEqual(catalog.projectPluginMembership(project.project_id).hidden, stored.hidden);
       const caller = person(["goals:read"], project.project_id);
       const action = { provider: { provider_id: goals.plugin_id, plugin_id: goals.plugin_id, title: "Goals", kind: "plugin" as const } };
       assert.equal((await availability(caller, action)).available, false);
@@ -290,7 +358,7 @@ for (const corruption of ["version", "structure"] as const) {
       const refusal = { code: corruption === "version" ? "storage.schema_version_mismatch" : "actions.execution_failed" };
       for (let attempt = 0; attempt < 2; attempt++) {
         assert.throws(() => catalog.listProjectPlugins(project.project_id), refusal);
-        assert.throws(() => catalog.listHiddenPlugins(project.project_id), refusal);
+        assert.throws(() => catalog.projectPluginMembership(project.project_id).hidden, refusal);
         for (const plugin_id of ["goals", "shelf"]) assert.throws(() => catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id, actor_id: "test" }), refusal);
         await assert.rejects(Promise.resolve().then(() => availability(caller, action)), refusal);
       }
@@ -334,7 +402,7 @@ for (const corruption of ["version", "structure"] as const) {
         }
       } finally { restored.close(); }
       assert.deepEqual(catalog.listProjectPlugins(project.project_id), stored.plugins);
-      assert.deepEqual(catalog.listHiddenPlugins(project.project_id), stored.hidden);
+      assert.deepEqual(catalog.projectPluginMembership(project.project_id).hidden, stored.hidden);
       assert.equal((await availability(caller, action)).available, false);
     } finally { catalog.close(); }
   });

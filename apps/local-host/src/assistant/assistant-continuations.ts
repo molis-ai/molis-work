@@ -9,7 +9,7 @@ const owner = (work: StoredWork) => work.project_ref?.project_id ?? ASSISTANT_PE
 const RUNTIME = "prologue";
 type Ports = {
   store: AssistantStore; actorId: string; host(): Promise<AgentHost>;
-  start(work: StoredWork, text: string, current: () => boolean): Promise<unknown>;
+  start(work: StoredWork, text: string, current: () => boolean, continuedFrom?: AgentRunRef): Promise<unknown>;
   changed(work: StoredWork, current: () => boolean): Promise<void>;
   holdSetups?(sessionId: string, revision: string): void;
 };
@@ -38,7 +38,7 @@ export class AssistantContinuations {
     return view?.wait?.by === "app" ? undefined : view;
   }
   async state(work: StoredWork, fallback: AssistantWorkState): Promise<AssistantWorkState> {
-    if (work.continuation_hold && work.executor.kind === "assistant") return work.continuation_hold;
+    if (work.continuation_hold && work.executor.kind === "assistant") return work.continuation_hold === "input" ? "paused" : work.continuation_hold;
     if (!["completed", "idle"].includes(fallback)) return fallback;
     const view = await this.view(work).catch(() => undefined);
     return view?.wait?.state === "waiting" || view?.continuation?.state === "eligible" ? "waiting-input"
@@ -46,16 +46,25 @@ export class AssistantContinuations {
   }
   /** A user Send invalidates a start being prepared, even before its first await. Its SDK wait is withdrawn separately. */
   begin(work: StoredWork, text: string) {
-    const updated = this.ports.store.update(this.ports.actorId, work.work_id, null, { draft: text, continuation_hold: "paused" }, false);
-    if (updated.session_id) this.ports.holdSetups?.(updated.session_id, String(updated.revision));
     const token = Symbol(); this.inputs.set(work.work_id, token);
     this.enter(work.work_id);
     const current = () => this.inputs.get(work.work_id) === token;
-    return { work: updated, current, accept: () => {
-      if (current()) this.ports.store.update(this.ports.actorId, work.work_id, null, { continuation_hold: undefined }, false);
-    }, end: () => { if (current()) this.inputs.delete(work.work_id); this.end(work.work_id); } };
+    const end = () => { if (current()) this.inputs.delete(work.work_id); this.end(work.work_id); };
+    try {
+      const updated = this.ports.store.update(this.ports.actorId, work.work_id, null, { draft: text, continuation_hold: "input" }, false);
+      if (updated.session_id) this.ports.holdSetups?.(updated.session_id, String(updated.revision));
+      return { work: updated, current, accept: () => {
+        if (current() && this.ports.store.get(this.ports.actorId, work.work_id).continuation_hold === "input")
+          this.ports.store.update(this.ports.actorId, work.work_id, null, { continuation_hold: undefined }, false);
+      }, end };
+    } catch (error) { end(); throw error; }
   }
   invalidateInput(id: string): void { this.inputs.delete(id); }
+  /** A tool keeps only the Send token present when its authority was assembled, never a later Send's token. */
+  currentInput(id: string): () => boolean {
+    const token = this.inputs.get(id);
+    return () => token !== undefined && this.inputs.get(id) === token;
+  }
   blockStart(id: string): () => void { this.enter(id); return () => this.end(id); }
   private enter(id: string): void { this.busy.set(id, (this.busy.get(id) ?? 0) + 1); }
   end(id: string): void { const count = this.busy.get(id) ?? 0; if (count > 1) this.busy.set(id, count - 1); else this.busy.delete(id); }
@@ -120,7 +129,7 @@ export class AssistantContinuations {
         if (!current()) { retry = true; continue; }
         this.enter(work.work_id);
         try {
-          await this.ports.start(work, `（Molis 转告）这项工作等待的条件已有结果：${view.wait.reason}。请读取当前状态，依照本对话最新有效的要求，从尚未完成的地方继续；不要重复已完成的操作。等待结果只证明它报告的事实，不证明原任务已经完成。`, current);
+          await this.ports.start(work, `（Molis 转告）这项工作等待的条件已有结果：${view.wait.reason}。请读取当前状态，依照本对话最新有效的要求，从尚未完成的地方继续；不要重复已完成的操作。等待结果只证明它报告的事实，不证明原任务已经完成。`, current, session.latest_run?.ref);
         } catch {
           // A revoked/stale start changes no wait and writes no diagnostic business record. A future activation may retry.
           if (current()) held.set(next.request_key, { work_id: work.work_id, revision: work.revision }); else retry = true;

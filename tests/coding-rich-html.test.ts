@@ -67,7 +67,7 @@ test("PG062-05, PG062-06: Coding's routes answer its page with the model's words
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const read = async <Body>(suffix: string, locale = "zh"): Promise<Body> => {
     const response = await fetch(`http://127.0.0.1:${address.port}/api/plugins/io.molis.work.coding/sessions/app${suffix}`, { headers: { "x-page-locale": locale } });
-    assert.equal(response.status, 200, suffix);
+    assert.equal(response.status, 200, `${suffix}: ${response.status === 200 ? "ok" : await response.clone().text()}`);
     return await response.json() as Body;
   };
   try {

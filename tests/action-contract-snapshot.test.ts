@@ -298,7 +298,7 @@ test("a registration the Host gains, loses or changes is named under host-action
   }
   const changed = productProblems(views);
   assert.match(changed, /changed shape under the SAME version/);
-  assert.match(changed, new RegExp(`${system.capability_id.replaceAll(".", "\\.")}@1 via system\\.memory: input`));
+  assert.match(changed, new RegExp(`${system.capability_id.replaceAll(".", "\\.")}@${system.version} via system\\.memory: input`));
 
   const moved = copyOfViews().map((view) => (view.provider.provider_id === "system.placement" ? { ...view, provider: { provider_id: "system.placement-two" } } : view));
   const movedProblems = productProblems(moved);

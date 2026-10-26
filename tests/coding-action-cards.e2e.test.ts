@@ -62,10 +62,9 @@ test("AC-25: a Coding round's suggestion is a card the person runs once, with th
     catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "local-only", display_name: "本机", base_url: `http://127.0.0.1:${address.port}`, api_format: "anthropic-messages",
       models: [{ model_id: "fixture-plain", enabled: true }] });
   }));
-  // The person granted the built-in Agent one action in this project (the capability service's own grant file).
-  await mkdir(join(homeDirectory, "config"), { recursive: true });
-  await writeFile(join(homeDirectory, "config", "mcp-tools.json"), JSON.stringify({ version: 3, action_grants: [{ client_id: "agent:prologue", project_id: projectId,
-    capability_id: "goals.create", version: 1, provider_id: "io.molis.work.goals", permissions: ["goals:write"], enabled: true, generation: "grant-1" }] }));
+  // The person's protected settings entry owns the current grant format, permissions and generation.
+  await b.web.post("/api/settings/mcp/actions", { client_id: "agent:prologue", project_id: projectId,
+    capability_id: "goals.create", version: 1, provider_id: "io.molis.work.goals", enabled: true });
   const workspace = join(homeDirectory, "coding-card-fixture");
   await mkdir(workspace, { recursive: true });
   const fill = (selector: string, value: string, page: Pick<typeof child, "evaluate"> = child) => page.evaluate(`(()=>{const node=document.querySelector(${JSON.stringify(selector)});node.value=${JSON.stringify(value)};node.dispatchEvent(new Event('input',{bubbles:true}));node.dispatchEvent(new Event('change',{bubbles:true}));})()`);

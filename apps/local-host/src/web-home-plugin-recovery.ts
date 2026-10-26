@@ -10,7 +10,7 @@ import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 
 /** GET display projection only. Availability, commands and content routes must use the strict Catalog methods. */
 export function projectPluginMembershipForPage(catalog: MolisWorkProjectCatalog, projectId: string) {
-  try { return { plugins: catalog.listProjectPlugins(projectId), hidden: catalog.listHiddenPlugins(projectId) }; }
+  try { return catalog.projectPluginMembership(projectId); }
   catch (error) {
     if (!isHomePluginStoreRefusal(error)) throw error;
     return { ...catalog.storedProjectPluginMembership(projectId), unavailable: L("Home 插件运行库不可用") };

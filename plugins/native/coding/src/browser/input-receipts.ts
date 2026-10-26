@@ -32,6 +32,8 @@ export interface ReceiptActions {
 export interface BubbleRun { readonly turns: readonly { readonly steer?: { readonly key?: string } }[] }
 
 export interface InputReceipts {
+  /** An initial send keeps its source identity until its answer is known. */
+  start<Result>(id: string, command: Record<string, unknown>): Promise<Result>;
   /** The button of a step added for a supplement, to the receipt Coding's conversation drew; null when it drew none. */
   from(node: StepNode | undefined, first?: () => void): Node | null;
   /** Sends words to a round under way; resolves to what the person is told. */
@@ -85,13 +87,26 @@ export function inputReceipts({ api, refresh, q, find, landed, receipts, transla
   const SENT: Readonly<Record<string, string>> = { "next-boundary": L("coding.sent.next-boundary"), interrupt: L("coding.sent.interrupt"), "after-run": L("coding.sent.after-run") };
   const AGAIN = L("coding.sent.again");
   let item: Sent | null = null;
+  let initial: { signature: string; id: string } | undefined;
+  const start = async <Result>(id: string, command: Record<string, unknown>): Promise<Result> => {
+    const direct = typeof command.task === "string" && command.task.trim() && ["continued_from", "reask", "plan_revision", "continue_step_board_of", "origin_task", "wait_for"].every(key => command[key] === undefined);
+    const signature = JSON.stringify([id, command]);
+    if (direct && initial?.signature !== signature) initial = { signature, id: crypto.randomUUID() };
+    const original = direct ? initial : undefined;
+    const result = await api<Result>("/sessions/" + encodeURIComponent(id) + "/runs", "POST", { ...command,
+      ...(original ? { original_input: { input_id: original.id, text: command.task } } : {}) });
+    if (initial === original) initial = undefined;
+    return result;
+  };
+  const supplement = (id: string, body: { run_id: string; text: string; key: string; mode?: string; about?: string }) =>
+    api<{ receipt: Receipt }>(control(id), "POST", { kind: "steer", ...body, original_input: { input_id: body.key.slice(5), text: body.text, use: "supplement" } });
   const send = async (sent: Sent) => {
     sent.lost = false;
     item = sent;
     refresh();
     const writing = sent.mode === "interrupt" ? find(".coding-turn.is-writing") : null;
     try {
-      const { receipt } = await api<{ receipt: Receipt }>(control(sent.id), "POST", { kind: "steer", run_id: sent.run, text: sent.text, key: sent.key, mode: sent.mode });
+      const { receipt } = await supplement(sent.id, { run_id: sent.run, text: sent.text, key: sent.key, mode: sent.mode });
       if (item === sent) item = null;
       if (writing && receipt.delivered === "run" && !receipt.replayed) {
         writing.classList.add("is-dropped");
@@ -110,6 +125,7 @@ export function inputReceipts({ api, refresh, q, find, landed, receipts, transla
     }
   };
   return {
+    start,
     from(node, first) {
       const one = node?.origins?.[0];
       return one ? receipts.link(q("[data-coding-turns]"), one.input_id, first, "来自补充「") : null;
@@ -125,7 +141,7 @@ export function inputReceipts({ api, refresh, q, find, landed, receipts, transla
       return {
         withdraw: inputId => api<{ withdrawn: { from: string } }>(path, "POST", { kind: "withdraw", run_id: run, input_id: inputId })
           .then(({ withdrawn }) => withdrawn.from === "queued" ? L("coding.sent.withdrawn") : "", lost).finally(refresh),
-        correct: (about, text, key) => api<{ receipt: Receipt }>(path, "POST", { kind: "steer", run_id: run, text, about, key: "send." + key })
+        correct: (about, text, key) => supplement(id, { run_id: run, text, about, key: "send." + key })
           .then(({ receipt }) => receipt.replayed ? AGAIN : receipt.delivered === "queued" ? SENT["after-run"]! : L("coding.sent.corrected"), lost).finally(refresh),
       };
     },

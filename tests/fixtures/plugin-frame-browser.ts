@@ -82,53 +82,155 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
     const hostState = await browser.evaluate(`(()=>{${owner}const root=doc.querySelector('[data-work-surface='+${JSON.stringify(JSON.stringify(surface))}+']');return {surface:document.body.dataset.desktopSurface,root:root?{...root.dataset}:null,hidden:root?.hidden,parent:root?.parentElement?.className,text:root?.innerText?.slice(-400),frames:[...doc.querySelectorAll('iframe[data-plugin-frame]')].map(frame=>frame.dataset.pluginFrame)}})()`).catch(() => null);
     throw new Error(expression + " " + JSON.stringify(hostState), { cause: failure });
   }
+  async function withPoint<T>(target: string, consume: (position: {x:number; y:number}, delivered: () => Promise<boolean>) => Promise<T>): Promise<T> {
+    const deadline = Date.now() + 10000;
+    const remaining = () => Math.max(1, deadline - Date.now());
+    await waitFor(`document.querySelector(${JSON.stringify(target)})`, remaining());
+    const current = await context();
+    // The DOM hit can be ready before Chromium routes input to the opaque child. Keep the receipt in a
+    // temporary remote object, never on window; a previous move or another document cannot satisfy it.
+    const receipt = await browser.command<{ result: { objectId?: string }; exceptionDetails?: unknown }>("Runtime.evaluate", {
+      expression: `(() => {
+        let expected = null, received = null, pressed = null, released = null;
+        const matches = target => [...document.querySelectorAll(${JSON.stringify(target)})].find(element => element.contains(target));
+        const listener = event => {
+          if (!expected || !event.isTrusted || event.pointerType !== 'mouse') return;
+          const element = matches(event.target);
+          if (event.type !== 'pointermove') {
+            const receipt = {element, x:event.clientX, y:event.clientY, button:event.button, buttons:event.buttons};
+            if (event.type === 'pointerdown') pressed = receipt; else released = receipt;
+            return;
+          }
+          if (event.buttons !== 0) return;
+          // CSS coordinates can be fractional; the input event may round them to a pixel.
+          if (element && Math.abs(event.clientX - expected.x) < 1 && Math.abs(event.clientY - expected.y) < 1)
+            received = {element, x: expected.x, y: expected.y};
+        };
+        const types = ['pointermove', 'pointerdown', 'pointerup'];
+        for (const type of types) document.addEventListener(type, listener, {capture:true, passive:true});
+        const remove = () => { for (const type of types) document.removeEventListener(type, listener, true); };
+        // Bound the listeners even if the protocol response carrying their object handle is lost.
+        const expiry = setTimeout(remove, ${remaining()});
+        return {
+          arm(x, y) { expected = {x, y}; received = pressed = released = null; },
+          arrived(x, y) {
+            if (!received || received.x !== x || received.y !== y) return false;
+            const element = received.element, box = element.getBoundingClientRect();
+            return element.isConnected && !element.disabled && box.width > 0 && box.height > 0
+              && x >= box.left && x < box.right && y >= box.top && y < box.bottom
+              && [...document.querySelectorAll(${JSON.stringify(target)})].includes(element)
+              && element.contains(document.elementFromPoint(x, y));
+          },
+          delivered(x, y) {
+            return Boolean(received && [pressed, released].every(event => event && event.element === received.element
+              && event.button === 0 && Math.abs(event.x - x) < 1 && Math.abs(event.y - y) < 1)
+              && pressed.buttons === 1 && released.buttons === 0);
+          },
+          dispose() { clearTimeout(expiry); remove(); expected = received = pressed = released = null; }
+        };
+      })()`, contextId: current.id, returnByValue: false,
+    }, current.session, remaining());
+    assert.equal(receipt.exceptionDetails, undefined, JSON.stringify(receipt.exceptionDetails));
+    assert.ok(receipt.result.objectId, 'Missing child input receipt');
+    const objectId = receipt.result.objectId;
+    const callReceipt = async (functionDeclaration: string, point: {x:number; y:number}) => {
+      const result = await browser.command<{result:{value: boolean}; exceptionDetails?: unknown}>("Runtime.callFunctionOn", {
+        objectId, functionDeclaration, arguments: [{value:point.x}, {value:point.y}], returnByValue:true,
+      }, current.session, remaining());
+      assert.equal(result.exceptionDetails, undefined, JSON.stringify(result.exceptionDetails));
+      return result.result.value;
+    };
+    let movedTo: {x:number; y:number} | undefined;
+    const move = async (point: {x:number; y:number}, offset: {x:number; y:number}) => {
+      await callReceipt('function(x,y){this.arm(x,y);}', point);
+      const position = {x:offset.x + point.x, y:offset.y + point.y};
+      await browser.command("Input.dispatchMouseEvent", { type: "mouseMoved", ...position }, browser.sessionId, remaining());
+      movedTo = position;
+    };
+    const failures: unknown[] = [];
+    try {
+      // Open the containing menu and hover the actual row before checking the final hit target.
+      const hover = await evaluate<{ x: number; y: number } | null>(`(()=>{
+        const element=document.querySelector(${JSON.stringify(target)});if(!element)return null;
+        const menu=element.closest('details:not([open])');
+        if(menu&&!menu.querySelector(':scope > summary')?.contains(element))menu.querySelector(':scope > summary')?.click();
+        element.scrollIntoView({block:'center',behavior:'instant'});const box=element.getBoundingClientRect();
+        return box.width&&box.height?{x:box.x+box.width/2,y:box.y+box.height/2}:null;
+      })()`, remaining());
+      if (hover) {
+        const offset = await browser.evaluate<{ x: number; y: number }>(`(()=>{${owner}
+          const box=doc.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(),outer=owner?.getBoundingClientRect()??{x:0,y:0};
+          return{x:outer.x+box.x,y:outer.y+box.y};})()`);
+        await move(hover, offset);
+      }
+      let covered: unknown;
+      while (Date.now() < deadline) {
+        const point = await evaluate<{ x: number; y: number }>(`(async()=>{const deadline=Date.now()+${remaining()};let last='Missing target';
+          while(Date.now()<deadline){const element=[...document.querySelectorAll(${JSON.stringify(target)})].find(node=>node.getClientRects().length);
+            if(element){element.scrollIntoView({block:'center',behavior:'instant'});
+              await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
+              const box=element.getBoundingClientRect(),x=box.x+box.width/2;
+              const y=[box.y+box.height/2,box.top+8,box.bottom-8].find(y=>element.contains(document.elementFromPoint(x,y)));
+              if(element.isConnected&&box.width&&box.height&&!element.disabled&&y!==undefined)return{x,y};
+              last=JSON.stringify({target:element.outerHTML,box:box.toJSON()});}
+            else {const item=document.querySelector(${JSON.stringify(target)});last=JSON.stringify({target:${JSON.stringify(target)},hidden:item?.hidden,ancestors:item?[item,...(()=>{const a=[];let n=item.parentElement;while(n&&a.length<5){a.push(n);n=n.parentElement}return a})()].map(n=>({tag:n.tagName,class:n.className,hidden:n.hidden,display:getComputedStyle(n).display})):[]});}
+            await new Promise(resolve=>setTimeout(resolve,40));
+          }throw Error('Target is hidden, disabled or covered: '+last);})()`, remaining());
+        const frame = await browser.evaluate<{ x: number; y: number; covered?: unknown }>(`(()=>{${owner}
+          const frame=doc.querySelector(${JSON.stringify(selector)}), box=frame.getBoundingClientRect(), outer=owner?.getBoundingClientRect()??{x:0,y:0};
+          const hit=doc.elementFromPoint(box.x+${point.x},box.y+${point.y});
+          if(hit!==frame)return{covered:{target:${JSON.stringify(target)},point:${JSON.stringify(point)},frame:box.toJSON(),hit:hit?.outerHTML.slice(0,600),viewport:[doc.defaultView.innerWidth,doc.defaultView.innerHeight]}};
+          const ownerHit=owner&&document.elementFromPoint(outer.x+box.x+${point.x},outer.y+box.y+${point.y});
+          if(owner&&ownerHit!==owner)return{covered:{owner:outer.toJSON(),hit:ownerHit?.outerHTML.slice(0,600)}};
+          return{x:outer.x+box.x,y:outer.y+box.y};})()`);
+        if (Date.now() >= deadline) break;
+        if (!frame.covered) {
+          const position = {x:frame.x + point.x, y:frame.y + point.y};
+          if (movedTo?.x === position.x && movedTo.y === position.y
+            && await callReceipt('function(x,y){return this.arrived(x,y);}', point) && Date.now() < deadline) {
+            // Consume the guarded point before cleanup yields to another layout. CDP dispatch itself is
+            // not atomic with this guard; the trusted down/up receipt detects that remaining gap.
+            return await consume(position, () => callReceipt('function(x,y){return this.delivered(x,y);}', point));
+          }
+          await move(point, frame);
+        }
+        covered = frame.covered;
+        // The child can be ready before its owner finishes a tab switch or resize. Never dispatch through an overlay.
+        await new Promise(resolve => setTimeout(resolve, 40));
+      }
+      throw new Error("Input was not delivered to plugin frame: " + target + "; covered=" + JSON.stringify(covered));
+    } catch (error) {
+      const failure = Date.now() >= deadline ? new Error("Input was not delivered to plugin frame within 10000ms: " + target, {cause:error}) : error;
+      failures.push(failure);
+      throw failure;
+    } finally {
+      // A destroyed context has already removed its listener. Attempt both cleanup steps without losing the input failure.
+      const inputFailures = failures.length;
+      const cleanup = async (method: string, params: Record<string, unknown>) => {
+        try { await browser.command(method, params, current.session, 1000); }
+        catch (error) { if (!/Cannot find context|Cannot find object|Could not find object|Session with given id not found|Target closed/.test(String(error))) failures.push(error); }
+      };
+      await cleanup("Runtime.callFunctionOn", {objectId, functionDeclaration:'function(){this.dispose();}'});
+      await cleanup("Runtime.releaseObject", {objectId});
+      if (failures.length > inputFailures) {
+        if (failures.length === 1) throw failures[0];
+        throw new AggregateError(failures, "Plugin frame operation failed", {cause: failures[0]});
+      }
+    }
+  }
+  // Public coordinates are only a snapshot; click keeps its receipt alive while consuming them.
   async function point(target: string): Promise<{ x: number; y: number }> {
-    await waitFor(`document.querySelector(${JSON.stringify(target)})`);
-    // Open the containing menu and hover the actual row before checking the final hit target.
-    const hover = await evaluate<{ x: number; y: number } | null>(`(()=>{
-      const element=document.querySelector(${JSON.stringify(target)});if(!element)return null;
-      const menu=element.closest('details:not([open])');
-      if(menu&&!menu.querySelector(':scope > summary')?.contains(element))menu.querySelector(':scope > summary')?.click();
-      element.scrollIntoView({block:'center',behavior:'instant'});const box=element.getBoundingClientRect();
-      return box.width&&box.height?{x:box.x+box.width/2,y:box.y+box.height/2}:null;
-    })()`);
-    if (hover) {
-      const offset = await browser.evaluate<{ x: number; y: number }>(`(()=>{${owner}
-        const box=doc.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(),outer=owner?.getBoundingClientRect()??{x:0,y:0};
-        return{x:outer.x+box.x,y:outer.y+box.y};})()`);
-      await browser.command("Input.dispatchMouseEvent", { type: "mouseMoved", x: offset.x + hover.x, y: offset.y + hover.y }, browser.sessionId);
-    }
-    const deadline = Date.now() + 10000; let covered: unknown;
-    while (Date.now() < deadline) {
-      const point = await evaluate<{ x: number; y: number }>(`(async()=>{const deadline=Date.now()+10000;let last='Missing target';
-        while(Date.now()<deadline){const element=[...document.querySelectorAll(${JSON.stringify(target)})].find(node=>node.getClientRects().length);
-          if(element){element.scrollIntoView({block:'center',behavior:'instant'});
-            await new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)));
-            const box=element.getBoundingClientRect(),x=box.x+box.width/2;
-            const y=[box.y+box.height/2,box.top+8,box.bottom-8].find(y=>element.contains(document.elementFromPoint(x,y)));
-            if(element.isConnected&&box.width&&box.height&&!element.disabled&&y!==undefined)return{x,y};
-            last=JSON.stringify({target:element.outerHTML,box:box.toJSON()});}
-          else {const item=document.querySelector(${JSON.stringify(target)});last=JSON.stringify({target:${JSON.stringify(target)},hidden:item?.hidden,ancestors:item?[item,...(()=>{const a=[];let n=item.parentElement;while(n&&a.length<5){a.push(n);n=n.parentElement}return a})()].map(n=>({tag:n.tagName,class:n.className,hidden:n.hidden,display:getComputedStyle(n).display})):[]});}
-          await new Promise(resolve=>setTimeout(resolve,40));
-        }throw Error('Target is hidden, disabled or covered: '+last);})()`);
-      const frame = await browser.evaluate<{ x: number; y: number; covered?: unknown }>(`(()=>{${owner}
-        const frame=doc.querySelector(${JSON.stringify(selector)}), box=frame.getBoundingClientRect(), outer=owner?.getBoundingClientRect()??{x:0,y:0};
-        const hit=doc.elementFromPoint(box.x+${point.x},box.y+${point.y});
-        if(hit!==frame)return{covered:{target:${JSON.stringify(target)},point:${JSON.stringify(point)},frame:box.toJSON(),hit:hit?.outerHTML.slice(0,600),viewport:[doc.defaultView.innerWidth,doc.defaultView.innerHeight]}};
-        const ownerHit=owner&&document.elementFromPoint(outer.x+box.x+${point.x},outer.y+box.y+${point.y});
-        if(owner&&ownerHit!==owner)return{covered:{owner:outer.toJSON(),hit:ownerHit?.outerHTML.slice(0,600)}};
-        return{x:outer.x+box.x,y:outer.y+box.y};})()`);
-      if (!frame.covered) return { x: frame.x + point.x, y: frame.y + point.y };
-      covered = frame.covered;
-      // The child can be ready before its owner finishes a tab switch or resize. Never dispatch through an overlay.
-      await new Promise(resolve => setTimeout(resolve, 40));
-    }
-    throw new Error("Frame is covered: " + JSON.stringify(covered));
+    return withPoint(target, async position => position);
   }
   async function click(target: string, clickCount = 1): Promise<void> {
     for (let count = 1; count <= clickCount; count++) {
-      const position = await point(target);
-      for (const type of ["mousePressed", "mouseReleased"]) await browser.command("Input.dispatchMouseEvent", { type, ...position, button: "left", clickCount: count }, browser.sessionId);
+      await withPoint(target, async (position, delivered) => {
+        const input = {...position, button: "left", clickCount: count};
+        try { await browser.command("Input.dispatchMouseEvent", {type:"mousePressed", ...input}, browser.sessionId); }
+        finally { await browser.command("Input.dispatchMouseEvent", {type:"mouseReleased", ...input}, browser.sessionId); }
+        // Never retry after a press: a side effect may already have happened on the wrong element.
+        if (!await delivered()) throw new Error("Input was not delivered to plugin frame: " + target + "; pointerdown/pointerup target mismatch");
+      });
     }
   }
   async function command<T = Record<string, unknown>>(method: string, params: Record<string, unknown> = {}): Promise<T> {

@@ -1,11 +1,13 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync, existsSync, mkdtempSync, rmSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, relative } from "node:path";
+import { join, relative, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import { buildOrder, readPackages, inputDigests, staleReason } from "../build-workspace.mjs";
 import { vendoredProvenanceProblems } from "../gates/vendored-provenance.mjs";
 
 export const MEMORY_BASELINE = {
+  toolingCommit: "5e47ed2bc369c8c0123c651b4e2a70fa0e1f2665",
   molisCommit: "f6b2ff4bfba4f7ceb5aeaf95495a5e41fe85ea10",
   sdkCommit: "753dbae8359e56a74397d030af4d18abf402d5b5",
   sdkArtifact: "prologue-sdk-0.0.0-rc.1-attachment-order.tgz",
@@ -36,13 +38,13 @@ export function memoryEvaluationSourceEvidence(root: string, baselineCommit: str
     evaluationChanges: paths.filter(file => evaluationPaths.has(file)), productChanges: paths.filter(file => !evaluationPaths.has(file)) };
 }
 
-function installedSdkMatches(root: string) {
+function installedSdkMatches(root: string, artifact = MEMORY_BASELINE.sdkArtifact as string) {
   const link = join(root, "horizontal/agent-host/node_modules/@prologue/sdk");
   if (!existsSync(link)) return { matches: false, location: null };
   const location = realpathSync(link);
   const temporary = mkdtempSync(join(tmpdir(), "molis-evaluation-sdk-"));
   try {
-    execFileSync("tar", ["-xf", join(root, "vendor/prologue-sdk", MEMORY_BASELINE.sdkArtifact), "-C", temporary], { stdio: "pipe" });
+    execFileSync("tar", ["-xf", join(root, "vendor/prologue-sdk", artifact), "-C", temporary], { stdio: "pipe" });
     try { execFileSync("diff", ["-qr", join(temporary, "package"), location], { stdio: "pipe" }); }
     catch { return { matches: false, location: relative(root, location) }; }
     return { matches: true, location: relative(root, location) };
@@ -50,6 +52,8 @@ function installedSdkMatches(root: string) {
 }
 
 function buildEvidence(root: string) {
+  // build-workspace closes over its import.meta.url root; it cannot attest a different checkout.
+  if (realpathSync(root) !== realpathSync(fileURLToPath(new URL("../../", import.meta.url)))) throw new Error("Preflight must run the tool located in the inspected worktree");
   const recordsPath = join(root, "node_modules/.cache/molis-work-build/records.json");
   if (!existsSync(recordsPath)) return { checked: false, stale: ["没有本工作树构建记录"] };
   const records: Record<string, { input: string; output: string }> = JSON.parse(readFileSync(recordsPath, "utf8"));
@@ -79,4 +83,28 @@ export function memoryEvaluationPreflight(root: string) {
     dependencies: { installed: existsSync(join(root, "node_modules")), memoryBuilt: existsSync(join(root, "horizontal/memory/dist/index.js")), hostBuilt: existsSync(join(root, "apps/local-host/dist/index.js")) },
     model: { status: "not-probed", allowedProvider: "MiniMax", calls: 0, reason: "付费模式尚未启用；真实模型预算与配置须先由统筹确认" },
   };
+}
+
+/** Current identity is never the historical B1 baseline. Dirty paths stay visible even in local fixture reports. */
+const currentInstruments = new Set(["scripts/memory-evaluation/environment.mts", "scripts/memory-evaluation/originals.mts"]);
+export function currentEvaluationSource(root = fileURLToPath(new URL("../../", import.meta.url))) {
+  const dependency = JSON.parse(readFileSync(join(root, "horizontal/agent-host/package.json"), "utf8")).dependencies["@prologue/sdk"] as string;
+  if (!dependency.startsWith("file:")) throw new Error("B2 requires the declared vendored SDK package");
+  const archive = resolve(root, "horizontal/agent-host", dependency.slice(5));
+  const provenance = JSON.parse(readFileSync(`${archive}.provenance.json`, "utf8"));
+  const evidence = memoryEvaluationSourceEvidence(root, "HEAD");
+  return { arm: "B2" as const, ...evidence,
+    evaluationChanges: [...evidence.evaluationChanges, ...evidence.productChanges.filter(path => currentInstruments.has(path))].sort(),
+    productChanges: evidence.productChanges.filter(path => !currentInstruments.has(path)),
+    sdkCommit: provenance.source?.commit ?? null, sdkArtifact: relative(join(root, "vendor/prologue-sdk"), archive),
+    historicalBaseline: MEMORY_BASELINE, attribution: "Current B2; not a rerun of B1 or an isolated SDK-upgrade attribution experiment" };
+}
+
+export function memoryEvaluationB2Preflight(root: string) {
+  const source = currentEvaluationSource(root), build = buildEvidence(root);
+  const installedSdk = installedSdkMatches(root, source.sdkArtifact), provenanceProblems = vendoredProvenanceProblems(root);
+  return { source, build, installedSdk, provenanceProblems,
+    ready: !source.productChanges.length && !source.evaluationChanges.length && build.checked && !build.stale.length && installedSdk.matches && !provenanceProblems.length,
+    dependencies: { installed: existsSync(join(root, "node_modules")), memoryBuilt: existsSync(join(root, "horizontal/memory/dist/index.js")), hostBuilt: existsSync(join(root, "apps/local-host/dist/index.js")) },
+    model: { calls: 0, status: "not-probed", reason: "Paid B2 needs a separately confirmed remaining budget; preflight does not grant it" } };
 }

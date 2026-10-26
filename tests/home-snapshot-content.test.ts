@@ -8,7 +8,7 @@ import { createHomeSnapshot, homeStores, preflightConnectorPrivateStateRestore, 
 import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
 import { createEvidenceContentStore, createLazyFileSecretStore, createSearchOpaqueBlobStore, LocalSqliteStorage, openExistingHomePayload, snapshotFileDigest } from "@molis-ai/molis-work-storage";
 import { assertSnapshotFact } from "./fixtures/home-snapshot-facts.js";
-import { populatedSnapshotHome, snapshotSdk } from "./fixtures/home-snapshot-fixture.js";
+import { populatedSnapshotHome, snapshotSdk, snapshotMemoryCaller } from "./fixtures/home-snapshot-fixture.js";
 import { snapshotWalWriter } from "./fixtures/home-snapshot-wal.js";
 
 async function allFiles(directory: string): Promise<string[]> {
@@ -100,11 +100,11 @@ test("RAC-104-S-01/04 RAC-106-S-03: a populated Home keeps every actual owner, W
     if (entry.sqlite) for (const suffix of ["", "-wal", "-shm", "-journal"]) await rm(target + suffix, { force: true });
     await mkdir(dirname(target), { recursive: true }); await cp(join(f.snapshot, entry.payload_path), target); await chmod(target, entry.mode);
   }
-  const read = snapshotSdk(f.sdkRoot);
-  try { assert.equal((await (await read).memory!.list("user", "snapshot-person")).find(entry => entry.memory_id === f.memoryId)?.text, "Retained SDK memory"); }
+  const read = snapshotSdk(f.sdkRoot, "snapshot-person");
+  try { assert.equal((await (await read).memory!.withCaller(snapshotMemoryCaller("snapshot-person")).list("user", "snapshot-person")).find(entry => entry.memory_id === f.memoryId)?.text, "Retained SDK memory"); }
   finally { await read.close(); }
-  const builder = snapshotSdk(f.builderRoot);
-  try { assert.equal((await (await builder).memory!.list("user", "snapshot-builder"))[0]?.text, "Retained builder memory"); }
+  const builder = snapshotSdk(f.builderRoot, "snapshot-builder");
+  try { assert.equal((await (await builder).memory!.withCaller(snapshotMemoryCaller("snapshot-builder")).list("user", "snapshot-builder"))[0]?.text, "Retained builder memory"); }
   finally { await builder.close(); }
   assert.equal((await readRuntimeConfigBackup(f.home, "codex", "snapshot-config")).contents, f.runtimeText);
   assert.equal(createEvidenceContentStore({ secretStore: createLazyFileSecretStore(f.home), rootDirectory: join(f.home, "feed", "evidence") }).read(f.evidence), "Retained evidence body");

@@ -126,8 +126,13 @@ test("a round told to wait for another session's work waits on it, starts on its
     assert.equal(sessions.get(DEMO_PROJECT_ID, "b").state, "queued");
     assert.equal(started().length, 0, "nothing ran while it waits");
     // BL-305 (#1304): a coded refusal answers by its kind; the session waiting is a conflict.
-    const second = await call("/sessions/b/runs", send);
-    assert.deepEqual([second.status, second.body.code], [409, "coding.waiting"], "a second send is refused while one waits");
+    const secondSend = await call("/sessions/b/runs", send);
+    assert.equal(secondSend.status, 409, "a second send is refused while one waits");
+    assert.equal(secondSend.body.code, "coding.waiting");
+    assert.equal(started().length, 0, "the refused send starts no round");
+    assert.equal(calls.filter(([id]) => id === agent.queueProjectRound.capability_id).length, 1, "the refused send queues no second work");
+    assert.equal(sessions.get(DEMO_PROJECT_ID, "b").state, "queued");
+
     assert.deepEqual((await call("/sessions/b")).body.session.queued.after_title, "「改标签格式」那一步");
     // A's work is done: B starts on its own, taking over the item it waited as.
     fire("w-wb", "done");

@@ -1,3 +1,4 @@
+import { executorInputActions } from "./assistant-executor-input.js";
 import { pageRelatedWorks } from "./assistant-page-related.js";
 import { AssistantThreads } from "./assistant-threads.js";
 import { assistantThreadActions, assistantThreadRegistration } from "./assistant-thread-actions.js";
@@ -7,7 +8,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { AssistantHandover, AssistantPageCardInput, AssistantSendInput } from "@molis-ai/molis-work-contracts/services/assistant";
+import { ASSISTANT_INSTALL_ID, type AssistantHandover, type AssistantPageCardInput, type AssistantSendInput } from "@molis-ai/molis-work-contracts/services/assistant";
 import { dispatchNativePluginJsonHttp, type NativePluginJsonResult, writeNativePluginJsonResponse } from "../native-plugin-http.js";
 import { L } from "../web-locale.js";
 import { bindLocalWebActions, localWebActionContext } from "../local-web-actions.js";
@@ -119,7 +120,8 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
     host: async () => { await ports.agentReady(); return ports.agentHost; },
     pages: () => ports.pages(),
     // The platform memory, registered with this Home's Agent service (the Assistant is one of its consumers).
-    memory: () => memoryHostFor(ports.localHost)?.service,
+    memory: (...execution) => { const memory = memoryHostFor(ports.localHost); return execution.length ? memory?.withExecution(...execution) : memory?.service; },
+    memorySources: { check: (caller, request) => memoryHostFor(ports.localHost)?.checkAssistantSources(caller, request) ?? Promise.resolve(false) },
     learnFromRound: ({ work, sources, run_id }) => {
       if (!work.session_id) return;
       void memoryHostFor(ports.localHost)?.learnLater({ actor_id: WEB_ACTOR, work_id: work.work_id, run_id, session_id: work.session_id, sources })
@@ -145,8 +147,12 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
       read: (owner, skill, version) => agentDefinitionsFor(ports.homeDirectory, builtinRegistrations).method(owner, skill, version) },
     // The person's own actions in the work's project, as the page there would use them. A dispatch, a follow-up's round among them,
     // binds the person's client anew when it acts, never the snapshot the reads share: what was granted or withdrawn by then counts.
-    personActions: async (work, use) => {
+    personActions: async (work, use, original, executorPluginId) => {
       if (!work.project_ref) throw assistantErrors.scope("执行方插件在项目里工作");
+      if (original) {
+        if (!executorPluginId) throw assistantErrors.scope("补充原件没有明确的执行方");
+        return executorInputActions(ports.localHost, work.project_ref, LOCAL_OWNER_PERMISSIONS, original, executorPluginId);
+      }
       return use === "dispatch" ? bindLocalWebActions(ports.localHost, work.project_ref, LOCAL_OWNER_PERMISSIONS) : personBound(work.project_ref);
     },
     // The person's Home, for the reminders they set in Plugins.
@@ -238,7 +244,10 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
         // shape is checked: the runtime keeps `about` as a pointer without looking it up (D34), so an id that is not one of this
         // session's inputs names nothing, and the receipt shows 「更早的一条」.
         if (body.about !== undefined && (typeof body.about !== "string" || !body.about || body.about.length > 200 || !body.work_id || body.target === "answer")) throw assistantErrors.invalid("about 要写一条输入的 id，只能用在已有的工作里，且不能用于回答");
-        return { status: 200, body: await service.send(body as unknown as AssistantSendInput, ports.projectRef ? { project_ref: ports.projectRef } : {}) };
+        return { status: 200, body: await service.send(body as unknown as AssistantSendInput, { ...(ports.projectRef ? { project_ref: ports.projectRef } : {}),
+          ...(!body.written_by && body.reask === undefined && typeof body.text === "string" && typeof body.request_id === "string" ? { original_input: {
+            input_id: body.request_id, text: body.text, written_by: "person" as const, occurred_at: new Date().toISOString(), install_id: ASSISTANT_INSTALL_ID,
+          } } : {}) }) };
       }
       // What the Assistant may use here, and what the person switched off for it.
       if (method === "GET" && parts.length === 1 && parts[0] === "capabilities") {

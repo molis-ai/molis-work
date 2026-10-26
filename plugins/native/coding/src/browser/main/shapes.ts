@@ -300,6 +300,7 @@ export interface ContinuationRead {
   readonly intent: string;
   readonly plan_revision?: number;
   readonly continue_step_board_of?: string;
+  readonly continued_from?: { readonly session_id: string; readonly run_id: string };
 }
 
 export interface StartedRound {

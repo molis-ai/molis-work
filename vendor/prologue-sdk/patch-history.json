@@ -789,6 +789,7 @@
     "sourceKind：upstream-commit 是补丁施加到基线上得到的整棵树与所写提交的树逐文件相同（git archive、git apply -p1、diff -r 实测）；uncommitted-worktree 是来源为未提交的工作树、该工作树已不在，其中以 a7e785b8 为基线的 17 份，新增的非空行绝大部分在 af7375c7 的同名文件里（方案 §4.5 的逐行比对，标为推断）；molis-repo 是补丁只保存在 Molis 仓库里。18 份没有自己提交的补丁都能干净应用在所写的基线上（git apply --check -p1）。",
     "ledger-status.patch 已并入 claims.patch；network-dispatch.patch 已包含在 assistant.patch 与 bounded-results.patch 中（当时 README 的说法）。",
     "2026-10-01 清理时这些工作树的未提交状态另存在开发机的 ~/code/prologue-cleanup-backup-20261001/wip.bundle，只在那台机器上，不属于本记录。",
-    "最早的 prologue-sdk-0.0.0-rc.1.tgz 没有对应的源码提交，不能当作任何一个提交的构建；其余本地中间包不是依赖，也没有作为分发物提交过。"
+    "最早的 prologue-sdk-0.0.0-rc.1.tgz 没有对应的源码提交，不能当作任何一个提交的构建；其余本地中间包不是依赖，也没有作为分发物提交过。",
+    "2026-10-26 Foundation batch40 adopts merged Memory #107: clean source 1cc80b05253df798eeb34afff65d1bda06bee587, upstream merge ccafbb74fb9db0e3a124ec502c57291677487e23, whose complete trees are equal. Replaced #94 package, SHA256 119feb645c13f6d7ec1f288e42f0b68d95031e268826ca014da2c26346394bb1, remains recoverable from c61508d5e15ab4850d256843a0e4110f9ecf1e20:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-memory-p0.tgz. Main final103-bridge is retained as inactive LKG; the dated upstream audit above describes that earlier adoption and is not restated as an audit of this new source."
   ]
 }

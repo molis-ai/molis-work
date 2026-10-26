@@ -111,7 +111,8 @@ export class WorkExecutor {
 
   /** A supplement through the executor's own control; its receipt says whether the round took it or it waits for the next one. */
   async send(sessionId: string, runId: string, input: AgentInputSend): Promise<AgentSteerReceipt | undefined> {
-    return (await this.call("run.control", { session_id: sessionId, run_id: runId, kind: "steer", ...input })).receipt;
+    const { original: _original, ...send } = input;
+    return (await this.call("run.control", { session_id: sessionId, run_id: runId, kind: "steer", ...send })).receipt;
   }
 
   /** Takes back a supplement through the executor's own control, before its model saw it. */

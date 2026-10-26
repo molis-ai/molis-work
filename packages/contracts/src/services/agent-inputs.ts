@@ -23,6 +23,25 @@ export const servicesAgentInputsContract = {
 export type AgentInputSource = "person" | "host";
 export const AGENT_INPUT_SOURCES: readonly AgentInputSource[] = ["person", "host"];
 
+/** An immutable initial input owned by the original Session's existing start attempt. Never an authority grant. */
+export interface AgentOriginalInputRef {
+  readonly session_id: string;
+  readonly input_id: string;
+  readonly version: 1;
+}
+/** Original text before material/digest assembly. The protected Host, never business input, establishes authorship/time. */
+export interface AgentOriginalInputDraft {
+  readonly input_id: string;
+  readonly text: string;
+  readonly written_by: AgentInputSource;
+  readonly occurred_at: string;
+}
+/** Read from the canonical attempt; derived rounds retain this same reference. */
+export interface AgentOriginalInput extends Omit<AgentOriginalInputDraft, "input_id"> {
+  readonly ref: AgentOriginalInputRef;
+}
+
+
 /**
  * When a supplement reaches the model (specs/ai-input-receipts §4.1). `next-boundary`: after the reply or batch of tools
  * under way. `interrupt`: the reply being written is dropped and the round goes on with this at once; what already ran
@@ -34,9 +53,14 @@ export const AGENT_STEER_MODES: readonly AgentSteerMode[] = ["next-boundary", "i
 /** Characters an input key may use, so it can name the input in the runtime's own references. */
 export const AGENT_INPUT_KEY_PATTERN = "^[A-Za-z0-9][A-Za-z0-9._~-]{0,127}$";
 
+/** Exact personal words kept by the input owner, separate from the assembled model text. */
+export interface AgentInputOriginalText { readonly text: string; readonly source: "person" }
+
 /** A supplement to a round: it reaches the model at its next boundary, beside what it is already doing. */
 export interface AgentInputSend {
   text: string;
+  /** Trusted Host only; excluded from the public Action input schema. Requires source host. */
+  original?: AgentInputOriginalText;
   /** `person` when absent. */
   source?: AgentInputSource;
   /**
@@ -73,6 +97,9 @@ export type AgentQueuedInputs = "carry" | "leave" | readonly string[];
  */
 export interface AgentQueuedInput {
   input_id: string;
+  /** Original Host acceptance time, if the runtime can prove it; carry/restart never replace it. */
+  accepted_at_ms?: number;
+  original?: AgentInputOriginalText;
   text: string;
   /** `peer`: another session's Agent said it. */
   source: AgentInputSource | "peer";
@@ -89,6 +116,8 @@ export interface AgentQueuedInput {
  * there that it may still write.
  */
 export interface AgentInputsPort {
+  /** Exact owner lookup. Current withdrawal wins over any old Run receipt; missing history remains unknown. */
+  read?(ref: AgentInputRef): Promise<AgentInputOriginal | undefined>;
   send(run: AgentRunRef, input: AgentInputSend, beforeQueue?: () => void): Promise<AgentSteerReceipt>;
   /** Takes a supplement back before the model saw it; absent where the runtime cannot. */
   withdraw?(run: AgentRunRef, inputId: string, beforeWithdraw?: () => void): Promise<AgentInputWithdrawal>;
@@ -103,6 +132,11 @@ export interface AgentInputWithdrawal { input_id: string; from: "run" | "queued"
 
 /** One input as the runtime's ledger knows it: whose session it belongs to and its id there. */
 export interface AgentInputRef { session_id: string; input_id: string }
+
+/** Data from the existing input owner, not proof of permission to form memory. */
+export type AgentInputOriginal = { state: "withdrawn"; ref: AgentInputRef }
+  | { state: "queued"; ref: AgentInputRef; input: AgentQueuedInput }
+  | { state: "run"; ref: AgentInputRef; run: AgentRunRef; text: string; receipt: AgentTurnSteer };
 
 /** How the model says it will treat an input it read (closed set, the runtime's S3 vocabulary). */
 export type AgentInputTreatment = "apply-now" | "later-step" | "new-task" | "needs-clarification" | "not-adopted" | "answered" | "noted" | "merged";
@@ -140,6 +174,11 @@ export interface AgentInputQuestion { pending_id: string; state: "open" | "settl
  */
 export interface AgentTurnSteer {
   id: string;
+  /** Original speaker from the runtime, independently of the user-role transport wrapper. */
+  source?: AgentInputSource | "peer";
+  /** Original Host acceptance time; absent on older input records whose origin time is unknown. */
+  accepted_at_ms?: number;
+  original?: AgentInputOriginalText;
   /** received: taken, not yet in the context; applied: in the context; read: a kept reply was made with it (not compliance); unread: the round ended before that. */
   state: "received" | "applied" | "read" | "unread" | "withdrawn";
   /** The key it was sent under (`AGENT_INPUT_KEY_PATTERN`), so the page that sent it knows it here even when its answer was lost. */
@@ -151,7 +190,7 @@ export interface AgentTurnSteer {
   questions?: AgentInputQuestion[];
 }
 
-export type AgentInputSendRequest = AgentInputSend & { runtime_id: string; session_id: string; run_id: string };
+export type AgentInputSendRequest = Omit<AgentInputSend, "original"> & { runtime_id: string; session_id: string; run_id: string };
 /** `run_id`: the round the caller saw it in, or the session's latest; a supplement no round took is the session's. */
 export type AgentInputWithdrawRequest = { runtime_id: string; session_id: string; run_id: string; input_id: string };
 
@@ -160,7 +199,7 @@ const id = { type: "string", minLength: 1 } as const;
 /** The one way a plugin speaks to a round of its sessions; the Assistant, inside the Host, uses the runtime's port. */
 export const agentInputActions = {
   send: {
-    capability_id: "agent.inputs.send.v2", version: 2, operation: "command",
+    capability_id: "agent.inputs.send.v3", version: 3, operation: "command",
     action: { title: "向一轮补充要求", description: "把一段话交给这个项目里一个会话的一轮：下一个边界读进上下文、打断当前回复，或留到下一轮；纠正或改关联时用 about 指向原来那条。回执说这一轮收下了，还是留在会话里等下一轮；同键同文只算一次。只给插件调用。", kind: "operation", scope: "project", effect: "write", scheduling: "concurrent",
       audiences: ["plugin"], permissions: [], subject_kinds: [],
       input_schema: { type: "object", required: ["runtime_id", "session_id", "run_id", "text"], additionalProperties: false, properties: {

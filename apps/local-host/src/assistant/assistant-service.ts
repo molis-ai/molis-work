@@ -6,10 +6,10 @@ import { recordAssistantResultCard } from "./assistant-result-card.js";
 import { controlAssistantWork } from "./assistant-work-control.js";
 import { AssistantFollowUps, type AssistantFollowUpPorts } from "./assistant-followups.js";
 import type { AgentHost, AgentStartAuthority } from "@molis-ai/molis-work-service-agent-host";
-import type { AgentDelegation, AgentDocumentCapability, AgentMemoryTools, AgentScheduleCapability, AgentRecoveryReport, AgentRunView, AgentSessionRef, AgentTextMaterial, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { AgentDelegation, AgentDocumentCapability, AgentMemoryExecutionControl, AgentMemoryTools, AgentScheduleCapability, AgentRecoveryReport, AgentRunView, AgentSessionRef, AgentTextMaterial, AgentToolActivity } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isTerminalAgentPhase } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { ActionError, requireSynchronous, actionResultSubject, isSubjectReader, type HostOfferedOriginalInput, type WorkExecutorSession, type ActionSubjectContext, type ActionView, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { failedStep } from "./activity-failure.js";
-import { ActionError, requireSynchronous, actionResultSubject, isSubjectReader, type ActionSubjectContext, type ActionView, type BoundActionClient, type WorkExecutorSession } from "@molis-ai/molis-work-contracts/platform/actions";
 import { describeReview } from "./assistant-review-words.js";
 import { waitForAssistantWork } from "./assistant-wait.js";
 import { AssistantDelegations } from "./assistant-delegation.js";
@@ -37,15 +37,18 @@ import { AssistantJobs, JOB_FOLLOW_MS } from "./assistant-jobs.js";
 import { declaredUndo } from "../action-undo.js";
 import { assistantErrors } from "./assistant-errors.js";
 import { assistantCandidate, assistantMemoryTools } from "./assistant-memory-tools.js";
+import { assistantMemoryTrail } from "./assistant-memory-trail.js";
 import { randomUUID } from "node:crypto";
 import type { MemoryChange, MemoryItem } from "@molis-ai/molis-work-contracts/services/memory";
-import type { MemoryCaller, MemoryService } from "@molis-ai/molis-work-service-memory";
+import type { MemoryCaller, MemoryService, MemoryServicePorts } from "@molis-ai/molis-work-service-memory";
 import { WorkExecutor, dispatchControl, executorProviders, offerExecutors, type ExecutorControl, type PersonActions } from "./assistant-executor.js";
-import { AssistantInputs, exactRevision, inputsOf, queuedInputs, memoryLearningSources, typedWords, withdrawInput, type AssistantMemorySourceRef, type SendIntent } from "./assistant-inputs.js";
+import { AssistantInputs, exactRevision, inputsOf, queuedInputs, readAssistantInputs, memoryLearningSources, withdrawInput, type AssistantMemorySourceRef, type SendIntent } from "./assistant-inputs.js";
+import { memoryInputSnapshots, memoryInputSource } from "../memory/memory-source-identity.js";
+import type { memorySources } from "../memory/memory-sources.js";
 import { startOfToday } from "./assistant-usage-ledger.js";
 import { desktopVerb, shownActivityTarget } from "./desktop-activity.js";
 import { checkLanding, landingMaterials, type AssistantLandingPorts } from "./assistant-landing.js";
-import { ownerOf, ROUND_TURNS, roundStartInput } from "./assistant-round-start.js";
+import { ownerOf, ROUND_TURNS, roundStartInput, sentOriginal } from "./assistant-round-start.js";
 import { reaskMaterial, reaskTask } from "./assistant-reask.js";
 import { afterParkedAnswer, answerablePhase, PARKED_ANSWER_TASK, recoveryAction, roundAfterParkedAnswer, sessionProblem } from "./assistant-parked-answer.js";
 import { checkHeldImages, checkMaterials, readPickedPiece } from "./assistant-send-materials.js";
@@ -71,7 +74,7 @@ export interface AssistantServicePorts extends AssistantLandingPorts, AssistantR
   /** IANA zone the person works in, so "tomorrow" means their tomorrow. */
   timeZone?: string;
   /** The person's own client in a work's project, to drive the plugin that carries it as its page would; a dispatch's (a Send, a follow-up's round) is its own. */
-  personActions?(work: Pick<StoredWork, "project_ref">, use?: "dispatch"): Promise<BoundActionClient>;
+  personActions?(work: Pick<StoredWork, "project_ref">, use?: "dispatch", original?: SendIntent["original_input"], executorPluginId?: string): Promise<BoundActionClient>;
   /** The person's own actions in a work's scope (its project, or the Home), for reading related objects from their owners. */
   scopeActions?(work: StoredWork): Promise<PersonActions>;
   /** The person's own actions in their Home, for reading the reminders they set in Plugins. */
@@ -81,13 +84,16 @@ export interface AssistantServicePorts extends AssistantLandingPorts, AssistantR
   /** Methods Plugins offer for business work, as registered with the Host; bodies only by id and version. */
   methods?: { list(): AgentMethodView[]; read(ownerId: string, skillId: string, version?: number): AgentMethodRegistration };
   /** The platform memory of this Home (specs/archive/memory-system). Absent: the Assistant keeps and recalls nothing. */
-  memory?(): MemoryService | undefined;
+  memory?(...execution: [] | [control: AgentMemoryExecutionControl, bindChangeTarget: NonNullable<MemoryServicePorts["bindChangeTarget"]>]): MemoryService | undefined;
+  memorySources?: Pick<ReturnType<typeof memorySources>, "check">;
   /** A round of a work finished: the platform memory may draw out what is worth keeping from the person's own words. */
   learnFromRound?(input: { work: StoredWork; said: string[]; run_id: string; sources: AssistantMemorySourceRef[] }): void;
 }
 
 /** Where a Send came from: the page's own project, when there is one. Only used to scope a new work. */
 export interface AssistantCaller {
+  /** Attested by the protected send owner, never read from a business input. */
+  original_input?: Omit<HostOfferedOriginalInput, "action">;
   project_ref?: LocalHostProjectReference;
   /** Set by the discussion controller, never read from HTTP input. */
   thread_request?: string;
@@ -336,6 +342,7 @@ export class AssistantService {
   private readonly chosenMemory = new Map<string, Awaited<ReturnType<MemoryService["forRun"]>>>();
   /** Where the person's words to a round under way go: its open question, or a supplement. */
   private readonly inputs = new AssistantInputs(MAX_TEXT);
+  private readonly memorySourceWithdrawals = new Set<(eventId: string) => void>();
   /** Sub-tasks this person's works hand out, and what they hand back. */
   private readonly delegations: AssistantDelegations;
   readonly offers: AssistantOffers;
@@ -347,7 +354,7 @@ export class AssistantService {
   constructor(private readonly store: AssistantStore, private readonly ports: AssistantServicePorts, private readonly actorId: string,
     private readonly now = () => new Date()) {
     this.continuations = new AssistantContinuations({ store, actorId, host: () => ports.host(), holdSetups: ports.holdSetups,
-      start: (work, text, current) => this.dispatch(work, text, [], null, undefined, "host", current, undefined, undefined, { byHost: true }),
+      start: (work, text, current, continued_from) => this.dispatch(work, text, [], null, undefined, "host", current, undefined, undefined, { byHost: true, continued_from }),
       changed: async (work, alive) => { const current = store.get(actorId, work.work_id), state = await this.stateSafely(current); if (alive() && store.get(actorId, work.work_id).revision === current.revision) this.notice(current, state); } });
     this.jobs = new AssistantJobs({ store, actorId, host: () => ports.host(), actions: async work => (await ports.authority(work)).actions?.(RUNTIME) });
     this.offers = new AssistantOffers({ store, actorId, now: () => this.now(), ...(ports.timeZone ? { timeZone: ports.timeZone } : {}),
@@ -410,7 +417,7 @@ export class AssistantService {
     // What the person said in this work may hold a standing wish worth keeping: the platform memory decides (a sub-task's
     // words are the delegating work's, not the person's, so it never learns from those).
     if (state === "completed" && before !== "completed" && !work.delegated_by && round !== "none")
-      void this.assistantPart(work).then(part => part.rounds, () => []).then(views => this.ports.learnFromRound?.({ work, run_id: round, ...memoryLearningSources(this.store.rounds(work.work_id), views) }));
+      void this.assistantPart(work).then(part => part.sourceViews, () => []).then(views => this.ports.learnFromRound?.({ work, run_id: round, ...memoryLearningSources(views) }));
   }
 
   /** Open notices, each saying whether one of the person's rules holds it here and now (on this surface). */
@@ -547,27 +554,21 @@ export class AssistantService {
   }
 
   /** The rounds run in the Assistant's own session. */
-  private async assistantPart(work: StoredWork): Promise<{ rounds: AssistantRound[]; reviews: AssistantPendingReview[]; recovery: boolean; problem?: { message: string; action?: string };
+  private async assistantPart(work: StoredWork): Promise<{ sourceViews: AgentRunView[]; rounds: AssistantRound[]; reviews: AssistantPendingReview[]; recovery: boolean; problem?: { message: string; action?: string };
     memory: Map<string, import("@molis-ai/molis-work-contracts/services/agent-host").AgentMemoryRecallFact>;
     queued: Pick<AssistantWorkView, "queued_inputs"> }> {
     const host = await this.ports.host();
     const adapter = host.adapter(RUNTIME);
     const stored = this.store.rounds(work.work_id).filter(round => round.executor !== "plugin");
-    const session = await adapter.readSession(sessionRef(work)).catch(() => null);
+    const { session, views } = await readAssistantInputs(adapter, sessionRef(work), stored.map(round => round.run_id));
     const recovery = session?.recovery;
-    const views = new Map<string, AgentRunView>();
-    // Older rounds first come from the session's own record; a run the store knows but the runtime lost reads as unknown.
-    await Promise.all(stored.slice(-30).map(async round => {
-      const view = await adapter.read({ session_id: work.session_id!, run_id: round.run_id }).catch(() => null);
-      if (view) views.set(round.run_id, view);
-    }));
     const titles = await this.capabilityTitles(work);
     const rounds: AssistantRound[] = stored.slice(-30).map(round => ({ ...this.roundView(round, views.get(round.run_id), titles), executor: "assistant" as const }));
     // Only a round that is really waiting on a decision shows one; a review left behind by an ended round is not offered.
     const waiting = new Set(rounds.filter(round => round.phase === "awaiting-review").map(round => round.run_id));
     // What each run really took from memory, from the runtime's own event.
     const memory = new Map([...views].filter(([, view]) => view.memory_recalled).map(([runId, view]) => [runId, view.memory_recalled!]));
-    return { rounds, reviews: this.reviewsFor(host, work).filter(review => review.run_id !== null && waiting.has(review.run_id)), recovery: Boolean(recovery), memory,
+    return { rounds, sourceViews: [...views.values()], reviews: this.reviewsFor(host, work).filter(review => review.run_id !== null && waiting.has(review.run_id)), recovery: Boolean(recovery), memory,
       queued: queuedInputs(session),
       ...sessionProblem(recovery, rounds, session) };
   }
@@ -667,6 +668,7 @@ export class AssistantService {
    */
   async send(input: AssistantSendInput, caller: AssistantCaller, writtenBy?: StoredRound["written_by"], stillCurrent?: () => boolean): Promise<AssistantSendResult> {
     const text = input?.reask !== undefined ? reaskTask() : checkText(input?.text, "要发送的内容", MAX_TEXT);
+    const original_input = sentOriginal(input, caller.original_input, writtenBy);
     let materials = checkMaterials(input.materials);
     checkHeldImages(materials, this.images);
     const context = checkContext(input.context);
@@ -694,7 +696,7 @@ export class AssistantService {
       if (input.reask !== undefined) materials = [...materials, await reaskMaterial(work, input.reask, this.store.rounds(work.work_id), (await this.ports.host()).adapter(RUNTIME))];
       assertSendCurrent(stillCurrent);
       linkSent(this.store.relations, work, materials, created ? context : null);
-      const result = await this.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode, writtenBy ?? input.written_by, stillCurrent, caller.beforeStart, caller.assertBeforeStart, { id: input.request_id, target: input.target, byHost: Boolean(writtenBy ?? input.written_by), about: input.about });
+      const result = await this.dispatch(work, text, materials, context, input.work_id ? undefined : input.mode, writtenBy ?? input.written_by, stillCurrent, caller.beforeStart, caller.assertBeforeStart, { id: input.request_id, target: input.target, byHost: Boolean(writtenBy ?? input.written_by) || input.reask !== undefined || !original_input, about: input.about, original_input });
       if (inputHold) { inputHold.accept(); const current = this.store.get(this.actorId, work.work_id); result.work = this.publicWork(current, await this.stateSafely(current)); }
       this.store.finishRequest(this.actorId, input.request_id, result);
       return result;
@@ -715,7 +717,8 @@ export class AssistantService {
   async control(workId: string, control: AssistantControl): Promise<AssistantWorkView> {
     const work = this.store.get(this.actorId, workId);
     if (control?.kind === "withdraw") {
-      await withdrawInput(work, this.store.rounds(work.work_id), control, { executor: () => this.executorOf(work), runtime: async () => inputsOf((await this.ports.host()).adapter(RUNTIME)) });
+      await withdrawInput(work, this.store.rounds(work.work_id), control, { executor: () => this.executorOf(work), runtime: async () => inputsOf((await this.ports.host()).adapter(RUNTIME)),
+        beforeWithdraw: (session_id, input_id) => { const source = memoryInputSource({ actor_id: this.actorId, session_id, input_id, kind: "supplement" }); for (const cancel of this.memorySourceWithdrawals) cancel(source.event_id); } });
     } else await controlAssistantWork(work, control, { store: this.store, actorId: this.actorId, continuations: this.continuations, delegations: this.delegations,
       host: () => this.ports.host(), executor: work => this.executorOf(work), latest: (host, work) => this.latestRun(host, work), cancelSetups: this.ports.cancelSetups, retainSetups: this.ports.retainSetups });
     return this.read(workId);
@@ -1240,11 +1243,11 @@ export class AssistantService {
   }
 
   /** The executor a work is kept with (or the plugin named), found again in the project's directory as the person; refused, not replaced, when it is not there. */
-  private async executorOf(work: Pick<StoredWork, "project_ref" | "executor"> | Pick<StoredWork, "project_ref">, pluginId?: string, dispatch?: { control?: ExecutorControl }): Promise<WorkExecutor> {
+  private async executorOf(work: Pick<StoredWork, "project_ref" | "executor"> | Pick<StoredWork, "project_ref">, pluginId?: string, dispatch?: { control?: ExecutorControl; original?: SendIntent["original_input"] }): Promise<WorkExecutor> {
     if (!this.ports.personActions) throw assistantErrors.unsupported("当前环境不能从这里使用执行方插件");
     const id = pluginId ?? ("executor" in work && work.executor.kind === "plugin" ? work.executor.plugin_id : undefined);
     if (!id) throw assistantErrors.invalid("这项工作不由执行方插件承担");
-    return WorkExecutor.bind(await this.ports.personActions(work, dispatch ? "dispatch" : undefined), id, dispatch?.control);
+    return WorkExecutor.bind(await this.ports.personActions(work, dispatch ? "dispatch" : undefined, dispatch?.original, id), id, dispatch?.control);
   }
 
   /** The plugins that can carry a work in the project the page is on, with the ways each offers; none for personal work. */
@@ -1255,7 +1258,7 @@ export class AssistantService {
   /** A work carried by a plugin: its round starts, continues or is answered in the plugin's own session. */
   private async executorDispatch(work: StoredWork, text: string, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, mode?: string, writtenBy?: StoredRound["written_by"], stillCurrent?: () => boolean, intent?: SendIntent): Promise<AssistantSendResult> {
     if (materials.some(item => item.kind === "image")) throw assistantErrors.unsupported("这项工作的执行方暂时不能带图片；可以把图里的要点写成文字再发");
-    const executor = await this.executorOf(work, undefined, { control: stillCurrent ? dispatchControl(() => assertSendCurrent(stillCurrent)) : undefined });
+    const executor = await this.executorOf(work, undefined, { original: !intent?.byHost && !work.delegated_by && !work.reply_target ? intent?.original_input : undefined, control: stillCurrent ? dispatchControl(() => assertSendCurrent(stillCurrent)) : undefined });
     if (work.executor.kind !== "plugin") throw assistantErrors.invalid("这项工作不由执行方插件承担");
     // The mode chosen before the first Send is saved on the session, where the plugin's page reads it too.
     if (!work.executor.session_id) work = await openSession(this.store, this.actorId, work, executor, mode);
@@ -1282,12 +1285,13 @@ export class AssistantService {
     const host = await this.ports.host();
     const adapter = host.adapter(RUNTIME);
     let base = await this.ports.authority(work);
-    const startAuthority = () => stillCurrent || beforeStart || assertBeforeStart ? { ...base, beforeStart: async () => {
+    const original_input = !work.delegated_by && !work.reply_target ? intent?.original_input : undefined;
+    const startAuthority = () => ({ ...(stillCurrent || beforeStart || assertBeforeStart ? { ...base, beforeStart: async () => {
       await base.beforeStart?.(); await beforeStart?.(); assertSendCurrent(stillCurrent);
     }, assertBeforeStart: () => {
       requireSynchronous(base.assertBeforeStart?.(), "最终授权检查必须同步完成");
       requireSynchronous(assertBeforeStart?.(), "最终授权检查必须同步完成"); assertSendCurrent(stillCurrent);
-    } } : base;
+    } } : base), original_input });
     let authority = startAuthority();
     const role = work.reply_target ? "thread-reply" : work.delegated_by ? ASSISTANT_DELEGATED_ROLE_ID : ASSISTANT_ROLE_ID;
     if (!work.session_id) {
@@ -1306,7 +1310,7 @@ export class AssistantService {
       if (latest.phase === "reconcile-required") throw assistantErrors.needs_check("上一轮有结果未确认的操作，需要先核对", { action: "打开这项工作核对" });
       const outcome = await this.inputs.deliver(intent?.target === "answer" ? await adapter.read(latest.ref) : latest, text, materials, context, { answer: control => adapter.control(latest.ref, control), send: input => inputsOf(adapter).send(latest.ref, input, () => assertSendCurrent(stillCurrent)),
         // A running round cannot be shown a picture any more; it goes with the next round.
-        beforeSteer: () => { if (materials.some(item => item.kind === "image")) throw assistantErrors.state("这一轮还在进行，图片只能随新的一轮发送：等它结束后再发，或先停止这一轮"); } }, intent);
+        beforeSteer: () => { if (materials.some(item => item.kind === "image")) throw assistantErrors.state("这一轮还在进行，图片只能随新的一轮发送：等它结束后再发，或先停止这一轮"); } }, { ...intent, original_input });
       return this.result(work, outcome, latest.ref.run_id, stillCurrent);
     }
     const previousWaitWithdrawn = !intent?.byHost && await this.continuations.withdraw(work, "用户更新了任务，接下来按最新要求处理");
@@ -1330,12 +1334,10 @@ export class AssistantService {
       prepared = work.thread_round ? threadReplyMaterials(work.work_id, work.thread_round) : await this.roundMaterials(work, materials, context, offered, unavailable, previousWaitWithdrawn);
       handle = await this.delegations.startPlaced(work, async placed => {
         work = placed; assertSendCurrent(stillCurrent);
-        return host.start(RUNTIME, roundStartInput(work, { actor_id: this.actorId, session: sessionRef(work), role_id: role, task: text, text_materials: prepared.materials, materials, tokens_left: left }), authority);
+        return host.start(RUNTIME, roundStartInput(work, { actor_id: this.actorId, session: sessionRef(work), role_id: role, task: text, text_materials: prepared.materials, materials, tokens_left: left, original_input, continued_from: intent?.continued_from }), authority);
       });
     } catch (error) {
-      // No round exists: what its recall was given went into none, and nothing it would have told is told.
-      const receipt = this.recalled.get(work.work_id);
-      if (receipt) this.ports.memory?.()?.settleUses(receipt, { injected: [], omitted: (this.chosenMemory.get(work.work_id)?.pinned ?? []).map(item => item.memory_id), unavailable: [] });
+      // A recipe alone has no usage effect. Only the Runtime can report actual Context dispatch.
       this.recalled.delete(work.work_id); this.chosenMemory.delete(work.work_id); this.starting.delete(work.work_id);
       throw error;
     }
@@ -1651,7 +1653,7 @@ export class AssistantService {
   /** The person's memories: personal ones, and — given a project — that project's. Disabled ones are listed as such. */
   async memories(projectId?: string | null): Promise<AssistantMemory[]> {
     const { items } = await this.memory().list(this.memoryCaller(null, projectId ?? null, true), { scope: "all" });
-    return items.sort((a, b) => (a.scope === b.scope ? 0 : a.scope === "personal" ? -1 : 1) || a.created_at.localeCompare(b.created_at))
+    return items.sort((a, b) => (a.scope === b.scope ? 0 : a.scope === "personal" ? -1 : 1) || (a.created_at === null ? b.created_at === null ? 0 : 1 : b.created_at === null ? -1 : a.created_at.localeCompare(b.created_at)))
       .map(item => ({ memory_id: item.memory_id, scope: item.scope, ...(item.project_id ? { project_id: item.project_id } : {}), text: item.text, origin: item.origin, disabled: item.state !== "active" }));
   }
 
@@ -1696,8 +1698,9 @@ export class AssistantService {
     const memory = this.ports.memory?.();
     if (!memory) return undefined;
     const projectId = work.project_ref?.project_id ?? null;
-    return assistantMemoryTools({ memory, actorId: this.actorId, work, projectId, caller: this.memoryCaller(work, projectId),
-      spoken: async () => [...typedWords(this.store.rounds(work.work_id), (await Promise.resolve().then(() => this.assistantPart(this.store.get(this.actorId, work.work_id))).catch(() => null))?.rounds ?? []), ...(this.starting.has(work.work_id) ? [this.starting.get(work.work_id)!] : [])] });
+    return assistantMemoryTools({ memory, controlled: (control, bindChangeTarget) => this.ports.memory?.(control, bindChangeTarget), sources: this.ports.memorySources, currentWork: () => this.store.get(this.actorId, work.work_id), currentInput: this.continuations.currentInput(work.work_id), actorId: this.actorId, work, projectId, caller: this.memoryCaller(work, projectId),
+      onSourceWithdrawal: listener => { this.memorySourceWithdrawals.add(listener); return () => { this.memorySourceWithdrawals.delete(listener); }; },
+      spoken: async () => memoryInputSnapshots(this.actorId, (await Promise.resolve().then(() => this.assistantPart(this.store.get(this.actorId, work.work_id))).catch(() => null))?.sourceViews ?? []) });
   }
 
   /**
@@ -1711,7 +1714,7 @@ export class AssistantService {
    */
   async memoryForRound(work: StoredWork, task: string, context: AssistantContextSnapshot | null = null): Promise<import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecalledMemory | null> {
     const prepared = this.chosenMemory.get(work.work_id);
-    if (prepared !== undefined) return prepared ? { pinned: prepared.pinned, budget_chars: prepared.budget_chars, receipt_id: prepared.receipt_id } : null;
+    if (prepared !== undefined) return prepared ? structuredClone(prepared) : null;
     const memory = this.ports.memory?.();
     if (!memory) return null;
     // Where the person is (plugin, object kind, Goal) decides which limited memories apply; the page's claim only narrows.
@@ -1721,7 +1724,7 @@ export class AssistantService {
       ...(Object.keys(situation).length ? { situation } : {}) }).catch(() => null);
     if (chosen) this.recalled.set(work.work_id, chosen.receipt_id);
     this.chosenMemory.set(work.work_id, chosen);
-    return chosen && { pinned: chosen.pinned, budget_chars: chosen.budget_chars, receipt_id: chosen.receipt_id };
+    return chosen && structuredClone(chosen);
   }
 
   /** What each round was given from memory and what did not fit, and what this work changed in memory (for the panel). */
@@ -1733,22 +1736,14 @@ export class AssistantService {
     const receipts = new Map(stored.filter(round => round.memory_receipt).map(round => [round.run_id, round.memory_receipt!]));
     if (receipts.size || facts.size) {
       const items = new Map((await memory.list(caller, { scope: "all" }).catch(() => ({ items: [] as MemoryItem[] }))).items.map(item => [item.memory_id, item]));
-      const view = (id: string) => { const item = items.get(id); return item ? { memory_id: id, scope: item.scope, text: item.text, origin: item.origin } : null; };
-      const present = <T,>(list: Array<T | null>): T[] => list.filter((item): item is T => item !== null);
       for (const round of rounds) {
         const fact = facts.get(round.run_id), receipt = receipts.get(round.run_id);
-        let used: NonNullable<AssistantRound["memories_used"]>["used"], omitted: NonNullable<AssistantRound["memories_used"]>["omitted"];
         if (fact) {
-          // The runtime's own facts: what went into the model and what did not fit. Deleted ones are gone from both.
-          if (receipt) memory.settleUses(receipt, { injected: fact.injected.map(one => one.memory_id), omitted: fact.omitted.map(one => one.memory_id), unavailable: fact.unavailable });
-          used = present(fact.injected.map(one => view(one.memory_id)));
-          omitted = present(fact.omitted.map(one => { const item = view(one.memory_id); return item ? { ...item, reason: "budget" as const } : null; }));
-        } else if (receipt) {
-          const uses = memory.uses({ receipt_id: receipt });
-          used = present(uses.filter(use => use.state === "used").map(use => view(use.memory_id)));
-          omitted = present(uses.filter(use => use.state === "omitted").map(use => { const item = view(use.memory_id); return item ? { ...item, reason: "budget" as const } : null; }));
-        } else continue;
-        if (used.length || omitted.length) round.memories_used = { used, omitted };
+          const trail = assistantMemoryTrail(fact, items);
+          if (trail) round.memories_used = trail;
+        } else if (receipt && memory.uses({ receipt_id: receipt }).some(use => use.state === "used")) {
+          round.memories_used = { used: [], omitted: [], unverified: true };
+        }
       }
     }
     return { changes: memory.changes(caller, { scope: "all", work_id: work.work_id, limit: 20 }) };

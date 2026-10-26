@@ -1602,3 +1602,13 @@ Molis 层的事实（L0「发送中」、页面代写来源、本人的纠正与
 - **预算**：这一节上限 16 000 字；超出时最早的让位，写明条数和输入 id，不悄悄丢；各轮内容先缩。
 - **原来的缺口（2026-10-19 已补）**：页面代写、经助理交给 Coding 的补充，原来在 Coding 里记成本人的话（D14c），R1 会把它们也当作「用户补充」带进摘要。BL-144 让 `coding.runs.control` 第 7 版的补充带 `source`，这些话在 Coding 里记成 `notice`，R1 本来就不计入，R1 没有另绕（RCPT-368）。
 - **证据**：`tests/coding-history-requirements.test.ts` 用 `tests/fixtures/coding-product-host.ts`（真 HTTP、目录、Agent Host、装好的 SDK，只拦 provider 的 `fetch`）跑两轮：第一轮扣住模型回复时发六条补充，读完后 compact，第二轮先摘要再开跑；断言落在第二轮真正发给 provider 的请求体上。RCPT-101 是模型摘要只提最后一条的情形；RCPT-102 是摘要调用被拒（400）与返回空两种，另核对 provider 请求数正好是一次摘要尝试加本轮自己的一次。`tests/coding-long-session.test.ts` 覆盖排除规则、跨轮最新状态与预算让位。真实模型与 RCPT-107 的人工实操未做。
+
+## 混合补充原件接入（2026-10-23）
+
+本片沿现补充输入主人保存受保护 HTTP 收到的本人原话；外层拼接 text 仍是唯一模型输入。附材、选区和宿主包装不变成本人正文，不拆中文标记。Host stamp 的 `use: supplement` 限定本次安装、确切外层动作及 `send.<input_id>`；缺省 stamp 仍只供初始输入，两个用途不能互借。无 stamp 的补充 Action 即使自报 person 也只按 host 收下，业务 schema 不收 original。`agent.inputs.send` 升 v3、`coding.runs.control` 升 v8，所有实际消费者同步。
+
+可信 Host 在当前 Session/Run 归属及原调用检查通过后，才把 raw text 投影为 `source: host, original: {text, source: person}`；Adapter 映射 SDK app，正文、原件、key 一起进入现 InputBook/Run，不建 App 正文账。队列、重试、取消回队、carry 和重启沿原 inputId/acceptedAtMs；SDK 原件不会额外进入模型上下文。来源 Port 使用 raw 原件并复查当前撤回、Run 状态、安装、偏好及遗忘；旧记录不推断历史 stamp。
+
+- MIX-IN-01：真实 Assistant HTTP 普通执行和 Coding 执行的附材/选区补充保留精确原话；实际模型仅收到原拼接 text，来源只收到 raw。
+- MIX-IN-02：同 key 重试、排队/carry/重启沿同一 inputId 和首次时间；改原件拒绝；同源跨 Run 不增加独立证据，撤回拒绝形成。
+- MIX-IN-03：无 stamp、伪 original/person、错用途/安装/Action、结束后复用、page/Host/peer 不成为本人来源；初始输入授权和取消/撤权零新输入保持。

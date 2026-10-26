@@ -58,7 +58,7 @@ test('memory is closed to generated plugins: the board offers none of it and lis
   const { actions } = project();
   const definitions = Object.values(memoryActions) as ActionDefinition[];
   actions.registry.registerProvider({ provider: { provider_id: MEMORY_PROVIDER_ID, title: '记忆', kind: 'system' }, definitions,
-    handlers: definitions.map(definition => ({ capability_id: definition.capability_id, version: 1, handle: () => ({}) })) });
+    handlers: definitions.map(definition => ({ capability_id: definition.capability_id, version: definition.version, handle: () => ({}) })) });
   const catalog = await capabilityCatalog(actions, 'web-user');
   const memory = catalog.filter(entry => entry.provider_id === MEMORY_PROVIDER_ID);
   assert.deepEqual(memory.map(entry => entry.id).sort(), ['memory.list', 'memory.recall', 'memory.write'], 'only what agents can use appears, and only as closed');

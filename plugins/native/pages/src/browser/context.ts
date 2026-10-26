@@ -15,7 +15,22 @@ export function publishContext(page: PagesPage) {
     if (unsaved) {
       context.unsaved = true;
       const text = docText(editor ? Editor.getDoc(editor) : sel.body);
-      if (text) context.draft_text = text.slice(0, 20000);
+      if (text) {
+        // Back off if the cut separates a supplementary Unicode character.
+        const prefix = (length: number) => text.slice(0, length - ((text.codePointAt(length - 1) ?? 0) > 0xffff ? 1 : 0));
+        let low = 0, high = Math.min(text.length, 20000);
+        context.draft_text = prefix(high);
+        if (JSON.stringify(context).length >= 32000) {
+          // The receiver budgets the whole JSON string, including escaping; only the excerpt may shrink.
+          while (low < high) {
+            const middle = Math.ceil((low + high) / 2);
+            context.draft_text = prefix(middle);
+            if (JSON.stringify(context).length < 32000) low = middle; else high = middle - 1;
+          }
+          context.draft_text = prefix(low);
+          if (!context.draft_text) delete context.draft_text;
+        }
+      }
     }
   }
   bench.setAttribute("data-assistant-context", JSON.stringify(context)); page.landing.report(); closingBlank(page);

@@ -512,7 +512,7 @@ export declare const PAGE_STATE_OWNERS: {
         readonly state: "The application chrome around the work area, including the Goal work mode.";
     };
     readonly "navigation-feed": {
-        readonly files: readonly ["apps/workbench/src/scripts/client/navigation-feed.ts"];
+        readonly files: readonly ["apps/workbench/src/scripts/client/navigation-feed.ts", "apps/workbench/src/scripts/client/navigation-feed-sources.ts", "apps/workbench/src/scripts/client/navigation-feed-stage.ts"];
         readonly state: "The Feed directory: its groups, the open group and the selected Feed task.";
     };
     readonly "goal-selection": {

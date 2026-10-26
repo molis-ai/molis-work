@@ -9,34 +9,36 @@
   "source": {
     "repository": "git+https://github.com/molis-ai/molis-prologue.git",
     "path": "packages/sdk",
-    "commit": "f4bbbd88c5f3ef6fc8041ed230b8bf5b1fa1d512",
-    "mergedUpstream": {
-      "pullRequest": 94,
-      "head": "f4bbbd88c5f3ef6fc8041ed230b8bf5b1fa1d512",
-      "merge": "d94a99fb3d3cd33c95cd97393c4d1949366ffa81",
-      "note": "Main tree equals the verified PR head; no local SDK patch."
-    },
+    "commit": "1cc80b05253df798eeb34afff65d1bda06bee587",
     "dirty": false,
     "dirtyPaths": [],
-    "patches": []
+    "patches": [],
+    "candidateUpstream": {
+      "pullRequest": "https://github.com/molis-ai/molis-prologue/pull/107",
+      "head": "1cc80b05253df798eeb34afff65d1bda06bee587",
+      "status": "merged",
+      "mergeCommit": "ccafbb74fb9db0e3a124ec502c57291677487e23",
+      "note": "Archive was packed from the clean reviewed head. GitHub compare confirms that its merged commit has no file differences."
+    }
   },
   "artifact": {
     "file": "prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
-    "bytes": 1340202,
-    "sha256": "119feb645c13f6d7ec1f288e42f0b68d95031e268826ca014da2c26346394bb1",
-    "integrity": "sha512-SYdscK7+Essw33sGQce1JEuZvT5Sc5LJJRSYniLRf47URlpu869mEsFR1iwxw+2pR7ujvc4WC/y2wTsGFp2bXQ=="
+    "bytes": 1397575,
+    "sha256": "6893801bb36df43630c0ea1cfe44eb08c2fcd0b57ae0b0abbffab42623ad5a78",
+    "integrity": "sha512-LPbQWH3HFyVKlmSQnFb6wuKGBLuZS5zrqHX1SEMuBb6ila2gIDi1WPHcnPhcyn/yXj1zUV8mgCbKqViRnKmcfQ=="
   },
   "build": {
-    "node": "24.19.0",
+    "node": "24.14.0",
     "pnpm": "11.9.0",
     "platform": "darwin",
     "architecture": "arm64",
     "steps": [
-      "pnpm quality",
-      "cd packages/sdk && pnpm pack --out <isolated-package-output>",
-      "Copy the verified package to the Molis vendor path"
+      "Use clean source 1cc80b05253df798eeb34afff65d1bda06bee587; merged #107 at ccafbb74fb9db0e3a124ec502c57291677487e23 has no file differences.",
+      "pnpm install --frozen-lockfile --offline --store-dir <existing-cache>",
+      "QUALITY_BASE=b54429dbf43e8f9f8f4b910999674c192077c247 pnpm quality",
+      "In packages/sdk: pnpm pack --pack-destination <isolated-directory>; all 816 archived dist files match the original build byte-for-byte, without vendor patches."
     ],
-    "packedOn": "2026-10-23",
-    "note": "Clean PR94 head; complete quality including 684 stable tests, clean installed SDK and Rust passed; 193 related tests include 23 new Node cases. Root independently installed this exact archive and ran the public consumer. Fixed replacement target/version and conservative suggestedBasis persist in shape5 with creation-input consistency. Actual prior PR93 package rejects five related entrypoints with zero commits and unchanged disk bytes. Ordinary cancellation and explicit purge retain existing semantics. Not a release or Molis acceptance; no independent reproducible rebuild claimed. Actual Node24.19.0 differs from declared24.14.0."
+    "packedOn": "2026-10-26",
+    "note": "Upstream #107 records final-head quality (71 files, 748 tests) and 24 delivery/App-wait regression tests passing. This adoption verifies the clean source, all 816 dist files, and unchanged archived package.json. Upstream remote quality did not start and is not claimed as CI passing. The same Molis consumer patch must persist original wait IDs before SDK purge; complete App MEM-40 and user acceptance require their own verification. Foundation #1064 consumes these same archive bytes only with its existing unpublished-session creation rollback; there is no registered-session deletion consumer here. The original wait-ID persistence requirement above belongs to the complete App #1101 purge/recovery plan, not to a claim that Foundation has delivered MEM-40."
   }
 }

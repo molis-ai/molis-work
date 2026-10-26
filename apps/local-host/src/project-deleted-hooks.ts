@@ -21,6 +21,11 @@ export interface ProjectDeletedOwner {
   readonly label: string | null;
   /** Manifest names substituted when the confirmation is rendered in the person's language. */
   readonly label_values?: Readonly<Record<string, string>>;
+  /**
+   * The plugin whose words translate `label` and its values: a plugin owner's text is its own, whoever published it, so the
+   * confirmation shows it in that plugin's English (`ui.translations`) and in no one else's. Absent for an owner of the Host's.
+   */
+  readonly words_of?: string;
   /** Owners run in ascending order of this (default 0), those with the same value in registration order. */
   readonly priority?: number;
   /**

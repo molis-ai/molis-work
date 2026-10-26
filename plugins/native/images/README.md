@@ -26,7 +26,7 @@ Contract: `@molis-ai/molis-work-contracts/platform/plugin`，记录结构见 `@m
 
 原验证见 `specs/archive/images-plugin/verification.md`，本次统一服务迁移见 `specs/action-architecture/migration.md`。受控 HTTP 厂商、标准 MCP 和浏览器测试验证真实传输、状态和图片字节；它们不等于付费厂商账号验收或用户本人验收。
 
-界面文字使用本包 `src/messages.ts` 的 `images.*` 稳定键，通过内置插件目录的 `messages` 交给共同翻译入口。`ui.ts` 与浏览器客户端共用这份中英词典；`src/en.ts` 只保留其他主人或目录元数据仍使用的中文键。换措辞时保留键，新增场景时按含义命名；格式与登记见 [Workbench 界面文字](../../../apps/workbench/README.md#界面文字翻译检查与一个文件怎样迁到稳定键)。
+界面文字使用本包 `src/messages.ts` 的 `images.*` 稳定键，在 Manifest 的 `ui.messages` 声明，交给共同翻译入口。`ui.ts` 与浏览器客户端共用这份中英词典；`src/en.ts` 只保留其他主人或目录元数据仍使用的中文键。换措辞时保留键，新增场景时按含义命名；格式与登记见 [Workbench 界面文字](../../../apps/workbench/README.md#界面文字翻译检查与一个文件怎样迁到稳定键)。
 
 ## 开发要求
 

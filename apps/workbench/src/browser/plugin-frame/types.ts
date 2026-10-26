@@ -103,6 +103,8 @@ declare global {
   var molisWorkControlHeaders: UiRequest["headers"];
   var MOLIS_WORK_MESSAGES: Record<string, string>;
   var MOLIS_WORK_PLUGIN_TITLES: Record<string, string>;
+  /** Each plugin's own English by plugin id: a frame takes its plugin's under the page's, and no other plugin's. */
+  var MOLIS_WORK_PLUGIN_WORDS: Record<string, Record<string, string>> | undefined;
   var L: Translate;
   var molisWorkbenchPluginFactories: Record<string, (host: UiPluginClientHost<HTMLElement, HTMLDialogElement, HTMLImageElement | HTMLIFrameElement>) => void>;
   var molisPluginFrames: { mount(root: HTMLElement, host: FrameHost, pack: FramePack): Promise<{ frame: HTMLIFrameElement; scope: FrameScope }> };

@@ -12,7 +12,7 @@ JSON 导出由动作服务读取已保存的演示稿，返回文件名、MIME �
 
 页面的客户端是 `src/browser/` 下的 TypeScript：`tsconfig.browser.json` 做类型检查，构建时 esbuild 从 `src/browser/factory.ts` 打成 `dist/ppt-client.js`（banner/footer 包成工作台要的 `(host) => {…}` 工厂），`src/client.ts` 只读这份包；请求经共同的 `molisWorkRequest`，路径来自 `host.pluginRoute`，浏览器代码里不写插件 id。
 
-页面上的字是稳定键（`ppt.<区域>.<名称>`），中英文都在 `src/messages.ts`，登记在 `registration.ts` 的 `messages`，不经工作台的 `i18n/en.ts` import。`src/en.ts` 的 `PPT_EN` 只留 18 条宿主还按中文原文翻译的词（服务端标签与错误、别的主人在查的词，BL-461）；大纲弹窗把服务端写的「模型不可用」「读不到 Pages 文档」句子原样交给共同翻译器，这两处是 `src/browser/outline.ts` 里仅有的动态翻译（`tests/ppt-client-bundle.test.ts` 钉住）。
+页面上的字是稳定键（`ppt.<区域>.<名称>`），中英文都在 `src/messages.ts`，在 `manifest.ts` 的 `ui.messages` 声明，不经工作台的 `i18n/en.ts` import。`src/en.ts` 的 `PPT_EN` 只留 18 条宿主还按中文原文翻译的词（服务端标签与错误、别的主人在查的词，BL-461）；大纲弹窗把服务端写的「模型不可用」「读不到 Pages 文档」句子原样交给共同翻译器，这两处是 `src/browser/outline.ts` 里仅有的动态翻译（`tests/ppt-client-bundle.test.ts` 钉住）。
 
 验证与系统剩余范围见 [动作体系迁移记录](../../../specs/action-architecture/migration.md)。插件作者接入见 [Plugin 开发 · 对外 MCP](../../../docs/platform/PLUGIN-DEVELOPMENT.md#对外-mcp)。
 

@@ -1367,3 +1367,23 @@ batch-33 集成实证：准确生产提交 `64210640729de77f8dddb97106eaff2a29cb
 诊断版ChromeHarness的原interaction-no-crosstalk文件本机4/4、零重试通过；本机未复现Linux失败，不能把新增调用栈/实际elapsed上下文称为超时修复。当前源码的原test-kit strict、75份API、准确b3bac健康、边界、全部原资源门及secrets通过，构建身份与当前源码相同；局部验证不能替代下一提交的完整CI或最终用户验收。日志索引为仓外molis-foundation-52c-memory-drain-*、molis-foundation-52c-close-cdp-*、molis-foundation-52c-cdp-stack-diagnostic-20261026.log，既有首红不删除。关闭修复与诊断仍合入#1064，不另拆PR。
 
 独立复审已核关闭、实例与Catalog顺序，未发现新增生产P1/P2。失败边界仍沿旧合同：Adapter或Ledger的close抛错会保留原owner供显式重试；usage sink自身的I/O拒绝仍记录memory.receipt_unrecorded，flush只等待已接受队列完成，不保证每条投影成功，不能扩大为任意投影失败都会使close失败。本轮修复的是过早关闭账本，不增加投影持久队列或自动重放。
+
+
+### Foundation batch40 主干交点短合同（2026-10-26，整合前）
+
+#1064的c615在原集成Full运行时，main已到2b3dc51de（#1308）；真实合并状态CONFLICTING，因此普通PR CI未启动。保留c615源码树和运行，在新隔离树按十个实际冲突整合，不取消旧诊断、不把新主干当作已验证。
+
+保留主干Home snapshot/安装卸载/插件生命周期、公开声明、样式投影及更严门禁；同时保留Memory采用ledger4、可信原件、调用者隔离、严格来源和本轮关闭排空。主干final103-bridge是独立旧基过渡包，不是SDK主干祖先，不能猜测兼容。已对照公开verifyNodeStorageContents及实际inspection/verifier：已合#107干净源1cc80b与合并ccaf整树相同，具同形口与正式103/104验证实现；#108对这几个验证/inspection入口未改。Foundation采用准确已合#107包，不依赖仍待性能验收的Draft108；App后续集合读取仍在#1101采用108。主干bridge仅按其LKG记录保留，不装配第二执行SDK。
+
+Home snapshot沿原Home owner、私有复制payload、原Home keyRoot认证、逐文件fsync与manifest/rename原链；其manifest+data+sealed目录且不含原key，不等于Memory recover-home要求的同历史完整T0/T1停写工作副本。本刀只同步边界说明并保留两套原消费者旅程，不新增snapshot解封、归档转工作副本、路径重定位或新恢复机制。
+
+允许仅实际冲突及其必要现有接线/声明/文档/采用记录；资源精确对比2b3主干和同一已批功能，不能带通用剩余额度；CI沿主干新增内容并保留已批准Node24.14固定，不改门槛/超时/重试。先build/严格/公开API/准确新基health/边界/原资源及必要交点集，SDK采用加原Home snapshot真实负例、Memory采用/关闭/恢复及权限回归。源码最终冻结后再推动该新提交的既有CI，上一头失败和只重试通过保留；所有未跑项仍待验证，不操作真实Home、不发布。
+
+
+#### Foundation batch40 合成边界与 c615 Full 结算（2026-10-26）
+
+c615 的 [Full 40244770783](https://github.com/molis-ai/molis-work/actions/runs/40244770783) 16片及aggregate成功：原配置排除29个macOS-only后，1487个runner文件中1486首轮ok、1个仅原一次重试后ok、最终失败0。首轮ok含5个全skip文件；8文件摘要共有14个非pass项，成功stdout未保留，不声明零跳过。interaction-no-crosstalk首过4/4；coding-input-receipts点击发送后清理releaseObject超时，经过1779ms、原限额1000ms，原retry通过，根因仍未知。Root已独立核对全部编号结果、原错误栈和重试摘要；没有改变时限、重试或断言。
+
+本次与main `2b3dc51ded348325edbf135a13c195ba89fba602` 合成保留原审批恢复、快照验证、插件样式门禁及全部安全行；依赖采用已合SDK107的原包，不带仍待性能验收的108。SDK107的wait清除不会新增Foundation消费者：此处唯一purge是Index未登记的新会话创建回滚，尚未发出ref、启动Run或绑定业务wait；已登记Session删除仍须随App原wait-ID持久计划成套交付，不能宣称MEM-40已在Foundation完成。
+
+新主干snapshot输出是`manifest.json`与`data/`载荷，不带原Home密钥，不能直接作为recover-home的完整T0/T1工作副本。本次不新增解包、补密钥或第二恢复流程。合成后补原离线快照真实SDK正反例、未发布创建回滚与cleanup失败、审批/等待恢复、Memory原件/回执/关闭交点；再核最终头的完整CI及原门禁。c615绿色不替代合成头验证，旧Cloudflare访问待定与历史失败仍保留。

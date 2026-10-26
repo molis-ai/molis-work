@@ -10,8 +10,8 @@ import {
   composeAgentHost,
   molisWorkHostProjectReference,
 } from "@molis-ai/molis-work-app-local-host";
-import { agentHostCapabilities, type AgentActionClient, type AgentSessionOwner, type AgentStartExecution, type AgentStartInput, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
-import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { agentHostCapabilities, agentWriteCheckerActions, type AgentActionClient, type AgentSessionOwner, type AgentStartExecution, type AgentStartInput, type AgentStartRequest } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { ActionError, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
@@ -344,6 +344,40 @@ test("装配缺服务时按主人给出带码的错误，调用方分得出缺�
   } finally {
     await composition.dispose();
     await localHost.close();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test("BL-221 BL221-REFUSAL-01 BL221-REFUSAL-02 missing Runtime and inference reject through public composition", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "bl221-missing-services-"));
+  const localHost = new MolisWorkLocalHost({ completeText: null });
+  const composition = composeAgentHost({ localHost, homeDirectory: directory, workspaceFor: () => null });
+  const reference = molisWorkHostProjectReference({ databasePath: join(directory, "project.db"), projectId: "project-a" });
+  let resolved = 0;
+  try {
+    await assert.rejects(localHost.actionClient(reference).invoke(
+      { actor_id: "web-user", project_id: reference.project_id, audience: "user", permissions: ["projects:settings"] },
+      agentWriteCheckerActions.list, {}),
+    (error: unknown) => {
+      assert.ok(error instanceof ActionError);
+      assert.equal(error.code, "host.agent_runtime_unavailable");
+      assert.equal(error.kind, "unavailable");
+      return true;
+    });
+    await assert.rejects(composition.inference.completeText({
+      protocol: "anthropic-compatible", endpoint: "http://127.0.0.1:1", model: "unused", prompt: "unused",
+      credential_ref: "unused", resolveCredential: () => { resolved++; return null; },
+      max_output_tokens: 1, timeout_ms: 1000,
+    }), (error: unknown) => {
+      assert.ok(error instanceof ActionError);
+      assert.equal(error.code, "host.inference_unavailable");
+      assert.equal(error.kind, "unavailable");
+      return true;
+    });
+    assert.equal(resolved, 0, "unavailable inference never resolves a credential");
+    assert.deepEqual(composition.agentHost.descriptors(), [], "the refusals create no fallback Runtime");
+  } finally {
+    await composition.dispose(); await localHost.close();
     await rm(directory, { recursive: true, force: true });
   }
 });

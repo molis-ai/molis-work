@@ -403,7 +403,25 @@ Inbox → Pages 通过 Host 组合各插件公开能力，输入快照与幂等�
 
 签名只证明内容和发布者身份，不代表官方审核；验证 bundle 不授权执行另一份源码目录。示例中的 local-development-binding 不具备密码学签名含义。本轮测试只使用新生成的临时密钥，没有接触用户密钥或发布 registry。
 
-用户把这样的包装进自己的 Home 目前没有路径：没有 `install` 命令，没有保存「信任哪个发布者」的地方，包也不会在沙箱里运行。方案（安装命令、签名信任、沙箱边界、市场入口）见 [第三方插件：安装方案](../system/THIRD-PARTY-PLUGINS.md)，尚未实现。
+## 沙箱包格式与安装
+
+上面 `pack` 打的是在 Host 进程之外自己运行的插件源码包。另一种包在 Home 里跑在**沙箱**里：代码是一个入口文件，界面由 Host 按声明画，不带任何页面脚本。它是公开格式，任何作者都可以做：创作台发布只是其中一个作者，Host 读它的代码里没有创作台的任何实现。类型在 `@molis-ai/molis-work-contracts/platform/plugin`（`SANDBOX_PACKAGE_FILES`、`SandboxPackageInterface`、`SandboxPackagePrompt`），沙箱合同的类型在 `platform/plugin-sandbox`。
+
+包就是一个 `PluginPackageBundle`（`payload` + `signature` + `publisher_key`，签名方式同上），`payload.files` 恰好是下面五个文件，缺一个或多一个都不是这个格式：
+
+| 文件 | 内容 |
+| --- | --- |
+| `manifest.json` | 与 `payload.manifest` 逐字段相同的清单 |
+| `plugin.mjs` | 沙箱里运行的入口代码，不超过 8 MiB |
+| `contract.json` | `SandboxPluginContract`：插件有哪些操作（读 `query`、写 `command`）、每个操作的输入输出 schema 和要的权限；`pluginId` 与清单的 `plugin_id` 相同；输入输出的对象 schema 都写 `properties`、`required` 和 `additionalProperties: false` |
+| `interface.json` | `{ parts, nodes, presentation?, acceptance? }`：界面零件（`parts`，1–100 个）、每个零件选用的组件（`nodes`）、可选的整体呈现与验收步骤；零件读写的操作必须是合同里有的 |
+| `prompts.json` | 数组（可为空，至多 64 项），每项 `{ id, title, purpose, body }`，`id` 为小写字母数字与连字符，`body` 不超过 8000 字 |
+
+沙箱插件的清单只有一种形状：类型是应用（`kind: "app"`），入口 `./plugin.mjs`，权限只有 `storage:private`，一条 `POST /call` 路由，一个 `stage` 视图；作者能定的只有 `plugin_id`、`version`、`name`、`publisher` 和 `upgrade_compatibility`。所以沙箱包不能声明常开、默认连线、默认输入组或本机目录，Host 也就没有这些东西要在安装时请人同意。
+
+**安装**：`molis-work plugin install <signed-package.json> <project-id> [--pin-as <发布者名称>] [--confirm]`，交给这个 Home 的常驻 Host 去做（没有常驻 Host 就停下，不在命令自己的进程里装）。不带 `--confirm` 只预览：Host 验证签名，按上面的格式读一遍，再说明装上它意味着什么（发布者、有没有被固定过、要的权限）；加 `--confirm` 才装。发布者还没被固定时，`--confirm` 要同时给 `--pin-as` 名称，这是本人对这个公钥的信任，之后这个发布者的包不必再取名；固定可以撤销，已撤销的发布者的包在预览就被拒。界面里是同样的两个动作（`plugins.install.preview`、`plugins.install.confirm`），只接受本人的操作，Agent、MCP、工作流和插件都调不了。
+
+**拒绝**：包没有签名、内容被改、公钥不是清单里写的发布者，分别以 `plugin.signature_invalid`、`plugin.signer_mismatch` 拒绝；签名通过但不是上面的格式，以 `plugin.declaration_invalid` 拒绝，且发生在写入任何记录之前（固定的发布者、保存的包、安装记录都没有）。装好的包放在 Home 的 `plugin-packages/` 下，每次启动都重新验证签名和入口代码，被改过就不运行。从签名包装进来的插件升级或回滚，现在是先卸载、再装新的包。
 
 ## 可复现验证
 

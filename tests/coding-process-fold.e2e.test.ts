@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { codingTimelineWords, createCodingTimeline } from "@molis-ai/molis-work-plugin-coding";
 import { openStudioChrome } from "./fixtures/plugin-builder-browser.js";
 import { pageTextScript } from "./fixtures/page-text.js";
-import { renderMolisWorkWorkbenchStylesheet } from "./workbench-renderer-fixture.js";
+import { renderMolisWorkWorkbenchWithPluginStylesheets } from "./workbench-renderer-fixture.js";
 
 /**
  * VUX-13 in the Coding timeline: a round's steps stream into one group that the round never opens or closes by itself; each
@@ -23,7 +23,7 @@ test("VUX-13 the Coding timeline folds a round's steps like the Assistant's proc
     await page.command("Emulation.setDeviceMetricsOverride", { width: 1200, height: 900, deviceScaleFactor: 1, mobile: false });
     await page.evaluate(`(()=>{${pageTextScript("zh")}})()`);
     // The workbench sheet the Coding frame and the Assistant both draw with; the Assistant's process rules live under the workbench body.
-    await page.evaluate(`(()=>{const style=document.createElement('style');style.textContent=${JSON.stringify(renderMolisWorkWorkbenchStylesheet())};document.head.append(style);
+    await page.evaluate(`(()=>{const style=document.createElement('style');style.textContent=${JSON.stringify(renderMolisWorkWorkbenchWithPluginStylesheets())};document.head.append(style);
       document.body.className='immersive-workbench';document.body.innerHTML='<main style="width:760px;padding:24px"><section data-coding-block></section><div data-assistant-fixture></div></main>';})()`);
     // The factory reaches the page by toString in production, so it does here.
     await page.evaluate(`(()=>{

@@ -33,6 +33,27 @@ export interface PluginWorkbenchRegistration {
   readonly order: number;
   readonly contributions: readonly UiContribution[];
   readonly stylesheet?: string;
+  /**
+   * A plugin whose page runs in a frame (it has a client) sends the rules of its own namespace (`.<project_plugin_id>-…`,
+   * `[data-<project_plugin_id>-…]`) as a sheet of its own, which only the frames that need it link; every other rule stays in
+   * the shared workbench sheet. These are the classes (no dot) of that namespace which something outside the plugin's own
+   * frame also draws, so the rules naming them stay in the shared sheet too. tests/plugin-styles.test.ts finds the classes
+   * this has to list.
+   */
+  readonly stylesheetShared?: readonly string[];
+  /**
+   * Further class/attribute prefixes this plugin's rules may be written under, beside `.<project_plugin_id>`. A plugin whose
+   * classes were named before the platform had its id (the plugin builder's `as-` and `pb-`) names them here, so its own rules
+   * can leave the shared sheet (PG-070). Each entry is a prefix ending in `-`; the Host refuses one that is another plugin's
+   * id or prefix, or one of the platform's own (`mw-`, `pc-`). The rules must still be ones the plugin alone can draw;
+   * `stylesheetShared` lists whatever something outside its frame also draws.
+   */
+  readonly stylesheetPrefixes?: readonly string[];
+  /**
+   * The plugins whose own sheet this plugin's frame links beside its own because it draws their classes (the plugins in
+   * `clientUses` are linked already). Their short ids.
+   */
+  readonly stylesheetUses?: readonly string[];
   readonly clientFactory?: string;
   /**
    * The shell sends `clientFactory` without its whole-line comments and indentation (the page does not run them). A script
@@ -125,7 +146,5 @@ export interface PluginRegistration {
    * stores. A library is not written here: the registry reads it from the Manifest's `databases.home`.
    */
   readonly home_store?: HomeStoreDeclaration;
-  /** Owner-scoped UI words, projected into the page language by the common translator. */
-  readonly messages?: Readonly<Record<string, { readonly zh: string; readonly en: string }>>;
   readonly workbench: PluginWorkbenchRegistration;
 }

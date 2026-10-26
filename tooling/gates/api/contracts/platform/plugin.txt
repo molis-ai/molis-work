@@ -3327,6 +3327,8 @@ export interface PluginManifest {
         contributions: string[];
         embedded_plugins?: string[];
         views?: UiViewDeclaration[];
+        messages?: PluginMessagesDeclaration;
+        translations?: PluginTranslationsDeclaration;
     };
     ports?: PluginPortsDeclaration;
     events?: PluginEventsDeclaration;
@@ -3373,6 +3375,11 @@ export interface PluginMaterialsClient {
     readOriginalRange?(record_key: string, request: PluginOriginalRangeRequest): Promise<PluginOriginalRangeContent>;
     releaseOriginal?(record_key: string): Promise<void>;
 }
+
+export type PluginMessagesDeclaration = Readonly<Record<string, {
+    readonly zh: string;
+    readonly en: string;
+}>>;
 
 export type PluginModelAvailability = ActionAvailability & {
     readonly runtime_label?: string;
@@ -3908,6 +3915,8 @@ export interface PluginTerminalClient {
     }>;
 }
 
+export type PluginTranslationsDeclaration = Readonly<Record<string, string>>;
+
 export interface PluginUiClient {
     register<TModel>(contribution: UiContribution<TModel>): void;
     unregister(contributionId: string): void;
@@ -4000,6 +4009,14 @@ export interface RetainedActionAuthority {
     (): Promise<void>;
     readonly assertCurrent: () => void;
 }
+
+export declare const SANDBOX_PACKAGE_FILES: {
+    readonly manifest: "manifest.json";
+    readonly entrypoint: "plugin.mjs";
+    readonly contract: "contract.json";
+    readonly interface: "interface.json";
+    readonly prompts: "prompts.json";
+};
 
 export declare const SEARCH_ENTRIES_INPUT_SCHEMA: {
     type: string;
@@ -4509,6 +4526,20 @@ export declare const SUBJECT_OFFER_SCHEMA: {
 export declare const SUBJECT_REFERENCE_TYPE = "molis.subject-reference.v1";
 
 export declare const SURFACE_BROWSER_PERMISSION = "surface:browser";
+
+export interface SandboxPackageInterface {
+    parts: SandboxJson[];
+    nodes: SandboxJson[];
+    presentation?: SandboxJson;
+    acceptance?: SandboxJson[];
+}
+
+export interface SandboxPackagePrompt {
+    id: string;
+    title: string;
+    purpose: string;
+    body: string;
+}
 
 export type SceneConfigurationInput = {
     binding_id: string;
@@ -5100,6 +5131,7 @@ export declare const pluginErrors: import("platform/action-errors").ErrorCodeRai
     readonly manifest_invalid: "invalid";
     readonly package_invalid: "invalid";
     readonly permission_invalid: "invalid";
+    readonly preview_unknown: "not_found";
     readonly publisher_revoked: "invalid";
     readonly publisher_untrusted: "invalid";
     readonly quarantined: "invalid";

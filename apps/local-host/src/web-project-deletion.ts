@@ -4,10 +4,17 @@ import type { ProjectDeletionResult } from "@molis-ai/molis-work-contracts/modul
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody } from "./web-http.js";
 import { L } from "./web-locale.js";
-import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
+import { withPluginWords } from "@molis-ai/molis-work-app-workbench";
+import { projectDeletedHooksFor, type ProjectDeletedOwner } from "./project-deleted-hooks.js";
 import { resolveConfiguredHome } from "./product-home.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { ProjectDeletionService, type ProjectDeletionPorts } from "./project-deletion-service.js";
+
+/** What an owner says goes with the project, in the person's language; a plugin owner's text is translated with that plugin's own words. */
+export function ownerLabel(owner: Pick<ProjectDeletedOwner, "label" | "label_values" | "words_of">): string {
+  const draw = () => L(owner.label ?? "", owner.label_values && Object.fromEntries(Object.entries(owner.label_values).map(([name, value]) => [name, L(value)])));
+  return owner.words_of ? withPluginWords(owner.words_of, draw) : draw();
+}
 
 /** How the settings page hears a refused or failed deletion: a live terminal is a conflict the person can resolve (409, with its code), anything else a 400. */
 export function sendDeletionFailure(response: ServerResponse, error: unknown): void {
@@ -40,7 +47,7 @@ export function createProjectDeletionHttp(withMolisWorkProjectCatalog: LocalWebC
     const scopeMatch = url.pathname.match(/^\/api\/settings\/projects\/([^/]+)\/delete-scope$/);
     if (request.method === "GET" && scopeMatch) {
       // Every owner of project data in this Home that names itself, in the person's language.
-      const owners = projectDeletedHooksFor(homeDirectory ?? resolveConfiguredHome()).owners().flatMap(owner => owner.label ? [{ owner_id: owner.id, label: L(owner.label, owner.label_values) }] : []);
+      const owners = projectDeletedHooksFor(homeDirectory ?? resolveConfiguredHome()).owners().flatMap(owner => owner.label ? [{ owner_id: owner.id, label: ownerLabel(owner) }] : []);
       sendJson(response, 200, { project_id: decodeURIComponent(scopeMatch[1]), owners });
       return true;
     }

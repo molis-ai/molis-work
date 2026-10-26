@@ -38,10 +38,6 @@ export interface PluginRegistration {
     };
     readonly project_data?: ProjectDataDeclaration;
     readonly home_store?: HomeStoreDeclaration;
-    readonly messages?: Readonly<Record<string, {
-        readonly zh: string;
-        readonly en: string;
-    }>>;
     readonly workbench: PluginWorkbenchRegistration;
 }
 
@@ -58,6 +54,9 @@ export interface PluginWorkbenchRegistration {
     readonly order: number;
     readonly contributions: readonly UiContribution[];
     readonly stylesheet?: string;
+    readonly stylesheetShared?: readonly string[];
+    readonly stylesheetPrefixes?: readonly string[];
+    readonly stylesheetUses?: readonly string[];
     readonly clientFactory?: string;
     readonly clientServed?: true;
     readonly clientUses?: readonly string[];

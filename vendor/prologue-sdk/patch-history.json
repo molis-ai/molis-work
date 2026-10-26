@@ -9,9 +9,9 @@
   },
   "upstream": {
     "repository": "https://github.com/molis-ai/molis-prologue",
-    "checkedOn": "2026-10-23",
-    "mainHead": "2c7feba5a6ea85e81e4a263671fb5e68f536d86a",
-    "statement": "2026-10-23 对上游 main 2c7feba5a6ea85e81e4a263671fb5e68f536d86a（Prologue #60，含 #59、#58、#53、#57、#56、#55、#54、#52、#51、#50、#49、#48、#47、#46、#45、#44、#43、#42 与此前各项）逐项用 GitHub 的比较接口（repos/molis-ai/molis-prologue/compare/<提交>...<main 头>，状态为 ahead 或 identical 即是祖先）复核：commitsChecked 中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源（状态 diverged）以外，全部是 main 祖先；三个过渡提交本身不在 main，仍按完整提交号保留。上游仓库此后改名为 molis-ai/molis-prologue（原 molis-ai/prologue）。",
+    "checkedOn": "2026-10-25",
+    "mainHead": "f1753ec8fa2cbca45667e60e101b93702acc6640",
+    "statement": "2026-10-25 在准确上游 main f1753ec8fa2cbca45667e60e101b93702acc6640 上对42个commitsChecked逐个执行git merge-base --is-ancestor：除已换掉的08b84296、923e5a40、4007a93c三个历史过渡源及当前ba75c9f8之外，其余均为main祖先。当前final103-bridge依赖来自公开固定分支feature/node-storage-final103-bridge的ba75c9f8437018904b24dabeaaef6ded8054add5，不是main祖先：基点2c7feba5（PR60），只移植PR103定稿6523abb47..513237d2的功能；4e018e1a保旧普通分页/读取及旧合同，ba75只修导航。按accepted WO #1267/6395049480作为过渡包采用，不带PR61–101、PR104或旧42。旧42只曾作为本PR候选验证、未正式合入，不将其伪记为已采用的历史包。原已删除的26份补丁与32包记录保持，后续可按Git blob取回。",
     "commitsChecked": [
       "03c6ba0b24ddd46ff1cd0f604e3e2bcb134687c2",
       "07ad08a11e3b4a01b9fe877dedff1efba6f4833c",
@@ -53,7 +53,8 @@
       "3adc5e87e81567af59983d1e7ac411a703454167",
       "a51607fbfa11e8f59ac0962906aa1bcbf155d8e6",
       "753dbae8359e56a74397d030af4d18abf402d5b5",
-      "2c7feba5a6ea85e81e4a263671fb5e68f536d86a"
+      "2c7feba5a6ea85e81e4a263671fb5e68f536d86a",
+      "ba75c9f8437018904b24dabeaaef6ded8054add5"
     ]
   },
   "patches": [
@@ -774,12 +775,21 @@
       "gitBlob": "2eb0b2d6f108edfb6ce457aa08effd6352a723e1",
       "commit": "753dbae8359e56a74397d030af4d18abf402d5b5",
       "description": "上游 main 753dbae8（Prologue #57，含 #54、#55 效果与 awaiting-input 的来源、#56 附件占位串加 -END 结尾、#57 多张图按给出的顺序到模型与此前各项）。2026-10-23 被包含 #53（已答的 ask-user 结果用 answered 带题号）、#58（运行时准入与关机边界）、#59（收窄内部导出）与 #60（retry-waiting 事件）的统一包替换；旧包及其来源记录从 Git 历史取回。"
+    },
+    {
+      "file": "prologue-sdk-0.0.0-rc.1-retry-waiting.tgz",
+      "bytes": 1249614,
+      "sha256": "ac44cf9fd079f3444523285798ac0d6d2dc1ed1e5b07f05870887db66b4df419",
+      "gitBlob": "fd00b166b99637c31406a41367fba0577f1a3f34",
+      "commit": "2c7feba5a6ea85e81e4a263671fb5e68f536d86a",
+      "description": "上游 main 2c7feba5（Prologue #60，含 retry-waiting、#59、#58、#53 与此前各项）。2026-10-24 由同一准确基点加 C2-SDK-INSPECT 固定42ccc75a的零写 Node 存储认证包替换；SDK源头本地提交未声称已合上游，未带整个Memory Draft；旧包及来源记录从Git历史取回。"
     }
   ],
   "notes": [
     "sourceKind：upstream-commit 是补丁施加到基线上得到的整棵树与所写提交的树逐文件相同（git archive、git apply -p1、diff -r 实测）；uncommitted-worktree 是来源为未提交的工作树、该工作树已不在，其中以 a7e785b8 为基线的 17 份，新增的非空行绝大部分在 af7375c7 的同名文件里（方案 §4.5 的逐行比对，标为推断）；molis-repo 是补丁只保存在 Molis 仓库里。18 份没有自己提交的补丁都能干净应用在所写的基线上（git apply --check -p1）。",
     "ledger-status.patch 已并入 claims.patch；network-dispatch.patch 已包含在 assistant.patch 与 bounded-results.patch 中（当时 README 的说法）。",
     "2026-10-01 清理时这些工作树的未提交状态另存在开发机的 ~/code/prologue-cleanup-backup-20261001/wip.bundle，只在那台机器上，不属于本记录。",
-    "最早的 prologue-sdk-0.0.0-rc.1.tgz 没有对应的源码提交，不能当作任何一个提交的构建；其余本地中间包不是依赖，也没有作为分发物提交过。"
+    "最早的 prologue-sdk-0.0.0-rc.1.tgz 没有对应的源码提交，不能当作任何一个提交的构建；其余本地中间包不是依赖，也没有作为分发物提交过。",
+    "2026-10-26 Foundation batch40 adopts merged Memory #107: clean source 1cc80b05253df798eeb34afff65d1bda06bee587, upstream merge ccafbb74fb9db0e3a124ec502c57291677487e23, whose complete trees are equal. Replaced #94 package, SHA256 119feb645c13f6d7ec1f288e42f0b68d95031e268826ca014da2c26346394bb1, remains recoverable from c61508d5e15ab4850d256843a0e4110f9ecf1e20:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-memory-p0.tgz. Main final103-bridge is retained as inactive LKG; the dated upstream audit above describes that earlier adoption and is not restated as an audit of this new source."
   ]
 }

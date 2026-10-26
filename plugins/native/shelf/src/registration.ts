@@ -1,6 +1,6 @@
 import { createHomeShelfPlugin } from "./home-plugin.js";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
-import { createShelfPlugin, SHELF_MESSAGES, SHELF_PROJECT_PLUGIN_ID, shelfManifest, SHELF_CLIENT_FACTORY_SCRIPT, SHELF_SETTINGS_CLIENT_SCRIPT, SHELF_STYLES, shelfSettingsUiContribution, shelfUiContribution } from "./index.js";
+import { createShelfPlugin, SHELF_PROJECT_PLUGIN_ID, shelfManifest, SHELF_CLIENT_FACTORY_SCRIPT, SHELF_SETTINGS_CLIENT_SCRIPT, SHELF_STYLES, shelfSettingsUiContribution, shelfUiContribution } from "./index.js";
 import { shelfBoardSpecimens } from "./board-specimens.js";
 
 /**
@@ -17,7 +17,6 @@ export const registration: PluginRegistration = {
   // in the Home half's own `start`: reading the shelf writes nothing.
   runtime: { create: createHomeShelfPlugin, dual_instance: true,
     package_name: "@molis-ai/molis-work-plugin-shelf", factory_export: "createHomeShelfPlugin" },
-  messages: SHELF_MESSAGES,
   workbench: {
     order: 8,
     contributions: [shelfUiContribution, shelfSettingsUiContribution],

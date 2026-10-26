@@ -18,6 +18,8 @@ export { LOCAL_OPAQUE_BLOB_SCHEMA_SQL } from "./schema.js";
 export { LocalCatalogMetadata } from "./catalog-metadata.js";
 
 export { atomicWriteFileSync } from "./adapters/atomic-write.js";
+export { snapshotFileStat, isSnapshotSqlite, readSnapshotFile, copySnapshotFile, snapshotFileDigest } from "./snapshot-files.js";
+export { backupSnapshotSqlite, readSqliteSnapshotMetadata, type SqliteSnapshotMetadata, type SqliteSnapshotOptions, type SqliteSnapshotInfo } from "./snapshot-sqlite.js";
 export { acquireStorageOwner, assertStorageOwner, borrowStorageOwner, hasOnlyStorageOwnerFiles, hasStorageBusinessFiles, type StorageOwner, type StorageOwnerBorrow } from "./adapters/storage-owner.js";
 
 export {

@@ -10,6 +10,10 @@
 
 所有命令端口（含 `plugin`）的同步抛错与异步拒绝都由 dispatchCli 输出一次现有错误文本并返回 1；成功时保留端口的返回码和输出。
 
+`home snapshot --to <新目录> [--home <原Home>] [--json]` 由 `home` 端口交 Local Host 的离线编排，参数和同 Home 存储所有权在业务初始化前检查，不构造项目 Host；它与项目的 `v1 snapshot --db` 是不同入口。用法、原 key 依赖、恢复边界和失败处理见 [CLI 与开发](../../docs/cli-and-development.md#home-离线快照)。修改此入口加跑 `tests/home-snapshot-cli.test.ts`。
+
+`uninstall --purge-user-data` 在活 App/离线操作占用 Home 时先拒绝，用户显式关闭后再试。成功提示为业务数据与密钥清空，Home 文件夹仍留原互斥锁骨架；不会说整个 Home 已删除。具体保留清单及数据保护见 [Host 开发要求](../local-host/README.md)。
+
 ## 从哪里读代码
 
 公开入口是 [src/index.ts](src/index.ts)。生产调用使用包名或 package.json 声明的子路径；下列链接用于定位实现，不是深层导入示例。

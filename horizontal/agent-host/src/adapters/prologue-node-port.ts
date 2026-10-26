@@ -266,6 +266,19 @@ export function createNodePort(deps: PortDeps): PrologueRuntimePort {
   const openSession = (sessionId: string, unreadable: string) => openSessionOf(deps, sessionId, unreadable);
   return {
     defaultContextWindowTokens: DEFAULT_CONTEXT_WINDOW_TOKENS,
+    unexecutedApprovalCall(run, waiting) {
+      if (waiting.effect_revision === undefined || waiting.pending_revision === undefined) return undefined;
+      const effectRef = { kind: "effect" as const, id: waiting.effect_id, revision: waiting.effect_revision };
+      const effect = runtime.effects.get(effectRef), pending = effect?.pending, origin = effect?.proposal.origin;
+      if (!effect || !pending || !sameRef(effect.ref, effectRef) || pending.kind !== "effect-approval"
+        || pending.ref.id !== waiting.pending_id || pending.ref.revision !== waiting.pending_revision
+        || !pending.effectRef || !sameRef(pending.effectRef, effectRef) || pending.state === "settled"
+        || !["awaiting-approval", "cancelled", "denied"].includes(effect.state)
+        || origin?.session !== run.session_id || origin.run !== run.run_id
+        || pending.origin?.session !== run.session_id || pending.origin.run !== run.run_id
+        || pending.origin?.toolCall !== origin.toolCall) return undefined;
+      return origin.toolCall;
+    },
     readStepBoard: run => stepBoards.read(run),
     messages: { read: (project, sessionId) => messages.read(project, sessionId), cancel: (project, id) => messages.cancel(project, id),
       sendForPeople: (project, input, actorId) => messages.sendForPeople(project, input, actorId),

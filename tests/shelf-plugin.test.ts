@@ -466,7 +466,10 @@ test("Shelf UI contribution paints stage folds and DropAgent command chrome", ()
   const sheet = renderMolisWorkWorkbenchStylesheet();
   // Soft Workbench (DESIGN.md → Plugin identity): Shelf keeps DropAgent structure on the shared tokens —
   // graphite for its primary action, copper for focus, links and on-states.
-  assert.ok(sheet.indexOf(INTERACTION_TEXTURE_STYLES) < sheet.lastIndexOf("--da-action: var(--content-accent)"));
+  // PG-070: Shelf's rules are its own sheet (shelf.css), which every surface links after the workbench sheet that carries the tokens.
+  assert.ok(sheet.includes(INTERACTION_TEXTURE_STYLES), "the workbench sheet carries the tokens");
+  assert.match(SHELF_STYLES, /--da-action: var\(--content-accent\)/);
+  assert.ok(!sheet.includes("--da-action: var(--content-accent)"), "the shared sheet holds none of Shelf's own rules");
   assert.match(SHELF_STYLES, /--da-accent: var\(--accent\);/);
   assert.match(SHELF_STYLES, /\.shelf-primary \{[^}]*background: var\(--da-action\);/);
   // PG-075 (#1303): no plugin has an identity colour of its own; Shelf's rail entry takes the neutral tint every plugin takes.

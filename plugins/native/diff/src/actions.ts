@@ -6,6 +6,7 @@ import { compareTexts } from "@molis-ai/molis-work-plugin-sdk";
 import { diffViewText, renderDiff, type DiffViewText } from "@molis-ai/molis-work-plugin-sdk/diff-view";
 import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { diffErrors } from "./errors.js";
+import { DIFF_EN } from "./en.js";
 import { DIFF_MESSAGES, DIFF_TEMPLATES } from "./messages.js";
 import { DIFF_LABELS } from "./ui.js";
 
@@ -49,11 +50,13 @@ function stateFor(caller: ActionCallContext, view: DiffView): DiffState {
   return { view, html: renderDiff({ view, labels: DIFF_LABELS,
     primitives: { escape: escapeHtml, text: pageText(caller.locale ?? "zh"), icon: name => icon(name as Parameters<typeof icon>[0]) } }) };
 }
+/** Diff's words: its stable keys, and the sentences it writes in Chinese, each with its English (`DIFF_EN`, declared in the Manifest as `ui.translations`). */
+const DIFF_WORDS = { ...DIFF_MESSAGES, ...Object.fromEntries(Object.entries(DIFF_EN).map(([zh, en]) => [zh, { zh, en }])) };
 /** Diff's words in a page's language, a sentence with values in it said again with the same values; built once per language. */
 const texts = new Map<ActionLocale, DiffViewText>();
 function pageText(locale: ActionLocale): DiffViewText {
   let text = texts.get(locale);
-  if (!text) texts.set(locale, text = diffViewText(DIFF_MESSAGES, locale, DIFF_TEMPLATES));
+  if (!text) texts.set(locale, text = diffViewText(DIFF_WORDS, locale, DIFF_TEMPLATES));
   return text;
 }
 function readState(context: PluginStartContext, input: DiffStateInput): DiffView {

@@ -2,7 +2,8 @@ import path from "node:path";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { mkdirSync } from "node:fs";
 import { applySqliteBaseline, createEvidenceContentStore, createFileSecretStore, LocalSqliteStorage, LOCAL_OPAQUE_BLOB_SCHEMA_SQL, runWithMolisWorkHome, type SecretStore, type SqliteBaseline } from "@molis-ai/molis-work-storage";
-import type { AlchemistAiPort } from "@molis-ai/molis-work-plugin-alchemist";
+import { ALCHEMIST_STUDIO_BASELINE, type AlchemistAiPort } from "@molis-ai/molis-work-plugin-alchemist";
+export { ALCHEMIST_STUDIO_BASELINE };
 import { createSearchEvidenceRuntime } from "./search-evidence-runtime.js";
 import { alchemistProjectDirectory } from "./alchemist-paths.js";
 

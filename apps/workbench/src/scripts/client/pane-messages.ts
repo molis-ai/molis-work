@@ -41,7 +41,7 @@ export const SIDE_FRAME_FROM_SCRIPT = String.raw`(event) => event.origin === loc
  * name not listed here. One list, read by both ends: `names` to listen, `event` to dispatch.
  */
 export const SIDE_FORWARD_SCRIPT = String.raw`(() => {
-    const make = { "molis:surface-interaction": () => new CustomEvent("molis:surface-interaction"), "molis:placement-convert": detail => new CustomEvent("molis:placement-convert", { detail }), "molis:placement-request": detail => new CustomEvent("molis:placement-request", { detail }), "molis:placement-result": detail => new CustomEvent("molis:placement-result", { detail }) };
+    const make = { "molis:surface-interaction": () => new CustomEvent("molis:surface-interaction"), "molis:placement-convert": detail => new CustomEvent("molis:placement-convert", { detail }), "molis:placement-request": detail => new CustomEvent("molis:placement-request", { detail }), "molis:placement-result": detail => new CustomEvent("molis:placement-result", { detail }), "molis:assistant-message": detail => new CustomEvent("molis:assistant-message", { detail }) };
     return { names: Object.keys(make), from: ${SIDE_FRAME_FROM_SCRIPT},
       event: (name, detail) => typeof name === "string" && Object.hasOwn(make, name) ? make[name](detail) : null };
   })()`;

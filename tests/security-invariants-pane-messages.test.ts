@@ -111,12 +111,40 @@ test("S-30 the page takes a side view's message only from this origin and from t
 test("S-30 a side view hands the page only the events on the one list; any other name is dropped", () => {
   class CustomEvent { constructor(readonly type: string, readonly init: { detail: unknown }) {} }
   const forwarded = vm.runInNewContext(SIDE_FORWARD_SCRIPT, { CustomEvent }) as { names: string[]; event(name: unknown, detail: unknown): CustomEvent | null };
-  assert.deepEqual([...forwarded.names], ["molis:surface-interaction", "molis:placement-convert", "molis:placement-request", "molis:placement-result"]);
+  assert.deepEqual([...forwarded.names], ["molis:surface-interaction", "molis:placement-convert", "molis:placement-request", "molis:placement-result", "molis:assistant-message"]);
   const made = forwarded.event("molis:placement-result", { verb: "received" });
   assert.equal(made?.type, "molis:placement-result");
   assert.deepEqual(made?.init.detail, { verb: "received" });
   for (const name of ["molis:side-open", "molis:shelf-admit", "molis-work:open-settings-path", "constructor", "toString", "__proto__", "hasOwnProperty", "", 7, null, undefined, ["molis:placement-result"]]) {
     assert.equal(forwarded.event(name, {}), null, `name ${JSON.stringify(name)}`);
+  }
+});
+
+test("S-30 RAC-916-L5: a known side owner relays the complete Assistant offer; foreign origins, opaque children and other windows remain refused", () => {
+  class CustomEvent { constructor(readonly type: string, readonly init: { detail: unknown }) {} }
+  const top = {}, side = { contentWindow: {} }, pane = { contentWindow: {} }, opaqueChild = {};
+  const document = { querySelectorAll: (selector: string) => selector === "#side-panel iframe[data-side-frame]" ? [side] : [pane] };
+  const forwarded = vm.runInNewContext(SIDE_FORWARD_SCRIPT, { window: top, document, location: { origin: ORIGIN }, CustomEvent }) as {
+    from(event: unknown): unknown; event(name: unknown, detail: unknown): CustomEvent | null;
+  };
+  const detail = { message_id: "offer-1", purpose: "suggest", source: { surface: "pages", title: "评论与备注", plugin_id: "io.molis.work.pages" },
+    object: { kind: "pages_document", id: "doc-1", title: "周报" }, text: '评论"\n全文',
+    thread: { thread_id: "t1", message_id: "m1", draft: { text: '草稿"\n全文', revision: "7" } } };
+  const relay = (origin: string, source: unknown, name: unknown) => {
+    const data = { type: "molis:side-forward", name, detail };
+    return forwarded.from({ origin, source, data }) ? forwarded.event(name, detail) : null;
+  };
+  const made = relay(ORIGIN, side.contentWindow, "molis:assistant-message");
+  assert.equal(made?.type, "molis:assistant-message");
+  assert.equal(made?.init.detail, detail, "the complete id, verified source, object, comment, thread and draft are handed on without reinterpreting them");
+  for (const origin of ["http://127.0.0.1:4174", "http://localhost:4173", "https://example.com", "null", ""]) {
+    assert.equal(relay(origin, side.contentWindow, "molis:assistant-message"), null, `foreign or opaque origin ${JSON.stringify(origin)}`);
+  }
+  for (const source of [pane.contentWindow, opaqueChild, top, {}, null]) {
+    assert.equal(relay(ORIGIN, source, "molis:assistant-message"), null, "a split pane, opaque plugin child, top or unknown window is not the registered side owner");
+  }
+  for (const name of ["molis:assistant-reply", "molis:threads-start", "constructor", "toString", "__proto__", "hasOwnProperty", "", 7, null, undefined]) {
+    assert.equal(relay(ORIGIN, side.contentWindow, name), null, `unknown or prototype event name ${JSON.stringify(name)}`);
   }
 });
 

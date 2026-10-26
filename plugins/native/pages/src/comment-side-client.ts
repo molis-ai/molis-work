@@ -77,18 +77,22 @@ export function mountComments(host: CommentSideHost): void {
   q('draft').addEventListener('keydown',event=>{if(!event.isComposing&&event.key==='Enter'&&(event.metaKey||event.ctrlKey)){event.preventDefault();void send();}});
   const send=async()=>{
     if(busy||!context||needsSave()||!draft().body.trim())return;
-    const id=context.object_ref.id,version=context.object_ref.version,threadId=active,d={...draft()},before=draftKey();busy=true;paintDraft();error('');
+    const id=context.object_ref.id,title=context.object_ref.title,version=context.object_ref.version,threadId=active,d={...draft()},before=draftKey();busy=true;handed='';paintRun();paintDraft();error('');
     try{
       const snapshot=d.ai&&d.includeDraft&&context.unsaved?await command({kind:'draft'}):null;
-      // The draft goes to the Assistant with the hand-over, which the shell caps at 100,000 characters: past that, save first.
-      if(snapshot?.text&&snapshot.text.length>90000){error(L('pages.comments.draft-too-long'));return;}
+      const offer=d.ai?{message_id:crypto.randomUUID(),purpose:'suggest',source:{surface:'pages'},
+        object:{kind:'pages_document',id,title},text:d.body,thread:{thread_id:threadId,message_id:d.message_id||'',...(snapshot?{draft:{text:snapshot.text,revision:String(snapshot.version)}}:{})}}:null;
+      // Match the frame bridge's serialized-detail cap, including escaping. Before saving, the missing server id is a lower bound.
+      if(offer&&JSON.stringify(offer).length>100000)throw new Error(L(d.message_id?'pages.comments.saved-offer-too-long':'pages.comments.draft-too-long'));
       if(!d.message_id){const data=await request<{thread: PagesCommentThread}>(pagePath(id),{thread_id:threadId,request_id:d.request_id,body:d.body,expected_version:version,
         ...(d.reply_to?{reply_to:d.reply_to}:{}),anchor:d.anchor||{kind:'document'}});
         d.message_id=data.thread.messages.find(m=>m.request_id===d.request_id)!.message_id;if(savedDraft(before)?.request_id===d.request_id)savedDraft(before)!.message_id=d.message_id;persist();
       }
       // Handed to the Assistant, which offers 「让助理回复」; the page cannot start the reply itself (PG-057).
-      if(d.ai){window.dispatchEvent(new CustomEvent('molis:assistant-message',{detail:{message_id:crypto.randomUUID(),purpose:'suggest',source:{surface:'pages'},
-        object:{kind:'pages_document',id,title:context.object_ref.title},text:d.body,thread:{thread_id:threadId,message_id:d.message_id,...(snapshot?{draft:{text:snapshot.text,revision:String(snapshot.version)}}:{})}}}));
+      if(offer){offer.thread.message_id=d.message_id;
+        // The real id can cross the boundary. Keep both the saved id and pending draft so retry never saves the same comment twice.
+        if(JSON.stringify(offer).length>100000)throw new Error(L('pages.comments.saved-offer-too-long'));
+        window.dispatchEvent(new CustomEvent('molis:assistant-message',{detail:offer}));
         if(before===draftKey())handed=L('pages.comments.handed');}
       if(savedDraft(before)?.request_id===d.request_id)delete saved[before];persist();if(before===draftKey()){await load();paintDraft();}
     }catch(e){if(before===draftKey()){error(commentErrorMessage(e));if(d.message_id)await load();}}

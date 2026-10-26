@@ -4,8 +4,6 @@ export interface CommentSideHost {
   messages: UiPageMessages;
   translate(value: string): string;
   projectId: string | (() => string);
-  /** A platform path in the current project. */
-  route(path: string): string;
   /** A path under this plugin's own routes in the current project. */
   pluginRoute(path: string): string;
 }

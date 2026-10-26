@@ -3534,4 +3534,24 @@ Coding另执行一次被动连接观察：对象为b60加本片最终候选，�
 本次 App 验证尚未执行：沿原冻结离线install/整体build、直接影响回归、strict/API/准确父health与资源门，并在干净合成头运行原规模门。旧b65的1000条红不被这次SDK局部验证替代；两种孤立IO方法对照未显示可采用的优势，不混入产品。Coding +1206 B和零模型恢复Knowledge边界仍待用户决定，旧Cloudflare按决定未核清；付费192次上限批次尚未开始。
 
 
-App batch-43 本地组合回归已执行：原冻结离线install、70包整体build、Local Host strict、69份API快照/3134声明检查通过；去重后的42文件（3个browser）、jobs2/browser1/零重试，504/504首轮通过。覆盖父成员查询、即时撤权/损坏库拒绝、PG-024删除与恢复、分类/形成/当前授权/真实Context回执以及Memory/Assistant页面。仅spec追加冲突，双方段落保留；Root复核自动合成的模块query、Contract及实际差异。准确父d613 health/资源和新包规模仍待合成提交后核对，不能沿用上一包结果；验证日志前缀 `/private/tmp/molis-memory-app-b43-`，日期20261026。
+App batch-43 本地组合回归已执行：原冻结离线install、70包整体build、Local Host strict、69份API快照/3134声明检查通过；去重后的42文件（3个browser）、jobs2/browser1/零重试，504/504首轮通过。覆盖父成员查询、即时撤权/损坏库拒绝、PG-024删除与恢复、分类/形成/当前授权/真实Context回执以及Memory/Assistant页面。仅spec追加冲突，双方段落保留；Root复核自动合成的模块query、Contract及实际差异。验证日志前缀 `/private/tmp/molis-memory-app-b43-`，日期20261026；合成提交后的门禁与规模结果见下文，不沿用上一包结果。
+
+### 2026-10-26 Foundation 当前 CI 收束与 App 57cf 规模结果
+
+Foundation 精确头 `d61374d93a6a78538d57c021355a7eaf9ce4af2d` 的普通 CI `40304377471` 已完成：14作业成功、Verify成功，Linux probe按原配置skipped；Full `40304370056` 的16分片及汇总成功。1511个唯一文件，1509首轮accepted、2首红经原retry1通过、零最终文件失败。首轮accepted中5文件为零pass；首轮测试项10346/10362，缺少成功stdout和重试测试项计数，最终测试项总数及精确skip/todo/cancelled分类未知，不宣称全部首过或零跳过。
+
+两项首红保留：crosstalk 3/4，首次发送点击cleanup的releaseObject耗时1289ms超过原1000ms，Node CPU1167ms、event loop active1289ms/idle0；发送输入回执已过，但尚未执行后续跨Session隔离断言。question-card 5/6，q0/option0点击的pointerdown/up布尔回执失败；CI没有上传截图/trace，也没有该次几何和事件时序，不能确定是错目标、缺事件、节点替换或坐标变化。独立只读核对未发现可确认的新产品阻塞，不将原重试通过称为修复。旧本地原生断言、ECONNRESET、旧Full根因仍未知；21db普通CI不恢复，Cloudflare按用户决定不查看。
+
+主干保护仅要求Verify；正式评审与inline线程为空，分支CLEAN/MERGEABLE。按现有并行开发规则§7，原retry1通过记录flaky，Full不挡合并，不新增“所有文件首过”门。Root与独立深审核对既定Foundation/App分拆后，#1064已按原规则提交合并队列；2026-10-26 11:05:58 UTC回读为position1/QUEUED，此时尚未合并。没有绕过队列、改变门禁、请求新的旧CI重跑或宣称P0完成。
+
+App正式规模源为干净 `83421bf71719035ccc6f13439d60dfedac08f500`、SDK `57cf75164ff4e89146c500e4b94d5a3bc56cfac4`、Node24.14.0；原预检ready，构建不陈旧、已安装SDK匹配。原3副本×10/100/1000、重开首读+九次重复、B0/B2共180样本完整观察，零采样失败、零模型调用。完整返回9/76/752、各选8，未裁完整集合与omitted；三个统计量与同机B1+5ms原门均不变。
+
+| 记忆量 | 首读中位数 ms / 上限 | 重复中位数 ms / 上限 | 重复P95 ms / 上限 | 原门结果 |
+| --- | --- | --- | --- | --- |
+| 10 | 2.678 / 6.264 | 0.899 / 5.227 | 1.114 / 5.303 | 通过 |
+| 100 | 8.587 / 15.304 | 3.406 / 5.794 | 3.815 / 6.168 | 通过 |
+| 1000 | 82.379 / 79.721 | 31.861 / 10.660 | 34.996 / 14.330 | 未通过 |
+
+本轮1000档重复中位数低于上一b65轮34.605ms，但首次读取仍超限；不同批次不能作为隔离归因，SDK #108/App #1101仍不据此合并验收。原件 `/private/tmp/molis-memory-b2-node2414-57cf-scale-20261026-v1.json` 与同名前缀log保留。该测量仍为MemoryService显式召回，不替代任务最终Context、模型质量、SDK升级归因或用户验收；已授权的付费192次上限批次尚未开始。
+
+准确父d613的原health/updater通过，baseline无变化；资源实际仍为workbench.js +32893 B、workbench.css +680 B、settings.css -73924 B、coding.js +1776 B，其余44项不变。Coding包括已批归档570 B与待批恢复1206 B；原资源更新器因此整体拒写，原check保留Coding增长、Settings减额未落表、Workbench两项已批增量未落表共4条失败提示。未借用既有额度或手改预算。Coding零模型恢复Knowledge边界仍待用户决定，其他已完成改动继续在同一Draft #1101交付。

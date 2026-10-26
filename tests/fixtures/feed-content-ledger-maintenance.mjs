@@ -57,13 +57,13 @@ function readLedger(ledgerFile, readOnly) {
 export function listLedger(ledgerFile, projectFiles) {
   const ledger = readLedger(ledgerFile, true);
   try {
-    const marked = ledger.prepare("SELECT value FROM feed_content_meta WHERE key = 'backfilled_at'").get() ?? null;
+    const marked = ledger.prepare("SELECT value FROM feed_content_meta WHERE key = 'complete_since'").get() ?? null;
     const projects = projectFiles.map(file => {
       const { projectId, holds } = readProjectHoldings(file);
       const missing = holds.filter(([sourceId, ref]) => ledger.prepare("SELECT 1 AS present FROM feed_content_holds WHERE project_id = ? AND source_id = ? AND content_ref = ?").get(projectId, sourceId, ref) === undefined);
       return { project_id: projectId, holds: holds.length, missing: missing.length };
     });
-    return { backfilled_at: marked?.value ?? null, projects };
+    return { complete_since: marked?.value ?? null, projects };
   } finally { ledger.close(); }
 }
 
@@ -76,7 +76,7 @@ export function backfillLedger(ledgerFile, projectFiles, options = {}) {
       const insert = ledger.prepare("INSERT OR IGNORE INTO feed_content_holds (content_ref, project_id, source_id) VALUES (?, ?, ?)");
       let added = 0;
       for (const { projectId, holds } of read) for (const [sourceId, ref] of holds) added += Number(insert.run(ref, projectId, sourceId).changes);
-      if (options.allProjects) ledger.prepare("INSERT OR IGNORE INTO feed_content_meta (key, value) VALUES ('backfilled_at', ?)").run(new Date().toISOString());
+      if (options.allProjects) ledger.prepare("INSERT OR IGNORE INTO feed_content_meta (key, value) VALUES ('complete_since', ?)").run(new Date().toISOString());
       ledger.exec("COMMIT");
       return { projects: read.length, holds_added: added, marked: options.allProjects === true };
     } catch (error) { ledger.exec("ROLLBACK"); throw error; }
@@ -93,7 +93,7 @@ function run(argv) {
   try {
     const report = mode === "list" ? listLedger(ledgerFile, projects) : backfillLedger(ledgerFile, projects, { allProjects: rest.includes("--all-projects") });
     const text = rest.includes("--json") ? JSON.stringify(report, null, 2)
-      : mode === "list" ? [`ledger ${report.backfilled_at ? "complete since " + report.backfilled_at : "not yet complete"}`, ...report.projects.map(item => `${item.project_id}: ${item.holds} held, ${item.missing} not in the ledger`)].join("\n")
+      : mode === "list" ? [`ledger ${report.complete_since ? "complete since " + report.complete_since : "not yet complete"}`, ...report.projects.map(item => `${item.project_id}: ${item.holds} held, ${item.missing} not in the ledger`)].join("\n")
         : `${report.projects} project(s) read, ${report.holds_added} hold(s) added${report.marked ? ", ledger marked complete" : ""}`;
     return { code: 0, text };
   } catch (error) {

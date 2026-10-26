@@ -40,7 +40,7 @@ function homes(t: TestContext) {
     const db = new DatabaseSync(ledgerFile, { readOnly: true });
     try {
       return { holds: db.prepare("SELECT content_ref, project_id, source_id FROM feed_content_holds ORDER BY 1, 2, 3").all().map(row => ({ ...row })),
-        marked: db.prepare("SELECT 1 AS marked FROM feed_content_meta WHERE key = 'backfilled_at'").get() !== undefined };
+        marked: db.prepare("SELECT 1 AS marked FROM feed_content_meta WHERE key = 'complete_since'").get() !== undefined };
     } finally { db.close(); }
   };
   const run = (mode: string, projects: string[], ...extra: string[]) =>
@@ -56,7 +56,7 @@ test("RAC-495: list reads and writes nothing; backfill holds what each source's 
 
   const listed = home.run("list", [one, two]);
   assert.equal(listed.status, 0);
-  assert.deepEqual(JSON.parse(listed.stdout), { backfilled_at: null, projects: [{ project_id: "project-one", holds: 4, missing: 4 }, { project_id: "project-two", holds: 1, missing: 1 }] });
+  assert.deepEqual(JSON.parse(listed.stdout), { complete_since: null, projects: [{ project_id: "project-one", holds: 4, missing: 4 }, { project_id: "project-two", holds: 1, missing: 1 }] });
   assert.deepEqual(home.held(), before, "list is read only");
 
   const partial = home.run("backfill", [one]);

@@ -42,7 +42,7 @@ function fixture(t: import("node:test").TestContext) {
 
 test("RAC-494: a body goes only when no source of any project holds it; a release takes only its own source's rows", async t => {
   const f = fixture(t);
-  await f.ledger.markBackfilled(noEffect, "2026-10-26T00:00:00Z");
+  await f.ledger.markComplete(noEffect, "2026-10-26T00:00:00Z");
   const a = f.evidence.write("body a").contentRef, b = f.evidence.write("body b").contentRef;
   await f.ledger.hold(noEffect, { project_id: "p1", source_id: "s1" }, [a, b]);
   await f.ledger.hold(noEffect, { project_id: "p2", source_id: "s1" }, [a]);
@@ -56,23 +56,23 @@ test("RAC-494: a body goes only when no source of any project holds it; a releas
   assert.deepEqual(f.library.rows(), []);
 });
 
-test("RAC-495: without the backfill mark nothing is released, and the ledger says it could not tell", async t => {
+test("RAC-495: without the completeness mark nothing is released, and the ledger says it could not tell", async t => {
   const f = fixture(t);
   const a = f.evidence.write("body a").contentRef;
-  assert.equal(f.ledger.isBackfilled(), false);
+  assert.equal(f.ledger.isComplete(), false);
   await f.ledger.hold(noEffect, { project_id: "p1", source_id: "s1" }, [a]);
   assert.deepEqual(await f.ledger.release(noEffect, { project_id: "p1", source_id: "s1" }, [a]), { bodies_deleted: 0, bodies_kept: 1, complete: false });
   assert.ok(f.evidence.has(a));
   assert.equal(f.library.rows().length, 1, "an empty-handed ledger is not proof, so its rows stay too");
-  await f.ledger.markBackfilled(noEffect, "2026-10-26T00:00:00Z");
-  await f.ledger.markBackfilled(noEffect, "2099-01-01T00:00:00Z");
-  assert.equal(f.library.db.prepare("SELECT value FROM feed_content_meta WHERE key = 'backfilled_at'").pluck().get(), "2026-10-26T00:00:00Z", "the mark is written once");
+  await f.ledger.markComplete(noEffect, "2026-10-26T00:00:00Z");
+  await f.ledger.markComplete(noEffect, "2099-01-01T00:00:00Z");
+  assert.equal(f.library.db.prepare("SELECT value FROM feed_content_meta WHERE key = 'complete_since'").pluck().get(), "2026-10-26T00:00:00Z", "the mark is written once");
   assert.equal((await f.ledger.release(noEffect, { project_id: "p1", source_id: "s1" }, [a])).bodies_deleted, 1);
 });
 
 test("RAC-494: a release that fails part way leaves the ledger as it was, so a row is never missing for a body something points at", async t => {
   const f = fixture(t);
-  await f.ledger.markBackfilled(noEffect, "2026-10-26T00:00:00Z");
+  await f.ledger.markComplete(noEffect, "2026-10-26T00:00:00Z");
   const a = f.evidence.write("body a").contentRef, b = f.evidence.write("body b").contentRef;
   await f.ledger.hold(noEffect, { project_id: "p1", source_id: "s1" }, [a, b]);
   const failing: FeedEvidenceCollector = { collect(input) {
@@ -90,7 +90,7 @@ test("RAC-494: a release that fails part way leaves the ledger as it was, so a r
 
 test("RAC-494: a hold cannot enter while a release deletes files, so a body is written again or kept, never lost under a new holder", async t => {
   const f = fixture(t);
-  await f.ledger.markBackfilled(noEffect, "2026-10-26T00:00:00Z");
+  await f.ledger.markComplete(noEffect, "2026-10-26T00:00:00Z");
   const x = f.evidence.write("shared body").contentRef;
   await f.ledger.hold(noEffect, { project_id: "p1", source_id: "s1" }, [x]);
   // While p1's release is deleting, p2's hold tries from another connection to the same library: the write lock is taken, so it cannot begin.
@@ -128,7 +128,7 @@ test("RAC-494: a hold takes only well-formed body references, and a batch is bou
 
 test("RAC-494: only Feed's own project instance may hold or release, and the project is the call's, not the input's", async t => {
   const f = fixture(t);
-  await f.ledger.markBackfilled(noEffect, "2026-10-26T00:00:00Z");
+  await f.ledger.markComplete(noEffect, "2026-10-26T00:00:00Z");
   const a = f.evidence.write("body a").contentRef;
   const handlers = createFeedContentLedgerHandlers(f.ledger), hold = handlers.find(item => item.capability_id === feedContentLedgerActions.hold.capability_id)!,
     release = handlers.find(item => item.capability_id === feedContentLedgerActions.release.capability_id)!;
@@ -159,9 +159,9 @@ test("RAC-495: a new Home's ledger is complete from the start only when Feed is 
     return { f, contribution: await plugin.start(context as PluginStartContext) };
   };
   const fresh = await start({ project_ids: [], complete: true });
-  assert.equal(fresh.f.ledger.isBackfilled(), true);
+  assert.equal(fresh.f.ledger.isComplete(), true);
   assert.deepEqual((fresh.contribution && "actions" in fresh.contribution ? fresh.contribution.actions ?? [] : []).map(item => item.capability_id).sort(),
     [feedContentLedgerActions.hold.capability_id, feedContentLedgerActions.release.capability_id].sort());
-  assert.equal((await start({ project_ids: ["p1"], complete: true })).f.ledger.isBackfilled(), false, "installed somewhere: wait for the maintenance");
-  assert.equal((await start({ project_ids: [], complete: false })).f.ledger.isBackfilled(), false, "installations that could not be read are not none");
+  assert.equal((await start({ project_ids: ["p1"], complete: true })).f.ledger.isComplete(), false, "installed somewhere: wait for the maintenance");
+  assert.equal((await start({ project_ids: [], complete: false })).f.ledger.isComplete(), false, "installations that could not be read are not none");
 });

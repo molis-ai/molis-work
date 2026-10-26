@@ -16,9 +16,9 @@ export function createFeedHomePlugin(options: { manifest: PluginManifest; eviden
     const ledger = createFeedContentLedger({ read: database, write: (beforeEffect, body) => database.transaction(beforeEffect, body) }, options.evidence(context));
     // A Home that has no installation of Feed anywhere has no body to miss: its ledger is complete from the start. Any other waits for the
     // maintenance that reads each project once, and until then releases nothing; "the ledger is empty" is not "nobody holds it".
-    if (!ledger.isBackfilled()) {
+    if (!ledger.isComplete()) {
       const where = installations.projects();
-      if (where.complete && where.project_ids.length === 0) await ledger.markBackfilled(async () => {}, new Date().toISOString());
+      if (where.complete && where.project_ids.length === 0) await ledger.markComplete(async () => {}, new Date().toISOString());
     }
     return { kind: "app", actions: createFeedContentLedgerHandlers(ledger) };
   } };

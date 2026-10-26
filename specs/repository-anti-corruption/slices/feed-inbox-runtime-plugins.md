@@ -265,7 +265,7 @@ FI-5 的存储层只依赖 `FeedSql`；本片给它第二个适配器 `fromPlugi
 - **4b 发现一：后台生产者（插件受众）不能经委托嵌套读取别的插件（要统筹裁定）。** 用真实 Home 实验（`tests/home-judgment-plugin-caller.test.ts`）：Feed 以自己的安装身份调 `home.judgment.evaluate`，Home 读入箱条目要调 `inbox.subject.read`，Inbox 读条目背后的 Feed 事项走 `services.actions.directory`（委托），而 S-43 规定原调用者是 `plugin` 的拒绝（「别的插件用它自己的授权调进来的调用不能借此放宽成工作流受众」），于是 `actions.forbidden`，判断在到模型之前就停了。今天的宿主给后台 `workflow-events` 身份（受众 `workflow`），所以这条路能走；Runtime 里没有这个身份。同一限制也会落在 Inbox 的 `inbox.judgment.evaluate`（它经 `directory` 读 Feed 的正文）。选项见 #1311 评论。
 - **4b 发现二：dock 的自动判断对今天的宿主身份其实是空操作（读代码与探针得出，不是本片引入）。** 宿主给触发器的权限是 `HOME_ACTION_PERMISSIONS` 去掉 `home:write`（`feed:read`、`inbox:read`、`home:read`、`model:invoke`、`functions:invoke`）；默认规则推荐「做完了」「忽略」，而这两个选项指向 `inbox.entry.status`，调用者要持有它的权限才算可用——`inbox:write`，第 3 步之后还要 `attention:write`。身份没有这两个权限，dock 对它不可用，触发器静默放过，没有模型调用、没有判断账。探针里给身份补上这两个权限后判断就跑了。第 3 步之前是 `inbox:write`，身份同样没有，所以不是第 3 步引入的。4e 保持对等（Feed 的授权不多给），除非统筹另有裁定；这件事要告诉产品负责人。
 - **4b 顺手补的第 3 步遗漏。** `home-action-scenes` 的调用者要带 `attention:write`（Inbox 状态动作第 3 步起要它），否则「做完了」选项不可用、绑定被拒（`actions.scene_incompatible`）。
-- **第 4 步 4d 已做：Home 引用账的逻辑一半（2026-10-26，RAC-494、495）。** `plugins/native/feed/src/content-ledger.ts` 的 `createFeedContentLedger(store, evidence)`：账是 `feed-content` 库里的行（`feed_content_holds(content_ref, project_id, source_id)`），不是计数，所以加与减都幂等；`hold` 是 `INSERT OR IGNORE`，`release` 先删本来源的行，再对候选逐个看还有没有别人持有，没有就删文件，**文件在写事务提交前删完**（同一把写锁，后来的 `hold` 要么看到行与文件都在、要么看到文件已不在而重写）。没有回填标记 `backfilled_at` 时 `release` 一份也不删。只认 `molis-work-feed/sha256/<64 位十六进制>` 的引用，研究笔记等别的引用不是它的。动作 `feed.content.hold@1`、`feed.content.release@1`（`content-ledger-actions.ts`，范围 home、受众 plugin、权限 `feed:write`）与 Feed 的 Home 一半 `createFeedHomePlugin`（`home-plugin.ts`）已写并带测试（`tests/feed-content-ledger.test.ts`，7 例，用真实的 `createEvidenceContentStore`）；**还没登记**：Manifest 没加这两个动作、`databases.home` 与 `runtime.scope:"home"`，因为双实例的门禁（DUAL-12）要求带标记的 Home 条目有对应的项目一半，而项目一半在 4e 才有；Manifest 与登记随 4e 一起改。
+- **第 4 步 4d 已做：Home 引用账的逻辑一半（2026-10-26，RAC-494、495）。** `plugins/native/feed/src/content-ledger.ts` 的 `createFeedContentLedger(store, evidence)`：账是 `feed-content` 库里的行（`feed_content_holds(content_ref, project_id, source_id)`），不是计数，所以加与减都幂等；`hold` 是 `INSERT OR IGNORE`，`release` 先删本来源的行，再对候选逐个看还有没有别人持有，没有就删文件，**文件在写事务提交前删完**（同一把写锁，后来的 `hold` 要么看到行与文件都在、要么看到文件已不在而重写）。没有回填标记时 `release` 一份也不删（标记行的键叫 `complete_since`；设计稿里的 `backfilled_at` 改了名，因为门禁把 `backfill` 当兼容标记数，包源码里不能出现这个词；维护脚本与测试不在此列，命令仍叫 `backfill`）。只认 `molis-work-feed/sha256/<64 位十六进制>` 的引用，研究笔记等别的引用不是它的。动作 `feed.content.hold@1`、`feed.content.release@1`（`content-ledger-actions.ts`，范围 home、受众 plugin、权限 `feed:write`）与 Feed 的 Home 一半 `createFeedHomePlugin`（`home-plugin.ts`）已写并带测试（`tests/feed-content-ledger.test.ts`，7 例，用真实的 `createEvidenceContentStore`）；**还没登记**：Manifest 没加这两个动作、`databases.home` 与 `runtime.scope:"home"`，因为双实例的门禁（DUAL-12）要求带标记的 Home 条目有对应的项目一半，而项目一半在 4e 才有；Manifest 与登记随 4e 一起改。
 - **4d 的维护脚本（RAC-495）。** `tests/fixtures/feed-content-ledger-maintenance.mjs`（`list` 只读、`backfill` 幂等、`--all-projects` 才写标记；退出码 0/1/2；测试 `tests/feed-content-ledger-maintenance.test.ts`，4 例）和 CHECKLIST 里的一行。动真实 Home 的维护窗口归用户定，合入前在 PR 正文里写明。
 - **4d 给 4c 的一条约束：`hold` 必须在写正文之前返回。** 账的超集不变式要求「先加后写」。`services.sourcePull` 现在若在一次调用里拉取并写正文，就没有地方插入 `hold`。所以 4c 的形状是两段式：`pull()` 只取回并缓存正文、返回引用与摘要，Feed 用这些引用 `hold`，再 `commit()` 写正文（或 `discard()` 丢掉缓存）。这要在 4c 的设计稿里请统筹确认，不是 4d 的内容。
 - **4d 与 RAC-492、493、518 的关系。** 这三条是项目一半的事（连接事件订阅、启动时对账、启动时对 `hold`），随 4e 的 `createFeedPlugin()` 做，不在 4d。
@@ -288,3 +288,52 @@ Feed 的动作要么全由宿主提供、要么全由 Runtime 提供（`BUILD_TI
 5. **4e 翻转**：`createFeedPlugin()`、监督器条目、`background.wakeups` 的 tick、8 个构造点换成公开动作、删 `feed-native-plugin-http.ts` 与客户端迁移、`BUILD_TIME_ASSEMBLED` 与 `NATIVE_PLUGIN_HTTP_FILES` 去掉 `feed`（RAC-499、500、510～512、516、517）。
 
 这是 FI 线最大的一块：4c、4e 各自都比 FI-6 第 3 步（Inbox）大。次序与「4c 一个服务覆盖公开来源 + 研究库 + 证据读写」这一取舍若统筹有不同意见，开工前请回。
+
+## 10. 第 4 步 4c 设计稿：`services.sourcePull` 与证据正文（2026-10-26，只读代码核的，未实现，等统筹确认）
+
+**现状的切缝。** Feed 包早已把取数收成端口：`FeedSourcePorts.createRuntime(source)` 给出 `PublicFeedRuntime`（`intelligenceCollect.executeExact`、`content.has`、`writtenContentRefs`、`publicFeedReceipt`、`shutdown`），研究库另有 `syncRepository`。宿主这一侧是四块：`feed-source-runtime.ts`（RSS 允许名单传输 + SEL 运行时 + 条件头）、`search-evidence-runtime.ts`（AnySearch 传输与密钥；检索记录经 `createSearchOpaqueBlobStore(db)` 写进项目库，该表归 `packages/storage` 的 `search-storage.ts`；证据正文写 Home 的加密文件）、`research-library-source.ts`（`git` 子进程取数）、`feed-content.ts`（`hydrateFeedItemContent` 解密读正文）。这四块开网络、开子进程、读密钥、读写 Home 文件，插件自己都不能做，所以是平台服务；Feed 一侧只留「来源登记、计划、运行账、事项写入」。
+
+**形状：一个服务、四个方法，公开合同里不出现 `@adeptify/*` 的类型**（回答 §9 末尾的取舍：一个服务，因为 Manifest 声明、授权、取消与审计是同一套；方法各自单独授权）。
+
+```ts
+interface PluginSourcePullService {
+  /** 公开订阅源与网页搜索。第一段：取回、缓冲，不写任何持久内容。 */
+  open(request: SourcePullRequest, options?: { signal?: AbortSignal }): Promise<SourcePullSession>;
+  /** 研究库（git）：平台管理克隆目录与子进程，只返回条目。 */
+  repository: { read(input: { repository: string; cursor?: string }): Promise<SourceRepositoryRead> };
+  /** 读一份已存的证据正文（解密）。 */
+  evidence: { read(contentRef: string): Promise<string | null> };
+  /** 忘掉一批检索记录（今天的 forgetIntelligenceOperations）。 */
+  forget(operationIds: readonly string[]): Promise<{ records_deleted: number }>;
+}
+type SourcePullRequest =
+  | { kind: "feed_url"; url: string; cursor?: unknown }          // rss / custom_rss / youtube_channel 的订阅地址；cursor 只用来取 etag / last-modified
+  | { kind: "web_query"; query: string; limit?: number };
+interface SourcePullSession {
+  operation_id: string; outcome: string; requirement_met: boolean;
+  materials: readonly { title: string; canonical_url?: string; published_at?: string; preview: string; content_hash?: string; content_ref?: string; content_type?: string }[];
+  warnings: readonly string[]; http_receipt: RssFetchReceipt | null;
+  content_refs: readonly string[];                               // 缓冲里的正文：Feed 先 hold 这些，再 commit
+  commit(): Promise<{ written: readonly string[] }>; discard(): Promise<void>;
+}
+```
+
+**两段式（4d 带来的约束）：** 账要「先 hold 后写」，而引用在取回之前不知道。做法：`open` 里 SEL 的内容端口写进**暂存根目录**（`createEvidenceContentStore({ secretStore, rootDirectory })` 已有 `rootDirectory` 选项，正文按哈希寻址，暂存与正式的引用相同），检索记录写进暂存的 SQLite 文件；Feed 拿 `content_refs` 调 `feed.content.hold`；`commit()` 才把暂存的文件改名到正式目录（目标已有就丢掉暂存件）、并在一次项目库事务里把检索记录搬进项目库；`discard()`、取消、撤权、停用、进程崩溃都只留下暂存目录，里面的东西没人引用，下次启动清掉。所以任何时刻，正式目录里的正文要么已有人 hold，要么还没写。
+
+**不放宽任何边界（D6-1 的停下条件一条都没碰）：** 目的地只经现有的传输——`createAllowlistedRssTransport`（目录里的订阅源 + YouTube 公共频道 + 自定义公网订阅地址，S-10 的固定到已检查地址的 socket）与 `anysearch-transport.ts`（密钥留在平台，插件看不到）；请求里只有地址 / 查询词 / 数量，**没有请求头、方法、重定向、代理字段**（schema 闭合，多一个字段直接拒）；条件头来自 `cursor`，仍由 `readRssHttpState` 只取 etag 与 last-modified 两个字符串；私网 / 回环等地址的拒绝原样生效（经服务再跑一遍 S-10 的表）。
+
+**授权与声明：** Manifest 声明 `sources: { pull: ["feed_url", "web_query", "repository"], evidence: { namespace: "molis-work-feed" } }` 与权限 `sources:pull`；没声明的种类、命名空间之外的引用、缺权限一概拒；取消、撤权、停用、卸载后的调用既不 commit 也不写（硬约束）。`evidence.read` 的命名空间今天只有 `molis-work-feed/`（存量数据的前缀，存储不是多命名空间的，本片不改）。沙箱里的插件本片拿不到这项服务（broker 不暴露；待核：现有 `services.*` 在沙箱里的暴露规则，实现时照同类服务做）。
+
+**要统筹确认的（我的推荐在前）：**
+1. 一个服务四个方法，实现分两个提交：4c-1 = `open` + `evidence.read` + `forget`；4c-2 = `repository.read`（研究库条目的写入从宿主 `syncResearchLibrarySource` 搬进 Feed，宿主只留 git 读取）。
+2. 两段式用「暂存根目录 + 暂存检索库，`commit()` 才落」。备选「SEL 直接写正式目录，Feed 事后补 hold」不满足超集不变式，不采用。
+3. `evidence.read` 的范围：命名空间内任意引用（等于今天宿主的行为，引用是 256 位哈希、只能从本项目的行里得知）。更强的备选是平台再记一张「本安装在本项目写过 / 收到过哪些引用」，要读先查——那是第二本账，且要与 4d 的账对齐，推荐不做，SI 行里写明这个限度。
+4. **行为变化（会改测试）：** 取数进程在 `commit()` 之前崩溃，今天正文和检索记录都留下、重试可「重放」同一次拉取；改后什么都不留，重试重新取（条件头让它很便宜）。运行账仍是 `interrupted`、仍「可安全重试」。
+5. S 号用暂定 `S-9X`（以合入时表的末号为准，不占 #1255 的 S-91）。
+
+| 验收 | 内容 |
+| --- | --- |
+| RAC-1016 | `open` 之后到 `commit()` 之前，正式证据目录与项目库检索记录与调用前相同；`discard()`、取消、`open` 失败、崩溃后重启，同样相同；`commit()` 时账里已有这些引用（顺序用例）；`commit()` 重复调用与目标已存在都不出错 |
+| RAC-1017 | 拒绝：Manifest 没声明的种类、缺 `sources:pull`、请求里多一个头 / 方法 / 重定向 / 代理字段、私网回环地址（S-10 全表经服务）、已撤权 / 停用 / 取消的调用的 `commit()` 都拒绝且不写；密钥不出现在返回与错误里 |
+| RAC-1018 | `evidence.read`：命名空间之外、格式不对、没声明的插件都拒；读回的明文与今天 `hydrateFeedItemContent` 读到的相同；不存在的引用返回 `null` |
+| RAC-1019 | `repository.read`（4c-2）：只返回条目与新游标，不返回目录路径；仓库名不是 `owner/name`、含 `..`、含选项式前缀一律拒；git 子进程的参数里没有来自插件的自由文本 |

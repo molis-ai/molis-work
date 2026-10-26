@@ -28,7 +28,7 @@ export const FEED_HOME_DATABASE: HomePluginDatabaseDeclaration = { store_name: "
 
 /** The only bodies this ledger counts: what the Home's evidence store names. A reference to anything else (a research note) is not its. */
 const BODY_REF = /^molis-work-feed\/sha256\/[0-9a-f]{64}$/u;
-const BACKFILLED = "backfilled_at";
+const COMPLETE = "complete_since";
 /** Most references one call may name, so a hold or release is one bounded write. */
 export const FEED_CONTENT_LEDGER_BATCH = 5_000;
 
@@ -52,12 +52,12 @@ const bodies = (refs: readonly string[], what: string): string[] => {
 };
 
 export function createFeedContentLedger(store: FeedContentLedgerStore, evidence: FeedEvidenceCollector) {
-  const backfilled = (reader: PluginDatabaseReader) => reader.get("SELECT value FROM feed_content_meta WHERE key = ?", [BACKFILLED]) !== null;
+  const marked = (reader: PluginDatabaseReader) => reader.get("SELECT value FROM feed_content_meta WHERE key = ?", [COMPLETE]) !== null;
   return {
     /** Whether the ledger is known to hold every reference there already was (written once by a new Home, or by the maintenance that read every project). */
-    isBackfilled: () => backfilled(store.read),
-    markBackfilled: (beforeEffect: () => Promise<void>, at: string) => store.write(beforeEffect, tx => {
-      tx.run("INSERT OR IGNORE INTO feed_content_meta (key, value) VALUES (?, ?)", [BACKFILLED, at]);
+    isComplete: () => marked(store.read),
+    markComplete: (beforeEffect: () => Promise<void>, at: string) => store.write(beforeEffect, tx => {
+      tx.run("INSERT OR IGNORE INTO feed_content_meta (key, value) VALUES (?, ?)", [COMPLETE, at]);
     }),
     /** Record that this source holds these bodies. Done before the bodies are written, and only after it returns may a write go ahead. */
     hold: async (beforeEffect: () => Promise<void>, holder: FeedContentHolder, contentRefs: readonly string[]) => {
@@ -71,12 +71,12 @@ export function createFeedContentLedger(store: FeedContentLedgerStore, evidence:
      * The source's rows go, then each candidate nobody else holds. The files are deleted inside the write transaction, before it commits:
      * a hold waits for the same lock, so it sees either the rows and the file intact or the file gone (and writes it again), never a
      * file about to be deleted. A transaction that fails part way restores the rows; a file already deleted was nobody's.
-     * Without the backfill mark the ledger cannot say "nobody", so nothing is deleted.
+     * Without the completeness mark the ledger cannot say "nobody", so nothing is deleted.
      */
     release: async (beforeEffect: () => Promise<void>, holder: FeedContentHolder, candidates: readonly string[]): Promise<FeedContentRelease> => {
       const refs = bodies(candidates, "释放");
       return store.write(beforeEffect, tx => {
-        if (!backfilled(tx)) return { bodies_deleted: 0, bodies_kept: refs.length, complete: false };
+        if (!marked(tx)) return { bodies_deleted: 0, bodies_kept: refs.length, complete: false };
         tx.run("DELETE FROM feed_content_holds WHERE project_id = ? AND source_id = ?", [holder.project_id, holder.source_id]);
         const { deleted, kept } = evidence.collect({ candidates: refs, isReferenced: ref => tx.get("SELECT 1 AS held FROM feed_content_holds WHERE content_ref = ? LIMIT 1", [ref]) !== null });
         return { bodies_deleted: deleted.length, bodies_kept: kept.length, complete: true };

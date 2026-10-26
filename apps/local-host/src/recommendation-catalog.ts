@@ -1,14 +1,14 @@
 import { createHash } from "node:crypto";
-import { AGENT_MCP_DESTINATION_ID, FUNCTION_AUTHORING_SUBJECTS,
-  type FunctionAuthoringCatalog, type FunctionAuthoringBehavior } from "@molis-ai/molis-work-contracts/modules/functions";
+import { AGENT_MCP_DESTINATION_ID, JUDGMENT_RULE_AUTHORING_SUBJECTS,
+  type JudgmentRuleAuthoringCatalog, type JudgmentRuleAuthoringBehavior } from "@molis-ai/molis-work-contracts/modules/functions";
 import { subjectOfferChoices } from "@molis-ai/molis-work-kernel";
 import type { ActionProvider, ActionView, ActionSceneView } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /** The authoring catalog names a plugin by its plugin id; `provider_id` is the registration (an installation id for a plugin that is not bundled). */
 const pluginIdOf = (provider: ActionProvider): string => provider.plugin_id ?? provider.provider_id;
 
-export function liveHostJudgmentRuleAuthoringCatalog(directory: readonly ActionView[] = [], scenes: readonly ActionSceneView[] = []): FunctionAuthoringCatalog {
-  const agentActions: FunctionAuthoringBehavior[] = directory.filter(view => view.action.audiences.some(audience => audience === "agent" || audience === "mcp")).map(view => {
+export function liveHostJudgmentRuleAuthoringCatalog(directory: readonly ActionView[] = [], scenes: readonly ActionSceneView[] = []): JudgmentRuleAuthoringCatalog {
+  const agentActions: JudgmentRuleAuthoringBehavior[] = directory.filter(view => view.action.audiences.some(audience => audience === "agent" || audience === "mcp")).map(view => {
     const action_ref = { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
     return { behavior_id: "action." + createHash("sha256").update(JSON.stringify(action_ref)).digest("hex").slice(0, 56),
       action_ref, destination_id: AGENT_MCP_DESTINATION_ID, title: view.action.title, hint: view.action.description,
@@ -19,7 +19,7 @@ export function liveHostJudgmentRuleAuthoringCatalog(directory: readonly ActionV
   const choices = subjectOfferChoices(directory);
   const views = new Map(directory.map(view => [JSON.stringify([view.provider.provider_id, view.capability_id, view.version]), view]));
   const kinds = [...new Set([...choices.flatMap(choice => choice.subject_kinds), ...scenes.flatMap(scene => scene.definition.subject_kinds), ...agentActions.flatMap(action => action.subject_kinds)])];
-  const behaviors: FunctionAuthoringBehavior[] = [];
+  const behaviors: JudgmentRuleAuthoringBehavior[] = [];
   const destinations = scenes.map(({ definition, provider, availability }) => {
     const properties = definition.result_schema.properties as Record<string, { items?: { enum?: unknown } }> | undefined;
     const values = properties?.suggested_behavior_ids?.items?.enum;
@@ -47,7 +47,7 @@ export function liveHostJudgmentRuleAuthoringCatalog(directory: readonly ActionV
       behavior_ids: ids, availability: available };
   });
   return {
-    subjects: [...FUNCTION_AUTHORING_SUBJECTS, ...kinds.filter(kind => !FUNCTION_AUTHORING_SUBJECTS.some(subject => subject.subject_kind === kind))
+    subjects: [...JUDGMENT_RULE_AUTHORING_SUBJECTS, ...kinds.filter(kind => !JUDGMENT_RULE_AUTHORING_SUBJECTS.some(subject => subject.subject_kind === kind))
       .map(subject_kind => ({ subject_kind, title: subject_kind }))],
     destinations: [...destinations, { destination_id: AGENT_MCP_DESTINATION_ID, kind: "mcp", title: "Agent", when: "返回判断和推荐能力，由 Agent 按授权调用",
       configure_at: "发布后可供已授权 Agent 调用", effect: "推荐不自动执行，也不授予权限", subject_kinds: [], behavior_ids: agentActions.map(action => action.behavior_id) }],

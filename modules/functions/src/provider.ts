@@ -1,7 +1,7 @@
 import type {
   ChoiceCriterion,
-  FunctionRecord,
-  FunctionsPrimitive,
+  JudgmentRuleRecord,
+  JudgmentRulePrimitive,
   NoulCriteria,
   TypeSafeEvaluateResult,
   TypeSafeProvider,
@@ -39,7 +39,7 @@ export function createTypeSafeProvider(execute: TypeSafeExecution): TypeSafeProv
 
 export function readAnswer(
   body: unknown,
-  record: { primitive: FunctionsPrimitive; function_key: string; criteria: FunctionRecord["criteria"] },
+  record: { primitive: JudgmentRulePrimitive; function_key: string; criteria: JudgmentRuleRecord["criteria"] },
 ): TypeSafeEvaluateResult {
   const payload = isRecord(body) ? body : {};
   const answers = isRecord(payload.answers) ? payload.answers[record.function_key] : undefined;
@@ -97,7 +97,7 @@ export function readAnswer(
   };
 }
 
-function questionBody(record: FunctionRecord): Record<string, unknown> {
+function questionBody(record: JudgmentRuleRecord): Record<string, unknown> {
   if (record.primitive === "noul") {
     const criteria = record.criteria as NoulCriteria;
     const mapped: Record<string, string> = {};

@@ -37,10 +37,10 @@ export const FUNCTIONS_PROJECT_PLUGIN_ID = "functions";
 export const FUNCTIONS_DEFAULT_MODEL = "jev-latest";
 export const FUNCTIONS_MAX_SAMPLES = 8;
 
-export type FunctionsPrimitive = "noul" | "choice" | "score";
-export type FunctionStatus = "draft" | "published";
-export type FunctionsCredentialSource = "ui" | "env" | "none";
-export type FunctionsOutcome = "ok" | "needs_review";
+export type JudgmentRulePrimitive = "noul" | "choice" | "score";
+export type JudgmentRuleStatus = "draft" | "published";
+export type JudgmentRuleCredentialSource = "ui" | "env" | "none";
+export type JudgmentRuleOutcome = "ok" | "needs_review";
 
 export interface ChoiceCriterion {
   readonly key: string;
@@ -54,20 +54,20 @@ export interface NoulCriteria {
 
 export type ScoreCriteria = readonly string[];
 
-export type FunctionCriteria = readonly ChoiceCriterion[] | NoulCriteria | ScoreCriteria;
+export type JudgmentRuleCriteria = readonly ChoiceCriterion[] | NoulCriteria | ScoreCriteria;
 
-export type FunctionSceneMap = Readonly<Record<string, string>>;
+export type JudgmentRuleSceneMap = Readonly<Record<string, string>>;
 
-export interface FunctionSample {
+export interface JudgmentRuleSample {
   readonly id: string;
   readonly label: string;
   readonly input: string;
 }
 
-export interface FunctionsPreviewRecord {
+export interface JudgmentRulePreviewRecord {
   readonly input: string;
-  readonly outcome: FunctionsOutcome;
-  readonly primitive: FunctionsPrimitive;
+  readonly outcome: JudgmentRuleOutcome;
+  readonly primitive: JudgmentRulePrimitive;
   readonly choice: string | null;
   readonly noul: number | null;
   readonly score: number | null;
@@ -79,11 +79,11 @@ export interface FunctionsPreviewRecord {
   readonly at: string;
 }
 
-interface FunctionRecordBase {
+interface JudgmentRuleRecordBase {
   readonly id: string;
   readonly name: string;
   readonly function_key: string;
-  readonly status: FunctionStatus;
+  readonly status: JudgmentRuleStatus;
   readonly version: number | null;
   readonly model: string;
   readonly instructions: string;
@@ -91,46 +91,46 @@ interface FunctionRecordBase {
   readonly scene_version?: number | null;
   readonly scene_provider_id?: string | null;
   readonly subject_kinds: readonly string[];
-  readonly scene_map: FunctionSceneMap;
-  readonly action_map?: FunctionActionMap;
+  readonly scene_map: JudgmentRuleSceneMap;
+  readonly action_map?: JudgmentRuleActionMap;
   readonly config_hash: string;
-  readonly last_preview: FunctionsPreviewRecord | null;
-  readonly samples: readonly FunctionSample[];
+  readonly last_preview: JudgmentRulePreviewRecord | null;
+  readonly samples: readonly JudgmentRuleSample[];
   readonly published_at: string | null;
   readonly created_at: string;
   readonly updated_at: string;
 }
 
-export type FunctionRecord =
-  | (FunctionRecordBase & { readonly primitive: "choice"; readonly criteria: readonly ChoiceCriterion[] })
-  | (FunctionRecordBase & { readonly primitive: "noul"; readonly criteria: NoulCriteria })
-  | (FunctionRecordBase & { readonly primitive: "score"; readonly criteria: ScoreCriteria });
+export type JudgmentRuleRecord =
+  | (JudgmentRuleRecordBase & { readonly primitive: "choice"; readonly criteria: readonly ChoiceCriterion[] })
+  | (JudgmentRuleRecordBase & { readonly primitive: "noul"; readonly criteria: NoulCriteria })
+  | (JudgmentRuleRecordBase & { readonly primitive: "score"; readonly criteria: ScoreCriteria });
 
-export interface FunctionDraftPatch {
+export interface JudgmentRuleDraftPatch {
   readonly name?: string;
   readonly function_key?: string;
   readonly instructions?: string;
-  readonly criteria?: FunctionCriteria;
+  readonly criteria?: JudgmentRuleCriteria;
   readonly scene_id?: string | null;
   readonly scene_version?: number | null;
   readonly scene_provider_id?: string | null;
   readonly subject_kinds?: readonly string[];
-  readonly scene_map?: FunctionSceneMap;
-  readonly action_map?: FunctionActionMap;
+  readonly scene_map?: JudgmentRuleSceneMap;
+  readonly action_map?: JudgmentRuleActionMap;
 }
 
-export type FunctionActionMap = Readonly<Record<string, import("../platform/actions.js").ActionReference & { readonly provider_id: string }>>;
+export type JudgmentRuleActionMap = Readonly<Record<string, import("../platform/actions.js").ActionReference & { readonly provider_id: string }>>;
 
-export type FunctionAuthoringDestinationKind = "event" | "mcp";
+export type JudgmentRuleAuthoringDestinationKind = "event" | "mcp";
 
-export interface FunctionAuthoringSubject {
+export interface JudgmentRuleAuthoringSubject {
   readonly subject_kind: string;
   readonly title: string;
 }
 
-export interface FunctionAuthoringDestination {
+export interface JudgmentRuleAuthoringDestination {
   readonly destination_id: string;
-  readonly kind: FunctionAuthoringDestinationKind;
+  readonly kind: JudgmentRuleAuthoringDestinationKind;
   readonly title: string;
   readonly when: string;
   readonly configure_at: string;
@@ -142,7 +142,7 @@ export interface FunctionAuthoringDestination {
   readonly availability?: import("../platform/actions.js").ActionAvailability;
 }
 
-export interface FunctionAuthoringBehavior {
+export interface JudgmentRuleAuthoringBehavior {
   readonly behavior_id: string;
   readonly title: string;
   readonly hint?: string;
@@ -161,36 +161,36 @@ export interface FunctionAuthoringBehavior {
   readonly action_ref?: import("../platform/actions.js").ActionReference & { readonly provider_id: string };
 }
 
-export interface FunctionAuthoringCatalog {
-  readonly subjects: readonly FunctionAuthoringSubject[];
-  readonly destinations: readonly FunctionAuthoringDestination[];
-  readonly behaviors: readonly FunctionAuthoringBehavior[];
+export interface JudgmentRuleAuthoringCatalog {
+  readonly subjects: readonly JudgmentRuleAuthoringSubject[];
+  readonly destinations: readonly JudgmentRuleAuthoringDestination[];
+  readonly behaviors: readonly JudgmentRuleAuthoringBehavior[];
 }
 
 
-export interface FunctionSummary {
+export interface JudgmentRuleSummary {
   readonly function_key: string;
   readonly name: string;
-  readonly primitive: FunctionsPrimitive;
+  readonly primitive: JudgmentRulePrimitive;
   readonly version: number;
   readonly model: string;
 }
 
-export interface FunctionDescribe extends FunctionSummary {
+export interface JudgmentRuleDescribe extends JudgmentRuleSummary {
   readonly instructions: string;
   readonly input: { readonly content: "string" };
-  readonly criteria: FunctionCriteria;
+  readonly criteria: JudgmentRuleCriteria;
 }
 
-export interface FunctionInvokeResult {
+export interface JudgmentRuleInvokeResult {
   readonly recommended_actions?: readonly (import("../platform/actions.js").ActionReference & { readonly provider_id: string })[];
   readonly suggested_behavior_ids?: readonly string[];
-  readonly status: FunctionsOutcome;
+  readonly status: JudgmentRuleOutcome;
   readonly function_key: string;
   readonly version: number;
   readonly model: string;
   readonly config_hash: string;
-  readonly primitive: FunctionsPrimitive;
+  readonly primitive: JudgmentRulePrimitive;
   readonly data: {
     readonly choice?: string | null;
     readonly noul?: number;
@@ -201,9 +201,9 @@ export interface FunctionInvokeResult {
   readonly confidence: number | null;
 }
 
-export interface FunctionsSettingsStatus {
+export interface JudgmentRuleSettingsStatus {
   readonly has_credential: boolean;
-  readonly source: FunctionsCredentialSource;
+  readonly source: JudgmentRuleCredentialSource;
 }
 
 /** Plugin-owned subject kinds are open; access is resolved through registered context readers. */
@@ -216,13 +216,13 @@ export interface JudgmentSubject {
 }
 
 export interface JudgmentRecord {
-  readonly recommended_actions?: FunctionInvokeResult["recommended_actions"];
+  readonly recommended_actions?: JudgmentRuleInvokeResult["recommended_actions"];
   readonly judgment_id: string;
   readonly function_key: string;
   readonly function_version: number;
   readonly subject: JudgmentSubject;
   readonly scene_id: string | null;
-  readonly outcome: FunctionsOutcome;
+  readonly outcome: JudgmentRuleOutcome;
   readonly suggested_behavior_ids: readonly string[];
   readonly error_code: string | null;
   readonly created_at: string;
@@ -239,7 +239,7 @@ export interface JudgmentRecord {
 }
 
 export interface TypeSafeEvaluateResult {
-  readonly primitive: FunctionsPrimitive;
+  readonly primitive: JudgmentRulePrimitive;
   readonly choice: string | null;
   readonly noul: number | null;
   readonly score: number | null;
@@ -250,7 +250,7 @@ export interface TypeSafeEvaluateResult {
 }
 
 export interface TypeSafeProvider {
-  evaluate(apiKey: string, record: FunctionRecord, state: string, signal?: AbortSignal): Promise<TypeSafeEvaluateResult>;
+  evaluate(apiKey: string, record: JudgmentRuleRecord, state: string, signal?: AbortSignal): Promise<TypeSafeEvaluateResult>;
 }
 
 export function filterSuggestedBehaviorIds(
@@ -297,13 +297,13 @@ export function visibleFeedDispositionIds(
   return offered;
 }
 
-export function isFunctionDestinationId(value: string): boolean {
+export function isJudgmentRuleDestinationId(value: string): boolean {
   // Registration and live compatibility belong to the scene service. Drafts
   // retain valid identities even if their original provider is currently absent.
   return /^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$/u.test(value);
 }
 
-export const FUNCTION_AUTHORING_SUBJECTS: readonly FunctionAuthoringSubject[] = [
+export const JUDGMENT_RULE_AUTHORING_SUBJECTS: readonly JudgmentRuleAuthoringSubject[] = [
   { subject_kind: "feed_item", title: "Feed 消息" },
   { subject_kind: "inbox_entry", title: "Inbox" },
   { subject_kind: "source", title: "来源出错" },
@@ -322,8 +322,8 @@ export function choiceCriteriaFollowContext(
 }
 
 export function functionOutputKeys(record: {
-  readonly primitive: FunctionsPrimitive;
-  readonly criteria: FunctionCriteria;
+  readonly primitive: JudgmentRulePrimitive;
+  readonly criteria: JudgmentRuleCriteria;
 }): string[] {
   if (record.primitive === "noul") return [NOUL_TRUE_MAP_KEY, NOUL_FALSE_MAP_KEY];
   if (record.primitive !== "choice" || !Array.isArray(record.criteria)) return [];
@@ -337,9 +337,9 @@ export function functionOutputKeys(record: {
 
 export function mapJudgmentChoice(
   record: {
-    readonly primitive: FunctionsPrimitive;
-    readonly criteria: FunctionCriteria;
-    readonly scene_map?: FunctionSceneMap | null;
+    readonly primitive: JudgmentRulePrimitive;
+    readonly criteria: JudgmentRuleCriteria;
+    readonly scene_map?: JudgmentRuleSceneMap | null;
   },
   result: { readonly choice?: string | null; readonly noul?: number | null },
 ): string | null {

@@ -1,14 +1,14 @@
 import type { DatabaseSync } from "node:sqlite";
 import {
   type ChoiceCriterion,
-  type FunctionActionMap,
-  type FunctionCriteria,
-  type FunctionRecord,
-  type FunctionSample,
-  type FunctionSceneMap,
-  type FunctionsPreviewRecord,
-  type FunctionsPrimitive,
-  isFunctionDestinationId,
+  type JudgmentRuleActionMap,
+  type JudgmentRuleCriteria,
+  type JudgmentRuleRecord,
+  type JudgmentRuleSample,
+  type JudgmentRuleSceneMap,
+  type JudgmentRulePreviewRecord,
+  type JudgmentRulePrimitive,
+  isJudgmentRuleDestinationId,
   type NoulCriteria,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import { hashFunctionConfig } from "./hash.js";
@@ -38,7 +38,7 @@ export interface FunctionRow {
   updated_at: string;
 }
 
-export function insert(db: DatabaseSync, record: FunctionRecord): void {
+export function insert(db: DatabaseSync, record: JudgmentRuleRecord): void {
   db.prepare(`
     INSERT INTO functions (
       id, name, function_key, primitive, status, version, model, instructions, criteria_json,
@@ -69,7 +69,7 @@ export function insert(db: DatabaseSync, record: FunctionRecord): void {
   );
 }
 
-export function fromRow(row: FunctionRow): FunctionRecord {
+export function fromRow(row: FunctionRow): JudgmentRuleRecord {
   const primitive = parsePrimitive(row.primitive);
   const criteria = parseCriteria(primitive, row.criteria_json);
   return buildRecord({
@@ -85,7 +85,7 @@ export function fromRow(row: FunctionRow): FunctionRecord {
     scene_provider_id: row.scene_provider_id ?? null,
     subject_kinds: parseSubjectKinds(row.subject_kinds_json),
     scene_map: parseSceneMap(row.scene_map_json),
-    action_map: row.action_map_json ? JSON.parse(row.action_map_json) as FunctionActionMap : {},
+    action_map: row.action_map_json ? JSON.parse(row.action_map_json) as JudgmentRuleActionMap : {},
     instructions: row.instructions,
     criteria,
     last_preview: parsePreview(row.last_preview_json, primitive),
@@ -100,24 +100,24 @@ export function buildRecord(input: {
   id: string;
   name: string;
   function_key: string;
-  primitive: FunctionsPrimitive;
-  status: FunctionRecord["status"];
+  primitive: JudgmentRulePrimitive;
+  status: JudgmentRuleRecord["status"];
   version: number | null;
   model: string;
   instructions: string;
-  criteria: FunctionCriteria;
+  criteria: JudgmentRuleCriteria;
   scene_id: string | null;
   scene_version?: number | null;
   scene_provider_id?: string | null;
   subject_kinds: readonly string[];
-  scene_map: FunctionSceneMap;
-  action_map?: FunctionActionMap;
-  last_preview: FunctionsPreviewRecord | null;
-  samples: readonly FunctionSample[];
+  scene_map: JudgmentRuleSceneMap;
+  action_map?: JudgmentRuleActionMap;
+  last_preview: JudgmentRulePreviewRecord | null;
+  samples: readonly JudgmentRuleSample[];
   published_at: string | null;
   created_at: string;
   updated_at: string;
-}): FunctionRecord {
+}): JudgmentRuleRecord {
   const base = {
     id: input.id,
     name: input.name,
@@ -153,20 +153,20 @@ export function buildRecord(input: {
   return { ...base, primitive: "choice", criteria: input.criteria as readonly ChoiceCriterion[] };
 }
 
-function parsePrimitive(value: string): FunctionsPrimitive {
+function parsePrimitive(value: string): JudgmentRulePrimitive {
   if (value === "noul" || value === "score") return value;
   return "choice";
 }
 
-function parseCriteria(primitive: FunctionsPrimitive, raw: string): FunctionCriteria {
+function parseCriteria(primitive: JudgmentRulePrimitive, raw: string): JudgmentRuleCriteria {
   try {
-    return normalizeCriteria(primitive, JSON.parse(raw) as FunctionCriteria, false);
+    return normalizeCriteria(primitive, JSON.parse(raw) as JudgmentRuleCriteria, false);
   } catch {
     return defaultCriteria(primitive);
   }
 }
 
-function parsePreview(raw: string | null, primitive: FunctionsPrimitive): FunctionsPreviewRecord | null {
+function parsePreview(raw: string | null, primitive: JudgmentRulePrimitive): JudgmentRulePreviewRecord | null {
   if (!raw) return null;
   try {
     const value = JSON.parse(raw) as Record<string, unknown>;
@@ -192,7 +192,7 @@ function parsePreview(raw: string | null, primitive: FunctionsPrimitive): Functi
   }
 }
 
-function parseSamples(raw: string | null): FunctionSample[] {
+function parseSamples(raw: string | null): JudgmentRuleSample[] {
   if (!raw) return [];
   try {
     const value = JSON.parse(raw) as unknown;
@@ -213,7 +213,7 @@ function parseSamples(raw: string | null): FunctionSample[] {
 }
 
 function parseSceneId(value: string | null | undefined): string | null {
-  if (!value || !isFunctionDestinationId(value)) return null;
+  if (!value || !isJudgmentRuleDestinationId(value)) return null;
   return value;
 }
 
@@ -226,7 +226,7 @@ function parseSubjectKinds(raw: string | null | undefined): string[] {
   }
 }
 
-function parseSceneMap(raw: string | null | undefined): FunctionSceneMap {
+function parseSceneMap(raw: string | null | undefined): JudgmentRuleSceneMap {
   if (!raw) return {};
   try {
     const value = JSON.parse(raw) as unknown;

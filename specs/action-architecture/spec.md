@@ -565,7 +565,7 @@ Functions 插件退场时按职责迁移：纯浏览器编辑器、样式与本�
 
 系统入口使用 `/capabilities/library|connections|access|history`，沿用现有工作台的中性界面、系统岛和独立设置页布局。能力库采用列表与详情并列，窄屏在列表与详情间推进；搜索、项目范围和类型筛选保留在 URL。详情直接展示动作目录、兼容场景与真实绑定，不复制能力元数据。连接和对外接入复用原配置 owner，判断记录继续读取原 Functions 存储并按选定项目过滤；尚未接入的全量调用历史不得伪装为完整。高保真预览使用同一 renderer 的明确标注示例数据，随后切换真实 Host 目录。此切片不代表 Functions 编辑器、全量权限和存量迁移已经完成。
 
-以现有不可变已发布 FunctionRecord 的 function_key/version 为能力身份，system.functions 来源注册每个已发布规则，草稿不注册。仍由 Functions 模块持有定义、试跑、发布和判断历史；目录在发现及调用前读取真实发布事实并增删注册，不复制持久化目录。动态能力执行检查绑定版本和配置，不能悄悄改用其他版本。
+以现有不可变已发布 JudgmentRuleRecord 的 function_key/version 为能力身份，system.functions 来源注册每个已发布规则，草稿不注册。仍由 Functions 模块持有定义、试跑、发布和判断历史；目录在发现及调用前读取真实发布事实并增删注册，不复制持久化目录。动态能力执行检查绑定版本和配置，不能悄悄改用其他版本。
 
 LocalHost 提供无项目动作客户端，和项目客户端共用 Kernel 注册；无项目调用不能伪造项目上下文或调用项目能力，关闭 Host 会等待系统调用并撤销系统注册。旧 Functions MCP list/describe/invoke 保留公开名称作为薄转发，转到同一系统动作注册；开关只控制兼容名称是否启用，实际调用遵守对应动作的逐客户端授权，不能自行附加 functions:invoke 或绕过撤权。
 

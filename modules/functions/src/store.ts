@@ -4,12 +4,12 @@ import type { DatabaseSync } from "node:sqlite";
 import {
   FUNCTIONS_DEFAULT_MODEL,
   FUNCTIONS_MAX_SAMPLES,
-  type FunctionDraftPatch,
-  type FunctionRecord,
-  type FunctionSample,
-  type FunctionSceneMap,
-  type FunctionsPreviewRecord,
-  type FunctionsPrimitive,
+  type JudgmentRuleDraftPatch,
+  type JudgmentRuleRecord,
+  type JudgmentRuleSample,
+  type JudgmentRuleSceneMap,
+  type JudgmentRulePreviewRecord,
+  type JudgmentRulePrimitive,
   type JudgmentRecord,
   type JudgmentSubject,
 } from "@molis-ai/molis-work-contracts/modules/functions";
@@ -39,28 +39,28 @@ export class FunctionsStore {
   }
 
   /** Writes the rules scenes declare for themselves; one already in the library under the same key stays as it is. */
-  seedDeclared(rules: readonly DeclaredSceneRule[], sceneMap?: (rule: DeclaredRuleSubject) => FunctionSceneMap): void {
+  seedDeclared(rules: readonly DeclaredSceneRule[], sceneMap?: (rule: DeclaredRuleSubject) => JudgmentRuleSceneMap): void {
     seedDeclaredRules(this.db, rules, sceneMap);
   }
 
-  list(): FunctionRecord[] {
+  list(): JudgmentRuleRecord[] {
     const rows = this.db.prepare(
       "SELECT * FROM functions ORDER BY datetime(updated_at) DESC, name COLLATE NOCASE",
     ).all() as unknown as FunctionRow[];
     return rows.map(fromRow);
   }
 
-  get(id: string): FunctionRecord | null {
+  get(id: string): JudgmentRuleRecord | null {
     const row = this.db.prepare("SELECT * FROM functions WHERE id = ?").get(id) as FunctionRow | undefined;
     return row ? fromRow(row) : null;
   }
 
-  getByKey(functionKey: string): FunctionRecord | null {
+  getByKey(functionKey: string): JudgmentRuleRecord | null {
     const row = this.db.prepare("SELECT * FROM functions WHERE function_key = ?").get(functionKey) as FunctionRow | undefined;
     return row ? fromRow(row) : null;
   }
 
-  create(input: { primitive?: FunctionsPrimitive; name?: string; function_key?: string } = {}): FunctionRecord {
+  create(input: { primitive?: JudgmentRulePrimitive; name?: string; function_key?: string } = {}): JudgmentRuleRecord {
     const primitive = assertPrimitive(input.primitive ?? "choice");
     const now = new Date().toISOString();
     const name = normalizeName(input.name ?? defaultName(primitive));
@@ -92,11 +92,11 @@ export class FunctionsStore {
     return record;
   }
 
-  createChoice(input: { name?: string; function_key?: string } = {}): FunctionRecord {
+  createChoice(input: { name?: string; function_key?: string } = {}): JudgmentRuleRecord {
     return this.create({ ...input, primitive: "choice" });
   }
 
-  updateDraft(id: string, patch: FunctionDraftPatch, expectedUpdatedAt?: string): FunctionRecord {
+  updateDraft(id: string, patch: JudgmentRuleDraftPatch, expectedUpdatedAt?: string): JudgmentRuleRecord {
     const current = this.require(id);
     if (current.status === "published") {
       throw functionsErrors.published_immutable("已发布的函数不能再改配置");
@@ -152,7 +152,7 @@ export class FunctionsStore {
     return this.requireCas(id, written.changes);
   }
 
-  savePreview(id: string, preview: FunctionsPreviewRecord, expectedUpdatedAt?: string): FunctionRecord {
+  savePreview(id: string, preview: JudgmentRulePreviewRecord, expectedUpdatedAt?: string): JudgmentRuleRecord {
     const current = this.require(id);
     if (preview.config_hash !== current.config_hash) {
       throw functionsErrors.stale_preview("预览结果对不上当前配置，请再试一次");
@@ -164,12 +164,12 @@ export class FunctionsStore {
     return this.requireCas(id, written.changes);
   }
 
-  addSample(id: string, input: { label?: string; input: string }, expectedUpdatedAt?: string): FunctionRecord {
+  addSample(id: string, input: { label?: string; input: string }, expectedUpdatedAt?: string): JudgmentRuleRecord {
     const current = this.require(id);
     if (current.samples.length >= FUNCTIONS_MAX_SAMPLES) {
       throw functionsErrors.invalid(`每个函数最多 ${FUNCTIONS_MAX_SAMPLES} 条样例`);
     }
-    const sample: FunctionSample = {
+    const sample: JudgmentRuleSample = {
       id: crypto.randomUUID(),
       label: normalizeSampleLabel(input.label, current.samples.length),
       input: normalizeSampleInput(input.input),
@@ -177,7 +177,7 @@ export class FunctionsStore {
     return this.writeSamples(current, [...current.samples, sample], expectedUpdatedAt ?? current.updated_at);
   }
 
-  removeSample(id: string, sampleId: string, expectedUpdatedAt?: string): FunctionRecord {
+  removeSample(id: string, sampleId: string, expectedUpdatedAt?: string): JudgmentRuleRecord {
     const current = this.require(id);
     const samples = current.samples.filter((item) => item.id !== sampleId);
     if (samples.length === current.samples.length) {
@@ -186,7 +186,7 @@ export class FunctionsStore {
     return this.writeSamples(current, samples, expectedUpdatedAt ?? current.updated_at);
   }
 
-  publish(id: string, expectedUpdatedAt?: string, scene?: ActionSceneReference): FunctionRecord {
+  publish(id: string, expectedUpdatedAt?: string, scene?: ActionSceneReference): JudgmentRuleRecord {
     const current = this.require(id);
     if (current.status === "published") return current;
     assertReadyToPublish(current);
@@ -230,20 +230,20 @@ export class FunctionsStore {
     }
   }
 
-  require(id: string): FunctionRecord {
+  require(id: string): JudgmentRuleRecord {
     const record = this.get(id);
     if (!record) throw functionsErrors.not_found("函数不存在");
     return record;
   }
 
-  private requireCas(id: string, changes: number | bigint): FunctionRecord {
+  private requireCas(id: string, changes: number | bigint): JudgmentRuleRecord {
     if (changes !== 1 && changes !== 1n) {
       throw functionsErrors.conflict("草稿已被更新，请刷新后再试");
     }
     return this.require(id);
   }
 
-  requirePublishedByKey(functionKey: string): FunctionRecord {
+  requirePublishedByKey(functionKey: string): JudgmentRuleRecord {
     const record = this.getByKey(functionKey);
     if (!record || record.status !== "published" || record.version == null) {
       throw functionsErrors.not_found("函数不存在");
@@ -276,7 +276,7 @@ export class FunctionsStore {
     return latestJudgment(this.db, kind, id, projectId, sceneId);
   }
 
-  private writeSamples(current: FunctionRecord, samples: readonly FunctionSample[], expectedUpdatedAt: string): FunctionRecord {
+  private writeSamples(current: JudgmentRuleRecord, samples: readonly JudgmentRuleSample[], expectedUpdatedAt: string): JudgmentRuleRecord {
     const written = this.db.prepare(
       "UPDATE functions SET samples_json = ?, updated_at = ? WHERE id = ? AND updated_at = ?",
     ).run(JSON.stringify(samples), laterThan(current.updated_at), current.id, expectedUpdatedAt);

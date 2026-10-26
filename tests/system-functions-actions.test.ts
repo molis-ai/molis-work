@@ -9,12 +9,12 @@ import { join } from "node:path";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { functionsActions, publishedFunctionAction, functionContextActions } from "@molis-ai/molis-work-module-functions";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { FunctionRecord, FunctionsPrimitive, FunctionCriteria, TypeSafeProvider, TypeSafeEvaluateResult } from "@molis-ai/molis-work-contracts/modules/functions";
+import type { JudgmentRuleRecord, JudgmentRulePrimitive, JudgmentRuleCriteria, TypeSafeProvider, TypeSafeEvaluateResult } from "@molis-ai/molis-work-contracts/modules/functions";
 import { withFunctionsService, withFunctionsServiceAsync } from "../apps/local-host/dist/functions-host.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 
 const caller: ActionCallContext = { actor_id: "owner", project_id: null, audience: "user", permissions: ["functions:invoke"] };
-const criteria: Record<FunctionsPrimitive, FunctionCriteria> = {
+const criteria: Record<JudgmentRulePrimitive, JudgmentRuleCriteria> = {
   choice: [{ key: "yes", description: "符合条件" }, { key: "no", description: "不符合" }],
   noul: { true_description: "符合", false_description: "不符合" }, score: ["低", "高"],
 };
@@ -38,7 +38,7 @@ test("published rules become versioned system actions without a project, preserv
   try {
     const client = host.homeActionClient();
     await client.discover(caller); // Source exists before publication.
-    const records: FunctionRecord[] = [];
+    const records: JudgmentRuleRecord[] = [];
     for (const primitive of ["choice", "noul", "score"] as const) {
       const record = await withFunctionsServiceAsync(home, async service => {
         const draft = service.create({ primitive, function_key: `test_${primitive}` });

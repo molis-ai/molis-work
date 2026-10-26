@@ -1,5 +1,5 @@
 import type { ActionDefinition, BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { ShelfRecipeId } from "@molis-ai/molis-work-contracts/modules/shelf";
+import type { ShelfRecipeId } from "@molis-ai/molis-work-module-shelf/contract";
 import { isHttpUrl, shelfErrors } from "@molis-ai/molis-work-module-shelf";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { shelfActions, shelfProjectActions, type ShelfAdmitActionInput } from "./actions.js";

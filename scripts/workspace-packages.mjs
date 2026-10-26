@@ -410,7 +410,7 @@ export const WORKSPACE_PACKAGES = [
       "artifacts.compatibility.v1"
     ]
   }),
-  entry("modules/shelf", "@molis-ai/molis-work-contracts/modules/shelf", {
+  entry("modules/shelf", "@molis-ai/molis-work-contracts/platform/package", {
     maturity: "slice",
     capabilities: [
       "shelf.store.v1",

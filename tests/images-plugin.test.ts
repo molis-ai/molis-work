@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { imagesManifest, IMAGES_CLIENT_FACTORY_SCRIPT, imagesUiContribution } from "@molis-ai/molis-work-plugin-images";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { pluginMarketCards, railEntries } from "@molis-ai/molis-work-app-workbench";
-import { SHELF_ADMIT_ACTION } from "@molis-ai/molis-work-contracts/modules/shelf";
+import { SHELF_ADMIT_ACTION } from "@molis-ai/molis-work-module-shelf/contract";
 import { shelfActions } from "@molis-ai/molis-work-plugin-shelf";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { IMAGE_PNG, imageReply } from "./fixtures/images-runtime.js";

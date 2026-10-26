@@ -21,7 +21,7 @@ import { CODING_ACTIONS } from "./route-actions.js";
 import { codingExecutorActions } from "./executor-actions.js";
 import { codingArtifactPreview } from "./artifact-preview.js";
 import { codingHomeBackgroundTasks } from "./home-background.js";
-import { codingResultDocument } from "@molis-ai/molis-work-contracts/modules/coding";
+import { codingResultDocument } from "./contract.js";
 import { CODING_PROJECT_DATABASE } from "./database.js";
 
 import { CODING_MESSAGES } from "./messages.js";

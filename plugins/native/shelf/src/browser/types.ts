@@ -10,7 +10,7 @@ import type {
   ShelfRuntimeStatus,
   ShelfSettingsPatch,
   ShelfShortcutAction,
-} from "@molis-ai/molis-work-contracts/modules/shelf";
+} from "@molis-ai/molis-work-module-shelf/contract";
 import type { UiClientTranslate, UiPluginClientHost, UiRequestScope } from "@molis-ai/molis-work-contracts/platform/ui";
 
 export type Translate = UiClientTranslate;

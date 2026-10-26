@@ -4,7 +4,7 @@ import { readFileSync, realpathSync, writeFileSync } from "node:fs";
 import { request as httpRequest } from "node:http";
 import { join } from "node:path";
 import test from "node:test";
-import type { ShelfSnapshot } from "@molis-ai/molis-work-contracts/modules/shelf";
+import type { ShelfSnapshot } from "@molis-ai/molis-work-module-shelf/contract";
 import { createExtractablePdf } from "@molis-ai/molis-work-module-shelf";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 

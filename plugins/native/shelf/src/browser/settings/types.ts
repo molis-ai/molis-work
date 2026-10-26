@@ -1,4 +1,4 @@
-import type { ShelfDeviceSettings, ShelfHotKeyChord, ShelfHotKeys } from "@molis-ai/molis-work-contracts/modules/shelf";
+import type { ShelfDeviceSettings, ShelfHotKeyChord, ShelfHotKeys } from "@molis-ai/molis-work-module-shelf/contract";
 import type { UiClientTranslate } from "@molis-ai/molis-work-contracts/platform/ui";
 
 /** What the server-side wrapper (src/settings-client.ts) puts in front of the bundle: the chord tables and the plugin's route. */

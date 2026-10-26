@@ -3,7 +3,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import type { PluginModelClient, PluginModelFailure, PluginModelImage } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { BoundedInferenceReceipt } from "@molis-ai/molis-work-contracts/services/agent-host";
-import type { ShelfAiPorts, ShelfAiStatus, ShelfExecutionControl, ShelfMaterialPorts, ShelfModelSelection } from "@molis-ai/molis-work-contracts/modules/shelf";
+import type { ShelfAiPorts, ShelfAiStatus, ShelfExecutionControl, ShelfMaterialPorts, ShelfModelSelection } from "@molis-ai/molis-work-module-shelf/contract";
 import { finalizeShelfRecipeResult, isShelfFailure, resolvedChoiceId, shelfErrors, type ShelfFailure } from "@molis-ai/molis-work-module-shelf";
 import { shelfInstruction } from "./prompts.js";
 

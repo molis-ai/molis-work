@@ -5,7 +5,7 @@ import type {
   ShelfRecipeChoice,
   ShelfRecipeId,
   ShelfRecipeTone,
-} from "@molis-ai/molis-work-contracts/modules/shelf";
+} from "./contract.js";
 
 /**
  * DropAgent `RecipeCatalog` in Molis wording. Accepted kinds, output names,

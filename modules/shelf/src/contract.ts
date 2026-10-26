@@ -1,9 +1,9 @@
-import type { BoundedInferenceReceipt } from "../services/agent-host.js";
-import type { ArtifactReference } from "./artifacts.js";
-import type { ContractDescriptor } from "../platform/package.js";
-import type { ActionDefinition } from "../platform/actions.js";
-import type { MaterialExtractor, MaterialWebsiteReader } from "../services/materials.js";
-import type { PluginOwnerFilesReader } from "../platform/plugin-owner-files.js";
+import type { BoundedInferenceReceipt } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import type { ContractDescriptor } from "@molis-ai/molis-work-contracts/platform/package";
+import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { MaterialExtractor, MaterialWebsiteReader } from "@molis-ai/molis-work-contracts/services/materials";
+import type { PluginOwnerFilesReader } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 /** Execution authority is supplied by the Host, never by a serialized Shelf request. */
 export interface ShelfExecutionControl { signal?: AbortSignal; beforeEffect?(): void | Promise<void> }

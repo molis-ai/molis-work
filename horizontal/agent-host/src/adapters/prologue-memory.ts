@@ -1,6 +1,6 @@
 import { memoryPromotionFailure } from "./prologue-memory-promotion.js";
 import { formationInput, formationView } from "./prologue-memory-formation.js";
-import { candidateView, memoryView, toSdkMemoryMeta, purgeQuery, purgePageView } from "./prologue-memory-values.js";
+import { candidateView, memoryView, memoryPageView, toSdkMemoryMeta, purgeQuery, purgePageView } from "./prologue-memory-values.js";
 import { randomUUID } from "node:crypto";
 import type { PrologueEffects } from "./prologue-effects.js";
 import { agentErrors } from "../errors.js";
@@ -64,13 +64,15 @@ export function createPrologueMemory(runtime: Runtime, effects: Pick<PrologueEff
       withCaller: next => facade(Object.freeze(structuredClone(next)), control),
       withExecution: next => facade(caller, next),
       list: (scope, owner) => call(async bound => (await bound.memory.list({ scope, owner, ...(caller?.run_explicit ? { readMode: "explicit" as const } : {}) })).map(memoryView)),
+      listScopes: ({ scopes, signal }) => {
+        const fixed = scopes.map(({ scope, owner }) => ({ scope, owner }));
+        return call(async bound => (await bound.memory.listScopes({ scopes: fixed, ...(signal ? { signal } : {}),
+          ...(caller?.run_explicit ? { readMode: "explicit" as const } : {}) })).map(memoryView), undefined, signal);
+      },
       page: input => call(async bound => {
         const { scan_limit, ...query } = input;
         const page = await bound.memory.page({ ...query, ...(scan_limit === undefined ? {} : { scanLimit: scan_limit }) });
-        return { ...page, items: page.items.map(memoryView), cost: {
-          directory_entries: page.cost.directoryEntries, directory_enumerations: page.cost.directoryEnumerations,
-          directory_traversal: page.cost.directoryTraversal, metadata_reads: page.cost.metadataReads, body_reads: page.cost.bodyReads,
-        } };
+        return memoryPageView(page);
       }),
       verifyPurgeCoverage: input => call(bound => {
         const { operation_id, known_scopes, ...page } = input;

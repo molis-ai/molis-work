@@ -143,13 +143,13 @@ test("disabled task reads do no backend scan and a closing switch rejects an in-
   const env = await memoryHome(t), { service, ledger, backend } = env.current;
   await service.write(person, { scope: "personal", text: "周报先写风险" });
   let scans = 0;
-  const checked = new MemoryService({ ledger, backend: observeMemoryBackend(backend, bound => ({ ...bound, list: async (...args) => { scans += 1; return bound.list(...args); } })) });
+  const checked = new MemoryService({ ledger, backend: observeMemoryBackend(backend, bound => ({ ...bound, listScopes: async input => { scans += 1; return bound.listScopes!(input); } })) });
   service.savePrefs(person, "personal", "manual");
   assert.equal((await checked.recall(worker, { scopes: ["personal"] })).state, "off"); assert.equal(scans, 0);
   service.savePrefs(person, "personal", "reviewed");
   let release!: () => void, entered!: () => void;
   const ready = new Promise<void>(done => { entered = done; }), blocked = new Promise<void>(done => { release = done; });
-  const waiting = new MemoryService({ ledger, backend: observeMemoryBackend(backend, bound => ({ ...bound, list: async (...args) => { const rows = await bound.list(...args); entered(); await blocked; return rows; } })) });
+  const waiting = new MemoryService({ ledger, backend: observeMemoryBackend(backend, bound => ({ ...bound, listScopes: async input => { const rows = await bound.listScopes!(input); entered(); await blocked; return rows; } })) });
   const pending = waiting.recall(worker, { scopes: ["personal"], query: "周报" });
   await ready; service.savePrefs(person, "personal", "off"); release();
   await assert.rejects(pending, { code: "memory.off" });

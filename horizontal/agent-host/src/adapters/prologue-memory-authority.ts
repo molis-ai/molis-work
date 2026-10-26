@@ -16,6 +16,8 @@ import type { PrologueEffects } from "./prologue-effects.js";
 /** App policy and live grants; SDK types occur only at this SDK adapter boundary. */
 export interface PrologueMemoryOptions {
   policy: MemoryPolicyConfig;
+  /** Optional Host proof retention budget; omission keeps the SDK default of zero. */
+  readCache?: { readonly maxBytes: number };
   promotion?: AgentMemoryPromotion;
   extractor?: AgentMemoryExtractor;
   sources?: {

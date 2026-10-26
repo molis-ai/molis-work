@@ -214,7 +214,8 @@ for (const scenario of ["read-only", "off", "role-denied", "class-denied", "cons
     const backend = prologueMemoryBackend(async () => adapter.memory!);
     const observe: typeof backend.withCaller = bound => {
       const store = backend.withCaller(bound);
-      return { ...store, withCaller: observe, list: async (...args) => { scans++; return store.list(...args); } };
+      return { ...store, withCaller: observe, list: async (...args) => { scans++; return store.list(...args); },
+        listScopes: async input => { scans++; return store.listScopes!(input); } };
     };
     service = new MemoryService({ ledger, backend: { ...backend, withCaller: observe } });
     try {

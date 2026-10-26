@@ -56,14 +56,17 @@ function classAllowed(caller: AgentMemoryCaller, prefs: MemoryPrefs, target: Tar
   return permits(prefs.class_restrictions) && (!frozen || permits(frozen));
 }
 
-/** SDK authority sees only trusted caller bindings and current owner facts, never model-supplied permissions. */
-export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | undefined, extractor?: AgentMemoryExtractor): Options {
-  const callerAllowed = (caller: AgentMemoryCaller) => caller.actor_id === LOCAL_PERSON_ACTOR_ID
+/** Validate the trusted caller identity independently of live owner availability. */
+function callerAllowed(caller: AgentMemoryCaller): boolean {
+  return caller.actor_id === LOCAL_PERSON_ACTOR_ID
     && MEMORY_CONSUMERS.some(value => value === caller.consumer) && SCENES.some(scene => scene === caller.current_scene)
     && (caller.consumer !== "plugin" || !!caller.plugin_id)
     && (caller.current_scene !== "coding" || caller.plugin_id === CODING || caller.person === true)
     && (caller.current_scene !== "assistant" || caller.consumer === "assistant" || caller.person === true);
+}
 
+/** SDK authority sees only trusted caller bindings and current owner facts, never model-supplied permissions. */
+export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | undefined, extractor?: AgentMemoryExtractor): Options {
   const currentFacts = (caller: AgentMemoryCaller) => {
     const owner = ownerFor();
     if (!owner?.alive() || !callerAllowed(caller)) return undefined;
@@ -148,6 +151,7 @@ export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | u
     !!state && candidateAcceptanceCurrent(requests) && requests.every(request => permitted(caller, request, state, operation)
       && (!request.before || scoped(caller, request.before, state, request.action !== "read" && request.action !== "manage-read") && namespaceAllowed(caller, request.before.namespace)));
   return {
+    readCache: { maxBytes: 8 * 1024 * 1024 },
     policy: extractor ? { ...POLICY, formation: { maxSlots: 144 },
       // 120 fixed replacement metas can each occupy the SDK's 4 KiB metadata budget, plus 24 creation slots and identities.
       limits: { maxContentChars: 655360, maxContentNodes: 16384 }, matrix: { ...POLICY.matrix,

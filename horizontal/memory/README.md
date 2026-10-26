@@ -1,5 +1,7 @@
 # 平台记忆
 
+显式召回沿同一 caller 的 `listScopes` 读完整获准集合；旧 Backend 仍逐 scope 顺序读取。首个等待前固定身份、scope 顺序和查询，之后启用的范围留待下一次；取消后不派发下一范围。原分类、期限、同分排序、完整 omitted 与回执仍由 Memory owner 决定，不用 SDK top-k recall 替代。对应真实 Node 回归在 `tests/memory-service.test.ts`，规模观测在 `tests/memory-evaluation-scale.test.ts`。
+
 MEM-40 父恢复事实仍经原纯 interpreter：Storage 同一持久 decoder 产生 home-recovery header 与逐条 target，完整 header 联结后仅返回 inspect-target，不授 SDK 写权。already-cleared 没有原目标版本，解释结果不伪造 version；固定父 identity 可参与原 forgotten 精确身份联结。Catalog、Session 和最终发布由各自原主人执行；本片不增加第二删除核，完整恢复尚须外层接线。
 
 原 interpreter 的可选第三参数 retained 只透传已有 forgotten resolver，供来源收集器交入 Catalog 原主人已验证的固定 ID/identity，不复制解释分支。它与来源事实不一致时仍 unresolved，不能作为目标删除许可。

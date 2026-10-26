@@ -324,6 +324,8 @@ export interface AgentMemoryCapability {
   withCaller(caller: AgentMemoryCaller): AgentMemoryCapability;
   withExecution?(control: AgentMemoryExecutionControl): AgentMemoryCapability;
   list(scope: AgentMemoryEntry["scope"], owner: string): Promise<AgentMemoryEntry[]>;
+  /** Complete scopes in first-seen order, under one caller and Runtime; never a top-k recall. */
+  listScopes?(input: { scopes: readonly { scope: AgentMemoryEntry["scope"]; owner: string }[]; signal?: AbortSignal }): Promise<AgentMemoryEntry[]>;
   page(input: AgentMemoryPageQuery): Promise<AgentMemoryPage>;
   previewPurge(input: AgentMemoryPurgeQuery): Promise<AgentMemoryPurgePage>;
   verifyPurgeCoverage(input: AgentMemoryPurgeCoverageQuery): Promise<AgentMemoryPurgeCoveragePage>;

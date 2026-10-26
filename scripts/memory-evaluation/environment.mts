@@ -16,13 +16,24 @@ export function assertEvaluationArm(arm: string): asserts arm is EvaluationArm {
 }
 type ModelPorts = Pick<PrologueNodeAdapterOptions, "modelConfiguration" | "resolveCredential">;
 let clockHeld = false;
-export interface ReadObservation { scope: string; owner: string; status: "completed" | "failed"; entries: number | null; error: string | null }
+export type ReadObservation = ({ method: "list"; scope: string; owner: string } | { method: "listScopes"; scopes: readonly { scope: string; owner: string }[] })
+  & { status: "completed" | "failed"; entries: number | null; error: string | null };
 
 /** Instrument every immutable bound facade, never the unused bare capability. */
 function observeBackend(backend: MemoryBackendPort, observations: ReadObservation[], beforeList?: () => void): MemoryBackendPort {
+  const listScopes = backend.listScopes;
   return { ...backend, withCaller: caller => observeBackend(backend.withCaller(caller), observations, beforeList),
+    ...(listScopes ? { async listScopes({ scopes, signal }: Parameters<NonNullable<MemoryBackendPort["listScopes"]>>[0]) {
+      const fixed = scopes.map(({ scope, owner }) => ({ scope, owner }));
+      const row: ReadObservation = { method: "listScopes", scopes: fixed, status: "failed", entries: null, error: null }; observations.push(row);
+      try {
+        beforeList?.();
+        const entries = await listScopes.call(backend, { scopes: fixed, ...(signal ? { signal } : {}) });
+        row.entries = entries.length; row.status = "completed"; return entries;
+      } catch (error) { row.error = error instanceof Error ? error.message : String(error); throw error; }
+    } } : {}),
     async list(scope, owner) {
-      const row: ReadObservation = { scope, owner, status: "failed", entries: null, error: null }; observations.push(row);
+      const row: ReadObservation = { method: "list", scope, owner, status: "failed", entries: null, error: null }; observations.push(row);
       try { beforeList?.(); const entries = await backend.list(scope, owner); row.entries = entries.length; row.status = "completed"; return entries; }
       catch (error) { row.error = error instanceof Error ? error.message : String(error); throw error; }
     } };

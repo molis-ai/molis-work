@@ -253,7 +253,11 @@ test("an agent without its original memory snapshot is refused without changing 
 
 // Observe the actual bound capability without replacing its caller or final execution guard.
 function observedMemory(memory: AgentMemoryCapability, hooks: { afterList?(): Promise<void>; beforeCommit?(): Promise<void>; afterRemove?(): Promise<void>; afterUpdate?(): Promise<void> }): AgentMemoryCapability {
+  const listScopes = memory.listScopes;
   return { ...memory,
+    ...(listScopes ? { listScopes: async (input: Parameters<typeof listScopes>[0]) => {
+      const rows = await listScopes.call(memory, input); await hooks.afterList?.(); return rows;
+    } } : {}),
     list: async (...args) => { const rows = await memory.list(...args); await hooks.afterList?.(); return rows; },
     remove: async (...args) => { await memory.remove(...args); await hooks.afterRemove?.(); },
     update: async (...args) => { const result = await memory.update(...args); await hooks.afterUpdate?.(); return result; },

@@ -9,23 +9,22 @@
   "source": {
     "repository": "git+https://github.com/molis-ai/molis-prologue.git",
     "path": "packages/sdk",
-    "commit": "1cc80b05253df798eeb34afff65d1bda06bee587",
+    "commit": "7ebb15af379876f41ee27e3cd2406b2631faa828",
     "dirty": false,
     "dirtyPaths": [],
     "patches": [],
     "candidateUpstream": {
-      "pullRequest": "https://github.com/molis-ai/molis-prologue/pull/107",
-      "head": "1cc80b05253df798eeb34afff65d1bda06bee587",
-      "status": "merged",
-      "mergeCommit": "ccafbb74fb9db0e3a124ec502c57291677487e23",
-      "note": "Archive was packed from the clean reviewed head. GitHub compare confirms that its merged commit has no file differences."
+      "pullRequest": "https://github.com/molis-ai/molis-prologue/pull/108",
+      "head": "7ebb15af379876f41ee27e3cd2406b2631faa828",
+      "status": "draft",
+      "note": "Clean reviewed candidate; App collection-read integration and frozen performance acceptance are still pending."
     }
   },
   "artifact": {
     "file": "prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
-    "bytes": 1397575,
-    "sha256": "6893801bb36df43630c0ea1cfe44eb08c2fcd0b57ae0b0abbffab42623ad5a78",
-    "integrity": "sha512-LPbQWH3HFyVKlmSQnFb6wuKGBLuZS5zrqHX1SEMuBb6ila2gIDi1WPHcnPhcyn/yXj1zUV8mgCbKqViRnKmcfQ=="
+    "bytes": 1406264,
+    "sha256": "8c666973bdc880f0fabcbb662ec8a319e1e62e7032d4824a0035b5a5e6de2cff",
+    "integrity": "sha512-bTjojvpXWdaiYRHIV3CpR3ifQR64YkHjK1IO0feuc923heNmUYbhV/u5fBOlWVZY7NunnfmRTTl99oMRCut+ZQ=="
   },
   "build": {
     "node": "24.14.0",
@@ -33,12 +32,11 @@
     "platform": "darwin",
     "architecture": "arm64",
     "steps": [
-      "Use clean source 1cc80b05253df798eeb34afff65d1bda06bee587; merged #107 at ccafbb74fb9db0e3a124ec502c57291677487e23 has no file differences.",
-      "pnpm install --frozen-lockfile --offline --store-dir <existing-cache>",
-      "QUALITY_BASE=b54429dbf43e8f9f8f4b910999674c192077c247 pnpm quality",
-      "In packages/sdk: pnpm pack --pack-destination <isolated-directory>; all 816 archived dist files match the original build byte-for-byte, without vendor patches."
+      "Use clean source 7ebb15af379876f41ee27e3cd2406b2631faa828.",
+      "Use existing frozen offline workspace dependencies; run original SDK build and pack in an isolated directory.",
+      "Verify all 824 archived dist files byte-for-byte against the clean build and unchanged package.json."
     ],
     "packedOn": "2026-10-26",
-    "note": "Upstream #107 records final-head quality (71 files, 748 tests) and 24 delivery/App-wait regression tests passing. This adoption verifies the clean source, all 816 dist files, and unchanged archived package.json. Upstream remote quality did not start and is not claimed as CI passing. The same Molis consumer patch must persist original wait IDs before SDK purge; complete App MEM-40 and user acceptance require their own verification."
+    "note": "Local original engineering components and direct installed collection consumer passed. The quality command environmental failures remain recorded in upstream memory-strategy; only the temporary no-lock consumer uses frozen=false while staying offline/ignore-scripts. No remote CI or App performance acceptance is claimed."
   }
 }

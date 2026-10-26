@@ -51,6 +51,7 @@ export function prologueEffects(host: PrologueHost): PrologueEffects {
     return (async () => { await beforeEffect(); assertCurrent(); return write(); })();
   };
   const storage: PrologueHost["storage"] = {
+    ...(host.storage.readObservations ? { readObservations: host.storage.readObservations } : {}),
     get: input => host.storage.get(input), list: input => host.storage.list(input), readSecure: input => host.storage.readSecure(input),
     commit: input => commit(() => host.storage.commit(input)),
     commitBatch: inputs => commit(() => host.storage.commitBatch(inputs)),

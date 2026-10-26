@@ -3307,3 +3307,25 @@ Session 业务维护 owner 固定创建时 Home、权威回调与 Catalog resolv
 额外独立编译四个测试文件的首条临时CLI保留失败：ES2022独立lib不提供Promise.withResolvers，另有未改行的夹具断言类型错误，以及本轮新增SQL unknown访问；最后一项已如上修正。不能把全部失败归为旧夹具，也不能宣称所有测试strict通过。原模块严格检查结果与这一额外诊断分开记录，不放宽断言/配置来消红。
 
 最终同一App产物资源为Workbench1,163,815、settings969,924、workbench.css1,538,622、Coding291,405 B；相对52c分别+32,893、+680、+680、+1,776 B。Workbench32,893仅落在原9项同功能批准总额32,894内，不是新的通用额度；Coding仅570已批，其余1,206仍待原问题答复。原更新器仍因Coding原子拒写，普通资源四红保留，不手填预算。性能100/1000原B1+5ms失败、SDK task时延未知、Knowledge边界待答及完整验收均不改变。日志为仓外molis-memory-app-batch39-fixes-*、coding-owner-*、final-build-identity-20261026.json；本次仍聚合#1101供审查，未合并。
+
+
+### 实际App集合读取接入短合同（2026-10-26，先合同后实现）
+
+要解决的结果是现显式管理召回100/1000条在原B1+5ms门失败，且实际链对个人/项目各建bound、重复做全库读取。采用Prologue现memory-strategy短合同的同一次完整集合读取和可选Host当前字节观察；SDK独立耗时不代替Molis生产入口。沿MemoryService.recall→MemoryQueries→ScopeCommands→MemoryBackendPort→AgentMemoryCapability→Prologue的原链，新增可选listScopes窄口并在同一caller/execution/Runtime里只绑定一次。首个await前固定获准scope集合、顺序及身份；查询中后启用的scope下次查询才进入，撤权仍按最新权限阻断。保留scope内原序、排名/同分顺序、全部omitted、分类/期限过滤和回执；不裁剪成前8条，不改变task/explicit模式。
+
+两处旧调用方边界各沿既有list顺序回退：旧MemoryBackend由ScopeCommands回退；动态Agent能力不提供集合口时，现backend内回退。信号保留原对象、每次等待后复核，取消后不再派下一scope；读取错误不回退旧缓存。没有第二正文源、全局缓存、分页截断或新状态机。只改recall所需集合读取，分页、find、导出/删除预览等原链不借机改写。
+
+原prologue-effects的storage wrapper透传同一可选readObservations能力实例，证明不复制、不伪造、不替代原授权与提交屏障。Runtime配置沿PrologueMemoryOptions及现createNodeRuntime唯一装配入口进入config.memory.readCache；App通过memoryRuntimePolicy显式给每Runtime8 MiB证明保留上限，SDK及未配置消费者默认0不变。此上限是App资源决定，不是命中或性能保证；不足/驱逐只miss，不能删canonical或结果。权限、内容一致性与最终fence不可配掉；Node Host可替换，未实现观察能力时走安全旧路径。用户分类、读写和期限仍归既有Molis界面，此刀不加UI或通用配置框架。
+
+允许路径限上述Memory/Agent接口和实际适配文件、对应现模块README与agent-host API快照、现SDK采用/vendor/lock流程，以及现memory-evaluation环境和直接测试。评测environment原来只观察list，需薄补真实listScopes调用/范围/返回量，并让原failLists仍失败；不能伪造两个list。原scale仍计生产MemoryService.recall全Promise，同Node24.14、10/100/1000、三副本、首次与九次重复、B1+5ms各门、错误和统计口径保持。保留新SDK+旧配方归因对照；不为了过门反复提高8 MiB或更换样本。预算内部保留量若无公开观测应保持未知，可另记录公开进程内存/实际读取字节作旁证，不新增私有穿透或观测框架。
+
+验收先走新旧Port语义等价、非空两scope及同分完整omitted、晚撤权、取消后不读下一scope、Host能力实际透传和关闭释放；按相关README选原必要并集，整体构建/干净SDK安装、公开API/严格类型/边界/精确父基门禁照旧。随后在静默机器跑实际App原冻结规模并逐项对比；过门前不启动已授权正式模型批。性能未过即保留失败，task精确时延、旧TTL不可比、资源待答及用户验收继续单列，不能借这刀宣布P0全部完成。回滚为撤本次调用方接线与本次SDK采用，回到仍支持的旧list读取；无存储格式迁移或数据回滚。
+
+本片健康收束（2026-10-26）：集合接线后原严格健康门发现三个新增越线单元，保持门禁、限额与例外表原样。仅按已有职责内聚拆出纯逻辑：MemoryQueries 的管理页筛选与游标编解码改为同文件局部函数（不依赖 ports 或实例状态）；AgentHost 管理页完整结果映射并入现 prologue-memory-values 的 SDK 值翻译职责；LocalHost 的纯 caller 身份谓词与现 classAllowed 并列，Runtime policy 工厂继续持有 owner/current 授权装配。允许这四个既有文件及对应原管理页、权限、集合测试；不新增模块、状态或抽象层，不改旧单 scope、分页、权限适用范围、取消、排序、完整结果/omitted、8 MiB 预算及原最终 fence。此为职责安放，公开合同和调用时序不变。按原 FIFO 协调构建后，只跑实际影响的管理页/authority 与集合定向回归、三模块 strict 和准确 52c1a7ea3d9b9521d028484807ffbd777feefeaa health，不重跑89无关文件。通过前仍保留前轮三个 health 红项，不压行或登记例外换绿。
+
+
+集合接线候选已采用SDK [#108](https://github.com/molis-ai/molis-prologue/pull/108) 的干净头`7ebb15af379876f41ee27e3cd2406b2631faa828`原包（仍为Draft，未合并），824个dist文件与原构建及实际安装逐一相同，SDK默认证明预算仍为0。首次锁更新CLI不支持所给参数；随后offline update试图解析未缓存的无关postcss而失败，已撤回仅由该命令产生的锁变化。最终因package.json逐字相同，仅更新唯一实际integrity，原frozen/offline安装通过；没有保留无关依赖变更。
+
+本机必要89不同文件累计959项通过，不能写成首跑全绿：后续86文件首轮84过，actions在旧list取消钩子未触发时真实失败，presets旧list屏障挂起后仅终止自有进程；窄查后同步actions/presets/run-expansion到实际集合入口，原拒绝、零回执与零扫描断言保留，三文件49项补验通过。真实Node检查确认首次解密、暖读不再重复解密、更新后返回新版本、重开重新认证。三个健康红项按上段职责归位后，原整体构建、8文件86项、Host/Memory/Agent strict与准确52c健康通过，未增加例外或调整限额；Root独立核对实际diff与日志，vendor原80项另通过。
+
+75 API、边界检查通过；提交后仍用原secrets覆盖新增行。UI资源字节与6fc完全相同，原四红及Coding原待答保持。冻结规模尚待空闲机器执行，100/1000旧失败、task精确时延和旧B1不可比项不变；此候选仅完成接线工程验证，不称性能达标、产品整体验收或用户验收。未启用正式付费模型批，不操作真实Home。完整日志在仓外molis-memory-app-collection-*；当前最终检查索引为health-refactor-checks-20261026.json。

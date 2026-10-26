@@ -3,6 +3,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
+import crypto from "node:crypto";
+import { syncBuiltinESMExports } from "node:module";
 import { createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentMemoryCaller, AgentMemoryMeta } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -534,4 +536,27 @@ test("coverage inspection refuses a forged ordinary caller and rechecks after it
     return allowed;
   };
   await assert.rejects(f.bound().verifyPurgeCoverage(input)); assert.equal(calls, 2);
+});
+
+
+test("MEM-36: the App's explicit proof budget reaches the real Host; warm collections recheck bytes without decrypting unchanged bodies", async t => {
+  const f = await fixture(t), original = await f.save("observed-collection");
+  assert.equal(f.options.readCache?.maxBytes, 8 * 1024 * 1024);
+  // Observe the real Node crypto boundary, without replacing storage, authority or SDK execution.
+  const decrypt = t.mock.method(crypto, "createDecipheriv");
+  syncBuiltinESMExports();
+  t.after(() => { decrypt.mock.restore(); syncBuiltinESMExports(); });
+  const scopes = [{ scope: "project" as const, owner: "a" }];
+  const memory = f.bound(); assert.ok(memory.listScopes);
+  assert.deepEqual(await memory.listScopes({ scopes }), [original]);
+  const first = decrypt.mock.callCount(); assert.ok(first > 0, "the first collection authenticates actual persisted bytes");
+  assert.deepEqual(await memory.listScopes({ scopes }), [original]);
+  assert.equal(decrypt.mock.callCount(), first, "a wrapper dropping Host observations would decrypt again");
+  const changed = await memory.update({ scope: "project", owner: "a", memory_id: original.memory_id, expected_version: original.version,
+    operation_id: "changed-collection", change: { text: "Changed current convention" } });
+  assert.deepEqual(await memory.listScopes({ scopes }), [changed], "the proof cannot hide a new canonical version");
+  await f.reopen();
+  const before = decrypt.mock.callCount(), reopened = f.bound(); assert.ok(reopened.listScopes);
+  assert.deepEqual(await reopened.listScopes({ scopes }), [changed]);
+  assert.ok(decrypt.mock.callCount() > before, "the closed Runtime's observations are not reused after reopening");
 });

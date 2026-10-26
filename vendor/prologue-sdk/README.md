@@ -1,12 +1,12 @@
 # Prologue SDK 受控包
 
-当前 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz` 来自已合并 [#107](https://github.com/molis-ai/molis-prologue/pull/107) 的干净源 `1cc80b05253df798eeb34afff65d1bda06bee587`；正式合并 `ccafbb74fb9db0e3a124ec502c57291677487e23` 与该源没有文件差异。在 #106 的冷恢复能力上，将 canonical wait 清除、迟到 material 与投递写入纳入原 Session 永久屏障，持久失败阻止派出，同请求键保留失败而不自动重放；归档仍保留等待。
+当前 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz` 来自 [Draft #108](https://github.com/molis-ai/molis-prologue/pull/108) 的干净源 `7ebb15af379876f41ee27e3cd2406b2631faa828`，基于已合 #107 的 main `ccafbb74fb9db0e3a124ec502c57291677487e23`。本候选增加完整集合 `listScopes`、可选当前字节观察和默认0的证明缓存预算；权限及最终完整结果检查不省略，存储格式不变。尚未合并、发布或通过实际App性能验收。
 
-归档 1,397,575 字节，816 个 dist 文件，SHA-256 `6893801bb36df43630c0ea1cfe44eb08c2fcd0b57ae0b0abbffab42623ad5a78`；全部 dist 与干净源的原构建逐字节相同，包内 `package.json` 与上一份归档一致。sidecar、provenance、lock 同步，仍只保留两份现有包；上一份 #106 的字节数、摘要、integrity、源提交及归档和两份 sidecar 的 Git blob 记入 patch-history notes，从 Git 历史取回。
+归档1,406,264字节，824个dist文件，SHA-256 `8c666973bdc880f0fabcbb662ec8a319e1e62e7032d4824a0035b5a5e6de2cff`。全部dist与干净源原构建逐字节相同，包内package.json与上一份归档一致；sidecar、provenance及lock随消费者同步。仍只保留两份现有包，旧#107归档及完整sidecar的Git blob与原摘要记录在patch-history notes。
 
-Node 冷 inspection 新增无正文的 `inspectSessionWaits({ref,preview,limit?,cursor?,signal?})`。Molis 消费者必须固定原 ref/preview，从无 cursor 开始穷尽全局扫描的 continuation，并在 SDK purge 前把原 wait IDs 写入原 business 父计划；SDK purge 后的墓碑没有 Session 关系，旧 complete 但缺 App 原计划仍是 incomplete，不能猜为空。采用与该消费者同一补丁交付。
+Molis必须在实际Host wrapper透传原观察能力，沿同一caller/execution绑定完整scopes，并显式配置App的8 MiB证明保留上限；不会自动打开SDK默认缓存，不以SDK基准代替原App B1+5ms门。旧单scope能力仍顺序回退，完整omitted、最终撤权和原回执保留。#107原canonical wait检查及Session永久屏障继续存在，冷恢复仍先保存完整wait IDs，不能用purge后空页补证明。
 
-重建：固定上述干净 SHA，使用 Node 24.14.0 / pnpm 11.9.0，`pnpm install --frozen-lockfile --offline --store-dir <既有缓存>`、`QUALITY_BASE=b54429dbf43e8f9f8f4b910999674c192077c247 pnpm quality`，再在 `packages/sdk` 执行 `pnpm pack --pack-destination <独立目录>`。上游 #107 记录最终头原 quality（类型/build/API/棘轮/干净包消费者/Rust、71 文件 748 项）及投递/App wait 影响 24 项通过；远端 quality 未启动，不记作 CI 通过。本次核对归档与源的一致性，无 vendor 补丁；Molis 完整 MEM-40 与用户验收仍需单独验证。历史失败记录保留，不作为通过证据。
+重建：固定干净源，用Node24.14.0/pnpm11.9.0、原冻结离线依赖，执行原SDK build并在packages/sdk运行 `pnpm pack --pack-destination <独立目录>`。上游原质量组件、71文件748项及直接Node有效并集7文件172项已验证，新增入口的直接干净消费者通过；172是170原并集与最终Host43项的更新，不是单批。原quality单命令环境失败保留，临时无锁consumer仅该命令取消frozen而保留offline/ignore-scripts，Rust按原命令补验；不声称原quality单命令或远端CI通过。Root从提交后干净源再次构建/打包并核全部dist，无vendor补丁。完整证据、首红及尚未完成的App对照在现memory-strategy合同。
 
 ## 上一份主线依赖：retry-waiting（2026-10-23）
 

@@ -1,5 +1,7 @@
 # 本地应用装配中心
 
+显式 Memory 召回通过 `memory-backend` 将个人/项目等获准范围合为同一 Runtime 的完整集合读取；旧 Agent Port 顺序回退，每次等待后检查原取消信号。`memoryRuntimePolicy` 显式给每 Runtime 8 MiB Host 证明保留上限，不是正文结果缓存或 SDK 默认；预算不足只 miss，不裁结果或省去当前权限检查。原规模工具观察真实集合调用及完整返回量，`failLists` 仍作用于实际读取；B1+5ms 门与正式模型批前置不变。
+
 ## Run 记忆展开装配（实施中，未验证）
 
 依 [Memory spec §9.4](../../specs/prologue-memory-strategy/spec.md#94-c0-首期产品配置与采用决定)，助理 list-memories 与 Coding/通用 Agent 已允许的 Memory read Actions 共用 AgentHost 的同 Run 展开。Host 绑定身份、scope 和原分类限制，运行中 Action 在 Memory owner 边界只回无正文引用/排队结果；正文经下一真实模型请求与原 Context receipt。助理的 read 与 form 分别装配，form=false 不遮掉已允许的 list；manual/skip automatic 可显式读，off/角色禁读仍零读。可信 explicit 用途只在固定 Run 展开时建立，不能给 caller 伪造 person 或从工具输入取得 owner/session。

@@ -22,6 +22,7 @@ export type MemoryFormationInput = Omit<AgentMemoryFormationInput, "slots" | "co
 export interface MemoryBackendPort {
   withCaller(caller: MemoryCaller): MemoryBackendPort;
   list(scope: MemoryScope, owner: string): Promise<MemoryBackendEntry[]>;
+  listScopes?(input: { scopes: readonly { scope: MemoryScope; owner: string }[]; signal?: AbortSignal }): Promise<Scoped<AgentMemoryEntry>[]>;
   page(input: Scoped<AgentMemoryPageQuery>): Promise<Omit<AgentMemoryPage, "items"> & { items: MemoryBackendEntry[] }>;
   /** Returned identities retain the Runtime's user scope spelling. */
   previewPurge(input: Scoped<AgentMemoryPurgeQuery>): Promise<AgentMemoryPurgePage>;

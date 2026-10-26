@@ -1,5 +1,7 @@
 # Agent Host
 
+Memory 集合读取通过可选 `AgentMemoryCapability.listScopes`，每次只创建一个 SDK bound，保留原 caller、execution 与 readMode。`prologue-effects` 透传同一 Host `readObservations` 实例，原授权和同步最终屏障不变。`PrologueMemoryOptions.readCache` 经唯一 Runtime 配置入口传入；不配置则保留 SDK 默认零预算，未实现观察能力的 Host 继续原安全读取。
+
 ## 同一 Run 按需展开（实施中，未验证）
 
 依 [Memory spec §9.4](../../specs/prologue-memory-strategy/spec.md#94-c0-首期产品配置与采用决定)，Adapter 将 SDK 现有 `started.memory.expand` 交现 `RunRecord` 持有。启动前的一次性可取消等待解决首工具早于 start 返回的时序，绑定成功才释放，启动失败拒绝；不新增 registry、不按 Session 最新 Run 找 control，历史恢复不补造控制。每次展开复用原 attempt authority 与当前派发检查，无正文回执保留 ref/version、预算和 queued/omitted 事实，正文只走下一实际模型请求的 Context。工具与现 Action client 传递同一可信窄口。

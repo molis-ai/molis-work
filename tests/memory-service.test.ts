@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { MemoryService, MEMORY_GATE_RULE, SIGNAL_THRESHOLD, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
-import type { MemoryWriteRequest } from "@molis-ai/molis-work-contracts/services/memory";
+import { MemoryService, MEMORY_GATE_RULE, SIGNAL_THRESHOLD, type MemoryCaller, type MemoryBackendPort } from "@molis-ai/molis-work-service-memory";
+import type { AgentMemoryCapability } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { MemoryWriteRequest, MemoryRecallRequest } from "@molis-ai/molis-work-contracts/services/memory";
 import { prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
-import { memoryServiceHome, scriptedMemoryExtraction, originalMemorySources } from "./fixtures/memory-service-home.js";
+import { memoryServiceHome, scriptedMemoryExtraction, originalMemorySources, observeMemoryBackend } from "./fixtures/memory-service-home.js";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { NOT_THEIRS, THEIRS } from "./fixtures/memory-said-cases.js";
 
@@ -806,4 +807,117 @@ test("two SDK memory calls never exchange execution controls, and a committed en
   await env.close(); await env.open();
   assert.deepEqual((await env.memory().withCaller(caller).list("user", LOCAL_PERSON_ACTOR_ID)).map(entry => entry.text), ["original"]);
   assert.deepEqual((await env.memory().withCaller(caller).list("project", "project-a")).map(entry => entry.text), ["accepted independently"]);
+});
+
+
+test("MEM-36: collection recall preserves both scopes, equal-score order and every omitted receipt through both old Ports", async t => {
+  const now = () => new Date("2026-10-26T01:00:00Z"), env = await memoryHome(t, now), memory = await env.open();
+  const expected: Record<"personal" | "project", string[]> = { personal: [], project: [] };
+  for (const scope of ["personal", "project"] as const) for (const text of ["发布前检查依赖", "发布前核对清单", "发布前验证构建", "发布前准备回滚"]) {
+    const saved = await memory.write(person(), { scope, kind: "convention", text: `${text} ${scope}` });
+    assert.ok(saved.memory); expected[scope].push(saved.memory.memory_id);
+  }
+  const request: MemoryRecallRequest = { scopes: ["project", "personal"], query: "发布", limit: 2, budget_chars: 4000 };
+  const base = prologueMemoryBackend(async () => env.memory());
+  let collections = 0, lists = 0;
+  const counted = observeMemoryBackend(base, bound => ({ ...bound, async listScopes(input) {
+    collections++; assert.deepEqual(input.scopes.map(where => where.scope), ["project", "personal"]);
+    return bound.listScopes!(input);
+  }, async list(scope, owner) { lists++; return bound.list(scope, owner); } }));
+  const read = (backend: MemoryBackendPort) => new MemoryService({ backend, ledger: env.ledger(), now }).recall(person(), request);
+  const current = await read(counted);
+  assert.equal(collections, 1); assert.equal(lists, 0);
+  assert.deepEqual(current.items.map(item => item.memory_id), expected.project.slice(0, 2));
+  assert.deepEqual(current.omitted.map(item => item.memory_id), [...expected.project.slice(2), ...expected.personal]);
+  const olderBackend = observeMemoryBackend(base, bound => {
+    const { listScopes: _collection, ...rest } = bound;
+    return { ...rest, async list(scope, owner) { lists++; return bound.list(scope, owner); } };
+  });
+  const olderCapability = (capability: AgentMemoryCapability): AgentMemoryCapability => {
+    const { listScopes: _collection, ...rest } = capability;
+    return { ...rest, withCaller: caller => olderCapability(capability.withCaller(caller)),
+      async list(scope, owner) { lists++; return capability.list(scope, owner); } };
+  };
+  let resolutions = 0;
+  const oldAgentBackend = prologueMemoryBackend(async () => { resolutions++; return olderCapability(env.memory()); });
+  for (const backend of [olderBackend, oldAgentBackend]) {
+    lists = 0;
+    const result = await read(backend);
+    assert.equal(lists, 2);
+    assert.deepEqual(result.items, current.items); assert.deepEqual(result.omitted, current.omitted);
+    const uses = memory.uses({ receipt_id: result.receipt_id });
+    assert.equal(uses.length, 8); assert.equal(uses.filter(use => use.state === "omitted").length, 6);
+  }
+  assert.equal(resolutions, 1, "old Agent fallback keeps one caller/Runtime resolution");
+});
+
+test("MEM-36: cancellation during either old Port read prevents the next scope and every receipt", async t => {
+  const env = await memoryHome(t), memory = await env.open();
+  await memory.write(person(), { scope: "personal", text: "发布必须先验证" });
+  for (const boundary of ["backend", "agent"] as const) {
+    const controller = new AbortController(), cancelled = new Error(`cancel-${boundary}`), calls: string[] = [];
+    const oldAgent = (capability: AgentMemoryCapability): AgentMemoryCapability => {
+      const { listScopes: _collection, ...rest } = capability;
+      return { ...rest, withCaller: caller => oldAgent(capability.withCaller(caller)), async list(scope, owner) {
+        calls.push(scope); const result = await capability.list(scope, owner); controller.abort(cancelled); return result;
+      } };
+    };
+    const base = prologueMemoryBackend(async () => boundary === "agent" ? oldAgent(env.memory()) : env.memory());
+    const backend = boundary === "agent" ? base : observeMemoryBackend(base, bound => {
+      const { listScopes: _collection, ...rest } = bound;
+      return { ...rest, async list(scope, owner) {
+        calls.push(scope); const result = await bound.list(scope, owner); controller.abort(cancelled); return result;
+      } };
+    });
+    const service = new MemoryService({ backend, ledger: env.ledger() });
+    await assert.rejects(service.recall({ ...person(), signal: controller.signal }, { scopes: ["personal", "project"] }), error => error === cancelled);
+    assert.deepEqual(calls, [boundary === "agent" ? "user" : "personal"]);
+    assert.deepEqual(service.uses({}), []);
+  }
+});
+
+test("MEM-36: collection failure does not fall back, late cancellation and switch revocation record no uses", async t => {
+  const env = await memoryHome(t), memory = await env.open();
+  await memory.write(person(), { scope: "personal", text: "发布必须先核对清单" });
+  const controller = new AbortController(), failure = new Error("collection failed");
+  let lists = 0, fail = true;
+  const backend = observeMemoryBackend(prologueMemoryBackend(async () => env.memory()), bound => ({ ...bound,
+    async list(scope, owner) { lists++; return bound.list(scope, owner); },
+    async listScopes(input) { assert.equal(input.signal, controller.signal); if (fail) throw failure; return bound.listScopes!(input); },
+  }));
+  const service = new MemoryService({ backend, ledger: env.ledger() }), caller = { ...person(), signal: controller.signal };
+  await assert.rejects(service.recall(caller), error => error === failure);
+  assert.equal(lists, 0); fail = false;
+  await assert.rejects(service.recall(caller, {}, { beforeEffect: () => controller.abort(failure) }), error => error === failure);
+  const consumers = memory.prefs(person(), "personal").prefs.consumers;
+  const revoke = () => { memory.savePrefs(person(), "personal", { consumers: { ...consumers, ui: false } }); };
+  await assert.rejects(memory.recall(person(), {}, { beforeEffect: revoke }), /开关已改变/);
+  memory.savePrefs(person(), "personal", { consumers: { ...consumers, ui: true } });
+  const empty = await memory.recall(person(), { kinds: ["fact"] }, { beforeEffect: revoke });
+  assert.equal(empty.state, "ok"); assert.deepEqual(empty.items, []); assert.deepEqual(empty.omitted, []);
+  assert.deepEqual(service.uses({}), []);
+});
+
+
+test("MEM-36: admitted scopes and caller stay fixed while a collection waits; enabling another scope takes effect next time", async t => {
+  const env = await memoryHome(t), memory = await env.open();
+  const personal = (await memory.write(person(), { scope: "personal", text: "发布前核对个人清单" })).memory!;
+  const project = (await memory.write(person(), { scope: "project", text: "发布前核对项目清单" })).memory!;
+  const consumers = memory.prefs(person(), "project").prefs.consumers;
+  memory.savePrefs(person(), "project", { consumers: { ...consumers, ui: false } });
+  const atRead = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  let held = false;
+  const backend = observeMemoryBackend(prologueMemoryBackend(async () => env.memory()), bound => ({ ...bound, async listScopes(input) {
+    if (!held) { held = true; assert.deepEqual(input.scopes, [{ scope: "personal", owner: LOCAL_PERSON_ACTOR_ID }]); atRead.resolve(); await release.promise; }
+    return bound.listScopes!(input);
+  } }));
+  const service = new MemoryService({ backend, ledger: env.ledger() });
+  const caller = person(), request: MemoryRecallRequest = { scopes: ["personal", "project"], query: "发布" };
+  const pending = service.recall(caller, request); await atRead.promise;
+  caller.actor_id = "changed-after-dispatch"; caller.project_id = "project-b"; request.scopes!.splice(0); request.query = "unrelated";
+  memory.savePrefs(person(), "project", { consumers: { ...consumers, ui: true } }); release.resolve();
+  const first = await pending;
+  assert.deepEqual(first.items.map(item => item.memory_id), [personal.memory_id]);
+  const next = await service.recall(person(), { query: "发布" });
+  assert.deepEqual(new Set(next.items.map(item => item.memory_id)), new Set([personal.memory_id, project.memory_id]));
 });

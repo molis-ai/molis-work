@@ -210,16 +210,16 @@ describe("the records of this repository", () => {
     assert.deepEqual(vendoredProvenanceProblems(repoRoot), []);
   });
 
-  test("the current Prologue package is the one agent-host depends on, packed from the merged upstream maintenance head without a patch", () => {
+  test("the current Prologue package is the one agent-host depends on, packed from the clean collection-read candidate without a patch", () => {
     const provenance = json(`${folder}/${current}.provenance.json`);
     assert.equal(provenance.artifact.file, current);
     assert.equal(json("horizontal/agent-host/package.json").dependencies["@prologue/sdk"], `file:../../${folder}/${current}`);
-    // The merged tree equals the exact quality-checked package source.
-    assert.equal(provenance.source.commit, "1cc80b05253df798eeb34afff65d1bda06bee587");
-    assert.equal(provenance.source.candidateUpstream.pullRequest, "https://github.com/molis-ai/molis-prologue/pull/107");
-    assert.equal(provenance.source.candidateUpstream.head, "1cc80b05253df798eeb34afff65d1bda06bee587");
-    assert.equal(provenance.source.candidateUpstream.status, "merged");
-    assert.equal(provenance.source.candidateUpstream.mergeCommit, "ccafbb74fb9db0e3a124ec502c57291677487e23");
+    // Candidate adoption is explicit; this test does not label an open upstream PR as merged.
+    assert.equal(provenance.source.commit, "7ebb15af379876f41ee27e3cd2406b2631faa828");
+    assert.equal(provenance.source.candidateUpstream.pullRequest, "https://github.com/molis-ai/molis-prologue/pull/108");
+    assert.equal(provenance.source.candidateUpstream.head, "7ebb15af379876f41ee27e3cd2406b2631faa828");
+    assert.equal(provenance.source.candidateUpstream.status, "draft");
+    assert.equal(provenance.source.candidateUpstream.mergeCommit, undefined);
     assert.equal(provenance.source.inFlight, undefined);
     // The historical ancestry audit remains pinned to the main commit it actually checked.
     assert.equal(json(`${folder}/patch-history.json`).upstream.mainHead, "2c7feba5a6ea85e81e4a263671fb5e68f536d86a");
@@ -228,7 +228,7 @@ describe("the records of this repository", () => {
   });
 
   test("the replaced SDK 106 archive and its original sidecars remain retrievable from Git", () => {
-    const note: string = json(`${folder}/patch-history.json`).notes.at(-1);
+    const note: string = json(`${folder}/patch-history.json`).notes.find((item: string) => item.includes("b54429dbf43e8f9f8f4b910999674c192077c247"));
     const previous = JSON.parse(note.slice(note.indexOf("{")));
     assert.equal(previous.commit, "b54429dbf43e8f9f8f4b910999674c192077c247");
     assert.equal(previous.file, current);
@@ -237,6 +237,17 @@ describe("the records of this repository", () => {
     assert.equal(previous.gitBlob, "bc4823b3b5445753ad279665bd8db20ca436d66c");
     assert.equal(previous.provenanceGitBlob, "96e4dd60953844e3f07c1ef73e2c1fcdd05ac305");
     assert.equal(previous.sha256GitBlob, "84d7410f0898a335ea3e58c53f13819bc0c011c1");
+  });
+
+  test("the replaced SDK 107 archive and its original sidecars remain retrievable from Git", () => {
+    const note: string = json(`${folder}/patch-history.json`).notes.find((item: string) => item.includes("1cc80b05253df798eeb34afff65d1bda06bee587"));
+    const previous = JSON.parse(note.slice(note.indexOf("{")));
+    assert.equal(previous.commit, "1cc80b05253df798eeb34afff65d1bda06bee587");
+    assert.equal(previous.bytes, 1_397_575);
+    assert.equal(previous.sha256, "6893801bb36df43630c0ea1cfe44eb08c2fcd0b57ae0b0abbffab42623ad5a78");
+    assert.equal(previous.gitBlob, "0c7e8e75d8729017e415faba443e5f72118ddc99");
+    assert.equal(previous.provenanceGitBlob, "465b79ace8e754a2e85feed18003d14c89b6a47d");
+    assert.equal(previous.sha256GitBlob, "11eaf55958d48e3990d591f4f91e8d0fcb855f5e");
   });
 
   test("only the patch the provenance names is left in vendor/prologue-sdk", () => {

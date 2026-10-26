@@ -1,5 +1,5 @@
-import type { MemoryEntry, MemoryMeta, MemorySourceIdentity, MemorySourceSnapshot, ScopedCandidate, MemoryPurgePreviewInput, MemoryPurgePreviewPage } from "@prologue/sdk";
-import type { AgentMemoryEntry as Entry, AgentMemoryMeta as Meta, AgentMemoryCandidateEntry as Candidate, AgentMemorySourceIdentity, AgentMemorySourceSnapshot, AgentMemoryPurgeQuery, AgentMemoryPurgePage } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { MemoryPage, MemoryEntry, MemoryMeta, MemorySourceIdentity, MemorySourceSnapshot, ScopedCandidate, MemoryPurgePreviewInput, MemoryPurgePreviewPage } from "@prologue/sdk";
+import type { AgentMemoryPage, AgentMemoryEntry as Entry, AgentMemoryMeta as Meta, AgentMemoryCandidateEntry as Candidate, AgentMemorySourceIdentity, AgentMemorySourceSnapshot, AgentMemoryPurgeQuery, AgentMemoryPurgePage } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentErrors } from "../errors.js";
 
 type SdkMeta = MemoryMeta;
@@ -58,3 +58,11 @@ export const candidateView = (item: ScopedCandidate): Candidate => ({ candidate_
   ...(item.sources ? { sources: item.sources.map(sourceIdentityView) } : {}), scope: item.scope as Candidate["scope"], owner: item.owner,
   text: item.text, origin: item.origin, tags: [...item.tags], meta: fromSdkMemoryMeta(item.meta), state: item.state, created_at_ms: item.createdAtMs,
   ...(item.settledAtMs !== undefined ? { settled_at_ms: item.settledAtMs } : {}), ...(item.entry ? { memory_id: item.entry.id } : {}) });
+
+/** Translate the whole management page without changing its cursor, counts or hidden costs. */
+export function memoryPageView(page: MemoryPage): AgentMemoryPage {
+  return { ...page, items: page.items.map(memoryView), cost: {
+    directory_entries: page.cost.directoryEntries, directory_enumerations: page.cost.directoryEnumerations,
+    directory_traversal: page.cost.directoryTraversal, metadata_reads: page.cost.metadataReads, body_reads: page.cost.bodyReads,
+  } };
+}

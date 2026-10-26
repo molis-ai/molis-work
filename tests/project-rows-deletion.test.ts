@@ -357,6 +357,33 @@ test("RAC-577 S-86 a file two projects' rows name stays until the last of them g
   assert.deepEqual([existsSync(join(assets, "own.png")), projects()], [false, []]);
 });
 
+test("RAC-577 S-86 a named file the deletion cannot look at fails the step, and the rows stay for the next attempt", async t => {
+  const home = withHome(t);
+  const images = catalog.find(entry => entry.project_plugin_id === "images")!, library = images.manifest.databases!.home!;
+  const assets = join(home, "images", "assets");
+  const db = openBaselineHomeSqlite(home, library.store_name, library);
+  try {
+    db.prepare(`INSERT INTO jobs (id, project_id, request_id, input_hash, connection_id, connection_name, api_format, model, prompt, size,
+      aspect_ratio, status, images_json, error, created_at) VALUES ('job-pa', 'pa', 'request-pa', 'h', 'c', 'c', 'openai-images', 'm', 'p', '', '', 'succeeded', ?, '', 'now')`)
+      .run(JSON.stringify([{ filename: "unseen.png", mime_type: "image/png" }]));
+  } finally { db.close(); }
+  mkdirSync(assets, { recursive: true });
+  writeFileSync(join(assets, "unseen.png"), "png");
+  const projects = () => {
+    const left = new DatabaseSync(homeSqlitePath(home, "images"), { readOnly: true });
+    try { return left.prepare("SELECT project_id FROM jobs").all().map(row => row.project_id); } finally { left.close(); }
+  };
+
+  chmodSync(assets, 0o000);
+  try {
+    await assert.rejects(() => projectDeletedHooksFor(home).clear("images", "pa"), { code: "EACCES" }, "a file it cannot look at is not taken for one that is gone");
+    assert.deepEqual(projects(), ["pa"], "the rows stay, naming the file");
+  } finally { chmodSync(assets, 0o755); }
+  assert.ok(existsSync(join(assets, "unseen.png")));
+  assert.equal(await projectDeletedHooksFor(home).clear("images", "pa"), true);
+  assert.deepEqual([existsSync(join(assets, "unseen.png")), projects()], [false, []], "the next attempt removes both");
+});
+
 test("RAC-577 S-86 the SDK refuses files that do not hang on a project's own table or name a directory the Manifest does not declare", () => {
   const files = (entries: unknown, ownerFiles: unknown = { store_name: "rows-probe", entries: [{ name: "assets", kind: "directory" }, { name: "index.json", kind: "file" }], read_permission: "rowsprobe:read", write_permission: "rowsprobe:write" }) =>
     () => parsePluginManifest({ ...manifest({ ...LIBRARY, project_rows: { ...ROWS, files: entries } }), owner_files: ownerFiles });

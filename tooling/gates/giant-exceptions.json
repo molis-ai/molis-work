@@ -177,11 +177,6 @@
       "reason": "目标进回收站与恢复：一个事务内改状态、联动子目标、写事件与提醒，成败必须一起；超 150 行 5 行。",
       "size": 155
     },
-    "function modules/shelf/src/store.ts#runJob": {
-      "kind": "cohesive-unit",
-      "reason": "一次 Shelf 作业的执行：校验输入、按配方产出、在一个提交点写文件与记录，成败必须一起；182 行里最大的一块是 71 行的 try 主体，拆开会割裂提交点。",
-      "size": 182
-    },
     "function packages/plugin-sandbox/src/runner.ts#createSandboxRunner": {
       "kind": "cohesive-unit",
       "reason": "沙箱运行器：启动子进程、收发消息、看门狗、关停，共享同一个 child 和同一套限额；安全边界的实现，拆开会让进程的生命周期有两个所有者，不宜分散。",

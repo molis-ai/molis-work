@@ -76,7 +76,6 @@
 | `modules/goals/src/event-state-effects.ts#GoalEventStateEffects` | 515 行 / 11 方法 | 内聚单元 |
 | `modules/goals/src/event-state-effects.ts#recordTrustedDecision` | 152 行 | 内聚单元 |
 | `modules/goals/src/lifecycle-archive.ts#setTrashed` | 155 行 | 内聚单元 |
-| `modules/shelf/src/store.ts#runJob` | 182 行 | 内聚单元 |
 | `packages/kernel/src/action-service.ts#ActionService` | 396 行 / 15 方法 | 内聚单元 |
 | `packages/plugin-runtime/src/events.ts#PluginEventBus` | 420 行 / 23 方法 | 内聚单元 |
 | `packages/plugin-runtime/src/index.ts#PluginRuntime` | 618 行 / 30 方法 | 内聚单元 |

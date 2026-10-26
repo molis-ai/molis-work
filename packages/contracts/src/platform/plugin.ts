@@ -219,6 +219,13 @@ export interface PluginRuntimeApi {
   /** Generated plugins only: restore earlier code while retaining current private data. */
   rollback(input: { install_id: string; definition: PluginDefinition }): Promise<PluginLifecycleReceipt>;
   grant(installId: string, permissions: string[]): PluginLifecycleReceipt;
+  /**
+   * The person's switch for one optional permission of an installation: stop (if running), change the grants, start again, as one step.
+   * Taking a permission away takes effect at once: the running activation's authority is withdrawn before anything else and the new
+   * grants are saved even if the restart then fails. A permission the Manifest does not declare, or a required one switched off, is
+   * `plugin.grant_denied`.
+   */
+  regrant(installId: string, permission: string, granted: boolean): Promise<PluginLifecycleReceipt>;
   start(installId: string): Promise<PluginLifecycleReceipt>;
   /** Stop a running Plugin without uninstalling it. Restart goes back through `start`. */
   stop(installId: string, options?: { preserve_enabled?: boolean }): Promise<PluginLifecycleReceipt>;

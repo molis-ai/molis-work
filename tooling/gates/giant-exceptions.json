@@ -1,6 +1,14 @@
 {
   "note": "Giant units that stay whole because they are reasonable as one unit (user 2026-10-25: a reasonable oversized unit is not force-split, it is marked; specs/repository-anti-corruption §4.5; the list with every verdict is docs/system/HUGE-CLASS-MIGRATION.md). Each entry has a kind, a reason that says why splitting it would be wrong, and \"size\": the measured size (lines for a file or a function, { lines, methods } for a class), which has to equal what the gate measures, so an entry reserves no headroom and growth shows as an edit here. A unit with a valid entry is admitted by the merge-base comparison, new or grown; a giant unit without one may not appear or grow. Keys are the unit keys of baseline.json; an entry for a unit that is no longer giant fails the gate and has to be deleted. kind: translation-table, stylesheet, static-data, generated-code or cohesive-unit (one responsibility that splitting would scatter: a state machine, a parser, a protocol adapter). A unit that mixes several jobs is split, not marked. Edits here are reviewed like edits to the gate.",
   "exceptions": {
+    "class packages/plugin-runtime/src/index.ts#PluginRuntime": {
+      "kind": "cohesive-unit",
+      "reason": "PluginRuntime 是插件安装的生命周期状态机：安装、启动、停止、升级、回退、改授权都在同一把安装锁、同一份撤权世代和同一个记录库下串行；拆到类外要把锁、记录库和撤权的私有入口全部公开，一致性反而散到类外。PG-002 新增的 regrant 只是一个转交方法，步骤在 regrant.ts（类已冻结，新增部分写在新文件）；W5-10 拆分时这两条一起删。",
+      "size": {
+        "lines": 625,
+        "methods": 31
+      }
+    },
     "file packages/design-system/src/styles/momentum.ts": {
       "kind": "stylesheet",
       "reason": "Goals 动量视图的样式表：一个模板字符串，纯 CSS，没有逻辑；样式表按行数拆不改善职责，只让同一个界面的规则散在几处。",
@@ -10,6 +18,11 @@
       "kind": "stylesheet",
       "reason": "基础控件（mw-* 原语）的样式表：PRIMITIVE_STYLES 一个模板字符串，纯 CSS，开头只有几个共用的 CSS 片段常量；样式表按行数拆不改善职责，只让同一个控件的规则散在几处。",
       "size": 1258
+    },
+    "file packages/plugin-runtime/src/index.ts": {
+      "kind": "cohesive-unit",
+      "reason": "文件里是 PluginRuntime 这一个类和它的几个小助手：生命周期状态机整体放在一个文件里，才看得出每一步在哪把锁下、先改记录还是先停起；见同条 class 例外。",
+      "size": 805
     },
     "file plugins/official-integrations/catalog/src/catalog.ts": {
       "kind": "static-data",

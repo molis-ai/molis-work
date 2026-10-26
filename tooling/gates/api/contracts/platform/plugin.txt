@@ -3828,6 +3828,7 @@ export interface PluginRuntimeApi {
         definition: PluginDefinition;
     }): Promise<PluginLifecycleReceipt>;
     grant(installId: string, permissions: string[]): PluginLifecycleReceipt;
+    regrant(installId: string, permission: string, granted: boolean): Promise<PluginLifecycleReceipt>;
     start(installId: string): Promise<PluginLifecycleReceipt>;
     stop(installId: string, options?: {
         preserve_enabled?: boolean;

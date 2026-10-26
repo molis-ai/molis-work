@@ -20,6 +20,7 @@ import { MemoryPluginRuntimeRepository } from "./memory-repository.js";
 import { NativePluginExecutor } from "./native-executor.js";
 import { assertRecoverableState, assertRequiredGrants, cloneRecord, definitionKey, installIdentity, normalizeErrorCode, safeErrorCode, safeErrorMessage, sameStrings, validateManifest } from "./runtime-rules.js";
 import { createActivationContext } from "./activation-context.js";
+import { regrantInstall } from "./regrant.js";
 
 export { SqlitePluginPrivateStorage, PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL } from "./private-storage.js";
 export type { PluginPrivateStorageDatabase } from "./private-storage.js";
@@ -420,6 +421,13 @@ export class PluginRuntime implements PluginRuntimeApi {
     const updated = { ...current, grants, updated_at: this.now() };
     this.repository.save(updated);
     return this.receipt("grant", updated, false);
+  }
+
+  /** The person's switch for one optional permission (PG-002, S-93); the steps are in `regrant.ts`, on the lifecycle steps this class lends. */
+  regrant(installId: string, permission: string, granted: boolean): Promise<PluginLifecycleReceipt> {
+    return regrantInstall({ install: id => this.requireInstall(id), manifest: record => this.requireDefinition(record).manifest, save: record => this.repository.save(record), now: () => this.now(),
+      revoke: id => this.revokeContext(id, true), locked: (id, run) => this.locks.run(id, run), stop: id => this.stopOnce(id, true), start: id => this.startOnce(id),
+      receipt: (record, replayed) => this.receipt("grant", record, replayed) }, installId, permission, granted);
   }
 
   start(installId: string): Promise<PluginLifecycleReceipt> {

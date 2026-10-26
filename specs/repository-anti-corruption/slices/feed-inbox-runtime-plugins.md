@@ -250,3 +250,22 @@ FI-5 的存储层只依赖 `FeedSql`；本片给它第二个适配器 `fromPlugi
 - **测试里要知道的两点。** Runtime 插件的场景和动作在项目打开后异步挂上，刚打开就 `sceneClient(...).bind()` 会赶在 Inbox 起来之前答 `actions.scene_missing`；测试先调一个 Inbox 自己的动作（`inboxActions.readJudgment`）再绑（`capabilities-page`、`inbox-current.e2e`）。直接用 `AttentionModule` 的测试要带上条目的 owner（Feed 的条目 owner 是 Feed，见上）：`attention-atomic-effects`。
 - **页面字节（`pnpm page-assets:check`）：`/assets/molis-work-workbench.js` 涨 35 字节**（1,129,446 → 1,129,481）。原因：Inbox 的请求路径从 `/api/inbox` 变成 `/api/plugins/io.molis.work.inbox`（多 22 字符），客户端用一个常量 `inboxApi` 复用，已是最省的写法；舞台片段路径 `/api/stage/inbox` 比旧的 `/api/inbox/workbench` 短 4 字节。没有别处可省，等统筹审定后按 `APPROVED_CEILINGS` 一次性放行（本片没改它）。
 - **FI-7 的 Inbox 一半已做（2026-10-26）。** 删 `apps/local-host/src/inbox-native-plugin-http.ts` 与 `index.ts` 的导出。Inbox 的页面请求改成插件自己的路由：Manifest 声明 `routes`（`inbox.list GET /entries`、`inbox.entry.status POST /entries/:entry_id/status`、`inbox.pages.results|generate GET|POST /pages`、`inbox.judgment.read|write GET|POST /judgment`、`inbox.judgment.evaluate POST /judgment/evaluate`），`createInboxPlugin` 返回对应的 `routes` 绑定，处理器（`route-handlers.ts`）只把 HTTP 转成插件自己的动作，经 `own.invoke(定义, 输入, request.execution)` 以发请求的人的权限跑；服务在 `/api/plugins/io.molis.work.inbox/<路径>`。`routes.ts` 缩成类型。舞台 HTML 片段不是 JSON，Runtime 的路由层只回 JSON，所以宿主多一个通用的 `GET /api/stage/inbox`（`plugin-stage-fragment-http.ts`，按「Inbox 已启用」放行，渲染 Inbox 的 UI contribution），不以插件命名文件；它是平台路由，Feed 一半做完后 Feed 的舞台片段走同一条（`/api/stage/<插件>`）。客户端 `navigation-inbox.ts`、`events-secondary.ts` 的 `/api/inbox*` 改到新路径。`scripts/check-package-boundaries.mjs` 的 Inbox 规则改成「Host 没有 `/api/inbox`、Manifest 声明 `routes`」。测试：`inbox-plugin`、`desktop-tui`、`home-offers`、`live-product-integration`、`long-content-viewport`、`project-user-journey`、`web-route-table`（要启用 Inbox 才有路由，快照里 `inbox_*` 的键换了名并多一个 stage 探针）、`list-silent-refresh`、`feed-inbox-schedule-error-model`（Inbox 现在和 Schedule 一样是 Runtime 边，普通 Error 映射成通用文案）、`inbox-native-plugin` 按新路径改。`tests/fixtures/inbox-http.ts` 是这些测试共用的、把请求交给 Inbox 路由的小夹具。
+
+## 9. 第 4 步（Feed 进 Runtime）的拆法与缺口清单（2026-10-26，开工前读代码核的）
+
+Feed 的动作要么全由宿主提供、要么全由 Runtime 提供（`BUILD_TIME_ASSEMBLED` 里一个名字），所以「翻转」那一个提交要等下面每一块都有了去处。读了宿主里 Feed 的全部接线，依赖分三类：
+
+| 类别 | 项 | 去处 |
+| --- | --- | --- |
+| 现成 | 项目库、Attention、情境账、成果、场景/判断账（P1/P2）、`services.connections.request`（FI-3 已给 Feed 声明 per-record 槽）、目录调 Goals 提升、目录调 Inbox 的 `inbox.judgment.evaluate` | 直接用 |
+| 缺平台件（每件带 SI 行与拒绝测试） | ① 公开来源拉取（rss/youtube/自定义 rss 的 SEL、条件头、允许名单）、研究库的 git 取数、证据正文的写与读（`hydrateFeedItemContent` 读加密正文） → D6-1 的 `services.sourcePull`；② 平台通知落到 Feed（今天 `plugin-notification-service.ts` 在发送方的项目事务里直接写 Feed 事项，D6-2 改成按声明找接收方，事务语义要变）；③ Feed 调首页 dock 判断（`createHomeJudgmentTrigger` 跑宿主的 `home.dock` 场景，Feed 不能自己跑）→ 首页公开一个工作流受众的判断动作；④ Home 引用账（FI-4 Home 一半，双实例 + `databases.home`，正文释放） | 各一片 |
+| 宿主构造点（8 个）与边 | `content-action-providers.ts`、`demo-plugin-seed.ts`、`feed-connector-sync.ts`、`feed-goal-promotion.ts`、`feed-source-service.ts`、`plugin-notification-service.ts`、`project-host.ts`、`workflow-feed-options.ts`；`feed-native-plugin-http.ts` 与客户端的 `/api/feed*`（FI-7 Feed 一半，路由进 Manifest，舞台片段走 `/api/stage/feed`） | 翻转提交里一起 |
+
+建议的次序（每步单独绿、单独推；翻转之前宿主版 Feed 照常工作）：
+1. **4a 平台通知接收方（D6-2）**：Manifest 声明接收、通知服务按声明找、没有接收方留队列。宿主版 Feed 先当接收方，删 `plugin-notification-service.ts` 里的 Feed 构造。
+2. **4b 首页 dock 判断动作 ③**。
+3. **4c `services.sourcePull` 与证据正文 ①**（最大，也最碰安全：网络、文件、密钥；沿用 S-57 的地址校验与允许名单，不放宽；S 号用暂定，合入前改）。
+4. **4d Home 引用账 ④**（FI-4 的 RAC-492～495、518）。
+5. **4e 翻转**：`createFeedPlugin()`、监督器条目、`background.wakeups` 的 tick、8 个构造点换成公开动作、删 `feed-native-plugin-http.ts` 与客户端迁移、`BUILD_TIME_ASSEMBLED` 与 `NATIVE_PLUGIN_HTTP_FILES` 去掉 `feed`（RAC-499、500、510～512、516、517）。
+
+这是 FI 线最大的一块：4c、4e 各自都比 FI-6 第 3 步（Inbox）大。次序与「4c 一个服务覆盖公开来源 + 研究库 + 证据读写」这一取舍若统筹有不同意见，开工前请回。

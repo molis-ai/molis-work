@@ -253,7 +253,11 @@ const APPROVED_CEILINGS = {
   // PG-031/PG-057 (ac-kernel) removes the page's own related-work request in favour of the action gateway, -1,122 B; PG-053 +24 B; the
   // rest is English strings merged with this batch's other slices. Tried: the new controls reuse the T7 page's `el`/`button` helpers and
   // the one `ask` dialog.
-  "/assets/molis-work-workbench.js": [1139387, 1139974],
+  "/assets/molis-work-workbench.js": [1139387, 1141321],
+  // PG-057 threads, option A (ac-kernel 6a2d59cef, ac-review-2 #1311 6407672577): +1,347 B more in workbench.js for the Assistant's
+  // 「让助理回复」 step (`ASSISTANT_THREAD_REPLY_SCRIPT`: the thread check and the start call); its -1,122 B saving is already counted above
+  // under PG-031. plugin-frame.js +22 B: the frame bridge writes the frame's plugin id into a hand-over's source (`plugin_id`).
+  "/assets/molis-work-plugin-frame.js": [190197, 190219],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

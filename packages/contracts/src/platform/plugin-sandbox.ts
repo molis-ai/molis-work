@@ -99,7 +99,8 @@ export interface SandboxPluginContract {
 }
 
 export interface SandboxIdentity {
-  projectId: string;
+  /** The project the instance runs in; `null` for an instance in the Home, which has no project (BL-628). Never a stand-in string. */
+  projectId: string | null;
   installationId: string;
   pluginId: string;
   namespace: 'preview' | 'installed';

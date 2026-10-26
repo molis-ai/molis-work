@@ -173,7 +173,7 @@ export class HomePluginHost {
     // The Home half of a dual-instance plugin offers only its share, and no project reaches it: its ports and events are the project half's.
     const ledger = new SqlitePluginConsentLedger(db);
     recordHostAlwaysOnAgreements(ledger, new Set(entries.map(entry => entry.definition.manifest.plugin_id)), new Date().toISOString());
-    const runtime = new PluginRuntime(repository, executor, { consents: ledger, hostIds: HOST_PLUGIN_IDS, declarationOwners: declarationOwnersFor(this.options.home, { db, scope: { kind: "home" } }), reservedRuleKeys: hostReservedRuleKeys,
+    const runtime = new PluginRuntime(repository, executor, { consents: ledger, scope: "home", hostIds: HOST_PLUGIN_IDS, declarationOwners: declarationOwnersFor(this.options.home, { db, scope: { kind: "home" } }), reservedRuleKeys: hostReservedRuleKeys,
       redemption: definition => identity.dualInstance(definition) ? { partial: true, outside_project: true } : {},
       actions: { registry: this.options.registry, providerId: (record, definition) => identity.providerFor(definition, record.install_id),
         ...(this.options.projectReach ? { projectReach: this.options.projectReach } : {}) } });

@@ -212,8 +212,8 @@ export interface PluginManifest {
   image_generation?: import("./plugin-image-generation.js").PluginImageGenerationDeclaration;
   /**
    * Where this plugin runs, written here and nowhere else (PG-011). Left out, it is a project plugin. `home` is the Host's own Home
-   * Runtime; only code of the Host's build may be started there, so an installed or generated plugin that writes it is refused at
-   * install (`plugin.home_scope_unavailable`) until the sandbox host can run a Home instance.
+   * Runtime: only code of the Host's build, or a sandboxed package under a pinned publisher (BL-628), is started there; an unsigned or
+   * generated plugin that writes it is refused at install (`plugin.home_scope_unavailable`).
    */
   runtime?: PluginRuntimeDeclaration;
   /** The command-line tools this plugin looks for on this machine (`services.localTools`, PG-112): names and directories declared here, found by the platform, never run by it. */

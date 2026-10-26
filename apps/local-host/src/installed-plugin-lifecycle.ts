@@ -10,6 +10,9 @@ import type { AgentBuilderPorts } from './installed-plugin-host.js';
 import type { InstalledRelease } from './installed-release.js';
 import { leaveRefusal, UNSIGNED_TRUST, type SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
 import type { PluginPlatform } from './plugin-platform.js';
+
+/** What the install lifecycle uses of a platform: a project's, or the Home's (BL-628). */
+export type InstalledPluginPlatform = Pick<PluginPlatform, 'runtime' | 'supervisor' | 'start' | 'consents' | 'upgrade' | 'rollback'>;
 import type { PluginSecrets } from './plugin-builder/secrets.js';
 import { changeInstalledVersion } from './installed-plugin-version.js';
 
@@ -19,7 +22,7 @@ export const covered = (next: SandboxEffects, approved: SandboxEffects) =>
   Object.entries(next).every(([key, values]) => (values as string[]).every(value => ((approved as Record<string, string[]>)[key] ?? []).includes(value)));
 
 export interface InstalledLifecycleContext {
-  platform: PluginPlatform;
+  platform: InstalledPluginPlatform;
   /** The project's own store, where approvals live. */
   storage: PluginPrivateStorage;
   privateStorage: SqlitePluginPrivateStorage;

@@ -27,7 +27,7 @@ export { SqlitePluginRuntimeRepository, readPluginRuntimeRecords, PLUGIN_RUNTIME
 export { alwaysOnAgreed, consentStands, leaveRefusal } from "./always-on-rules.js";
 export { MemoryPluginConsentLedger, PLUGIN_TRUST_SCHEMA_SQL, SqlitePluginConsentLedger } from "./consent-ledger.js";
 export type { PluginConsentEntry, PluginConsentLedger } from "./consent-ledger.js";
-export { HOST_BUILD_TRUST, UNSIGNED_TRUST, assertConsentsDeclared, assertHomeScopeAllowed, assertLocalToolsAllowed, assertPluginTrust, assertTrustFitsDefinition, assertTrustFitsExecution, consentGranter, consentSubject, declarationsNeedingConsent, hostBuildConsents, isHostTrust } from "./trust-rules.js";
+export { HOST_BUILD_TRUST, UNSIGNED_TRUST, assertConsentsDeclared, assertHomeScopeAllowed, assertLocalToolsAllowed, assertScopeFitsRuntime, assertPluginTrust, assertTrustFitsDefinition, assertTrustFitsExecution, consentGranter, consentSubject, declarationsNeedingConsent, hostBuildConsents, isHostTrust } from "./trust-rules.js";
 export type { PluginRuntimeDatabase } from "./repository.js";
 export { PLUGIN_PROJECT_DATABASES_SCHEMA_SQL, PROJECT_ROOT_REFERENCE, inspectPluginProjectSchema, openPluginProjectDatabase, listPluginProjectDatabases, pluginProjectDatabaseErrors, type PluginProjectDatabaseRecord, type PluginProjectSchemaInspector, type PluginSchemaObject, type PluginSchemaShape } from "./project-database.js";
 export { PLUGIN_STATEMENT_SQLITE_VERSION, pluginStatementGuard, type PluginStatementMode } from "./project-database-statements.js";
@@ -160,6 +160,8 @@ export class PluginRuntime implements PluginRuntimeApi {
       consents?: PluginConsentLedger;
       /** The Host's actual shipped `plugin_id`s; required even for a Host shipping no plugins (S-75). */
       hostIds: ReadonlySet<string>;
+      /** Which Runtime this is. A plugin that is not of the Host's build is installed only into the one its Manifest names (`runtime.scope`, BL-628); none given, none checked. */
+      scope?: "home" | "project";
       actions?: { registry: ActionRegistryPort; project_id?: string; providerId?(record: PluginInstanceRecord, definition: PluginDefinition): string; projectReach?: PluginProjectReach } },
   ) { if (!options?.hostIds) throw pluginErrors.state_invalid("Runtime 需要宿主明确给出随构建发布的插件 ID 名单"); }
 
@@ -172,7 +174,7 @@ export class PluginRuntime implements PluginRuntimeApi {
   }
 
   install(input: PluginInstallInput): PluginLifecycleReceipt {
-    const trust = assertInstallIdentity(input, this.repository.list(), this.options.hostIds);
+    const trust = assertInstallIdentity(input, this.repository.list(), this.options.hostIds, this.options.scope);
     assertRuleKeysUnreserved(input.definition.manifest, trust, this.options.reservedRuleKeys?.());
     const receipt = this.installRecord(input, trust);
     recordInstallConsents(this.options.consents, receipt.install, trust, input.consents ?? [], this.now());
@@ -459,7 +461,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     const definition = this.requireDefinition(current);
     assertStartable(definition.manifest, current.grants, this.options.declarationOwners);
     try {
-      assertStartIdentity(current, definition, this.repository.list(), this.options.hostIds);
+      assertStartIdentity(current, definition, this.repository.list(), this.options.hostIds, this.options.scope);
       if (current.state === "running" && this.hasLiveInstance(installId)) return this.receipt("start", current, true);
       const handle = await outsidePluginAction(() => this.executor.start(definition, this.activateContext(current, definition)));
       await this.redeem(definition, current, handle.contribution);
@@ -579,7 +581,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     assertRequiredGrants(definition.manifest, current.grants);
     const recoveryCount = current.recovery_count + 1;
     try {
-      assertStartIdentity(current, definition, this.repository.list(), this.options.hostIds);
+      assertStartIdentity(current, definition, this.repository.list(), this.options.hostIds, this.options.scope);
       // Explicit release admits this attempt's start-time jobs; a failed start below restores quarantine.
       if (releaseQuarantine) this.repository.save({ ...current, state: "crashed", updated_at: this.now() });
       const handle = await outsidePluginAction(() => this.executor.start(definition, this.activateContext(current, definition)));

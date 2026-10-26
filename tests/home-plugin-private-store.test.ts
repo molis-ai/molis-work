@@ -50,8 +50,10 @@ for (const version of [1, 3] as const) {
     await assert.rejects(first, refusal);
     assert.equal(host.homePlugins!.ready(), first, "ordinary preparation keeps the failure and never retries");
     const one = await project("A broken Home has a recovery page");
-    // T3 now checks the Home ledger for Goals too. Use the production availability policy instead of an unconstrained fixture Host.
-    await assert.rejects(host.actionClient(one.reference, false).invoke(person(["goals:read"], one.project_id), goalsActions.snapshot, {}), refusal);
+    // The stopped Runtime registered no Goals action; public discovery still enforces the original damaged-Home refusal.
+    const client = host.actionClient(one.reference, false), caller = person(["goals:read"], one.project_id);
+    await assert.rejects(client.invoke(caller, goalsActions.snapshot, {}), { code: "actions.missing" });
+    await assert.rejects(client.discover(caller), refusal);
     const page = await request(`/projects/${one.project_id}`, { headers: { accept: "text/html" } });
     assert.equal(page.status, 200, await page.clone().text());
     assert.match(page.headers.get("content-type") ?? "", /^text\/html\b/iu);

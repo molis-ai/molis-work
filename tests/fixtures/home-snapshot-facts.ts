@@ -4,6 +4,7 @@ import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { DatabaseSync, type SQLInputValue } from "node:sqlite";
 import { homeStores } from "@molis-ai/molis-work-app-local-host";
+import { BUILTIN_PLANNING_METHOD_PACKS } from "./goals-modules.js";
 
 interface Seed { table: string; values: Record<string, SQLInputValue>; field: string }
 export interface SnapshotFact { file: string; table: string; field: string; key: string; id: SQLInputValue; expected: SQLInputValue }
@@ -12,7 +13,10 @@ const at = "2026-10-24T00:00:00.000Z", id = "snapshot-retained", actor = "snapsh
 /** Real owner tables, not extra probe tables; expected user facts are independent of the snapshot implementation. */
 function libraryFacts(project: string): Record<string, Seed> {
   const title = "Retained user fact with Unicode 文本", body = JSON.stringify({ text: title });
+  const method = { ...BUILTIN_PLANNING_METHOD_PACKS[0]!, method_id: id, name: title, scope: "personal", version: 3,
+    enabled: true, created_at: at, updated_at: at };
   return {
+    goals: { table: "personal_planning_method_packs", values: { method_id: id, version: 3, enabled: 1, pack_json: JSON.stringify(method), created_at: at, updated_at: at }, field: "pack_json" },
     "plugin-runtime": { table: "plugin_private_values", values: { install_id: id, item_key: "user-note", item_value: body }, field: "item_value" },
     assistant: { table: "assistant_settings", values: { actor_id: actor, key: "display", revision: 4, value: JSON.stringify({ compact: false }) }, field: "value" },
     placement: { table: "placement_titles", values: { kind: "goal", id, title, seen_at: at }, field: "title" },

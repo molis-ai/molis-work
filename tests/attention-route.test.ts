@@ -33,6 +33,8 @@ test("W4-10-01 a project page's attention read carries the board cursor the Goal
   const home = await openTestHome(t);
   const project = await home.createProject("Attention");
   const base = `/projects/${encodeURIComponent(project.project_id)}`;
+  // Wait for the first Goals action's catch-up before comparing two successive reads of a stable cursor.
+  await home.web.get(`${base}/api/board`);
   const attention = await home.web.get<Attention>(`${base}/api/attention?surface=todo`);
   const { observed_event_cursor } = await home.web.get<{ observed_event_cursor: number }>(`${base}/api/board/cursor`);
   assert.equal(attention.board_cursor, observed_event_cursor, "the cursor is the board's own");

@@ -13,6 +13,10 @@
 - **PG094-CLI-02**：无 Home 时，完整启动声明先按现有目录校验 scope 与两半信任，只有平台已确认的双实例项目半可部分兑现共享 Manifest：获得项目服务而不获得 Home 数据库句柄。普通声明 Home 库、错误信任、项目/Manifest 自标双实例及沙箱仍拒绝；有 Home 的装配行为保持。
 - **PG094-CLI-03**：无 Home 的真实项目动作若需要个人方法，精确拒绝 `goals.planning.personal_unavailable`，事务回滚且不留业务半写；不造临时 Home、不返回空个人方法、不绕过 Memory 非 fresh Home 的采用拒绝。
 - **PG094-CLI-04**：CLI owner/protocol 与 canonical 的全部原反例保留：去 owner、改谓词/目录、提前 mkdir、多余语句、丢 reference/signal 等仍被接线检查拒绝。必要 Home 测试在 fresh 时经公开生命周期合法初始化，不能伪造采用标记或改变原业务断言。
+- **PG094-HOME-01**：默认 Web 宿主在没有项目的上下文里，经真实 Home Runtime 提供方读取、保存个人规划方法，重启后仍读到同一保存版本；不靠测试注入允许策略。项目可达性策略只对可信目录的 Home Runtime 注册、实际 Runtime 安装标记、无项目提供方及真正无项目 caller 识别 Home 调用，不要求此插件在每个项目都标为 `personal`。动作与场景共用同一 live/discovery 判定，Runtime 授权、启停和 Home 库拒绝仍各自生效。
+- **PG094-HOME-02**：项目 caller（含已删除或独立未登记项目）不能借目录返回 `null` 获得 Home 例外；没有 Runtime 安装标记的同名 view、项目提供方及非插件提供方也不获此例外。`pluginReachable` 与项目路由/情境判断不变；项目的未安装、隐藏与取消隐藏仍实时生效，旧拒绝反例不改成允许。
+- **PG094-TITLE-01**：真实 Goal 刷新响应在切到 Home、设置覆盖页或其他焦点后才完成，仍更新 Goal 数据与游标，但不夺取当前窗口标题。标题仅在工作台无覆盖页且当前焦点 tab 是同一 Goals item 时由该 Goal 更新；读取现有工作台状态，不新增标题管理器或补偿重画。以真实外部写、暂扣实际响应、切页后放行的反例证明刷新已应用且没有额外写库。
+- **PG094-TITLE-02**：当前焦点 Goal item 的正常选择仍更新标题；无工作台状态的直接 Goal 页和嵌入页自身正在显示的 Goal 保留原标题行为。后台选择、数据刷新、其他 pane 与覆盖页行为不改；原完整刷新与页面切换断言保留。
 
 ## 1. 为什么 S10 与 S11 不能分开
 

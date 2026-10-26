@@ -244,10 +244,12 @@ const headErrors = (measured, budget, base) => {
 // deleted in the next change to this gate.
 // PR #1295, PG-094/RAC-803: the whole-proposal confirmation control sends its own provenance header
 // through the existing request helper, rather than deriving that authority from an action body (+77 B).
-// No second request path or UI is added; the single header is the necessary wire change. Batch-42's
-// admissions are consumed. This pair uses actual main 0d8388b0 and the measured combined bytes.
+// PG094-TITLE-01/02 also binds Goal title writes to the existing focused item/cover state (+400 B).
+// No second request path, title manager or asset is added. Exporting another state getter or calling
+// apply again would add interface/recursion risk; the local predicate uses the existing state API.
+// Batch-42's admissions are consumed; this pair is the measured combined +477 B from current main.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1144514, 1144591],
+  "/assets/molis-work-workbench.js": [1144514, 1144991],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

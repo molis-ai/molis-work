@@ -36,7 +36,7 @@ export function pluginReachable(entry: Pick<PluginRegistration, "personal" | "pr
  * What the reach judgement knows of a plugin in this Home: its catalog entry, or, for a personal Home plugin outside the build, the same
  * shape keyed by its plugin id. Anything else (a project's own Runtime plugin) is not the catalog's to judge.
  */
-export function reachEntry(homeDirectory: string | undefined, pluginId: string): Pick<PluginRegistration, "personal" | "project_plugin_id"> | undefined {
+export function reachEntry(homeDirectory: string | undefined, pluginId: string): Pick<PluginRegistration, "personal" | "project_plugin_id" | "runtime"> | undefined {
   return PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === pluginId)
     ?? (homePluginsOutsideBuild(homeDirectory).includes(pluginId) ? { personal: true, project_plugin_id: pluginId } : undefined);
 }
@@ -48,15 +48,19 @@ export function projectActionAvailability(withCatalog: LocalWebCatalogRunner, ho
     if (!caller.project_id) return null;
     return withCatalog({ homeDirectory }, catalog => projectReachablePlugins(catalog, caller.project_id!, homePluginsOutsideBuild(homeDirectory)));
   };
-  const state = (action: Pick<ActionView, "provider">, reachable: ReadonlySet<string> | null): ActionAvailability => {
+  const state = (caller: ActionCallContext, action: Pick<ActionView, "provider">, reachable: ReadonlySet<string> | null): ActionAvailability => {
     const entry = entryOf(action);
-    return !entry || pluginReachable(entry, reachable) ? { available: true }
+    // Only Runtime stamps an installation id. A Home provider belongs to its trusted Home registration,
+    // not to a project's shown-plugin list; a missing/deleted project is still a project caller.
+    const homeRuntime = caller.project_id == null && action.provider.kind === "plugin"
+      && !!action.provider.plugin_install_id && action.provider.project_id === undefined && !!entry?.runtime;
+    return !entry || homeRuntime || pluginReachable(entry, reachable) ? { available: true }
       : { available: false, code: "actions.plugin_disabled", reason: "此项目未启用该插件" };
   };
   const live = (caller: ActionCallContext, action: Pick<ActionView, "provider">): ActionAvailability | Promise<ActionAvailability> =>
-    entryOf(action) ? read(caller).then(reachable => state(action, reachable)) : { available: true };
+    entryOf(action) ? read(caller).then(reachable => state(caller, action, reachable)) : { available: true };
   return Object.assign(live, { snapshotForDiscovery: async (caller: ActionCallContext) => {
     const reachable = await read(caller);
-    return (_caller: ActionCallContext, action: Pick<ActionView, "provider">): ActionAvailability => state(action, reachable);
+    return (_caller: ActionCallContext, action: Pick<ActionView, "provider">): ActionAvailability => state(caller, action, reachable);
   } });
 }

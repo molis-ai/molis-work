@@ -13,14 +13,14 @@ test("the bar toggles back, covers close four ways, and history walks covers and
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
   await waitFor("document.body.dataset.desktopSurface === 'home' && document.querySelector('.tab-item[data-tab-kind=home][aria-current]')");
-  const exclusive = "document.querySelector('[data-tab-workspace]').dataset.exclusive || ''";
+  const exclusive = "(document.querySelector('[data-tab-workspace]').dataset.exclusive || '')";
   const shows = (plugin: string) => `document.querySelector('[data-titlebar-tabs] [data-tab-kind="plugin"][aria-current][data-plugin="${plugin}"]')`;
 
   // A Dock entry pressed twice returns to where the pane was.
   await click('[data-dock-pin="goals"]');
   await waitFor(shows("goals"));
   await click('[data-dock-pin="inbox"]');
-  await waitFor(shows("inbox"));
+  await waitFor(`${shows("inbox")} && document.querySelector('[data-dock-pin=inbox]').getAttribute('aria-current') === 'page'`);
   assert.equal(await evaluate("document.querySelector('[data-dock-pin=inbox]').getAttribute('aria-current')"), "page");
   await click('[data-dock-pin="inbox"]');
   await waitFor(shows("goals"));

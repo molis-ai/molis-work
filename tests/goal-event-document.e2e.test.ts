@@ -466,7 +466,7 @@ test("timeline pagination retries in place and preserves dates, type markers and
   for (let index = 0; index < 42; index += 1) {
     app.goalEvents.recordNote({ project_id: DEMO_PROJECT_ID, goal_id: goal.goal_id, actor_id: "web-user", actor_kind: "user", idempotency_key: "paged-note-" + index, body: "最近的工作记录 " + index });
   }
-  store.appendEvent({ eventId: "paged-historical-result", projectId: DEMO_PROJECT_ID, actorId: "web-user", type: "goal.updated", objectType: "goal",
+  store.appendEvent({ eventId: "paged-historical-result", projectId: DEMO_PROJECT_ID, actorId: "web-user", type: "io.molis.work.goals:goal.updated", objectType: "io.molis.work.goals:goal",
     objectId: goal.goal_id, reason: "更早的说明修订", payload: {}, at: "2026-09-01T16:40:00.000Z" });
   const before = boardSnapshot(store, DEMO_PROJECT_ID);
   await command("Network.enable", {}, sessionId);

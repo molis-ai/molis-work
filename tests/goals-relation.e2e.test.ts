@@ -19,7 +19,7 @@ test("Goals relation UI preserves incoming direction, historical reading and rel
   store.db.prepare(`
     INSERT INTO events (
       event_id, project_id, actor_id, type, object_type, object_id, reason, payload_json, at
-    ) VALUES (?, ?, 'history-fixture', 'relation.deactivated', 'relation', ?, ?, ?, ?)
+    ) VALUES (?, ?, 'history-fixture', 'io.molis.work.goals:relation.deactivated', 'io.molis.work.goals:relation', ?, ?, ?, ?)
   `).run(
     "legacy-inactive-extends-v1-event",
     DEMO_PROJECT_ID,

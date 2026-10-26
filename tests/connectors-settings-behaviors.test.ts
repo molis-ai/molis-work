@@ -20,7 +20,7 @@ import {
   DEMO_PROJECT_ID,
   LocalProjectDatabase,
   createLocalFeedApplication,
-  liveHostFunctionAuthoringCatalog,
+  liveHostJudgmentRuleAuthoringCatalog,
   seedDemoBoard,
   withConnectorConnections,
 } from "@molis-ai/molis-work-app-local-host";
@@ -94,7 +94,7 @@ async function withIsolatedHome<T>(run: (homeDirectory: string) => Promise<T>): 
   }
 }
 
-function agentBehaviorIds(catalog: ReturnType<typeof liveHostFunctionAuthoringCatalog>): readonly string[] {
+function agentBehaviorIds(catalog: ReturnType<typeof liveHostJudgmentRuleAuthoringCatalog>): readonly string[] {
   return catalog.destinations.find((row) => row.destination_id === "agent.mcp")?.behavior_ids ?? [];
 }
 
@@ -359,11 +359,11 @@ test("GitHub whoami is the fulfilled GET /user action", async () => {
 
 test("a saved connection does not invent Agent capabilities absent from the action directory", async () => {
   await withIsolatedHome(async (homeDirectory) => {
-    assert.deepEqual(liveHostFunctionAuthoringCatalog().behaviors, []);
+    assert.deepEqual(liveHostJudgmentRuleAuthoringCatalog().behaviors, []);
     const connection = withConnectorConnections(homeDirectory, store => store.createToken({ serviceId: "github", displayName: "GitHub", token: TOKEN }));
-    assert.deepEqual(liveHostFunctionAuthoringCatalog().behaviors, [], "credentials alone are not action registration or authorization");
+    assert.deepEqual(liveHostJudgmentRuleAuthoringCatalog().behaviors, [], "credentials alone are not action registration or authorization");
     withConnectorConnections(homeDirectory, store => store.disconnect(connection.connection_id));
-    assert.deepEqual(liveHostFunctionAuthoringCatalog().behaviors, []);
+    assert.deepEqual(liveHostJudgmentRuleAuthoringCatalog().behaviors, []);
   });
 });
 
@@ -499,11 +499,11 @@ test("catalog Slack whoami hits auth.test and appears in Functions only while bo
   if (result.ok) assert.equal(result.login, "molis");
   assert.deepEqual(urls, ["https://slack.com/api/auth.test"]);
   await withIsolatedHome(async (homeDirectory) => {
-    assert.equal(agentBehaviorIds(liveHostFunctionAuthoringCatalog()).includes("slack.whoami"), false);
+    assert.equal(agentBehaviorIds(liveHostJudgmentRuleAuthoringCatalog()).includes("slack.whoami"), false);
     const connection = withConnectorConnections(homeDirectory, store => store.createToken({ serviceId: "slack", displayName: "Slack", token: "xoxb-liveTokenABCD" }));
-    assert.equal(agentBehaviorIds(liveHostFunctionAuthoringCatalog()).includes("slack.whoami"), false, "saving a connection does not register an action");
+    assert.equal(agentBehaviorIds(liveHostJudgmentRuleAuthoringCatalog()).includes("slack.whoami"), false, "saving a connection does not register an action");
     withConnectorConnections(homeDirectory, store => store.disconnect(connection.connection_id));
-    assert.equal(agentBehaviorIds(liveHostFunctionAuthoringCatalog()).includes("slack.whoami"), false);
+    assert.equal(agentBehaviorIds(liveHostJudgmentRuleAuthoringCatalog()).includes("slack.whoami"), false);
   });
 });
 

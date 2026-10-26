@@ -16,7 +16,7 @@ import {
 import { ActionError, bindActionClient, type ActionCallContext, type ActionDefinition, type ActionSceneBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { definePlugin, defineSubjectContextAction, defineHomeEventsAction, defineSubjectOffersAction, subjectContext } from "@molis-ai/molis-work-plugin-sdk";
-import { liveHostFunctionAuthoringCatalog } from "@molis-ai/molis-work-app-local-host";
+import { liveHostJudgmentRuleAuthoringCatalog } from "@molis-ai/molis-work-app-local-host";
 import { publishedFunctionAction } from "@molis-ai/molis-work-module-functions";
 import { subjectOfferChoiceKey } from "@molis-ai/molis-work-kernel";
 import { HOME_DOCK_SCENE_ID, type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
@@ -236,7 +236,7 @@ test("Home judgment resolves a formally installed plugin's own subjects and pins
     await runtime.start(installId);
     const choice = () => subjectOfferChoiceKey({ ...offerQuery, provider_id: installId }, offerQuery.action.subject_offer_choices![0]!);
     let selectedKey = choice();
-    const authoring = liveHostFunctionAuthoringCatalog(await host.actionClient(reference).discover(caller), await host.sceneClient(reference).discoverScenes(caller));
+    const authoring = liveHostJudgmentRuleAuthoringCatalog(await host.actionClient(reference).discover(caller), await host.sceneClient(reference).discoverScenes(caller));
     assert.ok(authoring.destinations.find(destination => destination.destination_id === HOME_DOCK_SCENE_ID)!.behavior_ids.includes(selectedKey));
     assert.equal(authoring.behaviors.find(behavior => behavior.behavior_id === selectedKey)!.title, "完成笔记");
     const authored = await withFunctionsServiceAsync(home, async service => {

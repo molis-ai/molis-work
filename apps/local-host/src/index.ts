@@ -95,7 +95,7 @@ export { HOST_ARTIFACT_PRODUCERS, artifactTypeDeclarations, declaredArtifactType
 export { bindProjectArtifacts } from "./declared-types.js";
 export { declarationOwnersFor } from "./declaration-owners.js";
 export { heldInstalls, pluginHeldElsewhere, type HeldInstall, type InstallRef, type InstallScope } from "./plugin-holders.js";
-export { liveHostFunctionAuthoringCatalog } from "./behavior-catalog.js";
+export { liveHostJudgmentRuleAuthoringCatalog } from "./recommendation-catalog.js";
 export { seedSceneRules, withFunctionsService } from "./functions-host.js";
 
 export { createFeedSourceRuntime, type FeedSourceRuntime } from "./feed-source-runtime.js";

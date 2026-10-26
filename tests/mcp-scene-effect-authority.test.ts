@@ -5,7 +5,7 @@ import { ActionError, bindActionClient, retainActionAuthority, type ActionDefini
 import { recordedCallId, subjectOfferChoices, withCallId } from "@molis-ai/molis-work-kernel";
 import { createLocalFeedApplication, createLocalFeedSourceService, readMcpToolPreference } from "@molis-ai/molis-work-app-local-host";
 import { functionContextActions, publishedFunctionAction } from "@molis-ai/molis-work-module-functions";
-import type { FunctionRecord } from "@molis-ai/molis-work-contracts/modules/functions";
+import type { JudgmentRuleRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 import { openTestHome } from "./fixtures/test-home.js";
 
 // The time limit only catches a hang: 13-16 s on macOS, and Linux CI runs about 2.3-2.5 times slower (user, 2026-10-15).
@@ -68,12 +68,12 @@ test("W3-09-AUTH-03 a real published function cannot consume Home Dock after its
     assert.ok(dismiss?.availability.available);
     // Prepare the real binding through protected owner HTTP first: a scene-dependent MCP grant cannot create that binding.
     const functionsPath = `/projects/${project.project_id}/api/functions`;
-    const { function: draft } = await home.web.post<{ function: FunctionRecord }>(functionsPath, { primitive: "choice", function_key: "effect_home_scene", name: "Actual Home scene rule" });
+    const { function: draft } = await home.web.post<{ function: JudgmentRuleRecord }>(functionsPath, { primitive: "choice", function_key: "effect_home_scene", name: "Actual Home scene rule" });
     await home.web.post(`${functionsPath}/${draft.id}`, { instructions: "Recommend the available finish action", criteria: [{ key: "finish", description: "Finish this entry" }, { key: "dismiss", description: "Dismiss this entry" }],
       scene_id: "home.dock", scene_version: 1, scene_provider_id: "system.home", subject_kinds: ["inbox_entry"],
       scene_map: { finish: choice.key, dismiss: dismiss.key }, action_map: { finish: choice.action, dismiss: dismiss.action } });
     await home.web.post(`${functionsPath}/${draft.id}/preview`, { input: "Original inbox work" });
-    const { function: rule } = await home.web.post<{ function: FunctionRecord }>(`${functionsPath}/${draft.id}/publish`, {});
+    const { function: rule } = await home.web.post<{ function: JudgmentRuleRecord }>(`${functionsPath}/${draft.id}/publish`, {});
     const judgment = publishedFunctionAction(rule);
     assert.deepEqual(judgment.action.permissions, ["functions:invoke"], "the judgment does not itself grant Home's independent permissions");
     const configured = await home.web.post<{ binding: ActionSceneBinding }>(`/projects/${project.project_id}/api/home/dock-judgment`, { function_key: rule.function_key });

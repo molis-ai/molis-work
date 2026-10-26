@@ -24,7 +24,7 @@ import {
   INBOX_DONE_BEHAVIOR_ID,
   INBOX_NEXT_SCENE_ID,
   choiceCriteriaFollowContext,
-  type FunctionAuthoringCatalog,
+  type JudgmentRuleAuthoringCatalog,
   type TypeSafeEvaluateResult,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import {
@@ -364,7 +364,7 @@ test("the rules page suggests behaviors by the real page rule: destination, vers
   assert.equal(script.split(from).length, 2, "start anchor appears exactly once");
   assert.equal(script.split(to).length, 2, "end anchor appears exactly once");
   const rule = script.slice(script.indexOf(from), script.indexOf(to));
-  const build = (selected: Record<string, unknown> | undefined, catalog: FunctionAuthoringCatalog) => new Function("L", "cat", "sel", "destKey",
+  const build = (selected: Record<string, unknown> | undefined, catalog: JudgmentRuleAuthoringCatalog) => new Function("L", "cat", "sel", "destKey",
     rule + "\nreturn { suggestedBehaviors: hints, destOf };")((value: string) => value, catalog, selected, () => selected?.scene_id ?? "") as {
     suggestedBehaviors: (destinationId: string, kinds: string[]) => { behavior_id: string; title: string; action_ref?: { capability_id: string } }[];
     destOf: (id: string) => { behavior_ids: string[] } | null;
@@ -373,7 +373,7 @@ test("the rules page suggests behaviors by the real page rule: destination, vers
     plugin_id: "example.review", plugin_title: "Review", subject_kinds: [] as string[], clickable: true, ...extra });
   const scene = (scene_version: number) => ({ destination_id: "example.review", scene_version, provider_id: "example.review", kind: "event" as const, title: "Review", when: "Note submitted",
     configure_at: "", effect: "", subject_kinds: ["note"], behavior_ids: ["ack", "later"] });
-  const catalog: FunctionAuthoringCatalog = {
+  const catalog: JudgmentRuleAuthoringCatalog = {
     subjects: [],
     destinations: [scene(1), scene(2), { destination_id: "agent.mcp", kind: "mcp", title: "Agent", when: "", configure_at: "", effect: "", subject_kinds: [], behavior_ids: ["a.generic", "a.note", "a.feed"] }],
     behaviors: [

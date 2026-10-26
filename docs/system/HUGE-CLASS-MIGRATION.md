@@ -197,7 +197,7 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 | W5-07 | `handleMolisWorkWebRequest` 改成注册表 | 2 | 已拆完：按顺序尝试的路由表（`web-route-table.ts`），表写在宿主里、`*-http` 模块不动（统筹 10-17 定，理由见防腐 spec §4.5 一行） |
 | W5-09 | `contracts` 的 `services/agent-host.ts` 按领域拆，纯搬移，由 API 快照守着 | 1 | `agent-host.ts` 合同；已拆完：入口留描述符、错误码、`AgentHostApi` 与 `agentHostCapabilities`，其余按领域放进旁边的 `agent-host-*.ts`（运行时、启动、会话、运行视图、审查、端口、创作台），子路径与 API 快照不变 |
 | W5-10 | 其余巨大单元拆分（范围见上） | 117 | 117 个，含助理协作者、Pages 编辑器与命令 |
-| W5-11 | 宿主瘦身：连接器提供方设置与 OAuth 移进官方连接器插件，或按决定 #7 作为宿主管理接口留下 | 1 | `web-connectors-settings.ts` |
+| W5-11 | 宿主瘦身：每插件 AI 绑定改 `services.model`（已做，只剩 Alchemist 登记的例外）；连接器提供方设置与 OAuth 移进官方连接器插件（Codex C4，回调路径留在平台），飞书 CLI 与 Lark MCP 留作登记的例外 | 0 | `web-connectors-settings.ts` 已不是巨大单元（2026-10-26 核：文件 135 行，函数约 115 行） |
 | W2-08、W3-07 | 删 Goals 无生产调用方的类型化桥；管理入口改走动作并删剩余桥（工作区读取只留一个 id 已由 W2-09 做完，函数仍 270 行：删了两处登记，补了整份文件只给宿主运行的插件的判断） | 1 | `project-capabilities.ts` |
 | W2-06 | 删四处跨主人 SQL（含 `demo-seed.ts` 一处） | — | 只删几行，不改判定 |
 
@@ -207,7 +207,7 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 - 决定 #4（IM 与“讨论”页签）：保留并继续迭代，只修三处账目。所以 `im-ui` 的两个单元判“拆”，不冻结。
 - 决定 #26（Characters 并进宿主，成为设置的一节）：原判“归线 · §4.6 · W5-01”的 `createCharactersPlugin` 与 `start` 已由 CHR-0 拆到阈值以下（处理器搬进 `modules/characters`，插件定义只剩绑定与路由），从清单删去；Runtime 条目与界面的去向仍按决定 #26，见 `specs/repository-anti-corruption/spec.md` 的 W5-01 Characters 一节；第 4 波的承接切片在路线里还没有自己的片号，要 W1-01 补。（CHR-1 已做，2026-10-22：插件包与 Runtime 条目已删，界面是宿主的一节。）
 - 决定 N-03（记忆、放置、搜索、情境启发式归“平台产品服务”，代码不搬）：路线 W4-08 末尾的“再拆 MemoryService”不再执行，`MemoryService`、`PlacementService`、`SearchService` 改在包内由 W5-10 拆。
-- 决定 #7（宿主设置写入只走 HTTP，登记为管理接口的例外）：那份例外写在 CALL-CHAINS 的例外表里，和本文的巨大单元例外是两回事；它说连接器路由以后搬进各自的官方接入插件，所以 `web-connectors-settings.ts` 判“归线 · W5-11”，搬的时候要在同一个 PR 里拆到阈值以下。
+- 决定 #7（宿主设置写入只走 HTTP，登记为管理接口的例外）：那份例外写在 CALL-CHAINS 的例外表里，和本文的巨大单元例外是两回事；它说连接器路由以后搬进各自的官方接入插件，所以 `web-connectors-settings.ts` 判“归线 · W5-11”。2026-10-26 核：它的处理函数已缩到约 115 行，低于阈值，不再是巨大单元，搬迁时不用再为它拆。
 - 决定 #16（界面翻译全部换成稳定键，词典按主人分）：`en.ts` 不是例外，判“归线 · §4.7 · W5-03”。词典按主人分已经定了，这张表不再是“必须一整块”的东西；W5-03 把插件自有词条移给主人、删无引用的键，它随之变小。
 - 决定 #19（删按需搜索来源）：`SearchService.onDemand` 一支已随之去掉（W2-03），W5-10 直接拆删后的 `SearchService`。
 - 10-07 的插件平台范围决定把 Goals、Artifacts、Sessions 与插件创作台列为构建期例外，它们不迁 Runtime，也就不会因 W5-01 缩小；它们的巨大单元都判“拆 · W5-10”。2026-10-18 改：用户取消了这四个例外（Goals 迁 Runtime，插件创作台并进平台，成果库与 Sessions 归平台事实、Sessions 清理）；拆分判断不变，迁移或清理那一片按新的归属重判。
@@ -239,7 +239,7 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 | `project-catalog.ts` | `MolisWorkProjectCatalog` 类 293 行 / 41 方法 | 拆 · W5-10 | 41 个方法里约三十个是三行的转发（项目与插件、运行上下文绑定、桌面面板、工作区成员、示例项目），`constructor` 72 行是装配。按资源分子门面，调用方拿自己要的那个，转发层随之去掉。 | 6 |
 | `project-host.ts` | `MolisWorkLocalHost` 类 361 行 / 24 方法 | 归线 · §4.6 · W4-04、W5-01、W5-02 | 项目 composition owner。`constructor` 153 行，文件里 26 处 `registerProvider`，插件族迁到 Runtime 时各删各的（W4-04 先删 Form 的），W5-02 再把名单改成由声明生成。这几片之后类仍超限，W6-04 重量时在门禁里会看到，同一片补拆。宿主自己的服务装配不随插件名单消失（例如 `connectorAccountActionProvider` 那一行连接器装配，#762 记），W6-04 把它们提成按服务分的装配函数，连接器那一段放到连接器的文件旁边。 | 14 |
 | `web-catalog.ts` | `handleLocalCatalogWebRequest` 函数 336 行 | 已拆 · W5-10（批 G） | 已做：路由分支改成 `web-catalog-routes.ts` 里按原顺序排的 `CATALOG_ROUTES` 条目（`{id, handle}`，由 W5-07 的 `dispatchWebRoutes` 依次试），设置页与插件设置页两个大分支搬到 `web-catalog-settings.ts`；`web-catalog.ts` 现 28 行，只建请求上下文、分发、再给 `/api` 的 400 与 404。 | 15 |
-| `web-connectors-settings.ts` | `handleLocalConnectorsSettingsHttp` 函数 227 行 | 归线 · §4.3 · W5-11 | 连接器提供方设置与 OAuth 的 HTTP。决定 #7 说连接器路由以后搬进各自的官方接入插件，那是 W5-11。搬的时候不能整体搬进新文件（搬到新文件的巨大函数按新单元算），要在同一个 PR 里按路由或按服务商拆到阈值以下；在 W5-11 之前这个函数冻结。 | 1 |
+| `web-connectors-settings.ts` | 已不是巨大单元：`handleLocalConnectorsSettingsHttp` 函数约 115 行（2026-10-26 核，原 227 行） | 已低于阈值 · W5-11 | 连接器提供方设置与 OAuth 的 HTTP。决定 #7 说连接器路由以后搬进各自的官方接入插件，那是 W5-11（Codex C4）。函数已在阈值以下，不再冻结；搬迁时仍按路由或按服务商分开搬，不整体搬进新文件。 | 0 |
 | `web-goals-read.ts` | `createLocalGoalsReadHttp` 函数 175 行 | 拆 · W5-10 | `createLocalGoalsReadHttp` 内的 `page`（91）、`settings`（43）、`fragments`（30）三个路由处理各成函数，装配函数只列出它们。 | 8 |
 | `web-project-settings.ts` | `createLocalProjectSettingsHttp` 函数 189 行<br>`handle` 函数 182 行 | 拆 · W5-10 | `handle` 的 `if` 路由分支（最大 47、32、24 行）改成路由表，每个路由一个函数。`handle` 内嵌在 `createLocalProjectSettingsHttp` 里（同一段计两次）。 | 3 |
 | `web-server.ts` | `createLocalWebServerFactory` 函数 241 行<br>`createMolisWorkWebServer` 函数 238 行 | 拆 · W5-10 | `createMolisWorkWebServer` 49 条语句：HTTP 服务（`server` 74）、本机宿主（`localHost` 16）、周期调度（`schedulerTimer` 14，每 30 秒推进 Feed 与 Schedule）、侧栏浏览器登记（`unregisterSurfaces` 13）、PTY 挂接（12）、关停（`server.once("close")` 12）各成启动函数，装配函数只按顺序调用并登记关停。它内嵌在 `createLocalWebServerFactory` 里（同一段计两次）。 | 7 |

@@ -30,10 +30,11 @@ export function installationGrants(current: PluginInstanceRecord | null, manifes
 }
 
 /** Every reinstall first revokes its earlier installation's authorization; private cleanup follows the existing retention choice. */
-export function prepareInstallationData(executor: PluginExecutor, previous: PluginInstanceRecord | null, manifest: PluginManifest, host: boolean, discard: boolean): void {
+export function prepareInstallationData(executor: PluginExecutor, installId: string, previous: PluginInstanceRecord | null, manifest: PluginManifest, host: boolean, discard: boolean): void {
   const refusal = keptDataRefusal(previous, manifest, host, discard);
   if (refusal) throw pluginErrors.kept_data_incompatible(refusal);
-  if (previous?.state !== "uninstalled") return;
+  if (!previous) { prepareNewInstall(executor, installId); return; }
+  if (previous.state !== "uninstalled") return;
   try {
     executor.prepareReinstall?.(previous);
     if (previous.retain_private_data) return;
@@ -46,6 +47,15 @@ export function prepareInstallationData(executor: PluginExecutor, previous: Plug
   catch (error) {
     if (error instanceof ActionError) throw error;
     throw pluginErrors.executor_failed("Plugin 已卸载数据清理失败，暂不能重装，请重试清理");
+  }
+}
+
+/** A first install in a scope has no earlier row of its own to revoke, but other places' last uninstall may have left its identity's shared bindings (BL-596). */
+function prepareNewInstall(executor: PluginExecutor, installId: string): void {
+  try { executor.prepareNewInstall?.(installId); }
+  catch (error) {
+    if (error instanceof ActionError) throw error;
+    throw pluginErrors.executor_failed("Plugin 早先安装留下的连接绑定清理失败，暂不能安装，请重试");
   }
 }
 

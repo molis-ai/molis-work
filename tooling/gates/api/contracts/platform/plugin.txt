@@ -2920,6 +2920,7 @@ export interface PluginExecutor {
     restorePrivateData?(installId: string, snapshot: unknown): Promise<void> | void;
     uninstalled?(record: PluginInstanceRecord): Promise<void> | void;
     prepareReinstall?(record: PluginInstanceRecord): void;
+    prepareNewInstall?(installId: string): void;
     keptDataDiscarded?(record: PluginInstanceRecord): void;
 }
 

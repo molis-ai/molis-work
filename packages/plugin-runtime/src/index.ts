@@ -220,7 +220,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       return this.receipt("install", moved, false);
     }
     const grants = installationGrants(current, manifest, host, input.grants);
-    prepareInstallationData(this.executor, current, manifest, host, input.discard_kept_data === true);
+    prepareInstallationData(this.executor, installId, current, manifest, host, input.discard_kept_data === true);
     this.register(input.definition);
     if (current && current.version !== manifest.version && current.state !== "uninstalled") {
       if (!(manifest.upgrade_compatibility?.compatible_from_versions ?? []).includes(current.version)) {

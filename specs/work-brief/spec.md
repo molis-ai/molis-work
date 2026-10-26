@@ -106,3 +106,5 @@
 [主动式助理与场景 Skill](../proactive-assistant/spec.md) 定义主动理解、周期报告质量、统一交互、权限、运行恢复与评测的完整要求；本文独立定义工作简报的内容归属和生命周期，不替代该需求书。现有平台和插件边界沿用 [事实归属](../../docs/SSOT-MATRIX.md) 与 [插件开发约定](../../skills/molis-plugin-dev/SKILL.md)。
 
 本需求没有指定新的存储协议、动作名称、框架或额外场景。实现时沿用现有公开合同和 Plugin Runtime；需要确定的技术细节不得被当作已经完成的产品能力。
+
+卡片与简报页的设计稿（统一卡片记录、块语法、卡型配方与待用户决定的事项）见 [design.md](design.md)，可视规格板见 [docs/design/assistant-cards](../../docs/design/assistant-cards/README.md)；设计稿里的协议与动作名是提案，用户确认前不算本需求的一部分。

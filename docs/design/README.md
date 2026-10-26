@@ -4,6 +4,7 @@
 
 | 目录 | 是什么 | 现在的地位 |
 | --- | --- | --- |
+| [assistant-cards/](assistant-cards/README.md) | 助理卡片与工作简报：卡片解剖、三种字的来源、19 种块、19 个卡型、三种尺寸、状态、四张简报页与窄屏的规格板 | 设计稿（2026-10-26，待用户确认），说明见 [specs/work-brief/design.md](../../specs/work-brief/design.md)；里面是示例数据 |
 | [pages-assistant-surfaces/](pages-assistant-surfaces/README.md) | Pages 侧栏与助理主区高保真交互切片 | 参考原型；生产实施见 [spec](../../specs/archive/pages-assistant-surfaces/spec.md) |
 | [project-arrival-flow/](project-arrival-flow/README.md) | 打开 Molis Work：项目选择页、Welcome 与新建项目引导的高保真设计、可交互原型、状态与深色/窄屏图、三段动效录屏 | 当前的**参考原型**（2026-10-01 用户认可），生产实现见 [specs/archive/project-arrival-flow](../../specs/archive/project-arrival-flow/spec.md)。原型里的项目、材料、整理结果都是示例数据 |
 | [soft-workbench/](soft-workbench/README.md) | 用户认可的 Soft Workbench 高保真原型（首页、目标、信息流、新手引导） | 当前视觉语言的**参考原型**；已按 [specs/archive/soft-workbench-rollout](../../specs/archive/soft-workbench-rollout/spec.md) 落到生产。原型里的数据、AI 回复和 localStorage 都是演示 |

@@ -3416,3 +3416,17 @@ App合成点为2cb0099ca（准确父Foundation291e）；其后采用同一SDK #1
 相对准确291e实测：workbench.js 1,132,639→1,165,532（+32,893，原9项授权合计32,894）；workbench.css 1,234,610→1,235,290（+680）；settings.css 932,738→858,814（-73,924）；coding.js 289,674→291,450（+1,776=已批归档570+待批恢复1,206）。原已批准的同功能两处增长精确迁移；没有转用其它资源额度。原资源updater因Coding未准入原子拒写，page-assets.json未提高，减小的settings预算亦待该原子更新，资源门继续红。
 
 Foundation291e原普通CI及Full均成功。Root独立复核16原日志：1503唯一runner行全首轮ok、无retry，其中5文件零pass；摘要10292/10306且8文件14非pass，成功stdout缺失不声称零skip。独立整PR深审随后确认关闭失败时过早退订Run事件的P2，Root核真实SDK107早期pending存储错误链后安排真实Node故障复现/修正，尚未合并。应用467大批先等待这项主链修复合成，避免对立即要变的源重复大批；新SDK及本片交付继续保留Draft。旧100/1000规模失败、Coding原两项用户决定、Cloudflare旧失败影响、同SDK旧策略归因和唯一正式B0/B2付费批仍未闭合。
+
+#### SDK 提前关闭失败后保留原 Run 回执订阅（2026-10-26，有界工程验证通过）
+
+独立审查在 Foundation `291e169be` 确认关闭投影的遗漏分支：SDK107 的 `parkWaitingRuns → pendings.readByOrigin` 在停止与取消 Run 之前可因真实待答密文损坏拒绝；Adapter 的 finally 却已经退订。此时在途模型响应仍能产生原 `memory-context`，但 App sink 不再接收，重试仅排空已有队列。此前 Adapter.close 入口 mock 与已结束 Run 的用例不覆盖此路径，不能当成该故障已验证。
+
+最小修正沿原 `PrologueAgentAdapter.close`：只在 Runtime.shutdown 成功返回后退订；失败仍等待已接受的 timing/usage 队列，但保留原订阅、MemoryHost 及 Home owner，由原明确 close 重试完成。不是重新订阅、重读 Run 补账、自动重试或新关闭状态机；既有 sink 自身失败语义不变，不保证任意投影 I/O 失败都阻止 close。只改 `prologue.ts`、原 `memory-agent-runs.test.ts` 与本 spec；不改 SDK、格式、权限、CI、门禁或预算。
+
+验收先用真实临时 Home / Node SDK / loopback HTTP：Session A 真正等待 ask-user，Session B 携记忆派出后保持响应在途；仅破坏 A 原 pending 的密文认证字节，使第一次 close 从 SDK 内拒绝。恢复原字节后放行 B，通过 HTTP 完成与原只读 recovery.inspect(B) 的持久终态等待，不先 adapter.read(B) 补账；明确重试 close 后首次打开 ledger 即见 B 唯一 response-observed 与 lastUse，失败期间 Home 排他仍拒绝竞争 owner，关闭重试不增加模型请求。保留同一反例红绿，整体 build 后跑原 runner 定向与 Agent Host README 必跑；无真实用户 Home、外部模型或完整 P0 验收声明。
+
+真实反例与先红记录：首轮按裸 kind 寻址失败 ENOENT，只是夹具错误；SDK ScopedStorage 的实际归属目录为 `records/io.molis.work~pendings` / `io.molis.work~runs`。修正路径后，未改生产的第二轮已证明原故障：第一次 close 因 `STORAGE_RECONCILE_REQUIRED` 拒绝，恢复原字节后 B 的持久 Run 为 completed，明确 close 重试后首次 ledger 的 lastUse 仍为 undefined，败在 response-observed 断言。仅移动退订后同一交错通过。新增测试 strict 另发现沿旧夹具的 business createSession 缺 role_id，已明确传入 helper；未放宽断言，最后原文件 6/6、零跳过通过。
+
+最终生产差异仅成功分支退订，finally 仍排 timingCommit 与 usage。原整体 build、Agent Host strict、测试 strict、准确主干 `2b3dc51de` health 均退出 0；README 必跑与关闭/恢复必要并集 27 文件 176/176 通过、零 retry、零 browser。之后只将 try 改为正常多行并补原 build/指纹，没有重跑已绿并集；独立只读复审确认该 P2 在此范围内关闭，无新增确定阻塞。日志为仓外 `molis-foundation-291e-sdk-close-{red-first,red-second,green,file-final,related,types,test-types,test-types-final,build,build-final,health}-20261026.log`，首路径/类型失败保留。此为真实临时 Node/SQLite/loopback 的有界工程证据，未修改 SDK、未提交推送、未跑全量或外部模型；App 合成与最终验收仍由原任务继续。
+
+关闭修复随后作为 Foundation `1f124ddd21288cf0831b135ebe286977894eba17` 推到原 #1064 与 integration 分支；该头普通 CI 40260900069、Full 40260896732 已启动，尚未完成。Root 将这份最小修复合入 App 原 #1101，保留两侧完整合同和历史首红。SDK仍为063b原档，资源预算与三个待决定边界未改；本次整合整体build及467必要选集开始前冻结源码，最终结果另记。

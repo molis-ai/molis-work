@@ -345,9 +345,10 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     this.#detachApprovalAnswers?.();
     for (const record of this.#store.runs.values()) record.memory = undefined;
     await Promise.all([...this.#store.runs.values()].map(record => record.timingCommit));
-    try { await this.#runtime.shutdown(); }
-    finally {
+    try {
+      await this.#runtime.shutdown();
       for (const record of this.#store.runs.values()) record.unsubscribe();
+    } finally {
       await Promise.all([...this.#store.runs.values()].map(record => record.timingCommit));
       await this.#memoryUsage.flush();
     }

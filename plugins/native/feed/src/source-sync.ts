@@ -44,7 +44,7 @@ export class PublicSourceSync {
     }
 
     const startedAt = new Date().toISOString();
-    const running: FeedSourceRunRecord = {
+    let running: FeedSourceRunRecord = {
       project_id: this.projectId,
       run_id: prior?.run_id ?? stableId("feed-run", operationId),
       operation_id: operationId,
@@ -61,12 +61,24 @@ export class PublicSourceSync {
       completed_at: null,
       updated_at: startedAt,
     };
-    this.feed.upsertSourceRun(running);
-    this.ports.appendEvent(this.projectId, sourceId, "feed_source.sync_started", "开始同步 Feed 来源", {
-      operation_id: operationId,
+    const started = running;
+    await this.commit(() => {
+      this.feed.upsertSourceRun(started);
+      this.ports.appendEvent(this.projectId, sourceId, "feed_source.sync_started", "开始同步 Feed 来源", {
+        operation_id: operationId,
+      });
     });
 
-    const runtime = this.ports.createRuntime(source);
+    // The run names a body before the Home's ledger is told of it and before it is written, so a pull that is cut off at any point
+    // leaves every body it may have written named by a run: retrying it, or deleting the source, finds them.
+    const hold = this.ports.holdContent ? async (contentRefs: readonly string[]) => {
+      await beforeEffect();
+      running = { ...running, receipt: withReceiptContentRefs(running.receipt, contentRefs) };
+      const named = running;
+      await this.commit(() => { this.feed.upsertSourceRun(named); });
+      await this.ports.holdContent!(source, contentRefs);
+    } : undefined;
+    const runtime = this.ports.createRuntime(source, operationId, hold);
     try {
       const result = await runtime.intelligenceCollect.executeExact(
         request,
@@ -92,7 +104,7 @@ export class PublicSourceSync {
         receipt: withReceiptContentRefs(running.receipt, runtime.writtenContentRefs?.() ?? []),
         updated_at: updatedAt,
       };
-      this.ports.transaction(() => {
+      await this.commit(() => {
         this.feed.upsertSourceRun(interrupted);
         const latest = this.feed.getSource(this.projectId, sourceId);
         const rssFailure = this.ports.providers.rss.isSourceKind(latest.kind)
@@ -117,7 +129,7 @@ export class PublicSourceSync {
       if (this.ports.providers.rss.isSourceKind(failedSource.kind)) {
         const failures = this.ports.providers.rss.failureCount(failedSource.cursor);
         const actionable = rssFailureAction(errorCode, failures);
-        if (actionable) this.recordRssSourceFault(failedSource, errorCode, actionable, updatedAt);
+        if (actionable) await this.commit(() => this.recordRssSourceFault(failedSource, errorCode, actionable, updatedAt));
       }
       throw feedErrors.source_sync_interrupted(interruptedMessage(errorCode));
     } finally {
@@ -140,7 +152,7 @@ export class PublicSourceSync {
     let durableSource = entrySource;
     let terminal!: FeedSourceRunRecord;
     let actionableRssFailure: ReturnType<typeof rssFailureAction> = null;
-    this.ports.transaction(() => {
+    await this.commit(() => {
       const latest = this.feed.getSource(this.projectId, entrySource.source_id);
       if (consumable) {
         for (const material of result.materials) {
@@ -242,13 +254,19 @@ export class PublicSourceSync {
       });
     });
     if (rssSource) {
-      if (consumable) resolveSourceFaults(this.feed, this.projectId, entrySource.source_id);
+      if (consumable) await this.commit(() => resolveSourceFaults(this.feed, this.projectId, entrySource.source_id));
       else if (actionableRssFailure && terminal.error_code) {
-        this.recordRssSourceFault(durableSource, terminal.error_code, actionableRssFailure, completedAt);
+        const fault = actionableRssFailure, failed = terminal.error_code, saved = durableSource;
+        await this.commit(() => this.recordRssSourceFault(saved, failed, fault, completedAt));
       }
     }
     await this.feed.flushPendingJudgments();
     return { source: durableSource, run: terminal, created, deduped, replayed: false };
+  }
+
+  /** A write after the sync has awaited: the Runtime's commit when the Feed has one, otherwise the transaction it always used. */
+  private async commit<T>(operation: () => T): Promise<T> {
+    return this.ports.commit ? await this.ports.commit(operation) : this.ports.transaction(operation);
   }
 
   private recordRssSourceFault(

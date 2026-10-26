@@ -166,7 +166,7 @@ test("RAC-494: only Feed's own project instance may hold or release, and the pro
   const call = (overrides: Partial<ActionExecutionContext> & { plugin?: string | null }): ActionExecutionContext => {
     const { plugin = FEED_PLUGIN_ID, ...rest } = overrides;
     return { actor_id: "x", project_id: "p1", audience: "plugin", permissions: ["feed:write"], beforeEffect: async () => {},
-      ...(plugin ? { host_plugin: { plugin_id: plugin, install_id: "i", actor_id: "x", project_id: "p1", declaration: { manifest: {} as PluginManifest }, assertActive() {} } } : {}), ...rest } as ActionExecutionContext;
+      ...(plugin ? { calling_plugin_id: plugin } : {}), ...rest } as ActionExecutionContext;
   };
   const input = { source_id: "s1", content_refs: [a], project_id: "p2" };
   await hold.handle(call({}), input);

@@ -3,10 +3,12 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
+import Database from "better-sqlite3";
 import { ActionError, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginProjectDatabase, PluginProjectDatabaseTransaction } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { createPluginPlatform, DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { createFeedPlugin, createFeedWriter, FEED_PLUGIN_ID, feedContentActions, feedItemActions, feedQueryActions, feedRuleActions, feedRuntimeManifest, feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
+import type { PluginDefinition, PluginProjectDatabase, PluginProjectDatabaseTransaction, PluginSqlValue } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { createPluginPlatform, DEMO_PROJECT_ID, listFeedSourceCatalog, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { createEvidenceContentStore } from "@molis-ai/molis-work-storage";
+import { createFeedContentLedger, createFeedContentLedgerHandlers, createFeedPlugin, createFeedWriter, FEED_HOME_DATABASE, FEED_PLUGIN_ID, feedContentActions, feedContentLedgerActions, feedItemActions, feedQueryActions, feedRuleActions, feedRuntimeManifest, feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
@@ -21,7 +23,35 @@ const HOST_ACTOR = "tester", OWNER = "owner";
 const FEED_OBJECT = `${FEED_PLUGIN_ID}:feed_item`;
 const READ = ["feed:read"], WRITE = ["feed:read", "feed:write", "inbox:write"];
 
-async function platform(t: TestContext) {
+/**
+ * Feed's Home half, stood in for: the same ledger and the same two-and-one actions (`hold`, `release`, `reclaim`), over a library of its own,
+ * provided by a plugin of its own, so the project instance asks it through the action directory as it will ask the real one.
+ */
+async function ledgerStandIn(home: string): Promise<{ definition: PluginDefinition; holds(): Array<{ content_ref: string; project_id: string; source_id: string }>; close(): void }> {
+  const db = new Database(join(home, "ledger.db"));
+  db.exec(FEED_HOME_DATABASE.schema);
+  const bind = (parameters: readonly PluginSqlValue[] = []) => [...parameters];
+  const reader = { get: (sql: string, parameters?: readonly PluginSqlValue[]) => (db.prepare(sql).get(...bind(parameters)) as Record<string, PluginSqlValue> | undefined) ?? null,
+    all: (sql: string, parameters?: readonly PluginSqlValue[]) => db.prepare(sql).all(...bind(parameters)) as Record<string, PluginSqlValue>[] };
+  const store = { read: reader, async write<T>(beforeEffect: () => Promise<void>, body: (tx: typeof reader & { run(sql: string, parameters?: readonly PluginSqlValue[]): { changes: number } }) => T): Promise<T> {
+    await beforeEffect();
+    db.exec("BEGIN IMMEDIATE");
+    try { const result = body({ ...reader, run: (sql, parameters) => ({ changes: db.prepare(sql).run(...bind(parameters)).changes }) }); db.exec("COMMIT"); return result; }
+    catch (error) { db.exec("ROLLBACK"); throw error; }
+  } };
+  const ledger = createFeedContentLedger(store, createEvidenceContentStore());
+  await ledger.markComplete(async () => {}, new Date().toISOString());
+  const permissions = ["feed:read", "feed:write"].map(permission => ({ permission, required: true, reason: "The reference ledger" }));
+  const actions = Object.values(feedContentLedgerActions);
+  const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.test.feed-home", name: "Feed Home (test)", version: "1.0.0", kind: "app",
+    publisher: { publisher_id: "example", signature: "fixture-feed-home" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }], permissions,
+    capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions },
+  async start() { return { kind: "app", actions: createFeedContentLedgerHandlers(ledger) }; } };
+  return { definition, close: () => db.close(),
+    holds: () => reader.all("SELECT content_ref, project_id, source_id FROM feed_content_holds ORDER BY content_ref") as Array<{ content_ref: string; project_id: string; source_id: string }> };
+}
+
+async function platform(t: TestContext, options: { fetch?: (input: string | URL) => Promise<Response>; ledger?: boolean } = {}) {
   const home = mkdtempSync(join(tmpdir(), "feed-runtime-plugin-")), file = join(home, "project.db");
   seedDemoBoard(file);
   const store = new LocalProjectDatabase(file), actions = pluginActions(store, DEMO_PROJECT_ID);
@@ -29,17 +59,20 @@ async function platform(t: TestContext) {
     eventCursor: (projectId: string) => store.eventCursor(projectId) };
   const running = createPluginPlatform({ actions, project_id: DEMO_PROJECT_ID, actor_id: HOST_ACTOR, db: store.db, journal: store,
     artifacts: new ArtifactsModule(ports), processItems: new ProcessItemsModule(ports), ui: new UiHost(),
-    privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }), home: null });
+    privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }), home: null,
+    ...(options.fetch ? { sourcePullFetch: options.fetch } : {}) });
+  const homeHalf = options.ledger ? await ledgerStandIn(home) : null;
   t.after(async () => {
     try {
       await running.closeCoordination();
       for (const instance of running.runtime.list()) if (instance.state === "running") await running.runtime.stop(instance.install_id);
-    } finally { store.close(); rmSync(home, { recursive: true, force: true }); }
+    } finally { homeHalf?.close(); store.close(); rmSync(home, { recursive: true, force: true }); }
   });
-  const started = await running.start([{ definition: createFeedPlugin(), trust: { level: "host" as const } }]);
-  assert.deepEqual(started.running, [feedRuntimeManifest.plugin_id], JSON.stringify(started));
+  const trust = { level: "host" as const };
+  const started = await running.start([{ definition: createFeedPlugin(), trust }, ...(homeHalf ? [{ definition: homeHalf.definition, trust }] : [])]);
+  assert.deepEqual(started.running, [feedRuntimeManifest.plugin_id, ...(homeHalf ? [homeHalf.definition.manifest.plugin_id] : [])], JSON.stringify(started));
   const count = (sql: string, ...parameters: unknown[]) => (store.db.prepare(sql).get(...parameters as never[]) as { n: number }).n;
-  return { store, client: actions.client, count };
+  return { store, client: actions.client, count, holds: () => homeHalf?.holds() ?? [] };
 }
 
 /** The original caller of an action, who can be cancelled or revoked from outside. */
@@ -152,6 +185,105 @@ test("RAC-506 a Runtime Feed registers a source from the platform's vocabulary, 
   // An address the platform refuses is refused, and nothing is left behind.
   await assert.rejects(client.invoke(caller(DESCRIBE).context, feedSourceActions.register, { kind: "custom_rss", feed_url: "http://127.0.0.1/feed.xml" }));
   assert.equal(sources(), before + 2);
+});
+
+// RAC-492 .. RAC-518 (4e-2b): a Runtime Feed pulls a public source through the platform, names and holds every body before it is written,
+// commits the result as one write, and gives the bodies back when the source's history is deleted.
+const SYNC = [...WRITE, "sources:pull_feed", "sources:pull_query"];
+/** Deleting a source also removes its items' Inbox entries and links to Goals, so the call holds what those ledgers ask. */
+const DELETE = [...DESCRIBE, "attention:write", "context-ledger:write"];
+const feedXml = (entries: Array<{ id: string; title: string }>) => `<?xml version="1.0"?><rss version="2.0"><channel><title>Runtime feed</title><link>https://example.com/</link>${entries.map(entry => `
+  <item><guid>https://example.com/posts/${entry.id}</guid><title>${entry.title}</title><link>https://example.com/posts/${entry.id}</link>
+  <description>Body of ${entry.title} for the runtime sync test.</description><pubDate>Sat, 30 Aug 2026 08:00:00 GMT</pubDate></item>`).join("")}</channel></rss>`;
+
+async function syncing(t: TestContext, options: { ledger?: boolean } = {}) {
+  const fetched: string[] = [], feeds = new Map<string, string>();
+  const fetch = async (input: string | URL) => {
+    fetched.push(String(input));
+    const body = feeds.get(String(input));
+    return body ? new Response(body, { status: 200, headers: { "content-type": "application/rss+xml" } }) : new Response("missing", { status: 404 });
+  };
+  const f = await platform(t, { fetch, ledger: options.ledger ?? true });
+  const entry = listFeedSourceCatalog()[0]!;
+  feeds.set(entry.feed_url, feedXml([{ id: "one", title: "First" }, { id: "two", title: "Second" }]));
+  const registered = await f.client.invoke(caller(DESCRIBE).context, feedSourceActions.register, { kind: "rss", definition_id: entry.id }) as { source: { source_id: string } };
+  const sourceId = registered.source.source_id;
+  const sourceEvents = (type: string) => f.count(`SELECT count(*) AS n FROM events WHERE object_type = '${FEED_PLUGIN_ID}:feed_source' AND object_id = ? AND type = ? AND actor_id = ?`, sourceId, `${FEED_PLUGIN_ID}:feed_source.${type}`, OWNER);
+  /** The bodies the source's runs name, whatever state each run is in. */
+  const named = () => (f.store.db.prepare("SELECT receipt_json AS receipt FROM feed_source_runs WHERE source_id = ?").all(sourceId) as Array<{ receipt: string | null }>)
+    .flatMap(row => { const refs = row.receipt ? (JSON.parse(row.receipt) as { content_refs?: string[] }).content_refs : undefined; return refs ?? []; });
+  return { ...f, fetched, feeds, entry, sourceId, sourceEvents, named };
+}
+
+test("RAC-518 a Runtime Feed pulls a public source through the platform: one write for the items, the run and the event, and every body held before it was written", async t => {
+  const f = await syncing(t);
+  const items = () => f.count("SELECT count(*) AS n FROM feed_items WHERE source_id = ?", f.sourceId);
+  const synced = await f.client.invoke(caller(SYNC).context, feedSourceActions.sync, { source_id: f.sourceId, idempotency_key: "first-sync-key" }) as { created: number; deduped: number; replayed: boolean; run: { phase: string; outcome: string } };
+  assert.deepEqual([synced.created, synced.deduped, synced.replayed, synced.run.phase, synced.run.outcome], [2, 0, false, "terminal", "completed"]);
+  assert.equal(items(), 2);
+  assert.deepEqual([f.sourceEvents("sync_started"), f.sourceEvents("sync_completed")], [1, 1], "the journal names the caller, not the Host");
+  assert.equal(f.holds().length, 2, "the Home's ledger holds both bodies for this project's source");
+  assert.ok(f.holds().every(hold => hold.project_id === DEMO_PROJECT_ID && hold.source_id === f.sourceId));
+  assert.deepEqual([...f.named()].sort(), f.holds().map(hold => hold.content_ref).sort(), "the run names exactly the bodies the ledger holds");
+  const bodies = createEvidenceContentStore();
+  for (const hold of f.holds()) assert.ok(bodies.has(hold.content_ref), "the held body exists");
+  // The same key is the same pull: nothing is fetched again, nothing is written again.
+  const fetchedBefore = f.fetched.length, eventsBefore = f.sourceEvents("sync_started");
+  const again = await f.client.invoke(caller(SYNC).context, feedSourceActions.sync, { source_id: f.sourceId, idempotency_key: "first-sync-key" }) as { replayed: boolean; created: number };
+  assert.deepEqual([again.replayed, again.created, f.fetched.length, f.sourceEvents("sync_started")], [true, 0, fetchedBefore, eventsBefore]);
+  // A pull of the same feed under a new key finds the same items and holds nothing new.
+  const second = await f.client.invoke(caller(SYNC).context, feedSourceActions.sync, { source_id: f.sourceId, idempotency_key: "second-sync-key" }) as { created: number; deduped: number };
+  assert.deepEqual([second.created, second.deduped, items(), f.holds().length], [0, 2, 2, 2]);
+});
+
+test("RAC-518 a source that cannot be read ends the run failed, and a pull the ledger refuses ends it interrupted with nothing half written", async t => {
+  const down = await syncing(t);
+  down.feeds.delete(down.entry.feed_url);
+  const failed = await down.client.invoke(caller(SYNC).context, feedSourceActions.sync, { source_id: down.sourceId, idempotency_key: "down-sync-key" }) as { run: { phase: string; outcome: string; error_code: string } };
+  assert.deepEqual([failed.run.phase, failed.run.outcome, failed.run.error_code], ["terminal", "failed", "provider_unavailable"]);
+  assert.equal(down.count("SELECT count(*) AS n FROM feed_items WHERE source_id = ?", down.sourceId), 0);
+  assert.deepEqual(down.holds(), [], "no body was written, so none is held");
+  // Without the Home's ledger a body cannot be held, so none is written: the pull stops, and the run says it did not finish.
+  const refused = await syncing(t, { ledger: false });
+  refused.feeds.set(refused.entry.feed_url, feedXml([{ id: "never", title: "A body no ledger would hold" }]));
+  await assert.rejects(refused.client.invoke(caller(SYNC).context, feedSourceActions.sync, { source_id: refused.sourceId, idempotency_key: "no-ledger-key" }), { code: "feed.source_sync_interrupted" });
+  assert.equal(refused.count("SELECT count(*) AS n FROM feed_source_runs WHERE source_id = ? AND phase = 'interrupted'", refused.sourceId), 1);
+  assert.equal(refused.count("SELECT count(*) AS n FROM feed_items WHERE source_id = ?", refused.sourceId), 0);
+  assert.equal(refused.sourceEvents("sync_interrupted"), 1);
+  const bodies = createEvidenceContentStore();
+  assert.ok(refused.named().length > 0, "the run names the body before it is held");
+  for (const ref of refused.named()) assert.equal(bodies.has(ref), false, "a body the ledger refused was never written");
+});
+
+test("RAC-518 a caller revoked at any point leaves every held body named by a run, and a pull that completes is complete", async t => {
+  const f = await syncing(t);
+  const probe = caller(SYNC);
+  await f.client.invoke(probe.context, feedSourceActions.sync, { source_id: f.sourceId, idempotency_key: "probe-sync-key" });
+  const asked = probe.checks();
+  assert.ok(asked >= 6, "a sync asks its caller many times: " + asked);
+  let refused = 0, completed = 0;
+  for (let from = 1; from <= asked + 2; from += 3) {
+    f.feeds.set(f.entry.feed_url, feedXml([{ id: `sweep-${from}-a`, title: `Sweep ${from} a` }, { id: `sweep-${from}-b`, title: `Sweep ${from} b` }]));
+    const outcome = await f.client.invoke(caller(SYNC, from).context, feedSourceActions.sync, { source_id: f.sourceId, idempotency_key: `sweep-sync-key-${from}` }).then(() => "done" as const, () => "refused" as const);
+    if (outcome === "done") completed += 1; else refused += 1;
+    const named = new Set(f.named());
+    for (const hold of f.holds()) assert.ok(named.has(hold.content_ref), `a body held after revocation at check ${from} is named by a run`);
+  }
+  assert.ok(refused >= 1 && completed >= 1, `the sweep reached both sides (refused ${refused}, completed ${completed})`);
+});
+
+test("RAC-518 deleting a source with its local history gives its bodies and search records back, and the commit records it", async t => {
+  const f = await syncing(t);
+  await f.client.invoke(caller(SYNC).context, feedSourceActions.sync, { source_id: f.sourceId, idempotency_key: "to-delete-key" });
+  const refs = f.holds().map(hold => hold.content_ref), bodies = createEvidenceContentStore();
+  assert.equal(refs.length, 2);
+  const deleted = await f.client.invoke(caller(DELETE).context, feedSourceActions.delete, { source_id: f.sourceId, history_decision: "delete_local_history" }) as { history_decision: string };
+  assert.equal(deleted.history_decision, "delete_local_history");
+  assert.deepEqual(f.holds(), [], "the ledger holds nothing of the deleted source");
+  for (const ref of refs) assert.ok(!bodies.has(ref), "a body nobody else holds is gone");
+  assert.equal(f.count("SELECT count(*) AS n FROM feed_items WHERE source_id = ?", f.sourceId), 0);
+  assert.equal(f.sourceEvents("deleted"), 1);
+  assert.equal(f.sourceEvents("history_released"), 1, "what the release found is recorded with the deletion");
 });
 
 /** A stand-in for a platform handle: only the members these cases exercise, the rest absent. */

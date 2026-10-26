@@ -34,7 +34,7 @@ export const FEED_CONTENT_LEDGER_ACTIONS: readonly ActionDefinition[] = Object.v
 
 /** Feed's project instance, as the host names it on a call: the plugin audience, with the plugin id the host recorded (never one the call says). */
 function holderOf(caller: ActionExecutionContext): string {
-  if (caller.audience !== "plugin" || caller.host_plugin?.plugin_id !== FEED_PLUGIN_ID || !caller.project_id) {
+  if (caller.audience !== "plugin" || caller.calling_plugin_id !== FEED_PLUGIN_ID || !caller.project_id) {
     throw new ActionError("actions.forbidden", "只有 Feed 自己的项目实例能登记、释放或收回正文");
   }
   return caller.project_id;

@@ -6,6 +6,7 @@ import type { FeedConnectorSync } from "./connector-sync.js";
 import type { FeedSourceRecord, SourceHistoryDecision } from "./projection.js";
 import { sourceRegistrationInput } from "./route-input.js";
 import type { ConfigureFeedSourceScheduleInput, FeedSourceSyncResult, UpdateFeedSourceInput } from "./source-ports.js";
+import { removeFeedSource } from "./source-removal.js";
 import type { FeedSourceService } from "./source-service.js";
 import { FeedSourceScheduler, type FeedSourceSchedulerResult } from "./source-scheduler.js";
 
@@ -54,8 +55,10 @@ export const FEED_SOURCE_ACTIONS: readonly ActionDefinition[] = Object.values(fe
 /** Services are built per call so capture judgments started by a sync run with that caller's authority. */
 export interface FeedSourceActionPorts {
   feed(): FeedApplication;
-  sources(caller: ActionCallContext): FeedSourceService;
+  sources(caller: ActionExecutionContext): FeedSourceService;
   connectorSync(caller: ActionCallContext): Pick<FeedConnectorSync, "sync">;
+  /** Wraps the commit of a deletion with what releasing its history found; the Runtime Feed hands it to the history port. */
+  retire?: Parameters<typeof removeFeedSource>[3];
 }
 
 export function createFeedSourceHandlers(board: string, ports: FeedSourceActionPorts): ActionHandlerBinding[] {
@@ -98,7 +101,7 @@ export function createFeedSourceHandlers(board: string, ports: FeedSourceActionP
       const { source_id, ...patch } = input;
       return { source: ports.sources(caller).update(source_id, patch as UpdateFeedSourceInput) };
     }),
-    bind(a.delete, (input, caller) => ({ source: ports.sources(caller).delete(input.source_id, input.history_decision), history_decision: input.history_decision })),
+    bindWaiting(a.delete, async (input, caller) => ({ source: await removeFeedSource(ports.sources(caller), input.source_id, input.history_decision, ports.retire), history_decision: input.history_decision })),
     bind(a.schedule, (input, caller) => {
       const schedule: ConfigureFeedSourceScheduleInput | null = input.mode === "manual" ? { mode: "manual" }
         : input.mode === "interval" && typeof input.enabled === "boolean" && Number.isInteger(input.interval_minutes)

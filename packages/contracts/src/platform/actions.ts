@@ -129,6 +129,12 @@ export interface ActionCallContext extends ActionCallOrigin {
    * project the call is made in". Never business input.
    */
   readonly readable_project_ids?: readonly string[];
+  /**
+   * The plugin whose installation made this call, as the Host issued its caller (S-15): set on every call of the plugin audience a plugin's own
+   * handler answers, fresh on each call, and never one a caller carried in. A plugin's handler never sees the issued caller itself
+   * (`host_plugin`), so this is how a handler of one plugin's Home half knows the call came from that plugin's project instance. Never business input.
+   */
+  readonly calling_plugin_id?: string;
   /** Host-bound installation identity for private Plugin SDK services. */
   readonly plugin_install_id?: string;
   /** The Host-issued plugin caller this call is made for. Never accepted from business arguments or persisted. */

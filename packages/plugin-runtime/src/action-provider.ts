@@ -40,7 +40,7 @@ export function pluginActionProvider(manifest: PluginManifest, contribution: Plu
       return { ...h, handle: (context, input) => {
         const begun = reservePluginInvocationPlace();
         const run = (readable?: readonly string[]) => {
-          const checked = { passed: false }, view = { ...pluginCallbackContext(context), ...(readable ? { readable_project_ids: readable } : {}) }, before = view.beforeEffect;
+          const checked = { passed: false }, view = { ...pluginCallbackContext(context), ...(readable ? { readable_project_ids: readable } : {}), ...(context.audience === "plugin" && context.host_plugin ? { calling_plugin_id: context.host_plugin.plugin_id } : {}) }, before = view.beforeEffect;
           return runInPluginAction({ install_id: installId, installation_generation, definition, caller: context, checked, begun },
             () => h.handle(before ? { ...view, beforeEffect: pluginActionBeforeEffect(before, checked) } : view, input));
         };

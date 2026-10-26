@@ -1394,3 +1394,15 @@ batch40本机合成验证：原frozen/offline安装、整体build、root/Host/Ag
 资源按新main实测且仅同一已批功能迁移：Workbench1129446→1132639（+3193）、Coding289062→289674（+612），其余资源不变。原更新器仅写这两数字，未携带旧绝对上限或余额。原整体build再过，源码与产物指纹一致；仅补原3失败文件185项全部通过、零retry，未重跑346。最终准确主干健康与原资源门通过。现仍待最终提交的普通CI、Full及已记录外部阻塞核清，不能以本机集合替代它们；未合并、未发布。
 
 f9e5b4fb 的普通 CI 40251451657 在 Package boundaries（job 121344061019）首红：test-kit 原超时测试仍精确匹配旧错误字符串，拒绝新增的 `(elapsed 50ms; limit 50ms)` 诊断。仅同步该测试与注释，严格核对方法名、数值 elapsed、精确 limit 50ms 和调用者栈，保留原 150/50ms 时限、响应小于 2000ms、表达式截断小于 400 字符的断言；生产、CI、重试和超时不变。固定 Node 24.14 下单文件 19/19，随后原完整 `pnpm workspace:verify` 退出 0（test-kit 55/55、owner/registration 12/12、包边界无错误、工作区按原缓存规则构建），零跳过。此前本机只直接跑过边界扫描，未覆盖这个完整命令，本次补齐；原 CI 首红保留，尚不代表远端重验通过或自然 CDP 超时根因已修。
+
+#### SDK 提前关闭失败后保留原 Run 回执订阅（2026-10-26，有界工程验证通过）
+
+独立审查在 Foundation `291e169be` 确认关闭投影的遗漏分支：SDK107 的 `parkWaitingRuns → pendings.readByOrigin` 在停止与取消 Run 之前可因真实待答密文损坏拒绝；Adapter 的 finally 却已经退订。此时在途模型响应仍能产生原 `memory-context`，但 App sink 不再接收，重试仅排空已有队列。此前 Adapter.close 入口 mock 与已结束 Run 的用例不覆盖此路径，不能当成该故障已验证。
+
+最小修正沿原 `PrologueAgentAdapter.close`：只在 Runtime.shutdown 成功返回后退订；失败仍等待已接受的 timing/usage 队列，但保留原订阅、MemoryHost 及 Home owner，由原明确 close 重试完成。不是重新订阅、重读 Run 补账、自动重试或新关闭状态机；既有 sink 自身失败语义不变，不保证任意投影 I/O 失败都阻止 close。只改 `prologue.ts`、原 `memory-agent-runs.test.ts` 与本 spec；不改 SDK、格式、权限、CI、门禁或预算。
+
+验收先用真实临时 Home / Node SDK / loopback HTTP：Session A 真正等待 ask-user，Session B 携记忆派出后保持响应在途；仅破坏 A 原 pending 的密文认证字节，使第一次 close 从 SDK 内拒绝。恢复原字节后放行 B，通过 HTTP 完成与原只读 recovery.inspect(B) 的持久终态等待，不先 adapter.read(B) 补账；明确重试 close 后首次打开 ledger 即见 B 唯一 response-observed 与 lastUse，失败期间 Home 排他仍拒绝竞争 owner，关闭重试不增加模型请求。保留同一反例红绿，整体 build 后跑原 runner 定向与 Agent Host README 必跑；无真实用户 Home、外部模型或完整 P0 验收声明。
+
+真实反例与先红记录：首轮按裸 kind 寻址失败 ENOENT，只是夹具错误；SDK ScopedStorage 的实际归属目录为 `records/io.molis.work~pendings` / `io.molis.work~runs`。修正路径后，未改生产的第二轮已证明原故障：第一次 close 因 `STORAGE_RECONCILE_REQUIRED` 拒绝，恢复原字节后 B 的持久 Run 为 completed，明确 close 重试后首次 ledger 的 lastUse 仍为 undefined，败在 response-observed 断言。仅移动退订后同一交错通过。新增测试 strict 另发现沿旧夹具的 business createSession 缺 role_id，已明确传入 helper；未放宽断言，最后原文件 6/6、零跳过通过。
+
+最终生产差异仅成功分支退订，finally 仍排 timingCommit 与 usage。原整体 build、Agent Host strict、测试 strict、准确主干 `2b3dc51de` health 均退出 0；README 必跑与关闭/恢复必要并集 27 文件 176/176 通过、零 retry、零 browser。之后只将 try 改为正常多行并补原 build/指纹，没有重跑已绿并集；独立只读复审确认该 P2 在此范围内关闭，无新增确定阻塞。日志为仓外 `molis-foundation-291e-sdk-close-{red-first,red-second,green,file-final,related,types,test-types,test-types-final,build,build-final,health}-20261026.log`，首路径/类型失败保留。此为真实临时 Node/SQLite/loopback 的有界工程证据，未修改 SDK、未提交推送、未跑全量或外部模型；App 合成与最终验收仍由原任务继续。

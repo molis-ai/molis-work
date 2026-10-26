@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { mkdtemp, rm, realpath } from "node:fs/promises";
+import { mkdtemp, rm, realpath, readFile, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
 import { DatabaseSync } from "node:sqlite";
@@ -16,6 +16,7 @@ import { MEMORY_PERMISSIONS, memoryActions } from "@molis-ai/molis-work-contract
 import { codingAgentManifest, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
 import { MolisWorkLocalHost, ensureSystemAgentService } from "@molis-ai/molis-work-app-local-host";
 import { memoryForAgentRun, memoryHostFor, recordMemoryUsage } from "../apps/local-host/dist/memory/memory-host.js";
+import { cogniaModelResponse, cogniaScriptedResponse } from "./fixtures/cognia-model-response.js";
 
 const person: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: [...MEMORY_PERMISSIONS] };
 
@@ -180,6 +181,92 @@ test("SystemAgentService drains late SDK memory usage on its original ledger aft
   assert.equal(requests, 1, "shutdown and explicit cleanup retry never dispatch another model request");
 });
 
+
+test("a real pending read failure during SDK shutdown keeps late memory receipts subscribed until close retry", { timeout: 60_000 }, async t => {
+  const home = await mkdtemp(join(tmpdir(), "memory-shutdown-pending-"));
+  const previousBackend = process.env.MOLIS_WORK_SECRET_BACKEND;
+  process.env.MOLIS_WORK_SECRET_BACKEND = "file";
+  let release!: () => void, entered!: () => void, finished!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const waiting = new Promise<void>(resolve => { entered = resolve; });
+  const sent = new Promise<void>(resolve => { finished = resolve; });
+  let requests = 0, memoryRequest = "", pendingPath: string | undefined, pendingBytes: Buffer | undefined;
+  const server = createServer(async (request, response) => {
+    const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
+    const question = ++requests === 1;
+    if (!question) { memoryRequest = Buffer.concat(chunks).toString(); entered(); await gate; response.once("finish", finished); }
+    const reply = question ? cogniaScriptedResponse({ name: "ask-user", input: { why: "确认安排", questions: [
+      { id: "when", prompt: "什么时候发布", options: [{ label: "今天" }, { label: "明天" }] }] } }) : cogniaModelResponse("Ready.");
+    response.writeHead(200, { "content-type": "text/event-stream" }); response.end(await reply.text());
+  });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address(); assert.ok(address && typeof address !== "string");
+  const local = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  t.after(async () => {
+    if (pendingPath && pendingBytes) await writeFile(pendingPath, pendingBytes);
+    release(); await local.close(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve()));
+    if (previousBackend === undefined) delete process.env.MOLIS_WORK_SECRET_BACKEND; else process.env.MOLIS_WORK_SECRET_BACKEND = previousBackend;
+    await rm(home, { recursive: true, force: true });
+  });
+  const project = await withMolisWorkProjectCatalog({ homeDirectory: home }, async catalog => {
+    const project = await catalog.createProject({ display_name: "Pending close", actor_id: LOCAL_PERSON_ACTOR_ID });
+    runWithMolisWorkHome(home, () => createFileSecretStore().put("pending-close-fixture", "test-only"));
+    catalog.models.upsert({ provider_id: "pending-close", display_name: "Pending close fixture", base_url: `http://127.0.0.1:${address.port}/v1/messages`,
+      api_format: "anthropic-messages", models: [{ model_id: "scripted", enabled: true }], credential_ref: "pending-close-fixture" });
+    return project;
+  });
+  const system = ensureSystemAgentService(local, home, withMolisWorkProjectCatalog); await system.ready;
+  const memory = memoryHostFor(local)!, adapter = system.agentHost.adapter("prologue");
+  assert.ok(adapter instanceof PrologueAgentAdapter);
+  const owner = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project.project_id, plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID };
+  const until = async <T>(read: () => Promise<T | undefined>, message: string): Promise<T> => {
+    for (const deadline = Date.now() + 20_000; ; await new Promise(resolve => setTimeout(resolve, 10))) {
+      const found = await read(); if (found !== undefined) return found;
+      assert.ok(Date.now() < deadline, message);
+    }
+  };
+  const asking = await adapter.createSession({ ...owner, workspace: "business", role_id: "helper", title: "Waiting for the person" });
+  const asked = await adapter.start({ ...owner, session: asking, workspace: "business", role_id: "helper", task: "确认发布安排",
+    role: { role_id: "helper", version: 1, workspace: "business", execution: "operate", prompts: [], host_tools: ["ask-user"] } });
+  const question = await until(async () => (await adapter.read(asked.ref)).awaiting_input.find(item => item.answerable && item.kind === "questionnaire"), "A did not reach its real pending question");
+  const caller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project.project_id, consumer: "ui", current_scene: "assistant", person: true } as const;
+  const text = "Release checklist: keep the change summary concise";
+  const saved = await memory.service.write(caller, { scope: "project", text, kind: "convention" }); assert.ok(saved.memory);
+  const recipe = await memory.service.forRun({ ...caller, consumer: "assistant", person: false, plugin_id: ASSISTANT_PLUGIN_ID,
+    work: { work_id: "pending-close-work", title: "Release checklist" } }, { query: "Release checklist" }); assert.ok(recipe);
+  const session = await adapter.createSession({ ...owner, workspace: "none", role_id: "reader", title: "Late memory response" });
+  const handle = await adapter.start({ ...owner, session, workspace: "none", role_id: "reader", task: "Release checklist",
+    role: { role_id: "reader", version: 1, workspace: "none", execution: "read-only", prompts: [], host_tools: [], memory: recipe } });
+  await waiting; assert.match(memoryRequest, /Release checklist: keep the change summary concise/);
+  assert.ok((await adapter.recovery!.inspect(session)).runs.some(run => run.run_id === handle.ref.run_id && run.live));
+  pendingPath = join(home, "agent-runtime", "records", "io.molis.work~pendings", `${question.pending_id}.json`);
+  pendingBytes = await readFile(pendingPath);
+  const envelope = JSON.parse(pendingBytes.toString()), tag = Buffer.from(envelope.secure.tag, "base64");
+  tag[0] = tag[0]! ^ 1; envelope.secure.tag = tag.toString("base64");
+  await writeFile(pendingPath, JSON.stringify(envelope));
+  await assert.rejects(local.close(), { code: "STORAGE_RECONCILE_REQUIRED" });
+  assert.equal(memoryHostFor(local), memory); assert.equal(memory.policy.alive(), false);
+  assert.throws(() => new MolisWorkLocalHost({ homeDirectory: home, completeText: null }), { code: "storage.owner.busy" });
+  await writeFile(pendingPath, pendingBytes); pendingBytes = undefined;
+  release(); await sent;
+  // This existing read-only recovery surface reads the persisted Run, without projecting its Memory usage again.
+  await until(async () => {
+    const report = await adapter.recovery!.inspect(session);
+    return report.runs.length === 0 && report.blockers.length === 0 ? true : undefined;
+  }, "B did not persist its normal terminal after the failed close");
+  const run = JSON.parse(await readFile(join(home, "agent-runtime", "records", "io.molis.work~runs", `${session.session_id}.${handle.ref.run_id}.json`), "utf8"));
+  assert.equal(run.metadata.state, "completed");
+  const closing = local.close(); assert.equal(local.close(), closing); await closing;
+  assert.equal(memoryHostFor(local), undefined);
+  const reopened = openMemoryLedger({ homeDirectory: home });
+  try {
+    const use = reopened.lastUse(saved.memory.memory_id);
+    assert.equal(use?.state, "response-observed"); assert.equal(use?.run?.run_id, handle.ref.run_id);
+    assert.equal(reopened.uses({ work_id: "pending-close-work" }).filter(use => use.memory_id === saved.memory!.memory_id).length, 1);
+  } finally { reopened.close(); }
+  const next = new MolisWorkLocalHost({ homeDirectory: home, completeText: null }); await next.close();
+  assert.equal(requests, 2, "one real question and one memory request; close and retry dispatch nothing");
+});
 
 test("the original Host usage sink rejects foreign actors, skips a deleted project and rechecks its identity after Catalog awaits", { timeout: 60_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "memory-usage-owner-"));

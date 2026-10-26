@@ -1,6 +1,163 @@
 {
   "note": "Giant units that stay whole because they are reasonable as one unit (user 2026-10-25: a reasonable oversized unit is not force-split, it is marked; specs/repository-anti-corruption §4.5; the list with every verdict is docs/system/HUGE-CLASS-MIGRATION.md). Each entry has a kind, a reason that says why splitting it would be wrong, and \"size\": the measured size (lines for a file or a function, { lines, methods } for a class), which has to equal what the gate measures, so an entry reserves no headroom and growth shows as an edit here. A unit with a valid entry is admitted by the merge-base comparison, new or grown; a giant unit without one may not appear or grow. Keys are the unit keys of baseline.json; an entry for a unit that is no longer giant fails the gate and has to be deleted. kind: translation-table, stylesheet, static-data, generated-code or cohesive-unit (one responsibility that splitting would scatter: a state machine, a parser, a protocol adapter). A unit that mixes several jobs is split, not marked. Edits here are reviewed like edits to the gate.",
   "exceptions": {
+    "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
+      "kind": "cohesive-unit",
+      "reason": "助理模块的 SQLite 存储：39 个方法共 267 行（均值 7 行），每个是对某张助理表的一两条 SQL（回合、卡片、通知、用量、设置）；一个模块的存储由一个类独占，行数没超、只是方法数超限。提醒与跟进已在 W4-05 拆成自己的表与协作者。",
+      "size": {
+        "lines": 267,
+        "methods": 39
+      }
+    },
+    "class apps/local-host/src/browser/browser-host.ts#BrowserPage": {
+      "kind": "cohesive-unit",
+      "reason": "一个浏览器目标页（CDP target）的适配器：连接、视口与画面、导航与历史、输入/对话框/下载，45 个方法最长 44 行，全部围绕同一个 CDP 会话和同一份页面状态；协议适配器拆开会把同一个会话的状态共享出去。",
+      "size": {
+        "lines": 443,
+        "methods": 45
+      }
+    },
+    "class apps/local-host/src/project-catalog.ts#MolisWorkProjectCatalog": {
+      "kind": "cohesive-unit",
+      "reason": "项目目录的门面：40 个方法里约三十个是三行的转发，constructor 61 行是装配；它的职责就是给宿主一个入口，行数没超、只是方法数超限；按资源分子门面只会多一层转发。",
+      "size": {
+        "lines": 267,
+        "methods": 40
+      }
+    },
+    "class modules/goals/src/event-facts-repository.ts#GoalEventFactsRepository": {
+      "kind": "cohesive-unit",
+      "reason": "目标事件事实表族的仓库：类型、要求、配置版本、绑定、工作事件的插入与列表，29 个方法各是一两条 SQL；一张表族只能有一个主人读写，拆开违反表主人规则。",
+      "size": {
+        "lines": 371,
+        "methods": 29
+      }
+    },
+    "class modules/goals/src/event-state-effects.ts#GoalEventStateEffects": {
+      "kind": "cohesive-unit",
+      "reason": "目标事件状态机的写入效果：请求决定、记录可信决定、提交收尾、恢复工作、引用决定各是一个事务内的长命令，共用同一个 context 与 repository；只有 11 个方法、行数超限来自三个长事务（152、116、82 行），拆开会把同一状态机的转移散到几个类。",
+      "size": {
+        "lines": 515,
+        "methods": 11
+      }
+    },
+    "class modules/goals/src/event-state-repository.ts#GoalEventStateRepository": {
+      "kind": "cohesive-unit",
+      "reason": "目标事件状态表族的仓库：决定、收尾、进度、结论、疑虑、约定的插入与最新读取，30 个方法各是一两条 SQL；一张表族只能有一个主人读写，拆开违反表主人规则。",
+      "size": {
+        "lines": 408,
+        "methods": 30
+      }
+    },
+    "class modules/goals/src/guidance-commands.ts#GuidanceCommands": {
+      "kind": "cohesive-unit",
+      "reason": "项目指引的命令：只有 add、update、read 三个方法，行数来自 add（137）与 update（177）两个长事务，共用确认摘要、哈希与修订规则；一个对象一件事。",
+      "size": {
+        "lines": 328,
+        "methods": 3
+      }
+    },
+    "class modules/private-work-context/src/project-binding-commands.ts#RuntimeProjectBindingCommands": {
+      "kind": "cohesive-unit",
+      "reason": "Runtime 情境与项目绑定的命令集：绑定、解绑、拒绝建议及它们的事件记账，同一张绑定表的写入；只超 300 行 10 行，方法各自短，拆开只会把同一张表的写入散到两处。",
+      "size": {
+        "lines": 310,
+        "methods": 12
+      }
+    },
+    "class modules/projects/src/repository.ts#ProjectsRepository": {
+      "kind": "cohesive-unit",
+      "reason": "项目、工作区与成员关系、删除记录的仓库：29 个方法每个都是一两条 SQL，行数 287 没超，只因方法数超限；一张表族的读写由一个仓库独占（表主人规则），拆开会让同一表族有两个主人。",
+      "size": {
+        "lines": 287,
+        "methods": 29
+      }
+    },
+    "class packages/kernel/src/action-service.ts#ActionService": {
+      "kind": "cohesive-unit",
+      "reason": "动作服务：登记提供方（registerProvider 131 行，登记时的全部声明检查）、绑定、调用、场景和依赖可用性，共享同一份登记表；内核的唯一动作注册与调用入口，只超 300 行 96 行，拆开会让登记表有两个读写者。",
+      "size": {
+        "lines": 396,
+        "methods": 15
+      }
+    },
+    "class packages/plugin-runtime/src/events.ts#PluginEventBus": {
+      "kind": "cohesive-unit",
+      "reason": "插件事件总线：发布（72 行）、投递（#deliver 99 行）、游标保存、恢复和撤销，共享订阅表和游标；投递与游标必须一起提交，拆开会割裂至少一次投递的保证。",
+      "size": {
+        "lines": 420,
+        "methods": 23
+      }
+    },
+    "class packages/plugin-runtime/src/index.ts#PluginRuntime": {
+      "kind": "cohesive-unit",
+      "reason": "插件安装生命周期状态机：安装、升级（changeVersion 117 行）、卸载、恢复、崩溃上报、启停，同一张安装记录表和同一套事务/恢复规则；各转移互相依赖前一状态，拆开会让状态转移散在几个类里。授权与兑换（grant、redeem、receipt）合计不到 60 行。",
+      "size": {
+        "lines": 618,
+        "methods": 30
+      }
+    },
+    "class packages/plugin-runtime/src/supervisor.ts#PluginSupervisor": {
+      "kind": "cohesive-unit",
+      "reason": "插件进程监督状态机：启动、激活、重启、撤销、版本切换与失败处理，同一张运行状态表；各转移依赖当前运行态，拆开会让状态转移散在几个类里。",
+      "size": {
+        "lines": 567,
+        "methods": 30
+      }
+    },
+    "class packages/plugin-runtime/src/wiring.ts#PluginInputGraph": {
+      "kind": "cohesive-unit",
+      "reason": "插件输入图：绑定、求值、入队、发布和失效，同一份依赖图及其缓存；求值和失效要在同一份图上做，拆开会让图有两个读写者。",
+      "size": {
+        "lines": 455,
+        "methods": 26
+      }
+    },
+    "class plugins/native/alchemist/src/studio/server/db/pulse-repository.ts#SqlitePulseRepository": {
+      "kind": "cohesive-unit",
+      "reason": "Pulse（来源收集、信号、机会、运行与报告）的 SQLite 仓库：23 个方法是同一张表族的读写，最长的 saveReport 69 行是一次落库的多表写入；仓库按表族独占，拆开会让同一表族有两个主人。",
+      "size": {
+        "lines": 377,
+        "methods": 23
+      }
+    },
+    "class plugins/native/alchemist/src/studio/server/db/research-repository.ts#SqliteResearchRepository": {
+      "kind": "cohesive-unit",
+      "reason": "研究计划、运行、证据与报告的 SQLite 仓库：19 个方法是同一张表族的读写，最长的 saveReport 85 行是一次落库的多表写入；仓库按表族独占，拆开会让同一表族有两个主人。",
+      "size": {
+        "lines": 343,
+        "methods": 19
+      }
+    },
+    "class plugins/native/cognia/src/store.ts#CogniaStore": {
+      "kind": "cohesive-unit",
+      "reason": "Cognia 自己的 SQLite 存储：27 个方法共 120 行（均值 4 行），每个是对 cognia_* 表的一两条 SQL 加输入校验（领域、来源、素材、版本、预览、草稿）；行数没超、只是方法数超限；一个插件的库由一个存储独占，拆开会让同一批表有两个主人。",
+      "size": {
+        "lines": 120,
+        "methods": 27
+      }
+    },
+    "class plugins/native/goals/src/proposal-normalizer.ts#GoalTreeProposalNormalizer": {
+      "kind": "cohesive-unit",
+      "reason": "Goal 树提案的解析与规范化：把模型给的条目按白名单键读成确定的写入条目（goalCreatePayload、relation 载荷、叙述与解释），是一个解析器；拆开会把同一份格式知识散到几处。",
+      "size": {
+        "lines": 417,
+        "methods": 13
+      }
+    },
+    "class plugins/native/plugin-builder/src/agent-workflow.ts#AgentBuilderWorkflow": {
+      "kind": "cohesive-unit",
+      "reason": "一次插件创作的工作流状态机：提议、选能力、设计、逐个实现、装配、冒烟、验收、修复、采用，每步读写同一份运行记录；40 个方法最长 53 行，是同一条流水线上的相邻阶段，拆开会让一次创作的状态散在几个类里。",
+      "size": {
+        "lines": 654,
+        "methods": 40
+      }
+    },
+    "file apps/workbench/src/i18n/en.ts": {
+      "kind": "translation-table",
+      "reason": "英文词典：一个对象字面量加几块 Object.assign(EN, …)，没有函数和逻辑，只是中文键到英文的对照；词典按行数拆不改善职责，只让同一界面的词条散在几处。决定 #16 的稳定键与按主人分词典（W5-03）会让它逐步变小，变小时 size 跟着改。",
+      "size": 3266
+    },
     "file packages/design-system/src/styles/momentum.ts": {
       "kind": "stylesheet",
       "reason": "Goals 动量视图的样式表：一个模板字符串，纯 CSS，没有逻辑；样式表按行数拆不改善职责，只让同一个界面的规则散在几处。",
@@ -15,6 +172,131 @@
       "kind": "static-data",
       "reason": "39 个连接器的声明表：CATALOG 数组本身 834 行，每条独立，只描述该连接器的身份请求与条目映射；数组之外约 180 行是条目用的构造、解析与连接器专属请求头助手。条目之间没有逻辑联系，按行数拆不会让任何一条更好改。保持一个单元时继续只承载连接器声明；大小变动须同步实测 size 交评审，混入别的职责时按职责拆。",
       "size": 1013
+    },
+    "function apps/local-host/src/browser/surface-driver.ts#createBrowserSurfaceDriver": {
+      "kind": "cohesive-unit",
+      "reason": "浏览器面的驱动对象：返回体 141 行是对一个接口的方法实现（身份、范围、观察、操作），共享 mark、settle 等助手；一个对象实现一个接口，超 150 行 16 行。",
+      "size": 166
+    },
+    "function apps/local-host/src/connector-mcp.ts#createConnectorMcpHost": {
+      "kind": "cohesive-unit",
+      "reason": "连接器 MCP 宿主：启动连接、完成授权、取令牌、调用工具、读资源，共享同一张连接表和同一个受保护的 fetch；连接的状态在闭包里，拆开要把这张表传来传去。",
+      "size": 246
+    },
+    "function apps/local-host/src/demo-seed.ts#seedDemoBoard": {
+      "kind": "cohesive-unit",
+      "reason": "演示数据脚本：先一份目标清单，再按顺序用动作种出一个看得见的演示项目，是一个顺序执行的场景；它是测试与演示用的夹具，拆成几个函数只会把同一个故事的先后顺序散开。",
+      "size": 538
+    },
+    "function apps/local-host/src/home-actions.ts#homeActionProvider": {
+      "kind": "cohesive-unit",
+      "reason": "Home 动作提供方的登记：返回体按动作逐个列出处理器，Talk、Offer、Event 三族处理器已抽成 createHome…Handlers，余下是登记清单与共用的 record、handler 助手；超 150 行 32 行。",
+      "size": 182
+    },
+    "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": {
+      "kind": "cohesive-unit",
+      "reason": "网页服务的装配根：返回创建服务的函数，内含 HTTP 服务、本机宿主、周期调度、侧栏浏览器登记、PTY 挂接与关停，是进程的装配；装配根的职责就是把这些放在一处。",
+      "size": 154
+    },
+    "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": {
+      "kind": "cohesive-unit",
+      "reason": "createLocalWebServerFactory 返回的创建函数本身，与外层函数是同一段装配（同一段计两次），一起标明。",
+      "size": 151
+    },
+    "function apps/workbench/src/capsule-items.ts#createCapsuleItemProjection": {
+      "kind": "cohesive-unit",
+      "reason": "胶囊条目的投影：由目标与状态推出决定、可做、阻塞、进行中、等待、最近完成六类条目，共用 itemBase 与排序；一个投影按条目类别分支，每类 14 到 19 行。",
+      "size": 229
+    },
+    "function apps/workbench/src/shell-page-renderer.ts#createWorkbenchGoalsPageRenderer": {
+      "kind": "cohesive-unit",
+      "reason": "外壳整页的渲染（名字沿用旧称）：renderMolisWorkWeb 的 140 行主要是一个 HTML 模板，加 22 行的刷新片段；一页一个模板，超 150 行 26 行。",
+      "size": 176
+    },
+    "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": {
+      "kind": "cohesive-unit",
+      "reason": "标签布局的纯操作集（拆分、移动、并排打开、规范化、关闭、固定），对同一棵布局树做变换；它被 toString 注入浏览器，必须自成一体，W5-04 打包后才能分文件。",
+      "size": 425
+    },
+    "function horizontal/scheduler/src/index.ts#createScheduleService": {
+      "kind": "cohesive-unit",
+      "reason": "定时服务：存储、启停、认领、执行 tick 与续租，共享同一张定时表和同一把认领租约；认领与执行必须在同一个服务里才能保证一次只一个执行者。",
+      "size": 215
+    },
+    "function modules/goals/src/event-state-effects.ts#recordTrustedDecision": {
+      "kind": "cohesive-unit",
+      "reason": "一次可信决定的记录：校验、写决定、落收尾与提醒都在 repository.immediate 的同一个事务里，必须一次成败；超出阈值 2 行，拆成几个函数只会让事务边界更难读。",
+      "size": 152
+    },
+    "function modules/goals/src/guidance-commands.ts#update": {
+      "kind": "cohesive-unit",
+      "reason": "指引更新的三个分支（edit、deactivate、restore）共用一次事务内的确认校验、修订号与事件记账，拆开会重复这套前置检查。",
+      "size": 177
+    },
+    "function modules/goals/src/lifecycle-archive.ts#setTrashed": {
+      "kind": "cohesive-unit",
+      "reason": "目标进回收站与恢复：一个事务内改状态、联动子目标、写事件与提醒，成败必须一起；超 150 行 5 行。",
+      "size": 155
+    },
+    "function modules/shelf/src/store.ts#runJob": {
+      "kind": "cohesive-unit",
+      "reason": "一次 Shelf 作业的执行：校验输入、按配方产出、在一个提交点写文件与记录，成败必须一起；182 行里最大的一块是 71 行的 try 主体，拆开会割裂提交点。",
+      "size": 182
+    },
+    "function packages/plugin-sandbox/src/runner.ts#createSandboxRunner": {
+      "kind": "cohesive-unit",
+      "reason": "沙箱运行器：启动子进程、收发消息、看门狗、关停，共享同一个 child 和同一套限额；安全边界的实现，拆开会让进程的生命周期有两个所有者，不宜分散。",
+      "size": 173
+    },
+    "function packages/storage/src/adapters/text-search-index.ts#openTextSearchIndex": {
+      "kind": "cohesive-unit",
+      "reason": "全文搜索索引的打开：架构版本检查、预备语句和返回体的操作集合（92 行），共享同一个数据库连接；一个适配器对象，超 150 行 1 行。",
+      "size": 151
+    },
+    "function plugins/native/alchemist/src/studio/server/bootstrap/local-runtime.ts#createLocalRuntime": {
+      "kind": "cohesive-unit",
+      "reason": "炼金台本机运行时的装配根：逐个创建依赖并接成处理器，每个 FirstStatement 都是一次接线；装配根的职责就是把全部依赖放在一处，拆开会让接线分散。",
+      "size": 203
+    },
+    "function plugins/native/coding/src/timeline.ts#createCodingTimeline": {
+      "kind": "cohesive-unit",
+      "reason": "Coding 时间线的浏览器部件（toString 注入）：行、分组、页脚与实时刷新共用一份时间线状态；W5-04 打包前不能分文件。",
+      "size": 224
+    },
+    "function plugins/native/coding/src/ui.ts#renderCodingWorkbench": {
+      "kind": "cohesive-unit",
+      "reason": "Coding 工作台的整页 HTML 模板：一个模板字符串（200 行返回体），只有几个取值助手，没有逻辑；页面模板按行拆只会把同一页的结构散开。",
+      "size": 209
+    },
+    "function plugins/native/goals/src/goal-tree-decision.ts#decideGoalTreeProposal": {
+      "kind": "cohesive-unit",
+      "reason": "Goal 树提案的决定：一次事务内验证提案、逐项应用、记录修订和提醒，成败必须一起；拆成几个函数只会让事务边界难读。",
+      "size": 269
+    },
+    "function plugins/native/goals/src/goal-tree-decision.ts#result callback 1": {
+      "kind": "cohesive-unit",
+      "reason": "decideGoalTreeProposal 里的事务回调（243 行），就是上一条那一次决定的事务体，不是另一件事；与外层函数一起标明。",
+      "size": 243
+    },
+    "function plugins/native/goals/src/momentum-view.ts#buildGoalMomentumView": {
+      "kind": "cohesive-unit",
+      "reason": "动量视图的构建：按依赖关系把目标分组、定层、排序并算边，是一条前后相接的图算法流水线（每一步吃上一步的结果），拆开没有可独立使用的中间产物。",
+      "size": 245
+    },
+    "function plugins/native/goals/src/proposal-ui.ts#createProposalRenderer": {
+      "kind": "cohesive-unit",
+      "reason": "Goal 树提案决定卡的渲染：决定卡（126 行）和它的场景与关系说明，共用同一套文案助手；同一张卡的渲染函数族。",
+      "size": 187
+    },
+    "function plugins/native/goals/src/tree-ui.ts#createTreeRenderer": {
+      "kind": "cohesive-unit",
+      "reason": "Goal 树视图的渲染：树、依赖线、折叠、状态过滤与进度条，共用同一套 HTML 助手和翻译；这是同一个视图的渲染函数族，最大的 renderGoalTree 只有 70 行。",
+      "size": 236
+    },
+    "function plugins/native/plugin-builder/src/agent-authoring.ts#expandDesign": {
+      "kind": "cohesive-unit",
+      "reason": "把一份设计答卷展开成插件的文件与验收用例：对零件、表单、读写操作和浏览器验收逐个生成，是一条代码生成流水线（改它必须跑 pnpm studio:replay）；拆开会让同一份答卷的展开散到几处。",
+      "size": 225
     }
   }
 }

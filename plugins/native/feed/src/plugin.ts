@@ -21,6 +21,7 @@ import { syncResearchLibrary } from "./research-library-sync.js";
 import { holdingsOfSnapshot, type FeedSourceHistory, type FeedSourceHistoryRelease } from "./source-history.js";
 import type { FeedSourceProviders } from "./source-ports.js";
 import { FEED_NOTIFICATION_ACTIONS } from "./notification-actions.js";
+import { readLinkedFeedContext } from "./linked-context.js";
 import { feedUiContribution } from "./ui.js";
 
 /** What Feed needs of the platform to run as a plugin: Inbox entries are Attention's, the links to Goals are the Context Ledger's. */
@@ -41,11 +42,11 @@ const PLATFORM_PERMISSIONS = [
 const FEED_PULL = "sources:pull_feed", QUERY_PULL = "sources:pull_query", REPOSITORY_READ = "sources:read_repository";
 
 /**
- * What the Runtime Feed does not answer yet: sources and their sync, connector state, the link to a Goal's material, and the platform's
- * notifications. The slice's step 4e-2 adds them; until then they stay with the Host's Feed (`feedManifest` is still the registered one).
+ * What the Runtime Feed does not answer yet: connector state and the platform's notifications. The slice's step 4e-2 adds them; until
+ * then they stay with the Host's Feed (`feedManifest` is still the registered one).
  */
 const NOT_YET: ReadonlySet<ActionDefinition> = new Set<ActionDefinition>([
-  ...FEED_NOTIFICATION_ACTIONS, feedQueryActions.connections, feedQueryActions.linkedContext,
+  ...FEED_NOTIFICATION_ACTIONS, feedQueryActions.connections,
 ]);
 /**
  * The permissions an action's calls need of the platform beyond Feed's own: the platform lets a call use a service only when its action
@@ -70,6 +71,7 @@ const runtimeAction = (definition: ActionDefinition): ActionDefinition => {
 };
 /** What the platform's clock wakes: a tick, for the plugin audience, with the wakeup's input. */
 const WAKE = feedWakeAction(runtimeAction(feedSourceActions.tick));
+const GOAL_CONTRACT = { capability_id: "goals.contract.read", version: 2, provider_id: "io.molis.work.goals" };
 const { notifications: _notifications, action_scenes: _scenes, ...BASE } = feedManifest;
 
 /**
@@ -79,6 +81,8 @@ const { notifications: _notifications, action_scenes: _scenes, ...BASE } = feedM
 export const feedRuntimeManifest: PluginManifest = { ...BASE,
   // The kinds of Inbox entry Feed adds and removes: an item's, and a source's fault.
   attention: { subjects: ["feed_item", "source_fault"] },
+  // A Goal's material is read after the Goal itself has been read, as the caller (`feed.goals.context`).
+  capabilities: { ...BASE.capabilities, consumes: [...BASE.capabilities.consumes, GOAL_CONTRACT.capability_id] },
   permissions: [...feedManifest.permissions.filter(declared => !PLATFORM_PERMISSIONS.some(platform => platform.permission === declared.permission)), ...PLATFORM_PERMISSIONS],
   actions: [...feedManifest.actions!.filter(definition => !NOT_YET.has(definition)).map(runtimeAction), WAKE],
   background: { jobs: [feedWakeJob], wakeups: [{ action: { capability_id: WAKE.capability_id, version: WAKE.version }, reason: WAKE.action.title }] },
@@ -168,9 +172,17 @@ export function createFeedPlugin(): PluginDefinition {
       } }, projectId);
     const sourceHandlers = createFeedSourceHandlers(projectId, { feed: () => feed, sources: sourcesFor, connectorSync: later("连接器同步"), wake: WAKE,
       retire: (outcome, run) => { released = outcome; try { return run(); } finally { released = null; } } });
+    // The Goal is read as the caller before its linked material is, so the material of a Goal the caller cannot read is not given.
+    const linkedContext = async (input: { goal_id: string; item_id?: string }, caller: ActionExecutionContext) => {
+      const actions = services?.actions;
+      if (!actions) throw new ActionError("actions.connection_required", "尚未接通 Goal 服务");
+      await actions.invokeQuery(GOAL_CONTRACT, { goal_id: input.goal_id });
+      await caller.beforeEffect();
+      return readLinkedFeedContext(feed, projectId, input, hydrate);
+    };
     const bindings: ActionHandlerBinding[] = [
       ...createFeedContentHandlers(feed, projectId, hydrate),
-      ...createFeedQueryHandlers(feed, projectId, { hydrate, authStatus: later("连接状态"), linkedContext: later("Goal 关联材料") }),
+      ...createFeedQueryHandlers(feed, projectId, { hydrate, authStatus: later("连接状态"), linkedContext }),
       ...createFeedRuleHandlers(feed, projectId, hydrate),
       // A connector source is not authorized until its connection can be asked (4e-2): the check fails closed.
       ...createFeedInboxHandlers(feed, projectId, { hydrate, authorize: async source => {

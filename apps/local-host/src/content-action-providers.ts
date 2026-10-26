@@ -1,12 +1,10 @@
 import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
-import type { GoalContractView } from "@molis-ai/molis-work-contracts/modules/goals";
-import { createContextLedger, createContextMaterializer } from "@molis-ai/molis-work-module-context-ledger";
 import { createLocalFeedScene } from "./feed-scene.js";
 import type { FunctionsHostOptions } from "./functions-host.js";
 import { inboxContentActions, inboxJudgmentTrigger } from "@molis-ai/molis-work-plugin-inbox";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { ActionError, retainActionAuthority, resolveActionSubject, type ActionCallContext, type ActionClient, type ActionSceneClient, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
-import { feedManifest, feedQueryActions, promoteOffered, readLinkedFeedContext, feedItemContext, createFeedQueryHandlers, createFeedCaptureTrigger, createFeedContentHandlers, createFeedInboxHandlers, createFeedNotificationHandlers, createFeedItemHandlers, createFeedRuleHandlers, createFeedSourceHandlers, type FeedApplication } from "@molis-ai/molis-work-plugin-feed";
+import { feedManifest, feedQueryActions, promoteOffered, readLinkedFeedContext, createFeedQueryHandlers, createFeedCaptureTrigger, createFeedContentHandlers, createFeedInboxHandlers, createFeedNotificationHandlers, createFeedItemHandlers, createFeedRuleHandlers, createFeedSourceHandlers, type FeedApplication } from "@molis-ai/molis-work-plugin-feed";
 import { createHomeJudgmentTrigger } from "./home-actions.js";
 import { createLocalFeedSourceService } from "./feed-source-service.js";
 import { createLocalFeedConnectorSync } from "./feed-connector-sync.js";
@@ -45,19 +43,9 @@ export function nativeContentProviders(runtime: MolisWorkProjectRuntime, feed: F
       linkedContext: async (input, caller) => {
         if (!client) throw new ActionError("actions.connection_required", "尚未接通 Goal 服务");
         const nested = retainActionAuthority(caller, { ...feedQueryActions.linkedContext, provider_id: feedManifest.plugin_id });
-        const { goal } = await client.invoke(nested, goalPluginActions.contract, { goal_id: input.goal_id }) as GoalContractView;
+        await client.invoke(nested, goalPluginActions.contract, { goal_id: input.goal_id });
         await caller.beforeEffect();
-        return readLinkedFeedContext({ project_id: runtime.project_id, goal_id: input.goal_id, item_id: input.item_id,
-          materializer: createContextMaterializer(createContextLedger(runtime.store.db, {
-            authorize: access => access.scope.kind === "personal" && access.scope.id === runtime.project_id,
-          })),
-          readGoal: () => goal,
-          readItem: id => {
-            try { return feed.getItem(runtime.project_id, id); }
-            catch (error) { if (error instanceof ActionError && error.code === "feed.item_not_found") return null; throw error; }
-          },
-          renderItem: item => feedItemContext(hydrate(item)),
-        });
+        return readLinkedFeedContext(feed, runtime.project_id, input, hydrate);
       },
     }),
     ...createFeedRuleHandlers(feed, runtime.project_id, hydrate, scene?.selection),

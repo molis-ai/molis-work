@@ -8,6 +8,8 @@ import { ActionError, type ActionCallContext, type ActionDefinition, type Action
 import type { PluginDefinition, PluginProjectDatabase, PluginProjectDatabaseTransaction, PluginSqlValue } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPluginPlatform, DEMO_PROJECT_ID, listFeedSourceCatalog, LocalProjectDatabase, scheduleServiceFor, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { createEvidenceContentStore } from "@molis-ai/molis-work-storage";
+import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { createFeedContentLedger, createFeedContentLedgerHandlers, createFeedPlugin, createFeedWriter, FEED_HOME_DATABASE, FEED_PLUGIN_ID, feedContentActions, feedContentLedgerActions, feedItemActions, feedQueryActions, feedRuleActions, feedRuntimeManifest, feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
@@ -52,7 +54,24 @@ async function ledgerStandIn(home: string): Promise<{ definition: PluginDefiniti
     holds: () => reader.all("SELECT content_ref, project_id, source_id FROM feed_content_holds ORDER BY content_ref") as Array<{ content_ref: string; project_id: string; source_id: string }> };
 }
 
-async function platform(t: TestContext, options: { fetch?: (input: string | URL) => Promise<Response>; ledger?: boolean; git?: ReturnType<typeof libraryGit>; clock?: boolean } = {}) {
+/** Goals, stood in for: it answers `goals.contract.read` for the goals it knows and refuses the rest, as the real one does for a goal that is not there. */
+function goalsStandIn(known: readonly string[]): PluginDefinition {
+  // The real contract's output is the whole Goal; this one answers only what Feed reads it for, that the Goal is there.
+  const contract: ActionDefinition = { ...goalPluginActions.contract, action: { ...goalPluginActions.contract.action, output_schema: { type: "object", required: ["goal"] } } };
+  return { manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.goals", name: "Goals (test)", version: "1.0.0", kind: "app",
+    publisher: { publisher_id: "example", signature: "fixture-goals" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
+    permissions: [{ permission: "goals:read", required: true, reason: "The Goal contract" }], capabilities: { provides: [], consumes: [] },
+    artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [contract] },
+  async start() {
+    return { kind: "app", actions: [{ capability_id: contract.capability_id, version: contract.version, handle: (_caller, input) => {
+      const goalId = (input as { goal_id: string }).goal_id;
+      if (!known.includes(goalId)) throw new ActionError("goals.not_found", `no goal ${goalId}`);
+      return { goal: { goal_id: goalId, project_id: DEMO_PROJECT_ID } };
+    } }] };
+  } };
+}
+
+async function platform(t: TestContext, options: { fetch?: (input: string | URL) => Promise<Response>; ledger?: boolean; git?: ReturnType<typeof libraryGit>; clock?: boolean; goals?: readonly string[] } = {}) {
   const home = mkdtempSync(join(tmpdir(), "feed-runtime-plugin-")), file = join(home, "project.db");
   seedDemoBoard(file);
   const store = new LocalProjectDatabase(file), actions = pluginActions(store, DEMO_PROJECT_ID);
@@ -71,8 +90,9 @@ async function platform(t: TestContext, options: { fetch?: (input: string | URL)
     } finally { homeHalf?.close(); store.close(); rmSync(home, { recursive: true, force: true }); }
   });
   const trust = { level: "host" as const };
-  const started = await running.start([{ definition: createFeedPlugin(), trust }, ...(homeHalf ? [{ definition: homeHalf.definition, trust }] : [])]);
-  assert.deepEqual(started.running, [feedRuntimeManifest.plugin_id, ...(homeHalf ? [homeHalf.definition.manifest.plugin_id] : [])], JSON.stringify(started));
+  const started = await running.start([{ definition: createFeedPlugin(), trust }, ...(homeHalf ? [{ definition: homeHalf.definition, trust }] : []),
+    ...(options.goals ? [{ definition: goalsStandIn(options.goals), trust }] : [])]);
+  assert.deepEqual(started.running, [feedRuntimeManifest.plugin_id, ...(homeHalf ? [homeHalf.definition.manifest.plugin_id] : []), ...(options.goals ? ["io.molis.work.goals"] : [])], JSON.stringify(started));
   const count = (sql: string, ...parameters: unknown[]) => (store.db.prepare(sql).get(...parameters as never[]) as { n: number }).n;
   return { store, client: actions.client, count, holds: () => homeHalf?.holds() ?? [], clock: () => scheduleServiceFor(store.db) };
 }
@@ -396,4 +416,34 @@ test("RAC-518 the platform's clock wakes Feed: its job is set once, and a wakeup
   assert.deepEqual([woke.invoked, woke.failed], [1, 0]);
   assert.equal(f.count("SELECT count(*) AS n FROM feed_items WHERE source_id = ?", f.sourceId), 2, "the wakeup pulled the due source as the plugin");
   assert.ok(jobs()[0]!.last_wakeup && jobs()[0]!.last_wakeup!.status === "ok");
+});
+
+// RAC-507 (4e-2d)
+test("RAC-507 feed.goals.context reads the Goal as the caller, then the item the Context Ledger links to it; nothing else is given", async t => {
+  const f = await platform(t, { goals: ["goal-1"] });
+  const receiveItem = async (id: string) => (await f.client.invoke(caller(WRITE).context, feedContentActions.receive, receive(id)) as { item_id: string }).item_id;
+  const [linked, newer, unlinked] = [await receiveItem("linked"), await receiveItem("newer"), await receiveItem("unlinked")];
+  // The link is Feed's edge in the project's Context Ledger, stored under Feed's namespace and read by the platform's service.
+  const ledger = createContextLedger(f.store.db, { authorize: () => true, initializeSchema: false });
+  const scope = { kind: "personal" as const, id: DEMO_PROJECT_ID };
+  for (const id of [linked, newer]) {
+    ledger.commands.put({ actor_id: FEED_PLUGIN_ID, scope }, { key: `${FEED_PLUGIN_ID}:feed.goal:${id}`, type: "feed.goal", source: { module: "feed", id, version: null, scope },
+      target: { module: "goals", id: "goal-1", version: null, scope }, cause: "feed.link_goal" });
+  }
+  f.store.db.prepare("UPDATE feed_items SET updated_at = ? WHERE item_id = ?").run("2099-01-01T00:00:00.000Z", newer);
+  const ask = (input: { goal_id: string; item_id?: string }, permissions: readonly string[] = [...READ, "goals:read"]) =>
+    f.client.invoke(caller(permissions).context, feedQueryActions.linkedContext, input) as Promise<{ source_context: string } | null>;
+  assert.match((await ask({ goal_id: "goal-1", item_id: linked }))!.source_context, /标题：T linked/, "the named item that is linked");
+  assert.match((await ask({ goal_id: "goal-1" }))!.source_context, /标题：T newer/, "without a name, the most recently changed linked item");
+  assert.equal(await ask({ goal_id: "goal-1", item_id: unlinked }), null, "an item no edge links is not injected by naming it");
+  await assert.rejects(ask({ goal_id: "goal-2" }), { code: "goals.not_found" }, "a Goal that is not there gives nothing, whatever is linked to it");
+  await assert.rejects(ask({ goal_id: "goal-1" }, READ), { code: "actions.forbidden" }, "a caller who may not read Goals is refused before any material");
+  // The links are read live and the content is the owner's at the time of the call: a relinked item leaves, an edited one reads as edited, a removed edge ends the link.
+  f.store.db.prepare("UPDATE feed_items SET title = ? WHERE item_id = ?").run("T newer, edited", newer);
+  assert.match((await ask({ goal_id: "goal-1" }))!.source_context, /标题：T newer, edited/);
+  ledger.commands.put({ actor_id: FEED_PLUGIN_ID, scope }, { key: `${FEED_PLUGIN_ID}:feed.goal:${newer}`, type: "feed.goal", source: { module: "feed", id: newer, version: null, scope },
+    target: { module: "goals", id: "goal-other", version: null, scope }, cause: "feed.relink" });
+  assert.match((await ask({ goal_id: "goal-1" }))!.source_context, /标题：T linked/, "the relinked item no longer answers for this Goal");
+  ledger.commands.remove({ actor_id: FEED_PLUGIN_ID, scope }, `${FEED_PLUGIN_ID}:feed.goal:${linked}`, "feed.item_deleted");
+  assert.equal(await ask({ goal_id: "goal-1" }), null, "with no live link there is nothing to give");
 });

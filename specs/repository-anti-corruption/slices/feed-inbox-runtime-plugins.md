@@ -386,7 +386,7 @@ type SourcePullRequest =                       // 闭合：多一个字段就拒
 | 4e-2a（做完，见下） | 来源管理里只写不等的三个动作（`enabled`、`schedule`、`disconnect`）进 `createFeedPlugin()`，直接用 `writing()`；`register`、`update` 要词汇（等 4c-3），`delete` 之后要释放来源的正文和检索记录（`history.release` 是同步端口，Runtime 里要经 Home 账与 `forget`，归 4e-2b） | 无 |
 | 4e-2b | 公开来源 `sync`：`PublicSourceSync` 改用 `commit` 端口，拉取经 `sourcePull.pull` 并 `hold`，结果映射回 `IntelligenceCollectResult`；失败后调 `feed.content.reclaim`（4c-1 的条件①） | 无 |
 | 4e-2c | `tick` 用唤醒动作（`background.wakeups`）、研究库经 `repository.read` | 无 |
-| 4e-2d | 连接器同步（`services.connections`）与 `feed.connections.status`、`feed.goals.context` | 无 |
+| 4e-2d | `feed.goals.context`（做完）；连接器同步与 `feed.connections.status`（查出要平台件，等裁定，见 4e-2d 记录） | 连接器那半要 |
 | 4e-2e | 通知接收动作（`FEED_NOTIFICATION_ACTIONS`） | 无 |
 | 4e-2f | 三种判断触发器与判断队列的写回走 `commit`；`feed.content.receive` 改成一次提交（现在的手动投递来源 + 入条目不是原子的）；项目一半的 RAC-492/493/518 | 无 |
 
@@ -411,3 +411,13 @@ type SourcePullRequest =                       // 闭合：多一个字段就拒
 - **翻转时的产品后果（PR 说明里要写）：** `sync` 多声明 `sources:read_repository`（任何同步的调用者都要持有，即使来源是 RSS）；`tick` 与 `wake` 声明 `sources:pull_feed`、`sources:pull_query`、`sources:read_repository`、`attention:write`；`wake` 是一个新动作（`pnpm actions:update` 会多一行）；Manifest 多了三项可选权限 `sources:read_repository`、`schedule:read`、`schedule:write`，和 `background`。宿主自己的 30 秒时钟（`project-schedulers.ts`、`web-project-schedulers.ts` 里 Feed 的那一路）到 4e-3 翻转时删。
 - **仍然开着：** 账号连接器来源的 tick/同步仍报 `actions.dependency_missing`（4e-2d）；判断队列在拉取之后的写回（4e-2f）。
 - **测试**（`feed-runtime-plugin` 15/15）：tick 只拉到期的、拉完把下次拉取推到将来、再 tick 不再到期；研究库经平台读取（一个已发布包一条条目，同键重放、新键不重复，读不到时中断且不留半截）；平台的定时器：Feed 启动后恰好登记一个唤醒，唤醒拉取到期来源且成功。
+
+**4e-2d 实现记录（2026-10-26）。** 只有 `feed.goals.context` 做完；连接器同步与 `feed.connections.status` 查出来**不是「无平台件」**，停在裁定上（下面第 2 点）。
+
+1. **`feed.goals.context` 进 Runtime Feed（未登记）。** 先经 `services.actions.invokeQuery` 以调用者身份读 `goals.contract.read@2`（Manifest 多了 `capabilities.consumes: ["goals.contract.read"]`；读不到或无权就什么材料都不给），再用 Feed 自己的 `findLinkedGoalItem`（`feed.goal` 边经 `services.contextLedger`，排序仍是更新时间倒序、事项号升序）取正文。`readLinkedFeedContext` 因此改成 `(feed, projectId, input, hydrate)`，**不再用 Context Ledger 的材料化器**（本稿 1.2.5 要去掉的那一块）；宿主版同样改用它，`content-action-providers.ts` 少了 `createContextLedger/createContextMaterializer`。原来的「Runtime Feed context uses live Ledger links」用例随函数一起搬到 `feed-runtime-plugin`（RAC-507：命名事项、没命名取最新、未关联不能靠点名注入、Goal 不存在或调用者不能读 Goals 都不给材料、重连/改内容/删边实时反映）；`context-materialization` 里只剩材料化器自己的用例。宿主版 `plugin-query-consumers`（含 Goals 停用时 `actions.plugin_disabled`）照旧通过。
+2. **连接器同步与连接状态为什么停下。** 本稿 §11/§12 假设「连接器同步走 `services.connections`」，读代码后不成立：
+   - 宿主的账号同步（`apps/local-host/src/feed-connector-sync.ts`）从 **Home 的集成登记**（`homeIntegrationRegistry(home).bind(key, "source", binding)`，gmail/github/catalog 三类集成插件）拿 `connector_driver` 与 `signal_adapter` 两个**代码对象**，驱动由宿主的连接层取凭据（`defaultIntegrationProvider`，PG-045 之前的过渡写法）。`services.connections` 只有 `request/describe/release`，按**声明的槽**（`per_record` 用记录名）发请求；它给不出驱动，也给不出适配器。Feed 的 Manifest **没有声明任何 `connections` 槽**（§10 说 FI-3 已声明是错的，`grep` 无），来源的账号现在存在来源行的 `config.connection_id`，由宿主连接页选。
+   - `feed.connections.status` 是「这个 Home 有没有未断开的 GitHub/Gmail 连接」（`feed-connector-auth.ts`，读连接元数据）；`describe(slot)` 回答的是「这个槽有没有被人绑定」，意思不同。
+   - Feed 一侧还有一半：`ListenerHost`（`store/listener.ts`）在 `await` 的间隙里同步写租约、运行行、投递行、检查点，`FeedConnectorSync` 在 `await` 之后写条目与来源，要像 `PublicSourceSync` 那样全部改走 `commit`；这一半不依赖裁定，但没有平台件它没有用处，所以没先做。
+   - **建议（需统筹/用户定，是平台片，暂记 4c-4）：** 平台给一个 `services.sourcePull.connector`（权限 `sources:pull_connector`，随 `sources:pull_*` 同一套规矩）：`pull({source_id, integration_key, mode, cursor, intent})` 由宿主用登记里的集成与**该来源已绑定的连接**去取，返回已适配的原始事件（载荷是 `IntegrationProviderItem`、信号草稿、`cursor_after`）或失败回执，**凭据不出平台**；`status()` 返回 Home 级的 GitHub/Gmail 是否已连接；`authorize(source_id)` 对应 `inspectSourceAuthorization`。信任来源必须是**人选的绑定**（S-57 的 `per_record` 槽，记录名 = 来源号），不能是插件传来的 `connection_id`/`credential_ref`（否则任何插件可以点名别人的连接）；所以 Feed 要声明 `connections` 槽，现有来源的 `config.connection_id` 要在翻转时由维护步骤搬成槽绑定（进用户维护窗口清单）。工作量：合同 + Runtime 客户端 + 宿主构造（复用登记）+ SI 一行 + 拒绝测试，约一片 4c-3 的 1.5 倍。备选：等 PG-045（集成插件自己经 `services.connections` 取）再做，但 Feed 的翻转不能把 Gmail/GitHub 来源落下，所以会卡住 4e-3。
+3. **依旧未接：** 通知接收（4e-2e）、判断触发器与队列写回、`feed.content.receive` 原子化、RAC-492/493/518 项目一半（4e-2f）。Runtime Feed 的 `NOT_YET` 现在是通知接收与 `feed.connections.status`；账号来源的同步/tick 仍报 `actions.dependency_missing`，`feed.items.material` 对账号来源仍「来源连接暂不可用」。

@@ -56,14 +56,15 @@ export class JudgmentQueue {
    * Run a synchronous step that queues work, then judge as `caller` exactly what that step queued (and `also`, items the
    * step did not queue but the caller owns). Nothing queued by anyone else is touched, however long the model takes.
    */
-  async judgeOwn<T>(step: () => T, caller?: ActionCallContext, also: readonly FeedItemRecord[] = []): Promise<T> {
+  judgeOwn<T>(step: () => T, caller?: ActionCallContext, also: readonly FeedItemRecord[] = []): Promise<T> {
     const queuedItems = this.items.length, alreadyQueued = new Set(this.entries.keys());
+    // Not an `async` method: the step's own failure is thrown to the caller, not returned as a rejection, so a Runtime that commits the
+    // step as one write can roll all of it back.
     const result = step();
     // The step cannot be interleaved with another call, so what the queues gained since the marks above is the step's own.
     const ownItems = this.items.splice(queuedItems);
     const ownEntries = this.takeEntries([...this.entries].filter(([key]) => !alreadyQueued.has(key)).map(([, entry]) => entry.entry_id));
-    await judgeEach([() => this.judgeItems([...ownItems, ...also], caller), () => this.judgeEntries(ownEntries, caller)], run => run());
-    return result;
+    return judgeEach([() => this.judgeItems([...ownItems, ...also], caller), () => this.judgeEntries(ownEntries, caller)], run => run()).then(() => result);
   }
 
   private takeEntries(entryIds?: readonly string[]): QueuedEntry[] {

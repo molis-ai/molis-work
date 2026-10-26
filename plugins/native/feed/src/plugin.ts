@@ -1,14 +1,14 @@
 import { ActionError, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { assembleFeedApplication } from "./application-assembly.js";
-import { createFeedContentHandlers } from "./content-actions.js";
+import { createFeedContentHandlers, feedContentActions, feedSubjectAction } from "./content-actions.js";
 import { createFeedInboxHandlers } from "./inbox-actions.js";
 import type { FeedHydrate } from "./item-hydration.js";
 import { createFeedItemHandlers } from "./item-actions.js";
 import { feedManifest } from "./manifest.js";
 import { FeedOutRuleStore } from "./out-rules.js";
 import { createFeedQueryHandlers, feedQueryActions } from "./query-actions.js";
-import { createFeedRuleHandlers } from "./rule-actions.js";
+import { createFeedRuleHandlers, feedRuleActions } from "./rule-actions.js";
 import { createFeedRuntimePorts } from "./runtime-ports.js";
 import { createFeedWriter } from "./runtime-writes.js";
 import { createFeedSourceHandlers, feedSourceActions } from "./source-actions.js";
@@ -22,6 +22,7 @@ import { holdingsOfSnapshot, type FeedSourceHistory, type FeedSourceHistoryRelea
 import type { FeedSourceProviders } from "./source-ports.js";
 import { createFeedNotificationHandlers, feedNotificationActions } from "./notification-actions.js";
 import { readLinkedFeedContext } from "./linked-context.js";
+import { feedHomeEventsAction } from "./home-events.js";
 import { feedUiContribution } from "./ui.js";
 import { authorizeRuntimeSource, connectorSlotOf, createRuntimeConnectorSync, releaseRuntimeAccount, runtimeConnectorStatus } from "./runtime-connector.js";
 import { SignalsModule } from "./store/index.js";
@@ -46,7 +47,7 @@ const PLATFORM_PERMISSIONS = [
   { permission: "sources:pull_connector", required: false, reason: "用你为账号来源选好的账号拉取新消息" },
 ] as const;
 const FEED_PULL = "sources:pull_feed", QUERY_PULL = "sources:pull_query", REPOSITORY_READ = "sources:read_repository";
-const CONNECTIONS = "connections:use", CONNECTOR_PULL = "sources:pull_connector";
+const CONNECTIONS = "connections:use", CONNECTOR_PULL = "sources:pull_connector", EVIDENCE = "evidence:read";
 
 /**
  * The permissions an action's calls need of the platform beyond Feed's own: the platform lets a call use a service only when its action
@@ -65,7 +66,10 @@ const PLATFORM_NEEDS: ReadonlyMap<ActionDefinition, readonly string[]> = new Map
   // Disconnecting an account source takes the person's binding off it.
   [feedSourceActions.disconnect, [CONNECTIONS]],
   // Reading an item's material asks whether its source's account still works; the status asks whether the Home has an account at all.
-  [feedInboxActions.material, [CONNECTIONS]], [feedQueryActions.connections, [CONNECTOR_PULL]],
+  [feedInboxActions.material, [CONNECTIONS, EVIDENCE]], [feedQueryActions.connections, [CONNECTOR_PULL]],
+  // The actions that give an item's retained text decrypt its bodies through the platform (`evidence.read`), which the action must declare and the caller hold (4e-2f decision).
+  [feedQueryActions.snapshot, [EVIDENCE]], [feedQueryActions.item, [EVIDENCE]], [feedInboxActions.content, [EVIDENCE]], [feedRuleActions.previewJudgment, [EVIDENCE]],
+  [feedRuleActions.preview, [EVIDENCE]], [feedContentActions.read, [EVIDENCE]], [feedSubjectAction, [EVIDENCE]], [feedHomeEventsAction, [EVIDENCE]],
   // A notification the platform delivers is admitted to the Inbox as it is received.
   [feedNotificationActions.receive, ["attention:write"]],
 ]);

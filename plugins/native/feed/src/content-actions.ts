@@ -26,15 +26,16 @@ export function createFeedContentHandlers(feed: FeedApplication, board: string, 
       const body = item.body || item.materials.map(material => material.content || material.preview).filter(Boolean).join("\n\n") || item.summary || "";
       return { title: item.title, body, url: item.url ?? null, source: item.source_label || item.source_kind || "Feed", feed_item_id: item.item_id };
     },
-    receive: async (input, caller) => {
+    // Not `async`: the source and the item are written before the first wait, and a failure there is thrown, so a Runtime commits both or neither.
+    receive: (input, caller) => {
       const now = new Date().toISOString();
       const source = handInSourceFor(feed, board, caller.delegated_audience ?? caller.audience, now);
       // This action runs beside the project's queue while the model judges, so it judges what its own delivery queued and
       // nothing another producer queued meanwhile: that is judged by its owner, under its owner's authority.
-      const { item } = await feed.ingestItemJudged({ source, externalId: input.request_id, title: input.title,
+      return feed.ingestItemJudged({ source, externalId: input.request_id, title: input.title,
         summary: input.body.replace(/\s+/g, " ").trim().slice(0, 240), body: input.body, url: input.url ?? null,
-        occurredAt: now, attention: false }, retainActionAuthority(caller, feedContentActions.receive));
-      return { plugin: "feed", item_id: item.item_id, title: item.title };
+        occurredAt: now, attention: false }, retainActionAuthority(caller, feedContentActions.receive))
+        .then(({ item }) => ({ plugin: "feed", item_id: item.item_id, title: item.title }));
     },
   }), bindSearchEntriesHandler(feedSearchEntriesAction, () => {
     const snapshot = feed.snapshot(board);

@@ -30,6 +30,8 @@ const HOST_ACTOR = "tester", OWNER = "owner";
 /** The journal keeps an event under the namespace of the plugin that wrote it (RAC-508). */
 const FEED_OBJECT = `${FEED_PLUGIN_ID}:feed_item`;
 const READ = ["feed:read"], WRITE = ["feed:read", "feed:write", "inbox:write"];
+/** An action that gives an item's retained text decrypts its bodies through the platform, so its caller holds this too (4e-2f). */
+const BODIES = [...READ, "evidence:read"];
 
 /**
  * Feed's Home half, stood in for: the same ledger and the same two-and-one actions (`hold`, `release`, `reclaim`), over a library of its own,
@@ -130,9 +132,9 @@ test("RAC-506 a Runtime Feed's content action commits the source, the item and t
   assert.ok(count(`SELECT count(*) AS n FROM events WHERE object_type = '${FEED_OBJECT}' AND object_id = ? AND actor_id = ?`, written.item_id, OWNER) >= 1,
     "a journal event of the item recorded under the original caller");
   assert.equal(count(`SELECT count(*) AS n FROM events WHERE object_type = '${FEED_OBJECT}' AND object_id = ? AND actor_id = ?`, written.item_id, HOST_ACTOR), 0);
-  const snapshot = await client.invoke(caller(READ).context, feedQueryActions.snapshot, { include_contents: true }) as { feed_items: Array<{ item_id: string }> };
+  const snapshot = await client.invoke(caller(BODIES).context, feedQueryActions.snapshot, { include_contents: true }) as { feed_items: Array<{ item_id: string }> };
   assert.ok(snapshot.feed_items.some(item => item.item_id === written.item_id), "the read answers from the same tables");
-  const read = await client.invoke(caller(READ).context, feedQueryActions.item, { item_id: written.item_id }) as { item: { item_id: string; revision: number } };
+  const read = await client.invoke(caller(BODIES).context, feedQueryActions.item, { item_id: written.item_id }) as { item: { item_id: string; revision: number } };
   const marked = await client.invoke(caller(WRITE).context, feedItemActions.read, { item_id: written.item_id }) as { item: { item_id: string } };
   assert.equal(marked.item.item_id, read.item.item_id);
 });
@@ -177,7 +179,7 @@ test("RAC-509 a write that waits first (a rule saved after its judgment is chose
 test("RAC-506 a Runtime Feed changes a source's schedule and pause state in one commit with its journal event, under the original caller", async t => {
   const { client, count } = await platform(t);
   const written = await client.invoke(caller(WRITE).context, feedContentActions.receive, receive("sourced")) as { item_id: string };
-  const sourceId = (await client.invoke(caller(READ).context, feedQueryActions.item, { item_id: written.item_id }) as { item: { source_id: string } }).item.source_id;
+  const sourceId = (await client.invoke(caller(BODIES).context, feedQueryActions.item, { item_id: written.item_id }) as { item: { source_id: string } }).item.source_id;
   const events = (type: string) => count(`SELECT count(*) AS n FROM events WHERE object_type = '${FEED_PLUGIN_ID}:feed_source' AND object_id = ? AND type = ? AND actor_id = ?`, sourceId, `${FEED_PLUGIN_ID}:feed_source.${type}`, OWNER);
   const paused = await client.invoke(caller(WRITE).context, feedSourceActions.enabled, { source_id: sourceId, enabled: false }) as { source: { enabled: boolean } };
   assert.equal(paused.source.enabled, false);
@@ -522,7 +524,7 @@ test("RAC-1025 the Home's account status says only whether there is an account, 
   assert.deepEqual(await status(), { github: { bound: true }, gmail: { bound: false } });
   await f.sync("material-sync-key");
   const itemId = (f.store.db.prepare("SELECT item_id FROM feed_items WHERE source_id = ?").get(f.sourceId) as { item_id: string }).item_id;
-  const material = () => f.client.invoke(caller([...READ, "connections:use"]).context, feedInboxActions.material, { item_id: itemId }) as Promise<{ title: string }>;
+  const material = () => f.client.invoke(caller([...BODIES, "connections:use"]).context, feedInboxActions.material, { item_id: itemId }) as Promise<{ title: string }>;
   assert.equal((await material()).title, ISSUE.title);
   // A caller who may not ask about accounts is refused before any answer.
   await assert.rejects(f.client.invoke(caller(READ).context, feedQueryActions.connections, {}), { code: "actions.forbidden" });
@@ -589,6 +591,10 @@ test("RAC-1025 the Runtime Feed's Manifest asks for one slot per service the pla
   for (const permission of ["connections:use", "sources:pull_connector", "attention:write"]) assert.ok(declared(feedSourceActions.sync).includes(permission), `a sync declares ${permission}`);
   assert.ok(declared(feedSourceActions.disconnect).includes("connections:use"));
   assert.ok(declared(feedInboxActions.material).includes("connections:use"));
+  // 4e-2f: the actions that give an item's retained text declare evidence:read, and the status of accounts and the sync of a source do not.
+  for (const definition of [feedQueryActions.snapshot, feedQueryActions.item, feedInboxActions.material, feedInboxActions.content, feedContentActions.read, feedRuleActions.previewJudgment])
+    assert.ok(declared(definition).includes("evidence:read"), definition.capability_id);
+  for (const definition of [feedQueryActions.connections, feedSourceActions.sync]) assert.ok(!declared(definition).includes("evidence:read"), definition.capability_id);
   assert.ok(declared(feedQueryActions.connections).includes("sources:pull_connector"));
   assert.ok(!declared(feedQueryActions.connections).includes("connections:use"), "the status names no source and nothing of an account");
   // 4e-2e: the platform finds the receiver by the Manifest's declaration, and the action is for the platform's own delivery only.
@@ -681,4 +687,36 @@ test("RAC-1028 the platform's own delivery hands a queued notification to the Ru
   queue.enqueue(row("waiting"));
   await flush();
   assert.deepEqual([delivered("waiting").delivered_at, f.count("SELECT count(*) AS n FROM feed_items WHERE title = ?", "Queued waiting")], [null, 0]);
+});
+
+// RAC-1029 (4e-2f; provisional number)
+test("RAC-1029 feed.content.receive is one write: a delivery that fails after the hand-in source was written leaves neither the source nor the item", async t => {
+  const f = await platform(t);
+  const sources = () => f.count("SELECT count(*) AS n FROM feed_sources"), items = () => f.count("SELECT count(*) AS n FROM feed_items");
+  const before = [sources(), items()];
+  // The item cannot be written (the project's database refuses it), after the source it would belong to has been.
+  f.store.db.exec("CREATE TRIGGER refuse_item BEFORE INSERT ON feed_items WHEN NEW.title = 'refused' BEGIN SELECT RAISE(ABORT, 'the item is refused'); END");
+  await assert.rejects(f.client.invoke(caller(WRITE).context, feedContentActions.receive, { request_id: "refused", title: "refused", body: "b" }));
+  assert.deepEqual([sources(), items()], before, "nothing of the failed delivery remains");
+  // The same delivery with an item the database takes is one source and one item.
+  f.store.db.exec("DROP TRIGGER refuse_item");
+  const ok = await f.client.invoke(caller(WRITE).context, feedContentActions.receive, { request_id: "taken", title: "Taken", body: "b" }) as { item_id: string };
+  assert.deepEqual([sources(), items(), f.count("SELECT count(*) AS n FROM feed_items WHERE item_id = ?", ok.item_id)], [before[0]! + 1, before[1]! + 1, 1]);
+});
+
+// RAC-1030 (4e-2f; provisional number)
+test("RAC-1030 a Runtime Feed gives an item's retained text through the platform to a caller who holds evidence:read, and to no one else", async t => {
+  const f = await syncing(t);
+  await f.client.invoke(caller(SYNC).context, feedSourceActions.sync, { source_id: f.sourceId, idempotency_key: "bodies-sync-key" });
+  const itemId = (f.store.db.prepare("SELECT item_id FROM feed_items WHERE source_id = ? LIMIT 1").get(f.sourceId) as { item_id: string }).item_id;
+  type Item = { item: { materials: Array<{ content_ref?: string | null; content?: string | null; content_available?: boolean }> } };
+  const read = (permissions: readonly string[]) => f.client.invoke(caller(permissions).context, feedQueryActions.item, { item_id: itemId }) as Promise<Item>;
+  const retained = (await read(BODIES)).item.materials.filter(material => material.content_ref);
+  assert.ok(retained.length > 0 && retained.every(material => material.content_available === true && typeof material.content === "string" && material.content.length > 0), JSON.stringify(retained));
+  // A caller who may read Feed but not decrypt its bodies is refused by the action, before any body is read.
+  await assert.rejects(read(READ), { code: "actions.forbidden" });
+  // A body the platform no longer has makes the material unavailable, not the item unreadable.
+  for (const material of retained) createEvidenceContentStore().delete(material.content_ref!);
+  const gone = (await read(BODIES)).item.materials.filter(material => material.content_ref);
+  assert.ok(gone.every(material => material.content_available === false && material.content === null), JSON.stringify(gone));
 });

@@ -39,9 +39,9 @@ test("SYS-15 S-47 real opaque page cannot read owner credentials, bypass its bro
     assert.equal(await child.evaluate(`fetch(${JSON.stringify(path)}).then(response=>response.status)`), 403, path);
   }
   // SYS-15-U2: the read bridges are bound to this manifest's subject reader and this project.
+  // RAC-912: related Assistant works are the action `assistant.works.related` (PG-057); the old HTTP bridge is refused even for the page's own kind.
   const prefix = `/projects/${browser.projectId}`;
-  assert.equal(await child.evaluate(`fetch(${JSON.stringify(prefix + "/api/assistant/related?kind=cognia_material&id=missing")}).then(response=>response.status)`), 200);
-  for (const path of ["/api/assistant/related?kind=todo_item&id=missing", "/api/assistant/works", "/api/assistant/works/another-work"]) {
+  for (const path of ["/api/assistant/related?kind=cognia_material&id=missing", "/api/assistant/related?kind=todo_item&id=missing", "/api/assistant/works", "/api/assistant/works/another-work"]) {
     assert.equal(await child.evaluate(`fetch(${JSON.stringify(prefix + path)}).then(response=>response.status)`), 403, "a page cannot read another owner's object or a work's conversation");
   }
   for (const object of [{kind: "todo_item", id: "missing"}, {kind: "cognia_material", id: "missing", project_id: "another-project"}]) {

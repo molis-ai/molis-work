@@ -107,8 +107,9 @@ export function renderWorks(page: TodoPage): void {
 export function installWorks(page: TodoPage): void {
   const { state } = page;
   page.loadWorks = async (item) => {
-    let found: AssistantWork[] = [];
-    try { found = (await page.request<{ works?: AssistantWork[] }>("GET", `/api/assistant/related?kind=todo_item&id=${encodeURIComponent(item.id)}`)).works || []; } catch { found = []; }
+    // The action's output always carries `works`; unreadable (Assistant off, no grant) shows none.
+    const found = await page.host.invokeAction<{ works: AssistantWork[] }>({ capability_id: "assistant.works.related", version: 1 }, { kind: "todo_item", id: item.id })
+      .then(read => read.works, () => []);
     // One work can relate to the todo more than once (where it started, and as material): list it once.
     const unique = found.filter((work, index) => found.findIndex((other) => other.work_id === work.work_id) === index);
     if (!state.selected || state.selected.id !== item.id) return;

@@ -136,8 +136,8 @@ export class PluginPageAuthority {
     const action = Boolean(page.activation.invoke) && request.method === "POST" && pathname === "/api/host/plugin-page-actions";
     const files = request.method === "POST" && pathname === "/api/host/plugin-page-files" && page.activation.resolveFiles;
     const checkOnly = request.method === "POST" && pathname === "/api/host/plugin-page-check";
-    const objectRead = Boolean(page.activation.install_id) && (request.method === "POST" && pathname === "/api/placement/describe"
-      || request.method === "GET" && pathname === "/api/assistant/related");
+    // An isolated page's related Assistant works are the action `assistant.works.related` now (PG-057), through the page's action gateway.
+    const objectRead = Boolean(page.activation.install_id) && request.method === "POST" && pathname === "/api/placement/describe";
     const registered = page.activation.requestAllowed?.(request.method ?? "GET", pathname);
     // Only the trusted toolbar adds this header to a bound callback. The child fetch bridge drops it, and a page's
     // ordinary header never opens these owner actions. Both paths retain the page's cancellation and activation.

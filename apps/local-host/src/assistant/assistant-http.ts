@@ -1,4 +1,4 @@
-import { pageRelatedWorks } from "./assistant-page-related.js";
+import { assistantRelatedRegistration, relatedWorks } from "./assistant-related-action.js";
 import { AssistantThreads } from "./assistant-threads.js";
 import { assistantThreadActions, assistantThreadRegistration } from "./assistant-thread-actions.js";
 import { ASSISTANT_AGENT, ASSISTANT_PROMPTS } from "./assistant-agent.js";
@@ -174,7 +174,9 @@ export function assistantServiceFor(ports: AssistantHttpPorts): { service: Assis
   projectDeletedHooksFor(ports.homeDirectory).register({ id: "assistant", label: "助理在这个项目里的工作", alive: () => ports.localHost.lifecycle() === "running",
     clear: async projectId => { await purgeAssistantProject(ports.homeDirectory, projectId, { stop: async id => { await service.control(id, { kind: "stop" }); }, dropFollowUp: async id => { await service.followUps.remove(id); } }); } });
   // The person's attention rules are the Assistant's own actions: found like any capability, changed only on confirmation.
-  try { registerAssistantRuleActions(ports.localHost.actionRegistry(), () => service, ports.homeDirectory, assistantThreadRegistration(threads)); }
+  const threadActions = assistantThreadRegistration(threads), relatedActions = assistantRelatedRegistration(() => service);
+  try { registerAssistantRuleActions(ports.localHost.actionRegistry(), () => service, ports.homeDirectory,
+    { definitions: [...threadActions.definitions, ...relatedActions.definitions], handlers: [...threadActions.handlers, ...relatedActions.handlers] }); }
   catch (error) { hostLog.warn("assistant", "rule_actions_registration_failed", error); }
   return entry;
 }
@@ -213,7 +215,7 @@ export async function handleAssistantHttp(request: IncomingMessage, response: Se
       if (method === "GET" && parts.length === 1 && parts[0] === "related") {
         const kind = url.searchParams.get("kind") ?? "", id = url.searchParams.get("id") ?? "";
         if (!kind || !id) throw assistantErrors.invalid("需要对象种类与标识");
-        return { status: 200, body: await pageRelatedWorks(service, request, ports.projectRef?.project_id ?? null, { kind, id }) };
+        return { status: 200, body: await relatedWorks(service, ports.projectRef?.project_id ?? null, { kind, id }) };
       }
       // Characters the person may choose here: for a work (its own project), or for a new work on this page.
       if (method === "GET" && parts.length === 1 && parts[0] === "characters") {

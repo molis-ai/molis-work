@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { bindProjectArtifacts, DEMO_PROJECT_ID, LocalProjectDatabase, openProjectVersionStores, runLocalPluginDevelopment,
   runPluginDevelopment, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { CHARACTER_ARTIFACT_TYPE } from "@molis-ai/molis-work-contracts/modules/characters";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { SqlitePluginPrivateStorage, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
@@ -214,5 +215,24 @@ test("W3-07-6-01: nonempty and unsupported development state are refused before 
     await assert.rejects(runLocalPluginDevelopment({ ...input, state_directory: marked }), /不是受支持/);
     assert.equal(readFileSync(join(ordinary, "keep.txt"), "utf8"), "preserve this ordinary directory");
     assert.equal(existsSync(join(ordinary, "development.db")), false); assert.equal(existsSync(join(marked, "development.db")), false);
+  } finally { rmSync(directory, { recursive: true, force: true }); }
+});
+
+// S-82: the development run reserves the names this build ships, so a plugin learns here what its real install would refuse.
+test("RAC-417 S-82 a development plugin that declares a type this build already owns is refused and stores nothing", async () => {
+  const directory = mkdtempSync(join(tmpdir(), "molis-work-plugin-dev-owned-type-"));
+  try {
+    const sample = join(directory, "sample");
+    mkdirSync(sample);
+    for (const file of ["index.mjs", "package.json"]) cpSync(join(root, "examples/plugin-sample", file), join(sample, file));
+    const manifest = JSON.parse(readFileSync(join(root, "examples/plugin-sample/manifest.json"), "utf8")) as {
+      permissions: Array<{ permission: string }>; artifacts: { produces: Array<{ artifact_type_id: string }>; consumes: Array<{ artifact_type_id: string }> } };
+    manifest.artifacts.produces[0]!.artifact_type_id = CHARACTER_ARTIFACT_TYPE;
+    manifest.artifacts.consumes = [];
+    writeFileSync(join(sample, "manifest.json"), JSON.stringify(manifest));
+    mkdirSync(join(sample, "node_modules/@molis-ai"), { recursive: true });
+    symlinkSync(join(root, "packages/plugin-sdk"), join(sample, "node_modules/@molis-ai/molis-work-plugin-sdk"), "dir");
+    await assert.rejects(runLocalPluginDevelopment({ directory: sample, state_directory: join(directory, "state"),
+      grants: manifest.permissions.map(value => value.permission), allow_unsigned_development: true }), /character\.definition\.v1|已由/u);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });

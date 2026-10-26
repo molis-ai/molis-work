@@ -418,7 +418,9 @@ RAC-401 的针对性测试检查查询前后的实际文件、库内容和账本
 
 发布者撤销（BL-559，RAC-391、RAC-392，S-87），叠在 T7 与 T3b 的分支上。**动作**：`plugins.publishers.revoke@1`（Home 范围、只给本人、`plugin-install:write`），处理器和同意撤回一样只收宿主设置入口的凭据（S-77），入口是 `/api/settings/plugin-publishers/revoke`；项目设置的「插件」页在“你信任的发布者”那一栏给每个未撤销的发布者一个“撤销信任”按钮，确认后调它。**账本**：`revokePublisher(key_id, at)`，只写第一次的 `revoked_at`，行不删，`pinPublisher` 再固定解不开；撤销不能撤回，要再信任同一个人要换发布者密钥（BL-586）。**停用**不做跨项目的逐个扫描，而是让每个项目自己判断：`installed-publisher-standing.ts` 按 `consentRevision` 读一次账本，已装的包的发布者没固定或已撤销就算失效——`assertInstalled`（每次副作用之前）拒，所以撤销之前开始的调用走到下一次副作用也被拒、不写业务记录；项目下一次被看（列概览、准备项目的插件）时 `reconcilePublishers` 把它们停用（`disabled`，数据保留）；启动恢复先问同一个判断，失效的不启动、写上原因；`packagedFor` 读包前先问它，不只验签；`enable` 以 `plugin.publisher_revoked` 拒；账本读不出来时谁都不信任。安装一侧本来就拒已撤销的发布者（T2，预览和确认）。
 
-没做的：撤销时不主动打开所有项目去停用（别的项目在下次被看时停，在那之前它的插件已经什么都做不了）；取回撤销（见上）。BL-559 做完，行已删。
+**撤销什么时候生效（RAC-392 的口径，统筹 10-26 定）**：撤销那一刻只写账本，不主动打开别的项目。已经在跑的项目里，它的插件在三个时点停：① **下一次写之前**——撤销之前已经开始的调用，在它的下一次副作用之前被拒：操作自己的 `beforeEffect` 每次问 `assertInstalled`（`sandboxedPluginDefinition` 的 `assertLive`），存储、项目库、模型、能力、网络对这一道检查都一样，所以在途的写被截在写前、不写业务记录（`tests/security-invariants-publisher-revoke.test.ts` 的在途用例）；② **项目下一次被看时**——列概览、准备项目的插件，`reconcilePublishers` 把失效的安装停用（`disabled`，数据保留）；③ **重启时**——启动恢复先问同一个判断，失效的不启动（`tests/installed-plugin-host.test.ts` 的撤销后重启用例）。在这三个时点之间，它没有可做的事：每一次副作用都要先过第 ① 道。
+
+没做的：撤销时不主动打开所有项目去停用；取回撤销（见上）。BL-559 做完，行已删。
 
 ## 8. 验收
 

@@ -5,6 +5,8 @@ import { LINGGUANG_PLUGIN_ID, LINGGUANG_PROJECT_PLUGIN_ID } from "@molis-ai/moli
 import { LINGGUANG_UI_CONTRIBUTION_ID } from "./ui.js";
 import { LINGGUANG_DATABASE } from "./database.js";
 
+import { LINGGUANG_MESSAGES } from "./messages.js";
+import { LINGGUANG_EN } from "./en.js";
 export { LINGGUANG_PLUGIN_ID, LINGGUANG_PROJECT_PLUGIN_ID };
 
 const MATERIAL_BYTES = 36_000_000;
@@ -41,6 +43,8 @@ export const lingguangManifest: PluginManifest = {
   ],
   artifacts: { produces: [], consumes: [] },
   ui: {
+    messages: LINGGUANG_MESSAGES,
+    translations: LINGGUANG_EN,
     contributions: [LINGGUANG_UI_CONTRIBUTION_ID],
     views: [
       { view_id: "workbench", slot: "stage", title: "灵光", contribution_id: LINGGUANG_UI_CONTRIBUTION_ID, icon: "idea", order: 10, accepts_objects: true },

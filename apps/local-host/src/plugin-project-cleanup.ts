@@ -87,12 +87,12 @@ function cleanupOwner(home: string, entry: PluginProjectCleanupEntry, stopBackgr
   const { manifest } = entry.definition, owner = entry.project_data, library = manifest.databases?.home;
   if (library?.project_rows) return declaredRowsOwner(home, entry, library, stopBackground);
   if (!owner?.declaration) {
-    return hasPluginBackground(entry.definition) ? { id: `plugin-background:${manifest.plugin_id}`, label: "{name} 的后台工作（将停止）", label_values: { name: manifest.name }, clear(projectId, _deletion, control) { control?.assertCurrent(); stopBackground(projectId); control?.assertCurrent(); } } : null;
+    return hasPluginBackground(entry.definition) ? { id: `plugin-background:${manifest.plugin_id}`, label: "{name} 的后台工作（将停止）", label_values: { name: manifest.name }, words_of: manifest.plugin_id, clear(projectId, _deletion, control) { control?.assertCurrent(); stopBackground(projectId); control?.assertCurrent(); } } : null;
   }
   const declaration = owner.declaration;
   const partitioned = library?.partition === "project" ? library.store_name : undefined;
   return {
-    id: owner.owner_id, label: declaration.label,
+    id: owner.owner_id, label: declaration.label, words_of: manifest.plugin_id,
     clear(projectId, _deletion, control) {
       control?.assertCurrent();
       const record = stopBackground(projectId);
@@ -116,7 +116,7 @@ function cleanupOwner(home: string, entry: PluginProjectCleanupEntry, stopBackgr
 function declaredRowsOwner(home: string, entry: PluginProjectCleanupEntry, library: HomePluginDatabaseDeclaration, stopBackground: StopBackground): ProjectDeletedOwner {
   const { manifest } = entry.definition, rows = library.project_rows!, shipped = entry.project_data;
   return {
-    id: shipped?.owner_id ?? manifest.plugin_id,
+    id: shipped?.owner_id ?? manifest.plugin_id, words_of: manifest.plugin_id,
     ...shipped ? { label: rows.label } : { label: "{name} 的项目数据：{detail}", label_values: { name: manifest.name, detail: rows.label } },
     clear(projectId, _deletion, control) {
       control?.assertCurrent(); stopBackground(projectId);

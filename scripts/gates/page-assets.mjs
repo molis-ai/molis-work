@@ -132,7 +132,7 @@ const withoutComments = (text) => text.replace(/\/\*[\s\S]*?\*\//g, " ").replace
 // mention count below. (`"\/assets\/x"` in a plain string has the same escapes and is refused the same way.) So once the
 // readable route literals and this pattern are taken out of the code, no word `assets` may be left, whatever sits around it
 // (`[\/]assets`, `/(assets)/`, `assets\/`).
-const PACK_ROUTE_PATTERN = String.raw`/^\/assets\/molis-work-plugins\/([a-z0-9-]+)\.js$/`;
+const PACK_ROUTE_PATTERN = String.raw`/^\/assets\/molis-work-plugins\/([a-z0-9-]+)\.(js|css)$/`;
 const ROUTE_LITERAL = /(["'`])(\/assets\/[^"'`\s\\]+)\1/g;
 const STRAY_ASSETS = /.{0,16}\bassets\b.{0,56}/i;
 const COMPARE = "(?:[!=]==|[!=]=)(?!=)";
@@ -178,13 +178,18 @@ async function measureServed(probe) {
     if (typeof pageAssets[name] !== "function") return fail(`apps/workbench/dist/page-assets.js no longer exports ${name}`);
   }
   if (!Array.isArray(packsModule.BUILTIN_PLUGIN_WORKBENCH)) return fail("apps/workbench/dist/plugin-workbench.js no longer exports BUILTIN_PLUGIN_WORKBENCH");
+  if (typeof packsModule.pluginOnDemandStylesheet !== "function") return fail("apps/workbench/dist/plugin-workbench.js no longer exports pluginOnDemandStylesheet");
 
   const { renderMolisWorkWorkbenchStylesheet, renderMolisWorkWorkbenchClientScript, renderMolisWorkArrivalStylesheet, renderMolisWorkSettingsStylesheet } = pageAssets;
   const served = assetsModule.createLocalWebAssets({
     ptyClientFilePath: () => path.join(root, "dist/web/pty-client.js"),
     renderer: { renderMolisWorkWorkbenchStylesheet, renderMolisWorkWorkbenchClientScript, renderMolisWorkArrivalStylesheet, renderMolisWorkSettingsStylesheet },
   });
-  const packPaths = packsModule.BUILTIN_PLUGIN_WORKBENCH.filter((pack) => pack.clientFactory).map((pack) => `${PLUGIN_PACK_PREFIX}${pack.project_plugin_id}.js`);
+  const packPaths = [
+    ...packsModule.BUILTIN_PLUGIN_WORKBENCH.filter((pack) => pack.clientFactory).map((pack) => `${PLUGIN_PACK_PREFIX}${pack.project_plugin_id}.js`),
+    // A framed plugin's own sheet (PG-070): the rules of its namespace, sent only where its frame links it.
+    ...packsModule.BUILTIN_PLUGIN_WORKBENCH.filter((pack) => packsModule.pluginOnDemandStylesheet(pack.project_plugin_id)).map((pack) => `${PLUGIN_PACK_PREFIX}${pack.project_plugin_id}.css`),
+  ];
   const measured = {};
   const gzip = {};
   const ask = (asset) => {
@@ -237,7 +242,9 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// #1101's same approved application behavior, moved onto the exact batch39 Foundation baseline.
+// #1101's previously measured pairs on the batch39 Foundation baseline; kept as recorded evidence.
+// The batch40 composition is PENDING its original build/resource measurement: do not migrate these
+// pairs or invent new endpoints before that measurement. A different merge-base gets no admission.
 // The same nine approved Workbench features total +32894; the exact build is +32893. CSS remains +680 each.
 // Coding restore remains pending and is not admitted here; no old ceiling or spare allowance carries over.
 const APPROVED_CEILINGS = {
@@ -253,12 +260,39 @@ const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === byte
 // User approved 2026-10-24 (pop-up decision, W5-04 third group): Files, Git, Diff and Text Stats each ship their own bundle now that
 // Coding lends them to its panels through `clientUses` instead of copying their code into coding.js; coding.js falls by 82 KB.
 // Each is frozen once at the measured bytes.
+// User approved 2026-10-25 (pop-up decision, PG-070): a plugin whose page runs in a frame sends the rules of its own namespace as
+// /assets/molis-work-plugins/<id>.css, linked only by the frames that need them, instead of inside molis-work-workbench.css. The
+// sheets together are the bytes the workbench sheet loses (the workbench sheet falls by 247609, the sheets add 247526), so the total
+// does not grow. Each is frozen once at the measured bytes.
 const APPROVED_NEW_ASSETS = {
   "/assets/molis-work-plugin-frame.js": 187120,
+  // PG-070 slice 2 (2026-10-25): Shelf no longer keeps its sheet in the settings/workbench sheets, the plugin builder's own
+  // rules leave the shared sheet too; both are linked on demand, so both freeze once at the measured bytes.
+  "/assets/molis-work-plugins/plugin-builder.css": 19893,
+  "/assets/molis-work-plugins/shelf.css": 36541,
   "/assets/molis-work-plugins/diff.js": 1483,
   "/assets/molis-work-plugins/files.js": 11227,
   "/assets/molis-work-plugins/git.js": 29496,
   "/assets/molis-work-plugins/text-stats.js": 1281,
+  "/assets/molis-work-plugins/alchemist.css": 151,
+  // PG-070 slice 2 renamed the shared diff view's classes to `mw-diff-*`, including the ancestor selectors Coding's rules
+  // use; coding.css and the settings sheet that also embeds Coding's rules each grew by 24 bytes, so the first freeze is what
+  // this branch measures, not the pre-slice-2 number. (The coding.js bundle grew by 45 bytes and workbench.js by 642; both are
+  // existing assets, listed in the delivery comment and admitted by the merge queue, not here.)
+  "/assets/molis-work-plugins/coding.css": 74624,
+  "/assets/molis-work-plugins/cognia.css": 8283,
+  "/assets/molis-work-plugins/dataset.css": 6916,
+  "/assets/molis-work-plugins/files.css": 3199,
+  "/assets/molis-work-plugins/form.css": 8765,
+  "/assets/molis-work-plugins/git.css": 3197,
+  "/assets/molis-work-plugins/images.css": 7851,
+  "/assets/molis-work-plugins/jelly.css": 19603,
+  "/assets/molis-work-plugins/lingguang.css": 4505,
+  "/assets/molis-work-plugins/pages.css": 48265,
+  "/assets/molis-work-plugins/ppt.css": 7028,
+  "/assets/molis-work-plugins/schedule.css": 1269,
+  "/assets/molis-work-plugins/todo.css": 13175,
+  "/assets/molis-work-plugins/workflows.css": 40743,
 };
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.
 const baseErrors = (budget, base) => {

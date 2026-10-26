@@ -94,7 +94,8 @@ export function createMemoryLedgerRetention(db: ReturnType<typeof openHomeSqlite
   Pick<MemoryLedgerPort, "forget" | "forgetScopes"> & { assertNotForgotten(memoryId: string): void; isForgotten(memoryId: string): boolean } {
   // A purged SDK identity is never reused. This existing marker carries no body and survives scope cleanup.
   const forgottenKey = (memoryId: string) => `memory-forgotten:${memoryId}`;
-  const isForgotten = (memoryId: string) => !!db.prepare("SELECT 1 FROM memory_markers WHERE actor_id='' AND key=?").get(forgottenKey(memoryId));
+  let forgottenStatement: ReturnType<typeof db.prepare> | undefined;
+  const isForgotten = (memoryId: string) => !!(forgottenStatement ??= db.prepare("SELECT 1 FROM memory_markers WHERE actor_id='' AND key=?")).get(forgottenKey(memoryId));
   const assertNotForgotten = (memoryId: string) => {
     if (isForgotten(memoryId)) throw Object.assign(new Error("这条记忆已经删除，不能补回旧正文或使用记录"), { code: "memory.conflict" });
   };

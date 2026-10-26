@@ -67,10 +67,12 @@ interface MemoryHost {
    * queue so a restart does not lose it. Nothing runs when the round said nothing worth learning.
    */
   learnLater(request: AssistantMemoryLearningRequest): Promise<void>;
+  /** Reject new business while the original runtime drains its persisted usage. */
+  stopBusiness(): void;
   close(): void;
 }
 
-const hosts = new WeakMap<MolisWorkLocalHost, { home: string; host: MemoryHost }>();
+const hosts = new WeakMap<MolisWorkLocalHost, { home: string; host: MemoryHost; settleUses(receipt: AgentMemoryUseReceipt): void }>();
 
 export function memoryHostFor(localHost: MolisWorkLocalHost): MemoryHost | undefined {
   return hosts.get(localHost)?.host;
@@ -78,8 +80,9 @@ export function memoryHostFor(localHost: MolisWorkLocalHost): MemoryHost | undef
 
 /** Only the Runtime's persisted session owner may report usage; deleted projects stay forgotten. */
 export async function recordMemoryUsage(localHost: MolisWorkLocalHost, receipt: AgentMemoryUseReceipt): Promise<void> {
-  const host = memoryHostFor(localHost);
-  if (!host || !host.policy.alive()) throw memoryErrors.unavailable("记忆使用记录暂不可保存");
+  const held = hosts.get(localHost);
+  if (!held) throw memoryErrors.unavailable("记忆使用记录暂不可保存");
+  const { host } = held;
   if (receipt.owner.actor_id !== LOCAL_PERSON) throw memoryErrors.forbidden("记忆回执不属于当前使用者");
   const personal = receipt.owner.project_id === ASSISTANT_PERSONAL_OWNER && receipt.owner.plugin_id === ASSISTANT_PLUGIN_ID
     && receipt.owner.install_id === ASSISTANT_INSTALL_ID;
@@ -88,7 +91,8 @@ export async function recordMemoryUsage(localHost: MolisWorkLocalHost, receipt: 
     if (exists === false) return;
     if (exists !== true) throw memoryErrors.unavailable("记忆回执所属项目暂不可核实");
   }
-  host.service.settleUses(receipt);
+  if (hosts.get(localHost) !== held) throw memoryErrors.unavailable("原记忆使用记录已关闭");
+  held.settleUses(receipt);
 }
 
 interface MemoryHostPorts {
@@ -114,6 +118,91 @@ interface MemoryHostPorts {
   projectTitle?(projectId: string): Promise<string | null>;
 }
 
+/** The original runtime queue owns learning and upkeep; both stop with ordinary Memory business. */
+function memoryBackgroundWork(input: {
+  ports: MemoryHostPorts; service: MemoryService; servicePorts: MemoryServicePorts;
+  store(): Promise<AgentMemoryCapability>; businessAlive(): boolean; assertBusiness(): void;
+}) {
+  const { ports, service, servicePorts, store, businessAlive, assertBusiness } = input;
+  const { ledger, backend } = servicePorts;
+  // Drawing out memories, and daily upkeep: tasks of the runtime's own durable queue (one runner for each kind).
+  const LEARN_KIND = "memory.learn", UPKEEP_KIND = "memory.upkeep";
+  let queueAttached = false;
+  const person: MemoryCaller = { actor_id: LOCAL_PERSON, project_id: null, consumer: "ui", person: true };
+  const upkeepNow = async (current = service) => {
+    assertBusiness();
+    const projects = await ports.projects?.().catch(() => []) ?? [];
+    assertBusiness();
+    return runUpkeep(current, { homeDirectory: ports.homeDirectory, localHost: ports.localHost, caller: person, projects });
+  };
+  /** The runtime's queue hangs tasks on a session: upkeep has its own, made once and kept in the ledger. */
+  const upkeepSession = async (): Promise<string> => {
+    assertBusiness();
+    const saved = ledger.marker(LOCAL_PERSON, "upkeep-session")?.body as { session_id?: string } | undefined;
+    if (saved?.session_id) return saved.session_id;
+    const session = await ports.agentHost.adapter(RUNTIME).createSession({ project_id: MEMORY_PROVIDER_ID, plugin_id: MEMORY_PROVIDER_ID, install_id: MEMORY_PROVIDER_ID,
+      actor_id: LOCAL_PERSON, workspace: "none", role_id: "memory-upkeep", title: "记忆整理" });
+    assertBusiness();
+    ledger.setMarker(LOCAL_PERSON, "upkeep-session", { session_id: session.session_id }, new Date().toISOString());
+    return session.session_id;
+  };
+  /** Next upkeep: at four in the morning local time (today's when that has not passed and today's has not run yet). */
+  const scheduleUpkeep = async (after: Date) => {
+    assertBusiness();
+    const schedule = ports.agentHost.adapter(RUNTIME).schedule;
+    if (!schedule) return;
+    const due = new Date(after); due.setHours(4, 0, 0, 0);
+    if (due.getTime() <= after.getTime()) due.setDate(due.getDate() + 1);
+    const last = service.lastUpkeep(LOCAL_PERSON);
+    // Missed while Molis Work was not running (more than a day ago): done soon after start instead.
+    const when = !last || Date.now() - Date.parse(last.at) > 26 * 3_600_000 ? new Date(Date.now() + 60_000) : due;
+    const key = `memory-upkeep:${when.toISOString().slice(0, 10)}`;
+    if (schedule.find(key)) return;
+    const session_id = await upkeepSession();
+    assertBusiness();
+    await schedule.enqueue({ key, session_id, kind: UPKEEP_KIND, payload: {}, due_at: when.toISOString(), max_attempts: 2 });
+  };
+  const runLearning = async (task: Pick<AgentScheduledTask, "key" | "session_id" | "payload">) => {
+    try {
+      assertBusiness();
+      const outcome = await learnFromQueuedWork(ports.homeDirectory, task, { adapter: ports.agentHost.adapter(RUNTIME), service,
+        ports: { backend, ledger, ...(ports.projectTitle ? { projectTitle: ports.projectTitle } : {}) }, backend: control => prologueMemoryBackend(store, control),
+        alive: businessAlive, ...(ports.projectExists ? { projectExists: ports.projectExists } : {}) });
+      logMemoryLearning(outcome);
+    } catch (error) {
+      // A failure can follow an earlier completed proposal; the same queue key remains the retry identity.
+      hostLog.warn("memory", "learning_failed", error);
+      throw error;
+    }
+  };
+  const attachQueue = () => {
+    if (queueAttached || !businessAlive()) return;
+    const schedule = ports.agentHost.adapter(RUNTIME).schedule;
+    if (!schedule) return;
+    schedule.handle(LEARN_KIND, runLearning);
+    schedule.handle(UPKEEP_KIND, async () => { await upkeepNow(); await scheduleUpkeep(new Date()); });
+    queueAttached = true;
+    void scheduleUpkeep(new Date()).catch(error => hostLog.warn("memory", "upkeep_not_queued", error));
+  };
+  void ports.started?.().then(attachQueue).catch(() => undefined);
+  return { upkeepNow,
+    learnLater: async (request: AssistantMemoryLearningRequest) => {
+      assertBusiness();
+      await ports.ready();
+      assertBusiness();
+      const key = `memory-learn:${request.work_id}:${request.run_id}`, payload = { ...request };
+      const task = { key, session_id: request.session_id, payload }, sources = await assistantMemorySources(ports.homeDirectory, ports.agentHost.adapter(RUNTIME), task);
+      assertBusiness();
+      if (!sources || !service.worthLearning(sources.request.caller, sources.request.said)) { hostLog.debug("memory", "learning_skipped", { key }); return; }
+      attachQueue();
+      const schedule = ports.agentHost.adapter(RUNTIME).schedule;
+      if (!schedule) { void runLearning(task).catch(error => hostLog.warn("memory", "learning_failed", error)); return; }
+      const queued = await schedule.enqueue({ ...task, kind: LEARN_KIND, due_at: new Date().toISOString(), max_attempts: 2 });
+      hostLog.debug("memory", "learning_queued", { key: queued.key, state: queued.state, due_at: queued.due_at });
+    },
+  };
+}
+
 /**
  * The memories an Agent run is given, for Agent work (Coding, plugin Agents, scheduled runs): the platform recall with
  * this Home's person and the run's project, under the Agent consumer's switch. Null when there is no memory host yet.
@@ -135,18 +224,27 @@ export function logMemoryLearning(outcome: { ran: boolean; learned: readonly unk
 export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
   const existing = hosts.get(ports.localHost);
   if (existing && existing.home === ports.homeDirectory) return existing.host;
+  let stopped = false, closed = false;
+  const businessAlive = () => !stopped && !closed && ports.localHost.lifecycle() === "running";
+  const assertBusiness = () => { if (!businessAlive()) throw memoryErrors.unavailable("原记忆服务已关闭"); };
   const ledger = openMemoryLedger({ homeDirectory: ports.homeDirectory });
   const store = async (): Promise<AgentMemoryCapability> => {
+    assertBusiness();
     await ports.ready();
+    assertBusiness();
     const memory = ports.agentHost.adapter(RUNTIME).memory;
     if (!memory) throw memoryErrors.off("当前运行时没有记忆能力");
     return memory;
   };
   const backend = prologueMemoryBackend(store);
   const servicePorts = { backend, ledger, managementBatchMaxItems: MEMORY_BATCH_MAX_ITEMS, ...(ports.projectTitle ? { projectTitle: ports.projectTitle } : {}) };
-  const service = new MemoryService(servicePorts);
+  const projection = new MemoryService(servicePorts);
+  const service = controlledMemoryService(servicePorts, control => prologueMemoryBackend(store, control),
+    { beforeEffect: async () => assertBusiness(), assert_current: assertBusiness });
   const forCall = (context: ActionExecutionContext) => memoryCallService(context, servicePorts,
-    control => prologueMemoryBackend(store, control), () => !closed);
+    control => prologueMemoryBackend(store, control), businessAlive);
+  const caller = memoryCaller;
+  const { upkeepNow, learnLater } = memoryBackgroundWork({ ports, service, servicePorts, store, businessAlive, assertBusiness });
   // Internal Agent identity follows memoryCaller; external MCP runtime Sessions keep their granted non-Run reads.
   const read = async (context: ActionExecutionContext, request: { list: MemoryListRequest } | { recall: MemoryRecallRequest }) => {
     if (context.actor_id.startsWith("agent:")) {
@@ -192,94 +290,44 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
   ];
   const dispose = ports.localHost.actionRegistry().registerProvider({ provider: { provider_id: MEMORY_PROVIDER_ID, title: "记忆", kind: "system" },
     definitions: Object.values(memoryActions), handlers: bindings });
-  // Drawing out memories, and daily upkeep: tasks of the runtime's own durable queue (one runner for each kind).
-  const LEARN_KIND = "memory.learn", UPKEEP_KIND = "memory.upkeep";
-  let queueAttached = false;
-  const person: MemoryCaller = { actor_id: LOCAL_PERSON, project_id: null, consumer: "ui", person: true };
-  const upkeepNow = async (current = service) => runUpkeep(current, { homeDirectory: ports.homeDirectory, localHost: ports.localHost, caller: person, projects: await ports.projects?.().catch(() => []) ?? [] });
-  /** The runtime's queue hangs tasks on a session: upkeep has its own, made once and kept in the ledger. */
-  const upkeepSession = async (): Promise<string> => {
-    const saved = ledger.marker(LOCAL_PERSON, "upkeep-session")?.body as { session_id?: string } | undefined;
-    if (saved?.session_id) return saved.session_id;
-    const session = await ports.agentHost.adapter(RUNTIME).createSession({ project_id: MEMORY_PROVIDER_ID, plugin_id: MEMORY_PROVIDER_ID, install_id: MEMORY_PROVIDER_ID,
-      actor_id: LOCAL_PERSON, workspace: "none", role_id: "memory-upkeep", title: "记忆整理" });
-    ledger.setMarker(LOCAL_PERSON, "upkeep-session", { session_id: session.session_id }, new Date().toISOString());
-    return session.session_id;
-  };
-  /** Next upkeep: at four in the morning local time (today's when that has not passed and today's has not run yet). */
-  const scheduleUpkeep = async (after: Date) => {
-    const schedule = ports.agentHost.adapter(RUNTIME).schedule;
-    if (!schedule) return;
-    const due = new Date(after); due.setHours(4, 0, 0, 0);
-    if (due.getTime() <= after.getTime()) due.setDate(due.getDate() + 1);
-    const last = service.lastUpkeep(LOCAL_PERSON);
-    // Missed while Molis Work was not running (more than a day ago): done soon after start instead.
-    const when = !last || Date.now() - Date.parse(last.at) > 26 * 3_600_000 ? new Date(Date.now() + 60_000) : due;
-    const key = `memory-upkeep:${when.toISOString().slice(0, 10)}`;
-    if (schedule.find(key)) return;
-    await schedule.enqueue({ key, session_id: await upkeepSession(), kind: UPKEEP_KIND, payload: {}, due_at: when.toISOString(), max_attempts: 2 });
-  };
-  const runLearning = async (task: Pick<AgentScheduledTask, "key" | "session_id" | "payload">) => {
-    try {
-      const outcome = await learnFromQueuedWork(ports.homeDirectory, task, { adapter: ports.agentHost.adapter(RUNTIME), service,
-        ports: { backend, ledger, ...(ports.projectTitle ? { projectTitle: ports.projectTitle } : {}) }, backend: control => prologueMemoryBackend(store, control),
-        alive: () => !closed && ports.localHost.lifecycle() === "running", ...(ports.projectExists ? { projectExists: ports.projectExists } : {}) });
-      logMemoryLearning(outcome);
-    } catch (error) {
-      // A failure can follow an earlier completed proposal; the same queue key remains the retry identity.
-      hostLog.warn("memory", "learning_failed", error);
-      throw error;
-    }
-  };
-  const attachQueue = () => {
-    if (queueAttached) return;
-    const schedule = ports.agentHost.adapter(RUNTIME).schedule;
-    if (!schedule) return;
-    schedule.handle(LEARN_KIND, runLearning);
-    schedule.handle(UPKEEP_KIND, async () => { await upkeepNow(); await scheduleUpkeep(new Date()); });
-    queueAttached = true;
-    void scheduleUpkeep(new Date()).catch(error => hostLog.warn("memory", "upkeep_not_queued", error));
-  };
-  void ports.started?.().then(attachQueue).catch(() => undefined);
-  let closed = false;
-  const deletion = registerMemoryProjectDeletion({ ...ports, backend, ledger, alive: () => !closed && ports.localHost.lifecycle() === "running",
+  const deletion = registerMemoryProjectDeletion({ ...ports, backend, ledger, alive: businessAlive,
     withEffect: (control, work) => memoryRuntimeEffect(ports.agentHost)(control, work), controlledBackend: control => prologueMemoryBackend(store, control) });
   const host: MemoryHost = {
     service,
     withExecution: (control, bindChangeTarget) => controlledMemoryService({ ...servicePorts, bindChangeTarget },
       current => prologueMemoryBackend(store, current), {
         beforeEffect: () => control.beforeEffect(),
-        assert_current: () => { if (closed || ports.localHost.lifecycle() !== "running") throw memoryErrors.unavailable("原记忆服务已关闭"); control.assert_current(); },
+        assert_current: () => { assertBusiness(); control.assert_current(); },
       }),
     checkAssistantSources: (caller, request) => assistantSources.check(caller, request),
     policy: {
-      alive: () => !closed,
+      alive: businessAlive,
       prefsFor: (scope, projectId) => service.prefsFor(LOCAL_PERSON, scope, projectId),
       owners: projectId => ledger.owners(projectId),
       candidateOwners: projectId => ledger.candidateOwners(projectId),
       projectExists: projectId => ports.projectExists?.(projectId) ?? Promise.resolve(null),
       ...deletion,
     },
-    caller: memoryCaller,
-    learnLater: async request => {
-      await ports.ready();
-      const key = `memory-learn:${request.work_id}:${request.run_id}`, payload = { ...request };
-      const task = { key, session_id: request.session_id, payload }, sources = await assistantMemorySources(ports.homeDirectory, ports.agentHost.adapter(RUNTIME), task);
-      if (!sources || !service.worthLearning(sources.request.caller, sources.request.said)) { hostLog.debug("memory", "learning_skipped", { key }); return; }
-      attachQueue();
-      const schedule = ports.agentHost.adapter(RUNTIME).schedule;
-      if (!schedule) { void runLearning(task).catch(error => hostLog.warn("memory", "learning_failed", error)); return; }
-      const queued = await schedule.enqueue({ ...task, kind: LEARN_KIND, due_at: new Date().toISOString(), max_attempts: 2 });
-      hostLog.debug("memory", "learning_queued", { key: queued.key, state: queued.state, due_at: queued.due_at });
+    caller,
+    learnLater,
+    stopBusiness: () => { stopped = true; dispose(); },
+    close: () => {
+      host.stopBusiness();
+      if (closed) return;
+      ledger.close();
+      closed = true;
+      hosts.delete(ports.localHost);
     },
-    close: () => { closed = true; dispose(); ledger.close(); hosts.delete(ports.localHost); },
   };
-  const assistantSources = memorySources(ports.homeDirectory, () => closed ? undefined : {
+  const assistantSources = memorySources(ports.homeDirectory, () => !businessAlive() ? undefined : {
     adapter: ports.agentHost.adapter(RUNTIME), policy: host.policy,
     sourceAllowed: (actor, scope, owner, refs) => service.sourceAllowed(actor, scope, owner, refs),
     sessionAllowed: async owner => owner.actor_id === LOCAL_PERSON && owner.plugin_id === ASSISTANT_PLUGIN_ID && owner.install_id === ASSISTANT_INSTALL_ID,
   });
-  hosts.set(ports.localHost, { home: ports.homeDirectory, host });
+  hosts.set(ports.localHost, { home: ports.homeDirectory, host, settleUses: receipt => {
+    if (closed) throw memoryErrors.unavailable("原记忆使用记录已关闭");
+    projection.settleUses(receipt);
+  } });
   return host;
 }
 

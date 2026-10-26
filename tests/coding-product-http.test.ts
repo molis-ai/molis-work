@@ -9,6 +9,7 @@ import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.j
 import { CODING_WORKBENCH_CLIENT_FACTORY_SCRIPT, CODING_SETTINGS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
 
 test("Coding formal routes preserve drafts and isolate projects across server restart", async () => {
+  // BL305-BUSY-03: keep the existing archived 409, unknown-object 404 and unauthorized 403 HTTP paths.
   const root = await mkdtemp(path.join(tmpdir(), "coding-product-http-"));
   const token = "coding-product-control-token-0123456789abcdef";
   let server: ReturnType<typeof createMolisWorkWebServer>;

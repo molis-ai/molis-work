@@ -133,6 +133,8 @@ Runtime 原调用者查询委托由 `plugin-action-query.ts` 持有：只接受�
 
 项目与 Home 执行器在每次 `uninstalled` 都用 `forgetInstallationRecords` 撤销当前安装、激活范围的授权，与私有数据是否保留无关；插件声明的默认规则是数据不是授权，只在数据一并不留时由同一函数清（`dataGoes`，RAC-503），留数据的卸载不动它们。重装前的同步 `prepareReinstall` 复用同一 owner，补清卸载失败留下的原文件登记和项目记录绑定；仍失败时 Runtime 不注册代码、不保存新安装，恢复后再重试。这个端口不清私有 KV、文件或库，也不删除账号；Home 的项目绑定和共享安装槽仍按 BL-596 保留。验证见 `tests/security-invariants-installation-records.test.ts` 的成功路径与真实删除故障用例。
 
+关闭 Home 时，MemoryHost 先同步停止普通读写、撤下 provider，并阻止后续学习和维护入队；公开与后台业务共用受控 MemoryService，且要求 LocalHost 仍处于 running。原 ledger 与 Host 映射保留到 Adapter shutdown 及使用投影 flush 成功后才关闭。已发生的使用事实由可信 sink 向原未释放实例投影，项目查询 await 后仍同步复核实例身份；业务停止不撤销这项记账。actor、个人 Assistant 身份、已删除项目、遗忘屏障、去重与单调规则不变。关闭失败保留原 owner，显式重试同一关闭，不创建替代连接。补齐后台 await 后检查会使原注册函数超过 150 行门，因此把原学习/维护排程作为完整职责留在同文件的 memoryBackgroundWork；原队列、开关和关闭所有权不变，不以拆散 guard 或调高门槛通过。
+
 ## 开发要求
 
 不留数据的已卸载安装在重装前，由现有同步 `keptDataDiscarded` 先核 KV owner 端口、再清主人文件、最后删该安装 KV（RAC-357-U1）。`createPluginPlatform` / `PluginHostExecutorOptions` 的 `deleteInstallationData` 是可信组合端口，真实项目装配、安装宿主和本地开发入口接现有 `SqlitePluginPrivateStorage` 的公开方法；Home 复用自身 storage。不留数据而缺端口时明确拒绝，不以客户端工厂冒充可清理。路径拒绝不删 KV，后一步失败拒绝新安装并保留原卸载事实；旧保留数据且明确丢弃的路径时序及回滚不变。回归见 `tests/security-invariants-sandbox-owner-files.test.ts`、`tests/plugin-lifecycle-states.test.ts`。
@@ -309,6 +311,12 @@ Work 助理的单轮材料接收最多 6 张图片、100000 字符文本，与 I
 官方 CLI 的安装方案与接续在 `src/connector-cli-setup.ts`，来源仍由 `src/connector-cli.ts` 的适配表声明，`src/connector-cli-actions.ts` 登记准备、安装和账号验证动作。受管理 CLI 用自己的配置目录与运行时，实际版本检查通过才进入本人登录；登录进程退出后 Host 完成原请求，不依赖页面轮询提交。PTY 随原请求取消或 Host 关闭结束，已完成安装与登录由原授权/连接 owner 持有。改动跑 `node scripts/run-tests.mjs tests/security-invariants-cli-install.test.ts tests/connector-cli.test.ts tests/security-invariants-connector-intent.test.ts`；包安装回归用临时 HTTP 包源与真实 npm/PTY，不使用公网账号。
 
 `captureConnectorPrivateState(home)` 在离线 owner 调用中核对当前全部受管安装，密封 `.home` 的完整普通单链接文件、目录与权限；未知 `.cache` 也保留，第三方格式不改。`preflightConnectorPrivateStateRestore(home, snapshot)` 核对完整安装集合、原来源、Home/owner/install 绑定、原 key、密文和全部路径，任何失败不写 Home、不返回部分计划；原 `.home` 丢失时仍返回完整内存文件计划。它要求原安装记录/程序仍由当前安装 owner 核实，最终全 Home 恢复还需同一离线 lease 下的安装恢复、统一发布/回滚与真实重开；本接口不自行发布文件或新增 HTTP/Agent 读取入口。密封沿现有 SecretStore 原 master，不临时 put 活 vault、不建 key/锁、不落明文文件；CLI 的 prepare/start/bind/finish 初始化链保持。回归：`tests/security-invariants-connector-private-state.test.ts`。
+
+`createHomeSnapshot` 是离线维护入口，先取得同一存储 lease，再按 `homeStores(home)` 唯一集合枚举文件、实际安装库及项目分区；不启动业务 Host、插件或调度。registry 保留各 owner 的版本检查与密钥/排除策略，Host 不跨 owner 查业务表。SDK 各实际 root 在最终私有 payload 中经 agent-host 的原 SDK reader 认证，key 只从原 Home 读，全部 kind/分页、空正文与保留密文墓碑均验证，无 sealed 数据不补 key。输出完成后一次发布，原锁和父目录保持；普通失败清理，发布后刷盘失败明确保留。完整 restore 仍在 W5-16 后续，限制及恢复步骤见 [CLI 与开发](../../docs/cli-and-development.md#home-离线快照)。回归：`node scripts/run-tests.mjs tests/home-snapshot-cli.test.ts tests/home-snapshot-content.test.ts tests/security-invariants-home-snapshot-inputs.test.ts tests/security-invariants-home-snapshot-lifecycle.test.ts tests/security-invariants-home-snapshot-sdk.test.ts tests/sessions-offline.test.ts`。
+
+卸载预览保持只读；confirmed 写入先取同一 Home owner，busy 不消费原计划、不写收据，使用者显式关闭占用入口后可重试。普通卸载可传入已有 `localHost`：同步核 running 和同一 Home，通过原资源 lifetime 保留操作到最终 settle，Host.close 等它完成后才释放，不二次获取或借用 SDK 的单一执行槽。若该路径会停止承载自己的受管服务，先拒绝并要求从另一个进程明确关闭后重新预览。CLI 的 Home 本地后备同样在建目录/SQL 前绑定原 Host owner，正常 resident 转发不提前抢锁；外部独立库保持原协议。回归：`node scripts/run-tests.mjs tests/security-invariants-home-snapshot-entries.test.ts tests/uninstall-receipt.test.ts tests/cli-protocol.test.ts tests/goals-query-boundaries.test.mjs`。
+
+永久清除只在独立离线 owner 下执行，活 Host 时提示先关 App，不借用宿主、不自动停机。成功后 Home 仅留 `agent-runtime/`，其中只允许原 `.molis-runtime-owner.db`、`.molis-runtime-owner.db-journal`、`.molis-runtime-owner.db-wal`、`.molis-runtime-owner.db-shm`；原目录/锁 inode 不换，没有持有记录表或业务表。其余 SDK 数据、缓存和密钥全部清空，下一次启动按新 Home 建当前基线。未知 Home/config/bin 项在任何删除或回执前拒绝，不盲删，也不把残留报成成功。预览只忽略上述原锁路径及登记 owner 明确的 SQLite SHM/空 WAL，非空 WAL 与业务文件变化仍拒绝旧计划；递归只读元数据，不打开锁、读取 SDK/key 正文或跟随链接。
 
 受管理 CLI 的包、原生发行物及前置配置都在现有 `CONNECTOR_CLIS` 适配表声明。原生下载按官方校验和固定，只提取指定普通文件；Graph 复用或补装固定 PowerShell，并用官方包管理器将固定认证模块保存在连接自身目录。飞书/Lark 配置向导继续使用该安装，完成后仍需账号登录；X 应用凭据只从受保护表单进入适配声明的环境变量，不进入参数或模型状态。CLI 输出按提交值遮蔽，重新打开原接入页恢复正在进行的交互。回归见 `tests/security-invariants-native-cli.test.ts`、`tests/security-invariants-graph-cli-install.test.ts` 与 `tests/security-invariants-cli-configuration.test.ts`。
 

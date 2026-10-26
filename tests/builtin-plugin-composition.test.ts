@@ -7,7 +7,7 @@ import ts from 'typescript';
 import type { ActionDefinition } from '@molis-ai/molis-work-contracts/platform/actions';
 import type { PluginRegistration } from '@molis-ai/molis-work-contracts/platform/plugin-registration';
 import { BUILTIN_PLUGIN_CATALOG, createWorkbenchUiHost, pluginSurfaceClients, pluginWorkbenchClientAsset, pluginWorkbenchPacks, WORKBENCH_UI_SLOTS } from '@molis-ai/molis-work-app-workbench';
-import { pluginWorkbenchClientBootstrap, pluginWorkbenchStyles, pluginWorkbenchSettingsStyles, pluginSearchRows } from '../apps/workbench/dist/plugin-workbench.js';
+import { pluginOnDemandStylesheet, pluginWorkbenchClientBootstrap, pluginWorkbenchStyles, pluginSearchRows } from '../apps/workbench/dist/plugin-workbench.js';
 
 const action: ActionDefinition = { capability_id: 'fixture.future.read', version: 1, operation: 'query',
   action: { title: 'Read', description: 'Read a fixture value', kind: 'query', scope: 'project', audiences: ['mcp'], permissions: ['fixture:read'], subject_kinds: [],
@@ -36,13 +36,14 @@ test('one unknown bundled entry supplies actual UI mounting, ordered assets, cli
   const host = createWorkbenchUiHost(packs);
   assert.equal(host.mount({ slot: WORKBENCH_UI_SLOTS.main, contribution: { contribution_id: 'io.molis.work.future.panel', surface: 'panel', model: { title: 'Mounted from one entry' } } }).html,
     '<article>Mounted from one entry</article>');
-  assert.equal(pluginWorkbenchStyles(packs), '.future{color:red}.other{color:blue}');
-  assert.equal(pluginWorkbenchSettingsStyles(packs), '.future{color:red}');
+  assert.equal(pluginWorkbenchStyles(packs), '.other{color:blue}', 'the framed plugin’s own rules leave the shared sheet');
+  assert.equal(pluginOnDemandStylesheet('future', packs), '.future{color:red}', 'its frame links them in a sheet of its own');
   assert.deepEqual(pluginSearchRows(packs), [['future', '[data-future-id]', 'futureId']]);
-  const mounted: unknown[] = [];
-  runInNewContext(pluginWorkbenchClientBootstrap(packs), { mountPluginClient: (...args: unknown[]) => mounted.push(args),
-    L: (text: string) => text, state: { project: { project_id: 'project-1' } }, api: () => {}, route: () => {} });
+  const mounted: unknown[] = [], translators: string[] = [];
+  runInNewContext(pluginWorkbenchClientBootstrap(packs, false, [second, entry]), { mountPluginClient: (...args: unknown[]) => mounted.push(args),
+    LFor: (pluginId: string) => { translators.push(pluginId); return (text: string) => text; }, state: { project: { project_id: 'project-1' } }, api: () => {}, route: () => {} });
   assert.deepEqual(mounted.map(args => [...args as unknown[]]), [['future', 'project-1'], ['future.settings', 'project-1']]);
+  assert.deepEqual(translators, ['io.molis.work.future'], 'a client the page mounts is handed a translator for its own plugin, whoever published it');
 });
 
 test('a registered settings page supplies its own styles without a settings client', () => {

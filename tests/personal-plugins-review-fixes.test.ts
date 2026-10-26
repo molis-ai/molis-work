@@ -7,7 +7,7 @@ import { MolisWorkLocalHost, openProjectVersionStores } from "@molis-ai/molis-wo
 import { handleFunctionsHttp, seedSceneRules } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { mkdtemp, mkdir, readFile, rm, writeFile, stat } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, realpath, rm, writeFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -57,7 +57,8 @@ import { HOME_DOCK } from "./fixtures/home-dock-scene.js";
 const ROOT = dirname(fileURLToPath(import.meta.url));
 
 async function withHome<T>(run: (home: string) => Promise<T>): Promise<T> {
-  const home = await mkdtemp(join(tmpdir(), "molis-work-review-fixes-"));
+  // The real path: the Home snapshot refuses a Home reached through a link (macOS puts tmpdir() under /var -> /private/var).
+  const home = await realpath(await mkdtemp(join(tmpdir(), "molis-work-review-fixes-")));
   try {
     return await run(home);
   } finally {
@@ -104,8 +105,8 @@ test("Home 存储登记列出全部个人库、讨论库 server/ 和 Home 里的
 
 test("uninstall --purge 会把登记的每个 Home 存储列入删除并真正删掉", async () => {
   await withHome(async (home) => {
-    const userHome = join(home, "user");
-    await mkdir(userHome, { recursive: true });
+    // The person's own home is outside the Home: an entry the Home does not own stops the purge (FIX19).
+    const userHome = await mkdtemp(join(tmpdir(), "molis-work-review-fixes-user-"));
     // Each registered store, written the way its owner writes it: a library file, a file, or a directory with something in it.
     const written = homeStores().stores.map(store => store.library ? homeStores().libraryPath(home, store)
       : /\.json$/u.test(store.path) ? join(home, ...store.path.split("/")) : join(home, store.path, "kept"));
@@ -118,7 +119,8 @@ test("uninstall --purge 会把登记的每个 Home 存储列入删除并真正�
     await rm(homeStores().libraryPath(home, ledger));
     const ledgerDb = new DatabaseSync(homeStores().libraryPath(home, ledger));
     ledgerDb.exec(ledger.library!.baseline.schema);
-    ledgerDb.prepare("INSERT INTO plugin_home_libraries VALUES (?, ?, ?, 1, ?, ?)").run("example.installed", "signature", "installed-notes", "digest", "2026-10-24T00:00:00.000Z");
+    ledgerDb.exec(`PRAGMA user_version = ${ledger.library!.baseline.version}`);
+    ledgerDb.prepare("INSERT INTO plugin_home_libraries VALUES (?, ?, ?, 1, ?, ?)").run("example.installed", "signature", "installed-notes", "0".repeat(64), "2026-10-24T00:00:00.000Z");
     ledgerDb.close();
     const installedLibrary = join(home, "installed-notes");
     await mkdir(installedLibrary, { recursive: true });
@@ -157,6 +159,7 @@ test("uninstall --purge 会把登记的每个 Home 存储列入删除并真正�
     });
     assert.equal(result.status, "purged");
     for (const file of written) await assert.rejects(stat(file), file);
+    await rm(userHome, { recursive: true, force: true });
   });
 });
 

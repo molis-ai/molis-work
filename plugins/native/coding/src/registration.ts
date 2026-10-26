@@ -1,6 +1,5 @@
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { createCodingPlugin, CODING_PROJECT_PLUGIN_ID, CODING_STYLES, CODING_WORKBENCH_CLIENT_FACTORY_SCRIPT, codingManifest, codingSettingsContribution, codingUiView } from "./index.js";
-import { CODING_MESSAGES } from "./messages.js";
 import { codingBoardSpecimens } from "./board-specimens.js";
 
 /**
@@ -9,7 +8,6 @@ import { codingBoardSpecimens } from "./board-specimens.js";
  */
 export const registration: PluginRegistration = {
   project_plugin_id: CODING_PROJECT_PLUGIN_ID, catalog_order: 22,
-  messages: CODING_MESSAGES,
   manifest: codingManifest,
   project_runtime: { create: createCodingPlugin, package_name: "@molis-ai/molis-work-plugin-coding", factory_export: "createCodingPlugin" },
   workbench: {
@@ -18,6 +16,8 @@ export const registration: PluginRegistration = {
     contributions: [codingUiView(() => []), codingSettingsContribution],
     clientFactory: CODING_WORKBENCH_CLIENT_FACTORY_SCRIPT,
     stylesheet: CODING_STYLES,
+    // The attributes the Characters import page and the shared diff view read or set.
+    stylesheetShared: ["data-coding-workbench", "data-coding-line"],
     clientUses: ["git", "files"],
     specimens: codingBoardSpecimens,
   },

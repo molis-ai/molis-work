@@ -128,7 +128,7 @@ export class PrologueRunStore {
         if (event.text === task) return;
       }
       const at = this.now().toISOString();
-      if (!applyRunEvent(record.state, event, at)) return;
+      if (!applyRunEvent(record.state, event, at, waiting => this.#runtime.unexecutedApprovalCall?.(ref, waiting))) return;
       // A held ending reads as what was wrong with it; one that ended still only announcing says nothing was done.
       if (event.type === "model-response-repair" && event.reason === "stop-held") {
         const label = ports.stopHeld?.(ref.run_id), held = [...record.state.activity].reverse().find(item => item.call_id.startsWith("model-held-"));

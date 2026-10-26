@@ -36,7 +36,7 @@ export class PrologueSessionCache {
     const loading = (async () => {
       const restored = await this.runtime.sessions.restore?.(id); current();
       if (!restored) return this.require(id);
-      const { session, records } = restoredSessionRecords(restored);
+      const { session, records } = restoredSessionRecords(restored, (run, waiting) => this.runtime.unexecutedApprovalCall?.(run, waiting));
       this.sessions.set(id, session);
       for (const record of records) { this.runs.set(record.view.ref.run_id, record); this.publish(record.view.ref.run_id); }
       return session;

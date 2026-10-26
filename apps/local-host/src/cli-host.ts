@@ -4,6 +4,7 @@ import { runLocalDemoCli, runLocalUninstallCli } from "./cli-project-maintenance
 import { runV1Cli } from "./cli-project.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { runCliMemoryRecovery } from "./cli-memory-recovery.js";
+import { runLocalHomeCli } from "./cli-home.js";
 
 export interface LocalCliOptions {
   recoverMemoryHome?: Parameters<typeof runCliMemoryRecovery>[1];
@@ -16,6 +17,7 @@ export function runLocalCli(args: string[], options: LocalCliOptions): Promise<n
   const recover = options.recoverMemoryHome;
   return dispatchCli(args, {
     ...(recover ? { recoverMemoryHome: input => runCliMemoryRecovery(input, recover) } : {}),
+    home: runLocalHomeCli,
     plugin: options.runPlugin,
     install: (args) => runLocalInstallCli(args, options.defaultSourceDirectory),
     service: runLocalServiceCli,

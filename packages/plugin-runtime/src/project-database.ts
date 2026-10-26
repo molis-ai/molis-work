@@ -209,6 +209,19 @@ export function inspectExistingPluginProjectDatabase(connection: PluginRuntimeDa
   return checked;
 }
 
+/** The actual ledger subversions for an offline backup; no table creation, write transaction, or plugin activation. */
+export function listPluginProjectDatabases(connection: PluginRuntimeDatabase): readonly PluginProjectDatabaseRecord[] {
+  const rows = connection.prepare("SELECT plugin_id, publisher_signature, store_name, version, tables_json, created_at FROM plugin_project_databases ORDER BY plugin_id").all() as LedgerRow[];
+  return rows.map(row => {
+    const entry = record(row);
+    if (!Number.isSafeInteger(entry.version) || entry.version < 1 || !Array.isArray(entry.objects)
+      || !entry.objects.every(name => typeof name === "string" && name.length > 0)) {
+      throw pluginProjectDatabaseErrors.shape_mismatch("项目插件库账本的版本或对象列表无效，未生成快照");
+    }
+    return entry;
+  });
+}
+
 /**
  * Open a plugin's tables in a project's library, making them the first time (PLIB-02, PLIB-04). In one write transaction: with no
  * ledger row, nothing of the same name may exist yet, and the statements run and the row is written together; with one, the

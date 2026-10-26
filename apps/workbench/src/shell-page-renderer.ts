@@ -1,10 +1,11 @@
 import { renderPluginFrameSurface } from "./plugin-frame.js";
+import { inWordsOf } from "./i18n.js";
 import { renderUnavailablePluginStage, type UnavailablePluginStage } from "./unavailable-plugin-stage.js";
 import { pluginSurfaceClients, deferredSurfaceClients } from "./plugin-workbench.js";
 import { BUILTIN_PLUGIN_CATALOG } from "./builtin-plugins.js";
 import { listPluginSettingsNavItems } from "./plugin-settings-catalog.js";
 import type { WorkbenchDocumentRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
-import { buildGoalCollectionModel, type GoalCollectionItem, type GoalCollectionView, type GoalCollectionModel } from "@molis-ai/molis-work-plugin-goals";
+import { buildGoalCollectionModel, GOALS_PLUGIN_ID, type GoalCollectionItem, type GoalCollectionView, type GoalCollectionModel } from "@molis-ai/molis-work-plugin-goals";
 
 import type { PluginIconName as PageIcon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderDialog } from "@molis-ai/molis-work-design-system";
@@ -141,7 +142,7 @@ export function createWorkbenchGoalsPageRenderer<TItem extends GoalCollectionIte
     renderGoalDocument, renderTrashGoalDocument, goalsDocumentRenderer, goalsTreeRenderer, renderGoalProposals,
     renderCreateDialog, renderGoalTrashDialog, renderMomentumPlaceholder, renderGoalKanban, renderTuiPane,
     renderDesktopProjectChrome,
-    renderFeedNativePluginSurface, stageModel } = owners;
+    renderFeedNativePluginSurface, stageModel } = owners, goalsL = inWordsOf(GOALS_PLUGIN_ID, L); // Goals' collection draws in its own words (PG-071)
 
 function renderMolisWorkRefreshFragment(
   view: TView,
@@ -149,7 +150,7 @@ function renderMolisWorkRefreshFragment(
   archiveView = false,
   trashView = false,
 ): string {
-  const collection = buildGoalCollectionModel(view, requestedGoalId, archiveView, trashView, L);
+  const collection = buildGoalCollectionModel(view, requestedGoalId, archiveView, trashView, goalsL);
   const { selected } = collection;
   const document = selected
     ? trashView
@@ -175,7 +176,7 @@ function renderMolisWorkWeb(
   desktopShell = false,
   cliAvailability: Record<string, boolean> = {},
 ): string {
-  const collection = buildGoalCollectionModel(view, requestedGoalId, archiveView, trashView, L);
+  const collection = buildGoalCollectionModel(view, requestedGoalId, archiveView, trashView, goalsL);
   const { selected, title, collectionTitle } = collection;
   const initialFeedPreset = "feed" as const;
   const initialDesktopDirectory = "root";

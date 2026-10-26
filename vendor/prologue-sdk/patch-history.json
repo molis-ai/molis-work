@@ -9,9 +9,9 @@
   },
   "upstream": {
     "repository": "https://github.com/molis-ai/molis-prologue",
-    "checkedOn": "2026-10-23",
-    "mainHead": "2c7feba5a6ea85e81e4a263671fb5e68f536d86a",
-    "statement": "2026-10-23 对上游 main 2c7feba5a6ea85e81e4a263671fb5e68f536d86a（Prologue #60，含 #59、#58、#53、#57、#56、#55、#54、#52、#51、#50、#49、#48、#47、#46、#45、#44、#43、#42 与此前各项）逐项用 GitHub 的比较接口（repos/molis-ai/molis-prologue/compare/<提交>...<main 头>，状态为 ahead 或 identical 即是祖先）复核：当时核查的 commitsChecked 列表中除 08b84296、923e5a40、4007a93c 三个已换掉的过渡包来源（状态 diverged）以外，全部是 main 祖先；三个过渡提交本身不在 main，仍按完整提交号保留。上游仓库此后改名为 molis-ai/molis-prologue（原 molis-ai/prologue）。 2026-10-24 补核 SDK 94 的原包来源 f4bbbd88c5f3ef6fc8041ed230b8bf5b1fa1d512：本地完整 Git 树确认该原提交经 #94 squash 为 d94a99fb，两者 tree 均为 53a36182941605e75fb8c899a51a92d859ac8982；d94a99fb 是 SDK 95 来源 a875be89c2186e79ecf35bf0867a8bac20da1887 的祖先，原 f4bbbd88 提交本身不是其祖先。本次将原包完整来源加入 commitsChecked，不改写上面 2026-10-23 的 main 核查时点。 2026-10-24 补核旧 #96 包来源 15c38aed0bde2f8f0540a3e390f2e03033cdb717 与合并 d46e76c61d06dbb9bcd6ca6a2f7fcb1b5acc1e11 的 tree 同为 21527ff6c95cd6f37a388c01eba910f322e0a9b0；该 merge 是新包来源 ca0de1c60c248b83c79d49f064f725ecb97664ee 的祖先。保留上面历史 main 核查时点。 2026-10-24 补核旧 #99 包来源 ca0de1c60c248b83c79d49f064f725ecb97664ee 是 #100 合并 a83e04761108a21f04f9a1b2a67c1dc8cb1582fe 的祖先；保留原 2026-10-23 历史核查时点。",
+    "checkedOn": "2026-10-25",
+    "mainHead": "f1753ec8fa2cbca45667e60e101b93702acc6640",
+    "statement": "2026-10-25 在准确上游 main f1753ec8fa2cbca45667e60e101b93702acc6640 上对42个commitsChecked逐个执行git merge-base --is-ancestor：除已换掉的08b84296、923e5a40、4007a93c三个历史过渡源及当前ba75c9f8之外，其余均为main祖先。当前final103-bridge依赖来自公开固定分支feature/node-storage-final103-bridge的ba75c9f8437018904b24dabeaaef6ded8054add5，不是main祖先：基点2c7feba5（PR60），只移植PR103定稿6523abb47..513237d2的功能；4e018e1a保旧普通分页/读取及旧合同，ba75只修导航。按accepted WO #1267/6395049480作为过渡包采用，不带PR61–101、PR104或旧42。旧42只曾作为本PR候选验证、未正式合入，不将其伪记为已采用的历史包。原已删除的26份补丁与32包记录保持，后续可按Git blob取回。",
     "commitsChecked": [
       "03c6ba0b24ddd46ff1cd0f604e3e2bcb134687c2",
       "07ad08a11e3b4a01b9fe877dedff1efba6f4833c",
@@ -54,9 +54,7 @@
       "a51607fbfa11e8f59ac0962906aa1bcbf155d8e6",
       "753dbae8359e56a74397d030af4d18abf402d5b5",
       "2c7feba5a6ea85e81e4a263671fb5e68f536d86a",
-      "f4bbbd88c5f3ef6fc8041ed230b8bf5b1fa1d512",
-      "15c38aed0bde2f8f0540a3e390f2e03033cdb717",
-      "ca0de1c60c248b83c79d49f064f725ecb97664ee"
+      "ba75c9f8437018904b24dabeaaef6ded8054add5"
     ]
   },
   "patches": [
@@ -779,6 +777,14 @@
       "description": "上游 main 753dbae8（Prologue #57，含 #54、#55 效果与 awaiting-input 的来源、#56 附件占位串加 -END 结尾、#57 多张图按给出的顺序到模型与此前各项）。2026-10-23 被包含 #53（已答的 ask-user 结果用 answered 带题号）、#58（运行时准入与关机边界）、#59（收窄内部导出）与 #60（retry-waiting 事件）的统一包替换；旧包及其来源记录从 Git 历史取回。"
     },
     {
+      "file": "prologue-sdk-0.0.0-rc.1-retry-waiting.tgz",
+      "bytes": 1249614,
+      "sha256": "ac44cf9fd079f3444523285798ac0d6d2dc1ed1e5b07f05870887db66b4df419",
+      "gitBlob": "fd00b166b99637c31406a41367fba0577f1a3f34",
+      "commit": "2c7feba5a6ea85e81e4a263671fb5e68f536d86a",
+      "description": "上游 main 2c7feba5（Prologue #60，含 retry-waiting、#59、#58、#53 与此前各项）。2026-10-24 由同一准确基点加 C2-SDK-INSPECT 固定42ccc75a的零写 Node 存储认证包替换；SDK源头本地提交未声称已合上游，未带整个Memory Draft；旧包及来源记录从Git历史取回。"
+    },
+    {
       "file": "prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
       "bytes": 1340202,
       "sha256": "119feb645c13f6d7ec1f288e42f0b68d95031e268826ca014da2c26346394bb1",
@@ -792,6 +798,7 @@
     "ledger-status.patch 已并入 claims.patch；network-dispatch.patch 已包含在 assistant.patch 与 bounded-results.patch 中（当时 README 的说法）。",
     "2026-10-01 清理时这些工作树的未提交状态另存在开发机的 ~/code/prologue-cleanup-backup-20261001/wip.bundle，只在那台机器上，不属于本记录。",
     "最早的 prologue-sdk-0.0.0-rc.1.tgz 没有对应的源码提交，不能当作任何一个提交的构建；其余本地中间包不是依赖，也没有作为分发物提交过。",
+    "2026-10-26 Foundation batch40 adopts merged Memory #107: clean source 1cc80b05253df798eeb34afff65d1bda06bee587, upstream merge ccafbb74fb9db0e3a124ec502c57291677487e23, whose complete trees are equal. Replaced #94 package, SHA256 119feb645c13f6d7ec1f288e42f0b68d95031e268826ca014da2c26346394bb1, remains recoverable from c61508d5e15ab4850d256843a0e4110f9ecf1e20:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-memory-p0.tgz. Main final103-bridge is retained as inactive LKG; the dated upstream audit above describes that earlier adoption and is not restated as an audit of this new source.",
     "同名包的后续历史版本（packagesWithoutPatch 每个文件名只登记一次，保留其中 #94 原记录）：{\"file\":\"prologue-sdk-0.0.0-rc.1-memory-p0.tgz\",\"bytes\":1359578,\"sha256\":\"bb0b6b79c3f744a2bb64c214472a53b74b0a50d5c61d5f0b026c1f02b5a086c5\",\"gitBlob\":\"631dd0db93f3d08b637157351f9d461bdceadc35\",\"commit\":\"15c38aed0bde2f8f0540a3e390f2e03033cdb717\",\"description\":\"Prologue #96 干净 head 15c38aed，已合 main d46e76c61 且整树一致：明确续期与同 Runtime Session 转换提交保护，shape 8。2026-10-24 被已合并 #99 的正式 Memory 包替换，包含 #97 显式分类采用、#98 Session purge 及 #99 离线采用清理入口；旧包和来源记录从 Git 历史取回。\"}",
     "同名包后续历史版本（保留 packagesWithoutPatch 原 #94 条目）：{\"file\":\"prologue-sdk-0.0.0-rc.1-memory-p0.tgz\",\"bytes\":1365058,\"sha256\":\"1ce7089030708da3be43e0801802fff6bf87cf8d5a06a8f6504c2016971ac752\",\"gitBlob\":\"3beb4c84c7f64200c2d03e4038fa193303f07cea\",\"commit\":\"ca0de1c60c248b83c79d49f064f725ecb97664ee\",\"description\":\"已合 Prologue #99（干净 head 1c4cb31a 整树等同 ca0de1c6），2026-10-24 由 #100 归档历史限定只读补丁替换；旧包可从 Molis #1184 的 Git 对象取回。\"}",
     "Additional historical version of the same archive: {\"file\":\"prologue-sdk-0.0.0-rc.1-memory-p0.tgz\",\"bytes\":1365062,\"sha256\":\"d42b1699b0bd7a41db97521b27dadf892feff27d560047dcd4e8ec2f6eea700e\",\"gitBlob\":\"3ed2e012bca6c3a2517dca9988b28183756ac8e5\",\"commit\":\"a83e04761108a21f04f9a1b2a67c1dc8cb1582fe\",\"description\":\"Merged SDK #100 archive replaced by merged SDK #101 online purge preview (production 28e6f049, merge 6523abb4) on 2026-10-25. Original archive remains in Git history.\"}",
@@ -801,6 +808,7 @@
     "Additional historical version of the same archive: {\"file\":\"prologue-sdk-0.0.0-rc.1-memory-p0.tgz\",\"bytes\":1390295,\"sha256\":\"ffef5464b0b249fe9c28acd447de2b88e0436037dc1073673b461e88d65056d5\",\"integrity\":\"sha512-9ooicSsDXNWgwi+FJHVHgVGJsrGTIIRX3gvW28bgX4TfYLJRMfg5ErLhmANyYWKJ6boUQqB593qzOgScWD1b1Q==\",\"commit\":\"ee806705cdf1d992479425eb1edb03d12eb3744b\",\"gitBlob\":\"3bac78451bd215b324d9cd2a33c0f627a33dc006\",\"description\":\"Replaced by merged SDK #102 at 13c476a3; original archive remains in Git history.\"}",
     "同名包后续历史版本：{\"file\":\"prologue-sdk-0.0.0-rc.1-memory-p0.tgz\",\"bytes\":1390372,\"sha256\":\"4ceebe6b506b4d00a7722eb378ec0bb80f62dd757fb3a05408f6dbe210fadf1c\",\"integrity\":\"sha512-V8ZOgEqXZtyRp+THGRfTq8atdscQWvQK/Le+ioDQAX89jxm35fQGmOYd0mMmwf0f6ieE6heG6UqDMOuuVNYayQ==\",\"gitBlob\":\"37fc0b3e74d07a05b8633f1fa8d05da319a50176\",\"commit\":\"13c476a3a9ab3b44c811ad1e3cac7abeea9816c4\",\"description\":\"已合 SDK #102 包由已合 #106 冷恢复 coverage/固定 Session 选择及同句柄关闭重试包替换；原包与来源从 Git 历史取回。\"}",
     "Additional historical version of the same archive: {\"file\":\"prologue-sdk-0.0.0-rc.1-memory-p0.tgz\",\"bytes\":1391846,\"sha256\":\"58eec2e9ca12551a7c021ef228c57953154f323b4304ca06483568c87c6d5eaa\",\"integrity\":\"sha512-j0+N42LsgBWHUAJ7RumpFFG0KmsRfT9lTOvD9sTq5fWC64PiNL2E6omNxag7ZmkBrk0AptiTkHgO+gIIOUW9KQ==\",\"gitBlob\":\"bc4823b3b5445753ad279665bd8db20ca436d66c\",\"commit\":\"b54429dbf43e8f9f8f4b910999674c192077c247\",\"provenanceGitBlob\":\"96e4dd60953844e3f07c1ef73e2c1fcdd05ac305\",\"sha256GitBlob\":\"84d7410f0898a335ea3e58c53f13819bc0c011c1\",\"description\":\"Merged SDK #106 package at b54429db replaced on 2026-10-26 by merged #107 from clean source 1cc80b05. The original archive and both complete sidecar records remain retrievable by the recorded Git blobs.\"}",
-    "{\"kind\":\"replaced-memory-p0-package\",\"bytes\":1397575,\"sha256\":\"6893801bb36df43630c0ea1cfe44eb08c2fcd0b57ae0b0abbffab42623ad5a78\",\"integrity\":\"sha512-LPbQWH3HFyVKlmSQnFb6wuKGBLuZS5zrqHX1SEMuBb6ila2gIDi1WPHcnPhcyn/yXj1zUV8mgCbKqViRnKmcfQ==\",\"gitBlob\":\"0c7e8e75d8729017e415faba443e5f72118ddc99\",\"commit\":\"1cc80b05253df798eeb34afff65d1bda06bee587\",\"provenanceGitBlob\":\"465b79ace8e754a2e85feed18003d14c89b6a47d\",\"sha256GitBlob\":\"11eaf55958d48e3990d591f4f91e8d0fcb855f5e\",\"description\":\"Merged SDK #107 package replaced on 2026-10-26 by clean candidate #108 source 7ebb15af for the same App collection-read consumer. Original archive and complete sidecars remain retrievable by these Git blobs.\"}"
+    "{\"kind\":\"replaced-memory-p0-package\",\"bytes\":1397575,\"sha256\":\"6893801bb36df43630c0ea1cfe44eb08c2fcd0b57ae0b0abbffab42623ad5a78\",\"integrity\":\"sha512-LPbQWH3HFyVKlmSQnFb6wuKGBLuZS5zrqHX1SEMuBb6ila2gIDi1WPHcnPhcyn/yXj1zUV8mgCbKqViRnKmcfQ==\",\"gitBlob\":\"0c7e8e75d8729017e415faba443e5f72118ddc99\",\"commit\":\"1cc80b05253df798eeb34afff65d1bda06bee587\",\"provenanceGitBlob\":\"465b79ace8e754a2e85feed18003d14c89b6a47d\",\"sha256GitBlob\":\"11eaf55958d48e3990d591f4f91e8d0fcb855f5e\",\"description\":\"Merged SDK #107 package replaced on 2026-10-26 by clean candidate #108 source 7ebb15af for the same App collection-read consumer. Original archive and complete sidecars remain retrievable by these Git blobs.\"}",
+    "2026-10-26 application/Foundation composition preserves the earlier Memory branch source references f4bbbd88c5f3ef6fc8041ed230b8bf5b1fa1d512, 15c38aed0bde2f8f0540a3e390f2e03033cdb717, ca0de1c60c248b83c79d49f064f725ecb97664ee. They are not appended to the dated 2026-10-25 upstream audit; that record retains its original exact main and 42 checked commits. Both prior branch records remain in Git history."
   ]
 }

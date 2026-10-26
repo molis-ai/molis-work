@@ -1,8 +1,49 @@
 # W5-16：Home 离线快照与恢复
 
-状态：Codex C2 实施中；B1 #1190 `bc0160f06` 经独立 REVIEW/TEST 核收，已随 #1202 实际合入 main `645853cb6`（#1190 本身关闭而非单独 merge）；B2a（Runtime 备份密封、只读 vault 预检、旧备份维护）已随 #1222 进入 main；B2b（CLI 私有状态密封）从 main `0060920a` 实施。早期 Home 互斥及完整快照/恢复尚未实现。负责人：Codex 实现2。目标是完整命令功能可用，工程证据、临时 Home 实操与一骏本人验收分别结算。
+状态：完整 Codex C2 仍未完成；Root 2026-10-25 仅重新授权实现2处理 #1267 非 Memory 的 SDK 快照认证父测试超时。本树准确从固定 SDK 消费者 `0cabdc7a4fa0ac22e3d422aad939921121976826` 分出，SDK 源仍固定 `ba75c9f8`，不重做已双核包或分类/格式片。Memory #1059/#1064/#1101、两端口及 dependency_unavailable 接续继续暂停；这不是恢复整个 C2。本题验证完成、独立审验和 carrier 采用分别结算，不冒 Ready、完整 snapshot/restore 或本人验收完成。
 
 ## 目标、依据与交付顺序
+
+### #1267 非 Memory 认证父项超时（2026-10-25 接受 WO）
+
+唯一 writer 为 Codex 实现2，分支 `feature/codex-pr1267-snapshot-auth-timeout`，父为准确 `0cabdc7a4fa0ac22e3d422aad939921121976826`；原 PR `1556d97b7eb35d72de8b83b7569fbfd48b239760`、SDK 包/provenance 及其他工作树保持。目标只关闭原 `S-12 RAC-104-S-04: actual SDK cipher authentication covers every page, kind, empty body and tombstone without changing source` 的组合父项超时，沿用 RAC-104-S-04 / RAC-104-S-10，不新增全局编号。
+
+已核 [TEST 6397009834](https://github.com/molis-ai/molis-work/pull/1267#issuecomment-6397009834) 的原件 `/tmp/molis-verify-2026-10-25/c2-0cab-control-test/`：1556 为 pass3/fail4/cancel3、父120111ms；0cab 为 pass6/fail1/cancel3、父120008ms；相同1002记录、原fixture/runner、串行FIFO，均为 NOTPASS，原根因仍 UNKNOWN。builder-only 9/9、55.436秒只覆盖该分区，不能代替组合父项。保留首红、未选与取消；本题不重跑已完成的其他分类/格式/103包采用工作。
+
+先定位，再修复：读取实际 capture→逐文件耐久复制→SDK只读认证→发布/清理链，并以透明进程内计时区分 seed子进程、指纹、复制/刷盘、SDK认证及退出；不启动真实Host/Runtime/模型。当前可验证假设是每个认证负例在到达只读SDK前都重新复制并fsync全部1003文件，重复耐久写可能主导总耗时；已有一次局部诊断仅证明其单次成本，尚不能归因为原父项。新的有限诊断须能区分这一假设与认证/关闭等待或fixture问题，不把抽选/插桩结果冒充完整产品通过。
+
+允许改现有 snapshot tests/fixtures、实际根因涉及的最小快照模块及本段。若测试组织有误，保持原完整语义再修组织；若生产缺陷则修完整必要调用链。SDK源码或发布包确需变化时先携具体证据/最小改动交 Root 与原上游/pack owner 串行，本题不自行替换或改 provenance。
+
+验收保持原120秒父项，1002同kind记录加其他owner、跨页、空secure body、保留密文墓碑、错/缺/坏key、四个tag拒绝、零源写、完整正控、两次跨进程lease排斥及无初始化断言全部保留；不得增加timeout、减记录/断言/owner、以环境绿或builder-only代替。最终须真实完整组合自然通过，并跑相关原快照用例，才能关闭本题。测试仅隔离Home，重活走公共FIFO，不新增full/CI/browser批；普通push前fresh-fetch/secrets，固定 parent/head、根因、完整diff与原件直接交 REVIEW/TEST/PIPE/Root，由Claude唯一采用。验证事实在本段后续回填。
+
+诊断更新：候选原源码/构建摘要匹配 `bb52fb123a1897b7fc2b686836ed94bd1e7737f7571bac17db17d3156f64efab`。外置透明FS/spawn计时下，未修改的完整父项本次17/17、87.687秒；这只证明该次运行，不抹原红。16次capture的16054次records文件/目录fsync共58.819秒，其中14个负控各1003次文件fsync，合计51.625秒；认证读取窗口每次最多108ms，清理每次37～78ms，两个seed共9.309秒，source观察共2.684秒。已确认重复持久化最终被认证拒绝的私有副本是主要结构性成本；历史两次未插桩的具体停顿仍保留边界。原件在 `/tmp/molis-pr1267-snapshot-auth-timeout-20261025/phase-original/`，不计为修复通过。
+
+实施收敛：仅有 owner `inspect` 的快照store把普通文件刷盘延到该次完整私有payload认证成功之后；仍逐个刷齐，在manifest/目录最终flush及发布之前完成。普通复制默认即时刷盘，不改其他消费者。SDK仍只认证经过原排除规则的真实暂存payload，不新增原目录预验（原目录可能含既定排除的未完成claim/tmp）、解密器、缓存或另一套owner协议。保留原摘要/源稳定检查、离线lease、失败清理与发布后flush失败语义。原测试增加负控无record刷盘、成功发布前全1003个record已刷盘、认证成功后的刷盘故障拒绝与零源写；不减少原认证组合或改120秒。
+
+作者实现与必要验证完成，代码固定 `03d64d9fbe35bf8e544c049de666796011b65e9e`（准确父0cab）；后续只回填本段结果，源码/测试/包保持。新的无刷盘断言对原0cab构建做有限反证时，错有效长度key一项明确失败为 `1003 !== 0`（自然exit1，其他负项与builder未选，不冒全父项基线）。修后整体build退出0，官方源码与构建摘要匹配 `8b81a90c30c4d209d0b6cf50f12dbb9343ada4c24d3c24fe2bf0fbda35d73a4a`。
+
+无外置计时器、无用例筛选的正式 `security-invariants-home-snapshot-sdk.test.ts` 全24/24通过；其中原完整双分区认证父项17项全部完成，耗时22469.565ms，原120000ms未改，fail/cancel/skip/todo均0。负项在真实SDK拒绝后断言records文件无fsync；成功路径在实际rename之前断言两kind、跨页、空正文、保留密文墓碑的全1003文件都完成真实fsync；原私有payload篡改场景另注入有效认证后的文件刷盘故障，拒绝发布、零源写、清理暂存并可重新取得同一Home lease。原CLI、内容、输入、生命周期与Sessions离线五文件也通过，合计六文件73/73、自然exit0。测试前后代码头与clean状态不变。
+
+边界、严格test-imports、API、page-assets及相对0cab与`origin/main`（merge-base `52560f32`）的健康门禁均退出0，没有改门禁/基准/预算。`vendor`、依赖/锁/登记脚本、agent-host、contracts、plugin-sdk及Memory相对0cab均无改动；只改本题八个快照实现/测试/README/spec文件。推前按原要求fresh-fetch/secrets并普通推送。全部命令/退出码/完整输出在 `/tmp/molis-pr1267-snapshot-auth-timeout-20261025/`（`phase-original`是诊断，`regression-old-dist`是有限反证，`fixed-targeted`才是正式完整文件与相关回归）。
+
+原1556/0cab的两份120秒NOTPASS与旧builder-only9/9保原样，不把历史精确停顿原因或未选项回填成通过。本次只解决该非Memory认证父项；等待固定候选的增量REVIEW/TEST与唯一carrier采用，不算原PR/main已合入、完整C2/restore或本人验收完成。Memory接续仍暂停，未跑full/CI/浏览器或操作真实Home/凭据/模型。
+
+### #1267 final103 过渡 SDK 消费（2026-10-25 当前合同）
+
+本独立后继以冻结 snapshot `1556d97b7eb35d72de8b83b7569fbfd48b239760` 为父；原树与 PR head 保持不动。Root/PIPE 已依据 [accepted WO](https://github.com/molis-ai/molis-work/pull/1267#issuecomment-6395049480) 明确 C2 为唯一包/消费 writer：仅采用 SDK 基点 `2c7feba5a6ea85e81e4a263671fb5e68f536d86a` 上的 final103 移植，准确最终源 `ba75c9f8437018904b24dabeaaef6ded8054add5`（功能 `4e018e1a`、文档尾 ba75）；不带 #61–#101/#104、旧 `42ccc75` 或整个 main。main dcaa 已双核包保留为参考，原 #1064/main 采用线与恢复的真实 Memory 资格/合法空态责任均不取消。当前恢复 WIP、FIX8/18/19 不混本分支，统一 carrier 仍由 Claude/PIPE 负责。
+
+FIX6 是唯一源移植 owner，已独立实现并冻结；原完整103 patch 对旧 base 的两处真实不适用及合同差异保留，不能称原样应用。writer/verifier/原公开 Node consumer/wrapper 四文件与准确 final103 `513237d2` 相同；Reader 普通 list/read 保留旧记录游标、无 cost 与原读取行为。storage-contract/listAll、package/lock、Memory/Session 没有纳入现代合同。功能 [REVIEW 6395474238](https://github.com/molis-ai/molis-work/pull/1267#issuecomment-6395474238) 与 [独立 TEST 6395486420](https://github.com/molis-ai/molis-work/pull/1267#issuecomment-6395486420) 绑定4e，原真实23+2和作者八文件68不重叠累计；尾提交仅三份 Markdown +4/-2，[导航复核6395521334](https://github.com/molis-ai/molis-work/pull/1267#issuecomment-6395521334) 已通过。包必须从最终 ba75 构建，不能把4e、dcaa或旧42产物改标签。
+
+两份独立无旧 dist 的 SDK 目录各准确检出 ba75、离线 frozen/ignore-scripts 安装，经公共机器 FIFO 整体 build/pack；实际整包字节相同后测新 SHA/内容清单，采用其中原始字节。Molis 仅替换唯一 tgz/sha/provenance、SDK file 依赖与 lock、包登记表 `scripts/workspace-packages.mjs` 的同一依赖路径、必要历史/README/本段和实际包身份断言；登记表只同步当前包位置，不改变边界规则、谓词或阈值。代码改动仅限真实消费回归暴露的最小 snapshot 接线，SDK 语义问题回原 owner。不新增兼容层、模型/Memory迁移、锁、动作、门禁或 baseline，不碰真实 Home/凭据。source/provenance/history 明确这是公开固定分支的过渡提交、不是 main 祖先；旧42只保历史候选证据，不作正式已采用包记账。
+
+两项已接受的103风险保留并在 PR 正文披露：检查过程中目录变化可能漏读或从头续页；普通 NodeStorage 仍继承检查方法，误调用 close 会清其 key。Molis 的适用前提是同一真正离线 Home lease、复制完成后的稳定私有归档、原 key 映射和正常存储对象不调用检查方法；没有104的冻结清单/FD竞争/生命周期保障，不宣称抵抗任意外部并发。全写入口/卸载/purge 的 FIX19 合同由原 carrier 组合，本 SDK 后继不代替其完整互斥结论。共享 SECURITY-INVARIANTS 的同行说明只交唯一 carrier 窄 patch。
+
+| 编号 | 本后继验收 | 证明方式 |
+| --- | --- | --- |
+| RAC-109-S-09 | 正确可重建过渡来源、两目录包一致，实际 tgz/依赖/lock/包登记表/sha/provenance/history相符，不伪称main或旧候选正式采用 | 独立实际 build/pack 原件、全文件及整包比较；`vendor-provenance` 实际包断言及源/祖先核验、原包边界检查 |
+| RAC-104-S-10 | 已有 snapshot 真 SDK 认证接线在准确新包上保持，错误 key/tag、各 kind/页/空正文/墓碑拒绝且零源写；metadata-only/检查点正常 | 原 `security-invariants-home-snapshot-sdk` 全部真实正负例，原四个 snapshot 文件、有限 SDK 消费要求；不以type/import成功替代 |
+
+先安装并整体构建 Molis，再跑原要求的91非浏览器/4专用浏览器文件、SDK认证及snapshot直接回归；真实付费/公开npm等 opt-in 未获授权仍单列未运行。已有 Studio TLS/400 基线故障保原件，若复现只在代码/场景一致时注明，不能放宽断言。类型、精确merge-base health、boundary、import graph、版本/资源及推前 fresh-fetch secrets 按实际差异核。普通推送独立固定消费者头，公开 #1267 直交 REVIEW/TEST/PIPE；full、组合批与实际 main 由 Claude 唯一执行，不把SDK切片通过当作完整C2或正常restore通过。
 
 落实主规格决定 #20：`molis-work home snapshot --to <dir>` 与恢复在离线窗口操作同一个 Home；逐库用 SQLite backup API，保存必要的非 SQLite 状态，清单记录版本、完整性与摘要，恢复版本不符就拒绝。定时在线备份、在线 quiesce/resume、换机器或搬动 Home 绝对路径不在这里。真实 Home、钥匙串、真实凭据与发版均不操作。
 
@@ -14,6 +55,119 @@ Claude 负责整线方向、优先级、跨线依赖与统一 full。2026-10-24 
 4. 完整快照，再完整恢复；可以分 PR，但上述总范围保持。本片交付不把 C2、W5-16 或防腐线标完成。
 
 C1 RAC-113 以 #1183 固定并释放后，B1 已按约定交 REVIEW/TEST、释放给修复2的 #1112 短片，之后回到 B2。B1 在统一 #1202 中落定 S-61，真实前序 S-59/60 随沙箱同批进入，不插占位或放宽门禁。B2a 固定 head 后也立即直交 REVIEW、TEST、流水线并释放源码，不等待 B2b、评审或 CI；后续单 writer 由流水线按真实依赖接续。本片沿已有 S-12 增补密钥/备份拒绝，不另抢新编号。
+
+## 完整 snapshot 命令（2026-10-24 当前实施合同）
+
+本片后续树最初以 actual main `52560f32c5dec529315d11eff95932c2ea1d7dff` 组合 A `19ccdfa8`、B2b `5e1d8a29`（初始基点 `2b7d8133541deaa9d6ad79eaf5ac0e5ae9a19f97`）。snapshot 实现 checkpoint `8c5c7a677` 后已纳入 A 窄修复 `b5211d8a5b9557783710ea7574a5e6d26751701e`，A 修复后的组合提交为 `6ef2ad3148ef060ed2722dfbc654716529f2812d`，随后两文件 MCP 消费修复为 `e2d2ea19dee474bc3aaf788a0c86ba2f06c09c7e`；A 修复增量已独立双核，[完整 A FIRST](https://github.com/molis-ai/molis-work/pull/1254#issuecomment-6393270921) 与 [batch-36 接收](https://github.com/molis-ai/molis-work/pull/1254#issuecomment-6393455820) 已回读，统一集成/full 仍单列，不修改冻结来源。交付 `molis-work home snapshot --to <新目录> [--home <原Home>] [--json]`，下述 SDK 只读认证依赖已闭合，按本片范围统一交审。Home 解析沿既有入口，必须已存在；目标在 Home 外且尚不存在，父目录已存在。命令不创建业务 Host、不启动服务、不在线暂停；先取得同一 `agentRuntimeDirectory(home)` 的 opaque lease，再检查业务存储，busy 时不建立输出或暂存。锁与侧车在任何内容读取、摘要或递归前排除，原 inode 与父目录保持。
+
+唯一集合仍为 `homeStores()`：在原条目旁增加快照分类、子路径排除、原 key 依赖和 SQLite 版本检查。带 Home 的枚举由原 installed-library owner 读取账本纳入实际第三方 Home 库；不另建 CLI 库名单。递归发现必要文件和实际分区，SQLite 通过文件头识别并用 backup API 包含最新已提交 WAL，侧车不复制。登记库核当前基线，Catalog 经原 metadata owner 核 owner/schema；项目库记录主版本和全部插件 ledger 子版本，子版本仅由建表 owner 的窄只读端口返回，不在 Host 复制 SQL。未知库、无法分类的内容、坏库、链接和维护标记整次拒绝；未使用的缺失存储记 absent，不初始化业务库。
+
+普通内容保留相对路径与原权限；SQLite 输出记录 actual user_version、owner 子版本、schema 形状、integrity_check/foreign_key_check 和最终摘要，文件记录大小与摘要，目录记 mode。全部来自同一持锁离线窗口，不正则清洗用户正文。vault 只接受现行密文，Runtime 备份引用经 B2a owner 验证，CLI `.home` 只经 B2b 整批密封，不能 raw 复制。SDK、旧 Sessions、构建 run 的 key 只记同 Home 路径与身份摘要，不导出、不补造。书签按 Root 已定边界：显式 Home 内 `directory-access/bookmarks.json` 原字节及权限使用现有 Home payload owner 密封，限原机器原路径；OS 不接受时由用户重选目录，不刷新或伪造授权。Home 外 AppData 作为外部依赖，不读取或复制。已证派生项与浏览器 profile 排除，明确重新登录。
+
+暂存为目标父目录中的随机 0700 sibling，输出文件为 0600，原 mode 仅记在 manifest；无明文秘密暂存。全部 payload、SQLite 校验和刷盘成功后，才写唯一 manifest 并刷盘，原子 rename 到尚不存在的目标。manifest 格式/产品版本、原 Home、owner 集合、文件和库版本、依赖及 exclusions 是恢复输入，不另造完成标记。普通失败清理本次暂存，无成功目录；被杀只可能留下无完成语义的私有 sibling，重试使用新目录，核路径后可清残留。rename 成功而父目录刷盘失败须报“已发布，持久化未确认”和位置，不伪称零产物或删除已发布结果。已有目标不得覆盖，cleanup 不删他人目录。
+
+storage 只负责严格文件技术、SQLite backup/完整性；registry、编排与 CLI 接线归 local-host；installer、Catalog、installed-library 与插件库 ledger 由原 owner 提供只读检查。只追加必要公开导出/类型并同步 API，不新增动作、MCP、权限、加密算法、依赖、门禁或调度。使用有真实内容的临时 Home；整体 build 走公共槽，full 仅 Claude 排期。真实 Home、Keychain、网络/凭据配置均不操作，不重做 A/stdio/Memory。
+
+| 编号 | 本片验收 | 证明方式 |
+| --- | --- | --- |
+| RAC-104-S-01 | 唯一登记含实际 owner、动态 Home 库和项目/插件/Alchemist 分区，必要文件保存，无未知静默跳过 | 有内容 Home，逐 owner 用原 reader 或 SQLite 实查读回，和实际 registry 比较 |
+| RAC-105-S-02 | Host/Agent 与命令双向互斥，失败/退出/被杀可重取，锁和父目录 inode 保持 | 真实子进程/Host、持锁屏障、拒绝前后业务及输出对照 |
+| RAC-106-S-03 | backup 含 WAL 最新提交、排除未提交，主/子版本、完整性和摘要正确；坏库/错版拒绝 | 保持 WAL writer 连接，独立 reader 实查备份事实 |
+| RAC-104-S-04 | vault、Runtime、CLI 私有状态和书签符合 owner 密封合同，raw key/token/锁不外带 | 合成秘密扫描全部产物，原 key 下由 B2 owner 打开核字节/mode；缺 key/原文/维护拒绝且零业务写 |
+| RAC-109-S-05 | 不覆盖目标、不越界、不跟随软/硬链接，中断无虚假完整产物，可重试 | 真实 I/O 故障/kill、完整 CLI 子进程和源/输出对照；文档给恢复步骤 |
+
+### FIX18：快照拒绝分类与退役存储只读证明（2026-10-24）
+
+负责人：Codex 修复18；目标为本题功能可用，独立 REVIEW/TEST 及统一集成另结算。以冻结快照 `1556d97b7eb35d72de8b83b7569fbfd48b239760` 为父提交，仅修 FIRST [6394030660](https://github.com/molis-ai/molis-work/pull/1267#issuecomment-6394030660) 非阻塞1，并落实 Claude [6394040100](https://github.com/molis-ai/molis-work/pull/1267#issuecomment-6394040100) 的窄 SC-4 证明；不改原 PR、恢复树、SDK、互斥、数据库格式或兼容行为。共享 SC-4 保留机制及安全表由统一 carrier 单 writer 收窄 patch，不整文件覆盖。
+
+现行 error owner 表未给 storage 的两个快照文件分配主人，故不改 owner 表或门禁：底层使用现有平台 `ActionError` 的 `actions.input_invalid` / `actions.conflict`；Home 快照边界只按这两个明确 code 包为既有 `host.home_snapshot.invalid` / `.changed`，kind 分别为 invalid / conflict。静态链接、特殊文件、过大元数据、schema/完整性/外键及 owner/meta 不符是 invalid；开始读取后发生的短读、文件替换或属性变化，以及原库检查通过后备份里的版本、结构或 owner/meta 改变，是 conflict。原源库的 `storage.schema_version_mismatch`、取消原因和普通 I/O 错误原样传播，不从 message 重解析、不加 Error 子类或第二套错误模型，错误只含路径与通用原因，不含数据内容。 真实坏页补探针进一步确认：SQLite 头合法但 b-tree 损坏的 `SQLITE_CORRUPT`、非库的 `SQLITE_NOTADB` 归静态 invalid；固定 metadata SELECT 的缺表/缺列，以及技术 schema/完整性/外键读取链内的 `SQLITE_ERROR` 归 invalid；例如外键声明不合法时 PRAGMA 会直接抛错，而不是返回 violation 行，已有 CHECK 函数不可用也会在副本完整性检查抛错。backup 操作本身的一般 `SQLITE_ERROR` 保留，不泛化其他 SQL 错误。`SQLITE_IOERR`、`SQLITE_CANTOPEN`、`SQLITE_BUSY` 等操作错误保原码；按明确类型和 code 判断，不解析数据库消息。
+
+公开函数签名、成功返回及归档格式不变；storage 直接调用方现在可按平台 code/kind 判断这两类拒绝。`home snapshot --json` 执行阶段的 ActionError 失败以 stderr 单个 JSON 对象 `{error:{code,kind,message}}` 返回，退出1且 stdout 空；成功 stdout JSON 不变，其他错误保留原语义。只有这一 Home 子命令增补输出，不改通用 CLI 分发。源与私有副本使用同一检查，复制阶段按源文件实际属性变化及前后版本、结构、owner 元数据的差异判 conflict；不把副本所有 invalid 一概转 conflict。SQLite 只读 integrity_check 会漏报已有 CHECK 违规，私有副本才报出的静态完整性问题仍为 invalid；不能吞掉取消或 I/O。
+
+| 编号 | 本题验收 | 证明方式 |
+| --- | --- | --- |
+| RAC-109-S-06 | 普通文件与 SQL 文件的静态不合法是 invalid，复制中变化是 conflict；原版本、取消和 I/O 含义保持 | 生产 storage 公开口和 `createHomeSnapshot`，真实链接、CHECK/外键坏数据、完整性查询函数缺失、外键声明不合法、坏 SQLite b-tree 页、缺 metadata 表/列、错 schema、实际读写/backup 边界改源；无成功目录、普通失败无暂存，源除测试明确注入的改动外不写 |
+| RAC-109-S-07 | 实际 Home CLI 的 JSON 失败保留稳定 code/kind，普通文件、SQL 和 metadata 均能区分 invalid 与 conflict，无正文泄露 | 真实子进程运行生产 `runLocalCli`，实际源文件和库故障，核退出码、stderr JSON、空 stdout、源字节及临时输出 |
+| RAC-104-S-08 | SC-4 退役库仅为备份集：备份链只读 meta 与完整性；正确、错 owner、错版本都不查业务行、不写源库 | 生产 `readSqliteSnapshotMetadata` 及持锁完整备份；记录真实连接上的 SQL/只读资格并逐条检查允许的元数据/PRAGMA，源文件集合、字节、权限与时间不变，正确库备份可读，错误库不发布 |
+
+文件边界是 storage 的 `snapshot-files.ts` / `snapshot-sqlite.ts`、Host 的 `home-snapshot.ts` / `cli-home.ts`，直接回归/夹具与必要 README/本段；FIX8 在源码定型后串行做格式。先整体构建冻结父并保存新增回归红，再最小实现、整体 build、README 必需与直接回归、boundary、`health --base origin/main`、test-imports 和推前 fresh-fetch secrets。原始命令/日志、固定父/头与构建指纹交 REVIEW/TEST；shared-core full 只交 Claude 统一排期，不将作者 PASS 当作 full、合入或本人验收。
+
+### SDK 原 key 的认证约束与接入前诊断（2026-10-24 Root 具体裁定）
+
+临时 Home 已实证：将 SDK 的 `storage.key` 换成另一份合法 32 字节后，仅记录文件 SHA 的 snapshot 仍会成功，但 SDK reader 报密文无法认证。当前实现的主路径证据不能覆盖该缺口。Root 明确要求补真实认证，不降为 opaque 字节结论：在既有 Home lease 内，由 agent-host 唯一 SDK owner 的窄只读端口遍历实际记录种类和全部分页，对 `hasSecureBody` 的记录调用现行公开 `HostStorage.readSecure`，包含合法空密文和墓碑仍保的密文；正文立即丢弃，不返回/记录正文或 key。原 key、错误的合法 key、损坏密文/缺 key、零源写与无 Runtime/模型须有实际断言。没有密封记录不声称证明了 key 与密文对应。
+
+当前公开 `createNodeHost` 会 mkdir root/leases，`exclusiveOwner` 还会清 claims；`readSecure` 缺 key 时可生成新 key，不能据此实现只读预检，也不能因缺可重建 leases 目录就拒绝正常数据。所需最小上游能力是零源写的公开 storage inspection/open 端口，严格现存路径/普通文件/key、沿原格式和原解密实现，不 mkdir/补 key/清 claim；不私有深导入、不复制第二套解密、不隐式采用 Memory Draft 或自行换 vendor。Root/流水线核现有候选与唯一 SDK owner，只串行这个认证接线；C2 继续其余输入、I/O 与进程中断验证。agent-host 只新增必要技术检查，不修改 A 生命周期、Memory 业务/采用，也不读取退役 Sessions 正文。
+
+已实查 Memory SDK 候选的私有 `NodeStorageReader(existingOnly: true)` 有所需只读基础，但当前公开 recovery inspection 限单 App kind 且绑定 Memory 管理授权，不能借此扩大快照权限；由原 SDK owner 补通用窄认证操作后再接薄包装。另用公开 `@prologue/sdk/node` 实证，合法的 metadata-only `storage.commit` 会生成 records、`hasSecureBody=false`，根没有 `storage.key`；检查点也不是必须带 SDK key 的证据。只在真实密封正文时由 SDK owner 要求原 key，纯元数据/检查点允许无 key；没有密封记录不声称 key 已认证。此前粗 `requiredKeys` 规则已在接入真实端口时替换，不能据文件存在推断密文需要密钥。
+
+### SDK 消费实施合同（2026-10-24）
+
+Root/流水线已接受串行采用 FIX7 的固定 SDK `42ccc75ae85b138f73e65f81b789ffecdbb05ce3`（唯一 parent 是当前已消费的 `2c7feba5a6ea85e81e4a263671fb5e68f536d86a`）。准确受控 tgz SHA-256 为 `349ad8987683472d219ef6dffd49d3e98f77dfaf8b95cc5b5b5b42eaeaf77a1c`，独立 REVIEW/TEST 已过；本地再核 708→712 文件，仅五项改变、四项增加、703 项及 package.json 逐字节不变。源码在本地 SDK 仓库，未声称上游 main 合入；不带整个 SDK #102 或 Molis Memory #1101。替换唯一当前包并同步来源、原包历史与 lockfile，不同时保留两套 SDK。
+
+`horizontal/agent-host` 仅新增公开 `verifyPrologueNodeStorageContents` 薄包装，直接调用 `@prologue/sdk/node` 的 `verifyNodeStorageContents({storageRoot,keyRoot,assertCurrent,signal?})`；void 返回，无 Runtime/模型/业务初始化、无解密副本或错误放行名单。所有 SDK 错误均拒绝，包括 `STORAGE_KEY_INVALID`。正常 App 只通过原 agent-host owner 调用，根与当前性来自 Host 已持的同一离线 lease。
+
+在原 `HomeStoreSnapshotPolicy` 增加窄 `inspect` 钩子，通用 capture 完成该 owner 的私有 payload 后调用，输入为实际暂存 data root、registry 导出的原 Home root、同次 inventory 的相对文件/目录和 lease/signal。agent-runtime 及实际 builder runs 用它认证**即将发布的归档记录**，只在原 root 读取已有 key；构建 run 根从同一 inventory 发现，不另列静态名单。key 不复制到 stage，claims/leases 等原排除项不复活。移除 SDK 粗 `requiredKeys`，无 sealed 正文不要求 key、不声称 key 已被认证；退役 Sessions 的既有 key 前置保留。
+
+验证保留正式 `security-invariants-home-snapshot-sdk` 的全部现有断言，证明错误合法 key、跨 kind/页/空正文/保留密文墓碑被拒绝，纯元数据/普通检查点无 key 成功，同一锁仍被独立进程判 busy。再跑原四个 snapshot 文件、源码/构建指纹与涉及 agent-host 的有限要求；shared-core full 由 Claude 统一。SDK 上游双核不能替代这些本应用结果。快照通过后交普通非 Draft PR 给 Claude 首评与 TEST；恢复 checkpoint 的预检/发布/回滚和真正 Memory 资格/合法空态缺口继续，完整 C2 不关单。
+
+### SDK 接入后的本应用验证（2026-10-24）
+
+准确包已串行采用，`pnpm install --frozen-lockfile=false --offline` 的 lockfile 只变本 SDK 路径与 integrity；workspace 登记同步同一个依赖字面量，门禁算法未变。整体 build1/build2 均通过；最终构建与当前生产源码指纹一致（`a66f2676c263eac51ab528b265c548fe7898e73ac8cfa9c4d86865049675078c`）。新测试严格类型、agent-host/Host 类型、API 快照（零变化）、零源码/构建混用、merge-base health、boundary 和 27 个页面资源预算均通过。
+
+原四个快照文件再次通过：CLI 3/3、content 1/1、inputs 26/26、lifecycle 9/9。SDK 第一轮与这些文件共用两测试进程时，文件复制/fsync 因同机 I/O 争用达每次 17–48 秒，120/60 秒父限时导致取消；原 raw `snapshot-sdk-app-first.log` 保留，不称整批全绿。随后按公共 build 槽排独立 I/O 重跑，保持全部原断言和超时，`snapshot-sdk-app-isolated.log` 自然通过 **24/24（含父项），零 fail/cancel/skip/todo，132.16 秒**；原主认证组 92.73 秒、元数据组 17.85 秒、暂存坏 tag 组 19.05 秒。原 21 结果全部已覆盖并绿，新增两 root 暂存坏 tag 的 3 个含父项结果也绿，且在实际发布前以独立进程证明 SDK 检查后同一 Home lease 仍排他。key 不进入 stage、源字节/mode/文件集合保持、leases 不补造；不启 Runtime/模型。
+
+Skill/README 的有限回归明确为 91 个非浏览器和四个浏览器文件，不是 full。非浏览器首批 90/91 文件通过；唯一失败是 `vendor-provenance` 当前记录组仍写旧包名、31 个历史包与“当前已合上游”的旧事实。只将该组改为实际固定包、42ccc/原2c base、localOnly 且无伪造合并、32 个历史包，原门禁变异规则不改；该文件单独复验 78/78，通过后原 90 文件证据复用，不称首批一次全绿。两项原 opt-in 跳过单列：真实 MiniMax 和公网 npm 包安装，未作这两项实测。
+
+浏览器按公共槽和独立测试 wrapper、私有 profile 单进程运行，三个文件通过（action selection 1/1、components 12/12、workflow 42/42）；`agent-studio.e2e` 前两项通过，升级凭据后访问测试 HTTPS 的第三项因 TLS 建连断开失败（2/3）。已亲读 A 阶段干净 `bde02c59` 的原始单用例对照 `molis-w5-16-home-lease-base-studio-retry-20261024.log`：同一断言为 400 而非 200，正文也是 `Client network socket disconnected before secure TLS connection was established`，0 pass/1 fail/0 skip/cancel。该测试与 `public-https.ts` 在 bde、当前 HEAD 与工作区的 blob 完全相同；生产每请求 `agent:false` 而夹具仍 mock global Agent，静态调用链支持旧夹具失效的归因。复用已有真实基线证据，取消仍在公共槽排队的重复 `4f7e95c` 基线构建，不声称新基线 build/test 通过。当前 raw 为 `snapshot-sdk-required-browser.log`，精确证据和 blob 对照为 `studio-tls-baseline-inherited.json`，原始首败和最初基线的不同错误正文仍保留。未改网络/代理配置、生产 TLS 边界或断言；该基线失败交统筹处理，shared-core full 仍由 Claude 统一。
+
+这是本片 snapshot 的临时 Home 工程证据；source SDK 独立双核、第一次旧实现红、首次新实现限时取消和最终隔离绿分开保留，不把它们混成一次全绿。完整恢复不随这 24 个结果关闭；真正 Memory owner 的现行 v3 采用资格与合法空态受控恢复仍是外部契约缺口，恢复 checkpoint 留在独立本地分支。
+
+### 当前 snapshot 证据与剩余项
+
+实际有内容临时 Home 已覆盖 Catalog、两个项目的 Goals/成果固定版本、全部 registry 库的真实行、第三方 Home 库、两组 Alchemist Studio/Search、SDK/构建 run 的记忆、Feed/Alchemist 证据、现行 Runtime 引用、真实 prepare/install/登录完成的 CLI 私有状态和密封书签。独立 WAL writer 连接保持，备份包含其最新提交、不含后来未提交；逐文件摘要、原字节/mode、同 key 的 owner 读回与秘密不外带均有断言。这是 snapshot/局部手动读回证明，不是完整 restore 命令或真实 Home 验收。
+
+`tests/home-snapshot-cli.test.ts` 3/3、`tests/home-snapshot-content.test.ts` 1/1、`tests/security-invariants-home-snapshot-inputs.test.ts` 26/26、`tests/security-invariants-home-snapshot-lifecycle.test.ts` 9/9 通过。拒绝包含未知/错版/坏库、孤立 WAL、维护、缺/错 vault key、链接/FIFO；生命周期含真实双向 Host/命令互斥、目标竞争、源变化、I/O/取消、发布后刷盘未确认和 SIGKILL 后保持原 inode 重试。当前源 build 通过，storage/Host 类型、全部新测试严格类型、boundary、merge-base health、API/资源体积和版本核对通过；full 仍由 Claude 统一排期。
+
+按 CLI、storage、Plugin Runtime、Host、Alchemist README 合并的 104 文件有限回归原始结果为 103 通过、`tests/alchemist-mcp.test.ts` 第一条失败：旧夹具每个 stdio 客户端各开同 Home Host，被 A 的早期 lease 正确拒绝。流水线核 27 个在途 PR 无重叠后，交本 C2 writer 在后续树修消费者：一 Home 单 resident Host，多真实 stdio 客户端经既有网关和真实管理 grant，原只读/跨项目/held 取消断言全部保留；新增关闭重开 Host 后的事实读回。该文件修后 2/2 与严格类型通过，相关 gateway 13/13、Home lease 6/6 通过；两文件增量独立 [REVIEW 通过](https://github.com/molis-ai/molis-work/pull/1254#issuecomment-6391660103)、[TEST 窄核收通过](https://github.com/molis-ai/molis-work/pull/1254#issuecomment-6391693958)。这些绿来自 build4 的组合运行时，包含三项 snapshot 技术文件改动，并非干净 A/e2d 构建；A carrier 只取该两文件 commit。原 104 文件 raw 保留，不声称整批已在同一修后头重跑。其余有效证据复用，仅有关增量复验。SDK 接入前的原始红例单列保留：`tests/security-invariants-home-snapshot-sdk.test.ts` 使用公开 SDK writer，覆盖 Home/构建 run、超过一页的实际 kind、空密文、保留真实密文的受控墓碑、缺/错/坏 key，以及合法无 key 的元数据/普通检查点。旧实现曾错误接受错 key/篡改、误拒无密文；该正式旧红单列，不属于原 104 文件绿，新接入结果见上节。持真实 lease 后还用独立进程确认 SDK 检查不能通过误读锁 fd 释放所有权。snapshot PR 尚待最终有限回归与固定头，不标整线 ready。
+
+RAC-107/108 的统一 restore 发布、回滚和重启续写仍归本 C2 后续；此处仅约定共享输入格式和原路径/key 约束，不把 owner 解密或手动读回称为 restore 命令完成。
+
+### FIX19：离线窗口覆盖实际卸载与 CLI 写入口（2026-10-24）
+
+状态：Codex 专职修复19候选功能已通过定向验证，待独立 purge 增量审验与唯一 carrier 接入；parent `1556d97b7eb35d72de8b83b7569fbfd48b239760`，只补 #1267 FIRST 非阻塞2，完整 C2/restore、SDK 来源和快照错误分类仍归原队列。目标为此互斥合同功能可用，作者工程证据与独立审验分别记录。
+
+已核真实链：snapshot 取得 `agentRuntimeDirectory(home)` 的 owner 并持到发布/清理结束；卸载 prepare 的 Catalog、RuntimeIntegration/WebService 预览只读，confirm 却在没有 owner 时写收据、移接入/服务、删 demo 与登记的 Home stores。purge 直接删除 `agent-runtime` 会使活锁 inode 脱离路径。CLI v1 的本地 fallback 构造未绑定 Home 的 Host，项目库在 runtime open 时写入；init 的 mkdir 更早。这两条确实绕过现有离线窗口，单文件 stat 不能补跨库一致性。
+
+Root 已裁定普通卸载的最小接线：只读预览保持；confirmed 可写窗口在任何可避免副作用前严格取得同一 owner，busy 不消费计划。已有 Host 先同步检查 `lifecycle()` running，再用原 `ensureHomeStorageOwner`、`retainHomeStorageResources` 接纳并保留 pending，最终 settle 才归还；不改 Host 方法或 close 实现，不重取或伪造 SDK 借用。若该模式的预览表明受管服务仍在运行，先拒绝，不能在被保留的卸载中 bootout 自己并等待自身退出。不同 Home、closing、失败回执与明确新预览重试分别验证。
+
+Claude 已在 [6394555141](https://github.com/molis-ai/molis-work/pull/1267#issuecomment-6394555141) 接受离线 purge：活 Host 时 busy 拒绝，使用者先关 App，再独立执行；不自动停宿主或借用活宿主。清空业务数据与密钥后，Home 只保留原 `agent-runtime/` 目录及其中确实存在的 `.molis-runtime-owner.db`、`.molis-runtime-owner.db-journal`、`.molis-runtime-owner.db-wal`、`.molis-runtime-owner.db-shm`；不生成缺失侧车，不按“技术文件”类别泛放行。原目录/锁 inode 全程不换，释放后可重取；未知 Home/config/bin 根项在副作用前拒绝，不盲删不归产品的文件，也不将残留报成成功。下一次 Host 启动按全新 Home 建当前基线。Root 已依据实际源码澄清：现 owner 只有 SQLite EXCLUSIVE 事务、进程 WeakMap，无持有表或业务表；验证无业务字段与实际释放，不为措辞新增进程/时间/世代表或协议。无第二把锁、lease 表或维护状态机；非合作外部文件写入不在互斥保证内。
+
+预览指纹仍负责旧计划是否过期，不替代同一 owner 的离线一致性。只规范化登记 owner 声明的具体 SQLite 路径：SHM 与 0-byte WAL 可由只读检查产生，不作为业务变化；非空 WAL、主库/业务文件、目录身份或业务条目变化仍使旧计划失效。原锁四路径在任何内容读取前排除。目录时间/大小不能代表业务内容，指纹递归保留目录身份和每个业务文件的身份/元数据，只读 metadata、不跟随链接、不打开锁或读取 SDK/key 内容，避免只读派生项造成假 stale。
+
+CLI fallback 仅在目标实际位于当前 Home 或由该 Home Catalog 登记时，通过 `ensureHomeStorageOwner` 绑定到本次 Host 的现有生命周期；拿锁早于 init mkdir、运行环境和 SQL。真实转发、明确拒绝/结果未知不回退的 S-07 合同不变，外部独立数据库不因本修复取得无关 Home owner。沿现有 owner 能完成的接线不修改 storage 公开结构。
+
+首轮整体 build 自然通过；boundary 的唯一失败是管理入口门禁把 CLI fallback AST 写死为直接返回单表达式，不接受此前置 owner。Root 与 REVIEW 对具体 v2 patch 核定为必要门禁收紧，已按原授权应用：准确 Home 分类与 owner 前置、Home init mkdir、原唯一 return 是强制规范，旧无 guard 形状与额外业务语句拒绝，MCP 的原单表达式及唯一 unprepared client、reference、signal、resident/dispatcher 约束不变。外部独立 init 保留原有 JSON 解码前的父目录创建，Home init 只在 fallback 实际接纳且持 owner 后创建。全部原门禁变异组与新增 14 种拒绝变异已正式通过；最终候选双审验另结，不用专项文本核验代替真实运行。
+
+| 编号 | 本修复验收 | 证明方式 |
+| --- | --- | --- |
+| RAC-105-S-06 | snapshot 占用时 confirmed 普通卸载/purge 在收据与安装/数据副作用前拒绝，原计划在释放后可重试成功 | 临时 Home、真实 snapshot 子进程与可释放 payload 屏障，源文件/安装数据/收据对照 |
+| RAC-105-S-07 | 清理持有窗口中 snapshot/第二 Host 拒绝；purge 到 owner 目录清理后也不能重建锁绕过，释放后可重取同 inode | 正式 purge 的最终收据删除边界中真实子进程；业务项移除与原目录/锁 inode 实查 |
+| RAC-105-S-08 | Home CLI fallback 与 snapshot 双向互斥，init 拒绝不建目标目录，释放后真实写入；外部独立库不被无关 Home 占用阻断 | 真实 CLI 与 runtime-open 子进程屏障，SQLite 实查/正式 snapshot 与源/目标对照 |
+| RAC-105-S-09 | 已持 owner Host 的正常卸载不二次获取，关闭等待已接纳卸载，closing 后不接纳新维护 | 现有 Host/lifetime 的真实并发交错，拒绝前业务不变、完成后同 inode 可重取 |
+| RAC-105-S-10 | 具体只读侧车/锁变化不消费旧计划；业务变化与非空 WAL 仍在任何卸载副作用前使计划失效 | 临时真实 SQLite owner 写入/子进程退出，保留有效业务值及安装/收据，指纹正反例 |
+| RAC-105-S-11 | purge 成功后精确只余上述原锁骨架；锁库无业务字段，释放后可重取，随后作为新 Home 建基线；未知项零副作用拒绝 | 实查剩余路径集合、SQLite schema、原目录/inode、真实 Host/Catalog 重开与新项目写入 |
+
+定向新用例为 `tests/security-invariants-home-snapshot-entries.test.ts`，受控进程夹具 `tests/fixtures/home-snapshot-entry-window.ts`；沿生产公开入口，不用 sleep 决定交错。原 parent 的 RED 与最终 GREEN raw 分开保留于 `/tmp/molis-fix19-snapshot-exclusion-20261024/`。最终按 Host/CLI 的 README 跑适用定向要求、整体 build（公共 machine-slot）、boundary、准确 merge-base health、test-imports、secrets；不重复 full，不接触真实 Home。S-07/S-12 仅将必要窄语义和准确拒绝测试引用交唯一 carrier 更新，避免覆盖 FIX4/FIX7 的共享表。
+
+普通卸载/CLI v2 阶段已实际完成：整体 build、70 包 boundary、8 条 S-08/S-09 真实交错/别名/登记项目后备/关闭与拒绝用例全绿；原 CLI 协议 5 项及完整管理门禁 7 项（其中含 14 种新增拒绝变异）全绿。按 Host 与 CLI README 第一条必跑清单去重的 62 文件自然通过 557/557（含父项），零 fail/cancel/skip/todo；包含 README 点名的一个浏览器文件，使用公共 test-kit、独立 profile 和 `MOLIS_WORK_TEST_CHROME` 指定 wrapper，并经公共 build/browser 槽。新用例 strict、8 文件 scoped Biome 与对实际 merge-base `52560f32` 的 health 通过。这些不是 full 或独立最终候选核收。
+
+原红分开保留：stdin 屏障的 ready/EPIPE 不能证明窗口，标夹具故障/未验证；FIFO 屏障加独立 busy 断言后的旧实现真实拒绝失败另存 `red-1556-controlled-fifo.log` 与 `red-1556-parent-and-uninstall.log`。普通 v1 的 10 文件批为 9 过/1 CLI 协议回归；恢复外部 init 原顺序后的 v2/62 文件结果单列，不抹首败。该阶段 purge 的 busy 之后同 plan 重试仍是 `plan_stale`，未计通过；独立诊断只见 Memory 的 0-byte WAL/32768-byte SHM、Agent 锁目录时间及项目目录派生项变化，不是业务修改。
+
+普通/CLI 固定头 `34b836efe095b8bdb89ac27fbec83dd2d3b40422` 已获独立 [REVIEW](https://github.com/molis-ai/molis-work/pull/1267#issuecomment-6394612061) 与 [TEST](https://github.com/molis-ai/molis-work/pull/1267#issuecomment-6394807993) 子范围通过；不把它记为完整 FIX19/C2 通过。上述 purge 合同裁定后，本树实现原锁保留、活 Host 拒绝、具体派生项规范化与副作用前完整预检。旧 34b 的成功 purge 假 stale、未知 Home/config 误成功及嵌套业务修改漏 stale 另留 `red-34b-purge-contract.log`、`red-34b-nested-business.log`。
+
+purge 新整体 build 与 boundary 已通过，只读重算源码/构建摘要同为 `f4d09c9b608ede7c959cecaa7849c23d2afd4e23832f65b6b6504b411e775b0b`。首次 entries 为 18/19，S-06/07/10/11 全过，唯一原有外部 CLI 子进程触发 15 秒超时；同一构建隔离复跑该条 1/1、约 6.5 秒，未改超时或生产语义，原失败保留。随后补未知 bin 同合同，root/config/bin 一组 4/4 全绿。原卸载 inspection 两条仍期待未知 `kept.txt` 可放行，与已批准的新保护合同冲突；只将这些状态与锁骨架预期同步，保留权限拒绝、恢复后登记路径可见、原内容与无收据断言，该文件修后 4/4。六文件批其余五文件自然全绿：实际安装/卸载/重装 4/4、Catalog 5/5、收据 4/4、snapshot CLI 3/3、lifecycle 9/9；29 项均已覆盖通过，未伪称首批六文件全绿。原件为 `purge-entries-green.log`、`purge-standalone-retry.log`、`purge-unknown-bin.log`、`purge-regressions.log`、`purge-inspection-contract.log`。
+
+新增 tests strict、scoped Biome、0/1446 进程混载已过；安全不变量表由唯一 carrier 逐行追加 S-07/S-12，窄补丁为 `/tmp/molis-fix19-snapshot-exclusion-20261024/fix19-security-invariants.patch`，本树不覆盖共享表。未经该行接入的作者 health 只报告 entries 新文件未被表引用，不声称最终门禁已全绿；固定增量的独立 REVIEW/TEST、组合头与实际 merge 仍分别结算。本题不跑 full，不改变原 #1267 冻结头或 SDK 来源，也不代表完整 C2/restore 完成。
 
 ## B1：只存哈希的邀请合同
 
@@ -124,7 +278,7 @@ S-12 同行补 B2b 的密钥引用、用途隔离、Home/owner/安装/来源绑�
 | --- | --- | --- |
 | `projects` | local-host 的 Catalog、项目库及项目插件数据库 owner | 普通库与必要项目文件；逐库版本/子版本和 WAL backup；模型连接只存引用。项目绝对路径必须保持 |
 | `logs`、`backups` | local-host；installer 的预留备份目录 | 日志不备份；`backups` 没有现行写者，空目录可省，未知非空内容必须拒绝分类，不能默认为缓存 |
-| `sessions` | private-work-context，`sessions/content` | 库与密封 blob；`content.key` 只记同 Home 原文件依赖，不能导出/替换 |
+| `sessions` | apps/local-host，SC-4 退役登记 | 仅持离线 lease 的通用快照技术读取 SQLite、核 owner/meta 版本 7 与完整性；不读 Session 业务表、不恢复业务 reader。密封 blob 同点复制，`content.key` 仅原 Home 依赖，不导出/替换 |
 | `plugin-runtime`、`assistant`、`placement`、`agent-definitions`、`agent-declarations`、`context-onboarding`、`plugin-originals` | local-host 各当前库声明 | 普通事实、授权/声明与配置；平台凭据为引用，库按各 owner 当前基线备份 |
 | `connectors` | connector connection/protocol owner，现基线 2 | 凭据为 `credential_ref`，依赖 vault；受管 CLI 的 `installation_id` 与 runtime 安装状态同点保存 |
 | `runtime` | connector-tool-install/runtime/cli-launch | 安装所有权与固定版本记录正常备份；私有 `.home` 由 B2b 密封，包、共享运行时和已证缓存/临时排除 |
@@ -141,7 +295,7 @@ S-12 同行补 B2b 的密钥引用、用途隔离、Home/owner/安装/来源绑�
 | `plugin-builder` | plugin-builder 设计/构建/发布 owner | 源码、设计、发布及 run 状态保留；每个 run 的 `storage.key` 只为原 Home 依赖；已证构建缓存可重建 |
 | `cache`、`git-operation-details.json` | local-host 缓存与 Git 审查细节 | cache 可重建；Git 细节是普通事实，与 Agent 审查回执同点备份 |
 | `config/onboarding.json`、`config/project-arrival.json`、`config/mcp-tools.json`、`config/external-mcp-tools.json`、`config/connector-mcp-tools.json` | 各 Home 配置 owner | 普通设置、可见工具和授权引用；保留必要配置，不复制 Home 安装控制令牌 |
-| `directory-access` | desktop 的 `DirectoryRecord {path, bookmark}` | Root 已核为必要敏感原件：Home 内的 bookmark 须密封并按原路径/字节恢复，OS 决定是否有效，失效仍须重选；AppData 外只列外部依赖，不按普通配置导出或静默排除。该 owner 实现仍待接续 |
+| `directory-access` | desktop 的 `DirectoryRecord {path, bookmark}` | 显式 Home 内原字节/权限由现有 Home payload 密封，只回原路径；OS 决定是否有效，失效仍须用户重选，不刷新或伪造授权。Home 外 AppData 仅列外部依赖，不读取或复制，不按普通配置导出 |
 
 文件依赖只留 owner、同 Home 原路径/后端和必要的身份摘要；raw master、SDK key、会话 key 与构建 run key 不进备份。浏览器是现有明确排除；目录授权仍有上表的 owner 核实项，其他独有事实不能借“派生”漏备。
 

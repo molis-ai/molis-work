@@ -25,6 +25,8 @@ export { createPluginPlatform } from "./plugin-platform.js";
 export { dispatchDeclaredPluginRoutes, type DeclaredPluginRoutes } from "./plugin-route-operations.js";
 export { bindDeclaredDefaults } from "./plugin-default-bindings.js";
 export { homeStores } from "./home-stores.js";
+export { createHomeSnapshot, type HomeSnapshotOptions } from "./home-snapshot.js";
+export type { HomeSnapshotManifest, HomeSnapshotResult } from "./home-snapshot-contract.js";
 export { readMaterialLocalPage } from "./material-local-page.js";
 export { isHostEndpointPort, trackHostChildEndpoint, trackHostPort } from "./host-endpoints.js";
 export { ORIGINAL_FILE_MAX_BYTES, ORIGINAL_RANGE_MAX_BYTES, readOriginalFile, readOriginalRange, registerOriginalFile, releaseOriginalFile } from "./material-original-files.js";
@@ -80,6 +82,7 @@ export { openProjectDeletionRecoveryTarget, openProjectDeletionCatalogObservatio
   type ProjectDeletionRecoveryGroup, type ProjectDeletionSourceRequest, type ProjectDeletionCatalogSnapshot } from "./project-deletion-recovery-target.js";
 export { ProjectDeletionService, type ProjectDeletionPorts } from "./project-deletion-service.js";
 export { ProjectDeletedHooks, projectDeletedHooksFor, type ProjectDeletedOwner, type ProjectDeletedPort } from "./project-deleted-hooks.js";
+export { ownerLabel } from "./web-project-deletion.js";
 export {
   BUILTIN_PLUGIN_REGISTRY, PERSONAL_PLUGIN_IDS, PLATFORM_PLUGIN_REGISTRATIONS, PROJECT_SCOPED_PLUGIN_IDS,
   availableProjectPluginIds, catalogProblems, projectRuntimeDeclarations, shownProjectPlugins, type ProjectRuntimeDeclaration,
@@ -125,6 +128,13 @@ export { connectorManagementActions, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGE
 export { connectorUsagesAction } from "./connector-usage-actions.js";
 export { connectorPluginSlotActions } from "./connector-plugin-slot-actions.js";
 export { PLUGIN_CONSENT_PERMISSIONS, pluginConsentActions, pluginConsentProvider } from "./installed-plugin-consent-actions.js";
+export { PLUGIN_INSTALL_PERMISSIONS, pluginInstallActions } from "./plugin-install-actions.js";
+export { PluginInstallService } from "./plugin-install-service.js";
+export { runLocalPluginInstall, type LocalPluginInstallInput } from "./plugin-install-client.js";
+export { pluginInstallProvider } from "./plugin-trust-actions.js";
+export { readSandboxPackage } from "./sandbox-package.js";
+export { sandboxPluginManifest } from "./sandbox-plugin-manifest.js";
+export { SandboxPackageStore } from "./sandbox-package-store.js";
 export { HomeConsentLedger } from "./home-plugin-store.js";
 export { createPluginConnectionsPort, pluginSlotScope } from "./connector-plugin-requests.js";
 export { activateConnectorConnection } from "./connector-activation.js";

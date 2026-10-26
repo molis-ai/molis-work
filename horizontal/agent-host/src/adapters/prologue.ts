@@ -191,7 +191,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     // A live run may end while the step graph is being read; sample its phase at return.
     const facts = record ?? projected!;
     const phase = record ? (latest ? this.#store.requireRun(latest.run_id).view.phase : null)
-      : (projected!.latest ? restorePrologueRun(projected!.latest).state.phase : null);
+      : (projected!.latest ? restorePrologueRun(projected!.latest, waiting => this.#runtime.unexecutedApprovalCall?.(projected!.latest!.ref, waiting)).state.phase : null);
     current(); return { owner: { ...facts.owner }, status: { session_id: session.session_id, latest_phase: phase,
       recovery: Boolean(facts.recovery), checkpoint_busy: this.#runtime.checkpoints?.busy?.(session) ?? false,
       ...(steps && (steps.mine || steps.subtasks || steps.unowned) ? { steps } : {}) } };

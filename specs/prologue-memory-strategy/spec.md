@@ -1,5 +1,11 @@
 # Prologue 记忆策略与 Molis Work 接入
 
+
+
+账本等价复用仅落在原 memory-ledger 的 recordUses 事务及原 retention factory：按原 SQL 调用点 lazy prepare 并复用句柄，每次仍查询当前 forgotten marker、核同一 receipt 冲突/状态并逐条写回；不缓存结果，不减少完整集合回执，不改事务、回滚、连接或关闭边界。无新表、接口或配置。合成后原冻结离线安装和整体build已通过；三入口未知命令断言静态核对后补齐原 memory 文案，不删入口或放宽为任意错误，业务回归待下述准确合成提交统一执行。
+
+Foundation f9原Full的16片和汇总已成功。Root独立重算16完整日志：1534发现文件按原配置排除31个macOS-only，1503唯一runner文件全首轮ok、零重试与最终失败；摘要10306项中10292 pass，8文件14非pass，成功stdout未保留，不能称零skip。crosstalk首过4/4，coding-input-receipts首过1/1，本次无CDP超时记录不能证明历史根因已修。原普通CI文案断言首红仍保留；291e只修其严格期望并已推原两分支，最终CI40254948184/Full40254942311仍待结算。
+
 状态：首期实施已获用户授权（2026-10-22）；C0/Q0 已独立交付，Molis C0/Q0 已合入 main；Prologue C0 与 S1 版本恢复、分类授权、业务 key、管理分页、停用恢复及候选期限检查已合入 main；M1 配置采用第一片已完成工程回归并合入 main；完整 P0 的形成、召回、SDK 接入和产品验收仍未完成；后续按 §9.3 的依赖推进。负责人：当前统筹会话；SDK 合同、Molis 产品合同、质量基线分别有执行负责人。已确认目标仍是 Molis Work 的记忆更精准、好用、省 token，以及 Prologue 的多策略组合和 App 自定义记忆矩阵。实施和验证事实只记在 §13；未通过的标准不因计划或合同落地而算完成。用户随后已授权分片提交和依赖交付；2026-10-25 改为尽可能聚合大 PR，复用 #1101 收齐后续 Memory P0 应用片，原独立验收不放宽。真实 Home 数据采用与发布仍不在本次范围内。
 
 ## 1. 用户结果与责任边界
@@ -3329,3 +3335,66 @@ Session 业务维护 owner 固定创建时 Home、权威回调与 Catalog resolv
 本机必要89不同文件累计959项通过，不能写成首跑全绿：后续86文件首轮84过，actions在旧list取消钩子未触发时真实失败，presets旧list屏障挂起后仅终止自有进程；窄查后同步actions/presets/run-expansion到实际集合入口，原拒绝、零回执与零扫描断言保留，三文件49项补验通过。真实Node检查确认首次解密、暖读不再重复解密、更新后返回新版本、重开重新认证。三个健康红项按上段职责归位后，原整体构建、8文件86项、Host/Memory/Agent strict与准确52c健康通过，未增加例外或调整限额；Root独立核对实际diff与日志，vendor原80项另通过。
 
 75 API、边界检查通过；提交后仍用原secrets覆盖新增行。UI资源字节与6fc完全相同，原四红及Coding原待答保持。冻结规模尚待空闲机器执行，100/1000旧失败、task精确时延和旧B1不可比项不变；此候选仅完成接线工程验证，不称性能达标、产品整体验收或用户验收。未启用正式付费模型批，不操作真实Home。完整日志在仓外molis-memory-app-collection-*；当前最终检查索引为health-refactor-checks-20261026.json。
+
+### #1064 最终 CI 与关闭投影交点（2026-10-26，诊断中）
+
+准确52c普通CI的14项通过，Linux probe按原配置跳过。Full40238651435已经结束：16片15成功、1失败，原1516文件扣除29个macOS文件后，Linux1487文件中1481首过、5仅原一次重试后通过、1最终失败。最终失败为interaction-no-crosstalk：首跑AC-05/AC-08两处Runtime.releaseObject超时，第三处原输入Runtime.callFunctionOn与清理releaseObject同时超时，新withPoint已保留两者；原重试仍失败。仅重试通过的五文件为coding-input-receipts、content-editing-regressions、coding-question-card、alchemist-workbench、stream-text。成功文件stdout未完整保留，内部条件skip数量未知，不能称Full零跳过。全部16片原日志已核，不新增重试/重派Full，不以普通Verify宣布超时根因消除。
+
+下一步先缩窄证据：ChromeHarness在发命令处创建原超时Error，保留调用栈，超时时附实际单调钟经过时间和原限额，区分调用位置与定时器是否被阻塞；不改超时、重试、调度、CI、命令或产品行为，不记录参数/页面数据之外的新正文。此诊断只补原错误上下文，不能作为修复通过证据。
+
+独立静态审查还指出真实system-agent-service先释放MemoryHost账本，随后Adapter才shutdown/flush使用回执，存在晚到投影失败；SDK原Run事实仍在，重读Run可补账，不能说永久丢失。先核停止新业务、Catalog借用、在途投影与失败重试的实际链，再沿原主人修复；不得仅移动close而开放关闭期间新业务。此处尚未实现/验证，也不代表完整P0验收。
+
+关闭投影短合同（在独立实际调用链核对后实施）：沿MemoryHost同一实例增加内部stopBusiness，同步停止普通业务/provider及后续学习/维护入队；业务活性同时服从LocalHost原lifecycle，继续复用现controlledMemoryService，不能绕过授权。账本和原映射保留至原Adapter shutdown与usage.flush成功后才最终close，成功才移除实例。SystemAgentService失败沿原closing重置/显式重试及Home owner持有，不另建关闭状态机。可信recordMemoryUsage只向仍未最终释放的原实例投影：保留actor/个人Assistant身份及实时projectExists检查，await后同步核原实例仍有效再settleUses；普通业务停止不等于已经发生的使用事实失效。删除/遗忘、去重及单调投影原规则不改。
+
+已核Web Catalog在agents及home-plugins都关闭成功后才close，现runner借用可在Agent排空期间工作，不增加Catalog特权口或换库。生产允许仅memory/memory-host.ts与system-agent-service.ts及必要同职责接线；验证在现system-agent-service、security-invariants-home-storage-host、prologue-memory-run-context、memory-use-receipts等原用例加入真实临时Home/SDK使用/真实sink组合的在途回执、停止态、项目删除/遗忘及close失败原owner保留重试。重启先读账本验证，不能先读Run补账后自证。没有模型实付/真实Home/存储格式/SDK修改。源代码修正前已保留52c原失败和独审结论，尚未验收。
+
+
+关闭投影后续实现与有界验证：按上述短合同沿原两主人完成修正，后台学习/维护完整职责仍在memory-host同文件，只从过长注册函数移出；没有新模块/格式/策略。原整体build、Host strict、新增测试strict、10直接文件112项原runner零重试通过；真实临时Home/SDK/本机HTTP/原sink跨关闭排空后，第一次打开Ledger即见唯一response-observed记录，遗忘记录不复生。真实项目删除、await后的原Host失效、Adapter拒绝关闭与原DatabaseSync.close失败重试均保留原实例与Home owner。Root已独立核生产与测试diff及原日志。
+
+诊断版ChromeHarness的原interaction-no-crosstalk文件本机4/4、零重试通过；本机未复现Linux失败，不能把新增调用栈/实际elapsed上下文称为超时修复。当前源码的原test-kit strict、75份API、准确b3bac健康、边界、全部原资源门及secrets通过，构建身份与当前源码相同；局部验证不能替代下一提交的完整CI或最终用户验收。日志索引为仓外molis-foundation-52c-memory-drain-*、molis-foundation-52c-close-cdp-*、molis-foundation-52c-cdp-stack-diagnostic-20261026.log，既有首红不删除。关闭修复与诊断仍合入#1064，不另拆PR。
+
+独立复审已核关闭、实例与Catalog顺序，未发现新增生产P1/P2。失败边界仍沿旧合同：Adapter或Ledger的close抛错会保留原owner供显式重试；usage sink自身的I/O拒绝仍记录memory.receipt_unrecorded，flush只等待已接受队列完成，不保证每条投影成功，不能扩大为任意投影失败都会使close失败。本轮修复的是过早关闭账本，不增加投影持久队列或自动重放。
+
+
+### Foundation batch40 主干交点短合同（2026-10-26，整合前）
+
+#1064的c615在原集成Full运行时，main已到2b3dc51de（#1308）；真实合并状态CONFLICTING，因此普通PR CI未启动。保留c615源码树和运行，在新隔离树按十个实际冲突整合，不取消旧诊断、不把新主干当作已验证。
+
+保留主干Home snapshot/安装卸载/插件生命周期、公开声明、样式投影及更严门禁；同时保留Memory采用ledger4、可信原件、调用者隔离、严格来源和本轮关闭排空。主干final103-bridge是独立旧基过渡包，不是SDK主干祖先，不能猜测兼容。已对照公开verifyNodeStorageContents及实际inspection/verifier：已合#107干净源1cc80b与合并ccaf整树相同，具同形口与正式103/104验证实现；#108对这几个验证/inspection入口未改。Foundation采用准确已合#107包，不依赖仍待性能验收的Draft108；App后续集合读取仍在#1101采用108。主干bridge仅按其LKG记录保留，不装配第二执行SDK。
+
+Home snapshot沿原Home owner、私有复制payload、原Home keyRoot认证、逐文件fsync与manifest/rename原链；其manifest+data+sealed目录且不含原key，不等于Memory recover-home要求的同历史完整T0/T1停写工作副本。本刀只同步边界说明并保留两套原消费者旅程，不新增snapshot解封、归档转工作副本、路径重定位或新恢复机制。
+
+允许仅实际冲突及其必要现有接线/声明/文档/采用记录；资源精确对比2b3主干和同一已批功能，不能带通用剩余额度；CI沿主干新增内容并保留已批准Node24.14固定，不改门槛/超时/重试。先build/严格/公开API/准确新基health/边界/原资源及必要交点集，SDK采用加原Home snapshot真实负例、Memory采用/关闭/恢复及权限回归。源码最终冻结后再推动该新提交的既有CI，上一头失败和只重试通过保留；所有未跑项仍待验证，不操作真实Home、不发布。
+
+
+#### Foundation batch40 合成边界与 c615 Full 结算（2026-10-26）
+
+c615 的 [Full 40244770783](https://github.com/molis-ai/molis-work/actions/runs/40244770783) 16片及aggregate成功：原配置排除29个macOS-only后，1487个runner文件中1486首轮ok、1个仅原一次重试后ok、最终失败0。首轮ok含5个全skip文件；8文件摘要共有14个非pass项，成功stdout未保留，不声明零跳过。interaction-no-crosstalk首过4/4；coding-input-receipts点击发送后清理releaseObject超时，经过1779ms、原限额1000ms，原retry通过，根因仍未知。Root已独立核对全部编号结果、原错误栈和重试摘要；没有改变时限、重试或断言。
+
+本次与main `2b3dc51ded348325edbf135a13c195ba89fba602` 合成保留原审批恢复、快照验证、插件样式门禁及全部安全行；依赖采用已合SDK107的原包，不带仍待性能验收的108。SDK107的wait清除不会新增Foundation消费者：此处唯一purge是Index未登记的新会话创建回滚，尚未发出ref、启动Run或绑定业务wait；已登记Session删除仍须随App原wait-ID持久计划成套交付，不能宣称MEM-40已在Foundation完成。
+
+新主干snapshot输出是`manifest.json`与`data/`载荷，不带原Home密钥，不能直接作为recover-home的完整T0/T1工作副本。本次不新增解包、补密钥或第二恢复流程。合成后补原离线快照真实SDK正反例、未发布创建回滚与cleanup失败、审批/等待恢复、Memory原件/回执/关闭交点；再核最终头的完整CI及原门禁。c615绿色不替代合成头验证，旧Cloudflare访问待定与历史失败仍保留。
+
+
+batch40本机合成验证：原frozen/offline安装、整体build、root/Host/Agent/TestKit strict、75 API、boundary、准确2b3 health和主干plugin-styles通过。README必要并集346文件首跑343过、3首红，10个browser文件，零retry；3016项摘要中3012 pass、3 fail、plugin-sandbox-network原opt-in缺1项。两个接线问题已按当前合同修正：未发布Session撤权回滚保留最小purged决定，断言原ID、无secure body、Index空、重开不可恢复且邻近已接受Session可用；snapshot原fixture用既有受限Memory配置，各root仅其固定actor/user scope，实际write/readback均绑定同可信身份。真实SDK快照认证24项原正反例已通过，不能用fixture首败否定或替代这组证据。
+
+资源按新main实测且仅同一已批功能迁移：Workbench1129446→1132639（+3193）、Coding289062→289674（+612），其余资源不变。原更新器仅写这两数字，未携带旧绝对上限或余额。原整体build再过，源码与产物指纹一致；仅补原3失败文件185项全部通过、零retry，未重跑346。最终准确主干健康与原资源门通过。现仍待最终提交的普通CI、Full及已记录外部阻塞核清，不能以本机集合替代它们；未合并、未发布。
+
+f9e5b4fb 的普通 CI 40251451657 在 Package boundaries（job 121344061019）首红：test-kit 原超时测试仍精确匹配旧错误字符串，拒绝新增的 `(elapsed 50ms; limit 50ms)` 诊断。仅同步该测试与注释，严格核对方法名、数值 elapsed、精确 limit 50ms 和调用者栈，保留原 150/50ms 时限、响应小于 2000ms、表达式截断小于 400 字符的断言；生产、CI、重试和超时不变。固定 Node 24.14 下单文件 19/19，随后原完整 `pnpm workspace:verify` 退出 0（test-kit 55/55、owner/registration 12/12、包边界无错误、工作区按原缓存规则构建），零跳过。此前本机只直接跑过边界扫描，未覆盖这个完整命令，本次补齐；原 CI 首红保留，尚不代表远端重验通过或自然 CDP 超时根因已修。
+
+
+### #1101 合成 Foundation batch40 与当前规模结论（2026-10-26）
+
+本次从准确 App fe78d7b2d 合入 Foundation 291e169be（f9e5b4fb 的包内 CDP 诊断断言修复），继续原 #1064/#1101 两个聚合。保留已审应用的分类管理、原请求重试、采用、归档/恢复/清除及 SDK108 集合消费者；同时保留 Foundation 停普通业务后排空使用回执、主干 Home snapshot、插件样式拆分、安装入口与更严门禁。快照不含原 key，仍不是 recover-home 的完整 T0/T1 工作副本。恢复投影的原 unexecutedApprovalCall 读口接到实际 SessionCache 与冷状态入口，保留 App 的当前身份屏障，不复活已撤掉的旧恢复主人。项目清理的原 control/final checks 与主干翻译归属字段并存。
+
+SDK 仍采用已明确的 Draft108 干净源7ebb原包，不把 Foundation 的已合107或未采用的观测源码当成本次包；归档和两份sidecar保持原字节。历史采用记录保留双方具名包与同名包后续版本，原42项主干审计不扩称为新来源核查。资源门现仅保留上一准确基数的已测pair，待新合成整体build后重测；不得带入旧通用余额、代批Coding恢复或手填预算。所有原门禁/超时/重试/费用批边界不变，合成源码尚待工程交点验证。
+
+冻结 fe78+SDK7ebb、Node24.14 的规模v2已完成：原10/100/1000各3副本、首次+9次重复、B0/B2共180采样，零模型、零调用错误。v1因sandbox loopback的listen EPERM未进入采样，9环境失败报告保留；v2只改变执行权限和输出路径。与原同机B1比较如下，单位ms；B1+5门没有改变。
+
+| 记忆条数 | 首读中位数/门 | 重复中位数/门 | 重复P95/门 | 结论 |
+| --- | --- | --- | --- | --- |
+| 10 | 3.641/6.264 | 1.168/5.227 | 1.710/5.303 | 此规模通过 |
+| 100 | 18.934/15.304 | 5.428/5.794 | 6.104/6.168 | 首读失败 |
+| 1000 | 183.798/79.721 | 54.498/10.660 | 56.747/14.330 | 三项失败 |
+
+这些是 MemoryService 显式管理召回，不是 SDK 自动task、整体Context或UI时延。原完整集合/omitted/回执不裁。随后仅一个1000副本公开Node profiler诊断，冷+9暖、零模型；仪表化数据不替代上述门禁。暖读已零解密，主要成本为授权请求重复序列化、1000当前文件字节读取及完整账本逐项prepare；冷读3×752解密提示hydrate后重复读取。只据这些真实热点提出最小优化，未通过前不重复全规模找好数，也不提高预算或放宽门槛。正式一次B0/B2付费批仍未启动；旧B1缺SDK完整task起止，任务时延和升级归因不得冒称已闭合。

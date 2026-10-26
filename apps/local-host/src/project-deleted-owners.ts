@@ -100,16 +100,16 @@ function searchOwnerWithoutService(home: string): ProjectDeletedOwner {
  * ask (`order`, then catalog order), which is the order the confirmation dialog lists them in.
  */
 function declaredProjectOwners(home: string): ProjectDeletedOwner[] {
-  const declared: Array<{ id: string; label: string; order?: number; clear: ProjectDeletedOwner["clear"] }> = [
+  const declared: Array<{ id: string; label: string; order?: number; words_of?: string; clear: ProjectDeletedOwner["clear"] }> = [
     ...PLATFORM_PLUGIN_REGISTRATIONS.flatMap(entry => {
       const library = entry.manifest.databases?.home, pluginId = entry.manifest.plugin_id;
       if (library?.project_rows) {
-        return [{ id: entry.project_plugin_id, label: library.project_rows.label, order: library.project_rows.order,
+        return [{ id: entry.project_plugin_id, label: library.project_rows.label, order: library.project_rows.order, words_of: pluginId,
           clear: (projectId: string, _deletion: Parameters<ProjectDeletedOwner["clear"]>[1], control: Parameters<ProjectDeletedOwner["clear"]>[2]) => clearProjectRows(home, library, pluginId, projectId, control) }];
       }
       if (!entry.project_data) return [];
       const partitioned = entry.runtime && library?.partition === "project" ? library.store_name : undefined;
-      return [ownerOf(home, entry.project_plugin_id, entry.project_data, partitioned)];
+      return [ownerOf(home, entry.project_plugin_id, entry.project_data, partitioned, pluginId)];
     }),
     // Characters keeps its native runs by project in a library of the Home; the drafts it also keeps are the person's and stay.
     ownerOf(home, "characters", charactersProjectData),
@@ -117,11 +117,12 @@ function declaredProjectOwners(home: string): ProjectDeletedOwner[] {
   ];
   return declared.map((item, position) => ({ ...item, position }))
     .sort((a, b) => (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER) || a.position - b.position)
-    .map(({ id, label, clear }) => ({ id, label, clear }));
+    .map(({ id, label, clear, words_of }) => ({ id, label, clear, ...(words_of ? { words_of } : {}) }));
 }
 
-function ownerOf(home: string, id: string, data: ProjectDataDeclaration, partitioned?: string) {
-  return { id, label: data.label, order: data.order, clear: partitioned ? removePartition(home, data, partitioned) : purgeOf(home, id, data) };
+/** `wordsOf`: the plugin whose text the label is, so the dialog translates it with that plugin's own words (absent for the Host's own modules). */
+function ownerOf(home: string, id: string, data: ProjectDataDeclaration, partitioned?: string, wordsOf?: string) {
+  return { id, label: data.label, order: data.order, ...(wordsOf ? { words_of: wordsOf } : {}), clear: partitioned ? removePartition(home, data, partitioned) : purgeOf(home, id, data) };
 }
 
 function purgeOf(home: string, id: string, data: ProjectDataDeclaration): ProjectDeletedOwner["clear"] {

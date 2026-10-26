@@ -1,16 +1,16 @@
 import type { AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentErrors } from "../errors.js";
-import type { PrologueControlPort, PrologueRestoredSession } from "./prologue-ports.js";
+import type { PrologueControlPort, PrologueRestoredSession, PrologueRuntimePort } from "./prologue-ports.js";
 import type { RunRecord, SessionRecord } from "./prologue-run-store.js";
 import { applyRunEvent, closeInterruptedPrologueStream, runStreamState } from "./prologue-stream.js";
 
 /** Restore only immutable observations. SDK reads and active execution stay with their existing owners. */
-export function restoredSessionRecords(restored: PrologueRestoredSession): { session: SessionRecord; records: RunRecord[] } {
+export function restoredSessionRecords(restored: PrologueRestoredSession, readCall?: PrologueRuntimePort["unexecutedApprovalCall"]): { session: SessionRecord; records: RunRecord[] } {
   const session: SessionRecord = { title: restored.title, owner: restored.owner, workspace: restored.workspace ?? "required", runs: [],
     ...(restored.recovery ? { recovery: restored.recovery } : {}) };
   const records: RunRecord[] = [];
   for (const saved of restored.runs) {
-    const { state, endedAt } = restorePrologueRun(saved);
+    const { state, endedAt } = restorePrologueRun(saved, waiting => readCall?.(saved.ref, waiting));
     // Replayed records are immutable observations. A new Run continues the
     // same SDK session; old control handles cannot be resurrected.
     const unavailable = (): never => { throw agentErrors.capability_unavailable("历史执行没有活动控制句柄，不能重放停止、回答或继续指令"); };
@@ -32,7 +32,7 @@ function isEnded(phase: string): boolean {
 }
 
 /** One interpretation of persisted progress for both the directory and full history. */
-export function restorePrologueRun(saved: PrologueRestoredSession["runs"][number]) {
+export function restorePrologueRun(saved: PrologueRestoredSession["runs"][number], readCall?: Parameters<typeof closeInterruptedPrologueStream>[1]) {
   const state = runStreamState(saved.frozen.model_context?.prompt_includes_cache ?? false, saved);
   state.turns.push({ turn_id: "user-1", kind: "user", text: saved.task, at: saved.started_at, sequence: 0 });
   let firstPrompt = true;
@@ -44,7 +44,7 @@ export function restorePrologueRun(saved: PrologueRestoredSession["runs"][number
     }
     const atMs = (event as { atMs?: unknown }).atMs;
     const at = typeof atMs === "number" && Number.isFinite(atMs) ? new Date(atMs).toISOString() : null;
-    applyRunEvent(state, event, at);
+    applyRunEvent(state, event, at, readCall);
     if (isEnded(state.phase) && typeof atMs === "number") endedAt = at;
   }
   if (saved.timing) {
@@ -58,7 +58,7 @@ export function restorePrologueRun(saved: PrologueRestoredSession["runs"][number
     if (!state.awaiting_input.some(held => held.pending_id === question.pending_id)) state.awaiting_input.push({ ...question, sequence: state.next_sequence++ });
   }
   if (!saved.events || !isEnded(state.phase)) {
-    closeInterruptedPrologueStream(state);
+    closeInterruptedPrologueStream(state, readCall);
     if (saved.terminal) {
       // The runtime sealed the run; only its progress stopped short (the service went down while it was ending).
       // Nothing is left to reconcile for it — an operation with an unknown outcome would still be open work, and that

@@ -219,9 +219,9 @@ export function renderDiff(model: DiffViewModel): string {
   const header = view.before === undefined || view.after === undefined || model.sides === false
     || labels.before === undefined || labels.after === undefined || labels.pinned === undefined
     ? ""
-    : `<header class="diff-sides"><span class="diff-path">${escape(p.text(labels.before, { path: view.before.path, version: view.before.content_version }))}</span>`
-      + `<span class="diff-source">${escape(p.text(labels.after, { path: view.after.path, version: view.after.content_version }))}</span>`
-      + `<span class="diff-source">${escape(p.text(labels.pinned, { workspace: view.after.workspace_name }))}</span></header>`;
+    : `<header class="mw-diff-sides"><span class="mw-diff-path">${escape(p.text(labels.before, { path: view.before.path, version: view.before.content_version }))}</span>`
+      + `<span class="mw-diff-source">${escape(p.text(labels.after, { path: view.after.path, version: view.after.content_version }))}</span>`
+      + `<span class="mw-diff-source">${escape(p.text(labels.pinned, { workspace: view.after.workspace_name }))}</span></header>`;
   const notices = [
     ...(view.metadata_changes ?? []).map((change) => p.text(change)),
     view.mismatch ? p.text(labels.mismatch) : "",
@@ -233,7 +233,7 @@ export function renderDiff(model: DiffViewModel): string {
   ].filter((text) => text !== "");
   const noticeHtml = notices.length === 0
     ? ""
-    : `<ul class="diff-notices">${notices.map((text) => `<li>${escape(text)}</li>`).join("")}</ul>`;
+    : `<ul class="mw-diff-notices">${notices.map((text) => `<li>${escape(text)}</li>`).join("")}</ul>`;
   if (view.phase !== "ready" || view.rows.length === 0) {
     // The shared empty block: the plugin's glyph, what is missing, and what to do about it. With nothing before it the block
     // is the page's whole content, so the stage centres it like any plugin's empty list.
@@ -243,20 +243,20 @@ export function renderDiff(model: DiffViewModel): string {
     const files = renderFileList(model);
     return header === "" && noticeHtml === "" && files === ""
       ? empty(` ${state}`)
-      : `<section class="diff" ${state}>${header}${noticeHtml}${files}${empty("")}</section>`;
+      : `<section class="mw-diff" ${state}>${header}${noticeHtml}${files}${empty("")}</section>`;
   }
   const body = view.mode === "split" ? renderSplit(view.rows, model) : renderUnified(view.rows, model);
-  return `<section class="diff" data-phase="ready" data-group="${escape(view.group ?? "none")}" data-mode="${escape(view.mode)}">`
+  return `<section class="mw-diff" data-phase="ready" data-group="${escape(view.group ?? "none")}" data-mode="${escape(view.mode)}">`
     + `${header}${noticeHtml}${renderFileList(model)}${body}</section>`;
 }
 
 function renderFileList(model: DiffViewModel): string {
   const { escape } = model.primitives;
   if (model.view.files.length <= 1 || model.sides === false) return "";
-  return `<ul class="diff-files">${model.view.files.map((file, index) =>
+  return `<ul class="mw-diff-files">${model.view.files.map((file, index) =>
     `<li data-kind="${escape(file.kind)}"><button type="button" data-action="diff.show-file"`
     + ` data-change-index="${index}" data-path="${escape(file.path)}">${index + 1}. ${escape(file.path)}</button>`
-    + `<span class="diff-counts">+${escape(file.added_lines)} −${escape(file.removed_lines)}</span></li>`).join("")}</ul>`;
+    + `<span class="mw-diff-counts">+${escape(file.added_lines)} −${escape(file.removed_lines)}</span></li>`).join("")}</ul>`;
 }
 
 /**
@@ -283,7 +283,7 @@ function lineNumberHtml(model: DiffViewModel, names: Record<string, string>, sid
 }
 
 const signHtml = (kind: TextDiffRow["kind"], names: Record<string, string>): string =>
-  `<span class="diff-sign" aria-label="${names[kind === "insert" || kind === "delete" ? kind : "same"]}">${kind === "insert" ? "+" : kind === "delete" ? "−" : " "}</span>`;
+  `<span class="mw-diff-sign" aria-label="${names[kind === "insert" || kind === "delete" ? kind : "same"]}">${kind === "insert" ? "+" : kind === "delete" ? "−" : " "}</span>`;
 
 /** Rows with their fold openers: a run of folded rows starts with one reveal row that says how many it hides. */
 function foldedList(className: string, digits: number, items: readonly unknown[], foldOf: (index: number) => number | undefined,
@@ -295,7 +295,7 @@ function foldedList(className: string, digits: number, items: readonly unknown[]
     // Folded rows stay in the document: a reader can reveal them, and line
     // feedback keeps addressing the same stored numbers.
     const opener = fold !== undefined && foldOf(index - 1) !== fold
-      ? `<li class="diff-fold"><button type="button" data-diff-unfold="${fold}">${model.primitives.icon("chevron-down")}<span>${p.escape(p.text(model.labels.reveal, { count: sizes.get(fold) ?? 0 }))}</span></button></li>`
+      ? `<li class="mw-diff-fold"><button type="button" data-diff-unfold="${fold}">${model.primitives.icon("chevron-down")}<span>${p.escape(p.text(model.labels.reveal, { count: sizes.get(fold) ?? 0 }))}</span></button></li>`
       : "";
     return opener + render(index, fold);
   }).join("")}</ol>`;
@@ -307,11 +307,11 @@ function renderUnified(rows: readonly TextDiffRow[], model: DiffViewModel): stri
   const { escape } = model.primitives;
   const names = rowNames(model);
   const folds = foldGroups(rows, model.fold_context);
-  return foldedList("diff-rows", digitsOf(rows), rows, (index) => folds.get(index), (index, fold) => {
+  return foldedList("mw-diff-rows", digitsOf(rows), rows, (index) => folds.get(index), (index, fold) => {
     const row = rows[index]!;
     return `<li data-kind="${escape(row.kind)}"${foldAttribute(fold)}>`
-      + `<span class="diff-before">${lineNumberHtml(model, names, "before", row.before_number)}</span>`
-      + `<span class="diff-after">${lineNumberHtml(model, names, "after", row.after_number)}</span>`
+      + `<span class="mw-diff-before">${lineNumberHtml(model, names, "before", row.before_number)}</span>`
+      + `<span class="mw-diff-after">${lineNumberHtml(model, names, "after", row.after_number)}</span>`
       + `<code>${signHtml(row.kind, names)}${escape(row.text)}</code></li>`;
   }, model);
 }
@@ -352,10 +352,10 @@ function renderSplit(rows: readonly TextDiffRow[], model: DiffViewModel): string
   // Each side's number and code carry that side's kind, so the tint covers exactly the half that changed.
   const side = (name: "before" | "after", row: TextDiffRow | undefined) => {
     const kind = escape(row?.kind ?? "blank"), code = name === "before" ? "left" : "right";
-    return `<span class="diff-${name}" data-kind="${kind}">${row === undefined ? "" : lineNumberHtml(model, names, name, name === "before" ? row.before_number : row.after_number)}</span>`
-      + `<code class="diff-${code}" data-kind="${kind}">${row === undefined ? "" : signHtml(row.kind, names) + escape(row.text)}</code>`;
+    return `<span class="mw-diff-${name}" data-kind="${kind}">${row === undefined ? "" : lineNumberHtml(model, names, name, name === "before" ? row.before_number : row.after_number)}</span>`
+      + `<code class="mw-diff-${code}" data-kind="${kind}">${row === undefined ? "" : signHtml(row.kind, names) + escape(row.text)}</code>`;
   };
-  return foldedList("diff-rows diff-split", digitsOf(rows), pairs, (index) => {
+  return foldedList("mw-diff-rows mw-diff-split", digitsOf(rows), pairs, (index) => {
     const pair = pairs[index];
     return pair && pair.left !== undefined && pair.left === pair.right ? folds.get(at.get(pair.left)!) : undefined;
   }, (index, fold) => {

@@ -1,0 +1,41 @@
+{
+  "schema": "prologue-sdk-package-provenance-v1",
+  "package": {
+    "name": "@prologue/sdk",
+    "version": "0.0.0-rc.1",
+    "private": true,
+    "license": null
+  },
+  "source": {
+    "repository": "git+https://github.com/molis-ai/molis-prologue.git",
+    "path": "packages/sdk",
+    "commit": "ba75c9f8437018904b24dabeaaef6ded8054add5",
+    "base": "2c7feba5a6ea85e81e4a263671fb5e68f536d86a",
+    "branch": "feature/node-storage-final103-bridge",
+    "dirty": false,
+    "dirtyPaths": [],
+    "patches": [],
+    "note": "Transition source, not an ancestor of upstream main. Base PR60 plus only finalized PR103 functionality (6523abb47d25bd45d22dc47db1d3a679bf9327d5..513237d2d52729aafd25eca8c359b49418fe06c0). Independently reviewed functional port4e018e1a preserves base ordinary list/read and the old storage contract; final ba75 is a reviewed documentation-only tail. Excludes PR61..101, PR104 and old42. Writer/verifier/original public consumer/wrapper equal finalized103. The explicit reader port and accepted risks are documented in docs/slices/host-storage.md#final103-bridge. No uncommitted patch was applied during either build."
+  },
+  "artifact": {
+    "file": "prologue-sdk-0.0.0-rc.1-final103-bridge.tgz",
+    "bytes": 1253301,
+    "sha256": "884295c966ad85ee8be46c5bc6f162c3fa892217aa43a404e600adea7253a834",
+    "integrity": "sha512-bJe5iAUafhFgz1HLptJTBj41F0expGOwQYEptuoSk/zSoglEkHiNOM55ZSSEHGHETP8eLx310wamDt6mHaWAUA=="
+  },
+  "build": {
+    "engineRequirements": {
+      "node": "24.14.0",
+      "pnpm": "11.9.0"
+    },
+    "steps": [
+      "In each of two independent clean worktrees: git checkout --detach ba75c9f8437018904b24dabeaaef6ded8054add5",
+      "pnpm install --frozen-lockfile --offline --ignore-scripts",
+      "pnpm build",
+      "pnpm -C packages/sdk pack --pack-destination <independent-outside-directory>",
+      "Compare both complete tarballs byte-for-byte; copy one unchanged as prologue-sdk-0.0.0-rc.1-final103-bridge.tgz"
+    ],
+    "packedOn": "2026-10-25",
+    "note": "C2 independently built and packed A/B from the exact final source with no old dist; each build/pack held the shared FIFO. Both complete archive bytes are identical. Full file inventory and actual source/archive comparison are retained in sdk-bridge-final103 task evidence. Known finalized103 risks remain: inspection requires a stable offline exclusive window; ordinary NodeStorage inspection methods must not be called. No PR104 lifecycle or frozen-inventory guarantees are claimed. Molis consumer/full/normal restore are separate validation scopes."
+  }
+}

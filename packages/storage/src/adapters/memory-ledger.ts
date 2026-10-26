@@ -150,10 +150,13 @@ export function openMemoryLedger(options: { homeDirectory: string }): MemoryLedg
       return { state: Number(inserted.changes) > 0 ? "counted" as const : "duplicate" as const, count: Number(counts.count), distinct: Number(counts.distinct_count) };
     }),
     recordUses: uses => ledger.transaction(() => {
+      // Reuse statements within this transaction, never the rows they read.
+      let existingUse: ReturnType<typeof db.prepare> | undefined;
+      let recordUse: ReturnType<typeof db.prepare> | undefined;
       for (const use of uses) {
         // A late multi-reference receipt must not resurrect a forgotten entry or hide the other entries' facts.
         if (retention.isForgotten(use.memory_id)) continue;
-        const before = parse<MemoryUseRecord>(db.prepare("SELECT body FROM memory_uses WHERE memory_id=? AND receipt_id=?").get(use.memory_id, use.receipt_id));
+        const before = parse<MemoryUseRecord>((existingUse ??= db.prepare("SELECT body FROM memory_uses WHERE memory_id=? AND receipt_id=?")).get(use.memory_id, use.receipt_id));
         if (before?.source === "run-context") {
           if (use.source !== "run-context" || !isDeepStrictEqual([before.run, before.memory_version, before.at, before.consumer, before.work_id],
             [use.run, use.memory_version, use.at, use.consumer, use.work_id])) {
@@ -162,7 +165,7 @@ export function openMemoryLedger(options: { homeDirectory: string }): MemoryLedg
           const rank = (state: MemoryUseRecord["state"]) => state === "response-observed" ? 3 : state === "dispatched-or-unknown" ? 2 : 1;
           if (rank(before.state) >= rank(use.state)) continue;
         }
-        db.prepare("INSERT INTO memory_uses(memory_id,receipt_id,at,work_id,state,body) VALUES (?,?,?,?,?,?) ON CONFLICT(memory_id,receipt_id) DO UPDATE SET at=excluded.at, state=excluded.state, body=excluded.body")
+        (recordUse ??= db.prepare("INSERT INTO memory_uses(memory_id,receipt_id,at,work_id,state,body) VALUES (?,?,?,?,?,?) ON CONFLICT(memory_id,receipt_id) DO UPDATE SET at=excluded.at, state=excluded.state, body=excluded.body"))
           .run(use.memory_id, use.receipt_id, use.at, use.work_id, use.state, JSON.stringify(use));
       }
     }),

@@ -179,7 +179,12 @@ test("VUX-06: every stylesheet rule that draws something on hover also draws it 
     await prepare(name,isolated ? children[name]! : browser);
     const pages = isolated ? [browser,children[name]!] : [browser];
     // Read the actual owner stylesheet rules; an opaque page cannot access cross-origin CSSOM itself.
-    const css = isolated ? await evaluate<string>(`[...document.styleSheets].flatMap(sheet=>[...sheet.cssRules].map(rule=>rule.cssText)).join('\\n')`) : "";
+    const shell = isolated ? await evaluate<string>(`[...document.styleSheets].flatMap(sheet=>[...sheet.cssRules].map(rule=>rule.cssText)).join('\\n')`) : "";
+    // PG-070: a plugin's own rules are its sheets (/assets/molis-work-plugins/<id>.css), linked only inside its frame; the frame cannot read them
+    // either, so the owner page fetches the ones the frame links and they are audited with the shell's.
+    const own = isolated ? await children[name]!.evaluate<string[]>(`[...document.querySelectorAll('link[rel=stylesheet]')].map(link=>link.getAttribute('href')).filter(href=>href&&href.includes('/assets/molis-work-plugins/'))`) : [];
+    const plugin = await Promise.all(own.map((href) => evaluate<string>(`fetch(${JSON.stringify(href)}).then(response=>response.text())`)));
+    const css = [shell, ...plugin].join("\n");
     for (const page of pages) {
       if (page !== browser) await page.evaluate(`window.__hoverAuditSheets=[new CSSStyleSheet()];window.__hoverAuditSheets[0].replaceSync(${JSON.stringify(css)})`);
       const audit = page === browser ? HOVER_RULES : HOVER_RULES.replace("document.styleSheets","window.__hoverAuditSheets");

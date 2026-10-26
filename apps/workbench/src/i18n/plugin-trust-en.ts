@@ -58,4 +58,7 @@ export const PLUGIN_TRUST_EN: Record<string, string> = {
   "已开启 {permission}": "{permission} turned on",
   "已关闭 {permission}": "{permission} turned off",
   "已暂停：缺少 {permissions} 的授权": "Paused: {permissions} is switched off",
+  "个人空间里的插件": "Plugins in your personal space",
+  "这些插件在你的个人空间里运行，所有项目共用同一份；这里改它的权限，对每个项目都生效。": "These plugins run in your personal space, one copy shared by every project; changing a permission here applies in every project.",
+  "个人空间里没有插件": "No plugins in your personal space",
 };

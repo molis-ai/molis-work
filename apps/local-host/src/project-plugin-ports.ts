@@ -11,6 +11,7 @@ import type { LocalHost } from "./local-host.js";
 import type { MolisWorkLocalHostOptions, MolisWorkProjectRuntime } from "./project-host.js";
 import { ensureProjectPlugins, runningProjectPlatform } from "./project-plugins.js";
 import { hostDependencyCheck } from "./plugin-actions-client.js";
+import type { HomePluginHost } from "./home-plugins.js";
 
 /**
  * What the project's plugin ports are read from. `agents` is read when a call needs it, not when the Host is built: the
@@ -72,6 +73,23 @@ export async function regrantPluginInProject(source: ProjectPluginHost, projectI
   await ensureProjectPluginActions(source, reference);
   const platform = await source.host.withRuntime(reference, runtime => runningProjectPlatform(runtime.store, runtime.project_id));
   const record = platform?.runtime.list().find(row => row.install_id === installId);
+  if (!platform || !record || platform.supervisor.state(record.plugin_id)?.install_id !== installId) {
+    throw pluginErrors.grant_denied("这个插件没有可以开关的可选权限");
+  }
+  await platform.runtime.regrant(installId, permission, granted);
+}
+
+/** The plugins that run as the Home's own instance, each with the Manifest the Home runs it by (BL-700). */
+export async function installedHomePlugins(homePlugins: HomePluginHost | undefined): Promise<InstalledPluginEntry[]> {
+  if (!homePlugins) return [];
+  await homePlugins.ready();
+  return homePlugins.installations().filter(record => record.state !== "uninstalled").map(record => ({ record, manifest: homePlugins.manifest(record.plugin_id) }));
+}
+
+/** Switches one optional permission of a Home instance: the Home platform's supervisor runs it, so the Home platform stops it and starts it again. */
+export async function regrantHomePlugin(homePlugins: HomePluginHost | undefined, installId: string, permission: string, granted: boolean): Promise<void> {
+  const platform = await homePlugins?.ready();
+  const record = platform?.runtime.list().find(row => row.install_id === installId && row.state !== "uninstalled");
   if (!platform || !record || platform.supervisor.state(record.plugin_id)?.install_id !== installId) {
     throw pluginErrors.grant_denied("这个插件没有可以开关的可选权限");
   }

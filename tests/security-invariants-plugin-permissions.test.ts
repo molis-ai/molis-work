@@ -10,7 +10,8 @@ import { PACKAGE_PLUGIN_ID } from "./fixtures/sandbox-package.js";
 // PG-002, S-93 (docs/system/SECURITY-INVARIANTS.md): `plugins.permissions.set@1` is the person's own act in a project's settings. RAC-946 only the
 // person's audience sees it; RAC-947 it needs the credential the project settings route itself issues, and no text a caller can write is that
 // credential; RAC-948 the project and the installation come from the Host's context and the route, never from what the input says about itself;
-// RAC-949 the installed list says which of the asked-for permissions are held. The route and the Runtime halves are in
+// RAC-949 the installed list says which of the asked-for permissions are held; RAC-957 the Home's own plugins have the same switch behind the
+// Host settings door (BL-700) with a credential of its own. The route and the Runtime halves are in
 // security-invariants-plugin-permissions-http.test.ts and plugin-regrant.test.ts.
 
 const AT = "2026-10-25T00:00:00.000Z";
@@ -90,4 +91,32 @@ test("RAC-949 a Manifest permission the installation does not hold reads as not 
   manifest.permissions = [...manifest.permissions, { permission: NETWORK, required: false, reason: "查询天气" }];
   const [view] = installedPluginViews([{ record: record(["storage:private", NETWORK]), manifest }], new MemoryPluginConsentLedger());
   assert.deepEqual(view!.permissions.map(item => [item.permission, item.granted]), [["storage:private", true], [NETWORK, true]]);
+});
+
+test("RAC-957 S-93 the Home's own switch is the person's alone and needs the Host settings door's credential: not the project door's, not the consent door's, not a copy of its text", async () => {
+  const { actions, calls, caller, input } = fixture();
+  const target = { capability_id: pluginInstallActions.setHomePermission.capability_id, version: 1 };
+  const text = { source: "web", conversation_ref: "web:settings:home-plugin-permissions", message_ref: "web:request:forged" };
+  const home = (extra: Partial<ActionCallContext> = {}) => caller({ project_id: null, ...extra });
+  assert.equal((await actions.discover(home())).some(view => view.capability_id === target.capability_id), true, "the person sees it");
+  for (const audience of ["agent", "mcp", "workflow", "plugin"] as const) {
+    assert.deepEqual((await actions.discover(home({ audience }))).filter(view => view.capability_id === target.capability_id), [], `${audience} does not see it`);
+    await assert.rejects(actions.invoke(home({ audience, user_action: text }), target, input), error => error instanceof ActionError, `${audience} cannot call it`);
+  }
+  const cases: Array<[string, Partial<ActionCallContext>]> = [
+    ["no user_action", {}],
+    ["the credential's text written by hand", { user_action: text }],
+    ["the same text, frozen", { user_action: Object.freeze({ ...text }) }],
+    ["the project door's text", { user_action: { source: "web", conversation_ref: "web:settings:plugin-permissions", message_ref: "web:request:1" } }],
+    ["the Home consent door's text", { user_action: { source: "web", conversation_ref: "web:settings:plugin-consents", message_ref: "web:request:1" } }],
+    ["a call made on the person's behalf", { delegated_by: "io.molis.work.example", user_action: text }],
+  ];
+  for (const [label, extra] of cases) await assert.rejects(actions.invoke(home(extra), target, input), refused("actions.forbidden"), label);
+  await assert.rejects(actions.invoke(caller({ user_action: text }), target, input), error => error instanceof ActionError, "a call inside a project is another scope");
+  for (const extra of [{ project_id: "project-two" }, { user_action: text }, { actor_id: LOCAL_PERSON_ACTOR_ID }]) {
+    await assert.rejects(actions.invoke(home(), target, { ...input, ...extra }), refused("actions.input_invalid"), JSON.stringify(extra));
+  }
+  // The project door does not take a Home call, and the Home door's action is not the project's.
+  await assert.rejects(actions.invoke(home({ user_action: text }), { capability_id: pluginInstallActions.setPermission.capability_id, version: 1 }, input), error => error instanceof ActionError, "the project action wants a project");
+  assert.deepEqual(calls, [], "nothing reached the Runtime");
 });

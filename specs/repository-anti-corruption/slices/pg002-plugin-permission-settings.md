@@ -1,8 +1,8 @@
 # PG-002 插件权限设置与改授权的动作（ac-shell，设计稿）
 
-状态：**已实现**（分支 `claude/ac-shell-pg002`，叠在 `origin/batch/1025-41` 上，未开 PR），2026-10-26。§7 的 6 项裁定统筹已给（见 §7，已按裁定改了 §2、§3、§6）。实现叠在 ac-trust 的 T7（batch-41，项目设置的「插件」页，S-85）上。**PG-002 行要等 BL-700（Home 级插件的开关页）也做完才标已做。**PG-003（授权与外部插件同一套、可选权限能单独关，#741）已做，本稿补它欠下的两样：**本人关开的动作**和**开关的界面**。
+状态：**已实现**（分支 `claude/ac-shell-pg002`，叠在 `origin/batch/1025-41` 上，未开 PR），2026-10-26。§7 的 6 项裁定统筹已给（见 §7，已按裁定改了 §2、§3、§6）。实现叠在 ac-trust 的 T7（batch-41，项目设置的「插件」页，S-85）上。**PG-002 行要等 BL-700（Home 级插件的开关页，§8a）合入才标已做。**PG-003（授权与外部插件同一套、可选权限能单独关，#741）已做，本稿补它欠下的两样：**本人关开的动作**和**开关的界面**。
 
-验收编号：RAC-940～959（§6）。BL：BL-700～709（BL-700 = Home 级插件的开关页，owner 是 ac-shell，PG-002 之后接着做，§7 第 4 项）。安全不变量：**S-93**。
+验收编号：RAC-940～959（§6）。BL：BL-700～709（BL-700 = Home 级插件的开关页，owner 是 ac-shell，已实现，§8a）。安全不变量：**S-93**。
 
 ## 1. 现状（事实，按 `origin/main` 核）
 
@@ -129,7 +129,9 @@
 | RAC-954 | 同一安装上的 `regrant` 与停用、卸载、升级在安装锁上排队，没有半个状态 | 同上 |
 | RAC-955 | 动作与 API 快照随改动更新（`granted`、新动作），形状变化记入 PR 的「对调用方的影响」 | `pnpm actions:update`、`pnpm api:update` |
 | RAC-956 | 安全不变量表新增一行并指向以上测试，`pnpm health:check` 通过 | `check-health-gates --base origin/main` |
-| RAC-957～959 | 留给实现里发现的 | |
+| RAC-957 | （BL-700）个人空间的开关只给本人：四种别的调用者发现不了也调不了；没有凭据、手写同文、项目入口的凭据、同意入口的凭据、代本人的调用都是 `actions.forbidden`；输入里写项目或身份被拒 | `tests/security-invariants-plugin-permissions.test.ts` |
+| RAC-958 | （BL-700）宿主设置入口列出并开关个人空间的插件：控制令牌、Origin、方法、多余字段、插件页都被拒；开关后插件按新授权重启、列表读到新值；必需的关不掉、没声明的开不了；项目入口够不到它 | `tests/security-invariants-plugin-permissions-http.test.ts` |
+| RAC-959 | （BL-700）插件页有「个人空间里的插件」一节，从宿主设置入口读、开关发往那里；项目的行仍发往项目入口 | 同上 |
 
 ## 7. 裁定（统筹，2026-10-26）
 
@@ -139,6 +141,16 @@
 4. **范围**：开关只管这个项目里的这个安装。Home 级插件的开关页记 **BL-700，owner 是 ac-shell**，排在 PG-002 之后接着做，不放进待办池；**PG-002 行要等 BL-700 也做完才标已做**。
 5. **不建表**，只记 `updated_at`。
 6. **S 号**：S-93；S-15 补一句指向它。
+
+## 8a. BL-700：个人空间里自己运行的插件的开关（已实现）
+
+- **范围**：Manifest 写 `runtime: { scope: "home" }` 的插件（Todo、Jelly、Images、Issues、Cognia、Shelf 等）在 Home 的 Plugin Runtime 里有自己的安装记录，项目的插件页看不到。双实例的插件项目一半和 Home 一半各有一条记录、`install_id` 相同，所以动作按范围分开，不靠 id 猜是哪一半。
+- **动作**：`plugins.home.permissions.set@1`（范围 `home`）与 `plugins.home.installed.list@1`（查询），放在同一个 `plugin-install` 提供方里，受众只有 `user`；输入输出形状与项目的同一份（`granted` 随权限）。
+- **入口与凭据**：宿主设置入口 `/api/settings/plugin-permissions/{list,set}`（仿 `/api/settings/plugin-consents/*`，`plugin-permission-settings-http.ts`），先拒插件页，凭据是入口自己发的第三份登记（`assertHomePluginPermissionSettingsEntry`，要求 `project_id` 为 `null`），与项目入口、同意入口的互不通用；项目入口收到个人空间的 `install_id` 是 `plugin.definition_missing`。
+- **方法**：同一个 `PluginRuntime.regrant`，经 `regrantHomePlugin`：Home 平台的监督器运行这条安装才由 Home 平台停—改—起。
+- **页面**：放在项目设置的「插件」页里「已安装的插件」下面一节「个人空间里的插件」，写明「所有项目共用同一份」，同一套行、开关与确认，只是开关发往 Home 入口。没有新开全局设置分区：开关是对每个项目都生效的授权，放在人本来就看插件权限的那一页最不容易漏看；将来要独立成全局分区时，渲染与脚本不用改，只换挂载位置。
+- **验收**：RAC-957（动作受众与凭据）、RAC-958（入口守卫、重启后新激活持有、项目入口够不到）、RAC-959（页面）。安全不变量仍是 S-93，没有新号。
+- **状态**：PG-002 行可以在这一片合入后标已做。
 
 ## 8. 防腐复查
 

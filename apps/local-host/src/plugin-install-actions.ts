@@ -1,6 +1,6 @@
 import { ActionError, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginInstalledPermissionView, PluginInstalledView, PluginPublisherPin } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
-import { assertPluginConsentSettingsEntry, assertPluginPermissionSettingsEntry } from "./plugin-consent-settings-entry.js";
+import { assertHomePluginPermissionSettingsEntry, assertPluginConsentSettingsEntry, assertPluginPermissionSettingsEntry } from "./plugin-consent-settings-entry.js";
 import type { PluginInstallPreviewResult, PluginInstallService } from "./plugin-install-service.js";
 
 // Installing a plugin from a signed package, as the person's own act (ac-trust T2, specs/repository-anti-corruption/slices/ac-trust-install.md
@@ -23,6 +23,13 @@ const pinView = {
 
 const installedPermissionView = { type: "object", additionalProperties: false, required: ["permission", "required", "reason", "meaning", "granted"],
   properties: { permission: text, required: { type: "boolean" }, reason: text, meaning: { type: ["string", "null"] }, granted: { type: "boolean" } } };
+const permissionSwitch = {
+  input_schema: { type: "object", properties: { install_id: { type: "string", minLength: 1, maxLength: 200 }, permission: { type: "string", minLength: 1, maxLength: 200 }, granted: { type: "boolean" } },
+    required: ["install_id", "permission", "granted"], additionalProperties: false },
+  output_schema: { type: "object", additionalProperties: false, required: ["install_id", "permissions", "changed"], properties: { install_id: text, changed: { type: "boolean" },
+    permissions: { type: "array", items: installedPermissionView } } },
+} as const;
+type PermissionSwitch = ActionDefinition<{ install_id: string; permission: string; granted: boolean }, { install_id: string; permissions: PluginInstalledPermissionView[]; changed: boolean }>;
 const consentRow = {
   type: "object", additionalProperties: false, required: ["consent_id", "plugin_id", "publisher_signature", "kind", "subject", "manifest_digest", "granted_at", "granted_by", "revoked_at"],
   properties: { consent_id: text, plugin_id: text, publisher_signature: text, kind: { enum: ["always_on", "default_wiring", "default_group", "local_directory"] }, subject: text, manifest_digest: text,
@@ -70,11 +77,17 @@ export const pluginInstallActions = {
   setPermission: { capability_id: "plugins.permissions.set", version: 1, operation: "command", action: { ...metadata, scope: "project",
     title: "开关插件的一项可选权限", description: "本人在项目设置里，为这个项目里装着的一个插件打开或关掉它的一项可选权限（必需的关不掉，没声明的开不了）。关掉的权限马上收回：插件会被停下、换上新的授权再启动，正在做的事走到下一次写入就被拒、不留业务记录；打开则在重启后生效。只有宿主的项目设置入口能调，Agent、MCP、工作流和插件都调不到。",
     kind: "operation", effect: "write", permissions: [PLUGIN_INSTALL_WRITE],
-    input_schema: { type: "object", properties: { install_id: { type: "string", minLength: 1, maxLength: 200 }, permission: { type: "string", minLength: 1, maxLength: 200 }, granted: { type: "boolean" } },
-      required: ["install_id", "permission", "granted"], additionalProperties: false },
-    output_schema: { type: "object", additionalProperties: false, required: ["install_id", "permissions", "changed"], properties: { install_id: text, changed: { type: "boolean" },
-      permissions: { type: "array", items: installedPermissionView } } } } } as ActionDefinition<{ install_id: string; permission: string; granted: boolean },
-    { install_id: string; permissions: PluginInstalledPermissionView[]; changed: boolean }>,
+    ...permissionSwitch } } as PermissionSwitch,
+  // The same switch for the plugins that run as the Home's own instance, from the Host settings (BL-700); no project in the call.
+  setHomePermission: { capability_id: "plugins.home.permissions.set", version: 1, operation: "command", action: { ...metadata, scope: "home",
+    title: "开关个人空间里插件的一项可选权限", description: "本人在宿主设置里，为运行在个人空间（所有项目共用）的一个插件打开或关掉它的一项可选权限（必需的关不掉，没声明的开不了）。关掉的权限马上收回：插件会被停下、换上新的授权再启动，正在做的事走到下一次写入就被拒、不留业务记录；打开则在重启后生效。只有宿主设置入口能调，Agent、MCP、工作流和插件都调不到。",
+    kind: "operation", effect: "write", permissions: [PLUGIN_INSTALL_WRITE],
+    ...permissionSwitch } } as PermissionSwitch,
+  homeInstalled: { capability_id: "plugins.home.installed.list", version: 1, operation: "query", action: { ...metadata, scope: "home",
+    title: "查看个人空间里的插件", description: "列出运行在个人空间（所有项目共用）的插件：谁签的名、信任到哪一级、它要了哪些权限（含现在开着没有）、它在后台常做的事和本人给过的同意。",
+    kind: "query", effect: "read", permissions: [PLUGIN_INSTALL_READ],
+    input_schema: { type: "object", properties: {}, additionalProperties: false },
+    output_schema: { type: "object", additionalProperties: false, required: ["plugins"], properties: { plugins: { type: "array", items: installedView } } } } } as ActionDefinition<Record<string, never>, { plugins: PluginInstalledView[] }>,
   installed: { capability_id: "plugins.installed.list", version: 1, operation: "query", action: { ...metadata, scope: "project",
     title: "查看项目里装的插件", description: "列出这个项目里装着的插件：谁签的名、信任到哪一级、它要了哪些权限（含插件自己写的理由和平台对权限的说明）、它在后台常做的事，以及本人给过它的同意（含已撤回的）。",
     kind: "query", effect: "read", permissions: [PLUGIN_INSTALL_READ],
@@ -109,6 +122,13 @@ export function pluginInstallHandlers(service: PluginInstallService): ActionHand
       const { install_id, permission, granted } = input as { install_id: string; permission: string; granted: boolean };
       return await service.setPermission(caller.project_id!, install_id, permission, granted);
     } },
+    { capability_id: pluginInstallActions.setHomePermission.capability_id, version: 1, handle: async (caller, input) => {
+      assertHomePluginPermissionSettingsEntry(caller);
+      await caller.beforeEffect();
+      const { install_id, permission, granted } = input as { install_id: string; permission: string; granted: boolean };
+      return await service.setHomePermission(install_id, permission, granted);
+    } },
+    { capability_id: pluginInstallActions.homeInstalled.capability_id, version: 1, handle: async () => ({ plugins: await service.homeInstalled() }) },
     { capability_id: pluginInstallActions.installed.capability_id, version: 1, handle: async caller => {
       if (!caller.project_id) throw new ActionError("actions.project_required", "请选择一个项目");
       return { plugins: await service.installed(caller.project_id) };

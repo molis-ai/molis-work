@@ -1,13 +1,14 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import type { PluginInstalledView } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
-import { serveHomeRuntime } from "./fixtures/home-runtime.js";
+import { homeProbe, serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 // PG-002, S-93: the project settings page's door for switching one optional permission of a plugin installed in that project, over the real
 // Host HTTP composition. RAC-950 the route takes only the control token and the page's origin, one POST of its three fields, reads nothing the
 // body says about the project or who the person is, and refuses a plugin's own page; RAC-940 switching off keeps the installation and leaves it
 // running on the grants that remain; RAC-941 a required permission cannot be switched off and one the Manifest does not declare cannot be switched
-// on; RAC-953 asking for what is already so changes nothing; RAC-949 the plugin list reflects the switch.
+// on; RAC-953 asking for what is already so changes nothing; RAC-949 the plugin list reflects the switch; RAC-958 the plugins that run as the Home's
+// own instance have the same switch behind the Host settings door (BL-700); RAC-959 the page lists them and sends their switch to that door.
 
 const SET = "/api/plugin-trust/permissions/set";
 interface Overview { plugins: PluginInstalledView[] }
@@ -93,8 +94,70 @@ test("RAC-951 RAC-952 the 插件 page gives each optional permission a switch, a
   const grants = script.slice(script.indexOf("const grants = "), script.indexOf("const draw = "));
   assert.match(grants, /setAttribute\("role", "switch"\)/, "a switch per permission");
   assert.match(grants, /if \(item\.required\) return line;/, "a required permission has none");
-  assert.ok(grants.indexOf("WIDE(item.permission) && !await ask(") < grants.indexOf('api("/permissions/set"'), "the confirmation comes before the call");
+  assert.ok(grants.indexOf("WIDE(item.permission) && !await ask(") < grants.indexOf("await send("), "the confirmation comes before the call");
+  assert.match(script, /send = \(payload\) => api\("\/permissions\/set", payload\)/, "a project's plugin sends to the project's route unless the caller gives another");
   assert.match(grants, /catch \(failure\) \{ toggle\.checked = !on; fail\(failure\); \}/, "a refused switch goes back");
   assert.match(script, /!view\.granted && item\.permissions\.includes\(view\.permission\)/, "a job is paused by a permission that is off");
   assert.match(script, /L\("已暂停：缺少 \{permissions\} 的授权"/);
+});
+
+const HOME_SET = "/api/settings/plugin-permissions/set";
+
+test("RAC-958 S-93 the Home's own plugins are listed and switched through the Host settings door: guarded like the project's, restarted on the new grants, and not reachable from the project's door", { timeout }, async t => {
+  const probe = homeProbe("switchprobe");
+  const f = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
+  await f.host.homePlugins!.ready();
+  const project = await f.project("个人空间开关"), prefix = `/projects/${project.project_id}`;
+  const list = async () => ((await (await f.request("/api/settings/plugin-permissions/list", { method: "POST", body: {} })).json()) as Overview).plugins;
+  const mine = async () => (await list()).find(item => item.plugin_id === probe.id)!;
+  const read = "switchprobe:read";
+  const before = await mine();
+  assert.deepEqual(before.permissions.map(item => [item.permission, item.required, item.granted]).filter(([name]) => name === "storage:private" || name === read), [["storage:private", true, true], [read, false, false]]);
+  const set = (body: unknown, init: { authorized?: boolean; headers?: Record<string, string> } = {}) => f.request(HOME_SET, { method: "POST", body, ...init });
+  const body = { install_id: before.install_id, permission: read, granted: true };
+  assert.equal((await set(body, { authorized: false })).status, 403, "no control token");
+  assert.equal((await set(body, { headers: { origin: "http://127.0.0.1:1" } })).status >= 400, true, "another origin");
+  assert.equal((await f.request(HOME_SET)).status >= 400, true, "a read of it");
+  for (const extra of [{ project_id: project.project_id }, { user_action: { source: "web", conversation_ref: "a", message_ref: "b" } }, { actor_id: "someone" }]) {
+    const refused = await set({ ...body, ...extra });
+    assert.equal(refused.status, 400, JSON.stringify(extra)); assert.equal((await refused.json()).code, "actions.input_invalid");
+  }
+  assert.equal((await mine()).permissions.find(item => item.permission === read)!.granted, false, "none of those changed anything");
+  // A plugin's own page is not the person.
+  const opened = await f.request("/api/host/plugin-pages", { method: "POST", body: { plugin_id: probe.id } });
+  assert.equal(opened.status, 200, await opened.clone().text());
+  const page = { "x-molis-plugin-page": (await opened.json()).page_id as string };
+  assert.equal((await set(body, { headers: page })).status, 403, "the plugin's page");
+  assert.equal((await mine()).permissions.find(item => item.permission === read)!.granted, false);
+  // The project's door does not reach the Home's instance.
+  const viaProject = await f.request(prefix + SET, { method: "POST", body });
+  assert.equal((await viaProject.json()).code, "plugin.definition_missing", "the project's door finds no such installation in the project");
+  // The switch: the plugin is started again on the new grants, and the list says so.
+  const starts = probe.contexts.length;
+  const on = await set(body);
+  assert.equal(on.status, 200, await on.clone().text());
+  const done = await on.json() as { changed: boolean; permissions: Array<{ permission: string; granted: boolean }> };
+  assert.deepEqual([done.changed, done.permissions.find(item => item.permission === read)!.granted], [true, true]);
+  assert.equal(probe.contexts.length, starts + 1, "started once more");
+  assert.equal(probe.contexts.at(-1)!.grants.includes(read), true, "the new activation holds it");
+  assert.deepEqual([(await mine()).state, (await mine()).permissions.find(item => item.permission === read)!.granted], ["running", true]);
+  assert.equal(((await (await set(body)).json()) as { changed: boolean }).changed, false, "already on");
+  const off = await set({ ...body, granted: false });
+  assert.equal(((await off.json()) as { changed: boolean }).changed, true);
+  assert.equal(probe.contexts.at(-1)!.grants.includes(read), false, "and off again");
+  const code = async (input: Record<string, unknown>) => ((await (await set(input)).json()) as { code: string }).code;
+  assert.equal(await code({ ...body, permission: "storage:private", granted: false }), "plugin.grant_denied", "a required permission stays");
+  assert.equal(await code({ ...body, permission: "nowhere:declared" }), "plugin.grant_denied", "an undeclared one is not there");
+  assert.equal(await code({ ...body, install_id: "no-such-install" }), "plugin.definition_missing");
+});
+
+test("RAC-959 the 插件 page has a section for the Home's own plugins, reads it from the Host settings door and sends its switch there", { timeout }, async t => {
+  const f = await setup(t);
+  const html = await (await f.request(f.prefix + "/settings/plugins")).text();
+  assert.match(html, /data-plugin-trust-home/);
+  const script = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(found => found[1]!).find(body => body.includes("molisWorkBindPluginTrustSettings"))!;
+  assert.match(script, /molisWorkRequest\("\/api\/settings\/plugin-permissions\/list"/);
+  assert.match(script, /molisWorkRequest\("\/api\/settings\/plugin-permissions\/set", \{ body: payload \}\)/);
+  assert.match(script, /home\.plugins\.map\(\(plugin\) => installed\(plugin, homeSend\)\)/, "the Home's rows send their switch to the Home door");
+  assert.match(script, /const installed = \(plugin, send = \(payload\) => api\("\/permissions\/set", payload\)\)/, "a project's rows send theirs to the project's route");
 });

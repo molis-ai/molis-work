@@ -30,6 +30,9 @@ export interface PluginInstallPorts {
   installed(projectId: string): Promise<InstalledPluginEntry[]>;
   /** Switches one optional permission of an installation in the project and restarts it on the new grants (`PluginRuntime.regrant`); a Host that cannot leaves it out. */
   regrant?(projectId: string, installId: string, permission: string, granted: boolean): Promise<void>;
+  /** The same two for the plugins that run as the Home's own instance (BL-700); a Host without a Home leaves them out. */
+  homeInstalled?(): Promise<InstalledPluginEntry[]>;
+  homeRegrant?(installId: string, permission: string, granted: boolean): Promise<void>;
   now?(): string;
 }
 
@@ -110,16 +113,33 @@ export class PluginInstallService {
    * Answers the installation's permissions as they stand after, and whether anything changed.
    */
   async setPermission(projectId: string, installId: string, permission: string, granted: boolean): Promise<{ install_id: string; permissions: PluginInstalledPermissionView[]; changed: boolean }> {
-    const find = async () => (await this.ports.installed(projectId)).find(entry => entry.record.install_id === installId);
+    const { regrant } = this.ports;
+    return this.switchPermission(() => this.ports.installed(projectId), regrant && (() => regrant(projectId, installId, permission, granted)), installId);
+  }
+
+  /** The same switch for a plugin that runs as the Home's own instance, shared by every project (BL-700, S-93). */
+  async setHomePermission(installId: string, permission: string, granted: boolean): Promise<{ install_id: string; permissions: PluginInstalledPermissionView[]; changed: boolean }> {
+    const { homeInstalled, homeRegrant } = this.ports;
+    if (!homeInstalled) throw pluginErrors.state_invalid('这个宿主没有个人空间');
+    return this.switchPermission(homeInstalled, homeRegrant && (() => homeRegrant(installId, permission, granted)), installId);
+  }
+
+  private async switchPermission(list: () => Promise<InstalledPluginEntry[]>, regrant: (() => Promise<void>) | undefined, installId: string): Promise<{ install_id: string; permissions: PluginInstalledPermissionView[]; changed: boolean }> {
+    const find = async () => (await list()).find(entry => entry.record.install_id === installId);
     const before = await find();
-    if (!before?.manifest) throw pluginErrors.definition_missing('这个项目里没有这个插件的安装，或读不到它安装时的声明');
-    if (!this.ports.regrant) throw pluginErrors.state_invalid('这个宿主不能改插件的授权');
-    await this.ports.regrant(projectId, installId, permission, granted);
+    if (!before?.manifest) throw pluginErrors.definition_missing('这里没有这个插件的安装，或读不到它安装时的声明');
+    if (!regrant) throw pluginErrors.state_invalid('这个宿主不能改插件的授权');
+    await regrant();
     const after = await find();
     if (!after?.manifest) throw pluginErrors.definition_missing('这个插件的安装已经不在');
     const held = new Set(before.record.grants);
     return { install_id: installId, permissions: installedPermissionViews(after.manifest, after.record.grants),
       changed: after.record.grants.length !== held.size || after.record.grants.some(grant => !held.has(grant)) };
+  }
+
+  /** The Home's own plugins as the settings page shows them: the same view as a project's, for the instance every project shares. */
+  async homeInstalled(): Promise<PluginInstalledView[]> {
+    return installedPluginViews(await (this.ports.homeInstalled?.() ?? []), this.ports.ledger);
   }
 
   /** The project's installed plugins as their detail page shows them: trust, permissions, jobs and the person's agreements. */

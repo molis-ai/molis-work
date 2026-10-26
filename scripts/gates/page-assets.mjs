@@ -270,7 +270,11 @@ const APPROVED_CEILINGS = {
 //   script, the rest is their Chinese text and English translations, which must be there. Tried: the switch is the existing `mw-switch`
 //   markup, the confirmation is the page's one `ask` dialog, the rows reuse `row`/`group`/`el`; no new helper or library.
 // - workbench.css 1,236,084 -> 1,236,101 (+17 B): the switch sits in the existing row column (`:is(.mw-btn, .mw-switch)`).
-  "/assets/molis-work-workbench.js": [1129446, 1141064],
+// BL-700 (ac-shell, stacked on PG-002), the same switches for the plugins that run as the Home's own instance, in a second list on that page:
+// - workbench.js 1,141,064 -> 1,141,402 (+338 B, under 10 KB): the list is the PG-002 row renderer called a second time with the Home door's
+//   send function (`installed(plugin, send)`, `grants(plugin, repaint, send)`); the bytes are the request and its heading, empty text and
+//   English translations. Tried: no second renderer, no new style (the section reuses the page's `group`/`row`).
+  "/assets/molis-work-workbench.js": [1129446, 1141402],
   "/assets/molis-work-workbench.css": [1234610, 1236101],
   "/assets/molis-work-settings.css": [932738, 932843],
   "/assets/molis-work-plugins/shelf.js": [63376, 64623],

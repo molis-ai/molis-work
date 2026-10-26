@@ -21,7 +21,7 @@
 
 ### 变化
 
-- **插件的可选权限能在项目设置里逐项开关**（PG-002，S-93）：新增动作 `plugins.permissions.set@1`（只给本人，非破坏性，已发布的动作都没有变形状）；同批新增的 `plugins.installed.list@1` 的每项权限带 `granted`。关掉一项会让运行中的插件重启一次，在途的调用在下一次写被拒；放宽 `actions:delegate`、`network:*`、`secret:*`、`model:invoke` 前页面先确认。
+- **插件的可选权限能在项目设置里逐项开关**（PG-002，S-93）：新增动作 `plugins.permissions.set@1`（只给本人，非破坏性，已发布的动作都没有变形状）；同批新增的 `plugins.installed.list@1` 的每项权限带 `granted`。个人空间里自己运行的插件有同样的开关：新增 `plugins.home.permissions.set@1` 与 `plugins.home.installed.list@1`（范围 `home`，BL-700），项目设置的插件页把它们列在项目的插件下面。关掉一项会让运行中的插件重启一次，在途的调用在下一次写被拒；放宽 `actions:delegate`、`network:*`、`secret:*`、`model:invoke` 前页面先确认。
 - **合作源码许可**：Molis Work 项目代码（含 SDK、contracts 与内置插件）从 MIT 声明切换为 [Molis AI Cooperation Source License](../../LICENSE)。合作方可在约定范围内阅读和参与开发；对外销售、提供收费服务或转授权须事先取得实际著作权人或其合法授权代表的明确书面授权。Molis AI 的主体公司尚未设立，未来公司须取得相应权利或授权。第三方许可、独立工作成果以及旧版本已合法授予的权利保留；本条不追溯改变过去的发行物。
 
 ## [0.3.0] - 2026-10-16

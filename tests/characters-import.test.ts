@@ -216,3 +216,36 @@ test("Skill metadata reads folded and literal YAML scalars instead of exposing b
     assert.equal(skill.files.find(file => file.path === "SKILL.md")!.content, `---\n${example.source}---\nFull original Skill body.\n`);
   }
 });
+
+/** What discovery read, as a person would list it: sources in the order they were taken, relative to the home they sit in. */
+function sources(home: string, candidates: ReturnType<ReturnType<typeof fixture>["discover"]["discover"]>) {
+  const rel = (text: string) => text.split(realpathSync(home)).join("~").split(home).join("~");
+  return candidates.map(candidate => ({
+    runtime: candidate.snapshot.runtime_id, label: candidate.label, root: rel(candidate.snapshot.config_root), project: candidate.snapshot.project_root ? rel(candidate.snapshot.project_root) : null,
+    rules: candidate.snapshot.rules.map(rule => `${rule.scope} ${rel(rule.path)}${rule.condition ? " (conditional)" : ""}`),
+    skills: candidate.snapshot.skills.map(skill => `${rel(skill.id)} ${skill.compatibility}`),
+    warnings: candidate.warnings.map(rel),
+  }));
+}
+
+test("discovery takes each runtime's rules and Skills from the same places, in the same order", t => {
+  const { home, discover } = fixture(t), project = join(home, "project");
+  const skill = (path: string) => put(join(path, "SKILL.md"), "---\nname: s\ndescription: d\n---\nbody");
+  put(join(home, ".codex/AGENTS.md"), "codex"); put(join(home, ".codex/AGENTS.override.md"), "codex override"); skill(join(home, ".codex/skills/a"));
+  put(join(home, ".claude/CLAUDE.md"), "claude"); put(join(home, ".claude/rules/one.md"), "one"); put(join(home, ".claude/rules/sub/two.md"), "two"); put(join(home, ".claude/rules/.env"), "SECRET=1");
+  skill(join(home, ".claude/skills/c"));
+  put(join(home, ".cursor/AGENTS.md"), "cursor"); skill(join(home, ".cursor/skills/cu"));
+  skill(join(home, ".config/opencode/skills/o"));
+  put(join(home, ".grok/GROK.md"), "grok"); put(join(home, ".grok/AGENTS.md"), "grok agents"); put(join(home, ".grok/rules/g.md"), "g"); skill(join(home, ".grok/skills/g"));
+  skill(join(home, ".agents/skills/shared")); skill(join(home, ".agents/skills/nested/deeper"));
+  mkdirSync(project);
+  put(join(project, "AGENTS.md"), "p agents"); put(join(project, "CLAUDE.md"), "p claude"); put(join(project, ".claude/CLAUDE.md"), "p claude dir"); put(join(project, "CLAUDE.local.md"), "p local");
+  put(join(project, ".claude/rules/p.md"), "---\npaths:\n  - a/**\n---\np"); put(join(project, ".cursor/rules/t.mdc"), "---\nglobs: '*.ts'\n---\nt"); put(join(project, ".grok/rules/pg.md"), "pg");
+  for (const dir of [".agents", ".codex", ".opencode", ".grok", ".claude", ".cursor"]) skill(join(project, dir, "skills", dir.slice(1)));
+  const manual = join(home, "manual"); put(join(manual, "AGENTS.md"), "manual"); skill(join(manual, "skills/m"));
+  const globalOnly = sources(home, discover.discover());
+  const withProject = sources(home, discover.discover({ project_root: project }));
+  const oneRuntime = sources(home, discover.discover({ runtime_id: "opencode", project_root: project }));
+  const manualRoot = sources(home, discover.discover({ runtime_id: "codex", config_root: manual, project_root: project }));
+  assert.deepEqual({ globalOnly, withProject, oneRuntime, manualRoot }, JSON.parse(readFileSync(new URL("./fixtures/character-discovery-sources.json", import.meta.url), "utf8")));
+});

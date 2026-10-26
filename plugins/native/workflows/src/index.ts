@@ -2,7 +2,7 @@ export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-plugin-workflows",
   packagePath: "plugins/native/workflows",
   kind: "native-plugin",
-  maturity: "partial",
+  maturity: "production",
   contract: "@molis-ai/molis-work-contracts/platform/plugin",
   ssot: "docs/SSOT-MATRIX.md",
   capabilities: ["workflows.ui-contribution.v1", "workflows.http-routes.v1", "workflows.actions.v1"],

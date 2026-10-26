@@ -295,7 +295,7 @@
   "molis-work": {
     "path": "packages/contracts",
     "kind": "foundation",
-    "maturity": "contract-only",
+    "maturity": "production",
     "contract": "@molis-ai/molis-work-contracts/platform/package",
     "migrationGoals": [
       "goal-reorg-f2",

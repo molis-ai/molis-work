@@ -473,7 +473,7 @@ export declare const packageDescriptor: {
     readonly packageName: "@molis-ai/molis-work-plugin-sdk";
     readonly packagePath: "packages/plugin-sdk";
     readonly kind: "foundation";
-    readonly maturity: "partial";
+    readonly maturity: "production";
     readonly contract: "@molis-ai/molis-work-contracts/platform/plugin";
     readonly migrationGoals: readonly ["goal-reorg-f2", "goal-reorg-fd3", "goal-reorg-dv3"];
     readonly ssot: "docs/SSOT-MATRIX.md";

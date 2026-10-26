@@ -15,7 +15,7 @@ export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-service-placement",
   packagePath: "horizontal/placement",
   kind: "horizontal",
-  maturity: "partial",
+  maturity: "production",
   contract: "@molis-ai/molis-work-contracts/services/placement",
   capabilities: ["placement.describe.v1", "placement.links.v1"],
 } as const;

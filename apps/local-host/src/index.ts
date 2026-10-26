@@ -37,7 +37,7 @@ export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-app-local-host",
   packagePath: "apps/local-host",
   kind: "app",
-  maturity: "partial",
+  maturity: "production",
   contract: "@molis-ai/molis-work-contracts/platform/app-host",
   migrationGoals: ["goal-reorg-f2","goal-reorg-ap2"],
   ssot: "docs/SSOT-MATRIX.md",

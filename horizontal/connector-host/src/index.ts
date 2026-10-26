@@ -13,7 +13,7 @@ export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-service-connector-host",
   packagePath: "horizontal/connector-host",
   kind: "horizontal",
-  maturity: "partial",
+  maturity: "production",
   contract: "@molis-ai/molis-work-contracts/services/connector-host",
   migrationGoals: ["goal-reorg-f2", "goal-reorg-fd1", "goal-reorg-fd3"],
   ssot: "docs/SSOT-MATRIX.md",

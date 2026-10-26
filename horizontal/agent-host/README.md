@@ -77,7 +77,7 @@ Run 的启动/读取/控制/等待、接续的等待。每一条只给插件、�
 - [Coding 插件 UI 与交互设计](../../specs/coding-plugin/design.md)
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
-- Status: `partial`
+- Status: `production`
 - Contract entrypoint: `@molis-ai/molis-work-contracts/services/agent-host`
 - Migration Goals: `goal-reorg-f2`, `goal-plugin-platform-v2`.
 

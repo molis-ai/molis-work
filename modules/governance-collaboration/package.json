@@ -30,7 +30,7 @@
   "molis-work": {
     "path": "modules/governance-collaboration",
     "kind": "module",
-    "maturity": "partial",
+    "maturity": "production",
     "contract": "@molis-ai/molis-work-contracts/modules/governance-collaboration",
     "migrationGoals": [
       "goal-reorg-f2",

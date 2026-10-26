@@ -13,7 +13,7 @@ in the main workspace writes each file only after a person reviews that write,
 and a parallel writer's result comes back through Coding's integration review
 (`review:git-integration`).
 
-- Status: `partial`
+- Status: `production`
 - Migration Goals: `goal-reorg-f2`, `goal-plugin-platform-v2`.
 - Contract entrypoint: `@molis-ai/molis-work-contracts/platform/plugin`
 

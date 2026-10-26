@@ -30,7 +30,7 @@
   "molis-work": {
     "path": "modules/signals",
     "kind": "module",
-    "maturity": "partial",
+    "maturity": "production",
     "contract": "@molis-ai/molis-work-contracts/modules/signals",
     "migrationGoals": [
       "goal-reorg-f2",

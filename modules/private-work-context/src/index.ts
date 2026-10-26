@@ -10,7 +10,7 @@ export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-module-private-work-context",
   packagePath: "modules/private-work-context",
   kind: "module",
-  maturity: "partial",
+  maturity: "slice",
   contract: "@molis-ai/molis-work-contracts/modules/private-work-context",
   migrationGoals: ["goal-reorg-f2","goal-reorg-wk1"],
   ssot: "docs/SSOT-MATRIX.md",

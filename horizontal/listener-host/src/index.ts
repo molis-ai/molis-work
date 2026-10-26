@@ -18,7 +18,7 @@ export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-service-listener-host",
   packagePath: "horizontal/listener-host",
   kind: "horizontal",
-  maturity: "partial",
+  maturity: "production",
   contract: "@molis-ai/molis-work-contracts/services/listener-host",
   migrationGoals: ["goal-reorg-f2", "goal-reorg-fd1"],
   ssot: "docs/SSOT-MATRIX.md",

@@ -7,7 +7,7 @@ export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-kernel",
   packagePath: "packages/kernel",
   kind: "foundation",
-  maturity: "partial",
+  maturity: "production",
   contract: "@molis-ai/molis-work-contracts/platform/kernel",
   migrationGoals: ["goal-reorg-f2","goal-reorg-f3","goal-reorg-ap2"],
   ssot: "docs/SSOT-MATRIX.md",

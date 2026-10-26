@@ -65,7 +65,7 @@ node scripts/run-tests.mjs tests/projects-module.test.ts
 - [职责与接入说明](../../docs/modules/projects.md)
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
-- Status: `partial`
+- Status: `production`
 - Contract entrypoint: `@molis-ai/molis-work-contracts/modules/projects`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-ap1`.
 

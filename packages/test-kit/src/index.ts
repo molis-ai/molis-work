@@ -20,7 +20,7 @@ export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-test-kit",
   packagePath: "packages/test-kit",
   kind: "foundation",
-  maturity: "partial",
+  maturity: "slice",
   contract: "@molis-ai/molis-work-contracts/platform/testing",
   migrationGoals: ["goal-reorg-f2","goal-reorg-f3"],
   ssot: "docs/SSOT-MATRIX.md",

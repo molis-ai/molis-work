@@ -38,7 +38,7 @@
   "molis-work": {
     "path": "plugins/native/git",
     "kind": "native-plugin",
-    "maturity": "partial",
+    "maturity": "production",
     "contract": "@molis-ai/molis-work-contracts/platform/plugin",
     "summary": "First-party Git working-tree changes, commit drafts and accepted change sets.",
     "notResponsibleFor": "Running git, approving an operation, or rendering a comparison.",

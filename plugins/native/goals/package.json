@@ -35,7 +35,7 @@
   "molis-work": {
     "path": "plugins/native/goals",
     "kind": "native-plugin",
-    "maturity": "partial",
+    "maturity": "production",
     "contract": "@molis-ai/molis-work-contracts/platform/plugin",
     "summary": "Protected first-party Goals navigation, UI, commands, and composition.",
     "notResponsibleFor": "Goal facts, Stores, or another Plugin implementation.",

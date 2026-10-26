@@ -54,7 +54,7 @@ pnpm --filter @molis-ai/molis-work-service-placement build
 
 - [职责与接入说明](../../docs/SSOT-MATRIX.md)
 
-- Status: `partial`
+- Status: `production`
 - Contract entrypoint: `@molis-ai/molis-work-contracts/services/placement`
 - Migration Goals: `goal-reorg-f2`.
 

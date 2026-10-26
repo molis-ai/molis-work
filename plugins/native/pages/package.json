@@ -57,7 +57,7 @@
   "molis-work": {
     "path": "plugins/native/pages",
     "kind": "native-plugin",
-    "maturity": "partial",
+    "maturity": "production",
     "contract": "@molis-ai/molis-work-contracts/platform/plugin",
     "summary": "Protected first-party Pages directory and ProseMirror document editor.",
     "notResponsibleFor": "Goal/Artifact facts, model providers, or a hosted document service.",

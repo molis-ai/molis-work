@@ -18,7 +18,7 @@ Pages 存储基线为 2；本次未实现旧库读取兼容或自动迁移，也
 
 不改 Goal 树。Promote 经 Host 发出个人 Artifact。对外能力就是它声明的动作，经「能力 → 对外接入」授权后才出现在 MCP；Host 从绑定项目注入分区。
 
-- Status: `partial`
+- Status: `production`
 - Contract: `@molis-ai/molis-work-contracts/platform/plugin`
 - Migration: `goal-reorg-f2`
 

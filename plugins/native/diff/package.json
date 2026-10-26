@@ -35,7 +35,7 @@
   "molis-work": {
     "path": "plugins/native/diff",
     "kind": "native-plugin",
-    "maturity": "partial",
+    "maturity": "production",
     "contract": "@molis-ai/molis-work-contracts/platform/plugin",
     "summary": "First-party comparison surface over captured snapshots, prepared changes and Git changes.",
     "notResponsibleFor": "Producing change sets, reading files, or applying a change.",

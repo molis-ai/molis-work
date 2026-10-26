@@ -1,4 +1,4 @@
-export const packageDescriptor = { packageName: "@molis-ai/molis-work-plugin-cognia", packagePath: "plugins/native/cognia", kind: "native-plugin", maturity: "partial", contract: "@molis-ai/molis-work-contracts/platform/plugin", ssot: "docs/SSOT-MATRIX.md", capabilities: ["cognia.ui-contribution.v1", "cognia.knowledge.v1"] } as const;
+export const packageDescriptor = { packageName: "@molis-ai/molis-work-plugin-cognia", packagePath: "plugins/native/cognia", kind: "native-plugin", maturity: "production", contract: "@molis-ai/molis-work-contracts/platform/plugin", ssot: "docs/SSOT-MATRIX.md", capabilities: ["cognia.ui-contribution.v1", "cognia.knowledge.v1"] } as const;
 export * from "./types.js";
 export * from "./content.js";
 export * from "./store.js";

@@ -3,7 +3,7 @@ export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-storage",
   packagePath: "packages/storage",
   kind: "foundation",
-  maturity: "partial",
+  maturity: "production",
   contract: "@molis-ai/molis-work-contracts/platform/storage",
   migrationGoals: ["goal-reorg-f2","goal-reorg-ap2"],
   ssot: "docs/SSOT-MATRIX.md",

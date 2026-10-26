@@ -24,7 +24,7 @@ export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-app-mcp",
   packagePath: "apps/mcp",
   kind: "app",
-  maturity: "partial",
+  maturity: "production",
   contract: "@molis-ai/molis-work-contracts/platform/app-host",
   migrationGoals: ["goal-reorg-f2", "goal-reorg-dv1", "goal-reorg-dv2", "goal-reorg-gw4", "goal-reorg-ex4"],
   ssot: "docs/SSOT-MATRIX.md",

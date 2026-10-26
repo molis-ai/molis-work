@@ -59,7 +59,7 @@ node scripts/run-tests.mjs tests/scheduler.test.ts tests/schedule-plugin.test.ts
 - [Scheduler 服务说明](../../docs/horizontal/scheduler.md)
 - [定时任务插件需求](../../specs/archive/schedule-plugin/spec.md)
 
-- Status: `partial`
+- Status: `production`
 - SSOT: `docs/SSOT-MATRIX.md`
 - Contract: `@molis-ai/molis-work-contracts/services/scheduler`
 - Migration Goals: `goal-reorg-f2`

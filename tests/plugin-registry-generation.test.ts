@@ -355,8 +355,19 @@ test("RAC-576 W5-02-REG-05 a clean tracked fixture passes, then rejects another 
     t.diagnostic(`kind mutation: exit ${foundation.status}, ${JSON.stringify(JSON.parse(foundation.stdout).errors)}`);
     const contractOnly = check({ maturity: "contract-only" });
     assert.equal(contractOnly.status, 1, contractOnly.stdout + contractOnly.stderr);
-    assert.deepEqual(JSON.parse(contractOnly.stdout).errors, ["[workspace-inventory] plugins/native/text-stats: package maturity must be partial"]);
-    t.diagnostic(`maturity mutation: exit ${contractOnly.status}, ${JSON.stringify(JSON.parse(contractOnly.stdout).errors)}`);
+    // W5-15: the old migration word is no longer a package maturity; a block may only name one of the three live words.
+    // The later checks read the same block, so each consequence is expected too — every one of them names the plugin.
+    const maturityProblems = JSON.parse(contractOnly.stdout).errors as string[];
+    assert.deepEqual(
+      maturityProblems.filter((message) => message.includes("package maturity must be one of")),
+      ['[workspace-inventory] plugins/native/text-stats: package maturity must be one of production/experimental/slice, got "contract-only"'],
+    );
+    assert.ok(maturityProblems.length > 1, "the package.json, source, README and SSOT checks all read the same block");
+    assert.ok(
+      maturityProblems.every((message) => message.includes("plugins/native/text-stats")),
+      `every consequence names the plugin: ${JSON.stringify(maturityProblems)}`,
+    );
+    t.diagnostic(`maturity mutation: exit ${contractOnly.status}, ${JSON.stringify(maturityProblems)}`);
   } finally {
     rmSync(scratch, { recursive: true, force: true });
     rmSync(untracked, { recursive: true, force: true });

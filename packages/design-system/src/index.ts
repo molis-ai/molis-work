@@ -2,7 +2,7 @@ export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-design-system",
   packagePath: "packages/design-system",
   kind: "foundation",
-  maturity: "partial",
+  maturity: "production",
   contract: "@molis-ai/molis-work-contracts/platform/ui",
   migrationGoals: ["goal-reorg-f2","goal-reorg-ap3"],
   ssot: "docs/SSOT-MATRIX.md",

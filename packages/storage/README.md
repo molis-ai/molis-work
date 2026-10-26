@@ -94,7 +94,7 @@ pnpm test:run tests/feed-security.test.ts tests/web-home-isolation.test.ts tests
 - [职责与接入说明](../../docs/SSOT-MATRIX.md)
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
-- Status: `partial`
+- Status: `production`
 - Contract entrypoint: `@molis-ai/molis-work-contracts/platform/storage`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-ap2`.
 

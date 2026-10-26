@@ -2,7 +2,7 @@ export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-module-shelf",
   packagePath: "modules/shelf",
   kind: "module",
-  maturity: "partial",
+  maturity: "slice",
   contract: "@molis-ai/molis-work-contracts/modules/shelf",
   migrationGoals: ["goal-reorg-f2"],
   ssot: "docs/SSOT-MATRIX.md",

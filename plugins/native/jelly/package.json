@@ -39,7 +39,7 @@
   "molis-work": {
     "path": "plugins/native/jelly",
     "kind": "native-plugin",
-    "maturity": "partial",
+    "maturity": "production",
     "contract": "@molis-ai/molis-work-contracts/platform/plugin",
     "summary": "Personal Jelly calendar, notes, and inspiration workspace.",
     "notResponsibleFor": "Original Jelly App data, project Goal facts, or a second runtime.",

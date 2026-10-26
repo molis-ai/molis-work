@@ -120,7 +120,7 @@ node scripts/run-tests.mjs tests/artifact-document-import.test.ts tests/document
 - [职责与接入说明](../../../docs/modules/artifacts.md)
 - [架构与当前实现索引](../../../docs/SSOT-MATRIX.md)
 
-- Status: `partial`
+- Status: `production`
 - Contract entrypoint: `@molis-ai/molis-work-contracts/platform/plugin`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-ar3`.
 

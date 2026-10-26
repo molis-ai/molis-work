@@ -124,7 +124,7 @@ node --import tsx apps/desktop/launchers/web/server.ts --port 4182 --home /tmp/m
 - [UI Platform](../../docs/platform/UI-PLATFORM.md)：Workbench / UI Host / Design System 分工
 - [SSOT 索引](../../docs/SSOT-MATRIX.md)
 
-- Status: `partial`
+- Status: `production`
 - Contract entrypoint: `@molis-ai/molis-work-contracts/platform/ui`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-ap3`
 

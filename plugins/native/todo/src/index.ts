@@ -2,7 +2,7 @@ export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-plugin-todo",
   packagePath: "plugins/native/todo",
   kind: "native-plugin",
-  maturity: "partial",
+  maturity: "production",
   contract: "@molis-ai/molis-work-contracts/platform/plugin",
   ssot: "docs/SSOT-MATRIX.md",
   capabilities: ["todo.ui-contribution.v1", "todo.http-routes.v1"],

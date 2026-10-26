@@ -2,7 +2,7 @@ export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-plugin-pages",
   packagePath: "plugins/native/pages",
   kind: "native-plugin",
-  maturity: "partial",
+  maturity: "production",
   contract: "@molis-ai/molis-work-contracts/platform/plugin",
   ssot: "docs/SSOT-MATRIX.md",
   capabilities: ["pages.ui-contribution.v1", "pages.http-routes.v1"],

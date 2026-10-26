@@ -2,7 +2,7 @@ export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-module-functions",
   packagePath: "modules/functions",
   kind: "module",
-  maturity: "partial",
+  maturity: "production",
   contract: "@molis-ai/molis-work-contracts/modules/functions",
   migrationGoals: [],
   ssot: "docs/SSOT-MATRIX.md",

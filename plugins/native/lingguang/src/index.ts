@@ -2,7 +2,7 @@ export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-plugin-lingguang",
   packagePath: "plugins/native/lingguang",
   kind: "native-plugin",
-  maturity: "partial",
+  maturity: "production",
   contract: "@molis-ai/molis-work-contracts/platform/plugin",
   ssot: "docs/SSOT-MATRIX.md",
   capabilities: ["lingguang.ui-contribution.v1", "lingguang.http-routes.v1"],

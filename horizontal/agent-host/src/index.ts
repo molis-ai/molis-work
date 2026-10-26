@@ -101,7 +101,7 @@ export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-service-agent-host",
   packagePath: "horizontal/agent-host",
   kind: "horizontal",
-  maturity: "partial",
+  maturity: "production",
   contract: "@molis-ai/molis-work-contracts/services/agent-host",
   migrationGoals: ["goal-reorg-f2", "goal-plugin-platform-v2"],
   ssot: "docs/SSOT-MATRIX.md",

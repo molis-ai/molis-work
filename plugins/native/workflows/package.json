@@ -35,7 +35,7 @@
   "molis-work": {
     "path": "plugins/native/workflows",
     "kind": "native-plugin",
-    "maturity": "partial",
+    "maturity": "production",
     "contract": "@molis-ai/molis-work-contracts/platform/plugin",
     "summary": "Project workflows that chain existing plugins with typed handoffs.",
     "notResponsibleFor": "Plugin item storage, model providers, or Feed/Inbox/Pages internals.",

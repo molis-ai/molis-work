@@ -93,7 +93,7 @@ node scripts/run-tests.mjs tests/workbench-ui-platform.test.ts tests/plugin-host
 - [职责与接入说明](../../docs/platform/UI-PLATFORM.md)
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
-- Status: `partial`
+- Status: `slice`
 - Contract entrypoint: `@molis-ai/molis-work-contracts/platform/ui`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-fd4`, `goal-reorg-ap3`.
 

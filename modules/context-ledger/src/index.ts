@@ -4,7 +4,7 @@ export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-module-context-ledger",
   packagePath: "modules/context-ledger",
   kind: "module",
-  maturity: "partial",
+  maturity: "slice",
   contract: "@molis-ai/molis-work-contracts/modules/context-ledger",
   migrationGoals: ["goal-reorg-f2","goal-reorg-ar2"],
   ssot: "docs/SSOT-MATRIX.md",

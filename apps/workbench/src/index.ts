@@ -34,7 +34,7 @@ export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-app-workbench",
   packagePath: "apps/workbench",
   kind: "app",
-  maturity: "partial",
+  maturity: "production",
   contract: "@molis-ai/molis-work-contracts/platform/app-host",
   migrationGoals: ["goal-reorg-f2", "goal-reorg-fd4", "goal-reorg-ap3", "goal-reorg-gw4", "goal-reorg-gw5", "goal-reorg-ex4"],
   ssot: "docs/SSOT-MATRIX.md",

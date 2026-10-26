@@ -79,7 +79,7 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
 - [职责与接入说明](../../docs/system/PACKAGE-BOUNDARIES.md)
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
-- Status: `contract-only`
+- Status: `production`
 - Contract entrypoint: `@molis-ai/molis-work-contracts/platform/package`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-f3`.
 

@@ -3,7 +3,7 @@ export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-app-desktop",
   packagePath: "apps/desktop",
   kind: "app",
-  maturity: "partial",
+  maturity: "production",
   contract: "@molis-ai/molis-work-contracts/platform/app-host",
   migrationGoals: ["goal-reorg-f2","goal-reorg-ap4","goal-reorg-dv4"],
   ssot: "docs/SSOT-MATRIX.md",

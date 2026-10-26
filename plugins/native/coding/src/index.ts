@@ -19,7 +19,7 @@ export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-plugin-coding",
   packagePath: "plugins/native/coding",
   kind: "native-plugin",
-  maturity: "partial",
+  maturity: "production",
   contract: "@molis-ai/molis-work-contracts/platform/plugin",
   migrationGoals: ["goal-reorg-f2", "goal-plugin-platform-v2"],
   ssot: "docs/SSOT-MATRIX.md",

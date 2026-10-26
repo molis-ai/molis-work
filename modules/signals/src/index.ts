@@ -13,7 +13,7 @@ export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-module-signals",
   packagePath: "modules/signals",
   kind: "module",
-  maturity: "partial",
+  maturity: "production",
   contract: "@molis-ai/molis-work-contracts/modules/signals",
   migrationGoals: ["goal-reorg-f2", "goal-reorg-fd1"],
   ssot: "docs/SSOT-MATRIX.md",

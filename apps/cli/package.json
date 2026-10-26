@@ -30,7 +30,7 @@
   "molis-work": {
     "path": "apps/cli",
     "kind": "app",
-    "maturity": "partial",
+    "maturity": "production",
     "contract": "@molis-ai/molis-work-contracts/platform/app-host",
     "migrationGoals": [
       "goal-reorg-f2",
@@ -39,7 +39,6 @@
       "goal-reorg-ex4"
     ],
     "ssot": "docs/SSOT-MATRIX.md",
-    "capabilities": [
-    ]
+    "capabilities": []
   }
 }

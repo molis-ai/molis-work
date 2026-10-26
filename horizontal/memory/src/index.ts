@@ -11,7 +11,7 @@ export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-service-memory",
   packagePath: "horizontal/memory",
   kind: "horizontal",
-  maturity: "partial",
+  maturity: "production",
   contract: "@molis-ai/molis-work-contracts/services/memory",
   migrationGoals: ["goal-reorg-f2"],
   ssot: "docs/SSOT-MATRIX.md",

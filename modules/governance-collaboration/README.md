@@ -66,7 +66,7 @@ node scripts/run-tests.mjs tests/goal-tree-event-flow.test.ts tests/goal-events-
 - [职责与接入说明](../../docs/modules/governance-collaboration.md)
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
-- Status: `partial`
+- Status: `production`
 - Contract entrypoint: `@molis-ai/molis-work-contracts/modules/governance-collaboration`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-ex3`, `goal-reorg-ex4`.
 

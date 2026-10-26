@@ -2,7 +2,7 @@ export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-service-runtime-host",
   packagePath: "horizontal/runtime-host",
   kind: "horizontal",
-  maturity: "partial",
+  maturity: "slice",
   contract: "@molis-ai/molis-work-contracts/services/runtime-host",
   migrationGoals: ["goal-reorg-f2","goal-reorg-wk2"],
   ssot: "docs/SSOT-MATRIX.md",

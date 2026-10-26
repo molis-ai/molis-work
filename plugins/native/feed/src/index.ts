@@ -6,7 +6,7 @@ export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-plugin-feed",
   packagePath: "plugins/native/feed",
   kind: "native-plugin",
-  maturity: "partial",
+  maturity: "slice",
   contract: "@molis-ai/molis-work-contracts/platform/plugin",
   migrationGoals: ["goal-reorg-f2","goal-reorg-fd4"],
   ssot: "docs/SSOT-MATRIX.md",

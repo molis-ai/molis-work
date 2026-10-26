@@ -428,8 +428,8 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     }
   }
   const moduleManifest = readJson(path.join(repositoryRoot, "modules/goals/package.json"));
-  if (moduleManifest["molis-work"]?.maturity !== "partial") {
-    errors.push("modules/goals/package.json: migrated Goal commands require partial maturity");
+  if (moduleManifest["molis-work"]?.maturity !== "production") {
+    errors.push("modules/goals/package.json: migrated Goal commands require production maturity");
   }
   if (!moduleManifest["molis-work"]?.capabilities?.includes("goals.lifecycle.v1")) {
     errors.push("modules/goals/package.json: GW2 requires goals.lifecycle.v1 capability");
@@ -690,8 +690,8 @@ function checkMigratedGovernanceOwnership(repositoryRoot) {
     "governance.decisions.v1",
     "governance.event-decisions.v1",
   ];
-  if (manifest["molis-work"]?.maturity !== "partial") {
-    errors.push("modules/governance-collaboration/package.json: EX3 requires partial maturity");
+  if (manifest["molis-work"]?.maturity !== "production") {
+    errors.push("modules/governance-collaboration/package.json: EX3 requires production maturity");
   }
   for (const capability of requiredCapabilities) {
     if (!manifest["molis-work"]?.capabilities?.includes(capability)) {
@@ -918,7 +918,7 @@ function checkArtifactsOwnership(repositoryRoot) {
   const entry = read(entryPath);
   for (const required of [
     "class ArtifactsModule",
-    'maturity: "partial"',
+    'maturity: "production"',
     '"artifacts.identity.v1"',
     '"artifacts.version-repository.v1"',
     '"artifacts.opaque-content.v1"',
@@ -1072,7 +1072,7 @@ export function checkPrivateWorkContextOwnership(repositoryRoot) {
   const entry = read("modules/private-work-context/src/index.ts");
   for (const required of [
     "createRuntimeContextModule",
-    'maturity: "partial"',
+    'maturity: "slice"',
     '"runtime-context-bindings"',
   ]) {
     if (!entry.includes(required)) {
@@ -1146,7 +1146,7 @@ function checkRuntimeHostOwnership(repositoryRoot) {
   const entry = read("horizontal/runtime-host/src/index.ts");
   for (const required of [
     "MolisWorkPtyHost",
-    'maturity: "partial"',
+    'maturity: "slice"',
     '"runtime.host.v1"',
     '"runtime.terminal-pty.v1"',
   ]) {

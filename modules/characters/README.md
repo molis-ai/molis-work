@@ -6,7 +6,7 @@
 
 允许依赖 Characters Contract、storage 的库基线、Node SQLite/文件系统；禁止依赖插件、App Shell、Agent Runtime 或另一个 Module 的实现。仓库实现不从公开入口导出。当前无遗留角色数据迁移，不创建默认人格。
 
-- Status: `partial`
+- Status: `slice`
 - Migration Goals: `goal-reorg-f2`, `coding-c12`
 - Contract: `@molis-ai/molis-work-contracts/modules/characters`
 - SSOT: `specs/coding-plugin/spec.md` §0 C12

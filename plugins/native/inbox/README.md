@@ -78,7 +78,7 @@ node --import tsx --test tests/inbox-native-plugin.test.ts tests/inbox-plugin.te
 - [架构与当前实现索引](../../../docs/SSOT-MATRIX.md)
 - [Inbox / Feed 拆插件需求](../../../specs/archive/inbox-feed-plugin-split/spec.md)
 
-- Status: `partial`
+- Status: `slice`
 - Contract entrypoint: `@molis-ai/molis-work-contracts/platform/plugin`
 - Migration Goals: `goal-reorg-f2`
 

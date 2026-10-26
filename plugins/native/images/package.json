@@ -43,7 +43,7 @@
   "molis-work": {
     "path": "plugins/native/images",
     "kind": "native-plugin",
-    "maturity": "partial",
+    "maturity": "production",
     "contract": "@molis-ai/molis-work-contracts/platform/plugin",
     "summary": "Personal image generation, project history, and saved image previews.",
     "notResponsibleFor": "Text model providers, automatic retries, or another Plugin implementation.",

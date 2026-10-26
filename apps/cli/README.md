@@ -68,7 +68,7 @@ node scripts/run-tests.mjs tests/cli-protocol.test.ts
 - [职责与接入说明](../../docs/cli-and-development.md)
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
-- Status: `partial`
+- Status: `production`
 - Contract entrypoint: `@molis-ai/molis-work-contracts/platform/app-host`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-dv1`, `goal-reorg-gw4`, `goal-reorg-ex4`.
 

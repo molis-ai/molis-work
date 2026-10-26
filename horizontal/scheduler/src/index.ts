@@ -23,7 +23,7 @@ export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-service-scheduler",
   packagePath: "horizontal/scheduler",
   kind: "horizontal",
-  maturity: "partial",
+  maturity: "production",
   contract: "@molis-ai/molis-work-contracts/services/scheduler",
   migrationGoals: ["goal-reorg-f2"],
   ssot: "docs/SSOT-MATRIX.md",

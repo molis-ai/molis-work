@@ -80,7 +80,7 @@ node --import tsx --test tests/schedule-plugin.test.ts tests/schedule-conversati
 - [对话态定时任务需求](../../../specs/archive/schedule-conversation-tasks/spec.md)
 - [闹钟层需求](../../../specs/archive/schedule-plugin/spec.md)
 
-- Status: `partial`
+- Status: `slice`
 - SSOT: `docs/SSOT-MATRIX.md`
 - Contract: `@molis-ai/molis-work-contracts/platform/plugin`
 - Migration Goals: `goal-reorg-f2`

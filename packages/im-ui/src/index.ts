@@ -1,6 +1,6 @@
 export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-im-ui", packagePath: "packages/im-ui",
-  kind: "foundation", maturity: "partial",
+  kind: "foundation", maturity: "production",
   contract: "@molis-ai/molis-work-contracts/services/im",
   migrationGoals: ["goal-reorg-f2"], ssot: "docs/SSOT-MATRIX.md",
 } as const;

@@ -74,7 +74,7 @@ pnpm test:run tests/shelf-plugin.test.ts tests/shelf-project-knowledge-http.test
 - [架构与当前实现索引](../../../docs/SSOT-MATRIX.md)
 - [Shelf 插件需求](../../../specs/archive/shelf-plugin/spec.md)
 
-- Status: `partial`
+- Status: `slice`
 - Contract entrypoint: `@molis-ai/molis-work-contracts/platform/plugin`
 - Migration Goals: `goal-reorg-f2`
 

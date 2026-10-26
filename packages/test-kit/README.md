@@ -81,7 +81,7 @@ pnpm boundary:test
 - [职责与接入说明](../../docs/system/PACKAGE-BOUNDARIES.md)
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
-- Status: `partial`
+- Status: `slice`
 - Contract entrypoint: `@molis-ai/molis-work-contracts/platform/testing`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-f3`.
 

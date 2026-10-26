@@ -1,6 +1,6 @@
 # Generated plugin sandbox (macOS)
 
-Status: `partial`. Contract: `@molis-ai/molis-work-contracts/platform/plugin-sandbox`.
+Status: `production`. Contract: `@molis-ai/molis-work-contracts/platform/plugin-sandbox`.
 Migration goal: `goal-reorg-f2`. SSOT: `docs/SSOT-MATRIX.md`.
 
 S0 execution foundation for `specs/archive/plugin-builder/work-items/agent-built-plugins/spec.md`.

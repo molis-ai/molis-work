@@ -58,7 +58,7 @@ node scripts/run-tests.mjs tests/runtime-host.test.ts
 - [职责与接入说明](../../docs/horizontal/runtime-host.md)
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
-- Status: `partial`
+- Status: `slice`
 - Contract entrypoint: `@molis-ai/molis-work-contracts/services/runtime-host`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-wk2`.
 

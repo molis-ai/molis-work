@@ -45,7 +45,7 @@ pnpm --filter @molis-ai/molis-work-service-knowledge build
 
 - [职责与接入说明](../../docs/SSOT-MATRIX.md)
 
-- Status: `partial`
+- Status: `production`
 - Contract entrypoint: `@molis-ai/molis-work-contracts/services/knowledge`
 - Migration Goals: `goal-reorg-f2`.
 

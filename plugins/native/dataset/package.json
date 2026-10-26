@@ -38,7 +38,7 @@
   "molis-work": {
     "path": "plugins/native/dataset",
     "kind": "native-plugin",
-    "maturity": "partial",
+    "maturity": "production",
     "contract": "@molis-ai/molis-work-contracts/platform/plugin",
     "summary": "Protected first-party Dataset directory, table editing, CSV, and versions.",
     "notResponsibleFor": "Goal/Artifact facts, model providers, or a hosted spreadsheet.",

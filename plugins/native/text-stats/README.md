@@ -11,7 +11,7 @@ The three counts disagree with each other on purpose. Characters counts code
 points, bytes counts UTF-8, and neither is "length" in any language with text
 outside ASCII.
 
-- Status: `partial`
+- Status: `production`
 - Migration Goals: `goal-reorg-f2`, `goal-plugin-platform-v2`.
 - Contract entrypoint: `@molis-ai/molis-work-contracts/platform/plugin`
 

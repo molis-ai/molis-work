@@ -10,7 +10,7 @@ export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-plugin-cli",
   packagePath: "tooling/plugin-cli",
   kind: "tooling",
-  maturity: "partial",
+  maturity: "production",
   contract: "@molis-ai/molis-work-contracts/platform/tooling",
   migrationGoals: ["goal-reorg-f2","goal-reorg-dv3"],
   ssot: "docs/SSOT-MATRIX.md",

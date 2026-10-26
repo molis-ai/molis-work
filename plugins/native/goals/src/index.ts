@@ -82,7 +82,7 @@ export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-plugin-goals",
   packagePath: "plugins/native/goals",
   kind: "native-plugin",
-  maturity: "partial",
+  maturity: "production",
   contract: "@molis-ai/molis-work-contracts/platform/plugin",
   migrationGoals: ["goal-reorg-f2","goal-f826dfb8-bf63-4e98-b6b7-57f6b4b7c3b8","goal-reorg-gw4","goal-reorg-gw5","goal-reorg-ex4"],
   ssot: "docs/SSOT-MATRIX.md",

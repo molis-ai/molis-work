@@ -38,7 +38,7 @@ export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-service-search",
   packagePath: "horizontal/search",
   kind: "horizontal",
-  maturity: "partial",
+  maturity: "production",
   contract: "@molis-ai/molis-work-contracts/services/search",
   migrationGoals: ["goal-reorg-f2"],
   ssot: "docs/SSOT-MATRIX.md",

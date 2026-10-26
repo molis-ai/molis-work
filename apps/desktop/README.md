@@ -80,7 +80,7 @@ node scripts/run-tests.mjs tests/desktop-tui.test.ts
 - [职责与接入说明](../../docs/platform/DESKTOP.md)
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
-- Status: `partial`
+- Status: `production`
 - Contract entrypoint: `@molis-ai/molis-work-contracts/platform/app-host`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-ap4`, `goal-reorg-dv4`.
 

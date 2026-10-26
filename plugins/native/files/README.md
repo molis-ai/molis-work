@@ -25,7 +25,7 @@ and reader through public exports; default bindings feed snapshot Diff and
 Text Stats. Generic command availability, standalone plugin entry, Coding
 material consumption and automatic refresh remain incomplete.
 
-- Status: `partial`
+- Status: `production`
 - Migration Goals: `goal-reorg-f2`, `goal-plugin-platform-v2`.
 - Contract entrypoint: `@molis-ai/molis-work-contracts/platform/plugin`
 

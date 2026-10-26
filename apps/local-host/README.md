@@ -208,7 +208,7 @@ Web 目录连接归每个服务实例及固定 Home 所有；传入外部 LocalH
 - [职责与接入说明](../../docs/platform/LOCAL-HOST.md)
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
-- Status: `partial`
+- Status: `production`
 - Contract entrypoint: `@molis-ai/molis-work-contracts/platform/app-host`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-ap2`.
 

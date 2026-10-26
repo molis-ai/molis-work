@@ -25,7 +25,7 @@ export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-module-projects",
   packagePath: "modules/projects",
   kind: "module",
-  maturity: "partial",
+  maturity: "production",
   contract: "@molis-ai/molis-work-contracts/modules/projects",
   migrationGoals: ["goal-reorg-f2", "goal-reorg-ap1"],
   ssot: "docs/SSOT-MATRIX.md",

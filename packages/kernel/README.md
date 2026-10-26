@@ -96,7 +96,7 @@ node scripts/run-tests.mjs tests/local-host.test.ts
 - [职责与接入说明](../../docs/platform/LOCAL-HOST.md)
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
-- Status: `partial`
+- Status: `production`
 - Contract entrypoint: `@molis-ai/molis-work-contracts/platform/kernel`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-f3`, `goal-reorg-ap2`.
 

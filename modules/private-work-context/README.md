@@ -62,7 +62,7 @@ node scripts/run-tests.mjs tests/runtime-binding-ledger.test.ts tests/runtime-co
 - [职责与接入说明](../../docs/modules/private-work-context.md)
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
-- Status: `partial`
+- Status: `slice`
 - Contract entrypoint: `@molis-ai/molis-work-contracts/modules/private-work-context`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-wk1`.
 

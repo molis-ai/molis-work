@@ -4,7 +4,7 @@ Goals 是每个项目都带的内置插件，是 Goal 的产品 owner；Goal 事
 
 包名：`@molis-ai/molis-work-plugin-goals`。工作区内部包，通过仓库构建和 Host 装配使用。
 
-Status: `partial`。插件合同：`@molis-ai/molis-work-contracts/platform/plugin`。
+Status: `production`。插件合同：`@molis-ai/molis-work-contracts/platform/plugin`。
 历史迁移目标：`goal-reorg-f2`、`goal-f826dfb8-bf63-4e98-b6b7-57f6b4b7c3b8`、`goal-reorg-gw4`、`goal-reorg-gw5`、`goal-reorg-ex4`。当前完整迁移范围以 `specs/action-architecture/spec.md` 为准。
 
 ## 一次典型调用

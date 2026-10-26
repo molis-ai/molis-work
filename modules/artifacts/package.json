@@ -30,7 +30,7 @@
   "molis-work": {
     "path": "modules/artifacts",
     "kind": "module",
-    "maturity": "partial",
+    "maturity": "production",
     "contract": "@molis-ai/molis-work-contracts/modules/artifacts",
     "migrationGoals": [
       "goal-reorg-f2",

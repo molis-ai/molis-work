@@ -56,7 +56,7 @@ node scripts/run-tests.mjs tests/plugin-runtime-integration.test.ts
 - [职责与接入说明](../../../docs/platform/PLUGIN-DEVELOPMENT.md)
 - [架构与当前实现索引](../../../docs/SSOT-MATRIX.md)
 
-- Status: `partial`
+- Status: `experimental`
 - Contract entrypoint: `@molis-ai/molis-work-contracts/platform/plugin`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-fd3`.
 

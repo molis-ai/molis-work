@@ -89,7 +89,7 @@ node scripts/run-tests.mjs tests/feed-native-plugin.test.ts tests/feed-goal-prom
 - [职责与接入说明](../../../docs/modules/feed.md)
 - [架构与当前实现索引](../../../docs/SSOT-MATRIX.md)
 
-- Status: `partial`
+- Status: `slice`
 - Contract entrypoint: `@molis-ai/molis-work-contracts/platform/plugin`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-fd4`.
 

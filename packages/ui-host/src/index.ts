@@ -23,7 +23,7 @@ export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-ui-host",
   packagePath: "packages/ui-host",
   kind: "foundation",
-  maturity: "partial",
+  maturity: "slice",
   contract: "@molis-ai/molis-work-contracts/platform/ui",
   migrationGoals: ["goal-reorg-f2", "goal-reorg-fd4", "goal-reorg-ap3"],
   ssot: "docs/SSOT-MATRIX.md",

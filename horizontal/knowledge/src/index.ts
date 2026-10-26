@@ -64,7 +64,7 @@ export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-service-knowledge",
   packagePath: "horizontal/knowledge",
   kind: "horizontal",
-  maturity: "partial",
+  maturity: "production",
   contract: "@molis-ai/molis-work-contracts/services/knowledge",
   migrationGoals: ["goal-reorg-f2"],
   ssot: "docs/SSOT-MATRIX.md",

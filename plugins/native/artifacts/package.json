@@ -35,7 +35,7 @@
   "molis-work": {
     "path": "plugins/native/artifacts",
     "kind": "native-plugin",
-    "maturity": "partial",
+    "maturity": "production",
     "contract": "@molis-ai/molis-work-contracts/platform/plugin",
     "summary": "Protected first-party Artifact browsing, embedding, and composition.",
     "notResponsibleFor": "Artifact facts, Stores, or producer/consumer implementations.",

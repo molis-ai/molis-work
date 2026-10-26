@@ -35,7 +35,7 @@
   "molis-work": {
     "path": "plugins/native/issues",
     "kind": "native-plugin",
-    "maturity": "partial",
+    "maturity": "production",
     "contract": "@molis-ai/molis-work-contracts/platform/plugin",
     "summary": "Personal Home issue capture, reading, editing and deletion through one Runtime.",
     "notResponsibleFor": "Runtime lifecycle, authorization, opening databases, team workflows or automatic analysis.",

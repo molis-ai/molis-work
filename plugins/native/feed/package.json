@@ -37,7 +37,7 @@
   "molis-work": {
     "path": "plugins/native/feed",
     "kind": "native-plugin",
-    "maturity": "partial",
+    "maturity": "slice",
     "contract": "@molis-ai/molis-work-contracts/platform/plugin",
     "summary": "First-party Feed navigation, UI, disposition, and Module composition.",
     "notResponsibleFor": "Source/Signal/Feed/Attention facts or Provider implementations.",

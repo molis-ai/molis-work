@@ -31,7 +31,7 @@
   "molis-work": {
     "path": "horizontal/runtime-host",
     "kind": "horizontal",
-    "maturity": "partial",
+    "maturity": "slice",
     "contract": "@molis-ai/molis-work-contracts/services/runtime-host",
     "migrationGoals": [
       "goal-reorg-f2",

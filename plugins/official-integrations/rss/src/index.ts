@@ -9,7 +9,7 @@ export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-integration-rss",
   packagePath: "plugins/official-integrations/rss",
   kind: "integration-plugin",
-  maturity: "partial",
+  maturity: "production",
   contract: "@molis-ai/molis-work-contracts/platform/plugin",
   migrationGoals: ["goal-reorg-f2", "goal-reorg-fd3"],
   ssot: "docs/SSOT-MATRIX.md",

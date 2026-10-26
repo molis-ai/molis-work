@@ -38,7 +38,7 @@ export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-module-goals",
   packagePath: "modules/goals",
   kind: "module",
-  maturity: "partial",
+  maturity: "production",
   contract: "@molis-ai/molis-work-contracts/modules/goals",
   migrationGoals: [
     "goal-reorg-f2",

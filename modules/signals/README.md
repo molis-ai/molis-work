@@ -59,7 +59,7 @@ node scripts/run-tests.mjs tests/feed-module-repositories.test.ts tests/feed-rec
 - [职责与接入说明](../../docs/modules/signals.md)
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
-- Status: `partial`
+- Status: `production`
 - Contract entrypoint: `@molis-ai/molis-work-contracts/modules/signals`
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-fd1`.
 

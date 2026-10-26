@@ -18,7 +18,7 @@ export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-module-governance-collaboration",
   packagePath: "modules/governance-collaboration",
   kind: "module",
-  maturity: "partial",
+  maturity: "production",
   contract: "@molis-ai/molis-work-contracts/modules/governance-collaboration",
   migrationGoals: ["goal-reorg-f2","goal-reorg-ex3","goal-reorg-ex4"],
   ssot: "docs/SSOT-MATRIX.md",

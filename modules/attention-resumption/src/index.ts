@@ -16,7 +16,7 @@ export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-module-attention-resumption",
   packagePath: "modules/attention-resumption",
   kind: "module",
-  maturity: "partial",
+  maturity: "slice",
   contract: "@molis-ai/molis-work-contracts/modules/attention-resumption",
   migrationGoals: ["goal-reorg-f2", "goal-reorg-fd2"],
   ssot: "docs/SSOT-MATRIX.md",

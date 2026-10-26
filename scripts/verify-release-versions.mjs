@@ -337,11 +337,14 @@ function sandboxBaselineCall(file, text) {
       && protectedNames.has(node.name.text)) rebound = true;
     if (ts.isBinaryExpression(node) && node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment
       && node.operatorToken.kind <= ts.SyntaxKind.LastAssignment && mentionsProtected(node.left)) rebound = true;
+    if ((ts.isForOfStatement(node) || ts.isForInStatement(node)) && !ts.isVariableDeclarationList(node.initializer)
+      && mentionsProtected(node.initializer)) rebound = true;
     if ((ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node))
       && (node.operator === ts.SyntaxKind.PlusPlusToken || node.operator === ts.SyntaxKind.MinusMinusToken) && mentionsProtected(node.operand)) rebound = true;
     ts.forEachChild(node, visit);
   };
   visit(fn.body);
+  for (const parameter of fn.parameters.slice(4)) if (parameter.initializer) visit(parameter.initializer);
   return rebound ? null : created[0].initializer.expression.getStart(source);
 }
 

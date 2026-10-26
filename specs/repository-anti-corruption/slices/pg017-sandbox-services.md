@@ -266,7 +266,7 @@ PR #1311 的固定输入 `29e5c5397893e6cd604fd8e9ba0a7915a74503a0` 在发布检
 | --- | --- |
 | PG017-BASELINE-01 | 真实仓库 checker 通过；scratch 含真正被 workspace/sourceFiles 扫描的 local-host package 和现行完整 helper 时通过，原四参 bridge 正控仍通过。 |
 | PG017-BASELINE-02 | 错误文件路径、函数/声明参数类型或名称、home/store/第三参数、第四参数、其它 baseline callee 均不获得此例外，动态/inline baseline 仍被准确文件诊断拒绝。 |
-| PG017-BASELINE-03 | 正确签名不能替同文件另一函数或顶层的动态调用背书；初始化回调/参数被遮蔽或重绑定、假注释/字符串签名均拒绝。合法调用旁再加动态调用仍拒，原函数及 owner 回调的连接不能被同名伪造替代。 |
+| PG017-BASELINE-03 | 正确签名不能替同文件另一函数或顶层的动态调用背书；初始化回调/参数被遮蔽或重绑定（含 for...in/of 及解构赋值、参数默认值内直接赋值）、假注释/字符串签名均拒绝；仅在循环右侧或默认值里读取参数仍可通过。合法调用旁再加动态调用仍拒，原函数及 owner 回调的连接不能被同名伪造替代。 |
 | PG017-BASELINE-04 | 合法桥不豁免同文件未列名的三种 baseline 常量，也不豁免已列常量或发布表版本不一致；复用原测试并保留其它产品版本/缺文件等拒绝。 |
 
 验证 `node scripts/verify-release-versions.mjs` 与 `node scripts/run-tests.mjs tests/verify-release-versions.test.ts`，另做适用静态、health 和 secrets 检查。已有 CI 与 Full42 的原失败保留，不把本地修正回填成旧运行通过；desktop 用例的同 checker/首行合同可直接核对，不为同根问题构建或运行带大量 dist 依赖的整个 desktop 文件。无需生产构建；原 Full、Linux 与其它发布门禁仍走原主线。

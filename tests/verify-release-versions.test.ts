@@ -322,6 +322,11 @@ test("PG017-BASELINE-03 shadowed or rebound parameters and imports do not obtain
     "const home = elsewhere;", "const declaration = other;", "const { value: declaration } = other;",
     "if (condition) { var declaration = other; }", "const openBaselineHomeSqlite = other;", "declaration = other;",
     "declaration.store_name = 'elsewhere';",
+    "for (declaration of [{ ...declaration, store_name: 'elsewhere' }]) {}",
+    "for (home in { elsewhere: true }) {}",
+    "for ([declaration] of [[{ ...declaration, store_name: 'elsewhere' }]]) {}",
+    "for ({ value: declaration } of [{ value: { ...declaration, store_name: 'elsewhere' } }]) {}",
+    "for (declaration.store_name of ['elsewhere']) {}",
   ]) {
     sandboxBridge(SANDBOX_BRIDGE.replace("const created = ", `${shadow}\n    const created = `));
     failsWith(run(), `${SANDBOX_FILE}: openBaselineHomeSqlite is called with declaration`);
@@ -329,12 +334,21 @@ test("PG017-BASELINE-03 shadowed or rebound parameters and imports do not obtain
   for (const source of [
     SANDBOX_BRIDGE.replace("const open = () =>", "const open = (declaration: HomePluginDatabaseDeclaration) =>"),
     SANDBOX_BRIDGE.replace("const path =", "const openInstalledPluginLibrary = other; const path ="),
+    SANDBOX_BRIDGE.replace("limits: Partial<StatementLimits> = {}", "limits: Partial<StatementLimits> = (declaration = { ...declaration, store_name: 'elsewhere' }, {})"),
     "const openBaselineHomeSqlite = other;\n" + SANDBOX_BRIDGE,
     "type HomePluginDatabaseDeclaration = unknown;\n" + SANDBOX_BRIDGE,
   ]) {
     sandboxBridge(source);
     failsWith(run(), `${SANDBOX_FILE}: openBaselineHomeSqlite is called with declaration`);
   }
+  for (const reads of ["for (const value of [declaration]) { void value; }", "for (const key in declaration) { void key; }"]) {
+    sandboxBridge(SANDBOX_BRIDGE.replace("const created = ", `${reads}\n    const created = `));
+    const result = run();
+    assert.equal(result.code, 0, result.out);
+  }
+  sandboxBridge(SANDBOX_BRIDGE.replace("limits: Partial<StatementLimits> = {}", "limits: Partial<StatementLimits> = (void declaration, {})"));
+  const defaultReads = run();
+  assert.equal(defaultReads.code, 0, defaultReads.out);
 });
 
 test("PG017-BASELINE-04 a legal sandbox bridge still checks all named baselines and their listed versions in that file", () => {

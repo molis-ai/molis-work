@@ -22,12 +22,13 @@ const SECOND_PLUGIN_ID = "io.molis.work.example.second";
 const APPROVED = "plugin-builder:agent-studio:approved:";
 
 /** The fixture package, asking for the Home. Its `notes.add` reads the notes it adds to, so the contract says so. */
-const homePackage = (publisher = newPublisher(), options: { pluginId?: string; version?: string } = {}): PluginPackageBundle =>
+const homePackage = (publisher = newPublisher(), options: { pluginId?: string; version?: string; prompt?: boolean } = {}): PluginPackageBundle =>
   signedPackage(publisher, (files, manifest) => {
     manifest.runtime = { scope: "home" };
     const contract = JSON.parse(files[SANDBOX_PACKAGE_FILES.contract]!) as SandboxPluginContract;
     contract.operations.find(operation => operation.id === "notes.add")!.effects.storage = ["read", "write"];
     files[SANDBOX_PACKAGE_FILES.contract] = JSON.stringify(contract);
+    if (options.prompt) files[SANDBOX_PACKAGE_FILES.prompts] = JSON.stringify([{ id: "summary", title: "Summary", purpose: "Summarize the notes", body: "Summarize the notes." }]);
   }, options);
 const ref = (action: { capability_id: string; version: number }) => ({ capability_id: action.capability_id, version: action.version });
 const person = (projectId: string | null = DEMO_PROJECT_ID): ActionCallContext => ({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: projectId, permissions: PLUGIN_INSTALL_PERMISSIONS,
@@ -120,4 +121,94 @@ test("RAC-965 a package that cannot start leaves its reason with its installatio
   assert.equal(h.host.homePlugins!.outsideBuild().includes(PACKAGE_PLUGIN_ID), false, "a package that is not running is not offered to the projects");
   assert.equal(h.host.homePlugins!.installation(SECOND_PLUGIN_ID)?.state, "running", "the other package runs");
   assert.ok(h.host.homePlugins!.installations().some(record => record.publisher_trust === "host" && record.state === "running"), "the built-in Home plugins run");
+});
+
+const runtimeStore = <Result>(home: string, read: (db: DatabaseSync) => Result): Result => {
+  const db = new DatabaseSync(join(home, "plugin-runtime", "plugin-runtime.db"), { readOnly: true });
+  try { return read(db); } finally { db.close(); }
+};
+const valuesOf = (home: string, installId: string) => runtimeStore(home, db => db.prepare("SELECT item_key FROM plugin_private_values WHERE install_id = ?").all(installId).map(row => (row as { item_key: string }).item_key));
+
+test("RAC-968 a running Home package is reached from every project unless the project hides it, and stopping it ends it everywhere", mac, async t => {
+  const home = await openTestHome(t);
+  const one = await home.createProject("One"), two = await home.createProject("Two");
+  const clientOf = (project: typeof one) => home.host.actionClient(project.reference);
+  const callerOf = (project: typeof one): ActionCallContext => ({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: project.project_id, permissions: [] });
+  const installer = home.host.actionClient(one.reference);
+  const preview = await installer.invoke(person(one.project_id), ref(pluginInstallActions.preview), { bundle: homePackage() }) as { preview_id: string };
+  await installer.invoke(person(one.project_id), ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "Test publisher" });
+  const add = async (project: typeof one, text: string) => operate(clientOf(project), callerOf(project), await operationsOf(clientOf(project), callerOf(project)), "notes.add", { text });
+
+  assert.equal(await add(one, "from one"), true);
+  assert.equal(await add(two, "from two"), true, "a project that never installed anything reaches the same instance");
+  const projectPlugins = `/api/settings/projects/${encodeURIComponent(one.project_id)}/plugins`;
+  await home.web.delete(projectPlugins, { plugin_id: PACKAGE_PLUGIN_ID });
+  await assert.rejects(add(one, "hidden"), refused("actions.plugin_disabled"), "the project that hid it does not reach it");
+  assert.equal(await add(two, "still reached"), true, "hiding is the project's own");
+  await home.web.post(projectPlugins, { plugin_id: PACKAGE_PLUGIN_ID });
+  assert.equal(await add(one, "shown again"), true);
+
+  const disable = await home.web.post<{ disabled: boolean }>(`/api/plugins/${PACKAGE_PLUGIN_ID}/disable`, {});
+  assert.equal(disable.disabled, true);
+  for (const project of [one, two]) assert.deepEqual(await operationsOf(clientOf(project), callerOf(project)), [], "no project is offered the actions of a stopped package");
+  assert.equal(home.host.homePlugins!.outsideBuild().includes(PACKAGE_PLUGIN_ID), false);
+  assert.equal((await home.web.post<{ enabled: boolean }>(`/api/plugins/${PACKAGE_PLUGIN_ID}/enable`, {})).enabled, true);
+  assert.equal(await add(two, "back"), true);
+});
+
+test("RAC-970 RAC-971 a Home package is switched and removed by the install lifecycle: prompts, approval and exposure go with it, kept data comes back, discarded data does not", mac, async t => {
+  const home = await openTestHome(t);
+  const project = await home.createProject("Lifecycle");
+  const client = home.host.actionClient(project.reference), caller: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: project.project_id, permissions: [] };
+  const bundle = homePackage(newPublisher(), { prompt: true });
+  const install = async () => {
+    const preview = await client.invoke(person(project.project_id), ref(pluginInstallActions.preview), { bundle }) as { preview_id: string };
+    await client.invoke(person(project.project_id), ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "Test publisher" });
+  };
+  const promptState = async () => {
+    const { prompts } = await home.web.get<{ prompts: Array<{ source: { kind: string; plugin_id?: string; state?: string } }> }>("/api/agent-definitions/prompts");
+    return prompts.filter(prompt => prompt.source.kind === "plugin" && prompt.source.plugin_id === PACKAGE_PLUGIN_ID).map(prompt => prompt.source.state);
+  };
+  const approvalKeys = () => valuesOf(home.home, "agent-studio:~home").filter(key => key.startsWith(APPROVED));
+  const lifecycle = home.host.homePlugins!;
+
+  await install();
+  const installId = lifecycle.installation(PACKAGE_PLUGIN_ID)!.install_id;
+  assert.deepEqual(await promptState(), ["enabled"], "its prompts are registered under the Home");
+  assert.deepEqual(approvalKeys(), [APPROVED + PACKAGE_PLUGIN_ID], "the person's approval is kept in the Home's store, not in a project's");
+  await operate(client, caller, await operationsOf(client, caller), "notes.add", { text: "kept" });
+
+  await home.web.post(`/api/plugins/${PACKAGE_PLUGIN_ID}/disable`, {});
+  assert.deepEqual(await promptState(), ["disabled"]);
+  await home.web.post(`/api/plugins/${PACKAGE_PLUGIN_ID}/enable`, {});
+  assert.deepEqual(await promptState(), ["enabled"]);
+
+  // Removed with its data kept: nothing of the Host's is left, the data is, and the same installation takes it back.
+  assert.deepEqual(await home.web.post(`/api/plugins/${PACKAGE_PLUGIN_ID}/uninstall`, { keep_data: true }), { uninstalled: true });
+  assert.equal(lifecycle.hasPackage(PACKAGE_PLUGIN_ID), false);
+  assert.deepEqual(await operationsOf(client, caller), []);
+  assert.deepEqual(await promptState(), []);
+  assert.deepEqual(approvalKeys(), []);
+  assert.ok(valuesOf(home.home, installId).length > 0, "the data the person asked to keep is kept");
+  assert.equal(home.host.homePlugins!.outsideBuild().includes(PACKAGE_PLUGIN_ID), false);
+  assert.equal(new HomeConsentLedger(home.home).publishers().length, 1, "the publisher's pin is the person's trust in the publisher, not the plugin's");
+  assert.equal(readdirSync(join(home.home, "plugin-packages")).length, 1, "the kept package stays for a reinstall");
+
+  await install();
+  assert.equal(lifecycle.installation(PACKAGE_PLUGIN_ID)!.install_id, installId, "a reinstall that keeps data is the same installation");
+  assert.deepEqual(await operate(client, caller, await operationsOf(client, caller), "notes.list", {}), [{ id: "1", text: "kept" }]);
+
+  // Removed with its data discarded: the data goes too.
+  await home.web.post(`/api/plugins/${PACKAGE_PLUGIN_ID}/uninstall`, { keep_data: false });
+  assert.deepEqual(valuesOf(home.home, installId), []);
+  assert.deepEqual(approvalKeys(), []);
+  await install();
+  assert.deepEqual(await operate(client, caller, await operationsOf(client, caller), "notes.list", {}), [], "a fresh installation starts empty");
+});
+
+test("RAC-970 only a package installed in the Home can be removed through the Home's plugin route; a plugin of the Host's build cannot", mac, async t => {
+  const home = await openTestHome(t);
+  const builtIn = (await home.host.homePlugins!.ready()).runtime.list().find(record => record.publisher_trust === "host" && record.state === "running")!;
+  await assert.rejects(home.web.post(`/api/plugins/${builtIn.plugin_id}/uninstall`, { keep_data: false }), (error: { status?: number }) => error.status === 404);
+  assert.equal(home.host.homePlugins!.installation(builtIn.plugin_id)?.state, "running", "it is still installed");
 });

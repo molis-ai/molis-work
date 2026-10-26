@@ -1,6 +1,6 @@
 import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { GoalPolicy } from "@molis-ai/molis-work-contracts/modules/goals";
-import { createGoalStateExplainer, GOAL_DISPLAY_STATUSES, sortGoalTreeItems, type GoalsDocumentView as WebGoalView } from "@molis-ai/molis-work-plugin-goals";
+import { createGoalStateExplainer, GOAL_DISPLAY_STATUSES, sortGoalTreeItems, type WebGoalView } from "./goals-plugin.js";
 import { createWorkbenchFocusSections } from "./focus-sections.js";
 import type { MolisWorkWebView } from "./page-view.js";
 import type { RendererLocale } from "./renderer-helpers.js";

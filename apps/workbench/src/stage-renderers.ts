@@ -1,6 +1,7 @@
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
-import type { FeedItemRecord, InboxEntryRecord } from "@molis-ai/molis-work-plugin-feed";
+import { FEED_PLUGIN_ID, type FeedItemRecord, type InboxEntryRecord } from "@molis-ai/molis-work-plugin-feed";
 import { createWorkbenchFeedProjectionRenderer } from "./feed-projection-ui.js";
+import { inWordsOf } from "./i18n.js";
 import { createWorkbenchInboxProjectionRenderer } from "./inbox-projection-ui.js";
 import { createWorkbenchScheduleProjectionRenderer } from "./schedule-projection-ui.js";
 import type { MolisWorkWebView } from "./page-view.js";
@@ -12,11 +13,11 @@ import type { RendererLocale } from "./renderer-helpers.js";
  */
 export function createWorkbenchStageRenderers(ports: {
   L: RendererLocale["L"];
-  feedL: RendererLocale["L"];
   dateTimeLocale: RendererLocale["dateTimeLocale"];
   prefixLocalLinks(html: string, routePrefix: string): string;
 }) {
-  const { L, feedL, dateTimeLocale, prefixLocalLinks } = ports;
+  const { L, dateTimeLocale, prefixLocalLinks } = ports;
+  const feedL = inWordsOf(FEED_PLUGIN_ID, L);
   const { buildFeedNativePluginModel, renderFeedNativePluginPersistedDetail, renderFeedNativePluginSurface } = createWorkbenchFeedProjectionRenderer({ L: feedL, dateTimeLocale });
   const { buildInboxNativePluginModel, renderInboxNativePluginSurface } = createWorkbenchInboxProjectionRenderer({ L, dateTimeLocale });
   const { buildScheduleNativePluginModel, renderScheduleNativePluginSurface } = createWorkbenchScheduleProjectionRenderer({ L, dateTimeLocale });

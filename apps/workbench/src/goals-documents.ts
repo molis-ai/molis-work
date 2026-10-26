@@ -1,11 +1,5 @@
 import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
-import {
-  buildDecisionGroups,
-  buildGoalsNavigationItems,
-  countGoalDecisions,
-  type GoalsDocumentView as WebGoalView,
-  partOfChildViews,
-} from "@molis-ai/molis-work-plugin-goals";
+import { buildDecisionGroups, buildGoalsNavigationItems, countGoalDecisions, partOfChildViews, type WebGoalView } from "./goals-plugin.js";
 import { createWorkbenchGoalsFragmentRenderer } from "./goals-fragment-renderer.js";
 import { renderGoalInputsHtml } from "./goal-inputs-html.js";
 import type { createWorkbenchGoalsRenderers } from "./goals-renderers.js";

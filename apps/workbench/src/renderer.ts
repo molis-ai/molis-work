@@ -1,10 +1,9 @@
 import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderIconSprite, THEME_BOOTSTRAP_SCRIPT as BASE_THEME_BOOTSTRAP_SCRIPT, VISUAL_FOUNDATION_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
 import type { GoalPolicy, PlanningMethodComposition, PlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
-import { FEED_PLUGIN_ID } from "@molis-ai/molis-work-plugin-feed";
-import { GOALS_PLUGIN_ID, type GoalsDocumentView as WebGoalView } from "@molis-ai/molis-work-plugin-goals";
 import type { FeedSupplementalEntry } from "./feed-projection-ui.js";
 import { createWorkbenchGoalsDocuments } from "./goals-documents.js";
+import { GOALS_PLUGIN_ID, type WebGoalView } from "./goals-plugin.js";
 import { createWorkbenchGoalsRenderers } from "./goals-renderers.js";
 import { createWorkbenchGoalsPageRenderer } from "./shell-page-renderer.js";
 import { inWordsOf } from "./i18n.js";
@@ -32,11 +31,11 @@ export interface WorkbenchRendererPorts {
 
 /** Compose application pages from registered UI owners; request and desktop state belong to the Host. */
 export function createWorkbenchRenderer(ports: WorkbenchRendererPorts) {
-  const { L, currentLocale, htmlLang, dateTimeLocale, listJoin, localeSwitchHref, clientI18nScript } = ports.locale, goalsL = inWordsOf(GOALS_PLUGIN_ID, L), feedL = inWordsOf(FEED_PLUGIN_ID, L);
+  const { L, currentLocale, htmlLang, dateTimeLocale, listJoin, localeSwitchHref, clientI18nScript } = ports.locale, goalsL = inWordsOf(GOALS_PLUGIN_ID, L);
   const { appendDesktopQueryToLocalHrefs, withDesktopQuery, bootstrapScript: NATIVE_DESKTOP_BOOTSTRAP_SCRIPT } = ports.desktop;
   const { defaultPolicy: DEFAULT_GOAL_POLICY, composePlanningMethodPacks } = ports.goals;
   const { formatDate, renderList, prefixLocalLinks } = createRendererHelpers({ L, dateTimeLocale, appendDesktopQueryToLocalHrefs });
-  const stages = createWorkbenchStageRenderers({ L, feedL, dateTimeLocale, prefixLocalLinks });
+  const stages = createWorkbenchStageRenderers({ L, dateTimeLocale, prefixLocalLinks });
   const goals = createWorkbenchGoalsRenderers({ L, goalsL, currentLocale, listJoin, formatDate, renderList, defaultPolicy: DEFAULT_GOAL_POLICY });
   const documents = createWorkbenchGoalsDocuments({ L, goalsL, formatDate, prefixLocalLinks, goals });
 

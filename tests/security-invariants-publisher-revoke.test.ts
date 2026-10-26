@@ -1,17 +1,14 @@
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
 import test from "node:test";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
-import { SANDBOX_PACKAGE_FILES, type PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { SANDBOX_PACKAGE_FILES } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginPublisherPin } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { MemoryPluginConsentLedger, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
-import { DEMO_PROJECT_ID, HomeConsentLedger, MolisWorkLocalHost, PLUGIN_INSTALL_PERMISSIONS, PluginInstallService, SandboxPackageStore, molisWorkHostProjectReference,
-  pluginInstallActions, pluginInstallProvider, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { MemoryPluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
+import { HomeConsentLedger, PLUGIN_INSTALL_PERMISSIONS, PluginInstallService, SandboxPackageStore, pluginInstallActions, pluginInstallProvider } from "@molis-ai/molis-work-app-local-host";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
-import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage, type PackageFiles } from "./fixtures/sandbox-package.js";
+import { newPublisher, signedPackage, type PackageFiles } from "./fixtures/sandbox-package.js";
+import { caller, installedPackageHost, mac, readsAndWrites } from "./fixtures/signed-package-host.js";
 
 // S-87 (ac-trust T5b, BL-559): a publisher the person pinned can be taken back, and only the person can: at the Host's settings entry,
 // the same one that takes an agreement back (S-77). Taking one back is for good. What it signed can no longer be installed; what is
@@ -39,7 +36,7 @@ test("RAC-392 S-87 a ledger takes a publisher back once: the first time stays, t
 test("RAC-392 S-87 only the person at the Host's settings entry takes a publisher back; an Agent, MCP, a workflow, a plugin and a user call without that entry are refused, and nothing is written", async () => {
   const ledger = new MemoryPluginConsentLedger();
   ledger.pinPublisher(pin());
-  const service = new PluginInstallService({ ledger, packages: new SandboxPackageStore("/nonexistent"), now: () => LATER, install: async () => undefined, installed: async () => [] });
+  const service = new PluginInstallService({ ledger, packages: new SandboxPackageStore("/nonexistent"), now: () => LATER, install: async () => undefined, installed: async () => [], control: async () => "disabled" });
   const actions = new ActionService();
   actions.registerProvider(pluginInstallProvider(service));
   const caller = (extra: Partial<ActionCallContext> = {}): ActionCallContext => ({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: null, permissions: PLUGIN_INSTALL_PERMISSIONS, ...extra });
@@ -72,42 +69,6 @@ test("RAC-392 S-87 the settings entry takes a publisher back over HTTP, answers 
   assert.deepEqual(ledger.publishers(), [taken]);
 });
 
-/** The fixture's adding operation reads before it writes but declares only the write; a package that can really add a note declares both. */
-function readsAndWrites(files: PackageFiles) {
-  const contract = JSON.parse(files[SANDBOX_PACKAGE_FILES.contract]!);
-  for (const operation of contract.operations) if (operation.id === "notes.add") operation.effects = { storage: ["read", "write"] };
-  files[SANDBOX_PACKAGE_FILES.contract] = JSON.stringify(contract);
-}
-
-const mac = { skip: process.platform !== "darwin", timeout: 90_000 };
-const caller = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user" as const, permissions: [], project_id: DEMO_PROJECT_ID };
-
-async function installed() {
-  const home = await mkdtemp(join(tmpdir(), "publisher-revoke-"));
-  let host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const databasePath = join(home, "project.sqlite"); seedDemoBoard(databasePath);
-  const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
-  const person = { ...caller, permissions: PLUGIN_INSTALL_PERMISSIONS, user_action: { source: "management" as const, conversation_ref: "s86:install", message_ref: "s86:confirm" } };
-  const install = async (bundle: PluginPackageBundle) => {
-    const client = host.actionClient(reference);
-    const preview = await client.invoke(person, { capability_id: pluginInstallActions.preview.capability_id, version: 2 }, { bundle }) as { preview_id: string };
-    return client.invoke(person, { capability_id: pluginInstallActions.confirm.capability_id, version: 1 }, { preview_id: preview.preview_id, consent: true, pin_label: "Example" });
-  };
-  const plugins = async () => (await host.actionClient(reference).invoke(person, { capability_id: pluginInstallActions.installed.capability_id, version: 1 }, {}) as
-    { plugins: Array<{ install_id: string; plugin_id: string; state: string }> }).plugins.filter(item => item.plugin_id === PACKAGE_PLUGIN_ID);
-  const operation = async (name: string) => {
-    await host.inspectActions(caller, reference);
-    const view = (await host.actionClient(reference).discover(caller)).find(item => new RegExp(`^generated\\.[0-9a-f]{8}\\.${name.replace(".", "\\.")}$`).test(item.capability_id));
-    return view && { capability_id: view.capability_id, version: view.version, provider_id: view.provider_id };
-  };
-  const data = (installId: string) => host.withProject(reference, runtime => new SqlitePluginPrivateStorage(runtime.store.db).snapshotInstallationData(installId));
-  return { home, reference, install, plugins, operation, data, ledger: new HomeConsentLedger(home), person,
-    get host() { return host; }, get client() { return host.actionClient(reference); },
-    async reopen() { await host.close(); host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null }); },
-    service: () => new PluginInstallService({ ledger: new HomeConsentLedger(home), packages: new SandboxPackageStore(home), install: async () => undefined, installed: async () => [] }),
-    async close() { try { await host.close(); } finally { await rm(home, { recursive: true, force: true }); } } };
-}
-
 /** An adding operation that reads, waits, and only then saves the note: the publisher can be taken back between the read and the save. */
 function savesLate(files: PackageFiles) {
   readsAndWrites(files);
@@ -123,7 +84,7 @@ const pause = (ms: number) => new Promise(done => setTimeout(done, ms));
  * Starts the late-saving call and lets it get inside the operation (its first read is done within milliseconds; nothing here writes before the
  * wait, so nothing makes the project look and stop the installation on its own), runs `between`, and answers how the call ended and what was stored.
  */
-async function lateCall(h: Awaited<ReturnType<typeof installed>>, between: () => void) {
+async function lateCall(h: Awaited<ReturnType<typeof installedPackageHost>>, between: () => void) {
   const [running] = await h.plugins(), add = (await h.operation("notes.add"))!;
   assert.ok(add, "the package's action is there");
   await pause(1000); // whatever the install set going (the knowledge index looks at a project after a change) is done before the call starts
@@ -134,7 +95,7 @@ async function lateCall(h: Awaited<ReturnType<typeof installed>>, between: () =>
 }
 
 test("RAC-392 S-87 a call already inside an operation when the publisher is taken back is refused at its next save, with the denial itself, and writes nothing more", mac, async () => {
-  const h = await installed(), publisher = newPublisher();
+  const h = await installedPackageHost(), publisher = newPublisher();
   try {
     await h.install(signedPackage(publisher, savesLate));
     const taken = await lateCall(h, () => h.service().revokePublisher(publisher.identity));
@@ -145,7 +106,7 @@ test("RAC-392 S-87 a call already inside an operation when the publisher is take
 });
 
 test("RAC-392 S-87 control: the same call, with the publisher still trusted, saves what it was asked to", mac, async () => {
-  const h = await installed(), publisher = newPublisher();
+  const h = await installedPackageHost(), publisher = newPublisher();
   try {
     await h.install(signedPackage(publisher, savesLate));
     const kept = await lateCall(h, () => undefined);
@@ -155,7 +116,7 @@ test("RAC-392 S-87 control: the same call, with the publisher still trusted, sav
 });
 
 test("RAC-391 RAC-392 S-87 a publisher taken back: what it signed does nothing from then on (no write), stops, is not started again by a restart, keeps its data, and its next package is refused", mac, async () => {
-  const h = await installed(), publisher = newPublisher();
+  const h = await installedPackageHost(), publisher = newPublisher();
   try {
     await h.install(signedPackage(publisher, readsAndWrites));
     const [running] = await h.plugins();

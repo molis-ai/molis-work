@@ -73,7 +73,7 @@ export async function releaseInstalledPlugins(store: LocalProjectDatabase, proje
 
 async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   const { store, projectId, homeDirectory } = options, storage = studioStorage(store.db, projectId), releases = new AgentBuilderStore(storage);
-  const actions = options.actions ?? (() => { const service = new ActionService(); return { registry: service, client: service, project_id: projectId }; })();
+  const actions = options.actions ?? (() => { const service = new ActionService(); return { registry: service, client: service, scenes: service, project_id: projectId }; })();
   const readCatalog = () => capabilityCatalog(actions, options.actorId ?? 'web-user');
   let catalogPending: Promise<CatalogCapability[]> | undefined, exposureRevision = 0;
   const catalog = (): Promise<CatalogCapability[]> => {

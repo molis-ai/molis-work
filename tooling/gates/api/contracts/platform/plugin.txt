@@ -2503,6 +2503,10 @@ export declare const PLUGIN_CONTEXT_LEDGER_WRITE_PERMISSION = "context-ledger:wr
 
 export declare const PLUGIN_EVENT_PAYLOAD_MAX_BYTES = 16384;
 
+export declare const PLUGIN_JUDGMENTS_READ_PERMISSION = "judgments:read";
+
+export declare const PLUGIN_JUDGMENTS_WRITE_PERMISSION = "judgments:write";
+
 export declare const PLUGIN_LOCAL_TOOLS_LIMITS: Readonly<{
     tools: 32;
     binaries: 4;
@@ -2517,6 +2521,8 @@ export declare const PLUGIN_MODEL_LIMITS: {
     readonly default_output_tokens: 5000;
     readonly max_output_tokens: 12000;
 };
+
+export declare const PLUGIN_SCENES_PERMISSION = "scenes:use";
 
 export declare const PROJECT_JOURNAL_PERMISSION = "journal:project";
 
@@ -2940,6 +2946,8 @@ export interface PluginHostServices {
     readonly installations?: import("platform/plugin-installations").PluginInstallationClient;
     readonly attention?: import("@molis-ai/molis-work-contracts/platform/plugin-attention").PluginAttentionClient;
     readonly contextLedger?: import("@molis-ai/molis-work-contracts/platform/plugin-attention").PluginContextLedgerClient;
+    readonly scenes?: import("@molis-ai/molis-work-contracts/platform/plugin-scenes").PluginSceneClient;
+    readonly judgments?: import("@molis-ai/molis-work-contracts/platform/plugin-judgments").PluginJudgmentsClient;
     readonly agents?: import("platform/plugin-agents").PluginAgentClient;
     readonly background?: import("platform/plugin-background").PluginBackgroundClient;
     readonly actions?: PluginActionClient;
@@ -3220,6 +3228,21 @@ export interface PluginJournalWriter extends PluginJournalReader {
     appendEvent(input: PluginJournalAppend): number;
     getIdempotency(actorId: string, operation: string, key: string): PluginIdempotencyRecord | null;
     putIdempotency(input: PluginIdempotencyPut): void;
+}
+
+export interface PluginJudgmentInput {
+    readonly function: ActionReference;
+    readonly subject: JudgmentRecord["subject"];
+    readonly scene_id: string;
+    readonly scene_provenance: NonNullable<JudgmentRecord["scene_provenance"]>;
+    readonly outcome: JudgmentRecord["outcome"];
+    readonly suggested_behavior_ids: readonly string[];
+    readonly error_code: string | null;
+}
+
+export interface PluginJudgmentsClient {
+    latest(sceneId: string): readonly JudgmentRecord[];
+    record(input: PluginJudgmentInput): JudgmentRecord;
 }
 
 export interface PluginKeptJob {
@@ -3862,6 +3885,17 @@ export interface PluginRuntimeRepository {
     get(installId: string): PluginInstanceRecord | null;
     list(): PluginInstanceRecord[];
     save(record: PluginInstanceRecord): void;
+}
+
+export interface PluginSceneClient {
+    discoverScenes(judgment?: ActionReference): Promise<readonly ActionSceneView[]>;
+    usages(judgment?: ActionReference): Promise<readonly ActionSceneUsage[]>;
+    targets(judgment?: ActionReference, scene?: Pick<ActionSceneTarget, "scene_id" | "scene_version" | "provider_id">): Promise<readonly ActionSceneTarget[]>;
+    bind(binding: ActionSceneBinding, options?: ActionSceneConfigureOptions): Promise<void>;
+    runScene(scene: {
+        scene_id: string;
+        version: number;
+    }, bindingId: string, event: unknown): Promise<unknown>;
 }
 
 export interface PluginScheduleClient {
@@ -5143,6 +5177,7 @@ export declare const pluginErrors: import("platform/action-errors").ErrorCodeRai
     readonly publisher_untrusted: "invalid";
     readonly quarantined: "invalid";
     readonly rule_key_reserved: "invalid";
+    readonly scene_not_declared: "forbidden";
     readonly signature_invalid: "invalid";
     readonly signer_mismatch: "invalid";
     readonly state_invalid: "invalid";

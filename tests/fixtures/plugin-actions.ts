@@ -13,7 +13,7 @@ export function pluginActions(owner: object, project_id: string) {
   if (!projects) { projects = new Map(); services.set(owner, projects); }
   let service = projects.get(project_id);
   if (!service) { service = new ActionService(); projects.set(project_id, service); }
-  return { registry: service, client: service, project_id };
+  return { registry: service, client: service, scenes: service, project_id };
 }
 
 /**

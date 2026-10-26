@@ -39,7 +39,7 @@ test("RAC-414: the module serves exactly the actions the plugin's Manifest decla
   for (const source of module.EXTERNAL_DOCUMENT_SOURCES) assert.ok(sources.includes(`"${source}"`), `${source} is in the plugin's source list`);
 });
 
-test("RAC-414: the plugin's project deletion removes originals written by the module and preserves another project's originals", async () => {
+test("RAC-414: the module's project deletion removes the originals it wrote and preserves another project's originals", async () => {
   const home = await mkdtemp(join(tmpdir(), "artifact-original-owner-"));
   // A dot exercises the project-id encoding used by the original-file owners.
   const projectId = "a2b.project", otherProjectId = "a2b.keep";
@@ -59,7 +59,7 @@ test("RAC-414: the plugin's project deletion removes originals written by the mo
     assert.notEqual(directory, dirname(otherPath));
     assert.deepEqual(await readFile(originalPath), content);
     assert.deepEqual(await readFile(otherPath), otherContent);
-    await plugin.artifactsProjectData.purge(home, projectId);
+    await module.artifactsProjectData.purge!(home, projectId);
     await assert.rejects(access(directory), { code: "ENOENT" });
     assert.deepEqual(await readFile(otherPath), otherContent);
   } finally { await rm(home, { recursive: true, force: true }); }

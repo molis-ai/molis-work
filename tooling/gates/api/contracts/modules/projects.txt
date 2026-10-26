@@ -37,7 +37,7 @@ export interface DeleteProjectInput {
 export interface ProjectDataDeclaration {
     readonly label: string;
     readonly order?: number;
-    purge?(homeDirectory: string, projectId: string): void | Promise<void>;
+    purge(homeDirectory: string, projectId: string): void | Promise<void>;
 }
 
 export interface ProjectDeletionReceipt {

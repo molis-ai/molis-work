@@ -7,6 +7,7 @@ export const FLOW_EN: Record<string, string> = {
   "插件创作台的构建、发布包和已保存的密钥": "Plugin Studio builds, release packages and saved secrets",
   "这个项目及其角色的记忆": "Memories of this project and of its characters",
   "角色在这个项目里的执行记录": "Runs of characters in this project",
+  "成果库保存的大文件原件": "Large original files kept in Results",
   "助理在这个项目里的工作": "Assistant works in this project",
   "项目资料的卡片与整理记录": "Project knowledge cards and organizing records",
   "打开插件": "Open a plugin",

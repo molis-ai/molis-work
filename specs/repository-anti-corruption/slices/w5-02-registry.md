@@ -87,6 +87,21 @@ PG-095、PG-111 不进这几个 PR，评估与统筹的裁定见 §7。
 
 **开工前核对**：#1251 的状态；`project-deleted-owners.ts` 与 `plugin-project-cleanup.ts` 在宿主运行与不运行两种情况下的主人替换（运行中的实例替换声明主人那一段）；7 个库的 `schema` 基线里确有这些表；`docs/system/CALL-CHAINS.md` 链 2 步骤 7 跟着改。
 
+### 2.1 PR-A 收尾：Images 按声明删，删掉 `project_data`（BL-615，2026-10-25）
+
+前置都已在 batch-40 里：PG-104（`owner_files`）、PG-106（`onProjectDeleted` 删掉）、PG-038（删项目前平台停掉该项目的后台作业）。做法照 §4 a，三处改动：
+
+- **成果库的大文件原件归模块。** `artifactsProjectData` 搬进 `modules/artifacts`（`artifact-original-store.ts`），宿主在 `project-deleted-owners.ts` 点名，与 Characters、Functions 一样（模块不是插件，不算名单）；回执 id 仍是 `artifacts`。确认框文字的英文进宿主词典。A6 删成果库插件包时不再碰删项目。
+- **行点名的文件随行删。** `PluginProjectRowsDeclaration` 加 `files`：`tables` 里一张不带 `parent` 的表、存名字的列（JSON 数组；元素是对象时 `key` 指名字字段）、`owner_files` 里的一个目录。SDK 查形状和目录；平台在删行的同一个事务里先读名字，删完行再读剩下的行，仍被别的项目的行点名的名字不删（#1308 评审 6404324728）；其余在提交之前经 `ownerFilePaths` 删，删不掉就整个事务回滚、下次重试，不留没有行点名的孤儿文件：只删一段普通文件名、那个目录里的普通文件，链接、文件夹、特殊节点、多硬链接、带 `/`、`..` 的名字都留下（S-86）。Images 写 `project_rows`（`jobs` 与 `images_json` 里的 `filename`，目录 `assets`），删掉 `project-data.ts` 与 `purgeImagesProject`。
+- **按项目分开的库只看 `partition`。** 平台关掉这个项目的库、删掉目录，不跑插件的 `purge`；确认框写宿主的「{name} 在这个项目里的数据」。`PluginRegistration.project_data` 删掉，`PluginProjectCleanup` 只剩宿主给的 `owner_id`；`ProjectDataDeclaration` 只给宿主的模块，`purge` 改成必填。
+
+预期变化（测试随之改，不是放宽）：分区探针的 `purge` 不再被调用（PART-03、PART-10、PART-11 的 trace 去掉 `purge:`；PART-10 第二条原来靠 `purge` 挂住删除窗口，改成在同一轮里发起的写被拒、停用时删、重启后 id 为空）；`tests/home-plugin-project-cleanup.test.ts` 由 Issues 加夹具 `purge` 改成 Todo 的声明行；`tests/project-deletion-declarations.test.ts` 的新增条目改成声明 `project_rows`。
+
+| 编号 | 内容 | 证明 |
+| --- | --- | --- |
+| RAC-577 | 删项目删掉 Images 这个项目的生成记录和它们点名的图片，别的项目的留下；`../`、绝对路径、子目录、`.`、链接、文件夹、多硬链接的名字都不碰；SDK 拒绝挂在子表上、目录不在 `owner_files`、列不是标识符的 `files` | `tests/project-rows-deletion.test.ts`（S-86） |
+| PART-03 | 按项目分开的库不需要启动名单给主人；运行与离线两边的确认框都是宿主的模板加插件名 | `tests/plugin-database-partition.test.ts` |
+
 ## 3. PR-B（B1～B3，三个提交）与 PR-B4：平台读自己的登记
 
 ### 3.0 PR-B 设计要点（开工前，2026-10-25，统筹已审）
@@ -273,6 +288,17 @@ spec 10-15 定 W4-01 推迟到 W5-02 之后：bundled 插件得在 `project-plug
 
 **统筹 10-25 定（方案 1）**：查实「装上的插件」今天没有安装入口（没有 `plugin install`，安装服务是 ac-trust T2，未合入），所以 E 分两步、叠在本地分支 `claude/ac-registry-w401` 上，整组补齐才推送、开 PR：先按内置在一次性 Home 里跑完整生命周期并加 `replay-plugins.mjs`；装上的那一半等 T2 合入再补。B4 + C 先开一个 PR。装上的插件声明不了的两项先不进探针，各记一行后续：到期提醒（只能是 Home 范围的动作，装上的插件没有 Home 一半，BL-621）、放置（要带 `project_rows` 的 Home 库，BL-620，BL-622）。
 
+**第一步已做（本地分支，未推送）**：
+- 探针 `examples/probe-plugin/`：私有存储里的笔记，两条路由与五个动作（列、建、删，搜索来源，文件来源），建笔记声明撤销（映射到删），一个 `background` 作业，一个方法（`probe-notes@1`）；`registration` 是 `project_runtime`，包名之外哪里都不点名它。
+- `tests/probe-plugin.test.ts`（RAC-579）：在仓库副本里放进 `plugins/native/probe`、跑生成器与 `pnpm install`，断言包外只变两份生成文件、三份 `package.json` 与锁文件；构建后由 `tests/fixtures/probe-lifecycle.mjs` 分两段走：启用前无动作、路由 403 → 启用（running、宿主构建的信任）→ 发现 → 路由建与列 → 按声明撤销 → 搜索与侧栏文件能找到 → 方法登记；改版本重建后 → 升级（同一安装、数据在）→ 停用（403 `actions.plugin_disabled`、动作与方法都没有）→ 再启用 → 撤一项必需权限（`plugin.grant_denied`，路由 503）→ 恢复 → 卸载（404）。为此 local-host 的公开入口导出 `runningProjectPlatform`，测试不深引 `dist`。
+- `scripts/replay-plugins.mjs`（RAC-790、RAC-791，`tests/replay-plugins.test.ts`）：每个样本一个临时 Home，加载并按 SDK 解析 Manifest → 调一个声明的动作并比对答案 → 升到下一个补丁版本（`upgrade_compatibility` 写明当前版本）→ 再调。语料 `tests/fixtures/replay-plugins/corpus.json` 现有 plugin-sample（目录）与 text-stats（`pnpm pack` 的包）；打包的内置插件在它自己的位置上回放（宿主已用同一 id 跑着出厂的那份，同一 id 两份会撞能力登记），打包代码作为升级进来。坏样本（未声明的权限、没有这个动作、答案不同）各自失败。
+- 创作台产物进语料放到第二步：它们按沙箱执行、经安装路径跑，`pluginFixtures` 拒绝沙箱定义，回放与装上的那一半走同一条 T2 安装路径；届时在隔离 Home 里用 MiniMax 真跑 2～3 个，源码与清单入库。
+**第二步：装上的那一半（2026-10-25，叠在 batch-40 的 T2 上）**：
+- `tests/probe-plugin-installed.test.ts`（RAC-792，macOS）：探针的笔记按沙箱包格式签名，经 `molis-work plugin install` 交给常驻宿主：预览不写任何东西 → 确认并固定发布者 → `pinned` 信任下运行 → 发现两项动作 → 记一条、列出来 → 宿主重启后同一个安装、数据还在。
+- 走的时候查出 T2 的一个缺陷，同片修了：签名包的安装重启后起不来（恢复和启用时 `platform.start` 不带信任，按 `unsigned` 装，指纹形的发布者签名被 S-75.1 拒，`plugin.signer_mismatch`）。现在两处都带上从验过的包读回来的 `pinned` 信任，与安装时一样（`installed-plugin-host.ts`、`installed-plugin-lifecycle.ts`）。RAC-792 的重启一步在修之前是红的。
+- 两边不一样的地方：签名包的格式没有路由、搜索与文件来源、方法、撤销；装上的插件也没有人能走的升级、停用、启用、卸载入口（BL-623，交 ac-trust）。RAC-792 在内置那一半升级的位置断言新包被拒，入口补上之后改成与 `tests/probe-plugin.test.ts` 逐项对照。
+- **挂起（统筹 10-25）**：创作台产物进语料要在本机跑 Agent（隔离 Home 里用 MiniMax 走创作台，生成 2～3 个沙箱插件，源码与清单入库），先不做。等两件事：① 统筹排出本机跑 Agent 的时段（整机一次一个测试、一个构建，创作台一轮要占很久）；② 回放能起开发定义——A3 的名字归属检查（`declaration-owners.ts`）要从发布存档读每个持有安装的 Manifest，连起来的那个开发定义自己没有存档，`plugin.definition_conflict` 拒，RAC-790、RAC-791 因此红；ac-giants 在 `claude/b41-a3-dev-owners` 修，进 batch-41。两件都到了再补样本，回放的样本经 T2 安装路径进来（与 RAC-792 同一条），不经 `pluginFixtures`。
+
 ## 7. PG-095、PG-111 的评估（插件合同放在平台 contracts 里）
 
 登记这条线不依赖它们：`registration.ts` 只引用插件自己的 Manifest 与常量，不读 `contracts/modules/<插件>`。所以不进上面五个 PR。
@@ -306,15 +332,15 @@ spec 10-15 定 W4-01 推迟到 W5-02 之后：bundled 插件得在 `project-plug
 
 ## 10. 号段
 
-- RAC：A 560～563；B 564～569；B4 570～571；C 572～575；576～578 原给 D，D 移交 ac-shell 后留给本线；E 579。统筹 10-25 续给 RAC-710～729：B 的目录标记两条用 710、711。
+- RAC：A 560～563；B 564～569；B4 570～571；C 572～575；576～578 原给 D，D 移交 ac-shell 后留给本线；E 579。统筹 10-25 续给 RAC-710～729：B 的目录标记两条用 710、711。577 给 §2.1。统筹 10-25 再给 RAC-790～799：E 的回放两条用 790、791（原占位 770、771 与 PG-071 撞号），装上的那一半用 792。
 - BL（随各 PR 写进 `specs/BACKLOG.md`）：BL-615 Images 的项目数据按声明删（等 PG-104、PG-106）；BL-616 Files 的监督器条目（等 PG-005、X-5）；BL-617 Images、Jelly 合同挪进插件（Codex）；BL-618 Shelf 合同挪进 `modules/shelf`、Images 按动作 id 调用；BL-619 沙箱插件的 `project_rows`（#1255 落地后把拒绝改成删除）；BL-620 启动名单之外的 Home 插件与带 Home 库的项目插件的 `project_rows`（PR-A 中发现）；BL-621～624 留给实现中发现的。
-- 安全不变量：S-暂A（删项目只按声明删、不跑插件代码，PR-A）；S-08、S-15（B1）、S-31（B3）改代码列。
+- 安全不变量：S-暂A（删项目只按声明删、不跑插件代码，PR-A）；S-86（删项目时只删声明目录里行点名的普通文件，§2.1；统筹 10-25 定号）；S-08、S-15（B1）、S-31（B3）改代码列。
 
 ## 11. privileges.md 状态（合入后由统筹改）
 
 | PG | 合入后 |
 | --- | --- |
-| PG-024 | A 后：部分（插件按声明删；Images 等 BL-615）；BL-615 合入后已做 |
+| PG-024 | A 后：部分（插件按声明删；Images 等 BL-615）；§2.1 合入后已做 |
 | PG-065 | B 后：已做 |
 | PG-066 | A 后：已做（Alchemist 照 BL-376） |
 | PG-067 | PR-B4 后：已做（Files 一条等 BL-616）；描述改成 13 条、只有 Files 带端口 |

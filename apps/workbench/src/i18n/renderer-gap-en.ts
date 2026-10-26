@@ -21,6 +21,7 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   "请求未能完成，请重试。": "The request could not be completed. Please try again.",
   "{name} 的后台工作（将停止）": "Background work for {name} (will stop)",
   "{name} 的项目数据：{detail}": "Project data of {name}: {detail}",
+  "{name} 在这个项目里的数据": "Data of {name} in this project",
   "组里还有 {n} 个标签": "Tabs in this group: {n}",
   "撤销关闭 {plugin}": "Reopen {plugin}",
   "已关闭 {plugin} 标签组": "Closed the {plugin} tab group",

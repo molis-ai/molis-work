@@ -1,5 +1,5 @@
 import { ActionError, bindSearchEntriesHandler, defineSearchEntriesAction, defineSubjectContextAction, searchText, subjectContext, type ActionCallContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import { FORM_PROJECT_PLUGIN_ID, type FormRecord } from "@molis-ai/molis-work-contracts/modules/form";
+import { FORM_PROJECT_PLUGIN_ID, type FormRecord } from "./contract.js";
 import type { FormStore } from "./store.js";
 import { formErrors } from "./error.js";
 

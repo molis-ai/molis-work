@@ -126,7 +126,7 @@ test("RAC-902 the workbench's terminal entry and platform terminal import no plu
 
 test("RAC-902 a surface's terminal client rides in that surface's own bundle and reaches the terminal only through the platform's", () => {
   const shelf = join(ROOT, "plugins/native/shelf");
-  assert.match(readFileSync(join(shelf, "src/browser/factory.ts"), "utf8"), /startShelfTerminalClient\(host\.pluginRoute\)/u, "Shelf's client bundle starts its own terminal");
+  assert.match(readFileSync(join(shelf, "src/browser/client.ts"), "utf8"), /installTerminal\(page\)/u, "Shelf's client bundle installs its own terminal well");
   assert.equal(JSON.parse(readFileSync(join(shelf, "package.json"), "utf8")).exports["./terminal-client"], undefined, "no workbench imports Shelf's terminal");
   const characters = readFileSync(join(ROOT, "apps/workbench/src/browser/characters/terminal.ts"), "utf8");
   assert.doesNotMatch(characters, /from "(?:\.\.\/)+terminal\//u, "Characters does not reuse the work terminal's modules");

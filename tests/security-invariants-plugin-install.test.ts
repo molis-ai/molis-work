@@ -25,7 +25,7 @@ async function harness(ledger: PluginConsentLedger = new MemoryPluginConsentLedg
   const home = await mkdtemp(join(tmpdir(), "molis-work-install-"));
   const installed: Array<{ project: string; plugin: string; trust: unknown }> = [];
   const service = new PluginInstallService({ ledger, packages: new SandboxPackageStore(home), now: () => AT,
-    install: async (project, release) => { installed.push({ project, plugin: release.pluginId, trust: release.packaged?.trust }); } });
+    install: async (project, release) => { installed.push({ project, plugin: release.pluginId, trust: release.packaged?.trust }); }, installed: async () => [] });
   /** Nothing the install path writes exists: no pinned publisher, no kept package, no installation. */
   const nothingWritten = () => {
     assert.deepEqual(ledger.publishers(), [], "no publisher was pinned");
@@ -140,7 +140,7 @@ test("RAC-393 S-84 only the person's own action installs: no other audience reac
     actions.registerProvider(pluginConsentProvider(h.ledger)); actions.registerProvider(pluginInstallProvider(h.service));
     const caller = (extra: Partial<ActionCallContext> = {}): ActionCallContext => ({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: who.project_id, permissions: PLUGIN_INSTALL_PERMISSIONS, ...extra });
     const bundle = signedPackage(newPublisher());
-    const preview = (context: ActionCallContext) => actions.invoke(context, { capability_id: pluginInstallActions.preview.capability_id, version: 1 }, { bundle });
+    const preview = (context: ActionCallContext) => actions.invoke(context, { capability_id: pluginInstallActions.preview.capability_id, version: 2 }, { bundle });
     for (const audience of ["agent", "mcp", "workflow", "plugin"] as const) {
       const seen = (await actions.discover(caller({ audience }))).filter(view => view.capability_id.startsWith("plugins.install.") || view.capability_id.startsWith("plugins.publishers."));
       assert.deepEqual(seen, [], `${audience} does not see them`);
@@ -189,7 +189,7 @@ test("RAC-382 S-84 confirming in a real Host installs the package under pinned t
     const publisher = newPublisher(), client = host.actionClient(ref);
     const person: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: DEMO_PROJECT_ID, permissions: PLUGIN_INSTALL_PERMISSIONS,
       user_action: { source: "management", conversation_ref: "cli:plugin-install", message_ref: "call-host" } };
-    const preview = await client.invoke(person, { capability_id: pluginInstallActions.preview.capability_id, version: 1 }, { bundle: signedPackage(publisher) }) as { preview_id: string };
+    const preview = await client.invoke(person, { capability_id: pluginInstallActions.preview.capability_id, version: 2 }, { bundle: signedPackage(publisher) }) as { preview_id: string };
     await client.invoke(person, { capability_id: pluginInstallActions.confirm.capability_id, version: 1 }, { preview_id: preview.preview_id, consent: true, pin_label: "Example" });
 
     const database = new LocalProjectDatabase(databasePath);

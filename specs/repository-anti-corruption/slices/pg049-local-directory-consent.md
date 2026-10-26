@@ -96,3 +96,62 @@ PRR-03 的授权只有 30 分钟、只在内存里，换一次激活就没了；
 | RAC-666 | 常驻作业用授权读：每次读都进记录；同一小时里的读一条通知，跨过一小时再读又一条；作业里调本安装自己的 `plugin` 受众动作（定时唤醒走的同一条路）可以读，记为后台。 |
 | RAC-664 | 同一安装的新激活照用授权；停用期间读不到、授权还在；卸载（保留数据也算）删掉授权；授权只在所选项目里有效，删项目后失效。 |
 | RAC-665 | 目录被移走后再建同名目录，读到 `changed`，授权作废。 |
+
+## 8. 通知结果与当前语言（已接受有限 WO，2026-10-25，I1）
+
+Root 将 FIRST 6400577240 的非阻塞第 1、3 项（增量 6400884033 确认仍存在）交 I1，准确基于 `1bd32e50e23414631ed1f0f4cdf94c0d9375901a` 独立实现；目标是本叶工程验证、真实持久化通知的中英文展示及独立双核，不代表 PG049 或原 PR 完整验收。开写前原 kernel 的通知文件 blob 仍与基点相同，三个通知相关文件无未暂存改动；不写原作者树、主检出或旧 85 树。
+
+现状是 `tellDirectoryRead` 丢掉实际读取结果并将完整中文写入 `AssistantStore`。本叶在真实调用点传入 `result.outcome`：directory/text/bytes 使用已读取模板，denied 使用尝试读取被拒绝模板，missing/unsupported/too-large 使用尝试读取未完成模板；changed 的既有提前返回、不记账路径不变。所有身份、记录、去重与通知次数均沿用原服务。
+
+复用现有 `L(key, vars)` / `fillMessage`：中文模板继续作为已有宿主词典的稳定键，参数分开持久化。仅给 `AssistantNotice` 增加 `text_params?: { plugin: string; folder: string; origin: string }`；该字段为现行 directory-read 必需，其他种类不使用，正文 `text` 是模板键。来源参数是宿主选出的翻译键，插件名与目录名只作文本参数。Store 的 JSON body 与 API 已原样透传，无需改表或迁移。渲染该种通知时用当前 L 翻译模板及来源，并将同一结果用于正文、打开与知道了的 aria；签名包含最终显示文本。缺少参数视为无效通知，显示明确的数据不完整文案，不反解旧中文、不作历史读取兼容、不操作真实 Home。所有参数通过现有单次填充与 textContent，不能注入 HTML 或再次解释占位符。
+
+范围是通知生产方及真实调用点、上述合同与精确 API 快照、通知现行渲染、已注册宿主 `assistant-en.ts` 的精确键、必要测试和本节。不改翻译注册/PG071机制、通知受众和入口/频率、目录授权/来源/数据 owner、零副作用路径、job+grant+小时去重、SI/S72、其他需求线、门禁或共享资源预算。沿用 directory-read 当前非 urgent 分组，展示测试通过现有通知按钮 handler 打开内容，不冒作入口可达性改进。
+
+| 编号 | 验收及证据 |
+| --- | --- |
+| PG049-N01 | 真实 Host 的成功读取与合法调用的目录越界拒绝，仍各记一次并产生一条通知；成功模板与被拒模板准确、插件/目录/来源完整。受影响 RAC-663 和新浏览器生产路径覆盖。 |
+| PG049-N02 | 同一批已保存 notice_id 经 Store→API→真实 UI，刷新及中文→英文后正文与知道了/打开 aria 按现行语言重绘；名称含 HTML、占位符及替换符也仅作文本；不重新读目录或产生通知。 |
+| PG049-N03 | 缺少现行必需参数的 directory-read 明确显示数据不完整，其他种类正文保持原处理；不解析历史中文。 |
+| PG049-N04 | 原 job 窗口三条通知、四次读取及相关取消/撤权零记账，复用已有证据，仅核对受影响 RAC-663、RAC-666 和必要零副作用用例，不重安全全套。 |
+
+实现后必要 FIFO 整体 `pnpm build`，刷新精确 services/assistant API 快照，运行上述有限用例、相对基点/主线适用健康检查与推送前 fresh-fetch+secrets；浏览器使用专用 molis-test-browser、临时 Home/profile 和公共 FIFO，finally 清理。资源只报告真实增量交 carrier，不在本叶改共享预算或新建 CI。普通 feature push 后交同头 REVIEW、TEST、PIPE/Root；不开新 PR、不改原 PR、不合 main。
+
+Root 最终裁定：通知的纯文本格式化放入现有 `assistant-text-html.ts` 助理文本投影模块，沿已有函数序列化方式供客户端调用；island 只装配格式化投影，不扩通知框架。不登记巨大单元例外，不改迁移表、门禁、limits 或 baseline；只合并本次新增的冗余合同说明，保留 directory-read 必带 text_params 的清楚合同。新生产输入须整体构建并以该最终指纹验证受影响浏览器；不因步骤切换重跑已证的未变 Runtime/i18n 范围。
+
+## 9. #1308 FIRST §7.1：设置页提前显示失效（I1，2026-10-25）
+
+状态：Root 已接受的局部修复工单；负责人 I1。固定候选基点 `50823b548c47c3f64766e3b23d02ef68238a3fa3`（main 基线 `b3bac731b`），只承接 [原评第 7 节第 1 项](https://github.com/molis-ai/molis-work/pull/1308#issuecomment-6403273796)。目标是设置页在首次插件读取之前如实显示目录当前状态；授权持续到撤回、普通快照保留授权和读取历史、实际 read 的 changed 拒绝及撤销继续采用现有规则。
+
+当前 GET 直接列出持久授权，直到插件 read 才调用同一 owner 的 `sameDirectory`。本单让 `DirectoryGrantService.list` 异步复用这一判断，按真实 path/dev/ino/symlink 派生 `directory_status: current | changed`；HTTP 等待列表并保留现有 Home/插件页面隔离与敏感字段剥离。状态只属于本次读取结果，不入库、不自动撤回/授权/重绑定、不新增设备登记、后台监听或恢复策略。设置页明确显示目录有效或已失效；后者提示回到插件重新选择，原撤回入口照用。读取历史注明含恢复前的记录，查看不冒充插件读取，也不增次数或通知。状态是查看时的观察，实际读取仍执行自己的即时检查。
+
+允许修改 service、HTTP、settings-local-directories（含现有词典）、本节与必要既有测试及类型消费。service 的现有 list 消费跟随 Promise；不改 store schema、contracts/SDK、home-stores/快照政策、R55/F1/F2、共享 BACKLOG 或门禁/预算机制。取舍：目录检查只在设置列表读取时发生，准确性采用现有身份规则；无需第二份安全判断或持久状态。
+
+| 局部编号 | 验收与验证 |
+| --- | --- |
+| PG049-STATUS-01 | 真实 Host/HTTP + 临时目录：同一真实目录为 current；反复查看不修改授权行、读取历史/次数/最近一次或通知，敏感身份字段仍不下发。 |
+| PG049-STATUS-02 | 目录不存在、真实替换、设备/inode 差异及符号链接时，在首次插件 read 前 GET 已显示 changed；原授权和旧历史保留，不自动绑定新目录。身份差异通过实际持久记录故障与真实文件系统比对验证。 |
+| PG049-STATUS-03 | 实际 read 继续返回 changed 并撤销原授权；设置撤回失效项立即生效；明确重新选择目录后，新授权可读，同目录重选仍沿用原有效授权。 |
+| PG049-STATUS-04 | 专用 Chrome 在真实设置页显示有效/失效及重新选择提示、恢复前历史说明；真实点击撤回后该项消失，服务确认已撤回。页面没有替代授权按钮或伪造读取。 |
+
+工程交付：必要一次 FIFO 整体构建后，相关目录 security/HTTP、UI helper、客户端拼接和 i18n 回归通过；固定 base 与当前 origin 的 health、实际 served 资源按现行政策报告，fresh-fetch + secrets 后普通 feature push。准确 head 交既有 REVIEW/TEST 收窄核验，I1 核原件后交 PIPE/Root；不另起 full 或写原 PR/carrier。
+
+验证命令以 `node scripts/run-tests.mjs` 点名现有目录安全用例、设置请求/helper、客户端拼接与 i18n；浏览器仅点名新增 PG049-STATUS 用例，串行走现有机器 browser 槽与独立 Chrome profile。原失败和未验证边界保留，不以工程定向通过宣称快照全链、跨设备实机或本人验收完成。
+
+作者定向执行：必要一次 FIFO 整体构建自然退出 0，官方源码指纹与现行构建匹配；目录安全/HTTP 18 项及设置 helper、请求客户端、i18n、served-script 的 6 个文件通过。客户端拼接检查仅有固定 508 已存在的 LF=3/LFor=9 失败，本机最小对照与[原 CI](https://github.com/molis-ai/molis-work/actions/runs/40232850905/job/121288074433) 同形，原件保留，不在本单改其全局名单或吸收其它分支。health 对固定 508 与当前 main b3、boundary 均通过。实际 served workbench.js 为 1,129,694 B，较 508 的 1,129,466 B 增 228 B；同资源删行首缩进的试验经生产压缩后仍为同一字节数，已复用现有构造/helper/样式，不加资源，真实预算红留评审与唯一 carrier 按现行政策结算。本单浏览器和独立收据按同一候选源码交接，最终运行与未验边界以其原始结果为准。
+
+
+## 9. 目录窄屏完整路径换行（I1，2026-10-25）
+
+状态：Root 唯一初派的独立窄工单，负责人 I1；准确基点 `99c6561a9e945a098ee367e6646f0ae2b142872e`，原候选和分支保持冻结。本单接续 §8 评审中窄屏长连续路径被父容器裁切的 P2，只修可读与可选取，不追溯升级原单的阻塞等级。
+
+现有 `code.local-directory-root` 仍按通用 code 排版；document 没有横向滚动不能证明文字没有被上层 overflow 裁切。本单仅给 `.local-directory-settings .local-directory-root` 加局部自然换行与空白保留（`overflow-wrap: anywhere; white-space: break-spaces`）。小样式由现有本页模块持有，通过 `page-assets.ts` 接入既有 workbench/settings 两份 CSS；不扩大通用 SETTINGS_STYLES 巨大串，不改其它 code 或设置布局，不新建资源。
+
+| 编号 | 验收与证据 |
+| --- | --- |
+| PG049-WRAP-01 | 原目录浏览器单例使用真实长连续段、空格/中文目录与普通路径，在 390 和桌面宽度、亮暗主题下测实际 Text Range 行框，确保文字在路径行、viewport 和有裁切能力的祖先边界内，原文完整且可选取；保留状态、历史和真实撤回。临时移除本单两个样式声明后，同一布局断言须抓住 99 原样式的真实裁切，恢复后通过，保留度量及截图。 |
+
+允许改本页微型样式及其现有 CSS 装配、原 `tests/ui-request-client.e2e.test.ts` 目录单例和本节；无需改授权服务/合同、恢复政策、store/schema、全局 code/settings 规则、样式巨大单元、门禁/预算机制或共享 BACKLOG。只运行原单例的增量浏览器验证与必要静态检查，不重跑原 18 项、五文件或全量。源码变化仅做必要一次公共 FIFO 整体构建，浏览器用同一 canonical FIFO、专用 wrapper 和临时 Home，收尾清理；本单不更改 TMPDIR。
+
+按现行政策实测受影响 served CSS 和相对准确 99 的叶差，继承 workbench.js +228 B / 相对 main 总 +1965 B、原 client LF/LFor 继承红单列；资源增长留 REVIEW 认可及唯一 carrier 最终组合结算，不自行改机制或掩红。普通 feature push 前 fresh-fetch/secrets；固定 head 后交既有 REVIEW/TEST 只做增量，I1 亲读正式回执/raw 后交 PIPE/Root，不等 carrier 合入占位。Memory/#734 保持暂停。
+
+作者定向证据：唯一必要公共 FIFO 整体构建自然 0，样式作用域检查 3/3、fixed99/current main health 与 boundary 通过。首轮专用 Chrome 单例 1/1 自然 0；原样式反例实测水平越界 782.609375px 且空格选取不等于原文，恢复规则后六档长路径 3/8 行、横纵越界均 0，226 字符原文选取完全相同，26 字符短路径均单行；真实撤回仍通过，度量/原样式与新样式截图保留。最终测试继续保留原 document/status 断言，由固定 head 的独立单例收验。两份既有 CSS 各叶增 105 B，生产缩进压缩试验省 0，无新资源/JS 叶增；预算真实红与继承项交 REVIEW/唯一 carrier 按现行政策处理，不写机制。

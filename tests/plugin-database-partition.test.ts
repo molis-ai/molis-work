@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, readdirSync, rmSync, statSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -8,9 +8,8 @@ import { captureHostLog, type HostLogEntry, PLATFORM_PLUGIN_REGISTRATIONS, proje
 import { homeStoreRegistry } from "@molis-ai/molis-work-storage";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDatabase } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import {
-  PROBE, PROBE_DATABASE, homeRead, later, noteTexts, partitionDirectory, partitionFile, partitionHome, probe, probeEntry, probeWithLibrary, read, storeNote, write,
+  PROBE, PROBE_DATABASE, PROBE_ID, homeRead, later, noteTexts, partitionDirectory, partitionFile, partitionHome, probe, probeEntry, probeWithLibrary, read, storeNote, write,
 } from "./fixtures/partition-probe.js";
 import { withLibrary } from "./fixtures/home-library.js";
 import { deferred } from "./fixtures/home-runtime.js";
@@ -38,28 +37,25 @@ test("PART-01 the entry and the Home's store registry agree on the partition, ei
   assert.equal(stores.libraryPath("/home", stores.get("split")!, "p1"), "/home/split/projects/p1/split.db");
 });
 
-test("PART-03 a partitioned library needs a project data owner and may leave purge to the Host; any other owner needs purge", async t => {
+test("PART-03 PG-024 a partitioned library's data of a project is the platform's to remove: the plugin declares nothing more and the dialog names it in the Host's words", async t => {
+  // The partition is the declaration: a start list that names no owner still starts the plugin, its step under the plugin's id.
   const unowned = partitionHome(t, [probeEntry({ project_data: undefined })]);
-  await assert.rejects(unowned.host.ready(), /project_data/u);
-  // Todo's library kept whole, its rows not declared (`project_rows` left out): an owner the start list names must clear it itself.
-  const todo = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.project_plugin_id === "todo")!;
-  const { project_rows: rows, ...undeclared } = todo.manifest.databases!.home!;
-  assert.ok(rows, "Todo declares its project's rows, which the next case relies on");
-  const purgeless = partitionHome(t, [{ ...todo.runtime!, manifest: todo.manifest, create: () => withLibrary(todo.runtime!.create(), undeclared), project_data: { owner_id: "todo", declaration: { label: "待办" } } }]);
-  await assert.rejects(purgeless.host.ready(), /purge/u);
-  // Rows the Manifest declares and a way to clear them on the start list: one or the other, never both, even with a purge.
-  const both = partitionHome(t, [{ ...todo.runtime!, manifest: todo.manifest, project_data: { owner_id: "todo", declaration: { label: "待办", purge: () => undefined } } }]);
-  await assert.rejects(both.host.ready(), /不能两样都有/u);
-  await partitionHome(t, [probeEntry({ project_data: { owner_id: PROBE, declaration: { label: "分区探针的笔记" } } })]).ready();
+  await unowned.ready();
+  const step = unowned.hooks.owners().find(owner => owner.id === PROBE_ID);
+  assert.deepEqual(step && { label: step.label, label_values: step.label_values, words_of: step.words_of },
+    { label: "{name} 在这个项目里的数据", label_values: { name: PROBE }, words_of: PROBE_ID });
 
-  // The deletion's owners come from the platform's registration list as well (project-deleted-owners.ts; W5-02 PR-B): there, too, only a partitioned one may leave out purge.
-  const catalog = PLATFORM_PLUGIN_REGISTRATIONS as PluginRegistration[], shipped = catalog.find(entry => entry.project_plugin_id === PROBE)!;
+  // The deletion's owners come from the platform's registration list as well (project-deleted-owners.ts; W5-02 PR-B), with no Host running.
   const elsewhere = mkdtempSync(join(tmpdir(), "plugin-partition-owners-"));
   t.after(() => rmSync(elsewhere, { recursive: true, force: true }));
-  catalog.push({ ...shipped, project_plugin_id: "purgeless", project_data: { label: "没有清理办法的数据" }, runtime: undefined });
-  try { assert.throws(() => projectDeletedHooksFor(elsewhere), /purge/u); } finally { catalog.pop(); }
-  catalog.push({ ...shipped, project_plugin_id: "unpurged", project_data: { label: "分区探针的笔记" } });
-  try { projectDeletedHooksFor(join(elsewhere, "partitioned")); } finally { catalog.pop(); }
+  const offline = projectDeletedHooksFor(elsewhere), shipped = offline.owners().find(owner => owner.id === PROBE);
+  assert.deepEqual(shipped && { label: shipped.label, label_values: shipped.label_values, words_of: shipped.words_of },
+    { label: "{name} 在这个项目里的数据", label_values: { name: PROBE }, words_of: PROBE_ID });
+  mkdirSync(partitionDirectory(elsewhere, "p1"), { recursive: true }); writeFileSync(partitionFile(elsewhere, "p1"), "");
+  mkdirSync(partitionDirectory(elsewhere, "p2"), { recursive: true }); writeFileSync(partitionFile(elsewhere, "p2"), "");
+  assert.equal(await offline.clear(PROBE, "p1"), true);
+  assert.equal(existsSync(partitionDirectory(elsewhere, "p1")), false);
+  assert.ok(existsSync(partitionFile(elsewhere, "p2")), "another project's library stays");
 });
 
 test("PART-04 a call in no project is refused before any file is made: start, a Home action", async t => {

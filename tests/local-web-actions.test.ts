@@ -13,7 +13,7 @@ import { feedItemActions, feedManifest } from "@molis-ai/molis-work-plugin-feed"
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { SqlitePluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { TODO_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/todo";
+import { TODO_PLUGIN_ID } from "@molis-ai/molis-work-plugin-todo/contract";
 import { CHARACTER_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/characters";
 import { definePlugin, defineSubjectContextAction, subjectContext } from "@molis-ai/molis-work-plugin-sdk";
 import { COGNIA_PLUGIN_ID } from "@molis-ai/molis-work-plugin-cognia";

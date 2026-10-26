@@ -1,13 +1,3 @@
-import type { ContractDescriptor } from "../platform/package.js";
-
-export const modulesFormContract = {
-  contractId: "io.molis.work.module.form.v1",
-  kind: "module",
-  schemaVersion: 1,
-  maturity: "partial",
-  ssot: "docs/SSOT-MATRIX.md",
-} as const satisfies ContractDescriptor;
-
 export const FORM_PLUGIN_ID = "io.molis.work.form";
 export const FORM_PROJECT_PLUGIN_ID = "form";
 export const FORM_ARTIFACT_TYPE_ID = "io.molis.work.form.questionnaire";

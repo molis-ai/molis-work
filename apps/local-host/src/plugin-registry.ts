@@ -134,7 +134,7 @@ export function homeDefinitionEntries(): { definition: PluginDefinition; dual_in
 /** The Home Runtime's start list: each registration that runs there, under its project key, with what deleting a project clears of it. */
 export function homePluginEntries(): HomePluginEntry[] {
   return PLATFORM_PLUGIN_REGISTRATIONS.flatMap(entry => entry.runtime ? [{ ...entry.runtime, scope: "home" as const, key: entry.project_plugin_id, manifest: entry.manifest,
-    project_data: { owner_id: entry.project_plugin_id, ...(entry.project_data ? { declaration: entry.project_data } : {}) } }] : []);
+    project_data: { owner_id: entry.project_plugin_id } }] : []);
 }
 
 /** A project instance a registration declares (PG-067): the factory the project supervisor starts, and where its library is. */

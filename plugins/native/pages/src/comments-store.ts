@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { PagesCommentAnchor, PagesCommentMessage, PagesCommentThread, PagesRecord } from "@molis-ai/molis-work-contracts/modules/pages";
+import type { PagesCommentAnchor, PagesCommentMessage, PagesCommentThread, PagesRecord } from "./contract.js";
 import { pagesErrors } from "./error.js";
 import type { PagesSql } from "./store.js";
 

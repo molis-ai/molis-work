@@ -1,13 +1,3 @@
-import type { ContractDescriptor } from "../platform/package.js";
-
-export const modulesTodoContract = {
-  contractId: "io.molis.work.module.todo.v1",
-  kind: "module",
-  schemaVersion: 1,
-  maturity: "partial",
-  ssot: "docs/SSOT-MATRIX.md",
-} as const satisfies ContractDescriptor;
-
 export const TODO_PLUGIN_ID = "io.molis.work.todo";
 export const TODO_PROJECT_PLUGIN_ID = "todo";
 /** Todo's organizer reads at most this much of one material; a caller with longer text sends it in parts of this size. */

@@ -1,5 +1,5 @@
 import { bindArtifactPreview, defineArtifactPreviewAction } from "@molis-ai/molis-work-contracts/platform/actions";
-import { PPT_ARTIFACT_TYPE_ID, type PptRecord } from "@molis-ai/molis-work-contracts/modules/ppt";
+import { PPT_ARTIFACT_TYPE_ID, type PptRecord } from "./contract.js";
 import { pptMarkdown } from "./content-actions.js";
 
 /** A pinned version of a deck as its outline in Markdown (specs/artifact-positioning A4). */

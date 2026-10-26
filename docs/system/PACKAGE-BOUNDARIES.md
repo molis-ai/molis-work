@@ -85,12 +85,24 @@ F2 创建目标地图里的全部 package。每个 package 必须有：
 
 `contract-only` package 只提供真实边界，不注册入口、不创建 Store、不返回伪成功。独立 package 默认是 Monorepo 私有包；只有 Contracts、Plugin SDK 和必要 UI Extension 类型进入潜在公共发布面。
 
+### 新增一个横向服务或平台服务
+
+照这个顺序做；`horizontal/knowledge` 是最近的完整样例。
+
+1. 目录 `horizontal/<名>/`，包名 `@molis-ai/molis-work-service-<名>`；合同放 `packages/contracts/src/services/<名>.ts`（公开 subpath）。
+2. 在 `scripts/workspace-packages.mjs` 加一条 `entry(路径, 包名, "horizontal", 合同子路径, 迁移目标, 一句话, 不负责什么, 旧来源, 状态)`。归属由 `scripts/package-owners.mjs` 的规则算出：`node scripts/package-owners.mjs --write` 刷新 SSOT 的「归属」列与 `.github/CODEOWNERS`。
+3. 包 README 写「开发要求」（写法见 `docs/system/DEVELOPMENT-REQUIREMENTS.md`），并在 `docs/horizontal/` 加手册。
+4. 要给页面、工作流、Agent、MCP、插件用的，都写成动作：动作定义写 `audiences`；Host 的装配点是 `apps/local-host/src/<名>-actions.ts`，返回 `registration: { provider, definitions, handlers }`（样例 `knowledge-actions.ts`）。插件使用它，要在自己的 Manifest `capabilities.consumes` 里声明。
+5. `pnpm build` 之后跑 `pnpm actions:update`（系统动作记在 `tooling/gates/actions/host-actions.tsv`），改了公开合同再跑 `pnpm api:update`，提交 `tooling/gates/`。
+6. `node scripts/gates/package-inventory.mjs --table` 重新生成 `specs/repository-anti-corruption/spec.md` §5.1 的包清单行。
+7. `pnpm boundary:check` 与 `node scripts/check-health-gates.mjs --base origin/main` 都要过。
+
 ## 5. Adapter 放置
 
 不设顶层 `adapters/`：
 
-- SQLite、Filesystem、Blob：`packages/storage/adapters/`
-- PTY：`horizontal/runtime-host/adapters/`
+- SQLite、Filesystem、Blob：`packages/storage/src/adapters/`
+- PTY：`horizontal/runtime-host/src/adapters/`
 - Tauri、Keychain、Updater：`apps/desktop/adapters/`
 - GitHub、Gmail、RSS 等：对应 `plugins/official-integrations/<provider>/`
 
@@ -153,6 +165,8 @@ pnpm workspace:verify # 门禁 + 所有目标 package 的 build（每个包的 t
 | `hostPluginFiles`、`registerProviderSites` | 宿主里以内置插件命名的 `<插件>-actions.ts`、`<插件>-native-plugin-http.ts`；`apps/local-host/src` 里每个文件的 `registerProvider(` 调用 | 构建期装配路径冻结（AGENTS.md）；名单测试 `tests/builtin-plugin-assembly-gate.test.ts` 之外，这里对照 merge-base，改名单放不过 |
 | `hybridPlugins` | 已由 Plugin Runtime 启动、宿主却还有同名文件或手工 `registerProvider(<插件>…Provider(…))` 的插件（现在：shelf、coding、git），报告里标出 | 混合装配既不是 Runtime 形状也不是冻结的构建期形状，名单看不出来。Characters 按 2026-10-08 决定第 26 项并进了宿主和 `modules/characters`，不再是 Runtime 插件（CHR-1，2026-10-22），名单里没有它了 |
 | `pluginOutsideMentions` | 每个内置插件的包名在它自己的包之外出现在多少个源码或配置文件里（import、`package.json` 依赖、工作区清单） | 加一个插件除了它自己的包还要改几处。新插件的额度是 0（W5-02 PR-C，统筹 10-23 定）：生成器写的两份文件不算，两个应用与根的 `package.json` 只在插件依赖正好等于生成文件 import 的那一组（根是两份的并集）时不算 |
+
+安装生命周期和发布类型这条链沿用 `apps/local-host/src/installed-plugin-host.ts` 作为创作台类型接缝：由它 `export type` 转出 `AgentBuilderPorts`、`AgentRelease`，`installed-plugin-lifecycle.ts`、`installed-plugin-version.ts`、`installed-release.ts` 再以 `import type` 取得所需类型，不增加运行时依赖。这一约定只限定上述类型链；其他创作台调用方和私路的后续处理见[特权清单](../../specs/repository-anti-corruption/privileges.md)。不得为压低 `pluginOutsideMentions` 数字，借该接缝加入新的运行时依赖。
 
 这些数字**看不到**的（没有类型检查器和跨文件数据流，靠评审；每个模块的文件头写得更细）：
 

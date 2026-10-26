@@ -1,5 +1,5 @@
 import { bindWorkflowContentHandlers, defineWorkflowContentActions, type ActionCallContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { FormQuestionInput, FormRecord } from "@molis-ai/molis-work-contracts/modules/form";
+import type { FormQuestionInput, FormRecord } from "./contract.js";
 import { formErrors } from "./error.js";
 import { FORM_QUESTION_LIMIT, FORM_TITLE_LIMIT, type FormStores } from "./store.js";
 

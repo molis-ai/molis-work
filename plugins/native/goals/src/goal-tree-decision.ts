@@ -158,9 +158,7 @@ export class GoalTreeDecisionApplication implements Pick<GoalTreeApplicationApi,
       }
 
       const confirmedById = new Map(confirmed.map(entry => [entry.item.item_id, entry]));
-      const materializationOrder = goalTreeMaterializationGroups(
-        input.project_id, confirmed.map(entry => entry.item),
-      );
+      const materializationOrder = goalTreeMaterializationGroups(confirmed.map(entry => entry.item));
       for (const group of materializationOrder) {
         for (const orderedItem of group) {
           const entry = confirmedById.get(orderedItem.item_id)!;

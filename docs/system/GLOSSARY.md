@@ -416,7 +416,7 @@ B　说工作者本身的（做事、用自己的权限、请求授权和提问�
 | R-A7 | （已作废，2026-10-23）目录 `plugins/native/work` 与包 `@molis-ai/molis-work-plugin-work` 随 Sessions 下线（SC-4）一起删除，改名不再需要 | — | — | 重做 Sessions 时按 BL-177 另起包名 |
 | R-A8 | 翻译表里找不到字面使用处、又含旧术语的键 | 删除 | 11 条：`apps/workbench/src/i18n/en.ts` 5 条（键里的字样有「Functions 行为总表」「Functions 出站动作」「判断函数 key」「Board 级事项」，前一个出现在一整句的键里）、`i18n/information-loop-en.ts` 3 条、`apps/workbench/src/functions/en.ts` 1 条、`plugins/native/feed/src/en.ts` 2 条 | 只按字面搜过。翻译换成稳定键（2.7，W5-03）后这些条目不带进新词典，所以不单独做；W1-08 的翻译检查落地后以它报告的无用键为准 |
 | R-A9 | （已作废，2026-10-25）UI 描述里的 `plugin_id` 不再由插件写，平台按 Manifest 填（3.3 表后第 2 条） | — | — | PG-098 |
-| R-A11 | 注释与局部变量里把项目叫 board/Board 的，以及把 Agent role 叫 Characters 的 | 项目；Agent role | 无法按名计数，改 R-A1 时顺带 | 例：`modules/functions/src/store.ts` 的局部变量 `board`；`plugins/native/goals/src/document-collection.ts` 与 `goal-tree-materialization-order.ts` 里未用的 `_boardId` 参数；`packages/contracts/src/modules/goals.ts` 的注释；`apps/workbench/src/browser/characters/builtin.ts` 的注释把系统与插件的角色叫 Characters |
+| R-A11 | 注释与局部变量里把项目叫 board/Board 的，以及把 Agent role 叫 Characters 的 | 项目；Agent role | 无法按名计数，改 R-A1 时顺带 | 例：`modules/functions/src/store.ts` 的局部变量 `board`（`plugins/native/goals/src/document-collection.ts` 与 `goal-tree-materialization-order.ts` 里未用的 `_boardId` 已于 2026-10-26 删改，W5-14 片 1）；`packages/contracts/src/modules/goals.ts` 的注释；`apps/workbench/src/browser/characters/builtin.ts` 的注释把系统与插件的角色叫 Characters |
 
 ### R-B　持久化或合同里的标识符（改名等于改数据或合同）
 

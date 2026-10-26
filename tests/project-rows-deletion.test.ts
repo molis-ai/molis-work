@@ -313,7 +313,7 @@ test("MEM-40 running declared-row owner retains current after the actual write l
   assert.deepEqual(probe.calls, calls);
 });
 
-for (const controlled of [false, true]) test(`RAC-577 S-86 ${controlled ? "controlled" : "ordinary"} deletion removes only plain files the project's rows name in the plugin's declared directory`, async t => {
+for (const controlled of [false, true]) test(`RAC-577 S-86 the files a project's rows name go with them, and only plain files in the declared directory of the plugin's own (${controlled ? "controlled" : "ordinary"})`, async t => {
   const home = withHome(t);
   const images = catalog.find(entry => entry.project_plugin_id === "images")!, library = images.manifest.databases!.home!;
   assert.deepEqual(library.project_rows?.files, [{ table: "jobs", column: "images_json", key: "filename", directory: "assets" }], "Images declares its pictures");

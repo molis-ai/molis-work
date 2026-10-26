@@ -3486,3 +3486,7 @@ Node 24.14.0 下冻结离线 install、原完整70包 build、Local Host strict�
 原 workspace:verify 首次在受限沙箱因回环 listen EPERM 失败，日志保留；相同源码、相同命令在允许本地监听的环境重做后，boundary:test、boundary:check和workspace:build全部通过。未改断言、权限规则或重试配置。
 
 实际48项资源相对父 b60：workbench.js 1,142,580→1,175,473（+32,893 B），workbench.css 1,236,084→1,236,764（+680 B），settings.css 932,843→858,919（−73,924 B），coding.js 289,674→291,450（+1,776 B），其余44项不变。前两项只迁移同功能的既有逐项批准；Coding包含已批准archive +570与仍待决定restore +1,206，未写Coding放行项。原资源门仍须保留这一未批准增长的失败。精确父基线health/资源门以及冻结规模性能在合成checkpoint后执行；付费批次尚未开始。
+
+准确父基线 health 首检拦住一处合并遗漏：S-86 文档仍引用原测试标题，而普通/受控参数化时改掉了该标题。已保留原标题文字并追加场景后缀，原两条路径、断言和测试数量不变；不改安全不变量门或文档约束。资源原更新器实测只因 coding.js 的未完全批准增长拒绝写入，预算文件未改变。
+
+补验：保留标题后的原 rows 文件20/20通过；准确父b60的原health更新器通过且baseline内容无变化。资源原check按预期仍报告Coding增长及因原更新器整体拒写而尚未落表的已批准Workbench/样式调整；未把这些未更新项报成通过。

@@ -19,7 +19,7 @@ afterEach(() => {
 describe("SQLite Research repository", () => {
   it("creates one initial MVP scope for an IdeaVersion", () => {
     const repository = setup();
-    const first = repository.ensureMvpScope({
+    const first = repository.plans.ensureMvpScope({
       id: "scope-01",
       ideaId: "idea-01",
       ideaVersion: 1,
@@ -28,7 +28,7 @@ describe("SQLite Research repository", () => {
       outOfScope: ["自动投放"],
       now: "2026-07-31T10:01:00.000Z",
     });
-    const repeated = repository.ensureMvpScope({
+    const repeated = repository.plans.ensureMvpScope({
       id: "scope-unused",
       ideaId: "idea-01",
       ideaVersion: 1,
@@ -44,7 +44,7 @@ describe("SQLite Research repository", () => {
 
   it("round-trips plans, runs, Evidence and Claims with the exact compatibility key", () => {
     const repository = setup();
-    repository.createPlan({
+    repository.plans.createPlan({
       id: "plan-market-01",
       key: marketLensCompatibilityKey("idea-01", 1),
       scopeSummary: "验证需求与竞争",
@@ -57,7 +57,7 @@ describe("SQLite Research repository", () => {
       createdAt: "2026-07-31T10:01:00.000Z",
     });
     seedJob(database as SqliteDatabase, "job-market-01");
-    repository.createRun({
+    repository.runs.createRun({
       id: "run-market-01",
       planId: "plan-market-01",
       key: marketLensCompatibilityKey("idea-01", 1),
@@ -68,7 +68,7 @@ describe("SQLite Research repository", () => {
       now: "2026-07-31T10:02:00.000Z",
     });
 
-    repository.saveReport({
+    repository.reports.saveReport({
       report: {
         id: "report-market-01",
         runId: "run-market-01",
@@ -106,12 +106,12 @@ describe("SQLite Research repository", () => {
       ],
     });
 
-    expect(repository.getLatestReport(marketLensCompatibilityKey("idea-01", 1))).toMatchObject({
+    expect(repository.reports.getLatestReport(marketLensCompatibilityKey("idea-01", 1))).toMatchObject({
       id: "report-market-01",
       judgments: [{ id: "claim-demand", supportingEvidenceIds: ["evidence-01"] }],
     });
-    expect(repository.listEvidence("report-market-01")).toHaveLength(1);
-    expect(repository.getLatestReport(buildLensCompatibilityKey("idea-01", 1, 1))).toBeUndefined();
+    expect(repository.reports.listEvidence("report-market-01")).toHaveLength(1);
+    expect(repository.reports.getLatestReport(buildLensCompatibilityKey("idea-01", 1, 1))).toBeUndefined();
   });
 });
 

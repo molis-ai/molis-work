@@ -88,7 +88,7 @@ function implementations(d: ApiDependencies): Implementations {
     researchPlan: async ({ id, ...input }, signal, control) => ({ plan: await d.workReuse.projectPlan(await d.createResearchPlan({ ideaId: id, ...input }, signal, control), signal) }),
     researchStart: async ({ id, ...input }, signal, control) => {
       const accepted = await d.jobResumption.prepareStart(RESEARCH_LENS_JOB, control);
-      const plan = d.research.getPlan(input.planId);
+      const plan = d.research.plans.getPlan(input.planId);
       if (plan) await d.workReuse.validate(plan, signal);
       await control?.beforeEffect(); control?.assert_authority_current?.(); signal?.throwIfAborted();
       const run = d.startLensRun({ ideaId: id, ...input });
@@ -109,7 +109,7 @@ function implementations(d: ApiDependencies): Implementations {
     },
     runList: () => ({ jobs: d.jobs.listRecent().filter(job => ["queued", "running", "interrupted", "failed"].includes(job.status)).map(job => {
       const input = job.input && typeof job.input === "object" ? job.input as Record<string, unknown> : {};
-      const plan = typeof input.planId === "string" ? d.research.getPlan(input.planId) : undefined;
+      const plan = typeof input.planId === "string" ? d.research.plans.getPlan(input.planId) : undefined;
       return { jobId: job.id, kind: job.kind, status: job.status, accepted: d.jobResumption.isAccepted(job.id), errorCode: job.errorCode,
         directionId: typeof input.directionId === "string" ? input.directionId : undefined, ideaId: plan?.key.ideaId };
     }) }),

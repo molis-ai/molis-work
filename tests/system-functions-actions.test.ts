@@ -104,8 +104,8 @@ test("published rules become versioned system actions without a project, preserv
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-// RAC-105-A-17: both real transports reach this one resident provider and persist in this Home.
-test("global HTTP published invocation uses the same system handler and separate Homes never mix definitions", async t => {
+// RAC-105-A-17: the Host action client and the MCP client reach this one resident provider and persist in this Home (the by-key HTTP route is gone, BL-081 ②).
+test("global published invocation by the Host action client and by MCP uses the same system handler and separate Homes never mix definitions", async t => {
   const root = await mkdtemp(join(tmpdir(), "functions-http-"));
   const home = join(root, "a"), otherHome = join(root, "b");
   const calls = { value: 0 }, options = fixtureOptions(calls);
@@ -126,12 +126,14 @@ test("global HTTP published invocation uses the same system handler and separate
     await assert.rejects(other.homeActionClient().invoke(caller, definition, { content: "another account" }), { code: "actions.missing" });
     const { origin } = served;
     const before = calls.value;
-    const response = await fetch(`${origin}/api/functions/by-key/${record.function_key}/invoke`, { method: "POST",
+    const invoked = await host.homeActionClient().invoke(caller, functionsActions.invoke, { function_key: record.function_key, input: "via the Host action client" }) as { data: { choice: string } };
+    assert.equal(invoked.data.choice, "yes");
+    const refused = await fetch(`${origin}/api/functions/by-key/${record.function_key}/invoke`, { method: "POST",
       headers: { origin, "content-type": "application/json", "x-molis-work-control-token": served.controlToken, "x-molis-work-idempotency-key": "system-function-invoke" },
       body: JSON.stringify({ input: "via HTTP" }) });
-    assert.equal(response.status, 200, await response.clone().text());
-    assert.equal((await response.json()).data.choice, "yes");
-    assert.equal(calls.value, before + 1, "the configured system provider ran exactly once");
+    // RAC-1021: a removed route reaches the catalog's 400 refusal, not an internal error.
+    assert.equal(refused.status, 400, `the by-key HTTP spelling is gone, the catalog refusal answers it: ${await refused.clone().text()}`);
+    assert.equal(calls.value, before + 1, "the configured system provider ran exactly once, and the refused HTTP spelling ran nothing");
     assert.deepEqual(host.status().projects, []);
     const listed = await host.homeActionClient().invoke(caller, functionsActions.list, {}) as { functions: { function_key: string }[] };
     assert.ok(listed.functions.some(row => row.function_key === record.function_key));
@@ -153,9 +155,9 @@ test("global HTTP published invocation uses the same system handler and separate
     const result = await external.callTool({ name: "molis_work_v1_action_functions.invoke__v1", arguments: { function_key: record.function_key, input: "external MCP" } });
     assert.notEqual(result.isError, true, JSON.stringify(result));
     assert.equal(JSON.parse((result.content as { text: string }[])[0]!.text).data.choice, "yes");
-    assert.equal(calls.value, before + 2, "HTTP and MCP each run this same resident provider once");
+    assert.equal(calls.value, before + 2, "the Host action client and MCP each run this same resident provider once");
     const history = withFunctionsService(home, service => service.listJudgments(), options);
-    assert.equal(history.filter(row => row.function_key === record.function_key).length, 2, "HTTP and external MCP each persist one judgment in the same Home");
+    assert.equal(history.filter(row => row.function_key === record.function_key).length, 2, "the Host action client and external MCP each persist one judgment in the same Home");
   } finally {
     await external.close();
     await served.close();

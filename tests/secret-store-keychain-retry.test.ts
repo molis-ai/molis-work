@@ -218,14 +218,16 @@ test("Functions local reads work with locked Keychain across Host, HTTP and fres
       const address = server.address();
       assert.ok(address && typeof address === "object");
       const origin = `http://127.0.0.1:${address.port}`;
-      for (const route of ["/api/functions", "/api/functions/published", "/api/functions/by-key/lazy_keychain"]) {
+      for (const route of ["/api/functions", "/api/functions/published"]) {
         const response = await fetch(origin + route);
         assert.equal(response.status, 200, route);
         assert.match(await response.text(), /lazy_keychain/u);
       }
-      assert.deepEqual(calls(), [], "HTTP and all independent MCP reads must leave Keychain untouched");
       const actions = bindActionClient(actionHost.homeActionClient(),
         () => ({ actor_id: "test", project_id: null, audience: "mcp", permissions: ["functions:invoke"] }));
+      // BL-081 ②: the by-key HTTP describe was deleted; the same read goes through the Functions action.
+      assert.match(JSON.stringify(await actions.invoke(functionsActions.describe, { function_key: live.function_key })), /lazy_keychain/u);
+      assert.deepEqual(calls(), [], "HTTP and all independent MCP reads must leave Keychain untouched");
       for (let i = 0; i < 3; i++) await assert.rejects(() => actions.invoke(functionsActions.invoke, { function_key: live.function_key, input: "needs actual credential" }), /Keychain/u);
       assert.equal(providerCalls, 0);
       assert.deepEqual(calls(), ["find-generic-password"]);

@@ -561,7 +561,7 @@ Inbox 的判断执行在目录及执行时检查当前绑定、发布兼容性�
 
 ### 系统判断能力与无项目调用
 
-Functions 插件退场时按职责迁移：纯浏览器编辑器、样式与本地化归 Workbench 的 `functions/`；HTTP 路由与旧 MCP 名称适配归 Local Host；业务、版本、数据和已发布动作继续由 modules/functions 持有。能力库通过 `/capabilities/rules` 进入判断规则编辑，保留 project/desktop 与规则 ID；TypeSafe 连接选择放入服务连接。旧 `/settings/functions` 与 `/api/plugins/functions` 只转到同一系统页面/路由。删除插件 Manifest、市场/导航注册、Workbench contribution、包依赖和冗余 re-export。公开 MCP `molis_work_v1_functions_*` 保留为系统动作别名，不伪装成仍可安装插件。函数旧用途合同的清理与动态绑定编辑仍需跟随 Feed/Home 等消费方全量迁移，不删除存量 scene_id 数据。
+Functions 插件退场时按职责迁移：纯浏览器编辑器、样式与本地化归 Workbench 的 `functions/`；HTTP 路由与旧 MCP 名称适配归 Local Host；业务、版本、数据和已发布动作继续由 modules/functions 持有。能力库通过 `/capabilities/rules` 进入判断规则编辑，保留 project/desktop 与规则 ID；TypeSafe 连接选择放入服务连接。旧 `/settings/functions` 只转到同一系统页面（`/api/plugins/functions` 的转发已删，W6-01，RAC-1020）。删除插件 Manifest、市场/导航注册、Workbench contribution、包依赖和冗余 re-export。公开 MCP `molis_work_v1_functions_*` 保留为系统动作别名，不伪装成仍可安装插件。函数旧用途合同的清理与动态绑定编辑仍需跟随 Feed/Home 等消费方全量迁移，不删除存量 scene_id 数据。
 
 系统入口使用 `/capabilities/library|connections|access|history`，沿用现有工作台的中性界面、系统岛和独立设置页布局。能力库采用列表与详情并列，窄屏在列表与详情间推进；搜索、项目范围和类型筛选保留在 URL。详情直接展示动作目录、兼容场景与真实绑定，不复制能力元数据。连接和对外接入复用原配置 owner，判断记录继续读取原 Functions 存储并按选定项目过滤；尚未接入的全量调用历史不得伪装为完整。高保真预览使用同一 renderer 的明确标注示例数据，随后切换真实 Host 目录。此切片不代表 Functions 编辑器、全量权限和存量迁移已经完成。
 

@@ -413,7 +413,7 @@ D 是产品关闭顺序缺陷：`project-host.ts` 只将现有 connectors close 
 | 编号 | 本题可观察验收 | 证明方式 |
 | --- | --- | --- |
 | RAC-105-A-16 | 四个插件的多个真实 MCP 客户端共享一个常驻 Host；原读写拒绝、项目/Home 隔离、并发版本、固定产物及客户端重启后数据保持 | 四个原 MCP 全文件，经真实管理授权/网关与独立 stdio 进程，收尾所有客户端、传输、Host 和临时 Home |
-| RAC-105-A-17 | system-functions 的 HTTP 与 MCP 都到同一真实处理器，保持各一次持久结果及另一 Home 不可见 | 原完整 actions 文件，provider 仅沿原夹具注入，不为 MCP 另建业务 Host |
+| RAC-105-A-17 | system-functions 的 Host 动作入口与 MCP 都到同一真实处理器（原 HTTP by-key 入口已由 BL-081 ② 删除，改走 Host 动作入口，用户 2026-10-26 弹窗决定），保持各一次持久结果及另一 Home 不可见 | 原完整 actions 文件，provider 仅沿原夹具注入，不为 MCP 另建业务 Host |
 | RAC-105-A-18 | 已持有 Home 时第二 Host 在业务启动前明确拒绝且零请求/零业务写；释放后同 Home 图片原行为与持久化保持 | 原 Images 全文件，真实 storage owner 与本地图片服务、拒绝及成功恢复 |
 | RAC-105-A-19 | Desktop transport 拒绝不冒充 Host 清理成功，仍退出 1/只记安全诊断；Host 拒绝与正常关闭保持，进程退出后原 Home 可重取 | 原 RAC-119 真实构建入口、子进程故障端口、OS 信号和父进程 owner 检查 |
 | RAC-105-A-20 | Host.close 在 Web 仍持有存储且安装 HTTP 在途时先取消安装，等实际子进程/传输清理后才释放；无迟到连接或子进程 | ASC-19/25 真实包下载、Host 关闭、进程退出与业务库/安装目录对照；原 timeout 红与修后绿分别保留 |

@@ -708,7 +708,7 @@ test("invoke uses published config once and does not overwrite last_preview", as
   });
 });
 
-test("HTTP invoke by key and the Functions actions hide drafts", async () => {
+test("invoke by key goes through the Functions actions, drafts stay hidden, and the by-key HTTP routes are gone (BL-081 ②, RAC-1021)", async () => {
   await withHome(async (home) => {
     await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
     const service = createFunctionsService({
@@ -739,14 +739,13 @@ test("HTTP invoke by key and the Functions actions hide drafts", async () => {
       .map((item) => item.function_key);
     assert.ok(publishedKeys.includes(live.function_key));
     assert.equal(publishedKeys.includes(draft.function_key), false);
-    const invoked = await routes.handle({
-      method: "POST",
-      pathname: `/api/functions/by-key/${live.function_key}/invoke`,
-      query: new URLSearchParams(),
-      body: { input: "调用" },
-    });
-    assert.equal(invoked?.status, 200);
-    assert.equal((invoked?.body as { data: { choice: string } }).data.choice, "no");
+    // BL-081 ②: the HTTP spelling of describe and invoke by key was deleted; the route table answers neither (the request falls through to the Host's generic refusal).
+    for (const [method, pathname] of [["GET", `/api/functions/by-key/${live.function_key}`], ["POST", `/api/functions/by-key/${live.function_key}/invoke`]] as const) {
+      assert.equal(await routes.handle({ method, pathname, query: new URLSearchParams(), body: { input: "调用" } }), null, `${method} ${pathname}`);
+    }
+    const invoked = await registeredFunctionActions(service).invoke(functionsActions.invoke, { function_key: live.function_key, input: "调用" }) as { status: string; data: { choice: string } };
+    assert.equal(invoked.status, "ok");
+    assert.equal(invoked.data.choice, "no");
     const actionHost = new MolisWorkLocalHost({ homeDirectory: home, functions: {
       credential: () => "sk-test", provider: fixtureProvider({ choice: "no" }), env: {},
     } });

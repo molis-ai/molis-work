@@ -1,4 +1,3 @@
-import { withRewrittenPluginApi } from "./native-plugin-api.js";
 import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { functionsConnectionStatus } from "./functions-host.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -19,7 +18,7 @@ export async function handleFunctionsHttp(
   homeDirectory: string,
   options: FunctionsHttpOptions,
 ): Promise<boolean> {
-  return dispatchNativePluginJsonHttp(request, response, withRewrittenPluginApi(url), {
+  return dispatchNativePluginJsonHttp(request, response, url, {
     prefix: "/api/functions",
     async handle(input) {
       if (input.pathname === "/api/functions/settings") {

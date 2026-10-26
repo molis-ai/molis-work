@@ -18,6 +18,7 @@ export * from "./plugin-agent.js";
 export * from "./actions.js";
 export * from "./plugin-database.js";
 export * from "./plugin-attention.js";
+export * from "./plugin-scenes.js";
 export type { PluginScheduleClient, PluginScheduleWriter, PluginScheduleJob, PluginScheduleRegisterInput, PluginWakeupDeclaration } from "./plugin-scheduler.js";
 export type { PluginOwnerFileInfo, PluginOwnerFileEntry, PluginOwnerFilesReader, PluginOwnerFilesWriter, PluginOwnerFilesClient, PluginOwnerFilesDeclaration } from "./plugin-owner-files.js";
 export * from "./plugin-model.js";

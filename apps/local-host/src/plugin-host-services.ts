@@ -27,6 +27,7 @@ import { homeLibraryFor } from "./plugin-database-entries.js";
 import { openInstalledPluginLibrary } from "./installed-plugin-libraries.js";
 import { openPluginProjectLibrary } from "./plugin-project-library.js";
 import { pluginAttentionFor, pluginContextLedgerFor } from "./plugin-attention-service.js";
+import { pluginScenesFor } from "./plugin-scene-service.js";
 import type { PluginHostExecutorOptions } from "./plugin-executor.js";
 import { registerPluginAgentDefinitions } from "./plugin-instructions.js";
 import { pluginModelFor } from "./plugin-model-service.js";
@@ -146,6 +147,12 @@ function projectServices(options: PluginHostExecutorOptions, manifest: PluginMan
   return { ...(attention ? { attention } : {}), ...(contextLedger ? { contextLedger } : {}) };
 }
 
+/** `services.scenes` (PG-032 P1, S-86): the plugin's own consumption scenes, in the project the activation runs in. */
+function sceneServices(options: PluginHostExecutorOptions, manifest: PluginManifest, context: PluginStartContext, assertActive: () => void) {
+  const scenes = pluginScenesFor(manifest, context, { scenes: options.actions.scenes, project_id: options.project_id, assertActive, record: () => options.record?.(context.install_id) ?? null });
+  return scenes ? { scenes } : {};
+}
+
 function hostPluginCaller(options: PluginHostExecutorOptions, definition: PluginDefinition, context: PluginStartContext, assertActive: () => void): HostPluginCaller {
   const manifest = definition.manifest;
   return Object.freeze({
@@ -202,6 +209,7 @@ function hostedContext(options: PluginHostExecutorOptions, manifest: PluginManif
       notifications: pluginNotificationsFor(manifest, context, parts.project_database, options.projectLibrary?.db, options.project_id, assertActive, () => options.record?.(context.install_id) ?? null, options.installations),
       installations: pluginInstallationsFor(manifest, context, options.project_id, options.installations, assertActive),
       ...projectServices(options, manifest, context, parts.project_database, assertActive),
+      ...sceneServices(options, manifest, context, assertActive),
       storage: manifest.permissions.some(item => item.permission === "storage:private")
         ? options.privateStorageFor(context, manifest) : undefined,
       artifacts: artifactService.client,

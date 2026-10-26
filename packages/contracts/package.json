@@ -146,6 +146,10 @@
       "types": "./dist/platform/plugin-events.d.ts",
       "import": "./dist/platform/plugin-events.js"
     },
+    "./platform/plugin-scenes": {
+      "types": "./dist/platform/plugin-scenes.d.ts",
+      "import": "./dist/platform/plugin-scenes.js"
+    },
     "./platform/plugin-trust": {
       "types": "./dist/platform/plugin-trust.d.ts",
       "import": "./dist/platform/plugin-trust.js"

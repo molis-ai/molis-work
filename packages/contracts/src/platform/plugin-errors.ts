@@ -29,6 +29,7 @@ export const pluginErrors = defineErrorCodes("plugin", {
   publisher_untrusted: "invalid",
   quarantined: "invalid",
   rule_key_reserved: "invalid",
+  scene_not_declared: "forbidden",
   signature_invalid: "invalid",
   signer_mismatch: "invalid",
   state_invalid: "invalid",

@@ -1,6 +1,6 @@
 # 平台服务：场景回调的写域（P4）、`services.scenes`（P1）与 `services.judgments`（P2）
 
-状态：设计稿；P4 已实现并测试，P1、P2 实现中（2026-10-26，防腐线 ac-platform，分支 `claude/ac-platform-scenes`，基于 main `2b3dc51de`）。号段 RAC-830～849（P1 用 830～837，P2 用 840～846，P4 用 847～849），S 号先写「S-暂C」（P1）、「S-暂D」（P2）、「S-85」（P4），落地前由统筹给。三片叠在同一个分支，顺序 P4、P1、P2（P4 独立，先做）。
+状态：P4（S-85）、P1（S-86）已实现并测试，P2（S-87）实现中（2026-10-26，防腐线 ac-platform，分支 `claude/ac-platform-scenes`，基于 main `2b3dc51de`）。号段 RAC-830～849（P1 用 830～837，P2 用 840～846，P4 用 847～849），S 号 85（P4）、86（P1）、87（P2）为本分支内的连续号，批时由统筹重排（ac-trust 分支也用 S-85/86）。三片叠在同一个分支，顺序 P4、P1、P2（P4 独立，先做）。
 
 来源：Feed、Inbox 迁进 Plugin Runtime（FI-6）要用的场景客户端与判断账，今天是宿主私路。需求出自 ac-sandbox-sched 的 FI 设计 §1.2.6（`claude/ac-feed-inbox-designs` 头 `3dfd0fbb9`）P1、P2；统筹 2026-10-26 裁定：
 
@@ -36,7 +36,7 @@
 
 **验收**：RAC-847 声明了权限的场景在 `beforeEffect` 之后写条目和关联边，与插件自己的行同一事务；RAC-848 拒绝三条——只读回调去写被拒、场景没声明被拒（含「只声明 Attention、写情境账」被拒）、没等 `beforeEffect`（空等待）被拒；RAC-849 撤权（调用方在等待之后被撤）被拒、回调结束后留着的写入者被拒。测试 `tests/security-invariants-plugin-scene-writes.test.ts`。
 
-## 2. P1：`services.scenes`（S-暂C）
+## 2. P1：`services.scenes`（S-86）
 
 **权限与出现条件**：Manifest 声明并获批 `scenes:use`，且 Manifest 有 `action_scenes`，才有这项服务；沙箱不给（`NOT_GIVEN`，S-60 的测试对表）。登记进 `HOST_SERVICE_PERMISSIONS`。
 
@@ -63,7 +63,7 @@ export interface PluginSceneClient {
 4. **`runScene` 对动作的要求。** 场景要等模型，所以调用它的动作必须声明 `scheduling: "concurrent"`，并像 `services.actions.invoke` 那样保留权限（`retainAuthority`）；非并行动作调用以 `actions.forbidden` 拒。
 5. **只读调用。** `query_only` 的调用方只能 `usages/discoverScenes/targets`；`bind/runScene` 拒。
 
-## 3. P2：`services.judgments`（S-暂D）
+## 3. P2：`services.judgments`（S-87）
 
 **权限与出现条件**：`judgments:read`、`judgments:write`（读写分开，同 `attention` 的做法），Manifest 有 `action_scenes`，项目级插件才有；沙箱不给；登记进 `HOST_SERVICE_PERMISSIONS`。（FI 设计允许并进 `services.scenes.judgments`；单列是为了读写权限与 SI 行各自成立，两片也能分别落。）
 
@@ -104,7 +104,7 @@ export interface PluginJudgmentsClient {
 
 判断账在 Home 的 Functions 库，插件的项目库事务在另一个 SQLite 文件里，两者**不能在同一次提交里**。`record` 在 Home 库自己提交，调用方在 `consume` 里的顺序是：先 `judgments.record`，再写项目库（入箱、日志）。项目库一步失败时，判断账那一行已经落了。这和今天一致（今天也是 Home 库先写、`recordCaptureJudgment` 在后），不是新退步；设计稿与 SI 行都不声称原子。落下的孤儿判断无害：采用判断前本来就核对 `scene_provenance`（绑定号与修订、函数、主体修订），对不上的不采用。若以后要原子，只有把两张表搬进项目库基线一条路（升基线版本、真实 Home 维护），不在本稿。
 
-这条限制要写进 SI 行（S-暂D 的「限制」列）和 `docs/platform/PLUGIN-DEVELOPMENT.md` 里 `services.judgments` 那一行。
+这条限制要写进 SI 行（S-87 的「限制」列）和 `docs/platform/PLUGIN-DEVELOPMENT.md` 里 `services.judgments` 那一行。
 
 ## 5. 验收、提交顺序、合同改动
 
@@ -126,15 +126,15 @@ export interface PluginJudgmentsClient {
 | RAC-845 | 判断行写进 Home 的 Functions 库，项目库事务回滚时那一行仍在、且被采用判断的核对（`scene_provenance`）拒绝（§4 的限制有测试钉住） |
 | RAC-846 | 删项目之后该项目的判断被清掉（既有行为，补断言） |
 
-**SI 表**：新增「S-暂C」（场景客户端）、「S-暂D」（判断账）两行，各列「谁能用、拒什么、限制」，行里「」只放测试名（S-20 门禁）。拒绝测试放 `tests/security-invariants-plugin-scenes.test.ts`、`tests/security-invariants-plugin-judgments.test.ts`，并进 `pnpm test:security`。
+**SI 表**：新增「S-86」（场景客户端）、「S-87」（判断账）两行，各列「谁能用、拒什么、限制」，行里「」只放测试名（S-20 门禁）。拒绝测试放 `tests/security-invariants-plugin-scene-client.test.ts`、`tests/security-invariants-plugin-judgments.test.ts`，并进 `pnpm test:security`。
 
 **提交顺序**（分支从 `origin/batch/1025-40` 起，两片叠在同一个分支，每个提交单独跑得通）：
 
 0. P4：Runtime 的 `effect` 记录、`gate.write` 场景分支、`tests/security-invariants-plugin-scene-writes.test.ts`、SI 行 S-85 与 S-68 的修正。
 1. 片 C 合同与登记：`plugin-scenes.ts`、`PluginHostServices.scenes?`、权限登记、沙箱 `NOT_GIVEN` 行；`pnpm api:update`；不改行为。
-2. 片 C 宿主服务与测试（RAC-830～837），SI 行 S-暂C。
+2. 片 C 宿主服务与测试（RAC-830～837），SI 行 S-86。
 3. 片 D 合同与登记：`plugin-judgments.ts`、`PluginHostServices.judgments?`、权限登记、沙箱行；`pnpm api:update`。
-4. 片 D 宿主服务与测试（RAC-840～846），SI 行 S-暂D，`PLUGIN-DEVELOPMENT.md` 服务表两行。
+4. 片 D 宿主服务与测试（RAC-840～846），SI 行 S-87，`PLUGIN-DEVELOPMENT.md` 服务表两行。
 
 **合同改动按 `docs/system/CONTRACT-CHANGES.md`**：contracts 新增两个 subpath（`platform/plugin-scenes`、`platform/plugin-judgments`），`PluginHostServices` 多两个可选成员，权限名三个——全是新增，不改旧形状，所以不升版本、没有升级须知；API 快照随 `pnpm api:update`；动作合同快照不变（本稿不改任何动作与场景的 Manifest 声明）。只跑改到的文件，`--jobs 1` 走机器槽，不跑全量。
 

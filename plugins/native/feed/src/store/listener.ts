@@ -204,10 +204,35 @@ export function recoverInterruptedListenerRuns(
   return Number(result.changes);
 }
 
+/** What an adapter answers: the contract's draft. */
+type SignalDraftPart = ReturnType<RawEventAdapter["toSignalDraft"]>;
+/** An adapter the Feed's listener can use. The Runtime's asks the platform (`services.sourcePull.connector.adapt`), so it may answer later. */
+export interface FeedRawEventAdapter {
+  readonly adapter: RawEventAdapter["adapter"];
+  toSignalDraft(event: ConnectorRawEvent, context: { project_id: string; source_id: string }): SignalDraftPart | Promise<SignalDraftPart>;
+}
+
+/** `ListenerHostApi.run`'s input, with an adapter that may answer later. */
+interface ListenerRunInput {
+  project_id: string;
+  source_id: string;
+  connection_id: string;
+  operation_id: string;
+  adapter: FeedRawEventAdapter;
+  intent?: Record<string, unknown>;
+  signal?: AbortSignal;
+  beforeEffect?(): Promise<void>;
+}
+
 interface ListenerHostOptions {
   now?: () => Date;
   leaseMs?: number;
   maxDeliveryAttempts?: number;
+  /**
+   * The Runtime Feed's commit: a write after an `await` is one commit of the call's own, which re-asks the call's authority first. Absent
+   * (the Host), a write is the synchronous statement it always was. With a commit, `afterSignalAccepted` runs inside it and must be synchronous.
+   */
+  commit?: <T>(operation: () => T) => Promise<T>;
   afterSignalAccepted?: (
     event: ConnectorRawEvent,
     receipt: SignalReceipt,
@@ -242,22 +267,12 @@ export class ListenerHost implements ListenerHostApi {
     return recoverInterruptedListenerRuns(this.db, projectId, this.now().toISOString());
   }
 
-  async run(input: {
-    project_id: string;
-    source_id: string;
-    connection_id: string;
-    operation_id: string;
-    adapter: RawEventAdapter;
-    intent?: Record<string, unknown>;
-    signal?: AbortSignal;
-    beforeEffect?(): Promise<void>;
-  }): Promise<ListenerRunReceipt> {
+  async run(input: ListenerRunInput): Promise<ListenerRunReceipt> {
     const beforeEffect = async () => { await input.beforeEffect?.(); input.signal?.throwIfAborted(); };
     await beforeEffect();
     const prior = this.getRunByOperationId(input.project_id, input.operation_id);
     if (prior?.phase === "terminal") return { ...prior, replayed: true, accepted: [] };
 
-    this.acquireLease(input.project_id, input.source_id, input.operation_id);
     const startedAt = prior?.started_at ?? this.now().toISOString();
     let run: ListenerRunRecord = {
       run_id: prior?.run_id ?? `listener-run-${sha256(`${input.project_id}\u0000${input.operation_id}`).slice(0, 32)}`,
@@ -276,7 +291,9 @@ export class ListenerHost implements ListenerHostApi {
       completed_at: null,
       updated_at: this.now().toISOString(),
     };
-    run = this.saveRun(run);
+    // The lease and the running record are one write: a lease without a run, or a run without its lease, is not a state anyone reads.
+    run = await this.write(() => { this.acquireLease(input.project_id, input.source_id, input.operation_id); return this.saveRun(run); });
+    let leased = true;
     const accepted: ListenerRunReceipt["accepted"] = [];
 
     try {
@@ -303,31 +320,37 @@ export class ListenerHost implements ListenerHostApi {
       if (!connectorReceipt.result.ok) {
         const failure = connectorReceipt.result;
         const completedAt = this.now().toISOString();
-        const failed = this.saveRun({
-          ...run,
-          phase: "terminal",
-          outcome: "failed",
-          error_code: `connector.${failure.failure}`,
-          connector_receipt: summarizeConnectorReceipt(connectorReceipt),
-          completed_at: completedAt,
-          updated_at: completedAt,
+        const failed = await this.write(() => {
+          const saved = this.saveRun({
+            ...run,
+            phase: "terminal",
+            outcome: "failed",
+            error_code: `connector.${failure.failure}`,
+            connector_receipt: summarizeConnectorReceipt(connectorReceipt),
+            completed_at: completedAt,
+            updated_at: completedAt,
+          });
+          this.updateCheckpointFailure(
+            input.project_id,
+            input.source_id,
+            saved.error_code!,
+            failure.retry_after_at ?? null,
+            failure.failure === "rate_limited" ? "retry_wait" : "idle",
+          );
+          this.releaseLease(input.project_id, input.source_id, input.operation_id);
+          leased = false;
+          return saved;
         });
-        this.updateCheckpointFailure(
-          input.project_id,
-          input.source_id,
-          failed.error_code!,
-          failure.retry_after_at ?? null,
-          failure.failure === "rate_limited" ? "retry_wait" : "idle",
-        );
         return { ...failed, replayed: false, accepted };
       }
 
-      this.persistDeliveries(input, connectorReceipt.result.events);
-      for (const event of connectorReceipt.result.events) {
+      const { events, cursor_after } = connectorReceipt.result;
+      await this.write(() => this.persistDeliveries(input, events));
+      for (const event of events) {
         const delivery = this.delivery(input.project_id, input.source_id, event.raw_event_id);
         if (delivery.state === "accepted") {
           run.deduped_count += 1;
-          if (event.cursor_after !== undefined) this.advanceCursor(input.project_id, input.source_id, event.cursor_after);
+          if (event.cursor_after !== undefined) await this.write(() => this.advanceCursor(input.project_id, input.source_id, event.cursor_after));
           continue;
         }
         if (delivery.state === "quarantined") {
@@ -339,48 +362,64 @@ export class ListenerHost implements ListenerHostApi {
         else run.deduped_count += 1;
       }
       await beforeEffect();
-      this.advanceCursor(input.project_id, input.source_id, connectorReceipt.result.cursor_after);
       const completedAt = this.now().toISOString();
-      const completed = this.saveRun({
-        ...run,
-        phase: "terminal",
-        outcome: "completed",
-        empty: connectorReceipt.result.events.length === 0,
-        connector_receipt: summarizeConnectorReceipt(connectorReceipt),
-        completed_at: completedAt,
-        updated_at: completedAt,
+      const completed = await this.write(() => {
+        this.advanceCursor(input.project_id, input.source_id, cursor_after);
+        const saved = this.saveRun({
+          ...run,
+          phase: "terminal",
+          outcome: "completed",
+          empty: events.length === 0,
+          connector_receipt: summarizeConnectorReceipt(connectorReceipt),
+          completed_at: completedAt,
+          updated_at: completedAt,
+        });
+        this.resetCheckpoint(input.project_id, input.source_id, completedAt);
+        this.releaseLease(input.project_id, input.source_id, input.operation_id);
+        leased = false;
+        return saved;
       });
-      this.resetCheckpoint(input.project_id, input.source_id, completedAt);
       return { ...completed, replayed: false, accepted };
     } catch (error) {
       await beforeEffect();
       const code = error instanceof ActionError && Object.hasOwn(listenerFailures, error.code) ? error.code : "listener.connector_failed";
       const interruptedAt = this.now().toISOString();
-      this.saveRun({
-        ...run,
-        phase: "interrupted",
-        outcome: null,
-        error_code: code,
-        updated_at: interruptedAt,
+      await this.write(() => {
+        this.saveRun({
+          ...run,
+          phase: "interrupted",
+          outcome: null,
+          error_code: code,
+          updated_at: interruptedAt,
+        });
+        this.updateCheckpointFailure(
+          input.project_id,
+          input.source_id,
+          code,
+          null,
+          code === "listener.delivery_quarantined" ? "quarantined" : "retry_wait",
+        );
+        this.releaseLease(input.project_id, input.source_id, input.operation_id);
+        leased = false;
       });
-      this.updateCheckpointFailure(
-        input.project_id,
-        input.source_id,
-        code,
-        null,
-        code === "listener.delivery_quarantined" ? "quarantined" : "retry_wait",
-      );
       throw listenerFailures[code === "listener.delivery_quarantined" ? code : code === "listener.delivery_failed" ? code : "listener.connector_failed"](code === "listener.delivery_quarantined"
           ? "Raw Event 多次转换失败，已隔离等待处理"
           : "Listener 没有取得可信终态，可使用同一 operation_id 安全重试");
     } finally {
-      this.releaseLease(input.project_id, input.source_id, input.operation_id);
+      // The terminal writes release the lease themselves. A run that never reached one lost its authority, and a commit would need it:
+      // there the lease expires by itself, and this operation can take it again.
+      if (leased && !this.options.commit) this.releaseLease(input.project_id, input.source_id, input.operation_id);
     }
+  }
+
+  /** One write: the Runtime's commit when the Feed has one, otherwise the synchronous statement it always was. */
+  private async write<T>(operation: () => T): Promise<T> {
+    return this.options.commit ? await this.options.commit(operation) : operation();
   }
 
   private acceptDelivery(
     delivery: Delivery,
-    adapter: RawEventAdapter,
+    adapter: FeedRawEventAdapter,
     beforeEffect: () => Promise<void>,
   ): Promise<{ event: ConnectorRawEvent; receipt: SignalReceipt }> {
     return acceptListenerDelivery({
@@ -388,6 +427,7 @@ export class ListenerHost implements ListenerHostApi {
       signals: this.signals,
       options: this.options,
       now: () => this.now(),
+      write: operation => this.write(operation),
       advanceCursor: (projectId, sourceId, cursor) => this.advanceCursor(projectId, sourceId, cursor),
     }, delivery, adapter, beforeEffect);
   }
@@ -397,7 +437,7 @@ export class ListenerHost implements ListenerHostApi {
       project_id: string;
       source_id: string;
       operation_id: string;
-      adapter: RawEventAdapter;
+      adapter: FeedRawEventAdapter;
     },
     events: ConnectorRawEvent[],
   ): void {
@@ -430,13 +470,9 @@ export class ListenerHost implements ListenerHostApi {
     return mapDelivery(row);
   }
 
-  private ensureCheckpoint(projectId: string, sourceId: string): void {
-    ensureCheckpointRow(this.db, projectId, sourceId, this.now().toISOString());
-  }
-
   private acquireLease(projectId: string, sourceId: string, operationId: string): void {
-    this.ensureCheckpoint(projectId, sourceId);
     const at = this.now();
+    ensureCheckpointRow(this.db, projectId, sourceId, at.toISOString());
     const expiresAt = new Date(at.getTime() + (this.options.leaseMs ?? 60_000)).toISOString();
     const result = this.db.run(`
       UPDATE listener_instances
@@ -458,11 +494,7 @@ export class ListenerHost implements ListenerHostApi {
   }
 
   private advanceCursor(projectId: string, sourceId: string, cursor: unknown): void {
-    this.ensureCheckpoint(projectId, sourceId);
-    this.db.run(`
-      UPDATE listener_instances SET cursor_json = ?, updated_at = ?
-      WHERE project_id = ? AND source_id = ?
-    `, JSON.stringify(cursor ?? {}), this.now().toISOString(), projectId, sourceId);
+    writeListenerCursor(this.db, projectId, sourceId, cursor, this.now().toISOString());
   }
 
   private resetCheckpoint(projectId: string, sourceId: string, at: string): void {
@@ -480,7 +512,7 @@ export class ListenerHost implements ListenerHostApi {
     retryAt: string | null,
     state: ListenerCheckpoint["state"],
   ): void {
-    this.ensureCheckpoint(projectId, sourceId);
+    ensureCheckpointRow(this.db, projectId, sourceId, this.now().toISOString());
     const checkpoint = this.checkpoint(projectId, sourceId);
     const computedRetry = retryAt ?? new Date(
       this.now().getTime() + Math.min(300_000, 1_000 * (2 ** Math.min(checkpoint.attempt, 8))),
@@ -639,20 +671,21 @@ async function acceptListenerDelivery(
     signals: SignalCommands;
     options: ListenerHostOptions;
     now: () => Date;
+    write: <T>(operation: () => T) => Promise<T>;
     advanceCursor: (projectId: string, sourceId: string, cursor: unknown) => void;
   },
   delivery: Delivery,
-  adapter: RawEventAdapter,
+  adapter: FeedRawEventAdapter,
   beforeEffect: () => Promise<void>,
 ): Promise<{ event: ConnectorRawEvent; receipt: SignalReceipt }> {
-  const { db, signals, options, now, advanceCursor } = dependencies;
+  const { db, signals, options, now, write, advanceCursor } = dependencies;
   try {
     await beforeEffect();
-    const partial = adapter.toSignalDraft(delivery.event, {
+    const partial = await adapter.toSignalDraft(delivery.event, {
       project_id: delivery.project_id,
       source_id: delivery.source_id,
     });
-    const receipt = signals.submitDraft({
+    const submit = () => signals.submitDraft({
       ...partial,
       project_id: delivery.project_id,
       source_id: delivery.source_id,
@@ -665,32 +698,46 @@ async function acceptListenerDelivery(
         raw_event_id: delivery.event.raw_event_id,
       },
     });
+    const accepted = (receipt: SignalReceipt) => {
+      const at = now().toISOString();
+      db.run(`
+        UPDATE listener_deliveries
+        SET state = 'accepted', attempt = attempt + 1, signal_id = ?,
+            last_error_code = NULL, updated_at = ?
+        WHERE project_id = ? AND source_id = ? AND raw_event_id = ?
+      `, receipt.signal.signal_id, at, delivery.project_id, delivery.source_id, delivery.event.raw_event_id);
+      if (delivery.event.cursor_after !== undefined) {
+        advanceCursor(delivery.project_id, delivery.source_id, delivery.event.cursor_after);
+      }
+      return { event: delivery.event, receipt };
+    };
+    if (options.commit) {
+      // The signal, what the Feed makes of it, the delivery's state and the cursor are one commit, so a signal without its item is not a state.
+      return await options.commit(() => {
+        const receipt = submit();
+        if (isThenable(options.afterSignalAccepted?.(delivery.event, receipt))) throw listenerErrors.delivery_failed("afterSignalAccepted 在提交里必须同步完成");
+        return accepted(receipt);
+      });
+    }
+    const receipt = submit();
     await options.afterSignalAccepted?.(delivery.event, receipt);
     await beforeEffect();
-    const at = now().toISOString();
-    db.run(`
-      UPDATE listener_deliveries
-      SET state = 'accepted', attempt = attempt + 1, signal_id = ?,
-          last_error_code = NULL, updated_at = ?
-      WHERE project_id = ? AND source_id = ? AND raw_event_id = ?
-    `, receipt.signal.signal_id, at, delivery.project_id, delivery.source_id, delivery.event.raw_event_id);
-    if (delivery.event.cursor_after !== undefined) {
-      advanceCursor(delivery.project_id, delivery.source_id, delivery.event.cursor_after);
-    }
-    return { event: delivery.event, receipt };
+    return accepted(receipt);
   } catch (error) {
     await beforeEffect();
     const nextAttempt = delivery.attempt + 1;
     const quarantined = nextAttempt >= (options.maxDeliveryAttempts ?? 5);
     const at = now().toISOString();
-    db.run(`
+    await write(() => db.run(`
       UPDATE listener_deliveries
       SET state = ?, attempt = ?, last_error_code = ?, updated_at = ?
       WHERE project_id = ? AND source_id = ? AND raw_event_id = ?
-    `, quarantined ? "quarantined" : "retry_wait", nextAttempt, quarantined ? "listener.delivery_quarantined" : "listener.delivery_failed", at, delivery.project_id, delivery.source_id, delivery.event.raw_event_id);
+    `, quarantined ? "quarantined" : "retry_wait", nextAttempt, quarantined ? "listener.delivery_quarantined" : "listener.delivery_failed", at, delivery.project_id, delivery.source_id, delivery.event.raw_event_id));
     throw listenerFailures[quarantined ? "listener.delivery_quarantined" : "listener.delivery_failed"]("Raw Event 尚未得到 Signal Receipt，cursor 不会推进");
   }
 }
+
+const isThenable = (value: unknown): boolean => typeof value === "object" && value !== null && typeof (value as { then?: unknown }).then === "function";
 
 const INSERT_LISTENER_DELIVERY_SQL = `
   INSERT OR IGNORE INTO listener_deliveries (
@@ -707,7 +754,7 @@ function persistListenerDeliveries(
     project_id: string;
     source_id: string;
     operation_id: string;
-    adapter: RawEventAdapter;
+    adapter: FeedRawEventAdapter;
   },
   events: ConnectorRawEvent[],
 ): void {

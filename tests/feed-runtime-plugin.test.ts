@@ -5,12 +5,15 @@ import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import Database from "better-sqlite3";
 import { ActionError, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginDefinition, PluginProjectDatabase, PluginProjectDatabaseTransaction, PluginSqlValue } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { createPluginPlatform, DEMO_PROJECT_ID, listFeedSourceCatalog, LocalProjectDatabase, scheduleServiceFor, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { createEvidenceContentStore } from "@molis-ai/molis-work-storage";
+import type { IntegrationProviderPort, PluginDefinition, PluginProjectDatabase, PluginProjectDatabaseTransaction, PluginSqlValue } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { IntegrationBinding } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
+import { createPluginPlatform, DEMO_PROJECT_ID, homeIntegrationRegistry, homeStores, listFeedSourceCatalog, LocalProjectDatabase, scheduleServiceFor, seedDemoBoard, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { pluginBindingScope } from "@molis-ai/molis-work-service-connector-host";
+import { createEvidenceContentStore, homeStoreRegistry } from "@molis-ai/molis-work-storage";
 import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { CONNECTOR_REQUEST_SERVICES } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
-import { createFeedContentLedger, createFeedContentLedgerHandlers, createFeedPlugin, createFeedWriter, FEED_HOME_DATABASE, FEED_PLUGIN_ID, feedContentActions, feedContentLedgerActions, feedItemActions, feedQueryActions, feedRuleActions, feedRuntimeManifest, feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
+import { createFeedContentLedger, createFeedContentLedgerHandlers, createFeedPlugin, createFeedWriter, FEED_HOME_DATABASE, FEED_PLUGIN_ID, feedContentActions, feedContentLedgerActions, feedInboxActions, feedItemActions, feedQueryActions, feedRuleActions, feedRuntimeManifest, feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
@@ -71,7 +74,7 @@ function goalsStandIn(known: readonly string[]): PluginDefinition {
   } };
 }
 
-async function platform(t: TestContext, options: { fetch?: (input: string | URL) => Promise<Response>; ledger?: boolean; git?: ReturnType<typeof libraryGit>; clock?: boolean; goals?: readonly string[] } = {}) {
+async function platform(t: TestContext, options: { fetch?: (input: string | URL) => Promise<Response>; ledger?: boolean; git?: ReturnType<typeof libraryGit>; clock?: boolean; goals?: readonly string[]; provider?: (binding: IntegrationBinding) => IntegrationProviderPort } = {}) {
   const home = mkdtempSync(join(tmpdir(), "feed-runtime-plugin-")), file = join(home, "project.db");
   seedDemoBoard(file);
   const store = new LocalProjectDatabase(file), actions = pluginActions(store, DEMO_PROJECT_ID);
@@ -79,7 +82,10 @@ async function platform(t: TestContext, options: { fetch?: (input: string | URL)
     eventCursor: (projectId: string) => store.eventCursor(projectId) };
   const running = createPluginPlatform({ actions, project_id: DEMO_PROJECT_ID, actor_id: HOST_ACTOR, db: store.db, journal: store,
     artifacts: new ArtifactsModule(ports), processItems: new ProcessItemsModule(ports), ui: new UiHost(),
-    privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }), home: null,
+    privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
+    // A test of an account source has a Home of its own: the person's accounts and bindings live there, and the provider is the test's.
+    home: options.provider ? { directory: home, completeText: () => null, stores: homeStoreRegistry(homeStores().stores) } : null,
+    ...(options.provider ? { sourcePullIntegrations: () => homeIntegrationRegistry(home, (_integration, binding) => options.provider!(binding)) } : {}),
     ...(options.fetch ? { sourcePullFetch: options.fetch } : {}), ...(options.git ? { sourcePullGit: options.git } : {}),
     ...(options.clock ? { scheduler: scheduleServiceFor(store.db) } : {}) });
   const homeHalf = options.ledger ? await ledgerStandIn(home) : null;
@@ -94,7 +100,8 @@ async function platform(t: TestContext, options: { fetch?: (input: string | URL)
     ...(options.goals ? [{ definition: goalsStandIn(options.goals), trust }] : [])]);
   assert.deepEqual(started.running, [feedRuntimeManifest.plugin_id, ...(homeHalf ? [homeHalf.definition.manifest.plugin_id] : []), ...(options.goals ? ["io.molis.work.goals"] : [])], JSON.stringify(started));
   const count = (sql: string, ...parameters: unknown[]) => (store.db.prepare(sql).get(...parameters as never[]) as { n: number }).n;
-  return { store, client: actions.client, count, holds: () => homeHalf?.holds() ?? [], clock: () => scheduleServiceFor(store.db) };
+  const installId = () => running.runtime.list().find(record => record.plugin_id === feedRuntimeManifest.plugin_id)!.install_id;
+  return { store, home, client: actions.client, count, holds: () => homeHalf?.holds() ?? [], clock: () => scheduleServiceFor(store.db), installId };
 }
 
 /** The original caller of an action, who can be cancelled or revoked from outside. */
@@ -176,7 +183,7 @@ test("RAC-506 a Runtime Feed changes a source's schedule and pause state in one 
   const scheduled = await client.invoke(caller(WRITE).context, feedSourceActions.schedule, { source_id: sourceId, mode: "interval", enabled: true, interval_minutes: 30 }) as { source: { schedule: { mode: string; interval_minutes?: number } } };
   assert.deepEqual([scheduled.source.schedule.mode, scheduled.source.schedule.interval_minutes], ["interval", 30]);
   assert.equal(events("schedule_updated"), 1);
-  await assert.rejects(client.invoke(caller(WRITE).context, feedSourceActions.disconnect, { source_id: sourceId }), { code: "feed.source_invalid_state" });
+  await assert.rejects(client.invoke(caller([...WRITE, "connections:use"]).context, feedSourceActions.disconnect, { source_id: sourceId }), { code: "feed.source_invalid_state" });
   // A caller revoked at any check changes nothing.
   const before = { enabled: count("SELECT enabled AS n FROM feed_sources WHERE source_id = ?", sourceId), events: events("resumed") };
   for (let from = 1; from <= 6; from += 1) {
@@ -211,11 +218,12 @@ test("RAC-506 a Runtime Feed registers a source from the platform's vocabulary, 
 
 // RAC-492 .. RAC-518 (4e-2b): a Runtime Feed pulls a public source through the platform, names and holds every body before it is written,
 // commits the result as one write, and gives the bodies back when the source's history is deleted.
-const SYNC = [...WRITE, "sources:pull_feed", "sources:pull_query", "sources:read_repository"];
+// 4c-4: an account source is pulled with the person's bound account, so a sync also holds connections:use and sources:pull_connector,
+// and records a source that needs the person in the Inbox.
+const CONNECTOR = ["connections:use", "sources:pull_connector"];
+const SYNC = [...WRITE, "sources:pull_feed", "sources:pull_query", "sources:read_repository", ...CONNECTOR, "attention:write"];
 /** Deleting a source also removes its items' Inbox entries and links to Goals, so the call holds what those ledgers ask. */
 const DELETE = [...DESCRIBE, "attention:write", "context-ledger:write"];
-/** A tick runs every kind of sync and records a source's fault in the Inbox. */
-const TICK = [...SYNC, "attention:write"];
 const feedXml = (entries: Array<{ id: string; title: string }>) => `<?xml version="1.0"?><rss version="2.0"><channel><title>Runtime feed</title><link>https://example.com/</link>${entries.map(entry => `
   <item><guid>https://example.com/posts/${entry.id}</guid><title>${entry.title}</title><link>https://example.com/posts/${entry.id}</link>
   <description>Body of ${entry.title} for the runtime sync test.</description><pubDate>Sat, 30 Aug 2026 08:00:00 GMT</pubDate></item>`).join("")}</channel></rss>`;
@@ -370,7 +378,7 @@ const dueNow = (store: LocalProjectDatabase, sourceId: string) =>
 test("RAC-518 a tick pulls the sources that are due, moves their next pull on, and leaves the rest", async t => {
   const f = await syncing(t);
   await f.client.invoke(caller(WRITE).context, feedSourceActions.schedule, { source_id: f.sourceId, mode: "interval", enabled: true, interval_minutes: 30 });
-  const tick = () => f.client.invoke(caller(TICK).context, feedSourceActions.tick, {}) as Promise<{ due: number; completed: number; failed: number; skipped: number }>;
+  const tick = () => f.client.invoke(caller(SYNC).context, feedSourceActions.tick, {}) as Promise<{ due: number; completed: number; failed: number; skipped: number }>;
   assert.deepEqual(await tick(), { due: 0, completed: 0, failed: 0, skipped: 0 }, "a source planned for later is not pulled");
   dueNow(f.store, f.sourceId);
   assert.deepEqual(await tick(), { due: 1, completed: 1, failed: 0, skipped: 0 });
@@ -446,4 +454,139 @@ test("RAC-507 feed.goals.context reads the Goal as the caller, then the item the
   assert.match((await ask({ goal_id: "goal-1" }))!.source_context, /标题：T linked/, "the relinked item no longer answers for this Goal");
   ledger.commands.remove({ actor_id: FEED_PLUGIN_ID, scope }, `${FEED_PLUGIN_ID}:feed.goal:${linked}`, "feed.item_deleted");
   assert.equal(await ask({ goal_id: "goal-1" }), null, "with no live link there is nothing to give");
+});
+
+// RAC-1024 .. RAC-1026 (4c-4; provisional numbers until the coordinator assigns the range): a Runtime Feed pulls an account source with the
+// account the person bound to the source's slot, through the platform's connector service. Feed never holds a connection, a credential or a token.
+const SECRET = "fixture-token-value-for-the-feed-connector";
+const ISSUE = { externalId: "n1", title: "Review requested", summary: "A pull request wants your review" };
+
+async function connecting(t: TestContext, options: { sync?: (binding: IntegrationBinding) => void } = {}) {
+  const calls: IntegrationBinding[] = [];
+  const f = await platform(t, { ledger: true, provider: binding => ({ type: "github", async health() { return { ok: true, status: "connected", message: "ok" }; },
+    async sync() { calls.push(binding); options.sync?.(binding); return { ok: true, mode: "live", items: [ISSUE], cursor: "c1" }; } }) });
+  const connect = (name = "Work") => withConnectorConnections(f.home, store => store.createToken({ serviceId: "github", displayName: name, token: SECRET }));
+  /** A GitHub source of the project, as the Host's connector flow leaves it (the Runtime Feed has no way to make one before FI-7); `of(id)` is everything about one. */
+  const of = (sourceId: string) => {
+    const now = new Date().toISOString();
+    f.store.db.prepare(`INSERT INTO feed_sources (project_id, source_id, kind, definition_id, sync_kind, name, description, status, enabled, item_count, origin, config_json, schedule_json,
+      credential_ref, account_label, last_sync_at, last_outcome, last_error_code, imported_at, updated_at)
+      VALUES (?, ?, 'github', 'github', 'github', 'GitHub', '', 'active', 1, 0, 'molis_work', '{}', '{"mode":"manual"}', NULL, NULL, NULL, NULL, NULL, ?, ?)`).run(DEMO_PROJECT_ID, sourceId, now, now);
+    const scope = pluginBindingScope({ install_id: f.installId(), project_id: DEMO_PROJECT_ID, record_key: sourceId });
+    return { sourceId,
+      bind: (connectionId: string) => withConnectorConnections(f.home, store => store.bind({ scopeId: scope, pluginId: feedRuntimeManifest.plugin_id, slotId: "github", serviceId: "github", connectionId })),
+      bound: () => withConnectorConnections(f.home, store => store.binding(scope, feedRuntimeManifest.plugin_id, "github")),
+      sync: (key: string, who = caller(SYNC)) => f.client.invoke(who.context, feedSourceActions.sync, { source_id: sourceId, idempotency_key: key }) as Promise<{ created: number; replayed: boolean; run: { phase: string; outcome: string } }>,
+      items: () => f.count("SELECT count(*) AS n FROM feed_items WHERE source_id = ?", sourceId),
+      runs: () => f.store.db.prepare("SELECT phase, outcome FROM feed_source_runs WHERE source_id = ?").all(sourceId) as Array<{ phase: string; outcome: string | null }>,
+      row: () => f.store.db.prepare("SELECT * FROM feed_sources WHERE source_id = ?").get(sourceId) as Record<string, unknown> };
+  };
+  return { ...f, calls, connect, of, ...of("feed-source-github-1") };
+}
+
+test("RAC-1024 a Runtime Feed pulls an account source with the account the person bound to it, and keeps no connection, credential or token", async t => {
+  const f = await connecting(t), account = f.connect();
+  f.bind(account.connection_id);
+  const synced = await f.sync("account-sync-key");
+  assert.deepEqual([synced.created, synced.replayed, synced.run.phase, synced.run.outcome], [1, false, "terminal", "completed"]);
+  assert.equal(f.items(), 1);
+  // The provider was handed the bound account by the platform; the source shows the person's name for it and holds nothing of it.
+  assert.deepEqual([f.calls.length, f.calls[0]!.connection_id, f.calls[0]!.credential_ref, f.calls[0]!.source_id], [1, account.connection_id, account.credential_ref, f.sourceId]);
+  assert.equal(f.row().account_label, "Work");
+  assert.equal(f.row().credential_ref, null);
+  const everything = JSON.stringify(["feed_sources", "feed_source_runs", "feed_items", "events"].map(table => f.store.db.prepare(`SELECT * FROM ${table}`).all()));
+  for (const secret of [SECRET, account.connection_id, account.credential_ref!]) assert.equal(everything.includes(secret), false, "nothing of the account is stored with the source");
+  assert.equal(f.count("SELECT count(*) AS n FROM events WHERE object_id = ? AND type = ? AND actor_id = ?", f.sourceId, `${FEED_PLUGIN_ID}:feed_connector.sync_completed`, OWNER), 1, "the journal names the caller");
+  // The same key is the same pull.
+  const again = await f.sync("account-sync-key");
+  assert.deepEqual([again.replayed, again.created, f.calls.length], [true, 0, 1]);
+});
+
+test("RAC-1024 an account source nobody bound an account to needs the person: the provider is never asked, nothing is read, and the Inbox is told", async t => {
+  const f = await connecting(t);
+  await assert.rejects(f.sync("unbound-sync-key"), { code: "feed.connector_failed" });
+  assert.equal(f.calls.length, 0, "the provider was not called");
+  assert.equal(f.items(), 0);
+  assert.equal(f.row().status, "error");
+  assert.equal(f.count("SELECT count(*) AS n FROM inbox_entries WHERE subject_type = 'source_fault' AND subject_id = ?", f.sourceId), 1);
+});
+
+test("RAC-1025 the Home's account status says only whether there is an account, and an item's material is read while its source's account still works", async t => {
+  const f = await connecting(t);
+  const status = () => f.client.invoke(caller([...READ, "sources:pull_connector"]).context, feedQueryActions.connections, {}) as Promise<unknown>;
+  assert.deepEqual(await status(), { github: { bound: false }, gmail: { bound: false } });
+  const account = f.connect();
+  f.bind(account.connection_id);
+  assert.deepEqual(await status(), { github: { bound: true }, gmail: { bound: false } });
+  await f.sync("material-sync-key");
+  const itemId = (f.store.db.prepare("SELECT item_id FROM feed_items WHERE source_id = ?").get(f.sourceId) as { item_id: string }).item_id;
+  const material = () => f.client.invoke(caller([...READ, "connections:use"]).context, feedInboxActions.material, { item_id: itemId }) as Promise<{ title: string }>;
+  assert.equal((await material()).title, ISSUE.title);
+  // A caller who may not ask about accounts is refused before any answer.
+  await assert.rejects(f.client.invoke(caller(READ).context, feedQueryActions.connections, {}), { code: "actions.forbidden" });
+  await assert.rejects(f.client.invoke(caller(READ).context, feedInboxActions.material, { item_id: itemId }), { code: "actions.forbidden" });
+  // The person disconnects the account: the Home has none, and the item's source is no longer one to read it from.
+  withConnectorConnections(f.home, store => store.disconnect(account.connection_id));
+  assert.deepEqual(await status(), { github: { bound: false }, gmail: { bound: false } });
+  await assert.rejects(material(), { code: "actions.source_unavailable" });
+});
+
+test("RAC-1025 disconnecting an account source takes the person's binding off it, and the next pull needs a new authorization", async t => {
+  const f = await connecting(t), account = f.connect();
+  f.bind(account.connection_id);
+  assert.ok(f.bound(), "the person bound an account to the source");
+  const disconnected = await f.client.invoke(caller([...WRITE, "connections:use"]).context, feedSourceActions.disconnect, { source_id: f.sourceId }) as { source: { status: string } };
+  assert.equal(disconnected.source.status, "disconnected");
+  assert.ok(!f.bound(), "the source no longer reads with that account");
+  await assert.rejects(f.sync("after-disconnect-key"), { code: "feed.connector_needs_auth" });
+  assert.equal(f.calls.length, 0);
+});
+
+test("RAC-1026 an account the person changes while a pull is running ends the pull refused: nothing is written, not even the bookkeeping", async t => {
+  let swap = () => {};
+  const f = await connecting(t, { sync: () => swap() }), account = f.connect(), other = f.connect("Other");
+  f.bind(account.connection_id);
+  const snapshot = () => JSON.stringify(["feed_items", "feed_source_runs", "events", "listener_deliveries", "inbox_entries"].map(table => f.store.db.prepare(`SELECT * FROM ${table}`).all()));
+  let before = "";
+  swap = () => { before = snapshot(); f.bind(other.connection_id); };
+  await assert.rejects(f.sync("swap-sync-key"), { code: "feed.source_connection_changed" });
+  assert.equal(f.calls.length, 1);
+  assert.equal(f.items(), 0);
+  assert.equal(snapshot(), before, "the pull wrote nothing after the person changed the account");
+});
+
+test("RAC-1026 a caller revoked at any point of an account pull leaves at most its items, and the same pull asked again completes once, with no item twice", async t => {
+  const f = await connecting(t), account = f.connect();
+  const probe = f.of("feed-source-probe");
+  probe.bind(account.connection_id);
+  const asked = await (async () => { const who = caller(SYNC); await probe.sync("probe-sync-key", who); return who.checks(); })();
+  assert.ok(asked >= 6, "a sync asks its caller many times: " + asked);
+  let refused = 0, completed = 0;
+  for (let from = 1; from <= asked + 2; from += 1) {
+    // Each attempt has a source of its own: a pull cut off in the middle keeps its lease until it expires, as a crash does.
+    const one = f.of(`feed-source-sweep-${from}`);
+    one.bind(account.connection_id);
+    const outcome = await one.sync(`sweep-sync-key-${from}`, caller(SYNC, from)).then(() => "done" as const, () => "refused" as const);
+    if (outcome === "done") completed += 1; else refused += 1;
+    // What a cut-off pull leaves is a run that did not finish, and the items it had already accepted; the same key finishes it.
+    assert.ok(one.items() <= 1 && one.runs().every(run => run.phase === "running" || run.outcome === "completed"), `revoked at check ${from}: ${one.items()} items, ${JSON.stringify(one.runs())}`);
+    const again = await one.sync(`sweep-sync-key-${from}`);
+    assert.equal(again.run.outcome, "completed");
+    assert.equal(one.items(), 1, `the pull cut off at check ${from} gave its item exactly once`);
+    assert.deepEqual(one.runs(), [{ phase: "terminal", outcome: "completed" }]);
+  }
+  assert.ok(refused >= 1 && completed >= 1, `the sweep reached both sides (refused ${refused}, completed ${completed})`);
+});
+
+test("RAC-1025 the Runtime Feed's Manifest asks for one slot per service the platform can pull for, per source, and each action that uses an account declares what it needs", () => {
+  const slots = feedRuntimeManifest.connections!.slots;
+  assert.deepEqual(slots.map(slot => slot.slot_id).sort(), Object.keys(CONNECTOR_REQUEST_SERVICES).sort());
+  assert.ok(slots.every(slot => slot.binding === "per_record" && slot.slot_id === slot.service_id), "an account is bound to a source, never to the installation");
+  for (const permission of ["connections:use", "sources:pull_connector"]) assert.equal(feedRuntimeManifest.permissions.find(declared => declared.permission === permission)?.required, false, `${permission} is optional`);
+  const declared = (definition: ActionDefinition) => feedRuntimeManifest.actions!.find(action => action.capability_id === definition.capability_id)!.action.permissions;
+  for (const permission of ["connections:use", "sources:pull_connector", "attention:write"]) assert.ok(declared(feedSourceActions.sync).includes(permission), `a sync declares ${permission}`);
+  assert.ok(declared(feedSourceActions.disconnect).includes("connections:use"));
+  assert.ok(declared(feedInboxActions.material).includes("connections:use"));
+  assert.ok(declared(feedQueryActions.connections).includes("sources:pull_connector"));
+  assert.ok(!declared(feedQueryActions.connections).includes("connections:use"), "the status names no source and nothing of an account");
 });

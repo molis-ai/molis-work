@@ -15,6 +15,12 @@ export interface FeedConnectorSyncPorts {
   acquireSync?(projectId: string, sourceId: string): () => void;
   /** The connection owner pins its original account; Feed owns source configuration. */
   connectionAuthority?(source: FeedSourceRecord): () => void | Promise<void>;
+  /**
+   * One write that may wait for the caller's authority first (the Runtime: `createFeedWriter().commit`). Absent, a write is `transaction`.
+   * Everything a sync writes after it has awaited goes through here, because a Runtime Feed cannot write outside its transaction. With
+   * it, `afterAccepted` runs inside the commit that accepts a signal and must finish synchronously.
+   */
+  commit?<T>(operation: () => T): Promise<T>;
   createListener(source: FeedSourceRecord, afterAccepted: (
     item: IntegrationProviderItem,
     signal: Pick<SignalRecord, "signal_id" | "revision">,

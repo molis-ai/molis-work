@@ -23,6 +23,10 @@ import type { FeedSourceProviders } from "./source-ports.js";
 import { FEED_NOTIFICATION_ACTIONS } from "./notification-actions.js";
 import { readLinkedFeedContext } from "./linked-context.js";
 import { feedUiContribution } from "./ui.js";
+import { authorizeRuntimeSource, connectorSlotOf, createRuntimeConnectorSync, releaseRuntimeAccount, runtimeConnectorStatus } from "./runtime-connector.js";
+import { SignalsModule } from "./store/index.js";
+import { feedInboxActions } from "./inbox-actions.js";
+import { CONNECTOR_REQUEST_SERVICES } from "@molis-ai/molis-work-contracts/services/connector-host";
 
 /** What Feed needs of the platform to run as a plugin: Inbox entries are Attention's, the links to Goals are the Context Ledger's. */
 const PLATFORM_PERMISSIONS = [
@@ -38,16 +42,17 @@ const PLATFORM_PERMISSIONS = [
   { permission: "schedule:read", required: false, reason: "查看是否已设好按时拉取" },
   { permission: "schedule:write", required: false, reason: "设定按时拉取到期的来源" },
   { permission: "actions:invoke", required: false, reason: "向 Feed 在 Home 里的引用账登记和释放留存的正文" },
+  { permission: "connections:use", required: false, reason: "读取你为每个账号来源选好的账号是否还能用" },
+  { permission: "sources:pull_connector", required: false, reason: "用你为账号来源选好的账号拉取新消息" },
 ] as const;
 const FEED_PULL = "sources:pull_feed", QUERY_PULL = "sources:pull_query", REPOSITORY_READ = "sources:read_repository";
+const CONNECTIONS = "connections:use", CONNECTOR_PULL = "sources:pull_connector";
 
 /**
- * What the Runtime Feed does not answer yet: connector state and the platform's notifications. The slice's step 4e-2 adds them; until
- * then they stay with the Host's Feed (`feedManifest` is still the registered one).
+ * What the Runtime Feed does not answer yet: the platform's notifications. The slice's step 4e-2e adds them; until then they stay with
+ * the Host's Feed (`feedManifest` is still the registered one).
  */
-const NOT_YET: ReadonlySet<ActionDefinition> = new Set<ActionDefinition>([
-  ...FEED_NOTIFICATION_ACTIONS, feedQueryActions.connections,
-]);
+const NOT_YET: ReadonlySet<ActionDefinition> = new Set<ActionDefinition>(FEED_NOTIFICATION_ACTIONS);
 /**
  * The permissions an action's calls need of the platform beyond Feed's own: the platform lets a call use a service only when its action
  * declares the permission. Describing a source uses the vocabulary, deleting one forgets its search records, a sync pulls (a web query
@@ -57,9 +62,15 @@ const PLATFORM_NEEDS: ReadonlyMap<ActionDefinition, readonly string[]> = new Map
   [feedSourceActions.register, [FEED_PULL]], [feedSourceActions.update, [FEED_PULL]],
   // Removing a source removes its items, with their Inbox entries and their links to Goals.
   [feedSourceActions.delete, [FEED_PULL, "attention:write", "context-ledger:write"]],
-  [feedSourceActions.sync, [FEED_PULL, QUERY_PULL, REPOSITORY_READ]],
+  // An account source is pulled with the account the person bound to it (`sources:pull_connector`), whose state it asks (`connections:use`),
+  // and one whose account needs the person is recorded in the Inbox (`attention:write`).
+  [feedSourceActions.sync, [FEED_PULL, QUERY_PULL, REPOSITORY_READ, CONNECTIONS, CONNECTOR_PULL, "attention:write"]],
   // A tick runs the syncs, so it needs what they need, and it records a source's fault in the Inbox.
-  [feedSourceActions.tick, [FEED_PULL, QUERY_PULL, REPOSITORY_READ, "attention:write"]],
+  [feedSourceActions.tick, [FEED_PULL, QUERY_PULL, REPOSITORY_READ, "attention:write", CONNECTIONS, CONNECTOR_PULL]],
+  // Disconnecting an account source takes the person's binding off it.
+  [feedSourceActions.disconnect, [CONNECTIONS]],
+  // Reading an item's material asks whether its source's account still works; the status asks whether the Home has an account at all.
+  [feedInboxActions.material, [CONNECTIONS]], [feedQueryActions.connections, [CONNECTOR_PULL]],
 ]);
 /** Actions that commit for themselves, because what they write comes after something they must wait for. */
 const SELF_COMMITTING: ReadonlySet<ActionDefinition> = new Set<ActionDefinition>([feedSourceActions.sync, feedSourceActions.delete, feedSourceActions.tick]);
@@ -84,6 +95,8 @@ export const feedRuntimeManifest: PluginManifest = { ...BASE,
   // A Goal's material is read after the Goal itself has been read, as the caller (`feed.goals.context`).
   capabilities: { ...BASE.capabilities, consumes: [...BASE.capabilities.consumes, GOAL_CONTRACT.capability_id] },
   permissions: [...feedManifest.permissions.filter(declared => !PLATFORM_PERMISSIONS.some(platform => platform.permission === declared.permission)), ...PLATFORM_PERMISSIONS],
+  // The person binds an account to each account source: one slot per service the platform can pull for (its own list is the only one), the record being the source.
+  connections: { slots: Object.keys(CONNECTOR_REQUEST_SERVICES).map(service => ({ slot_id: service, service_id: service, reason: "读取你为这个来源选好的账号", binding: "per_record" as const })) },
   actions: [...feedManifest.actions!.filter(definition => !NOT_YET.has(definition)).map(runtimeAction), WAKE],
   background: { jobs: [feedWakeJob], wakeups: [{ action: { capability_id: WAKE.capability_id, version: WAKE.version }, reason: WAKE.action.title }] },
 };
@@ -136,6 +149,8 @@ export function createFeedPlugin(): PluginDefinition {
       rss: { isSourceKind: noVocabulary, failureCount: noVocabulary, withFailure: noVocabulary, withSuccess: noVocabulary },
     };
     const sourcePull = services?.sourcePull, dependencies = services?.actions?.dependencies;
+    // An account source is read with the account the person bound to it: both services come with the two optional permissions (`connections:use`, `sources:pull_connector`).
+    const connections = services?.connections, connector = sourcePull?.connector, signals = new SignalsModule(ports.sql);
     // The Home's reference ledger is Feed's own Home half, asked as this installation: no body is written before it has been told.
     const ledger = <T>(definition: ActionDefinition, input: unknown): Promise<T> => {
       if (!dependencies) throw new ActionError("actions.dependency_missing", "Feed 需要 actions:invoke 才能向引用账登记正文");
@@ -148,6 +163,8 @@ export function createFeedPlugin(): PluginDefinition {
     // source actions run inside the action's own transaction and need no transaction of their own.
     const sourcesFor = (caller: ActionExecutionContext) => new FeedSourceService({ feed, providers, acquireSync: lease, appendEvent, transaction: operation => operation(),
       commit: operation => writer.commit(caller, operation),
+      // The account is the person's binding, made through the platform; the source keeps only the connection's id as a record of the choice.
+      ...(connections ? { resolveConnection: () => ({ credentialRef: null, accountLabel: null }) } : {}),
       syncRepository: (source, input) => {
         const repository = sourcePull?.repository;
         if (!repository) throw new ActionError("actions.dependency_missing", "Feed 没有读取研究库的权限");
@@ -170,7 +187,12 @@ export function createFeedPlugin(): PluginDefinition {
           return { bodies_deleted: 0, bodies_kept: held.content_refs.length, records_deleted: 0, complete: false };
         }
       } }, projectId);
-    const sourceHandlers = createFeedSourceHandlers(projectId, { feed: () => feed, sources: sourcesFor, connectorSync: later("连接器同步"), wake: WAKE,
+    const connectorSync = (caller: ActionExecutionContext) => {
+      if (!connections || !connector) throw new ActionError("actions.dependency_missing", "Feed 没有使用账号来源的权限");
+      return createRuntimeConnectorSync({ feed, projectId, sql: ports.sql, signals: signals.commands, services: { connections, connector }, commit: operation => writer.commit(caller, operation),
+        acquireSync: lease, appendEvent });
+    };
+    const sourceHandlers = createFeedSourceHandlers(projectId, { feed: () => feed, sources: sourcesFor, connectorSync, wake: WAKE,
       retire: (outcome, run) => { released = outcome; try { return run(); } finally { released = null; } } });
     // The Goal is read as the caller before its linked material is, so the material of a Goal the caller cannot read is not given.
     const linkedContext = async (input: { goal_id: string; item_id?: string }, caller: ActionExecutionContext) => {
@@ -182,15 +204,14 @@ export function createFeedPlugin(): PluginDefinition {
     };
     const bindings: ActionHandlerBinding[] = [
       ...createFeedContentHandlers(feed, projectId, hydrate),
-      ...createFeedQueryHandlers(feed, projectId, { hydrate, authStatus: later("连接状态"), linkedContext }),
+      ...createFeedQueryHandlers(feed, projectId, { hydrate, authStatus: connector ? () => runtimeConnectorStatus(connector) : later("连接状态"), linkedContext }),
       ...createFeedRuleHandlers(feed, projectId, hydrate),
-      // A connector source is not authorized until its connection can be asked (4e-2): the check fails closed.
-      ...createFeedInboxHandlers(feed, projectId, { hydrate, authorize: async source => {
-        const lifecycle = source.config._molis_work_lifecycle as { deleted_at?: string } | undefined;
-        if (!source.enabled || source.status !== "active" || lifecycle?.deleted_at) return { authorized: false, reason: "来源已暂停、断开或移除" };
-        return ["manual", "public_source"].includes(source.sync_kind) ? { authorized: true } : { authorized: false, reason: "来源连接暂不可用" };
+      ...createFeedInboxHandlers(feed, projectId, { hydrate, authorize: authorizeRuntimeSource(connections) }),
+      // Disconnecting an account source also takes the person's binding off it (after the commit, as the platform's own binding is not Feed's).
+      ...sourceHandlers.map(binding => binding.capability_id !== feedSourceActions.disconnect.capability_id || !connections ? binding : { ...binding, handle: (caller: ActionExecutionContext, input: unknown) => {
+        const source = feed.getSource(projectId, (input as { source_id: string }).source_id);
+        return Promise.resolve(binding.handle(caller, input)).then(async result => { if (connectorSlotOf(source) !== null) await releaseRuntimeAccount(connections, source); return result; });
       } }),
-      ...sourceHandlers,
       ...createFeedItemHandlers(feed, projectId, { inboxActive: itemId => feed.listInboxEntries(projectId)
         .some(entry => entry.subject_type === "feed_item" && entry.subject_id === itemId && (entry.status === "open" || entry.status === "in_progress")) }),
     ];

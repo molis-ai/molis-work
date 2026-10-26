@@ -457,3 +457,19 @@ type SourcePullRequest =                       // 闭合：多一个字段就拒
 4. **验收**：`tests/security-invariants-plugin-source-connector.test.ts` 19 个用例，号暂记 RAC-1020（Runtime 在 Host 被问之前拒绝什么）、RAC-1021（取消、撤权、停用、动作拒绝）、RAC-1022（Host 端：绑定、登记、回执、中途换绑）、RAC-1023（经真实平台：只认人绑的、没权限没有 connector、别的安装的绑定不是自己的、晚到的取数被拒）。**号是暂记，RAC-1010～1019 已用完，统筹给范围后改**；SI 表 S-99 行已并入这些规则与测试名。
 5. **验证**：新用例 19/19；`security-invariants-plugin-source-pull`、`-plugin-connections`、`-connection-records`、`-sandbox-services`、`-sandbox-background(-host)`、`plugin-host-services`、`feed-runtime-plugin` 过；合同、plugin-runtime、plugin-sandbox、local-host 构建过；`pnpm boundary:check`、错误模型扫描干净；health 只剩已知的 SI 编号缺口。
 6. **没做、要接着做的：** Feed 一半（设计第 1～3 步：`ListenerHost`/`FeedConnectorSync` 的写走 `commit`、Feed 里的异步适配器、Runtime Feed 的 `createListener`/`connectorSync`/`authorize`/`feed.connections.status`、Manifest 槽与权限、`PLATFORM_NEEDS`），然后 4e-2e/4e-2f/4e-3。翻转前的三项（界面经 `connectors.plugin_slot.bind@2` 绑账号、`config.connection_id` 搬槽绑定的维护、目录里不在请求来源表的六个连接器）不变。
+
+**4c-4 Feed 一半实现记录（2026-10-26）。** 按上面设计的第 1～3 步，把 Runtime Feed（仍未登记）的账号来源同步接到 `services.sourcePull.connector`；翻转前的三项不变。
+
+1. **写走 `commit`**：`ListenerHost`（`store/listener.ts`）与 `FeedConnectorSync`（`connector-sync.ts`）各多一个可选的 `commit`。Host 不给它，行为与改前逐字节相同（同步写、同一个事务）；Runtime 给调用自己的 `createFeedWriter(...).commit(caller, …)`，等待之后的每一处写都进一次提交：一条信号的接收（`afterSignalAccepted` 在这次提交里同步跑，条目入库与信号一起落或一起不落）、运行开始、运行结束、失败记账与 Inbox 的来源故障。终态写会放掉租约。
+2. **异步适配器**：`FeedRawEventAdapter` 把 `toSignalDraft` 做成可等待的，Host 用同步实现，Runtime 用 `connector.adapt`。
+3. **Runtime Feed 的接线**（新文件 `runtime-connector.ts`）：`createRuntimeConnectorSync` 把连接器宿主换成平台的 `connector.pull`（账号只认人给这个来源的槽绑定，记录键是来源号），监听器、适配器与账号的显示名都来自连接器服务；`authorizeRuntimeSource`（`feed.items.material` 用）问槽绑定是否还在、账号是否还连着；`runtimeConnectorStatus`（`feed.connections.status`）问 Home 里有没有该服务的账号，只回有无；`releaseRuntimeAccount`（断开来源）把人的绑定从这个来源上取下来。同步中途账号被换、断开、改名，由 `connectionAuthority` 在每个落点前核对，变了就抛 `feed.source_connection_changed`，且不再写任何东西。
+4. **Manifest 与权限**：`connections.slots` 由平台请求来源表 `CONNECTOR_REQUEST_SERVICES` 逐项生成，每个服务一个 `per_record` 槽（槽号 = 服务号 = 集成号）；两个可选权限 `connections:use`、`sources:pull_connector`。动作上的权限（`PLATFORM_NEEDS`）：`sync`、`tick` 要 `connections:use`、`sources:pull_connector`、`attention:write`（账号要人时在 Inbox 记来源故障）；`disconnect` 与 `feed.items.material` 要 `connections:use`；`feed.connections.status` 要 `sources:pull_connector`（它不指来源，只回有无，所以不要 `connections:use`）。**翻转时要写进 PR 正文的后果**：这些动作的调用方（工作流程、Agent、MCP 授权、场景）都要持有对应权限，现有授权要补。`feed.connections.status` 不再列在 `NOT_YET`。
+5. **验收**：`tests/feed-runtime-plugin.test.ts` 多 7 个用例，号暂记 RAC-1024（按人绑的账号同步、Feed 不留连接/凭据/令牌；没绑账号时要人、提供方不被问）、RAC-1025（账号状态只回有无、材料读取随账号状态、断开取下绑定、Manifest 的槽与权限）、RAC-1026（同步中途换账号、撤权扫描：撤权后不再写，同一个键再问一次只完成一次、条目不重复）。**号是暂记**（1020～1023 已给平台一半，统筹给范围后改）。
+6. **已知差别（翻转前要认）**：
+   - 账号显示名只来自连接器服务的 `describe().display_name`；Host 版 GitHub 的登录名、范围等展示附加信息暂时没有。
+   - `resolveConnection` 在 Runtime 里不再解析账号，`config.connection_id` 只剩展示用的记录。
+   - 来源被删除后，人给它的槽绑定不会自动取下（孤儿绑定），翻转前补一个清理，或进用户维护窗口清单。
+   - 撤权时被打断的同步会留下一个未结束的运行与已接受的条目（与 Host 里进程中断一样）；同一个键再问一次会把它做完，不重复。
+   - Runtime Feed 还没有创建账号来源的路径（`feed.sources.register` 只管公开来源）；账号来源的创建与绑定在 FI-7 Feed 一半的页面里做，测试里直接按 Host 的写法放一行来源。
+7. **验证**：`feed-runtime-plugin` 23/23；Host 一侧的 `feed-connectors`、`feed-sync-authority`、`feed-receive-chain`、`feed-sync-concurrency`、`feed-store-declaration`、`inbox-automatic-scenes`、`plugin-runtime-integration`，以及 `security-invariants-plugin-source-connector`、`-plugin-connections` 全过；`pnpm boundary:check` 干净；health 只剩已知的 SI 编号缺口。Runtime Feed 仍未登记，所以 `pnpm actions:update` 与页面资源门禁都没有变化。
+8. **没做、要接着做的：** 4e-2e（通知接收）、4e-2f（判断/队列写走 `commit`、`feed.content.receive` 原子化、RAC-492/493/518 项目一半、`evidence:read` 的取舍）、4e-3（翻转 + FI-7 Feed 一半：界面经 `connectors.plugin_slot.bind@2` 绑账号、删 Host 副本、`pnpm actions:update`、PR 正文写权限后果）；翻转前三项：`config.connection_id` 搬槽绑定的维护、孤儿绑定、请求来源表外的六个目录连接器。

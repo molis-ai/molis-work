@@ -1,6 +1,6 @@
 import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
 import { isAccountConnectorSyncKind } from "@molis-ai/molis-work-contracts/modules/sources";
-import { ActionError, retainActionAuthority, type ActionAudience, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, retainActionAuthority, type ActionAudience, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FeedApplication } from "./application.js";
 import type { FeedConnectorSync } from "./connector-sync.js";
 import type { FeedSourceRecord, SourceHistoryDecision } from "./projection.js";
@@ -57,7 +57,7 @@ export const FEED_SOURCE_ACTIONS: readonly ActionDefinition[] = Object.values(fe
 export interface FeedSourceActionPorts {
   feed(): FeedApplication;
   sources(caller: ActionExecutionContext): FeedSourceService;
-  connectorSync(caller: ActionCallContext): Pick<FeedConnectorSync, "sync">;
+  connectorSync(caller: ActionExecutionContext): Pick<FeedConnectorSync, "sync">;
   /** Wraps the commit of a deletion with what releasing its history found; the Runtime Feed hands it to the history port. */
   retire?: Parameters<typeof removeFeedSource>[3];
   /** The command the platform's clock wakes (Runtime Feed only): it does what a tick does, as the plugin. */

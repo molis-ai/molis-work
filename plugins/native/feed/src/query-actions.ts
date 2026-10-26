@@ -45,7 +45,7 @@ export const feedQueryActions = {
 
 export function createFeedQueryHandlers(feed: FeedApplication, projectId: string, ports: {
   hydrate: FeedHydrate;
-  authStatus(): ConnectorAuthStatus;
+  authStatus(): ConnectorAuthStatus | Promise<ConnectorAuthStatus>;
   linkedContext(input: { goal_id: string; item_id?: string }, caller: ActionExecutionContext): Promise<{ source_context: string } | null>;
 }): ActionHandlerBinding[] {
   const bind = <I, O>(definition: ActionDefinition<I, O>, run: (input: I, caller: ActionExecutionContext) => O | Promise<O>): ActionHandlerBinding => ({

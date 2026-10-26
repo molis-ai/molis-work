@@ -43,12 +43,11 @@ export const lookingForArea = <T>(run: () => Promise<T>): Promise<T> => expectin
  */
 export const feedPull = <T>(run: () => Promise<T>): Promise<T> => withCallId(newCallId(), () => lookingForArea(run));
 
-/** Optional areas disappear when their owner refuses access; unexpected failures must remain visible. `absent` is what counts as the area not being there. */
-export async function optionalPluginQuery<I, O>(actions: BoundActionClient, definition: ActionDefinition<I, O>, input: I,
-  absent: readonly string[] = ["actions.forbidden", "actions.plugin_disabled", "actions.missing"]): Promise<O | undefined> {
+/** Optional areas disappear when their owner refuses access; unexpected failures must remain visible. */
+export async function optionalPluginQuery<I, O>(actions: BoundActionClient, definition: ActionDefinition<I, O>, input: I): Promise<O | undefined> {
   try { return await lookingForArea(() => actions.invoke(definition, input)); }
   catch (error) {
-    if (error instanceof ActionError && absent.includes(error.code)) return undefined;
+    if (error instanceof ActionError && ["actions.forbidden", "actions.plugin_disabled", "actions.missing"].includes(error.code)) return undefined;
     throw error;
   }
 }
@@ -76,10 +75,11 @@ export async function cachedMolisWorkWebView(
   store: LocalProjectDatabase,
   options: WebViewOptions,
   actions: BoundActionClient,
+  goalsHere = true,
 ): Promise<MolisWorkWebView> {
-  // Always authorize through the shared service before reusing any cached content. A project without Goals (RAC-400) reads as one with none;
-  // a read Goals refuses (`actions.forbidden`) is an error to show, not a project that has no Goals.
-  const collection = await optionalPluginQuery(actions, goalsActions.collection, {}, ["actions.plugin_disabled", "actions.missing"]) ?? emptyGoalsDocumentCollection(options.projectId);
+  // Always authorize through the shared service before reusing any cached content. A project without Goals (RAC-400, by its plugin list)
+  // reads as one with none; in a project with Goals, a read Goals refuses is an error to show.
+  const collection = goalsHere ? await actions.invoke(goalsActions.collection, {}) : emptyGoalsDocumentCollection(options.projectId);
   const cursor = collection.snapshot.cursor;
   const optionsFingerprint = JSON.stringify({
     project_id: options.projectId,
@@ -90,6 +90,8 @@ export async function cachedMolisWorkWebView(
     projects: options.projects ?? [],
     route_prefix: options.routePrefix ?? "",
     home_directory: options.homeDirectory ?? "",
+    // A view drawn without Goals is not the one to reuse once Goals is added, even at the same cursor.
+    goals_here: goalsHere,
     // Materials bound to a Goal are written without a journal event, so the cursor alone would keep an old list.
     input_bindings: collection.input_bindings.map(binding => [binding.binding_id, binding.state]),
   });

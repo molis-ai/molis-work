@@ -48,7 +48,7 @@ test("PG049-N01 PG049-N02 PG049-N03 saved directory outcomes render in the curre
     expected.set(fresh[0]!.notice_id, scenario);
   }
   const persisted = await saved();
-  assert.equal(directoryForHome(f.home).list()[0]!.read_count, 3);
+  assert.equal((await directoryForHome(f.home).list())[0]!.read_count, 3);
   assert.doesNotMatch(JSON.stringify(persisted), /inside\.md|absent\.md|private file content/, "no file names or contents enter notices");
   const project = await f.project("Saved notices"), path = `/projects/${project.project_id}/`;
   const projectNotices = await (await f.request(path.slice(0, -1) + "/api/assistant/notices")).json();
@@ -95,7 +95,7 @@ test("PG049-N01 PG049-N02 PG049-N03 saved directory outcomes render in the curre
     })()`);
     assert.deepEqual(invalidRows.sort(), ["The directory-read notice has incomplete data.", other.text].sort());
     assert.deepEqual(await saved(), persisted, "the malformed UI payload writes no records");
-    assert.equal(directoryForHome(f.home).list()[0]!.read_count, 3, "rendering does not perform another read");
+    assert.equal((await directoryForHome(f.home).list())[0]!.read_count, 3, "rendering does not perform another read");
   } finally {
     try { await browser?.close(); } finally { await rm(directory, { recursive: true, force: true }); }
   }

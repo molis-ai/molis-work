@@ -29,6 +29,11 @@ export interface ProjectRequestContext extends WebRequestContext {
   readonly userActions: (permissions: readonly string[], entry?: LocalWebEntry) => BoundActionClient;
   /** The plugins this project's page shows: personal ones included unless the person hid them here. */
   readonly shownPlugins: (projectId: string) => Promise<string[]>;
+  /**
+   * Whether Goals is in this project, by its plugin list (RAC-400). Pages ask this, not a refusal's code: in a project with Goals, a Goals read
+   * the policy refuses (any code) is that refusal, shown; only a project without Goals reads as one with none.
+   */
+  readonly goalsHere: () => Promise<boolean>;
 }
 
 /** The same request inside the project's open runtime: the stores, and the ports the project's surfaces are given. */
@@ -52,7 +57,9 @@ export function projectRequestContext(context: WebRequestContext, options: Resol
   const userActions = (permissions: readonly string[], entry: LocalWebEntry = {}) => bindLocalWebActions(localHost, hostReference, permissions, entry);
   const shownPlugins = (projectId: string) => composition.withCatalog({ homeDirectory: serverOptions.homeDirectory },
     catalog => shownProjectPlugins(catalog.listProjectPlugins(projectId), catalog.listHiddenPlugins(projectId)));
-  return { ...context, options, hostReference, userActions, shownPlugins };
+  const goalsHere = async () => !options.project || await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory },
+    catalog => catalog.listProjectPlugins(options.projectId).includes("goals"));
+  return { ...context, options, hostReference, userActions, shownPlugins, goalsHere };
 }
 
 /**

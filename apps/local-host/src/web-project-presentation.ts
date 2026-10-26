@@ -32,7 +32,7 @@ export function installationDiagnostics(
   homeDirectory: string | undefined,
   projectCount: number,
 ): WebInstallationDiagnostics {
-  const home = path.resolve(homeDirectory ?? resolveConfiguredHome());
+  const home = resolveConfiguredHome(homeDirectory);
   const manifestPath = path.join(home, "config", "installation.json");
   let installationState: WebInstallationDiagnostics["installation_state"] = "missing";
   let version: string | null = null;

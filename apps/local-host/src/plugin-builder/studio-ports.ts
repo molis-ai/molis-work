@@ -3,10 +3,6 @@ import { dirname, join } from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
 import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { assertContract } from '@molis-ai/molis-work-plugin-sandbox';
-import { BUILDER_PLUGIN_ID, builderPromptVersion, type AgentBuilderPorts } from '@molis-ai/molis-work-plugin-builder';
-import { agentDefinitionsFor } from '../agent-definitions/agent-definitions.js';
-import { builtinRegistrations } from '../agent-definitions/builtin-registrations.js';
-import { registeredInstructionBody } from '../agent-definitions/instructions.js';
 import { resolvePrologueBuilder } from '../prologue-inference-host.js';
 import type { ensureInstalledPlugins } from '../installed-plugin-host.js';
 import { builderSkill } from './skill.js';
@@ -19,26 +15,7 @@ import { slowOperations } from './capabilities.js';
 import { CATALOG_VERSION, PLATFORM_PROVIDER_ID, designerCatalog } from './catalog.js';
 import { PREVIEW_KEY, buildEffects, type StudioPreview } from './studio-preview.js';
 import type { StudioModels } from './studio-models.js';
-import type { AgentStudioOptions, Studio } from './studio-types.js';
-
-/**
- * Plugin Builder's Agent prompts as the person left them in “Prompt 与 Character”. The version names which text ran
- * (`designer/3.2.0+user.2` for their second edit), so every run's record says so.
- */
-export function builderPrompts(home: string): NonNullable<AgentBuilderPorts['prompt']> {
-  return (name, shipped) => {
-    const resolved = agentDefinitionsFor(home, builtinRegistrations).effective(BUILDER_PLUGIN_ID, { prompt_id: `builder-${name}`, version: builderPromptVersion(name), layer: "role", body: shipped.text });
-    return resolved.user_revision === undefined ? shipped : { version: `${shipped.version}+user.${resolved.user_revision}`, text: resolved.body };
-  };
-}
-
-/**
- * The two questions the studio puts to Jev (`choose.capability`, `choose.component`) as the person left them in 设置 › 提示词. Each
- * read is a recorded use, and the workflow reads one only when it really asks.
- */
-export function builderInstructions(home: string): NonNullable<AgentBuilderPorts['instruction']> {
-  return prompt => registeredInstructionBody(home, prompt, 'plugin-builder');
-}
+import type { AgentBuilderPorts, AgentStudioOptions, Studio } from './agent-surface.js';
 
 /** Each operation's last passing source for one build revision, beside (not inside) what the code agent can write. */
 const settledFor = (directory: string) => directory + '.settled';
@@ -48,6 +25,7 @@ export function builderPorts(inputs: {
   options: AgentStudioOptions; home: string; studio: Studio; installed: Awaited<ReturnType<typeof ensureInstalledPlugins>>;
   models: StudioModels; preview: StudioPreview; mockups: NonNullable<AgentBuilderPorts['mockups']>;
   choice: NonNullable<AgentStudioOptions['choice']>;
+  prompt: NonNullable<AgentBuilderPorts['prompt']>; instruction: NonNullable<AgentBuilderPorts['instruction']>;
 }): AgentBuilderPorts {
   const { options, home, studio, installed, models: { selected, models: withModels, access }, preview: { previewFor, standIns, network, runnerFor, stopRunner, inTrial }, mockups: images, choice } = inputs;
   return {
@@ -79,7 +57,7 @@ export function builderPorts(inputs: {
     }),
     validateContract: contract => assertContract(contract),
     skill: stage => builderSkill(stage),
-    prompt: builderPrompts(home), instruction: builderInstructions(home),
+    prompt: inputs.prompt, instruction: inputs.instruction,
     async prepareBuild(previous, design, manifest) {
       const directory = join(studio.root, 'builds', previous.id, design.contract.revision);
       await rm(directory, { recursive: true, force: true }); await rm(settledFor(directory), { recursive: true, force: true }); await mkdir(dirname(directory), { recursive: true, mode: 0o700 });

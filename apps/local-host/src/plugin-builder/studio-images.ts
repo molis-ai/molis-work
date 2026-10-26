@@ -1,6 +1,5 @@
-import type { AgentBuilderPorts } from '@molis-ai/molis-work-plugin-builder';
 import type { ensureInstalledPlugins } from '../installed-plugin-host.js';
-import type { AgentStudioOptions, Studio } from './studio-types.js';
+import type { AgentBuilderPorts, AgentStudioOptions, Studio } from './agent-surface.js';
 
 /** What the studio draws proposals with: the project's images plugin, through its own actions and as the person, when an image service is set up. */
 export function studioImages(options: AgentStudioOptions, actions: Awaited<ReturnType<typeof ensureInstalledPlugins>>['actions']) {

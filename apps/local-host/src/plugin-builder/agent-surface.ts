@@ -2,29 +2,90 @@ import { renderPluginDocumentShell, type PluginDirectoryEntry } from "@molis-ai/
 import { pluginPagesFor, pluginPageRequest } from "../plugin-page-authority.js";
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { join } from 'node:path';
+import { agentDefinitionsFor } from '../agent-definitions/agent-definitions.js';
+import { builtinRegistrations } from '../agent-definitions/builtin-registrations.js';
+import { registeredInstructionBody } from '../agent-definitions/instructions.js';
+import type { PluginPrivateStorage, PluginExecutionControl } from '@molis-ai/molis-work-contracts/platform/plugin';
+import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import type { SandboxRunner } from '@molis-ai/molis-work-plugin-sandbox';
+import type { PluginPlatformOptions } from '../plugin-platform.js';
+import type { CapabilityImplementations } from './capabilities.js';
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { PLUGIN_COMPONENTS } from '@molis-ai/molis-work-design-system';
-import { AgentBuilderWorkflow, inDesignOrder, BUILDER_PLUGIN_ID, builderManifest, type AgentBuild } from '@molis-ai/molis-work-plugin-builder';
+import { AgentBuilderWorkflow, inDesignOrder, BUILDER_PLUGIN_ID, builderManifest, builderPromptVersion, type AgentBuild, type AgentBuilderPorts } from '@molis-ai/molis-work-plugin-builder';
 import type { LocalProjectDatabase } from '../project-database.js';
 import { selectionPorts, FRAME_QUERY } from '../plugin-builder-surface.js';
 import { readLocalWebBody, sendLocalWebJson } from '../web-http.js';
 import { ensureInstalledPlugins, INSTALLED_MODEL_KEY } from '../installed-plugin-host.js';
 import { generatedPluginManifest } from './installed.js';
-import type { CatalogCapability } from './catalog.js';
+import type { CatalogCapability, ProjectActions } from './catalog.js';
 import { loopbackHost } from '@molis-ai/molis-work-contracts/platform/loopback';
 import { hostLog } from "../host-log.js";
 import { builderPorts } from './studio-ports.js';
 import { studioModels } from './studio-models.js';
 import { studioImages } from './studio-images.js';
 import { createStudioPreview } from './studio-preview.js';
-import type { AgentStudioOptions, Studio } from './studio-types.js';
 
-export type { AgentStudioModel, AgentStudioOptions } from './studio-types.js';
-export { builderPrompts, builderInstructions } from './studio-ports.js';
+export type { AgentBuild, AgentBuilderPorts };
+
+export interface AgentStudioModel { provider_id: string; model_id: string; label: string }
+export interface AgentStudioOptions {
+  store: LocalProjectDatabase;
+  projectId: string;
+  homeDirectory?: string;
+  routePrefix?: string;
+  models(): Promise<readonly AgentStudioModel[]>;
+  /** Replaces the Home Runtime agents only where a caller says so, e.g. a labelled local preview. */
+  agents?: AgentBuilderPorts['agent'];
+  /** Replaces the real model behind `model.generate` only where a caller says so, e.g. a labelled local preview. */
+  generate?: CapabilityImplementations['generate'];
+  /** Replaces Jev only where a caller says so. */
+  choice?: { choose: NonNullable<AgentBuilderPorts['choose']>; selectionAvailable(): boolean };
+  browserExecutable?: string;
+  actorId?: string;
+  dependencyCheck?: PluginPlatformOptions['dependencyCheck'];
+  actions?: PluginPlatformOptions['actions'] & Pick<ProjectActions, 'inspect'>;
+  /** Enables a built-in plugin in this project (by its manifest id), as project settings would. */
+  enablePlugin?(pluginId: string): Promise<void>;
+  /** How many operations the code agents write at once (default 3). */
+  parallel?: number;
+}
+/** The studio of one project: its workflow, its private storage, and the trial runners and acceptance calls over them. */
+export interface Studio {
+  callAcceptance(buildId: string, key: string, componentId: string, binding: 'read' | 'submit', payload: unknown, control?: PluginExecutionControl): Promise<SandboxJson>;
+  workflow: AgentBuilderWorkflow;
+  storage: PluginPrivateStorage;
+  root: string;
+  /** The page's own origin; G7 opens the preview on the same local server. */
+  origin?: string;
+  runners: Map<string, { key: string; runner: Promise<SandboxRunner> }>;
+  catalog(): Promise<CatalogCapability[]>;
+  /** A proposal's picture from the images plugin (W7). */
+  mockupImage?(jobId: string, imageId: string): Promise<{ base64: string; mime_type: string }>;
+}
 
 const studios = new WeakMap<LocalProjectDatabase, Map<string, Promise<Studio>>>();
 const MODEL_KEY = INSTALLED_MODEL_KEY;
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
+
+/**
+ * Plugin Builder's Agent prompts as the person left them in “Prompt 与 Character”. The version names which text ran
+ * (`designer/3.2.0+user.2` for their second edit), so every run's record says so.
+ */
+export function builderPrompts(home: string): NonNullable<AgentBuilderPorts['prompt']> {
+  return (name, shipped) => {
+    const resolved = agentDefinitionsFor(home, builtinRegistrations).effective(BUILDER_PLUGIN_ID, { prompt_id: `builder-${name}`, version: builderPromptVersion(name), layer: "role", body: shipped.text });
+    return resolved.user_revision === undefined ? shipped : { version: `${shipped.version}+user.${resolved.user_revision}`, text: resolved.body };
+  };
+}
+
+/**
+ * The two questions the studio puts to Jev (`choose.capability`, `choose.component`) as the person left them in 设置 › 提示词. Each
+ * read is a recorded use, and the workflow reads one only when it really asks.
+ */
+export function builderInstructions(home: string): NonNullable<AgentBuilderPorts['instruction']> {
+  return prompt => registeredInstructionBody(home, prompt, 'plugin-builder');
+}
 
 async function ensureStudio(options: AgentStudioOptions): Promise<Studio> {
   let boards = studios.get(options.store);
@@ -49,7 +110,7 @@ async function openStudio(options: AgentStudioOptions): Promise<Studio> {
   const { mockups, mockupImage } = studioImages(options, installed.actions);
   studio.mockupImage = mockupImage;
   const choice = options.choice ?? selectionPorts(home);
-  studio.workflow = new AgentBuilderWorkflow(storage, builderPorts({ options, home, studio, installed, models, preview, mockups, choice }));
+  studio.workflow = new AgentBuilderWorkflow(storage, builderPorts({ options, home, studio, installed, models, preview, mockups, choice, prompt: builderPrompts(home), instruction: builderInstructions(home) }));
   await studio.workflow.initialize();
   return studio;
 }

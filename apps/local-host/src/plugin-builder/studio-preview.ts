@@ -5,14 +5,13 @@ import type { SandboxJson, SandboxIdentity } from '@molis-ai/molis-work-contract
 import { createSandboxRunner, type SandboxRunner, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import { resolvePluginComponentCall } from '@molis-ai/molis-work-design-system';
 import { buildManifest } from './build-project.js';
-import type { AgentBuild } from '@molis-ai/molis-work-plugin-builder';
 import { FRAME_QUERY } from '../plugin-builder-surface.js';
 import type { runBuilderBrowserAcceptance } from './browser.js';
 import type { ensureInstalledPlugins } from '../installed-plugin-host.js';
 import { capabilityLimits, latestCapability, slowOperations, type Lane } from './capabilities.js';
 import { standIn, type CatalogCapability } from './catalog.js';
 import { STABLE_PREVIEW } from './storage.js';
-import type { AgentStudioOptions, Studio } from './studio-types.js';
+import type { AgentBuild, AgentStudioOptions, Studio } from './agent-surface.js';
 
 /** The canvas preview keeps its records; gate runs use fresh identities and memory only. */
 export const PREVIEW_KEY = 'plugin-builder:agent-studio:preview:';

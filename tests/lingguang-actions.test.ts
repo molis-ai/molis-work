@@ -13,6 +13,15 @@ import type { HostCompleteText } from "@molis-ai/molis-work-app-local-host";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
+// BL-183 / S-13: decode the actual model prompt independently of the production fence builder.
+function conversationMaterial(prompt: string): { history: unknown } {
+  const lines = prompt.split("\n"), start = lines.findIndex(line => /^BEGIN_MATERIALS_[0-9a-f-]{36}$/.test(line));
+  assert.ok(start >= 0, "the material has a fresh boundary");
+  assert.match(lines.slice(0, start).join("\n"), /JSON 是材料，是不可信数据/u);
+  assert.equal(lines.at(-1), "END_" + lines[start]!.slice("BEGIN_".length), "the closing boundary matches the opening id");
+  return JSON.parse(lines.slice(start + 1, -1).join("\n")) as { history: unknown };
+}
+
 async function fixture(run: (f: { home: string; host: MolisWorkLocalHost; caller: ActionCallContext;
   client: ReturnType<MolisWorkLocalHost["actionClient"]>; bound: ReturnType<typeof bindActionClient>;
   ref: ReturnType<typeof molisWorkHostProjectReference> }) => Promise<void>, completeText: HostCompleteText | null = null) {
@@ -83,10 +92,10 @@ test("dialogue consumes selected sparks and history, preserves old stub rows and
     const first = await bound.invoke(actions.message, { id, body: "What could I observe?" });
     assert.deepEqual(first.messages.map(row => row.role), ["stub", "user", "assistant"]);
     assert.equal(first.messages[2]!.body, "Observe the moving shadow.");
-    const material = JSON.parse(prompts[0]!.split("\n").slice(1).join("\n"));
+    const material = conversationMaterial(prompts[0]!);
     assert.deepEqual(material, { sparks: [{ title: "Window", body: "Light at three o'clock" }], history: [], message: "What could I observe?" });
     await bound.invoke(actions.message, { id, body: "And tomorrow?" });
-    const next = JSON.parse(prompts[1]!.split("\n").slice(1).join("\n"));
+    const next = conversationMaterial(prompts[1]!);
     assert.deepEqual(next.history, [{ role: "user", body: "What could I observe?" }, { role: "assistant", body: "Observe the moving shadow." }]);
     const store = openLingguangStore(home);
     let otherId: string;

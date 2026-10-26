@@ -768,7 +768,7 @@ test("a timed round is written by the Host: it is marked, it is not among the pe
     learnFromRound: input => learned.push({ work: input.work.work_id, said: input.said, run: input.run_id }) }, LOCAL_PERSON_ACTOR_ID);
   const person = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-a", consumer: "ui" as const, person: true };
   try {
-    assert.equal(await service.attachSchedule(), true);
+    assert.equal(await service.notices.attachSchedule(), true);
     const sent = await sendAsPerson(service, { text: "帮我跟进今天的工作", request_id: "req-timed-1" }, { project_ref: project });
     const workId = sent.work.work_id;
     await until(async () => (await service.read(workId)).work.state === "completed", "first round");

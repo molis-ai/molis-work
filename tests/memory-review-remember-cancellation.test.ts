@@ -145,7 +145,7 @@ for (const { boundary, action } of scenarios) {
     const ledger = openMemoryLedger({ homeDirectory: home.home });
     let changes: ReturnType<typeof ledger.changes>, projections: ReturnType<typeof ledger.candidates>;
     try { changes = ledger.changes(LOCAL_PERSON_ACTOR_ID, 100); projections = ledger.candidates(LOCAL_PERSON_ACTOR_ID); } finally { ledger.close(); }
-    const visible = await current.service.memories();
+    const visible = await current.service.memory.memories();
     assert.equal((await formal()).length, entries.length, "a later owner read agrees");
     await home.close(); await home.host.close();
     const reopened = new MolisWorkLocalHost({ homeDirectory: home.home, completeText: null });

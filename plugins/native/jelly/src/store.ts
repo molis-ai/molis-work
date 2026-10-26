@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto";
 import { ActionError, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDatabaseTransaction, PluginSqlRow } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
-import type { JellyCommand, JellyWorkspace } from "@molis-ai/molis-work-contracts/modules/jelly";
+import type { HomeStoreDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { JellyCommand, JellyWorkspace } from "./contract.js";
 import { emptyJellyWorkspace, applyJellyCalendarCommand, validateJellyWorkspace } from "./calendar.js";
 import { applyJellyContentCommand, jellyHash, validateJellyContent } from "./content.js";
 import { decodeJellyImport, mergeJellyImport } from "./import.js";
@@ -105,28 +105,6 @@ export class JellyStore {
     jellyAssert(row && row.type === command.type && row.fingerprint === fingerprint && row.revision === revision && row.expires_at > Date.now(), "预览已过期或内容已变更，请重新预览", jellyErrors.stale_preview);
     this.db.run("DELETE FROM jelly_previews WHERE token = ?", [command.confirmation_token]);
   }
-}
-
-export function openJellyStore(home: string): JellyStore {
-  const db = openHomeSqliteDatabase(home, JELLY_HOME_STORE.path);
-  try {
-    db.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000;");
-    applySqliteBaseline(db, homeSqlitePath(home, JELLY_HOME_STORE.path), JELLY_DATABASE);
-    const sql: PluginDatabaseTransaction = {
-      get: (query, parameters = []) => db.prepare(query).get(...parameters) ?? null,
-      all: (query, parameters = []) => db.prepare(query).all(...parameters),
-      run: (query, parameters = []) => db.prepare(query).run(...parameters),
-    };
-    const atomically = <T>(run: () => T): T => {
-      if (db.isTransaction) return run();
-      db.exec("BEGIN IMMEDIATE");
-      try { const result = run(); db.exec("COMMIT"); return result; }
-      catch (error) { db.exec("ROLLBACK"); throw error; }
-    };
-    const store = new JellyStore(sql, atomically, () => db.close());
-    atomically(() => store.initialize());
-    return store;
-  } catch (error) { db.close(); throw error; }
 }
 
 /** This plugin's store in the Home's store registry (W4-11): `jelly/jelly.db` at its one baseline. */

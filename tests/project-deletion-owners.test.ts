@@ -5,15 +5,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { DEMO_PROJECT_ID, EN, L, projectDeletedHooksFor, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, L, ownerLabel, projectDeletedHooksFor, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 import { applySqliteBaseline, homeSqlitePath, openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
-import { openFormStore } from "@molis-ai/molis-work-plugin-form";
-import { openDatasetStore } from "@molis-ai/molis-work-plugin-dataset";
-import { openPptStore } from "@molis-ai/molis-work-plugin-ppt";
-import { openWorkflowsStore } from "@molis-ai/molis-work-plugin-workflows";
-import { openTodoStore } from "@molis-ai/molis-work-plugin-todo";
-import { openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
+import { openFormStore, openPagesStore } from "./fixtures/plugin-home-stores.js";
+import { openDatasetStore } from "./fixtures/plugin-home-stores.js";
+import { openPptStore } from "./fixtures/plugin-home-stores.js";
+import { openWorkflowsStore } from "./fixtures/plugin-home-stores.js";
+import { openTodoStore } from "./fixtures/plugin-home-stores.js";
+import { openLingguangStore } from "./fixtures/plugin-home-stores.js";
 import { IMAGES_DATABASE } from "@molis-ai/molis-work-plugin-images";
 import { FUNCTIONS_STORE_BASELINE, createFunctionsService } from "@molis-ai/molis-work-module-functions";
 
@@ -57,8 +56,8 @@ function seed(home: string, projectId: string): { image: string } {
   const workflows = openWorkflowsStore(home); workflows.create({ project_id: projectId, title: "流程", chain: { stations: [], links: [] } }); workflows.close();
 
   const todo = openTodoStore(home);
-  todo.create({ title: `项目待办 ${projectId}`, placement: "project", remind_at: new Date(Date.now() - 60_000).toISOString() }, { projectId, everything: false, actor: "user", actorId: "local-person" });
-  todo.create({ title: "个人待办", placement: "personal" }, { projectId: null, everything: true, actor: "user", actorId: "local-person" });
+  todo.create({ title: `项目待办 ${projectId}`, placement: "project", remind_at: new Date(Date.now() - 60_000).toISOString() }, { projectId, projectIds: [], actor: "user", actorId: "local-person" });
+  todo.create({ title: "个人待办", placement: "personal" }, { projectId: null, projectIds: [], actor: "user", actorId: "local-person" });
   todo.close();
 
   const lingguang = openLingguangStore(home);
@@ -133,7 +132,7 @@ test("deleting a project clears what every Home library keeps for it and leaves 
     assert.deepEqual(orphaned(home), nothing(orphaned(home)), "no row is left hanging off a deleted document, form, todo or talk");
     assert.deepEqual(held(home, kept, keptSeed.image), before, "another project's data is untouched");
     const todo = openTodoStore(home);
-    try { assert.deepEqual(todo.list({ projectId: null, everything: true, actor: "user", actorId: "local-person" }).map(item => item.title).sort(), ["个人待办", "个人待办", `项目待办 ${kept}`].sort(), "the personal todos name no project and stay"); }
+    try { assert.deepEqual(todo.list({ projectId: null, projectIds: [kept], actor: "user", actorId: "local-person" }).map(item => item.title).sort(), ["个人待办", "个人待办", `项目待办 ${kept}`].sort(), "the personal todos name no project and stay"); }
     finally { todo.close(); }
     for (const owner of ["pages", "form", "dataset", "ppt", "workflows", "todo", "functions", "lingguang", "images"]) {
       assert.ok(result.deletion.owner_steps.some(step => step.owner_id === owner && step.state === "complete"), `${owner} is recorded in the receipt as done`);
@@ -170,10 +169,15 @@ test("the fixed-id demo never starts on what an earlier demo left, however it wa
 
 test("the delete dialog lists the library owners' data in the person's language", async () => {
   await withHome(async ({ home }) => {
-    const scope = projectDeletedHooksFor(home).owners().flatMap(owner => owner.label ? [owner.label] : []);
+    const owners = projectDeletedHooksFor(home).owners().flatMap(owner => owner.label ? [owner] : []);
+    const scope = owners.map(owner => owner.label);
     for (const label of ["Pages 文稿与文件夹", "Forms 问卷及收到的全部回答", "放在这个项目里的待办", "灵光里的想法与对话"]) assert.ok(scope.includes(label), label);
-    for (const label of scope) assert.ok(EN[label], `${label} has an English translation`);
+    // A plugin owner's text is the plugin's own: the dialog translates it with that plugin's words, and the Host's page does not know it.
+    for (const owner of owners.filter(item => item.words_of)) runWithLocale("en", () => assert.notEqual(ownerLabel(owner), owner.label, `${owner.label} has an English translation`));
+    for (const owner of owners.filter(item => !item.words_of)) runWithLocale("en", () => assert.notEqual(ownerLabel(owner), owner.label, `${owner.label} (the Host's) has an English translation`));
     assert.equal(L("Pages 文稿与文件夹"), "Pages 文稿与文件夹");
-    runWithLocale("en", () => assert.equal(L("Pages 文稿与文件夹"), "Pages documents and folders"));
+    runWithLocale("en", () => assert.equal(L("Pages 文稿与文件夹"), "Pages 文稿与文件夹", "the Host's page alone does not know it"));
+    const pages = owners.find(owner => owner.label === "Pages 文稿与文件夹")!;
+    runWithLocale("en", () => assert.equal(ownerLabel(pages), "Pages documents and folders"));
   });
 });

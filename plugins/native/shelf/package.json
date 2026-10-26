@@ -29,22 +29,29 @@
   ],
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.browser.json && esbuild src/browser/factory.ts --bundle --format=iife --platform=browser --minify --charset=utf8 '--banner:js=(host) => {' --footer:js=} --outfile=dist/shelf-client.js && esbuild src/browser/settings/factory.ts --bundle --format=iife --platform=browser --minify --charset=utf8 --outfile=dist/shelf-settings-client.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc -p tsconfig.browser.json"
   },
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",
-    "@molis-ai/molis-work-design-system": "workspace:*",
     "@molis-ai/molis-work-module-shelf": "workspace:*",
     "@molis-ai/molis-work-plugin-sdk": "workspace:*",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
   },
   "molis-work": {
     "path": "plugins/native/shelf",
     "kind": "native-plugin",
     "maturity": "partial",
     "contract": "@molis-ai/molis-work-contracts/platform/plugin",
+    "summary": "Protected first-party Shelf directory, preview, and copy-job surface.",
+    "notResponsibleFor": "Goal/Artifact facts, Stores, or desktop wheel/hotkey adapters.",
+    "legacySources": [
+      "src/web/render.ts"
+    ],
     "migrationGoals": [
       "goal-reorg-f2"
     ],
@@ -54,6 +61,14 @@
       "shelf.http-routes.v1",
       "shelf.actions.v1"
     ],
+    "extraWorkspaceDependencies": [
+      "@molis-ai/molis-work-module-shelf",
+      "@molis-ai/molis-work-plugin-sdk"
+    ],
+    "extraDependencies": {
+      "@xterm/xterm": "^6.0.0",
+      "@xterm/addon-fit": "^0.11.0"
+    },
     "registration": "./registration"
   }
 }

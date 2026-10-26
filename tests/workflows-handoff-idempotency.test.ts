@@ -5,9 +5,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { WORKFLOWS_ACTION_PERMISSIONS, createWorkflowContentPorts, handoffKey, openWorkflowsStore, workflowsActions as w, type WorkflowInstance } from "@molis-ai/molis-work-plugin-workflows";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
-import { openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
+import { WORKFLOWS_ACTION_PERMISSIONS, createWorkflowContentPorts, handoffKey, workflowsActions as w, type WorkflowInstance } from "@molis-ai/molis-work-plugin-workflows";
+import { openPagesStore, openWorkflowsStore } from "./fixtures/plugin-home-stores.js";
+import { openLingguangStore } from "./fixtures/plugin-home-stores.js";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/dist/content-action-providers.js";
 

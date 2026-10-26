@@ -1,6 +1,6 @@
 import type { UiContribution, UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
-import { icon, renderPluginStageShell } from "@molis-ai/molis-work-design-system";
-import { ISSUES_PLUGIN_ID, ISSUES_UI_CONTRIBUTION_ID } from "./manifest.js";
+import { icon, renderPluginStageShell } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { ISSUES_UI_CONTRIBUTION_ID } from "./manifest.js";
 
 export { ISSUES_STYLES } from "./styles.js";
 
@@ -10,7 +10,7 @@ export interface IssuesUiModel {
 }
 
 export const issuesUiContribution: UiContribution<IssuesUiModel> = {
-  descriptor: { contribution_id: ISSUES_UI_CONTRIBUTION_ID, plugin_id: ISSUES_PLUGIN_ID, kind: "primary-page", navigation_id: "issues", label: "Issue",
+  descriptor: { contribution_id: ISSUES_UI_CONTRIBUTION_ID, kind: "primary-page", navigation_id: "issues", label: "Issue",
     surfaces: [{ surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" },
       { surface_id: "capture", target_slot_id: "workbench.side", format: "declarative-html" }], slots: [] },
   render: (request: UiRenderRequest<IssuesUiModel>) => renderIssuesWorkbench(request.model),

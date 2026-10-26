@@ -42,3 +42,5 @@ export {
 export { createTextStatsPlugin, type TextStatsPluginPorts } from "./plugin.js";
 export { textStatsActions, TEXT_STATS_ACTIONS } from "./actions.js";
 export { TEXT_STATS_MESSAGES } from "./messages.js";
+export { TEXT_STATS_CLIENT_FACTORY_SCRIPT } from "./client.js";
+export { TEXT_STATS_STYLES } from "./styles.js";

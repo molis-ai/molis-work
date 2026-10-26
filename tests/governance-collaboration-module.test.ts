@@ -13,6 +13,7 @@ import {
 
 import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { pluginLegalSql } from "./fixtures/plugin-legal-sql.js";
 
 function fixture(name: string): {
   store: LocalProjectDatabase;
@@ -25,7 +26,8 @@ function fixture(name: string): {
   const store = new LocalProjectDatabase(databasePath);
   let sequence = 0;
   const governance = new GovernanceCollaborationModule({
-    db: store.db,
+    db: pluginLegalSql(store).db,
+    journal: store,
     now: () => `2026-09-02T00:00:0${sequence}.000Z`,
     id: () => `test-${sequence += 1}`,
   });

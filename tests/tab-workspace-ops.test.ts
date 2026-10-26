@@ -32,12 +32,15 @@ test("Feed is a named plugin view, not a later-only plugin", () => {
   assert.equal(named.activeTab(state), null);
 });
 
-test("PG-060 the tab rules name no plugin: a title the page does not pass is the plugin's id, only the Host's own surfaces have one", () => {
+test("RAC-84 PG-060 tab-title rules fall back to a plugin id and retain Host surface titles", () => {
+  // Fallback rules only: Manifest title derivation is covered by plugin-declarative-mounting, not this unit test.
   assert.equal(ops.pluginTitle("feed"), "feed");
   assert.equal(ops.pluginTitle("lingguang"), "lingguang");
   assert.equal(ops.pluginTitle("home"), "项目首页");
   assert.equal(ops.pluginTitle("characters"), "Characters");
+  assert.equal(ops.pluginTitle("market"), "插件市场");
   assert.equal(createTabWorkspaceOps({ home: "Project home" }).pluginTitle("home"), "Project home");
+  assert.equal(createTabWorkspaceOps({ market: "Plugin market" }).pluginTitle("market"), "Plugin market");
 });
 
 test("opening the same plugin again stays on the default view", () => {

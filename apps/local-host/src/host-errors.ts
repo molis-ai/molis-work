@@ -6,6 +6,8 @@ import { defineErrorCodes } from "@molis-ai/molis-work-plugin-sdk";
  */
 export const hostErrors = defineErrorCodes("host", {
   closed: "invalid",
+  /** The caller's close deadline elapsed; the underlying resource cleanup and Home ownership continue. */
+  close_timeout: "timeout",
   project_invalid: "invalid",
   project_identity_conflict: "invalid",
   project_closing: "invalid",
@@ -27,12 +29,18 @@ export const hostErrors = defineErrorCodes("host", {
   plugin_caller_invalid: "forbidden",
   /** The caller the Host issued belongs to another person, project or installation than the call. */
   plugin_caller_mismatch: "forbidden",
-  /** A capability handed to the wrong seam: an action to the typed `register`. Each kind has one seam (PG-035). */
-  registration_seam: "invalid",
   catalog_unavailable: "invalid",
   workspace_unavailable: "invalid",
   /** The project has no linked folder with this id: unlinked already, or never this project's. */
   workspace_not_found: "not_found",
   /** A part of a request path that is not valid percent-encoding: the caller's mistake, never a Host fault. */
   request_path_invalid: "invalid",
+  /** A service this composition starts on first use was not supplied: the caller learns which piece is missing (BL-221). */
+  builder_unavailable: "unavailable",
+  /** The project connection catalog was not composed; nothing can be refreshed through it (BL-221). */
+  project_connection_unavailable: "unavailable",
+  /** The Agent runtime was never started, so its write checkers cannot be read (BL-221). */
+  agent_runtime_unavailable: "unavailable",
+  /** The runtime's inference client was not composed (BL-221). */
+  inference_unavailable: "unavailable",
 });

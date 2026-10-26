@@ -44,7 +44,7 @@ async function fixture(t: TestContext) {
       permissions: [...declare ? ["actions:invoke"] : [], ...write ? ["dependency:write"] : []].map(permission => ({ permission, required: true, reason: "Call a public dependency" })),
       capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [command, read] },
       async start(value) { context = value; return { kind: "app", actions: [command, read].map(action => ({ ...action, handle: () => work(borrowed ?? value.services!.actions!.dependencies!) })) }; } };
-    const report = await platform.start([{ definition, bundled: true }]); assert.deepEqual(report.failed, []);
+    const report = await platform.start([{ definition, trust: { level: "host" } }]); assert.deepEqual(report.failed, []);
     const installation = () => platform.runtime.list().find(record => record.plugin_id === id)!;
     return { id, installation, get directory() { return context!.services!.actions!.dependencies; }, borrow: (directory: PluginActionDirectory) => { borrowed = directory; },
       invoke: (run: typeof work, mode: "command" | "query" = "command", caller: Partial<ActionCallContext> = {}) => {

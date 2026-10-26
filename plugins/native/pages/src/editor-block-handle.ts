@@ -1,6 +1,6 @@
 import type { EditorView } from "prosemirror-view";
 import { NodeSelection } from "prosemirror-state";
-import { followScroll } from "@molis-ai/molis-work-design-system/floating";
+import { followScroll } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { PagesBlockMenu } from "./editor-block-menu.js";
 import { createBlockDrag } from "./editor-block-drag.js";
 import { createHandlePosition } from "./editor-block-handle-position.js";

@@ -11,7 +11,7 @@ import { createPluginPlatform, DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBo
 import { createDiffPlugin, DIFF_LABELS, DIFF_PLUGIN_ID, diffActions, type DiffView } from "@molis-ai/molis-work-plugin-diff";
 import { renderDiff } from "@molis-ai/molis-work-plugin-sdk/diff-view";
 import { createTextStatsPlugin, TEXT_STATS_PLUGIN_ID, textStatsActions, renderTextStats, type TextStatsView } from "@molis-ai/molis-work-plugin-text-stats";
-import { escapeHtml, icon } from "@molis-ai/molis-work-design-system";
+import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
@@ -24,8 +24,8 @@ import { diffPageText } from "./fixtures/diff-page-text.js";
 const SOURCE = "io.molis.work.state-html-source", ACTOR = "tester", HAN = /[一-鿿]/;
 const type = { artifact_type_id: FILE_SNAPSHOT_TYPE, schema_version: 1 };
 const snapshot = (text: string) => ({ workspace: { workspace_id: "ws", name: "Project" }, path: ["a.ts"], text });
-/** What the Host drew before: the page's translator, the design system's escape and icons. */
-const pagePrimitives = (locale: ActionLocale) => ({ escape: escapeHtml, text: pageText(locale), icon: (name: string) => icon(name as Parameters<typeof icon>[0]) });
+/** What the Host drew before: the page's translator (with the drawing Plugin's words, as it is that Plugin's surface), the design system's escape and icons. */
+const pagePrimitives = (locale: ActionLocale, ...plugins: string[]) => ({ escape: escapeHtml, text: pageText(locale, ...plugins), icon: (name: string) => icon(name as Parameters<typeof icon>[0]) });
 /** The same for Diff: its sentences with values in them matched to its messages first, as the Host's Diff renderer did. */
 const diffPrimitives = (locale: ActionLocale) => ({ ...pagePrimitives(locale), text: diffPageText(locale) });
 
@@ -53,7 +53,7 @@ async function withPlatform(run: (project: Platform) => Promise<void>) {
   const platform = createPluginPlatform({ actions, db: store.db, project_id: DEMO_PROJECT_ID, actor_id: ACTOR, artifacts, processItems: new ProcessItemsModule(options),
     ui: new UiHost(), home: null, privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) });
   try {
-    const report = await platform.start([{ definition: source }, { definition: createDiffPlugin(), bundled: true }, { definition: createTextStatsPlugin(), bundled: true }]);
+    const report = await platform.start([{ definition: source }, { definition: createDiffPlugin(), trust: { level: "host" } }, { definition: createTextStatsPlugin(), trust: { level: "host" } }]);
     assert.deepEqual(report.failed, []); assert.deepEqual(report.blocked, []);
     platform.wiring.selectInputGroup(DIFF_PLUGIN_ID, "snapshots");
     for (const [target, port] of [[DIFF_PLUGIN_ID, "after"], [TEXT_STATS_PLUGIN_ID, "text"]] as const) platform.wiring.bind({ project_id: DEMO_PROJECT_ID, actor_id: ACTOR,
@@ -84,7 +84,7 @@ test("PG062-01, PG062-02: a page's diff.state and text-stats.state carry the plu
     for (const locale of ["zh", "en"] as const) {
       const stats = await project.invoke<{ view: TextStatsView; html: string }>(statsState, { locale });
       assert.equal(stats.view.phase, "waiting");
-      assert.equal(stats.html, renderTextStats({ view: stats.view, primitives: pagePrimitives(locale) }));
+      assert.equal(stats.html, renderTextStats({ view: stats.view, primitives: pagePrimitives(locale, "text-stats") }));
       assert.match(stats.html, /mw-empty[\s\S]*#icon-hash/);
       const diff = await project.invoke<{ view: DiffView; html: string }>(diffState, { locale });
       assert.equal(diff.html, renderDiff({ labels: DIFF_LABELS, view: diff.view, primitives: diffPrimitives(locale) }));
@@ -98,7 +98,7 @@ test("PG062-01, PG062-02: a page's diff.state and text-stats.state carry the plu
       assert.match(diff.html, /original &lt;b&gt;/); assert.doesNotMatch(diff.html, /original <b>/, "a line's text is escaped");
       const stats = await project.invoke<{ view: TextStatsView; html: string }>(statsState, { locale });
       assert.equal(stats.view.phase, "ready");
-      assert.equal(stats.html, renderTextStats({ view: stats.view, primitives: pagePrimitives(locale) }), `text-stats.state draws the same counts the Host drew (${locale})`);
+      assert.equal(stats.html, renderTextStats({ view: stats.view, primitives: pagePrimitives(locale, "text-stats") }), `text-stats.state draws the same counts the Host drew (${locale})`);
       if (locale === "en") for (const html of [diff.html, stats.html]) assert.doesNotMatch(html.replace(/<[^>]*>/g, ""), HAN, "the English page gets English words");
     }
     // Coding's, Files' and Git's pages read both through their consumer declarations, so the call reaches them as a plugin's (#1018):
@@ -110,7 +110,7 @@ test("PG062-01, PG062-02: a page's diff.state and text-stats.state carry the plu
     }
     // No language from the page (no cookie, no Accept-Language): the plugins' Chinese, as the Host's default was.
     const plain = await project.invoke<{ view: TextStatsView; html: string }>(statsState, {});
-    assert.equal(plain.html, renderTextStats({ view: plain.view, primitives: pagePrimitives("zh") }));
+    assert.equal(plain.html, renderTextStats({ view: plain.view, primitives: pagePrimitives("zh", "text-stats") }));
   });
 });
 
@@ -130,7 +130,7 @@ test("PG062-03: a model, a workflow or an MCP client reads the view alone, and b
 
 test("PG062-04: the Host no longer names Diff or Text Stats to decorate their route results or a page's action answers", () => {
   // coding-surface.ts is gone (PG-036 C9); what took over its stage and route work must not use these names either.
-  const surface = ["project-plugin-stages.ts", "project-plugin-input-refresh.ts"].map(file => readFileSync(new URL(`../apps/local-host/src/${file}`, import.meta.url), "utf8")).join("\n");
+  const surface = ["project-plugin-stages.ts"].map(file => readFileSync(new URL(`../apps/local-host/src/${file}`, import.meta.url), "utf8")).join("\n");
   for (const name of ["DIFF_PLUGIN_ID", "TEXT_STATS_PLUGIN_ID", "renderTextStats", "decorateRuntimeResult", "decorateCompanionState"]) {
     assert.equal(surface.includes(name), false, `the Host's stage and route code no longer uses ${name}`);
   }

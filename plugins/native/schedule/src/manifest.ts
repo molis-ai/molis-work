@@ -7,6 +7,8 @@ import { SCHEDULE_PROJECT_DATABASE } from "./database.js";
 import { REMINDER_ACTIONS } from "./reminder-actions.js";
 import { SCHEDULE_OPERATION_ACTIONS } from "./operation-actions.js";
 import { SCHEDULE_RECONCILE_JOB, scheduleWakeupActions } from "./background-actions.js";
+import { SCHEDULE_MESSAGES } from "./messages.js";
+import { SCHEDULE_EN } from "./en.js";
 export { SCHEDULE_TASK_WAKEUP_CAPABILITY } from "./background-actions.js";
 
 export const SCHEDULE_PLUGIN_ID = "io.molis.work.schedule";
@@ -19,6 +21,7 @@ export const scheduleManifest: PluginManifest = {
   plugin_id: SCHEDULE_PLUGIN_ID,
   version: "0.3.0",
   name: "Schedule",
+  summary: "定时跑对话任务，也替插件准时提醒。",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-schedule-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
@@ -55,9 +58,11 @@ export const scheduleManifest: PluginManifest = {
   agent: scheduleAgentManifest,
   databases: { project: SCHEDULE_PROJECT_DATABASE },
   ui: {
+    messages: SCHEDULE_MESSAGES,
+    translations: SCHEDULE_EN,
     contributions: [SCHEDULE_UI_CONTRIBUTION_ID],
     views: [
-      { view_id: "directory", slot: "navigator", title: "Schedule", contribution_id: SCHEDULE_UI_CONTRIBUTION_ID, icon: "timer", order: 35, group: "advance" },
+      { view_id: "directory", slot: "navigator", title: "Schedule", contribution_id: SCHEDULE_UI_CONTRIBUTION_ID, icon: "timer", hue: "yellow", order: 35, group: "advance" },
     ],
   },
 };

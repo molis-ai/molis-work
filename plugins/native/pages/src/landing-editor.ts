@@ -1,7 +1,7 @@
 import type { Node } from "prosemirror-model";
 import type { EditorView } from "prosemirror-view";
 import type { ContextActionChosen } from "@molis-ai/molis-work-contracts/services/contextual";
-import { placeOverlay } from "@molis-ai/molis-work-design-system/floating";
+import { placeOverlay } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { headingPath } from "./focus.js";
 
 /**
@@ -68,9 +68,9 @@ export function mountPagesLanding(port: PagesLandingPort): { report(): void } {
     box.innerHTML = '<p></p><div class="pages-landing-preview" hidden></div><div class="pages-pop-actions"><button type="button" class="mw-btn mw-btn--ghost"></button><button type="button" class="mw-btn mw-btn--primary" hidden></button></div>';
     const lead = box.querySelector("p")!, text = box.querySelector<HTMLElement>(".pages-landing-preview")!, [cancel, ok] = [...box.querySelectorAll("button")] as [HTMLButtonElement, HTMLButtonElement];
     const fail = (message: string) => { lead.textContent = message; lead.className = "pages-pop-error"; ok.disabled = false; };
-    const moved = L("位置已经变了，请重新选择要放进去的位置");
-    lead.textContent = L("正在准备…");
-    cancel.textContent = L("取消");
+    const moved = L("pages.landing.moved");
+    lead.textContent = L("pages.landing.preparing");
+    cancel.textContent = L("pages.action.cancel");
     cancel.onclick = close;
     (port.bench.querySelector("[data-pages-stage-workspace]") ?? port.bench).append(box);
     placeOverlay(box, view.coordsAtPos(Math.min(base.from, view.state.doc.content.size)), "below");
@@ -82,7 +82,7 @@ export function mountPagesLanding(port: PagesLandingPort): { report(): void } {
     if (input.source) text.classList.add("pages-quote");
     const lines = [...input.text.split(/\n+/u).filter(Boolean), ...(input.source?.title ? ["— " + input.source.title] : [])];
     text.replaceChildren(...lines.map(line => Object.assign(document.createElement("p"), { textContent: line })));
-    ok.textContent = L("放进去");
+    ok.textContent = L("pages.landing.put-in");
     text.hidden = ok.hidden = false;
     ok.onclick = () => {
       ok.disabled = true;

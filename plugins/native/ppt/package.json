@@ -30,9 +30,7 @@
   },
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",
-    "@molis-ai/molis-work-design-system": "workspace:*",
     "@molis-ai/molis-work-plugin-sdk": "workspace:*",
-    "@molis-ai/molis-work-storage": "workspace:*",
     "fflate": "0.8.2"
   },
   "devDependencies": {
@@ -43,14 +41,26 @@
     "kind": "native-plugin",
     "maturity": "partial",
     "contract": "@molis-ai/molis-work-contracts/platform/plugin",
+    "summary": "Protected first-party PPT directory, slide outlines, preview, and JSON export.",
+    "notResponsibleFor": "Goal/Artifact facts, SVG generation, or images and charts inside exported PPTX.",
+    "legacySources": [
+      "src/web/render.ts"
+    ],
     "migrationGoals": [
       "goal-reorg-f2"
     ],
     "ssot": "docs/SSOT-MATRIX.md",
     "capabilities": [
       "ppt.ui-contribution.v1",
-      "ppt.http-routes.v1"
+      "ppt.http-routes.v1",
+      "ppt.pptx-export.v1"
     ],
+    "extraWorkspaceDependencies": [
+      "@molis-ai/molis-work-plugin-sdk"
+    ],
+    "extraDependencies": {
+      "fflate": "0.8.2"
+    },
     "registration": "./registration"
   }
 }

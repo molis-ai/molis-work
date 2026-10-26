@@ -25,182 +25,195 @@ function generateState(): string {
   return b64url(randomBytes(16));
 }
 
+type OAuthFlowDependencies = { ports: GmailOAuthPorts }
+  & ReturnType<typeof createGmailOAuthConfiguration>
+  & ReturnType<typeof createGmailPendingSessions>
+  & ReturnType<typeof createGmailTokenLifecycle>;
+
 export function createGmailOAuth(ports: GmailOAuthPorts) {
   const configuration = createGmailOAuthConfiguration(ports);
-  const { resolveGmailClientId, resolveGmailClientSecret, storeGmailOAuthClient, publicGmailCallbackUri, defaultGmailRedirectUri, assertAllowedGmailRedirectUri } = configuration;
   const pending = createGmailPendingSessions(ports, configuration);
-  const { savePending, clearPendingByState, validatePendingGmailOAuthSession } = pending;
   const tokens = createGmailTokenLifecycle(ports, configuration);
-  const { persistGmailAccessLifecycle, loadRefreshToken } = tokens;
-  async function startGmailOAuthFlow(opts?: {
-    clientId?: string;
-    clientSecret?: string;
-    redirectUri?: string;
-    scope?: string;
-    /** Deterministic creation time for tests (ISO string). */
-    createdAt?: string;
-  }): Promise<GmailOAuthStart> {
-    const clientId = resolveGmailClientId(opts?.clientId);
-    if (!clientId) {
-      throw new Error(
-        "MOLIS_WORK_GMAIL_CLIENT_ID required for Gmail OAuth (or bind client id in Sources)",
-      );
-    }
-    if (opts?.clientId?.trim()) {
-      storeGmailOAuthClient({
-        clientId: opts.clientId.trim(),
-        clientSecret: opts.clientSecret,
-      });
-    } else if (opts?.clientSecret?.trim()) {
-      ports.secrets().put(
-        GMAIL_CLIENT_SECRET_REF,
-        opts.clientSecret.trim(),
-      );
-    }
+  const dependencies: OAuthFlowDependencies = { ports, ...configuration, ...pending, ...tokens };
+  return {
+    ...configuration,
+    cancelGmailOAuthFlow: cancelGmailOAuthFlow.bind(undefined, pending.clearPendingByState),
+    validatePendingGmailOAuthSession: pending.validatePendingGmailOAuthSession,
+    resolveUsableGmailAccessToken: tokens.resolveUsableGmailAccessToken,
+    startGmailOAuthFlow: startGmailOAuthFlow.bind(undefined, dependencies),
+    completeGmailOAuthFlow: completeGmailOAuthFlow.bind(undefined, dependencies),
+  };
+}
 
-    const redirectUri =
-      opts?.redirectUri?.trim() ||
-      publicGmailCallbackUri() ||
-      defaultGmailRedirectUri();
-    assertAllowedGmailRedirectUri(redirectUri);
-
-    const codeVerifier = generateCodeVerifier();
-    const challenge = codeChallengeS256(codeVerifier);
-    const state = generateState();
-    const secret = resolveGmailClientSecret();
-
-    savePending({
-      codeVerifier,
-      state,
-      redirectUri,
-      clientId,
-      clientSecret: secret ?? "",
-      createdAt: opts?.createdAt ?? new Date().toISOString(),
+async function startGmailOAuthFlow(dependencies: OAuthFlowDependencies, opts?: {
+  clientId?: string;
+  clientSecret?: string;
+  redirectUri?: string;
+  scope?: string;
+  /** Deterministic creation time for tests (ISO string). */
+  createdAt?: string;
+}): Promise<GmailOAuthStart> {
+  const { ports, resolveGmailClientId, storeGmailOAuthClient, publicGmailCallbackUri, defaultGmailRedirectUri, assertAllowedGmailRedirectUri, resolveGmailClientSecret, savePending } = dependencies;
+  const clientId = resolveGmailClientId(opts?.clientId);
+  if (!clientId) {
+    throw new Error(
+      "MOLIS_WORK_GMAIL_CLIENT_ID required for Gmail OAuth (or bind client id in Sources)",
+    );
+  }
+  if (opts?.clientId?.trim()) {
+    storeGmailOAuthClient({
+      clientId: opts.clientId.trim(),
+      clientSecret: opts.clientSecret,
     });
-
-    const params = new URLSearchParams({
-      client_id: clientId,
-      redirect_uri: redirectUri,
-      response_type: "code",
-      scope: opts?.scope || DEFAULT_SCOPES,
-      state,
-      code_challenge: challenge,
-      code_challenge_method: "S256",
-      access_type: "offline",
-      prompt: "consent",
-    });
-
-    return {
-      authorizationUrl: `${AUTH_ENDPOINT}?${params.toString()}`,
-      state,
-      redirectUri,
-      confidential: Boolean(secret),
-    };
+  } else if (opts?.clientSecret?.trim()) {
+    ports.secrets().put(
+      GMAIL_CLIENT_SECRET_REF,
+      opts.clientSecret.trim(),
+    );
   }
 
+  const redirectUri =
+    opts?.redirectUri?.trim() ||
+    publicGmailCallbackUri() ||
+    defaultGmailRedirectUri();
+  assertAllowedGmailRedirectUri(redirectUri);
+
+  const codeVerifier = generateCodeVerifier();
+  const challenge = codeChallengeS256(codeVerifier);
+  const state = generateState();
+  const secret = resolveGmailClientSecret();
+
+  savePending({
+    codeVerifier,
+    state,
+    redirectUri,
+    clientId,
+    clientSecret: secret ?? "",
+    createdAt: opts?.createdAt ?? new Date().toISOString(),
+  });
+
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    response_type: "code",
+    scope: opts?.scope || DEFAULT_SCOPES,
+    state,
+    code_challenge: challenge,
+    code_challenge_method: "S256",
+    access_type: "offline",
+    prompt: "consent",
+  });
+
+  return {
+    authorizationUrl: `${AUTH_ENDPOINT}?${params.toString()}`,
+    state,
+    redirectUri,
+    confidential: Boolean(secret),
+  };
+}
+
+/**
+ * Exchange authorization code for tokens and store them under the connection's refs.
+ * Requires one fresh pending PKCE session with exact callback state.
+ * Validation runs before any network call or credential write.
+ */
+async function completeGmailOAuthFlow(dependencies: OAuthFlowDependencies, opts: {
+  code: string;
+  state?: string;
+  clientSecret?: string;
+  /** Deterministic clock for tests (epoch ms). */
+  nowMs?: number;
+  /** Optional client id for identity-drift checks only. */
+  clientId?: string;
+  fetchImpl?: OAuthFetch;
   /**
-   * Exchange authorization code for tokens and store them under the connection's refs.
-   * Requires one fresh pending PKCE session with exact callback state.
-   * Validation runs before any network call or credential write.
+   * The connection's refs, resolved from the verified email BEFORE any credential write (it may refuse
+   * another mailbox), so the tokens land in that connection's refs in one synchronous pass.
    */
-  async function completeGmailOAuthFlow(opts: {
-    code: string;
-    state?: string;
-    clientSecret?: string;
-    /** Deterministic clock for tests (epoch ms). */
-    nowMs?: number;
-    /** Optional client id for identity-drift checks only. */
-    clientId?: string;
-    fetchImpl?: OAuthFetch;
-    /**
-     * The connection's refs, resolved from the verified email BEFORE any credential write (it may refuse
-     * another mailbox), so the tokens land in that connection's refs in one synchronous pass.
-     */
-    resolveRefs: (email: string | undefined) => GmailTokenRefs;
-  }): Promise<GmailOAuthComplete> {
-    // Canonical gate: exact state, TTL, loopback redirect, session-bound identity.
-    const exchange = validatePendingGmailOAuthSession({
-      code: opts.code,
-      state: opts.state,
-      nowMs: opts.nowMs,
-      clientId: opts.clientId,
-    });
+  resolveRefs: (email: string | undefined) => GmailTokenRefs;
+}): Promise<GmailOAuthComplete> {
+  const { ports, validatePendingGmailOAuthSession, resolveGmailClientSecret, clearPendingByState, persistGmailAccessLifecycle, loadRefreshToken } = dependencies;
+  // Canonical gate: exact state, TTL, loopback redirect, session-bound identity.
+  const exchange = validatePendingGmailOAuthSession({
+    code: opts.code,
+    state: opts.state,
+    nowMs: opts.nowMs,
+    clientId: opts.clientId,
+  });
 
-    const clientSecret = exchange.clientSecret ?? resolveGmailClientSecret(opts.clientSecret);
-    cancelGmailOAuthFlow(exchange.state);
-    const fetchImpl = opts.fetchImpl ?? globalThis.fetch?.bind(globalThis);
-    if (!fetchImpl) throw new Error("fetch unavailable");
+  const clientSecret = exchange.clientSecret ?? resolveGmailClientSecret(opts.clientSecret);
+  cancelGmailOAuthFlow(clearPendingByState, exchange.state);
+  const fetchImpl = opts.fetchImpl ?? globalThis.fetch?.bind(globalThis);
+  if (!fetchImpl) throw new Error("fetch unavailable");
 
-    const body = new URLSearchParams({
-      code: exchange.code,
-      client_id: exchange.clientId,
-      redirect_uri: exchange.redirectUri,
-      grant_type: "authorization_code",
-      code_verifier: exchange.codeVerifier,
-    });
-    if (clientSecret) {
-      body.set("client_secret", clientSecret);
-    }
-
-    const res = await fetchImpl(TOKEN_ENDPOINT, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        Accept: "application/json",
-      },
-      body: body.toString(),
-    });
-    const json = (await res.json()) as {
-      access_token?: string;
-      refresh_token?: string;
-      expires_in?: number;
-      error?: string;
-      error_description?: string;
-    };
-    if (!res.ok || !json.access_token) {
-      throw new Error(
-        json.error_description ||
-          json.error ||
-          `Gmail token exchange HTTP ${res.status}`,
-      );
-    }
-
-    // Identity first (uses the in-memory access token), then ONE synchronous
-    // persist — never an await between identity resolution and credential write.
-    let email: string | undefined;
-    try {
-      const profileRes = await fetchImpl(
-        "https://gmail.googleapis.com/gmail/v1/users/me/profile",
-        { headers: { Authorization: `Bearer ${json.access_token}` } },
-      );
-      if (profileRes.ok) {
-        const profile = (await profileRes.json()) as { emailAddress?: string };
-        email = profile.emailAddress;
-      }
-    } catch {
-      /* optional */
-    }
-
-    const refs = opts.resolveRefs(email);
-    persistGmailAccessLifecycle({
-      accessToken: json.access_token,
-      refreshToken: json.refresh_token,
-      expiresIn: json.expires_in,
-      nowMs: opts.nowMs,
-      refs,
-    });
-    ports.secrets().put(`${refs.access}:client`, JSON.stringify({ clientId: exchange.clientId, clientSecret: clientSecret || "" }));
-    const hasRefreshToken = Boolean(json.refresh_token || loadRefreshToken(refs));
-    clearPendingByState(opts.state?.trim() || "");
-
-    return { authRef: refs.access, hasRefreshToken, email };
+  const body = new URLSearchParams({
+    code: exchange.code,
+    client_id: exchange.clientId,
+    redirect_uri: exchange.redirectUri,
+    grant_type: "authorization_code",
+    code_verifier: exchange.codeVerifier,
+  });
+  if (clientSecret) {
+    body.set("client_secret", clientSecret);
   }
 
-  /** Clear only this attempt. */
-  function cancelGmailOAuthFlow(state: string): void {
-    clearPendingByState(state);
+  const res = await fetchImpl(TOKEN_ENDPOINT, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Accept: "application/json",
+    },
+    body: body.toString(),
+  });
+  const json = (await res.json()) as {
+    access_token?: string;
+    refresh_token?: string;
+    expires_in?: number;
+    error?: string;
+    error_description?: string;
+  };
+  if (!res.ok || !json.access_token) {
+    throw new Error(
+      json.error_description ||
+        json.error ||
+        `Gmail token exchange HTTP ${res.status}`,
+    );
   }
-  return { ...configuration, cancelGmailOAuthFlow, validatePendingGmailOAuthSession, resolveUsableGmailAccessToken: tokens.resolveUsableGmailAccessToken, startGmailOAuthFlow, completeGmailOAuthFlow };
+
+  // Identity first (uses the in-memory access token), then ONE synchronous
+  // persist — never an await between identity resolution and credential write.
+  let email: string | undefined;
+  try {
+    const profileRes = await fetchImpl(
+      "https://gmail.googleapis.com/gmail/v1/users/me/profile",
+      { headers: { Authorization: `Bearer ${json.access_token}` } },
+    );
+    if (profileRes.ok) {
+      const profile = (await profileRes.json()) as { emailAddress?: string };
+      email = profile.emailAddress;
+    }
+  } catch {
+    /* optional */
+  }
+
+  const refs = opts.resolveRefs(email);
+  persistGmailAccessLifecycle({
+    accessToken: json.access_token,
+    refreshToken: json.refresh_token,
+    expiresIn: json.expires_in,
+    nowMs: opts.nowMs,
+    refs,
+  });
+  ports.secrets().put(`${refs.access}:client`, JSON.stringify({ clientId: exchange.clientId, clientSecret: clientSecret || "" }));
+  const hasRefreshToken = Boolean(json.refresh_token || loadRefreshToken(refs));
+  clearPendingByState(opts.state?.trim() || "");
+
+  return { authRef: refs.access, hasRefreshToken, email };
+}
+
+/** Clear only this attempt. */
+function cancelGmailOAuthFlow(clearPendingByState: OAuthFlowDependencies["clearPendingByState"], state: string): void {
+  clearPendingByState(state);
 }
 
 /**

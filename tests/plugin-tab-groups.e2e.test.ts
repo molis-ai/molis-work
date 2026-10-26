@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 /** WCAG contrast of every tab title in a group against the tint it sits on, composited over the desk. */

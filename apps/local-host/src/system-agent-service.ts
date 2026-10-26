@@ -33,8 +33,8 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
     const opened = openConfiguredModels(storageHome);
     try { return await operation(opened?.store); } finally { opened?.storage.close(); }
   };
-  return localHost.ensureAgentService(storageHome, () => {
-    prepareMemoryHome(storageHome);
+  return localHost.ensureAgentService(storageHome, storageOwner => {
+    prepareMemoryHome(storageHome, storageOwner);
     const connectors = createAgentConnectorPorts(storageHome);
     const service = composeAgentHost({
       localHost, homeDirectory: storageHome,
@@ -58,6 +58,7 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
         : workspaces.workspaceFor?.(projectId) ?? null,
       prologue: {
         storageRoot: agentRuntimeDirectory(storageHome),
+        storageOwner,
         // The question types every surface that shows a run's questions can draw (specs/ai-interaction-experience D8).
         questionTypes: hostQuestionTypes(),
         // The kinds a reference question may ask for, so the model names one the person can find (T2, AC-28-1).
@@ -97,12 +98,17 @@ export function ensureSystemAgentService(localHost: MolisWorkLocalHost, homeDire
     owner.release = () => { unbind(); unbindBuilder(); };
     owners.set(localHost, owner);
     const dispose = service.dispose.bind(service);
-    service.dispose = () => { owner.release?.(); owners.delete(localHost); memory.close(); return dispose(); };
+    let closing: Promise<void> | undefined, memoryClosed = false;
+    service.dispose = () => closing ??= (async () => {
+      owner.release?.(); owners.delete(localHost);
+      if (!memoryClosed) { memory.close(); memoryClosed = true; }
+      await dispose();
+    })().catch(error => { closing = undefined; throw error; });
     return service;
   });
 }
 
-/** A closing Host stops offering its Home's inference at once, so its successor can bind before teardown finishes. */
+/** Withdraw inference immediately; the Home's storage owner stays held until actual teardown finishes. */
 export function releaseSystemAgentService(localHost: MolisWorkLocalHost): void {
   owners.get(localHost)?.release?.();
 }

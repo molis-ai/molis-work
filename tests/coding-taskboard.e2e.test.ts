@@ -23,7 +23,7 @@ test("TaskBoard：像 Goal 列表一样分层；接续的轮次合成一行；�
       ${STATE_RING_CLIENT_SCRIPT}
       const board=document.querySelector('[data-coding-board]'),went=[],amended=[];
       const names={builder:'构建者','coding-reviewer':'独立评审'};
-      const api=(${CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT})({lifetime:(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})()(board),board,current:()=>'s',status:()=>{},ownTask:text=>text,from:()=>null,roleName:id=>names[id]||id,
+      const api=(${CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT})({lifetime:(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})()(board),translate:L,board,current:()=>'s',status:()=>{},ownTask:text=>text,from:()=>null,roleName:id=>names[id]||id,
         navigate:async(id,target)=>{went.push(target);},amend:async(runId,version,amendment)=>{amended.push({runId,version,amendment});}});
       const t0=Date.parse('2026-09-25T07:00:00Z');
       const plan={revision:2,content:{title:'让 @ 引用支持裸名字',steps:[{title:'放行裸名字',acceptance:'a'},{title:'读不到就丢弃',acceptance:'b'},{title:'跑测试',acceptance:'c'}],blockers:'',change_reason:''}};
@@ -80,15 +80,15 @@ test("TaskBoard：每一步显示负责人（本会话/子任务/你/没人认�
     const result = await page.evaluate<any>(`(async()=>{
       document.body.innerHTML='<section data-coding-board><h2 data-coding-board-title></h2><p data-coding-board-meta></p><div data-coding-board-list></div><p data-coding-board-status></p></section>';
       const board=document.querySelector('[data-coding-board]'),amended=[];
-      const api=(${CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT})({lifetime:(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})()(board),board,current:()=>'s',status:()=>{},ownTask:text=>text,from:()=>null,roleName:id=>id==='coding-builder'?'构建者':id,
+      const api=(${CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT})({lifetime:(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})()(board),translate:L,board,current:()=>'s',status:()=>{},ownTask:text=>text,from:()=>null,roleName:id=>id==='coding-builder'?'构建者':id,
         navigate:async()=>{},amend:async(runId,version,amendment)=>{amended.push(amendment);}});
       const t0=Date.parse('2026-09-26T07:00:00Z');
       const plan={revision:1,content:{title:'四步',steps:[{title:'改 a',acceptance:'a'},{title:'改 b',acceptance:'b'},{title:'看页面',acceptance:'c'},{title:'写说明',acceptance:'d'}],blockers:'',change_reason:''}};
       const nodes=[
-        {id:'step-1',state:'succeeded',owner:{kind:'session',label:'本会话'},reports:[{note:'a 改好了',at_ms:t0+1000,by:'本会话'}]},
-        {id:'user-1',state:'succeeded',inserted:true,title:'手工看页面',depends_on:['step-1'],owner:{kind:'person',label:'用户',actor_id:'user'},reports:[{note:'用户完成：页面正常',at_ms:t0+1500,by:'用户'}]},
-        {id:'step-2',state:'running',depends_on:[],owner:{kind:'subtask',label:'子任务「two」',subagent_id:'c1'},reports:[{note:'本会话 → 子任务「two」（派出子任务时交给它）',at_ms:t0+2000,by:'改派',handover:true},{note:'开始改 b',at_ms:t0+3000,by:'子任务「two」'}]},
-        {id:'step-3',state:'ready',depends_on:['step-1'],owner:{kind:'person',label:'用户',actor_id:'user'},reports:[{note:'本会话 → 用户（用户改派给自己处理）',at_ms:t0+4000,by:'改派',handover:true}]},
+        {id:'step-1',state:'succeeded',owner:{kind:'session',label:'本会话'},reports:[{note:'a 改好了',at_ms:t0+1000,by:{kind:'session',label:'本会话'}}]},
+        {id:'user-1',state:'succeeded',inserted:true,title:'手工看页面',depends_on:['step-1'],owner:{kind:'person',label:'用户',actor_id:'user'},reports:[{note:'用户完成：页面正常',at_ms:t0+1500,by:{kind:'person',label:'用户'}}]},
+        {id:'step-2',state:'running',depends_on:[],owner:{kind:'subtask',label:'子任务「two」',title:'two',subagent_id:'c1'},reports:[{note:'本会话 → 子任务「two」（派出子任务时交给它）',at_ms:t0+2000,by:{kind:'handover',label:'改派'},handover:true},{note:'开始改 b',at_ms:t0+3000,by:{kind:'subtask',label:'子任务「two」',title:'two'}}]},
+        {id:'step-3',state:'ready',depends_on:['step-1'],owner:{kind:'person',label:'用户',actor_id:'user'},reports:[{note:'本会话 → 用户（用户改派给自己处理）',at_ms:t0+4000,by:{kind:'handover',label:'改派'},handover:true}]},
         {id:'step-4',state:'ready',depends_on:[],owner:{kind:'none',label:'没人认领'},reports:[]},
       ];
       api.update('s',{session:{title:'会话'},plan:{...plan,confirmed:{artifact_id:'x',version:1}},
@@ -145,7 +145,7 @@ test("TaskBoard 大纲：左栏用同一棵树画紧凑的行；没有会话时�
       document.body.innerHTML='<section data-coding-board hidden><h2 data-coding-board-title></h2><p data-coding-board-meta></p><div data-coding-board-list></div><p data-coding-board-status></p></section>'
         +'<section data-coding-board-outline hidden><p data-coding-outline-meta hidden></p><div data-coding-outline-list></div><p data-coding-outline-status></p><button data-coding-board-expand disabled>展开任务图</button></section>';
       const board=document.querySelector('[data-coding-board]'),outline=document.querySelector('[data-coding-board-outline]'),went=[],progress=[];
-      const api=(${CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT})({lifetime:(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})()(board),board,outline,current:()=>'s',status:()=>{},ownTask:text=>text,from:()=>null,roleName:id=>id==='builder'?'构建者':id,
+      const api=(${CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT})({lifetime:(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})()(board),translate:L,board,outline,current:()=>'s',status:()=>{},ownTask:text=>text,from:()=>null,roleName:id=>id==='builder'?'构建者':id,
         navigate:async(id,target)=>{went.push(target);},amend:async()=>{},progress:text=>progress.push(text)});
       api.showOutline();
       const empty={status:outline.querySelector('[data-coding-outline-status]').textContent,expand:outline.querySelector('[data-coding-board-expand]').disabled};

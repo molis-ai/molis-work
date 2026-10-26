@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDatabase, PluginExecutionControl, PluginOwnerFilesClient, PluginImageGenerationClient, PluginBackgroundClient } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { GeneratedImage, ImageConnection, ImageConnectionInput, ImageGenerateInput, ImageJob } from "@molis-ai/molis-work-contracts/modules/images";
+import type { GeneratedImage, ImageConnection, ImageConnectionInput, ImageGenerateInput, ImageJob } from "./contract.js";
 import { imagesErrors } from "./error.js";
 import { normalizeImageBaseUrl } from "./providers.js";
 import { ImagesStore, type StoredConnection } from "./store.js";

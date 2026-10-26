@@ -3,8 +3,10 @@ import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contrac
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { projectSettingsCapabilities, projectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { agentWriteCheckerActions, hostsAgentSessions, resolveProjectRuntime, type AgentWriteCheckerList } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { availableProjectPluginIds, BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
-import { escapeHtml } from "@molis-ai/molis-work-design-system";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
+import { pluginReachable, projectReachablePlugins, reachEntry } from "./project-action-availability.js";
+import { homePluginsOutsideBuild } from "./home-registration.js";
+import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { bindLocalWebActions } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { HOME_ACTION_PERMISSIONS } from "./home-actions.js";
@@ -19,7 +21,6 @@ import { handleAgentReviewHttp } from "./agent-review-http.js";
 import { computerHolderFor } from "./computer/computer-surfaces.js";
 import { inspectGitIndex } from "./workspace-git-index.js";
 import { isPluginEventManagementPath } from "./plugin-event-http.js";
-import { filesOutputsRefresh } from "./project-plugin-input-refresh.js";
 import { handleProjectPluginHttp, pluginEventsPending } from "./project-plugin-http.js";
 import { assistantNotices, handleAssistantHttp } from "./assistant/assistant-http.js";
 import { handleAttentionHttp } from "./attention-http.js";
@@ -148,11 +149,11 @@ export const pluginStudioRoute: WebRoute<ProjectRuntimeContext> = { id: "plugin-
     actions: pluginServices.actions,
     // A generated plugin's design may need a built-in plugin this project has not enabled; the person enables it here.
     ...(options.project ? { enablePlugin: async (pluginId: string) => {
-      const entry = BUILTIN_PLUGIN_CATALOG.find(item => item.manifest.plugin_id === pluginId && !item.personal);
+      const entry = PLATFORM_PLUGIN_REGISTRATIONS.find(item => item.manifest.plugin_id === pluginId && !item.personal);
       if (!entry) throw new Error('这个插件不能在项目里启用：' + pluginId);
       await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory }, catalog => catalog.commit(() => catalog.addProjectPlugin({ project_id: options.project!.project_id, plugin_id: entry.project_plugin_id, actor_id: LOCAL_PERSON_ACTOR_ID })));
     } } : {}),
-    ...(pluginServices.capabilities ? { capabilities: pluginServices.capabilities } : {}) }, controlToken) };
+    ...(pluginServices.dependencyCheck ? { dependencyCheck: pluginServices.dependencyCheck } : {}) }, controlToken) };
 
 /**
  * Runtime plugins' HTTP and the plugin update stream. Bundled installations retain project policy; other plugins are
@@ -163,14 +164,18 @@ export const runtimePluginsRoute: WebRoute<ProjectRuntimeContext> = { id: "runti
   const runtimePluginRoute = /^\/api\/plugins\/(io\.molis\.work\.[a-z0-9][a-z0-9.-]*)\//u.exec(url.pathname);
   const runtimeUpdatesRoute = url.pathname === "/api/plugins/runtime/updates" || isPluginEventManagementPath(url.pathname);
   const runtimeEntry = runtimePluginRoute
-    ? BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.plugin_id === runtimePluginRoute[1]) : undefined;
+    ? PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === runtimePluginRoute[1]) : undefined;
   if (!runtimeUpdatesRoute && !(runtimePluginRoute && (!runtimeEntry || runtimeEntry.manifest.kind === "app" || runtimeEntry.manifest.routes?.length))) return false;
+  // The same list the action layer reads (PG-013): a personal plugin the project hides is as unreachable here as one it never enabled,
+  // a personal Home plugin outside the build included (by its plugin id, from the Host's own Home registration, #679).
+  const home = serverOptions.homeDirectory, reach = runtimePluginRoute ? reachEntry(home, runtimePluginRoute[1]!) : undefined;
+  const reachable = !runtimeUpdatesRoute && reach && options.project
+    ? await composition.withCatalog({ homeDirectory: home }, catalog => projectReachablePlugins(catalog, options.project!.project_id, homePluginsOutsideBuild(home))) : null;
   const enabled = runtimeUpdatesRoute
     ? Boolean(options.project)
-    : runtimeEntry?.personal || (options.project && (!runtimeEntry || await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory },
-        catalog => availableProjectPluginIds(catalog.listProjectPlugins(options.project!.project_id)).has(runtimeEntry.project_plugin_id))));
+    : reach ? pluginReachable(reach, reachable) : Boolean(options.project);
   if (!enabled) { const refusal = actionErrorResponse(new ActionError("actions.plugin_disabled", "此项目未启用该插件")); sendJson(response, refusal.status, refusal.body); return true; }
-  return handleProjectPluginHttp(request, response, url, pluginPorts, filesOutputsRefresh);
+  return handleProjectPluginHttp(request, response, url, pluginPorts);
 } };
 
 /** Small reads the shell and the desktop app poll: health, which runtimes exist, the terminal client, the board cursor. */

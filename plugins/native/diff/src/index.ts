@@ -55,7 +55,7 @@ export {
 } from "./ui.js";
 export { createDiffPlugin, type DiffPluginPorts } from "./plugin.js";
 
-export { DIFF_STYLES } from "./styles.js";
+export { DIFF_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { DIFF_MESSAGES, DIFF_TEMPLATES } from "./messages.js";
 
 export { diffActions, DIFF_ACTIONS } from "./actions.js";

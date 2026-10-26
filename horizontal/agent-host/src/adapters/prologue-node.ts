@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import { isAbsolute } from "node:path";
 import { BUILT_IN_ADAPTERS, createAdapterRegistry } from "@prologue/sdk";
 import { createNodeHost } from "@prologue/sdk/node";
 import type { AgentRuntimeAdapter, AgentRuntimeDiagnostics, AgentWriteCheckerStore } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -26,6 +27,7 @@ import { acquirePrologueStorageOwner } from "./prologue-storage-owner.js";
 import { createPrologueSurfaces, type PrologueSurfaces } from "./prologue-surfaces.js";
 import { resolveModelHostname } from "./node-model-dns.js";
 import { PrologueAgentAdapter } from "./prologue.js";
+import { agentErrors } from "../errors.js";
 export { PrologueCredentialBridge, type PrologueCredentialHost } from "./prologue-credentials.js";
 export type { PrologueNodeAdapterOptions } from "./prologue-node-kit.js";
 export { SUBAGENT_DEFAULT_TURNS } from "./prologue-node-port.js";
@@ -82,30 +84,65 @@ export function prologueAcceptsProtocol(protocol: string): boolean {
  * workspace writes with untrusted approval; each writing role must also pass
  * the capability matrix and its frozen tool allowlist.
  */
-export async function createPrologueNodeAdapter(
+export function createPrologueNodeAdapter(
   options: PrologueNodeAdapterOptions,
 ): Promise<PrologueAgentAdapter & { inference: PrologueInferenceClient; createBuilderAgent(options: PluginBuilderAgentOptions): ReturnType<typeof createPluginBuilderAgent>; gitReviews?: PrologueGitReviewPort; writeCheckers: AgentWriteCheckerStore;
-  surfaces?: { decide(decision: Parameters<PrologueSurfaces["decide"]>[0]): void }; withEffect: NonNullable<AgentRuntimeAdapter["withEffect"]>; assertDirectoriesIdle(paths: readonly string[]): Promise<void> }> {
-  const release = options.storageRoot ? acquirePrologueStorageOwner(options.storageRoot) : () => {};
-  try {
-    const adapter = await initializePrologueNodeAdapter(options);
-    const close = adapter.close.bind(adapter);
-    let closing: Promise<void> | undefined;
-    adapter.close = () => closing ??= (async () => {
+  surfaces?: { decide(decision: Parameters<PrologueSurfaces["decide"]>[0]): void }; withEffect: NonNullable<AgentRuntimeAdapter["withEffect"]>; assertDirectoriesIdle(paths: readonly string[]): Promise<void> }> & { close(): Promise<void> } {
+  let release: (() => void) | undefined, closeAdapter: (() => Promise<void>) | undefined, closing: Promise<void> | undefined;
+  const cleanup = new Set<() => Promise<void>>();
+  const keep = (close: () => unknown) => {
+    const pending = async () => {
+      if (!cleanup.has(pending)) return;
       await close();
-      release();
-    })();
-    return adapter;
-  } catch (error) { release(); throw error; }
+      cleanup.delete(pending);
+    };
+    cleanup.add(pending);
+    return pending;
+  };
+  const closePending = async () => {
+    const failures: unknown[] = [];
+    for (const close of [...cleanup].reverse()) { try { await close(); } catch (failure) { failures.push(failure); } }
+    return failures;
+  };
+  const relinquish = () => { release?.(); release = undefined; };
+  const initialized = (async () => {
+    if (typeof options.storageRoot !== "string" || !isAbsolute(options.storageRoot)) {
+      throw agentErrors.storage_root_invalid("Agent 执行服务需要明确的绝对存储目录；不会回退到当前目录或用户默认存储");
+    }
+    release = acquirePrologueStorageOwner(options.storageRoot, options.storageOwner);
+    try {
+      const adapter = await initializePrologueNodeAdapter(options, keep);
+      closeAdapter = adapter.close.bind(adapter);
+      adapter.close = close;
+      return adapter;
+    } catch (error) {
+      const failures = await closePending();
+      if (failures.length) throw new AggregateError([error, ...failures], "Agent 初始化未完成，资源清理失败；仍保留存储所有权");
+      relinquish(); throw error;
+    }
+  })();
+  // Keep this handle even when initialization rejects: the rejection does not close outstanding resources.
+  function close(): Promise<void> {
+    return closing ??= (async () => {
+      await initialized.catch(() => undefined);
+      if (closeAdapter) await closeAdapter();
+      else {
+        const failures = await closePending();
+        if (failures.length) throw new AggregateError(failures, "Agent 资源清理失败；仍保留存储所有权");
+      }
+      relinquish();
+    })().catch(error => { closing = undefined; throw error; });
+  }
+  return Object.assign(initialized, { close });
 }
 
-async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions) {
+async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions, onFailureClose: (close: () => unknown) => () => Promise<void>) {
   // Async context holds only a trusted denial guard, never serializes it in a Run.
   const dispatchGuards: DispatchGuards = new AsyncLocalStorage<() => void | Promise<void>>();
   const host = createNodeHost({
-    // This process holds the storage root's owner lock (acquirePrologueStorageOwner) for its whole life, so a write claim
+    // This runtime owns or borrows the storage root's actual owner lock for its whole life, so a write claim
     // found there at start is one a crashed owner left: the Host clears it instead of refusing that record for ever.
-    ...(options.storageRoot === undefined ? {} : { storageRoot: options.storageRoot, exclusiveOwner: true }),
+    storageRoot: options.storageRoot, exclusiveOwner: true,
     resolveHost: resolveModelHostname,
     beforeNetworkDispatch: async () => { await dispatchGuards.getStore()?.(); },
     // A model call that got no response at all (the connection dropped) is sent again under the retry policy, rather
@@ -123,6 +160,8 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const checks = createPrologueConditionCheckers({ runtime: () => runtime, ports: options.checks, project: async id => (await index.read(id).catch(() => undefined))?.owner.project_id,
     owner: async id => (await index.read(id).catch(() => undefined))?.owner });
   const runtime = await createNodeRuntime(options, effects.host, schedule.run, () => surfaceHost, { forRun: runId => state.dispatchChecks.get(runId) }, checks.checkers);
+  const closeRuntime = onFailureClose(() => runtime.shutdown());
+  const closeChecks = onFailureClose(() => checks.close());
   checks.open();
   surfaceHost = options.surfaces ? createPrologueSurfaces(() => runtime, options.surfaces, ref => readResourceText(runtime, ref)) : undefined;
   // Sites the person allowed earlier, as approvals the person can take back at once (not as rules fixed at start).
@@ -141,39 +180,47 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
     subscribeConnections: options.subscribeMcpConnections,
     credentialRefFor: (ref) => credentials.prologueRefFor(ref),
   });
+  const closeMcp = onFailureClose(() => mcpLibrary.dispose());
   const surfaces = () => surfaceHost;
   const platformMemory = createPrologueMemory(runtime, effects.bind);
   const gitReviews = createNodeGitReviews(options, host, runtime);
+  const closeGit = onFailureClose(() => gitReviews?.close());
   const projectWork = createNodeProjectWork(options, host, runtime, state);
   const workGraphs = createWorkGraphs(runtime, index);
   // A part's round that ended while the Host stopped before its step's end was written: its step ends now (§6.0n).
   await workGraphs.reconcile();
   const { messages, waitsPort, stepBoards } = createNodeCoordination(runtime, index, state, projectWork);
+  const closeWaits = onFailureClose(() => waitsPort.close());
+  const closeMessages = onFailureClose(() => messages.close());
+  const closeStepBoards = onFailureClose(() => stepBoards.close());
   const reviews = { runtime, host, state, index, options, surfaces, projectWork };
   const pendings = createPendingPort(reviews);
   const remember = createReviewMemory(reviews);
   const approvals = createApprovals(reviews, pendings, remember);
   const detachReviews = restoreReviewHistory(reviews, pendings, remember);
+  const closeReviews = onFailureClose(() => detachReviews?.());
   const checkpoints = options.reviewQueue ? createPrologueCheckpoints({ runtime, queue: options.reviewQueue, readIndex: index.read, readResource: ref => readResource(runtime, ref),
     remember: (id, intent) => index.update(id, saved => { (saved.rewinds ??= []).push(intent); }),
     decision: (id, pendingId, receipt) => index.update(id, saved => {
       (saved.review_decisions ??= {})[pendingId] = { status: receipt.status, decided_by: receipt.decided_by, decided_at: receipt.decided_at, note: receipt.note };
     }),
   }) : undefined;
-  const { inference, createBuilderAgent, close: closeInference } = createNodeInference(runtime, options, credentials, dispatchGuards);
+  const closeCheckpoints = onFailureClose(() => checkpoints?.close());
+  const { inference, createBuilderAgent, close: stopInference } = createNodeInference(runtime, options, credentials, dispatchGuards);
+  const closeInference = onFailureClose(stopInference);
   const recovery = createPrologueRecovery({ runtime, index, state, checkpoints });
   const readQuestion = questionReader(runtime);
   const port = createNodePort({ runtime, effects, host, options, state, index, dispatchGuards, surfaces, mcpLibrary, platformMemory, credentials, stepBoards, projectWork, workGraphs,
     messages, waitsPort, checkpoints, approvals, schedule, recovery, readQuestion,
     shutdown: async () => {
-      mcpLibrary.dispose();
+      await closeMcp();
       await closeInference();
       for (const controller of state.actionControllers.values()) controller.abort();
       state.actionControllers.clear();
-      stepBoards.close(); messages.close(); waitsPort.close(); checks.close();
-      detachReviews?.();
-      await checkpoints?.close(); await gitReviews?.close();
-      return runtime.shutdown();
+      await closeStepBoards(); await closeMessages(); await closeWaits(); await closeChecks();
+      await closeReviews();
+      await closeCheckpoints(); await closeGit();
+      return closeRuntime();
     } });
 
   return Object.assign(new PrologueAgentAdapter({

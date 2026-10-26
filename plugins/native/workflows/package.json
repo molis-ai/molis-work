@@ -25,20 +25,21 @@
   ],
   "scripts": {
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc --noEmit -p tsconfig.json"
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.browser.json && esbuild src/browser/factory.ts --bundle --format=iife --platform=browser --minify --charset=utf8 '--banner:js=(host) => {' --footer:js=} --outfile=dist/workflows-client.js",
+    "typecheck": "tsc --noEmit -p tsconfig.json && tsc -p tsconfig.browser.json"
   },
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",
-    "@molis-ai/molis-work-design-system": "workspace:*",
-    "@molis-ai/molis-work-plugin-sdk": "workspace:*",
-    "@molis-ai/molis-work-storage": "workspace:*"
+    "@molis-ai/molis-work-plugin-sdk": "workspace:*"
   },
   "molis-work": {
     "path": "plugins/native/workflows",
     "kind": "native-plugin",
     "maturity": "partial",
     "contract": "@molis-ai/molis-work-contracts/platform/plugin",
+    "summary": "Project workflows that chain existing plugins with typed handoffs.",
+    "notResponsibleFor": "Plugin item storage, model providers, or Feed/Inbox/Pages internals.",
+    "legacySources": [],
     "migrationGoals": [
       "goal-reorg-f2"
     ],
@@ -47,6 +48,13 @@
       "workflows.ui-contribution.v1",
       "workflows.http-routes.v1"
     ],
+    "extraWorkspaceDependencies": [
+      "@molis-ai/molis-work-plugin-sdk"
+    ],
+    "extraDependencies": {},
     "registration": "./registration"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.2"
   }
 }

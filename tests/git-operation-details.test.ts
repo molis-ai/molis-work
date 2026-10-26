@@ -39,7 +39,7 @@ test("Git operations approved together in several workspaces each keep what they
   t.after(async () => { await composition.dispose(); await host.close(); store.close(); await rm(root, { recursive: true, force: true }); });
   const plugin = callerPlugin("details", "project", { [OPERATION]: false, "workspace:read": true },
     [prepareGitOperationCapability.capability_id, readGitOperationsCapability.capability_id, workspaceReadActions.git.capability_id]);
-  await startPlugin(host, reference, store, plugin, { grants: [OPERATION], capabilities: host.client(reference) });
+  await startPlugin(host, reference, store, plugin, { grants: [OPERATION], dependencies: host.client(reference) });
   const actions = plugin.actions("project"), reviews = composition.agentHost.reviews;
   const prepared = [];
   for (const { workspace_id } of workspaces) {

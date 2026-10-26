@@ -5,7 +5,7 @@ export const CLIENT_DOCUMENTS_STATE_SCRIPT = `    const isAbortError = (error) =
     let reloadGoalEventDocument = async (_goalId, _restore) => false;
     let pendingEventRestore = null;
     const goalEventDocumentApi = (${GOALS_EVENT_DOCUMENT_CLIENT_FACTORY_SCRIPT})({
-      documentPane, route, translate: L, isAbortError,
+      documentPane, route, translate: LFor("io.molis.work.goals"), isAbortError,
       showError: (message) => showToast(message, true),
       showStatus: (message) => showToast(message, false),
       reloadDocument: (goalId, restore) => reloadGoalEventDocument(goalId, restore),

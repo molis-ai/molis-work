@@ -7,11 +7,11 @@ import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 
 test("Shelf opens as the side panel's first tab, extracts the sample PDF, and keeps DropAgent tokens", { timeout: 120_000 }, async (t) => {
-  const agentSetting = process.env.MOLIS_WORK_SHELF_AGENT;
-  process.env.MOLIS_WORK_SHELF_AGENT = "off";
+  const agentSetting = process.env.MOLIS_WORK_LOCAL_TOOLS;
+  process.env.MOLIS_WORK_LOCAL_TOOLS = "off";
   t.after(() => {
-    if (agentSetting === undefined) delete process.env.MOLIS_WORK_SHELF_AGENT;
-    else process.env.MOLIS_WORK_SHELF_AGENT = agentSetting;
+    if (agentSetting === undefined) delete process.env.MOLIS_WORK_LOCAL_TOOLS;
+    else process.env.MOLIS_WORK_LOCAL_TOOLS = agentSetting;
   });
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;

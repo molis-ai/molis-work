@@ -2,7 +2,7 @@ import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 // Pages keeps its own import (user decision 2026-10-03, artifact-positioning §1): files become Pages documents to keep
@@ -160,12 +160,13 @@ test("Pages: template, name and confirmation actions remain visible in a short w
   await child.click('[data-pages-delete]');
   await child.waitFor("document.querySelector('[data-pages-confirm]').open");
   await assertFooterVisible(child, '[data-pages-confirm]');
-  // A refused deletion leaves its message in the content area, with cancel still fully reachable.
+  // A refused deletion leaves its message in the content area, with cancel still fully reachable. The page asks through the frame's
+  // molisWorkRequest, so the refusal is that helper's: an Error with the Host's status and words.
   await child.evaluate(`(() => {
-    const real = window.fetch.bind(window);
-    window.fetch = (input, init) => init?.method === 'POST' && String(input?.url || input).includes('/delete')
-      ? Promise.resolve(new Response(JSON.stringify({ error: '暂时无法删除，请检查后重试。'.repeat(60) }), { status: 503, headers: { 'content-type': 'application/json' } }))
-      : real(input, init);
+    const real = window.molisWorkRequest;
+    window.molisWorkRequest = Object.assign((url, init = {}) => init.method === 'POST' && String(url).includes('/delete')
+      ? Promise.reject(Object.assign(new Error('暂时无法删除，请检查后重试。'.repeat(60)), { status: 503 }))
+      : real(url, init), real);
   })()`);
   await child.click('[data-confirm-ok]');
   await child.waitFor("!document.querySelector('[data-pages-confirm] .mw-field__error').hidden && !document.querySelector('[data-confirm-ok][data-loading]')");
@@ -184,15 +185,17 @@ test("Pages import: a 413 clears the submission, so the retry carries a new requ
   const {evaluate,waitFor,click}=child;
   await openImportPreview(browser, child, 1440);
   // The first import request is answered 413 by a stand-in for the Host; the second one reaches the real Host and imports.
+  // The page asks through the frame's molisWorkRequest (it captured fetch when the frame started), so the stand-in wraps that helper
+  // and refuses the way the helper reports a refused request: an Error with the Host's status, code and words.
   await evaluate(`(() => {
-    const real = window.fetch.bind(window); window.__importRequestIds = [];
-    window.fetch = (input, init) => {
-      if (init && init.method === "POST" && /\\/api\\/plugins\\/io\\.molis\\.work\\.pages\\/pages\\/import\\?/.test(String(input && input.url || input))) {
-        window.__importRequestIds.push(JSON.parse(init.body).request_id);
-        if (window.__importRequestIds.length === 1) return Promise.resolve(new Response(JSON.stringify({ error: "请求内容过大", code: "actions.input_too_large" }), { status: 413, headers: { "content-type": "application/json" } }));
+    const real = window.molisWorkRequest; window.__importRequestIds = [];
+    window.molisWorkRequest = Object.assign((url, init = {}) => {
+      if (init.method === "POST" && /\\/api\\/plugins\\/io\\.molis\\.work\\.pages\\/pages\\/import(\\?|$)/.test(String(url))) {
+        window.__importRequestIds.push(init.body.request_id);
+        if (window.__importRequestIds.length === 1) return Promise.reject(Object.assign(new Error("请求内容过大"), { status: 413, code: "actions.input_too_large" }));
       }
-      return real(input, init);
-    };
+      return real(url, init);
+    }, real);
   })()`);
   await click("[data-pages-import-submit]");
   await waitFor("document.querySelector('[data-pages-import-status]').textContent.includes('请求内容过大')", 15_000);

@@ -19,9 +19,8 @@ export { createFormPlugin } from "./plugin.js";
 export { promoteForm } from "./promote.js";
 export type { FormLineHeadPort, FormPublishArtifactPort, FormReadArtifactPort, FormPublicationSnapshot } from "./promote.js";
 export { FORM_PLUGIN_ID, FORM_PROJECT_PLUGIN_ID, formManifest } from "./manifest.js";
-export { openFormStore, ownFormStores, FormStore, FORM_HOME_STORE, FORM_DATABASE } from "./store.js";
+export { ownFormStores, FormStore, FORM_HOME_STORE, FORM_DATABASE } from "./store.js";
 export type { FormSql, FormSqlValue, FormStores } from "./store.js";
-export { purgeFormProject, formProjectData } from "./project-data.js";
 export { formErrors } from "./error.js";
 
 export { formActions, FORM_ACTION_PERMISSIONS, createFormActionHandlers } from "./actions.js";

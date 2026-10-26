@@ -2,6 +2,8 @@ import type { ProjectRecord } from "@molis-ai/molis-work-contracts/modules/proje
 import type { RuntimeIntegrationService } from "./runtime-integration.js";
 import type { RuntimeIntegrationPlan } from "./runtime-integration-contract.js";
 import type { MolisWorkWebServiceManager } from "./web-service.js";
+import type { MolisWorkLocalHost } from "../project-host.js";
+import type { HomeSnapshotStoreRegistry } from "../home-store-snapshot.js";
 import type { MolisWorkWebServicePlan } from "./web-service-contract.js";
 export const UNINSTALL_OWNER = "molis-work-uninstall-v1";
 
@@ -36,12 +38,15 @@ export interface MolisWorkUninstallResult {
 
 export interface MolisWorkUninstallServiceOptions {
   homeDirectory?: string;
+  /** An in-process Host retains its existing ownership until an accepted ordinary uninstall settles. */
+  localHost?: MolisWorkLocalHost;
   projects: UninstallProjectAccess;
   runtimeIntegrationService?: RuntimeIntegrationService;
   webServiceManager?: MolisWorkWebServiceManager;
 }
 
 export interface PreparedUninstallPlan {
+  purgeRegistry?: HomeSnapshotStoreRegistry;
   publicPlan: MolisWorkUninstallPlan;
   snapshotHash: string;
   runtimePlans: RuntimeIntegrationPlan[];

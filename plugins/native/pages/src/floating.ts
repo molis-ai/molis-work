@@ -1,5 +1,4 @@
-// Placing a layer is the design system's (one way for every floating thing); what stays here is about rows and scrolling in Pages.
-export { placeFloating, scrollShouldFollow, type FloatingAnchor, type FloatingSize } from "@molis-ai/molis-work-design-system/floating";
+// Placing a layer is the Plugin SDK's `/browser` (one way for every floating thing); what stays here is about rows and scrolling in Pages.
 
 /** Scroll only the menu, so the highlighted row stays visible without moving the page. */
 export function scrollChildIntoView(

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { promises as fs } from "node:fs";
+import { promises as fs, type Stats } from "node:fs";
 import path from "node:path";
 import { WEB_CONTROL_TOKEN_RELATIVE_PATH } from "../web-control-token.js";
 import { CURRENT_LAUNCHER_NAMES, isOwnedInstaller, isOwnedLauncherText } from "./home-contract.js";
@@ -64,18 +64,35 @@ export function assetKindLabel(kind: MolisWorkUninstallChange["kind"]): string {
   return "启动器";
 }
 
-export async function pathFingerprint(target: string): Promise<string | null> {
+export async function pathFingerprint(target: string, omit?: (name: string, info: Stats) => boolean): Promise<string | null> {
   try {
-    const state = await fs.stat(target);
+    const state = await fs.lstat(target);
+    if (state.isSymbolicLink()) return `link:${digest(await fs.readlink(target))}`;
     if (state.isDirectory()) {
+      if (omit) return directoryFingerprint(target, omit);
       const entries = await fs.readdir(target);
       return `directory:${state.mtimeMs}:${entries.sort().join("\0")}`;
     }
+    if (!state.isFile()) return `special:${state.dev}:${state.ino}:${state.mode}`;
     return `file:${digest(await fs.readFile(target))}`;
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
     throw error;
   }
+}
+
+/** Metadata only: do not open/close the live ownership inode, follow links, or read key/SDK content. */
+async function directoryFingerprint(root: string, omit: (relative: string, info: Stats) => boolean): Promise<string> {
+  const hash = createHash("sha256");
+  const visit = async (relative: string): Promise<void> => {
+    const target = relative ? path.join(root, relative) : root, info = await fs.lstat(target);
+    if (relative && omit(relative.split(path.sep).join("/"), info)) return;
+    const identity = [relative, info.dev, info.ino, info.mode];
+    hash.update(JSON.stringify(info.isDirectory() ? identity : [...identity, info.size, info.mtimeMs, info.ctimeMs]));
+    if (info.isDirectory()) for (const name of (await fs.readdir(target)).sort()) await visit(relative ? path.join(relative, name) : name);
+  };
+  await visit("");
+  return `directory:${hash.digest("hex")}`;
 }
 
 async function readText(target: string): Promise<string | null> {

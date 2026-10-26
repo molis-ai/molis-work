@@ -11,7 +11,6 @@ export const registration: PluginRegistration = {
   // Originals over 6 MB, kept by digest per project (original-store.ts); the project's deletion removes its directory.
   home_store: ARTIFACTS_HOME_STORE,
   project_data: artifactsProjectData,
-  summary: "项目的固定成果，各版本可回看。",
   workbench: {
     order: 18,
     contributions: [artifactReferenceUiContribution, artifactBrowserUiContribution],

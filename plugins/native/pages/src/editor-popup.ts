@@ -1,5 +1,5 @@
 import type { EditorView } from "prosemirror-view";
-import { placeOverlay, type FloatingAnchor } from "@molis-ai/molis-work-design-system/floating";
+import { placeOverlay, type FloatingAnchor } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { ownPagesTransient } from "./editor-transient.js";
 import { freezePagesFocus, releasePagesFrozen, resolvePagesFrozen } from "./focus.js";
 import { overlayRoot } from "./editor-view-ui.js";

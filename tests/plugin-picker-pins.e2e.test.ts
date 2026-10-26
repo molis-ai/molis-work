@@ -434,6 +434,20 @@ test("DOCK-01 DOCK-13 the market and the studio are two buttons at the head of t
   if (phone.studio) assert.ok(Math.abs(phone.studio.w - phone.market.w) < 2, "sharing the line in equal halves");
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
   await frames(); await frames();
+  // BL-114: a place the rail does not list is named by its button at the head of the switcher, not by its id; BL-099:
+  // the same name reaches the window title, so `?openPlugin=market` no longer reads "market".
+  await evaluate("window.molisWorkOpenPlugin?.('market')");
+  await waitFor("document.querySelector('[data-plugin-picker-current]')?.textContent?.trim() === '插件市场'");
+  assert.equal(await evaluate("document.querySelector('[data-plugin-picker-current]')?.textContent?.trim()"), "插件市场", "the market's chip reads its name, not its id");
+  assert.equal(await evaluate("document.title"), "插件市场 · Molis Work", "and the window title does too");
+  const studioLabel = await evaluate<string | null>("document.querySelector('.plugin-picker-extend [data-plugin-id=\"plugin-builder\"] span')?.textContent?.trim() ?? null");
+  if (studioLabel) {
+    await evaluate("window.molisWorkOpenPlugin?.('plugin-builder')");
+    await waitFor(`document.querySelector('[data-plugin-picker-current]')?.textContent?.trim() === ${JSON.stringify(studioLabel)}`);
+    assert.equal(await evaluate("document.title"), studioLabel + " · Molis Work", "the studio reads its name too, not its id");
+  }
+  await evaluate("window.molisWorkOpenPlugin?.('home')");
+  await frames(); await frames();
   await click('.plugin-picker-extend [data-plugin-id="market"]');
   await waitFor("document.body.dataset.desktopSurface === 'market' || !document.querySelector('[data-work-surface=\"market\"]').hidden");
   await waitFor("document.querySelector('[data-plugin-picker-popover]').hidden");
@@ -487,4 +501,60 @@ test("DOCK-12 every state of the grid lays out cleanly: at rest, with an entry l
       void quiet;
     }
   }
+});
+
+test("SH1303-01 Alt digits use visible Dock and rail entries while extension controls stay outside", async t => {
+  const b = await openPicker(t);
+  if (!b) return;
+  const { evaluate, command, sessionId, waitFor } = b;
+  await waitFor("typeof window.molisRailShortcuts === 'function' && document.querySelector('.dock-pins [data-dock-pin]')");
+  const candidates = () => evaluate<Array<{ id: string; dock: boolean; extension: boolean }>>(`window.molisRailShortcuts().map(node => ({
+    id: node.dataset.dockPin || node.dataset.pluginId, dock: node.hasAttribute('data-dock-pin'), extension: Boolean(node.closest('.plugin-picker-extend'))
+  }))`);
+  const controls = await evaluate<string[]>("[...document.querySelectorAll('.plugin-picker-extend [data-plugin-id]')].map(node => node.dataset.pluginId)");
+  assert.ok(controls.length, "the real switcher renders platform extension controls");
+  const initial = await candidates();
+  assert.ok(initial.some(node => !node.dock), "the open rail's ordinary plugins participate");
+  assert.ok(initial.every(node => !node.extension && !controls.includes(node.id)), "extension controls consume no digit");
+
+  // Observe the original click route; the keyboard handler must select the same node as a pointer click.
+  await evaluate(`document.addEventListener('click', event => {
+    const node = event.target.closest('.dock-pins [data-dock-pin], .plugin-rail-items [data-plugin-id]');
+    if (node) window.__shortcutClick = node.dataset.dockPin || node.dataset.pluginId;
+  }, true)`);
+  const press = async (digit: number) => {
+    for (const type of ["rawKeyDown", "keyUp"]) await command("Input.dispatchKeyEvent", {
+      type, key: String(digit), code: "Digit" + digit, windowsVirtualKeyCode: 48 + digit, modifiers: 1,
+    }, sessionId);
+  };
+  // The open rail can fill all nine slots before the Dock in DOM order; close it to exercise its pins.
+  await evaluate("document.querySelector('[data-plugin-picker-toggle]').click()");
+  await waitFor("document.querySelector('[data-plugin-picker-popover]').hidden");
+  const dockCandidates = await candidates();
+  const dockIndex = dockCandidates.findIndex(node => node.dock);
+  assert.ok(dockIndex >= 0, "the closed switcher leaves visible Dock buttons eligible");
+  await press(dockIndex + 1);
+  assert.equal(await evaluate("window.__shortcutClick"), dockCandidates[dockIndex]!.id, "the Dock keeps its click navigation");
+
+  await evaluate("document.querySelector('[data-plugin-picker-toggle]').click()");
+  await waitFor("!document.querySelector('[data-plugin-picker-popover]').hidden");
+  const before = await candidates();
+  const railIndex = before.findIndex(node => !node.dock);
+  assert.ok(railIndex >= 0);
+  const railId = before[railIndex]!.id;
+  const visibility = await evaluate(`(() => {
+    const node = document.querySelector('.plugin-rail-items [data-plugin-id="' + ${JSON.stringify(railId)} + '"]');
+    node.hidden = true;
+    const attributeOnly = { display: getComputedStyle(node).display, rects: node.getClientRects().length };
+    node.style.setProperty('display', 'none', 'important');
+    return { attributeOnly, invisible: { display: getComputedStyle(node).display, rects: node.getClientRects().length } };
+  })()`);
+  t.diagnostic("rail visibility " + JSON.stringify(visibility));
+  assert.deepEqual(visibility.invisible, { display: "none", rects: 0 }, "the fixture entry is actually invisible");
+  const after = await candidates();
+  assert.equal(after.filter(node => !node.dock && node.id === railId).length, 0, "a hidden rail entry consumes no digit");
+  const nextIndex = after.findIndex(node => !node.dock);
+  assert.ok(nextIndex >= 0);
+  await press(nextIndex + 1);
+  assert.equal(await evaluate("window.__shortcutClick"), after[nextIndex]!.id, "the next visible plugin follows the same click route");
 });

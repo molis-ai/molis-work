@@ -11,7 +11,7 @@ import { homeSqlitePath, openBaselineHomeSqlite, type HomeStoreDeclaration, type
  * the real path of the file the person gave the Host's entry in an import (material-original-entry.ts). A plugin never names a path;
  * the Host records the one it was handed. An installation's id is the same in every project, so `project_id` keeps one project's
  * registrations from another's; it is '' for a Home-level activation, whose registrations every project shares. A project's rows go
- * with the project (`forgetProjectOriginalFiles`).
+ * with the project (`forgetProjectOriginalFiles`); an installation's go on every uninstall, even when its data is kept (`forgetInstallationOriginalFiles`).
  * Reading is read-only and re-resolves the path first: a path that now leads somewhere else (a symlink put in its place, a directory
  * swapped) is refused, a directory is never listed, and nothing here writes to the file or its folder.
  */
@@ -71,6 +71,12 @@ export async function releaseOriginalFile(home: string, key: PluginOriginalFileK
 export function forgetProjectOriginalFiles(home: string, projectId: string): void {
   if (!projectId || !existsSync(homeSqlitePath(home, ORIGINAL_FILES_HOME_STORE.path))) return;
   withStore(home, db => db.prepare("DELETE FROM plugin_original_files WHERE project_id = ?").run(projectId));
+}
+
+/** One installation's registrations in one project ('' for its Home-level activation), when it is uninstalled or its data dropped (BL-356). */
+export function forgetInstallationOriginalFiles(home: string, pluginId: string, installId: string, projectId: string): void {
+  if (!existsSync(homeSqlitePath(home, ORIGINAL_FILES_HOME_STORE.path))) return;
+  withStore(home, db => db.prepare("DELETE FROM plugin_original_files WHERE plugin_id = ? AND install_id = ? AND project_id = ?").run(pluginId, installId, projectId));
 }
 
 /** The path must still lead to exactly what was registered: the same real path, with no link anywhere along it. */

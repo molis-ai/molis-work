@@ -2,6 +2,7 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { inspectActionDeclarations, parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
+import { todoManifest } from "@molis-ai/molis-work-plugin-todo";
 import type { ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 
 test("scene result labels belong to a finite recommendation contract", () => {
@@ -49,9 +50,6 @@ function v2Manifest(): Record<string, unknown> {
     ui: {
       contributions: [`${PLUGIN_ID}.session`],
       views: [{ view_id: "session", slot: "stage", title: "Coding", accepts_objects: true }],
-      commands: [
-        { command_id: "open-report", title: "打开已保存报告", input_kinds: ["current", "artifacts"], opens_view_id: "session" },
-      ],
     },
     ports: {
       inputs: [
@@ -173,7 +171,7 @@ test("events stay inside the Plugin namespace and subscriptions must name their 
   }, "来源声明无效");
 });
 
-test("views and commands must resolve to declared contributions and views", () => {
+test("views must resolve to declared contributions; ui.commands is retired and refused (BL-363)", () => {
   rejects((manifest) => {
     const ui = manifest.ui as { views: Array<{ slot: string }> };
     ui.views[0]!.slot = "floating";
@@ -183,9 +181,8 @@ test("views and commands must resolve to declared contributions and views", () =
     ui.contributions = [];
   }, "未在 ui.contributions 声明");
   rejects((manifest) => {
-    const ui = manifest.ui as { commands: Array<{ opens_view_id: string }> };
-    ui.commands[0]!.opens_view_id = "missing";
-  }, "打开的视图");
+    (manifest.ui as { commands?: unknown[] }).commands = [];
+  }, "ui.commands 已取消");
 });
 
 test("routes reject duplicate paths and permissions the Manifest never declared", () => {
@@ -272,4 +269,22 @@ test("embedded plugin dependencies are explicit v2 IDs, not implicit grants or s
     ui.embedded_plugins = invalid;
     assert.throws(() => parsePluginManifest(input), (error: unknown) => (error instanceof ActionError && ["plugin.manifest_invalid","plugin.entrypoint_missing","plugin.permission_invalid","plugin.declaration_invalid"].includes(error.code) && error.kind === "invalid"));
   }
+});
+
+test("RAC-589 S-74 project_reach is declared on Home-scoped actions only, and only together with the projects:reach permission", () => {
+  const fresh = (): Record<string, unknown> => JSON.parse(JSON.stringify(todoManifest));
+  const actionsOf = (manifest: Record<string, unknown>) => manifest.actions as Array<{ capability_id: string; action: Record<string, unknown> }>;
+  const refused = (mutate: (manifest: Record<string, unknown>) => void, needle: string) => assert.throws(() => { const manifest = fresh(); mutate(manifest); parsePluginManifest(manifest); },
+    (error: unknown) => error instanceof ActionError && error.message.includes(needle), needle);
+  const parsed = parsePluginManifest(fresh());
+  const reaching = parsed.actions!.filter(definition => definition.action.project_reach === "person");
+  assert.ok(reaching.length > 0, "Todo's own page declares it");
+  assert.ok(reaching.every(definition => definition.action.scope === "home"));
+  // Declared without the permission: the installation's confirmation could not show it, so the Manifest is refused.
+  refused(manifest => { manifest.permissions = (manifest.permissions as Array<{ permission: string }>).filter(item => item.permission !== "projects:reach"); }, "projects:reach");
+  // A project-scoped action already runs in one project; the declaration only has a meaning for a Home-scoped one.
+  refused(manifest => { actionsOf(manifest).find(definition => definition.action.scope === "project")!.action.project_reach = "person"; }, "project_reach");
+  // Nothing but the person's own reach exists.
+  refused(manifest => { actionsOf(manifest).find(definition => definition.action.scope === "home")!.action.project_reach = "everyone"; }, "project_reach");
+  refused(manifest => { actionsOf(manifest).find(definition => definition.action.scope === "home")!.action.project_reach = true; }, "project_reach");
 });

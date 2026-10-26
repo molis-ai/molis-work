@@ -6,9 +6,11 @@
 
 公开入口是 [src/index.ts](src/index.ts)。Host 注入 TypeSafe provider 与当前目录校验，已删除无生产调用者的 judge/行为白名单执行分支。
 
-`createFunctionsService({ home, credential, … })` 自己按 `home` 打开判断库并播下内置规则，`close()` 关库；包入口不导出库类（`FunctionsStore`、`openFunctionsStore`）。内置规则的选项目标（`builtinSceneMap`）由组装根在规则第一次写入时给，已写下的规则不再询问；Host 对首页规则的答案是按内置插件目录里的事项动作声明算出来的，不点插件 id（PG-010，剩余见 BL-465）。包内部按职责分文件：`store.ts`（库类）、`store-schema.ts`（表与 Home 库登记）、`record-rules.ts`（校验与规整）、`record-rows.ts`（行与记录互转）、`judgments.ts`（判断记录与场景绑定）。
+`createFunctionsService({ home, credential, … })` 自己按 `home` 打开判断库，`close()` 关库；包入口不导出库类（`FunctionsStore`、`openFunctionsStore`）。本包自己没有任何规则：场景（Manifest 的 `action_scenes`，宿主自己的场景同理）用 `default_rule` 声明自己的规则，宿主在场景登记时先调 `admitDeclaredRulesIn(home, rules)` 查（只读库文件，没有库就没有冲突）、再调 `seedDeclaredRules(rules, sceneMap)` 写入，装上的插件与内置插件一样；一个 `function_key` 属于最先声明它的插件（行 id 是 `declared:<声明者>:<function_key>`，不加列），别的插件声明已被占的键，查时抛 `functions.rule_key_taken`、什么都不写；同一个键已在库里就原样保留，用户改过的不被覆盖。插件卸载不留数据、或重装丢弃时，宿主调 `forgetDeclaredRulesIn(home, 声明者, 项目, keepRules)` 删指向该插件所声明规则的场景绑定，并在 `keepRules` 为假时删规则本身（别处还有该插件的安装、或别的项目的绑定仍指着的规则留着，一条不删；用户自己的规则、别的插件的、判断记录不动；`keepRules` 由宿主按安装记录回答，Functions 不读安装记录）。规则的选项目标（`sceneMap`）由组装根在规则第一次写入时给，已写下的规则不再询问；Host 对「推荐其他插件事项动作」的场景（`recommendation_source: "subject-offers"`）的答案是按内置插件目录里的事项动作声明算出来的，不点插件 id（PG-010；装上的插件的事项动作还不参与目标映射，见 BL-531）。包内部按职责分文件：`store.ts`（库类）、`store-schema.ts`（表与 Home 库登记）、`declared-rules.ts`（按声明播规则）、`record-rules.ts`（校验与规整）、`record-rows.ts`（行与记录互转）、`judgments.ts`（判断记录与场景绑定）。
 
 `actions.ts` 定义已发布规则的查询与执行，`authoring-actions.ts` 定义管理动作。草稿管理要求 `functions:manage`，试跑同时要求 `functions:invoke`；HTTP 和内部客户端共用同一 provider 注册、参数校验及原有业务实现。
+
+判断规则的提供方 id 由 `actions.ts` 的 `FUNCTIONS_PROVIDER_ID` 持有，经本包入口导出；Host 的权限表与登记、引用使用同一常量，权限从上述动作声明读取。
 
 Functions 只经动作工具对外：查询遵守公共能力及逐客户端撤权；执行必须在“能力 → 对外接入”授予该客户端 `functions.invoke` 动作；正式 stdio 入口由常驻 Host 执行，客户端授权、后端连接和版本状态一致。模型返回后，动作通过内部 `before_result` 回调复查原权限，取消或撤权后不保存判断历史、不返回成功结果。规则身份、版本与原历史保持。Agent 的 Choice/Noul 可保存可选 `action_map`，每个输出键对应 `{ capability_id, version, provider_id }`。调用返回 `recommended_actions`，不填充业务参数、不执行目标动作。未映射项只返回原判断数据；Score 暂只返回评分。发布及模型调用前后验证准确能力和当前授权，已发布能力通过 `required_actions` 声明依赖。推荐随原判断历史保存，数据库仅新增字段。旧字符串结果不推断成能力身份。
 

@@ -25,6 +25,7 @@ const diagnostics = {
   launchers: [],
 };
 
+// RAC-159-CI: shared message catalogs must not count as project-settings UI.
 test("project manager right pane only edits identity and deletion", () => {
   const html = renderMolisWorkSettings({
     section: "projects",
@@ -48,7 +49,10 @@ test("project manager right pane only edits identity and deletion", () => {
   assert.doesNotMatch(html, /class="project-settings-fold"/);
   assert.doesNotMatch(html, /data-settings-embed=/);
   assert.doesNotMatch(html, /class="project-manager-settings"/);
-  assert.doesNotMatch(html, /data-open-project-migration|导入已有|project-migration-dialog/);
+  // The embedded Pages catalog contains “导入已有文档”; only markup can expose migration UI here.
+  const settingsMarkup = html.replace(/<script\b[^>]*>[\s\S]*?<\/script\s*>/gi, "");
+  assert.match(settingsMarkup, /data-project-manager\b/);
+  assert.doesNotMatch(settingsMarkup, /data-open-project-migration|导入已有|project-migration-dialog/);
 
   const css = renderMolisWorkSettingsStylesheet();
   assert.match(css, /\.project-manager-detail \{[^}]*width: 100%;/);

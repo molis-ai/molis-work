@@ -43,7 +43,7 @@ export async function pluginSchedulerFixture(t: TestContext, options: { director
       databases: { project: { store_name: name.replaceAll("_", "-"), version: 1, read_permission: "schedule:read", write_permission: "schedule:write",
         schema: `CREATE TABLE ${name}_notes (text TEXT NOT NULL);` } } },
       async start(context) { services = context.services; return { kind: "app", views: [], actions: [{ ...command, handle: async caller => { await work(caller); return {}; } }, { ...wake, handle: (caller, input) => onWake(caller, input) }] }; } };
-    const started = await platform.start([{ definition, bundled: true }]);
+    const started = await platform.start([{ definition, trust: { level: "host" } }]);
     assert.deepEqual(started.failed, [], JSON.stringify(started));
     assert.ok(started.running.includes(id), JSON.stringify(started));
     assert.ok(services?.project_database && services.scheduler);
@@ -51,7 +51,7 @@ export async function pluginSchedulerFixture(t: TestContext, options: { director
     return { id, get database() { return services!.project_database!; }, get schedule() { return services!.scheduler!; },
       install, restart: () => platform.runtime.start(install().install_id),
       reinstall: async () => { await platform.runtime.uninstall(install().install_id, { retain_private_data: true });
-        platform.runtime.install({ definition, deployment: "local", bundled: true }); await platform.runtime.start(install().install_id); },
+        platform.runtime.install({ definition, deployment: "local", trust: { level: "host" } }); await platform.runtime.start(install().install_id); },
       onWake: (handler: typeof onWake) => { onWake = handler; },
       invoke: (execute: typeof work, caller: Partial<ActionCallContext> = {}) => { work = execute; return actions.client.invoke({ actor_id: "tester", project_id: DEMO_PROJECT_ID,
         audience: "user", permissions: ["schedule:write"], ...caller }, command, {}); },

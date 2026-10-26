@@ -18,6 +18,7 @@ export { DIFF_STEP_BUDGET, splitLines, joinLines, reconstructSides, compareTexts
 export { parsePorcelainStatus, type GitStatus, type GitChange, type GitHead, type GitUpstream, type PorcelainInput } from "./git-porcelain.js";
 /** A message's `{name}` values filled in, with `{count|one|other}` for a word that agrees with a number. */
 export { fillMessage } from "./message-text.js";
+export { messageDeclarationProblems, PLUGIN_MESSAGE_LIMITS } from "./message-declarations.js";
 /**
  * Copied credentials masked in external text before it goes to a model or back on screen. Code colouring and rich text are
  * subpaths (`/highlight`, `/rich-text`), so an entry that does not use them loads neither the tokenizer nor the Markdown parser.
@@ -72,7 +73,7 @@ export { PLUGIN_MODEL_LIMITS } from "@molis-ai/molis-work-contracts/platform/plu
 export { defineInstructionPrompt, instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 export type { InstructionPrompt, InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 export type { ArtifactReference, ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
-export type { UiPluginClientHost, UiClientScope, UiClientTranslate, UiRequest, UiContribution, UiContributionDescriptor, UiRenderRequest, UiPageActions, UiPageView, UiPageWorkspaces, UiPageReviewQuery, UiPageReviewOutcome, UiPageReviews, UiPageDrafts, UiPageDialogs, UiPageMessage, UiPageMessages, UiPageFiles, UiTerminalCommand, UiTerminalEvent, UiTerminalView, UiTerminalMountOptions, UiPageTerminal } from "@molis-ai/molis-work-contracts/platform/ui";
+export type { UiPluginClientHost, UiClientScope, UiClientTranslate, UiRequest, UiContribution, UiContributionDeclaration, UiContributionDescriptor, UiRenderRequest, UiPageActions, UiPageView, UiPageWorkspaces, UiPageReviewQuery, UiPageReviewOutcome, UiPageReviews, UiPageDrafts, UiPageDialogs, UiPageMessage, UiPageMessages, UiPageFiles, UiTerminalCommand, UiTerminalEvent, UiTerminalView, UiTerminalMountOptions, UiPageTerminal } from "@molis-ai/molis-work-contracts/platform/ui";
 
 import type {
   IntegrationProviderPort,

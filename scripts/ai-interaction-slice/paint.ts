@@ -2,7 +2,7 @@ import { formats, labels, topics, fieldOrder, timeLimits, type DemoState, type V
 import { draftable, editable } from "./state.ts";
 import { attr, find, show, text, disable } from "./dom.ts";
 import { nextSteps, offerSteps, stepLive, type RecommendationState } from "./recommendation.ts";
-import type { InteractionClient } from "../../packages/design-system/src/interaction-client.ts";
+import type { InteractionClient } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 
 type Tone = "waiting" | "progress" | "done" | "failed" | "quiet";
 const questionBadge: Record<DemoState["question"], [string, Tone]> = {

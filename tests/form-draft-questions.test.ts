@@ -7,7 +7,8 @@ import test from "node:test";
 import type { ActionExecutionContext, ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FormRecord } from "@molis-ai/molis-work-contracts/modules/form";
 import type { AgentQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
-import { formActions, createFormActionHandlers, openFormStore, ownFormStores } from "@molis-ai/molis-work-plugin-form";
+import { formActions, createFormActionHandlers, ownFormStores } from "@molis-ai/molis-work-plugin-form";
+import { openFormStore } from "./fixtures/plugin-home-stores.js";
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 
 // specs/ai-interaction-experience S1 (AC-26): 「AI 生成题目」 first asks what it needs to know when the request does not say,

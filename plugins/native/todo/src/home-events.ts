@@ -57,7 +57,7 @@ export function createTodoHomeEventsHandler(read: <T>(run: (store: TodoStore) =>
   return { ...todoHomeEventsAction, handle: (caller: ActionCallContext, value: unknown): HomeEventCollection => {
     const window = value as HomeEventWindow;
     assertHomeEventWindow(window);
-    const access: TodoAccess = { projectId: todoCallerProject(caller), everything: false, actor: "other", actorId: caller.actor_id };
+    const access: TodoAccess = { projectId: todoCallerProject(caller), projectIds: [], actor: "other", actorId: caller.actor_id };
     return { source: { surface: TODO_PROJECT_PLUGIN_ID, title: "待办", icon: "list" }, events: read(store => todoHomeEvents(store, access, now())) };
   } };
 }

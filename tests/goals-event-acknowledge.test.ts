@@ -5,9 +5,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MolisWorkServer, openMolisWorkProjectCatalog, withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, createMolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { goalsActions, renderWorkEventBody } from "@molis-ai/molis-work-plugin-goals";
-import { createWorkbenchLocale } from "@molis-ai/molis-work-app-workbench";
-import { RECEIPT_WORDS } from "@molis-ai/molis-work-design-system";
+import { GOALS_PLUGIN_ID, goalsActions, renderWorkEventBody } from "@molis-ai/molis-work-plugin-goals";
+import { createWorkbenchLocale, inWordsOf } from "@molis-ai/molis-work-app-workbench";
+import { RECEIPT_WORDS } from "@molis-ai/molis-work-contracts/platform/ui";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionAvailability, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { GoalWorkEventRecord } from "@molis-ai/molis-work-contracts/modules/goals";
@@ -337,7 +337,8 @@ test("RCPT-382: the timeline says which session read what, how it will be handle
     assert.ok(!second!.html.includes("你的"), "the person did not write it");
 
     // English: every phrase the card adds has an English form; only the person's and the session's own words stay as written.
-    const english = createWorkbenchLocale(() => "en").L;
+    // The card is Goals' own text, so it is translated with Goals' words (its Manifest's ui.translations), not the Host's table alone (PG-071).
+    const english = inWordsOf(GOALS_PLUGIN_ID, createWorkbenchLocale(() => "en").L);
     const escape = (value: unknown) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
     const html = renderWorkEventBody(record, english, escape, {}, "user");
     assert.ok(html.includes(`read your note “${reference.title}” at cursor ${note.observed_event_cursor}`), html);

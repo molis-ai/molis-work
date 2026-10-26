@@ -134,7 +134,6 @@ const ACTION_RULES: ReadonlyArray<{ rule: string; actions: unknown; scenes?: unk
     expected: [`能力 ${KEY} 没有兑现工作流内容协议 receive v2 的输入合同`] },
   { rule: "W4-6-01 a receive that names the v2 input type but returns another output", actions: [defined({ ...receiveNow, output_type: "molis.workflow.content.receive.output.v2" }, { operation: "command" })],
     expected: [`能力 ${KEY} 没有兑现工作流内容协议 receive v2 的输出合同`] },
-  { rule: "a command whose kind is query", actions: [defined({}, { operation: "command" })], expected: [`能力 ${KEY} 的 operation 与 kind 不一致`] },
   { rule: "a query whose kind is operation", actions: [defined({ kind: "operation" })], expected: [`能力 ${KEY} 的 operation 与 kind 不一致`] },
   { rule: "a query whose kind is judgment", actions: [defined({ kind: "judgment" })], expected: [`能力 ${KEY} 的 operation 与 kind 不一致`] },
   { rule: "a navigation whose operation is command", actions: [defined({ kind: "navigation" }, { operation: "command" })], expected: [`能力 ${KEY} 的 operation 与 kind 不一致`] },
@@ -327,20 +326,14 @@ const MANIFEST_RULES: ReadonlyArray<{ rule: string; manifest: Record<string, unk
   { rule: "a method without tools", manifest: declarationManifest({ methods: [method({ tools: [] })] }), expected: "方法 summarize 只能使用业务工具：find-capabilities、read-capability、change-capability、suggest-action、ask-user、update-todo、find-tools、context-remaining、board-wait、acknowledge-inputs" },
   { rule: "a method with a tool outside the business set", manifest: declarationManifest({ methods: [method({ tools: ["find-capabilities", "write"] })] }), expected: "方法 summarize 只能使用业务工具：find-capabilities、read-capability、change-capability、suggest-action、ask-user、update-todo、find-tools、context-remaining、board-wait、acknowledge-inputs" },
   { rule: "ASC-19: a business method can declare persistent waiting", manifest: declarationManifest({ methods: [method({ tools: ["board-wait"] })] }), expected: "" },
-  // views and commands
-  { rule: "conforming views and commands", manifest: declarationManifest({ ui: uiOf() }), expected: "" },
-  { rule: "views that are not a list", manifest: declarationManifest({ ui: uiOf({ views: {}, commands: undefined }) }), expected: "ui.views 必须为数组" },
-  { rule: "a view without an id", manifest: declarationManifest({ ui: uiOf({ views: [{ slot: "stage", title: "Main" }] }) }), expected: "视图缺少 ID；命令 open 打开的视图 main 未声明" },
+  // views
+  { rule: "conforming views", manifest: declarationManifest({ ui: uiOf() }), expected: "" },
+  { rule: "views that are not a list", manifest: declarationManifest({ ui: uiOf({ views: {} }) }), expected: "ui.views 必须为数组" },
+  { rule: "a view without an id", manifest: declarationManifest({ ui: uiOf({ views: [{ slot: "stage", title: "Main" }] }) }), expected: "视图缺少 ID" },
   { rule: "a view twice", manifest: declarationManifest({ ui: uiOf({ views: [view(), view()] }) }), expected: "视图重复：main" },
   { rule: "a view with an unknown slot", manifest: declarationManifest({ ui: uiOf({ views: [view({ slot: "floating" })] }) }), expected: "视图 main 的 slot 不合法" },
   { rule: "a view without a title", manifest: declarationManifest({ ui: uiOf({ views: [view({ title: " " })] }) }), expected: "视图 main 缺少标题" },
   { rule: "a view whose contribution is not declared", manifest: declarationManifest({ ui: uiOf({ contributions: [] }) }), expected: `视图 main 的 contribution ${NAMESPACE}.main 未在 ui.contributions 声明` },
-  { rule: "a command without an id", manifest: declarationManifest({ ui: uiOf({ commands: [command({ command_id: undefined })] }) }), expected: "命令缺少 ID" },
-  { rule: "a command twice", manifest: declarationManifest({ ui: uiOf({ commands: [command(), command()] }) }), expected: "命令重复：open" },
-  { rule: "a command without a title", manifest: declarationManifest({ ui: uiOf({ commands: [command({ title: "" })] }) }), expected: "命令 open 缺少标题" },
-  { rule: "a command without input kinds", manifest: declarationManifest({ ui: uiOf({ commands: [command({ input_kinds: [] })] }) }), expected: "命令 open 必须声明输入种类" },
-  { rule: "a command with an unknown input kind", manifest: declarationManifest({ ui: uiOf({ commands: [command({ input_kinds: ["current", "weird"] })] }) }), expected: "命令 open 的输入种类 weird 不合法" },
-  { rule: "a command opening a view that is not declared", manifest: declarationManifest({ ui: uiOf({ commands: [command({ opens_view_id: "missing" })] }) }), expected: "命令 open 打开的视图 missing 未声明" },
   // routes
   { rule: "conforming routes", manifest: declarationManifest({ routes: [route()] }), expected: "" },
   { rule: "a route without an id", manifest: declarationManifest({ routes: [route({ route_id: undefined })] }), expected: "路由缺少 ID" },
@@ -367,9 +360,8 @@ function method(over: Part = {}): Part {
   return { skill_id: "summarize", version: 1, name: "Summarize", summary: "Summarizes what the person selected", tools: ["find-capabilities"], ...over };
 }
 function view(over: Part = {}): Part { return { view_id: "main", slot: "stage", title: "Main", ...over }; }
-function command(over: Part = {}): Part { return { command_id: "open", title: "Open", input_kinds: ["current"], opens_view_id: "main", ...over }; }
 function uiOf(over: Part = {}): Part {
-  return { contributions: [`${NAMESPACE}.main`], views: [view()], commands: [command()], ...over };
+  return { contributions: [`${NAMESPACE}.main`], views: [view()], ...over };
 }
 function route(over: Part = {}): Part { return { route_id: "example.list", method: "GET", path: "/items", ...over }; }
 function requirement(over: Part = {}): Part { return { capability_id: "projects.read.v1", version: 1, reason: "Read the current project", ...over }; }
@@ -491,7 +483,7 @@ test("Manifest declarations: a v2 Manifest that breaks every section reports the
     events: { publishes: [{ event_type_id: "host.stopped", type_version: 1 }] },
     agent: { roles: [], prompts: [] },
     methods: {},
-    ui: uiOf({ contributions: [], commands: [command({ opens_view_id: "missing" })] }),
+    ui: uiOf({ contributions: [] }),
     routes: [route({ method: "TRACE" })],
     requires: [requirement()],
   });
@@ -505,7 +497,6 @@ test("Manifest declarations: a v2 Manifest that breaks every section reports the
     "Agent 至少需要一个角色",
     "方法声明必须是列表",
     `视图 main 的 contribution ${NAMESPACE}.main 未在 ui.contributions 声明`,
-    "命令 open 打开的视图 missing 未声明",
     "路由 example.list 的方法不合法",
     "依赖 projects.read.v1@1 未列入 capabilities.consumes",
     "声明了输入端口就必须声明 artifact:read 权限",
@@ -526,7 +517,6 @@ const V1_BLOCKS: ReadonlyArray<readonly [string, (manifest: V1Manifest) => void]
   ["action_scenes", manifest => { manifest.action_scenes = []; }],
   ["ui.embedded_plugins", manifest => { manifest.ui.embedded_plugins = ["io.molis.work.other"]; }],
   ["ui.views", manifest => { manifest.ui.views = []; }],
-  ["ui.commands", manifest => { manifest.ui.commands = []; }],
 ];
 
 function v1Manifest(): V1Manifest {
@@ -549,6 +539,13 @@ test("a v1 Manifest is refused for each v2 block, naming the first block it carr
     if (nested) delete everything.ui[nested]; else delete everything[field!];
   }
   assert.equal(manifestProblems(everything), "");
+});
+
+test("a Manifest of either version that still declares ui.commands is refused: nothing calls them any more (BL-363)", () => {
+  for (const manifest of [v1Manifest(), { ...declarationManifest({}), ui: { contributions: [] } } as V1Manifest]) {
+    manifest.ui.commands = [];
+    assert.match(manifestProblems(manifest), /^ui\.commands 已取消/);
+  }
 });
 
 // ---- (e) the shape checks that run before any declaration is read ---------------------------------------------------------

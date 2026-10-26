@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
-import { openTodoStore } from "@molis-ai/molis-work-plugin-todo";
+import { openTodoStore } from "./fixtures/plugin-home-stores.js";
 import { createLocalFeedApplication, createLocalFeedSourceService, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
@@ -19,7 +19,7 @@ for (const width of [1440, 390]) test(`RAC-135 RAC-136 Todo ${width}px: an Inbox
   const source = createLocalFeedSourceService(store.db, projectId).register({ kind: "research_library", repository: "fixture/todo", research_source: "current" }).source;
   const item = feed.ingestItem({ source, externalId: "todo-from-inbox", title: "供应商报价需要回复", summary: "报价单", body: "请本周内确认报价", occurredAt: new Date().toISOString(), attention: false }).item;
   const entry = feed.ensureInboxEntryForFeedItem(projectId, item.item_id, "manual").entry;
-  const todos = () => { const todo = openTodoStore(homeDirectory); try { return todo.list({ projectId, everything: true, actor: "user", actorId: "test" }); } finally { todo.close(); } };
+  const todos = () => { const todo = openTodoStore(homeDirectory); try { return todo.list({ projectId, projectIds: [], actor: "user", actorId: "test" }); } finally { todo.close(); } };
   const output = new URL(`../${specEvidenceDirectory("specs/archive/todo-plugin/verification")}/`, import.meta.url);
   await mkdir(output, { recursive: true });
   const screenshot = async (name: string) => {

@@ -1,4 +1,4 @@
-PRAGMA user_version=9;
+PRAGMA user_version=10;
 PRAGMA foreign_keys=OFF;
 BEGIN TRANSACTION;
 CREATE TABLE goals (
@@ -688,6 +688,7 @@ CREATE TABLE attention_events (
       event_id TEXT PRIMARY KEY,
       project_id TEXT NOT NULL,
       entry_id TEXT NOT NULL,
+      owner_plugin_id TEXT,
       type TEXT NOT NULL,
       subject_type TEXT NOT NULL,
       subject_id TEXT NOT NULL,
@@ -705,7 +706,8 @@ CREATE TABLE feed_runtime_blobs (
     namespace TEXT NOT NULL, key TEXT NOT NULL, opaque TEXT NOT NULL, cas_token TEXT NOT NULL,
     PRIMARY KEY (namespace, key)
   );
-CREATE TABLE plugin_runtime_installs (install_id TEXT PRIMARY KEY, record_json TEXT NOT NULL);
+CREATE TABLE plugin_runtime_installs (install_id TEXT PRIMARY KEY, record_json TEXT NOT NULL,
+      publisher_trust TEXT NOT NULL CHECK (publisher_trust IN ('host', 'pinned', 'unsigned')));
 CREATE TABLE plugin_runtime_release_artifacts (
       plugin_id TEXT NOT NULL,
       publisher_signature TEXT NOT NULL,
@@ -1087,6 +1089,7 @@ INSERT INTO idempotency_records VALUES('goalboard-v1-demo','runtime-interface','
 CREATE TABLE IF NOT EXISTS "inbox_entries" (
       project_id TEXT NOT NULL REFERENCES project_root(project_id) ON DELETE CASCADE,
       entry_id TEXT NOT NULL,
+      owner_plugin_id TEXT,
       subject_type TEXT NOT NULL CHECK (subject_type IN ('feed_item', 'goal_decision', 'source_fault')),
       subject_id TEXT NOT NULL,
       reason TEXT NOT NULL CHECK (reason IN ('manual', 'source_rule', 'goal_decision', 'source_fault', 'artifact_out_failed')),
@@ -1096,8 +1099,7 @@ CREATE TABLE IF NOT EXISTS "inbox_entries" (
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL,
       completed_at TEXT,
-      PRIMARY KEY (project_id, entry_id),
-      UNIQUE (project_id, subject_type, subject_id, reason)
+      PRIMARY KEY (project_id, entry_id)
 );
 CREATE TABLE IF NOT EXISTS "library_artifacts" (
     artifact_id TEXT PRIMARY KEY,
@@ -1235,6 +1237,10 @@ CREATE INDEX feed_source_runs_project_source_idx
       ON feed_source_runs(project_id, source_id, started_at DESC);
 CREATE INDEX feed_sources_project_updated_idx
       ON feed_sources(project_id, updated_at DESC, source_id);
+CREATE UNIQUE INDEX inbox_entries_owned_subject_idx
+      ON inbox_entries(project_id, owner_plugin_id, subject_type, subject_id, reason) WHERE owner_plugin_id IS NOT NULL;
+CREATE UNIQUE INDEX inbox_entries_unassigned_subject_idx
+      ON inbox_entries(project_id, subject_type, subject_id, reason) WHERE owner_plugin_id IS NULL;
 CREATE INDEX inbox_entries_project_status_idx
       ON inbox_entries(project_id, status, updated_at DESC, entry_id);
 CREATE INDEX inbox_entries_project_subject_idx

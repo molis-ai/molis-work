@@ -22,7 +22,7 @@ const at = '2026-09-28T00:00:00.000Z', DAY = 86_400_000;
 const identity = { projectId: 'p', pluginId: 'io.molis.work.test.operations', installationId: 'installed' };
 const installation = (generation = 'first'): PluginInstanceRecord => ({ install_id: identity.installationId, plugin_id: identity.pluginId,
   installation_generation: generation, version: '1.0.0', publisher_id: 'test', publisher_signature: 'test', manifest_digest: 'test', deployment: 'local',
-  selected_entrypoint: './plugin.mjs', grants: ['storage:private'], execution: 'sandbox', state: 'running', recovery_count: 0,
+  selected_entrypoint: './plugin.mjs', grants: ['storage:private'], execution: 'sandbox', publisher_trust: 'unsigned', state: 'running', recovery_count: 0,
   last_error_code: null, installed_at: at, updated_at: at, uninstalled_at: null, retain_private_data: false });
 const descriptor = (generation = 'first') => ({ installationId: identity.installationId, generation, title: '定时笔记', version: '1.0.0', operations: [{ id: 'summarize', description: '汇总' }] });
 

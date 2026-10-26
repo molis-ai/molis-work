@@ -4,10 +4,22 @@
 
 export declare const PLUGIN_CONNECTIONS_PERMISSION = "connections:use";
 
+export declare const PLUGIN_CONNECTION_RECORD_KEY_MAX = 128;
+
+export type PluginConnectionBinding = "installation" | "per_record";
+
+export interface PluginConnectionDescription {
+    readonly bound: boolean;
+    readonly display_name?: string;
+    readonly state?: "connected" | "reauth_required" | "disconnected";
+    readonly origin?: string;
+}
+
 export type PluginConnectionMethod = "GET" | "HEAD" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 export interface PluginConnectionRequest {
     readonly url: string;
+    readonly record_key?: string;
     readonly method?: PluginConnectionMethod;
     readonly headers?: Readonly<Record<string, string>>;
     readonly body?: string;
@@ -25,12 +37,17 @@ export interface PluginConnectionSlotDeclaration {
     readonly slot_id: string;
     readonly service_id: string;
     readonly reason: string;
+    readonly binding?: PluginConnectionBinding;
 }
 
 export interface PluginConnectionsClient {
     request(slot_id: string, request: PluginConnectionRequest): Promise<PluginConnectionResponse>;
+    describe(slot_id: string, record_key?: string): Promise<PluginConnectionDescription>;
+    release(slot_id: string, record_key: string): Promise<void>;
 }
 
 export interface PluginConnectionsDeclaration {
     readonly slots: readonly PluginConnectionSlotDeclaration[];
 }
+
+export declare const isPluginConnectionRecordKey: (value: unknown) => value is string;

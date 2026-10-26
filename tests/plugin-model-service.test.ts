@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
+import { HOST_BUILD_TRUST } from "@molis-ai/molis-work-plugin-runtime";
 import type { ActionCallContext, ActionDefinition, ActionExecutionContext, ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { defineInstructionPrompt, instructed, type InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { PLUGIN_MODEL_LIMITS, type PluginDefinition, type PluginHostServices, type PluginManifest, type PluginModelClient, type PluginModelResult,
@@ -157,7 +158,7 @@ async function withoutEnvironmentModel<T>(run: () => Promise<T>): Promise<T> {
   try { return await run(); } finally { for (const name of names) if (prior[name] === undefined) delete process.env[name]; else process.env[name] = prior[name]; }
 }
 
-test("services.model is for a plugin the Host runs itself that declares model:invoke, on a platform that reaches a Home: not for a plugin that declares no model, a sandboxed one, a platform without a Home, or the upgrade preflight", { timeout: 60_000 },
+test("services.model is for a plugin the Host runs itself that declares model:invoke, on a platform that reaches a Home: not for a plugin that declares no model, a platform without a Home, or the upgrade preflight; a sandboxed package gets the same client for its broker", { timeout: 60_000 },
   withDirectory(async directory => {
     const item = platformIn(directory), declared = probe(), undeclared = probe({ name: "nomodel", declares: false });
     try {
@@ -176,10 +177,10 @@ test("services.model is for a plugin the Host runs itself that declares model:in
 
     const sandboxed = platformIn(directory), boxed = probe({ name: "boxed", execution: "sandbox" });
     try {
-      // The model is a service of the Host's own process, not of sandboxed code: a sandboxed package that declares it does not start (S-60).
-      assert.deepEqual((await sandboxed.platform.start([{ definition: boxed.definition, ...GRANTED }])).running, []);
-      assert.equal(boxed.started.length, 0, "the sandboxed plugin's code never ran");
-      assert.equal(sandboxed.platform.runtime.get(sandboxed.installId(boxed.id)).last_error_code, "sandbox.service_not_given");
+      // A sandboxed package is an install trust, not a second set of permissions (PG-017 P1, S-66): the Manifest's declaration builds the same
+      // client for it, which its broker forwards (tests/security-invariants-sandbox-model.test.ts).
+      assert.deepEqual((await sandboxed.platform.start([{ definition: boxed.definition, ...GRANTED }])).running, [boxed.id]);
+      assert.equal(typeof boxed.started.at(-1)?.model?.complete, "function", "the sandboxed plugin's start was given services.model");
     } finally { sandboxed.store.close(); }
 
     const homeless = platformIn(directory, null), alone = probe({ name: "alone" });
@@ -533,7 +534,7 @@ test("RAC-194 an owner the platform registers itself is refused instructions fro
     // A built-in plugin is no exception: Todo's instructions come with its definition, and nothing else registers them (PG-051).
     const todo = platformIn(directory, { current: standIn().complete }), own = probe({ pluginId: "io.molis.work.todo" });
     try {
-      assert.deepEqual((await todo.platform.start([{ definition: own.definition, ...GRANTED }])).running, ["io.molis.work.todo"]);
+      assert.deepEqual((await todo.platform.start([{ definition: own.definition, ...GRANTED, trust: HOST_BUILD_TRUST }])).running, ["io.molis.work.todo"]);
       assert.deepEqual(await todo.invoke(own.ask), { text: "摘要结果" });
     } finally { todo.store.close(); }
   }));
@@ -618,7 +619,7 @@ test("production path: a fixture the Host is given reaches the model the Host wa
     } finally { await noModel.close(); }
   }));
 
-test("S-18 RAC-50 RAC-53 background execution needs its declaration and active action, is absent from sandbox/preflight, and needs no model Home", withDirectory(async directory => {
+test("S-18 RAC-50 RAC-53 background execution needs its declaration and active action, is absent from preflight, and needs no model Home", withDirectory(async directory => {
   for (const kind of ["declared", "sandbox", "undeclared"] as const) {
     const item = platformIn(directory, null), probe = backgroundProbe(`background-${kind}`, "project");
     // This platform uses an inert private-storage port; lifecycle/storage refusal is tested over the real Home and project stores.
@@ -628,10 +629,10 @@ test("S-18 RAC-50 RAC-53 background execution needs its declaration and active a
     try {
       const started = await item.platform.start([{ definition: probe.definition, grants: probe.permissions }]);
       if (kind === "sandbox") {
-        // Background jobs are not given to sandboxed code (S-60, PG-017 P3): a package that declares them does not start.
-        assert.deepEqual(started.running, []);
-        assert.equal(probe.contexts.length, 0, "the sandboxed plugin's code never ran");
-        assert.equal(item.platform.runtime.get(item.installId(probe.id)).last_error_code, "sandbox.service_not_given");
+        // A run a command starts (`background_job` on an action) is given to sandboxed code (S-67, PG-017 P3): the Host builds the client from the
+        // declaration like for any plugin, and the sandbox reaches it through its lane. The kept jobs of the Manifest are still refused (tests/security-invariants-sandbox-services.test.ts).
+        assert.deepEqual(started.running, [probe.id]);
+        assert.ok(probe.contexts.at(-1)!.services!.background);
         continue;
       }
       assert.deepEqual(started.running, [probe.id]);

@@ -18,7 +18,7 @@ const home = await mkdtemp(join(tmpdir(), "molis-long-session-"));
 process.env.MOLIS_WORK_HOME = home;
 process.env.MOLIS_WORK_SECRET_BACKEND = "file";
 const { openMolisWorkProjectCatalog } = await import("@molis-ai/molis-work-app-desktop");
-const { PROJECT_SCOPED_PLUGIN_IDS } = await import("@molis-ai/molis-work-app-workbench");
+const { PROJECT_SCOPED_PLUGIN_IDS } = await import("@molis-ai/molis-work-app-local-host");
 const { createMolisWorkWebServer } = await import("../apps/desktop/launchers/web/server.js");
 const { openStudioChrome } = await import("../tests/fixtures/plugin-builder-browser.js");
 

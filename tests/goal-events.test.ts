@@ -21,15 +21,16 @@ import type {
   GoalEventTypeDefinitionInput,
   ReportGoalWorkEventInput,
 } from "@molis-ai/molis-work-contracts/modules/goals";
+import { pluginLegalSql } from "./fixtures/plugin-legal-sql.js";
 
 const BOARD = "board-events";
 const GOAL = "goal-events";
 const OTHER_BOARD = "board-other";
 const OTHER_GOAL = "goal-other";
 
-function hooks(db: LocalProjectDatabase["db"]) {
+function hooks(store: LocalProjectDatabase) {
   // W5-08-MOD-02: Goal events use the Module's business records, not its storage implementation.
-  const { records } = new GovernanceCollaborationModule({ db });
+  const { records } = new GovernanceCollaborationModule({ db: pluginLegalSql(store).db, journal: store });
   return {
     supersedePendingContractProposals: (...args: Parameters<typeof records.supersedePendingContractProposals>) =>
       records.supersedePendingContractProposals(...args),
@@ -42,7 +43,7 @@ function hooks(db: LocalProjectDatabase["db"]) {
 }
 
 function openModule(store: LocalProjectDatabase) {
-  return new GoalsModule(store.db, hooks(store.db));
+  return new GoalsModule(pluginLegalSql(store).db, store, hooks(store));
 }
 
 function fixture(options: { human?: boolean } = {}) {
@@ -861,7 +862,7 @@ test("event pages keep server order without gaps or duplicates; bad cursor, limi
 
 /** Goals composes its event application itself (PG094-07); these tests drive it over this fixture's library. */
 function eventApp({ module, store }: { module: GoalsModule<unknown>; store: LocalProjectDatabase }) {
-  const governance = new GovernanceCollaborationModule({ db: store.db });
+  const governance = new GovernanceCollaborationModule({ db: pluginLegalSql(store).db, journal: store });
   return createGoalsApplication({
     goals: { commands: module.commands, lifecycle: module.lifecycle, planning: module.planning, query: module.query, events: module.events },
     governance: { provenance: governance.provenance, query: governance.query, records: governance.records, decisions: governance.decisions,

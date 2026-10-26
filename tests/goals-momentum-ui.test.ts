@@ -3,7 +3,7 @@ import test from "node:test";
 import { createWorkbenchGoalsMomentumRenderer, createWorkbenchUiHost } from "@molis-ai/molis-work-app-workbench";
 import { GOALS_MOMENTUM_UI_CONTRIBUTION_ID, type GoalsMomentumItem, type GoalsMomentumBoardView } from "@molis-ai/molis-work-plugin-goals";
 import type { GoalRelationRecord } from "@molis-ai/molis-work-contracts/modules/goals";
-import { icon } from "@molis-ai/molis-work-design-system";
+import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { L, currentLocale, runWithLocale } from "@molis-ai/molis-work-app-local-host";
 
 const escapeHtml = (value: unknown) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");

@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { defineAction, definePlugin } from '@molis-ai/molis-work-plugin-sdk';
 import { PluginRuntime, SqlitePluginRuntimeRepository } from '@molis-ai/molis-work-plugin-runtime';
@@ -127,8 +128,8 @@ test('unknown plugin long results survive a late navigation response and render 
     async start() { return { kind: 'app', actions: [action.handler] }; } });
   const reference = molisWorkHostProjectReference({ databasePath: b.databasePath, projectId: b.projectId! });
   const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(b.store.db), undefined,
-    { actions: { registry: b.localHost!.actionRegistry(reference), project_id: b.projectId } });
-  const installed = runtime.install({ definition: plugin, deployment: 'local', grants: [] }).install;
+    { hostIds: ISOLATED_HOST_IDS, actions: { registry: b.localHost!.actionRegistry(reference), project_id: b.projectId } });
+  const installed = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: 'local', grants: [] }).install;
   await runtime.start(installed.install_id);
   try {
     const actions = bindActionClient(b.localHost!.actionClient(reference), () => ({ actor_id: 'web-user', project_id: b.projectId, audience: 'user',
@@ -162,16 +163,15 @@ test('unknown plugin long results survive a late navigation response and render 
     });
     try {
       await evaluate(`(() => {
-        const original = window.fetch;
+        const original = window.molisWorkRequest;
         window.__workflowOldReadDone = false;
-        window.fetch = async (...args) => {
-          const response = await original(...args);
-          if (String(args[0]).endsWith('/api/plugins/io.molis.work.native.workflows/workflows/${prior.workflow_id}')) {
-            await response.clone().text();
+        window.molisWorkRequest = Object.assign(async (url, init) => {
+          const answer = await original(url, init);
+          if (String(url).endsWith('/api/plugins/io.molis.work.native.workflows/workflows/${prior.workflow_id}')) {
             requestAnimationFrame(() => requestAnimationFrame(() => { window.__workflowOldReadDone = true; }));
           }
-          return response;
-        };
+          return answer;
+        }, original);
       })()`);
       await click(`[data-wf-open="${prior.workflow_id}"]`);
       await readingOld.promise;

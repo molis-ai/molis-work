@@ -1,11 +1,10 @@
 import type {
   UiContribution,
-  UiContributionDescriptor,
+  UiContributionDeclaration,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
 
-import { renderCompanionBrowserStage, type CompanionStageModel } from "@molis-ai/molis-work-design-system";
-
+import { renderCompanionBrowserStage, type CompanionStageModel } from "./companion-stage.js";
 import { pathLabel } from "./paths.js";
 import { previewMessage, type FilePreview } from "./preview.js";
 import type { FileTreeNode } from "./tree.js";
@@ -50,9 +49,8 @@ export interface FilesUiModel {
   readonly primitives: FilesUiPrimitives;
 }
 
-export const filesUiDescriptor: UiContributionDescriptor = {
+export const filesUiDescriptor: UiContributionDeclaration = {
   contribution_id: FILES_UI_CONTRIBUTION_ID,
-  plugin_id: "io.molis.work.files",
   kind: "primary-page",
   navigation_id: "files",
   label: "Files",

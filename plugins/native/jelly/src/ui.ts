@@ -1,6 +1,5 @@
-import type { UiContribution, UiContributionDescriptor, UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
-import { JELLY_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/jelly";
-import { icon, renderDatePicker, renderPluginStageShell } from "@molis-ai/molis-work-design-system";
+import type { UiContribution, UiContributionDeclaration, UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
+import { icon, renderDatePicker, renderPluginStageShell } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 export const JELLY_UI_CONTRIBUTION_ID = "io.molis.work.jelly.ui.v1";
 export type JellyUiSurface = "directory" | "workbench";
@@ -9,8 +8,8 @@ export interface JellyUiPrimitives {
   text(value: string, values?: Record<string, string | number>): string;
 }
 export interface JellyUiModel { readonly primitives: JellyUiPrimitives }
-export const jellyUiDescriptor: UiContributionDescriptor = {
-  contribution_id: JELLY_UI_CONTRIBUTION_ID, plugin_id: JELLY_PLUGIN_ID,
+export const jellyUiDescriptor: UiContributionDeclaration = {
+  contribution_id: JELLY_UI_CONTRIBUTION_ID,
   kind: "primary-page", navigation_id: "jelly", label: "Jelly",
   surfaces: [
     { surface_id: "directory", target_slot_id: "workbench.directory", format: "declarative-html" },

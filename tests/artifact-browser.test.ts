@@ -5,8 +5,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { artifactWorkbench } from "@molis-ai/molis-work-app-workbench";
-import { readArtifactBrowser } from "@molis-ai/molis-work-plugin-artifacts";
+import { readArtifactBrowser } from "@molis-ai/molis-work-module-artifacts";
 import { pinnedArtifact, titleOf } from "./fixtures/artifacts.js";
+import { installProducers } from "./fixtures/installed-producers.js";
 import type { RegisterArtifactVersionInput } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { MolisWorkLocalHost, GoalProjectApplication, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
@@ -37,6 +38,9 @@ async function fixture(t: test.TestContext) {
   seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath);
   const coordinator = new GoalProjectApplication(store), library = openProjectVersionStores(store);
+  // Installed in this project (S-81): the fixture's own writer, which also writes other owners' type ids to prove it gets no preview of theirs.
+  installProducers(store.db, { plugin_id: "io.example.writer", artifact_types: ["io.example.report", "io.molis.work.goal.delivery", "io.molis.work.feed.capture", "io.molis.work.pages.document", "coding.report.v1"] },
+    { plugin_id: "com.example.installed", artifact_types: ["coding.changeset.v1"] });
   const server = createMolisWorkWebServer({ databasePath, projectId: DEMO_PROJECT_ID, homeDirectory: directory,
     controlToken: "artifact-browser-test-control-token-0123456789" });
   t.after(async () => {
@@ -203,6 +207,7 @@ test("Artifact navigation and export retain the selected catalog Project", async
   catalog.close();
   const store = new LocalProjectDatabase(alpha.database_path);
   const library = openProjectVersionStores(store);
+  installProducers(store.db, { plugin_id: "io.example.writer", artifact_types: ["io.example.report"] });
   const original = library.artifacts.commands.registerVersion(registration({ project_id: alpha.project_id })).artifact;
   store.close();
   const server = createMolisWorkWebServer({ homeDirectory: directory, controlToken: "artifact-project-test-control-token-0123456789" });

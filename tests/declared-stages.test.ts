@@ -1,11 +1,23 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { BUILTIN_PLUGIN_CATALOG, PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, stageContributionId } from "@molis-ai/molis-work-app-workbench";
+import { BUILTIN_PLUGIN_CATALOG, stageContributionId } from "@molis-ai/molis-work-app-workbench";
 import { pluginDocuments } from "./fixtures/plugin-documents.js";
 import { renderMolisWorkWeb, type MolisWorkWebView } from "./workbench-renderer-fixture.js";
+import { withHostPluginFacts } from "./fixtures/host-plugin-facts.js";
+
+/** The page as the Host draws it: the plugins it shows and the marked directory are the Host's (W5-02 B1). */
+const draw = (view: MolisWorkWebView, goalId?: string) => renderMolisWorkWeb(withHostPluginFacts(view), goalId);
+import { PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
 
 const PROJECT = "project-declared-stages";
+
+test("FIX-2 the shared view contribution rule preserves default ids and explicit overrides", () => {
+  const manifest = { ...BUILTIN_PLUGIN_CATALOG[0]!.manifest, plugin_id: "io.molis.work.id-probe" };
+  const view = { view_id: "main", slot: "stage" as const, title: "Probe" };
+  assert.equal(stageContributionId({ ...manifest, ui: { views: [view] } }), "io.molis.work.id-probe.main");
+  assert.equal(stageContributionId({ ...manifest, ui: { views: [{ ...view, contribution_id: "explicit.probe" }] } }), "explicit.probe");
+});
 
 function emptyView(): MolisWorkWebView {
   return {
@@ -62,7 +74,7 @@ test("W5-06 PRR-12 every shown plugin's stage comes from the view that opens it,
   for (const plugin of ["feed", "inbox", "schedule", "pages", "form", "dataset", "ppt", "workflows", "lingguang", "plugin-builder", "todo", "alchemist"]) {
     assert.ok(plugins.includes(plugin), `${plugin} declares its stage in its Manifest`);
   }
-  const html = renderMolisWorkWeb({ ...emptyView(), enabled_plugins: [...PROJECT_SCOPED_PLUGIN_IDS, ...PERSONAL_PLUGIN_IDS] } as MolisWorkWebView);
+  const html = draw({ ...emptyView(), enabled_plugins: [...PROJECT_SCOPED_PLUGIN_IDS, ...PERSONAL_PLUGIN_IDS] } as MolisWorkWebView);
   for (const plugin of plugins) assert.equal(stages(html, plugin), 1, `${plugin} has one stage`);
   assert.equal(stages(html, "sources"), 1, "Feed's source page is still drawn beside its stage");
 });
@@ -76,7 +88,7 @@ test("W5-06 a plugin the project does not show has no stage, and one a host path
     plugin_stage_ids: [stageContributionId(todo.manifest)!],
     plugin_stages: ['<section data-work-surface="todo" data-stage="host"></section>'],
   } as MolisWorkWebView;
-  const owner = renderMolisWorkWeb(view);
+  const owner = draw(view);
   assert.equal(stages(owner, "dataset"), 0, "a hidden personal plugin has no stage");
   assert.equal(stages(owner, "ppt"), 0, "a hidden personal plugin has no stage");
   assert.equal(stages(owner, "schedule"), 0, "a project plugin the project has not added has no stage");
@@ -96,7 +108,7 @@ test("W5-06 Feed and Inbox draw their stage from this page's view, not the share
     source_updated_at: "2026-10-23T00:00:00.000Z", imported_at: "2026-10-23T00:00:00.000Z", updated_at: "2026-10-23T00:00:00.000Z",
     materials: [],
   } satisfies MolisWorkWebView["feed"]["feed_items"][number];
-  const html = renderMolisWorkWeb({
+  const html = draw({
     ...view,
     enabled_plugins: ["goals", "feed", "inbox"],
     feed: { ...view.feed, feed_items: [item] },

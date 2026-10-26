@@ -143,13 +143,19 @@ export type TestHostServer = Awaited<ReturnType<typeof serveTestHost>>;
 
 /**
  * An isolated Home with a host that has the product's catalog policy (a bundled plugin's actions are available in a project only
- * while the project has the plugin installed), served over HTTP by `serveTestHost`. `host` adds to the host's options and may replace
- * the policy; `catalogPolicy: false` leaves every action available. The test context closes the server, the host and the Home, in that order.
+ * while the project has the plugin installed) and its Catalog's directory list, served over HTTP by `serveTestHost`. `host` adds to the
+ * host's options and may replace the policy or directory ports; `catalogPolicy: false` leaves every action available.
+ * The test context closes the server, the host and the Home, in that order.
  */
 export async function openTestHome(t: TestContext, options: { host?: Partial<HostOptions>; catalogPolicy?: boolean } = {}) {
   const home = await mkdtemp(join(tmpdir(), "molis-test-home-"));
+  const workspaceFor = options.host?.workspaceFor;
   const host = new MolisWorkLocalHost({
     homeDirectory: home, completeText: null,
+    // Do not replace a supplied single-folder authority with the default Catalog list; explicit list options below still win.
+    workspacesFor: workspaceFor
+      ? async projectId => { const workspace = await workspaceFor(projectId); return workspace === null ? [] : [workspace]; }
+      : projectId => withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => catalog.listWorkspaceDirectory(projectId)),
     ...(options.catalogPolicy === false ? {} : { actionAvailability: projectActionAvailability(withMolisWorkProjectCatalog, home) }),
     ...options.host,
   });

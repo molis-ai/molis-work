@@ -1,6 +1,6 @@
 import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { artifactsActions } from "@molis-ai/molis-work-plugin-artifacts";
+import { artifactsActions } from "@molis-ai/molis-work-module-artifacts";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { hostErrors } from "./host-errors.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";

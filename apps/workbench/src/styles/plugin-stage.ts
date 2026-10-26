@@ -67,11 +67,6 @@ export const PLUGIN_STAGE_STYLES = `
   }
   /* A kind is not a state: kind chips stay neutral, the words tell them apart. */
   .plugin-stage-kind[data-kind] { --status-tone: var(--ink-soft); }
-  .plugin-stage-kind[data-kind="form"] { --status-tone: var(--plugin-form); }
-  .plugin-stage-kind[data-kind="dataset"] { --status-tone: var(--plugin-dataset); }
-  .plugin-stage-kind[data-kind="ppt"] { --status-tone: var(--plugin-ppt); }
-  .plugin-stage-kind[data-kind="page"] { --status-tone: var(--plugin-pages); }
-  .plugin-stage-kind[data-kind="lingguang"] { --status-tone: var(--plugin-lingguang); }
   .plugin-stage-fact, .plugin-stage-meta {
     min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     font-size: 11px; line-height: 18px;

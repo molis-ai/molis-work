@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { icon, renderStateRing, renderStatusMark, renderSpinner, stateRingFamily, STATE_RING_FAMILIES, STATE_RING_STYLES } from "@molis-ai/molis-work-design-system";
+import { icon, renderSpinner, renderStateRing, renderStatusMark, STATE_RING_FAMILIES, stateRingFamily } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { STATE_RING_STYLES } from "@molis-ai/molis-work-design-system";
 import { createWorkbenchGoalsStatusRenderer } from "@molis-ai/molis-work-app-workbench";
 
 test("RING-01 aliases share presentation without replacing the caller's business meaning", () => {

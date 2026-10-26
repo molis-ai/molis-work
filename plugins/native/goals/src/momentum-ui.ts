@@ -69,7 +69,7 @@ export type GoalsMomentumUiModel = { primitives: GoalsMomentumUiPrimitives } & (
 export const GOALS_MOMENTUM_UI_SURFACES = { renderGoalMomentum: "momentum", renderMomentumPlaceholder: "placeholder", renderGoalKanban: "kanban" } as const satisfies Record<keyof GoalsMomentumRenderer, GoalsMomentumUiModel["kind"]>;
 export const goalsMomentumUiContribution: UiContribution<GoalsMomentumUiModel> = {
   descriptor: {
-    contribution_id: GOALS_MOMENTUM_UI_CONTRIBUTION_ID, plugin_id: "io.molis.work.native.goals", kind: "embedded", label: "Goal momentum",
+    contribution_id: GOALS_MOMENTUM_UI_CONTRIBUTION_ID, kind: "embedded", label: "Goal momentum",
     surfaces: Object.values(GOALS_MOMENTUM_UI_SURFACES).map(surface_id => ({ surface_id, target_slot_id: "workbench.main", format: "declarative-html" })), slots: [],
   },
   render({ surface, model }) {

@@ -1,13 +1,13 @@
 import { pluginPageRequest } from "./plugin-page-authority.js";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { projectRouteControl } from "./plugin-actions-client.js";
 import { handlePluginEventHttp, isPluginEventManagementPath } from "./plugin-event-http.js";
-import type { PluginPlatform } from "./plugin-platform.js";
 import { pluginRouteControl } from "./plugin-route-control.js";
-import { dispatchRuntimePluginRoute, type RuntimePluginRouteHooks } from "./plugin-route-operations.js";
+import { dispatchRuntimePluginRoute } from "./plugin-route-operations.js";
 import { ensureProjectPlugins, type ProjectPluginPorts } from "./project-plugins.js";
+import { announceProjectOpened } from "./workspace-settings-events.js";
 import { sendLocalWebJson } from "./web-http.js";
 
 /**
@@ -20,21 +20,6 @@ export interface ProjectPluginHttpPorts extends ProjectPluginPorts {
   routeCaller?(): Promise<ActionCallContext>;
 }
 
-/** One plugin route on its way through the project entry. */
-interface ProjectPluginRoute {
-  readonly platform: PluginPlatform;
-  readonly pluginId: string;
-  readonly request: IncomingMessage;
-  readonly url: URL;
-  readonly ports: ProjectPluginHttpPorts;
-}
-
-/**
- * What a caller does before one route; the entry itself only lets the input graph settle after the plugin answered. Nothing is
- * added to a plugin's answer: a plugin draws what its page shows (PG-062).
- */
-export type ProjectPluginRouteHooks = (route: ProjectPluginRoute) => Pick<RuntimePluginRouteHooks, "beforeDispatch">;
-
 /** How many plugin deliveries wait on the person in this project; the market resolves them (the page's attention read). */
 export async function pluginEventsPending(ports: ProjectPluginHttpPorts): Promise<number> {
   const record = await ensureProjectPlugins(ports);
@@ -42,8 +27,7 @@ export async function pluginEventsPending(ports: ProjectPluginHttpPorts): Promis
   return record.platform.events.recoveries(ports.projectId).length;
 }
 
-export async function handleProjectPluginHttp(request: IncomingMessage, response: ServerResponse, url: URL, ports: ProjectPluginHttpPorts,
-  hooks?: ProjectPluginRouteHooks): Promise<boolean> {
+export async function handleProjectPluginHttp(request: IncomingMessage, response: ServerResponse, url: URL, ports: ProjectPluginHttpPorts): Promise<boolean> {
   const runtimeUpdates = url.pathname === "/api/plugins/runtime/updates" && request.method === "GET";
   const runtimeEvents = isPluginEventManagementPath(url.pathname);
   const pluginRoute = url.pathname.match(/^\/api\/plugins\/(io\.molis\.work\.[a-z0-9][a-z0-9.-]*)\/(.+)$/u);
@@ -57,13 +41,13 @@ export async function handleProjectPluginHttp(request: IncomingMessage, response
   if (runtimeUpdates) {
     const updates = record.platform.upgradeCandidates().map(candidate => ({
       ...candidate,
-      project_plugin_id: BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.plugin_id === candidate.plugin_id)?.project_plugin_id ?? null,
+      project_plugin_id: PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === candidate.plugin_id)?.project_plugin_id ?? null,
     }));
     sendLocalWebJson(response, 200, { updates });
     return true;
   }
   const pluginId = pluginRoute![1]!, platform = record.platform;
-  const around = hooks?.({ platform, pluginId, request, url, ports }) ?? {};
+  await announceProjectOpened(platform, ports);
   const abort = new AbortController(), pageAuthority = pluginPageRequest(request);
   const stop = () => abort.abort(new ActionError("actions.cancelled", "这次调用已结束"));
   request.once("aborted", stop); response.once("close", stop);
@@ -76,7 +60,6 @@ export async function handleProjectPluginHttp(request: IncomingMessage, response
     abort.signal.throwIfAborted();
     if (caller) routed = projectRouteControl(plain, ports.projectId, ports.actions.client, async () => { current(); }, caller);
     return await dispatchRuntimePluginRoute(platform, pluginId, pluginRoute![2]!, request, response, url, ports.actorId, {
-      ...around.beforeDispatch ? { beforeDispatch: around.beforeDispatch } : {},
       async afterDispatch() { await platform.wiring.drain(); },
     }, { execution: routed?.control ?? plain, stop });
   } finally {

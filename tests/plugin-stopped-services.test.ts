@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -34,9 +35,9 @@ function stopProbe(name: string) {
   const id = `io.molis.work.example.${name}`, write = `${name}:write`;
   const on: { touch?: (services: PluginHostServices, activation: number) => string | Promise<string> } = {};
   const touch: ActionDefinition<Record<string, never>, string> = { capability_id: `${name}.touch`, version: 1, operation: "command",
-    action: { title: "改动", description: "处理器跑过就记下是哪一次启动", kind: "operation", scope: "project", audiences: ["user"], permissions: [write],
+    action: { title: "改动", description: "处理器跑过就记下是哪一次启动", kind: "operation", scope: "project", audiences: ["user", "plugin"], permissions: [write],
       subject_kinds: [], input_schema: { type: "object", additionalProperties: false } } };
-  const view = { contribution_id: `${id}.list`, plugin_id: id, kind: "embedded" as const, label: "列表", slots: [] };
+  const view = { contribution_id: `${id}.list`, kind: "embedded" as const, label: "列表", slots: [] };
   const contexts: PluginStartContext[] = [], ran: number[] = [], atStop: unknown[] = [];
   const definition: PluginDefinition = { manifest: { schema_version: 2, host_api_version: 2, plugin_id: id, version: "1.0.0", name, kind: "app",
     publisher: { publisher_id: "example", signature: `stopped-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./entry.mjs" }],
@@ -64,10 +65,10 @@ function projectRig(t: TestContext, probe: ReturnType<typeof stopProbe>) {
     artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
     processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }), ui: new UiHost(), invalidateView: id => invalidated.push(id),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) });
-  const runtime = new PluginRuntime(undefined, executor, { actions: pluginActions(store, DEMO_PROJECT_ID) });
+  const runtime = new PluginRuntime(undefined, executor, { hostIds: ISOLATED_HOST_IDS, actions: pluginActions(store, DEMO_PROJECT_ID) });
   const installs: string[] = [];
   const install = () => {
-    const installId = runtime.install({ definition: probe.definition, deployment: "local", grants: probe.definition.manifest.permissions.map(item => item.permission) }).install.install_id;
+    const installId = runtime.install({ trust: { level: "unsigned" }, definition: probe.definition, deployment: "local", grants: probe.definition.manifest.permissions.map(item => item.permission) }).install.install_id;
     installs.push(installId);
     return installId;
   };

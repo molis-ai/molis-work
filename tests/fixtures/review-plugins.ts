@@ -1,10 +1,11 @@
+import { ISOLATED_HOST_IDS } from "./isolated-host.js";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { LocalProjectDatabase, PluginHostExecutor, type MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, PluginHostExecutor, type MolisWorkLocalHost, hostDependencyCheck } from "@molis-ai/molis-work-app-local-host";
 
 /*
  * A Host operation a person reviews is asked for by a plugin through its SDK, with the caller the Host issued its session, and
@@ -17,17 +18,17 @@ export function reviewPlugins(host: MolisWorkLocalHost, reference: LocalHostProj
   const store = new LocalProjectDatabase(databasePath);
   const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions: { registry: host.actionRegistry(reference),
     client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, project_id: reference.project_id },
-    project_id: reference.project_id, actor_id: LOCAL_PERSON_ACTOR_ID, ui: new UiHost(), capabilities: host.client(reference),
+    project_id: reference.project_id, actor_id: LOCAL_PERSON_ACTOR_ID, ui: new UiHost(), dependencyCheck: hostDependencyCheck(host.client(reference)),
     artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
     processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
-    privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) }));
+    privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) }), { hostIds: ISOLATED_HOST_IDS });
   const started = new Map<string, PluginStartContext>(), installs: string[] = [];
   return {
     runtime,
     /** Installs and starts `plugin_id`, declaring `permissions`, consuming `consumes` and granted `grants`; returns its installation. */
     async start(plugin_id: string, permissions: PluginManifest["permissions"], grants: readonly string[], consumes: readonly string[]): Promise<string> {
       const name = plugin_id.split(".").at(-1)!;
-      const { install } = runtime.install({ deployment: "local", grants: [...grants], definition: {
+      const { install } = runtime.install({ trust: { level: "unsigned" }, deployment: "local", grants: [...grants], definition: {
         manifest: { schema_version: 2, host_api_version: 2, plugin_id, version: "1.0.0", name, kind: "app",
           publisher: { publisher_id: "example", signature: `example-${name}` }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
           permissions, capabilities: { provides: [], consumes: [...consumes] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] } },

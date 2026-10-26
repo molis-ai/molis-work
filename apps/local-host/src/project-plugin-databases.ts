@@ -1,4 +1,4 @@
-import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { PLATFORM_PLUGIN_REGISTRATIONS, runsInHome } from "./plugin-registry.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { openPluginProjectDatabase, type PluginProjectDatabaseRecord, type PluginProjectSchemaInspector, type PluginRuntimeDatabase } from "@molis-ai/molis-work-plugin-runtime";
@@ -27,7 +27,7 @@ const outcomes = new WeakMap<object, ReadonlyMap<string, ProjectPluginDatabaseOu
 
 /** The built-in project plugins that declare tables in the project's library, from the one catalog, in its order. */
 function projectDatabasePlugins(): PluginManifest[] {
-  return BUILTIN_PLUGIN_CATALOG.filter(entry => entry.runtime?.scope !== "home" && entry.manifest.databases?.project).map(entry => entry.manifest);
+  return PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => !runsInHome(entry) && entry.manifest.databases?.project).map(entry => entry.manifest);
 }
 
 /** Open one plugin's tables in the library at `path` (made and recorded the first time), or throw its refusal. */

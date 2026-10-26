@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
@@ -52,7 +53,7 @@ test("a Runtime plugin reaches an action only when its Manifest consumes it: as 
   const artifacts = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event) }), processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event) });
   const privateStorage = new SqlitePluginPrivateStorage(store.db);
   const runtime = new PluginRuntime(undefined, new PluginHostExecutor({ actions, project_id: DEMO_PROJECT_ID, actor_id: "owner", artifacts, processItems,
-    ui: new UiHost(), privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) }), { actions });
+    ui: new UiHost(), privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) }), { hostIds: ISOLATED_HOST_IDS, actions });
   const contexts = new Map<string, PluginStartContext>();
   const pluginFor = (name: string, consumes: string[], ownAction = true): PluginDefinition => {
     const own: ActionDefinition = { capability_id: `${name}.list`, version: 1, operation: "query", action: { title: name, description: "Lists through the workspace read", kind: "query", scope: "project",
@@ -66,7 +67,7 @@ test("a Runtime plugin reaches an action only when its Manifest consumes it: as 
   };
   try {
     const start = async (name: string, consumes: string[], grants: string[], ownAction = true) => {
-      const installed = runtime.install({ definition: pluginFor(name, consumes, ownAction), deployment: "local", grants }).install;
+      const installed = runtime.install({ trust: { level: "unsigned" }, definition: pluginFor(name, consumes, ownAction), deployment: "local", grants }).install;
       await runtime.start(installed.install_id);
       return installed;
     };
@@ -301,9 +302,9 @@ test("a Home that installed Files, Git and Coding before the read permission exi
       capabilities: { ...manifest.capabilities, consumes: manifest.capabilities.consumes.filter(id => id !== readFile.capability_id && id !== readGit.capability_id) } };
     // The Home outlives the process: the same records, read by the next start of the Host.
     const records = new MemoryPluginRuntimeRepository();
-    const installed = new PluginRuntime(records).install({ definition: { manifest: before, start: async () => ({ kind: "app" }) } as PluginDefinition, deployment: "local" }).install;
+    const installed = new PluginRuntime(records, undefined, { hostIds: ISOLATED_HOST_IDS }).install({ trust: { level: "host" }, definition: { manifest: before, start: async () => ({ kind: "app" }) } as PluginDefinition, deployment: "local" }).install;
     assert.ok(!installed.grants.includes("workspace:read"), manifest.plugin_id);
-    const followed = new PluginRuntime(records).install({ definition: { manifest, start: async () => ({ kind: "app" }) } as PluginDefinition, deployment: "local", bundled: true }).install;
+    const followed = new PluginRuntime(records, undefined, { hostIds: ISOLATED_HOST_IDS }).install({ definition: { manifest, start: async () => ({ kind: "app" }) } as PluginDefinition, deployment: "local", trust: { level: "host" } }).install;
     assert.equal(followed.install_id, installed.install_id, "the same installation, so its private data stays attached");
     assert.ok(followed.grants.includes("workspace:read"), manifest.plugin_id);
     for (const permission of installed.grants) assert.ok(followed.grants.includes(permission), `${manifest.plugin_id} keeps ${permission}`);

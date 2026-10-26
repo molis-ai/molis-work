@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -223,8 +224,8 @@ test("Home judgment resolves a formally installed plugin's own subjects and pins
       } }, { ...events, handle: () => ({ source: { surface: "notes", title: "笔记", icon: "note" }, events: [{ event_id: "own-note", subject, occurred_at: now,
         placement: "occurred", category: "personal", title: "插件自有笔记", summary: "", content: "插件私有记录的原始正文", facts: [], needs_attention: true, open: null }] }) }] }; } });
     const repository = new SqlitePluginRuntimeRepository(project.store.db);
-    runtime = new PluginRuntime(repository, undefined, { actions: { registry: host.actionRegistry(reference), project_id: reference.project_id } });
-    installId = runtime.install({ definition: plugin, deployment: "local", grants: ["notes:read", "notes:write"] }).install.install_id;
+    runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: host.actionRegistry(reference), project_id: reference.project_id } });
+    installId = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["notes:read", "notes:write"] }).install.install_id;
     await runtime.start(installId);
     const choice = () => subjectOfferChoiceKey({ ...offerQuery, provider_id: installId }, offerQuery.action.subject_offer_choices![0]!);
     let selectedKey = choice();
@@ -306,7 +307,7 @@ test("Home judgment resolves a formally installed plugin's own subjects and pins
     repository.save({ ...runtime.get(installId), grants: ["notes:read", "notes:write"] });
     await runtime.stop(installId); await runtime.uninstall(installId);
     assert.deepEqual((await recommendations()).judgments, []);
-    installId = runtime.install({ definition: { ...plugin, manifest: { ...plugin.manifest, plugin_id: "io.molis.work.example.replacement-subject" } }, deployment: "local", grants: ["notes:read", "notes:write"] }).install.install_id;
+    installId = runtime.install({ trust: { level: "unsigned" }, definition: { ...plugin, manifest: { ...plugin.manifest, plugin_id: "io.molis.work.example.replacement-subject" } }, deployment: "local", grants: ["notes:read", "notes:write"] }).install.install_id;
     await runtime.start(installId);
     assert.deepEqual((await recommendations()).judgments, [], "identical content from a replacement provider cannot inherit original recommendations");
     await assert.rejects(evaluate(), { code: "actions.binding_invalid" });

@@ -14,7 +14,7 @@ import { ActionService } from "@molis-ai/molis-work-kernel";
 const TOKEN = "inbox-plugin-test-token-0123456789012345";
 
 test("W3-02-G1-05 Inbox refuses a Goal decision handover without changing the attention fact", async () => {
-  const entry = { entry_id: "decision-1", subject_type: "goal_decision" as const, subject_id: "goal-1", reason: "goal_decision" as const,
+  const entry = { entry_id: "decision-1", owner_plugin_id: null, subject_type: "goal_decision" as const, subject_id: "goal-1", reason: "goal_decision" as const,
     status: "open" as const, detail: {}, revision: 1, created_at: "2026-10-12T00:00:00Z", updated_at: "2026-10-12T00:00:00Z", completed_at: null };
   const before = structuredClone(entry), effects: string[] = [];
   const unexpected = (): never => { effects.push("unexpected write or Feed access"); throw new Error("a Goal decision has no Feed handover body"); };

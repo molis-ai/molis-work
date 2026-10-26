@@ -6,12 +6,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ActionError, bindActionClient, retainActionAuthority, type ActionCallContext, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { formActions, FORM_ACTION_PERMISSIONS, createFormActionHandlers, openFormStore, ownFormStores } from "@molis-ai/molis-work-plugin-form";
-import { datasetActions, DATASET_ACTION_PERMISSIONS, openDatasetStore } from "@molis-ai/molis-work-plugin-dataset";
-import { lingguangActions, LINGGUANG_ACTION_PERMISSIONS, openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
-import { pagesActions, PAGES_ACTION_PERMISSIONS, openPagesStore } from "@molis-ai/molis-work-plugin-pages";
-import { cogniaActions, COGNIA_ACTION_PERMISSIONS, openCogniaStore } from "@molis-ai/molis-work-plugin-cognia";
-import { pptActions, PPT_ACTION_PERMISSIONS, openPptStore } from "@molis-ai/molis-work-plugin-ppt";
+import { formActions, FORM_ACTION_PERMISSIONS, createFormActionHandlers, ownFormStores } from "@molis-ai/molis-work-plugin-form";
+import { openFormStore, openPagesStore } from "./fixtures/plugin-home-stores.js";
+import { datasetActions, DATASET_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-dataset";
+import { openDatasetStore } from "./fixtures/plugin-home-stores.js";
+import { lingguangActions, LINGGUANG_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-lingguang";
+import { openLingguangStore } from "./fixtures/plugin-home-stores.js";
+import { pagesActions, PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-pages";
+import { cogniaActions, COGNIA_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-cognia";
+import { openCogniaStore } from "./fixtures/plugin-home-stores.js";
+import { pptActions, PPT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-ppt";
+import { openPptStore } from "./fixtures/plugin-home-stores.js";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalHost, MolisWorkLocalHost, molisWorkHostProjectReference, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
 
@@ -162,21 +167,22 @@ for (const kind of ["form", "dataset", "lingguang", "pages", "cognia", "ppt"] as
 test("effect guard rechecks the actual Catalog installation after an asynchronous call, then permits reactivation", { timeout: 15_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "catalog-install-effect-")), catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const project = await catalog.createProject({ display_name: "Installation lifecycle", actor_id: "owner" });
-  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: "owner" });
+  // Schedule, not Goals: Goals is a 常开 plugin (ac-trust T3) that no project removes.
+  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "schedule", actor_id: "owner" });
   const entered = gate(), release = gate();
   const host = new LocalHost({ runtimeFactory: { open: () => ({ writes: 0 }), close: () => {} },
     actionAvailability: projectActionAvailability(async (_, run) => run(catalog), home) });
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-  const action = { ...definition, action_provider: { provider_id: "io.molis.work.goals", plugin_id: "io.molis.work.goals", kind: "plugin" as const, title: "Goals", project_id: project.project_id } };
+  const action = { ...definition, action_provider: { provider_id: "io.molis.work.schedule", plugin_id: "io.molis.work.schedule", kind: "plugin" as const, title: "Schedule", project_id: project.project_id } };
   host.registerAction(action, async (runtime, _input, invocation) => { entered.resolve(); await release.promise; await invocation.beforeEffect(); return ++runtime.writes; });
   const context: ActionCallContext = { ...caller, project_id: project.project_id }, client = host.actionClient(reference);
   try {
     const pending = client.invoke(context, action, {}), rejected = assert.rejects(pending, errorCode("actions.plugin_disabled"));
     await entered.promise;
-    catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: "owner" });
+    catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id: "schedule", actor_id: "owner" });
     release.resolve(); await rejected;
     await host.withRuntime(reference, runtime => assert.equal(runtime.writes, 0));
-    catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "goals", actor_id: "owner" });
+    catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "schedule", actor_id: "owner" });
     assert.equal(await client.invoke(context, action, {}), 1);
   } finally { release.resolve(); await host.close(); catalog.close(); await rm(home, { recursive: true, force: true }); }
 });

@@ -6,7 +6,7 @@ import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
 import { asideReply } from "./fixtures/ending-review.js";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { openCogniaStore } from "@molis-ai/molis-work-plugin-cognia";
+import { openCogniaStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
@@ -59,8 +59,12 @@ for (const width of [1440, 390]) test(`SYS-15 Cognia ${width}px: directory previ
   await waitFor("document.querySelector('#cognia-dialog-title').textContent === '审阅知识草稿' && !document.querySelector('[data-cognia-submit]').disabled");
   assert.equal(read().drafts.length, 2); assert.equal(read().drafts[0]!.references[0]!.revision, 1);
   await click('[data-cognia-dialog] header [data-cognia-action=close]');
+  // SYS-15: reload the list only after Back clears the reader and the shell's saved object.
+  await click('[data-cognia-action=back]');
+  await waitFor("document.querySelector('[data-cognia=workbench]').dataset.expanded === 'false' && document.querySelector('[data-cognia-workspace]').hidden");
+  await browser.waitFor("(() => { const surface = document.querySelector('[data-work-surface=cognia][data-assistant-context]'); return surface?.dataset.expanded === 'false' && !JSON.parse(surface.dataset.assistantContext).object; })()");
   await reloadPage(); await open();
-  await waitFor("document.querySelectorAll('[data-cognia-id]').length === 2");
+  await waitFor("document.querySelectorAll('[data-cognia-id]').length === 2 && [...document.querySelectorAll('[data-cognia-id]')].every(row => row.getClientRects().length > 0)");
   assert.equal(read().materials.find(m => m.id === source.id)!.body.includes("UPDATED_EVIDENCE"), true);
   await writeFile(new URL(`cognia-library-${width}.png`, output), Buffer.from((await command<{ data: string }>("Page.captureScreenshot", { format: "png" }, sessionId)).data, "base64"));
   await evaluate("document.querySelector('[data-cognia-source]').value=" + JSON.stringify(source.source_id) + ";document.querySelector('[data-cognia-source]').dispatchEvent(new Event('change',{bubbles:true}))");

@@ -4,7 +4,7 @@ Status: `partial`
 
 Jelly 的日历与笔记工作区，使用 Molis Work 控件与舞台。收想法只在灵光（2026-10-01 起，见 `specs/archive/post-merge-review/spec.md` PMR-22）：Jelly 不再有灵感页，也不再读取文件与网页。个人数据独立存于 `{home}/jelly/jelly.db`；不会访问或覆盖原 Jelly 数据。功能目标与差异见 `specs/archive/jelly-plugin/`。
 
-Contract: `@molis-ai/molis-work-contracts/platform/plugin` 与 `@molis-ai/molis-work-contracts/modules/jelly`。
+Contract: `@molis-ai/molis-work-contracts/platform/plugin` 与 `@molis-ai/molis-work-plugin-jelly/contract`。
 Migration Goal: `goal-reorg-f2`。
 
 Home Plugin Runtime 通过 `services.model` 提供模型能力；`completeJson` 使用 Prologue 的公共格式解码，Jelly 只验证领域内容。模型调用前后都复查原 Action 权限；MCP 客户端须在「能力 → 对外接入」逐项授权。AI 提案只有在用户确认后才写入日历或笔记。当前实现、工程证据、实际体验和真人验收分别记录，不将本地构建视为完整复刻验收。
@@ -18,8 +18,8 @@ Web 本地用户与 MCP 客户端分别授权；项目访问不自动授予个�
 
 - 负责：个人日历与笔记工作区；作为内容站点接收交来的笔记。
 - 不负责：原 Jelly App 的数据、项目 Goal 事实、第二个运行时。
-- 公开入口：`@molis-ai/molis-work-plugin-jelly`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`、`@molis-ai/molis-work-design-system`、`@molis-ai/molis-work-storage`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 公开入口：`@molis-ai/molis-work-plugin-jelly`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；插件协议 `@molis-ai/molis-work-contracts/platform/plugin`，数据合同 `@molis-ai/molis-work-plugin-jelly/contract`（`src/contract.ts`）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 不访问或覆盖原 Jelly 数据。
   - AI 提案只有用户确认后才写入日历或笔记。
@@ -34,6 +34,6 @@ Web 本地用户与 MCP 客户端分别授权；项目访问不自动授予个�
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/jelly-actions.e2e.test.ts tests/jelly-outside-changes.e2e.test.ts tests/model-ready-surfaces.e2e.test.ts`（页面在没有模型时显示「没有模型」，模型设置页宣布第一个模型（`molis-work:model-ready`）后它要重读；这个文件每个页面一条用例）。
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
-页面客户端是 `src/browser/` 的 TypeScript（`tsconfig.browser.json` 类型检查），构建时由 esbuild 打成 `dist/jelly-client.js`，`src/client.ts` 读取它；页面上的字是 `src/messages.ts` 里的稳定键 `jelly.<区域>.<名称>`（`registration.messages`），请求只经共同的 `molisWorkRequest`，不直接 `fetch`。`src/en.ts` 只留 3 个宿主还按中文原文翻译的词（搜索结果种类名 `笔记`、`日程` 和动作标题 `新建笔记`，BL-456）；别的主人查的词在各自的词典里。
+页面客户端是 `src/browser/` 的 TypeScript（`tsconfig.browser.json` 类型检查），构建时由 esbuild 打成 `dist/jelly-client.js`，`src/client.ts` 读取它；页面上的字是 `src/messages.ts` 里的稳定键 `jelly.<区域>.<名称>`（Manifest 的 `ui.messages`），请求只经共同的 `molisWorkRequest`，不直接 `fetch`。`src/en.ts` 只留 3 个宿主还按中文原文翻译的词（搜索结果种类名 `笔记`、`日程` 和动作标题 `新建笔记`，BL-456）；别的主人查的词在各自的词典里。
 
 读取文件与网页（文字提取、图片识别、音视频转写）现在归灵光，经 Host 的 `materials` 契约执行。

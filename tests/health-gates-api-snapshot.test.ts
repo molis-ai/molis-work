@@ -378,10 +378,17 @@ test("the committed snapshots of this repository leave no mentioned declaration 
   // One snapshot per contracts entry (the root and every subpath) plus the plugin SDK's own: tied to package.json, so a subpath that goes needs no edit here.
   const contractsEntries = Object.keys(JSON.parse(readFileSync(path.join(repoRoot, "packages/contracts/package.json"), "utf8")).exports).length;
   assert.ok(snapshots.length > contractsEntries, "the snapshots are committed");
+  // A property key (`STEP: …` in an object type) names no declaration whatever its case; only what follows its colon can. A key
+  // is a name after `{`, `;`, `,` or `(` (a line break between is fine) and before `:`; a name that starts a line after `?` is a
+  // conditional type's branch, a reference, and stays.
+  const withoutKeys = (text: string) => text.replace(/([{;,(])(\s*(?:readonly\s+)?)[A-Za-z_$][A-Za-z0-9_$]*\??(?=\s*:)/g, "$1$2");
+  assert.doesNotMatch(withoutKeys("interface Words {\n    STEP: Record<AgentStepState, string>;\n    readonly LABEL?: string;\n}"), /STEP|LABEL/, "a property key is not a reference");
+  assert.match(withoutKeys("export type Probe<T> = T extends string ?\n MissingHelper : never;"), /MissingHelper/, "a conditional type's branch on its own line is a reference");
+  assert.match(withoutKeys("export type Pick = (value: Helper) => Other;"), /Helper[\s\S]*Other/, "a parameter's type and a return type are references");
   const DECLARATION = /^(?:export\s+)?(?:declare\s+)?(?:abstract\s+)?(?:const|let|var|function|class|interface|type|enum|namespace)\s+([A-Za-z_$][A-Za-z0-9_$]*)/gm;
   const carried = new Set(snapshots.flatMap(({ text }) => [...text.matchAll(DECLARATION)].map((match) => match[1])));
   const missing = snapshots.flatMap(({ file, text }) => {
-    const body = text.replace(/"(?:[^"\\]|\\.)*"/g, '""').replace(/^\/\/.*$/gm, "");
+    const body = withoutKeys(text.replace(/"(?:[^"\\]|\\.)*"/g, '""').replace(/^\/\/.*$/gm, ""));
     return [...new Set(body.match(/(?<![A-Za-z0-9_$])[A-Z][A-Za-z0-9_$]*/g) ?? [])].filter((name) => declared.has(name) && !carried.has(name)).map((name) => `${path.relative(repoRoot, file)}: ${name}`);
   });
   assert.deepEqual(missing, [], "a snapshot mentions a declaration that no snapshot carries; the helper lookup in scripts/gates/api-snapshot.mjs does not reach it");

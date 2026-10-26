@@ -4,7 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { openPptStore, ownPptStores, PPT_DATABASE, PPT_HOME_STORE } from "@molis-ai/molis-work-plugin-ppt";
+import { ownPptStores, PPT_DATABASE, PPT_HOME_STORE } from "@molis-ai/molis-work-plugin-ppt";
+import { openPptStore } from "./fixtures/plugin-home-stores.js";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 
 // W5-01-PPT-STORE-01: the unique declaration is the Home baseline, and the narrow SQL port reads and writes through one store.

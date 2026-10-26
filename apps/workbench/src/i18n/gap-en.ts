@@ -44,7 +44,7 @@ export const GAP_EN: Record<string, string> = {
   "未添加": "not added",
   "从本项目移除": "Remove from this project",
   "添加到本项目": "Add to this project",
-  "Goals 随项目一起创建，不能从项目移除": "Goals is created with the project and cannot be removed from it",
+  "常开插件不能从项目移除": "An always-on plugin cannot be removed from a project",
   "再点一次移除；同时移除：{list}": "Press again to remove; also removes: {list}",
   "再点一次移除": "Press again to remove",
   "同时添加了：{list}": "Also added: {list}",

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
-import { openTodoStore } from "@molis-ai/molis-work-plugin-todo";
+import { openTodoStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { specEvidenceDirectory } from "./fixtures/review-evidence.js";
@@ -15,7 +15,7 @@ for (const width of [1440, 390]) test(`Todo ${width}px: a todo is handed to the 
   const child = await pluginFrameBrowser(t, browser, "todo");
   const { evaluate, waitFor, click } = child;
   const store = openTodoStore(homeDirectory);
-  const scope = { projectId, everything: false, actor: "user" as const, actorId: "test" };
+  const scope = { projectId, projectIds: [], actor: "user" as const, actorId: "test" };
   const made = store.create({ title: "给王总回电话", placement: "project", notes: "问预算" }, scope).item;
   // A draft the Assistant made and linked back, with where it opens.
   const item = store.link(made.id, { add: { kind: "outcome", subject: { kind: "pages_document", id: "doc-reply" }, title: "给王总的回电要点", outcome: "draft", open: { surface: "pages", id: "doc-reply" } } }, made.revision, scope).item;

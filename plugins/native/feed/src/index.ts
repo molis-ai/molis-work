@@ -85,6 +85,7 @@ export { feedContentActions, createFeedContentHandlers } from "./content-actions
 export { feedSubjectAction, feedSourceSubjectAction } from "./content-actions.js";
 
 export * from "./scenes.js";
+export { createFeedSceneRuntime, type FeedSceneHost, type FeedSceneJudgmentInput, type FeedSceneRuntimeOptions } from "./scene-runtime.js";
 export type { FeedRuleJudgmentSelection } from "./rule-actions.js";
 
 export { feedQueryActions, createFeedQueryHandlers, type FeedDirectorySnapshot } from "./query-actions.js";

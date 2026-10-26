@@ -1,20 +1,22 @@
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { SURFACE_BROWSER_PERMISSION, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { UI_COMMAND_INPUT_KINDS, UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
+import { UI_VIEW_SLOTS } from "@molis-ai/molis-work-contracts/platform/ui";
 import { PLUGIN_REVIEW_KINDS, PLUGIN_REVIEW_PERMISSION_PREFIX } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { inspectActionCrossReferences } from "./action-cross-references.js";
-import { inspectActionDeclarations } from "./action-declarations.js";
+import { inspectActionDeclarations, projectReachPermissionProblems } from "./action-declarations.js";
 import { inspectAgentDeclaration, inspectMethodDeclarations } from "./agent-declarations.js";
 import { artifactDeclarationProblems } from "./artifact-declarations.js";
 import { backgroundDeclarationProblems } from "./background-declarations.js";
+import { attentionDeclarationProblems } from "./attention-declarations.js";
 import { connectionDeclarationProblems } from "./connection-declarations.js";
 import { databaseDeclarationProblems } from "./database-declarations.js";
 import { integrationDeclarationProblems } from "./integration-declarations.js";
 import { ownerFilesDeclarationProblems } from "./owner-files-declaration.js";
-import { imageGenerationDeclarationProblems, modelConfigurationDeclarationProblems } from "./service-declarations.js";
+import { imageGenerationDeclarationProblems, localToolsDeclarationProblems, modelConfigurationDeclarationProblems, runtimeDeclarationProblems } from "./service-declarations.js";
 import { inspectContextDeclarations } from "./context-declarations.js";
+import { messageDeclarationProblems } from "./message-declarations.js";
 import { inspectEventDeclarations, inspectPortDeclarations } from "./wiring-declarations.js";
-import { createStations, viewPlacementProblems } from "./view-placement-declarations.js";
+import { createStations, settingsReadActions, viewPlacementProblems } from "./view-placement-declarations.js";
 import { PLUGIN_ID } from "./plugin-id.js";
 
 
@@ -42,6 +44,7 @@ export function parsePluginManifest(input: unknown): PluginManifest {
     throw pluginErrors.manifest_invalid("app Plugin 必须使用 schema_version 2");
   }
   inspectUpgradeCompatibility(manifest);
+  inspectPresentation(manifest);
   if (manifest.always_on !== undefined && typeof manifest.always_on !== "boolean") invalid("always_on 必须为布尔值");
   if (!Array.isArray(manifest.entrypoints) || manifest.entrypoints.length === 0) {
     throw pluginErrors.entrypoint_missing("Plugin 至少需要一个 entrypoint");
@@ -83,7 +86,8 @@ export function parsePluginManifest(input: unknown): PluginManifest {
   const databaseProblems = databaseDeclarationProblems(manifest.databases, permissions);
   if (databaseProblems.length > 0) invalid(databaseProblems.join("；"));
   const serviceProblems = [...ownerFilesDeclarationProblems(manifest.owner_files, permissions), ...modelConfigurationDeclarationProblems(manifest.model_configuration, permissions),
-    ...imageGenerationDeclarationProblems(manifest.image_generation, permissions)];
+    ...imageGenerationDeclarationProblems(manifest.image_generation, permissions), ...localToolsDeclarationProblems(manifest.local_tools, permissions),
+    ...runtimeDeclarationProblems(manifest.runtime)];
   if (serviceProblems.length > 0) invalid(serviceProblems.join("；"));
   const capabilities = record(manifest.capabilities, "capabilities");
   strings(capabilities.provides, "capabilities.provides");
@@ -105,6 +109,7 @@ export function parsePluginManifest(input: unknown): PluginManifest {
   }
   const ui = record(manifest.ui, "ui");
   strings(ui.contributions, "ui.contributions");
+  if (ui.commands !== undefined) throw pluginErrors.declaration_invalid("ui.commands 已取消：没有界面调用插件的命令，请删掉这一项（BL-363）");
   if (ui.embedded_plugins !== undefined) {
     strings(ui.embedded_plugins, "ui.embedded_plugins");
     const ids = ui.embedded_plugins as string[];
@@ -122,6 +127,15 @@ export function parsePluginManifest(input: unknown): PluginManifest {
   }
 
   return parsed;
+}
+
+const SUMMARY_LIMIT = 120;
+
+/** What the market and the page heading show (W5-02 B2): `summary` is non-empty and at most 120 characters once trimmed, `developer` only `true`. */
+function inspectPresentation(manifest: Record<string, unknown>): void {
+  const summary = typeof manifest.summary === "string" ? manifest.summary.trim() : null;
+  if (manifest.summary !== undefined && (!summary || [...summary].length > SUMMARY_LIMIT)) invalid(`summary 必须是不超过 ${SUMMARY_LIMIT} 字的非空文字`);
+  if (manifest.developer !== undefined && manifest.developer !== true) invalid("developer 只能写 true，不是开发者插件就不写");
 }
 
 function inspectUpgradeCompatibility(manifest: Record<string, unknown>): void {
@@ -193,9 +207,11 @@ function assertNoV2Blocks(manifest: Record<string, unknown>, ui: Record<string, 
     ["connections", manifest.connections],
     ["connection_services", manifest.connection_services],
     ["integrations", manifest.integrations],
+    ["attention", manifest.attention],
     ["ui.embedded_plugins", ui.embedded_plugins],
     ["ui.views", ui.views],
-    ["ui.commands", ui.commands],
+    ["ui.messages", ui.messages],
+    ["ui.translations", ui.translations],
   ];
   for (const [name, value] of v2Blocks) {
     if (value !== undefined) {
@@ -228,6 +244,7 @@ function assertV2Blocks(parsed: PluginManifest, ui: Record<string, unknown>): vo
       if (!declaredPermissions.has(permission)) problems.push(`场景 ${scene.scene_id} 使用未声明权限 ${permission}`);
     }
   }
+  problems.push(...projectReachPermissionProblems(parsed.actions, declaredPermissions));
   problems.push(...inspectPortDeclarations(parsed.ports, parsed.plugin_id));
   problems.push(...inspectEventDeclarations(parsed.plugin_id, parsed.events, declaredPermissions));
   problems.push(...inspectAgentDeclaration(
@@ -236,7 +253,7 @@ function assertV2Blocks(parsed: PluginManifest, ui: Record<string, unknown>): vo
   ));
   problems.push(...inspectMethodDeclarations(parsed.methods));
   problems.push(...inspectViewDeclarations(parsed, ui));
-  problems.push(...inspectCommandDeclarations(parsed));
+  problems.push(...messageDeclarationProblems(parsed));
   problems.push(...inspectRouteDeclarations(parsed));
   problems.push(...inspectRequirementDeclarations(parsed));
   problems.push(...inspectPortPermissions(parsed));
@@ -245,6 +262,7 @@ function assertV2Blocks(parsed: PluginManifest, ui: Record<string, unknown>): vo
   problems.push(...backgroundDeclarationProblems(parsed.background, declaredPermissions, parsed.actions));
   problems.push(...connectionDeclarationProblems(parsed.connections, declaredPermissions));
   problems.push(...integrationDeclarationProblems(parsed));
+  problems.push(...attentionDeclarationProblems(parsed.attention, declaredPermissions));
   assertNoDeclarationProblems(problems);
 }
 
@@ -254,7 +272,7 @@ function inspectViewDeclarations(parsed: PluginManifest, ui: Record<string, unkn
   if (!Array.isArray(ui.views)) return ["ui.views 必须为数组"];
   const problems: string[] = [];
   const contributions = new Set(parsed.ui.contributions);
-  const stations = createStations(parsed);
+  const stations = createStations(parsed), readables = settingsReadActions(parsed);
   const seen = new Set<string>();
   for (const view of views) {
     if (!text(view.view_id)) {
@@ -277,40 +295,7 @@ function inspectViewDeclarations(parsed: PluginManifest, ui: Record<string, unkn
     if (!contributions.has(contributionId)) {
       problems.push(`视图 ${view.view_id} 的 contribution ${contributionId} 未在 ui.contributions 声明`);
     }
-    problems.push(...viewPlacementProblems(view, stations));
-  }
-  return problems;
-}
-
-function inspectCommandDeclarations(parsed: PluginManifest): string[] {
-  const commands = parsed.ui.commands;
-  if (commands === undefined) return [];
-  const problems: string[] = [];
-  const views = new Set((parsed.ui.views ?? []).map((view) => view.view_id));
-  const seen = new Set<string>();
-  for (const command of commands) {
-    if (!text(command.command_id)) {
-      problems.push("命令缺少 ID");
-      continue;
-    }
-    if (seen.has(command.command_id)) {
-      problems.push(`命令重复：${command.command_id}`);
-      continue;
-    }
-    seen.add(command.command_id);
-    if (!text(command.title)) problems.push(`命令 ${command.command_id} 缺少标题`);
-    if (!Array.isArray(command.input_kinds) || command.input_kinds.length === 0) {
-      problems.push(`命令 ${command.command_id} 必须声明输入种类`);
-    } else {
-      for (const kind of command.input_kinds) {
-        if (!UI_COMMAND_INPUT_KINDS.includes(kind)) {
-          problems.push(`命令 ${command.command_id} 的输入种类 ${kind} 不合法`);
-        }
-      }
-    }
-    if (!views.has(command.opens_view_id)) {
-      problems.push(`命令 ${command.command_id} 打开的视图 ${command.opens_view_id} 未声明`);
-    }
+    problems.push(...viewPlacementProblems(view, stations, readables));
   }
   return problems;
 }

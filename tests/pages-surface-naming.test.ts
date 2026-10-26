@@ -3,6 +3,8 @@ import test from "node:test";
 
 import { PAGES_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-pages";
 import { UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
+import { fakeLifetime } from "./fixtures/fake-client-lifetime.js";
+import { pagesHost } from "./fixtures/pages-host.js";
 import { CONTEXT_ACTIONS_FACTORY_SCRIPT } from "../apps/workbench/src/scripts/client/context-actions.ts";
 
 // Pages and the workbench's fallback naming (context-actions) share one surface element: whoever writes
@@ -116,7 +118,7 @@ async function workbench(t: { after(fn: () => void): void }, routes: Record<stri
   }) as typeof fetch;
   const windowStub: Record<string, unknown> = {
     addEventListener() {}, dispatchEvent() { return true; },
-    MolisWorkPagesEditor: { bindComments: () => async () => {}, mountPagesLanding: () => ({ report() {} }), emptyDoc: () => ({ type: "doc", content: [] }), mount: () => ({}), setDoc() {}, getDoc: () => DOC.body },
+    MolisWorkPagesEditor: { bindComments: () => async () => {}, mountPagesLanding: () => ({ report() {} }), emptyDoc: () => ({ type: "doc", content: [] }), canShow: () => true, mount: () => ({}), setDoc() {}, getDoc: () => DOC.body },
   };
   windowStub.parent = windowStub;
   Object.assign(globalThis, {
@@ -145,7 +147,7 @@ async function workbench(t: { after(fn: () => void): void }, routes: Record<stri
   Object.assign(globalThis, { location: new URL("http://workbench.test/"), molisWorkRequest: undefined, molisWorkControlHeaders: undefined });
   Function(UI_REQUEST_CLIENT_SCRIPT)();
   const pages = Function(`return (${PAGES_CLIENT_FACTORY_SCRIPT})`)() as (host: unknown) => void;
-  pages({ translate: (text: string) => text, projectId: "project-a", view: {onClosing() {}} });
+  pages(pagesHost(fakeLifetime(), { projectId: () => "project-a", mountPluginClient: undefined }));
   const contextRow = Function(`return (${CONTEXT_ACTIONS_FACTORY_SCRIPT})`)() as (host: unknown) => unknown;
   contextRow({ translate: (text: string) => text, route: (path: string) => path, headers: () => ({}) });
   await flush();

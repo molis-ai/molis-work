@@ -45,6 +45,18 @@ export interface SandboxEffects {
    * The package also declares `storage:private` and the Manifest's read and write permissions.
    */
   ownerFiles?: Array<'read' | 'write'>;
+  /**
+   * `read`: `choices` and `availability` of the Host's text model (`sdk.model`, PG-017 P1); `invoke`: `complete`, which spends the person's model
+   * and is never in a query. The package also declares `model:read` or `model:invoke`; `complete` runs only inside one of its own concurrent
+   * actions that declares `model:invoke`.
+   */
+  model?: Array<'read' | 'invoke'>;
+  /**
+   * The ids of this contract's command operations the operation may start in the background (`sdk.background.start`, PG-017 P3). Each is a
+   * command of its own with no `background` effect, and the operation that starts it is a command too. The package also declares the Manifest's
+   * `background_job` metadata on the action that runs the starting operation.
+   */
+  background?: string[];
 }
 
 export interface SandboxOperationExample {
@@ -108,6 +120,8 @@ export interface SandboxNetworkResponse {
 /** A request through the account the person bound to a slot (`sdk.connections`): only https addresses on the slot's service, never a credential header. */
 export interface SandboxConnectionRequest {
   url: string;
+  /** Which record's account, on a `per_record` slot (and only there). */
+  record_key?: string;
   method?: 'GET' | 'HEAD' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   headers?: Record<string, string>;
   body?: string;
@@ -118,6 +132,12 @@ export interface SandboxConnectionResponse {
   body: string;
   /** Whether the Host added the bound account's credential; `false` means the request went out anonymously. */
   authenticated: boolean;
+}
+/** Whether a slot (a record's, on a `per_record` slot) has an account, its name and state; never which connection or a credential. */
+export interface SandboxConnectionDescription {
+  bound: boolean;
+  display_name?: string;
+  state?: 'connected' | 'reauth_required' | 'disconnected';
 }
 
 /** A file as it crosses the channel: its name and its bytes in base64 (the Host decodes and checks it before it reads any of it). */
@@ -170,6 +190,29 @@ export type SandboxOwnerFileChange =
 /** One part of an original file as it crosses the channel: at most 256 KiB of bytes, the file's size and the opaque revision a later part passes back. */
 export interface SandboxOriginalPart { data_base64: string; byte_length: number; size: number; revision: string }
 
+/** A model the person configured in this Home, as it crosses the channel: names and capabilities, never an endpoint or a credential. */
+export interface SandboxModelSelection { provider_id: string; model_id: string }
+export interface SandboxModelChoice extends SandboxModelSelection { label: string; vision: boolean; reasoning_effort: boolean }
+export type SandboxModelAvailability =
+  | { available: true; runtime_label?: string; vision?: boolean }
+  | { available: false; code: string; reason: string; runtime_label?: string; vision?: boolean };
+/**
+ * One request to the model. The text is never the package's own: `prompt_id` names one of the instructions the package registered with the Host
+ * (`PluginDefinition.instructions`), whose body is the person's version of it, and `data` is this call's material, appended after it by the Host.
+ * `system_id` names a second registered instruction, sent as the system prompt. No images, callbacks or signals cross the channel.
+ */
+export interface SandboxModelRequest {
+  prompt_id: string;
+  data: string;
+  system_id?: string;
+  selection?: SandboxModelSelection;
+  /** `json`: the answer is decoded and handed over as `value` too; the plugin checks its shape. The default is `text`. */
+  output?: 'text' | 'json';
+  timeout_ms?: number;
+  max_output_tokens?: number;
+}
+export interface SandboxModelResult { text: string; value?: SandboxJson; usage?: { input_tokens: number; output_tokens: number } }
+
 /** What a statement in the project's library takes and gives back across the channel: no BLOBs, no integers past 2^53. */
 export type SandboxSqlValue = null | number | string;
 export type SandboxSqlRow = { [column: string]: SandboxSqlValue };
@@ -203,8 +246,13 @@ export interface SandboxSdk {
   /**
    * Requests through the account the person bound to one of the Manifest's connection slots. The credential never reaches the plugin and
    * only the slot's service can be reached; a query may only send `GET` and `HEAD`. Declare the slot in the operation's `effects.connections`.
+   * `describe` tells whether there is an account; `release` unbinds a record's account on a `per_record` slot (not from a query).
    */
-  connections: { request(slot_id: string, request: SandboxConnectionRequest): Promise<SandboxConnectionResponse> };
+  connections: {
+    request(slot_id: string, request: SandboxConnectionRequest): Promise<SandboxConnectionResponse>;
+    describe(slot_id: string, record_key?: string): Promise<SandboxConnectionDescription>;
+    release(slot_id: string, record_key: string): Promise<void>;
+  };
   /**
    * The Host's readers of files the plugin already holds (`services.materials`): `readDocuments` reads Markdown, HTML, text, CSV, DOCX or
    * a ZIP of those, `extract` reads one file (PDF, image, office document) as text, `imageTextAvailable` says whether an image's text can
@@ -236,6 +284,28 @@ export interface SandboxSdk {
     read(path: string): Promise<SandboxOwnerFileContent | null>;
     write(changes: SandboxOwnerFileChange[]): Promise<void>;
   };
+  /**
+   * The Host's text model (`services.model`, PG-017 P1). `choices` and `availability` need `effects.model: ['read']`; `complete` needs `['invoke']`, in a
+   * command only, and the Host runs it inside the operation's own concurrent action that declares `model:invoke`. A request names a registered
+   * instruction instead of carrying text (see `SandboxModelRequest`), so nothing the package writes reaches the model except as data after it.
+   */
+  model: {
+    choices(): Promise<SandboxModelChoice[]>;
+    availability(selection?: SandboxModelSelection): Promise<SandboxModelAvailability>;
+    complete(request: SandboxModelRequest): Promise<SandboxModelResult>;
+  };
+  /**
+   * Background work (`services.background`, PG-017 P3). `start` accepts one run of a command operation the calling operation declared in
+   * `effects.background`, with a JSON input, and returns its execution id as soon as the Host has accepted it; the run happens in a second
+   * sandbox process of the same package, one operation at a time, so it never holds up the operations of the first. Nothing carries its
+   * result back: the operation writes what it means to keep through the SDK, and it is not replayed if its process dies. `cancel` stops an
+   * execution this sandbox accepted (`false` for one that has already ended). The Host stops every execution when the installation stops,
+   * is revoked, or its project is deleted, and an execution that is stopped writes nothing more.
+   */
+  background: {
+    start(operation: string, input: SandboxJson): Promise<string>;
+    cancel(id: string): Promise<boolean>;
+  };
   /** The platform's question card, action card and next-step row as html, in the call's language (`services.interaction`); nothing to declare. */
   interaction: import('./plugin-interaction.js').PluginInteractionClient;
 }
@@ -243,10 +313,12 @@ export interface SandboxSdk {
 export type SandboxOperations = Record<string, (input: SandboxJson, sdk: SandboxSdk) => Promise<SandboxJson>>;
 export type SandboxSdkMethod = 'storage.get' | 'storage.set' | 'storage.delete' | 'storage.list'
   | 'artifacts.get' | 'artifacts.put' | 'capability.call' | 'events.publish' | 'network.request' | 'resource.read'
-  | 'projectDatabase.get' | 'projectDatabase.all' | 'projectDatabase.transaction' | 'connections.request'
+  | 'projectDatabase.get' | 'projectDatabase.all' | 'projectDatabase.transaction' | 'connections.request' | 'connections.describe' | 'connections.release'
   | 'materials.imageTextAvailable' | 'materials.readDocuments' | 'materials.extract' | 'materials.readLocalPage'
   | 'materials.claimOriginal' | 'materials.readOriginalRange' | 'materials.releaseOriginal'
   | 'ownerFiles.stat' | 'ownerFiles.list' | 'ownerFiles.read' | 'ownerFiles.write'
+  | 'model.choices' | 'model.availability' | 'model.complete'
+  | 'background.start' | 'background.cancel'
   | 'interaction.questionHtml' | 'interaction.cardHtml' | 'interaction.nextStepsHtml';
 
 /** Only one active operation per channel. Every host request belongs to that invocation. */

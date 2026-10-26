@@ -201,7 +201,8 @@
         "kind": "operation",
         "scope": "project",
         "audiences": [
-          "user"
+          "user",
+          "plugin"
         ],
         "permissions": [
           "storage:private",

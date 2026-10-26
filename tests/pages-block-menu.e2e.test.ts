@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { clientI18nScript, runWithLocale } from "@molis-ai/molis-work-app-local-host";
+import { pageTextScript } from "./fixtures/page-text.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 type Browser = NonNullable<Awaited<ReturnType<typeof openGoalBrowser>>>;
@@ -29,7 +29,7 @@ test("SYS-48/W5-10-PGM-02: block menu navigates, changes the selected blocks, un
   // W5-10-PGM-01: load the formal host assets and mount the public editor contract.
   await b.evaluate(`Promise.all([
     new Promise((resolve,reject)=>{const script=document.createElement('script');script.src='/assets/molis-work-pages-editor.js';script.onload=resolve;script.onerror=reject;document.head.append(script)}),
-    new Promise((resolve,reject)=>{const css=document.createElement('link');css.rel='stylesheet';css.href='/assets/molis-work-workbench.css';css.onload=resolve;css.onerror=reject;document.head.append(css)})
+    Promise.all(['/assets/molis-work-workbench.css','/assets/molis-work-plugins/pages.css'].map(href=>new Promise((resolve,reject)=>{const css=document.createElement('link');css.rel='stylesheet';css.href=href;css.onload=resolve;css.onerror=reject;document.head.append(css)})))
   ]).then(()=>undefined)`);
   await b.evaluate(`(() => {
     const root=document.createElement('div');root.id='block-menu-fixture';root.className='pages-editor-host';
@@ -101,7 +101,7 @@ test("SYS-48/W5-10-PGM-02: block menu navigates, changes the selected blocks, un
   await b.evaluate("window.MolisWorkPagesEditor.destroy(blockEditor)");
   assert.equal(await b.evaluate("document.querySelectorAll('.pages-block-menu,.pages-block-handle,.pages-block-ghost').length"), 0);
   // SYS-48: the formal English translator keeps the editor action distinct from clipboard Copy.
-  await b.evaluate(runWithLocale("en", clientI18nScript));
+  await b.evaluate(pageTextScript("en", "pages")); // Pages' editor runs in Pages' frame: its own English with the page's catalog
   await b.evaluate("blockOptions.translate=window.L; void (blockEditor=window.MolisWorkPagesEditor.mount(document.querySelector('#block-menu-fixture'),blockOptions))");
   await open();
   await choose(b, "Duplicate");

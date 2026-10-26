@@ -1,4 +1,5 @@
 import { resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { withHomePluginStorePageRecovery } from "./web-home-plugin-recovery.js";
 import { feedRuleActions } from "@molis-ai/molis-work-plugin-feed";
 import { agentDefinitionsFor } from "./agent-definitions/agent-definitions.js";
 import { builtinRegistrations } from "./agent-definitions/builtin-registrations.js";
@@ -8,7 +9,7 @@ import { pluginRouteControl } from "./plugin-route-control.js";
 import { bindLocalWebActions, localWebActionContext } from "./local-web-actions.js";
 import { arriveAtProjectPage } from "./web-settings-arrival.js";
 import { bindPersonalPlanningWebActions } from "./personal-planning-actions.js";
-import { ARTIFACT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-artifacts";
+import { ARTIFACT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-module-artifacts";
 import { ALCHEMIST_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-alchemist";
 import { ActionError, bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { inboxActions, INBOX_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-inbox";
@@ -32,6 +33,7 @@ import { handleAlchemistNativePluginHttp } from "./alchemist-native-plugin-http.
 import { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
 import { redirectFunctionsPage, resolveWebRequest } from "./web-routing.js";
 import { handleHomePluginHttp, renderHomePluginStages } from "./home-plugin-http.js";
+import { builtinMarketDirectory, homePluginDirectory, mergePluginDirectories } from "./plugin-directory.js";
 import { dispatchWebRoutes, type WebRequestContext, type WebRoute } from "./web-route-table.js";
 import { assistantPortsFor, CATALOG_INDEX_ROUTES } from "./web-catalog-index-routes.js";
 import { homeRouteProjectPlugins, projectPluginServices, projectRequestContext, projectRoutePrefix, type ProjectRequestContext, type ProjectRuntimeContext } from "./web-project-context.js";
@@ -84,7 +86,7 @@ export async function handleMolisWorkWebRequest(
     && await handleAgentDefinitionsHttp(request, response, url, agentDefinitionsFor(serverOptions.homeDirectory, builtinRegistrations))) return;
   if (resolved.kind === "catalog_index") {
     const assistant = serverOptions.homeDirectory ? assistantPortsFor(serverOptions.homeDirectory, composition, localHost, agentHost, agentReady) : null;
-    await dispatchWebRoutes(CATALOG_INDEX_ROUTES, { ...context, projects: resolved.projects, assistant });
+    await withHomePluginStorePageRecovery(context, null, () => dispatchWebRoutes(CATALOG_INDEX_ROUTES, { ...context, projects: resolved.projects, assistant }));
     return;
   }
   if (resolved.kind === "project_not_found") {
@@ -92,7 +94,8 @@ export async function handleMolisWorkWebRequest(
     return;
   }
   url.pathname = resolved.pathname;
-  await dispatchWebRoutes(PROJECT_ROUTES, projectRequestContext(context, resolved.options));
+  await withHomePluginStorePageRecovery(context, resolved.options.project?.project_id ?? null,
+    () => dispatchWebRoutes(PROJECT_ROUTES, projectRequestContext(context, resolved.options)));
 }
 
 /** The project list, or (when it cannot be read) the chooser saying so: the chooser is the way in, and the personal space still opens. */
@@ -153,13 +156,16 @@ function projectRuntimeContext(context: ProjectRequestContext, runtime: MolisWor
 }
 
 /** What the project page shows: the board, with Feed's and Inbox's judgments where those plugins answer, and the Home plugins' stages. */
-function projectWebView({ options, webViewCache, store, homeActions, localHost, hostReference }: Omit<ProjectRuntimeContext, "readWebView">,
+function projectWebView({ options, webViewCache, store, homeActions, localHost, hostReference, serverOptions, shownPlugins }: Omit<ProjectRuntimeContext, "readWebView">,
   { includeStageIds = false }: { includeStageIds?: boolean } = {}) {
   const optional = (error: unknown) => {
     if (!(error instanceof Error && "code" in error && ["actions.forbidden", "actions.plugin_disabled", "actions.missing"].includes(String(error.code)))) throw error;
   };
   return async (): Promise<MolisWorkWebView> => {
     let view = await cachedMolisWorkWebView(webViewCache, store, options, homeActions);
+    // What the project shows is its Catalog's selection now (enabled, minus hidden, with the personal plugins), read per request
+    // and never kept behind the Goals cursor: the page, its refresh and its fragments all read this one view.
+    if (options.project) view = { ...view, shown_plugins: await shownPlugins(options.project.project_id) };
     const feedActions = bindLocalWebActions(localHost, hostReference, ["feed:read", "feed:write", "inbox:read", "inbox:write", "model:invoke", "functions:invoke"]);
     try {
       const [{ rules }, { recommendations }] = await Promise.all([lookingForArea(() => feedActions.invoke(feedRuleActions.list, {})), lookingForArea(() => feedActions.invoke(feedRuleActions.recommendations, {}))]);
@@ -175,13 +181,13 @@ function projectWebView({ options, webViewCache, store, homeActions, localHost, 
           return { ...entry, next_judgment: judgment, suggested_behavior_ids: judgment?.outcome === "ok" ? judgment.suggested_behavior_ids : [] }; }) } };
     } catch (error) { optional(error); }
     const homeStages = await renderHomePluginStages(localHost.homePlugins);
-    return { ...view, plugin_stages: homeStages.html, unavailable_plugin_stages: homeStages.unavailable, ...(includeStageIds ? { plugin_stage_ids: homeStages.ids } : {}) };
+    return { ...view, plugin_stages: homeStages.html, unavailable_plugin_stages: homeStages.unavailable, plugin_directory: mergePluginDirectories(await homePluginDirectory(localHost.homePlugins, serverOptions.homeDirectory), builtinMarketDirectory(serverOptions.homeDirectory)),
+      ...(includeStageIds ? { plugin_stage_ids: homeStages.ids } : {}) };
   };
 }
 
-/** The person in this project, under one plugin's permissions. */
-const asPerson = ({ localHost, hostReference }: ProjectRuntimeContext, permissions: readonly string[]) =>
-  bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: hostReference.project_id, audience: "user", permissions: [...permissions] }));
+/** The person in this project, capped by one plugin's permissions and reaching each provider by its own authority (PG-008). */
+const asPerson = ({ localHost, hostReference }: ProjectRuntimeContext, permissions: readonly string[]) => bindLocalWebActions(localHost, hostReference, permissions);
 
 /** The Goals settings and planning pages: the project's work and its Goals, read by their owners. */
 const planningRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
@@ -245,7 +251,8 @@ const goalsAndArtifactRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
     actions: userActions(ARTIFACT_ACTION_PERMISSIONS), controlToken,
     homeDirectory: serverOptions.homeDirectory ?? resolveMolisWorkHome(),
     offeredActions: original_file => userActions(ARTIFACT_ACTION_PERMISSIONS, { original_file }),
-    ownerActions: permissions => userActions(permissions), // each 成果 type's owner previews its own versions (A4)
+    // Each 成果 type's owner previews its own versions (A4): a plugin's preview runs on its installation's grants, not on the person's (V-21).
+    ownerActions: permissions => userActions(permissions),
     desktopShell: composition.isDesktopShellRequest(request, url), pageCsp: composition.PAGE_CSP,
   }) },
   { id: "goal-page", handle: context => context.composition.goalsReadHttp.page(context.request, context.response, context.url, context.options, context.serverOptions.homeDirectory,
@@ -273,7 +280,8 @@ const PROJECT_RUNTIME_ROUTES: readonly WebRoute<ProjectRuntimeContext>[] = [
   ...directoryRoutes,
   // Alchemist's Studio and its own HTTP under `/api/alchemist`, under the plugin's permissions. The old `personal`
   // alias (`/api/plugins/<id>/` rewritten to `/api/<id>/`) is gone (W6-01); this is the plugin's own address.
-  { id: "alchemist", handle: async ({ request, response, url, serverOptions, options, hostReference, localHost, userActions }) => Boolean(serverOptions.homeDirectory)
+  // Its calls keep the hand-written client (the person under Alchemist's permissions): Alchemist is not migrated and will be deleted (BL-376).
+  { id: "alchemist", handle: async ({ request, response, url, serverOptions, options, hostReference, localHost }) => Boolean(serverOptions.homeDirectory)
     && await handleAlchemistNativePluginHttp(request, response, url, {
       projectId: hostReference.project_id, routePrefix: options.routePrefix ?? "",
       actions: { invoke: async (definition, input, signal) => {
@@ -281,7 +289,8 @@ const PROJECT_RUNTIME_ROUTES: readonly WebRoute<ProjectRuntimeContext>[] = [
         const control = pluginRouteControl(signal, () => {
           if (localHost.lifecycle() !== "running") throw new ActionError("actions.unavailable", "宿主已停止");
         });
-        return userActions(ALCHEMIST_ACTION_PERMISSIONS).invoke(definition, input, control);
+        return bindActionClient(localHost.actionClient(hostReference), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: hostReference.project_id, audience: "user",
+          permissions: [...ALCHEMIST_ACTION_PERMISSIONS] })).invoke(definition, input, control);
       } } }) },
   ...projectAssistantRoutes,
   ...pageOwnerRoutes,

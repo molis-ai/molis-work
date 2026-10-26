@@ -1,7 +1,10 @@
+import type { InstructionPrompt } from '@molis-ai/molis-work-contracts/platform/model-prompts';
 import type { PluginDefinition, PluginHostServices, PluginPrivateStorage, PluginStartContext } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import type { SandboxBackgroundLane } from './background.js';
 import type { SandboxServices } from './broker.js';
 import { sandboxDatabase } from './database.js';
+import { sandboxModel } from './model.js';
 import { sandboxOwnerFiles } from './owner-files.js';
 import { SandboxError } from './schema.js';
 
@@ -40,9 +43,14 @@ export function storageTransactions(storage: PluginPrivateStorage): NonNullable<
 
 type HostServices = NonNullable<PluginStartContext['services']>;
 /** What the Host built for the activation that the sandbox can be given. */
-export type SandboxHostServices = Pick<HostServices, 'storage' | 'project_statements' | 'interaction' | 'connections' | 'materials' | 'ownerFiles'>;
+export type SandboxHostServices = Pick<HostServices, 'storage' | 'project_statements' | 'interaction' | 'connections' | 'materials' | 'ownerFiles' | 'model' | 'background'>;
 /** Services the caller builds itself (the platform capabilities the person approved, the network adapter): the broker still checks each call against the grants. */
-export type SandboxHostExtras = Pick<SandboxServices, 'capability' | 'network'>;
+export type SandboxHostExtras = Pick<SandboxServices, 'capability' | 'network'> & {
+  /** The instructions the package registered (`PluginDefinition.instructions`): the only prompts a model request may name (V-20). */
+  instructions?: readonly InstructionPrompt[];
+  /** The lane the activation's background runs go to (a second process of the same package, owned by whoever started the first), PG-017 P3. Without it `background.start` is unavailable. */
+  backgroundLane?: SandboxBackgroundLane;
+};
 
 /**
  * The `SandboxServices` of one activation: its private storage, and each of its other services the Host built. A service the Host did
@@ -65,6 +73,10 @@ export function sandboxServicesFor(host: SandboxHostServices | undefined, extras
     ...(host.materials ? { materials: host.materials } : {}),
     // The plugin's own declared files: the Host's client reduced to the four members the channel can carry (no location, no writer callback).
     ...(host.ownerFiles ? { ownerFiles: sandboxOwnerFiles(host.ownerFiles) } : {}),
+    // The Host's text model for the package, which names the instructions it registered and never carries a prompt of its own (S-66).
+    ...(host.model ? { model: sandboxModel(host.model, extras.instructions ?? []) } : {}),
+    // The Host's background client for accepting a run, reduced to `start`, and the lane the run happens in (S-67).
+    ...(host.background && extras.backgroundLane ? { background: { client: { start: (work, options) => host.background!.start(work, options) }, lane: extras.backgroundLane } } : {}),
   };
 }
 
@@ -84,8 +96,8 @@ export const SANDBOX_SERVICE_FATE: { readonly [Service in keyof PluginHostServic
   storage: 'given', project_statements: 'given', interaction: 'given', capabilities: 'given', connections: 'given', materials: 'given', ownerFiles: 'given',
   project_database: 'replaced', ui: 'drawn',
   database: 'entry', files: 'entry', terminal: 'entry', imageGeneration: 'entry',
-  model: 'refused', background: 'refused', agents: 'refused', scheduler: 'refused', directory: 'refused',
-  notifications: 'refused', installations: 'refused', actions: 'refused', artifacts: 'refused', processItems: 'refused', events: 'refused', inputs: 'refused', outputs: 'refused',
+  model: 'given', background: 'given', agents: 'refused', scheduler: 'refused', directory: 'refused',
+  notifications: 'refused', localTools: 'refused', attention: 'refused', contextLedger: 'refused', installations: 'refused', actions: 'refused', artifacts: 'refused', processItems: 'refused', events: 'refused', inputs: 'refused', outputs: 'refused',
 });
 
 export interface NotGiven {
@@ -116,24 +128,28 @@ function asksFor(definition: SandboxDeclarations, held: readonly string[], permi
  * here in the same change that gives its service, so what stays in the list is exactly what a package asking for it is refused for.
  */
 export const SANDBOX_NOT_GIVEN: readonly NotGiven[] = [
-  { service: 'model', services: ['model'], reason: 'Model calls (model:read, model:invoke) are not given to sandboxed plugins yet (PG-017 P1).',
-    declared: (definition, held) => asksFor(definition, held, ['model:read', 'model:invoke']) },
-  { service: 'instructions', services: [], reason: 'Registered instructions are not given to sandboxed plugins yet (PG-017 P1, V-20).',
-    declared: definition => !!definition.instructions?.length },
+  { service: 'model_configuration', services: [], reason: 'Model settings (model_configuration in the Manifest) are not given to sandboxed plugins yet (PG-017 BL-490/491).',
+    declared: definition => definition.manifest.model_configuration !== undefined },
   { service: 'materials', services: [], reason: 'Reading a page from the network (materials:fetch) is not given to sandboxed plugins yet (PG-017 BL-492).',
     declared: (definition, held) => asksFor(definition, held, ['materials:fetch']) },
-  { service: 'background', services: ['background'], reason: 'Background jobs are not given to sandboxed plugins yet (PG-017 P3).',
-    declared: definition => !!definition.manifest.background?.jobs.length || !!definition.manifest.actions?.some(item => item.action.background_job) },
+  { service: 'background', services: [], reason: 'Background jobs kept for as long as the plugin runs (background.jobs in the Manifest) are not given to sandboxed plugins until the definition can bind them to operations of the package (PG-017 BL-377); a run a command starts (background_job on an action) is.',
+    declared: definition => !!definition.manifest.background?.jobs.length },
   { service: 'agent', services: [], reason: 'Roles, prompts, skills and methods that reach other Agents are not given to sandboxed plugins until a package install can show the person what it adds (PG-017 BL-493, PG-001).',
     declared: definition => !!(definition.methods?.length || definition.manifest.methods?.length || definition.agent_prompts?.length || definition.agent_skills?.length || definition.manifest.agent) },
   { service: 'directory', services: ['directory'], reason: 'A person-authorized directory (directory:read) is not given to sandboxed plugins: it hands the plugin a folder of the person\'s, and has no form without paths yet (PG-017 BL-494).',
     declared: (definition, held) => asksFor(definition, held, ['directory:read']) },
+  { service: 'localTools', services: ['localTools'], reason: 'Looking for command-line tools on this machine (local_tools in the Manifest, local-tools:read) is only given to plugins the Host runs itself: it answers with the paths of files outside the sandbox (PG-112, S-79).',
+    declared: (definition, held) => definition.manifest.local_tools !== undefined || asksFor(definition, held, ['local-tools:read']) },
   { service: 'scheduler', services: ['scheduler'], reason: 'Wakeups (schedule:read, schedule:write) are not given to sandboxed plugins yet (PG-017 BL-494).',
     declared: (definition, held) => asksFor(definition, held, ['schedule:read', 'schedule:write']) },
   { service: 'agents', services: ['agents'], reason: 'Running an Agent (agent:run) is not given to sandboxed plugins yet (PG-017 BL-494).',
     declared: (definition, held) => asksFor(definition, held, ['agent:run']) },
   { service: 'notifications', services: ['notifications'], reason: 'Delivering notifications (notifications:write) is not given to sandboxed plugins yet (PG-017 BL-494).',
     declared: (definition, held) => asksFor(definition, held, ['notifications:write']) },
+  { service: 'attention', services: ['attention'], reason: 'Reading and writing the project\'s Inbox entries (attention:read, attention:write) is not given to sandboxed plugins yet (BL-505).',
+    declared: (definition, held) => asksFor(definition, held, ['attention:read', 'attention:write']) },
+  { service: 'contextLedger', services: ['contextLedger'], reason: 'Reading and writing the project\'s reference edges (context-ledger:read, context-ledger:write) is not given to sandboxed plugins yet (BL-505).',
+    declared: (definition, held) => asksFor(definition, held, ['context-ledger:read', 'context-ledger:write']) },
   { service: 'installations', services: ['installations'], reason: 'Reading the installed plugins (plugins:read) is not given to sandboxed plugins yet (PG-017 BL-494).',
     declared: (definition, held) => asksFor(definition, held, ['plugins:read']) },
   { service: 'actions', services: ['actions'], reason: 'Calling the actions of others (actions:delegate) is not given to sandboxed plugins: a sandboxed package is reached as the actions it declares and calls nothing back (PG-017 BL-494).',

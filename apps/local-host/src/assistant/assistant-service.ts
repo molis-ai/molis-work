@@ -210,7 +210,7 @@ function roundDiagnostics(workId: string, work: StoredWork | null, round: Stored
       ...(material.method ? { method: { method_id: material.method.method_id, ...(material.method.version !== undefined ? { version: material.method.version } : {}) } } : {}) })),
     usage: tokens ? { input: tokens.input, output: tokens.output, cached_input: tokens.cached_input ?? 0 } : null,
     failures: (view?.activity ?? []).filter(item => item.state === "failed" || item.state === "unknown")
-      .map(item => ({ tool: item.name, target: item.target.slice(0, 200), state: item.state as "failed" | "unknown", summary: item.summary.slice(0, 400) })),
+      .map(item => ({ tool: item.name, target: item.target.slice(0, 200), state: item.state as "failed" | "unknown", summary: item.summary.slice(0, 400), ...(item.output ? { detail: item.output.slice(0, 600) } : {}) })),
   };
 }
 
@@ -287,7 +287,7 @@ export function presentActivity(activity: readonly AgentToolActivity[], titles: 
       // Refused before anyone was asked: its input did not fit the capability (a plain failure the round can correct).
       : /blocked "change-capability"|blocked "change-reversible"|blocked "read-capability"/.test(said) ? undefined
       : /EFFECT_NOT_AUTHORIZED/.test(item.summary) ? "not-authorized" as const
-      : /TOOL_INTERRUPTED/.test(`${item.summary} ${item.output ?? ""}`) ? "interrupted" as const
+      : /TOOL_INTERRUPTED|等待批准时这一轮结束/.test(`${item.summary} ${item.output ?? ""}`) ? "interrupted" as const
       // Switched off for the Assistant, uninstalled or no longer offered by the time it would run (even after approval).
       : /not offered here any more|not available here|action_revoked|已对助理关闭/.test(`${item.summary} ${item.output ?? ""}`) ? "unavailable" as const
       : /reject|declin|拒绝/i.test(item.summary) ? "declined" as const : undefined;
@@ -1017,7 +1017,7 @@ export class AssistantService {
       const moved = await whereNow(work, actions, object);
       return moved ? `「${moved.title}」已被移到${moved.to.kind === "personal" ? "个人空间" : "项目"}「${moved.to.title}」。这项工作的范围读不到它现在的正文；需要时请用户到那里打开，或把它放回这个项目。` : null;
     }
-    const goals = (await Promise.all(context.goal_ids.slice(0, 5).map(async id => (await read("goal", id))?.title ?? id)));
+    const goals = (await Promise.all((context.goal_ids ?? []).slice(0, 5).map(async id => (await read("goal", id))?.title ?? id)));
     const others = (await this.related(identity(work).project_id, { kind: object.kind, id: object.id })).filter(row => row.work_id !== work.work_id).slice(0, 5);
     const claimed = object.version === undefined ? null : String(object.version);
     return [`${context.title}（${object.kind}，标识 ${object.id}），当前版本 ${context.revision}${claimed && claimed !== context.revision ? `（页面显示的是版本 ${claimed}）` : ""}。`,

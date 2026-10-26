@@ -1,10 +1,9 @@
 import type {
   UiContribution,
-  UiContributionDescriptor,
+  UiContributionDeclaration,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
-import { icon, renderPluginStageShell } from "@molis-ai/molis-work-design-system";
-import { WORKFLOWS_PLUGIN_ID } from "./model.js";
+import { icon, renderPluginStageShell } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 export const WORKFLOWS_UI_CONTRIBUTION_ID = "io.molis.work.workflows.ui.v1";
 
@@ -19,12 +18,11 @@ export interface WorkflowsUiModel {
   readonly primitives: WorkflowsUiPrimitives;
 }
 
-export const workflowsUiDescriptor: UiContributionDescriptor = {
+export const workflowsUiDescriptor: UiContributionDeclaration = {
   contribution_id: WORKFLOWS_UI_CONTRIBUTION_ID,
-  plugin_id: WORKFLOWS_PLUGIN_ID,
   kind: "primary-page",
   navigation_id: "workflows",
-  label: "工作流程",
+  label: "workflows.page.title",
   surfaces: [
     { surface_id: "directory", target_slot_id: "workbench.directory", format: "declarative-html" },
     { surface_id: "workbench", target_slot_id: "workbench.main", format: "declarative-html" },
@@ -52,27 +50,27 @@ export function renderWorkflowsWorkbench(model: WorkflowsUiModel): string {
   const t = (value: string) => p.escape(p.text(value));
   return renderPluginStageShell({
     surface: "workflows",
-    label: p.text("工作流程"),
+    label: p.text("workflows.page.title"),
     dataset: "workflows",
     extraAttrs: 'data-wf-mode="list"',
     body: `
     <div class="plugin-stage-list feed-stage-list feed-stage-tree wf-list" data-wf-list-pane>
       <header class="plugin-stage-chrome">
-        <button class="mw-btn mw-btn--ghost tree-create" type="button" data-wf-action="new">${icon("plus")}<span>${t("新建流程")}</span></button>
+        <button class="mw-btn mw-btn--ghost tree-create" type="button" data-wf-action="new">${icon("plus")}<span>${t("workflows.ui.new-flow")}</span></button>
       </header>
       <p class="mw-alert mw-alert--info wf-gone" role="status" data-wf-gone hidden></p>
-      <div data-wf-list aria-live="polite"><p class="wf-muted mw-loading">${t("正在读取流程…")}</p></div>
+      <div data-wf-list aria-live="polite"><p class="wf-muted mw-loading">${t("workflows.ui.loading")}</p></div>
     </div>
     <div class="plugin-stage-workspace wf-workspace" data-wf-workspace hidden>
       <div class="wf-view" data-wf-view></div>
     </div>
-    <div class="wf-pop" data-wf-pop popover="auto" role="dialog" aria-label="${t("编辑")}"></div>
+    <div class="wf-pop" data-wf-pop popover="auto" role="dialog" aria-label="${t("workflows.ui.edit")}"></div>
     <dialog class="mw-dialog mw-dialog--form wf-dialog" data-wf-dialog aria-labelledby="wf-dialog-title">
       <form method="dialog" class="mw-form" data-wf-dialog-form>
-        <header class="mw-form__header"><h2 id="wf-dialog-title" data-wf-dialog-title></h2><button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-wf-action="dialog-close" aria-label="${t("关闭")}">${icon("x")}</button></header>
+        <header class="mw-form__header"><h2 id="wf-dialog-title" data-wf-dialog-title></h2><button class="mw-btn mw-btn--ghost mw-btn--icon-only" type="button" data-wf-action="dialog-close" aria-label="${t("workflows.ui.close")}">${icon("x")}</button></header>
         <div class="mw-form__body" data-wf-dialog-body></div>
         <p class="wf-error" role="alert" data-wf-dialog-error hidden></p>
-        <footer class="mw-form__footer"><button class="mw-btn mw-btn--secondary" type="button" data-wf-action="dialog-close">${t("取消")}</button><button class="mw-btn mw-btn--primary" type="submit" data-wf-dialog-submit></button></footer>
+        <footer class="mw-form__footer"><button class="mw-btn mw-btn--secondary" type="button" data-wf-action="dialog-close">${t("workflows.ui.cancel")}</button><button class="mw-btn mw-btn--primary" type="submit" data-wf-dialog-submit></button></footer>
       </form>
     </dialog>
     <p class="mw-toast wf-toast" role="status" data-wf-toast hidden></p>`,

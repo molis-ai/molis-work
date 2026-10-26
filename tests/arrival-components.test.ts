@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { renderButton } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {
   ARRIVAL_CAPTION_PHRASES,
   ARRIVAL_COMPONENT_STYLES,
@@ -9,7 +10,6 @@ import {
   renderBrief,
   renderBriefFocus,
   renderBriefSection,
-  renderButton,
   renderCaption,
   renderFileGroup,
   renderFileKind,

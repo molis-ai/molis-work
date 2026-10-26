@@ -2,7 +2,11 @@ import { defineErrorCodes } from "./action-errors.js";
 
 /** Current Runtime and authoring refusals; the transport classification remains the prior default 400. */
 export const pluginErrors = defineErrorCodes("plugin", {
+  always_on: "invalid",
   capability_denied: "invalid",
+  consent_required: "invalid",
+  consent_revoked: "invalid",
+  consent_unknown: "not_found",
   contribution_kind_invalid: "invalid",
   contribution_unredeemed: "invalid",
   declaration_invalid: "invalid",
@@ -13,6 +17,8 @@ export const pluginErrors = defineErrorCodes("plugin", {
   event_type_undeclared: "invalid",
   executor_failed: "invalid",
   grant_denied: "invalid",
+  home_scope_unavailable: "invalid",
+  id_namespace_conflict: "invalid",
   install_replaced: "invalid",
   integration_declaration_conflict: "invalid",
   integration_unavailable: "unavailable",
@@ -20,7 +26,11 @@ export const pluginErrors = defineErrorCodes("plugin", {
   manifest_invalid: "invalid",
   package_invalid: "invalid",
   permission_invalid: "invalid",
+  preview_unknown: "not_found",
+  publisher_revoked: "invalid",
+  publisher_untrusted: "invalid",
   quarantined: "invalid",
+  rule_key_reserved: "invalid",
   signature_invalid: "invalid",
   signer_mismatch: "invalid",
   state_invalid: "invalid",

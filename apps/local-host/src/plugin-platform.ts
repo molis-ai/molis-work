@@ -1,4 +1,7 @@
 import { openPluginInstallationDirectory } from "./plugin-installation-directory.js";
+import { installedArtifacts, supervisedArtifacts } from "./artifact-type-registry.js";
+import { declarationOwnersFor } from "./declaration-owners.js";
+import { bindProjectArtifacts } from "./declared-types.js";
 import { randomUUID } from "node:crypto";
 import { pluginInstallRecords } from "./plugin-install-records.js";
 import type { ArtifactsApplicationApi, ProcessItemsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
@@ -10,6 +13,7 @@ import type {
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { UiHostApi } from "@molis-ai/molis-work-contracts/platform/ui";
 import { PLUGIN_PRESENTATION_CAPABILITY } from '@molis-ai/molis-work-design-system';
+import { registerPluginMessages } from "@molis-ai/molis-work-app-workbench";
 import {
   PluginEventBus,
   PluginHostEvents,
@@ -20,7 +24,7 @@ import {
   SqlitePluginEventsRepository,
   SqlitePluginRuntimeReleaseArtifactRepository,
   SqlitePluginWiringRepository,
-  type PluginCapabilityPort,
+  type PluginConsentLedger,
   type PluginEventsDatabase,
   type PluginSupervisorEntry,
   type PluginUpgradeCandidate,
@@ -34,8 +38,11 @@ import type { LocalSqliteJournal } from "@molis-ai/molis-work-storage";
 import { observePluginArtifacts } from "./plugin-artifact-refresh.js";
 import { assertDatabaseEntries } from "./plugin-database-entries.js";
 import { pluginEntryIdentity } from "./plugin-entry-identity.js";
+import { HOST_PLUGIN_IDS } from "./host-plugin-ids.js";
 import type { ProjectLibrary } from "./plugin-project-library.js";
 import { assertOwnerFilesEntries, homeOwnerFilesEntries, type PluginOwnerFilesEntry } from "./plugin-owner-files-entries.js";
+import type { PluginDependencyCheck } from "./plugin-actions-client.js";
+import { hostReservedRuleKeys } from "./scene-rule-admission.js";
 
 /**
  * One project's v2 Plugin platform, assembled in a single place.
@@ -52,6 +59,8 @@ export type PluginPlatformDatabase = PluginEventsDatabase & PluginWiringDatabase
   readonly inTransaction?: boolean;
   /** The file the connection is (better-sqlite3's `name`): the project's library, which plugins' own tables live in. */
   readonly name?: string;
+  /** better-sqlite3's `open`: false once the connection is closed. */
+  readonly open?: boolean;
 };
 
 /**
@@ -71,10 +80,12 @@ export interface PluginPlatformOptions {
   processItems: ProcessItemsApplicationApi;
   ui: UiHostApi;
   privateStorageFor(context: PluginUpgradeContext, manifest: PluginManifest): PluginPrivateStorage;
+  /** The owner of private KV supplies whole-installation cleanup for synchronous non-retaining reinstalls. */
+  deleteInstallationData?(installId: string): void;
   capturePrivateData?(installId: string): Promise<unknown> | unknown;
   restorePrivateData?(installId: string, snapshot: unknown): Promise<void> | void;
-  /** Capabilities the Host exposes to Plugins that declared consuming them. */
-  capabilities?: PluginCapabilityPort;
+  /** Whether an action a plugin consumes is registered and ready in this project (`services.actions.availability`). */
+  dependencyCheck?: PluginDependencyCheck;
   scheduler?: PluginHostExecutorOptions["scheduler"];
   /** Shared system registry plus the trusted project identity for this activation. */
   actions: PluginHostExecutorOptions["actions"];
@@ -84,6 +95,8 @@ export interface PluginPlatformOptions {
    * a Home, and nobody would notice.
    */
   home: PluginPlatformHome | null;
+  /** The consent ledger for a platform that has no Home of its own to take it from (a generated plugin's platform, a test). */
+  consents?: PluginConsentLedger;
   /**
    * Opaque scope key stamped on every Plugin output in this project, so the
    * Host can tell two inputs belong to the same scope. Defaults to the board.
@@ -104,10 +117,10 @@ export interface PluginPlatform {
   /** Stop input refresh/delivery and events before stopping plugins or closing storage. */
   closeCoordination(): Promise<void>;
   /**
-   * Whether the plugin running under this id ships with the Host: its active definition is one the Host's own start list
-   * marked `bundled` (the same test that gives it its plugin_id as action provider), not anything a plugin declares.
+   * The consent ledger this platform installs against and reads defaults from (a default wiring binds only on a standing agreement),
+   * or `null` when it has none: then nothing is agreed to and no default binds.
    */
-  shipsWithHost(pluginId: string): boolean;
+  readonly consents: PluginConsentLedger | null;
   /** Built after `start`, from the Manifests that actually activated. */
   router(): PluginRouteRouter;
   start(entries: readonly PluginPlatformEntry[]): Promise<PluginSupervisorReport>;
@@ -121,11 +134,12 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   // Tests and scripts are not type-checked, so the type alone would not make a caller say which.
   if (options.home === undefined) throw new Error("插件平台要说明它的 Home：给出进程内的 Home，或明确给 null");
   // A plugin that ships with the Host registers its actions under its plugin_id; every other plugin under its installation id
-  // (user decision 2026-10-10, W3-06 Q1). "Ships with the Host" is the Host's own start list saying `bundled` about a definition
+  // (user decision 2026-10-10, W3-06 Q1). "Ships with the Host" is the Host's own start list giving a definition `host` trust
   // object, not anything a plugin declares or its record holds, so a developed or generated plugin that names a built-in
   // plugin_id gets no more than an installation id.
   const identity = pluginEntryIdentity();
   const providerFor = identity.providerFor;
+  const consents = options.consents ?? options.home?.consents ?? null;
   // The Runtime and the executor read the same records: an activation's jobs check the installation the Runtime keeps.
   const records = pluginInstallRecords(options.db);
   const viewEpoch = randomUUID(), viewRevisions = new Map<string, number>();
@@ -152,17 +166,24 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     home: options.home,
     ui: options.ui,
     privateStorageFor: options.privateStorageFor,
+    deleteInstallationData: options.deleteInstallationData,
     capturePrivateData: options.capturePrivateData,
     restorePrivateData: options.restorePrivateData,
   });
   // A project instance of a dual-instance plugin offers only its half; the other half is the Home's (specs/dual-instance-plugins).
   const runtime = new PluginRuntime(records, executor,
-    { redemption: definition => ({ partial: identity.dualInstance(definition) }),
+    { declarationOwners: declarationOwnersFor(options.home?.directory ?? null, { db: options.db, scope: { kind: "project", project_id: options.project_id } }), redemption: definition => ({ partial: identity.dualInstance(definition) }), hostIds: HOST_PLUGIN_IDS, ...consents ? { consents } : {}, reservedRuleKeys: hostReservedRuleKeys,
       actions: { ...options.actions, providerId: (record, definition) => providerFor(definition, record.install_id) } });
   const supervisor = new PluginSupervisor(runtime, {
     releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(options.db),
     hostCapabilities: [PLUGIN_PRESENTATION_CAPABILITY],
   });
+  // What this project's installs declare is read from its supervisor while the platform is open: for display (all projects together)
+  // and, for the writes in this project, by this project's database alone. A closed connection cannot answer, so a view over it is
+  // as gone as one whose coordination closed: the Host closes coordination first, but a store closed on its own must not make every
+  // other project's read of the shared directory throw.
+  const artifactView = supervisedArtifacts(supervisor, runtime, () => !closed && options.db.open !== false);
+  const unwatchArtifacts = installedArtifacts.watch(artifactView), unbindArtifacts = bindProjectArtifacts(options.db, artifactView);
   const wiring = new PluginInputGraph({
     projectId: options.project_id,
     lifecycle: supervisor,
@@ -186,7 +207,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     events,
     hostEvents,
     wiring,
-    ...(options.capabilities === undefined ? {} : { capabilities: options.capabilities }),
+    ...(options.dependencyCheck === undefined ? {} : { dependencyCheck: options.dependencyCheck }),
     scopeKey: options.scopeKey ?? options.project_id,
   });
 
@@ -194,6 +215,9 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   // it never acknowledged once it is running again.
   let stopArtifactRefresh: (() => void) | undefined;
   const detachActivation = supervisor.observeActivation(pluginId => {
+    // The words the Manifest declares (`ui.messages`) reach the pages' catalog the same way for a built-in and an installed plugin.
+    const manifest = supervisor.manifest(pluginId);
+    if (manifest) registerPluginMessages(manifest);
     if (!stopArtifactRefresh && options.journal && supervisor.manifest(pluginId)?.ports?.inputs.length) {
       stopArtifactRefresh = observePluginArtifacts(options.project_id, options.journal, wiring);
     }
@@ -211,7 +235,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     invalidateView,
     viewRevision(pluginId) { return `${viewEpoch}:${viewRevisions.get(pluginId) ?? 0}`; },
     async closeCoordination() {
-      closed = true; installations.dispose();
+      closed = true; installations.dispose(); unwatchArtifacts(); unbindArtifacts();
       stopArtifactRefresh?.();
       detachActivation();
       await wiring.close();
@@ -222,7 +246,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
       const manifest = supervisor.manifest(state.plugin_id);
       return manifest ? [manifest] : [];
     })),
-    shipsWithHost: pluginId => identity.shipsWithHost(supervisor.manifest(pluginId)),
+    consents,
     upgradeCandidates: () => supervisor.upgradeCandidates(),
     upgrade: (pluginId, definition, options) => supervisor.upgrade(pluginId, definition, options),
     rollback: (pluginId, definition) => supervisor.rollback(pluginId, definition),
@@ -247,7 +271,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
 
 /**
  * A definition the supervisor restores from a kept release stands in for the listed one, so the Host's marks on the listed entry
- * (`bundled`, `dual_instance`, its declarations) carry over to it, as the Home side does for its own (BL-394).
+ * (its `trust`, `dual_instance`, its declarations) carry over to it, as the Home side does for its own (BL-394).
  */
 function rememberingRestored(entry: PluginPlatformEntry, remember: (entries: readonly PluginPlatformEntry[]) => void): PluginPlatformEntry {
   const release = entry.releaseArtifact;

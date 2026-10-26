@@ -1,4 +1,4 @@
-import { renderRadio } from "@molis-ai/molis-work-design-system";
+import { renderRadio } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /** Runtime management uses the existing Workbench form and dialog components. */
 export function renderPluginEventRecovery(L: (text: string) => string): string {

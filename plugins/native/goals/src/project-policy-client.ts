@@ -1,5 +1,7 @@
+// These scripts run in the Host page, where the page-wide `L` knows no word only Goals declares: each binds Goals' own translator (`LF`), so what Goals says is English from its own translations.
 export const PROJECT_RULES_CLIENT_SCRIPT = `
   (() => {
+    const L = (key, vars) => LF("io.molis.work.goals", key, vars);
     const bind = (root = document) => {
     const scope = root && root.querySelector ? root : document;
     // Only the project's rules page: a Goal's own rules form in the same document belongs to the Goal's script.

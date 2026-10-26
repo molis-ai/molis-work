@@ -12,7 +12,7 @@ SDK 导出 `PluginDatabaseDeclaration`、`PluginDatabase`、读事务接口和 S
 
 ## 一次典型调用
 
-definePlugin 校验定义；definePollingIntegrationPlugin 把 Provider port 组合成 Connector Driver 与 Raw Event → Signal Adapter。Host 通过 context.services 提供私人存储、Artifact 和 UI 客户端，作者不需要访问数据库。
+definePlugin 校验定义；definePollingIntegrationPlugin 把 Provider port 组合成 Connector Driver 与 Raw Event → Signal Adapter：插件只启动一次，`createProvider(context, binding)` 在每个来源绑定时被问一次，来源之间的差别（连接、凭据引用、配置）以引用的形式随 binding 给，不含密钥。Manifest 的 `connection_services` 与 `integrations` 声明插件接触的服务和对它做的事，形状由 `integrationDeclarationProblems` 检查（PG-046）。Host 通过 context.services 提供私人存储、Artifact 和 UI 客户端，作者不需要访问数据库。
 
 `context.services.artifacts.publish/read` 是同步接口，由 Host 根据 Manifest 自动注册到同一动作 Kernel；作者只提交成果正文和固定版本。项目、用户、生产者签名及安装身份均由 Host 绑定，不能通过参数覆盖。声明所需 `artifact:read/write` 和 `artifacts.produces/consumes` 后，Runtime 授权才使接口可用；停止或崩溃后的旧客户端不能继续操作。Inputs/Outputs 同样经这个接口交换固定版本，无需另注册一套成果读写或维护 Host 名单。 `artifacts.listConsumable()` 返回当前安装可消费的所有固定版本摘要；`processItems.head/readOwn` 读取本插件同签名、同个人 owner 的过程版本供恢复使用，即使归档或内容失效也可读取自己的记录。这些项目服务需要 `artifact:read`，Home 执行器尚不提供。
 

@@ -15,10 +15,10 @@ test("Plugin private storage persists opaque values, isolates signatures and rej
   const file = join(directory, "private.db");
   let db = new Database(file);
   let owner = new SqlitePluginPrivateStorage(db);
-  const base = createGithubIntegrationPlugin({ provider: {
+  const base = createGithubIntegrationPlugin({ providerFor: () => ({
     type: "fixture", async health() { return { ok: true, status: "connected", message: "ready" }; },
     async sync() { return { ok: true, mode: "fixture", items: [], cursor: null }; },
-  } });
+  }) });
   async function install(signature: string, grant = true) {
     const runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS });
     let storage!: PluginPrivateStorage;
@@ -73,10 +73,10 @@ test("startup never upgrades an installed version; an explicit upgrade validates
   const repository = new MemoryPluginRuntimeRepository();
   const db = new Database(":memory:");
   const owner = new SqlitePluginPrivateStorage(db);
-  const base = createGithubIntegrationPlugin({ provider: {
+  const base = createGithubIntegrationPlugin({ providerFor: () => ({
     type: "fixture", async health() { return { ok: true, status: "connected", message: "ready" }; },
     async sync() { return { ok: true, mode: "fixture", items: [], cursor: null }; },
-  } });
+  }) });
   let storage!: PluginPrivateStorage;
   const make = (version: string, options: { migratableFrom?: string[]; validate?: boolean } = {}): PluginDefinition => {
     const manifest = { ...base.manifest, version,
@@ -127,10 +127,10 @@ test("failed candidate startup restores private data and leaves the previous ins
   const repository = new MemoryPluginRuntimeRepository();
   const db = new Database(":memory:");
   const owner = new SqlitePluginPrivateStorage(db);
-  const base = createGithubIntegrationPlugin({ provider: {
+  const base = createGithubIntegrationPlugin({ providerFor: () => ({
     type: "fixture", async health() { return { ok: true, status: "connected", message: "ready" }; },
     async sync() { return { ok: true, mode: "fixture", items: [], cursor: null }; },
-  } });
+  }) });
   const manifestFor = (version: string, compatibility?: string[]): PluginManifest => ({
     ...base.manifest,
     version,
@@ -194,10 +194,10 @@ test("incompatible upgrade preflight failure leaves the old plugin available and
   const repository = new MemoryPluginRuntimeRepository();
   const db = new Database(":memory:");
   const owner = new SqlitePluginPrivateStorage(db);
-  const base = createGithubIntegrationPlugin({ provider: {
+  const base = createGithubIntegrationPlugin({ providerFor: () => ({
     type: "fixture", async health() { return { ok: true, status: "connected", message: "ready" }; },
     async sync() { return { ok: true, mode: "fixture", items: [], cursor: null }; },
-  } });
+  }) });
   const permissions = [...base.manifest.permissions,
     { permission: "storage:private", required: true, reason: "Keep private drafts" }];
   const oldManifest: PluginManifest = { ...base.manifest, version: "1.0.0", permissions };

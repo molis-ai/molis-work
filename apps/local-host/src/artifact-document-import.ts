@@ -6,13 +6,14 @@ import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/pl
 import { readExternalDocument } from "@molis-ai/molis-work-integration-catalog";
 import {
   DOCUMENT_IMPORT_MAX_BYTES, documentErrors, importArtifactDocument, storeArtifactOriginal,
-  type ArtifactDocumentImportPorts, type OfferedOriginal, type ExternalDocumentSource,
+  type ArtifactDocumentImportPorts, type OfferedOriginal,
 } from "@molis-ai/molis-work-module-artifacts";
 import { resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { listConnectorConnectionViews } from "./connector-connection-views.js";
 import { resolveApiConnection } from "./connector-access.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { withConnectorRequest } from "./connector-lifecycle.js";
+import { builtinIntegrationDeclarations } from "./builtin-integrations.js";
 
 /**
  * What the Host's side of the document import refuses: reading the request, the HTML file and the connected service. Every code is
@@ -28,17 +29,26 @@ const artifactImportErrors = defineErrorCodes("artifacts.document", {
   credentials_unavailable: "invalid",
 });
 
-const CONNECTOR_IDS: Record<ExternalDocumentSource, string> = {
-  notion: "notion", feishu: "feishu", lark: "lark", "google-docs": "google-drive",
-};
+/**
+ * Each document source's import, from the integrations of kind `document_import` the plugins declared: the service it reads with and
+ * the ways of connecting its reading works with.
+ */
+function documentImports(): Record<string, { service: string; methods: readonly string[] }> {
+  return Object.fromEntries(builtinIntegrationDeclarations().listIntegrations("document_import").map(entry => [entry.declaration.document_source!,
+    { service: entry.declaration.service_id, methods: entry.declaration.connection_methods ?? [] }]));
+}
+
+type ConnectionView = ReturnType<typeof listConnectorConnectionViews>[number];
+const readsWith = (row: ConnectionView, entry: { service: string; methods: readonly string[] }) =>
+  row.service_id === entry.service && entry.methods.includes(row.auth_method);
 
 export function documentImportConnections(home = resolveMolisWorkHome()) {
-  return listConnectorConnectionViews(home).filter(row => Object.values(CONNECTOR_IDS).includes(row.service_id)
-    && !["mcp", "none"].includes(row.auth_method) && (row.auth_method !== "cli" || row.service_id === "feishu"));
+  const imports = Object.values(documentImports());
+  return listConnectorConnectionViews(home).filter(row => imports.some(entry => readsWith(row, entry)));
 }
 export function documentImportConnectionStatus(): Record<string, boolean> {
   const connections = documentImportConnections();
-  return Object.fromEntries(Object.entries(CONNECTOR_IDS).map(([source, connector]) => [source, connections.some(row => row.service_id === connector && row.state === "connected")]));
+  return Object.fromEntries(Object.entries(documentImports()).map(([source, entry]) => [source, connections.some(row => readsWith(row, entry) && row.state === "connected")]));
 }
 
 export async function importLocalArtifactDocument(input: Record<string, unknown>, ports: Omit<ArtifactDocumentImportPorts, "readExternal" | "readHtml" | "offered"> & {
@@ -76,8 +86,8 @@ export async function importLocalArtifactDocument(input: Record<string, unknown>
     readFileText: file => readOriginalText(file, home, { ...ports.signal ? { signal: ports.signal } : {},
       ...ports.allowModelDownload ? { allowModelDownload: true } : {}, ...ports.onProgress ? { onProgress: ports.onProgress } : {} }),
     async readExternal(document) {
-      const service = CONNECTOR_IDS[document.source];
-      const candidates = documentImportConnections(home).filter(row => row.service_id === service && row.state === "connected");
+      const entry = documentImports()[document.source], service = entry?.service;
+      const candidates = entry ? documentImportConnections(home).filter(row => readsWith(row, entry) && row.state === "connected") : [];
       const id = document.connection_id || (candidates.length === 1 ? candidates[0]!.connection_id : undefined);
       if (!id) throw artifactImportErrors.connection_required(candidates.length ? "该来源有多个账号，请选择要使用的连接" : "请先在连接器设置中连接所选文档工具，并授予文档读取权限");
       try { return await withConnectorRequest(home, id, ports.signal, async signal => {

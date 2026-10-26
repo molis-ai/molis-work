@@ -19,7 +19,7 @@ createGithubIntegrationPlugin 通过 SDK 注册 Driver/Adapter，createGithubPro
 | [src/oauth.ts](src/oauth.ts) | 设备授权 |
 | [src/account-presentation.ts](src/account-presentation.ts) | 账户展示 |
 
-可对照现有调用方 [apps/local-host/src/official-integrations.ts](../../../apps/local-host/src/official-integrations.ts) 阅读装配方式。
+可对照现有调用方 [apps/local-host/src/builtin-integrations.ts](../../../apps/local-host/src/builtin-integrations.ts) 阅读装配方式。
 
 ## 接入与边界
 

@@ -20,6 +20,8 @@ export const pluginErrors = defineErrorCodes("plugin", {
   home_scope_unavailable: "invalid",
   id_namespace_conflict: "invalid",
   install_replaced: "invalid",
+  integration_declaration_conflict: "invalid",
+  integration_unavailable: "unavailable",
   kept_data_incompatible: "invalid",
   manifest_invalid: "invalid",
   package_invalid: "invalid",

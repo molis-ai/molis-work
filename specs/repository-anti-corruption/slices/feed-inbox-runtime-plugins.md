@@ -269,6 +269,7 @@ FI-5 的存储层只依赖 `FeedSql`；本片给它第二个适配器 `fromPlugi
 - **4d 的维护脚本（RAC-495）。** `tests/fixtures/feed-content-ledger-maintenance.mjs`（`list` 只读、`backfill` 幂等、`--all-projects` 才写标记；退出码 0/1/2；测试 `tests/feed-content-ledger-maintenance.test.ts`，4 例）和 CHECKLIST 里的一行。动真实 Home 的维护窗口归用户定，合入前在 PR 正文里写明。
 - **4d 给 4c 的一条约束：`hold` 必须在写正文之前返回。** 账的超集不变式要求「先加后写」。`services.sourcePull` 现在若在一次调用里拉取并写正文，就没有地方插入 `hold`。所以 4c 的形状是两段式：`pull()` 只取回并缓存正文、返回引用与摘要，Feed 用这些引用 `hold`，再 `commit()` 写正文（或 `discard()` 丢掉缓存）。这要在 4c 的设计稿里请统筹确认，不是 4d 的内容。
 - **4d 与 RAC-492、493、518 的关系。** 这三条是项目一半的事（连接事件订阅、启动时对账、启动时对 `hold`），随 4e 的 `createFeedPlugin()` 做，不在 4d。
+- **第 4 步 4c-1 已做：`services.sourcePull`（2026-10-26，RAC-1016～1019，暂定 S-92）。** 合同 `plugin-source-pull.ts`；运行时客户端 `packages/plugin-runtime/src/source-pull-service.ts`（权限来自当前调用，和 `services.connections` 同一套规矩；请求闭合）；宿主一半 `plugin-source-pull-service.ts` 的 `createSourcePullPort`（复用 `createFeedSourceRuntime`，所以传输仍是 RSS 允许名单 + 自定义公网地址 + AnySearch，没有新的网络代码）与 `source-pull-intent.ts`（`buildExactRequest` 的宿主一份，与 Feed 那份逐字节一致；4e 删 Feed 的那份）。`createSearchContentPort` 加 `beforeWrite`，`createFeedSourceRuntime` 加 `beforeContentWrite`/`assertCurrent`/`beforeDispatch`（都可选，宿主版 Feed 不传）；存储包导出 `evidenceContentRef`。沙箱：`SANDBOX_SERVICE_FATE.sourcePull = 'refused'` 加 `SANDBOX_NOT_GIVEN` 一行。测试 `tests/security-invariants-plugin-source-pull.test.ts`（8 例，真实项目库 + 假 fetch）。**留给 4c-2：`repository.read`（研究库的 git 取数）。** 与初稿的差别：不暂存、不 `commit()`，见上面「改定的做法」。
 
 ## 9. 第 4 步（Feed 进 Runtime）的拆法与缺口清单（2026-10-26，开工前读代码核的）
 
@@ -283,7 +284,7 @@ Feed 的动作要么全由宿主提供、要么全由 Runtime 提供（`BUILD_TI
 建议的次序（每步单独绿、单独推；翻转之前宿主版 Feed 照常工作）：
 1. **4a 平台通知接收方（D6-2）**：Manifest 声明接收、通知服务按声明找、没有接收方留队列。宿主版 Feed 先当接收方，删 `plugin-notification-service.ts` 里的 Feed 构造。
 2. **4b 首页 dock 判断动作 ③**（做完，见 §8：没有新增 Home 动作，现成的 `home.judgment.evaluate` 就是公开动作；Feed 一侧的触发器已写；发现一个要统筹裁定的缺口，决定前 4e 的后台判断不能翻转）。
-3. **4c `services.sourcePull` 与证据正文 ①**（最大，也最碰安全：网络、文件、密钥；沿用 S-57 的地址校验与允许名单，不放宽；S 号用暂定，合入前改）。
+3. **4c `services.sourcePull` 与证据正文 ①**（4c-1 做完，见 §8 与 §10：`pull`/`plan`/`evidence.read`/`forget`；4c-2 `repository.read` 未做；沿用 S-10 的地址校验与允许名单，不放宽；S 号暂定 S-92）。
 4. **4d Home 引用账 ④**（做完一半，见 §8：账的逻辑、两个动作、Home 一半与维护脚本已写，RAC-494、495；登记与项目一半的 RAC-492、493、518 随 4e）。
 5. **4e 翻转**：`createFeedPlugin()`、监督器条目、`background.wakeups` 的 tick、8 个构造点换成公开动作、删 `feed-native-plugin-http.ts` 与客户端迁移、`BUILD_TIME_ASSEMBLED` 与 `NATIVE_PLUGIN_HTTP_FILES` 去掉 `feed`（RAC-499、500、510～512、516、517）。
 
@@ -293,47 +294,36 @@ Feed 的动作要么全由宿主提供、要么全由 Runtime 提供（`BUILD_TI
 
 **现状的切缝。** Feed 包早已把取数收成端口：`FeedSourcePorts.createRuntime(source)` 给出 `PublicFeedRuntime`（`intelligenceCollect.executeExact`、`content.has`、`writtenContentRefs`、`publicFeedReceipt`、`shutdown`），研究库另有 `syncRepository`。宿主这一侧是四块：`feed-source-runtime.ts`（RSS 允许名单传输 + SEL 运行时 + 条件头）、`search-evidence-runtime.ts`（AnySearch 传输与密钥；检索记录经 `createSearchOpaqueBlobStore(db)` 写进项目库，该表归 `packages/storage` 的 `search-storage.ts`；证据正文写 Home 的加密文件）、`research-library-source.ts`（`git` 子进程取数）、`feed-content.ts`（`hydrateFeedItemContent` 解密读正文）。这四块开网络、开子进程、读密钥、读写 Home 文件，插件自己都不能做，所以是平台服务；Feed 一侧只留「来源登记、计划、运行账、事项写入」。
 
-**形状：一个服务、四个方法，公开合同里不出现 `@adeptify/*` 的类型**（回答 §9 末尾的取舍：一个服务，因为 Manifest 声明、授权、取消与审计是同一套；方法各自单独授权）。
+**形状（4c-1 实现时改定，比上面初稿简单）：一个服务、四个方法，公开合同里没有 `@adeptify/*` 的类型**（`packages/contracts/src/platform/plugin-source-pull.ts`；回答 §9 末尾的取舍：一个服务，因为 Manifest 声明、授权、取消与审计是同一套）。
 
 ```ts
-interface PluginSourcePullService {
-  /** 公开订阅源与网页搜索。第一段：取回、缓冲，不写任何持久内容。 */
-  open(request: SourcePullRequest, options?: { signal?: AbortSignal }): Promise<SourcePullSession>;
-  /** 研究库（git）：平台管理克隆目录与子进程，只返回条目。 */
-  repository: { read(input: { repository: string; cursor?: string }): Promise<SourceRepositoryRead> };
-  /** 读一份已存的证据正文（解密）。 */
-  evidence: { read(contentRef: string): Promise<string | null> };
-  /** 忘掉一批检索记录（今天的 forgetIntelligenceOperations）。 */
-  forget(operationIds: readonly string[]): Promise<{ records_deleted: number }>;
+interface PluginSourcePullClient {            // 每个方法只在 Manifest 声明了它的权限时才有
+  plan?(request): Promise<{ intent_fingerprint }>;                 // 不取不写，只算指纹（幂等冲突检查用）
+  pull?(request, { hold(content_refs), signal? }): Promise<SourcePullResult>;
+  evidence?: { read(content_ref): Promise<string | null> };
+  forget?(operation_ids): Promise<{ records_deleted }>;
 }
-type SourcePullRequest =
-  | { kind: "feed_url"; url: string; cursor?: unknown }          // rss / custom_rss / youtube_channel 的订阅地址；cursor 只用来取 etag / last-modified
-  | { kind: "web_query"; query: string; limit?: number };
-interface SourcePullSession {
-  operation_id: string; outcome: string; requirement_met: boolean;
-  materials: readonly { title: string; canonical_url?: string; published_at?: string; preview: string; content_hash?: string; content_ref?: string; content_type?: string }[];
-  warnings: readonly string[]; http_receipt: RssFetchReceipt | null;
-  content_refs: readonly string[];                               // 缓冲里的正文：Feed 先 hold 这些，再 commit
-  commit(): Promise<{ written: readonly string[] }>; discard(): Promise<void>;
-}
+type SourcePullRequest =                       // 闭合：多一个字段就拒
+  | { kind: "rss"; definition_id } | { kind: "custom_rss"; feed_url } | { kind: "youtube_channel"; channel_id }   // 都带 operation_id、source_name、cursor?
+  | { kind: "web_query"; query };                                   // 带 operation_id、source_name
 ```
 
-**两段式（4d 带来的约束）：** 账要「先 hold 后写」，而引用在取回之前不知道。做法：`open` 里 SEL 的内容端口写进**暂存根目录**（`createEvidenceContentStore({ secretStore, rootDirectory })` 已有 `rootDirectory` 选项，正文按哈希寻址，暂存与正式的引用相同），检索记录写进暂存的 SQLite 文件；Feed 拿 `content_refs` 调 `feed.content.hold`；`commit()` 才把暂存的文件改名到正式目录（目标已有就丢掉暂存件）、并在一次项目库事务里把检索记录搬进项目库；`discard()`、取消、撤权、停用、进程崩溃都只留下暂存目录，里面的东西没人引用，下次启动清掉。所以任何时刻，正式目录里的正文要么已有人 hold，要么还没写。
+**改定的做法：「先 hold 后写」不靠暂存目录，靠写之前回调。** 初稿设想 `pull` 只缓冲、Feed 再 `hold`、最后 `commit()` 才落盘（暂存根目录 + 暂存检索库）。实现时发现更简单且不变式更强：证据正文按内容寻址（`molis-work-feed/sha256/<正文的 sha256>`，写之前就能算出，新增 `evidenceContentRef`），SEL 的内容端口 `write` 本来就是异步的，所以**端口在写每一份正文之前先 `await` 插件给的 `hold(refs)`**，`hold` 返回了才写。`hold` 是必填项，插件没法忘记；`hold` 失败、调用被取消、撤权、停用，整次取数失败，后面的正文不再写（SEL 把写失败变成局部结果，平台自己记下 `hold` 的失败并在 SEL 返回后重抛）。结果：不要暂存目录，不要 `commit()/discard()`，检索记录照旧直接写项目库，**初稿里的「行为变化」（崩溃后不能重放）也没有了**。崩溃在「hold 之后、写之前」只会让账多一行（超集，安全）。
 
 **不放宽任何边界（D6-1 的停下条件一条都没碰）：** 目的地只经现有的传输——`createAllowlistedRssTransport`（目录里的订阅源 + YouTube 公共频道 + 自定义公网订阅地址，S-10 的固定到已检查地址的 socket）与 `anysearch-transport.ts`（密钥留在平台，插件看不到）；请求里只有地址 / 查询词 / 数量，**没有请求头、方法、重定向、代理字段**（schema 闭合，多一个字段直接拒）；条件头来自 `cursor`，仍由 `readRssHttpState` 只取 etag 与 last-modified 两个字符串；私网 / 回环等地址的拒绝原样生效（经服务再跑一遍 S-10 的表）。
 
-**授权与声明：** Manifest 声明 `sources: { pull: ["feed_url", "web_query", "repository"], evidence: { namespace: "molis-work-feed" } }` 与权限 `sources:pull`；没声明的种类、命名空间之外的引用、缺权限一概拒；取消、撤权、停用、卸载后的调用既不 commit 也不写（硬约束）。`evidence.read` 的命名空间今天只有 `molis-work-feed/`（存量数据的前缀，存储不是多命名空间的，本片不改）。沙箱里的插件本片拿不到这项服务（broker 不暴露；待核：现有 `services.*` 在沙箱里的暴露规则，实现时照同类服务做）。
+**授权与声明（改定：不加 Manifest 块，只用权限，和 `services.materials` 一样）：** 权限 `sources:pull_feed`（订阅源类）、`sources:pull_query`（网页查询）、`evidence:read`（读正文，命名空间固定为存量的 `molis-work-feed/`）；没声明的种类、命名空间之外的引用、缺权限一概拒；取消、撤权、停用、卸载后的调用既不 commit 也不写（硬约束）。`evidence.read` 的命名空间今天只有 `molis-work-feed/`（存量数据的前缀，存储不是多命名空间的，本片不改）。沙箱里的插件本片拿不到这项服务（broker 不暴露；待核：现有 `services.*` 在沙箱里的暴露规则，实现时照同类服务做）。
 
 **要统筹确认的（我的推荐在前）：**
 1. 一个服务四个方法，实现分两个提交：4c-1 = `open` + `evidence.read` + `forget`；4c-2 = `repository.read`（研究库条目的写入从宿主 `syncResearchLibrarySource` 搬进 Feed，宿主只留 git 读取）。
-2. 两段式用「暂存根目录 + 暂存检索库，`commit()` 才落」。备选「SEL 直接写正式目录，Feed 事后补 hold」不满足超集不变式，不采用。
+2. （已改定）不做暂存与 `commit()`：`hold` 回调在每份正文写之前被等待，见上。
 3. `evidence.read` 的范围：命名空间内任意引用（等于今天宿主的行为，引用是 256 位哈希、只能从本项目的行里得知）。更强的备选是平台再记一张「本安装在本项目写过 / 收到过哪些引用」，要读先查——那是第二本账，且要与 4d 的账对齐，推荐不做，SI 行里写明这个限度。
-4. **行为变化（会改测试）：** 取数进程在 `commit()` 之前崩溃，今天正文和检索记录都留下、重试可「重放」同一次拉取；改后什么都不留，重试重新取（条件头让它很便宜）。运行账仍是 `interrupted`、仍「可安全重试」。
-5. S 号用暂定 `S-9X`（以合入时表的末号为准，不占 #1255 的 S-91）。
+4. （已无）没有行为变化：崩溃后检索记录与正文照旧留下、可重放。
+5. S 号用暂定 `S-92`（以合入时表的末号为准，不占 #1255 的 S-91）。
 
 | 验收 | 内容 |
 | --- | --- |
-| RAC-1016 | `open` 之后到 `commit()` 之前，正式证据目录与项目库检索记录与调用前相同；`discard()`、取消、`open` 失败、崩溃后重启，同样相同；`commit()` 时账里已有这些引用（顺序用例）；`commit()` 重复调用与目标已存在都不出错 |
-| RAC-1017 | 拒绝：Manifest 没声明的种类、缺 `sources:pull`、请求里多一个头 / 方法 / 重定向 / 代理字段、私网回环地址（S-10 全表经服务）、已撤权 / 停用 / 取消的调用的 `commit()` 都拒绝且不写；密钥不出现在返回与错误里 |
-| RAC-1018 | `evidence.read`：命名空间之外、格式不对、没声明的插件都拒；读回的明文与今天 `hydrateFeedItemContent` 读到的相同；不存在的引用返回 `null` |
-| RAC-1019 | `repository.read`（4c-2）：只返回条目与新游标，不返回目录路径；仓库名不是 `owner/name`、含 `..`、含选项式前缀一律拒；git 子进程的参数里没有来自插件的自由文本 |
+| RAC-1016 | 每份正文写之前，插件先被告知它的引用（用例里 `hold` 被调用时磁盘上还没有这份正文）；`hold` 抛错则整次取数失败、正文不写；取消在 `hold` 中途发生，后面的正文不写；同一来源同一键，平台算出的指纹与 Feed 自己记在运行账里的相同 |
+| RAC-1017 | 拒绝：没声明权限的插件没有这项服务、方法按权限给；启动函数里 / 别的安装的调用 / 已结束的动作 / 非并行动作 / 只读调用 / 没声明权限的动作都拒；请求多一个头 / 方法 / 重定向 / 代理 / 供应商 / 预算字段、未知 kind、缺 `hold`、一种 kind 缺它的权限都拒；私网回环、非 https、带账号的地址在到传输之前就拒（用例里 fetch 一次都没被调用） |
+| RAC-1018 | `evidence.read`：命名空间之外、格式不对、没有 `evidence:read` 的调用都拒；读回的明文与今天 `hydrateFeedItemContent` 读到的相同；不存在的引用返回 `null` |
+| RAC-1019 | `forget`：只忘本项目里这几次取数的检索记录，别的操作号答 0；操作号格式、数量越界、非数组都拒。`repository.read`（4c-2，未做）：只返回条目与新游标，不返回目录路径；仓库名不是 `owner/name`、含 `..`、含选项式前缀一律拒；git 子进程的参数里没有来自插件的自由文本 |

@@ -2966,6 +2966,7 @@ export interface PluginHostServices {
     readonly localTools?: import("platform/plugin-local-tools").PluginLocalToolsClient;
     readonly materials?: PluginMaterialsClient;
     readonly connections?: import("@molis-ai/molis-work-contracts/platform/plugin-connections").PluginConnectionsClient;
+    readonly sourcePull?: import("@molis-ai/molis-work-contracts/platform/plugin-source-pull").PluginSourcePullClient;
     readonly directory?: import("@molis-ai/molis-work-contracts/platform/plugin-directory").PluginDirectoryService;
     readonly artifacts?: PluginArtifactClient;
     readonly processItems?: PluginProcessItemClient;

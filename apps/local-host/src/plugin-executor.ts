@@ -36,6 +36,8 @@ export interface PluginHostExecutorOptions {
    * (`services.project_database`); absent or `null`: none, and such a plugin does not start.
    */
   projectLibrary?: import("./plugin-project-library.js").ProjectLibrary | null;
+  /** Test seam for `services.sourcePull`: the fetch its public-feed pulls go through. Production never passes it. */
+  sourcePullFetch?: (input: string | URL, init?: RequestInit) => Promise<Response>;
   installations?: import("./plugin-installation-directory.js").InstallationDirectoryClient;
   scheduler?: import("@molis-ai/molis-work-service-scheduler").ScheduleService;
   /**

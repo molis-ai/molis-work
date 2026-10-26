@@ -59,7 +59,7 @@ export { sealExistingHomePayload, openExistingHomePayload, type SealedHomePayloa
 
 export * from "./adapters/search-storage.js";
 
-export { createEvidenceContentStore, type EvidenceContentStore } from "./adapters/evidence-content.js";
+export { createEvidenceContentStore, evidenceContentRef, type EvidenceContentStore } from "./adapters/evidence-content.js";
 export { openMemoryLedger, MEMORY_LEDGER_STORE, MEMORY_LEDGER_BASELINE, MEMORY_LEDGER_HOME_STORE } from "./adapters/memory-ledger.js";
 export { openKnowledgeCards, clearKnowledgeProject, KNOWLEDGE_CARDS_STORE, KNOWLEDGE_CARDS_BASELINE, KNOWLEDGE_CARDS_HOME_STORE } from "./adapters/knowledge-cards.js";
 export { openTextSearchIndex, normalizeSearchText, searchTokens, searchQueryPlan, TEXT_SEARCH_STORE, TEXT_SEARCH_HOME_STORE, type TextSearchIndexOptions } from "./adapters/text-search-index.js";

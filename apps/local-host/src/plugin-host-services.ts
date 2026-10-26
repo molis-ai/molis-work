@@ -35,6 +35,7 @@ import { pluginModelFor } from "./plugin-model-service.js";
 import { sandboxOwnerFilesFor } from "./plugin-sandbox-owner-files.js";
 import { pluginMaterialsFor } from "./plugin-materials-service.js";
 import { pluginConnectionsFor } from "./plugin-connections-service.js";
+import { pluginSourcePullFor } from "./plugin-source-pull-service.js";
 import { pluginBackgroundFor } from "./plugin-background-service.js";
 import { DIRECTORY_READ_PERMISSION, directoryForHome, type DirectoryGrantService } from "./plugin-directory-service.js";
 import { servicesUntilStopped } from "./plugin-stopped-services.js";
@@ -100,6 +101,7 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
       scheduler: scheduler?.client, agents: agents?.client,
       database: library?.client, ownerFiles: ownerFiles?.client, project_database: projectLibrary?.client, project_statements: definition.execution === "sandbox" ? projectLibrary?.statements : undefined, model: pluginModelFor(options.home, definition, context, assertActive),
       materials: pluginMaterialsFor(options.home, definition, context, assertActive, options.project_id), connections: pluginConnectionsFor(options.home, definition, context, assertActive),
+      sourcePull: pluginSourcePullFor(definition, context, assertActive, options.projectLibrary?.db, options.sourcePullFetch ? { fetch: options.sourcePullFetch } : {}),
       background: background?.client, directory: directory?.client });
     withdrawPages = options.home ? pluginPagesFor(options.home.directory).connect({ manifest, install_id: context.install_id, project_id: options.project_id, actor_id: options.actor_id,
       invoke: pluginPageActions(manifest, context, { client: options.actions.client, actions: hosted.services?.actions, caller: pluginCaller, provider: providerId }),
@@ -192,6 +194,8 @@ interface SessionParts {
   readonly materials: ReturnType<typeof pluginMaterialsFor>;
   /** Requests through the accounts the person bound to the Manifest's slots, only when it declares `connections:use` (`pluginConnectionsFor`). */
   readonly connections: ReturnType<typeof pluginConnectionsFor>;
+  /** Pulling public sources and reading evidence bodies, only when the Manifest declares `sources:pull_feed`, `sources:pull_query` or `evidence:read` (`pluginSourcePullFor`). */
+  readonly sourcePull: ReturnType<typeof pluginSourcePullFor>;
   readonly background: import("@molis-ai/molis-work-contracts/platform/plugin").PluginBackgroundClient | undefined;
   /** The person-authorized directory reader, only when the Manifest declares `directory:read`. */
   readonly directory: PluginDirectoryService | undefined;
@@ -227,6 +231,7 @@ function hostedContext(options: PluginHostExecutorOptions, manifest: PluginManif
       ...(parts.model === undefined ? {} : { model: parts.model }),
       ...(parts.materials === undefined ? {} : { materials: parts.materials }),
       ...(parts.connections === undefined ? {} : { connections: parts.connections }),
+      ...(parts.sourcePull === undefined ? {} : { sourcePull: parts.sourcePull }),
       ...(parts.background === undefined ? {} : { background: parts.background }),
       ...(parts.directory === undefined ? {} : { directory: parts.directory }),
       ...coordinationServices(options, manifest, context, parts),

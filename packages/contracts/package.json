@@ -282,6 +282,10 @@
       "types": "./dist/platform/plugin-directory.d.ts",
       "import": "./dist/platform/plugin-directory.js"
     },
+    "./platform/plugin-source-pull": {
+      "types": "./dist/platform/plugin-source-pull.d.ts",
+      "import": "./dist/platform/plugin-source-pull.js"
+    },
     "./platform/plugin-connections": {
       "types": "./dist/platform/plugin-connections.d.ts",
       "import": "./dist/platform/plugin-connections.js"

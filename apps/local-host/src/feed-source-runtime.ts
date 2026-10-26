@@ -34,6 +34,11 @@ export function createFeedSourceRuntime(options: {
   secretStore?: SecretStore;
   content?: EvidenceContentStore;
   sourceCursor?: unknown;
+  /** The platform's pull service: told each evidence body's reference before the body is written, and stops the pull when the call is no longer current. */
+  beforeContentWrite?: (contentRef: string) => Promise<void>;
+  assertCurrent?: () => void;
+  /** Awaited right before a web query leaves for the search service. */
+  beforeDispatch?: () => Promise<void>;
 }): FeedSourceRuntime {
   const secretStore = options.secretStore ?? createFileSecretStore();
   const store = options.content ?? createEvidenceContentStore({ secretStore });
@@ -57,7 +62,7 @@ export function createFeedSourceRuntime(options: {
       conditional: { etag: httpState.etag, lastModified: httpState.last_modified },
       onReceipt(receipt) { publicFeedReceipt = receipt; },
     }),
-    content: createSearchContentPort(content),
+    content: createSearchContentPort(content, options.assertCurrent, options.beforeContentWrite),
   });
   const rssRuntime = createSearchRuntime({
     app: { id: APP_ID, version: PRODUCT_VERSION, dataCompatibilityVersion: 1 },
@@ -65,7 +70,7 @@ export function createFeedSourceRuntime(options: {
     providers: [{ revision: 1, provider: createRssProvider({ appId: APP_ID }), transportProfileId: "molis-work-rss-allowlist-v1" }],
   });
   const shared = createSearchEvidenceRuntime({
-    db: options.db, secretStore, content,
+    db: options.db, secretStore, content, assertCurrent: options.assertCurrent, beforeDispatch: options.beforeDispatch, beforeContentWrite: options.beforeContentWrite,
     source: {
       runtime: rssRuntime,
       routeResolver: createFeedExactRouteResolver({

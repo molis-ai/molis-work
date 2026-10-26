@@ -125,7 +125,7 @@ test("Removing a project plugin leaves companions, removing a dependency takes d
     assert.equal(alwaysOn.status, 400, plugin);
     assert.equal((await alwaysOn.json()).code, "catalog.plugin_always_on", plugin);
   }
-  assert.deepEqual(catalog.listHiddenPlugins(project.project_id), []);
+  assert.deepEqual(catalog.projectPluginMembership(project.project_id).hidden, []);
   assert.equal(catalog.listProjectPlugins(project.project_id).includes("goals"), true);
   assert.equal((await change("POST", project.project_id, "feed")).status, 200);
   const removedFeed = await change("DELETE", project.project_id, "feed");
@@ -149,10 +149,10 @@ test("Removing a project plugin leaves companions, removing a dependency takes d
   const characters = await change("DELETE", project.project_id, "characters");
   assert.equal(characters.status, 400);
   assert.equal((await characters.json()).code, "catalog.plugin_not_found");
-  assert.deepEqual(catalog.listHiddenPlugins(project.project_id), [], "the refusal hides nothing");
+  assert.deepEqual(catalog.projectPluginMembership(project.project_id).hidden, [], "the refusal hides nothing");
   assert.match(await (await fetch(`${origin}/projects/${project.project_id}/`)).text(), /data-settings-section="characters"/, "the section is still there after the refusal");
   assert.deepEqual(catalog.listProjectPlugins(other.project_id), ["goals", "schedule"]);
-  assert.deepEqual(catalog.listHiddenPlugins(other.project_id), []);
+  assert.deepEqual(catalog.projectPluginMembership(other.project_id).hidden, []);
   const db = new Database(join(homeDirectory, "projects/catalog.db"), { readonly: true });
   try {
     assert.equal(db.prepare("SELECT count(*) AS n FROM project_events WHERE project_id = ? AND type = 'project.plugin_removed' AND payload_json LIKE '%pages%'").get(project.project_id).n, 1);

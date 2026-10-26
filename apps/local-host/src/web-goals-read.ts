@@ -157,8 +157,7 @@ export function createLocalGoalsReadHttp(ports: {
       async (view, { goalId: requestedGoalId, archiveView, trashView }) => {
         const desktopShell = isDesktopShellRequest(request, url);
         const projectConfiguration = options.project ? await withMolisWorkProjectCatalog({ homeDirectory }, catalog => ({
-          plugins: catalog.listProjectPlugins(options.project!.project_id),
-          hidden: catalog.listHiddenPlugins(options.project!.project_id),
+          ...catalog.projectPluginMembership(options.project!.project_id),
           workspaces: catalog.listWorkspaceDirectory(options.project!.project_id),
         })) : null;
         // `shown_plugins` comes with the view (`projectWebView`), the one projection the page, its refresh and its fragments share.

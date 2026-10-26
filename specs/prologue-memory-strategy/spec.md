@@ -1427,3 +1427,21 @@ f9e5b4fb 的普通 CI 40251451657 在 Package boundaries（job 121344061019）�
 额外临时测试源码 strict/noEmit 实验未通过，保留两次原日志：初版遗漏 JS 输入和当前 Node API 的 lib；按实际 JS/ES2024 输入修正临时配置后仍有 27 个诊断，位于动作快照 JS 推断、既有动作夹具的结构/负向输入等。未修改仓库 tsconfig、降低 strict 或放宽运行断言，也不宣称该额外检查通过；上述生产项目类型与原运行测试是分别执行的事实，不作相互替代。日志前缀 `/private/tmp/molis-memory-foundation-batch41-`（install/build/focused/agent-types/test-kit-types/api/actions/assets-report/test-types/test-types-v2，20261026）。
 
 合成提交为 `d92f2f918e2112d09de48fb1953ea96015915c1d`。其后原资源 updater/准确 29f 资源检查、`workspace:verify`、准确 29f health 均通过；按原 health 工具只降低本地快查，未改变检查逻辑或阈值。`git fetch origin main` 仍为 29f。后续推送新提交沿原 CI/Full 配置验证，不恢复用户暂缓的 21db 那轮；截至本记录，尚无新头远端通过证据。
+
+### 2026-10-26 Foundation batch-42：可达性同步读的重复库校验
+
+本地最终实现核收：整体70包 build、Local Host strict、Projects 原类型检查、公开 API、准确 `29f1ffd4` health/原 updater 与48项资源门通过；本次不改门禁/例外，Catalog 方法数保持40。最终原 runner 12文件140/140首轮通过，含撤权/重新同意、版本及schema损坏、缺失项目、写前撤权、Reference、页面恢复及crosstalk4例；零重试。Root逐差异复核及最后增量独立评审均未发现新增确定P1/P2；不替代新提交Linux检查或产品整体验收。
+
+失败与诊断保留：新增用例前的原单文件完整运行曾在前两项通过后触发 Node24.14 原生 `InternalCallbackScope` 断言，新增用例尚未执行，原因未明。之后仅筛选新增MEM-42三例，得到2通过/1预期失败（一次可达性两次开库校验）；实现后上列原12文件中该完整文件18/18通过，不能据此关闭首次原生崩溃原因。两次red均走原runner的独立临时Home，没有直接Node绕过隔离。
+
+Coding另执行一次被动连接观察：对象为b60加本片最终候选，原8例首轮通过；46请求均有完整双端响应，未复现请求级ECONNRESET。6监听端口互异、12存活连接正常复用；12个客户端收尾 `UND_ERR_SOCKET` 都在响应完成与server关闭之后，不是失败fetch。两份日志正常退出、无可检测截断或观察异常；关闭API事件不等于t.after开始。探针有时序扰动，本机未复现不能关闭旧CI失败，也不能与crosstalk合并归因。原件前缀 `molis-memory-coding-reset-probe-20261026`；最终验证日志前缀 `molis-memory-foundation-b42-final-20261026`（对应build/focused/host-strict/api/health/assets，实际文件以各步骤名置于日期前）。当前尚无本片新提交的远端验收结果。
+
+实现收束：初版新增 Catalog 转发使现有巨大类方法数由40增至41，原准确主干 health 门拒绝。采用同一合并查询替代 Catalog 原 `listHiddenPlugins` 薄转发，并迁移它的实际调用者；原同时取成员与隐藏列表的 UI / Reference 读取共用这次结果，只需隐藏列表的调用者读取结果的 hidden。模块原独立 query 仍保留原合同，存储显示投影仍不得作授权。包含这些直接调用者的最小迁移，不引入可调用字段躲避计数、不登记巨大类例外、不改变门禁。页面写后返回仍保留已提交操作的 plugins 结果，随后读取当前 hidden。
+
+最新 b60 的普通 CI 与 Full 都为 success，但原日志核收为1511文件、1509首轮accepted、2首红经原retry1通过：crosstalk仍2/4首红，cleanup CDP延迟1587/1303ms超过原1000ms，新增CPU/事件循环诊断表明本Node在该时间窗持续活动；coding-original-inputs另有7/8和ECONNRESET，根因尚未知。两者不合并归因，旧Cloudflare原因仍按用户决定未核清，旧21db普通CI不恢复。
+
+先收窄已证实的实际重复工作：一次同步projectReachablePlugins依次取hidden与plugins，二者各调registry.alwaysOn，现役Home库因此完整打开、BEGIN、版本/实际与参考schema校验、读同意/安装、close两次。现有storedProjectPluginMembership仅供显示，禁止拿来授权；不能复用它，也不增加全局/请求级授权缓存。
+
+本刀短合同：在Projects现有同步query窄口增加projectPluginMembership，沿用既有ProjectPluginMembership形状。Module局部只读取一次alwaysOn，供原成员派生及hidden过滤共同使用；Catalog只转发，reach只消费同一同步结果。保持先alwaysOn/schema检查、后项目读取的错误顺序，保持personal、stored、排序、outside-build和嵌入插件语义。局部结果不保存到实例，不跨await复用；live admit和beforeEffect仍各自即时重读。硬边界与可配置策略均不变，无新包/缓存/配置/界面旋钮。
+
+允许修改现役Projects合同、Module的service/query接线、Catalog与reach调用、对应README及原安全/调用方回归；公共快照由Root原生成器刷新。先用真实临时Home的被动连接/版本读计数确认现状两次，再验证候选一次；同意撤回/恢复在下一次读立即生效，随后schema变坏仍拒绝（包括不存在项目时不能降级个人fallback），原异步撤权用例仍零写入。统一build、类型/API/准确父门禁、原定向回归和原crosstalk路径测量后评估。这里只承诺减少真实重复I/O，尚不宣称已定位/修复Linux超时；保留原1000ms、重试和全部断言，ECONNRESET独立诊断。

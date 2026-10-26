@@ -12,11 +12,11 @@ import { homePluginsOutsideBuild } from "./home-registration.js";
  * the Home's personal plugins its build does not ship (`homePluginsOutsideBuild`, #679): reached unless the project hid them. A caller
  * that passes none reaches none of them.
  */
-export function projectReachablePlugins(catalog: Pick<MolisWorkProjectCatalog, "listProjectPlugins" | "listHiddenPlugins">, projectId: string,
+export function projectReachablePlugins(catalog: Pick<MolisWorkProjectCatalog, "projectPluginMembership">, projectId: string,
   outsideBuild: readonly string[] = []): ReadonlySet<string> | null {
   try {
-    const hidden = catalog.listHiddenPlugins(projectId);
-    const reachable = new Set(availableProjectPluginIds(shownProjectPlugins(catalog.listProjectPlugins(projectId), hidden)));
+    const { plugins, hidden } = catalog.projectPluginMembership(projectId);
+    const reachable = new Set(availableProjectPluginIds(shownProjectPlugins(plugins, hidden)));
     for (const key of outsideBuild) if (!hidden.includes(key)) reachable.add(key);
     return reachable;
   }

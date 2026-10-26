@@ -91,9 +91,15 @@ export class ProjectService {
     return derived.length === 0 ? stored : [...stored, ...derived].sort();
   }
 
-  /** What the project hid. A hidden mark on a 常开 plugin (one made before it was) changes nothing, so it is not listed. */
-  listHidden(projectId: string): ProjectPluginId[] {
+  /** One synchronous reach judgement uses the same current registry answer for both membership and hidden marks. */
+  pluginMembership(projectId: string): ProjectPluginMembership {
     const alwaysOn = this.plugins.alwaysOn?.() ?? [];
+    const hidden = this.listHidden(projectId, alwaysOn);
+    return { plugins: this.listPlugins(projectId, alwaysOn), hidden };
+  }
+
+  /** What the project hid. A hidden mark on a 常开 plugin (one made before it was) changes nothing, so it is not listed. */
+  listHidden(projectId: string, alwaysOn: readonly ProjectPluginId[] = this.plugins.alwaysOn?.() ?? []): ProjectPluginId[] {
     return this.repository.listHiddenPlugins(this.get(projectId).project_id).filter(id => !alwaysOn.includes(id));
   }
 

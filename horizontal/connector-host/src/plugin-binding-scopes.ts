@@ -58,6 +58,16 @@ export function installationProjectBindingsWhere(install_id: string, project_id:
   return { where: "substr(scope_id, 1, ?) = ?", parameters: [prefix.length, prefix] };
 }
 
+/**
+ * Every binding of one installation, in every project: its installation slot's scope exactly, and the `per_record` scopes that start
+ * `plugin-installation:<install>/`. The separator ends the id, so installation `abc` never matches `abcd`. `null` when no scope can hold them.
+ */
+export function installationBindingsWhere(install_id: string): { readonly where: string; readonly parameters: readonly (string | number)[] } | null {
+  if (!part(install_id)) return null;
+  const slot = INSTALLATION + install_id, prefix = slot + "/";
+  return { where: "(scope_id = ? OR substr(scope_id, 1, ?) = ?)", parameters: [slot, prefix.length, prefix] };
+}
+
 /** The one place a binding scope is read back; `null` for a scope that is not a plugin's (`home`, a built-in consumer's). */
 export function parsePluginBindingScope(scope: string): PluginBindingTarget | null {
   if (!scope.startsWith(INSTALLATION)) return null;

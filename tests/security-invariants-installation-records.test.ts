@@ -72,14 +72,19 @@ for (const execution of ["native", "sandbox"] as const) {
     const kept = [{ ...mine, project_id: DEMO_PROJECT_ID + "0" }, { ...mine, project_id: "x" + DEMO_PROJECT_ID }, { ...mine, project_id: null },
       { ...mine, install_id: install_id + "0" }, { plugin_id: other.id, install_id: otherInstall, project_id: DEMO_PROJECT_ID, record_key: "doc" }];
     const record = pluginBindingScope({ install_id, project_id: DEMO_PROJECT_ID, record_key: "src-1" });
-    const keptBindings: Array<[string, string, string]> = [
+    // The only installation of this identity: when it goes, its installation slot and its record bindings in every project go with it (BL-596).
+    // The identity next to it (`install_id + "0"`) and another plugin's bindings are not its own.
+    const lastBindings: Array<[string, string, string]> = [
       ...[DEMO_PROJECT_ID + "0", "x" + DEMO_PROJECT_ID].map(project_id => [probe.id, pluginBindingScope({ install_id, project_id, record_key: "src-1" }), "feed"] as [string, string, string]),
-      [probe.id, pluginBindingScope({ install_id }), "account"], [probe.id, pluginBindingScope({ install_id: install_id + "0", project_id: DEMO_PROJECT_ID, record_key: "src-1" }), "feed"],
+      [probe.id, pluginBindingScope({ install_id }), "account"],
+    ];
+    const keptBindings: Array<[string, string, string]> = [
+      [probe.id, pluginBindingScope({ install_id: install_id + "0", project_id: DEMO_PROJECT_ID, record_key: "src-1" }), "feed"],
       [other.id, pluginBindingScope({ install_id: otherInstall, project_id: DEMO_PROJECT_ID, record_key: "src-1" }), "feed"],
     ];
     const seed = async () => { await r.original(mine); r.bind(probe.id, record, "feed"); };
     for (const key of kept) await r.original(key);
-    for (const [pluginId, scope, slot] of keptBindings) r.bind(pluginId, scope, slot);
+    for (const [pluginId, scope, slot] of [...lastBindings, ...keptBindings]) r.bind(pluginId, scope, slot);
     const othersUntouched = async (when: string) => {
       for (const key of kept) assert.equal(await r.readable(key), true, `${when}: ${JSON.stringify(key)}`);
       for (const [pluginId, scope, slot] of keptBindings) assert.equal(r.bound(pluginId, scope, slot), true, `${when}: ${scope}`);
@@ -88,6 +93,7 @@ for (const execution of ["native", "sandbox"] as const) {
     const revoked = async (when: string) => {
       assert.equal(await r.readable(mine), false, `${when}: the old original-file grant is rejected`);
       assert.equal(r.bound(probe.id, record, "feed"), false, `${when}: the old record binding is gone`);
+      for (const [pluginId, scope, slot] of lastBindings) assert.equal(r.bound(pluginId, scope, slot), false, `${when}: the last installation's ${scope} is gone`);
       await othersUntouched(when);
     };
 
@@ -133,18 +139,20 @@ for (const execution of ["native", "sandbox"] as const) {
     const mine = { plugin_id: probe.id, install_id, project_id: null, record_key: "doc" };
     const kept = [{ ...mine, project_id: DEMO_PROJECT_ID }, { ...mine, project_id: DEMO_PROJECT_ID + "0" }, { ...mine, install_id: install_id + "0" },
       { ...mine, plugin_id: other.id, install_id: otherInstall }];
-    const bindings: Array<[string, string, string]> = [
+    // The Home's installation is the only one of its identity, so its slot and the record bindings under every project go with it (BL-596).
+    const lastBindings: Array<[string, string, string]> = [
       [probe.id, pluginBindingScope({ install_id, project_id: DEMO_PROJECT_ID, record_key: "src-1" }), "feed"],
       [probe.id, pluginBindingScope({ install_id, project_id: DEMO_PROJECT_ID + "0", record_key: "src-1" }), "feed"],
       [probe.id, pluginBindingScope({ install_id }), "account"],
-      [other.id, pluginBindingScope({ install_id: otherInstall }), "account"],
     ];
+    const bindings: Array<[string, string, string]> = [[other.id, pluginBindingScope({ install_id: otherInstall }), "account"]];
     for (const key of kept) await r.original(key);
-    for (const [pluginId, scope, slot] of bindings) r.bind(pluginId, scope, slot);
+    for (const [pluginId, scope, slot] of [...lastBindings, ...bindings]) r.bind(pluginId, scope, slot);
     const revoked = async (when: string) => {
       assert.equal(await r.readable(mine), false, `${when}: the Home original-file grant is rejected`);
       for (const key of kept) assert.equal(await r.readable(key), true, `${when}: ${JSON.stringify(key)}`);
-      for (const [pluginId, scope, slot] of bindings) assert.equal(r.bound(pluginId, scope, slot), true, `${when}: BL-596 keeps ${scope}`);
+      for (const [pluginId, scope, slot] of bindings) assert.equal(r.bound(pluginId, scope, slot), true, `${when}: another plugin's ${scope} stays`);
+      for (const [pluginId, scope, slot] of lastBindings) assert.equal(r.bound(pluginId, scope, slot), false, `${when}: BL-596 takes ${scope} with the last installation`);
       r.contentsUnchanged();
     };
 
@@ -226,7 +234,7 @@ for (const scope of ["project", "home"] as const) for (const execution of ["nati
     assert.equal(await r.readable(mine), false, "the running reinstall cannot reuse the old file selection");
     if (scope === "project") assert.equal(r.bound(probe.id, ownRecord, "feed"), false, "the running reinstall has no old record binding");
     assert.equal(await r.readable(kept), true);
-    for (const binding of keptBindings) assert.equal(r.bound(probe.id, binding, "account"), true, "shared slots and Home project bindings survive recovery");
+    for (const binding of keptBindings) assert.equal(r.bound(probe.id, binding, "account"), false, "the retried cleanup of the last installation takes its shared slot and its bindings under other projects too (BL-596)");
     r.contentsUnchanged();
   });
 }

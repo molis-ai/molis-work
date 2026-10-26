@@ -107,7 +107,7 @@ Runtime 原调用者查询委托由 `plugin-action-query.ts` 持有：只接受�
 
 权限表与首页、连接、信息助手、判断规则、项目工作目录、个人规划的实际登记共用提供方 id；判断规则、工作目录和助理的权限从动作定义汇总。助理同一提供方还承载条件登记的评论线程 start/retry，因此保留它们声明的 `model:invoke`，规则读取本身仍不要求模型权限。`tests/local-web-actions.test.ts` 的 RAC-339-REVIEW-01/02 验证条件登记及两种外部 MCP 提供方的路由上限和拒绝。
 
-项目与 Home 执行器在每次 `uninstalled` 都用 `forgetInstallationRecords` 撤销当前安装、激活范围的授权，与私有数据是否保留无关；插件声明的默认规则是数据不是授权，只在数据一并不留时由同一函数清（`dataGoes`，RAC-503），留数据的卸载不动它们。重装前的同步 `prepareReinstall` 复用同一 owner，补清卸载失败留下的原文件登记和项目记录绑定；仍失败时 Runtime 不注册代码、不保存新安装，恢复后再重试。这个端口不清私有 KV、文件或库，也不删除账号；Home 的项目绑定和共享安装槽仍按 BL-596 保留。验证见 `tests/security-invariants-installation-records.test.ts` 的成功路径与真实删除故障用例。
+项目与 Home 执行器在每次 `uninstalled` 都用 `forgetInstallationRecords` 撤销当前安装、激活范围的授权，与私有数据是否保留无关；插件声明的默认规则是数据不是授权，只在数据一并不留时由同一函数清（`dataGoes`，RAC-503），留数据的卸载不动它们。重装前的同步 `prepareReinstall` 复用同一 owner，补清卸载失败留下的原文件登记和项目记录绑定；仍失败时 Runtime 不注册代码、不保存新安装，恢复后再重试。这个端口不清私有 KV、文件或库，也不删除账号；共享安装槽和 Home 安装分在各项目名下的按记录绑定，随同一 `install_id` 的最后一处安装走（`forgetInstallationConnections`，问 `heldInstalls`，读不全就保留；删项目时 `forgetOrphanedInstallationBindings` 清已无安装的孤儿，BL-596）。验证见 `tests/security-invariants-installation-records.test.ts` 的成功路径与真实删除故障用例，以及 `tests/security-invariants-installation-bindings.test.ts`。
 
 ## 开发要求
 

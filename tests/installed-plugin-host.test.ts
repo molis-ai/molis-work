@@ -701,27 +701,28 @@ for (const choice of ['catalog-failure', 'disable', 'disable-enable'] as const)
     } finally { release.resolve(); await releaseInstalledPlugins(store, DEMO_PROJECT_ID); store.close(); await rm(home, { recursive: true, force: true }); }
   });
 
-test('S-71 RAC-471 uninstalling in one project takes the per_record bindings of that project only; the other project and the installation slot keep theirs', mac, async () => {
+test("S-71 RAC-865 the creator host's uninstall of the only installation the Home can see takes its slot and its record bindings, never those of an identity that begins like it", mac, async () => {
   const home = await mkdtemp(join(tmpdir(), 'installed-connection-bindings-'));
   const fixture = await publishedFixture(home, 'first'), copy = join(home, 'second.sqlite');
   await copyFile(fixture.databasePath, copy);
-  // The same installation in two projects whose ids are a prefix pair: the anchored delete must tell them apart.
+  // Two projects whose ids are a prefix pair, outside any catalog: the Home sees no other place that has the installation, so it goes
+  // with this uninstall. Whether the slot stays while another project installs it is S-71 RAC-861 (security-invariants-installation-bindings.test.ts).
   const projects = [DEMO_PROJECT_ID, DEMO_PROJECT_ID + '0'], stores = [fixture.databasePath, copy].map(path => new LocalProjectDatabase(path));
   const install_id = fixture.install.install_id, pluginId = fixture.release.pluginId;
   const bearer = 'fixture-bearer-value-for-s72';
   const connection = withConnectorConnections(home, store => store.createToken({ serviceId: 'github', displayName: 'GitHub', token: bearer }));
-  const scopes = [...projects.map(project_id => pluginBindingScope({ install_id, project_id, record_key: 'src-1' })), pluginBindingScope({ install_id })];
-  for (const [index, scope] of scopes.entries()) {
-    withConnectorConnections(home, store => store.bind({ scopeId: scope, pluginId, slotId: index < 2 ? 'feed' : 'account', serviceId: 'github', connectionId: connection.connection_id }));
+  const mine = [pluginBindingScope({ install_id }), ...projects.map(project_id => pluginBindingScope({ install_id, project_id, record_key: 'src-1' }))];
+  const neighbour = [pluginBindingScope({ install_id: install_id + '0' }), pluginBindingScope({ install_id: install_id + '0', project_id: projects[0]!, record_key: 'src-1' })];
+  for (const scope of [...mine, ...neighbour]) {
+    withConnectorConnections(home, store => store.bind({ scopeId: scope, pluginId, slotId: 'feed', serviceId: 'github', connectionId: connection.connection_id }));
   }
-  const left = () => scopes.filter((scope, index) => withConnectorConnections(home, store => store.binding(scope, pluginId, index < 2 ? 'feed' : 'account')) !== null);
+  const left = () => [...mine, ...neighbour].filter(scope => withConnectorConnections(home, store => store.binding(scope, pluginId, 'feed')) !== null);
   try {
     const [one, two] = await Promise.all(stores.map((store, index) => ensureInstalledPlugins({ store, projectId: projects[index]!, homeDirectory: home })));
     await one.lifecycle('uninstall', fixture.release, { keepData: true });
-    assert.deepEqual(left(), [scopes[1], scopes[2]], 'the other project keeps its record binding and both keep the installation slot');
+    assert.deepEqual(left(), neighbour, 'the installation went with its slot and both records; the identity that only begins like it stays');
     await two.lifecycle('uninstall', fixture.release, { keepData: false });
-    // Whether another project still installs it is only in each project's library, so the shared one stays for the person (BL-596).
-    assert.deepEqual(left(), [scopes[2]]);
+    assert.deepEqual(left(), neighbour);
   } finally { for (const [index, store] of stores.entries()) { await releaseInstalledPlugins(store, projects[index]!); store.close(); } await rm(home, { recursive: true, force: true }); }
 });
 

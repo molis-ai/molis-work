@@ -1,25 +1,48 @@
 import { pluginErrors, type PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { forgetDeclaredRulesIn, forgetInstallJudgmentsIn } from "@molis-ai/molis-work-module-functions";
-import { forgetInstallationProjectBindings } from "./connector-plugin-requests.js";
+import { forgetInstallationBindings, forgetInstallationProjectBindings, installationIdsWithBindings } from "./connector-plugin-requests.js";
 import { forgetInstallationOriginalFiles } from "./material-original-files.js";
 import { hostLog } from "./host-log.js";
-import { pluginHeldElsewhere } from "./plugin-holders.js";
+import { installedIdentities, pluginHeldElsewhere, type InstallScope } from "./plugin-holders.js";
 import { removeSandboxOwnerFiles, type SandboxOwnerFilesScope } from "./plugin-sandbox-owner-files.js";
 
 /**
  * An installation's authorization in this project (or its Home-level activation): original-file registrations, and in a project the
  * accounts bound to its records (BL-356). Every uninstall drops these even when private data is kept; a reinstall needs a new file
- * selection and binding. Files and accounts themselves stay. Installation slots and a Home installation's project bindings stay (BL-596).
+ * selection and binding. Files and accounts themselves stay. The installation slots go with the last installation of the same identity (BL-596).
  * The default rules the plugin declared and the judgments it recorded are data, not authorization: they go only when the data goes
  * (`dataGoes`, by default what the record says; the discard of kept data says it does), never with an uninstall that keeps the data (RAC-503).
  */
 export function forgetInstallationRecords(scope: SandboxOwnerFilesScope, record: PluginInstanceRecord, dataGoes: boolean = !record.retain_private_data): void {
   if (!scope.home) return;
   forgetInstallationOriginalFiles(scope.home.directory, record.plugin_id, record.install_id, scope.project_id ?? "");
-  if (scope.project_id) forgetInstallationProjectBindings(scope.home.directory, record.install_id, scope.project_id);
+  forgetInstallationConnections(scope.home.directory, record.install_id, scope.project_id ? { kind: "project", project_id: scope.project_id } : { kind: "home" });
   if (dataGoes) forgetInstallationRules(scope.home.directory, record, scope.project_id ?? null);
   // The judgments it recorded in this project are its data too (S-90); a Home-level activation records none.
   if (dataGoes && scope.project_id) forgetInstallJudgmentsIn(scope.home.directory, record.install_id, scope.project_id);
+}
+
+/**
+ * The accounts an uninstalled installation was bound to: in a project, the ones it used for each of its records there; and, when no other
+ * place has the same installation (`install_id`, the same in every project and the Home) still installed, all the rest, its installation
+ * slots and its record bindings under every project (BL-596). While one place keeps it, the slots stay: they are shared. A Home that cannot
+ * be read all the way through keeps them (a binding left is an unused row; one taken from an installation still in use is not).
+ */
+export function forgetInstallationConnections(home: string, installId: string, scope: InstallScope): void {
+  if (scope.kind === "project") forgetInstallationProjectBindings(home, installId, scope.project_id);
+  const installed = installedIdentities(home, { scope, install_id: installId });
+  if (installed && !installed.has(installId)) forgetInstallationBindings(home, installId);
+}
+
+/**
+ * After a project's deletion: the bindings of every installation that is no longer installed anywhere. The deleted project is already out of
+ * the catalog, so its installations do not count, and its library is never read. Bindings an earlier uninstall left behind go in the same pass.
+ */
+export function forgetOrphanedInstallationBindings(home: string): void {
+  const bound = installationIdsWithBindings(home);
+  if (bound.length === 0) return;
+  const installed = installedIdentities(home);
+  if (installed) for (const installId of bound) if (!installed.has(installId)) forgetInstallationBindings(home, installId);
 }
 
 /**

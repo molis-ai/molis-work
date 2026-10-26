@@ -28,7 +28,7 @@ import { pluginSecrets } from './plugin-builder/secrets.js';
 import { createPluginModelGeneration } from './plugin-builder/model.js';
 import { buildSources, generatedRegistration, readPluginPrompts, registerGeneratedPrompts, unregisterGeneratedPrompts } from './plugin-builder/prompts.js';
 import { APPROVED_KEY, covered, installedLifecycle } from './installed-plugin-lifecycle.js';
-import { forgetInstallationProjectBindings } from './connector-plugin-requests.js';
+import { forgetInstallationConnections } from './plugin-installation-cleanup.js';
 import { withPluginWords } from "@molis-ai/molis-work-app-workbench";
 
 export const INSTALLED_MODEL_KEY = 'plugin-builder:agent-studio:model';
@@ -181,8 +181,8 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     forget(pluginId, installId) {
       unregisterGeneratedPrompts(homeDirectory, pluginId, promptScope(installId));
       for (const [key, entry] of definitions) if (entry.pluginId === pluginId) definitions.delete(key);
-      // The account it used for each of its records here goes with it; its installation slot's account is every project's (BL-596).
-      forgetInstallationProjectBindings(homeDirectory, installId, projectId);
+      // The account it used for each of its records here goes with it; its installation slot's account is every project's, and goes with the last one (BL-596).
+      forgetInstallationConnections(homeDirectory, installId, { kind: "project", project_id: projectId });
     } });
   const close = async () => {
     if (closed) return;

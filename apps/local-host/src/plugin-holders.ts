@@ -43,6 +43,22 @@ export function pluginHeldElsewhere(home: string, pluginId: string, self: Instal
   }
 }
 
+/**
+ * The identities (`install_id`) installed anywhere in the Home right now: an installation whose state is not `uninstalled`, in the Home's
+ * plugin store or any project's, leaving out `without` (the exact installation asking, whose own record may not be settled yet). A record
+ * kept only for its private data does not count: what the person authorized goes with the uninstall, and a reinstall asks again (S-57
+ * extension §5.1). `null` when the Home cannot be read all the way through (logged): the caller then keeps what it would have deleted.
+ */
+export function installedIdentities(home: string, without?: InstallRef): Set<string> | null {
+  try {
+    return new Set(heldInstalls(home).filter(held => held.record.state !== "uninstalled"
+      && !(without !== undefined && held.record.install_id === without.install_id && sameScope(held.scope, without.scope))).map(held => held.record.install_id));
+  } catch (error) {
+    hostLog.warn("connections", "installation_holders_unreadable", error, { install_id: without?.install_id ?? null });
+    return null;
+  }
+}
+
 const sameScope = (a: InstallScope, b: InstallScope): boolean => a.kind === b.kind && (a.kind === "home" || (b.kind === "project" && a.project_id === b.project_id));
 
 /**

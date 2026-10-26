@@ -167,3 +167,11 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
 - **10-26 batch-41 推送**：PR #1310，头 `8cc441315`（T7 修复 `4ab01c098` 合入 `281737558`；页面资源实测 `fd1d05aed`；CHANGELOG PG-024 `3f8b9eeb9`；privileges PG-024/066/001/073/074）；carrier `integration/carrier-1025-41` 同头，全量 40257291347。合并改到的 15 个非浏览器文件全过，health、page-assets、secrets 通过。挡落地：ac-review 补评 PG-024 生产增量 `0bb452545..20940b4b1`（PIPE 10-26 指出原评只到 0bb）。PIPE 回执 #1310 评论 6406612421；Codex 三个窄 owner：F1（PG-024 N3 测试）、F2（publisher-revoke 测试确定性）、I1（R-59 错误出口），交付后随 batch-42 采用。
 - **10-26 batch-42 起头**：工作树 `.claude/worktrees/ac-batch42`，分支 `batch/1026-42`，叠在 batch-41 `8cc441315` 上；已合 ac-giants `2733a2afe`（RAC-860 护栏）、ac-shell R-58/R-59 `78abea060`、W5-15 #1309 `18af3c95a`（SSOT-MATRIX 取 W5-15 侧），CHANGELOG W5-15 升级须知 `94d2bd7d8`。待收：ac-platform 场景三片（评审中）、ac-registry PG-046（FI-3 原 SHA + BL-528/529）、#1255 BL-490（S-91）、P2e（S-92）、Codex F1/F2/I1。
 - **10-26 PG-002 裁定（ac-shell 稿 `732aade3b` §7）**：①项目取自路径、入口盖章；②收窄停—改—起，不动 S-18；③放宽 `actions:delegate`/`network:*`/`secret:*`/`model:invoke` 时 UI 加一步确认（平台原话、复用 T7 `ask`），其余单击生效；④只管项目内单个安装，Home 级开关页 BL-700 归 ac-shell 紧接着做，PG-002 两者都完才标已做；⑤不建表；⑥S-93。R-58/R-59 probe 40255274685 六片全绿（NOTRUN 0）。S 号现分配：S-88/89/90 ac-platform 场景、S-91 #1255、S-92 P2e、S-93 PG-002。
+- **10-26 第二轮回报与派片**：
+  - 交评审：ac-review ← R-61 FIX `f6fbd6db9`、BL-623 `720e69948`（含 RAC-392 落文 `15f493018`）、ac-kernel PG-031/057 `35d8be3dc`；ac-review-2 ← PG-053 合并解法 `7278bb47e`、PG-111/095 `208bb8708`、PG-046 `72921fbaf`。
+  - publisher-revoke 测试同文件：ac-coding 选 A，固定 `720e69948`，F2 从 `4ab01c098` 只改交错，统筹整合（#1310 评论 6406936767）。
+  - ac-kernel threads：裁定不给 `assistant.threads.*` 加 plugin 受众（助理以自己的上下文与工具跑，插件触发即 confused deputy）；改由外壳情境浮条以本人身份调，Pages 面板的 403 按钮删掉；RAC-914～929。
+  - ac-giants BL-596：用 `heldInstalls`（与 S-82 同一事实来源），存量孤儿绑定顺带清，CHANGELOG 写明。
+  - ac-clients-1（Sonnet xhigh）← BL-628 设计稿（沙箱 Home 实例，S-80 放开部分要弹窗问用户），RAC-960～979、BL-710～719。
+  - ac-registry ← BL-530 设计稿（沙箱集成插件），要用户定的项待弹窗；RAC-891～899、BL-690～694。
+  - ac-sc3：PG-053 合并后做 W5-10 巨大单元判定。

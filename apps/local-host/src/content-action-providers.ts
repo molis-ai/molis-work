@@ -15,8 +15,9 @@ import { createLocalFeedApplication } from "./feed-application.js";
 import { feedConnectorAuthStatus } from "./feed-connector-auth.js";
 import type { LocalFeedApplicationOptions } from "./feed-application.js";
 import { createLocalFeedGoalPromotion } from "./feed-goal-promotion.js";
-import { pagesContentActions } from "@molis-ai/molis-work-plugin-pages";
-import { lingguangContentActions } from "@molis-ai/molis-work-plugin-lingguang";
+import { PAGES_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/pages";
+import { LINGGUANG_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/lingguang";
+import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { MolisWorkProjectRuntime } from "./project-host.js";
 import { hydrateFeedItemContent } from "./feed-content.js";
@@ -77,7 +78,11 @@ export function nativeContentProviders(runtime: MolisWorkProjectRuntime, feed: F
   return providers;
 }
 
+/** The handoff stations (workflow content roles) a shipped plugin declares in its own Manifest, read from the build's registrations (PG-031). */
+const contentStations = (pluginId: string) => (PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === pluginId)?.manifest.actions ?? [])
+  .filter(definition => definition.action.workflow_content);
+
 /** The local Web owner already has access to these native content stores. This is not a plugin-grant mechanism. */
 export const NATIVE_CONTENT_PERMISSIONS = [...new Set([
-  ...feedManifest.actions!, ...Object.values(pagesContentActions), ...Object.values(lingguangContentActions), ...Object.values(inboxContentActions),
+  ...feedManifest.actions!, ...contentStations(PAGES_PLUGIN_ID), ...contentStations(LINGGUANG_PLUGIN_ID), ...Object.values(inboxContentActions),
 ].flatMap(definition => definition.action.permissions))];

@@ -27,7 +27,7 @@ export const todoManifest: PluginManifest = {
     ...TODO_ACTION_PERMISSIONS.map(permission => ({ permission, required: permission === "todo:read", reason: "按每项能力的授权读取或修改待办" })),
     { permission: "projects:reach", required: false, reason: "在你自己的待办页里看到并整理你各个项目里的待办；不给时只处理当前项目里的待办" },
   ],
-  capabilities: { provides: [], consumes: [] },
+  capabilities: { provides: [], consumes: ["assistant.works.related"] },
   artifacts: { produces: [], consumes: [] },
   actions: [...TODO_ACTIONS],
   // Fixed paths before `/items/:id`, and each mapped to the action of the same name in ./plugin.ts.

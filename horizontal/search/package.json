@@ -26,19 +26,5 @@
   },
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*"
-  },
-  "molis-work": {
-    "path": "horizontal/search",
-    "kind": "horizontal",
-    "maturity": "production",
-    "contract": "@molis-ai/molis-work-contracts/services/search",
-    "migrationGoals": [
-      "goal-reorg-f2"
-    ],
-    "ssot": "docs/SSOT-MATRIX.md",
-    "capabilities": [
-      "search.query.v1",
-      "search.index.v1"
-    ]
   }
 }

@@ -28,9 +28,6 @@ retain the selection, and late responses cannot replace a newer choice. The
 file list remains available when the chosen file has no text rows. Coding's
 embedded reader keeps its own selector rather than rendering duplicate buttons.
 
-- Status: `production`
-- Migration Goals: `goal-reorg-f2`, `goal-plugin-platform-v2`.
-- Contract entrypoint: `@molis-ai/molis-work-contracts/platform/plugin`
 
 ## 开发要求
 

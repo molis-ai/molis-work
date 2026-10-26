@@ -12,7 +12,7 @@ import {
   unusedLayerExceptions,
 } from "@molis-ai/molis-work-test-kit";
 
-import { checkWorkspacePackages, WORKSPACE_PACKAGES } from "./workspace-packages.mjs";
+import { checkWorkspacePackages, REGISTERED_PLUGINS, WORKSPACE_PACKAGES } from "./workspace-packages.mjs";
 
 const SOURCE_EXTENSIONS = new Set([".cjs", ".js", ".jsx", ".mjs", ".ts", ".tsx"]);
 /** The Web request dispatcher: the entry and its ordered route tables (W5-07). The checks on web-request.ts read all of them. */
@@ -427,19 +427,16 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
       errors.push(`${relativePath}: missing Goals command owner boundary`);
     }
   }
+  const goalsPackage = WORKSPACE_PACKAGES.find((item) => item.path === "modules/goals");
+  if (goalsPackage?.maturity !== "production") {
+    errors.push("modules/goals: migrated Goal commands require production maturity");
+  }
+  for (const capability of ["goals.lifecycle.v1", "goals.planning.v1", "goals.query.v1"]) {
+    if (!goalsPackage?.capabilities.includes(capability)) {
+      errors.push(`modules/goals: migrated Goal commands require ${capability} capability`);
+    }
+  }
   const moduleManifest = readJson(path.join(repositoryRoot, "modules/goals/package.json"));
-  if (moduleManifest["molis-work"]?.maturity !== "production") {
-    errors.push("modules/goals/package.json: migrated Goal commands require production maturity");
-  }
-  if (!moduleManifest["molis-work"]?.capabilities?.includes("goals.lifecycle.v1")) {
-    errors.push("modules/goals/package.json: GW2 requires goals.lifecycle.v1 capability");
-  }
-  if (!moduleManifest["molis-work"]?.capabilities?.includes("goals.planning.v1")) {
-    errors.push("modules/goals/package.json: GW3 requires goals.planning.v1 capability");
-  }
-  if (!moduleManifest["molis-work"]?.capabilities?.includes("goals.query.v1")) {
-    errors.push("modules/goals/package.json: Goals Query requires goals.query.v1 capability");
-  }
   if (!moduleManifest.files?.includes("methods")) {
     errors.push("modules/goals/package.json: Planning method assets must ship with the Goals package");
   }
@@ -684,18 +681,13 @@ function checkMigratedGovernanceOwnership(repositoryRoot) {
     errors.push("modules/governance-collaboration/src/review-lifecycle.ts: retired review write owner must stay deleted");
   }
 
-  const manifest = readJson(path.join(repositoryRoot, "modules/governance-collaboration/package.json"));
-  const requiredCapabilities = [
-    "governance.proposals.v1",
-    "governance.decisions.v1",
-    "governance.event-decisions.v1",
-  ];
-  if (manifest["molis-work"]?.maturity !== "production") {
-    errors.push("modules/governance-collaboration/package.json: EX3 requires production maturity");
+  const governancePackage = WORKSPACE_PACKAGES.find((item) => item.path === "modules/governance-collaboration");
+  if (governancePackage?.maturity !== "production") {
+    errors.push("modules/governance-collaboration: EX3 requires production maturity");
   }
-  for (const capability of requiredCapabilities) {
-    if (!manifest["molis-work"]?.capabilities?.includes(capability)) {
-      errors.push(`modules/governance-collaboration/package.json: missing ${capability}`);
+  for (const capability of ["governance.proposals.v1", "governance.decisions.v1", "governance.event-decisions.v1"]) {
+    if (!governancePackage?.capabilities.includes(capability)) {
+      errors.push(`modules/governance-collaboration: missing ${capability} capability`);
     }
   }
 
@@ -915,17 +907,16 @@ function checkArtifactsOwnership(repositoryRoot) {
   }
 
   const entryPath = "modules/artifacts/src/index.ts";
-  const entry = read(entryPath);
-  for (const required of [
-    "class ArtifactsModule",
-    'maturity: "production"',
-    '"artifacts.identity.v1"',
-    '"artifacts.version-repository.v1"',
-    '"artifacts.opaque-content.v1"',
-    '"artifacts.compatibility.v1"',
-  ]) {
-    if (!entry.includes(required)) {
-      errors.push(`${entryPath}: AR1 public Module entrypoint is missing ${required}`);
+  if (!read(entryPath).includes("class ArtifactsModule")) {
+    errors.push(`${entryPath}: AR1 public Module entrypoint is missing class ArtifactsModule`);
+  }
+  const artifactsPackage = WORKSPACE_PACKAGES.find((item) => item.path === "modules/artifacts");
+  if (artifactsPackage?.maturity !== "production") {
+    errors.push("modules/artifacts: AR1 owner requires production maturity");
+  }
+  for (const capability of ["artifacts.identity.v1", "artifacts.version-repository.v1", "artifacts.opaque-content.v1", "artifacts.compatibility.v1"]) {
+    if (!artifactsPackage?.capabilities.includes(capability)) {
+      errors.push(`modules/artifacts: AR1 owner requires ${capability}`);
     }
   }
 
@@ -979,14 +970,8 @@ function checkArtifactsOwnership(repositoryRoot) {
 
   const pluginPath = "plugins/native/artifacts/src/index.ts";
   const nativePlugin = read(pluginPath);
-  for (const required of [
-    'contract: "@molis-ai/molis-work-contracts/platform/plugin"',
-    '"goal-reorg-ar1"',
-    '"goal-reorg-ar3"',
-  ]) {
-    if (!nativePlugin.includes(required)) {
-      errors.push(`${pluginPath}: protected Artifact Plugin boundary is missing ${required}`);
-    }
+  if (!REGISTERED_PLUGINS.some((plugin) => plugin.path === "plugins/native/artifacts")) {
+    errors.push("plugins/native/artifacts: protected Artifact Plugin must declare a registration");
   }
   if (/modules\/artifacts|ArtifactsModule|ArtifactRepository/u.test(nativePlugin)) {
     errors.push(`${pluginPath}: Native Plugin entrypoint must not own Artifact facts or construct its Repository`);
@@ -1070,14 +1055,15 @@ export function checkPrivateWorkContextOwnership(repositoryRoot) {
   }
 
   const entry = read("modules/private-work-context/src/index.ts");
-  for (const required of [
-    "createRuntimeContextModule",
-    'maturity: "slice"',
-    '"runtime-context-bindings"',
-  ]) {
-    if (!entry.includes(required)) {
-      errors.push(`modules/private-work-context/src/index.ts: missing ${required}`);
-    }
+  if (!entry.includes("createRuntimeContextModule")) {
+    errors.push("modules/private-work-context/src/index.ts: missing createRuntimeContextModule");
+  }
+  const privateWorkContextPackage = WORKSPACE_PACKAGES.find((item) => item.path === "modules/private-work-context");
+  if (privateWorkContextPackage?.maturity !== "slice") {
+    errors.push("modules/private-work-context: owner requires slice maturity");
+  }
+  if (!privateWorkContextPackage?.capabilities.includes("runtime-context-bindings")) {
+    errors.push("modules/private-work-context: owner requires runtime-context-bindings capability");
   }
 
   if (entry.includes("RuntimeContextBindingRepository")) {
@@ -1144,13 +1130,17 @@ function checkRuntimeHostOwnership(repositoryRoot) {
   }
 
   const entry = read("horizontal/runtime-host/src/index.ts");
-  for (const required of [
-    "MolisWorkPtyHost",
-    'maturity: "slice"',
-    '"runtime.host.v1"',
-    '"runtime.terminal-pty.v1"',
-  ]) {
-    if (!entry.includes(required)) errors.push(`horizontal/runtime-host/src/index.ts: missing ${required}`);
+  if (!entry.includes("MolisWorkPtyHost")) {
+    errors.push("horizontal/runtime-host/src/index.ts: missing MolisWorkPtyHost");
+  }
+  const runtimeHostPackage = WORKSPACE_PACKAGES.find((item) => item.path === "horizontal/runtime-host");
+  if (runtimeHostPackage?.maturity !== "slice") {
+    errors.push("horizontal/runtime-host: owner requires slice maturity");
+  }
+  for (const capability of ["runtime.host.v1", "runtime.terminal-pty.v1"]) {
+    if (!runtimeHostPackage?.capabilities.includes(capability)) {
+      errors.push(`horizontal/runtime-host: owner requires ${capability}`);
+    }
   }
 
   const ownerSource = ownerFiles.map(read).join("\n");

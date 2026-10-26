@@ -55,23 +55,12 @@
     "esbuild": "^0.28.2"
   },
   "molis-work": {
-    "path": "plugins/native/pages",
-    "kind": "native-plugin",
     "maturity": "production",
-    "contract": "@molis-ai/molis-work-contracts/platform/plugin",
-    "summary": "Protected first-party Pages directory and ProseMirror document editor.",
-    "notResponsibleFor": "Goal/Artifact facts, model providers, or a hosted document service.",
-    "legacySources": [
-      "src/web/render.ts"
-    ],
-    "migrationGoals": [
-      "goal-reorg-f2"
-    ],
-    "ssot": "docs/SSOT-MATRIX.md",
     "capabilities": [
       "pages.ui-contribution.v1",
       "pages.http-routes.v1"
     ],
+    "registration": "./registration",
     "extraWorkspaceDependencies": [
       "@molis-ai/molis-work-plugin-sdk"
     ],
@@ -90,7 +79,6 @@
       "prosemirror-schema-list": "^1.5.1",
       "prosemirror-state": "^1.4.4",
       "prosemirror-view": "^1.41.4"
-    },
-    "registration": "./registration"
+    }
   }
 }

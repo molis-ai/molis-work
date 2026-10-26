@@ -17,24 +17,6 @@ import {
   type ArtifactsServiceOptions,
 } from "./service.js";
 
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-module-artifacts",
-  packagePath: "modules/artifacts",
-  kind: "module",
-  maturity: "production",
-  contract: "@molis-ai/molis-work-contracts/modules/artifacts",
-  migrationGoals: ["goal-reorg-f2","goal-reorg-ar1","goal-reorg-ar3"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: [
-    "artifacts.identity.v1",
-    "artifacts.version-repository.v1",
-    "artifacts.opaque-content.v1",
-    "artifacts.compatibility.v1",
-  ],
-} as const;
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
-
 export interface ArtifactsModuleOptions extends ArtifactsServiceOptions {
   db: ArtifactsSqliteDatabase;
   /**

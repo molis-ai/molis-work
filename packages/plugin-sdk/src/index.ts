@@ -81,17 +81,6 @@ import type {
   PluginStartContext,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-plugin-sdk",
-  packagePath: "packages/plugin-sdk",
-  kind: "foundation",
-  maturity: "production",
-  contract: "@molis-ai/molis-work-contracts/platform/plugin",
-  migrationGoals: ["goal-reorg-f2", "goal-reorg-fd3", "goal-reorg-dv3"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["plugin.define.v1", "integration.polling.v1"],
-} as const;
-
 
 
 export function definePlugin(definition: PluginDefinition): PluginDefinition {
@@ -207,8 +196,6 @@ function digest(value: string): string {
 function normalizeDate(value: string | undefined, fallback: string): string {
   return value && Number.isFinite(Date.parse(value)) ? new Date(value).toISOString() : fallback;
 }
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export { defineWorkflowContentActions, bindWorkflowContentHandlers } from "@molis-ai/molis-work-contracts/platform/actions";
 export {

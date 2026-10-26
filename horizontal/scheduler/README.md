@@ -59,10 +59,8 @@ node scripts/run-tests.mjs tests/scheduler.test.ts tests/schedule-plugin.test.ts
 - [Scheduler 服务说明](../../docs/horizontal/scheduler.md)
 - [定时任务插件需求](../../specs/archive/schedule-plugin/spec.md)
 
-- Status: `production`
 - SSOT: `docs/SSOT-MATRIX.md`
 - Contract: `@molis-ai/molis-work-contracts/services/scheduler`
-- Migration Goals: `goal-reorg-f2`
 
 执行期间通过 SDK 的执行生命周期独立续租，不依赖下一次 tick。唤醒处理器的第二个参数 `ScheduleWakeupControl` 提供 signal 和同步 `beforeEffect()`，等待后写入前必须复查；该控制对象不属于持久化任务输入。暂停、取消、重排或被接管会撤销原执行身份，迟到结果不能写成成功或普通业务失败。领域幂等和未知副作用的恢复仍由 owner 负责。
 

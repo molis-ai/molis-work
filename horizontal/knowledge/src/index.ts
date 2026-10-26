@@ -60,18 +60,6 @@ export { RoundBudget } from "./budget.js";
 export { knowledgeRef, namedSubject, namedSubjects } from "./refs.js";
 export { locateSections, type KnowledgeLocateDraft, type KnowledgeLocateDraftInput, type KnowledgeLocator } from "./locate.js";
 
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-service-knowledge",
-  packagePath: "horizontal/knowledge",
-  kind: "horizontal",
-  maturity: "production",
-  contract: "@molis-ai/molis-work-contracts/services/knowledge",
-  migrationGoals: ["goal-reorg-f2"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["knowledge.recall.v1"],
-} as const;
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
-
 /**
  * One caller's way into its project: the client of that project and the caller's own trusted context. `beforeEffect` is the
  * handler's own check that the call is still current, run right before a receipt is written (a cancelled or revoked read leaves

@@ -36,3 +36,67 @@ test("W5-15-03 the registry rejects any maturity word outside the vocabulary, wi
   }
   assert.deepEqual(counts, { production: 54, experimental: 2, slice: 14 });
 });
+
+const manifestOf = (packagePath: string) =>
+  JSON.parse(fs.readFileSync(new URL(`../${packagePath}/package.json`, import.meta.url), "utf8")) as {
+    name: string;
+    "molis-work"?: Record<string, unknown>;
+  };
+const readmeOf = (packagePath: string) =>
+  fs.readFileSync(new URL(`../${packagePath}/README.md`, import.meta.url), "utf8");
+const sourceOf = (packagePath: string) =>
+  fs.readFileSync(new URL(`../${packagePath}/src/index.ts`, import.meta.url), "utf8");
+
+/** The keys a built-in plugin may declare in its own "molis-work" block (W5-15); the registry derives the rest. */
+const PLUGIN_BLOCK_KEYS = ["maturity", "capabilities", "registration", "extraWorkspaceDependencies", "extraDependencies"];
+
+test("W5-15-04 W5-15-05 a built-in plugin declares a narrow block; every other package declares none, and the registry derives the rest", () => {
+  for (const item of WORKSPACE_PACKAGES) {
+    const manifest = manifestOf(item.path);
+    const block = manifest["molis-work"];
+    if (item.path.startsWith("plugins/native/")) {
+      assert.deepEqual(typeof block, "object", `${item.path}: built-in plugins declare their own block`);
+      for (const key of Object.keys(block ?? {})) assert.ok(PLUGIN_BLOCK_KEYS.includes(key), `${item.path}: ${key} has a single writer elsewhere`);
+      assert.ok(PACKAGE_MATURITY.includes(String(block?.maturity)), `${item.path}: ${String(block?.maturity)}`);
+      assert.equal(block?.registration, "./registration", `${item.path}: registration`);
+      assert.equal(item.contract, "@molis-ai/molis-work-contracts/platform/plugin", `${item.path}: plugin contract is fixed by the layer`);
+    } else {
+      assert.equal(block, undefined, `${item.path}: scripts/workspace-packages.mjs is the only writer of its metadata`);
+    }
+    // The name comes from its own package.json, the kind from the path; neither is copied into a second file.
+    assert.equal(item.name, manifest.name, item.path);
+    const expectedKind = item.path === "server" ? "module"
+      : item.path.startsWith("apps/") ? "app"
+      : item.path.startsWith("packages/") ? "foundation"
+      : item.path.startsWith("modules/") ? "module"
+      : item.path.startsWith("horizontal/") ? "horizontal"
+      : item.path.startsWith("plugins/native/") ? "native-plugin"
+      : item.path.startsWith("plugins/official-integrations/") ? "integration-plugin" : "tooling";
+    assert.equal(item.kind, expectedKind, `${item.path}: layer from the path`);
+  }
+});
+
+test("W5-15-06 W5-15-07 W5-15-08 src entries and READMEs no longer carry the retired metadata copies", () => {
+  for (const item of WORKSPACE_PACKAGES) {
+    const source = sourceOf(item.path);
+    for (const retired of ["packageDescriptor", "MolisWorkPackageDescriptor", "migrationGoals", "legacySources"]) {
+      assert.ok(!source.includes(retired), `${item.path}/src/index.ts still names ${retired}`);
+    }
+    const manifest = JSON.stringify(manifestOf(item.path));
+    assert.ok(!manifest.includes("migrationGoals"), `${item.path}/package.json still carries migrationGoals`);
+    assert.ok(!manifest.includes("legacySources"), `${item.path}/package.json still carries legacySources`);
+    const readme = readmeOf(item.path);
+    for (const line of ["Status: `", "- Status: `", "Contract entrypoint:", "- Contract entrypoint:", "Migration Goals:", "- Migration Goals:"]) {
+      assert.ok(!readme.includes(line), `${item.path}/README.md still carries ${line}`);
+    }
+  }
+});
+
+test("W5-15-10 the contract axis keeps its own words: ContractMaturity, not the package vocabulary", () => {
+  const contract = fs.readFileSync(new URL("../packages/contracts/src/platform/package.ts", import.meta.url), "utf8");
+  assert.match(contract, /export type ContractMaturity = "contract-only" \| "partial" \| "implemented";/u);
+  assert.match(contract, /readonly maturity: ContractMaturity;/u);
+  assert.ok(!contract.includes("PackageDescriptor"), "the dead package descriptor type is gone");
+  assert.ok(!contract.includes("PackageMaturity"), "the retired package maturity type is gone");
+  assert.ok(!contract.includes("PackageKind"), "the dead package kind type is gone");
+});

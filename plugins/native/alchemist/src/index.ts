@@ -1,14 +1,4 @@
 export { ALCHEMIST_INSTRUCTIONS, ALCHEMIST_COPILOT, ALCHEMIST_EXPLORATION, ALCHEMIST_REUSE, ALCHEMIST_SYNTHESIS, ALCHEMIST_CROSS_CHECK, ALCHEMIST_FORMAT_CORRECTION } from "./prompts.js";
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-plugin-alchemist",
-  packagePath: "plugins/native/alchemist",
-  kind: "native-plugin",
-  maturity: "slice",
-  contract: "@molis-ai/molis-work-contracts/platform/plugin",
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["alchemist.ui-contribution.v1", "alchemist.http-routes.v1"],
-} as const;
-
 export { ALCHEMIST_UI_CONTRIBUTION_ID, alchemistUiContribution, alchemistUiDescriptor, renderAlchemistWorkbench } from "./ui.js";
 export type { AlchemistUiModel, AlchemistUiPrimitives, AlchemistUiSurface } from "./ui.js";
 export { ALCHEMIST_STYLES } from "./styles.js";

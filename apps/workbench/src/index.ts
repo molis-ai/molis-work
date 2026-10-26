@@ -30,24 +30,6 @@ export { CONTEXT_ACTIONS_FACTORY_SCRIPT } from "./scripts/client/context-actions
 export { CARD_TARGET_ASK_SCRIPT } from "./scripts/client/context-card-target.js";
 export { ASSISTANT_WORK_OBJECTS_FACTORY_SCRIPT } from "./scripts/client/assistant-work-objects.js";
 export { ASSISTANT_STEP_ROW_FACTORY_SCRIPT } from "./scripts/client/assistant-step-row.js";
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-app-workbench",
-  packagePath: "apps/workbench",
-  kind: "app",
-  maturity: "production",
-  contract: "@molis-ai/molis-work-contracts/platform/app-host",
-  migrationGoals: ["goal-reorg-f2", "goal-reorg-fd4", "goal-reorg-ap3", "goal-reorg-gw4", "goal-reorg-gw5", "goal-reorg-ex4"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: [
-    "workbench.shell.v1",
-    "workbench.ui-slots.v1",
-    "workbench.feed-composition.v1",
-    "workbench.work-composition.v1", "workbench.goals-policy-composition.v1", "workbench.goals-safety-composition.v1", "workbench.goals-relation-composition.v1", "workbench.goals-tree-composition.v1", "workbench.goals-momentum-composition.v1", "workbench.goals-document-composition.v1", "workbench.goals-context-composition.v1", "workbench.goals-planning-composition.v1", "workbench.goals-status-composition.v1", "workbench.goals-factors-composition.v1", "workbench.goals-dialogs-composition.v1", "workbench.goals-document-routes.v1",
-  ],
-} as const;
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
-
 export { createWorkbenchOnboardingRenderer, type MolisWorkOnboardingRenderOptions, type OnboardingRenderPrimitives } from "./onboarding-renderer.js";
 export { ONBOARDING_INTENT_FRAMES, onboardingIntentFrame, onboardingIntentFrameDefinition, onboardingPlanningHint, type OnboardingIntentFrame } from "./onboarding-intent.js";
 export { createWorkbenchSettingsNavigation, type WebProjectNavigation, type WebSettingsSection, type SettingsNavigationPrimitives } from "./settings-navigation.js";

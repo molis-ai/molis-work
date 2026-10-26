@@ -3,19 +3,6 @@ import type { HostCapabilityDescriptor } from "@molis-ai/molis-work-contracts/pl
 import { ActionError, requireSynchronous, type ActionAvailability, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 export { subjectOfferChoices, subjectOfferChoiceKey, judgmentRecommendationKeys, subjectOfferCompatibilityReason, type SubjectOfferChoiceView } from "./subject-offer-choices.js";
 
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-kernel",
-  packagePath: "packages/kernel",
-  kind: "foundation",
-  maturity: "production",
-  contract: "@molis-ai/molis-work-contracts/platform/kernel",
-  migrationGoals: ["goal-reorg-f2","goal-reorg-f3","goal-reorg-ap2"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["kernel.capability-registry.v1"],
-} as const;
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
-
 export type CapabilityHandler<Context, Input, Output> = (
   context: Context,
   input: Input,

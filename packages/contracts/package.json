@@ -291,16 +291,5 @@
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json"
-  },
-  "molis-work": {
-    "path": "packages/contracts",
-    "kind": "foundation",
-    "maturity": "production",
-    "contract": "@molis-ai/molis-work-contracts/platform/package",
-    "migrationGoals": [
-      "goal-reorg-f2",
-      "goal-reorg-f3"
-    ],
-    "ssot": "docs/SSOT-MATRIX.md"
   }
 }

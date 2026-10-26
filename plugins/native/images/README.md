@@ -1,6 +1,5 @@
 # 图片生成
 
-Status: `production`
 Migration Goal: `goal-reorg-f2`
 Contract: `@molis-ai/molis-work-contracts/platform/plugin`，记录结构见 `@molis-ai/molis-work-plugin-images/contract`。
 

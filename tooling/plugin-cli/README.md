@@ -73,8 +73,5 @@ node tooling/plugin-cli/dist/main.js validate examples/plugin-sample/manifest.js
 - [职责与接入说明](../../docs/platform/PLUGIN-DEVELOPMENT.md)
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
-- Status: `production`
-- Contract entrypoint: `@molis-ai/molis-work-contracts/platform/tooling`
-- Migration Goals: `goal-reorg-f2`, `goal-reorg-dv3`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。

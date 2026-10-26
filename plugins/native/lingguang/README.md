@@ -18,7 +18,6 @@
 
 页面上的字是稳定键（`lingguang.<区域>.<名称>`），中英文都在 `src/messages.ts`，登记在 `registration.ts` 的 `messages`，不经工作台的 `i18n/en.ts` import。`src/en.ts` 的 `LINGGUANG_EN` 只留 7 条宿主还按中文原文翻译的词（灵光自己的服务端标签与错误，BL-459），新页面文字一律加稳定键。
 
-- Status: `production`
 - Contract: `@molis-ai/molis-work-contracts/platform/plugin`
 - Migration: `goal-reorg-f2`
 

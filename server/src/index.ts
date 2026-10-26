@@ -1,10 +1,3 @@
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-server", packagePath: "server",
-  kind: "module", maturity: "production",
-  contract: "@molis-ai/molis-work-contracts/platform/app-host",
-  migrationGoals: ["goal-reorg-f2"], ssot: "docs/SSOT-MATRIX.md",
-} as const;
-
 export { openServerDatabase, transaction, SERVER_DATABASE_BASELINE } from "./database.js";
 export type { ServerDatabase } from "./database.js";
 export { Identity, memberClientId } from "./identity.js";

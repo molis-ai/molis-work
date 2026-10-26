@@ -1,13 +1,3 @@
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-plugin-todo",
-  packagePath: "plugins/native/todo",
-  kind: "native-plugin",
-  maturity: "production",
-  contract: "@molis-ai/molis-work-contracts/platform/plugin",
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["todo.ui-contribution.v1", "todo.http-routes.v1"],
-} as const;
-
 export { TODO_UI_CONTRIBUTION_ID, todoUiContribution, todoUiDescriptor, renderTodoWorkbench } from "./ui.js";
 export type { TodoUiModel, TodoUiPrimitives, TodoUiSurface } from "./ui.js";
 export { TODO_STYLES } from "./styles.js";

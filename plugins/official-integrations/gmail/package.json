@@ -36,16 +36,5 @@
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",
     "@molis-ai/molis-work-plugin-sdk": "workspace:*"
-  },
-  "molis-work": {
-    "path": "plugins/official-integrations/gmail",
-    "kind": "integration-plugin",
-    "maturity": "production",
-    "contract": "@molis-ai/molis-work-contracts/platform/plugin",
-    "migrationGoals": [
-      "goal-reorg-f2",
-      "goal-reorg-fd3"
-    ],
-    "ssot": "docs/SSOT-MATRIX.md"
   }
 }

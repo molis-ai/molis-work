@@ -32,25 +32,13 @@
     "@molis-ai/molis-work-contracts": "workspace:*"
   },
   "molis-work": {
-    "path": "plugins/native/inbox",
-    "kind": "native-plugin",
     "maturity": "slice",
-    "contract": "@molis-ai/molis-work-contracts/platform/plugin",
-    "summary": "Protected first-party Inbox attention list, detail, and disposition.",
-    "notResponsibleFor": "Feed/Goal facts, Stores, or another Plugin implementation.",
-    "legacySources": [
-      "src/web/render.ts"
-    ],
-    "migrationGoals": [
-      "goal-reorg-f2"
-    ],
-    "ssot": "docs/SSOT-MATRIX.md",
     "capabilities": [
       "inbox.ui-contribution.v1",
       "inbox.http-routes.v1"
     ],
+    "registration": "./registration",
     "extraWorkspaceDependencies": [],
-    "extraDependencies": {},
-    "registration": "./registration"
+    "extraDependencies": {}
   }
 }

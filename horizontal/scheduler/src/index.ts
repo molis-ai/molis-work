@@ -19,19 +19,6 @@ import {
   type ScheduleWakeupStatus,
 } from "@molis-ai/molis-work-contracts/services/scheduler";
 
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-service-scheduler",
-  packagePath: "horizontal/scheduler",
-  kind: "horizontal",
-  maturity: "production",
-  contract: "@molis-ai/molis-work-contracts/services/scheduler",
-  migrationGoals: ["goal-reorg-f2"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["scheduler.wakeup.v1"],
-} as const;
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
-
 export {
   MIN_SCHEDULE_INTERVAL_MS,
   SCHEDULE_LEASE_MS,

@@ -26,20 +26,5 @@
   },
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*"
-  },
-  "molis-work": {
-    "path": "modules/attention-resumption",
-    "kind": "module",
-    "maturity": "slice",
-    "contract": "@molis-ai/molis-work-contracts/modules/attention-resumption",
-    "migrationGoals": [
-      "goal-reorg-f2",
-      "goal-reorg-fd2"
-    ],
-    "ssot": "docs/SSOT-MATRIX.md",
-    "capabilities": [
-      "attention.query.v1",
-      "attention.command.v1"
-    ]
   }
 }

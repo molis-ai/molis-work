@@ -8,9 +8,6 @@ import { fileURLToPath } from "node:url";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { catalogProblems } from "@molis-ai/molis-work-app-local-host";
-import { packageDescriptor as scheduleDescriptor } from "@molis-ai/molis-work-plugin-schedule";
-import { packageDescriptor as shelfDescriptor } from "@molis-ai/molis-work-plugin-shelf";
-import { packageDescriptor as pptDescriptor } from "@molis-ai/molis-work-plugin-ppt";
 import { CATALOG_FILE, PLATFORM_FILE, PLUGIN_DEPENDENCY_MANIFESTS, pluginDependencyManifests, pluginRegistry, pluginRegistryProblems } from "../scripts/generate-plugin-registry.mjs";
 import { WORKSPACE_PACKAGES } from "../scripts/workspace-packages.mjs";
 import { assemblyMetrics } from "../scripts/gates/assembly.mjs";
@@ -284,7 +281,7 @@ test("RAC-574 RAC-575 a new plugin with a project runtime changes only its own p
   const dir = "plugins/native/probe-future", name = ["@molis-ai/molis-work-plugin", "probe-future"].join("-"), sample = "plugins/native/text-stats";
   const sampleJson = JSON.parse(readReal(`${sample}/package.json`)!) as { name: string; "molis-work": Record<string, unknown> };
   const own = {
-    [`${dir}/package.json`]: `${JSON.stringify({ ...sampleJson, name, "molis-work": { ...sampleJson["molis-work"], path: dir } }, null, 2)}\n`,
+    [`${dir}/package.json`]: `${JSON.stringify({ ...sampleJson, name, "molis-work": { ...sampleJson["molis-work"] } }, null, 2)}\n`,
     [`${dir}/src/registration.ts`]: readReal(`${sample}/src/registration.ts`)!.replace(/catalog_order: \d+/, `catalog_order: ${NEXT_POSITION}`)
       .replace("project_plugin_id: TEXT_STATS_PROJECT_PLUGIN_ID", 'project_plugin_id: "probe-future"').replaceAll(sampleJson.name, name),
   };
@@ -313,10 +310,12 @@ test("RAC-574 RAC-575 a new plugin with a project runtime changes only its own p
     "RAC-575 a manifest that is no longer exactly the generated imports is counted");
 });
 
-test("W5-02-REG-04 Schedule, Shelf and PPT package capabilities match their implemented public descriptors", () => {
-  for (const descriptor of [scheduleDescriptor, shelfDescriptor, pptDescriptor]) {
-    const manifest = JSON.parse(readReal(`${descriptor.packagePath}/package.json`)!);
-    assert.deepEqual(manifest["molis-work"].capabilities, descriptor.capabilities, descriptor.packagePath);
+test("W5-15-10 W5-02-REG-04 a built-in plugin’s capabilities live only in its own package.json block", () => {
+  for (const packagePath of ["plugins/native/schedule", "plugins/native/shelf", "plugins/native/ppt"]) {
+    const manifest = JSON.parse(readReal(`${packagePath}/package.json`)!) as { "molis-work": Record<string, unknown> };
+    const entry = WORKSPACE_PACKAGES.find((item) => item.path === packagePath);
+    assert.ok(entry, packagePath);
+    assert.deepEqual(entry.capabilities, manifest["molis-work"].capabilities, packagePath);
   }
 });
 
@@ -351,7 +350,9 @@ test("RAC-576 W5-02-REG-05 a clean tracked fixture passes, then rejects another 
     t.diagnostic(`unchanged fixture: exit ${unchanged.status}, ${tracked.length} tracked files, untracked nested sentinel excluded`);
     const foundation = check({ kind: "foundation" });
     assert.equal(foundation.status, 1, foundation.stdout + foundation.stderr);
-    assert.deepEqual(JSON.parse(foundation.stdout).errors, ["[workspace-inventory] plugins/native/text-stats: molis-work.kind mismatch"]);
+    assert.deepEqual(JSON.parse(foundation.stdout).errors, [
+      "[workspace-inventory] plugins/native/text-stats: molis-work block may only declare maturity/capabilities/registration/extraWorkspaceDependencies/extraDependencies; it declares kind",
+    ]);
     t.diagnostic(`kind mutation: exit ${foundation.status}, ${JSON.stringify(JSON.parse(foundation.stdout).errors)}`);
     const contractOnly = check({ maturity: "contract-only" });
     assert.equal(contractOnly.status, 1, contractOnly.stdout + contractOnly.stderr);

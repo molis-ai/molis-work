@@ -11,15 +11,6 @@ import type {
 
 import { readPlacementIn, PROJECT_GONE, type PlacementRead } from "./subject-reader.js";
 
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-service-placement",
-  packagePath: "horizontal/placement",
-  kind: "horizontal",
-  maturity: "production",
-  contract: "@molis-ai/molis-work-contracts/services/placement",
-  capabilities: ["placement.describe.v1", "placement.links.v1"],
-} as const;
-
 /** The person's own client and context over one partition: a project, the personal space, or (null) the Home. */
 export interface PlacementScope { client: ActionClient; caller: ActionCallContext }
 

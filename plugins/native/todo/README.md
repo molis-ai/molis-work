@@ -10,7 +10,6 @@
 
 页面上的字是稳定键（`todo.<区域>.<名称>`），中英文都在 `src/messages.ts`，登记在 `registration.ts` 的 `messages`，不经工作台的 `i18n/en.ts` import。`src/en.ts` 的 `TODO_EN` 只保留 Todo 交给宿主按中文原文翻译的动态声明（动作 schema 字段与选项、首页事项、搜索结果、项目数据标签），新页面文字一律加稳定键。
 
-- Status: `production`
 - Contract: `@molis-ai/molis-work-contracts/platform/plugin`
 - Migration: `goal-reorg-f2`
 

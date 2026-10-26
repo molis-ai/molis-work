@@ -27,21 +27,5 @@
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",
     "@molis-ai/molis-work-storage": "workspace:*"
-  },
-  "molis-work": {
-    "path": "modules/characters",
-    "kind": "module",
-    "maturity": "slice",
-    "contract": "@molis-ai/molis-work-contracts/modules/characters",
-    "migrationGoals": [
-      "goal-reorg-f2",
-      "coding-c12"
-    ],
-    "ssot": "docs/SSOT-MATRIX.md",
-    "capabilities": [
-      "characters.query.v1",
-      "characters.command.v1",
-      "characters.actions.v1"
-    ]
   }
 }

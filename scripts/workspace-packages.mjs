@@ -18,61 +18,83 @@ function assertMaturity(packagePath, maturity) {
   return maturity;
 }
 
-const entry = (
-  packagePath,
-  name,
-  kind,
-  contract,
-  migrationGoals,
-  summary,
-  notResponsibleFor,
-  legacySources = [],
-  status = {},
-) => ({
-  path: packagePath,
-  name,
-  kind,
-  contract,
-  migrationGoals: ["goal-reorg-f2", ...migrationGoals],
-  summary,
-  notResponsibleFor,
-  legacySources,
-  // Role and review accounts, from the rules in package-owners.mjs; they render the SSOT 归属 column and .github/CODEOWNERS.
-  owner: packageOwner(packagePath, kind),
-  maturity: assertMaturity(packagePath, status.maturity),
-  capabilities: status.capabilities ?? [],
-  // An app that takes every built-in plugin's registration (the two generated files, scripts/generate-plugin-registry.mjs) depends
-  // on exactly those plugin packages; the generator writes them into its package.json, so they are not written here (PG-069).
-  extraWorkspaceDependencies: [...(status.extraWorkspaceDependencies ?? []), ...(status.registeredPluginDependencies ? REGISTERED_PLUGINS.map(plugin => plugin.name) : [])],
-  extraDependencies: status.extraDependencies ?? {},
-});
+const NATIVE_PLUGINS = "plugins/native";
+const NATIVE_PLUGIN_KIND = "native-plugin";
+const NATIVE_PLUGIN_CONTRACT = "@molis-ai/molis-work-contracts/platform/plugin";
+/** The keys a built-in plugin may declare in its own "molis-work" block (W5-15); the registry derives path, name, kind and contract. */
+const NATIVE_PLUGIN_BLOCK_KEYS = ["maturity", "capabilities", "registration", "extraWorkspaceDependencies", "extraDependencies"];
 
 const REPOSITORY_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const NATIVE_PLUGINS = "plugins/native";
-// The layer of a package under plugins/native comes from its path, not from what its package.json says: the boundary rules
-// (packages/test-kit/src/boundaries.ts) and the CODEOWNERS role are decided by `kind`, so a plugin that wrote another kind
-// in its own package would step outside them. Its maturity is declared in its own block and must be one of the words in
-// PACKAGE_MATURITY (W5-15); checkWorkspacePackages rejects a block that names any other word.
-const NATIVE_PLUGIN_KIND = "native-plugin";
+
+/** The layer a package belongs to, decided by its path; the boundary rules and CODEOWNERS roles read it. */
+function kindOfPath(packagePath) {
+  if (packagePath === "server") return "module";
+  if (packagePath.startsWith("apps/")) return "app";
+  if (packagePath.startsWith("packages/")) return "foundation";
+  if (packagePath.startsWith("modules/")) return "module";
+  if (packagePath.startsWith("horizontal/")) return "horizontal";
+  if (packagePath.startsWith("plugins/native/")) return "native-plugin";
+  if (packagePath.startsWith("plugins/official-integrations/")) return "integration-plugin";
+  if (packagePath.startsWith("tooling/")) return "tooling";
+  throw new Error(`${packagePath}: no package layer for this path`);
+}
+
+function packageManifest(packagePath) {
+  return readJson(path.join(REPOSITORY_ROOT, packagePath, "package.json"));
+}
+
+const entry = (packagePath, contract, status = {}) => {
+  const kind = kindOfPath(packagePath);
+  return {
+    path: packagePath,
+    name: packageManifest(packagePath).name,
+    kind,
+    contract,
+    // Role and review accounts, from the rules in package-owners.mjs; they render the SSOT 归属 column and .github/CODEOWNERS.
+    owner: packageOwner(packagePath, kind),
+    maturity: assertMaturity(packagePath, status.maturity),
+    capabilities: status.capabilities ?? [],
+    // An app that takes every built-in plugin's registration (the two generated files, scripts/generate-plugin-registry.mjs) depends
+    // on exactly those plugin packages; the generator writes them into its package.json, so they are not written here (PG-069).
+    extraWorkspaceDependencies: [...(status.extraWorkspaceDependencies ?? []), ...(status.registeredPluginDependencies ? REGISTERED_PLUGINS.map(plugin => plugin.name) : [])],
+    extraDependencies: status.extraDependencies ?? {},
+  };
+};
 
 /**
  * The built-in plugins, each read from its own package.json "molis-work" block (W5-02 PR-C, PG-069): a new plugin writes its entry
- * in its own package, and nothing here names it. In directory order, which is code-point order.
+ * in its own package, and nothing here names it. In directory order, which is code-point order. The block may only carry the keys
+ * in NATIVE_PLUGIN_BLOCK_KEYS (W5-15): the layer comes from the path, and the contract from NATIVE_PLUGIN_CONTRACT.
  */
 function nativePluginEntries(root) {
   const directory = path.join(root, NATIVE_PLUGINS);
   if (!fs.existsSync(directory)) return [];
   return fs.readdirSync(directory).sort().flatMap((name) => {
-    const file = path.join(directory, name, "package.json");
-    if (!fs.existsSync(file)) return [];
-    const manifest = readJson(file), block = manifest["molis-work"] ?? {};
     const packagePath = `${NATIVE_PLUGINS}/${name}`;
+    const file = path.join(root, packagePath, "package.json");
+    if (!fs.existsSync(file)) return [];
+    const manifest = readJson(file), block = manifest["molis-work"];
+    if (block === undefined) {
+      REGISTRY_ERRORS.push(`${packagePath}: missing molis-work block; a built-in plugin declares maturity, capabilities and registration there`);
+    }
+    const declared = Object.keys(block ?? {}).filter((key) => !NATIVE_PLUGIN_BLOCK_KEYS.includes(key));
+    if (declared.length > 0) {
+      REGISTRY_ERRORS.push(`${packagePath}: molis-work block may only declare ${NATIVE_PLUGIN_BLOCK_KEYS.join("/")}; it declares ${declared.join("/")}`);
+    }
+    if (block?.registration !== "./registration") {
+      REGISTRY_ERRORS.push(`${packagePath}: molis-work.registration must be "./registration"`);
+    }
     return [{
-      path: packagePath, name: manifest.name, kind: NATIVE_PLUGIN_KIND, contract: block.contract, migrationGoals: block.migrationGoals ?? [],
-      summary: block.summary, notResponsibleFor: block.notResponsibleFor, legacySources: block.legacySources ?? [],
-      owner: packageOwner(packagePath, NATIVE_PLUGIN_KIND), maturity: assertMaturity(packagePath, block.maturity), capabilities: block.capabilities ?? [],
-      extraWorkspaceDependencies: block.extraWorkspaceDependencies ?? [], extraDependencies: block.extraDependencies ?? {},
-      registration: block.registration,
+      path: packagePath,
+      name: manifest.name,
+      kind: NATIVE_PLUGIN_KIND,
+      contract: NATIVE_PLUGIN_CONTRACT,
+      owner: packageOwner(packagePath, NATIVE_PLUGIN_KIND),
+      maturity: assertMaturity(packagePath, block?.maturity),
+      capabilities: block?.capabilities ?? [],
+      extraWorkspaceDependencies: block?.extraWorkspaceDependencies ?? [],
+      extraDependencies: block?.extraDependencies ?? {},
+      registration: block?.registration,
     }];
   });
 }
@@ -82,56 +104,499 @@ const NATIVE_PLUGIN_ENTRIES = nativePluginEntries(REPOSITORY_ROOT);
 export const REGISTERED_PLUGINS = NATIVE_PLUGIN_ENTRIES.filter((entry) => entry.registration !== undefined);
 
 export const WORKSPACE_PACKAGES = [
-  entry("apps/server", "@molis-ai/molis-work-app-server", "app", "@molis-ai/molis-work-contracts/platform/app-host", [], "Headless standalone server launcher, original Host action bridge and local asset restore adapter.", "A second model Runtime, Goal or Artifact facts, or desktop window startup.", [], { maturity: "experimental", extraWorkspaceDependencies: ["@molis-ai/molis-work-server", "@molis-ai/molis-work-storage", "@molis-ai/molis-work-app-local-host", "@molis-ai/molis-work-im-ui", "@molis-ai/molis-work-app-desktop", "@molis-ai/molis-work-plugin-runtime"] }),
-  entry("server", "@molis-ai/molis-work-server", "module", "@molis-ai/molis-work-contracts/platform/app-host", [], "Shared identity, devices, project access, HTTP, SSE and continuity receipts.", "Goal or Artifact facts, model execution, or independent app launchers.", [], { maturity: "production", extraWorkspaceDependencies: ["@molis-ai/molis-work-storage", "@molis-ai/molis-work-plugin-sdk"] }),
-  entry("packages/im-ui", "@molis-ai/molis-work-im-ui", "foundation", "@molis-ai/molis-work-contracts/services/im", [], "Shared group chat and inline Thread UI.", "Server identity, durable messages, or synchronization implementation.", [], { maturity: "production", extraWorkspaceDependencies: ["@molis-ai/molis-work-design-system", "@molis-ai/molis-work-plugin-sdk"] }),
-  entry("packages/plugin-sandbox", "@molis-ai/molis-work-plugin-sandbox", "foundation", "@molis-ai/molis-work-contracts/platform/plugin-sandbox", [], "macOS process isolation and asynchronous host mediation for generated plugins.", "Plugin product state or model execution.", [], { maturity: "production", extraWorkspaceDependencies: ["@molis-ai/molis-work-plugin-sdk"] }),
-  entry("apps/desktop", "@molis-ai/molis-work-app-desktop", "app", "@molis-ai/molis-work-contracts/platform/app-host", ["goal-reorg-ap4", "goal-reorg-dv4"], "Molis Work macOS product shell and native bridge composition root.", "Business facts, Module rules, or Runtime state.", ["desktop/", "src/desktop/"], { maturity: "production", capabilities: ["desktop.shell.v1", "desktop.runtime-launch.v1", "desktop.advance-prompt.v1", "desktop.panels.v1", "desktop.capsule-shell.v1"], extraWorkspaceDependencies: ["@molis-ai/molis-work-service-runtime-host", "@molis-ai/molis-work-storage", "@molis-ai/molis-work-plugin-sdk", "@molis-ai/molis-work-app-local-host", "@molis-ai/molis-work-design-system"] }),
-  entry("apps/workbench", "@molis-ai/molis-work-app-workbench", "app", "@molis-ai/molis-work-contracts/platform/app-host", ["goal-reorg-fd4", "goal-reorg-ap3", "goal-reorg-gw4", "goal-reorg-gw5", "goal-reorg-ex4"], "Local product UI composition root for the Workbench.", "Business Stores, Node-only implementations, or Tauri commands.", ["src/web/"], { extraDependencies: { "marked": "^18.0.11", "sanitize-html": "^2.17.7", "@xterm/xterm": "^6.0.0", "@xterm/addon-fit": "^0.11.0" }, maturity: "production", capabilities: ["workbench.shell.v1", "workbench.ui-slots.v1", "workbench.feed-composition.v1", "workbench.work-composition.v1", "workbench.goals-policy-composition.v1", "workbench.goals-safety-composition.v1", "workbench.goals-relation-composition.v1", "workbench.goals-tree-composition.v1", "workbench.goals-momentum-composition.v1", "workbench.goals-document-composition.v1", "workbench.goals-context-composition.v1", "workbench.goals-planning-composition.v1", "workbench.goals-status-composition.v1", "workbench.goals-factors-composition.v1", "workbench.goals-dialogs-composition.v1", "workbench.goals-document-routes.v1"], registeredPluginDependencies: true, extraWorkspaceDependencies: ["@molis-ai/molis-work-im-ui", "@molis-ai/molis-work-ui-host", "@molis-ai/molis-work-design-system", "@molis-ai/molis-work-integration-rss", "@molis-ai/molis-work-integration-gmail", "@molis-ai/molis-work-plugin-sdk"] }),
-  entry("apps/local-host", "@molis-ai/molis-work-app-local-host", "app", "@molis-ai/molis-work-contracts/platform/app-host", ["goal-reorg-ap2"], "The single local composition root for Modules, services, plugins, and storage.", "A second business coordinator or user-facing product shell.", ["apps/desktop/launchers/web/server.ts", "src/cli/", "src/mcp/"], { maturity: "production", extraDependencies: { "node-pty": "^1.1.0", "@modelcontextprotocol/sdk": "^1.31.0", "typescript": "^5.8.0", "pdfjs-dist": "6.3.289", "fflate": "0.8.2", "mammoth": "1.11.0", "officeparser": "8.1.1", "esbuild": "^0.28.2", "ws": "^8.21.3", "@adeptify/search-evidence-layer": "file:../../vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz", "@adeptify/intelligence-client": "file:../../vendor/intelligence-client/adeptify-intelligence-client-0.2.2.tgz", "@larksuiteoapi/lark-mcp": "0.5.1" }, capabilities: ["local-host.client.v1", "local-host.single-writer.v1"], registeredPluginDependencies: true, extraWorkspaceDependencies: ["@molis-ai/molis-work-server", "@molis-ai/molis-work-im-ui", "@molis-ai/molis-work-plugin-sandbox", "@molis-ai/molis-work-app-cli", "@molis-ai/molis-work-app-mcp", "@molis-ai/molis-work-app-workbench", "@molis-ai/molis-work-design-system", "@molis-ai/molis-work-integration-catalog", "@molis-ai/molis-work-integration-github", "@molis-ai/molis-work-integration-gmail", "@molis-ai/molis-work-integration-rss", "@molis-ai/molis-work-integration-youtube", "@molis-ai/molis-work-kernel", "@molis-ai/molis-work-module-artifacts", "@molis-ai/molis-work-module-attention-resumption", "@molis-ai/molis-work-module-characters", "@molis-ai/molis-work-module-context-ledger", "@molis-ai/molis-work-module-feed", "@molis-ai/molis-work-module-functions", "@molis-ai/molis-work-module-goals", "@molis-ai/molis-work-module-governance-collaboration", "@molis-ai/molis-work-module-private-work-context", "@molis-ai/molis-work-module-projects", "@molis-ai/molis-work-module-shelf", "@molis-ai/molis-work-module-signals", "@molis-ai/molis-work-module-sources", "@molis-ai/molis-work-plugin-runtime", "@molis-ai/molis-work-plugin-sdk", "@molis-ai/molis-work-service-agent-host", "@molis-ai/molis-work-service-connector-host", "@molis-ai/molis-work-service-listener-host", "@molis-ai/molis-work-service-runtime-host", "@molis-ai/molis-work-service-scheduler", "@molis-ai/molis-work-service-placement", "@molis-ai/molis-work-service-search", "@molis-ai/molis-work-service-knowledge", "@molis-ai/molis-work-service-memory", "@molis-ai/molis-work-storage", "@molis-ai/molis-work-ui-host"] }),  entry("apps/cli", "@molis-ai/molis-work-app-cli", "app", "@molis-ai/molis-work-contracts/platform/app-host", ["goal-reorg-dv1", "goal-reorg-gw4", "goal-reorg-ex4"], "Thin CLI protocol, argument, and presentation adapter.", "Business decisions, Module Stores, or duplicated application rules.", ["src/cli/"], { maturity: "production", capabilities: [], extraWorkspaceDependencies: [] }),  entry("apps/mcp", "@molis-ai/molis-work-app-mcp", "app", "@molis-ai/molis-work-contracts/platform/app-host", ["goal-reorg-dv1", "goal-reorg-dv2", "goal-reorg-gw4", "goal-reorg-ex4"], "Thin MCP schema, audience, and capability adapter.", "Business rules, direct Store access, or Runtime Skill policy.", ["src/mcp/"], { maturity: "production", capabilities: [], extraWorkspaceDependencies: ["@molis-ai/molis-work-plugin-sdk"] }),
-  entry("packages/contracts", "@molis-ai/molis-work-contracts", "foundation", "@molis-ai/molis-work-contracts/platform/package", ["goal-reorg-f3"], "Publishable Module, service, and platform Contract subpaths.", "Business implementations, database access, network clients, Apps, or Plugin implementations.", ["src/v1/types.ts", "src/feed/types.ts", "src/sessions/types.ts"], { maturity: "production" }),
-  entry("packages/kernel", "@molis-ai/molis-work-kernel", "foundation", "@molis-ai/molis-work-contracts/platform/kernel", ["goal-reorg-f3", "goal-reorg-ap2"], "Capability registration, discovery, grants, ActionService dispatch and scene compatibility; also hosts the contextual-ranking platform product service (pure functions).", "Business state machines, provider implementations, UI rendering, model calls and credentials, caching, timing or cancellation.", [], { maturity: "production", extraWorkspaceDependencies: ["@molis-ai/molis-work-plugin-sdk"], extraDependencies: { "ajv": "^8.20.0", "ajv-formats": "^3.0.1" }, capabilities: ["kernel.capability-registry.v1"] }),
-  entry("packages/plugin-runtime", "@molis-ai/molis-work-plugin-runtime", "foundation", "@molis-ai/molis-work-contracts/platform/plugin", ["goal-reorg-fd3", "goal-reorg-dv3"], "Plugin identity, install, grants, isolation, lifecycle, and rollback boundary.", "Module business facts or provider-specific protocols.", ["src/install/"], { maturity: "production", extraWorkspaceDependencies: ["@molis-ai/molis-work-plugin-sdk"], capabilities: ["plugin.lifecycle.v1", "plugin.grants.v1", "plugin.recovery.v1"] }),
-  entry("packages/plugin-sdk", "@molis-ai/molis-work-plugin-sdk", "foundation", "@molis-ai/molis-work-contracts/platform/plugin", ["goal-reorg-fd3", "goal-reorg-dv3"], "Stable author-facing Plugin APIs, UI extension types, and testing entrypoints.", "Internal Host implementations or an automatically published marketplace.", [], { maturity: "production", capabilities: ["plugin.define.v1", "integration.polling.v1"] }),
-  entry("packages/storage", "@molis-ai/molis-work-storage", "foundation", "@molis-ai/molis-work-contracts/platform/storage", ["goal-reorg-ap2"], "SQLite, filesystem, Blob, transaction, migration, and backup technical ports.", "The business meaning of Module schemas or cross-Module queries.", ["src/v1/store.ts", "src/feed/store.ts"], { maturity: "production", extraDependencies: { "@adeptify/search-evidence-layer": "file:../../vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz", "better-sqlite3": "12.8.0" } }),
-  entry("packages/ui-host", "@molis-ai/molis-work-ui-host", "foundation", "@molis-ai/molis-work-contracts/platform/ui", ["goal-reorg-fd4", "goal-reorg-ap3"], "UI Contribution, Slot, Embed, isolation, and Host bridge boundary.", "Native Plugin product behavior or Module business facts.", ["src/web/render.ts"], { maturity: "slice", capabilities: ["ui.contribution.registry.v1", "ui.surface.render.v1", "ui.slot.mount.v1"] }),
-  entry("packages/design-system", "@molis-ai/molis-work-design-system", "foundation", "@molis-ai/molis-work-contracts/platform/ui", ["goal-reorg-ap3"], "Tokens, primitives, icons, themes, and accessibility foundations.", "Product-page business decisions or Plugin state.", ["src/web/visual-foundation.ts", "DESIGN.md"], { extraWorkspaceDependencies: ["@molis-ai/molis-work-plugin-sdk"], maturity: "production", extraDependencies: { "lucide": "^1.31.0" }, capabilities: ["design-system.theme.v1", "design-system.tokens.v1", "design-system.accessibility.v1"] }),
-  entry("packages/test-kit", "@molis-ai/molis-work-test-kit", "foundation", "@molis-ai/molis-work-contracts/platform/testing", ["goal-reorg-f3"], "Business-neutral test helpers: package import boundary rules, a headless Chrome/CDP launcher and driver, and a client for the Host's local HTTP management routes.", "Shared business fixtures, rules, or assertions owned by a Module.", [], { maturity: "slice", capabilities: ["workspace-boundary-policy", "headless-chrome-driver", "local-host-http-client"] }),
-
-  entry("modules/projects", "@molis-ai/molis-work-module-projects", "module", "@molis-ai/molis-work-contracts/modules/projects", ["goal-reorg-ap1"], "Project identity, Catalog, membership, lifecycle, and project_id migration facts.", "Sessions, Desktop panels, Goals, Artifacts, or Runtime process state.", ["src/projects/catalog.ts"], { maturity: "production", capabilities: ["project-identity", "project-catalog", "workspace-membership", "project-deletion-receipts"] }),
-entry("modules/context-ledger", "@molis-ai/molis-work-module-context-ledger", "module", "@molis-ai/molis-work-contracts/modules/context-ledger", ["goal-reorg-ar2"], "Object references, cross-owner relationships, publication, and materialization records.", "The referenced Goal, Artifact, Feed, or Session content.", ["src/v1/coordinator.ts", "src/feed/", "src/sessions/"], { maturity: "slice", capabilities: ["context.edges.v1"] }),
-  entry("modules/sources", "@molis-ai/molis-work-module-sources", "module", "@molis-ai/molis-work-contracts/modules/sources", ["goal-reorg-fd1"], "Source identity, desired listening state, scope, schedule intent, and provider binding references.", "Secrets, listener cursors, Signals, Feed disposition, or Goals.", ["src/feed/sources/", "src/feed/store.ts"], { maturity: "production", capabilities: ["sources.query.v1", "sources.command.v1"] }),
-  entry("modules/signals", "@molis-ai/molis-work-module-signals", "module", "@molis-ai/molis-work-contracts/modules/signals", ["goal-reorg-fd1"], "Normalized external-event facts, deduplication identity, revisions, and provenance.", "Provider connections, listener leases, Feed decisions, Attention, Goals, or Automation.", ["src/feed/"], { maturity: "production", capabilities: ["signals.query.v1", "signals.command.v1"] }),
-  entry("modules/feed", "@molis-ai/molis-work-module-feed", "module", "@molis-ai/molis-work-contracts/modules/feed", ["goal-reorg-fd2"], "Feed Item visibility, read/archive state, disposition, and promotion provenance.", "Provider listening, Signal ownership, or direct Goal/Artifact/Action creation.", ["src/feed/store.ts"], { maturity: "production", extraWorkspaceDependencies: ["@molis-ai/molis-work-storage"], capabilities: ["feed.query.v1", "feed.command.v1"] }),
-  entry("modules/attention-resumption", "@molis-ai/molis-work-module-attention-resumption", "module", "@molis-ai/molis-work-contracts/modules/attention-resumption", ["goal-reorg-fd2"], "Attention items, reasons, snooze state, and resume cues.", "Feed Items, Actions, Goals, Sessions, notifications, or Runtime processes.", ["src/feed/store.ts"], { maturity: "slice", capabilities: ["attention.query.v1", "attention.command.v1"] }),
-  entry("modules/goals", "@molis-ai/molis-work-module-goals", "module", "@molis-ai/molis-work-contracts/modules/goals", ["goal-f826dfb8-bf63-4e98-b6b7-57f6b4b7c3b8", "goal-reorg-gw1", "goal-reorg-gw2", "goal-reorg-gw3", "goal-reorg-gw4"], "Goal Contract, graph, policy, risk, lifecycle, guidance, and planning facts.", "Claims/Runs, Evidence, Reviews/Decisions, or cross-Module provenance.", ["src/v1/", "src/planning/"], { maturity: "production", capabilities: ["goals.command.v1", "goals.repository.v1", "goals.lifecycle.v1", "goals.planning.v1", "goals.query.v1"], extraWorkspaceDependencies: ["@molis-ai/molis-work-plugin-sdk"], extraDependencies: { "better-sqlite3": "12.8.0" } }),
-  entry("modules/private-work-context", "@molis-ai/molis-work-module-private-work-context", "module", "@molis-ai/molis-work-contracts/modules/private-work-context", ["goal-reorg-wk1"], "Runtime context bindings: which project a Runtime work entry or workspace belongs to.", "Sessions, Execution Runs, Goals, Artifacts, or Runtime process handles.", ["src/projects/catalog.ts"], { maturity: "slice", capabilities: ["runtime-context-bindings"] }),
-  entry("modules/artifacts", "@molis-ai/molis-work-module-artifacts", "module", "@molis-ai/molis-work-contracts/modules/artifacts", ["goal-reorg-ar1", "goal-reorg-ar3"], "Artifact identity, version, type, content reference, scope, and provenance facts.", "Plugin implementation dependencies, cross-object relationships, transport receipts, or private drafts.", ["src/v1/", "src/evidence/"], { maturity: "production", capabilities: ["artifacts.identity.v1", "artifacts.version-repository.v1", "artifacts.opaque-content.v1", "artifacts.compatibility.v1"] }),
-  entry("modules/shelf", "@molis-ai/molis-work-module-shelf", "module", "@molis-ai/molis-work-contracts/modules/shelf", [], "Personal shelf items, copy-jobs, hashes, and local text extraction.", "Project Goal facts, Artifact versions, or desktop wheel/hotkey adapters.", [], { maturity: "slice", extraWorkspaceDependencies: ["@molis-ai/molis-work-plugin-sdk"], capabilities: ["shelf.store.v1", "shelf.jobs.v1"] }),
-  entry("modules/characters", "@molis-ai/molis-work-module-characters", "module", "@molis-ai/molis-work-contracts/modules/characters", ["coding-c12"], "Personal Character drafts and availability, and the Characters actions with their owner binding.", "Published Artifact storage, process spawning, Host permissions, or UI.", [], { extraWorkspaceDependencies: ["@molis-ai/molis-work-storage"], maturity: "slice", capabilities: ["characters.query.v1", "characters.command.v1", "characters.actions.v1"] }),
-  entry("modules/functions", "@molis-ai/molis-work-module-functions", "module", "@molis-ai/molis-work-contracts/modules/functions", [], "Published functions and judgment records.", "TypeSafe HTTP, plugin UI, or scene execution.", [], { extraWorkspaceDependencies: ["@molis-ai/molis-work-storage"], maturity: "production", capabilities: ["functions.query.v1", "functions.command.v1", "functions.evaluate"] }),
-  entry("modules/governance-collaboration", "@molis-ai/molis-work-module-governance-collaboration", "module", "@molis-ai/molis-work-contracts/modules/governance-collaboration", ["goal-reorg-ex3", "goal-reorg-ex4"], "Review obligations, Reviews, Proposals, Decisions, and confirmation provenance.", "Direct mutation of Goal, Artifact, or Project facts.", ["src/v1/"], { maturity: "production", capabilities: ["governance.proposals.v1", "governance.decisions.v1", "governance.event-decisions.v1"] }),
-
-  entry("horizontal/agent-host", "@molis-ai/molis-work-service-agent-host", "horizontal", "@molis-ai/molis-work-contracts/services/agent-host", ["goal-plugin-platform-v2"], "Agent Runtime registration, capability matrix, frozen run authority, and the Host-owned Review queue.", "Coding business meaning, model choice, credentials, or the approval decision itself.", [], { maturity: "production", capabilities: ["agent.host.v1", "agent.review-queue.v1", "agent.runtimes.v1", "agent.run.start.v1"], extraWorkspaceDependencies: ["@molis-ai/molis-work-storage"], extraDependencies: { "@prologue/sdk": "file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-retry-waiting.tgz" } }),
-  entry("horizontal/connector-host", "@molis-ai/molis-work-service-connector-host", "horizontal", "@molis-ai/molis-work-contracts/services/connector-host", ["goal-reorg-fd1", "goal-reorg-fd3"], "Provider connection, credential-reference, invocation, health, and Receipt mechanisms.", "Source desired state, Signal/Feed/Action facts, or provider-specific business rules.", ["src/feed/connectors/"], { maturity: "production", capabilities: ["connector.host.v1"] }),
-  entry("horizontal/listener-host", "@molis-ai/molis-work-service-listener-host", "horizontal", "@molis-ai/molis-work-contracts/services/listener-host", ["goal-reorg-fd1"], "Durable cursor, lease, retry, quarantine, and Raw Event delivery mechanisms.", "Source configuration, formal Signals, Feed/Attention/Goal/Automation decisions, or credentials.", ["src/feed/sources/scheduler.ts"], { maturity: "production", capabilities: ["listener.host.v1"] }),
-  entry("horizontal/runtime-host", "@molis-ai/molis-work-service-runtime-host", "horizontal", "@molis-ai/molis-work-contracts/services/runtime-host", ["goal-reorg-wk2"], "Local terminal (PTY) process host: spawn, attach, write, resize, kill, bounded replay.", "Claims, Runs, Goals, Sessions, workspaces, conversation lineage, or Artifacts.", ["src/sessions/", "src/web/pty-client.ts"], { maturity: "slice", capabilities: ["runtime.host.v1", "runtime.terminal-pty.v1"], extraDependencies: { "node-pty": "1.1.0" } }),
-  entry("horizontal/scheduler", "@molis-ai/molis-work-service-scheduler", "horizontal", "@molis-ai/molis-work-contracts/services/scheduler", [], "Durable one-shot wakeup, lease, catch-up, and delivery receipts.", "Cron expressions, Automation rules, Feed source intent, or Action parameters.", [], { extraWorkspaceDependencies: ["@molis-ai/molis-work-plugin-sdk"], maturity: "production", capabilities: ["scheduler.wakeup.v1"] }),
-  entry("horizontal/memory", "@molis-ai/molis-work-service-memory", "horizontal", "@molis-ai/molis-work-contracts/services/memory", [], "Platform memory: switches and policy, the deterministic write gate, recall orchestration, candidates, recent changes and undo over Prologue Memory.", "Memory text storage, versions or isolation (Prologue Memory), model calls, interaction rules, or a second permission system.", [], { maturity: "production", capabilities: ["memory.recall.v1", "memory.manage.v1"] }),
-  entry("horizontal/knowledge", "@molis-ai/molis-work-service-knowledge", "horizontal", "@molis-ai/molis-work-contracts/services/knowledge", [], "Project knowledge: one catalog over the declared search and file sources, layered reading and literal search, every read from the owner with the caller's authority.", "Plugin stores, content, a second index or permission system, or model calls.", [], { maturity: "production", capabilities: ["knowledge.recall.v1"] }),
-  entry("horizontal/search", "@molis-ai/molis-work-service-search", "horizontal", "@molis-ai/molis-work-contracts/services/search", [], "System search: source discovery through the action directory, index freshness, recovery, and caller-scoped query aggregation.", "Plugin stores, business facts, object reading rules, or a second permission system.", [], { maturity: "production", capabilities: ["search.query.v1", "search.index.v1"] }),
-  entry("horizontal/placement", "@molis-ai/molis-work-service-placement", "horizontal", "@molis-ai/molis-work-contracts/services/placement", [], "Where objects live, who can read them, what they are linked to, and moving, copying and converting between the personal space and projects.", "Plugin stores, object content, Goal facts, or a second permission system.", [], { maturity: "production", capabilities: ["placement.describe.v1", "placement.links.v1"] }),
-
+  entry("apps/server", "@molis-ai/molis-work-contracts/platform/app-host", {
+    maturity: "experimental",
+    extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-server",
+      "@molis-ai/molis-work-storage",
+      "@molis-ai/molis-work-app-local-host",
+      "@molis-ai/molis-work-im-ui",
+      "@molis-ai/molis-work-app-desktop",
+      "@molis-ai/molis-work-plugin-runtime"
+    ]
+  }),
+  entry("server", "@molis-ai/molis-work-contracts/platform/app-host", {
+    maturity: "production",
+    extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-storage",
+      "@molis-ai/molis-work-plugin-sdk"
+    ]
+  }),
+  entry("packages/im-ui", "@molis-ai/molis-work-contracts/services/im", {
+    maturity: "production",
+    extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-design-system",
+      "@molis-ai/molis-work-plugin-sdk"
+    ]
+  }),
+  entry("packages/plugin-sandbox", "@molis-ai/molis-work-contracts/platform/plugin-sandbox", {
+    maturity: "production",
+    extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-plugin-sdk"
+    ]
+  }),
+  entry("apps/desktop", "@molis-ai/molis-work-contracts/platform/app-host", {
+    maturity: "production",
+    capabilities: [
+      "desktop.shell.v1",
+      "desktop.runtime-launch.v1",
+      "desktop.advance-prompt.v1",
+      "desktop.panels.v1",
+      "desktop.capsule-shell.v1"
+    ],
+    extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-service-runtime-host",
+      "@molis-ai/molis-work-storage",
+      "@molis-ai/molis-work-plugin-sdk",
+      "@molis-ai/molis-work-app-local-host",
+      "@molis-ai/molis-work-design-system"
+    ]
+  }),
+  entry("apps/workbench", "@molis-ai/molis-work-contracts/platform/app-host", {
+    maturity: "production",
+    capabilities: [
+      "workbench.shell.v1",
+      "workbench.ui-slots.v1",
+      "workbench.feed-composition.v1",
+      "workbench.work-composition.v1",
+      "workbench.goals-policy-composition.v1",
+      "workbench.goals-safety-composition.v1",
+      "workbench.goals-relation-composition.v1",
+      "workbench.goals-tree-composition.v1",
+      "workbench.goals-momentum-composition.v1",
+      "workbench.goals-document-composition.v1",
+      "workbench.goals-context-composition.v1",
+      "workbench.goals-planning-composition.v1",
+      "workbench.goals-status-composition.v1",
+      "workbench.goals-factors-composition.v1",
+      "workbench.goals-dialogs-composition.v1",
+      "workbench.goals-document-routes.v1"
+    ],
+    registeredPluginDependencies: true,
+    extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-im-ui",
+      "@molis-ai/molis-work-ui-host",
+      "@molis-ai/molis-work-design-system",
+      "@molis-ai/molis-work-integration-rss",
+      "@molis-ai/molis-work-integration-gmail",
+      "@molis-ai/molis-work-plugin-sdk"
+    ],
+    extraDependencies: {
+      marked: "^18.0.11",
+      "sanitize-html": "^2.17.7",
+      "@xterm/xterm": "^6.0.0",
+      "@xterm/addon-fit": "^0.11.0"
+    }
+  }),
+  entry("apps/local-host", "@molis-ai/molis-work-contracts/platform/app-host", {
+    maturity: "production",
+    capabilities: [
+      "local-host.client.v1",
+      "local-host.single-writer.v1"
+    ],
+    registeredPluginDependencies: true,
+    extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-server",
+      "@molis-ai/molis-work-im-ui",
+      "@molis-ai/molis-work-plugin-sandbox",
+      "@molis-ai/molis-work-app-cli",
+      "@molis-ai/molis-work-app-mcp",
+      "@molis-ai/molis-work-app-workbench",
+      "@molis-ai/molis-work-design-system",
+      "@molis-ai/molis-work-integration-catalog",
+      "@molis-ai/molis-work-integration-github",
+      "@molis-ai/molis-work-integration-gmail",
+      "@molis-ai/molis-work-integration-rss",
+      "@molis-ai/molis-work-integration-youtube",
+      "@molis-ai/molis-work-kernel",
+      "@molis-ai/molis-work-module-artifacts",
+      "@molis-ai/molis-work-module-attention-resumption",
+      "@molis-ai/molis-work-module-characters",
+      "@molis-ai/molis-work-module-context-ledger",
+      "@molis-ai/molis-work-module-feed",
+      "@molis-ai/molis-work-module-functions",
+      "@molis-ai/molis-work-module-goals",
+      "@molis-ai/molis-work-module-governance-collaboration",
+      "@molis-ai/molis-work-module-private-work-context",
+      "@molis-ai/molis-work-module-projects",
+      "@molis-ai/molis-work-module-shelf",
+      "@molis-ai/molis-work-module-signals",
+      "@molis-ai/molis-work-module-sources",
+      "@molis-ai/molis-work-plugin-runtime",
+      "@molis-ai/molis-work-plugin-sdk",
+      "@molis-ai/molis-work-service-agent-host",
+      "@molis-ai/molis-work-service-connector-host",
+      "@molis-ai/molis-work-service-listener-host",
+      "@molis-ai/molis-work-service-runtime-host",
+      "@molis-ai/molis-work-service-scheduler",
+      "@molis-ai/molis-work-service-placement",
+      "@molis-ai/molis-work-service-search",
+      "@molis-ai/molis-work-service-knowledge",
+      "@molis-ai/molis-work-service-memory",
+      "@molis-ai/molis-work-storage",
+      "@molis-ai/molis-work-ui-host"
+    ],
+    extraDependencies: {
+      "node-pty": "^1.1.0",
+      "@modelcontextprotocol/sdk": "^1.31.0",
+      typescript: "^5.8.0",
+      "pdfjs-dist": "6.3.289",
+      fflate: "0.8.2",
+      mammoth: "1.11.0",
+      officeparser: "8.1.1",
+      esbuild: "^0.28.2",
+      ws: "^8.21.3",
+      "@adeptify/search-evidence-layer": "file:../../vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz",
+      "@adeptify/intelligence-client": "file:../../vendor/intelligence-client/adeptify-intelligence-client-0.2.2.tgz",
+      "@larksuiteoapi/lark-mcp": "0.5.1"
+    }
+  }),
+  entry("apps/cli", "@molis-ai/molis-work-contracts/platform/app-host", {
+    maturity: "production",
+    capabilities: []
+  }),
+  entry("apps/mcp", "@molis-ai/molis-work-contracts/platform/app-host", {
+    maturity: "production",
+    capabilities: [],
+    extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-plugin-sdk"
+    ]
+  }),
+  entry("packages/contracts", "@molis-ai/molis-work-contracts/platform/package", {
+    maturity: "production"
+  }),
+  entry("packages/kernel", "@molis-ai/molis-work-contracts/platform/kernel", {
+    maturity: "production",
+    capabilities: [
+      "kernel.capability-registry.v1"
+    ],
+    extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-plugin-sdk"
+    ],
+    extraDependencies: {
+      ajv: "^8.20.0",
+      "ajv-formats": "^3.0.1"
+    }
+  }),
+  entry("packages/plugin-runtime", "@molis-ai/molis-work-contracts/platform/plugin", {
+    maturity: "production",
+    capabilities: [
+      "plugin.lifecycle.v1",
+      "plugin.grants.v1",
+      "plugin.recovery.v1"
+    ],
+    extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-plugin-sdk"
+    ]
+  }),
+  entry("packages/plugin-sdk", "@molis-ai/molis-work-contracts/platform/plugin", {
+    maturity: "production",
+    capabilities: [
+      "plugin.define.v1",
+      "integration.polling.v1"
+    ]
+  }),
+  entry("packages/storage", "@molis-ai/molis-work-contracts/platform/storage", {
+    maturity: "production",
+    extraDependencies: {
+      "@adeptify/search-evidence-layer": "file:../../vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz",
+      "better-sqlite3": "12.8.0"
+    }
+  }),
+  entry("packages/ui-host", "@molis-ai/molis-work-contracts/platform/ui", {
+    maturity: "slice",
+    capabilities: [
+      "ui.contribution.registry.v1",
+      "ui.surface.render.v1",
+      "ui.slot.mount.v1"
+    ]
+  }),
+  entry("packages/design-system", "@molis-ai/molis-work-contracts/platform/ui", {
+    maturity: "production",
+    capabilities: [
+      "design-system.theme.v1",
+      "design-system.tokens.v1",
+      "design-system.accessibility.v1"
+    ],
+    extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-plugin-sdk"
+    ],
+    extraDependencies: {
+      lucide: "^1.31.0"
+    }
+  }),
+  entry("packages/test-kit", "@molis-ai/molis-work-contracts/platform/testing", {
+    maturity: "slice",
+    capabilities: [
+      "workspace-boundary-policy",
+      "headless-chrome-driver",
+      "local-host-http-client"
+    ]
+  }),
+  entry("modules/projects", "@molis-ai/molis-work-contracts/modules/projects", {
+    maturity: "production",
+    capabilities: [
+      "project-identity",
+      "project-catalog",
+      "workspace-membership",
+      "project-deletion-receipts"
+    ]
+  }),
+  entry("modules/context-ledger", "@molis-ai/molis-work-contracts/modules/context-ledger", {
+    maturity: "slice",
+    capabilities: [
+      "context.edges.v1"
+    ]
+  }),
+  entry("modules/sources", "@molis-ai/molis-work-contracts/modules/sources", {
+    maturity: "production",
+    capabilities: [
+      "sources.query.v1",
+      "sources.command.v1"
+    ]
+  }),
+  entry("modules/signals", "@molis-ai/molis-work-contracts/modules/signals", {
+    maturity: "production",
+    capabilities: [
+      "signals.query.v1",
+      "signals.command.v1"
+    ]
+  }),
+  entry("modules/feed", "@molis-ai/molis-work-contracts/modules/feed", {
+    maturity: "production",
+    capabilities: [
+      "feed.query.v1",
+      "feed.command.v1"
+    ],
+    extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-storage"
+    ]
+  }),
+  entry("modules/attention-resumption", "@molis-ai/molis-work-contracts/modules/attention-resumption", {
+    maturity: "slice",
+    capabilities: [
+      "attention.query.v1",
+      "attention.command.v1"
+    ]
+  }),
+  entry("modules/goals", "@molis-ai/molis-work-contracts/modules/goals", {
+    maturity: "production",
+    capabilities: [
+      "goals.command.v1",
+      "goals.repository.v1",
+      "goals.lifecycle.v1",
+      "goals.planning.v1",
+      "goals.query.v1"
+    ],
+    extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-plugin-sdk"
+    ],
+    extraDependencies: {
+      "better-sqlite3": "12.8.0"
+    }
+  }),
+  entry("modules/private-work-context", "@molis-ai/molis-work-contracts/modules/private-work-context", {
+    maturity: "slice",
+    capabilities: [
+      "runtime-context-bindings"
+    ]
+  }),
+  entry("modules/artifacts", "@molis-ai/molis-work-contracts/modules/artifacts", {
+    maturity: "production",
+    capabilities: [
+      "artifacts.identity.v1",
+      "artifacts.version-repository.v1",
+      "artifacts.opaque-content.v1",
+      "artifacts.compatibility.v1"
+    ]
+  }),
+  entry("modules/shelf", "@molis-ai/molis-work-contracts/modules/shelf", {
+    maturity: "slice",
+    capabilities: [
+      "shelf.store.v1",
+      "shelf.jobs.v1"
+    ],
+    extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-plugin-sdk"
+    ]
+  }),
+  entry("modules/characters", "@molis-ai/molis-work-contracts/modules/characters", {
+    maturity: "slice",
+    capabilities: [
+      "characters.query.v1",
+      "characters.command.v1",
+      "characters.actions.v1"
+    ],
+    extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-storage"
+    ]
+  }),
+  entry("modules/functions", "@molis-ai/molis-work-contracts/modules/functions", {
+    maturity: "production",
+    capabilities: [
+      "functions.query.v1",
+      "functions.command.v1",
+      "functions.evaluate"
+    ],
+    extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-storage"
+    ]
+  }),
+  entry("modules/governance-collaboration", "@molis-ai/molis-work-contracts/modules/governance-collaboration", {
+    maturity: "production",
+    capabilities: [
+      "governance.proposals.v1",
+      "governance.decisions.v1",
+      "governance.event-decisions.v1"
+    ]
+  }),
+  entry("horizontal/agent-host", "@molis-ai/molis-work-contracts/services/agent-host", {
+    maturity: "production",
+    capabilities: [
+      "agent.host.v1",
+      "agent.review-queue.v1",
+      "agent.runtimes.v1",
+      "agent.run.start.v1"
+    ],
+    extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-storage"
+    ],
+    extraDependencies: {
+      "@prologue/sdk": "file:../../vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-retry-waiting.tgz"
+    }
+  }),
+  entry("horizontal/connector-host", "@molis-ai/molis-work-contracts/services/connector-host", {
+    maturity: "production",
+    capabilities: [
+      "connector.host.v1"
+    ]
+  }),
+  entry("horizontal/listener-host", "@molis-ai/molis-work-contracts/services/listener-host", {
+    maturity: "production",
+    capabilities: [
+      "listener.host.v1"
+    ]
+  }),
+  entry("horizontal/runtime-host", "@molis-ai/molis-work-contracts/services/runtime-host", {
+    maturity: "slice",
+    capabilities: [
+      "runtime.host.v1",
+      "runtime.terminal-pty.v1"
+    ],
+    extraDependencies: {
+      "node-pty": "1.1.0"
+    }
+  }),
+  entry("horizontal/scheduler", "@molis-ai/molis-work-contracts/services/scheduler", {
+    maturity: "production",
+    capabilities: [
+      "scheduler.wakeup.v1"
+    ],
+    extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-plugin-sdk"
+    ]
+  }),
+  entry("horizontal/memory", "@molis-ai/molis-work-contracts/services/memory", {
+    maturity: "production",
+    capabilities: [
+      "memory.recall.v1",
+      "memory.manage.v1"
+    ]
+  }),
+  entry("horizontal/knowledge", "@molis-ai/molis-work-contracts/services/knowledge", {
+    maturity: "production",
+    capabilities: [
+      "knowledge.recall.v1"
+    ]
+  }),
+  entry("horizontal/search", "@molis-ai/molis-work-contracts/services/search", {
+    maturity: "production",
+    capabilities: [
+      "search.query.v1",
+      "search.index.v1"
+    ]
+  }),
+  entry("horizontal/placement", "@molis-ai/molis-work-contracts/services/placement", {
+    maturity: "production",
+    capabilities: [
+      "placement.describe.v1",
+      "placement.links.v1"
+    ]
+  }),
+  entry("plugins/official-integrations/catalog", "@molis-ai/molis-work-contracts/platform/plugin", {
+    maturity: "production",
+    capabilities: [
+      "connector.catalog.v1",
+      "signal-adapter.catalog.v1"
+    ],
+    extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-plugin-sdk"
+    ]
+  }),
+  entry("plugins/official-integrations/github", "@molis-ai/molis-work-contracts/platform/plugin", {
+    maturity: "production",
+    capabilities: [
+      "connector.github.v1",
+      "signal-adapter.github.v1"
+    ],
+    extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-plugin-sdk"
+    ]
+  }),
+  entry("plugins/official-integrations/gmail", "@molis-ai/molis-work-contracts/platform/plugin", {
+    maturity: "production",
+    capabilities: [
+      "connector.gmail.v1",
+      "signal-adapter.gmail.v1"
+    ],
+    extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-plugin-sdk"
+    ]
+  }),
+  entry("plugins/official-integrations/rss", "@molis-ai/molis-work-contracts/platform/plugin", {
+    maturity: "production",
+    capabilities: [
+      "connector.rss.v1",
+      "signal-adapter.rss.v1"
+    ],
+    extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-plugin-sdk"
+    ],
+    extraDependencies: {
+      "@adeptify/search-evidence-layer": "file:../../../vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz"
+    }
+  }),
+  entry("plugins/official-integrations/web-query", "@molis-ai/molis-work-contracts/platform/plugin", {
+    maturity: "experimental",
+    capabilities: [
+      "connector.web-query.v1",
+      "signal-adapter.web-query.v1"
+    ],
+    extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-plugin-sdk"
+    ]
+  }),
+  entry("plugins/official-integrations/youtube", "@molis-ai/molis-work-contracts/platform/plugin", {
+    maturity: "production",
+    capabilities: [
+      "connector.youtube.v1",
+      "signal-adapter.youtube.v1"
+    ],
+    extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-plugin-sdk"
+    ]
+  }),
+  entry("tooling/plugin-cli", "@molis-ai/molis-work-contracts/platform/tooling", {
+    maturity: "production",
+    capabilities: [
+      "plugin.manifest.validate.v1"
+    ],
+    extraWorkspaceDependencies: [
+      "@molis-ai/molis-work-plugin-runtime",
+      "@molis-ai/molis-work-plugin-sdk"
+    ]
+  }),
   ...NATIVE_PLUGIN_ENTRIES.map(({ registration: _registration, ...entry }) => entry),
-
-  entry("plugins/official-integrations/catalog", "@molis-ai/molis-work-integration-catalog", "integration-plugin", "@molis-ai/molis-work-contracts/platform/plugin", ["goal-reorg-fd3"], "Official read-only catalog connector, polling, and identity adapters.", "Source/Signal/Feed facts, secret persistence, or Host business decisions.", [], { maturity: "production", capabilities: ["connector.catalog.v1", "signal-adapter.catalog.v1"], extraWorkspaceDependencies: ["@molis-ai/molis-work-plugin-sdk"] }),
-  entry("plugins/official-integrations/github", "@molis-ai/molis-work-integration-github", "integration-plugin", "@molis-ai/molis-work-contracts/platform/plugin", ["goal-reorg-fd3"], "Official GitHub authorization, connector, listener, Signal, settings, and Action adapters.", "Source/Signal/Feed/Action facts or Host business decisions.", ["src/feed/connectors/github.ts", "src/feed/connectors/github-oauth.ts"], { maturity: "production", capabilities: ["connector.github.v1", "signal-adapter.github.v1"], extraWorkspaceDependencies: ["@molis-ai/molis-work-plugin-sdk"] }),
-  entry("plugins/official-integrations/gmail", "@molis-ai/molis-work-integration-gmail", "integration-plugin", "@molis-ai/molis-work-contracts/platform/plugin", ["goal-reorg-fd3"], "Official Gmail OAuth, connector, listener, Signal, settings, and Action adapters.", "Source/Signal/Feed/Attention facts or Host business decisions.", ["src/feed/connectors/gmail.ts", "src/feed/connectors/gmail-oauth.ts"], { maturity: "production", capabilities: ["connector.gmail.v1", "signal-adapter.gmail.v1"], extraWorkspaceDependencies: ["@molis-ai/molis-work-plugin-sdk"] }),
-  entry("plugins/official-integrations/rss", "@molis-ai/molis-work-integration-rss", "integration-plugin", "@molis-ai/molis-work-contracts/platform/plugin", ["goal-reorg-fd3"], "Official catalog and custom RSS provider adapters.", "Source/Signal/Feed facts or a general-purpose HTTP platform.", ["src/feed/sources/"], { maturity: "production", extraDependencies: { "@adeptify/search-evidence-layer": "file:../../../vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz" }, capabilities: ["connector.rss.v1", "signal-adapter.rss.v1"], extraWorkspaceDependencies: ["@molis-ai/molis-work-plugin-sdk"] }),
-  entry("plugins/official-integrations/web-query", "@molis-ai/molis-work-integration-web-query", "integration-plugin", "@molis-ai/molis-work-contracts/platform/plugin", ["goal-reorg-fd3"], "Official Web Query provider adapter and settings boundary.", "Source/Signal/Feed facts or unrestricted web execution.", ["src/feed/sources/"], { maturity: "experimental", capabilities: ["connector.web-query.v1", "signal-adapter.web-query.v1"], extraWorkspaceDependencies: ["@molis-ai/molis-work-plugin-sdk"] }),
-  entry("plugins/official-integrations/youtube", "@molis-ai/molis-work-integration-youtube", "integration-plugin", "@molis-ai/molis-work-contracts/platform/plugin", ["goal-reorg-fd3"], "Official YouTube Channel provider adapter and settings boundary.", "Source/Signal/Feed facts or a general media client.", ["src/feed/sources/youtube.ts"], { maturity: "production", capabilities: ["connector.youtube.v1", "signal-adapter.youtube.v1"], extraWorkspaceDependencies: ["@molis-ai/molis-work-plugin-sdk"] }),
-
-  entry("tooling/plugin-cli", "@molis-ai/molis-work-plugin-cli", "tooling", "@molis-ai/molis-work-contracts/platform/tooling", ["goal-reorg-dv3"], "Plugin creation, Manifest/Contract validation, local debugging, packaging, and signing workflow boundary.", "A fake runnable CLI before the SDK and lifecycle implementation exist.", [], { maturity: "production", capabilities: ["plugin.manifest.validate.v1"], extraWorkspaceDependencies: ["@molis-ai/molis-work-plugin-runtime", "@molis-ai/molis-work-plugin-sdk"] }),
 ];
 
 export const WORKSPACE_GLOBS = [
@@ -193,13 +658,9 @@ export function checkWorkspacePackages(repositoryRoot) {
     names.add(manifest.name);
     if (manifest.private !== true) errors.push(`${item.path}: package must remain private in F2`);
     if (manifest.version !== "0.0.0") errors.push(`${item.path}: package version must be 0.0.0 in F2`);
-    if (manifest["molis-work"]?.path !== item.path) errors.push(`${item.path}: molis-work.path mismatch`);
-    if (manifest["molis-work"]?.kind !== item.kind) errors.push(`${item.path}: molis-work.kind mismatch`);
-    if (manifest["molis-work"]?.maturity !== item.maturity) errors.push(`${item.path}: package maturity must be ${item.maturity}`);
-    if (manifest["molis-work"]?.contract !== item.contract) errors.push(`${item.path}: Contract entrypoint mismatch`);
-    if (manifest["molis-work"]?.ssot !== "docs/SSOT-MATRIX.md") errors.push(`${item.path}: architecture SSOT mismatch`);
-    if (JSON.stringify(manifest["molis-work"]?.migrationGoals) !== JSON.stringify(item.migrationGoals)) {
-      errors.push(`${item.path}: migration Goal list mismatch`);
+    // The registry is the only writer of a non-plugin package's metadata (W5-15); a built-in plugin writes its own narrow block.
+    if (!item.path.startsWith(`${NATIVE_PLUGINS}/`) && manifest["molis-work"] !== undefined) {
+      errors.push(`${item.path}: non-plugin package must not declare molis-work metadata; scripts/workspace-packages.mjs is its only writer`);
     }
     const dependencies = Object.entries(manifest.dependencies ?? {}).sort(([left], [right]) => left.localeCompare(right));
     const expectedDependencies = item.path === "packages/contracts"
@@ -224,29 +685,9 @@ export function checkWorkspacePackages(repositoryRoot) {
       errors.push(`${item.path}: public export must resolve through dist, not a source deep import`);
     }
 
-    const indexPath = path.join(packageRoot, "src/index.ts");
-    // W5-15 M1: packages/contracts stopped exporting a packageDescriptor when PackageDescriptor was deleted; the other
-    // packages keep their descriptor until M2 deletes the convention for all 70.
-    if (item.path !== "packages/contracts" && fs.existsSync(indexPath)) {
-      const indexSource = fs.readFileSync(indexPath, "utf8");
-      if (!indexSource.includes("packageDescriptor")) errors.push(`${item.path}: missing packageDescriptor export`);
-      if (!indexSource.includes(`maturity: "${item.maturity}"`)) errors.push(`${item.path}: source maturity is not ${item.maturity}`);
-      for (const capability of item.capabilities) {
-        if (!indexSource.includes(`"${capability}"`)) errors.push(`${item.path}: source capability ${capability} missing`);
-      }
-      if (item.maturity === "contract-only" && item.path !== "packages/contracts" && /\b(class|registerProvider|createStore)\b/u.test(indexSource)) {
-        errors.push(`${item.path}: contract-only entrypoint appears to register implementation behavior`);
-      }
-    }
-
     const readmePath = path.join(packageRoot, "README.md");
     if (fs.existsSync(readmePath)) {
       const readme = fs.readFileSync(readmePath, "utf8");
-      if (!readme.includes(`Status: \`${item.maturity}\``)) errors.push(`${item.path}: README status missing`);
-      if (!readme.includes(item.contract)) errors.push(`${item.path}: README Contract entrypoint missing`);
-      for (const goalId of item.migrationGoals) {
-        if (!readme.includes(goalId)) errors.push(`${item.path}: README missing migration Goal ${goalId}`);
-      }
       errors.push(...checkDevRequirements(repositoryRoot, item, readme, manifest));
     }
   }

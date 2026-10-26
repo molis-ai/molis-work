@@ -19,19 +19,6 @@ export { createUiFailureView, createUiRequest, UI_REQUEST_CLIENT_SCRIPT } from "
 export type { UiFailureViewPorts, UiFetchInit, UiRequestPorts, UiTranslate, UiViewDocument, UiViewElement } from "./request-client.js";
 export type { UiPlacedView, UiViewRegistryInput, UiViewRegistryManifest } from "./view-registry.js";
 
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-ui-host",
-  packagePath: "packages/ui-host",
-  kind: "foundation",
-  maturity: "slice",
-  contract: "@molis-ai/molis-work-contracts/platform/ui",
-  migrationGoals: ["goal-reorg-f2", "goal-reorg-fd4", "goal-reorg-ap3"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["ui.contribution.registry.v1", "ui.surface.render.v1", "ui.slot.mount.v1"],
-} as const;
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
-
 
 
 /**

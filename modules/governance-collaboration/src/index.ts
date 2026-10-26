@@ -14,23 +14,6 @@ import { GovernanceProvenance } from "./provenance.js";
 import { GovernanceDecisionTransactions } from "./decision-transactions.js";
 import { GovernanceEventDecisions } from "./event-decisions.js";
 
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-module-governance-collaboration",
-  packagePath: "modules/governance-collaboration",
-  kind: "module",
-  maturity: "production",
-  contract: "@molis-ai/molis-work-contracts/modules/governance-collaboration",
-  migrationGoals: ["goal-reorg-f2","goal-reorg-ex3","goal-reorg-ex4"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: [
-    "governance.proposals.v1",
-    "governance.decisions.v1",
-    "governance.event-decisions.v1",
-  ],
-} as const;
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
-
 export interface GovernanceCollaborationModuleOptions {
   db: GovernanceSqliteDatabase;
   journal: GovernanceJournal;

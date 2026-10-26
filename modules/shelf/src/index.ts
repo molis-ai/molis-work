@@ -1,16 +1,3 @@
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-module-shelf",
-  packagePath: "modules/shelf",
-  kind: "module",
-  maturity: "slice",
-  contract: "@molis-ai/molis-work-contracts/modules/shelf",
-  migrationGoals: ["goal-reorg-f2"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["shelf.store.v1", "shelf.jobs.v1"],
-} as const;
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
-
 export { shelfErrors, isShelfFailure, type ShelfFailure } from "./errors.js";
 export { markdownFromExtract, resultNameForExtract } from "./extract.js";
 export {

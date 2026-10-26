@@ -12,17 +12,6 @@ import type {
   CreateAttentionEntryInput,
 } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-module-attention-resumption",
-  packagePath: "modules/attention-resumption",
-  kind: "module",
-  maturity: "slice",
-  contract: "@molis-ai/molis-work-contracts/modules/attention-resumption",
-  migrationGoals: ["goal-reorg-f2", "goal-reorg-fd2"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["attention.query.v1", "attention.command.v1"],
-} as const;
-
 type Row = Record<string, unknown>;
 type Statement = {
   all(...params: unknown[]): unknown[];
@@ -446,4 +435,3 @@ function json<T>(value: unknown, fallback: T): T {
   }
 }
 
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;

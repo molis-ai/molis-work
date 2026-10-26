@@ -34,18 +34,6 @@ import {
   type SearchStatusResponse,
 } from "@molis-ai/molis-work-contracts/services/search";
 
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-service-search",
-  packagePath: "horizontal/search",
-  kind: "horizontal",
-  maturity: "production",
-  contract: "@molis-ai/molis-work-contracts/services/search",
-  migrationGoals: ["goal-reorg-f2"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["search.query.v1", "search.index.v1"],
-} as const;
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
-
 /** One trusted way to reach a scope's sources: the calling client and the context to call it with. */
 export interface SearchAccess { client: ActionClient; caller: ActionCallContext }
 export interface SearchServiceOptions {

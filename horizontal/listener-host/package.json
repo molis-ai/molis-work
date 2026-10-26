@@ -26,16 +26,5 @@
   },
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*"
-  },
-  "molis-work": {
-    "path": "horizontal/listener-host",
-    "kind": "horizontal",
-    "maturity": "production",
-    "contract": "@molis-ai/molis-work-contracts/services/listener-host",
-    "migrationGoals": [
-      "goal-reorg-f2",
-      "goal-reorg-fd1"
-    ],
-    "ssot": "docs/SSOT-MATRIX.md"
   }
 }

@@ -13,9 +13,6 @@ in the main workspace writes each file only after a person reviews that write,
 and a parallel writer's result comes back through Coding's integration review
 (`review:git-integration`).
 
-- Status: `production`
-- Migration Goals: `goal-reorg-f2`, `goal-plugin-platform-v2`.
-- Contract entrypoint: `@molis-ai/molis-work-contracts/platform/plugin`
 
 Directory candidates and browsing preferences come from the [current-project settings protocol](../../../docs/platform/PROJECT-SETTINGS.md). Files/Git consume `projectSettingsCapabilities.browsingWorkspace`; Coding consumes `workspaces` and keeps its execution directory per session. Manage directories in Project Settings → Workspaces.
 

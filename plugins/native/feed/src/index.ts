@@ -2,21 +2,6 @@ import type { AttentionApi } from "@molis-ai/molis-work-contracts/modules/attent
 import type { FeedApi } from "@molis-ai/molis-work-contracts/modules/feed";
 import type { SourcesApi } from "@molis-ai/molis-work-contracts/modules/sources";
 
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-plugin-feed",
-  packagePath: "plugins/native/feed",
-  kind: "native-plugin",
-  maturity: "slice",
-  contract: "@molis-ai/molis-work-contracts/platform/plugin",
-  migrationGoals: ["goal-reorg-f2","goal-reorg-fd4"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: [
-    "feed.native-plugin.contract.v1",
-    "feed.ui-contribution.v1",
-    "feed.http-routes.v1",
-  ],
-} as const;
-
 /**
  * FD2 fixes the native Plugin's module-facing boundary. FD4 will add the UI
  * contribution without giving the Plugin ownership of either fact store.
@@ -27,7 +12,6 @@ export interface FeedNativePluginModules {
   readonly sources: SourcesApi;
 }
 
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 export { feedRuleActions, createFeedRuleHandlers, type FeedRulePreview, type FeedJudgmentChoice, type FeedJudgmentCatalog } from "./rule-actions.js";
 export { feedItemActions, createFeedItemHandlers, promoteOffered, FEED_ITEM_ACTIONS, type FeedItemActionPorts, type FeedItemResult, type FeedPromoteResult } from "./item-actions.js";
 export { feedSourceActions, createFeedSourceHandlers, FEED_SOURCE_ACTIONS, type FeedSourceActionPorts, type FeedSourceRegistration, type FeedSourceRegistered } from "./source-actions.js";

@@ -28,16 +28,5 @@
     "@molis-ai/molis-work-contracts": "workspace:*",
     "better-sqlite3": "12.8.0",
     "@adeptify/search-evidence-layer": "file:../../vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz"
-  },
-  "molis-work": {
-    "path": "packages/storage",
-    "kind": "foundation",
-    "maturity": "production",
-    "contract": "@molis-ai/molis-work-contracts/platform/storage",
-    "migrationGoals": [
-      "goal-reorg-f2",
-      "goal-reorg-ap2"
-    ],
-    "ssot": "docs/SSOT-MATRIX.md"
   }
 }

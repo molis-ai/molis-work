@@ -9,17 +9,6 @@ import type {
   ConnectorReceipt,
 } from "@molis-ai/molis-work-contracts/services/connector-host";
 
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-service-connector-host",
-  packagePath: "horizontal/connector-host",
-  kind: "horizontal",
-  maturity: "production",
-  contract: "@molis-ai/molis-work-contracts/services/connector-host",
-  migrationGoals: ["goal-reorg-f2", "goal-reorg-fd1", "goal-reorg-fd3"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["connector.host.v1"],
-} as const;
-
 
 
 /** Provider-neutral registry and invocation boundary. Drivers stay in Integration Plugins. */
@@ -162,8 +151,6 @@ async function withTimeout<T>(
     if (timer) clearTimeout(timer);
   }
 }
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export { ConnectorConnectionStore, CONNECTOR_CONNECTIONS_SCHEMA, normalizeConnectorTokenInput } from "./connection-store.js";
 export type { ConnectorConnectionSecrets, ConnectorTokenInput } from "./connection-store.js";

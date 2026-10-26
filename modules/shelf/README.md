@@ -67,9 +67,6 @@ node scripts/run-tests.mjs tests/shelf-plugin.test.ts
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 - [Shelf 插件需求](../../specs/archive/shelf-plugin/spec.md)
 
-- Status: `slice`
-- Contract entrypoint: `@molis-ai/molis-work-contracts/modules/shelf`
-- Migration Goals: `goal-reorg-f2`
 
 ## 被动发现与真实执行
 

@@ -1,13 +1,3 @@
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-plugin-form",
-  packagePath: "plugins/native/form",
-  kind: "native-plugin",
-  maturity: "production",
-  contract: "@molis-ai/molis-work-contracts/platform/plugin",
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["form.ui-contribution.v1", "form.http-routes.v1"],
-} as const;
-
 export { FORM_UI_CONTRIBUTION_ID, formUiContribution, formUiDescriptor, renderFormWorkbench } from "./ui.js";
 export type { FormUiModel, FormUiPrimitives, FormUiSurface } from "./ui.js";
 export { FORM_STYLES } from "./styles.js";

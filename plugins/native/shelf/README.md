@@ -74,9 +74,6 @@ pnpm test:run tests/shelf-plugin.test.ts tests/shelf-project-knowledge-http.test
 - [架构与当前实现索引](../../../docs/SSOT-MATRIX.md)
 - [Shelf 插件需求](../../../specs/archive/shelf-plugin/spec.md)
 
-- Status: `slice`
-- Contract entrypoint: `@molis-ai/molis-work-contracts/platform/plugin`
-- Migration Goals: `goal-reorg-f2`
 
 Agent 列表与页面刷新不启动本机 CLI。人工终端保留全部引擎；自动动作通过独立 AI 模型选择和共享 Prologue。确认页说明材料会发给所选模型、可能计费、原件不变以及无终端写入工具。本机提取单独声明无模型成本与权限。固定指令由插件 prompts.ts 登记，界面、MCP 与 Workflow 使用同一 Action 定义。
 

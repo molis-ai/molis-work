@@ -97,24 +97,6 @@ export type {
   PrologueStartInput,
 } from "./adapters/prologue.js";
 
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-service-agent-host",
-  packagePath: "horizontal/agent-host",
-  kind: "horizontal",
-  maturity: "production",
-  contract: "@molis-ai/molis-work-contracts/services/agent-host",
-  migrationGoals: ["goal-reorg-f2", "goal-plugin-platform-v2"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: [
-    "agent.host.v1",
-    "agent.review-queue.v1",
-    "agent.runtimes.v1",
-    "agent.run.start.v1",
-  ],
-} as const;
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
-
 function assertSessionCreation(adapter: AgentRuntimeAdapter, input: import("@molis-ai/molis-work-contracts/services/agent-host").AgentCreateSessionRequest, authority: AgentStartAuthority): void {
   if (input.workspace === "none") {
     const role = authority.manifest.roles.find(row => row.role_id === input.role_id);

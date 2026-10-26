@@ -1,17 +1,4 @@
 /** Local SQLite technical owner. */
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-storage",
-  packagePath: "packages/storage",
-  kind: "foundation",
-  maturity: "production",
-  contract: "@molis-ai/molis-work-contracts/platform/storage",
-  migrationGoals: ["goal-reorg-f2","goal-reorg-ap2"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: [],
-} as const;
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
-
 export { LocalSqliteJournal, LocalSqliteStorage, LOCAL_JOURNAL_SCHEMA_SQL, type SqliteDatabase } from "./sqlite.js";
 
 export { LOCAL_OPAQUE_BLOB_SCHEMA_SQL } from "./schema.js";

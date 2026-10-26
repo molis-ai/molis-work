@@ -14,17 +14,6 @@ import type {
   RawEventAdapter,
 } from "@molis-ai/molis-work-contracts/services/listener-host";
 
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-service-listener-host",
-  packagePath: "horizontal/listener-host",
-  kind: "horizontal",
-  maturity: "production",
-  contract: "@molis-ai/molis-work-contracts/services/listener-host",
-  migrationGoals: ["goal-reorg-f2", "goal-reorg-fd1"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["listener.host.v1"],
-} as const;
-
 type Row = Record<string, unknown>;
 type Statement = {
   all(...params: unknown[]): unknown[];
@@ -671,8 +660,6 @@ function json<T>(value: unknown, fallback: T): T {
     return fallback;
   }
 }
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 async function acceptListenerDelivery(
   dependencies: {

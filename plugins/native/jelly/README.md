@@ -1,6 +1,5 @@
 # Jelly
 
-Status: `production`
 
 Jelly 的日历与笔记工作区，使用 Molis Work 控件与舞台。收想法只在灵光（2026-10-01 起，见 `specs/archive/post-merge-review/spec.md` PMR-22）：Jelly 不再有灵感页，也不再读取文件与网页。个人数据独立存于 `{home}/jelly/jelly.db`；不会访问或覆盖原 Jelly 数据。功能目标与差异见 `specs/archive/jelly-plugin/`。
 

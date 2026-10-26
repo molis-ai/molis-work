@@ -28,15 +28,5 @@
     "@molis-ai/molis-work-contracts": "workspace:*",
     "@molis-ai/molis-work-design-system": "workspace:*",
     "@molis-ai/molis-work-plugin-sdk": "workspace:*"
-  },
-  "molis-work": {
-    "path": "packages/im-ui",
-    "kind": "foundation",
-    "maturity": "production",
-    "contract": "@molis-ai/molis-work-contracts/services/im",
-    "migrationGoals": [
-      "goal-reorg-f2"
-    ],
-    "ssot": "docs/SSOT-MATRIX.md"
   }
 }

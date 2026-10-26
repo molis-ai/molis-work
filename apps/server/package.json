@@ -21,16 +21,6 @@
     "@molis-ai/molis-work-app-desktop": "workspace:*",
     "@molis-ai/molis-work-plugin-runtime": "workspace:*"
   },
-  "molis-work": {
-    "path": "apps/server",
-    "kind": "app",
-    "maturity": "experimental",
-    "contract": "@molis-ai/molis-work-contracts/platform/app-host",
-    "migrationGoals": [
-      "goal-reorg-f2"
-    ],
-    "ssot": "docs/SSOT-MATRIX.md"
-  },
   "description": "Headless standalone server launcher, original Host action bridge and local asset restore adapter.",
   "license": "SEE LICENSE IN LICENSE",
   "sideEffects": false,

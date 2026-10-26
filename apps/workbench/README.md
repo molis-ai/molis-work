@@ -154,9 +154,6 @@ Images 首片迁移 `ui.ts` 的 46 处服务端调用与 `client.ts` 的 61 处�
 - [职责与接入说明](../../docs/platform/UI-PLATFORM.md)
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
-- Status: `production`
-- Contract entrypoint: `@molis-ai/molis-work-contracts/platform/app-host`
-- Migration Goals: `goal-reorg-f2`, `goal-reorg-fd4`, `goal-reorg-ap3`, `goal-reorg-gw4`, `goal-reorg-gw5`, `goal-reorg-ex4`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
 

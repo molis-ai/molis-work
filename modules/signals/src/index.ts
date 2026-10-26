@@ -9,17 +9,6 @@ import type {
   SignalsApi,
 } from "@molis-ai/molis-work-contracts/modules/signals";
 
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-module-signals",
-  packagePath: "modules/signals",
-  kind: "module",
-  maturity: "production",
-  contract: "@molis-ai/molis-work-contracts/modules/signals",
-  migrationGoals: ["goal-reorg-f2", "goal-reorg-fd1"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["signals.query.v1", "signals.command.v1"],
-} as const;
-
 type Row = Record<string, unknown>;
 type Statement = {
   all(...params: unknown[]): unknown[];
@@ -368,4 +357,3 @@ function json<T>(value: unknown, fallback: T): T {
   }
 }
 
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;

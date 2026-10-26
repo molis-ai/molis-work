@@ -33,26 +33,15 @@
     "@molis-ai/molis-work-plugin-sdk": "workspace:*"
   },
   "molis-work": {
-    "path": "plugins/native/issues",
-    "kind": "native-plugin",
     "maturity": "production",
-    "contract": "@molis-ai/molis-work-contracts/platform/plugin",
-    "summary": "Personal Home issue capture, reading, editing and deletion through one Runtime.",
-    "notResponsibleFor": "Runtime lifecycle, authorization, opening databases, team workflows or automatic analysis.",
-    "legacySources": [],
-    "migrationGoals": [
-      "goal-reorg-f2",
-      "goal-plugin-platform-v2"
-    ],
-    "ssot": "docs/SSOT-MATRIX.md",
     "capabilities": [
       "issues.ui-contribution.v1"
     ],
+    "registration": "./registration",
     "extraWorkspaceDependencies": [
       "@molis-ai/molis-work-plugin-sdk"
     ],
-    "extraDependencies": {},
-    "registration": "./registration"
+    "extraDependencies": {}
   },
   "devDependencies": {
     "esbuild": "^0.28.2"

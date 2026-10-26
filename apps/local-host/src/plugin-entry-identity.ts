@@ -41,8 +41,7 @@ export function pluginEntryIdentity() {
         }));
         if (entry.definition.manifest.image_generation) images.set(entry.definition, Object.freeze({ ...entry.definition.manifest.image_generation }));
         const owner = entry.project_data;
-        if (owner) projectData.set(entry.definition, Object.freeze({ owner_id: owner.owner_id,
-          ...owner.declaration ? { declaration: Object.freeze({ ...owner.declaration }) } : {} }));
+        if (owner) projectData.set(entry.definition, Object.freeze({ owner_id: owner.owner_id }));
       }
     },
   };

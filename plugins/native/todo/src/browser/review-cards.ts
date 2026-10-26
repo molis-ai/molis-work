@@ -1,4 +1,4 @@
-import type { TodoBatch, TodoCandidate } from "@molis-ai/molis-work-contracts/modules/todo";
+import type { TodoBatch, TodoCandidate } from "../contract.js";
 import { make } from "./dom.js";
 import { actionFor, applyLabel, choiceFor } from "./review-choices.js";
 import type { CandidateChoice, TodoPage } from "./types.js";

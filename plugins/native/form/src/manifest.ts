@@ -4,7 +4,7 @@ import {
   FORM_ARTIFACT_TYPE_ID,
   FORM_PLUGIN_ID,
   FORM_PROJECT_PLUGIN_ID,
-} from "@molis-ai/molis-work-contracts/modules/form";
+} from "./contract.js";
 import { FORM_UI_CONTRIBUTION_ID } from "./ui.js";
 import { formActions, FORM_ACTION_PERMISSIONS } from "./actions.js";
 import { formContentActions } from "./content-actions.js";

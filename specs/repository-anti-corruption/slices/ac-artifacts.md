@@ -1,6 +1,6 @@
 # ac-artifacts：成果库去插件身份，成为平台事实的主人（设计稿）
 
-状态：设计稿已审定，A1、A2a（客户端与 owner 操作）已随 batch-27 落地；A2b（动作处理器、浏览、导入、原件存取、项目引用、目标引用搬进 `modules/artifacts`，宿主停止 import 成果库插件包）2026-10-24 开发完成，等评审。A3（PG-064、PG-079、PG-077：成果类型登记表搬进宿主并读有效安装的 Manifest，`consumes[].file`，Goals 链接种类 `artifacts.links`，安装时拒重复属主，宿主这一层拒装上的产出者写未声明的类型）2026-10-25 开发完成，在分支 `anticorr/ac-artifacts-a3`，RAC-415～421；§5.1 的 S-69.1、S-70.4 暂记为 S-81，S-70.2、S-70.3 暂记为 S-82（S-69、S-70 已被连接扩展占用，合入时由统筹核号）。A3 之后的实现片要等 ac-registry 的 PG-024 片。
+状态：设计稿已审定。已落地：A1、A2a（batch-27）、A2b（动作处理器、浏览、导入、原件存取、项目引用、目标引用搬进 `modules/artifacts`，宿主停止 import 成果库插件包）、A3（PG-064、PG-079、PG-077 与第 4 步，#1294，batch-39；§5.1 的 S-69.1、S-70.4 现为 S-81，S-70.2、S-70.3 现为 S-82）、A4（PG-096，#1257，batch-37，RAC-426）、A7 的非目录部分（PG-097 环境变量、符号、`/assets` 路由，#1264 与 #1268，batch-37，RAC-412、427）。未做：A5（提供方换 `system.artifacts`）和 A7 的目录改名都等用户的维护时段（B 类）；A6 等 ac-registry 的 PG-024 与 W5-06 的挂载器；A8 收口在 A5～A7 之后。
 
 A2b 的取舍（受「插件不能 import 模块」限制，插件在 A6 删除前仍要自己的 Manifest 与登记）：模块持有完整的 `artifact-actions.ts`（动作清单加处理器）、`artifact-provider.ts`（`ARTIFACTS_PROVIDER`：id、名称、版本、签名）及其依赖；插件只留动作清单（`actions.ts`）、`browser-view.ts`（页面视图类型与版本路径）、Home 存储登记与项目删除清理（`original-store.ts`）和界面。两份清单与提供方字段由 `tests/plugin-artifact-schemas.test.ts` 对照（RAC-414），A6 删插件时重复随之消失。
 
@@ -21,6 +21,26 @@ A2b 的取舍（受「插件不能 import 模块」限制，插件在 A6 删除�
 实测记录：RAC-416-R1/R2、RAC-417-R1 均通过。未修 8ec 上新生产入口用例实际复现已装/停用与缺发行物误放行，缺项目库的安装误放行与规则/样例误删；未安装历史正控通过（7 项含子用例，1 通过、6 失败；无取消/跳过）。修后整批 5 文件 38/38，分别为声明 18、规则生命周期 4、跨设备接续 1、网关 2、CLI 13，无失败/取消/跳过。整体构建、相对 origin/main merge-base 的健康门禁及经公共 FIFO 运行的边界门禁均通过。首轮测试夹具遗漏包的 `supersedes_version: null`，修正夹具后重新取得上述有效 RED，首轮日志保留但不当产品复现。未跑 full/CI/browser、通用 Host README 宽批或 TEST 的 5 个独立安装身份 probe；不是用户验收。
 
 验证：先补回归在未修源码上取得定向 RED，再改生产源码并整体 `pnpm build`（公共 build FIFO），运行 `node scripts/run-tests.mjs --jobs 2 --verbose tests/security-invariants-artifact-declarations.test.ts tests/scene-default-rule-lifecycle.test.ts tests/cross-device-continuity.test.ts tests/cross-device-gateway.test.ts tests/server-cli.test.ts`；按实际修改补相关定向用例及 `pnpm boundary:check`、`node scripts/check-health-gates.mjs --base origin/main`、`git diff --check`。不新跑 full/CI/browser，不重已知旧失败。保留原日志、exit、取消/未选边界；推送前 fetch 与 `pnpm secrets:check`，只正常 push 自己 feature，不改原 PR 头、不新 PR、不合并。
+
+### A3 开发运行增量修复 WO（F2，2026-10-25）
+
+状态：已接受，作者核心定向验证通过，CLI 补核与双核待交接。唯一基点 `b3bac731b9d0f933577a21f0d2aec1feb001cffd`（#1307 合入后的准确 main），只承接 [正式增量评审 6402920922](https://github.com/molis-ai/molis-work/pull/1307#issuecomment-6402920922) 的两项 nonblock。目标是修复绑定失败的安装收尾，并让测试准确区分 Runtime 客户端与 A3 版本 owner 的拒绝；不改变类型声明、权限或插件产品合同。
+
+当前调用链：本地开发 Host 将 `runPluginDevelopment` 自己安装的有效 Manifest 视图绑定到同一项目连接；Runtime 客户端在调用真实版本 owner 之前先检查 `artifacts.produces`，因此把 produces 清空的完整开发用例只证明 Runtime 拒绝。A3 的 `projectTypeDeclared → declaredOnly` 要通过现有公开 `runPluginDevelopment`/`bindInstallation` 与真实 `openProjectVersionStores` 分层验证，不伪造视图或放宽 Runtime 让错误输入穿透。`runtime.install` 后的绑定回调目前在 try 外，抛错会留下 installed 记录；最小修复是把它纳入原 uninstall/finally-release 范围，release 仅在实际取得后调用。
+
+| 编号 | 验收与边界 |
+| --- | --- |
+| A3-DEV-01 | 保留原完整本地开发拒绝用例，明确为 Runtime 客户端层，拒绝只接受该层准确错误；通过真实开发状态库查询确认成果与版本零写入，不再用双文案正则冒充 A3 覆盖。原合法本地开发连续两次发布正控保留。 |
+| A3-DEV-02 | 从真实公开开发运行取得本次安装视图，在其生效期绑定同一真实项目的版本 owner。直接经 owner 写未声明类型，精确断言 `artifacts.artifact.type_undeclared` 与 A3 文案，拒绝后真实版本/成果和事件均无新增；相同输入的合法声明正控能保存并读回。写清这是 owner 边界的分层证据，不宣称未声明写已经穿过 Runtime 客户端。验证安装/卸载后的视图与释放效果。 |
+| A3-DEV-03 | 实际绑定回调抛出指定错误时，安装已发生、插件未启动，最终真实安装记录为 uninstalled，原错误保持；未取得 release 不调用它。成功、start 失败及 uninstall 失败仍遵循原有 uninstall 后 finally release 顺序、错误与资源合同；用真实执行与持久安装/副作用断言验证，不 mock 核心拒绝。 |
+
+允许写 `apps/local-host/src/plugin-development.ts`、`tests/plugin-development-artifacts.test.ts`，必要的同职责测试/最小测试夹具与本 slice。优先复用公开 Host/Runtime/版本 owner，不修改 `local-plugin-development.ts`、公开 API、SDK、门禁、预算、CI、Memory 或其他生产代码。写前已重核主树、batch40、ac-coding 三树、原 A3 owner 与旧 F2 树相关路径无 WIP；独立分支 `feature/a3-development-lifecycle`，不写原树或真实 Home。
+
+按新生产差异只做一次公共 FIFO 整体 `pnpm build`，保存匹配源码指纹；跑完整 `plugin-development-artifacts`、`security-invariants-artifact-declarations`、`plugin-host-executor`、`plugin-sample.e2e` 的定向回归及必要负控，另核 boundary、相对固定基点的 health、导入混用和推送前 fresh fetch/secrets。Host README 的通用宽批与原评审 14 文件证据按原范围复用，不计为本次新执行，不为格式复跑旧 full/171/browser。固定提交后正常 push 自己 feature，直交既有 REVIEW/TEST（先完成 R55）及 PIPE；F2 亲读最终双核原文/raw 后交 PIPE、Root。本单不代表 A3 整体、组合 CI/full 或产品验收完成。
+
+作者核心证据：一次整体构建自然 0，公开源码摘要 `b2ae5223ebfa9e41d74c5b9643c569fa19d5b5a6867ae925a0ade968c0b0416a` 与 `2026-10-25T21:07:24.356Z` 清单一致。开发运行 8/8、A3 安全 18/18、Host 执行器 3/3，自然 0，覆盖并集 29；完整 SDK CLI sample 另排原 runner，实际只跑 Node/CLI，按 `.e2e` 名字被调度器分到浏览器槽，不启动 Chrome。boundary、同固定基点 health、导入零混用通过。原始记录在 `/tmp/molis-verify-2026-10-25/a3-development-lifecycle/`。
+
+准备失败保留：原评审树已切至 R55，前置树相等检查自然 1；排队的父探针在业务前由自己的确切 PID 取消（-15），不当旧源码产品 RED。首轮四文件因隔离安装跳过本机 SQLite 构建而失败（实记 3/28，四文件均未通过），不当 A3 业务复现。依现有 `allowBuilds` 经 FIFO 补建 `better-sqlite3@12.8.0`，实际查询/ABI137/源码指纹通过；不另做整体构建。新夹具已补准备失败清理，只清除已核归本树的五个临时目录，原失败日志保留。为避免等待浏览器槽时占用构建槽，取消未启动业务的合批等待，核心三文件与 CLI sample 分开调度；取消不计产品失败或执行覆盖。
 
 A2b 一轮修复合同（FIX6，2026-10-24，首评 `6390053800`）：只收齐本轮四项有效意见，原 FIRST 结论保留。S-55 的 `originalFileOf` 引用改指模块现址，HOME-DATA 对应行改用现行 `openArtifactOriginal`。全仓核对模块新增的 `artifactsProjectData`、`purgeArtifactOriginals` 只有本测试的 label 对照，没有生产消费者，删除这两项声明及出口；项目删除继续由插件已登记的 `artifactsProjectData.purge` 执行，不提前做 A6。模块的 `consumerTypes` 合入已有 `plugin-action-schemas.ts`，动作处理器复用它，删除第三份 schema 文件。
 

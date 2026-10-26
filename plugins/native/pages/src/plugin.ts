@@ -1,7 +1,7 @@
 import { bindPluginActionRoute } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, requireSynchronous, type ActionAvailability, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginArtifactClient, PluginDefinition, PluginMaterialsClient, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { PAGES_ARTIFACT_SCHEMA_VERSION, PAGES_ARTIFACT_TYPE_ID } from "@molis-ai/molis-work-contracts/modules/pages";
+import { PAGES_ARTIFACT_SCHEMA_VERSION, PAGES_ARTIFACT_TYPE_ID } from "./contract.js";
 import { pagesManifest } from "./manifest.js";
 import { createPagesActionHandlers, pagesActions, PAGES_SUBJECT_KIND, type PagesActionPorts } from "./actions.js";
 import { pagesCommentActions } from "./comment-actions.js";

@@ -37,6 +37,8 @@ Goal 是 Goals 插件拥有的一项事实（§5 `modules/goals`、§7 `plugins/
 
 ## 2. 状态词
 
+本节的词就是各节表里「包成熟度」列的取值。`specs/repository-anti-corruption/roadmap-2026-10-07.md` 的 W5-15 计划换成 production、experimental、slice、absent 一套词；换之前以这里为准。
+
 | 状态 | 含义 |
 | --- | --- |
 | `legacy-mixed` | 功能真实存在，但仍混在旧单包或 Huge Class 中 |
@@ -47,7 +49,7 @@ Goal 是 Goals 插件拥有的一项事实（§5 `modules/goals`、§7 `plugins/
 | `retired` | 旧路径 caller 清零并删除或只留下有时限的兼容入口 |
 | `workspace-root + legacy-release` | Monorepo 根已能管理全部 package，但当前产品构建与发布仍由旧根 package 承担 |
 
-当前 70 个 package（6 app、10 foundation、14 module（`modules/*` 的 13 个加聊天与接续的 `server`）、8 horizontal、25 native plugin、6 integration plugin、1 tooling，按 `scripts/workspace-packages.mjs`，2026-10-10 核对）的描述符为 69 个 `partial`、1 个 `contract-only`（真实提供公共类型/Schema 的 Contracts）。另外 10 个仅含描述符的占位包已删除；下表保留未来目标路径并标为 `absent`，它们不参与构建或发布。`partial` 不表示依赖旧代码，也不声称未来契约全部实现。
+当前 70 个 package（6 app、10 foundation、14 module（`modules/*` 的 13 个加聊天与接续的 `server`）、9 horizontal、24 native plugin、6 integration plugin、1 tooling，按 `scripts/workspace-packages.mjs`，2026-10-25 重核数量）的描述符为 69 个 `partial`、1 个 `contract-only`（真实提供公共类型/Schema 的 Contracts）。另外 10 个仅含描述符的占位包已删除；下表保留未来目标路径并标为 `absent`，它们不参与构建或发布。`partial` 不表示依赖旧代码，也不声称未来契约全部实现。
 
 ## 3. Apps
 

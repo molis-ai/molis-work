@@ -24,7 +24,7 @@ import { builtinMarketDirectory, mergePluginDirectories, runningPluginDirectory 
 
 /** The page still opens without the installed plugins' entries; why they are missing is written. */
 /** The project settings page each path opens; `/settings` alone opens 常规. */
-const SETTINGS_SECTIONS = new Map((["workspaces", "guidance", "memory", "knowledge", "rules", "planning", "general"] as const)
+const SETTINGS_SECTIONS = new Map((["workspaces", "guidance", "memory", "knowledge", "plugins", "rules", "planning", "general"] as const)
   .map(section => [`/settings/${section}` as string, section] as const)).set("/settings", "general");
 const noInstalledStages = (error: unknown): [] => { hostLog.warn("plugins", "installed_stages_unavailable", error); return []; };
 /**
@@ -77,6 +77,7 @@ export function createLocalGoalsReadHttp(ports: {
   const { renderMolisWorkProjectSettingsHub, renderMolisWorkMomentumFragment, renderMolisWorkRefreshFragment, renderMolisWorkWeb, renderGoalDocumentFragment, declaredStageModel } = ports.renderer;
   async function settings(request: IncomingMessage, response: ServerResponse, url: URL,
     readWebView: () => MolisWorkWebView | Promise<MolisWorkWebView>, controlToken: string, actions: BoundActionClient,
+    goalsHere: () => Promise<boolean>,
   ): Promise<boolean> {
     const open = SETTINGS_SECTIONS.get(url.pathname) ?? null;
     if (request.method === "GET" && open) {
@@ -88,14 +89,18 @@ export function createLocalGoalsReadHttp(ports: {
       const embed = url.searchParams.get("embed") === "1";
       let methods, guidance, policy;
       try {
-        [methods, guidance, policy] = await Promise.all([actions.invoke(goalsActions.planningRead, {}).then(value => value.methods),
-          actions.invoke(goalsActions.guidanceRead, {}), actions.invoke(goalsActions.policyHistory, {})]);
+        // A project without Goals has none of Goals' settings pages (RAC-400). Whether Goals is here is the project's plugin list; a Goals read
+        // refused in a project that has Goals is that refusal, shown with its code and operation number, not a project without Goals.
+        if (await goalsHere()) {
+          [methods, guidance, policy] = await Promise.all([actions.invoke(goalsActions.planningRead, {}).then(value => value.methods),
+            actions.invoke(goalsActions.guidanceRead, {}), actions.invoke(goalsActions.policyHistory, {})]);
+        }
       }
       catch (error) { sendJson(response, actionHttpStatus(error), actionErrorBody(error)); return true; }
       const html = renderMolisWorkProjectSettingsHub(
-        { ...view, policy_bindings: policy.bindings },
-        guidance,
-        methods,
+        { ...view, policy_bindings: policy?.bindings ?? [] },
+        guidance ?? null,
+        methods ?? [],
         controlToken,
         isDesktopShellRequest(request, url),
         open,

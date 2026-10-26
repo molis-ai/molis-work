@@ -5,13 +5,13 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { TODO_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/todo";
+import { TODO_ORGANIZE_MATERIAL_CHARS, TODO_PLUGIN_ID } from "@molis-ai/molis-work-plugin-todo/contract";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { openTodoStore } from "./fixtures/plugin-home-stores.js";
 import { todoOrganizeActions } from "@molis-ai/molis-work-plugin-todo";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { withContextJourneys } from "../apps/local-host/dist/context-onboarding-store.js";
-import { adoptContextJourney, reopenContextJourney, selectContextSources, stageContextFile, startContextJourney, waitContextJourney } from "../apps/local-host/dist/context-onboarding-service.js";
+import { TODO_PART_CHARS, adoptContextJourney, reopenContextJourney, selectContextSources, stageContextFile, startContextJourney, waitContextJourney } from "../apps/local-host/dist/context-onboarding-service.js";
 import { modelPromptText, type ModelPromptInput } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 
 const MAIL = "小王你好，请周五前发新版方案，预算等小李确认。另外，下周的团建改到周四，大家知悉。";
@@ -197,4 +197,8 @@ test("ONB-LIM-06 after the person chooses other materials, the todo drafts are m
   assert.ok(prompts[1]!.includes("请周一前交预算表"), "from the materials chosen now");
   assert.equal(second.todo!.batches.length, 1);
   assert.notEqual(second.todo!.batches[0]!.batch_id, first.todo!.batches[0]!.batch_id, "not the first choice's drafts");
+});
+
+test("RAC-822 the journey sends Todo's organizer parts of the size the organizer reads", () => {
+  assert.equal(TODO_PART_CHARS, TODO_ORGANIZE_MATERIAL_CHARS);
 });

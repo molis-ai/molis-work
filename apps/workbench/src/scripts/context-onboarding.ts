@@ -20,7 +20,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   const names = {downloads:'下载',documents:'文稿',desktop:'桌面',custom:'其他文件夹',files:'单独选文件',directory:'文件夹资料',browser:'浏览器内容',gmail:'Gmail',chat:'聊天记录'};
   const sourceIcons = {downloads:'folder',documents:'folder',desktop:'folder',custom:'folder',files:'file',directory:'folder',browser:'globe',gmail:'mail',chat:'message'};
   const grants = {}, uploads = new Map();
-  let preparing = '', readingLocal = '', uploading = null;
+  let preparing = '', readingLocal = '', uploading = null, counting = null, reviewFiles = false, folded = new Set();
   const invoke = (command,args) => globalThis.__TAURI__.core.invoke(command,args);
   const directory = s => directories.includes(s.kind);
   const size = bytes => bytes < 1000 ? Math.max(1, Math.round(bytes)) + ' B' : bytes < 1000000 ? Math.max(1, Math.round(bytes/1000)) + ' KB' : bytes < 1e9 ? (bytes/1000000).toFixed(1) + ' MB' : (bytes/1e9).toFixed(1) + ' GB';
@@ -30,7 +30,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   const included = s => (s.metadata?.files||[]).filter(f=>!(s.excluded||[]).some(p=>f.path===p||f.path.startsWith(p+'/')));
   const route = path => desktop && !/[?&]desktop=1(&|$)/.test(path) ? path + (path.includes('?') ? '&' : '?') + 'desktop=1' : path;
   let config = {}, journey = null, expanded = null, busy = false, error = '', blank = false, materialsOnly = false, editing = false, timer = 0, inputTimer = 0, authTimer = 0, opener = null;
-  let folderKind = native ? 'documents' : 'directory', blankName = '', goingBack = false;
+  let blankName = '', goingBack = false;
   let saveQueue = Promise.resolve();
   const api = (path, body) => molisWorkRequest(path, {body, fallback:L('请求失败，请重试')});
   const failureText = value => typeof value==='string' ? value : molisWorkRequest.text(value);
@@ -42,14 +42,13 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   const ready = s => s.references?.length ? true : directory(s) ? native && grants[s.kind]?.state==='ready' : s.kind==='gmail' ? Boolean(s.connection_id && connected().some(c=>c.connection_id===s.connection_id)) : s.kind==='browser' ? Boolean(s.text?.trim()) : Boolean(s.files?.length||uploads.has(s.kind));
   const readable = () => picked().filter(ready);
   const sourceStatus = s => s.references?.length ? '已暂存' : directory(s) ? (grants[s.kind]?.state==='ready'?'已授权':grants[s.kind]?.state==='unavailable'?'需要重新授权':'待授权') : ready(s)?'已添加':s.kind==='gmail'?(config.gmail_configured?'待连接':'暂不可连接'):'待添加';
-  const startLabel = () => busy ? (preparing?'正在准备…':uploading?L('正在上传第 {k} / {n} 份', uploading):readingLocal?'正在读取…':'正在保存…') : '确认范围';
+  const startLabel = () => busy ? (counting && !counting.saving ? L('正在清点 {done} / {total}', counting) : preparing?'正在准备…':uploading?L('正在上传第 {k} / {n} 份', uploading):readingLocal?'正在读取…':'正在保存…') : '确认范围';
 
   /* ───────── Markup: the design system's parts, drawn in the browser (same classes as primitives/*.ts) ───────── */
   const attrs = map => Object.keys(map || {}).filter(k => map[k] !== undefined && map[k] !== null && map[k] !== false).map(k => map[k] === true ? ' ' + k : ' ' + k + '="' + esc(map[k]) + '"').join('');
   // md is the default height, left to the button so it follows the person's density.
   const btn = o => '<button type="' + (o.type || 'button') + '" class="mw-btn mw-btn--' + (o.variant || 'secondary') + (o.size && o.size !== 'md' ? ' mw-btn--' + o.size : '') + (o.cls ? ' ' + o.cls : '') + '" data-slot="button"' + (o.disabled ? ' disabled' : '') + attrs(o.attrs) + '>' + (o.icon ? glyph(o.icon) : '') + '<span data-slot="button-label">' + esc(o.label) + '</span>' + (o.key ? '<kbd class="mw-btn__key" aria-hidden="true">' + esc(o.key) + '</kbd>' : '') + '</button>';
-  const linkBtn = o => '<a class="mw-btn mw-btn--' + (o.variant || 'ghost') + ' mw-btn--' + (o.size || 'md') + '" data-slot="button" href="' + esc(o.href) + '"' + (o.blank ? ' target="_blank" rel="noopener"' : '') + attrs(o.attrs) + '>' + (o.icon ? glyph(o.icon) : '') + '<span data-slot="button-label">' + esc(o.label) + '</span></a>';
-  const choice = o => '<button type="button" class="mw-choice" data-slot="choice" aria-pressed="' + (o.selected ? 'true' : 'false') + '"' + attrs(o.attrs) + '><span class="mw-choice__label">' + (o.icon ? glyph(o.icon) : '') + esc(o.label) + '</span><span class="mw-choice__check" aria-hidden="true">' + glyph('check') + '</span></button>';
+  const choice = o => '<button type="button" class="mw-choice" data-slot="choice" aria-pressed="' + (o.selected ? 'true' : 'false') + '"' + attrs(o.attrs) + '><span class="mw-choice__label">' + (o.icon ? glyph(o.icon) : '') + esc(o.label) + (o.note ? '<small>' + esc(o.note) + '</small>' : '') + '</span><span class="mw-choice__check" aria-hidden="true">' + glyph('check') + '</span></button>';
   const status = (label, tone, icon, state) => '<span class="mw-status mw-status--' + tone + ' mw-status--plain" data-slot="status"' + (state ? ' data-mw-state="' + state + '"' : '') + '>' + (!state && icon ? glyph(icon) : '') + '<span>' + esc(label) + '</span></span>';
   const steps = (total, current) => '<ol class="mw-steps" data-slot="steps" aria-label="' + esc(L('引导进度')) + '">' + Array.from({length: total}, (_, i) => '<li' + (i === current ? ' aria-current="step"' : '') + (i < current ? ' class="is-done"' : '') + '><span></span></li>').join('') + '</ol>';
   const barStatus = o => '<div class="mw-bar-status" data-slot="bar-status" role="status" aria-live="polite"><span class="mw-bar-status__tile" aria-hidden="true">' + (o.spin ? '<span class="mw-spinner" data-slot="spinner" aria-hidden="true"></span>' : glyph(o.glyph || 'info')) + '</span><span class="mw-bar-status__text"><strong>' + esc(o.title) + '</strong>' + (o.caption ? '<small>' + esc(o.caption) + '</small>' : '') + '</span></div>';
@@ -57,7 +56,16 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   const note = (text, icon, cls) => '<p class="ob-note' + (cls ? ' ' + cls : '') + '">' + glyph(icon || 'shield') + '<span>' + esc(text) + '</span></p>';
   const kindChip = name => { const dot = name.lastIndexOf('.'); const ext = (dot > 0 ? name.slice(dot + 1) : 'txt').toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 4) || 'txt'; return '<span class="mw-file-kind mw-file-kind--' + ext + '" data-slot="file-kind">' + ext.toUpperCase() + '</span>'; };
   const fileRow = o => '<li class="mw-file-row' + (o.cls ? ' ' + o.cls : '') + '" data-slot="file-row">' + (o.check ? '<label class="mw-file-row__label"><input class="mw-check" type="checkbox"' + (o.check.checked ? ' checked' : '') + attrs(o.check.attrs) + '>' + (o.chip || kindChip(o.name)) + '<span class="mw-file-row__name">' + esc(o.name) + '</span></label>' : '<span class="mw-file-row__label">' + (o.chip || kindChip(o.name)) + '<span class="mw-file-row__name">' + esc(o.name) + '</span></span>') + (o.size ? '<span class="mw-file-row__size" title="' + esc(o.size) + '">' + esc(o.size) + '</span>' : '') + (o.state || '') + (o.remove ? '<button type="button" class="mw-btn mw-btn--ghost mw-btn--icon-only mw-btn--sm mw-file-row__x" data-slot="button" aria-label="' + esc(o.remove.label) + '" title="' + esc(o.remove.label) + '"' + attrs(o.remove.attrs) + '>' + glyph('x') + '</button>' : '') + '</li>';
-  const fileGroup = o => { const head = (o.check ? '<input class="mw-check" type="checkbox"' + (o.check.checked ? ' checked' : '') + (o.check.mixed ? ' data-mixed' : '') + attrs(o.check.attrs) + '>' : '') + '<span class="mw-file-group__ic">' + glyph(o.icon) + '</span><span class="mw-file-group__text"><strong>' + esc(o.title) + '</strong>' + (o.caption ? '<small>' + esc(o.caption) + '</small>' : '') + '</span>' + (o.count ? '<span class="mw-file-group__count">' + esc(o.count) + '</span>' : '') + (o.status || '') + (o.tools || '') + (o.remove ? '<button type="button" class="mw-btn mw-btn--ghost mw-btn--icon-only mw-btn--sm mw-file-group__x" data-slot="button" aria-label="' + esc(o.remove.label) + '" title="' + esc(o.remove.label) + '"' + attrs(o.remove.attrs) + '>' + glyph('x') + '</button>' : ''); return '<section class="mw-file-group" data-slot="file-group"' + attrs(o.attrs) + '>' + (o.check ? '<label class="mw-file-group__head">' + head + '</label>' : '<div class="mw-file-group__head">' + head + '</div>') + '<ul class="mw-file-list">' + o.rows.join('') + '</ul>' + (o.note ? '<p class="mw-file-group__note">' + esc(o.note) + '</p>' : '') + '</section>'; };
+  // Time range and refresh stay outside the checkbox label: a button inside the label is the checkbox, so it neither changes the range nor folds the list.
+  const fileGroup = o => {
+    const pick = (o.check ? '<input class="mw-check" type="checkbox"' + (o.check.checked ? ' checked' : '') + (o.check.mixed ? ' data-mixed' : '') + attrs(o.check.attrs) + '>' : '') + '<span class="mw-file-group__ic">' + glyph(o.icon) + '</span><span class="mw-file-group__text"><strong style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + esc(o.title) + '</strong>' + (o.caption ? '<small>' + esc(o.caption) + '</small>' : '') + '</span>' + (o.count ? '<span class="mw-file-group__count">' + esc(o.count) + '</span>' : '') + (o.status || '');
+    const id = o.attrs && o.attrs['data-group'], open = !id || !folded.has(id);
+    const fold = id && (o.rows.length || o.note) ? '<button type="button" class="mw-btn mw-btn--ghost mw-btn--icon-only mw-btn--sm" data-fold="' + esc(id) + '" aria-expanded="' + (open ? 'true' : 'false') + '" aria-label="' + esc(L(open ? '收起这一组' : '展开这一组')) + '" style="flex:none">' + glyph(open ? 'chevron-down' : 'chevron-right') + '</button>' : '';
+    const remove = o.remove ? '<button type="button" class="mw-btn mw-btn--ghost mw-btn--icon-only mw-btn--sm mw-file-group__x" data-slot="button" aria-label="' + esc(o.remove.label) + '" title="' + esc(o.remove.label) + '"' + attrs(o.remove.attrs) + ' style="flex:none">' + glyph('x') + '</button>' : '';
+    const identity = (o.check ? '<label class="mw-file-group__pick" style="display:flex;align-items:center;gap:12px;flex:1;min-width:0;cursor:pointer">' + pick + '</label>' : '<span class="mw-file-group__pick" style="display:flex;align-items:center;gap:12px;flex:1;min-width:0">' + pick + '</span>');
+    const tools = o.tools ? '<div style="display:flex;align-items:center;justify-content:flex-end;gap:8px">' + o.tools + '</div>' : '';
+    return '<section class="mw-file-group" data-slot="file-group"' + attrs(o.attrs) + '><div class="mw-file-group__head" style="display:flex;flex-direction:column;align-items:stretch;gap:8px"><div style="display:flex;align-items:center;gap:12px;min-width:0">' + identity + fold + remove + '</div>' + tools + '</div>' + (open ? '<ul class="mw-file-list">' + o.rows.join('') + '</ul>' + (o.note ? '<p class="mw-file-group__note">' + esc(o.note) + '</p>' : '') : '') + '</section>';
+  };
   const empty = o => '<div class="mw-empty" data-slot="empty"><span class="mw-empty__mark">' + glyph(o.icon) + '</span><h2>' + esc(o.title) + '</h2><p>' + esc(o.body) + '</p>' + (o.action || '') + '</div>';
   const collapsible = (summary, body) => '<details class="mw-collapsible" data-slot="collapsible"><summary>' + esc(summary) + '</summary><div class="mw-collapsible__body">' + body + '</div></details>';
   const progressBar = (value, max, label) => '<div class="mw-progress" data-slot="progress" role="progressbar" aria-valuemin="0" aria-valuemax="' + max + '" aria-valuenow="' + Math.min(value, max) + '" aria-label="' + esc(label) + '"><span style="width:' + (max ? Math.min(100, value / max * 100) : 0) + '%"></span></div>';
@@ -76,7 +84,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   let introStep = null;
   if (firstRun && readIntro() !== 'done') { let saved = null; try { saved = sessionStorage.getItem(introKey); } catch {} introStep = saved === 'appearance' ? 'appearance' : saved === 'language' ? 'language' : 'opening'; }
   const setIntro = next => { introStep = next; try { if (next) sessionStorage.setItem(introKey, next); else { sessionStorage.removeItem(introKey); localStorage.setItem(introKey, 'done'); } } catch {} };
-  const stepLabels = () => firstRun ? ['语言','外观','来源','确认','整理','开始'] : ['来源','确认','整理','开始'];
+  const stepLabels = () => firstRun ? ['语言','外观','来源','确认','模型','整理','开始'] : ['来源','确认','模型','整理','开始'];
   const stepIndex = step => stepLabels().indexOf(step);
   const stepsBar = step => steps(stepLabels().length, stepIndex(step));
   const exitButton = () => firstRun ? btn({variant:'ghost', size:'lg', label:L('稍后再说'), cls:'arrival-back', attrs:{id:'cx-exit'}}) : btn({variant:'ghost', size:'lg', icon:'back', label:L('返回项目'), cls:'arrival-back', attrs:{id:'cx-exit', 'aria-label':L('返回项目')}});
@@ -112,7 +120,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
 
   /* ───────── Sources: add what the project is made from ───────── */
   const sourceRows = () => [
-    {id:'folder', kinds: native ? directories : ['directory'], icon:'folder', name:'文件夹资料', caption:'选择一个工作文件夹中的文本资料'},
+    {id:'folder', kinds: native ? directories : ['directory'], icon:'folder', name:'文件夹资料', caption: native ? '可以同时选下载、文稿、桌面和其他文件夹' : '选择一个工作文件夹中的文本资料'},
     {id:'files', kinds:['files'], icon:'file', name:'单独选文件', caption:'PDF、Word、Markdown 和文本文件'},
     {id:'browser', kinds:['browser'], icon:'globe', name:'浏览器内容', caption:'粘贴网页正文与来源网址'},
     {id:'chat', kinds:['chat'], icon:'message', name:'聊天记录', caption:'导入飞书、Slack 等导出的文本记录'},
@@ -132,13 +140,24 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   const picker = kind => '<input id="cx-upload-' + kind + '" class="mw-sr-only" type="file" multiple tabindex="-1" aria-hidden="true" ' + (kind === 'directory' ? 'webkitdirectory directory' : 'accept=".md,.markdown,.txt,.csv,.json,.html,.htm,.pdf,.docx"') + ' data-upload="' + kind + '">';
   const pickerOf = id => id === 'files' || id === 'chat' ? id : id === 'folder' && !native ? 'directory' : '';
   const RANGES = [[7,'7 天'],[30,'30 天'],[90,'90 天'],[0,'全部']];
+  const folderDays = () => {
+    const chosen = directories.map(kind => source(kind)).filter(s => s?.selected);
+    const rows = chosen.length ? chosen : directories.map(kind => source(kind)).filter(Boolean);
+    const first = rows[0] ? (rows[0].days ?? 30) : 30;
+    return rows.every(s => (s.days ?? 30) === first) ? first : null;
+  };
   function rowConfig(row) {
     if (row.id === 'folder') {
-      const s = source(folderKind), granted = grants[folderKind];
-      return '<div class="ob-cfg-block"><p class="ob-label">' + L('位置') + '</p><div class="mw-choice-group ob-picks" role="group" aria-label="' + L('位置') + '">' + directories.map(kind => choice({label:L(names[kind]), selected:folderKind === kind, attrs:{'data-pick':kind, title:granted && kind === folderKind ? granted.path || '' : ''}})).join('') + '</div></div>'
-        + '<div class="ob-cfg-block"><p class="ob-label">' + L('时间范围') + '</p>' + toggles(L('时间范围'), RANGES.map(([days, label]) => ({label:L(label), current:(s.days ?? 30) === days, attrs:{'data-range-pick':String(days)}}))) + '</div>'
-        + '<div class="ob-cfg-actions">' + btn({variant:'secondary', icon:'folder', label:L(granted?.state === 'ready' ? '重新选择目录' : '选择并授权'), attrs:{'data-authorize':folderKind}}) + (granted?.state === 'ready' ? btn({variant:'ghost', size:'md', label:L('取消连接'), attrs:{'data-forget':folderKind}}) : '') + '</div>'
-        + note(granted?.message || L('只访问系统选择器中确认的目录。可以重新选择实际位置。'), 'shield') + note(L('先列出文件名和大小，开始整理后才读正文。'), 'info');
+      const days = folderDays();
+      const place = kind => {
+        const s = source(kind), grant = grants[kind], on = Boolean(s?.selected);
+        const path = grant?.state === 'ready' ? (grant.path || '') : '';
+        const hint = path || (grant?.state === 'unavailable' ? L('需要重新授权') : L('尚未选择'));
+        const again = grant?.state === 'ready' ? '<span class="ob-place__actions">' + btn({variant:'ghost', size:'sm', label:L('更换'), attrs:{'data-authorize':kind}}) + btn({variant:'ghost', size:'sm', label:L('取消连接'), attrs:{'data-forget':kind}}) + '</span>' : '';
+        return '<div class="ob-place">' + choice({label:L(names[kind]), note:hint, selected:on, attrs:{'data-pick':kind, title:path || hint}}) + again + '</div>';
+      };
+      return '<div class="ob-cfg-block"><p class="ob-label">' + L('位置') + '</p><div class="ob-picks" role="group" aria-label="' + L('位置') + '">' + directories.map(place).join('') + '</div></div>'
+        + '<div class="ob-cfg-block"><p class="ob-label">' + L('时间范围') + '</p>' + toggles(L('时间范围'), RANGES.map(([d, label]) => ({label:L(label), current:days === d, attrs:{'data-range-pick':String(d)}}))) + '</div>';
     }
     if (row.id === 'browser') { const s = source('browser'); return '<div class="ob-cfg-block"><label class="ob-label" for="cx-browser-text">' + L('网页正文') + '</label><textarea class="mw-textarea" id="cx-browser-text" rows="4" maxlength="100000" data-kind="browser" data-field="text" placeholder="' + esc(L('从网页复制需要整理的内容，粘贴到这里')) + '">' + esc(s.text || '') + '</textarea></div><div class="ob-cfg-block"><label class="ob-label" for="cx-url">' + L('原网页网址（可选）') + '</label><input type="url" class="mw-input" id="cx-url" data-kind="browser" data-field="url" placeholder="https://" value="' + esc(s.url || '') + '"></div>' + note(L('只使用粘贴的内容，不访问其他标签页或浏览记录。'), 'shield'); }
     if (row.id === 'gmail') {
@@ -154,7 +173,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     const n = rowCount(row);
     if (n) return L('已添加 {n}', {n});
     if (row.id === 'gmail' && !config.gmail_configured && !connected().length) return L('暂不可连接');
-    return row.id === 'folder' && native && grants[folderKind]?.state === 'unavailable' ? L('需要重新授权') : L('添加');
+    return row.id === 'folder' && native && directories.some(kind => source(kind)?.selected && grants[kind]?.state === 'unavailable') ? L('需要重新授权') : L('添加');
   }
   // What pressing the row does, drawn as the button it acts as (the row is the one control): 添加, or the green count once added.
   function rowAct(row) {
@@ -179,7 +198,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     const shown = listed.slice(0, 8), more = listed.length - shown.length;
     const caption = directory(s) ? [grants[kind]?.path || s.path || '', (s.days === 0 ? L('全部时间') : L('最近 {n} 天', {n:s.days ?? 30}))].filter(Boolean).join(' · ') : kind === 'directory' ? String(files[0]?.path || '').split('/')[0] : kind === 'chat' ? L('导出的文本记录') : '';
     return fileGroup({...add, icon:sourceIcons[kind], title:directory(s) ? L('文件夹') + ' · ' + L(names[kind]) : L(names[kind]), caption, status:directory(s) ? status(L('已授权'), 'done', 'status-done') : '',
-      rows:shown.map(f => fileRow({name:f.path, size:f.size ? size(f.size) : ''})), note:more > 0 ? L('另有 {n} 份文件，在下一步逐项确认。', {n:more}) : s.metadata?.skipped ? L('{n} 项因时间、类型或访问范围未列入。', {n:s.metadata.skipped}) : ''});
+      rows:shown.map(f => fileRow({name:f.path, size:f.size ? size(f.size) : ''})), note:[more > 0 ? L('另有 {n} 份文件已计入。', {n:more}) : '', s.metadata?.skipped ? L('{n} 项因时间、类型或访问范围未列入。', {n:s.metadata.skipped}) : ''].filter(Boolean).join(' ')});
   }
   function materialsPane() {
     const groups = picked().filter(ready);
@@ -195,7 +214,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     const left = question(L('带入已有的材料'), L('文件、网页和聊天记录会成为新项目的背景。')) + resumeNotice()
       + (journey.summary ? '<p class="cx-hint ob-note">' + glyph('info') + '<span>' + L('已保留读入的资料。再次开始整理会替换当前摘要，请确认所选范围。') + '</span></p>' : '')
       + (journey.oauth_status === 'pending' ? '<div class="ob-notice" role="status"><span data-mw-state="reauth" aria-hidden="true"></span>' + '<span>' + L('请在浏览器中完成 Google 授权，完成后会继续。') + '</span>' + btn({variant:'secondary', size:'sm', label:L('跳过 Gmail，继续'), attrs:{'data-action':'skip-auth'}}) + '</div>' : '')
-      + errorLine(error) + sourceList() + '<div class="ob-notes">' + note(L('添加时只记下文件名和大小，开始整理时才读取正文。'), 'shield') + note(L('最多 200 份、总大小 50 MB，单个文件 20 MB 以内。先预览文件名，开始后读取正文；PDF 读取文本层，Word 读取正文。'), 'info') + '</div>';
+      + errorLine(error) + sourceList() + '<div class="ob-notes">' + (counting && !counting.saving ? note(L('正在清点所选文件，完成后才会出现在右侧。'), 'clock') + meter(counting.done, counting.total, L('清点进度'), L('已查看 {done} / {total} 项 · 收录 {kept} 份 · {size}', {done:counting.done, total:counting.total, kept:counting.kept, size:size(counting.bytes)})) : counting && counting.saving ? note(L('清单较大，正在保存。'), 'clock') : '') + note(L('添加时只记下文件名和大小，开始整理时才读取正文。'), 'shield') + note(L('不限份数和大小。文件夹很大时会先逐项清点；PDF 读取文本层，Word 读取正文。'), 'info') + '</div>';
     return {kind:'onboard', view:'sources', step:'来源', left, right:materialsPane(), rightCls:any.length ? '' : 'is-empty',
       bar:{start:exitButton() + stepsBar('来源'), center:'', end:secondary('跳过','blank') + primary(startLabel(), 'prepare', {disabled:!picked().length || busy})}};
   }
@@ -213,8 +232,6 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   }
   // No count or size limit (user 2026-10-22); past this much, the page says the files are read in a queue it may leave.
   const QUEUED = {count: 50, bytes: 50000000};
-  const modelLine = () => config.model ? '<div class="ob-model"><span data-mw-state="connected" aria-hidden="true"></span><span class="ob-model__text"><strong>' + L('文字模型') + ' · ' + esc(config.model) + '</strong><small>' + L('已连接 · 选中的正文会发给它整理') + '</small></span>' + linkBtn({variant:'ghost', size:'sm', label:L('更换'), href:route('/settings/models'), blank:true}) + '</div>'
-    : '<div class="ob-model is-off"><span data-mw-state="disconnected" aria-hidden="true"></span><span class="ob-model__text"><strong>' + L('尚未连接文字模型') + '</strong><small>' + L('原文先暂存在本机，连接后再生成摘要') + '</small></span>' + linkBtn({variant:'secondary', size:'sm', label:L('连接文字模型'), href:route('/settings/models'), blank:true}) + '</div>';
   function missingBlock(s) {
     const fix = directory(s) ? btn({variant:'secondary', size:'sm', label:L('选择并授权'), attrs:{'data-authorize':s.kind}}) : s.kind === 'gmail' ? btn({variant:'secondary', size:'sm', label:L(connected().length ? '选择已有账号' : '连接 Google'), attrs:{'data-action':connected().length ? 'choose-account' : 'connect'}}) : btn({variant:'secondary', size:'sm', label:L('添加内容'), attrs:{'data-add':s.kind}});
     return '<section class="mw-file-group"><div class="mw-file-group__head"><span class="mw-file-group__ic">' + glyph(sourceIcons[s.kind]) + '</span><span class="mw-file-group__text"><strong>' + L(names[s.kind]) + '</strong><small>' + esc(s.error || L(directory(s) ? '还没有完成授权。可以再次选择目录，或本次跳过。' : s.kind === 'gmail' ? '连接账号后，在开始时读取所选时间内的邮件。' : '请先添加内容。刷新后，浏览器选择的文件需要重新选择。')) + '</small></span>' + fix + btn({variant:'ghost', size:'sm', label:L('本次跳过'), attrs:{'data-skip':s.kind}}) + '</div></section>';
@@ -228,22 +245,23 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     const rows = folders.map(folder => fileRow({name:folder + '/', chip:'<span class="mw-file-kind" data-slot="file-kind">' + glyph('folder') + '</span>', size:L('整个子目录'), check:{checked:!(s.excluded||[]).includes(folder), attrs:{id:'cx-d-' + s.kind + '-' + folders.indexOf(folder), 'data-folder':s.kind, 'data-path':folder}}}))
       .concat(items.map((file, i) => fileRow({name:file.path, size:size(file.size), state:'<span class="mw-file-row__state">' + L('未读取') + '</span>', check:{checked:selected.includes(file), attrs:{id:'cx-f-' + s.kind + '-' + i, 'data-file':s.kind, 'data-index':i}}})));
     const tools = directory(s) ? toggles(L(names[s.kind]) + L('时间范围'), RANGES.map(([days, label]) => ({label:L(label), current:(s.days ?? 30) === days, attrs:{'data-range':s.kind, 'data-days':String(days)}}))) + btn({variant:'ghost', size:'sm', icon:'refresh', label:L('刷新预览'), attrs:{'data-refresh':s.kind}}) : '';
-    return fileGroup({...add, icon:sourceIcons[s.kind], title:directory(s) ? L('文件夹') + ' · ' + L(names[s.kind]) : L(names[s.kind]), caption:s.kind === 'gmail' ? gmailCaption() : (grants[s.kind]?.path || s.path || ''), count:selected.length + '/' + items.length,
-      check:{checked:selected.length === items.length && items.length > 0, mixed:selected.length > 0 && selected.length < items.length, attrs:{id:'cx-all-' + s.kind, 'data-files-all':s.kind}}, tools, rows,
-      note:!items.length ? L('这个时间范围没有支持的文件。可扩大范围或跳过。') : s.metadata.truncated ? L('文件夹里的条目太多，只扫描了一部分；未列出的文件不会读取，可以选更小的文件夹。') : s.metadata.skipped ? s.metadata.skipped + ' ' + L('项因时间、类型或访问范围未列入。') : ''});
+    const seen = s.metadata.skipped || 0;
+    return fileGroup({...add, icon:sourceIcons[s.kind], title:directory(s) ? L('文件夹') + ' · ' + L(names[s.kind]) : L(names[s.kind]), caption:s.kind === 'gmail' ? gmailCaption() : (grants[s.kind]?.path || s.path || ''), count:items.length ? selected.length + '/' + items.length : (seen ? String(seen) : '0/0'),
+      check:{checked:items.length ? selected.length === items.length : s.selected, mixed:items.length > 0 && selected.length > 0 && selected.length < items.length, attrs:{id:'cx-all-' + s.kind, 'data-files-all':s.kind}}, tools, rows,
+      note:[s.metadata.truncated ? L('文件夹里的条目太多，只扫描了一部分；未列出的文件不会读取，可以选更小的文件夹。') : (!items.length ? L('这个时间范围没有支持的文件。可扩大范围或跳过。') : ''), seen ? seen + ' ' + L('项因时间、类型或访问范围未列入。') : ''].filter(Boolean).join(' ')});
   }
   function scopeView() {
     const total = selectionTotal(), missing = picked().some(s => !previewReady(s)), queued = total.count > QUEUED.count || total.bytes > QUEUED.bytes;
     const left = question(L('确认这次读取的范围'), L(picked().some(s => s.references?.length) ? '沿用已暂存正文，新选文件只显示信息。' : '取消不需要的文件；开始后才读取正文。')) + errorLine(error)
       + (uploading ? note(L('正在上传文件；上传完成前请留在此页，之后就可以离开。'), 'clock') + meter(uploading.done, uploading.total, L('上传进度'), L('已上传 {done} / {total}', {done:amount(uploading.done), total:amount(uploading.total)})) : queued ? note(L('材料较多，开始后排队逐份读取；可以离开此页，回来时从断点继续。'), 'clock') : '')
-      + modelLine() + note(L(config.ai_available ? '开始后读取选中正文并发给所选模型；原文件保持原样。' : '开始后读取选中正文，暂存在本机；原文件保持原样。'), 'shield')
+      + note(L(config.ai_available ? '开始后读取选中正文并发给所选模型；原文件保持原样。' : '开始后读取选中正文，暂存在本机；原文件保持原样。'), 'shield')
       + (picked().some(s => s.kind === 'gmail') ? note(L('读取所选时间内最近的 20 封邮件。'), 'mail') : '')
       + collapsible(L('读取规则'), '<p>' + L('不限份数和大小：文件逐份上传、排队读取，长文全文读入。PDF 读取文本层，Word 读取正文；单个文件失败会保留原因，不影响其他文件。只做本次整理，不自动持续同步。') + '</p>');
-    const right = stageHead(L('逐项确认'), L('已选 {n} 份 · {size}', {n:total.count, size:size(total.bytes)})) + picked().map(scopeGroup).join('');
-    const canStart = !(busy || missing || (!total.count && !picked().some(s => s.kind === 'gmail')));
+    const listed = journey.sources.filter(s => s.selected || (directory(s) && s.metadata));
+    const right = stageHead(L('逐项确认'), L('已选 {n} 份 · {size}', {n:total.count, size:size(total.bytes)})) + listed.map(scopeGroup).join('');
     return {kind:'onboard', view:'preview', step:'确认', left, right,
       bar:{start:exitButton() + stepsBar('确认'), center:barStatus({glyph:'shield', title:L('已选 {n} 份 · {size}', {n:total.count, size:size(total.bytes)}), caption:missing ? L('先补齐上方来源，或跳过本次不需要的内容。') : config.ai_available ? L('开始后读取正文并发给所选模型整理') : L('开始后读取正文，暂存在本机')}),
-        end:secondary('上一步','sources',{icon:'back'}) + primary(busy ? (uploading ? L('正在上传第 {k} / {n} 份', uploading) : readingLocal ? L('正在读取 {name}', {name:L(readingLocal)}) : '正在准备…') : config.ai_available ? '开始整理' : '先带入资料', 'start', {disabled:!canStart})}};
+        end:secondary('上一步','sources',{icon:'back'}) + (uploading || readingLocal ? primary(uploading ? L('正在上传第 {k} / {n} 份', uploading) : L('正在读取 {name}', {name:L(readingLocal)}), 'start', {disabled:true}) : primary('下一步','model'))}};
   }
 
   /* ───────── Reading: the Host reads and sorts; the person may leave and come back ───────── */
@@ -261,7 +279,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     const materialsReady = journey.phase==='failed' && journey.needs_model && picked().some(s=>s.references?.length);
     if (materialsReady) {
       return {kind:'onboard', view:'materials', step:'整理',
-        left:question(L('资料已经准备好'), L('给它一个项目名字，就可以开始阅读和创作。摘要可以连接文字模型后再整理。')) + errorLine(error) + note(config.model ? L('文字模型已连接，可以继续整理出摘要和待办。') : L('连接文字模型后，可以回来继续整理出摘要和待办。'), config.model ? 'check' : 'info') + '<p class="ob-quiet">' + (config.model ? '' : linkBtn({variant:'link', size:'sm', label:L('连接文字模型'), href:route('/settings/models'), blank:true}) + ' ') + btn({variant:config.model ? 'secondary' : 'ghost', size:'sm', label:L(config.model ? '继续整理' : '已连接，继续整理'), attrs:{'data-action':'retry'}}) + '</p>',
+        left:question(L('资料已经准备好'), L('给它一个项目名字，就可以开始阅读和创作。摘要可以连接文字模型后再整理。')) + errorLine(error) + note(config.model ? L('文字模型已连接，可以继续整理出摘要和待办。') : L('连接文字模型后，可以回来继续整理出摘要和待办。'), config.model ? 'check' : 'info') + '<p class="ob-quiet">' + (config.model ? '' : btn({variant:'link', size:'sm', label:L('连接文字模型'), attrs:{'data-action':'model'}}) + ' ') + btn({variant:config.model ? 'secondary' : 'ghost', size:'sm', label:L(config.model ? '继续整理' : '已连接，继续整理'), attrs:{'data-action':'retry'}}) + '</p>',
         right:stageHead(L('读入的材料'), '') + receipts(),
         bar:{start:exitButton() + stepsBar('整理'), center:barStatus({glyph:'check', title:L('资料已经准备好'), caption:L('原文暂存在本机')}), end:secondary('调整来源','restart') + primary('保存资料，开始工作','materials-only')}};
     }
@@ -284,7 +302,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     return {kind:'onboard', view:'reading', step:'整理', left,
       right:stageHead(L('读入材料'), files.total ? L('{done} / {total} 份', {done:'<b>' + files.done + '</b>', total:files.total}) : L('{done} / {total} 份', {done:'<b>' + done + '</b>', total:picked().length})) + (bytes ? progressBar(Math.min(bytes.done, bytes.total), bytes.total, L('读入进度')) : files.total ? progressBar(files.done, files.total, L('读入进度')) : progressBar(done, total, L('读入进度'))) + receipts(),
       bar:{start:exitButton() + stepsBar('整理'), center:barStatus({spin:reading, glyph:'alert', title:L(heading), caption:L(reading ? '可以离开，回来后接着整理' : '材料已保留')}),
-        end:failed ? linkBtn({variant:'secondary', size:'lg', label:L('模型设置'), href:route('/settings/models'), blank:true, attrs:{}}) + primary('继续整理','retry',{disabled:busy}) : btn({variant:'primary', size:'lg', icon:'clock', label:L('整理中'), disabled:true})}};
+        end:failed ? btn({variant:'secondary', size:'lg', label:L(config.model ? '更换' : '连接文字模型'), attrs:{'data-action':'model'}}) + primary('继续整理','retry',{disabled:busy}) : btn({variant:'primary', size:'lg', icon:'clock', label:L('整理中'), disabled:true})}};
   }
 
   /* ───────── Naming: what the project is, and what it starts with ───────── */
@@ -365,6 +383,12 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     if (journey.requires_reselection) return {kind:'onboard', view:'reselect', step:'来源', left:question(L('继续你的工作'), journey.error), right:'<div class="ob-preview">' + empty({icon:'folder', title:L('需要重新选择资料'), body:L('上次的资料已经不能直接沿用，请重新选择。')}) + '</div>', bar:{start:exitButton() + stepsBar('来源'), center:'', end:primary('重新选择资料','new-journey')}};
     if (journey.adoption) return savingProject();
     if (blank) return blankForm();
+    const modelApi = globalThis.molisWorkOnboardingModel;
+    const modelHere = journey.phase === 'selecting' || journey.phase === 'failed';
+    if (modelApi && modelHere && !uploading && !readingLocal && (modelApi.active || (journey.phase === 'selecting' && journey.previewed && !reviewFiles))) {
+      if (!modelApi.active) modelApi.ensure();
+      const step = modelApi.view(); if (step) return step;
+    }
     if (journey.phase === 'selecting') return journey.previewed && !blank ? scopeView() : sourcesView();
     return journey.summary ? review() : readingView();
   }
@@ -385,37 +409,56 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     }
     bar.dataset.bar = firstRun && introStep ? 'welcome' : 'onboard';
   }
+  // A journey step leaves by fading back (130ms) and the next one slides in from its direction (420ms). Still mode paints the end.
+  let paintGeneration = 0;
   function render(focus, part) {
+    const token = ++paintGeneration;
     app.setAttribute('aria-busy',String(busy));
     const model = view(), moved = lastView !== null && model.view !== lastView, index = stepIndex(model.step), wasOpening = lastView === 'opening';
     frame.dataset.screen = model.kind;
-    // The opening types itself once; redrawing under it (the journey arriving) must not start it over.
     if (model.view === 'opening' && wasOpening) { paintBar(model.bar, false); return; }
-    const keep = !moved ? [...app.querySelectorAll('[data-scroll]')].map(node => node.scrollTop) : [];
-    const active = document.activeElement && app.contains(document.activeElement) ? document.activeElement.id : '';
-    if (part === 'right' && !moved && model.right !== undefined && app.querySelector('.ob-right')) app.querySelector('.ob-right').innerHTML = model.right;
-    else {
-      app.innerHTML = stageHtml(model);
-      if (keep.length) [...app.querySelectorAll('[data-scroll]')].forEach((node, i) => { if (keep[i]) node.scrollTop = keep[i]; });
-    }
-    if(error && typeof error==='object') app.querySelectorAll('.cx-error').forEach(node=>molisWorkRequest.show(node,error));
-    if(!journey && loadError && typeof loadError==='object') molisWorkRequest.show(app.querySelector('.mw-empty p'),loadError);
-    const right = app.querySelector('.ob-right'); if (right) right.classList.toggle('is-empty', Boolean(model.rightCls));
-    // A pane that scrolls and has nothing to focus inside it (a list of receipts, a preview) takes the keyboard's focus itself.
-    app.querySelectorAll('[data-scroll]').forEach(pane => { if (!pane.querySelector('a[href], button, input, select, textarea, summary, [tabindex]')) { pane.tabIndex = 0; pane.setAttribute('role', 'region'); pane.setAttribute('aria-label', L('详情')); } });
-    paintBar(model.bar, true);
-    app.querySelectorAll('.mw-check[data-mixed]').forEach(box => { box.indeterminate = true; });
-    const content = app.firstElementChild;
-    if (content && moved) {
-      const shift = index >= lastIndex ? 22 : -22;
-      arrival.arrive(content, [{opacity:0, transform:'translateX(' + shift + 'px)'},{opacity:1, transform:'none'}], {duration:420});
-    }
-    lastView = model.view; lastIndex = index;
-    if (focus) document.getElementById(focus)?.focus({preventScroll:true});
-    else if (moved) document.getElementById('ob-title')?.focus({preventScroll:true});
-    else if (active) document.getElementById(active)?.focus({preventScroll:true});
-    if (model.view === 'opening' && !wasOpening) startOpening();
+    const forward = index >= lastIndex;
+    const paint = () => {
+      if (token !== paintGeneration) return;
+      const keep = !moved ? [...app.querySelectorAll('[data-scroll]')].map(node => node.scrollTop) : [];
+      const activeId = document.activeElement && app.contains(document.activeElement) ? document.activeElement.id : '';
+      if (part === 'right' && !moved && model.right !== undefined && app.querySelector('.ob-right')) app.querySelector('.ob-right').innerHTML = model.right;
+      else {
+        app.innerHTML = stageHtml(model);
+        if (keep.length) [...app.querySelectorAll('[data-scroll]')].forEach((node, i) => { if (keep[i]) node.scrollTop = keep[i]; });
+      }
+      if(error && typeof error==='object') app.querySelectorAll('.cx-error').forEach(node=>molisWorkRequest.show(node,error));
+      if(!journey && loadError && typeof loadError==='object') molisWorkRequest.show(app.querySelector('.mw-empty p'),loadError);
+      const right = app.querySelector('.ob-right'); if (right) right.classList.toggle('is-empty', Boolean(model.rightCls));
+      app.querySelectorAll('[data-scroll]').forEach(pane => { if (!pane.querySelector('a[href], button, input, select, textarea, summary, [tabindex]')) { pane.tabIndex = 0; pane.setAttribute('role', 'region'); pane.setAttribute('aria-label', L('详情')); } });
+      paintBar(model.bar, true);
+      app.querySelectorAll('.mw-check[data-mixed]').forEach(box => { box.indeterminate = true; });
+      const content = app.firstElementChild;
+      if (content && moved) arrival.arrive(content, [{opacity:0, transform:'translateX(' + (forward ? 22 : -22) + 'px)'},{opacity:1, transform:'none'}], {duration:420});
+      lastView = model.view; lastIndex = index;
+      if (focus) document.getElementById(focus)?.focus({preventScroll:true});
+      else if (moved) document.getElementById('ob-title')?.focus({preventScroll:true});
+      else if (activeId) document.getElementById(activeId)?.focus({preventScroll:true});
+      if (model.view === 'opening' && !wasOpening) startOpening();
+    };
+    const leaving = moved && part !== 'right' ? app.firstElementChild : null;
+    const leave = leaving && arrival.arrive(leaving, [{opacity:1, transform:'none'},{opacity:0, transform:'translateX(' + (forward ? -22 : 22) + 'px)'}], {duration:130, fill:'forwards'});
+    if (leave) { leave.finished.then(paint).catch(paint); return; }
+    paint();
   }
+  globalThis.molisWorkOnboardingDraw = { L, esc, btn, choice, question, note, stageHead, stepsBar, exitButton, primary, secondary, barStatus };
+  globalThis.molisWorkOnboardingModelHost = {
+    render,
+    reload: async () => { try { config = await api('/api/onboarding/context'); } catch { /* the file step keeps the model line it had */ } },
+    modelLabel: () => config.model || '',
+    reviewFiles: () => { reviewFiles = true; },
+    showModel: () => { reviewFiles = false; },
+    problem: () => error ? failureText(error) : '',
+    startOffer: () => {
+      const total = selectionTotal(), missing = picked().some(s => !previewReady(s));
+      return { label: config.ai_available ? '开始整理' : '先带入资料', disabled: !!(busy || missing || (!total.count && !picked().some(s => s.kind === 'gmail'))) };
+    },
+  };
   const refreshRight = () => render(undefined, 'right');
   function startOpening() {
     const wordmark = app.querySelector('.ob-greeting-wordmark [data-wordmark]'), titleMark = document.querySelector('.arrival-titlebar [data-wordmark]');
@@ -521,11 +564,12 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
       preparing=names[s.kind];render();
       if(directory(s)&&native){if(grants[s.kind]?.state!=='ready')await authorize(s.kind);if(ready(s))await metadata(s);}
     }
-    preparing='';journey.previewed=true;await save();
+    preparing='';journey.previewed=true;reviewFiles=false;await save();
     const gmail=source('gmail');if(gmail?.selected&&!ready(gmail)&&config.gmail_configured&&!connected().length&&journey.oauth_status!=='pending')await connect(true);
     }finally{preparing='';busy=wasBusy;render();}
   }
   async function start() {
+    globalThis.molisWorkOnboardingModel?.close();
     if(journey.phase==='selecting') {
       if(picked().some(s=>!previewReady(s)))throw new Error(L('请补齐来源或跳过本次不需要的内容。'));
       // No limits (2026-10-22): each chosen file goes up on its own into the round's staging, and the selection names it by digest.
@@ -573,6 +617,32 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     blank=false;
     if(journey.phase==='complete')location.assign(projectLocation());else{error=journey.error||L('保存尚未完成，请重试');render();}
   }
+  /** A large folder arrives as one FileList. Count it in slices so the page can say how far that has come before it is saved. */
+  async function acceptUpload(el) {
+    const list = el.files, total = list.length, chosen = [];
+    let bytes = 0, index = 0, drawn = 0;
+    const take = file => {
+      const path = file.webkitRelativePath || file.name;
+      if (/(^|\/)(\.[^/]*|node_modules|vendor|dist|build)(\/|$)/.test(path) || !/\.(md|markdown|txt|csv|json|html?|pdf|docx)$/i.test(file.name)) return;
+      chosen.push(file); bytes += file.size || 0;
+    };
+    if (total > 2500) {
+      busy = true;
+      while (index < total) {
+        const end = Math.min(index + 2500, total);
+        for (; index < end; index++) take(list[index]);
+        counting = { done: index, total, kept: chosen.length, bytes };
+        if (Date.now() - drawn >= 250 || index === total) { drawn = Date.now(); render(); await new Promise(resolve => setTimeout(resolve, 0)); }
+      }
+    } else for (let i = 0; i < total; i++) take(list[i]);
+    if (!chosen.length) throw new Error(L('没有找到支持的文件。'));
+    const added = chosen.length, s = source(el.dataset.upload);
+    if (s.kind !== 'directory' && uploads.has(s.kind)) { const had = uploads.get(s.kind); chosen.unshift(...had.filter(f => !chosen.some(c => c.name === f.name && c.size === f.size))); }
+    invalidateSource(s); uploads.set(s.kind, chosen);
+    s.metadata = { files: chosen.map(f => ({ path: f.webkitRelativePath || f.name, size: f.size, modified_ms: f.lastModified, identity: 'upload' })), skipped: total - added, truncated: false };
+    s.excluded = []; s.selected = true; error = '';
+    if (total > 2500) { counting = { done: total, total, kept: added, bytes, saving: true }; render(); await new Promise(resolve => setTimeout(resolve, 0)); }
+  }
   /** A source taken out of the list: nothing about it stays selected, read or remembered. */
   async function removeSource(kind) {
     const s=source(kind);invalidateSource(s);delete s.metadata;delete s.text;delete s.url;s.excluded=[];s.selected=false;uploads.delete(kind);
@@ -597,7 +667,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     try {
       if(el.dataset.draft){if(el.checked)todoPicked.add(el.dataset.draft);else todoPicked.delete(el.dataset.draft);render();return;}
       if(el.id==='cx-project-title'||el.id==='cx-summary-editor'){preserveEdits();await saveDraft();return;}
-      if(el.dataset.filesAll!==undefined){const s=source(el.dataset.filesAll),all=included(s).length===s.metadata.files.length;invalidateSource(s);s.excluded=all?s.metadata.files.map(f=>f.path):[];changed=true;}
+      if(el.dataset.filesAll!==undefined){const s=source(el.dataset.filesAll);if(!s.metadata.files.length)s.selected=el.checked;else{const all=included(s).length===s.metadata.files.length;invalidateSource(s);s.excluded=all?s.metadata.files.map(f=>f.path):[];}changed=true;}
       else if(el.dataset.field){const s=source(el.dataset.kind);invalidateSource(s);s[el.dataset.field]=el.dataset.field==='days'?Number(el.value):el.value;if(el.dataset.field==='connection_id')s.selected=Boolean(el.value);changed=true;}
       else if(el.dataset.file||el.dataset.folder){
         const s=source(el.dataset.file||el.dataset.folder);invalidateSource(s);const path=el.dataset.folder?el.dataset.path:s.metadata.files[Number(el.dataset.index)].path;
@@ -605,25 +675,50 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
         if(el.checked){for(const p of excluded)if(p===path||p.startsWith(path+'/'))excluded.delete(p);if(el.dataset.file){for(const p of [...excluded])if(path.startsWith(p+'/')){excluded.delete(p);for(const f of s.metadata.files)if(f.path.startsWith(p+'/')&&f.path!==path)excluded.add(f.path);}}}
         else excluded.add(path);
         s.excluded=[...excluded];changed=true;
-      } else if(el.dataset.upload){
-        const chosen=[...el.files].filter(f=>!/(^|\/)(\.[^/]*|node_modules|vendor|dist|build)(\/|$)/.test(f.webkitRelativePath||f.name)&&/\.(md|markdown|txt|csv|json|html?|pdf|docx)$/i.test(f.name));
-        if(!chosen.length)throw new Error(L('没有找到支持的文件。'));
-        const s=source(el.dataset.upload);if(s.kind!=='directory'&&uploads.has(s.kind)){const had=uploads.get(s.kind);chosen.unshift(...had.filter(f=>!chosen.some(c=>c.name===f.name&&c.size===f.size)));}invalidateSource(s);uploads.set(s.kind,chosen);s.metadata={files:chosen.map(f=>({path:f.webkitRelativePath||f.name,size:f.size,modified_ms:f.lastModified,identity:'upload'})),skipped:el.files.length-chosen.length,truncated:false};s.excluded=[];s.selected=true;error='';changed=true;
-      }
+      } else if(el.dataset.upload){ await acceptUpload(el); changed=true; }
       if(changed)await save();
-    }catch(e){error=keepFailure(e);}finally{busy=false;if(changed||error)render(el.id);}
+    }catch(e){error=keepFailure(e);}finally{busy=false;counting=null;if(changed||error)render(el.id);}
   });
   root.addEventListener('submit',async e=>{if(e.target.id!=='cx-blank-form')return;e.preventDefault();busy=true;try{await adopt(true);}catch(e){error=keepFailure(e);}finally{busy=false;render();}});
   root.addEventListener('click',async e=>{
     const link=e.target.closest('a[href^="/locale"]');
     if(link){return;}
+    // Size and “未读取” sit outside the name's label; the whole row is the choice.
+    const rowHit=e.target.closest('.mw-file-row'); if(rowHit && !e.target.closest('label,button,a,input')){const box=rowHit.querySelector('input.mw-check'); if(box){box.click(); return;}}
     const b=e.target.closest('button');if(!b||b.disabled)return;
+    if(b.dataset.fold){if(folded.has(b.dataset.fold))folded.delete(b.dataset.fold);else folded.add(b.dataset.fold);render();return;}
     if(b.id==='cx-exit'){try{await saveQueue;if(firstRun)await api('/api/onboarding/dismiss',{kind:'first_run',user_confirmed:true});try{sessionStorage.removeItem(introKey);}catch{}location.assign(route('/'));}catch(err){error=keepFailure(err);render();}return;}
     if(b.id==='cx-theme'){const theme=document.documentElement.dataset.resolvedTheme==='dark'?'light':'dark';document.documentElement.dataset.theme=theme;document.documentElement.dataset.resolvedTheme=theme;try{localStorage.setItem('molis-work:theme',theme);}catch{}render();return;}
     if(b.dataset.open&&pickerOf(b.dataset.open)){document.getElementById('cx-upload-'+pickerOf(b.dataset.open))?.click();return;}
     if(b.dataset.open){expanded=expanded===b.dataset.open?null:b.dataset.open;render();const cfg=app.querySelector('.ob-source__cfg');arrival.arrive(cfg,[{opacity:0,transform:'translateY(-4px)'},{opacity:1,transform:'none'}],{duration:250});app.querySelector('#cx-browser-text')?.focus({preventScroll:true});return;}
-    if(b.dataset.pick){folderKind=b.dataset.pick;render();return;}
-    if(b.dataset.rangePick!==undefined){const s=source(folderKind);s.days=Number(b.dataset.rangePick);invalidateSource(s);delete s.metadata;s.excluded=[];busy=true;error='';render();try{if(grants[folderKind]?.state==='ready'){await metadata(s);s.selected=Boolean(s.metadata);}await save();}catch(err){error=keepFailure(err);}finally{busy=false;render();}return;}
+    if(b.dataset.pick){
+      const kind=b.dataset.pick, s=source(kind);
+      busy=true; error=''; render();
+      try {
+        if(s.selected) s.selected=false;
+        else if(grants[kind]?.state==='ready'){ await metadata(s); s.selected=Boolean(s.metadata); }
+        else { await authorize(kind); if(grants[kind]?.state==='ready'){ await metadata(s); s.selected=Boolean(s.metadata); } }
+        await save();
+      } catch(err){ error=keepFailure(err); }
+      finally { busy=false; render(); }
+      return;
+    }
+    if(b.dataset.rangePick!==undefined){
+      const days=Number(b.dataset.rangePick);
+      busy=true; error=''; render();
+      try {
+        for(const kind of directories){
+          const s=source(kind); if(!s) continue;
+          const changed=(s.days??30)!==days; s.days=days;
+          if(!changed||!s.selected||grants[kind]?.state!=='ready') continue;
+          invalidateSource(s); delete s.metadata; s.excluded=[];
+          await metadata(s); s.selected=Boolean(s.metadata);
+        }
+        await save();
+      } catch(err){ error=keepFailure(err); }
+      finally { busy=false; render(); }
+      return;
+    }
     if(b.dataset.remove){busy=true;render();try{await removeSource(b.dataset.remove);}catch(err){error=keepFailure(err);}finally{busy=false;render();}return;}
     if(b.dataset.cite){const ref=journey.summary.references.find(r=>r.label===b.dataset.cite);if(!ref)return;opener=b;
       // The text is staged on the Host, not in the journey; a long one shows its beginning here and is whole in Pages after adoption.
@@ -635,13 +730,14 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
       try{
         if(b.dataset.authorize){const kind=b.dataset.authorize;await authorize(kind);const s=source(kind);if(ready(s)){await metadata(s);s.selected=Boolean(s.metadata);}}
         else if(b.dataset.forget){const kind=b.dataset.forget;grants[kind]=await invoke('context_directory_forget',{id:kind});const s=source(kind);invalidateSource(s);delete s.metadata;delete s.path;s.selected=false;}
-        else if(b.dataset.refresh){const s=source(b.dataset.refresh);invalidateSource(s);await metadata(s);}
-        else if(b.dataset.range){const s=source(b.dataset.range);invalidateSource(s);s.days=Number(b.dataset.days);s.excluded=[];await metadata(s);}
+        else if(b.dataset.refresh){const s=source(b.dataset.refresh);folded.delete(s.kind);invalidateSource(s);await metadata(s);}
+        else if(b.dataset.range){const s=source(b.dataset.range);folded.delete(s.kind);invalidateSource(s);s.days=Number(b.dataset.days);s.excluded=[];await metadata(s);}
         else if(b.dataset.skip)source(b.dataset.skip).selected=false;
         else if(b.dataset.add){journey.previewed=false;expanded=b.dataset.add==='directory'?'folder':b.dataset.add;}
         await save();
       }catch(err){error=keepFailure(err);}finally{busy=false;render();}return;
     }
+    if(b.dataset.obTemplate){await globalThis.molisWorkOnboardingModel?.pick(b.dataset.obTemplate);return;}
     const action=b.dataset.action;if(!action)return;
     if (action === 'intro-next' || action === 'intro-back') {
       if (introStep === 'opening') { await leaveOpening('language'); return; }
@@ -655,6 +751,7 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
     if(action==='back'){blank=false;materialsOnly=false;error='';render();return;}
     if(action==='personal'){busy=true;render();try{await saveQueue;const result=await api('/api/onboarding/personal',{});location.assign(route(result.path));}catch(err){error=keepFailure(err);busy=false;render();}return;}
     if(action==='reload'){location.reload();return;}
+    if(action==='model'||action==='model-back'||action==='model-save'){await globalThis.molisWorkOnboardingModel?.act(action);return;}
     busy=true;error='';b.disabled=true;
     try{if(action==='new-journey')await restart();else if(action==='resume'){await save();const url=new URL(location.href);url.searchParams.set('journey',config.resume.id);url.searchParams.delete('oauth');location.assign(url);}else if(action==='skip-auth'){clearTimeout(authTimer);source('gmail').selected=false;journey.auto_start=false;journey.oauth_status=undefined;await save();if(picked().length)await prepare();}else if(action==='sources'){journey.previewed=false;await save();}else if(action==='prepare')await prepare();else if(action==='connect')await connect(journey.previewed===true);else if(action==='start'||action==='retry')await start();else if(action==='restart')await reopen();else if(action==='adopt')await adopt();}
     catch(err){error=keepFailure(err);}finally{busy=false;render();}
@@ -674,11 +771,11 @@ export const CONTEXT_ONBOARDING_CLIENT = String.raw`
   document.addEventListener('keydown', e => { if (introStep === 'opening' && e.key !== 'Enter' && e.key !== 'Tab') endOpeningTyping(); });
   app.addEventListener('click', e => { if (introStep === 'opening' && !e.target.closest('button')) endOpeningTyping(); });
 
-  /* ───────── A model connected in another tab (the settings link opens one): read it again, redraw what shows it ───────── */
+  /* ───────── A model connected while this journey is open: read it again when the stage is showing the step. ───────── */
   let otherTabs = null;
   try { otherTabs = new BroadcastChannel('molis-work:model-ready'); } catch (unavailable) { otherTabs = null; }
   if (otherTabs) otherTabs.onmessage = () => {
-    api('/api/onboarding/context').then(latest => { config = latest; if (lastView === 'preview' || lastView === 'materials') render(); }).catch(() => undefined);
+    api('/api/onboarding/context').then(latest => { config = latest; if (lastView === 'preview' || lastView === 'materials' || lastView === 'model') render(); }).catch(() => undefined);
   };
 
   /* ───────── Start ───────── */

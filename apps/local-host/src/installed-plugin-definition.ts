@@ -35,7 +35,7 @@ export function installedDefinitions(ports: InstalledDefinitionPorts) {
         await context.beforeEffect?.(); context.signal.throwIfAborted(); ports.assertInstalled(context.identity);
       } });
       const value = sandboxedPluginDefinition(release, release.permissions, [...ports.earlier(release)], {
-        capabilities: ports.catalog,
+        capabilities: ports.catalog, assertLive: ports.assertInstalled,
         capability: { async call(context, id, input) { const guarded = guard(context); await guarded.beforeEffect(); return capability.call(guarded, id, input); } },
         network: { async request(context, input, authorization) { const guarded = guard(context); await guarded.beforeEffect(); return ports.network.request(guarded, input, authorization); } },
       }, release.packaged?.manifest);

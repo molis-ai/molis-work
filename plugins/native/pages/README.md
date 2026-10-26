@@ -40,7 +40,7 @@ Inbox 通过 `pages.generations.get/list`、`pages.get` 和 `pages.generate` 读
 
 - 负责：文档目录、ProseMirror 编辑器、导入、按材料生成与发布。
 - 不负责：Goal 与 Artifact 事实、模型提供方、托管文档服务、ZIP/DOCX 系统解析。
-- 公开入口：`@molis-ai/molis-work-plugin-pages`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
+- 公开入口：`@molis-ai/molis-work-plugin-pages`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；插件协议 `@molis-ai/molis-work-contracts/platform/plugin`，数据合同 `@molis-ai/molis-work-plugin-pages/contract`（`src/contract.ts`）；别的使用方按动作 id 调用，就地声明自己用到的字段，不 import 它。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（`defineErrorCodes`，错误码都是 `pages.<原因>`，状态由错误种类决定，Pages 不自带状态表）；第三方依赖见 `package.json`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 导入、模板选择、命名和确认弹窗复用 `mw-dialog--form`：内容单独滚动，底部操作始终留在弹窗内；长列表、展开预览、错误提示和矮窗口不把按钮推到裁切区域。`tests/pages-import-entry.e2e.test.ts` 在点击助手自动滚动之前检查按钮完整可见与命中区域。

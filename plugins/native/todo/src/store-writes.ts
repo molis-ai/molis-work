@@ -1,4 +1,4 @@
-import { TODO_STATUSES, TODO_SUBJECT_KIND, type TodoItem, type TodoLink, type TodoSource, type TodoStatus } from "@molis-ai/molis-work-contracts/modules/todo";
+import { TODO_STATUSES, TODO_SUBJECT_KIND, type TodoItem, type TodoLink, type TodoSource, type TodoStatus } from "./contract.js";
 import { todoErrors } from "./error.js";
 import { TodoStoreBase } from "./store-base.js";
 import { EDITABLE, LINK_KINDS, RELATIONS, normalizeFields, normalizeOpen, normalizeSources, stripProject } from "./store-normalize.js";

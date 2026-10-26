@@ -242,19 +242,36 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// batch-40 (coordinator review 2026-10-25), each against main b3bac731b, both trees measured on the served asset:
-// - workbench.js +1,717 B: PG-070/071 (#1302, the user's 10-25 decision that plugin styles load on demand and each plugin's English
-//   ships with it): the loader that fetches a plugin's own stylesheet when its view first mounts, and stage summaries that carry
-//   each plugin's id so its own words apply. Tried in the same asset: R-55 rendered the connector slot picker's request path on the
-//   server and reused perform() with an undo, -111 B measured (1,129,577 -> 1,129,466, workbench-only rebuild over the same tree);
-//   the settings panel's stylesheet regex, escaped once more for its template string, nets -20 B (1,129,446).
-//   The same change takes 303,332 B out of workbench.css and 36,506 B out of settings.css (budgets lowered below).
-// - plugin-frame.js +54 B: a frame merges its own plugin's English under the page's (PG-071), the one expression that does it.
-// - plugins/coding.js +45 B: the shared diff classes are drawn as mw-diff-* (PG-070's frozen shared prefix), 15 selectors x 3 B.
+// batch-41 (coordinator review 2026-10-25), against batch-40 as landed, both trees measured on the served asset:
+// - workbench.js (1,129,446 B base, remeasured below): PG-049's notice follow-up (8f18228e6, PIPE 6401600115): a local-directory read notice is
+//   stored as a stable template with its parameters and drawn in the current UI language, its text and aria label alike. It reuses
+//   the assistant's existing text-to-HTML helper and L()/fill(); the author removed the duplicated body/aria wording before handoff.
+// - plugins/shelf.js +1,247 B: PG-053 (ac-shell): Shelf's terminal well moves from the platform's pty-client.js into Shelf's own
+//   bundle, so the platform entry no longer imports the Shelf package. It is a move: dist/web/pty-client.js (not a budgeted asset)
+//   shrinks by 3,196 B, and the frame no longer preloads that 0.5 MB script for Shelf. Tried in the same asset: the bridge reuses
+//   Shelf's `post` and page lifetime in place of its own request and observer code; the tui.ts reader of the bridge is unchanged.
+// ac-trust T7, against main after batch-40 (the entries batch-40 used are gone): the project settings 插件 page (install preview, each
+// permission with its reason and the platform's meaning, jobs, agreements, revoke) is drawn by one inline client script, and the settings
+// cover embeds that page and binds it from the `molis-work:settings-embed` event, so the script has to be part of the workbench script:
+// - workbench.js +9,467 B (1,129,446 -> 1,138,913): 9.3 KB of UI text and DOM building, of which +629 B is taking a publisher back (T5b: a
+//   button, its confirmation and the English text). Tried: no second client or dialog library, one shared `el`/`button` helper, the install
+//   and both revoke paths reuse `molisWorkRequest` and the one `ask` dialog; the rest is Chinese text that has to be there.
+// - workbench.css +1,369 B (1,234,610 -> 1,235,979): the page's rules (`styles/settings-plugins.ts`), written from the existing tokens.
+// No new asset. Each is under 10 KB.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1127729, 1129446],
-  "/assets/molis-work-plugin-frame.js": [190143, 190197],
-  "/assets/molis-work-plugins/coding.js": [289017, 289062],
+// Combined batch-41 tree (coordinator, 2026-10-26), measured after `pnpm build` on the merge of all of the above against main 2b3dc51de:
+// - workbench.js 1,129,446 -> 1,139,387 (+9,941 B, under 10 KB): T7/T5b +9,467, PG-049's notice language +290, and +184 for two English
+//   strings merged with PG-024 (「{name} 在这个项目里的数据」) and A3's dev view (「成果库保存的大文件原件」).
+// - workbench.css 1,234,610 -> 1,236,084 (+1,474 B): T7's settings-plugins sheet +1,369 and I1's wrapped local-directory paths +105.
+// - settings.css 932,738 -> 932,843 (+105 B): the same I1 rule in the settings document sheet (2fd7d21d8, PIPE Ready 6404410441).
+  "/assets/molis-work-workbench.js": [1129446, 1139387],
+  "/assets/molis-work-workbench.css": [1234610, 1236084],
+  "/assets/molis-work-settings.css": [932738, 932843],
+  "/assets/molis-work-plugins/shelf.js": [63376, 64623],
+  // #1306 (with F1's review fixes) reuses arrival's choice/field/button styles instead of the settings document stylesheet. The
+  // journey changes and the valid dark welcome pseudo-element selector net +135 B (681,352 -> 681,487). Shared glow declarations
+  // stay grouped; only dark opacity splits because :is() cannot contain a pseudo-element. No further reduction tried.
+  "/assets/molis-work-arrival.css": [681352, 681487],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

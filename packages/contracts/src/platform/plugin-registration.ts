@@ -1,4 +1,3 @@
-import type { ProjectDataDeclaration } from "../modules/projects.js";
 import type { HomeStoreDeclaration } from "./plugin-database.js";
 import type { PluginDefinition, PluginManifest } from "./plugin.js";
 import type { UiContribution } from "./ui.js";
@@ -134,13 +133,6 @@ export interface PluginRegistration {
     readonly package_name: string;
     readonly factory_export: string;
   };
-  /**
-   * What this plugin keeps in the Home for a project that is more than rows of its library, and how to clear it. The Host runs it
-   * when a project is deleted (the owner's id in the receipt is `project_plugin_id`) and lists its label in the confirmation.
-   * Rows are declared in the Manifest instead (`databases.home.project_rows`), and the platform deletes them without running the
-   * plugin's code; never both. 2026-10-18 改: only Images still has it (its files and jobs, BL-615), and then it goes (PG-024).
-   */
-  readonly project_data?: ProjectDataDeclaration;
   /**
    * The Home store this plugin keeps (exported by the plugin, beside the code that opens it), for the Host's one registry of Home
    * stores. A library is not written here: the registry reads it from the Manifest's `databases.home`.

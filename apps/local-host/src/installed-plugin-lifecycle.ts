@@ -29,6 +29,8 @@ export interface InstalledLifecycleContext {
   secrets: PluginSecrets;
   recoveryErrors: Map<string, string>;
   closed(): boolean;
+  /** Whether the publisher behind a package installation is still trusted (BL-559); a record not from a package always is. */
+  trusted(record: PluginInstanceRecord): boolean;
   recordFor(pluginId: string): PluginInstanceRecord | undefined;
   releaseFor(pluginId: string): InstalledRelease | undefined;
   approvedFor(pluginId: string): SandboxEffects | null;
@@ -140,6 +142,7 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
     if (refusal) throw refusal;
     if (action === 'disable') { c.withdraw(pluginId); platform.supervisor.revoke(pluginId); await platform.runtime.stop(record.install_id); c.registerPrompts(c.releaseFor(pluginId) ?? release, 'disabled'); return; }
     if (action === 'enable') {
+      if (!c.trusted(record)) throw pluginErrors.publisher_revoked('这个插件的发布者已被撤销信任，不能再启用；数据还在，可以卸载');
       const approved = c.approvedFor(pluginId), installed = c.releaseFor(pluginId) ?? release, packaged = c.releaseFor(pluginId)?.packaged;
       if (!approved) throw new Error('找不到此安装的批准记录，请先卸载并重新确认安装');
       // A switched-off plugin is unknown to the Supervisor after a restart: it is registered now, started below.

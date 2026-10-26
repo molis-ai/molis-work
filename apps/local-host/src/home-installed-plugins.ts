@@ -5,11 +5,12 @@
  * secrets and the prompt registrations sit under one Home key, a package's calls are the Home's (`project_id` is null, so an action
  * of a project is out of its reach), and the plugins it runs are listed among the personal plugins every project reaches.
  */
-import type { PluginInstanceRecord } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { pluginErrors } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects, SandboxIdentity } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
 import { installedDefinitions } from './installed-plugin-definition.js';
 import { installedPluginExposure } from './installed-plugin-exposure.js';
+import { PUBLISHER_REVOKED_MESSAGE, publisherStanding, publisherStops } from './installed-publisher-standing.js';
 import { sandboxDeclaration, sandboxGrants, staleInstallation } from './installed-plugin-host.js';
 import { APPROVED_KEY, installedLifecycle, type InstalledPluginPlatform } from './installed-plugin-lifecycle.js';
 import { installedVersion, type InstalledRelease } from './installed-release.js';
@@ -56,18 +57,15 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
   /** Packages from a signed publisher that run in the sandbox: the only installs of the Home that are not of the Host's build. */
   const records = () => platform.runtime.list().filter(item => item.publisher_trust === 'pinned' && item.execution === 'sandbox' && item.state !== 'uninstalled');
   const recordFor = (pluginId: string) => records().find(item => item.plugin_id === pluginId);
-  /** A package runs only while its publisher's pin stands (S-84): revoking the pin stops it from running and keeps its data. */
-  const assertPinned = (record: PluginInstanceRecord) => {
-    const pin = platform.consents?.publishers().find(item => item.key_id === record.publisher_signature);
-    if (!pin) throw new Error('这个包的发布者没有被固定，它的包不能运行');
-    if (pin.revoked_at) throw new Error('这个发布者的固定已被撤销，它的包不能运行');
-  };
+  /** A package runs only while its publisher's pin stands (S-84, S-87): the ledger is asked at the start, at every effect, and before it is enabled again. */
+  const standing = publisherStanding({ publishers: () => platform.consents?.publishers() ?? [] });
   /** A package is read back (and checked again) from the Home's package store the first time an installation asks for it. */
   const releaseFor = (pluginId: string): InstalledRelease | undefined => {
     const record = recordFor(pluginId);
     if (!record) return undefined;
     const key = JSON.stringify([record.plugin_id, record.publisher_signature, record.version]);
     try {
+      if (!standing.trusted(record)) throw pluginErrors.publisher_revoked(PUBLISHER_REVOKED_MESSAGE);
       let release = packaged.get(key);
       if (!release) { release = packages.load(record.plugin_id, record.publisher_signature, record.version); packaged.set(key, release); }
       return release;
@@ -77,10 +75,9 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
   const assertInstalled = (identity: Readonly<SandboxIdentity>) => {
     const record = recordFor(identity.pluginId);
     // The Home's instance has no project: an identity that names one is another instance's, and is never taken for this.
-    if (isClosed() || identity.namespace !== 'installed' || identity.projectId !== null || !record || record.install_id !== identity.installationId || record.state !== 'running') {
+    if (isClosed() || identity.namespace !== 'installed' || identity.projectId !== null || !record || record.install_id !== identity.installationId || record.state !== 'running' || !standing.trusted(record)) {
       throw staleInstallation();
     }
-    try { assertPinned(record); } catch (error) { throw staleInstallation(said(error)); }
   };
   const catalog = (): Promise<CatalogCapability[]> => {
     if (catalogPending) return catalogPending;
@@ -112,7 +109,8 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
   const promptScope = (installId: string) => JSON.stringify([null, HOME_INSTALL_SCOPE, installId]);
   const registerPrompts = (release: InstalledRelease, state: 'enabled' | 'disabled') =>
     registerGeneratedPrompts(home, generatedRegistration(release, [release], state, installedVersion(release)), promptScope(recordFor(release.pluginId)!.install_id));
-  const lifecycle = installedLifecycle({ platform, storage, privateStorage: options.privateStorage, secrets, recoveryErrors, closed: isClosed, recordFor, releaseFor, approvedFor,
+  const stops = publisherStops({ standing, platform, recoveryErrors, withdraw, records });
+  const lifecycle = installedLifecycle({ platform, storage, privateStorage: options.privateStorage, secrets, recoveryErrors, closed: isClosed, trusted: standing.trusted, recordFor, releaseFor, approvedFor,
     definition, expose, withdraw, registerPrompts,
     forget(pluginId, installId) { unregisterGeneratedPrompts(home, pluginId, promptScope(installId)); forgetDefinitions(pluginId); } });
   const close = () => { closed = true; for (const id of [...exposed.keys()]) withdraw(id); };
@@ -121,10 +119,10 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
     // One package that cannot start leaves its reason with its installation and starts nothing else less: the built-in plugins and the other packages go on.
     for (const record of records()) {
       try {
+        if (!standing.trusted(record)) { await stops.suspend(record); continue; }
         const release = releaseFor(record.plugin_id), approved = approvedFor(record.plugin_id);
         if (!release) throw new Error(recoveryErrors.get(record.plugin_id) ?? '找不到已安装版本 ' + record.version + ' 的发布记录');
         if (!approved) throw new Error('找不到此安装的批准记录，请先卸载并重新确认安装');
-        assertPinned(record);
         assertHomePackageAllowed(release.packaged!.manifest);
         registerPrompts(release, record.state === 'disabled' || record.state === 'quarantined' ? 'disabled' : 'enabled');
         if (record.state === 'disabled' || record.state === 'quarantined') continue;
@@ -144,7 +142,9 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
       return lifecycle('install', release, input);
     },
     /** The packages that run now, by plugin id: personal plugins every project reaches unless it hides them (#679). */
-    running: (): string[] => records().filter(item => item.state === 'running' && !recoveryErrors.has(item.plugin_id)).map(item => item.plugin_id),
-    refreshPublicActions: async () => { if (exposed.size) await catalog(); },
+    running: (): string[] => records().filter(item => item.state === 'running' && !recoveryErrors.has(item.plugin_id) && standing.trusted(item)).map(item => item.plugin_id),
+    refreshPublicActions: async () => { await stops.reconcile(); if (exposed.size) await catalog(); },
+    /** Stops the installations whose publisher the person took back since this last looked, their data kept. */
+    reconcilePublishers: stops.reconcile,
   };
 }

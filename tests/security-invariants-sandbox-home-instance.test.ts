@@ -66,8 +66,7 @@ test("RAC-964 S-84 a Home package runs only while its publisher's pin stands: on
   try { store.prepare("UPDATE plugin_publishers SET revoked_at = ? WHERE key_id = ?").run("2026-10-26T00:00:00.000Z", revoked.identity); } finally { store.close(); }
   await h.reopen();
 
-  assert.match(h.host.homePlugins!.packageError(PACKAGE_PLUGIN_ID) ?? "", /撤销/);
-  assert.match(h.host.homePlugins!.packageError(THIRD) ?? "", /没有被固定/);
+  for (const id of [PACKAGE_PLUGIN_ID, THIRD]) assert.match(h.host.homePlugins!.packageError(id) ?? "", /撤销信任/, `${id} says why it does not run`);
   for (const id of [PACKAGE_PLUGIN_ID, THIRD]) {
     assert.equal(h.host.homePlugins!.outsideBuild().includes(id), false, `${id} is not offered to a project`);
     assert.deepEqual(await operationsOf(h.homeClient(), h.homeCaller(), id), [], `${id} offers no action`);

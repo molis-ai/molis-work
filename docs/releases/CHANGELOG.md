@@ -6,14 +6,19 @@
 
 ### 升级须知（需要动手）
 
-- **签名的沙箱包可以装进 Home：`plugins.install.preview@1` 的输出多了 `runtime_scope`**（`claude/bl628-sandboxed-home-plugins`，BL-628，S-80、S-84、S-91，设计稿 `specs/repository-anti-corruption/slices/bl628-sandboxed-home-plugins.md`）：沙箱包的 Manifest 现在可以写 `runtime: { scope: "home" }`，签名固定的发布者的这种包装进 Home 的 Runtime（一个实例，所有项目共用，由 Home 的插件宿主在沙箱里承载），不再装进当前项目；预览输出的 `runtime_scope`（`"home"` 或 `"project"`）告诉本人会装到哪。没写 `runtime` 的包行为不变。`plugins.install.preview@1` 的输出只加了一个必有的字段、没有升版本：固定它的引用不会坏，因为它只被本人在安装界面（`user` 受众）调用，读输出的是宿主自己的界面和命令行，加一个字段它们都照常读。契约：`SandboxIdentity.projectId` 现在可以是 `null`（Home 实例的调用没有项目）；`runtimeDeclarationProblems` 与 Manifest 的 `runtime` 字段不变。数据：没有迁移。装进 Home 的包的批准、密钥和提示词登记放在 Home 的库里（`~home` 名下）；停用、卸载走同一条生命周期。已知缺口（BL-710～713）：装进 Home 的包的模型调用、升级与回滚、没有项目的页面入口与设置页的错误展示尚未做。
+- **签名的沙箱包可以装进 Home：`plugins.install.preview@2` 的输出多了 `runtime_scope`**（`claude/bl628-sandboxed-home-plugins`，BL-628，S-80、S-84、S-91，设计稿 `specs/repository-anti-corruption/slices/bl628-sandboxed-home-plugins.md`）：沙箱包的 Manifest 现在可以写 `runtime: { scope: "home" }`，签名固定的发布者的这种包装进 Home 的 Runtime（一个实例，所有项目共用，由 Home 的插件宿主在沙箱里承载），不再装进当前项目；预览输出的 `runtime_scope`（`"home"` 或 `"project"`）告诉本人会装到哪。没写 `runtime` 的包行为不变。`plugins.install.preview@2` 的输出只加了一个必有的字段、没有再升版本：版本 2 本身就在这个未发布的版本里（ac-trust T7 升的），还没有任何外部引用固定过它；它也只被本人在安装界面（`user` 受众）调用，读输出的是宿主自己的界面和命令行，加一个字段它们都照常读。契约：`SandboxIdentity.projectId` 现在可以是 `null`（Home 实例的调用没有项目）；`runtimeDeclarationProblems` 与 Manifest 的 `runtime` 字段不变。数据：没有迁移。装进 Home 的包的批准、密钥和提示词登记放在 Home 的库里（`~home` 名下）；停用、卸载走同一条生命周期。已知缺口（BL-710～715）：装进 Home 的包的模型调用、升级与回滚、没有项目的页面入口、设置页的已装插件列表里看不到 Home 包（撤销发布者的入口是 T5b 的，对 Home 包同样生效，但列表要等 BL-715）尚未做。
 - **项目库 v8：项目是自己的根，插件的表由插件声明**（`feat/project-library-l1b`，PG-020、PG-021，`specs/plugin-project-database` L1b）：项目库多一张 `project_root`（一库一行，项目本身）和插件的表的账本 `plugin_project_databases`；原来指向 Goals 看板 `boards` 的 11 张表改指 `project_root`；Coding、Feed、Goals、Schedule 的表不再在基线里，改由各自 Manifest 的 `databases.project` 声明，宿主开库时建表、记账本、再打开时核对，不符只停那个插件（Goals 的 31 张表含 `boards` 与治理的 4 张，S8）；`boards` 去掉 `title` 列，外键指 `project_root`，项目名只在项目目录里。新构建拒绝 v7 的项目库（`SqliteSchemaVersionError`），有 v7 项目库的 Home 在维护之前不装新构建：先做 `docs/releases/CHECKLIST.md` 4.3 维护八里的项目库一项（脚本 `tests/fixtures/project-maintenance-v8.sql`，演练 `tests/project-maintenance-v8.test.ts`），维护应用之后这两份文件与 v7 的建库快照一起删，这里写明哪个提交还有它们。
 - **Goals 的看板不再有名字，四个动作升版本**（`feat/goals-s8-project-database`，S8，`specs/plugin-project-database`）：`boards` 去掉 `title` 列，项目的名字只在项目目录里；`goals.board.initialize` 由 v1 升 v2（输入只有 `idempotency_key`），输出里带看板的 `goals.snapshot.read`、`goals.contract.read`、`goals.collection.read` 也各升到 v2，直接替换，不留 v1，固定旧版本的客户端要重新发现：MCP 的动作工具名 `molis_work_v1_action_goals.snapshot.read__v1`、`…goals.contract.read__v1`、`…goals.collection.read__v1` 变成 `__v2`；管理 MCP 工具 `molis_work_v1_initialize` 名字不变，不再收 `title`；命令行 `v1 init` 不再收标题；Feed 的 `feed.goals.context` 所需的 `goals.contract.read` 固定到 v2（`feed.goals.context@1` 的输入输出不变，动作合同快照只在它的依赖声明一格上变了；它只给用户入口，仓库里没有固定它的引用，所以不升版本）。快照、目标约定、目标集合和 `board.created` 事件的内容里不再有看板名字，项目长期说明的提示词前缀不再有 “Project: …” 一行。
 - **插件 Agent 的连接器接入按会话核对。** 一轮直接调用动作或人点该轮建议，都带宿主核过的原会话；同一插件的另一会话不能继续它准备的接入。升级前在会话里准备但尚未完成的接入，请回原会话重新准备，再继续连接。
 - **插件 Agent 的 Goals 提议按会话区分幂等键。** 作者和提交会话取宿主核过的运行记录；同一个幂等键在不同会话里会分别产生提议。升级前已用过的幂等键不再回放旧提议，重新提交前先查看已有提议，避免把同一内容再提交一份。
 - **Pages 迁到 Plugin Runtime**：每个项目一个实例；旧 `/api/pages/…` 路由返回 404。`pages.import.preview`、`pages.import`、`pages.artifacts.continue` 的权限集合变宽（加 `materials:read`），已经授权的 MCP 客户端需要在设置页重新授权；动作 id 与版本不变。见 [#847](https://github.com/molis-ai/molis-work/pull/847)。
 - **Pages 新建动作升到 2**：`pages.create@2` 加入请求号重放与只在首次创建时返回的撤销版本，替换原来的严格返回合同。固定 `pages.create@1` 的工作流程、绑定和外部插件需重新发现并绑定当前动作；MCP 工具改为 `pages.create__v2`，不保留旧工具别名。HTTP `/pages` 路径不变。
+- **签名包的安装预览动作升到 2**：`plugins.install.preview@2` 的输出里，每项权限多了插件写的理由和平台对这项权限的说明（`reason`、`meaning`），预览多了插件在后台常做的事（`jobs`），替换原来只有权限名和是否必需的形状。固定 `plugins.install.preview@1` 的引用须重新选择当前版本，旧版调用明确拒绝，不保留别名。这个动作只给本人（界面和 `plugin install` 命令调它），没有 MCP 工具，MCP 工具名不变；确认安装的 `plugins.install.confirm@1` 与发布者列表不变。
 - **助理添加提醒规则动作升到 2**：`assistant.rules.add@2` 接受已安装插件的页面 id，每条规则最多指定 20 个页面。固定 `assistant.rules.add@1` 的动作引用须重新选择当前版本，旧版调用明确拒绝；现有规则、设置页 HTTP 接口和其他提醒动作的版本不变。
+- **Agent 会话与一轮的四个读取动作升到 2**（BL-470，`specs/repository-anti-corruption/slices/w5-10-agent-host.md`）：`agent.run.read@2`、`agent.run.wait@2`、`agent.session.read@2`、`agent.subagents.list@2` 的输出里，嵌套对象（冻结的开始、轮次、活动、用量、待答的问题、步骤板、建议、待读输入等）按字段核对类型，不符合的返回被拒；@1 不再登记。固定 `@1` 的动作引用须重新选择当前版本，旧版调用明确拒绝；按合同描述符或 `capability_id` 调用的插件（Coding、插件创作台）不用改。四个动作只给插件调，不涉及 MCP 工具、工作流步骤与绑定。
+- **插件的界面词随 Manifest 声明**（batch-40，PG-071）：插件自带的界面文字和英文译文写在 Manifest 的 `messages`、`translations` 里，作者和宿主用 `@molis-ai/molis-work-plugin-sdk` 的同一份 `messageDeclarationProblems()` 检查（上限 `PLUGIN_MESSAGE_LIMITS`）；工作台注册 `PluginRegistration` 不再接受 `messages`。自带界面词的外部插件要把这份表搬进 Manifest，再重新打包安装。
+- **六个插件的合同类型从平台合同包移出**（batch-41，PG-111）：`@molis-ai/molis-work-contracts` 删掉 `./modules/form`、`./modules/lingguang`、`./modules/ppt`、`./modules/dataset`、`./modules/todo`、`./modules/pages` 六个子路径，不留转发。它们只是各插件动作的输入输出，现在只在各插件包自己的 `./contract` 里。外部插件不要再从平台合同包取这些类型：按动作 id 调这几个插件，自己声明要读的字段，以动作 schema 为准。
+- **删项目时插件的数据只按插件自己的声明删**（batch-41，PG-024，S-86，`specs/repository-anti-corruption/slices/w5-02-registry.md` §2.1）：`PluginRegistration` 不再接受 `project_data`；分区的 Home 库由 Manifest 声明，删项目时平台删掉这个项目在库里的行；Manifest `project_rows` 新增 `files`，平台只删这个项目的行点名的、插件自己文件里的普通文件，别的项目还在点名的文件留着，查不了的文件让这一步失败、下次再删。`ProjectDataDeclaration.purge` 改为必填。自己在注册里写 `project_data` 的插件改成在 Manifest 里声明；内置插件已在本批改完。
 
 ### 变化
 
@@ -61,7 +66,7 @@
 
 ### 变化
 
-- **统一产品版本 0.3.0**：桌面端、宿主与 26 个内置插件 Manifest 同版；工作区包仍为私有 0.0.0，官方集成和第三方插件独立编号。
+- **统一产品版本 0.3.0**：桌面端、宿主与全部内置插件 Manifest 同版；工作区包仍为私有 0.0.0，官方集成和第三方插件独立编号。
 - **插件运行与 AI**：Form 接入 Plugin Runtime；Manifest 方法生效；Prologue 更新到 main `e4afd1a7` 的合成包，恢复按需发现工具（#551、#562、#581）。
 - **工作台与宿主**：共用 Coding 客户端、减少注意力轮询、构建和浏览器测试按机器槽位排队、宿主部分启动失败时仍能正常关闭（#555、#578、#584）。
 

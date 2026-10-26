@@ -1,4 +1,4 @@
-import type { TodoChange, TodoItem, TodoLink } from "@molis-ai/molis-work-contracts/modules/todo";
+import type { TodoChange, TodoItem, TodoLink } from "./contract.js";
 import { todoErrors } from "./error.js";
 import { changeFromRow, changeRows, conflict, fromRow, itemRows, toRow, visible, type ItemRow } from "./store-support.js";
 import type { TodoAccess, TodoSql } from "./store-types.js";

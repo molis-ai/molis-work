@@ -29,6 +29,7 @@ import { handleHomeDockJudgmentHttp } from "./home-dock-http.js";
 import { handleSearchHttp } from "./search-http.js";
 import { handleDirectoryGrantHttp } from "./plugin-directory-http.js";
 import { handleKnowledgeHttp } from "./knowledge-http.js";
+import { handlePluginTrustHttp } from "./plugin-trust-http.js";
 import { handlePlacementHttp } from "./placement-http.js";
 import { handleContextualHttp } from "./contextual/contextual-http.js";
 import { homeBackgroundTasks } from "./home-background-tasks.js";
@@ -236,6 +237,9 @@ export const directoryRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
   // Project knowledge's management page and side panel tab (specs/project-knowledge §8), as the person.
   { id: "knowledge", handle: ({ request, response, url, localHost, hostReference }) =>
     handleKnowledgeHttp(request, response, url, { localHost, projectRef: hostReference }) },
+  // A project's plugins: what is installed with what it asked for, installing a signed package, taking an agreement back (ac-trust T7), as the person.
+  { id: "plugin-trust", handle: ({ request, response, url, localHost, hostReference }) =>
+    handlePluginTrustHttp(request, response, url, { localHost, projectRef: hostReference }) },
   { id: "placement", handle: ({ request, response, url, localHost, hostReference }) =>
     handlePlacementHttp(request, response, url, () => bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS)) },
   // What the person has in hand, ranked from the same directory under their own authority (specs/archive/contextual-interaction).

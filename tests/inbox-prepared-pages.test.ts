@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PagesInputSnapshot } from "@molis-ai/molis-work-contracts/modules/pages";
+import type { PagesInputSnapshot } from "@molis-ai/molis-work-plugin-pages/contract";
 import { createInboxActionHandlers, inboxActions, INBOX_ACTIONS, INBOX_ACTION_PERMISSIONS, type InboxActionEntry, type InboxPagesInput } from "@molis-ai/molis-work-plugin-inbox";
 import { createInboxPagesHandlers, inboxPagesRequestHash } from "@molis-ai/molis-work-plugin-inbox";
 import { createPagesActionHandlers, ownPagesStores, pagesActions, preparePagesImport, PAGES_ACTIONS } from "@molis-ai/molis-work-plugin-pages";

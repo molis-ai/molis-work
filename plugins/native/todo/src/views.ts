@@ -1,4 +1,4 @@
-import type { TodoItem, TodoView } from "@molis-ai/molis-work-contracts/modules/todo";
+import type { TodoItem, TodoView } from "./contract.js";
 import { addDays } from "./dates.js";
 
 /** Marks beside the status; none of them changes it. */

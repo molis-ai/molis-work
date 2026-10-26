@@ -24,7 +24,7 @@ JSON 导出由动作服务读取已保存的演示稿，返回文件名、MIME �
 
 - 负责：幻灯片目录、大纲、预览与 JSON／PPTX 导出。
 - 不负责：Goal 与成果库事实、SVG 生成、富排版（图片、图表、母版）。
-- 公开入口：`@molis-ai/molis-work-plugin-ppt`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
+- 公开入口：`@molis-ai/molis-work-plugin-ppt`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；插件协议 `@molis-ai/molis-work-contracts/platform/plugin`，数据合同 `@molis-ai/molis-work-plugin-ppt/contract`（`src/contract.ts`）。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（`defineErrorCodes`，错误码都是 `ppt.<原因>`，状态由错误种类决定，PPT 不自带状态表）。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 从 Pages 等待原文期间保留大纲原调用的授权和读取版本；返回后经共享动作控制复查执行资格，版本变化拒绝写入。只有标题、正文与备注都空的唯一初始页可被自动填充，只有标题的页按已有内容保留。

@@ -4,7 +4,7 @@ import test, { type TestContext } from "node:test";
 import { nodeFromUnknown } from "@molis-ai/molis-work-plugin-pages";
 import { openPagesStore, openPptStore } from "./fixtures/plugin-home-stores.js";
 import { openLingguangStore } from "./fixtures/plugin-home-stores.js";
-import type { PagesRecord } from "@molis-ai/molis-work-contracts/modules/pages";
+import type { PagesRecord } from "@molis-ai/molis-work-plugin-pages/contract";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 // W5-10-PGC-03 / W5-10-PGV-02: exercise the bundled commands and node views through the real editor and host.

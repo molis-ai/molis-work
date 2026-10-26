@@ -1,4 +1,4 @@
-import type { FormRecord, FormSubmissionRecord } from "@molis-ai/molis-work-contracts/modules/form";
+import type { FormRecord, FormSubmissionRecord } from "./contract.js";
 
 /** What an exported fill page writes and `form.answers.import` reads back. */
 export const FORM_ANSWER_FORMAT = "molis.form.answer.v1";

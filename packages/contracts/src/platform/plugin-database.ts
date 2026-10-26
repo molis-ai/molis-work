@@ -167,6 +167,23 @@ export interface PluginProjectRowsDeclaration {
   readonly order?: number;
   /** Children before their parent: a child's rows go by the ids of the parent's rows of the project, so it is cleared first. */
   readonly tables: readonly PluginProjectRowsTable[];
+  /**
+   * The plugin's own files (`owner_files`) that these rows name: the platform reads the names before it deletes the rows, and once
+   * the rows are gone it removes each named file from the declared directory. It removes only a regular file whose name is one
+   * plain path segment there; any other name, a link or a folder is left alone.
+   */
+  readonly files?: readonly PluginProjectRowsFiles[];
+}
+
+/**
+ * Files named in one column of a table of `tables` that names no parent: the column holds a JSON array of file names, or, with
+ * `key`, of objects whose `key` field is the file name. `directory` is a directory entry of the Manifest's `owner_files`.
+ */
+export interface PluginProjectRowsFiles {
+  readonly table: string;
+  readonly column: string;
+  readonly key?: string;
+  readonly directory: string;
 }
 
 /**

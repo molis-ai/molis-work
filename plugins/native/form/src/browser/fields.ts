@@ -1,4 +1,4 @@
-import type { FormQuestion, FormRecord } from "@molis-ai/molis-work-contracts/modules/form";
+import type { FormQuestion, FormRecord } from "../contract.js";
 import { FORM_ANSWER_LIMIT } from "../fillpage.js";
 import { make } from "./dom.js";
 import type { FormPage } from "./page.js";

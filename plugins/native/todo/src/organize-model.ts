@@ -1,5 +1,5 @@
 import { fencedMaterials, instructed, type InstructedPrompt, type InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
-import { TODO_ORGANIZE_MATERIAL_CHARS, type TodoCandidate, type TodoCandidateKind, type TodoItem, type TodoPlacement } from "@molis-ai/molis-work-contracts/modules/todo";
+import { TODO_ORGANIZE_MATERIAL_CHARS, type TodoCandidate, type TodoCandidateKind, type TodoItem, type TodoPlacement } from "./contract.js";
 import { isTodoDate, isTodoTime, localDate } from "./dates.js";
 import { parseTodoQuickText } from "./quick-parse.js";
 

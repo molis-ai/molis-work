@@ -1,4 +1,4 @@
-import type { FormRecord, FormStatus } from "@molis-ai/molis-work-contracts/modules/form";
+import type { FormRecord, FormStatus } from "../contract.js";
 import { type FormPage, hasUnsaved } from "./page.js";
 import type { Translate } from "./types.js";
 

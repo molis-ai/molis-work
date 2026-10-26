@@ -115,6 +115,8 @@ export class HomePluginHost {
     await installed.lifecycle(action, release, input);
     await installed.refreshPublicActions();
   }
+  /** Stops the installed packages whose publisher the person took back since this last looked (S-87), their data kept. */
+  async reconcilePublishers(): Promise<void> { await this.installed?.reconcilePublishers(); }
   /** Why an installed package is not running, when it was not started or stopped itself; none when nothing is wrong with it. */
   packageError(pluginId: string): string | undefined { return this.installed?.recoveryErrors.get(pluginId); }
   installations(): PluginInstanceRecord[] { return this.platform?.runtime.list() ?? []; }
@@ -207,7 +209,7 @@ export class HomePluginHost {
     // The Home half of a dual-instance plugin offers only its share, and no project reaches it: its ports and events are the project half's.
     const ledger = new SqlitePluginConsentLedger(db);
     recordHostAlwaysOnAgreements(ledger, new Set(entries.map(entry => entry.definition.manifest.plugin_id)), new Date().toISOString());
-    const runtime = new PluginRuntime(repository, executor, { consents: ledger, scope: "home", hostIds: HOST_PLUGIN_IDS, declarationOwners: declarationOwnersFor(this.options.home, { db, scope: { kind: "home" } }), reservedRuleKeys: hostReservedRuleKeys,
+    const runtime = new PluginRuntime(repository, executor, { consents: ledger, scope: "home", hostIds: HOST_PLUGIN_IDS, declarationOwners: declarationOwnersFor(this.options.home, { db, scope: { kind: "home" } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId)), reservedRuleKeys: hostReservedRuleKeys,
       redemption: definition => identity.dualInstance(definition) ? { partial: true, outside_project: true } : {},
       actions: { registry: this.options.registry, providerId: (record, definition) => identity.providerFor(definition, record.install_id),
         ...(this.options.projectReach ? { projectReach: this.options.projectReach } : {}) } });

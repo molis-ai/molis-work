@@ -9,13 +9,13 @@ import { randomUUID } from 'node:crypto';
 import { ActionError } from '@molis-ai/molis-work-contracts/platform/actions';
 import { pluginErrors, type PluginPackageBundle } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import type { PluginInstalledView, PluginInstallPreview, PluginPublisherPin } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
+import type { PluginInstalledPermissionView, PluginInstalledView, PluginInstallPreview, PluginPublisherPin } from '@molis-ai/molis-work-contracts/platform/plugin-trust';
 import { declarationsNeedingConsent, verifyPluginPackageSignature, type PluginConsentLedger } from '@molis-ai/molis-work-plugin-runtime';
 import type { InstalledRelease } from './installed-release.js';
 import { consentsChanged } from './consent-revision.js';
 import { readSandboxPackage, type SandboxPackage } from './sandbox-package.js';
 import { packagedRelease, type SandboxPackageStore } from './sandbox-package-store.js';
-import { installedPluginViews, jobViews, permissionViews, type InstalledPluginEntry } from './plugin-installed-view.js';
+import { installedPermissionViews, installedPluginViews, jobViews, permissionViews, type InstalledPluginEntry } from './plugin-installed-view.js';
 
 /** A preview waits this long for its confirmation, and at most this many wait at once. */
 const PREVIEW_TTL_MS = 15 * 60_000;
@@ -28,6 +28,8 @@ export interface PluginInstallPorts {
   install(projectId: string, release: InstalledRelease): Promise<void>;
   /** The plugins installed in the project, each with the Manifest it was installed with. */
   installed(projectId: string): Promise<InstalledPluginEntry[]>;
+  /** Switches one optional permission of an installation in the project and restarts it on the new grants (`PluginRuntime.regrant`); a Host that cannot leaves it out. */
+  regrant?(projectId: string, installId: string, permission: string, granted: boolean): Promise<void>;
   now?(): string;
 }
 
@@ -100,6 +102,24 @@ export class PluginInstallService {
     if (!pin) throw pluginErrors.publisher_untrusted('没有固定过这个发布者');
     consentsChanged();
     return pin;
+  }
+
+  /**
+   * The person's switch for one optional permission of a plugin installed in this project (PG-002, S-93). The installation must be one of the
+   * project's; what the Manifest does not declare, or a required one switched off, is refused by the Runtime (`plugin.grant_denied`).
+   * Answers the installation's permissions as they stand after, and whether anything changed.
+   */
+  async setPermission(projectId: string, installId: string, permission: string, granted: boolean): Promise<{ install_id: string; permissions: PluginInstalledPermissionView[]; changed: boolean }> {
+    const find = async () => (await this.ports.installed(projectId)).find(entry => entry.record.install_id === installId);
+    const before = await find();
+    if (!before?.manifest) throw pluginErrors.definition_missing('这个项目里没有这个插件的安装，或读不到它安装时的声明');
+    if (!this.ports.regrant) throw pluginErrors.state_invalid('这个宿主不能改插件的授权');
+    await this.ports.regrant(projectId, installId, permission, granted);
+    const after = await find();
+    if (!after?.manifest) throw pluginErrors.definition_missing('这个插件的安装已经不在');
+    const held = new Set(before.record.grants);
+    return { install_id: installId, permissions: installedPermissionViews(after.manifest, after.record.grants),
+      changed: after.record.grants.length !== held.size || after.record.grants.some(grant => !held.has(grant)) };
   }
 
   /** The project's installed plugins as their detail page shows them: trust, permissions, jobs and the person's agreements. */

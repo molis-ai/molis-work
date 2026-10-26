@@ -3,7 +3,7 @@ import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginConsentRecord } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import type { PluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
 import { consentsChanged } from "./consent-revision.js";
-import { assertPluginConsentSettingsEntry } from "./plugin-consent-settings-entry.js";
+import { assertPluginConsentSettingsEntry, assertPluginPermissionSettingsEntry } from "./plugin-consent-settings-entry.js";
 import { pluginInstallActions } from "./plugin-install-actions.js";
 
 // Taking an agreement back (ac-trust T5, specs/repository-anti-corruption/slices/ac-trust-install.md §3.3, S-77). The Home's consent ledger
@@ -61,9 +61,10 @@ export function pluginConsentHandlers(ledger: PluginConsentLedger, now: () => st
 /** Refuse plugin resolution before directory filtering can turn this entry restriction into a missing-dependency error. */
 export function assertPluginConsentActionEntry(caller: ActionCallContext, reference: ActionReference): void {
   // Taking a publisher back is a withdrawal like taking an agreement back: the same entry, the same refusal (S-77, S-87).
-  if ([...Object.values(pluginConsentActions), pluginInstallActions.revokePublisher].some(action => action.capability_id === reference.capability_id && action.version === reference.version)) {
-    assertPluginConsentSettingsEntry(caller);
-  }
+  const named = (action: { capability_id: string; version: number }) => action.capability_id === reference.capability_id && action.version === reference.version;
+  if ([...Object.values(pluginConsentActions), pluginInstallActions.revokePublisher].some(named)) assertPluginConsentSettingsEntry(caller);
+  // Changing what a plugin holds is the same kind of act and has its own door, the project settings page's (PG-002, S-93).
+  if (named(pluginInstallActions.setPermission)) assertPluginPermissionSettingsEntry(caller);
 }
 
 /** The Host's own provider of the person's agreements; it grants nothing to a plugin. */

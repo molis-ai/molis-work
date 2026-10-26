@@ -1,4 +1,5 @@
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { AgentHostComposition } from "./agent-host-composition.js";
 import { observeReviewSettlements, type AgentWritePlaces } from "./review-settlement-events.js";
@@ -8,7 +9,7 @@ import type { InstalledPluginEntry } from "./plugin-installed-view.js";
 import type { InstalledRelease } from "./installed-release.js";
 import type { LocalHost } from "./local-host.js";
 import type { MolisWorkLocalHostOptions, MolisWorkProjectRuntime } from "./project-host.js";
-import { ensureProjectPlugins } from "./project-plugins.js";
+import { ensureProjectPlugins, runningProjectPlatform } from "./project-plugins.js";
 import { hostDependencyCheck } from "./plugin-actions-client.js";
 
 /**
@@ -58,6 +59,23 @@ export async function installedPluginsInProject(source: ProjectPluginHost, proje
     if (source.options.homeDirectory) await (await installedPluginsOf(source, reference, runtime)).reconcilePublishers();
     return installedPluginEntries(runtime.store.db);
   });
+}
+
+/**
+ * Switches one optional permission of a plugin of this project's own platform (the built-in ones; a plugin installed from a package
+ * declares only a required permission, so it has nothing to switch). The platform whose supervisor runs the installation is the one that
+ * stops it, gives it the new grants and starts it again.
+ */
+export async function regrantPluginInProject(source: ProjectPluginHost, projectId: string, installId: string, permission: string, granted: boolean): Promise<void> {
+  const reference = source.host.projects().find(row => row.project_id === projectId);
+  if (!reference) throw new ActionError("actions.scope_mismatch", "需要一个打开的项目");
+  await ensureProjectPluginActions(source, reference);
+  const platform = await source.host.withRuntime(reference, runtime => runningProjectPlatform(runtime.store, runtime.project_id));
+  const record = platform?.runtime.list().find(row => row.install_id === installId);
+  if (!platform || !record || platform.supervisor.state(record.plugin_id)?.install_id !== installId) {
+    throw pluginErrors.grant_denied("这个插件没有可以开关的可选权限");
+  }
+  await platform.runtime.regrant(installId, permission, granted);
 }
 
 /** The project's built-in Runtime plugins (Coding, Files, Git, ...): started once per project, their actions registered. */

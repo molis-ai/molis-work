@@ -4,6 +4,8 @@
  * signed package (preview, then confirm); taking an agreement back. What it shows and installs goes through
  * `/projects/<id>/api/plugin-trust/*`, which invokes the shared `plugins.*` actions as the person; an agreement is taken back through the
  * Host's one settings door for it, `/api/settings/plugin-consents/revoke` (S-77), never through a route of the plugin page's own; taking a publisher back goes through the same door (`/api/settings/plugin-publishers/revoke`, S-87).
+ * Each optional permission an installed plugin asked for is a switch (`permissions/set`, PG-002, S-93); turning on one of the four that reach out or
+ * spend (`actions:delegate`, `network:*`, `secret:*`, `model:invoke`) asks first, in the platform's own words for it.
  */
 export function renderPluginTrustSettings({ L, projectId, chevron }: { L(text: string): string; projectId: string; chevron: string }): string {
   return `<section class="settings-document plugin-trust-settings" aria-labelledby="plugin-trust-title" data-plugin-trust-settings data-project="${projectId}">
@@ -79,8 +81,31 @@ const row = (head, ...notes) => { const item = el("li"); item.append(el("span", 
 // What a plugin asked for: its own reason, and what the platform itself says the permission is.
 const permissions = (items) => group(L("它要的权限"), L("没有要任何权限"), items.map((item) =>
 row(item.permission + (item.required ? "" : " · " + L("可选")), item.reason, item.meaning)));
-const jobs = (items) => group(L("它在后台常做的事"), L("没有后台任务"), items.map((item) =>
-row(item.job_id, item.reason, item.permissions.length ? L("用到 {permissions}", { permissions: item.permissions.join("、") }) : L("不需要额外权限"))));
+// A job whose permission the person switched off is paused: its activation needs the grant at every step.
+const jobs = (items, held) => group(L("它在后台常做的事"), L("没有后台任务"), items.map((item) => {
+const off = (held || []).filter((view) => !view.granted && item.permissions.includes(view.permission)).map((view) => view.permission);
+return row(item.job_id, item.reason, item.permissions.length ? L("用到 {permissions}", { permissions: item.permissions.join("、") }) : L("不需要额外权限"), off.length ? L("已暂停：缺少 {permissions} 的授权", { permissions: off.join("、") }) : "");
+}));
+// The four that reach out of the project or spend money are confirmed before they are switched on; the rest take one click.
+const WIDE = (permission) => permission === "actions:delegate" || permission === "model:invoke" || /^(network|secret):/.test(permission);
+const grants = (plugin, repaint) => group(L("它要的权限"), L("没有要任何权限"), plugin.permissions.map((item) => {
+const line = row(item.permission + " · " + (item.required ? L("必需") : L("可选")), item.reason, item.meaning);
+if (item.required) return line;
+const control = el("span", "mw-switch"), toggle = el("input"), track = el("span", "mw-switch__track");
+toggle.type = "checkbox"; toggle.setAttribute("role", "switch"); toggle.checked = item.granted; toggle.setAttribute("aria-label", item.permission);
+track.setAttribute("aria-hidden", "true"); control.append(toggle, track); line.append(control);
+toggle.addEventListener("change", async () => {
+const on = toggle.checked;
+if (on && WIDE(item.permission) && !await ask(L("开启这项权限？"), L("{plugin} 要用 {permission}：{meaning}", { plugin: plugin.name, permission: item.permission, meaning: item.meaning || item.reason }), L("开启"))) { toggle.checked = false; return; }
+error.hidden = true; toggle.disabled = true;
+try {
+plugin.permissions = (await api("/permissions/set", { install_id: plugin.install_id, permission: item.permission, granted: on })).permissions;
+toast(on ? L("已开启 {permission}", { permission: item.permission }) : L("已关闭 {permission}", { permission: item.permission }));
+} catch (failure) { toggle.checked = !on; fail(failure); }
+toggle.disabled = false; repaint();
+});
+return line;
+}));
 const draw = (target, empty, nodes) => { target.replaceChildren(...(nodes.length ? nodes : [el("li", "settings-muted", empty)])); };
 const consents = (plugin) => group(L("你给过的同意"), L("没有同意记录"), plugin.consents.map((consent) => {
 const item = row(L(KIND[consent.kind] || consent.kind) + " · " + consent.subject,
@@ -102,8 +127,8 @@ copy.append(el("strong", "", plugin.name + " · " + plugin.version), el("span", 
 summary.append(copy); const mark = $("[data-plugin-trust-chevron]"); if (mark) summary.append(mark.content.cloneNode(true));
 const body = el("div", "plugin-trust-body");
 body.append(el("span", "settings-muted", plugin.plugin_id + (plugin.publisher_signature && plugin.trust !== "host" ? " · " + short(plugin.publisher_signature) : "")));
-body.append(plugin.manifest_available ? permissions(plugin.permissions) : el("span", "settings-muted", L("读不到这个插件安装时声明的权限")));
-if (plugin.manifest_available) body.append(jobs(plugin.jobs));
+const work = el("div"), repaint = () => work.replaceChildren(jobs(plugin.jobs, plugin.permissions));
+if (plugin.manifest_available) { body.append(grants(plugin, repaint)); repaint(); body.append(work); } else body.append(el("span", "settings-muted", L("读不到这个插件安装时声明的权限")));
 body.append(consents(plugin)); box.append(summary, body);
 const item = el("li"); item.append(box); return item;
 };

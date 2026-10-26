@@ -1,8 +1,8 @@
 # PG-002 插件权限设置与改授权的动作（ac-shell，设计稿）
 
-状态：设计稿，2026-10-26，从 `origin/main`（`2b3dc51de`）写，**未实现**；§7 的 6 项涉及安全边界或范围的待定先报统筹，审过再开工。实现叠在 ac-trust 的 T7（batch-41，项目设置的「插件」页，S-85）上，统筹给 `origin/batch/1025-41` 的头后再起分支。PG-003（授权与外部插件同一套、可选权限能单独关，#741）已做，本稿补它欠下的两样：**本人关开的动作**和**开关的界面**。
+状态：**已实现**（分支 `claude/ac-shell-pg002`，叠在 `origin/batch/1025-41` 上，未开 PR），2026-10-26。§7 的 6 项裁定统筹已给（见 §7，已按裁定改了 §2、§3、§6）。实现叠在 ac-trust 的 T7（batch-41，项目设置的「插件」页，S-85）上。**PG-002 行要等 BL-700（Home 级插件的开关页）也做完才标已做。**PG-003（授权与外部插件同一套、可选权限能单独关，#741）已做，本稿补它欠下的两样：**本人关开的动作**和**开关的界面**。
 
-验收编号：RAC-940～959（草稿，§6）。BL：BL-700～709（拟：Home 级插件的开关页，§7 第 4 项）。
+验收编号：RAC-940～959（§6）。BL：BL-700～709（BL-700 = Home 级插件的开关页，owner 是 ac-shell，PG-002 之后接着做，§7 第 4 项）。安全不变量：**S-93**。
 
 ## 1. 现状（事实，按 `origin/main` 核）
 
@@ -25,15 +25,15 @@
 
 ### 2.2 动作 `plugins.permissions.set@1`
 
-- 宿主自己的提供方 `plugin-permissions`（`kind: "system"`，仿 `plugin-consents`），Home 范围，受众只有 `["user"]`，权限 `plugin-permissions:write`。
+- 放在现有的 `plugin-install` 提供方里（`apps/local-host/src/plugin-install-actions.ts`，不新增 `registerProvider`），项目范围，受众只有 `["user"]`，权限 `plugin-install:write`。
 - 输入 `{ install_id, permission, granted }`：**一次只换一项**。不收「整份清单」，因为页面拿着的清单可能是旧的，整份替换会把别处刚改的悄悄改回去；一项一换也让「谁在什么时候开了什么」不含糊。
-- 输出 `{ install_id, permissions: [{ permission, required, granted }], changed }`；设成已经是的值，`changed: false`，什么都不写。
-- 目标**不由输入定**：处理器用调用的可信上下文取这个项目的 Runtime（或 Home Runtime），`install_id` 必须是这个 Runtime 里的安装，否则拒绝，不能借这个项目的入口去动别的项目的安装（§3.2）。
+- 输出 `{ install_id, permissions: [{ permission, required, reason, meaning, granted }], changed }`（与 `plugins.installed.list@1` 的每项权限同一形状，页面直接换掉）；设成已经是的值，`changed: false`，什么都不写。
+- 目标**不由输入定**：项目取自调用的可信上下文（`caller.project_id`），处理器经项目的 Runtime 找 `install_id`，不是这个项目里的安装就 `plugin.definition_missing`，不能借这个项目的入口去动别的项目的安装（§3.2）。
 - 处理器第一行就是入口凭据检查，然后才碰 Runtime；`await caller.beforeEffect()` 之后才写。
 
 ### 2.3 入口
 
-`/projects/<id>/api/settings/plugin-permissions/set`（项目设置页的接缝）：在常驻服务的本机守卫后面（控制令牌、Origin、一次性键，S-03/S-06/S-07），项目取自路径、人由入口自己盖章，**请求体里写的项目、人、`user_action` 一律不读**；入口给处理器一份冻结的设置入口凭据，进程内登记、请求结束就撤下（同 `plugin-consent-settings-entry.ts`）。这与 S-85 不矛盾：S-85 说的是**撤回同意**不开插件页自己的路由；改授权同样不开 `/api/plugin-trust/*` 上的路由，走设置接缝。Home 级插件的开关入口见 §7 第 4 项。
+`POST /projects/<id>/api/plugin-trust/permissions/set`（项目设置页自己的路由，`plugin-trust-http.ts`，不是任何插件页的路由）：在常驻服务的本机守卫后面（控制令牌、Origin、一次性键，S-03/S-06/S-07），项目取自路径、人由入口自己盖章，**请求体里写的项目、人、`user_action` 一律不读**（schema 拒，`actions.input_invalid`）；入口先拒 `pluginPageRequest`（插件页不能代本人改授权），再给处理器一份冻结的设置入口凭据（`withPluginPermissionSettingsEntry`），进程内登记、请求结束就撤下。凭据与 Home 同意入口（S-77）的是**两份各自的登记**，互不通用。Home 级插件的开关入口是 BL-700。
 
 ### 2.4 收窄：立即生效，怎么做
 
@@ -61,7 +61,7 @@
 
 ### 2.6 界面
 
-项目设置「插件」页（T7）里，每个插件行展开：必需的权限（只读，「必需」）、可选的权限（开关）；每项都写插件自己的理由和平台的说明（`platformPermissionMeaning` 同一份，不另写）；`actions:delegate` 这类最宽的旁边有平台的原话，不加二次确认（§7 第 3 项）。后台作业列出它们需要的权限和是否暂停。点开关：调设置接缝、成功就按返回的 `permissions` 更新，失败（含重启失败）原地显示错误并恢复开关；不乐观更新。`PluginPermissionView` 加 `granted: boolean`（合同的增量字段，`plugins.installed.list@1` 的输出也加，快照 `pnpm api:update` / `pnpm actions:update`）。文字走 `L()` 和翻译词典；页面脚本与样式的增长在 PR 里写明字节数，涨超 10 KB 或新增资源先问。
+项目设置「插件」页（T7）里，每个插件行展开：必需的权限（只读，「必需」）、可选的权限（开关）；每项都写插件自己的理由和平台的说明（`platformPermissionMeaning` 同一份，不另写）；最宽的几项旁边有平台的原话，放宽前再确认一次（§7 第 3 项）。后台作业列出它们需要的权限和是否暂停。点开关：调接缝、成功就按返回的 `permissions` 更新，失败（含重启失败）原地显示错误并恢复开关；不乐观更新。**放宽 `actions:delegate`、`network:*`、`secret:*`、`model:invoke` 这四类前先弹一次确认**（复用 T7 的同一个 `ask` 对话框，写出平台的原话，和安装预览同一套文案，只在 UI 层，动作不变），其余权限单击生效；关掉不需要确认。`PluginPermissionView` 加 `granted: boolean`（合同的增量字段，`plugins.installed.list@1` 的输出也加，快照 `pnpm api:update` / `pnpm actions:update`）。文字走 `L()` 和翻译词典；页面脚本与样式的增长在 PR 里写明字节数，涨超 10 KB 或新增资源先问。
 
 ### 2.7 与相邻条目
 
@@ -75,7 +75,7 @@
 
 ## 3. 信任边界与安全不变量
 
-### 3.1 新增（待统筹给 S 号，暂称 S-PG002）
+### 3.1 新增（S-93）
 
 **改授权只由本人做，收窄立即生效，放宽不超过 Manifest。**
 1. `plugins.permissions.set@1` 的受众只有 `user`；agent、MCP、工作流、插件看不到也调不到（`actions.forbidden` 或不在目录里）；处理器还要设置入口凭据，没有就 `actions.forbidden`，在碰 Runtime 之前拒。
@@ -93,9 +93,9 @@
 
 ## 4. 合同与代码改动
 
-- `packages/plugin-runtime`：`PluginRuntime.regrant`（`index.ts`），规则放 `install-rules.ts` 旁边；README「开发要求」加一条。
+- `packages/plugin-runtime`：`PluginRuntime.regrant`（`index.ts`，一个只转交的方法）、步骤在新文件 `regrant.ts`（`regrantInstall`，类已冻结，新增部分先写在新文件里，`HUGE-CLASS-MIGRATION.md`），`toggledGrants` 在 `install-rules.ts`；README「开发要求」加一条。类因此仍多一个方法，`tooling/gates/giant-exceptions.json` 里登记了 class 与 file 两条，等 W5-10 拆分时随之删。
 - `packages/contracts`：`PluginPermissionView.granted`（增量字段，`pnpm api:update`）。
-- `apps/local-host`：`plugin-permission-actions.ts`（提供方、动作、处理器）、`plugin-permission-settings-entry.ts`（凭据，尽量复用 `plugin-consent-settings-entry.ts` 的机制，不复制）、`plugin-permission-settings-http.ts`（接缝）、`plugin-installed-view.ts` 填 `granted`；登记在 `project-host.ts` 旁边仿 `registerPluginConsentActions`。**不增加 `registerProvider` 行数的话要核门禁**：T5 的 `registerPluginConsentActions` 里有一处 `registerProvider` 增长，本稿尽量与它同一个提供方登记，不再增一处（实现时核 `check-health-gates`）。
+- `apps/local-host`：动作与处理器在 `plugin-install-actions.ts`（同一个提供方，没有新增 `registerProvider`），`plugin-install-service.ts` 的 `setPermission`，凭据在 `plugin-consent-settings-entry.ts`（第二份登记 `permissionEntries`，没有复制机制），入口是 `plugin-trust-http.ts` 的 `permissions/set`，`project-plugin-ports.ts` 的 `regrantPluginInProject`，`plugin-installed-view.ts` 填 `granted`。
 - `apps/workbench/src/settings-plugins.ts`：开关与作业的暂停标记。
 - 文档：`docs/system/SECURITY-INVARIANTS.md`（新行，S-15 补一句指向）、`docs/releases/POLICY.md` 第 7.8 节、`docs/system/THIRD-PARTY-PLUGINS.md`、`skills/molis-plugin-dev/elements.md`（可选权限「人能在设置里关」）。
 - 没有存量迁移：不新建表，旧的授权清单原样。
@@ -112,7 +112,7 @@
 
 | 编号 | 验收 | 证明 |
 | --- | --- | --- |
-| RAC-940 | 运行中的插件关掉一项可选权限：授权清单不再有它，新激活的快照没有它，安装还是同一个（`install_id`、`installation_generation`、私有数据都不变），状态回到 `running` | `tests/plugin-regrant.test.ts` |
+| RAC-940 | 运行中的插件关掉一项可选权限：授权清单不再有它，新激活的快照没有它，安装还是同一个（`install_id`、`installation_generation`、私有数据都不变），状态回到 `running` | `tests/security-invariants-plugin-regrant.test.ts` |
 | RAC-941 | 关必需的、开或关没声明的，都是 `plugin.grant_denied`，授权不变，没有重启 | 同上 |
 | RAC-942 | 收窄立即收回：一个在途的调用卡在处理器里，关掉它下一步要用的权限，它的下一次写被拒，没有业务记录，只留一行「未执行」诊断 | 同上，用真实的存储与背景服务 |
 | RAC-943 | 收窄后重启失败：收窄保留，安装 `crashed` 带错误码，动作把错误抛出，不回滚 | 同上 |
@@ -121,24 +121,24 @@
 | RAC-946 | 动作受众只有 `user`：agent、MCP、工作流、插件四种调用者各自发现不了也调不了，Runtime 不动 | `tests/security-invariants-plugin-permissions.test.ts` |
 | RAC-947 | 没有设置入口凭据的 user、仿造的 `user_action`、持有 `actions:delegate` 的插件自己，都是 `actions.forbidden`，在碰 Runtime 之前，授权不变 | 同上 |
 | RAC-948 | 目标取自可信上下文：用这个项目的入口去动另一个项目的 `install_id` 被拒；请求体里写项目或身份被忽略 | 同上 |
-| RAC-949 | `plugins.installed.list@1` 给每项权限的 `granted`，必需的恒为 `true`，和安装记录一致 | `tests/plugin-installed-view.test.ts` |
+| RAC-949 | `plugins.installed.list@1` 给每项权限的 `granted`，必需的为 `true`，和安装记录一致；开关之后概览读到新值 | `tests/security-invariants-plugin-permissions.test.ts`、`tests/security-invariants-plugin-permissions-http.test.ts` |
 | RAC-950 | 接缝在控制令牌与 Origin 之后，只认 `POST` 和约定的三个字段，别的方法、多余字段被拒 | `tests/security-invariants-plugin-permissions-http.test.ts` |
-| RAC-951 | 页面：必需项没有开关，可选项的开关调接缝、成功后按返回值更新、失败恢复并显示错误；文字全部走翻译 | 非浏览器的声明与脚本断言；一条浏览器用例交 CI |
-| RAC-952 | 依赖已关权限的后台作业在页面上标「已暂停」，权限再开后消失 | 同上 |
-| RAC-953 | 设成原值：`changed: false`，不重启、不改 `updated_at` | `tests/plugin-regrant.test.ts` |
+| RAC-951 | 页面：必需项没有开关，可选项的开关调接缝、成功后按返回值更新、失败恢复并显示错误；放宽四类宽权限前先确认（确认在调用之前）；文字全部走翻译 | `tests/security-invariants-plugin-permissions-http.test.ts` 的页面脚本断言；翻译门禁 |
+| RAC-952 | 依赖已关权限的后台作业在页面上标「已暂停」，权限再开后（重画）消失 | 同上 |
+| RAC-953 | 设成原值：`changed: false`，不重启、不改 `updated_at` | `tests/security-invariants-plugin-regrant.test.ts` |
 | RAC-954 | 同一安装上的 `regrant` 与停用、卸载、升级在安装锁上排队，没有半个状态 | 同上 |
 | RAC-955 | 动作与 API 快照随改动更新（`granted`、新动作），形状变化记入 PR 的「对调用方的影响」 | `pnpm actions:update`、`pnpm api:update` |
 | RAC-956 | 安全不变量表新增一行并指向以上测试，`pnpm health:check` 通过 | `check-health-gates --base origin/main` |
 | RAC-957～959 | 留给实现里发现的 | |
 
-## 7. 待定（涉及安全边界或范围，先报统筹）
+## 7. 裁定（统筹，2026-10-26）
 
-1. **入口**：项目设置页的接缝，项目取自路径、凭据由入口盖章（推荐）；还是沿用 Home 级 `/api/settings/plugin-consents/*` 那样的接缝、项目放在输入里（不推荐：项目不该从输入读）。
-2. **收窄靠重启**（推荐，复用现有撤销，代价是这个安装的其他在途调用也被打断）；还是允许运行中直接改授权、让激活读活的记录（要改激活快照的合同，动 S-18，不推荐）。
-3. **放宽最宽的几项（`actions:delegate`、`network:*`、`secret:*`、`model:invoke`）要不要二次确认**：推荐不加，页面写出平台的原话，和安装预览一致；要加的话是 UI 层的一步，不改动作。
-4. **范围**：开关只管这个项目里的这个安装（推荐，与安装范围「本片不动」一致）；Home 级插件（`runtime.scope: "home"`）的开关页放哪（项目页里没有它们的行）——动作本身对两种 Runtime 通用，页面拟记为 BL-700 另做。
-5. **要不要留变更痕迹**：推荐不建表，只有 `updated_at`；若要「你在某天打开了某权限」的历史，要新表，与「安装时的同意账本照旧」冲突，另开一个条目。
-6. **S 号**：新增一行不变量，请统筹给号；S-15 补一句指向它。
+1. **入口**：项目设置页自己的接缝，项目取自路径、凭据由入口盖章；不从输入读项目。
+2. **收窄靠停—改—起**，复用 `revokeContext`；这个安装的其他在途调用被打断可以接受，不动 S-18。
+3. **加一步确认**（原稿推荐不加，统筹改为加）：放宽 `actions:delegate`、`network:*`、`secret:*`、`model:invoke` 这四类时，页面先弹一次确认，写出平台的原话（和安装预览同一套文案），复用 T7 的同一个 `ask` 对话框；只在 UI 层，动作不变。其余权限单击生效。理由：优先不留隐患，这四类一开就能外发数据或花钱。
+4. **范围**：开关只管这个项目里的这个安装。Home 级插件的开关页记 **BL-700，owner 是 ac-shell**，排在 PG-002 之后接着做，不放进待办池；**PG-002 行要等 BL-700 也做完才标已做**。
+5. **不建表**，只记 `updated_at`。
+6. **S 号**：S-93；S-15 补一句指向它。
 
 ## 8. 防腐复查
 

@@ -264,8 +264,14 @@ const APPROVED_CEILINGS = {
 //   strings merged with PG-024 (「{name} 在这个项目里的数据」) and A3's dev view (「成果库保存的大文件原件」).
 // - workbench.css 1,234,610 -> 1,236,084 (+1,474 B): T7's settings-plugins sheet +1,369 and I1's wrapped local-directory paths +105.
 // - settings.css 932,738 -> 932,843 (+105 B): the same I1 rule in the settings document sheet (2fd7d21d8, PIPE Ready 6404410441).
-  "/assets/molis-work-workbench.js": [1129446, 1139387],
-  "/assets/molis-work-workbench.css": [1234610, 1236084],
+// PG-002 (ac-shell, stacked on batch-41), the 插件 page gets a switch per optional permission, a confirmation before the four that reach
+// out or spend are switched on, and a "paused" mark on a job whose permission is off; measured after `pnpm build` on that stack:
+// - workbench.js 1,139,387 -> 1,141,064 (+1,677 B, under 10 KB): the switch row, the confirmation and the paused mark are 1.2 KB of
+//   script, the rest is their Chinese text and English translations, which must be there. Tried: the switch is the existing `mw-switch`
+//   markup, the confirmation is the page's one `ask` dialog, the rows reuse `row`/`group`/`el`; no new helper or library.
+// - workbench.css 1,236,084 -> 1,236,101 (+17 B): the switch sits in the existing row column (`:is(.mw-btn, .mw-switch)`).
+  "/assets/molis-work-workbench.js": [1129446, 1141064],
+  "/assets/molis-work-workbench.css": [1234610, 1236101],
   "/assets/molis-work-settings.css": [932738, 932843],
   "/assets/molis-work-plugins/shelf.js": [63376, 64623],
   // #1306 (with F1's review fixes) reuses arrival's choice/field/button styles instead of the settings document stylesheet. The

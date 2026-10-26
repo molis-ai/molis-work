@@ -51,4 +51,11 @@ export const PLUGIN_TRUST_EN: Record<string, string> = {
   "撤销对这个发布者的信任？": "Revoke trust in this publisher?",
   "{name} 签的包不能再安装；已经装上的它的插件马上不能再做任何事，随后停用，数据保留，只能卸载。撤销不能撤回。": "Packages {name} signed can no longer be installed. Plugins already installed from them stop doing anything at once, then are turned off; their data stays and they can only be uninstalled. This cannot be undone.",
   "已撤销对这个发布者的信任": "Trust in this publisher revoked",
+  "必需": "Required",
+  "开启这项权限？": "Turn this permission on?",
+  "{plugin} 要用 {permission}：{meaning}": "{plugin} would use {permission}: {meaning}",
+  "开启": "Turn on",
+  "已开启 {permission}": "{permission} turned on",
+  "已关闭 {permission}": "{permission} turned off",
+  "已暂停：缺少 {permissions} 的授权": "Paused: {permissions} is switched off",
 };

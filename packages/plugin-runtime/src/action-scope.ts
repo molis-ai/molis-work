@@ -37,6 +37,12 @@ interface PluginSceneScope extends PluginInstance {
   readonly read_only: boolean;
   readonly caller: ActionCallContext;
   readonly begun: number;
+  /**
+   * Set only when the `beforeEffect` the callback was handed returned (`pluginSceneBeforeEffect`), never by a service's own check: a
+   * writable scene callback writes through a platform service only after the plugin waited for the kernel's recheck of the binding,
+   * the judgment and the caller (PG-032 P4, user decision 2026-10-26). Read-only callbacks have none.
+   */
+  readonly effect?: { passed: boolean };
 }
 
 /**
@@ -113,6 +119,19 @@ export function endPluginRoute(route: PluginRouteCall): void {
 export function insideOpenPluginCall(): boolean {
   const scope = running.getStore(), route = routes.getStore();
   return (!!scope && !ended.has(scope)) || (!!route && !ended.has(route));
+}
+
+/**
+ * The `beforeEffect` a writable scene callback is given: the kernel's own, and once it returns the callback has passed the recheck
+ * its scene's writes need (`pluginSceneEffectPassed`).
+ */
+export function pluginSceneBeforeEffect(before: () => Promise<void>, effect: { passed: boolean }): () => Promise<void> {
+  return async () => { await before(); effect.passed = true; };
+}
+
+/** Whether the callback `scope` runs for is a scene callback whose `beforeEffect` already returned. */
+export function pluginSceneEffectPassed(scope: PluginInvocationScope): boolean {
+  return "scene" in scope && scope.effect?.passed === true;
 }
 
 /** Scene callbacks retain their real declaration and control, never an invented action. */

@@ -233,4 +233,10 @@ test("RAC-768 the workbench's settings panel loads a fetched page's plugin sheet
   assert.match(script, /molis-work-plugins\//u);
   assert.ok(script.includes("ensureStyleSheets(html)"), "the panel reads the sheets a fetched page links");
   assert.ok(script.indexOf("ensureStyleSheets(html)") < script.indexOf("loadFromHtml(section, html, fetchPath)"), "and waits for them before it inserts the page");
+  // The script is a template string: a regex written `\b` there is a backspace, no link tag is ever found and the sheet never loads (found by tests/shelf-plugin.e2e.test.ts).
+  const statement = /const sources = [^\n]*;/u.exec(script)?.[0];
+  assert.ok(statement, "the panel reads the links of a fetched page");
+  const sheets = new Function("html", `${statement} return sources;`) as (html: string) => string[];
+  assert.deepEqual(sheets('<head><link rel="stylesheet" href="/assets/molis-work-settings.css"><link rel="stylesheet" href="/assets/molis-work-plugins/shelf.css"></head><p>x</p>'),
+    ["/assets/molis-work-plugins/shelf.css"], "only a plugin's own sheet is brought");
 });

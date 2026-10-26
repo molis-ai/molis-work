@@ -140,10 +140,10 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
     if (action === 'disable') { c.withdraw(pluginId); platform.supervisor.revoke(pluginId); await platform.runtime.stop(record.install_id); c.registerPrompts(c.releaseFor(pluginId) ?? release, 'disabled'); return; }
     if (action === 'enable') {
       if (!c.trusted(record)) throw pluginErrors.publisher_revoked('这个插件的发布者已被撤销信任，不能再启用；数据还在，可以卸载');
-      const approved = c.approvedFor(pluginId), installed = c.releaseFor(pluginId) ?? release;
+      const approved = c.approvedFor(pluginId), installed = c.releaseFor(pluginId) ?? release, packaged = c.releaseFor(pluginId)?.packaged;
       if (!approved) throw new Error('找不到此安装的批准记录，请先卸载并重新确认安装');
       // A switched-off plugin is unknown to the Supervisor after a restart: it is registered now, started below.
-      if (!platform.supervisor.manifest(pluginId)) await platform.start([{ definition: c.definition(installed, approved), grants: record.grants }]);
+      if (!platform.supervisor.manifest(pluginId)) await platform.start([{ definition: c.definition(installed, approved), grants: record.grants, ...packaged ? { trust: packaged.trust } : {} }]);
       const state = await platform.supervisor.enable(pluginId);
       if (state.status !== 'running') throw new Error('启用没有完成：' + (c.recoveryErrors.get(pluginId) ?? state.message ?? ''));
       await c.expose(installed); c.registerPrompts(installed, 'enabled'); c.recoveryErrors.delete(pluginId); return;

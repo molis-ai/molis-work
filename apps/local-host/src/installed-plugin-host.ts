@@ -206,7 +206,8 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
         if (!approved) throw new Error('找不到此安装的批准记录，请在创作台卸载并保留数据，再重新确认安装');
         registerPrompts(release, record.state === 'disabled' || record.state === 'quarantined' ? 'disabled' : 'enabled');
         if (record.state === 'disabled' || record.state === 'quarantined') continue;
-        const report = await platform.start([{ definition: definition(release, approved), grants: record.grants }]);
+        // A packaged release starts under the pin it was installed with, read back from its verified package, as its install did (S-75).
+        const report = await platform.start([{ definition: definition(release, approved), grants: record.grants, ...release.packaged ? { trust: release.packaged.trust } : {} }]);
         if (report.running.includes(record.plugin_id)) await expose(release);
         else throw new Error(platform.supervisor.state(record.plugin_id)?.message ?? '安装插件未能恢复');
       } catch (error) { recoveryErrors.set(record.plugin_id, error instanceof Error ? error.message : String(error)); }

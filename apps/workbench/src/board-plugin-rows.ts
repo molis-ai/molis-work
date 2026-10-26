@@ -1,5 +1,6 @@
 import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { PluginBoardSpecimenPorts, PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
+import { inWordsOf } from "./i18n.js";
 import { BUILTIN_PLUGIN_CATALOG } from "./plugin-catalog.js";
 import { pluginSurfaceClients } from "./plugin-workbench.js";
 import { boardFrameParam, type BoardFrameParam } from "./condition-specimens.js";
@@ -13,9 +14,10 @@ import { boardFrameParam, type BoardFrameParam } from "./condition-specimens.js"
 type Say = (text: string, values?: Record<string, string | number>) => string;
 
 export function renderBoardPluginRows(L: Say, sample: PluginBoardSpecimenPorts["sample"], catalog: readonly PluginRegistration[] = BUILTIN_PLUGIN_CATALOG): string {
-  // The page's own primitives; a date as Coding's Host writes it on the first paint (its day), the one plugin that shows one here.
-  const ports: PluginBoardSpecimenPorts = { escape: escapeHtml, text: L, icon: (name) => icon(name as Parameters<typeof icon>[0]), formatDate: (value) => value.slice(0, 10), sample };
-  const figures = catalog.flatMap((entry) => (entry.workbench.specimens?.(ports) ?? []).map((one) => `<figure class="mw-cond-plugin" data-board-plugin="${escapeHtml(entry.project_plugin_id)}" data-board-specimen="${escapeHtml(one.id)}" data-place="${one.place}">
+  // The page's own primitives, each plugin's text in that plugin's own words (its Manifest's `ui.translations`, which only apply while it draws);
+  // a date as Coding's Host writes it on the first paint (its day), the one plugin that shows one here.
+  const portsOf = (pluginId: string): PluginBoardSpecimenPorts => ({ escape: escapeHtml, text: inWordsOf(pluginId, L), icon: (name) => icon(name as Parameters<typeof icon>[0]), formatDate: (value) => value.slice(0, 10), sample });
+  const figures = catalog.flatMap((entry) => (entry.workbench.specimens?.(portsOf(entry.manifest.plugin_id)) ?? []).map((one) => `<figure class="mw-cond-plugin" data-board-plugin="${escapeHtml(entry.project_plugin_id)}" data-board-specimen="${escapeHtml(one.id)}" data-place="${one.place}">
       <figcaption><strong>${escapeHtml(L(entry.manifest.name))}</strong><span>${escapeHtml(one.title)}</span><span class="mw-cond-tag">${escapeHtml(L("样例数据（模拟）"))}</span></figcaption>
       <div class="mw-cond-plugin__body">${one.html}</div>
     </figure>`));

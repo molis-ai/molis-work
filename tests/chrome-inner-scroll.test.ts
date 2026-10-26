@@ -11,6 +11,8 @@ test("chooser, settings, and workbench keep titles pinned and scroll only the co
   const arrival = renderMolisWorkArrivalStylesheet();
   const settings = renderMolisWorkSettingsStylesheet();
   const workbench = renderMolisWorkWorkbenchStylesheet();
+  // Shelf brings its own sheet (PG-070); its rules are read where the page with its frame has them.
+  const withPlugins = renderMolisWorkWorkbenchWithPluginStylesheets();
 
   // The way in is one fixed frame: titlebar, stage, bar. The page never scrolls; the directory and the sheet do.
   assert.match(arrival, /html:has\(> body\.arrival-page\), body\.arrival-page \{[^}]*overflow: hidden;/);
@@ -53,10 +55,10 @@ test("chooser, settings, and workbench keep titles pinned and scroll only the co
   assert.match(workbench, /feed-stage-list .goal-collection-fold > summary/);
   assert.match(workbench, /plugin-stage-list \.goal-collection-fold \.feed-stage-entry \{ padding-left: 24px; \}/);
   assert.match(workbench, /plugin-stage-list \.goal-collection-fold > :is\(\.mw-dir-row, a\.mw-dir-row\) \{ padding-left: 24px; \}/);
-  assert.match(workbench, /\[data-shelf\] \.goal-collection-fold \.shelf-row \{ padding-left: 24px; \}/);
-  assert.doesNotMatch(workbench, /plugin-stage-shell\[data-expanded="true"\] \.shelf-stage-chrome \{ display: none; \}/);
+  assert.match(withPlugins, /\[data-shelf\] \.goal-collection-fold \.shelf-row \{ padding-left: 24px; \}/);
+  assert.doesNotMatch(withPlugins, /plugin-stage-shell\[data-expanded="true"\] \.shelf-stage-chrome \{ display: none; \}/);
   // Shelf is the side panel's tab: from 640px of tab its 213px list stays beside the open file.
-  assert.match(workbench, /@container shelf \(min-width: 640px\) \{\s*\[data-shelf-stage-shell\]\[data-expanded="true"\] > \[data-shelf="directory"\] \{[^}]*width: 213px/);
+  assert.match(withPlugins, /@container shelf \(min-width: 640px\) ?\{\s*\[data-shelf-stage-shell\]\[data-expanded="true"\] > \[data-shelf="directory"\] \{[^}]*width: 213px/);
   assert.match(workbench, /plugin-stage-list \.artifact-empty \{ max-width: 32ch;/);
   // Spacing snapped to the 4/8/12/16 scale in the visual refinement (spec → 第三轮 · 间距与形状); the indent stays 24px.
   assert.match(workbench, /feed-stage-list \.goal-collection-empty \{ margin: 0; padding: 8px 8px 12px 24px;/);

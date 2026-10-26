@@ -43,9 +43,21 @@
 | RAC-770 | 宿主画第三方插件的删除项目数据说明时，用该插件自己的英文；宿主自己对同一句的使用、没有声明所有者的条目、别的插件的词典都不受影响 | `tests/plugin-words-owned.test.ts` |
 | RAC-771 | 第三方插件的动作标题与描述在宿主画的地方（对外接入）是它自己的英文；同一句在别的插件的行里是那个插件的英文；不声明插件的行不取任何词典 | 同上 |
 | RAC-772 | 一个插件的词典改不到宿主或别的插件画出的一句话；宿主已有的英文优先；撤销登记后词典即失效 | 同上 |
-| RAC-773 | 页面把每个插件自己的词典交给它的框架和它的脚本（`LF`、`LFor`），不交别人的；中文页显示原文；占位符照常替换 | 同上 |
+| RAC-773 | 页面把每个插件自己的词典交给它的框架和它的脚本（`LF`、`LFor`），不交别人的；中文页显示原文；占位符照常替换。Goals 归档/回收站集合在两个生产 shell 入口的标题、说明及 collectionTitle 使用 Goals 自己的英文，用户目标内容保持原文 | 同上；`tests/workbench-goals-collection-i18n.test.ts` |
 | RAC-774 | 稳定键仍是全页的词，中文原文键的翻译只属于声明它的插件 | 同上 |
 | RAC-775 | 翻译门禁认 `LF(插件 id, 文字)` 与绑定到它的包装（`FL`、`LFor` 的结果）为翻译调用，键是文字、插件 id 不是键；没有英文的中文原文被报出来，只调用 `LF(` 的脚本模板也被解析 | `tests/translation-check.test.ts` |
 | RAC-776 | 成果库按类型的声明方给出类型名的英文（数据集的「数据表」在英文页是 Dataset），Artifacts 自己的句子用 Artifacts 的英文；中文页显示原文 | `tests/artifact-english.test.ts` |
 | RAC-777 | 新项目引导起草待办时的三种类别名（要你处理、你的承诺、在等别人）在宿主词典里有英文，不靠 Todo 的词 | `tests/plugin-words-owned.test.ts` |
 | RAC-778 | 在宿主页面里运行的插件脚本（Goals 的规划与项目规则、Artifacts 的四段脚本）用自己插件的翻译器，不用全页的 `L` | 同上 |
+
+## 本次 WO：Goals 集合的生产英文回归（2026-10-25）
+
+本项作者回归完成，待独立核验；仅补 RAC-773 的 Goals 集合生产入口证明，不代表整个 PG-071、T2 或防腐完成。固定基点 `03cedfc97814e3b1b5b01c1a86da873b8f72631f`；原评/来源为 #1308 的 6403415564，508 的 Full 与该生产修复分开记录。
+
+`apps/workbench/src/shell-page-renderer.ts` 已在整页与 refresh fragment 两处把 Goals 自己的翻译器传给集合模型；旧 `goals-tree-ui` 测试自己构建 renderer 并注入 goalsL，不能证明实际 shell 传对。新增相邻独立测试复用真实 `tests/workbench-renderer-fixture.ts` 的 LocalHost/desktop 装配，不重写集合模型、不向被测 shell 注入修复翻译器。英文按两入口 × 归档/回收站检查标题、说明与实际呈现的 collectionTitle；中文正控保留原文，用户 Goal 标题/正文即使与翻译键相同也不被改写。期望是独立的固定文案，不调用被测翻译器计算期望。
+
+断言遵循实际HTML接口：整页检查document title、文档pane的collectionTitle及空态说明，refresh检查可见空态标题和集合footer说明；不伪造fragment本来没有返回的title/aria字段。共享宿主EN的“回收站”既定译文是 `In trash`（仍优先于插件短标签），集合专属page title为 `Trash · Molis Work`，两者分别精确断言。
+
+允许范围仅新测试、确有需要的测试fixture与本段验收。产品、词典、contracts/export、共享门禁/预算、其它专职事项不改；原 ac-coding 的实际 Workbench shell T3b hunk保留归属，不触碰。现存构建指纹不匹配03，公共FIFO内只做一次必要整体build；只跑新/必要相关定向测试和imports/health/secrets，Root限定不重原5文件29条/full或浏览器。最小负控只在自有隔离执行中恢复两处旧L参数，复用同一输入和测试证明失败，不另建/构建父版本树，不改断言或记录成正式正例。
+
+作者原件 `/tmp/molis-pr1308-goals-collection-i18n-20261025/`：一次FIFO整体build自然0，官方源码摘要 `bdcdb6e16a0643c18a185a3111af6305061dc6ae07f2b016d42e6ff32c3eebdc` 与 `2026-10-25T21:36:24.512Z` 构建清单一致。无外置控制的正式新文件6/6自然0，0fail/cancel/skip/todo。一次旧L负控仅通过Node load hook改当前自有build两处调用的执行中源码，不写磁盘源码/dist，4英文失败+2正控通过、自然exit1；分别在page title与refresh footer断言捕获中文回退。初跑5/6的错误测试常量 `Trash`（真实Host共享标签为 `In trash`）原日志保留，随后按现行声明修正期望，未改产品语义或放宽英语断言。

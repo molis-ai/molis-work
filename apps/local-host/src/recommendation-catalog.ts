@@ -7,7 +7,7 @@ import type { ActionProvider, ActionView, ActionSceneView } from "@molis-ai/moli
 /** The authoring catalog names a plugin by its plugin id; `provider_id` is the registration (an installation id for a plugin that is not bundled). */
 const pluginIdOf = (provider: ActionProvider): string => provider.plugin_id ?? provider.provider_id;
 
-export function liveHostFunctionAuthoringCatalog(directory: readonly ActionView[] = [], scenes: readonly ActionSceneView[] = []): FunctionAuthoringCatalog {
+export function liveHostJudgmentRuleAuthoringCatalog(directory: readonly ActionView[] = [], scenes: readonly ActionSceneView[] = []): FunctionAuthoringCatalog {
   const agentActions: FunctionAuthoringBehavior[] = directory.filter(view => view.action.audiences.some(audience => audience === "agent" || audience === "mcp")).map(view => {
     const action_ref = { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id };
     return { behavior_id: "action." + createHash("sha256").update(JSON.stringify(action_ref)).digest("hex").slice(0, 56),

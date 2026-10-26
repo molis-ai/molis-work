@@ -1,6 +1,6 @@
 # 平台服务：场景回调的写域（P4）、`services.scenes`（P1）与 `services.judgments`（P2）
 
-状态：P4（S-85）、P1（S-86）已实现并测试，P2（S-87）实现中（2026-10-26，防腐线 ac-platform，分支 `claude/ac-platform-scenes`，基于 main `2b3dc51de`）。号段 RAC-830～849（P1 用 830～837，P2 用 840～846，P4 用 847～849），S 号 85（P4）、86（P1）、87（P2）为本分支内的连续号，批时由统筹重排（ac-trust 分支也用 S-85/86）。三片叠在同一个分支，顺序 P4、P1、P2（P4 独立，先做）。
+状态：P4（S-85）、P1（S-86）、P2（S-87）均已实现并测试（2026-10-26，防腐线 ac-platform，分支 `claude/ac-platform-scenes`，基于 main `2b3dc51de`）。号段 RAC-830～849（P1 用 830～837，P2 用 840～846，P4 用 847～849），S 号 85（P4）、86（P1）、87（P2）为本分支内的连续号，批时由统筹重排（ac-trust 分支也用 S-85/86）。三片叠在同一个分支，顺序 P4、P1、P2（P4 独立，先做）。
 
 来源：Feed、Inbox 迁进 Plugin Runtime（FI-6）要用的场景客户端与判断账，今天是宿主私路。需求出自 ac-sandbox-sched 的 FI 设计 §1.2.6（`claude/ac-feed-inbox-designs` 头 `3dfd0fbb9`）P1、P2；统筹 2026-10-26 裁定：
 
@@ -146,3 +146,10 @@ export interface PluginJudgmentsClient {
   - 内核 `ActionSceneView/Usage` 里有没有提供方身份可以用来确认「场景属于这个安装」，没有就只靠 Manifest 声明的 `scene_id@version`；两个插件注册同一 `scene_id@version` 时注册表怎么拒（`scopedSceneKey`）。
   - 并行动作怎样把 `retainAuthority` 交给 `runScene` 的 `execution.invoke`/`beforeConsume`，写法照 `pluginActionDirectory.invoke`，但场景那一条没有现成的例子。
   - 沙箱插件的服务表（`packages/plugin-sandbox/src/services.ts`）是否需要给 `scenes`/`judgments` 写拒绝理由，照 `attention` 那一行抄。
+
+## 6. 实现与设计稿的出入（2026-10-26）
+
+- **P2 的写入门用 P4 同一道门**（`plugin-attention-service.ts` 的 `gateFor`，导出共用）：自己场景的可写回调要满足 P4 的两条——场景定义的 `permissions` 里声明了 `judgments:write`，且回调先等过 `beforeEffect()`——比 §3 规则 3 只写“可写回调”更严；场景的 `permissions` 本来就要是 Manifest 权限的子集（内核在装载时拒绝未声明的权限），所以只读判断账的插件，场景里也不能写 `judgments:write`。
+- **同步方法。** `latest`、`record` 与 `attention` 一样是同步的；停用的激活留在后台的代码调用，按 BL-411 不抛错、返回 `undefined`，测试按此断言。
+- **错误码。** 对象不属于当前项目用 `actions.scope_mismatch`（与 `services.scenes` 一致），不另起 `plugin.scope_mismatch`；种类不符用 `actions.forbidden`；场景不是自己的用 `plugin.scene_not_declared`。
+- **RAC-845 的“采用判断的核对”** 属于采用判断的插件（Feed、Inbox 的场景运行时，`scene_provenance` 复核），不在本服务：测试只钉住“Home 库那一行在、项目库的行不在、行带着 `scene_provenance`”。

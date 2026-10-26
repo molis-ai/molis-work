@@ -70,6 +70,8 @@ export interface PluginHostServices {
   readonly contextLedger?: import("./plugin-attention.js").PluginContextLedgerClient;
   /** The consumption scenes this plugin's Manifest declares (`action_scenes`); present with `scenes:use`, only inside the plugin's own running action (S-86). */
   readonly scenes?: import("./plugin-scenes.js").PluginSceneClient;
+  /** The judgment ledger of the scenes this plugin's Manifest declares; present with `judgments:read` or `judgments:write`. Not part of the plugin's project transaction (S-87). */
+  readonly judgments?: import("./plugin-judgments.js").PluginJudgmentsClient;
   /** Awaited, owner-bound Agent work through the Home's shared runtime. */
   readonly agents?: import("./plugin-agents.js").PluginAgentClient;
   /** One finite continuation of an accepted action; business jobs and recovery remain plugin-owned. */

@@ -28,17 +28,17 @@ export interface PluginProjectServicePorts {
   readonly journal: LocalSqliteJournal | undefined;
 }
 
-type Scope = ReturnType<typeof currentPluginInvocation>;
+export type Scope = ReturnType<typeof currentPluginInvocation>;
 
-interface Gate {
+export interface Gate {
   /** Whether the installation is still the running one and holds `permission`; the caller of an action, when there is one, is current. */
   read(permission: string): Scope;
   /** The same, and a write: only inside this project's writable, concurrent action (or kept job) that itself declares `permission`, or a writable callback of a scene that declares it and whose `beforeEffect` returned. */
   write(permission: string): NonNullable<Scope>;
 }
 
-/** The questions both services ask before every call, so a stopped, revoked, cancelled or read-only call reaches neither table. */
-function gateFor(context: PluginStartContext, projectId: string, assertActive: () => void, record: () => PluginInstanceRecord | null): Gate {
+/** The questions both services ask before every call, so a stopped, revoked, cancelled or read-only call reaches neither table; `services.judgments` asks the same ones (S-87). */
+export function gateFor(context: PluginStartContext, projectId: string, assertActive: () => void, record: () => PluginInstanceRecord | null): Gate {
   const generation = record()?.installation_generation;
   const holding = (permission: string) => {
     assertActive(); context.requireGrant(permission);

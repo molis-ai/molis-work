@@ -28,6 +28,7 @@ import { openInstalledPluginLibrary } from "./installed-plugin-libraries.js";
 import { openPluginProjectLibrary } from "./plugin-project-library.js";
 import { pluginAttentionFor, pluginContextLedgerFor } from "./plugin-attention-service.js";
 import { pluginScenesFor } from "./plugin-scene-service.js";
+import { pluginJudgmentsFor } from "./plugin-judgments-service.js";
 import type { PluginHostExecutorOptions } from "./plugin-executor.js";
 import { registerPluginAgentDefinitions } from "./plugin-instructions.js";
 import { pluginModelFor } from "./plugin-model-service.js";
@@ -147,10 +148,12 @@ function projectServices(options: PluginHostExecutorOptions, manifest: PluginMan
   return { ...(attention ? { attention } : {}), ...(contextLedger ? { contextLedger } : {}) };
 }
 
-/** `services.scenes` (PG-032 P1, S-86): the plugin's own consumption scenes, in the project the activation runs in. */
+/** `services.scenes` (PG-032 P1, S-86) and `services.judgments` (P2, S-87): the plugin's own consumption scenes and their judgment ledger, in the project the activation runs in. */
 function sceneServices(options: PluginHostExecutorOptions, manifest: PluginManifest, context: PluginStartContext, assertActive: () => void) {
-  const scenes = pluginScenesFor(manifest, context, { scenes: options.actions.scenes, project_id: options.project_id, assertActive, record: () => options.record?.(context.install_id) ?? null });
-  return scenes ? { scenes } : {};
+  const record = () => options.record?.(context.install_id) ?? null;
+  const scenes = pluginScenesFor(manifest, context, { scenes: options.actions.scenes, project_id: options.project_id, assertActive, record });
+  const judgments = options.home ? pluginJudgmentsFor(manifest, context, { home_directory: options.home.directory, project_id: options.project_id, assertActive, record }) : undefined;
+  return { ...(scenes ? { scenes } : {}), ...(judgments ? { judgments } : {}) };
 }
 
 function hostPluginCaller(options: PluginHostExecutorOptions, definition: PluginDefinition, context: PluginStartContext, assertActive: () => void): HostPluginCaller {

@@ -9,22 +9,22 @@
   "source": {
     "repository": "git+https://github.com/molis-ai/molis-prologue.git",
     "path": "packages/sdk",
-    "commit": "b65cc6283762b1d86f102778b63757c3954c1000",
+    "commit": "57cf75164ff4e89146c500e4b94d5a3bc56cfac4",
     "dirty": false,
     "dirtyPaths": [],
     "patches": [],
     "candidateUpstream": {
       "pullRequest": "https://github.com/molis-ai/molis-prologue/pull/108",
-      "head": "b65cc6283762b1d86f102778b63757c3954c1000",
+      "head": "57cf75164ff4e89146c500e4b94d5a3bc56cfac4",
       "status": "draft",
       "note": "Clean reviewed candidate; App composition and frozen performance acceptance are pending."
     }
   },
   "artifact": {
     "file": "prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
-    "bytes": 1409443,
-    "sha256": "437e1f1da8ff645140b1ec11d6058c972f352deaa1de5ba0fcae95fbe1ccce5b",
-    "integrity": "sha512-B+TcmJv1eDLpwwPY5dmB+q4cR8Q42UG10wKrIFIKHg5b7nvqruqj0GeX5+Vn3KI2k4OGX6HlIq1HKsxZUMP33g=="
+    "bytes": 1409470,
+    "sha256": "f2aeebd019d22a53114a28181d0c60a4969b215a98295a10d5ca21e75dbf810a",
+    "integrity": "sha512-oAr4USzFPUdI1F3vPUbrpohcbATKKCaV3ELyc6wrLxMW9tuxVaaFfSF8GHIeSNyXGVNboc1OSSofwBhG9cJNcg=="
   },
   "build": {
     "node": "24.14.0",
@@ -32,12 +32,12 @@
     "platform": "darwin",
     "architecture": "arm64",
     "steps": [
-      "Use clean source b65cc6283762b1d86f102778b63757c3954c1000.",
+      "Use clean source 57cf75164ff4e89146c500e4b94d5a3bc56cfac4.",
       "Use existing frozen offline workspace dependencies; run original pnpm build and pnpm pack in an isolated directory.",
       "Verify all 826 archived dist files byte-for-byte against the clean build and unchanged package.json.",
       "Run original clean-consumer.mjs; only its no-lock subprocess sets frozen=false, with offline/ignore-scripts unchanged."
     ],
     "packedOn": "2026-10-26",
-    "note": "Local original type/build/API/ratchet and 198 necessary behavior tests passed. Original clean installed consumer passed. App composition and frozen collection performance remain pending; no full quality, remote CI, merge or release is claimed."
+    "note": "Local original type/build/API/ratchet and 138 necessary behavior tests passed. Original clean installed consumer passed. App composition and frozen collection performance remain pending; no full quality, remote CI, merge or release is claimed."
   }
 }

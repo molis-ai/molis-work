@@ -3465,6 +3465,7 @@ App a81原467必要选集完整结束：464文件过、3首红、零retry；摘�
 合成提交为 `d92f2f918e2112d09de48fb1953ea96015915c1d`。其后原资源 updater/准确 29f 资源检查、`workspace:verify`、准确 29f health 均通过；按原 health 工具只降低本地快查，未改变检查逻辑或阈值。`git fetch origin main` 仍为 29f。后续推送新提交沿原 CI/Full 配置验证，不恢复用户暂缓的 21db 那轮；截至本记录，尚无新头远端通过证据。
 
 
+
 ### 2026-10-26 App 合入 batch-41 与 SDK b65：最小完整合成合同
 
 实现前短合同：App `fc03fe304` 合入父 `b60cb292c`，集中在原 #1101。保留 main PG-024 的删除主人迁移：声明式 project_rows/files 由平台处理，Artifacts 原件归 modules/artifacts；不恢复插件 project_data.purge。App 的 ProjectDeletionControl 必须进入这些现役主人，保持取消/撤权检查、物理目标/邻居隔离、文件失败时数据库行回滚及原清单重试语义；已经发生的文件删除不能伪称回滚。两个分支撞名的 clearProjectRows 第五参数合成 ownerFiles/control 两个独立参数，更新现役在线与离线路径。范围只覆盖已有项目删除/恢复交点，不新造删除框架。
@@ -3502,3 +3503,35 @@ Node 24.14.0 下冻结离线 install、原完整70包 build、Local Host strict�
 | 1000 | 81.797 / 79.721 | 34.605 / 10.660 | 38.849 / 14.330 | 未通过 |
 
 结论：较此前7ebb冷/暖读取有改善，但1000档仍有实质缺口，SDK #108和完整P0不能据此合并验收。原报告 `/private/tmp/molis-memory-b2-node2414-b65-scale-20261026-v2.json` 与日志保留，付费批次仍未开始。另记准备阶段失败：首次预检拒绝测量，未产生性能数据；合并未暂存时git ls-files重复列冲突项，最终索引不再重复，原构建记录因此失配。只读复算证实70包记录均匹配当时重复列表；对最终干净提交用原pnpm build重建后，原预检完整通过。未修改预检、构建缓存逻辑或任何阈值。
+
+
+### 2026-10-26 Foundation batch-42：可达性同步读的重复库校验
+
+本地最终实现核收：整体70包 build、Local Host strict、Projects 原类型检查、公开 API、准确 `29f1ffd4` health/原 updater 与48项资源门通过；本次不改门禁/例外，Catalog 方法数保持40。最终原 runner 12文件140/140首轮通过，含撤权/重新同意、版本及schema损坏、缺失项目、写前撤权、Reference、页面恢复及crosstalk4例；零重试。Root逐差异复核及最后增量独立评审均未发现新增确定P1/P2；不替代新提交Linux检查或产品整体验收。
+
+失败与诊断保留：新增用例前的原单文件完整运行曾在前两项通过后触发 Node24.14 原生 `InternalCallbackScope` 断言，新增用例尚未执行，原因未明。之后仅筛选新增MEM-42三例，得到2通过/1预期失败（一次可达性两次开库校验）；实现后上列原12文件中该完整文件18/18通过，不能据此关闭首次原生崩溃原因。两次red均走原runner的独立临时Home，没有直接Node绕过隔离。
+
+Coding另执行一次被动连接观察：对象为b60加本片最终候选，原8例首轮通过；46请求均有完整双端响应，未复现请求级ECONNRESET。6监听端口互异、12存活连接正常复用；12个客户端收尾 `UND_ERR_SOCKET` 都在响应完成与server关闭之后，不是失败fetch。两份日志正常退出、无可检测截断或观察异常；关闭API事件不等于t.after开始。探针有时序扰动，本机未复现不能关闭旧CI失败，也不能与crosstalk合并归因。原件前缀 `molis-memory-coding-reset-probe-20261026`；最终验证日志前缀 `molis-memory-foundation-b42-final-20261026`（对应build/focused/host-strict/api/health/assets，实际文件以各步骤名置于日期前）。当前尚无本片新提交的远端验收结果。
+
+实现收束：初版新增 Catalog 转发使现有巨大类方法数由40增至41，原准确主干 health 门拒绝。采用同一合并查询替代 Catalog 原 `listHiddenPlugins` 薄转发，并迁移它的实际调用者；原同时取成员与隐藏列表的 UI / Reference 读取共用这次结果，只需隐藏列表的调用者读取结果的 hidden。模块原独立 query 仍保留原合同，存储显示投影仍不得作授权。包含这些直接调用者的最小迁移，不引入可调用字段躲避计数、不登记巨大类例外、不改变门禁。页面写后返回仍保留已提交操作的 plugins 结果，随后读取当前 hidden。
+
+最新 b60 的普通 CI 与 Full 都为 success，但原日志核收为1511文件、1509首轮accepted、2首红经原retry1通过：crosstalk仍2/4首红，cleanup CDP延迟1587/1303ms超过原1000ms，新增CPU/事件循环诊断表明本Node在该时间窗持续活动；coding-original-inputs另有7/8和ECONNRESET，根因尚未知。两者不合并归因，旧Cloudflare原因仍按用户决定未核清，旧21db普通CI不恢复。
+
+先收窄已证实的实际重复工作：一次同步projectReachablePlugins依次取hidden与plugins，二者各调registry.alwaysOn，现役Home库因此完整打开、BEGIN、版本/实际与参考schema校验、读同意/安装、close两次。现有storedProjectPluginMembership仅供显示，禁止拿来授权；不能复用它，也不增加全局/请求级授权缓存。
+
+本刀短合同：在Projects现有同步query窄口增加projectPluginMembership，沿用既有ProjectPluginMembership形状。Module局部只读取一次alwaysOn，供原成员派生及hidden过滤共同使用；Catalog只转发，reach只消费同一同步结果。保持先alwaysOn/schema检查、后项目读取的错误顺序，保持personal、stored、排序、outside-build和嵌入插件语义。局部结果不保存到实例，不跨await复用；live admit和beforeEffect仍各自即时重读。硬边界与可配置策略均不变，无新包/缓存/配置/界面旋钮。
+
+允许修改现役Projects合同、Module的service/query接线、Catalog与reach调用、对应README及原安全/调用方回归；公共快照由Root原生成器刷新。先用真实临时Home的被动连接/版本读计数确认现状两次，再验证候选一次；同意撤回/恢复在下一次读立即生效，随后schema变坏仍拒绝（包括不存在项目时不能降级个人fallback），原异步撤权用例仍零写入。统一build、类型/API/准确父门禁、原定向回归和原crosstalk路径测量后评估。这里只承诺减少真实重复I/O，尚不宣称已定位/修复Linux超时；保留原1000ms、重试和全部断言，ECONNRESET独立诊断。
+
+
+
+### 2026-10-26 App batch-43：当前成员查询与 SDK 目标副本合成
+
+本次继续汇总在 Draft #1101：把已过普通 CI 的父 d61374d93 合入，保留其 current membership 合并查询、每次执行前即时复核和旧故障记录；与 App 的分类、来源、恢复及 PG-024 写主人不相互覆盖。唯一文本冲突是双方追加 spec，逐段保留；先解决未合并索引再构建，避免重现前次构建指纹的重复文件输入。
+
+采用 SDK 57cf75164ff4e89146c500e4b94d5a3bc56cfac4 的干净原档，只优化 canonical 授权目标的 JSON 副本，不改变任一权限、当前字节、版本、取消、完整候选或回执合同。包为1,409,470 B，826个dist，原build/pack/clean-consumer通过；已逐文件核原档，旧b65包与完整sidecar保存在Git blob记录。没有发布、增加包份数、修改门禁或新增资源额度。
+
+本次 App 验证尚未执行：沿原冻结离线install/整体build、直接影响回归、strict/API/准确父health与资源门，并在干净合成头运行原规模门。旧b65的1000条红不被这次SDK局部验证替代；两种孤立IO方法对照未显示可采用的优势，不混入产品。Coding +1206 B和零模型恢复Knowledge边界仍待用户决定，旧Cloudflare按决定未核清；付费192次上限批次尚未开始。
+
+
+App batch-43 本地组合回归已执行：原冻结离线install、70包整体build、Local Host strict、69份API快照/3134声明检查通过；去重后的42文件（3个browser）、jobs2/browser1/零重试，504/504首轮通过。覆盖父成员查询、即时撤权/损坏库拒绝、PG-024删除与恢复、分类/形成/当前授权/真实Context回执以及Memory/Assistant页面。仅spec追加冲突，双方段落保留；Root复核自动合成的模块query、Contract及实际差异。准确父d613 health/资源和新包规模仍待合成提交后核对，不能沿用上一包结果；验证日志前缀 `/private/tmp/molis-memory-app-b43-`，日期20261026。

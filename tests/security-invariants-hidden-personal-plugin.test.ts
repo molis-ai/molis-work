@@ -60,7 +60,10 @@ test("RAC-580 S-72 an always-on plugin stays in reach because the project's cata
   const home = await openTestHome(t, { catalogPolicy: false });
   const project = await home.createProject("Always on", ["goals"]);
   await hide(home, project, "pages");
-  const listed = await withMolisWorkProjectCatalog({ homeDirectory: home.home }, catalog => ({ enabled: catalog.listProjectPlugins(project.project_id), hidden: catalog.listHiddenPlugins(project.project_id) }));
+  const listed = await withMolisWorkProjectCatalog({ homeDirectory: home.home }, catalog => {
+    const { plugins, hidden } = catalog.projectPluginMembership(project.project_id);
+    return { enabled: plugins, hidden };
+  });
   assert.deepEqual(listed.hidden, ["pages"], "what the person hid is listed, and a 常开 plugin is never among it");
   const shown = shownProjectPlugins(listed.enabled, listed.hidden);
   assert.ok(shown.includes("shelf") && !shown.includes("pages"));

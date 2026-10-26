@@ -55,7 +55,7 @@ async function pluginMembership(composition: LocalWebComposition, homeDirectory:
 }> {
   if (!projectId || !homeDirectory) return { plugins: undefined, hidden: undefined, shown: shownProjectPlugins([]) };
   return composition.withCatalog({ homeDirectory }, (catalog) => {
-    const plugins = catalog.listProjectPlugins(projectId), hidden = catalog.listHiddenPlugins(projectId);
+    const { plugins, hidden } = catalog.projectPluginMembership(projectId);
     return { plugins, hidden, shown: shownProjectPlugins(plugins, hidden) };
   });
 }

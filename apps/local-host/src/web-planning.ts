@@ -33,7 +33,10 @@ export function createLocalPlanningHttp(ports: {
     const planningDocument = request.method === "GET" && url.pathname.startsWith("/settings/planning");
     // The settings navigation lists the plugins the context shows, as the Host works it out (W5-02 B1).
     const enabledPlugins = planningDocument && contextProject && homeDirectory
-      ? await withMolisWorkProjectCatalog({ homeDirectory }, (catalog) => shownProjectPlugins(catalog.listProjectPlugins(contextProject.project_id), catalog.listHiddenPlugins(contextProject.project_id)))
+      ? await withMolisWorkProjectCatalog({ homeDirectory }, (catalog) => {
+        const { plugins, hidden } = catalog.projectPluginMembership(contextProject.project_id);
+        return shownProjectPlugins(plugins, hidden);
+      })
       : shownProjectPlugins([]);
     const route = request.method === "GET" ? matchGoalsPlanningRoute(url.pathname, "personal") : null;
     let methods: PlanningMethodPack[] = [];

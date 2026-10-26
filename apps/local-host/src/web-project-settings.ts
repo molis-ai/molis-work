@@ -141,7 +141,8 @@ async function handlePluginSettings(withMolisWorkProjectCatalog: LocalWebCatalog
           const plugins = await catalog.commit(() => catalog.addProjectPlugin({
             project_id: projectId, plugin_id: pluginId, actor_id: LOCAL_PERSON_ACTOR_ID,
           }));
-          return { plugins, hidden: catalog.listHiddenPlugins(projectId) };
+          const current = catalog.projectPluginMembership(projectId);
+          return { plugins, hidden: current.hidden };
         });
         await pluginsChanged?.(projectId);
         sendJson(response, 200, { project_id: projectId, ...membership });

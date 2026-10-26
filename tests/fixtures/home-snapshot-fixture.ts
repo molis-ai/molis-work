@@ -12,6 +12,8 @@ import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { ALCHEMIST_STUDIO_BASELINE } from "@molis-ai/molis-work-plugin-alchemist";
 import { createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { applySqliteBaseline, createEvidenceContentStore, createLazyFileSecretStore, createSearchOpaqueBlobStore, LocalSqliteStorage } from "@molis-ai/molis-work-storage";
+import type { AgentMemoryCaller } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { currentMemoryOptions } from "./current-memory.js";
 import { managementGoals } from "../goal-management-caller.js";
 import { connectedPrivateCli } from "./connector-private-state.js";
 import { pinnedArtifact } from "./artifacts.js";
@@ -19,7 +21,15 @@ import { seedSnapshotLibraries } from "./home-snapshot-facts.js";
 
 const at = "2026-10-24T00:00:00.000Z";
 const app = { appId: "io.molis.snapshot-proof", appVersion: "1.0.0" };
-export function snapshotSdk(storageRoot: string) { return createPrologueNodeAdapter({ storageRoot, app, modelConfiguration: async () => null }); }
+type SnapshotMemoryActor = "snapshot-person" | "snapshot-builder";
+export function snapshotMemoryCaller(actor_id: SnapshotMemoryActor): AgentMemoryCaller {
+  return { actor_id, project_id: null, consumer: "ui", current_scene: "coding", purpose: "management", person: true };
+}
+export function snapshotSdk(storageRoot: string, actor: SnapshotMemoryActor) {
+  return createPrologueNodeAdapter({ storageRoot, app, modelConfiguration: async () => null,
+    memory: currentMemoryOptions({ appId: app.appId, scopesFor: () => [{ scope: "user", owner: actor }],
+      allowed: caller => caller.actor_id === actor && caller.project_id === null && caller.person === true }) });
+}
 
 /** A real prepared/connected CLI, Catalog/Goals/Artifacts and SDK memory, plus persisted facts in each registered owner. */
 export async function populatedSnapshotHome(t: TestContext) {
@@ -89,16 +99,16 @@ export async function populatedSnapshotHome(t: TestContext) {
     const searchContent = createEvidenceContentStore({ secretStore: secrets, rootDirectory: join(home, directory, "search-content") });
     searchContent.write("Retained studio evidence " + position);
   }
-  const sdkRoot = join(home, "agent-runtime"), creating = snapshotSdk(sdkRoot);
+  const sdkRoot = join(home, "agent-runtime"), creating = snapshotSdk(sdkRoot, "snapshot-person");
   let memoryId: string;
   try {
     const adapter = await creating;
-    const memory = await adapter.memory!.write({ scope: "user", owner: "snapshot-person", text: "Retained SDK memory", origin: "test" });
+    const memory = await adapter.memory!.withCaller(snapshotMemoryCaller("snapshot-person")).write({ scope: "user", owner: "snapshot-person", text: "Retained SDK memory", origin: "test" });
     memoryId = memory.memory_id;
     await adapter.createSession({ project_id: first.project_id, plugin_id: "io.molis.work.coding", install_id: "snapshot-install", actor_id: "snapshot-person", title: "Retained SDK session", directory: { canonical_path: workspace, realpath_verified: true } });
   } finally { await creating.close(); }
-  const builderRoot = join(home, "plugin-builder", "project", "runs", "build"), builder = snapshotSdk(builderRoot);
-  try { await (await builder).memory!.write({ scope: "user", owner: "snapshot-builder", text: "Retained builder memory", origin: "test" }); }
+  const builderRoot = join(home, "plugin-builder", "project", "runs", "build"), builder = snapshotSdk(builderRoot, "snapshot-builder");
+  try { await (await builder).memory!.withCaller(snapshotMemoryCaller("snapshot-builder")).write({ scope: "user", owner: "snapshot-builder", text: "Retained builder memory", origin: "test" }); }
   finally { await builder.close(); }
   const sessionKey = randomBytes(32), nonce = randomBytes(12), cipher = createCipheriv("aes-256-gcm", sessionKey, nonce);
   const encrypted = Buffer.concat([cipher.update("Retained retired Session body"), cipher.final()]);

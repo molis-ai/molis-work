@@ -89,6 +89,7 @@ export class ProjectsModule implements ProjectsApplicationApi {
         this.records.get(projectId);
         return { plugins: repository.listProjectPlugins(projectId), hidden: repository.listHiddenPlugins(projectId) };
       },
+      projectPluginMembership: (projectId) => this.records.pluginMembership(projectId),
       listProjectPlugins: (projectId) => this.records.listPlugins(projectId),
       listHiddenPlugins: (projectId) => this.records.listHidden(projectId),
       listProjects: () => this.records.list(),

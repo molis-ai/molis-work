@@ -277,7 +277,7 @@ const ROUTES: RouteMaker[] = [
         ? await Promise.all(withChildren.map(each => codingActions(a.context, beforeWrite).invoke(agent.listSubagents, [session, each.ref]))).then(lists => lists.flat(), () => null) : [];
       const next = codingContinuation({ number: index + 1, run, reviews, commands, plan_unfinished: Boolean(plan), subagents });
       // A plan run in parallel goes on in parallel; any other plan continues as one execution round.
-      return plan ? { ...next, intent: next.intent === "parallel" ? "parallel" : "execute", plan_revision: plan.revision, continue_step_board_of: run.ref.run_id } : next;
+      return { ...next, continued_from: run.ref, ...(plan ? { intent: next.intent === "parallel" ? "parallel" : "execute", plan_revision: plan.revision, continue_step_board_of: run.ref.run_id } : {}) };
     });
   },
   (a) => {

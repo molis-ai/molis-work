@@ -2,6 +2,9 @@ import type { AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platfo
 import type { AgentImageMaterial, AgentTextMaterial } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentPendingQuestion } from "@molis-ai/molis-work-contracts/services/agent-interaction";
 import type {
+  AgentRuntimeAdapter,
+  AgentRecalledMemory,
+  AgentMemoryUseReceipt,
   AgentSkillLibrary,
   AgentMcpLibrary,
   AgentMcpToolRef,
@@ -17,6 +20,7 @@ import type {
   AgentStartRequest,
   AgentStartExecution,
 } from "@molis-ai/molis-work-contracts/services/agent-host";
+import type { SupplementaryLocation } from "./prologue-original-inputs.js";
 import type { RoundInputs, SessionQueue } from "./prologue-inputs.js";
 import type { PrologueApprovalBridge } from "./prologue-approvals.js";
 import type { RoundDesk, PrologueControlState, PrologueEvent } from "./prologue-stream.js";
@@ -55,6 +59,8 @@ export interface PrologueAdapterPorts {
   stopHeld?(runId: string): { target: string; summary: string } | undefined;
   /** True when the run was held for only saying what it would do, and called nothing after its one continuation. */
   endedOnPromise?(runId: string, sessionId: string): boolean;
+  /** Project actual SDK Context receipts into the App's existing memory ledger. Never a model tool. */
+  memoryUsage?(receipt: AgentMemoryUseReceipt): void | Promise<void>;
 }
 
 export interface PrologueRunPort {
@@ -85,6 +91,7 @@ export interface PrologueStartInput {
   subagent_workspaces?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSubagentWorkspace[];
   subagents?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentFrozenSubagentRole[];
   /** Host provenance, persisted before execution; never credentials or event history. */
+  original_input?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentOriginalInput;
   provenance: { frozen: AgentRunView["frozen"]; started_at: string };
   session_id: string;
   /** Authorized root this Run may touch, already resolved by the Host. `business`: no root, the App's actions only. */
@@ -169,6 +176,9 @@ export interface PrologueRuntimePort {
   readCommandOutput?(sessionId: string, ref: AgentCommandOutputRef): Promise<AgentCommandOutput>;
   sessions: {
     create(input: AgentCreateSessionRequest, execution?: AgentStartExecution): Promise<{ ref: { id: string } }>;
+    originalInput?(sessionId: string, input: Pick<AgentStartRequest, "original_input" | "continued_from">): Promise<import("@molis-ai/molis-work-contracts/services/agent-host").AgentOriginalInput | undefined>;
+    readOriginalInput?: AgentRuntimeAdapter["readOriginalInput"];
+    locateInput?(sessionId: string, inputId: string): Promise<SupplementaryLocation | undefined>;
     restore?(sessionId: string): Promise<PrologueRestoredSession | undefined>;
     /** Same owner/recovery checks as restore, without restoring historical controls or retaining transcripts. */
     readStatus?(sessionId: string): Promise<{
@@ -196,6 +206,8 @@ export interface PrologueRestoredSession {
     frozen: AgentRunView["frozen"];
     started_at: string;
     task: string;
+    original_input?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentOriginalInput;
+    memory_context?: Pick<AgentRecalledMemory, "consumer" | "usage">;
     stop_intent?: "stopped" | "cancelled";
     /** Why the Host stopped this run itself, when it did. */ stop_reason?: string;
     /** The runtime holds this run as finished (sealed), whatever its saved progress shows. */

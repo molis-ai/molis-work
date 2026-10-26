@@ -60,7 +60,7 @@ node scripts/run-tests.mjs tests/plugin-runtime-integration.test.ts tests/plugin
 
 Host 使用 `runInPluginAction` 将已验证的安装、动作定义和调用控制绑定到生成插件的公开操作；嵌套调用不借用上游插件的安装身份，取消和撤权仍沿原调用检查。
 
-动作可用性在同步只读作用域读取插件自己的设置，按原调用者权限检查；写入、模型执行与回调结束后的访问均拒绝。插件动作、动作可用性和全部场景回调共用隔离后的上下文视图，视图不含 Host 签发的 `host_plugin`；Runtime 内部保留原上下文检查授权，插件继续经自己的 SDK 服务调用。
+动作可用性在同步只读作用域读取插件自己的设置，按原调用者权限检查；写入、模型执行与回调结束后的访问均拒绝。插件动作、动作可用性和全部场景回调共用隔离后的上下文视图，视图不含 Host 签发的 `host_plugin`；Runtime 内部保留原上下文检查授权，插件继续经自己的 SDK 服务调用。 `original_input` 含嵌套 Action 引用也必须独立复制，插件修改自己的视图不能改变 Host 留存的本人原件证明；回归沿用 S-18 callback mutations。已受理后台执行保留原调用身份与授权控制，但明确剥离只属于当次操作的 `original_input`，由 RAC-53 同时验证正常后台结果仍提交。
 
 ## 开发要求
 

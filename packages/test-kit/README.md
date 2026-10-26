@@ -35,6 +35,8 @@
 
 本包提供与业务无关的检查规则和浏览器驱动，不替代模块测试、浏览器验收或数据迁移验证。新增边界规则应同时提供允许/拒绝案例，避免仅检查固定文件数量。
 
+CDP 命令超时的 `Error.cause` 仅记录等待期间的 `nodeCpuMs`、`eventLoopActiveMs`、`eventLoopIdleMs`，辅助区分本 Node 进程繁忙与等待对端。数字不是 Chrome CPU 或响应到达时间，不能单独作为根因。原期限、失败消息与调用栈保留；不发送诊断 CDP 请求。
+
 浏览器驱动只用 Node 24 自带的 `WebSocket`（连 DevTools）和 `node:child_process`（起 Chrome）等内置模块，不加依赖；本机 Host HTTP 客户端只用 Node 自带的 `fetch` 和 `node:crypto`，类型只来自 `@molis-ai/molis-work-contracts/platform/actions`；`@molis-ai/molis-work-test-kit` 根入口保持纯规则（`scripts/check-package-boundaries.mjs` 导入它），Chrome 相关代码只在子路径 `/browser`，本机 Host HTTP 客户端只在子路径 `/local-host-http`（不叫 `/local-web`，免得和 local-host 的 `local-web-actions.ts` 混）。需要产品选择器、产品诊断的夹具留在 `tests/fixtures/`，在这里的 `ChromeHarness` 之上加（例如 `tests/fixtures/goal-browser.ts`、`tests/fixtures/plugin-builder-browser.ts`）。宿主的装配同样留在 `tests/fixtures/`：`test-home.ts` 的 `serveTestHost`、`openTestHome` 起临时 Home、`MolisWorkLocalHost`、产品自己的 web 服务和网关客户端，把 `/local-host-http` 的客户端交给用例（`goal-browser.ts` 的返回值里也有 `controlToken` 与 `web`）。Goals 的授权夹具 `tests/fixtures/goals-mcp-grants.ts` 也走这个客户端：给一个 Home 目录（短暂起一个产品装配的 Host）或用例自己起的 `serveTestHost`，约 60 个 Goals 动作按依赖顺序、同范围的一起（`with`，一次最多 16 个）分几次存。
 
 用 test-kit 浏览器代码的用例会被 Linux 探针标成浏览器用例（`scripts/ci-linux-probe/select.mjs` 的 `RULES.browser.text` 认包名 `molis-work-test-kit/browser`），不在探针里跑。

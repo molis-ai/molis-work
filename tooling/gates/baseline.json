@@ -1,9 +1,9 @@
 {
-  "giantUnits": 69,
+  "giantUnits": 72,
   "giant": {
-    "file apps/local-host/src/assistant/assistant-service.ts": 1842,
+    "file apps/local-host/src/assistant/assistant-service.ts": 1837,
     "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
-      "lines": 1491,
+      "lines": 1480,
       "methods": 90
     },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
@@ -39,16 +39,16 @@
     "file apps/workbench/src/i18n/en.ts": 3266,
     "function apps/workbench/src/project-settings-pages.ts#createWorkbenchProjectSettingsPages": 174,
     "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 284,
-    "file apps/workbench/src/scripts/client/assistant-island.ts": 2046,
+    "file apps/workbench/src/scripts/client/assistant-island.ts": 2031,
     "file apps/workbench/src/scripts/client/navigation-feed.ts": 955,
     "file apps/workbench/src/scripts/client/tab-workspace.ts": 1948,
     "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 181,
     "function apps/workbench/src/shell-page-renderer.ts#createWorkbenchGoalsPageRenderer": 176,
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 425,
-    "file horizontal/memory/src/service.ts": 1259,
+    "file horizontal/memory/src/service.ts": 1151,
     "class horizontal/memory/src/service.ts#MemoryService": {
-      "lines": 1079,
-      "methods": 51
+      "lines": 1015,
+      "methods": 48
     },
     "function horizontal/scheduler/src/index.ts#createScheduleService": 215,
     "class modules/goals/src/event-facts-repository.ts#GoalEventFactsRepository": {
@@ -82,6 +82,12 @@
       "lines": 287,
       "methods": 29
     },
+    "file modules/shelf/src/store.ts": 1061,
+    "class modules/shelf/src/store.ts#ShelfStore": {
+      "lines": 660,
+      "methods": 31
+    },
+    "function modules/shelf/src/store.ts#runJob": 182,
     "file packages/design-system/src/styles/momentum.ts": 819,
     "file packages/design-system/src/styles/primitives.ts": 1258,
     "class packages/kernel/src/action-service.ts#ActionService": {
@@ -352,7 +358,7 @@
     "tests/workspace-git-read.test.ts": 1,
     "tests/workspace-production-events.test.ts": 1
   },
-  "vendoredPrologueSdk": 1,
+  "vendoredPrologueSdk": 2,
   "schemaPatches": 0,
   "compatMarkerTotal": 8,
   "compatMarkers": {
@@ -546,7 +552,7 @@
   },
   "hybridPluginsTotal": 0,
   "hybridPlugins": {},
-  "pluginOutsideMentionsTotal": 105,
+  "pluginOutsideMentionsTotal": 104,
   "pluginOutsideMentions": {
     "alchemist#outside-files": 5,
     "artifacts#outside-files": 3,
@@ -568,7 +574,7 @@
     "plugin-builder#outside-files": 13,
     "ppt#outside-files": 0,
     "schedule#outside-files": 4,
-    "shelf#outside-files": 3,
+    "shelf#outside-files": 2,
     "text-stats#outside-files": 0,
     "todo#outside-files": 0,
     "workflows#outside-files": 0
@@ -861,7 +867,7 @@
   "floatingPromises": {
     "horizontal/agent-host/src/adapters/prologue-git.ts": 2
   },
-  "explicitAnyTotal": 466,
+  "explicitAnyTotal": 464,
   "explicitAny": {
     "apps/workbench/src/tab-reorder.ts": 2,
     "apps/workbench/src/tab-split-drop.ts": 4,
@@ -961,7 +967,6 @@
     "tests/mcp-access-browser.test.ts": 1,
     "tests/mcp-action-settings.test.ts": 6,
     "tests/memory-agent-runs.test.ts": 2,
-    "tests/memory-learning.test.ts": 2,
     "tests/model-thinking.test.ts": 2,
     "tests/pages-cross-module.test.ts": 1,
     "tests/pages-input-rules.test.ts": 3,

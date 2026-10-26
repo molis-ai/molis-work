@@ -30,7 +30,7 @@ test("VUX-40 (Chinese): every menu, popover and dialog of the project page and e
     const child = id ? views[id] : undefined; if (!child) return null;
     await child.waitFor("document.querySelector('[data-work-surface]')"); return child;
   };
-  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await browser.setViewport(1440, 900);
   // A layer is read where it comes to rest, not while it grows in.
   await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
   await navigate(() => command("Page.navigate", { url: `${origin}/locale?lang=zh&next=%2F` }, sessionId));
@@ -54,7 +54,7 @@ test("VUX-40 (Chinese): every menu, popover and dialog of the project page and e
   };
   const names = TITLES.map((title) => title.slice(0, 10));
   for (const size of WIDTHS) {
-    await command("Emulation.setDeviceMetricsOverride", { width: size.width, height: size.height, deviceScaleFactor: 1, mobile: size.touch }, sessionId);
+    await browser.setViewport(size.width, size.height, size.touch);
     // Each plugin, and the detail view of what was made first in it (its long name heads the view).
     const screens = [...SURFACES, ...SURFACES.filter((id) => opened[id]).map((id) => `${id}:open`)].map((surface): [string, string] => {
       const [id, item] = surface.split(":");
@@ -71,7 +71,7 @@ test("VUX-40 (Chinese): every menu, popover and dialog of the project page and e
 test("VUX-40 (Chinese): every page of Settings and of the project's settings, and the Goal canvas and kanban, fit long Chinese names at 1440, 820 and 390 px", { timeout: 1_800_000 }, async (t) => {
   const browser = await openGoalBrowser(t, "seeded", seedLongChinese); if (!browser) return;
   const { evaluate, waitFor, command, sessionId, navigate, origin, projectId } = browser;
-  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await browser.setViewport(1440, 900);
   await navigate(() => command("Page.navigate", { url: `${origin}/locale?lang=zh&next=%2F` }, sessionId));
   await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("document.readyState === 'complete' && typeof globalThis.molisWorkControlHeaders === 'function'", 20_000);
@@ -97,7 +97,7 @@ test("VUX-40 (Chinese): every page of Settings and of the project's settings, an
   const LOADED = "document.readyState === 'complete' && ![...document.querySelectorAll('[data-settings-panel] .mw-loading, [data-settings-loading]:not(.mw-empty--error)')].some((node) => node.checkVisibility())";
   let sections = 0;
   for (const size of WIDTHS) {
-    await command("Emulation.setDeviceMetricsOverride", { width: size.width, height: size.height, deviceScaleFactor: 1, mobile: size.touch }, sessionId);
+    await browser.setViewport(size.width, size.height, size.touch);
     // Every page of the two settings directories, the person's (系统设置) and the project's (项目设置), as the workbench shows them.
     for (const kind of ["settings", "project-settings"]) {
       await open(`/projects/${projectId}/?openPlugin=${kind}`);

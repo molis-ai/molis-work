@@ -56,7 +56,10 @@ export function projectRequestContext(context: WebRequestContext, options: Resol
   const hostReference = molisWorkHostProjectReference({ databasePath: options.databasePath, projectId: options.projectId });
   const userActions = (permissions: readonly string[], entry: LocalWebEntry = {}) => bindLocalWebActions(localHost, hostReference, permissions, entry);
   const shownPlugins = (projectId: string) => composition.withCatalog({ homeDirectory: serverOptions.homeDirectory },
-    catalog => shownProjectPlugins(catalog.listProjectPlugins(projectId), catalog.listHiddenPlugins(projectId)));
+    catalog => {
+      const { plugins, hidden } = catalog.projectPluginMembership(projectId);
+      return shownProjectPlugins(plugins, hidden);
+    });
   const goalsHere = async () => !options.project || await composition.withCatalog({ homeDirectory: serverOptions.homeDirectory },
     catalog => catalog.listProjectPlugins(options.projectId).includes("goals"));
   return { ...context, options, hostReference, userActions, shownPlugins, goalsHere };

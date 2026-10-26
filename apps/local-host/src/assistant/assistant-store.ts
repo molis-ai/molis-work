@@ -94,7 +94,7 @@ export interface StoredWork extends Omit<AssistantWork, "state" | "delegated_by"
   /** Half-written answers to the questions its rounds wait on, by pending id, as the question card's fields hold them. Never shown as the work. */
   question_drafts?: Record<string, Record<string, unknown>>;
   /** The person's explicit choice to hold automatic continuation; the SDK still owns the actual wait. */
-  continuation_hold?: "paused" | "stopped";
+  continuation_hold?: "input" | "paused" | "stopped";
 }
 
 /** A change that can be taken back: the public view plus the exact undo to run. */
@@ -431,3 +431,10 @@ export class AssistantStore {
 
 /** This store in the Home's store registry (W4-11). */
 export const ASSISTANT_HOME_STORE: HomeStoreDeclaration = { path: ASSISTANT_STORE_NAME, library: { baseline: ASSISTANT_STORE_BASELINE } };
+
+/** Resolve the existing work owner for a Session without a recent-work limit or a second source index. */
+export function assistantWorkForSession(db: DatabaseSync, actorId: string, sessionId: string): StoredWork | undefined {
+  const store = new AssistantStore(db);
+  const rows = db.prepare("SELECT work_id FROM assistant_works WHERE actor_id=? AND json_extract(body,'$.session_id')=? LIMIT 2").all(actorId, sessionId);
+  return rows.length === 1 ? store.get(actorId, String(rows[0]!.work_id)) : undefined;
+}

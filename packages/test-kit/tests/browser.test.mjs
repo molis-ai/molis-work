@@ -261,8 +261,14 @@ test("a command that gets no reply times out at the given limit and the error na
     await assert.rejects(harness.command("Runtime.evaluate", { expression: "document.title + ' ' + 'x'.repeat(10)" }, undefined, 150),
       /CDP timeout: Runtime\.evaluate · document\.title/);
     assert.ok(Date.now() - started < 2_000);
-    // Without an expression the message is just the method; a long expression is cut.
-    await assert.rejects(harness.command("Browser.getVersion", {}, undefined, 50), (error) => error.message === "CDP timeout: Browser.getVersion");
+    // Without an expression, keep the method, measured elapsed time, exact limit and caller; a long expression is cut.
+    await assert.rejects(harness.command("Browser.getVersion", {}, undefined, 50), (error) => {
+      assert.match(error.message, /^CDP timeout: Browser\.getVersion \(elapsed \d+ms; limit 50ms\)$/);
+      assert.deepEqual(Object.keys(error.cause).sort(), ["eventLoopActiveMs", "eventLoopIdleMs", "nodeCpuMs"]);
+      assert.ok(Object.values(error.cause).every(value => Number.isFinite(value) && value >= 0));
+      assert.match(error.stack, /browser\.test\.mjs:\d+:\d+/);
+      return true;
+    });
     await assert.rejects(harness.command("Runtime.evaluate", { expression: "y".repeat(1000) }, undefined, 50), (error) => error.message.length < 400);
   });
 });

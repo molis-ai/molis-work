@@ -6,6 +6,8 @@ import type { HostCapabilityInvocation, HostPluginCaller } from "@molis-ai/molis
 import { agentCollaborationActions } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { agentOfferActions, type AgentActionClient, type AgentRunRef, type AgentRuntimeAdapter, type AgentSessionRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentInputActions } from "@molis-ai/molis-work-contracts/services/agent-inputs";
+import type { HostOfferedOriginalInput } from "@molis-ai/molis-work-contracts/platform/actions";
+import { trustedSupplementInput } from "./original-inputs.js";
 
 type Call = { invocation: HostCapabilityInvocation };
 /** The registration helper, for actions only: each of these is in the action directory, never a typed-only capability. */
@@ -19,7 +21,8 @@ interface SessionActionPorts<C extends Call> {
   /** The session is in the caller's project and is the caller's own (its plugin, installation and person). */
   ownsSession(call: C, session: AgentSessionRef): Promise<boolean>;
   /** The round belongs to this session, and the session to the caller's project and plugin; gives the session's owner. */
-  requireRun(call: C, session: AgentSessionRef, run: AgentRunRef): Promise<{ owner: { actor_id: string } }>;
+  requireRun(call: C, session: AgentSessionRef, run: AgentRunRef): Promise<{ owner: { actor_id: string; install_id: string } }>;
+  originalInput(call: C): HostOfferedOriginalInput | undefined;
   /** The actions the plugin's rounds are granted through this runtime, as that grant reads now, carrying the session the Host checked; absent when it grants none. */
   actions(call: C, runtimeId: string, session: AgentSessionRef): Promise<AgentActionClient | undefined>;
 }
@@ -71,12 +74,12 @@ export function registerSessionActions<C extends Call>(register: Register<C>, po
     }),
     register(agentInputActions.send, async (call, input) => {
       const { runtime_id, session_id, run_id, ...send } = input;
-      const run = { session_id, run_id };
-      await ports.requireRun(call, { runtime_id, session_id }, run);
+      const run = { session_id, run_id }, offered = ports.originalInput(call);
+      const session = await ports.requireRun(call, { runtime_id, session_id }, run);
       const adapter = ports.adapter(call, runtime_id);
       if (!adapter.inputs) throw agentErrors.capability_unavailable("当前运行时不能向一轮补充要求");
       await fresh(call);
-      return adapter.inputs.send(run, send, () => call.invocation.assertAuthorityCurrent());
+      return adapter.inputs.send(run, trustedSupplementInput(send, offered, session.owner.install_id), () => call.invocation.assertAuthorityCurrent());
     }),
     // Taking a supplement back: the round, or the session, still holds it and the model has not seen it.
     register(agentInputActions.withdraw, async (call, input) => {

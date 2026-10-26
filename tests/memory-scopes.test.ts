@@ -1,36 +1,26 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { memoryServiceHome } from "./fixtures/memory-service-home.js";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { AgentHost, AgentReviewQueue, createPrologueNodeAdapter } from "@molis-ai/molis-work-service-agent-host";
 import { MemoryService, characterOwner, type MemoryCaller } from "@molis-ai/molis-work-service-memory";
-import { openMemoryLedger } from "@molis-ai/molis-work-storage";
-import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID, memoryActions, type MemoryWriteRequest } from "@molis-ai/molis-work-contracts/services/memory";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
-import { prologueMemoryBackend } from "@molis-ai/molis-work-app-local-host";
 import { callAs, callerPlugin, issuedCaller, registerProbe } from "./fixtures/plugin-callers.js";
 
-async function memoryHome(t: { after(fn: () => Promise<void> | void): void }) {
-  const home = await mkdtemp(join(tmpdir(), "molis-memory-scopes-"));
-  const queue = new AgentReviewQueue(), host = new AgentHost({ reviews: queue });
-  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.work.memory-scopes-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: queue,
-    modelConfiguration: async () => null as never, resolveCredential: () => null });
-  host.register(adapter);
-  const ledger = openMemoryLedger({ homeDirectory: home });
-  t.after(async () => { ledger.close(); await adapter.close(); await rm(home, { recursive: true, force: true }); });
-  const service = new MemoryService({ backend: prologueMemoryBackend(async () => host.adapter("prologue").memory!), ledger, timeZone: "Asia/Shanghai",
-    projectTitle: async id => id === "project-q4" ? "Q4 plan" : "Q1 plan" });
-  return { service };
+async function memoryHome(t: Parameters<typeof memoryServiceHome>[0]) {
+  const env = await memoryServiceHome(t, { projects: ["project-q4", "project-q1"], projectTitle: async id => id === "project-q4" ? "Q4 plan" : "Q1 plan" });
+  return { home: env.home, service: await env.open() };
 }
 
-const work = (character: { id: string; title: string } | null, project = "project-q4"): MemoryCaller => ({ actor_id: "web-user", project_id: project, consumer: "assistant",
+const work = (character: { id: string; title: string } | null, project = "project-q4"): MemoryCaller => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project, consumer: "assistant",
   work: { work_id: `work-${character?.id ?? "none"}-${project}`, title: "写周报" }, character });
 // Real Character references look like this: a colon-separated artifact id.
 const writer = { id: "character:project-onboarding-a2b1f6ba-bd73-43db-bcb7-e32f0d25fb3d:f7a122c9-7ea4-4dc8-8353-b49da5196add", title: "写作顾问" },
   analyst = { id: "character:project-onboarding-a2b1f6ba-bd73-43db-bcb7-e32f0d25fb3d:0b2c9d7e-1111-4a2b-9c3d-000000000002", title: "数据分析师" };
-const personIn = (project: string | null): MemoryCaller => ({ actor_id: "web-user", project_id: project, consumer: "ui", person: true });
+const personIn = (project: string | null): MemoryCaller => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project, consumer: "ui", person: true });
 const texts = (items: ReadonlyArray<{ text: string }>) => items.map(item => item.text).sort();
 /** The Assistant's way of keeping something: the Host hands the gate the messages the person typed (the third argument), and `said` points at one of them. These tests state that message in `said`. */
 const keep = (service: MemoryService, caller: MemoryCaller, request: MemoryWriteRequest) => service.write(caller, request, { originals: request.said ? [request.said] : [] });
@@ -54,10 +44,12 @@ test("a Character's memory is used only in work that Character carries: not by a
   assert.deepEqual(texts((await service.recall(work(null), query)).items), ["Q4 plan 的周报先写风险", "周报用要点列表"], "work no Character carries never gets it");
   assert.deepEqual(texts((await service.recall(work(writer, "project-q1"), query)).items), ["周报用要点列表"], "the same Character in another project: neither the project's nor its Q4 memories");
 
-  // An Agent run carried by that Character is pinned the exact Prologue character-scope entry (kept per project).
+  // The Host supplies the exact character scope; the SDK recalls current entries when the Run starts.
   const run = await service.forRun({ ...work(writer), consumer: "agent" }, query);
-  const pin = run.pinned.find(item => item.memory_id === kept.memory!.memory_id);
-  assert.deepEqual(pin, { scope: "character", owner: characterOwner("project-q4", writer.id), memory_id: kept.memory!.memory_id });
+  assert.ok(run);
+  assert.deepEqual(run.pinned, [], "the Host recipe does not pre-read and pin a stale body");
+  assert.deepEqual(run.scopes?.find(item => item.scope === "character"), { scope: "character", owner: characterOwner("project-q4", writer.id) });
+  assert.equal(run.task, true);
   // A real Character reference is long: the owner stays a short key Prologue can store (at most 128 characters, one segment).
   assert.match(characterOwner("project-onboarding-a2b1f6ba-bd73-43db-bcb7-e32f0d25fb3d", "character:project-onboarding-a2b1f6ba-bd73-43db-bcb7-e32f0d25fb3d:f7a122c9-7ea4-4dc8-8353-b49da5196add"), /^pc-[0-9a-f]{40}$/);
 
@@ -83,7 +75,11 @@ test("a Character's memory is used only in work that Character carries: not by a
   await assert.rejects(service.clearScope(personIn("project-q4"), "project", preview.fingerprint), /重新预览/);
   assert.equal((await service.list(personIn("project-q4"))).items.filter(item => item.scope !== "personal").length, 3, "nothing went");
   const again = await service.previewScope(personIn("project-q4"), "project");
-  assert.deepEqual(await service.clearScope(personIn("project-q4"), "project", again.fingerprint), { removed: 3 });
+  const expectedIds = (await service.list(personIn("project-q4"))).items.filter(item => item.scope !== "personal").map(item => item.memory_id).sort((a, b) => a.localeCompare(b));
+  const cleared = await service.clearScope(personIn("project-q4"), "project", again.fingerprint);
+  assert.deepEqual({ ...cleared, items: [...cleared.items].sort((a, b) => a.memory_id.localeCompare(b.memory_id)) }, {
+    removed: 3, complete: true, items: expectedIds.map(memory_id => ({ memory_id, outcome: "completed" })),
+  });
   assert.deepEqual(texts((await service.list(personIn("project-q4"))).items), ["周报用要点列表"]);
   assert.deepEqual(texts((await service.recall(work(writer), query)).items), ["周报用要点列表"]);
 });
@@ -103,7 +99,7 @@ test("memories limited to a plugin, an object kind or a Goal come only where tha
   assert.deepEqual(await at({ object_kind: "goal", goal_id: "goal-launch" }), ["发布里程碑这个 Goal 用英文写进展", "周报先写风险", "改 Goal 的描述时保留原来的量化指标"]);
 
   // A plugin keeps its own memories (namespace = its identity from the Host); only it reads them.
-  const tables: MemoryCaller = { actor_id: "web-user", project_id: "project-q4", consumer: "plugin", plugin_id: "tables" };
+  const tables: MemoryCaller = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: "project-q4", consumer: "plugin", plugin_id: "tables" };
   const pages: MemoryCaller = { ...tables, plugin_id: "pages" };
   const own = await service.write(tables, { scope: "project", text: "上次导出用的是 CSV 格式", kind: "preference" });
   assert.equal(own.outcome, "written");
@@ -144,7 +140,7 @@ test("plugins are not an audience of memory yet: the directory offers them none 
   const probe = registerProbe(host.actionRegistry(), "home");
   await host.homePlugins!.ready();
   const plugin: ActionCallContext = callAs(await issuedCaller(probe, tables), [...MEMORY_PERMISSIONS]);
-  const person: ActionCallContext = { actor_id: "web-user", project_id: null, audience: "user", permissions: [...MEMORY_PERMISSIONS] };
+  const person: ActionCallContext = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: null, audience: "user", permissions: [...MEMORY_PERMISSIONS] };
   const agent: ActionCallContext = { actor_id: "agent:coding-1", actor_kind: "runtime", project_id: null, audience: "agent", permissions: [...MEMORY_PERMISSIONS] };
   const ofMemory = (views: readonly { provider: { provider_id: string }; capability_id: string }[]) => views.filter(view => view.provider.provider_id === MEMORY_PROVIDER_ID).map(view => view.capability_id).sort();
 
@@ -160,11 +156,11 @@ test("plugins are not an audience of memory yet: the directory offers them none 
 
   // A call from a plugin is refused whatever the permission it holds, and nothing was kept.
   const asPerson = bindActionClient(client, () => person);
-  const call = (capability_id: string, input: unknown) => client.invoke(plugin, { capability_id, version: 1, provider_id: MEMORY_PROVIDER_ID }, input);
+  const call = (action: { capability_id: string; version: number }, input: unknown) => client.invoke(plugin, { capability_id: action.capability_id, version: action.version, provider_id: MEMORY_PROVIDER_ID }, input);
   const forbidden = { code: "actions.forbidden" };
-  await assert.rejects(call(memoryActions.write.capability_id, { scope: "personal", text: "表格默认按日期倒序" }), forbidden);
-  await assert.rejects(call(memoryActions.recall.capability_id, { query: "表格 日期 排序" }), forbidden);
-  await assert.rejects(call(memoryActions.list.capability_id, {}), forbidden);
-  await assert.rejects(call(memoryActions.change.capability_id, { memory_id: "m1", action: "remove" }), forbidden);
+  await assert.rejects(call(memoryActions.write, { scope: "personal", text: "表格默认按日期倒序" }), forbidden);
+  await assert.rejects(call(memoryActions.recall, { query: "表格 日期 排序" }), forbidden);
+  await assert.rejects(call(memoryActions.list, {}), forbidden);
+  await assert.rejects(call(memoryActions.change, { memory_id: "m1", action: "remove" }), forbidden);
   assert.deepEqual((await asPerson.invoke(memoryActions.list, {})).items, []);
 });

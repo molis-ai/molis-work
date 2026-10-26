@@ -200,6 +200,8 @@ export interface ProjectDeletionResult {
 export interface ProjectsQueryApi {
   /** Stored display facts only, without derived membership or any assertion of plugin availability. Never use for authorization. */
   storedProjectPluginMembership(projectId: string): ProjectPluginMembership;
+  /** Current derived membership and hidden marks, sharing one synchronous registry read. Later execution must read current state again. */
+  projectPluginMembership(projectId: string): ProjectPluginMembership;
   listProjectPlugins(projectId: string): ProjectPluginId[];
   listHiddenPlugins(projectId: string): ProjectPluginId[];
   listProjects(): ProjectRecord[];

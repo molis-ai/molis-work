@@ -1,69 +1,31 @@
-import { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
-import { MEMORY_KINDS } from "@molis-ai/molis-work-contracts/services/memory";
-import { memoryErrors, type MemoryBackendPort, type MemoryCaller, type MemoryLearned, type MemoryProposal, type MemoryService } from "@molis-ai/molis-work-service-memory";
-import type { AgentMemoryExecutionControl, AgentRuntimeAdapter, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
-import { assistantMemorySources } from "../assistant/assistant-memory-sources.js";
+import { memoryErrors, type MemoryBackendPort, type MemoryCaller, type MemoryLearned, type MemoryService } from "@molis-ai/molis-work-service-memory";
+import type { AgentMemoryExecutionControl, AgentMemoryFormationResult, AgentMemorySourceSnapshot, AgentRuntimeAdapter, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { assistantMemorySources, assistantMemorySourceWork } from "../assistant/assistant-memory-sources.js";
 import { controlledMemoryService } from "./memory-effect.js";
-import { MEMORY_EXTRACT } from "../agent-definitions/system-prompts.js";
-import { resolveModelPrompt } from "../agent-definitions/instructions.js";
-import { hostTextGeneration, type HostTextGeneration } from "../host-complete-text.js";
 
-/**
- * Drawing memories out of a finished work (specs/archive/memory-system §6.1 item 2). The model reads the person's own words and
- * proposes; the memory service's write gate decides. A malformed or failed answer leaves nothing behind.
- */
 export interface MemoryLearningRequest {
   caller: MemoryCaller;
-  /** The person's own messages in this work, newest last (bounded). */
   said: string[];
+  sources?: readonly AgentMemorySourceSnapshot[];
+}
+export interface MemoryLearningResult {
+  ran: boolean;
+  reason: string;
+  learned: MemoryLearned[];
+  formation?: AgentMemoryFormationResult;
+  recording_error?: { code: string };
 }
 
-const PROPOSALS_SCHEMA = {
-  type: "object",
-  properties: {
-    candidates: { type: "array", maxItems: 3, items: { type: "object", properties: {
-      text: { type: "string", minLength: 1, maxLength: 200 },
-      kind: { type: "string", enum: [...MEMORY_KINDS] },
-      scope: { type: "string", enum: ["personal", "project"] },
-      applies_when: { type: ["string", "null"], maxLength: 100 },
-      basis: { type: "string", enum: ["explicit", "inferred"] },
-      quote: { type: "string", maxLength: 200 },
-      same_as: { type: ["string", "null"], maxLength: 200 },
-      supersedes: { type: ["string", "null"], maxLength: 200 },
-    }, required: ["text", "kind", "scope", "basis", "quote"], additionalProperties: false } },
-  },
-  required: ["candidates"],
-  additionalProperties: false,
-} as const;
-
-/**
- * `stillWanted` rechecks the work's current source and permission to learn. The Host also binds the actual SDK and
- * ledger writes to that invocation; checking here alone cannot protect a later asynchronous write.
- */
-export async function learnFromWork(service: MemoryService, homeDirectory: string, request: MemoryLearningRequest,
-  generate: HostTextGeneration | undefined = hostTextGeneration({ homeDirectory }),
-  stillWanted: () => Promise<boolean> = async () => true): Promise<{ ran: boolean; reason: string; learned: MemoryLearned[] }> {
-  const said = request.said.map(text => text.trim()).filter(Boolean).slice(-6).map(text => text.slice(0, 1500));
-  if (!service.worthLearning(request.caller, said)) return { ran: false, reason: "这一轮没有值得学习的表态，或没有允许从工作里学习", learned: [] };
-  if (!generate) return { ran: false, reason: "没有可用的文字模型", learned: [] };
+/** The queue keeps its current owner checks; all automatic extraction and candidate writes go through SDK form. */
+export async function learnFromWork(service: MemoryService, request: MemoryLearningRequest,
+  stillWanted: () => Promise<boolean> = async () => true): Promise<MemoryLearningResult> {
+  const said = request.said.map(text => text.trim()).filter(Boolean).slice(-6);
+  if (said.some(text => text.length > 1500)) return { ran: false, reason: "原始表态超出本轮提炼范围，没有截断后推断", learned: [] };
   if (!await stillWanted()) return { ran: false, reason: "原始输入或学习权限已变化，什么都没有记", learned: [] };
-  const context = await service.learningContext(request.caller);
-  if (!await stillWanted()) return { ran: false, reason: "原始输入或学习权限已变化，什么都没有记", learned: [] };
-  const data = JSON.stringify({
-    有项目: Boolean(request.caller.project_id),
-    工作: request.caller.work?.title ?? null,
-    用户说的话: said,
-    已有的记忆: context.existing,
-    等待认可的建议: context.pending,
-  });
-  const result = await generate(resolveModelPrompt(homeDirectory, instructed(MEMORY_EXTRACT, data), "memory.extract"), {
-    structured: { mode: "local", name: "memory_proposals", schema: PROPOSALS_SCHEMA as never }, timeoutMs: 120_000, maxOutputTokens: 1500,
-    beforeDispatch: async () => { if (!await stillWanted()) throw memoryErrors.forbidden("原始输入或学习权限已变化，停止提炼"); },
-  });
-  const proposals = (result.structured as { candidates?: MemoryProposal[] } | undefined)?.candidates;
-  if (!Array.isArray(proposals)) return { ran: true, reason: "模型没有给出合格式的提议，什么都没有记", learned: [] };
-  if (!await stillWanted()) return { ran: true, reason: "原始输入或学习权限已变化，什么都没有记", learned: [] };
-  return { ran: true, reason: "已提炼", learned: await service.learnFromWork(request.caller, { said, proposals }) };
+  const result = await service.learnFromWork(request.caller, { said, ...(request.sources ? { sources: request.sources } : {}) });
+  return { ran: result.formation.extraction.calls > 0,
+    reason: result.formation.outcome === "completed" ? "已完成本轮提炼" : result.formation.outcome === "skipped" ? "本轮没有形成信号" : "本轮形成未全部完成，请按逐项结果对账",
+    learned: result.learned, formation: result.formation, ...(result.recording_error ? { recording_error: result.recording_error } : {}) };
 }
 
 /** The existing queue's one learning invocation, with fresh owner checks through each actual SDK write. */
@@ -74,12 +36,14 @@ export async function learnFromQueuedWork(home: string, task: Pick<AgentSchedule
   backend(control: AgentMemoryExecutionControl): MemoryBackendPort;
   alive(): boolean;
   projectExists?(id: string): Promise<boolean | null>;
-}, generate?: HostTextGeneration): Promise<{ ran: boolean; reason: string; learned: MemoryLearned[] }> {
+}): Promise<MemoryLearningResult> {
   const originals = await assistantMemorySources(home, input.adapter, task);
   if (!originals) return { ran: false, reason: "原始输入已失效或无法核验，没有提炼", learned: [] };
   const { caller, said } = originals.request;
   const assertCurrent = () => {
-    if (!input.alive() || !input.service.worthLearning(caller, said)) throw memoryErrors.forbidden("原工作或学习权限已失效");
+    if (!input.alive() || !input.service.worthLearning(caller, said) || !caller.session_id
+      || assistantMemorySourceWork(home, caller.actor_id, caller.session_id)?.project_id !== caller.project_id)
+      throw memoryErrors.forbidden("原工作或学习权限已失效");
   };
   const stillWanted = async () => {
     if (!input.alive() || !input.service.worthLearning(caller, said)) return false;
@@ -91,5 +55,8 @@ export async function learnFromQueuedWork(home: string, task: Pick<AgentSchedule
     assert_current: assertCurrent,
     beforeEffect: async () => { if (!await stillWanted()) throw memoryErrors.forbidden("原始输入或学习权限已变化，停止记忆写入"); },
   });
-  return learnFromWork(controlled, home, originals.request, generate, stillWanted);
+  const result = await learnFromWork(controlled, { ...originals.request, caller: { ...originals.request.caller, operation_id: task.key } }, stillWanted);
+  if (result.recording_error || result.formation && !["completed", "skipped"].includes(result.formation.outcome))
+    throw memoryErrors.conflict("记忆形成尚未全部记账，请携原操作重试", { formation: result.formation, recording_error: result.recording_error });
+  return result;
 }

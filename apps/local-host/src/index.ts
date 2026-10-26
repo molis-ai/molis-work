@@ -262,6 +262,11 @@ export { deliveryNote, deliveryNoteHtml, deliverySteps, isOpenable, type Deliver
 export { assistantAuthority } from "./assistant/assistant-authority.js";
 export { purgeAssistantProject } from "./assistant/assistant-project-purge.js";
 export { logMemoryLearning, prologueMemoryBackend } from "./memory/memory-host.js";
+export { memoryRuntimePolicy, type MemoryRuntimePolicyOwner } from "./memory/memory-runtime-policy.js";
+export { memorySources, type MemorySourceOwner } from "./memory/memory-sources.js";
+export { memoryExtractor } from "./memory/memory-extractor.js";
+export { registerMemoryProjectDeletion } from "./memory/memory-project-deletion.js";
+export { adoptMemoryHome, type MemoryHomeAdoptionInput, type MemoryHomeAdoptionBridge, type MemoryHomeAdoptionScope, type MemoryHomeAdoptionResult } from "./memory/memory-home-adoption.js";
 export { ComputerRecords } from "./computer/computer-records.js";
 export { handleComputerHttp, type ComputerShelf } from "./computer/computer-http.js";
 export { assistantRelatedAction, assistantRelatedRegistration, type RelatedWorksSource } from "./assistant/assistant-related-action.js";

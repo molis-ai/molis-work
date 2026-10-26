@@ -27,11 +27,14 @@ import { freezeExecutionPlan } from "../execution-plan.js";
 import { assertSessionCreation } from "./prologue-frozen.js";
 import { switchRunModel } from "./prologue-model-switch.js";
 import { controlFailure } from "./prologue-control-errors.js";
+import { PrologueMemoryUsage } from "./prologue-memory-usage.js";
+import { restorePrologueRun } from "./prologue-restored-session.js";
+import { readSupplementaryInput } from "./prologue-original-inputs.js";
 import { inputsPort } from "./prologue-inputs.js";
 import { settleProloguePending } from "./prologue-stream.js";
 import { guardedCheckpoints, guardedRecovery, guardedSubagents, prologueDescriptor, PROLOGUE_RUNTIME_ID } from "./prologue-adapter-capabilities.js";
 import type { PrologueAdapterOptions, PrologueAdapterPorts, PrologueRuntimePort } from "./prologue-ports.js";
-import { isEnded, PrologueRunStore, restorePrologueRun } from "./prologue-run-store.js";
+import { isEnded, PrologueRunStore } from "./prologue-run-store.js";
 import { startPrologueRun } from "./prologue-run-start.js";
 
 export { PROLOGUE_RUNTIME_ID } from "./prologue-adapter-capabilities.js";
@@ -65,7 +68,14 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   readonly messages?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSessionMessagesCapability;
   readonly collaboration?: import("@molis-ai/molis-work-contracts/services/agent-collaboration").AgentCollaborationPort;
   readonly background?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentBackgroundCapability;
-  readonly inputs = inputsPort(async run => { await this.read(run); const record = this.#store.requireRun(run.run_id); return { ended: isEnded(record.view.phase), control: record.control, turns: record.view.turns }; }, () => this.#runtime.queue, runId => this.#store.publish(runId));
+  readonly inputs = {
+    ...inputsPort(async run => { await this.read(run); const record = this.#store.requireRun(run.run_id); return { ended: isEnded(record.view.phase), control: record.control, turns: record.view.turns }; }, () => this.#runtime.queue, runId => this.#store.publish(runId)),
+    read: (ref: import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentInputRef) => readSupplementaryInput(ref, {
+      locate: async input => this.#runtime.sessions.locateInput?.(input.session_id, input.input_id),
+      latest: async id => this.#store.sessions.get(id)?.runs.at(-1) ?? (await this.#runtime.sessions.readStatus?.(id))?.latest?.ref,
+      read: run => this.read(run),
+    }),
+  };
   readonly descriptor: AgentRuntimeDescriptor;
   readonly skillLibrary?: AgentSkillLibrary;
   readonly mcpLibrary?: AgentMcpLibrary;
@@ -77,6 +87,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   readonly #runtime: PrologueRuntimePort;
   readonly #ports: PrologueAdapterPorts;
   readonly #store: PrologueRunStore;
+  readonly #memoryUsage: PrologueMemoryUsage;
   readonly #answerPending: PrologueAdapterOptions["answerPending"];
   readonly #detachApprovalAnswers: (() => void) | undefined;
 
@@ -84,7 +95,8 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     const runtime = options.runtime;
     this.#runtime = runtime;
     this.#ports = options;
-    this.#store = new PrologueRunStore(runtime, options.now ?? (() => new Date()), options.approvals);
+    this.#memoryUsage = new PrologueMemoryUsage(options.memoryUsage);
+    this.#store = new PrologueRunStore(runtime, options.now ?? (() => new Date()), options.approvals, this.#memoryUsage);
     if (runtime.projectWork) this.projectWork = runtime.projectWork;
     if (runtime.messages) this.messages = runtime.messages;
     // A plan change goes through the adapter, which knows which round's graph may still change.
@@ -141,6 +153,10 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     };
   }
 
+  async readOriginalInput(ref: Parameters<NonNullable<AgentRuntimeAdapter["readOriginalInput"]>>[0]) {
+    return this.#runtime.sessions.readOriginalInput?.({ ...ref });
+  }
+
   async readSessionStatus(session: AgentSessionRef): Promise<{ owner: AgentSessionView["owner"]; status: AgentSessionStatus }> {
     let projected: Awaited<ReturnType<NonNullable<PrologueRuntimePort["sessions"]["readStatus"]>>>;
     if (!this.#store.sessions.has(session.session_id) && this.#runtime.sessions.readStatus) {
@@ -177,7 +193,9 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   }
 
   async start(request: AgentStartRequest, execution?: AgentStartExecution): Promise<AgentRunHandle> {
-    request = { ...request, budget: parseAgentRunBudget(request.budget) };
+    request = { ...request, budget: parseAgentRunBudget(request.budget),
+      ...(request.original_input ? { original_input: structuredClone(request.original_input) } : {}),
+      ...(request.continued_from ? { continued_from: structuredClone(request.continued_from) } : {}) };
     request = { ...request, execution_plan: freezeExecutionPlan(request), text_materials: structuredClone(request.text_materials ?? []) };
     const session = await this.#store.loadSession(request.session.session_id);
     if (session.workspace !== (request.workspace ?? "required") || request.role?.workspace === "none" && request.workspace !== "none"
@@ -215,6 +233,7 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
     const session = await this.#store.loadSession(run.session_id);
     if (!session.runs.some(item => item.run_id === run.run_id)) throw agentErrors.run_unknown("这次执行不属于此会话");
     const record = this.#store.requireRun(run.run_id);
+    await this.#memoryUsage.record(record, session.owner);
     const view = structuredClone(record.view);
     if (view.frozen.execution_plan) {
       try {
@@ -315,8 +334,13 @@ export class PrologueAgentAdapter implements AgentRuntimeAdapter {
   /** Release the underlying Runtime. The Host owns when this happens. */
   async close(): Promise<void> {
     this.#detachApprovalAnswers?.();
-    for (const record of this.#store.runs.values()) record.unsubscribe();
     await Promise.all([...this.#store.runs.values()].map(record => record.timingCommit));
-    await this.#runtime.shutdown();
+    try {
+      await this.#runtime.shutdown();
+      for (const record of this.#store.runs.values()) record.unsubscribe();
+    } finally {
+      await Promise.all([...this.#store.runs.values()].map(record => record.timingCommit));
+      await this.#memoryUsage.flush();
+    }
   }
 }

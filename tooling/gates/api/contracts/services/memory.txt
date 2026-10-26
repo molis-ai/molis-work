@@ -43,6 +43,7 @@ export type MemoryBasis = "explicit" | "repeated" | "inferred";
 
 export interface MemoryCandidate {
     candidate_id: string;
+    version: number;
     scope: MemoryScope;
     project_id: string | null;
     kind: MemoryKind;
@@ -57,17 +58,20 @@ export interface MemoryCandidate {
     } | null;
     hold_reason: string | null;
     supersedes: string | null;
-    state: "pending" | "accepted" | "discarded" | "expired";
+    state: "pending" | "accepted" | "discarded" | "expired" | "cancelled";
     created_at: string;
     memory_id: string | null;
 }
 
 export interface MemoryCandidateDecision {
     candidate_id: string;
+    expected_version: number;
     text?: string;
 }
 
 export interface MemoryCandidateRecord extends MemoryCandidate {
+    source_refs?: readonly import("services/agent-host-memory").AgentMemorySourceRef[];
+    formal_expires_at?: string | null;
     actor_id: string;
     owner: string;
 }
@@ -94,6 +98,8 @@ export interface MemoryChange {
 export type MemoryChangeKind = "kept" | "auto_kept" | "replaced" | "auto_replaced" | "merged" | "edited" | "restored" | "moved" | "disabled" | "auto_disabled" | "enabled" | "paused" | "resumed" | "removed" | "accepted" | "imported" | "cleared";
 
 export interface MemoryChangeRecord extends MemoryChange {
+    operation_id?: string;
+    applied_version?: number;
     actor_id: string;
     owner: string;
     undo: MemoryUndoPlan | null;
@@ -101,6 +107,7 @@ export interface MemoryChangeRecord extends MemoryChange {
 
 export interface MemoryChangeRequest {
     memory_id: string;
+    expected_version?: number;
     action: "update" | "disable" | "enable" | "remove" | "restore" | "move";
     text?: string;
     kind?: MemoryKind;
@@ -115,33 +122,51 @@ export interface MemoryChangeResult {
     change: MemoryChange;
 }
 
+export interface MemoryClearResult {
+    removed: number;
+    complete: boolean;
+    items: Array<{
+        memory_id: string;
+        outcome: "completed" | "already-absent" | "conflict" | "not-executed" | "unknown";
+    }>;
+}
+
 export type MemoryConsumer = "assistant" | "agent" | "ui" | "plugin" | "mcp";
 
 export interface MemoryEvidence {
-    kind: "said" | "object" | "work" | "signal";
+    kind: string;
     text?: string;
     ref?: {
         kind: string;
         id: string;
         revision?: string | null;
         project_id?: string | null;
-    };
+    } | string;
+    at: string | null;
+}
+
+export interface MemoryEvidenceInput extends Omit<MemoryEvidence, "kind" | "ref" | "at"> {
+    kind: "said" | "object" | "work" | "signal";
+    ref?: Exclude<MemoryEvidence["ref"], string>;
     at: string;
 }
 
 export interface MemoryExportPackage {
     format: "molis.memory";
-    version: 1;
+    version: 2;
     exported_at: string;
     scope: MemoryScope;
     entries: Array<{
         text: string;
         kind: MemoryKind;
         source: MemorySource;
-        basis: MemoryBasis;
+        basis: MemoryBasis | null;
         applies: MemoryApplies;
         origin: string;
         expires_at: string | null;
+        classification?: import("services/agent-host-memory").AgentMemoryMeta["classification"];
+        session_ref?: import("services/agent-host-memory").AgentMemoryMeta["session_ref"];
+        namespace?: string;
     }>;
     redactions: Array<{
         kind: string;
@@ -170,17 +195,17 @@ export interface MemoryItem {
     kind: MemoryKind;
     text: string;
     source: MemorySource;
-    basis: MemoryBasis;
+    basis: MemoryBasis | null;
     origin: string;
     evidence: MemoryEvidence[];
     applies: MemoryApplies;
     state: MemoryState;
     state_reason: string | null;
     expires_at: string | null;
-    approved_by: MemoryApproval;
+    approved_by: MemoryApproval | null;
     plugin_id: string | null;
-    created_at: string;
-    updated_at: string;
+    created_at: string | null;
+    updated_at: string | null;
     last_used: MemoryUse | null;
 }
 
@@ -286,16 +311,16 @@ export interface MemoryMetaRecord {
     owner: string;
     kind: MemoryKind;
     source: MemorySource;
-    basis: MemoryBasis;
+    basis: MemoryBasis | null;
     evidence: MemoryEvidence[];
     applies: MemoryApplies;
     state: MemoryState;
     state_reason: string | null;
     expires_at: string | null;
-    approved_by: MemoryApproval;
+    approved_by: MemoryApproval | null;
     plugin_id: string | null;
-    created_at: string;
-    updated_at: string;
+    created_at: string | null;
+    updated_at: string | null;
 }
 
 export interface MemoryPair {
@@ -318,6 +343,8 @@ export interface MemoryPair {
 }
 
 export interface MemoryPrefs {
+    enabled: boolean;
+    task_recall: boolean;
     form: boolean;
     auto: boolean;
     learn_from_work: boolean;
@@ -334,6 +361,18 @@ export interface MemoryPrefsView {
     project_id: string | null;
     prefs: MemoryPrefs;
 }
+
+export type MemoryPrefsWriteRequest = {
+    scope?: MemoryScope;
+} & ({
+    prefs: Partial<MemoryPrefs>;
+    preset?: never;
+} | {
+    preset: MemoryPreset;
+    prefs?: never;
+});
+
+export type MemoryPreset = "off" | "manual" | "reviewed" | "assisted";
 
 export interface MemoryRecallRequest {
     query?: string;
@@ -376,6 +415,10 @@ export interface MemoryRecalled {
 }
 
 export interface MemoryRevision {
+    snapshot?: {
+        origin: string;
+        meta: import("services/agent-host-memory").AgentMemoryMeta;
+    };
     version: number;
     text: string;
     kind: MemoryKind;
@@ -436,12 +479,20 @@ export type MemoryUndoPlan = {
 } | {
     action: "disable";
 } | {
+    action: "pause";
+    change_id: string;
+} | {
     action: "recreate";
     text: string;
     kind: MemoryKind;
     source: MemorySource;
-    basis: MemoryBasis;
+    basis: MemoryBasis | null;
     applies: MemoryApplies;
+    snapshot?: MemoryRevision["snapshot"];
+    source_refs?: readonly {
+        event_id: string;
+        version: string;
+    }[];
 };
 
 export interface MemoryUpkeepReport {
@@ -469,7 +520,15 @@ export interface MemoryUseRecord {
     consumer: MemoryConsumer;
     title: string;
     work_id: string | null;
-    state: "used" | "omitted";
+    state: "used" | "returned" | "omitted" | "not-dispatched" | "dispatched-or-unknown" | "response-observed";
+    source?: "recall" | "run-context";
+    run?: {
+        session_id: string;
+        run_id: string;
+    };
+    memory_version?: number;
+    evidence_call_id?: string;
+    time_basis?: "run-start";
 }
 
 export interface MemoryWriteRequest {
@@ -495,6 +554,8 @@ export interface MemoryWriteResult {
     change_id: string | null;
 }
 
+export declare function isCompleteMemoryPrefs(value: unknown): value is MemoryPrefs;
+
 export declare const memoryActions: {
     recall: ActionDefinition<MemoryRecallRequest, MemoryRecallResponse>;
     list: ActionDefinition<MemoryListRequest, MemoryListResponse>;
@@ -513,9 +574,7 @@ export declare const memoryActions: {
         candidate: MemoryCandidate;
         memory: MemoryItem | null;
     }>;
-    discard: ActionDefinition<{
-        candidate_id: string;
-    }, {
+    discard: ActionDefinition<Pick<MemoryCandidateDecision, "candidate_id" | "expected_version">, {
         candidate: MemoryCandidate;
     }>;
     changes: ActionDefinition<{
@@ -533,10 +592,7 @@ export declare const memoryActions: {
     prefs: ActionDefinition<{
         scope?: MemoryScope;
     }, MemoryPrefsView>;
-    savePrefs: ActionDefinition<{
-        scope?: MemoryScope;
-        prefs: Partial<MemoryPrefs>;
-    }, MemoryPrefsView>;
+    savePrefs: ActionDefinition<MemoryPrefsWriteRequest, MemoryPrefsView>;
     signal: ActionDefinition<MemorySignalReport, MemorySignalResult>;
     pairs: ActionDefinition<{
         scope?: MemoryScope | "all";
@@ -556,9 +612,7 @@ export declare const memoryActions: {
     clear: ActionDefinition<{
         scope: MemoryScope;
         fingerprint: string;
-    }, {
-        removed: number;
-    }>;
+    }, MemoryClearResult>;
     export: ActionDefinition<{
         scope: MemoryScope;
     }, {
@@ -573,9 +627,9 @@ export declare const memoryActions: {
 export declare function memoryAppliesText(scope: MemoryScope, applies: MemoryApplies, projectTitle?: string | null, characterTitle?: string | null): string;
 
 export declare const servicesMemoryContract: {
-    readonly contractId: "io.molis.work.service.memory.v1";
+    readonly contractId: "io.molis.work.service.memory.v2";
     readonly kind: "service";
-    readonly schemaVersion: 1;
+    readonly schemaVersion: 2;
     readonly maturity: "partial";
-    readonly ssot: "specs/archive/memory-system/spec.md";
+    readonly ssot: "specs/prologue-memory-strategy/spec.md";
 };

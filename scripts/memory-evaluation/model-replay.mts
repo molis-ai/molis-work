@@ -3,8 +3,9 @@ import { performance } from "node:perf_hooks";
 import type { AgentRecalledMemory, AgentRunHandle, AgentRunView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AgentStartAuthority, PrologueModelConfiguration, PrologueNodeAdapterOptions } from "@molis-ai/molis-work-service-agent-host";
 import { MEMORY_EVALUATION_CORPUS, type MemoryEvaluationCase } from "../../tests/fixtures/memory-evaluation-corpus.js";
-import { MEMORY_BASELINE } from "./baseline.mjs";
-import { memoryEvaluationEnvironment, type EvaluationArm } from "./replay.mjs";
+import { currentEvaluationSource } from "./baseline.mjs";
+import { memoryEvaluationEnvironment, type EvaluationArm, assertEvaluationArm } from "./environment.mjs";
+import { evaluationOwner } from "./originals.mjs";
 
 export const MEMORY_MODEL_CALIBRATION = {
   cases: ["coding-install", "assistant-meeting", "self-contained", "correction"],
@@ -22,9 +23,14 @@ type Environment = Awaited<ReturnType<typeof memoryEvaluationEnvironment>>;
 export function observeEvaluationRequests(endpoint: string, maxAttempts: number = MEMORY_MODEL_CALIBRATION.maxAttempts,
   limits: () => { maxOutputTokens: number; maxRequestBytes: number } = () => MEMORY_MODEL_CALIBRATION) {
   const original = globalThis.fetch;
+  const fixtures = new Set<string>(), fixtureRequests: Array<{ endpoint: string; bytes: number }> = [];
   const requests: Array<{ bytes: number; body: unknown; startedAt: string }> = [];
   globalThis.fetch = async (input, init) => {
     const url = input instanceof Request ? input.url : String(input);
+    if (fixtures.has(url)) {
+      const raw = typeof init?.body === "string" ? init.body : input instanceof Request ? await input.clone().text() : "";
+      fixtureRequests.push({ endpoint: url, bytes: Buffer.byteLength(raw) }); return original(input, init);
+    }
     if (url !== endpoint) throw new Error("评测拒绝未声明的网络目标");
     if (requests.length >= maxAttempts) throw new Error("评测网络 attempt 预算已用尽；不再发出请求");
     const raw = typeof init?.body === "string" ? init.body : init?.body instanceof Uint8Array ? new TextDecoder().decode(init.body)
@@ -37,7 +43,12 @@ export function observeEvaluationRequests(endpoint: string, maxAttempts: number 
     requests.push({ bytes, body, startedAt: new Date().toISOString() });
     return original(input, init);
   };
-  return { requests, restore() { globalThis.fetch = original; } };
+  return { requests, fixtureRequests,
+    registerFixture(endpoint: string) {
+      const url = new URL(endpoint);
+      if (url.protocol !== "http:" || url.hostname !== "127.0.0.1" || !url.port || url.pathname !== "/v1/chat/completions") throw new Error("Source setup must use the exact loopback endpoint");
+      fixtures.add(endpoint); return () => { fixtures.delete(endpoint); };
+    }, restore() { globalThis.fetch = original; } };
 }
 
 async function ended(env: Environment, handle: AgentRunHandle, timeoutMs: number, started: number): Promise<{ view: AgentRunView | null; error: string | null; firstVisibleResponseMs: number | null }> {
@@ -57,19 +68,20 @@ async function ended(env: Environment, handle: AgentRunHandle, timeoutMs: number
   });
 }
 
-/** Uses the exact production forRun -> AgentHost -> SDK pinned-memory packing path. No hand-built memory prompt. */
+/** Uses the exact production forRun recipe -> AgentHost -> SDK task recall and final Context path. No hand-built memory prompt. */
 export async function runMemoryEvaluationTask(env: Environment, arm: EvaluationArm, item: MemoryEvaluationCase,
   observationTimeoutMs: number = MEMORY_MODEL_CALIBRATION.maxDurationMs + 5_000) {
+  assertEvaluationArm(arm);
   const memoryChoice: { value: AgentRecalledMemory | null } = { value: null };
   const started = performance.now();
   let recallFailure: string | null = null, view: AgentRunView | null = null, failure: string | null = null;
   let recallLatencyMs: number | null = null, firstVisibleResponseMs: number | null = null;
   try {
-    const owner = { project_id: item.project ?? "synthetic-personal", plugin_id: "io.molis.work.memory-evaluation", install_id: "evaluation", actor_id: "synthetic-person" };
+    const owner = evaluationOwner(item.scene, item.project);
     const authority: AgentStartAuthority = { manifest, authorizedDirectories: [], prompts: [], memory: async task => {
       const recallStarted = performance.now();
       try {
-        memoryChoice.value = await env.memory.forRun({ actor_id: owner.actor_id, project_id: item.project, consumer: item.scene === "coding" ? "agent" : "assistant", work: { work_id: item.id, title: item.purpose } }, { ...item.request, query: task });
+        memoryChoice.value = await env.memory.forRun({ actor_id: owner.actor_id, project_id: item.project, consumer: item.scene === "coding" ? "agent" : "assistant", current_scene: item.scene, ...(item.scene === "coding" ? { plugin_id: owner.plugin_id } : {}), work: { work_id: item.id, title: item.purpose } }, { ...item.request, query: task });
         return memoryChoice.value;
       } catch (error) { recallFailure = error instanceof Error ? error.message : String(error); throw error; }
       finally { recallLatencyMs = performance.now() - recallStarted; }
@@ -80,21 +92,22 @@ export async function runMemoryEvaluationTask(env: Environment, arm: EvaluationA
     } }, authority);
     const outcome = await ended(env, handle, observationTimeoutMs, started);
     view = outcome.view; failure = outcome.error; firstVisibleResponseMs = outcome.firstVisibleResponseMs;
-    if (memoryChoice.value?.receipt_id && view?.memory_recalled) env.memory.settleUses(memoryChoice.value.receipt_id, {
-      injected: view.memory_recalled.injected.map(row => row.memory_id), omitted: view.memory_recalled.omitted.map(row => row.memory_id), unavailable: view.memory_recalled.unavailable,
-    });
+
   } catch (error) { failure = error instanceof Error ? error.message : String(error); }
   const keyFor = (id: string) => [...env.ids].find(([, ref]) => ref === id)?.[0] ?? null;
   return {
       arm, case: item.id, scene: item.scene, phase: failure ? "failed" : view?.phase ?? "failed", error: failure, stopReason: view?.stop_reason ?? null, recallFailure,
-      selected: (memoryChoice.value?.pinned ?? []).map(ref => ({ seed: keyFor(ref.memory_id), ref: ref.memory_id })),
+      selected: (view?.memory_recalled?.selected ?? []).map(ref => ({ seed: keyFor(ref.memory_id), ref: ref.memory_id })),
       runtimeMemoryReceipt: view?.memory_recalled ?? null,
-      runtimePackedInjected: (view?.memory_recalled?.injected ?? []).map(ref => ({ seed: keyFor(ref.memory_id), ref: ref.memory_id, version: ref.version })),
+      runtimeContextReferences: [...new Map((view?.memory_recalled?.contexts ?? []).filter(call => call.status === "response-observed" || call.status === "dispatched-or-unknown")
+        .flatMap(call => call.references).map(ref => [`${ref.memory_id}@${ref.version}`, { seed: keyFor(ref.memory_id), ref: ref.memory_id, version: ref.version }])).values()],
+      contextCalls: view?.memory_recalled?.contexts ?? null,
+      retrievals: view?.memory_recalled?.retrievals ?? null,
       receiptId: memoryChoice.value?.receipt_id ?? null, usage: view?.usage ?? null,
       answer: view?.turns.filter(turn => turn.kind === "assistant").map(turn => turn.text).join("\n") ?? null,
       lastObservedView: view ? { phase: view.phase, usage: view.usage, startedAt: view.started_at, endedAt: view.ended_at } : null,
-      backend: { ...env.reads }, recallLatencyMs, firstVisibleResponseMs, taskQuality: "awaiting-independent-review", memoryTokens: null,
-      model: view?.frozen.model_id ?? null, durationMs: view?.ended_at ? Date.parse(view.ended_at) - Date.parse(view.started_at) : null,
+      backend: env.readCounts(), recipeLatencyMs: recallLatencyMs, taskRetrievalLatencyMs: null, firstVisibleResponseMs, taskQuality: "awaiting-independent-review", memoryTokens: null,
+      model: view?.frozen.model_id ?? null, durationMs: performance.now() - started,
     };
 }
 
@@ -117,7 +130,7 @@ export async function replayMemoryModelCalibration(config: PrologueModelConfigur
   const observer = observeEvaluationRequests(config.endpoint);
   const rows: CalibrationRow[] = [];
   try {
-    for (const id of MEMORY_MODEL_CALIBRATION.cases) for (const arm of ["B0", "B1"] as const) {
+    for (const id of MEMORY_MODEL_CALIBRATION.cases) for (const arm of ["B0", "B2"] as const) {
       const item = MEMORY_EVALUATION_CORPUS.cases.find(row => row.id === id)!;
       const startInclusive = observer.requests.length;
       const attemptRange = () => ({ startInclusive, endExclusive: observer.requests.length });
@@ -130,8 +143,8 @@ export async function replayMemoryModelCalibration(config: PrologueModelConfigur
       await onProgress?.({ attempts: observer.requests.length, requests: observer.requests, rows });
     }
   } finally { observer.restore(); }
-  return { schema: "molis-memory-model-calibration-v1", recordedAt: new Date().toISOString(), baseline: MEMORY_BASELINE, budget: MEMORY_MODEL_CALIBRATION,
+  return { schema: "molis-memory-model-calibration-v2", recordedAt: new Date().toISOString(), source: currentEvaluationSource(), budget: MEMORY_MODEL_CALIBRATION,
     model: config.model, endpoint: config.endpoint, attempts: observer.requests.length, requests: observer.requests, rows,
-    limitations: ["四个任务成对运行仅校准真实调用与用量链，不是代表性验证集或稳定收益证据", "任务质量需独立人工核对；尚未测形成、晋升、维护和按需展开成本", "Runtime memory receipt 与实际发出的请求分别保留，未推定二者等价", "Provider用量是整次调用，不把字符或请求字节当作记忆token", "新SDK旧配方升级对照及B2尚未执行"],
+    limitations: ["四个任务成对运行仅校准真实调用与用量链，不是代表性验证集或稳定收益证据", "任务质量需独立人工核对；尚未测形成、晋升、维护和按需展开成本", "Runtime memory receipt 与实际发出的请求分别保留，未推定二者等价", "Provider用量是整次调用，不把字符或请求字节当作记忆token", "当前 B2 的工程观测不证明收益；新 SDK 旧配方归因对照尚未执行"],
   };
 }

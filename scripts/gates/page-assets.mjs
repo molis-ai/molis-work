@@ -242,21 +242,10 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// batch-42 (coordinator, 2026-10-26), measured after `pnpm build` on the combined batch-42 tree against batch-41 as landed (the
-// entries batch-41 used are gone). No new asset; each is under 10 KB.
+// PR #1311 combined with main's Memory P0: main's prior admissions are consumed. These unchanged
+// per-asset admissions retain batch-42's reviewed features; the combined Workbench is measured separately.
 const APPROVED_CEILINGS = {
-  // PG-053 (ac-sc3, ac-review-2 6406988327): the Character terminal client leaves the platform's terminal entry (terminal-client.ts,
-  // built as dist/web/pty-client.js, not a budgeted asset) for the Characters plugin's own bundle, which asks the platform's page terminal
-  // for its panel; the platform entry names no plugin's terminal. It is a move, not new behaviour.
   "/assets/molis-work-plugins/characters.js": [28395, 30152],
-  // Net +587 B over batch-41: BL-623 (ac-coding) adds the upgrade and revoke-publisher controls with their English text, about +1.2 KB;
-  // PG-031/PG-057 (ac-kernel) removes the page's own related-work request in favour of the action gateway, -1,122 B; PG-053 +24 B; the
-  // rest is English strings merged with this batch's other slices. Tried: the new controls reuse the T7 page's `el`/`button` helpers and
-  // the one `ask` dialog.
-  "/assets/molis-work-workbench.js": [1139387, 1141321],
-  // PG-057 threads, option A (ac-kernel 6a2d59cef, ac-review-2 #1311 6407672577): +1,347 B more in workbench.js for the Assistant's
-  // 「让助理回复」 step (`ASSISTANT_THREAD_REPLY_SCRIPT`: the thread check and the start call); its -1,122 B saving is already counted above
-  // under PG-031. plugin-frame.js +22 B: the frame bridge writes the frame's plugin id into a hand-over's source (`plugin_id`).
   "/assets/molis-work-plugin-frame.js": [190197, 190219],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

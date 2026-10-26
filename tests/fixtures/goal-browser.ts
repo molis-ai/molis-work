@@ -115,6 +115,13 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   const { sessionId } = await command<{ sessionId: string }>("Target.attachToTarget", { targetId, flatten: true });
   await command("Target.activateTarget", { targetId });
   await command("Page.enable", {}, sessionId);
+  async function setViewport(width: number, height: number, mobile = false): Promise<void> {
+    // Emulation alone leaves the native window small: pointer events outside it can miss plugin frames.
+    // Size this window for the current scenario before applying its layout and mobile emulation.
+    const { windowId } = await command<{ windowId: number }>("Browser.getWindowForTarget", { targetId });
+    await command("Browser.setWindowBounds", { windowId, bounds: { width, height } });
+    await command("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 1, mobile }, sessionId);
+  }
   // The product shows tool names by default; these journeys measure content at a given width, so they
   // start from the icon rail unless a test chooses otherwise.
   await command("Page.addScriptToEvaluateOnNewDocument", { source: "try { if (localStorage.getItem('molis-work-navigation-labels') === null) localStorage.setItem('molis-work-navigation-labels', 'false'); } catch {}" }, sessionId);
@@ -253,5 +260,5 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   }
   /** The person's side of the Host's local HTTP interface, for settings the page does not need to show (grants, projects). */
   const web = new LocalHostHttpClient({ origin, controlToken: CONTROL_TOKEN });
-  return { store, localHost, server, databasePath, origin, controlToken: CONTROL_TOKEN, web, before, sessionId, command, setFrameInitScript, on: browser.on.bind(browser), evaluate, waitFor, click, surfaceReady, openGoalFrame, openGoalWork, reloadPage, navigate, showGoalStageList, projectId, homeDirectory: directory };
+  return { store, localHost, server, databasePath, origin, controlToken: CONTROL_TOKEN, web, before, sessionId, command, setViewport, setFrameInitScript, on: browser.on.bind(browser), evaluate, waitFor, click, surfaceReady, openGoalFrame, openGoalWork, reloadPage, navigate, showGoalStageList, projectId, homeDirectory: directory };
 }

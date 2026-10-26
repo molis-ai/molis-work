@@ -89,7 +89,7 @@ function startInput(request: AgentStartRequest, role: FrozenRole, model: Prologu
     },
     ...(role.compaction ? { compaction: { prompt: role.compaction.prompt.body, above_tokens: role.compaction.above_tokens } } : {}), ...(role.ending_review ? { ending_review: { prompt: role.ending_review.prompt.body } } : {}),
     task: request.task,
-    ...(role.memory?.pinned.length ? { memory: structuredClone(role.memory) } : {}),
+    ...(role.memory ? { memory: structuredClone(role.memory) } : {}),
     ...(role.subagents ? { subagents: structuredClone(role.subagents) } : {}),
     ...(role.subagent_workspaces ? { subagent_workspaces: structuredClone(role.subagent_workspaces) } : {}),
     text_materials: materials.text_materials,
@@ -110,14 +110,17 @@ function startInput(request: AgentStartRequest, role: FrozenRole, model: Prologu
 /** Start one round of a session already checked as idle: the runtime runs it, and the store follows it from its first event. */
 export async function startPrologueRun(context: RunStartContext, request: AgentStartRequest, session: SessionRecord, execution?: AgentStartExecution): Promise<AgentRunHandle> {
   const { runtime, store } = context;
+  if ((request.original_input || request.continued_from) && !runtime.sessions.originalInput) throw agentErrors.capability_unavailable("当前运行时没有初始原件读取能力");
+  const original = await runtime.sessions.originalInput?.(request.session.session_id, request);
   const { textMaterials, imageMaterials, model, role, mode } = await checkRoundStartable(context, request);
   const at = store.now().toISOString();
-  const frozen = freezeRunStart({ request, role, model, textMaterials, imageMaterials, defaultWindow: runtime.defaultContextWindowTokens, callId: execution?.call_id });
+  const frozen = { ...freezeRunStart({ request, role, model, textMaterials, imageMaterials, defaultWindow: runtime.defaultContextWindowTokens, callId: execution?.call_id }),
+    ...(original ? { original_input: original.ref } : {}), ...(request.continued_from ? { continued_from: request.continued_from } : {}) };
 
   await execution?.beforeStart?.();
   requireSynchronous(execution?.assertBeforeStart?.(), "最终授权检查必须同步完成");
-  const started = await runtime.startAgentRun(startInput(request, role, model, mode, { text_materials: textMaterials, image_materials: imageMaterials },
-    { frozen, started_at: at }, execution));
+  const started = await runtime.startAgentRun({ ...startInput(request, role, model, mode, { text_materials: textMaterials, image_materials: imageMaterials },
+    { frozen, started_at: at }, execution), ...(original ? { original_input: original } : {}) });
 
   const state = runStreamState(model.protocol.startsWith("openai"), started);
   const ref: AgentRunRef = {
@@ -126,6 +129,7 @@ export async function startPrologueRun(context: RunStartContext, request: AgentS
   };
   const view: AgentRunView = {
     ref,
+    ...(original ? { original_input: original } : {}),
     phase: "starting",
     frozen,
     turns: [{ turn_id: "user-1", kind: "user", text: request.task, at, sequence: 0 }],
@@ -142,6 +146,8 @@ export async function startPrologueRun(context: RunStartContext, request: AgentS
     state,
     control: started.control,
     model,
+    ...(role.memory ? { memory_context: { consumer: role.memory.consumer,
+      ...(role.memory.usage ? { usage: structuredClone(role.memory.usage) } : {}) } } : {}),
     unsubscribe: () => {},
     listeners: new Set(),
   };

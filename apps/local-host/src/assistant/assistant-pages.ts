@@ -22,7 +22,8 @@ export function installedPagesPort(withCatalog: LocalWebCatalogRunner, homeDirec
     const railPages = pluginTabTitles(false, builtinMarketDirectory());
     const pages = new Set<string>([PROJECT_HOME_PAGE]);
     for (const project of catalog.listProjects()) {
-      for (const id of shownProjectPlugins(catalog.listProjectPlugins(project.project_id), catalog.listHiddenPlugins(project.project_id))) {
+      const { plugins, hidden } = catalog.projectPluginMembership(project.project_id);
+      for (const id of shownProjectPlugins(plugins, hidden)) {
         if (Object.hasOwn(railPages, id)) pages.add(id);
       }
     }

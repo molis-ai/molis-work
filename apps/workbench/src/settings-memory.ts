@@ -13,6 +13,11 @@ export function renderMemorySettings({ L, scope, projectId }: { L(text: string):
     <header class="settings-page-heading memory-heading"><h1 id="memory-title">${title}</h1><p>${lead}</p>
       <p class="memory-summary" data-memory-summary aria-live="polite">${L("正在读取…")}</p></header>
     <p class="settings-form-error" data-memory-error role="alert" hidden></p>
+    <section class="settings-section" data-memory-retries hidden aria-labelledby="memory-retries-title">
+      <h2 id="memory-retries-title">${L("等待重试的操作")}</h2>
+      <p class="settings-muted">${L("重试会使用当时的内容和版本。筛选或重新读取不会丢失这些操作；刷新浏览器或离开本页后不再保留。")}</p>
+      <ul class="memory-list" data-memory-retry-list></ul>
+    </section>
     <section class="settings-section memory-changes" aria-labelledby="memory-changes-title" data-memory-changes-section hidden>
       <h2 id="memory-changes-title">${L("最近变动")}</h2>
       <ul class="memory-change-list" data-memory-changes></ul>
@@ -64,7 +69,8 @@ export function renderMemorySettings({ L, scope, projectId }: { L(text: string):
       <div class="settings-setting-row"><span class="setting-copy"><strong>${L("导入")}</strong><span>${L("选择一个记忆包；已有的相同内容会跳过，包损坏时一条也不写入。")}</span></span>
         <span class="setting-value"><label class="mw-btn mw-btn--secondary mw-btn--sm memory-import">${L("导入")}<input type="file" accept="application/json,.json" data-memory-import hidden></label></span></div>
       <div class="settings-setting-row"><span class="setting-copy"><strong>${personal ? L("清空个人记忆") : L("清空这个项目的记忆")}</strong><span>${L("先告诉你会删掉几条，确认后删除；删除后任何地方都不会再用到。")}</span></span>
-        <span class="setting-value"><button class="mw-btn mw-btn--danger-outline mw-btn--sm" type="button" data-memory-clear>${L("清空…")}</button></span></div>
+        <span class="setting-value"><button class="mw-btn mw-btn--danger-outline mw-btn--sm" type="button" data-memory-clear>${L("清空…")}</button><button class="mw-btn mw-btn--ghost mw-btn--sm" type="button" data-memory-clear-reset hidden>${L("重新预览…")}</button></span></div>
+      <p class="settings-muted" data-memory-clear-status aria-live="polite" hidden></p>
     </section>
     ${personal ? `<p class="settings-muted memory-rules-note">${L("交互规则（例如“写方案时别打断”）由助理按规则执行，在“助理”设置里管理。")} <a href="/settings/assistant">${L("去助理设置")}</a></p>` : ""}
   </section>`;
@@ -113,7 +119,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     const STATE = { active: "生效", disabled: "停用", paused: "已暂停" };
     const CHANGE = { kept: "记住", auto_kept: "自动记住", replaced: "替换", auto_replaced: "自动替换", merged: "合并", edited: "修改", restored: "回到旧版本", moved: "改范围",
       disabled: "停用", auto_disabled: "自动停用", enabled: "启用", paused: "已暂停", resumed: "恢复", removed: "删除", accepted: "认可", imported: "导入", cleared: "清空" };
-    const day = (iso) => { const date = new Date(iso); return isNaN(date.getTime()) ? "" : (date.getMonth() + 1) + "/" + date.getDate(); };
+    const day = (iso) => { const date = new Date(iso); return !iso || isNaN(date) ? "" : (date.getMonth() + 1) + "/" + date.getDate(); };
     const appliesText = (applies, itemScope) => {
       const parts = [];
       if (applies && applies.plugin_ids && applies.plugin_ids.length) parts.push(L("插件") + " " + applies.plugin_ids.join("、"));
@@ -138,6 +144,44 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
     // The reason shows at the top of the page and, since the action may be far below it, in the toast where the person is.
     const fail = (failure) => { molisWorkRequest.show(error, failure); error.hidden = false; if (board()) molisWorkRequest.toast(board(), failure, undefined, { ms: 5000 }); };
     const api = (path, payload) => molisWorkRequest(base + path, { body: payload });
+    const pendingCommands = new Map();
+    const commandTitle = (path, payload) => {
+      const actions = { update: "修改", disable: "停用", enable: "启用", remove: "删除", move: "改范围", restore: "回到旧版本", items: "添加", import: "导入", undo: "撤销", accept: "认可", discard: "不用" };
+      const title = L(actions[payload.action || path.split("/").at(-1)]);
+      const subject = payload.text || data?.items?.find(item => item.memory_id === payload.memory_id)?.text
+        || data?.candidates?.find(item => path.startsWith("/candidates/" + encodeURIComponent(item.candidate_id) + "/"))?.text;
+      return title + (subject ? "：「" + subject + "」" : "");
+    };
+    const dispatch = async (command) => {
+      try {
+        const result = await api(command.path, JSON.parse(command.body));
+        if (command.path === "/import") toast(L("导入") + " " + result.written + " " + L("条") + (result.skipped ? " · " + L("跳过") + " " + result.skipped : "") + (result.refused ? " · " + L("没有导入") + " " + result.refused : ""));
+        pendingCommands.delete(command.id); paintRetries(); return result;
+      } catch (failure) { pendingCommands.set(command.id, command); paintRetries(); throw failure; }
+    };
+    function paintRetries() {
+      $("[data-memory-retries]").hidden = !pendingCommands.size;
+      const list = $("[data-memory-retry-list]"); list.replaceChildren();
+      for (const command of pendingCommands.values()) {
+        const row = el("li", "memory-row"), copy = el("strong", "memory-row-copy", command.title);
+        const retry = button(L("重试这次操作"), "mw-btn--secondary", L("重试这次操作") + "：" + command.title);
+        retry.dataset.memoryRetry = "";
+        retry.addEventListener("click", () => run(() => dispatch(command), command.path === "/import" ? undefined : "这次操作已完成"));
+        row.append(copy, retry); list.append(row);
+      }
+    }
+    // The HTTP one-time key is fresh per delivery; the body's operation identity belongs to this exact decision.
+    const mutation = () => {
+      let previous;
+      return (path, payload) => {
+        const input = JSON.stringify([path, payload]);
+        if (!previous || previous.input !== input || !pendingCommands.has(previous.id)) {
+          const id = crypto.randomUUID();
+          previous = Object.freeze({ id, input, path, body: JSON.stringify(Object.assign({}, payload, { operation_id: id })), title: commandTitle(path, payload) });
+        }
+        return dispatch(previous);
+      };
+    };
     const run = async (work, message) => {
       if (busy) return;
       busy = true; error.hidden = true;
@@ -171,8 +215,8 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         if (meta) copy.append(el("span", "settings-muted", meta));
         row.append(copy);
         if (change.undoable && change.state === "active") {
-          const undo = button(L("撤销"), "mw-btn--secondary", L("撤销") + "：" + (change.text || ""));
-          undo.addEventListener("click", () => run(() => api("/changes/" + encodeURIComponent(change.change_id) + "/undo", {}), "已撤销"));
+          const undo = button(L("撤销"), "mw-btn--secondary", L("撤销") + "：" + (change.text || "")), revert = mutation();
+          undo.addEventListener("click", () => run(() => revert("/changes/" + encodeURIComponent(change.change_id) + "/undo", {}), "已撤销"));
           row.append(undo);
         }
         list.append(row);
@@ -184,7 +228,8 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       $("[data-memory-candidates-section]").hidden = !candidates.length;
       list.replaceChildren();
       candidates.forEach((candidate) => {
-        const row = el("li", "memory-row memory-row--candidate");
+        const row = el("li", "memory-row memory-row--candidate"), submit = mutation();
+        const decide = (action, values = {}) => submit("/candidates/" + encodeURIComponent(candidate.candidate_id) + "/" + action, { ...values, expected_version: candidate.version });
         const copy = el("div", "memory-row-copy");
         copy.append(el("strong", "memory-text", candidate.text));
         const meta = el("div", "memory-meta");
@@ -196,14 +241,14 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         if (candidate.hold_reason) copy.append(el("span", "memory-hold", candidate.hold_reason));
         const actions = el("div", "memory-actions");
         const keep = button(L("记住"), "mw-btn--primary", L("记住") + "：" + candidate.text);
-        keep.addEventListener("click", () => run(() => api("/candidates/" + encodeURIComponent(candidate.candidate_id) + "/accept", {}), "已记住"));
+        keep.addEventListener("click", () => run(() => decide("accept"), "已记住"));
         const reword = button(L("改一下再记"), "mw-btn--ghost");
         reword.addEventListener("click", () => {
-          const editor = textEditor(candidate.text, async (text) => { await api("/candidates/" + encodeURIComponent(candidate.candidate_id) + "/accept", { text }); }, "已记住");
+          const editor = textEditor(candidate.text, async (text) => { await decide("accept", { text }); }, "已记住");
           row.replaceChildren(editor); editor.querySelector("textarea").focus();
         });
         const drop = button(L("不用"), "mw-btn--ghost", L("不用") + "：" + candidate.text);
-        drop.addEventListener("click", () => run(() => api("/candidates/" + encodeURIComponent(candidate.candidate_id) + "/discard", {}), "不会再提这一条"));
+        drop.addEventListener("click", () => run(() => decide("discard"), "不会再提这一条"));
         actions.append(keep, reword, drop);
         row.append(copy, actions);
         list.append(row);
@@ -259,8 +304,8 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
           const entry = el("li", "");
           entry.append(el("span", "memory-history-version", L("第") + " " + revision.version + " " + L("版") + " · " + day(revision.at)), el("span", "", revision.text));
           if (revision.version !== item.version) {
-            const back = button(L("回到这一版"), "mw-btn--link");
-            back.addEventListener("click", () => run(() => api("/change", { memory_id: item.memory_id, action: "restore", version: revision.version }), "已回到这一版"));
+            const back = button(L("回到这一版"), "mw-btn--link"), restore = mutation();
+            back.addEventListener("click", () => run(() => restore("/change", { memory_id: item.memory_id, expected_version: item.version, action: "restore", version: revision.version }), "已回到这一版"));
             entry.append(back);
           } else entry.append(el("span", "memory-tag", L("当前")));
           list.append(entry);
@@ -285,7 +330,8 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         return;
       }
       items.forEach((item) => {
-        const row = el("li", "memory-row" + (item.state !== "active" ? " is-off" : ""));
+        const row = el("li", "memory-row" + (item.state !== "active" ? " is-off" : "")), submit = mutation();
+        const change = values => submit("/change", { ...values, memory_id: item.memory_id, expected_version: item.version });
         row.dataset.memoryId = item.memory_id;
         const copy = el("div", "memory-row-copy");
         copy.append(el("strong", "memory-text", item.text));
@@ -296,25 +342,26 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         meta.append(el("span", "memory-tag memory-tag--" + item.source, L(SOURCE[item.source] || item.source) + " " + day(item.created_at)));
         if (item.state !== "active") { const status = el("span", "memory-tag memory-tag--state", L(STATE[item.state]) + (item.state_reason ? " · " + item.state_reason : "")); status.dataset.mwState = item.state; meta.append(status); }
         meta.append(el("span", "", L("适用") + "：" + appliesText(item.applies, item.scope)));
-        meta.append(el("span", "", item.last_used ? L("最近用于") + "：" + item.last_used.title + " · " + day(item.last_used.at) : L("还没有用过")));
+        meta.append(el("span", "", item.last_used ? L("最近参考轮次") + "：" + item.last_used.title + " · " + day(item.last_used.at) : L("暂无已确认参考")));
         copy.append(meta);
         const origin = el("details", "memory-origin"); origin.append(el("summary", "", L("出处")), el("p", "", item.origin));
         copy.append(origin);
         const actions = el("div", "memory-actions");
         const edit = button(L("修改"), "mw-btn--ghost", L("修改") + "：" + item.text);
         edit.addEventListener("click", () => {
-          const editor = itemEditor(item, (value) => api("/change", { memory_id: item.memory_id, action: "update", text: value.text, kind: value.kind, applies: value.applies }));
+          const editor = itemEditor(item, (value) => change({ action: "update", text: value.text, kind: value.kind, applies: value.applies }));
           row.replaceChildren(editor); editor.querySelector("textarea").focus();
         });
-        const toggle = button(L(item.state === "disabled" ? "启用" : "停用"), "mw-btn--ghost", L(item.state === "disabled" ? "启用" : "停用") + "：" + item.text);
-        toggle.addEventListener("click", () => run(() => api("/change", { memory_id: item.memory_id, action: item.state === "disabled" ? "enable" : "disable" }), item.state === "disabled" ? "已启用" : "已停用，不会再被使用"));
+        const toggleLabel = item.state === "paused" ? L("恢复使用") : L(item.state === "disabled" ? "启用" : "停用");
+        const toggle = button(toggleLabel, "mw-btn--ghost", toggleLabel + "：" + item.text);
+        toggle.addEventListener("click", () => run(() => change({ action: item.state === "active" ? "disable" : "enable" }), item.state === "active" ? "已停用，不会再被使用" : "已启用"));
         const more = el("details", "memory-more mw-menu-host");
         const summary = el("summary", "mw-btn mw-btn--ghost mw-btn--sm", "⋯"); summary.setAttribute("aria-label", L("更多操作") + "：" + item.text);
         const menu = el("div", "memory-menu mw-menu");
         const menuItem = (text, handler, danger) => { const node = el("button", "mw-menu__item" + (danger ? " mw-menu__item--danger" : ""), text); node.type = "button"; node.addEventListener("click", () => { more.open = false; handler(); }); menu.append(node); };
         if (item.scope !== "character" && !item.plugin_id) menuItem(L(item.scope === "project" ? "改为个人记忆" : "改为项目记忆"), () => {
           if (item.scope === "personal" && !project) { fail(new Error(L("在项目的设置里才能改为那个项目的记忆"))); return; }
-          run(() => api("/change", { memory_id: item.memory_id, action: "move", to: item.scope === "project" ? "personal" : "project" }), "已改范围");
+          run(() => change({ action: "move", to: item.scope === "project" ? "personal" : "project" }), "已改范围");
         });
         menuItem(L("历史版本"), () => historyPanel(item, copy));
         if (item.scope === "project" && project) menuItem(L("升级为项目说明"), () => {
@@ -322,7 +369,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
           window.location.assign(target);
         });
         menuItem(L("删除"), async () => {
-          if (await ask(L("删除这条记忆？"), L("删除后任何地方都不会再用到这条，历史版本也一起删除。") + "「" + item.text + "」", L("删除"))) run(() => api("/change", { memory_id: item.memory_id, action: "remove" }), "已删除");
+          if (await ask(L("删除这条记忆？"), L("删除后任何地方都不会再用到这条，历史版本也一起删除。") + "「" + item.text + "」", L("删除"))) run(() => change({ action: "remove" }), "已删除");
         }, true);
         more.append(summary, menu);
         actions.append(edit, toggle, more);
@@ -383,8 +430,8 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       filters[control.dataset.memoryFilter] = control.value; if (data) paintItems();
     }));
     $("[data-memory-add]").addEventListener("click", () => {
-      const slot = $("[data-memory-new]");
-      const editor = itemEditor(null, (value) => api("/items", { scope, text: value.text, kind: value.kind, applies: value.applies }));
+      const slot = $("[data-memory-new]"), write = mutation();
+      const editor = itemEditor(null, (value) => write("/items", { scope, text: value.text, kind: value.kind, applies: value.applies }));
       slot.replaceChildren(editor); slot.hidden = false; editor.querySelector("textarea").focus();
     });
     $("[data-memory-upkeep-run]").addEventListener("click", () => run(() => api("/upkeep", {}), "整理好了，结果在最近变动里"));
@@ -397,6 +444,7 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       document.body.append(link); link.click(); link.remove();
       setTimeout(() => URL.revokeObjectURL(link.href), 1000);
     }, "已导出"));
+    const importPackage = mutation();
     $("[data-memory-import]").addEventListener("change", (event) => {
       const file = event.target.files && event.target.files[0];
       event.target.value = "";
@@ -404,16 +452,37 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
       run(async () => {
         let pack;
         try { pack = JSON.parse(await file.text()); } catch { throw new Error(L("这个文件不是记忆包")); }
-        const result = await api("/import", { scope, package: pack });
-        toast(L("导入") + " " + result.written + " " + L("条") + (result.skipped ? " · " + L("跳过") + " " + result.skipped : "") + (result.refused ? " · " + L("没有导入") + " " + result.refused : ""));
+        await importPackage("/import", { scope, package: pack });
       });
     });
-    $("[data-memory-clear]").addEventListener("click", () => run(async () => {
-      const preview = await api("/preview", { scope });
-      if (!preview.count) { toast(L("没有可以清空的记忆")); return; }
-      if (!await ask(L("清空这些记忆？"), L("将删除") + " " + preview.count + " " + L("条记忆，删除后任何地方都不会再用到。"), L("确定清空"))) return;
-      const done = await api("/clear", { scope, fingerprint: preview.fingerprint });
-      toast(L("已删除") + " " + done.removed + " " + L("条"));
+    let clearPreview = null;
+    const clearButton = $("[data-memory-clear]"), resetClear = $("[data-memory-clear-reset]"), clearStatus = $("[data-memory-clear-status]");
+    const showClear = (message) => {
+      clearStatus.textContent = message; clearStatus.hidden = false;
+      clearButton.textContent = L(clearPreview ? "重试本次清空" : "清空…"); resetClear.hidden = !clearPreview;
+    };
+    clearButton.addEventListener("click", () => run(async () => {
+      if (!clearPreview) {
+        const preview = await api("/preview", { scope });
+        if (!preview.count) { toast(L("没有可以清空的记忆")); return; }
+        if (!await ask(L("清空这些记忆？"), L("将删除") + " " + preview.count + " " + L("条记忆，删除后任何地方都不会再用到。"), L("确定清空"))) return;
+        clearPreview = preview;
+      }
+      showClear(L("本次清空尚未完成；重试仍只处理已确认的记忆。"));
+      const done = await api("/clear", { scope, fingerprint: clearPreview.fingerprint });
+      if (done.complete) {
+        clearPreview = null;
+        showClear(L("清空已完成") + " · " + L("已删除") + " " + done.removed + " " + L("条"));
+        toast(clearStatus.textContent);
+      } else {
+        const count = (outcome) => done.items.filter((item) => item.outcome === outcome).length;
+        showClear(L("本次清空尚未完成；重试仍只处理已确认的记忆。") + " · " + L("已删除") + " " + done.removed
+          + " · " + L("版本冲突") + " " + count("conflict") + " · " + L("结果未知") + " " + count("unknown") + " · " + L("尚未执行") + " " + count("not-executed"));
+      }
+    }));
+    resetClear.addEventListener("click", () => run(async () => {
+      if (!await ask(L("重新预览清空范围？"), L("停止重试本次确认。已删除的不会恢复；新的清空范围需要重新确认。"), L("重新预览…"))) return;
+      clearPreview = null; showClear(L("下次清空会重新预览并确认当前范围。"));
     }));
     root.querySelectorAll("[data-memory-pref]").forEach((box) => box.addEventListener("change", () => {
       const path = box.dataset.memoryPref.split(".");

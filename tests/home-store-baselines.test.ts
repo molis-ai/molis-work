@@ -11,7 +11,7 @@ import { ALCHEMIST_SEARCH_BASELINE, MolisWorkLocalHost, homeStores } from "@moli
 /** Stores past their first baseline: the memory ledger without its first facts table, the assistant without its memory candidates,
  * Functions with one scene binding per scene and project (keyed by project_id) and judgments keyed by the installation that recorded them, Form answers that always keep their questions,
  * Characters with its own native runs (Sessions cleanup SC-2). */
-const STORE_VERSIONS: Record<string, number> = { connectors: 2, pages: 2, memory: 3, assistant: 3, functions: 4, form: 2, characters: 2 };
+const STORE_VERSIONS: Record<string, number> = { connectors: 2, pages: 2, memory: 4, assistant: 3, functions: 4, form: 2, characters: 2 };
 /** Baseline tables a real Home had not created yet (made on first use); the one-time stamping run created them empty. */
 const LAZY_TABLES: Record<string, string[]> = { connectors: ["connector_authorization_results"] };
 const shape = (sql: string) => { const db = new DatabaseSync(":memory:"); try { db.exec(sql); return describeSqliteSchema(db); } finally { db.close(); } };

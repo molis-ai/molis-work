@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test, { type TestContext } from "node:test";
-import { memoryEvaluationSourceEvidence } from "../scripts/memory-evaluation/baseline.mjs";
+import { currentEvaluationSource, memoryEvaluationB2Preflight, memoryEvaluationSourceEvidence } from "../scripts/memory-evaluation/baseline.mjs";
 
 function repository(t: TestContext) {
   const root = mkdtempSync(join(tmpdir(), "memory-baseline-git-"));
@@ -47,4 +47,22 @@ test("MEM-36: an undeclared Markdown prompt is production input, not a general d
   const repo = repository(t);
   repo.write("skills/memory/SKILL.md", "changed instructions\n");
   assert.deepEqual(memoryEvaluationSourceEvidence(repo.root, repo.baseline).productChanges, ["skills/memory/SKILL.md"]);
+});
+
+
+test("MEM-36: B2 provenance records the actual commit and SDK; it never relabels them as historical B1", t => {
+  const repo = repository(t);
+  const manifest = "horizontal/agent-host/package.json", provenance = "vendor/prologue-sdk/current.tgz.provenance.json";
+  repo.write(manifest, JSON.stringify({ dependencies: { "@prologue/sdk": "file:../../vendor/prologue-sdk/current.tgz" } }));
+  repo.write(provenance, JSON.stringify({ source: { commit: "current-sdk" }, artifact: { file: "current.tgz" } }));
+  repo.commit([manifest, provenance]);
+  repo.write("scripts/memory-evaluation/originals.mts", "uncommitted instrument\n");
+  const source = currentEvaluationSource(repo.root);
+  assert.equal(source.arm, "B2"); assert.equal(source.molisCommit, repo.git("rev-parse", "HEAD"));
+  assert.equal(source.sdkCommit, "current-sdk"); assert.equal(source.sdkArtifact, "current.tgz");
+  assert.notEqual(source.molisCommit, source.historicalBaseline.molisCommit);
+  assert.deepEqual(source.evaluationChanges, ["scripts/memory-evaluation/originals.mts"]);
+  assert.deepEqual(memoryEvaluationSourceEvidence(repo.root, repo.baseline).productChanges,
+    [manifest, "scripts/memory-evaluation/originals.mts", provenance], "B2 instruments do not weaken the frozen B1 whitelist");
+  assert.throws(() => memoryEvaluationB2Preflight(repo.root), /tool located in the inspected worktree/, "cannot combine another tree's source with this tool's build records");
 });

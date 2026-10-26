@@ -13,6 +13,8 @@
  * - The technical part (the capability a step called, what came back from a step that did not finish) opens from the
  *   step itself, by pointer, keyboard or touch, instead of a title only a hovering pointer can read.
  * - Nodes for steps the view no longer has are removed, so a step is never shown twice.
+ * - Memory references keep the same disclosure node and show only the Host's delivery/version facts; omission reasons
+ *   distinguish the length budget from a count limit. Unconfirmed delivery never becomes confirmed use in this view.
  *
  * `put` places a node in order without moving one that already stands in place (`ASSISTANT_PLACER_SCRIPT`).
  */
@@ -97,7 +99,31 @@ export const ASSISTANT_PROCESS_FACTORY_SCRIPT = String.raw`(input) => {
     [...round.children].forEach((child) => { if (/^[ag]:/.test(child.getAttribute("data-entry") || "") && !placed.has(child)) child.remove(); });
     for (const [id, node] of round.stepLines || []) if (!node.isConnected) round.stepLines.delete(id);
   };
-  return { activityLine, place, sweep };
+  const memoryScope = (scope) => L(scope === "personal" ? "个人" : scope === "character" ? "角色" : "本项目");
+  const memory = (round, trail, put) => {
+    const { used = [], omitted = [], uncertain = [], unverified, recording_error } = trail || {};
+    if (!(used.length || omitted.length || uncertain.length || unverified || recording_error)) return round.querySelector(':scope > .assistant-memories')?.remove();
+    const box = keyed(round, "data-entry", "memories", () => { const box = el("details", "assistant-steps assistant-memories"); box.append(el("summary", "assistant-steps-summary")); return box; });
+    const signature = JSON.stringify(trail);
+    if (box.dataset.signature === signature) return put(box);
+    box.dataset.signature = signature;
+    setText(box.firstElementChild, L("已提供 {n} 条记忆", { n: used.length }) + (omitted.length ? " · " + L("没带上 {n} 条", { n: omitted.length }) : ""));
+    while (box.children[1]) box.children[1].remove();
+    const note = (text) => box.append(el("p", "assistant-memory-omitted", L(text)));
+    const lines = (items) => items.forEach((item) => {
+      const row = el("p", "assistant-activity assistant-memory");
+      row.append(el("span", "assistant-memory-scope", memoryScope(item.scope)), item.content_changed ? L("记忆已更新，隐藏旧内容") : item.text);
+      row.title = item.origin || "";
+      box.append(row);
+    });
+    lines(used);
+    if (uncertain.length || unverified) note("记忆送达未确认");
+    lines(uncertain);
+    if (recording_error) note("本轮参考记录未保存");
+    if (omitted.length) { note(omitted.every((item) => item.reason === "budget") ? "因为篇幅没带上" : "因为篇幅或条数上限没带上"); lines(omitted); }
+    put(box);
+  };
+  return { activityLine, place, sweep, memory, memoryScope };
 }`;
 
 /**

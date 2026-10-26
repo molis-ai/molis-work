@@ -204,16 +204,31 @@ describe("the records of this repository", () => {
   const file = (relative: string) => readFileSync(path.join(repoRoot, relative), "utf8");
   const json = (relative: string) => JSON.parse(file(relative));
   const folder = "vendor/prologue-sdk";
-  const current = "prologue-sdk-0.0.0-rc.1-final103-bridge.tgz";
+  const current = "prologue-sdk-0.0.0-rc.1-memory-p0.tgz";
 
   test("every vendored archive matches its .sha256 and provenance", () => {
     assert.deepEqual(vendoredProvenanceProblems(repoRoot), []);
   });
 
-  test("RAC-109-S-09: the current Prologue package is the reviewed finalized103 transition on the v60 base", () => {
+  test("the current Prologue package is the clean merged Memory107 source consumed by agent-host", () => {
     const provenance = json(`${folder}/${current}.provenance.json`);
     assert.equal(provenance.artifact.file, current);
     assert.equal(json("horizontal/agent-host/package.json").dependencies["@prologue/sdk"], `file:../../${folder}/${current}`);
+    assert.equal(provenance.source.commit, "1cc80b05253df798eeb34afff65d1bda06bee587");
+    assert.equal(provenance.source.candidateUpstream.pullRequest, "https://github.com/molis-ai/molis-prologue/pull/107");
+    assert.equal(provenance.source.candidateUpstream.head, provenance.source.commit);
+    assert.equal(provenance.source.candidateUpstream.status, "merged");
+    assert.equal(provenance.source.candidateUpstream.mergeCommit, "ccafbb74fb9db0e3a124ec502c57291677487e23");
+    assert.equal(provenance.source.inFlight, undefined);
+    assert.deepEqual(provenance.source.patches, []);
+    assert.equal(provenance.source.dirty, false);
+  });
+
+  test("RAC-109-S-09: the retained LKG is the reviewed finalized103 transition on the v60 base", () => {
+    const lkg = "prologue-sdk-0.0.0-rc.1-final103-bridge.tgz";
+    const provenance = json(`${folder}/${lkg}.provenance.json`);
+    assert.equal(provenance.artifact.file, lkg);
+    assert.notEqual(json("horizontal/agent-host/package.json").dependencies["@prologue/sdk"], `file:../../${folder}/${lkg}`);
     // The public, fixed bridge is reviewed separately from main and the unadopted local42 candidate.
     assert.equal(provenance.source.commit, "ba75c9f8437018904b24dabeaaef6ded8054add5");
     assert.equal(provenance.source.base, "2c7feba5a6ea85e81e4a263671fb5e68f536d86a");

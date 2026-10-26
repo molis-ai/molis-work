@@ -1,3 +1,4 @@
+import { trustedOriginalInput } from "./original-inputs.js";
 import { agentErrors } from "./errors.js";
 import { parseAgentRunBudget } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { parseExactActionReferences, requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -117,6 +118,8 @@ function assertSessionCreation(adapter: AgentRuntimeAdapter, input: import("@mol
 }
 
 export interface AgentStartAuthority {
+  /** Original text from the protected Host entry/current Action, never a plugin's start DTO. */
+  original_input?: Omit<import("@molis-ai/molis-work-contracts/platform/actions").HostOfferedOriginalInput, "action">;
   /**
    * The number of the operation that starts this round (`ActionCallOrigin`). Only the Host gives it; nothing in a request is read for it.
    * The adapter writes it into the round's frozen record as `frozen.call_id` (not a tool call's id); it is not sent to Prologue.
@@ -303,7 +306,7 @@ export class AgentHost implements AgentHostApi {
     request: AgentStartRequest,
     authority: AgentStartAuthority,
   ): Promise<AgentRunHandle> {
-    request = { ...request, budget: parseAgentRunBudget(request.budget), execution_plan: freezeExecutionPlan(request) };
+    request = { ...request, original_input: trustedOriginalInput(request, authority.original_input), continued_from: request.continued_from && structuredClone(request.continued_from), budget: parseAgentRunBudget(request.budget), execution_plan: freezeExecutionPlan(request) };
     // What runs is the registered prompt as the person left it: their version when they edited it, otherwise the
     // default. Same id and version either way — the frozen record says which, and no text widens what the role may do.
     if (this.#prompts && authority.prompts?.length) {
@@ -364,7 +367,7 @@ export class AgentHost implements AgentHostApi {
         ...(character ? { character } : {}),
         ...(characterSkillIds === undefined ? {} : { character_skill_ids: characterSkillIds }),
         prompts: prompts.map((prompt) => ({ ...prompt })),
-        ...(memory && memory.pinned.length ? { memory: structuredClone(memory) } : {}),
+        ...(memory ? { memory: structuredClone(memory) } : {}),
         skills,
         ...(compaction ? { compaction } : {}), ...(endingReview ? { ending_review: { prompt: endingReview } } : {}),
         host_tools: hostTools,
@@ -381,3 +384,5 @@ export class AgentHost implements AgentHostApi {
 export { PrologueInferenceError, inferenceServiceUnavailableReason, isDispatchRefusal } from "./inference.js";
 export { reportedTokenTotal, decodePrologueJsonOutput } from "./inference.js";
 export type { PrologueCredentialInput, PrologueTextInput, PrologueInputImage, PrologueTextResult, PrologueExecutionReceipt, PrologueRunRef, PrologueStructuredRequest, PrologueTextProgress, PrologueImageInput, PrologueTypeSafeInput, PrologueInferenceClient } from "./inference.js";
+export { openPrologueMemoryAdoption, type PrologueMemoryAdoptionInput, type PrologueMemoryAdoptionBridge, type PrologueMemoryAdoptionScope } from "./adapters/prologue-memory-adoption.js";
+export type { PrologueMemoryOptions } from "./adapters/prologue-memory-authority.js";

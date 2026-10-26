@@ -20,8 +20,8 @@ export function referenceKindsPort(localHost: MolisWorkLocalHost, homeDirectory:
     const views = await localHost.actionClient(reference).discover(await localWebActionContext(localHost, reference, LOCAL_OWNER_PERMISSIONS));
     const catalog = withCatalog();
     const plugins = catalog ? await catalog({ homeDirectory }, opened => {
-      const hidden = opened.listHiddenPlugins(owner.project_id);
-      return { shown: new Set(shownProjectPlugins(opened.listProjectPlugins(owner.project_id), hidden)), hidden: new Set(hidden) };
+      const { plugins, hidden } = opened.projectPluginMembership(owner.project_id);
+      return { shown: new Set(shownProjectPlugins(plugins, hidden)), hidden: new Set(hidden) };
     }) : { shown: undefined, hidden: new Set<string>() };
     return projectReferenceKinds(views, plugins.shown, plugins.hidden);
   };

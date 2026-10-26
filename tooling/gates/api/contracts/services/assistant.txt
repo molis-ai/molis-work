@@ -303,7 +303,7 @@ export interface AssistantMemoryCandidate {
     text: string;
     why: string;
     applies: string;
-    state: "pending" | "accepted" | "discarded" | "expired";
+    state: "pending" | "accepted" | "discarded" | "expired" | "cancelled";
     created_at: string;
     memory_id?: string;
     held?: string;
@@ -516,6 +516,9 @@ export interface AssistantRound {
         omitted: Array<AssistantRoundMemory & {
             reason: "budget" | "limit";
         }>;
+        uncertain?: AssistantRoundMemory[];
+        unverified?: true;
+        recording_error?: "memory.receipt_unrecorded";
     };
 }
 
@@ -585,6 +588,8 @@ export interface AssistantRoundMemory {
     scope: MemoryScope;
     text: string;
     origin: string;
+    version?: number;
+    content_changed?: true;
 }
 
 export interface AssistantRule {

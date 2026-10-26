@@ -299,12 +299,12 @@ export class MolisWorkProjectCatalog {
     return this.projects.query.listProjects();
   }
 
-  listProjectPlugins(projectId: string): ProjectPluginId[] {
-    return this.projects.query.listProjectPlugins(projectId);
+  projectPluginMembership(projectId: string): ProjectPluginMembership {
+    return this.projects.query.projectPluginMembership(projectId);
   }
 
-  listHiddenPlugins(projectId: string): ProjectPluginId[] {
-    return this.projects.query.listHiddenPlugins(projectId);
+  listProjectPlugins(projectId: string): ProjectPluginId[] {
+    return this.projects.query.listProjectPlugins(projectId);
   }
 
   addProjectPlugin(input: AddProjectPluginInput): ProjectPluginId[] {

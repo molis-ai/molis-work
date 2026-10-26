@@ -392,6 +392,8 @@ export type ActionAvailability = {
 
 export interface ActionCallContext extends ActionCallOrigin {
     readonly actor_id: string;
+    readonly memory_read_mode?: "explicit" | "task";
+    readonly memory_operation_id?: string;
     readonly assistant_reply?: import("@molis-ai/molis-work-contracts/services/assistant").AssistantReplyDelivery;
     readonly page_context?: {
         readonly url: string | null;
@@ -411,6 +413,7 @@ export interface ActionCallContext extends ActionCallOrigin {
     readonly plugin_install_id?: string;
     readonly host_plugin?: import("@molis-ai/molis-work-contracts/platform/app-host").HostPluginCaller;
     readonly original_file?: HostOfferedOriginalFile;
+    readonly original_input?: HostOfferedOriginalInput;
     readonly query_only?: true;
     readonly read_only_effects?: true;
     readonly permissions: readonly string[];
@@ -2276,6 +2279,16 @@ export interface HostEventType {
 export interface HostOfferedOriginalFile {
     readonly path: string;
     readonly install_id: string;
+}
+
+export interface HostOfferedOriginalInput {
+    readonly use?: "supplement";
+    readonly input_id: string;
+    readonly text: string;
+    readonly written_by: "person" | "host";
+    readonly occurred_at: string;
+    readonly install_id: string;
+    readonly action: ActionReference;
 }
 
 export interface HostReviewSettledPayload {

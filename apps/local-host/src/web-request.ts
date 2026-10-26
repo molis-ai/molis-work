@@ -28,7 +28,7 @@ import type { MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host";
 import { cachedMolisWorkWebView, lookingForArea, type MolisWorkWebViewCache } from "./web-view.js";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
-import { handleInboxNativePluginHttp } from "./inbox-native-plugin-http.js";
+import { handlePluginStageFragmentHttp } from "./plugin-stage-fragment-http.js";
 import { handleAlchemistNativePluginHttp } from "./alchemist-native-plugin-http.js";
 import { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
 import { redirectFunctionsPage, resolveWebRequest } from "./web-routing.js";
@@ -197,11 +197,10 @@ const planningRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
     composition.planningHttp.project(request, response, url, controlToken, readWebView, goalActions, bindPersonalPlanningWebActions(localHost.homeActionClient())) },
 ];
 
-/** Inbox and Schedule render into the project page and drop its cached view when they change it. */
+/** The stages the project page redraws in place, and the home dock's judgment; both drop the page's cached view when they change it. */
 const pageOwnerRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
-  { id: "inbox", handle: ({ request, response, url, localHost, hostReference, webViewCache, options, composition, readWebView, shownPlugins }) =>
-    handleInboxNativePluginHttp(request, response, url, { actions: bindLocalWebActions(localHost, hostReference, INBOX_ACTION_PERMISSIONS),
-      enabled: async () => (await shownPlugins(options.projectId)).includes("inbox"),
+  { id: "plugin-stage", handle: ({ request, response, url, webViewCache, options, composition, readWebView, shownPlugins }) =>
+    handlePluginStageFragmentHttp(request, response, url, { shown: () => shownPlugins(options.projectId),
       invalidateWebView: () => webViewCache.delete(options.databasePath), renderer: composition.workbenchRenderer, readWebView }) },
   homeDockRoute,
 

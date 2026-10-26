@@ -87,7 +87,7 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
   });
   assert.equal(added.status, 200);
 
-  const listed = await webFetch(`${origin}${prefix}/api/inbox`);
+  const listed = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.inbox/entries`);
   assert.equal(listed.status, 200);
   const listedBody = await listed.json() as { entries: Array<{ entry_id: string; status: string; revision: number; subject_id: string }> };
   assert.equal(listedBody.entries.length, 1);
@@ -112,14 +112,14 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
   assert.doesNotMatch(inboxDirectory, /system_admit_inbox/);
   assert.doesNotMatch(page, /data-feed-entry-type="inbox_message"|data-feed-entry-id="inbox:/);
 
-  const missingRevision = await webFetch(`${origin}${prefix}/api/inbox/entries/${entryId}/status`, {
+  const missingRevision = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.inbox/entries/${entryId}/status`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ status: "done" }),
   });
   assert.equal(missingRevision.status, 400);
 
-  const stale = await webFetch(`${origin}${prefix}/api/inbox/entries/${entryId}/status`, {
+  const stale = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.inbox/entries/${entryId}/status`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ status: "done", expected_revision: revision + 8 }),
@@ -127,7 +127,7 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
   assert.equal(stale.status, 409);
   assert.equal((await stale.json() as { code: string }).code, "attention.revision_conflict");
 
-  const completed = await webFetch(`${origin}${prefix}/api/inbox/entries/${entryId}/status`, {
+  const completed = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.inbox/entries/${entryId}/status`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ status: "done", expected_revision: revision }),
@@ -136,7 +136,7 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
   const completedBody = await completed.json() as { entry: { status: string; revision: number } };
   assert.equal(completedBody.entry.status, "done");
 
-  const completedAgain = await webFetch(`${origin}${prefix}/api/inbox/entries/${entryId}/status`, {
+  const completedAgain = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.inbox/entries/${entryId}/status`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ status: "done", expected_revision: completedBody.entry.revision }),
@@ -159,11 +159,11 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
     body: JSON.stringify({ expected_revision: 1 }),
   });
   assert.equal(addedSecond.status, 200);
-  const secondListed = await webFetch(`${origin}${prefix}/api/inbox`);
+  const secondListed = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.inbox/entries`);
   const secondEntry = ((await secondListed.json()) as { entries: Array<{ entry_id: string; status: string; revision: number; subject_id: string }> })
     .entries.find((entry) => entry.subject_id === "inbox-plugin-item-2");
   assert.ok(secondEntry);
-  const dismissed = await webFetch(`${origin}${prefix}/api/inbox/entries/${secondEntry.entry_id}/status`, {
+  const dismissed = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.inbox/entries/${secondEntry.entry_id}/status`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ status: "dismissed", expected_revision: secondEntry.revision }),
@@ -176,7 +176,7 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
   assert.match(afterDismissInbox, /data-inbox-stage-group="history"/);
   assert.match(afterDismiss, /data-feed-entry-id="inbox-plugin-item-2"/);
 
-  const missing = await webFetch(`${origin}${prefix}/api/inbox/entries/missing-entry/status`, {
+  const missing = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.inbox/entries/missing-entry/status`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ status: "done", expected_revision: 1 }),
@@ -184,7 +184,7 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
   assert.equal(missing.status, 404);
   assert.equal((await missing.json() as { code: string }).code, "inbox.entry_not_found");
 
-  const judgment = await webFetch(`${origin}${prefix}/api/inbox/judgment`);
+  const judgment = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.inbox/judgment`);
   assert.equal(judgment.status, 200);
   const judgmentBody = await judgment.json() as {
     function_key: string | null;
@@ -195,21 +195,21 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
   assert.equal(judgmentBody.functions.some((row) => row.function_key === "system_admit_inbox"), false);
   assert.equal(judgmentBody.functions.some((row) => row.function_key === "system_pick_home_dock"), false);
 
-  const mismatched = await webFetch(`${origin}${prefix}/api/inbox/judgment`, {
+  const mismatched = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.inbox/judgment`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ function_key: "system_admit_inbox" }),
   });
   assert.equal(mismatched.status, 400);
 
-  const disconnected = await webFetch(`${origin}${prefix}/api/inbox/judgment`, {
+  const disconnected = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.inbox/judgment`, {
     method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify({ function_key: "system_pick_inbox_next" }),
   });
   assert.equal(disconnected.status, 503, "an enabled binding cannot claim readiness without its provider");
   functionEnv.TYPESAFE_API_KEY = "fixture-not-used-for-network";
 
-  const bound = await webFetch(`${origin}${prefix}/api/inbox/judgment`, {
+  const bound = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.inbox/judgment`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ function_key: "system_pick_inbox_next" }),
@@ -219,21 +219,21 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
   assert.notEqual(afterBinding.availability.available ? "available" : afterBinding.availability.code, "actions.binding_required");
   assert.equal((await bound.json() as { function_key: string }).function_key, "system_pick_inbox_next");
 
-  const rebound = await webFetch(`${origin}${prefix}/api/inbox/judgment`);
+  const rebound = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.inbox/judgment`);
   assert.equal((await rebound.json() as { function_key: string }).function_key, "system_pick_inbox_next");
 
   const afterBind = await (await webFetch(`${origin}${prefix}/`)).text();
   assert.doesNotMatch(afterBind, /data-inbox-judgment/);
   assert.doesNotMatch(afterBind, /value="system_pick_inbox_next" selected/);
 
-  const unpublished = await webFetch(`${origin}${prefix}/api/inbox/judgment`, {
+  const unpublished = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.inbox/judgment`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ function_key: "not_a_published_function" }),
   });
   assert.equal(unpublished.status, 400);
 
-  const unbound = await webFetch(`${origin}${prefix}/api/inbox/judgment`, {
+  const unbound = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.inbox/judgment`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ function_key: null }),
@@ -245,7 +245,7 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
   const mcp = createActionMcpPorts({ service: actions, context: () => caller, serverInfo: { name: "inbox-test", version: "1" } });
   const statusName = actionMcpToolName(inboxActions.setStatus);
   assert.ok((await mcp.tools).some(tool => tool.name === statusName));
-  const current = await (await webFetch(`${origin}${prefix}/api/inbox`)).json() as { entries: Array<{entry_id: string; revision: number}> };
+  const current = await (await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.inbox/entries`)).json() as { entries: Array<{entry_id: string; revision: number}> };
   const original = current.entries.find(entry => entry.entry_id === entryId)!;
   const reopened = await handleMcpMessage({ id: 1, method: "tools/call", params: { name: statusName,
     arguments: { entry_id: entryId, status: "open", expected_revision: original.revision } } }, mcp);
@@ -253,7 +253,7 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
   const internal = await actions.invoke(caller, inboxActions.list, {}) as { entries: Array<{entry_id: string; project_id: string; status: string}> };
   assert.equal(internal.entries.find(entry => entry.entry_id === entryId)?.status, "open");
   assert.ok(internal.entries.every(entry => entry.project_id === project.project_id));
-  const visible = await (await webFetch(`${origin}${prefix}/api/inbox`)).json();
+  const visible = await (await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.inbox/entries`)).json();
   assert.deepEqual(visible, internal, "MCP writes must be visible through the actual HTTP entry");
 
   catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id: "inbox", actor_id: "test" });
@@ -261,8 +261,8 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
   assert.equal((await actions.discover(caller)).find(action => action.capability_id === inboxActions.list.capability_id), undefined);
   await assert.rejects(actions.invoke(caller, inboxActions.list, {}), { code: "actions.missing" });
   assert.ok(!(await mcp.tools).some(tool => tool.name === statusName));
-  assert.equal((await webFetch(`${origin}${prefix}/api/inbox`)).status, 403);
-  assert.equal((await webFetch(`${origin}${prefix}/api/inbox/workbench`)).status, 403);
+  assert.equal((await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.inbox/entries`)).status, 403);
+  assert.equal((await webFetch(`${origin}${prefix}/api/stage/inbox`)).status, 403);
   catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "inbox", actor_id: "test" });
   await host.closeProject(reference);
   assert.deepEqual(await actions.invoke(caller, inboxActions.list, {}), internal, "reopening registers actions and retains the real business state");

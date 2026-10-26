@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
+import { FEED_PLUGIN_ID } from "@molis-ai/molis-work-plugin-feed";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, createLocalFeedApplication, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 
 test("W2-18-ATTENTION-TX-01 independent Feed admission and multi-entry deletion roll back facts and journal together", () => {
@@ -36,17 +37,17 @@ test("W2-18-ATTENTION-TX-01 independent Feed admission and multi-entry deletion 
       eventSink: event => { store.appendEvent({ eventId: randomUUID(), projectId: event.project_id, actorId: "web-user", objectType: "inbox_entry",
         objectId: event.entry_id, type: event.type, reason: event.reason, payload: event.payload, at: event.at }); },
     });
-    attention.commands.create({ project_id: DEMO_PROJECT_ID, subject_type: "feed_item", subject_id: item.item_id, reason: "source_rule",
+    attention.commands.create({ project_id: DEMO_PROJECT_ID, owner_plugin_id: FEED_PLUGIN_ID, subject_type: "feed_item", subject_id: item.item_id, reason: "source_rule",
       entry_id: "second-entry", at: "2026-01-01T00:00:00.000Z" });
     const two = snapshot();
     // The first deletion's journal write succeeds; rejecting the second must roll both back.
     store.db.exec("CREATE TRIGGER refuse_second BEFORE INSERT ON events WHEN NEW.type = 'inbox_entry.deleted' AND NEW.object_id = 'second-entry' BEGIN SELECT RAISE(ABORT, 'second journal refused'); END;");
-    assert.throws(() => attention.commands.deleteSubject(DEMO_PROJECT_ID, "feed_item", item.item_id), /second journal refused/);
+    assert.throws(() => attention.commands.deleteSubject(DEMO_PROJECT_ID, "feed_item", item.item_id, FEED_PLUGIN_ID), /second journal refused/);
     assert.deepEqual(snapshot(), two);
     store.db.exec("DROP TRIGGER refuse_second");
-    assert.equal(attention.commands.deleteSubject(DEMO_PROJECT_ID, "feed_item", item.item_id), 2);
-    assert.equal(attention.commands.deleteSubject(DEMO_PROJECT_ID, "feed_item", item.item_id), 0);
-    assert.deepEqual(attention.query.findForSubject(DEMO_PROJECT_ID, "feed_item", item.item_id), []);
+    assert.equal(attention.commands.deleteSubject(DEMO_PROJECT_ID, "feed_item", item.item_id, FEED_PLUGIN_ID), 2);
+    assert.equal(attention.commands.deleteSubject(DEMO_PROJECT_ID, "feed_item", item.item_id, FEED_PLUGIN_ID), 0);
+    assert.deepEqual(attention.query.findForSubject(DEMO_PROJECT_ID, "feed_item", item.item_id, FEED_PLUGIN_ID), []);
     assert.equal(attention.events.list(DEMO_PROJECT_ID).filter(row => row.type === "inbox_entry.deleted").length, 2);
     assert.equal(store.db.prepare("SELECT COUNT(*) AS n FROM events WHERE type = 'inbox_entry.deleted'").get()?.n, 2);
   } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }

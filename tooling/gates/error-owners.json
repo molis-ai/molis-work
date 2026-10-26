@@ -179,10 +179,9 @@
     },
     "inbox": {
       "paths": [
-        "apps/local-host/src/inbox-*",
         "packages/contracts/src/modules/attention-resumption.ts"
       ],
-      "reason": "The Inbox plugin and the Host files that serve it; the Pages codes it borrowed became inbox.* (spec W3-02 E). The contracts file of the attention module holds the Inbox's declaration (inboxErrors), because the Feed plugin raises the missing entry and the Inbox plugin the invalid request and the two share no other package."
+      "reason": "The Inbox plugin (its Host files are gone, FI-7); the Pages codes it borrowed became inbox.* (spec W3-02 E). The contracts file of the attention module holds the Inbox's declaration (inboxErrors), because the Feed plugin raises the missing entry and the Inbox plugin the invalid request and the two share no other package."
     },
     "installer": {
       "paths": [

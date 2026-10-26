@@ -141,7 +141,8 @@ const PROJECT_PROBES: Probe[] = [
   { method: "GET", path: "/api/workflows" },
   { method: "GET", path: "/api/plugins/io.molis.work.native.workflows/workflows" },
   { method: "GET", path: "/api/plugins/io.molis.work.native.workflows/workflows/no-such" },
-  { method: "GET", path: "/api/inbox" },
+  { method: "GET", path: "/api/plugins/io.molis.work.inbox/entries" },
+  { method: "GET", path: "/api/stage/inbox" },
   { method: "GET", path: "/api/home/dock-judgment" },
   { method: "GET", path: "/api/home/actions/choices" },
   { method: "GET", path: "/api/plugins/io.molis.work.schedule/list" },
@@ -194,6 +195,8 @@ test("W5-07: every address reaches the same handler, in the same order, and the 
   const token = "web-route-table-control-token-0123456789";
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const created = await catalog.createProject({ display_name: "路由表", actor_id: "test" });
+  // Inbox is a plugin of the project's Runtime: the pages and routes under test are the project's only when it has it.
+  catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "inbox", actor_id: "test" });
   const missing = await catalog.createProject({ display_name: "没有库", actor_id: "test" });
   rmSync(catalog.getProject(missing.project_id).database_path, { force: true });
   const host = new MolisWorkLocalHost({ homeDirectory: home });

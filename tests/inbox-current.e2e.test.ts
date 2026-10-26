@@ -6,7 +6,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { definePlugin } from "@molis-ai/molis-work-plugin-sdk";
 import type { ActionDefinition, ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { inboxNextScene, inboxSceneBindingId, INBOX_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-inbox";
+import { inboxActions, inboxNextScene, inboxSceneBindingId, INBOX_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-inbox";
 import { createLocalFeedApplication, createLocalFeedSourceService, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { withFunctionsService } from "../apps/local-host/dist/functions-host.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
@@ -34,6 +34,8 @@ test("Inbox shows and runs an installed plugin judgment, then withdraws advice w
   const installed = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["fixture:inbox"] }).install;
   await runtime.start(installed.install_id);
   const caller: ActionCallContext = { actor_id: "owner", project_id: projectId, audience: "user", permissions: [...INBOX_ACTION_PERMISSIONS, "fixture:inbox"] };
+  // Inbox is a plugin of the project: its scene is there once the plugin has started, which an action of its own waits for.
+  await localHost.actionClient(reference).invoke(caller, inboxActions.readJudgment, {});
   await localHost.sceneClient(reference).bind(caller, { binding_id: inboxSceneBindingId(projectId), scene_id: inboxNextScene.scene_id, scene_version: 1, project_id: projectId,
     enabled: true, function: { capability_id: definition.capability_id, version: 1 }, title: "Inbox 下一步", href: `/projects/${projectId}/?openPlugin=inbox` });
   const open = async () => {

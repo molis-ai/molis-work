@@ -45,6 +45,16 @@ export const inboxManifest: PluginManifest = {
     ...PLATFORM_PERMISSIONS],
   actions: [...INBOX_ACTIONS, ...Object.values(inboxContentActions), inboxSubjectAction, inboxSearchEntriesAction, inboxHomeEventsAction],
   action_scenes: [inboxNextScene],
+  // The page's requests: each adapts one HTTP call to one of the plugin's own actions (`createInboxRouteHandlers`), under /api/plugins/<plugin_id>/.
+  routes: [
+    { route_id: "inbox.list", method: "GET", path: "/entries", permission: "inbox:read" },
+    { route_id: "inbox.entry.status", method: "POST", path: "/entries/:entry_id/status", permission: "inbox:write" },
+    { route_id: "inbox.pages.results", method: "GET", path: "/pages", permission: "inbox:read" },
+    { route_id: "inbox.pages.generate", method: "POST", path: "/pages", permission: "inbox:write" },
+    { route_id: "inbox.judgment.read", method: "GET", path: "/judgment", permission: "inbox:read" },
+    { route_id: "inbox.judgment.write", method: "POST", path: "/judgment", permission: "inbox:write" },
+    { route_id: "inbox.judgment.evaluate", method: "POST", path: "/judgment/evaluate", permission: "inbox:read" },
+  ],
   databases: { project: INBOX_PROJECT_DATABASE },
   capabilities: { provides: [], consumes: [] },
   artifacts: { produces: [], consumes: [] },

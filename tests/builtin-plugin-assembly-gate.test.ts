@@ -53,7 +53,7 @@ const BUILD_TIME_ASSEMBLED: ReadonlySet<string> = new Set([
 
 /** `apps/local-host/src/<name>-native-plugin-http.ts` files that exist today. */
 const NATIVE_PLUGIN_HTTP_FILES: ReadonlySet<string> = new Set([
-  "alchemist", "artifact", "feed", "inbox",
+  "alchemist", "artifact", "feed",
 ]);
 
 test("every built-in catalog entry is either Runtime-assembled or on the frozen build-time list", () => {

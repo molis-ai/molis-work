@@ -17,13 +17,13 @@
 | [src/plugin.ts](src/plugin.ts) | `createInboxPlugin()`：把平台服务（Attention、项目库、场景、判断账、动作目录）接到动作与场景处理器上 |
 | [src/ui.ts](src/ui.ts) | 目录与详情 HTML |
 | [src/projection.ts](src/projection.ts) | Attention 记录到展示模型 |
-| [src/routes.ts](src/routes.ts) | HTTP 路由表 |
+| [src/routes.ts](src/routes.ts) | HTTP 处理器与请求、响应的类型（路由本身在 Manifest 的 `routes` 里声明） |
 | [src/route-handlers.ts](src/route-handlers.ts) | HTTP 参数与动作客户端的薄适配 |
 | [src/actions.ts](src/actions.ts) | 能力合同、对象上下文、具体动作准备及业务端口 |
 | [src/scenes.ts](src/scenes.ts) | 判断场景、事件上下文准备和结果消费校验 |
 | [src/scene-runtime.ts](src/scene-runtime.ts) | 下一步场景的判断：哪些已发布规则可绑定、哪些建议仍成立、怎样记录；跑在 `services.scenes` 与 `services.judgments` 上，Feed 条目的正文由 `inbox.judgment.evaluate` 先读到、暂存给这一次运行的回调（PG-034） |
 
-可对照现有调用方 [apps/workbench/src/inbox-projection-ui.ts](../../../apps/workbench/src/inbox-projection-ui.ts) 与 [apps/local-host/src/inbox-native-plugin-http.ts](../../../apps/local-host/src/inbox-native-plugin-http.ts)。
+可对照现有调用方 [apps/workbench/src/inbox-projection-ui.ts](../../../apps/workbench/src/inbox-projection-ui.ts) 与本包的 [route-handlers.ts](src/route-handlers.ts)（页面的请求只把 HTTP 转成本插件自己的动作，路由在 Manifest 的 `routes` 里声明，挂在 `/api/plugins/io.molis.work.inbox/` 下）。
 
 ## 接入与边界
 

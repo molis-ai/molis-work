@@ -21,7 +21,7 @@ test("the Dock and the contextual service see one set: same offers and keys, the
   const home = await mkdtemp(join(tmpdir(), "contextual-dock-parity-"));
   const databasePath = join(home, "project.db");
   const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
-  const caller: ActionCallContext = { actor_id: "owner", project_id: reference.project_id, audience: "user", permissions: [...HOME_ACTION_PERMISSIONS, "inbox:write", ...GOALS_ACTION_PERMISSIONS] };
+  const caller: ActionCallContext = { actor_id: "owner", project_id: reference.project_id, audience: "user", permissions: [...HOME_ACTION_PERMISSIONS, "inbox:read", "inbox:write", "judgments:write", "attention:write", "feed:read", ...GOALS_ACTION_PERMISSIONS] };
   const options: FunctionsHostOptions = { env: { TYPESAFE_API_KEY: "fixture-only" }, provider: {
     async evaluate(_key, record) {
       return { primitive: "choice", choice: "inbox.done", probabilities: { "inbox.done": 1 }, confidence: null, model: record.model, noul: null, score: null, legend: null };

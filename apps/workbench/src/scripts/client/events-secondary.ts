@@ -102,7 +102,7 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const feedTaskToggle = targ
         inboxAction.setAttribute("aria-busy", "true");
         if (status) status.hidden = true;
         try {
-          await api("/api/inbox/entries/" + encodeURIComponent(entryId) + "/status", "POST", {
+          await api(inboxApi + "/entries/" + encodeURIComponent(entryId) + "/status", "POST", {
             status: statusValue,
             expected_revision: expectedRevision,
           });

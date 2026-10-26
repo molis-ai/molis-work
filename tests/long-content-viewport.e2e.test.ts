@@ -53,7 +53,7 @@ for (const [width,height] of [[1024,400],[390,500]]) test(`Long content keeps ac
   // Completing is handled in place (status request, then the Inbox stage refreshes); the page does not navigate.
   await click('[data-inbox-detail]:not([hidden]) [data-inbox-action="done"]');
   await waitFor("document.querySelector(" + JSON.stringify('[data-inbox-stage-group="history"] [data-inbox-entry-id="' + entryId + '"]') + ")");
-  const history=await (await fetch(`${origin}/projects/${projectId}/api/inbox?filter=history`)).json() as {entries:Array<{entry_id:string;status:string}>};
+  const history=await (await fetch(`${origin}/projects/${projectId}/api/plugins/io.molis.work.inbox/entries?filter=history`)).json() as {entries:Array<{entry_id:string;status:string}>};
   assert.equal(history.entries.find(e=>e.entry_id===entryId)?.status,"done");
   assert.equal(createLocalFeedApplication(b.store.db).getItem(DEMO_PROJECT_ID,item.item_id).body,"需要保留原消息。","completing the attention reference retains its Feed item");
   await openPlugin("artifacts");

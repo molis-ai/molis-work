@@ -88,7 +88,7 @@ for (const [width,height] of [[1440,900],[390,640]]) {
     const entryId=await evaluate<string>("document.querySelector('[data-inbox-detail]:not([hidden])').dataset.inboxDetail");
     await click('[data-inbox-detail]:not([hidden]) [data-inbox-action=done]');
     await waitFor(`document.querySelector('[data-inbox-stage-group="history"] [data-inbox-entry-id="${entryId}"]') && !document.querySelector('[data-inbox-stage-group="active"] [data-inbox-entry-id="${entryId}"]') && document.querySelector('[data-inbox-stage-shell]').dataset.expanded === 'false'`);
-    const history=await (await fetch(prefix+'/api/inbox?filter=history')).json();
+    const history=await (await fetch(prefix+'/api/plugins/io.molis.work.inbox/entries?filter=history')).json();
     assert.equal(history.entries.find((e:{entry_id:string})=>e.entry_id===entryId)?.status,'done');
     assert.equal(feed.getItem(DEMO_PROJECT_ID,item.item_id).body,item.body);
     await b.reloadPage();assert.equal(await evaluate('document.scrollingElement.scrollHeight<=innerHeight+1'),true);

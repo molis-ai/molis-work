@@ -3,11 +3,12 @@ import { ActionError, WORKFLOW_CONTENT_VERSIONS, resolveActionSubject, type Acti
 import { inboxErrors, type AttentionStatus } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import { INBOX_NEXT_SCENE_ID } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { PagesGenerationRecord, PagesInputSnapshot, PagesRecord } from "@molis-ai/molis-work-contracts/modules/pages";
-import type { PluginAttentionEntryRecord, PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginAttentionEntryRecord, PluginDefinition, PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createInboxActionHandlers, type InboxActionEntry } from "./actions.js";
 import { createInboxContentHandlers, type InboxBriefs, type InboxItemBrief } from "./content-actions.js";
 import { inboxManifest } from "./manifest.js";
 import { createInboxPagesHandlers } from "./pages.js";
+import { createInboxRouteHandlers } from "./route-handlers.js";
 import { InboxSceneBindings } from "./scene-bindings.js";
 import { createInboxSceneRuntime, type InboxFeedContent } from "./scene-runtime.js";
 import { inboxUiContribution } from "./ui.js";
@@ -47,9 +48,9 @@ export function createInboxPlugin(): PluginDefinition {
   return { manifest: inboxManifest, async start(context) {
     for (const permission of inboxManifest.permissions) if (permission.required) context.requireGrant(permission.permission);
     const projectId = context.project_id, services = context.services;
-    const attention = services?.attention, database = services?.project_database, scenes = services?.scenes, judgments = services?.judgments, directory = services?.actions?.directory;
+    const attention = services?.attention, database = services?.project_database, scenes = services?.scenes, judgments = services?.judgments, own = services?.actions, directory = own?.directory;
     if (!projectId) throw new ActionError("actions.scope_mismatch", "Inbox 只属于一个项目");
-    if (!attention || !database || !scenes || !judgments || !directory) throw new ActionError("actions.unredeemed", "Inbox 需要注意力、项目库、场景、判断账与动作目录服务");
+    if (!attention || !database || !scenes || !judgments || !own || !directory) throw new ActionError("actions.unredeemed", "Inbox 需要注意力、项目库、场景、判断账与动作目录服务");
     const ask = <Output>(reference: ActionReference, input: unknown) => directory.invoke<Output>(reference, input);
     const feedMissing = (error: unknown) => error instanceof ActionError && error.code === "actions.dependency_missing";
     const recordOf = (entry: PluginAttentionEntryRecord): InboxActionEntry => ({ ...entry, project_id: projectId });
@@ -125,6 +126,12 @@ export function createInboxPlugin(): PluginDefinition {
       receiveFeed: input => ask<WorkflowItemRef>(FEED.receive, input),
       admit: itemId => ask<{ entry_id: string }>(FEED.admit, { item_id: itemId }),
     })];
-    return { kind: "app", views: [inboxUiContribution], actions, action_scenes: [sceneRuntime.handler] };
+    // The page's requests only adapt HTTP to the plugin's own actions, called as the person who made the request (their authority, not Inbox's).
+    const routes = (inboxManifest.routes ?? []).map(({ route_id }) => ({ route_id, async handle(request: PluginRouteRequest) {
+      const handlers = createInboxRouteHandlers({ changed() {}, actions: { discover: async () => [], invoke: (definition, input) => own.invoke(definition, input, request.execution) } });
+      return handlers[route_id]!({ params: request.params, request: { method: request.method as "GET" | "POST", pathname: request.pathname,
+        query: new URLSearchParams(request.query), body: request.body && typeof request.body === "object" && !Array.isArray(request.body) ? request.body as Record<string, unknown> : {} } });
+    } }));
+    return { kind: "app", views: [inboxUiContribution], actions, routes, action_scenes: [sceneRuntime.handler] };
   } };
 }

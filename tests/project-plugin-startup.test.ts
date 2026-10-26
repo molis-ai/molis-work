@@ -72,7 +72,8 @@ test("background startup shares its instance with later UI execution adapters an
       if (++stopped === 1) throw new Error("one plugin stop failed");
       return receipt;
     };
-    await releaseProjectPlugins(store, DEMO_PROJECT_ID);
+    // The failed stop is reported (the Host's close goes on with its other owners); the rest are still stopped and revoked.
+    await assert.rejects(releaseProjectPlugins(store, DEMO_PROJECT_ID), /项目插件停止失败/);
     assert.ok(stopped > 1, "one failure cannot leave the other plugin providers live");
     assert.equal((await actions.client.discover(caller)).length, 0);
   } finally { await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); rmSync(home, { recursive: true, force: true }); }

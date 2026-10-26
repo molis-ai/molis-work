@@ -13,7 +13,7 @@ import { bindDeclaredDefaults } from "./plugin-default-bindings.js";
 import { nativePluginReleaseArtifact } from "./native-plugin-release-artifact.js";
 import { pluginHomeFor, projectFixtureEntries } from "./home-side.js";
 import { projectScopeEntries } from "./plugin-scope-entries.js";
-import { projectPluginEnablement, projectPluginEnablementRefresh } from "./project-plugin-enablement.js";
+import { installationSwitchedOff, projectPluginEnablement, projectPluginEnablementRefresh } from "./project-plugin-enablement.js";
 import { projectPluginDatabaseRefusal, withoutRefusedPlugins } from "./project-plugin-databases.js";
 import { reviewSettlementForwarder, type ObserveReviewSettlements } from "./review-settlement-events.js";
 import { withPluginWords } from "@molis-ai/molis-work-app-workbench";
@@ -87,10 +87,13 @@ async function stopProjectPlugins(platform: PluginPlatform): Promise<void> {
   await platform.closeCoordination();
   for (const pluginId of platform.supervisor.enabledPluginIds()) {
     const active = platform.supervisor.state(pluginId);
-    platform.supervisor.revoke(pluginId);
+    // Closing the project is not switching the plugin off: stopped first with its record kept enabled, then revoked (the
+    // supervisor's own revoke would stop it as disabled), as the Home supervisor does. So the next start runs it, and only a
+    // person's or the plugin list's disable keeps it off (BL-755).
     if (active?.status === "running" && active.install_id && platform.runtime.get(active.install_id).state === "running") {
-      try { await platform.runtime.stop(active.install_id); } catch (error) { failures.push(error); }
+      try { await platform.runtime.stop(active.install_id, { preserve_enabled: true }); } catch (error) { failures.push(error); }
     }
+    platform.supervisor.revoke(pluginId);
   }
   if (failures.length) throw new AggregateError(failures, "项目插件停止失败");
 }
@@ -149,7 +152,10 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
     record.updateObservers();
     const enabled = await projectPluginEnablement(ports.homeDirectory, ports.projectId);
     await platform.start(projectScopeEntries(withoutRefusedPlugins(ports.store.db, [...entries, ...projectFixtureEntries(ports.homeDirectory)], entry => entry.definition.manifest.plugin_id), ports.homeDirectory)
-      .map(entry => ({ ...entry, enabled: enabled?.get(entry.definition.manifest.plugin_id) ?? true })));
+      .map(entry => {
+        const pluginId = entry.definition.manifest.plugin_id;
+        return { ...entry, enabled: (enabled?.get(pluginId) ?? true) && !installationSwitchedOff(platform, pluginId, enabled) };
+      }));
     record.refreshEnablement = projectPluginEnablementRefresh(platform, ports.homeDirectory, ports.projectId);
     record.reconciledAt = consentRevision();
     bindDeclaredDefaults(platform, ports.projectId, ports.actorId);

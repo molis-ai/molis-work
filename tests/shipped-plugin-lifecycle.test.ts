@@ -1,8 +1,8 @@
-// W6-02 (specs/repository-anti-corruption/roadmap-2026-10-07.md §4.10; RAC-1030–RAC-1033): the lifecycle the probe walks
+// W6-02 (specs/repository-anti-corruption/roadmap-2026-10-07.md §4.10; RAC-1030–RAC-1034): the lifecycle the probe walks
 // (tests/probe-plugin.test.ts, W4-01), walked by the shipped plugins that run on Plugin Runtime: Todo and Jelly on the Home
 // supervisor, Pages and 灵光 on each project's. Each in a one-off Home with the product's Host and web server: what the person
 // wrote stays through removal from the project and adding back, through a revoked permission and its return, and through an
-// upgrade; uninstalled, nothing of it is left to call. The upgrade a shipped plugin gets is a newer build of its package: the
+// upgrade; uninstalled, nothing of it is left to call, after a restart too. The upgrade a shipped plugin gets is a newer build of its package: the
 // Home's installation record was written by an older build, and the next start moves the same installation onto this build.
 // Goals is not on Plugin Runtime yet (its Host assembly goes with S9) and Alchemist is passed over (2026-10-23).
 import assert from "node:assert/strict";
@@ -151,18 +151,16 @@ async function walk(plugin: Shipped) {
     await upgraded.runtime.stop(first.install_id);
     await upgraded.runtime.uninstall(first.install_id, { retain_private_data: false });
     assert.equal((await at.installation())?.state, "uninstalled");
-    assert.equal(String(await answer(plugin.titles(served.web, at.routes))).split(" ")[0], "404", `${plugin.key}: uninstalled, its route is not there`);
+    assert.equal(await answer(plugin.titles(served.web, at.routes)), "404 actions.missing", `${plugin.key}: uninstalled, its route says so`);
     assert.deepEqual(await at.callable(), []);
 
-    // The Home supervisor does not install it again on the next start (W3-06-F-06). A project's supervisor does: BL-755.
-    if (plugin.scope === "home") {
-      await served.shut();
-      served = await serve(home);
-      at = viewOf(served, project, plugin);
-      assert.equal((await at.installation())?.state, "uninstalled", `${plugin.key}: still uninstalled after a restart`);
-      assert.equal(String(await answer(plugin.titles(served.web, at.routes))).split(" ")[0], "404");
-      assert.deepEqual(await at.callable(), []);
-    }
+    // Neither supervisor installs it again on the next start (W3-06-F-06 for the Home's, BL-755 for a project's).
+    await served.shut();
+    served = await serve(home);
+    at = viewOf(served, project, plugin);
+    assert.equal(await answer(plugin.titles(served.web, at.routes)), "404 actions.missing", `${plugin.key}: not there after a restart`);
+    assert.equal((await at.installation())?.state, "uninstalled", `${plugin.key}: still uninstalled after a restart`);
+    assert.deepEqual(await at.callable(), []);
   } finally {
     await served.shut();
     await rm(home, { recursive: true, force: true });
@@ -173,3 +171,44 @@ test("RAC-1030 W6-02 Todo on the Home supervisor: added, removed and added back 
 test("RAC-1031 W6-02 Jelly on the Home supervisor: added, removed and added back in a project, revoked, upgraded and uninstalled", { timeout: 180_000 }, () => walk(SHIPPED.jelly!));
 test("RAC-1032 W6-02 Pages on a project's supervisor: added, removed and added back, revoked, upgraded and uninstalled", { timeout: 180_000 }, () => walk(SHIPPED.pages!));
 test("RAC-1033 W6-02 灵光 on a project's supervisor: added, removed and added back, revoked, upgraded and uninstalled", { timeout: 180_000 }, () => walk(SHIPPED.lingguang!));
+
+test("RAC-1034 W6-02 BL-755 a project's supervisor keeps an uninstalled plugin uninstalled, and a switched-off personal one off, across a restart", { timeout: 180_000 }, async () => {
+  const home = await mkdtemp(join(tmpdir(), "shipped-lifecycle-restart-"));
+  let served = await serve(home);
+  try {
+    const project = await served.createProject("Restart");
+    const settings = `/api/settings/projects/${encodeURIComponent(project.project_id)}/plugins`;
+    // Schedule is in a new project by its plugin list (not personal); Pages is personal.
+    const schedule: Shipped = { key: "schedule", plugin_id: "io.molis.work.schedule", scope: "project", write: async () => undefined, titles: async () => [] };
+    const pages = SHIPPED.pages!;
+    let scheduleAt = viewOf(served, project, schedule), pagesAt = viewOf(served, project, pages);
+    assert.ok((await scheduleAt.callable()).length > 0, "the project's plugins have started");
+    const scheduleInstall = await scheduleAt.installation(), pagesInstall = await pagesAt.installation();
+    assert.ok(scheduleInstall && pagesInstall);
+    assert.deepEqual([scheduleInstall.state, pagesInstall.state], ["running", "running"]);
+    const running = await scheduleAt.platform();
+    await running.runtime.stop(scheduleInstall.install_id);
+    await running.runtime.uninstall(scheduleInstall.install_id, { retain_private_data: false });
+    // Pages switched off: a personal plugin, so the project's plugin list does not turn it on again.
+    await running.runtime.stop(pagesInstall.install_id);
+
+    await served.shut();
+    served = await serve(home);
+    scheduleAt = viewOf(served, project, schedule); pagesAt = viewOf(served, project, pages);
+    assert.equal(await answer(served.web.get(`${scheduleAt.routes}/list`)), "404 actions.missing", "Schedule: not installed again by the start");
+    assert.equal((await scheduleAt.installation())?.state, "uninstalled");
+    assert.deepEqual(await scheduleAt.callable(), []);
+    assert.equal(await answer(pages.titles(served.web, pagesAt.routes)), 503, "Pages: still off (its route's answer for a plugin that is not running)");
+    assert.equal((await pagesAt.installation())?.state, "disabled");
+    assert.deepEqual(await pagesAt.callable(), []);
+
+    // Taken out of the project and added back: the list does not install it again either.
+    assert.equal(await answer(served.web.delete(settings, { plugin_id: "schedule" })), 200);
+    assert.equal(await answer(served.web.post(settings, { plugin_id: "schedule" })), 200);
+    assert.equal(await answer(served.web.get(`${scheduleAt.routes}/list`)), "404 actions.missing", "Schedule: the project's list does not install it again");
+    assert.equal((await scheduleAt.installation())?.state, "uninstalled");
+  } finally {
+    await served.shut();
+    await rm(home, { recursive: true, force: true });
+  }
+});

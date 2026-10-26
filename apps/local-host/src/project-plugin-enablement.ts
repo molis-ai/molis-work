@@ -16,6 +16,17 @@ export async function projectPluginEnablement(home: string | undefined, projectI
   return new Map(PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => !entry.personal).map(entry => [entry.manifest.plugin_id, pluginReachable(entry, reachable)]));
 }
 
+/**
+ * Whether the plugin's installation in this project was switched off, so the project's supervisor does not run it when it starts:
+ * uninstalled (a plugin of the Host's build is not installed again, BL-755, as the Home supervisor does), or disabled when the
+ * project's plugin list does not decide it (a personal plugin or a fixture). A plugin the list decides is disabled by the list
+ * itself when it is taken out of the project, and the list turns it on again.
+ */
+export function installationSwitchedOff(platform: Pick<PluginPlatform, "runtime">, pluginId: string, decided: ReadonlyMap<string, boolean> | undefined): boolean {
+  return platform.runtime.list().some(record => record.plugin_id === pluginId
+    && (record.state === "uninstalled" || (record.state === "disabled" && !decided?.has(pluginId))));
+}
+
 /** Serialize reads with activation changes, so an earlier enable cannot outlive a later disable. */
 export function projectPluginEnablementRefresh(platform: PluginPlatform, home: string | undefined, projectId: string): () => Promise<void> {
   let tail = Promise.resolve();
@@ -29,12 +40,16 @@ export function projectPluginEnablementRefresh(platform: PluginPlatform, home: s
         if (wanted === false && active.has(state.plugin_id)) {
           platform.supervisor.revoke(state.plugin_id);
           if (state.install_id) await platform.runtime.stop(state.install_id);
-        } else if (wanted === true && !active.has(state.plugin_id)) await platform.supervisor.enable(state.plugin_id);
+        } else if (wanted === true && !active.has(state.plugin_id) && !uninstalled(platform, state.plugin_id)) await platform.supervisor.enable(state.plugin_id);
       }
     });
     tail = next.catch(() => {}); return next;
   };
 }
+
+/** An uninstalled installation stays uninstalled: being in the project's plugin list does not install it again (BL-755). */
+const uninstalled = (platform: Pick<PluginPlatform, "runtime">, pluginId: string) =>
+  platform.runtime.list().some(record => record.plugin_id === pluginId && record.state === "uninstalled");
 
 /** Settings finish only after an already-open project has stopped or enabled its Runtime owners. */
 export async function refreshOpenProjectPlugins(host: MolisWorkLocalHost, projectId: string): Promise<void> {

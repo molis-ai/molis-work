@@ -483,3 +483,33 @@ type SourcePullRequest =                       // 闭合：多一个字段就拒
 5. **验证**：`feed-runtime-plugin` 27/27；Host 一侧的 `security-invariants-plugin-notification-delivery`、`-plugin-notifications`、`plugin-notification-bell`、`agent-built-plugins-reminders`、`inbox-automatic-scenes`、`schedule-task-runner`、`schedule-operations`、`feed-connectors`、`feed-sync-authority`、`feed-receive-chain`、`plugin-runtime-integration` 全过；`pnpm boundary:check` 干净；health 只剩已知的 SI 编号缺口。Runtime Feed 仍未登记，动作快照与页面资源门禁没有变化。
 6. **翻转时要写进 PR 正文的后果**：通知发送方不需要任何新权限；变化只在接收方的权限清单里多了 `attention:write`，由平台投递时按 Manifest 自动带上。
 7. **没做、要接着做的：** 4e-2f（判断触发器与队列写走 `commit`、`feed.content.receive` 原子化、RAC-492/493/518 项目一半、`evidence:read` 的取舍）、4e-3（翻转 + FI-7 Feed 一半）；翻转前三项（`config.connection_id` 搬槽绑定、孤儿绑定、请求来源表外的六个目录连接器）不变。
+
+**4e-2f 实现记录（2026-10-26）。** 判断、原子收件、账号来源状态与引用账的补记，都进了未登记的 Runtime Feed；Runtime Manifest 与 Host 版的差别还是只剩 `action_scenes`（场景现在也在，随翻转一起登记）。三个提交：f-1 `4a3d4d496`、f-2 `194221770`、f-3 见下。
+
+**f-1：`feed.content.receive` 原子化，`evidence:read` 的取舍**
+1. 处理器不再是 `async`：来源、条目、Inbox 条目、日志事件在第一次等待之前写完，错误是抛出而不是 rejected promise，`writing()` 把这一段当一次提交，抛出整体回滚；收件后的判断在提交之后才开始（RAC-1029）。
+2. **`evidence:read` 的取舍（统筹要的那一条）**：读取留存正文要走 `services.sourcePull.evidence`，平台要求动作声明、调用者持有这项权限。做法是给读正文的动作都在 `PLATFORM_NEEDS` 里加 `evidence:read`（`feedQueryActions.snapshot/item`、`feedInboxActions.content/material`、`feedRuleActions.preview/previewJudgment`、`feedContentActions.read`、`feedSubjectAction`、`feedHomeEventsAction`），判断会读正文的动作（`feedSourceActions.sync/tick`、`feedContentActions.receive`、`feedNotificationActions.receive`、`feedRuleActions.evaluate`）同样加；Manifest 里它仍是**可选**权限，没有它的安装读不到正文，条目的正文标成「不可用」，不会让条目读不出来（RAC-1030）。
+3. **翻转时要写进 PR 正文的后果**：凡是调这些动作的调用者（Feed 页的人、所有者权限集、MCP 工具、工作流程、Inbox 与 Home 的判断）都得带上 `evidence:read`，否则被拒；这些权限集的更新进 4e-3，不在这一片改。
+
+**f-2：判断（RAC-1031～1035）**
+1. **谁判、何时判**：判断在启动它的那个动作里、提交结束之后开始（`JudgmentQueue` 里的 `afterTheStep()`，一个微任务）。不这样，场景的第一次调用会借提交的事务读，被只读场景作用域拒绝。`judgeOwn` 不再是 `async`，步骤自己的错误同步抛出，Runtime 才能整体回滚。
+2. **捕捉场景在 Feed 自己手里**：`services.scenes`（绑定、运行）与 `services.judgments`（判断账在 Home 的 Functions 库）；场景回调（`bind`、`consume`、`failed`）经 `beforeEffect` 之后各自是一次提交；`prepare`、`bindings`、`targets` 只读。场景声明了 `attention:write` 与 `judgments:write`（`feedRuntimeCaptureScene`），平台要求调用者持有场景的全部权限，所以**没有这两项权限的调用者不会得到判断**（场景悄悄不可用），不是报错。
+3. **正文只能在动作里读**：场景回调里读不了证据，所以启动判断的动作先读好条目的正文，经 `AsyncLocalStorage` 暂存给它起的回调，条目在中途变了（修订号不同）就拿新的、不带正文的条目，判断自己看到它动了，什么都不记录（RAC-1032）。
+4. **Home 与 Inbox 的判断走动作目录**：用当前动作的调用者问 `home.judgment.evaluate`（已有）与 `inbox.judgment.evaluate`（新文件 `inbox-judgment.ts`），不用 Host 的「workflow-events」身份。因为场景回调碰不到目录，场景里新开的 Inbox 条目留在队列里，由启动它的动作（`judgeOwn` 的 `takeEntriesOfItems`）接着判。
+5. **规则保存是提交**：`feedRuleActions.create/update` 先等（判断预览）后写，所以改成自提交动作（`SELF_COMMITTING`），保存走 `writer.commit`；场景配置的 `bind`/`save` 也是回调内的一次提交，按调用者看到的修订号提交，修订号不对被拒（RAC-1034）。
+6. **会写 Attention 的条目动作补了声明**：`feedInboxActions.admit`、`feed.items.inbox/disposition/restore` 原先写 Attention 却没声明 `attention:write`（Host 里没人查），现在声明；`disposition`、`restore` 还要判断，所以并行（`CONCURRENT`）。
+7. **新增 Manifest 必需权限**：`scenes:use`、`judgments:read`、`judgments:write`、`actions:delegate`。
+8. **验收**：`tests/feed-runtime-plugin.test.ts` 多 7 个用例，号暂记 RAC-1031（收件判断：判断账一行、Inbox 条目、Inbox 与 Home 的判断都被问到、日志事件）、RAC-1032（同步用暂存的正文判断；判断途中改了规则什么都不记）、RAC-1033（任一检查点撤权：条目与事件绝不先于判断账出现，之后不再写）、RAC-1034（经平台场景配置保存绑定，旧修订号被拒）、RAC-1035（admit → Inbox 与 Home 判条目；归档关条目；恢复）；RAC-509 的撤权扫描同时覆盖收件与规则保存。
+
+**f-3：RAC-493、RAC-518 的项目一半**
+1. **为什么用常驻作业**：事件投递（`onEvent`）只有同步的 `beforeEffect()`，没有动作作用域：用不了 `services.connections`，写不了 Attention。能做的只有常驻作业（`services.background.keep`，可以在 `start()` 里起；作业权限 = Manifest `background.jobs` 里声明的，这里是 `connections:use`、`actions:invoke`）。先例是 Schedule 的 `runtime-reconcile.ts`。
+2. **作业 `feed-reconcile`**（新文件 `runtime-reconcile.ts`）：启动时先把项目库留着的每个来源的所有正文引用补登记到 Home 的引用账（`feed.content.hold`，幂等，RAC-518 项目一半：库是拷进来的、账里没有也补上）；然后对每个账号来源问槽绑定的账号现状（`connections.describe(槽, 来源号)`），账号不可用就把「活动」的来源改成 `disconnected`（`last_error_code = sources.connector_disconnected`），可用了就改回，人暂停的保持暂停，没绑账号的不动（同步时会告诉人）；之后每次 `host.connection.changed@1` 再看一遍。事件到来时作业忙着也不会丢（`createConnectionWatch`）。写走 `writer.commitAs(control, 插件号, …)`，只改读到的那一版来源。
+3. **Manifest**：可选权限 `connections:observe`；`events.subscribes` 加 `host.connection.changed@1`；`background.jobs` 加 `feed-reconcile`。没有 `connections:observe` 时作业仍在启动时跑一次，只是不会随事件醒来。
+4. **和 Host 版的差别**：Host 的 `refreshSourceConnectionState` 按 `config.connection_id` 找来源；Runtime 按槽绑定找，账号被整个删掉（绑定没了）的来源保持原状态，下一次同步变成「要人」；这一点和翻转前的「`config.connection_id` 搬槽绑定」维护一起核。
+5. **验收**：`tests/feed-runtime-plugin.test.ts` 多 3 个用例，号暂记 RAC-1036（启动时就跟上账号，包括 Feed 停着时发生的变化）、RAC-1037（连接变更唤醒：账号不可用 → disconnected，可用 → active，暂停的保持，没绑账号的不动）、RAC-518（启动补登记引用账，重复启动不重复登记）。
+
+**验证**：`feed-runtime-plugin` 37/37（4e-2e 后是 27）；Host 一侧 20 个文件全过（`feed-capture-scenes`、`feed-inbox-lifecycle`、`feed-inbox-scene-runtime`、`feed-out-rules`、`feed-inbox-pages-loop`、`feed-sync-concurrency`、`home-event-actions`、`home-action-scenes`、`home-judgment-plugin-caller`、`home-mcp-actions`、`inbox-automatic-scenes`、`inbox-action-scenes`、`security-invariants-plugin-judgments`、`content-station-request-id`、`feed-sync-authority`、`feed-receive-chain`、`feed-connectors`、`plugin-runtime-integration`、`functions-scene-configuration`、`security-invariants-connection-changed`）；`pnpm boundary:check` 干净；health 只剩已知的 SI 编号缺口（`FeedApplication` 没有变大：作业用 `snapshot()` 列来源，不加新方法）。Runtime Feed 仍未登记，所以动作快照与 API 快照没有变。
+
+**号码**：RAC-1031～1035（判断）、1036～1037（账号状态）暂记，加上之前的 1029、1030，统筹给真实号段；S 号这一片没有新增。
+
+**没做、要接着做的：** 4e-3（翻转 + FI-7 Feed 一半：界面经 `connectors.plugin_slot.bind@2` 绑账号；删 Host 副本，含 `connector-source-state.ts` 与 `refreshFeedConnectionState`；所有者权限集、MCP、工作流程补 `evidence:read` 等；`pnpm actions:update`；PR 正文写权限后果）；翻转前三项不变（`config.connection_id` 搬槽绑定、孤儿绑定、请求来源表外的六个目录连接器）。

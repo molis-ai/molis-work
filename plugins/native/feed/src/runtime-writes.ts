@@ -16,6 +16,8 @@ export interface FeedWriter {
    * writes: do the waiting first, then commit what was decided. The journal's actor is the original caller's.
    */
   commit<T>(caller: ActionExecutionContext, body: () => T): Promise<T>;
+  /** The same commit for work that has no caller: a job the installation keeps, whose last check is its own `beforeEffect` and whose actor is named. */
+  commitAs<T>(guard: { beforeEffect(): Promise<void> }, actorId: string, body: () => T): Promise<T>;
   /**
    * The handlers of the commands among `definitions`, each run so that its synchronous part is one commit. What the handler does after
    * its first `await` is outside the commit and cannot write (it fails loudly): that is a judgment started after the write, not a
@@ -29,8 +31,9 @@ const isThenable = (value: unknown): value is PromiseLike<unknown> =>
   typeof value === "object" && value !== null && typeof (value as { then?: unknown }).then === "function";
 
 export function createFeedWriter(database: PluginProjectDatabase, ports: Pick<FeedRuntimePorts, "within">): FeedWriter {
-  const commit = <T>(caller: ActionExecutionContext, body: () => T): Promise<T> =>
-    database.transaction(() => caller.beforeEffect(), transaction => ports.within(transaction, caller.audit_actor_id ?? caller.actor_id, body));
+  const commitAs = <T>(guard: { beforeEffect(): Promise<void> }, actorId: string, body: () => T): Promise<T> =>
+    database.transaction(() => guard.beforeEffect(), transaction => ports.within(transaction, actorId, body));
+  const commit = <T>(caller: ActionExecutionContext, body: () => T): Promise<T> => commitAs(caller, caller.audit_actor_id ?? caller.actor_id, body);
   const writing = (definitions: readonly ActionDefinition[], bindings: readonly ActionHandlerBinding[]): ActionHandlerBinding[] => {
     const commands = new Set(definitions.filter(definition => definition.operation === "command").map(definition => `${definition.capability_id}@${definition.version}`));
     return bindings.map(binding => {
@@ -47,5 +50,5 @@ export function createFeedWriter(database: PluginProjectDatabase, ports: Pick<Fe
       } };
     });
   };
-  return { commit, writing };
+  return { commit, commitAs, writing };
 }

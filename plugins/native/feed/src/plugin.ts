@@ -32,6 +32,8 @@ import { SignalsModule } from "./store/index.js";
 import { feedInboxActions } from "./inbox-actions.js";
 import { feedItemActions } from "./item-actions.js";
 import { CONNECTOR_REQUEST_SERVICES } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { HOST_CONNECTION_CHANGED_EVENT, HOST_CONNECTIONS_OBSERVE_PERMISSION } from "@molis-ai/molis-work-contracts/platform/plugin-events";
+import { createConnectionWatch, FEED_RECONCILE_ACTOR, feedReconcileJob, keepFeedReconcile } from "./runtime-reconcile.js";
 
 /** What Feed needs of the platform to run as a plugin: Inbox entries are Attention's, the links to Goals are the Context Ledger's. */
 const PLATFORM_PERMISSIONS = [
@@ -53,6 +55,7 @@ const PLATFORM_PERMISSIONS = [
   { permission: "actions:delegate", required: true, reason: "替当前这个调用者请 Inbox 与首页判断下一步、读取已发布的判断规则" },
   { permission: "connections:use", required: false, reason: "读取你为每个账号来源选好的账号是否还能用" },
   { permission: "sources:pull_connector", required: false, reason: "用你为账号来源选好的账号拉取新消息" },
+  { permission: HOST_CONNECTIONS_OBSERVE_PERMISSION, required: false, reason: "得知你的账号变了，让账号来源的状态跟上" },
 ] as const;
 const FEED_PULL = "sources:pull_feed", QUERY_PULL = "sources:pull_query", REPOSITORY_READ = "sources:read_repository";
 const CONNECTIONS = "connections:use", CONNECTOR_PULL = "sources:pull_connector", EVIDENCE = "evidence:read";
@@ -120,7 +123,9 @@ export const feedRuntimeManifest: PluginManifest = { ...BASE,
   // The capture scene is Feed's own; its callbacks also write Inbox entries and the rule's binding.
   action_scenes: [feedRuntimeCaptureScene],
   actions: [...feedManifest.actions!.map(runtimeAction), WAKE],
-  background: { jobs: [feedWakeJob], wakeups: [{ action: { capability_id: WAKE.capability_id, version: WAKE.version }, reason: WAKE.action.title }] },
+  // The Home says when a connection changed (never which account); the kept job then looks at each account source again.
+  events: { ...BASE.events, publishes: BASE.events?.publishes ?? [], subscribes: [...(BASE.events?.subscribes ?? []), { event_type_id: HOST_CONNECTION_CHANGED_EVENT, type_version: 1 }] },
+  background: { jobs: [feedWakeJob, feedReconcileJob], wakeups: [{ action: { capability_id: WAKE.capability_id, version: WAKE.version }, reason: WAKE.action.title }] },
 };
 
 const idOf = (value: { capability_id: string; version: number }) => `${value.capability_id}@${value.version}`;
@@ -253,7 +258,13 @@ export function createFeedPlugin(): PluginDefinition {
     const declared = new Set(feedRuntimeManifest.actions!.map(idOf)), own = new Set([...SELF_COMMITTING, WAKE].map(idOf));
     const mine = bindings.filter(binding => declared.has(idOf(binding)));
     keepFeedWakeup(services?.background, { grants: context.grants, scheduler: services?.scheduler, database, wake: WAKE });
-    return { kind: "app", views: [feedUiContribution], action_scenes: [sceneRuntime.handler], actions: [
+    // What no call sets right: the Home's ledger names every body the library keeps, and an account source follows its account. An event
+    // delivery has no action scope of its own, so it only wakes the kept job, which has.
+    const watch = createConnectionWatch();
+    keepFeedReconcile(services?.background, { feed, projectId, connections, commit: (control, body) => writer.commitAs(control, FEED_RECONCILE_ACTOR, body),
+      hold: dependencies ? async (sourceId, contentRefs) => { await ledger(feedContentLedgerActions.hold, { source_id: sourceId, content_refs: [...contentRefs] }); } : undefined }, watch);
+    return { kind: "app", views: [feedUiContribution], action_scenes: [sceneRuntime.handler],
+      onEvent: (_event, delivery) => { delivery.beforeEffect(); watch.changed(); }, actions: [
       ...writer.writing(feedRuntimeManifest.actions!.filter(definition => !own.has(idOf(definition))), mine.filter(binding => !own.has(idOf(binding)))),
       ...mine.filter(binding => own.has(idOf(binding))),
     ] };

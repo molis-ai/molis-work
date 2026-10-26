@@ -7,6 +7,7 @@ import Database from "better-sqlite3";
 import { ActionError, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { IntegrationProviderPort, PluginDefinition, PluginProjectDatabase, PluginProjectDatabaseTransaction, PluginSqlValue } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PLUGIN_NOTIFICATION_DELIVERY_ACTOR } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { HOST_CONNECTION_CHANGED_EVENT } from "@molis-ai/molis-work-contracts/platform/plugin-events";
 import type { IntegrationBinding } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { createNotificationDelivery, createPluginPlatform, declaredNotificationReceivers, DEMO_PROJECT_ID, homeIntegrationRegistry, homeStores, listFeedSourceCatalog, LocalProjectDatabase, scheduleServiceFor, seedDemoBoard, withConnectorConnections, withFunctionsService } from "@molis-ai/molis-work-app-local-host";
 import { PluginNotificationQueue } from "@molis-ai/molis-work-plugin-runtime";
@@ -38,7 +39,7 @@ const WRITE = ["feed:read", "feed:write", "inbox:write", "evidence:read"];
  * Feed's Home half, stood in for: the same ledger and the same two-and-one actions (`hold`, `release`, `reclaim`), over a library of its own,
  * provided by a plugin of its own, so the project instance asks it through the action directory as it will ask the real one.
  */
-async function ledgerStandIn(home: string): Promise<{ definition: PluginDefinition; holds(): Array<{ content_ref: string; project_id: string; source_id: string }>; close(): void }> {
+async function ledgerStandIn(home: string): Promise<{ definition: PluginDefinition; holds(): Array<{ content_ref: string; project_id: string; source_id: string }>; forget(): void; close(): void }> {
   const db = new Database(join(home, "ledger.db"));
   db.exec(FEED_HOME_DATABASE.schema);
   const bind = (parameters: readonly PluginSqlValue[] = []) => [...parameters];
@@ -58,7 +59,7 @@ async function ledgerStandIn(home: string): Promise<{ definition: PluginDefiniti
     publisher: { publisher_id: "example", signature: "fixture-feed-home" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }], permissions,
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions },
   async start() { return { kind: "app", actions: createFeedContentLedgerHandlers(ledger) }; } };
-  return { definition, close: () => db.close(),
+  return { definition, close: () => db.close(), forget: () => { db.exec("DELETE FROM feed_content_holds"); },
     holds: () => reader.all("SELECT content_ref, project_id, source_id FROM feed_content_holds ORDER BY content_ref") as Array<{ content_ref: string; project_id: string; source_id: string }> };
 }
 
@@ -107,7 +108,7 @@ async function platform(t: TestContext, options: { fetch?: (input: string | URL)
   assert.deepEqual(started.running, [feedRuntimeManifest.plugin_id, ...(homeHalf ? [homeHalf.definition.manifest.plugin_id] : []), ...(options.goals ? ["io.molis.work.goals"] : [])], JSON.stringify(started));
   const count = (sql: string, ...parameters: unknown[]) => (store.db.prepare(sql).get(...parameters as never[]) as { n: number }).n;
   const installId = () => running.runtime.list().find(record => record.plugin_id === feedRuntimeManifest.plugin_id)!.install_id;
-  return { store, home, running, client: actions.client, registry: actions.registry, count, holds: () => homeHalf?.holds() ?? [], clock: () => scheduleServiceFor(store.db), installId };
+  return { store, home, running, client: actions.client, registry: actions.registry, count, holds: () => homeHalf?.holds() ?? [], forgetHolds: () => homeHalf?.forget(), clock: () => scheduleServiceFor(store.db), installId };
 }
 
 /** The original caller of an action, who can be cancelled or revoked from outside. */
@@ -873,4 +874,72 @@ test("RAC-1035 admitting an item to the Inbox asks the Inbox and Home to judge t
   await f.client.invoke(caller(JUDGING).context, feedItemActions.disposition, { item_id: item.item_id, disposition: "archived", expected_revision: await revision() });
   assert.equal(open(), 0, "ignoring the item closed its entry");
   await f.client.invoke(caller(JUDGING).context, feedItemActions.restore, { item_id: item.item_id, expected_revision: await revision() });
+});
+
+// RAC-1036 .. RAC-1038 (4e-2f; provisional numbers until the coordinator assigns the range): what a Runtime Feed sets right with no call. A kept job
+// names every body the library keeps in the Home's ledger when the plugin starts (RAC-518 project half), and follows the person's accounts: once
+// at start (a change made while it was stopped is not lost), and again each time the Home says a connection changed (RAC-493).
+const until = async (condition: () => boolean, what: string) => {
+  for (let waited = 0; waited < 5_000; waited += 20) { if (condition()) return; await new Promise(resolve => setTimeout(resolve, 20)); }
+  assert.fail(`never happened: ${what}`);
+};
+const connectionChanged = async (f: { running: Awaited<ReturnType<typeof platform>>["running"] }) => {
+  assert.equal(f.running.hostEvents.broadcast({ event_type_id: HOST_CONNECTION_CHANGED_EVENT, type_version: 1, payload: { connection_id: "any" } }), 1, "Feed hears connection changes");
+  await f.running.hostEvents.drain();
+};
+
+test("RAC-1036 an account source follows the account the person bound to it: it is set right at start, even for a change made while Feed was stopped", async t => {
+  const f = await connecting(t), account = f.connect();
+  f.bind(account.connection_id);
+  await f.running.runtime.stop(f.installId());
+  withConnectorConnections(f.home, store => store.disconnect(account.connection_id));
+  await f.running.runtime.start(f.installId());
+  await until(() => f.row().status === "disconnected", "the source learned its account is gone");
+  assert.equal(f.row().last_error_code, "sources.connector_disconnected");
+  // The bookkeeping is the plugin's own: the library keeps it, and no caller's name is on it.
+  assert.equal(f.count("SELECT count(*) AS n FROM feed_sources WHERE source_id = ? AND status = 'disconnected'", f.sourceId), 1);
+});
+
+test("RAC-1037 a connection change wakes the job: an account that stops working takes its source to disconnected, a working one gives it back, and a paused source stays paused", async t => {
+  const f = await connecting(t), account = f.connect();
+  const paused = f.of("feed-source-paused");
+  f.bind(account.connection_id);
+  paused.bind(account.connection_id);
+  f.store.db.prepare("UPDATE feed_sources SET status = 'paused' WHERE source_id = ?").run(paused.sourceId);
+  await connectionChanged(f);
+  assert.deepEqual([f.row().status, paused.row().status], ["active", "paused"], "an account that works changes nothing");
+  withConnectorConnections(f.home, store => store.disconnect(account.connection_id));
+  await connectionChanged(f);
+  await until(() => f.row().status === "disconnected", "the source learned its account is gone");
+  assert.equal(paused.row().status, "paused", "a source the person paused stays paused");
+  // The person connects an account again and binds it: the source is usable, and the next change says so.
+  const again = f.connect("Again");
+  f.bind(again.connection_id);
+  await connectionChanged(f);
+  await until(() => f.row().status === "active", "the source is back");
+  assert.equal(f.row().last_error_code, null);
+  // A source nobody bound an account to is not touched: its sync tells the person.
+  const unbound = f.of("feed-source-unbound");
+  await connectionChanged(f);
+  assert.equal(unbound.row().status, "active");
+});
+
+test("RAC-518 a Runtime Feed names every body its library keeps in the Home's ledger when it starts, so a library that came without its ledger entries is held again", async t => {
+  const f = await syncing(t);
+  await f.client.invoke(caller(SYNC).context, feedSourceActions.sync, { source_id: f.sourceId, idempotency_key: "held-sync-key" });
+  const held = f.holds().map(hold => hold.content_ref).sort();
+  assert.equal(held.length, 2);
+  // The library is copied to another Home: the items and their runs are there, the Home's ledger knows nothing of them.
+  f.forgetHolds();
+  assert.equal(f.holds().length, 0);
+  await f.running.runtime.stop(f.installId());
+  await f.running.runtime.start(f.installId());
+  await until(() => f.holds().length === held.length, "the ledger holds the library's bodies");
+  assert.deepEqual(f.holds().map(hold => hold.content_ref).sort(), held);
+  assert.ok(f.holds().every(hold => hold.project_id === DEMO_PROJECT_ID && hold.source_id === f.sourceId));
+  // Starting again names nothing twice.
+  await f.running.runtime.stop(f.installId());
+  await f.running.runtime.start(f.installId());
+  await new Promise(resolve => setTimeout(resolve, 100));
+  assert.equal(f.holds().length, held.length);
 });

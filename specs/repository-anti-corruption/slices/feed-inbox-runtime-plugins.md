@@ -421,3 +421,30 @@ type SourcePullRequest =                       // 闭合：多一个字段就拒
    - Feed 一侧还有一半：`ListenerHost`（`store/listener.ts`）在 `await` 的间隙里同步写租约、运行行、投递行、检查点，`FeedConnectorSync` 在 `await` 之后写条目与来源，要像 `PublicSourceSync` 那样全部改走 `commit`；这一半不依赖裁定，但没有平台件它没有用处，所以没先做。
    - **建议（需统筹/用户定，是平台片，暂记 4c-4）：** 平台给一个 `services.sourcePull.connector`（权限 `sources:pull_connector`，随 `sources:pull_*` 同一套规矩）：`pull({source_id, integration_key, mode, cursor, intent})` 由宿主用登记里的集成与**该来源已绑定的连接**去取，返回已适配的原始事件（载荷是 `IntegrationProviderItem`、信号草稿、`cursor_after`）或失败回执，**凭据不出平台**；`status()` 返回 Home 级的 GitHub/Gmail 是否已连接；`authorize(source_id)` 对应 `inspectSourceAuthorization`。信任来源必须是**人选的绑定**（S-57 的 `per_record` 槽，记录名 = 来源号），不能是插件传来的 `connection_id`/`credential_ref`（否则任何插件可以点名别人的连接）；所以 Feed 要声明 `connections` 槽，现有来源的 `config.connection_id` 要在翻转时由维护步骤搬成槽绑定（进用户维护窗口清单）。工作量：合同 + Runtime 客户端 + 宿主构造（复用登记）+ SI 一行 + 拒绝测试，约一片 4c-3 的 1.5 倍。备选：等 PG-045（集成插件自己经 `services.connections` 取）再做，但 Feed 的翻转不能把 Gmail/GitHub 来源落下，所以会卡住 4e-3。
 3. **依旧未接：** 通知接收（4e-2e）、判断触发器与队列写回、`feed.content.receive` 原子化、RAC-492/493/518 项目一半（4e-2f）。Runtime Feed 的 `NOT_YET` 现在是通知接收与 `feed.connections.status`；账号来源的同步/tick 仍报 `actions.dependency_missing`，`feed.items.material` 对账号来源仍「来源连接暂不可用」。
+
+**4c-4 设计（2026-10-26，用户同意按 4e-2d 记录的建议做；读 `connector-plugin-requests.ts`、`connector-plugin-slot-actions.ts`、`integration-registry.ts`、`feed-connector-sync.ts`、`store/listener.ts`、`source-pull-service.ts`、`connections-service.ts` 后定）。**
+
+**信任来源。** 一个来源用哪个账号，只由**人**定：S-57 的 `per_record` 连接槽（`connectors.plugin_slot.bind@2`，audience 只有 `user`，记录名 = 来源号，作用域 = 安装 + 项目 + 记录）。平台取数时自己从绑定表读连接，插件不传 `connection_id`、`credential_ref`、`token_refs`，请求里也没有这些字段。没绑定、已断开、绑定的连接不是这个服务的，都不取数：回一个 `needs_auth` 的失败回执（来源因此停在「授权失效」，和今天一样），提供方一次都不调用。
+
+**新的平台件：`services.sourcePull.connector`（权限 `sources:pull_connector`，暂记 S-99 并入同一行）。** 随 `sources:pull_*` 同一套规矩：调用必须是本安装自己的动作或保留作业，动作声明并且调用者持有权限；会取数的方法还要 `scheduling: "concurrent"`、不能在只读调用里；使用人的账号还要同时声明并持有 `connections:use`，槽必须是 Manifest 里声明的 `per_record` 槽。沙箱插件安装时拒绝（沿用 S-60）。
+
+| 方法 | 作用 | 备注 |
+| --- | --- | --- |
+| `open(integration_id)` | 这个集成是不是已登记的 `source` 类，适配器的身份 `{plugin_id, version}` | 纯读；与槽的服务必须一致 |
+| `pull({slot_id, integration_id, record_key, cursor, intent?, settings?}, {signal})` | 宿主按绑定的账号用登记里的集成取一次，回 `{receipt_id, driver_id, started_at, completed_at, result}`（`result` 是 `ConnectorPollResult`：原始事件与 `cursor_after`，或失败） | 回执不含连接号；取数前后各核一次绑定（连接号、`updated_at`、凭据引用），变了就以 `connection_changed` 拒绝，对应宿主版的 `source_connection_changed` |
+| `adapt({slot_id, integration_id, record_key, event})` | 登记里的信号适配器把一条原始事件变成信号草稿 | 纯函数，不碰账号；重试隔离中的投递要用 |
+| `accounts(service_ids)` | 这些服务（只限 Manifest 声明了槽的）在这个 Home 里有没有未断开的连接，只回 `{bound}` | 对应 `feed.connections.status` |
+
+- 请求封闭：`settings` 是至多 8 个 `键: 短文本`（现在只有 Gmail 的 `scope`），保留键（`token_refs`、`connection_id`、`credential_ref`、以 `_` 开头）直接拒绝；Gmail 的令牌引用由平台从绑定的连接读，不由来源行带。`integration_id` 必须是登记里 `kind: "source"` 的集成，且它声明的 `service_id` 等于槽的服务。
+- 宿主一半（`plugin-source-pull-service.ts` 的端口多一个 `connector`）：登记用 `homeIntegrationRegistry(home, providerFactory?)`（测试可注入提供方），连接生命周期用 `withConnectorRequest`（连接被撤销或断开会中止在途取数）。绑定表读法与 `services.connections` 同一份（`targetScope`、`store.binding`），不另写第二份。
+- 验收（暂记 RAC-1017～1019 之外另开，号要统筹给）：缺权限、缺 `connections:use`、槽没声明、槽不是 `per_record`、只读调用、别的安装、请求里多字段或保留设置键都在取数前被拒；没绑定的槽不调用提供方且得 `needs_auth`；槽的服务与集成的服务不同被拒；取数中途换绑被拒；回执里没有连接号、凭据引用、令牌引用；被撤权/取消后不再写；`accounts` 只回声明过的服务且只有布尔。
+
+**Feed 一半（同一批，分步）。**
+1. `ListenerHost` 与 `FeedConnectorSync` 所有 `await` 之后的写全部走 `commit`（像 `PublicSourceSync`）；`RawEventAdapter` 在 Feed 自己的监听器里允许返回 promise（Runtime 的适配器是 `connector.adapt`）；宿主版行为不变。
+2. Runtime Feed：`createListener` 用 `connector.open/pull/adapt`；`connectorSync` 接上；`authorize`（账号型来源）用 `services.connections.describe(slot, 来源号)`，只认 `connected`（宿主版还会实时解析令牌，Runtime 版把「令牌能否刷新」留给取数本身，取数失败就是 `needs_auth`）；`feed.connections.status` 用 `accounts(["github","gmail"])`；账号型来源的 `update` 里「断开」也走这里。
+3. Manifest：`connections.slots` 为 `CONNECTOR_REQUEST_SERVICES`（合同里的平台请求来源表，唯一一份）里每个服务各一个 `per_record` 槽，槽号 = 服务号；权限 `connections:use`、`sources:pull_connector` 可选；`sync`、`tick`、`wake` 加这两项，`feed.items.material` 加 `connections:use`，`feed.connections.status` 加 `sources:pull_connector`（翻转时调用者要持有，PR 说明里写）。
+
+**不在这一片、但翻转前必须有（记在这里，不假装做完）：**
+- **界面**：Feed 页选来源账号时，除了写 `feed.sources.update`，还要由人的这次操作调 `connectors.plugin_slot.bind@2`；这在 FI-7 Feed 一半的页面改动里做。`config.connection_id` 翻转后只是展示用的记录，取数与授权只认槽绑定。
+- **维护**：现有账号型来源的 `config.connection_id` 要搬成槽绑定（安装身份 + 项目 + 来源号 + 服务号 → 连接号），进用户维护窗口清单；搬不过去的（连接已不在、服务不是该槽的）列出来，不静默丢。
+- **平台请求来源表里没有的目录连接器**（`feishu`、`lark`、`wechat`、`bitbucket`、`loom`、`adobe`）不能声明槽，Runtime Feed 不支持它们的来源；翻转前要先确认真实 Home 里有没有这样的来源，有就先给表加条目或另裁。

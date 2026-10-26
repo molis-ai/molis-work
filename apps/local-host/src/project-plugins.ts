@@ -11,7 +11,7 @@ import type { PluginDependencyCheck } from "./plugin-actions-client.js";
 import { consentRevision } from "./consent-revision.js";
 import { bindDeclaredDefaults } from "./plugin-default-bindings.js";
 import { nativePluginReleaseArtifact } from "./native-plugin-release-artifact.js";
-import { pluginHomeFor, projectFixtureEntries } from "./home-side.js";
+import { fixtureAdmission, installedFixturesFor, pluginHomeFor, projectFixtureEntries } from "./home-side.js";
 import { projectScopeEntries } from "./plugin-scope-entries.js";
 import { projectPluginEnablement, projectPluginEnablementRefresh } from "./project-plugin-enablement.js";
 import { projectPluginDatabaseRefusal, withoutRefusedPlugins } from "./project-plugin-databases.js";
@@ -34,6 +34,8 @@ export interface ProjectPluginPorts {
   actions: import("./plugin-platform.js").PluginPlatformOptions["actions"];
   routePrefix?: string;
   homeDirectory?: string;
+  /** Definitions a test installs into this platform by hand, which its Runtime then admits to the process (S-75 ⑥); none in production. */
+  installedByHand?: ReadonlySet<PluginDefinition>;
 }
 
 export interface ProjectPluginState {
@@ -125,7 +127,9 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
     const entries = projectPluginEntries(ports);
     record.plugins = entries.map(entry => entry.definition.manifest.plugin_id);
     const storage = new SqlitePluginPrivateStorage(ports.store.db);
-    const platform = createPluginPlatform({ scheduler: scheduleServiceFor(ports.store.db),
+    // The only definitions that run in the Host's process without `host` trust are the Host's test fixtures, admitted as the objects they are (S-75 ⑥); a product Host is given none.
+    const fixtures = projectFixtureEntries(ports.homeDirectory);
+    const platform = createPluginPlatform({ scheduler: scheduleServiceFor(ports.store.db), inProcess: fixtureAdmission(fixtures, ports.installedByHand ?? installedFixturesFor(ports.homeDirectory)),
       project_id: ports.projectId,
       actor_id: ports.actorId,
       db: ports.store.db,
@@ -148,7 +152,7 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
     record.stopObservers = () => { closed = true; settlements.stop(); };
     record.updateObservers();
     const enabled = await projectPluginEnablement(ports.homeDirectory, ports.projectId);
-    await platform.start(projectScopeEntries(withoutRefusedPlugins(ports.store.db, [...entries, ...projectFixtureEntries(ports.homeDirectory)], entry => entry.definition.manifest.plugin_id), ports.homeDirectory)
+    await platform.start(projectScopeEntries(withoutRefusedPlugins(ports.store.db, [...entries, ...fixtures], entry => entry.definition.manifest.plugin_id), ports.homeDirectory)
       .map(entry => ({ ...entry, enabled: enabled?.get(entry.definition.manifest.plugin_id) ?? true })));
     record.refreshEnablement = projectPluginEnablementRefresh(platform, ports.homeDirectory, ports.projectId);
     record.reconciledAt = consentRevision();

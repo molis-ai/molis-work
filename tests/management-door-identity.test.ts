@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 import test from "node:test";
 import ts from "typescript";
 import { MolisWorkServer, withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, developInPrivateHost, runV1Cli } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, createPrivateDevelopmentHost, developInPrivateHost, runV1Cli } from "@molis-ai/molis-work-app-local-host";
 import type { GoalEventDecisionResult } from "@molis-ai/molis-work-contracts/modules/goals";
 import { MCP_TOOLS } from "@molis-ai/molis-work-app-mcp";
 import { goalsActions, managementEventDecisionAuthority, type GoalTreeProposalDecisionResult } from "@molis-ai/molis-work-plugin-goals";
@@ -278,9 +278,13 @@ test("a plugin that lists the plugin development run under consumes is refused",
   } finally { await done(); }
 });
 
-test("W3-07-6-01: the plugin development run takes no actor: one named in its arguments is refused, and the Host records its own", async () => {
-  const { host, ref, project_id, done } = await structureProject("development");
+test("W3-07-6-01 RAC-997: the plugin development run takes no actor: one named in its arguments is refused, and the Host records its own", async () => {
+  const { host: ordinary, ref, project_id, done } = await structureProject("development");
+  // RAC-997: the door takes a Host made for development (no Home, closed after), never the project's ordinary Host.
+  const host = createPrivateDevelopmentHost();
   try {
+    await assert.rejects(developInPrivateHost(ordinary, ref, { directory: "/nonexistent", project_id, grants: [], allow_unsigned_development: true }), { code: "actions.forbidden" },
+      "an ordinary Host, with a Home and its projects, does not run unsigned code");
     for (const identity of [{ actor_id: "someone-else" }, { actor_id: LOCAL_PERSON_ACTOR_ID }, { actor_kind: "user" }, { audit_actor_id: "runtime:forged:session" }]) {
       await assert.rejects(developInPrivateHost(host, ref, { directory: "/nonexistent", project_id, grants: [], allow_unsigned_development: true, ...identity } as never),
         { code: "actions.input_invalid" }, `refuses ${Object.keys(identity).join(" and ")}`);
@@ -291,7 +295,7 @@ test("W3-07-6-01: the plugin development run takes no actor: one named in its ar
     // Without an identity the call gets as far as the directory it was asked to load: the refusal above came first.
     await assert.rejects(developInPrivateHost(host, ref, { directory: "/nonexistent", project_id, grants: [], allow_unsigned_development: true }),
       (error: unknown) => (error as { code?: string }).code !== "actions.input_invalid");
-  } finally { await done(); }
+  } finally { await host.close(); await done(); }
 });
 
 /** Type errors a small caller gets from the built declarations. The test runner strips types, so the types are checked here. */

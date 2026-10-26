@@ -60,7 +60,8 @@ test("RAC-310 Shelf's and Images' files are their Manifests' owner_files: their 
 });
 
 test("RAC-308 a definition that declares owner_files and is not on the Host's start list is refused to start with its own code, and reads and writes nothing", async t => {
-  const listed = ownerFilesProbe("listedowner"), beside = ownerFilesProbe("besideowner"), { host, home } = await serveHomeRuntime(t, { pluginFixtures: { home: [listed.entry()] } });
+  const listed = ownerFilesProbe("listedowner"), beside = ownerFilesProbe("besideowner"), installed = new Set([beside.definition]);
+  const { host, home } = await serveHomeRuntime(t, { pluginFixtures: { home: [listed.entry()], installed } });
   const platform = await host.homePlugins!.ready();
   const { install } = platform.runtime.install({ trust: { level: "unsigned" }, definition: beside.definition, deployment: "local", grants: beside.permissions });
   await assert.rejects(platform.runtime.start(install.install_id), /启动失败/u);

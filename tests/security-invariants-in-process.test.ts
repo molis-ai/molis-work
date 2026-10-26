@@ -4,7 +4,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { HOST_BUILD_TRUST, MemoryPluginConsentLedger, MemoryPluginRuntimeRepository, PluginRuntime, UNSIGNED_TRUST } from "@molis-ai/molis-work-plugin-runtime";
+import { HOST_BUILD_TRUST, MemoryPluginConsentLedger, MemoryPluginRuntimeRepository, PluginRuntime, PluginSupervisor, UNSIGNED_TRUST } from "@molis-ai/molis-work-plugin-runtime";
 import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 
 // BL-588, S-75 ⑥ (RAC-990～993): code that runs in the Host's process holds the Host's trust level, unless the Host's own code admitted that very
@@ -104,6 +104,17 @@ test("RAC-992 S-75 a live instance is rechecked when it is started again, and wi
   assert.equal(h.runtime.contribution(install.install_id), null, "its contribution is withdrawn");
 });
 
+test("RAC-996 S-75 a start entry that forgets its trust runs nowhere in a strict Runtime; the Host's build and an admitted fixture do", async () => {
+  const forgotten = inProcessDefinition(manifest("io.molis.work.example.forgot", "forgot")), shipped = inProcessDefinition(manifest("io.molis.work.example.shipped", "shipped"));
+  const fixture = inProcessDefinition(manifest("io.molis.work.example.fixture", "fixture"));
+  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS, inProcess: { admit: new Set([fixture]) } });
+  const supervisor = new PluginSupervisor(runtime);
+  const report = await supervisor.start([{ definition: forgotten }, { definition: shipped, trust: HOST_BUILD_TRUST }, { definition: fixture }]);
+  assert.deepEqual(report.running.sort(), ["io.molis.work.example.fixture", "io.molis.work.example.shipped"]);
+  assert.deepEqual(report.failed.map(state => [state.plugin_id, state.code]), [["io.molis.work.example.forgot", "plugin.in_process_denied"]]);
+  assert.deepEqual(runtime.list().filter(record => record.plugin_id === "io.molis.work.example.forgot"), [], "nothing of it was installed");
+});
+
 test("RAC-993 S-75 nothing a plugin, a package or a caller writes opens the Host's process to it", () => {
   const strict = () => new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: ISOLATED_HOST_IDS, inProcess: { admit: new Set() } });
   // A Manifest cannot name it: not under any spelling of the option, nor with a trust claim or a `host` execution of its own.
@@ -111,8 +122,8 @@ test("RAC-993 S-75 nothing a plugin, a package or a caller writes opens the Host
   assert.throws(() => strict().install({ definition: claimed, deployment: "local", grants: [], trust: UNSIGNED_TRUST }), code("plugin.in_process_denied"));
   // A caller's install input cannot carry it either: the option is the Runtime's, set at construction.
   const plain = inProcessDefinition();
-  const input = { definition: plain, deployment: "local", grants: [], trust: UNSIGNED_TRUST, inProcess: { admit: new Set([plain]) }, admit: new Set([plain]) } as unknown as Parameters<PluginRuntime["install"]>[0];
-  assert.throws(() => strict().install(input), code("plugin.in_process_denied"));
+  const smuggled = { inProcess: { admit: new Set([plain]) }, admit: new Set([plain]) };
+  assert.throws(() => strict().install({ definition: plain, deployment: "local", grants: [], trust: UNSIGNED_TRUST, ...smuggled }), code("plugin.in_process_denied"));
 });
 
 test("RAC-993 S-75 the option exists only in the Runtime package: no contracts or plugin SDK export names it", () => {

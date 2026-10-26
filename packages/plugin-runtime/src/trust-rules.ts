@@ -61,11 +61,12 @@ export function assertTrustFitsExecution(trust: PluginTrust, execution: "host" |
 
 /**
  * The definitions the Host's own code lets run in its process without `host` trust (BL-588). A Runtime given one admits exactly these
- * objects (by identity, as `pluginEntryIdentity` does for the Host's build), an empty set none; a Runtime given none checks nothing,
+ * objects (by identity, as `pluginEntryIdentity` does for the Host's build; asked at each install and start, so a set the Host's
+ * code fills later counts), an empty set none; a Runtime given none checks nothing,
  * which only a test's bare Runtime does (a gate keeps every production construction naming it). It is a construction option of the
  * Host's code: no Manifest, package, caller's input or stored record can set it.
  */
-export interface InProcessAdmission { readonly admit: ReadonlySet<PluginDefinition> }
+export interface InProcessAdmission { readonly admit: { has(definition: PluginDefinition): boolean } }
 
 /**
  * Where a plugin runs is its Manifest's (`runtime.scope`, PG-011), but nothing a plugin writes can start it in the Home: only code of

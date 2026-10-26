@@ -23,14 +23,14 @@
 
 - 没有 `install` 命令。`molis-work plugin dev` 只在你给的隔离状态目录里 `import()` 源码试跑，必须带 `--allow-unsigned-development`，授权「不是 OS sandbox」。
 - 没有信任根。`verifyPluginPackage` 的公钥由调用方传入，没有任何地方保存「我信任这个发布者」；宿主（`apps/`）里也没有任何调用方，包解析和验签只有 `tooling/plugin-cli` 在用。
-- 没有从已验签的包起一个插件的加载器。`loadDevelopmentPlugin`（`packages/plugin-runtime/src/development-loader.ts`）是开发用的本地源码加载，在宿主进程里执行。
+- 没有从已验签的包起一个插件的加载器。`loadDevelopmentPlugin`（`packages/plugin-runtime/src/development-loader.ts`）是开发用的本地源码加载，在宿主进程里执行；它是唯一的进程内例外：`runPluginDevelopment` 只放行刚加载出的那一个定义对象（Runtime 的 `inProcess.admit`，BL-588），别的非 `host` 等级的进程内代码在安装与每次启动前都被 `plugin.in_process_denied` 拒绝。
 - 沙箱只认生成插件的形态：一份 JSON 的 `operations` 合同加平台的 UI 目录。第三方的 `native`、`app`、`integration` 插件（有路由、视图、事件、轮询）没有对应的沙箱形态。
 - 市场只列内置目录（`pluginMarketCards()` 读 `BUILTIN_PLUGIN_CATALOG`）；BL-058「插件市场的上架与审核流程」列在「明确后续做」。
 - 官方内置插件的 `publisher.signature` 是标签（例如 text-stats 的 `official-text-stats-binding`），不是密钥指纹；它们的可信来自编进发行物，不来自验签。
 
 ## 2. 原则
 
-1. **第三方代码不进宿主进程，也不进浏览器页面。** 宿主进程里执行（`execution: "host"`）只留给随宿主编译的内置插件；第三方一律 `execution: "sandbox"`，界面由平台的 UI 目录画。
+1. **第三方代码不进宿主进程，也不进浏览器页面。** 宿主进程里执行（`execution: "host"`）只留给随宿主编译的内置插件，由 Plugin Runtime 强制（BL-588，S-75 ⑥：`unsigned`、`pinned` 配进程内定义被拒，例外只有开发目录刚加载的那一个和宿主收到的测试夹具，按对象身份由宿主代码放行）；第三方一律 `execution: "sandbox"`，界面由平台的 UI 目录画。
 2. **身份 = 发布者密钥指纹 + `plugin_id`。** 密钥变了就是另一个插件（沿用 PLUGIN-PLATFORM.md §2）。
 3. **权限 = Manifest 声明的上限 ∩ 用户逐项授予的。** 安装时用户看到每一项权限和它的理由；没有「全部允许」。
 4. **一个 Home 一个执行进程。** 命令行不自己安装，转给常驻宿主（`AGENTS.md` 硬约束）。

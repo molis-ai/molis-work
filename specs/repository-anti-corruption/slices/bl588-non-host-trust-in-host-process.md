@@ -1,6 +1,6 @@
 # BL-588：非 `host` 等级不在宿主进程里跑（设计稿）
 
-状态：设计稿，待统筹审（2026-10-26，防腐线 ac-clients-1 片；基线 main `29f1ffd47`），未实现。动安全边界，按统筹要求先交稿再做。号段 RAC-990～999、BL-735～739；本稿不占新的 S 号，扩 S-75（安装身份）。待裁定 D1～D5 见 §6。
+状态：设计经统筹 2026-10-26 裁定（#1311 评论 6410517262：D1 选 O2，D2 选 B，D4 做，D5 扩 S-75 ⑥，错误码用专用的 `plugin.in_process_denied`）；S1～S4 与 S5 的文档部分已实现（防腐线 ac-clients-1 片，分支 `claude/bl588-non-host-trust-design`，没开 PR，BL-735～738 已做完删行）；S5 的真实 Home 核对被权限拦下，留作 BL-739，见 §3.5 与 §6 D3。号段 RAC-990～999、BL-735～739；不占新的 S 号，扩 S-75。
 
 接 `specs/repository-anti-corruption/slices/ac-trust-install.md` §2 的 C1 与 RAC-383：T1 只落了一个方向（`host` 等级不得配沙箱定义）；另一个方向（非 `host` 等级不得在宿主进程里跑）和「映射不了沙箱形态的 Manifest 安装时拒绝」留给了 T2，即本条。
 
@@ -30,13 +30,13 @@
 
 - `assertTrustFitsExecution(trust, execution, admitted)`：新增 `admitted`，由 `assertTrustFitsDefinition` 传 `options.inProcess?.admit.has(definition)`。
 - 安装在 `assertInstallIdentity` 里拒，先于安装、同意、私有数据准备与清理（同 S-75 的顺序，不留副作用）。
-- 启动与恢复前由 `assertStartIdentity` 重验同一条；冲突存量记 `crashed` 与同码诊断，不登记处理器或提供方，不重复恢复：把 `plugin.grant_denied` 加进 `isIdentityFailure`（现在只认 `plugin.signer_mismatch`、`plugin.id_namespace_conflict`）。注意 `plugin.grant_denied` 在别处也用，所以 `isIdentityFailure` 要能区分——实现片在启动复查里抛带标记的同码错误，或把这条换成专用码（实现片定，倾向后者：`plugin.in_process_denied`，加进 `plugin-errors.ts`，contracts 快照随改）。
+- 启动与恢复前由 `assertStartIdentity` 重验同一条；冲突存量记 `crashed` 与同码诊断，不登记处理器或提供方，不重复恢复：把 `plugin.grant_denied` 加进 `isIdentityFailure`（现在只认 `plugin.signer_mismatch`、`plugin.id_namespace_conflict`）。错误码用专用的 `plugin.in_process_denied`（统筹已定；`plugin.grant_denied` 别处也用，`isIdentityFailure` 靠码判断），加进 `plugin-errors.ts`，`runtimeFailureCodes` 也列上，使启动失败时原样抛出而不被改成泛泛的 `executor_failed`；contracts 快照随改（只多一行）。
 
 ### 3.2 Runtime 选项 `inProcess`
 
 `PluginRuntime` 的构造选项新增 `inProcess?: { readonly admit: ReadonlySet<PluginDefinition> }`：
 
-- **给了就严格**：只有 `admit` 里的定义对象可以在非 `host` 等级下进程内跑；空集即「一个都不许」。
+- **给了就严格**：只有 `admit` 说「有」的定义对象可以在非 `host` 等级下进程内跑（`admit` 只要能回答 `has(definition)`，装与启动时现问，所以宿主代码事后往里加的也算）；空集即「一个都不许」。
 - **没给就不查**：裸 `new PluginRuntime` 只出现在测试里（它是 Runtime 的机制测试，不是宿主）。生产构造点由门禁强制必须写 `inProcess`（§3.6），所以「没给」在生产里进不去。这是 D2 的方案 B；方案 A（必填，同 `hostIds`）见 §6。
 - 不进任何 contracts 类型，不在 Manifest、包、动作输入里出现（RAC-993）。
 
@@ -61,9 +61,9 @@ D1 需要裁：O2（推荐）还是 O3。O2 不改变任何用户可见的行为
 
 ### 3.5 常驻宿主与存量记录
 
-- 项目（`plugin-platform.ts`）与 Home（`home-plugins.ts`）构造 Runtime 时传 `inProcess: { admit: <夹具定义对象的集合> }`：集合由各自的 `pluginFixtures` 选项算出（`pluginFixtureEntries` 里的 `definition`），所以夹具只放行它自己；生产入口从不传 `pluginFixtures`，集合为空。官方集成（`official-integrations.ts`）传空集。
+- 项目（`project-plugins.ts` 经 `createPluginPlatform`）与 Home（`home-plugins.ts`）构造 Runtime 时传 `inProcess: fixtureAdmission(<夹具条目>, <测试自己手工装的>)`（`home-side.ts`）：放行的是各自 `pluginFixtures` 里的定义对象，加上测试往 `pluginFixtures.installed`（项目侧直接调 `ensureProjectPlugins` 的测试用端口上的 `installedByHand`）里放的对象。后一类是**实现时发现的、设计稿没估到的测试面**：不少测试把自己做的 `unsigned` 进程内定义用 `platform.runtime.install(…)`、`upgrade(…)`、`platform.start([…])` 直接装进 Host 的 Runtime（测的是别的东西：声明在启动时被拒、升级期间迟到的结果被拒等），这些现在要先把那个对象放进集合，等于测试在扮演宿主代码。集合在装与启动时现问，所以测试先建集合、需要时再往里加。生产入口从不传 `pluginFixtures`（RAC-995）。官方集成（`official-integrations.ts`）与已装沙箱包的平台（`installed-plugin-host.ts`）传空集。
 - 严格 Runtime 在启动复查时，对任何 `state != uninstalled`、`publisher_trust != "host"`、`execution = "host"` 且定义不在 `admit` 里的记录，按 §3.1 拒绝。开发目录的记录在隔离状态目录里、跑完即卸载（`state` 为 `uninstalled`），常驻宿主从不打开那个目录，所以不会遇到。
-- **真实 Home 的核对（D3）**：本稿预计没有违例存量（开发目录不写真实 Home，夹具只在测试里）。但这是推断，要在真实 Home 的**只读副本**上核对（immutable URI 备份到副本再查，同 W5-17 的做法）：数出 Home 库与各项目库里满足上面条件的记录。有违例就走维护（卸载或改成沙箱形态），不在读取时兜底。这一步要读真实 Home，按规矩先问用户。
+- **真实 Home 的核对（D3）**：本稿预计没有违例存量（开发目录不写真实 Home，夹具只在测试里），但这是推断。统筹转述用户 2026-10-26 同意读真实 Home 的只读副本（immutable URI 备份到副本、只数记录、核完删副本，同 W5-17）；**2026-10-26 实际去做时，会话的权限分类器按「个人数据」拒绝了这一步（统筹转述的同意不算会话里的授权），没有读，也没有绕**。要查的是：Home 库（`plugin_runtime_installs` 表）与 `projects/*/molis-work.db` 里 `publisher_trust != 'host'`、`record_json` 的 `execution = 'host'`、`state != 'uninstalled'` 的行数。要用户给这条命令的权限规则（或自己跑一次那条只数行数的查询）后才能做；有违例就走维护，不在读取时兜底。
 
 ### 3.6 门禁
 
@@ -81,7 +81,7 @@ D1 需要裁：O2（推荐）还是 O3。O2 不改变任何用户可见的行为
 ### 3.8 文档与安全表
 
 - 改 `trust-rules.ts` 里 `assertTrustFitsExecution` 的注释（去掉「T2 把它们映射到沙箱」的说法，改成本稿的封闭清单）。
-- `docs/system/SECURITY-INVARIANTS.md` 的 S-75 加第 ⑥ 项（非 `host` 等级的进程内代码），断言「拒绝」本身的测试进 `tests/security-invariants-install-identity.test.ts`（D5：扩 S-75，不新开 S 号，同 D6 先例）。
+- `docs/system/SECURITY-INVARIANTS.md` 的 S-75 加第 ⑥ 项（非 `host` 等级的进程内代码），断言「拒绝」本身的测试进 `tests/security-invariants-in-process.test.ts`（D5：扩 S-75，不新开 S 号，同 D6 先例）。
 - `docs/system/THIRD-PARTY-PLUGINS.md` §1「`plugin dev` … 在宿主进程里执行」与 §5「host 执行只接受 `trust: HOST_BUILD_TRUST` 的内置条目」补上：开发目录是唯一的进程内例外，由 `inProcess.admit` 一个对象放行。
 - `ac-trust-install.md` 的 C1 与 RAC-383 两处把「T2 余项」改成「BL-588 已做」（落地后）；`packages/plugin-runtime/README.md` 开发要求补一行。
 
@@ -106,27 +106,27 @@ D1 需要裁：O2（推荐）还是 O3。O2 不改变任何用户可见的行为
 
 | 编号 | 内容 | 证据 |
 | --- | --- | --- |
-| RAC-990 | 严格 Runtime 里，`unsigned` 或 `pinned` 等级配 `execution: "host"` 的定义，安装被拒（`plugin.grant_denied` 或专用码），不留记录、同意、私有数据 | `tests/security-invariants-install-identity.test.ts` |
+| RAC-990 | 严格 Runtime 里，`unsigned` 或 `pinned` 等级配 `execution: "host"` 的定义，安装被拒（`plugin.grant_denied` 或专用码），不留记录、同意、私有数据 | `tests/security-invariants-in-process.test.ts` |
 | RAC-991 | 放行按定义对象的身份：内容相同、对象不同的定义不被放行；`host` 等级不受影响；同一定义在没放行的 Runtime 里被拒 | 同上 |
 | RAC-992 | 启动与恢复前复查：库里已有的「非 `host`、进程内、没卸载」记录记 `crashed` 与同码诊断，不登记处理器或提供方，不重复恢复尝试；活实例再次 `start` 也重验 | 同上 |
 | RAC-993 | 没有 Manifest 字段、包字段、动作输入、库里的记录能打开 `inProcess`；`inProcess` 不在 contracts 与插件 SDK 的公开 API 快照里 | 同上；`pnpm api:update` 无 diff |
-| RAC-994 | 生产里每个 `new PluginRuntime(` 都写 `inProcess`；放行集合只有夹具与开发目录两处来源 | `tests/plugin-in-process-call-sites.test.ts` |
-| RAC-995 | 非测试源码不传 `pluginFixtures`；开发目录的放行集合恰好是它刚加载出的那一个对象，调 `runPluginDevelopment` 的参数放宽不了 | 同上；`tests/plugin-development-artifacts.test.ts` 加一条 |
-| RAC-996 | 常驻宿主（项目与 Home）里，漏写 `trust` 的启动条目、夹具以外的 `unsigned` 进程内启动条目都被拒；登记的内置条目与沙箱包条目不受影响 | `tests/security-invariants-install-identity.test.ts` |
-| RAC-997 | `developInPrivateHost` 只接受私有开发宿主；普通 Host 被拒；负载里的身份字段与项目不一致照旧被拒 | `tests/management-door-identity.test.ts`、`tests/goals-project-database-refusal.test.ts`（改后） |
-| RAC-998 | 映射不了沙箱形态的 Manifest 在预览阶段被拒并带具名码、不留装了不生效的状态；或对账结果为空集并有断言 | `tests/plugin-package.test.ts` 或新文件，实现片定 |
-| RAC-999 | 真实 Home 与各项目库的核对结果记入 `docs/`，无违例或已维护；S-75 行、`ac-trust-install.md` C1/RAC-383、`THIRD-PARTY-PLUGINS.md` 与注释已按 §3.8 更新 | `pnpm health:check`；文档核对 |
+| RAC-994 | 生产里每个 `new PluginRuntime(` 与 `createPluginPlatform(` 都写 `inProcess`；放行集合只有夹具与开发目录两处来源 | `tests/plugin-in-process-call-sites.test.ts`（已进 `test:security`） |
+| RAC-995 | 非测试源码不传 `pluginFixtures`；开发目录的放行集合恰好是它刚加载出的那一个对象，调 `runPluginDevelopment` 的参数放宽不了 | 同上（门禁文件里第二条用例，含 `scripts/replay-plugins.mjs` 一个封闭的重放工具例外） |
+| RAC-996 | 常驻宿主（项目与 Home）里，漏写 `trust` 的启动条目、夹具以外的 `unsigned` 进程内启动条目都被拒；登记的内置条目与沙箱包条目不受影响 | `tests/security-invariants-in-process.test.ts`（Runtime 与监督器）、`tests/security-invariants-in-process-host.test.ts`（常驻宿主的项目与 Home） |
+| RAC-997 | `developInPrivateHost` 只接受私有开发宿主；普通 Host 被拒（`actions.forbidden`）；负载里的身份字段与项目不一致照旧被拒 | `tests/management-door-identity.test.ts`、`tests/goals-project-database-refusal.test.ts`（改成 `createPrivateDevelopmentHost()`） |
+| RAC-998 | 映射不了沙箱形态的 Manifest 在预览阶段被拒并带具名码、不留装了不生效的状态；对账结果为空集：`readSandboxPackage` 已拒绝任何不等于沙箱形态的 Manifest（`plugin.declaration_invalid`，S-84），本片只补断言 | `tests/security-invariants-plugin-install.test.ts`（S-84 原有的加 7 个逐项用例） |
+| RAC-999 | 真实 Home 与各项目库的核对结果记入 `docs/`，无违例或已维护（**核对未做，见 BL-739**）；S-75 行、`ac-trust-install.md` C1/RAC-383、`THIRD-PARTY-PLUGINS.md` 与注释已按 §3.8 更新 | `pnpm health:check`；文档核对 |
 
-测试按槽位跑，只跑改到的文件：`packages/plugin-runtime` 的单元、`tests/security-invariants-install-identity.test.ts`、新的门禁用例、`tests/plugin-development-artifacts.test.ts`、`tests/management-door-identity.test.ts`、`tests/goals-project-database-refusal.test.ts`，加 `pnpm test:security`；全量交 CI 与统筹。
+测试按槽位跑，只跑改到的文件：`packages/plugin-runtime` 的单元、`tests/security-invariants-in-process.test.ts`、新的门禁用例、`tests/plugin-development-artifacts.test.ts`、`tests/management-door-identity.test.ts`、`tests/goals-project-database-refusal.test.ts`，加 `pnpm test:security`；全量交 CI 与统筹。
 
 ## 6. 待统筹或用户裁定
 
 | # | 问题 | 选项与推荐 |
 | --- | --- | --- |
-| D1 | 开发目录怎么处理（§3.3） | **O2 保持进程内、收成唯一封闭例外（推荐）**；O3 只做沙箱形态（砍掉 Integration 的开发循环，产品取舍，要用户定）；O1 不推荐。统筹定 O2 就不必问用户；选 O3 要问用户 |
-| D2 | 例外机制的默认（§3.2） | **B：没给 `inProcess` 就不查，生产靠门禁强制必写（推荐）**，改动在 Runtime、四个生产点与新门禁，测试几乎不动；A：必填（同 `hostIds`），裸 Runtime 也严格，约 85 个测试文件要机械改一遍（`hostIds: ISOLATED_HOST_IDS` 一族），换来的只是裸 Runtime 也严格，对生产没有额外保证 |
-| D3 | 真实 Home 只读核对（§3.5） | 要读真实 Home 的副本，按规矩要用户同意。推荐 S5 前问一次；不同意就只在测试里证明、文档里写明未核对 |
-| D4 | `developInPrivateHost` 限制成私有开发宿主（§3.4） | 推荐做；代价是两个现有测试改造 Host 的建法 |
-| D5 | 安全表怎么记 | **扩 S-75 加 ⑥（推荐）**，同 D6 先例；新开 S 号则要等号段 |
+| D1 | 开发目录怎么处理（§3.3）。**统筹 2026-10-26 裁定 O2。** | **O2 保持进程内、收成唯一封闭例外（推荐）**；O3 只做沙箱形态（砍掉 Integration 的开发循环，产品取舍，要用户定）；O1 不推荐。统筹定 O2 就不必问用户；选 O3 要问用户 |
+| D2 | 例外机制的默认（§3.2）。**裁定 B。** | **B：没给 `inProcess` 就不查，生产靠门禁强制必写（推荐）**，改动在 Runtime、四个生产点与新门禁，测试几乎不动；A：必填（同 `hostIds`），裸 Runtime 也严格，约 85 个测试文件要机械改一遍（`hostIds: ISOLATED_HOST_IDS` 一族），换来的只是裸 Runtime 也严格，对生产没有额外保证 |
+| D3 | 真实 Home 只读核对（§3.5）。**统筹转述用户同意；会话里被权限分类器拦下，未做（BL-739）。** | 要读真实 Home 的副本，按规矩要用户同意。推荐 S5 前问一次；不同意就只在测试里证明、文档里写明未核对 |
+| D4 | `developInPrivateHost` 限制成私有开发宿主（§3.4）。**裁定做，已实现。** | 推荐做；代价是两个现有测试改造 Host 的建法 |
+| D5 | 安全表怎么记。**裁定扩 S-75 加 ⑥，已写。** | **扩 S-75 加 ⑥（推荐）**，同 D6 先例；新开 S 号则要等号段 |
 
-另有一个顺带的取舍，不需要裁定：错误码用 `plugin.grant_denied` 还是新增 `plugin.in_process_denied`（§3.1）。推荐专用码，因为 `isIdentityFailure` 靠码判断，而 `plugin.grant_denied` 在别处也用；要改 contracts 的错误码表与快照，实现片会在 PR 里写对调用方的影响（无外部调用方，现在不留兼容期）。
+另有一个顺带的取舍（已定专用码 `plugin.in_process_denied`，已实现）：错误码用 `plugin.grant_denied` 还是新增 `plugin.in_process_denied`（§3.1）。推荐专用码，因为 `isIdentityFailure` 靠码判断，而 `plugin.grant_denied` 在别处也用；要改 contracts 的错误码表与快照，实现片会在 PR 里写对调用方的影响（无外部调用方，现在不留兼容期）。

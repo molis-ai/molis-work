@@ -11,6 +11,19 @@ import { bindProjectArtifacts } from "./declared-types.js";
 import type { PluginDevelopmentInput, PluginDevelopmentResult } from "@molis-ai/molis-work-contracts/platform/tooling";
 import { withPluginWords } from "@molis-ai/molis-work-app-workbench";
 
+/**
+ * The Hosts made for the developer door (BL-588, S-75 ⑥): none has a Home, and each is closed when its run ends. The door runs
+ * the developer's own unsigned code in the Host's process, so it takes only a Host made for that, never the Host of a person's Home.
+ */
+const developmentHosts = new WeakSet<MolisWorkLocalHost>();
+
+/** A Host for `developInPrivateHost` alone: no Home, nothing of the person's, the caller closes it. */
+export function createPrivateDevelopmentHost(): MolisWorkLocalHost {
+  const host = createMolisWorkLocalHost();
+  developmentHosts.add(host);
+  return host;
+}
+
 /** Development data is explicitly separate from the user's catalog and existing projects. */
 export async function runLocalPluginDevelopment(input: {
   directory: string; state_directory: string; grants: string[]; allow_unsigned_development: true;
@@ -27,7 +40,7 @@ export async function runLocalPluginDevelopment(input: {
     if (names.length) throw new Error("Plugin 开发不能使用非空的普通目录或用户项目目录");
     await writeFile(join(directory, markerName), JSON.stringify(marker) + "\n", { flag: "wx" });
   }
-  const host = createMolisWorkLocalHost();
+  const host = createPrivateDevelopmentHost();
   const projectId = "plugin-development";
   try {
     const reference = molisWorkHostProjectReference({ databasePath: join(directory, "development.db"), projectId });
@@ -39,6 +52,7 @@ export async function runLocalPluginDevelopment(input: {
 
 /** Host function for the isolated developer door; it is never a plugin capability. */
 export async function developInPrivateHost(host: MolisWorkLocalHost, reference: LocalHostProjectReference, input: PluginDevelopmentInput): Promise<PluginDevelopmentResult> {
+  if (!developmentHosts.has(host)) throw new ActionError("actions.forbidden", "Plugin 开发只在为开发建的隔离宿主里运行，不在带 Home 的宿主里运行");
   const request = structuredClone(input);
   if (request.project_id !== reference.project_id.trim()) throw new ActionError("actions.scope_mismatch", "Plugin 开发不属于已打开的项目");
   refusePayloadIdentity(request, ["audit_actor_id"]);

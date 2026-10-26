@@ -7,7 +7,7 @@ import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { LocalProjectDatabase, MolisWorkLocalHost, developInPrivateHost, isProjectPluginDatabaseRefusal, molisWorkHostProjectReference, openProjectPluginDatabases, releaseProjectPlugins, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, MolisWorkLocalHost, createPrivateDevelopmentHost, developInPrivateHost, isProjectPluginDatabaseRefusal, molisWorkHostProjectReference, openProjectPluginDatabases, releaseProjectPlugins, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { CODING_ACTIONS, CODING_PLUGIN_ID } from "@molis-ai/molis-work-plugin-coding";
 import { FEED_ITEM_ACTIONS, FEED_PLUGIN_ID, FEED_SOURCE_ACTIONS } from "@molis-ai/molis-work-plugin-feed";
@@ -72,8 +72,8 @@ async function directory(home: string, projectId: string, databasePath: string):
 }
 
 /** The developer door makes Goals' board through the Host's own path, not an action: what it answers, or nothing when it gets past the board. */
-async function developerDoor(home: string, projectId: string, databasePath: string): Promise<string | undefined> {
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+async function developerDoor(projectId: string, databasePath: string): Promise<string | undefined> {
+  const host = createPrivateDevelopmentHost();
   try {
     await developInPrivateHost(host, molisWorkHostProjectReference({ projectId, databasePath }), { directory: "/nonexistent", project_id: projectId, grants: [], allow_unsigned_development: true });
     return undefined;
@@ -136,7 +136,7 @@ for (const { change, sql, code } of cases) {
     assert.deepEqual([...open.plugins].sort(), [...OTHERS].sort(), "the other plugins' actions are");
     assert.deepEqual(open.goalsCall, { code: "actions.missing" }, "and a call to a Goals action is refused: there is nothing registered to answer it");
     assert.doesNotMatch(await codingPanel(databasePath, projectId), /role="alert"/, "Coding opens while Goals is refused");
-    assert.equal(await developerDoor(home, projectId, databasePath), code, "the Host's own path to Goals' board throws the refusal before it touches Goals' tables");
+    assert.equal(await developerDoor(projectId, databasePath), code, "the Host's own path to Goals' board throws the refusal before it touches Goals' tables");
 
     assert.deepEqual(library(databasePath), before, "the refusal repairs nothing, recreates nothing and records nothing");
   });

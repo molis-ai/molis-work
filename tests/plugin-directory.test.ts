@@ -228,10 +228,13 @@ test("RAC-605 the Host reads the directory from the Manifests the project's Runt
   const database = join(home, "project.db");
   seedDemoBoard(database);
   const store = new LocalProjectDatabase(database);
+  const installedByHand = new Set<PluginDefinition>();
+  /** The test acts as the Host's code: each definition it hands the platform is admitted to the process as that object (S-75 ⑥). */
+  const admit = (value: PluginDefinition): PluginDefinition => { installedByHand.add(value); return value; };
   const ports = { store, ...openProjectVersionStores(store), projectId: DEMO_PROJECT_ID, actorId: "web-user", actions: pluginActions(store, DEMO_PROJECT_ID),
-    escapeHtml: String, translate: (value: string) => value };
+    escapeHtml: String, translate: (value: string) => value, installedByHand };
   const pluginId = "io.molis.work.example.directory-fixture";
-  const definition = (name: string): PluginDefinition => ({
+  const definition = (name: string): PluginDefinition => admit({
     manifest: { schema_version: 2, host_api_version: 2, plugin_id: pluginId, version: "1.0.0", name, kind: "app",
       publisher: { publisher_id: "example", signature: "plugin-directory" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
       permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },

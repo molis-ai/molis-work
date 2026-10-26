@@ -75,6 +75,14 @@ const NOT_IN_THE_FORMAT: Array<[string, (files: PackageFiles, manifest: PluginMa
   ["a prompt that is not { id, title, purpose, body }", files => { files["prompts.json"] = JSON.stringify([{ id: "x", title: "t" }]); }],
   ["a Manifest with a route of its own", (_files, manifest) => { (manifest.routes as unknown[]).push({ route_id: "extra", method: "GET", path: "/extra" }); }],
   ["a Manifest whose view is somewhere else", (_files, manifest) => { manifest.ui!.views![0]!.title = "Another"; }],
+  // BL-588: whatever a Manifest declares beyond the sandbox shape has no sandbox form, so it is refused at the package, not installed to run in the Host.
+  ["an integration plugin (a connector driver runs in the Host)", (_files, manifest) => { Object.assign(manifest, { kind: "integration" }); }],
+  ["a request for every project's always-on place", (_files, manifest) => { manifest.always_on = true; }],
+  ["a look for local tools", (_files, manifest) => { Object.assign(manifest, { local_tools: { tools: [{ tool_id: "git", binaries: ["git"] }] } }); manifest.permissions = [...manifest.permissions, { permission: "local-tools:read", required: true, reason: "x" }]; }],
+  ["a Home-level runtime", (_files, manifest) => { Object.assign(manifest, { runtime: { scope: "home" } }); }],
+  ["an event of its own", (_files, manifest) => { Object.assign(manifest, { events: { publishes: [{ event_type_id: "io.molis.work.example.notes.changed", type_version: 1 }], subscribes: [] } }); }],
+  ["a port of its own", (_files, manifest) => { Object.assign(manifest, { ports: { inputs: [], outputs: [] } }); }],
+  ["a permission the contract does not ask for", (_files, manifest) => { manifest.permissions = [...manifest.permissions, { permission: "network:any", required: true, reason: "x" }]; }],
 ];
 
 test("RAC-383 S-84 a package that verifies but is not in the sandbox package format is refused with plugin.declaration_invalid, before anything is written", async () => {

@@ -3,6 +3,7 @@ import { existsSync, readFileSync, readdirSync, writeFileSync, mkdtempSync } fro
 import { join } from "node:path";
 import test from "node:test";
 import type { ActionAudience } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPluginPlatform, LocalProjectDatabase, DEMO_PROJECT_ID, homeStores, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
@@ -191,7 +192,7 @@ test("S-39 RAC-26 only a user's explicit choice reaches the speech helper as dow
 // are listed under 「只在本机跑」.
 for (const method of ["extract", "readDocuments"] as const) for (const invalidation of ["cancel", "stop", "revoke", "upgrade"] as const) {
   test(`S-39 RAC-27 ${invalidation} while ${method === "extract" ? "material extraction" : "a document batch read"} waits refuses the late result and every business write, on any platform`, { timeout: 60_000 }, async t => {
-    const probe = materialsProbe(), { host } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
+    const probe = materialsProbe(), installed = new Set<PluginDefinition>(), { host } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition], installed } });
     const { platform, install } = await grantMaterials(host, probe);
     const entered = deferred(), release = deferred(), over = deferred(), abort = new AbortController();
     let waited = false, handed = false;
@@ -224,6 +225,7 @@ for (const method of ["extract", "readDocuments"] as const) for (const invalidat
       if (invalidation === "cancel") abort.abort();
       else if (invalidation === "upgrade") {
         replacement = materialsProbe("materialsprobe", { version: "1.1.0" });
+        installed.add(replacement.definition); // the test acts as the Host's code: the new version's object may run in the process (S-75 ⑥)
         await platform.runtime.upgrade({ install_id: install.install_id, definition: replacement.definition, grants: probe.permissions });
         assert.equal(replacement.preflight[0]!.services?.materials, undefined, "RAC-25 upgrade preflight is read-only");
       } else {
@@ -241,7 +243,7 @@ for (const method of ["extract", "readDocuments"] as const) for (const invalidat
 
 for (const invalidation of ["cancel", "stop", "revoke", "upgrade"] as const) {
   test(`RAC-27 RAC-30 ${invalidation} during material extraction refuses late results and persistent business writes`, { timeout: 60_000, skip: process.platform !== "darwin" }, async t => {
-    const probe = materialsProbe(), { host, home } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
+    const probe = materialsProbe(), installed = new Set<PluginDefinition>(), { host, home } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition], installed } });
     const { platform, install } = await grantMaterials(host, probe), helper = join(home, "waiting-helper"), release = join(home, "release");
     const prior = process.env.MOLIS_MATERIAL_WHISPER_HELPER; process.env.MOLIS_MATERIAL_WHISPER_HELPER = helper;
     t.after(() => { if (prior === undefined) delete process.env.MOLIS_MATERIAL_WHISPER_HELPER; else process.env.MOLIS_MATERIAL_WHISPER_HELPER = prior; });
@@ -261,6 +263,7 @@ for (const invalidation of ["cancel", "stop", "revoke", "upgrade"] as const) {
       if (invalidation === "cancel") abort.abort();
       else if (invalidation === "upgrade") {
         replacement = materialsProbe("materialsprobe", { version: "1.1.0" });
+        installed.add(replacement.definition); // the test acts as the Host's code: the new version's object may run in the process (S-75 ⑥)
         await platform.runtime.upgrade({ install_id: install.install_id, definition: replacement.definition, grants: probe.permissions });
         assert.equal(replacement.preflight[0]!.services?.materials, undefined, "RAC-25 upgrade preflight is read-only");
       } else {

@@ -139,10 +139,11 @@ test("W3-06-F-04 Home KV survives shutdown, isolates installs and rejects an int
 });
 
 test("W3-06-F-04 candidate preflight is read-only and failed startup restores the original Home KV", { timeout: 60_000 }, async t => {
-  const probe = homeProbe(), { host } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
+  const probe = homeProbe(), next = homeProbe("homeprobe", "1.1.0");
+  // The test acts as the Host's code: the candidate is the one other object admitted to the process (S-75 ⑥).
+  const { host } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition], installed: new Set([next.definition]) } });
   const { platform, install } = await grantHomeProbe(host, probe);
   probe.contexts.at(-1)!.services!.storage!.set("draft", "original draft");
-  const next = homeProbe("homeprobe", "1.1.0");
   let checked: PluginUpgradeContext["services"];
   next.definition.validateUpgrade = async ({ context }) => { checked = context.services; assert.equal(context.services!.storage!.get("draft"), "original draft"); };
   next.definition.start = async context => { context.services!.storage!.set("draft", "candidate corruption"); throw new Error("candidate failed"); };

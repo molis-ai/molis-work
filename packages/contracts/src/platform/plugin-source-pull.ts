@@ -11,6 +11,18 @@ export const PLUGIN_EVIDENCE_READ_PERMISSION = "evidence:read";
 /** What a plugin holds to read a research library repository through the platform (`services.sourcePull.repository`). */
 export const PLUGIN_SOURCE_PULL_REPOSITORY_PERMISSION = "sources:read_repository";
 
+/** What a Home instance holds to delete the evidence bodies nothing refers to (`services.evidenceCollector`, S-100 provisional). */
+export const PLUGIN_EVIDENCE_COLLECT_PERMISSION = "evidence:collect";
+
+/**
+ * The Home's evidence store as its reference ledger needs it: deletes, among the candidates, the bodies the owner says nothing refers to.
+ * The store cannot see who holds a body, so the owner answers (`isReferenced`); a reference that is not a body of this store is left alone.
+ * Only a Home activation is given it, and only the plugin's own running action may use it (S-100 provisional).
+ */
+export interface PluginEvidenceCollectorClient {
+  collect(input: { readonly candidates: Iterable<string>; isReferenced(contentRef: string): boolean }): { deleted: string[]; kept: string[] };
+}
+
 /** What a plugin holds to pull an account source (GitHub, Gmail, a directory connector) through the person's bound account (`services.sourcePull.connector`). */
 export const PLUGIN_SOURCE_PULL_CONNECTOR_PERMISSION = "sources:pull_connector";
 

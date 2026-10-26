@@ -97,7 +97,7 @@ export const SANDBOX_SERVICE_FATE: { readonly [Service in keyof PluginHostServic
   project_database: 'replaced', ui: 'drawn',
   database: 'entry', files: 'entry', terminal: 'entry', imageGeneration: 'entry',
   model: 'given', background: 'given', agents: 'refused', scheduler: 'refused', directory: 'refused',
-  notifications: 'refused', sourcePull: 'refused', localTools: 'refused', attention: 'refused', contextLedger: 'refused', installations: 'refused', actions: 'refused', scenes: 'refused', judgments: 'refused', artifacts: 'refused', processItems: 'refused', events: 'refused', inputs: 'refused', outputs: 'refused',
+  notifications: 'refused', sourcePull: 'refused', evidenceCollector: 'refused', localTools: 'refused', attention: 'refused', contextLedger: 'refused', installations: 'refused', actions: 'refused', scenes: 'refused', judgments: 'refused', artifacts: 'refused', processItems: 'refused', events: 'refused', inputs: 'refused', outputs: 'refused',
 });
 
 export interface NotGiven {
@@ -142,6 +142,8 @@ export const SANDBOX_NOT_GIVEN: readonly NotGiven[] = [
     declared: (definition, held) => definition.manifest.local_tools !== undefined || asksFor(definition, held, ['local-tools:read']) },
   { service: 'sourcePull', services: ['sourcePull'], reason: 'Pulling public feeds and web queries, and reading the evidence bodies they leave (sources:pull_feed, sources:pull_query, evidence:read, sources:pull_connector, sources:read_repository), is not given to sandboxed plugins: it fetches through the Host\'s own transports and writes into the Home\'s evidence store, which the sandbox has no form for yet (FI-4 step 4c).',
     declared: (definition, held) => asksFor(definition, held, ['sources:pull_feed', 'sources:pull_query', 'evidence:read', 'sources:read_repository', 'sources:pull_connector']) },
+  { service: 'evidenceCollector', services: ['evidenceCollector'], reason: 'Deleting evidence bodies nothing refers to (evidence:collect) is only given to plugins the Host runs itself in the Home: it removes files of the Home\'s evidence store, outside a sandbox.',
+    declared: (definition, held) => asksFor(definition, held, ['evidence:collect']) },
   { service: 'scheduler', services: ['scheduler'], reason: 'Wakeups (schedule:read, schedule:write) are not given to sandboxed plugins yet (PG-017 BL-494).',
     declared: (definition, held) => asksFor(definition, held, ['schedule:read', 'schedule:write']) },
   { service: 'agents', services: ['agents'], reason: 'Running an Agent (agent:run) is not given to sandboxed plugins yet (PG-017 BL-494).',

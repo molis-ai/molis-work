@@ -117,6 +117,8 @@ export interface PluginHostServices {
   readonly connections?: import("./plugin-connections.js").PluginConnectionsClient;
   /** Pulling public sources and reading evidence bodies through the platform, when the Manifest declares `sources:pull_feed`, `sources:pull_query` or `evidence:read` (S-99, provisional). */
   readonly sourcePull?: import("./plugin-source-pull.js").PluginSourcePullClient;
+  /** Deleting evidence bodies nothing refers to, only for a Home activation whose Manifest declares `evidence:collect` (S-100, provisional). */
+  readonly evidenceCollector?: import("./plugin-source-pull.js").PluginEvidenceCollectorClient;
   /** A person-authorized directory, only when the Manifest declares directory:read; the Host never lets the Plugin name an absolute path. */
   readonly directory?: import("./plugin-directory.js").PluginDirectoryService;
   /** Project artifact services are absent from Home activations. */

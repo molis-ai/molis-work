@@ -23,6 +23,8 @@ export interface ConnectorPullRequest {
 
 export type ConnectorSignalDraft = ReturnType<RawEventAdapter["toSignalDraft"]>;
 
+export declare const PLUGIN_EVIDENCE_COLLECT_PERMISSION = "evidence:collect";
+
 export declare const PLUGIN_EVIDENCE_READ_PERMISSION = "evidence:read";
 
 export declare const PLUGIN_SOURCE_PULL_CONNECTOR_PERMISSION = "sources:pull_connector";
@@ -49,6 +51,16 @@ export interface PluginConnectorSourceClient {
     accounts(service_ids: readonly string[]): Promise<Readonly<Record<string, {
         readonly bound: boolean;
     }>>>;
+}
+
+export interface PluginEvidenceCollectorClient {
+    collect(input: {
+        readonly candidates: Iterable<string>;
+        isReferenced(contentRef: string): boolean;
+    }): {
+        deleted: string[];
+        kept: string[];
+    };
 }
 
 export interface PluginSourcePullClient {

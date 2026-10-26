@@ -3430,3 +3430,15 @@ Foundation291e原普通CI及Full均成功。Root独立复核16原日志：1503�
 最终生产差异仅成功分支退订，finally 仍排 timingCommit 与 usage。原整体 build、Agent Host strict、测试 strict、准确主干 `2b3dc51de` health 均退出 0；README 必跑与关闭/恢复必要并集 27 文件 176/176 通过、零 retry、零 browser。之后只将 try 改为正常多行并补原 build/指纹，没有重跑已绿并集；独立只读复审确认该 P2 在此范围内关闭，无新增确定阻塞。日志为仓外 `molis-foundation-291e-sdk-close-{red-first,red-second,green,file-final,related,types,test-types,test-types-final,build,build-final,health}-20261026.log`，首路径/类型失败保留。此为真实临时 Node/SQLite/loopback 的有界工程证据，未修改 SDK、未提交推送、未跑全量或外部模型；App 合成与最终验收仍由原任务继续。
 
 关闭修复随后作为 Foundation `1f124ddd21288cf0831b135ebe286977894eba17` 推到原 #1064 与 integration 分支；该头普通 CI 40260900069、Full 40260896732 已启动，尚未完成。Root 将这份最小修复合入 App 原 #1101，保留两侧完整合同和历史首红。SDK仍为063b原档，资源预算与三个待决定边界未改；本次整合整体build及467必要选集开始前冻结源码，最终结果另记。
+
+### 合成回归后的卸载与样式收尾合同（2026-10-26）
+
+App a81原467必要选集完整结束：464文件过、3首红、零retry；摘要4542/4546，3 fail，另1条plugin-sandbox-network原联网opt-in未执行，不能声称零skip。三红分别为已知资源预算待批、完整Home清除进入离线项目Memory清理、settings测试合成漏import；原日志与失败栈保留，不能改称首绿。普通卸载已验证仍删除demo并保留用户项目；全Home purge的原非空用例刻意放置无效SDK数据，目标是按已批准清单清除全部Home数据，不应为恢复逐项目Runtime把夹具改为有效数据。
+
+本次最小修正：完整purge沿原独立Home owner、精确Home/用户项目数二次确认、快照/inventory复核和原registeredPath删除，不再先调用普通卸载的removeDemos；其demo随原projects及所有已确认Home根一并删除。普通卸载继续原demo生命周期。所有锁inode、未知路径/库账本、当前性复核、失败回执、末尾完整性检查和删除清单保持；不启动SDK、不增加维护Runtime、不扩到Home外或单项目删除。允许代码仅原installer/uninstall.ts，样式测试仅补原pluginWorkbenchSettingsStyles导入，所有业务断言保持。
+
+先补原两红及真实卸载/owner/快照关联测试，覆盖普通保留、全Home清除仅留原锁骨架、错误确认/活动owner/不明内容拒绝、失败收据；按Host README原必跑并集去重。变更前后仍须原整体build、相关严格类型、准确父分支健康及资源门；已绿467不因本刀重跑，资源门待批失败不隐藏。此为待验证修正合同，不是完整P0或用户验收。
+
+原69文件收尾批首轮68过、1红：卸载4/4已绿，builtin样式在补import后进入实际断言（shared为空），不再是引用错误。Root核对main现役PG-070：有clientFactory的插件自己的规则由独立CSS和settings页面link送达；没有clientFactory才保留共享表。原fixture保留了factory却只检查旧shared表，不能把缺样式或重复样式当正确。只将该原用例同时严格核对framed的共享为空、独立CSS正文及精确link，和native无两个client时的完整共享CSS/零link；原settings渲染结果保持。生产样式逻辑未改，原8项与现plugin-styles文件定向复核，不重跑已绿69或467；此处是预期变化同步及新增路径断言，不删除样式可达要求。
+
+收尾结果：Root/LocalHost原strict、最终整体build、准确父1f124 health、API通过。69文件首轮68过/1红，646/647，零retry；其中原uninstall4项全绿。沿PG-070同步样式用例后仅补builtin8项与原plugin-styles11项，全19过；不改生产样式或资源额度。合并前独立风险审查按225生产文件分组核对分类/原决定、权限、Session/项目和完整Home恢复主链，未发现新增确定P1/P2；不是405文件逐行深审、未新跑浏览器或代签用户验收。原资源gate4项继续失败：Coding待批阻止原预算工具原子落盘；原467的网络opt-in差额仍未执行。

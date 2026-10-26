@@ -93,6 +93,7 @@ export type { FeedRuleJudgmentSelection } from "./rule-actions.js";
 
 export { feedQueryActions, createFeedQueryHandlers, type FeedDirectorySnapshot } from "./query-actions.js";
 export { feedNotificationActions, FEED_NOTIFICATION_ACTIONS, createFeedNotificationHandlers, type FeedNotificationPorts } from "./notification-actions.js";
+export { feedHomeJudgmentTrigger, HOME_JUDGMENT_EVALUATE, type FeedHomeJudgmentOptions } from "./home-judgment.js";
 export { feedInboxActions, FEED_INBOX_ACTIONS, createFeedInboxHandlers, type FeedInboxActionPorts, type FeedAdmission, type FeedMaterial, type FeedContent, type FeedBriefs, type FeedAdmitted } from "./inbox-actions.js";
 
 export { FEED_PROJECT_DATABASE } from "./database.js";

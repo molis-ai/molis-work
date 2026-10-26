@@ -215,6 +215,8 @@ FI-5 的存储层只依赖 `FeedSql`；本片给它第二个适配器 `fromPlugi
 | RAC-1011 | 平台的通知队列：同一发送安装、世代与键是同一条通知；没有接收方时留着不算失败，接收方出错留着并记错误码，成功后只交一次、释放正文，键仍算用过 |
 | RAC-1012 | 项目里没有 Feed 时通知留在队列、不写别处；Feed 加进项目、项目重新打开后交到 Feed（来源用发送方的名字，进 Inbox） |
 | RAC-1013 | 接收方动作只认平台的通知身份：别的工作流身份、人、Agent 调它都被拒，伪造的通知不进 Feed |
+| RAC-1014 | 首页 dock 判断对插件的可达性（`home.judgment.evaluate@1`，测试用真实的项目 Home 与一个自己的 Runtime 插件）：插件没有 dock 所推荐动作的权限（Inbox 状态动作的 `inbox:write`、`attention:write`）时 dock 对它不可用（`actions.binding_invalid`），什么都不读不判；没有场景的模型权限（`model:invoke`）时不会碰到模型；默认规则不覆盖的 Feed 事项被 `actions.subject_incompatible` 拒；入箱条目要经 Inbox 去读背后的 Feed 事项，而这是委托（S-43），调用者是插件自己的授权时被拒（`actions.forbidden`），判断账没有记录、模型没有被调用 |
+| RAC-1015 | Feed 一侧的首页判断触发器（`feedHomeJudgmentTrigger`，经 `home.judgment.evaluate`）：dock 没有绑定规则、或对该调用者不可用，静默放过；规则不覆盖的事项、绑定或提供方变了、事项变了等同一张错误码表静默放过；这些之外的失败在 dock 仍可用时照抛，不被吞掉；事件的项目与触发器的项目不一致是 `actions.scope_mismatch` |
 
 ## 7. 不在本稿，以及未验证项
 
@@ -259,6 +261,10 @@ FI-5 的存储层只依赖 `FeedSql`；本片给它第二个适配器 `fromPlugi
 - **4a 的一个坑：把调用上下文整个当 `control` 传，会盖掉判断的身份。** `workflowEventsFeedOptions(…, control)` 里 `...control` 展开在后，传整个 `caller` 会把判断的 `actor_id`、`permissions` 换成接收方动作的；`pluginNotificationFeedOptions` 因此只挑 `signal`、`validate_authority`、`assert_authority_current`。`inbox-automatic-scenes` 的「提醒得到保存的 Inbox 下一步」测试抓到的。
 - **4a 的语义变化（测试已按此改）。** 通知不再与业务记录同事务写进 Feed，而是同事务写进平台队列；Feed 那一头的失败不再让发送方的事务失败，而是留在队列里记码、下次再交（`agent-built-plugins-reminders` 的回滚用例改成拒绝队列行的写入；Schedule 的测试夹具项目启用 Feed 与 Inbox）。`SYS-15-N1/N2` 读队列行而不是 Feed 条目。
 - **4a 顺手补的 FI-6 第 3 步遗漏。** 第 3 步起 Inbox 声明项目库表（`inbox_scene_bindings`），`project-database-baseline`（PLIB-02/09）与 `project-maintenance-v8`（v7 排练库要先去掉它与通知表，v8 期的账本只有四个插件）没跟着改，这次一起改了。
+- **第 4 步 4b 已做：首页 dock 判断（2026-10-26）。** Home 不需要新动作：`home.judgment.evaluate@1`（1–20 件，`concurrent`，受众含 `agent`，所以插件受众也到得了）本来就是公开的。Feed 一侧新增 `plugins/native/feed/src/home-judgment.ts` 的 `feedHomeJudgmentTrigger({ projectId, directory(caller?) })`：与旧的 `createHomeJudgmentTrigger` 同一套静默与容忍（先看动作对调用者可不可用，不可用放过；跑；容忍码表放过；其余再看一次可不可用，仍可用才抛）；不碰场景客户端，Feed 并不声明 dock 场景。`directory(caller?)` 由 4e 接线：带调用者的事件（人的或工作流的动作）走 `services.actions.directory`（委托、该调用者的授权），没有调用者的生产者（来源 tick、唤醒）走 `services.actions.dependencies`（本安装、本安装的授权）。
+- **4b 发现一：后台生产者（插件受众）不能经委托嵌套读取别的插件（要统筹裁定）。** 用真实 Home 实验（`tests/home-judgment-plugin-caller.test.ts`）：Feed 以自己的安装身份调 `home.judgment.evaluate`，Home 读入箱条目要调 `inbox.subject.read`，Inbox 读条目背后的 Feed 事项走 `services.actions.directory`（委托），而 S-43 规定原调用者是 `plugin` 的拒绝（「别的插件用它自己的授权调进来的调用不能借此放宽成工作流受众」），于是 `actions.forbidden`，判断在到模型之前就停了。今天的宿主给后台 `workflow-events` 身份（受众 `workflow`），所以这条路能走；Runtime 里没有这个身份。同一限制也会落在 Inbox 的 `inbox.judgment.evaluate`（它经 `directory` 读 Feed 的正文）。选项见 #1311 评论。
+- **4b 发现二：dock 的自动判断对今天的宿主身份其实是空操作（读代码与探针得出，不是本片引入）。** 宿主给触发器的权限是 `HOME_ACTION_PERMISSIONS` 去掉 `home:write`（`feed:read`、`inbox:read`、`home:read`、`model:invoke`、`functions:invoke`）；默认规则推荐「做完了」「忽略」，而这两个选项指向 `inbox.entry.status`，调用者要持有它的权限才算可用——`inbox:write`，第 3 步之后还要 `attention:write`。身份没有这两个权限，dock 对它不可用，触发器静默放过，没有模型调用、没有判断账。探针里给身份补上这两个权限后判断就跑了。第 3 步之前是 `inbox:write`，身份同样没有，所以不是第 3 步引入的。4e 保持对等（Feed 的授权不多给），除非统筹另有裁定；这件事要告诉产品负责人。
+- **4b 顺手补的第 3 步遗漏。** `home-action-scenes` 的调用者要带 `attention:write`（Inbox 状态动作第 3 步起要它），否则「做完了」选项不可用、绑定被拒（`actions.scene_incompatible`）。
 
 ## 9. 第 4 步（Feed 进 Runtime）的拆法与缺口清单（2026-10-26，开工前读代码核的）
 
@@ -272,7 +278,7 @@ Feed 的动作要么全由宿主提供、要么全由 Runtime 提供（`BUILD_TI
 
 建议的次序（每步单独绿、单独推；翻转之前宿主版 Feed 照常工作）：
 1. **4a 平台通知接收方（D6-2）**：Manifest 声明接收、通知服务按声明找、没有接收方留队列。宿主版 Feed 先当接收方，删 `plugin-notification-service.ts` 里的 Feed 构造。
-2. **4b 首页 dock 判断动作 ③**。
+2. **4b 首页 dock 判断动作 ③**（做完，见 §8：没有新增 Home 动作，现成的 `home.judgment.evaluate` 就是公开动作；Feed 一侧的触发器已写；发现一个要统筹裁定的缺口，决定前 4e 的后台判断不能翻转）。
 3. **4c `services.sourcePull` 与证据正文 ①**（最大，也最碰安全：网络、文件、密钥；沿用 S-57 的地址校验与允许名单，不放宽；S 号用暂定，合入前改）。
 4. **4d Home 引用账 ④**（FI-4 的 RAC-492～495、518）。
 5. **4e 翻转**：`createFeedPlugin()`、监督器条目、`background.wakeups` 的 tick、8 个构造点换成公开动作、删 `feed-native-plugin-http.ts` 与客户端迁移、`BUILD_TIME_ASSEMBLED` 与 `NATIVE_PLUGIN_HTTP_FILES` 去掉 `feed`（RAC-499、500、510～512、516、517）。

@@ -35,19 +35,6 @@ export type { PluginHostExecutorOptions } from "./plugin-executor.js";
 export { runPluginDevelopment } from "./plugin-development.js";
 export type { LocalProjectStoragePreparation } from "./project-storage.js";
 
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-app-local-host",
-  packagePath: "apps/local-host",
-  kind: "app",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/platform/app-host",
-  migrationGoals: ["goal-reorg-f2","goal-reorg-ap2"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["local-host.client.v1", "local-host.single-writer.v1"],
-} as const;
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
-
 export * from "./local-host.js";
 export type { HomeInitializationFailure } from "./home-storage-lifetime.js";
 export { MolisWorkWebServiceManager } from "./installer/web-service.js";

@@ -7,7 +7,6 @@
 旧的「设计数据 + 固定解释器 v1」创作台（独立页面 `/projects/<project>/plugin-builder`、`builder.builds.*` 动作、灵感库示例）已随 S1b 删除，不留兼容；旧路线的设计与验收留在 [specs/archive/plugin-builder](../../../specs/archive/plugin-builder/)。
 
 - Migration: `goal-reorg-f2`
-- Status: `partial`
 - Contract: `@molis-ai/molis-work-contracts/platform/plugin`
 
 不带真模型的本地预览：`pnpm exec tsx scripts/preview-agent-studio.mts --fixture`，打开输出地址。它用独立临时项目、真实构建门槛与沙箱，只把模型换成标明替身的设计者与编码 Agent；预览和浏览器用例经 `scripts/agent-studio-harness.mts` 按工作台的方式挂载创作台。

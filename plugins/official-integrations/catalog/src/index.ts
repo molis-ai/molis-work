@@ -6,17 +6,6 @@ import type {
 import { definePollingIntegrationPlugin } from "@molis-ai/molis-work-plugin-sdk";
 import { getCatalogSpec } from "./catalog.js";
 
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-integration-catalog",
-  packagePath: "plugins/official-integrations/catalog",
-  kind: "integration-plugin",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/platform/plugin",
-  migrationGoals: ["goal-reorg-f2", "goal-reorg-fd3"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["connector.catalog.v1", "signal-adapter.catalog.v1"],
-} as const;
-
 export function catalogIntegrationManifest(connectorId: string): PluginManifest {
   const spec = getCatalogSpec(connectorId);
   return {
@@ -58,8 +47,6 @@ export function createCatalogIntegrationPlugin(input: {
     now: input.now,
   });
 }
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export { CATALOG_CONNECTORS, catalogConnectorIds, getCatalogSpec, isCatalogConnectorId } from "./catalog.js";
 export { setupLinksFor } from "./setup-links.js";

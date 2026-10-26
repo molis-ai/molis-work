@@ -35,9 +35,6 @@ Coding 不按类型解析材料，也没有输入端口。运行中的这一轮�
 固定报告缺失时不重新拼接替代。用户可将一份已保存报告设为 report 输出端口的当前值；下游读取原精确引用，不复制报告。
 旧确认不能覆盖后来的输出选择，已保存报告和历史来源不受切换影响。Coding「产物」面按引用读取已保存的报告（成果库）与固定变更（过程项），支持标题搜索、刷新、类型/修改数/版本/归档标记及重开精确版本；未保存预览不会混入。通用成果页展示保存时的报告正文，并可返回原固定成果及其任务；变更集不进成果库，其逐条文件提案及批准与执行状态在 Coding 产物面和 Diff 里查看。来源、身份、版本或正文不可用时不提供业务预览，也不读取运行时重新生成。Shelf 可接收 Coding 固定报告和变更为独立副本，保存为固定文字材料后再供下一轮选择；Character 可明确选用本项目已发布的精确版本或不使用；本轮冻结正文与来源，下一轮改选、角色更新或停用不改变已有执行及报告。直接多模态输入、其他成果类型与协作链仍待接通；Character 行为收益和整体体验未完成验收。
 
-- Status: `partial`
-- Migration Goals: `goal-reorg-f2`, `goal-plugin-platform-v2`.
-- Contract entrypoint: `@molis-ai/molis-work-contracts/platform/plugin`
 - 需求书：[`specs/coding-plugin/spec.md`](../../../specs/coding-plugin/spec.md)
 
 ## 当前执行入口

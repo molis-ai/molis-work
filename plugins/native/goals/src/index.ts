@@ -78,18 +78,6 @@ export * from "./navigation-model.js";
 export { GOALS_CONTEXT_EN } from "./context-en.js";
 export { GOALS_DOCUMENT_EN } from "./document-en.js";
 
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-plugin-goals",
-  packagePath: "plugins/native/goals",
-  kind: "native-plugin",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/platform/plugin",
-  migrationGoals: ["goal-reorg-f2","goal-f826dfb8-bf63-4e98-b6b7-57f6b4b7c3b8","goal-reorg-gw4","goal-reorg-gw5","goal-reorg-ex4"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["goals.event-application.v1", "goals.policy-ui.v1", "goals.relation-ui.v1", "goals.tree-ui.v1", "goals.momentum-ui.v1", "goals.document-ui.v1", "goals.context-ui.v1", "goals.planning-ui.v1", "goals.status-ui.v1", "goals.factors-ui.v1", "goals.dialogs-ui.v1", "goals.document-routes.v1"],
-} as const;
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 export { createGoalsDecisionPresentation, type GoalsDecisionPresentationPrimitives, type DecisionEventKind } from "./decision-common-ui.js";
 
 

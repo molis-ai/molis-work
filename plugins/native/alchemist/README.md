@@ -4,7 +4,6 @@
 
 包名：`@molis-ai/molis-work-plugin-alchemist`。
 
-- Status: `partial`（仓库包成熟度；本次功能验收见 spec）
 - Contract: `@molis-ai/molis-work-contracts/platform/plugin`
 - Migration: `goal-reorg-f2`
 

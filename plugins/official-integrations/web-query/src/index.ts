@@ -5,17 +5,6 @@ import type {
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { definePollingIntegrationPlugin } from "@molis-ai/molis-work-plugin-sdk";
 
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-integration-web-query",
-  packagePath: "plugins/official-integrations/web-query",
-  kind: "integration-plugin",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/platform/plugin",
-  migrationGoals: ["goal-reorg-f2", "goal-reorg-fd3"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["connector.web-query.v1", "signal-adapter.web-query.v1"],
-} as const;
-
 export const webQueryIntegrationManifest = {
   schema_version: 1,
   plugin_id: "io.molis.work.integration.web-query",
@@ -51,4 +40,3 @@ export function createWebQueryIntegrationPlugin(input: {
   });
 }
 
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;

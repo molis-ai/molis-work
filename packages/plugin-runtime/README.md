@@ -115,9 +115,6 @@ Host 使用 `runInPluginAction` 将已验证的安装、动作定义和调用控
 - [职责与接入说明](../../docs/platform/PLUGIN-DEVELOPMENT.md)
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
-- Status: `partial`
-- Contract entrypoint: `@molis-ai/molis-work-contracts/platform/plugin`
-- Migration Goals: `goal-reorg-f2`, `goal-reorg-fd3`, `goal-reorg-dv3`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
 

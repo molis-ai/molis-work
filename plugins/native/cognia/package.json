@@ -33,26 +33,16 @@
     "@molis-ai/molis-work-plugin-sdk": "workspace:*"
   },
   "molis-work": {
-    "path": "plugins/native/cognia",
-    "kind": "native-plugin",
-    "maturity": "partial",
-    "contract": "@molis-ai/molis-work-contracts/platform/plugin",
-    "summary": "Personal knowledge import, reading and source-grounded synthesis.",
-    "notResponsibleFor": "Source-vault mutations, project facts or a second runtime.",
-    "legacySources": [],
-    "migrationGoals": [
-      "goal-reorg-f2"
-    ],
-    "ssot": "docs/SSOT-MATRIX.md",
+    "maturity": "production",
     "capabilities": [
       "cognia.ui-contribution.v1",
       "cognia.knowledge.v1"
     ],
+    "registration": "./registration",
     "extraWorkspaceDependencies": [
       "@molis-ai/molis-work-plugin-sdk"
     ],
-    "extraDependencies": {},
-    "registration": "./registration"
+    "extraDependencies": {}
   },
   "devDependencies": {
     "esbuild": "^0.28.2"

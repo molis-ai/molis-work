@@ -71,8 +71,5 @@ node scripts/run-tests.mjs tests/goals-command-module.test.ts tests/goals-query-
 - [职责与接入说明](../../docs/modules/goals.md)
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
-- Status: `partial`
-- Contract entrypoint: `@molis-ai/molis-work-contracts/modules/goals`
-- Migration Goals: `goal-reorg-f2`, `goal-f826dfb8-bf63-4e98-b6b7-57f6b4b7c3b8`, `goal-reorg-gw1`, `goal-reorg-gw2`, `goal-reorg-gw3`, `goal-reorg-gw4`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。

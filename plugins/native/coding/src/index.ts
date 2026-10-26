@@ -15,19 +15,6 @@ export { codingHistoryDigest, historySummaryMaterial, summaryDigest, nextHistory
 export { MAX_DELEGATION_HOPS, DELEGATION_STATE_KEY, type DelegationState } from "./cooperation.js";
 export { codingRunForDisplay, codingRunSummary, codingSessionUsage, summaryCache, summariesFingerprint, SESSION_WINDOW, SESSION_PAGE, type CodingRunSummary, type CodingSessionUsage } from "./session-window.js";
 
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-plugin-coding",
-  packagePath: "plugins/native/coding",
-  kind: "native-plugin",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/platform/plugin",
-  migrationGoals: ["goal-reorg-f2", "goal-plugin-platform-v2"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["coding.artifact-types.v1", "coding.ui-contribution.v1"],
-} as const;
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
-
 export {
   CODING_PLUGIN_ID,
   CODING_PROJECT_PLUGIN_ID,

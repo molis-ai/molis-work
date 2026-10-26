@@ -13,17 +13,6 @@ import { text, type Row } from "./rows.js";
 import { FEED_SCHEMA_SQL } from "./schema.js";
 import type { FeedModuleOptions, FeedSqliteDatabase } from "./types.js";
 
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-module-feed",
-  packagePath: "modules/feed",
-  kind: "module",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/modules/feed",
-  migrationGoals: ["goal-reorg-f2", "goal-reorg-fd2"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["feed.query.v1", "feed.command.v1"],
-} as const;
-
 export type { FeedJournalEvent, FeedModuleOptions, FeedSqliteDatabase } from "./types.js";
 export { FEED_SCHEMA_SQL } from "./schema.js";
 
@@ -67,4 +56,3 @@ export class FeedModule implements FeedApi {
   }
 }
 
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;

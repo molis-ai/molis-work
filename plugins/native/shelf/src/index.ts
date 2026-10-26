@@ -1,16 +1,3 @@
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-plugin-shelf",
-  packagePath: "plugins/native/shelf",
-  kind: "native-plugin",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/platform/plugin",
-  migrationGoals: ["goal-reorg-f2"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["shelf.ui-contribution.v1", "shelf.http-routes.v1", "shelf.actions.v1"],
-} as const;
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
-
 export { SHELF_UI_CONTRIBUTION_ID, shelfUiContribution, shelfUiDescriptor, renderShelfWorkbench } from "./ui.js";
 export type { ShelfListModel, ShelfUiModel, ShelfUiPrimitives, ShelfUiSurface } from "./ui.js";
 export {

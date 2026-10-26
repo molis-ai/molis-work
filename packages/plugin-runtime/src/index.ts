@@ -111,17 +111,6 @@ import type {
   ActionRegistryPort,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-plugin-runtime",
-  packagePath: "packages/plugin-runtime",
-  kind: "foundation",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/platform/plugin",
-  migrationGoals: ["goal-reorg-f2", "goal-reorg-fd3", "goal-reorg-dv3"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["plugin.lifecycle.v1", "plugin.grants.v1", "plugin.recovery.v1"],
-} as const;
-
 /** What an install is called with. */
 export interface PluginInstallInput {
   definition: PluginDefinition;
@@ -768,8 +757,6 @@ function forgetUninstalledDefinitions(definitions: Map<string, PluginDefinition>
     if (definition.manifest.plugin_id === current.plugin_id && definition.manifest.publisher.signature === current.publisher_signature) definitions.delete(key);
   }
 }
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 const runtimeFailureCodes = {
   "plugin.manifest_invalid": true,

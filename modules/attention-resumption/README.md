@@ -65,8 +65,5 @@ node scripts/run-tests.mjs tests/feed-module-repositories.test.ts
 - [职责与接入说明](../../docs/modules/attention-resumption.md)
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
-- Status: `partial`
-- Contract entrypoint: `@molis-ai/molis-work-contracts/modules/attention-resumption`
-- Migration Goals: `goal-reorg-f2`, `goal-reorg-fd2`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。

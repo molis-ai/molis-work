@@ -20,7 +20,6 @@ Owner 在写入前拒绝超过 80 个 Unicode 字符的列名，仍限制最多 
 
 页面上的字是稳定键（`dataset.<区域>.<名称>`），中英文都在 `src/messages.ts`，在 `manifest.ts` 的 `ui.messages` 声明，不经工作台的 `i18n/en.ts` import。`src/en.ts` 的 `DATASET_EN` 只留 15 条宿主还按中文原文翻译的词（服务端标签与错误、别的主人在查的词，BL-460）。
 
-- Status: `partial`
 - Contract: `@molis-ai/molis-work-contracts/platform/plugin`
 - Migration: `goal-reorg-f2`
 

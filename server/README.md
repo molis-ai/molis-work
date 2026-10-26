@@ -1,6 +1,5 @@
 # Molis Work Server
 
-Status: `partial`. Contract: `@molis-ai/molis-work-contracts/platform/app-host`.
 Workspace registration: `goal-reorg-f2`.
 
 公共身份、设备、项目访问、接续回执与事件传输。`server` 是可嵌入的核心包，`apps/server` 是本地可部署启动器；共享同一份实现。聊天领域由 `src/im` 提供。服务不启动模型运行时，所有业务读写调用现有 Action Host。

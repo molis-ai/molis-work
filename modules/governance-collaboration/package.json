@@ -26,22 +26,5 @@
   },
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*"
-  },
-  "molis-work": {
-    "path": "modules/governance-collaboration",
-    "kind": "module",
-    "maturity": "partial",
-    "contract": "@molis-ai/molis-work-contracts/modules/governance-collaboration",
-    "migrationGoals": [
-      "goal-reorg-f2",
-      "goal-reorg-ex3",
-      "goal-reorg-ex4"
-    ],
-    "ssot": "docs/SSOT-MATRIX.md",
-    "capabilities": [
-      "governance.proposals.v1",
-      "governance.decisions.v1",
-      "governance.event-decisions.v1"
-    ]
   }
 }

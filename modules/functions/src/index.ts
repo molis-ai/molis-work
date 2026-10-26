@@ -1,16 +1,3 @@
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-module-functions",
-  packagePath: "modules/functions",
-  kind: "module",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/modules/functions",
-  migrationGoals: [],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["functions.query.v1", "functions.command.v1", "functions.evaluate"],
-} as const;
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
-
 export { functionsErrors, assertFunctionKey, assertOptionKey, isPinnedJevModel, suggestFunctionKey } from "./keys.js";
 export { hashChoiceConfig, hashFunctionConfig } from "./hash.js";
 export { FUNCTIONS_STORE_BASELINE, FUNCTIONS_HOME_STORE } from "./store-schema.js";

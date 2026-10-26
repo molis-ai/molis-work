@@ -15,17 +15,6 @@ export {
   type GmailUsableTokenResult,
 } from "./provider.js";
 
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-integration-gmail",
-  packagePath: "plugins/official-integrations/gmail",
-  kind: "integration-plugin",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/platform/plugin",
-  migrationGoals: ["goal-reorg-f2", "goal-reorg-fd3"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["connector.gmail.v1", "signal-adapter.gmail.v1"],
-} as const;
-
 export const gmailIntegrationManifest = {
   schema_version: 1,
   plugin_id: "io.molis.work.integration.gmail",
@@ -61,8 +50,6 @@ export function createGmailIntegrationPlugin(input: {
     now: input.now,
   });
 }
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export { createGmailOAuth, parseGmailOAuthCallbackInput } from "./oauth.js";
 export { GMAIL_CLIENT_ID_REF, GMAIL_CLIENT_SECRET_REF, GMAIL_OAUTH_PENDING_PREFIX, GMAIL_OAUTH_PENDING_TTL_MS, GMAIL_ACCESS_TOKEN_SKEW_MS, GMAIL_OAUTH_CALLBACK_PATH, GMAIL_OAUTH_DEFAULT_SCOPES, type GmailOAuthPorts, type GmailOAuthSecrets, type GmailOAuthStart, type GmailOAuthComplete, type GmailOAuthExchangeInput, type OAuthFetch } from "./oauth-types.js";

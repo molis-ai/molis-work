@@ -67,8 +67,5 @@ node scripts/run-tests.mjs tests/artifacts-module.test.ts
 - [职责与接入说明](../../docs/modules/artifacts.md)
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
-- Status: `partial`
-- Contract entrypoint: `@molis-ai/molis-work-contracts/modules/artifacts`
-- Migration Goals: `goal-reorg-f2`, `goal-reorg-ar1`, `goal-reorg-ar3`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。

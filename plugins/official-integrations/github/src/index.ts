@@ -8,17 +8,6 @@ import { definePollingIntegrationPlugin } from "@molis-ai/molis-work-plugin-sdk"
 export { createGithubProvider, githubWhoami, type GithubFetch, type GithubWhoamiResult } from "./provider.js";
 export { readResearchLibrary, type ResearchLibraryEntry } from "./research-library.js";
 
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-integration-github",
-  packagePath: "plugins/official-integrations/github",
-  kind: "integration-plugin",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/platform/plugin",
-  migrationGoals: ["goal-reorg-f2", "goal-reorg-fd3"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["connector.github.v1", "signal-adapter.github.v1"],
-} as const;
-
 export const githubIntegrationManifest = {
   schema_version: 2,
   plugin_id: "io.molis.work.integration.github",
@@ -58,8 +47,6 @@ export function createGithubIntegrationPlugin(input: {
     now: input.now,
   });
 }
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export * from "./oauth.js";
 

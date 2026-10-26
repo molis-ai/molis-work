@@ -35,33 +35,19 @@
     "@molis-ai/molis-work-plugin-sdk": "workspace:*"
   },
   "molis-work": {
-    "path": "plugins/native/feed",
-    "kind": "native-plugin",
-    "maturity": "partial",
-    "contract": "@molis-ai/molis-work-contracts/platform/plugin",
-    "summary": "First-party Feed navigation, UI, disposition, and Module composition.",
-    "notResponsibleFor": "Source/Signal/Feed/Attention facts or Provider implementations.",
-    "legacySources": [
-      "src/web/render.ts",
-      "apps/desktop/launchers/web/server.ts"
-    ],
-    "migrationGoals": [
-      "goal-reorg-f2",
-      "goal-reorg-fd4"
-    ],
-    "ssot": "docs/SSOT-MATRIX.md",
+    "maturity": "slice",
     "capabilities": [
       "feed.native-plugin.contract.v1",
       "feed.ui-contribution.v1",
       "feed.http-routes.v1"
     ],
+    "registration": "./registration",
     "extraWorkspaceDependencies": [
       "@molis-ai/molis-work-plugin-sdk"
     ],
     "extraDependencies": {
       "@adeptify/intelligence-client": "file:../../../vendor/intelligence-client/adeptify-intelligence-client-0.2.2.tgz",
       "@adeptify/search-evidence-layer": "file:../../../vendor/search-evidence-layer/adeptify-search-evidence-layer-0.4.1.tgz"
-    },
-    "registration": "./registration"
+    }
   }
 }

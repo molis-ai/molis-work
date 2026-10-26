@@ -10,18 +10,6 @@ export { ARTIFACT_WORKS_CLIENT_SCRIPT } from "./works-client.js";
 export { ARTIFACT_HANDOFF_CLIENT_SCRIPT } from "./handoff-client.js";
 export { ARTIFACT_PORT_INPUT_CLIENT_SCRIPT } from "./port-input-ui.js";
 
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-plugin-artifacts",
-  packagePath: "plugins/native/artifacts",
-  kind: "native-plugin",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/platform/plugin",
-  migrationGoals: ["goal-reorg-f2", "goal-reorg-ar1", "goal-reorg-ar3"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["artifacts.project-reference.v1", "artifacts.browser.v1"],
-} as const;
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 export { ARTIFACTS_PLUGIN_ID, ARTIFACTS_PROJECT_PLUGIN_ID, artifactsManifest } from "./manifest.js";
 export { artifactsActions, ARTIFACT_ACTIONS, ARTIFACT_ACTION_PERMISSIONS } from "./actions.js";
 export type { ArtifactFileImport, ArtifactExternalImport, ArtifactImportResult, ArtifactPluginInput } from "./actions.js";

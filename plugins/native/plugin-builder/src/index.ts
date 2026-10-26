@@ -1,4 +1,3 @@
-export const packageDescriptor={packageName:'@molis-ai/molis-work-plugin-builder',packagePath:'plugins/native/plugin-builder',kind:'native-plugin',maturity: "partial",contract:'@molis-ai/molis-work-contracts/platform/plugin',ssot:'docs/SSOT-MATRIX.md',capabilities:["plugin-builder.ui.v1","plugin-builder.workflow.v1"]} as const;
 export * from './model-json.js';
 export * from './manifest.js';
 export * from './workbench.js';

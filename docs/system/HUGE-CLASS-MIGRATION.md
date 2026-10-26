@@ -77,7 +77,7 @@
 | 20 | `horizontal/placement` | 1 | 1 | 3 | 决定 N-03：代码不搬，包内拆 |
 | 21 | `plugins/official-integrations/gmail` | 4 | 5 | 2 |  |
 | 22 | `modules/private-work-context` | 4 | 4 | 2 |  |
-| 23 | `modules/shelf` | 1 | 3 | 2 |  |
+| 23 | `modules/shelf` | 0 | 0 | 2 | 已拆完（2026-10-26）：`ShelfStore` 只留设置、运行环境探测、快照与转发，收件、副本、作业、剪贴板各成协作者（`admissions.ts`、`copies.ts`、`jobs.ts`、`clipboard-store.ts`），`runJob` 按阶段拆成计划、暂存、生成、提交、记失败 |
 | 24 | `horizontal/scheduler` | 1 | 1 | 2 |  |
 | 25 | `modules/projects` | 1 | 1 | 2 |  |
 | 26 | `plugins/native/coding` | 1 | 1 | 2 |  |
@@ -271,7 +271,6 @@ R-38 第 2 片的 Store 状态归属整理（PR #1273 FIRST 第 3 项，2026-10-
 | `private-work-context` | `src/session-records.ts` | `SessionRecordRepository` 类 320 行 / 15 方法 | 拆 · W5-10 | 创建与发现（`createSession`、`discoverSession`、`explicitlyLinkSession`、`linkNativeRuntimeSession`）、关联更新（`updateAssociations*`、`setAssociationReferences`、`reassignWorkspaceSessions`）、查找（`get`、`find*`、`list`、`goalHistory`）三组。 | 0 |
 | `private-work-context` | `src/session-registry.ts` | `MolisWorkSessionRegistry` 类 174 行 / 29 方法 | 拆 · W5-10 | 对外门面：29 个方法几乎都是转发，只因方法数超标。按会话、交接、事件三组拆成子门面，调用方拿自己要的那个。 | 2 |
 | `projects` | `src/repository.ts` | `ProjectsRepository` 类 287 行 / 29 方法 | 拆 · W5-10 | 29 个方法分四组：项目（`insertProject`、`renameProject`、`updateDatabasePath`）、项目插件与隐藏插件、工作区与成员关系、删除记录（`insertDeletion`、`findDeletion`）。每组一个表访问类；删除记录这组预计会被 W2-07（项目删除统一）碰到，那一片的新增部分先写在新文件里。 | 2 |
-| `shelf` | `src/store.ts` | 文件 1,176 行<br>`ShelfStore` 类 748 行 / 35 方法<br>`runJob` 函数 199 行 | 拆 · W5-10 | 文件 1,176 行；`ShelfStore` 748 行/35 方法分组：收件（`admitFile`、`admit`、`admitFolder`、`admitText`、`admitUrl`、`captureUrl`）、作业（`runJob`、`storeResult`、`cancelJob`、`writeCopy`、`useAsMaterial`）、剪贴（`addClipboard`、`deleteClipboard`、`clipboardToMaterial`）、目录文件读写（`readCatalog`、`writeCatalog`、`update`）。`runJob` 199 行（`try` 83 行）按阶段拆，它在类里（类和方法各计一次）。`normalizeCatalog`、`clipTitleFor`、`normalizeClip` 等移出。 | 2 |
 
 ### 平台包 `packages/*`
 

@@ -1,7 +1,8 @@
 import { retainActionAuthority, ActionError, type ActionAudience, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FeedApplication } from "./application.js";
 import { admitToInbox, isIgnored } from "./inbox-admission.js";
-import type { FeedItemRecord, FeedSourceRecord } from "./projection.js";
+import type { FeedSourceRecord } from "./projection.js";
+import type { FeedHydrate } from "./item-hydration.js";
 
 /**
  * What the Inbox plugin asks of Feed (FI-6, specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §1.2.6): Feed's own facts
@@ -64,7 +65,7 @@ export const FEED_INBOX_ACTIONS: readonly ActionDefinition[] = Object.values(fee
 
 export interface FeedInboxActionPorts {
   /** The bodies of retained materials, decrypted. */
-  hydrate(item: FeedItemRecord): FeedItemRecord;
+  hydrate: FeedHydrate;
   /** Whether the source's connection can still be used, as its owner checks it. */
   authorize(source: FeedSourceRecord): Promise<{ authorized: boolean; reason?: string }>;
 }
@@ -80,7 +81,7 @@ const sourceState = (source: FeedSourceRecord): string => JSON.stringify([source
 
 export function createFeedInboxHandlers(feed: FeedApplication, board: string, ports: FeedInboxActionPorts): ActionHandlerBinding[] {
   const bind = <Input, Output>(definition: ActionDefinition<Input, Output>, handle: (input: Input, caller: ActionExecutionContext) => Output | Promise<Output>): ActionHandlerBinding => ({
-    capability_id: definition.capability_id, version: definition.version, handle: async (caller, input) => await handle(input as Input, caller),
+    capability_id: definition.capability_id, version: definition.version, handle: (caller, input) => handle(input as Input, caller),
   });
   return [
     bind(feedInboxActions.admission, ({ item_id }) => {
@@ -98,14 +99,14 @@ export function createFeedInboxHandlers(feed: FeedApplication, board: string, po
       const current = feed.getFeedItem(board, item_id), latest = feed.getSource(board, original.source_id);
       if (current.revision !== original.revision || sourceState(latest) !== sourceState(source)) throw new ActionError("actions.offer_changed", "检查期间原材料或来源已变化，请重新载入");
       caller.signal?.throwIfAborted();
-      const item = ports.hydrate(current);
+      const item = await ports.hydrate(current);
       const body = item.body || item.materials.map(material => material.content || material.preview).join("\n\n") || item.summary;
       if (!body.trim()) throw new ActionError("actions.subject_unavailable", "所选材料没有可读取的正文");
       return { item_id: item.item_id, revision: item.revision, title: item.title, body, url: item.url ?? null, source_label: item.source_label ?? null,
         provenance: item.materials.map(material => material.provenance) };
     }),
-    bind(feedInboxActions.content, ({ item_id }) => {
-      const item = ports.hydrate(feed.getFeedItem(board, item_id));
+    bind(feedInboxActions.content, async ({ item_id }) => {
+      const item = await ports.hydrate(feed.getFeedItem(board, item_id));
       return { item_id: item.item_id, revision: item.revision, title: item.title, summary: item.summary ?? null, body: item.body ?? null,
         materials: item.materials.map(material => ({ content: material.content ?? null, preview: material.preview ?? null })) };
     }),

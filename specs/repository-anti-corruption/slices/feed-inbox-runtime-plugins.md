@@ -346,3 +346,12 @@ type SourcePullRequest =                       // 闭合：多一个字段就拒
 3. **4e-3：翻转与删除。** `registration` 加 `project_runtime`（与 Home 一半的 `runtime`），`BUILD_TIME_ASSEMBLED` 删 `feed`；`content-action-providers.ts` 的 Feed 部分、8 个构造点逐个改成公开动作，`createLocalFeedApplication` 及 `feed-application.ts`、`feed-source-scheduler`、`feed-source-sync-lease`、`workflow-feed-options.ts`、`feed-goal-promotion.ts`、宿主的 `syncResearchLibrarySource` 删；FI-7 的 Feed 一半（`feed-native-plugin-http.ts` 删，路由进 Manifest，舞台片段走 `/api/stage/feed`）同在这一步，因为它也是 `feed` 的最后一个宿主私有文件。门禁的混合名单与 `NATIVE_PLUGIN_HTTP_FILES` 同步减。
 
 **请统筹确认或另裁：** ① 事务形状用「通用包装 + 响亮失败 + 逐个改写 await 之后才写的处理器」，而不是把 `FeedApplication` 的写方法改成异步；② 三步拆法，且 4e-1 与 4e-2 不登记、对外无变化；③ 4e-3 一步里同时翻转并做 FI-7 的 Feed 一半，会是一个大提交（Inbox 的翻转 55 个文件），我会把翻转前能单独落的删除（如 `syncResearchLibrarySource` 之外的死代码）先拆出去。
+
+**4e-1 实现记录（2026-10-26，已做，未登记）。** `plugins/native/feed/src/plugin.ts` 的 `createFeedPlugin()` 与 `feedRuntimeManifest`、`runtime-writes.ts` 的 `createFeedWriter()`、`item-hydration.ts` 的 `FeedHydrate`；测试 `tests/feed-runtime-plugin.test.ts`（6 例，真实项目平台，不带宿主版 Feed）。与上面方案的差别和新发现：
+
+- **事务体必须同步返回**（平台的 `requireSynchronous` 拒绝返回 promise 的事务体），所以 `writing()` 不能把整个 `async` 处理器放进事务。做法是：处理器的同步前缀在事务体里跑，它的返回值（可能是 promise）被记下，提交之后再 `await`。前缀里抛错整个回滚；`await` 之后的写以 `actions.execution_failed` 失败，不写到别处。另给了 `commit(caller, body)`，写在 `await` 之后的处理器（4e-2 的规则保存、来源同步、升格）先等完、再 `commit` 一次。
+- **处理器的 `bind` 辅助改成透传**（`query`、`inbox`、`item`），不再外包一层 `async`，同步结果仍是同步；`hydrate` 改为可等待的 `FeedHydrate`（宿主传同步函数照旧），读类处理器 `await` 它。Runtime 的 `hydrate` 经 `services.sourcePull.evidence.read`，读不到的正文标 `content_available: false`，调用被取消或撤权则失败。
+- **只声明这一步用到的平台权限**：必需的是 `attention:read/write`、`context-ledger:read/write`、`journal:project`，可选的是 `evidence:read`。§11 第 1 点列的其余（`scenes:use`、`judgments:*`、`actions:delegate`、`connections:request`、`sources:pull_*`、`background.wakeups`、`databases.home`、`runtime.scope`）随用到它们的件在 4e-2、4e-3 加，不先要用不上的权限。Manifest 由 `feedManifest` 派生（少了来源动作、通知接收、`feed.connections.status`、`feed.goals.context`，这些要等 4e-2），翻转时它就是 `feedManifest`。
+- **读路径里的写，测试里第一次暴露：** `readListenerCheckpoint` 读一个没有检查点行的来源时会 `INSERT OR IGNORE` 一行，`feed.snapshot` 因此在只读客户端上失败。改成返回「第一次写会建的那行」（idle、空游标），读不再写；宿主版 Feed 的行为变化只是列来源不再顺带建行，写路径（`writeListenerCursor`、租约）仍先建行。
+- 来源授权（`feed.items.material` 的 `authorize`）对账号型来源先关闭（失败即拒绝，理由「来源连接暂不可用」），手动与公开来源照旧；4e-2 接上 `services.connections` 后与宿主版对齐。
+- `feed.content.receive`（来源、条目、日志事件）是一次提交：测试把调用者的授权在第 1～25 次检查处依次撤掉，每次结果只有「全部写入」或「什么都没有」，两边都出现。

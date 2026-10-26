@@ -1,7 +1,8 @@
 import { feedCaptureContent } from "./scenes.js";
 import { retainActionAuthority, ActionError, type ActionCallContext, type ActionExecutionContext, type ActionReference, type ActionSceneUsage, type ActionDefinition, type ActionHandlerBinding, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FeedApplication } from "./application.js";
-import type { FeedItemRecord, FeedOutRuleRecord } from "./projection.js";
+import type { FeedOutRuleRecord } from "./projection.js";
+import type { FeedHydrate } from "./item-hydration.js";
 import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
 import { feedOutRuleMatches, type FeedOutRuleWrite } from "./out-rules.js";
 
@@ -49,7 +50,7 @@ export interface FeedRuleJudgmentSelection {
   recommendations(caller: ActionCallContext): Promise<FeedCaptureRecommendations>;
   preview(reference: ActionReference, content: string, caller: ActionCallContext): Promise<{ status: "ok" | "needs_review"; suggested_behavior_ids: string[] }>;
 }
-export function createFeedRuleHandlers(feed: FeedApplication, projectId: string, hydrate: (item: FeedItemRecord) => FeedItemRecord, judgments?: FeedRuleJudgmentSelection): ActionHandlerBinding[] {
+export function createFeedRuleHandlers(feed: FeedApplication, projectId: string, hydrate: FeedHydrate, judgments?: FeedRuleJudgmentSelection): ActionHandlerBinding[] {
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (args: I, caller: ActionExecutionContext) => O | Promise<O>): ActionHandlerBinding => ({ ...definition, handle: (caller, input) => handle(input as I, caller) });
   const select = async (next: FeedOutRuleRecord, patch: Partial<FeedOutRuleWrite>, caller: ActionCallContext, current?: FeedOutRuleRecord) => {
     const changed = "judgment" in patch;
@@ -71,7 +72,7 @@ export function createFeedRuleHandlers(feed: FeedApplication, projectId: string,
     bind(feedRuleActions.judgments, async (_args, caller) => judgments ? judgments.catalog(caller) : { choices: [], usages: [] }),
     bind(feedRuleActions.previewJudgment, async (args, caller) => {
       if (!judgments) throw new ActionError("actions.scene_missing", "捕捉判断服务未连接");
-      const item = hydrate(feed.getFeedItem(projectId, args.item_id));
+      const item = await hydrate(feed.getFeedItem(projectId, args.item_id));
       return judgments.preview(args.judgment, feedCaptureContent(item), caller);
     }),
     bind(feedRuleActions.list, () => ({ rules: feed.listOutRules(projectId) })),
@@ -90,17 +91,17 @@ export function createFeedRuleHandlers(feed: FeedApplication, projectId: string,
     }),
     bind(feedRuleActions.delete, args => ({ rule: feed.deleteOutRule(projectId, args.rule_id) })),
     bind(feedRuleActions.evaluate, (args, caller) => feed.evaluateItems(projectId, args.item_ids, retainActionAuthority(caller, feedRuleActions.evaluate, caller.beforeEffect))),
-    bind(feedRuleActions.preview, args => {
+    bind(feedRuleActions.preview, async args => {
       const snapshot = feed.snapshot(projectId);
       if (!snapshot.sources.some(source => source.source_id === args.source_id)) throw feedErrors.invalid_transition("请选择当前项目的来源");
       const rule: FeedOutRuleRecord = { project_id: projectId, rule_id: "preview", name: "preview", enabled: true,
         match: { source_id: args.source_id, contains: args.contains?.trim() ?? "" }, judgment: null, revision: "preview", admission: "suggest", created_at: "", updated_at: "" };
-      return { samples: snapshot.feed_items.filter(item => item.source_id === args.source_id)
-        .sort((a, b) => b.source_updated_at.localeCompare(a.source_updated_at)).slice(0, 5).map(item => {
-          const original = hydrate(item);
+      return { samples: await Promise.all(snapshot.feed_items.filter(item => item.source_id === args.source_id)
+        .sort((a, b) => b.source_updated_at.localeCompare(a.source_updated_at)).slice(0, 5).map(async item => {
+          const original = await hydrate(item);
           return { item_id: original.item_id, title: original.title, matched: feedOutRuleMatches(rule, original),
             input: [original.title, original.summary, original.body ?? ""].filter(Boolean).join("\n") };
-        }) };
+        })) };
     }),
   ];
 }

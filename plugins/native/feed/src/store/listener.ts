@@ -94,11 +94,13 @@ export function readListenerCheckpoint(
   sourceId: string,
   at = new Date().toISOString(),
 ): ListenerCheckpoint {
-  ensureCheckpointRow(db, projectId, sourceId, at);
   const row = db.get(`
     SELECT * FROM listener_instances WHERE project_id = ? AND source_id = ?
-  `, projectId, sourceId) as Row;
-  return mapCheckpoint(row);
+  `, projectId, sourceId) as Row | undefined;
+  // A read writes nothing: a source nobody has listened to has the idle checkpoint the first write would make (a Runtime Feed reads through
+  // a client that cannot write, and a listing of sources is not a reason to open a transaction).
+  return mapCheckpoint(row ?? { project_id: projectId, source_id: sourceId, cursor_json: "{}", state: "idle", attempt: 0, retry_at: null,
+    last_error_code: null, updated_at: at });
 }
 
 export function writeListenerCursor(

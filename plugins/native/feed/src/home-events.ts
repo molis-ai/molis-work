@@ -1,10 +1,10 @@
 import { defineHomeEventsAction, withinHomeEventWindow, assertHomeEventWindow, type HomeEvent, type HomeEventWindow, type ActionCallContext, type ActionSubject, type ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FeedApplication } from "./application.js";
-import type { FeedItemRecord } from "./projection.js";
+import type { FeedHydrate } from "./item-hydration.js";
 
 export const feedHomeEventsAction = defineHomeEventsAction("feed.home.events", ["feed_item", "source"], "Feed 首页事项", ["feed:read", "inbox:read"]);
 const organization = new Set(["github", "gmail", "youtube_channel"]);
-export function createFeedHomeEventsHandler(feed: FeedApplication, board: string, hydrate: (item: FeedItemRecord) => FeedItemRecord,
+export function createFeedHomeEventsHandler(feed: FeedApplication, board: string, hydrate: FeedHydrate,
   readSubject?: (subject: ActionSubject, caller: ActionCallContext) => Promise<ActionSubjectContext>) {
   return { ...feedHomeEventsAction, handle: async (caller: ActionCallContext, value: unknown) => {
     const window = value as HomeEventWindow; assertHomeEventWindow(window);
@@ -27,7 +27,7 @@ export function createFeedHomeEventsHandler(feed: FeedApplication, board: string
     for (const original of snapshot.feed_items) {
       const occurred = original.source_created_at || original.imported_at;
       if (inboxed.has(original.item_id) || !withinHomeEventWindow(occurred, window)) continue;
-      const item = hydrate(original);
+      const item = await hydrate(original);
       let goalLabel = item.linked_goal_id ? "目标 · " + item.linked_goal_id : "Feed";
       if (item.linked_goal_id && readSubject) {
         try { goalLabel = (await readSubject({ kind: "goal", id: item.linked_goal_id }, caller)).title; } catch { /* Keep the owned association ID when Goal content is unavailable. */ }

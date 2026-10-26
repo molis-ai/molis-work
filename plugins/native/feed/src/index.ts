@@ -101,3 +101,6 @@ export { feedInboxActions, FEED_INBOX_ACTIONS, createFeedInboxHandlers, type Fee
 
 export { FEED_PROJECT_DATABASE } from "./database.js";
 export { feedOwnedAttention } from "./attention-owner.js";
+export { createFeedPlugin, feedRuntimeManifest } from "./plugin.js";
+export { createFeedWriter, type FeedWriter } from "./runtime-writes.js";
+export type { FeedHydrate } from "./item-hydration.js";

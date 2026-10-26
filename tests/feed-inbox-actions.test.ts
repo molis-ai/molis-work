@@ -45,8 +45,9 @@ const caller = (audience: string, signal?: AbortSignal) => ({
 
 function handlers(feed: Feed, ports: Partial<FeedInboxActionPorts> = {}) {
   const bound = createFeedInboxHandlers(feed, DEMO_PROJECT_ID, { hydrate: item => ({ ...item, body: "the body" }), authorize: async () => ({ authorized: true }), ...ports });
-  const call = <Output>(definition: { capability_id: string }, input: unknown, as = caller("workflow")) =>
-    bound.find(handler => handler.capability_id === definition.capability_id)!.handle(as, input) as Promise<Output>;
+  // A handler may fail before it returns anything (its binding no longer wraps it in an async function), so a failure is a rejection here.
+  const call = async <Output>(definition: { capability_id: string }, input: unknown, as = caller("workflow")) =>
+    await bound.find(handler => handler.capability_id === definition.capability_id)!.handle(as, input) as Output;
   return { admission: (item_id: string) => call<FeedAdmission>(feedInboxActions.admission, { item_id }),
     admit: (item_id: string, as?: never) => call<FeedAdmitted>(feedInboxActions.admit, { item_id }, as),
     material: (item_id: string, as?: never) => call<FeedMaterial>(feedInboxActions.material, { item_id }, as),

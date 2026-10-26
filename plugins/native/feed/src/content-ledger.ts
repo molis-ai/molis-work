@@ -1,4 +1,4 @@
-import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
 import type { HomePluginDatabaseDeclaration, PluginDatabaseReader, PluginDatabaseTransaction } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 /**
@@ -47,7 +47,7 @@ export interface FeedContentHolder { project_id: string; source_id: string }
 export interface FeedContentRelease { bodies_deleted: number; bodies_kept: number; complete: boolean }
 
 const bodies = (refs: readonly string[], what: string): string[] => {
-  if (!Array.isArray(refs) || refs.length > FEED_CONTENT_LEDGER_BATCH) throw new ActionError("feed.content_batch_invalid", what + "一次最多 " + FEED_CONTENT_LEDGER_BATCH + " 份正文");
+  if (!Array.isArray(refs) || refs.length > FEED_CONTENT_LEDGER_BATCH) throw feedErrors.request_invalid(what + "一次最多 " + FEED_CONTENT_LEDGER_BATCH + " 份正文");
   return [...new Set(refs.filter((ref): ref is string => typeof ref === "string" && BODY_REF.test(ref)))];
 };
 

@@ -121,8 +121,8 @@ test("RAC-494: a hold takes only well-formed body references, and a batch is bou
   assert.deepEqual(await f.ledger.hold(noEffect, { project_id: "p1", source_id: "s1" }, [a, a, "research:note-1", "../../etc/passwd", ""]), { held: 1 });
   assert.equal(f.library.rows().length, 1);
   const many = Array.from({ length: FEED_CONTENT_LEDGER_BATCH + 1 }, (_, index) => "molis-work-feed/sha256/" + index.toString(16).padStart(64, "0"));
-  await assert.rejects(f.ledger.hold(noEffect, { project_id: "p1", source_id: "s1" }, many), { code: "feed.content_batch_invalid" });
-  await assert.rejects(f.ledger.release(noEffect, { project_id: "p1", source_id: "s1" }, many), { code: "feed.content_batch_invalid" });
+  await assert.rejects(f.ledger.hold(noEffect, { project_id: "p1", source_id: "s1" }, many), { code: "feed.request_invalid" });
+  await assert.rejects(f.ledger.release(noEffect, { project_id: "p1", source_id: "s1" }, many), { code: "feed.request_invalid" });
   assert.equal(f.library.rows().length, 1);
 });
 

@@ -1,5 +1,5 @@
 import type { AsyncLocalStorage } from "node:async_hooks";
-import { SYSTEM_TOOL_NAMES, type ExactRef, type ModelEvent, type Runtime, type Skill } from "@prologue/sdk";
+import { SYSTEM_TOOL_NAMES, type AuditSink, type ExactRef, type ModelEvent, type Runtime, type Skill } from "@prologue/sdk";
 import type { createNodeHost } from "@prologue/sdk/node";
 import type { AgentActionClient } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { ActionView, ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -17,6 +17,8 @@ import type { StopGuard } from "./prologue-stop-guard.js";
  */
 
 export interface PrologueNodeAdapterOptions extends PrologueAdapterPorts {
+  /** Optional SDK diagnostics; synchronous observations never authorize or change a Run. */
+  audit?: AuditSink;
   /** Synchronous Catalog pending receipt fact; deletion itself uses its original held lane. */
   projectDeletionPending?(projectId: string, sessionId?: string): boolean;
   /** App taxonomy and live memory authority; absent means memory is unavailable. */

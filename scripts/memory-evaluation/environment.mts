@@ -9,6 +9,7 @@ import { memoryRuntimePolicy, memoryExtractor, prologueMemoryBackend, type HostT
 import { openMemoryLedger } from "@molis-ai/molis-work-storage";
 import { MEMORY_EVALUATION_CORPUS, type MemoryEvaluationSeed, type MemoryEvaluationCase } from "../../tests/fixtures/memory-evaluation-corpus.js";
 import { EVALUATION_ACTOR, evaluationPerson, evaluationOriginals, type EvaluationOriginal } from "./originals.mjs";
+import { memoryPhaseObservation } from "./memory-phase-observation.mjs";
 
 export type EvaluationArm = "B0" | "B2";
 export function assertEvaluationArm(arm: string): asserts arm is EvaluationArm {
@@ -59,9 +60,10 @@ export async function memoryEvaluationEnvironment(model?: ModelPorts, options: {
   let originals: Awaited<ReturnType<typeof evaluationOriginals>> | undefined, memory: MemoryService;
   let generation: HostTextGeneration | undefined, listFault: (() => void) | undefined;
   const observations: ReadObservation[] = [], reads = { calls: 0, entries: 0 };
+  const memoryPhases = memoryPhaseObservation();
   let closed = false;
   const close = async (removeHome = true) => {
-    if (closed) return; closed = true;
+    if (closed) return; closed = true; memoryPhases.clear();
     try { await adapter?.close(); }
     finally { alive = false; try { try { ledger?.close(); } finally { await originals?.close(); } }
       finally { mock.timers.reset(); clockHeld = false; if (removeHome) await rm(home, { recursive: true, force: true }); } }
@@ -84,6 +86,7 @@ export async function memoryEvaluationEnvironment(model?: ModelPorts, options: {
         promotion: { policy: MEMORY_GATE_POLICY, version: MEMORY_GATE_VERSION,
           decide: (caller, request) => memory.promotion.decide(caller, request), undo: {
             prepare: (caller, request) => memory.promotion.undo.prepare(caller, request), record: (caller, request) => memory.promotion.undo.record(caller, request) } } },
+      audit: memoryPhases.audit,
       memoryUsage: receipt => memory.settleUses(receipt),
       modelConfiguration: async (...args) => setup ? originals!.model : await model?.modelConfiguration(...args) ?? null,
       resolveCredential: ref => setup ? "source-setup-only" : model?.resolveCredential?.(ref) ?? null });
@@ -99,6 +102,7 @@ export async function memoryEvaluationEnvironment(model?: ModelPorts, options: {
     }
     const prefsBefore = memory.prefs(evaluationPerson(null), "personal").prefs;
     return { home, memory, ids, reads, observations, prefsBefore, host, adapter, setClock, close,
+      observeMemoryPhases: memoryPhases.bind,
       sourceSetup: originals.observation,
       setGeneration(value: HostTextGeneration | undefined) { generation = value; },
       failLists(value?: () => void) { listFault = value; },

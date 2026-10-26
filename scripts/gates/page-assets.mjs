@@ -242,15 +242,13 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// #1101's previously measured pairs on the batch39 Foundation baseline; kept as recorded evidence.
-// The batch40 composition is PENDING its original build/resource measurement: do not migrate these
-// pairs or invent new endpoints before that measurement. A different merge-base gets no admission.
-// The same nine approved Workbench features total +32894; the exact build is +32893. CSS remains +680 each.
+// #1101's same approved application features measured against the exact batch40 Foundation 291e169b.
+// The nine approved Workbench features total +32894; the exact build is +32893. Workbench CSS is +680.
+// Settings CSS fell by 73924 B after the main's style split and needs only the original budget reduction.
 // Coding restore remains pending and is not admitted here; no old ceiling or spare allowance carries over.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1130922, 1163815],
-  "/assets/molis-work-settings.css": [969244, 969924],
-  "/assets/molis-work-workbench.css": [1537942, 1538622],
+  "/assets/molis-work-workbench.js": [1132639, 1165532],
+  "/assets/molis-work-workbench.css": [1234610, 1235290],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

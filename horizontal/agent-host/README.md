@@ -290,3 +290,6 @@ inspection 和维护 bridge 的 `verifySessionPurge({target,signal?})` 只核原
 整 factory signal/current/close 覆盖存储提交，不增加单次取消假口。无普通 Runtime 启停、模型、空 effects 或第二状态机；在线 quiet/cleanup/effects、preparePurge/purgeWaits 和当前准入仍由原主人执行。最终 Index 逐字段构造，未知附加属性也不保留。raw 只沿上面的完整原项目计划接入；跨主人完整恢复仍由外层验收。直接回归 `tests/prologue-session-cold-purge.test.ts` 与 `tests/prologue-project-deletion.test.ts`；连同原桥接、父 owner、Index、生命周期和缓存共8文件163项工程验证通过，完整 MEM-40 与用户验收未在本片证明。
 
 冷 inspection 薄透传 SDK #107 的 `inspectSessionWaits({ref,preview,limit?,cursor?,signal?})`：只读原 Wait exact refs，cursor 是全局扫描续点，调用方固定 ref/preview 从 undefined 穷尽，空非终页仍继续。LocalHost 在任何 canonical Session purge 前保存原 IDs 到同一父业务选择；purged 且无原 App 计划不能推断空等待。已持久原计划重试不再收集 IDs。该接口沿原 inspection current、取消和原 reader close 生命周期，不提供 Wait 写入或新 Session 删除核。
+
+
+Node 装配的可选 `audit` 原样交 SDK `createRuntime`，未传时不增加观测。现 `AuditSink.memoryPhase` 同步观察实际 task recall 与开场 Memory 准备，后者包含前者，不能相加；它们不含最终共享 Context 包装或网络时间，不授权任何业务。评测在公开创建 Session 后、start 前绑定，沿 SDK 安全 Session/开场 receipt 配对，以本机单调钟记录有界事件；缺失和无效时长保持 null，旧 forRun 配方时延不作替代，旧 B1 无同口径测量仍不可比。原 sink 失败隔离由 SDK 保持，无新等待、正文日志、Run 注册表或模型调用。回归沿 `tests/memory-evaluation.test.ts` 与 `tests/memory-evaluation-sequence.test.ts` 的真实临时 Home/本机 HTTP，以及本 README 必跑集合。

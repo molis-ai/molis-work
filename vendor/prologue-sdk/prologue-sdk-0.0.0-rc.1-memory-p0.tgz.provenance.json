@@ -9,22 +9,22 @@
   "source": {
     "repository": "git+https://github.com/molis-ai/molis-prologue.git",
     "path": "packages/sdk",
-    "commit": "7ebb15af379876f41ee27e3cd2406b2631faa828",
+    "commit": "063b0278588c628ffa69fd0d5e969f3e13fd2527",
     "dirty": false,
     "dirtyPaths": [],
     "patches": [],
     "candidateUpstream": {
       "pullRequest": "https://github.com/molis-ai/molis-prologue/pull/108",
-      "head": "7ebb15af379876f41ee27e3cd2406b2631faa828",
+      "head": "063b0278588c628ffa69fd0d5e969f3e13fd2527",
       "status": "draft",
-      "note": "Clean reviewed candidate; App collection-read integration and frozen performance acceptance are still pending."
+      "note": "Clean reviewed candidate; App phase consumer and frozen performance acceptance are pending."
     }
   },
   "artifact": {
     "file": "prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
-    "bytes": 1406264,
-    "sha256": "8c666973bdc880f0fabcbb662ec8a319e1e62e7032d4824a0035b5a5e6de2cff",
-    "integrity": "sha512-bTjojvpXWdaiYRHIV3CpR3ifQR64YkHjK1IO0feuc923heNmUYbhV/u5fBOlWVZY7NunnfmRTTl99oMRCut+ZQ=="
+    "bytes": 1409327,
+    "sha256": "2237fec083cdf1021ee6bfed3b800c5b7efe0ccfd5fd87dbbfd0c05f9e2aecaa",
+    "integrity": "sha512-eWNMJEqwQ30tIpZJTo7x6Ljuf1aambPCmzTVr+8/5w6F+RCTXocI37hTqkA+ixL33mD34q3ZfYp2XjzUcHJ2ZQ=="
   },
   "build": {
     "node": "24.14.0",
@@ -32,11 +32,12 @@
     "platform": "darwin",
     "architecture": "arm64",
     "steps": [
-      "Use clean source 7ebb15af379876f41ee27e3cd2406b2631faa828.",
-      "Use existing frozen offline workspace dependencies; run original SDK build and pack in an isolated directory.",
-      "Verify all 824 archived dist files byte-for-byte against the clean build and unchanged package.json."
+      "Use clean source 063b0278588c628ffa69fd0d5e969f3e13fd2527.",
+      "Use existing frozen offline workspace dependencies; run original pnpm build and pnpm pack in an isolated directory.",
+      "Verify all 826 archived dist files byte-for-byte against the clean build and unchanged package.json.",
+      "Run original clean-consumer.mjs; only its no-lock subprocess sets frozen=false, with offline/ignore-scripts unchanged."
     ],
     "packedOn": "2026-10-26",
-    "note": "Local original engineering components and direct installed collection consumer passed. The quality command environmental failures remain recorded in upstream memory-strategy; only the temporary no-lock consumer uses frozen=false while staying offline/ignore-scripts. No remote CI or App performance acceptance is claimed."
+    "note": "Local original type/build/API/ratchet and 198 necessary behavior tests passed; phase first surface failure and narrow correction remain recorded. Original clean installed consumer passed. App performance and phase consumption remain unverified; no full quality, remote CI, merge or release is claimed."
   }
 }

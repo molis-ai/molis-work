@@ -215,9 +215,9 @@ describe("the records of this repository", () => {
     assert.equal(provenance.artifact.file, current);
     assert.equal(json("horizontal/agent-host/package.json").dependencies["@prologue/sdk"], `file:../../${folder}/${current}`);
     // Candidate adoption is explicit; this test does not label an open upstream PR as merged.
-    assert.equal(provenance.source.commit, "7ebb15af379876f41ee27e3cd2406b2631faa828");
+    assert.equal(provenance.source.commit, "063b0278588c628ffa69fd0d5e969f3e13fd2527");
     assert.equal(provenance.source.candidateUpstream.pullRequest, "https://github.com/molis-ai/molis-prologue/pull/108");
-    assert.equal(provenance.source.candidateUpstream.head, "7ebb15af379876f41ee27e3cd2406b2631faa828");
+    assert.equal(provenance.source.candidateUpstream.head, "063b0278588c628ffa69fd0d5e969f3e13fd2527");
     assert.equal(provenance.source.candidateUpstream.status, "draft");
     assert.equal(provenance.source.candidateUpstream.mergeCommit, undefined);
     assert.equal(provenance.source.inFlight, undefined);
@@ -237,8 +237,15 @@ describe("the records of this repository", () => {
     assert.equal(provenance.source.localOnly, undefined);
     assert.equal(provenance.source.mergedUpstream, undefined);
     assert.equal(provenance.source.inFlight, undefined);
-    const upstream = json(`${folder}/patch-history.json`).upstream;
-    assert.equal(upstream.mainHead, "f1753ec8fa2cbca45667e60e101b93702acc6640");
+    const history = json(`${folder}/patch-history.json`), upstream = history.upstream;
+    assert.equal(upstream.mainHead, "ccafbb74fb9db0e3a124ec502c57291677487e23");
+    assert.equal(upstream.checkedOn, "2026-10-26");
+    assert.equal(upstream.commitsChecked.length, 45);
+    const originalNote: string = history.notes.find((note: string) => note.startsWith("Historical upstream audit retained unchanged (2026-10-25): "));
+    const originalAudit = JSON.parse(originalNote.slice(originalNote.indexOf("{")));
+    assert.equal(originalAudit.checkedOn, "2026-10-25");
+    assert.equal(originalAudit.mainHead, "f1753ec8fa2cbca45667e60e101b93702acc6640");
+    assert.equal(originalAudit.commitsChecked.length, 42);
     assert.ok(upstream.commitsChecked.includes(provenance.source.commit));
     assert.ok(upstream.commitsChecked.includes(provenance.source.base));
     assert.notEqual(upstream.mainHead, provenance.source.commit);
@@ -260,8 +267,11 @@ describe("the records of this repository", () => {
   });
 
   test("the replaced SDK 107 archive and its original sidecars remain retrievable from Git", () => {
-    const note: string = json(`${folder}/patch-history.json`).notes.find((item: string) => item.includes("1cc80b05253df798eeb34afff65d1bda06bee587"));
-    const previous = JSON.parse(note.slice(note.indexOf("{")));
+    const previous = json(`${folder}/patch-history.json`).notes
+      .filter((note: string) => note.startsWith("{"))
+      .map((note: string) => JSON.parse(note))
+      .find((record: { kind?: string; commit?: string }) => record.kind === "replaced-memory-p0-package"
+        && record.commit === "1cc80b05253df798eeb34afff65d1bda06bee587");
     assert.equal(previous.commit, "1cc80b05253df798eeb34afff65d1bda06bee587");
     assert.equal(previous.bytes, 1_397_575);
     assert.equal(previous.sha256, "6893801bb36df43630c0ea1cfe44eb08c2fcd0b57ae0b0abbffab42623ad5a78");
@@ -295,7 +305,7 @@ describe("the records of this repository", () => {
     const networkDispatch = record.patches.find((patch: { file: string }) => patch.file === "network-dispatch.patch");
     assert.equal(networkDispatch.package.sha256, "7ee09e00ef074b761c0d44a86a7d357e11485ea26868f3e77fb99ed757ae384e");
     assert.equal(networkDispatch.package.file, "prologue-sdk-0.0.0-rc.1-network-dispatch.tgz");
-    assert.equal(record.upstream.commitsChecked.length, 42);
+    assert.equal(record.upstream.commitsChecked.length, 45);
     // The commit named for retrieval is one that is known to hold every patch; it is not "the last one" (every later commit
     // on main up to the deletion holds them too), so the key must not say so.
     assert.deepEqual(Object.keys(record.retrieval).filter((key) => /^last/i.test(key)), []);

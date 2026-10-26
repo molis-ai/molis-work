@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { evaluationPerson } from "../scripts/memory-evaluation/originals.mjs";
 import { MEMORY_EVALUATION_SEQUENCES, MEMORY_SEQUENCE_PROTOCOL } from "./fixtures/memory-evaluation-sequences.js";
 import { observeMemoryFormation, replayMemorySequences } from "../scripts/memory-evaluation/sequence-replay.mjs";
+import type { MemoryPhaseObservation } from "../scripts/memory-evaluation/memory-phase-observation.mjs";
 import { summarizeMemoryReport } from "../scripts/memory-evaluation/report.mjs";
 import { observeEmittedMemory } from "../scripts/memory-evaluation/request-observation.mjs";
 import type { AgentMemoryRecallFact } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -71,6 +72,29 @@ test("MEM-36: continuous sequences use real formation, candidate promotion, emit
     assert.equal(report.fixtureRequests.length, 4, "source setup is real loopback HTTP and reported separately from evaluated attempts");
     assert.equal(fixtureCheckpoints.at(-1), 4, "partial reports retain source setup attempts too");
     assert.equal(report.schema, "molis-memory-sequence-b2-v2");
+    const taskPhases = report.rows.filter(row => row.event.startsWith("task")).map(row => {
+      const value = row.observation as { memoryPhases: MemoryPhaseObservation };
+      assert.ok(value.memoryPhases, "each task carries its own bounded observations");
+      const phases = value.memoryPhases;
+      assert.ok(phases.raw.length > 0 && phases.raw.length <= 4, "source setup and formation do not leak into task phases");
+      assert.ok(phases.raw.every(entry => entry.sessionRef.id === phases.sessionId && entry.openingReceiptId === phases.openingReceiptId));
+      assert.equal(phases.taskRecall.state, row.arm === "B0" ? "not-run" : "complete");
+      return phases;
+    });
+    assert.equal(new Set(taskPhases.map(value => value.sessionId)).size, 4);
+    assert.equal(new Set(taskPhases.map(value => value.openingReceiptId)).size, 4);
+    const phaseSummary = summarizeMemoryReport({ ...report, stage: "completed", rows: report.rows as Parameters<typeof summarizeMemoryReport>[0]["rows"] });
+    assert.deepEqual(phaseSummary.memoryPhaseObservations.map(row => row.taskRecall), taskPhases.map(row => row.taskRecall));
+    for (const state of ["incomplete", "invalid"] as const) {
+      const phases = { ...taskPhases[0]!, taskRecall: { ...taskPhases[0]!.taskRecall, state, durationMs: null, issues: [state] } };
+      const incompleteSummary = summarizeMemoryReport({ ...report, stage: "completed", rows: [{
+        ...report.rows.find(row => row.event === "task1")!, status: "failed", error: "original business failure",
+        observation: { memoryPhases: phases, recipeLatencyMs: 42, taskRetrievalLatencyMs: null },
+      }] });
+      assert.equal(incompleteSummary.failures[0]!.reason, "original business failure");
+      assert.equal(incompleteSummary.memoryPhaseObservations[0]!.taskRecall?.state, state);
+      assert.equal(incompleteSummary.memoryPhaseObservations[0]!.taskRecall?.durationMs, null, "recipe is not a fallback duration");
+    }
     assert.notEqual(report.source.molisCommit, report.source.historicalBaseline.molisCommit);
     assert.deepEqual(limits.sort(), [1024, 1024, 1024, 1024, 1500, 1500]);
     const task = report.rows.find(row => row.arm === "B2" && row.event === "task2")!;

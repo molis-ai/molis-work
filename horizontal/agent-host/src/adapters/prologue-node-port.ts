@@ -37,6 +37,7 @@ export const SUBAGENT_DEFAULT_TURNS = 20;
 export function createNodeRuntime(options: PrologueNodeAdapterOptions, host: NodeHost, runScheduled: (task: QueuedTask) => Promise<void>, surfaceHost: () => PrologueSurfaces | undefined, dispatchChecks: DispatchChecks, conditionCheckers: ConditionCheckers, memoryAccess: ReturnType<typeof createPrologueMemoryAuthority>) {
   return createRuntime({
     app: options.app,
+    ...(options.audit ? { audit: options.audit } : {}),
     host,
     memoryAuthority: memoryAccess.authority,
     ...(memoryAccess.promotion ? { memoryPromotion: memoryAccess.promotion } : {}),

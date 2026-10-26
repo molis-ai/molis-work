@@ -1,12 +1,7 @@
 # Prologue 记忆策略与 Molis Work 接入
 
+状态：当前为 Foundation batch40 合成后的本地验证阶段；SDK #108 仍为已采用的候选，原 B1+5ms 规模门和完整 P0 验收尚未通过。首期实施已获用户授权（2026-10-22）；C0/Q0 已独立交付，Molis C0/Q0 已合入 main；Prologue C0 与 S1 版本恢复、分类授权、业务 key、管理分页、停用恢复及候选期限检查已合入 main；M1 配置采用第一片已完成工程回归并合入 main；完整 P0 的形成、召回、SDK 接入和产品验收仍未完成；后续按 §9.3 的依赖推进。负责人：当前统筹会话；SDK 合同、Molis 产品合同、质量基线分别有执行负责人。已确认目标仍是 Molis Work 的记忆更精准、好用、省 token，以及 Prologue 的多策略组合和 App 自定义记忆矩阵。实施和验证事实只记在 §13；未通过的标准不因计划或合同落地而算完成。用户随后已授权分片提交和依赖交付；2026-10-25 改为尽可能聚合大 PR，复用 #1101 收齐后续 Memory P0 应用片，原独立验收不放宽。真实 Home 数据采用与发布仍不在本次范围内。
 
-
-账本等价复用仅落在原 memory-ledger 的 recordUses 事务及原 retention factory：按原 SQL 调用点 lazy prepare 并复用句柄，每次仍查询当前 forgotten marker、核同一 receipt 冲突/状态并逐条写回；不缓存结果，不减少完整集合回执，不改事务、回滚、连接或关闭边界。无新表、接口或配置。合成后原冻结离线安装和整体build已通过；三入口未知命令断言静态核对后补齐原 memory 文案，不删入口或放宽为任意错误，业务回归待下述准确合成提交统一执行。
-
-Foundation f9原Full的16片和汇总已成功。Root独立重算16完整日志：1534发现文件按原配置排除31个macOS-only，1503唯一runner文件全首轮ok、零重试与最终失败；摘要10306项中10292 pass，8文件14非pass，成功stdout未保留，不能称零skip。crosstalk首过4/4，coding-input-receipts首过1/1，本次无CDP超时记录不能证明历史根因已修。原普通CI文案断言首红仍保留；291e只修其严格期望并已推原两分支，最终CI40254948184/Full40254942311仍待结算。
-
-状态：首期实施已获用户授权（2026-10-22）；C0/Q0 已独立交付，Molis C0/Q0 已合入 main；Prologue C0 与 S1 版本恢复、分类授权、业务 key、管理分页、停用恢复及候选期限检查已合入 main；M1 配置采用第一片已完成工程回归并合入 main；完整 P0 的形成、召回、SDK 接入和产品验收仍未完成；后续按 §9.3 的依赖推进。负责人：当前统筹会话；SDK 合同、Molis 产品合同、质量基线分别有执行负责人。已确认目标仍是 Molis Work 的记忆更精准、好用、省 token，以及 Prologue 的多策略组合和 App 自定义记忆矩阵。实施和验证事实只记在 §13；未通过的标准不因计划或合同落地而算完成。用户随后已授权分片提交和依赖交付；2026-10-25 改为尽可能聚合大 PR，复用 #1101 收齐后续 Memory P0 应用片，原独立验收不放宽。真实 Home 数据采用与发布仍不在本次范围内。
 
 ## 1. 用户结果与责任边界
 
@@ -3398,3 +3393,26 @@ SDK 仍采用已明确的 Draft108 干净源7ebb原包，不把 Foundation 的�
 | 1000 | 183.798/79.721 | 54.498/10.660 | 56.747/14.330 | 三项失败 |
 
 这些是 MemoryService 显式管理召回，不是 SDK 自动task、整体Context或UI时延。原完整集合/omitted/回执不裁。随后仅一个1000副本公开Node profiler诊断，冷+9暖、零模型；仪表化数据不替代上述门禁。暖读已零解密，主要成本为授权请求重复序列化、1000当前文件字节读取及完整账本逐项prepare；冷读3×752解密提示hydrate后重复读取。只据这些真实热点提出最小优化，未通过前不重复全规模找好数，也不提高预算或放宽门槛。正式一次B0/B2付费批仍未启动；旧B1缺SDK完整task起止，任务时延和升级归因不得冒称已闭合。
+
+
+账本等价复用仅落在原 memory-ledger 的 recordUses 事务及原 retention factory：按原 SQL 调用点 lazy prepare 并复用句柄，每次仍查询当前 forgotten marker、核同一 receipt 冲突/状态并逐条写回；不缓存结果，不减少完整集合回执，不改事务、回滚、连接或关闭边界。无新表、接口或配置。合成后原冻结离线安装和整体build已通过；三入口未知命令断言静态核对后补齐原 memory 文案，不删入口或放宽为任意错误，业务回归待下述准确合成提交统一执行。
+
+Foundation f9原Full的16片和汇总已成功。Root独立重算16完整日志：1534发现文件按原配置排除31个macOS-only，1503唯一runner文件全首轮ok、零重试与最终失败；摘要10306项中10292 pass，8文件14非pass，成功stdout未保留，不能称零skip。crosstalk首过4/4，coding-input-receipts首过1/1，本次无CDP超时记录不能证明历史根因已修。原普通CI文案断言首红仍保留；291e只修其严格期望并已推原两分支，291e普通CI40254948184已14项成功、Linux probe依原配置跳过，Full40254942311仍待最终结算。
+
+MEM-36 真实 SDK 阶段观测短合同（2026-10-26）：为补齐已冻结验收中未知的 task recall 时延，本刀在现 Node 装配提供可选原 AuditSink 并透传给原 Runtime；这是对此前“评测工具不新增生产公开口”范围的明确补充，仅增加诊断接线，不改授权、执行、预算、模型或存储行为。SDK 硬边界、错误/取消及原副作用链不可配；sink 由 App 显式装配，未传保持原行为，无用户 UI 设置。SDK 两区间分别为实际 taskRecall Promise 与 openingMemoryPreparation；后者包含前者，不相加，均不冒充 final Context/网络时间。原 recipeLatencyMs 独立保留，旧 B1 没有同口径指标仍不可比；原显式召回 B1+5ms、质量及全生命周期 token 门不变。
+
+App 只改原 Node options/runtime 接线和 Agent Host README；评测沿 environment/model-replay/sequence/report 生命周期，新增单一职责配对实现，类型只从 Agent Host 的公开 Node options 推导。每次公开 createSession 后、start 前绑定实际 session_id，首事件固定完整 Session ref 与 SDK openingReceiptId；task 自身 receipt 必须配对，不拿 App 配方 receipt 或 case 名替代。同步 callback 只用 performance.now 采样及固定安全字段，最多8条原始记录，超限明确 invalid；无新 ALS、Run registry、普通审计正文存储、I/O、SDK私读或模型调用。host.start 的 finally 收取并释放，即使启动失败也保留已到事件；环境关闭清空；单环境第二次同时绑定明确报评测误用。
+
+验收仍归 MEM-36：真实临时 Home、公开 Node adapter 与既有本机 HTTP B0/B2/连续序列验证两阶段、真实回执及样本隔离，原请求次数、token与正文/权限断言保持；缺失/半对为 incomplete，SDK明确跳过才为 not-run，重复/跨开场/跨revision/receipt不匹配/溢出为 invalid，时长为 null 而非0。完整失败区间保留 settlement/outcome，不归成功样本；原业务失败不改绿，也不因缺指标丢掉结果。纯配对反例只证明配对，不充SDK实操。沿当前报告新增独立方法版本，不重写历史 B1 或升级顶层格式；不增付费 attempt、不补跑模型。Root采用准确干净 SDK 后，原整体构建及 README 必跑与合成回归去重一次执行。当前只是合同与待验证实现，不代表性能、模型质量、成本或用户验收通过。
+
+### 291e 合成后的候选交付与阶段观测（2026-10-26）
+
+App合成点为2cb0099ca（准确父Foundation291e）；其后采用同一SDK #108干净源063b0278588c628ffa69fd0d5e969f3e13fd2527，原档1,409,327 B、826 dist，Root逐文件独核、metadata与完整性一致。候选仍未合SDK main，旧7ebb原档及sidecars均以Git blob留历史。旧Oct25的42项上游审计原样保留；本次45项由Root独核41本地Git与4官方compare，40祖先/5非祖先，不把候选或非祖先说成已合main。
+
+原冻结离线安装首轮受pnpm store沙箱数据库访问限制失败，获得原安装必要权限后同命令成功；未放松锁或offline。当前原整体build、root/Agent strict、原workspace:verify、API、准确291e health和plugin styles通过。评测窄strict首次缺既有JS模块类型，第二次继承库声明输出触发旧不可移植类型；最终按脚本用途纳入真实JS且noEmit/declaration=false/declarationMap=false，strict及其余base规则保持，脚本与两原测试类型通过；未改仓库tsconfig或造声明。
+
+新观测实际经普通Node adapter、真实临时Home和本机HTTP：B0明确not-run/null，B2的task和开场准备唯一配对到实际SDK retrieval receipt；连续两个任务及source setup不串样本，失败、半对、重复、错opening/revision/receipt和超限可见，原网络attempt断言保持。包括上述4个评测文件、原5账本回归、vendor和CLI的11文件首轮10过、vendor有2项文档断言红；45项审计事实已独核后同步旧42断言与README明确字样，原vendor81项复核通过。去重有效260项全过，零自动重试；此小批不替代最终467文件合成选集、正式模型、规模门或产品验收。
+
+相对准确291e实测：workbench.js 1,132,639→1,165,532（+32,893，原9项授权合计32,894）；workbench.css 1,234,610→1,235,290（+680）；settings.css 932,738→858,814（-73,924）；coding.js 289,674→291,450（+1,776=已批归档570+待批恢复1,206）。原已批准的同功能两处增长精确迁移；没有转用其它资源额度。原资源updater因Coding未准入原子拒写，page-assets.json未提高，减小的settings预算亦待该原子更新，资源门继续红。
+
+Foundation291e原普通CI及Full均成功。Root独立复核16原日志：1503唯一runner行全首轮ok、无retry，其中5文件零pass；摘要10292/10306且8文件14非pass，成功stdout缺失不声称零skip。独立整PR深审随后确认关闭失败时过早退订Run事件的P2，Root核真实SDK107早期pending存储错误链后安排真实Node故障复现/修正，尚未合并。应用467大批先等待这项主链修复合成，避免对立即要变的源重复大批；新SDK及本片交付继续保留Draft。旧100/1000规模失败、Coding原两项用户决定、Cloudflare旧失败影响、同SDK旧策略归因和唯一正式B0/B2付费批仍未闭合。

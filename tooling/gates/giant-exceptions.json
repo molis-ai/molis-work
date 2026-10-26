@@ -25,52 +25,12 @@
         "methods": 40
       }
     },
-    "class modules/goals/src/event-facts-repository.ts#GoalEventFactsRepository": {
-      "kind": "cohesive-unit",
-      "reason": "目标事件事实表族的仓库：类型、要求、配置版本、绑定、工作事件的插入与列表，29 个方法各是一两条 SQL；一张表族只能有一个主人读写，拆开违反表主人规则。",
-      "size": {
-        "lines": 371,
-        "methods": 29
-      }
-    },
     "class modules/goals/src/event-state-effects.ts#GoalEventStateEffects": {
       "kind": "cohesive-unit",
       "reason": "目标事件状态机的写入效果：请求决定、记录可信决定、提交收尾、恢复工作、引用决定各是一个事务内的长命令，共用同一个 context 与 repository；只有 11 个方法、行数超限来自三个长事务（152、116、82 行），拆开会把同一状态机的转移散到几个类。",
       "size": {
         "lines": 515,
         "methods": 11
-      }
-    },
-    "class modules/goals/src/event-state-repository.ts#GoalEventStateRepository": {
-      "kind": "cohesive-unit",
-      "reason": "目标事件状态表族的仓库：决定、收尾、进度、结论、疑虑、约定的插入与最新读取，30 个方法各是一两条 SQL；一张表族只能有一个主人读写，拆开违反表主人规则。",
-      "size": {
-        "lines": 408,
-        "methods": 30
-      }
-    },
-    "class modules/goals/src/guidance-commands.ts#GuidanceCommands": {
-      "kind": "cohesive-unit",
-      "reason": "项目指引的命令：只有 add、update、read 三个方法，行数来自 add（137）与 update（177）两个长事务，共用确认摘要、哈希与修订规则；一个对象一件事。",
-      "size": {
-        "lines": 328,
-        "methods": 3
-      }
-    },
-    "class modules/private-work-context/src/project-binding-commands.ts#RuntimeProjectBindingCommands": {
-      "kind": "cohesive-unit",
-      "reason": "Runtime 情境与项目绑定的命令集：绑定、解绑、拒绝建议及它们的事件记账，同一张绑定表的写入；只超 300 行 10 行，方法各自短，拆开只会把同一张表的写入散到两处。",
-      "size": {
-        "lines": 310,
-        "methods": 12
-      }
-    },
-    "class modules/projects/src/repository.ts#ProjectsRepository": {
-      "kind": "cohesive-unit",
-      "reason": "项目、工作区与成员关系、删除记录的仓库：29 个方法每个都是一两条 SQL，行数 287 没超，只因方法数超限；一张表族的读写由一个仓库独占（表主人规则），拆开会让同一表族有两个主人。",
-      "size": {
-        "lines": 287,
-        "methods": 29
       }
     },
     "class packages/kernel/src/action-service.ts#ActionService": {
@@ -113,25 +73,9 @@
         "methods": 26
       }
     },
-    "class plugins/native/alchemist/src/studio/server/db/pulse-repository.ts#SqlitePulseRepository": {
-      "kind": "cohesive-unit",
-      "reason": "Pulse（来源收集、信号、机会、运行与报告）的 SQLite 仓库：23 个方法是同一张表族的读写，最长的 saveReport 69 行是一次落库的多表写入；仓库按表族独占，拆开会让同一表族有两个主人。",
-      "size": {
-        "lines": 377,
-        "methods": 23
-      }
-    },
-    "class plugins/native/alchemist/src/studio/server/db/research-repository.ts#SqliteResearchRepository": {
-      "kind": "cohesive-unit",
-      "reason": "研究计划、运行、证据与报告的 SQLite 仓库：19 个方法是同一张表族的读写，最长的 saveReport 85 行是一次落库的多表写入；仓库按表族独占，拆开会让同一表族有两个主人。",
-      "size": {
-        "lines": 343,
-        "methods": 19
-      }
-    },
     "class plugins/native/cognia/src/store.ts#CogniaStore": {
       "kind": "cohesive-unit",
-      "reason": "Cognia 自己的 SQLite 存储：27 个方法共 120 行（均值 4 行），每个是对 cognia_* 表的一两条 SQL 加输入校验（领域、来源、素材、版本、预览、草稿）；行数没超、只是方法数超限；一个插件的库由一个存储独占，拆开会让同一批表有两个主人。",
+      "reason": "Cognia 的数据访问对象：27 个方法共 120 行（均值 4 行），每个是对 cognia_* 表的一两条语句加输入校验，类只超方法数 2 个；调用方每次读或每个事务得到一个新建的 CogniaStore（plugin.ts 的 read、write 两处 `run(new CogniaStore(…))`），在同一个事务里跨素材、版本、预览、草稿读写，拆成几个类就要每次构造并传一组，事务边界反而散开。",
       "size": {
         "lines": 120,
         "methods": 27
@@ -227,11 +171,6 @@
       "kind": "cohesive-unit",
       "reason": "一次可信决定的记录：校验、写决定、落收尾与提醒都在 repository.immediate 的同一个事务里，必须一次成败；超出阈值 2 行，拆成几个函数只会让事务边界更难读。",
       "size": 152
-    },
-    "function modules/goals/src/guidance-commands.ts#update": {
-      "kind": "cohesive-unit",
-      "reason": "指引更新的三个分支（edit、deactivate、restore）共用一次事务内的确认校验、修订号与事件记账，拆开会重复这套前置检查。",
-      "size": 177
     },
     "function modules/goals/src/lifecycle-archive.ts#setTrashed": {
       "kind": "cohesive-unit",

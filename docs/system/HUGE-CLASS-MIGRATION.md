@@ -44,18 +44,18 @@
 | 例外 | 3 | 0 | 0 | 3 |
 | 合计 | 31 | 37 | 78 | 146 |
 
-- **例外**（原 3 个，2026-10-26 起共 48 个，新增的 45 个见下节）已登记在 `tooling/gates/giant-exceptions.json`：样式表 2 份（动量、基础控件）、连接器声明表 1 份。Coding 的样式表 `plugins/native/coding/src/styles.ts` 已拆出编辑条与时间线两份样式、降到 748 行，不再是巨大单元，条目与下表的行都已删。`--report` 在这些单元后面标 `[exception: …]`。看起来像例外、但没有登记的两处：Pages 的样式表只超 12 行，开头 12 行是用 `PAGES_TONES` 生成的色调规则，移到 `tone.ts` 就回到 800 行；组件规格板 `primitives/catalog.ts` 里有一段 175 行带分支的演示脚本，不是静态数据，脚本归 W5-04，剩下的样例标记已有章节函数的雏形，照样拆。英文词典 `en.ts` 也不是例外：决定 #16 已定词典按主人分，它归 W5-03（见下），所以 `translation-table` 这一类现在没有条目。
+- **例外**（原 3 个，2026-10-26 起共 40 个，新增的 37 个见下节）已登记在 `tooling/gates/giant-exceptions.json`：样式表 2 份（动量、基础控件）、连接器声明表 1 份。Coding 的样式表 `plugins/native/coding/src/styles.ts` 已拆出编辑条与时间线两份样式、降到 748 行，不再是巨大单元，条目与下表的行都已删。`--report` 在这些单元后面标 `[exception: …]`。看起来像例外、但没有登记的两处：Pages 的样式表只超 12 行，开头 12 行是用 `PAGES_TONES` 生成的色调规则，移到 `tone.ts` 就回到 800 行；组件规格板 `primitives/catalog.ts` 里有一段 175 行带分支的演示脚本，不是静态数据，脚本归 W5-04，剩下的样例标记已有章节函数的雏形，照样拆。英文词典 `en.ts` 也不是例外：决定 #16 已定词典按主人分，它归 W5-03（见下），所以 `translation-table` 这一类现在没有条目。
 - **归线**（19 个）：浏览器脚本模板、旧皮肤和英文词典 `en.ts`（决定 #16，W5-03）等，路线里别的线会让它消失或换形态。归线的单元都有片号。Characters 的两个函数（`createCharactersPlugin`、`start`）曾挂在 W5-01 下，CHR-0 已把它们拆到阈值以下，不在清单里了（见下）。
 - **拆**（124 个，95 个文件）：其中 117 个归 W5-10（89 个文件，30 个批次；助理的 3 个单元 W4-05 已抽出提醒与跟进样板，仍超限，也在这 117 个里），其余 7 个归 W5-04、W5-07、W5-09（SC-3 的三个已搬出 Work 并拆完，W3-03 的两个已由 B2 拆完并搬进 SDK，W4-06 的三个、W4-07 的两个、W5-09 的一个、W5-07 的两个已拆完）。
 - 全部单元里，42 个只超出阈值不到 20%（8 个文件、26 个函数、8 个类；类按行数与方法数里超得多的那一项算），其中 34 个在 W5-10；5 个类只因方法数超标（行数没超）；这些超出不多，是 W5-10 里最便宜的一批。
 
 ### 2026-10-26 W5-10 逐个判定
 
-用户 2026-10-25 定“本身合理的标明、不硬拆，职责混杂的才拆”，W5-10 把当时的 72 个巨大单元逐个看过（`--report`，量的是工作树，比 `baseline.json` 新）：3 个原有例外不动，**45 个新标明为例外**（条目、种类、理由和实测 `size` 在 `tooling/gates/giant-exceptions.json`，理由是对着代码写的），**24 个混了几件事、判“拆”**，不在这里硬拆，下面写清楚混了什么、怎么拆、归谁。登记后例外共 48 个。大小以统筹在合成树上重量为准（Goals、记忆、助理、Runtime 几条线仍在改这些文件），条目里的 `size` 随之重写。§3 各行里这 45 个单元的“拆 · W5-10”以本节为准，行不逐条改；单元拆到阈值以下或再变化时，同一个 PR 里改条目和本节。
+用户 2026-10-25 定“本身合理的标明、不硬拆，职责混杂的才拆”，W5-10 把当时的 72 个巨大单元逐个看过（`--report`，量的是工作树，比 `baseline.json` 新）：3 个原有例外不动，**37 个新标明为例外**（条目、种类、理由和实测 `size` 在 `tooling/gates/giant-exceptions.json`，理由是对着代码写的），**32 个混了几件事、判“拆”**，不在这里硬拆，下面写清楚混了什么、怎么拆、归谁。登记后例外共 40 个。评审（#1310）退回了 8 个原判例外的仓储和命令类，改判“拆”，见批 E、J、K。大小以统筹在合成树上重量为准（Goals、记忆、助理、Runtime 几条线仍在改这些文件），条目里的 `size` 随之重写。§3 各行里这 37 个单元的“拆 · W5-10”以本节为准，行不逐条改；单元拆到阈值以下或再变化时，同一个 PR 里改条目和本节。
 
-判例外的标准（逐个对着成员的行数分布看过）：一个类只管一个聚合或一组表（仓储，成员各自只有一两条 SQL）、一条事务或流水线、一个状态机、一个解析器或算法、一个组合根、一个页面模板或一个协议适配；这些拆开会把同一件事散到几处，或让同一批表有两个主人。判“拆”的标准：成员分成至少两组、服务不同调用方、几乎不共享状态，且别处已有同样的拆法可照。
+判例外的标准（逐个对着成员的行数分布看过）：一个类只管一个聚合或一组表（仓储，成员各自只有一两条 SQL）、一条事务或流水线、一个状态机、一个解析器或算法、一个组合根、一个页面模板或一个协议适配；这些拆开会把同一件事散到几处。“一张表只由建它的包读写”（`tooling/gates/table-owners.json`）不是不拆的理由：它约束的是包与包之间，同一个包里把一个仓储类按表族拆成几个类不违反它。判“拆”的标准：成员分成至少两组、服务不同调用方、几乎不共享状态，且别处已有同样的拆法可照。
 
-**标明为例外的 45 个单元**（种类：44 个内聚单元，1 个翻译表）：
+**标明为例外的 37 个单元**（种类：36 个内聚单元，1 个翻译表）：
 
 | 单元 | 大小 | 种类 |
 | --- | --- | --- |
@@ -73,15 +73,9 @@
 | `apps/workbench/src/shell-page-renderer.ts#createWorkbenchGoalsPageRenderer` | 176 行 | 内聚单元 |
 | `apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps` | 425 行 | 内聚单元 |
 | `horizontal/scheduler/src/index.ts#createScheduleService` | 215 行 | 内聚单元 |
-| `modules/goals/src/event-facts-repository.ts#GoalEventFactsRepository` | 371 行 / 29 方法 | 内聚单元 |
 | `modules/goals/src/event-state-effects.ts#GoalEventStateEffects` | 515 行 / 11 方法 | 内聚单元 |
 | `modules/goals/src/event-state-effects.ts#recordTrustedDecision` | 152 行 | 内聚单元 |
-| `modules/goals/src/event-state-repository.ts#GoalEventStateRepository` | 408 行 / 30 方法 | 内聚单元 |
-| `modules/goals/src/guidance-commands.ts#GuidanceCommands` | 328 行 / 3 方法 | 内聚单元 |
-| `modules/goals/src/guidance-commands.ts#update` | 177 行 | 内聚单元 |
 | `modules/goals/src/lifecycle-archive.ts#setTrashed` | 155 行 | 内聚单元 |
-| `modules/private-work-context/src/project-binding-commands.ts#RuntimeProjectBindingCommands` | 310 行 / 12 方法 | 内聚单元 |
-| `modules/projects/src/repository.ts#ProjectsRepository` | 287 行 / 29 方法 | 内聚单元 |
 | `modules/shelf/src/store.ts#runJob` | 182 行 | 内聚单元 |
 | `packages/kernel/src/action-service.ts#ActionService` | 396 行 / 15 方法 | 内聚单元 |
 | `packages/plugin-runtime/src/events.ts#PluginEventBus` | 420 行 / 23 方法 | 内聚单元 |
@@ -91,8 +85,6 @@
 | `packages/plugin-sandbox/src/runner.ts#createSandboxRunner` | 173 行 | 内聚单元 |
 | `packages/storage/src/adapters/text-search-index.ts#openTextSearchIndex` | 151 行 | 内聚单元 |
 | `plugins/native/alchemist/src/studio/server/bootstrap/local-runtime.ts#createLocalRuntime` | 203 行 | 内聚单元 |
-| `plugins/native/alchemist/src/studio/server/db/pulse-repository.ts#SqlitePulseRepository` | 377 行 / 23 方法 | 内聚单元 |
-| `plugins/native/alchemist/src/studio/server/db/research-repository.ts#SqliteResearchRepository` | 343 行 / 19 方法 | 内聚单元 |
 | `plugins/native/coding/src/timeline.ts#createCodingTimeline` | 224 行 | 内聚单元 |
 | `plugins/native/coding/src/ui.ts#renderCodingWorkbench` | 209 行 | 内聚单元 |
 | `plugins/native/cognia/src/store.ts#CogniaStore` | 120 行 / 27 方法 | 内聚单元 |
@@ -105,7 +97,7 @@
 | `plugins/native/plugin-builder/src/agent-authoring.ts#expandDesign` | 225 行 | 内聚单元 |
 | `plugins/native/plugin-builder/src/agent-workflow.ts#AgentBuilderWorkflow` | 654 行 / 40 方法 | 内聚单元 |
 
-**判“拆”的 24 个单元**（大小为本次实测）。按负责的线分九批，统筹照批派发；每批只动自己的文件，拆到阈值以下后在同一个 PR 里删本节对应行。
+**判“拆”的 32 个单元**（大小为本次实测）。按负责的线分十一批，统筹照批派发；每批只动自己的文件，拆到阈值以下后在同一个 PR 里删本节对应行。
 
 | 批 | 归线 | 单元 | 混了哪几件事 | 怎么拆 |
 | --- | --- | --- | --- | --- |
@@ -113,13 +105,15 @@
 | B | 助理线（ac-kernel，决定 #3） | `assistant/assistant-service.ts` 文件 1,842 行<br>`AssistantService` 类 1,491 行 / 90 方法 | 委派与派发（`dispatch` 72、`executorDispatch`、`handover`）、材料轮次（`roundMaterials` 106、`readReferences`、`objectBackground`）、记忆桥（`memoryTrail`）、建议与撤销（`undo`、`answer`）、工作对象读取（`workObjects` 42）、对话发送（`send`）；文件级还有展示用函数（`presentActivity` 43、`roundDiagnostics`、`whereNow`、`stopInWords`、`describeObjects`） | 照 §3 助理一行的清单抽协作者，只经端口依赖宿主，每个不超 25 方法、300 行；展示类函数搬到 `assistant-present.ts`；`AssistantFollowUps`、`AssistantJobs` 是样板 |
 | C | 记忆线（#1064，已暂停，恢复后做） | `horizontal/memory/src/service.ts` 文件 1,259 行<br>`MemoryService` 类 1,079 行 / 51 方法 | 写路径（`commit` 108、`change` 77、`accept` 44、`propose` 34、`undo` 30、`write`）、读取（`recall` 59、`list`）、维护与学习（`upkeep` 91、`learnFromWork` 50、`signal`）、范围导入导出清除（`importScope`、`exportScope`、`clearScope`）；文件里还有九个端口接口 | 四个协作者：写入与审批、召回、维护与学习、范围搬运；端口接口移到 `ports.ts`；服务类只持有协作者并转发公开方法。决定 N-03：包内拆，不搬 |
 | D | 平台侧（未认领，统筹派） | `modules/shelf/src/store.ts` 文件 1,061 行<br>`ShelfStore` 类 660 行 / 31 方法 | 作业运行（`runJob` 182、`fileResult` 43、`cancelJob`）、收纳入口（`addClipboard` 52、`admitFolder` 50、`admit`、`admitFile`、`admitCapturedText`、`captureUrl`）、副本存取（`writeCopy`、`deleteCopy`、`snapshot`）、目录文件读写与命名（`readCurrentCatalog`、`uniqueTitle`、`copyTree` 等文件级函数）；`runJob` 另见 `ShelfStore#runJob`，已标例外 | 三个协作者：作业运行器、收纳入口、副本存储；目录文件的读写命名函数移到 `catalog-file.ts`；`runJob` 本身是一条流水线，整体搬进作业运行器、不再拆 |
-| E | Goals 线（S 系列，随 #1295 之后） | `modules/goals/src/event-facts.ts` 的 `GoalEventFacts` 类 545 行 / 34 方法<br>`plugins/native/goals/src/event-document-forms.ts` 的 `createEventDocumentForms` 函数 348 行 | `GoalEventFacts`：配置事实（`configureInTransaction` 104、`configureRequested` 99、`configure`、`configView`）、汇报与事件读取（`report` 80、`listEvents`、`listLatestReports`、`latestWorkEventRows`）、意图与来源（`rememberIntent`、`recordIntentArtifacts`、`readIntentSourceKind`、`adoptOwner`）。表单函数：决定、关切、变更提议、汇报、协议、类型、需求、收尾、采用各自一个渲染函数挤在一个工厂里 | 事实类拆成配置、汇报、意图三个，各带自己的表访问（`GoalEventFactsRepository` 已按表单独存在，可直接分）；表单按文书种类一文件，工厂只组合 |
+| E | Goals 线（S 系列，随 #1295 之后） | `modules/goals/src/event-facts.ts` 的 `GoalEventFacts` 类 545 行 / 34 方法<br>`modules/goals/src/event-facts-repository.ts` 的 `GoalEventFactsRepository` 类 371 行 / 29 方法<br>`modules/goals/src/event-state-repository.ts` 的 `GoalEventStateRepository` 类 408 行 / 30 方法<br>`modules/goals/src/guidance-commands.ts` 的 `GuidanceCommands` 类 328 行 / 3 方法、`update` 函数 177 行<br>`plugins/native/goals/src/event-document-forms.ts` 的 `createEventDocumentForms` 函数 348 行 | `GoalEventFacts`：配置事实（`configureInTransaction` 104、`configureRequested` 99、`configure`、`configView`）、汇报与事件读取（`report` 80、`listEvents`、`listLatestReports`、`latestWorkEventRows`）、意图与来源（`rememberIntent`、`recordIntentArtifacts`、`readIntentSourceKind`、`adoptOwner`）。两个仓储：`GoalEventFactsRepository` 的 29 个方法按表族分四组（类型与要求：`insertType`、`insertRequirement`、`updateRequirementCurrent`；配置：`insertConfigVersion`、`getConfig`、`upsertConfig`；工作事件：`insertWorkEvent`、`listLatestWorkEvents`、`getIntentCreatedEvent`、`maxGoalCursor`；判断：`listLatestJudgments`、`listJudgments`），`GoalEventStateRepository` 的 30 个方法分决定与收尾（`insertAppliedDecision`、`insertDecisionRequest`、`insertClosure`）、进度与结论（`insertProgress`、`insertConclusions`、`latest*`）、疑虑与约定（`insertConcern`、`updateConcern`、`insertAgreement`）三组，各被上面某个协作者独占。`GuidanceCommands.update` 一个 130 行的事务里按 `action`（`edit`、`deactivate`、`restore`）分支，`add` 137 行又重复同一尾部（写版本行、更新条目行、`UPDATE boards`、追加事件）。表单函数：决定、关切、变更提议、汇报、协议、类型、需求、收尾、采用各自一个渲染函数挤在一个工厂里 | 事实类拆成配置、汇报、意图三个，各带自己的表访问（仓储随各自的协作者一起按表族分开）；`update` 的校验与归一（172 到 215 行）一个函数，三个 `action` 各一个事务函数，共同的尾部抽成 `writeGuidanceRevision`，`add` 也调它；表单按文书种类一文件，工厂只组合 |
 | F | Feed/Inbox 线（FI-6） | `plugins/native/feed/src/application.ts` 的 `FeedApplication` 类 493 行 / 44 方法<br>`apps/workbench/src/feed-projection-ui.ts` 的 `createWorkbenchFeedProjectionRenderer` 函数 251 行 | `FeedApplication`：条目摄入（`ingestItem` 54、`captureAfterIngest` 30）、来源与运行记录（`sourceRecord`、`upsertSource`、`upsertSourceRun`、`setSourceEnabled`）、收件箱条目（`createInboxEntry`、`setInboxEntryStatus`、`ensureInboxEntryForFeedItem`、`addToInbox`）、采集记账与失败（`recordCaptureJudgment`、`recordArtifactOutFailure`、`completeArtifactOutFailure`）。渲染函数：数据模型（`sourceModel` 83、`itemModel`、`feedEntries`、`buildFeedNativePluginModel`）与渲染（`renderFeedNativePluginSurface`、`…PersistedDetail`）混在一起 | 随 Feed 迁 Runtime（FI-6）按摄入、来源、收件箱、采集记账四个协作者拆；工作台这个函数随 Feed 离开工作台，搬走时模型函数与渲染函数分文件、拆到阈值以下（搬动的巨大函数按新单元算） |
 | G | 宿主线（未认领，统筹派） | `local-host.ts` 的 `LocalHost` 类 515 行 / 24 方法<br>`character-import-discovery.ts` 的 `createCharacterDiscovery` 205 行、`discover` 176 行<br>`web-catalog.ts` 的 `handleLocalCatalogWebRequest` 201 行<br>`plugin-builder/agent-surface.ts` 的 `ensureStudio` 194 行、`created callback 1` 186 行 | `LocalHost`：场景客户端（`sceneClient` 98）、项目内操作队列（`enqueue`、`ensureEntry`）、可用性判定（`resolveActionAvailability`）、动作客户端与登记（`syncActionClient`、`actionClient`、`actionRegistry`）。发现：每个 Agent 运行时（codex、claude-code、cursor、opencode）的扫描挤在一个 `for…of`（165 行）。目录 HTTP：设置页（59）、插件设置（37）等一串 `if` 路由。创作台装配：模型与凭据、沙箱运行器与预览、交给工作流的端口对象 | `LocalHost`：场景客户端、操作队列（照 `HomeLine`）、可用性判定各成协作者（§3 的行已写，W3-01/W3-07 的新增写在新文件里）；发现：每个运行时一个扫描函数，目录解析一个函数；目录 HTTP：路由表，形态同 W5-07 的 `web-route-table.ts`；`ensureStudio`：三块各成 `create…` 函数（内嵌的 `created` 随之变短） |
 | H | 工作台线（未认领，统筹派） | `renderer.ts` 的 `createWorkbenchRenderer` 284 行<br>`settings-renderer.ts` 的 `createWorkbenchSettingsRenderer` 181 行<br>`project-settings-pages.ts` 的 `createWorkbenchProjectSettingsPages` 174 行 | 都是“一个工厂里嵌着许多页面渲染函数再返回一张表”：目录、目标文档、终端面板、Feed 片段、设置总览、项目设置、运行时设置、MCP 设置、项目指导文档、规划页等互相只经返回表联系，不共享状态 | 渲染函数按页面种类移到模块级文件（设置总览 `renderMolisWorkSettings` 65 与 `renderProjectSettings` 47 各一个），依赖（`L`、`escapeHtml`、导航）显式传参；工厂只按页面种类组合 |
 | I | 工作流线（未认领，统筹派） | `plugins/native/workflows/src/actions.ts` 的 `createWorkflowsActionHandlers` 函数 233 行 | 一张处理器表（`bind(workflowsActions.list, …)`，64 行）加三段运行逻辑：交接准备（`prepareHandoff` 49）、动作步骤执行（`runActionStep` 30）、步骤读取与判定（`readStep`、`judge`、`resolveAction`） | 运行逻辑搬进 `handoff.ts` 与 `step-runner.ts`，表里每个动作的处理器单独一个函数；`createWorkflowsActionHandlers` 只绑定 |
+| J | 项目与情境线（未认领，统筹派；都只超几行至几个方法，是最便宜的两片） | `modules/projects/src/repository.ts` 的 `ProjectsRepository` 类 287 行 / 29 方法<br>`modules/private-work-context/src/project-binding-commands.ts` 的 `RuntimeProjectBindingCommands` 类 310 行 / 12 方法 | `ProjectsRepository` 29 个方法分四组：项目（`insertProject`、`renameProject`、`updateDatabasePath`）、工作区与成员关系（`upsertWorkspace`、`upsertWorkspaceMembership`、`listWorkspaceDirectory`、`removeWorkspaceIfEmpty` 等）、删除记录（`insertDeletion`、`findDeletion`、`updateDeletionCleanup`）、事件（`appendEvent`）；行数没超，只因方法数。`RuntimeProjectBindingCommands` 只超 10 行，绑定（`bindRuntimeContextInTransaction` 94）、解绑（`unbindRuntimeContext` 53）、拒绝建议（`rejectRuntimeContextSuggestion` 45）三个命令之外，还带着成员关系与绑定事件的小助手（`upsertWorkspaceMembership`、`removeSessionBinding`、`appendRuntimeContextBindingEvent`、`listRuntimeContextBindingEvents` 等） | `ProjectsRepository` 按上述四组各成一个表访问类，`ProjectsRepository` 留作门面或由调用方拿自己要的那个（W2-07 项目删除统一预计碰删除记录这组）；`RuntimeProjectBindingCommands` 把小助手移到 `runtime-binding-records.ts`，三个命令留在类里，即可降到 300 行以下 |
+| K | Alchemist 线（未认领，统筹派） | `plugins/native/alchemist/src/studio/server/db/pulse-repository.ts` 的 `SqlitePulseRepository` 类 377 行 / 23 方法<br>`plugins/native/alchemist/src/studio/server/db/research-repository.ts` 的 `SqliteResearchRepository` 类 343 行 / 19 方法 | Pulse：来源设置与收集（`saveSourceCollection` 51、`listSourceCollections`、`ensureDefaultSourceSettings`、`updateSourceSetting`）、信号与机会（`listSignals`、`persistOpportunity`、`mapOpportunity`、`convertOpportunity`）、运行与报告（`createRun`、`updateRun`、`saveReport` 69）。Research：计划与范围（`createPlan`、`ensureMvpScope`、`requireMvpScope`）、运行（`createRun`、`updateRun`、`getLatestRun`）、证据与报告（`saveReport` 85、`mapReport`、`listEvidence`） | 各按上面的组拆成表访问类，每个不超 300 行；`saveReport` 本身是一次落库的多表写入，整体留在报告那一类里，不再拆 |
 
-派发顺序建议：A、B、C、E、F 各挂在已有的线上，随那条线的下一个片做，不单开；D、G、H、I 是没有线认领的，每批一个片、一个 PR，G 先做（`LocalHost` 被 W3-01、W3-07 碰到），之后 H、D、I。没有给这些批编新的 BL 或 RAC 号：统筹派发时按批领号。
+派发顺序建议：A、B、C、E、F 各挂在已有的线上，随那条线的下一个片做，不单开；D、G、H、I、J、K 是没有线认领的，每批一个片、一个 PR，G 先做（`LocalHost` 被 W3-01、W3-07 碰到），之后 H、D（已由 `5f52a8910` 做完）、I、J、K。没有给这些批编新的 BL 或 RAC 号：统筹派发时按批领号。
 
 ### W5-10 怎么做
 

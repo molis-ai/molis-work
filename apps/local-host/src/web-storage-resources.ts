@@ -14,7 +14,6 @@ import type { PeriodicTasks } from "./periodic-tasks.js";
 import type { MolisWorkWebViewCache } from "./web-view.js";
 import type { ResolvedWebBoardOptions } from "./web-types.js";
 import { hostLog } from "./host-log.js";
-import { SHELF_ADMIT_ACTION } from "@molis-ai/molis-work-contracts/modules/shelf";
 import { localWebActionContext } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import type { ComputerShelf } from "./computer/computer-http.js";
@@ -26,7 +25,7 @@ function homeShelf(localHost: MolisWorkLocalHost): () => ComputerShelf {
     let caller: ReturnType<typeof localWebActionContext> | undefined;
     const current = () => caller ??= localWebActionContext(localHost, undefined, LOCAL_OWNER_PERMISSIONS);
     return {
-      admit: async input => await client.invoke(await current(), SHELF_ADMIT_ACTION, input) as { item: { item_id: string } },
+      admit: async input => await client.invoke(await current(), { capability_id: "shelf.items.admit", version: 2 }, input) as { item: { item_id: string } },
       remove: async itemId => client.invoke(await current(), { capability_id: "shelf.items.delete", version: 1 }, { item_id: itemId }),
     };
   };

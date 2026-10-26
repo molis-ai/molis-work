@@ -15,8 +15,6 @@ import { createLocalFeedApplication } from "./feed-application.js";
 import { feedConnectorAuthStatus } from "./feed-connector-auth.js";
 import type { LocalFeedApplicationOptions } from "./feed-application.js";
 import { createLocalFeedGoalPromotion } from "./feed-goal-promotion.js";
-import { PAGES_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/pages";
-import { LINGGUANG_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/lingguang";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { MolisWorkProjectRuntime } from "./project-host.js";
@@ -77,6 +75,9 @@ export function nativeContentProviders(runtime: MolisWorkProjectRuntime, feed: F
   if (scene) Object.assign(providers[0]!, { scenes: feedManifest.action_scenes, scene_handlers: [scene.handler] });
   return providers;
 }
+
+/** Pages and Lingguang by plugin id: their contracts are theirs (PG-111), and the Host names no plugin package for them. */
+const PAGES_PLUGIN_ID = "io.molis.work.pages", LINGGUANG_PLUGIN_ID = "io.molis.work.lingguang";
 
 /** The handoff stations (workflow content roles) a shipped plugin declares in its own Manifest, read from the build's registrations (PG-031). */
 const contentStations = (pluginId: string) => (PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === pluginId)?.manifest.actions ?? [])

@@ -227,7 +227,11 @@ accepted Root合同先写 `specs/repository-anti-corruption/slices/pages-context
 
 PIPE全文读静态/自然退出原件：production brokenLinks(workingTreeSnapshot) problems[]/exit0、行内路径符号/旧getter/现行为静态对读、diffcheck0，fresh fetch main29f0→生产secrets脚本0（实际祖先merge-base2b3dc51ded348325edbf135a13c195ba89fba602，90499行/2allowlist）→首次普通feature push0。不是本段新增9万行，也不是main回退；不冒活Markdown相对链接检查覆盖全部inline citation gate。该Doc无setup/install/build/产品或独立TEST/Full/CI/browser/新PR，没有为了流程加测。作者本人全文读正式报告/实际diff/原件后终交，无待修，Root也正式核收；本项有实际修复commit/独立复审/静态核验/本人final，但finding全流程关闭仍待actual merge及包含证据，不重评/关闭整FI6/FI7/PR1311或宣称主线/产品验收。
 
-**R63后继仍未初派**：鲜读RISKS保R-63原owner“Codex修复队列/评估”，目标为home-aggregate.ts:72与home-event-actions.ts:31按availability plugin_disabled静默略过而不记issue；PIPE只读actual main29f与39e逐blob两文件相同，下一步向Root提交项目插件清单事实源/现有测试的窄评估材料，不自行写源/改权限或夺C4。
+**R63源码级评估已交Root，尚未初派/实施**：fresh RISKS blob7c177401…仍R-63“Codex修复队列/评估”；actual main29f与PR39e的home-aggregate.ts/home-event-actions.ts两blob相同，72/31确以availability plugin_disabled吞issue。goalsHere的可信判据在web-project-context.ts60–61读catalog.listProjectPlugins；泛插件不能直接把provider.plugin_id与项目短id比，现有project-action-availability.ts15–32/39–60已有reachEntry→projectReachablePlugins/pluginReachable，保personal/hidden/companion/outsideBuild及未知Runtime由自身grant管。现有home-event-actions130–143和home-aggregate rig80–83/首例107的Off系直接注入同码policy拒绝，并未证明项目名单真未启用，后续须明确“名单可达却被同码拒绝→issue/零invoke”与“真实未启用→静默”，保各项目来源身份/原始code、read-only、allowed_actions、closing、deadline/撤权/取消和未知插件，不改权限语义。PIPE只读评估，不声称已做运行复现/负控/产品PASS；187个registered tree的7候选路径中141可读无tracked WIP，46遗留不可读未核，不冒全机冻结。材料已交Root，具体实施chat/Host wiring仍待其初派，PIPE不冒实现owner或关闭R63，不借候选69fe/fa04采用等待占writer。
+
+**新公开non-block逐项保留（未实施/未闭环）**：①#1311 `6410930397` /W6-01@740f09d4f：被删Functions by-key路由的status>=400建议核实并收严具体status/code，具体Codex实施owner尚未初派，下一步Root在fresh原分支/测试合同上定窄writer；不是BL/领域标签即已实施。②`6410992699` /FI4e-1@b1c67af：Runtime实际注册路径下handler await后写被拒且零落库用例，③`6411344496` /4c-1 follow-up@d78：reclaim点名仍被本来源行引用的正文拒绝/保留用例；②③先核FI4原writer进行中的4e-2/新head覆盖及真实依赖，同题不另开writer，未覆盖部分再由Root给现有Codex专职明确实施合同。三项均已给Root来源与下一步，修复commit/独立复审验证/actual merge仍无，不因non-block标签放弃责任或把登记当闭环。
+
+**新公开阻塞保原owner**：`6411344496`称BL-755@52e558baa存量disabled升级后个人插件停运；原ac-kernel `6411361218`已提A仅跳过uninstalled并保原启动，或B/C维护，尚待原统筹裁定。未证已修/不叫flaky/不接管原writer；不从这段公开事实扩成真实Home维护或新迁移授权。公开6411078690的4c-3已分原线，后续4bfeaa9b0也未冒本chat交付或W11-3/C4权限。
 
 最新公开WO `6410517262` 已PIPE全文鲜读：W11-3仍归既有Codex C4，其余安全/真实Home/各线仍保原owner；未将这些转述扩成本chat新权限、未抢C4或其它线。FI6新core/resource/full仍原整线安排，R62/R63及其它已登记后继继续保留，未因本叶限定核收冒整线完成。
 

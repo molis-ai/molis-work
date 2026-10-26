@@ -1,11 +1,6 @@
 {
-  "giantUnits": 67,
+  "giantUnits": 49,
   "giant": {
-    "file apps/local-host/src/assistant/assistant-service.ts": 1837,
-    "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
-      "lines": 1480,
-      "methods": 90
-    },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
       "lines": 267,
       "methods": 39
@@ -15,33 +10,19 @@
       "methods": 45
     },
     "function apps/local-host/src/browser/surface-driver.ts#createBrowserSurfaceDriver": 166,
-    "function apps/local-host/src/character-import-discovery.ts#createCharacterDiscovery": 205,
-    "function apps/local-host/src/character-import-discovery.ts#discover": 176,
     "function apps/local-host/src/connector-mcp.ts#createConnectorMcpHost": 246,
     "function apps/local-host/src/home-actions.ts#homeActionProvider": 182,
-    "class apps/local-host/src/local-host.ts#LocalHost": {
-      "lines": 515,
-      "methods": 24
-    },
-    "function apps/local-host/src/plugin-builder/agent-surface.ts#ensureStudio": 194,
-    "function apps/local-host/src/plugin-builder/agent-surface.ts#created callback 1": 186,
     "class apps/local-host/src/project-catalog.ts#MolisWorkProjectCatalog": {
       "lines": 265,
       "methods": 40
     },
-    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 201,
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 154,
     "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 151,
     "function apps/workbench/src/capsule-items.ts#createCapsuleItemProjection": 229,
     "function apps/workbench/src/feed-projection-ui.ts#createWorkbenchFeedProjectionRenderer": 251,
-    "file apps/workbench/src/functions/client.ts": 1274,
     "file apps/workbench/src/i18n/en.ts": 3266,
-    "function apps/workbench/src/project-settings-pages.ts#createWorkbenchProjectSettingsPages": 174,
-    "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 283,
     "file apps/workbench/src/scripts/client/assistant-island.ts": 2031,
-    "file apps/workbench/src/scripts/client/navigation-feed.ts": 955,
     "file apps/workbench/src/scripts/client/tab-workspace.ts": 1948,
-    "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 181,
     "function apps/workbench/src/shell-page-renderer.ts#createWorkbenchGoalsPageRenderer": 176,
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 425,
     "file horizontal/memory/src/service.ts": 1151,
@@ -50,14 +31,6 @@
       "methods": 48
     },
     "function horizontal/scheduler/src/index.ts#createScheduleService": 215,
-    "class modules/private-work-context/src/project-binding-commands.ts#RuntimeProjectBindingCommands": {
-      "lines": 310,
-      "methods": 12
-    },
-    "class modules/projects/src/repository.ts#ProjectsRepository": {
-      "lines": 287,
-      "methods": 29
-    },
     "file packages/design-system/src/styles/momentum.ts": 819,
     "file packages/design-system/src/styles/primitives.ts": 1258,
     "class packages/kernel/src/action-service.ts#ActionService": {
@@ -83,14 +56,6 @@
     "function packages/plugin-sandbox/src/runner.ts#createSandboxRunner": 173,
     "function packages/storage/src/adapters/text-search-index.ts#openTextSearchIndex": 151,
     "function plugins/native/alchemist/src/studio/server/bootstrap/local-runtime.ts#createLocalRuntime": 203,
-    "class plugins/native/alchemist/src/studio/server/db/pulse-repository.ts#SqlitePulseRepository": {
-      "lines": 377,
-      "methods": 23
-    },
-    "class plugins/native/alchemist/src/studio/server/db/research-repository.ts#SqliteResearchRepository": {
-      "lines": 343,
-      "methods": 19
-    },
     "function plugins/native/coding/src/timeline.ts#createCodingTimeline": 224,
     "function plugins/native/coding/src/ui.ts#renderCodingWorkbench": 209,
     "class plugins/native/cognia/src/store.ts#CogniaStore": {
@@ -101,9 +66,8 @@
       "lines": 491,
       "methods": 44
     },
-    "function plugins/native/goals/src/event-document-forms.ts#createEventDocumentForms": 348,
-    "function plugins/native/goals/src/goal-tree-decision.ts#decideGoalTreeProposal": 269,
-    "function plugins/native/goals/src/goal-tree-decision.ts#result callback 1": 243,
+    "function plugins/native/goals/src/goal-tree-decision.ts#decideGoalTreeProposal": 267,
+    "function plugins/native/goals/src/goal-tree-decision.ts#result callback 1": 241,
     "class plugins/native/goals/src/module/event-facts-repository.ts#GoalEventFactsRepository": {
       "lines": 371,
       "methods": 29
@@ -141,7 +105,7 @@
     },
     "file plugins/official-integrations/catalog/src/catalog.ts": 1013
   },
-  "testInternalImports": 419,
+  "testInternalImports": 418,
   "testImports": {
     "tests/action-call-log.test.ts": 2,
     "tests/action-gateway.test.ts": 1,
@@ -286,7 +250,7 @@
     "tests/pages-import-content.test.ts": 1,
     "tests/pages-input-rules.test.ts": 1,
     "tests/pages-surface-naming.test.ts": 1,
-    "tests/personal-plugins-review-fixes.test.ts": 5,
+    "tests/personal-plugins-review-fixes.test.ts": 4,
     "tests/plugin-builder-diagnostics.e2e.test.ts": 1,
     "tests/plugin-composition.e2e.test.ts": 2,
     "tests/plugin-composition.test.ts": 2,
@@ -395,11 +359,9 @@
     "plugins/native/goals/src/project-policy-client.ts": 1,
     "plugins/native/plugin-builder/src/agent-studio.ts": 3
   },
-  "oldNamesTotal": 3,
+  "oldNamesTotal": 1,
   "oldNames": {
-    "packages/storage/src/adapters/file-secret-store.ts": 1,
-    "plugins/native/goals/src/document-collection.ts": 1,
-    "plugins/native/goals/src/goal-tree-materialization-order.ts": 1
+    "packages/storage/src/adapters/file-secret-store.ts": 1
   },
   "scriptConstantsTotal": 98,
   "scriptConstants": {

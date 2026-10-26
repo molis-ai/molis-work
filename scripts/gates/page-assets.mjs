@@ -247,9 +247,17 @@ const headErrors = (measured, budget, base) => {
 // PG094-TITLE-01/02 also binds Goal title writes to the existing focused item/cover state (+400 B).
 // No second request path, title manager or asset is added. Exporting another state getter or calling
 // apply again would add interface/recursion risk; the local predicate uses the existing state API.
-// Batch-42's admissions are consumed; this pair is the measured combined +477 B from current main.
+// Batch-42's admissions are consumed. Batch A adds the existing side-frame Assistant event forwarding (+86 B),
+// so the single workbench admission from current main is +563 B, including the +477 B above.
+// Pages editor needs +238 B to check the full serialized offer both before and after saving and retain the saved id
+// for retry; it reuses the existing frame hand-over and drops the unused platform route from the comment host.
+// Pages client needs +241 B to fit the complete escaped context below 32,000 without splitting Unicode pairs;
+// only its existing excerpt shrinks, preserving metadata and the receiver's unchanged limit. No asset is added.
+// Root reviewed these exact combined measurements under decision #17; each admission is below 10 KB.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1144514, 1144991],
+  "/assets/molis-work-pages-editor.js": [707525, 707763],
+  "/assets/molis-work-plugins/pages.js": [38705, 38946],
+  "/assets/molis-work-workbench.js": [1144514, 1145077],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

@@ -5,7 +5,7 @@
     "/assets/molis-work-arrival.css": 681487,
     "/assets/molis-work-capabilities.js": 54350,
     "/assets/molis-work-knowledge.js": 26940,
-    "/assets/molis-work-pages-editor.js": 707525,
+    "/assets/molis-work-pages-editor.js": 707763,
     "/assets/molis-work-plugin-frame.js": 190219,
     "/assets/molis-work-plugins/alchemist.css": 151,
     "/assets/molis-work-plugins/alchemist.js": 52556,
@@ -31,7 +31,7 @@
     "/assets/molis-work-plugins/lingguang.css": 4505,
     "/assets/molis-work-plugins/lingguang.js": 23116,
     "/assets/molis-work-plugins/pages.css": 47876,
-    "/assets/molis-work-plugins/pages.js": 38705,
+    "/assets/molis-work-plugins/pages.js": 38946,
     "/assets/molis-work-plugins/plugin-builder.css": 19893,
     "/assets/molis-work-plugins/plugin-builder.js": 118672,
     "/assets/molis-work-plugins/ppt.css": 6952,
@@ -47,7 +47,7 @@
     "/assets/molis-work-plugins/workflows.js": 71581,
     "/assets/molis-work-settings.css": 932843,
     "/assets/molis-work-workbench.css": 1236084,
-    "/assets/molis-work-workbench.js": 1144991,
+    "/assets/molis-work-workbench.js": 1145077,
     "/assets/noto-sans-sc-400.woff2": 1141536
   }
 }

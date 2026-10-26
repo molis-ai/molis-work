@@ -72,4 +72,4 @@ Molis Work：本地优先的插件基座加多插件工作平台。平台是一�
 - 同一台机器上常有多个会话与工作树：开工前看 `git worktree list` 与其他会话在做什么；不重置、不覆盖别人的未提交改动，只提交自己的。
 - 主检出常被真实 Home 的服务（4207）使用，改动前先确认；推送、开 PR、发布先问用户；推送前先跑 `pnpm secrets:check`。
 - 并行开发的规矩写在 `docs/system/PARALLEL-DEVELOPMENT.md`，开工前读一遍：动枢纽文件前先查在途 PR；整台机器同一时间最多一个构建、一个浏览器用例批次；共享核心的几个改动合成集成分支跑一次全量；失败用基线工作树比对；同一个 Home 只有一个进程能跑 Agent；用完的工作树与分支清掉。
-- 每个包的归属（角色与评审账号）写在 SSOT 的「归属」列和 `.github/CODEOWNERS`，两处由 `scripts/package-owners.mjs` 的规则生成，`pnpm boundary:check` 校验。CODEOWNERS 只请求评审，不改分支保护。改了规则或新增、删除包后运行 `node scripts/package-owners.mjs --write`。
+- 每个包的归属（角色与评审账号）写在 SSOT 的「归属」列和 `.github/CODEOWNERS`，两处由 `scripts/package-owners.mjs` 的规则生成，`pnpm boundary:check` 校验。CODEOWNERS 只请求评审，不改分支保护。改了规则或新增、删除包后运行 `node scripts/package-owners.mjs --write`。包的成熟度按 `docs/SSOT-MATRIX.md` §2 的四个词（production / experimental / slice / absent）写在各表的「包成熟度」列；唯一写入处是 `scripts/workspace-packages.mjs`，`scripts/package-owners.mjs` 在 `pnpm boundary:check` 里逐行校验两处相同。

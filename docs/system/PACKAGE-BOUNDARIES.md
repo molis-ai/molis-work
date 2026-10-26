@@ -80,10 +80,10 @@ F2 创建目标地图里的全部 package。每个 package 必须有：
 4. 就近 README；
 5. 独立 build/typecheck；
 6. import boundary 或 Contract conformance test；
-7. `contract-only`、`partial` 或 `implemented` 状态；
+7. `production`、`experimental`、`slice` 或 `absent` 成熟度（见 [`SSOT-MATRIX`](../SSOT-MATRIX.md) §2）；
 8. 旧来源、剩余 caller 和移除条件。
 
-`contract-only` package 只提供真实边界，不注册入口、不创建 Store、不返回伪成功。独立 package 默认是 Monorepo 私有包；只有 Contracts、Plugin SDK 和必要 UI Extension 类型进入潜在公共发布面。
+已建的 package 要有真实实现：不注册假 Provider、假 Store、UI 入口或伪成功 API；还没建的目标只留在 SSOT 的 `absent` 行。独立 package 默认是 Monorepo 私有包；只有 Contracts、Plugin SDK 和必要 UI Extension 类型进入潜在公共发布面。
 
 ## 5. Adapter 放置
 

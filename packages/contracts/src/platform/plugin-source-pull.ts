@@ -6,6 +6,8 @@ export const PLUGIN_SOURCE_PULL_FEED_PERMISSION = "sources:pull_feed";
 export const PLUGIN_SOURCE_PULL_QUERY_PERMISSION = "sources:pull_query";
 /** What a plugin holds to read back an evidence body it pulled (`services.sourcePull.evidence`). */
 export const PLUGIN_EVIDENCE_READ_PERMISSION = "evidence:read";
+/** What a plugin holds to read a research library repository through the platform (`services.sourcePull.repository`). */
+export const PLUGIN_SOURCE_PULL_REPOSITORY_PERMISSION = "sources:read_repository";
 
 interface SourcePullBase {
   /** The pull's identity: the same id is the same pull (the platform's search record is kept under it). */
@@ -61,6 +63,34 @@ export interface SourcePullResult {
   readonly http_receipt: RssFetchReceipt | null;
 }
 
+/**
+ * A research library on GitHub: the repository (`owner/name`) and one source in it. Closed like a pull: the platform decides how the
+ * repository is fetched (its own cache, its own `git`), never the plugin.
+ */
+export interface RepositoryReadRequest {
+  readonly repository: string;
+  readonly source_id: string;
+}
+
+/** One published, hash-checked finding of a research library at one immutable revision. */
+export interface RepositoryEntry {
+  readonly id: string;
+  readonly title: string;
+  readonly summary: string;
+  readonly body: string;
+  readonly url: string;
+  readonly published_at: string;
+  readonly tags: readonly string[];
+  readonly provenance: Readonly<Record<string, unknown>>;
+}
+
+export interface RepositoryReadResult {
+  readonly repository: string;
+  /** The Git revision every entry was read at. */
+  readonly revision: string;
+  readonly entries: readonly RepositoryEntry[];
+}
+
 export interface SourcePullOptions {
   /**
    * Told the references of the bodies the platform is about to write, and the write waits for it. A body is never on disk before the
@@ -84,4 +114,6 @@ export interface PluginSourcePullClient {
   readonly evidence?: { read(content_ref: string): Promise<string | null> };
   /** Forgets the platform's search records of these pulls in this project; returns how many went. */
   forget?(operation_ids: readonly string[]): Promise<{ readonly records_deleted: number }>;
+  /** The published findings of a research library repository, read by the platform: no path of its cache, no Git output, only the entries. */
+  readonly repository?: { read(request: RepositoryReadRequest, options?: { readonly signal?: AbortSignal }): Promise<RepositoryReadResult> };
 }

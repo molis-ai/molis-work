@@ -8,6 +8,8 @@ export declare const PLUGIN_SOURCE_PULL_FEED_PERMISSION = "sources:pull_feed";
 
 export declare const PLUGIN_SOURCE_PULL_QUERY_PERMISSION = "sources:pull_query";
 
+export declare const PLUGIN_SOURCE_PULL_REPOSITORY_PERMISSION = "sources:read_repository";
+
 export interface PluginSourcePullClient {
     plan?(request: SourcePullRequest): Promise<{
         readonly intent_fingerprint: string;
@@ -19,6 +21,33 @@ export interface PluginSourcePullClient {
     forget?(operation_ids: readonly string[]): Promise<{
         readonly records_deleted: number;
     }>;
+    readonly repository?: {
+        read(request: RepositoryReadRequest, options?: {
+            readonly signal?: AbortSignal;
+        }): Promise<RepositoryReadResult>;
+    };
+}
+
+export interface RepositoryEntry {
+    readonly id: string;
+    readonly title: string;
+    readonly summary: string;
+    readonly body: string;
+    readonly url: string;
+    readonly published_at: string;
+    readonly tags: readonly string[];
+    readonly provenance: Readonly<Record<string, unknown>>;
+}
+
+export interface RepositoryReadRequest {
+    readonly repository: string;
+    readonly source_id: string;
+}
+
+export interface RepositoryReadResult {
+    readonly repository: string;
+    readonly revision: string;
+    readonly entries: readonly RepositoryEntry[];
 }
 
 export type SourcePullKind = SourcePullRequest["kind"];

@@ -1,42 +1,10 @@
-import { execFile } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdir, access } from "node:fs/promises";
-import path from "node:path";
-import { promisify } from "node:util";
-import { readResearchLibrary } from "@molis-ai/molis-work-integration-github";
 import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
+import { readResearchRepository } from "./research-repository-read.js";
 import { createFeedSourceSyncGuard, type FeedApplication, type FeedSourceRecord, type FeedSourceRunRecord, type FeedSourceSyncResult, type FeedSourceSyncInput } from "@molis-ai/molis-work-plugin-feed";
 
-const exec = promisify(execFile);
 const running = new Map<string, { idempotencyKey: string; promise: Promise<FeedSourceSyncResult> }>();
-const repositoryReads = new Map<string, Promise<{ revision: string; files: Map<string, string> }>>();
 const hash = (text: string) => createHash("sha256").update(text).digest("hex");
-
-/** Host-owned Git cache; never fetches into a user's checkout or reads uncommitted files. */
-async function repositorySnapshot(home: string, repository: string): Promise<{ revision: string; files: Map<string, string> }> {
-  const directory = path.join(home, "cache", "research-library", hash(repository));
-  const prior = repositoryReads.get(directory);
-  if (prior) return prior;
-  const read = (async () => {
-    await mkdir(directory, { recursive: true });
-    const git = async (args: string[]) => (await exec("git", ["-C", directory, ...args], {
-      timeout: 120_000, maxBuffer: 16 * 1024 * 1024,
-      env: { ...process.env, GIT_TERMINAL_PROMPT: "0" },
-    })).stdout;
-    try { await access(path.join(directory, "HEAD")); } catch { await git(["init", "--bare"]); }
-    await git(["fetch", "--depth=1", `https://github.com/${repository}.git`, "main"]);
-    const revision = (await git(["rev-parse", "FETCH_HEAD"])).trim();
-    const files = new Map<string, string>();
-    // A tree list bounds every subsequent read. Git blobs are pinned to revision.
-    const names = (await git(["ls-tree", "-r", "--name-only", revision])).trim().split("\n");
-    for (const name of names.filter((name) => name === "sources.json" || name === "catalog.json" || /^packages\/[a-zA-Z0-9_-]+\/[a-zA-Z0-9_-]+\/(manifest.json|research.json|report.md)$/.test(name))) {
-      files.set(name, await git(["show", `${revision}:${name}`]));
-    }
-    return { revision, files };
-  })();
-  repositoryReads.set(directory, read);
-  try { return await read; } finally { repositoryReads.delete(directory); }
-}
 
 export function syncResearchLibrarySource(
   home: string, feed: FeedApplication, source: FeedSourceRecord,
@@ -78,10 +46,7 @@ export function syncResearchLibrarySource(
       const researchSource = String(source.config.research_source ?? "");
       if (!/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(repository)) throw new Error("仓库配置无效");
       input.signal?.throwIfAborted();
-      const snapshot = await repositorySnapshot(home, repository);
-      const entries = await readResearchLibrary({ repository, source_id: researchSource, revision: snapshot.revision,
-        async readText(name) { const text = snapshot.files.get(name); if (text === undefined) throw new Error(`发布包缺少 ${name}`); return text; },
-      });
+      const { revision, entries } = await readResearchRepository(home, { repository, source_id: researchSource }, { signal: input.signal });
       await beforeEffect();
       let created = 0, deduped = 0;
       const existing = new Map(feed.snapshot(source.project_id).feed_items.filter(item => item.source_id === source.source_id).map(item => [item.external_id, item]));
@@ -96,7 +61,7 @@ export function syncResearchLibrarySource(
         // the item moves to the new version together with its material, so the two never mix versions.
         const ingested = feed.ingestItem({ source: current, externalId, refresh: true,
           title: entry.title, summary: entry.summary, body: entry.body, url: entry.url,
-          occurredAt: entry.published_at, tags: entry.tags, attention: false,
+          occurredAt: entry.published_at, tags: [...entry.tags], attention: false,
           material: { material_id: `research-${hash(`${repository}:${entry.id}`).slice(0, 32)}`,
             canonical_url: entry.url, title: entry.title, source_name: source.name, published_at: entry.published_at,
             preview: entry.body, content_hash: hash(entry.body), content_ref: `research:${entry.id}`,
@@ -110,10 +75,10 @@ export function syncResearchLibrarySource(
       const completed = new Date().toISOString();
       const terminal: FeedSourceRunRecord = { ...run, phase: "terminal", outcome: "completed", empty: entries.length === 0,
         created_count: created, deduped_count: deduped, completed_at: completed, updated_at: completed,
-        receipt: { repository, source_id: researchSource, revision: snapshot.revision, verified_packages: true } };
+        receipt: { repository, source_id: researchSource, revision, verified_packages: true } };
       feed.upsertSourceRun(terminal);
       const latest = feed.getSource(source.project_id, source.source_id);
-      const saved = feed.upsertSource({ ...latest, status: latest.enabled ? "active" : "paused", cursor: { revision: snapshot.revision },
+      const saved = feed.upsertSource({ ...latest, status: latest.enabled ? "active" : "paused", cursor: { revision },
         last_sync_at: completed, last_outcome: "completed", last_error_code: null, updated_at: completed });
       return { source: saved, run: terminal, created, deduped, replayed: false };
     } catch (error) {

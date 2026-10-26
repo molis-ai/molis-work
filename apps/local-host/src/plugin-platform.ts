@@ -82,6 +82,8 @@ export interface PluginPlatformOptions {
   privateStorageFor(context: PluginUpgradeContext, manifest: PluginManifest): PluginPrivateStorage;
   /** Test seam for `services.sourcePull`: the fetch its public-feed pulls go through. Production never passes it. */
   sourcePullFetch?: (input: string | URL, init?: RequestInit) => Promise<Response>;
+  /** Test seam for `services.sourcePull.repository`: the `git` it runs. Production never passes it. */
+  sourcePullGit?: import("./research-repository-read.js").ResearchGit;
   /** The owner of private KV supplies whole-installation cleanup for synchronous non-retaining reinstalls. */
   deleteInstallationData?(installId: string): void;
   capturePrivateData?(installId: string): Promise<unknown> | unknown;
@@ -161,6 +163,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     databaseFor: identity.databaseFor,
     projectLibrary: projectLibraryOf(options), scheduler: options.scheduler,
     ...(options.sourcePullFetch ? { sourcePullFetch: options.sourcePullFetch } : {}),
+    ...(options.sourcePullGit ? { sourcePullGit: options.sourcePullGit } : {}),
     project_id: options.project_id,
     actor_id: options.actor_id,
     artifacts: options.artifacts,

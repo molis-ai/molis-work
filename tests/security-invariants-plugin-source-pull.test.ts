@@ -1,19 +1,36 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import test, { type TestContext } from "node:test";
 import { createFeedSourceRuntime, createLocalFeedSourceService, createPluginPlatform, listFeedSourceCatalog } from "@molis-ai/molis-work-app-local-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { ActionError, type ActionCallContext, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginHostServices } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { SourcePullRequest } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
-import { createEvidenceContentStore } from "@molis-ai/molis-work-storage";
+import type { RepositoryReadRequest, SourcePullRequest } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
+import { createEvidenceContentStore, resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { openTestHome } from "./fixtures/test-home.js";
 
 // FI-4 step 4c (S-92 provisional, specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §10): a plugin's `services.sourcePull` pulls public
 // feeds through the platform's own transports, tells the plugin each evidence body's reference before the body is written, reads bodies back
-// and forgets search records. RAC-1016 (hold before write), RAC-1017 (what it refuses), RAC-1018 (evidence), RAC-1019 (forget).
+// and forgets search records. RAC-1016 (hold before write), RAC-1017 (what it refuses), RAC-1018 (evidence), RAC-1019 (forget, and the research
+// library read of step 4c-2).
 
-const FEED = "sources:pull_feed", QUERY = "sources:pull_query", EVIDENCE = "evidence:read";
+const FEED = "sources:pull_feed", QUERY = "sources:pull_query", EVIDENCE = "evidence:read", REPOSITORY = "sources:read_repository";
+const REVISION = "0123456789abcdef0123456789abcdef01234567";
+const sha = (text: string) => createHash("sha256").update(text).digest("hex");
+
+/** One published package of a research library, as Git would hold it; `tamper` changes a file after the index was hashed. */
+function publishLibrary(files: Map<string, string>, options: { enabled?: boolean; tamper?: boolean } = {}) {
+  const research = JSON.stringify({ source_records: [{ id: "source-1", title: "Evidence", url: "https://example.com/one", summary: "A bounded observation", read_scope: "page", read_scope_detail: "whole page", boundary: "one page" }],
+    findings: [{ id: "finding-1", claim: "One verifiable finding", support: "Observed once", boundary: "Only that page", source_ids: ["source-1"] }], unknowns: [] });
+  const report = "# Report\nOne verifiable finding", path = "packages/observations/daily-v1";
+  const manifest = JSON.stringify({ id: "daily-v1", source_id: "observations", usage: "reference", limitations: [], files: [{ path: "research.json", sha256: sha(research) }, { path: "report.md", sha256: sha(report) }] });
+  files.clear();
+  files.set("sources.json", JSON.stringify({ sources: [{ id: "observations", name: "Observations", publication_state: options.enabled === false ? "DRAFT" : "ENABLED" }] }));
+  files.set("catalog.json", JSON.stringify({ packages: [{ id: "daily-v1", source_id: "observations", path, published_at: "2026-09-22T00:00:00Z", manifest_sha256: sha(manifest) }] }));
+  files.set(`${path}/manifest.json`, manifest); files.set(`${path}/research.json`, research); files.set(`${path}/report.md`, options.tamper ? report + " (edited)" : report);
+  return { manifest_sha256: sha(manifest) };
+}
 const code = (expected: string) => (error: unknown) => error instanceof ActionError && error.code === expected;
 const rss = (title: string, entries: Array<{ id: string; title: string; text: string }>) => `<?xml version="1.0"?><rss version="2.0"><channel>
   <title>${title}</title><link>https://example.com/</link>${entries.map(entry => `
@@ -33,12 +50,26 @@ async function fixture(t: TestContext) {
     const body = feeds.get(String(input));
     return body ? new Response(body, { status: 200, headers: { "content-type": "application/rss+xml" } }) : new Response("missing", { status: 404 });
   };
+  // The `git` of the research library read: a map of files at one revision, and what was asked of it.
+  const library = new Map<string, string>(), gitCalls: Array<readonly string[]> = [], gitHooks: { onShow?: () => void } = {};
+  const sourcePullGit = async (_directory: string, args: readonly string[]) => {
+    gitCalls.push([...args]);
+    if (args[0] === "ls-tree") return [...library.keys()].join("\n") + "\n";
+    if (args[0] === "rev-parse") return REVISION + "\n";
+    if (args[0] === "show") {
+      gitHooks.onShow?.();
+      const name = String(args[1]).slice(REVISION.length + 1), text = library.get(name);
+      if (text === undefined) throw new Error(`fatal: path '${name}' does not exist`);
+      return text;
+    }
+    return "";
+  };
   const owned = new Set<string>();
   const registry = host.actionRegistry(reference);
   const client = { ...host.actionClient(reference), ...host.syncActionClient(reference) };
   const ports = { db: runtime.store.db, appendEvent: (event: Parameters<typeof runtime.store.appendEvent>[0]) => runtime.store.appendEvent(event), eventCursor: (id: string) => runtime.store.eventCursor(id) };
   const platform = createPluginPlatform({ db: runtime.store.db, project_id: reference.project_id, actor_id: "fixture-person", actions: { registry, client, project_id: reference.project_id }, home: null,
-    artifacts: new ArtifactsModule(ports), processItems: new ProcessItemsModule(ports), ui: new UiHost(), privateStorageFor: () => ({ get: () => null, set() {}, delete: () => false }), sourcePullFetch });
+    artifacts: new ArtifactsModule(ports), processItems: new ProcessItemsModule(ports), ui: new UiHost(), privateStorageFor: () => ({ get: () => null, set() {}, delete: () => false }), sourcePullFetch, sourcePullGit });
   stop = async () => {
     await platform.closeCoordination();
     for (const record of platform.runtime.list()) if (owned.has(record.plugin_id) && record.state === "running") await platform.runtime.stop(record.install_id);
@@ -68,7 +99,7 @@ async function fixture(t: TestContext) {
       in: (body: typeof work, action: ActionDefinition<Record<string, never>, unknown> = run, held: string[] = permissions) => { work = body; return client.invoke(user(held), action, {}); },
       run, serial, plain, query };
   };
-  return { reference, runtime, feeds, fetched, start, host, catalog: listFeedSourceCatalog() };
+  return { reference, runtime, feeds, fetched, start, host, catalog: listFeedSourceCatalog(), library, gitCalls, gitHooks };
 }
 const evidence = () => createEvidenceContentStore();
 
@@ -215,4 +246,64 @@ test("S-92 RAC-1016: a web query is planned without leaving, and a query that is
   await assert.rejects(probe.in(services => services.sourcePull!.plan!({ ...request, query: "x" })), code("feed.source_query_invalid"));
   await assert.rejects(probe.in(services => services.sourcePull!.plan!({ kind: "rss", operation_id: "pull-query-2", source_name: "n", definition_id: f.catalog[0]!.id })), code("plugin.source_pull_permission_undeclared"));
   assert.deepEqual(f.fetched, []);
+});
+
+const LIBRARY: RepositoryReadRequest = { repository: "fixture/research", source_id: "observations" };
+
+test("S-92 RAC-1019: repository.read returns a research library's entries and nothing of the platform's cache, running only the Git a fixed address needs", { timeout: 120_000 }, async t => {
+  const f = await fixture(t);
+  const probe = await f.start("pullrepo", [REPOSITORY]), published = publishLibrary(f.library);
+  assert.deepEqual(Object.keys(probe.services().sourcePull!), ["repository"]);
+  const result = await probe.in(services => services.sourcePull!.repository!.read(LIBRARY)) as { repository: string; revision: string; entries: Array<{ id: string; title: string; url: string; tags: string[]; provenance: Record<string, unknown> }> };
+  assert.equal(result.repository, "fixture/research"); assert.equal(result.revision, REVISION);
+  assert.deepEqual(result.entries.map(entry => entry.id), ["daily-v1:finding-1"]);
+  assert.equal(result.entries[0]!.provenance.manifest_sha256, published.manifest_sha256);
+  assert.equal(result.entries[0]!.url, `https://github.com/fixture/research/blob/${REVISION}/packages/observations/daily-v1/report.md`);
+  assert.deepEqual(Object.keys(result).sort(), ["entries", "repository", "revision"], "entries and the revision, no path and no Git output");
+  assert.equal(JSON.stringify(result).includes(resolveMolisWorkHome()), false, "no path of the platform's cache is in the result");
+  // The only text of the plugin's in any Git argument is the repository, inside the fixed address; everything else is fixed or Git's own.
+  const shapes = f.gitCalls.map(args => args[0] === "show" ? ["show", args[1]!.startsWith(`${REVISION}:`) ? "<revision>:<published file>" : args[1]] : args[0] === "ls-tree" ? [...args.slice(0, 3), "<revision>"] : [...args]);
+  assert.deepEqual(shapes[0], ["init", "--bare"]);
+  assert.deepEqual(shapes[1], ["fetch", "--depth=1", "https://github.com/fixture/research.git", "main"]);
+  assert.deepEqual(shapes[2], ["rev-parse", "FETCH_HEAD"]);
+  assert.deepEqual(shapes[3], ["ls-tree", "-r", "--name-only", "<revision>"]);
+  for (const shape of shapes.slice(4)) assert.deepEqual(shape, ["show", "<revision>:<published file>"]);
+  assert.equal(f.gitCalls.filter(args => args[0] === "show").length, 5, "the two indexes and the package's three files");
+});
+
+test("S-92 RAC-1019: repository.read refuses what is not a repository and a source, a call it is not offered to, an unpublished or edited library, and a cancelled call", { timeout: 120_000 }, async t => {
+  const f = await fixture(t);
+  const probe = await f.start("pullrepo2", [REPOSITORY]), feedOnly = await f.start("pullrepo3", [FEED]);
+  publishLibrary(f.library);
+  assert.equal(feedOnly.services().sourcePull!.repository, undefined, "a plugin without the permission has no repository read");
+  const refused = (request: unknown, expected = "plugin.source_pull_request_invalid") => assert.rejects(probe.in(services => services.sourcePull!.repository!.read(request as RepositoryReadRequest)), code(expected), JSON.stringify(request));
+  for (const repository of ["../x/y", "owner/..", "owner/a..b", "-o/name", "owner/-name", "owner", "a/b/c", "owner/name;rm", "owner/na me", "https://github.com/a/b", "", " ", "o".repeat(101) + "/name"]) {
+    await refused({ ...LIBRARY, repository });
+  }
+  for (const source_id of ["", "a/b", "../x", "x y", "a".repeat(101)]) await refused({ ...LIBRARY, source_id });
+  await refused({ ...LIBRARY, branch: "dev" }); await refused({ ...LIBRARY, depth: 0 }); await refused({ repository: LIBRARY.repository }); await refused(null); await refused([LIBRARY]); await refused("fixture/research");
+  assert.deepEqual(f.gitCalls, [], "no refused request reached Git");
+  // Where it may be called from: not outside a call, not by another installation, not without the permission on the action, not serially, not read-only.
+  await assert.rejects(probe.services().sourcePull!.repository!.read(LIBRARY), code("plugin.source_pull_call_required"));
+  await assert.rejects(feedOnly.in(() => probe.services().sourcePull!.repository!.read(LIBRARY), feedOnly.run, [FEED]), code("plugin.source_pull_call_required"));
+  await assert.rejects(probe.in(services => services.sourcePull!.repository!.read(LIBRARY), probe.plain, []), code("plugin.source_pull_permission_undeclared"));
+  await assert.rejects(probe.in(services => services.sourcePull!.repository!.read(LIBRARY), probe.serial), code("plugin.source_pull_action_not_concurrent"));
+  await assert.rejects(probe.in(services => services.sourcePull!.repository!.read(LIBRARY), probe.query), code("plugin.source_pull_read_only"));
+  assert.deepEqual(f.gitCalls, []);
+  // A library that is not published, a source it does not list, and a file edited after the index hashed it give no entries and no raw Git text.
+  publishLibrary(f.library, { enabled: false });
+  await assert.rejects(probe.in(services => services.sourcePull!.repository!.read(LIBRARY)), /未开放发布/u);
+  publishLibrary(f.library);
+  await assert.rejects(probe.in(services => services.sourcePull!.repository!.read({ ...LIBRARY, source_id: "unlisted" })), /未开放发布/u);
+  publishLibrary(f.library, { tamper: true });
+  await assert.rejects(probe.in(services => services.sourcePull!.repository!.read(LIBRARY)), /哈希与发布索引不一致/u);
+  // A call cancelled while Git runs returns nothing.
+  publishLibrary(f.library);
+  const controller = new AbortController();
+  f.gitHooks.onShow = () => controller.abort();
+  await assert.rejects(probe.in(services => services.sourcePull!.repository!.read(LIBRARY, { signal: controller.signal })));
+  f.gitHooks.onShow = undefined;
+  const before = f.gitCalls.length, aborted = AbortSignal.abort();
+  await assert.rejects(probe.in(services => services.sourcePull!.repository!.read(LIBRARY, { signal: aborted })));
+  assert.equal(f.gitCalls.length, before, "a call that is already cancelled never reaches Git");
 });

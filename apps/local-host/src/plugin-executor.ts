@@ -38,6 +38,8 @@ export interface PluginHostExecutorOptions {
   projectLibrary?: import("./plugin-project-library.js").ProjectLibrary | null;
   /** Test seam for `services.sourcePull`: the fetch its public-feed pulls go through. Production never passes it. */
   sourcePullFetch?: (input: string | URL, init?: RequestInit) => Promise<Response>;
+  /** Test seam for `services.sourcePull.repository`: the `git` it runs. Production never passes it. */
+  sourcePullGit?: import("./research-repository-read.js").ResearchGit;
   installations?: import("./plugin-installation-directory.js").InstallationDirectoryClient;
   scheduler?: import("@molis-ai/molis-work-service-scheduler").ScheduleService;
   /**

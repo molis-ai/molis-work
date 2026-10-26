@@ -1,8 +1,8 @@
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
-  PLUGIN_EVIDENCE_READ_PERMISSION, PLUGIN_SOURCE_PULL_FEED_PERMISSION, PLUGIN_SOURCE_PULL_QUERY_PERMISSION,
-  type PluginSourcePullClient, type SourcePullKind, type SourcePullOptions, type SourcePullRequest, type SourcePullResult,
+  PLUGIN_EVIDENCE_READ_PERMISSION, PLUGIN_SOURCE_PULL_FEED_PERMISSION, PLUGIN_SOURCE_PULL_QUERY_PERMISSION, PLUGIN_SOURCE_PULL_REPOSITORY_PERMISSION,
+  type PluginSourcePullClient, type RepositoryReadRequest, type RepositoryReadResult, type SourcePullKind, type SourcePullOptions, type SourcePullRequest, type SourcePullResult,
 } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
 import { assertCapturedPluginActionCurrent, currentPluginInvocation, inPluginInstance, pluginInvocationReadOnly, type PluginInstance } from "./action-scope.js";
 
@@ -27,6 +27,9 @@ const TEXT_FIELD: Readonly<Record<SourcePullKind, { readonly name: string; reado
 });
 const permissionFor = (kind: SourcePullKind) => kind === "web_query" ? PLUGIN_SOURCE_PULL_QUERY_PERMISSION : PLUGIN_SOURCE_PULL_FEED_PERMISSION;
 const PULL_PERMISSIONS = [PLUGIN_SOURCE_PULL_FEED_PERMISSION, PLUGIN_SOURCE_PULL_QUERY_PERMISSION] as const;
+/** `owner/name` as GitHub names them: each part starts with a letter or digit, so nothing here can read as a Git option or climb a path. */
+const REPOSITORY = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,99}\/[A-Za-z0-9][A-Za-z0-9_.-]{0,99}$/u;
+const REPOSITORY_SOURCE = /^[A-Za-z0-9_-]{1,100}$/u;
 
 /** What the Host's side is handed for one pull. `hold` is the plugin's; everything else is the call's own state. */
 export interface PluginSourcePullRun {
@@ -45,6 +48,7 @@ export interface PluginSourcePullPort {
   pull(request: SourcePullRequest, run: PluginSourcePullRun): Promise<SourcePullResult>;
   readEvidence(content_ref: string): string | null;
   forget(operation_ids: readonly string[]): number;
+  readRepository(request: RepositoryReadRequest, run: Pick<PluginSourcePullRun, "signal" | "current" | "beforeEffect">): Promise<RepositoryReadResult>;
 }
 
 export interface PluginSourcePullGate extends PluginInstance {
@@ -125,7 +129,33 @@ export function createPluginSourcePullClient(manifest: PluginManifest, port: Plu
       },
     });
   }
+  if (declared(PLUGIN_SOURCE_PULL_REPOSITORY_PERMISSION)) {
+    client.repository = Object.freeze({
+      async read(request: RepositoryReadRequest, options?: { readonly signal?: AbortSignal }): Promise<RepositoryReadResult> {
+        const checked = checkedRepositoryRequest(request);
+        const { scope, permission } = enter([PLUGIN_SOURCE_PULL_REPOSITORY_PERMISSION], true, true);
+        const signal = AbortSignal.any([scope.caller.signal, options?.signal].filter((item): item is AbortSignal => item !== undefined));
+        const current = currentFor(scope, permission, signal);
+        const beforeEffect = async () => { current(); if ("definition" in scope) await scope.caller.beforeEffect(); current(); };
+        await beforeEffect();
+        const result = await port.readRepository(checked, { signal, current, beforeEffect });
+        await beforeEffect();
+        return structuredClone(result);
+      },
+    });
+  }
   return Object.freeze(client);
+}
+
+/** The repository request's shape, settled before anything reaches the Host: two named fields, no others. */
+function checkedRepositoryRequest(request: unknown): RepositoryReadRequest {
+  if (!request || typeof request !== "object" || Array.isArray(request)) throw errors.source_pull_request_invalid("仓库读取请求必须是对象");
+  const value = request as Record<string, unknown>;
+  const extra = Object.keys(value).filter(key => key !== "repository" && key !== "source_id");
+  if (extra.length > 0) throw errors.source_pull_request_invalid(`仓库读取请求不认这些字段：${extra.join("、")}`);
+  if (typeof value.repository !== "string" || !REPOSITORY.test(value.repository) || value.repository.includes("..")) throw errors.source_pull_request_invalid("仓库必须写成 owner/name");
+  if (typeof value.source_id !== "string" || !REPOSITORY_SOURCE.test(value.source_id)) throw errors.source_pull_request_invalid("source_id 不合法");
+  return { repository: value.repository, source_id: value.source_id };
 }
 
 /** The request's shape, settled once before anything reaches the Host: a known kind, only the fields that kind lists, bounded text. */

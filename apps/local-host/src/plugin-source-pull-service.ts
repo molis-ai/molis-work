@@ -1,19 +1,20 @@
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
-  PLUGIN_EVIDENCE_READ_PERMISSION, PLUGIN_SOURCE_PULL_FEED_PERMISSION, PLUGIN_SOURCE_PULL_QUERY_PERMISSION,
+  PLUGIN_EVIDENCE_READ_PERMISSION, PLUGIN_SOURCE_PULL_FEED_PERMISSION, PLUGIN_SOURCE_PULL_QUERY_PERMISSION, PLUGIN_SOURCE_PULL_REPOSITORY_PERMISSION,
   type PluginSourcePullClient, type SourcePullResult,
 } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
 import { createPluginSourcePullClient, type PluginSourcePullPort } from "@molis-ai/molis-work-plugin-runtime";
-import { createEvidenceContentStore, createFileSecretStore, type EvidenceContentStore, type SecretStore, type SqliteDatabase } from "@molis-ai/molis-work-storage";
+import { createEvidenceContentStore, createFileSecretStore, resolveMolisWorkHome, type EvidenceContentStore, type SecretStore, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { createFeedSourceRuntime, type FeedSourceRuntime } from "./feed-source-runtime.js";
 import type { PluginDatabaseConnection } from "./plugin-database-client.js";
+import { readResearchRepository, type ResearchGit } from "./research-repository-read.js";
 import { forgetIntelligenceOperations, type IntelligenceCollectResult } from "./search-intelligence-client.js";
 import { buildSourcePullIntent, sourcePullFingerprint } from "./source-pull-intent.js";
 
 type FetchPort = (input: string | URL, init?: RequestInit) => Promise<Response>;
 
 /** The Manifest permissions that make the Host build `services.sourcePull` (`HOST_SERVICE_PERMISSIONS`). */
-export const SOURCE_PULL_PERMISSIONS: readonly string[] = [PLUGIN_SOURCE_PULL_FEED_PERMISSION, PLUGIN_SOURCE_PULL_QUERY_PERMISSION, PLUGIN_EVIDENCE_READ_PERMISSION];
+export const SOURCE_PULL_PERMISSIONS: readonly string[] = [PLUGIN_SOURCE_PULL_FEED_PERMISSION, PLUGIN_SOURCE_PULL_QUERY_PERMISSION, PLUGIN_EVIDENCE_READ_PERMISSION, PLUGIN_SOURCE_PULL_REPOSITORY_PERMISSION];
 
 export interface SourcePullPortOptions {
   /** The project's library: where the platform keeps the search records of a pull. */
@@ -22,6 +23,10 @@ export interface SourcePullPortOptions {
   fetch?: FetchPort;
   secretStore?: SecretStore;
   content?: EvidenceContentStore;
+  /** The Home directory whose cache holds the research library clones; absent: the process's own Home. */
+  home?: string;
+  /** Test seam for `repository.read`: the `git` it runs. */
+  git?: ResearchGit;
 }
 
 /**
@@ -57,6 +62,12 @@ export function createSourcePullPort(options: SourcePullPortOptions): PluginSour
       try { return content.read(contentRef); } catch { return null; }
     },
     forget: operationIds => forgetIntelligenceOperations(options.db, operationIds),
+    async readRepository(request, run) {
+      run.current();
+      const result = await readResearchRepository(options.home ?? resolveMolisWorkHome(), request, { signal: run.signal, ...(options.git ? { git: options.git } : {}) });
+      run.current();
+      return result;
+    },
   };
 }
 
@@ -85,7 +96,7 @@ function sourcePullResult(result: IntelligenceCollectResult, runtime: FeedSource
  * are the project's). A sandboxed plugin is refused it at install (S-60). The grant is read again on every call (`context.requireGrant`).
  */
 export function pluginSourcePullFor(definition: PluginDefinition, context: PluginStartContext, assertActive: () => void,
-  library: PluginDatabaseConnection | undefined, seams: Pick<SourcePullPortOptions, "fetch"> = {}): PluginSourcePullClient | undefined {
+  library: PluginDatabaseConnection | undefined, seams: Pick<SourcePullPortOptions, "fetch" | "home" | "git"> = {}): PluginSourcePullClient | undefined {
   const { manifest } = definition;
   const db = library;
   if (!db || !isSqliteDatabase(db) || !manifest.permissions.some(item => SOURCE_PULL_PERMISSIONS.includes(item.permission))) return undefined;

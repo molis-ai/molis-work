@@ -26,7 +26,7 @@ FeedApplication 组合注入的 Module API；FeedSourceService、FeedConnectorSy
 
 本包不拥有 Source/Signal/Feed 数据表，也不直接实现 GitHub/Gmail 协议。正文渲染用插件 SDK 的 `/rich-text`（`renderRichText`、`richPlainText`），送模型的上下文先过 SDK 的 `redactSecrets`；Provider 失败、部分接收与重试不能混成同一个成功状态。
 
-`research_library` 来源由 Host 注入 `syncRepository`，沿用 Sources 的 `public_source` 同步入口与计划。GitHub integration 验证固定提交上的发布包和哈希，Feed 每条研究发现保存正文、原始引用、阅读范围与包版本。来源规则默认 `admission: "suggest"`；明确选 `inbox` 时，Feed 将匹配内容或需复核的判断结果写入 Attention。`evaluateItems` 可对最近至多 20 条消息重新运行规则；Functions 本身不执行写入。
+`research_library` 来源由 Host 注入 `syncRepository`（Feed 自己的 `syncResearchLibrary`，读仓库的一步由注入的读取端口做：宿主版是宿主自己的读取器，Runtime 版是平台的 `repository.read`），沿用 Sources 的 `public_source` 同步入口与计划。GitHub integration 验证固定提交上的发布包和哈希，Feed 每条研究发现保存正文、原始引用、阅读范围与包版本。来源规则默认 `admission: "suggest"`；明确选 `inbox` 时，Feed 将匹配内容或需复核的判断结果写入 Attention。`evaluateItems` 可对最近至多 20 条消息重新运行规则；Functions 本身不执行写入。
 
 入箱后的下一步判断走 `inboxJudgment` 注入端口，Host 将它接到统一 `inbox.next` 场景。`subscribeInboxCreated` 连接 Attention 的实际创建事件，覆盖直接携带 attention 的导入及来源故障；去重后在业务提交后的 `flushPendingJudgments` 中执行。已回滚或关闭的事项不触发判断。每个应用实例拥有自己的队列，来源、连接器、定时器和工作流须传入绑定可信调用上下文的 `feedOptions`；仅传 Home 路径不产生 Inbox 调用授权。首页建议通过 homeJudgment 接到共同 Home 场景。Feed 筛选通过 captureJudgment 接到本插件声明的 feed.capture 场景；手动处理和工作流向后续判断传递原调用者；等判断的并发动作（工作流收取 `ingestItemJudged`、试跑 `evaluateItems`、入箱）只判断自己导入的消息和由此产生的 Inbox 事项，不排空其他生产方的队列。捕捉结果由常驻实例入箱时，该实例立即消费新 Inbox 事件，避免把事件留在另一实例的队列。
 

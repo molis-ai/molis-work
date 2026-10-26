@@ -9,6 +9,7 @@ import type { PluginDefinition, PluginHostServices } from "@molis-ai/molis-work-
 import type { RepositoryReadRequest, SourcePullRequest } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
 import { createEvidenceContentStore, resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { openTestHome } from "./fixtures/test-home.js";
+import { publishLibrary, RESEARCH_REVISION as REVISION } from "./fixtures/research-library.js";
 
 // FI-4 step 4c (S-99 provisional, specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §10): a plugin's `services.sourcePull` pulls public
 // feeds through the platform's own transports, tells the plugin each evidence body's reference before the body is written, reads bodies back
@@ -16,21 +17,7 @@ import { openTestHome } from "./fixtures/test-home.js";
 // library read of step 4c-2).
 
 const FEED = "sources:pull_feed", QUERY = "sources:pull_query", EVIDENCE = "evidence:read", REPOSITORY = "sources:read_repository";
-const REVISION = "0123456789abcdef0123456789abcdef01234567";
 const sha = (text: string) => createHash("sha256").update(text).digest("hex");
-
-/** One published package of a research library, as Git would hold it; `tamper` changes a file after the index was hashed. */
-function publishLibrary(files: Map<string, string>, options: { enabled?: boolean; tamper?: boolean } = {}) {
-  const research = JSON.stringify({ source_records: [{ id: "source-1", title: "Evidence", url: "https://example.com/one", summary: "A bounded observation", read_scope: "page", read_scope_detail: "whole page", boundary: "one page" }],
-    findings: [{ id: "finding-1", claim: "One verifiable finding", support: "Observed once", boundary: "Only that page", source_ids: ["source-1"] }], unknowns: [] });
-  const report = "# Report\nOne verifiable finding", path = "packages/observations/daily-v1";
-  const manifest = JSON.stringify({ id: "daily-v1", source_id: "observations", usage: "reference", limitations: [], files: [{ path: "research.json", sha256: sha(research) }, { path: "report.md", sha256: sha(report) }] });
-  files.clear();
-  files.set("sources.json", JSON.stringify({ sources: [{ id: "observations", name: "Observations", publication_state: options.enabled === false ? "DRAFT" : "ENABLED" }] }));
-  files.set("catalog.json", JSON.stringify({ packages: [{ id: "daily-v1", source_id: "observations", path, published_at: "2026-09-22T00:00:00Z", manifest_sha256: sha(manifest) }] }));
-  files.set(`${path}/manifest.json`, manifest); files.set(`${path}/research.json`, research); files.set(`${path}/report.md`, options.tamper ? report + " (edited)" : report);
-  return { manifest_sha256: sha(manifest) };
-}
 const code = (expected: string) => (error: unknown) => error instanceof ActionError && error.code === expected;
 const rss = (title: string, entries: Array<{ id: string; title: string; text: string }>) => `<?xml version="1.0"?><rss version="2.0"><channel>
   <title>${title}</title><link>https://example.com/</link>${entries.map(entry => `

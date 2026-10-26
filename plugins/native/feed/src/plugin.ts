@@ -16,6 +16,8 @@ import { FeedSourceService } from "./source-service.js";
 import { createFeedSourceSyncLease } from "./source-sync-lease.js";
 import { feedContentLedgerActions } from "./content-ledger-actions.js";
 import { createRuntimePublicFeed } from "./runtime-source-pull.js";
+import { feedWakeAction, feedWakeJob, keepFeedWakeup } from "./runtime-wake.js";
+import { syncResearchLibrary } from "./research-library-sync.js";
 import { holdingsOfSnapshot, type FeedSourceHistory, type FeedSourceHistoryRelease } from "./source-history.js";
 import type { FeedSourceProviders } from "./source-ports.js";
 import { FEED_NOTIFICATION_ACTIONS } from "./notification-actions.js";
@@ -31,17 +33,18 @@ const PLATFORM_PERMISSIONS = [
   { permission: "evidence:read", required: false, reason: "读取留存的原始正文" },
   { permission: "sources:pull_feed", required: false, reason: "按平台的公开订阅源目录与格式描述来源、拉取公开订阅源" },
   { permission: "sources:pull_query", required: false, reason: "拉取固定的网页查询来源" },
+  { permission: "sources:read_repository", required: false, reason: "读取 GitHub 研究库里发布的内容" },
+  { permission: "schedule:read", required: false, reason: "查看是否已设好按时拉取" },
+  { permission: "schedule:write", required: false, reason: "设定按时拉取到期的来源" },
   { permission: "actions:invoke", required: false, reason: "向 Feed 在 Home 里的引用账登记和释放留存的正文" },
 ] as const;
-const FEED_PULL = "sources:pull_feed", QUERY_PULL = "sources:pull_query";
+const FEED_PULL = "sources:pull_feed", QUERY_PULL = "sources:pull_query", REPOSITORY_READ = "sources:read_repository";
 
 /**
  * What the Runtime Feed does not answer yet: sources and their sync, connector state, the link to a Goal's material, and the platform's
  * notifications. The slice's step 4e-2 adds them; until then they stay with the Host's Feed (`feedManifest` is still the registered one).
  */
 const NOT_YET: ReadonlySet<ActionDefinition> = new Set<ActionDefinition>([
-  // The clock is 4e-2c.
-  feedSourceActions.tick,
   ...FEED_NOTIFICATION_ACTIONS, feedQueryActions.connections, feedQueryActions.linkedContext,
 ]);
 /**
@@ -53,16 +56,20 @@ const PLATFORM_NEEDS: ReadonlyMap<ActionDefinition, readonly string[]> = new Map
   [feedSourceActions.register, [FEED_PULL]], [feedSourceActions.update, [FEED_PULL]],
   // Removing a source removes its items, with their Inbox entries and their links to Goals.
   [feedSourceActions.delete, [FEED_PULL, "attention:write", "context-ledger:write"]],
-  [feedSourceActions.sync, [FEED_PULL, QUERY_PULL]],
+  [feedSourceActions.sync, [FEED_PULL, QUERY_PULL, REPOSITORY_READ]],
+  // A tick runs the syncs, so it needs what they need, and it records a source's fault in the Inbox.
+  [feedSourceActions.tick, [FEED_PULL, QUERY_PULL, REPOSITORY_READ, "attention:write"]],
 ]);
 /** Actions that commit for themselves, because what they write comes after something they must wait for. */
-const SELF_COMMITTING: ReadonlySet<ActionDefinition> = new Set<ActionDefinition>([feedSourceActions.sync, feedSourceActions.delete]);
+const SELF_COMMITTING: ReadonlySet<ActionDefinition> = new Set<ActionDefinition>([feedSourceActions.sync, feedSourceActions.delete, feedSourceActions.tick]);
 /** The platform lets a call write its ledgers only from a concurrent action that declares the permission, so a self-committing action is one. */
 const runtimeAction = (definition: ActionDefinition): ActionDefinition => {
   const needs = PLATFORM_NEEDS.get(definition) ?? [], concurrent = SELF_COMMITTING.has(definition);
   return needs.length === 0 && !concurrent ? definition
     : { ...definition, action: { ...definition.action, permissions: [...definition.action.permissions, ...needs], ...(concurrent ? { scheduling: "concurrent" as const } : {}) } };
 };
+/** What the platform's clock wakes: a tick, for the plugin audience, with the wakeup's input. */
+const WAKE = feedWakeAction(runtimeAction(feedSourceActions.tick));
 const { notifications: _notifications, action_scenes: _scenes, ...BASE } = feedManifest;
 
 /**
@@ -73,7 +80,8 @@ export const feedRuntimeManifest: PluginManifest = { ...BASE,
   // The kinds of Inbox entry Feed adds and removes: an item's, and a source's fault.
   attention: { subjects: ["feed_item", "source_fault"] },
   permissions: [...feedManifest.permissions.filter(declared => !PLATFORM_PERMISSIONS.some(platform => platform.permission === declared.permission)), ...PLATFORM_PERMISSIONS],
-  actions: feedManifest.actions!.filter(definition => !NOT_YET.has(definition)).map(runtimeAction),
+  actions: [...feedManifest.actions!.filter(definition => !NOT_YET.has(definition)).map(runtimeAction), WAKE],
+  background: { jobs: [feedWakeJob], wakeups: [{ action: { capability_id: WAKE.capability_id, version: WAKE.version }, reason: WAKE.action.title }] },
 };
 
 const idOf = (value: { capability_id: string; version: number }) => `${value.capability_id}@${value.version}`;
@@ -136,6 +144,11 @@ export function createFeedPlugin(): PluginDefinition {
     // source actions run inside the action's own transaction and need no transaction of their own.
     const sourcesFor = (caller: ActionExecutionContext) => new FeedSourceService({ feed, providers, acquireSync: lease, appendEvent, transaction: operation => operation(),
       commit: operation => writer.commit(caller, operation),
+      syncRepository: (source, input) => {
+        const repository = sourcePull?.repository;
+        if (!repository) throw new ActionError("actions.dependency_missing", "Feed 没有读取研究库的权限");
+        return syncResearchLibrary({ feed, read: (request, options) => repository.read(request, options), commit: operation => writer.commit(caller, operation) }, source, input);
+      },
       createRuntime: (source, operationId, hold) => {
         if (!sourcePull?.pull) throw new ActionError("actions.dependency_missing", "Feed 没有取得公开来源的权限");
         return createRuntimePublicFeed(sourcePull, source, operationId ?? "", providers, hold ?? (async () => {}));
@@ -153,6 +166,8 @@ export function createFeedPlugin(): PluginDefinition {
           return { bodies_deleted: 0, bodies_kept: held.content_refs.length, records_deleted: 0, complete: false };
         }
       } }, projectId);
+    const sourceHandlers = createFeedSourceHandlers(projectId, { feed: () => feed, sources: sourcesFor, connectorSync: later("连接器同步"), wake: WAKE,
+      retire: (outcome, run) => { released = outcome; try { return run(); } finally { released = null; } } });
     const bindings: ActionHandlerBinding[] = [
       ...createFeedContentHandlers(feed, projectId, hydrate),
       ...createFeedQueryHandlers(feed, projectId, { hydrate, authStatus: later("连接状态"), linkedContext: later("Goal 关联材料") }),
@@ -163,13 +178,13 @@ export function createFeedPlugin(): PluginDefinition {
         if (!source.enabled || source.status !== "active" || lifecycle?.deleted_at) return { authorized: false, reason: "来源已暂停、断开或移除" };
         return ["manual", "public_source"].includes(source.sync_kind) ? { authorized: true } : { authorized: false, reason: "来源连接暂不可用" };
       } }),
-      ...createFeedSourceHandlers(projectId, { feed: () => feed, sources: sourcesFor, connectorSync: later("连接器同步"),
-        retire: (outcome, run) => { released = outcome; try { return run(); } finally { released = null; } } }),
+      ...sourceHandlers,
       ...createFeedItemHandlers(feed, projectId, { inboxActive: itemId => feed.listInboxEntries(projectId)
         .some(entry => entry.subject_type === "feed_item" && entry.subject_id === itemId && (entry.status === "open" || entry.status === "in_progress")) }),
     ];
-    const declared = new Set(feedRuntimeManifest.actions!.map(idOf)), own = new Set([...SELF_COMMITTING].map(idOf));
+    const declared = new Set(feedRuntimeManifest.actions!.map(idOf)), own = new Set([...SELF_COMMITTING, WAKE].map(idOf));
     const mine = bindings.filter(binding => declared.has(idOf(binding)));
+    keepFeedWakeup(services?.background, { grants: context.grants, scheduler: services?.scheduler, database, wake: WAKE });
     return { kind: "app", views: [feedUiContribution], actions: [
       ...writer.writing(feedRuntimeManifest.actions!.filter(definition => !own.has(idOf(definition))), mine.filter(binding => !own.has(idOf(binding)))),
       ...mine.filter(binding => own.has(idOf(binding))),

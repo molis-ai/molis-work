@@ -8,6 +8,7 @@ import { sourceRegistrationInput } from "./route-input.js";
 import type { ConfigureFeedSourceScheduleInput, FeedSourceSyncResult, UpdateFeedSourceInput } from "./source-ports.js";
 import { removeFeedSource } from "./source-removal.js";
 import type { FeedSourceService } from "./source-service.js";
+import type { ScheduleWakeupInput, ScheduleWakeupReply } from "@molis-ai/molis-work-contracts/services/scheduler";
 import { FeedSourceScheduler, type FeedSourceSchedulerResult } from "./source-scheduler.js";
 
 const id = { type: "string", minLength: 1, maxLength: 200 };
@@ -59,6 +60,8 @@ export interface FeedSourceActionPorts {
   connectorSync(caller: ActionCallContext): Pick<FeedConnectorSync, "sync">;
   /** Wraps the commit of a deletion with what releasing its history found; the Runtime Feed hands it to the history port. */
   retire?: Parameters<typeof removeFeedSource>[3];
+  /** The command the platform's clock wakes (Runtime Feed only): it does what a tick does, as the plugin. */
+  wake?: ActionDefinition<ScheduleWakeupInput, ScheduleWakeupReply>;
 }
 
 export function createFeedSourceHandlers(board: string, ports: FeedSourceActionPorts): ActionHandlerBinding[] {
@@ -91,6 +94,9 @@ export function createFeedSourceHandlers(board: string, ports: FeedSourceActionP
     }
     throw feedErrors.source_not_syncable("这个来源没有同步能力");
   };
+  const tick = (caller: ActionExecutionContext) => new FeedSourceScheduler(board, () => ports.sources(caller),
+    (source, key, authority) => sync({ source_id: source.source_id, idempotency_key: key }, { ...caller, beforeEffect: authority.beforeEffect }), undefined, scheduledSources)
+    .tick(new Date(), caller);
   return [
     bind(a.register, (input, caller) => {
       const registration = sourceRegistrationInput(input);
@@ -117,8 +123,11 @@ export function createFeedSourceHandlers(board: string, ports: FeedSourceActionP
       return { source: ports.sources(caller).disconnect(input.source_id) };
     }),
     bindWaiting(a.sync, sync),
-    bindWaiting(a.tick, async (_, caller) => new FeedSourceScheduler(board, () => ports.sources(caller),
-      (source, key, authority) => sync({ source_id: source.source_id, idempotency_key: key }, { ...caller, beforeEffect: authority.beforeEffect }), undefined, scheduledSources)
-      .tick(new Date(), caller)),
+    bindWaiting(a.tick, (_, caller) => tick(caller)),
+    // Each source records its own failure, so a wakeup that got as far as pulling is `ok`.
+    ...(ports.wake ? [bindWaiting(ports.wake, async (_input, caller) => {
+      const result = await tick(caller);
+      return { status: "ok" as const, detail: `到期 ${result.due}，完成 ${result.completed}，失败 ${result.failed}，跳过 ${result.skipped}` };
+    })] : []),
   ];
 }

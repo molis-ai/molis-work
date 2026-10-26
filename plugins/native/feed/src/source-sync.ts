@@ -124,13 +124,13 @@ export class PublicSourceSync {
           operation_id: operationId,
           error_code: errorCode,
         });
+        // The fault that explains the failure is part of the same write.
+        const failedSource = this.feed.getSource(this.projectId, sourceId);
+        if (this.ports.providers.rss.isSourceKind(failedSource.kind)) {
+          const fault = rssFailureAction(errorCode, this.ports.providers.rss.failureCount(failedSource.cursor));
+          if (fault) this.recordRssSourceFault(failedSource, errorCode, fault, updatedAt);
+        }
       });
-      const failedSource = this.feed.getSource(this.projectId, sourceId);
-      if (this.ports.providers.rss.isSourceKind(failedSource.kind)) {
-        const failures = this.ports.providers.rss.failureCount(failedSource.cursor);
-        const actionable = rssFailureAction(errorCode, failures);
-        if (actionable) await this.commit(() => this.recordRssSourceFault(failedSource, errorCode, actionable, updatedAt));
-      }
       throw feedErrors.source_sync_interrupted(interruptedMessage(errorCode));
     } finally {
       await runtime.shutdown().catch(() => undefined);
@@ -252,14 +252,12 @@ export class PublicSourceSync {
         created,
         deduped,
       });
-    });
-    if (rssSource) {
-      if (consumable) await this.commit(() => resolveSourceFaults(this.feed, this.projectId, entrySource.source_id));
-      else if (actionableRssFailure && terminal.error_code) {
-        const fault = actionableRssFailure, failed = terminal.error_code, saved = durableSource;
-        await this.commit(() => this.recordRssSourceFault(saved, failed, fault, completedAt));
+      // The faults a good pull ends, or the one a failed pull of a feed raises, are part of the same write.
+      if (rssSource) {
+        if (consumable) resolveSourceFaults(this.feed, this.projectId, entrySource.source_id);
+        else if (actionableRssFailure && terminal.error_code) this.recordRssSourceFault(durableSource, terminal.error_code, actionableRssFailure, completedAt);
       }
-    }
+    });
     await this.feed.flushPendingJudgments();
     return { source: durableSource, run: terminal, created, deduped, replayed: false };
   }

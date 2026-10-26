@@ -6,12 +6,13 @@ import test, { type TestContext } from "node:test";
 import Database from "better-sqlite3";
 import { ActionError, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginProjectDatabase, PluginProjectDatabaseTransaction, PluginSqlValue } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { createPluginPlatform, DEMO_PROJECT_ID, listFeedSourceCatalog, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { createPluginPlatform, DEMO_PROJECT_ID, listFeedSourceCatalog, LocalProjectDatabase, scheduleServiceFor, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { createEvidenceContentStore } from "@molis-ai/molis-work-storage";
 import { createFeedContentLedger, createFeedContentLedgerHandlers, createFeedPlugin, createFeedWriter, FEED_HOME_DATABASE, FEED_PLUGIN_ID, feedContentActions, feedContentLedgerActions, feedItemActions, feedQueryActions, feedRuleActions, feedRuntimeManifest, feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
+import { libraryGit, publishLibrary } from "./fixtures/research-library.js";
 
 // FI-4 step 4e-1 (specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §11): Feed as a Plugin Runtime plugin, not
 // registered anywhere yet. Started beside the platform's own services (project database, Attention, Context Ledger), it answers the
@@ -51,7 +52,7 @@ async function ledgerStandIn(home: string): Promise<{ definition: PluginDefiniti
     holds: () => reader.all("SELECT content_ref, project_id, source_id FROM feed_content_holds ORDER BY content_ref") as Array<{ content_ref: string; project_id: string; source_id: string }> };
 }
 
-async function platform(t: TestContext, options: { fetch?: (input: string | URL) => Promise<Response>; ledger?: boolean } = {}) {
+async function platform(t: TestContext, options: { fetch?: (input: string | URL) => Promise<Response>; ledger?: boolean; git?: ReturnType<typeof libraryGit>; clock?: boolean } = {}) {
   const home = mkdtempSync(join(tmpdir(), "feed-runtime-plugin-")), file = join(home, "project.db");
   seedDemoBoard(file);
   const store = new LocalProjectDatabase(file), actions = pluginActions(store, DEMO_PROJECT_ID);
@@ -60,7 +61,8 @@ async function platform(t: TestContext, options: { fetch?: (input: string | URL)
   const running = createPluginPlatform({ actions, project_id: DEMO_PROJECT_ID, actor_id: HOST_ACTOR, db: store.db, journal: store,
     artifacts: new ArtifactsModule(ports), processItems: new ProcessItemsModule(ports), ui: new UiHost(),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }), home: null,
-    ...(options.fetch ? { sourcePullFetch: options.fetch } : {}) });
+    ...(options.fetch ? { sourcePullFetch: options.fetch } : {}), ...(options.git ? { sourcePullGit: options.git } : {}),
+    ...(options.clock ? { scheduler: scheduleServiceFor(store.db) } : {}) });
   const homeHalf = options.ledger ? await ledgerStandIn(home) : null;
   t.after(async () => {
     try {
@@ -72,7 +74,7 @@ async function platform(t: TestContext, options: { fetch?: (input: string | URL)
   const started = await running.start([{ definition: createFeedPlugin(), trust }, ...(homeHalf ? [{ definition: homeHalf.definition, trust }] : [])]);
   assert.deepEqual(started.running, [feedRuntimeManifest.plugin_id, ...(homeHalf ? [homeHalf.definition.manifest.plugin_id] : [])], JSON.stringify(started));
   const count = (sql: string, ...parameters: unknown[]) => (store.db.prepare(sql).get(...parameters as never[]) as { n: number }).n;
-  return { store, client: actions.client, count, holds: () => homeHalf?.holds() ?? [] };
+  return { store, client: actions.client, count, holds: () => homeHalf?.holds() ?? [], clock: () => scheduleServiceFor(store.db) };
 }
 
 /** The original caller of an action, who can be cancelled or revoked from outside. */
@@ -189,21 +191,23 @@ test("RAC-506 a Runtime Feed registers a source from the platform's vocabulary, 
 
 // RAC-492 .. RAC-518 (4e-2b): a Runtime Feed pulls a public source through the platform, names and holds every body before it is written,
 // commits the result as one write, and gives the bodies back when the source's history is deleted.
-const SYNC = [...WRITE, "sources:pull_feed", "sources:pull_query"];
+const SYNC = [...WRITE, "sources:pull_feed", "sources:pull_query", "sources:read_repository"];
 /** Deleting a source also removes its items' Inbox entries and links to Goals, so the call holds what those ledgers ask. */
 const DELETE = [...DESCRIBE, "attention:write", "context-ledger:write"];
+/** A tick runs every kind of sync and records a source's fault in the Inbox. */
+const TICK = [...SYNC, "attention:write"];
 const feedXml = (entries: Array<{ id: string; title: string }>) => `<?xml version="1.0"?><rss version="2.0"><channel><title>Runtime feed</title><link>https://example.com/</link>${entries.map(entry => `
   <item><guid>https://example.com/posts/${entry.id}</guid><title>${entry.title}</title><link>https://example.com/posts/${entry.id}</link>
   <description>Body of ${entry.title} for the runtime sync test.</description><pubDate>Sat, 30 Aug 2026 08:00:00 GMT</pubDate></item>`).join("")}</channel></rss>`;
 
-async function syncing(t: TestContext, options: { ledger?: boolean } = {}) {
+async function syncing(t: TestContext, options: { ledger?: boolean; clock?: boolean } = {}) {
   const fetched: string[] = [], feeds = new Map<string, string>();
   const fetch = async (input: string | URL) => {
     fetched.push(String(input));
     const body = feeds.get(String(input));
     return body ? new Response(body, { status: 200, headers: { "content-type": "application/rss+xml" } }) : new Response("missing", { status: 404 });
   };
-  const f = await platform(t, { fetch, ledger: options.ledger ?? true });
+  const f = await platform(t, { fetch, ledger: options.ledger ?? true, ...(options.clock ? { clock: true } : {}) });
   const entry = listFeedSourceCatalog()[0]!;
   feeds.set(entry.feed_url, feedXml([{ id: "one", title: "First" }, { id: "two", title: "Second" }]));
   const registered = await f.client.invoke(caller(DESCRIBE).context, feedSourceActions.register, { kind: "rss", definition_id: entry.id }) as { source: { source_id: string } };
@@ -336,4 +340,60 @@ test("RAC-509 writing() rolls back what a handler wrote when it fails in its syn
   const [wrapped] = createFeedWriter(database, ports).writing([command], [{ capability_id: "t.command", version: 1, handle: () => { write("first"); throw new ActionError("feed.invalid_transition", "refused"); } }]);
   await assert.rejects(wrapped!.handle(context, {}), { code: "feed.invalid_transition" });
   assert.deepEqual(log, ["before", "begin", "actor:audited", "write:first", "rollback"]);
+});
+
+/** Makes a source's next pull due: the tick reads the clock itself, so the plan is moved back instead. */
+const dueNow = (store: LocalProjectDatabase, sourceId: string) =>
+  store.db.prepare("UPDATE feed_sources SET schedule_json = json_set(schedule_json, '$.next_pull_at', ?) WHERE source_id = ?").run(new Date(Date.now() - 60_000).toISOString(), sourceId);
+
+// RAC-518 (4e-2c)
+test("RAC-518 a tick pulls the sources that are due, moves their next pull on, and leaves the rest", async t => {
+  const f = await syncing(t);
+  await f.client.invoke(caller(WRITE).context, feedSourceActions.schedule, { source_id: f.sourceId, mode: "interval", enabled: true, interval_minutes: 30 });
+  const tick = () => f.client.invoke(caller(TICK).context, feedSourceActions.tick, {}) as Promise<{ due: number; completed: number; failed: number; skipped: number }>;
+  assert.deepEqual(await tick(), { due: 0, completed: 0, failed: 0, skipped: 0 }, "a source planned for later is not pulled");
+  dueNow(f.store, f.sourceId);
+  assert.deepEqual(await tick(), { due: 1, completed: 1, failed: 0, skipped: 0 });
+  assert.equal(f.count("SELECT count(*) AS n FROM feed_items WHERE source_id = ?", f.sourceId), 2);
+  assert.equal(f.holds().length, 2, "the bodies it pulled are held in the Home's ledger like any other pull");
+  assert.deepEqual(await tick(), { due: 0, completed: 0, failed: 0, skipped: 0 }, "the next pull moved on, so it is not due again");
+  const next = (f.store.db.prepare("SELECT schedule_json FROM feed_sources WHERE source_id = ?").get(f.sourceId) as { schedule_json: string }).schedule_json;
+  assert.ok(Date.parse((JSON.parse(next) as { next_pull_at: string }).next_pull_at) > Date.now(), "the plan is in the future");
+});
+
+test("RAC-518 a research library is read through the platform: one item per published package, and the same package again is not new", async t => {
+  const files = new Map<string, string>(), calls: Array<readonly string[]> = [];
+  publishLibrary(files);
+  const f = await platform(t, { git: libraryGit(files, calls) });
+  const registered = await f.client.invoke(caller(DESCRIBE).context, feedSourceActions.register, { kind: "research_library", repository: "fixture/research", research_source: "observations" }) as { source: { source_id: string } };
+  const sourceId = registered.source.source_id;
+  const sync = (key: string) => f.client.invoke(caller(SYNC).context, feedSourceActions.sync, { source_id: sourceId, idempotency_key: key }) as Promise<{ created: number; deduped: number; replayed: boolean; run: { outcome: string } }>;
+  const first = await sync("research-sync-1");
+  assert.deepEqual([first.created, first.deduped, first.replayed, first.run.outcome], [1, 0, false, "completed"]);
+  assert.equal(f.count("SELECT count(*) AS n FROM feed_items WHERE source_id = ?", sourceId), 1);
+  assert.ok(calls.length > 0, "the platform's reader ran Git, not the plugin");
+  assert.equal((await sync("research-sync-1")).replayed, true, "the same key is the same pull");
+  const again = await sync("research-sync-2");
+  assert.deepEqual([again.created, again.deduped], [0, 1], "an unchanged package is not a new item");
+  assert.equal(f.count("SELECT count(*) AS n FROM feed_items WHERE source_id = ?", sourceId), 1);
+  // A library that cannot be read ends the run interrupted and leaves the source in error, with nothing half written.
+  files.clear();
+  await assert.rejects(sync("research-sync-3"), { code: "feed.source_sync_interrupted" });
+  assert.equal(f.count("SELECT count(*) AS n FROM feed_source_runs WHERE source_id = ? AND phase = 'interrupted'", sourceId), 1);
+  assert.equal(f.count("SELECT count(*) AS n FROM feed_items WHERE source_id = ?", sourceId), 1);
+});
+
+test("RAC-518 the platform's clock wakes Feed: its job is set once, and a wakeup pulls what is due", async t => {
+  const f = await syncing(t, { clock: true });
+  const jobs = () => f.clock().list(FEED_PLUGIN_ID).filter(job => job.capability_id === "feed.sources.wake");
+  // Feed asks from a job it keeps, once the installation is recorded as running.
+  for (let waited = 0; jobs().length === 0 && waited < 3_000; waited += 25) await new Promise(resolve => setTimeout(resolve, 25));
+  assert.equal(jobs().length, 1, "Feed asked for its own wakeup when it started");
+  assert.deepEqual([jobs()[0]!.recurrence, jobs()[0]!.enabled], [{ kind: "interval", interval_ms: 30_000 }, true]);
+  await f.client.invoke(caller(WRITE).context, feedSourceActions.schedule, { source_id: f.sourceId, mode: "interval", enabled: true, interval_minutes: 30 });
+  dueNow(f.store, f.sourceId);
+  const woke = await f.clock().tick(new Date(Date.now() + 60_000));
+  assert.deepEqual([woke.invoked, woke.failed], [1, 0]);
+  assert.equal(f.count("SELECT count(*) AS n FROM feed_items WHERE source_id = ?", f.sourceId), 2, "the wakeup pulled the due source as the plugin");
+  assert.ok(jobs()[0]!.last_wakeup && jobs()[0]!.last_wakeup!.status === "ok");
 });

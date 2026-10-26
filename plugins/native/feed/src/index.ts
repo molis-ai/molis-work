@@ -61,6 +61,7 @@ export type { FeedArtifactProducer, FeedOutRuleWrite } from "./out-rules.js";
 export { createFeedExactRouteResolver, type FeedExactSourceDefinitions } from "./exact-source-routes.js";
 
 export { FeedSourceService } from "./source-service.js";
+export { syncResearchLibrary, type ResearchLibraryEntry, type ResearchLibrarySyncPorts } from "./research-library-sync.js";
 export type * from "./source-ports.js";
 export { createFeedSourceSyncGuard, type FeedSourceSyncAuthority, type FeedSourceSyncGuard } from "./source-sync-guard.js";
 

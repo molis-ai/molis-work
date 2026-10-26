@@ -1,7 +1,8 @@
 /**
  * 插件 in a project's settings (ac-trust T7, specs/repository-anti-corruption/slices/ac-trust-install.md): what is installed in the project
  * with who signed it, what it asked for and why, what it keeps doing in the background and the agreements the person gave it; installing a
- * signed package (preview, then confirm); taking an agreement back. What it shows and installs goes through
+ * signed package (preview, then confirm; a newer package of an installed plugin is its upgrade) and switching a signed plugin off and on or taking it
+ * off (BL-623); taking an agreement back. What it shows and installs goes through
  * `/projects/<id>/api/plugin-trust/*`, which invokes the shared `plugins.*` actions as the person; an agreement is taken back through the
  * Host's one settings door for it, `/api/settings/plugin-consents/revoke` (S-77), never through a route of the plugin page's own; taking a publisher back goes through the same door (`/api/settings/plugin-publishers/revoke`, S-87).
  */
@@ -96,7 +97,26 @@ item.append(revoke);
 }
 return item;
 }));
-const installed = (plugin) => {
+// A signed plugin is switched off and on and taken off here (BL-623); a publisher taken back leaves only taking it off.
+const controls = (plugin, revoked) => {
+const box = el("div", "plugin-trust-actions");
+const step = (text, variant, name, payload, done, title, detail) => {
+const node = button(text, variant);
+node.addEventListener("click", async () => {
+if (title && !await ask(title, detail, text)) return;
+error.hidden = true;
+try { await api("/installed/" + name, { plugin_id: plugin.plugin_id, ...payload }); toast(done); await load(); } catch (failure) { fail(failure); }
+});
+box.append(node);
+};
+const name = plugin.name;
+if (plugin.state === "running") step(L("停用"), "mw-btn--secondary", "disable", {}, L("已停用"), L("停用这个插件？"), L("{plugin} 停用后不再运行，也不再提供动作；数据保留，可以随时重新启用。", { plugin: name }));
+else if (plugin.state === "disabled" && !revoked.has(plugin.publisher_signature)) step(L("启用"), "mw-btn--secondary", "enable", {}, L("已启用"));
+step(L("卸载并保留数据"), "mw-btn--ghost", "uninstall", { keep_data: true }, L("已卸载"), L("卸载这个插件？"), L("{plugin} 会被卸载，它的数据保留；以后再装同一个插件时会接着用。", { plugin: name }));
+step(L("卸载并删除数据"), "mw-btn--ghost", "uninstall", { keep_data: false }, L("已卸载"), L("卸载这个插件？"), L("{plugin} 会被卸载，它的数据一并删除，不能恢复。", { plugin: name }));
+return box;
+};
+const installed = (plugin, revoked) => {
 const box = el("details", "settings-advanced plugin-trust-item"), summary = el("summary"), copy = el("span", "setting-copy");
 copy.append(el("strong", "", plugin.name + " · " + plugin.version), el("span", "", L(TRUST[plugin.trust] || plugin.trust) + (plugin.publisher_label ? " · " + plugin.publisher_label : "") + " · " + L(STATE[plugin.state] || plugin.state)));
 summary.append(copy); const mark = $("[data-plugin-trust-chevron]"); if (mark) summary.append(mark.content.cloneNode(true));
@@ -104,7 +124,7 @@ const body = el("div", "plugin-trust-body");
 body.append(el("span", "settings-muted", plugin.plugin_id + (plugin.publisher_signature && plugin.trust !== "host" ? " · " + short(plugin.publisher_signature) : "")));
 body.append(plugin.manifest_available ? permissions(plugin.permissions) : el("span", "settings-muted", L("读不到这个插件安装时声明的权限")));
 if (plugin.manifest_available) body.append(jobs(plugin.jobs));
-body.append(consents(plugin)); box.append(summary, body);
+body.append(consents(plugin)); if (plugin.trust === "pinned") body.append(controls(plugin, revoked)); box.append(summary, body);
 const item = el("li"); item.append(box); return item;
 };
 const publisher = (pin) => {
@@ -120,9 +140,12 @@ item.append(revoke);
 }
 return item;
 };
+let current = [];
 const load = async () => {
 const data = await api("/overview");
-draw($("[data-plugin-trust-list]"), L("这个项目里还没有装插件"), data.plugins.map(installed));
+current = data.plugins;
+const revoked = new Set(data.publishers.filter((pin) => pin.revoked_at).map((pin) => pin.key_id));
+draw($("[data-plugin-trust-list]"), L("这个项目里还没有装插件"), data.plugins.map((plugin) => installed(plugin, revoked)));
 draw($("[data-plugin-trust-publishers]"), L("你还没有固定过发布者"), data.publishers.map(publisher));
 };
 const preview = $("[data-plugin-trust-preview]");
@@ -130,6 +153,8 @@ const close = () => { preview.replaceChildren(); preview.hidden = true; };
 const review = (shown) => {
 const view = shown.preview, panel = el("div", "plugin-trust-review");
 panel.append(el("h3", "", shown.name + " · " + view.version), el("span", "settings-muted", view.plugin_id + " · " + L("签名者 {id}", { id: short(shown.publisher.key_id) })));
+const was = current.find((plugin) => plugin.plugin_id === view.plugin_id);
+if (was) panel.append(el("span", "", L("已装的是 {from}，装上后升级到 {to}；数据保留。", { from: was.version, to: view.version })));
 panel.append(permissions(view.permissions), jobs(view.jobs));
 const effects = Object.keys(shown.effects || {}).filter((key) => shown.effects[key] && shown.effects[key].length);
 panel.append(group(L("它的代码能做的事"), L("不读写任何东西"), effects.map((key) => row(L(EFFECT[key] || key), shown.effects[key].join("、")))));

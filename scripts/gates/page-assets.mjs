@@ -245,13 +245,16 @@ const headErrors = (measured, budget, base) => {
 // ac-trust T7, against main after batch-40 (the entries batch-40 used are gone): the project settings 插件 page (install preview, each
 // permission with its reason and the platform's meaning, jobs, agreements, revoke) is drawn by one inline client script, and the settings
 // cover embeds that page and binds it from the `molis-work:settings-embed` event, so the script has to be part of the workbench script:
-// - workbench.js +9,467 B (1,129,446 -> 1,138,913): 9.3 KB of UI text and DOM building, of which +629 B is taking a publisher back (T5b: a
-//   button, its confirmation and the English text). Tried: no second client or dialog library, one shared `el`/`button` helper, the install
-//   and both revoke paths reuse `molisWorkRequest` and the one `ask` dialog; the rest is Chinese text that has to be there.
+// - workbench.js +11,152 B (1,129,446 -> 1,140,598): 9.3 KB of UI text and DOM building, of which +629 B is taking a publisher back (T5b: a
+//   button, its confirmation and the English text), and +1,685 B is BL-623, the buttons that switch a signed plugin off and on and take it off
+//   (each asks first through the same `ask` dialog), the one line a preview shows when the package is an upgrade, and their English text.
+//   Tried: no second client or dialog library, one shared `el`/`button` helper, the install, the upgrade and all the revoke and control paths
+//   reuse `molisWorkRequest` and the one `ask` dialog, the three control steps share one `step` helper; the rest is Chinese text that has to be there.
+//   T7 with T5b (+9,467) was reviewed on its own; after it lands on main the first number here is main's bytes and the entry is +1,685.
 // - workbench.css +1,369 B (1,234,610 -> 1,235,979): the page's rules (`styles/settings-plugins.ts`), written from the existing tokens.
-// No new asset. Each is under 10 KB.
+// No new asset. The css is under 10 KB; the script is 1.7 KB over what T7 with T5b was admitted at.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1129446, 1138913],
+  "/assets/molis-work-workbench.js": [1129446, 1140598],
   "/assets/molis-work-workbench.css": [1234610, 1235979],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

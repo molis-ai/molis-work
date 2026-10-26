@@ -5,7 +5,7 @@ import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/p
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { localWebActionContext } from "./local-web-actions.js";
 import { dispatchNativePluginJsonHttp } from "./native-plugin-http.js";
-import { PLUGIN_INSTALL_PROVIDER_ID, pluginInstallActions } from "./plugin-install-actions.js";
+import { PLUGIN_INSTALL_PROVIDER_ID, pluginControlActions, pluginInstallActions } from "./plugin-install-actions.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
 
 /** A package carries the plugin's code and files, base64 inside the signed bundle; the command line's route takes the same. */
@@ -13,7 +13,7 @@ const MAX_PACKAGE_BYTES = 24 * 1024 * 1024;
 
 /**
  * The workbench's door to a project's plugins (ac-trust T7): what is installed here with its permissions and agreements, installing a
- * signed package (preview, then confirm). Each route invokes the shared actions as the person, and says so itself: the entry stamps the
+ * signed package (preview, then confirm; a newer package of an installed plugin is its upgrade), switching it off and on, taking it off. Each route invokes the shared actions as the person, and says so itself: the entry stamps the
  * person's own page request (`user_action`, S-58) and nothing in the request body is read for it. Taking an agreement back is not here:
  * `plugins.consents.revoke@1` takes only the Host's settings door (`/api/settings/plugin-consents/revoke`, S-77), so the page calls that.
  */
@@ -34,6 +34,9 @@ export async function handlePluginTrustHttp(request: IncomingMessage, response: 
       if (method !== "POST") return null;
       if (route === "install/preview") return { status: 200, body: await call(PLUGIN_INSTALL_PROVIDER_ID, pluginInstallActions.preview, body) };
       if (route === "install/confirm") return { status: 200, body: await call(PLUGIN_INSTALL_PROVIDER_ID, pluginInstallActions.confirm, body) };
+      if (route === "installed/disable") return { status: 200, body: await call(PLUGIN_INSTALL_PROVIDER_ID, pluginControlActions.disable, body) };
+      if (route === "installed/enable") return { status: 200, body: await call(PLUGIN_INSTALL_PROVIDER_ID, pluginControlActions.enable, body) };
+      if (route === "installed/uninstall") return { status: 200, body: await call(PLUGIN_INSTALL_PROVIDER_ID, pluginControlActions.uninstall, body) };
       return null;
     },
   });

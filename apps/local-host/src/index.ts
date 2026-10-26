@@ -126,7 +126,7 @@ export { connectorManagementActions, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGE
 export { connectorUsagesAction } from "./connector-usage-actions.js";
 export { connectorPluginSlotActions } from "./connector-plugin-slot-actions.js";
 export { PLUGIN_CONSENT_PERMISSIONS, pluginConsentActions, pluginConsentProvider } from "./installed-plugin-consent-actions.js";
-export { PLUGIN_INSTALL_PERMISSIONS, pluginInstallActions } from "./plugin-install-actions.js";
+export { PLUGIN_INSTALL_PERMISSIONS, pluginControlActions, pluginInstallActions } from "./plugin-install-actions.js";
 export { PluginInstallService } from "./plugin-install-service.js";
 export { installedPluginViews } from "./plugin-installed-view.js";
 export { runLocalPluginInstall, type LocalPluginInstallInput } from "./plugin-install-client.js";

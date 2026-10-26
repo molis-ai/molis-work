@@ -775,7 +775,7 @@ test('T2-FIX-02 a failed signed-package install keeps its pin and immutable pack
   } finally { await h.close(); }
 });
 
-test('T2-FIX-05 pinned upgrade and rollback return plugin.state_invalid without changing the installation, approval, pin or package', mac, async () => {
+test('T2-FIX-05 BL623-02 a pinned rollback returns plugin.state_invalid, and an upgrade to the version already installed plugin.upgrade_required, without changing the installation, approval, pin or package', mac, async () => {
   const h = await signedInstallFixture(), publisher = newPublisher(), bundle = signedPackage(publisher);
   try {
     await h.confirm(bundle);
@@ -785,9 +785,8 @@ test('T2-FIX-05 pinned upgrade and rollback return plugin.state_invalid without 
     assert.equal(before[0]!.state, 'running', 'the package is genuinely installed and started before the refusals');
     const approval = installed.storage.get(approvalKey), pins = h.ledger.publishers(), bytes = await readFile(release.bundlePath);
     for (const action of ['upgrade', 'rollback'] as const) {
-      const verb = action === 'upgrade' ? '升级' : '回滚';
-      await assert.rejects(installed.lifecycle(action, release, { consent: true }), error => error instanceof ActionError
-        && error.code === 'plugin.state_invalid' && error.message === '从签名的包装进来的插件还不能' + verb + '：先卸载，再装新的包');
+      await assert.rejects(installed.lifecycle(action, release, { consent: true }), error => error instanceof ActionError && (action === 'upgrade'
+        ? error.code === 'plugin.upgrade_required' : error.code === 'plugin.state_invalid' && error.message === '从签名的包装进来的插件还不能回滚：先卸载，再装新的包'));
       assert.deepEqual(records(), before); assert.equal(installed.storage.get(approvalKey), approval);
       assert.deepEqual(h.ledger.publishers(), pins); assert.deepEqual(await readFile(release.bundlePath), bytes);
       assert.equal(installed.releaseFor(PACKAGE_PLUGIN_ID)?.packaged?.manifest.version, '1.0.0');
@@ -800,7 +799,7 @@ test('RAC-392 S-87 an installation of a publisher taken back is stopped when the
   try {
     await h.confirm(bundle);
     const release = h.packages.load(PACKAGE_PLUGIN_ID, publisher.identity, '1.0.0');
-    new PluginInstallService({ ledger: h.ledger, packages: h.packages, install: async () => undefined, installed: async () => [] }).revokePublisher(publisher.identity);
+    new PluginInstallService({ ledger: h.ledger, packages: h.packages, install: async () => undefined, installed: async () => [], control: async () => 'disabled' }).revokePublisher(publisher.identity);
     const stopped = async () => {
       const installed = await h.control();
       assert.equal(installed.platform.runtime.list().find(row => row.plugin_id === PACKAGE_PLUGIN_ID)?.state, 'disabled', 'stopped, not left running');
@@ -821,7 +820,7 @@ test('RAC-392 S-87 a Host restarted right after a publisher was taken back, befo
     const running = await h.control();
     assert.equal(running.platform.runtime.list().find(row => row.plugin_id === PACKAGE_PLUGIN_ID)?.state, 'running', 'it was running when the publisher was taken back');
     const release = h.packages.load(PACKAGE_PLUGIN_ID, publisher.identity, '1.0.0');
-    new PluginInstallService({ ledger: h.ledger, packages: h.packages, install: async () => undefined, installed: async () => [] }).revokePublisher(publisher.identity);
+    new PluginInstallService({ ledger: h.ledger, packages: h.packages, install: async () => undefined, installed: async () => [], control: async () => 'disabled' }).revokePublisher(publisher.identity);
     // The restart is the first thing that looks: the installation's record still says it runs, and the package on disk still verifies against its pin.
     const restarted = await h.reopen();
     assert.notEqual(restarted.platform.runtime.list().find(row => row.plugin_id === PACKAGE_PLUGIN_ID)?.state, 'running', 'not started again');

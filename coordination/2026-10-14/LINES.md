@@ -192,3 +192,4 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
   - ac-kernel ← batch B（`AssistantService` 拆分）叠在 `6a2d59cef` 上，RAC-917～929，先合 `277765a79` 写文档，不等它进 main。
   - ac-sc3 ← W5-10 批 A 走过渡模板拆分（不做 W5-04 打包）：先 navigation-feed → functions/client（从 main `29f1ffd47`）；tab-workspace、assistant-island 等 batch-42 落地与记忆线定。
   - ac-coding ← W5-10 新批 J（`ProjectsRepository`、`RuntimeProjectBindingCommands`，RAC-930～944、BL-720～724），再批 K（两个 Alchemist 仓库，只机械拆分，RAC-945～959、BL-725～729）。PG-001+批 I `2fc40a619` 评过可合，进 batch-42。
+- **10-26 batch-42 续并**：PG-001+批 I `2fc40a619`（privileges PG-001 行取「已做」版并补 batch-41 SHA）、批 D `5f52a8910`（拆出的文件改 import `./contract.js`，PG-111 已把 Shelf 合同搬进包内）、判定 FIX `277765a79`（ac-review-2 复评中）；远端批头 `5828761e9`，未构建，本地 ac-batch42 仍在 `5ede77bce` 跑切片用例。统筹交接见 `HANDOFF-2026-10-26.md`。

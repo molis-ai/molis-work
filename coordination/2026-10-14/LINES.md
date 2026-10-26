@@ -187,3 +187,8 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
 - **10-26 用户弹窗（BL-628/BL-530）**：S-80 只对「签名固定 + 沙箱」放开；外部集成支持、跑沙箱、前置改 BL-628；账号按调用临时给连接（S-94）；地址由签名包写精确 https 来源（放宽 S-69）。ac-clients-1 开工 BL-628 P1～P5；ac-registry 先做 BL-530 不依赖 Home 实例的部分。
 - **10-26 batch-41 落地**：#1310 squash 成 main `29f1ffd47`，树与批头 `8742d5d65` 相同；`integration/carrier-1025-41` 与工作树 ac-batch41 已删；privileges 随 batch-42 补 main SHA。
 - **10-26 batch-42 合成**（`batch/1026-42`，头见分支）：已合 PG-053 `7278bb47e`、PG-111+PG-095 Shelf `208bb8708`、PG-046 `72921fbaf`、场景+R-61 `f6fbd6db9`（S-88～90）、BL-623 `720e69948`、PG-031/057 `35d8be3dc`、BL-596 `7613ac854`，另 W5-15、R-58/R-59、A 片、PG-026/102 文档。合成树修：PG-031 改按 id 指 Pages/灵光/Shelf（PG-111 删了那几个合同子路径）。合成树 `pnpm build` 过；API 与动作快照无变化；页面资源对 batch-41：characters.js +1,757（PG-053 搬家）、workbench.js +587（净）。待并：BL-596 FIX（授权随最后一处走）、F2、PG-002+BL-700（挡 1 项退 ac-shell）、PG-001+批 I、W5-10 判定 FIX 与批 D、#1255 S-91、P2e S-92、Codex F1/I1/实现 2、ac-kernel threads A。BL-680（删项目时 Shelf 副本留不留）待用户定。
+- **10-26 第四轮派片**：
+  - ac-review-2 ← W5-10 判定 FIX `8bf4c6235..277765a79` 复评；再评 ac-kernel threads 方案 A `35d8be3dc..6a2d59cef`（页面资源 workbench.js +225 B、plugin-frame.js +22 B 统筹已认，合批时按实测重算放行）。
+  - ac-kernel ← batch B（`AssistantService` 拆分）叠在 `6a2d59cef` 上，RAC-917～929，先合 `277765a79` 写文档，不等它进 main。
+  - ac-sc3 ← W5-10 批 A 走过渡模板拆分（不做 W5-04 打包）：先 navigation-feed → functions/client（从 main `29f1ffd47`）；tab-workspace、assistant-island 等 batch-42 落地与记忆线定。
+  - ac-coding ← W5-10 新批 J（`ProjectsRepository`、`RuntimeProjectBindingCommands`，RAC-930～944、BL-720～724），再批 K（两个 Alchemist 仓库，只机械拆分，RAC-945～959、BL-725～729）。PG-001+批 I `2fc40a619` 评过可合，进 batch-42。

@@ -14,7 +14,12 @@ Host 把用户 Home 下的 `shelf/`（声明的条目是 `catalog.json`、`files
 
 | 文件 | 用途 |
 | --- | --- |
-| [src/store.ts](src/store.ts) | 架子目录、进货、隐藏/删除、任务 |
+| [src/store.ts](src/store.ts) | `ShelfStore`：设置、运行环境探测、快照，其余转发给下面四个协作者 |
+| [src/catalog.ts](src/catalog.ts) | 目录文件的形状与唯一的读写入口（`ShelfCatalogAccess`） |
+| [src/admissions.ts](src/admissions.ts) | 进货：文件、文件夹、文字、链接、示例、结果再用作材料 |
+| [src/copies.ts](src/copies.ts) | 已在架子上的副本：读取、隐藏、登记原件、编辑、删除 |
+| [src/jobs.ts](src/jobs.ts)、[src/job-steps.ts](src/job-steps.ts) | 任务：计划、暂存、生成、提交、记失败，以及取消 |
+| [src/clipboard-store.ts](src/clipboard-store.ts) | 剪贴板历史，以及把一条变成材料 |
 | [src/copy-checks.ts](src/copy-checks.ts) | 副本的内容 Hash；任务开始前与每次写入前核对原件 |
 | [src/extract.ts](src/extract.ts) | 提取结果的产品 Markdown 与文件名 |
 | [src/pdf.ts](src/pdf.ts) | 示例 PDF 的生成与已知正文 |

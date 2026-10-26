@@ -259,8 +259,14 @@ const headErrors = (measured, budget, base) => {
 // - workbench.css +1,369 B (1,234,610 -> 1,235,979): the page's rules (`styles/settings-plugins.ts`), written from the existing tokens.
 // No new asset. Each is under 10 KB.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1129446, 1138913],
-  "/assets/molis-work-workbench.css": [1234610, 1235979],
+// Combined batch-41 tree (coordinator, 2026-10-26), measured after `pnpm build` on the merge of all of the above against main 2b3dc51de:
+// - workbench.js 1,129,446 -> 1,139,387 (+9,941 B, under 10 KB): T7/T5b +9,467, PG-049's notice language +290, and +184 for two English
+//   strings merged with PG-024 (「{name} 在这个项目里的数据」) and A3's dev view (「成果库保存的大文件原件」).
+// - workbench.css 1,234,610 -> 1,236,084 (+1,474 B): T7's settings-plugins sheet +1,369 and I1's wrapped local-directory paths +105.
+// - settings.css 932,738 -> 932,843 (+105 B): the same I1 rule in the settings document sheet (2fd7d21d8, PIPE Ready 6404410441).
+  "/assets/molis-work-workbench.js": [1129446, 1139387],
+  "/assets/molis-work-workbench.css": [1234610, 1236084],
+  "/assets/molis-work-settings.css": [932738, 932843],
   "/assets/molis-work-plugins/shelf.js": [63376, 64623],
   // #1306 (with F1's review fixes) reuses arrival's choice/field/button styles instead of the settings document stylesheet. The
   // journey changes and the valid dark welcome pseudo-element selector net +135 B (681,352 -> 681,487). Shared glow declarations

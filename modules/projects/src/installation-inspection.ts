@@ -1,5 +1,5 @@
 import type { ProjectRecord } from "@molis-ai/molis-work-contracts/modules/projects";
-import type { ProjectsSqliteDatabase } from "./repository.js";
+import type { ProjectsSqliteDatabase } from "./sqlite.js";
 
 function projectDataClass(value: unknown): ProjectRecord["data_class"] {
   return String(value) === "regenerable_demo" ? "regenerable_demo" : "user";

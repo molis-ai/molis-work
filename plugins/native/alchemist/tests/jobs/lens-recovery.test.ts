@@ -28,7 +28,7 @@ it("resumes a Lens from its last safe evidence checkpoint after process restart"
     let sequence = 0;
     const idFactory = { next: (prefix: string) => `${prefix}-recovery-${++sequence}` };
     let research = new SqliteResearchRepository(database);
-    research.createPlan({
+    research.plans.createPlan({
       id: "plan-market",
       key: marketLensCompatibilityKey("idea-01", 1),
       scopeSummary: "验证需求与竞争",
@@ -53,7 +53,7 @@ it("resumes a Lens from its last safe evidence checkpoint after process restart"
     });
     expect(before.claim(run.jobId)?.id).toBe(run.jobId);
     const ideaVersion = new SqliteIdeaRepository(database).getVersion("idea-01", 1);
-    const plan = research.getPlan("plan-market");
+    const plan = research.plans.getPlan("plan-market");
     if (!ideaVersion || !plan) throw new Error("TEST_FIXTURE_INCOMPLETE");
     const executionRuntime = new FixtureResearchRuntimeAdapter();
     const evidence = await executionRuntime.collect({ plan, ideaVersion, idFactory, now: clock.now() });
@@ -63,7 +63,7 @@ it("resumes a Lens from its last safe evidence checkpoint after process restart"
       type: "stage_completed",
       payload: { stage: "collecting" },
     });
-    research.updateRun(run.id, { status: "running", stage: "cross_checking", now: clock.now() });
+    research.runs.updateRun(run.id, { status: "running", stage: "cross_checking", now: clock.now() });
 
     database.close();
     clock.set("2026-07-31T10:00:02.000Z");
@@ -96,9 +96,9 @@ it("resumes a Lens from its last safe evidence checkpoint after process restart"
     acceptTestJob(worker, run.jobId);
     await worker.runNext();
 
-    expect(research.getRun(run.id)?.status).toBe("completed");
+    expect(research.runs.getRun(run.id)?.status).toBe("completed");
     expect(
-      research.listEvidence(research.getLatestReport(marketLensCompatibilityKey("idea-01", 1))?.id ?? ""),
+      research.reports.listEvidence(research.reports.getLatestReport(marketLensCompatibilityKey("idea-01", 1))?.id ?? ""),
     ).toHaveLength(evidence.length);
     expect(after.listEvents(run.jobId).filter((event) => event.type === "stage_completed")).toHaveLength(3);
   } finally {

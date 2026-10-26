@@ -40,12 +40,12 @@ export function createDecisionWorkspaceService(dependencies: Dependencies) {
     const idea = dependencies.ideas.getIdea(ideaId);
     const version = dependencies.ideas.getVersion(ideaId, ideaVersion);
     if (!idea || !version) throw new DecisionServiceError("alchemist.idea_version_not_found");
-    const scope = dependencies.research.getMvpScopeForIdeaVersion(ideaId, ideaVersion);
-    const marketReport = dependencies.research.getLatestReport(
+    const scope = dependencies.research.plans.getMvpScopeForIdeaVersion(ideaId, ideaVersion);
+    const marketReport = dependencies.research.reports.getLatestReport(
       marketLensCompatibilityKey(ideaId, ideaVersion),
     );
     const costReport = scope
-      ? dependencies.research.getLatestReport(buildLensCompatibilityKey(ideaId, ideaVersion, scope.version))
+      ? dependencies.research.reports.getLatestReport(buildLensCompatibilityKey(ideaId, ideaVersion, scope.version))
       : undefined;
     const gate = inspectDecisionGate({
       ideaId,
@@ -72,12 +72,12 @@ export function createDecisionWorkspaceService(dependencies: Dependencies) {
       materials: {
         market_space: material(
           marketReport,
-          dependencies.research.getLatestRun(marketLensCompatibilityKey(ideaId, ideaVersion))?.status,
+          dependencies.research.runs.getLatestRun(marketLensCompatibilityKey(ideaId, ideaVersion))?.status,
         ),
         build_cost: material(
           costReport,
           scope
-            ? dependencies.research.getLatestRun(
+            ? dependencies.research.runs.getLatestRun(
                 buildLensCompatibilityKey(ideaId, ideaVersion, scope.version),
               )?.status
             : undefined,
@@ -110,12 +110,12 @@ export function createDecisionWorkspaceService(dependencies: Dependencies) {
     if (workspace.decision) throw new DecisionServiceError("alchemist.decision_already_exists");
     if (!workspace.gate.ready)
       throw new DecisionServiceError(workspace.gate.code as DecisionServiceError["code"]);
-    const scope = dependencies.research.getMvpScopeForIdeaVersion(input.ideaId, input.ideaVersion);
-    const marketReport = dependencies.research.getLatestReport(
+    const scope = dependencies.research.plans.getMvpScopeForIdeaVersion(input.ideaId, input.ideaVersion);
+    const marketReport = dependencies.research.reports.getLatestReport(
       marketLensCompatibilityKey(input.ideaId, input.ideaVersion),
     );
     const costReport = scope
-      ? dependencies.research.getLatestReport(
+      ? dependencies.research.reports.getLatestReport(
           buildLensCompatibilityKey(input.ideaId, input.ideaVersion, scope.version),
         )
       : undefined;
@@ -176,7 +176,7 @@ function nextStep(
 }
 
 function material(
-  report: ReturnType<SqliteResearchRepository["getLatestReport"]>,
+  report: ReturnType<SqliteResearchRepository["reports"]["getLatestReport"]>,
   runStatus?: string,
 ): DecisionMaterialDto {
   if (report) return { status: report.status, summary: report.summary, reportId: report.id };

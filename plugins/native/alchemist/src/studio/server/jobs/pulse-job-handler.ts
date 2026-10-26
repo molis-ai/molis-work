@@ -51,9 +51,9 @@ async function handlePulseJob(
   let input: DiscoveryPulseJobInput | undefined;
   try {
     input = inputSchema.parse(job.input);
-    let run = dependencies.repository.getRun(input.pulseRunId);
+    let run = dependencies.repository.runs.getRun(input.pulseRunId);
     if (!run || run.jobId !== job.id) throw new Error("alchemist.pulse_run_input_invalid");
-    await control.commit(() => dependencies.repository.updateRun(run!.id, {
+    await control.commit(() => dependencies.repository.runs.updateRun(run!.id, {
       status: "running",
       stage: run!.stage,
       now: dependencies.clock.now(),
@@ -62,14 +62,14 @@ async function handlePulseJob(
     if (!checkpoint) {
       checkpoint = { stage: "planning_complete" };
       await saveStage(control, checkpoint, "planning");
-      run = await control.commit(() => dependencies.repository.updateRun(run!.id, {
+      run = await control.commit(() => dependencies.repository.runs.updateRun(run!.id, {
         stage: "collecting",
         now: dependencies.clock.now(),
       }));
     }
     if (checkpoint.stage === "planning_complete" || checkpoint.stage === "collecting") {
       const collected = new Set(
-        dependencies.repository.listSourceCollections(run.id).map((result) => result.sourceId),
+        dependencies.repository.sources.listSourceCollections(run.id).map((result) => result.sourceId),
       );
       for (const sourceId of run.sourceIds) {
         if (collected.has(sourceId)) continue;
@@ -79,7 +79,7 @@ async function handlePulseJob(
           ? await collectSafely(source, { since: input.periodStart, limit: 20 }, control.signal)
           : missingAdapter(sourceId, dependencies.clock.now());
         if (control.isCancelled()) return;
-        await control.commit(() => dependencies.repository.saveSourceCollection(
+        await control.commit(() => dependencies.repository.sources.saveSourceCollection(
           run!.id,
           dependencies.idFactory.next("source_fetch"),
           result,
@@ -90,20 +90,20 @@ async function handlePulseJob(
       }
       checkpoint = { stage: "collecting_complete" };
       await saveStage(control, checkpoint, "collecting");
-      run = await control.commit(() => dependencies.repository.updateRun(run!.id, {
+      run = await control.commit(() => dependencies.repository.runs.updateRun(run!.id, {
         stage: "cross_checking",
         now: dependencies.clock.now(),
       }));
     }
     if (checkpoint.stage === "collecting_complete") {
-      const collections = dependencies.repository.listSourceCollections(run.id);
+      const collections = dependencies.repository.sources.listSourceCollections(run.id);
       if (!collections.some((collection) => collection.status === "completed")) {
         throw new Error("alchemist.pulse_all_sources_failed");
       }
       const synthesis = await dependencies.synthesizer.synthesize({
         run,
         collections,
-        signals: dependencies.repository.listSignals(run.id),
+        signals: dependencies.repository.sources.listSignals(run.id),
         periodStart: input.periodStart,
         now: dependencies.clock.now(),
         idFactory: dependencies.idFactory,
@@ -115,26 +115,26 @@ async function handlePulseJob(
         opportunities: synthesis.opportunities.map(value => opportunity.parse(value)),
       };
       await saveStage(control, checkpoint, "cross_checking");
-      run = await control.commit(() => dependencies.repository.updateRun(run!.id, {
+      run = await control.commit(() => dependencies.repository.runs.updateRun(run!.id, {
         stage: "synthesizing",
         now: dependencies.clock.now(),
       }));
     }
     if (checkpoint.stage === "cross_checking_complete") {
       const result = checkpoint;
-      await control.commit(() => dependencies.repository.saveReport({
+      await control.commit(() => dependencies.repository.reports.saveReport({
         report: result.report,
         opportunities: result.opportunities as Parameters<
-          SqlitePulseRepository["saveReport"]
+          SqlitePulseRepository["reports"]["saveReport"]
         >[0]["opportunities"],
       }));
       checkpoint = { stage: "ready_to_persist", reportId: checkpoint.report.id };
       await saveStage(control, checkpoint, "synthesizing");
     }
     if (checkpoint.stage === "ready_to_persist") {
-      const report = dependencies.repository.getReport(checkpoint.reportId);
+      const report = dependencies.repository.reports.getReport(checkpoint.reportId);
       if (!report) throw new Error("alchemist.pulse_report_not_found");
-      await control.commit(() => dependencies.repository.updateRun(run!.id, {
+      await control.commit(() => dependencies.repository.runs.updateRun(run!.id, {
         status: report.status,
         stage: "synthesizing",
         now: dependencies.clock.now(),
@@ -144,9 +144,9 @@ async function handlePulseJob(
     if (control.isCancelled()) return;
     const code = classifyError(error);
     if (input) {
-      const run = dependencies.repository.getRun(input.pulseRunId);
+      const run = dependencies.repository.runs.getRun(input.pulseRunId);
       if (run) {
-        await control.commit(() => dependencies.repository.updateRun(run.id, {
+        await control.commit(() => dependencies.repository.runs.updateRun(run.id, {
           status: "failed",
           errorCode: code,
           now: dependencies.clock.now(),

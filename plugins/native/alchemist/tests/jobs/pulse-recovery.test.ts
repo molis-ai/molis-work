@@ -26,7 +26,7 @@ it("resumes Pulse after a collected source without fetching that source twice", 
     let sequence = 0;
     const idFactory = { next: (prefix: string) => `${prefix}-recovery-${++sequence}` };
     let pulse = new SqlitePulseRepository(database);
-    pulse.ensureDefaultSourceSettings(clock.now());
+    pulse.sources.ensureDefaultSourceSettings(clock.now());
     const before = new SqliteJobRunner(database, {
       workerId: "pulse-before",
       clock,
@@ -42,7 +42,7 @@ it("resumes Pulse after a collected source without fetching that source twice", 
       workspaceId: "workspace-local",
     })({ sourceIds: ["watcha", "github"] });
     expect(before.claim(run.jobId)?.id).toBe(run.jobId);
-    pulse.saveSourceCollection(run.id, "fetch-watcha", {
+    pulse.sources.saveSourceCollection(run.id, "fetch-watcha", {
       sourceId: "watcha",
       status: "completed",
       requestUrl: "https://watcha.cn/api/v2/hot/products",
@@ -63,7 +63,7 @@ it("resumes Pulse after a collected source without fetching that source twice", 
       ],
     });
     before.saveCheckpoint(run.jobId, { stage: "collecting", completedSourceIds: ["watcha"] });
-    pulse.updateRun(run.id, { status: "running", stage: "collecting", now: clock.now() });
+    pulse.runs.updateRun(run.id, { status: "running", stage: "collecting", now: clock.now() });
 
     database.close();
     clock.set("2026-07-31T10:00:02.000Z");
@@ -126,8 +126,8 @@ it("resumes Pulse after a collected source without fetching that source twice", 
     await worker.runNext();
 
     expect(watchaCalls).toBe(0);
-    expect(pulse.listSourceCollections(run.id)).toHaveLength(2);
-    expect(pulse.getRun(run.id)?.status).toBe("completed");
+    expect(pulse.sources.listSourceCollections(run.id)).toHaveLength(2);
+    expect(pulse.runs.getRun(run.id)?.status).toBe("completed");
   } finally {
     database.close();
     temporary.cleanup();
@@ -150,7 +150,7 @@ for (const fail of [false, true]) it(`W5-01-ALC-RES03 W5-01-ALC-RES07: revoked P
   try {
     applyStudioBaseline(database, ":memory:"); seedResearchIdea(database);
     const clock = { now: () => new Date().toISOString() }, idFactory = { next: (prefix: string) => `${prefix}-${crypto.randomUUID()}` };
-    const pulse = new SqlitePulseRepository(database); pulse.ensureDefaultSourceSettings(clock.now());
+    const pulse = new SqlitePulseRepository(database); pulse.sources.ensureDefaultSourceSettings(clock.now());
     const jobs = new SqliteJobRunner(database, { workerId: "current-pulse", clock, idFactory });
     const run = createStartPulseRunService({ database, pulse, jobs, idFactory, clock, workspaceId: "workspace-local" })({ sourceIds: ["watcha", "github"] });
     let laterCalls = 0;

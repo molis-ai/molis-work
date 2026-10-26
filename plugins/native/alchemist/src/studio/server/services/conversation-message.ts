@@ -102,17 +102,17 @@ function resolveContext(context: ConversationContext, dependencies: ApiDependenc
     if (context.version === "draft") return dependencies.ideas.getCard(context.ideaId);
     const idea = dependencies.ideas.getVersion(context.ideaId, context.version);
     if (!idea) return undefined;
-    const scope = dependencies.research.getMvpScopeForIdeaVersion(context.ideaId, context.version);
-    const reports = [dependencies.research.getLatestReport(marketLensCompatibilityKey(context.ideaId, context.version)),
-      scope ? dependencies.research.getLatestReport(buildLensCompatibilityKey(context.ideaId, context.version, scope.version)) : undefined]
-      .filter(report => report !== undefined).map(report => ({ report, evidence: dependencies.research.listEvidence(report.id) }));
+    const scope = dependencies.research.plans.getMvpScopeForIdeaVersion(context.ideaId, context.version);
+    const reports = [dependencies.research.reports.getLatestReport(marketLensCompatibilityKey(context.ideaId, context.version)),
+      scope ? dependencies.research.reports.getLatestReport(buildLensCompatibilityKey(context.ideaId, context.version, scope.version)) : undefined]
+      .filter(report => report !== undefined).map(report => ({ report, evidence: dependencies.research.reports.listEvidence(report.id) }));
     return { idea, reports, decision: dependencies.decisions.getForVersion(context.ideaId, context.version) };
   }
   if (context.kind === "pulse") {
-    const report = dependencies.pulse.getReport(context.pulseReportId);
-    return report ? { report, opportunities: dependencies.pulse.listOpportunities(report.id) } : undefined;
+    const report = dependencies.pulse.reports.getReport(context.pulseReportId);
+    return report ? { report, opportunities: dependencies.pulse.opportunities.listOpportunities(report.id) } : undefined;
   }
-  if (context.surface === "pulse") return { reports: dependencies.pulse.listReports().slice(0, 3), opportunities: dependencies.pulse.listOpportunities().slice(0, 12) };
+  if (context.surface === "pulse") return { reports: dependencies.pulse.reports.listReports().slice(0, 3), opportunities: dependencies.pulse.opportunities.listOpportunities().slice(0, 12) };
   return { directions: dependencies.directions.list().slice(0, 8), ideas: dependencies.ideas.listIdeas().slice(0, 8).map(idea => ({
     idea, content: dependencies.ideas.getVersion(idea.id, idea.currentVersion)?.content,
     ...(context.surface === "decisions" ? { decision: dependencies.decisions.getForVersion(idea.id, idea.currentVersion) } : {}),

@@ -331,8 +331,8 @@ export class MolisWorkProjectCatalog {
   }
   listRuntimeContextBindingEvents(
     context?: RuntimeWorkContext,
-  ): MolisWorkRuntimeContextBindingEvent[] { return this.runtimeContexts.commands.listRuntimeContextBindingEvents(context); }
-  listRuntimeContextBindings(): MolisWorkRuntimeContextBinding[] { return this.runtimeContexts.commands.listRuntimeContextBindings(); }
+  ): MolisWorkRuntimeContextBindingEvent[] { return this.runtimeContexts.records.listRuntimeContextBindingEvents(context); }
+  listRuntimeContextBindings(): MolisWorkRuntimeContextBinding[] { return this.runtimeContexts.records.listRuntimeContextBindings(); }
 
   openDesktopPanel(input: OpenMolisWorkDesktopPanelInput): MolisWorkDesktopPanelRecord {
     return this.desktopPanels.open(input);

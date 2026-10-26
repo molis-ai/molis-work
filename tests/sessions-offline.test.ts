@@ -43,7 +43,7 @@ test("RAC-211 the private work context module keeps only Runtime context binding
   const files = readdirSync(join(root, "modules/private-work-context/src")).sort();
   assert.deepEqual(files, [
     "binding-errors.ts", "context-binding-references.ts", "context-bindings.ts", "index.ts", "project-binding-commands.ts",
-    "project-binding-validation.ts", "project-resolution.ts", "project-setup.ts", "project-suggestions.ts", "runtime-context-module.ts",
+    "project-binding-validation.ts", "project-resolution.ts", "project-setup.ts", "project-suggestions.ts", "runtime-binding-records.ts", "runtime-context-module.ts",
   ]);
   const contract = text("packages/contracts/src/modules/private-work-context.ts");
   assert.doesNotMatch(contract, /WorkSession|sessionErrors|PrivateWorkContextApplicationApi/u);

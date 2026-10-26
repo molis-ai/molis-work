@@ -109,8 +109,6 @@
 | G | 宿主线（未认领，统筹派） | `local-host.ts` 的 `LocalHost` 类 515 行 / 24 方法<br>`character-import-discovery.ts` 的 `createCharacterDiscovery` 205 行、`discover` 176 行<br>`web-catalog.ts` 的 `handleLocalCatalogWebRequest` 201 行<br>`plugin-builder/agent-surface.ts` 的 `ensureStudio` 194 行、`created callback 1` 186 行 | `LocalHost`：场景客户端（`sceneClient` 98）、项目内操作队列（`enqueue`、`ensureEntry`）、可用性判定（`resolveActionAvailability`）、动作客户端与登记（`syncActionClient`、`actionClient`、`actionRegistry`）。发现：每个 Agent 运行时（codex、claude-code、cursor、opencode）的扫描挤在一个 `for…of`（165 行）。目录 HTTP：设置页（59）、插件设置（37）等一串 `if` 路由。创作台装配：模型与凭据、沙箱运行器与预览、交给工作流的端口对象 | `LocalHost`：场景客户端、操作队列（照 `HomeLine`）、可用性判定各成协作者（§3 的行已写，W3-01/W3-07 的新增写在新文件里）；发现：每个运行时一个扫描函数，目录解析一个函数；目录 HTTP：路由表，形态同 W5-07 的 `web-route-table.ts`；`ensureStudio`：三块各成 `create…` 函数（内嵌的 `created` 随之变短） |
 | H | 工作台线（未认领，统筹派） | `renderer.ts` 的 `createWorkbenchRenderer` 284 行<br>`settings-renderer.ts` 的 `createWorkbenchSettingsRenderer` 181 行<br>`project-settings-pages.ts` 的 `createWorkbenchProjectSettingsPages` 174 行 | 都是“一个工厂里嵌着许多页面渲染函数再返回一张表”：目录、目标文档、终端面板、Feed 片段、设置总览、项目设置、运行时设置、MCP 设置、项目指导文档、规划页等互相只经返回表联系，不共享状态 | 渲染函数按页面种类移到模块级文件（设置总览 `renderMolisWorkSettings` 65 与 `renderProjectSettings` 47 各一个），依赖（`L`、`escapeHtml`、导航）显式传参；工厂只按页面种类组合 |
 | I | 工作流线（未认领，统筹派） | `plugins/native/workflows/src/actions.ts` 的 `createWorkflowsActionHandlers` 函数 233 行 | 一张处理器表（`bind(workflowsActions.list, …)`，64 行）加三段运行逻辑：交接准备（`prepareHandoff` 49）、动作步骤执行（`runActionStep` 30）、步骤读取与判定（`readStep`、`judge`、`resolveAction`） | 运行逻辑搬进 `handoff.ts` 与 `step-runner.ts`，表里每个动作的处理器单独一个函数；`createWorkflowsActionHandlers` 只绑定 |
-| J | 项目与情境线（未认领，统筹派；都只超几行至几个方法，是最便宜的两片） | `modules/projects/src/repository.ts` 的 `ProjectsRepository` 类 287 行 / 29 方法<br>`modules/private-work-context/src/project-binding-commands.ts` 的 `RuntimeProjectBindingCommands` 类 310 行 / 12 方法 | `ProjectsRepository` 29 个方法分四组：项目（`insertProject`、`renameProject`、`updateDatabasePath`）、工作区与成员关系（`upsertWorkspace`、`upsertWorkspaceMembership`、`listWorkspaceDirectory`、`removeWorkspaceIfEmpty` 等）、删除记录（`insertDeletion`、`findDeletion`、`updateDeletionCleanup`）、事件（`appendEvent`）；行数没超，只因方法数。`RuntimeProjectBindingCommands` 只超 10 行，绑定（`bindRuntimeContextInTransaction` 94）、解绑（`unbindRuntimeContext` 53）、拒绝建议（`rejectRuntimeContextSuggestion` 45）三个命令之外，还带着成员关系与绑定事件的小助手（`upsertWorkspaceMembership`、`removeSessionBinding`、`appendRuntimeContextBindingEvent`、`listRuntimeContextBindingEvents` 等） | `ProjectsRepository` 按上述四组各成一个表访问类，`ProjectsRepository` 留作门面或由调用方拿自己要的那个（W2-07 项目删除统一预计碰删除记录这组）；`RuntimeProjectBindingCommands` 把小助手移到 `runtime-binding-records.ts`，三个命令留在类里，即可降到 300 行以下 |
-| K | Alchemist 线（未认领，统筹派） | `plugins/native/alchemist/src/studio/server/db/pulse-repository.ts` 的 `SqlitePulseRepository` 类 377 行 / 23 方法<br>`plugins/native/alchemist/src/studio/server/db/research-repository.ts` 的 `SqliteResearchRepository` 类 343 行 / 19 方法 | Pulse：来源设置与收集（`saveSourceCollection` 51、`listSourceCollections`、`ensureDefaultSourceSettings`、`updateSourceSetting`）、信号与机会（`listSignals`、`persistOpportunity`、`mapOpportunity`、`convertOpportunity`）、运行与报告（`createRun`、`updateRun`、`saveReport` 69）。Research：计划与范围（`createPlan`、`ensureMvpScope`、`requireMvpScope`）、运行（`createRun`、`updateRun`、`getLatestRun`）、证据与报告（`saveReport` 85、`mapReport`、`listEvidence`） | 各按上面的组拆成表访问类，每个不超 300 行；`saveReport` 本身是一次落库的多表写入，整体留在报告那一类里，不再拆 |
 
 派发顺序建议：A、B、C、E、F 各挂在已有的线上，随那条线的下一个片做，不单开；D、G、H、I、J、K 是没有线认领的，每批一个片、一个 PR，G 先做（`LocalHost` 被 W3-01、W3-07 碰到），之后 H、D（已由 `5f52a8910` 做完）、I、J、K。没有给这些批编新的 BL 或 RAC 号：统筹派发时按批领号。
 
@@ -141,14 +139,15 @@
 | 19 | `packages/kernel` | 1 | 1 | 3 | `registerProvider` 已在 W3-01 降到阈值下；W3-05 的交叉校验在 SDK 的 `action-cross-references.ts`，`registerProvider` 只在原有的一行里多调一个函数，没有加行 |
 | 20 | `horizontal/placement` | 1 | 1 | 3 | 决定 N-03：代码不搬，包内拆 |
 | 21 | `plugins/official-integrations/gmail` | 4 | 5 | 2 |  |
-| 22 | `modules/private-work-context` | 4 | 4 | 2 |  |
+| 22 | `modules/private-work-context` | 3 | 3 | 2 | `RuntimeProjectBindingCommands` 已拆完（333 → 235 行，周边读写在 `runtime-binding-records.ts`）；上面的总数没有随之重算 |
 | 23 | `modules/shelf` | 0 | 0 | 2 | 已拆完（2026-10-26）：`ShelfStore` 只留设置、运行环境探测、快照与转发，收件、副本、作业、剪贴板各成协作者（`admissions.ts`、`copies.ts`、`jobs.ts`、`clipboard-store.ts`），`runJob` 按阶段拆成计划、暂存、生成、提交、记失败 |
+
 | 24 | `horizontal/scheduler` | 1 | 1 | 2 |  |
-| 25 | `modules/projects` | 1 | 1 | 2 |  |
+| 25 | `modules/projects` | 0 | 0 | 2 | `ProjectsRepository` 已拆完（按表族三个类：项目记录、工作区、删除回执）；上面的总数没有随之重算 |
 | 26 | `plugins/native/coding` | 1 | 1 | 2 |  |
 | 27 | `plugins/native/cognia` | 1 | 1 | 2 |  |
 | 28 | `packages/im-ui` | 2 | 3 | 1 | 决定 #4：IM 继续迭代，所以拆 |
-| 29 | `plugins/native/alchemist` | 3 | 3 | 1 |  |
+| 29 | `plugins/native/alchemist` | 1 | 1 | 1 | 两个仓储已拆完（Pulse 四个类、Research 三个类，原类名留作组合体）；上面的总数没有随之重算 |
 | 30 | `packages/plugin-sandbox` | 1 | 1 | 1 |  |
 
 合并数是窗口 `f955605c..4d59cd4d` 里改动过该批次任一文件的 first-parent 提交数（一个提交算一次）。窗口固定在这两个提交之间，共 223 个提交，全部是 PR 合并：起点是 PR #90 的合并 `f955605c`（不含），它是 main 上 2026-09-28T00:00:00-07:00 之前的最后一个提交；终点 `4d59cd4d` 就是本快照。不用 `--since=2026-09-28`：裸日期会补上运行那一刻的钟点，同一个终点上早晚跑出来的数差好几个。命令：
@@ -328,11 +327,10 @@ R-38 第 2 片的 Store 状态归属整理（PR #1273 FIRST 第 3 项，2026-10-
 | `goals` | `src/event-state-repository.ts` | `GoalEventStateRepository` 类 408 行 / 30 方法 | 拆 · W5-10 | 30 个方法按表分组：所有者与工作状态、约定与进度、顾虑、决定请求、已应用决定、结论与收尾。每组一个表访问类。 | 2 |
 | `goals` | `src/guidance-commands.ts` | `GuidanceCommands` 类 368 行 / 3 方法<br>`update` 函数 201 行 | 拆 · W5-10 | 只有 3 个方法但 `update` 201 行、`add` 149 行。`update` 依次是读取并规范化输入、校验（确认、动作、必填）、`edit` 分支、构造请求与哈希、事务（141 行的 `return`），各成函数；`add`、`update` 成两个命令类。`update` 在类里（类和方法各计一次）。 | 1 |
 | `goals` | `src/lifecycle-archive.ts` | `setTrashed` 函数 185 行<br>`setTrashed callback 1` 函数 174 行 | 拆 · W5-10 | `setTrashed` 的返回里是 174 行的事务回调（同一段计两次），按步骤拆；`GoalArchiveCommands` 其余方法留在类里。 | 2 |
-| `private-work-context` | `src/project-binding-commands.ts` | `RuntimeProjectBindingCommands` 类 333 行 / 12 方法 | 拆 · W5-10 | `bindRuntimeContextInTransaction` 102 行、`unbindRuntimeContext` 57、`rejectRuntimeContextSuggestion` 51：绑定、解绑、拒绝建议各一个命令类，成员关系与日志助手（`upsertWorkspaceMembership`、`removeSessionBinding`、`appendRuntimeContextBindingEvent`）单独成文件。 | 0 |
 | `private-work-context` | `src/session-handoffs.ts` | `SessionHandoffRepository` 类 325 行 / 14 方法 | 拆 · W5-10 | 草稿（`createDraft*`、`updateDraft*`）、发送状态（`markSending`、`attachDestination`、`markFailed`、`markSent`、`cancel`）、恢复中断与行映射（`recoverInterrupted`、`map`）三组。 | 0 |
 | `private-work-context` | `src/session-records.ts` | `SessionRecordRepository` 类 320 行 / 15 方法 | 拆 · W5-10 | 创建与发现（`createSession`、`discoverSession`、`explicitlyLinkSession`、`linkNativeRuntimeSession`）、关联更新（`updateAssociations*`、`setAssociationReferences`、`reassignWorkspaceSessions`）、查找（`get`、`find*`、`list`、`goalHistory`）三组。 | 0 |
 | `private-work-context` | `src/session-registry.ts` | `MolisWorkSessionRegistry` 类 174 行 / 29 方法 | 拆 · W5-10 | 对外门面：29 个方法几乎都是转发，只因方法数超标。按会话、交接、事件三组拆成子门面，调用方拿自己要的那个。 | 2 |
-| `projects` | `src/repository.ts` | `ProjectsRepository` 类 287 行 / 29 方法 | 拆 · W5-10 | 29 个方法分四组：项目（`insertProject`、`renameProject`、`updateDatabasePath`）、项目插件与隐藏插件、工作区与成员关系、删除记录（`insertDeletion`、`findDeletion`）。每组一个表访问类；删除记录这组预计会被 W2-07（项目删除统一）碰到，那一片的新增部分先写在新文件里。 | 2 |
+
 
 ### 平台包 `packages/*`
 
@@ -365,8 +363,6 @@ R-38 第 2 片的 Store 状态归属整理（PR #1273 FIRST 第 3 项，2026-10-
 | 包 | 文件 | 单元 | 判定 | 计划或理由 | PR |
 | --- | --- | --- | --- | --- | ---: |
 | `alchemist` | `src/studio/server/bootstrap/local-runtime.ts` | `createLocalRuntime` 函数 243 行 | 拆 · W5-10 | `createLocalRuntime` 50 条语句：`dependencies`（34）、返回（31）、`handlers`（18）、`pulseSources`（12）、`calibrationMemory`（12）、`createResearchPlan`（11）、`runPending`（10）各成 `create…` 函数。 | 1 |
-| `alchemist` | `src/studio/server/db/pulse-repository.ts` | `SqlitePulseRepository` 类 381 行 / 23 方法 | 拆 · W5-10 | 23 个方法按表分组：来源设置、运行、采集与信号（`saveSourceCollection`、`listSignals`）、报告与机会（`saveReport` 69、`persistOpportunity`、`convertOpportunity`）。每组一个仓库。 | 0 |
-| `alchemist` | `src/studio/server/db/research-repository.ts` | `SqliteResearchRepository` 类 343 行 / 19 方法 | 拆 · W5-10 | 19 个方法按表分组：计划、运行、报告与证据（`saveReport` 85、`mapReport` 26、`linkClaimEvidence`）、MVP 范围（`ensureMvpScope` 35）。 | 0 |
 | `coding` | `src/client.ts` | 文件 1,656 行 | 归线 · §4.8 · W5-04 | 浏览器脚本模板（1,631/1,656 行）。 | 8 |
 | `coding` | `src/timeline.ts` | `createCodingTimeline` 函数 263 行 | 拆 · W5-04 | 对话时间线：`toString()` 注入浏览器，必须自包含（263 行，`renderFooter` 65、`renderGroup` 27、`KIND` 26、`FAILURES` 21）。W5-04 打包 Coding 的浏览器代码时，各块成模块并拆到阈值以下。（对 W5-04 范围的解释同 `tab-workspace-ops.ts`。） | 1 |
 | `coding` | `src/ui.ts` | `renderCodingWorkbench` 函数 214 行 | 拆 · W5-10 | `renderCodingWorkbench` 的返回里有一段 205 行的 HTML 模板。文件里已有 `renderCodingDirectory`、`renderCodingSettings`、`renderPendingQuestionCard`、`renderCodingIdentity` 这样的区块函数，工作台主体的其余区块照此各成函数。 | 2 |

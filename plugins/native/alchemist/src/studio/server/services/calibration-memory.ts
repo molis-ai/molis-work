@@ -141,7 +141,7 @@ function resolveScope(
   dependencies: Pick<Dependencies, "research" | "ideas">,
 ): PlaybookScope {
   if (target.kind !== "lens_report") throw new Error("alchemist.playbook_requires_lens_report");
-  const report = dependencies.research.getReport(target.objectId);
+  const report = dependencies.research.reports.getReport(target.objectId);
   if (!report || report.revision !== target.revision) throw new Error("alchemist.annotation_target_not_found");
   if (report.key.lens !== "market_space") throw new Error("alchemist.playbook_requires_market_space");
   if (scopeKind === "report") return { kind: "report", reportId: report.id };

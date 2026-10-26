@@ -85,7 +85,7 @@ function seedMinimalReport(
   report: LensReport,
 ): void {
   if (report.key.lens === "build_cost") {
-    repository.ensureMvpScope({
+    repository.plans.ensureMvpScope({
       id: "scope-01",
       ideaId: "idea-01",
       ideaVersion: 1,
@@ -95,7 +95,7 @@ function seedMinimalReport(
       now: "2026-07-31T10:01:00.000Z",
     });
   }
-  repository.createPlan({
+  repository.plans.createPlan({
     id: `plan-${report.key.lens}`,
     key: report.key,
     scopeSummary: "范围",
@@ -114,7 +114,7 @@ function seedMinimalReport(
       checkpoint_json, error_code, created_at, updated_at)
      VALUES (?, 'research.lens', 'completed', '{}', NULL, NULL, 1, NULL, NULL, ?, ?)`,
   ).run(jobId, report.createdAt, report.createdAt);
-  repository.createRun({
+  repository.runs.createRun({
     id: report.runId,
     planId: `plan-${report.key.lens}`,
     key: report.key,
@@ -124,5 +124,5 @@ function seedMinimalReport(
     jobId,
     now: report.createdAt,
   });
-  repository.saveReport({ report, evidence: [] });
+  repository.reports.saveReport({ report, evidence: [] });
 }

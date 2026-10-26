@@ -1387,3 +1387,8 @@ c615 的 [Full 40244770783](https://github.com/molis-ai/molis-work/actions/runs/
 本次与main `2b3dc51ded348325edbf135a13c195ba89fba602` 合成保留原审批恢复、快照验证、插件样式门禁及全部安全行；依赖采用已合SDK107的原包，不带仍待性能验收的108。SDK107的wait清除不会新增Foundation消费者：此处唯一purge是Index未登记的新会话创建回滚，尚未发出ref、启动Run或绑定业务wait；已登记Session删除仍须随App原wait-ID持久计划成套交付，不能宣称MEM-40已在Foundation完成。
 
 新主干snapshot输出是`manifest.json`与`data/`载荷，不带原Home密钥，不能直接作为recover-home的完整T0/T1工作副本。本次不新增解包、补密钥或第二恢复流程。合成后补原离线快照真实SDK正反例、未发布创建回滚与cleanup失败、审批/等待恢复、Memory原件/回执/关闭交点；再核最终头的完整CI及原门禁。c615绿色不替代合成头验证，旧Cloudflare访问待定与历史失败仍保留。
+
+
+batch40本机合成验证：原frozen/offline安装、整体build、root/Host/Agent/TestKit strict、75 API、boundary、准确2b3 health和主干plugin-styles通过。README必要并集346文件首跑343过、3首红，10个browser文件，零retry；3016项摘要中3012 pass、3 fail、plugin-sandbox-network原opt-in缺1项。两个接线问题已按当前合同修正：未发布Session撤权回滚保留最小purged决定，断言原ID、无secure body、Index空、重开不可恢复且邻近已接受Session可用；snapshot原fixture用既有受限Memory配置，各root仅其固定actor/user scope，实际write/readback均绑定同可信身份。真实SDK快照认证24项原正反例已通过，不能用fixture首败否定或替代这组证据。
+
+资源按新main实测且仅同一已批功能迁移：Workbench1129446→1132639（+3193）、Coding289062→289674（+612），其余资源不变。原更新器仅写这两数字，未携带旧绝对上限或余额。原整体build再过，源码与产物指纹一致；仅补原3失败文件185项全部通过、零retry，未重跑346。最终准确主干健康与原资源门通过。现仍待最终提交的普通CI、Full及已记录外部阻塞核清，不能以本机集合替代它们；未合并、未发布。

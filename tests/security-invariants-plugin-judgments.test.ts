@@ -7,12 +7,13 @@ import { ActionError, type ActionCallContext, type ActionDefinition, type Action
 import type { PluginDatabaseDeclaration, PluginDefinition, PluginHostServices, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPluginPlatform, DEMO_PROJECT_ID, homeStores, LocalProjectDatabase, seedDemoBoard, withFunctionsService } from "@molis-ai/molis-work-app-local-host";
 import { purgeFunctionsProject } from "@molis-ai/molis-work-module-functions";
+import { createFeedSceneRuntime, feedCaptureScene, feedCaptureSubjectRevision, type FeedApplication, type FeedItemRecord } from "@molis-ai/molis-work-plugin-feed";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { homeStoreRegistry } from "@molis-ai/molis-work-storage";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 
-// S-87 (PG-032 P2): a plugin reads and records the judgments of the scenes its own Manifest declares only through `services.judgments`,
+// S-90 (PG-032 P2): a plugin reads and records the judgments of the scenes its own Manifest declares only through `services.judgments`,
 // in the project of the call, from a call that may write; the function key is the platform's; a cancelled, revoked or stopped call
 // records nothing. The ledger is the Home's Functions library, so a row stays when the plugin's own project transaction rolls back.
 
@@ -21,7 +22,7 @@ const textInput = { type: "object", properties: { text: { type: "string", minLen
 const decisionOutput = { type: "object", properties: { follow_up: { type: "boolean" } }, required: ["follow_up"], additionalProperties: false };
 const judge = (capability_id: string): ActionDefinition => ({ capability_id, version: 1, operation: "command",
   action: { title: "判断", description: "判断一段文字", kind: "judgment", scope: "project", audiences: ["user", "workflow", "mcp", "agent"], permissions: [],
-    subject_kinds: ["feedback"], input_schema: textInput, output_schema: decisionOutput } });
+    subject_kinds: ["feedback", "feed_item"], input_schema: textInput, output_schema: decisionOutput } });
 const judgment = judge("judgments.ledger"), failing = judge("judgments.ledger-failing");
 const judgmentRef: ActionReference = { capability_id: judgment.capability_id, version: 1 };
 
@@ -34,7 +35,7 @@ interface ProbeOptions { readonly grants?: readonly string[]; readonly scene?: b
 function probe(short: string, options: ProbeOptions = {}) {
   const id = `io.molis.work.example.${short}`, grants = options.grants ?? [JR, JW], hasScene = options.scene ?? true, write = grants.includes(JW);
   const scene: ActionSceneDefinition = { scene_id: `${id}.arrived`, version: 1, title: "到达", description: "处理到达的文字", trigger: "arrived", scope: "project",
-    subject_kinds: ["feedback"], event_schema: textInput, input_schema: textInput, result_schema: decisionOutput, permissions: [...options.scenePermissions ?? (write ? [JW] : [])] };
+    subject_kinds: ["feedback", "feed_item"], event_schema: textInput, input_schema: textInput, result_schema: decisionOutput, permissions: [...options.scenePermissions ?? (write ? [JW] : [])] };
   const state = { services: undefined as PluginHostServices | undefined, value: undefined as unknown, error: undefined as unknown, hook: () => {}, sceneStep: "scene-record" as SceneStep,
     sceneOutcome: undefined as unknown, late: undefined as unknown, bindings: new Map<string, ActionSceneBinding>() };
   const define = (name: string, operation: "command" | "query", permissions: readonly string[], scheduling?: "concurrent"): ActionDefinition<StepInput, boolean> => ({
@@ -91,7 +92,7 @@ function probe(short: string, options: ProbeOptions = {}) {
             case "scene-no-wait": await outcome(() => record(subject)); break;
             case "scene-revoked": await caller.beforeEffect(); state.hook(); await outcome(() => record(subject)); break;
             case "scene-rollback":
-              await caller.beforeEffect(); state.sceneOutcome = record(subject);
+              await caller.beforeEffect(); state.sceneOutcome = record({ ...subject, kind: "feed_item" });
               await state.services!.project_database!.transaction(async () => {}, tx => { tx.run(`INSERT INTO ${short}_notes (text) VALUES (?)`, [name]); throw new Error("the plugin's own rows did not follow"); });
               break;
             case "scene-late":
@@ -175,7 +176,7 @@ async function runScene(env: Env, item: Probe, step: SceneStep, text: string, fn
 const refused = (error: { code?: string; message?: string } | undefined, code: string, why?: RegExp) => error?.code === code && (why === undefined || why.test(error.message ?? ""));
 const subjects = (env: Env, scene: string) => env.ledger().filter(row => row.scene_id === scene).map(row => `${row.subject.project_id}/${row.subject.id}`).toSorted();
 
-test("RAC-840 S-87 the service exists only for a plugin that declares judgments:read or judgments:write and has scenes of its own", async t => {
+test("RAC-840 S-90 the service exists only for a plugin that declares judgments:read or judgments:write and has scenes of its own", async t => {
   const env = await platform(t);
   assert.ok(env.main.state.services!.judgments, "a plugin with both permissions and a scene has it");
   assert.ok(env.readonly.state.services!.judgments, "judgments:read alone is enough to have it");
@@ -186,7 +187,7 @@ test("RAC-840 S-87 the service exists only for a plugin that declares judgments:
   assert.deepEqual(env.ledger(), []);
 });
 
-test("RAC-841 S-87 latest returns only the newest judgment per subject of the plugin's own scene in this project", async t => {
+test("RAC-841 S-90 latest returns only the newest judgment per subject of the plugin's own scene in this project", async t => {
   const env = await platform(t);
   const scene = env.main.scene.scene_id;
   env.seed(scene, "a", DEMO_PROJECT_ID, "needs_review"); env.seed(scene, "a", DEMO_PROJECT_ID, "ok"); env.seed(scene, "b", DEMO_PROJECT_ID);
@@ -205,7 +206,7 @@ test("RAC-841 S-87 latest returns only the newest judgment per subject of the pl
   }
 });
 
-test("RAC-842 S-87 record works from a concurrent action that declares judgments:write and from the plugin's own scene callbacks", async t => {
+test("RAC-842 S-90 record works from a concurrent action that declares judgments:write and from the plugin's own scene callbacks", async t => {
   const env = await platform(t);
   const fromAction = await inAction(env, env.main, { step: "record", subject: "from-action" });
   assert.equal(fromAction.error, undefined, String(fromAction.error?.message));
@@ -215,7 +216,7 @@ test("RAC-842 S-87 record works from a concurrent action that declares judgments
   assert.deepEqual(subjects(env, env.main.scene.scene_id), [`${DEMO_PROJECT_ID}/from-action`, `${DEMO_PROJECT_ID}/from-consume`, `${DEMO_PROJECT_ID}/from-failed`]);
 });
 
-test("RAC-842 S-87 record is refused from a read-only callback, a query, a serial or undeclaring action, a stray call and another installation's action", async t => {
+test("RAC-842 S-90 record is refused from a read-only callback, a query, a serial or undeclaring action, a stray call and another installation's action", async t => {
   const env = await platform(t);
   const cases: [string, { error?: { code?: string; message?: string } }, RegExp][] = [
     ["a query action", await inAction(env, env.main, { step: "record", subject: "q" }, "look"), /可写插件调用/],
@@ -234,7 +235,7 @@ test("RAC-842 S-87 record is refused from a read-only callback, a query, a seria
   assert.deepEqual(env.ledger(), [], "none of them wrote a row");
 });
 
-test("RAC-842 S-87 a scene callback records only when its scene declares judgments:write and its beforeEffect returned", async t => {
+test("RAC-842 S-90 a scene callback records only when its scene declares judgments:write and its beforeEffect returned", async t => {
   const env = await platform(t);
   await runScene(env, env.lean, "scene-record", "lean-scene");
   assert.ok(refused(env.lean.state.sceneOutcome as never, "actions.forbidden", /场景自己声明了这项权限/), "the plugin holds the grant, the scene does not declare it");
@@ -243,7 +244,7 @@ test("RAC-842 S-87 a scene callback records only when its scene declares judgmen
   assert.deepEqual(env.ledger(), []);
 });
 
-test("RAC-843 S-87 record refuses a subject of another project, a kind the scene does not declare and a scene that is not the plugin's; the function key is the platform's", async t => {
+test("RAC-843 S-90 record refuses a subject of another project, a kind the scene does not declare and a scene that is not the plugin's; the function key is the platform's", async t => {
   const env = await platform(t);
   const project = await inAction(env, env.main, { step: "record", project: OTHER_PROJECT });
   assert.ok(refused(project.error, "actions.scope_mismatch"), `${project.error?.code} ${project.error?.message}`);
@@ -262,7 +263,7 @@ test("RAC-843 S-87 record refuses a subject of another project, a kind the scene
   assert.equal(row!.subject.project_id, DEMO_PROJECT_ID);
 });
 
-test("RAC-844 S-87 a revoked or cancelled caller records nothing, and neither does a stopped installation or a callback that already ended", async t => {
+test("RAC-844 S-90 a revoked or cancelled caller records nothing, and neither does a stopped installation or a callback that already ended", async t => {
   const env = await platform(t);
   const revoked = await inAction(env, env.main, { step: "revoked", subject: "revoked" });
   assert.ok(refused(revoked.error, "actions.forbidden", /the caller was revoked/), `${revoked.error?.code} ${revoked.error?.message}`);
@@ -283,7 +284,7 @@ test("RAC-844 S-87 a revoked or cancelled caller records nothing, and neither do
   assert.deepEqual(env.ledger(), [], "no row, and no failure row either");
 });
 
-test("RAC-845 S-87 the ledger row is in the Home's Functions library and stays when the plugin's own project transaction rolls back", async t => {
+test("RAC-845 S-90 the ledger row is in the Home's Functions library and stays when the plugin's own project transaction rolls back, and Feed's adoption recheck does not adopt it", async t => {
   const env = await platform(t);
   await runScene(env, env.main, "scene-rollback", "rolled-back");
   const recorded = env.main.state.sceneOutcome as { judgment_id: string };
@@ -291,9 +292,22 @@ test("RAC-845 S-87 the ledger row is in the Home's Functions library and stays w
   assert.deepEqual(subjects(env, env.main.scene.scene_id), [`${DEMO_PROJECT_ID}/rolled-back`], "the ledger row is committed on its own");
   assert.equal(env.noted("judgemain", "rolled-back"), false, "the plugin's own row did not land: the two are not one transaction");
   assert.equal(env.ledger()[0]!.scene_provenance?.binding_id, "binding", "the row carries the provenance a later adoption rechecks");
+  // The orphan is harmless (R-60): Feed adopts a judgment only while its binding, its function and the item's content still hold, with the real runtime over the ledger the service reads.
+  const rows = [...env.main.state.services!.judgments!.latest(env.main.scene.scene_id)];
+  assert.equal(rows.length, 1);
+  const usage = { scene_id: feedCaptureScene.scene_id, binding_id: "binding", revision: "r1", enabled: true, availability: { available: true }, function: judgmentRef } as never;
+  const adopted = (item: () => FeedItemRecord, judgments = rows) => createFeedSceneRuntime({ projectId: DEMO_PROJECT_ID, feed: {} as FeedApplication, actions: {} as never,
+    scenes: { usages: async () => [usage], discoverScenes: async () => [] } as never,
+    host: { latestJudgments: () => judgments, recordJudgment: () => ({}) as never, item } }).selection.recommendations({ actor_id: "tester", project_id: DEMO_PROJECT_ID, permissions: [] } as never);
+  const item = { item_id: "rolled-back", revision: 1, title: "标题", summary: "摘要", body: null, materials: [] } as never as FeedItemRecord;
+  const gone = () => { throw Object.assign(new Error("no such item"), { code: "feed.item_not_found" }); };
+  assert.deepEqual(await adopted(gone), { recommendations: [] }, "the item the rolled-back transaction would have created is not there");
+  assert.deepEqual(await adopted(() => item), { recommendations: [] }, "an item whose content is not the one the judgment was made on");
+  const held = [{ ...rows[0]!, scene_provenance: { ...rows[0]!.scene_provenance!, subject_revision: feedCaptureSubjectRevision(item) } }];
+  assert.equal((await adopted(() => item, held)).recommendations.length, 1, "the same row is adopted when everything it rests on holds: the recheck is not vacuous");
 });
 
-test("RAC-846 S-87 deleting the project clears its judgments from the ledger and leaves other projects' alone", async t => {
+test("RAC-846 S-90 deleting the project clears its judgments from the ledger and leaves other projects' alone", async t => {
   const env = await platform(t);
   await inAction(env, env.main, { step: "record", subject: "gone" });
   env.seed(env.main.scene.scene_id, "stays", OTHER_PROJECT);

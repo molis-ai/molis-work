@@ -13,7 +13,7 @@ export interface PluginSceneServicePorts {
 const sceneKey = (sceneId: string, version: number) => `${sceneId}@${version}`;
 
 /**
- * `services.scenes` (PG-032 P1, S-86): the consumption scenes this plugin's Manifest declares (`action_scenes`), reached from inside its
+ * `services.scenes` (PG-032 P1, S-89): the consumption scenes this plugin's Manifest declares (`action_scenes`), reached from inside its
  * own running action as that action's original caller, with the kernel's checks of the function, the scene, the audience and the
  * permissions as they are for any caller. What this adds on top: the installation's `scenes:use` grant on every call and again
  * after it (a stopped, revoked or replaced installation is refused), the caller the plugin never passes, a scene that is not one of
@@ -54,6 +54,15 @@ export function pluginScenesFor(manifest: PluginManifest, context: PluginStartCo
     check();
     return result;
   };
+  /**
+   * The scene the kernel resolves for an id is registered by this plugin: an id that a Manifest declares but another provider holds in the
+   * project (a Host scene, another plugin's, when this activation did not register it itself) is refused. The kernel names a scene by
+   * `scene_id@version` only and rejects a second registration of the same id (`actions.scene_duplicate`), so this answers who holds it.
+   */
+  const registeredByThis = async (caller: ActionExecutionContext, sceneId: string, version: number) => {
+    const view = (await scenes.discoverScenes(caller)).find(item => item.definition.scene_id === sceneId && item.definition.version === version);
+    if (view && view.provider.plugin_id !== manifest.plugin_id) throw pluginErrors.scene_not_declared(`场景 ${sceneKey(sceneId, version)} 是别的提供方登记的`);
+  };
   return Object.freeze<PluginSceneClient>({
     discoverScenes: judgment => call("none", async caller => (await scenes.discoverScenes(caller, judgment))
       .filter(view => view.provider.plugin_id === manifest.plugin_id && own.has(sceneKey(view.definition.scene_id, view.definition.version)))),
@@ -64,11 +73,11 @@ export function pluginScenesFor(manifest: PluginManifest, context: PluginStartCo
     },
     bind: (binding, options) => {
       declares(binding.scene_id, binding.scene_version);
-      return call("change", caller => scenes.bind(caller, binding, options));
+      return call("change", async caller => { await registeredByThis(caller, binding.scene_id, binding.scene_version); return scenes.bind(caller, binding, options); });
     },
     runScene: (scene, bindingId, event) => {
       declares(scene.scene_id, scene.version);
-      return call("wait", caller => scenes.runScene(caller, scene, bindingId, event));
+      return call("wait", async caller => { await registeredByThis(caller, scene.scene_id, scene.version); return scenes.runScene(caller, scene, bindingId, event); });
     },
   });
 }

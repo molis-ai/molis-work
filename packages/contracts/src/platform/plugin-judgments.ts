@@ -18,7 +18,7 @@ export interface PluginJudgmentInput {
 
 /**
  * The judgment ledger of the scenes the plugin declares (`action_scenes` in its Manifest), in the project the activation runs in
- * (docs/system/SECURITY-INVARIANTS.md S-87). The ledger lives in the Home's Functions library, not in the project's: `record` commits
+ * (docs/system/SECURITY-INVARIANTS.md S-90). The ledger lives in the Home's Functions library, not in the project's: `record` commits
  * there by itself and is not part of the plugin's project transaction, so a caller records first and writes its own rows after, and a
  * judgment whose rows did not follow is harmless because adopting one rechecks its `scene_provenance`.
  */

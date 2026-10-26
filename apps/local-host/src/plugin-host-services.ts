@@ -148,7 +148,7 @@ function projectServices(options: PluginHostExecutorOptions, manifest: PluginMan
   return { ...(attention ? { attention } : {}), ...(contextLedger ? { contextLedger } : {}) };
 }
 
-/** `services.scenes` (PG-032 P1, S-86) and `services.judgments` (P2, S-87): the plugin's own consumption scenes and their judgment ledger, in the project the activation runs in. */
+/** `services.scenes` (PG-032 P1, S-89) and `services.judgments` (P2, S-90): the plugin's own consumption scenes and their judgment ledger, in the project the activation runs in. */
 function sceneServices(options: PluginHostExecutorOptions, manifest: PluginManifest, context: PluginStartContext, assertActive: () => void) {
   const record = () => options.record?.(context.install_id) ?? null;
   const scenes = pluginScenesFor(manifest, context, { scenes: options.actions.scenes, project_id: options.project_id, assertActive, record });

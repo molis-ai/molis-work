@@ -37,7 +37,7 @@ export interface Gate {
   write(permission: string): NonNullable<Scope>;
 }
 
-/** The questions both services ask before every call, so a stopped, revoked, cancelled or read-only call reaches neither table; `services.judgments` asks the same ones (S-87). */
+/** The questions both services ask before every call, so a stopped, revoked, cancelled or read-only call reaches neither table; `services.judgments` asks the same ones (S-90). */
 export function gateFor(context: PluginStartContext, projectId: string, assertActive: () => void, record: () => PluginInstanceRecord | null): Gate {
   const generation = record()?.installation_generation;
   const holding = (permission: string) => {
@@ -62,7 +62,7 @@ export function gateFor(context: PluginStartContext, projectId: string, assertAc
         throw new ActionError("actions.forbidden", "写入需要当前项目中的可写插件调用");
       }
       assertCapturedPluginActionCurrent(scope, context);
-      // A scene callback writes (user decision 2026-10-26, S-85) when the scene itself declares the permission and the callback's own
+      // A scene callback writes (user decision 2026-10-26, S-88) when the scene itself declares the permission and the callback's own
       // `beforeEffect` already returned; a read-only callback was refused above, and any other scene or a scene without the permission stays refused.
       if ("scene" in scope) {
         if (!scope.scene.permissions.includes(permission)) throw new ActionError("actions.forbidden", "写入需要场景自己声明了这项权限");

@@ -10,7 +10,7 @@ import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 
-// S-85 (PG-032 P4, user decision 2026-10-26): a plugin's scene callback writes an Inbox entry or a ledger edge through
+// S-88 (PG-032 P4, user decision 2026-10-26): a plugin's scene callback writes an Inbox entry or a ledger edge through
 // `services.attention` / `services.contextLedger` only when the scene itself declares the write permission, the callback may write
 // (not a read-only one) and its own `beforeEffect` already returned. Everything else keeps being refused, and the write joins the
 // plugin's own project transaction.
@@ -123,7 +123,7 @@ const refusedFor = (outcome: unknown, why: RegExp) => {
   return error.code === "actions.forbidden" && why.test(error.message ?? "");
 };
 
-test("RAC-847 S-85 a scene that declares attention:write writes an Inbox entry, once its beforeEffect returned, in the plugin's own transaction", async t => {
+test("RAC-847 S-88 a scene that declares attention:write writes an Inbox entry, once its beforeEffect returned, in the plugin's own transaction", async t => {
   const env = await platform(t, { sceneopen: [A_WRITE, L_WRITE], scenelean: [A_WRITE] });
   const open = env.probes.sceneopen!;
   assert.equal(await runScene(env, open, "write", "allowed-entry"), "ran");
@@ -134,7 +134,7 @@ test("RAC-847 S-85 a scene that declares attention:write writes an Inbox entry, 
   assert.ok(env.noted("sceneopen", "allowed-edge"));
 });
 
-test("RAC-848 S-85 a read-only scene callback cannot write, and nothing of its attempt stays", async t => {
+test("RAC-848 S-88 a read-only scene callback cannot write, and nothing of its attempt stays", async t => {
   const env = await platform(t, { sceneopen: [A_WRITE, L_WRITE] });
   const open = env.probes.sceneopen!;
   assert.equal(await runScene(env, open, "write", "after-prepare"), "ran");
@@ -143,7 +143,7 @@ test("RAC-848 S-85 a read-only scene callback cannot write, and nothing of its a
   assert.equal(env.noted("sceneopen", "from-prepare"), false);
 });
 
-test("RAC-848 S-85 a scene that does not declare the permission cannot write it, even though the plugin holds the grant", async t => {
+test("RAC-848 S-88 a scene that does not declare the permission cannot write it, even though the plugin holds the grant", async t => {
   const env = await platform(t, { scenelean: [A_WRITE], scenebare: [] });
   const lean = env.probes.scenelean!, bare = env.probes.scenebare!;
   const noEdge = await runScene(env, lean, "ledger", "needs-l-write");
@@ -156,7 +156,7 @@ test("RAC-848 S-85 a scene that does not declare the permission cannot write it,
   assert.equal(env.noted("scenebare", "needs-a-write"), false);
 });
 
-test("RAC-848 S-85 a scene callback writes only after its own beforeEffect returned: a no-op wait in its place is refused", async t => {
+test("RAC-848 S-88 a scene callback writes only after its own beforeEffect returned: a no-op wait in its place is refused", async t => {
   const env = await platform(t, { sceneopen: [A_WRITE, L_WRITE] });
   const outcome = await runScene(env, env.probes.sceneopen!, "no-before", "skipped-wait");
   assert.ok(refusedFor(outcome, /beforeEffect/), String((outcome as Error).message));
@@ -164,7 +164,7 @@ test("RAC-848 S-85 a scene callback writes only after its own beforeEffect retur
   assert.equal(env.noted("sceneopen", "skipped-wait"), false);
 });
 
-test("RAC-849 S-85 a caller revoked after the callback's wait writes nothing, and a writer kept past the callback writes nothing", async t => {
+test("RAC-849 S-88 a caller revoked after the callback's wait writes nothing, and a writer kept past the callback writes nothing", async t => {
   const env = await platform(t, { sceneopen: [A_WRITE, L_WRITE] });
   const open = env.probes.sceneopen!;
   const revoked = await runScene(env, open, "revoked", "revoked-entry");

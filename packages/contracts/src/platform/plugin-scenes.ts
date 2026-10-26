@@ -7,7 +7,7 @@ export const PLUGIN_SCENES_PERMISSION = "scenes:use";
  * The consumption scenes the plugin itself declares (`action_scenes` in its Manifest), as the plugin's own running action sees them:
  * the kernel's scene client with the caller left out. Every method works on the scenes this Manifest declares and refuses any other
  * (`plugin.scene_not_declared`); the caller is the one of the action that is running, never one the plugin passes, and the kernel's
- * checks of the function, the scene, the audience and the permissions apply as they do for any caller (docs/system/SECURITY-INVARIANTS.md S-86).
+ * checks of the function, the scene, the audience and the permissions apply as they do for any caller (docs/system/SECURITY-INVARIANTS.md S-89).
  */
 export interface PluginSceneClient {
   /** The scenes this plugin declares, with how the given judgment fits each. */

@@ -3,14 +3,14 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import { ActionError, type ActionCallContext, type ActionDefinition, type ActionSceneBinding, type ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionDefinition, type ActionSceneBinding, type ActionSceneClient, type ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginHostServices, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPluginPlatform, DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 
-// S-86 (PG-032 P1): a plugin reaches the kernel's scene client only through `services.scenes`, for the scenes its own Manifest declares,
+// S-89 (PG-032 P1): a plugin reaches the kernel's scene client only through `services.scenes`, for the scenes its own Manifest declares,
 // from inside its own running action, as that action's original caller. The scenes of anyone else are refused and do not show up; a
 // stopped, revoked, cancelled or borrowed service does nothing; the kernel's own checks stay.
 
@@ -22,7 +22,7 @@ const judgment: ActionDefinition = { capability_id: "judgments.scene-client", ve
     subject_kinds: ["feedback"], input_schema: textInput, output_schema: decisionOutput } };
 
 interface StepInput { readonly step: string; readonly scene?: string; readonly version?: number; readonly binding?: string; readonly project?: string }
-interface ProbeOptions { readonly grants?: readonly string[]; readonly scene?: boolean }
+interface ProbeOptions { readonly grants?: readonly string[]; readonly scene?: boolean; readonly sceneId?: string }
 
 const bindingOf = (scene: string, id: string, project: string | null = DEMO_PROJECT_ID, version = 1): ActionSceneBinding => ({ binding_id: id, scene_id: scene, scene_version: version,
   project_id: project, function: { capability_id: judgment.capability_id, version: 1 }, enabled: true, title: "绑定", href: "/x" });
@@ -30,7 +30,7 @@ const bindingOf = (scene: string, id: string, project: string | null = DEMO_PROJ
 /** A plugin of the test: three actions (concurrent, serial, query) that make the scene-client call `step` names, and a scene of its own unless told not. */
 function probe(short: string, options: ProbeOptions = {}) {
   const id = `io.molis.work.example.${short}`, grants = options.grants ?? [SCENES], hasScene = options.scene ?? true;
-  const scene: ActionSceneDefinition = { scene_id: `${id}.arrived`, version: 1, title: "到达", description: "处理到达的文字", trigger: "arrived", scope: "project",
+  const scene: ActionSceneDefinition = { scene_id: options.sceneId ?? `${id}.arrived`, version: 1, title: "到达", description: "处理到达的文字", trigger: "arrived", scope: "project",
     subject_kinds: ["feedback"], input_schema: textInput, result_schema: decisionOutput, permissions: [] };
   const state = { services: undefined as PluginHostServices | undefined, value: undefined as unknown, error: undefined as unknown, hook: () => {}, consumed: [] as unknown[],
     bindings: new Map<string, ActionSceneBinding>() };
@@ -74,13 +74,13 @@ function probe(short: string, options: ProbeOptions = {}) {
   return { id, short, scene, definition, state, wait, serial, look };
 }
 
-async function platform(t: TestContext) {
+async function platform(t: TestContext, wrap?: (scenes: ActionSceneClient) => ActionSceneClient) {
   const home = mkdtempSync(join(tmpdir(), "plugin-scenes-")), file = join(home, "project.db");
   seedDemoBoard(file);
-  const store = new LocalProjectDatabase(file), actions = pluginActions(store, DEMO_PROJECT_ID);
+  const store = new LocalProjectDatabase(file), actions = pluginActions(store, DEMO_PROJECT_ID), hosted = wrap ? { ...actions, scenes: wrap(actions.scenes) } : actions;
   const ports = { db: store.db, appendEvent: (event: Parameters<LocalProjectDatabase["appendEvent"]>[0]) => store.appendEvent(event),
     eventCursor: (projectId: string) => store.eventCursor(projectId) };
-  const running = createPluginPlatform({ actions, project_id: DEMO_PROJECT_ID, actor_id: "tester", db: store.db, journal: store,
+  const running = createPluginPlatform({ actions: hosted, project_id: DEMO_PROJECT_ID, actor_id: "tester", db: store.db, journal: store,
     artifacts: new ArtifactsModule(ports), processItems: new ProcessItemsModule(ports), ui: new UiHost(),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }), home: null });
   t.after(async () => {
@@ -95,7 +95,7 @@ async function platform(t: TestContext) {
   assert.deepEqual(started.running.toSorted(), all.map(item => item.id).toSorted(), JSON.stringify(started));
   actions.registry.registerProvider({ provider: { provider_id: "system-judgments", title: "判断", kind: "system" }, definitions: [judgment],
     handlers: [{ ...judgment, handle: (_caller, input) => ({ follow_up: (input as { text: string }).text.includes("hello") }) }] });
-  return { running, client: actions.client, main, other, ungranted, sceneless };
+  return { running, registry: actions.registry, client: actions.client, main, other, ungranted, sceneless };
 }
 
 /** The original caller; `revoke` makes its last authority check fail from then on. */
@@ -115,14 +115,14 @@ async function inAction(env: Env, item: ReturnType<typeof probe>, input: StepInp
 const refused = (error: { code?: string; message?: string } | undefined, code: string, why?: RegExp) => error?.code === code && (why === undefined || why.test(error.message ?? ""));
 const ids = (list: readonly { scene_id?: string; definition?: { scene_id: string } }[]) => list.map(item => item.scene_id ?? item.definition!.scene_id).toSorted();
 
-test("RAC-830 S-86 the service exists only for a plugin that declares scenes:use and has scenes of its own", async t => {
+test("RAC-830 S-89 the service exists only for a plugin that declares scenes:use and has scenes of its own", async t => {
   const env = await platform(t);
   assert.ok(env.main.state.services!.scenes, "a plugin with scenes:use and a scene has it");
   assert.equal(env.ungranted.state.services!.scenes, undefined, "a scene without scenes:use has no service, though its Manifest declares one");
   assert.equal(env.sceneless.state.services!.scenes, undefined, "scenes:use without a scene of its own has none");
 });
 
-test("RAC-831 S-86 a plugin binds, runs and lists its own scene, as the caller of its concurrent action", async t => {
+test("RAC-831 S-89 a plugin binds, runs and lists its own scene, as the caller of its concurrent action", async t => {
   const env = await platform(t);
   assert.equal((await inAction(env, env.main, { step: "bind" })).error, undefined);
   assert.deepEqual(ids((await inAction(env, env.main, { step: "usages" })).value as never), [env.main.scene.scene_id]);
@@ -132,7 +132,7 @@ test("RAC-831 S-86 a plugin binds, runs and lists its own scene, as the caller o
   assert.deepEqual(env.main.state.consumed, [{ text: "hello" }], "the kernel ran the judgment and the scene's own consumer");
 });
 
-test("RAC-831 S-86 the scenes of another plugin cannot be bound, run or configured, and do not show up in a list", async t => {
+test("RAC-831 S-89 the scenes of another plugin cannot be bound, run or configured, and do not show up in a list", async t => {
   const env = await platform(t);
   await env.client.bind(caller().context, bindingOf(env.other.scene.scene_id, "their-binding"));
   assert.equal(env.other.state.bindings.size, 1, "the other plugin's scene is bound and live");
@@ -149,7 +149,7 @@ test("RAC-831 S-86 the scenes of another plugin cannot be bound, run or configur
   assert.ok(refused(host.error, "plugin.scene_not_declared"), "a scene of the Host is not the plugin's either");
 });
 
-test("RAC-832 S-86 a scene that is not declared at that version, or not declared at all, is refused", async t => {
+test("RAC-832 S-89 a scene that is not declared at that version, or not declared at all, is refused", async t => {
   const env = await platform(t);
   const version = await inAction(env, env.main, { step: "bind", version: 2 });
   assert.ok(refused(version.error, "plugin.scene_not_declared"), "the Manifest declares version 1");
@@ -158,7 +158,7 @@ test("RAC-832 S-86 a scene that is not declared at that version, or not declared
   assert.equal(env.main.state.bindings.size, 0);
 });
 
-test("RAC-833 S-86 a stopped installation and a handle kept past the action do nothing", async t => {
+test("RAC-833 S-89 a stopped installation and a handle kept past the action do nothing", async t => {
   const env = await platform(t);
   const kept = env.main.state.services!.scenes!;
   await assert.rejects(kept.usages(), (error: ActionError) => error.code === "actions.forbidden", "outside every action there is no caller to act for");
@@ -170,13 +170,13 @@ test("RAC-833 S-86 a stopped installation and a handle kept past the action do n
   assert.ok(after === "pending" || (after as { error?: ActionError }).error?.code === "actions.forbidden", JSON.stringify(after));
 });
 
-test("RAC-833 S-86 a caller revoked while the action runs gets nothing from the next call", async t => {
+test("RAC-833 S-89 a caller revoked while the action runs gets nothing from the next call", async t => {
   const env = await platform(t);
   const { error } = await inAction(env, env.main, { step: "revoked" });
   assert.ok(refused(error, "actions.forbidden", /the caller was revoked/), `${error?.code} ${error?.message}`);
 });
 
-test("RAC-834 S-86 a service reached through one installation is refused inside another installation's action, and a project that is not the call's", async t => {
+test("RAC-834 S-89 a service reached through one installation is refused inside another installation's action, and a project that is not the call's", async t => {
   const env = await platform(t);
   // The other plugin's action reaches the main plugin's service.
   env.other.state.services = { ...env.other.state.services, scenes: env.main.state.services!.scenes } as PluginHostServices;
@@ -187,7 +187,7 @@ test("RAC-834 S-86 a service reached through one installation is refused inside 
   assert.equal(env.main.state.bindings.size, 0);
 });
 
-test("RAC-835 S-86 the kernel's checks are the ones that apply: an unknown judgment function and a missing binding are refused as they are for any caller", async t => {
+test("RAC-835 S-89 the kernel's checks are the ones that apply: an unknown judgment function and a missing binding are refused as they are for any caller", async t => {
   const env = await platform(t);
   const unknown = await inAction(env, env.main, { step: "bind-unknown" });
   assert.ok(refused(unknown.error, "actions.scene_incompatible"), `${unknown.error?.code} ${unknown.error?.message}`);
@@ -199,7 +199,7 @@ test("RAC-835 S-86 the kernel's checks are the ones that apply: an unknown judgm
   assert.deepEqual(kernel, { ok: true }, "the same scene run directly gives the same result");
 });
 
-test("RAC-836 S-86 runScene waits for a judgment, so only a concurrent action may call it; a query action changes nothing", async t => {
+test("RAC-836 S-89 runScene waits for a judgment, so only a concurrent action may call it; a query action changes nothing", async t => {
   const env = await platform(t);
   await inAction(env, env.main, { step: "bind" });
   const serial = await inAction(env, env.main, { step: "run" }, "serial");
@@ -211,4 +211,38 @@ test("RAC-836 S-86 runScene waits for a judgment, so only a concurrent action ma
   assert.deepEqual(env.main.state.consumed, [], "no judgment ran");
   assert.equal(env.main.state.bindings.has("from-query"), false);
   assert.deepEqual(ids((await inAction(env, env.main, { step: "usages" }, "look")).value as never), [env.main.scene.scene_id], "a query action may read");
+});
+
+test("RAC-838 S-89 a second provider cannot register a scene id that is taken, so a Manifest cannot claim another provider's scene", async t => {
+  const env = await platform(t);
+  const clash = probe("sceneclash", { sceneId: env.main.scene.scene_id });
+  const started = await env.running.start([{ definition: clash.definition, trust: { level: "host" as const } }]);
+  assert.equal(started.running.includes(clash.id), false, JSON.stringify(started));
+  assert.match(JSON.stringify(started.failed), /消费场景重复/, "the kernel refuses the second registration of the id");
+  const system: ActionSceneDefinition = { ...env.main.scene, scene_id: "system.taken", title: "系统场景" };
+  env.registry.registerProvider({ provider: { provider_id: "system-scenes", title: "系统", kind: "system" }, definitions: [], handlers: [], scenes: [system],
+    scene_handlers: [{ scene_id: system.scene_id, version: 1, bindings: () => [], bind: () => {}, consume: () => ({}) }] });
+  const squat = probe("scenesquat", { sceneId: system.scene_id });
+  const squatted = await env.running.start([{ definition: squat.definition, trust: { level: "host" as const } }]);
+  assert.equal(squatted.running.includes(squat.id), false, JSON.stringify(squatted));
+  assert.match(JSON.stringify(squatted.failed), /消费场景重复/);
+  assert.notEqual(env.running.runtime.list().find(item => item.plugin_id === squat.id)?.state, "running", "the squatter is not running: its actions were never registered and its activation is stopped");
+  assert.equal((await inAction(env, env.main, { step: "bind" })).error, undefined, "the first provider's scene still works");
+});
+
+test("RAC-839 S-89 an id that the Manifest declares but another provider holds is refused by bind and runScene, though the kernel resolves it", async t => {
+  const calls: string[] = [];
+  const env = await platform(t, scenes => ({
+    discoverScenes: async (caller, judgment) => (await scenes.discoverScenes(caller, judgment)).map(view => ({ ...view, provider: { ...view.provider, plugin_id: "io.molis.work.someone-else" } })),
+    usages: (caller, judgment) => scenes.usages(caller, judgment),
+    targets: (caller, judgment, scene) => scenes.targets(caller, judgment, scene),
+    bind: (caller, binding, options) => { calls.push("bind"); return scenes.bind(caller, binding, options); },
+    runScene: (caller, scene, bindingId, event) => { calls.push("run"); return scenes.runScene(caller, scene, bindingId, event); },
+  }));
+  for (const step of ["bind", "run"]) {
+    const { error } = await inAction(env, env.main, { step });
+    assert.ok(refused(error, "plugin.scene_not_declared", /别的提供方/), `${step}: ${error?.code} ${error?.message}`);
+  }
+  assert.deepEqual(calls, [], "the kernel was not asked to bind or run it");
+  assert.deepEqual((await inAction(env, env.main, { step: "discover" })).value, [], "and a list shows none of them as the plugin's");
 });

@@ -18,7 +18,7 @@ export interface PluginJudgmentsServicePorts {
 const declared = (manifest: PluginManifest, permission: string) => manifest.permissions.some(entry => entry.permission === permission);
 
 /**
- * `services.judgments` (PG-032 P2, S-87): the judgment ledger of the consumption scenes this plugin's Manifest declares, for this project.
+ * `services.judgments` (PG-032 P2, S-90): the judgment ledger of the consumption scenes this plugin's Manifest declares, for this project.
  * Reading needs `judgments:read`; recording needs `judgments:write` and a writable call (the gate `services.attention` writes through: a
  * concurrent action that declares the permission, a kept job, or a callback of the plugin's own scene that declares it once its
  * `beforeEffect` returned), and asks the original caller again right before the row is written, so a cancelled, revoked or stopped call

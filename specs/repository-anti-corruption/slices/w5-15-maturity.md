@@ -43,7 +43,7 @@
 | `packageDescriptor` 对象（packageName/packagePath/kind/maturity/contract/ssot/capabilities，59 个还带 migrationGoals） | 70 个包的 `src/index.ts`；`packages/contracts/src/index.ts:11-20` 是唯一带 `as const satisfies PackageDescriptor` 的写法；`tooling/plugin-cli/src/index.ts` 也是其中一员 | **零 importer**（全仓无 `import { packageDescriptor }`、无 `packageDescriptor.`）。唯一「读者」是 `scripts/workspace-packages.mjs:216-219` 的字符串包含检查（`"packageDescriptor"`、`maturity: "<值>"`、每个 capability 字符串） | 死数据。删对象、删 `MolisWorkPackageDescriptor` 类型别名（52 个包有、18 个没有）、删 contracts 的 `PackageDescriptor`/`PackageKind` 类型、删门禁的字符串检查 |
 | `migrationGoals` | `scripts/workspace-packages.mjs:12,22`（自动加基础 `goal-reorg-f2`）；70 个 `package.json` 的 `molis-work` 块；59 个 `src/index.ts`；70 个 README 的 `Migration Goals:` 行 | `checkWorkspacePackages:187` 三方对拍；`:229-233` 要求 README 逐个包含；没有别的读者 | 29 个不同 goal id，全是历史迁移编号；没有运行时意义。全删，历史留在 SSOT「迁移 / 实现 Goal」列（人写的标签）、roadmap/spec 与 git 历史里 |
 | `legacySources` | `scripts/workspace-packages.mjs:15,25`；`nativePluginEntries:58` 从插件块读；40 个包共 57 条（24 个内置插件块里也有） | **零读者**（门禁、测试、脚本、运行时都不读） | 死数据，全删；57 条里 56 条是已经删掉的旧文件路径 |
-| `capabilities` | registry（46 个非插件包，部分为空）；70 个 `package.json` 里 51 个有（19 个没有该键）；70 个 `src/index.ts`；内置插件块 | `checkWorkspacePackages:218-220` 要求 src 包含；`check-package-boundaries.mjs:434,437,440,697` 只对 goals/governance 读 `package.json` 的 caps；没有产品代码读者 | 现在三份且**没有互相比较**，已经漂移：`apps/workbench/package.json:83` 多一个孤儿 `workbench.goals-proposal-composition.v1`；`plugins/native/{schedule,shelf,workflows}/src/index.ts` 各多 1-2 个只在 descriptor 里的能力名（见 §4.10） |
+| `capabilities` | registry（46 个非插件包，部分为空）；70 个 `package.json` 里 51 个有（19 个没有该键）；70 个 `src/index.ts`；内置插件块 | `checkWorkspacePackages:218-220` 要求 src 包含；`check-package-boundaries.mjs:434,437,440,697` 只对 goals/governance 读 `package.json` 的 caps；没有产品代码读者 | 现在三份且**没有互相比较**，已经漂移：`apps/workbench/package.json:83` 多一个孤儿 `workbench.goals-proposal-composition.v1`；schedule/shelf 的 3 个能力名在插件块与 descriptor 各一份（loader 从插件块派生 registry，当时未对拍），workflows 的 1 个只在 descriptor（见 §4.10） |
 | `path`/`kind`/`ssot`/`contract`/`summary`/`notResponsibleFor` | 同样三份（`molis-work` 块、registry、`src/index.ts`） | `path/kind/contract` 由 `checkWorkspacePackages:182-185` 对拍；`ssot` 固定 `docs/SSOT-MATRIX.md`；`summary`/`notResponsibleFor` **零读者** | 同批收口：只保留经校验的最少字段（§4.9），`summary`/`notResponsibleFor` 建议删（§4.5、Q4） |
 | README 页脚三行 `Status:`/`Contract entrypoint:`/`Migration Goals:` | 70 个 README，位置不一（9 个以 `Status:` 开头，多数在页脚） | `checkWorkspacePackages:229-233` 要求包含；无其他读者 | 三份里的第四份；删检查、删三行，README 的「开发要求」不动（`scripts/package-dev-requirements.mjs` 只管那一节） |
 
@@ -341,8 +341,9 @@ W5-02 的块里有 13 个键；本片收窄为允许的 5 个键：
 - 权威：非插件包 = registry 条目；内置插件 = 插件块（loader 读入后即 registry 条目）。`src/index.ts` 不再声明能力名。
 - 收口清单（实测）：
   - `apps/workbench/package.json:83` 的 `workbench.goals-proposal-composition.v1`：全仓唯一出现，删除（孤儿）。
-  - `plugins/native/schedule/src/index.ts` 多 `schedule.conversation-tasks.v1`、`schedule.actions.v1`；`plugins/native/shelf/src/index.ts` 多 `shelf.actions.v1`；`plugins/native/workflows/src/index.ts` 多 `workflows.actions.v1`。这些只出现在 descriptor 里（registry/包块没有），descriptor 删除后自然消失；**默认按死名字处理，不补进 registry**（`cleanup-audit` §0 第 6 条的判断：若仍是现行能力，补进登记表；本方案取「不补」，因为没有任何代码按名字消费它们，且 `*.actions.v1` 是旧命名——若统筹要求保留，在 M1 里补进 registry 一行即可）。
-  - `characters.actions.v1`：registry、`package.json`、descriptor 三处一致，保留（registry 里已有）。
+  - `plugins/native/schedule/src/index.ts` 多 `schedule.conversation-tasks.v1`、`schedule.actions.v1`；`plugins/native/shelf/src/index.ts` 多 `shelf.actions.v1`。实测这些在插件块（`package.json`）里也有（`cleanup-audit` §0 第 6 条准确；本方案初稿误记为「只在 descriptor」）；registry 自 W5-02 起由插件块派生，所以三处其实是「包块 + descriptor 两份副本，registry 同源」。descriptor 删除后，名字只保留在插件块一处，registry 自动带着——等同 `cleanup-audit` 说的「若仍是现行能力，补进登记表」。没有任何代码按名字消费它们，保留只是不动运行时自描述。
+  - `plugins/native/workflows/src/index.ts` 多 `workflows.actions.v1`：这个确实只在 descriptor，随 descriptor 删除后为零，不再存在。
+  - `characters.actions.v1`：`modules/characters` 的 registry 有条目、包块此前也有；非插件包不再写包块，src 删除后只剩 registry 一处，保留。
 - 新增校验：非插件包不允许有 `molis-work` 块；插件块白名单（§4.7）；「registry 能力名 == 插件块能力名」由「同源」自动成立，不再需要三方对拍。
 - 说明：能力名目前没有产品消费方（只有 goals/governance 的硬编码检查读），所以这次是「把自我描述收成一份」而不是改行为。
 
@@ -445,7 +446,7 @@ W5-02 的块里有 13 个键；本片收窄为允许的 5 个键：
 | W5-15-06 | 代码与数据里零 `migrationGoals`/`legacySources`（历史文档 `specs/archive`、`docs/reviews`、roadmap 除外） | 定向 grep 白名单断言；README/package.json/src 三处零匹配 |
 | W5-15-07 | 70 个 README 无 `Status:`/`Contract entrypoint:`/`Migration Goals:` 三行；「## 开发要求」检查仍通过 | `git grep` + `checkDevRequirements` 现有测试 |
 | W5-15-08 | `pnpm api:update` 后 API 快照 diff 只有预期符号；`node scripts/gates/api-snapshot.mjs --check` 通过 | 快照 diff 贴进 PR 说明 |
-| W5-15-09 | capabilities 单一来源：`apps/workbench` 孤儿删除；3 个插件的 4 个 descriptor-only 名字为零；能力名只在 registry/插件块 | grep 断言 + 新测试 |
+| W5-15-09 | capabilities 单一来源：`apps/workbench` 孤儿删除（全仓不再出现）；`workflows.actions.v1`（仅 descriptor）随 descriptor 删除后为零；schedule/shelf 的 3 个既有能力名只保留在插件块一处（registry 由同一块派生）；能力名只在 registry/插件块 | grep 断言 + 新测试 |
 | W5-15-10 | 原三方对拍改成的单源检查不空转：goals/governance 的 registry 断言、artifacts/private-work-context/runtime-host 的入口断言仍有对应负例 | `tests/package-boundaries*.test.*`（若无则补最小负例；只加测试，不放宽） |
 | W5-15-11 | `pnpm boundary:check`、`node scripts/gates/package-inventory.mjs`、`node scripts/check-health-gates.mjs --base origin/main` 全绿且数字不增 | 命令输出贴 PR 说明 |
 | W5-15-12 | SSOT 构成句数字正确（70 = 6+1+10+13+9+24+6+1）且日期更新 | 文档 diff |
@@ -527,7 +528,7 @@ node scripts/machine-slot.mjs run browser --label w5-15-test -- node scripts/run
 | README 元数据 | 70 个含 `Status:`，位置不一（9 个行首） | grep |
 | package.json molis-work | 70 个（46 非插件 + 24 插件） | grep |
 | SSOT 行 | 78 行 = 70 实包 + 8 absent；另加 1 个非包行 `apps/workbench/src/functions` | 只读解析 `docs/SSOT-MATRIX.md` |
-| 能力漂移 | 1 个 pkg-only（workbench），3 个插件共 4 个 descriptor-only 名字 | 对比 registry/package.json/src |
+| 能力漂移 | 1 个 pkg-only（workbench，已删）；schedule/shelf 的 3 个名字是「插件块 + descriptor」重复（保留包块一份）；workflows.actions.v1 仅 descriptor（已随删除消失） | 对比 registry/package.json/src |
 | 合同描述符 | 49 个 `as const satisfies ContractDescriptor`；4 个 `contract-only`、其余 `partial` | grep |
 | 证据类别 | inventory 运行状态：在用 43、Runtime 18、构建期 6、非产品 3（`node scripts/gates/package-inventory.mjs --table`） | 命令输出 |
 

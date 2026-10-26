@@ -100,3 +100,27 @@ test("W5-15-10 the contract axis keeps its own words: ContractMaturity, not the 
   assert.ok(!contract.includes("PackageMaturity"), "the retired package maturity type is gone");
   assert.ok(!contract.includes("PackageKind"), "the dead package kind type is gone");
 });
+
+test("W5-15-09 capability names have exactly one writer each", () => {
+  const byPath = new Map(WORKSPACE_PACKAGES.map((item) => [item.path, item]));
+  const capabilities = (packagePath: string) => byPath.get(packagePath)?.capabilities ?? [];
+  // The orphan that only lived in workbench's package.json is gone.
+  assert.ok(
+    !JSON.stringify(manifestOf("apps/workbench")).includes("workbench.goals-proposal-composition.v1"),
+    "the workbench orphan capability is deleted",
+  );
+  // The name that only lived in a deleted descriptor does not sneak back.
+  const allCapabilities = JSON.stringify(WORKSPACE_PACKAGES.map((item) => item.capabilities));
+  assert.ok(!allCapabilities.includes("workflows.actions.v1"), "the descriptor-only name disappears with the descriptor");
+  // Names the plugins already declared in their own block stay there, in one place.
+  for (const packagePath of ["plugins/native/schedule", "plugins/native/shelf"]) {
+    const block = manifestOf(packagePath)["molis-work"];
+    assert.deepEqual(block?.capabilities, capabilities(packagePath), `${packagePath}: the plugin block is the only writer`);
+  }
+  assert.ok(capabilities("plugins/native/schedule").includes("schedule.actions.v1"));
+  assert.ok(capabilities("plugins/native/schedule").includes("schedule.conversation-tasks.v1"));
+  assert.ok(capabilities("plugins/native/shelf").includes("shelf.actions.v1"));
+  // Modules keep their capability names in the registry; no package block carries them.
+  assert.ok(capabilities("modules/characters").includes("characters.actions.v1"));
+  assert.equal(manifestOf("modules/characters")["molis-work"], undefined, "modules/characters: the registry is the only writer");
+});

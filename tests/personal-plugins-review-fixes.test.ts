@@ -368,6 +368,8 @@ test("Host 不再进口 Functions 的库（FunctionsStore）；错误类型来�
     "apps/local-host/src/functions-host.ts",
     "apps/local-host/src/functions-http.ts",
     "apps/local-host/src/web-catalog.ts",
+    "apps/local-host/src/web-catalog-routes.ts",
+    "apps/local-host/src/web-catalog-settings.ts",
     "apps/local-host/src/web-view.ts",
     "apps/local-host/src/mcp-server.ts",
     "apps/local-host/src/mcp-authority.ts",

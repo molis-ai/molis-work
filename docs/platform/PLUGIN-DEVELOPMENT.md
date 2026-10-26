@@ -128,7 +128,7 @@ Schedule 是这些服务的生产消费者，工厂见 `plugins/native/schedule/
 
 一个本机 Local Host 持有一个 `HomePluginHost`，并发动作、场景和 HTTP 共用启动 Promise。安装、授予、发行物和私有 KV 在 `{home}/plugin-runtime/plugin-runtime.db` v2，复用 PluginRuntime、Supervisor 和 Action Registry；不同版本或不完整结构拒绝并保留，不补表、不清空。MCP 子进程经已有本机 gateway 调同一个 Host，不打开插件库。Home 与项目共用提供方规则：只有可信启动条目给 `trust: HOST_BUILD_TRUST` 的定义对象使用插件 ID，其余使用安装 ID；provider 定位和 `install_id` / `installation_generation` 授权不能相互替代。
 
-Home 插件的数据按项目放时，Manifest 的 `databases.home` 写 `partition: "project"`（合同 `HomePluginDatabaseDeclaration`），登记里同一个库的 `library.partition` 也写 `"project"`，并声明 `project_data`：每个项目一个库，在 `{home}/<库名>/projects/<项目>/`，宿主按调用所在的项目给出，不在项目里的调用答 `actions.project_required`；闲置关闭、停用关闭与删项目都归平台，`purge` 可省。见 [specs/plugin-project-partition](../../specs/plugin-project-partition/spec.md)。
+Home 插件的数据按项目放时，Manifest 的 `databases.home` 写 `partition: "project"`（合同 `HomePluginDatabaseDeclaration`），库与分区由宿主从 Manifest 生成（`apps/local-host/src/home-stores.ts`），登记上不写库：每个项目一个库，在 `{home}/<库名>/projects/<项目>/`，宿主按调用所在的项目给出，不在项目里的调用答 `actions.project_required`；闲置关闭、停用关闭与删项目都归平台，删项目时整份删掉，确认框写「{插件名} 在这个项目里的数据」（PG-024）。见 [specs/plugin-project-partition](../../specs/plugin-project-partition/spec.md)。
 
 Host 绑定 `context.actor_id` 为 Home 所有人；实际动作 caller 保留页面、助理、MCP 的入口和身份。业务输入不得接收 owner、actor、install、provider 或数据库路径。Home 实例不提供项目 `artifacts`、端口、事件或假项目：`services.artifacts` 现在可缺省，项目消费者须明确要求该服务。
 

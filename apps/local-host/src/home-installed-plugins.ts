@@ -8,10 +8,9 @@
 import type { PluginInstanceRecord } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects, SandboxIdentity } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
-import { SandboxError } from '@molis-ai/molis-work-plugin-sandbox';
 import { installedDefinitions } from './installed-plugin-definition.js';
 import { installedPluginExposure } from './installed-plugin-exposure.js';
-import { sandboxDeclaration, sandboxGrants } from './installed-plugin-host.js';
+import { sandboxDeclaration, sandboxGrants, staleInstallation } from './installed-plugin-host.js';
 import { APPROVED_KEY, installedLifecycle, type InstalledPluginPlatform } from './installed-plugin-lifecycle.js';
 import { installedVersion, type InstalledRelease } from './installed-release.js';
 import { assertHomePackageAllowed } from './home-package-admission.js';
@@ -79,9 +78,9 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
     const record = recordFor(identity.pluginId);
     // The Home's instance has no project: an identity that names one is another instance's, and is never taken for this.
     if (isClosed() || identity.namespace !== 'installed' || identity.projectId !== null || !record || record.install_id !== identity.installationId || record.state !== 'running') {
-      throw new SandboxError('plugin.capability_denied', '插件的安装执行身份已失效');
+      throw staleInstallation();
     }
-    try { assertPinned(record); } catch (error) { throw new SandboxError('plugin.capability_denied', said(error)); }
+    try { assertPinned(record); } catch (error) { throw staleInstallation(said(error)); }
   };
   const catalog = (): Promise<CatalogCapability[]> => {
     if (catalogPending) return catalogPending;

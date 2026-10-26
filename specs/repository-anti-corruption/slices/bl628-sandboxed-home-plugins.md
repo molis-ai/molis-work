@@ -1,6 +1,6 @@
 # BL-628：装进 Home 的非内置插件由沙箱宿主的 Home 实例承载（设计稿）
 
-状态：设计稿，待统筹审（2026-10-26，防腐线 ac-clients-1 片；分支 `claude/bl628-sandboxed-home-plugins`，基线 main `2b3dc51de`）。§3.1（S-80 怎样放开）是扩大安全边界，**审定并经用户确认之前不实现**；其余分片见 §4。号段 RAC-960～979、BL-710～719；本稿不占新的 S 号（扩 S-80、S-84、S-91 的行，要不要另开一号见 §6 D6）。
+状态：已实现 P1～P5，未开 PR（2026-10-26，防腐线 ac-clients-1 片；分支 `claude/bl628-sandboxed-home-plugins`，基线 main `2b3dc51de`）。D1～D8 经统筹审定、D1 经用户 2026-10-26 弹窗确认（S-80 只对「签名固定 + 沙箱」放开）；号段 RAC-960～979、BL-710～719，本稿不占新的 S 号（扩 S-80、S-84、S-91）。验收对照见 §5；没做的见 BL-710～715。
 
 ## 1. 现状（事实）
 
@@ -124,21 +124,21 @@ P1～P3 在闸没开时不改任何外部可见的行为，可以先做；P4 单
 | 编号 | 可观察结果与证明 |
 | --- | --- |
 | RAC-960 | 闸：`pinned` + 沙箱 + `runtime.scope:"home"` 放行；`pinned` 但宿主里跑、`unsigned`、`host` 信任加沙箱，各被拒（`plugin.home_scope_unavailable` 或既有的 `plugin.grant_denied`）；被拒的不留安装记录。`tests/plugin-runtime-scope.test.ts` |
-| RAC-961 | 范围核对：项目 Runtime 收到声明 `home` 的包、Home Runtime 收到没声明的包，各被拒且不留记录；内置 Home 插件照常装。同上 |
-| RAC-962 | 仍然拒绝：沙箱 Home 包声明 `local_tools`、`always_on`、双实例标记（Manifest 或安装记录说出来）、端口/事件/成果/过程项、项目库/项目行，各以原来的码被拒。`tests/plugin-runtime-scope.test.ts`、`tests/security-invariants-sandbox-home-instance.test.ts` |
-| RAC-963 | 预览带 `runtime_scope`；确认按预览记下的范围落到 Home 或项目，范围对不上是 `plugin.preview_unknown`；同一个 `plugin_id` 的包库里已有另一种范围的版本时，预览即被拒。`tests/plugin-install-service.test.ts` |
-| RAC-964 | 只有本人能装 Home 级：Agent、MCP、工作流、插件调用预览/确认仍是 `actions.forbidden`（S-84 ③不变，加一个声明 `home` 的包的正控）。`tests/security-invariants-plugin-install.test.ts` |
-| RAC-965 | 起停与恢复：装进 Home 后重启宿主，包在 Home 里恢复运行；固定被撤销的包不起、写明原因、不挡内置 Home 插件和别的包；一个包起不来不使 Host 启动失败。`tests/home-installed-plugins.test.ts` |
-| RAC-966 | 身份：Home 实例的沙箱身份 `projectId` 为 `null`；项目里的实例拿不到 Home 实例的服务句柄，反之亦然（沿用 S-48 的「每个服务按正在运行的动作所属实例核对」）。`tests/security-invariants-sandbox-home-instance.test.ts` |
-| RAC-967 | 能力：Home 沙箱包只能调 Home 范围的平台能力，调项目范围的动作被拒，不给 `PROJECT_REACH_PERMISSION`。同上 |
-| RAC-968 | 可达：运行中的 Home 包按 plugin id 出现在每个项目的可达集合里，项目隐藏后该项目不可达、别的项目不受影响；停用后所有项目不可达（`actions.plugin_disabled` / 不可用）。`tests/home-installed-plugins.test.ts`、`tests/project-reach.test.ts` |
-| RAC-969 | 动作与页面：包的公开操作作为 Home 范围的动作经目录可见、可调（提供方是安装 ID）；停用、卸载、撤销固定后在途与新来的调用被拒、不写业务记录（S-18 口径）。同上 |
-| RAC-970 | 生命周期：停用/启用/卸载与项目里的同一套代码路径（`installedLifecycle` 不为 Home 复制）；常开拒绝、装到一半失败的回收、保留数据的重装沿用同一个安装 ID。`tests/installed-plugin-lifecycle.test.ts` 的 Home 版 |
-| RAC-971 | 清理：不保留数据的卸载后，私有存储、Home 库、主人文件、密钥、提示词登记、批准记录都没有；保留数据的卸载后私有存储与 Home 库与主人文件在、重装找回；发布者固定与包文件不受卸载影响。`tests/home-installed-plugins-cleanup.test.ts` |
-| RAC-972 | 删项目对 Home 包无副作用：Home 包的数据与实例不因删项目而变；它在该项目里的后台作业已停。同上 |
-| RAC-973 | 项目侧行为不变：P1 的收窄不改变项目里已装沙箱包的任何既有断言（`tests/installed-plugin-host.test.ts` 等原样过）。 |
+| RAC-961 | 范围核对：项目 Runtime 收到声明 `home` 的包、Home Runtime 收到没声明的包，各被拒且不留记录；内置 Home 插件照常装。`tests/plugin-runtime-scope.test.ts`；同一个 `plugin_id` 的范围不能换（预览、确认各拒一次）：`tests/security-invariants-plugin-install.test.ts` |
+| RAC-962 | 仍然拒绝：Home 的 Runtime 收到项目范围的包、`always_on`、项目的端口、无签名、宿主信任用在沙箱包上，各被拒，没有安装记录、批准记录和可调用的动作。`tests/security-invariants-sandbox-home-instance.test.ts`（`local_tools`、双实例标记仍由 RAC-739、RAC-742 的用例钉住，项目库声明由 S-91 的用例钉住） |
+| RAC-963 | 预览带 `runtime_scope`；确认按预览记下的范围落到 Home 或项目（范围对不上是 `plugin.preview_unknown`）；Home 包的预览同样只有本人能走（Agent、MCP、工作流、插件是 `actions.forbidden`）。`tests/security-invariants-plugin-install.test.ts`、`tests/home-installed-plugins.test.ts` |
+| RAC-964 | 发布者固定：从没固定过的、固定被撤销的 Home 包重启后不再启动、写明原因、数据保留，内置 Home 插件和别的包照跑。`tests/security-invariants-sandbox-home-instance.test.ts` |
+| RAC-965 | 起停与恢复：装进 Home 后重启宿主，包在 Home 里恢复运行；一个包起不来（包文件没了）不使 Host 启动失败，也不挡别的包。`tests/home-installed-plugins.test.ts` |
+| RAC-966 | 身份：Home 实例的沙箱身份 `projectId` 为 `null`，比对处不接受带项目的身份。`tests/home-installed-plugins.test.ts` 与 `tests/security-invariants-sandbox-home-instance.test.ts` |
+| RAC-967 | 能力：Home 沙箱包的能力目录只有 Home 范围的动作，依赖项目范围动作的操作在代码运行前被拒，不给 `PROJECT_REACH_PERMISSION`（BL-710）。`tests/security-invariants-sandbox-home-instance.test.ts` |
+| RAC-968 | 可达：运行中的 Home 包按 plugin id 出现在每个项目的可达集合里，项目隐藏后该项目不可达（`actions.plugin_disabled`）、别的项目不受影响；停用后所有项目不可达。`tests/home-installed-plugins.test.ts` |
+| RAC-969 | 动作：包的公开操作作为 Home 范围的动作经目录可见、可调，Home 和项目里同一个实例同一份数据，重启后仍在。`tests/home-installed-plugins.test.ts` |
+| RAC-970 | 生命周期：停用/启用/卸载与项目里的同一套代码路径（`installedLifecycle` 不为 Home 复制）；Home 的 `/api/plugins/<id>/enable|disable|uninstall` 路由对包生效，对宿主构建的插件不生效。`tests/home-installed-plugins.test.ts` |
+| RAC-971 | 清理：不保留数据的卸载后，私有存储、批准记录、提示词登记都没有；保留数据的卸载后私有存储在、重装找回同一个安装 ID；发布者固定与保留的包文件不受卸载影响。同上 |
+| RAC-972 | 删项目对 Home 包无副作用：Home 包的数据与实例不因删项目而变，别的项目仍然可达。同上 |
+| RAC-973 | 项目侧行为不变：P1 的收窄不改变项目里已装沙箱包的任何既有断言（`installed-plugin-*`、`plugin-sandbox*`、`security-invariants-plugin-install*`、`plugin-runtime*` 等原样过）。 |
 
-## 6. 待统筹裁定（裁定前按推荐做）
+## 6. 裁定（2026-10-26：D1 经用户弹窗确认，D2～D8 统筹按推荐采纳；D6 的 S-80 行写「用户 2026-10-26 弹窗决定」）
 
 - **D1 S-80 只对「pinned + 沙箱」放开**（推荐）。理由：这是 S-84 那条唯一的路，已有验签、固定、本人确认、沙箱三层；`unsigned`（创作台产物）不放开，创作台随 BL-377 重做，到时再定（BL-712）。备选：也放开创作台生成的——不推荐：没有发布者身份，等于让一个未署名的东西常驻 Home。
 - **D2 项目范围动作对 Home 沙箱包不可达**（推荐，BL-710）。Home 实例没有项目；跨项目读取是给内置 Home 插件的特权，沙箱不继承。备选：给，但要有逐项目的同意——工作量和边界都更大，没有用例。

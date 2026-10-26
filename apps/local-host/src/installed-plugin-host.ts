@@ -50,6 +50,9 @@ interface InstalledPluginHostOptions {
 type InstalledPluginHost = Awaited<ReturnType<typeof openInstalledPlugins>>;
 const hosts = new WeakMap<LocalProjectDatabase, Map<string, { home: string; actor: string; project: string; ready: Promise<InstalledPluginHost> }>>();
 
+/** The refusal a sandbox's Host call gets once the installation it belongs to is no longer the running one (a project's or the Home's). */
+export const staleInstallation = (message = '插件的安装执行身份已失效'): SandboxError => new SandboxError('plugin.capability_denied', message);
+
 export function ensureInstalledPlugins(options: InstalledPluginHostOptions): Promise<InstalledPluginHost> {
   const boards = hosts.get(options.store) ?? new Map(); hosts.set(options.store, boards);
   const identity = { home: resolve(options.homeDirectory), actor: options.actorId ?? 'web-user', project: options.actions?.project_id ?? options.projectId };
@@ -126,7 +129,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
   const assertInstalled = (identity: Readonly<SandboxIdentity>) => {
     const record = recordFor(identity.pluginId);
     if (closed || identity.namespace !== 'installed' || identity.projectId !== projectId || !record || record.install_id !== identity.installationId || record.state !== 'running') {
-      throw new SandboxError('plugin.capability_denied', '插件的安装执行身份已失效');
+      throw staleInstallation();
     }
   };
   const capabilityFor = (live: (identity: Readonly<SandboxIdentity>) => boolean): NonNullable<SandboxServices['capability']> => catalogCapabilities({ actions, catalog, live, author: titleOf,

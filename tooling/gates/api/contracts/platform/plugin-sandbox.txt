@@ -57,7 +57,7 @@ export type SandboxHostMessage = {
 };
 
 export interface SandboxIdentity {
-    projectId: string;
+    projectId: string | null;
     installationId: string;
     pluginId: string;
     namespace: 'preview' | 'installed';

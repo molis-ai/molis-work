@@ -152,3 +152,22 @@ test("RAC-970 only a package installed in the Home can be removed through the Ho
   await assert.rejects(home.web.post(`/api/plugins/${builtIn.plugin_id}/uninstall`, { keep_data: false }), (error: { status?: number }) => error.status === 404);
   assert.equal(home.host.homePlugins!.installation(builtIn.plugin_id)?.state, "running", "it is still installed");
 });
+
+test("RAC-972 deleting a project changes nothing of a Home package: the instance runs on, its data stays, and the other projects reach it", mac, async t => {
+  const home = await openTestHome(t);
+  const doomed = await home.createProject("Doomed"), kept = await home.createProject("Kept");
+  const clientOf = (project: typeof kept) => home.host.actionClient(project.reference);
+  const callerOf = (project: typeof kept): ActionCallContext => ({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: project.project_id, permissions: [] });
+  const preview = await clientOf(doomed).invoke(person(doomed.project_id), ref(pluginInstallActions.preview), { bundle: homePackage() }) as { preview_id: string };
+  await clientOf(doomed).invoke(person(doomed.project_id), ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "Test publisher" });
+  const call = async (project: typeof kept, localId: string, input: unknown) => operate(clientOf(project), callerOf(project), await operationsOf(clientOf(project), callerOf(project)), localId, input);
+  await call(doomed, "notes.add", { text: "written while the doomed project was open" });
+  const installId = home.host.homePlugins!.installation(PACKAGE_PLUGIN_ID)!.install_id;
+
+  await home.web.post(`/api/settings/projects/${doomed.project_id}/delete`, { delete_confirmed: true, idempotency_key: "bl628-delete" });
+  assert.equal(home.host.homePlugins!.installation(PACKAGE_PLUGIN_ID)?.state, "running", "the Home instance is still running");
+  assert.equal(home.host.homePlugins!.installation(PACKAGE_PLUGIN_ID)?.install_id, installId);
+  assert.deepEqual(await call(kept, "notes.list", {}), [{ id: "1", text: "written while the doomed project was open" }], "its data is the Home's, not the doomed project's");
+  assert.ok(valuesOf(home.home, installId).length > 0);
+  assert.equal(home.host.homePlugins!.packageError(PACKAGE_PLUGIN_ID), undefined);
+});

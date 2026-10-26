@@ -158,10 +158,8 @@ export class PluginRuntime implements PluginRuntimeApi {
     private readonly options: { now?: () => Date; maxRecoveryAttempts?: number; redemption?(definition: PluginDefinition): RedemptionScope; declarationOwners?: DeclarationOwners; reservedRuleKeys?(): ReadonlySet<string>;
       /** Where consents are recorded (the Home's ledger). Without one a Runtime records none, so nothing it installs has any consent in effect. */
       consents?: PluginConsentLedger;
-      /** The Host's actual shipped `plugin_id`s; required even for a Host shipping no plugins (S-75). */
-      hostIds: ReadonlySet<string>;
-      /** Which Runtime this is. A plugin that is not of the Host's build is installed only into the one its Manifest names (`runtime.scope`, BL-628); none given, none checked. */
-      scope?: "home" | "project";
+      /** The Host's actual shipped `plugin_id`s; required even for a Host shipping no plugins (S-75). `scope`: which Runtime this is, so a plugin not of the Host's build installs only into the one its Manifest names (`runtime.scope`, BL-628); none given, none checked. */
+      hostIds: ReadonlySet<string>; scope?: "home" | "project";
       actions?: { registry: ActionRegistryPort; project_id?: string; providerId?(record: PluginInstanceRecord, definition: PluginDefinition): string; projectReach?: PluginProjectReach } },
   ) { if (!options?.hostIds) throw pluginErrors.state_invalid("Runtime 需要宿主明确给出随构建发布的插件 ID 名单"); }
 

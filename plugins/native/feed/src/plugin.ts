@@ -11,7 +11,10 @@ import { createFeedQueryHandlers, feedQueryActions } from "./query-actions.js";
 import { createFeedRuleHandlers } from "./rule-actions.js";
 import { createFeedRuntimePorts } from "./runtime-ports.js";
 import { createFeedWriter } from "./runtime-writes.js";
-import { feedSourceActions } from "./source-actions.js";
+import { createFeedSourceHandlers, feedSourceActions } from "./source-actions.js";
+import { FeedSourceService } from "./source-service.js";
+import { createFeedSourceSyncLease } from "./source-sync-lease.js";
+import type { FeedSourceProviders } from "./source-ports.js";
 import { FEED_NOTIFICATION_ACTIONS } from "./notification-actions.js";
 import { feedUiContribution } from "./ui.js";
 
@@ -30,7 +33,9 @@ const PLATFORM_PERMISSIONS = [
  * notifications. The slice's step 4e-2 adds them; until then they stay with the Host's Feed (`feedManifest` is still the registered one).
  */
 const NOT_YET: ReadonlySet<ActionDefinition> = new Set<ActionDefinition>([
-  ...Object.values(feedSourceActions), ...FEED_NOTIFICATION_ACTIONS, feedQueryActions.connections, feedQueryActions.linkedContext,
+  // Registering and editing need the source vocabulary (4c-3), deleting releases a source's bodies (4e-2b), pulling and the clock are 4e-2b/c.
+  feedSourceActions.register, feedSourceActions.update, feedSourceActions.delete, feedSourceActions.sync, feedSourceActions.tick,
+  ...FEED_NOTIFICATION_ACTIONS, feedQueryActions.connections, feedQueryActions.linkedContext,
 ]);
 const { notifications: _notifications, action_scenes: _scenes, ...BASE } = feedManifest;
 
@@ -73,6 +78,18 @@ export function createFeedPlugin(): PluginDefinition {
       })) };
     };
     const later = (what: string) => (): never => { throw new ActionError("actions.dependency_missing", `${what}还没有接到平台服务`); };
+    // The source vocabulary (catalog, normalizers, the HTTP cursor) is the platform's to give (4c-3); until then the service answers only what needs none of it.
+    const vocabulary = later("来源词汇");
+    const providers: FeedSourceProviders = {
+      listCatalog: vocabulary,
+      customRss: { definitionId: "custom_rss", normalizeUrl: vocabulary, host: vocabulary },
+      youtube: { definitionId: "youtube_channel", host: "www.youtube.com", normalizeChannel: vocabulary, feedUrl: vocabulary },
+      gmail: { defaultScope: "", parseScope: vocabulary },
+      rss: { isSourceKind: vocabulary, failureCount: vocabulary, withFailure: vocabulary, withSuccess: vocabulary },
+    };
+    // Called inside the action's own write transaction, so a service that changes several rows needs no transaction of its own.
+    const sources = new FeedSourceService({ feed, providers, acquireSync: createFeedSourceSyncLease(), createRuntime: later("来源拉取"), transaction: operation => operation(),
+      appendEvent: (project, sourceId, type, reason, payload = {}) => ports.appendEvent(project, "feed_source", sourceId, type, reason, payload, new Date().toISOString()) }, projectId);
     const bindings: ActionHandlerBinding[] = [
       ...createFeedContentHandlers(feed, projectId, hydrate),
       ...createFeedQueryHandlers(feed, projectId, { hydrate, authStatus: later("连接状态"), linkedContext: later("Goal 关联材料") }),
@@ -83,6 +100,7 @@ export function createFeedPlugin(): PluginDefinition {
         if (!source.enabled || source.status !== "active" || lifecycle?.deleted_at) return { authorized: false, reason: "来源已暂停、断开或移除" };
         return ["manual", "public_source"].includes(source.sync_kind) ? { authorized: true } : { authorized: false, reason: "来源连接暂不可用" };
       } }),
+      ...createFeedSourceHandlers(projectId, { feed: () => feed, sources: () => sources, connectorSync: later("连接器同步") }),
       ...createFeedItemHandlers(feed, projectId, { inboxActive: itemId => feed.listInboxEntries(projectId)
         .some(entry => entry.subject_type === "feed_item" && entry.subject_id === itemId && (entry.status === "open" || entry.status === "in_progress")) }),
     ];

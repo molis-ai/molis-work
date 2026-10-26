@@ -61,9 +61,14 @@ export interface FeedSourceActionPorts {
 export function createFeedSourceHandlers(board: string, ports: FeedSourceActionPorts): ActionHandlerBinding[] {
   // Retain the scheduler's existing overlap guard across tick invocations, without holding the project's command queue during network waits.
   const scheduledSources = new Set<string>();
-  const bind = <Input, Output>(definition: ActionDefinition<Input, Output>, handle: (input: Input, caller: ActionExecutionContext) => Output | Promise<Output>): ActionHandlerBinding => ({
+  // Judgments a source change starts keep this call's authority, pinned to the Feed action that started them. A change that only writes
+  // answers synchronously, so the Runtime's transaction can hold it whole; one that waits (a pull) re-checks its caller first.
+  const bind = <Input, Output>(definition: ActionDefinition<Input, Output>, handle: (input: Input, caller: ActionExecutionContext) => Output): ActionHandlerBinding => ({
     capability_id: definition.capability_id, version: definition.version,
-    // Judgments a sync starts keep this call's authority, pinned to the Feed action that started them.
+    handle: (caller, input) => handle(input as Input, retainActionAuthority(caller, definition, caller.beforeEffect)),
+  });
+  const bindWaiting = <Input, Output>(definition: ActionDefinition<Input, Output>, handle: (input: Input, caller: ActionExecutionContext) => Promise<Output>): ActionHandlerBinding => ({
+    capability_id: definition.capability_id, version: definition.version,
     handle: async (caller, input) => {
       await caller.beforeEffect();
       return await handle(input as Input, retainActionAuthority(caller, definition, caller.beforeEffect));
@@ -108,8 +113,8 @@ export function createFeedSourceHandlers(board: string, ports: FeedSourceActionP
       }
       return { source: ports.sources(caller).disconnect(input.source_id) };
     }),
-    bind(a.sync, sync),
-    bind(a.tick, (_, caller) => new FeedSourceScheduler(board, () => ports.sources(caller),
+    bindWaiting(a.sync, sync),
+    bindWaiting(a.tick, async (_, caller) => new FeedSourceScheduler(board, () => ports.sources(caller),
       (source, key, authority) => sync({ source_id: source.source_id, idempotency_key: key }, { ...caller, beforeEffect: authority.beforeEffect }), undefined, scheduledSources)
       .tick(new Date(), caller)),
   ];

@@ -6,7 +6,7 @@ import test, { type TestContext } from "node:test";
 import { ActionError, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginProjectDatabase, PluginProjectDatabaseTransaction } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPluginPlatform, DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { createFeedPlugin, createFeedWriter, FEED_PLUGIN_ID, feedContentActions, feedItemActions, feedQueryActions, feedRuleActions, feedRuntimeManifest } from "@molis-ai/molis-work-plugin-feed";
+import { createFeedPlugin, createFeedWriter, FEED_PLUGIN_ID, feedContentActions, feedItemActions, feedQueryActions, feedRuleActions, feedRuntimeManifest, feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
@@ -107,6 +107,30 @@ test("RAC-509 a write that waits first (a rule saved after its judgment is chose
   await assert.rejects(client.invoke(caller(WRITE).context, feedRuleActions.create, { name: "late", match: { contains: "x" }, enabled: false }),
     { code: "actions.execution_failed" });
   assert.equal(count("SELECT count(*) AS n FROM feed_out_rules"), before, "the late write was refused, not made somewhere else");
+});
+
+// RAC-506 (4e-2a)
+test("RAC-506 a Runtime Feed changes a source's schedule and pause state in one commit with its journal event, under the original caller", async t => {
+  const { client, count } = await platform(t);
+  const written = await client.invoke(caller(WRITE).context, feedContentActions.receive, receive("sourced")) as { item_id: string };
+  const sourceId = (await client.invoke(caller(READ).context, feedQueryActions.item, { item_id: written.item_id }) as { item: { source_id: string } }).item.source_id;
+  const events = (type: string) => count(`SELECT count(*) AS n FROM events WHERE object_type = '${FEED_PLUGIN_ID}:feed_source' AND object_id = ? AND type = ? AND actor_id = ?`, sourceId, `${FEED_PLUGIN_ID}:feed_source.${type}`, OWNER);
+  const paused = await client.invoke(caller(WRITE).context, feedSourceActions.enabled, { source_id: sourceId, enabled: false }) as { source: { enabled: boolean } };
+  assert.equal(paused.source.enabled, false);
+  assert.equal(events("paused"), 1, "the pause is journaled under the caller, not the Host");
+  const scheduled = await client.invoke(caller(WRITE).context, feedSourceActions.schedule, { source_id: sourceId, mode: "interval", enabled: true, interval_minutes: 30 }) as { source: { schedule: { mode: string; interval_minutes?: number } } };
+  assert.deepEqual([scheduled.source.schedule.mode, scheduled.source.schedule.interval_minutes], ["interval", 30]);
+  assert.equal(events("schedule_updated"), 1);
+  await assert.rejects(client.invoke(caller(WRITE).context, feedSourceActions.disconnect, { source_id: sourceId }), { code: "feed.source_invalid_state" });
+  // A caller revoked at any check changes nothing.
+  const before = { enabled: count("SELECT enabled AS n FROM feed_sources WHERE source_id = ?", sourceId), events: events("resumed") };
+  for (let from = 1; from <= 6; from += 1) {
+    await client.invoke(caller(WRITE, from).context, feedSourceActions.enabled, { source_id: sourceId, enabled: true }).catch(() => undefined);
+    const after = count("SELECT enabled AS n FROM feed_sources WHERE source_id = ?", sourceId), resumed = events("resumed");
+    assert.equal(after === 1, resumed === before.events + 1, `the pause state and its event move together (revoked from check ${from})`);
+    if (after === 1) await client.invoke(caller(WRITE).context, feedSourceActions.enabled, { source_id: sourceId, enabled: false });
+    before.events = events("resumed");
+  }
 });
 
 /** A stand-in for a platform handle: only the members these cases exercise, the rest absent. */

@@ -383,7 +383,7 @@ type SourcePullRequest =                       // 闭合：多一个字段就拒
 | 片 | 内容 | 平台件 |
 | --- | --- | --- |
 | 4c-3 | `services.sourcePull.vocabulary`（目录、规范化、游标）；SI 行并入 S-93；`SANDBOX_SERVICE_FATE` 沿用 | 合同 + Runtime 客户端 + 宿主构造 |
-| 4e-2a | 来源管理动作（register/update/delete/schedule/enabled/disconnect）与 `createFeedSourceSyncLease` 进 `createFeedPlugin()`；这些是同步写，直接用 `writing()` | 无 |
+| 4e-2a（做完，见下） | 来源管理里只写不等的三个动作（`enabled`、`schedule`、`disconnect`）进 `createFeedPlugin()`，直接用 `writing()`；`register`、`update` 要词汇（等 4c-3），`delete` 之后要释放来源的正文和检索记录（`history.release` 是同步端口，Runtime 里要经 Home 账与 `forget`，归 4e-2b） | 无 |
 | 4e-2b | 公开来源 `sync`：`PublicSourceSync` 改用 `commit` 端口，拉取经 `sourcePull.pull` 并 `hold`，结果映射回 `IntelligenceCollectResult`；失败后调 `feed.content.reclaim`（4c-1 的条件①） | 无 |
 | 4e-2c | `tick` 用唤醒动作（`background.wakeups`）、研究库经 `repository.read` | 无 |
 | 4e-2d | 连接器同步（`services.connections`）与 `feed.connections.status`、`feed.goals.context` | 无 |
@@ -391,3 +391,5 @@ type SourcePullRequest =                       // 闭合：多一个字段就拒
 | 4e-2f | 三种判断触发器与判断队列的写回走 `commit`；`feed.content.receive` 改成一次提交（现在的手动投递来源 + 入条目不是原子的）；项目一半的 RAC-492/493/518 | 无 |
 
 **请统筹确认或另裁：** 缺口一用 4c-3（平台给词汇）还是把函数搬进 Feed。我先按推荐做 4e-2a（不依赖这个裁定），4c-3 等回复再动。
+
+**4e-2a 实现记录（2026-10-26）。** `source-actions.ts` 的 `bind` 分成两个：只写不等的（`register`、`update`、`delete`、`schedule`、`enabled`、`disconnect`）直接返回同步结果、不再外包 `async`，这样 Runtime 的事务能整个装下；会等的（`sync`、`tick`）用 `bindWaiting`，先 `await caller.beforeEffect()`，行为同前。`createFeedPlugin()` 起一个 `FeedSourceService`（事务端口直接 `operation()`，因为已在动作自己的写事务里；`providers` 是「来源词汇」的占位，调用即失败，4c-3 接上），`enabled`、`schedule`、`disconnect` 加进 Runtime Manifest；`register`、`update`、`delete`、`sync`、`tick` 仍在 `NOT_YET`。测试（`feed-runtime-plugin`）：暂停与排程的日志事件是调用者的、类型带命名空间；公开来源 `disconnect` 报 `feed.source_invalid_state`；调用者在各检查点被撤权时，启停状态与事件同进同退。宿主版 Feed 的 52 个来源相关用例照旧通过。

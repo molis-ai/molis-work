@@ -264,6 +264,7 @@ export { logMemoryLearning, prologueMemoryBackend } from "./memory/memory-host.j
 export { ComputerRecords } from "./computer/computer-records.js";
 export { handleComputerHttp, type ComputerShelf } from "./computer/computer-http.js";
 export { assistantRelatedAction, assistantRelatedRegistration, type RelatedWorksSource } from "./assistant/assistant-related-action.js";
+export { assistantThreadActions } from "./assistant/assistant-thread-actions.js";
 export { ComputerDesk } from "./computer/computer-desk.js";
 export { ComputerSettings } from "./computer/computer-settings.js";
 export { ComputerDriver, type DeskContext } from "./computer/computer-driver.js";

@@ -3,7 +3,7 @@ import { codeLanguage, codeTokens, growCodeTokens } from "@molis-ai/molis-work-p
 import { assistantCodeColours, createAssistantCodeGrow } from "./assistant-code-grow.js";
 import { ASSISTANT_SEND_CLIENT_SCRIPT, ASSISTANT_RECEIPTS_FACTORY_SCRIPT } from "./assistant-send.js";
 import { ASSISTANT_FOLLOW_FACTORY_SCRIPT } from "./assistant-follow.js";
-import { ASSISTANT_STEP_ROW_FACTORY_SCRIPT } from "./assistant-step-row.js";
+import { ASSISTANT_STEP_ROW_FACTORY_SCRIPT, ASSISTANT_THREAD_REPLY_SCRIPT } from "./assistant-step-row.js";
 import { ASSISTANT_PROCESS_FACTORY_SCRIPT, ASSISTANT_RETRY_FACTORY_SCRIPT } from "./assistant-process.js";
 import { ASSISTANT_CONTEXT_STRIP_FACTORY_SCRIPT } from "./assistant-context-strip.js";
 import { ASSISTANT_ATTACHMENTS_FACTORY_SCRIPT } from "./assistant-attachments.js";
@@ -1851,14 +1851,14 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (!raw || typeof raw !== "object" || typeof raw.message_id !== "string" || !raw.message_id || raw.message_id.length > 120) return null;
     if (!["background", "change", "suggest", "delegate", "reply"].includes(raw.purpose)) return null;
     if (!raw.source || typeof raw.source.surface !== "string" || !raw.source.surface) return null;
-    const source = { surface: raw.source.surface.slice(0, 80), title: typeof raw.source.title === "string" && raw.source.title ? raw.source.title.slice(0, 80) : raw.source.surface.slice(0, 80) };
+    const source = { surface: raw.source.surface.slice(0, 80), title: typeof raw.source.title === "string" && raw.source.title ? raw.source.title.slice(0, 80) : raw.source.surface.slice(0, 80), ...(typeof raw.source.plugin_id === "string" && raw.source.plugin_id ? { plugin_id: raw.source.plugin_id.slice(0, 200) } : {}) };
     const object = raw.object && typeof raw.object.kind === "string" && typeof raw.object.id === "string" && raw.object.kind && raw.object.id
       ? Object.assign({ kind: raw.object.kind.slice(0, 80), id: raw.object.id.slice(0, 200) }, typeof raw.object.title === "string" ? { title: raw.object.title.slice(0, 200) } : {},
         typeof raw.object.version === "number" || typeof raw.object.version === "string" ? { version: raw.object.version } : {}) : null;
     const mats = Array.isArray(raw.materials) ? raw.materials.filter((item) => item && typeof item.title === "string" && typeof item.text === "string" && item.text)
       .slice(0, 4).map((item) => ({ title: item.title.slice(0, 200), text: item.text.slice(0, 20000) })) : [];
     return { message_id: raw.message_id, purpose: raw.purpose, source, object, text: typeof raw.text === "string" ? raw.text.trim().slice(0, 8000) : "", materials:mats,
-      work_id: typeof raw.work_id === "string" && raw.work_id ? raw.work_id : null, executor: typeof raw.executor === "string" && raw.executor ? raw.executor.slice(0, 200) : null };
+      work_id: typeof raw.work_id === "string" && raw.work_id ? raw.work_id : null, executor: typeof raw.executor === "string" && raw.executor ? raw.executor.slice(0, 200) : null, thread: tidyThread(raw.thread) };
   };
   const bring = (message) => {
     (message.materials.length || !message.object ? message.materials : [{ kind: "object", title: message.object.title || message.object.id }]).forEach((item, index) => files.some((file) => file.title === item.title && file.text === item.text) || files.push(Object.assign({ material_id: "msg-" + message.message_id.slice(0, 40) + "-" + index, kind: item.kind || "text", title: item.title, text: item.text,
@@ -1866,7 +1866,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
     if (message.text) input.value = message.text;
     syncSend(); paintMats();
   };
-  const showOffer = (message, unconfirmed) => stepRow?.offer(message, unconfirmed);
+  const showOffer = (message, unconfirmed) => stepRow?.offer(message, unconfirmed); ${ASSISTANT_THREAD_REPLY_SCRIPT}
   const delegate = async (message) => {
     if (busy) { showOffer(message, false); return; }
     if (message.work_id && works.some((work) => work.work_id === message.work_id)) await switchTo(message.work_id);
@@ -1949,7 +1949,7 @@ export const ASSISTANT_ISLAND_FACTORY_SCRIPT = String.raw`(host) => {
   const nextRow = island.querySelector("[data-assistant-next-row]");
   stepRow = nextRow && (${ASSISTANT_STEP_ROW_FACTORY_SCRIPT})({ row: nextRow, thread, L, el, drawn, jumpTo, bindText, view: () => (view?.work.work_id === curId ? view : null), open: () => Boolean(panel && !panel.hidden),
     // A page's words and materials go in the input, in the work it named; nothing is sent.
-    take: async (message) => { if (message.work_id && works.some((work) => work.work_id === message.work_id)) await switchTo(message.work_id); bring(message); setPanel(true); input.focus(); },
+    reply: (message) => replyToThread(message), take: async (message) => { if (message.work_id && works.some((work) => work.work_id === message.work_id)) await switchTo(message.work_id); bring(message); setPanel(true); input.focus(); },
     other: (id) => {
       const object = view.objects.find((one) => "open:" + one.subject.kind + ":" + one.subject.id === id), last = view.rounds[view.rounds.length - 1];
       if (object) showObject(object);

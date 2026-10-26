@@ -19,6 +19,8 @@ test("the bar toggles back, covers close four ways, and history walks covers and
   // A Dock entry pressed twice returns to where the pane was.
   await click('[data-dock-pin="goals"]');
   await waitFor(shows("goals"));
+  // PIF-ESC-01: wait for the real board's open groups before leaving; its retained state must not consume Escape.
+  await waitFor("!!document.querySelector('[data-goal-kanban] details[open][data-layer-open]')");
   await click('[data-dock-pin="inbox"]');
   await waitFor(`${shows("inbox")} && document.querySelector('[data-dock-pin=inbox]').getAttribute('aria-current') === 'page'`);
   assert.equal(await evaluate("document.querySelector('[data-dock-pin=inbox]').getAttribute('aria-current')"), "page");
@@ -37,6 +39,9 @@ test("the bar toggles back, covers close four ways, and history walks covers and
   assert.equal(await evaluate("document.title.startsWith('设置')"), true);
   assert.equal(await evaluate("document.querySelectorAll('[data-dock-pin][aria-current]').length"), 0);
   assert.equal(await evaluate("document.querySelector('[data-workspace-history=back]').disabled"), false);
+  await waitFor("[...document.querySelectorAll('[data-goal-kanban] details[open][data-layer-open]')].some(node => node.closest('[hidden], [inert]'))");
+  assert.equal(await evaluate("[...document.querySelectorAll('[data-goal-kanban] details[open][data-layer-open]')].some(node => node.closest('[hidden], [inert]'))"), true,
+    "PIF-ESC-01: the real board retains its open groups in a hidden or inert surface");
   // 1. Esc.
   await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
   await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
@@ -89,6 +94,28 @@ test("the bar toggles back, covers close four ways, and history walks covers and
     assert.ok(geometry.start <= geometry.centre, `${width}: the left tray ends before the composer`);
     assert.ok(geometry.centreEnd <= geometry.side, `${width}: the composer ends before the right tray`);
     assert.ok(geometry.end <= width, `${width}: the bar stays inside the window`);
+  }
+});
+
+test("PIF-ESC-02 visible menus and dialogs take Escape before the settings cover", { timeout: 120_000 }, async (t) => {
+  const browser = await openGoalBrowser(t, true);
+  if (!browser) return;
+  const { command, sessionId, waitFor, navigate, click, origin, projectId } = browser;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
+  await waitFor("document.body.dataset.desktopSurface === 'home'");
+  await click('[data-directory-open="settings"]');
+  const settingsOpen = "document.querySelector('[data-tab-workspace]').dataset.exclusive === 'settings'";
+  await waitFor(settingsOpen);
+  for (const [trigger, opened, closed] of [
+    ["[data-plugin-picker-toggle]", "!document.querySelector('[data-plugin-picker-popover]').hidden", "document.querySelector('[data-plugin-picker-popover]').hidden"],
+    ["[data-global-search-open]", "document.querySelector('[data-global-search-dialog]').open", "!document.querySelector('[data-global-search-dialog]').open"],
+  ]) {
+    await click(trigger);
+    await waitFor(`${opened} && ${settingsOpen}`);
+    await command("Input.dispatchKeyEvent", { type: "keyDown", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
+    await command("Input.dispatchKeyEvent", { type: "keyUp", key: "Escape", code: "Escape", windowsVirtualKeyCode: 27 }, sessionId);
+    await waitFor(`${closed} && ${settingsOpen}`);
   }
 });
 

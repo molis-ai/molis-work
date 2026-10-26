@@ -248,7 +248,8 @@ const headErrors = (measured, budget, base) => {
 // No second request path, title manager or asset is added. Exporting another state getter or calling
 // apply again would add interface/recursion risk; the local predicate uses the existing state API.
 // Batch-42's admissions are consumed. Batch A adds the existing side-frame Assistant event forwarding (+86 B),
-// so the single workbench admission from current main is +563 B, including the +477 B above.
+// and the visible-layer Escape guard needs +130 B to ignore hidden/inert, unlaid-out and invisible retained surfaces.
+// The single workbench admission from current main is +693 B, including the +477 B above; no second layer manager is added.
 // Pages editor needs +238 B to check the full serialized offer both before and after saving and retain the saved id
 // for retry; it reuses the existing frame hand-over and drops the unused platform route from the comment host.
 // Pages client needs +241 B to fit the complete escaped context below 32,000 without splitting Unicode pairs;
@@ -257,7 +258,7 @@ const headErrors = (measured, budget, base) => {
 const APPROVED_CEILINGS = {
   "/assets/molis-work-pages-editor.js": [707525, 707763],
   "/assets/molis-work-plugins/pages.js": [38705, 38946],
-  "/assets/molis-work-workbench.js": [1144514, 1145077],
+  "/assets/molis-work-workbench.js": [1144514, 1145207],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

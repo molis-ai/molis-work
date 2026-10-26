@@ -1,0 +1,167 @@
+import assert from "node:assert/strict";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import test from "node:test";
+import Database from "better-sqlite3";
+import { createEvidenceContentStore, createFileSecretStore } from "@molis-ai/molis-work-storage";
+import { createFeedContentLedger, createFeedContentLedgerHandlers, createFeedHomePlugin, FEED_CONTENT_LEDGER_BATCH, FEED_HOME_DATABASE, FEED_PLUGIN_ID, feedContentLedgerActions, feedManifest,
+  type FeedContentLedgerStore, type FeedEvidenceCollector } from "@molis-ai/molis-work-plugin-feed";
+import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginManifest, PluginSqlValue, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+
+// RAC-494 and RAC-495 (the ledger half; the project half and the maintenance come with Feed's move into the Runtime).
+
+const noEffect = async () => {};
+function libraryAt(file: string, timeout = 5_000) {
+  const db = new Database(file, { timeout });
+  const bind = (parameters: readonly PluginSqlValue[] = []) => [...parameters];
+  const reader = { get: (sql: string, parameters?: readonly PluginSqlValue[]) => (db.prepare(sql).get(...bind(parameters)) as Record<string, PluginSqlValue> | undefined) ?? null,
+    all: (sql: string, parameters?: readonly PluginSqlValue[]) => db.prepare(sql).all(...bind(parameters)) as Record<string, PluginSqlValue>[] };
+  const store: FeedContentLedgerStore = { read: reader, async write(beforeEffect, body) {
+    await beforeEffect();
+    db.exec("BEGIN IMMEDIATE");
+    try {
+      const result = body({ ...reader, run: (sql, parameters) => ({ changes: db.prepare(sql).run(...bind(parameters)).changes }) });
+      db.exec("COMMIT");
+      return result;
+    } catch (error) { db.exec("ROLLBACK"); throw error; }
+  } };
+  return { db, store, rows: () => reader.all("SELECT content_ref, project_id, source_id FROM feed_content_holds ORDER BY content_ref, project_id, source_id") };
+}
+
+function fixture(t: import("node:test").TestContext) {
+  const home = mkdtempSync(join(tmpdir(), "feed-content-ledger-"));
+  t.after(() => rmSync(home, { recursive: true, force: true }));
+  const evidence = createEvidenceContentStore({ secretStore: createFileSecretStore(), rootDirectory: join(home, "evidence") });
+  const file = join(home, "ledger.db"), library = libraryAt(file);
+  library.db.exec(FEED_HOME_DATABASE.schema);
+  t.after(() => library.db.close());
+  return { home, file, evidence, library, ledger: createFeedContentLedger(library.store, evidence) };
+}
+
+test("RAC-494: a body goes only when no source of any project holds it; a release takes only its own source's rows", async t => {
+  const f = fixture(t);
+  await f.ledger.markBackfilled(noEffect, "2026-10-26T00:00:00Z");
+  const a = f.evidence.write("body a").contentRef, b = f.evidence.write("body b").contentRef;
+  await f.ledger.hold(noEffect, { project_id: "p1", source_id: "s1" }, [a, b]);
+  await f.ledger.hold(noEffect, { project_id: "p2", source_id: "s1" }, [a]);
+  await f.ledger.hold(noEffect, { project_id: "p1", source_id: "s1" }, [a]);
+  assert.equal(f.library.rows().length, 3, "holding again changes nothing");
+  assert.deepEqual(await f.ledger.release(noEffect, { project_id: "p1", source_id: "s1" }, [a, b]), { bodies_deleted: 1, bodies_kept: 1, complete: true });
+  assert.ok(f.evidence.has(a) && !f.evidence.has(b), "the body another project still holds stays, the one nobody holds goes");
+  assert.deepEqual(f.library.rows().map(row => [row.project_id, row.source_id]), [["p2", "s1"]], "only the released source's rows went");
+  assert.deepEqual(await f.ledger.release(noEffect, { project_id: "p2", source_id: "s1" }, [a]), { bodies_deleted: 1, bodies_kept: 0, complete: true });
+  assert.ok(!f.evidence.has(a));
+  assert.deepEqual(f.library.rows(), []);
+});
+
+test("RAC-495: without the backfill mark nothing is released, and the ledger says it could not tell", async t => {
+  const f = fixture(t);
+  const a = f.evidence.write("body a").contentRef;
+  assert.equal(f.ledger.isBackfilled(), false);
+  await f.ledger.hold(noEffect, { project_id: "p1", source_id: "s1" }, [a]);
+  assert.deepEqual(await f.ledger.release(noEffect, { project_id: "p1", source_id: "s1" }, [a]), { bodies_deleted: 0, bodies_kept: 1, complete: false });
+  assert.ok(f.evidence.has(a));
+  assert.equal(f.library.rows().length, 1, "an empty-handed ledger is not proof, so its rows stay too");
+  await f.ledger.markBackfilled(noEffect, "2026-10-26T00:00:00Z");
+  await f.ledger.markBackfilled(noEffect, "2099-01-01T00:00:00Z");
+  assert.equal(f.library.db.prepare("SELECT value FROM feed_content_meta WHERE key = 'backfilled_at'").pluck().get(), "2026-10-26T00:00:00Z", "the mark is written once");
+  assert.equal((await f.ledger.release(noEffect, { project_id: "p1", source_id: "s1" }, [a])).bodies_deleted, 1);
+});
+
+test("RAC-494: a release that fails part way leaves the ledger as it was, so a row is never missing for a body something points at", async t => {
+  const f = fixture(t);
+  await f.ledger.markBackfilled(noEffect, "2026-10-26T00:00:00Z");
+  const a = f.evidence.write("body a").contentRef, b = f.evidence.write("body b").contentRef;
+  await f.ledger.hold(noEffect, { project_id: "p1", source_id: "s1" }, [a, b]);
+  const failing: FeedEvidenceCollector = { collect(input) {
+    const [first] = input.candidates;
+    f.evidence.delete(first!);
+    throw new Error("disk went away");
+  } };
+  const broken = createFeedContentLedger(f.library.store, failing);
+  await assert.rejects(broken.release(noEffect, { project_id: "p1", source_id: "s1" }, [a, b]), { message: "disk went away" });
+  assert.equal(f.library.rows().length, 2, "the source's rows are back: a body already deleted is held by a row too many, never by one too few");
+  await assert.rejects(f.ledger.hold(async () => { throw new Error("revoked"); }, { project_id: "p1", source_id: "s2" }, [a]), { message: "revoked" });
+  assert.equal(f.library.rows().length, 2, "a hold refused before it begins writes nothing");
+  assert.deepEqual(await f.ledger.release(noEffect, { project_id: "p1", source_id: "s1" }, [a, b]), { bodies_deleted: 1, bodies_kept: 0, complete: true }, "a retry finds one of them already gone");
+});
+
+test("RAC-494: a hold cannot enter while a release deletes files, so a body is written again or kept, never lost under a new holder", async t => {
+  const f = fixture(t);
+  await f.ledger.markBackfilled(noEffect, "2026-10-26T00:00:00Z");
+  const x = f.evidence.write("shared body").contentRef;
+  await f.ledger.hold(noEffect, { project_id: "p1", source_id: "s1" }, [x]);
+  // While p1's release is deleting, p2's hold tries from another connection to the same library: the write lock is taken, so it cannot begin.
+  const other = libraryAt(f.file, 0);
+  t.after(() => other.db.close());
+  let during: unknown;
+  const watching: FeedEvidenceCollector = { collect(input) {
+    try { other.db.exec("BEGIN IMMEDIATE"); during = "entered"; other.db.exec("ROLLBACK"); }
+    catch (error) { during = (error as { code?: string }).code; }
+    return f.evidence.collect(input);
+  } };
+  assert.equal((await createFeedContentLedger(f.library.store, watching).release(noEffect, { project_id: "p1", source_id: "s1" }, [x])).bodies_deleted, 1);
+  assert.equal(during, "SQLITE_BUSY");
+  // p2 holds after the release: the file is gone, so it writes the body again, and it is held.
+  await f.ledger.hold(noEffect, { project_id: "p2", source_id: "s9" }, [x]);
+  assert.equal(f.evidence.has(x), false);
+  assert.equal(f.evidence.write("shared body").contentRef, x);
+  assert.deepEqual(f.library.rows().map(row => [row.project_id, row.source_id]), [["p2", "s9"]]);
+  // And the other way round: a hold that landed first keeps the body from a release.
+  await f.ledger.hold(noEffect, { project_id: "p1", source_id: "s2" }, [x]);
+  assert.deepEqual(await f.ledger.release(noEffect, { project_id: "p2", source_id: "s9" }, [x]), { bodies_deleted: 0, bodies_kept: 1, complete: true });
+  assert.ok(f.evidence.has(x));
+});
+
+test("RAC-494: a hold takes only well-formed body references, and a batch is bounded", async t => {
+  const f = fixture(t);
+  const a = f.evidence.write("body a").contentRef;
+  assert.deepEqual(await f.ledger.hold(noEffect, { project_id: "p1", source_id: "s1" }, [a, a, "research:note-1", "../../etc/passwd", ""]), { held: 1 });
+  assert.equal(f.library.rows().length, 1);
+  const many = Array.from({ length: FEED_CONTENT_LEDGER_BATCH + 1 }, (_, index) => "molis-work-feed/sha256/" + index.toString(16).padStart(64, "0"));
+  await assert.rejects(f.ledger.hold(noEffect, { project_id: "p1", source_id: "s1" }, many), { code: "feed.content_batch_invalid" });
+  await assert.rejects(f.ledger.release(noEffect, { project_id: "p1", source_id: "s1" }, many), { code: "feed.content_batch_invalid" });
+  assert.equal(f.library.rows().length, 1);
+});
+
+test("RAC-494: only Feed's own project instance may hold or release, and the project is the call's, not the input's", async t => {
+  const f = fixture(t);
+  await f.ledger.markBackfilled(noEffect, "2026-10-26T00:00:00Z");
+  const a = f.evidence.write("body a").contentRef;
+  const handlers = createFeedContentLedgerHandlers(f.ledger), hold = handlers.find(item => item.capability_id === feedContentLedgerActions.hold.capability_id)!,
+    release = handlers.find(item => item.capability_id === feedContentLedgerActions.release.capability_id)!;
+  const call = (overrides: Partial<ActionExecutionContext> & { plugin?: string | null }): ActionExecutionContext => {
+    const { plugin = FEED_PLUGIN_ID, ...rest } = overrides;
+    return { actor_id: "x", project_id: "p1", audience: "plugin", permissions: ["feed:write"], beforeEffect: async () => {},
+      ...(plugin ? { host_plugin: { plugin_id: plugin, install_id: "i", actor_id: "x", project_id: "p1", declaration: { manifest: {} as PluginManifest }, assertActive() {} } } : {}), ...rest } as ActionExecutionContext;
+  };
+  const input = { source_id: "s1", content_refs: [a], project_id: "p2" };
+  await hold.handle(call({}), input);
+  assert.deepEqual(f.library.rows().map(row => row.project_id), ["p1"], "a project the input names is not a project the call is in");
+  for (const refused of [call({ audience: "user" }), call({ audience: "workflow" }), call({ plugin: "io.molis.work.other" }), call({ plugin: null }), call({ project_id: null })]) {
+    await assert.rejects(Promise.resolve(hold.handle(refused, input)), { code: "actions.forbidden" });
+    await assert.rejects(Promise.resolve(release.handle(refused, { source_id: "s1", candidates: [a] })), { code: "actions.forbidden" });
+  }
+  assert.equal(f.library.rows().length, 1);
+  assert.deepEqual(await release.handle(call({}), { source_id: "s1", candidates: [a] }), { bodies_deleted: 1, bodies_kept: 0, complete: true });
+  assert.deepEqual(feedContentLedgerActions.hold.action.audiences, ["plugin"]);
+  assert.deepEqual(feedContentLedgerActions.release.action.audiences, ["plugin"]);
+});
+
+test("RAC-495: a new Home's ledger is complete from the start only when Feed is installed in no project", async t => {
+  const start = async (projects: { project_ids: string[]; complete: boolean }) => {
+    const f = fixture(t);
+    const plugin = createFeedHomePlugin({ manifest: feedManifest, evidence: () => f.evidence });
+    const context: Partial<PluginStartContext> = { requireGrant() {}, services: { ui: { register() {}, unregister() {}, invalidate() {} },
+      database: { ...f.library.store.read, transaction: f.library.store.write }, installations: { list: () => [], get: () => null, projects: () => projects } } };
+    return { f, contribution: await plugin.start(context as PluginStartContext) };
+  };
+  const fresh = await start({ project_ids: [], complete: true });
+  assert.equal(fresh.f.ledger.isBackfilled(), true);
+  assert.deepEqual((fresh.contribution && "actions" in fresh.contribution ? fresh.contribution.actions ?? [] : []).map(item => item.capability_id).sort(),
+    [feedContentLedgerActions.hold.capability_id, feedContentLedgerActions.release.capability_id].sort());
+  assert.equal((await start({ project_ids: ["p1"], complete: true })).f.ledger.isBackfilled(), false, "installed somewhere: wait for the maintenance");
+  assert.equal((await start({ project_ids: [], complete: false })).f.ledger.isBackfilled(), false, "installations that could not be read are not none");
+});

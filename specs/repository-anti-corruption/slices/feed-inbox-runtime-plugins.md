@@ -265,6 +265,10 @@ FI-5 的存储层只依赖 `FeedSql`；本片给它第二个适配器 `fromPlugi
 - **4b 发现一：后台生产者（插件受众）不能经委托嵌套读取别的插件（要统筹裁定）。** 用真实 Home 实验（`tests/home-judgment-plugin-caller.test.ts`）：Feed 以自己的安装身份调 `home.judgment.evaluate`，Home 读入箱条目要调 `inbox.subject.read`，Inbox 读条目背后的 Feed 事项走 `services.actions.directory`（委托），而 S-43 规定原调用者是 `plugin` 的拒绝（「别的插件用它自己的授权调进来的调用不能借此放宽成工作流受众」），于是 `actions.forbidden`，判断在到模型之前就停了。今天的宿主给后台 `workflow-events` 身份（受众 `workflow`），所以这条路能走；Runtime 里没有这个身份。同一限制也会落在 Inbox 的 `inbox.judgment.evaluate`（它经 `directory` 读 Feed 的正文）。选项见 #1311 评论。
 - **4b 发现二：dock 的自动判断对今天的宿主身份其实是空操作（读代码与探针得出，不是本片引入）。** 宿主给触发器的权限是 `HOME_ACTION_PERMISSIONS` 去掉 `home:write`（`feed:read`、`inbox:read`、`home:read`、`model:invoke`、`functions:invoke`）；默认规则推荐「做完了」「忽略」，而这两个选项指向 `inbox.entry.status`，调用者要持有它的权限才算可用——`inbox:write`，第 3 步之后还要 `attention:write`。身份没有这两个权限，dock 对它不可用，触发器静默放过，没有模型调用、没有判断账。探针里给身份补上这两个权限后判断就跑了。第 3 步之前是 `inbox:write`，身份同样没有，所以不是第 3 步引入的。4e 保持对等（Feed 的授权不多给），除非统筹另有裁定；这件事要告诉产品负责人。
 - **4b 顺手补的第 3 步遗漏。** `home-action-scenes` 的调用者要带 `attention:write`（Inbox 状态动作第 3 步起要它），否则「做完了」选项不可用、绑定被拒（`actions.scene_incompatible`）。
+- **第 4 步 4d 已做：Home 引用账的逻辑一半（2026-10-26，RAC-494、495）。** `plugins/native/feed/src/content-ledger.ts` 的 `createFeedContentLedger(store, evidence)`：账是 `feed-content` 库里的行（`feed_content_holds(content_ref, project_id, source_id)`），不是计数，所以加与减都幂等；`hold` 是 `INSERT OR IGNORE`，`release` 先删本来源的行，再对候选逐个看还有没有别人持有，没有就删文件，**文件在写事务提交前删完**（同一把写锁，后来的 `hold` 要么看到行与文件都在、要么看到文件已不在而重写）。没有回填标记 `backfilled_at` 时 `release` 一份也不删。只认 `molis-work-feed/sha256/<64 位十六进制>` 的引用，研究笔记等别的引用不是它的。动作 `feed.content.hold@1`、`feed.content.release@1`（`content-ledger-actions.ts`，范围 home、受众 plugin、权限 `feed:write`）与 Feed 的 Home 一半 `createFeedHomePlugin`（`home-plugin.ts`）已写并带测试（`tests/feed-content-ledger.test.ts`，7 例，用真实的 `createEvidenceContentStore`）；**还没登记**：Manifest 没加这两个动作、`databases.home` 与 `runtime.scope:"home"`，因为双实例的门禁（DUAL-12）要求带标记的 Home 条目有对应的项目一半，而项目一半在 4e 才有；Manifest 与登记随 4e 一起改。
+- **4d 的维护脚本（RAC-495）。** `tests/fixtures/feed-content-ledger-maintenance.mjs`（`list` 只读、`backfill` 幂等、`--all-projects` 才写标记；退出码 0/1/2；测试 `tests/feed-content-ledger-maintenance.test.ts`，4 例）和 CHECKLIST 里的一行。动真实 Home 的维护窗口归用户定，合入前在 PR 正文里写明。
+- **4d 给 4c 的一条约束：`hold` 必须在写正文之前返回。** 账的超集不变式要求「先加后写」。`services.sourcePull` 现在若在一次调用里拉取并写正文，就没有地方插入 `hold`。所以 4c 的形状是两段式：`pull()` 只取回并缓存正文、返回引用与摘要，Feed 用这些引用 `hold`，再 `commit()` 写正文（或 `discard()` 丢掉缓存）。这要在 4c 的设计稿里请统筹确认，不是 4d 的内容。
+- **4d 与 RAC-492、493、518 的关系。** 这三条是项目一半的事（连接事件订阅、启动时对账、启动时对 `hold`），随 4e 的 `createFeedPlugin()` 做，不在 4d。
 
 ## 9. 第 4 步（Feed 进 Runtime）的拆法与缺口清单（2026-10-26，开工前读代码核的）
 
@@ -280,7 +284,7 @@ Feed 的动作要么全由宿主提供、要么全由 Runtime 提供（`BUILD_TI
 1. **4a 平台通知接收方（D6-2）**：Manifest 声明接收、通知服务按声明找、没有接收方留队列。宿主版 Feed 先当接收方，删 `plugin-notification-service.ts` 里的 Feed 构造。
 2. **4b 首页 dock 判断动作 ③**（做完，见 §8：没有新增 Home 动作，现成的 `home.judgment.evaluate` 就是公开动作；Feed 一侧的触发器已写；发现一个要统筹裁定的缺口，决定前 4e 的后台判断不能翻转）。
 3. **4c `services.sourcePull` 与证据正文 ①**（最大，也最碰安全：网络、文件、密钥；沿用 S-57 的地址校验与允许名单，不放宽；S 号用暂定，合入前改）。
-4. **4d Home 引用账 ④**（FI-4 的 RAC-492～495、518）。
+4. **4d Home 引用账 ④**（做完一半，见 §8：账的逻辑、两个动作、Home 一半与维护脚本已写，RAC-494、495；登记与项目一半的 RAC-492、493、518 随 4e）。
 5. **4e 翻转**：`createFeedPlugin()`、监督器条目、`background.wakeups` 的 tick、8 个构造点换成公开动作、删 `feed-native-plugin-http.ts` 与客户端迁移、`BUILD_TIME_ASSEMBLED` 与 `NATIVE_PLUGIN_HTTP_FILES` 去掉 `feed`（RAC-499、500、510～512、516、517）。
 
 这是 FI 线最大的一块：4c、4e 各自都比 FI-6 第 3 步（Inbox）大。次序与「4c 一个服务覆盖公开来源 + 研究库 + 证据读写」这一取舍若统筹有不同意见，开工前请回。

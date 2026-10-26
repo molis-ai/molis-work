@@ -11,7 +11,7 @@ import { artifactsActions } from "@molis-ai/molis-work-module-artifacts";
 import { ActionError, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalProjectDatabase } from "./project-database.js";
 import { renderGoalArtifactContext } from "./artifact-native-plugin-http.js";
-import { lookingForArea, optionalPluginQuery, withSelectedEventDocument, type WebViewOptions } from "./web-view.js";
+import { lookingForArea, withSelectedEventDocument, type WebViewOptions } from "./web-view.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import type { createLocalHostWorkbenchRenderer } from "./workbench-renderer.js";
 import { sendLocalWebJson as sendJson } from "./web-http.js";
@@ -77,6 +77,7 @@ export function createLocalGoalsReadHttp(ports: {
   const { renderMolisWorkProjectSettingsHub, renderMolisWorkMomentumFragment, renderMolisWorkRefreshFragment, renderMolisWorkWeb, renderGoalDocumentFragment, declaredStageModel } = ports.renderer;
   async function settings(request: IncomingMessage, response: ServerResponse, url: URL,
     readWebView: () => MolisWorkWebView | Promise<MolisWorkWebView>, controlToken: string, actions: BoundActionClient,
+    goalsHere: () => Promise<boolean>,
   ): Promise<boolean> {
     const open = SETTINGS_SECTIONS.get(url.pathname) ?? null;
     if (request.method === "GET" && open) {
@@ -88,10 +89,11 @@ export function createLocalGoalsReadHttp(ports: {
       const embed = url.searchParams.get("embed") === "1";
       let methods, guidance, policy;
       try {
-        // A project without Goals has none of Goals' settings pages (RAC-400): the planning read being refused as a plugin that is off says so.
-        const planning = await optionalPluginQuery(actions, goalsActions.planningRead, {});
-        if (planning) {
-          [methods, guidance, policy] = [planning.methods, ...await Promise.all([actions.invoke(goalsActions.guidanceRead, {}), actions.invoke(goalsActions.policyHistory, {})])];
+        // A project without Goals has none of Goals' settings pages (RAC-400). Whether Goals is here is the project's plugin list; a Goals read
+        // refused in a project that has Goals is that refusal, shown with its code and operation number, not a project without Goals.
+        if (await goalsHere()) {
+          [methods, guidance, policy] = await Promise.all([actions.invoke(goalsActions.planningRead, {}).then(value => value.methods),
+            actions.invoke(goalsActions.guidanceRead, {}), actions.invoke(goalsActions.policyHistory, {})]);
         }
       }
       catch (error) { sendJson(response, actionHttpStatus(error), actionErrorBody(error)); return true; }

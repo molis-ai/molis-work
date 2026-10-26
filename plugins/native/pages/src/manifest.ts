@@ -22,7 +22,7 @@ export const pagesManifest: PluginManifest = {
   version: "0.3.0",
   name: "Pages",
   summary: "写文档，可导出 Markdown / PDF。",
-  // Offered to other Agents for business work; bodies in ./methods.ts.
+  // Offered to other Agents for business work; bodies in ./skills.ts.
   methods: pagesSkills.map(({ body: _body, ...declared }) => ({ ...declared, tools: [...declared.tools] })),
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-pages-binding" },

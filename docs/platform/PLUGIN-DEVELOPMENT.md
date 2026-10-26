@@ -350,7 +350,7 @@ Pages 与 Coding 是完整样例；需求与验收见 `specs/archive/system-assi
 插件可以把本领域的做事方法（Skill）提供给助理和 Character 在业务工作里使用，例如 Pages 的“会议纪要整理”。
 
 - 在 Manifest 的 `methods` 声明：`skill_id`、`version`、`name`、`summary`（何时适用），以及 `tools`。`tools` 只能是业务工具，即 `METHOD_TOOLS`：能力网关（find/read/change-capability、suggest-action），加上 ask-user、update-todo 等不碰目录的工具。校验不通过，Manifest 就无效。
-- 正文放在包里（例如 `src/methods.ts` 导出 `AgentSkillDefinition[]`），标识、版本与 Manifest 一致；插件不分内置还是安装的，都把正文放在 `PluginDefinition.methods`，插件启动时登记，停用、卸载时收回，升级后登记新版本的（决定 #18，W4-02；`apps/local-host/src/plugin-instructions.ts` 的 `registerPluginAgentDefinitions`，用例 `tests/plugin-methods-runtime.test.ts`）。停用后，这个安装最近一次登记的角色、Prompt 与指令按「未运行」留在设置里（Host 重启后从 Home 的 `agent-declarations` 库恢复），让本人先看、先改；方法不再给别的 Agent；卸载才删（PG-051 Q1 b）。只按标识与版本给出正文；声明了但没有正文的方法不登记，开发者诊断里会说明。主人是平台自己登记的（助理、插件创作台、炼金术士）时，定义会被拒绝启动（一个主人的定义只在一处）；沙箱执行的生成插件不登记方法。
+- 正文放在包里（例如 `src/skills.ts` 导出 `AgentSkillDefinition[]`），标识、版本与 Manifest 一致；插件不分内置还是安装的，都把正文放在 `PluginDefinition.methods`，插件启动时登记，停用、卸载时收回，升级后登记新版本的（决定 #18，W4-02；`apps/local-host/src/plugin-instructions.ts` 的 `registerPluginAgentDefinitions`，用例 `tests/plugin-methods-runtime.test.ts`）。停用后，这个安装最近一次登记的角色、Prompt 与指令按「未运行」留在设置里（Host 重启后从 Home 的 `agent-declarations` 库恢复），让本人先看、先改；方法不再给别的 Agent；卸载才删（PG-051 Q1 b）。只按标识与版本给出正文；声明了但没有正文的方法不登记，开发者诊断里会说明。主人是平台自己登记的（助理、插件创作台、炼金术士）时，定义会被拒绝启动（一个主人的定义只在一处）；沙箱执行的生成插件不登记方法。
 - 与 `agent.skills` 的区别：`agent.skills` 是插件自己的 Agent 用的方法；`methods` 给别的 Agent 用。
 - 助理会在“可用的方法”里看到它（只列名称和适用说明），合适时读取正文照做；用户也可以用“/”直接选定。方法只对采用它的那一轮有效。插件停用后，方法就不再列出。
 - 正文写步骤和边界，不要写死对象标识；需要改数据的步骤照常经 change-capability，由用户确认。

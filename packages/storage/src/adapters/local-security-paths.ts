@@ -22,7 +22,11 @@ export function resolveHomeDirectory(candidate: string): string {
   const absolute = path.resolve(candidate), missing: string[] = [];
   for (let probe = absolute; ; probe = path.dirname(probe)) {
     try { return path.join(realpathSync(probe), ...missing); } catch (error) {
-      const code = (error as NodeJS.ErrnoException).code;
+      const failure = error as NodeJS.ErrnoException, code = failure.code;
+      if (code === "EACCES" || code === "ELOOP") {
+        const reason = code === "EACCES" ? "权限不足，请检查该目录及父目录的访问权限" : "符号链接循环或层级过多，请检查路径中的符号链接";
+        failure.message = `无法解析 Molis Work Home ${JSON.stringify(absolute)}：${reason}；也可用 --home 或 MOLIS_WORK_HOME 指定可访问的目录。\n${failure.message}`;
+      }
       if (code !== "ENOENT" && code !== "ENOTDIR") throw error;
       const parent = path.dirname(probe);
       if (parent === probe) return absolute;

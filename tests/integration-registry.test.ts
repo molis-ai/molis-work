@@ -189,14 +189,14 @@ test("RAC-490 a declaration outside the shape is refused before it reaches the r
   assert.throws(() => parsePluginManifest(base({ integration_id: "shape", kind: "source", service_id: "someone-elses" })), { code: "plugin.declaration_invalid" }, "a service of another plugin cannot be referenced");
   assert.throws(() => parsePluginManifest(base({ integration_id: "shape", kind: "source", service_id: "shape", document_source: "notes" })), { code: "plugin.declaration_invalid" });
   assert.throws(() => parsePluginManifest(base({ integration_id: "shape", kind: "document_import", service_id: "shape" })), { code: "plugin.declaration_invalid" });
-  assert.ok(parsePluginManifest(base({ integration_id: "shape", kind: "document_import", service_id: "shape", document_source: "notes" })));
+  assert.ok(parsePluginManifest(base({ integration_id: "shape", kind: "document_import", service_id: "shape", document_source: "notes", connection_methods: ["token"] })));
 });
 
 test("RAC-490 a source integration is not a document import, and a document import is not a source", async () => {
   const registry = new IntegrationRegistry();
   await registry.enable(fixturePlugin("io.molis.work.example.both", [service("both")], [
     { integration_id: "both", kind: "source", service_id: "both" },
-    { integration_id: "both-documents", kind: "document_import", service_id: "both", document_source: "both-docs" },
+    { integration_id: "both-documents", kind: "document_import", service_id: "both", document_source: "both-docs", connection_methods: ["token"] },
   ]));
   assert.ok(await registry.bind("both", "source", binding("one")));
   await assert.rejects(registry.bind("both", "document_import", binding("one")), { code: "plugin.integration_unavailable" });
@@ -226,7 +226,7 @@ test("RAC-491 notion is both a Feed source and a document import; google-docs re
     async sync() { return { ok: true, mode: "fixture", items: [], cursor: {} }; },
   }));
   assert.equal(registry.integration("notion")?.declaration.kind, "source");
-  assert.deepEqual(registry.integration("notion-documents")?.declaration, { integration_id: "notion-documents", kind: "document_import", service_id: "notion", document_source: "notion" });
+  assert.deepEqual(registry.integration("notion-documents")?.declaration, { integration_id: "notion-documents", kind: "document_import", service_id: "notion", document_source: "notion", connection_methods: ["token", "oauth"] });
   assert.equal(registry.integration("notion")?.plugin_id, registry.integration("notion-documents")?.plugin_id);
   const documents = Object.fromEntries(registry.listIntegrations("document_import").map(entry => [entry.declaration.document_source, entry.declaration.service_id]));
   assert.deepEqual(documents, { notion: "notion", feishu: "feishu", lark: "lark", "google-docs": "google-drive" });
@@ -256,4 +256,48 @@ test("RAC-519 a registered plugin gets no connection service and its binding hol
   assert.equal(given.connection_id, "connection-mine");
   assert.equal(given.credential_ref, "secret:fixture:mine");
   assert.ok(!JSON.stringify(given).includes("service_id"), "the binding is not looked up by service");
+});
+
+// PG-046's remainder (specs/repository-anti-corruption/slices/pg046-integrations-from-manifest.md §3).
+const fixtureProvider = () => ({
+  type: "fixture", async health() { return { ok: true, status: "connected" as const, message: "ready" }; },
+  async sync() { return { ok: true as const, mode: "fixture" as const, items: [], cursor: {} }; },
+});
+
+test("RAC-890 a source's account reads the way its integration plugin says; the Host picks no integration's account function", async () => {
+  const host = source("apps/local-host/src/feed-connector-sync.ts");
+  assert.doesNotMatch(host, /AccountPresentation|sync_kind\s*===/u, "the Feed's Host side names no integration's account");
+  const registry = await homeIntegrationRegistry("unused-home", fixtureProvider);
+  const github = await registry.bind("github", "source", binding("gh"));
+  assert.equal(github.account?.({ provider: "github", account_login: "octo" }, null)?.account_label, "@octo");
+  const gmail = await registry.bind("gmail", "source", binding("mail", { config: { scope: "in:inbox" } }));
+  const mail = gmail.account?.({ mode: "live", account_email: "Me@Example.com" }, "old label");
+  assert.equal(mail?.account_label, "me@example.com");
+  assert.equal(mail?.scope, "in:inbox", "Gmail's scope comes from the source's own binding");
+  const catalog = await registry.bind("notion", "source", binding("notes"));
+  assert.equal(catalog.account?.({ mode: "live", provider: "notion", account_login: "team" }, null)?.account_label, "team");
+  assert.equal(catalog.account?.({ mode: "fixture" }, "kept"), null, "a pull that says nothing about the account changes nothing");
+
+  const seen: string[] = [];
+  const own = new IntegrationRegistry();
+  await own.enable(definePollingIntegrationPlugin({
+    manifest: manifestOf("io.molis.work.example.labelled", [service("labelled")], [{ integration_id: "labelled", kind: "source", service_id: "labelled" }]),
+    createProvider: fixtureProvider,
+    presentAccount(cursor, label, bound) { seen.push(bound.source_id); return { account_label: `${label} → ${(cursor as { who: string }).who}`, region: "eu" }; },
+  }));
+  assert.deepEqual((await own.bind("labelled", "source", binding("one"))).account?.({ who: "ann" }, "before"), { account_label: "before → ann", region: "eu" });
+  assert.deepEqual(seen, ["one"], "the plugin is told which source it is presenting");
+  await own.enable(holderOf("io.molis.work.example.silent", "silent"));
+  assert.equal((await own.bind("silent", "source", binding("two"))).account, undefined, "a plugin that says nothing leaves the source's account alone");
+});
+
+test("RAC-892 the SDK refuses connection_methods missing, empty, repeated or unknown on a document import, and on a source", () => {
+  const base = (integration: Record<string, unknown>) => ({ ...manifestOf("io.molis.work.example.methods", [service("methods")], []), integrations: [integration] });
+  const documents = (extra: Record<string, unknown>) => base({ integration_id: "methods", kind: "document_import", service_id: "methods", document_source: "notes", ...extra });
+  for (const [why, methods] of [["missing", undefined], ["empty", []], ["repeated", ["token", "token"]], ["unknown", ["token", "password"]], ["not a list", "token"]] as const) {
+    assert.throws(() => parsePluginManifest(documents(methods === undefined ? {} : { connection_methods: methods })), { code: "plugin.declaration_invalid", message: /connection_methods/u }, why);
+  }
+  assert.throws(() => parsePluginManifest(base({ integration_id: "methods", kind: "source", service_id: "methods", connection_methods: ["token"] })),
+    { code: "plugin.declaration_invalid", message: /只有文档导入才写 connection_methods/u });
+  assert.ok(parsePluginManifest(documents({ connection_methods: ["token", "oauth", "cli"] })));
 });

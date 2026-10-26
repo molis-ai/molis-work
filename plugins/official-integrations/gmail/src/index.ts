@@ -5,6 +5,7 @@ import type {
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { IntegrationBinding } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { definePollingIntegrationPlugin } from "@molis-ai/molis-work-plugin-sdk";
+import { gmailAccountPresentation } from "./account-presentation.js";
 
 export {
   classifyGmailForbiddenPayload,
@@ -81,6 +82,7 @@ export function createGmailIntegrationPlugin(input: {
       context.requireGrant("secret:gmail");
       return input.providerFor(binding);
     },
+    presentAccount: (cursor, label, binding) => gmailAccountPresentation(cursor, label, binding.config.scope),
     now: input.now,
   });
 }
@@ -92,4 +94,3 @@ export { GMAIL_CLIENT_ID_REF, GMAIL_CLIENT_SECRET_REF, GMAIL_OAUTH_PENDING_PREFI
 
 export { isGmailTokenRefs } from "./token-refs.js";
 
-export { gmailAccountPresentation } from "./account-presentation.js";

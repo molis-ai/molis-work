@@ -5,9 +5,6 @@ import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
 import { ConnectorHost } from "@molis-ai/molis-work-service-connector-host";
 import { ListenerHost } from "@molis-ai/molis-work-service-listener-host";
 import { SignalsModule } from "@molis-ai/molis-work-module-signals";
-import { gmailAccountPresentation } from "@molis-ai/molis-work-integration-gmail";
-import { githubAccountPresentation } from "@molis-ai/molis-work-integration-github";
-import { catalogAccountPresentation } from "@molis-ai/molis-work-integration-catalog";
 import { pluginErrors, type IntegrationProviderItem } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { IntegrationBinding } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { FeedConnectorSync, integrationKeyOf, type FeedApplication, type FeedSourceRecord } from "@molis-ai/molis-work-plugin-feed";
@@ -56,19 +53,8 @@ export function createLocalFeedConnectorSync(
           connection_id: connectionId, operation_id: operationId, adapter: integration.signal_adapter,
           intent: { sync_mode: mode } }),
         checkpoint: () => listener.checkpoint(projectId, source.source_id),
+        ...(integration.account ? { account: (cursor: unknown) => integration.account!(cursor, source.account_label) } : {}),
       };
-    },
-    sourceMetadata(source, cursor): Pick<FeedSourceRecord, "account_label" | "config"> | Record<string, never> {
-      const metadata = source.sync_kind === "gmail"
-        ? gmailAccountPresentation(cursor, source.account_label, source.config.scope)
-        : source.sync_kind === "github"
-          ? githubAccountPresentation(cursor, source.account_label)
-          : source.sync_kind === "connector"
-            ? catalogAccountPresentation(cursor, source.account_label)
-            : null;
-      if (!metadata) return {};
-      const { account_label, ...configuration } = metadata;
-      return { account_label, config: { ...source.config, ...configuration } };
     },
     transaction: (operation) => db.transaction(operation).immediate(),
     appendEvent(projectId, sourceId, type, reason, payload) {

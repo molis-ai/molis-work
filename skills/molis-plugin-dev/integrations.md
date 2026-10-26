@@ -20,11 +20,11 @@ export function createGithubIntegrationPlugin(input: { providerFor(binding: Inte
 }
 ```
 
-插件只启动一次；每个来源绑定时问一次 `createProvider(context, binding)`。`binding` 是 `{ source_id, connection_id, credential_ref, config }`，只有引用、没有密钥，连接是来源已经绑定的那一条，不是按服务去查的。来源的配置变了不用重启，下一次绑定就拿到新值。
+插件只启动一次；每个来源绑定时问一次 `createProvider(context, binding)`。`binding` 是 `{ source_id, connection_id, credential_ref, config }`，只有引用、没有密钥，连接是来源已经绑定的那一条，不是按服务去查的。来源的配置变了不用重启，下一次绑定就拿到新值。可选的 `presentAccount(cursor, currentAccountLabel, binding)` 说一次拉取之后来源的账号怎样显示：返回 `{ account_label, …要写进来源配置的字段 }`，返回 `null` 或不写这一项，来源的账号与配置都不变；Feed 照它写，宿主不按集成名选。
 
 ## 声明：服务和集成
 
-Manifest 的 `connection_services` 写插件接触的服务和设置页上的卡（标题、分组、`auth_kind`、`auth.methods`、能力、`setup_links`、`auth_help`）；`integrations` 写对每个服务做什么：`kind: "source"`（Feed 拉取）或 `"document_import"`（成果库读文档，另写 `document_source`）。`integrations[].service_id` 必须是同一份 Manifest 声明过的服务。平台按已装插件的声明拼出每个 Home 的登记；登记、设置页的目录卡、文档导入的来源名都从它来，宿主不再认任何服务名。
+Manifest 的 `connection_services` 写插件接触的服务和设置页上的卡（标题、分组、`auth_kind`、`auth.methods`、能力、`setup_links`、`auth_help`）；`integrations` 写对每个服务做什么：`kind: "source"`（Feed 拉取）或 `"document_import"`（成果库读文档，另写 `document_source`，和 `connection_methods`：它能用哪几种接入方式的连接读，如 `["token", "oauth"]`；成果库只收接入方式在这里面的连接）。`integrations[].service_id` 必须是同一份 Manifest 声明过的服务。平台按已装插件的声明拼出每个 Home 的登记；登记、设置页的目录卡、文档导入的来源名都从它来，宿主不再认任何服务名。
 
 - 一个 id 先到先得：后装的插件声明已被占的 `service_id` 或 `integration_id`，启用失败（`plugin.integration_declaration_conflict`，写明 id 与持有者），已登记的不受影响。平台自己的卡先于插件。
 - 声明不给连接权：有卡不等于能读这个服务已有的连接与凭据；要读连接走 `services.connections`，按安装逐个授权。

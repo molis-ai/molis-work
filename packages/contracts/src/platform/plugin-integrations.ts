@@ -51,6 +51,20 @@ export interface PluginIntegrationDeclaration {
   readonly service_id: string;
   /** Only `document_import`: the name of the document source it reads, such as `google-docs`. */
   readonly document_source?: string;
+  /**
+   * Only `document_import`, and required there: the ways of connecting to the service its reading works with. The import takes a
+   * connection only when the connection's way is one of these.
+   */
+  readonly connection_methods?: readonly ConnectorMethodKind[];
+}
+
+/**
+ * How a source's account reads after a pull, as its integration plugin says: the label shown for the source, and any other fields the
+ * plugin keeps in the source's configuration (Gmail's scope and authorization). The Feed writes them; the Host names no integration.
+ */
+export interface IntegrationAccountPresentation {
+  readonly account_label: string | null;
+  readonly [field: string]: unknown;
 }
 
 /**

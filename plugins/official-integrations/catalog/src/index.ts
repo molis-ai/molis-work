@@ -8,8 +8,10 @@ import type {
   PluginConnectionServiceDeclaration,
   PluginIntegrationDeclaration,
 } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
+import type { ConnectorMethodKind } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { definePollingIntegrationPlugin } from "@molis-ai/molis-work-plugin-sdk";
 import { getCatalogSpec } from "./catalog.js";
+import { catalogAccountPresentation } from "./provider.js";
 
 export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-integration-catalog",
@@ -22,8 +24,16 @@ export const packageDescriptor = {
   capabilities: ["connector.catalog.v1", "signal-adapter.catalog.v1"],
 } as const;
 
-/** The document sources the 成果库 can import through a connected service, and the service each reads with. */
-const DOCUMENT_SOURCES: Readonly<Record<string, string>> = { notion: "notion", feishu: "feishu", lark: "lark", "google-docs": "google-drive" };
+/**
+ * The document sources the 成果库 can import through a connected service, the service each reads with, and the ways of connecting its
+ * reading works with: an API token or an OAuth grant everywhere, and Feishu's own CLI login as well.
+ */
+const DOCUMENT_SOURCES: Readonly<Record<string, { service: string; methods: readonly ConnectorMethodKind[] }>> = {
+  notion: { service: "notion", methods: ["token", "oauth"] },
+  feishu: { service: "feishu", methods: ["token", "oauth", "cli"] },
+  lark: { service: "lark", methods: ["token", "oauth"] },
+  "google-docs": { service: "google-drive", methods: ["token", "oauth"] },
+};
 
 /** The service this connector is, and the card shown for it where a person connects accounts. */
 function catalogConnectionService(connectorId: string): PluginConnectionServiceDeclaration {
@@ -52,8 +62,9 @@ function catalogConnectionService(connectorId: string): PluginConnectionServiceD
 function catalogIntegrations(connectorId: string): PluginIntegrationDeclaration[] {
   const integrations: PluginIntegrationDeclaration[] = [];
   if (getCatalogSpec(connectorId).feed_available !== false) integrations.push({ integration_id: connectorId, kind: "source", service_id: connectorId });
-  for (const [source, service] of Object.entries(DOCUMENT_SOURCES)) {
-    if (service === connectorId) integrations.push({ integration_id: source === connectorId ? `${source}-documents` : source, kind: "document_import", service_id: connectorId, document_source: source });
+  for (const [source, { service, methods }] of Object.entries(DOCUMENT_SOURCES)) {
+    if (service === connectorId) integrations.push({ integration_id: source === connectorId ? `${source}-documents` : source, kind: "document_import",
+      service_id: connectorId, document_source: source, connection_methods: methods });
   }
   return integrations;
 }
@@ -65,7 +76,8 @@ export function catalogIntegrationManifest(connectorId: string): PluginManifest 
     schema_version: 2,
     plugin_id: `io.molis.work.integration.${connectorId}`,
     // 1.1.0: the account check moved to the connector action `connectors.account.read`.
-    // 1.2.0: declares its connection service and what it does with it (`connection_services`, `integrations`).
+    // 1.2.0: declares its connection service and what it does with it (`connection_services`, `integrations`, and for a document
+    // import the ways of connecting it reads with).
     version: "1.2.0",
     name: spec.title,
     kind: "integration",
@@ -101,6 +113,7 @@ export function createCatalogIntegrationPlugin(input: {
       context.requireGrant(`secret:${input.connectorId}`);
       return input.providerFor(binding);
     },
+    presentAccount: (cursor, label) => catalogAccountPresentation(cursor, label),
     now: input.now,
   });
 }
@@ -110,7 +123,7 @@ export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 export { CATALOG_CONNECTORS, catalogConnectorIds, getCatalogSpec, isCatalogConnectorId } from "./catalog.js";
 export { setupLinksFor } from "./setup-links.js";
 export { officialMethodsFor, OFFICIAL_CONNECTOR_METHODS } from "./methods.js";
-export { catalogAccountPresentation, catalogWhoami, createCatalogProvider, type CatalogWhoamiResult } from "./provider.js";
+export { catalogWhoami, createCatalogProvider, type CatalogWhoamiResult } from "./provider.js";
 export { CatalogLiveError } from "./http.js";
 export { catalogCloudOrigin } from "./targets.js";
 export type { CatalogFetch } from "./types.js";

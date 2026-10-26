@@ -12,7 +12,7 @@ const AUTH_KINDS = new Set(["github", "gmail", "notion", "feishu", "token", "non
 const METHOD_KINDS = new Set(["oauth", "cli", "token", "mcp"]);
 const FULFILLMENTS = new Set(["live", "unfulfilled"]);
 const SERVICE_FIELDS = new Set(["service_id", "title", "group_id", "summary", "auth_kind", "auth", "auth_help", "capabilities", "outbound_note", "setup_links"]);
-const INTEGRATION_FIELDS = new Set(["integration_id", "kind", "service_id", "document_source"]);
+const INTEGRATION_FIELDS = new Set(["integration_id", "kind", "service_id", "document_source", "connection_methods"]);
 const TOKEN_FIELDS = new Set(["kind", "label", "placeholder"]);
 
 export function integrationDeclarationProblems(manifest: { kind?: unknown; connection_services?: unknown; integrations?: unknown }): string[] {
@@ -114,10 +114,18 @@ function integrationProblems(value: unknown, serviceIds: ReadonlySet<string>, se
   const documentSource = value.document_source;
   if (value.kind === "document_import") {
     if (typeof documentSource !== "string" || !DOCUMENT_SOURCE.test(documentSource)) problems.push(`文档导入集成 ${id} 要写 document_source`);
-  } else if (documentSource !== undefined) {
-    problems.push(`集成 ${id} 只有文档导入才写 document_source`);
+    problems.push(...connectionMethodProblems(id, value.connection_methods));
+  } else {
+    if (documentSource !== undefined) problems.push(`集成 ${id} 只有文档导入才写 document_source`);
+    if (value.connection_methods !== undefined) problems.push(`集成 ${id} 只有文档导入才写 connection_methods`);
   }
   return problems;
+}
+
+function connectionMethodProblems(id: string, value: unknown): string[] {
+  if (!Array.isArray(value) || value.length === 0) return [`文档导入集成 ${id} 要写 connection_methods：它能用哪几种接入方式的连接读文档`];
+  if (value.some(method => typeof method !== "string" || !METHOD_KINDS.has(method))) return [`文档导入集成 ${id} 的 connection_methods 只能是 oauth、cli、token、mcp`];
+  return new Set(value).size === value.length ? [] : [`文档导入集成 ${id} 的 connection_methods 有重复`];
 }
 
 function text(value: unknown): boolean {

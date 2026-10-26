@@ -3132,6 +3132,7 @@ export interface PluginIntegrationContribution {
     bind(binding: import("@molis-ai/molis-work-contracts/platform/plugin-integrations").IntegrationBinding): {
         connector_driver: ConnectorDriver;
         signal_adapter: RawEventAdapter;
+        account?(cursor: unknown, current_account_label: string | null): import("@molis-ai/molis-work-contracts/platform/plugin-integrations").IntegrationAccountPresentation | null;
     };
     actions?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionHandlerBinding[];
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneHandlerBinding[];

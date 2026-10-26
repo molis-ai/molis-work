@@ -81,7 +81,7 @@ import type {
   PluginManifest,
   PluginStartContext,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { IntegrationBinding } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
+import type { IntegrationAccountPresentation, IntegrationBinding } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 
 export const packageDescriptor = {
   packageName: "@molis-ai/molis-work-plugin-sdk",
@@ -108,6 +108,8 @@ export function definePlugin(definition: PluginDefinition): PluginDefinition {
 export function definePollingIntegrationPlugin(input: {
   manifest: PluginManifest;
   createProvider(context: PluginStartContext, binding: IntegrationBinding): IntegrationProviderPort;
+  /** How a source's account reads after a pull (the cursor it left); `null` keeps the source's label and configuration as they are. */
+  presentAccount?(cursor: unknown, currentAccountLabel: string | null, binding: IntegrationBinding): IntegrationAccountPresentation | null;
   now?: () => Date;
 }): PluginDefinition {
   if (input.manifest.kind !== "integration") {
@@ -192,6 +194,7 @@ export function definePollingIntegrationPlugin(input: {
             };
           },
         },
+        ...(input.presentAccount ? { account: (cursor: unknown, label: string | null) => input.presentAccount!(cursor, label, binding) } : {}),
           };
         },
       };

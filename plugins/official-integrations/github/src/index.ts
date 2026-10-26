@@ -5,6 +5,7 @@ import type {
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { IntegrationBinding } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { definePollingIntegrationPlugin } from "@molis-ai/molis-work-plugin-sdk";
+import { githubAccountPresentation } from "./account-presentation.js";
 
 export { createGithubProvider, githubWhoami, type GithubFetch, type GithubWhoamiResult } from "./provider.js";
 export { readResearchLibrary, type ResearchLibraryEntry } from "./research-library.js";
@@ -77,6 +78,7 @@ export function createGithubIntegrationPlugin(input: {
       context.requireGrant("secret:github");
       return input.providerFor(binding);
     },
+    presentAccount: (cursor, label) => githubAccountPresentation(cursor, label),
     now: input.now,
   });
 }
@@ -85,4 +87,3 @@ export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 
 export * from "./oauth.js";
 
-export { githubAccountPresentation } from "./account-presentation.js";

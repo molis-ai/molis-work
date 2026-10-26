@@ -435,6 +435,7 @@ export declare function definePlugin(definition: PluginDefinition): PluginDefini
 export declare function definePollingIntegrationPlugin(input: {
     manifest: PluginManifest;
     createProvider(context: PluginStartContext, binding: IntegrationBinding): IntegrationProviderPort;
+    presentAccount?(cursor: unknown, currentAccountLabel: string | null, binding: IntegrationBinding): IntegrationAccountPresentation | null;
     now?: () => Date;
 }): PluginDefinition;
 

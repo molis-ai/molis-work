@@ -37,7 +37,7 @@
 | PG-020 X-5 项目库服务 | **部分**。L1a/L1b 已做，`services.project_database` 有（受 S-46 语句检查，只放行声明过的对象）。Feed 只声明了 `feed_out_rules`（`FEED_PROJECT_DATABASE`）；`project-database-schema.ts` 的基线仍在建 Sources、Signals、Listener-host、Attention、Feed、ContextLedger 的表 | Feed 的 Module 表要进它的 Manifest 声明（FI-5）；注意力与情境账不归 Feed，见下一行 |
 | PG-087 注意力与情境账做成平台服务 | **没做**。`PluginHostServices` 里没有 attention、context ledger。归 `ac-sc3`（S9-0b，排在 S9-0 之后） | Feed 和 Inbox 进 Runtime 之前必须有。这是 FI-6 的硬前置 |
 | PG-043 Home 聚合 | 平台半**已做**（S-49 `home_aggregate`：只在**已打开**的项目里逐个调，各项目答案分开）；Coding 半已做；`ac-kernel` 还在做其余 | Feed 的两处跨项目读不一定能用它，见 §3 D4 |
-| PG-046 集成登记 | **FI-3 已做**（`c98614235`）：`official-integrations.ts` 删掉，集成与连接服务由插件的 Manifest 声明，一个 Home 一份登记、一个共用 Runtime；余项 BL-528～530 随 [PG-046 片](pg046-integrations-from-manifest.md) 做 | FI-3 |
+| PG-046 集成登记 | **FI-3 已做**（`c98614235`）：`official-integrations.ts` 删掉，集成与连接服务由插件的 Manifest 声明，一个 Home 一份登记、一个共用 Runtime；余项由 [PG-046 片](pg046-integrations-from-manifest.md) 接：BL-528、BL-529 已做，BL-530 归沙箱线（统筹 10-26 定） | FI-3 |
 | PG-010 余项（BL-465） | **FI-2 已做**：三条默认规则随声明它们的场景（Feed、Inbox 的 Manifest 与宿主自己的首页场景）提供，`modules/functions` 没有规则文件；剩「装上的插件的事项动作还不参与首页规则的目标映射」转 BL-531 | FI-2 |
 | PG-045 连接 | `services.connections` 已有（S-57）；`feed-connector-auth.ts` 只剩 11 行 | 在 FI-6 里收 |
 | PG-080 成果由插件自写 | **没做**。`services.artifacts` 已有，Feed 还是宿主 `projectVersionStores` 写；`feed-application.ts` 里有 `as unknown as ArtifactsSqliteDatabase` | 在 FI-6 里收（Feed 的 `produces` 已在 Manifest 声明 `feed.capture`） |

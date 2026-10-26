@@ -1,6 +1,8 @@
-import { ActionError, type ActionClient, type ActionRegistryPort } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionClient, type ActionRegistryPort, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginInstallRecords } from "./plugin-install-records.js";
-import type { PluginDefinition, PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { openHomeInstalledPlugins, type HomeInstalledPlugins } from "./home-installed-plugins.js";
+import type { InstalledRelease } from "./installed-release.js";
+import { pluginErrors, type PluginDefinition, type PluginInstanceRecord, type PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PLUGIN_PRESENTATION_CAPABILITY } from "@molis-ai/molis-work-design-system";
 import { randomUUID } from "node:crypto";
 import { installedArtifacts, supervisedArtifacts } from "./artifact-type-registry.js";
@@ -44,11 +46,14 @@ export class HomePluginHost {
   private closed = false;
   private closing?: Promise<void>;
   private retryable = false;
+  private installed?: HomeInstalledPlugins;
   private releaseProjectOwners?: () => void;
   private unwatchArtifacts?: () => void;
   private readonly releaseRegistration: () => void;
   constructor(private readonly options: { home: string; actorId: string; registry: ActionRegistryPort; client: ActionClient;
-    entries: readonly HomePluginEntry[]; fixtures?: readonly PluginFixture[]; projectReach?: PluginProjectReach }) {
+    entries: readonly HomePluginEntry[]; fixtures?: readonly PluginFixture[]; projectReach?: PluginProjectReach;
+    /** The Home's action directory without the Host's preparation of it (which waits for this host to be ready): what an installed package's capability catalog is read from. */
+    inspect?(caller: ActionCallContext): Promise<readonly ActionView[]> | readonly ActionView[] }) {
     this.releaseRegistration = bindHomeRegistration(options.home, this, () => this.outsideBuild());
   }
 
@@ -84,13 +89,41 @@ export class HomePluginHost {
    * unless it hides them (#679, B3). A dual-instance one is reached through its project half, as before.
    */
   outsideBuild(): readonly string[] {
-    return pluginFixtureEntries(this.options.fixtures ?? []).map(entry => entry.definition.manifest.plugin_id).filter(id => !this.dualInstance(id));
+    return [...pluginFixtureEntries(this.options.fixtures ?? []).map(entry => entry.definition.manifest.plugin_id).filter(id => !this.dualInstance(id)),
+      ...this.installed?.running() ?? []];
   }
+  /** Whether this is a signed package installed in the Home (BL-628), as opposed to a plugin of the Host's build or one of its fixtures. */
+  hasPackage(pluginId: string): boolean { return this.installed?.recordFor(pluginId) !== undefined; }
+  /**
+   * Installs a release read from a signed package in the Home, for the person who confirmed it (`PluginInstallService`). It runs in the
+   * sandbox, under the pin that confirmation made, and appears among the personal plugins every project reaches (#679).
+   */
+  async installPackage(release: InstalledRelease): Promise<void> {
+    await this.ready();
+    const installed = this.installed;
+    if (!installed || this.closed) throw new ActionError("actions.plugin_unavailable", "Home 插件宿主已关闭");
+    await installed.installPackage(release, { consent: true });
+    await installed.refreshPublicActions();
+  }
+  /** Switches an installed package off or on, or removes it (keeping its data or not): the install lifecycle a project's packages have. */
+  async packageAction(pluginId: string, action: "enable" | "disable" | "uninstall", input: { keepData?: boolean } = {}): Promise<void> {
+    await this.ready();
+    const installed = this.installed, record = installed?.recordFor(pluginId);
+    if (!installed || this.closed || !record) throw new ActionError("actions.missing", "这个 Home 插件不是装进来的包");
+    const release = installed.releaseFor(pluginId);
+    if (!release) throw new Error(installed.recoveryErrors.get(pluginId) ?? "找不到已安装版本 " + record.version + " 的发布记录");
+    await installed.lifecycle(action, release, input);
+    await installed.refreshPublicActions();
+  }
+  /** Why an installed package is not running, when it was not started or stopped itself; none when nothing is wrong with it. */
+  packageError(pluginId: string): string | undefined { return this.installed?.recoveryErrors.get(pluginId); }
   installations(): PluginInstanceRecord[] { return this.platform?.runtime.list() ?? []; }
   manifest(pluginId: string): PluginManifest | undefined {
     return this.platform?.supervisor.manifest(pluginId)
       ?? this.options.entries.find(entry => entry.manifest.plugin_id === pluginId)?.manifest
-      ?? pluginFixtureEntries(this.options.fixtures ?? []).find(entry => entry.definition.manifest.plugin_id === pluginId)?.definition.manifest;
+      ?? pluginFixtureEntries(this.options.fixtures ?? []).find(entry => entry.definition.manifest.plugin_id === pluginId)?.definition.manifest
+      // A package switched off is not known to the supervisor after a restart, and is still the person's to switch on.
+      ?? this.installed?.releaseFor(pluginId)?.packaged?.manifest;
   }
   /** Whether the Host's start list (a catalog entry's `runtime`, or a Home fixture) says this is the Home half of a dual-instance plugin. */
   dualInstance(pluginId: string): boolean {
@@ -122,6 +155,7 @@ export class HomePluginHost {
   }
   private async release(): Promise<void> {
     const failures: unknown[] = [];
+    this.installed?.close(); this.installed = undefined;
     try {
       const platform = this.platform;
       for (const record of platform?.runtime.list() ?? []) {
@@ -195,6 +229,21 @@ export class HomePluginHost {
     await supervisor.start(entries.map(entry => ({ ...entry,
       enabled: !repository.list().some(record => record.plugin_id === entry.definition.manifest.plugin_id && ["disabled", "uninstalled"].includes(record.state)),
     })));
-    return this.platform;
+    const platform = this.platform;
+    // The packages installed in the Home start after the Host's own plugins, each on its own: one that cannot start leaves its reason and nothing else less (BL-628).
+    // The way to start one is not on the platform this method returns: only a sandboxed definition under a pinned publisher goes through it (S-80).
+    this.installed = await openHomeInstalledPlugins({ home: this.options.home, actorId: this.options.actorId, actions: { registry: this.options.registry, client: this.options.client, ...this.options.inspect ? { inspect: this.options.inspect } : {} },
+      db, privateStorage: storage, closed: () => this.closed,
+      platform: { runtime, supervisor, router: platform.router, consents: ledger, upgrade: platform.upgrade, rollback: (pluginId, definition) => supervisor.rollback(pluginId, definition),
+        start: async started => {
+          const listed = new Set<string>();
+          for (const { definition, trust } of started) {
+            if (definition.execution !== "sandbox" || trust?.level !== "pinned") throw pluginErrors.home_scope_unavailable("Home 里只有来自已固定发布者的沙箱包才能这样启动");
+            if (listed.has(definition.manifest.plugin_id) || ids.has(definition.manifest.plugin_id)) throw new Error("Home 插件标识重复");
+            listed.add(definition.manifest.plugin_id);
+          }
+          return supervisor.start(started);
+        } } });
+    return platform;
   }
 }

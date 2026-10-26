@@ -124,7 +124,9 @@ Schedule 是这些服务的生产消费者，工厂见 `plugins/native/schedule/
 
 ## 个人 Home Runtime 与插件 SQLite
 
-数据属于个人 Home、切换项目不分开的新内置插件，Manifest 写 `runtime: { scope: "home" }`，在自己的 `registration` 里给出 `runtime: { create, package_name, factory_export, keys? }`（运行范围是 Manifest 的，Home 实例的代码来自登记，两者同时有；装上的插件写 `runtime` 安装时被拒，`plugin.home_scope_unavailable`）。`personal: true` 只是可见性，不会把现存 Form、Todo 等迁到 Runtime。当前 Issues、Todo 和 Cognia 使用 Home Runtime，迁移顺序见 `docs/system/RUNTIME-MIGRATION.md`。
+数据属于个人 Home、切换项目不分开的新内置插件，Manifest 写 `runtime: { scope: "home" }`，在自己的 `registration` 里给出 `runtime: { create, package_name, factory_export, keys? }`（运行范围是 Manifest 的，Home 实例的代码来自登记，两者同时有；装上的插件写 `runtime` 安装时被拒，`plugin.home_scope_unavailable`；唯一的例外是来自已固定发布者的签名沙箱包，见下一段）。`personal: true` 只是可见性，不会把现存 Form、Todo 等迁到 Runtime。当前 Issues、Todo 和 Cognia 使用 Home Runtime，迁移顺序见 `docs/system/RUNTIME-MIGRATION.md`。
+
+**装进 Home 的签名沙箱包**（BL-628，S-80、S-84）：沙箱包的清单写 `runtime: { scope: "home" }`，预览会返回 `runtime_scope: "home"`，确认后装进 Home：一个实例，所有项目共用，代码仍在沙箱里跑，权限仍是人在预览里批准的那些，发布者仍要被本人固定。它的批准、密钥和提示词登记放在 Home 里（不属于任何项目），它的调用没有项目（项目范围的动作够不到），库是 Home 库（S-91）、文件是主人文件（S-64）。它在每个项目里都能用，项目可以把它隐藏；停用、卸载（保留或不保留数据）走和项目里的签名包同一套生命周期。声明了 `always_on`、端口、事件、成果或过程项的包不能装进 Home；同一个 `plugin_id` 的范围不能更换。没有写 `runtime` 的包只能装进项目，写了的只能装进 Home。
 
 一个本机 Local Host 持有一个 `HomePluginHost`，并发动作、场景和 HTTP 共用启动 Promise。安装、授予、发行物和私有 KV 在 `{home}/plugin-runtime/plugin-runtime.db` v2，复用 PluginRuntime、Supervisor 和 Action Registry；不同版本或不完整结构拒绝并保留，不补表、不清空。MCP 子进程经已有本机 gateway 调同一个 Host，不打开插件库。Home 与项目共用提供方规则：只有可信启动条目给 `trust: HOST_BUILD_TRUST` 的定义对象使用插件 ID，其余使用安装 ID；provider 定位和 `install_id` / `installation_generation` 授权不能相互替代。
 
@@ -417,7 +419,7 @@ Inbox → Pages 通过 Host 组合各插件公开能力，输入快照与幂等�
 | `interface.json` | `{ parts, nodes, presentation?, acceptance? }`：界面零件（`parts`，1–100 个）、每个零件选用的组件（`nodes`）、可选的整体呈现与验收步骤；零件读写的操作必须是合同里有的 |
 | `prompts.json` | 数组（可为空，至多 64 项），每项 `{ id, title, purpose, body }`，`id` 为小写字母数字与连字符，`body` 不超过 8000 字 |
 
-沙箱插件的清单只有一种形状：类型是应用（`kind: "app"`），入口 `./plugin.mjs`，权限只有 `storage:private`，一条 `POST /call` 路由，一个 `stage` 视图；作者能定的只有 `plugin_id`、`version`、`name`、`publisher` 和 `upgrade_compatibility`。所以沙箱包不能声明常开、默认连线、默认输入组或本机目录，Host 也就没有这些东西要在安装时请人同意。
+沙箱插件的清单只有一种形状：类型是应用（`kind: "app"`），入口 `./plugin.mjs`，权限只有 `storage:private`，一条 `POST /call` 路由，一个 `stage` 视图；作者能定的只有 `plugin_id`、`version`、`name`、`publisher`、`upgrade_compatibility` 和 `runtime`（只能写 `{ scope: "home" }`，见下）。所以沙箱包不能声明常开、默认连线、默认输入组或本机目录，Host 也就没有这些东西要在安装时请人同意。
 
 **安装**：`molis-work plugin install <signed-package.json> <project-id> [--pin-as <发布者名称>] [--confirm]`，交给这个 Home 的常驻 Host 去做（没有常驻 Host 就停下，不在命令自己的进程里装）。不带 `--confirm` 只预览：Host 验证签名，按上面的格式读一遍，再说明装上它意味着什么（发布者、有没有被固定过、要的权限）；加 `--confirm` 才装。发布者还没被固定时，`--confirm` 要同时给 `--pin-as` 名称，这是本人对这个公钥的信任，之后这个发布者的包不必再取名；固定可以撤销，已撤销的发布者的包在预览就被拒。界面里是同样的两个动作（`plugins.install.preview`、`plugins.install.confirm`），只接受本人的操作，Agent、MCP、工作流和插件都调不了。
 

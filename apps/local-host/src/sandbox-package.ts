@@ -94,9 +94,9 @@ export function readSandboxPackage(payload: PluginPackagePayload): SandboxPackag
   const prompts = promptsOf(jsonFile(files, SANDBOX_PACKAGE_FILES.prompts));
   const permissions = validated('contract.json 的权限', () => effectsFromContract(contract));
 
-  // The Manifest of a sandbox plugin has one shape; what the package may choose is who it is, its version, its name, and what it upgrades from.
+  // The Manifest of a sandbox plugin has one shape; what the package may choose is who it is, its version, its name, what it upgrades from, and where it runs.
   const expected = sandboxPluginManifest({ pluginId: manifest.plugin_id, version: manifest.version, name: manifest.name, publisher: manifest.publisher,
-    presentation: presentation !== undefined, upgradesFrom: manifest.upgrade_compatibility?.compatible_from_versions });
+    presentation: presentation !== undefined, upgradesFrom: manifest.upgrade_compatibility?.compatible_from_versions, runtime: manifest.runtime });
   if (!isDeepStrictEqual(JSON.parse(JSON.stringify(manifest)), JSON.parse(JSON.stringify(expected)))) refuse('清单不是沙箱插件的形状：入口、权限、路由、界面声明要与包的其他文件一致，不能自带别的');
   return { manifest, contract, parts, nodes, ...(presentation ? { presentation } : {}), acceptance, prompts, entrypoint, permissions };
 }

@@ -4,7 +4,7 @@
  * an installed plugin runs from bytes whose signature, form and publisher the Host has checked again, not from a record of having checked.
  */
 import { createHash } from 'node:crypto';
-import { chmodSync, existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { pluginErrors, SANDBOX_PACKAGE_FILES, type PluginPackageBundle } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { verifyPluginPackageSignature } from '@molis-ai/molis-work-plugin-runtime';
@@ -46,6 +46,22 @@ export class SandboxPackageStore {
     write(SANDBOX_PACKAGE_FILES.entrypoint, pkg.entrypoint);
     write(BUNDLE_FILE, text);
     return directory;
+  }
+
+  /**
+   * Where the packages kept for a plugin id say they run, if any is kept: a plugin id has one range, whoever signed it and whatever the
+   * version (BL-628). Read without the package's checks, as it only refuses the install of another range; a directory it cannot read is not a package of this id.
+   */
+  scopeOf(pluginId: string): 'home' | 'project' | undefined {
+    const root = join(this.home, 'plugin-packages');
+    if (!existsSync(root)) return undefined;
+    for (const name of readdirSync(root)) {
+      try {
+        const manifest = (JSON.parse(readFileSync(join(root, name, BUNDLE_FILE), 'utf8')) as { payload?: { manifest?: { plugin_id?: unknown; runtime?: { scope?: unknown } } } }).payload?.manifest;
+        if (manifest?.plugin_id === pluginId) return manifest.runtime?.scope === 'home' ? 'home' : 'project';
+      } catch { /* not a package directory */ }
+    }
+    return undefined;
   }
 
   /** Reads an installed package back, checking it again: its signature, its form, and that it is the package the installation names. */

@@ -24,8 +24,8 @@ export const pluginInstallActions = {
     title: "预览插件包的安装", description: "检查一个签名的沙箱插件包：签名、发布者、包的格式，并说明装上它意味着什么（它要的权限、发布者有没有被固定）；不安装、不固定发布者。包不合格在这里就被拒，什么也不写。",
     kind: "operation", effect: "write", permissions: [PLUGIN_INSTALL_WRITE],
     input_schema: { type: "object", properties: { bundle: { type: "object" } }, required: ["bundle"], additionalProperties: false },
-    output_schema: { type: "object", additionalProperties: false, required: ["preview_id", "name", "preview", "effects", "publisher"], properties: {
-      preview_id: text, name: text, effects,
+    output_schema: { type: "object", additionalProperties: false, required: ["preview_id", "name", "runtime_scope", "preview", "effects", "publisher"], properties: {
+      preview_id: text, name: text, runtime_scope: { enum: ["home", "project"] }, effects,
       publisher: { type: "object", additionalProperties: false, required: ["key_id", "pinned_label"], properties: { key_id: text, pinned_label: { type: ["string", "null"] } } },
       preview: { type: "object", additionalProperties: false, required: ["plugin_id", "version", "trust", "publisher_signature", "publisher_pinned", "permissions", "declarations"], properties: {
         plugin_id: text, version: text, trust: { enum: ["host", "pinned", "unsigned"] }, publisher_signature: text, publisher_pinned: { type: "boolean" },

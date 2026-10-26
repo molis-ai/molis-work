@@ -12,7 +12,7 @@ import { answerPluginRouteStream } from "./plugin-route-stream.js";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
 
 /** Host lifecycle entries are never provided by a plugin page, even if its Manifest reuses one of these paths. */
-export const PLUGIN_MANAGEMENT_OPERATIONS = new Set(["retry", "enable", "disable", "restart", "release-quarantine", "upgrade"]);
+export const PLUGIN_MANAGEMENT_OPERATIONS = new Set(["retry", "enable", "disable", "uninstall", "restart", "release-quarantine", "upgrade"]);
 
 /**
  * What the instance that owns a Runtime plugin's routes adds around the shared operations. The operations know no plugin and no

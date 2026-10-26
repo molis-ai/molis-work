@@ -4,6 +4,7 @@ import type { AgentHostComposition } from "./agent-host-composition.js";
 import { observeReviewSettlements, type AgentWritePlaces } from "./review-settlement-events.js";
 import { ensureInstalledPlugins } from "./installed-plugin-host.js";
 import type { InstalledRelease } from "./installed-release.js";
+import type { HomePluginHost } from "./home-plugins.js";
 import type { LocalHost } from "./local-host.js";
 import type { MolisWorkLocalHostOptions, MolisWorkProjectRuntime } from "./project-host.js";
 import { ensureProjectPlugins } from "./project-plugins.js";
@@ -17,6 +18,8 @@ export interface ProjectPluginHost {
   readonly host: LocalHost<MolisWorkProjectRuntime>;
   readonly options: MolisWorkLocalHostOptions;
   agents(): AgentHostComposition | undefined;
+  /** The Home's plugin host, which runs a package that asks for the Home (BL-628); none when the Host has no Home. */
+  homePlugins(): HomePluginHost | undefined;
 }
 
 /** The plugins installed in this project (generated, installed from the market): their actions join the project's directory. */
@@ -44,6 +47,13 @@ export async function installPackageInProject(source: ProjectPluginHost, project
     await installed.installPackage(release, { consent: true });
     await installed.refreshPublicActions();
   });
+}
+
+/** Installs a release read from a signed package in the Home: the Home's plugin host runs it, in the sandbox, for every project. */
+export async function installPackageInHome(source: ProjectPluginHost, release: InstalledRelease): Promise<void> {
+  const home = source.homePlugins();
+  if (!home) throw new ActionError("actions.scope_mismatch", "这个 Host 没有 Home，不能把插件装进 Home");
+  await home.installPackage(release);
 }
 
 /** The project's built-in Runtime plugins (Coding, Files, Git, ...): started once per project, their actions registered. */

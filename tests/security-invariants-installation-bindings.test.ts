@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { mkdtempSync, realpathSync, rmSync } from "node:fs";
+import { mkdtempSync, realpathSync, renameSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
@@ -13,7 +13,8 @@ import { ownerFilesProbe, ownerFilesProject } from "./fixtures/plugin-owner-file
 // authorization for an installation. The installation's slots (`plugin-installation:<id>`, shared by every place the same identity is
 // installed) and its record bindings under every project go with the LAST installation of that identity: asked of `heldInstalls`, the
 // one reading of the Home's installations, where a place that keeps only private data no longer counts, a Home that cannot be read
-// all the way through keeps the bindings, and a binding no installation holds goes when a project is deleted.
+// all the way through keeps the bindings, and a binding no installation holds goes when a project is deleted. A first install of an
+// identity nobody has installed takes the bindings left over first (a Home that still cannot be read refuses it).
 
 const PROBE = "bindings", OTHER = "bindingsother";
 
@@ -50,7 +51,9 @@ async function world(t: TestContext, projectCount: number) {
     withConnectorConnections(home, store => store.bind({ scopeId: scope, pluginId, slotId: slot, serviceId: "github", connectionId: connection.connection_id }));
   const bound = (pluginId: string, scope: string, slot: string) => withConnectorConnections(home, store => store.binding(scope, pluginId, slot)) !== null;
   const account = () => withConnectorConnections(home, store => store.get(connection.connection_id));
-  return { home, projects, probe, other, install, uninstall, bind, bound, account, closeProject, connection };
+  /** Installs without starting: what the Runtime says of the install itself. */
+  const attempt = (index: number) => open(index).platform.runtime.install({ trust: { level: "unsigned" }, definition: probe.withoutFiles(), deployment: "local", grants: probe.permissions });
+  return { home, projects, probe, other, install, attempt, uninstall, bind, bound, account, closeProject, connection };
 }
 
 test("S-71 RAC-861 the installation slot and the record bindings stay while another place has the identity installed, and go with the last one", { timeout: 120_000 }, async t => {
@@ -114,5 +117,40 @@ test("S-71 RAC-864 deleting the last project that installs it takes the slot, an
     "project A still installs it: its slot stays; the identity that begins like it is held by no one and goes");
   await remove(0);
   assert.equal(w.bound(w.probe.id, slot, "account"), false, "the last project that installed it is deleted");
+  assert.equal(w.account()?.connection_id, w.connection.connection_id, "the account itself stays");
+});
+
+test("S-71 RAC-866 an identity no place has installed starts again without the bindings a Home that could not be read let it keep; a Home that still cannot be read refuses the install; a slot another place holds stays", { timeout: 240_000 }, async t => {
+  const w = await world(t, 4), id = await w.install(0);
+  const slot = pluginBindingScope({ install_id: id }), record = pluginBindingScope({ install_id: id, project_id: w.projects[2]!.project_id, record_key: "src-1" });
+  const bindBoth = () => { w.bind(w.probe.id, slot, "account"); w.bind(w.probe.id, record, "feed"); };
+  const both = () => [w.bound(w.probe.id, slot, "account"), w.bound(w.probe.id, record, "feed")];
+  // The record binding sits under project 2, which never installs it, so no uninstall elsewhere takes it as a project's own.
+  // Project 3's library is away for a moment: whether it installs this plugin cannot be told, so nothing is taken from anyone.
+  const library = w.projects[3]!.database_path;
+  const unreadable = async <T>(run: () => Promise<T> | T): Promise<T> => { renameSync(library, library + ".away"); try { return await run(); } finally { renameSync(library + ".away", library); } };
+
+  bindBoth();
+  await unreadable(() => w.uninstall(0, id, false));
+  assert.deepEqual(both(), [true, true], "the last uninstall kept the bindings: the Home could not be read");
+  // A first install in another place: nobody has the identity installed, so what was kept goes before it starts.
+  await unreadable(async () => assert.throws(() => w.attempt(1), /清理失败/u, "a Home that still cannot be read refuses the install rather than guess"));
+  assert.deepEqual(both(), [true, true], "the refused install took nothing");
+  assert.equal(await w.install(1), id);
+  assert.deepEqual(both(), [false, false], "the new installation starts with no account of the old one's");
+
+  // The same for a reinstall in the place that uninstalled it.
+  bindBoth();
+  await unreadable(() => w.uninstall(1, id, false));
+  assert.deepEqual(both(), [true, true]);
+  await unreadable(async () => assert.throws(() => w.attempt(1), /清理失败/u));
+  assert.deepEqual(both(), [true, true]);
+  assert.equal(await w.install(1), id);
+  assert.deepEqual(both(), [false, false], "a reinstall binds again, whether or not the Home could be read at the uninstall");
+
+  // While a place has the identity installed, its slots are that place's: another place installing it takes nothing.
+  bindBoth();
+  assert.equal(await w.install(2), id);
+  assert.deepEqual(both(), [true, true], "project 1 still has it installed");
   assert.equal(w.account()?.connection_id, w.connection.connection_id, "the account itself stays");
 });

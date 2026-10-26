@@ -201,6 +201,8 @@ export interface PluginExecutor {
   uninstalled?(record: PluginInstanceRecord): Promise<void> | void;
   /** Synchronous, idempotent revocation of an earlier uninstalled record's authorization before a reinstall registers code or saves its row, even when private data is kept. Hosts owning installation authorization supply this hook; it must not remove private data. A throw refuses the reinstall. */
   prepareReinstall?(record: PluginInstanceRecord): void;
+  /** Synchronous, idempotent. Before an install that has no earlier row in this executor's scope registers code or saves its row: the Host drops what other places' earlier installations of the same `install_id` left in its own keeping and nothing still installed uses (BL-596). A throw refuses the install. */
+  prepareNewInstall?(installId: string): void;
   /** Synchronous, idempotent Host cleanup of the earlier uninstalled `record`. With `retain_private_data: false`, before a reinstall registers code or saves a new row: remove its owner files, then private KV; a throw refuses the reinstall. With retained data and explicit `discard_kept_data`, called after the replacement row is saved as before; the Host's existing kept-data handling remains responsible for private KV. */
   keptDataDiscarded?(record: PluginInstanceRecord): void;
 }

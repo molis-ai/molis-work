@@ -35,6 +35,19 @@ export function forgetInstallationConnections(home: string, installId: string, s
 }
 
 /**
+ * A first install of an identity in a scope. Bindings an earlier last uninstall could not take (it kept them because the Home could not be
+ * read all the way through) must not come back to the new installation: when no place has the identity installed they go first; while
+ * one place has it installed, its slots are that place's and stay (BL-596). Nothing is read unless the identity has a binding. A Home that
+ * still cannot be read refuses the install, as the installs that name things do: it is not guessed whether the old bindings are in use.
+ */
+export function forgetLeftoverInstallationBindings(home: string, installId: string, scope: InstallScope): void {
+  if (!installationIdsWithBindings(home).includes(installId)) return;
+  const installed = installedIdentities(home, { scope, install_id: installId });
+  if (!installed) throw new Error("读不了 Home 里已装的插件，不能确认这个插件早先留下的连接绑定是否还有安装在用");
+  if (!installed.has(installId)) forgetInstallationBindings(home, installId);
+}
+
+/**
  * After a project's deletion: the bindings of every installation that is no longer installed anywhere. The deleted project is already out of
  * the catalog, so its installations do not count, and its library is never read. Bindings an earlier uninstall left behind go in the same pass.
  */

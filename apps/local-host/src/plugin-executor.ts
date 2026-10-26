@@ -7,7 +7,7 @@ import { openHostSession, type HostSession } from "./plugin-host-services.js";
 import { forgetPluginAgentDefinitions } from "./plugin-instructions.js";
 import { removeSandboxOwnerFiles } from "./plugin-sandbox-owner-files.js";
 import type { PluginDependencyCheck } from "./plugin-actions-client.js";
-import { discardInstallationOwnerData, forgetInstallationRecords } from "./plugin-installation-cleanup.js";
+import { discardInstallationOwnerData, forgetInstallationRecords, forgetLeftoverInstallationBindings } from "./plugin-installation-cleanup.js";
 import { directoryForHome } from "./plugin-directory-service.js";
 
 export interface PluginHostExecutorOptions {
@@ -110,6 +110,11 @@ export class PluginHostExecutor implements PluginExecutor {
 
   prepareReinstall(record: PluginInstanceRecord): void {
     forgetInstallationRecords({ home: this.options.home, project_id: this.options.project_id }, record);
+    this.prepareNewInstall(record.install_id);
+  }
+
+  prepareNewInstall(installId: string): void {
+    if (this.options.home) forgetLeftoverInstallationBindings(this.options.home.directory, installId, { kind: "project", project_id: this.options.project_id });
   }
 
   keptDataDiscarded(record: PluginInstanceRecord): void {

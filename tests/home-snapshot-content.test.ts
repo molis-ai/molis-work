@@ -4,12 +4,14 @@ import { chmod, cp, lstat, mkdir, readFile, readdir, rm, writeFile } from "node:
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { createHomeSnapshot, homeStores, preflightConnectorPrivateStateRestore, readRuntimeConfigBackup, LocalProjectDatabase, type HomeSnapshotManifest } from "@molis-ai/molis-work-app-local-host";
+import { createHomeSnapshot, homeStores, preflightConnectorPrivateStateRestore, readRuntimeConfigBackup, LocalProjectDatabase, MolisWorkLocalHost, molisWorkHostProjectReference, type HomeSnapshotManifest } from "@molis-ai/molis-work-app-local-host";
+import { personalPlanningActions, goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { ArtifactsModule } from "@molis-ai/molis-work-module-artifacts";
 import { createEvidenceContentStore, createLazyFileSecretStore, createSearchOpaqueBlobStore, LocalSqliteStorage, openExistingHomePayload, snapshotFileDigest } from "@molis-ai/molis-work-storage";
 import { assertSnapshotFact } from "./fixtures/home-snapshot-facts.js";
 import { populatedSnapshotHome, snapshotSdk, snapshotMemoryCaller } from "./fixtures/home-snapshot-fixture.js";
 import { snapshotWalWriter } from "./fixtures/home-snapshot-wal.js";
+import { managementGoals } from "./goal-management-caller.js";
 
 async function allFiles(directory: string): Promise<string[]> {
   const files: string[] = [];
@@ -100,6 +102,17 @@ test("RAC-104-S-01/04 RAC-106-S-03: a populated Home keeps every actual owner, W
     if (entry.sqlite) for (const suffix of ["", "-wal", "-shm", "-journal"]) await rm(target + suffix, { force: true });
     await mkdir(dirname(target), { recursive: true }); await cp(join(f.snapshot, entry.payload_path), target); await chmod(target, entry.mode);
   }
+  const goalsHost = new MolisWorkLocalHost({ homeDirectory: f.home, completeText: null });
+  try {
+    const { methods } = await goalsHost.homeActionClient().invoke({ actor_id: "web-user", actor_kind: "user", project_id: null,
+      audience: "user", permissions: ["goals:read"] }, personalPlanningActions.list, {}) as { methods: Array<{ method_id: string }> };
+    const expected = f.facts.find(fact => fact.table === "personal_planning_method_packs"); assert.ok(expected);
+    assert.deepEqual(methods.find(method => method.method_id === "snapshot-retained"), { ...JSON.parse(String(expected.expected)), overridden_scopes: [] }, "Goals reads its actual retained method after snapshot replay; no other scope overrides its unique id");
+    const project = f.projects[0]!;
+    const snapshot = await managementGoals(goalsHost.actionClient(molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path })), project.project_id)
+      .invoke(goalsActions.snapshot, {});
+    assert.ok(snapshot.goals.some(goal => goal.goal_id === "snapshot-goal"));
+  } finally { await goalsHost.close(); }
   const read = snapshotSdk(f.sdkRoot, "snapshot-person");
   try { assert.equal((await (await read).memory!.withCaller(snapshotMemoryCaller("snapshot-person")).list("user", "snapshot-person")).find(entry => entry.memory_id === f.memoryId)?.text, "Retained SDK memory"); }
   finally { await read.close(); }
@@ -110,7 +123,6 @@ test("RAC-104-S-01/04 RAC-106-S-03: a populated Home keeps every actual owner, W
   assert.equal(createEvidenceContentStore({ secretStore: createLazyFileSecretStore(f.home), rootDirectory: join(f.home, "feed", "evidence") }).read(f.evidence), "Retained evidence body");
   const source = new LocalProjectDatabase(f.projects[0]!.database_path, { existingOnly: true });
   try {
-    assert.ok(source.snapshot(f.projects[0]!.project_id).goals.some(goal => goal.goal_id === "snapshot-goal"));
     const artifacts = new ArtifactsModule({ db: source.db, appendEvent: event => source.appendEvent(event), eventCursor: id => source.eventCursor(id) });
     assert.deepEqual(artifacts.query.listArtifactVersions(f.projects[0]!.project_id, "snapshot-report").map(item => item.version).sort(), [1, 2]);
     assert.deepEqual(artifacts.query.getArtifactVersion(f.projects[0]!.project_id, { artifact_id: "snapshot-report", version: 2 })?.payload, { text: "Kept report 2" });

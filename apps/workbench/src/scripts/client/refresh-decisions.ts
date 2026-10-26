@@ -34,7 +34,13 @@ export const CLIENT_REFRESH_DECISIONS_SCRIPT = `      }
       } }));
       selectTreeGoal(goalId);
       if (navigatorView === "graph") updateGraphVisibility();
-      document.title = item.goal.title + " · Molis Work";
+      const titleState = tabWorkspace?.state?.();
+      const titlePane = titleState && (titleState.panes.find((pane) => pane.id === titleState.focusedPaneId) || titleState.panes[0]);
+      const titleTab = titlePane?.tabs.find((tab) => tab.id === titlePane.activeTabId);
+      const ownsTitle = !titleState || (!titleState.exclusive && (tabWorkspace.isEmbedded()
+        ? activeDesktopSurface === "goal"
+        : titleTab?.plugin === "goals" && titleTab.kind === "item" && titleTab.itemId === goalId));
+      if (ownsTitle) document.title = item.goal.title + " · Molis Work";
       if (resetScroll && activeDesktopSurface === "goal") documentPane.scrollTop = 0;
       immersiveNavigation?.sync();
       return true;

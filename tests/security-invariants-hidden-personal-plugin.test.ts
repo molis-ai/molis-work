@@ -5,6 +5,7 @@ import { LocalMcpServer, projectActionAvailability, availableProjectPluginIds, s
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import type { ActionCallContext, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { todoActions } from "@molis-ai/molis-work-plugin-todo";
+import { personalPlanningActions } from "@molis-ai/molis-work-plugin-goals";
 import { openTestHome, type TestHome, type TestProject } from "./fixtures/test-home.js";
 import { grantHomeProbe, homeProbe } from "./fixtures/home-runtime.js";
 
@@ -95,6 +96,38 @@ test("RAC-580 S-72 the availability both the action directory and discovery use 
     assert.deepEqual(await states(caller, "pages"), { live: { available: true }, snapshot: { available: true } });
     assert.deepEqual(await states(caller, "goals"), { live: refused, snapshot: refused });
   }
+});
+
+test("PG094-HOME-02 S-72 only a genuine Home Runtime provider bypasses the project list, consistently for live and discovery", async t => {
+  const home = await openTestHome(t, { catalogPolicy: false });
+  const project = await home.createProject("Installed Goals");
+  assert.equal(await withMolisWorkProjectCatalog({ homeDirectory: home.home }, catalog =>
+    catalog.projectPluginMembership(project.project_id).plugins.includes("goals")), true);
+  const homeCaller = { ...callerIn(null), permissions: ["goals:read", "goals:write"] };
+  const action = (await home.host.homeActionClient().discover(homeCaller))
+    .find(candidate => candidate.capability_id === personalPlanningActions.list.capability_id);
+  assert.ok(action, "the provider comes from the actual Home Runtime directory");
+  assert.ok(action.provider.plugin_install_id);
+  assert.equal(action.provider.project_id, undefined);
+  const availability = projectActionAvailability(withMolisWorkProjectCatalog, home.home);
+  const check = async (caller: ActionCallContext, candidate: Pick<ActionView, "provider">, available: boolean) => {
+    assert.equal((await availability(caller, candidate)).available, available);
+    const snapshot = await availability.snapshotForDiscovery(caller);
+    assert.equal(snapshot(caller, candidate).available, available);
+  };
+  await check(homeCaller, action, true);
+  await check(callerIn(project.project_id), action, true);
+  for (const projectId of ["deleted-project", "standalone-project"]) {
+    await check(callerIn(projectId), action, false);
+  }
+  for (const provider of [
+    { ...action.provider, plugin_install_id: undefined },
+    { ...action.provider, plugin_install_id: "" },
+    { ...action.provider, project_id: project.project_id },
+    { ...action.provider, kind: "system" as const },
+  ]) await check(homeCaller, { provider }, false);
+  const deletedSnapshot = await availability.snapshotForDiscovery(callerIn("deleted-project"));
+  assert.equal(deletedSnapshot(homeCaller, action).available, false, "a snapshot keeps its original project boundary");
 });
 
 test("RAC-581 S-72 the project's MCP lists no tool of a hidden personal plugin, and calling it is refused before the owner's handler runs", { timeout: 60_000 }, async t => {

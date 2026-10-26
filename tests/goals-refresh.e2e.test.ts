@@ -79,8 +79,49 @@ test("a completed refresh response cannot overwrite a Goal selected while it was
   assert.equal(await evaluate("document.querySelector('[data-goal-view]').dataset.goalView"), "RELEASE");
   assert.equal(await evaluate("document.querySelector('.tree-node.is-selected').dataset.selectGoal"), "RELEASE");
   assert.equal(await evaluate("location.pathname"), "/goals/RELEASE");
+  // PG094-TITLE-02: the focused item still owns its normal Goal title.
+  const release = afterExternalWrite.goals.find(goal => goal.goal_id === "RELEASE")!;
+  assert.equal(await evaluate("document.title"), release.title + " · Molis Work", "the focused Goal item still updates its own title");
   assert.deepEqual(boardSnapshot(store, DEMO_PROJECT_ID), afterExternalWrite);
 });
+
+for (const destination of ["home", "settings"] as const) {
+  test(`PG094-TITLE-01 a real completed Goal refresh preserves the focused ${destination} title`, { timeout: 60_000 }, async t => {
+    const browser = await openGoalBrowser(t); if (!browser) return;
+    const { store, origin, command, sessionId, evaluate, waitFor, navigate, openGoalWork, click } = browser;
+    await navigate(() => command("Page.navigate", { url: origin + "/goals/V1?desktop=1" }, sessionId));
+    await openGoalWork();
+    await evaluate(`(() => {
+      const original = fetch.bind(globalThis); let held = false;
+      globalThis.fetch = async (input, options) => {
+        const response = await original(input, options);
+        if (!held && new URL(String(input), location.href).pathname === '/api/board/refresh') {
+          held = true; const body = await response.text();
+          globalThis.__refreshHeld = true;
+          await new Promise(resolve => { globalThis.__releaseRefresh = resolve; });
+          globalThis.__refreshDelivered = true;
+          return new Response(body, { status: response.status, headers: response.headers });
+        }
+        return response;
+      };
+    })()`);
+    const goalId = `TITLE-${destination.toUpperCase()}`;
+    await addGoal(origin, goalId);
+    const afterExternalWrite = boardSnapshot(store, DEMO_PROJECT_ID);
+    await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+    await waitFor("globalThis.__refreshHeld === true", 10_000);
+    await click(destination === "home" ? '[data-dock-pin="home"]' : '[data-directory-open="settings"]');
+    await waitFor(destination === "home" ? "document.querySelector('.tab-item[data-tab-kind=home][aria-current]') && document.body.dataset.desktopSurface === 'home'"
+      : "document.querySelector('[data-tab-workspace]').dataset.exclusive === 'settings'");
+    const title = await evaluate<string>("document.title");
+    assert.match(title, destination === "home" ? /^项目首页/ : /^设置/);
+    await evaluate("globalThis.__releaseRefresh()");
+    await waitFor(`Number(JSON.parse(document.querySelector('#molis-work-data').textContent).snapshot.cursor) === ${afterExternalWrite.cursor} && document.querySelector('.tree-node[data-select-goal="${goalId}"]')`, 10_000);
+    assert.equal(await evaluate("globalThis.__refreshDelivered"), true);
+    assert.deepEqual(boardSnapshot(store, DEMO_PROJECT_ID), afterExternalWrite, "refresh made no writes beyond the one actual external Goal creation");
+    assert.equal(await evaluate("document.title"), title, "the background response applied without taking the focused surface's title");
+  });
+}
 
 test("failed compact refresh falls back to the full Goal page and keeps other work surfaces intact", { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t);

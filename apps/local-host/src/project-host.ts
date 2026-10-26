@@ -302,7 +302,7 @@ export class MolisWorkLocalHost {
     return this.host.client(reference);
   }
 
-  /** `preparePlugins: false` is for Host callers of what the project registers when it opens (Goals): it starts no Runtime plugin and restores no external MCP first. */
+  /** `preparePlugins: false` skips project Runtime preparation and external MCP restoration; project Runtime actions may not be registered. Home actions are still prepared. */
   actionClient(reference: LocalHostProjectReference, preparePlugins = true): ActionClient {
     return withPreparedActions(this.host.actionClient(reference), async caller => {
       if (preparePlugins) await this.prepareProjectPlugins(reference, caller);

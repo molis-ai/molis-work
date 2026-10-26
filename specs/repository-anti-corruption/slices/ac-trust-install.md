@@ -200,7 +200,7 @@ S-81 适配证据：060 证明提交为 `a21f2f0d593fee2a972d094467058177e32a227
 | 链接与标签页 | 做完。`openPlugin`、`openItem`、`goal` 的链接只打开本项目提供的插件（菜单或条里有它的）；存过 Goals 标签的布局在没有 Goals 的项目里重新开始，不恢复丢掉的标签。`frame-container`、`editing-graph`、`global-search`、`placement`、`project-home` 里的 `"goals"` 特判没有逐个加守卫：它们的入口只在有 Goal 时才出现，深链与旧布局两条进路已拦。 |
 | 项目设置 | 做完。「项目说明」是 Goals 的页，没有 Goals 的项目导航与目录不列它，手输地址回到「常规」。设置页先看同一份 Catalog 成员名单；真缺席时不调 Goals 的规划、说明与策略读取，保留设置外壳；仍是成员则实际读取，拒绝保留原 code、错误说明与 call_id。 |
 | 工作台外壳与插件列表 | 做完。插件列表的锁与卡片读 Host 给目录的 `always_on`（来自账本，页面带 Host 目录时，`marksFromHost`），不读 Manifest：撤回之后 Goals 是可以再添加的一项，加回后照常打开，并且可以再移除；没有 Host 的页面仍按 Manifest。 |
-| MCP 与命令行的 goal 工具 | 做完。管理入口（常驻宿主）对没有 Goals 的项目答 `actions.plugin_disabled`，不写任何东西（`tests/goals-absent-project.test.ts` 的管理入口用例）；Runtime 的动作工具来自动作目录，按可用性隐藏。管理工具表是平台的固定表，不随项目变，所以「工具列表不列」只对 Runtime 成立。 |
+| MCP 与命令行的 goal 工具 | 做完。PG-094 切到 Runtime 后，没有 Goals 的项目未注册其动作，管理入口（常驻宿主）精确答 `actions.missing`，不创建 Goals 的表、看板或事实（`tests/goals-absent-project.test.ts` 的管理入口用例）；仍是成员时的真实读取拒绝保持原样，不能当作缺席。Runtime 的动作工具来自动作目录，按可用性隐藏。管理工具表是平台的固定表，不随项目变，所以「工具列表不列」只对 Runtime 成立。 |
 | `goal-advance` Skill | 做完。步骤 2 加一句：项目可能没有 Goals，Goal 工具不在或答 `actions.plugin_disabled` 时照实说，继续用项目有的别的插件，不重新绑定。 |
 | Feed 与成果库 | 做完。Feed 阅读页的「升格为 Goal」见 T3；成果库详情的「作为 Goal 的输入」没有 Goals 时不画；已有挂着 Goal 的记录原样保留（`artifacts.links` 读成果库自己的记录）。 |
 | 新建项目与引导 | T3 已做（建项目只写 `initial()`）；引导步骤里没有对 Goal 的假定，本片核过。 |

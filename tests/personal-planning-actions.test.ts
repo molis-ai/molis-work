@@ -32,6 +32,39 @@ function libraryMethods(home: string) {
   finally { db.close(); }
 }
 
+test("PG094-HOME-01 the default Web Host reads and saves personal methods without a project and preserves them after restart", async t => {
+  const home = await mkdtemp(join(tmpdir(), "planning-default-web-")), controlToken = randomUUID();
+  let server: ReturnType<typeof createMolisWorkWebServer> | undefined;
+  const close = async () => {
+    if (!server) return;
+    server.closeAllConnections();
+    await new Promise<void>((resolve, reject) => server!.close(error => error ? reject(error) : resolve()));
+    server = undefined;
+  };
+  t.after(async () => { await close(); await rm(home, { recursive: true, force: true }); });
+  const start = async () => {
+    server = createMolisWorkWebServer({ homeDirectory: home, controlToken });
+    await new Promise<void>(resolve => server!.listen(0, "127.0.0.1", resolve));
+    const address = server!.address(); assert.ok(address && typeof address === "object");
+    return `http://127.0.0.1:${address.port}`;
+  };
+  let origin = await start();
+  const methods = async () => {
+    const response = await fetch(origin + "/api/settings/planning-methods");
+    assert.equal(response.status, 200, await response.clone().text());
+    return (await response.json() as { methods: Array<{ method_id: string; name: string; version: number }> }).methods;
+  };
+  assert.ok((await methods()).some(method => method.method_id === "domain-software-development"));
+  const saved = await fetch(origin + "/api/settings/planning-methods", { method: "POST",
+    headers: { origin, "content-type": "application/json", "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": randomUUID() },
+    body: JSON.stringify({ scope: "personal", method: { ...input.method, name: "Default Host saved method" } }) });
+  assert.equal(saved.status, 200, await saved.clone().text());
+  const before = (await methods()).find(method => method.method_id === input.method.method_id);
+  assert.equal(before?.name, "Default Host saved method");
+  await close(); origin = await start();
+  assert.deepEqual((await methods()).find(method => method.method_id === input.method.method_id), before);
+});
+
 test("RAC-798 saved planning methods live in Goals' library in the Home: a second save is a new version, and a restarted Host reads them back", async () => {
   const home = await mkdtemp(join(tmpdir(), "planning-home-library-"));
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });

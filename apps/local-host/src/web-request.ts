@@ -26,7 +26,7 @@ import fs from "node:fs";
 import { goalsActions, goalsManifest, goalsRoutes } from "@molis-ai/molis-work-plugin-goals";
 import type { MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host";
-import { cachedMolisWorkWebView, lookingForArea, type MolisWorkWebViewCache } from "./web-view.js";
+import { cachedMolisWorkWebView, lookingForArea, optionalPluginQuery, type MolisWorkWebViewCache } from "./web-view.js";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import { handleInboxNativePluginHttp } from "./inbox-native-plugin-http.js";
 import { handleAlchemistNativePluginHttp } from "./alchemist-native-plugin-http.js";
@@ -226,8 +226,9 @@ const capsuleRoute: WebRoute<ProjectRuntimeContext> = { id: "capsule", handle: a
     sendJson(response, 400, { error: L("请先选择一个 Molis Work 项目") });
     return true;
   }
-  const directory = await goalActions.invoke(goalsActions.list, { limit: 100 });
-  sendJson(response, 200, composition.buildCapsuleSnapshot(await readWebView(), directory.goals));
+  // A project without Goals has none to list (RAC-400).
+  const directory = await optionalPluginQuery(goalActions, goalsActions.list, { limit: 100 });
+  sendJson(response, 200, composition.buildCapsuleSnapshot(await readWebView(), directory?.goals ?? []));
   return true;
 } };
 
@@ -245,7 +246,7 @@ const goalsAndArtifactRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
         changed: () => { webViewCache.delete(options.databasePath); },
       }),
     }, request, response, url) },
-  { id: "artifacts", handle: ({ request, response, url, options, userActions, controlToken, composition, serverOptions }) => composition.handleArtifactNativePluginHttp(request, response, url.pathname, {
+  { id: "artifacts", handle: ({ request, response, url, options, userActions, controlToken, composition, serverOptions, goalActions }) => composition.handleArtifactNativePluginHttp(request, response, url.pathname, {
     projectId: options.projectId, routePrefix: options.routePrefix ?? "",
     projectTitle: options.project?.display_name ?? "Molis Work",
     actions: userActions(ARTIFACT_ACTION_PERMISSIONS), controlToken,
@@ -253,6 +254,7 @@ const goalsAndArtifactRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
     offeredActions: original_file => userActions(ARTIFACT_ACTION_PERMISSIONS, { original_file }),
     // Each 成果 type's owner previews its own versions (A4): a plugin's preview runs on its installation's grants, not on the person's (V-21).
     ownerActions: permissions => userActions(permissions),
+    goalsAvailable: async () => await optionalPluginQuery(goalActions, goalsActions.list, { limit: 1 }) !== undefined,
     desktopShell: composition.isDesktopShellRequest(request, url), pageCsp: composition.PAGE_CSP,
   }) },
   { id: "goal-page", handle: context => context.composition.goalsReadHttp.page(context.request, context.response, context.url, context.options, context.serverOptions.homeDirectory,

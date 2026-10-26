@@ -14,6 +14,7 @@ import { WRITE_CHECKERS_CLIENT_SCRIPT } from "./scripts/write-checkers-client.js
 import { renderWriteCheckersSection } from "./write-checkers-section.js";
 import { MEMORY_SETTINGS_CLIENT_SCRIPT, renderMemorySettings } from "./settings-memory.js";
 import { knowledgeClientTag, renderKnowledgeSettings } from "./settings-knowledge.js";
+import { PLUGIN_TRUST_SETTINGS_CLIENT_SCRIPT, renderPluginTrustSettings } from "./settings-plugins.js";
 
 export interface ProjectSettingsPagePorts {
   L(text: string, values?: Record<string, string | number>): string;
@@ -32,6 +33,9 @@ export interface ProjectSettingsPagePorts {
   composePlanningMethodPacks(methods: readonly PlanningMethodPack[]): PlanningMethodComposition;
   renderProjectPolicyDocument(view: MolisWorkWebView): string;
 }
+
+/** The settings pages whose content Goals owns: a project without Goals (`guidance` null in the hub) has none of them (RAC-400). */
+const GOALS_SETTINGS_SECTIONS: ReadonlySet<ProjectSettingsFoldId> = new Set(["guidance", "rules", "planning"]);
 
 /** Settings page composition consumes canonical Goals facts and platform presentation ports. */
 export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePorts) {
@@ -109,16 +113,17 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
     };
   }
 
-  function renderHubSection(view: MolisWorkWebView, guidance: ProjectGuidanceView, methods: readonly PlanningMethodPack[], section: ProjectSettingsFoldId, desktopShell: boolean): string {
+  function renderHubSection(view: MolisWorkWebView, guidance: ProjectGuidanceView | null, methods: readonly PlanningMethodPack[], section: ProjectSettingsFoldId, desktopShell: boolean): string {
     if (section === "workspaces") return `<section class="project-settings-page" data-project-workspaces data-workspace-prefix="${escapeHtml(view.route_prefix || `/projects/${encodeURIComponent(view.project!.project_id)}`)}">
       <header class="settings-page-heading"><h1>${L("工作目录")}</h1><p>${L("关联本机文件夹，并选择 Files 和 Git 浏览的目录。Coding 在每个会话中单独选择执行目录。")}</p></header>
       <section class="settings-section"><div class="settings-setting-row"><span class="setting-copy"><strong>${L("已关联目录")}</strong><span>${L("浏览选择对当前项目生效。")}</span></span><button class="mw-btn mw-btn--secondary" type="button" data-project-workspaces-refresh>${L("刷新")}</button></div><div data-project-workspaces-list></div><p data-project-workspaces-status role="status" aria-live="polite"></p></section>
       <section class="settings-section"><h2>${L("关联新目录")}</h2><form data-project-workspaces-add><div class="settings-setting-row"><label class="setting-copy" for="project-workspace-path"><strong>${L("文件夹路径")}</strong><span>${L("选择本机文件夹或填写绝对路径。")}</span></label><div class="setting-value"><input id="project-workspace-path" name="path" required placeholder="/path/to/project"><button class="mw-btn mw-btn--secondary" type="button" data-project-workspaces-pick>${L("选择目录")}</button></div></div><div class="settings-setting-row"><span class="setting-copy">${L("关联后可用于当前项目的浏览与 Coding 会话。")}</span><button class="mw-btn mw-btn--primary" type="submit">${L("关联目录")}</button></div><p data-project-workspaces-add-status role="status" aria-live="polite"></p></form></section>${renderWriteCheckersSection(L)}
     </section>`;
-    if (section === "general") return folds.renderGeneralPage(hubProject(view), desktopShell);
-    if (section === "guidance") return renderProjectGuidanceDocument(guidance);
+    if (section === "general" || guidance === null && GOALS_SETTINGS_SECTIONS.has(section)) return folds.renderGeneralPage(hubProject(view), desktopShell);
+    if (section === "guidance") return renderProjectGuidanceDocument(guidance!);
     if (section === "memory") return renderMemorySettings({ L, scope: "project", projectId: view.project!.project_id });
     if (section === "knowledge") return renderKnowledgeSettings({ L, projectId: escapeHtml(view.project!.project_id) });
+    if (section === "plugins") return renderPluginTrustSettings({ L, projectId: escapeHtml(view.project!.project_id), chevron: icon("chevron-down") });
     if (section === "rules") return renderProjectPolicyDocument(view);
     const composition = composePlanningMethodPacks(methods.filter((method) => method.scope === "project" && method.enabled));
     return planningBodyRenderer().renderProject(view, methods, composition, desktopShell);
@@ -126,7 +131,7 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
 
   function renderMolisWorkProjectSettingsHub(
     view: MolisWorkWebView,
-    guidance: ProjectGuidanceView,
+    guidance: ProjectGuidanceView | null,
     methods: readonly PlanningMethodPack[],
     controlToken = "",
     desktopShell = false,
@@ -138,8 +143,7 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
     if (embed) return renderHubSection(view, guidance, methods, embed, desktopShell);
     const routePrefix = view.route_prefix || `/projects/${encodeURIComponent(project.project_id)}`;
     const projectReturnHref = desktopShell ? withDesktopQuery(routePrefix || "/") : routePrefix || "/";
-    const page = renderHubSection(view, guidance, methods, open, desktopShell);
-    const navigation = renderProjectSettingsNavigation(open, project, desktopShell);
+    const page = renderHubSection(view, guidance, methods, open, desktopShell), navigation = renderProjectSettingsNavigation(guidance === null && GOALS_SETTINGS_SECTIONS.has(open) ? "general" : open, project, desktopShell, [], { goals: guidance !== null });
     return `<!doctype html>
 <html lang="${htmlLang()}">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">${controlTokenMeta(controlToken)}<title>${L("项目设置")} · ${escapeHtml(project.display_name)} · Molis Work</title><script>${THEME_BOOTSTRAP_SCRIPT}</script><link rel="stylesheet" href="/assets/molis-work-settings.css"></head>
@@ -152,7 +156,7 @@ export function createWorkbenchProjectSettingsPages(ports: ProjectSettingsPagePo
     <div class="settings-content" id="settings-content">${page}</div>
   </main>
   <div class="mw-toast toast" data-settings-toast role="status" aria-live="polite"></div>
-  <script>${clientI18nScript()}${UI_REQUEST_CLIENT_SCRIPT}${WRITE_CHECKERS_CLIENT_SCRIPT}${PROJECT_SETTINGS_CLIENT_SCRIPT}${PROJECT_GUIDANCE_CLIENT_SCRIPT}${MEMORY_SETTINGS_CLIENT_SCRIPT}${PROJECT_RULES_CLIENT_SCRIPT}${PLANNING_SETTINGS_CLIENT_SCRIPT}${PLANNING_ADOPTION_CLIENT_SCRIPT}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>${knowledgeClientTag()}
+  <script>${clientI18nScript()}${UI_REQUEST_CLIENT_SCRIPT}${WRITE_CHECKERS_CLIENT_SCRIPT}${PROJECT_SETTINGS_CLIENT_SCRIPT}${PROJECT_GUIDANCE_CLIENT_SCRIPT}${MEMORY_SETTINGS_CLIENT_SCRIPT}${PLUGIN_TRUST_SETTINGS_CLIENT_SCRIPT}${PROJECT_RULES_CLIENT_SCRIPT}${PLANNING_SETTINGS_CLIENT_SCRIPT}${PLANNING_ADOPTION_CLIENT_SCRIPT}${VISUAL_FOUNDATION_CLIENT_SCRIPT}</script>${knowledgeClientTag()}
 </body></html>`;
   }
 

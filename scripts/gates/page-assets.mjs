@@ -250,8 +250,17 @@ const headErrors = (measured, budget, base) => {
 //   bundle, so the platform entry no longer imports the Shelf package. It is a move: dist/web/pty-client.js (not a budgeted asset)
 //   shrinks by 3,196 B, and the frame no longer preloads that 0.5 MB script for Shelf. Tried in the same asset: the bridge reuses
 //   Shelf's `post` and page lifetime in place of its own request and observer code; the tui.ts reader of the bridge is unchanged.
+// ac-trust T7, against main after batch-40 (the entries batch-40 used are gone): the project settings 插件 page (install preview, each
+// permission with its reason and the platform's meaning, jobs, agreements, revoke) is drawn by one inline client script, and the settings
+// cover embeds that page and binds it from the `molis-work:settings-embed` event, so the script has to be part of the workbench script:
+// - workbench.js +9,467 B (1,129,446 -> 1,138,913): 9.3 KB of UI text and DOM building, of which +629 B is taking a publisher back (T5b: a
+//   button, its confirmation and the English text). Tried: no second client or dialog library, one shared `el`/`button` helper, the install
+//   and both revoke paths reuse `molisWorkRequest` and the one `ask` dialog; the rest is Chinese text that has to be there.
+// - workbench.css +1,369 B (1,234,610 -> 1,235,979): the page's rules (`styles/settings-plugins.ts`), written from the existing tokens.
+// No new asset. Each is under 10 KB.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1129446, 1129736],
+  "/assets/molis-work-workbench.js": [1129446, 1138913],
+  "/assets/molis-work-workbench.css": [1234610, 1235979],
   "/assets/molis-work-plugins/shelf.js": [63376, 64623],
   // #1306 (with F1's review fixes) reuses arrival's choice/field/button styles instead of the settings document stylesheet. The
   // journey changes and the valid dark welcome pseudo-element selector net +135 B (681,352 -> 681,487). Shared glow declarations

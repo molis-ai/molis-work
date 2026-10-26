@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { chmodSync, existsSync, linkSync, lstatSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import fs, { chmodSync, existsSync, linkSync, lstatSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -382,6 +383,59 @@ test("RAC-577 S-86 a named file the deletion cannot look at fails the step, and 
   assert.ok(existsSync(join(assets, "unseen.png")));
   assert.equal(await projectDeletedHooksFor(home).clear("images", "pa"), true);
   assert.deepEqual([existsSync(join(assets, "unseen.png")), projects()], [false, []], "the next attempt removes both");
+});
+
+// PG024-RETRY-02: SQLite restores rows only; files already removed remain missing for the retry.
+test("RAC-577 S-86 PG024-RETRY-01 a partial file deletion rolls back rows and retry skips deleted files", async t => {
+  const directory = withHome(t);
+  mkdirSync(directory, { recursive: true });
+  const home = realpathSync(directory), images = catalog.find(entry => entry.project_plugin_id === "images")!;
+  const library = images.manifest.databases!.home!, assets = join(home, "images", "assets");
+  const db = openBaselineHomeSqlite(home, library.store_name, library);
+  try {
+    for (const [project, names] of [["pc", ["first.png", "shared.png", "second.png"]], ["pb", ["shared.png"]]] as const) {
+      db.prepare(`INSERT INTO jobs (id, project_id, request_id, input_hash, connection_id, connection_name, api_format, model, prompt, size,
+        aspect_ratio, status, images_json, error, created_at) VALUES (?, ?, ?, 'h', 'c', 'c', 'openai-images', 'm', 'p', '', '', 'succeeded', ?, '', 'now')`)
+        .run(`job-${project}`, project, `request-${project}`, JSON.stringify(names.map(filename => ({ filename, mime_type: "image/png" }))));
+    }
+  } finally { db.close(); }
+  mkdirSync(assets, { recursive: true });
+  const first = join(assets, "first.png"), second = join(assets, "second.png"), shared = join(assets, "shared.png");
+  for (const file of [first, second, shared]) writeFileSync(file, "png");
+  const rows = () => {
+    const current = new DatabaseSync(homeSqlitePath(home, "images"), { readOnly: true });
+    try { return current.prepare("SELECT * FROM jobs ORDER BY project_id").all(); } finally { current.close(); }
+  };
+  const before = rows(), removed: string[] = [], remove = fs.rmSync;
+  let denyNextRemoval = true;
+  // Both removals use the real filesystem. Revoke directory write access only after the first unlink actually succeeds.
+  const observer = t.mock.method(fs, "rmSync", (...args: Parameters<typeof fs.rmSync>) => {
+    const file = String(args[0]);
+    if ([first, second, shared].includes(file)) removed.push(file);
+    remove(...args);
+    if (file === first && denyNextRemoval) chmodSync(assets, 0o555);
+  });
+  try {
+    syncBuiltinESMExports();
+    await assert.rejects(() => projectDeletedHooksFor(home).clear("images", "pc"), { code: "EACCES", path: second });
+    assert.deepEqual(removed, [first, second], "the JSON order reaches the second removal only after the first succeeds; shared is never removed");
+    assert.deepEqual(rows(), before, "the failed deletion rolls back every row");
+    assert.deepEqual([existsSync(first), existsSync(second), existsSync(shared)], [false, true, true], "row rollback does not restore the first file");
+    t.diagnostic("PG024-RETRY-01: real second unlink EACCES; rows restored; first missing, second and shared present");
+
+    chmodSync(assets, 0o755);
+    denyNextRemoval = false;
+    const retryAt = removed.length;
+    assert.equal(await projectDeletedHooksFor(home).clear("images", "pc"), true);
+    assert.deepEqual(removed.slice(retryAt), [second], "the missing first file is skipped on retry, and the other project's shared file stays");
+    assert.deepEqual(rows(), before.filter(row => row.project_id === "pb"), "only the other project's unchanged row remains");
+    assert.deepEqual([existsSync(first), existsSync(second), existsSync(shared)], [false, false, true]);
+    t.diagnostic("PG024-RETRY-01: retry removed only second; target row gone; other project's row and shared file unchanged");
+  } finally {
+    chmodSync(assets, 0o755);
+    observer.mock.restore();
+    syncBuiltinESMExports();
+  }
 });
 
 test("RAC-577 S-86 the SDK refuses files that do not hang on a project's own table or name a directory the Manifest does not declare", () => {

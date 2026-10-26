@@ -175,3 +175,11 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
   - ac-clients-1（Sonnet xhigh）← BL-628 设计稿（沙箱 Home 实例，S-80 放开部分要弹窗问用户），RAC-960～979、BL-710～719。
   - ac-registry ← BL-530 设计稿（沙箱集成插件），要用户定的项待弹窗；RAC-891～899、BL-690～694。
   - ac-sc3：PG-053 合并后做 W5-10 巨大单元判定。
+- **10-26 batch-41 全量（40257291347）前 9 片**：只红两个文件，都不在 batch-40 红单里，均为本批引入，已在批头修（不重跑全量）：
+  - `goals-planning-actions`「project planning HTTP…」：T3b `5252c6667` 把项目设置页 `planningRead` 的 `actions.plugin_disabled` 当「没有 Goals」→ 有 Goals 时策略拒绝也返回 200。改为 Goals 在不在由项目插件清单说（`web-goals-read.ts` `settings()` 加 `goalsHere`），在则如实 403（N3 原则）。
+  - `plugin-directory-notices.e2e`：I1 把 `directoryForHome().list()` 改成 async，Codex `8f18228e6` 的测试仍同步取 `[0]`；测试两处改 `await`。
+- **10-26 第三轮派片**：
+  - ac-kernel ← threads 方案 A 批准（扩 `AssistantPluginMessage` 的 `thread`，外壳认 frame 身份、宿主卡人点才调；S-47 拒绝测试；不放松工具条规则）；之后 W5-10 批 B（`AssistantService`），先交拆分计划。
+  - ac-review ← BL-596 `53304afb5..7613ac854`；ac-review-2 ← W5-10 判定 `8bf4c6235`（改门禁文件，抽查例外理由）。
+  - ac-sc3 ← W5-10 批 D（`ShelfStore`）；ac-giants ← W5-10 批 G（宿主 `LocalHost` 等，先交计划，枢纽文件先查在途）；ac-coding ← PG-001 余项核对，再 W5-10 批 I（workflows 动作处理器）；ac-platform ← 下一组（避开 `plugin-scene-service.ts`）。
+  - W5-10 未派：批 H（工作台渲染器，待有线空出）；批 A 归 W5-04、C 归记忆线（暂停）、E 归 Goals S 系列、F 归 FI-6。

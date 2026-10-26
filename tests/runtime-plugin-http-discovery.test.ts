@@ -26,6 +26,7 @@ import { sendBarrier } from "./fixtures/assistant-send-journey.js";
 import { lingguangActions } from "@molis-ai/molis-work-plugin-lingguang";
 import { openLingguangStore } from "./fixtures/plugin-home-stores.js";
 import { pluginDocuments } from "./fixtures/plugin-documents.js";
+import { dualPlugin } from "./fixtures/dual-plugin.js";
 import { serveLingguang } from "./fixtures/lingguang-runtime.js";
 import type { HostTextRequestOptions } from "@molis-ai/molis-work-app-local-host";
 
@@ -581,6 +582,7 @@ test("RAC-612 RAC-613 RAC-614 the served client ignores forged controls, shows a
   assert.deepEqual(requests.at(-1), { url: `/projects/${projectId}/api/plugins/${encodeURIComponent(FORM_PLUGIN_ID)}/release-quarantine`, method: "POST", token: browser.controlToken });
 });
 
+// PG094-STAGE-01: a genuinely declared Home stage still reports stopped or missing runtime content.
 test("S-47 RAC-79 W5-06-STAGE-01 Home stage placeholders use the request locale, escape owner messages and distinguish a running instance without a view", { timeout: 60_000 }, async t => {
   const { host, project, request } = await serveHomeRuntime(t);
   const one = await project("Home stage language");
@@ -629,6 +631,35 @@ test("S-47 RAC-79 W5-06-STAGE-01 Home stage placeholders use the request locale,
   assert.doesNotMatch(await page("en"), /data-home-plugin-unavailable/u);
 });
 
+test("PG094-STAGE-01 a non-catalog Home fixture keeps its running stage and unavailable placeholder", { timeout: 60_000 }, async t => {
+  const probe = dualPlugin("externalhomestage");
+  const { host, project, request } = await serveHomeRuntime(t, { pluginFixtures: {
+    home: [{ definition: probe.home, dual_instance: true }], project: [probe.project],
+  } });
+  const one = await project("External Home stage"), platform = await host.homePlugins!.ready();
+  const install = host.homePlugins!.installation(probe.id)!;
+  assert.equal(install.state, "running");
+  const page = async () => { const response = await request(`/projects/${one.project_id}`); assert.equal(response.status, 200); return response.text(); };
+  const running = await page();
+  // This existing fixture supplies a raw stage fragment, not one of the catalog's deferred opaque documents.
+  assert.ok(running.includes("<section>externalhomestage</section>"));
+  const unavailable = async () => {
+    const html = await page();
+    const stage = html.match(new RegExp(`<section\\b[^>]*data-work-surface="${probe.id.replaceAll(".", "\\.")}"[^>]*data-home-plugin-unavailable[^>]*>[\\s\\S]*?<\\/section>`, "u"))?.[0];
+    assert.ok(stage, "the non-catalog Home fixture owns its unavailable stage");
+    assert.ok(!html.includes("<section>externalhomestage</section>"));
+    return stage;
+  };
+  await platform.runtime.stop(install.install_id);
+  assert.ok((await unavailable()).includes("插件已停用"));
+  assert.equal((await platform.supervisor.restart(probe.id)).status, "running");
+  const original = platform.runtime.contribution.bind(platform.runtime);
+  const missing = t.mock.method(platform.runtime, "contribution", id => id === install.install_id ? null : original(id));
+  try { assert.ok((await unavailable()).includes("插件页面未注册")); } finally { missing.mock.restore(); }
+  assert.ok((await page()).includes("<section>externalhomestage</section>"));
+});
+
+// PG094-STAGE-01: a Home instance without a declared stage adds no Host placeholder; the opaque frame boundary remains enforced.
 test("S-47 RAC-79 W5-06-STAGE-01 the real Form frame stays usable after a stopped stage placeholder and restart; forged unavailable markers stay isolated", { timeout: 90_000 }, async t => {
   const browser = await openGoalBrowser(t, true, undefined, null);
   if (!browser) return;

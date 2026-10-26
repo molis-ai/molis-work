@@ -31,6 +31,8 @@ export interface PluginHostExecutorOptions {
    * Manifest that declares a library for one of those is refused (`homeLibraryFor`). Needs `home`.
    */
   databaseFor?(definition: PluginDefinition): PluginDatabaseDeclaration | undefined;
+  /** The Host's checked start list identifies a dual project half; absent Home services are not redeemed for that half. */
+  dualInstance?(definition: PluginDefinition): boolean;
   /**
    * The project's library, where a plugin whose Manifest declares `databases.project` gets its own tables
    * (`services.project_database`); absent or `null`: none, and such a plugin does not start.

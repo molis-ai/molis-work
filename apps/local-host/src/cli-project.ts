@@ -49,7 +49,7 @@ export async function runV1Cli(args: string[], options: V1CliOptions = {}): Prom
   const fallback = () => {
     if (homeProject || homeDatabase) ensureHomeStorageOwner(localHost ??= createMolisWorkLocalHost({ homeDirectory: home }), home);
     if (operation === "init" && homeDatabase) prepareLocalProjectStorage(databasePath, "create");
-    return bindGoalsManagementActions((localHost ??= createMolisWorkLocalHost({ homeDirectory: home })).actionClient(reference), reference, { signal: options.signal });
+    return bindGoalsManagementActions((localHost ??= createMolisWorkLocalHost()).actionClient(reference), reference, { signal: options.signal });
   };
   try {
     return await withCallId(newCallId(), async () => {

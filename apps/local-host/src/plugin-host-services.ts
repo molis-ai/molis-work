@@ -123,6 +123,7 @@ function openDeclaredLibrary(options: PluginHostExecutorOptions, definition: Plu
   if (definition.execution === "sandbox" && definition.manifest.databases?.home) {
     throw pluginErrors.declaration_invalid(`沙箱插件 ${definition.manifest.plugin_id} 声明了 Home 库 ${definition.manifest.databases.home.store_name}，项目里运行的沙箱插件没有 Home 库，只有 Home Runtime 里的有`);
   }
+  if (!options.home && options.dualInstance?.(definition)) return undefined;
   const library = homeLibraryFor(definition, options.databaseFor?.(definition), options.record?.(context.install_id) ?? null);
   if (library === undefined) return undefined;
   if (!options.home) throw new Error(`插件 ${definition.manifest.plugin_id} 声明了 Home 库，但这个插件平台没有 Home`);

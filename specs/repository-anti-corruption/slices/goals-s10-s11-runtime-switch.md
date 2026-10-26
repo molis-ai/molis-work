@@ -7,7 +7,12 @@
 
 本组合的 PLIB-14 修正：先对完整的声明启动名单核双实例两半，再按本项目的库拒绝结果排除不能启动的那一半。旧顺序先排掉 Goals 后被双实例校验当成缺声明，导致整个项目 Runtime 清空；不是双实例声明错误。开发入口的初始化同时改用现行公开描述符 `goalEntryActions.initialize`（version 2），不再保留旧 version 1 字面量；库自己的拒绝码仍由项目库记录，入口没有对应公开动作时回答 `actions.missing`，不恢复宿主直读 Goals 的私路。对外 `runLocalPluginDevelopment` 在它已校验的专用 `state_directory/home` 中装配隔离 Home，供 Goals 的 Home 库与项目半按同一平台规则启动；不再创建无 Home 的 Host。开发状态标记留在父目录，新的 Home 子目录走现行新 Home 的记忆初始化；不修改或绕过记忆采用检查。既有 W3-07-6-01 / A3-DEV-01 的真实产出、重跑与未声明拒绝用例作为红绿反例，不放宽它们。保留声明/信任校验不变，以真实损坏库断言 Goals 项目动作拒绝、独立 Home 半及其他插件照常可用。
 
-自建 CLI 的同类修正：未借用 Host 时用已经解析的显式/默认 Home 装配 Host，Goals 因此可按公共 Runtime 启动；注册项目仍优先转常驻入口，借用 Host 不替换或关闭。独立项目根初始化在 lazy fallback 已完成 Home 所有权与必要目录准备之后、实际动作派发之前。Home 忙时仍在建目标目录前拒绝，外部 init 的坏 JSON 仍保原父目录顺序且不创建 Host/Home；源码接线检查改为精确要求 `{homeDirectory: home}`，不放宽旧 guard。`tests/cli-home-owner-entry.test.ts` 保两负例并验证新 Host 的外部库、Home 内新路径及关闭后重开。
+自建 CLI 的边界（2026-10-26 收口修正）：Home 登记的项目及实际位于 Home 内的库仍先用解析后的 Home 装配 Host、取得所有权，再为 Home 内 init 建目录；注册项目优先转常驻入口，借用 Host 不替换或关闭。真正外部的独立库走无参、无 Home 的 fallback，不抢占所选但无关 Home 的 owner；项目根仍在动作派发前经现行项目存储入口初始化。外部 init 的坏 JSON 保原父目录顺序且不创建 Host/Home。canonical 接线仍严格要求原三句、同一 reference/signal 及两段目录创建顺序，只恢复第三句的无参构造。
+
+- **PG094-CLI-01**：所选 Home 被 snapshot 占用时，外部独立库 init 真实成功，所选 Home 的业务字节保持不变；Home 内与 alias 路径仍在建目标目录前拒绝，释放后真实成功。沿 RAC-105-S-08 的原完整用例验证，不放宽锁或拒绝码。
+- **PG094-CLI-02**：无 Home 时，完整启动声明先按现有目录校验 scope 与两半信任，只有平台已确认的双实例项目半可部分兑现共享 Manifest：获得项目服务而不获得 Home 数据库句柄。普通声明 Home 库、错误信任、项目/Manifest 自标双实例及沙箱仍拒绝；有 Home 的装配行为保持。
+- **PG094-CLI-03**：无 Home 的真实项目动作若需要个人方法，精确拒绝 `goals.planning.personal_unavailable`，事务回滚且不留业务半写；不造临时 Home、不返回空个人方法、不绕过 Memory 非 fresh Home 的采用拒绝。
+- **PG094-CLI-04**：CLI owner/protocol 与 canonical 的全部原反例保留：去 owner、改谓词/目录、提前 mkdir、多余语句、丢 reference/signal 等仍被接线检查拒绝。必要 Home 测试在 fresh 时经公开生命周期合法初始化，不能伪造采用标记或改变原业务断言。
 
 ## 1. 为什么 S10 与 S11 不能分开
 
@@ -129,7 +134,8 @@ savepoint<T>(body: () => { keep: boolean; value: T }): T
 **S12 实测发现（改测试时撞到的，行为变化都在这里记一笔）**：
 
 - **Inbox 读取入口**：Goals 以插件运行后，待决定提醒的 `owner_plugin_id` 是 Goals 的插件号，而 S9-0b 起 Feed 的 Inbox 读取入口只接未归属条目，提醒会从 Inbox 里消失。统筹 2026-10-25 定的做法是按声明经平台，Feed 与宿主里不点名任何插件：Manifest 的 `attention` 加可选的 `inbox`（`subjects` 的子集），Goals 声明 `inbox: ["goal_decision"]`；`AttentionModule.query` 加 `listInbox`/`getInbox`（未归属条目，加主人声明了该种类的有主条目）；宿主 `plugin-inbox-declarations.ts` 从项目库里运行中的安装、按发行物归档里的 Manifest 读声明，Feed 经 `FeedApplicationPorts.inboxDeclarations` 调这两个查询（RAC-806～809）。其它种类、其它主人照旧隔离，声明只对声明者自己的条目生效。Feed 自己不再能开 `goal_decision` 条目（它不读 Goals 的表）：`createInboxEntry` 对任何 Goal 都以 `feed.invalid_transition` 拒绝，条目由 Goals 开。（此前一版是 Feed 里一张点名 Goals 插件号的表；统筹否决了它，也否决了「先隐藏提醒」的备选。）
-- **没有 Home 的 Host**：项目插件名单里声明了 Home 库的插件（Goals）不再进名单，其余插件照常启动（`project-plugins.ts` 的 `startPlatform`）。原先整张名单因 `assertDatabaseEntries` 拒绝而全部起不来。产品里的 Host 都有 Home，只影响测试和单独起的 Host；这样的 Host 不提供 Goals 动作。
+- **没有 Home 的 Host**：按 PG094-CLI-02 校验完整声明后，已可信标记的双实例项目半可只用项目服务启动；普通依赖 Home 库的项目定义不获得 Home 句柄。实际消费个人方法按 PG094-CLI-03 精确拒绝，不能因共享 Manifest 的 Home 库声明把 Goals 项目动作全部删掉。
+- **Home 主区 stage（PG094-STAGE-01，2026-10-26 组合修复）**：内置目录里实际声明了 `workbench` surface 的贡献才成为 Home 候选主区，沿用 `declaredStageContributionId`；不能只凭共享 Manifest 的导航入口推定 Home 实例拥有主区。未在该内置目录的已安装/fixture 条目保留原有页面路径及可选 workbench 声明。Goals 的 Home 半只提供个人方法动作，目录与设置贡献不成为 Home 主区或「页面未注册」占位。真正声明主区的插件在停用、启动失败或贡献缺失时仍保留现有不可用占位。验证沿 `runtime-plugin-http-discovery` 的真实 Form opaque frame、伪造标记原拒绝、Home Todo 停用/缺页与非内置 Home stage 原例，不能缩窄伪造标记断言或用实时无贡献直接跳过失败 stage。
 - **第一次调用才启动项目插件**：入门、CLI、管理入口对项目的第一次调用现在会启动项目的 Runtime 插件（Goals 在其中），Feed 的来源定时任务随之留下一行 `feed.sources.tick` 调用记录；测试里只看 Goals 的行。
 - **演示项目的种入**：走 Goals 的动作，在临时 Home 的一次性 Host 里跑，比原来的直写慢几秒（机器负载高时到十几秒）；重置演示项目的锁超时用例的时限相应放宽。
 - **测试迁移的机械规则**：Goals 的事件、幂等记录在日志里的类型带插件号前缀（`io.molis.work.goals:<类型>`）；孤立的项目库要先有根行（`ensureProjectRoot`）插件才能写；共用一个 Home 的两个 Host 不行，测试里让自己的 Host 带 `homeDirectory` 并用 `serveTestHost(null, { home, host })` 当授权端；Feed 提升调用者要 `context-ledger:write`，结构提案的提交与决定要 `attention:write`，`artifacts.links` 要 `goals:read`。

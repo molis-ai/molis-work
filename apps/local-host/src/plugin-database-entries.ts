@@ -6,6 +6,7 @@ import { assertProjectRowsEntries, sandboxRefusal } from "./plugin-project-rows.
 /** A plugin on the Host's start list; the library in the Home it is given, if any, is the one its Manifest declares (`databases.home`). */
 interface PluginDatabaseEntry {
   readonly definition: PluginDefinition;
+  readonly dual_instance?: true;
 }
 
 /** A plugin library's name: one directory of the Home. */
@@ -28,12 +29,14 @@ export const PLUGIN_LIBRARY_NAME = /^[a-z][a-z0-9-]*$/u;
 export function assertDatabaseEntries(entries: readonly PluginDatabaseEntry[], home: PluginPlatformHome | null, scope: "home" | "project"): void {
   assertProjectRowsEntries(entries, scope);
   const taken = new Set<string>();
-  for (const { definition } of entries) {
+  for (const { definition, dual_instance } of entries) {
     const database = definition.manifest.databases?.home;
     if (!database) continue;
     const id = definition.manifest.plugin_id;
-    if (home === null) throw new Error(`插件 ${id} 声明了 Home 库，但这个插件平台没有 Home`);
     if (definition.execution === "sandbox") throw new Error(`沙箱插件 ${id} 不能有 Home 库：库是宿主进程里的服务，沙箱里的代码拿不到`);
+    // The Host has already recognized this project half; with no Home it receives only project services, never a Home handle.
+    if (home === null && scope === "project" && dual_instance) continue;
+    if (home === null) throw new Error(`插件 ${id} 声明了 Home 库，但这个插件平台没有 Home`);
     const name = database.store_name;
     if (!PLUGIN_LIBRARY_NAME.test(name)) throw new Error(`库名 ${JSON.stringify(name)} 必须是一个目录名（小写字母开头，只含小写字母、数字和连字符）`);
     const store = home.stores.get(name);

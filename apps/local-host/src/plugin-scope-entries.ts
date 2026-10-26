@@ -40,8 +40,7 @@ export function projectScopeEntries<Entry extends { definition: PluginDefinition
   // A shipped plugin's Home half is in the catalog whether or not this host has a Home, so its project half is marked either way.
   const homeSides = new Map<string, { dual: boolean; hostBuilt: boolean }>(PLATFORM_PLUGIN_REGISTRATIONS.filter(runsInHome)
     .map(entry => [entry.manifest.plugin_id, { dual: entry.runtime!.dual_instance === true, hostBuilt: true }]));
-  if (!home) return entries.map(entry => homeSides.get(entry.definition.manifest.plugin_id)?.dual ? { ...entry, dual_instance: true as const } : entry);
-  for (const entry of homeFixtureEntries(home)) homeSides.set(entry.definition.manifest.plugin_id, { dual: entry.dual_instance === true, hostBuilt: false });
+  if (home) for (const entry of homeFixtureEntries(home)) homeSides.set(entry.definition.manifest.plugin_id, { dual: entry.dual_instance === true, hostBuilt: false });
   const marked = entries.map(entry => {
     const id = entry.definition.manifest.plugin_id, side = homeSides.get(id);
     if (!side) return entry;

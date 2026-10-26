@@ -157,6 +157,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     invalidateView,
     providerFor,
     databaseFor: identity.databaseFor,
+    dualInstance: identity.dualInstance,
     projectLibrary: projectLibraryOf(options), scheduler: options.scheduler,
     project_id: options.project_id,
     actor_id: options.actor_id,

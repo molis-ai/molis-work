@@ -1,4 +1,6 @@
 import type { RssFetchReceipt } from "../modules/sources.js";
+import type { ConnectorPollResult, ConnectorRawEvent } from "../services/connector-host.js";
+import type { RawEventAdapter } from "../services/listener-host.js";
 
 /** What a plugin holds to pull public feeds (rss, custom_rss, youtube_channel) through the platform (`services.sourcePull.pull`). */
 export const PLUGIN_SOURCE_PULL_FEED_PERMISSION = "sources:pull_feed";
@@ -8,6 +10,9 @@ export const PLUGIN_SOURCE_PULL_QUERY_PERMISSION = "sources:pull_query";
 export const PLUGIN_EVIDENCE_READ_PERMISSION = "evidence:read";
 /** What a plugin holds to read a research library repository through the platform (`services.sourcePull.repository`). */
 export const PLUGIN_SOURCE_PULL_REPOSITORY_PERMISSION = "sources:read_repository";
+
+/** What a plugin holds to pull an account source (GitHub, Gmail, a directory connector) through the person's bound account (`services.sourcePull.connector`). */
+export const PLUGIN_SOURCE_PULL_CONNECTOR_PERMISSION = "sources:pull_connector";
 
 interface SourcePullBase {
   /** The pull's identity: the same id is the same pull (the platform's search record is kept under it). */
@@ -123,6 +128,51 @@ export interface PluginSourceVocabulary {
   rssCursorAfterSuccess(cursor: unknown, receipt: RssFetchReceipt | null, completed_at: string): unknown;
 }
 
+/**
+ * One pull of an account source. The account is the one the person bound to the plugin's `per_record` slot `slot_id` for the record
+ * `record_key` (the source), never one the plugin names: there is no connection, credential or token field. Closed on purpose.
+ */
+export interface ConnectorPullRequest {
+  /** A `per_record` slot of the Manifest's `connections.slots`; its service must be the integration's. */
+  readonly slot_id: string;
+  /** An integration of the Home's registry, of kind `source`. */
+  readonly integration_id: string;
+  readonly record_key: string;
+  /** The plugin's checkpoint of this source; plain data. */
+  readonly cursor: unknown;
+  readonly intent?: { readonly sync_mode?: string };
+  /** Non-secret settings of the source (Gmail's `scope`): up to 8 short texts, none of them a name the platform reads from the account. */
+  readonly settings?: Readonly<Record<string, string>>;
+}
+
+/** What the platform's connector returned for one pull: the provider's raw events and next cursor, or its failure. No connection is named. */
+export interface ConnectorPullReceipt {
+  readonly receipt_id: string;
+  readonly driver_id: string;
+  readonly started_at: string;
+  readonly completed_at: string;
+  readonly result: ConnectorPollResult;
+}
+
+/** A signal draft the integration's adapter made of one raw event. */
+export type ConnectorSignalDraft = ReturnType<RawEventAdapter["toSignalDraft"]>;
+
+/**
+ * Pulling the accounts a person bound to a plugin's records, through the platform's integration registry. The credential stays
+ * with the platform: the plugin gets the events the provider returned and the adapter's drafts, nothing that names the account.
+ * Needs `connections:use` as well as `sources:pull_connector`, in the action and in the caller.
+ */
+export interface PluginConnectorSourceClient {
+  /** Whether the integration is registered as a source of this slot's service, and its adapter's identity. Pure. */
+  open(slot_id: string, integration_id: string): Promise<{ readonly adapter: RawEventAdapter["adapter"] }>;
+  /** Concurrent actions and jobs only, never read-only. The binding is read when the pull starts and again when it ends; a change refuses it. */
+  pull(request: ConnectorPullRequest, options?: { readonly signal?: AbortSignal }): Promise<ConnectorPullReceipt>;
+  /** The integration's adapter on one raw event. Pure: it reads no account. */
+  adapt(request: { readonly slot_id: string; readonly integration_id: string; readonly record_key: string; readonly event: ConnectorRawEvent }): Promise<ConnectorSignalDraft>;
+  /** For services the Manifest declares a slot for: whether the Home has a connected account of each. Only a boolean. */
+  accounts(service_ids: readonly string[]): Promise<Readonly<Record<string, { readonly bound: boolean }>>>;
+}
+
 export interface SourcePullOptions {
   /**
    * Told the references of the bodies the platform is about to write, and the write waits for it. A body is never on disk before the
@@ -150,4 +200,6 @@ export interface PluginSourcePullClient {
   /** Present with `sources:pull_feed`. Pure: usable in any call of this installation that declares the permission, read-only calls included. */
   readonly vocabulary?: PluginSourceVocabulary;
   readonly repository?: { read(request: RepositoryReadRequest, options?: { readonly signal?: AbortSignal }): Promise<RepositoryReadResult> };
+  /** Present with `sources:pull_connector`. */
+  readonly connector?: PluginConnectorSourceClient;
 }

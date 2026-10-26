@@ -84,6 +84,8 @@ export interface PluginPlatformOptions {
   sourcePullFetch?: (input: string | URL, init?: RequestInit) => Promise<Response>;
   /** Test seam for `services.sourcePull.repository`: the `git` it runs. Production never passes it. */
   sourcePullGit?: import("./research-repository-read.js").ResearchGit;
+  /** Test seam for `services.sourcePull.connector`: the Home's integration registry, with providers of the test's own. Production never passes it. */
+  sourcePullIntegrations?: () => Promise<import("./integration-registry.js").IntegrationRegistry>;
   /** The owner of private KV supplies whole-installation cleanup for synchronous non-retaining reinstalls. */
   deleteInstallationData?(installId: string): void;
   capturePrivateData?(installId: string): Promise<unknown> | unknown;
@@ -164,6 +166,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     projectLibrary: projectLibraryOf(options), scheduler: options.scheduler,
     ...(options.sourcePullFetch ? { sourcePullFetch: options.sourcePullFetch } : {}),
     ...(options.sourcePullGit ? { sourcePullGit: options.sourcePullGit } : {}),
+    ...(options.sourcePullIntegrations ? { sourcePullIntegrations: options.sourcePullIntegrations } : {}),
     project_id: options.project_id,
     actor_id: options.actor_id,
     artifacts: options.artifacts,

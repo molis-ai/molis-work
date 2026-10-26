@@ -796,4 +796,4 @@ const runtimeFailureCodes = {
 
 export { createPluginMaterialsClient, type PluginMaterialsPort, type PluginMaterialsDispatch, type PluginMaterialsGate, type PluginOriginalFileKey } from "./materials-service.js";
 export { createPluginConnectionsClient, type PluginConnectionsPort, type PluginConnectionDispatch, type PluginConnectionTarget, type PluginConnectionsGate } from "./connections-service.js";
-export { createPluginSourcePullClient, type PluginSourcePullPort, type PluginSourcePullRun, type PluginSourcePullGate } from "./source-pull-service.js";
+export { createPluginSourcePullClient, createPluginConnectorSourceClient, type PluginConnectorPort, type PluginSourcePullPort, type PluginSourcePullRun, type PluginSourcePullGate } from "./source-pull-service.js";

@@ -102,7 +102,7 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
       database: library?.client, ownerFiles: ownerFiles?.client, project_database: projectLibrary?.client, project_statements: definition.execution === "sandbox" ? projectLibrary?.statements : undefined, model: pluginModelFor(options.home, definition, context, assertActive),
       materials: pluginMaterialsFor(options.home, definition, context, assertActive, options.project_id), connections: pluginConnectionsFor(options.home, definition, context, assertActive),
       sourcePull: pluginSourcePullFor(definition, context, assertActive, options.projectLibrary?.db,
-        { ...(options.sourcePullFetch ? { fetch: options.sourcePullFetch } : {}), ...(options.sourcePullGit ? { git: options.sourcePullGit } : {}), ...(options.home ? { home: options.home.directory } : {}) }),
+        { ...(options.sourcePullFetch ? { fetch: options.sourcePullFetch } : {}), ...(options.sourcePullGit ? { git: options.sourcePullGit } : {}), ...(options.sourcePullIntegrations ? { integrations: options.sourcePullIntegrations } : {}), ...(options.home ? { home: options.home.directory } : {}) }),
       background: background?.client, directory: directory?.client });
     withdrawPages = options.home ? pluginPagesFor(options.home.directory).connect({ manifest, install_id: context.install_id, project_id: options.project_id, actor_id: options.actor_id,
       invoke: pluginPageActions(manifest, context, { client: options.actions.client, actions: hosted.services?.actions, caller: pluginCaller, provider: providerId }),

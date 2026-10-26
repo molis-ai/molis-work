@@ -1,9 +1,13 @@
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
-  PLUGIN_EVIDENCE_READ_PERMISSION, PLUGIN_SOURCE_PULL_FEED_PERMISSION, PLUGIN_SOURCE_PULL_QUERY_PERMISSION, PLUGIN_SOURCE_PULL_REPOSITORY_PERMISSION,
+  PLUGIN_EVIDENCE_READ_PERMISSION, PLUGIN_SOURCE_PULL_CONNECTOR_PERMISSION, PLUGIN_SOURCE_PULL_FEED_PERMISSION, PLUGIN_SOURCE_PULL_QUERY_PERMISSION, PLUGIN_SOURCE_PULL_REPOSITORY_PERMISSION,
   type PluginSourcePullClient, type PluginSourceVocabulary, type RepositoryReadRequest, type RepositoryReadResult, type SourcePullKind, type SourcePullOptions, type SourcePullRequest, type SourcePullResult,
 } from "@molis-ai/molis-work-contracts/platform/plugin-source-pull";
+import { createPluginConnectorSourceClient, type PluginConnectorPort } from "./source-pull-connector.js";
+
+/** The account-source client lives in its own file and is offered with this service (`services.sourcePull.connector`). */
+export { createPluginConnectorSourceClient, type PluginConnectorPort };
 import { assertCapturedPluginActionCurrent, currentPluginInvocation, inPluginInstance, pluginInvocationReadOnly, type PluginInstance } from "./action-scope.js";
 
 type InvocationScope = NonNullable<ReturnType<typeof currentPluginInvocation>>;
@@ -51,9 +55,13 @@ export interface PluginSourcePullPort {
   readRepository(request: RepositoryReadRequest, run: Pick<PluginSourcePullRun, "signal" | "current" | "beforeEffect">): Promise<RepositoryReadResult>;
   /** Pure: no I/O, no state. */
   readonly vocabulary: PluginSourceVocabulary;
+  /** Account sources through the integration registry; a Host without a registry leaves it out and the plugin gets no `connector`. */
+  readonly connector?: PluginConnectorPort;
 }
 
 export interface PluginSourcePullGate extends PluginInstance {
+  /** The project this activation belongs to: the record of a `per_record` slot is always the call's, and the call's project must be this one. */
+  readonly project_id?: string;
   assertActive(): void;
   requireGrant(permission: string): void;
 }
@@ -174,6 +182,7 @@ export function createPluginSourcePullClient(manifest: PluginManifest, port: Plu
       },
     });
   }
+  if (declared(PLUGIN_SOURCE_PULL_CONNECTOR_PERMISSION) && port.connector) client.connector = createPluginConnectorSourceClient(manifest, port.connector, gate);
   return Object.freeze(client);
 }
 

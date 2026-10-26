@@ -136,6 +136,7 @@ export { sandboxPluginManifest } from "./sandbox-plugin-manifest.js";
 export { SandboxPackageStore } from "./sandbox-package-store.js";
 export { HomeConsentLedger } from "./home-plugin-store.js";
 export { createPluginConnectionsPort, pluginSlotScope } from "./connector-plugin-requests.js";
+export { createConnectorSourcePort } from "./connector-source-pull.js";
 export { activateConnectorConnection } from "./connector-activation.js";
 export { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 export { connectorRecordActions, CONNECTOR_RECORDS_READ } from "./connector-record-actions.js";

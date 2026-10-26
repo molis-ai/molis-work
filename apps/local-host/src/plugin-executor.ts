@@ -40,6 +40,8 @@ export interface PluginHostExecutorOptions {
   sourcePullFetch?: (input: string | URL, init?: RequestInit) => Promise<Response>;
   /** Test seam for `services.sourcePull.repository`: the `git` it runs. Production never passes it. */
   sourcePullGit?: import("./research-repository-read.js").ResearchGit;
+  /** Test seam for `services.sourcePull.connector`: the Home's integration registry, with providers of the test's own. Production never passes it. */
+  sourcePullIntegrations?: () => Promise<import("./integration-registry.js").IntegrationRegistry>;
   installations?: import("./plugin-installation-directory.js").InstallationDirectoryClient;
   scheduler?: import("@molis-ai/molis-work-service-scheduler").ScheduleService;
   /**

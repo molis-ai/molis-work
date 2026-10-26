@@ -122,7 +122,7 @@ export function createPluginConnectionsClient(manifest: PluginManifest, port: Pl
 }
 
 /** The binding a call reaches: an installation slot takes no record key; a `per_record` slot needs one, and the call's own project. */
-function slotTarget(manifest: PluginManifest, gate: PluginConnectionsGate, slot: PluginConnectionSlotDeclaration, record_key: unknown,
+export function slotTarget(manifest: PluginManifest, gate: PluginConnectionsGate, slot: PluginConnectionSlotDeclaration, record_key: unknown,
   project_id: string | null): PluginConnectionTarget {
   const target = { plugin_id: manifest.plugin_id, install_id: gate.install_id, slot_id: slot.slot_id, service_id: slot.service_id };
   if (slot.binding !== "per_record") {

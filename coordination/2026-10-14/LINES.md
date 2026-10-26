@@ -183,3 +183,5 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
   - ac-review ← BL-596 `53304afb5..7613ac854`；ac-review-2 ← W5-10 判定 `8bf4c6235`（改门禁文件，抽查例外理由）。
   - ac-sc3 ← W5-10 批 D（`ShelfStore`）；ac-giants ← W5-10 批 G（宿主 `LocalHost` 等，先交计划，枢纽文件先查在途）；ac-coding ← PG-001 余项核对，再 W5-10 批 I（workflows 动作处理器）；ac-platform ← 下一组（避开 `plugin-scene-service.ts`）。
   - W5-10 未派：批 H（工作台渲染器，待有线空出）；批 A 归 W5-04、C 归记忆线（暂停）、E 归 Goals S 系列、F 归 FI-6。
+- **10-26 batch-41 全量完结**：红 3 个文件、都非 batch-40 旧红、全是本批引入（第 3 个 `goals-configuration-actions` 与 planning 同根：T3b 拿错误码判 Goals 有无，策略拒 collection 时 `/goals/parent`、`/api/capsule` 静默变空）。批头统一改为 `ProjectRequestContext.goalsHere()`（项目插件清单），web view、设置页、capsule、artifacts 共用；`web-view-goals-absent` 按新判据重写。Home 聚合同类问题记 R-63 交 Codex。
+- **10-26 用户弹窗（BL-628/BL-530）**：S-80 只对「签名固定 + 沙箱」放开；外部集成支持、跑沙箱、前置改 BL-628；账号按调用临时给连接（S-94）；地址由签名包写精确 https 来源（放宽 S-69）。ac-clients-1 开工 BL-628 P1～P5；ac-registry 先做 BL-530 不依赖 Home 实例的部分。

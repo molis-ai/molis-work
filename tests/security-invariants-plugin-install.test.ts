@@ -25,7 +25,8 @@ async function harness(ledger: PluginConsentLedger = new MemoryPluginConsentLedg
   const home = await mkdtemp(join(tmpdir(), "molis-work-install-"));
   const installed: Array<{ project: string; plugin: string; trust: unknown }> = [];
   const service = new PluginInstallService({ ledger, packages: new SandboxPackageStore(home), now: () => AT,
-    install: async (project, release) => { installed.push({ project, plugin: release.pluginId, trust: release.packaged?.trust }); } });
+    installInProject: async (project, release) => { installed.push({ project, plugin: release.pluginId, trust: release.packaged?.trust }); },
+    installInHome: async release => { installed.push({ project: "~home", plugin: release.pluginId, trust: release.packaged?.trust }); } });
   /** Nothing the install path writes exists: no pinned publisher, no kept package, no installation. */
   const nothingWritten = () => {
     assert.deepEqual(ledger.publishers(), [], "no publisher was pinned");
@@ -157,6 +158,42 @@ test("RAC-393 S-84 only the person's own action installs: no other audience reac
     assert.equal((confirmed as { plugin_id: string }).plugin_id, PACKAGE_PLUGIN_ID);
     const listed = await actions.invoke(person, { capability_id: pluginInstallActions.publishers.capability_id, version: 1 }, {}) as { publishers: Array<{ label: string }> };
     assert.deepEqual(listed.publishers.map(pin => pin.label), ["Example"]);
+  } finally { await h.done(); }
+});
+
+test("RAC-961 RAC-962 S-80 S-84 a package that asks for the Home previews as home, installs in the Home and nowhere else, and only the person's own action reaches that either", async () => {
+  const h = await harness();
+  try {
+    const home = (change?: (files: PackageFiles, manifest: PluginManifest) => void) => signedPackage(newPublisher(), (files, manifest) => { manifest.runtime = { scope: "home" }; change?.(files, manifest); });
+    const preview = h.service.preview({ bundle: home() }, who);
+    assert.equal(preview.runtime_scope, "home");
+    assert.equal(h.service.preview({ bundle: signedPackage(newPublisher()) }, who).runtime_scope, "project", "a package that says nothing is the project's");
+    await h.service.confirm({ preview_id: preview.preview_id, consent: true, pin_label: "Example" }, who);
+    assert.deepEqual(h.installed.map(item => item.project), ["~home"], "the Home, not the project the person was in");
+
+    // The same audiences are refused for a Home package as for any other: the Home reaches every project, so asking is not easier.
+    const actions = new ActionService();
+    actions.registerProvider(pluginConsentProvider(h.ledger)); actions.registerProvider(pluginInstallProvider(h.service));
+    const call = (context: ActionCallContext) => actions.invoke(context, { capability_id: pluginInstallActions.preview.capability_id, version: 1 }, { bundle: home() });
+    const caller = (extra: Partial<ActionCallContext> = {}): ActionCallContext => ({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: who.project_id, permissions: PLUGIN_INSTALL_PERMISSIONS, ...extra });
+    for (const audience of ["agent", "mcp", "workflow", "plugin"] as const) await assert.rejects(call(caller({ audience })), error => error instanceof ActionError, `${audience} cannot preview a Home package`);
+    await assert.rejects(call(caller()), refused("actions.forbidden"), "a user call without the entry's user action");
+    assert.equal(h.installed.length, 1, "none of these installed anything");
+  } finally { await h.done(); }
+});
+
+test("RAC-961 S-80 a plugin id keeps the range its first kept package gave it: the same id asking for the other range is refused at the preview and again at the confirmation", async () => {
+  const h = await harness();
+  try {
+    const publisher = newPublisher();
+    const project = signedPackage(publisher), inHome = signedPackage(publisher, (_files, manifest) => { manifest.runtime = { scope: "home" }; }, { version: "1.1.0" });
+    const first = h.service.preview({ bundle: project }, who);
+    // A second preview of the other range is made while nothing is kept yet: it stands until the first one is confirmed.
+    const waiting = h.service.preview({ bundle: inHome }, who);
+    await h.service.confirm({ preview_id: first.preview_id, consent: true, pin_label: "Example" }, who);
+    assert.throws(() => h.service.preview({ bundle: inHome }, who), refused("plugin.declaration_invalid"), "now that a project package is kept under the id");
+    await assert.rejects(h.service.confirm({ preview_id: waiting.preview_id, consent: true }, who), refused("plugin.preview_unknown"), "the preview made before it");
+    assert.deepEqual(h.installed.map(item => item.project), [who.project_id], "only the project install happened");
   } finally { await h.done(); }
 });
 

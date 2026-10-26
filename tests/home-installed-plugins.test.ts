@@ -1,73 +1,19 @@
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync, rmSync } from "node:fs";
-import { mkdtemp, rm } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import test, { type TestContext } from "node:test";
-import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
-import { SANDBOX_PACKAGE_FILES, type PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { SandboxPluginContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
-import { DEMO_PROJECT_ID, HomeConsentLedger, MolisWorkLocalHost, PLUGIN_INSTALL_PERMISSIONS, molisWorkHostProjectReference, pluginInstallActions, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage } from "./fixtures/sandbox-package.js";
+import test from "node:test";
+import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { HomeConsentLedger, pluginInstallActions } from "@molis-ai/molis-work-app-local-host";
+import { PACKAGE_PLUGIN_ID, newPublisher } from "./fixtures/sandbox-package.js";
+import { APPROVED, SECOND_PLUGIN_ID, fixture, homePackage, mac, operate, operationsOf, person, ref, refused, valuesOf } from "./fixtures/home-sandbox.js";
 import { openTestHome } from "./fixtures/test-home.js";
 
 // BL-628 (S-80, S-84, S-91; specs/repository-anti-corruption/slices/bl628-sandboxed-home-plugins.md): a signed package whose Manifest says
 // `runtime: { scope: "home" }` is installed in the Home: one sandboxed instance every project shares, started and recovered by the Home's
 // plugin host, offered through the Home's action service, reachable from every project unless it hides it, and removed by the same lifecycle
 // a project's packages have.
-
-const mac = { skip: process.platform !== "darwin", timeout: 90_000 };
-const SECOND_PLUGIN_ID = "io.molis.work.example.second";
-const APPROVED = "plugin-builder:agent-studio:approved:";
-
-/** The fixture package, asking for the Home. Its `notes.add` reads the notes it adds to, so the contract says so. */
-const homePackage = (publisher = newPublisher(), options: { pluginId?: string; version?: string; prompt?: boolean } = {}): PluginPackageBundle =>
-  signedPackage(publisher, (files, manifest) => {
-    manifest.runtime = { scope: "home" };
-    const contract = JSON.parse(files[SANDBOX_PACKAGE_FILES.contract]!) as SandboxPluginContract;
-    contract.operations.find(operation => operation.id === "notes.add")!.effects.storage = ["read", "write"];
-    files[SANDBOX_PACKAGE_FILES.contract] = JSON.stringify(contract);
-    if (options.prompt) files[SANDBOX_PACKAGE_FILES.prompts] = JSON.stringify([{ id: "summary", title: "Summary", purpose: "Summarize the notes", body: "Summarize the notes." }]);
-  }, options);
-const ref = (action: { capability_id: string; version: number }) => ({ capability_id: action.capability_id, version: action.version });
-const person = (projectId: string | null = DEMO_PROJECT_ID): ActionCallContext => ({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: projectId, permissions: PLUGIN_INSTALL_PERMISSIONS,
-  user_action: { source: "management", conversation_ref: "bl628:install", message_ref: "bl628:confirm" } });
-const operationsOf = async (client: ActionClient, caller: ActionCallContext, pluginId = PACKAGE_PLUGIN_ID) =>
-  (await client.discover(caller)).filter(view => view.provider.plugin_id === pluginId);
-const operate = (client: ActionClient, caller: ActionCallContext, views: readonly ActionView[], localId: string, input: unknown) => {
-  const view = views.find(item => item.action.local_id === localId);
-  assert.ok(view, `${localId} is offered`);
-  return client.invoke(caller, { capability_id: view.capability_id, version: view.version, provider_id: view.provider.provider_id }, input);
-};
-const refused = (code: string) => (error: unknown) => error instanceof ActionError && error.code === code;
-
-/** A Host on a temporary Home with one project, which can be closed and opened again over the same Home. */
-async function fixture(t: TestContext) {
-  const home = await mkdtemp(join(tmpdir(), "bl628-home-"));
-  // The Host makes the Home first: a Home that already holds files is an older one, and its memory is not adopted.
-  let host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
-  const databasePath = join(home, "project.sqlite"); seedDemoBoard(databasePath);
-  const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
-  const open = async () => { await host.withProject(reference, () => undefined); return host; };
-  await open();
-  t.after(async () => { try { await host.close(); } finally { await rm(home, { recursive: true, force: true }); } });
-  const install = async (bundle: PluginPackageBundle) => {
-    const client = host.actionClient(reference);
-    const preview = await client.invoke(person(), ref(pluginInstallActions.preview), { bundle }) as { preview_id: string; runtime_scope: string };
-    const installed = await client.invoke(person(), ref(pluginInstallActions.confirm), { preview_id: preview.preview_id, consent: true, pin_label: "Test publisher" });
-    return { preview, installed };
-  };
-  const store = <Result>(read: (db: DatabaseSync) => Result): Result => {
-    const db = new DatabaseSync(join(home, "plugin-runtime", "plugin-runtime.db"), { readOnly: true });
-    try { return read(db); } finally { db.close(); }
-  };
-  return { home, reference, install, store, ledger: new HomeConsentLedger(home), open,
-    get host() { return host; },
-    async reopen() { await host.close(); host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null }); await open(); await host.homePlugins!.ready(); return host; },
-    homeClient: () => host.homeActionClient(), projectClient: () => host.actionClient(reference), homeCaller: (): ActionCallContext => ({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: null, permissions: [] }),
-    projectCaller: (): ActionCallContext => ({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: DEMO_PROJECT_ID, permissions: [] }) };
-}
 
 test("RAC-963 RAC-965 a signed package that writes runtime.scope home previews as home and is installed in the Home Runtime, not in the project", mac, async t => {
   const h = await fixture(t);
@@ -122,12 +68,6 @@ test("RAC-965 a package that cannot start leaves its reason with its installatio
   assert.equal(h.host.homePlugins!.installation(SECOND_PLUGIN_ID)?.state, "running", "the other package runs");
   assert.ok(h.host.homePlugins!.installations().some(record => record.publisher_trust === "host" && record.state === "running"), "the built-in Home plugins run");
 });
-
-const runtimeStore = <Result>(home: string, read: (db: DatabaseSync) => Result): Result => {
-  const db = new DatabaseSync(join(home, "plugin-runtime", "plugin-runtime.db"), { readOnly: true });
-  try { return read(db); } finally { db.close(); }
-};
-const valuesOf = (home: string, installId: string) => runtimeStore(home, db => db.prepare("SELECT item_key FROM plugin_private_values WHERE install_id = ?").all(installId).map(row => (row as { item_key: string }).item_key));
 
 test("RAC-968 a running Home package is reached from every project unless the project hides it, and stopping it ends it everywhere", mac, async t => {
   const home = await openTestHome(t);

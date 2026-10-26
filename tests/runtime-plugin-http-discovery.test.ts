@@ -112,7 +112,10 @@ for (const scope of ["home", "project"] as const) for (const invalidation of ["d
       catch (error) { refusal = error; throw error; }
       finally { finished.resolve(); }
     };
-    const { host, request, project } = await serveHomeRuntime(t, { pluginFixtures: { [scope]: [probe.definition] } });
+    // BL-588: the upgrade candidate is a definition this test installs by hand, so the Host is told of it.
+    const upgraded: PluginDefinition = { ...probe.definition, manifest: { ...probe.definition.manifest, version: "1.1.0",
+      upgrade_compatibility: { compatible_from_versions: ["1.0.0"], migratable_from_versions: [] } } };
+    const { host, request, project } = await serveHomeRuntime(t, { pluginFixtures: { [scope]: [probe.definition], installed: new Set([upgraded]) } });
     const current = scope === "project" ? await project("Cancel a streamed action") : undefined;
     const path = `${current ? `/projects/${current.project_id}` : ""}/api/plugins/${probe.id}/run`;
     const abort = new AbortController();
@@ -127,9 +130,7 @@ for (const scope of ["home", "project"] as const) for (const invalidation of ["d
       const closed = invalidation === "disconnect" ? assert.rejects(text) : text;
       if (invalidation === "disconnect") abort.abort();
       else if (invalidation === "stop") await platform.runtime.stop(probe.contexts.at(-1)!.install_id);
-      else if (invalidation === "upgrade") await platform.runtime.upgrade({ install_id: probe.contexts.at(-1)!.install_id,
-        definition: { ...probe.definition, manifest: { ...probe.definition.manifest, version: "1.1.0",
-          upgrade_compatibility: { compatible_from_versions: ["1.0.0"], migratable_from_versions: [] } } } });
+      else if (invalidation === "upgrade") await platform.runtime.upgrade({ install_id: probe.contexts.at(-1)!.install_id, definition: upgraded });
       else platform.supervisor.revoke(probe.id);
       await cancelled.promise;
       const body = await closed;
@@ -156,7 +157,8 @@ test("formal Runtime HTTP entry discovers a new registered plugin without a Host
   store.db.exec("CREATE TABLE unfamiliar_results (value INTEGER NOT NULL)");
   const shared = pluginActions(store, DEMO_PROJECT_ID);
   let dependencyCalls = 0;
-  const ports = { store, ...openProjectVersionStores(store), projectId: DEMO_PROJECT_ID, actorId: "web-user", actions: shared,
+  const installedByHand = new Set<PluginDefinition>();
+  const ports = { store, ...openProjectVersionStores(store), projectId: DEMO_PROJECT_ID, actorId: "web-user", actions: shared, installedByHand,
     escapeHtml: String, translate: (value: string) => value,
     capabilities: { availability: () => ({ available: true as const }), invoke: async () => { dependencyCalls++; return null as never; } } };
   const pluginId = `io.molis.work.example.${randomUUID()}`;
@@ -192,6 +194,7 @@ test("formal Runtime HTTP entry discovers a new registered plugin without a Host
       if (!handled) { response.writeHead(404); response.end("fallthrough"); }
     }).catch(error => { response.writeHead(500); response.end(String(error)); });
   });
+  installedByHand.add(definition); // BL-588: an unsigned in-process definition the test starts by hand
   try {
     const { platform } = await ensureProjectPlugins(ports);
     assert.ok(platform);
@@ -254,11 +257,12 @@ test("product Web server mounts a registered unfamiliar plugin with control-toke
   };
   const platform = await host.withProject(reference, async runtime => {
     runtime.store.db.exec("CREATE TABLE web_plugin_notes (text TEXT NOT NULL)");
+    const installedByHand = new Set<PluginDefinition>(); // BL-588: an unsigned in-process definition the test starts by hand
     const started = await ensureProjectPlugins({ store: runtime.store, artifacts: runtime.artifacts, processItems: runtime.processItems, projectId: project.project_id, actorId: "web-user",
-      homeDirectory: home, dependencyCheck: hostDependencyCheck(host.client(reference)),
+      homeDirectory: home, installedByHand, dependencyCheck: hostDependencyCheck(host.client(reference)),
       actions: { registry: host.actionRegistry(reference), client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, project_id: project.project_id } });
     assert.ok(started.platform);
-    await started.platform.start([{ definition: {
+    const definition: PluginDefinition = {
       manifest: { schema_version: 2, host_api_version: 2, plugin_id: pluginId, version: "1.0.0", name: "Web Note",
         kind: "app", publisher: { publisher_id: "example", signature: "web-note-example" },
         entrypoints: [{ deployment: "local", entrypoint: "./index.js" }], permissions: [],
@@ -268,7 +272,9 @@ test("product Web server mounts a registered unfamiliar plugin with control-toke
         runtime.store.db.prepare("INSERT INTO web_plugin_notes VALUES (?)").run((input as { text: string }).text);
         return { count: (runtime.store.db.prepare("SELECT count(*) AS count FROM web_plugin_notes").get() as { count: number }).count };
       } }], routes: [bindPluginActionRoute(context, action, request => request.body as { text: string })] }; },
-    } }]);
+    };
+    installedByHand.add(definition);
+    await started.platform.start([{ definition }]);
     return started.platform;
   });
   const token = "runtime-http-discovery-control-token-0123456789";

@@ -8,6 +8,7 @@ import test from "node:test";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { DEMO_PROJECT_ID, HomePluginHost, readOriginalFile, registerOriginalFile, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { pluginBindingScope } from "@molis-ai/molis-work-service-connector-host";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { ownerFilesProbe, ownerFilesProject } from "./fixtures/plugin-owner-files.js";
@@ -47,6 +48,10 @@ function failAuthorizationDelete(t: test.TestContext, home: string, point: "orig
   t.after(release);
   return release;
 }
+
+/** BL-588: the unsigned in-process definitions these tests install into a Home Host by hand are the test's own objects, so the Host is told which. */
+const installedByHand = new Set<PluginDefinition>();
+const admit = (definition: PluginDefinition): PluginDefinition => { installedByHand.add(definition); return definition; };
 
 for (const execution of ["native", "sandbox"] as const) {
   test(`S-45 S-71 RAC-472 a project's uninstall drops its authorizations regardless of retained private data (${execution})`, { timeout: 60_000 }, async t => {
@@ -120,16 +125,16 @@ for (const execution of ["native", "sandbox"] as const) {
       valuesOnStart.push(previous);
       if (previous === null || previous === undefined) storage.set("private-marker", marker);
     };
-    const host = new HomePluginHost({ home: r.home, actorId: LOCAL_PERSON_ACTOR_ID, registry: actions, client: actions, entries: [], fixtures: [] });
+    const host = new HomePluginHost({ home: r.home, actorId: LOCAL_PERSON_ACTOR_ID, registry: actions, client: actions, entries: [], fixtures: [], installed: installedByHand });
     r.closeBeforeRemove(() => host.close());
     const runtime = (await host.ready()).runtime, definition = probe.withoutFiles();
     const install = async (discard = false) => {
-      const record = runtime.install({ trust: { level: "unsigned" }, definition: { ...definition }, deployment: "local", grants: probe.permissions,
+      const record = runtime.install({ trust: { level: "unsigned" }, definition: admit({ ...definition }), deployment: "local", grants: probe.permissions,
         ...(discard ? { discard_kept_data: true } : {}) }).install;
       await runtime.start(record.install_id); return record;
     };
     const install_id = (await install()).install_id;
-    const otherInstall = runtime.install({ trust: { level: "unsigned" }, definition: other.withoutFiles(), deployment: "local", grants: other.permissions }).install.install_id;
+    const otherInstall = runtime.install({ trust: { level: "unsigned" }, definition: admit(other.withoutFiles()), deployment: "local", grants: other.permissions }).install.install_id;
     const mine = { plugin_id: probe.id, install_id, project_id: null, record_key: "doc" };
     const kept = [{ ...mine, project_id: DEMO_PROJECT_ID }, { ...mine, project_id: DEMO_PROJECT_ID + "0" }, { ...mine, install_id: install_id + "0" },
       { ...mine, plugin_id: other.id, install_id: otherInstall }];
@@ -187,13 +192,13 @@ for (const scope of ["project", "home"] as const) for (const execution of ["nati
     const open = async () => {
       if (scope === "project") { project = ownerFilesProject(r.home, probe, projectFile ? { file: projectFile } : {}); projectFile = project.file; return project.platform.runtime; }
       const actions = new ActionService();
-      host = new HomePluginHost({ home: r.home, actorId: LOCAL_PERSON_ACTOR_ID, registry: actions, client: actions, entries: [], fixtures: [] });
+      host = new HomePluginHost({ home: r.home, actorId: LOCAL_PERSON_ACTOR_ID, registry: actions, client: actions, entries: [], fixtures: [], installed: installedByHand });
       return (await host.ready()).runtime;
     };
     const close = async () => { if (project) { await project.close(); project = undefined; } if (host) { await host.close(); host = undefined; } };
     r.closeBeforeRemove(close);
     let runtime = await open();
-    const definition = probe.withoutFiles(), install = () => runtime.install({ trust: { level: "unsigned" }, definition: { ...definition }, deployment: "local", grants: probe.permissions }).install;
+    const definition = probe.withoutFiles(), install = () => runtime.install({ trust: { level: "unsigned" }, definition: admit({ ...definition }), deployment: "local", grants: probe.permissions }).install;
     const first = install(), install_id = first.install_id;
     await runtime.start(install_id);
     const mine = { plugin_id: probe.id, install_id, project_id: scope === "project" ? DEMO_PROJECT_ID : null, record_key: "doc" };

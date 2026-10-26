@@ -1,8 +1,8 @@
 # Feed 与 Inbox 迁到 Plugin Runtime（PG-093、PG-089 余半、PG-040 余半、PG-034、PG-046、PG-057、PG-080、PG-010 余项）
 
-状态：拆片稿（2026-10-24），统筹已裁 D1～D4（§3，统筹 10-24 定）；FI-1 已实现在分支 `claude/ac-feed-fi1-scenes`（见 §4），FI-2 已实现（`claude/ac-fi2-rules-manifest`，见 §4 的 FI-2 一节），FI-3、FI-4 先写设计稿。事实都是在 `origin/main` `584112c65` 上读代码核的，没跑过。
+状态：拆片稿（2026-10-24），统筹已裁 D1～D4（§3，统筹 10-24 定）；FI-1 已实现在分支 `claude/ac-feed-fi1-scenes`（见 §4），FI-2 已实现（`claude/ac-fi2-rules-manifest`，见 §4 的 FI-2 一节），FI-3 已实现（`c98614235`，统筹 10-26 定随 PG-046 片 `claude/ac-registry-pg046` 落地，见设计稿 §7 与 [pg046-integrations-from-manifest.md](pg046-integrations-from-manifest.md)），FI-4 先写设计稿。事实都是在 `origin/main` `584112c65` 上读代码核的，没跑过。
 
-派单：防腐线统筹，`ac-sandbox-sched` 线。号段：RAC-300～329 已用完（PG-022 等占了）；**RAC-480～499 归本稿**（统筹 10-24 定），BL-525～534 放后续待办（统筹 10-24 定）。
+派单：防腐线统筹，`ac-sandbox-sched` 线。号段：RAC-300～329 已用完（PG-022 等占了）；**RAC-480～499 归本稿，另加 RAC-500～519**（统筹 10-24 定；ac-kernel 的 X 片收到 RAC-470～479 和 RAC-520～539，之前 480～489 与它撞了），BL-525～534 放后续待办（统筹 10-24 定）。
 
 ## 1. 现状
 
@@ -37,7 +37,7 @@
 | PG-020 X-5 项目库服务 | **部分**。L1a/L1b 已做，`services.project_database` 有（受 S-46 语句检查，只放行声明过的对象）。Feed 只声明了 `feed_out_rules`（`FEED_PROJECT_DATABASE`）；`project-database-schema.ts` 的基线仍在建 Sources、Signals、Listener-host、Attention、Feed、ContextLedger 的表 | Feed 的 Module 表要进它的 Manifest 声明（FI-5）；注意力与情境账不归 Feed，见下一行 |
 | PG-087 注意力与情境账做成平台服务 | **没做**。`PluginHostServices` 里没有 attention、context ledger。归 `ac-sc3`（S9-0b，排在 S9-0 之后） | Feed 和 Inbox 进 Runtime 之前必须有。这是 FI-6 的硬前置 |
 | PG-043 Home 聚合 | 平台半**已做**（S-49 `home_aggregate`：只在**已打开**的项目里逐个调，各项目答案分开）；Coding 半已做；`ac-kernel` 还在做其余 | Feed 的两处跨项目读不一定能用它，见 §3 D4 |
-| PG-046 集成登记 | **没做**。`official-integrations.ts` 写死 GitHub、Gmail、Catalog 三个；`plugins/official-integrations/` 下六个包（catalog、github、gmail、rss、web-query、youtube）没有登记入口 | FI-3 |
+| PG-046 集成登记 | **FI-3 已做**（`c98614235`）：`official-integrations.ts` 删掉，集成与连接服务由插件的 Manifest 声明，一个 Home 一份登记、一个共用 Runtime；余项由 [PG-046 片](pg046-integrations-from-manifest.md) 接：BL-528、BL-529 已做，BL-530 归沙箱线（统筹 10-26 定） | FI-3 |
 | PG-010 余项（BL-465） | **FI-2 已做**：三条默认规则随声明它们的场景（Feed、Inbox 的 Manifest 与宿主自己的首页场景）提供，`modules/functions` 没有规则文件；剩「装上的插件的事项动作还不参与首页规则的目标映射」转 BL-531 | FI-2 |
 | PG-045 连接 | `services.connections` 已有（S-57）；`feed-connector-auth.ts` 只剩 11 行 | 在 FI-6 里收 |
 | PG-080 成果由插件自写 | **没做**。`services.artifacts` 已有，Feed 还是宿主 `projectVersionStores` 写；`feed-application.ts` 里有 `as unknown as ArtifactsSqliteDatabase` | 在 FI-6 里收（Feed 的 `produces` 已在 Manifest 声明 `feed.capture`） |
@@ -79,7 +79,7 @@
 | --- | --- | --- | --- | --- | --- |
 | **FI-1** 场景判断随插件（PG-034） | `feed-scene.ts`、`inbox-scene.ts` 的判断逻辑搬进两个插件包，导出 `createFeedSceneHandler(ports)`、`createInboxSceneHandler(ports)`；宿主只给端口（选项存取、判断触发），不写判断。此时 provider 仍由宿主拼，Runtime 化后同一个处理器经定义贡献 | 无 | RAC-480～483：宿主里没有场景判断逻辑（门禁：这两个宿主文件只剩接线）；处理器对未声明的场景、别的项目、撤权的调用逐个拒绝；行为与搬前一致（现有场景测试原样过） | `content-action-providers.ts`、`inbox-actions.ts`、两个插件的 `scenes.ts` | 已实现 |
 | **FI-2** 三条默认规则随 Manifest（PG-010 余项，BL-465；已实现，见下一节） | 场景声明加字段，规则的文字、选项、用途写进声明它的插件（Feed 的采集判断、Inbox 的「是否进 Inbox」「挑下一步」），平台照声明种，`builtin.ts` 不再有这三条；装上的插件同样参与。**改合同**，`pnpm api:update` | 无（避开 FI-1 改的 `scenes.ts` 的同一行，两片先后合） | RAC-484～487：规则只来自声明；装上的插件声明的规则同样被种；声明冲突（同一个 offer id 两处）不猜；`builtin.ts` 无这三条 | contracts `plugin.ts`/`actions.ts`、`modules/functions`、两个 `manifest.ts`、`tooling/gates/api` | **现在** |
-| **FI-3** 集成登记（PG-046） | `official-integrations.ts` 的三个写死项换成登记：集成由插件在 Manifest 里声明，平台按已装插件的声明生成登记（一个 Home 一份）；每个来源一个内存 Runtime 改成共用一个；外部文档来源并进同一张登记（`kind` 区分来源与文档导入）；OAuth 的位置写进设计，实现归 Codex C4 | 先出设计稿（D3），统筹审过再实现 | RAC-488～491 在设计里定 | contracts、`official-integrations.ts`、`artifact-document-import.ts`、`feed-connector-sync.ts` | 设计稿现在写；实现等统筹审 |
+| **FI-3** 集成登记（PG-046） | `official-integrations.ts` 的三个写死项换成登记：集成由插件在 Manifest 里声明，平台按已装插件的声明生成登记（一个 Home 一份）；每个来源一个内存 Runtime 改成共用一个；外部文档来源并进同一张登记（`kind` 区分来源与文档导入）；OAuth 的位置写进设计，实现归 Codex C4 | 设计稿 [feed-inbox-integration-registry.md](feed-inbox-integration-registry.md) 已写并审过（2026-10-24，`336fbb6de`），实现已在分支 `claude/ac-feed-inbox-designs` 写好，PR 排在 BL-490 与 FI-2 之后 | RAC-488～491、RAC-519，见设计稿 §4 | contracts、`official-integrations.ts`、`artifact-document-import.ts`、`feed-connector-sync.ts` | 实现写好、PR 待开 |
 | **FI-4** Feed 的跨项目读写（PG-043 的 Feed 半） | `connector-source-state.ts` 改成各项目的 Feed 订阅连接变化事件自己刷新；`feed-history-release.ts` 改成 Feed 的 Home 一半记引用账（先加后减），释放只查 Home 账；存量账由维护补齐（归用户，同 W5-17 时段） | 先出设计稿（D4），统筹审过再实现；Home 一半要 PG-012 的平台一半（已有） | RAC-492～493 | `feed-history-release.ts`、`connector-source-state.ts` | 设计稿现在写；实现等统筹审 |
 | **FI-5** Feed 的表和 Module 代码归 Feed（PG-087 的 Feed 半、X-5 余半） | D1 走路 1：四个包并进 Feed；Feed 的 `databases.project` 声明 `feed_*`、`sources`、`signals`、listener-host 的表（表名与数据不动，照 Goals S8 的做法，基线不再建，被拒只停 Feed）；Attention、ContextLedger 仍在基线，等 FI-6 的平台服务 | D1 已定（路 1） | RAC-494～496：声明与旧基线逐表同形；基线不再建这些表；被拒只停 Feed；Module 包不再被 `apps/local-host` 以外的东西 import | `project-database-schema.ts`、`project-plugins.ts`（若同批）、`scripts/workspace-packages.mjs`、`specs/…/spec.md` §5.1 包清单 | FI-6 的其余前置排好后（D1 已定）；并包同一 PR 重生 §5.1 |
 | **FI-6** Feed、Inbox 进 Runtime（PG-093、PG-089 余半，并关 PG-040、PG-080、PG-045 的余项） | 两个 `PluginDefinition` 与监督器条目；`createLocalFeedApplication` 的 9 处构造点改成调公开动作；`/api/feed*`、`/api/inbox*` 边删（客户端见 FI-7）；来源 tick 用自己的唤醒；互斥用 `services.background` 的锁；成果走 `services.artifacts`；`information.plan` 并进插件；`inbox-actions.ts` 用 `services.attention` 取代 Feed 应用的拼 | FI-1、FI-2、FI-5、PG-087（D2）、FI-3（来源要走登记） | RAC-497～499 及后续（一批较大，进工作时再细拆） | `project-plugins.ts`、`web-request.ts`、`index.ts`（`export *`）、`builtin-plugin-assembly-gate.test.ts`（只减） | 等前置 |

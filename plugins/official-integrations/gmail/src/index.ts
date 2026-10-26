@@ -3,7 +3,9 @@ import type {
   PluginDefinition,
   PluginManifest,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { IntegrationBinding } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { definePollingIntegrationPlugin } from "@molis-ai/molis-work-plugin-sdk";
+import { gmailAccountPresentation } from "./account-presentation.js";
 
 export {
   classifyGmailForbiddenPayload,
@@ -27,13 +29,14 @@ export const packageDescriptor = {
 } as const;
 
 export const gmailIntegrationManifest = {
-  schema_version: 1,
+  schema_version: 2,
   plugin_id: "io.molis.work.integration.gmail",
-  version: "1.0.0",
+  // 1.1.0: schema 2, declares its connection service and its Feed source (`connection_services`, `integrations`).
+  version: "1.1.0",
   name: "Gmail",
   kind: "integration",
   publisher: { publisher_id: "io.adeptify", signature: "adeptify-official-signature-v1" },
-  host_api_version: 1,
+  host_api_version: 2,
   entrypoints: [{ deployment: "local", entrypoint: "./dist/index.js" }],
   permissions: [
     { permission: "network:googleapis.com", required: true, reason: "读取 Gmail profile、history 和 message" },
@@ -45,19 +48,41 @@ export const gmailIntegrationManifest = {
   },
   artifacts: { produces: [], consumes: [] },
   ui: { contributions: ["settings.integration.gmail"] },
+  connection_services: [{
+    service_id: "gmail",
+    title: "Gmail",
+    group_id: "mail",
+    summary: "本机账号。Feed 只读收信。",
+    auth_kind: "gmail",
+    auth: { methods: [{ kind: "oauth" }] },
+    capabilities: [
+      { label: "Feed 只读收信", fulfillment: "live" },
+      { label: "发送邮件", fulfillment: "unfulfilled" },
+    ],
+    outbound_note: "出站动作未兑现：当前只读收信，不发送邮件。",
+    // The catalog package keeps the same links for its connection methods until those move into the plugins (W5-11).
+    setup_links: [
+      { label: "启用 Gmail API", url: "https://console.cloud.google.com/apis/library/gmail.googleapis.com" },
+      { label: "创建 OAuth 客户端", url: "https://console.cloud.google.com/apis/credentials" },
+      { label: "在 OAuth Playground 拿令牌", url: "https://developers.google.com/oauthplayground" },
+    ],
+  }],
+  integrations: [{ integration_id: "gmail", kind: "source", service_id: "gmail" }],
 } as const satisfies PluginManifest;
 
 export function createGmailIntegrationPlugin(input: {
-  provider: IntegrationProviderPort;
+  /** The provider for one source's binding; the Host decides where the credential comes from. */
+  providerFor(binding: IntegrationBinding): IntegrationProviderPort;
   now?: () => Date;
 }): PluginDefinition {
   return definePollingIntegrationPlugin({
     manifest: gmailIntegrationManifest,
-    createProvider(context) {
+    createProvider(context, binding) {
       context.requireGrant("network:googleapis.com");
       context.requireGrant("secret:gmail");
-      return input.provider;
+      return input.providerFor(binding);
     },
+    presentAccount: (cursor, label, binding) => gmailAccountPresentation(cursor, label, binding.config.scope),
     now: input.now,
   });
 }
@@ -69,4 +94,3 @@ export { GMAIL_CLIENT_ID_REF, GMAIL_CLIENT_SECRET_REF, GMAIL_OAUTH_PENDING_PREFI
 
 export { isGmailTokenRefs } from "./token-refs.js";
 
-export { gmailAccountPresentation } from "./account-presentation.js";

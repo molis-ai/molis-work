@@ -3129,8 +3129,11 @@ export interface PluginInstanceRecord {
 
 export interface PluginIntegrationContribution {
     kind: "integration";
-    connector_driver: ConnectorDriver;
-    signal_adapter: RawEventAdapter;
+    bind(binding: import("@molis-ai/molis-work-contracts/platform/plugin-integrations").IntegrationBinding): {
+        connector_driver: ConnectorDriver;
+        signal_adapter: RawEventAdapter;
+        account?(cursor: unknown, current_account_label: string | null): import("@molis-ai/molis-work-contracts/platform/plugin-integrations").IntegrationAccountPresentation | null;
+    };
     actions?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionHandlerBinding[];
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneHandlerBinding[];
 }
@@ -3332,6 +3335,8 @@ export interface PluginManifest {
     local_tools?: import("platform/plugin-local-tools").PluginLocalToolsDeclaration;
     attention?: import("@molis-ai/molis-work-contracts/platform/plugin-attention").PluginAttentionDeclaration;
     connections?: import("@molis-ai/molis-work-contracts/platform/plugin-connections").PluginConnectionsDeclaration;
+    connection_services?: readonly import("@molis-ai/molis-work-contracts/platform/plugin-integrations").PluginConnectionServiceDeclaration[];
+    integrations?: readonly import("@molis-ai/molis-work-contracts/platform/plugin-integrations").PluginIntegrationDeclaration[];
     background?: {
         jobs: readonly import("platform/plugin-background").PluginJobDeclaration[];
         wakeups?: readonly import("platform/plugin-scheduler").PluginWakeupDeclaration[];
@@ -5114,6 +5119,8 @@ export declare const pluginErrors: import("platform/action-errors").ErrorCodeRai
     readonly home_scope_unavailable: "invalid";
     readonly id_namespace_conflict: "invalid";
     readonly install_replaced: "invalid";
+    readonly integration_declaration_conflict: "invalid";
+    readonly integration_unavailable: "unavailable";
     readonly kept_data_incompatible: "invalid";
     readonly manifest_invalid: "invalid";
     readonly package_invalid: "invalid";

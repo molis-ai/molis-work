@@ -29,8 +29,6 @@ import {
 import { MemoryPluginEventsRepository, MemoryPluginRuntimeRepository, MemoryPluginWiringRepository, PluginEventBus, PluginInputGraph, PluginRouteRouter, PluginRuntime, PluginSupervisor, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 
 import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { OfficialIntegrationRegistry } from "@molis-ai/molis-work-app-local-host";
-import type { FeedSourceRecord } from "@molis-ai/molis-work-plugin-feed";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 
 const SOURCE_ID = "source-fd3-github";
@@ -104,7 +102,7 @@ test("official GitHub Plugin installs, grants, produces Signal, recovers, and un
         },
       };
       const definition = createGithubIntegrationPlugin({
-        provider,
+        providerFor: () => provider,
         now: () => new Date(`2026-09-02T08:00:0${polls}.000Z`),
       });
       const repository = new MemoryPluginRuntimeRepository();
@@ -130,10 +128,12 @@ test("official GitHub Plugin installs, grants, produces Signal, recovers, and un
       const firstContribution = runtime.contribution(installId);
       assert.equal(firstContribution?.kind, "integration");
       if (!firstContribution || firstContribution.kind !== "integration") return;
+      const binding = { source_id: SOURCE_ID, connection_id: CONNECTION_ID, credential_ref: null, config: {} };
+      const firstBound = firstContribution.bind(binding);
       const signals = new SignalsModule(store.db);
       const firstListener = new ListenerHost(
         store.db,
-        connectorFor(firstContribution.connector_driver),
+        connectorFor(firstBound.connector_driver),
         signals.commands,
       );
       const first = await firstListener.run({
@@ -141,7 +141,7 @@ test("official GitHub Plugin installs, grants, produces Signal, recovers, and un
         source_id: SOURCE_ID,
         connection_id: CONNECTION_ID,
         operation_id: "fd3-first-sync",
-        adapter: firstContribution.signal_adapter,
+        adapter: firstBound.signal_adapter,
       });
       assert.equal(first.created_count, 1);
       const initialSignal = signals.query.list(DEMO_PROJECT_ID, SOURCE_ID)[0]!;
@@ -162,7 +162,7 @@ test("official GitHub Plugin installs, grants, produces Signal, recovers, and un
       if (!recoveredContribution || recoveredContribution.kind !== "integration") return;
       const recoveredListener = new ListenerHost(
         store.db,
-        connectorFor(recoveredContribution.connector_driver),
+        connectorFor(recoveredContribution.bind(binding).connector_driver),
         signals.commands,
       );
       await recoveredListener.run({
@@ -170,7 +170,7 @@ test("official GitHub Plugin installs, grants, produces Signal, recovers, and un
         source_id: SOURCE_ID,
         connection_id: CONNECTION_ID,
         operation_id: "fd3-recovered-sync",
-        adapter: recoveredContribution.signal_adapter,
+        adapter: recoveredContribution.bind(binding).signal_adapter,
       });
       const revisedSignal = signals.query.list(DEMO_PROJECT_ID, SOURCE_ID)[0]!;
       assert.equal(revisedSignal.signal_id, initialSignal.signal_id);
@@ -202,7 +202,7 @@ test("Plugin identity is signature-bound while references retain plugin id and v
       signature: "different-reviewed-signature-v1",
     },
   };
-  const original = createGithubIntegrationPlugin({ provider });
+  const original = createGithubIntegrationPlugin({ providerFor: () => provider });
   const changed = { ...original, manifest: changedManifest };
   const repository = new MemoryPluginRuntimeRepository();
   const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS });
@@ -226,10 +226,10 @@ test("Plugin identity is signature-bound while references retain plugin id and v
 });
 
 test("installation generations survive restart but change on same-millisecond reinstall without moving the data identity", async () => {
-  const definition = createGithubIntegrationPlugin({ provider: {
+  const definition = createGithubIntegrationPlugin({ providerFor: () => ({
     type: "fixture", async health() { return { ok: true, status: "connected", message: "ready" }; },
     async sync() { return { ok: true, mode: "fixture", items: [], cursor: null }; },
-  } });
+  }) });
   const repository = new MemoryPluginRuntimeRepository();
   let clock = new Date('2026-09-28T00:00:00.000Z');
   const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, now: () => clock });
@@ -253,51 +253,6 @@ test("installation generations survive restart but change on same-millisecond re
   clock = new Date('2026-09-29T00:00:00.000Z');
   const third = reopened.install(input).install;
   assert.equal(third.installed_at, clock.toISOString(), 'installed_at describes the current installation');
-});
-
-test("official Plugin composition restarts a source when Provider configuration changes", async () => {
-  let providerCreations = 0;
-  const registry = new OfficialIntegrationRegistry(() => {
-    providerCreations += 1;
-    return {
-      type: "gmail",
-      async health() { return { ok: true, status: "connected" as const, message: "ready" }; },
-      async sync() { return { ok: true as const, mode: "live" as const, items: [], cursor: {} }; },
-    };
-  });
-  const source: FeedSourceRecord = {
-    project_id: DEMO_PROJECT_ID,
-    source_id: "source-fd3-config",
-    kind: "gmail",
-    definition_id: "gmail",
-    sync_kind: "gmail",
-    name: "Gmail",
-    description: "configuration restart fixture",
-    status: "active",
-    enabled: true,
-    item_count: 0,
-    origin: "molis_work",
-    config: { scope: "in:inbox is:unread" },
-    schedule: { mode: "manual" },
-    cursor: {},
-    credential_ref: "secret:gmail:fixture",
-    account_label: "fixture@example.com",
-    last_sync_at: null,
-    last_outcome: null,
-    last_error_code: null,
-    imported_at: "2026-09-02T08:00:00.000Z",
-    updated_at: "2026-09-02T08:00:00.000Z",
-  };
-
-  await registry.contributionFor(source);
-  await registry.contributionFor({ ...source });
-  assert.equal(providerCreations, 1);
-  await registry.contributionFor({
-    ...source,
-    config: { scope: "in:inbox" },
-    updated_at: "2026-09-02T08:01:00.000Z",
-  });
-  assert.equal(providerCreations, 2);
 });
 
 const PROBE_PERMISSION = "network:probe";

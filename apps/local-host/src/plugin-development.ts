@@ -33,8 +33,10 @@ export async function runPluginDevelopment(input: PluginDevelopmentInput, option
     if (contribution.kind !== "integration") {
       throw new Error("本开发入口只运行 Integration Plugin，app Plugin 请用项目 Host 装配");
     }
-    const health = await contribution.connector_driver.health();
-    const poll = await contribution.connector_driver.poll({ cursor: null });
+    // One source with no account: the run shows what the plugin does with nothing bound to it.
+    const { connector_driver } = contribution.bind({ source_id: "development", connection_id: null, credential_ref: null, config: {} });
+    const health = await connector_driver.health();
+    const poll = await connector_driver.poll({ cursor: null });
     const rendered_ui = options.ui.list().filter(value => value.plugin_id === definition.manifest.plugin_id)
       .flatMap(value => (value.surfaces ?? []).map(surface => ({ contribution_id: value.contribution_id,
         surface: surface.surface_id, html: options.ui.render({ contribution_id: value.contribution_id, surface: surface.surface_id, model: null }) })));

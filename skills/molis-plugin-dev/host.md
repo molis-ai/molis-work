@@ -210,7 +210,7 @@ Agent 会话的一步在等（回信、后台命令、别的会话那一步）�
 不要在 Native 插件里写 GitHub/Gmail 分支。清单：
 
 1. `plugins/official-integrations/<id>/`，`definePollingIntegrationPlugin`。
-2. Connector Host / Listener Host 登记 Driver 与 Signal Adapter。
+2. Manifest 写 `connection_services`、`integrations`（登记与设置页的卡由它来）；Connector Host / Listener Host 登记 Driver 与 Signal Adapter。
 3. 设置 UI contribution（账号、whoami）。
 4. 权限：`network:…`、需要凭据时 `secret:…`。
 5. Feed 只消费 Signal/Item；来源任务留在 Feed。

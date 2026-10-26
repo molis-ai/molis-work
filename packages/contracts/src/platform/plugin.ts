@@ -76,8 +76,19 @@ export interface PluginInstanceRecord {
 
 export interface PluginIntegrationContribution {
   kind: "integration";
-  connector_driver: ConnectorDriver;
-  signal_adapter: RawEventAdapter;
+  /**
+   * The driver and the adapter for one source. The plugin is started once and serves every source of its integrations; what
+   * differs between sources arrives here as references (`IntegrationBinding`), so a source's change needs no restart.
+   */
+  bind(binding: import("./plugin-integrations.js").IntegrationBinding): {
+    connector_driver: ConnectorDriver;
+    signal_adapter: RawEventAdapter;
+    /**
+     * How the source's account reads after a pull, from the pull's cursor and the label it has now; `null` keeps both as they are.
+     * Without it the source's account label and configuration stay as they are.
+     */
+    account?(cursor: unknown, current_account_label: string | null): import("./plugin-integrations.js").IntegrationAccountPresentation | null;
+  };
   actions?: readonly import("./actions.js").ActionHandlerBinding[];
   action_scenes?: readonly import("./actions.js").ActionSceneHandlerBinding[];
 }

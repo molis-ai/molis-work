@@ -35,7 +35,7 @@ const provider: IntegrationProviderPort = {
 };
 
 test("compatible code can restore an older install without changing its version until manual upgrade", async () => {
-  const original = createGithubIntegrationPlugin({ provider });
+  const original = createGithubIntegrationPlugin({ providerFor: () => provider });
   const repository = new MemoryPluginRuntimeRepository();
   let v1Starts = 0, v2Starts = 0;
   const old: PluginDefinition = {
@@ -82,7 +82,7 @@ test("compatible code can restore an older install without changing its version 
 });
 
 test("an undeclared newer Manifest cannot start or alter the older installation", async () => {
-  const original = createGithubIntegrationPlugin({ provider });
+  const original = createGithubIntegrationPlugin({ providerFor: () => provider });
   const repository = new MemoryPluginRuntimeRepository();
   const old: PluginDefinition = { ...original, manifest: { ...original.manifest, version: "1.0.0" } };
   const next: PluginDefinition = { ...original, manifest: { ...original.manifest, version: "2.0.0" } };
@@ -102,7 +102,7 @@ test("an undeclared newer Manifest cannot start or alter the older installation"
 });
 
 test("a same-version Manifest change is usable only with an exact compatibility declaration and never becomes an upgrade candidate", async () => {
-  const original = createGithubIntegrationPlugin({ provider });
+  const original = createGithubIntegrationPlugin({ providerFor: () => provider });
   const repository = new MemoryPluginRuntimeRepository();
   const old: PluginDefinition = { ...original, manifest: { ...original.manifest, version: "1.0.0" } };
   const initialRuntime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS });

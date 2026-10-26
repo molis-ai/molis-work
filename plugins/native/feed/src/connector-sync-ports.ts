@@ -1,5 +1,6 @@
 import type { FeedSyncExecution } from "./source-ports.js";
 import type { IntegrationProviderItem, IntegrationProviderPort } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { IntegrationAccountPresentation } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import type { ListenerCheckpoint, ListenerRunReceipt } from "@molis-ai/molis-work-contracts/services/listener-host";
 import type { SignalRecord } from "@molis-ai/molis-work-contracts/modules/signals";
 import type { FeedSourceRecord } from "./projection.js";
@@ -9,6 +10,8 @@ export type ConnectorSyncMode = NonNullable<Parameters<IntegrationProviderPort["
 export interface FeedConnectorListener {
   run(operationId: string, mode: ConnectorSyncMode, execution?: FeedSyncExecution): Promise<ListenerRunReceipt>;
   checkpoint(): ListenerCheckpoint;
+  /** How the source's account reads after this pull, as its integration says; `null`, or none, leaves the source's account as it is. */
+  account?(cursor: unknown): IntegrationAccountPresentation | null;
 }
 export interface FeedConnectorSyncPorts {
   feed: FeedApplication;
@@ -20,8 +23,6 @@ export interface FeedConnectorSyncPorts {
     signal: Pick<SignalRecord, "signal_id" | "revision">,
     occurredAt: string,
   ) => void | Promise<void>): Promise<FeedConnectorListener>;
-  reportCrash(sourceId: string, errorCode: string): Promise<void>;
-  sourceMetadata(source: FeedSourceRecord, cursor: unknown): Pick<FeedSourceRecord, "account_label" | "config"> | Record<string, never>;
   transaction<T>(operation: () => T): T;
   appendEvent(projectId: string, sourceId: string, type: string, reason: string, payload: Record<string, unknown>): void;
 }

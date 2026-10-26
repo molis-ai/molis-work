@@ -8,10 +8,10 @@ import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
-import { MolisWorkLocalHost, DEMO_PROJECT_ID, GoalProjectApplication, LocalProjectDatabase, seedDemoBoard, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, withConnectorConnections, DEMO_PROJECT_ID, GoalProjectApplication, LocalProjectDatabase, seedDemoBoard, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { artifactAnalysisContext, artifactOriginalPath, DOCUMENT_ARTIFACT_TYPE, DOCUMENT_IMPORT_MAX_BYTES, importArtifactDocument, type ArtifactDocumentImportPorts, type ImportedArtifactDocument } from "@molis-ai/molis-work-module-artifacts";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
-import { importLocalArtifactDocument } from "../apps/local-host/dist/artifact-document-import.js";
+import { documentImportConnections, importLocalArtifactDocument } from "../apps/local-host/dist/artifact-document-import.js";
 import { blankPng, epub, odt, pptx, rtf, xlsx } from "./fixtures/office-files.js";
 
 const controlToken = "artifact-import-test-control-token-0123456789";
@@ -578,4 +578,23 @@ test("ONB-LIM-08 an original over 2 GB is kept whole without its text, and the i
   assert.deepEqual(result.warnings, ["文件超过 2 GB，没有读取正文；原件完整保存。"]);
   const original = (library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, result)!.payload as { original_file: Record<string, unknown> }).original_file;
   assert.deepEqual([original.sha256, original.size_bytes], [stored.sha256, stored.size_bytes]);
+});
+
+test("RAC-891 a document import takes only the ways of connecting its integration declares: Feishu's CLI login yes, Notion's no", async t => {
+  const home = await mkdtemp(join(tmpdir(), "molis-work-import-methods-"));
+  t.after(() => rm(home, { recursive: true, force: true }));
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  const made = withConnectorConnections(home, store => ({
+    feishuCli: store.saveCli({ serviceId: "feishu", displayName: "飞书 CLI", externalId: "feishu-user", accountLabel: "feishu-user" }).connection_id,
+    notionCli: store.saveCli({ serviceId: "notion", displayName: "Notion CLI", externalId: "notion-user", accountLabel: "notion-user" }).connection_id,
+    notionToken: store.createToken({ serviceId: "notion", displayName: "Notion", token: "notion-token" }).connection_id,
+    notionOauth: store.createToken({ serviceId: "notion", displayName: "Notion OAuth", token: "notion-oauth", authMethod: "oauth" }).connection_id,
+    driveToken: store.createToken({ serviceId: "google-drive", displayName: "Drive", token: "drive-token" }).connection_id,
+    githubToken: store.createToken({ serviceId: "github", displayName: "GitHub", token: "github-token" }).connection_id,
+  }));
+  const taken = new Set(documentImportConnections(home).map(row => row.connection_id));
+  assert.deepEqual([made.feishuCli, made.notionToken, made.notionOauth, made.driveToken].filter(id => !taken.has(id)), [], "what the imports declare is taken");
+  assert.deepEqual([made.notionCli, made.githubToken].filter(id => taken.has(id)), [], "a way no import declares, or a service no import reads, is not");
+  const host = await readFile(new URL("../apps/local-host/src/artifact-document-import.ts", import.meta.url), "utf8");
+  assert.doesNotMatch(host, /["'`]feishu["'`]/u, "the Host names no service for the CLI login");
 });

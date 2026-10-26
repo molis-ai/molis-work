@@ -10,6 +10,7 @@ import { backgroundDeclarationProblems } from "./background-declarations.js";
 import { attentionDeclarationProblems } from "./attention-declarations.js";
 import { connectionDeclarationProblems } from "./connection-declarations.js";
 import { databaseDeclarationProblems } from "./database-declarations.js";
+import { integrationDeclarationProblems } from "./integration-declarations.js";
 import { ownerFilesDeclarationProblems } from "./owner-files-declaration.js";
 import { imageGenerationDeclarationProblems, localToolsDeclarationProblems, modelConfigurationDeclarationProblems, runtimeDeclarationProblems } from "./service-declarations.js";
 import { inspectContextDeclarations } from "./context-declarations.js";
@@ -204,6 +205,8 @@ function assertNoV2Blocks(manifest: Record<string, unknown>, ui: Record<string, 
     ["action_scenes", manifest.action_scenes],
     ["background", manifest.background],
     ["connections", manifest.connections],
+    ["connection_services", manifest.connection_services],
+    ["integrations", manifest.integrations],
     ["attention", manifest.attention],
     ["ui.embedded_plugins", ui.embedded_plugins],
     ["ui.views", ui.views],
@@ -258,6 +261,7 @@ function assertV2Blocks(parsed: PluginManifest, ui: Record<string, unknown>): vo
   problems.push(...inspectContextDeclarations(parsed));
   problems.push(...backgroundDeclarationProblems(parsed.background, declaredPermissions, parsed.actions));
   problems.push(...connectionDeclarationProblems(parsed.connections, declaredPermissions));
+  problems.push(...integrationDeclarationProblems(parsed));
   problems.push(...attentionDeclarationProblems(parsed.attention, declaredPermissions));
   assertNoDeclarationProblems(problems);
 }

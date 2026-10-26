@@ -230,8 +230,8 @@ function checkMigratedIntegrationOwnership(repositoryRoot) {
   }
   const hostPath = "apps/local-host/src/feed-connector-sync.ts";
   const host = fs.readFileSync(path.join(repositoryRoot, hostPath), "utf8");
-  if (!service.includes("this.ports.createListener") || !host.includes("OfficialIntegrationRegistry")) {
-    errors.push(`${servicePath}: Feed must consume a Host-composed Listener backed by official Integration contributions`);
+  if (!service.includes("this.ports.createListener") || !host.includes("homeIntegrationRegistry")) {
+    errors.push(`${servicePath}: Feed must consume a Host-composed Listener backed by the Home's integration registry`);
   }
 
   const listenerPath = "horizontal/listener-host/src/index.ts";

@@ -175,7 +175,7 @@ Manifest 里没有 `behaviors`、`function_scenes`、`judgment_subjects`（2026-
 
 ## Integration
 
-`kind: "integration"`。`definePollingIntegrationPlugin`：Manifest + `createProvider` → Connector Driver + Signal Adapter。Host 只看 Contract 和 Receipt。细节：[integrations.md](integrations.md)。
+`kind: "integration"`。`definePollingIntegrationPlugin`：Manifest + `createProvider(context, binding)` → 每个来源一对 Connector Driver + Signal Adapter；Manifest 的 `connection_services`、`integrations` 声明它的服务与用途。Host 只看 Contract 和 Receipt。细节：[integrations.md](integrations.md)。
 
 ## 当前项目设置能力
 

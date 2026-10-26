@@ -43,13 +43,16 @@ export class JudgmentQueue {
   /** Judge everything queued, entries included, as `caller` (none for a background producer). */
   async flush(caller?: ActionCallContext): Promise<void> {
     const items = this.items.splice(0);
+    await afterTheStep();
     // Entries are taken only once the items are judged, so the entries those judgments created are judged in this flush too.
     await judgeEach([() => this.judgeItems(items, caller, rest => this.items.unshift(...rest)), () => this.judgeEntries(this.takeEntries(), caller, this.requeueEntries)], run => run());
   }
 
   /** Judge only the named queued entries, or all of them when none are named. Others' events stay for their producers. */
   async flushEntries(caller?: ActionCallContext, entryIds?: readonly string[]): Promise<void> {
-    await this.judgeEntries(this.takeEntries(entryIds), caller, this.requeueEntries);
+    const entries = this.takeEntries(entryIds);
+    await afterTheStep();
+    await this.judgeEntries(entries, caller, this.requeueEntries);
   }
 
   /**
@@ -64,7 +67,24 @@ export class JudgmentQueue {
     // The step cannot be interleaved with another call, so what the queues gained since the marks above is the step's own.
     const ownItems = this.items.splice(queuedItems);
     const ownEntries = this.takeEntries([...this.entries].filter(([key]) => !alreadyQueued.has(key)).map(([, entry]) => entry.entry_id));
-    return judgeEach([() => this.judgeItems([...ownItems, ...also], caller), () => this.judgeEntries(ownEntries, caller)], run => run()).then(() => result);
+    const judged = new Set([...ownItems, ...also].map(item => item.item_id));
+    return afterTheStep().then(() => judgeEach([() => this.judgeItems([...ownItems, ...also], caller), () => this.judgeEntries(ownEntries, caller),
+      () => this.judgeEntries(this.takeEntriesOfItems(judged, alreadyQueued), caller)], run => run())).then(() => result);
+  }
+
+  /**
+   * The queued entries of items this call judged: a judgment that admitted an item to the Inbox leaves its entry queued when the
+   * scene callback that wrote it cannot judge it itself (a Runtime Feed's callbacks reach no action). They are the caller's own work,
+   * unlike an entry some other producer queued meanwhile, which stays for that producer.
+   */
+  private takeEntriesOfItems(itemIds: ReadonlySet<string>, alreadyQueued: ReadonlySet<string>): QueuedEntry[] {
+    const own = [...this.entries].filter(([key]) => !alreadyQueued.has(key)).flatMap(([, queued]) => {
+      try {
+        const entry = this.reads.inboxEntry(queued.project_id, queued.entry_id);
+        return entry.subject_type === "feed_item" && itemIds.has(entry.subject_id) ? [queued.entry_id] : [];
+      } catch (error) { if (error instanceof ActionError && error.code === "inbox.entry_not_found") return []; throw error; }
+    });
+    return this.takeEntries(own);
   }
 
   private takeEntries(entryIds?: readonly string[]): QueuedEntry[] {
@@ -103,6 +123,13 @@ export class JudgmentQueue {
     }, untried);
   }
 }
+
+/**
+ * Judging starts after the step that queued the work has ended. A Runtime Feed runs that step inside the commit that writes it, and what it
+ * calls to judge (the scene, the action directory) must not start inside that commit: its first call would read through the commit's
+ * transaction. One tick is enough: the commit finishes in the same synchronous run, and the queued work is read afterwards, committed.
+ */
+const afterTheStep = (): Promise<void> => Promise.resolve();
 
 /**
  * Judge every subject taken off the queue, in order, even when one before it fails: the queue no longer holds them, so

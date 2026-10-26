@@ -2,7 +2,10 @@ import { ActionError, type ActionDefinition, type ActionExecutionContext, type A
 import type { PluginDefinition, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { assembleFeedApplication } from "./application-assembly.js";
 import { createFeedContentHandlers, feedContentActions, feedSubjectAction } from "./content-actions.js";
+import { createRuntimeItemStaging, createRuntimeJudgmentTriggers, createRuntimeSceneRuntime } from "./runtime-judgments.js";
+import { feedRuntimeCaptureScene } from "./scenes.js";
 import { createFeedInboxHandlers } from "./inbox-actions.js";
+import type { FeedApplication } from "./application.js";
 import type { FeedHydrate } from "./item-hydration.js";
 import { createFeedItemHandlers } from "./item-actions.js";
 import { feedManifest } from "./manifest.js";
@@ -27,6 +30,7 @@ import { feedUiContribution } from "./ui.js";
 import { authorizeRuntimeSource, connectorSlotOf, createRuntimeConnectorSync, releaseRuntimeAccount, runtimeConnectorStatus } from "./runtime-connector.js";
 import { SignalsModule } from "./store/index.js";
 import { feedInboxActions } from "./inbox-actions.js";
+import { feedItemActions } from "./item-actions.js";
 import { CONNECTOR_REQUEST_SERVICES } from "@molis-ai/molis-work-contracts/services/connector-host";
 
 /** What Feed needs of the platform to run as a plugin: Inbox entries are Attention's, the links to Goals are the Context Ledger's. */
@@ -43,6 +47,10 @@ const PLATFORM_PERMISSIONS = [
   { permission: "schedule:read", required: false, reason: "查看是否已设好按时拉取" },
   { permission: "schedule:write", required: false, reason: "设定按时拉取到期的来源" },
   { permission: "actions:invoke", required: false, reason: "向 Feed 在 Home 里的引用账登记和释放留存的正文" },
+  { permission: "scenes:use", required: true, reason: "绑定并运行捕捉规则的判断场景" },
+  { permission: "judgments:read", required: true, reason: "读取捕捉规则的判断记录" },
+  { permission: "judgments:write", required: true, reason: "记录捕捉规则的判断结果" },
+  { permission: "actions:delegate", required: true, reason: "替当前这个调用者请 Inbox 与首页判断下一步、读取已发布的判断规则" },
   { permission: "connections:use", required: false, reason: "读取你为每个账号来源选好的账号是否还能用" },
   { permission: "sources:pull_connector", required: false, reason: "用你为账号来源选好的账号拉取新消息" },
 ] as const;
@@ -60,9 +68,10 @@ const PLATFORM_NEEDS: ReadonlyMap<ActionDefinition, readonly string[]> = new Map
   [feedSourceActions.delete, [FEED_PULL, "attention:write", "context-ledger:write"]],
   // An account source is pulled with the account the person bound to it (`sources:pull_connector`), whose state it asks (`connections:use`),
   // and one whose account needs the person is recorded in the Inbox (`attention:write`).
-  [feedSourceActions.sync, [FEED_PULL, QUERY_PULL, REPOSITORY_READ, CONNECTIONS, CONNECTOR_PULL, "attention:write"]],
+  // New items are judged as the sync ends, which reads their retained bodies (`evidence:read`) for the capture rules.
+  [feedSourceActions.sync, [FEED_PULL, QUERY_PULL, REPOSITORY_READ, CONNECTIONS, CONNECTOR_PULL, "attention:write", EVIDENCE]],
   // A tick runs the syncs, so it needs what they need, and it records a source's fault in the Inbox.
-  [feedSourceActions.tick, [FEED_PULL, QUERY_PULL, REPOSITORY_READ, "attention:write", CONNECTIONS, CONNECTOR_PULL]],
+  [feedSourceActions.tick, [FEED_PULL, QUERY_PULL, REPOSITORY_READ, "attention:write", CONNECTIONS, CONNECTOR_PULL, EVIDENCE]],
   // Disconnecting an account source takes the person's binding off it.
   [feedSourceActions.disconnect, [CONNECTIONS]],
   // Reading an item's material asks whether its source's account still works; the status asks whether the Home has an account at all.
@@ -70,14 +79,24 @@ const PLATFORM_NEEDS: ReadonlyMap<ActionDefinition, readonly string[]> = new Map
   // The actions that give an item's retained text decrypt its bodies through the platform (`evidence.read`), which the action must declare and the caller hold (4e-2f decision).
   [feedQueryActions.snapshot, [EVIDENCE]], [feedQueryActions.item, [EVIDENCE]], [feedInboxActions.content, [EVIDENCE]], [feedRuleActions.previewJudgment, [EVIDENCE]],
   [feedRuleActions.preview, [EVIDENCE]], [feedContentActions.read, [EVIDENCE]], [feedSubjectAction, [EVIDENCE]], [feedHomeEventsAction, [EVIDENCE]],
-  // A notification the platform delivers is admitted to the Inbox as it is received.
-  [feedNotificationActions.receive, ["attention:write"]],
+  // A notification the platform delivers is admitted to the Inbox as it is received, and judged by the capture rules.
+  [feedNotificationActions.receive, ["attention:write", EVIDENCE]],
+  // What a call hands in or has judged again is judged by the capture rules, which read the retained bodies.
+  [feedContentActions.receive, [EVIDENCE]], [feedRuleActions.evaluate, [EVIDENCE]],
+  // Admitting an item opens its Inbox entry, and saving, ignoring or restoring one settles or reopens the entries it has.
+  [feedInboxActions.admit, ["attention:write"]], [feedItemActions.inbox, ["attention:write"]],
+  [feedItemActions.disposition, ["attention:write"]], [feedItemActions.restore, ["attention:write"]],
 ]);
 /** Actions that commit for themselves, because what they write comes after something they must wait for. */
-const SELF_COMMITTING: ReadonlySet<ActionDefinition> = new Set<ActionDefinition>([feedSourceActions.sync, feedSourceActions.delete, feedSourceActions.tick]);
-/** The platform lets a call write its ledgers only from a concurrent action that declares the permission, so a self-committing action is one. */
+const SELF_COMMITTING: ReadonlySet<ActionDefinition> = new Set<ActionDefinition>([feedSourceActions.sync, feedSourceActions.delete, feedSourceActions.tick, feedRuleActions.create, feedRuleActions.update]);
+/**
+ * The platform lets a call write its ledgers, and wait for a scene's judgment, only from a concurrent action: a self-committing action is one,
+ * and so is each that judges what it just wrote (its write is still one commit, made before the judgment starts).
+ */
+const CONCURRENT: ReadonlySet<ActionDefinition> = new Set<ActionDefinition>([...SELF_COMMITTING, feedContentActions.receive, feedNotificationActions.receive, feedRuleActions.evaluate,
+  feedItemActions.disposition, feedItemActions.restore]);
 const runtimeAction = (definition: ActionDefinition): ActionDefinition => {
-  const needs = PLATFORM_NEEDS.get(definition) ?? [], concurrent = SELF_COMMITTING.has(definition);
+  const needs = PLATFORM_NEEDS.get(definition) ?? [], concurrent = CONCURRENT.has(definition);
   return needs.length === 0 && !concurrent ? definition
     : { ...definition, action: { ...definition.action, permissions: [...definition.action.permissions, ...needs], ...(concurrent ? { scheduling: "concurrent" as const } : {}) } };
 };
@@ -98,6 +117,8 @@ export const feedRuntimeManifest: PluginManifest = { ...BASE,
   permissions: [...feedManifest.permissions.filter(declared => !PLATFORM_PERMISSIONS.some(platform => platform.permission === declared.permission)), ...PLATFORM_PERMISSIONS],
   // The person binds an account to each account source: one slot per service the platform can pull for (its own list is the only one), the record being the source.
   connections: { slots: Object.keys(CONNECTOR_REQUEST_SERVICES).map(service => ({ slot_id: service, service_id: service, reason: "读取你为这个来源选好的账号", binding: "per_record" as const })) },
+  // The capture scene is Feed's own; its callbacks also write Inbox entries and the rule's binding.
+  action_scenes: [feedRuntimeCaptureScene],
   actions: [...feedManifest.actions!.map(runtimeAction), WAKE],
   background: { jobs: [feedWakeJob], wakeups: [{ action: { capability_id: WAKE.capability_id, version: WAKE.version }, reason: WAKE.action.title }] },
 };
@@ -117,14 +138,11 @@ export function createFeedPlugin(): PluginDefinition {
     const database = services?.project_database, attention = services?.attention, contextLedger = services?.contextLedger;
     if (!projectId) throw new ActionError("actions.scope_mismatch", "Feed 只属于一个项目");
     if (!database || !attention || !contextLedger) throw new ActionError("actions.unredeemed", "Feed 需要项目库、注意力与 Context Ledger 服务");
+    // The capture scene's judgments, Home's and the Inbox's: the platform's scene client, judgment ledger and action directory.
+    const scenes = services?.scenes, judgments = services?.judgments, directory = services?.actions?.directory;
+    if (!scenes || !judgments || !directory) throw new ActionError("actions.unredeemed", "Feed 需要场景、判断账与动作目录服务");
+    const judgmentServices = { scenes, judgments, directory };
     const ports = createFeedRuntimePorts({ projectId, database, attention, contextLedger });
-    // Releasing a deleted source's history waits on other services, so it is done before the commit that deletes the rows; the commit's
-    // history port only reports what that found, and the event that records it is written in the same commit.
-    let released: FeedSourceHistoryRelease | null = null;
-    const history: FeedSourceHistory = { release: () => released ?? { bodies_deleted: 0, bodies_kept: 0, records_deleted: 0, complete: false } };
-    const feed = assembleFeedApplication({ sql: ports.sql, ledger: ports.ledger, attention: ports.attention, appendEvent: ports.appendEvent,
-      subscribeInboxCreated: ports.subscribeInboxCreated, outRules: new FeedOutRuleStore(ports.sql), history });
-    const writer = createFeedWriter(database, ports);
     const evidence = services?.sourcePull?.evidence;
     // A body that is gone, or that cannot be read, is unavailable and never makes the item unreadable; a call that is cancelled or no longer allowed fails.
     const hydrate: FeedHydrate = async item => {
@@ -135,6 +153,20 @@ export function createFeedPlugin(): PluginDefinition {
         return content === null ? { ...material, content: null, content_available: false } : { ...material, content, content_available: true };
       })) };
     };
+    // Releasing a deleted source's history waits on other services, so it is done before the commit that deletes the rows; the commit's
+    // history port only reports what that found, and the event that records it is written in the same commit.
+    let released: FeedSourceHistoryRelease | null = null;
+    const history: FeedSourceHistory = { release: () => released ?? { bodies_deleted: 0, bodies_kept: 0, records_deleted: 0, complete: false } };
+    // The triggers read the application they are part of, once it exists: they run only when a call judges, long after this assembly.
+    let assembled: FeedApplication | undefined;
+    const application = (): FeedApplication => assembled ?? ((): never => { throw new ActionError("actions.execution_failed", "Feed 还没有装配完"); })();
+    const staging = createRuntimeItemStaging(application, projectId);
+    const feed = assembleFeedApplication({ sql: ports.sql, ledger: ports.ledger, attention: ports.attention, appendEvent: ports.appendEvent,
+      subscribeInboxCreated: ports.subscribeInboxCreated, outRules: new FeedOutRuleStore(ports.sql), history,
+      ...createRuntimeJudgmentTriggers({ projectId, services: judgmentServices, feed: application, hydrate, staging }) });
+    assembled = feed;
+    const writer = createFeedWriter(database, ports);
+    const sceneRuntime = createRuntimeSceneRuntime({ projectId, services: judgmentServices, feed, hydrate, staging, commit: (caller, body) => writer.commit(caller, body) });
     const later = (what: string) => (): never => { throw new ActionError("actions.dependency_missing", `${what}还没有接到平台服务`); };
     // The source vocabulary (catalog, normalizers, the HTTP cursor) is the platform's (`services.sourcePull.vocabulary`); without the permission, describing a source fails.
     const vocabulary = services?.sourcePull?.vocabulary, noVocabulary = later("来源词汇");
@@ -206,8 +238,8 @@ export function createFeedPlugin(): PluginDefinition {
     const bindings: ActionHandlerBinding[] = [
       ...createFeedContentHandlers(feed, projectId, hydrate),
       ...createFeedQueryHandlers(feed, projectId, { hydrate, authStatus: connector ? () => runtimeConnectorStatus(connector) : later("连接状态"), linkedContext }),
-      ...createFeedRuleHandlers(feed, projectId, hydrate),
-      // The platform's notifications are written in one commit, as the platform's notification service; judging them waits for the judgments (4e-2f), which report themselves.
+      ...createFeedRuleHandlers(feed, projectId, hydrate, sceneRuntime.selection, (caller, body) => writer.commit(caller, body)),
+      // The platform's notifications are written in one commit, as the platform's notification service; the judgments that follow report themselves.
       ...createFeedNotificationHandlers(projectId, { feed: () => feed, judgmentFailed: () => {} }),
       ...createFeedInboxHandlers(feed, projectId, { hydrate, authorize: authorizeRuntimeSource(connections) }),
       // Disconnecting an account source also takes the person's binding off it (after the commit, as the platform's own binding is not Feed's).
@@ -221,7 +253,7 @@ export function createFeedPlugin(): PluginDefinition {
     const declared = new Set(feedRuntimeManifest.actions!.map(idOf)), own = new Set([...SELF_COMMITTING, WAKE].map(idOf));
     const mine = bindings.filter(binding => declared.has(idOf(binding)));
     keepFeedWakeup(services?.background, { grants: context.grants, scheduler: services?.scheduler, database, wake: WAKE });
-    return { kind: "app", views: [feedUiContribution], actions: [
+    return { kind: "app", views: [feedUiContribution], action_scenes: [sceneRuntime.handler], actions: [
       ...writer.writing(feedRuntimeManifest.actions!.filter(definition => !own.has(idOf(definition))), mine.filter(binding => !own.has(idOf(binding)))),
       ...mine.filter(binding => own.has(idOf(binding))),
     ] };

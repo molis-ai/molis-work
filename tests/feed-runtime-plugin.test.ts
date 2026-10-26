@@ -8,14 +8,14 @@ import { ActionError, type ActionCallContext, type ActionDefinition, type Action
 import type { IntegrationProviderPort, PluginDefinition, PluginProjectDatabase, PluginProjectDatabaseTransaction, PluginSqlValue } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PLUGIN_NOTIFICATION_DELIVERY_ACTOR } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { IntegrationBinding } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
-import { createNotificationDelivery, createPluginPlatform, declaredNotificationReceivers, DEMO_PROJECT_ID, homeIntegrationRegistry, homeStores, listFeedSourceCatalog, LocalProjectDatabase, scheduleServiceFor, seedDemoBoard, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { createNotificationDelivery, createPluginPlatform, declaredNotificationReceivers, DEMO_PROJECT_ID, homeIntegrationRegistry, homeStores, listFeedSourceCatalog, LocalProjectDatabase, scheduleServiceFor, seedDemoBoard, withConnectorConnections, withFunctionsService } from "@molis-ai/molis-work-app-local-host";
 import { PluginNotificationQueue } from "@molis-ai/molis-work-plugin-runtime";
 import { pluginBindingScope } from "@molis-ai/molis-work-service-connector-host";
 import { createEvidenceContentStore, homeStoreRegistry } from "@molis-ai/molis-work-storage";
 import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import { CONNECTOR_REQUEST_SERVICES } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
-import { createFeedContentLedger, createFeedContentLedgerHandlers, createFeedPlugin, createFeedWriter, FEED_HOME_DATABASE, FEED_PLUGIN_ID, feedContentActions, feedContentLedgerActions, feedInboxActions, feedItemActions, feedQueryActions, feedRuleActions, feedRuntimeManifest, feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
+import { createFeedContentLedger, createFeedContentLedgerHandlers, createFeedPlugin, createFeedWriter, FEED_HOME_DATABASE, FEED_PLUGIN_ID, feedCaptureScene, feedContentActions, feedContentLedgerActions, feedInboxActions, feedItemActions, feedNotificationActions, feedQueryActions, feedRuleActions, feedRuntimeManifest, feedSceneBindingId, feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
@@ -29,9 +29,10 @@ import { libraryGit, publishLibrary } from "./fixtures/research-library.js";
 const HOST_ACTOR = "tester", OWNER = "owner";
 /** The journal keeps an event under the namespace of the plugin that wrote it (RAC-508). */
 const FEED_OBJECT = `${FEED_PLUGIN_ID}:feed_item`;
-const READ = ["feed:read"], WRITE = ["feed:read", "feed:write", "inbox:write"];
-/** An action that gives an item's retained text decrypts its bodies through the platform, so its caller holds this too (4e-2f). */
+const READ = ["feed:read"];
+/** An action that gives an item's retained text, or judges the item by it, reads the bodies through the platform, so its caller holds this too (4e-2f). */
 const BODIES = [...READ, "evidence:read"];
+const WRITE = ["feed:read", "feed:write", "inbox:write", "evidence:read"];
 
 /**
  * Feed's Home half, stood in for: the same ledger and the same two-and-one actions (`hold`, `release`, `reclaim`), over a library of its own,
@@ -88,7 +89,8 @@ async function platform(t: TestContext, options: { fetch?: (input: string | URL)
     artifacts: new ArtifactsModule(ports), processItems: new ProcessItemsModule(ports), ui: new UiHost(),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
     // A test of an account source has a Home of its own: the person's accounts and bindings live there, and the provider is the test's.
-    home: options.provider ? { directory: home, completeText: () => null, stores: homeStoreRegistry(homeStores().stores) } : null,
+    // The Home holds the judgment ledger of the capture scene, and (with a provider) the person's accounts and bindings.
+    home: { directory: home, completeText: () => null, stores: homeStoreRegistry(homeStores().stores) },
     ...(options.provider ? { sourcePullIntegrations: () => homeIntegrationRegistry(home, (_integration, binding) => options.provider!(binding)) } : {}),
     ...(options.fetch ? { sourcePullFetch: options.fetch } : {}), ...(options.git ? { sourcePullGit: options.git } : {}),
     ...(options.clock ? { scheduler: scheduleServiceFor(store.db) } : {}) });
@@ -105,7 +107,7 @@ async function platform(t: TestContext, options: { fetch?: (input: string | URL)
   assert.deepEqual(started.running, [feedRuntimeManifest.plugin_id, ...(homeHalf ? [homeHalf.definition.manifest.plugin_id] : []), ...(options.goals ? ["io.molis.work.goals"] : [])], JSON.stringify(started));
   const count = (sql: string, ...parameters: unknown[]) => (store.db.prepare(sql).get(...parameters as never[]) as { n: number }).n;
   const installId = () => running.runtime.list().find(record => record.plugin_id === feedRuntimeManifest.plugin_id)!.install_id;
-  return { store, home, running, client: actions.client, count, holds: () => homeHalf?.holds() ?? [], clock: () => scheduleServiceFor(store.db), installId };
+  return { store, home, running, client: actions.client, registry: actions.registry, count, holds: () => homeHalf?.holds() ?? [], clock: () => scheduleServiceFor(store.db), installId };
 }
 
 /** The original caller of an action, who can be cancelled or revoked from outside. */
@@ -149,7 +151,7 @@ test("RAC-509 the caller cancelled or revoked at any point writes nothing partia
   await client.invoke(probe.context, feedContentActions.receive, receive("probe"));
   const asked = probe.checks();
   assert.ok(asked >= 2, "the platform asks more than once: " + asked);
-  let refused = 0, committed = 0;
+  let refused = 0, committed = 0, late = 0;
   for (let from = 1; from <= asked + 1; from += 1) {
     const before = state(), requestId = `sweep-${from}`;
     const outcome = await client.invoke(caller(WRITE, from).context, feedContentActions.receive, receive(requestId)).then(() => "written" as const, (error: unknown) => error as ActionError);
@@ -160,19 +162,37 @@ test("RAC-509 the caller cancelled or revoked at any point writes nothing partia
       assert.ok(after.events > before.events, `delivery ${from} wrote its journal event`);
     } else {
       refused += 1;
-      assert.deepEqual(after, before, `delivery ${from} was refused (${outcome.code}) and left nothing: source, item and event are one commit`);
-      assert.equal(count("SELECT count(*) AS n FROM feed_items WHERE external_id = ?", requestId), 0);
+      // The delivery is judged by the capture rules after its commit, which asks the caller again: a caller revoked then is refused, and what the
+      // commit wrote stays whole. Refused before the commit, nothing was written.
+      const wrote = count("SELECT count(*) AS n FROM feed_items WHERE external_id = ?", requestId) === 1;
+      if (wrote) {
+        late += 1;
+        // The hand-in source is made by the first delivery and reused by the rest.
+        assert.equal(after.items, before.items + 1, `delivery ${from} was refused (${outcome.code}) after its commit: its item is there`);
+        assert.ok(after.sources >= 1 && after.sources >= before.sources, `delivery ${from}: the source its item belongs to is there`);
+        assert.ok(after.events > before.events, `delivery ${from} was refused after its commit: its journal event is there`);
+      } else assert.deepEqual(after, before, `delivery ${from} was refused (${outcome.code}) and left nothing: source, item and event are one commit`);
     }
   }
-  assert.ok(refused >= 1 && committed >= 1, `the sweep reached both sides of the commit (refused ${refused}, committed ${committed})`);
+  assert.ok(refused - late >= 1 && committed + late >= 1, `the sweep reached both sides of the commit (cut off before ${refused - late}, committed ${committed + late})`);
 });
 
-test("RAC-509 a write that waits first (a rule saved after its judgment is chosen) fails loudly and leaves no rule", async t => {
+test("RAC-509 a rule is saved after its choices are checked, as a commit of its own: a caller revoked at any point leaves the whole rule or none of it", async t => {
   const { client, count } = await platform(t);
-  const before = count("SELECT count(*) AS n FROM feed_out_rules");
-  await assert.rejects(client.invoke(caller(WRITE).context, feedRuleActions.create, { name: "late", match: { contains: "x" }, enabled: false }),
-    { code: "actions.execution_failed" });
-  assert.equal(count("SELECT count(*) AS n FROM feed_out_rules"), before, "the late write was refused, not made somewhere else");
+  const rules = () => count("SELECT count(*) AS n FROM feed_out_rules");
+  const probe = caller(WRITE);
+  await client.invoke(probe.context, feedRuleActions.create, { name: "probe", match: { contains: "x" }, enabled: false });
+  const asked = probe.checks();
+  assert.ok(asked >= 2 && rules() === 1, "the rule is saved, and the platform asks the caller more than once: " + asked);
+  let cut = 0, saved = 0;
+  for (let from = 1; from <= asked + 1; from += 1) {
+    const before = rules();
+    const outcome = await client.invoke(caller(WRITE, from).context, feedRuleActions.create, { name: `swept ${from}`, match: { contains: "x" }, enabled: false }).then(() => "saved" as const, () => "refused" as const);
+    const gained = rules() - before;
+    if (outcome === "saved") { saved += 1; assert.equal(gained, 1, `rule ${from} is there`); } else { cut += 1; assert.ok(gained === 0 || gained === 1, `rule ${from} is whole or not there`); }
+    assert.equal(count("SELECT count(*) AS n FROM feed_out_rules WHERE name = ?", `swept ${from}`), gained, `rule ${from}: the row is the only trace`);
+  }
+  assert.ok(cut >= 1 && saved >= 1, `the sweep reached both sides (cut off ${cut}, saved ${saved})`);
 });
 
 // RAC-506 (4e-2a)
@@ -591,10 +611,16 @@ test("RAC-1025 the Runtime Feed's Manifest asks for one slot per service the pla
   for (const permission of ["connections:use", "sources:pull_connector", "attention:write"]) assert.ok(declared(feedSourceActions.sync).includes(permission), `a sync declares ${permission}`);
   assert.ok(declared(feedSourceActions.disconnect).includes("connections:use"));
   assert.ok(declared(feedInboxActions.material).includes("connections:use"));
-  // 4e-2f: the actions that give an item's retained text declare evidence:read, and the status of accounts and the sync of a source do not.
-  for (const definition of [feedQueryActions.snapshot, feedQueryActions.item, feedInboxActions.material, feedInboxActions.content, feedContentActions.read, feedRuleActions.previewJudgment])
-    assert.ok(declared(definition).includes("evidence:read"), definition.capability_id);
-  for (const definition of [feedQueryActions.connections, feedSourceActions.sync]) assert.ok(!declared(definition).includes("evidence:read"), definition.capability_id);
+  // 4e-2f: the actions that give an item's retained text, and those that judge a new item by it, declare evidence:read; the status of accounts does not.
+  for (const definition of [feedQueryActions.snapshot, feedQueryActions.item, feedInboxActions.material, feedInboxActions.content, feedContentActions.read, feedRuleActions.previewJudgment,
+    feedSourceActions.sync, feedSourceActions.tick, feedContentActions.receive, feedRuleActions.evaluate, feedNotificationActions.receive]) assert.ok(declared(definition).includes("evidence:read"), definition.capability_id);
+  assert.ok(!declared(feedQueryActions.connections).includes("evidence:read"));
+  // The actions that wait for a scene's judgment are concurrent, and the scene is declared with what its callbacks write.
+  const scheduling = (definition: ActionDefinition) => feedRuntimeManifest.actions!.find(action => action.capability_id === definition.capability_id)!.action.scheduling;
+  for (const definition of [feedSourceActions.sync, feedSourceActions.tick, feedContentActions.receive, feedRuleActions.evaluate, feedNotificationActions.receive]) assert.equal(scheduling(definition), "concurrent", definition.capability_id);
+  assert.deepEqual(feedRuntimeManifest.action_scenes!.map(scene => `${scene.scene_id}@${scene.version}`), ["feed.capture@1"]);
+  assert.ok(feedRuntimeManifest.action_scenes![0]!.permissions.includes("attention:write"), "the scene's callbacks write Inbox entries");
+  for (const permission of ["scenes:use", "judgments:read", "judgments:write", "actions:delegate"]) assert.equal(feedRuntimeManifest.permissions.find(declared => declared.permission === permission)?.required, true, permission);
   assert.ok(declared(feedQueryActions.connections).includes("sources:pull_connector"));
   assert.ok(!declared(feedQueryActions.connections).includes("connections:use"), "the status names no source and nothing of an account");
   // 4e-2e: the platform finds the receiver by the Manifest's declaration, and the action is for the platform's own delivery only.
@@ -719,4 +745,132 @@ test("RAC-1030 a Runtime Feed gives an item's retained text through the platform
   for (const material of retained) createEvidenceContentStore().delete(material.content_ref!);
   const gone = (await read(BODIES)).item.materials.filter(material => material.content_ref);
   assert.ok(gone.every(material => material.content_available === false && material.content === null), JSON.stringify(gone));
+});
+
+// RAC-1031 .. RAC-1034 (4e-2f; provisional numbers): the capture rules judge what a Runtime Feed brings in. The judgment, Home's and the
+// Inbox's are the platform's scene client, ledger and action directory, called as the action's caller; every write is a commit.
+/** The scene is available to a caller who holds what it declares: its callbacks write Inbox entries and the judgment ledger, and the model answers. */
+const JUDGING = [...WRITE, "model:invoke", "attention:write", "judgments:write"];
+const JUDGING_SYNC = [...SYNC, "model:invoke", "judgments:write"];
+const JUDGE = { capability_id: "feed.test.capture-judge", version: 1 };
+const JUDGE_PROVIDER = "feed-test-judgments";
+
+/** Stand-ins for what Feed does not own: a judgment the capture scene can be bound to, and the Inbox's and Home's actions that judge what Feed opens. */
+async function judging(t: TestContext) {
+  const f = await syncing(t);
+  const seen = { judged: [] as string[], inbox: [] as string[][], home: [] as Array<Array<{ kind: string; id: string }>>, onJudge: async (_content: string) => {} };
+  const define = (id: string, kind: "judgment" | "operation", input: object, output: object, extra: object = {}): ActionDefinition => ({ capability_id: id, version: 1, operation: "command",
+    action: { title: id, description: id, kind, scope: "project", audiences: ["user", "workflow", "mcp", "agent"], permissions: [], subject_kinds: kind === "judgment" ? ["feed_item"] : [],
+      input_schema: input, output_schema: output, ...extra } as ActionDefinition["action"] });
+  const judge = define(JUDGE.capability_id, "judgment", feedCaptureScene.input_schema, feedCaptureScene.result_schema, { output_type: feedCaptureScene.result_type });
+  const idsInput = (key: string, items: object) => ({ type: "object", properties: { [key]: { type: "array", items } }, required: [key], additionalProperties: false });
+  const inboxEvaluate = define("inbox.judgment.evaluate", "operation", idsInput("entry_ids", { type: "string" }), { type: "object" }, { scheduling: "concurrent" });
+  const homeEvaluate = define("home.judgment.evaluate", "operation", idsInput("subjects", { type: "object" }), { type: "object" }, { scheduling: "concurrent" });
+  f.registry.registerProvider({ provider: { provider_id: JUDGE_PROVIDER, title: "判断", kind: "system" }, definitions: [judge, inboxEvaluate, homeEvaluate], handlers: [
+    { ...judge, handle: async (_caller: ActionCallContext, input: unknown) => { const { content } = input as { content: string }; seen.judged.push(content); await seen.onJudge(content);
+      return { status: "ok", suggested_behavior_ids: ["inbox.admit"] }; } },
+    { ...inboxEvaluate, handle: (_caller: ActionCallContext, input: unknown) => { seen.inbox.push((input as { entry_ids: string[] }).entry_ids); return {}; } },
+    { ...homeEvaluate, handle: (_caller: ActionCallContext, input: unknown) => { seen.home.push((input as { subjects: Array<{ kind: string; id: string }> }).subjects); return {}; } },
+  ] });
+  const judgment = { ...JUDGE, provider_id: JUDGE_PROVIDER };
+  const rule = async (match: object, name = "judged") => (await f.client.invoke(caller(JUDGING).context, feedRuleActions.create,
+    { name, match, admission: "inbox", judgment }) as { rule: { rule_id: string; revision: string } }).rule;
+  const ledger = () => withFunctionsService(f.home, service => service.listJudgments());
+  const entriesOf = (itemId: string) => f.store.db.prepare("SELECT entry_id, subject_id, reason FROM inbox_entries WHERE subject_type = 'feed_item' AND subject_id = ?").all(itemId) as Array<{ entry_id: string; subject_id: string; reason: string }>;
+  return { ...f, seen, judgment, rule, ledger, entriesOf };
+}
+
+test("RAC-1031 a hand-in item is judged by the capture rule as the caller: the judgment is in the Home, the Inbox entry in the project, and Home and the Inbox judge what Feed opened", async t => {
+  const f = await judging(t);
+  const rule = await f.rule({ contains: "judge" });
+  const written = await f.client.invoke(caller(JUDGING).context, feedContentActions.receive, receive("judge-1")) as { item_id: string };
+  assert.equal(f.seen.judged.length, 1, "the model was asked once");
+  assert.ok(f.seen.judged[0]!.includes("T judge-1") && f.seen.judged[0]!.includes("body of judge-1"), "it read the item");
+  const recorded = f.ledger().filter(row => row.scene_id === feedCaptureScene.scene_id);
+  assert.deepEqual(recorded.map(row => [row.subject.kind, row.subject.id, row.subject.project_id, row.outcome]), [["feed_item", written.item_id, DEMO_PROJECT_ID, "ok"]]);
+  assert.equal(recorded[0]!.scene_provenance?.binding_id, feedSceneBindingId(rule.rule_id));
+  const entries = f.entriesOf(written.item_id);
+  assert.deepEqual(entries.map(entry => entry.reason), ["source_rule"], "the rule admitted the item to the Inbox");
+  assert.deepEqual(f.seen.inbox, [[entries[0]!.entry_id]], "the Inbox judged the entry the judgment opened, as the same call");
+  assert.deepEqual(f.seen.home.flat().map(subject => `${subject.kind}:${subject.id}`).sort(), [`feed_item:${written.item_id}`, `inbox_entry:${entries[0]!.entry_id}`].sort());
+  assert.ok(f.count(`SELECT count(*) AS n FROM events WHERE type LIKE '%judgment_completed' AND actor_id = ?`, OWNER) >= 1, "the judgment is in the journal, under the caller");
+  // An item no rule matches is not judged.
+  await f.client.invoke(caller(JUDGING).context, feedContentActions.receive, { request_id: "plain", title: "Plain", body: "nothing here" });
+  assert.equal(f.seen.judged.length, 1);
+});
+
+test("RAC-1032 a sync judges what it brought in by the retained bodies, which only the action can read; a rule changed meanwhile records nothing", async t => {
+  const f = await judging(t);
+  const rule = await f.rule({ source_id: f.sourceId });
+  await f.client.invoke(caller(JUDGING_SYNC).context, feedSourceActions.sync, { source_id: f.sourceId, idempotency_key: "judged-sync-key" });
+  assert.equal(f.seen.judged.length, 2);
+  for (const title of ["First", "Second"]) assert.ok(f.seen.judged.some(content => content.includes(`Body of ${title} for the runtime sync test.`)), `the judgment of ${title} read its retained body`);
+  assert.equal(f.ledger().filter(row => row.scene_id === feedCaptureScene.scene_id).length, 2);
+  // The rule is edited while the model answers: the judgment is of a rule that is gone, so nothing is recorded and the sync still ends.
+  f.feeds.set(f.entry.feed_url, feedXml([{ id: "three", title: "Third" }]));
+  f.seen.onJudge = async () => { await f.client.invoke(caller(JUDGING).context, feedRuleActions.update, { rule_id: rule.rule_id, patch: { name: "renamed meanwhile" } }); };
+  const synced = await f.client.invoke(caller(JUDGING_SYNC).context, feedSourceActions.sync, { source_id: f.sourceId, idempotency_key: "judged-sync-key-2" }) as { created: number; run: { outcome: string } };
+  assert.deepEqual([synced.created, synced.run.outcome], [1, "completed"]);
+  assert.equal(f.seen.judged.length, 3);
+  assert.equal(f.ledger().filter(row => row.scene_id === feedCaptureScene.scene_id).length, 2, "the judgment of a changed rule is not recorded");
+});
+
+test("RAC-1033 a caller revoked at any point of a judged hand-in never leaves an Inbox entry or a judgment event the ledger does not have, and writes nothing after", async t => {
+  const f = await judging(t);
+  await f.rule({ contains: "judge" });
+  const state = () => ({ items: f.count("SELECT count(*) AS n FROM feed_items"), ledger: f.ledger().filter(row => row.scene_id === feedCaptureScene.scene_id).length,
+    entries: f.count("SELECT count(*) AS n FROM inbox_entries WHERE reason = 'source_rule'"), events: f.count("SELECT count(*) AS n FROM events WHERE type LIKE '%judgment_completed'") });
+  const probe = caller(JUDGING);
+  await f.client.invoke(probe.context, feedContentActions.receive, receive("judge-probe"));
+  const asked = probe.checks();
+  assert.ok(asked >= 6, "judging asks the caller many more times than a plain hand-in: " + asked);
+  let cut = 0, whole = 0;
+  for (let from = 1; from <= asked + 1; from += 1) {
+    const before = state();
+    const outcome = await f.client.invoke(caller(JUDGING, from).context, feedContentActions.receive, receive(`judge-sweep-${from}`)).then(() => "done" as const, () => "refused" as const);
+    const after = state();
+    // The ledger is written first, and the rows that point at it follow: an entry or an event without its judgment would be a lie.
+    assert.ok(after.entries - before.entries <= after.ledger - before.ledger, `delivery ${from}: an Inbox entry always has its judgment`);
+    assert.ok(after.events - before.events <= after.ledger - before.ledger, `delivery ${from}: a judgment event always has its judgment`);
+    if (outcome === "done") whole += 1; else cut += 1;
+    assert.ok(after.items - before.items <= 1);
+  }
+  assert.ok(cut >= 1 && whole >= 1, `the sweep reached both sides (cut off ${cut}, whole ${whole})`);
+});
+
+test("RAC-1034 a binding saved through the platform's scene configuration is one commit of the callback, under the revision the caller saw", async t => {
+  const f = await judging(t);
+  const plain = (await f.client.invoke(caller(JUDGING).context, feedRuleActions.create, { name: "bound later", match: { contains: "later" }, admission: "inbox" }) as { rule: { rule_id: string; revision: string } }).rule;
+  const context = caller(JUDGING).context;
+  const target = (await f.client.targets(context, f.judgment)).find(found => found.binding_id === feedSceneBindingId(plain.rule_id));
+  assert.ok(target, "the platform lists the rule as a place the scene is configured");
+  const binding = { binding_id: feedSceneBindingId(plain.rule_id), scene_id: feedCaptureScene.scene_id, scene_version: feedCaptureScene.version, project_id: DEMO_PROJECT_ID,
+    function: f.judgment, enabled: true, title: "bound later", href: "/x" };
+  await assert.rejects(f.client.bind(context, binding, { provider_id: target!.provider_id, expected_revision: "stale-revision" }), (error: ActionError) => error instanceof ActionError);
+  const unchanged = (await f.client.invoke(caller(READ).context, feedRuleActions.list, {}) as { rules: Array<{ rule_id: string; judgment?: unknown }> }).rules.find(rule => rule.rule_id === plain.rule_id)!;
+  assert.equal(unchanged.judgment ?? null, null, "a stale revision saved nothing");
+  await f.client.bind(context, binding, { provider_id: target!.provider_id, expected_revision: target!.revision ?? null });
+  const saved = (await f.client.invoke(caller(READ).context, feedRuleActions.list, {}) as { rules: Array<{ rule_id: string; judgment?: { capability_id: string }; revision: string }> }).rules.find(rule => rule.rule_id === plain.rule_id)!;
+  assert.equal(saved.judgment?.capability_id, JUDGE.capability_id);
+  assert.notEqual(saved.revision, plain.revision);
+  await f.client.invoke(caller(JUDGING).context, feedContentActions.receive, { request_id: "later-1", title: "Do it later", body: "later" });
+  assert.equal(f.seen.judged.length, 1, "the rule bound this way judges");
+});
+
+test("RAC-1035 admitting an item to the Inbox asks the Inbox and Home to judge the entry it opened, as the caller, once the entry is committed", async t => {
+  const f = await judging(t);
+  const item = await f.client.invoke(caller(JUDGING).context, feedContentActions.receive, { request_id: "plain-1", title: "Plain", body: "nothing here" }) as { item_id: string };
+  assert.deepEqual(f.seen.inbox, [], "no rule matched, so nothing was opened yet");
+  const admitted = await f.client.invoke(caller(JUDGING).context, feedInboxActions.admit, { item_id: item.item_id }) as { entry_id: string; created: boolean };
+  assert.ok(admitted.created);
+  assert.deepEqual(f.seen.inbox, [[admitted.entry_id]], "the Inbox judged the admitted entry");
+  assert.ok(f.seen.home.flat().some(subject => subject.kind === "inbox_entry" && subject.id === admitted.entry_id), "Home judged it too");
+  assert.equal(f.count("SELECT count(*) AS n FROM inbox_entries WHERE entry_id = ?", admitted.entry_id), 1, "judged after the commit that wrote it, so the entry was already there");
+  // Ignoring the item settles its entry, and restoring it is allowed again: both write the Inbox, so both are actions that may.
+  const open = () => f.count("SELECT count(*) AS n FROM inbox_entries WHERE entry_id = ? AND status IN ('open', 'in_progress')", admitted.entry_id);
+  assert.equal(open(), 1);
+  const revision = async () => (await f.client.invoke(caller(BODIES).context, feedQueryActions.item, { item_id: item.item_id }) as { item: { revision: number } }).item.revision;
+  await f.client.invoke(caller(JUDGING).context, feedItemActions.disposition, { item_id: item.item_id, disposition: "archived", expected_revision: await revision() });
+  assert.equal(open(), 0, "ignoring the item closed its entry");
+  await f.client.invoke(caller(JUDGING).context, feedItemActions.restore, { item_id: item.item_id, expected_revision: await revision() });
 });

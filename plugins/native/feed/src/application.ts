@@ -299,12 +299,13 @@ export class FeedApplication {
     return this.judgments.judgeOwn(() => this.ingestItem(input), caller);
   }
 
-  async evaluateItems(projectId: string, itemIds: readonly string[], caller?: ActionCallContext): Promise<{ evaluated: number }> {
+  // Not an `async` method, for the reason `JudgmentQueue.judgeOwn` is not: what the step throws reaches the caller as a throw, so a Runtime that
+  // commits the step as one write rolls it back.
+  evaluateItems(projectId: string, itemIds: readonly string[], caller?: ActionCallContext): Promise<{ evaluated: number }> {
     if (!itemIds.length || itemIds.length > 20) throw feedErrors.invalid_transition("请选择 1–20 条消息试跑规则");
     const items = [...new Set(itemIds)].map((id) => this.getFeedItem(projectId, id));
     // Concurrent evaluations own their input batch; they must not drain another call's queue.
-    await this.judgments.judgeOwn(() => { for (const item of items) this.captureAfterIngest(item); }, caller, items);
-    return { evaluated: items.length };
+    return this.judgments.judgeOwn(() => { for (const item of items) this.captureAfterIngest(item); }, caller, items).then(() => ({ evaluated: items.length }));
   }
 
   recordInboxJudgmentEvent(projectId: string, judgment: JudgmentRecord): void {

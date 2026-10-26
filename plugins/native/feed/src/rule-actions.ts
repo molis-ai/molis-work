@@ -50,7 +50,13 @@ export interface FeedRuleJudgmentSelection {
   recommendations(caller: ActionCallContext): Promise<FeedCaptureRecommendations>;
   preview(reference: ActionReference, content: string, caller: ActionCallContext): Promise<{ status: "ok" | "needs_review"; suggested_behavior_ids: string[] }>;
 }
-export function createFeedRuleHandlers(feed: FeedApplication, projectId: string, hydrate: FeedHydrate, judgments?: FeedRuleJudgmentSelection): ActionHandlerBinding[] {
+/**
+ * A rule is saved after its judgment has been chosen, which waits (for the scene and the action directory). A Runtime Feed writes that as a
+ * commit of the call's own, made after the wait; the Host's write is the transaction it is already in, so it only asks the caller again.
+ */
+export type FeedRuleCommit = <T>(caller: ActionExecutionContext, body: () => T) => Promise<T>;
+
+export function createFeedRuleHandlers(feed: FeedApplication, projectId: string, hydrate: FeedHydrate, judgments?: FeedRuleJudgmentSelection, commit?: FeedRuleCommit): ActionHandlerBinding[] {
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (args: I, caller: ActionExecutionContext) => O | Promise<O>): ActionHandlerBinding => ({ ...definition, handle: (caller, input) => handle(input as I, caller) });
   const select = async (next: FeedOutRuleRecord, patch: Partial<FeedOutRuleWrite>, caller: ActionCallContext, current?: FeedOutRuleRecord) => {
     const changed = "judgment" in patch;
@@ -61,6 +67,11 @@ export function createFeedRuleHandlers(feed: FeedApplication, projectId: string,
       next.judgment = await judgments.validate(next.judgment, caller);
     }
     return next;
+  };
+  const write = async <T>(caller: ActionExecutionContext, body: () => T): Promise<T> => {
+    if (commit) return commit(caller, body);
+    await caller.beforeEffect();
+    return body();
   };
   const checkSource = (sourceId?: string) => {
     if (sourceId?.trim() && !feed.snapshot(projectId).sources.some(source => source.source_id === sourceId.trim())) {
@@ -79,15 +90,13 @@ export function createFeedRuleHandlers(feed: FeedApplication, projectId: string,
     bind(feedRuleActions.create, async (args, caller) => {
       checkSource(args.match.source_id);
       const next = await select(feed.prepareOutRuleCreate(projectId, args), args, caller);
-      await caller.beforeEffect();
-      return { rule: feed.saveOutRuleCreate(next) };
+      return { rule: await write(caller, () => feed.saveOutRuleCreate(next)) };
     }),
     bind(feedRuleActions.update, async (args, caller) => {
       checkSource(args.patch.match?.source_id);
       const current = feed.listOutRules(projectId).find(rule => rule.rule_id === args.rule_id);
       const next = await select(feed.prepareOutRuleUpdate(projectId, args.rule_id, args.patch), args.patch, caller, current);
-      await caller.beforeEffect();
-      return { rule: feed.saveOutRuleUpdate(next, current!.revision) };
+      return { rule: await write(caller, () => feed.saveOutRuleUpdate(next, current!.revision)) };
     }),
     bind(feedRuleActions.delete, args => ({ rule: feed.deleteOutRule(projectId, args.rule_id) })),
     bind(feedRuleActions.evaluate, (args, caller) => feed.evaluateItems(projectId, args.item_ids, retainActionAuthority(caller, feedRuleActions.evaluate, caller.beforeEffect))),

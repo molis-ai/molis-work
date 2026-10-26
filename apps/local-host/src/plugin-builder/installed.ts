@@ -14,7 +14,8 @@ import { capabilityLimits, capabilityPolicyBinding, latestCapability, slowOperat
 
 /** Stable across versions of one build, so a new version upgrades the same installation and keeps its data. */
 export const installedSignature = (buildId: string) => 'agent-built:' + buildId;
-const GONE = new Set(['sandbox.process_exit', 'sandbox.stopped', 'sandbox.cancelled', 'sandbox.start_failed', 'sandbox.start_timeout', 'sandbox.operation_timeout', 'sandbox.memory_limit', 'sandbox.cpu_limit', 'sandbox.channel_limit', 'sandbox.channel_error', 'sandbox.protocol_error']);
+/** A sandbox error after which the process is not used again: the next call starts a new one. */
+export const GONE = new Set(['sandbox.process_exit', 'sandbox.stopped', 'sandbox.cancelled', 'sandbox.start_failed', 'sandbox.start_timeout', 'sandbox.operation_timeout', 'sandbox.memory_limit', 'sandbox.cpu_limit', 'sandbox.channel_limit', 'sandbox.channel_error', 'sandbox.protocol_error']);
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
 
 /**

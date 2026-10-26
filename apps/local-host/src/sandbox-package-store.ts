@@ -8,20 +8,24 @@ import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, 
 import { join } from 'node:path';
 import { pluginErrors, SANDBOX_PACKAGE_FILES, type PluginPackageBundle } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { verifyPluginPackageSignature } from '@molis-ai/molis-work-plugin-runtime';
-import { readSandboxPackage, type SandboxPackage } from './sandbox-package.js';
+import { isIntegrationPackage, readKeptSandboxPackage, type KeptSandboxPackage, type SandboxPackage } from './sandbox-package.js';
 import type { InstalledRelease } from './installed-release.js';
 
 const BUNDLE_FILE = 'bundle.json';
 
-/** What the Host runs a verified package from: the release, with the trust its publisher's pinned key gives it. */
-export function packagedRelease(pkg: SandboxPackage, directory: string, publishedAt: string): InstalledRelease {
+/**
+ * What the Host runs a verified package from: the release, with the trust its publisher's pinned key gives it. An integration package
+ * (BL-530) has no interface and no prompts: its release has none either.
+ */
+export function packagedRelease(pkg: KeptSandboxPackage, directory: string, publishedAt: string): InstalledRelease {
   const { manifest, contract } = pkg;
+  const app: Pick<SandboxPackage, 'parts' | 'nodes' | 'prompts' | 'presentation'> = isIntegrationPackage(pkg) ? { parts: [], nodes: [], prompts: [] } : pkg;
   return {
     // Names this plugin under this publisher: its actions are registered as `generated.<first 8>.<operation>`, so two plugins of one publisher must differ.
     buildId: createHash('sha256').update(JSON.stringify([manifest.plugin_id, manifest.publisher.signature])).digest('hex').slice(0, 32), pluginId: manifest.plugin_id, version: 1,
-    design: { id: contract.revision, title: manifest.name, description: '', rationale: '', journey: [], contract, parts: pkg.parts, acceptance: [], ...(pkg.presentation ? { presentation: pkg.presentation } : {}) },
-    nodes: pkg.nodes, manifest: { version: 1, pluginId: contract.pluginId, revision: contract.revision, effects: pkg.permissions },
-    directory, bundlePath: join(directory, SANDBOX_PACKAGE_FILES.entrypoint), packagePath: directory, permissions: pkg.permissions, publishedAt, prompts: pkg.prompts,
+    design: { id: contract.revision, title: manifest.name, description: '', rationale: '', journey: [], contract, parts: app.parts, acceptance: [], ...(app.presentation ? { presentation: app.presentation } : {}) },
+    nodes: app.nodes, manifest: { version: 1, pluginId: contract.pluginId, revision: contract.revision, effects: pkg.permissions },
+    directory, bundlePath: join(directory, SANDBOX_PACKAGE_FILES.entrypoint), packagePath: directory, permissions: pkg.permissions, publishedAt, prompts: app.prompts,
     packaged: { manifest, trust: { level: 'pinned', publisher_key_id: manifest.publisher.signature } },
   };
 }
@@ -34,7 +38,7 @@ export class SandboxPackageStore {
   }
 
   /** Writes a verified package. The same package again changes nothing; other content under the same plugin, publisher and version is refused. */
-  save(bundle: PluginPackageBundle, pkg: SandboxPackage): string {
+  save(bundle: PluginPackageBundle, pkg: KeptSandboxPackage): string {
     const { manifest } = pkg, directory = this.directory(manifest.plugin_id, manifest.publisher.signature, manifest.version);
     const text = JSON.stringify(bundle);
     if (existsSync(join(directory, BUNDLE_FILE))) {
@@ -72,7 +76,7 @@ export class SandboxPackageStore {
     const { bundle, key_id } = verifyPluginPackageSignature(raw);
     const { manifest } = bundle.payload;
     if (key_id !== keyId || manifest.plugin_id !== pluginId || manifest.version !== version) throw new Error('已存的插件包与安装记录对不上：' + pluginId + ' ' + version);
-    const pkg = readSandboxPackage(bundle.payload);
+    const pkg = readKeptSandboxPackage(bundle.payload);
     if (!Buffer.from(readFileSync(join(directory, SANDBOX_PACKAGE_FILES.entrypoint))).equals(Buffer.from(pkg.entrypoint))) throw new Error('已存的插件代码被改过：' + pluginId + ' ' + version);
     return packagedRelease(pkg, directory, statSync(join(directory, BUNDLE_FILE)).mtime.toISOString());
   }

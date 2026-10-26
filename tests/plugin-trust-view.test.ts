@@ -29,7 +29,7 @@ test("RAC-405 the platform names what a platform permission lets a plugin do, a 
 
 test("RAC-405 an install preview lists each permission with the plugin's reason and the platform's meaning", async () => {
   const service = new PluginInstallService({ ledger: new MemoryPluginConsentLedger(), packages: new SandboxPackageStore("/nonexistent"), now: () => AT, install: async () => undefined, installed: async () => [] });
-  const shown = service.preview({ bundle: signedPackage(newPublisher()) }, { project_id: "project-one", actor_id: LOCAL_PERSON_ACTOR_ID });
+  const shown = await service.preview({ bundle: signedPackage(newPublisher()) }, { project_id: "project-one", actor_id: LOCAL_PERSON_ACTOR_ID });
   assert.deepEqual(shown.preview.permissions, [{ permission: "storage:private", required: true, reason: "保存这个插件自己的数据", meaning: platformPermissionMeaning("storage:private") }]);
   assert.deepEqual(shown.preview.jobs, [], "a sandbox package keeps no background job");
 });

@@ -103,6 +103,13 @@ export function readSandboxPackage(payload: PluginPackagePayload): SandboxPackag
   return { manifest, contract, parts, nodes, ...(presentation ? { presentation } : {}), acceptance, prompts, entrypoint, permissions };
 }
 
+/** A package the Host keeps and runs: an app's (`readSandboxPackage`) or an integration's (`readSandboxIntegrationPackage`), by its Manifest's kind. */
+export type KeptSandboxPackage = SandboxPackage | SandboxIntegrationPackage;
+export const isIntegrationPackage = (pkg: KeptSandboxPackage): pkg is SandboxIntegrationPackage => pkg.manifest.kind === 'integration';
+export function readKeptSandboxPackage(payload: PluginPackagePayload): KeptSandboxPackage {
+  return payload.manifest.kind === 'integration' ? readSandboxIntegrationPackage(payload) : readSandboxPackage(payload);
+}
+
 /** A sandboxed integration as the Host runs it (BL-530): its Manifest, its contract of the platform's operations and its code. */
 export interface SandboxIntegrationPackage {
   readonly manifest: PluginManifest;
@@ -131,6 +138,8 @@ export function readSandboxIntegrationPackage(payload: PluginPackagePayload): Sa
   validated('清单', () => parsePluginManifest(manifest));
   const services = manifest.connection_services ?? [], integrations = manifest.integrations ?? [];
   if (!integrations.length) refuse('集成包要在清单里声明 integrations');
+  // One source and its one service: the registry binds a source to the plugin, so a package of two could not tell them apart.
+  if (integrations.length > 1 || services.length > 1) refuse('集成包现在只声明一个来源和它的一个连接服务');
   const document = integrations.find(item => item.kind !== 'source');
   if (document) refuse('集成 ' + document.integration_id + '：集成包现在只做 Feed 的来源（source），外部文档导入等 W5-11（BL-694）');
   for (const service of services) {
@@ -140,7 +149,7 @@ export function readSandboxIntegrationPackage(payload: PluginPackagePayload): Sa
   }
   const expected = sandboxIntegrationManifest({ pluginId: manifest.plugin_id, version: manifest.version, name: manifest.name, publisher: manifest.publisher,
     upgradesFrom: manifest.upgrade_compatibility?.compatible_from_versions, connection_services: services, integrations });
-  if (!isDeepStrictEqual(JSON.parse(JSON.stringify(manifest)), JSON.parse(JSON.stringify(expected)))) refuse('清单不是沙箱集成的形状：入口、权限要是平台的，不能有路由、界面或运行范围');
+  if (!isDeepStrictEqual(JSON.parse(JSON.stringify(manifest)), JSON.parse(JSON.stringify(expected)))) refuse('清单不是沙箱集成的形状：入口、权限要是平台的，运行范围是 Home，不能有路由或界面');
 
   const contract = validated('contract.json', () => { const raw = jsonFile(files, SANDBOX_PACKAGE_FILES.contract); assertContract(raw); return raw; });
   if (contract.pluginId !== manifest.plugin_id) refuse('contract.json 的 pluginId 与清单的 plugin_id 不一致');

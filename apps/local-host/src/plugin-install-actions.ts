@@ -45,6 +45,7 @@ export const pluginInstallActions = {
     output_schema: { type: "object", additionalProperties: false, required: ["preview_id", "name", "runtime_scope", "preview", "effects", "publisher"], properties: {
       preview_id: text, name: text, runtime_scope: { enum: ["home", "project"] }, effects,
       publisher: { type: "object", additionalProperties: false, required: ["key_id", "pinned_label"], properties: { key_id: text, pinned_label: { type: ["string", "null"] } } },
+      origins: { type: "array", items: { type: "object", additionalProperties: false, required: ["service_id", "title", "origins"], properties: { service_id: text, title: text, origins: { type: "array", items: text } } } },
       preview: { type: "object", additionalProperties: false, required: ["plugin_id", "version", "trust", "publisher_signature", "publisher_pinned", "permissions", "declarations", "jobs"], properties: {
         plugin_id: text, version: text, trust: { enum: ["host", "pinned", "unsigned"] }, publisher_signature: text, publisher_pinned: { type: "boolean" },
         permissions: { type: "array", items: { type: "object", required: ["permission", "required", "reason", "meaning"], properties: { permission: text, required: { type: "boolean" }, reason: text, meaning: { type: ["string", "null"] } }, additionalProperties: false } },

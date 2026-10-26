@@ -54,7 +54,8 @@ export interface SandboxIntegrationManifestInput {
 
 /**
  * The Manifest of a sandboxed integration (BL-530): an Integration Plugin with one local entrypoint and the private storage grant, its
- * own services and integrations, and nothing to show: no route, no view, no runtime scope (a Home instance runs it).
+ * own services and integrations, the Home as where it runs (`runtime.scope`, as every package of the Home writes it, BL-628), and nothing
+ * to show: no route, no view.
  */
 export function sandboxIntegrationManifest(input: SandboxIntegrationManifestInput): PluginManifest {
   return {
@@ -65,6 +66,8 @@ export function sandboxIntegrationManifest(input: SandboxIntegrationManifestInpu
     permissions: [{ permission: 'storage:private', required: true, reason: '保存这个插件自己的数据' }],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },
     ui: { contributions: [] },
+    // An integration's sources are the Home's: one registry, which every project's Feed reads (BL-530).
+    runtime: { scope: 'home' },
     connection_services: input.connection_services, integrations: input.integrations,
   };
 }

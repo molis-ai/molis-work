@@ -35,7 +35,7 @@ function manifest(extra: Partial<PluginManifest> = {}): PluginManifest {
     publisher: { publisher_id: "io.example", signature: "example-signature-v1" },
     entrypoints: [{ deployment: "local", entrypoint: "./plugin.mjs" }],
     permissions: [{ permission: "storage:private", required: true, reason: "保存这个插件自己的数据" }],
-    capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
+    capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, runtime: { scope: "home" },
     connection_services: [SERVICE], integrations: [{ integration_id: "example-feed", kind: "source", service_id: "example-feed" }],
     ...extra,
   };
@@ -70,7 +70,13 @@ test("RAC-893: a package that is not that shape is refused before anything is wr
   assert.throws(() => readSandboxIntegrationPackage(payload({ extra: [file("prompts.json", [])] })), refusedWith(/prompts\.json/u));
   assert.throws(() => readSandboxIntegrationPackage(payload({ manifest: manifest({ routes: [{ route_id: "call", method: "POST", path: "/call" }] }) })), refusedWith(/形状/u));
   assert.throws(() => readSandboxIntegrationPackage(payload({ manifest: manifest({ ui: { contributions: ["x.ui.v1"], views: [{ view_id: "app", slot: "stage", title: "x", contribution_id: "x.ui.v1" }] } }) })), refusedWith(/./u));
-  assert.throws(() => readSandboxIntegrationPackage(payload({ manifest: manifest({ runtime: { scope: "home" } }) })), refusedWith(/./u));
+  // It runs in the Home, as its Manifest says, and nowhere else.
+  assert.throws(() => readSandboxIntegrationPackage(payload({ manifest: manifest({ runtime: undefined }) })), refusedWith(/./u));
+  assert.throws(() => readSandboxIntegrationPackage(payload({ manifest: manifest({ runtime: JSON.parse(`{ "scope": "project" }`) }) })), refusedWith(/./u));
+  // One source and its one service.
+  const second = service("example-feed-2", { origins: ["https://api.example-feed.com"] });
+  assert.throws(() => readSandboxIntegrationPackage(payload({ manifest: manifest({ connection_services: [SERVICE, second], integrations: [
+    { integration_id: "example-feed", kind: "source", service_id: "example-feed" }, { integration_id: "example-feed-2", kind: "source", service_id: "example-feed-2" }] }) })), refusedWith(/一个来源/u));
   assert.throws(() => readSandboxIntegrationPackage(payload({ contract: contract(["health"]) })), refusedWith(/integration\.poll/u));
   const extra = contract(); extra.operations.push({ ...operation("health"), id: "integration.write" });
   assert.throws(() => readSandboxIntegrationPackage(payload({ contract: extra })), refusedWith(/integration\.write/u));

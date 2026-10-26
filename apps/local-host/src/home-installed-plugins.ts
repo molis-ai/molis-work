@@ -5,9 +5,9 @@
  * secrets and the prompt registrations sit under one Home key, a package's calls are the Home's (`project_id` is null, so an action
  * of a project is out of its reach), and the plugins it runs are listed among the personal plugins every project reaches.
  */
-import { pluginErrors } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { pluginErrors, type PluginContribution, type PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects, SandboxIdentity } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import type { SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
+import type { CallConnectionsPort, SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
 import { installedDefinitions } from './installed-plugin-definition.js';
 import { installedPluginExposure } from './installed-plugin-exposure.js';
 import { PUBLISHER_REVOKED_MESSAGE, publisherStanding, publisherStops } from './installed-publisher-standing.js';
@@ -23,11 +23,18 @@ import { pluginSecrets } from './plugin-builder/secrets.js';
 import { studioStorage } from './plugin-builder/storage.js';
 import type { PluginPlatform } from './plugin-platform.js';
 import { SandboxPackageStore } from './sandbox-package-store.js';
+import { sandboxedIntegrationDefinition } from './sandbox-integration.js';
 
 /** What the Home's installs are kept under where a project's id would go: the approval, the secrets and the prompt registrations. Not a project's id. */
 export const HOME_INSTALL_SCOPE = '~home';
 
 export type HomeInstalledPlatform = InstalledPluginPlatform & Pick<PluginPlatform, 'router'>;
+
+/** The Home's integration registry, as an installed integration package reaches it (BL-530): its ids held while it runs, let go when it stops. */
+export interface HomeIntegrationsPort {
+  attach(manifest: PluginManifest, contribution: () => PluginContribution | null, live: () => boolean): Promise<void>;
+  detach(pluginId: string): void;
+}
 
 export interface HomeInstalledPluginsOptions {
   home: string; actorId: string;
@@ -39,6 +46,8 @@ export interface HomeInstalledPluginsOptions {
   platform: HomeInstalledPlatform;
   /** The Home host has closed. */
   closed(): boolean;
+  /** Where an integration package's sources are bound, and the Host's side of each pull's own connection (S-94). Without them an integration package does not start. */
+  integrations?: { registry(): Promise<HomeIntegrationsPort>; connections: CallConnectionsPort };
 }
 
 export type HomeInstalledPlugins = Awaited<ReturnType<typeof openHomeInstalledPlugins>>;
@@ -102,10 +111,28 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
   const capabilityFor = (live: (identity: Readonly<SandboxIdentity>) => boolean) => catalogCapabilities({ actions, catalog, live, author: pluginId => releaseFor(pluginId)?.design.title,
     declaration: identity => sandboxDeclaration(identity, noBuilds, release => manifestOf(release), { recordFor, releaseFor }),
     granted: identity => sandboxGrants(identity, noBuilds, { recordFor, releaseFor, approvedFor }) });
-  const { definition, manifestOf, forget: forgetDefinitions } = installedDefinitions({ catalog, capabilityFor, network, assertInstalled, earlier: () => [] });
-  const withdraw = (pluginId: string) => { exposed.get(pluginId)?.dispose(); exposed.delete(pluginId); exposureRevision++; };
-  const expose = installedPluginExposure({ actions, platform, exposed, recoveryErrors, recordFor, closed: isClosed, withdraw, homeDirectory: home, actorId: options.actorId,
+  const integrations = options.integrations;
+  const { definition, manifestOf, forget: forgetDefinitions } = installedDefinitions({ catalog, capabilityFor, network, assertInstalled, earlier: () => [],
+    ...integrations ? { integration: (release, approved, assertLive) => sandboxedIntegrationDefinition(release, approved, { connections: integrations.connections, assertLive }) } : {} });
+  // An integration package offers no actions and no page: what it gives is its sources, held in the Home's registry while it runs (BL-530).
+  const attached = new Set<string>();
+  const detach = (pluginId: string) => {
+    if (!attached.delete(pluginId)) return;
+    void integrations!.registry().then(registry => registry.detach(pluginId), () => undefined);
+  };
+  const withdraw = (pluginId: string) => { exposed.get(pluginId)?.dispose(); exposed.delete(pluginId); exposureRevision++; detach(pluginId); };
+  const exposeActions = installedPluginExposure({ actions, platform, exposed, recoveryErrors, recordFor, closed: isClosed, withdraw, homeDirectory: home, actorId: options.actorId,
     changed: () => { exposureRevision++; }, catalog });
+  const expose = async (release: InstalledRelease, onFailure?: 'caller') => {
+    if (release.packaged?.manifest.kind !== 'integration') return exposeActions(release, onFailure);
+    const pluginId = release.pluginId, installId = recordFor(pluginId)?.install_id;
+    if (!integrations) throw pluginErrors.home_scope_unavailable('这个 Home 没有集成登记，装不了集成包');
+    const live = () => { const now = recordFor(pluginId); return !isClosed() && now?.install_id === installId && now?.state === 'running'; };
+    if (!live()) throw new Error('原插件安装或启用状态已变化，不能登记它的集成');
+    attached.add(pluginId);
+    try { await (await integrations.registry()).attach(release.packaged.manifest, () => platform.supervisor.contribution(pluginId), live); }
+    catch (error) { attached.delete(pluginId); throw error; }
+  };
   const promptScope = (installId: string) => JSON.stringify([null, HOME_INSTALL_SCOPE, installId]);
   const registerPrompts = (release: InstalledRelease, state: 'enabled' | 'disabled') =>
     registerGeneratedPrompts(home, generatedRegistration(release, [release], state, installedVersion(release)), promptScope(recordFor(release.pluginId)!.install_id));
@@ -113,7 +140,7 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
   const lifecycle = installedLifecycle({ platform, storage, privateStorage: options.privateStorage, secrets, recoveryErrors, closed: isClosed, trusted: standing.trusted, recordFor, releaseFor, approvedFor,
     definition, expose, withdraw, registerPrompts,
     forget(pluginId, installId) { unregisterGeneratedPrompts(home, pluginId, promptScope(installId)); forgetDefinitions(pluginId); } });
-  const close = () => { closed = true; for (const id of [...exposed.keys()]) withdraw(id); };
+  const close = () => { closed = true; for (const id of [...exposed.keys(), ...attached]) withdraw(id); };
 
   try {
     // One package that cannot start leaves its reason with its installation and starts nothing else less: the built-in plugins and the other packages go on.
@@ -141,8 +168,8 @@ export async function openHomeInstalledPlugins(options: HomeInstalledPluginsOpti
       assertHomePackageAllowed(release.packaged!.manifest);
       return lifecycle('install', release, input);
     },
-    /** The packages that run now, by plugin id: personal plugins every project reaches unless it hides them (#679). */
-    running: (): string[] => records().filter(item => item.state === 'running' && !recoveryErrors.has(item.plugin_id) && standing.trusted(item)).map(item => item.plugin_id),
+    /** The packages that run now, by plugin id: personal plugins every project reaches unless it hides them (#679). An integration package is not one: it offers sources, no actions (BL-530). */
+    running: (): string[] => records().filter(item => item.state === 'running' && !recoveryErrors.has(item.plugin_id) && standing.trusted(item) && !attached.has(item.plugin_id)).map(item => item.plugin_id),
     refreshPublicActions: async () => { await stops.reconcile(); if (exposed.size) await catalog(); },
     /** Stops the installations whose publisher the person took back since this last looked, their data kept. */
     reconcilePublishers: stops.reconcile,

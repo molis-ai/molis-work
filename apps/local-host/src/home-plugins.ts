@@ -23,6 +23,8 @@ import { HOST_PLUGIN_IDS } from "./host-plugin-ids.js";
 import type { PluginPlatform } from "./plugin-platform.js";
 import { bindHomeRegistration } from "./home-registration.js";
 import { hostReservedRuleKeys } from "./scene-rule-admission.js";
+import { homeIntegrationRegistry } from "./builtin-integrations.js";
+import { createCallConnectionsPort } from "./connector-plugin-requests.js";
 
 export interface HomePluginEntry {
   readonly scope: "home";
@@ -236,6 +238,8 @@ export class HomePluginHost {
     // The way to start one is not on the platform this method returns: only a sandboxed definition under a pinned publisher goes through it (S-80).
     this.installed = await openHomeInstalledPlugins({ home: this.options.home, actorId: this.options.actorId, actions: { registry: this.options.registry, client: this.options.client, ...this.options.inspect ? { inspect: this.options.inspect } : {} },
       db, privateStorage: storage, closed: () => this.closed,
+      // An integration package's sources go to the Home's one registry, the one every project's Feed binds through (BL-530).
+      integrations: { registry: () => homeIntegrationRegistry(this.options.home), connections: createCallConnectionsPort(this.options.home) },
       platform: { runtime, supervisor, router: platform.router, consents: ledger, upgrade: platform.upgrade, rollback: (pluginId, definition) => supervisor.rollback(pluginId, definition),
         start: async started => {
           const listed = new Set<string>();

@@ -41,7 +41,7 @@ test("RAC-387 S-84 a package with no signature is refused at the preview with pl
   try {
     const { files, manifest } = packageFiles(newPublisher().identity);
     const unsigned: PluginPackageBundle = { payload: payloadOf(manifest, files), signature: null, publisher_key: null };
-    assert.throws(() => h.service.preview({ bundle: unsigned }, who), refused("plugin.signature_invalid"));
+    await assert.rejects(h.service.preview({ bundle: unsigned }, who), refused("plugin.signature_invalid"));
     h.nothingWritten();
   } finally { await h.done(); }
 });
@@ -52,11 +52,11 @@ test("RAC-382 S-84 a package altered after it was signed is refused with plugin.
     const publisher = newPublisher(), bundle = signedPackage(publisher);
     const altered = structuredClone(bundle);
     altered.payload.files = altered.payload.files.map(file => file.path === "plugin.mjs" ? { ...file, content_base64: Buffer.from("export const operations = {};\n").toString("base64") } : file);
-    assert.throws(() => h.service.preview({ bundle: altered }, who), refused("plugin.signature_invalid"));
+    await assert.rejects(h.service.preview({ bundle: altered }, who), refused("plugin.signature_invalid"));
     const other = newPublisher();
-    assert.throws(() => h.service.preview({ bundle: { ...bundle, publisher_key: { algorithm: "ed25519", spki_base64: other.signer.public_key_spki_base64 } } }, who), refused("plugin.signer_mismatch"));
+    await assert.rejects(h.service.preview({ bundle: { ...bundle, publisher_key: { algorithm: "ed25519", spki_base64: other.signer.public_key_spki_base64 } } }, who), refused("plugin.signer_mismatch"));
     h.nothingWritten();
-    assert.equal(h.service.preview({ bundle }, who).preview.plugin_id, PACKAGE_PLUGIN_ID, "the unaltered package previews");
+    assert.equal((await h.service.preview({ bundle }, who)).preview.plugin_id, PACKAGE_PLUGIN_ID, "the unaltered package previews");
   } finally { await h.done(); }
 });
 
@@ -83,7 +83,7 @@ test("RAC-383 S-84 a package that verifies but is not in the sandbox package for
     const h = await harness();
     try {
       const bundle = signedPackage(newPublisher(), change);
-      assert.throws(() => h.service.preview({ bundle }, who), refused("plugin.declaration_invalid"), name);
+      await assert.rejects(h.service.preview({ bundle }, who), refused("plugin.declaration_invalid"), name);
       h.nothingWritten();
     } finally { await h.done(); }
   }
@@ -93,24 +93,24 @@ test("RAC-382 S-84 a publisher the person has not pinned is pinned only when the
   const h = await harness();
   try {
     const publisher = newPublisher(), bundle = signedPackage(publisher);
-    const preview = h.service.preview({ bundle }, who);
+    const preview = await h.service.preview({ bundle }, who);
     assert.deepEqual([preview.preview.publisher_pinned, preview.publisher.pinned_label, preview.preview.trust], [false, null, "pinned"]);
     await assert.rejects(h.service.confirm({ preview_id: preview.preview_id, consent: true }, who), refused("plugin.publisher_untrusted"));
     h.nothingWritten();
     await assert.rejects(h.service.confirm({ preview_id: preview.preview_id, consent: true, pin_label: "Example" }, who), refused("plugin.preview_unknown"), "the preview was used up");
 
-    const again = h.service.preview({ bundle }, who);
+    const again = await h.service.preview({ bundle }, who);
     await assert.rejects(h.service.confirm({ preview_id: again.preview_id, consent: false, pin_label: "Example" }, who), refused("plugin.consent_required"));
     h.nothingWritten();
-    const third = h.service.preview({ bundle }, who);
+    const third = await h.service.preview({ bundle }, who);
     await assert.rejects(h.service.confirm({ preview_id: third.preview_id, consent: true, pin_label: "Example" }, { ...who, project_id: "another-project" }), refused("plugin.preview_unknown"), "a preview belongs to its project");
 
-    const fourth = h.service.preview({ bundle }, who);
+    const fourth = await h.service.preview({ bundle }, who);
     assert.deepEqual(await h.service.confirm({ preview_id: fourth.preview_id, consent: true, pin_label: "Example" }, who), { plugin_id: PACKAGE_PLUGIN_ID, version: "1.0.0", publisher_key_id: publisher.identity });
     assert.deepEqual(h.ledger.publishers().map(pin => [pin.key_id, pin.label, pin.pinned_by, pin.revoked_at]), [[publisher.identity, "Example", LOCAL_PERSON_ACTOR_ID, null]]);
     assert.deepEqual(h.installed, [{ project: who.project_id, plugin: PACKAGE_PLUGIN_ID, trust: { level: "pinned", publisher_key_id: publisher.identity } }]);
 
-    const pinned = h.service.preview({ bundle: signedPackage(publisher, undefined, { version: "1.1.0" }) }, who);
+    const pinned = await h.service.preview({ bundle: signedPackage(publisher, undefined, { version: "1.1.0" }) }, who);
     assert.deepEqual([pinned.preview.publisher_pinned, pinned.publisher.pinned_label], [true, "Example"], "a pinned publisher's next package needs no pinning");
     await h.service.confirm({ preview_id: pinned.preview_id, consent: true }, who);
     assert.equal(h.installed.length, 2);
@@ -124,11 +124,11 @@ test("RAC-382 S-84 a publisher whose pin was revoked is refused at the preview a
     publishers: () => memory.publishers().map(pin => revoked ? { ...pin, revoked_at: AT } : pin) }));
   try {
     const publisher = newPublisher(), bundle = signedPackage(publisher);
-    const first = h.service.preview({ bundle }, who);
+    const first = await h.service.preview({ bundle }, who);
     await h.service.confirm({ preview_id: first.preview_id, consent: true, pin_label: "Example" }, who);
-    const waiting = h.service.preview({ bundle: signedPackage(publisher, undefined, { version: "1.1.0" }) }, who);
+    const waiting = await h.service.preview({ bundle: signedPackage(publisher, undefined, { version: "1.1.0" }) }, who);
     revoked = true;
-    assert.throws(() => h.service.preview({ bundle }, who), refused("plugin.publisher_revoked"));
+    await assert.rejects(h.service.preview({ bundle }, who), refused("plugin.publisher_revoked"));
     await assert.rejects(h.service.confirm({ preview_id: waiting.preview_id, consent: true }, who), refused("plugin.publisher_revoked"), "a preview made before the revocation");
     assert.equal(h.installed.length, 1);
   } finally { await h.done(); }
@@ -165,9 +165,9 @@ test("RAC-961 RAC-962 S-80 S-84 a package that asks for the Home previews as hom
   const h = await harness();
   try {
     const home = (change?: (files: PackageFiles, manifest: PluginManifest) => void) => signedPackage(newPublisher(), (files, manifest) => { manifest.runtime = { scope: "home" }; change?.(files, manifest); });
-    const preview = h.service.preview({ bundle: home() }, who);
+    const preview = await h.service.preview({ bundle: home() }, who);
     assert.equal(preview.runtime_scope, "home");
-    assert.equal(h.service.preview({ bundle: signedPackage(newPublisher()) }, who).runtime_scope, "project", "a package that says nothing is the project's");
+    assert.equal((await h.service.preview({ bundle: signedPackage(newPublisher()) }, who)).runtime_scope, "project", "a package that says nothing is the project's");
     await h.service.confirm({ preview_id: preview.preview_id, consent: true, pin_label: "Example" }, who);
     assert.deepEqual(h.installed.map(item => item.project), ["~home"], "the Home, not the project the person was in");
 
@@ -187,11 +187,11 @@ test("RAC-961 S-80 a plugin id keeps the range its first kept package gave it: t
   try {
     const publisher = newPublisher();
     const project = signedPackage(publisher), inHome = signedPackage(publisher, (_files, manifest) => { manifest.runtime = { scope: "home" }; }, { version: "1.1.0" });
-    const first = h.service.preview({ bundle: project }, who);
+    const first = await h.service.preview({ bundle: project }, who);
     // A second preview of the other range is made while nothing is kept yet: it stands until the first one is confirmed.
-    const waiting = h.service.preview({ bundle: inHome }, who);
+    const waiting = await h.service.preview({ bundle: inHome }, who);
     await h.service.confirm({ preview_id: first.preview_id, consent: true, pin_label: "Example" }, who);
-    assert.throws(() => h.service.preview({ bundle: inHome }, who), refused("plugin.declaration_invalid"), "now that a project package is kept under the id");
+    await assert.rejects(h.service.preview({ bundle: inHome }, who), refused("plugin.declaration_invalid"), "now that a project package is kept under the id");
     await assert.rejects(h.service.confirm({ preview_id: waiting.preview_id, consent: true }, who), refused("plugin.preview_unknown"), "the preview made before it");
     assert.deepEqual(h.installed.map(item => item.project), [who.project_id], "only the project install happened");
   } finally { await h.done(); }
@@ -200,7 +200,7 @@ test("RAC-961 S-80 a plugin id keeps the range its first kept package gave it: t
 test("S-84 a kept package is read back with the checks it was installed with: its signature, its code, the installation it belongs to", async () => {
   const h = await harness();
   try {
-    const publisher = newPublisher(), preview = h.service.preview({ bundle: signedPackage(publisher) }, who);
+    const publisher = newPublisher(), preview = await h.service.preview({ bundle: signedPackage(publisher) }, who);
     await h.service.confirm({ preview_id: preview.preview_id, consent: true, pin_label: "Example" }, who);
     const store = new SandboxPackageStore(h.home), key = [PACKAGE_PLUGIN_ID, publisher.identity, "1.0.0"] as const;
     assert.deepEqual([store.load(...key).pluginId, store.load(...key).packaged?.trust], [PACKAGE_PLUGIN_ID, { level: "pinned", publisher_key_id: publisher.identity }]);

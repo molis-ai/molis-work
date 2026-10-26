@@ -7,12 +7,15 @@
  * built-in. A pull that does not fit is refused whole: nothing of it reaches the Feed.
  */
 import { defineErrorCodes } from '@molis-ai/molis-work-contracts/platform/actions';
-import type { IntegrationProviderItem, IntegrationProviderPort, IntegrationProviderSyncResult, PluginIntegrationContribution, PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
+import type { IntegrationProviderItem, IntegrationProviderPort, IntegrationProviderSyncResult, PluginDefinition, PluginIntegrationContribution, PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { PluginConnectionsClient } from '@molis-ai/molis-work-contracts/platform/plugin-connections';
 import type { IntegrationAccountPresentation, IntegrationBinding } from '@molis-ai/molis-work-contracts/platform/plugin-integrations';
-import { SANDBOX_INTEGRATION_LIMITS, SANDBOX_INTEGRATION_OPERATIONS, type SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import type { SandboxCallControl } from '@molis-ai/molis-work-plugin-sandbox';
+import { SANDBOX_INTEGRATION_LIMITS, SANDBOX_INTEGRATION_OPERATIONS, SANDBOX_INTEGRATION_SOURCE_SLOT, type SandboxEffects, type SandboxIdentity, type SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import { createCallConnectionsClient, type CallConnectionsPort } from '@molis-ai/molis-work-plugin-runtime';
+import { createSandboxRunner, sandboxServicesFor, type SandboxCallControl, type SandboxRunner } from '@molis-ai/molis-work-plugin-sandbox';
 import { pollingIntegrationBinding } from '@molis-ai/molis-work-plugin-sdk';
+import type { InstalledRelease } from './installed-release.js';
+import { GONE } from './plugin-builder/installed.js';
 
 export const sandboxIntegrationErrors = defineErrorCodes('host', { integration_pull_invalid: 'upstream', integration_source_invalid: 'invalid' });
 
@@ -65,6 +68,51 @@ export function sandboxIntegrationContribution(input: SandboxIntegrationProxyInp
       return pollingIntegrationBinding({ manifest: input.manifest, provider, ...(input.now ? { now: input.now } : {}),
         ...(answersAccount ? { presentAccount: (pulled: unknown) => typeof pulled === 'string' ? accounts.get(pulled) ?? null : null } : {}) });
     },
+  };
+}
+
+/**
+ * The definition the Home's sandbox instance starts for an installed integration package: its code in a sandboxed process (started
+ * again after the process is gone), the proxy above as what it contributes, and each call's connection through the Host's port (S-94).
+ * Every call and every request first checks that the installation is still the running one.
+ */
+export function sandboxedIntegrationDefinition(release: InstalledRelease, approved: SandboxEffects,
+  host: { connections: CallConnectionsPort; assertLive(identity: Readonly<SandboxIdentity>): void }): PluginDefinition {
+  const manifest = release.packaged!.manifest, contract = release.design.contract;
+  const integration = manifest.integrations![0]!, service = manifest.connection_services!.find(item => item.service_id === integration.service_id)!;
+  let runner: Promise<SandboxRunner> | undefined;
+  return {
+    manifest,
+    execution: 'sandbox',
+    async start(context) {
+      context.requireGrant('storage:private');
+      const services = sandboxServicesFor(context.services, {});
+      const identity: SandboxIdentity = { projectId: context.project_id ?? null, installationId: context.install_id, pluginId: release.pluginId, namespace: 'installed' };
+      const live = () => host.assertLive(identity);
+      const open = () => {
+        if (runner) return runner;
+        const created = runner = createSandboxRunner({ bundlePath: release.bundlePath, contract, grants: approved, services, identity });
+        created.catch(() => { if (runner === created) runner = undefined; });
+        return created;
+      };
+      // Code that cannot start fails the installation, not the first pull.
+      await open();
+      return sandboxIntegrationContribution({ manifest, operations: contract.operations.map(item => item.id),
+        async call(operationId, input, control) {
+          live();
+          const pending = open();
+          try { return await (await pending).call(operationId, input, { ...control, beforeEffect: live }); }
+          catch (error) {
+            // A dead process starts again at the next call; this one is not replayed.
+            if (GONE.has((error as { code?: string }).code ?? '') && runner === pending) runner = undefined;
+            throw error;
+          }
+        },
+        connections: (binding, signal) => createCallConnectionsClient(host.connections,
+          { plugin_id: release.pluginId, service_id: service.service_id, connection_id: binding.connection_id, ...(service.origins ? { origins: service.origins } : {}) },
+          SANDBOX_INTEGRATION_SOURCE_SLOT, { signal, beforeEffect: async () => live() }) });
+    },
+    async stop() { const current = runner; runner = undefined; await current?.then(item => item.stop(), () => undefined); },
   };
 }
 

@@ -13,7 +13,7 @@ import type { PluginInstalledView, PluginInstallPreview, PluginPublisherPin } fr
 import { declarationsNeedingConsent, verifyPluginPackageSignature, type PluginConsentLedger } from '@molis-ai/molis-work-plugin-runtime';
 import type { InstalledRelease } from './installed-release.js';
 import { consentsChanged } from './consent-revision.js';
-import { readSandboxPackage, type SandboxPackage } from './sandbox-package.js';
+import { readKeptSandboxPackage, type KeptSandboxPackage } from './sandbox-package.js';
 import { packagedRelease, type SandboxPackageStore } from './sandbox-package-store.js';
 import { assertHomePackageAllowed } from './home-package-admission.js';
 import { installedPluginViews, jobViews, permissionViews, type InstalledPluginEntry } from './plugin-installed-view.js';
@@ -29,6 +29,11 @@ export interface PluginInstallPorts {
   installInProject(projectId: string, release: InstalledRelease): Promise<void>;
   /** Installs a release in the Home: one instance every project shares, which a package asks for in its Manifest (`runtime.scope`, BL-628). */
   installInHome(release: InstalledRelease): Promise<void>;
+  /**
+   * Refuses an integration package (BL-530) whose plugin id, services or integrations the Home's registry already has from another,
+   * built-in or installed (`plugin.integration_declaration_conflict`, naming the id and its holder).
+   */
+  assertIntegrationsFree?(manifest: KeptSandboxPackage['manifest']): Promise<void>;
   /** The plugins installed in the project, each with the Manifest it was installed with. */
   installed(projectId: string): Promise<InstalledPluginEntry[]>;
   now?(): string;
@@ -43,11 +48,16 @@ export interface PluginInstallPreviewResult {
   /** What the plugin's operations ask for in all: confirming approves exactly this. */
   effects: SandboxEffects;
   publisher: { key_id: string; pinned_label: string | null };
+  /**
+   * Only an integration package's: the exact origins its requests with the person's account may reach, per service it declared them for
+   * (S-94, BL-691). They are part of the signed package, so they stay what the person saw: another set comes only with another package and its own preview.
+   */
+  origins?: Array<{ service_id: string; title: string; origins: string[] }>;
 }
 
-interface Held { bundle: PluginPackageBundle; pkg: SandboxPackage; runtime_scope: 'home' | 'project'; key_id: string; spki: string; project_id: string; actor_id: string; expires: number }
+interface Held { bundle: PluginPackageBundle; pkg: KeptSandboxPackage; runtime_scope: 'home' | 'project'; key_id: string; spki: string; project_id: string; actor_id: string; expires: number }
 
-const scopeOf = (manifest: SandboxPackage['manifest']): 'home' | 'project' => manifest.runtime?.scope === 'home' ? 'home' : 'project';
+const scopeOf = (manifest: KeptSandboxPackage['manifest']): 'home' | 'project' => manifest.runtime?.scope === 'home' ? 'home' : 'project';
 
 export class PluginInstallService {
   private readonly held = new Map<string, Held>();
@@ -58,25 +68,34 @@ export class PluginInstallService {
   private pinOf(keyId: string): PluginPublisherPin | undefined { return this.ports.ledger.publishers().find(pin => pin.key_id === keyId); }
 
   /** Checks a package and says what installing it means. Writes nothing durable: the preview is held in memory for the confirmation. */
-  preview(input: { bundle: unknown }, who: { project_id: string; actor_id: string }): PluginInstallPreviewResult {
+  async preview(input: { bundle: unknown }, who: { project_id: string; actor_id: string }): Promise<PluginInstallPreviewResult> {
     const { bundle, key_id, public_key_spki_base64 } = verifyPluginPackageSignature(input.bundle);
-    const pkg = readSandboxPackage(bundle.payload);
+    const pkg = readKeptSandboxPackage(bundle.payload);
     const pin = this.pinOf(key_id);
     if (pin?.revoked_at) throw pluginErrors.publisher_revoked('这个发布者的固定已被撤销，它的包不能再安装');
     const { manifest } = pkg, runtime_scope = scopeOf(manifest);
     if (runtime_scope === 'home') assertHomePackageAllowed(manifest);
     this.assertScopeKept(manifest, message => pluginErrors.declaration_invalid(message));
+    await this.assertIntegrationsFree(manifest);
     for (const [id, entry] of this.held) if (entry.expires <= Date.now()) this.held.delete(id);
     if (this.held.size >= MAX_PREVIEWS) this.held.delete(this.held.keys().next().value as string);
     const preview_id = randomUUID();
     this.held.set(preview_id, { bundle, pkg, runtime_scope, key_id, spki: public_key_spki_base64, project_id: who.project_id, actor_id: who.actor_id, expires: Date.now() + PREVIEW_TTL_MS });
     return { preview_id, name: manifest.name, runtime_scope, effects: pkg.permissions, publisher: { key_id, pinned_label: pin?.label ?? null },
       preview: { plugin_id: manifest.plugin_id, version: manifest.version, trust: 'pinned', publisher_signature: manifest.publisher.signature, publisher_pinned: pin !== undefined,
-        permissions: permissionViews(manifest), declarations: declarationsNeedingConsent(manifest, () => undefined), jobs: jobViews(manifest) } };
+        permissions: permissionViews(manifest), declarations: declarationsNeedingConsent(manifest, () => undefined), jobs: jobViews(manifest) },
+      ...manifest.kind === 'integration' ? { origins: (manifest.connection_services ?? []).flatMap(service => service.origins
+        ? [{ service_id: service.service_id, title: service.title, origins: [...service.origins] }] : []) } : {} };
+  }
+
+  private async assertIntegrationsFree(manifest: KeptSandboxPackage['manifest']): Promise<void> {
+    if (manifest.kind !== 'integration') return;
+    if (!this.ports.assertIntegrationsFree) throw pluginErrors.home_scope_unavailable('这里装不了集成包：没有可登记它的 Home');
+    await this.ports.assertIntegrationsFree(manifest);
   }
 
   /** A plugin id keeps the range its first kept package gave it: a package of another range is refused rather than run where its Manifest never asked (BL-628). */
-  private assertScopeKept(manifest: SandboxPackage['manifest'], refuse: (message: string) => Error): void {
+  private assertScopeKept(manifest: KeptSandboxPackage['manifest'], refuse: (message: string) => Error): void {
     const kept = this.ports.packages.scopeOf(manifest.plugin_id), scope = scopeOf(manifest);
     if (kept !== undefined && kept !== scope) {
       throw refuse(`插件 ${manifest.plugin_id} 已经以「${kept === 'home' ? 'Home' : '项目'}」范围装过，它的范围不能更换：请给这个包换一个插件 ID`);
@@ -95,6 +114,8 @@ export class PluginInstallService {
     // The range the person saw is the range of the package: checked again, as another preview may have been confirmed since.
     if (scopeOf(held.pkg.manifest) !== held.runtime_scope) throw pluginErrors.preview_unknown('预览之后这个包的运行范围变了，请重新预览');
     this.assertScopeKept(held.pkg.manifest, message => pluginErrors.preview_unknown(message + '；请重新预览'));
+    // Another package may have taken one of its ids since the preview.
+    await this.assertIntegrationsFree(held.pkg.manifest);
     const pin = this.pinOf(held.key_id);
     if (pin?.revoked_at) throw pluginErrors.publisher_revoked('这个发布者的固定已被撤销，它的包不能再安装');
     if (!pin) {

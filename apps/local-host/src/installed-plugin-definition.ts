@@ -15,6 +15,8 @@ export interface InstalledDefinitionPorts {
   assertInstalled(identity: Readonly<SandboxIdentity>): void;
   /** The earlier versions of a studio release a later one is compatible with; none for a package. */
   earlier(release: InstalledRelease): readonly number[];
+  /** An integration package's definition (BL-530): only the Home's instance runs them, so only the Home gives this. */
+  integration?(release: InstalledRelease, approved: SandboxEffects, assertLive: (identity: Readonly<SandboxIdentity>) => void): PluginDefinition;
 }
 
 const keyOf = (release: InstalledRelease) => JSON.stringify([release.pluginId, release.buildId, release.version]);
@@ -30,6 +32,12 @@ export function installedDefinitions(ports: InstalledDefinitionPorts) {
       if (!covered(release.permissions, approved)) throw new Error('此版本的安装批准不足，请重新确认权限');
       const prior = definitions.get(keyOf(release));
       if (prior) return prior.value;
+      if (release.packaged?.manifest.kind === 'integration') {
+        if (!ports.integration) throw new Error('集成包只装进 Home');
+        const value = ports.integration(release, release.permissions, ports.assertInstalled);
+        definitions.set(keyOf(release), { pluginId: release.pluginId, value });
+        return value;
+      }
       const capability = ports.capabilityFor(() => true);
       const guard = <Context extends { identity: Readonly<SandboxIdentity>; signal: AbortSignal; beforeEffect?(): Promise<void> | void }>(context: Context): Context & { beforeEffect(): Promise<void> } => ({ ...context, beforeEffect: async () => {
         await context.beforeEffect?.(); context.signal.throwIfAborted(); ports.assertInstalled(context.identity);

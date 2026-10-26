@@ -1,4 +1,5 @@
 import type { ActionDefinition, ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
+import { homeIntegrationRegistry } from "./builtin-integrations.js";
 import { HomeConsentLedger } from "./home-plugin-store.js";
 import { installPackageInHome, installPackageInProject, installedPluginsInProject, type ProjectPluginHost } from "./project-plugin-ports.js";
 import { SandboxPackageStore } from "./sandbox-package-store.js";
@@ -15,5 +16,6 @@ export function pluginInstallProvider(service: PluginInstallService): ActionProv
 export function pluginInstallProviderFor(home: string, source: ProjectPluginHost): ActionProviderRegistration {
   return pluginInstallProvider(new PluginInstallService({ ledger: new HomeConsentLedger(home), packages: new SandboxPackageStore(home),
     installInProject: (projectId, release) => installPackageInProject(source, projectId, release), installInHome: release => installPackageInHome(source, release),
+    assertIntegrationsFree: async manifest => (await homeIntegrationRegistry(home)).assertFree(manifest),
     installed: projectId => installedPluginsInProject(source, projectId) }));
 }

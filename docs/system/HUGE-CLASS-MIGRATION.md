@@ -64,7 +64,7 @@
 | 7 | `plugins/native/goals` | 7 | 8 | 10 |  |
 | 8 | `packages/plugin-runtime` | 4 | 5 | 9 | W3-06、W4-02 之前或同一 PR 先拆被它们碰到的类 |
 | 9 | `plugins/native/feed` | 1 | 1 | 7 | 不依赖 Feed 迁 Runtime 的专项计划 |
-| 10 | `plugins/native/workflows` | 1 | 1 | 6 |  |
+| 10 | `plugins/native/workflows` | 0 | 0 | 6 | `createWorkflowsActionHandlers` 已拆完（233 → 107 行，运行逻辑在 `handoff.ts` 与 `step-runner.ts`）；上面的总数没有随之重算 |
 | 11 | `plugins/native/work` | 2 | 2 | 5 | SC-3 已把面板路由与终端面板搬出 Work 并拆完 |
 | 12 | `plugins/native/plugin-builder` | 2 | 2 | 5 | 创作台属构建期例外清单，不迁 Runtime，就地拆（2026-10-18 改：不算插件、并进平台能力，仍就地拆） |
 | 13 | `horizontal/listener-host` | 1 | 1 | 5 |  |
@@ -332,7 +332,6 @@ R-38 第 2 片的 Store 状态归属整理（PR #1273 FIRST 第 3 项，2026-10-
 | `todo` | `src/store.ts` | `TodoStore` 类 381 行 / 28 方法 | 已拆（W5-10） | 按层继承，导出名与构造参数不变：`store-base.ts` 的 `TodoStoreBase`（连接、读、插入/更新/记录/事务，12 个方法）← `store-writes.ts` 的 `TodoStoreWrites`（单件待办的创建、更新、移动、状态、归档、删除、关联、来源，12 个方法）← `store.ts` 的 `TodoStore`（到期提醒、确认、批量、撤销，4 个方法，约 90 行）。类型、行转换与校验、字段规范化分到 `store-types.ts`、`store-support.ts`、`store-normalize.ts`；`store.ts` 仍导出原来的类型与 `todoRequestKey`。搬出的 `as unknown as` 改成按行类型的 `itemRows`/`changeRows`，计数不增。 | 4 |
 | `work` | `src/actions.ts` | `createWorkActionHandlers` 函数 169 行 | 拆 · W5-10 | 只超 19 行。`createWorkActionHandlers` 返回的处理器表 143 行，每个动作一个处理函数；`workActions` 声明（57 行）不动。 | 2 |
 | `work` | `src/ui/render.ts` | `renderWorkSessionSurface` 函数 350 行 | 拆 · W5-10 | `renderWorkSessionSurface` 里 `renderSessionDetail`（85）、`renderOverlays`（81）、`renderSessionRow`（29）、`groupSessionRecords`（19）、`renderRuntimeFold`（15）各成模块。 | 0 |
-| `workflows` | `src/actions.ts` | `createWorkflowsActionHandlers` 函数 268 行 | 拆 · W5-10 | `createWorkflowsActionHandlers` 里 `prepareHandoff`（44）、`runActionStep`（28）、`readStep`（15）、`judge`（12）、`reachFor`、`resolveAction`（各 10）和 100 行的返回表；按步骤种类各成函数。 | 6 |
 | `workflows` | `src/client.ts` | 文件 1,387 行 | 归线 · §4.8 · W5-04 | 浏览器脚本模板（1,378/1,387 行）。 | 3 |
 
 ### 官方连接器 `plugins/official-integrations/*`

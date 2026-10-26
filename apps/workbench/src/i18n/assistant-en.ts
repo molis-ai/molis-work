@@ -678,6 +678,8 @@ export const ASSISTANT_EN: Record<string, string> = {
   "来自操作卡": "From an action card",
   "这一轮的结果需要核对": "This round's outcome needs checking",
   "{source}的建议": "Suggested by {source}",
+  "让助理回复{source}的评论": "Ask the Assistant to reply in {source}",
+  "助理读这篇内容和这条评论线程，回复写回原评论。": "The Assistant reads this content and this comment thread, and posts its reply in the thread.",
   "{source}想交给助理": "{source} wants to hand this over",
   "去处理：{title}": "Open: {title}",
   "等你确认的操作": "An action waiting for your review",

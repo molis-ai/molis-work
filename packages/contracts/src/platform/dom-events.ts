@@ -351,7 +351,7 @@ export const DOM_EVENTS = [
   {
     name: "molis:assistant-message", kind: "request", owner: "assistant", on: "window",
     detail: "AssistantPluginMessage (services/assistant); ASSISTANT_MESSAGE_EVENT",
-    summary: "A plugin page tells the Assistant something. What happens depends on message.purpose: background, change, suggest, delegate or reply.",
+    summary: "A plugin page tells the Assistant something. What happens depends on message.purpose: background, change, suggest, delegate or reply. A suggest with `thread` offers 「让助理回复」 for that comment thread; only the person's press there starts it, for the plugin whose frame sent it.",
   },
   {
     name: "molis:assistant-open", kind: "request", owner: "assistant", on: "document",

@@ -14,6 +14,7 @@
 - **Pages 新建动作升到 2**：`pages.create@2` 加入请求号重放与只在首次创建时返回的撤销版本，替换原来的严格返回合同。固定 `pages.create@1` 的工作流程、绑定和外部插件需重新发现并绑定当前动作；MCP 工具改为 `pages.create__v2`，不保留旧工具别名。HTTP `/pages` 路径不变。
 - **助理添加提醒规则动作升到 2**：`assistant.rules.add@2` 接受已安装插件的页面 id，每条规则最多指定 20 个页面。固定 `assistant.rules.add@1` 的动作引用须重新选择当前版本，旧版调用明确拒绝；现有规则、设置页 HTTP 接口和其他提醒动作的版本不变。
 - **插件页面读相关助理工作改调动作**（`ac-kernel/pg031-pg057`，PG-057）：隔离的插件页面不能再直接请求 `/api/assistant/related`（宿主返回 403），改调宿主动作 `assistant.works.related@1`（页面经 `invokeAction`），并在 Manifest 的 `capabilities.consumes` 里声明它。插件只能读自己 Manifest 读得回的对象：有对应的 subject reader，且这个 reader 要的权限已授予；读的是页面所在的项目。返回的只有工作的状态和结果链接，不含对话与材料。内置 Todo 已改；外部插件照此改。
+- **插件页面请助理回复评论改为交给助理面板**（`ac-kernel/pg031-pg057`，PG-057）：`AssistantPluginMessage`（`molis:assistant-message`）多了可选的 `thread: { thread_id, message_id, draft? }`，`source` 多了外壳从 frame 填的 `plugin_id`（页面自己写的会被覆盖）。插件页面不再请求 `/api/assistant/threads/*`（隔离页面里本来就被拒），而是发一条带 `thread` 的 `suggest`；助理面板画「让助理回复」，人点了才以本人调 `assistant.threads.start@1`，跟进、重试、停止都在助理面板里。`assistant.threads.*@1` 仍只给 `user` 受众。外部插件要请助理回复自己的评论线程，改发这条消息，并提供该对象的 subject reader。
 
 ### 变化
 

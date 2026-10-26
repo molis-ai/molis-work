@@ -242,19 +242,16 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// batch-40 (coordinator review 2026-10-25), each against main b3bac731b, both trees measured on the served asset:
-// - workbench.js +1,717 B: PG-070/071 (#1302, the user's 10-25 decision that plugin styles load on demand and each plugin's English
-//   ships with it): the loader that fetches a plugin's own stylesheet when its view first mounts, and stage summaries that carry
-//   each plugin's id so its own words apply. Tried in the same asset: R-55 rendered the connector slot picker's request path on the
-//   server and reused perform() with an undo, -111 B measured (1,129,577 -> 1,129,466, workbench-only rebuild over the same tree);
-//   the settings panel's stylesheet regex, escaped once more for its template string, nets -20 B (1,129,446).
-//   The same change takes 303,332 B out of workbench.css and 36,506 B out of settings.css (budgets lowered below).
-// - plugin-frame.js +54 B: a frame merges its own plugin's English under the page's (PG-071), the one expression that does it.
-// - plugins/coding.js +45 B: the shared diff classes are drawn as mw-diff-* (PG-070's frozen shared prefix), 15 selectors x 3 B.
+// ac-kernel/pg031-pg057 (PG-057 threads, option A approved by the coordinator 2026-10-25; ceilings pending its review of the head),
+// against main 2b3dc51de, both measured on the served asset:
+// - workbench.js +225 B net: the Assistant draws 「让助理回复」 for a page's comment thread and starts the reply as the person
+//   (`ASSISTANT_THREAD_REPLY_SCRIPT`: the thread check and the start call, ~1.3 KB). Won back in the same asset by the same branch:
+//   the computer tab hands its record to the Host instead of driving Shelf's routes (-1,122 B); dropping the in-script comments and
+//   the spread forms saves 48 B more. The batch-40 entries were spent (their merge-base bytes no longer match) and are removed.
+// - plugin-frame.js +22 B: the frame bridge writes the frame's plugin id into a hand-over's source (`plugin_id: pack.plugin_id`).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1127729, 1129446],
-  "/assets/molis-work-plugin-frame.js": [190143, 190197],
-  "/assets/molis-work-plugins/coding.js": [289017, 289062],
+  "/assets/molis-work-workbench.js": [1129446, 1129671],
+  "/assets/molis-work-plugin-frame.js": [190197, 190219],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

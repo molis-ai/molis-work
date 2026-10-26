@@ -445,7 +445,15 @@ test("S-21 no answer of the host can be shown in another origin's frame: every r
     assert.equal(answer.headers["x-frame-options"], "SAMEORIGIN", `${method} ${path} (${answer.status}) can be framed by another site`);
     if (String(answer.headers["content-type"] ?? "").startsWith("text/html") && answer.headers["content-security-policy"]) {
       pages++;
-      assert.match(String(answer.headers["content-security-policy"]), /(?:^|;\s*)frame-ancestors 'self'(?:;|$)/, `${method} ${path}: the page's policy lets another site frame it`);
+      const policy = String(answer.headers["content-security-policy"]);
+      assert.match(policy, /(?:^|;\s*)frame-ancestors 'self'(?:;|$)/, `${method} ${path}: the page's policy lets another site frame it`);
+      // FRAME-WEBKIT-01: WebKit does not match 'self' inside a sandboxed srcdoc plugin frame, so the page also names its own origin.
+      if (policy.includes("script-src 'self'") && !headers.host) {
+        const origin = `http://127.0.0.1:${host.port}`.replaceAll(".", "\\.");
+        assert.match(policy, new RegExp(`script-src 'self' ${origin}`), `${method} ${path}: plugin frame scripts stay blocked in WebKit`);
+        assert.match(policy, new RegExp(`style-src 'self' ${origin}`), `${method} ${path}: plugin frame styles stay blocked in WebKit`);
+        assert.match(policy, new RegExp(`font-src 'self' ${origin}`), `${method} ${path}: plugin frame fonts stay blocked in WebKit`);
+      }
     }
   }
   assert.ok(pages >= 2, `the sweep looked at pages with a policy (${pages})`);

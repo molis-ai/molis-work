@@ -1425,3 +1425,5 @@ f9e5b4fb 的普通 CI 40251451657 在 Package boundaries（job 121344061019）�
 资源只读报告独立对照 29f 的实际预算：48 项中仅 Workbench 1,139,387→1,142,580（+3193）、Coding 289,062→289,674（+612），其余相同。先记录合成提交使准确 main 成为祖先，再用原 updater 和 `--base 29f1ffd4` 迁移实测预算并完成门禁；当前不把尚未执行的准确门记作通过。
 
 额外临时测试源码 strict/noEmit 实验未通过，保留两次原日志：初版遗漏 JS 输入和当前 Node API 的 lib；按实际 JS/ES2024 输入修正临时配置后仍有 27 个诊断，位于动作快照 JS 推断、既有动作夹具的结构/负向输入等。未修改仓库 tsconfig、降低 strict 或放宽运行断言，也不宣称该额外检查通过；上述生产项目类型与原运行测试是分别执行的事实，不作相互替代。日志前缀 `/private/tmp/molis-memory-foundation-batch41-`（install/build/focused/agent-types/test-kit-types/api/actions/assets-report/test-types/test-types-v2，20261026）。
+
+合成提交为 `d92f2f918e2112d09de48fb1953ea96015915c1d`。其后原资源 updater/准确 29f 资源检查、`workspace:verify`、准确 29f health 均通过；按原 health 工具只降低本地快查，未改变检查逻辑或阈值。`git fetch origin main` 仍为 29f。后续推送新提交沿原 CI/Full 配置验证，不恢复用户暂缓的 21db 那轮；截至本记录，尚无新头远端通过证据。

@@ -228,10 +228,11 @@ test("S-03 a refused mutation does not use up its key; a replayed one and a seco
 
 test("S-03 a mutation outside /api/ and /projects/<id>/api/ is refused even with a complete set of credentials", { timeout: 60_000 }, async t => {
   const host = await startHost(t);
+  const body = "{}";
   for (const method of ["POST", "PUT", "PATCH", "DELETE"]) {
     for (const path of ["/", "/settings", "/settings/planning", "/onboarding", "/plugins/io.molis.work.generated.00000000-0000-0000-0000-000000000000", "/side/files/x", "/projects/p1", "/projects/p1/settings",
       "/projects/p1/apix", "/health", "/assets/workbench.js", "/desktop/capsule", "/capabilities/rules"]) {
-      const answer = await send(host, method, path, good(host), "{}");
+      const answer = await send(host, method, path, good(host, { "content-length": String(Buffer.byteLength(body)) }), body);
       assert.equal(answer.status, 403, `${method} ${path} answered ${answer.status}: ${answer.body}`);
       assertRefusedBody(answer, `${method} ${path}`);
     }

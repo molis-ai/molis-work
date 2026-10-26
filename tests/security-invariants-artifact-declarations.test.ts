@@ -228,7 +228,7 @@ test("RAC-415 a built-in Plugin that is not in effect declares nothing, and Goal
   // Goals' declarations (its link kinds, its actions) with the pages and routes it serves left out, so a bare start redeems all it declares.
   // Goals is the Host's own build, so it starts under Host trust, as the Host starts it.
   const manifest = { ...structuredClone(goalsManifest), ui: { contributions: [], views: [] }, routes: [] } as typeof goalsManifest;
-  const report = await p.supervisor.start([entry({ manifest, async start() { return { kind: "app", views: [], actions: (manifest.actions ?? []).map(action => ({ ...action, async handle() { return {}; } })) }; } } as PluginDefinition, { level: "host" })]);
+  const report = await p.platform.start([entry({ manifest, async start() { return { kind: "app", views: [], actions: (manifest.actions ?? []).map(action => ({ ...action, async handle() { return {}; } })) }; } } as PluginDefinition, { level: "host" })]);
   assert.deepEqual(report.failed, []);
   assert.equal(artifactLinkKinds().has("goal.input"), true);
   p.supervisor.revoke(goalsManifest.plugin_id);

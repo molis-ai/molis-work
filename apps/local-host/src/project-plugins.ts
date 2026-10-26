@@ -122,8 +122,9 @@ export async function ensureProjectPlugins(ports: ProjectPluginPorts): Promise<P
 async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginState> {
   const record: ProjectPluginState = { platform: null };
   try {
-    // A Host with no Home has nowhere to keep a Home library, so a plugin that declares one (Goals) is not on its list; the rest start as they would.
-    const entries = projectPluginEntries(ports).filter(entry => ports.homeDirectory !== undefined || !entry.definition.manifest.databases?.home);
+    // Scope and trust belong to the complete declaration list, before either library refusals or absent Home services filter it.
+    const scoped = projectScopeEntries([...projectPluginEntries(ports), ...projectFixtureEntries(ports.homeDirectory)], ports.homeDirectory);
+    const entries = scoped.filter(entry => ports.homeDirectory !== undefined || !entry.definition.manifest.databases?.home || entry.dual_instance);
     record.plugins = entries.map(entry => entry.definition.manifest.plugin_id);
     const storage = new SqlitePluginPrivateStorage(ports.store.db);
     const platform = createPluginPlatform({ scheduler: scheduleServiceFor(ports.store.db),
@@ -150,8 +151,7 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
     record.updateObservers();
     const enabled = await projectPluginEnablement(ports.homeDirectory, ports.projectId);
     // Validate the declared halves before a per-project database refusal removes one from this start attempt.
-    const scoped = projectScopeEntries([...entries, ...projectFixtureEntries(ports.homeDirectory)], ports.homeDirectory);
-    await platform.start(withoutRefusedPlugins(ports.store.db, scoped, entry => entry.definition.manifest.plugin_id)
+    await platform.start(withoutRefusedPlugins(ports.store.db, entries, entry => entry.definition.manifest.plugin_id)
       .map(entry => ({ ...entry, enabled: enabled?.get(entry.definition.manifest.plugin_id) ?? true })));
     record.refreshEnablement = projectPluginEnablementRefresh(platform, ports.homeDirectory, ports.projectId);
     record.reconciledAt = consentRevision();
@@ -170,12 +170,12 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
 
 /**
  * The built-in plugins every project's Runtime runs, before fixtures and refusals: each registration's `project_runtime` (PG-067),
- * the ones whose library is in the Home only where there is one, then Files, the one factory that takes a port from the Host
+ * then Files, the one factory that takes a port from the Host
  * (BL-616). Independent companions start together so their Artifact inputs and outputs can connect; browsing roots come from
  * current-project settings capabilities.
  */
 function projectPluginEntries(ports: ProjectPluginPorts): PluginPlatformEntry[] {
-  const declared = projectRuntimeDeclarations().filter(entry => ports.homeDirectory || !entry.home_library).map(entry => ({
+  const declared = projectRuntimeDeclarations().map(entry => ({
     definition: entry.create(), trust: HOST_BUILD_TRUST,
     releaseArtifact: nativePluginReleaseArtifact<() => PluginDefinition>(entry.package_name, entry.factory_export, factory => factory()),
   }));

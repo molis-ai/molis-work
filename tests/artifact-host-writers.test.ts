@@ -12,7 +12,7 @@ const root = dirname(dirname(fileURLToPath(import.meta.url)));
 /** Why each Host file may still register a version. Feed's goes when Feed runs on the Plugin Runtime (feed-inbox-runtime FI-6). */
 const HOST_WRITERS: Readonly<Record<string, string>> = {
   "apps/local-host/src/characters-host.ts": "Characters is a Host producer, not a plugin (PG-085)",
-  "apps/local-host/src/demo-plugin-seed.ts": "seeds the demo project",
+  "apps/local-host/src/demo-deliverable.ts": "seeds the demo project",
   "apps/local-host/src/feed-application.ts": "Feed's capture rules; closes with FI-6 (PG-080)",
   "apps/local-host/src/project-version-stores.ts": "the restore from a work-assets bundle (S-81)",
   "server/tooling/continuity-demo.mts": "a demo script",

@@ -7,7 +7,7 @@ import { request } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { LocalProjectDatabase, createLocalFeedSourceService, seedDemoBoard, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, createLocalFeedSourceService, seedDemoGoals, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
@@ -43,7 +43,7 @@ async function seededHome(t: test.TestContext) {
   for (const plugin_id of PROJECT_SCOPED_PLUGIN_IDS) catalog.addProjectPlugin({ project_id: project.project_id, plugin_id, actor_id: "page-gate" });
   catalog.close();
   for (const suffix of ["", "-wal", "-shm"]) await rm(project.database_path + suffix, { force: true });
-  seedDemoBoard(project.database_path, project.project_id);
+  await seedDemoGoals(project.database_path, project.project_id);
   const store = new LocalProjectDatabase(project.database_path);
   // Feed has no sources until one is added; two give its source pages and their links something to show.
   const sources = createLocalFeedSourceService(store.db, project.project_id);

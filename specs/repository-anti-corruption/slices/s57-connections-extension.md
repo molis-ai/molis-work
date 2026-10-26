@@ -162,23 +162,23 @@ binding: "installation" | "per_record"
   2. 查找只做精确匹配。卸载时按安装删：`scope_id = 'plugin-installation:<安装>'`，或带分隔符的前缀 `'plugin-installation:<安装>/'`（`substr` 比较，不用 `LIKE`），安装 `abc` 不会删到 `abcd`；测试里放一对互为前缀的安装 id。
   3. 删项目时删该项目的 `per_record` 绑定：connector-host 导出按项目删的函数，同样带分隔符锚定（`/project:<项目>/record:`），由 `ProjectDeletionService` 调；测试里放一对互为前缀的项目 id。放在 X4，和卸载一起做。
   4. 编码写在这里和 `connection-store.ts` 的注释里；表的主人不变。以后真要拆成列，再走维护时段，这轮不做。
-- **卸载时删哪些绑定（X4，统筹 2026-10-24 裁 ①）**：安装编号在每个项目和 Home 里都一样，按安装的绑定由各处的同一安装共用。所以项目里卸载只删这个安装在本项目的 `per_record` 绑定（前缀锚定到 `plugin-installation:<安装>/project:<项目>/record:`），删项目删该项目所有插件的 `per_record` 绑定（项目删除钩子 `plugin-connections`）。按安装的那条本应在「最后一处也卸载」时删，但 Home 目录库的 `project_plugins` 只收内置插件，第三方与创作台生成的插件只记在各项目库，宿主问不到；不开全部项目库去扫，这条留到人解除，记 BL-596。
+- **卸载时删哪些绑定（X4，统筹 2026-10-24 裁 ①）**：安装编号在每个项目和 Home 里都一样，按安装的绑定由各处的同一安装共用。所以项目里卸载只删这个安装在本项目的 `per_record` 绑定（前缀锚定到 `plugin-installation:<安装>/project:<项目>/record:`），删项目删该项目所有插件的 `per_record` 绑定（项目删除钩子 `plugin-connections`）。按安装的那条（槽）在「最后一处也卸载」时删，判断用 `heldInstalls`（§4.2，统筹 2026-10-26 同意，BL-596 已做）。
 - **刷新被拒的标记（X3，统筹裁）**：不改库、不删密钥，在宿主进程里标。只在令牌端点明确拒绝时标（OAuth `invalid_grant`、`invalid_client`，或 HTTP 400、401）；网络错误、超时、5xx 不标，只拒这一次。标了之后连接列表、插件连接槽的读取（X2 起还有 `describe`）显示 `reauth_required`，带它的请求在发出之前就以 `connection_unavailable` 拒，不再每次打令牌端点。标记跟着连接的版本（`updated_at`）走：人重连或强制刷新成功就清，宿主重启后没有，下次请求再试一次刷新、被拒再标。它是从令牌端点的回答推出来的状态，不是存下来的事实；以后要持久化再走维护时段。
 
-### 4.2 X4 核对与 BL-596 怎样判断「最后一处」（2026-10-26，基于 batch-41 `8cc441315`；BL-596 部分是设计，待统筹裁）
+### 4.2 X4 核对与 BL-596 怎样判断「最后一处」（2026-10-26，基于 batch-41 `8cc441315`；BL-596 已按下面的做法实现，统筹同意）
 
 **X4 已做，不用再改代码。** 项目里卸载只删本安装在本项目的 `per_record` 绑定：`forgetInstallationRecords`（`apps/local-host/src/plugin-installation-cleanup.ts`）调 `forgetInstallationProjectBindings`，经 `ConnectorConnectionStore.forgetInstallationProjectBindings`，匹配 `plugin-installation:<安装>/project:<项目>/record:` 前缀，用 `substr` 不用 `LIKE`（`horizontal/connector-host/src/plugin-binding-scopes.ts` 的 `installationProjectBindingsWhere`，分隔符锚定），项目执行器、Home 执行器和创作台的 `forget` 都走它。删项目时 `project-deleted-owners.ts` 的 `plugin-connections` 步骤调 `forgetProjectConnectionBindings`，匹配 `/project:<项目>/record:`（`projectBindingsWhere`），所有插件的该项目绑定都删，账号本身和按安装的槽留着。证据：`tests/security-invariants-connection-records.test.ts` 的 `S-71 RAC-470`（真 `ProjectDeletionService` 删项目；放了互为前缀的 `<id>0`、`x<id>`、另一个安装、按安装的槽、`home`）与 `S-71 RAC-471`（`INSTALL`/`INSTALLx`、`p-1`/`p-10`/`p`，非法 id 匹配 0 行）；`tests/installed-plugin-host.test.ts` 的 `S-71 RAC-471`（创作台卸载只带走本项目）；`tests/security-invariants-installation-records.test.ts` 的 `S-45 S-71 RAC-472`（项目卸载不论是否保留数据都删，Home 卸载只删原文件登记，授权删除失败的重装拒绝）。
 
-**BL-596（按安装的槽，`plugin-installation:<安装>`）：判断「最后一处」的做法。**
+**BL-596（按安装的槽，`plugin-installation:<安装>`）：判断「最后一处」的做法，已实现。** 代码：`forgetInstallationConnections` 与 `forgetOrphanedInstallationBindings`（`plugin-installation-cleanup.ts`）、`installedIdentities`（`plugin-holders.ts`）、`installationBindingsWhere`（`plugin-binding-scopes.ts`）、`forgetInstallationBindings` 与 `bindingInstallationIds`（`connection-store.ts`）；安全不变量 S-71，验收 RAC-861～864。
 
 - **事实**：`install_id` 是 `installIdentity`（插件 id 加发布者签名），各项目和 Home 里一样；每处安装的记录只在自己的库里（`plugin_runtime_installs`）。统筹 2026-10-24 那句「不开全部项目库去扫」是在 `heldInstalls`（`plugin-holders.ts`，A3 / S-82）之前定的；现在这个只读读取已经是平台的做法：安装、换版本、启用时用它推名字的属主，规则的「最后一个安装」也用它（`pluginHeldElsewhere`），读不了就按「还占着」算。
-- **推荐做法（不新增状态）**：卸载时问 `heldInstalls`「除了我这一处（范围加 `install_id`），别处还有没有 `state !== "uninstalled"` 的同一个 `install_id`」。没有，就删这个安装的整组绑定：键恰好是 `plugin-installation:<安装>` 的按安装槽，加 `plugin-installation:<安装>/` 前缀的所有按记录绑定（Home 安装分在各项目名下的也在其中），同样 `substr` 锚定。放在 `forgetInstallationRecords` 里，它已经是项目执行器、Home 执行器、创作台和「丢弃重装」四条路的唯一汇合点。读不了任何一个库（`heldInstalls` 抛错）就留着、记一条 `plugin_holders_unreadable` 日志，和规则的做法一致：多留一行孤儿绑定无害，错删别处还在用的绑定不行。
+- **推荐做法（不新增状态）**：卸载时问 `heldInstalls`「除了我这一处（范围加 `install_id`），别处还有没有 `state !== "uninstalled"` 的同一个 `install_id`」。没有，就删这个安装的整组绑定：键恰好是 `plugin-installation:<安装>` 的按安装槽，加 `plugin-installation:<安装>/` 前缀的所有按记录绑定（Home 安装分在各项目名下的也在其中），同样 `substr` 锚定。放在 `forgetInstallationRecords` 里，它已经是项目执行器、Home 执行器、创作台和「丢弃重装」四条路的唯一汇合点。读不了任何一个库（`heldInstalls` 抛错）就留着、记一条 `connections` 的 `installation_holders_unreadable` 日志，和规则的做法一致：多留一行孤儿绑定无害，错删别处还在用的绑定不行。
 - **保留私有数据的记录不算「占着」**：§5.1 已定，授权不论是否保留数据都随卸载走，保留后重装必须重新绑定账号。所以判断用 `state !== "uninstalled"`，不用 S-82 的 `holdsInstall`（后者把保留数据的卸载记录也算占着，那是名字的口径）。
 - **删项目**：`plugin-connections` 步骤跑时项目已不在目录里（目录先改名成暂存目录、目录事务已提交），`heldInstalls` 读不到它，这正是想要的。步骤不需要读被删项目的库：对「`connector_bindings` 里有按安装槽的每个 `install_id`」各问一次「别处还装着吗」，没有的删。代价是一次 `heldInstalls`，只发生在删项目和卸载时。
 - **并发与失败**：一个 Home 只有一个执行进程，「读 → 判断 → 删」是同步一气，中间没有 `await`。两个项目同时卸载最后两处：先跑的看见另一处已卸载或还装着，不论哪种，后跑的都会再判断一次；删是幂等的。漏掉的方向只有「多留」，没有「错删」，因为被排除的只有自己，别处读不到就算占着。刚好此时有人在另一个项目新装：绑定被删，新装的那一处没有账号，人再选一次，没有泄漏。
 - **不选的做法**：Home 一级的安装登记表（BL-596 原稿）要在每次安装和卸载时从项目 Runtime 跨库写 Home 库，两处各记一份同一个事实，崩在中间会不一致；而且没登记过的存量安装需要一次回填，回填前判断会错删，回填只能靠维护脚本。除非统筹不接受 `heldInstalls` 这个读取，否则不选。
 - **对现有 Home 的影响**：只对「此后发生的卸载」生效，不动已经存在的孤儿行；删项目那一步按「有绑定的 `install_id`」判断，会顺带清掉此前遗留的孤儿行（这些行本就不被任何安装用到）。若统筹要求孤儿行留给维护脚本，删项目步骤改成只判断「该项目暂存目录里的安装」，要读被删项目的暂存库，复杂得多，不推荐。
-- **验收（RAC-861～869，实现时写）**：两个项目都装着，卸载一处，按安装槽和别处的按记录绑定留着；卸载最后一处，槽和该安装所有按记录绑定都没了、相邻的 `INSTALLx`、另一发布者的同名插件、账号本身都在；另一处只剩保留数据的卸载记录，也算「最后一处」；Home 安装算一处；读不了的项目库让槽留着；删最后一个装它的项目让槽没了；创作台和丢弃重装两条路同样。要新 S 号（S-71 的补充或新号）先问统筹；实现后删 BL-596 一行，S-71 与 `SECURITY-INVARIANTS.md` 的缺口条目改写。
+- **验收（RAC-861～864 已写，`tests/security-invariants-installation-bindings.test.ts`）**：两个项目都装着，卸载一处，按安装槽和别处的按记录绑定留着；卸载最后一处，槽和该安装所有按记录绑定都没了、相邻的 `INSTALLx`、另一发布者的同名插件、账号本身都在；另一处只剩保留数据的卸载记录，也算「最后一处」；Home 安装算一处；读不了的项目库让槽留着；删最后一个装它的项目让槽没了；创作台和丢弃重装两条路同样。不新开 S 号，并进 S-71；BL-596 一行已删，`SECURITY-INVARIANTS.md` 的缺口条目改成「早先卸载留下的连接绑定」。装在没有登记进 Home 目录的项目里的安装（独立库）`heldInstalls` 看不到，不算别处装着，与 S-82 同一限制。
 
 ## 5. 安全不变量与验收编号（暂定）
 
@@ -194,7 +194,7 @@ RAC-346～349 是本线旧号段（RAC-330～349）的末尾。X 片另用统筹
 
 ### 5.1 卸载时回收授权（#1276，统筹 2026-10-25 裁定）
 
-连接绑定和原文件登记是安装的授权，不是插件自己的私有数据。项目或 Home 卸载安装时，不论 `retain_private_data`，共同执行器都调用现有 `forgetInstallationRecords`：项目只删该插件、安装在本项目的原文件登记与 `per_record` 绑定；Home 只删该插件、安装的空串项目原文件登记。文件本身、账号、其他项目（包括前缀相邻 id）、其他安装和项目操作之外的 Home 登记均保留。按安装的槽及 Home 安装分在各项目名下的按记录绑定仍按 BL-596 保留；X4 的项目卸载规则与创作台 RAC-471 的 `keepData: true` 也删除绑定保持不变。
+连接绑定和原文件登记是安装的授权，不是插件自己的私有数据。项目或 Home 卸载安装时，不论 `retain_private_data`，共同执行器都调用现有 `forgetInstallationRecords`：项目只删该插件、安装在本项目的原文件登记与 `per_record` 绑定；Home 只删该插件、安装的空串项目原文件登记。文件本身、账号、其他项目（包括前缀相邻 id）、其他安装和项目操作之外的 Home 登记均保留。按安装的槽及 Home 安装分在各项目名下的按记录绑定随最后一处安装走（BL-596，§4.2）；X4 的项目卸载规则与创作台 RAC-471 的 `keepData: true` 也删除绑定保持不变。
 
 保留私有数据与 KV 的既有规则不变。保留数据后重装，也必须由本人重新选原文件、重新绑定账号。丢弃重装继续经 `keptDataDiscarded` → `discardInstallationOwnerData` 回收残留授权；#1255/FIX5 将该清理前移到新安装发布之前，本片保留 helper 内的授权清理，不另改私有库、KV 或 ledger 算法。与其回执合成时，`uninstalled` 顺序为原指令清理 → 既有按数据选择的私有清理 → 无条件授权清理 → 返回私有清理说明，不把授权清理放到 `return` 之后。
 

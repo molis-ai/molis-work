@@ -1,5 +1,5 @@
 import { connectorErrors } from "@molis-ai/molis-work-contracts/services/connector-host";
-import { installationProjectBindingsWhere, isPluginBindingScope, parsePluginBindingScope, pluginBindingErrors, projectBindingsWhere } from "./plugin-binding-scopes.js";
+import { installationBindingsWhere, installationProjectBindingsWhere, isPluginBindingScope, parsePluginBindingScope, pluginBindingErrors, projectBindingsWhere } from "./plugin-binding-scopes.js";
 import { createHash, randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
 import type {
@@ -371,6 +371,21 @@ export class ConnectorConnectionStore {
   forgetInstallationProjectBindings(installId: string, projectId: string): number {
     const match = installationProjectBindingsWhere(installId, projectId);
     return match ? Number(this.db.prepare(`DELETE FROM connector_bindings WHERE ${match.where}`).run(...match.parameters).changes) : 0;
+  }
+
+  /**
+   * Every binding of one installation, in every project: its installation slot's and all its `per_record` ones. Taken when the last
+   * installation of that `install_id` is uninstalled (BL-596); the accounts themselves stay.
+   */
+  forgetInstallationBindings(installId: string): number {
+    const match = installationBindingsWhere(installId);
+    return match ? Number(this.db.prepare(`DELETE FROM connector_bindings WHERE ${match.where}`).run(...match.parameters).changes) : 0;
+  }
+
+  /** The installations that have a binding of any kind, so a caller can ask which of them are still installed (BL-596). */
+  bindingInstallationIds(): string[] {
+    const rows = this.db.prepare("SELECT DISTINCT scope_id FROM connector_bindings").all() as Array<{ scope_id: string }>;
+    return [...new Set(rows.flatMap(row => isPluginBindingScope(row.scope_id) ? parsePluginBindingScope(row.scope_id)?.install_id ?? [] : []))];
   }
 
   unbind(scopeId: string, pluginId: string, slotId: string): void {

@@ -3542,7 +3542,9 @@ Foundation 精确头 `d61374d93a6a78538d57c021355a7eaf9ce4af2d` 的普通 CI `40
 
 两项首红保留：crosstalk 3/4，首次发送点击cleanup的releaseObject耗时1289ms超过原1000ms，Node CPU1167ms、event loop active1289ms/idle0；发送输入回执已过，但尚未执行后续跨Session隔离断言。question-card 5/6，q0/option0点击的pointerdown/up布尔回执失败；CI没有上传截图/trace，也没有该次几何和事件时序，不能确定是错目标、缺事件、节点替换或坐标变化。独立只读核对未发现可确认的新产品阻塞，不将原重试通过称为修复。旧本地原生断言、ECONNRESET、旧Full根因仍未知；21db普通CI不恢复，Cloudflare按用户决定不查看。
 
-主干保护仅要求Verify；正式评审与inline线程为空，分支CLEAN/MERGEABLE。按现有并行开发规则§7，原retry1通过记录flaky，Full不挡合并，不新增“所有文件首过”门。Root与独立深审核对既定Foundation/App分拆后，#1064已按原规则提交合并队列；2026-10-26 11:05:58 UTC回读为position1/QUEUED，此时尚未合并。没有绕过队列、改变门禁、请求新的旧CI重跑或宣称P0完成。
+主干保护仅要求Verify；正式评审与inline线程为空，分支CLEAN/MERGEABLE。按现有并行开发规则§7，原retry1通过记录flaky，Full不挡合并，不新增“所有文件首过”门。Root与独立深审核对既定Foundation/App分拆后，#1064已按原规则提交合并队列；2026-10-26 11:05:58 UTC回读为position1/QUEUED，11:12:20 UTC最终合入main `1b66fab5924408fcef4f49c9c7a5d40d2705aed8`。没有绕过队列、改变门禁、请求新的旧CI重跑或宣称P0完成。
+
+队列采用squash；已独立确认主干1b66整棵文件树与App已包含的d613完全相同，且d613确为App祖先。App因此只用无文件变化的合并提交补上主干祖先关系；前后产品、脚本、测试、锁文件与vendor均不变，没有用选边处理未知改动。#1101已自动改以main为base；完整App性能、资源和用户验收仍不放行。
 
 App正式规模源为干净 `83421bf71719035ccc6f13439d60dfedac08f500`、SDK `57cf75164ff4e89146c500e4b94d5a3bc56cfac4`、Node24.14.0；原预检ready，构建不陈旧、已安装SDK匹配。原3副本×10/100/1000、重开首读+九次重复、B0/B2共180样本完整观察，零采样失败、零模型调用。完整返回9/76/752、各选8，未裁完整集合与omitted；三个统计量与同机B1+5ms原门均不变。
 
@@ -3553,5 +3555,7 @@ App正式规模源为干净 `83421bf71719035ccc6f13439d60dfedac08f500`、SDK `57
 | 1000 | 82.379 / 79.721 | 31.861 / 10.660 | 34.996 / 14.330 | 未通过 |
 
 本轮1000档重复中位数低于上一b65轮34.605ms，但首次读取仍超限；不同批次不能作为隔离归因，SDK #108/App #1101仍不据此合并验收。原件 `/private/tmp/molis-memory-b2-node2414-57cf-scale-20261026-v1.json` 与同名前缀log保留。该测量仍为MemoryService显式召回，不替代任务最终Context、模型质量、SDK升级归因或用户验收；已授权的付费192次上限批次尚未开始。
+
+为避免用旧profile推测新头，对同产品的App7382042/SDK57cf只运行一次原1副本1000条、首读加九次暖读诊断。完整752返回/8 selected/744 omitted，0模型；每暖读仍为1000次当前raw、1,660,960 B，观察耗时12.918ms，CPU采样open约9.231ms、目标复制2.278ms、复制与冻结2.523ms、ledger4.065ms。它们嵌套，不能相加或全部称为最终冻结；目标复制下已无stableStringify样本。探针暖读中位33.311ms不是正式性能结果，也不足以直接批准格式迁移。首次启动因漏掉原tsx loader在造数前退出、零样本；补原loader后唯一有效运行exit0，两份日志保留。原件前缀 `/private/tmp/molis-memory-collection-profile-57cf-20261026`。现未发现可直接切换的现役存储后端；物理布局方案只能作为待评审方向，不开始改格式、迁移、原件复核或验收标准。
 
 准确父d613的原health/updater通过，baseline无变化；资源实际仍为workbench.js +32893 B、workbench.css +680 B、settings.css -73924 B、coding.js +1776 B，其余44项不变。Coding包括已批归档570 B与待批恢复1206 B；原资源更新器因此整体拒写，原check保留Coding增长、Settings减额未落表、Workbench两项已批增量未落表共4条失败提示。未借用既有额度或手改预算。Coding零模型恢复Knowledge边界仍待用户决定，其他已完成改动继续在同一Draft #1101交付。

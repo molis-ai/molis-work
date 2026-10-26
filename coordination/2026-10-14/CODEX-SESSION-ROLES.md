@@ -123,6 +123,10 @@ Root已核实际持续人类授权、fresh main仍29f、196树精确6路径无WI
 
 I1首轮已领writer后发生服务容量systemError/turn failed，原错误为“Selected model is at capacity. Please try a different model.”，不是产品或测试失败。Root已实际向同一I1按原配置恢复一次，未换模型/树/owner；PIPE随后官方快照核新回合01a176de-7242-7230-bad6-130e4824b161已active/inProgress/error null，作者明确沿原树/当前配置接续，元数据自身超限仍由原接收规则拒绝，不删身份/标题/unsaved规避限制。恢复核对时HEAD29f/分支准确/clean、spec尚未写，尚无修后候选或验证；这里只记录时点，不能当已实现。唯一source writer归属持续I1，未因服务失败/暂时无WIP改成空闲或转派；PIPE没有第二次retry、改模型或第二writer。
 
+上述首次恢复回合随后也以同一服务容量错误终止，但已取得有效工程进展，不能当无效重复或产品FAIL：PIPE现场核仍feature/pages-context-budget/HEAD29f未提交，实际5路径WIP为Pages README、producer context.ts、pages-actions.e2e、pages-surface-naming与新pages-context-budget spec，完整spec已亲读；其中空摘要字段开销、元数据自身超限继续拒绝与代理项截点边界已明确。Root已亲核完整生产函数和官方 `pnpm build` 原工具自然0/93292ms；PIPE仅补核 `/tmp/pages-context-build01.exit=0` 与现有build01日志输出尾段，原warning保留，不造冷构建份数或最终候选指纹。该构建是作者正常构建，不是独立审验。
+
+Root已再次沿原I1/原配置/原树恢复，PIPE官方快照核第三实际回合01a176ed-0826-7471-89da-3c25fde8a301 active/error null且已有实际command完成。另 `/tmp/pages-context-naming01.log/.exit` 已PIPE全文亲读，作者当前该文件7/7自然0、fail/cancel/skip/todo0、Node562.202ms（含PAGESCTX-01..04与原命名/总线用例），只支持这一批作者自测，不冒独立TEST、README其余用例或真实child-parent浏览器通过。当前依旧5路径WIP/无新固定头，I1唯一writer持续保留；无产品输入变化时复用已成功build01，不因服务错误机械重build。Root负责必要恢复决策，PIPE未额外retry/换模型/树或转派，原两服务错误与有效build/局部测试证据分层保留。
+
 accepted Root合同先写 `specs/repository-anti-corruption/slices/pages-context-budget.md`，只修Pages producer按完整JSON字符串严格<32000缩draft摘要，保原20000上限、身份/对象id/版本/unsaved及可容纳短输出；parent严格32000拒绝、offer100000、S30/身份/purpose/gesture/ACK与公共合同不动。允许Root明确6路径中的既有Pages上下文/动作browser或独立context-budget测试，避开56共享browser文件；必要正常build、有限测试与真实child-parent长稿证据走公共FIFO/隔离Home/专用Chrome/精确PID，遵README、health、secrets与既有资源增长政策，不另起Full/PR。固定头/spec/diff/原件交付即释writer并直原REVIEW/TEST，独立按风险复用有效证据，作者本人读回后再限定核收；当前目标是实际修复并交审，不等前两叶集成。FI6/R62/R63仍保留未另派，不将本片当整C1/C2/W5/W6、main采用或用户验收。
 
 **新公开非阻塞来源与具体实施接续**：公开ac-review-2 `6408730016` 的非阻塞②由具体实施owner **F2（01a16b08）** 实际完成窄候选 `b298ec35531fb0faee76d9c83d91639be7abd001` /sole `21c1722d757b554ebfe04632aca0ea3cbbe4c289` /feature/pages-skill-path-wording，tree3c10c1b5…，Root/PIPE均已正式限定核收。源于真正改名片s2（独立s3不含此改名，不能混基点）；Root已核来源/195树无WIP并初派，PIPE交槽，F2实际实施后冻结释放。

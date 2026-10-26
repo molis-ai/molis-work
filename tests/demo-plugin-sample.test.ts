@@ -7,19 +7,19 @@ import test from "node:test";
 import Database from "better-sqlite3";
 import { existsSync, mkdirSync } from "node:fs";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { DEMO_PROJECT_ID,
+import {
+  DEMO_PROJECT_ID,
   DEMO_CORE_ARTIFACT_ID,
   DEMO_GITHUB_SOURCE_ID,
   DEMO_GMAIL_SOURCE_ID,
-  GoalProjectApplication,
   LocalProjectDatabase,
-  
   createLocalFeedApplication,
-  seedDemoBoard,
   seedDemoPluginSurfaces,
-  openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+  openProjectVersionStores,
+} from "@molis-ai/molis-work-app-local-host";
 import { FEED_CAPTURE_ARTIFACT_TYPE_ID } from "@molis-ai/molis-work-plugin-feed";
 import { renderFeedWorkbenchFragment } from "./workbench-renderer-fixture.js";
+import { GoalProjectApplication, seedBoard } from "./fixtures/goal-application.js";
 
 async function withDirectory<T>(prefix: string, run: (directory: string) => Promise<T>): Promise<T> {
   const directory = await mkdtemp(join(tmpdir(), prefix));
@@ -96,7 +96,7 @@ async function assertDemoPluginFacts(input: {
 test("seedDemoBoard fixtures stay empty of plugin samples", async () => {
   await withDirectory("molis-work-demo-board-only-", async (directory) => {
     const databasePath = join(directory, "fixture.db");
-    seedDemoBoard(databasePath);
+    seedBoard(databasePath);
     const store = new LocalProjectDatabase(databasePath);
     try {
       const snapshot = createLocalFeedApplication(store.db).snapshot(DEMO_PROJECT_ID);

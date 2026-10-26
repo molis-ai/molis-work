@@ -19,7 +19,8 @@ export function createJellyPlugin(): PluginDefinition {
     if (!database || !configuration) throw new ActionError("actions.unredeemed", "宿主未提供 Jelly 库或模型设置服务");
     const stores: JellyStores = {
       read: run => run(new JellyStore({ get: (sql, parameters) => database.get(sql, parameters), all: (sql, parameters) => database.all(sql, parameters),
-        run: () => { throw new ActionError("actions.execution_failed", "Jelly 的读取不写入"); } })),
+        run: () => { throw new ActionError("actions.execution_failed", "Jelly 的读取不写入"); },
+        savepoint: () => { throw new ActionError("actions.execution_failed", "Jelly 的读取不写入"); } })),
       write: (caller, run) => database.transaction(() => caller.beforeEffect(), transaction => run(new JellyStore(transaction))),
     };
     const settings = async <T>(run: () => Promise<T>) => {

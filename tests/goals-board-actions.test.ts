@@ -7,6 +7,7 @@ import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/mol
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { callerPlugin, projectPluginCaller, type CallerPlugin } from "./fixtures/plugin-callers.js";
+import { goalApplicationOf, goalsQueryOf } from "./fixtures/goal-application.js";
 
 async function fixture(projectId: string, plugin?: CallerPlugin) {
   const home = await mkdtemp(join(tmpdir(), "goals-board-actions-"));
@@ -41,9 +42,9 @@ test("PLIB-15 board initialization (version 2, no name) keeps original receipts 
     await assert.rejects(client.invoke({ ...caller, project_id: "other" }, goalsActions.initialize, input), { code: "actions.scope_mismatch" });
     block(goalsActions.initialize.capability_id);
     await assert.rejects(client.invoke(caller, goalsActions.initialize, input), { code: "actions.plugin_disabled" });
-    assert.equal(await host.withProject(ref, r => r.store.goalsQuery.getBoard(ref.project_id)), null);
+    assert.equal(await host.withProject(ref, r => goalsQueryOf(r.store).getBoard(ref.project_id)), null);
     block();
-    const old = await host.withProject(ref, r => r.coordinator.initializeBoard({ ...input, project_id: ref.project_id, actor_id: caller.actor_id }));
+    const old = await host.withProject(ref, r => goalApplicationOf(r).initializeBoard({ ...input, project_id: ref.project_id, actor_id: caller.actor_id }));
     assert.deepEqual(await client.invoke(caller, goalsActions.initialize, input), { ...old, replayed: true });
     const snapshot = await bindActionClient(client, () => caller).invoke(goalsActions.snapshot, {});
     assert.equal(snapshot.board.project_id, ref.project_id);

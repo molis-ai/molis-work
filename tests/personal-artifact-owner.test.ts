@@ -12,8 +12,9 @@ import { artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifa
 import { artifactsActions, createArtifactActionHandlers, importArtifactDocument } from "@molis-ai/molis-work-module-artifacts";
 import { artifactsManifest } from "@molis-ai/molis-work-plugin-artifacts";
 import { installProducers } from "./fixtures/installed-producers.js";
-import { GoalProjectApplication, LocalProjectDatabase, openProjectVersionStores, type ProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, openProjectVersionStores, type ProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { eventCursorOf, pinnedArtifact } from "./fixtures/artifacts.js";
+import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
 // Who a personal 成果 belongs to (specs/artifact-positioning, 2026-10-07): in a Home it is the person, whoever produced it.
 // The producing workflow, Agent or MCP client is provenance in `created_by`.

@@ -4,7 +4,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
 
 
 function fixture() {
@@ -22,14 +23,14 @@ test("createIntent writes requirements and relations in one retryable operation"
       project_id: "board", title: "父目标", outcome: "父结果", actor_id: "web-user", actor_kind: "user",
       idempotency_key: "parent", source_kind: "web",
     });
-    const before = data.store.snapshot("board");
+    const before = boardSnapshot(data.store, "board");
     data.store.db.exec("CREATE TRIGGER fail_rel BEFORE INSERT ON goal_relations BEGIN SELECT RAISE(ABORT,'rel_fail'); END");
     assert.throws(() => data.app.goalEvents.createIntent({
       project_id: "board", title: "子目标", outcome: "子结果", why: "原因", business_logic: "逻辑",
       priority: 70, parent_goal_id: parent.goal.goal_id, requirements: [{ statement: "可核对" }],
       actor_id: "web-user", actor_kind: "user", idempotency_key: "child", source_kind: "web",
     }), /rel_fail/);
-    assert.deepEqual(data.store.snapshot("board").goals.map((goal) => goal.goal_id).sort(), before.goals.map((goal) => goal.goal_id).sort());
+    assert.deepEqual(boardSnapshot(data.store, "board").goals.map((goal) => goal.goal_id).sort(), before.goals.map((goal) => goal.goal_id).sort());
     data.store.db.exec("DROP TRIGGER fail_rel");
     const child = data.app.goalEvents.createIntent({
       project_id: "board", title: "子目标", outcome: "子结果", why: "原因", business_logic: "逻辑",
@@ -151,7 +152,7 @@ test("listGoals continues from saved sort keys after the cursor goal changes", (
         .goals.map((item) => item.goal_id),
       ["PAGE-C", "PAGE-D"],
     );
-    const before = store.snapshot("board");
+    const before = boardSnapshot(store, "board");
     for (const after_cursor of ["not-a-cursor", "not-a-date|PAGE-B", "2026-09-10T00:00:00.000Z|"]) {
       assert.throws(
         () => later.goalEvents.listGoals({ project_id: "board", limit: 2, after_cursor }),
@@ -162,7 +163,7 @@ test("listGoals continues from saved sort keys after the cursor goal changes", (
       () => later.goalEvents.listGoals({ project_id: "board", work_status: "not-a-work-status" as "open" }),
       /状态|status|invalid/i,
     );
-    assert.deepEqual(store.snapshot("board"), before);
+    assert.deepEqual(boardSnapshot(store, "board"), before);
   } finally {
     store.close();
     rmSync(directory, { recursive: true, force: true });

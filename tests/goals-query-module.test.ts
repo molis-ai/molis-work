@@ -8,12 +8,12 @@ import test from "node:test";
 import {
   GoalsModule,
   createGoalReadServices,
-} from "@molis-ai/molis-work-module-goals";
+} from "./fixtures/goals-modules.js";
 
-import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { insertHistoricalPolicy } from "./historical-sql-fixture.js";
 import { pluginLegalSql } from "./fixtures/plugin-legal-sql.js";
+import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
 
 test("Goals public Query API owns list, detail, relation, policy, trash, and snapshot reads", () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-goals-query-"));
@@ -91,7 +91,7 @@ test("Goals public Query API owns list, detail, relation, policy, trash, and sna
     assert.equal("repository" in read.query, false);
     assert.deepEqual(read.query.snapshot("board-query"), goals.query.snapshot("board-query"));
     const snapshot = goals.query.snapshot("board-query");
-    const legacySnapshot = store.snapshot("board-query");
+    const legacySnapshot = boardSnapshot(store, "board-query");
     assert.deepEqual(snapshot.board, legacySnapshot.board);
     assert.deepEqual(snapshot.goals, legacySnapshot.goals);
     assert.deepEqual(snapshot.relations, legacySnapshot.relations);

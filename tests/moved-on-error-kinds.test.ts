@@ -3,7 +3,7 @@ import test from "node:test";
 import type { ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { attentionErrors } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import { characterErrors } from "@molis-ai/molis-work-contracts/modules/characters";
-import { goalErrors } from "@molis-ai/molis-work-module-goals";
+import { goalErrors } from "./fixtures/goals-modules.js";
 import { shelfErrors } from "@molis-ai/molis-work-module-shelf";
 import { actionErrorFromResponse, actionErrorKind, actionErrorResponse, draftActionCard, runActionCard, type ActionCard, type ActionCardPorts } from "@molis-ai/molis-work-plugin-sdk";
 

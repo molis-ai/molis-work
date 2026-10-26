@@ -1751,11 +1751,11 @@ Images 后台执行的后续边界（本片不实现）：当前 `ImagesService.
 
 ## 5. 包级清单（§4.4）
 
-W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个；计划「浅」17 个。用户 2026-10-12 明确要求继续把现有 71 包全部实际审完，现按 §12.7 的九组并行补齐，不在前轮核心路径抽查处停下。审完的包，把「主要文件及各自的变化原因、放错位置的类和方法、重复实现、建议的移动」写入本 spec 的逐包结论，审查列才由「待审」改为「已审」；该列表示代码审查完毕，修复与运行/产品验收另记，不能互相替代。每个包的 README 都有「开发要求」一节；当前清单为 71 包，I6 预检的 boundary 结果见 §10/§12.5，原 70/70 是旧计数。
+W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个；计划「浅」17 个。用户 2026-10-12 明确要求继续把现有 71 包全部实际审完，现按 §12.7 的九组并行补齐，不在前轮核心路径抽查处停下。审完的包，把「主要文件及各自的变化原因、放错位置的类和方法、重复实现、建议的移动」写入本 spec 的逐包结论，审查列才由「待审」改为「已审」；该列表示代码审查完毕，修复与运行/产品验收另记，不能互相替代。每个包的 README 都有「开发要求」一节；当前清单为 68 包（2026-10-26，Goals/Governance 并回插件），I6 预检的 boundary 结果见 §10/§12.5，原 70/70 是旧计数。
 
 ### 5.1 事实表
 
-量于 main `a510aead`，包清单取自 `scripts/workspace-packages.mjs`。用 `node scripts/gates/package-inventory.mjs --table` 从代码重新生成，用 `--check` 对照代码检查；后者也在 `node scripts/check-health-gates.mjs`（CI 里的健康门禁）里跑，是不对照 merge-base 的绝对规则：增删 workspace 包、插件迁到 Plugin Runtime 监督器、或改变 import 的可达性后不补表，CI 变红。门禁守行集合（不多不少、各一行）、层、状态和各列的取值；数字列不守，否则每个加一个文件的 PR 都要改表，要新数字就重新生成。
+本表于 2026-10-26 从当前 #1295 收口组合（`cbf060ca` 加原 `eb617d59` 增量）重新生成；原审计记录保留，本片涉及的 owner 行待固定头增量复审。包清单取自 `scripts/workspace-packages.mjs`。用 `node scripts/gates/package-inventory.mjs --table` 从代码重新生成，用 `--check` 对照代码检查；后者也在 `node scripts/check-health-gates.mjs`（CI 里的健康门禁）里跑，是不对照 merge-base 的绝对规则：增删 workspace 包、插件迁到 Plugin Runtime 监督器、或改变 import 的可达性后不补表，CI 变红。门禁守行集合（不多不少、各一行）、层、状态和各列的取值；数字列不守，否则每个加一个文件的 PR 都要改表，要新数字就重新生成。
 
 列的口径：
 
@@ -1766,76 +1766,74 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 
 | 包 | 层 | 源文件 | 行数 | 最大文件 | 公开入口 | 依赖内部包 | 被依赖 | 状态 | 计划深度 | 审查 |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| `apps/cli` | 应用 | 5 | 177 | `command-dispatch.ts` 54 | 1 | 2 | 1 | 在用 | 浅 | 已审 |
-| `apps/desktop` | 应用 | 11 | 1,203 | `capsule-shell.ts` 555 | 1 | 6 | 1 | 在用 | 中 | 已审 |
-| `apps/local-host` | 应用 | 369 | 41,807 | `assistant/assistant-service.ts` 2,656 | 1 | 64 | 2 | 在用 | 深 | 已审 |
-| `apps/mcp` | 应用 | 17 | 1,062 | `runtime-context-tools.ts` 161 | 1 | 2 | 1 | 在用 | 中 | 已审 |
-| `apps/server` | 应用 | 5 | 186 | `assets.ts` 76 | 1 | 7 | 0 | 非产品 | 浅 | 已审 |
-| `apps/workbench` | 应用 | 171 | 40,687 | `i18n/en.ts` 3,380 | 1 | 32 | 1 | 在用 | 深 | 已审 |
-| `horizontal/agent-host` | 横向 | 35 | 9,410 | `adapters/prologue-node.ts` 1,764 | 1 | 1 | 1 | 在用 | 深 | 已审 |
-| `horizontal/connector-host` | 横向 | 3 | 567 | `connection-store.ts` 317 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
-| `horizontal/knowledge` | 横向 | 3 | 213 | `index.ts` 131 | 1 | 1 | 1 | 在用 | 浅 | 待审 |
-| `horizontal/listener-host` | 横向 | 1 | 739 | `index.ts` 739 | 1 | 1 | 1 | 在用 | 中 | 已审 |
-| `horizontal/memory` | 横向 | 5 | 1,560 | `service.ts` 1,338 | 1 | 1 | 1 | 在用 | 中 | 已审 |
-| `horizontal/placement` | 横向 | 1 | 480 | `index.ts` 480 | 1 | 1 | 1 | 在用 | 中 | 已审 |
-| `horizontal/runtime-host` | 横向 | 5 | 980 | `adapters/terminal-pty.ts` 424 | 1 | 1 | 2 | 在用 | 浅 | 已审 |
-| `horizontal/scheduler` | 横向 | 1 | 567 | `index.ts` 567 | 1 | 2 | 1 | 在用 | 中 | 已审 |
-| `horizontal/search` | 横向 | 1 | 575 | `index.ts` 575 | 1 | 1 | 1 | 在用 | 中 | 已审 |
-| `modules/artifacts` | 模块 | 7 | 1,080 | `service.ts` 344 | 1 | 1 | 1 | 在用 | 中 | 已审 |
-| `modules/attention-resumption` | 模块 | 1 | 429 | `index.ts` 429 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
-| `modules/characters` | 模块 | 12 | 593 | `action-handlers.ts` 129 | 1 | 2 | 1 | 在用 | 浅 | 已审 |
-| `modules/context-ledger` | 模块 | 4 | 292 | `service.ts` 102 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
-| `modules/feed` | 模块 | 2 | 776 | `index.ts` 733 | 1 | 2 | 1 | 在用 | 中 | 已审 |
-| `modules/functions` | 模块 | 9 | 1,777 | `store.ts` 939 | 1 | 2 | 1 | 在用 | 中 | 已审 |
-| `modules/goals` | 模块 | 42 | 9,440 | `event-facts.ts` 631 | 1 | 1 | 2 | 在用 | 深 | 已审 |
-| `modules/governance-collaboration` | 模块 | 12 | 1,116 | `goal-tree-records.ts` 220 | 1 | 1 | 1 | 在用 | 中 | 已审 |
-| `modules/private-work-context` | 模块 | 10 | 1,223 | `project-binding-commands.ts` 330 | 1 | 1 | 1 | 在用 | 中 | 已审 |
-| `modules/projects` | 模块 | 6 | 1,123 | `repository.ts` 467 | 1 | 1 | 1 | 在用 | 中 | 已审 |
-| `modules/shelf` | 模块 | 11 | 2,652 | `store.ts` 1,176 | 1 | 2 | 2 | 在用 | 中 | 已审 |
-| `modules/signals` | 模块 | 1 | 379 | `index.ts` 379 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
-| `modules/sources` | 模块 | 1 | 395 | `index.ts` 395 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
-| `packages/contracts` | 基础 | 91 | 16,544 | `services/agent-host.ts` 1,734 | 64 | 0 | 70 | 在用 | 深 | 已审 |
-| `packages/design-system` | 基础 | 45 | 17,218 | `styles/craft-finish.ts` 2,313 | 1 | 1 | 22 | 在用 | 深 | 已审 |
-| `packages/im-ui` | 基础 | 12 | 1,466 | `browser/controller.ts` 930 | 1 | 2 | 3 | 在用 | 中 | 已审 |
-| `packages/kernel` | 基础 | 6 | 1,160 | `action-service.ts` 490 | 2 | 1 | 4 | 在用 | 深 | 已审 |
-| `packages/plugin-runtime` | 基础 | 21 | 4,784 | `index.ts` 886 | 1 | 1 | 3 | 在用 | 深 | 已审 |
-| `packages/plugin-sandbox` | 基础 | 8 | 726 | `runner.ts` 214 | 1 | 2 | 1 | 在用 | 中 | 已审 |
-| `packages/plugin-sdk` | 基础 | 2 | 199 | `index.ts` 182 | 1 | 1 | 8 | 在用 | 中 | 已审 |
-| `packages/storage` | 基础 | 13 | 2,120 | `adapters/file-secret-store.ts` 588 | 1 | 1 | 17 | 在用 | 中 | 已审 |
-| `packages/test-kit` | 基础 | 11 | 1,165 | `boundaries.ts` 554 | 3 | 1 | 0 | 非产品 | 中 | 已审 |
-| `packages/ui-host` | 基础 | 4 | 441 | `client-lifecycle.ts` 152 | 1 | 1 | 2 | 在用 | 浅 | 已审 |
-| `plugins/native/alchemist` | 内置插件 | 97 | 10,327 | `studio/server/db/pulse-repository.ts` 567 | 1 | 4 | 2 | 构建期 | 中 | 已审 |
-| `plugins/native/artifacts` | 内置插件 | 19 | 1,628 | `browser-ui.ts` 242 | 1 | 2 | 2 | 构建期 | 中 | 已审 |
-| `plugins/native/coding` | 内置插件 | 79 | 11,574 | `client.ts` 1,644 | 1 | 3 | 2 | Runtime | 深 | 已审 |
-| `plugins/native/cognia` | 内置插件 | 15 | 757 | `store.ts` 173 | 1 | 4 | 2 | Runtime | 中 | 已审 |
-| `plugins/native/dataset` | 内置插件 | 16 | 2,124 | `client.ts` 711 | 1 | 4 | 2 | Runtime | 中 | 待审 |
-| `plugins/native/diff` | 内置插件 | 10 | 953 | `comparison.ts` 286 | 1 | 1 | 2 | Runtime | 浅 | 已审 |
-| `plugins/native/feed` | 内置插件 | 46 | 5,644 | `ui.ts` 698 | 1 | 2 | 3 | 构建期 | 中 | 已审 |
-| `plugins/native/files` | 内置插件 | 16 | 1,177 | `manifest.ts` 150 | 1 | 1 | 2 | Runtime | 中 | 已审 |
-| `plugins/native/form` | 内置插件 | 33 | 3,163 | `store.ts` 522 | 1 | 4 | 2 | Runtime | 中 | 已审 |
-| `plugins/native/git` | 内置插件 | 15 | 1,708 | `client.ts` 255 | 1 | 1 | 2 | Runtime | 中 | 已审 |
-| `plugins/native/goals` | 内置插件 | 151 | 14,215 | `event-document-client.ts` 782 | 1 | 2 | 4 | 构建期 | 深 | 已审 |
-| `plugins/native/images` | 内置插件 | 16 | 1,531 | `client.ts` 458 | 1 | 4 | 2 | Runtime | 中 | 待审 |
-| `plugins/native/inbox` | 内置插件 | 13 | 1,016 | `ui.ts` 189 | 1 | 1 | 2 | 构建期 | 中 | 已审 |
-| `plugins/native/jelly` | 内置插件 | 28 | 2,485 | `content.ts` 202 | 1 | 4 | 2 | Runtime | 中 | 待审 |
-| `plugins/native/lingguang` | 内置插件 | 13 | 1,840 | `client.ts` 707 | 1 | 4 | 2 | Runtime | 中 | 已审 |
-| `plugins/native/pages` | 内置插件 | 90 | 16,257 | `client.ts` 1,115 | 4 | 4 | 2 | Runtime | 深 | 待审 |
-| `plugins/native/plugin-builder` | 内置插件 | 17 | 2,855 | `agent-authoring.ts` 800 | 1 | 2 | 2 | 构建期 | 中 | 已审 |
-| `plugins/native/ppt` | 内置插件 | 17 | 2,248 | `client.ts` 807 | 1 | 4 | 2 | Runtime | 中 | 待审 |
-| `plugins/native/schedule` | 内置插件 | 27 | 2,568 | `client.ts` 371 | 2 | 1 | 2 | Runtime | 中 | 待审 |
-| `plugins/native/shelf` | 内置插件 | 21 | 5,037 | `client.ts` 1,708 | 2 | 3 | 2 | Runtime | 中 | 已审 |
-| `plugins/native/text-stats` | 内置插件 | 6 | 372 | `core.ts` 105 | 1 | 1 | 2 | Runtime | 浅 | 已审 |
-| `plugins/native/issues` | 内置插件 | 8 | 392 | `store.ts` 116 | 1 | 2 | 1 | Runtime | 浅 | 已审 |
-| `plugins/native/todo` | 内置插件 | 22 | 4,276 | `client.ts` 1,240 | 1 | 4 | 2 | Runtime | 中 | 待审 |
-| `plugins/native/workflows` | 内置插件 | 20 | 3,956 | `client.ts` 1,355 | 2 | 4 | 2 | Runtime | 中 | 待审 |
-| `plugins/official-integrations/catalog` | 官方接入 | 9 | 2,133 | `catalog.ts` 1,015 | 1 | 2 | 1 | 在用 | 中 | 已审 |
-| `plugins/official-integrations/github` | 官方接入 | 5 | 934 | `provider.ts` 586 | 1 | 2 | 1 | 在用 | 浅 | 已审 |
-| `plugins/official-integrations/gmail` | 官方接入 | 12 | 2,673 | `provider.ts` 957 | 3 | 2 | 2 | 在用 | 中 | 已审 |
-| `plugins/official-integrations/rss` | 官方接入 | 6 | 1,246 | `catalog.ts` 540 | 2 | 2 | 2 | 在用 | 中 | 已审 |
-| `plugins/official-integrations/web-query` | 官方接入 | 1 | 55 | `index.ts` 55 | 1 | 2 | 0 | 非产品 | 浅 | 已审 |
-| `plugins/official-integrations/youtube` | 官方接入 | 2 | 138 | `channel.ts` 82 | 1 | 2 | 1 | 在用 | 浅 | 已审 |
-| `server` | 模块 | 18 | 1,127 | `continuity/service.ts` 179 | 1 | 3 | 2 | 在用 | 中 | 已审 |
-| `tooling/plugin-cli` | 工具 | 8 | 332 | `sample-source.ts` 93 | 1 | 2 | 0 | 在用 | 浅 | 已审 |
+| `apps/cli` | 应用 | 4 | 159 | `command-dispatch.ts` 63 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
+| `apps/desktop` | 应用 | 11 | 1,239 | `capsule-shell.ts` 548 | 1 | 6 | 1 | 在用 | 中 | 已审 |
+| `apps/local-host` | 应用 | 653 | 65,025 | `assistant/assistant-service.ts` 1,837 | 1 | 62 | 2 | 在用 | 深 | 待审 |
+| `apps/mcp` | 应用 | 16 | 956 | `runtime-context-tools.ts` 193 | 1 | 2 | 1 | 在用 | 中 | 已审 |
+| `apps/server` | 应用 | 5 | 192 | `main.ts` 81 | 1 | 7 | 0 | 非产品 | 浅 | 已审 |
+| `apps/workbench` | 应用 | 303 | 51,590 | `i18n/en.ts` 3,266 | 2 | 31 | 1 | 在用 | 深 | 已审 |
+| `horizontal/agent-host` | 横向 | 96 | 13,630 | `adapters/prologue-stream.ts` 723 | 1 | 2 | 1 | 在用 | 深 | 已审 |
+| `horizontal/connector-host` | 横向 | 5 | 754 | `connection-store.ts` 396 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
+| `horizontal/knowledge` | 横向 | 11 | 1,300 | `index.ts` 425 | 1 | 1 | 1 | 在用 | 浅 | 待审 |
+| `horizontal/listener-host` | 横向 | 1 | 768 | `index.ts` 768 | 1 | 1 | 1 | 在用 | 中 | 已审 |
+| `horizontal/memory` | 横向 | 23 | 3,180 | `service.ts` 1,151 | 1 | 1 | 1 | 在用 | 中 | 已审 |
+| `horizontal/placement` | 横向 | 2 | 650 | `index.ts` 613 | 1 | 1 | 1 | 在用 | 中 | 已审 |
+| `horizontal/runtime-host` | 横向 | 2 | 436 | `adapters/terminal-pty.ts` 424 | 1 | 1 | 2 | 在用 | 浅 | 已审 |
+| `horizontal/scheduler` | 横向 | 2 | 622 | `index.ts` 541 | 1 | 2 | 1 | 在用 | 中 | 已审 |
+| `horizontal/search` | 横向 | 2 | 659 | `index.ts` 585 | 1 | 1 | 1 | 在用 | 中 | 已审 |
+| `modules/artifacts` | 模块 | 23 | 2,284 | `service.ts` 341 | 1 | 1 | 1 | 在用 | 中 | 待审 |
+| `modules/attention-resumption` | 模块 | 1 | 449 | `index.ts` 449 | 1 | 1 | 1 | 在用 | 浅 | 待审 |
+| `modules/characters` | 模块 | 15 | 808 | `action-handlers.ts` 129 | 1 | 2 | 1 | 在用 | 浅 | 已审 |
+| `modules/context-ledger` | 模块 | 5 | 284 | `repository.ts` 98 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
+| `modules/feed` | 模块 | 8 | 811 | `ingest.ts` 208 | 1 | 2 | 1 | 在用 | 中 | 已审 |
+| `modules/functions` | 模块 | 17 | 1,969 | `store.ts` 290 | 1 | 2 | 1 | 在用 | 中 | 已审 |
+| `modules/private-work-context` | 模块 | 10 | 1,208 | `project-binding-commands.ts` 330 | 1 | 1 | 1 | 在用 | 中 | 已审 |
+| `modules/projects` | 模块 | 8 | 1,215 | `repository.ts` 470 | 1 | 1 | 1 | 在用 | 中 | 已审 |
+| `modules/shelf` | 模块 | 25 | 3,114 | `contract.ts` 367 | 2 | 2 | 2 | 在用 | 中 | 已审 |
+| `modules/signals` | 模块 | 1 | 359 | `index.ts` 359 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
+| `modules/sources` | 模块 | 1 | 379 | `index.ts` 379 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
+| `packages/contracts` | 基础 | 139 | 21,034 | `modules/goals.ts` 776 | 63 | 0 | 67 | 在用 | 深 | 待审 |
+| `packages/design-system` | 基础 | 97 | 15,500 | `styles/primitives.ts` 1,258 | 1 | 2 | 5 | 在用 | 深 | 已审 |
+| `packages/im-ui` | 基础 | 23 | 1,730 | `views.ts` 168 | 1 | 3 | 3 | 在用 | 中 | 已审 |
+| `packages/kernel` | 基础 | 14 | 1,879 | `action-service.ts` 487 | 2 | 2 | 1 | 在用 | 深 | 已审 |
+| `packages/plugin-runtime` | 基础 | 52 | 7,889 | `index.ts` 784 | 1 | 2 | 3 | 在用 | 深 | 待审 |
+| `packages/plugin-sandbox` | 基础 | 14 | 1,681 | `broker.ts` 336 | 1 | 2 | 1 | 在用 | 中 | 已审 |
+| `packages/plugin-sdk` | 基础 | 57 | 6,707 | `manifest.ts` 443 | 7 | 1 | 41 | 在用 | 中 | 待审 |
+| `packages/storage` | 基础 | 20 | 3,378 | `adapters/file-secret-store.ts` 744 | 1 | 1 | 10 | 在用 | 中 | 已审 |
+| `packages/test-kit` | 基础 | 11 | 1,242 | `boundaries.ts` 610 | 3 | 1 | 0 | 非产品 | 中 | 已审 |
+| `packages/ui-host` | 基础 | 8 | 808 | `request-client.ts` 298 | 1 | 1 | 2 | 在用 | 浅 | 已审 |
+| `plugins/native/alchemist` | 内置插件 | 106 | 10,872 | `studio/server/db/pulse-repository.ts` 563 | 2 | 3 | 2 | 构建期 | 中 | 已审 |
+| `plugins/native/artifacts` | 内置插件 | 14 | 820 | `browser-ui.ts` 239 | 2 | 2 | 2 | 构建期 | 中 | 已审 |
+| `plugins/native/coding` | 内置插件 | 206 | 23,321 | `styles.ts` 749 | 3 | 2 | 2 | Runtime | 深 | 已审 |
+| `plugins/native/cognia` | 内置插件 | 36 | 1,789 | `store.ts` 149 | 2 | 2 | 2 | Runtime | 中 | 已审 |
+| `plugins/native/dataset` | 内置插件 | 33 | 2,535 | `store.ts` 423 | 3 | 2 | 2 | Runtime | 中 | 待审 |
+| `plugins/native/diff` | 内置插件 | 18 | 829 | `comparison.ts` 192 | 2 | 2 | 2 | Runtime | 浅 | 已审 |
+| `plugins/native/feed` | 内置插件 | 48 | 5,545 | `ui.ts` 644 | 2 | 2 | 2 | 构建期 | 中 | 已审 |
+| `plugins/native/files` | 内置插件 | 31 | 1,697 | `actions.ts` 167 | 2 | 2 | 2 | Runtime | 中 | 已审 |
+| `plugins/native/form` | 内置插件 | 36 | 3,245 | `store.ts` 466 | 3 | 2 | 2 | Runtime | 中 | 已审 |
+| `plugins/native/git` | 内置插件 | 32 | 2,655 | `browser/source.ts` 249 | 2 | 2 | 2 | Runtime | 中 | 已审 |
+| `plugins/native/goals` | 内置插件 | 220 | 25,273 | `event-document-client.ts` 742 | 4 | 2 | 2 | Runtime | 深 | 待审 |
+| `plugins/native/images` | 内置插件 | 34 | 2,092 | `service.ts` 181 | 3 | 3 | 2 | Runtime | 中 | 待审 |
+| `plugins/native/inbox` | 内置插件 | 15 | 1,191 | `ui.ts` 189 | 2 | 1 | 2 | 构建期 | 中 | 已审 |
+| `plugins/native/issues` | 内置插件 | 28 | 1,908 | `browser/capture.ts` 183 | 2 | 2 | 2 | Runtime | 浅 | 已审 |
+| `plugins/native/jelly` | 内置插件 | 56 | 4,517 | `messages.ts` 257 | 3 | 2 | 2 | Runtime | 中 | 待审 |
+| `plugins/native/lingguang` | 内置插件 | 28 | 2,264 | `store.ts` 362 | 3 | 2 | 2 | Runtime | 中 | 已审 |
+| `plugins/native/pages` | 内置插件 | 112 | 17,055 | `styles.ts` 770 | 5 | 2 | 2 | Runtime | 深 | 待审 |
+| `plugins/native/plugin-builder` | 内置插件 | 19 | 2,960 | `agent-authoring.ts` 800 | 2 | 2 | 2 | 构建期 | 中 | 已审 |
+| `plugins/native/ppt` | 内置插件 | 36 | 2,853 | `store.ts` 295 | 3 | 2 | 2 | Runtime | 中 | 待审 |
+| `plugins/native/schedule` | 内置插件 | 46 | 3,103 | `tasks.ts` 300 | 2 | 2 | 2 | Runtime | 中 | 待审 |
+| `plugins/native/shelf` | 内置插件 | 61 | 6,192 | `styles.ts` 647 | 2 | 3 | 2 | Runtime | 中 | 已审 |
+| `plugins/native/text-stats` | 内置插件 | 16 | 553 | `core.ts` 105 | 2 | 2 | 2 | Runtime | 浅 | 已审 |
+| `plugins/native/todo` | 内置插件 | 49 | 5,225 | `organize.ts` 328 | 3 | 2 | 2 | Runtime | 中 | 待审 |
+| `plugins/native/workflows` | 内置插件 | 44 | 4,602 | `model.ts` 438 | 2 | 2 | 2 | Runtime | 中 | 待审 |
+| `plugins/official-integrations/catalog` | 官方接入 | 10 | 2,184 | `catalog.ts` 1,013 | 1 | 2 | 1 | 在用 | 中 | 已审 |
+| `plugins/official-integrations/github` | 官方接入 | 6 | 960 | `provider.ts` 592 | 1 | 2 | 1 | 在用 | 浅 | 已审 |
+| `plugins/official-integrations/gmail` | 官方接入 | 16 | 2,641 | `history-cursor.ts` 529 | 3 | 2 | 2 | 在用 | 中 | 已审 |
+| `plugins/official-integrations/rss` | 官方接入 | 8 | 1,308 | `catalog.ts` 513 | 2 | 2 | 2 | 在用 | 中 | 已审 |
+| `plugins/official-integrations/web-query` | 官方接入 | 1 | 42 | `index.ts` 42 | 1 | 2 | 0 | 非产品 | 浅 | 已审 |
+| `plugins/official-integrations/youtube` | 官方接入 | 2 | 123 | `channel.ts` 80 | 1 | 2 | 1 | 在用 | 浅 | 已审 |
+| `server` | 模块 | 18 | 1,120 | `continuity/service.ts` 179 | 1 | 3 | 2 | 在用 | 中 | 已审 |
+| `tooling/plugin-cli` | 工具 | 8 | 359 | `sample-source.ts` 108 | 1 | 3 | 0 | 在用 | 浅 | 已审 |
 
 ### 5.2 状态、计划深度与审查
 

@@ -5,8 +5,14 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, createLocalFeedApplication, createLocalFeedSourceService, seedDemoBoard, DEMO_PROJECT_ID,
-  cachedMolisWorkWebView } from "@molis-ai/molis-work-app-local-host";
+import {
+  MolisWorkLocalHost,
+  molisWorkHostProjectReference,
+  createLocalFeedApplication,
+  createLocalFeedSourceService,
+  DEMO_PROJECT_ID,
+  cachedMolisWorkWebView,
+} from "@molis-ai/molis-work-app-local-host";
 import { ActionError, bindActionClient, type ActionCallContext, type ActionDefinition, type ActionSceneBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { definePlugin, defineSubjectContextAction, defineHomeEventsAction, defineSubjectOffersAction, subjectContext } from "@molis-ai/molis-work-plugin-sdk";
@@ -17,11 +23,12 @@ import { HOME_DOCK_SCENE_ID, type JudgmentRecord } from "@molis-ai/molis-work-co
 import { GOALS_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-goals";
 import { withFunctionsService, withFunctionsServiceAsync, type FunctionsHostOptions } from "../apps/local-host/dist/functions-host.js";
 import { homeActions, homeDockScene, homeDockBindingId, HOME_ACTION_PERMISSIONS, createHomeJudgmentTrigger } from "../apps/local-host/dist/home-actions.js";
+import { seedBoard } from "./fixtures/goal-application.js";
 
 test("Home scene uses original bindings and history, accepts unknown judgments, and never projects stale recommendations", async () => {
   const home = await mkdtemp(join(tmpdir(), "home-action-scene-"));
   await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
-  const databasePath = join(home, "project.db"); seedDemoBoard(databasePath);
+  const databasePath = join(home, "project.db"); seedBoard(databasePath);
   const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
   const caller: ActionCallContext = { actor_id: "owner", project_id: reference.project_id, audience: "user", permissions: [...HOME_ACTION_PERMISSIONS, "inbox:write", ...GOALS_ACTION_PERMISSIONS] };
   let effect: (() => void) | undefined;
@@ -178,7 +185,7 @@ test("judgment history keeps insertion order when multiple results share a times
 test("Home judgment resolves a formally installed plugin's own subjects and pins source authority and revisions", async () => {
   const home = await mkdtemp(join(tmpdir(), "home-unknown-judgment-"));
   await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
-  const databasePath = join(home, "project.db"); seedDemoBoard(databasePath);
+  const databasePath = join(home, "project.db"); seedBoard(databasePath);
   const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
   const options: FunctionsHostOptions = { env: { TYPESAFE_API_KEY: "fixture-only" }, provider: {
     async evaluate(_key, record) { return { primitive: "noul", noul: 0.9, choice: null, score: null, legend: null,
@@ -261,10 +268,10 @@ test("Home judgment resolves a formally installed plugin's own subjects and pins
     assert.ok((await actions.invoke(homeActions.readJudgment, {})).capabilities.some(action => action.capability_id === judgment.capability_id));
     await assert.rejects(actions.invoke(homeActions.evaluate, { subjects: [subject, { kind: "feed_item", id: "any" }] }), { code: "actions.subject_incompatible" });
     assert.equal(calls, 0, "reject an incompatible batch before any model calls");
-    const before = project.store.snapshot(reference.project_id).cursor;
+    const before = project.store.eventCursor(reference.project_id);
     let result = await actions.invoke(homeActions.evaluate, { subjects: [subject, { id: subject.id, kind: subject.kind }] });
     assert.equal(history().length, 1); assert.equal(result.judgments[0]!.subject.kind, subject.kind);
-    assert.ok(project.store.snapshot(reference.project_id).cursor > before, "judgment advances the original project journal without a Feed item");
+    assert.ok(project.store.eventCursor(reference.project_id) > before, "judgment advances the original project journal without a Feed item");
     assert.deepEqual((await recommendations()).judgments.map(record => record.judgment_id), [result.judgments[0]!.judgment_id]);
     const range = { from: new Date(Date.parse(now) - 1000).toISOString(), to: new Date(Date.parse(now) + 1000).toISOString(), now };
     assert.deepEqual((await actions.invoke(homeActions.events, range)).events.find(event => event.subject.id === subject.id)?.suggested_behavior_ids, [selectedKey]);

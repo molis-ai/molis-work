@@ -215,8 +215,6 @@ export const WORKSPACE_PACKAGES = [
       "@molis-ai/molis-work-module-context-ledger",
       "@molis-ai/molis-work-module-feed",
       "@molis-ai/molis-work-module-functions",
-      "@molis-ai/molis-work-module-goals",
-      "@molis-ai/molis-work-module-governance-collaboration",
       "@molis-ai/molis-work-module-private-work-context",
       "@molis-ai/molis-work-module-projects",
       "@molis-ai/molis-work-module-shelf",
@@ -379,22 +377,6 @@ export const WORKSPACE_PACKAGES = [
       "attention.command.v1"
     ]
   }),
-  entry("modules/goals", "@molis-ai/molis-work-contracts/modules/goals", {
-    maturity: "production",
-    capabilities: [
-      "goals.command.v1",
-      "goals.repository.v1",
-      "goals.lifecycle.v1",
-      "goals.planning.v1",
-      "goals.query.v1"
-    ],
-    extraWorkspaceDependencies: [
-      "@molis-ai/molis-work-plugin-sdk"
-    ],
-    extraDependencies: {
-      "better-sqlite3": "12.8.0"
-    }
-  }),
   entry("modules/private-work-context", "@molis-ai/molis-work-contracts/modules/private-work-context", {
     maturity: "slice",
     capabilities: [
@@ -440,14 +422,6 @@ export const WORKSPACE_PACKAGES = [
     ],
     extraWorkspaceDependencies: [
       "@molis-ai/molis-work-storage"
-    ]
-  }),
-  entry("modules/governance-collaboration", "@molis-ai/molis-work-contracts/modules/governance-collaboration", {
-    maturity: "production",
-    capabilities: [
-      "governance.proposals.v1",
-      "governance.decisions.v1",
-      "governance.event-decisions.v1"
     ]
   }),
   entry("horizontal/agent-host", "@molis-ai/molis-work-contracts/services/agent-host", {

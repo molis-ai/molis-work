@@ -19,9 +19,9 @@ test("actual CLI snapshot and MCP event handlers finish one Goal without the ret
   // A project of the Home's catalog, made the way the app makes one: its Board is initialised, and the access settings can grant for it.
   const project = await catalog.createProject({ display_name: "真实命令链", actor_id: "user" });
   const { database_path: databasePath, project_id: projectId } = project;
-  const host = createMolisWorkLocalHost();
+  const host = createMolisWorkLocalHost({ homeDirectory: directory, completeText: null });
   const reference = molisWorkHostProjectReference({ databasePath, projectId });
-  const client = managementGoals(host.actionClient(reference, false), projectId);
+  const client = managementGoals(host.actionClient(reference), projectId);
   const runtimeHost = {
     homeDirectory: directory,
     runtimeContext: {

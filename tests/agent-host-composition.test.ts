@@ -1,3 +1,5 @@
+import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
+import { ensureProjectRoot } from "./fixtures/goals-board.js";
 import assert from "node:assert/strict";
 import { mkdtemp, rm, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -89,7 +91,9 @@ async function close(item: Awaited<ReturnType<typeof fixture>>) {
 test("Agent Host loads current guidance through actions and freezes each real revision", async () => {
   const directory = await realpath(await mkdtemp(join(tmpdir(), "agent-guidance-")));
   let denied = false, reads = 0;
-  const localHost = new MolisWorkLocalHost({ completeText: null, actionAvailability: (_caller, action) => {
+  // The Host is the Home's, which Goals runs in; the Home's own Agent service takes the workspace this test names.
+  const localHost = new MolisWorkLocalHost({ homeDirectory: directory, completeText: null,
+    workspaceFor: () => ({ workspace_id: "w", canonical_path: directory, realpath_verified: true, display_name: "workspace" }), actionAvailability: (_caller, action) => {
     if (action.capability_id === "goals.guidance.read") {
       reads++;
       if (denied) return { available: false, code: "actions.plugin_disabled", reason: "说明不可用" };
@@ -97,7 +101,7 @@ test("Agent Host loads current guidance through actions and freezes each real re
     return { available: true };
   } });
   const reference = molisWorkHostProjectReference({ databasePath: join(directory, "project.db"), projectId: "board" });
-  const composition = composeAgentHost({ localHost, workspaceFor: () => ({ workspace_id: "w", canonical_path: directory, realpath_verified: true, display_name: "workspace" }) });
+  const composition = localHost.ensureAgentService(directory, () => { throw new Error("the Host already owns its Home's Agent service"); });
   const captured: AgentStartRequest[] = [], store = new LocalProjectDatabase(join(directory, "plugins.db"));
   let owner: AgentSessionOwner | undefined;
   composition.agentHost.register({
@@ -118,6 +122,7 @@ test("Agent Host loads current guidance through actions and freezes each real re
     },
   });
   try {
+    await ensureProjectRoot(localHost, reference);
     const management = managementGoals(localHost.actionClient(reference), "board");
     await management.invoke(goalsActions.initialize, { idempotency_key: "init" });
     const added = await management.invoke(goalsActions.guidanceAdd, { kind: "constraint",
@@ -137,13 +142,14 @@ test("Agent Host loads current guidance through actions and freezes each real re
     await client.invoke(agentHostCapabilities.startRun, ["probe", request]);
     assert.equal(captured[2]!.role!.prompts.some(prompt => prompt.prompt_id === "project-guidance"), false);
     assert.ok(reads >= 3, "each start consults the real guidance action policy");
-  } finally { await composition.dispose(); await localHost.close(); store.close(); await rm(directory, { recursive: true, force: true }); }
+  } finally { await localHost.close(); store.close(); await rm(directory, { recursive: true, force: true }); }
 });
 
 test("an Agent round carries the number of the call that started it: its tool calls and the start the Runtime is given", async t => {
   const home = await realpath(await mkdtemp(join(tmpdir(), "agent-call-id-")));
   await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
-  const localHost = new MolisWorkLocalHost({ completeText: null });
+  const localHost = new MolisWorkLocalHost({ homeDirectory: home, completeText: null,
+    workspaceFor: () => ({ workspace_id: "w", canonical_path: home, realpath_verified: true, display_name: "workspace" }) });
   let served: Awaited<ReturnType<typeof serveTestHost>> | undefined;
   t.after(async () => {
     try { await served?.close(); }
@@ -153,12 +159,13 @@ test("an Agent round carries the number of the call that started it: its tool ca
     }
   });
   // The web server reuses the service this Host owns instead of registering a second Agent composition.
-  const composition = localHost.ensureAgentService(home, () => composeAgentHost({ localHost, homeDirectory: home,
-    workspaceFor: () => ({ workspace_id: "w", canonical_path: home, realpath_verified: true, display_name: "workspace" }) }));
+  const composition = localHost.ensureAgentService(home, () => { throw new Error("the Host already owns its Home's Agent service"); });
   // The tool lives on this Host, whose real catalog and access settings serve the grant.
   served = await serveTestHost(null, { home, host: localHost });
   const project = await served.createProject("Numbers");
   const reference = project.reference;
+  // Once the web server serves this Home, a project's directories are the catalog's: bind the one this round works in.
+  await withCatalog({ homeDirectory: home }, catalog => catalog.commit(() => catalog.addWorkspaceProject({ canonical_path: home, project_id: project.project_id, actor_id: "test-user", user_confirmed: true })));
   const ping: ActionDefinition = { capability_id: "fixture.agent.ping", version: 1, operation: "query", action: { title: "Ping", description: "Answers", kind: "query", scope: "project",
     audiences: ["agent", "mcp"], permissions: [], subject_kinds: [], input_schema: { type: "object", properties: {}, additionalProperties: false } } };
   const handled: Array<string | undefined> = [];

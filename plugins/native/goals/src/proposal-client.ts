@@ -66,6 +66,8 @@ export const GOALS_PROPOSAL_CLIENT_FACTORY_SCRIPT = `(host) => {
         const result = await molisWorkRequest(route("/api/goal-tree-proposals/" + encodeURIComponent(goalTreeDecisionForm.dataset.goalTreeProposalId) + "/decision"), {
           method: "POST",
           key,
+          // Only this control, after the person was asked about the whole proposal, says so; the Host reads it from the header, never the body.
+          ...(decision === "confirm" ? { headers: { "x-molis-work-whole-confirmation": "1" } } : {}),
           body: {
             ...(decision === "confirm"
               ? { confirm_all_pending: true }

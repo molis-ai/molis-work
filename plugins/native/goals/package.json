@@ -2,7 +2,7 @@
   "name": "@molis-ai/molis-work-plugin-goals",
   "version": "0.0.0",
   "private": true,
-  "description": "Protected first-party Goals navigation, UI, commands, and composition.",
+  "description": "Protected first-party Goals: navigation, UI, commands, composition, and the Goal and Governance facts it stores.",
   "type": "module",
   "license": "SEE LICENSE IN LICENSE",
   "engines": {
@@ -14,6 +14,14 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
+    "./module": {
+      "types": "./dist/module/index.d.ts",
+      "import": "./dist/module/index.js"
+    },
+    "./governance": {
+      "types": "./dist/governance/index.d.ts",
+      "import": "./dist/governance/index.js"
+    },
     "./registration": {
       "types": "./dist/registration.d.ts",
       "import": "./dist/registration.js"
@@ -21,6 +29,7 @@
   },
   "files": [
     "dist",
+    "methods",
     "README.md"
   ],
   "scripts": {
@@ -46,7 +55,15 @@
       "goals.status-ui.v1",
       "goals.factors-ui.v1",
       "goals.dialogs-ui.v1",
-      "goals.document-routes.v1"
+      "goals.document-routes.v1",
+      "goals.command.v1",
+      "goals.repository.v1",
+      "goals.lifecycle.v1",
+      "goals.planning.v1",
+      "goals.query.v1",
+      "governance.proposals.v1",
+      "governance.decisions.v1",
+      "governance.event-decisions.v1"
     ],
     "registration": "./registration",
     "extraWorkspaceDependencies": [

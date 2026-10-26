@@ -9,6 +9,7 @@ import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { randomUUID } from "node:crypto";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { goalApplicationOf } from "./fixtures/goal-application.js";
 
 test("guidance action consumers preserve original receipts, revisions, prompt text, scope and policy", async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-guidance-actions-"));
@@ -30,7 +31,7 @@ test("guidance action consumers preserve original receipts, revisions, prompt te
     await assert.rejects(actions.invoke({ ...caller, project_id: "foreign" }, goalsActions.guidanceAdd, input), { code: "actions.scope_mismatch" });
     await assert.rejects(actions.invoke({ ...caller, project_id: "foreign" }, goalsActions.guidanceRead, {}), { code: "actions.scope_mismatch" });
     assert.deepEqual(await bound.invoke(goalsActions.guidanceRead, {}), before);
-    const legacy = await host.withProject(ref, runtime => runtime.coordinator.goals.commands.addProjectGuidance({ ...input, project_id: project.project_id, actor_id: caller.actor_id }));
+    const legacy = await host.withProject(ref, runtime => goalApplicationOf(runtime).goals.commands.addProjectGuidance({ ...input, project_id: project.project_id, actor_id: caller.actor_id }));
     assert.deepEqual(await bound.invoke(goalsActions.guidanceAdd, input), { ...legacy, replayed: true });
     const duplicate = await bound.invoke(goalsActions.guidanceAdd, { ...input, idempotency_key: "same-content" });
     assert.equal(duplicate.created, false);
@@ -114,7 +115,7 @@ test("Web settings and Work prompt consume the same guidance and obey live read/
     assert.equal(savedWithoutRefresh.status, 200);
     const receipt = await savedWithoutRefresh.json() as { created: boolean; project_guidance: unknown; project_guidance_error: string };
     assert.equal(receipt.created, true); assert.equal(receipt.project_guidance, null); assert.match(receipt.project_guidance_error, /说明停用/);
-    assert.equal(await host.withProject(ref, runtime => runtime.coordinator.goalQueries.readProjectGuidance(project.project_id).entries[0]?.content), "保留恢复记录。");
+    assert.equal(await host.withProject(ref, runtime => goalApplicationOf(runtime).goalQueries.readProjectGuidance(project.project_id).entries[0]?.content), "保留恢复记录。");
     const deniedPrompt = await request(promptPath);
     assert.ok(deniedPrompt.status >= 400); assert.match(await deniedPrompt.text(), /说明停用/);
   } finally { await new Promise<void>(resolve => server.close(() => resolve())); await host.close(); await rm(home, { recursive: true, force: true }); }

@@ -26,7 +26,6 @@ import { resolveConfiguredHome } from "./product-home.js";
 import { LocalSqliteStorage, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
-import { PersonalPlanningMethods } from "@molis-ai/molis-work-module-goals";
 import {
   type DesktopPanelCatalogApi,
   type DesktopPanelContextPort,
@@ -63,7 +62,7 @@ import type {
 import {
   createRuntimeContextModule, createRuntimeProjectBindingValidation,
 } from "@molis-ai/molis-work-module-private-work-context";
-import { DEMO_PROJECT_ID, seedDemoBoard } from "./demo-seed.js";
+import { DEMO_PROJECT_ID, seedDemoGoals } from "./demo-seed.js";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
 
@@ -183,7 +182,6 @@ export class MolisWorkProjectCatalog {
   private readonly projects: ProjectsModule;
   private readonly runtimeContexts: ReturnType<typeof createRuntimeContextModule>;
   readonly desktopPanels: DesktopPanelCatalogApi;
-  readonly personalPlanningMethods: PersonalPlanningMethods;
   readonly models: ModelProviderStore;
 
   readonly commit: CatalogCommit;
@@ -196,7 +194,6 @@ export class MolisWorkProjectCatalog {
   ) {
     const db = storage.db;
     this.commit = createCatalogCommit(db, () => this.assertCurrentSchema());
-    this.personalPlanningMethods = new PersonalPlanningMethods(db);
     this.models = new ModelProviderStore({ db, secrets: {
       get: (ref) => runWithMolisWorkHome(homeDirectory, () => createFileSecretStore().get(ref)),
     } });
@@ -218,7 +215,7 @@ export class MolisWorkProjectCatalog {
     this.demoProjects = new DemoProjectLifecycle(
       this.projects,
       this.projectsDirectory,
-      { projectId: DEMO_PROJECT_ID, seed: seedDemoBoard },
+      { projectId: DEMO_PROJECT_ID, seed: seedDemoGoals },
       this.projectDeletion,
       contextBindingValidation,
       this.commit, projectDeletedHooksFor(homeDirectory),

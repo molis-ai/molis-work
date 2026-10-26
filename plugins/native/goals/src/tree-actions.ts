@@ -1,15 +1,15 @@
 import { ActionError, type ActionCallContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { GoalTreeApplicationApi } from "./goal-tree-contract.js";
-import { goalActor } from "./action-contract.js";
+import { ATTENTION_WRITE_PERMISSION, goalActor, usingServices } from "./action-contract.js";
 import { goalEntryActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 
 type Input<Key extends keyof GoalTreeApplicationApi> = Omit<Parameters<GoalTreeApplicationApi[Key]>[0],
   "project_id" | "actor_id" | "submitted_session_id" | "runtime_actor_id" | "authority">;
 export const goalsTreeActions = {
-  treeSubmit: goalEntryActions.treeSubmit,
+  treeSubmit: usingServices(goalEntryActions.treeSubmit, [ATTENTION_WRITE_PERMISSION]),
   treeRead: goalEntryActions.treeRead,
   treeCheck: goalEntryActions.treeCheck,
-  treeDecide: goalEntryActions.treeDecide,
+  treeDecide: usingServices(goalEntryActions.treeDecide, [ATTENTION_WRITE_PERMISSION]),
 } as const;
 
 function authority(caller: ActionCallContext) {

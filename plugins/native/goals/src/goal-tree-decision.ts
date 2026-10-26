@@ -16,6 +16,16 @@ import { GoalTreeDecisionPlan } from "./goal-tree-decision-plan.js";
 import { goalTreeMaterializationGroups } from "./goal-tree-materialization-order.js";
 import type { GoalDecisionAttentionSync } from "./goal-decision-attention.js";
 
+/**
+ * What makes two decisions the same request: who decided, from which entry, and what was decided. Which message carried it (the page's
+ * one-time key, a management command's evidence) is an audit locator the entry names, not part of what was decided, so the same decision
+ * retried under another transport key is still the same request and replays its result.
+ */
+function decisionIdentity<A extends { conversation_ref: string; message_ref: string }>(authority: A): Omit<A, "conversation_ref" | "message_ref"> {
+  const { conversation_ref: _conversation, message_ref: _message, ...decider } = authority;
+  return decider;
+}
+
 /** Applies a subset or a pristine whole proposal under the original all-owner transaction. */
 export class GoalTreeDecisionApplication implements Pick<GoalTreeApplicationApi, "decideGoalTreeProposal"> {
   private readonly plan: GoalTreeDecisionPlan;
@@ -41,7 +51,7 @@ export class GoalTreeDecisionApplication implements Pick<GoalTreeApplicationApi,
       project_id: input.project_id,
       proposal_id: proposalId,
       runtime_actor_id: runtimeActorId,
-      authority,
+      authority: decisionIdentity(authority),
       decisions: input.decisions ?? [],
       reason: input.reason ?? null,
       confirm_all_pending: wholeConfirmation,

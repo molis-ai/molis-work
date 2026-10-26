@@ -1,6 +1,5 @@
 import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderIconSprite, THEME_BOOTSTRAP_SCRIPT as BASE_THEME_BOOTSTRAP_SCRIPT, VISUAL_FOUNDATION_CLIENT_SCRIPT } from "@molis-ai/molis-work-design-system";
-import type { GoalPolicy, PlanningMethodComposition, PlanningMethodPack } from "@molis-ai/molis-work-contracts/modules/goals";
 import { FEED_PLUGIN_ID, type FeedItemRecord, type InboxEntryRecord } from "@molis-ai/molis-work-plugin-feed";
 import {
   buildDecisionGroups,
@@ -13,6 +12,7 @@ import {
   partOfChildViews,
   sortGoalTreeItems,
 } from "@molis-ai/molis-work-plugin-goals";
+import { DEFAULT_GOAL_POLICY, composePlanningMethodPacks } from "@molis-ai/molis-work-plugin-goals/module";
 import { createWorkbenchFeedProjectionRenderer, type FeedSupplementalEntry } from "./feed-projection-ui.js";
 import { createWorkbenchFocusSections } from "./focus-sections.js";
 import { createWorkbenchGoalsFragmentRenderer } from "./goals-fragment-renderer.js";
@@ -54,14 +54,12 @@ import { renderSideViewDocument as renderSideView, type SideViewDocumentInput } 
 export interface WorkbenchRendererPorts {
   locale: Pick<ReturnType<typeof createWorkbenchLocale>, "L" | "htmlLang" | "dateTimeLocale" | "listJoin" | "localeSwitchHref" | "clientI18nScript"> & { currentLocale(): WebLocale };
   desktop: { appendDesktopQueryToLocalHrefs(html: string): string; withDesktopQuery(path: string): string; bootstrapScript: string };
-  goals: { defaultPolicy: GoalPolicy; composePlanningMethodPacks(methods: readonly PlanningMethodPack[]): PlanningMethodComposition };
 }
 
 /** Compose application pages from registered UI owners; request and desktop state belong to the Host. */
 export function createWorkbenchRenderer(ports: WorkbenchRendererPorts) {
   const { L, currentLocale, htmlLang, dateTimeLocale, listJoin, localeSwitchHref, clientI18nScript } = ports.locale, goalsL = inWordsOf(GOALS_PLUGIN_ID, L), feedL = inWordsOf(FEED_PLUGIN_ID, L);
   const { appendDesktopQueryToLocalHrefs, withDesktopQuery, bootstrapScript: NATIVE_DESKTOP_BOOTSTRAP_SCRIPT } = ports.desktop;
-  const { defaultPolicy: DEFAULT_GOAL_POLICY, composePlanningMethodPacks } = ports.goals;
 const { sectionHeading, subsectionHeading, renderFocusSectionDeck } = createWorkbenchFocusSections({ L, escapeHtml });
 
 const { renderGoalTreeProposalDecision, renderGoalTreeProposalList } = createWorkbenchGoalsProposalRenderer({ translate: goalsL, escapeHtml, icon, renderList });

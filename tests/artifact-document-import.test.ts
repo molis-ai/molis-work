@@ -8,11 +8,12 @@ import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
-import { MolisWorkLocalHost, withConnectorConnections, DEMO_PROJECT_ID, GoalProjectApplication, LocalProjectDatabase, seedDemoBoard, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, withConnectorConnections, DEMO_PROJECT_ID, LocalProjectDatabase, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { artifactAnalysisContext, artifactOriginalPath, DOCUMENT_ARTIFACT_TYPE, DOCUMENT_IMPORT_MAX_BYTES, importArtifactDocument, type ArtifactDocumentImportPorts, type ImportedArtifactDocument } from "@molis-ai/molis-work-module-artifacts";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { documentImportConnections, importLocalArtifactDocument } from "../apps/local-host/dist/artifact-document-import.js";
 import { blankPng, epub, odt, pptx, rtf, xlsx } from "./fixtures/office-files.js";
+import { GoalProjectApplication, boardSnapshot, seedBoard } from "./fixtures/goal-application.js";
 
 const controlToken = "artifact-import-test-control-token-0123456789";
 const markdown = "# 导入验收\n\n保留中文正文和 **Markdown**。\n\n<script>importAttack()</script>\n";
@@ -21,7 +22,7 @@ async function fixture(t: test.TestContext) {
   const directory = await mkdtemp(join(tmpdir(), "molis-work-artifact-import-"));
   await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
   const databasePath = join(directory, "fixture.db");
-  seedDemoBoard(databasePath);
+  seedBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath);
   const coordinator = new GoalProjectApplication(store), library = openProjectVersionStores(store);
   let server: ReturnType<typeof createMolisWorkWebServer>;
@@ -57,7 +58,7 @@ async function fixture(t: test.TestContext) {
 
 test("document file HTTP import registers, previews, exports, reuses and survives restart", async t => {
   const { store, library, post, get, origin, restart } = await fixture(t);
-  const before = store.snapshot(DEMO_PROJECT_ID);
+  const before = boardSnapshot(store, DEMO_PROJECT_ID);
   // Importing is one entry for the whole project, the side panel's 资料 tab (specs/project-knowledge §8); the 成果库 points there.
   const directory = await (await get("/artifacts")).text();
   assert.doesNotMatch(directory, /data-artifact-import-open|data-artifact-import-dialog/);
@@ -113,7 +114,7 @@ test("document file HTTP import registers, previews, exports, reuses and survive
   const importedAgain = await post(file);
   assert.equal(importedAgain.status, 200);
   assert.deepEqual(await importedAgain.json(), { ...imported, reused: true });
-  const after = store.snapshot(DEMO_PROJECT_ID);
+  const after = boardSnapshot(store, DEMO_PROJECT_ID);
   for (const field of ["goals", "evidence", "runs", "reviews"] as const) assert.deepEqual(after[field], before[field]);
 });
 

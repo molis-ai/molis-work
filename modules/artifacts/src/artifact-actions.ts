@@ -121,8 +121,8 @@ export interface ArtifactActionPorts {
   importSources(): Record<string, boolean>;
   importConnections?(): ConnectorConnectionView[];
   openProjectReference(input: { reference: string }): Promise<{ filename: string; content_base64: string }>;
-  /** A Goal's title for 「被谁引用」, read by the host; null when the Goal is gone. */
-  goalTitle?(goalId: string): string | null;
+  /** A Goal's title for 「被谁引用」, asked as the caller; null when absent or unreadable. */
+  goalTitle?(goalId: string, caller: ActionExecutionContext): string | null | Promise<string | null>;
   /** A 成果 type's display name as its owner declares it (the side panel groups by it); null when undeclared. */
   typeTitle?(artifactTypeId: string): string | null;
   /** A version's text as its type's owner previews it, for a workflow run that starts from it; null when there is none. */
@@ -217,11 +217,12 @@ export function createArtifactActionHandlers(ports: ArtifactActionPorts): Action
       if (!ports.bindPluginInput) throw new ActionError("artifacts.unavailable", "这里没有运行中的插件，不能改插件的输入");
       return { inputs: await ports.bindPluginInput(artifact, { plugin_id: input.plugin_id, port: input.port, restore: input.restore === true }, caller) };
     }),
-    bind(artifactsActions.links, (input, caller) => {
+    bind(artifactsActions.links, async (input, caller) => {
       const edges = ports.ledger.list({ actor_id: caller.actor_id, scope: { kind: "personal", id: ports.projectId } }).filter(edge => edge.state === "active"
         && edge.target.module === "artifacts" && edge.target.id === input.reference.artifact_id && edge.target.version === input.reference.version);
-      const goals = edges.flatMap(edge => { const kind = linkKindOf(ports.linkKinds, edge); return kind === null ? []
-        : [{ goal_id: edge.source.id, title: ports.goalTitle?.(edge.source.id) ?? edge.source.id, role: referenceRole(kind) }]; });
+      const references = edges.flatMap(edge => { const kind = linkKindOf(ports.linkKinds, edge); return kind === null ? [] : [{ edge, kind }]; });
+      const goals = await Promise.all(references.map(async ({ edge, kind }) => ({ goal_id: edge.source.id,
+        title: await ports.goalTitle?.(edge.source.id, caller as ActionExecutionContext) ?? edge.source.id, role: referenceRole(kind) })));
       return { goals, other: edges.length - goals.length } satisfies ArtifactReferences;
     }),
     ...bindWorkflowContentHandlers(artifactsContentActions, {

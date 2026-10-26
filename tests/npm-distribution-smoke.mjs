@@ -30,7 +30,7 @@ try {
     import assert from 'node:assert/strict';
     import Database from 'better-sqlite3';
     import { MolisWorkPtyHost } from '@molis-ai/molis-work-service-runtime-host';
-    import { loadBuiltinPlanningMethodPacks } from '@molis-ai/molis-work-module-goals';
+    import { loadBuiltinPlanningMethodPacks } from '@molis-ai/molis-work-plugin-goals/module';
     const file = process.env.MOLIS_WORK_HOME + '-native.db';
     let db = new Database(file);
     db.exec('CREATE TABLE probe(value TEXT)');

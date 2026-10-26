@@ -166,7 +166,7 @@
 
 **其余三种「方法」（必须写全名）**
 
-- 规划方法（planning method）：Goals 拥有、规划时可选采用的方法包（类型 `PlanningMethodPack` 在 `packages/contracts/src/modules/goals.ts:209`，解析与内置包在 `modules/goals/src/planning/method-packs.ts`），按「项目 > 个人 > 内置冷启包」生效；内置包是 `modules/goals/methods/` 下的 Markdown。
+- 规划方法（planning method）：Goals 拥有、规划时可选采用的方法包（类型 `PlanningMethodPack` 在 `packages/contracts/src/modules/goals.ts:209`，解析与内置包在 `plugins/native/goals/src/module/planning/method-packs.ts`），按「项目 > 个人 > 内置冷启包」生效；内置包是 `plugins/native/goals/methods/` 下的 Markdown。
 - 研究方法（research method）：炼金术士里用户确认保存、可在新研究里沿用的做法，代码里叫 playbook（`memory.playbook.*`，`plugins/native/alchemist/src/studio/shared/contracts/actions.ts`）。
 - 连接方式（connection method）：一个服务可用的授权途径，`ConnectorMethodOption`（`kind` 为 `oauth`、`cli`、`token`、`mcp`，`packages/contracts/src/services/connector-host.ts`）。
 
@@ -186,7 +186,7 @@
 **目标资料库（Goals 根记录）**
 
 - 定义：Goals 在每个项目数据库里的根记录，一个项目一条：记录当前聚焦的 Goal，Goals 的其他记录挂在它下面（表 `boards`，`project_id` 是主键，外键指项目库的 `project_root`，由 Goals 的 Manifest 声明：`plugins/native/goals/src/project-database-goals.ts` 的 `GOALS_BOARDS_SQL`；记录类型 `GoalsBoardRecord`，`packages/contracts/src/modules/goals.ts`）。它不记项目的名字（S8 起没有 `title` 列，名字的主人是项目目录的 `display_name`）。它不是项目：项目身份是 `project_id`，这条记录用同一个 `project_id` 作键。
-- 动作 `goals.board.initialize`（标题「初始化目标资料库」，`plugins/native/goals/src/board-actions.ts:21`）创建它；没有它时 Goals 的读写报「这个项目还没有初始化目标资料库」（`modules/goals/src/command-support.ts:32`，2026-10-08 起的界面文案）。托管的项目数据库必须恰好有一条（`apps/local-host/src/managed-project-database.ts:43`）。
+- 动作 `goals.board.initialize`（标题「初始化目标资料库」，`plugins/native/goals/src/board-actions.ts:21`）创建它；没有它时 Goals 的读写报「这个项目还没有初始化目标资料库」（`plugins/native/goals/src/module/command-support.ts:32`，2026-10-08 起的界面文案）。托管的项目数据库必须恰好有一条（`apps/local-host/src/managed-project-database.ts:43`）。
 - 文档写「目标资料库」（与界面同名）；代码里仍叫 Board，改名见 R-A1。
 
 **Board**
@@ -333,7 +333,7 @@
 
 **U5　Board 还出现在 4 处报错里**
 
-- 现状：「Board 已存在」「Board ID 和名称不能为空」（`modules/goals/src/board-commands.ts`）、「Goal Tree 提案的 base_event_cursor 必须是当前 Board 已观察到的事件游标」（`plugins/native/goals/src/goal-tree-submission.ts`）、「项目数据库必须恰好包含一个 Board」（`apps/local-host/src/managed-project-database.ts`）。这些是动作和命令的报错，用户会在各入口看到。同日的文案改动（#299）已把「Board 不存在」和动作「初始化目标资料库」的说明改成「目标资料库」，所以这 4 处与它不一致。
+- 现状：「Board 已存在」「Board ID 和名称不能为空」（`plugins/native/goals/src/module/board-commands.ts`）、「Goal Tree 提案的 base_event_cursor 必须是当前 Board 已观察到的事件游标」（`plugins/native/goals/src/goal-tree-submission.ts`）、「项目数据库必须恰好包含一个 Board」（`apps/local-host/src/managed-project-database.ts`）。这些是动作和命令的报错，用户会在各入口看到。同日的文案改动（#299）已把「Board 不存在」和动作「初始化目标资料库」的说明改成「目标资料库」，所以这 4 处与它不一致。
 - 建议：余下的统一写「目标资料库」或「项目」，与 #299 一致：「目标资料库已存在」「项目 ID 和名称不能为空」「……必须是当前目标资料库已观察到的事件游标」「项目数据库必须恰好包含一个目标资料库」。错误码 `board.not_found` 等属合同，随第 5 节 R-B3 决定，不在这一条。
 - 备选：保持现状。
 
@@ -408,7 +408,7 @@ B　说工作者本身的（做事、用自己的权限、请求授权和提问�
 | # | 旧标识符 | 建议新名 | 规模 | 说明 |
 | --- | --- | --- | --- | --- |
 | R-A1 | `GoalsBoardRecord`、`getBoard`、`requireBoard`、`initializeBoard`（含 `InitializeBoardInput`、`InitializeBoardOutput`、`initializeBoardCapability`）、`BoardSnapshot*`（含 `boardSnapshotSchema`、`snapshotBoardCapability`）、`MolisWorkCommands`（在 `board-commands.ts`）、`GOALS_BOARDS_SQL`（原 `GOAL_BOARDS_SCHEMA_SQL`，S8 搬到 `plugins/native/goals`） | 去掉 Board：目标资料库（Goals 根记录）写 `GoalsLibrary*`（如 `GoalsLibraryRecord`、`getGoalsLibrary`、`requireGoalsLibrary`、`initializeGoalsLibrary`）；`BoardSnapshot*` 去掉 Board 前缀，具体名落地时定（`GoalsQuerySnapshot` 已存在，避开）；`MolisWorkCommands` 改 `GoalsLibraryCommands` | 源码：`GoalsBoardRecord` 4 个文件、`getBoard` 10、`requireBoard` 10、`initializeBoard` 系 14（`validateManagedBoard`、`readManagedBoard` 已在 S8b 删改，2026-10-24）、`BoardSnapshot` 13；测试：`initializeBoard` 系 58 | 表名 `boards` 保留（2026-10-06 决定）。`initializeBoard` 在测试里是初始化项目的目标资料库的公用写法，改名要连测试一起 |
-| R-A2 | 文件 `modules/goals/src/board-commands.ts`、`plugins/native/goals/src/board-actions.ts`、`board-entry-capabilities.ts`、`board-snapshot-query.ts`；`tests/goals-board-actions.test.ts` | 去掉 `board-` 前缀 | 5 个文件 | 引用这些路径的 README 和 `docs/` 同步 |
+| R-A2 | 文件 `plugins/native/goals/src/module/board-commands.ts`、`plugins/native/goals/src/board-actions.ts`、`board-entry-capabilities.ts`、`board-snapshot-query.ts`；`tests/goals-board-actions.test.ts` | 去掉 `board-` 前缀 | 5 个文件 | 引用这些路径的 README 和 `docs/` 同步 |
 | R-A3 | 判断规则的 TypeScript 类型：`FunctionRecord`、`FunctionDraftPatch`、`FunctionSummary`、`FunctionDescribe`、`FunctionSample`、`FunctionCriteria`、`FunctionInvokeResult`、`FunctionsPrimitive`、`FunctionStatus`、`FunctionAuthoring*` | `JudgmentRule*` | 源码 9 个文件、测试 3 个 | 只改类型名；`function_key`、表和动作 id 见 R-B2 |
 | R-A4 | 包 `@molis-ai/molis-work-module-functions`、目录 `modules/functions`、`apps/workbench/src/functions/`、`apps/local-host/src/functions-*.ts` | `judgment-rules` | 源码 15 个文件、测试 20 个文件导入这个包名 | Home 里的 `functions` 库名属合同，见 R-B2 |
 | R-A5 | `FunctionAuthoringBehavior`、`behavior-catalog.ts`、`liveHostFunctionAuthoringCatalog`、常量 `*_BEHAVIOR_ID`（如 `HOME_TALK_BEHAVIOR_ID`） | `…Option`、`recommendation-catalog.ts`、`*_OPTION_ID` | 源码 5 个文件（`FunctionAuthoringBehavior`、`behavior-catalog`）；`behavior_id` 字样（含 `suggested_behavior_ids`）源码 31 个文件、测试 23 个，`*_BEHAVIOR_ID` 常量源码 5 个文件、测试 3 个 | 常量的值（`inbox.admit` 等）不变；编辑器目录是宿主与编辑器之间的形状，未持久化，可一起改 |
@@ -441,7 +441,7 @@ B　说工作者本身的（做事、用自己的权限、请求授权和提问�
 - 设计系统的「组件板」、Goals 的「看板」视图及其 CSS：不指项目。
 - `agent.skills.*` 宿主能力 id、`skill_id`、`AgentSkill*` 类型：与本表的 Skill 一致，不用改。
 - 类型名 `HostCapabilityDescriptor`、`CapabilityRegistry`：本表把 capability 定义为注册表条目，这两个名字与定义一致。
-- Goals 里规划方法的 `method_id`（`modules/goals`、`plugins/native/goals`、`apps/local-host/src/web-planning.ts` 以及 Goals 的库表与事件）：它指规划方法，写在 Goals 的库和事件里，建议不改；读到 `method_id` 时看所在包：助理一侧是 Skill（R-B5），Goals 一侧是规划方法。
+- Goals 里规划方法的 `method_id`（`plugins/native/goals`（含 `src/module/`）、`apps/local-host/src/web-planning.ts` 以及 Goals 的库表与事件）：它指规划方法，写在 Goals 的库和事件里，建议不改；读到 `method_id` 时看所在包：助理一侧是 Skill（R-B5），Goals 一侧是规划方法。
 - 构建期 UI 描述和内置插件的 `contribution_id` 里的 `.native.` 段（3.3 第 4 条）：贡献 id 的命名空间，不是插件 id。
 - R-B 里用户不确认改名的项，在这里补一行。
 

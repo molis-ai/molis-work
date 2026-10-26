@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { GoalProjectApplication, DEMO_PROJECT_ID } from '@molis-ai/molis-work-app-local-host';
+import { DEMO_PROJECT_ID } from '@molis-ai/molis-work-app-local-host';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
+import { GoalProjectApplication } from './fixtures/goal-application.js';
 
 for(const [width,height] of [[1024,400],[390,500]]) {
   test(`Type and requirement ${width}: second write failure preserves one type and retries requirement`,{timeout:60000},async t=>{

@@ -7,11 +7,12 @@ import test from "node:test";
 import Database from "better-sqlite3";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
-import { MolisWorkLocalHost, DEMO_PROJECT_ID, GoalProjectApplication, LocalProjectDatabase, seedDemoBoard, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoGoals, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { createGoalsDeliverableActionHandlers, goalsArtifactInputActions, goalsDeliverableActions, type GoalDeliverable } from "@molis-ai/molis-work-plugin-goals";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
+import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
 const controlToken = "goal-artifact-inputs-control-token-0123456789";
 
@@ -20,7 +21,7 @@ test("a 成果 version becomes a Goal's input from its detail, shows on the Goal
   const directory = await mkdtemp(join(tmpdir(), "molis-work-goal-inputs-"));
   const databasePath = join(directory, "fixture.db");
   await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
-  seedDemoBoard(databasePath);
+  await seedDemoGoals(databasePath);
   const store = new LocalProjectDatabase(databasePath);
   const library = openProjectVersionStores(store);
   const server = createMolisWorkWebServer({ databasePath, projectId: DEMO_PROJECT_ID, homeDirectory: directory, controlToken });
@@ -69,7 +70,7 @@ test("a document taken as a Goal's input 「固定这一版」 is pinned by Page
   const directory = await mkdtemp(join(tmpdir(), "molis-work-goal-inputs-pin-"));
   const databasePath = join(directory, "fixture.db");
   await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
-  seedDemoBoard(databasePath);
+  await seedDemoGoals(databasePath);
   const store = new LocalProjectDatabase(databasePath);
   const library = openProjectVersionStores(store);
   const server = createMolisWorkWebServer({ databasePath, projectId: DEMO_PROJECT_ID, homeDirectory: directory, controlToken });
@@ -103,8 +104,9 @@ test("inputs from anyone but the person are proposals, kept apart from deliverab
     definitions: [...Object.values(goalsDeliverableActions), ...Object.values(goalsArtifactInputActions)],
     handlers: createGoalsDeliverableActionHandlers({ projectId: "board", goalExists: id => id === "G1", ledger,
       readArtifact: () => ({ title: "资料", artifact_type_id: "doc", availability: "available", lifecycle_state: "active" }),
+      read: body => body(), write: (_caller, body) => Promise.resolve(body()),
       pin: async () => { throw new Error("not used"); }, pinnableKinds: async () => [], boundObjects: () => [] }) });
-  const caller = (audience: ActionCallContext["audience"]): ActionCallContext => ({ actor_id: audience === "user" ? "web-user" : "assistant", audience, project_id: "project", permissions: ["goals:read", "goals:write"] });
+  const caller = (audience: ActionCallContext["audience"]): ActionCallContext => ({ actor_id: audience === "user" ? "web-user" : "assistant", audience, project_id: "project", permissions: ["goals:read", "goals:write", "context-ledger:write", "artifacts:read"] });
   const reference = { artifact_id: "doc", version: 1 };
   const proposed = await actions.invoke(caller("agent"), goalsArtifactInputActions.add, { goal_id: "G1", reference, reason: "背景资料" }) as { input: GoalDeliverable };
   assert.deepEqual([proposed.input.proposed, proposed.input.reason], [true, "背景资料"]);
@@ -123,7 +125,7 @@ test("a proposed Feed input shows on the Goal as pending with 认可 and 移除;
   const directory = await mkdtemp(join(tmpdir(), "molis-work-goal-inputs-accept-"));
   const databasePath = join(directory, "fixture.db");
   await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
-  seedDemoBoard(databasePath);
+  await seedDemoGoals(databasePath);
   const store = new LocalProjectDatabase(databasePath);
   const coordinator = new GoalProjectApplication(store);
   const server = createMolisWorkWebServer({ databasePath, projectId: DEMO_PROJECT_ID, homeDirectory: directory, controlToken });

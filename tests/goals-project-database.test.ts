@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { GOALS_PLUGIN_ID, GOALS_PROJECT_DATABASE, goalsManifest } from "@molis-ai/molis-work-plugin-goals";
+import { GOALS_HOME_DATABASE, GOALS_PLUGIN_ID, GOALS_PROJECT_DATABASE, goalsManifest } from "@molis-ai/molis-work-plugin-goals";
+import { actionPermissionDeclarations } from "@molis-ai/molis-work-contracts/platform/actions";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import {
   PLUGIN_PROJECT_DATABASES_SCHEMA_SQL, openPluginProjectDatabase, type PluginProjectSchemaInspector,
@@ -45,13 +46,22 @@ const tableNames = (db: DatabaseSync) => listSqliteObjects(db).filter(object => 
 
 test("PLIB-12 Goals' Manifest declares its project library: the plugin entry's declaration passes the SDK shape check", () => {
   const manifest = parsePluginManifest(structuredClone(goalsManifest));
-  assert.deepEqual(manifest.databases, { project: GOALS_PROJECT_DATABASE });
+  // The same Manifest also declares the person's planning library in the Home (PG-094 S13), for the plugin's Home half.
+  assert.deepEqual(manifest.databases, { project: GOALS_PROJECT_DATABASE, home: GOALS_HOME_DATABASE });
   assert.equal(GOALS_PROJECT_DATABASE.store_name, "goals");
   assert.equal(GOALS_PROJECT_DATABASE.version, 1);
   // A plugin's own tables in the library are its private storage (D23), and the Manifest declares that permission.
   assert.equal(GOALS_PROJECT_DATABASE.read_permission, "storage:private");
   assert.equal(GOALS_PROJECT_DATABASE.write_permission, "storage:private");
   assert.deepEqual(manifest.permissions.filter(permission => permission.permission === "storage:private").map(permission => permission.required), [true]);
+});
+
+test("RAC-797 every permission is required, and every permission an action asks of its caller is declared in the Manifest's written-out list", () => {
+  const manifest = parsePluginManifest(structuredClone(goalsManifest));
+  assert.ok(manifest.permissions.every(permission => permission.required === true), "a dual-instance plugin has no optional permission");
+  const declared = new Set(manifest.permissions.map(permission => permission.permission));
+  const asked = actionPermissionDeclarations(manifest.actions ?? [], "x").map(permission => permission.permission);
+  assert.deepEqual(asked.filter(permission => !declared.has(permission)), [], "an action's permission missing from the list the Manifest writes out");
 });
 
 test("PLIB-12 on an empty library the declaration passes the SQL rules, creates every Goals and Governance table and writes the ledger row", () => {

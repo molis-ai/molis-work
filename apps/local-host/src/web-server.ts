@@ -21,7 +21,7 @@ import { MolisWorkWebServiceManager } from "./installer/web-service.js";
 import { resolveWebControlToken, sendWebHealth } from "./web-control-token.js";
 import { sendUnhandledWebError, authorizeLocalWebRequest, refuseForeignRequest, type LocalMutationState } from "./web-http.js";
 import type { MolisWorkWebViewCache } from "./web-view.js";
-import { seedDemoBoard } from "./demo-seed.js";
+import { startDemoSeed } from "./demo-seed.js";
 import { attachMolisWorkPtySocket } from "./pty-socket.js";
 import { bindPluginTerminalHost } from "./plugin-terminal-service.js";
 import { isWebLocale, localeSetCookie, resolveWebLocale, runWithLocale, safeNextPath } from "./web-locale.js";
@@ -113,7 +113,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     const controlToken = resolveWebControlToken(serverOptions);
     const mutationKeys = new Map<string, LocalMutationState>();
     const webViewCache: MolisWorkWebViewCache = new Map();
-    if (fixture?.demo && !fs.existsSync(fixture.databasePath)) seedDemoBoard(fixture.databasePath);
+    const demoSeeding = startDemoSeed(fixture);
     const { periodicTasks: periodic } = composition;
     resources.push(["periodic", () => periodic.stop()]);
     const { im, browserHost, sites, computer, projectExists, feedSchedulers } = createWebStorageResources({
@@ -121,7 +121,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     });
     const server = trackHostListener(http.createServer((request, response) => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), async () => {
       const url = new URL(request.url ?? "/", "http://localhost");
-      try {
+      try { await demoSeeding;
         // Every route (locale switch included) answers only a request addressed to this machine by a loopback name, and none can be framed by another origin (S-02, S-21).
         if (refuseForeignRequest(request, response)) return;
         if (request.method === "GET" && url.pathname === "/locale") {

@@ -8,7 +8,6 @@ import { connectorRecordActions } from "./connector-record-actions.js";
 import { PLUGIN_CONSENT_PERMISSIONS, PLUGIN_CONSENT_PROVIDER_ID } from "./installed-plugin-consent-actions.js";
 import { PLUGIN_INSTALL_PERMISSIONS, PLUGIN_INSTALL_PROVIDER_ID } from "./plugin-install-actions.js";
 import { informationActions, INFORMATION_PROVIDER_ID } from "./information-actions.js";
-import { PERSONAL_PLANNING_PERMISSIONS, PERSONAL_PLANNING_PROVIDER_ID } from "./personal-planning-actions.js";
 import { ASSISTANT_RULES_PROVIDER, ASSISTANT_RULE_ACTIONS, ASSISTANT_FOLLOW_UP_ACTIONS } from "./assistant/assistant-rule-actions.js";
 import { assistantThreadActions } from "./assistant/assistant-thread-actions.js";
 import { FUNCTIONS_PROVIDER_ID, functionsActions, functionAuthoringActions, functionContextActions } from "@molis-ai/molis-work-module-functions";
@@ -47,7 +46,6 @@ function ownerProviders(): ReadonlyMap<string, readonly string[]> {
     [FUNCTIONS_PROVIDER_ID, asks([...Object.values(functionsActions), ...Object.values(functionAuthoringActions), ...Object.values(functionContextActions)])],
     [PROJECT_WORKSPACE_PROVIDER_ID, asks(Object.values(projectWorkspaceActions))],
     [CHARACTER_PLUGIN_ID, CHARACTER_ACTION_PERMISSIONS],
-    [PERSONAL_PLANNING_PROVIDER_ID, PERSONAL_PLANNING_PERMISSIONS],
     [ASSISTANT_RULES_PROVIDER, asks([...Object.values(ASSISTANT_RULE_ACTIONS), ...Object.values(ASSISTANT_FOLLOW_UP_ACTIONS), ...Object.values(assistantThreadActions)])],
     [SEARCH_PROVIDER_ID, SEARCH_PERMISSIONS],
     [KNOWLEDGE_PROVIDER_ID, [...KNOWLEDGE_PERMISSIONS, "model:invoke"]],

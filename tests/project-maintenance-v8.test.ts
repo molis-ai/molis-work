@@ -15,6 +15,7 @@ import { FEED_PLUGIN_ID, FEED_PROJECT_DATABASE } from "@molis-ai/molis-work-plug
 import { SCHEDULE_PLUGIN_ID, SCHEDULE_PROJECT_DATABASE } from "@molis-ai/molis-work-plugin-schedule";
 import { inspectPluginProjectSchema, openPluginProjectDatabase, type PluginProjectSchemaInspector } from "@molis-ai/molis-work-plugin-runtime";
 import { SqliteSchemaVersionError, applySqliteBaseline, describeSqliteSchema, listSqliteObjects } from "@molis-ai/molis-work-storage";
+import { goalApplicationOf } from "./fixtures/goal-application.js";
 
 /**
  * Maintenance eight, the project library part (PLIB-05; specs/plugin-project-database/spec.md §3 L1b; the maintenance list of
@@ -137,7 +138,7 @@ async function oldHome(directory: string): Promise<OldHome> {
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: () => ({ available: true }) });
   try {
     const caller: ActionCallContext = { actor_id: "runtime:maintenance", project_id: projectId, audience: "agent", permissions: ["goals:read", "goals:write"] };
-    const bound = bindActionClient(host.actionClient(reference, false), () => caller);
+    const bound = bindActionClient(host.actionClient(reference), () => caller);
     await bound.invoke(goalsActions.create, { title: "维护前的目标", goal_id: "KEPT-GOAL", outcome: "维护后还在", idempotency_key: "create-kept", source_kind: "runtime" as const });
     await bound.invoke(goalsActions.note, { goal_id: "KEPT-GOAL", body: "维护前的便笺", idempotency_key: "note-kept" });
   } finally { await host.close(); }
@@ -270,9 +271,9 @@ test("PLIB-05: after the maintenance the plugins' tables open as recorded, this 
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   try {
     const reference = molisWorkHostProjectReference({ projectId, databasePath });
-    const events = await host.withProject(reference, runtime => runtime.coordinator.goalEvents.listEvents(projectId, "KEPT-GOAL"));
+    const events = await host.withProject(reference, runtime => goalApplicationOf(runtime).goalEvents.listEvents(projectId, "KEPT-GOAL"));
     assert.equal(events.events.filter(event => event.kind === "system" && event.payload.operation === "observation_note").length, 1, "the note written before the maintenance");
-    const retried = await host.withProject(reference, runtime => runtime.coordinator.initializeBoard({ project_id: projectId, ...making }));
+    const retried = await host.withProject(reference, runtime => goalApplicationOf(runtime).initializeBoard({ project_id: projectId, ...making }));
     assert.equal(retried.replayed, true, "a retry of the board's making with the key used before the maintenance replays it, not refused as a reused key");
   } finally { await host.close(); }
   const opened = snapshot(databasePath);

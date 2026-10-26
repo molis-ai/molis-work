@@ -2,9 +2,11 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { openMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
-import { createLocalFeedApplication, DEMO_PROJECT_ID, GoalProjectApplication } from '@molis-ai/molis-work-app-local-host';
+import { createLocalFeedApplication, DEMO_PROJECT_ID } from '@molis-ai/molis-work-app-local-host';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
 import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
+import { GoalProjectApplication } from './fixtures/goal-application.js';
+import { boardSnapshot } from "./fixtures/goal-application.js";
 
 for (const [width,height] of [[1440,900],[390,640]]) {
   test(`Project journey ${width}: create Goal, record note, create Feed task, read and process Inbox`, {timeout:90000}, async t => {
@@ -28,13 +30,13 @@ for (const [width,height] of [[1440,900],[390,640]]) {
     await fill('[data-create-form] [name=title]','完成跨页面工作流验收');
     await fill('[data-create-form] [name=outcome]','创建、记录、阅读与处理可以顺畅连续完成');
     await navigate(()=>click('[data-create-form] button[type=submit]'));
-    const goalId=b.store.snapshot(DEMO_PROJECT_ID).goals.find(g=>g.title==='完成跨页面工作流验收')!.goal_id;
+    const goalId=boardSnapshot(b.store, DEMO_PROJECT_ID).goals.find(g=>g.title==='完成跨页面工作流验收')!.goal_id;
     if(await evaluate("document.querySelector('[data-goal-frame-surface]')?.hidden!==false")){
       await showGoalStageList();
       await b.openGoalFrame(`[data-select-goal="${goalId}"]`);
     }
     await waitFor("document.querySelector('[data-goal-frame-surface]')?.hidden===false && document.querySelector('[data-goal-frame-surface]').dataset.frameGoal==="+JSON.stringify(goalId));
-    assert.equal(b.store.snapshot(DEMO_PROJECT_ID).goals.find(g=>g.goal_id===goalId)?.title,'完成跨页面工作流验收');
+    assert.equal(boardSnapshot(b.store, DEMO_PROJECT_ID).goals.find(g=>g.goal_id===goalId)?.title,'完成跨页面工作流验收');
     if (width < 760) {
       assert.equal(await evaluate("document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open')"), false, 'creation opens the new Goal content');
       // craft-finish round 4 retired the narrow directory drawer: plugins are reached from the bottom bar's picker,

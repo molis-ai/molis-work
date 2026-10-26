@@ -19,11 +19,15 @@ export interface GovernanceSqliteStatement {
   run(...params: unknown[]): { changes: number | bigint; lastInsertRowid?: number | bigint };
 }
 
+/**
+ * What Governance needs of a SQLite connection: statements, a transaction that nests, and a point it can roll back to without ending
+ * the transaction (the Goal Tree preview). No free SQL: Governance sends nothing a plugin's statement check would refuse.
+ * `savepoint` undoes the body's writes when `keep` is false or the body throws, and gives the body's value either way.
+ */
 export interface GovernanceSqliteDatabase {
   prepare(sql: string): GovernanceSqliteStatement;
-  exec(sql: string): unknown;
   transaction<T>(operation: () => T): (() => T) & { immediate(): T };
-  pragma(source: string): unknown;
+  savepoint<T>(body: () => { readonly keep: boolean; readonly value: T }): T;
 }
 
 /**

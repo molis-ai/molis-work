@@ -25,7 +25,8 @@ function runtimeFor(home: string, db: ReturnType<typeof openHomeSqliteDatabase>,
       await beforeEffect();
       phase += 1;
       hooks.onTransaction(phase);
-      const transaction: PluginDatabaseTransaction = { get: database.get, all: database.all, run: (sql, parameters = []) => db.prepare(sql).run(...parameters) };
+      const transaction: PluginDatabaseTransaction = { get: database.get, all: database.all, run: (sql, parameters = []) => db.prepare(sql).run(...parameters),
+        savepoint: () => { throw new Error("this fixture's writes do not use a savepoint"); } };
       const result = write(transaction);
       hooks.afterTransaction(phase);
       return result;

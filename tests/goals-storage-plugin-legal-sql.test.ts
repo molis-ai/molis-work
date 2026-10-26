@@ -4,15 +4,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { GoalsModule } from "@molis-ai/molis-work-module-goals";
-import { GovernanceCollaborationModule } from "@molis-ai/molis-work-module-governance-collaboration";
-import { pluginLegalSql, SAVEPOINTS } from "./fixtures/plugin-legal-sql.js";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { GoalsModule } from "./fixtures/goals-modules.js";
+import { GovernanceCollaborationModule } from "./fixtures/goals-modules.js";
+import { pluginLegalSql } from "./fixtures/plugin-legal-sql.js";
+import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
-// PG-094 S9-1 (specs/repository-anti-corruption/slices/goals-s9-1-journal-seam.md): the journal boundary and the savepoint exceptions
-// reached by these cases. The fixture checks executed paths; the spec's 13 manually reviewed SQL templates are not execution coverage.
+// PG-094 S9-1 / RAC-794: executed reads/writes and refusals use the production SQL guard; previews undo through a savepoint handle.
 
-const MODULES = ["modules/goals/src", "modules/governance-collaboration/src"];
+const MODULES = ["plugins/native/goals/src/module", "plugins/native/goals/src/governance"];
 
 function sources(directory: string): string[] {
   return readdirSync(directory).flatMap(name => {
@@ -134,11 +134,16 @@ test("RAC-284 unsupported statement methods refuse journal SQL before reading or
   } finally { dispose(); }
 });
 
-test("RAC-285 the SQL reached by these cases uses only the six pinned preflight savepoint exceptions and rolls back previews", () => {
+// RAC-794: a preview never submits transaction SQL through the plugin statement port.
+test("RAC-285 no free-form exec and the platform savepoint rolls back real preview writes", () => {
+  const withExec = MODULES.flatMap(directory => sources(directory))
+    .filter(path => !path.endsWith("planning/personal-methods.ts"))
+    .filter(path => /\.(?:exec|pragma)\(/u.test(readFileSync(path, "utf8")));
+  assert.deepEqual(withExec, [], "the plugin has no free-form transaction SQL");
   const { store, dispose } = library();
   try {
     const legal = pluginLegalSql(store);
-    const governance = new GovernanceCollaborationModule({ db: legal.db, journal: store });
+    const governance = new GovernanceCollaborationModule({ db: legal.governance, journal: store });
     const before = store.db.prepare("SELECT updated_at FROM boards WHERE project_id = ?").get("board-legal");
     const update = legal.db.prepare("UPDATE boards SET updated_at = ? WHERE project_id = ?");
     assert.equal(governance.decisions.previewMaterialization(() => {
@@ -153,6 +158,7 @@ test("RAC-285 the SQL reached by these cases uses only the six pinned preflight 
       return { keep: false, value: "item" };
     }), "item");
     assert.deepEqual(store.db.prepare("SELECT updated_at FROM boards WHERE project_id = ?").get("board-legal"), before);
-    assert.deepEqual([...legal.stats.savepoints].sort(), [...SAVEPOINTS].sort());
+    assert.equal(legal.stats.savepoints, 2, "each preview opens one platform savepoint");
+    assert.throws(() => legal.db.exec("SAVEPOINT free_form"), /exec is not a plugin statement/);
   } finally { dispose(); }
 });

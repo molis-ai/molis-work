@@ -21,6 +21,11 @@ export const PLUGIN_CONTEXT_LEDGER_WRITE_PERMISSION = "context-ledger:write";
  */
 export interface PluginAttentionDeclaration {
   readonly subjects: readonly AttentionSubjectType[];
+  /**
+   * Which of `subjects` are the person's Inbox: the entries the plugin writes about them show in the Inbox beside the unassigned ones.
+   * A kind left out stays the plugin's own (read through `services.attention`); declaring a kind never shows another plugin's entries.
+   */
+  readonly inbox?: readonly AttentionSubjectType[];
 }
 
 /** A subject to address. A write checks this target against the installation's trusted Manifest, never treating it as caller identity. */

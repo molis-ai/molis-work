@@ -39,12 +39,12 @@ export function checkGoalsManagementWiring(source, mode) {
     && text(body.statements[1]) === 'if(operation==="init"&&homeDatabase)prepareLocalProjectStorage(databasePath,"create");'
     && ts.isReturnStatement(body.statements[2]) && body.statements[2].expression === call;
   const expectedClient = mcp ? "caller.localHost.actionClient" : "(localHost??=createMolisWorkLocalHost()).actionClient";
-  if (!imports.has("./goals-actions.js:bindGoalsManagementActions") || !call || call.arguments.length !== 3
-    || !opened || !ts.isCallExpression(opened) || text(opened.expression) !== expectedClient || opened.arguments.length !== 2
-    || text(opened.arguments[0]) !== "reference" || opened.arguments[1].kind !== ts.SyntaxKind.FalseKeyword
+  if (!imports.has("./goal-callers.js:bindGoalsManagementActions") || !call || call.arguments.length !== 3
+    || !opened || !ts.isCallExpression(opened) || text(opened.expression) !== expectedClient || opened.arguments.length !== 1
+    || text(opened.arguments[0]) !== "reference"
     || text(call.arguments[1]) !== "reference" || text(call.arguments[2]) !== (mcp ? "{signal:caller.resident?.signal}" : "{signal:options.signal}")
     || !fallback?.initializer || !ts.isArrowFunction(fallback.initializer) || fallback.initializer.parameters.length !== 0 || (mcp ? body !== call : !guarded)) {
-    reject("bindGoalsManagementActions must build the single lazy fallback with the unprepared actionClient(reference, false), bound reference and original signal");
+    reject("bindGoalsManagementActions must build the single lazy fallback with the project's actionClient(reference), retaining Home ownership before creation, bound reference and original signal");
   }
   const resident = namedCalls("residentManagementActions"), residentCall = resident.length === 1 ? resident[0] : undefined;
   const residentInput = residentCall?.arguments[0];

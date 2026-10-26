@@ -179,7 +179,7 @@ export type {
 } from "@molis-ai/molis-work-contracts/modules/goals";
 export type { GoalsJournal, GoalsSqliteDatabase } from "./repository.js";
 export { GoalInputBindings } from "./input-bindings.js";
-export { createPersonalPlanningMethodSchema, PersonalPlanningMethods, readPersonalPlanningMethods } from "./planning/personal-methods.js";
+export { PersonalPlanningMethods } from "./planning/personal-methods.js";
 
 /** Read-only Module assembly; callers do not construct Goals repositories. */
 export function createGoalReadServices(db: GoalsSqliteDatabase, journal: GoalsJournal): {

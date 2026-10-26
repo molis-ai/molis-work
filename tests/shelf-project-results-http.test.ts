@@ -5,11 +5,12 @@ import { randomUUID } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { LocalProjectDatabase, GoalProjectApplication, openProjectVersionStores, releaseProjectPlugins } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, openProjectVersionStores, releaseProjectPlugins } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 import { openTestShelfStore } from "./shelf-direct-actions.js";
+import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
 test("Shelf explicitly receives a genuine fixed Coding report, preserves edited copies on retry and saves the copy into project knowledge", async t => {
   const home = mkdtempSync(join(tmpdir(), "shelf-results-"));

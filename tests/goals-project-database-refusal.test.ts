@@ -7,6 +7,7 @@ import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
+import { goalEntryActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import { LocalProjectDatabase, MolisWorkLocalHost, developInPrivateHost, isProjectPluginDatabaseRefusal, molisWorkHostProjectReference, openProjectPluginDatabases, releaseProjectPlugins, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { CODING_ACTIONS, CODING_PLUGIN_ID } from "@molis-ai/molis-work-plugin-coding";
@@ -59,21 +60,26 @@ async function project(directory: string) {
 }
 
 /** The plugins whose actions the project's directory lists, as the person's pages would ask for them, and what a call to a Goals action does. */
-async function directory(home: string, projectId: string, databasePath: string): Promise<{ plugins: Set<string>; goalsCall: { code?: string } | "answered" }> {
+async function directory(home: string, projectId: string, databasePath: string): Promise<{ plugins: Set<string>; homeGoals: boolean; goalsCall: { code?: string } | "answered" }> {
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   try {
     const caller: ActionCallContext = { actor_id: "web-user", actor_kind: "user", audience: "user", project_id: projectId, permissions: PERMISSIONS };
     const client = host.actionClient(molisWorkHostProjectReference({ projectId, databasePath }));
-    const providers = (await client.discover(caller)).map(row => row.provider.plugin_id ?? "");
+    const directory = await client.discover(caller);
+    const providers = directory.filter(row => row.provider.plugin_id !== GOALS_PLUGIN_ID || row.action.scope === "project").map(row => row.provider.plugin_id ?? "");
+    const homeGoals = directory.some(row => row.provider.plugin_id === GOALS_PLUGIN_ID && row.action.scope === "home");
     let goalsCall: { code?: string } | "answered" = "answered";
     try { await client.invoke(caller, goalsActions.snapshot, {}); } catch (error) { goalsCall = { code: (error as { code?: string }).code }; }
-    return { plugins: new Set(providers.filter(id => id === GOALS_PLUGIN_ID || OTHERS.includes(id))), goalsCall };
+    return { plugins: new Set(providers.filter(id => id === GOALS_PLUGIN_ID || OTHERS.includes(id))), homeGoals, goalsCall };
   } finally { await host.close(); }
 }
 
-/** The developer door makes Goals' board through the Host's own path, not an action: what it answers, or nothing when it gets past the board. */
-async function developerDoor(home: string, projectId: string, databasePath: string): Promise<string | undefined> {
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+/** The developer door now calls Goals' public initialize action; absent project Goals is a missing action, not a private SQL read. */
+async function developerDoor(home: string, projectId: string, databasePath: string, versions?: number[]): Promise<string | undefined> {
+  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: (_caller, action) => {
+    if (action.capability_id === goalEntryActions.initialize.capability_id) versions?.push(action.version);
+    return { available: true };
+  } });
   try {
     await developInPrivateHost(host, molisWorkHostProjectReference({ projectId, databasePath }), { directory: "/nonexistent", project_id: projectId, grants: [], allow_unsigned_development: true });
     return undefined;
@@ -105,6 +111,9 @@ test("PLIB-14: a library this build made opens Goals' tables from its declaratio
   const open = await directory(home, projectId, databasePath);
   assert.deepEqual([...open.plugins].sort(), [GOALS_PLUGIN_ID, ...OTHERS].sort());
   assert.equal(open.goalsCall, "answered");
+  const initializeVersions: number[] = [];
+  await developerDoor(home, projectId, databasePath, initializeVersions);
+  assert.deepEqual([...new Set(initializeVersions)], [goalEntryActions.initialize.version], "the development entry invokes the current public initialization contract");
 });
 
 const cases = [
@@ -132,11 +141,12 @@ for (const { change, sql, code } of cases) {
     } finally { store.close(); }
 
     const open = await directory(home, projectId, databasePath);
-    assert.equal(open.plugins.has(GOALS_PLUGIN_ID), false, "Goals' actions are not in the directory");
+    assert.equal(open.plugins.has(GOALS_PLUGIN_ID), false, "the refused project's Goals actions are not in the directory");
+    assert.equal(open.homeGoals, true, "the independent Home instance remains available");
     assert.deepEqual([...open.plugins].sort(), [...OTHERS].sort(), "the other plugins' actions are");
     assert.deepEqual(open.goalsCall, { code: "actions.missing" }, "and a call to a Goals action is refused: there is nothing registered to answer it");
     assert.doesNotMatch(await codingPanel(databasePath, projectId), /role="alert"/, "Coding opens while Goals is refused");
-    assert.equal(await developerDoor(home, projectId, databasePath), code, "the Host's own path to Goals' board throws the refusal before it touches Goals' tables");
+    assert.equal(await developerDoor(home, projectId, databasePath), "actions.missing", "the development entry refuses the absent public action before touching Goals' tables");
 
     assert.deepEqual(library(databasePath), before, "the refusal repairs nothing, recreates nothing and records nothing");
   });

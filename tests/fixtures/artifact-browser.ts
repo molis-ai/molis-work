@@ -2,16 +2,17 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
-import { seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
+import { seedDemoGoals, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { GoalProjectApplication, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../../apps/desktop/launchers/web/server.js";
 import { pinnedArtifact } from "./artifacts.js";
+import { GoalProjectApplication } from "./goal-application.js";
 
 const directory = mkdtempSync(join(tmpdir(), "molis-work-ar3-browser-"));
 const databasePath = join(directory, "fixture.db");
 writeFileSync(join(directory, "result.txt"), "AR3 browser fixture: 原始结果内容，打开不会改变 Goal。\n");
-seedDemoBoard(databasePath);
+await seedDemoGoals(databasePath);
 const store = new LocalProjectDatabase(databasePath);
 const coordinator = new GoalProjectApplication(store), library = openProjectVersionStores(store);
 coordinator.goals.commands.createGoal(DEMO_PROJECT_ID, {

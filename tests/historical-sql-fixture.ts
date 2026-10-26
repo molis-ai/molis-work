@@ -1,5 +1,5 @@
-import type { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import type { SessionHandoffGoalContext } from "@molis-ai/molis-work-plugin-work";
+import type { GoalProjectApplication } from "./fixtures/goal-application.js";
 
 type SqlDatabase = {
   prepare(sql: string): { run(...params: unknown[]): unknown };

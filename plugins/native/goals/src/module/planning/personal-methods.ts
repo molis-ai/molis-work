@@ -1,28 +1,6 @@
 import type { PlanningMethodPack, PlanningMethodPackInput } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GoalsSqliteDatabase } from "../repository.js";
-import Database from "better-sqlite3";
 import { normalizePlanningMethodPack } from "./method-packs.js";
-
-/** The App supplies a location; only the owner opens and reads its stored facts. */
-export function readPersonalPlanningMethods(databasePath: string): PlanningMethodPack[] {
-  const db = new Database(databasePath, { readonly: true, fileMustExist: true });
-  try { return new PersonalPlanningMethods(db).list(); }
-  finally { db.close(); }
-}
-
-/** The host calls this inside its existing catalog creation/upgrade transaction. */
-export function createPersonalPlanningMethodSchema(db: { exec(sql: string): unknown }): void {
-  db.exec(`
-    CREATE TABLE IF NOT EXISTS personal_planning_method_packs (
-      method_id TEXT PRIMARY KEY,
-      version INTEGER NOT NULL,
-      enabled INTEGER NOT NULL CHECK (enabled IN (0, 1)),
-      pack_json TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL
-    );
-  `);
-}
 
 /** Personal scope shares Planning semantics, but never writes project method facts. */
 export class PersonalPlanningMethods {

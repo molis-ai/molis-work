@@ -13,7 +13,7 @@ import { eventCursorOf, pinnedArtifact } from "./fixtures/artifacts.js";
 // 「被谁引用」 (specs/artifact-positioning A4b): the Goals that use a version, by how. An Agent's proposal to use a version
 // as a Goal's input is a Goal edge like any other; it is listed with its Goal, not counted as an anonymous other link.
 const projectId = "links-project";
-const person: ActionCallContext = { actor_id: "web-user", audience: "user", project_id: projectId, permissions: ["artifacts:read"] };
+const person: ActionCallContext = { actor_id: "web-user", audience: "user", project_id: projectId, permissions: ["artifacts:read", "goals:read"] };
 
 test("a Goal's proposed input, deliverable and confirmed ones are each listed with their Goal, and nothing else is counted as other", async t => {
   const db = new Database(":memory:");

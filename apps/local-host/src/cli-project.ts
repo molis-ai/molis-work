@@ -7,7 +7,8 @@ import { DEFAULT_RESIDENT_HOST_URL } from "./resident-host-request.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { namedDatabasePath, prepareLocalProjectStorage } from "./project-storage.js";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
-import { bindGoalsManagementActions } from "./goals-actions.js";
+import { bindGoalsManagementActions } from "./goal-callers.js";
+import { ensureStandaloneProjectRoot } from "./managed-project-database.js";
 import { ensureHomeStorageOwner } from "./home-storage-lifetime.js";
 import { dispatchCliProjectCommand, cliFlagValue as value,
   readCliJsonPayload as payload, printV1Help } from "@molis-ai/molis-work-app-cli";
@@ -48,7 +49,7 @@ export async function runV1Cli(args: string[], options: V1CliOptions = {}): Prom
   const fallback = () => {
     if (homeProject || homeDatabase) ensureHomeStorageOwner(localHost ??= createMolisWorkLocalHost(), home);
     if (operation === "init" && homeDatabase) prepareLocalProjectStorage(databasePath, "create");
-    return bindGoalsManagementActions((localHost ??= createMolisWorkLocalHost()).actionClient(reference, false), reference, { signal: options.signal });
+    return bindGoalsManagementActions((localHost ??= createMolisWorkLocalHost()).actionClient(reference), reference, { signal: options.signal });
   };
   try {
     return await withCallId(newCallId(), async () => {
@@ -56,6 +57,7 @@ export async function runV1Cli(args: string[], options: V1CliOptions = {}): Prom
       homeProject = Boolean(project);
       if (project && project.project_id !== reference.project_id) throw new ActionError("actions.scope_mismatch", "管理请求与 Home 登记的项目不匹配");
       if (project) reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
+      else if (operation === "init") await ensureStandaloneProjectRoot((localHost ??= createMolisWorkLocalHost()), reference);
       const actions = project ? residentManagementActions({ home, databasePath: project.database_path, projectId: project.project_id,
         origin: options.actionServiceUrl ?? readProductEnv("WEB_URL") ?? DEFAULT_RESIDENT_HOST_URL, signal: options.signal, fallback }) : fallback();
       return dispatchCliProjectCommand(actions, args, input);

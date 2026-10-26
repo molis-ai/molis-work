@@ -2,10 +2,10 @@ import { buildMolisWorkWebView } from "./fixtures/web-view.js";
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { GoalsModule } from "@molis-ai/molis-work-module-goals";
-import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { GoalsModule } from "./fixtures/goals-modules.js";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { pluginLegalSql } from "./fixtures/plugin-legal-sql.js";
+import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
 
 test("public Query preserves complete rule history and Runtime dependency/replacement facts", () => {
   const store = new LocalProjectDatabase(":memory:");
@@ -57,10 +57,10 @@ test("public Query preserves complete rule history and Runtime dependency/replac
     assert.deepEqual(goals.query.listDependencies("query-other", "subject"), []);
     assert.equal(goals.query.activeReplacement("query-other", "subject"), null);
 
-    const before = store.snapshot("query-main");
+    const before = boardSnapshot(store, "query-main");
     const view = buildMolisWorkWebView(store, coordinator, { projectId: "query-main" });
     assert.deepEqual(view.policy_bindings, expectedHistory, "The real Web view must carry inactive rules and original ordering");
-    const after = store.snapshot("query-main");
+    const after = boardSnapshot(store, "query-main");
     assert.deepEqual(after.goals, before.goals);
     assert.deepEqual(after, before, "Read paths must not write");
   } finally { store.close(); }

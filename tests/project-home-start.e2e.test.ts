@@ -4,6 +4,7 @@ import { createLocalFeedApplication } from "@molis-ai/molis-work-app-local-host"
 import { mkdir, writeFile } from "node:fs/promises";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
+import { boardSnapshot } from "./fixtures/goal-application.js";
 
 const captures = reviewEvidenceUrl("home-start/");
 const homeHasQuotes = "!!document.querySelector('[data-home-quote], [data-home-quotes], .home-reflection, .home-quote-pages, .immersive-home blockquote, .immersive-home figure') || /千里之行|Stephen Hawking|Intelligence is the ability/.test(document.querySelector('.immersive-home')?.textContent || '')";
@@ -81,7 +82,7 @@ test("Home shows a seven-day strip and keeps a chosen day across midnight", { ti
   const browser = await openGoalBrowser(t, "seeded");
   if (!browser) return;
   const { command, sessionId, evaluate, waitFor, navigate, click, origin, projectId, store } = browser;
-  const before = store.snapshot(projectId!);
+  const before = boardSnapshot(store, projectId!);
   await command("Page.addScriptToEvaluateOnNewDocument", { source: `
     window.__homeErrors=[];addEventListener('error',e=>window.__homeErrors.push(e.message));
     window.__clock=new Date(2028,1,29,23,59).getTime();const RealDate=Date;
@@ -150,8 +151,8 @@ test("Home shows a seven-day strip and keeps a chosen day across midnight", { ti
   const dialog = await command<{ data: string }>("Page.captureScreenshot", { format: "png", captureBeyondViewport: false }, sessionId);
   await writeFile(new URL("dialog-mobile.png", captures), Buffer.from(dialog.data, "base64"));
   assert.deepEqual(await evaluate("window.__homeErrors"), []);
-  assert.deepEqual(store.snapshot(projectId!).goals, before.goals);
-  assert.deepEqual(store.snapshot(projectId!).runs, before.runs);
+  assert.deepEqual(boardSnapshot(store, projectId!).goals, before.goals);
+  assert.deepEqual(boardSnapshot(store, projectId!).runs, before.runs);
 });
 
 test("Home opens original Inbox items and source groups and completes Inbox", { timeout: 90_000 }, async t => {
@@ -293,7 +294,7 @@ test("ASC-38, ASC-39: Home refresh cannot consume a click while Inbox offers are
 test("Home shortcuts persist per project, open their destination, and preserve edits on failure", { timeout: 90_000 }, async t => {
   const browser=await openGoalBrowser(t,"seeded");if(!browser)return;
   const {command,sessionId,evaluate,waitFor,navigate,click,origin,projectId,reloadPage,store}=browser;
-  const before=store.snapshot(projectId!);
+  const before=boardSnapshot(store, projectId!);
   await command("Emulation.setDeviceMetricsOverride",{width:1024,height:768,deviceScaleFactor:1,mobile:false},sessionId);
   const url=origin+"/projects/"+projectId+"/";
   const key="molis-work:home-shortcuts:"+projectId;
@@ -361,8 +362,8 @@ test("Home shortcuts persist per project, open their destination, and preserve e
   await click('[data-home-shortcut-edit]');await click('[data-home-shortcut-remove]');
   assert.deepEqual(await saved(),[]);await reloadPage();
   assert.equal(await evaluate("document.querySelectorAll('[data-shortcut-id]').length"),0);
-  assert.deepEqual(store.snapshot(projectId!).goals,before.goals);
-  assert.deepEqual(store.snapshot(projectId!).runs,before.runs);
+  assert.deepEqual(boardSnapshot(store, projectId!).goals,before.goals);
+  assert.deepEqual(boardSnapshot(store, projectId!).runs,before.runs);
 });
 
 test("QHR-01 a background home refresh keeps the day and heading in place", { timeout: 45_000 }, async t => {

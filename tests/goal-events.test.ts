@@ -1,6 +1,6 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
-import { GovernanceCollaborationModule } from "@molis-ai/molis-work-module-governance-collaboration";
+import { GovernanceCollaborationModule } from "./fixtures/goals-modules.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -10,7 +10,7 @@ import Database from "better-sqlite3";
 
 import {
   GoalsModule,
-} from "@molis-ai/molis-work-module-goals";
+} from "./fixtures/goals-modules.js";
 import { createGoalsApplication } from "@molis-ai/molis-work-plugin-goals";
 import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
@@ -30,7 +30,7 @@ const OTHER_GOAL = "goal-other";
 
 function hooks(store: LocalProjectDatabase) {
   // W5-08-MOD-02: Goal events use the Module's business records, not its storage implementation.
-  const { records } = new GovernanceCollaborationModule({ db: pluginLegalSql(store).db, journal: store });
+  const { records } = new GovernanceCollaborationModule({ db: pluginLegalSql(store).governance, journal: store });
   return {
     supersedePendingContractProposals: (...args: Parameters<typeof records.supersedePendingContractProposals>) =>
       records.supersedePendingContractProposals(...args),
@@ -862,7 +862,7 @@ test("event pages keep server order without gaps or duplicates; bad cursor, limi
 
 /** Goals composes its event application itself (PG094-07); these tests drive it over this fixture's library. */
 function eventApp({ module, store }: { module: GoalsModule<unknown>; store: LocalProjectDatabase }) {
-  const governance = new GovernanceCollaborationModule({ db: pluginLegalSql(store).db, journal: store });
+  const governance = new GovernanceCollaborationModule({ db: pluginLegalSql(store).governance, journal: store });
   return createGoalsApplication({
     goals: { commands: module.commands, lifecycle: module.lifecycle, planning: module.planning, query: module.query, events: module.events },
     governance: { provenance: governance.provenance, query: governance.query, records: governance.records, decisions: governance.decisions,

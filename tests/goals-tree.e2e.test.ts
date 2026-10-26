@@ -5,6 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { boardSnapshot } from "./fixtures/goal-application.js";
 
 test("Goals tree supports real collapse, search, status filtering and detail selection without changing project facts", { timeout: 60_000 }, async (t) => {
   const browser = await openGoalBrowser(t);
@@ -108,7 +109,7 @@ test("Goals tree supports real collapse, search, status filtering and detail sel
   assert.equal(await evaluate("document.activeElement.matches('[data-global-search]')"), true);
   assert.equal(await evaluate("document.documentElement.scrollWidth > innerWidth"), false);
   await capture("mobile");
-  const after = store.snapshot(DEMO_PROJECT_ID);
+  const after = boardSnapshot(store, DEMO_PROJECT_ID);
   assert.deepEqual(after.goals, before.goals);
   assert.deepEqual(after.relations, before.relations);
   assert.deepEqual(after.runs, before.runs);

@@ -8,14 +8,14 @@ import { toFeedPublicError } from "@molis-ai/molis-work-plugin-feed";
 import { PROVIDER_CONTRACT_FIXTURES } from "./fixtures/provider-contract.js";
 import { createLocalFeedApplication } from "@molis-ai/molis-work-app-local-host";
 import type { FeedSourceRecord } from "@molis-ai/molis-work-plugin-feed";
-import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 
-test("GitHub, Gmail and RSS fixtures all write FeedItem first and attention separately", () => {
+test("GitHub, Gmail and RSS fixtures all write FeedItem first and attention separately", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-infoflow-fixtures-"));
   const databasePath = join(directory, "molis-work.sqlite");
   try {
-    seedDemoBoard(databasePath);
+    await seedDemoGoals(databasePath);
     const store = new LocalProjectDatabase(databasePath);
     try {
       const feed = createLocalFeedApplication(store.db);
@@ -61,13 +61,14 @@ test("GitHub, Gmail and RSS fixtures all write FeedItem first and attention sepa
       assert.equal(snapshot.inbox_entries.length, 2);
       assert.equal("items" in snapshot, false);
       assert.equal(snapshot.inbox_entries.every((entry) => !Object.hasOwn(entry, "body")), true);
-      const goalDecision = feed.createInboxEntry({
+      // Feed has no Goal facts: a Goal's decision reminder is Goals' to open, so Feed refuses to.
+      assert.throws(() => feed.createInboxEntry({
         projectId: DEMO_PROJECT_ID,
         subjectType: "goal_decision",
         subjectId: "CORE",
         reason: "goal_decision",
         detail: { obligation_id: "fixture-obligation" },
-      });
+      }), { code: "feed.invalid_transition" });
       const sourceFault = feed.createInboxEntry({
         projectId: DEMO_PROJECT_ID,
         subjectType: "source_fault",
@@ -75,7 +76,6 @@ test("GitHub, Gmail and RSS fixtures all write FeedItem first and attention sepa
         reason: "source_fault",
         detail: { error_code: "fixture_network" },
       });
-      assert.equal(goalDecision.entry.subject_type, "goal_decision");
       assert.equal(sourceFault.entry.subject_type, "source_fault");
 
       const github = PROVIDER_CONTRACT_FIXTURES[0]!;

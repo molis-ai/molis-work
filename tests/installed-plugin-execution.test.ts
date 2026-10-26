@@ -11,13 +11,14 @@ import { ActionService } from '@molis-ai/molis-work-kernel';
 import { ArtifactsModule, ProcessItemsModule } from '@molis-ai/molis-work-module-artifacts';
 import { SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
 import { UiHost } from '@molis-ai/molis-work-ui-host';
-import { createPluginPlatform, MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, DEMO_PROJECT_ID } from '@molis-ai/molis-work-app-local-host';
+import { createPluginPlatform, MolisWorkLocalHost, molisWorkHostProjectReference, DEMO_PROJECT_ID } from '@molis-ai/molis-work-app-local-host';
 import { createSandboxRunner } from '@molis-ai/molis-work-plugin-sandbox';
 import { goalPluginActions } from '@molis-ai/molis-work-contracts/modules/goal-actions';
 import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
 import { sandboxedPluginDefinition } from '../apps/local-host/dist/plugin-builder/installed.js';
 import { exposeInstalledPlugin, exposedActionId } from '../apps/local-host/dist/plugin-builder/exposed-actions.js';
 import { capabilityCatalog, catalogCapabilities } from '../apps/local-host/dist/plugin-builder/catalog.js';
+import { goalApplicationOf, seedBoard } from "./fixtures/goal-application.js";
 
 const mac = { skip: process.platform !== 'darwin', timeout: 15_000 };
 const gate = () => Promise.withResolvers<void>();
@@ -103,14 +104,14 @@ for (const mode of ['cancelled', 'revoked', 'withdrawn'] as const) test(`install
 test('W3-07-8-02 PG-006 a real sandbox reaches the Goal actions through the production broker only as itself: an identity in its input is refused, and its progress is its own', { skip: process.platform !== 'darwin', timeout: 30_000 }, async () => {
   const directory = await mkdtemp(join(tmpdir(), 'goal-sandbox-authority-')), databasePath = join(directory, 'project.db');
   await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
-  seedDemoBoard(databasePath);
+  seedBoard(databasePath);
   const host = new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }), ref = molisWorkHostProjectReference({ projectId: DEMO_PROJECT_ID, databasePath });
   const goal_id = 'SANDBOX-GOAL', ids = [goalPluginActions.contract, goalPluginActions.state, goalPluginActions.progress, goalPluginActions.receipt].map(item => item.capability_id);
   let runner: Awaited<ReturnType<typeof createSandboxRunner>> | undefined;
   try {
     const initial = await host.withProject(ref, runtime => {
-      runtime.coordinator.goalEvents.createIntent({ project_id: DEMO_PROJECT_ID, goal_id, title: '沙箱不能冒充内置插件', actor_id: 'person', actor_kind: 'user', idempotency_key: 'create' });
-      return { cursor: runtime.coordinator.goalEvents.readState(DEMO_PROJECT_ID, goal_id).goal_event_cursor };
+      goalApplicationOf(runtime).goalEvents.createIntent({ project_id: DEMO_PROJECT_ID, goal_id, title: '沙箱不能冒充内置插件', actor_id: 'person', actor_kind: 'user', idempotency_key: 'create' });
+      return { cursor: goalApplicationOf(runtime).goalEvents.readState(DEMO_PROJECT_ID, goal_id).goal_event_cursor };
     });
     const actions = { registry: host.actionRegistry(ref), client: host.actionClient(ref, false), project_id: DEMO_PROJECT_ID,
       inspect: (caller: import('@molis-ai/molis-work-contracts/platform/actions').ActionCallContext) => host.inspectActions(caller, ref) };
@@ -142,7 +143,7 @@ test('W3-07-8-02 PG-006 a real sandbox reaches the Goal actions through the prod
     const result = await runner.call('run', { goal_id, cursor: initial.cursor });
     assert.deepEqual(result, { listed: true, actor: 'plugin:' + identity.pluginId, denied: ids.map(id => ({ id, code: 'plugin_builder.capability_refused' })) },
       'a Host caller named in the input is refused by the contract, and what the plugin records is recorded as the plugin, never as the person or a builtin plugin');
-    const after = await host.withProject(ref, runtime => runtime.coordinator.goalEvents.readState(DEMO_PROJECT_ID, goal_id));
+    const after = await host.withProject(ref, runtime => goalApplicationOf(runtime).goalEvents.readState(DEMO_PROJECT_ID, goal_id));
     assert.equal(after.goal_event_cursor, initial.cursor + 1, 'only the plugin\'s own progress was recorded');
   } finally { await runner?.stop(); await host.close(); await rm(directory, { recursive: true, force: true }); }
 });
@@ -150,7 +151,7 @@ test('W3-07-8-02 PG-006 a real sandbox reaches the Goal actions through the prod
 test('PG006-01 PG006-02 PG006-03 PG006-04 PG006-05 S-15 a sandbox reaches a Goal action only when it declared it and the person approved it; a withdrawn approval, another installation or another project is refused, and no refusal writes', { skip: process.platform !== 'darwin', timeout: 30_000 }, async () => {
   const directory = await mkdtemp(join(tmpdir(), 'goal-sandbox-grants-')), databasePath = join(directory, 'project.db'), otherPath = join(directory, 'other.db');
   await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
-  seedDemoBoard(databasePath); seedDemoBoard(otherPath, 'other-project');
+  seedBoard(databasePath); seedBoard(otherPath, 'other-project');
   const host = new MolisWorkLocalHost({ homeDirectory: directory, completeText: null });
   const ref = molisWorkHostProjectReference({ projectId: DEMO_PROJECT_ID, databasePath }), otherRef = molisWorkHostProjectReference({ projectId: 'other-project', databasePath: otherPath });
   const goal_id = 'GRANTED-GOAL', progress = goalPluginActions.progress;
@@ -158,13 +159,13 @@ test('PG006-01 PG006-02 PG006-03 PG006-04 PG006-05 S-15 a sandbox reaches a Goal
   try {
     for (const [reference, projectId] of [[ref, DEMO_PROJECT_ID], [otherRef, 'other-project']] as const) {
       await host.withProject(reference, runtime => {
-        runtime.coordinator.goalEvents.createIntent({ project_id: projectId, goal_id, title: '按声明与授权放行', actor_id: 'person', actor_kind: 'user', idempotency_key: 'create' });
+        goalApplicationOf(runtime).goalEvents.createIntent({ project_id: projectId, goal_id, title: '按声明与授权放行', actor_id: 'person', actor_kind: 'user', idempotency_key: 'create' });
       });
       // The project's own plugins (Goals among them) start when its actions are first looked at.
       await host.inspectActions({ actor_id: 'person', audience: 'user', project_id: projectId, permissions: [] }, reference);
     }
-    const cursors = async () => [await host.withProject(ref, runtime => runtime.coordinator.goalEvents.readState(DEMO_PROJECT_ID, goal_id).goal_event_cursor),
-      await host.withProject(otherRef, runtime => runtime.coordinator.goalEvents.readState('other-project', goal_id).goal_event_cursor)];
+    const cursors = async () => [await host.withProject(ref, runtime => goalApplicationOf(runtime).goalEvents.readState(DEMO_PROJECT_ID, goal_id).goal_event_cursor),
+      await host.withProject(otherRef, runtime => goalApplicationOf(runtime).goalEvents.readState('other-project', goal_id).goal_event_cursor)];
     const actions = { registry: host.actionRegistry(ref), client: host.actionClient(ref, false), project_id: DEMO_PROJECT_ID,
       inspect: (caller: ActionCallContext) => host.inspectActions(caller, ref) };
     // A query offered to plugins that holds its call open, so the caller the Host issued for it can be presented elsewhere while
@@ -248,7 +249,7 @@ test('PG006-01 PG006-02 PG006-03 PG006-04 PG006-05 S-15 a sandbox reaches a Goal
 
 for (const mode of ['cancelled', 'revoked'] as const) test(`PLIB-10 S-18 an installed sandboxed plugin that declares databases.project reaches its tables through the broker; ${mode} while it waits, it writes none of them even when it ignores the refusal, and a fresh call does`, mac, async t => {
   const home = await mkdtemp(join(tmpdir(), 'installed-project-database-')), file = join(home, 'project.db');
-  seedDemoBoard(file);
+  seedBoard(file);
   const store = new LocalProjectDatabase(file);
   const service = new ActionService(), actions = { registry: service, client: service, project_id: DEMO_PROJECT_ID };
   const privateStorage = new SqlitePluginPrivateStorage(store.db);

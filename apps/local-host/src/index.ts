@@ -47,14 +47,12 @@ export { createMcpResidentStarter, type EnsureMcpResidentHost } from "./mcp-resi
 export { finishMcpWebStartup, reportMcpWebStartupFailure, watchMcpWebStartup } from "./mcp-web-startup.js";
 export { createMolisWorkRuntimePayload, type MolisWorkRuntimePayloadOptions } from "./installer/runtime-payload.js";
 export { createMolisWorkNpmPackageDirectory } from "./installer/npm-package.js";
-export { readPersonalPlanningMethodPacks } from "./personal-planning-methods.js";
 
 
 export { LocalProjectDatabase } from "./project-database.js";
 export { isProjectPluginDatabaseRefusal, openProjectPluginDatabases } from "./project-plugin-databases.js";
 export { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
 
-export * from "./goal-project-application.js";
 export { openProjectVersionStores, restoreArtifactVersions, type RestoredArtifactVersion, type ProjectVersionStores } from "./project-version-stores.js";
 
 export * from "./web-locale.js";
@@ -80,7 +78,7 @@ export type { CreateMolisWorkProjectInput, ManageMolisWorkDemoProjectInput, Moli
 export { initializeCatalog, assertOwnedCatalog, assertCurrentCatalog, type CatalogDesktopSchema } from "./catalog-schema.js";
 
 export * from "./project-catalog.js";
-export { seedDemoBoard, DEMO_PROJECT_ID } from "./demo-seed.js";
+export { seedDemoBoard, seedDemoGoals, DEMO_PROJECT_ID } from "./demo-seed.js";
 export {
   seedDemoPluginSurfaces,
   seedDemoHomeSamples,
@@ -311,3 +309,5 @@ export { directoryForHome, DIRECTORY_READ_PERMISSION, type DirectoryGrantService
 export { HOST_SERVICE_PERMISSIONS } from "./plugin-service-permissions.js";
 
 export { pluginPagesFor } from "./plugin-page-authority.js";
+export { bindGoalsManagementActions, readProjectGuidance } from "./goal-callers.js";
+export { entryUserAction } from "./entry-user-action.js";

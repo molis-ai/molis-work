@@ -11,7 +11,7 @@ import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumptio
 import { FeedModule } from "@molis-ai/molis-work-module-feed";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 
-import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 
 function feedModules(store: LocalProjectDatabase): {
@@ -29,11 +29,11 @@ function feedModules(store: LocalProjectDatabase): {
   return { attention, feed };
 }
 
-test("Feed and Attention repositories preserve Signal revisions and state across restart", () => {
+test("Feed and Attention repositories preserve Signal revisions and state across restart", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-feed-modules-"));
   const databasePath = join(directory, "molis-work.sqlite");
   try {
-    seedDemoBoard(databasePath);
+    await seedDemoGoals(databasePath);
     const firstStore = new LocalProjectDatabase(databasePath);
     let itemId = "";
     try {

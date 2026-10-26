@@ -14,6 +14,7 @@ import { jellyContentActions } from "@molis-ai/molis-work-plugin-jelly";
 import { lingguangContentActions } from "@molis-ai/molis-work-plugin-lingguang";
 import { pagesContentActions } from "@molis-ai/molis-work-plugin-pages";
 import { pptContentActions } from "@molis-ai/molis-work-plugin-ppt";
+import { initializeBoard } from "./fixtures/goals-board.js";
 
 // W4-6a: the request id of a delivery is the entry point's, the same eight real stations (Dataset, Feed, Form, Inbox, Jelly, 灵光, Pages, PPT)
 // make one object per id, and who delivered is read from the call's audience. Nothing here is a stand-in for a station.
@@ -33,7 +34,7 @@ async function fixture(t: test.TestContext) {
   const home = await mkdtemp(join(tmpdir(), "content-station-request-id-")), host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
   const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "a" });
-  await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: ref.project_id, actor_id: "owner", idempotency_key: "init" }));
+  await initializeBoard(host, ref, { actor_id: "owner", idempotency_key: "init" });
   const caller: ActionCallContext = { actor_id: "owner", project_id: "a", audience: "user", permissions: PERMISSIONS };
   const client = host.actionClient(ref);
   const as = (audience: ActionAudience) => bindActionClient(client, () => ({ ...caller, audience }));

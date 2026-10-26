@@ -122,7 +122,8 @@ export async function ensureProjectPlugins(ports: ProjectPluginPorts): Promise<P
 async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginState> {
   const record: ProjectPluginState = { platform: null };
   try {
-    const entries = projectPluginEntries(ports);
+    // A Host with no Home has nowhere to keep a Home library, so a plugin that declares one (Goals) is not on its list; the rest start as they would.
+    const entries = projectPluginEntries(ports).filter(entry => ports.homeDirectory !== undefined || !entry.definition.manifest.databases?.home);
     record.plugins = entries.map(entry => entry.definition.manifest.plugin_id);
     const storage = new SqlitePluginPrivateStorage(ports.store.db);
     const platform = createPluginPlatform({ scheduler: scheduleServiceFor(ports.store.db),
@@ -148,7 +149,9 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
     record.stopObservers = () => { closed = true; settlements.stop(); };
     record.updateObservers();
     const enabled = await projectPluginEnablement(ports.homeDirectory, ports.projectId);
-    await platform.start(projectScopeEntries(withoutRefusedPlugins(ports.store.db, [...entries, ...projectFixtureEntries(ports.homeDirectory)], entry => entry.definition.manifest.plugin_id), ports.homeDirectory)
+    // Validate the declared halves before a per-project database refusal removes one from this start attempt.
+    const scoped = projectScopeEntries([...entries, ...projectFixtureEntries(ports.homeDirectory)], ports.homeDirectory);
+    await platform.start(withoutRefusedPlugins(ports.store.db, scoped, entry => entry.definition.manifest.plugin_id)
       .map(entry => ({ ...entry, enabled: enabled?.get(entry.definition.manifest.plugin_id) ?? true })));
     record.refreshEnablement = projectPluginEnablementRefresh(platform, ports.homeDirectory, ports.projectId);
     record.reconciledAt = consentRevision();

@@ -133,7 +133,7 @@ const COMMON_DEPENDENCIES = [
 ];
 
 export const PLANNING_METHOD_CATALOG_DIRECTORY = new URL(
-  "../../methods/",
+  "../../../methods/",
   import.meta.url,
 );
 

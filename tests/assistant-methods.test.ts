@@ -90,7 +90,7 @@ test("a round lists the methods its scope can use; one the person chose goes wit
     methods: { list: () => registry.methods(), read: (owner, skill, version) => registry.method(owner, skill, version) },
     projectTitle: async () => project.display_name, timeZone: "Asia/Shanghai" }, "web-user");
   try {
-    const methods = await service.methods(null, { project_ref: reference });
+    const methods = await service.reads.methods(null, { project_ref: reference });
     assert.ok(methods.some(method => method.method_id === PAGES_METHOD && method.plugin_title === "Pages"), JSON.stringify(methods));
 
     // Chosen with “/”: its registered steps go with this round, said as the person's choice.
@@ -111,9 +111,9 @@ test("a round lists the methods its scope can use; one the person chose goes wit
     assert.ok(second.includes("input 是对象，例如") && second.includes("method_id"), "and exactly how to read one (its input is an object)");
 
     // Reading one, as the round's own read action does; one that is not offered here is refused with why.
-    const read = await service.readMethod(service.workRecord(sent.work.work_id), PAGES_METHOD);
+    const read = await service.reads.readMethod(service.reads.workRecord(sent.work.work_id), PAGES_METHOD);
     assert.match(read.body, /每条结论和待办后面用括号注明原文依据/);
-    await assert.rejects(service.readMethod(null, "io.molis.work.pages/unknown"), /没有可用的方法/);
+    await assert.rejects(service.reads.readMethod(null, "io.molis.work.pages/unknown"), /没有可用的方法/);
   } finally {
     service.continuations.close(); await adapter.close();
     await local.close();

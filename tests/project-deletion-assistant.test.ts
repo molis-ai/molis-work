@@ -86,7 +86,7 @@ test("a running Assistant cancels the timed rounds the runtime queued for a dele
   const local = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} } });
   const service = new AssistantService(store, { pages: async () => ["home"], host: async () => host, authority: async work => assistantAuthority(local, work, () => new Set()), projectTitle: async () => "项目", timeZone: "Asia/Shanghai" }, ACTOR);
   t.after(async () => { db.close(); service.continuations.close(); await adapter.close(); await rm(home, { recursive: true, force: true }); });
-  assert.equal(await service.attachSchedule(), true);
+  assert.equal(await service.notices.attachSchedule(), true);
   const sent = await service.send({ text: "帮我跟进今天的工作", request_id: "req-purge-1" }, { project_ref: { project_id: "project-gone", storage_key: "memory:project" } });
   for (let i = 0; i < 300 && (await service.read(sent.work.work_id)).work.state !== "completed"; i++) await new Promise(resolve => setTimeout(resolve, 20));
   const due = new Date(Date.now() + 3_600_000);

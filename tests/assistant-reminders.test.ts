@@ -52,21 +52,21 @@ test("a reminder the person set is told once when it comes due, where to open it
     clock = new Date("2026-09-29T09:04:00Z");
     assert.equal(await service.followUps.sweepReminders(), 1);
     assert.equal(asked[1]!.from, "2026-09-29T09:00:00.000Z", "each look starts where the last stopped");
-    let notices = service.notices("pages");
+    let notices = service.notices.notices("pages");
     assert.deepEqual(notices.map(notice => [notice.kind, notice.work_id, notice.text, notice.open]), [["reminder", "", "提醒（待办 · 17:03）：给王总回电话", { surface: "todo", id: "t1", title: "给王总回电话", project_id: "project-a" }]]);
     // Told once, however often it is looked at.
     assert.equal(await service.followUps.sweepReminders(), 0);
 
     // The person's quiet rule holds it on that page unless reminders are an exception.
     service.followUps.saveRule({ kind: "quiet", surfaces: ["pages"], except: [], label: "写文档时不要提醒" });
-    assert.equal(service.notices("pages")[0]!.held?.reason, "写文档时不要提醒");
-    assert.equal(service.notices("goals")[0]!.held, undefined);
+    assert.equal(service.notices.notices("pages")[0]!.held?.reason, "写文档时不要提醒");
+    assert.equal(service.notices.notices("goals")[0]!.held, undefined);
     service.followUps.saveRule({ kind: "quiet", surfaces: ["goals"], except: ["reminder"], label: "看目标时不要提醒，我设的提醒除外" });
-    assert.equal(service.notices("goals")[0]!.held, undefined);
+    assert.equal(service.notices.notices("goals")[0]!.held, undefined);
 
     // Settling a reminder settles only it: it belongs to no work.
-    assert.equal(service.settleNotices({ work_id: "" }, "seen"), 0);
-    assert.equal(service.settleNotices({ notice_id: notices[0]!.notice_id }, "seen"), 1);
+    assert.equal(service.notices.settleNotices({ work_id: "" }, "seen"), 0);
+    assert.equal(service.notices.settleNotices({ notice_id: notices[0]!.notice_id }, "seen"), 1);
 
     // A Plugin that cannot answer is asked again for the same stretch; once it answers, a reminder missed meanwhile says so.
     failing = true;
@@ -76,7 +76,7 @@ test("a reminder the person set is told once when it comes due, where to open it
     clock = new Date("2026-09-29T09:51:00Z");
     assert.equal(await service.followUps.sweepReminders(), 1);
     assert.equal(asked.at(-1)!.from, "2026-09-29T09:04:00.000Z");
-    notices = service.notices("goals");
+    notices = service.notices.notices("goals");
     assert.deepEqual(notices.map(notice => [notice.text, notice.open?.project_id]), [["错过的提醒（待办 · 17:30）：交报销单", null]]);
   } finally { unregister(); await local.close(); }
 });

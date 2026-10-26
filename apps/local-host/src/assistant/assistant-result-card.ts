@@ -3,7 +3,7 @@ import { actionEffect, presentActionResult, type ActionView } from "@molis-ai/mo
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
 
 /** A directly executed command's declared entry stays usable even when the model omits it from its answer. */
-export function recordAssistantResultCard(store: AssistantStore, work: StoredWork, view: ActionView, output: unknown, now: Date): void {
+export function recordAssistantResultCard(store: Pick<AssistantStore, "addCard" | "rounds">, work: StoredWork, view: ActionView, output: unknown, now: Date): void {
   const presentation = presentActionResult(view.action.result_view, output, work.project_ref?.project_id);
   if (view.operation !== "command" || !presentation?.link) return;
   const at = now.toISOString();

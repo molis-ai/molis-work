@@ -71,8 +71,8 @@ async function fixture(t: import("node:test").TestContext, script: Array<(body: 
   const store = new AssistantStore(options.database ?? new DatabaseSync(":memory:"));
   const ports: ConstructorParameters<typeof AssistantService>[1] = { pages: async () => ["home"], host: async () => host,
     authority: async work => assistantAuthority(local, work, () => store.disabledActions("web-user"), (offer, views) => service.offers.recordOffer(work, offer, views),
-      (view, input, output) => service.recordResult(work, view, input, output), undefined,
-      (view, call) => service.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call), undefined, undefined, view => service.noteDispatched(work, view)),
+      (view, input, output) => service.outcomes.recordResult(work, view, input, output), undefined,
+      (view, call) => service.dispatcher.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call), undefined, undefined, view => service.dispatcher.noteDispatched(work, view)),
     projectTitle: async () => "Fixture project", timeZone: "Asia/Shanghai" };
   const service: AssistantService = new AssistantService(store, ports, "web-user", options.now);
   return { service, ports, store, host, adapter, queue, notes, seen, calls, requests, project, local, unregister, async close() { service.continuations.close(); await adapter.close(); await local.close(); notes.close(); await rm(home, { recursive: true, force: true }); } };
@@ -99,7 +99,7 @@ test("a project work finds, reads and — after the person approves the exact in
     assert.equal(view.reviews[0]!.summary, "Notes · Save a note");
     assert.deepEqual(view.reviews[0]!.fields.find(field => field.label === "内容"), { label: "内容", value: "hello from the assistant" });
     assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0, "nothing is written before approval");
-    await f.service.decide(sent.work.work_id, { review_id: view.reviews[0]!.review_id, decision: "approve" });
+    await f.service.outcomes.decide(sent.work.work_id, { review_id: view.reviews[0]!.review_id, decision: "approve" });
     const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
     assert.deepEqual(JSON.parse(JSON.stringify(f.notes.prepare("SELECT * FROM notes").all())), [{ body: "hello from the assistant", project: "project", actor: "web-user", audit: `assistant:${sent.work.work_id}` }]);
     const verbs = done.rounds[0]!.activity.map(item => `${item.verb}:${item.state}`);
@@ -120,7 +120,7 @@ test("every tool call of an Assistant round has the number of the request that s
     const sent = await withCallId(page, () => f.service.send({ text: "Save a numbered note", request_id: "req-00000401" }, { project_ref: f.project }));
     const view = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
     // The person decides later, in a request of its own: the tool call that follows still belongs to the round.
-    await withCallId(newCallId(), () => f.service.decide(sent.work.work_id, { review_id: view.reviews[0]!.review_id, decision: "approve" }));
+    await withCallId(newCallId(), () => f.service.outcomes.decide(sent.work.work_id, { review_id: view.reviews[0]!.review_id, decision: "approve" }));
     await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
     assert.equal(f.calls.length, 2, "the round read, then changed");
     assert.deepEqual(f.calls, [page, page]);
@@ -327,7 +327,7 @@ test("switched off while its change waits for approval: approving later runs not
     const view = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
     // The person switches the capability off for the Assistant in settings while the change is still waiting.
     f.store.setActionEnabled("web-user", actionKey({ capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes" }), false);
-    await f.service.decide(sent.work.work_id, { review_id: view.reviews[0]!.review_id, decision: "approve" });
+    await f.service.outcomes.decide(sent.work.work_id, { review_id: view.reviews[0]!.review_id, decision: "approve" });
     const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return ["completed", "failed"].includes(v.work.state) ? v : undefined; }, "end");
     assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0, "the approval given before the switch does not outlive it");
     const change = done.rounds[0]!.activity.find(item => item.verb === "change")!;
@@ -353,7 +353,7 @@ test("a plugin disabled or upgraded while its change waits: the old call runs no
     f.unregister();
     f.local.actionRegistry(f.project).registerProvider({ provider: { provider_id: "fixture.notes", kind: "plugin", title: "Notes" }, definitions: [upgraded],
       handlers: [{ ...upgraded, handle(context, input) { f.notes.prepare("INSERT INTO notes VALUES (?, ?, ?, ?)").run((input as { text: string }).text, context.project_id, context.actor_id, "v2"); return { saved: true }; } }] });
-    await f.service.decide(sent.work.work_id, { review_id: view.reviews[0]!.review_id, decision: "approve" });
+    await f.service.outcomes.decide(sent.work.work_id, { review_id: view.reviews[0]!.review_id, decision: "approve" });
     const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return ["completed", "failed"].includes(v.work.state) ? v : undefined; }, "end");
     assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0, "an approval of version 1 never runs as version 2");
     const change = done.rounds[0]!.activity.find(item => item.verb === "change")!;
@@ -371,7 +371,7 @@ test("a stopped round's change that was asked for but never handed over reads as
     const began = new Date(Date.now() + 1000).toISOString();
     const step = (call_id: string, capability_id: string) => ({ call_id, verb: "change" as const, target: "Notes · Save a note", state: "unknown" as const, capability_id });
     const round = { run_id: "r1", text: "x", materials: [], context: null, started_at: began, phase: "stopped", turns: [], activity: [step("c1", "fixture.notes.write"), step("c2", "fixture.other.write")] } as never;
-    const service = f.service as unknown as { settleUnsent(work: unknown, rounds: unknown[]): Array<{ activity: Array<{ state: string; reason?: string }> }>; noteDispatched(work: unknown, view: unknown): void };
+    const service = f.service.dispatcher as unknown as { settleUnsent(work: unknown, rounds: unknown[]): Array<{ activity: Array<{ state: string; reason?: string }> }>; noteDispatched(work: unknown, view: unknown): void };
     await new Promise(resolve => setTimeout(resolve, 1100));
     service.noteDispatched(work, { capability_id: "fixture.notes.write" });
     const [settled] = service.settleUnsent(work, [round]);
@@ -397,7 +397,7 @@ test("PREP-108-04: a change the stop reaches before it is sent never runs, and t
     await until(async () => (await f.service.read(sent.work.work_id)).work.state === "completed" || undefined, "completed");
     const work = f.store.get("web-user", sent.work.work_id);
     const tracked: Array<[string, Promise<unknown>]> = [];
-    const authority = assistantAuthority(f.local, work, () => new Set(), undefined, undefined, undefined, (view, call) => { tracked.push([view.capability_id, call]); f.service.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call); });
+    const authority = assistantAuthority(f.local, work, () => new Set(), undefined, undefined, undefined, (view, call) => { tracked.push([view.capability_id, call]); f.service.dispatcher.trackUnsettled(work, `${view.provider.title} · ${view.action.title}`, call); });
     const client = await authority.actions!("prologue");
     const stopped = new AbortController(); stopped.abort();
     await assert.rejects(client.invoke({ capability_id: "fixture.notes.write", version: 1, provider_id: "fixture.notes" }, { text: "late" }, stopped.signal), { code: "actions.cancelled" });
@@ -432,7 +432,7 @@ test("a change stopped while its owner is still running: shown as not known, the
   try {
     const sent = await f.service.send({ text: "save slow", request_id: "req-00000022" }, { project_ref: f.project });
     const held = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
-    await f.service.decide(sent.work.work_id, { review_id: held.reviews[0]!.review_id, decision: "approve" });
+    await f.service.outcomes.decide(sent.work.work_id, { review_id: held.reviews[0]!.review_id, decision: "approve" });
     await reached;
     // The person stops the round while the owner is still saving.
     await f.service.control(sent.work.work_id, { kind: "stop" });
@@ -461,7 +461,7 @@ test("a round that reaches its step limit stops there, keeps what it did, says s
   try {
     const sent = await f.service.send({ text: "save kept, then keep counting", request_id: "req-00000026" }, { project_ref: f.project });
     const held = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
-    await f.service.decide(sent.work.work_id, { review_id: held.reviews[0]!.review_id, decision: "approve" });
+    await f.service.outcomes.decide(sent.work.work_id, { review_id: held.reviews[0]!.review_id, decision: "approve" });
     const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return ["completed", "failed", "stopped"].includes(v.work.state) ? v : undefined; }, "limit");
     assert.match(done.rounds[0]!.stop_reason ?? "", /步数上限（60 步）.*已完成的修改都保留/);
     assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 1, "what it did before the limit stays");
@@ -479,7 +479,7 @@ test("the person's 拒绝 reaches the round as theirs, with their reason, and no
   try {
     const sent = await f.service.send({ text: "save no", request_id: "req-00000028" }, { project_ref: f.project });
     const held = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
-    await f.service.decide(sent.work.work_id, { review_id: held.reviews[0]!.review_id, decision: "reject", note: "先别存" });
+    await f.service.outcomes.decide(sent.work.work_id, { review_id: held.reviews[0]!.review_id, decision: "reject", note: "先别存" });
     const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return ["completed", "failed"].includes(v.work.state) ? v : undefined; }, "end");
     assert.equal(done.rounds[0]!.activity.find(item => item.verb === "change")?.reason, "declined");
     assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 0);
@@ -505,16 +505,16 @@ test("today's usage comes from the runtime's own receipts; once the person's dai
   try {
     const sent = await f.service.send({ text: "说一句话", request_id: "req-00000031" }, { project_ref: f.project });
     await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "first round");
-    const usage = await f.service.usage();
+    const usage = await f.service.budget.usage();
     assert.deepEqual([usage.today.rounds, usage.today.input > 0, usage.today.output > 0, usage.daily_tokens], [1, true, true, null]);
-    assert.throws(() => f.service.saveBudget(10), /至少 1000/);
-    assert.equal(f.service.saveBudget(5000), 5000);
+    assert.throws(() => f.service.budget.saveBudget(10), /至少 1000/);
+    assert.equal(f.service.budget.saveBudget(5000), 5000);
     // A cap below what was already used today (set directly, as if the rounds had been long ones).
     f.store.setSetting("web-user", "daily_tokens", String(usage.today.input + usage.today.output));
     await assert.rejects(f.service.send({ work_id: sent.work.work_id, text: "再说一句", request_id: "req-00000032" }, {}),
       (error: unknown) => error instanceof ActionError && error.code === "assistant.budget" && error.kind === "invalid" && /达到你设的每日上限/.test(error.message));
     assert.equal((await f.service.read(sent.work.work_id)).rounds.length, 1, "nothing started; what ran stays");
-    assert.equal(f.service.saveBudget(null), null);
+    assert.equal(f.service.budget.saveBudget(null), null);
     const again = await f.service.send({ work_id: sent.work.work_id, text: "再说一句", request_id: "req-00000033" }, {});
     assert.equal(again.outcome, "started", "no cap, no stop");
   } finally { await f.close(); }
@@ -553,10 +553,10 @@ test("W2-18-JOB-01: background work a round or a card starts is followed on the 
   f.local.actionRegistry(f.project).registerProvider(jobs.provider);
   lookOften(f);
   try {
-    assert.equal(await f.service.attachSchedule(), true);
+    assert.equal(await f.service.notices.attachSchedule(), true);
     const sent = await f.service.send({ text: "开始一轮市场研究", request_id: "req-00000034" }, { project_ref: f.project });
     const held = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
-    await f.service.decide(sent.work.work_id, { review_id: held.reviews[0]!.review_id, decision: "approve" });
+    await f.service.outcomes.decide(sent.work.work_id, { review_id: held.reviews[0]!.review_id, decision: "approve" });
     // The work was new when the job started: its graph, opened for its first round, follows it all the same.
     let view = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" && v.jobs?.length ? v : undefined; }, "job followed");
     assert.deepEqual(view.jobs!.map(job => [job.title, job.job_id, job.state]), [["Research · Start research", "job-1", "running"]]);
@@ -566,8 +566,8 @@ test("W2-18-JOB-01: background work a round or a card starts is followed on the 
     state.value = "completed";
     view = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.jobs?.[0]?.state === "completed" ? v : undefined; }, "job ended");
     assert.equal(typeof view.jobs![0]!.ended_at, "string");
-    await until(() => f.service.notices(null).some(notice => notice.work_id === sent.work.work_id && /后台完成了/.test(notice.text)), "the person is told");
-    assert.match(f.service.notices(null).find(notice => notice.work_id === sent.work.work_id && /后台完成了/.test(notice.text))!.text, /「Research · Start research」在后台完成了/);
+    await until(() => f.service.notices.notices(null).some(notice => notice.work_id === sent.work.work_id && /后台完成了/.test(notice.text)), "the person is told");
+    assert.match(f.service.notices.notices(null).find(notice => notice.work_id === sent.work.work_id && /后台完成了/.test(notice.text))!.text, /「Research · Start research」在后台完成了/);
     await f.service.send({ work_id: sent.work.work_id, text: "研究怎么样了", request_id: "req-00000035" }, {});
     await until(async () => { const v = await f.service.read(sent.work.work_id); return v.rounds.length === 2 && v.work.state === "completed" ? v : undefined; }, "second round");
 
@@ -581,7 +581,7 @@ test("W2-18-JOB-01: background work a round or a card starts is followed on the 
     state.value = "failed";
     const after = await until(async () => { const card = (await f.service.read(sent.work.work_id)).cards.find(one => one.card_id === ran.card_id)!; return card.status !== "running" ? card : undefined; }, "the card settles");
     assert.deepEqual([after.status, after.outcome], ["failed", "后台没有完成"]);
-    assert.equal(f.service.notices(null).filter(notice => /后台/.test(notice.text)).length, 2, "one notice for each job's end");
+    assert.equal(f.service.notices.notices(null).filter(notice => /后台/.test(notice.text)).length, 2, "one notice for each job's end");
   } finally { await f.close(); }
 });
 
@@ -595,7 +595,7 @@ test("W2-18-JOB-02: running a card whose action starts a background job follows 
   f.local.actionRegistry(f.project).registerProvider(jobs.provider);
   lookOften(f);
   try {
-    assert.equal(await f.service.attachSchedule(), true);
+    assert.equal(await f.service.notices.attachSchedule(), true);
     const sent = await f.service.send({ text: "给我一个研究按钮", request_id: "req-00000037" }, { project_ref: f.project });
     const withCard = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" && v.cards.length ? v : undefined; }, "card");
     const ran = await f.service.offers.runCard(sent.work.work_id, withCard.cards[0]!.card_id, { revision: withCard.cards[0]!.revision });
@@ -607,13 +607,13 @@ test("W2-18-JOB-02: running a card whose action starts a background job follows 
     state.value = "completed";
     const after = await until(async () => { const card = (await f.service.read(sent.work.work_id)).cards.find(one => one.card_id === ran.card_id)!; return card.status !== "running" ? card : undefined; }, "the card settles");
     assert.deepEqual([after.status, after.outcome], ["done", "后台已完成"]);
-    await until(() => f.service.notices(null).some(notice => /后台完成了/.test(notice.text)), "the person is told");
+    await until(() => f.service.notices.notices(null).some(notice => /后台完成了/.test(notice.text)), "the person is told");
     // The Assistant built again on the same Home (as after a restart) hears every job that has ended at once: still one notice.
     const again = new AssistantService(f.store, f.ports, "web-user");
     try {
-      assert.equal(await again.attachSchedule(), true);
+      assert.equal(await again.notices.attachSchedule(), true);
       await new Promise(resolve => setTimeout(resolve, 300));
-      assert.equal(f.service.notices(null).filter(notice => /后台完成了/.test(notice.text)).length, 1, "one completion notice");
+      assert.equal(f.service.notices.notices(null).filter(notice => /后台完成了/.test(notice.text)).length, 1, "one completion notice");
     } finally { again.continuations.close(); }
   } finally { await f.close(); }
 });
@@ -627,7 +627,7 @@ test("W2-18-JOB-04: a work that 500 newer works have passed still answers for th
   f.local.actionRegistry(f.project).registerProvider(jobs.provider);
   lookOften(f);
   try {
-    assert.equal(await f.service.attachSchedule(), true);
+    assert.equal(await f.service.notices.attachSchedule(), true);
     const sent = await f.service.send({ text: "给我一个研究按钮", request_id: "req-00000038" }, { project_ref: f.project });
     const withCard = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" && v.cards.length ? v : undefined; }, "card");
     const ran = await f.service.offers.runCard(sent.work.work_id, withCard.cards[0]!.card_id, { revision: withCard.cards[0]!.revision });
@@ -638,7 +638,7 @@ test("W2-18-JOB-04: a work that 500 newer works have passed still answers for th
     state.value = "completed";
     const after = await until(async () => { const card = (await f.service.read(sent.work.work_id)).cards.find(one => one.card_id === ran.card_id)!; return card.status !== "running" ? card : undefined; }, "the card settles");
     assert.deepEqual([after.status, after.outcome], ["done", "后台已完成"], "looked at with the work's authority, not refused as gone");
-    await until(() => f.service.notices(null).some(notice => notice.work_id === sent.work.work_id && /后台完成了/.test(notice.text)), "the person is told");
+    await until(() => f.service.notices.notices(null).some(notice => notice.work_id === sent.work.work_id && /后台完成了/.test(notice.text)), "the person is told");
   } finally { await f.close(); }
 });
 
@@ -923,7 +923,7 @@ test("a reply that says something was saved when no change went through is held 
   try {
     const sent = await f.service.send({ text: "记一下：saved for real", request_id: "req-00000094" }, { project_ref: f.project });
     const asked = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
-    await f.service.decide(sent.work.work_id, { review_id: asked.reviews[0]!.review_id, decision: "approve" });
+    await f.service.outcomes.decide(sent.work.work_id, { review_id: asked.reviews[0]!.review_id, decision: "approve" });
     const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
     assert.equal(f.notes.prepare("SELECT COUNT(*) n FROM notes").get()!.n, 1, "the note exists");
     assert.equal(f.requests.length, 4, "reviewed and held once; after the change went through the same words are not reviewed");
@@ -947,7 +947,7 @@ test("a capability's fields put beside its identity are refused with its contrac
     assert.match(refused.detail ?? "", /text written beside the capability's identity, not inside input/);
     assert.match(refused.detail ?? "", /must be a JSON value matching this schema/);
     assert.deepEqual(view.reviews[0]!.fields.find(field => field.label === "内容"), { label: "内容", value: "flattened" });
-    await f.service.decide(sent.work.work_id, { review_id: view.reviews[0]!.review_id, decision: "approve" });
+    await f.service.outcomes.decide(sent.work.work_id, { review_id: view.reviews[0]!.review_id, decision: "approve" });
     await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
     assert.equal(f.notes.prepare("SELECT body FROM notes").get()!.body, "flattened");
   } finally { await f.close(); }
@@ -1199,9 +1199,9 @@ test("a material a round brought can be read back with its text for a preview, a
       materials: [{ material_id: "web-1", kind: "text", title: "网页 · Example Domain", explicit: true, text: page }] }, { project_ref: f.project });
     const done = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "round");
     assert.equal((done.rounds[0]!.materials[0] as { text?: string }).text, undefined, "the work view stays small");
-    const material = f.service.material(sent.work.work_id, "web-1");
+    const material = f.service.materials.material(sent.work.work_id, "web-1");
     assert.deepEqual([material.kind, material.title, material.text, material.url], ["text", "网页 · Example Domain", page, "https://example.com/"]);
-    assert.throws(() => f.service.material(sent.work.work_id, "missing"), /没有这份材料/);
+    assert.throws(() => f.service.materials.material(sent.work.work_id, "missing"), /没有这份材料/);
   } finally { await f.close(); }
 });
 
@@ -1230,7 +1230,7 @@ test("the developer diagnostics trace a round by its exact identities and frozen
   try {
     const sent = await f.service.send({ text: "读一下笔记", request_id: "req-00000092" }, { project_ref: f.project });
     await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
-    const found = await f.service.diagnostics();
+    const found = await f.service.reads.diagnostics();
     assert.ok(found.runtime, "the runtime gives its own account");
     assert.ok(found.runtime.fingerprint);
     assert.ok(found.runtime.slots.some(slot => slot.slot === "model-protocol" && slot.state === "ready"));
@@ -1475,7 +1475,7 @@ test("a change's receipt survives micro-compaction in the next request; an older
   try {
     const sent = await f.service.send({ text: "Post an entry, then read the ledger", request_id: "req-00000611" }, { project_ref: f.project });
     const held = await until(async () => { const v = await f.service.read(sent.work.work_id); return v.reviews.length ? v : undefined; }, "review");
-    await f.service.decide(sent.work.work_id, { review_id: held.reviews[0]!.review_id, decision: "approve" });
+    await f.service.outcomes.decide(sent.work.work_id, { review_id: held.reviews[0]!.review_id, decision: "approve" });
     await until(async () => { const v = await f.service.read(sent.work.work_id); return v.work.state === "completed" ? v : undefined; }, "completion");
     assert.equal(pages, 5);
     const last = JSON.stringify(f.requests.at(-1));

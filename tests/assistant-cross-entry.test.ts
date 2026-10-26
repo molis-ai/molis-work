@@ -60,7 +60,7 @@ test("W3-09-1-01 T1/T2 assistant: approved Schedule changes and owner refusals r
   assert.equal(waiting.work.state, "waiting-review");
   assert.deepEqual(await home.web.get(subject.path(project.project_id)), before, "the proposed change does not write before the person approves");
   assert.deepEqual(home.host.callLog!.find(roundId), [], "preparing the review creates no platform call row");
-  await withCallId(newCallId(), () => service.decide(started.work.work_id, { review_id: waiting.reviews[0]!.review_id, decision: "approve" }));
+  await withCallId(newCallId(), () => service.outcomes.decide(started.work.work_id, { review_id: waiting.reviews[0]!.review_id, decision: "approve" }));
   const done = await until(async () => { const view = await service.read(started.work.work_id); return view.work.state === "completed" ? view : undefined; }, "create round completed");
   const records = home.host.callLog!.find(roundId).filter(record => record.capability_id === subject.create.capability_id);
   assert.equal(records.length, 1);
@@ -76,7 +76,7 @@ test("W3-09-1-01 T1/T2 assistant: approved Schedule changes and owner refusals r
   const refusedId = newCallId();
   await withCallId(refusedId, () => service.send({ work_id: started.work.work_id, text: "归档不存在的任务", request_id: randomUUID() }, {}));
   const refusedReview = await until(async () => { const view = await service.read(started.work.work_id); return view.reviews.length ? view : undefined; }, "actual owner refusal review");
-  await withCallId(newCallId(), () => service.decide(started.work.work_id, { review_id: refusedReview.reviews[0]!.review_id, decision: "approve" }));
+  await withCallId(newCallId(), () => service.outcomes.decide(started.work.work_id, { review_id: refusedReview.reviews[0]!.review_id, decision: "approve" }));
   await until(async () => { const view = await service.read(started.work.work_id); return view.work.state === "completed" && view.rounds.length === 2 ? view : undefined; }, "refused action round completed");
   const refused = home.host.callLog!.find(refusedId).filter(record => record.capability_id === subject.archive.capability_id);
   assert.equal(refused.length, 1);

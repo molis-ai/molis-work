@@ -1,6 +1,6 @@
 import { isSubjectReader, HOME_EVENTS_INPUT_TYPE, HOME_EVENTS_OUTPUT_TYPE, type ActionSubjectContext, type ActionView, type HomeEventCollection } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PersonActions } from "./assistant-executor.js";
-import { identity } from "./assistant-relations.js";
+import type { WorkIdentity } from "./assistant-relations.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
 
 /** Notices older than this are no longer news: resolved quietly rather than shown late. A look for new material goes no further back. */
@@ -15,9 +15,13 @@ export function withinTime<T>(step: Promise<T>, ms = 20_000): Promise<T> {
   return Promise.race([step, new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("读取超时")), ms); })]).finally(() => clearTimeout(timer));
 }
 
-/** What one look needs: the person's store, their own actions in a work's scope, and where to record how far it got in each project. */
+/**
+ * What one look needs: the parts of the person's store it reads and writes, how a work is named in its relations, their own
+ * actions in a work's scope, and where to record how far it got in each project.
+ */
 interface ScanEnvironment {
-  store: AssistantStore;
+  store: Pick<AssistantStore, "setting" | "setSetting" | "list" | "raiseNotice" | "relations">;
+  identity: (work: StoredWork) => WorkIdentity;
   actorId: string;
   now: Date;
   scopeActions?: (work: StoredWork) => Promise<PersonActions>;
@@ -29,7 +33,7 @@ interface ScanEnvironment {
  * the notices it raises, counted. The first look only learns what is already there.
  */
 export async function scanNewMaterialOnce(env: ScanEnvironment): Promise<number> {
-  const { store, actorId, scopeActions, looks } = env;
+  const { store, actorId, scopeActions, looks, identity } = env;
   const now = env.now;
   // Items are dated by their source, so one may turn up after its date: what matters is whether it was seen before.
   // The first look only learns what is already there; nothing older than a notice's life is considered.

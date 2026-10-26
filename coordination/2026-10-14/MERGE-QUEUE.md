@@ -123,6 +123,13 @@ PR 粒度（GitHub runner 槽位有限，开得多就积压）：
 
 ### 当前交付核实（PIPE，2026-10-25）
 
+**Batch41 固定4c84：候选采用与合成待办，原Claude投递尚未完成**：Root/PIPE均已现场核`/Users/yijunwang/code/goalboard/.claude/worktrees/ac-batch41`的`4c84c03d705b27a2f3c3cab49777d284c2d65626`，前后同头/clean；main鲜ref仍`2b3dc51ded348325edbf135a13c195ba89fba602`。F1 3c4六个非生成目标blob同源，onboarding-journey唯一差异是TodoBatch转现行plugin-todo/contract；F2 4ea实际parent b3、生产plugin-development与其test两blob同源、ac-artifacts只有顶部状态句差异；3eb测试/PG071WO两blob全同，三源候选采用已证，均非actual main完成。2fd、N2/N3/N4尚不含且目标不同，不因摘要预写采用；99父状态虽已是祖先，service/spec/目录安全test另有差分不在本轮泛化为全同。
+
+**固定载体真实代码待办**：main2b3→4c84的host/lifecycle实际窄diff移除了9b6已合入的两处packaged.trust：restore platform.start退回仅grants；restart-enable删packaged读取及trust，同样仅grants。当前组装中，未称运行回归/复现失败。唯一Claude carrier须保main这两处verified trust行为，并与N1先standing guard顺序共存；不能用squash非祖先关系解释，不要求作者纯共用文件同步/刷baseline。生成物只在真实合成树按现§1a统一结算，未在PIPE新build/FIRST/writer。
+
+**同一精确交接包**：`/tmp/molis-pipe-batch41-transfer-20261025.md`已写入并待原入口真实投递，包含上述差异/每源采用证据、2fd与N2–4 Ready、N1原cf035及Root的RAC391在途storage/RAC392 lazy-stop静态风险、原ac-review-2接续与收件要求。Mac锁屏，实际CUA getApp Claude自动解锁失败，未取得目标会话状态/未发送；Root已统一请求一骏手动解锁，明确解锁前不再UI重试/重复用户请求。投递owner PIPE，解锁后先鲜核新head/去重，再沿同一包→原Claude统筹→现行ac-review-2；发送与实际接收/接单证据分开回Root。公开可阅/文件准备好不算送达。N1未执行反例、不称当前main回归；原临时合9b6后还原的结果不充最终组合，S86/S87/RAC792及正确trust/guard合成仍待原审验。四常设writer本轮无Root新派第二题，来源/原件/Memory暂停保持。
+
+
 **本次最新核收（actual合入与23:08Z main元数据）**：
 
 **已实际合入：#1308 最终13931→main 2b3**：鲜REST确认2026-10-25 22:55:24Z merged=true/closed，最终head `13931f51b9b44de00ee68befef4ae508bd8b71af`、实际squash `2b3dc51ded348325edbf135a13c195ba89fba602`；23:08Z main ref仍2b3。PIPE亲核2b3单父b3及tree `940af1cf89fc1914e16237ea6320691cd965339e` 与13931逐字相同，不用source没有main祖先关系误判squash。741的test/PG071WO两blob、f502的test/S57WO两blob均逐字同actual2b3，二者原限定建议实际合入可核；后继3eb的两blob在actual仍旧741，不随本批关闭。F1新3c4/F2 4ea/I1 99与路径P2/0598等按自己实际hunk和后续载体再核，不能随批40一并完成。
@@ -136,11 +143,11 @@ PR 粒度（GitHub runner 槽位有限，开得多就积压）：
 
 | owner/来源 | 固定候选与审验 | 当前采用/下一动作 |
 | --- | --- | --- |
-| F1 #1306 | 5a+b3机械基61ea67308e0719ce5cdcbced7b3de38d1d099628→3c4aedbc55a6103a2ca34dc1b97a6831827d882a，9files74/27；REVIEW-3c4aed及TEST-3c4aed、review-handoff已PIPE全文主核，生产esc/暗色伪元素/删无writer脚本和Directory保留实际diff已读。8711正式manifest/10239dist稳定，作者206+16，独立3为原16子集不相加；真实旧表达式3elements/2injected/executed1自然失败后字节恢复，正式DOM零注入/六宽主题computed/跨tab不reload | 已final冻结，原PR5a不动；arrival681352→681487/+135叶准入原件通过，最终carrier重测不套旧数。全部证据/tmp/molis-onboarding-review-20261025/review-handoff.md，待唯一carrier采用/actual |
-| F2 #1307两nonblock | b3→4ea83ee3df0a5af979c3c370da266f442d8efcda，3files175/10、生产2/1。REVIEW+独立TEST-dev8全文已PIPE核；作者30并集、独立8自然0/5299ms不加成38，b2ae官方清单/10235dist稳定。真实Runtime精确拒绝与同SQLite owner分层拒绝/零写/合法正控，bindingthrow卸载/原Error及start-stop release顺序通过，未让Runtime放行 | 作者final6404085727/亲核raw，冻结待carrier；首次native3/28、旧父树gap/业务前取消/网络重试原件保留不称业务RED。/tmp/molis-verify-2026-10-25/a3-development-lifecycle/handoff.md，未actual不关两项 |
+| F1 #1306 | 5a+b3机械基61ea67308e0719ce5cdcbced7b3de38d1d099628→3c4aedbc55a6103a2ca34dc1b97a6831827d882a，9files74/27；REVIEW-3c4aed及TEST-3c4aed、review-handoff已PIPE全文主核，生产esc/暗色伪元素/删无writer脚本和Directory保留实际diff已读。8711正式manifest/10239dist稳定，作者206+16，独立3为原16子集不相加；真实旧表达式3elements/2injected/executed1自然失败后字节恢复，正式DOM零注入/六宽主题computed/跨tab不reload | 已final冻结，原PR5a不动；arrival681352→681487/+135叶准入原件通过，最终carrier重测不套旧数。全部证据/tmp/molis-onboarding-review-20261025/review-handoff.md，fixed4c84已核六非生成blob+唯一type-import适配而候选采用，actual待核 |
+| F2 #1307两nonblock | b3→4ea83ee3df0a5af979c3c370da266f442d8efcda，3files175/10、生产2/1。REVIEW+独立TEST-dev8全文已PIPE核；作者30并集、独立8自然0/5299ms不加成38，b2ae官方清单/10235dist稳定。真实Runtime精确拒绝与同SQLite owner分层拒绝/零写/合法正控，bindingthrow卸载/原Error及start-stop release顺序通过，未让Runtime放行 | 作者final6404085727/亲核raw，冻结；fixed4c84两源码/test blob同源/WO仅顶部状态句差而候选采用；首次native3/28、旧父树gap/业务前取消/网络重试原件保留不称业务RED。/tmp/molis-verify-2026-10-25/a3-development-lifecycle/handoff.md，未actual不关两项 |
 | I1目录状态 | 508→8c5a78de0a24ef8020440116298c30519381b488→99c6561a9e945a098ee367e6646f0ae2b142872e，6files188/16；REVIEW/TEST/pg049-status-handoff及生产diff已PIPE全文读。独立新增7自然0、复用作者18及UI1，99仅截图URL替换生产/业务同8c，fa916官方清单/10359dist稳定；list只读状态/原read拒绝撤销/撤回重选及敏感字段边界成立 | 99 final冻结待载体。原client4/5是508继承，两个资源gate实际红，workbench1129466→1129694叶+228/main总+1965含父1737；实际省减尝试0，REVIEW认可必要叶增不等gate绿，carrier最终组合登记。长路径P2原I1已Root接续，原scope不升级跨机/全移动布局验收 |
 | I2旧docs | 508→0598e26b2b67b8874d1ebb881c1e20a04ab6a085，PACKAGE-BOUNDARIES两行；SOURCE/TEST docs-only/作者final/raw已PIPE全文核，Ready6403534423 | 原head冻结，产品测试无需运行/未运行不造产品PASS，待真实carrier/actual；PG001/83不提前关 |
-| I2 Goals英文/正文P2 | 03→74191f11原6/6/旧L反例仍有效，741的test/WO两blob已与actual2b3相同、原项实际合入；后继3ebac8d0f3c1844b9a3b7a5a851164728322ab5f仅p精确断言+同WO，REVIEW6404412241、独立TEST6自然0、作者final6404475156及全部handoff/diff已PIPE全文主核，Ready | 反例仅实际p错误、全部script/词典不变且旧lookup true，新断言准确2FAIL/4PASS自然1；缺p未另跑；实际public owner741/bdc构建复用/两树10359dist稳定。工程P2已实现双核/原I2交槽，3eb采用与actual main未证，不升级carrier阻塞或改原741历史 |
+| I2 Goals英文/正文P2 | 03→74191f11原6/6/旧L反例仍有效，741的test/WO两blob已与actual2b3相同、原项实际合入；后继3ebac8d0f3c1844b9a3b7a5a851164728322ab5f仅p精确断言+同WO，REVIEW6404412241、独立TEST6自然0、作者final6404475156及全部handoff/diff已PIPE全文主核，Ready | 反例仅实际p错误、全部script/词典不变且旧lookup true，新断言准确2FAIL/4PASS自然1；缺p未另跑；实际public owner741/bdc构建复用/两树10359dist稳定。工程P2已实现双核/原I2交槽，3eb已fixed4c84候选采用/两blob同源，actual main未证，不升级carrier阻塞或改原741历史 |
 | R55持久回归 | 508→99c2851cc5dd7aeb3e65763d912cc812220d684f→f502e480c27370b72353dd758e518dc9d9930d4a，tests127+S57WO12；AUTHOR/REVIEW/TEST全文已PIPE读，e973官方清单；correct canonical FIFO2/2自然0/4024ms，6请求/最近saved拒绝还原/恢复/手写URL，TEST复用未新执行 | 作者final6403949647、Root核官方归档；f502两blob与actual2b3同、已实际合入，Ready6404078224。首私槽2/2保史不充公共证据或叠4，canonical未删；原建议实际合入已核，Full残留/真实Home/本人验收分开不宣告整R55完成，不再停于/tmp临时probe |
 
 上述作者已读双回执/raw完成各限定项，不等carrierCI/full占原源码writer；P2后继按上述独立合同继续。

@@ -328,3 +328,21 @@ type SourcePullRequest =                       // 闭合：多一个字段就拒
 | RAC-1017 | 拒绝：没声明权限的插件没有这项服务、方法按权限给；启动函数里 / 别的安装的调用 / 已结束的动作 / 非并行动作 / 只读调用 / 没声明权限的动作都拒；请求多一个头 / 方法 / 重定向 / 代理 / 供应商 / 预算字段、未知 kind、缺 `hold`、一种 kind 缺它的权限都拒；私网回环、非 https、带账号的地址在到传输之前就拒（用例里 fetch 一次都没被调用） |
 | RAC-1018 | `evidence.read`：命名空间之外、格式不对、没有 `evidence:read` 的调用都拒；读回的明文与今天 `hydrateFeedItemContent` 读到的相同；不存在的引用返回 `null` |
 | RAC-1019 | `forget`：只忘本项目里这几次取数的检索记录，别的操作号答 0；操作号格式、数量越界、非数组都拒。`repository.read`（4c-2，已做）：只返回仓库、修订号与条目，不返回目录路径与 Git 输出；仓库名不是 `owner/name`、含 `..`、以非字母数字开头一律拒，请求多一个字段拒；Git 参数里来自插件的文本只有固定地址 `https://github.com/<仓库>.git` 里的仓库名；没有权限的插件没有这个方法，不在并行动作 / 只读调用 / 动作外都拒；来源未开放、包文件被改过整次失败；调用已取消时不返回 |
+
+## 11. 第 4 步 4e：翻转的实现方案（2026-10-26，读 8 个宿主构造点与 Feed 的七组处理器后定，等统筹确认）
+
+**范围的实测。** Feed 的处理器是七组小文件（`content`、`query`、`rule`、`inbox`、`item`、`notification`、`source` 的 `*-actions.ts`，各 54～125 行）；宿主一侧它们的端口都在 `content-action-providers.ts` 里接（正文解密 `hydrate`、连接器授权状态、Goals 的 `linkedContext`、场景选择、来源授权、通知里的 Feed 应用、`promote`、来源服务与连接器同步），`project-host.ts` 的 `eventFeed` 与 `workflow-feed-options.ts` 的三种判断身份（捕获、首页 dock、Inbox 下一步）、`feed-source-service.ts`、`feed-connector-sync.ts`、`feed-goal-promotion.ts`、`plugin-notification-service.ts`、`demo-plugin-seed.ts` 都经 `createLocalFeedApplication` 共用同一个宿主应用。
+
+**事务形状（这一片最关键的一处，设计稿 §3.2 的落地）。** 运行时端口 `createFeedRuntimePorts().within(tx, actor, body)` 要求写发生在 `services.project_database.transaction(beforeEffect, body)` 的同步 body 里。今天多数处理器是 `async handle` 里同步调 `FeedApplication` 的写方法（`markRead`、`setDisposition`、`restoreToFeed`、`addToInbox` 等）；少数是「等网络或等别的服务之后再写」。
+
+- **一个通用包装 `writing(handlers)`，不逐个改写同步写处理器。** 命令类处理器的同步前缀跑在 `database.transaction(() => caller.beforeEffect(), tx => ports.within(tx, actor, …))` 里：开事务前先等 `beforeEffect`，提交前由事务再认一次权；这段之后的 `await` 里端口是未绑定的，**写会以 `actions.execution_failed` 失败，而不是悄悄写到别处**（端口早就是这样设计的）。所以「写在 await 之后」的处理器会在测试里响亮地红，再逐个改成「先读、先等，再进事务提交」。
+- **预期要改的（待核，翻转时由测试确认）：** `feed.item.promote`（等 Goals 之后写关联）、来源同步（`FeedSourceService.sync`/`source-sync.ts`：取回在前、写条目与运行账在后）、连接器同步（`connector-sync.ts`）、通知接收（判断之后写）。来源同步按「每个批次一个事务」提交，取数经 `services.sourcePull`，`hold` 回调里先在 Home 账里记账（4d 的 `feed.content.hold`）再写正文；条目与运行账的写入在每个批次的事务里。
+- **判断触发器**：捕获、首页 dock、Inbox 下一步三种判断都在写之后启动，不进事务：捕获走 Feed 自己的场景（`createFeedSceneRuntime` + `services.scenes`/`services.judgments`，P1/P2 已有），dock 走 `feedHomeJudgmentTrigger`（4b，选项 A 已开路），Inbox 走 `inbox.judgment.evaluate` 目录调用（`inboxJudgmentTrigger`）。
+
+**拆法（同一分支、同一个 PR，每步单独绿、单独推；翻转之前宿主版 Feed 照常工作）：**
+
+1. **4e-1：Manifest 与 `createFeedPlugin()` 的骨架（不登记）。** Manifest 补平台权限（`attention:read/write`、`context-ledger:read/write`、`scenes:use`、`judgments:*`、`journal:project`、`actions:delegate`、`connections:request`、`sources:pull_feed/pull_query/read_repository`、`evidence:read`、`artifacts` 声明）、`background.wakeups`（tick）、`databases.home` 与 `runtime.scope:"home"` 的 Home 一半登记、Home 引用账两个动作；`createFeedPlugin()` 用 `assembleFeedApplication` + `createFeedRuntimePorts` + `writing()` 提供读类与同步写类处理器。用平台夹具（项目没启用宿主版 Feed）起这个插件，测同步写与取消不写（RAC-509）。
+2. **4e-2：来源、连接器、通知与判断。** 来源同步与研究库改用 `sourcePull`/`repository.read`，tick 用唤醒动作，来源互斥用 `createFeedSourceSyncLease`，连接器同步走 `services.connections`，通知接收动作，三种判断触发器；项目一半的 RAC-492（连接事件订阅）、493（启动对账）、518（启动时对 `hold`）。
+3. **4e-3：翻转与删除。** `registration` 加 `project_runtime`（与 Home 一半的 `runtime`），`BUILD_TIME_ASSEMBLED` 删 `feed`；`content-action-providers.ts` 的 Feed 部分、8 个构造点逐个改成公开动作，`createLocalFeedApplication` 及 `feed-application.ts`、`feed-source-scheduler`、`feed-source-sync-lease`、`workflow-feed-options.ts`、`feed-goal-promotion.ts`、宿主的 `syncResearchLibrarySource` 删；FI-7 的 Feed 一半（`feed-native-plugin-http.ts` 删，路由进 Manifest，舞台片段走 `/api/stage/feed`）同在这一步，因为它也是 `feed` 的最后一个宿主私有文件。门禁的混合名单与 `NATIVE_PLUGIN_HTTP_FILES` 同步减。
+
+**请统筹确认或另裁：** ① 事务形状用「通用包装 + 响亮失败 + 逐个改写 await 之后才写的处理器」，而不是把 `FeedApplication` 的写方法改成异步；② 三步拆法，且 4e-1 与 4e-2 不登记、对外无变化；③ 4e-3 一步里同时翻转并做 FI-7 的 Feed 一半，会是一个大提交（Inbox 的翻转 55 个文件），我会把翻转前能单独落的删除（如 `syncResearchLibrarySource` 之外的死代码）先拆出去。

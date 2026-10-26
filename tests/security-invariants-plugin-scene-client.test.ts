@@ -31,7 +31,7 @@ const bindingOf = (scene: string, id: string, project: string | null = DEMO_PROJ
 function probe(short: string, options: ProbeOptions = {}) {
   const id = `io.molis.work.example.${short}`, grants = options.grants ?? [SCENES], hasScene = options.scene ?? true;
   const scene: ActionSceneDefinition = { scene_id: options.sceneId ?? `${id}.arrived`, version: 1, title: "到达", description: "处理到达的文字", trigger: "arrived", scope: "project",
-    subject_kinds: ["feedback"], input_schema: textInput, result_schema: decisionOutput, permissions: [] };
+    subject_kinds: ["feedback"], input_schema: textInput, result_schema: decisionOutput, permissions: [], configuration_permissions: [] };
   const state = { services: undefined as PluginHostServices | undefined, value: undefined as unknown, error: undefined as unknown, hook: () => {}, consumed: [] as unknown[],
     bindings: new Map<string, ActionSceneBinding>() };
   const define = (name: string, operation: "command" | "query", scheduling?: "concurrent"): ActionDefinition<StepInput, boolean> => ({ capability_id: `${id}.${name}`, version: 1, operation,
@@ -68,6 +68,7 @@ function probe(short: string, options: ProbeOptions = {}) {
     state.services = context.services;
     return { kind: "app", views: [], actions: [handler(wait), handler(serial), handler(look)],
       ...(hasScene ? { action_scenes: [{ scene_id: scene.scene_id, version: 1, bindings: () => [...state.bindings.values()],
+        targets: () => [...state.bindings.values()].map(({ binding_id, title }) => ({ binding_id, title, revision: null })),
         bind: (_caller: ActionCallContext, value: ActionSceneBinding) => { state.bindings.set(value.binding_id, value); },
         consume: (_caller: ActionCallContext, input: unknown) => { state.consumed.push(input); return { ok: true }; } }] } : {}) };
   } };
@@ -245,4 +246,67 @@ test("RAC-839 S-89 an id that the Manifest declares but another provider holds i
   }
   assert.deepEqual(calls, [], "the kernel was not asked to bind or run it");
   assert.deepEqual((await inAction(env, env.main, { step: "discover" })).value, [], "and a list shows none of them as the plugin's");
+});
+
+for (const step of ["usages", "targets"] as const) test(`RAC-839 S-89 ${step} hides a declared id held by another provider or missing from the current directory`, async t => {
+  let ownership: "own" | "other" | "missing" = "own", claimedScene = "";
+  let sceneClient: ActionSceneClient | undefined;
+  // The same provider-view seam as RAC-839 above; binding and target rows still come from the real kernel and scene callbacks.
+  const env = await platform(t, scenes => (sceneClient = {
+    discoverScenes: async (caller, judgment) => (await scenes.discoverScenes(caller, judgment)).flatMap(view => {
+      if (view.definition.scene_id !== claimedScene || ownership === "own") return [view];
+      return ownership === "missing" ? [] : [{ ...view, provider: { ...view.provider, plugin_id: "io.molis.work.someone-else" } }];
+    }),
+    usages: (caller, judgment) => scenes.usages(caller, judgment),
+    targets: (caller, judgment, scene) => scenes.targets(caller, judgment, scene),
+    bind: (caller, binding, options) => scenes.bind(caller, binding, options),
+    runScene: (caller, scene, bindingId, event) => scenes.runScene(caller, scene, bindingId, event),
+  }));
+  claimedScene = env.main.scene.scene_id;
+  await env.client.bind(caller().context, bindingOf(claimedScene, "claimed-binding"));
+  await env.client.bind(caller().context, bindingOf(env.other.scene.scene_id, "other-binding"));
+  const before = structuredClone({ claimed: [...env.main.state.bindings.values()], other: [...env.other.state.bindings.values()] });
+  try {
+    const raw = await env.client[step](caller().context);
+    assert.deepEqual(raw.map(row => row.binding_id).toSorted(), ["claimed-binding", "other-binding"], "the real kernel returned non-empty binding/target data");
+    for (const current of ["own", "other", "missing", "own"] as const) {
+      ownership = current;
+      const resolved = (await sceneClient!.discoverScenes(caller().context)).find(view => view.definition.scene_id === claimedScene && view.definition.version === env.main.scene.version);
+      assert.equal(resolved?.provider.plugin_id, current === "missing" ? undefined : current === "own" ? env.main.id : "io.molis.work.someone-else", "the declared id/version really resolves to this current provider at the service port");
+      const listed = await inAction(env, env.main, { step }, "look");
+      assert.equal(listed.error, undefined, `${step}: ${listed.error?.code} ${listed.error?.message}`);
+      const expected = current === "own" ? ["claimed-binding"] : [];
+      assert.deepEqual((listed.value as readonly { binding_id: string }[]).map(row => row.binding_id), expected, `${step}: current provider is ${current}`);
+      if (step === "targets") {
+        const selected = await inAction(env, env.main, { step: "targets-scene" }, "look");
+        assert.equal(selected.error, undefined);
+        assert.deepEqual((selected.value as readonly { binding_id: string }[]).map(row => row.binding_id), expected, "an explicit declared scene uses the same current-provider boundary");
+      }
+    }
+    const other = await inAction(env, env.other, { step }, "look");
+    assert.equal(other.error, undefined);
+    assert.deepEqual((other.value as readonly { binding_id: string }[]).map(row => row.binding_id), ["other-binding"], "the other plugin can still list its own legitimate data");
+  } finally {
+    assert.deepEqual({ claimed: [...env.main.state.bindings.values()], other: [...env.other.state.bindings.values()] }, before, "listing never edits either provider's bindings, even when an assertion fails");
+  }
+});
+
+test("RAC-833 S-89 a caller revoked while the kernel reads a list receives no result", async t => {
+  let revoke = () => {};
+  const env = await platform(t, scenes => ({
+    discoverScenes: (caller, judgment) => scenes.discoverScenes(caller, judgment),
+    usages: async (caller, judgment) => { const value = await scenes.usages(caller, judgment); revoke(); return value; },
+    targets: async (caller, judgment, scene) => { const value = await scenes.targets(caller, judgment, scene); revoke(); return value; },
+    bind: (caller, binding, options) => scenes.bind(caller, binding, options),
+    runScene: (caller, scene, bindingId, event) => scenes.runScene(caller, scene, bindingId, event),
+  }));
+  await env.client.bind(caller().context, bindingOf(env.main.scene.scene_id, "read-binding"));
+  const before = structuredClone([...env.main.state.bindings.values()]);
+  for (const step of ["usages", "targets"] as const) {
+    const who = caller(); revoke = who.revoke;
+    const result = await inAction(env, env.main, { step }, "look", who);
+    assert.ok(refused(result.error, "actions.forbidden", /the caller was revoked/), `${step}: ${result.error?.code} ${result.error?.message}`);
+    assert.equal(result.value, undefined, "the caller is checked again before the list can be returned");
+  }
+  assert.deepEqual([...env.main.state.bindings.values()], before);
 });

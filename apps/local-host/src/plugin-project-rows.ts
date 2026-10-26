@@ -2,7 +2,7 @@ import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { rmSync } from "node:fs";
 import { pluginErrors, type HomePluginDatabaseDeclaration, type PluginDefinition, type PluginOwnerFilesDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { clearInExistingHomeSqlite, describeSqliteBaseline } from "@molis-ai/molis-work-storage";
-import { ownerFilePaths } from "./plugin-owner-files-paths.js";
+import { ownerFileHasCode, ownerFilePaths } from "./plugin-owner-files-paths.js";
 
 // A project's rows in a plugin's library of the Home, as the plugin declares them (`databases.home.project_rows`, PG-024): the
 // platform writes the statements from the declaration and runs them on its own connection to that one library, so deleting a project
@@ -72,15 +72,20 @@ function namesIn(value: unknown, key: string | undefined): string[] {
 /**
  * Removes the named files from the plugin's own files, through the same path rules its file service keeps: a name must be one plain
  * segment in the declared directory, and only a regular file there is removed (no link, folder, special node or hard-linked file).
- * A name that breaks a rule is not the plugin's to have removed, and is left; a file already gone is fine.
+ * A name that breaks a rule is not the plugin's to have removed, and is left; a file already gone is fine. Any other error (a file
+ * that cannot be looked at or removed) throws, so the rows it was read from roll back and the next attempt tries again.
  */
 function removeNamedFiles(home: string, ownerFiles: PluginOwnerFilesDeclaration, directory: string, names: readonly string[]): void {
   const paths = ownerFilePaths(home, ownerFiles);
   for (const name of new Set(names)) {
     if (name.includes("/")) continue;
     let target: ReturnType<typeof paths.inspect>;
-    try { target = paths.inspect(`${directory}/${name}`, "file"); } catch { continue; }
-    if (target.stat?.isFile()) rmSync(target.path);
+    try { target = paths.inspect(`${directory}/${name}`, "file"); }
+    catch (error) {
+      if (ownerFileHasCode(error, "host.owner_file_invalid") || ownerFileHasCode(error, "host.owner_file_unsafe")) continue;
+      throw error;
+    }
+    if (target.stat?.isFile()) rmSync(target.path, { force: true });
   }
 }
 

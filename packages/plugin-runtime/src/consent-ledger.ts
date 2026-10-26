@@ -63,6 +63,11 @@ export interface PluginConsentLedger {
   /** The publishers pinned, revoked ones included. */
   publishers(): PluginPublisherPin[];
   pinPublisher(pin: Omit<PluginPublisherPin, "revoked_at">): PluginPublisherPin;
+  /**
+   * Takes a publisher back: writes `revoked_at` on its pin and answers it, or answers null when no publisher has that key. Taking back
+   * one already taken back changes nothing (the first time stays). A revoked pin is never deleted and `pinPublisher` never lifts it.
+   */
+  revokePublisher(keyId: string, at: string): PluginPublisherPin | null;
 }
 
 const key = (row: { plugin_id: string; publisher_signature: string; kind: string; subject: string }) =>
@@ -102,6 +107,12 @@ export class MemoryPluginConsentLedger implements PluginConsentLedger {
     this.pins.set(pin.key_id, pinned);
     return { ...pinned };
   }
+  revokePublisher(keyId: string, at: string): PluginPublisherPin | null {
+    const pin = this.pins.get(keyId);
+    if (!pin) return null;
+    this.pins.set(keyId, { ...pin, revoked_at: pin.revoked_at ?? at });
+    return { ...this.pins.get(keyId)! };
+  }
 }
 
 interface ConsentRow { consent_id: string; plugin_id: string; publisher_signature: string; kind: PluginConsentRecord["kind"]; subject: string; manifest_digest: string;
@@ -139,6 +150,11 @@ export class SqlitePluginConsentLedger implements PluginConsentLedger {
     this.db.prepare(`INSERT INTO plugin_publishers (key_id, public_key_spki_base64, label, pinned_at, pinned_by, revoked_at) VALUES (?, ?, ?, ?, ?, NULL)
       ON CONFLICT (key_id) DO NOTHING`).run(pin.key_id, pin.public_key_spki_base64, pin.label, pin.pinned_at, pin.pinned_by);
     return { ...(this.db.prepare("SELECT * FROM plugin_publishers WHERE key_id = ?").get(pin.key_id) as PluginPublisherPin) };
+  }
+  revokePublisher(keyId: string, at: string): PluginPublisherPin | null {
+    this.db.prepare("UPDATE plugin_publishers SET revoked_at = ? WHERE key_id = ? AND revoked_at IS NULL").run(at, keyId);
+    const row = this.db.prepare("SELECT * FROM plugin_publishers WHERE key_id = ?").get(keyId) as PluginPublisherPin | undefined;
+    return row ? { ...row } : null;
   }
 }
 

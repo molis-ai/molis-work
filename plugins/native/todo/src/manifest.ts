@@ -1,5 +1,5 @@
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { TODO_PLUGIN_ID, TODO_PROJECT_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/todo";
+import { TODO_PLUGIN_ID, TODO_PROJECT_PLUGIN_ID } from "./contract.js";
 import { TODO_ACTIONS, TODO_ACTION_PERMISSIONS } from "./actions.js";
 import { TODO_UI_CONTRIBUTION_ID } from "./ui.js";
 import { todoAgentManifest, todoMethods } from "./roles.js";

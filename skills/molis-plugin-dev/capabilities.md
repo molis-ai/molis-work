@@ -16,7 +16,7 @@
 
 ## 写官方插件时
 
-- 新动作注册进共同目录，UI、编排、Agent、MCP 共用同一个处理器（见 [host.md](host.md)）。
+- 新动作注册进共同目录，UI、编排、Agent、MCP 共用同一个处理器（定义用 SDK 的 `defineAction`，见 `packages/plugin-sdk/README.md` 与 [host.md](host.md) 必改第 12 步）。
 - 会改数据的动作写清 `effect`；不希望被自动化调用的写 `plugin: false`，或不给 `agent`。
 - 输入输出 schema 写完整：生成插件、Agent、MCP 都按它调用和校验，缺字段就等于没法被别人用。
 - 可信身份（actor、项目、安装）从上下文来，不从输入里读。

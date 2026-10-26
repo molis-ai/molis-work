@@ -28,7 +28,7 @@
 
 - 负责：临时灵感池与围绕灵感的对话。
 - 不负责：Goal 与 Artifact 事实、模型提供方、托管服务。
-- 公开入口：`@molis-ai/molis-work-plugin-lingguang`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
+- 公开入口：`@molis-ai/molis-work-plugin-lingguang`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；插件协议 `@molis-ai/molis-work-contracts/platform/plugin`，数据合同 `@molis-ai/molis-work-plugin-lingguang/contract`（`src/contract.ts`）。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（`defineErrorCodes`，错误码都是 `lingguang.<原因>`，状态由错误种类决定，Lingguang 不自带状态表）。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 编辑基于实际填入字段的那份记录；列表刷新只更新目录，不能确认未显示的外部编辑。连续排队的本人保存只推进同一次打开的编辑基准，外部更新后保存仍冲突并保留输入。

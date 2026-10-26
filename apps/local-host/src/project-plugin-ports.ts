@@ -3,6 +3,8 @@ import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/p
 import type { AgentHostComposition } from "./agent-host-composition.js";
 import { observeReviewSettlements, type AgentWritePlaces } from "./review-settlement-events.js";
 import { ensureInstalledPlugins } from "./installed-plugin-host.js";
+import { installedPluginEntries } from "./plugin-installation-directory.js";
+import type { InstalledPluginEntry } from "./plugin-installed-view.js";
 import type { InstalledRelease } from "./installed-release.js";
 import type { LocalHost } from "./local-host.js";
 import type { MolisWorkLocalHostOptions, MolisWorkProjectRuntime } from "./project-host.js";
@@ -43,6 +45,18 @@ export async function installPackageInProject(source: ProjectPluginHost, project
     const installed = await installedPluginsOf(source, reference, runtime);
     await installed.installPackage(release, { consent: true });
     await installed.refreshPublicActions();
+  });
+}
+
+/** The plugins installed in a project, each with the Manifest it was installed with; the project's built-in plugins are started first so they are listed too. */
+export async function installedPluginsInProject(source: ProjectPluginHost, projectId: string): Promise<InstalledPluginEntry[]> {
+  const reference = source.host.projects().find(row => row.project_id === projectId);
+  if (!reference) throw new ActionError("actions.scope_mismatch", "需要一个打开的项目");
+  await ensureProjectPluginActions(source, reference);
+  return await source.host.withRuntime(reference, async runtime => {
+    // A publisher the person took back since this project last looked: its installations are stopped before they are listed.
+    if (source.options.homeDirectory) await (await installedPluginsOf(source, reference, runtime)).reconcilePublishers();
+    return installedPluginEntries(runtime.store.db);
   });
 }
 

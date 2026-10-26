@@ -1,5 +1,5 @@
 import { bindSearchEntriesHandler, defineSearchEntriesAction, defineSubjectContextAction, searchText, subjectContext, type ActionCallContext, type ActionHandlerBinding, type SearchEntry } from "@molis-ai/molis-work-contracts/platform/actions";
-import { TODO_PROJECT_PLUGIN_ID, TODO_SUBJECT_KIND, type TodoEditableField, type TodoItem } from "@molis-ai/molis-work-contracts/modules/todo";
+import { TODO_PROJECT_PLUGIN_ID, TODO_SUBJECT_KIND, type TodoEditableField, type TodoItem } from "./contract.js";
 import type { TodoAccess, TodoStore } from "./store.js";
 import { withProjectReach } from "./reach.js";
 import { todoCallerProject } from "./caller.js";

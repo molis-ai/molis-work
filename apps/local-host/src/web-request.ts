@@ -156,13 +156,13 @@ function projectRuntimeContext(context: ProjectRequestContext, runtime: MolisWor
 }
 
 /** What the project page shows: the board, with Feed's and Inbox's judgments where those plugins answer, and the Home plugins' stages. */
-function projectWebView({ options, webViewCache, store, homeActions, localHost, hostReference, serverOptions, shownPlugins }: Omit<ProjectRuntimeContext, "readWebView">,
+function projectWebView({ options, webViewCache, store, homeActions, localHost, hostReference, serverOptions, shownPlugins, goalsHere }: Omit<ProjectRuntimeContext, "readWebView">,
   { includeStageIds = false }: { includeStageIds?: boolean } = {}) {
   const optional = (error: unknown) => {
     if (!(error instanceof Error && "code" in error && ["actions.forbidden", "actions.plugin_disabled", "actions.missing"].includes(String(error.code)))) throw error;
   };
   return async (): Promise<MolisWorkWebView> => {
-    let view = await cachedMolisWorkWebView(webViewCache, store, options, homeActions);
+    let view = await cachedMolisWorkWebView(webViewCache, store, options, homeActions, await goalsHere());
     // What the project shows is its Catalog's selection now (enabled, minus hidden, with the personal plugins), read per request
     // and never kept behind the Goals cursor: the page, its refresh and its fragments all read this one view.
     if (options.project) view = { ...view, shown_plugins: await shownPlugins(options.project.project_id) };
@@ -191,8 +191,8 @@ const asPerson = ({ localHost, hostReference }: ProjectRuntimeContext, permissio
 
 /** The Goals settings and planning pages: the project's work and its Goals, read by their owners. */
 const planningRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
-  { id: "goals-settings", handle: ({ request, response, url, readWebView, controlToken, goalActions, composition }) =>
-    composition.goalsReadHttp.settings(request, response, url, readWebView, controlToken, goalActions) },
+  { id: "goals-settings", handle: ({ request, response, url, readWebView, controlToken, goalActions, composition, goalsHere }) =>
+    composition.goalsReadHttp.settings(request, response, url, readWebView, controlToken, goalActions, goalsHere) },
   { id: "planning", handle: ({ request, response, url, controlToken, readWebView, goalActions, composition, localHost }) =>
     composition.planningHttp.project(request, response, url, controlToken, readWebView, goalActions, bindPersonalPlanningWebActions(localHost.homeActionClient())) },
 ];
@@ -220,14 +220,15 @@ const feedRoute: WebRoute<ProjectRuntimeContext> = { id: "feed", handle: ({ requ
   }) };
 
 /** The capsule's snapshot of this project: the board and the Goals directory. */
-const capsuleRoute: WebRoute<ProjectRuntimeContext> = { id: "capsule", handle: async ({ request, response, url, options, goalActions, composition, readWebView }) => {
+const capsuleRoute: WebRoute<ProjectRuntimeContext> = { id: "capsule", handle: async ({ request, response, url, options, goalActions, composition, readWebView, goalsHere }) => {
   if (request.method !== "GET" || url.pathname !== "/api/capsule") return false;
   if (!options.project) {
     sendJson(response, 400, { error: L("请先选择一个 Molis Work 项目") });
     return true;
   }
-  const directory = await goalActions.invoke(goalsActions.list, { limit: 100 });
-  sendJson(response, 200, composition.buildCapsuleSnapshot(await readWebView(), directory.goals));
+  // A project without Goals has none to list (RAC-400); in one with Goals, a refused list is that refusal.
+  const directory = await goalsHere() ? await goalActions.invoke(goalsActions.list, { limit: 100 }) : undefined;
+  sendJson(response, 200, composition.buildCapsuleSnapshot(await readWebView(), directory?.goals ?? []));
   return true;
 } };
 
@@ -245,7 +246,7 @@ const goalsAndArtifactRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
         changed: () => { webViewCache.delete(options.databasePath); },
       }),
     }, request, response, url) },
-  { id: "artifacts", handle: ({ request, response, url, options, userActions, controlToken, composition, serverOptions }) => composition.handleArtifactNativePluginHttp(request, response, url.pathname, {
+  { id: "artifacts", handle: ({ request, response, url, options, userActions, controlToken, composition, serverOptions, goalsHere }) => composition.handleArtifactNativePluginHttp(request, response, url.pathname, {
     projectId: options.projectId, routePrefix: options.routePrefix ?? "",
     projectTitle: options.project?.display_name ?? "Molis Work",
     actions: userActions(ARTIFACT_ACTION_PERMISSIONS), controlToken,
@@ -253,6 +254,7 @@ const goalsAndArtifactRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
     offeredActions: original_file => userActions(ARTIFACT_ACTION_PERMISSIONS, { original_file }),
     // Each 成果 type's owner previews its own versions (A4): a plugin's preview runs on its installation's grants, not on the person's (V-21).
     ownerActions: permissions => userActions(permissions),
+    goalsAvailable: goalsHere,
     desktopShell: composition.isDesktopShellRequest(request, url), pageCsp: composition.PAGE_CSP,
   }) },
   { id: "goal-page", handle: context => context.composition.goalsReadHttp.page(context.request, context.response, context.url, context.options, context.serverOptions.homeDirectory,

@@ -1,4 +1,4 @@
-import type { TodoChange, TodoItem, TodoLink } from "@molis-ai/molis-work-contracts/modules/todo";
+import type { TodoChange, TodoItem, TodoLink } from "../contract.js";
 import { iconSvg, make } from "./dom.js";
 import type { AssistantWork, TodoPage } from "./types.js";
 

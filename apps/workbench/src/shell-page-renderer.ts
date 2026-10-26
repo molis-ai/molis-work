@@ -180,16 +180,16 @@ function renderMolisWorkWeb(
   const { selected, title, collectionTitle } = collection;
   const initialFeedPreset = "feed" as const;
   const initialDesktopDirectory = "root";
-  const initialDesktopSurface = requestedGoalId || archiveView || trashView ? "goal" : "home";
+  const enabledPlugins = shownPagePlugins(view), pluginEnabled = (id: string) => enabledPlugins.includes(id), goalsEnabled = pluginEnabled("goals");
+  // Goals is a plugin like the others (ac-trust T3b, RAC-400): without it a project opens on its home; the stage stays hidden in the surface pool.
+  const initialDesktopSurface = goalsEnabled && (requestedGoalId || archiveView || trashView) ? "goal" : "home";
   const projectOptions = view.projects.length ? view.projects : view.project ? [view.project] : [];
   const primitives = { L, escapeHtml, icon, htmlLang };
-  const enabledPlugins = shownPagePlugins(view);
   // What the Runtimes run in this project, as their Manifests declare it; a page drawn with no Runtime reads the built-in catalog.
   const directory = pluginDirectoryFor(view.plugin_directory);
-  const settingsDirectory = `${renderSettingsDirectorySection(primitives, enabledPlugins)}${view.project ? renderProjectSettingsDirectorySection(primitives) : ""}`;
+  const settingsDirectory = `${renderSettingsDirectorySection(primitives, enabledPlugins)}${view.project ? renderProjectSettingsDirectorySection(primitives, goalsEnabled) : ""}`;
   const settingsSurfaces = `${renderSettingsWorkSurface(primitives, `${view.route_prefix || ""}/?settings=appearance`)}${view.project ? renderProjectSettingsWorkSurface(primitives, view.project, desktopShell) : ""}`;
   const defer = deferredSurfaces(L, enabledPlugins, view.pane_plugin);
-  const pluginEnabled = (id: string) => enabledPlugins.includes(id);
   const projectTitlebarChrome = renderDesktopProjectChrome(view.project ?? null, projectOptions, desktopShell, view.project ? "__PROJECT_SETTINGS__" : null, { switcherClass: "desktop-project-switcher", manageHref: "__PROJECT_INDEX__", directoryToggle: true, globalSearch: true });
   const directoryEmpty = initialDesktopDirectory === "root";
   const showTui = !archiveView && !trashView;
@@ -257,7 +257,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
       ${renderImmersiveHeader(primitives, desktopShell)}
       ${renderWorkbenchBar(primitives, {
         enabled: enabledPlugins,
-        rail: renderPluginRail(primitives, enabledPlugins, "", "", directory, { developerMode: view.developer_mode }),
+        rail: renderPluginRail(primitives, enabledPlugins, "", "", directory, { developerMode: view.developer_mode, marksFromHost: Boolean(view.plugin_directory) }),
         projectChrome: renderWorkspaceChrome(primitives, projectTitlebarChrome.replace("<!-- project-menu-extra -->", renderPersonalMenuItems(primitives))),
         sideTabs: projectSideTabs(enabledPlugins, view.route_prefix),
       })}
@@ -284,7 +284,7 @@ FINISH: unreviewed and undocumented is unfinished; this build ends with the fini
             ${frameStage}
             ${renderFeedNativePluginSurface(view, "source-workbench", initialFeedPreset)}
             <section class="desktop-work-surface immersive-artifact-surface plugin-stage-shell" data-work-surface="artifacts" data-work-surface-label="成果" data-artifact-stage-shell data-expanded="false" hidden><div class="plugin-stage-list feed-stage-tree" data-artifact-directory></div><div class="plugin-stage-workspace" data-artifact-stage-workspace hidden><div data-artifact-detail></div></div></section>
-            <section class="desktop-work-surface immersive-market" data-work-surface="market" data-work-surface-label="${L("插件市场")}" hidden>${renderPluginMarket(primitives, { developerMode: view.developer_mode }, directory)}</section>
+            <section class="desktop-work-surface immersive-market" data-work-surface="market" data-work-surface-label="${L("插件市场")}" hidden>${renderPluginMarket(primitives, { developerMode: view.developer_mode, marksFromHost: Boolean(view.plugin_directory) }, directory)}</section>
             ${settingsSurfaces}
             ${(view.unavailable_plugin_stages ?? []).map(stage => renderUnavailablePluginStage(stage, L)).join("")}${(view.plugin_stages ?? []).map(defer).join("")}
             ${renderDeclaredStages({ enabled: enabledPlugins, rendered: view.plugin_stage_ids ?? [],

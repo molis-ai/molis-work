@@ -1,7 +1,7 @@
 import { retainActionAuthority, ActionError, defineSubjectOffersAction, type ActionCallContext, type ActionExecutionContext, type ActionDefinition, type ActionHandlerBinding, type ActionReference, type ActionSchema, type SubjectOffersInput, type SubjectActionOffer } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AttentionEntryRecord, AttentionStatus } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import { INBOX_NEXT_SCENE_ID, type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
-import { PAGES_PLUGIN_ID, type PagesGenerationRecord, type PagesRecord } from "@molis-ai/molis-work-contracts/modules/pages";
+import { PAGES_PROVIDER_ID, type InboxPagesDocument, type InboxPagesGeneration } from "./pages-shapes.js";
 import type { InboxJudgmentState } from "./route-handlers.js";
 
 const empty = { type: "object", properties: {}, additionalProperties: false };
@@ -33,8 +33,8 @@ const judgmentProperties = { judgment_id: text, function_key: text, function_ver
 const judgmentSchema = { type: "object", properties: judgmentProperties, required: Object.keys(judgmentProperties) };
 
 export type InboxActionEntry = AttentionEntryRecord & { project_id: string };
-export type InboxPagesResult = Omit<PagesGenerationRecord, "inputs"> & { entry_ids: string[] };
-export interface InboxGeneratedPages { document: PagesRecord; replayed: boolean; request_id: string; entry_ids: string[] }
+export type InboxPagesResult = Omit<InboxPagesGeneration, "inputs"> & { entry_ids: string[] };
+export interface InboxGeneratedPages { document: InboxPagesDocument; replayed: boolean; request_id: string; entry_ids: string[] }
 
 function action<Input, Output>(id: string, title: string, description: string, operation: "query" | "command",
   input: ActionSchema, output: ActionSchema, permissions: string[], requiredScene?: { scene_id: string; version: number }, requiredActions?: readonly ActionReference[], execution?: ActionDefinition["action"]["execution"]): ActionDefinition<Input, Output> {
@@ -63,7 +63,7 @@ export const inboxActions = {
   }, { type: "object", properties: { entry: entrySchema }, required: ["entry"] }, ["inbox:write"]),
   pagesResults: action<Record<string, never>, { results: readonly InboxPagesResult[] }>("inbox.pages.results", "生成的文稿", "读取当前项目由 Inbox 材料生成的文稿和运行状态", "query",
     empty, { type: "object", properties: { results: { type: "array", items: generationSchema } }, required: ["results"] }, ["inbox:read", "pages:read"], undefined,
-    [{ capability_id: "pages.generations.list", version: 1, provider_id: PAGES_PLUGIN_ID }]),
+    [{ capability_id: "pages.generations.list", version: 1, provider_id: PAGES_PROVIDER_ID }]),
   generatePages: action<InboxPagesInput, InboxGeneratedPages>("inbox.pages.generate", "整理成文稿", "根据所选事项生成文稿；重试同一任务时保持 request_id 不变", "command", {
     type: "object", properties: { request_id: { type: "string", pattern: "^[a-zA-Z0-9:_-]{8,128}$" }, entry_ids: ids,
       title: { type: "string", minLength: 1, maxLength: 80 }, instructions: { type: "string", minLength: 1, maxLength: 4000 },
@@ -74,7 +74,7 @@ export const inboxActions = {
     required: ["request_id", "entry_ids", "title", "instructions"], additionalProperties: false,
   }, { type: "object", properties: { document: documentSchema, replayed: { type: "boolean" }, request_id: text, entry_ids: strings },
     required: ["document", "replayed", "request_id", "entry_ids"] }, ["inbox:read", "pages:read", "pages:write", "model:invoke"], undefined,
-    ["pages.generations.get", "pages.get", "pages.generate"].map(capability_id => ({ capability_id, version: 1, provider_id: PAGES_PLUGIN_ID })), { cost: "metered" }),
+    ["pages.generations.get", "pages.get", "pages.generate"].map(capability_id => ({ capability_id, version: 1, provider_id: PAGES_PROVIDER_ID })), { cost: "metered" }),
   readJudgment: action<Record<string, never>, InboxJudgmentState>("inbox.judgment.read", "下一步判断规则", "读取绑定的判断规则及适用的已发布规则", "query", empty, {
     type: "object", properties: { summary: { type: "object", properties: { name: nullableText, enabled: { type: "boolean" }, available: { type: "boolean" }, reason: nullableText }, required: ["name", "enabled", "available", "reason"] }, function_key: functionKey, functions: { type: "array", items: { type: "object",
       properties: { function_key: { type: "string" }, name: { type: "string" } }, required: ["function_key", "name"] } } }, required: ["function_key", "functions"],

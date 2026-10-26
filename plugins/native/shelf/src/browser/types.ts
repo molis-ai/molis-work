@@ -38,14 +38,14 @@ export interface ShelfHost extends Pick<UiPluginClientHost<HTMLElement, HTMLDial
   mountPluginClient(root: Element): ShelfLifetime | null;
 }
 
-/** The terminal bridge terminal-client.ts leaves on the page once the terminal well is drawn. */
+/** The terminal bridge terminal.ts leaves on the page while the root lives. */
 export interface ShelfTui { open(): void; send(text: string): boolean; isLive(): boolean }
 
 /** The page's drop-zone program (workbench): says when a file drag is over the zone and when it has left. */
 type DropZone = (zone: string | Element, mark: (on: boolean) => void, accepts?: (types: readonly string[]) => boolean) => void;
 
 declare global {
-  // Both are left on the page by other scripts; Shelf only asks.
+  // `molisWorkShelfTui` is terminal.ts's own bridge (tests stand in for it); `molisDropZone` is left by the page, Shelf only asks.
   var molisWorkShelfTui: ShelfTui | undefined;
   interface Window { molisDropZone?: DropZone }
 }

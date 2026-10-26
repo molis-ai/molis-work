@@ -108,7 +108,7 @@ export const PAGE_STATE_OWNERS = {
     state: "The application chrome around the work area, including the Goal work mode.",
   },
   "navigation-feed": {
-    files: ["apps/workbench/src/scripts/client/navigation-feed.ts"],
+    files: ["apps/workbench/src/scripts/client/navigation-feed.ts", "apps/workbench/src/scripts/client/navigation-feed-sources.ts", "apps/workbench/src/scripts/client/navigation-feed-stage.ts"],
     state: "The Feed directory: its groups, the open group and the selected Feed task.",
   },
   "goal-selection": {

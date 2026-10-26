@@ -5,7 +5,7 @@ import { runInNewContext } from "node:vm";
 import ts from "typescript";
 import type { UiTerminalEvent, UiTerminalCommand, UiTerminalMountOptions } from "@molis-ai/molis-work-contracts/platform/ui";
 
-const compiled = ts.transpileModule(readFileSync(new URL("../plugins/native/shelf/src/terminal-client.ts", import.meta.url), "utf8"), {
+const compiled = ts.transpileModule(readFileSync(new URL("../plugins/native/shelf/src/browser/terminal.ts", import.meta.url), "utf8"), {
   compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
 }).outputText;
 type Recovery = { texts: string[]; message: string };
@@ -21,7 +21,7 @@ function fixture() {
   window.addEventListener("molis-shelf-tui-unsent", event => recovered.push(structuredClone((event as CustomEvent<Recovery>).detail)));
   const screen = { dataset: {} };
   const context = {
-    exports: {} as { startShelfTerminalClient(): void }, window, CustomEvent,
+    exports: {} as { startShelfTerminalClient(pluginRoute: (path: string) => string): void }, window, CustomEvent,
     document: { querySelector: () => screen, body: { dataset: { routePrefix: "/projects/fixture" } } },
     molisWorkShelfTui: undefined as Bridge | undefined,
     async molisWorkRequest(path: string, options: { body: Record<string, unknown> }) {
@@ -36,7 +36,7 @@ function fixture() {
       async send(command: UiTerminalCommand) { if (failedWrite) throw new Error("连接已断开"); writes.push(structuredClone(command)); },
     },
   };
-  runInNewContext(compiled, context, { filename: "shelf-terminal-client.js" }); context.exports.startShelfTerminalClient();
+  runInNewContext(compiled, context, { filename: "shelf-terminal-client.js" }); context.exports.startShelfTerminalClient(path => "/projects/fixture/api/plugins/io.molis.work.shelf" + path);
   assert.ok(context.molisWorkShelfTui); const bridge = context.molisWorkShelfTui;
   return { bridge, recovered, requests, writes, get disposed() { return disposed; },
     event(event: UiTerminalEvent) { assert.ok(mounted); mounted.onEvent?.(event); },

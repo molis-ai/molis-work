@@ -38,7 +38,7 @@ export interface ShelfHost extends Pick<UiPluginClientHost<HTMLElement, HTMLDial
   mountPluginClient(root: Element): ShelfLifetime | null;
 }
 
-/** The terminal bridge terminal-client.ts leaves on the page once the terminal well is drawn. */
+/** The terminal bridge terminal.ts leaves on the page once the terminal well is drawn. */
 export interface ShelfTui { open(): void; send(text: string): boolean; isLive(): boolean }
 
 /** The page's drop-zone program (workbench): says when a file drag is over the zone and when it has left. */

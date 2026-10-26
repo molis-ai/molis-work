@@ -1,20 +1,20 @@
-/// <reference lib="dom" />
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import type { UiPageTerminal, UiTerminalEvent, UiTerminalView } from "@molis-ai/molis-work-contracts/platform/ui";
 
-interface ShelfTuiBridge { open(): void; send(text: string): boolean; isLive(): boolean }
 declare global {
-  var molisWorkShelfTui: ShelfTuiBridge | undefined;
   var molisPageTerminal: UiPageTerminal;
 }
 
-/** The page asks its own backend to open a terminal, then attaches only to the returned panel. */
-export function startShelfTerminalClient(): void {
+/**
+ * The page asks its own backend to open a terminal, then attaches only to the returned panel. The terminal itself is the platform's
+ * (`molisPageTerminal`, mounted by `molisTerminalRenderer`); this client is Shelf's own and rides in Shelf's client bundle (PG-053).
+ */
+export function startShelfTerminalClient(pluginRoute: (path: string) => string): void {
   const host = document.querySelector<HTMLElement>("[data-shelf-tty-screen]");
   if (!host) {
     const observer = new MutationObserver(() => {
       if (!document.querySelector("[data-shelf-tty-screen]")) return;
-      observer.disconnect(); startShelfTerminalClient();
+      observer.disconnect(); startShelfTerminalClient(pluginRoute);
     });
     observer.observe(document.body, { childList: true, subtree: true }); return;
   }
@@ -49,8 +49,7 @@ export function startShelfTerminalClient(): void {
     if (opening || view) { view?.fit(); return; }
     opening = true;
     try {
-      const prefix = document.body.dataset.routePrefix || "";
-      const result = await molisWorkRequest<{ panelId: string }>(prefix + "/api/plugins/io.molis.work.shelf/terminal", { body: {} });
+      const result = await molisWorkRequest<{ panelId: string }>(pluginRoute("/terminal"), { body: {} });
       panelId = result.panelId;
       view = await terminal.mount(host, { panelId, onEvent }); view.focus();
     } catch (error) { panelId = undefined; recover(error instanceof Error ? error.message : String(error)); }

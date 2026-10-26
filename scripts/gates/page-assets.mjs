@@ -242,19 +242,18 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
-// batch-40 (coordinator review 2026-10-25), each against main b3bac731b, both trees measured on the served asset:
-// - workbench.js +1,717 B: PG-070/071 (#1302, the user's 10-25 decision that plugin styles load on demand and each plugin's English
-//   ships with it): the loader that fetches a plugin's own stylesheet when its view first mounts, and stage summaries that carry
-//   each plugin's id so its own words apply. Tried in the same asset: R-55 rendered the connector slot picker's request path on the
-//   server and reused perform() with an undo, -111 B measured (1,129,577 -> 1,129,466, workbench-only rebuild over the same tree);
-//   the settings panel's stylesheet regex, escaped once more for its template string, nets -20 B (1,129,446).
-//   The same change takes 303,332 B out of workbench.css and 36,506 B out of settings.css (budgets lowered below).
-// - plugin-frame.js +54 B: a frame merges its own plugin's English under the page's (PG-071), the one expression that does it.
-// - plugins/coding.js +45 B: the shared diff classes are drawn as mw-diff-* (PG-070's frozen shared prefix), 15 selectors x 3 B.
+// PG-053 (this change, against main 2b3dc51de; the batch-40 admissions it replaces were used up when that batch landed): the
+// terminal clients move out of the workbench's pty-client.js into the bundles of the surfaces they belong to, so those bundles
+// carry the code that used to sit in an unbudgeted script (/desktop/pty-client.js is not under /assets/).
+// - plugins/shelf.js +1,450 B: Shelf's terminal well (src/browser/terminal.ts), started by Shelf's own client bundle.
+// - plugins/characters.js +1,757 B: the Characters native-run terminal, now a client of the platform's page terminal instead of
+//   its own websocket and xterm screens (that code stays in the work terminal, which still needs it).
+// - workbench.js +24 B: the Characters surface's asset list in the deferred loader names the terminal bundle it needs first.
+// Tried in the same assets: the Characters client is already minimal (no connection, screens or reconnect timer of its own).
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-workbench.js": [1127729, 1129446],
-  "/assets/molis-work-plugin-frame.js": [190143, 190197],
-  "/assets/molis-work-plugins/coding.js": [289017, 289062],
+  "/assets/molis-work-plugins/shelf.js": [63376, 64826],
+  "/assets/molis-work-plugins/characters.js": [28395, 30152],
+  "/assets/molis-work-workbench.js": [1129446, 1129470],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

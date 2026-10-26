@@ -120,7 +120,7 @@ export const PAGE_STATE_OWNERS = {
     state: "The person's display preferences on this device: theme, density and terminal theme (localStorage molis-work:theme, molis-work:density, molis-work:terminal-theme).",
   },
   shelf: {
-    files: ["plugins/native/shelf/src/browser/document.ts", "plugins/native/shelf/src/browser/tui.ts", "plugins/native/shelf/src/terminal-client.ts", "plugins/native/shelf/src/browser/settings/reload.ts"],
+    files: ["plugins/native/shelf/src/browser/document.ts", "plugins/native/shelf/src/browser/tui.ts", "plugins/native/shelf/src/browser/terminal.ts", "plugins/native/shelf/src/browser/settings/reload.ts"],
     state: "The Shelf surface: its list and selection, the notice line and the input to the terminal Agent.",
   },
   coding: {
@@ -128,7 +128,7 @@ export const PAGE_STATE_OWNERS = {
     state: "The Coding surface: its sessions, the open session and its composer.",
   },
   "character-terminal": {
-    files: ["apps/workbench/src/character-terminal-client.ts"],
+    files: ["apps/workbench/src/browser/characters/terminal.ts"],
     state: "The terminal that shows a Character run: which process it is attached to.",
   },
   "goals-event-document": {
@@ -222,8 +222,8 @@ export const DOM_EVENTS = [
   },
   {
     name: "molis-work:character-terminal", kind: "request", owner: "character-terminal", on: "window",
-    detail: "PtySpawnRequest (services/runtime-host), or { panelId, attachOnly } for a run already started",
-    summary: "Attach the Character terminal to a process the Characters page spawned or found running.",
+    detail: "{ panelId, attachOnly: true }: the panel of a run the Characters page started or found running; nothing it could start a process with",
+    summary: "Attach the Character terminal to the process of a run the Characters page started or found running.",
   },
   {
     name: "molis-work:character-terminal-reset", kind: "request", owner: "character-terminal", on: "window",

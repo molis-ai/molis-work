@@ -24,7 +24,7 @@
 | [src/messages.ts](src/messages.ts) | 页面文字的稳定键（中英文），`tests/shelf-client-bundle.test.ts`（RAC-164 至 RAC-166）钉住 |
 | [src/routes.ts](src/routes.ts) | HTTP 路由表 |
 | [src/settings-ui.ts](src/settings-ui.ts) | 六段用途堆叠的设置页 |
-| [src/terminal-client.ts](src/terminal-client.ts) | 「对话」的终端井，接 `/pty` |
+| [src/browser/terminal.ts](src/browser/terminal.ts) | 「对话」的终端井：向自己的后端要一个终端，用平台的 `molisPageTerminal` 挂上；随 Shelf 自己的客户端包发 |
 
 可对照 [apps/workbench/src/shell-page-renderer.ts](../../../apps/workbench/src/shell-page-renderer.ts) 与 [src/route-handlers.ts](src/route-handlers.ts)。
 

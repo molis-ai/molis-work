@@ -14,7 +14,7 @@ import type {
   ShelfPanelKeySlot,
   ShelfRuntimeStatus,
   ShelfSnapshot,
-} from "@molis-ai/molis-work-contracts/modules/shelf";
+} from "@molis-ai/molis-work-module-shelf/contract";
 import {
   HOTKEY_GUIDE,
   HOTKEY_RESET,

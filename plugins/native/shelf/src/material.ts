@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { ShelfItemRecord, ShelfTextMaterial } from "@molis-ai/molis-work-contracts/modules/shelf";
+import type { ShelfItemRecord, ShelfTextMaterial } from "@molis-ai/molis-work-module-shelf/contract";
 import { isEditableShelfItem, shelfErrors } from "@molis-ai/molis-work-module-shelf";
 import { agentTextMaterialContent } from "@molis-ai/molis-work-contracts/services/agent-host";
 

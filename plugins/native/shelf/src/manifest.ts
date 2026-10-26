@@ -6,8 +6,7 @@ import { SHELF_ACTIONS, SHELF_PROJECT_ACTIONS } from "./actions.js";
 import { SHELF_HOME_ROUTES } from "./routes.js";
 import { SHELF_OWNER_FILES } from "./owner-files.js";
 import { SHELF_LOCAL_TOOLS } from "./local-tools.js";
-import { codingResultDocument } from "@molis-ai/molis-work-contracts/modules/coding";
-
+import { CODING_RESULT_DOCUMENT_ID } from "./coding-result.js";
 import { SHELF_MESSAGES } from "./messages.js";
 import { SHELF_EN } from "./en.js";
 export const SHELF_PLUGIN_ID = "io.molis.work.shelf";
@@ -49,7 +48,7 @@ export const shelfManifest: PluginManifest = {
     { permission: PLUGIN_LOCAL_TOOLS_PERMISSION, required: true, reason: "查找这台电脑上装了哪些终端 Agent" },
   ],
   // The text of a Coding result comes from Coding itself (the plugin audience only); Shelf adds its own heading and source.
-  capabilities: { provides: [], consumes: [codingResultDocument.capability_id] },
+  capabilities: { provides: [], consumes: [CODING_RESULT_DOCUMENT_ID] },
   // Runs in the Home, and also as each project's instance (the registration says so): one plugin, two halves of this one Manifest.
   runtime: { scope: "home" },
   // The Home half is given these files (`services.ownerFiles`); a project's half, which shares this Manifest, is not.

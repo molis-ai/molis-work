@@ -2,7 +2,7 @@ import { fresh, startRecording } from "./bind-basic.js";
 import { chordFromEvent } from "./keys.js";
 import { paintHotkeys, paintPanelKeys, save, stopRecording } from "./save.js";
 import type { SettingsPage } from "./types.js";
-import type { ShelfHotKeySlot, ShelfPanelKeySlot } from "@molis-ai/molis-work-contracts/modules/shelf";
+import type { ShelfHotKeySlot, ShelfPanelKeySlot } from "@molis-ai/molis-work-module-shelf/contract";
 
 export function bindDropWheel(page: SettingsPage, scope: ParentNode): void {
   scope.querySelectorAll<HTMLInputElement>("[data-shelf-drop-wheel]").forEach((input) => {

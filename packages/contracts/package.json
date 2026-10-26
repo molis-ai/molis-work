@@ -70,10 +70,6 @@
       "types": "./dist/modules/governance-collaboration.d.ts",
       "import": "./dist/modules/governance-collaboration.js"
     },
-    "./modules/coding": {
-      "types": "./dist/modules/coding.d.ts",
-      "import": "./dist/modules/coding.js"
-    },
     "./modules/model-providers": {
       "types": "./dist/modules/model-providers.d.ts",
       "import": "./dist/modules/model-providers.js"
@@ -85,10 +81,6 @@
     "./modules/projects": {
       "types": "./dist/modules/projects.d.ts",
       "import": "./dist/modules/projects.js"
-    },
-    "./modules/shelf": {
-      "types": "./dist/modules/shelf.d.ts",
-      "import": "./dist/modules/shelf.js"
     },
     "./modules/signals": {
       "types": "./dist/modules/signals.d.ts",

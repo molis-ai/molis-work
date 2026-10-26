@@ -1,7 +1,7 @@
 import { PANEL_DEFAULTS } from "./keys.js";
 import { messageOf, paintPanelKeys, paintPanes, refreshSettings, save, savePatch, say, stopRecording } from "./save.js";
 import type { SettingsPage } from "./types.js";
-import type { ShelfCustomRuntime, ShelfPanelKeySlot } from "@molis-ai/molis-work-contracts/modules/shelf";
+import type { ShelfCustomRuntime, ShelfPanelKeySlot } from "@molis-ai/molis-work-module-shelf/contract";
 
 /** A control is bound once, however often the block is redrawn. */
 export const fresh = (node: HTMLElement): boolean => {

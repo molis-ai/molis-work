@@ -1,5 +1,5 @@
 import type { PluginBoardSpecimen, PluginBoardSpecimenPorts } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
-import type { ShelfItemGroup, ShelfItemKind, ShelfItemRecord } from "@molis-ai/molis-work-contracts/modules/shelf";
+import type { ShelfItemGroup, ShelfItemKind, ShelfItemRecord } from "@molis-ai/molis-work-module-shelf/contract";
 import { renderRow, stageFold } from "./ui.js";
 
 /**

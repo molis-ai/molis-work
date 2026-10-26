@@ -8,7 +8,7 @@
 
 页面的客户端是 `src/browser/` 下的 TypeScript：`tsconfig.browser.json` 做类型检查，构建时 esbuild 从 `src/browser/factory.ts` 打成 `dist/todo-client.js`（banner/footer 包成工作台要的 `(host) => {…}` 工厂，`--minify`）；`src/client.ts` 的 `TODO_CLIENT_FACTORY_SCRIPT` 只读这个包。页面状态在一个 `TodoPage` 对象里（`page.ts`），列表、提醒、整理审阅、详情、快速输入各是一个部件，在启动时把自己的操作装到这个对象上；按钮是 `commands.ts` 里按顺序匹配的命令表；请求只经工作台的 `molisWorkRequest`（`request.ts`），不直接 `fetch`。Todo 与 Form 从公共 `platform/ui` 的 `UiPluginClientHost` 取实际字段，宿主同合同类型检查；`pluginId` 与 `pluginRoute` 来自 Manifest 和当前项目，`route` 只处理平台路径。esbuild 是包的直接开发依赖，版本与根相同；升级后的资源增长仍须按资源规则评审。
 
-页面上的字是稳定键（`todo.<区域>.<名称>`），中英文都在 `src/messages.ts`，登记在 `registration.ts` 的 `messages`，不经工作台的 `i18n/en.ts` import。`src/en.ts` 的 `TODO_EN` 只保留 Todo 交给宿主按中文原文翻译的动态声明（动作 schema 字段与选项、首页事项、搜索结果、项目数据标签），新页面文字一律加稳定键。
+页面上的字是稳定键（`todo.<区域>.<名称>`），中英文都在 `src/messages.ts`，在 `manifest.ts` 的 `ui.messages` 声明，不经工作台的 `i18n/en.ts` import。`src/en.ts` 的 `TODO_EN` 只保留 Todo 交给宿主按中文原文翻译的动态声明（动作 schema 字段与选项、首页事项、搜索结果、项目数据标签），新页面文字一律加稳定键。
 
 - Contract: `@molis-ai/molis-work-contracts/platform/plugin`
 - Migration: `goal-reorg-f2`

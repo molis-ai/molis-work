@@ -118,7 +118,8 @@ test("AC-07 a session still being recovered is read once and the next round trie
   const fixture = await parkedWork(t, "busy");
   const { host, adapter } = fixture.current(), start = host.start.bind(host), inspect = adapter.recovery!.inspect.bind(adapter.recovery);
   // What the adapter makes of the SDK's SESSION_RECOVERY_BUSY (agent-control-errors covers the mapping).
-  const busy = () => new ActionError("agent.session_busy", "这个会话正在恢复，请稍后再试");
+  // BL305-BUSY-03: the current Agent conflict still takes the same code-based read/one-retry path.
+  const busy = () => new ActionError("agent.session_busy", "这个会话正在恢复，请稍后再试", { kind: "conflict" });
   let busyTimes = 1, starts = 0, inspected = 0;
   t.mock.method(host, "start", async (...args: Parameters<typeof host.start>) => { starts++; if (busyTimes-- > 0) throw busy(); return start(...args); });
   t.mock.method(adapter.recovery!, "inspect", async (...args: Parameters<typeof inspect>) => { inspected++; return inspect(...args); });

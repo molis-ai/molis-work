@@ -4,6 +4,8 @@ import { JELLY_UI_CONTRIBUTION_ID } from "./ui.js";
 import { JELLY_ACTIONS, JELLY_ACTION_PERMISSIONS } from "./actions.js";
 import { JELLY_DATABASE } from "./database.js";
 import { JELLY_MODEL_CONFIGURATION } from "./model-configuration.js";
+import { JELLY_MESSAGES } from "./messages.js";
+import { JELLY_EN } from "./en.js";
 export const jellyManifest: PluginManifest = {
   summary: "日历与笔记，按天安排。",
   schema_version: 2, host_api_version: 2, plugin_id: JELLY_PLUGIN_ID, version: "0.3.0", name: "Jelly", kind: "native",
@@ -30,5 +32,5 @@ export const jellyManifest: PluginManifest = {
     { route_id: "jelly.ai", method: "POST", path: "/ai", max_body_bytes: 36_000_000, stream: "ndjson" },
     { route_id: "jelly.model.save", method: "POST", path: "/model-settings", max_body_bytes: 36_000_000 },
   ],
-  ui: { contributions: [JELLY_UI_CONTRIBUTION_ID], views: [{ view_id: "jelly", slot: "navigator", title: "Jelly", contribution_id: JELLY_UI_CONTRIBUTION_ID, icon: "calendar", hue: "mint", order: 35, group: "personal" }] },
+  ui: { messages: JELLY_MESSAGES, translations: JELLY_EN, contributions: [JELLY_UI_CONTRIBUTION_ID], views: [{ view_id: "jelly", slot: "navigator", title: "Jelly", contribution_id: JELLY_UI_CONTRIBUTION_ID, icon: "calendar", hue: "mint", order: 35, group: "personal" }] },
 };

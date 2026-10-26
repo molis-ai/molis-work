@@ -1,5 +1,5 @@
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
-import { TODO_MESSAGES, TODO_PROJECT_PLUGIN_ID, todoManifest, TODO_CLIENT_FACTORY_SCRIPT, TODO_STYLES, todoUiContribution, createTodoPlugin } from "./index.js";
+import { TODO_PROJECT_PLUGIN_ID, todoManifest, TODO_CLIENT_FACTORY_SCRIPT, TODO_STYLES, todoUiContribution, createTodoPlugin } from "./index.js";
 
 /**
  * This plugin's entry in the built-in catalog (W5-02). `node scripts/generate-plugin-registry.mjs` lists it in
@@ -8,7 +8,6 @@ import { TODO_MESSAGES, TODO_PROJECT_PLUGIN_ID, todoManifest, TODO_CLIENT_FACTOR
 export const registration: PluginRegistration = {
   project_plugin_id: TODO_PROJECT_PLUGIN_ID, catalog_order: 13,
   manifest: todoManifest,
-  messages: TODO_MESSAGES,
   runtime: { create: createTodoPlugin, package_name: "@molis-ai/molis-work-plugin-todo", factory_export: "createTodoPlugin" },
   personal: true,
   workbench: {

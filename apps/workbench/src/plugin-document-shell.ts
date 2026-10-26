@@ -14,7 +14,7 @@ export function renderPluginDocumentShell(input: {
     + '<meta name="molis-work-control-token" content="' + escapeHtml(input.control_token) + '"><title>' + escapeHtml(input.title) + '</title>'
     + '<script>' + THEME_BOOTSTRAP_SCRIPT + '</script><link rel="stylesheet" href="/assets/molis-work-workbench.css">'
     + '<style>html,body{margin:0;width:100%;height:100%;overflow:hidden}[data-work-surface]{position:relative;display:block;width:100%;height:100%}.icon-sprite{position:absolute;width:0;height:0;overflow:hidden}</style></head><body>'
-    + renderIconSprite() + renderPluginFrameSurface(input.html, input.id, input.title, false)
+    + renderIconSprite() + renderPluginFrameSurface(input.html, input.id, input.title, false, false, input.bundle)
     + '<script>' + UI_REQUEST_CLIENT_SCRIPT + '</script><script src="/assets/molis-work-plugin-frame.js"></script><script>'
     + 'molisPluginFrames.mount(document.querySelector("[data-work-surface]"),{translate:s=>s,mountPluginClient:(' + UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT + ')(),'
     + 'projectId:()=>'+ literal(input.project_id) + ',route:path=>' + literal(input.route_prefix) + '+path,page:()=>('+literal(input.page)+')},'+literal(pack)+')'

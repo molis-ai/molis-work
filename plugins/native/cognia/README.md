@@ -61,4 +61,4 @@ Acceptance uses the actual desktop and narrow-screen UI for preview, explicit co
 
 目录导入：可以上传目录文件；未上传时，「预览导入」打开宿主系统目录选择器。界面不能提交绝对路径来取得授权。系统选择后得到的 grant 只供当前插件激活实例、当前项目及调用者使用，取消、撤权、重启和项目删除使其失效（SYS-15）。
 
-页面客户端是 `src/browser/` 的 TypeScript（`tsconfig.browser.json` 类型检查），构建时由 esbuild 打成 `dist/cognia-client.js`，`src/client.ts` 读取它；页面上的字是 `src/messages.ts` 里的稳定键 `cognia.<区域>.<名称>`（`registration.messages`），请求只经共同的 `molisWorkRequest`，插件路径取自 `host.pluginRoute`，不直接 `fetch`、不写插件 id。`src/en.ts` 只留 33 个宿主还按中文原文翻译的词（Cognia 服务端抛出的错误与模型提示、导入预览里文件被跳过的原因，页面把收到的原文交给 `translate`），BL-457；页面自己的词不在这里。
+页面客户端是 `src/browser/` 的 TypeScript（`tsconfig.browser.json` 类型检查），构建时由 esbuild 打成 `dist/cognia-client.js`，`src/client.ts` 读取它；页面上的字是 `src/messages.ts` 里的稳定键 `cognia.<区域>.<名称>`（Manifest 的 `ui.messages`），请求只经共同的 `molisWorkRequest`，插件路径取自 `host.pluginRoute`，不直接 `fetch`、不写插件 id。`src/en.ts` 只留 33 个宿主还按中文原文翻译的词（Cognia 服务端抛出的错误与模型提示、导入预览里文件被跳过的原因，页面把收到的原文交给 `translate`），BL-457；页面自己的词不在这里。

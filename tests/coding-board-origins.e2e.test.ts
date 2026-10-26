@@ -17,7 +17,7 @@ test("RCPT-352/353 the AI's new task waits on the plan card for the person; the 
   if (!browser) { rmSync(directory, { recursive: true, force: true }); t.skip("没有可用的 Chrome"); return; }
   try {
     const page = await browser.page();
-    await page.evaluate(`(()=>{${pageTextScript("zh")}})()`); // the scripts read the page's translator, `L`
+    await page.evaluate(`(()=>{${pageTextScript("zh", "coding")}})()`); // the scripts read the page's translator, `L`
     const result = await page.evaluate<{ offers: string[]; steps: string[][]; dashed: string; prefilled: string; posted: unknown[]; endedOffers: number; badges: string[][]; opened: string[] }>(`(async()=>{
       document.body.innerHTML='<section data-coding-board><h2 data-coding-board-title></h2><p data-coding-board-meta></p><div data-coding-board-list></div><p data-coding-board-status></p></section>';
       ${STATE_RING_CLIENT_SCRIPT}
@@ -68,7 +68,7 @@ test("VUX-40: the plan card and the TaskBoard speak English in English", { timeo
   if (!browser) { rmSync(directory, { recursive: true, force: true }); t.skip("没有可用的 Chrome"); return; }
   try {
     const page = await browser.page();
-    await page.evaluate(`(()=>{${pageTextScript("en")}})()`);
+    await page.evaluate(`(()=>{${pageTextScript("en", "coding")}})()`);
     const result = await page.evaluate<{ han: string[]; badge: string; count: string; offer: string; board: string; titles: string; outline: string }>(`(async()=>{
       document.body.innerHTML='<section data-coding-board><h2 data-coding-board-title></h2><p data-coding-board-meta></p><div data-coding-board-list></div><p data-coding-board-status></p></section><section data-coding-board-outline><p data-coding-outline-meta hidden></p><div data-coding-outline-list></div><p data-coding-outline-status></p></section>';
       ${STATE_RING_CLIENT_SCRIPT}

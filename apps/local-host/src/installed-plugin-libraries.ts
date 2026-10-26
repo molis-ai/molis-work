@@ -3,7 +3,7 @@ import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginErrors, type HomePluginDatabaseDeclaration, type HomeStoreDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { openBaselineHomeSqlite, openReadOnlyHomeSqlite, type HomeStoreRegistry, type SqliteBaseline } from "@molis-ai/molis-work-storage";
+import { describeSqliteBaseline, describeSqliteSchema, snapshotFileStat, openBaselineHomeSqlite, openReadOnlyHomeSqlite, type HomeStoreRegistry, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 
 // A library in the Home for a plugin the Host did not ship (PG-022 P1b, specs/repository-anti-corruption/slices/pg022-manifest-declarations.md).
 // The plugin declares it in its Manifest (`databases.home`), like a shipped one; what a shipped plugin has from the Host's store registry
@@ -47,6 +47,30 @@ export interface InstalledLibraryOwner {
 }
 
 interface LedgerRow { plugin_id: string; publisher_signature: string; store_name: string; version: number; schema_digest: string }
+
+/** Actual installed library identities and versions, read by their owner for the Home registry's offline enumeration. */
+export function installedLibrarySnapshots(home: string, reserved: HomeStoreRegistry): readonly LedgerRow[] {
+  const file = join(home, INSTALLED_LIBRARIES_HOME_STORE.path, "plugin-libraries.db");
+  if (!existsSync(file)) return [];
+  snapshotFileStat(file);
+  const ledger = openReadOnlyHomeSqlite(home, INSTALLED_LIBRARIES_HOME_STORE.path);
+  try {
+    const version = Number(ledger.prepare("PRAGMA user_version").get()?.user_version);
+    if (version !== LEDGER_BASELINE.version || JSON.stringify(describeSqliteSchema(ledger)) !== JSON.stringify(describeSqliteBaseline(LEDGER_BASELINE))) {
+      throw installedLibraryErrors.shape_mismatch("安装库账本不是现行版本或完整结构，未枚举快照");
+    }
+    const rows: LedgerRow[] = [];
+    for (const row of ledger.prepare("SELECT plugin_id, publisher_signature, store_name, version, schema_digest FROM plugin_home_libraries ORDER BY store_name").all()) {
+      if (typeof row.plugin_id !== "string" || typeof row.publisher_signature !== "string" || typeof row.store_name !== "string"
+        || typeof row.version !== "number" || typeof row.schema_digest !== "string" || !INSTALLED_LIBRARY_NAME.test(row.store_name)
+        || holderOf(row.store_name, reserved) !== undefined || !Number.isSafeInteger(row.version) || row.version < 1 || !/^[0-9a-f]{64}$/u.test(row.schema_digest)) {
+        throw installedLibraryErrors.shape_mismatch("安装库账本含无效归属、路径或版本，未枚举快照");
+      }
+      rows.push({ plugin_id: row.plugin_id, publisher_signature: row.publisher_signature, store_name: row.store_name, version: row.version, schema_digest: row.schema_digest });
+    }
+    return rows;
+  } finally { ledger.close(); }
+}
 
 /** Top-level directories of the Home the installer owns without registering them whole (their files are registered one by one, or are the program's). */
 const INSTALLER_DIRECTORIES: readonly string[] = ["config", "bin", "releases"];

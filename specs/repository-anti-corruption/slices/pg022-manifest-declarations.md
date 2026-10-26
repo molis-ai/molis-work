@@ -184,7 +184,7 @@ P1b：
 | RAC-318 | 名字已占用的一律拒绝、什么都不建：登记里的存储（`todo`、`images`、`feed`、`projects`）、安装器的 `config`、账本自己的 `plugin-libraries`、别的插件的库、Home 里没有行的现成目录（里面的文件不动） | 同上 |
 | RAC-319 | 账本记的版本、表、库名与这次声明不同拒绝（代码没运行、库原样）；第一次打开失败不留行也不留目录，修好的版本能打开 | 同上 |
 | RAC-320 | 装进来的插件按项目分开的库被拒（`plugin.declaration_invalid`，账本没开）；库名不合规、读写权限不在 permissions 里的 Manifest 装不上 | 同上 |
-| RAC-321 | purge 计划含装进来的插件的库和账本；账本里被改过的名字（登记里的 `feed`、`../outside`、带斜杠、大写）不列；账本读不出来，计划是冲突 | 同上；`tests/personal-plugins-review-fixes.test.ts`（每个登记的存储都被列入并删掉，含账本里的库） |
+| RAC-321 | purge 计划含装进来的插件的库和账本；账本里被改过的名字（登记里的 `feed`、`../outside`、带斜杠、大写）不跟着删；账本里有这样一行或读不出来，计划都是冲突并说出账本的问题（W5-16 起 purge 与 Home 快照读同一份严格账本，统筹 2026-10-25 定：删除宁停不猜） | 同上；`tests/personal-plugins-review-fixes.test.ts`（每个登记的存储都被列入并删掉，含账本里的库） |
 
 
 P2b：

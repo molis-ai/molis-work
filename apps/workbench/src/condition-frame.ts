@@ -4,7 +4,7 @@ import { THEME_BOOTSTRAP_SCRIPT, VISUAL_FOUNDATION_CLIENT_SCRIPT, renderIconSpri
 import { assistantTextHtml } from "./scripts/client/assistant-island.js";
 import { createAssistantCodeGrow } from "./scripts/client/assistant-code-grow.js";
 import { conditionSample, conditionStream, type ConditionKind, type ConditionText } from "./condition-samples.js";
-import { BOARD_PLUGIN_ROW_STYLES, renderBoardPluginRows } from "./board-plugin-rows.js";
+import { BOARD_PLUGIN_ROW_STYLES, boardPluginStyleLinks, renderBoardPluginRows } from "./board-plugin-rows.js";
 
 /**
  * The component board's conditions frame (specs/visual-ui-experience VUX-39, §render-lifecycle 同源标本): the page
@@ -86,7 +86,7 @@ export function renderMolisWorkConditionsSpecimen(options: ConditionFrameOptions
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(L("条件与状态样例"))} · Molis Work</title>
   <script>${THEME_BOOTSTRAP_SCRIPT}</script>
-  <link rel="stylesheet" href="/assets/molis-work-workbench.css">
+  <link rel="stylesheet" href="/assets/molis-work-workbench.css">${rows ? boardPluginStyleLinks() : ""}
   <style>${FRAME_STYLES}${rows ? BOARD_PLUGIN_ROW_STYLES : ""}</style>
 </head>
 <body class="immersive-workbench mw-cond-page">

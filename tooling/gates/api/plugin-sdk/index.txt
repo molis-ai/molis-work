@@ -215,6 +215,13 @@ export type { MaterialSource } from "@molis-ai/molis-work-contracts/services/mat
 export type { MaterialSourceContent } from "@molis-ai/molis-work-contracts/services/materials";
 export type { MaterialUpload } from "@molis-ai/molis-work-contracts/services/materials";
 export { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export declare const PLUGIN_MESSAGE_LIMITS: {
+    readonly entries: 5000;
+    readonly keyLength: 120;
+    readonly textLength: 2000;
+};
+
 export { PLUGIN_MODEL_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 export declare const PLUGIN_ROUTE_STREAM_LIMITS: Readonly<{
@@ -463,6 +470,9 @@ export declare function joinLines(lines: readonly DiffLine[]): string;
 
 export { linkedArtifactVersion } from "@molis-ai/molis-work-contracts/platform/actions";
 export { linksToArtifactVersion } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export declare function messageDeclarationProblems(parsed: Pick<PluginManifest, "plugin_id" | "ui">): string[];
+
 export { nextPinnedVersion } from "@molis-ai/molis-work-contracts/platform/actions";
 export { objectOrMissing } from "@molis-ai/molis-work-contracts/platform/actions";
 

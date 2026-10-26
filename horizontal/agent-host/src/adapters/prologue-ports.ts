@@ -164,6 +164,8 @@ export interface PrologueRuntimePort {
   compaction?: boolean;
   /** null only when the original owner confirms the question was answered. */
   readPendingQuestion?(run: AgentRunRef, pendingId: string, revision: number): Promise<AgentPendingQuestion | null>;
+  /** Current original SDK approval facts, observed without answering or dispatching anything. */
+  unexecutedApprovalCall?(run: AgentRunRef, waiting: import("./prologue-stream.js").PrologueApprovalWaiting): string | undefined;
   readCommandOutput?(sessionId: string, ref: AgentCommandOutputRef): Promise<AgentCommandOutput>;
   sessions: {
     create(input: AgentCreateSessionRequest, execution?: AgentStartExecution): Promise<{ ref: { id: string } }>;

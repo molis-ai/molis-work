@@ -25,6 +25,7 @@ export {
 export { OVERFLOW_FADE_SAMPLES, OVERFLOW_FADE_WIDTH, overflowSides } from "./overflow-sides.js";
 export { OVERFLOW_FADE_STYLES } from "./styles/overflow-fade.js";
 export { HIDDEN_SCROLLBAR_STYLES } from "./styles/scrollbars.js";
+export { DIFF_VIEW_STYLES } from "./styles/diff-view.js";
 export { COPY_FEEDBACK_CLIENT_SCRIPT, MEDIA_ZOOM_CLIENT_SCRIPT, OVERFLOW_FADE_CLIENT_SCRIPT, SCROLL_FOLLOW_CLIENT_SCRIPT, SHOW_MORE_CLIENT_SCRIPT, STREAM_TEXT_CLIENT_SCRIPT, FIELD_FIT_CLIENT_SCRIPT, ROVING_FOCUS_CLIENT_SCRIPT, FLOATING_DETAILS_CLIENT_SCRIPT, TIP_CLIENT_SCRIPT, DROP_ZONE_CLIENT_SCRIPT, REFLOW_CLIENT_SCRIPT } from "./page-clients.js";
 export { FIELD_FIT_MAX, FIELD_FIT_ROOM, FIELD_FIT_STYLES, fieldHeight } from "./field-fit.js";
 export { SHOW_MORE_STYLES } from "./show-more.js";

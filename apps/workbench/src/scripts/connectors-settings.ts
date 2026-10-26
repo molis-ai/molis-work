@@ -67,7 +67,7 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
       };
       const completed = (result, service, message) => reload(service, result.awaiting_intent ? undefined : { id: result.connection?.connection_id || result.connectionId || result.connection_id, message });
       const resultFor = area => area.querySelector('[data-protocol-result]');
-      const perform = async (button, result, run) => { busy(button, true); try { await run(); } catch(error) { fail(result, error); } finally { busy(button, false); } };
+      const perform = async (button, result, run, undo) => { busy(button, true); try { await run(); } catch(error) { undo?.(); fail(result, error); } finally { busy(button, false); } };
       const action = (selector, scope, result, run) => click(selector, button => { const area = button.closest(scope); return perform(button, area.querySelector(result), () => run(area, button)); });
       const protocolAction = (selector, run) => action(selector, '[data-protocol]', '[data-protocol-result]', run);
       const connectionAction = (selector, run) => action(selector, '[data-connection-row]', '[data-connection-result]', run);
@@ -309,17 +309,15 @@ export const CONNECTORS_SETTINGS_CLIENT_SCRIPT = `
       });
       click('[data-connectors-back]', button => showDetail(''));
       const slots = box.querySelector('[data-plugin-slots]');
-      slots?.querySelectorAll('[data-plugin-slot-account]').forEach(select => select.addEventListener('change', async () => {
-        const row = select.closest('[data-plugin-slot]'), result = row.querySelector('[data-plugin-slot-result]'), project = slots.dataset.pluginSlotsProject;
-        busy(select, true);
-        try {
-          await api('plugin-slots' + (project ? '?project=' + encodeURIComponent(project) : ''), { ...JSON.parse(row.dataset.pluginSlot), connection_id: select.value || null });
+      slots?.querySelectorAll('[data-plugin-slot-account]').forEach(select => select.addEventListener('change', () => {
+        const row = select.closest('[data-plugin-slot]'), result = row.querySelector('[data-plugin-slot-result]');
+        perform(select, result, async () => {
+          await api(slots.dataset.pluginSlots, { ...JSON.parse(row.dataset.pluginSlot), connection_id: select.value || null });
           select.dataset.saved = select.value;
           const reconnect = select.selectedOptions[0]?.hasAttribute('data-needs-reconnect');
           select.querySelectorAll('[data-needs-reconnect]').forEach(option => { option.disabled = option.value !== select.value; });
           output(result, L(reconnect ? '已保存绑定；这个账号需要重新连接确认站点，插件暂时不能请求。' : select.value ? '已保存，插件之后的请求用这个账号。' : 'tenant' in select.dataset ? '已解除，插件不能再请求这个服务。' : '已解除，插件之后的请求不带凭据。'));
-        } catch (error) { select.value = select.dataset.saved || ''; fail(result, error); }
-        finally { busy(select, false); }
+        }, () => { select.value = select.dataset.saved || ''; });
       }));
       box.querySelector('[data-connectors-add]')?.addEventListener('click', () => { search.scrollIntoView({ block: 'center', behavior: 'smooth' }); search.focus(); });
       box.addEventListener('keydown', event => { if (!box.dataset.setupId && event.key === 'Escape' && list.hidden && !['INPUT', 'TEXTAREA', 'SELECT'].includes(event.target.tagName)) { event.preventDefault(); showDetail(''); } });

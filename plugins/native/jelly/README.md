@@ -33,6 +33,6 @@ Web 本地用户与 MCP 客户端分别授权；项目访问不自动授予个�
 - 界面改动加跑（需要本机 Chrome）：`node scripts/run-tests.mjs tests/jelly-actions.e2e.test.ts tests/jelly-outside-changes.e2e.test.ts tests/model-ready-surfaces.e2e.test.ts`（页面在没有模型时显示「没有模型」，模型设置页宣布第一个模型（`molis-work:model-ready`）后它要重读；这个文件每个页面一条用例）。
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../../skills/molis-plugin-dev/SKILL.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 
-页面客户端是 `src/browser/` 的 TypeScript（`tsconfig.browser.json` 类型检查），构建时由 esbuild 打成 `dist/jelly-client.js`，`src/client.ts` 读取它；页面上的字是 `src/messages.ts` 里的稳定键 `jelly.<区域>.<名称>`（`registration.messages`），请求只经共同的 `molisWorkRequest`，不直接 `fetch`。`src/en.ts` 只留 3 个宿主还按中文原文翻译的词（搜索结果种类名 `笔记`、`日程` 和动作标题 `新建笔记`，BL-456）；别的主人查的词在各自的词典里。
+页面客户端是 `src/browser/` 的 TypeScript（`tsconfig.browser.json` 类型检查），构建时由 esbuild 打成 `dist/jelly-client.js`，`src/client.ts` 读取它；页面上的字是 `src/messages.ts` 里的稳定键 `jelly.<区域>.<名称>`（Manifest 的 `ui.messages`），请求只经共同的 `molisWorkRequest`，不直接 `fetch`。`src/en.ts` 只留 3 个宿主还按中文原文翻译的词（搜索结果种类名 `笔记`、`日程` 和动作标题 `新建笔记`，BL-456）；别的主人查的词在各自的词典里。
 
 读取文件与网页（文字提取、图片识别、音视频转写）现在归灵光，经 Host 的 `materials` 契约执行。

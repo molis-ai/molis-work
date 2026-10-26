@@ -8,7 +8,7 @@ import { GOALS_POLICY_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-
 export const CLIENT_EDITING_GRAPH_SCRIPT = `
     const { updateRelationPreviews, updateAllRelationFormPreviews, handleGoalRelationChange,
       handleGoalRelationDisclosureClick, handleGoalRelationSubmit } = (${GOALS_RELATION_CLIENT_FACTORY_SCRIPT})({
-        form, currentLocale: () => document.documentElement.lang, route, controlHeaders: molisWorkControlHeaders, translate: L,
+        form, currentLocale: () => document.documentElement.lang, route, controlHeaders: molisWorkControlHeaders, translate: LFor("io.molis.work.goals"),
         refreshBoard: (...args) => refreshBoard(...args),
         requireFormFacts: (...args) => requireFormFacts(...args),
         requireDecisionText: (...args) => requireDecisionText(...args),
@@ -38,7 +38,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
     const showToast = (message,error=false) => {molisWorkRequest.toast(toast,typeof message==="string"?undefined:message,typeof message==="string"?message:undefined,{ms:2200});toast.dataset.mwState=error?"failed":"done";toast.classList.toggle("is-error",error);};
 
     const { handleGoalPolicySubmit } = (${GOALS_POLICY_CLIENT_FACTORY_SCRIPT})({
-      route, controlHeaders: molisWorkControlHeaders, translate: L, requireFormFacts, showToast,
+      route, controlHeaders: molisWorkControlHeaders, translate: LFor("io.molis.work.goals"), requireFormFacts, showToast,
       refreshBoard: (...args) => refreshBoard(...args),
       showFactorReceipt: (...args) => showFactorReceipt(...args),
       humanDecisionError: (...args) => humanDecisionError(...args),
@@ -51,7 +51,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
       bindGoalCreateEvents, handleGoalDialogEscape } = (${GOALS_DIALOGS_CLIENT_FACTORY_SCRIPT})({
         dialog, form, route, controlHeaders: molisWorkControlHeaders,
         refreshBoard: (...args) => refreshBoard(...args), updateRelationPreviews,
-        currentLocale: () => document.documentElement.lang, translate: L,
+        currentLocale: () => document.documentElement.lang, translate: LFor("io.molis.work.goals"),
         clearCollectionUiState: () => sessionStorage.removeItem(storageKey),
         clearCurrentGoalUiState: () => sessionStorage.removeItem(currentGoalUiStorageKey),
         navigate: (url) => location.assign(globalThis.molisWorkNavigationUrl(url)),
@@ -107,7 +107,7 @@ export const CLIENT_EDITING_GRAPH_SCRIPT = `
       restoreMomentumState, rememberMomentumGoal, scheduleGoalGraphLayout, restoreGoalGraphViewport,
       locateGraphNode, handleMomentumNavigationClick, handleMomentumSelectionClick, handleMomentumZoomClick } =
       (${GOALS_MOMENTUM_CLIENT_FACTORY_SCRIPT})({
-        workspace, documentCollection, route, translate: L,
+        workspace, documentCollection, route, translate: LFor("io.molis.work.goals"),
         projectId: state.project?.project_id || state.snapshot.board.project_id,
         selectGoal: (...args) => selectGoal(...args),
         openFrame: (id) => frameContainer?.openFrame(id),

@@ -6,7 +6,7 @@ import type {
 
 import { codingEventTypes } from "./events.js";
 import { codingManifest } from "./manifest.js";
-import { codingMethods } from "./methods.js";
+import { codingSkills } from "./skills.js";
 import { codingPrompts } from "./roles.js";
 import { codingSettingsContribution, codingUiView } from "./ui.js";
 import { CodingSessionStore, toDirectoryEntries } from "./store.js";
@@ -36,7 +36,7 @@ export function createCodingPlugin(ports: CodingPluginPorts = {}): PluginDefinit
     manifest: codingManifest,
     event_types: codingEventTypes,
     agent_prompts: codingPrompts,
-    agent_skills: codingMethods,
+    agent_skills: codingSkills,
     instructions: CODING_INSTRUCTIONS,
     async start(context: PluginStartContext): Promise<PluginAppContribution> {
       for (const permission of codingManifest.permissions) {

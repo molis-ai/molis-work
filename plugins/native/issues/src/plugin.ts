@@ -6,11 +6,11 @@ import { issuesManifest } from "./manifest.js";
 import { IssueStore, type IssueCreate, type IssueDelete, type IssueList, type IssueUpdate } from "./store.js";
 import type { IssueNamingInput } from "./naming.js";
 import { issuesUiContribution } from "./ui.js";
-import { issuesMethods } from "./methods.js";
+import { issuesSkills } from "./skills.js";
 import { ISSUES_INSTRUCTIONS } from "./prompts.js";
 
 export function createIssuesPlugin(): PluginDefinition {
-  return { manifest: issuesManifest, instructions: ISSUES_INSTRUCTIONS, methods: issuesMethods, async start(context) {
+  return { manifest: issuesManifest, instructions: ISSUES_INSTRUCTIONS, methods: issuesSkills, async start(context) {
     if (!context.actor_id || !context.services?.database) throw new Error("Issue 需要个人 Home 与插件数据库服务");
     const store = new IssueStore(context.services.database, context.actor_id);
     return { kind: "app", actions: issueActionHandlers(store, context.services.model), views: [issuesUiContribution], routes: [

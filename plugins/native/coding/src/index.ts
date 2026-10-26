@@ -200,7 +200,7 @@ export { CODING_INPUT_RECEIPTS_CLIENT_FACTORY_SCRIPT } from "./input-receipts-cl
 export { CODING_STEPS_CLIENT_FACTORY_SCRIPT } from "./steps-client.js";
 export type { CodingCharacterChoice } from "./characters.js";
 
-export { codingMethods } from "./methods.js";
+export { codingSkills } from "./skills.js";
 
 export { CODING_SETTINGS_CLIENT_SCRIPT } from "./settings-client.js";
 

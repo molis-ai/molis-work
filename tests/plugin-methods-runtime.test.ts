@@ -9,7 +9,7 @@ import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, createPluginPlatform, homeAgentDefinitions, homeStores, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { pagesManifest, pagesMethods } from "@molis-ai/molis-work-plugin-pages";
+import { pagesManifest, pagesSkills } from "@molis-ai/molis-work-plugin-pages";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 
 /**
@@ -123,7 +123,7 @@ test("W4-02-04 RAC-192 RAC-194 a built-in plugin's methods come with its running
   withHome(async home => {
     // Pages is built in, and nothing of it is offered until it runs (PG-051): no catalog registers it at start.
     assert.deepEqual(listed(home, "io.molis.work.pages"), [], "not running: no method for other Agents");
-    const pages = platformIn(home), own = probe({ pluginId: "io.molis.work.pages", methods: [...pagesManifest.methods ?? []], bodies: [...pagesMethods] });
+    const pages = platformIn(home), own = probe({ pluginId: "io.molis.work.pages", methods: [...pagesManifest.methods ?? []], bodies: [...pagesSkills] });
     try {
       assert.deepEqual((await pages.platform.start([{ definition: own.definition, trust: { level: "host" } }])).running, ["io.molis.work.pages"]);
       assert.equal(own.started(), 1);

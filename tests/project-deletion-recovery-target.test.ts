@@ -1,6 +1,7 @@
+import { tmpdir } from "node:os";
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
-import { mkdtemp, rm, mkdir, writeFile, readFile } from "node:fs/promises";
+import { mkdtemp, realpath, rm, mkdir, writeFile, readFile } from "node:fs/promises";
 import { existsSync, promises as fs } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
@@ -13,7 +14,7 @@ import { ProjectsModule, type StoredProjectDeletion } from "@molis-ai/molis-work
 
 const invalid = { code: "catalog.project_storage_invalid" };
 async function fixture(t: TestContext) {
-  const home = await mkdtemp("/private/tmp/molis-catalog-target-"), sourceHome = await mkdtemp("/private/tmp/molis-catalog-later-");
+  const home = await realpath(await mkdtemp(join(tmpdir(), "molis-catalog-target-"))), sourceHome = await realpath(await mkdtemp(join(tmpdir(), "molis-catalog-later-")));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const sourceCatalog = await openMolisWorkProjectCatalog({ homeDirectory: sourceHome });
   const gone = await catalog.createProject({ display_name: "Delete fixed target", actor_id: "person",

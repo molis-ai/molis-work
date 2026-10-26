@@ -1,3 +1,4 @@
+import { tmpdir } from "node:os";
 import assert from "node:assert/strict";
 import { cpSync, existsSync, mkdtempSync, realpathSync, rmSync } from "node:fs";
 import { join } from "node:path";
@@ -10,7 +11,7 @@ import { openPrologueMemoryAdoptionInspection } from "@molis-ai/molis-work-servi
 
 // T0 and T1 are actual complete stopped snapshots of this same original absolute Home.
 test("MEM-40-FRAME-06: public recovery replays the real Catalog deletion with nonempty project and selected personal Memory", async t => {
-  const directory = realpathSync(mkdtempSync("/private/tmp/molis-home-project-recovery-")), home = join(directory, "home");
+  const directory = realpathSync(mkdtempSync(join(tmpdir(), "molis-home-project-recovery-"))), home = join(directory, "home");
   let catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const gone = await catalog.createProject({ actor_id: actor, display_name: "Original project" });
   const kept = await catalog.createProject({ actor_id: actor, display_name: "Unselected project" });

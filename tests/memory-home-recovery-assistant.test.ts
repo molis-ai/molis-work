@@ -1,3 +1,4 @@
+import { tmpdir } from "node:os";
 import assert from "node:assert/strict";
 import { cpSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync } from "node:fs";
 import { createServer } from "node:http";
@@ -28,7 +29,7 @@ function durableFiles(root: string): Record<string, Buffer> {
 
 /** Actual AssistantService sends create the personal Works, bind Sessions, and persist completed rounds through a bounded local HTTP provider. */
 async function fixture(t: TestContext) {
-  const directory = realpathSync(mkdtempSync("/private/tmp/molis-home-assistant-recovery-")), home = join(directory, "target");
+  const directory = realpathSync(mkdtempSync(join(tmpdir(), "molis-home-assistant-recovery-"))), home = join(directory, "target");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home }); assert.deepEqual(catalog.listProjects(), []); catalog.close();
   const ledger = openMemoryLedger({ homeDirectory: home });
   ledger.savePrefs(actor, "personal", defaultPrefs("personal", "reviewed")); ledger.savePrefs(actor, "project-default", defaultPrefs("project", "reviewed"));

@@ -1,3 +1,5 @@
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import assert from "node:assert/strict";
 import { existsSync, mkdtempSync, realpathSync, renameSync, rmSync, symlinkSync } from "node:fs";
 import test from "node:test";
@@ -109,7 +111,7 @@ test("PART-03 a partitioned library's step runs none of the plugin's code: the d
 });
 
 for (const reason of ["revoked", "path"] as const) test(`MEM-40 running partition owner closes the library but refuses ${reason} before directory removal`, async t => {
-  const home = realpathSync(mkdtempSync("/private/tmp/molis-partition-current-"));
+  const home = realpathSync(mkdtempSync(join(tmpdir(), "molis-partition-current-")));
   const f = partitionHome(t, [probeEntry()], home); await f.ready();
   await f.invoke(write, { text: "original" }, "p1"); await f.invoke(write, { text: "neighbor" }, "p2");
   assert.equal(open(home, "p1"), true);

@@ -1,3 +1,4 @@
+import { tmpdir } from "node:os";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { execFile } from "node:child_process";
@@ -11,7 +12,7 @@ import { acquireStorageOwner, createMemoryLedgerHomeRecovery } from "@molis-ai/m
 import { openPrologueMemoryAdoptionInspection } from "@molis-ai/molis-work-service-agent-host";
 
 test("the built maintenance CLI rejects a live owner, then recovers nonempty stopped copies and replays its original decision across processes", { timeout: 120_000 }, async t => {
-  const root = realpathSync(mkdtempSync("/private/tmp/molis-memory-recovery-cli-")), home = join(root, "home"), source = join(root, "T1");
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "molis-memory-recovery-cli-"))), home = join(root, "home"), source = join(root, "T1");
   let catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const gone = await catalog.createProject({ actor_id: actor, display_name: "Original project" });
   const kept = await catalog.createProject({ actor_id: actor, display_name: "Keep this project" });

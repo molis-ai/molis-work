@@ -3559,3 +3559,15 @@ App正式规模源为干净 `83421bf71719035ccc6f13439d60dfedac08f500`、SDK `57
 为避免用旧profile推测新头，对同产品的App7382042/SDK57cf只运行一次原1副本1000条、首读加九次暖读诊断。完整752返回/8 selected/744 omitted，0模型；每暖读仍为1000次当前raw、1,660,960 B，观察耗时12.918ms，CPU采样open约9.231ms、目标复制2.278ms、复制与冻结2.523ms、ledger4.065ms。它们嵌套，不能相加或全部称为最终冻结；目标复制下已无stableStringify样本。探针暖读中位33.311ms不是正式性能结果，也不足以直接批准格式迁移。首次启动因漏掉原tsx loader在造数前退出、零样本；补原loader后唯一有效运行exit0，两份日志保留。原件前缀 `/private/tmp/molis-memory-collection-profile-57cf-20261026`。现未发现可直接切换的现役存储后端；物理布局方案只能作为待评审方向，不开始改格式、迁移、原件复核或验收标准。
 
 准确父d613的原health/updater通过，baseline无变化；资源实际仍为workbench.js +32893 B、workbench.css +680 B、settings.css -73924 B、coding.js +1776 B，其余44项不变。Coding包括已批归档570 B与待批恢复1206 B；原资源更新器因此整体拒写，原check保留Coding增长、Settings减额未落表、Workbench两项已批增量未落表共4条失败提示。未借用既有额度或手改预算。Coding零模型恢复Knowledge边界仍待用户决定，其他已完成改动继续在同一Draft #1101交付。
+
+### 2026-10-26 App 当前 CI：绑定账本故障夹具同步
+
+同轮Security 2/2另在 `plugin-database-partition-deletion.test.ts` 两条MEM-40用例造数前失败：Linux不存在硬编码的 `/private/tmp`，ENOENT，117/118文件通过、该文件4/6。最窄同类检查发现本PR新夹具中另7个文件使用相同平台路径。仅将这8个文件的临时根改为系统tmpdir，并保留/补齐realpath规范化，使原规范路径、同根恢复、权限撤销、目录替换和邻居断言继续适用；不创建Linux专用 `/private/tmp`、跳过用例或放宽路径门。该夹具可移植修复与绑定账本测试一起验证、提交现有PR，不改生产。
+
+最终本地验证：原10个直接相关文件、jobs2/browser1、零重试，110/110首轮通过，含完整绑定账本、分区删除、同根Session/Assistant/项目/CLI恢复、目标恢复、业务清理和文件边界。绑定故障以第二SQLite连接核持久pending、准确injected error与原请求身份；同一决定恢复complete，原历史/邻居保留，重放不加收据、计数或历史。准确main1b66原health/updater通过，baseline无变化，Root复核全部差异；日志 `/private/tmp/molis-memory-app-b44-focused-20261026.log`、`/private/tmp/molis-memory-app-b44-health-20261026.log`。仅测试与spec变化，不重构建或重复产品性能测量；最终Linux结果待新头原CI，资源原门继续失败。
+
+性能后续范围待定：已形成并独立审查仅用新合成Home的单一SQLite权威封套容器实验提案，申请只验证可行性、不接产品、不迁移既有库、不使用模型额度；新布局仍须保持原完整字节/授权/回执及性能门。旧NodeHost可能把新容器当空库，因此两种构建必须用不同绝对临时根，禁止旧构建打开容器；实验成功也不授予采用或格式回退权限。提案 `/private/tmp/molis-memory-host-layout-proposal-20261026.md` 仍待用户决定，尚未实施，当前CI修复独立继续。
+
+9936头的普通CI `40315070894` 中，Package boundaries在原资源门保留相同4条失败，Verify因此失败；不放宽。Product subset 1/2另有 `runtime-binding-ledger.test.ts` 原两次失败，215文件中214通过、1失败、零flaky/skip/timeout/not-run。GitHub实际执行PR合成头5b9dbbf13，对应源9936；原artifact与本机Node24.14原单文件零重试均在第78行复现 Missing expected rejection。
+
+原因与短合同：当前项目删除先持久接受决定，随后的绑定账本清理失败返回原决定的pending收据，而旧夹具要求Promise拒绝，并继续把该项目当活项目rebind。仅同步这份测试，不改生产返回语义、门禁、超时、重试或既有删除合同。保留活项目上bind/unbind触发器故障的全部事务回滚断言；将删除故障放到独立末尾/fixture，必须匹配准确injected错误、pending/同一deletion_id和持久状态，核绑定/事件/账本无半提交、邻近项目不受影响。移除故障后沿同一idempotency key恢复至complete，再重放核无新增历史/计数。允许修改该原测试及本spec；原单文件与直接相关删除/账本回归、准确主干health和秘密扫描完成后提交同一PR，未通过前不将此红例改记成功。

@@ -1,6 +1,7 @@
+import { tmpdir } from "node:os";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, linkSync, mkdirSync, mkdtempSync, realpathSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
 import { join } from "node:path";
@@ -15,7 +16,7 @@ import { createFileSecretStore, homeSqlitePath, openBaselineHomeSqlite, openExis
 
 const current = { assertCurrent() {} };
 function homes(t: TestContext) {
-  const root = mkdtempSync("/private/tmp/molis-file-boundaries-");
+  const root = realpathSync(mkdtempSync(join(tmpdir(), "molis-file-boundaries-")));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const source = join(root, "source"), target = join(root, "target");
   mkdirSync(source); mkdirSync(target); return { root, source, target };

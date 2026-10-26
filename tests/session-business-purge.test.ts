@@ -1,5 +1,6 @@
+import { tmpdir } from "node:os";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, existsSync } from "node:fs";
+import { mkdtempSync, realpathSync, rmSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
 import { LocalProjectDatabase, AssistantStore, createSessionBusinessPurgeOwner, ASSISTANT_STORE_NAME, type SessionBusinessPurgeOwner } from "@molis-ai/molis-work-app-local-host";
@@ -14,7 +15,7 @@ import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 
 const at = "2026-10-26T00:00:00.000Z", session = { runtime_id: "prologue", session_id: "canonical-original" };
 const assistantOwner = { actor_id: "person", plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID, project_id: ASSISTANT_PERSONAL_OWNER };
-function home(t: TestContext) { const path = mkdtempSync("/private/tmp/molis-session-business-"); t.after(() => rmSync(path, { recursive: true, force: true })); return path; }
+function home(t: TestContext) { const path = realpathSync(mkdtempSync(join(tmpdir(), "molis-session-business-"))); t.after(() => rmSync(path, { recursive: true, force: true })); return path; }
 function owner(t: TestContext, directory: string, project: string, current: () => void = () => {}): SessionBusinessPurgeOwner {
   const value = createSessionBusinessPurgeOwner({ homeDirectory: directory, assertCurrent: current,
     projectDatabase: id => { assert.equal(id, "project"); return { path: project, assertCurrent: current }; } });

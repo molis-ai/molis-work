@@ -1,3 +1,4 @@
+import { tmpdir } from "node:os";
 import assert from "node:assert/strict";
 import { cpSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
@@ -67,7 +68,7 @@ async function originalWaits(storageRoot: string, selected: AgentSessionRef, nei
 }
 
 async function fixture(t: TestContext, sourcePhase: "prepared" | "complete" = "complete", boundMemory = false) {
-  const directory = realpathSync(mkdtempSync("/private/tmp/molis-home-session-recovery-")), home = join(directory, "target");
+  const directory = realpathSync(mkdtempSync(join(tmpdir(), "molis-home-session-recovery-"))), home = join(directory, "target");
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const project = await catalog.createProject({ display_name: "Original Coding project", actor_id: actor });

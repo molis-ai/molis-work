@@ -269,7 +269,7 @@ CI 状态是 10-23 17:40 的快照，以 PR 页面为准。「验证」写的是
 | R-62 | 新（10-26，ac-review 评 `20940b4b1`，#1310 评论 6406643839）：删项目时 `removeNamedFiles` 在 inspect 检查与 `rmSync` 之间有空档，父目录若在中间被换成链接，会删到声明目录之外（原来就有） | 只有内置插件能声明 `project_rows`，且要有人在删除那一刻改动插件文件目录，风险低 | 交 Codex 修复队列：删除时按已打开的目录句柄或删前再核规范路径；与 Codex F1（N3 测试与「行连同文件一起留」改写）同一处 | Codex 修复队列 | 修复合入后关 |
 | R-63 | 新（10-26，ac-coding 在 batch-41 修复后列出）：Home 聚合（`home-aggregate.ts:72`、`home-event-actions.ts:31`）按 availability 视图的 `actions.plugin_disabled` 静默略过某项目的来源，不记 issue；对所有项目插件一样，早于本批 | 插件在项目清单里、只是被策略拒时，Home 聚合也会把它当「没装」略过，人看不到被拒 | 交 Codex 修复队列评估：判据改成项目插件清单（与 batch-41 的 `goalsHere` 同一事实来源），清单里有却被拒的记成 issue | Codex 修复队列 | 评估结论写回后关 |
 | R-64 | 新（10-26，统筹裁 PG-001，#1310 评审 6407439392）：`plugin dev` 的开发目录是 `unsigned`，今天跑在宿主进程里 | 未签名代码进宿主进程；PG-001 已按「这一半留给 BL-588」标已做 | BL-588：非 `host` 等级不得在宿主进程里跑，开发目录怎么处理要先定（设计稿 §2 封闭清单的例外） | ac-clients-1（BL-628 沙箱 Home 实例之后接 BL-588） | 防腐收口前，统筹核对 |
-| R-65 | 新（10-26，ac-sandbox-sched 做 FI-4 4b 时发现，#1311 评论 6409612551）：dock 的默认规则推荐「做完了／忽略」，指向 `inbox.entry.status`，要有 `inbox:write`、`attention:write` 才算可用；宿主给触发器的身份（`HOME_ACTION_PERMISSIONS` 去掉 `home:write`）这两个权限都没有，所以 dock 的自动判断今天对这个身份不起作用（早于本线） | 后台事项到达时，dock 不会自动给出判断，用户看不出来是没跑 | 产品取舍：给触发器这两个权限（放宽，要用户定），还是保持现状，在界面上说明。FI-4 4e 照现状对等，不给 Feed 多授权 | 用户决定；之后由 ac-sandbox-sched 落地 | 用户定了之后关 |
+| R-65 | 新（10-26，ac-sandbox-sched 做 FI-4 4b 时发现，#1311 评论 6409612551）：dock 的默认规则推荐「做完了／忽略」，指向 `inbox.entry.status`，要有 `inbox:write`、`attention:write` 才算可用；宿主给触发器的身份（`HOME_ACTION_PERMISSIONS` 去掉 `home:write`）这两个权限都没有，所以 dock 的自动判断今天对这个身份不起作用（早于本线） | 后台事项到达时，dock 不会自动给出判断，用户看不出来是没跑 | 用户 10-26 弹窗定：推荐动作能不能用，按将来点它的人判断，触发者不加权限；线上核下来做不到，就退回保持现状、在界面上说明，不退成给触发者加权限（#1311 评论 6410517262） | ac-sandbox-sched（随 FI-4 4e） | 落地后、结论写回这一行再关 |
 
 ### SDK104 事后 FIRST 建议的逐项接续（PIPE）
 

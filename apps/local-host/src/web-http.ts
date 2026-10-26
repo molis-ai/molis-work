@@ -1,6 +1,6 @@
 import { currentCallId } from "@molis-ai/molis-work-kernel";
 import { timingSafeEqual } from "node:crypto";
-import type { IncomingMessage, ServerResponse } from "node:http";
+import type { IncomingMessage, OutgoingHttpHeaders, ServerResponse } from "node:http";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { isLoopbackHostname, loopbackHost } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
@@ -86,14 +86,52 @@ export function requestHost(request: IncomingMessage): string | null {
 }
 
 /**
+ * A sandboxed plugin frame (srcdoc, no allow-same-origin) inherits this page policy. In that opaque frame WebKit does not
+ * treat 'self' as this page's origin, so the frame's scripts and styles never load and the surface stays on "无法加载界面".
+ * Naming the same loopback origin explicitly does not widen what the parent page can load. Chrome already treats 'self' as
+ * the parent origin there, which is why the same page opens in Chrome.
+ */
+export function opaquePluginFramePolicy(policy: string, origin: string): string {
+  if (!/^http:\/\/(?:127\.0\.0\.1|localhost|\[::1\])(?::\d+)?$/.test(origin) || policy.includes(origin) || !policy.includes("script-src 'self'")) return policy;
+  let next = policy;
+  for (const name of ["img-src", "style-src", "script-src"]) next = next.replace(`${name} 'self'`, `${name} 'self' ${origin}`);
+  if (!next.includes("font-src ")) next += `; font-src 'self' ${origin}`;
+  return next;
+}
+
+function headerMap(value: unknown): OutgoingHttpHeaders | undefined {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  return value as OutgoingHttpHeaders;
+}
+
+function allowOpaquePluginFrame(response: ServerResponse, origin: string): void {
+  const writeHead = response.writeHead;
+  const patched = function (this: ServerResponse, ...args: unknown[]) {
+    const headers = headerMap(args.length >= 3 ? args[2] : args[1]);
+    const key = headers ? Object.keys(headers).find(name => name.toLowerCase() === "content-security-policy") : undefined;
+    if (headers && key && typeof headers[key] === "string") headers[key] = opaquePluginFramePolicy(headers[key], origin);
+    else {
+      const current = this.getHeader("content-security-policy");
+      if (typeof current === "string") this.setHeader("content-security-policy", opaquePluginFramePolicy(current, origin));
+    }
+    return Reflect.apply(writeHead, this, args) as ServerResponse;
+  };
+  response.writeHead = patched as ServerResponse["writeHead"];
+}
+
+/**
  * What every request of the web host meets before any route (S-02, S-21). The answer is marked as one that no other origin's frame may show
  * (clickjacking: the pages hold the control token, and the plugin Studio's pages set no CSP of their own, so the rule is made once, here);
  * and a request not addressed to this machine by a loopback name is refused with 403 (DNS rebinding). Returns true when it has answered.
  */
 export function refuseForeignRequest(request: IncomingMessage, response: ServerResponse): boolean {
   response.setHeader("x-frame-options", "SAMEORIGIN");
+  const host = requestHost(request);
   const opaqueFrame = requestHeader(request, "sec-fetch-dest") === "iframe" && requestHeader(request, "sec-fetch-site") === "cross-site";
-  if (requestHost(request) && !opaqueFrame) return false;
+  if (host && !opaqueFrame) {
+    allowOpaquePluginFrame(response, `http://${host}`);
+    return false;
+  }
   refuse(response);
   return true;
 }

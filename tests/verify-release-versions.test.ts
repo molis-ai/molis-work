@@ -31,6 +31,13 @@ const failsWith = (result: { code: number | null; out: string }, ...fragments: s
 };
 
 const VERSION = "1.2.3";
+const SANDBOX_FILE = "apps/local-host/src/plugin-sandbox-home-library.ts";
+const SANDBOX_BRIDGE = readFileSync(path.join(repository, SANDBOX_FILE), "utf8");
+const SANDBOX_CALL = "openBaselineHomeSqlite(home, declaration.store_name, declaration)";
+const sandboxBridge = (source = SANDBOX_BRIDGE, file = SANDBOX_FILE) => {
+  put("apps/local-host/package.json", JSON.stringify({ name: "host", version: "0.0.0", private: true }));
+  put(file, source);
+};
 const TABLE = [
   "| 库 | 位置 | 版本 | 记在 | 定义处 | 版本不符时 |",
   "| --- | --- | --- | --- | --- | --- |",
@@ -220,6 +227,7 @@ test("a plugin-owned database declaration has a listed literal baseline with the
   }
 });
 
+// PG017-BASELINE-01: the existing four-argument bridge keeps its original positive and rejection cases.
 test("only the typed Host connection bridge forwards a plugin declaration; other baseline calls remain checked", () => {
   put("apps/local-host/package.json", JSON.stringify({ name: "host", version: "0.0.0", private: true }));
   const bridge = "export function openPluginDatabase(home: string, declaration: PluginDatabaseDeclaration, authorize: unknown, partition?: { project_id: string }) { return openBaselineHomeSqlite(home, declaration.store_name, declaration, partition?.project_id); }";
@@ -233,6 +241,117 @@ test("only the typed Host connection bridge forwards a plugin declaration; other
   failsWith(run(), "apps/local-host/src/plugin-database.ts: openBaselineHomeSqlite is called with declaration");
   put("apps/local-host/src/plugin-database.ts", bridge.replace("partition?.project_id)", "partition?.project_id, extra)"));
   failsWith(run(), "apps/local-host/src/plugin-database.ts: openBaselineHomeSqlite is called with declaration");
+});
+
+test("PG017-BASELINE-01 the real sandbox initializer is scanned as a workspace package and forwards only its current declaration", () => {
+  sandboxBridge();
+  const result = run();
+  assert.equal(result.code, 0, result.out);
+  assert.match(result.out, /3 workspace packages are private 0\.0\.0; 5 stores/);
+  // This is not an unscanned fixture: removing its true parameter type makes that very file fail.
+  edit(SANDBOX_FILE, "declaration: HomePluginDatabaseDeclaration", "declaration: unknown");
+  failsWith(run(), `${SANDBOX_FILE}: openBaselineHomeSqlite is called with declaration`);
+  sandboxBridge("const home = 'a module variable does not replace the function parameter';\n" + SANDBOX_BRIDGE);
+  const scoped = run();
+  assert.equal(scoped.code, 0, scoped.out);
+});
+
+test("PG017-BASELINE-02 the sandbox rule is limited to the real path and typed declaration parameters", () => {
+  const other = "apps/alpha/src/plugin-sandbox-home-library.ts";
+  sandboxBridge(SANDBOX_BRIDGE, other);
+  failsWith(run(), `${other}: openBaselineHomeSqlite is called with declaration`);
+  rmSyncFile(other);
+  for (const [from, to] of [
+    ["function openSandboxHomeLibrary(", "function someOtherLibrary("],
+    ["home: string", "home: unknown"],
+    ["owner: InstalledLibraryOwner", "owner: unknown"],
+    ["declaration: HomePluginDatabaseDeclaration", "declaration: PluginDatabaseDeclaration"],
+    ["declaration: HomePluginDatabaseDeclaration", "other: HomePluginDatabaseDeclaration"],
+    ["reserved: HomeStoreRegistry", "reserved: unknown"],
+    ["from \"./installed-plugin-libraries.js\"", "from \"./another-owner.js\""],
+    ["HomePluginDatabaseDeclaration, PluginProjectStatements", "HomePluginDatabaseDeclaration as AnotherDeclaration, PluginProjectStatements"],
+  ]) {
+    assert.ok(SANDBOX_BRIDGE.includes(from), from);
+    sandboxBridge(SANDBOX_BRIDGE.replace(from, to));
+    failsWith(run(), `${SANDBOX_FILE}: openBaselineHomeSqlite is called with declaration`);
+  }
+});
+
+test("PG017-BASELINE-02 other arguments or a fourth argument remain ordinary rejected baseline calls", () => {
+  for (const [call, diagnostic] of [
+    ["openBaselineHomeSqlite(otherHome, declaration.store_name, declaration)", "with declaration"],
+    ["openBaselineHomeSqlite(home, 'another-store', declaration)", "with declaration"],
+    ["openBaselineHomeSqlite(home, declaration?.store_name, declaration)", "with declaration"],
+    ["openBaselineHomeSqlite(home, declaration.store_name, OTHER_BASELINE)", "with OTHER_BASELINE"],
+    ["openBaselineHomeSqlite(home, declaration.store_name, { version: 1, schema: `` })", "with an inline baseline"],
+    ["openBaselineHomeSqlite(home, declaration.store_name, makeDeclaration())", "with an inline baseline"],
+    ["openBaselineHomeSqlite(home, declaration.store_name)", "without a baseline"],
+    ["openBaselineHomeSqlite(home, declaration.store_name, declaration, extra)", "with declaration"],
+  ]) {
+    sandboxBridge(SANDBOX_BRIDGE.replace(SANDBOX_CALL, call));
+    failsWith(run(), `${SANDBOX_FILE}: openBaselineHomeSqlite is called ${diagnostic}`);
+  }
+  sandboxBridge(SANDBOX_BRIDGE.replace(SANDBOX_CALL, "applySqliteBaseline(home, declaration.store_name, declaration)"));
+  failsWith(run(), `${SANDBOX_FILE}: applySqliteBaseline is called with declaration`);
+  sandboxBridge(SANDBOX_BRIDGE.replace("const created = " + SANDBOX_CALL, "const BASELINE = declaration; const created = openBaselineHomeSqlite(home, declaration.store_name, BASELINE)"));
+  failsWith(run(), `${SANDBOX_FILE}: openBaselineHomeSqlite is called with BASELINE`);
+});
+
+test("PG017-BASELINE-03 a correct bridge cannot authorize other functions, top-level calls or a different initializer callback", () => {
+  for (const source of [
+    SANDBOX_BRIDGE + `\nfunction other(home: string, declaration: HomePluginDatabaseDeclaration) { return ${SANDBOX_CALL}; }`,
+    SANDBOX_BRIDGE + `\n${SANDBOX_CALL};`,
+    SANDBOX_BRIDGE.replace("const processes =", `${SANDBOX_CALL};\n    const processes =`),
+    SANDBOX_BRIDGE.replace("const created = " + SANDBOX_CALL, "const created = (() => " + SANDBOX_CALL + ")()"),
+    SANDBOX_BRIDGE.replace("reserved, open)", "reserved, () => open())"),
+    SANDBOX_BRIDGE.replace("const opened =", "const alias = open; const opened =").replace("reserved, open)", "reserved, alias)"),
+    SANDBOX_BRIDGE.replace("const open = () =>", "const open = function ()"),
+  ]) {
+    sandboxBridge(source);
+    failsWith(run(), `${SANDBOX_FILE}: openBaselineHomeSqlite is called with declaration`);
+  }
+  const signature = "export function openSandboxHomeLibrary(home: string, owner: InstalledLibraryOwner, declaration: HomePluginDatabaseDeclaration, reserved: HomeStoreRegistry, authorize: unknown, instance: unknown, limits: unknown) {}";
+  for (const fake of [`// ${signature}`, `/* ${signature} */`, `const signature = ${JSON.stringify(signature)};`]) {
+    sandboxBridge(fake + `\n${SANDBOX_CALL};`);
+    failsWith(run(), `${SANDBOX_FILE}: openBaselineHomeSqlite is called with declaration`);
+  }
+});
+
+test("PG017-BASELINE-03 shadowed or rebound parameters and imports do not obtain the sandbox exception", () => {
+  for (const shadow of [
+    "const home = elsewhere;", "const declaration = other;", "const { value: declaration } = other;",
+    "if (condition) { var declaration = other; }", "const openBaselineHomeSqlite = other;", "declaration = other;",
+    "declaration.store_name = 'elsewhere';",
+  ]) {
+    sandboxBridge(SANDBOX_BRIDGE.replace("const created = ", `${shadow}\n    const created = `));
+    failsWith(run(), `${SANDBOX_FILE}: openBaselineHomeSqlite is called with declaration`);
+  }
+  for (const source of [
+    SANDBOX_BRIDGE.replace("const open = () =>", "const open = (declaration: HomePluginDatabaseDeclaration) =>"),
+    SANDBOX_BRIDGE.replace("const path =", "const openInstalledPluginLibrary = other; const path ="),
+    "const openBaselineHomeSqlite = other;\n" + SANDBOX_BRIDGE,
+    "type HomePluginDatabaseDeclaration = unknown;\n" + SANDBOX_BRIDGE,
+  ]) {
+    sandboxBridge(source);
+    failsWith(run(), `${SANDBOX_FILE}: openBaselineHomeSqlite is called with declaration`);
+  }
+});
+
+test("PG017-BASELINE-04 a legal sandbox bridge still checks all named baselines and their listed versions in that file", () => {
+  const checklist = readFileSync(path.join(root, "docs/releases/CHECKLIST.md"), "utf8");
+  const listed = checklist.replace(TABLE, TABLE + `\n| Extra | \`extra.db\` | 1 | \`user_version\` | \`${SANDBOX_FILE}#EXTRA_BASELINE\` | 拒绝 |`);
+  for (const type of ["SqliteBaseline", "PluginDatabaseDeclaration", "HomePluginDatabaseDeclaration"]) {
+    const source = SANDBOX_BRIDGE + `\nexport const EXTRA_BASELINE: ${type} = { version: 1, schema: \`\` };`;
+    put("docs/releases/CHECKLIST.md", checklist); sandboxBridge(source);
+    failsWith(run(), `${SANDBOX_FILE}#EXTRA_BASELINE is a SqliteBaseline the 各库版本表 does not list`);
+    put("docs/releases/CHECKLIST.md", listed);
+    const positive = run(); assert.equal(positive.code, 0, positive.out);
+    sandboxBridge(source.replace("version: 1", "version: 2"));
+    failsWith(run(), "Extra: the table says 1", `${SANDBOX_FILE}#EXTRA_BASELINE) says 2`);
+    sandboxBridge(source);
+    put("docs/releases/CHECKLIST.md", listed.replace("`extra.db` | 1", "`extra.db` | 2"));
+    failsWith(run(), "Extra: the table says 2", `${SANDBOX_FILE}#EXTRA_BASELINE) says 1`);
+  }
 });
 
 test("a baseline declared with satisfies or as, or handed over inline, cannot hide from the table", () => {

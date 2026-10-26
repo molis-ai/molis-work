@@ -13,6 +13,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import ts from "typescript";
 
 const USAGE = "usage: verify-release-versions.mjs [--root <dir>] [--tag <vX.Y.Z>]";
 const SEMVER = /^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/;
@@ -276,14 +277,84 @@ function callArguments(text, open) {
 // A baseline handed to `applySqliteBaseline(db, path, baseline)` or `openBaselineHomeSqlite(home, name, baseline)` has to be a
 // named, declared constant. An inline object or a name no package declares is a database the table cannot list. The file that
 // defines the two functions is exempt: it only passes its own parameter on.
+// One installed-library initializer passes a runtime declaration through its owner, rather than a release-table constant.
+// Recognize that existing call, not its file or every identifier named declaration. No arbitrary data-flow inference.
+function sandboxBaselineCall(file, text) {
+  if (file !== "apps/local-host/src/plugin-sandbox-home-library.ts") return null;
+  const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
+  if (source.parseDiagnostics.length) return null;
+  const imported = (name, module, value = false) => source.statements.some(node => ts.isImportDeclaration(node)
+    && ts.isStringLiteral(node.moduleSpecifier) && node.moduleSpecifier.text === module
+    && node.importClause?.namedBindings && ts.isNamedImports(node.importClause.namedBindings)
+    && node.importClause.namedBindings.elements.some(item => item.name.text === name && !item.propertyName
+      && (!value || !node.importClause.isTypeOnly && !item.isTypeOnly)));
+  if (!imported("HomePluginDatabaseDeclaration", "@molis-ai/molis-work-contracts/platform/plugin")
+    || !imported("InstalledLibraryOwner", "./installed-plugin-libraries.js")
+    || !imported("HomeStoreRegistry", "@molis-ai/molis-work-storage")
+    || !imported("openInstalledPluginLibrary", "./installed-plugin-libraries.js", true)
+    || !imported("openBaselineHomeSqlite", "@molis-ai/molis-work-storage", true)) return null;
+  const importNames = new Set(["HomePluginDatabaseDeclaration", "InstalledLibraryOwner", "HomeStoreRegistry", "openInstalledPluginLibrary", "openBaselineHomeSqlite"]);
+  if (source.statements.some(node => ts.isVariableStatement(node)
+    ? node.declarationList.declarations.some(item => ts.isIdentifier(item.name) && importNames.has(item.name.text))
+    : (ts.isFunctionDeclaration(node) || ts.isClassDeclaration(node) || ts.isTypeAliasDeclaration(node) || ts.isInterfaceDeclaration(node))
+      && node.name && importNames.has(node.name.text))) return null;
+  const functions = source.statements.filter(node => ts.isFunctionDeclaration(node) && node.name?.text === "openSandboxHomeLibrary");
+  if (functions.length !== 1) return null;
+  const fn = functions[0], parameters = [["home", "string"], ["owner", "InstalledLibraryOwner"],
+    ["declaration", "HomePluginDatabaseDeclaration"], ["reserved", "HomeStoreRegistry"]];
+  if (!fn.body || fn.typeParameters?.length || fn.asteriskToken || fn.parameters.length !== 7
+    || !fn.modifiers?.some(item => item.kind === ts.SyntaxKind.ExportKeyword)
+    || fn.modifiers.some(item => item.kind === ts.SyntaxKind.AsyncKeyword)
+    || parameters.some(([name, type], index) => {
+      const parameter = fn.parameters[index];
+      return !ts.isIdentifier(parameter.name) || parameter.name.text !== name || parameter.type?.getText(source) !== type
+        || parameter.dotDotDotToken || parameter.questionToken || parameter.initializer;
+    })) return null;
+  const constant = (body, name) => body.statements.filter(ts.isVariableStatement)
+    .filter(node => node.declarationList.flags & ts.NodeFlags.Const).flatMap(node => node.declarationList.declarations)
+    .filter(node => ts.isIdentifier(node.name) && node.name.text === name);
+  const open = constant(fn.body, "open"), opened = constant(fn.body, "opened");
+  if (open.length !== 1 || opened.length !== 1) return null;
+  const callback = open[0].initializer;
+  if (!callback || !ts.isArrowFunction(callback) || callback.parameters.length || !ts.isBlock(callback.body)
+    || callback.modifiers?.some(item => item.kind === ts.SyntaxKind.AsyncKeyword)) return null;
+  const callIs = (node, name, args) => node && ts.isCallExpression(node) && ts.isIdentifier(node.expression)
+    && node.expression.text === name && node.arguments.length === args.length
+    && node.arguments.every((argument, index) => argument.getText(source) === args[index]);
+  if (!callIs(opened[0].initializer, "openInstalledPluginLibrary", ["home", "owner", "declaration", "reserved", "open"])) return null;
+  const created = constant(callback.body, "created");
+  if (created.length !== 1 || !callIs(created[0].initializer, "openBaselineHomeSqlite", ["home", "declaration.store_name", "declaration"])) return null;
+  const protectedNames = new Set([...parameters.map(([name]) => name), "open", "openBaselineHomeSqlite", "openInstalledPluginLibrary"]);
+  const mentionsProtected = node => {
+    let found = ts.isIdentifier(node) && protectedNames.has(node.text);
+    ts.forEachChild(node, child => { if (mentionsProtected(child)) found = true; });
+    return found;
+  };
+  let rebound = fn.parameters.slice(4).some(node => mentionsProtected(node.name));
+  const visit = node => {
+    if (node !== open[0] && (ts.isVariableDeclaration(node) || ts.isParameter(node) || ts.isBindingElement(node)
+      || ts.isFunctionDeclaration(node) || ts.isClassDeclaration(node)) && node.name && ts.isIdentifier(node.name)
+      && protectedNames.has(node.name.text)) rebound = true;
+    if (ts.isBinaryExpression(node) && node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment
+      && node.operatorToken.kind <= ts.SyntaxKind.LastAssignment && mentionsProtected(node.left)) rebound = true;
+    if ((ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node))
+      && (node.operator === ts.SyntaxKind.PlusPlusToken || node.operator === ts.SyntaxKind.MinusMinusToken) && mentionsProtected(node.operand)) rebound = true;
+    ts.forEachChild(node, visit);
+  };
+  visit(fn.body);
+  return rebound ? null : created[0].initializer.expression.getStart(source);
+}
+
 function checkBaselineCalls(directories, declaredNames) {
   for (const directory of directories) {
     for (const file of sourceFiles(directory)) {
       if (file === "packages/storage/src/sqlite-baseline.ts") continue;
       const text = readFileSync(path.join(root, file), "utf8");
+      const sandboxCall = sandboxBaselineCall(file, text);
       for (const match of text.matchAll(/(?<!function\s)\b(applySqliteBaseline|openBaselineHomeSqlite)\s*\(/g)) {
         const args = callArguments(text, match.index + match[0].length - 1);
         const baseline = args[2];
+        if (match.index === sandboxCall && match[1] === "openBaselineHomeSqlite") continue;
         // This one typed Host bridge forwards the trusted declaration, and the project of a library partitioned by project
         // (specs/plugin-project-partition), which is not a baseline. Its declarations are counted above;
         // no other file, inline argument, or different call in this file is exempt from named-baseline checks.

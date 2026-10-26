@@ -253,3 +253,20 @@ RAC-357-U1 的实现覆盖 Runtime 卸载 `finally` 释放定义，以及不留�
 - #1112、#1098、#1130、#1076、#1083：与本组的服务文件没有交集（#1076/#1083 只改 `privileges.md` 的 Shelf 行）。
 - #1117、#1114、#1107、#1127、#1123、#1064：只在 `SECURITY-INVARIANTS.md` 上有交集，加行时会在同一张表上撞，S 号请统筹统一排。
 - PG-106：`onProjectDeleted` 钩子 C4（10-21）已删，本稿不再涉及；PG-102～104 的代码（`plugin-files.ts`、`plugin-owner-files-entries.ts`）在 main 上没有在途改动，但它们的 Manifest 化是前提（第 4 节），不在本组做。
+
+## 8. Home 沙箱库声明桥的发布检查（2026-10-25，限定修正）
+
+PR #1311 的固定输入 `29e5c5397893e6cd604fd8e9ba0a7915a74503a0` 在发布检查中拒绝 `plugin-sandbox-home-library.ts` 的动态 `declaration`。人类已明确允许方案 B：保留现有库 owner、初始化及连接释放职责，只让发布检查识别这一个受限声明桥；不改生产 helper、权限时点、数据库 API、版本或 CHECKLIST，也不为此增加构建、浏览器或 full。
+
+规则只适用于 `apps/local-host/src/plugin-sandbox-home-library.ts` 中真实 `openSandboxHomeLibrary` 的声明参数：`home: string`、`owner: InstalledLibraryOwner`、`declaration: HomePluginDatabaseDeclaration`、`reserved: HomeStoreRegistry`。复用现有 TypeScript 解析器，将准许位置绑定到此函数的原 `open` 初始化回调和送入 owner 的该回调；只准其中 `openBaselineHomeSqlite(home, declaration.store_name, declaration)` 三参调用。声明绑定、类型或调用形状不符、局部遮蔽、其它函数/顶层调用、注释或字符串伪造签名均不能借此放行。解析不出该形状就不适用例外；不做任意动态数据流证明，不把 `declaration` 加进全局具名 baseline，也不跳过整文件。
+
+继续扫描所有原包与本文件的其它调用，保留原四参 typed Host bridge、所有具名 baseline 的收集/存在性/字面版本、发布表完整性/一致性及产品/包/发布说明检查。允许修改仅检查脚本、既有专用测试文件和本节；不以搬调用、别名、伪常量或放宽其它门禁消除失败。
+
+| 编号 | 验收与证据 |
+| --- | --- |
+| PG017-BASELINE-01 | 真实仓库 checker 通过；scratch 含真正被 workspace/sourceFiles 扫描的 local-host package 和现行完整 helper 时通过，原四参 bridge 正控仍通过。 |
+| PG017-BASELINE-02 | 错误文件路径、函数/声明参数类型或名称、home/store/第三参数、第四参数、其它 baseline callee 均不获得此例外，动态/inline baseline 仍被准确文件诊断拒绝。 |
+| PG017-BASELINE-03 | 正确签名不能替同文件另一函数或顶层的动态调用背书；初始化回调/参数被遮蔽或重绑定、假注释/字符串签名均拒绝。合法调用旁再加动态调用仍拒，原函数及 owner 回调的连接不能被同名伪造替代。 |
+| PG017-BASELINE-04 | 合法桥不豁免同文件未列名的三种 baseline 常量，也不豁免已列常量或发布表版本不一致；复用原测试并保留其它产品版本/缺文件等拒绝。 |
+
+验证 `node scripts/verify-release-versions.mjs` 与 `node scripts/run-tests.mjs tests/verify-release-versions.test.ts`，另做适用静态、health 和 secrets 检查。已有 CI 与 Full42 的原失败保留，不把本地修正回填成旧运行通过；desktop 用例的同 checker/首行合同可直接核对，不为同根问题构建或运行带大量 dist 依赖的整个 desktop 文件。无需生产构建；原 Full、Linux 与其它发布门禁仍走原主线。

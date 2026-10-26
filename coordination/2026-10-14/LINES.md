@@ -194,3 +194,4 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
   - ac-coding ← W5-10 新批 J（`ProjectsRepository`、`RuntimeProjectBindingCommands`，RAC-930～944、BL-720～724），再批 K（两个 Alchemist 仓库，只机械拆分，RAC-945～959、BL-725～729）。PG-001+批 I `2fc40a619` 评过可合，进 batch-42。
 - **10-26 batch-42 续并**：PG-001+批 I `2fc40a619`（privileges PG-001 行取「已做」版并补 batch-41 SHA）、批 D `5f52a8910`（拆出的文件改 import `./contract.js`，PG-111 已把 Shelf 合同搬进包内）、判定 FIX `277765a79`（ac-review-2 复评中）；远端批头 `5828761e9`，未构建，本地 ac-batch42 仍在 `5ede77bce` 跑切片用例。统筹交接见 `HANDOFF-2026-10-26.md`。
 - **10-26 PG-001 裁定**：可标已做，行内写明创作台包 unsigned 进沙箱（BL-377 10-23 不删）、开发目录 unsigned 跑宿主进程那一半留 BL-588，余项 BL-586～589；BL-588 进登记册。批头改行文案由接任统筹做。
+- **10-26 交接改为给他人**：`HANDOFF-2026-10-26.md` 只引用 GitHub（分支、PR、提交、PR 评论），用户规则写全；batch-42 开草稿 PR #1311 作汇合点，各线改在 #1311 评论回报。

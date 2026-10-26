@@ -258,6 +258,11 @@ const APPROVED_CEILINGS = {
   // 「让助理回复」 step (`ASSISTANT_THREAD_REPLY_SCRIPT`: the thread check and the start call); its -1,122 B saving is already counted above
   // under PG-031. plugin-frame.js +22 B: the frame bridge writes the frame's plugin id into a hand-over's source (`plugin_id`).
   "/assets/molis-work-plugin-frame.js": [190197, 190219],
+  // BL-680 (ac-giants, 用户 2026-10-26 弹窗决定): +94 B in the Shelf page for the note that replaces "view original" when the copy's
+  // project is deleted (`origin_project_deleted` read in syncButtons, one more element toggled). Tried: no new CSS (the note reuses
+  // `shelf-chrome-tag`), the text is rendered by the server HTML, not the bundle; the first version (+212 B JS, +107 B CSS) swapped the
+  // link's text and href in place and was cut to this.
+  "/assets/molis-work-plugins/shelf.js": [64623, 64717],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its

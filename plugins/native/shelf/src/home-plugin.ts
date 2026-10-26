@@ -1,9 +1,9 @@
 import { ActionError, type ActionAvailability, type BoundActionClient, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ARTIFACT_FILE_IMPORT_ACTION } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { isLoopbackHttpUrl } from "@molis-ai/molis-work-contracts/platform/loopback";
-import type { PluginDefinition, PluginMaterialsClient, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDefinition, PluginMaterialsClient, PluginProjectsClient, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { MaterialWebsiteReader } from "@molis-ai/molis-work-contracts/services/materials";
-import type { ShelfArtifactPreview, ShelfDeviceSettings, ShelfMaterialPorts, ShelfModelSelection } from "@molis-ai/molis-work-module-shelf/contract";
+import type { ShelfArtifactPreview, ShelfDeviceSettings, ShelfItemRecord, ShelfMaterialPorts, ShelfModelSelection, ShelfSnapshot } from "@molis-ai/molis-work-module-shelf/contract";
 import { initializeShelfFiles, openShelfStore, type ShelfStore } from "@molis-ai/molis-work-module-shelf";
 import { createShelfActionHandlers, createShelfProjectActionHandlers, SHELF_PROJECT_ACTIONS, shelfActions, type ShelfActionPorts } from "./actions.js";
 import { shelfAiPorts } from "./ai.js";
@@ -36,17 +36,35 @@ function shelfMaterialPorts(materials: PluginMaterialsClient): ShelfMaterialPort
 }
 
 /**
+ * A copy that came from a project (`artifact_source`) stays when that project is deleted (BL-680, 用户 2026-10-26 弹窗决定): the snapshot only
+ * says, per copy, whether the project it came from is still there, and the page says so in place of its link to the original. The
+ * question goes through `services.projects` and carries nothing but the project ids the copies already name. A copy is left unmarked when
+ * the plugin could not ask (the permission is not held, the Host could not look): the answer is unknown, not "deleted".
+ */
+export async function withOriginState(snapshot: ShelfSnapshot, projects: Pick<PluginProjectsClient, "exist"> | undefined): Promise<ShelfSnapshot> {
+  const copies = [...snapshot.materials, ...snapshot.results];
+  const ids = [...new Set(copies.flatMap(item => item.artifact_source ? [item.artifact_source.project_id] : []))];
+  if (!projects || ids.length === 0) return snapshot;
+  const exist = await projects.exist(ids).catch(() => null);
+  if (!exist) return snapshot;
+  const mark = (item: ShelfItemRecord): ShelfItemRecord => item.artifact_source && typeof exist[item.artifact_source.project_id] === "boolean"
+    ? { ...item, origin_project_deleted: !exist[item.artifact_source.project_id] } : item;
+  return { ...snapshot, materials: snapshot.materials.map(mark), results: snapshot.results.map(mark) };
+}
+
+/**
  * The store's methods as the actions call them; each call opens the store fresh, so it reads the current agent PATH.
  * Availability is asked outside any action (a workflow listing its steps asks it inside its own), where Shelf's files cannot be
  * read: it answers from the model choice the last action read or saved (only this instance's actions save that choice), and before
  * any has, from whether any model is configured.
  */
-export function shelfStorePorts(store: () => ShelfStore, availability: (selection: ShelfModelSelection | null) => ActionAvailability): ShelfActionPorts {
+export function shelfStorePorts(store: () => ShelfStore, availability: (selection: ShelfModelSelection | null) => ActionAvailability,
+  projects?: Pick<PluginProjectsClient, "exist">): ShelfActionPorts {
   let selection: ShelfModelSelection | null = null;
   const remember = (settings: ShelfDeviceSettings) => { selection = settings.model_selection ?? null; return settings; };
   return {
     aiAvailability: () => availability(selection),
-    snapshot: async () => { const snapshot = await store().snapshot(); remember(snapshot.settings); return snapshot; },
+    snapshot: async () => { const snapshot = await store().snapshot(); remember(snapshot.settings); return withOriginState(snapshot, projects); },
     settings: () => remember(store().settings()),
     saveSettings: async patch => remember(await store().saveSettings(patch)),
     admit: (input, control) => store().admitFile(input, control),
@@ -73,10 +91,10 @@ export function shelfStorePorts(store: () => ShelfStore, availability: (selectio
 export function createHomeShelfPlugin(): PluginDefinition {
   return { manifest: shelfManifest, instructions: SHELF_INSTRUCTIONS, async start(context) {
     for (const grant of shelfManifest.permissions) if (grant.required) context.requireGrant(grant.permission);
-    const { store, model, actions, files } = shelfServices(context);
+    const { store, model, actions, files, projects } = shelfServices(context);
     // The sample goes on a shelf that has never held anything, once: the instance writes it itself, under its own current grants.
     await files.write(initializeShelfFiles);
-    const handlers = createShelfActionHandlers(shelfStorePorts(store, selection => model.availability(selection ?? undefined)));
+    const handlers = createShelfActionHandlers(shelfStorePorts(store, selection => model.availability(selection ?? undefined), projects));
     return { kind: "app", views: [shelfUiContribution, shelfSettingsUiContribution], actions: [...handlers,
       { ...shelfActions.terminal, async handle(caller) {
         await caller.beforeEffect();
@@ -122,5 +140,5 @@ function shelfServices(context: PluginStartContext) {
   const services = context.services, files = services?.ownerFiles, model = services?.model, materials = services?.materials, actions = services?.actions, tools = services?.localTools;
   if (!files || !model || !materials?.extract || !materials.readSource || !materials.readLocalPage || !actions?.dependencies) throw new ActionError("actions.unredeemed", "Shelf 需要公共文件、模型、材料与动作服务");
   const readers = shelfMaterialPorts(materials), ai = shelfAiPorts(model, readers);
-  return { actions, model, files, store: () => openShelfStore(files.rootPath(), files, { ...(tools ? { tools } : {}) }, readers, ai) };
+  return { actions, model, files, projects: services?.projects, store: () => openShelfStore(files.rootPath(), files, { ...(tools ? { tools } : {}) }, readers, ai) };
 }

@@ -108,6 +108,52 @@ async function installed() {
     async close() { try { await host.close(); } finally { await rm(home, { recursive: true, force: true }); } } };
 }
 
+/** An adding operation that reads, waits, and only then saves the note: the publisher can be taken back between the read and the save. */
+function savesLate(files: PackageFiles) {
+  readsAndWrites(files);
+  files[SANDBOX_PACKAGE_FILES.entrypoint] = `export const operations = {
+  'notes.list': async (_input, sdk) => JSON.parse((await sdk.storage.get('notes')) ?? '[]'),
+  'notes.add': async (input, sdk) => { await sdk.storage.get('notes'); await new Promise(done => setTimeout(done, 3000)); await sdk.storage.set('late', input.text); return true; }
+};\n`;
+}
+
+const pause = (ms: number) => new Promise(done => setTimeout(done, ms));
+
+/**
+ * Starts the late-saving call and lets it get inside the operation (its first read is done within milliseconds; nothing here writes before the
+ * wait, so nothing makes the project look and stop the installation on its own), runs `between`, and answers how the call ended and what was stored.
+ */
+async function lateCall(h: Awaited<ReturnType<typeof installed>>, between: () => void) {
+  const [running] = await h.plugins(), add = (await h.operation("notes.add"))!;
+  assert.ok(add, "the package's action is there");
+  await pause(1000); // whatever the install set going (the knowledge index looks at a project after a change) is done before the call starts
+  const outcome = h.client.invoke(caller, add, { text: "late note" }).then(value => ({ value }), (error: unknown) => ({ error }));
+  await pause(1000);
+  between();
+  return { ...await outcome, stored: JSON.stringify(await h.data(running!.install_id)) };
+}
+
+test("RAC-392 S-87 a call already inside an operation when the publisher is taken back is refused at its next save, with the denial itself, and writes nothing more", mac, async () => {
+  const h = await installed(), publisher = newPublisher();
+  try {
+    await h.install(signedPackage(publisher, savesLate));
+    const taken = await lateCall(h, () => h.service().revokePublisher(publisher.identity));
+    assert.ok("error" in taken, "the call did not finish: " + JSON.stringify(taken));
+    assert.match(String((taken.error as Error).message), /安装执行身份已失效/, "refused by the installation's standing (the route hands the caller the message, not the sandbox's plugin.capability_denied code), not by a crash");
+        assert.ok(!taken.stored.includes("late note"), "nothing was saved after");
+  } finally { await h.close(); }
+});
+
+test("RAC-392 S-87 control: the same call, with the publisher still trusted, saves what it was asked to", mac, async () => {
+  const h = await installed(), publisher = newPublisher();
+  try {
+    await h.install(signedPackage(publisher, savesLate));
+    const kept = await lateCall(h, () => undefined);
+    assert.deepEqual("value" in kept ? kept.value : kept, true);
+    assert.ok(kept.stored.includes("late note"), "the note was saved");
+  } finally { await h.close(); }
+});
+
 test("RAC-391 RAC-392 S-87 a publisher taken back: what it signed does nothing from then on (no write), stops, is not started again by a restart, keeps its data, and its next package is refused", mac, async () => {
   const h = await installed(), publisher = newPublisher();
   try {

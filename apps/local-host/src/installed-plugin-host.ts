@@ -166,7 +166,7 @@ async function openInstalledPlugins(options: InstalledPluginHostOptions) {
     } });
     const earlier = release.packaged ? [] : releases.versions(release.buildId).map(item => item.version).filter(version => version < release.version);
     const value = sandboxedPluginDefinition(release, release.permissions, earlier, {
-      capabilities: catalog,
+      capabilities: catalog, assertLive: assertInstalled,
       capability: { async call(context, id, input) { const guarded = guard(context); await guarded.beforeEffect(); return capability.call(guarded, id, input); } },
       network: { async request(context, input, authorization) { const guarded = guard(context); await guarded.beforeEffect(); return network.request(guarded, input, authorization); } },
     }, release.packaged?.manifest);

@@ -29,12 +29,12 @@ const judgmentRef: ActionReference = { capability_id: judgment.capability_id, ve
 type Step = "latest" | "record" | "revoked" | "cancelled" | "borrow";
 type SceneStep = "scene-record" | "scene-no-wait" | "scene-revoked" | "scene-failed" | "scene-rollback" | "scene-late" | "prepare-record";
 interface StepInput { readonly step: Step; readonly scene?: string; readonly kind?: string; readonly project?: string; readonly subject?: string; readonly forged?: string }
-interface ProbeOptions { readonly grants?: readonly string[]; readonly scene?: boolean; readonly scenePermissions?: readonly string[] }
+interface ProbeOptions { readonly grants?: readonly string[]; readonly scene?: boolean; readonly scenePermissions?: readonly string[]; readonly sceneId?: string }
 
 /** A plugin of the test: actions that make the ledger call `step` names, and a scene whose callbacks do what `state.sceneStep` says, with a table of its own. */
 function probe(short: string, options: ProbeOptions = {}) {
   const id = `io.molis.work.example.${short}`, grants = options.grants ?? [JR, JW], hasScene = options.scene ?? true, write = grants.includes(JW);
-  const scene: ActionSceneDefinition = { scene_id: `${id}.arrived`, version: 1, title: "到达", description: "处理到达的文字", trigger: "arrived", scope: "project",
+  const scene: ActionSceneDefinition = { scene_id: options.sceneId ?? `${id}.arrived`, version: 1, title: "到达", description: "处理到达的文字", trigger: "arrived", scope: "project",
     subject_kinds: ["feedback", "feed_item"], event_schema: textInput, input_schema: textInput, result_schema: decisionOutput, permissions: [...options.scenePermissions ?? (write ? [JW] : [])] };
   const state = { services: undefined as PluginHostServices | undefined, value: undefined as unknown, error: undefined as unknown, hook: () => {}, sceneStep: "scene-record" as SceneStep,
     sceneOutcome: undefined as unknown, late: undefined as unknown, bindings: new Map<string, ActionSceneBinding>() };
@@ -137,11 +137,18 @@ async function platform(t: TestContext) {
   actions.registry.registerProvider({ provider: { provider_id: "system-judgments", title: "判断", kind: "system" }, definitions: [judgment, failing],
     handlers: [{ ...judgment, handle: () => ({ follow_up: true }) }, { ...failing, handle: () => { throw new ActionError("actions.service_unavailable", "the judgment is down"); } }] });
   const ledger = () => withFunctionsService(home, service => service.listJudgments());
-  const seed = (scene: string, subject: string, project: string, outcome: "ok" | "needs_review" = "ok") => withFunctionsService(home, service => service.recordSceneJudgment({
+  // A row as some installation (or the Host, with none) left it in the ledger.
+  const seed = (scene: string, subject: string, project: string, outcome: "ok" | "needs_review" = "ok", install?: string) => withFunctionsService(home, service => service.recordSceneJudgment({
     function_key: "seeded", function_version: 1, subject: { kind: "feedback", id: subject, project_id: project }, scene_id: scene, outcome,
-    suggested_behavior_ids: [], error_code: null }));
+    suggested_behavior_ids: [], error_code: null, ...(install ? { install_id: install } : {}) }));
+  const installOf = (item: Probe) => running.runtime.list().find(entry => entry.plugin_id === item.id)!.install_id;
+  const add = async (item: Probe) => {
+    const { install } = running.runtime.install({ definition: item.definition, deployment: "local", trust: { level: "host" }, grants: item.definition.manifest.permissions.map(entry => entry.permission) });
+    await running.runtime.start(install.install_id);
+    return install.install_id;
+  };
   const noted = (short: string, name: string) => store.db.prepare(`SELECT 1 FROM ${short}_notes WHERE text = ?`).get(name) !== undefined;
-  return { home, running, client: actions.client, main, other, lean, readonly, ungranted, sceneless, ledger, seed, noted };
+  return { home, running, client: actions.client, main, other, lean, readonly, ungranted, sceneless, ledger, seed, noted, installOf, add };
 }
 
 type Env = Awaited<ReturnType<typeof platform>>;
@@ -190,13 +197,16 @@ test("RAC-840 S-90 the service exists only for a plugin that declares judgments:
 test("RAC-841 S-90 latest returns only the newest judgment per subject of the plugin's own scene in this project", async t => {
   const env = await platform(t);
   const scene = env.main.scene.scene_id;
-  env.seed(scene, "a", DEMO_PROJECT_ID, "needs_review"); env.seed(scene, "a", DEMO_PROJECT_ID, "ok"); env.seed(scene, "b", DEMO_PROJECT_ID);
-  env.seed(scene, "elsewhere", OTHER_PROJECT); env.seed(env.other.scene.scene_id, "theirs", DEMO_PROJECT_ID);
+  const mine = env.installOf(env.main), theirs = env.installOf(env.other);
+  env.seed(scene, "a", DEMO_PROJECT_ID, "needs_review", mine); env.seed(scene, "a", DEMO_PROJECT_ID, "ok", mine); env.seed(scene, "b", DEMO_PROJECT_ID, "ok", mine);
+  env.seed(scene, "elsewhere", OTHER_PROJECT, "ok", mine); env.seed(env.other.scene.scene_id, "theirs", DEMO_PROJECT_ID, "ok", theirs);
+  // The same scene id and project, recorded by the Host and by another installation: not this plugin's rows.
+  env.seed(scene, "host-row", DEMO_PROJECT_ID); env.seed(scene, "other-install", DEMO_PROJECT_ID, "ok", theirs);
   for (const which of ["wait", "bare", "serial", "look"] as const) {
     const { value, error } = await inAction(env, env.main, { step: "latest" }, which);
     assert.equal(error, undefined, `${which}: ${error?.message}`);
     const rows = value as { subject: { id: string }; outcome: string }[];
-    assert.deepEqual(rows.map(row => row.subject.id).toSorted(), ["a", "b"], `${which}: no row of another project or of another plugin's scene`);
+    assert.deepEqual(rows.map(row => row.subject.id).toSorted(), ["a", "b"], `${which}: no row of another project, of another plugin's scene, of the Host or of another installation`);
     assert.equal(rows.find(row => row.subject.id === "a")!.outcome, "ok", `${which}: the newest of a subject`);
   }
   assert.deepEqual(env.main.state.services!.judgments!.latest(scene).map(row => row.subject.id).toSorted(), ["a", "b"], "a read needs no running action");
@@ -284,7 +294,7 @@ test("RAC-844 S-90 a revoked or cancelled caller records nothing, and neither do
   assert.deepEqual(env.ledger(), [], "no row, and no failure row either");
 });
 
-test("RAC-845 S-90 the ledger row is in the Home's Functions library and stays when the plugin's own project transaction rolls back, and Feed's adoption recheck does not adopt it", async t => {
+test("RAC-845 S-90 the ledger row is in the Home's Functions library and stays when the plugin's own project transaction rolls back, and Feed's adoption recheck stops it only while the object is gone or changed", async t => {
   const env = await platform(t);
   await runScene(env, env.main, "scene-rollback", "rolled-back");
   const recorded = env.main.state.sceneOutcome as { judgment_id: string };
@@ -292,7 +302,7 @@ test("RAC-845 S-90 the ledger row is in the Home's Functions library and stays w
   assert.deepEqual(subjects(env, env.main.scene.scene_id), [`${DEMO_PROJECT_ID}/rolled-back`], "the ledger row is committed on its own");
   assert.equal(env.noted("judgemain", "rolled-back"), false, "the plugin's own row did not land: the two are not one transaction");
   assert.equal(env.ledger()[0]!.scene_provenance?.binding_id, "binding", "the row carries the provenance a later adoption rechecks");
-  // The orphan is harmless (R-60): Feed adopts a judgment only while its binding, its function and the item's content still hold, with the real runtime over the ledger the service reads.
+  // The orphan is not harmless (R-60): Feed's recheck stops it only while the binding, the function and the item's content do not hold; where they still hold it is adopted, with the real runtime over the ledger the service reads.
   const rows = [...env.main.state.services!.judgments!.latest(env.main.scene.scene_id)];
   assert.equal(rows.length, 1);
   const usage = { scene_id: feedCaptureScene.scene_id, binding_id: "binding", revision: "r1", enabled: true, availability: { available: true }, function: judgmentRef } as never;
@@ -304,7 +314,52 @@ test("RAC-845 S-90 the ledger row is in the Home's Functions library and stays w
   assert.deepEqual(await adopted(gone), { recommendations: [] }, "the item the rolled-back transaction would have created is not there");
   assert.deepEqual(await adopted(() => item), { recommendations: [] }, "an item whose content is not the one the judgment was made on");
   const held = [{ ...rows[0]!, scene_provenance: { ...rows[0]!.scene_provenance!, subject_revision: feedCaptureSubjectRevision(item) } }];
-  assert.equal((await adopted(() => item, held)).recommendations.length, 1, "the same row is adopted when everything it rests on holds: the recheck is not vacuous");
+  // The limit, stated plainly (R-60): an object that is there with the content the judgment was made on is adopted although the plugin's own rows never landed.
+  assert.equal((await adopted(() => item, held)).recommendations.length, 1, "the same row is adopted when everything it rests on holds, even though the plugin's own transaction rolled back");
+  assert.equal(env.noted("judgemain", "rolled-back"), false, "and the plugin's own row is still absent: latest() is no evidence that a plugin's own rows landed");
+});
+
+test("RAC-850 S-90 a plugin that later declares the same scene id reads none of the earlier plugin's judgments", async t => {
+  const env = await platform(t);
+  const scene = env.main.scene.scene_id;
+  const recorded = await inAction(env, env.main, { step: "record", subject: "mine" });
+  assert.equal(recorded.error, undefined, String(recorded.error?.message));
+  const before = env.installOf(env.main);
+  await env.running.runtime.stop(before);
+  await env.running.runtime.uninstall(before, { retain_private_data: true });
+  const squatter = probe("judgesquat", { sceneId: scene });
+  await env.add(squatter);
+  assert.equal(squatter.scene.scene_id, scene, "the new plugin declares the very same scene id");
+  const look = await inAction(env, squatter, { step: "latest", scene });
+  assert.equal(look.error, undefined, String(look.error?.message));
+  assert.deepEqual(look.value, [], "it reads none of the earlier plugin's rows");
+  assert.deepEqual(subjects(env, scene), [`${DEMO_PROJECT_ID}/mine`], "the earlier plugin's row is still in the ledger, kept with its data");
+  const own = await inAction(env, squatter, { step: "record", subject: "squat" });
+  assert.equal(own.error, undefined, String(own.error?.message));
+  const again = await inAction(env, squatter, { step: "latest", scene });
+  assert.deepEqual((again.value as { subject: { id: string } }[]).map(row => row.subject.id), ["squat"], "it reads only what it recorded itself");
+});
+
+test("RAC-851 S-90 uninstalling the plugin deletes its judgments with its data, and keeping the data keeps them until the kept data is discarded", async t => {
+  const env = await platform(t);
+  const scene = env.main.scene.scene_id, mine = env.installOf(env.main), theirs = env.installOf(env.other);
+  await inAction(env, env.main, { step: "record", subject: "mine" });
+  await inAction(env, env.other, { step: "record", subject: "theirs", scene: env.other.scene.scene_id });
+  env.seed(scene, "host-row", DEMO_PROJECT_ID); env.seed(scene, "elsewhere", OTHER_PROJECT, "ok", mine);
+  const remaining = () => env.ledger().map(row => `${row.scene_id.split(".").pop()}/${row.subject.project_id}/${row.subject.id}`).toSorted();
+  const all = [`arrived/${DEMO_PROJECT_ID}/host-row`, `arrived/${DEMO_PROJECT_ID}/mine`, `arrived/${DEMO_PROJECT_ID}/theirs`, `arrived/${OTHER_PROJECT}/elsewhere`].toSorted();
+  assert.deepEqual(remaining(), all, "the ledger holds both plugins' rows, the Host's, and a row of the same installation in another project");
+  // An uninstall that keeps the plugin's data keeps its judgments.
+  await env.running.runtime.stop(mine);
+  await env.running.runtime.uninstall(mine, { retain_private_data: true });
+  assert.deepEqual(remaining(), all, "kept data keeps the rows");
+  // Discarding the kept data (a reinstall that drops it) deletes this project's rows of that installation, not another project's, the Host's or another plugin's.
+  env.running.runtime.install({ definition: env.main.definition, deployment: "local", trust: { level: "host" }, discard_kept_data: true });
+  assert.deepEqual(remaining(), all.filter(row => !row.endsWith("/mine")), "the discarded installation's rows in this project are gone");
+  // An uninstall that does not keep the data deletes the rows with it.
+  await env.running.runtime.stop(theirs);
+  await env.running.runtime.uninstall(theirs, { retain_private_data: false });
+  assert.deepEqual(remaining(), [`arrived/${DEMO_PROJECT_ID}/host-row`, `arrived/${OTHER_PROJECT}/elsewhere`].toSorted(), "the plugin's rows are deleted with its data");
 });
 
 test("RAC-846 S-90 deleting the project clears its judgments from the ledger and leaves other projects' alone", async t => {

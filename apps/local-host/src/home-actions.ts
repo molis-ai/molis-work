@@ -212,7 +212,7 @@ export function homeActionProvider(home: string, projectId: string, services: In
         const usage = (await services.scenes.usages(caller)).find(value => value.scene_id === HOME_DOCK_SCENE_ID && value.binding_id === homeDockBindingId(projectId));
         if (!usage?.enabled || !usage.availability.available) return { judgments: [] };
         if (!sameBinding(binding(), usage)) return { judgments: [] };
-        const candidates = read(service => service.latestSceneJudgments(projectId, HOME_DOCK_SCENE_ID));
+        const candidates = read(service => service.latestSceneJudgments(projectId, HOME_DOCK_SCENE_ID, null));
         const judgments: JudgmentRecord[] = [];
         const readers = new Map<string, ActionReference>();
         const selectedOffers = new Map<string, HomeActionOffer[]>();

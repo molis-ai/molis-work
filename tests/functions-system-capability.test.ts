@@ -162,7 +162,7 @@ test("historical judgments retain original object, project and scene scope", asy
       assert.deepEqual(functions.latestJudgment("inbox_entry", "same-object", "first", INBOX_NEXT_SCENE_ID), inbox);
       assert.deepEqual(functions.latestJudgment("inbox_entry", "same-object", "first", HOME_DOCK_SCENE_ID), home);
       assert.deepEqual(functions.latestJudgment("inbox_entry", "same-object", "other", INBOX_NEXT_SCENE_ID), foreign);
-      assert.deepEqual(functions.latestSceneJudgments("first", INBOX_NEXT_SCENE_ID), [inbox]);
+      assert.deepEqual(functions.latestSceneJudgments("first", INBOX_NEXT_SCENE_ID, null), [inbox]);
     } finally { functions.close(); }
   });
 });

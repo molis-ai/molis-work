@@ -25,6 +25,9 @@ const declared = (manifest: PluginManifest, permission: string) => manifest.perm
  * records nothing, not even a failure. The scene must be one the Manifest declares (`plugin.scene_not_declared`), the subject must be of
  * this project and of a kind the scene declares, and the function key is made from the function the plugin names, never passed.
  * The ledger is the Home's Functions library: a row commits there by itself and is not part of the plugin's project transaction.
+ * A row is keyed by the installation that recorded it, not by the scene id (a scene id only says who declared it first): the installation id
+ * is made from the plugin id and the publisher's signature (`installIdentity`), so another plugin that later declares the same scene id,
+ * or the same id signed by someone else, reads none of it, and it goes with the installation's data (`forgetInstallationRecords`).
  */
 export function pluginJudgmentsFor(manifest: PluginManifest, context: PluginStartContext, ports: PluginJudgmentsServicePorts): PluginJudgmentsClient | undefined {
   const scenes = manifest.action_scenes ?? [];
@@ -39,7 +42,7 @@ export function pluginJudgmentsFor(manifest: PluginManifest, context: PluginStar
   return Object.freeze<PluginJudgmentsClient>({
     latest: sceneId => {
       gate.read(PLUGIN_JUDGMENTS_READ_PERMISSION); kindsOf(sceneId);
-      return ledger(service => service.latestSceneJudgments(ports.project_id, sceneId));
+      return ledger(service => service.latestSceneJudgments(ports.project_id, sceneId, context.install_id));
     },
     record: (input: PluginJudgmentInput) => {
       gate.write(PLUGIN_JUDGMENTS_WRITE_PERMISSION);
@@ -48,7 +51,7 @@ export function pluginJudgmentsFor(manifest: PluginManifest, context: PluginStar
       return ledger(service => service.recordSceneJudgment({
         function_key: publishedFunctionKey(input.function) ?? input.function.capability_id, function_version: input.function.version,
         subject: input.subject, scene_id: input.scene_id, scene_provenance: input.scene_provenance,
-        outcome: input.outcome, suggested_behavior_ids: input.suggested_behavior_ids, error_code: input.error_code,
+        outcome: input.outcome, suggested_behavior_ids: input.suggested_behavior_ids, error_code: input.error_code, install_id: context.install_id,
       }));
     },
   });

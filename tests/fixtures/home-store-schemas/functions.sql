@@ -10,7 +10,7 @@ CREATE TABLE function_judgments (
       suggested_json TEXT NOT NULL,
       error_code TEXT,
       created_at TEXT NOT NULL
-    , scene_provenance_json TEXT, recommended_actions_json TEXT);
+    , scene_provenance_json TEXT, recommended_actions_json TEXT, install_id TEXT);
 
 CREATE TABLE function_scene_bindings (
     scene_id TEXT NOT NULL,

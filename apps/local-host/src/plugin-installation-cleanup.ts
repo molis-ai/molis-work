@@ -1,5 +1,5 @@
 import { pluginErrors, type PluginInstanceRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { forgetDeclaredRulesIn } from "@molis-ai/molis-work-module-functions";
+import { forgetDeclaredRulesIn, forgetInstallJudgmentsIn } from "@molis-ai/molis-work-module-functions";
 import { forgetInstallationProjectBindings } from "./connector-plugin-requests.js";
 import { forgetInstallationOriginalFiles } from "./material-original-files.js";
 import { hostLog } from "./host-log.js";
@@ -10,14 +10,16 @@ import { removeSandboxOwnerFiles, type SandboxOwnerFilesScope } from "./plugin-s
  * An installation's authorization in this project (or its Home-level activation): original-file registrations, and in a project the
  * accounts bound to its records (BL-356). Every uninstall drops these even when private data is kept; a reinstall needs a new file
  * selection and binding. Files and accounts themselves stay. Installation slots and a Home installation's project bindings stay (BL-596).
- * The default rules the plugin declared are data, not authorization: they go only when the data goes (`dataGoes`, by default what the
- * record says; the discard of kept data says it does), never with an uninstall that keeps the data (RAC-503).
+ * The default rules the plugin declared and the judgments it recorded are data, not authorization: they go only when the data goes
+ * (`dataGoes`, by default what the record says; the discard of kept data says it does), never with an uninstall that keeps the data (RAC-503).
  */
 export function forgetInstallationRecords(scope: SandboxOwnerFilesScope, record: PluginInstanceRecord, dataGoes: boolean = !record.retain_private_data): void {
   if (!scope.home) return;
   forgetInstallationOriginalFiles(scope.home.directory, record.plugin_id, record.install_id, scope.project_id ?? "");
   if (scope.project_id) forgetInstallationProjectBindings(scope.home.directory, record.install_id, scope.project_id);
   if (dataGoes) forgetInstallationRules(scope.home.directory, record, scope.project_id ?? null);
+  // The judgments it recorded in this project are its data too (S-90); a Home-level activation records none.
+  if (dataGoes && scope.project_id) forgetInstallJudgmentsIn(scope.home.directory, record.install_id, scope.project_id);
 }
 
 /**

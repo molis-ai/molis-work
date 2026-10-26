@@ -96,13 +96,13 @@ export interface PluginJudgmentsClient {
 2. **项目取自调用，不接受别的项目。** `subject.project_id` 必须等于当前调用的项目，否则 `plugin.scope_mismatch`；`latest` 没有项目参数。
 3. **`record` 的作用域**（FI 设计 P2 的口径）：只在**可写**作用域里——自己场景的可写回调（`consume/failed`，作用域里 `scene` 是这个插件声明的、`read_only` 为假），或本安装正在跑的可写并行动作（`scheduling: "concurrent"`、非查询、动作在 `permissions` 里声明 `judgments:write`）。只读场景回调（`bindings/prepare/targets/availability`）、`query_only` 的调用、作业以外的游离调用、别的安装的动作，一律拒。`subject.kind` 必须在场景声明的 `subject_kinds` 里。
 4. **提交前认权。** 写之前调 `assertPluginActionCurrent(instance)`（同步，不跨 await）：取消、撤权、停用、换提供方之后不写，也不记失败账（硬约束与 S-35）。场景回调已结束（`actions.expired`）同样拒。
-5. **`latest` 是读**：任何作用域都可读，但只返回自己场景、当前项目；与 `attention` 的读一致。
+5. **`latest` 是读**：任何作用域都可读，但只返回自己场景、当前项目、本安装自己记的行；与 `attention` 的读一致。行以安装为主人（见 §7 的 FIX）。
 6. **`function_key` 由平台推出**（`publishedFunctionKey(input.function) ?? input.function.capability_id`，在 Functions 持有者那一侧），插件传不进。
 7. **删项目**：判断行随项目走 Functions 的 `project-data.ts` 已有清理，不改。
 
 ## 4. 已知限制：判断账不进项目事务
 
-判断账在 Home 的 Functions 库，插件的项目库事务在另一个 SQLite 文件里，两者**不能在同一次提交里**。`record` 在 Home 库自己提交，调用方在 `consume` 里的顺序是：先 `judgments.record`，再写项目库（入箱、日志）。项目库一步失败时，判断账那一行已经落了。这和今天一致（今天也是 Home 库先写、`recordCaptureJudgment` 在后），不是新退步；设计稿与 SI 行都不声称原子。落下的孤儿判断无害：采用判断前本来就核对 `scene_provenance`（绑定号与修订、函数、主体修订），对不上的不采用。若以后要原子，只有把两张表搬进项目库基线一条路（升基线版本、真实 Home 维护），不在本稿。
+判断账在 Home 的 Functions 库，插件的项目库事务在另一个 SQLite 文件里，两者**不能在同一次提交里**。`record` 在 Home 库自己提交，调用方在 `consume` 里的顺序是：先 `judgments.record`，再写项目库（入箱、日志）。项目库一步失败时，判断账那一行已经落了。这和今天一致（今天也是 Home 库先写、`recordCaptureJudgment` 在后），不是新退步；设计稿与 SI 行都不声称原子。采用判断前本来就核对 `scene_provenance`（绑定号与修订、函数、主体修订），对不上的不采用——但这只挡得住对象已不在、内容变了的孤儿行；对象仍在、内容没变、绑定仍在时，项目库回滚之后这一行照样被采用，只是插件自己该落的行不在（统筹 2026-10-26 更正，最初的“无害”说宽了）。所以插件不能把 `latest()` 当作自己的行已经落下的证据。若以后要原子，只有把两张表搬进项目库基线一条路（升基线版本、真实 Home 维护），不在本稿。
 
 这条限制要写进 SI 行（S-90 的「限制」列）和 `docs/platform/PLUGIN-DEVELOPMENT.md` 里 `services.judgments` 那一行。
 
@@ -155,4 +155,5 @@ export interface PluginJudgmentsClient {
 - **同步方法。** `latest`、`record` 与 `attention` 一样是同步的；停用的激活留在后台的代码调用，按 BL-411 不抛错、返回 `undefined`，测试按此断言。
 - **错误码。** 对象不属于当前项目用 `actions.scope_mismatch`（与 `services.scenes` 一致），不另起 `plugin.scope_mismatch`；种类不符用 `actions.forbidden`；场景不是自己的用 `plugin.scene_not_declared`。
 - **RAC-845 的“采用判断的核对”** 属于采用判断的插件（Feed、Inbox 的场景运行时，`scene_provenance` 复核），不在本服务；测试用 Feed 场景运行时自己的核对钉住它（登记册 R-60）：Home 库那一行在、项目库的行不在，这一行因对象不在、对象内容不是判断时那份而不被采用，同一行在一切仍成立时被采用，所以核对不是摆设。
+- **FIX（统筹 2026-10-26）：判断账按安装隔离。** 行带 `install_id`（Functions 库基线 v3→v4 加列，可空）；`latest` 只返回当前项目、本安装自己记的行，宿主自己记的行（`install_id` 为空）与别的安装的行同一场景号也不返回；`record` 写本安装的 `install_id`。选 `install_id` 而不是 `plugin_id`：它由插件 id 与发布者签名算出（`installIdentity`），重装不变，而同一插件 id 由别人签名得到另一个 id，所以“别人用同一个插件 id 冒领”也读不到。卸载清理走已有的 `forgetInstallationRecords`（不保留数据的卸载、丢弃保留的数据时删本安装在当前项目的行，保留数据的卸载不删），没有新服务。验收：RAC-850（卸载后另一个插件声明同一场景号读不到、账里的行仍在）、RAC-851（不保留数据的卸载与丢弃保留的数据删行，别的项目、宿主、别的插件的行不动）。库版本升级要真实 Home 维护（备份、副本演练、用户逐次同意），清单行已写进 spec §4.1；FI-6 把 Feed/Inbox 的存量判断行改成带 `install_id` 是 FI-6 自己的事（现在宿主的 Feed/Inbox 场景仍按 `install_id` 为空的行读写）。
 - **RAC-837 没做。** 一个只依赖 SDK 与 contracts、从包里装出来的外部写法插件，本片的测试用的是同一份 `PluginDefinition` 的内联探针插件（走同一个 Manifest、同一个平台装配），没有单独从 SDK 打包再装；这一条留给 FI-6 的 Feed/Inbox 迁移（它们就是外部写法的实例）。

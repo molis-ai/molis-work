@@ -6,6 +6,7 @@ export type { RecordJudgmentInput } from "./judgments.js";
 export type { DeclaredRuleSubject, DeclaredSceneRule, ForgottenDeclaredRules } from "./declared-rules.js";
 export { purgeFunctionsProject, functionsProjectData } from "./project-data.js";
 export { admitDeclaredRulesIn, forgetDeclaredRulesIn } from "./declared-rules-home.js";
+export { forgetInstallJudgmentsIn } from "./install-judgments.js";
 export { createFunctionsService, FunctionsService } from "./service.js";
 export type { FunctionsServiceOptions, TypeSafeProvider, TypeSafeEvaluateResult } from "./service.js";
 export { createTypeSafeProvider, type TypeSafeExecution, readAnswer, TYPESAFE_SYSTEMONE_URL } from "./provider.js";

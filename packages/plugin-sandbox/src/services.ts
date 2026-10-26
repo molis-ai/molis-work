@@ -97,7 +97,7 @@ export const SANDBOX_SERVICE_FATE: { readonly [Service in keyof PluginHostServic
   project_database: 'replaced', ui: 'drawn',
   database: 'entry', files: 'entry', terminal: 'entry', imageGeneration: 'entry',
   model: 'given', background: 'given', agents: 'refused', scheduler: 'refused', directory: 'refused',
-  notifications: 'refused', localTools: 'refused', attention: 'refused', contextLedger: 'refused', installations: 'refused', actions: 'refused', artifacts: 'refused', processItems: 'refused', events: 'refused', inputs: 'refused', outputs: 'refused',
+  notifications: 'refused', localTools: 'refused', attention: 'refused', contextLedger: 'refused', installations: 'refused', actions: 'refused', scenes: 'refused', judgments: 'refused', artifacts: 'refused', processItems: 'refused', events: 'refused', inputs: 'refused', outputs: 'refused',
 });
 
 export interface NotGiven {
@@ -154,6 +154,10 @@ export const SANDBOX_NOT_GIVEN: readonly NotGiven[] = [
     declared: (definition, held) => asksFor(definition, held, ['plugins:read']) },
   { service: 'actions', services: ['actions'], reason: 'Calling the actions of others (actions:delegate) is not given to sandboxed plugins: a sandboxed package is reached as the actions it declares and calls nothing back (PG-017 BL-494).',
     declared: (definition, held) => asksFor(definition, held, ['actions:delegate']) },
+  { service: 'scenes', services: ['scenes'], reason: 'Binding and running the plugin\'s own consumption scenes (scenes:use) is not given to sandboxed plugins: it asks the Host\'s judgment functions as the caller of a running action, which a sandboxed package does not have (PG-032 P1).',
+    declared: (definition, held) => asksFor(definition, held, ['scenes:use']) },
+  { service: 'judgments', services: ['judgments'], reason: 'Reading and recording the judgment ledger of the plugin\'s own scenes (judgments:read, judgments:write) is not given to sandboxed plugins: the ledger is the Home\'s Functions library, outside a sandboxed package\'s project data (PG-032 P2).',
+    declared: (definition, held) => asksFor(definition, held, ['judgments:read', 'judgments:write']) },
   { service: 'artifacts', services: ['artifacts', 'processItems', 'events', 'inputs', 'outputs'], reason: 'Project artifacts, process items, ports and events (artifacts, process_items, ports, events in the Manifest) are not given to sandboxed plugins yet (PG-017 BL-494).',
     declared: declaresCoordination },
 ];

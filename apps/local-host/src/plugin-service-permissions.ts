@@ -1,6 +1,8 @@
 import { PLUGIN_LOCAL_TOOLS_PERMISSION, type PluginHostServices } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PLUGIN_ATTENTION_READ_PERMISSION, PLUGIN_ATTENTION_WRITE_PERMISSION, PLUGIN_CONTEXT_LEDGER_READ_PERMISSION, PLUGIN_CONTEXT_LEDGER_WRITE_PERMISSION } from "@molis-ai/molis-work-contracts/platform/plugin-attention";
 import { PLUGIN_CONNECTIONS_PERMISSION } from "@molis-ai/molis-work-contracts/platform/plugin-connections";
+import { PLUGIN_SCENES_PERMISSION } from "@molis-ai/molis-work-contracts/platform/plugin-scenes";
+import { PLUGIN_JUDGMENTS_READ_PERMISSION, PLUGIN_JUDGMENTS_WRITE_PERMISSION } from "@molis-ai/molis-work-contracts/platform/plugin-judgments";
 import { ACTIONS_DELEGATE_PERMISSION } from "./plugin-action-delegation.js";
 import { DIRECTORY_READ_PERMISSION } from "./plugin-directory-service.js";
 
@@ -32,6 +34,8 @@ export const HOST_SERVICE_PERMISSIONS: { readonly [Service in keyof PluginHostSe
   attention: [PLUGIN_ATTENTION_READ_PERMISSION, PLUGIN_ATTENTION_WRITE_PERMISSION],
   contextLedger: [PLUGIN_CONTEXT_LEDGER_READ_PERMISSION, PLUGIN_CONTEXT_LEDGER_WRITE_PERMISSION],
   actions: [ACTIONS_DELEGATE_PERMISSION],
+  scenes: [PLUGIN_SCENES_PERMISSION],
+  judgments: [PLUGIN_JUDGMENTS_READ_PERMISSION, PLUGIN_JUDGMENTS_WRITE_PERMISSION],
   // Checked by the ports and artifact services of plugin-runtime (`services.ts`), which keeps its own copy of these two names.
   artifacts: ["artifact:read", "artifact:write"],
 });

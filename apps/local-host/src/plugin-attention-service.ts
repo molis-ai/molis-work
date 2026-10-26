@@ -9,7 +9,7 @@ import {
 import { attentionErrors, type AttentionEntryRecord } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { AttentionModule, type AttentionSqliteDatabase } from "@molis-ai/molis-work-module-attention-resumption";
-import { assertCapturedPluginActionCurrent, currentPluginInvocation, pluginInvocationReadOnly } from "@molis-ai/molis-work-plugin-runtime";
+import { assertCapturedPluginActionCurrent, currentPluginInvocation, pluginInvocationReadOnly, pluginSceneEffectPassed } from "@molis-ai/molis-work-plugin-runtime";
 import type { ContextLedgerDatabase } from "@molis-ai/molis-work-module-context-ledger";
 import type { ContextEdge } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import type { LocalSqliteJournal } from "@molis-ai/molis-work-storage";
@@ -28,17 +28,17 @@ export interface PluginProjectServicePorts {
   readonly journal: LocalSqliteJournal | undefined;
 }
 
-type Scope = ReturnType<typeof currentPluginInvocation>;
+export type Scope = ReturnType<typeof currentPluginInvocation>;
 
-interface Gate {
+export interface Gate {
   /** Whether the installation is still the running one and holds `permission`; the caller of an action, when there is one, is current. */
   read(permission: string): Scope;
-  /** The same, and a write: only inside this project's writable, concurrent action (or kept job) that itself declares `permission`. */
+  /** The same, and a write: only inside this project's writable, concurrent action (or kept job) that itself declares `permission`, or a writable callback of a scene that declares it and whose `beforeEffect` returned. */
   write(permission: string): NonNullable<Scope>;
 }
 
-/** The questions both services ask before every call, so a stopped, revoked, cancelled or read-only call reaches neither table. */
-function gateFor(context: PluginStartContext, projectId: string, assertActive: () => void, record: () => PluginInstanceRecord | null): Gate {
+/** The questions both services ask before every call, so a stopped, revoked, cancelled or read-only call reaches neither table; `services.judgments` asks the same ones (S-90). */
+export function gateFor(context: PluginStartContext, projectId: string, assertActive: () => void, record: () => PluginInstanceRecord | null): Gate {
   const generation = record()?.installation_generation;
   const holding = (permission: string) => {
     assertActive(); context.requireGrant(permission);
@@ -62,7 +62,12 @@ function gateFor(context: PluginStartContext, projectId: string, assertActive: (
         throw new ActionError("actions.forbidden", "写入需要当前项目中的可写插件调用");
       }
       assertCapturedPluginActionCurrent(scope, context);
-      if ("scene" in scope || "definition" in scope && (scope.definition.action.scheduling !== "concurrent" || !scope.definition.action.permissions.includes(permission))
+      // A scene callback writes (user decision 2026-10-26, S-88) when the scene itself declares the permission and the callback's own
+      // `beforeEffect` already returned; a read-only callback was refused above, and any other scene or a scene without the permission stays refused.
+      if ("scene" in scope) {
+        if (!scope.scene.permissions.includes(permission)) throw new ActionError("actions.forbidden", "写入需要场景自己声明了这项权限");
+        if (!pluginSceneEffectPassed(scope)) throw new ActionError("actions.forbidden", "场景回调写入前要先等 beforeEffect 通过");
+      } else if ("definition" in scope && (scope.definition.action.scheduling !== "concurrent" || !scope.definition.action.permissions.includes(permission))
         || "job" in scope && !scope.caller.permissions.includes(permission)) throw new ActionError("actions.forbidden", "写入需要声明了这项权限的可等待并行动作");
       return scope;
     },

@@ -166,11 +166,11 @@ test("judgment history keeps insertion order when multiple results share a times
         outcome: "ok", suggested_behavior_ids: [String(index)], error_code: null }));
       assert.equal(service.latestJudgment("feed_item", "same", "board", HOME_DOCK_SCENE_ID)!.judgment_id, records.at(-1)!.judgment_id);
       assert.deepEqual(service.listJudgments().map(record => record.judgment_id), records.reverse().map(record => record.judgment_id));
-      assert.deepEqual(service.latestSceneJudgments("board", HOME_DOCK_SCENE_ID).map(record => record.judgment_id), [records[0]!.judgment_id]);
+      assert.deepEqual(service.latestSceneJudgments("board", HOME_DOCK_SCENE_ID, null).map(record => record.judgment_id), [records[0]!.judgment_id]);
       service.recordSceneJudgment({ function_key: "other", function_version: 1, subject: { kind: "feed_item", id: "same", project_id: "foreign" },
         scene_id: HOME_DOCK_SCENE_ID, outcome: "ok", suggested_behavior_ids: [], error_code: null });
-      assert.deepEqual(service.latestSceneJudgments("board", HOME_DOCK_SCENE_ID).map(record => record.judgment_id), [records[0]!.judgment_id]);
-      assert.deepEqual(service.latestSceneJudgments("board", "different-scene"), []);
+      assert.deepEqual(service.latestSceneJudgments("board", HOME_DOCK_SCENE_ID, null).map(record => record.judgment_id), [records[0]!.judgment_id]);
+      assert.deepEqual(service.latestSceneJudgments("board", "different-scene", null), []);
     });
   } finally { await rm(home, { recursive: true, force: true }); }
 });

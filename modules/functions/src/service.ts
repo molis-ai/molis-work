@@ -218,8 +218,9 @@ export class FunctionsService {
     return this.store.listJudgments();
   }
 
-  latestSceneJudgments(projectId: string, sceneId: string): JudgmentRecord[] {
-    return this.store.latestSceneJudgments(projectId, sceneId);
+  /** The judgments one recorder made for a scene: a plugin installation, or the Host itself (`null`). */
+  latestSceneJudgments(projectId: string, sceneId: string, installId: string | null): JudgmentRecord[] {
+    return this.store.latestSceneJudgments(projectId, sceneId, installId);
   }
 
   latestJudgment(kind: JudgmentRecord["subject"]["kind"], id: string, projectId?: string, sceneId?: string | null): JudgmentRecord | null {

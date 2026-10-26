@@ -369,3 +369,25 @@ type SourcePullRequest =                       // 闭合：多一个字段就拒
 - 要改成「按点的人判断」，只有两条路：① 触发器合成一个 user 受众的调用者来看目录——后台触发器自造身份，违反「可信身份从调用上下文来」（S-43 的同一类问题），点的人在写入时也未知；② 放松 `record()` 对 `offer.action` 的授权检查——动的是动作服务的授权语义，不是 Feed 的事，得单独过安全评审。两条都不是「4e 顺手」的量，也都比「保持现状」更宽。
 - 保持现状的后果：Feed 安装未被授予 `inbox:write`（它的权限全是可选，由人授予）时，要 `inbox:write` 的动作不会进判断的候选；一条没有任何可推荐动作的条目，自动判断得到 `actions.subject_unavailable`，被触发器吞掉，不记判断。手动点「判断」（调用者是人）不受影响。**宿主版现在没有这个后果**（触发器是宿主身份）；它在 4e-3 翻转时才出现，所以界面说明（首页下一步空状态写明「自动判断只看 Feed 已被授予的动作，需要更多请到权限里授予或手动判断」）归 4e-3，不在这一片加。
 - 要走 ①/② 的话是平台的单独一片（动作服务的 offers 可用性语义），不属于 Feed 线；已写进 #1311 的汇报，由统筹决定要不要开。
+
+## 12. 第 4 步 4e-2 的设计（2026-10-26，读 `source-sync.ts`、`source-service.ts`、宿主的 `feed-source-service.ts` 后定；有一处要统筹确认）
+
+**缺口一：来源的「词汇」Feed 进 Runtime 后拿不到。** 宿主版的 `FeedSourceService` 由宿主注入 `providers`：RSS 目录（`listRegisterableFeeds`，也是平台传输的允许名单）、自定义 RSS 地址与 YouTube 频道的规范化、RSS 的 HTTP 游标（`readRssHttpState`、`withRssHttpSuccess/Failure`，游标格式与平台发条件请求读的是同一份）、Gmail 范围。它们在 `plugins/official-integrations/{rss,youtube,gmail}`，Feed 是插件，边界规则不许它导入另一个插件的实现（`plugin-upward-dependency` 之外的同类规则），自己抄一份会让目录与允许名单、游标格式出现两处。**推荐（4c-3）：这些纯函数由平台经 `services.sourcePull.vocabulary` 给，宿主用现有的集成包实现，Feed 一侧的 `FeedSourceProviders` 照旧同步，不改签名。** 只含纯函数、不联网、不写；权限沿用 `sources:pull_feed`；Gmail 范围是连接器来源的词汇，跟 `services.connections` 那一步（4e-2e）走，不放进这里。另一条路是把这些函数搬进 Feed 自己的包，但目录必须与平台的允许名单同源，游标格式必须与平台的条件请求同源，所以不推荐。
+
+**缺口二：写要全部走 `commit`，包括 await 之后的几处。** `PublicSourceSync` 里写的地方有五处（开始同步的运行行、失败的中断行、终态提交、RSS 故障的 Inbox 条目、`resolveSourceFaults`），其中三处在 `await` 之后；`ports.transaction` 现在是同步的。做法：端口改成 `commit<T>(operation: () => T): Promise<T>`，宿主版实现是 `async op => db.transaction(op).immediate()`（行为不变），Runtime 版是 `writer.commit(caller, op)`。判断队列（`flushPendingJudgments`）里判断的结果写回（分类、入箱）同样要走 `commit`，在 4e-2f。
+
+**缺口三：`hold` 要经 Home 账。** 先 hold 后写：`sourcePull.pull` 的 `hold` 回调里，项目实例经动作目录调 `feed.content.hold`（Home 实例），所以来源同步需要 `actions:delegate`，且 hold 的持有者是「项目 + 来源」。
+
+**4e-2 的小片（每片单独绿、单独推；翻转前宿主版 Feed 不变）：**
+
+| 片 | 内容 | 平台件 |
+| --- | --- | --- |
+| 4c-3 | `services.sourcePull.vocabulary`（目录、规范化、游标）；SI 行并入 S-93；`SANDBOX_SERVICE_FATE` 沿用 | 合同 + Runtime 客户端 + 宿主构造 |
+| 4e-2a | 来源管理动作（register/update/delete/schedule/enabled/disconnect）与 `createFeedSourceSyncLease` 进 `createFeedPlugin()`；这些是同步写，直接用 `writing()` | 无 |
+| 4e-2b | 公开来源 `sync`：`PublicSourceSync` 改用 `commit` 端口，拉取经 `sourcePull.pull` 并 `hold`，结果映射回 `IntelligenceCollectResult`；失败后调 `feed.content.reclaim`（4c-1 的条件①） | 无 |
+| 4e-2c | `tick` 用唤醒动作（`background.wakeups`）、研究库经 `repository.read` | 无 |
+| 4e-2d | 连接器同步（`services.connections`）与 `feed.connections.status`、`feed.goals.context` | 无 |
+| 4e-2e | 通知接收动作（`FEED_NOTIFICATION_ACTIONS`） | 无 |
+| 4e-2f | 三种判断触发器与判断队列的写回走 `commit`；`feed.content.receive` 改成一次提交（现在的手动投递来源 + 入条目不是原子的）；项目一半的 RAC-492/493/518 | 无 |
+
+**请统筹确认或另裁：** 缺口一用 4c-3（平台给词汇）还是把函数搬进 Feed。我先按推荐做 4e-2a（不依赖这个裁定），4c-3 等回复再动。

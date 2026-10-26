@@ -20,9 +20,9 @@ definePlugin 校验定义；definePollingIntegrationPlugin 把 Provider port 组
 
 存量处理器仍依赖固定用户的私人存储/成果 SDK 时，可用 `bindOwnerPluginAction` 明确限制真实调用者与 owner 一致。它返回可解释的不可用原因，不把 MCP/Agent 身份改为启动用户。处理器拿到 `beforeWrite()`，必须在外部等待后、保存之前调用；它重查原授权、项目启停、Runtime grant 和取消，并复用原 invocation 的 `beforeEffect` 与同步尾检，目录中的新登记不能替旧调用授权。此适配用于渐进迁移，不能据此宣称跨调用者接线完成；新业务处理器应直接以可信 `ActionCallContext` 处理归属。
 
-调用旧 Host Capability 后仍要创建审阅等副作用时，将 `before_effect` 放在 `capabilities.invoke(definition, input, { before_effect })` 的第三个参数中。Host 为服务处理器提供 `invocation.beforeEffect()`，服务在实际副作用前调用；它检查原授权、注册实例和调用是否仍有效。回调不是业务 input，不能接收自 HTTP/MCP JSON、序列化或保存在审阅记录中。审批后的实际执行继续由 Review owner 自己校验，不能复用已经结束的调用上下文。
+调用宿主动作后仍要创建审阅等副作用时，把原调用的控制（含 `beforeEffect`）放在 `services.actions.invoke(definition, input, control)` 的第三个参数中。动作服务为处理器提供 `beforeEffect()`，服务在实际副作用前调用；它检查原授权、注册实例和调用是否仍有效。回调不是业务 input，不能接收自 HTTP/MCP JSON、序列化或保存在审阅记录中。审批后的实际执行继续由 Review owner 自己校验，不能复用已经结束的调用上下文。
 
-`context.services.capabilities.availability(reference)` 只读检查 Manifest 已声明消费的宿主能力及版本。它查询同一个 Host 注册表，不执行 handler，也不打开项目实例；未声明、缺失或无法检查均有明确原因。它不代表给定参数必能执行，不替代实际调用的权限、目录及异步策略检查。`bindOwnerPluginAction` 的第四个参数可填写该动作必需的宿主能力引用，目录、调用和 `beforeWrite` 会共用检查。不要将所有可选消费能力一律当成每个动作的依赖，也不要将此旧 SDK 检查替代公共动作的 `required_actions` 权限依赖。
+`context.services.actions.availability(reference)` 只读检查 Manifest 已声明消费的宿主动作及版本（R8 删掉了 typed 的 `services.capabilities`，宿主动作与别的动作一样经 `services.actions.invoke` 调）。它查询同一个 Host 注册表，不执行 handler，也不打开项目实例；未声明、缺失或无法检查均有明确原因。它不代表给定参数必能执行，不替代实际调用的权限、目录及异步策略检查。`bindOwnerPluginAction` 的第四个参数可填写该动作必需的宿主能力引用，目录、调用和 `beforeWrite` 会共用检查。不要将所有可选消费能力一律当成每个动作的依赖，也不要将此旧 SDK 检查替代公共动作的 `required_actions` 权限依赖。
 
 嵌入其他插件的界面时，在 `ui.embedded_plugins` 声明其完整 Plugin ID。已启用父插件和其传递嵌入关系共用目录可用性规则，移除最后一个父入口后子能力也变为不可用；单独启用子插件仍有效。声明只表明使用关系，不安装新导航项、不授予调用权限，也不猜缺失插件。不要在 Host 再维护嵌入白名单。当前内置项目组合已使用该声明；第三方加载、通用场景和全部旧路由迁移仍以总迁移清单为准。
 
@@ -63,15 +63,25 @@ Manifest、定义与 Runtime 拒绝共用 `ActionError`；作者捕获 SDK 导�
 `@molis-ai/molis-work-plugin-sdk/diff-view` 把一处改动画成页面上的比较视图，Diff、Coding 和第三方插件用同一份（PG-062）。输入是通用的改动：`compareChange(group, sides, { before, after, created?, removed? })` 比两份全文，`compareHunks(group, sides, diff, …)` 读一段 unified diff，`emptyDiffView` 给还没有内容可比时的空态；得到的 `DiffView` 交给 `renderDiff({ view, labels, primitives, line_feedback?, fold_context?, sides? })` 画成 html。`parseUnifiedDiff`、`hunkRows`、`countChangedLines`、`unifiedPatch`（把画出的行写回可复制的补丁）也从这里取。
 
 - SDK 不带词。每个标签（两侧的标题、各条提示、行号上的评论按钮、行首符号的读屏文字、展开折叠的那一行）用调用方自己词表里的哪个键，由 `labels`（`DiffViewLabels`）给：`before`、`after` 填 `{path}`、`{version}`，`pinned` 填 `{workspace}`，两个评论标签填 `{number}`，`reveal` 填 `{count}`。头部的三个只在画头部时需要（`sides` 不为 false），不给就不画头部。
-- 转义、文字和图标都由调用方传进 `primitives`（`escape`、`text`、`icon`），SDK 自己不转义、不翻译、不画图标。插件一般传设计系统的 `escapeHtml`、`icon`，`text` 用 `diffViewText(messages, locale, templates)` 从自己的词表里取：带值的句子（包括 `parseUnifiedDiff` 拒绝时的三句）把键列进 `templates`，视图里写成中文的这类句子会先认出是哪一句，再按页面语言带着同样的值说出来。插件有自己的翻译函数时作为第四个参数 `say` 传入。词表照常在插件自己的 `messages` 里登记（翻译门禁要求每个键归它的主人）。
+- 转义、文字和图标都由调用方传进 `primitives`（`escape`、`text`、`icon`），SDK 自己不转义、不翻译、不画图标。插件一般传 SDK `/ui` 的 `escapeHtml`、`icon`，`text` 用 `diffViewText(messages, locale, templates)` 从自己的词表里取：带值的句子（包括 `parseUnifiedDiff` 拒绝时的三句）把键列进 `templates`，视图里写成中文的这类句子会先认出是哪一句，再按页面语言带着同样的值说出来。插件有自己的翻译函数时作为第四个参数 `say` 传入。词表照常在插件自己的 `messages` 里登记（翻译门禁要求每个键归它的主人）。
 - 这个子路径只加载 SDK 自己的文件和合同包，不需要任何第三方包；页面上的行号评论（`data-coding-line-side`、`data-coding-line`）、折叠（`data-diff-unfold`、`data-diff-folded`）与切换文件（`data-action="diff.show-file"`）这些属性的名字是合同的一部分，工作台的页面脚本按它们找元素。
 - 改动来自哪里、怎样合并多次写入（例如 Coding 的净改动）是插件自己的事，SDK 只比较和画。`tests/plugin-sdk-subpaths.test.ts` 的 PG062-08 核对只加载合同包，PG062-10 核对仓库里只有这一份比较和画法。
+
+## 界面部件子路径 `/ui`、`/browser`、`/page-globals`
+
+插件画界面的部件由 SDK 公开，内置插件、创作台生成的插件和第三方插件用同一套（PG-055，2026-10-18「插件同等待遇」）；插件不再 import 私有的 design-system（边界规则 `plugin-private-ui-dependency`，只有创作台例外）。
+
+- `@molis-ai/molis-work-plugin-sdk/ui`：纯字符串部件，数据进、HTML 出，不碰 DOM、不依赖任何包。`icon(name)`（名字表是 `PluginIconName`，一份名单，design-system 的图标表按它逐个画）、`renderPluginStageShell`（插件整页舞台的外壳）、`renderButton`、`renderStateRing` 与 `renderStatusMark`、`renderBadge`、`renderEmpty`、`renderAlert`、`renderToast`、输入类（`renderInput`、`renderField`、`renderCheckbox`、`renderSelect`、`renderSwitch` 等）、`renderCalendar` 与 `renderDatePicker`、目录与侧栏（`renderDirectoryPanel`、`renderDirectoryRow`、`renderSidebar` 等）、`processFold`（折叠样式文本）。`icon()` 只写一行引用 `<use href="#icon-名">`，图形在宿主页面带的图标雪碧图里，所以 SDK 不带图形数据。
+- `@molis-ai/molis-work-plugin-sdk/browser`：会被打进插件自己页面包的 DOM 工具，没有 import、不碰 Node。`placeFloating`、`placeOverlay`、`pinAt`（浮层放哪里）、`followScroll`、`scrollShouldFollow`（跟随滚动）。
+- `@molis-ai/molis-work-plugin-sdk/page-globals`：宿主往每个插件页面注入的全局（`window.molisReflow`、`molisShowMore`、`molisMediaZoom` 等）与页面端口（`InteractionClient`、`Reflow` 等）的类型。插件的浏览器文件用 `import type {} from "@molis-ai/molis-work-plugin-sdk/page-globals"` 纳入，运行时什么也不加载。
+- 标记和类名是合同：部件写出的 `mw-btn`、`data-slot`、`data-work-surface` 等由宿主的样式表和页面脚本定义，一个类名都不能没有规则。`tests/sdk-ui-markup.test.ts` 把每个部件用典型输入渲染一遍，收集类名，逐个核对宿主样式表里有规则（RAC-551）；公开形状进 `tooling/gates/api/plugin-sdk/` 的快照，改它走 `pnpm api:update` 并在 PR 里写对插件作者的影响。
+- 伙伴页面舞台（Files、Git、Diff、Text Stats 嵌进 Coding 页的那种）不在这里：四个插件各自用上面的部件写自己的舞台。
 
 ## 动作与判断消费场景
 
 `defineAction` 让同一份定义用于 manifest 的 `actions` 和运行实例的 `actions` 处理器。`action_scenes` 描述消费场景，运行实例的 `action_scenes` 提供 `bindings`、`bind`、`consume`；Runtime 激活时检查声明是否全部兑现。身份、输入输出、权限和作用域来自 contracts/platform/actions，声明本身不授予权限。
 
-`bind`、`consume`、`failed` 接收真实 `ActionSceneExecutionContext`。异步等待后、写入前调用 `await caller.beforeEffect()`，再原子核对 owner 的对象版本；它重新检查原调用者、取消、场景与判断注册及权限，回调返回或抛错后不能继续写入。`bindings`、`targets`、`prepare`、`availability`、`configuration_availability` 是只读回调，允许普通查询及查看原授权目录里的判断/写动作元数据，拒绝直接写入、嵌套写动作和付费查询；宿主从已注册目标读取操作与费用，不接受插件自报的替代值。场景经 `services.actions` 或 `services.capabilities` 发起嵌套调用时仍保留原场景控制。场景不是动作，不取得模型、后台执行或动作专属查询委托的资格。
+`bind`、`consume`、`failed` 接收真实 `ActionSceneExecutionContext`。异步等待后、写入前调用 `await caller.beforeEffect()`，再原子核对 owner 的对象版本；它重新检查原调用者、取消、场景与判断注册及权限，回调返回或抛错后不能继续写入。`bindings`、`targets`、`prepare`、`availability`、`configuration_availability` 是只读回调，允许普通查询及查看原授权目录里的判断/写动作元数据，拒绝直接写入、嵌套写动作和付费查询；宿主从已注册目标读取操作与费用，不接受插件自报的替代值。场景经 `services.actions` 发起嵌套调用时仍保留原场景控制。场景不是动作，不取得模型、后台执行或动作专属查询委托的资格。
 
 场景兼容性同时检查输入、输出语义及对象类型。判断能力的 `subject_kinds` 必须覆盖场景声明的全部对象；例如只能判断 `inbox_entry` 的能力不能绑定同时接收 `feed_item` 和 `inbox_entry` 的场景。不能用相同 JSON 形状代替对象适用性。发现、保存绑定及实际执行使用相同检查。
 
@@ -179,6 +189,7 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
   - 系统搜索的来源协议（`defineSearchEntriesAction`、`bindSearchEntriesHandler`）与 Host 用的是同一份合同，插件照此声明即可被搜到，不需要 Host 改名单。没有“查询时再搜”的来源（`defineSearchQueryAction` 已按决定 19 删除）。
   - 宿主自己运行的插件调模型用 `context.services.model`（类型 `PluginModelClient`、`PluginModelRequest`、`PluginModelResult`，限额 `PLUGIN_MODEL_LIMITS`），指令用 SDK 导出的 `defineInstructionPrompt`、`instructed`（W3-06 E）；插件在 `PluginDefinition.instructions` 里声明自己的指令，由 Host 在插件运行时统一登记，内置与安装的插件走同一条路。规则和错误码在 `packages/plugin-runtime` 与 `docs/platform/PROLOGUE-AI.md` 第 4 节，这里只导出类型和两个帮手。
   - 平台合同里给插件作者用的 `define…Action`、`bind…Handler`、`with…` 辅助函数都从这里导出：到期提醒、情境片段推荐、成果库的预览/固定/比较/继续/被引用、`withActionEffect`。新增一个辅助函数而没有导出，`tests/plugin-sdk-exports.test.ts` 会失败；确实不该给插件用的，在那个测试的 `NOT_FOR_PLUGINS` 里写明理由。
+- 改了公开导出：`pnpm build` 后跑 `pnpm api:update`，提交 `tooling/gates/api/`；改了动作的形状或声明：跑 `pnpm actions:update`，提交 `tooling/gates/actions/`（两份快照与源码不同，CI 失败；PR 里写对插件作者的影响，见 [CONTRACT-CHANGES](../../docs/system/CONTRACT-CHANGES.md)）。
 - 改动后必跑：`node scripts/run-tests.mjs tests/material-upload.test.ts tests/plugin-runtime-integration.test.ts tests/home-action-scenes.test.ts tests/plugin-artifact-client.test.ts tests/action-service.test.ts tests/execution-lifetime.test.ts tests/system-search.test.ts tests/plugin-sdk-exports.test.ts tests/plugin-declaration-rules.test.ts tests/plugin-manifest-v2.test.ts tests/builtin-manifests-contract.test.ts tests/side-panel-platform.test.ts tests/contextual-interaction.test.ts tests/work-placement.test.ts tests/action-error-model.test.ts tests/plugin-action-route.test.ts tests/plugin-sample.e2e.test.ts tests/action-cross-references.test.ts tests/action-artifact-references.test.ts tests/diff-plugin.test.ts tests/plugin-model-service.test.ts tests/action-availability-kind.test.ts tests/question-rules-consistency.test.ts tests/form-draft-questions.test.ts tests/action-cards.test.ts tests/assistant-card-outcomes.test.ts tests/assistant-interaction-html.test.ts tests/assistant-business-gateway.test.ts tests/plugin-sdk-subpaths.test.ts tests/feed-rich-content.test.ts tests/code-incremental-colour.test.ts tests/git-porcelain.test.ts tests/diff-patch.test.ts tests/companion-state-html.test.ts tests/coding-change-html.test.ts`
 - 授权尾检与消费者改动另跑：`node scripts/run-tests.mjs tests/mcp-effect-authority.test.ts tests/mcp-scene-effect-authority.test.ts tests/action-authority-tail.test.ts tests/plugin-owner-effect-fence.test.ts tests/action-before-effect.test.ts tests/functions-scene-configuration.test.ts tests/functions-effect-boundaries.test.ts`。
 - 相关手册：[skills/molis-plugin-dev/SKILL.md](../../skills/molis-plugin-dev/SKILL.md)、[docs/platform/PLUGIN-DEVELOPMENT.md](../../docs/platform/PLUGIN-DEVELOPMENT.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

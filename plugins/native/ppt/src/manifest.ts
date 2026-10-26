@@ -10,6 +10,8 @@ import { pptActions, PPT_ACTION_PERMISSIONS } from "./actions.js";
 import { pptContentActions } from "./content-actions.js";
 import { PPT_DATABASE } from "./database.js";
 
+import { PPT_MESSAGES } from "./messages.js";
+import { PPT_EN } from "./en.js";
 export { PPT_PLUGIN_ID, PPT_PROJECT_PLUGIN_ID };
 
 const PPT_BODY_BYTES = 1_000_000;
@@ -20,6 +22,7 @@ export const pptManifest: PluginManifest = {
   plugin_id: PPT_PLUGIN_ID,
   version: "0.3.0",
   name: "PPT",
+  summary: "写大纲，放映或导出 PowerPoint。",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-ppt-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
@@ -53,9 +56,11 @@ export const pptManifest: PluginManifest = {
     consumes: [],
   },
   ui: {
+    messages: PPT_MESSAGES,
+    translations: PPT_EN,
     contributions: [PPT_UI_CONTRIBUTION_ID],
     views: [
-      { view_id: "directory", slot: "navigator", title: "PPT", contribution_id: PPT_UI_CONTRIBUTION_ID, icon: "presentation", order: 59, group: "make",
+      { view_id: "directory", slot: "navigator", title: "PPT", contribution_id: PPT_UI_CONTRIBUTION_ID, icon: "presentation", hue: "red", order: 59, group: "make",
         creates: { station: "ppt", title: "演示稿" } },
     ],
   },

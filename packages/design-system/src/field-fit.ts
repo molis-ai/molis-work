@@ -18,11 +18,6 @@ export function fieldHeight(content: number, min: number, max: number) {
   return Math.min(Math.max(content, min), Math.max(min, max));
 }
 
-declare global {
-  /** `window.molisFit(field)`: fits a `data-fit` field again after its value was set by code (a draft put back). */
-  interface Window { molisFit?: (field: HTMLTextAreaElement) => void }
-}
-
 /** No grip on a field that sizes itself (over `.mw-textarea`'s), unless its page asks for one with a rule of its own. The
  * numbers are FIELD_FIT_MAX and FIELD_FIT_ROOM written out, so the fallback's bundle can leave the string behind. */
 export const FIELD_FIT_STYLES = `textarea[data-fit]{resize:none}:where(textarea[data-fit]){field-sizing:content;overflow-y:auto;min-height:calc(2lh + 16px);max-height:min(var(--fit-max,240px),40vh)}`;

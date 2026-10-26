@@ -1,4 +1,5 @@
-import { COPY_DONE_HOLD_MS, COPY_FAILED_HOLD_MS, type CopyLabels as Labels } from "../copy-decay.js";
+import type { CopyLabels as Labels } from "@molis-ai/molis-work-plugin-sdk/page-globals";
+import { COPY_DONE_HOLD_MS, COPY_FAILED_HOLD_MS } from "../copy-decay.js";
 
 /**
  * One copy feedback for every copy button (specs/visual-ui-experience §feedback-lifecycle, VUX-19): `window.molisCopy(button,

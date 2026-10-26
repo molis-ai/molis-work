@@ -13,10 +13,6 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    },
-    "./floating": {
-      "types": "./dist/floating.d.ts",
-      "import": "./dist/floating.js"
     }
   },
   "files": [
@@ -31,6 +27,7 @@
   },
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",
+    "@molis-ai/molis-work-plugin-sdk": "workspace:*",
     "lucide": "^1.31.0"
   },
   "molis-work": {

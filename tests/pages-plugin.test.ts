@@ -8,12 +8,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
+import { placeFloating, scrollShouldFollow } from "@molis-ai/molis-work-plugin-sdk/browser";
 import {
-  PERSONAL_PLUGIN_IDS,
-  PROJECT_SCOPED_PLUGIN_IDS,
-  pluginMarketCards,
-  pluginWorkbenchClientAsset,
-  railEntries,
+  pluginMarketCards, pluginWorkbenchClientAsset, railEntries,
 } from "@molis-ai/molis-work-app-workbench";
 import {
   PAGES_CLIENT_FACTORY_SCRIPT,
@@ -74,7 +71,6 @@ import {
   moveRow,
   moveSpan,
   nudgeSpan,
-  openPagesStore,
   pagesActions,
   addTableColumn,
   moveTableColumn,
@@ -106,9 +102,7 @@ import {
   outdentListItem,
   removeCodeIndent,
   pagesSchema,
-  placeFloating,
   scrollChildIntoView,
-  scrollShouldFollow,
   replaceEnclosingRow,
   revealHeading,
   headingIndexAt,
@@ -189,6 +183,7 @@ import {
   unwrapAtStart,
   unwrapColumns,
 } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { highlightRanges } from "@molis-ai/molis-work-plugin-pages/code-highlight";
 import { Fragment, Slice } from "prosemirror-model";
 import { EditorState, NodeSelection, TextSelection, type Command } from "prosemirror-state";
@@ -197,6 +192,8 @@ import {
   renderMolisWorkWorkbenchClientScript,
   type MolisWorkWebView,
 } from "./workbench-renderer-fixture.js";
+import { PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, builtinMarketDirectory } from "@molis-ai/molis-work-app-local-host";
+import { withHostPluginFacts } from "./fixtures/host-plugin-facts.js";
 
 const PROJECT = "project-pages";
 const OTHER = "project-other";
@@ -554,13 +551,13 @@ test("Pages 是个人插件，不进项目启用名单", () => {
   const entry = rail.find((item) => item.id === "pages");
   assert.equal(entry?.label, "Pages");
   assert.equal(entry?.glyph, "note");
-  const market = pluginMarketCards().find((card) => card.id === "pages");
+  const market = pluginMarketCards({}, builtinMarketDirectory()).find((card) => card.id === "pages");
   assert.equal(market?.personal, true);
   assert.equal(market?.copy, "写文档，可导出 Markdown / PDF。");
 });
 
 test("工作台 HTML 挂上 Pages 舞台和编辑器内核脚本", () => {
-  const owner = renderMolisWorkWeb(emptyView());
+  const owner = renderMolisWorkWeb(withHostPluginFacts(emptyView()));
   const html = owner + pluginDocuments(owner).join("\n");
   assert.match(html, /data-plugin-id="pages"/);
   assert.match(html, /data-pages="workbench"/);
@@ -727,7 +724,8 @@ test("阅读面没有粗左边线和后台表单顶栏", () => {
 test("工作台客户端保存不重挂内核", () => {
   const script = renderMolisWorkWorkbenchClientScript();
   assert.doesNotThrow(() => new Function(script));
-  assert.ok(script.includes(JSON.stringify(PERSONAL_PLUGIN_IDS)));
+  // Which market card is personal is the Host's mark on the card (W5-02 B1); the client keeps no list of its own.
+  assert.doesNotMatch(script, /PERSONAL_PLUGIN_IDS/);
   assert.doesNotMatch(saveFunctionSource(), /fillEditor/);
   assert.doesNotMatch(saveFunctionSource(), /setDoc/);
   assert.match(fillEditorSource(), /clearTimeout\(page\.saveTimer\)/);

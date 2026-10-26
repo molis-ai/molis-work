@@ -36,12 +36,13 @@ Directory candidates and browsing preferences come from the [current-project set
 - 负责：工作目录树与阅读器，发布有界的文本快照与选区。
 - 不负责：读目录本身（由 Host 提供）、文件系统授权、比较渲染。
 - 公开入口：`@molis-ai/molis-work-plugin-files`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
-- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-design-system`（伙伴舞台的外壳 `renderCompanionBrowserStage`）、`@molis-ai/molis-work-plugin-sdk`（`bindOwnerPluginAction`、`bindPluginActionRoute`）。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（`bindOwnerPluginAction`、`bindPluginActionRoute`）。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 插件自己不读目录，只经 Host 能力。
   - 快照有界并带版本，下游按 Artifact 类型消费，不指定生产者。
   - 自动刷新还没有端到端接通，不要假设内容已刷新。
 - 前端目录子树通过 Host 注入的 `mountPluginClient` 管理请求与监听；隐藏取消查询，重新进入读当前状态；已派出的写入不随切页重试。嵌入与独立页面共用此契约。
+- 页面的客户端是 `src/browser/` 下的 TypeScript：`tsconfig.browser.json` 做类型检查，构建时 esbuild 从 `src/browser/factory.ts` 打成 `dist/files-client.js`（banner/footer 包成 `(host, browser) => { … return browser }`，`--minify`）；`src/client.ts` 只读这个包。目录树、阅读器和选区各是 `tree.ts`、`reader.ts`、`page.ts` 里的部件，请求只经工作台的 `molisWorkRequest`，插件 id 取自 `host.pluginId`（`src/plugin-id.ts` 是 Manifest 与服务端共用的那一个值）。界面文字是 `src/messages.ts` 的稳定键，`tests/files-client-bundle.test.ts`（RAC-160、RAC-161）钉住。
 - 改动后必跑：`node scripts/run-tests.mjs tests/files-plugin.test.ts tests/files-product-http.test.ts tests/files-git-actions.test.ts tests/companion-client-lifecycle.e2e.test.ts`
 - 相关手册：[skills/molis-plugin-dev/elements.md](../../../skills/molis-plugin-dev/elements.md)、[docs/platform/PROJECT-SETTINGS.md](../../../docs/platform/PROJECT-SETTINGS.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
 

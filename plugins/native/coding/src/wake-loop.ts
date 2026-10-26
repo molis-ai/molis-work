@@ -14,7 +14,7 @@ import type { CodingSessionRecord } from "./store.js";
 import { codingActions, codingActionControl, codingJobWrite, type CodingBeforeWrite } from "./route-entry.js";
 import { holdReason, openWait, waitViewOf, wakeBodyOf, type CodingWaitView } from "./waits.js";
 
-type Capabilities = NonNullable<NonNullable<PluginStartContext["services"]>["capabilities"]>;
+type Capabilities = NonNullable<NonNullable<PluginStartContext["services"]>["actions"]>;
 
 interface CodingWakeDeps<Execution> {
   readonly context: PluginStartContext;
@@ -100,7 +100,7 @@ export function codingWakeLoop<Execution>(deps: CodingWakeDeps<Execution>) {
    * for nothing; the next `coding.state` read or round starts a loop again. A loop a request started keeps retrying.
    */
   const loop = async (control: PluginJobControl, execution: Execution, runtimeId: string, recovery: boolean) => {
-    const api = context.services!.capabilities!, pause = (ms: number) => rest(ms, undefined, { signal: control.signal, ref: false });
+    const api = context.services!.actions!, pause = (ms: number) => rest(ms, undefined, { signal: control.signal, ref: false });
     const held = new Set<string>();
     let served = false;
     // Transient read failures back off while the job runs; a Host without a task graph ends the loop.

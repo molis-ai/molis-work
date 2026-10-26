@@ -1,11 +1,23 @@
-import type { PluginDatabaseDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { HomePluginDatabaseDeclaration, PluginProjectRowsDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 
+/**
+ * What goes when a project is deleted, which the platform deletes from this library itself (PG-024): the todos placed in it go
+ * with their history, request receipts, what the organizer remembered about them and its review batches; personal todos name no
+ * project and stay.
+ */
+const TODO_PROJECT_ROWS: PluginProjectRowsDeclaration = { label: "放在这个项目里的待办", order: 60, tables: [
+  { table: "todo_changes", column: "item_id", parent: "todo_items" },
+  { table: "todo_requests", column: "item_id", parent: "todo_items" },
+  { table: "todo_source_memory", column: "item_id", parent: "todo_items" },
+  { table: "todo_batches", column: "project_id" },
+  { table: "todo_items", column: "project_id" },
+] };
 /**
  * The Todo library's one current schema (repository-anti-corruption §4.1), the organizer's tables included: new stores are
  * created from it, existing ones must already be at its version. The Runtime opens it for the plugin; tests and the project's
  * deletion open the same file with their own connection.
  */
-export const TODO_DATABASE: PluginDatabaseDeclaration = { store_name: "todo", version: 1, read_permission: "todo:read", write_permission: "todo:write", schema: `
+export const TODO_DATABASE: HomePluginDatabaseDeclaration = { project_rows: TODO_PROJECT_ROWS, store_name: "todo", version: 1, read_permission: "todo:read", write_permission: "todo:write", schema: `
   CREATE TABLE todo_items (
     id TEXT PRIMARY KEY,
     title TEXT NOT NULL,

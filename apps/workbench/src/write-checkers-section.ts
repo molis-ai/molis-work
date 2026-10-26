@@ -1,4 +1,5 @@
-import { escapeHtml, renderAlertDialog, renderButton, renderDialog, renderField, renderInput } from "@molis-ai/molis-work-design-system";
+import { escapeHtml, renderButton, renderField, renderInput } from "@molis-ai/molis-work-plugin-sdk/ui";
+import { renderAlertDialog, renderDialog } from "@molis-ai/molis-work-design-system";
 
 type Say = (text: string) => string;
 

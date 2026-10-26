@@ -10,10 +10,21 @@ import { MolisWorkLocalHost, installManagedConnectorTool, removeManagedConnector
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { openTestHome, serveTestHost } from "./fixtures/test-home.js";
 import { MCP_FIXTURE } from "./fixtures/mcp-notes-server.js";
+import { acquireStorageOwner } from "@molis-ai/molis-work-storage";
 
 const execute = promisify(execFile);
 const caller: ActionCallContext = { actor_id: "install-person", runtime_session_id: "install-session", audience: "agent", project_id: null, permissions: ["connectors:management:read", "connectors:management:write", "mcp:external"] };
 const control = { beforeEffect() {} };
+/** Observe only this isolated test process's real children; the ps probe itself is excluded. */
+function childProcessIds(): Promise<number[]> {
+  return new Promise((resolve,reject)=>{
+    const probe=execFile("ps",["-axo","pid=,ppid="],(error,output)=>{
+      if(error){reject(error);return;}
+      resolve(output.trim().split("\n").map(line=>line.trim().split(/\s+/).map(Number))
+        .filter(([pid,parent])=>parent===process.pid&&pid!==probe.pid).map(([pid])=>pid!));
+    });
+  });
+}
 async function registry(t: test.TestContext, home: string, kind: "npm" | "python", beforeDownload?: () => Promise<void>) {
   const filename = kind === "npm" ? "package.tgz" : "molis_install_fixture-1.2.3-py3-none-any.whl";
   const bytes = readFileSync(join(home, filename)); let origin = "", downloads = 0;
@@ -191,14 +202,22 @@ test("ASC-15 ASC-19 ASC-22: a failed MCP installation survives Host restart, ret
 
 
 test("ASC-19 ASC-25: closing the Host interrupts a protected-page package install and leaves no late connection or child", { timeout: 30_000 }, async t => {
+  // RAC-105-A-20: keep the Web open and the real npm download blocked; Host.close must break that dependency cycle.
   const home = await openTestHome(t), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   const input = await packagePlan(t, home.home, async () => { entered.resolve(); await release.promise; });
   const request = await home.host.homeActionClient().invoke(caller, connectorLocalActions.prepare, input) as { authorization_id: string };
+  const before=new Set(await childProcessIds());
   const running = home.web.post("/api/settings/connectors/methods/local/connect", { setup_id: request.authorization_id, environment: {} });
   const rejected = assert.rejects(running);
   try {
     await entered.promise;
+    const installers=(await childProcessIds()).filter(pid=>!before.has(pid));
+    assert.ok(installers.length>0,"a real installer process is blocked in the package download");
+    assert.throws(()=>acquireStorageOwner(join(home.home,"agent-runtime")),{code:"storage.owner.busy"});
     await home.host.close(); await rejected;
+    for(const pid of installers)assert.throws(()=>process.kill(pid,0),{code:"ESRCH"},"Host.close waits for the installer child to exit");
+    const released=acquireStorageOwner(join(home.home,"agent-runtime"));released.release();
+    release.resolve();await new Promise<void>(resolve=>setImmediate(resolve));
     assert.deepEqual(readdirSync(join(home.home, "runtime/connectors/installs")), []);
     assert.deepEqual(withConnectorConnections(home.home, store => store.list()), []);
   } finally { release.resolve(); }

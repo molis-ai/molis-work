@@ -1,4 +1,4 @@
-import { renderDirectoryPanel, renderDirectoryRow, type MolisWorkIcon } from "@molis-ai/molis-work-design-system";
+import { renderDirectoryPanel, renderDirectoryRow, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { renderAppearanceSettingsDocument } from "./settings-appearance.js";
 import { createProjectSettingsFolds, type ProjectSettingsFoldProject } from "./project-settings-folds.js";
 import { groupedGlobalSettingsSections } from "./settings-sections.js";
@@ -6,7 +6,7 @@ import { groupedGlobalSettingsSections } from "./settings-sections.js";
 export interface SettingsDirectoryPrimitives {
   L(text: string): string;
   escapeHtml(value: unknown): string;
-  icon(name: MolisWorkIcon): string;
+  icon(name: PluginIconName): string;
   htmlLang(): string;
   withDesktopQuery?(path: string): string;
 }
@@ -17,7 +17,7 @@ const PROJECT_SETTINGS_SECTIONS = [
   { id: "guidance", label: "项目说明", icon: "book" },
   { id: "memory", label: "记忆", icon: "bookmark" },
   { id: "knowledge", label: "项目资料", icon: "file" },
-] as const satisfies readonly { id: string; label: string; icon: MolisWorkIcon }[];
+] as const satisfies readonly { id: string; label: string; icon: PluginIconName }[];
 
 function localeSwitchHref(locale: "zh" | "en", nextPath: string): string {
   return `/locale?lang=${locale}&next=${encodeURIComponent(nextPath)}`;
@@ -52,7 +52,7 @@ export function renderPersonalMenuItems(primitives: SettingsDirectoryPrimitives)
 
 function renderSettingsNav(
   primitives: SettingsDirectoryPrimitives,
-  groups: readonly { group: string; sections: readonly { id: string; label: string; icon: MolisWorkIcon }[] }[],
+  groups: readonly { group: string; sections: readonly { id: string; label: string; icon: PluginIconName }[] }[],
   preset: string,
   label: string,
   pluginId: string,
@@ -76,12 +76,12 @@ function renderSettingsNav(
   });
 }
 
-export function renderSettingsDirectorySection(primitives: SettingsDirectoryPrimitives, enabled?: readonly string[], hidden?: readonly string[]): string {
+export function renderSettingsDirectorySection(primitives: SettingsDirectoryPrimitives, shown?: readonly string[]): string {
   const { L, icon } = primitives;
   return `<section class="plugin-section is-expanded" data-plugin-section="settings" data-plugin-expanded="true" hidden>
     <div class="immersive-plugin-link" aria-hidden="true">${icon("settings")}<span>${L("设置")}</span></div>
     <div class="plugin-section-body">
-      ${renderSettingsNav(primitives, groupedGlobalSettingsSections(enabled, hidden), "appearance", "系统设置", "settings")}
+      ${renderSettingsNav(primitives, groupedGlobalSettingsSections(shown), "appearance", "系统设置", "settings")}
     </div>
   </section>`;
 }

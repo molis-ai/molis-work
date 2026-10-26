@@ -1,6 +1,6 @@
 import { CODING_TIMELINE_STYLES } from "./timeline-styles.js";
-import { CODING_COMPOSER_MODEL_STYLES } from "./composer-model-client.js";
-import { CODING_PLAN_PROGRESS_STYLES } from "./plan-progress-client.js";
+import { CODING_COMPOSER_MODEL_STYLES } from "./composer-model-styles.js";
+import { CODING_PLAN_PROGRESS_STYLES } from "./plan-progress-styles.js";
 import { CODING_COMPOSER_BAR_STYLES } from "./composer-bar-styles.js";
 /** Layout only; controls, colors, and focus behavior use the shared system. */
 export const CODING_STYLES = `
@@ -584,12 +584,12 @@ ${CODING_COMPOSER_BAR_STYLES}
 .coding-change-body { padding:12px 12px 8px; }
 .coding-change-note { margin:0 24px 16px; font-size:12px; line-height:1.5; color:var(--faint); }
 .coding-change-body:empty { display:none; }
-[data-coding-change-reader] .diff .diff-notices { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 8px; }
-[data-coding-change-reader] .diff .diff-notices li { padding:4px 8px; border-radius:999px; background:var(--nav-hover); font-size:12px; line-height:1.6; }
-[data-coding-change-reader] .diff .diff-rows { --diff-bg:var(--paper); margin:0; padding:4px 0; border-radius:10px; font-size:12px; line-height:20px; }
-[data-coding-change-reader] .diff .diff-before,[data-coding-change-reader] .diff .diff-after { color:var(--faint); }
-[data-coding-change-reader] .diff [data-kind=insert] .diff-sign { color:var(--green); }
-[data-coding-change-reader] .diff [data-kind=delete] .diff-sign { color:var(--red); }
+[data-coding-change-reader] .mw-diff .mw-diff-notices { display:flex; flex-wrap:wrap; gap:8px; margin:0 0 8px; }
+[data-coding-change-reader] .mw-diff .mw-diff-notices li { padding:4px 8px; border-radius:999px; background:var(--nav-hover); font-size:12px; line-height:1.6; }
+[data-coding-change-reader] .mw-diff .mw-diff-rows { --diff-bg:var(--paper); margin:0; padding:4px 0; border-radius:10px; font-size:12px; line-height:20px; }
+[data-coding-change-reader] .mw-diff .mw-diff-before,[data-coding-change-reader] .mw-diff .mw-diff-after { color:var(--faint); }
+[data-coding-change-reader] .mw-diff [data-kind=insert] .mw-diff-sign { color:var(--green); }
+[data-coding-change-reader] .mw-diff [data-kind=delete] .mw-diff-sign { color:var(--red); }
 [data-coding-change-reader] [data-coding-line] { all:unset; box-sizing:border-box; display:block; width:100%; padding-right:4px; border-radius:4px; text-align:right; cursor:pointer; }
 [data-coding-change-reader] [data-coding-line]:hover { background:color-mix(in srgb,var(--blue) 14%,transparent); color:var(--blue); }
 [data-coding-change-reader] [data-coding-line]:focus-visible { outline:var(--focus-stroke); outline-offset:-2px; color:var(--blue); }
@@ -732,7 +732,7 @@ dialog[data-coding-integration-dialog] .mw-form__body { grid-template-columns:mi
 [data-coding-integration-files] > .coding-material > * { min-width:0; max-width:100%; }
 .coding-integration-diff { margin-top:8px; }
 .coding-integration-diff > summary { cursor:pointer; font-size:12px; color:var(--muted); }
-.coding-integration-diff .diff .diff-rows { margin:8px 0 0; max-height:360px; font-size:12px; line-height:20px; }
+.coding-integration-diff .mw-diff .mw-diff-rows { margin:8px 0 0; max-height:360px; font-size:12px; line-height:20px; }
 .coding-merge { display:grid; grid-template-columns:minmax(0,1fr); gap:8px; margin-top:8px; padding:12px; border:1px solid color-mix(in srgb,var(--amber) 40%,var(--line)); border-radius:10px; background:color-mix(in srgb,var(--amber) 5%,var(--paper)); }
 .coding-merge > p { margin:0; font-size:12px; color:var(--muted); }
 .coding-merge-editor { box-sizing:border-box; width:100%; max-width:100%; min-height:12rem; font:12px/1.6 var(--font-mono,ui-monospace,SFMono-Regular,Menlo,monospace); white-space:pre; overflow:auto; resize:vertical; }

@@ -7,10 +7,12 @@ import Database from "better-sqlite3";
 import type { ProjectPluginRegistry } from "@molis-ai/molis-work-contracts/modules/projects";
 import { ProjectsModule, createProjectsSchema } from "@molis-ai/molis-work-module-projects";
 
-/** What Projects is told exists: five plugins, and Inbox enabled with Feed (the Host derives the real one from its catalog). */
+/** What Projects is told exists: five plugins, Inbox enabled with Feed, and Goals 常开 (the Host derives the real one from its catalog,
+ * the install records and the consent ledger, ac-trust T3). */
 const shipped: ProjectPluginRegistry = {
   has: (pluginId) => ["goals", "todo", "inbox", "feed", "artifacts"].includes(pluginId),
   companions: (pluginId) => pluginId === "feed" ? ["inbox"] : [],
+  alwaysOn: () => ["goals"],
 };
 
 function openProjects(directory: string, plugins: ProjectPluginRegistry = shipped) {
@@ -40,6 +42,7 @@ test("a Plugin the registry knows can be enabled without touching the schema", (
     const registry: ProjectPluginRegistry = {
       has: (pluginId) => shipped.has(pluginId) || pluginId === "coding",
       companions: (pluginId) => shipped.companions(pluginId),
+      alwaysOn: shipped.alwaysOn,
     };
     const { db, projects } = openProjects(directory, registry);
     const project = createProject(projects, directory, "编码项目");

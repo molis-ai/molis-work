@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
@@ -41,8 +42,8 @@ test("real Home HTTP and capability library use installed plugin grants without 
   let stopImposter: (() => void) | undefined;
   try {
     const repository = await host.withProject(reference, projectRuntime => new SqlitePluginRuntimeRepository(projectRuntime.store.db));
-    runtime = new PluginRuntime(repository, undefined, { actions: { registry: host.actionRegistry(reference), project_id: reference.project_id } });
-    installId = runtime.install({ definition: plugin, deployment: "local", grants: [] }).install.install_id;
+    runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: host.actionRegistry(reference), project_id: reference.project_id } });
+    installId = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: [] }).install.install_id;
     await runtime.start(installId);
     const imposter = { ...definition, capability_id: "ungranted.same-permission" };
     stopImposter = host.actionRegistry(reference).registerProvider({ provider: { provider_id: "no-installation-grant", plugin_id: "io.molis.work.example.ungranted", title: "No grant", kind: "plugin" },
@@ -79,7 +80,7 @@ test("real Home HTTP and capability library use installed plugin grants without 
     await runtime.stop(installId); await runtime.uninstall(installId);
     const previousId = installId;
     const replacementPlugin = definePlugin({ ...plugin, manifest: { ...plugin.manifest, plugin_id: "io.molis.work.example.newcomer-replacement" } });
-    installId = runtime.install({ definition: replacementPlugin, deployment: "local", grants: ["newcomer:read"] }).install.install_id;
+    installId = runtime.install({ trust: { level: "unsigned" }, definition: replacementPlugin, deployment: "local", grants: ["newcomer:read"] }).install.install_id;
     await runtime.start(installId);
     assert.notEqual(installId, previousId);
     await assert.rejects(async () => local.validate_authority!(definition), { code: "actions.forbidden" });
@@ -107,8 +108,8 @@ test("scene-only plugins obtain local-user discovery and configuration from thei
     async start() { return { kind: "app", action_scenes: [{ ...scene,
       targets: () => [{ binding_id: "original-slot", title: "原审核位置", revision: null }], bindings: () => [], bind: () => {}, consume: () => ({}) }] }; } });
   const repository = await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db));
-  const runtime = new PluginRuntime(repository, undefined, { actions: { registry: host.actionRegistry(reference), project_id: reference.project_id } });
-  const installed = runtime.install({ definition: plugin, deployment: "local", grants: [...scene.permissions, ...scene.configuration_permissions] }).install;
+  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: host.actionRegistry(reference), project_id: reference.project_id } });
+  const installed = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: [...scene.permissions, ...scene.configuration_permissions] }).install;
   await runtime.start(installed.install_id);
   try {
     const caller = await localWebActionContext(host, reference, []);
@@ -141,11 +142,11 @@ test("a Runtime plugin registered under its plugin_id gets its local-user grants
     ui: { contributions: [] }, actions: [pluginRead] }, async start() { return { kind: "app", actions: [{ ...pluginRead, handle: () => "plugin" }] }; } });
   const repository = await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db));
   // The Host's rule for a plugin that ships with it: the plugin id, where an installation id would otherwise be.
-  const runtime = new PluginRuntime(repository, undefined, { actions: { registry: host.actionRegistry(reference), project_id: reference.project_id, providerId: record => record.plugin_id } });
+  const runtime = new PluginRuntime(repository, undefined, { hostIds: new Set([pluginId]), actions: { registry: host.actionRegistry(reference), project_id: reference.project_id, providerId: record => record.plugin_id } });
   // What the Host assembles by hand for the same plugin (Shelf has such providers), under the same id and with no installation behind it.
   const withdrawHost = host.actionRegistry(reference).registerProvider({ provider: { provider_id: pluginId, plugin_id: pluginId, title: "宿主", kind: "plugin", project_id: reference.project_id },
     definitions: [hostRead], handlers: [{ ...hostRead, handle: () => "host" }] });
-  const installId = runtime.install({ definition: plugin, deployment: "local", grants: ["shared:read"] }).install.install_id;
+  const installId = runtime.install({ trust: { level: "host" }, definition: plugin, deployment: "local", grants: ["shared:read"] }).install.install_id;
   await runtime.start(installId);
   try {
     const caller = await localWebActionContext(host, reference, []);
@@ -179,8 +180,8 @@ test("a scene-only plugin registered under its plugin_id obtains local-user disc
     async start() { return { kind: "app", action_scenes: [{ ...scene,
       targets: () => [{ binding_id: "original-slot", title: "原审核位置", revision: null }], bindings: () => [], bind: () => {}, consume: () => ({}) }] }; } });
   const repository = await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db));
-  const runtime = new PluginRuntime(repository, undefined, { actions: { registry: host.actionRegistry(reference), project_id: reference.project_id, providerId: record => record.plugin_id } });
-  const installed = runtime.install({ definition: plugin, deployment: "local", grants: [...scene.permissions, ...scene.configuration_permissions] }).install;
+  const runtime = new PluginRuntime(repository, undefined, { hostIds: new Set([plugin.manifest.plugin_id]), actions: { registry: host.actionRegistry(reference), project_id: reference.project_id, providerId: record => record.plugin_id } });
+  const installed = runtime.install({ trust: { level: "host" }, definition: plugin, deployment: "local", grants: [...scene.permissions, ...scene.configuration_permissions] }).install;
   await runtime.start(installed.install_id);
   try {
     const caller = await localWebActionContext(host, reference, []);
@@ -418,4 +419,33 @@ test("S-15 with images:read revoked from its installation, the Images jobs route
   const refused = await request(jobs);
   assert.deepEqual([refused.status, (await refused.json() as { code: string }).code], [403, "actions.forbidden"]);
   assert.equal((await request(`/api/plugins/${plugin}/connections`)).status, 200, "the connections read it still holds keeps working");
+});
+
+// PG-008 (RAC-651): the routes that bound a hand-written client (the 成果库's owner previews, project references, the Shelf settings,
+// project onboarding) now bind the person's client. The permissions a route names bound what it reaches of the Host's own providers;
+// they add nothing to a Runtime plugin's installation, which the hand-written client let through to the provider on the person's word.
+test("S-15 RAC-651 the permissions a route names reach a Runtime plugin's action only through its installation's grants", { timeout: 90_000 }, async t => {
+  const { host, project } = await serveHomeRuntime(t);
+  const { reference } = await project("路由写下的权限");
+  const definition = defineSubjectContextAction("capped.notes.context", "capped-note", "路由上限", ["capped:read"]);
+  let reads = 0;
+  const plugin = definePlugin({ manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.capped", version: "1.0.0", name: "路由上限",
+    kind: "app", publisher: { publisher_id: "example", signature: "example-capped" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
+    permissions: [{ permission: "capped:read", required: false, reason: "读取" }], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [definition] },
+    async start() { return { kind: "app", actions: [{ ...definition, handle: (_caller, input) => {
+      reads++; return subjectContext({ subject: { kind: "capped-note", id: (input as { subject_id: string }).subject_id }, revision: "1", title: "t", content: "正文", goal_ids: [] });
+    } }] }; } });
+  const repository = await host.withProject(reference, runtime => new SqlitePluginRuntimeRepository(runtime.store.db));
+  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: host.actionRegistry(reference), project_id: reference.project_id } });
+  const installId = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: [] }).install.install_id;
+  await runtime.start(installId);
+  try {
+    await assert.rejects(bindLocalWebActions(host, reference, ["capped:read"]).invoke(definition, { subject_id: "n" }), { code: "actions.forbidden" });
+    assert.equal(reads, 0, "the route's own gate refused it; the provider never ran");
+    await runtime.stop(installId);
+    runtime.grant(installId, ["capped:read"]);
+    await runtime.start(installId);
+    assert.equal((await bindLocalWebActions(host, reference, ["capped:read"]).invoke(definition, { subject_id: "n" }) as { content: string }).content, "正文");
+    assert.equal(reads, 1);
+  } finally { if (runtime.get(installId).state === "running") await runtime.stop(installId); }
 });

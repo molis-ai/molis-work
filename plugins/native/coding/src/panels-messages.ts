@@ -361,6 +361,7 @@ export const CODING_PANELS_MESSAGES = {
   "coding.step.see-insert": { zh: "见插入说明", en: "See the note on the inserted step" },
   "coding.step.run": { zh: "原执行 {run} · 固定计划修订 {revision}", en: "Run {run} · plan revision {revision}" },
   "coding.step.acceptance": { zh: "完成条件：{acceptance}", en: "Done when: {acceptance}" },
+  "coding.step.rework-reason": { zh: "原执行 {run} / 计划修订 {revision} / {step} 需返工：{notes}", en: "Run {run} / plan revision {revision} / {step} needs rework: {notes}" },
   "coding.step.owner": { zh: "负责：{owner}", en: "Held by: {owner}" },
   "coding.step.you": { zh: "你", en: "you" },
   "coding.step.no-reports": { zh: "尚无模型步骤回报。", en: "The model hasn't reported on this step yet." },

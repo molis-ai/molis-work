@@ -1,11 +1,10 @@
 import type {
   UiContribution,
-  UiContributionDescriptor,
+  UiContributionDeclaration,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
 
-import { renderCompanionListStage, type CompanionStageModel } from "@molis-ai/molis-work-design-system";
-
+import { renderCompanionListStage, type CompanionStageModel } from "./companion-stage.js";
 import type { TextStatsView } from "./core.js";
 
 export const TEXT_STATS_UI_CONTRIBUTION_ID = "io.molis.work.native.text-stats.ui.v1";
@@ -22,9 +21,8 @@ export interface TextStatsUiModel {
   readonly primitives: TextStatsUiPrimitives;
 }
 
-export const textStatsUiDescriptor: UiContributionDescriptor = {
+export const textStatsUiDescriptor: UiContributionDeclaration = {
   contribution_id: TEXT_STATS_UI_CONTRIBUTION_ID,
-  plugin_id: "io.molis.work.text-stats",
   kind: "embedded",
   navigation_id: "text-stats",
   label: "Text stats",

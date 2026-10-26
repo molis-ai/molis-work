@@ -1,26 +1,30 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdtemp, readFile, writeFile, rm } from 'node:fs/promises';
+import { copyFile, mkdtemp, readFile, readdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { AgentBuilderStore, type AgentRelease } from '@molis-ai/molis-work-plugin-builder';
 import { ActionService } from '@molis-ai/molis-work-kernel';
-import type { ActionDefinition, ActionExecutionPolicy } from '@molis-ai/molis-work-contracts/platform/actions';
+import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionDefinition, type ActionExecutionPolicy } from '@molis-ai/molis-work-contracts/platform/actions';
 import { PluginRuntime, SqlitePluginPrivateStorage, SqlitePluginRuntimeRepository } from '@molis-ai/molis-work-plugin-runtime';
+import type { PluginPackageBundle } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
-import { seedDemoBoard, DEMO_PROJECT_ID } from '@molis-ai/molis-work-app-local-host';
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from '@molis-ai/molis-work-app-local-host';
+import { seedDemoBoard, DEMO_PROJECT_ID, runningPluginDirectory } from '@molis-ai/molis-work-app-local-host';
+import { HomeConsentLedger, MolisWorkLocalHost, PLUGIN_INSTALL_PERMISSIONS, SandboxPackageStore, molisWorkHostProjectReference, pluginInstallActions } from '@molis-ai/molis-work-app-local-host';
 import { ensureInstalledPlugins, releaseInstalledPlugins } from '../apps/local-host/dist/installed-plugin-host.js';
 import { installedSignature, sandboxedPluginDefinition } from '../apps/local-host/dist/plugin-builder/installed.js';
 import { exposedActionId } from '../apps/local-host/dist/plugin-builder/exposed-actions.js';
 import { studioStorage } from '../apps/local-host/dist/plugin-builder/storage.js';
 import { buildManifest } from '../apps/local-host/dist/plugin-builder/build-project.js';
-import { scheduleServiceFor } from '@molis-ai/molis-work-app-local-host';
+import { scheduleServiceFor, withConnectorConnections } from '@molis-ai/molis-work-app-local-host';
+import { pluginBindingScope } from '@molis-ai/molis-work-service-connector-host';
 import { callAs, callerPlugin, issuedCaller, registerProbe, startProjectPlugins } from './fixtures/plugin-callers.js';
 import { agentDefinitionsFor } from '../apps/local-host/dist/agent-definitions/agent-definitions.js';
 import { builtinRegistrations } from '../apps/local-host/dist/agent-definitions/builtin-registrations.js';
+import { PACKAGE_PLUGIN_ID, newPublisher, signedPackage } from './fixtures/sandbox-package.js';
 
 const mac = { skip: process.platform !== 'darwin', timeout: 30_000 };
 const caller = { actor_id: 'owner', audience: 'user' as const, permissions: [], project_id: DEMO_PROJECT_ID };
@@ -47,8 +51,8 @@ async function publishedFixture(home: string, name: string, lookup = false, secr
     nodes: [], manifest: buildManifest(contract), permissions: { storage: ['read', 'write'], capabilities: ['schedules.add', ...(lookup ? ['fixture.lookup'] : [])],
       ...(secretRefs.length ? { networkDomains: ['api.example.test'], secretRefs } : {}) }, publishedAt: new Date().toISOString() };
   builder.release(release); storage.set('plugin-builder:agent-studio:approved:' + pluginId, JSON.stringify(release.permissions));
-  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db));
-  const { install } = runtime.install({ definition: sandboxedPluginDefinition(release, release.permissions, []), deployment: 'local', grants: ['storage:private'] });
+  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS });
+  const { install } = runtime.install({ trust: { level: "unsigned" }, definition: sandboxedPluginDefinition(release, release.permissions, []), deployment: 'local', grants: ['storage:private'] });
   if (neverInstalled) store.db.prepare('DELETE FROM plugin_runtime_installs WHERE install_id = ?').run(install.install_id);
   store.close();
   return { databasePath, release, install, draft: waiting, ref: molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID }) };
@@ -554,27 +558,35 @@ test('an install that fails over kept data does not undo the person\'s choice to
   } finally { await rig.host.close(); await rm(home, { recursive: true, force: true }); }
 });
 
-test('after an uninstall the newer published version can be installed again, with the kept data or without it', mac, async () => {
+test('RAC-609-UNINSTALL-01 after an uninstall the directory loses the real installation and a newer published version can be installed again, with the kept data or without it', mac, async () => {
   const home = await mkdtemp(join(tmpdir(), 'installed-reinstall-newer-'));
   await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   const fixture = await publishedFixture(home, 'project'), rig = await hostWithProject(home, fixture);
   const action = (release: AgentRelease, operation: string) => ({ capability_id: exposedActionId(release, operation), version: release.version, provider_id: 'plugin:' + release.pluginId });
   try {
     const installed = await rig.control(), client = rig.host.actionClient(fixture.ref);
+    const listed = () => runningPluginDirectory(installed.platform.supervisor).some(entry => entry.plugin_id === fixture.release.pluginId);
     await client.invoke(caller, action(fixture.release, 'save'), { value: 'kept across versions' });
+    assert.equal(listed(), true, 'the installed plugin is in the real Host directory before the uninstall');
     await installed.lifecycle('uninstall', fixture.release, { keepData: true });
+    assert.equal(installed.platform.runtime.get(fixture.install.install_id).state, 'uninstalled');
+    assert.equal(listed(), false, 'the next directory read after a retaining Host uninstall has no entry');
     assert.deepEqual(installed.installations(), []);
 
     const v2 = { ...fixture.release, version: 2 }; installed.releases.release(v2);
     await installed.lifecycle('install', v2, { consent: true });
     assert.deepEqual(installed.installations().map(({ state, version }) => ({ state, version })), [{ state: 'running', version: 2 }]);
+    assert.equal(listed(), true, 'the new installation returns to the directory');
     assert.equal(await client.invoke(caller, action(v2, 'read'), null), 'kept across versions', 'the data the uninstall kept is there for the new version');
     assert.equal(installed.platform.runtime.get(fixture.install.install_id).installation_generation !== fixture.install.installation_generation, true, 'it is a new installation');
 
     await installed.lifecycle('uninstall', v2, { keepData: false });
+    assert.equal(installed.platform.runtime.get(fixture.install.install_id).state, 'uninstalled');
+    assert.equal(listed(), false, 'dropping private data also leaves no entry on the next directory read');
     const v3 = { ...fixture.release, version: 3 }; installed.releases.release(v3);
     await installed.lifecycle('install', v3, { consent: true });
     assert.deepEqual(installed.installations().map(({ state, version }) => ({ state, version })), [{ state: 'running', version: 3 }]);
+    assert.equal(listed(), true, 'installing after data deletion returns the fresh installation to the directory');
     assert.equal(await client.invoke(caller, action(v3, 'read'), null), 'empty', 'deleted data stays deleted');
   } finally { await rig.host.close(); await rm(home, { recursive: true, force: true }); }
 });
@@ -583,7 +595,7 @@ test('a failing installed plugin is recorded with its own reason at startup, not
   const home = await mkdtemp(join(tmpdir(), 'installed-restore-error-')), databasePath = join(home, 'project.sqlite'); seedDemoBoard(databasePath);
   let store = new LocalProjectDatabase(databasePath);
   try {
-    const storage = studioStorage(store.db, DEMO_PROJECT_ID), builder = new AgentBuilderStore(storage), runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db));
+    const storage = studioStorage(store.db, DEMO_PROJECT_ID), builder = new AgentBuilderStore(storage), runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS });
     const installIdOf = (buildId: string) => 'plugin-install-' + createHash('sha256').update('io.molis.work.generated.' + buildId + '\u0000' + installedSignature(buildId)).digest('hex').slice(0, 32);
     // The plugin restored first also sorts first by plugin id, so the Supervisor's sorted failure list starts with it.
     let first = '', second = '';
@@ -600,7 +612,7 @@ test('a failing installed plugin is recorded with its own reason at startup, not
         design: { id: 'one', catalog: 'actions/1', title: 'Fixture ' + buildId.slice(-3), description: 'F', rationale: 'F', journey: [], contract, parts: [], acceptance: [] },
         nodes: [], manifest: buildManifest(contract), permissions: { storage: ['read'] }, publishedAt: new Date().toISOString() };
       builder.release(release); storage.set('plugin-builder:agent-studio:approved:' + pluginId, JSON.stringify(release.permissions));
-      runtime.install({ definition: sandboxedPluginDefinition(release, release.permissions, []), deployment: 'local', grants });
+      runtime.install({ trust: { level: "unsigned" }, definition: sandboxedPluginDefinition(release, release.permissions, []), deployment: 'local', grants });
       return pluginId;
     };
     const lacksGrant = await make(first, "export const operations={read:async()=>'empty'};", []);
@@ -688,3 +700,97 @@ for (const choice of ['catalog-failure', 'disable', 'disable-enable'] as const)
       }
     } finally { release.resolve(); await releaseInstalledPlugins(store, DEMO_PROJECT_ID); store.close(); await rm(home, { recursive: true, force: true }); }
   });
+
+test('S-71 RAC-471 uninstalling in one project takes the per_record bindings of that project only; the other project and the installation slot keep theirs', mac, async () => {
+  const home = await mkdtemp(join(tmpdir(), 'installed-connection-bindings-'));
+  const fixture = await publishedFixture(home, 'first'), copy = join(home, 'second.sqlite');
+  await copyFile(fixture.databasePath, copy);
+  // The same installation in two projects whose ids are a prefix pair: the anchored delete must tell them apart.
+  const projects = [DEMO_PROJECT_ID, DEMO_PROJECT_ID + '0'], stores = [fixture.databasePath, copy].map(path => new LocalProjectDatabase(path));
+  const install_id = fixture.install.install_id, pluginId = fixture.release.pluginId;
+  const bearer = 'fixture-bearer-value-for-s72';
+  const connection = withConnectorConnections(home, store => store.createToken({ serviceId: 'github', displayName: 'GitHub', token: bearer }));
+  const scopes = [...projects.map(project_id => pluginBindingScope({ install_id, project_id, record_key: 'src-1' })), pluginBindingScope({ install_id })];
+  for (const [index, scope] of scopes.entries()) {
+    withConnectorConnections(home, store => store.bind({ scopeId: scope, pluginId, slotId: index < 2 ? 'feed' : 'account', serviceId: 'github', connectionId: connection.connection_id }));
+  }
+  const left = () => scopes.filter((scope, index) => withConnectorConnections(home, store => store.binding(scope, pluginId, index < 2 ? 'feed' : 'account')) !== null);
+  try {
+    const [one, two] = await Promise.all(stores.map((store, index) => ensureInstalledPlugins({ store, projectId: projects[index]!, homeDirectory: home })));
+    await one.lifecycle('uninstall', fixture.release, { keepData: true });
+    assert.deepEqual(left(), [scopes[1], scopes[2]], 'the other project keeps its record binding and both keep the installation slot');
+    await two.lifecycle('uninstall', fixture.release, { keepData: false });
+    // Whether another project still installs it is only in each project's library, so the shared one stays for the person (BL-596).
+    assert.deepEqual(left(), [scopes[2]]);
+  } finally { for (const [index, store] of stores.entries()) { await releaseInstalledPlugins(store, projects[index]!); store.close(); } await rm(home, { recursive: true, force: true }); }
+});
+
+async function signedInstallFixture() {
+  const home = await mkdtemp(join(tmpdir(), 't2-first-install-'));
+  let host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
+  const databasePath = join(home, 'project.sqlite'); seedDemoBoard(databasePath);
+  const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
+  const ledger = new HomeConsentLedger(home), packages = new SandboxPackageStore(home);
+  const person = { actor_id: LOCAL_PERSON_ACTOR_ID, audience: 'user' as const, project_id: DEMO_PROJECT_ID, permissions: PLUGIN_INSTALL_PERMISSIONS,
+    user_action: { source: 'management' as const, conversation_ref: 't2-first:install', message_ref: 't2-first:confirm' } };
+  const confirm = async (bundle: PluginPackageBundle) => {
+    const client = host.actionClient(reference);
+    const preview = await client.invoke(person, { capability_id: pluginInstallActions.preview.capability_id, version: 1 }, { bundle }) as { preview_id: string };
+    return client.invoke(person, { capability_id: pluginInstallActions.confirm.capability_id, version: 1 }, { preview_id: preview.preview_id, consent: true, pin_label: 'Test publisher' });
+  };
+  const control = () => host.withProject(reference, runtime => ensureInstalledPlugins({ store: runtime.store, projectId: DEMO_PROJECT_ID, homeDirectory: home,
+    actions: { registry: host.actionRegistry(reference), client: { ...host.actionClient(reference), ...host.syncActionClient(reference) }, project_id: DEMO_PROJECT_ID } }));
+  await control();
+  return { home, reference, ledger, packages, confirm, control,
+    get host() { return host; }, async reopen() { await host.close(); host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null }); return control(); },
+    async close() { try { await host.close(); } finally { await rm(home, { recursive: true, force: true }); } } };
+}
+
+test('T2-FIX-02 a failed signed-package install keeps its pin and immutable package, but no installation can run, also after restart', mac, async () => {
+  const h = await signedInstallFixture(), publisher = newPublisher();
+  const bundle = signedPackage(publisher, files => { files['plugin.mjs'] = "throw new Error('T2 package startup failed');"; });
+  const confirm = () => h.confirm(bundle);
+  try {
+    await assert.rejects(confirm(), /安装没有完成/);
+    const pins = h.ledger.publishers();
+    assert.equal(pins.length, 1); assert.equal(pins[0]!.key_id, publisher.identity);
+    const directories = await readdir(join(h.home, 'plugin-packages'));
+    assert.equal(directories.length, 1);
+    const saved = join(h.home, 'plugin-packages', directories[0]!, 'bundle.json'), bytes = await readFile(saved);
+    const release = h.packages.load(PACKAGE_PLUGIN_ID, publisher.identity, '1.0.0');
+    const absent = async () => {
+      const installed = await h.control();
+      assert.deepEqual(installed.records().filter(row => row.plugin_id === PACKAGE_PLUGIN_ID), []);
+      assert.equal(installed.releaseFor(PACKAGE_PLUGIN_ID), undefined, 'a kept package alone is not an installed release');
+      await assert.rejects(installed.lifecycle('enable', release), /还没有安装/);
+      const actions = await h.host.actionClient(h.reference).discover(caller);
+      assert.ok(!actions.some(view => view.capability_id === exposedActionId(release, 'notes.list')), 'no action from the failed package is executable');
+    };
+    await absent();
+    await h.reopen(); await absent();
+    await assert.rejects(confirm(), /安装没有完成/);
+    assert.deepEqual(h.ledger.publishers(), pins, 'retry does not replace the person\'s pin');
+    assert.deepEqual(await readdir(join(h.home, 'plugin-packages')), directories, 'retry reuses the immutable package directory');
+    assert.deepEqual(await readFile(saved), bytes); await absent();
+  } finally { await h.close(); }
+});
+
+test('T2-FIX-05 pinned upgrade and rollback return plugin.state_invalid without changing the installation, approval, pin or package', mac, async () => {
+  const h = await signedInstallFixture(), publisher = newPublisher(), bundle = signedPackage(publisher);
+  try {
+    await h.confirm(bundle);
+    const installed = await h.control(), release = h.packages.load(PACKAGE_PLUGIN_ID, publisher.identity, '1.0.0');
+    const records = () => installed.platform.runtime.list().filter(row => row.plugin_id === PACKAGE_PLUGIN_ID);
+    const before = records(), approvalKey = 'plugin-builder:agent-studio:approved:' + PACKAGE_PLUGIN_ID;
+    assert.equal(before[0]!.state, 'running', 'the package is genuinely installed and started before the refusals');
+    const approval = installed.storage.get(approvalKey), pins = h.ledger.publishers(), bytes = await readFile(release.bundlePath);
+    for (const action of ['upgrade', 'rollback'] as const) {
+      const verb = action === 'upgrade' ? '升级' : '回滚';
+      await assert.rejects(installed.lifecycle(action, release, { consent: true }), error => error instanceof ActionError
+        && error.code === 'plugin.state_invalid' && error.message === '从签名的包装进来的插件还不能' + verb + '：先卸载，再装新的包');
+      assert.deepEqual(records(), before); assert.equal(installed.storage.get(approvalKey), approval);
+      assert.deepEqual(h.ledger.publishers(), pins); assert.deepEqual(await readFile(release.bundlePath), bytes);
+      assert.equal(installed.releaseFor(PACKAGE_PLUGIN_ID)?.packaged?.manifest.version, '1.0.0');
+    }
+  } finally { await h.close(); }
+});

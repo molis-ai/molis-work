@@ -1,10 +1,9 @@
-import { escapeHtml } from "@molis-ai/molis-work-design-system";
+import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {
   type ScheduleUiModel,
   type ScheduleUiPrimitives,
   type ScheduleUiSurface,
 } from "@molis-ai/molis-work-plugin-schedule";
-import { icon } from "@molis-ai/molis-work-design-system";
 import { renderScheduleContribution } from "./ui-composition.js";
 import type { MolisWorkWebView } from "./page-view.js";
 

@@ -1,10 +1,9 @@
 import type {
   UiContribution,
-  UiContributionDescriptor,
+  UiContributionDeclaration,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
-import { icon, renderPluginStageShell } from "@molis-ai/molis-work-design-system";
-import { WORKFLOWS_PLUGIN_ID } from "./model.js";
+import { icon, renderPluginStageShell } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 export const WORKFLOWS_UI_CONTRIBUTION_ID = "io.molis.work.workflows.ui.v1";
 
@@ -19,9 +18,8 @@ export interface WorkflowsUiModel {
   readonly primitives: WorkflowsUiPrimitives;
 }
 
-export const workflowsUiDescriptor: UiContributionDescriptor = {
+export const workflowsUiDescriptor: UiContributionDeclaration = {
   contribution_id: WORKFLOWS_UI_CONTRIBUTION_ID,
-  plugin_id: WORKFLOWS_PLUGIN_ID,
   kind: "primary-page",
   navigation_id: "workflows",
   label: "workflows.page.title",

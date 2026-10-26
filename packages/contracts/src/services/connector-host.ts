@@ -141,19 +141,85 @@ export interface ConnectorDirectoryEntry {
 }
 
 /**
- * How the Host sends a person's credential to one connection service for a plugin (`services.connections`, S-57): the one origin it
- * is sent to, how it is written, and which kinds of connection hold a credential the Host can send (a CLI login keeps its secret in
- * the CLI). A plugin names the service; the origin and the scheme are the platform's.
+ * How the Host writes the saved credential on a request: `bearer` (`Authorization: Bearer …`), `bot` (`Authorization: Bot …`), `bare`
+ * (`Authorization: …`), `private-token` (`PRIVATE-TOKEN: …`), `x-figma-token` (`X-Figma-Token: …`), or `basic` (`Authorization: Basic …`
+ * of the email and the token saved together with the connection). Each is the one the service's own documentation asks for.
  */
-export interface ConnectorRequestService {
-  readonly origin: string;
-  readonly credential: "bearer";
-  readonly auth_methods: readonly ("token" | "oauth")[];
+export type ConnectorRequestCredential = "bearer" | "bot" | "bare" | "private-token" | "x-figma-token" | "basic";
+
+/**
+ * A service on each tenant's own origin (BL-595): a request goes only to the origin the bound connection was pinned to when it was made
+ * (the tenant its credential was checked on, `connector_connection_targets`), an `https://` origin under `domain`. An unbound slot, or a
+ * connection with no pinned origin, sends nothing. `gateway: "atlassian"`: an OAuth token is not accepted on the site itself, so the Host
+ * sends the same path to the Atlassian gateway of the site it was authorized for; the plugin still writes the site's URL.
+ */
+export interface ConnectorRequestTenant {
+  readonly domain: "salesforce.com" | "atlassian.net";
+  readonly gateway?: "atlassian";
 }
 
-/** The services a plugin's connection slot may name, GitHub first (spec repository-anti-corruption S0b-2, user decision 2026-10-20). */
+/**
+ * How the Host sends a person's credential to one connection service for a plugin (`services.connections`, S-57, S-69): the exact
+ * origins it is sent to (for a tenant's service, the origin pinned to the connection), how it is written for each kind of connection that
+ * holds a credential the Host can send (a CLI login keeps its secret in the CLI), and whether the Host may refresh that credential. A
+ * plugin names the service; all of this is the platform's.
+ */
+export interface ConnectorRequestService {
+  /** Exact origins (scheme, host, port): a request to any other is refused, bound or not. Empty for a tenant's service. */
+  readonly origins: readonly string[];
+  readonly tenant?: ConnectorRequestTenant;
+  /** One entry per kind of connection the Host sends: a bound connection of another kind is refused, not sent without its credential. */
+  readonly credential: { readonly token?: ConnectorRequestCredential; readonly oauth?: ConnectorRequestCredential };
+  /** `host`: the Host has a refresh path for this service's OAuth connections and alone may use it; `none`: sent as saved. */
+  readonly refresh: "host" | "none";
+}
+
+const BEARER = { token: "bearer", oauth: "bearer" } as const;
+
+/**
+ * The services a plugin's connection slot may name (spec repository-anti-corruption S0b-2, user decision 2026-10-20; extended by slice
+ * s57-connections-extension X1, user decision 2026-10-24; tenants' services and the other ways of writing a credential, BL-595 and that
+ * slice's §4.1). A service that signs requests, exchanges an app credential for its token first, or is reached through a CLI is not here.
+ */
 export const CONNECTOR_REQUEST_SERVICES: Readonly<Record<string, ConnectorRequestService>> = {
-  github: { origin: "https://api.github.com", credential: "bearer", auth_methods: ["token", "oauth"] },
+  github: { origins: ["https://api.github.com"], credential: BEARER, refresh: "host" },
+  gmail: { origins: ["https://gmail.googleapis.com"], credential: BEARER, refresh: "host" },
+  "google-calendar": { origins: ["https://www.googleapis.com"], credential: BEARER, refresh: "host" },
+  "google-drive": { origins: ["https://www.googleapis.com"], credential: BEARER, refresh: "host" },
+  outlook: { origins: ["https://graph.microsoft.com"], credential: BEARER, refresh: "host" },
+  onedrive: { origins: ["https://graph.microsoft.com"], credential: BEARER, refresh: "host" },
+  sharepoint: { origins: ["https://graph.microsoft.com"], credential: BEARER, refresh: "host" },
+  teams: { origins: ["https://graph.microsoft.com"], credential: BEARER, refresh: "host" },
+  dropbox: { origins: ["https://api.dropboxapi.com"], credential: BEARER, refresh: "host" },
+  box: { origins: ["https://api.box.com"], credential: BEARER, refresh: "host" },
+  notion: { origins: ["https://api.notion.com"], credential: BEARER, refresh: "host" },
+  slack: { origins: ["https://slack.com"], credential: BEARER, refresh: "host" },
+  zoom: { origins: ["https://api.zoom.us"], credential: BEARER, refresh: "host" },
+  vercel: { origins: ["https://api.vercel.com"], credential: BEARER, refresh: "host" },
+  // An OAuth connection reads its account on the dashboard origin; a token reads it on the API origin.
+  cloudflare: { origins: ["https://api.cloudflare.com", "https://dash.cloudflare.com"], credential: BEARER, refresh: "host" },
+  huggingface: { origins: ["https://huggingface.co"], credential: BEARER, refresh: "host" },
+  sentry: { origins: ["https://sentry.io"], credential: BEARER, refresh: "host" },
+  supabase: { origins: ["https://api.supabase.com"], credential: BEARER, refresh: "host" },
+  asana: { origins: ["https://app.asana.com"], credential: BEARER, refresh: "host" },
+  airtable: { origins: ["https://api.airtable.com"], credential: BEARER, refresh: "host" },
+  canva: { origins: ["https://api.canva.com"], credential: BEARER, refresh: "host" },
+  hubspot: { origins: ["https://api.hubapi.com"], credential: BEARER, refresh: "host" },
+  intercom: { origins: ["https://api.intercom.io"], credential: BEARER, refresh: "host" },
+  stripe: { origins: ["https://api.stripe.com"], credential: BEARER, refresh: "host" },
+  x: { origins: ["https://api.x.com"], credential: BEARER, refresh: "host" },
+  linkedin: { origins: ["https://api.linkedin.com"], credential: BEARER, refresh: "host" },
+  // On the tenant's own origin, pinned when the connection is made (BL-595); a token connection saves `instance|token` or `site|email|token`.
+  salesforce: { origins: [], tenant: { domain: "salesforce.com" }, credential: BEARER, refresh: "host" },
+  jira: { origins: [], tenant: { domain: "atlassian.net", gateway: "atlassian" }, credential: { token: "basic", oauth: "bearer" }, refresh: "host" },
+  confluence: { origins: [], tenant: { domain: "atlassian.net", gateway: "atlassian" }, credential: { token: "basic", oauth: "bearer" }, refresh: "host" },
+  // A token written another way than `Bearer` (s57-connections-extension §4.1); the same service's OAuth connection as its documentation asks.
+  discord: { origins: ["https://discord.com"], credential: { token: "bot", oauth: "bearer" }, refresh: "host" },
+  gitlab: { origins: ["https://gitlab.com"], credential: { token: "private-token", oauth: "bearer" }, refresh: "host" },
+  figma: { origins: ["https://api.figma.com"], credential: { token: "x-figma-token", oauth: "bearer" }, refresh: "host" },
+  linear: { origins: ["https://api.linear.app"], credential: { token: "bare", oauth: "bearer" }, refresh: "host" },
+  clickup: { origins: ["https://api.clickup.com"], credential: { token: "bare", oauth: "bearer" }, refresh: "host" },
+  monday: { origins: ["https://api.monday.com"], credential: { token: "bare", oauth: "bare" }, refresh: "host" },
 };
 
 /** A single account or API credential managed at Home scope. Never contains plaintext. */

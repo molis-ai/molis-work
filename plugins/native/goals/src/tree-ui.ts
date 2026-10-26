@@ -7,13 +7,13 @@ import { activeOutgoingDependsOn, findGoalTreeItem as findGoalView, goalWorkSati
 export const GOALS_TREE_UI_CONTRIBUTION_ID = "io.molis.work.native.goals.tree.v1";
 
 function createTreeRenderer(primitives: GoalsTreeUiPrimitives) {
-  const { translate: L, escapeHtml, currentLocale, listJoin, icon, renderStatus, renderActionStatus, renderVisibleGoalStatus, displayStatuses: GOAL_DISPLAY_STATUSES } = primitives;
+  const { translate: L, escapeHtml, listJoin, icon, renderStatus, renderActionStatus, renderVisibleGoalStatus, displayStatuses: GOAL_DISPLAY_STATUSES } = primitives;
   function renderGoalRootEntry(count: number, active: boolean): string {
     return `<button class="desktop-module-item${active ? " is-current" : ""}" type="button" data-work-surface-open="goal"${active ? ' aria-current="page"' : ""}>${icon("target")}<span><strong>Goals</strong><small>${L("{count} 个 Goal", { count: count })}</small></span>${icon("chevron-right")}</button>`;
   }
 function quotedGoalNames(names: string[]): string {
-  const quote = currentLocale() === "en" ? ["“", "”"] as const : ["「", "」"] as const;
-  return listJoin(names.map((name) => `${quote[0]}${name}${quote[1]}`));
+  const [open, close] = [L("goals.quote.open"), L("goals.quote.close")];
+  return listJoin(names.map((name) => `${open}${name}${close}`));
 }
 
 
@@ -255,7 +255,7 @@ export type GoalsTreeUiModel = { primitives: GoalsTreeUiPrimitives } & (
 export const GOALS_TREE_UI_SURFACES = { renderGoalRootEntry: "root-entry", renderGoalTree: "tree", renderTreeChrome: "chrome", renderGoalDirectory: "directory", renderGoalRefreshDirectory: "refresh", renderGoalStageList: "stage-list" } as const satisfies Record<keyof GoalsTreeRenderer, GoalsTreeUiModel["kind"]>;
 export const goalsTreeUiContribution: UiContribution<GoalsTreeUiModel> = {
   descriptor: {
-    contribution_id: GOALS_TREE_UI_CONTRIBUTION_ID, plugin_id: "io.molis.work.native.goals",
+    contribution_id: GOALS_TREE_UI_CONTRIBUTION_ID,
     kind: "embedded", label: "Goal Tree",
     surfaces: Object.values(GOALS_TREE_UI_SURFACES).map(surface_id => ({ surface_id, target_slot_id: "workbench.directory", format: "declarative-html" })),
     slots: [],

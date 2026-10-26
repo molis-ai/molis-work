@@ -16,7 +16,7 @@ import { createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 import { createDiffPlugin, DIFF_LABELS, DIFF_MESSAGES, DIFF_TEMPLATES, type DiffView } from "@molis-ai/molis-work-plugin-diff";
 import { diffViewText, renderDiff } from "@molis-ai/molis-work-plugin-sdk/diff-view";
-import { icon } from "@molis-ai/molis-work-design-system";
+import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { UiHost, UI_REQUEST_CLIENT_SCRIPT } from "@molis-ai/molis-work-ui-host";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { pluginActions, withFakeAgentHost } from "./fixtures/plugin-actions.js";
@@ -67,10 +67,10 @@ async function fixture(t: TestContext, markup: string, script: string, reply: (p
   const count = (key: string) => requests.filter(request => request === key).length;
   return { page, requests, aborted, blocked, pending, count };
 }
-/** Coding's bundle as the page mounts it on each of its surfaces: Coding's factory with Files' and Git's clients and the Host's reviews folded in. */
-const CODING_SURFACE_FACTORY = pluginSurfaceClients().find(client => client.id === "coding")!.factory;
-// A companion's reads go to `/api/plugins/io.molis.work.<plugin>/…`; the fixture serves them at `/<plugin>/…`.
-const companionHost = `root:document.querySelector('[data-companion]'),mountPluginClient:mount,translate:L,route:path=>path.replace('/api/plugins/io.molis.work.','/'),headers:()=>({}),openPlugin:()=>{} ,reviews:{show:(element,query,options)=>{
+/** A plugin's client as the page mounts it on its own surface: each companion is a bundle of its own. */
+const pageFactory = (id: string) => pluginSurfaceClients().find(client => client.id === id)!.factory;
+// A companion's reads go to its own plugin's routes (`host.pluginRoute`); the fixture serves them at `/<plugin>/…`.
+const companionHost = (name: string) => `root:document.querySelector('[data-companion]'),mountPluginClient:mount,translate:L,route:path=>path,pluginId:'io.molis.work.${name}',pluginRoute:path=>'/${name}'+path,headers:()=>({}),openPlugin:()=>{} ,reviews:{show:(element,query,options)=>{
   window.fixtureReviewShow ??= (${AGENT_REVIEW_CLIENT_FACTORY_SCRIPT})({mountPluginClient:mount,route:path=>path,headers:()=>({})});
   return fixtureReviewShow(element,query.runIds.map(run_id=>({run_id})),query.sessionId,query.workspaceId,query,
     {lifetime:mountedScopes.get(element.closest('[data-companion]')),signal:options?.signal});
@@ -88,7 +88,7 @@ test("GITREF-01 GITREF-03 Git refresh keeps current row identity and focus, upda
   let revision = 1, current = view("ws", ["note.md"]);
   const gates: Array<{ entered(): void; response: Promise<ReturnType<typeof view>> }> = [];
   const f = await fixture(t, `<section data-work-surface="git" data-companion="git">${renderGitBrowserDirectory(L)}${renderGitBrowserResult(L)}</section>`, `
-    const host={${companionHost}};window.boot=()=>(${CODING_SURFACE_FACTORY})(host);boot();
+    const host={${companionHost("git")}};window.boot=()=>(${pageFactory("git")})(host);boot();
   `, path => {
     if (path.endsWith("/view-revision")) return { revision: String(revision) };
     if (path.endsWith("/summary")) return { summary: null, workspace: current.workspace };
@@ -139,8 +139,8 @@ test("W2-18-DIFF-FILE-01: a real Coding frozen output selects distinct files and
     receipt: { review_id: "review-" + index, status: "approved", effect_settled: true, effect_error: null },
   }));
   const privateValues = new Map<string, string>();
-  // The fake Agent Host answers its actions (R8 batch 3) and the typed capabilities still left from one table.
-  const agentHost = withFakeAgentHost({ actions: pluginActions(store, DEMO_PROJECT_ID), capabilities: { async invoke<I, O>(definition: { capability_id: string }, _input: I): Promise<O> {
+  // The fake Agent Host answers its actions (R8 batch 3) from one table.
+  const agentHost = withFakeAgentHost({ actions: pluginActions(store, DEMO_PROJECT_ID), agentHost: { async invoke<I, O>(definition: { capability_id: string }, _input: I): Promise<O> {
     reads++; if (!readable) throw new Error("runtime unavailable after capture");
     // Like a Host whose runtime has no task graph: Coding's wake loop ends here instead of retrying in the background
     // (each retry would land on a later read, after the capture, when the run is slower than its 5 s back-off).
@@ -154,9 +154,8 @@ test("W2-18-DIFF-FILE-01: a real Coding frozen output selects distinct files and
     artifacts: new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: id => store.eventCursor(id) }),
     processItems: new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: id => store.eventCursor(id) }), ui: new UiHost(), home: null,
     privateStorageFor: () => ({ get: key => privateValues.get(key) ?? null, set: (key, value) => { privateValues.set(key, value); }, delete: key => privateValues.delete(key) }),
-    capabilities: agentHost.capabilities,
   });
-  const started = await platform.start([{ definition: createCodingPlugin(), bundled: true }, { definition: createDiffPlugin(), bundled: true }]);
+  const started = await platform.start([{ definition: createCodingPlugin(), trust: { level: "host" } }, { definition: createDiffPlugin(), trust: { level: "host" } }]);
   t.after(async () => { await platform.closeCoordination(); store.close(); await rm(directory, { recursive: true, force: true }); });
   assert.deepEqual(started.failed, []); assert.deepEqual(started.blocked, []);
   const dispatch = async (pathname: string, method: "GET" | "POST" = "GET", body?: unknown, query: Record<string, string> = {}) => {
@@ -182,8 +181,8 @@ test("W2-18-DIFF-FILE-01: a real Coding frozen output selects distinct files and
   };
   const previous = await fixedState(1);
   const f = await fixture(t, `<section data-work-surface="diff" data-companion="diff">${fixedMarkup}</section>`, `
-    const host={${companionHost}};
-    window.root=host.root;window.boot=()=>(${CODING_SURFACE_FACTORY})(host);boot();
+    const host={${companionHost("diff")}};
+    window.root=host.root;window.boot=()=>(${pageFactory("diff")})(host);boot();
   `, (_path, url) => { const index = Number(url.searchParams.get("change_index") ?? 0); indices.push(index); return fixedState(index); });
   if (!f) return;
   const { page, blocked, pending } = f;
@@ -208,8 +207,8 @@ for (const name of ["files", "git", "diff", "text-stats"]) {
     const body = name === "files" ? renderFilesBrowserDirectory(L) + renderFilesBrowserResult(L)
       : name === "git" ? renderGitBrowserDirectory(L) + renderGitBrowserResult(L) : fixedMarkup;
     const f = await fixture(t, `<section data-work-surface="${name}" data-companion="${name}">${body}</section>`, `
-      const host={${companionHost}};
-      window.root=host.root;window.boot=()=>(${CODING_SURFACE_FACTORY})(host);boot();
+      const host={${companionHost(name)}};
+      window.root=host.root;window.boot=()=>(${pageFactory(name)})(host);boot();
     `, path => {
       if (path.endsWith("/view-revision")) return { revision: "initial" };
       if (path.endsWith("/directory")) return { result: { outcome: "directory", entries: [{ name: "note.txt", kind: "file", path: ["note.txt"] }] } };
@@ -309,8 +308,8 @@ for (const name of ["files", "git"]) test(`${name} refreshes changed revisions, 
   let revision = 1;
   const markup = name === "files" ? renderFilesBrowserDirectory(L) + renderFilesBrowserResult(L) : renderGitBrowserDirectory(L) + renderGitBrowserResult(L);
   const f = await fixture(t, `<section data-work-surface="${name}" data-companion="${name}">${markup}</section>`, `
-    const host={${companionHost}};
-    window.boot=()=>(${CODING_SURFACE_FACTORY})(host);boot();
+    const host={${companionHost(name)}};
+    window.boot=()=>(${pageFactory(name)})(host);boot();
   `, path => {
     if(path.endsWith('/view-revision'))return {revision:String(revision)};
     if(path.endsWith('/directory'))return {result:{outcome:'directory',entries:[{name:'version-'+revision,kind:'file',path:['version-'+revision]}]}};
@@ -337,8 +336,8 @@ for (const name of ["files", "git"]) test(`${name} refreshes changed revisions, 
 test("SYS-50: a Git revision waits for the open difference, then refreshes without stranding its action", { timeout: 30_000 }, async t => {
   let revision = 1;
   const f = await fixture(t, `<section data-work-surface="git" data-companion="git">${renderGitBrowserDirectory(L)}${renderGitBrowserResult(L)}</section>`, `
-    const host={${companionHost}};
-    window.boot=()=>(${CODING_SURFACE_FACTORY})(host);boot();
+    const host={${companionHost("git")}};
+    window.boot=()=>(${pageFactory("git")})(host);boot();
   `, path => {
     if (path.endsWith("/view-revision")) return { revision: String(revision) };
     if (path.endsWith("/summary")) return { summary: null, workspace: { workspace_id: "ws" } };
@@ -371,8 +370,8 @@ for (const phase of ["reading", "shown"]) test(`SYS-51: a late Git decision pres
   const selected = (version: number) => ({ workspace_id: "ws", path: ["note.md"], side: version === 1 ? "worktree" : "index", revision: "r" + version,
     reference: { artifact_id: "fixed", version } });
   const f = await fixture(t, `<section data-work-surface="git" data-companion="git">${renderGitBrowserDirectory(L)}${renderGitBrowserResult(L)}</section>`, `
-    const host={${companionHost},reviews:{show:async(element,query,options)=>{window.decide=options.onDecision;}}};
-    window.boot=()=>(${CODING_SURFACE_FACTORY})(host);boot();
+    const host={${companionHost("git")},reviews:{show:async(element,query,options)=>{window.decide=options.onDecision;}}};
+    window.boot=()=>(${pageFactory("git")})(host);boot();
   `, path => {
     if (path.endsWith("/view-revision")) return { revision: "one" };
     if (path.endsWith("/summary")) return { summary: null, workspace: { workspace_id: "ws" } };

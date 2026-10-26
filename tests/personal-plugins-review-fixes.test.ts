@@ -4,10 +4,10 @@ import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { servePages } from "./fixtures/pages-runtime.js";
 import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MolisWorkLocalHost, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
-import { handleFunctionsHttp } from "@molis-ai/molis-work-app-local-host";
+import { handleFunctionsHttp, seedSceneRules } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
-import { mkdtemp, mkdir, readFile, rm, writeFile, stat } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, realpath, rm, writeFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -52,11 +52,13 @@ import { ensureProjectPlugins, releaseProjectPlugins } from "../apps/local-host/
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 import { seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { HOME_DOCK } from "./fixtures/home-dock-scene.js";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 
 async function withHome<T>(run: (home: string) => Promise<T>): Promise<T> {
-  const home = await mkdtemp(join(tmpdir(), "molis-work-review-fixes-"));
+  // The real path: the Home snapshot refuses a Home reached through a link (macOS puts tmpdir() under /var -> /private/var).
+  const home = await realpath(await mkdtemp(join(tmpdir(), "molis-work-review-fixes-")));
   try {
     return await run(home);
   } finally {
@@ -95,7 +97,7 @@ async function listenDispatcher(
 // W4-11: the Home's one store registry. The pinned list is what a Home holds today; a new store is added here on purpose.
 test("Home 存储登记列出全部个人库、讨论库 server/ 和 Home 里的其余数据", () => {
   assert.deepEqual(homeStores().stores.map(store => store.path).sort(), ["projects", "logs", "backups", "sessions", "shelf", "plugin-runtime", "plugin-libraries", "assistant",
-    "placement", "agent-definitions", "agent-declarations", "connectors", "runtime", "context-onboarding", "alchemist", "plugin-originals", "functions", "characters", "memory", "search", "knowledge", "feed", "server",
+    "placement", "agent-definitions", "agent-declarations", "connectors", "runtime", "context-onboarding", "alchemist", "plugin-originals", "plugin-directories", "functions", "characters", "memory", "search", "knowledge", "feed", "server",
     "issues", "cognia", "images", "jelly", "lingguang", "todo", "pages", "form", "dataset", "ppt", "workflows", "artifacts", "agent-runtime", "runtime-config-backups",
     "runtime-integrations", "runtime-integration-attempts", "browser", "plugin-builder", "plugin-files", "cache", "git-operation-details.json", "config/onboarding.json",
     "config/project-arrival.json", "config/mcp-tools.json", "config/external-mcp-tools.json", "config/connector-mcp-tools.json", "directory-access"].sort());
@@ -103,8 +105,8 @@ test("Home 存储登记列出全部个人库、讨论库 server/ 和 Home 里的
 
 test("uninstall --purge 会把登记的每个 Home 存储列入删除并真正删掉", async () => {
   await withHome(async (home) => {
-    const userHome = join(home, "user");
-    await mkdir(userHome, { recursive: true });
+    // The person's own home is outside the Home: an entry the Home does not own stops the purge (FIX19).
+    const userHome = await mkdtemp(join(tmpdir(), "molis-work-review-fixes-user-"));
     // Each registered store, written the way its owner writes it: a library file, a file, or a directory with something in it.
     const written = homeStores().stores.map(store => store.library ? homeStores().libraryPath(home, store)
       : /\.json$/u.test(store.path) ? join(home, ...store.path.split("/")) : join(home, store.path, "kept"));
@@ -117,7 +119,8 @@ test("uninstall --purge 会把登记的每个 Home 存储列入删除并真正�
     await rm(homeStores().libraryPath(home, ledger));
     const ledgerDb = new DatabaseSync(homeStores().libraryPath(home, ledger));
     ledgerDb.exec(ledger.library!.baseline.schema);
-    ledgerDb.prepare("INSERT INTO plugin_home_libraries VALUES (?, ?, ?, 1, ?, ?)").run("example.installed", "signature", "installed-notes", "digest", "2026-10-24T00:00:00.000Z");
+    ledgerDb.exec(`PRAGMA user_version = ${ledger.library!.baseline.version}`);
+    ledgerDb.prepare("INSERT INTO plugin_home_libraries VALUES (?, ?, ?, 1, ?, ?)").run("example.installed", "signature", "installed-notes", "0".repeat(64), "2026-10-24T00:00:00.000Z");
     ledgerDb.close();
     const installedLibrary = join(home, "installed-notes");
     await mkdir(installedLibrary, { recursive: true });
@@ -156,6 +159,7 @@ test("uninstall --purge 会把登记的每个 Home 存储列入删除并真正�
     });
     assert.equal(result.status, "purged");
     for (const file of written) await assert.rejects(stat(file), file);
+    await rm(userHome, { recursive: true, force: true });
   });
 });
 
@@ -230,9 +234,14 @@ test("客户端使用当前插件路径，保留的 Host 适配按合同改写",
   assert.match(FUNCTIONS_CLIENT_FACTORY_SCRIPT, /\/api\/functions/);
 });
 
+// BFTC-01: FI-2 seeds a rule when its scene registers, after the Host opens the Home; both seeding tests use the same contract input.
+const seedHomeDock = (home: string) => seedSceneRules(home, { provider_id: "test.declarer", title: "测试", kind: "system" }, [HOME_DOCK], { env: {}, credential: () => null });
+
 test("/api/plugins/functions 与 /api/functions 打到同一 handler", async () => {
   await withHome(async (home) => {
+    // The Host opens the Home first (a fresh Home adopts the current memory format), then registers its scenes.
     const dispatcher = await listenDispatcher(home);
+    seedHomeDock(home);
     try {
       const shortPath = await fetch(`${dispatcher.origin}/api/functions`);
       const platformPath = await fetch(`${dispatcher.origin}/api/plugins/functions`);
@@ -307,6 +316,7 @@ test("草稿 CAS：过期 updated_at 不能覆盖已写入的草稿、预览和�
 
 test("再次打开库不改已有 published 内置函数的 instructions", async () => {
   await withHome(async (home) => {
+    seedHomeDock(home);
     const functions = createFunctionsService({ home, credential: () => null });
     try {
       assert.ok(functions.getByKey(SYSTEM_HOME_DOCK_FUNCTION_KEY));
@@ -316,6 +326,8 @@ test("再次打开库不改已有 published 内置函数的 instructions", async
     const db = new DatabaseSync(homeSqlitePath(home, "functions"));
     db.prepare("UPDATE functions SET instructions = ? WHERE function_key = ?").run("用户改过", SYSTEM_HOME_DOCK_FUNCTION_KEY);
     db.close();
+    // The Host registers its scenes again on the next start; that seeds nothing over what the person changed.
+    seedHomeDock(home);
     const again = createFunctionsService({ home, credential: () => null });
     try {
       assert.equal(again.getByKey(SYSTEM_HOME_DOCK_FUNCTION_KEY)?.instructions, "用户改过");
@@ -412,7 +424,8 @@ test("Workbench 静态装配和实际 Runtime 贡献覆盖 catalog 的页面", a
       const { platform } = await ensureProjectPlugins({ store, ...openProjectVersionStores(store), projectId: DEMO_PROJECT_ID,
         actorId: "web-user", homeDirectory: home, actions: pluginActions(store, DEMO_PROJECT_ID) });
       assert.ok(platform, "Runtime 必须实际启动，不能仅将 app 插件从检查中排除");
-      const shipped = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.personal === true || Boolean(entry.summary));
+      // A plugin's market words are its Manifest's `summary` since W5-02 PR-B (B2); the registration no longer carries them.
+      const shipped = BUILTIN_PLUGIN_CATALOG.filter(entry => entry.personal === true || Boolean(entry.manifest.summary));
       const packed = new Set(BUILTIN_PLUGIN_WORKBENCH.map(pack => pack.project_plugin_id));
       for (const entry of shipped) {
         if (packed.has(entry.project_plugin_id)) continue;

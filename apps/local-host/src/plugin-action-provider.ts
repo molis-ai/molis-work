@@ -1,4 +1,5 @@
 import { ActionError, type ActionCallContext, type ActionClient, type ActionReference, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { assertPluginConsentActionEntry } from "./installed-plugin-consent-actions.js";
 
 /** Resolve the provider from this caller's real project directory, then pin that exact owner for the invocation. */
 export async function pluginActionProvider(client: ActionClient, caller: ActionCallContext, reference: ActionReference): Promise<string> {
@@ -8,6 +9,7 @@ export async function pluginActionProvider(client: ActionClient, caller: ActionC
 /** The one view of `reference` this caller's directory shows: what `pluginActionProvider` pins, with the action it pins. */
 export async function pluginActionView(client: ActionClient, caller: ActionCallContext, reference: ActionReference): Promise<ActionView> {
   caller.signal?.throwIfAborted();
+  assertPluginConsentActionEntry(caller, reference);
   const matches = (await client.discover(caller)).filter(view => view.capability_id === reference.capability_id && view.version === reference.version
     && (!reference.provider_id || view.provider.provider_id === reference.provider_id));
   caller.signal?.throwIfAborted();

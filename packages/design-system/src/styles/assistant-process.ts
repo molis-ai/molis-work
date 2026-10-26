@@ -1,4 +1,4 @@
-import { processFold } from "./disclosure.js";
+import { processFold } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /** The resident Assistant lives in the workbench bar (as in craft-finish.ts). */
 const A = "body.immersive-workbench:not([data-pane-embedded])";

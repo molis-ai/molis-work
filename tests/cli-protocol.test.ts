@@ -30,7 +30,7 @@ test("RAC-112: plugin dispatch keeps successful arguments and catches synchronou
   t.mock.method(console, "error", (message: string) => { errors.push(message); });
   t.mock.method(console, "log", (message: string) => { output.push(message); });
   const unused = async () => assert.fail("a plugin command must not invoke a different port");
-  const ports: CliCommandPorts = { plugin: unused, install: unused, service: unused, demo: unused, uninstall: unused, v1: unused };
+  const ports: CliCommandPorts = { home: unused, plugin: unused, install: unused, service: unused, demo: unused, uninstall: unused, v1: unused };
   const calls: string[][] = [];
   ports.plugin = async args => { calls.push(args); printCliLine("plugin result"); return 7; };
   assert.equal(await dispatchCli(["plugin", "list", "--json"], ports), 7);

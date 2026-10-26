@@ -6,6 +6,7 @@
  *
  * - `pageOf`: Where a loaded page was opened from. Pages that keep their state in the address (the open rule, a filter) read and update this; the cover remembers it, so a reload comes back to it.
  * - `ensureCapabilityScripts`: 能力's pages (the rules editor, MCP access, the Functions connection) bring scripts the workbench loads when first needed.
+ * - `ensureStyleSheets`: A plugin's settings page brings its own sheet (PG-070); the fetched page's head is dropped, so its links are put in this page's head, after the shared sheet, once.
  * - `bindEmbed`: Pages whose script reads where it was opened from (a Character's prompts, the diagnostics anchor) get the address the cover loaded, not the workbench's.
  * - `showNode`: A plugin's own surface shown as a settings page (角色) goes back where it lives, still bound.
  * - `loadSection (local sections)`: A section a plugin already renders in this page (角色) is shown as it is, with its state.
@@ -51,6 +52,19 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
       script.onerror = () => { capabilityScripts = null; script.remove(); reject(new Error(L("请稍后重试"))); };
       document.head.append(script);
     });
+  const stylesheets = new Set();
+  const ensureStyleSheets = (html) => {
+    const sources = [...new Set([...html.matchAll(/<link\\b[^>]*>/g)].map((tag) => /href="([^"]*\\.css)"/.exec(tag[0])?.[1]).filter((href) => href?.includes("/assets/molis-work-plugins/")))];
+    return Promise.all(sources.map((href) => new Promise((resolve) => {
+      if (stylesheets.has(href) || document.querySelector('link[rel="stylesheet"][href="' + href + '"]')) return resolve();
+      const link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = href;
+      link.onload = () => { stylesheets.add(href); resolve(); };
+      link.onerror = () => { link.remove(); resolve(); };
+      document.head.append(link);
+    })));
+  };
   let sentFromPage = false;
   const modelReady = () => {
     const back = sentFromPage && host.closeCover?.();
@@ -63,6 +77,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
     const page = pageOf(root);
     globalThis.molisWorkBindPromptSettings?.(root, { search: root.dataset.settingsSearch || "", hash: root.dataset.settingsHash || "" });
     globalThis.molisWorkBindAssistantSettings?.(root);
+    globalThis.molisWorkBindLocalDirectorySettings?.(root, { search: root.dataset.settingsSearch || "" });
     globalThis.molisWorkBindMemorySettings?.(root);
     globalThis.molisWorkBindAgentDiagnostics?.(root);
     globalThis.molisWorkBindProjectIdentity?.(root);
@@ -182,6 +197,7 @@ export const SETTINGS_DIRECTORY_FACTORY_SCRIPT = `(host) => {
         const path = fetchPath || options.sectionPath(section);
         const html = await molisWorkRequest(path, { as: "text", headers: { Accept: "text/html" }, fallback: L("请稍后重试") });
         await ensureCapabilityScripts(html);
+        await ensureStyleSheets(html);
         if (loading !== request) return;
         loadFromHtml(section, html, fetchPath);
       } catch (error) {

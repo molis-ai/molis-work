@@ -11,6 +11,7 @@ import { FEED_UI_CONTRIBUTION_ID } from "./ui.js";
 import { FEED_PLUGIN_ID, FEED_CAPTURE_ARTIFACT_TYPE_ID, FEED_CAPTURE_SCHEMA_VERSION } from "./identity.js";
 import { feedArtifactPreview } from "./artifact-preview.js";
 import { FEED_PROJECT_DATABASE } from "./database.js";
+import { FEED_EN } from "./en.js";
 export { FEED_PLUGIN_ID } from "./identity.js";
 /** What the project database stores for this Plugin. */
 export const FEED_PROJECT_PLUGIN_ID = "feed";
@@ -28,6 +29,7 @@ export const feedManifest: PluginManifest = {
   plugin_id: FEED_PLUGIN_ID,
   version: "0.3.0",
   name: "Feed",
+  summary: "订阅来源，读消息，留下值得留的。",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-feed-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
@@ -43,9 +45,10 @@ export const feedManifest: PluginManifest = {
   databases: { project: FEED_PROJECT_DATABASE },
   action_scenes: [feedCaptureScene],
   ui: {
+    translations: FEED_EN,
     contributions: [FEED_UI_CONTRIBUTION_ID],
     views: [
-      { view_id: "directory", slot: "navigator", title: "Feed", contribution_id: FEED_UI_CONTRIBUTION_ID, icon: "rss", order: 40, accepts_objects: true },
+      { view_id: "directory", slot: "navigator", title: "Feed", contribution_id: FEED_UI_CONTRIBUTION_ID, icon: "rss", hue: "brown", order: 40, rail: "core", pinned_default: true, accepts_objects: true },
     ],
   },
 };

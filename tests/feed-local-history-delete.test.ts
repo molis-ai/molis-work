@@ -11,7 +11,7 @@ import {
   seedDemoBoard, type FeedSourceRuntime, type IntelligenceCollectRequest, type IntelligenceCollectResult,
 } from "@molis-ai/molis-work-app-local-host";
 import {
-  LOCAL_OPAQUE_BLOB_SCHEMA_SQL, LocalSqliteStorage, createEvidenceContentStore, createSearchOpaqueBlobStore, resolveFeedSecurityDirectory,
+  LOCAL_OPAQUE_BLOB_SCHEMA_SQL, LocalSqliteStorage, createEvidenceContentStore, createSearchOpaqueBlobStore, resolveHomeSecurityDirectory,
   resolveMolisWorkHome, runWithMolisWorkHome, type SecretStore,
 } from "@molis-ai/molis-work-storage";
 
@@ -29,7 +29,7 @@ function memorySecrets(): SecretStore {
 /** The Home's evidence store, as the Feed runtime and the deletion see it (the test runner gives each run its own Home). */
 const homeStore = () => createEvidenceContentStore();
 const bodyFiles = () => {
-  const blobs = join(resolveFeedSecurityDirectory(), "evidence", "blobs");
+  const blobs = join(resolveHomeSecurityDirectory(), "evidence", "blobs");
   return existsSync(blobs) ? readdirSync(blobs, { recursive: true, encoding: "utf8" }).filter((name) => name.endsWith(".blob")).sort() : [];
 };
 
@@ -297,6 +297,6 @@ test("when a project of the Home cannot be read nothing can be proven unreferenc
     }
     // The source's rows are gone either way; only the shared files wait for a deletion that can count every holder.
     assert.equal(service.feed.snapshot(DEMO_PROJECT_ID).sources.some((candidate) => candidate.source_id === source.source_id), false);
-    rmSync(join(resolveFeedSecurityDirectory(), "evidence"), { recursive: true, force: true });
+    rmSync(join(resolveHomeSecurityDirectory(), "evidence"), { recursive: true, force: true });
   });
 });

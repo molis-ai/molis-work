@@ -1,4 +1,4 @@
-import { pluginActions, withFakeAgentHost } from "./fixtures/plugin-actions.js";
+import { PROJECT_SETTINGS_READS, pluginActions, withFakeAgentHost } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, readdirSync, readFileSync, rmSync } from "node:fs";
@@ -53,7 +53,7 @@ async function environment(runtimes: AgentRuntimeDescriptor[], catalog?: Charact
     references: () => library.query.listArtifacts(DEMO_PROJECT_ID, { artifact_type_id: CHARACTER_ARTIFACT_TYPE, schema_version: 1 }).map(({ artifact_id, version }) => ({ artifact_id, version })) }, catalog));
   const host = { store, ...openProjectVersionStores(store), homeDirectory: home, projectId: DEMO_PROJECT_ID, actions: project, actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
-    capabilities: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
+    agentHost: { async invoke<Input, Output>(definition: { capability_id: string }, args: Input): Promise<Output> {
       if (definition.capability_id === agent.listRuntimes.capability_id) return runtimes as Output;
       if (definition.capability_id === projectSettingsCapabilities.runtime.capability_id) return picked as Output;
       if (definition.capability_id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: home, realpath_verified: true }] as Output;
@@ -65,7 +65,7 @@ async function environment(runtimes: AgentRuntimeDescriptor[], catalog?: Charact
       if (definition.capability_id === agent.readSession.capability_id) return { runs: [] } as Output;
       throw new Error(`Unexpected capability ${definition.capability_id}`);
     } } };
-  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), withFakeAgentHost(host)).catch(error => { response.writeHead(500); response.end(String(error)); }); });
+  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), withFakeAgentHost(host, [], PROJECT_SETTINGS_READS)).catch(error => { response.writeHead(500); response.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const request = async (id: string, suffix: string, method = "GET", body?: unknown) => {

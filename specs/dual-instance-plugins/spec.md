@@ -4,7 +4,7 @@
 
 ## 1. 要解决的事
 
-Shelf 迁到 Plugin Runtime 时，用户已定「同一个 `plugin_id` 双实例」（不拆成两个插件）：Home 实例由 Home 监督器（`apps/local-host/src/home-plugins.ts`）装配，管个人数据；项目实例由项目监督器（`project-plugins.ts` 的启动名单）每个项目装配一个，读项目的成果和过程项。不拆 id，是因为已经钉死的引用都以 `plugin_id` 为键：MCP 授权、MCP 工具名、工作流步骤的精确引用、情境入口、搜索通知。
+Shelf 迁到 Plugin Runtime 时，用户已定「同一个 `plugin_id` 双实例」（不拆成两个插件）：Home 实例由 Home 监督器（`apps/local-host/src/home-plugins.ts`）装配，管个人数据；项目实例由项目监督器按同一份登记的 `project_runtime` 每个项目装配一个（PG-067 前是 `project-plugins.ts` 的启动名单），读项目的成果和过程项。不拆 id，是因为已经钉死的引用都以 `plugin_id` 为键：MCP 授权、MCP 工具名、工作流步骤的精确引用、情境入口、搜索通知。
 
 平台现在撑不起这件事，四处过不去：
 

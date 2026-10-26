@@ -126,7 +126,6 @@ tests/coding-changeset-http.test.ts
 tests/coding-checkers-settings.test.ts
 tests/coding-client-scripts.test.ts
 tests/coding-collab-handoff.test.ts
-tests/coding-commands.test.ts
 tests/coding-commit-draft.test.ts
 tests/coding-companion-inputs.test.ts
 tests/coding-continuation.test.ts
@@ -202,6 +201,9 @@ tests/feed-receive-chain.test.ts
 tests/feed-rich-content.test.ts
 tests/feed-sync-concurrency.test.ts
 tests/feed.test.ts
+
+# gmail
+tests/gmail-factory-boundaries.test.ts
 
 # goal
 tests/goal-decision-attention.test.ts
@@ -355,6 +357,7 @@ tests/creative-artifact-promote.test.ts
 tests/creative-tools-plugins.test.ts
 tests/cross-device-client.test.ts
 tests/demo-plugin-sample.test.ts
+tests/desktop-launch-args.test.ts
 tests/desktop-shell-bootstrap.test.ts
 tests/diff-plugin.test.ts
 tests/document-import-providers.test.ts
@@ -416,7 +419,6 @@ tests/search-references.test.ts
 tests/secret-store-format.test.ts
 tests/server-cli.test.ts
 tests/server-database-baseline.test.ts
-tests/shelf-cli-probe.test.ts
 tests/shelf-job-runner.test.ts
 # PG-026-S1-S3-8: original registration failure keeps the copy; changed originals refuse processing.
 tests/shelf-original-feedback-http.test.ts
@@ -473,5 +475,7 @@ tests/declared-stages.test.ts
 # W5-16 RAC-104: original Runtime configuration recovery and read-only credential preflight through production owners.
 tests/security-invariants-runtime-backups.test.ts
 tests/security-invariants-secret-snapshot.test.ts
+# W5-16 RAC-105-A: real process exclusion, owner capability refusal and crash/release recovery.
+tests/security-invariants-home-storage-owner.test.ts
 # W5-06 RAC-75～78: view placement declarations are checked by the SDK and read by the rail, settings, creates and starts.
 tests/view-placement-declarations.test.ts

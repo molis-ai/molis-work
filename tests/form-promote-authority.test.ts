@@ -6,7 +6,8 @@ import test from "node:test";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createPluginPlatform, DEMO_PROJECT_ID, homeStores, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
-import { createFormPlugin, FORM_PLUGIN_ID, formActions, openFormStore } from "@molis-ai/molis-work-plugin-form";
+import { createFormPlugin, FORM_PLUGIN_ID, formActions } from "@molis-ai/molis-work-plugin-form";
+import { openFormStore } from "./fixtures/plugin-home-stores.js";
 import { homeStoreRegistry } from "@molis-ai/molis-work-storage";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
@@ -43,7 +44,7 @@ async function promotion(stage: Stage | "none", failure: Failure) {
   const seed = openFormStore(home), form = seed.create({ project_id: DEMO_PROJECT_ID, title: "Authority" });
   seed.close();
   try {
-    assert.deepEqual((await platform.start([{ definition: createFormPlugin(), bundled: true }])).running, [FORM_PLUGIN_ID]);
+    assert.deepEqual((await platform.start([{ definition: createFormPlugin(), trust: { level: "host" } }])).running, [FORM_PLUGIN_ID]);
     const controller = new AbortController(), trigger = stage === "none" ? undefined : STAGES[stage];
     let revoked = false, replaced = false, waits = 0, armed = false, fired = false;
     const fail = () => { fired = true; if (failure === "cancel") controller.abort(); else if (failure === "replace") replaced = true; else revoked = true; };

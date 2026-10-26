@@ -1,4 +1,4 @@
-import { shownProjectPlugins } from "@molis-ai/molis-work-app-workbench";
+import { shownProjectPlugins } from "./plugin-registry.js";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ReferenceKindsFor } from "@molis-ai/molis-work-service-agent-host";
 import { projectReferenceKinds } from "./agent-question-surfaces.js";

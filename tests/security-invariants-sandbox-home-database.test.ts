@@ -68,7 +68,7 @@ function ledger(home: string): Array<{ plugin_id: string; publisher_signature: s
 }
 const add = (text: string) => ({ sql: "INSERT INTO sbxhome_notes (text) VALUES (?)", parameters: [text] });
 
-test("S-68 RAC-240 a sandboxed package's Home library is made under the ledger with the install record's publisher, and its statements run in a process, not on the Host", async t => {
+test("S-91 RAC-240 a sandboxed package's Home library is made under the ledger with the install record's publisher, and its statements run in a process, not on the Host", async t => {
   const home = newHome(t);
   const { sandbox } = library(t, home);
   assert.deepEqual(ledger(home), [{ plugin_id: PLUGIN_ID, publisher_signature: "probe-sbxhome", store_name: "sbxhome" }]);
@@ -79,7 +79,7 @@ test("S-68 RAC-240 a sandboxed package's Home library is made under the ledger w
   assert.equal(workers().length, 1, "the statements run in a child process of the Host");
 });
 
-test("S-68 RAC-241 another publisher's library, a name the Host or another plugin holds, and a library partitioned by project open nothing", async t => {
+test("S-91 RAC-241 another publisher's library, a name the Host or another plugin holds, and a library partitioned by project open nothing", async t => {
   const home = newHome(t);
   library(t, home);
   assert.throws(() => openSandboxHomeLibrary(home, { ...owner, publisher_signature: "someone-else" }, declaration, homeStores(), () => {}, instance),
@@ -96,7 +96,7 @@ test("S-68 RAC-241 another publisher's library, a name the Host or another plugi
   assert.equal(await nobodyRuns() || workers().length <= 1, true, "a refusal starts no process");
 });
 
-test("S-68 RAC-242 a grant taken back, or a closed library, stops the next call before it reaches the process", async t => {
+test("S-91 RAC-242 a grant taken back, or a closed library, stops the next call before it reaches the process", async t => {
   const home = newHome(t);
   const { sandbox, grants, opened } = library(t, home);
   await sandbox.transaction(context(), [add("kept")]);
@@ -110,7 +110,7 @@ test("S-68 RAC-242 a grant taken back, or a closed library, stops the next call 
   assert.equal(await nobodyRuns(), true, "closing the library ends its process");
 });
 
-test("S-68 RAC-243 the keyword filters of the Host's own client apply: a write is not a read, a read is not a write, and a read that starts as a query cannot write", async t => {
+test("S-91 RAC-243 the keyword filters of the Host's own client apply: a write is not a read, a read is not a write, and a read that starts as a query cannot write", async t => {
   const home = newHome(t);
   const { sandbox } = library(t, home);
   await sandbox.transaction(context(), [add("a")]);
@@ -126,7 +126,7 @@ test("S-68 RAC-243 the keyword filters of the Host's own client apply: a write i
   assert.deepEqual(rows(home), ["a"], "nothing a refused statement did is left");
 });
 
-test("S-68 RAC-244 a read past its time is killed and answered with a code while the Host keeps running; the next read runs in a fresh process", async t => {
+test("S-91 RAC-244 a read past its time is killed and answered with a code while the Host keeps running; the next read runs in a fresh process", async t => {
   const home = newHome(t);
   const { sandbox } = library(t, home, { limits: { readMs: 500 } });
   await sandbox.transaction(context(), Array.from({ length: 300 }, (_, n) => add(`row ${n}`)));
@@ -139,7 +139,7 @@ test("S-68 RAC-244 a read past its time is killed and answered with a code while
   assert.equal(rows(home).length, 300);
 });
 
-test("S-68 RAC-245 a write past its time is killed with its transaction: none of its statements stays and the next transaction runs", async t => {
+test("S-91 RAC-245 a write past its time is killed with its transaction: none of its statements stays and the next transaction runs", async t => {
   const home = newHome(t);
   const { sandbox } = library(t, home, { limits: { writeMs: 500, transactionMs: 2000 } });
   await sandbox.transaction(context(), Array.from({ length: 300 }, (_, n) => add(`row ${n}`)));
@@ -156,7 +156,7 @@ const sandboxed = (id: string, kind: "query" | "command", effects: SandboxEffect
   output: { type: "object", additionalProperties: false, properties: { value: { type: "string" }, refused: { type: "string" } }, required: [] },
   examples: [{ input: "[]", outputIncludes: {} }] });
 
-test("S-68 RAC-246 a real sandbox reaches its Home library through the broker only when its operation declared it and the person approved it", { skip: process.platform !== "darwin", timeout: 30_000 }, async t => {
+test("S-91 RAC-246 a real sandbox reaches its Home library through the broker only when its operation declared it and the person approved it", { skip: process.platform !== "darwin", timeout: 30_000 }, async t => {
   const home = newHome(t);
   const { opened } = library(t, home);
   const bundlePath = join(home, "sandboxed.mjs");

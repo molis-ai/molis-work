@@ -36,6 +36,11 @@
     "kind": "native-plugin",
     "maturity": "partial",
     "contract": "@molis-ai/molis-work-contracts/platform/plugin",
+    "summary": "Protected first-party Inbox attention list, detail, and disposition.",
+    "notResponsibleFor": "Feed/Goal facts, Stores, or another Plugin implementation.",
+    "legacySources": [
+      "src/web/render.ts"
+    ],
     "migrationGoals": [
       "goal-reorg-f2"
     ],
@@ -44,6 +49,8 @@
       "inbox.ui-contribution.v1",
       "inbox.http-routes.v1"
     ],
+    "extraWorkspaceDependencies": [],
+    "extraDependencies": {},
     "registration": "./registration"
   }
 }

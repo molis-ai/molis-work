@@ -1,9 +1,8 @@
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { captureHostLog, DEMO_PROJECT_ID, ensureProjectPlugins, handleProjectPluginHttp, LocalProjectDatabase, openProjectVersionStores, releaseProjectPlugins, seedDemoBoard,
   type HostLogEntry, type ProjectPluginHttpPorts } from "@molis-ai/molis-work-app-local-host";
-import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
-import type { HostCapabilityCallOptions } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { PluginHostEvents } from "@molis-ai/molis-work-plugin-runtime";
+import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { mkdtemp, mkdir, readdir, rm } from "node:fs/promises";
@@ -13,7 +12,7 @@ import path from "node:path";
 import test, { type TestContext } from "node:test";
 
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
-import { pluginActions } from "./fixtures/plugin-actions.js";
+import { fakeProjectSettings, pluginActions } from "./fixtures/plugin-actions.js";
 import { deferred } from "./fixtures/home-runtime.js";
 
 const TOKEN = "molis-work-workspace-settings-events-0123456789";
@@ -67,7 +66,7 @@ async function fixture(t: TestContext) {
     assert.ok(response.status === 200 || response.status === 400 && body.includes("files.invalid"), body);
   };
   const settings = () => heard.filter(item => item.cause === "workspace-settings");
-  return { folders, first: first.project_id, second: second.project_id, call, startPlatform, restart, heard, settings };
+  return { folders, first: first.project_id, second: second.project_id, call, startPlatform, restart, heard, settings, origin: () => origin };
 }
 
 test("RAC-461 BL-521 S-54 linking, repairing and unlinking a folder, and choosing the browsing folder, are announced once each as a workspace-settings change", async t => {
@@ -156,15 +155,49 @@ test("RAC-463 BL-521 only the web route entry announces a project as opened: sta
   assert.deepEqual(callers.sort(), ["project-plugin-http.ts", "workspace-settings-events.ts"]);
 });
 
-/** Real project platform and public HTTP entry, with only the browsing-directory dependency controlled. */
-async function openingRouteFixture(t: TestContext, capabilities?: ProjectPluginHttpPorts["capabilities"],
+test("RAC-463 BL-521 R-47 the opening read leaves no call row: a platform's first route refused for its body answers with no call_id", async t => {
+  const f = await fixture(t);
+  // The first plugin route of the project opens its platform; its body is over the route's limit, so the route refuses it after the
+  // opening announcement, whose read succeeded inside the Host. No other call of this request left a row, so the refusal carries no
+  // call number, in the body or the header.
+  const response = await fetch(`${f.origin()}/projects/${encodeURIComponent(f.first)}/api/plugins/${FILES}/open`, { method: "POST",
+    headers: { origin: f.origin(), "x-molis-work-control-token": TOKEN, "x-molis-work-idempotency-key": "settings-events-oversized", "content-type": "application/json" },
+    body: JSON.stringify({ padding: "x".repeat(300_000) }) });
+  const body = await response.json() as Record<string, unknown>;
+  assert.equal(response.status, 413, JSON.stringify(body));
+  assert.equal(body.code, "actions.input_too_large");
+  assert.equal("call_id" in body, false, "the refusal has no call number");
+  assert.equal(response.headers.get("x-molis-work-call-id"), null, "nor a call-number header");
+  assert.deepEqual(f.heard.filter(item => item.cause === "project-opened").map(item => item.workspace_id), [""], "the opening was announced on this request");
+});
+
+test("RAC-463 BL-521 R-47 a platform's first route whose own call left a row answers with that call's number, in the body and the header alike", async t => {
+  const f = await fixture(t);
+  // Files' open is a command: refused for a folder the project never linked, it leaves a row, and the refusal names it.
+  const response = await fetch(`${f.origin()}/projects/${encodeURIComponent(f.first)}/api/plugins/${FILES}/open`, { method: "POST",
+    headers: { origin: f.origin(), "x-molis-work-control-token": TOKEN, "x-molis-work-idempotency-key": "settings-events-recorded", "content-type": "application/json" },
+    body: JSON.stringify({ workspace_id: "workspace-never-linked", path: ["notes.md"] }) });
+  const body = await response.json() as Record<string, unknown>;
+  assert.ok(response.status >= 400, JSON.stringify(body));
+  assert.equal(typeof body.call_id, "string", JSON.stringify(body));
+  assert.equal(response.headers.get("x-molis-work-call-id"), body.call_id, "the header and the body name the same call");
+  assert.deepEqual(f.heard.filter(item => item.cause === "project-opened").map(item => item.workspace_id), [""], "the opening was announced on this request");
+});
+
+/**
+ * Real project platform and public HTTP entry; the opening asks the project's browsing folder through the Host's action client, as
+ * the Host itself (`local-host`), and `browsing` answers that ask (`projectSettingsCapabilities.browsingWorkspace`) for the test to
+ * fault or count. Files, which reads the folder again once the opening is announced, is told none.
+ */
+async function openingRouteFixture(t: TestContext, browsing: () => unknown,
   options: { arrived?(): void; heard?: Array<Heard & { host: PluginHostEvents }> } = {}) {
   const directory = await mkdtemp(path.join(os.tmpdir(), "molis-work-project-opened-"));
   const file = path.join(directory, "project.db");
   seedDemoBoard(file);
   const store = new LocalProjectDatabase(file);
-  const ports: ProjectPluginHttpPorts = { store, ...openProjectVersionStores(store), projectId: DEMO_PROJECT_ID, actorId: "web-user",
-    actions: pluginActions(store, DEMO_PROJECT_ID), ...(capabilities ? { capabilities } : {}) };
+  const actions = pluginActions(store, DEMO_PROJECT_ID);
+  fakeProjectSettings(actions, (_definition, caller) => caller.actor_id === "local-host" ? browsing() : null, [projectSettingsCapabilities.browsingWorkspace]);
+  const ports: ProjectPluginHttpPorts = { store, ...openProjectVersionStores(store), projectId: DEMO_PROJECT_ID, actorId: "web-user", actions };
   const heard: Array<Heard & { host: PluginHostEvents }> = options.heard ?? [];
   if (!options.heard) {
     const original = PluginHostEvents.prototype.broadcast;
@@ -198,28 +231,22 @@ async function openingRouteFixture(t: TestContext, capabilities?: ProjectPluginH
   return { platform, ports, request, opened, heard, finished: () => finished };
 }
 
-/** Fault/count the Host's opening read; actual subscribers read the same selected value through their plugin caller. */
-function browsingCapability(read: () => Promise<{ workspace_id: string } | null>, selected: { workspace_id: string } | null = null): NonNullable<ProjectPluginHttpPorts["capabilities"]> {
-  return { invoke<I, O>(definition: { capability_id: string }, _input: I, options?: HostCapabilityCallOptions): Promise<O> {
-    if (definition.capability_id !== projectSettingsCapabilities.browsingWorkspace.capability_id) return Promise.resolve(null as O);
-    return options?.consumer === "plugin" ? Promise.resolve(selected as O) : read().then(value => value as O);
-  } };
-}
+/** One folder linked to the project, usable and browsed. */
+const linked = (workspace_id: string) => ({ workspace_id, canonical_path: "/test/" + workspace_id, realpath_verified: true, display_name: workspace_id });
 
 for (const failure of ["throw", "reject"] as const) {
   test(`RAC-463 BL-521 S-54 a failed opening announcement is retried by the next web route (${failure})`, async t => {
     const logs: HostLogEntry[] = [];
     t.after(captureHostLog(logs));
     let reads = 0;
-    const selected = { workspace_id: "workspace-recovered" };
-    const f = await openingRouteFixture(t, browsingCapability(() => {
+    const f = await openingRouteFixture(t, () => {
       if (++reads === 1) {
-        const error = new Error("browsing directory temporarily unavailable");
+        const error = new Error("linked folders temporarily unavailable");
         if (failure === "throw") throw error;
         return Promise.reject(error);
       }
-      return Promise.resolve(selected);
-    }, selected));
+      return Promise.resolve(linked("workspace-recovered"));
+    });
     assert.equal(reads, 0, "headless platform startup must not read the browsing directory");
     assert.deepEqual(f.opened(), [], "headless startup must not announce an opening");
     assert.equal((await f.request()).status, 200, "a failed announcement must not fail the plugin route");
@@ -236,30 +263,10 @@ for (const failure of ["throw", "reject"] as const) {
   });
 }
 
-test("RAC-463 BL-521 S-54 a missing capability port sends no opening event and a later valid selection is still announced", async t => {
-  const logs: HostLogEntry[] = [];
-  t.after(captureHostLog(logs));
-  const f = await openingRouteFixture(t);
-  assert.deepEqual(f.opened(), []);
-  assert.equal((await f.request()).status, 200);
-  assert.deepEqual(f.opened(), [], "a missing dependency is not a successful read of an unselected directory");
-  assert.equal(logs.filter(entry => entry.event === "opened_capabilities_unavailable").length, 1);
-
-  let reads = 0;
-  f.ports.capabilities = browsingCapability(() => { reads++; return Promise.resolve(null); });
-  assert.equal((await f.request()).status, 200);
-  assert.equal(reads, 1);
-  assert.deepEqual(f.opened().map(item => item.workspace_id), [""], "a real successful read with no selection still announces the empty directory");
-  assert.equal((await f.request()).status, 200);
-  assert.equal(reads, 1);
-  assert.equal(f.opened().length, 1);
-});
-
 test("RAC-463 BL-521 S-54 concurrent web routes share the announcement and drain, while another platform opens independently", async t => {
   const read = deferred(), reading = deferred(), arrived = deferred(), draining = deferred(), drained = deferred();
   let reads = 0, requests = 0;
-  const selected = { workspace_id: "workspace-concurrent" };
-  const f = await openingRouteFixture(t, browsingCapability(() => { reads++; reading.resolve(); return read.promise.then(() => selected); }, selected),
+  const f = await openingRouteFixture(t, () => { reads++; reading.resolve(); return read.promise.then(() => linked("workspace-concurrent")); },
     { arrived: () => { if (++requests === 2) arrived.resolve(); } });
   const drain = f.platform.hostEvents.drain.bind(f.platform.hostEvents);
   t.mock.method(f.platform.hostEvents, "drain", async () => { await drain(); draining.resolve(); await drained.promise; });
@@ -271,7 +278,7 @@ test("RAC-463 BL-521 S-54 concurrent web routes share the announcement and drain
     assert.deepEqual(f.opened(), []);
 
     let otherReads = 0;
-    const other = await openingRouteFixture(t, browsingCapability(() => { otherReads++; return Promise.resolve(null); }), { heard: f.heard });
+    const other = await openingRouteFixture(t, () => { otherReads++; return Promise.resolve(null); }, { heard: f.heard });
     assert.equal((await other.request()).status, 200);
     assert.equal(otherReads, 1, "another platform with the same project id has its own opening");
     assert.deepEqual(other.opened().map(item => item.workspace_id), [""]);

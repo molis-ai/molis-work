@@ -1,23 +1,14 @@
-import { createSchedulePlugin } from "@molis-ai/molis-work-plugin-schedule";
 import { scheduleServiceFor } from "./project-clock.js";
-import { createShelfPlugin } from "@molis-ai/molis-work-plugin-shelf";
 import type { ProjectVersionStores } from "./project-version-stores.js";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
-import { createCodingPlugin } from "@molis-ai/molis-work-plugin-coding";
 import { createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
-import { createDiffPlugin } from "@molis-ai/molis-work-plugin-diff";
-import { createGitPlugin } from "@molis-ai/molis-work-plugin-git";
-import { createTextStatsPlugin } from "@molis-ai/molis-work-plugin-text-stats";
-import { createFormPlugin } from "@molis-ai/molis-work-plugin-form";
-import { createDatasetPlugin } from "@molis-ai/molis-work-plugin-dataset";
-import { createLingguangPlugin } from "@molis-ai/molis-work-plugin-lingguang";
-import { createPagesPlugin } from "@molis-ai/molis-work-plugin-pages";
-import { createPptPlugin } from "@molis-ai/molis-work-plugin-ppt";
-import { createWorkflowsPlugin } from "@molis-ai/molis-work-plugin-workflows";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
+import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPluginPlatform, type PluginPlatform, type PluginPlatformEntry } from "./plugin-platform.js";
 import type { LocalProjectDatabase } from "./project-database.js";
-import { SqlitePluginPrivateStorage, type PluginCapabilityPort } from "@molis-ai/molis-work-plugin-runtime";
+import { HOST_BUILD_TRUST, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
+import type { PluginDependencyCheck } from "./plugin-actions-client.js";
+import { consentRevision } from "./consent-revision.js";
 import { bindDeclaredDefaults } from "./plugin-default-bindings.js";
 import { nativePluginReleaseArtifact } from "./native-plugin-release-artifact.js";
 import { pluginHomeFor, projectFixtureEntries } from "./home-side.js";
@@ -25,6 +16,8 @@ import { projectScopeEntries } from "./plugin-scope-entries.js";
 import { projectPluginEnablement, projectPluginEnablementRefresh } from "./project-plugin-enablement.js";
 import { projectPluginDatabaseRefusal, withoutRefusedPlugins } from "./project-plugin-databases.js";
 import { reviewSettlementForwarder, type ObserveReviewSettlements } from "./review-settlement-events.js";
+import { withPluginWords } from "@molis-ai/molis-work-app-workbench";
+import { projectRuntimeDeclarations } from "./plugin-registry.js";
 
 export interface ProjectPluginPorts {
   /** Settled person-reviewed plugin operations, sent to the installation that asked as `host.review.settled@1` (X-6). */
@@ -37,7 +30,7 @@ export interface ProjectPluginPorts {
   actorId: string;
   /** Directories bound to this project. Empty means none is bound yet. */
   workspaces?: readonly ProjectWorkspaceRef[];
-  capabilities?: PluginCapabilityPort;
+  dependencyCheck?: PluginDependencyCheck;
   actions: import("./plugin-platform.js").PluginPlatformOptions["actions"];
   routePrefix?: string;
   homeDirectory?: string;
@@ -55,6 +48,8 @@ export interface ProjectPluginState {
   updateObservers?(): void;
   stopObservers?(): void;
   refreshEnablement?(): Promise<void>;
+  /** The `consentRevision` this project last reconciled its default wirings at. */
+  reconciledAt?: number;
 }
 
 /**
@@ -114,6 +109,8 @@ export async function ensureProjectPlugins(ports: ProjectPluginPorts): Promise<P
     const state = await existing.ready;
     await state.refreshEnablement?.();
     state.updateObservers?.();
+    // Reconcile a changed consent ledger on this next project request; revoking itself does not broadcast to open projects.
+    if (state.platform && state.reconciledAt !== consentRevision()) { state.reconciledAt = consentRevision(); bindDeclaredDefaults(state.platform, ports.projectId, ports.actorId); }
     return state;
   }
   const configuration = { ...ports };
@@ -135,11 +132,12 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
       journal: ports.store,
       artifacts: ports.artifacts,
       processItems: ports.processItems,
-      ui: new UiHost(),
+      ui: new UiHost({ drawingAs: withPluginWords }),
       privateStorageFor: (context, manifest) => storage.forPlugin(context, manifest),
+      deleteInstallationData: installId => storage.deleteInstallationData(installId),
       capturePrivateData: installId => storage.snapshotInstallationData(installId),
       restorePrivateData: (installId, snapshot) => storage.restoreInstallationData(installId, snapshot as ReturnType<typeof storage.snapshotInstallationData>),
-      ...(ports.capabilities ? { capabilities: ports.capabilities } : {}),
+      ...(ports.dependencyCheck ? { dependencyCheck: ports.dependencyCheck } : {}),
       actions: ports.actions,
       home: ports.homeDirectory ? pluginHomeFor(ports.homeDirectory) : null,
     });
@@ -153,6 +151,7 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
     await platform.start(projectScopeEntries(withoutRefusedPlugins(ports.store.db, [...entries, ...projectFixtureEntries(ports.homeDirectory)], entry => entry.definition.manifest.plugin_id), ports.homeDirectory)
       .map(entry => ({ ...entry, enabled: enabled?.get(entry.definition.manifest.plugin_id) ?? true })));
     record.refreshEnablement = projectPluginEnablementRefresh(platform, ports.homeDirectory, ports.projectId);
+    record.reconciledAt = consentRevision();
     bindDeclaredDefaults(platform, ports.projectId, ports.actorId);
   } catch (error) {
     record.stopObservers?.();
@@ -167,81 +166,22 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
 }
 
 /**
- * The built-in plugins every project's Runtime runs, before fixtures and refusals. Independent companions start together so
- * their Artifact inputs and outputs can connect; browsing roots come from current-project settings capabilities.
+ * The built-in plugins every project's Runtime runs, before fixtures and refusals: each registration's `project_runtime` (PG-067),
+ * the ones whose library is in the Home only where there is one, then Files, the one factory that takes a port from the Host
+ * (BL-616). Independent companions start together so their Artifact inputs and outputs can connect; browsing roots come from
+ * current-project settings capabilities.
  */
 function projectPluginEntries(ports: ProjectPluginPorts): PluginPlatformEntry[] {
+  const declared = projectRuntimeDeclarations().filter(entry => ports.homeDirectory || !entry.home_library).map(entry => ({
+    definition: entry.create(), trust: HOST_BUILD_TRUST,
+    releaseArtifact: nativePluginReleaseArtifact<() => PluginDefinition>(entry.package_name, entry.factory_export, factory => factory()),
+  }));
   const filesPorts = { readable: () => currentWorkspaceId(ports) !== null };
-  return [
-    { definition: createSchedulePlugin(), bundled: true,
-      releaseArtifact: nativePluginReleaseArtifact<typeof createSchedulePlugin>(
-        "@molis-ai/molis-work-plugin-schedule", "createSchedulePlugin", factory => factory()) },
-    {
-      definition: createShelfPlugin(),
-      bundled: true,
-      releaseArtifact: nativePluginReleaseArtifact<typeof createShelfPlugin>(
-        "@molis-ai/molis-work-plugin-shelf", "createShelfPlugin", factory => factory()),
-    },
-    ...ports.homeDirectory ? homeLibraryPlugins() : [],
-    {
-      definition: createCodingPlugin(),
-      bundled: true,
-      releaseArtifact: nativePluginReleaseArtifact<typeof createCodingPlugin>(
-        "@molis-ai/molis-work-plugin-coding", "createCodingPlugin", factory => factory()),
-    },
-    {
-      definition: createFilesPlugin(filesPorts),
-      bundled: true,
-      releaseArtifact: nativePluginReleaseArtifact<typeof createFilesPlugin>(
-        "@molis-ai/molis-work-plugin-files", "createFilesPlugin", factory => factory(filesPorts)),
-    },
-    {
-      definition: createDiffPlugin(),
-      bundled: true,
-      releaseArtifact: nativePluginReleaseArtifact<typeof createDiffPlugin>(
-        "@molis-ai/molis-work-plugin-diff", "createDiffPlugin", factory => factory()),
-    },
-    {
-      definition: createGitPlugin(),
-      bundled: true,
-      releaseArtifact: nativePluginReleaseArtifact<typeof createGitPlugin>(
-        "@molis-ai/molis-work-plugin-git", "createGitPlugin", factory => factory()),
-    },
-    {
-      definition: createTextStatsPlugin(),
-      bundled: true,
-      releaseArtifact: nativePluginReleaseArtifact<typeof createTextStatsPlugin>(
-        "@molis-ai/molis-work-plugin-text-stats", "createTextStatsPlugin", factory => factory()),
-    },
-  ];
-}
-
-/** Project instances whose own libraries live in this Home. */
-function homeLibraryPlugins(): PluginPlatformEntry[] {
-  return [{
-    definition: createDatasetPlugin(), bundled: true,
-    releaseArtifact: nativePluginReleaseArtifact<typeof createDatasetPlugin>(
-      "@molis-ai/molis-work-plugin-dataset", "createDatasetPlugin", factory => factory()),
-  }, {
-    definition: createFormPlugin(), bundled: true,
-    releaseArtifact: nativePluginReleaseArtifact<typeof createFormPlugin>(
-      "@molis-ai/molis-work-plugin-form", "createFormPlugin", factory => factory()),
-  }, {
-    definition: createLingguangPlugin(), bundled: true,
-    releaseArtifact: nativePluginReleaseArtifact<typeof createLingguangPlugin>(
-      "@molis-ai/molis-work-plugin-lingguang", "createLingguangPlugin", factory => factory()),
-  }, {
-    definition: createPagesPlugin(), bundled: true,
-    releaseArtifact: nativePluginReleaseArtifact<typeof createPagesPlugin>(
-      "@molis-ai/molis-work-plugin-pages", "createPagesPlugin", factory => factory()),
-  }, {
-    definition: createPptPlugin(), bundled: true,
-    releaseArtifact: nativePluginReleaseArtifact<typeof createPptPlugin>(
-      "@molis-ai/molis-work-plugin-ppt", "createPptPlugin", factory => factory()),
-  }, {
-    definition: createWorkflowsPlugin(), bundled: true,
-    releaseArtifact: nativePluginReleaseArtifact<typeof createWorkflowsPlugin>(
-      "@molis-ai/molis-work-plugin-workflows", "createWorkflowsPlugin", factory => factory()),
+  return [...declared, {
+    definition: createFilesPlugin(filesPorts),
+    trust: HOST_BUILD_TRUST,
+    releaseArtifact: nativePluginReleaseArtifact<typeof createFilesPlugin>(
+      "@molis-ai/molis-work-plugin-files", "createFilesPlugin", factory => factory(filesPorts)),
   }];
 }
 

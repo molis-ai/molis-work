@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -22,7 +23,7 @@ async function fixture(t: TestContext, memory = false) {
   const db = new Database(file);
   db.exec("CREATE TABLE effects (id INTEGER PRIMARY KEY, value TEXT)");
   const repository = memory ? new MemoryPluginEventsRepository() : new SqlitePluginEventsRepository(db);
-  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(db)), supervisor = new PluginSupervisor(runtime);
+  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(db), undefined, { hostIds: ISOLATED_HOST_IDS }), supervisor = new PluginSupervisor(runtime);
   const bus = new PluginEventBus({ projectId: EVENT_BOARD, lifecycle: supervisor, repository });
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
   let holding = true;
@@ -120,7 +121,7 @@ test("same-id reinstall never takes over the old event and close cannot resolve 
   const rig = await fixture(t), view = rig.bus.recoveries(EVENT_BOARD)[0]!, input = confirmation(view);
   rig.supervisor.revoke(EVENT_SUBSCRIBER);
   await rig.runtime.uninstall(input.expected_install_id);
-  rig.runtime.install({ definition: rig.subscriber, deployment: "local", grants: [] });
+  rig.runtime.install({ trust: { level: "unsigned" }, definition: rig.subscriber, deployment: "local", grants: [] });
   await rig.supervisor.start([{ definition: rig.subscriber }]); await rig.supervisor.enable(EVENT_SUBSCRIBER);
   assert.equal(rig.supervisor.installation(EVENT_SUBSCRIBER)!.install_id, input.expected_install_id);
   assert.notEqual(rig.supervisor.installation(EVENT_SUBSCRIBER)!.installation_generation, input.expected_generation);

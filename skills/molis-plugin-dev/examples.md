@@ -73,7 +73,7 @@
 
 ## Coding：Runtime 托管的 app
 
-`kind: "app"`。有 Artifact 输出口；6 个可选输入口（Shelf 材料、Files 快照与选区、Git 变更与结果），默认来源写在各输入口的 `default_source`；还有事件、`agent` 角色和 commands（写清 `input_kinds`）。`start()` 必须兑现 views。Goal 目录、约定、状态、进展与回执使用共用合同 `@molis-ai/molis-work-contracts/modules/goal-actions` 的 `goalPluginActions`；Manifest 声明消费与 `goals:read`、`goals:write`，实际提供方由动作目录解析。约定、状态、进展和回执要求宿主当前运行的内置插件实例身份；生成插件即使声明同名消费也会被拒绝。不要把它的 agent 块抄到普通内容插件。对外调用只走动作的 `audiences` 与授权，不另声明。搜索来源 `coding.search.entries` 经路由兑现（`/search/entries`）；Runtime 里的内置插件加动作要升版本，随宿主升级，不写 `upgrade_compatibility`。
+`kind: "app"`。有 Artifact 输出口；6 个可选输入口（Shelf 材料、Files 快照与选区、Git 变更与结果），默认来源写在各输入口的 `default_source`；还有事件、`agent` 角色。`start()` 必须兑现 views。Goal 目录、约定、状态、进展与回执使用共用合同 `@molis-ai/molis-work-contracts/modules/goal-actions` 的 `goalPluginActions`；Manifest 声明消费与 `goals:read`、`goals:write`，实际提供方由动作目录解析。约定、状态、进展和回执要求宿主当前运行的内置插件实例身份；生成插件即使声明同名消费也会被拒绝。不要把它的 agent 块抄到普通内容插件。对外调用只走动作的 `audiences` 与授权，不另声明。搜索来源 `coding.search.entries` 经路由兑现（`/search/entries`）；Runtime 里的内置插件加动作要升版本，随宿主升级，不写 `upgrade_compatibility`。
 
 ## GitHub / Gmail 等接入
 

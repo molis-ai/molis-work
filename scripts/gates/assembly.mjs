@@ -1,6 +1,6 @@
 // Built-in plugin assembly gates (specs/repository-anti-corruption §4.6/R-01/R-03, W1-05).
 //
-// AGENTS.md: a new built-in plugin goes through the Plugin Runtime only (apps/local-host/src/project-plugins.ts). The old
+// AGENTS.md: a new built-in plugin goes through the Plugin Runtime only (its registration's `runtime` or `project_runtime`). The old
 // build-time path (a registerProvider line in project-host.ts, an <plugin>-native-plugin-http.ts file, a catalog entry) is
 // frozen and may only shrink; tests/builtin-plugin-assembly-gate.test.ts holds the name lists and checks them against the
 // disk. This adds the part a name list cannot do, as numbers compared with the merge-base (so a PR cannot widen them):
@@ -11,9 +11,15 @@
 //                          are the workspace plugins whose Host files carry their name; the report flags them
 //   pluginOutsideMentions  per built-in plugin, the files outside its own package that name its package (imports, package.json
 //                          dependencies, the workspace map): what adding or removing that plugin touches besides itself
-// A plugin that is new at the reference starts at NEW_PLUGIN_OUTSIDE_FILES for the last one; everything else starts at 0.
+//                          The two files scripts/generate-plugin-registry.mjs writes are not counted (their exact paths;
+//                          whether they are exactly its output is the absolute rule its --check is), and neither is a manifest
+//                          it writes the plugin dependencies of (the two apps' and the root's) while those are exactly the
+//                          packages its generated files import (user 10-19 for the apps; user 10-25 for the root, the union of
+//                          both files).
+// A plugin that is new at the reference starts at NEW_PLUGIN_OUTSIDE_FILES (0: W5-02 PR-C, hub 10-23); everything else starts at 0.
 import ts from "typescript";
-import { homeRuntimePackages } from "./home-runtime-entries.mjs";
+import { PLUGIN_DEPENDENCY_MANIFESTS } from "../generate-plugin-registry.mjs";
+import { homeRuntimePackages, projectRuntimePackages } from "./home-runtime-entries.mjs";
 import { hasPath, recordMetric } from "./record-metric.mjs";
 
 const HOST_SRC = /^apps\/local-host\/src\//;
@@ -29,11 +35,10 @@ export const assemblyWantsText = (file) => hasPath(file, PLUGIN_PACKAGE, "packag
 /** The singular a Host file may use for a plural plugin directory (artifact-actions.ts for plugins/native/artifacts). */
 export const NAME_ALIASES = { artifacts: ["artifact"] };
 /**
- * What a new built-in plugin may be named in outside its own package, today: the smallest complete plugin (text-stats) is
- * named in this many files. The target is 0 (declaration-only registration, W4-01); no new plugin may take more than the
- * smallest existing one.
+ * What a new built-in plugin may be named in outside its own package: none (W5-02 PR-C; hub 10-23). Its registration, its
+ * package.json entry and the generator put it in the catalog, the supervisors and the dependencies, and no hand-written file.
  */
-export const NEW_PLUGIN_OUTSIDE_FILES = 7;
+export const NEW_PLUGIN_OUTSIDE_FILES = 0;
 
 const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const camelCase = (name) => name.replace(/-([a-z0-9])/g, (_, letter) => letter.toUpperCase());
@@ -50,9 +55,33 @@ export function describePlugins(snapshot) {
     if (typeof name === "string") plugins.push({ dir: match[1], name });
   }
   const supervisor = snapshot.read(PROJECT_PLUGINS) ?? "";
-  const home = homeRuntimePackages(snapshot);
-  const runtime = new Set(plugins.filter((plugin) => supervisor.includes(`"${plugin.name}"`) || home.has(plugin.name)).map((plugin) => plugin.dir));
+  const declared = new Set([...homeRuntimePackages(snapshot), ...projectRuntimePackages(snapshot)]);
+  const runtime = new Set(plugins.filter((plugin) => supervisor.includes(`"${plugin.name}"`) || declared.has(plugin.name)).map((plugin) => plugin.dir));
   return { plugins: plugins.sort((a, b) => a.dir.localeCompare(b.dir)), runtime };
+}
+
+/**
+ * The files that name plugin packages only because the build lists every plugin: the generated registry files, and an app's
+ * package.json whose plugin dependencies are the very packages its generated file imports, no more and no fewer.
+ */
+export function generatedMentionFiles(snapshot, pluginNames) {
+  const files = new Set();
+  const imports = new Map();
+  for (const { files: generated } of PLUGIN_DEPENDENCY_MANIFESTS) for (const file of generated) {
+    const text = snapshot.read(file);
+    if (text === null || imports.has(file)) continue;
+    files.add(file);
+    imports.set(file, new Set([...text.matchAll(/from "([^"]+)\/registration";/g)].map((match) => match[1])));
+  }
+  for (const { manifest, files: generated } of PLUGIN_DEPENDENCY_MANIFESTS) {
+    if (!generated.every((file) => imports.has(file))) continue;
+    const imported = new Set(generated.flatMap((file) => [...imports.get(file)]));
+    let dependencies;
+    try { dependencies = Object.keys(JSON.parse(snapshot.read(manifest) ?? "null")?.dependencies ?? {}); } catch { continue; }
+    const plugins = dependencies.filter((name) => pluginNames.has(name));
+    if (plugins.length === imported.size && plugins.every((name) => imported.has(name))) files.add(manifest);
+  }
+  return files;
 }
 
 const hostSources = (snapshot, helpers) => snapshot.files.filter((file) => HOST_SRC.test(file) && helpers.isSource(file));
@@ -150,7 +179,8 @@ export const assemblyMetrics = (helpers) => {
     newKeyAllowance: () => NEW_PLUGIN_OUTSIDE_FILES,
     measure(snapshot) {
       const { plugins } = describePlugins(snapshot);
-      const candidates = snapshot.files.filter((file) => helpers.isSource(file) || assemblyWantsText(file));
+      const generated = generatedMentionFiles(snapshot, new Set(plugins.map((plugin) => plugin.name)));
+      const candidates = snapshot.files.filter((file) => (helpers.isSource(file) || assemblyWantsText(file)) && !generated.has(file));
       const texts = new Map(candidates.map((file) => [file, snapshot.read(file)]));
       const record = {};
       for (const plugin of plugins) {
@@ -162,7 +192,7 @@ export const assemblyMetrics = (helpers) => {
       }
       return record;
     },
-    message: (key, was, now, isNew) => `plugin ${key.split("#")[0]} is named in ${now} files outside its package (${isNew ? `a new plugin may be named in at most ${was}` : `was ${was}`}); a built-in plugin is registered by its own declaration, not by a name written into another package`,
+    message: (key, was, now, isNew) => `plugin ${key.split("#")[0]} is named in ${now} files outside its package (${isNew ? `a new plugin may be named in ${was === 0 ? "none" : `at most ${was}`}` : `was ${was}`}); a built-in plugin is registered by its own declaration, not by a name written into another package`,
   });
 
   return [hostPluginFiles, registerProviderSites, hybridPlugins, pluginOutsideMentions];

@@ -1,6 +1,5 @@
-import type { UiContribution, UiContributionDescriptor, UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
-import { icon, renderPluginStageShell } from "@molis-ai/molis-work-design-system";
-import { IMAGES_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/images";
+import type { UiContribution, UiContributionDeclaration, UiRenderRequest } from "@molis-ai/molis-work-contracts/platform/ui";
+import { icon, renderPluginStageShell } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { IMAGES_UI_CONTRIBUTION_ID } from "./manifest.js";
 
 export interface ImagesUiModel {
@@ -10,9 +9,8 @@ export interface ImagesUiModel {
   };
 }
 
-export const imagesUiDescriptor: UiContributionDescriptor = {
+export const imagesUiDescriptor: UiContributionDeclaration = {
   contribution_id: IMAGES_UI_CONTRIBUTION_ID,
-  plugin_id: IMAGES_PLUGIN_ID,
   kind: "primary-page",
   navigation_id: "images",
   label: "图片",

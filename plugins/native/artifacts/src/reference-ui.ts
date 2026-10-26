@@ -30,7 +30,6 @@ export function isProjectReference(value: string): boolean {
 export const artifactReferenceUiContribution: UiContribution<ArtifactReferenceUiModel> = {
   descriptor: {
     contribution_id: ARTIFACT_REFERENCE_UI_CONTRIBUTION_ID,
-    plugin_id: "io.molis.work.native.artifacts",
     kind: "embedded",
     label: "Artifact reference",
     surfaces: [{ surface_id: "reference", target_slot_id: "workbench.main", format: "declarative-html" }],

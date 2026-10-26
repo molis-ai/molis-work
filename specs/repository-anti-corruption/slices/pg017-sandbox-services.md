@@ -22,7 +22,7 @@
 | 连接 `services.connections`（协调的清单里没列，同一批排除，S-57） | `plugin-connections-service.ts:14` | Manifest `connections:use` + 槽位 | Manifest ✔ |
 | 后台作业 `services.background` | `plugin-background-service.ts:8` | Manifest `actions[].background_job` 或 `background.jobs` | Manifest ✔ |
 | 插件指令与方法（V-20） | `plugin-instructions.ts:33` | `PluginDefinition.instructions`/`methods`（正文），Manifest `methods`/`agent`（声明） | 定义 + Manifest；PG-051 P2 归到唯一登记口 |
-| Home 库 `services.database` | `plugin-database-entries.ts:34` | Manifest `databases.home`（PG-022） | Home Runtime 里给（BL-490，S-68）；项目里拒 |
+| Home 库 `services.database` | `plugin-database-entries.ts:34` | Manifest `databases.home`（PG-022） | Home Runtime 里给（BL-490，S-91）；项目里拒 |
 | 私有文件 `services.files` | `plugin-files-entries.ts:12` | 条目 `files` | **只在条目上**（PG-102、PG-104） |
 | 主人文件 `ownerFiles` | `plugin-owner-files-entries.ts:40` | 条目 `owner_files` | **只在条目上**（PG-102、PG-103） |
 | 模型设置 `services.model.configuration` | `services.ts` 的 `NOT_GIVEN`（S-60 启动拒绝） | Manifest `model_configuration` + 宿主启动名单绑定 | Manifest 已有声明；沙箱尚不给（BL-490/491） |
@@ -94,13 +94,16 @@
 - **`ownerFiles`**（P2c，S-64，用户 2026-10-24 定：给，有界）：沙箱包在 Manifest 里声明 `owner_files`，经 broker 读写自己的文件。**不**把宿主的 `rootPath()` 和 writer 回调递进去：沙箱 SDK 只有 `stat`、`list`、`read`（一个文件，至多 256 KiB，没有就是 `null`）、`write`（至多 16 步，每步是 `mkdir`、`write`、`replace_atomic`、`copy`、`remove`、`set_access` 之一，字节是 base64，每个文件 ≤ 256 KiB，一次调用合计 ≤ 512 KiB，`list` 至多 1000 项），路径一律是相对路径，由宿主已有的 port 按声明的顶层条目查（越界、链接、硬链接、特殊节点、非严格相对路径全部拒绝）。效果键 `ownerFiles: ["read"]` / `["read", "write"]`，查询不能写；写在 broker 一侧先等这次调用的 `beforeEffect()`，宿主客户端自己再查一遍授权与动作作用域。
   - **根放哪里**（统筹 10-24 认可）：宿主内的插件根在 Home 里按插件的店名登记；沙箱包是装进来的，没有登记项，所以根是这个安装自己的目录，`<store_name>`（Manifest 的）是里面的一层。**项目里**：`<Home>/projects/<项目>/plugin-files/<安装>/<store_name>/`——按项目、按安装各一份，删项目时随项目目录一起删。**Home Runtime 里**（统筹 10-24 追加：用户定沙箱插件有主人文件，Home 级的也有）：`<Home>/plugin-files/<安装>/<store_name>/`，`plugin-files` 登记为宿主的 Home 库（`home-stores.ts`，owner `apps/local-host`），所以 `uninstall --purge-user-data` 覆盖它。项目 ID 与安装 ID 只许是普通目录名（`plugin-sandbox-owner-files.ts`）；没有 Home 的平台启动即拒。沙箱包不经启动名单，只走 `runtime.install`，所以 `assertHomeOnlyDeclarations` 与启动名单上对沙箱条目的拒绝（`assertOwnerFilesEntries`）与它无关；Home 执行器对沙箱定义不走 `ownerFilesGiven`（那是启动名单给的），走 `sandboxOwnerFilesFor`。
   - **卸载时的清理**（统筹 10-24 要求二选一，选“平台清理”：两个执行器的 `uninstalled` 钩子，不是创作台生命周期里的一行）：运行时存下卸载这一行之后调执行器的 `uninstalled(record)`，沙箱安装且这次卸载不留私有数据（`retain_private_data: false`，含装到一半失败被收回）就删这个安装的目录，只删这一个；留数据的卸载留着目录，重装沿用同一个安装 ID，找回的就是它，和私有数据同口径。重装时放弃上次卸载保留的数据（`discard_kept_data`）：运行时存下新的安装行之后调新增的可选钩子 `keptDataDiscarded(earlier)`（`PluginExecutor`，合同里多一个可选成员），执行器删目录，在新代码启动之前。删除前父目录解析到 Home 之外就拒，符号链接不跟（只解开链接本身）。不靠插件自己交 `purge`（RAC-239 的口径）。
+    - **清理失败后的定义释放及重装（#1210、#1246 评审补修，RAC-357-U1）**：卸载记录已保存后，即使宿主清理 hook 抛错，也释放这个 `plugin_id` 与发布者签名下的已加载定义，其他插件或发布者的定义不变；失败对象与错误码原样返回，不产生成功收据。再次卸载仍走现有按安装串行的重放路径，重新执行实际清理，保留第一次保存的卸载状态、世代、时间与数据选择，不重新启动或停止代码。移除链接故障后，同安装重放完成实际目录清理，再重放仍安全。
+    - 旧记录已经卸载且 `retain_private_data: false` 时，每次重装都在注册新定义、生成和保存新安装之前同步重清，跨宿主重启也一样，不另记「曾失败」。复用 `keptDataDiscarded(earlier)` 的同步能力：先完成现有无副作用输入、部署、清单和 grant 合法性检查；有卸载清理责任却没有同步钩子时，以 `plugin.state_invalid` 拒绝。宿主先确认 KV owner 的删除端口存在，再清理主人文件，成功后才调用 KV owner 的 `deleteInstallationData`；项目执行器经组合参数取得该端口，Home 执行器复用已有 storage。不跨表 SQL、不借用 restore，不改同步 `install` 的形状、安装后再补 grant 的规则、已保留数据的兼容性及回滚规则。
+    - 路径拒绝发生在任何删除前时，文件及 KV 均保留；清理执行中后一步出错可以已有部分删除，仍拒绝新安装，保留原卸载事实，不产生新安装行、事件、世代或本次注册的定义，后续幂等重清补完。已有 `ActionError` 原样返回，普通宿主异常在重装拒绝边界转为 `plugin.executor_failed`，不改变卸载本身的错误。无外部清理责任的 `NativePluginExecutor` 无清理 hook，仍可直接重装。旧 `retain_private_data: true` 且本次明确 `discard_kept_data` 的路径仍在保存新安装后通知原同步钩子，既有外部 KV 处理和回滚不变。
   - **和宿主内同样待遇**：同一份 `PluginOwnerFilesClient`、同一个 port，所以 R1（动作之内凭动作与原调用者、动作之外凭安装现行授权）、`beforeEffect`、模式 0600/0700 都不另写一套。
 
 ### 3.7 Home 库、模型设置、生图、项目清理
 
 这四项都属于“**Home 级**”：库在 Home、偏好文件在 Home、连接绑定在 Home、清理由宿主在删项目时调函数。沙箱插件今天只会作为项目里的实例运行（创作台的第二个平台 `home: null`，PG-083）。设计：
 
-- **Home 库（`database`）**（BL-490，S-68，已做）：项目库已经给了（`projectDatabase`，S-59）。PG-022 把声明搬进 Manifest 之后，Home Runtime 里的沙箱包按 `databases.home` 拿账本里的库（`openInstalledPluginLibrary`，和装进来的任何插件一样），语句沿用 S-59 的子进程（`ProjectStatementProcess` 的 `record` 为空即 Home 库，引擎换 node:sqlite 的两条连接，没有 S-46 的记录检查，因为整个文件都归这个插件），不另写一套；宿主只做出文件就放手，不留连接。broker 多 `homeDatabase` 效果（和 `projectDatabase` 同一段检查），服务多 `database_statements`。项目里运行的沙箱包不能声明 Home 库（`plugin.declaration_invalid`）。
+- **Home 库（`database`）**（BL-490，S-91，已做）：项目库已经给了（`projectDatabase`，S-59）。PG-022 把声明搬进 Manifest 之后，Home Runtime 里的沙箱包按 `databases.home` 拿账本里的库（`openInstalledPluginLibrary`，和装进来的任何插件一样），语句沿用 S-59 的子进程（`ProjectStatementProcess` 的 `record` 为空即 Home 库，引擎换 node:sqlite 的两条连接，没有 S-46 的记录检查，因为整个文件都归这个插件），不另写一套；宿主只做出文件就放手，不留连接。broker 多 `homeDatabase` 效果（和 `projectDatabase` 同一段检查），服务多 `database_statements`。项目里运行的沙箱包不能声明 Home 库（`plugin.declaration_invalid`）。
 - **模型设置（`model.configuration`）、生图（`imageGeneration`）**：形状都能变成 JSON（选择、状态、`generate` 的图片结果 base64）。模型设置现有 Manifest 字段 `model_configuration` 已能声明，沙箱还没有其 broker 方法与设置端口，按 S-60 启动即以 `sandbox.service_not_given` 拒绝该声明；不让项目平台静默不给，Home 也不等后续条目校验才报错。正式开放仍属 BL-490/491，不随本轮修复接入。生图按 PG-102 的前提开放，`generate` 是花钱的，只给 `command`，字节结果有大小上限（BL-491）。
 - **项目清理**：`purge` 是宿主调的函数，沙箱插件没有。设计：沙箱插件的数据（私有存储、项目库里它自己的表、`files`）都归平台按安装和声明清掉（删项目时平台先停它的后台，再关库、清分区，§4 a），不需要它交一个函数。这一项不是“给沙箱一项服务”，而是确认**声明式清理对沙箱插件同样成立**，测试里补一条；`assertProjectCleanupEntries` 里对沙箱的拒绝改成带码的错误并写明理由。
 
@@ -136,7 +139,7 @@
 4. **P3 后台**（S-67，本地分支 `claude/ac-pg017-p3-background`）：3.5，第二个进程（lane）而不是 runner 并行；验收见下面「P3 验收」。
 4a. **P2c 主人文件**（S-64，本地分支）：3.6 的 `ownerFiles`（项目里与 Home Runtime 里，含卸载清理），验收见下面「P2c 验收」。
 4b. **P2d 本机页面与原文件**（S-65，本地分支，叠在 P2c 上）：3.4 的 `fetch_local` 与 `original`，验收见下面「P2d 验收」。
-5. 之后：**P2e 材料联网**（BL-492，分支 `claude/ac-pg017-p2-fetch`，原先误叫 P2c）、PG-022/102 之后的 Home 库（BL-490，S-68，已做）/ 模型设置/生图（BL-491）、方法与角色（BL-493）。
+5. 之后：**P2e 材料联网**（BL-492，分支 `claude/ac-pg017-p2-fetch`，原先误叫 P2c）、PG-022/102 之后的 Home 库（BL-490，S-91，已做）/ 模型设置/生图（BL-491）、方法与角色（BL-493）。
 
 ## 5. 验收与安全不变量
 
@@ -156,7 +159,7 @@
 | RAC-238（条目一半，PG-022/PG-102 之后；`ownerFiles` 已由 P2c 给） | 现在只在宿主条目上声明的项（`ownerFiles`、Home 库、`files`、生图；模型设置的现行声明按 §3.7 带码拒绝）：声明搬进 Manifest 之后，沙箱定义里声明它们时同样带码拒绝或给出，不再是六处无码的 `Error`；在那之前它们在沙箱里根本没有入口，这一半不算做完 |
 | RAC-239 | 声明式清理对沙箱插件成立：删项目时它的私有存储、项目库里的表、后台执行被平台清掉，不需要它交 `purge` |
 
-**BL-490 验收**（S-68，RAC-240～249 本片 240～246）：`tests/security-invariants-sandbox-home-database.test.ts`
+**BL-490 验收**（S-91，RAC-240～249 本片 240～246）：`tests/security-invariants-sandbox-home-database.test.ts`
 
 | 编号 | 断言 |
 | --- | --- |
@@ -181,8 +184,11 @@
 | RAC-355 | 大文件（256 KiB 加一字节）不读进宿主，目录超 1000 项即拒；调用被取消、`beforeEffect` 拒绝，什么都不写 |
 | RAC-356 | 各安装各一份目录；平台没有 Home 时启动即拒 |
 | RAC-357 | 项目里：不留数据的卸载删这个安装的目录，同项目里别的安装的不动；留数据的卸载留着目录，同一个安装 ID 重装找回它；重装时放弃保留的数据（`discard_kept_data`）在新代码启动之前删目录；重装后是空的。清理时父目录解析到 Home 之外（`plugin-files` 是指向外面的链接）即拒，链接指向的东西不动 |
+| RAC-357-U1 | 真实项目与 Home Runtime 遇到主人文件父目录指向 Home 外的链接时，卸载和重放均拒绝清理、保留已卸载记录且释放应撤下的定义；外部文件、其他插件及发布者的定义/安装/数据不变。修复链接后，同安装重放实际清掉自己的目录，后续重放无额外停止或记录改写。带非空文件和 KV 的不留数据安装，无论同进程或重启、同对象或新定义对象，重清失败时均带码拒绝重装，无新安装行、事件、世代、启动或定义残留；重清成功后的新代码及动作读不到旧文件和 KV。缺同步钩子/必需 KV owner 端口明确拒绝，普通宿主错误带主人码，已有 ActionError 原样，保留 Native 无外部清理与留数据的显式选择。`tests/security-invariants-sandbox-owner-files.test.ts` 证明真实链接路径、重装及定义释放，`tests/plugin-lifecycle-states.test.ts` 同时证明原错误对象、撤权、串行、缺钩子拒绝及跨重启 |
 | RAC-358 | Home Runtime 里：沙箱包得到 `<Home>/plugin-files/<安装>/<store_name>/`，同一个有界服务、同样的拒绝（未声明的效果、查询写、根之外的路径、错误形状、`rootPath`）；没有项目目录、没有按登记的 Home 库建目录 |
 | RAC-359 | Home Runtime 里各安装各一份；留数据的卸载留着，不留的删掉，别的安装的不动；`plugin-files` 登记为宿主的 Home 库（purge 覆盖，`homeStores()` 与钉死的清单一致） |
+
+RAC-357-U1 的实现覆盖 Runtime 卸载 `finally` 释放定义，以及不留数据的已卸载安装在重装前同步重清。沿原 `plugin_id`/发布者条件释放定义；新清理阶段在无副作用校验后、注册/世代/保存前复用同步钩子。Host 只编排现有主人文件能力与 KV owner 公开删除接口，三个真实 Project 构造接齐删除端口，Home 复用已有 storage；不增异步 install、持久标记、迁移、跨表 SQL 或第二份清理实现，巨大类不增长。原 `87ebba4c` 的定义释放有效红保留；在 `80e5ee7d` 上，新增真实项目/Home（含实际重启）回归进一步证明重装代码会读回非空旧文件和 KV，且清理失败未阻断安装，再补最小修复。定向命令仍为 `node scripts/run-tests.mjs tests/security-invariants-sandbox-owner-files.test.ts tests/plugin-lifecycle-states.test.ts`，按新增安装、授权规范化、KV 与 Host 接线风险选回归；原有效证据保留适用范围。共享核心的统一 full 由 Claude 排批，本片不自行启动。真实 Home 未动，权限、路径拒绝、存储结构及留数据的回滚合同不变。
 
 **P2d 验收**（S-65，RAC-360～369，统筹 10-24 分配）：`tests/security-invariants-sandbox-local-original.test.ts`
 

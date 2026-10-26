@@ -1,9 +1,9 @@
 import type {
   UiContribution,
-  UiContributionDescriptor,
+  UiContributionDeclaration,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
-import { icon, renderPluginStageShell } from "@molis-ai/molis-work-design-system";
+import { icon, renderPluginStageShell } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 export const DATASET_UI_CONTRIBUTION_ID = "io.molis.work.native.dataset.ui.v1";
 
@@ -18,9 +18,8 @@ export interface DatasetUiModel {
   readonly primitives: DatasetUiPrimitives;
 }
 
-export const datasetUiDescriptor: UiContributionDescriptor = {
+export const datasetUiDescriptor: UiContributionDeclaration = {
   contribution_id: DATASET_UI_CONTRIBUTION_ID,
-  plugin_id: "io.molis.work.dataset",
   kind: "primary-page",
   navigation_id: "dataset",
   label: "Dataset",

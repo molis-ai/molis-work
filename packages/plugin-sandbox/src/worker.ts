@@ -1,5 +1,5 @@
 // This file is copied alone to a .mjs file. No host modules or credentials enter the sandbox.
-import type { SandboxConnectionResponse, SandboxHostMessage, SandboxJson, SandboxModelAvailability, SandboxModelChoice, SandboxModelResult, SandboxOperations, SandboxOriginalPart, SandboxSdk, SandboxSdkMethod, SandboxSqlRow } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import type { SandboxConnectionDescription, SandboxConnectionResponse, SandboxHostMessage, SandboxJson, SandboxModelAvailability, SandboxModelChoice, SandboxModelResult, SandboxOperations, SandboxOriginalPart, SandboxSdk, SandboxSdkMethod, SandboxSqlRow } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 
 const write = process.stdout.write.bind(process.stdout);
 /** The Host's cap for one original file, and the part the channel carries at a time (the broker holds the same two numbers). */
@@ -47,7 +47,11 @@ function sdk(callId: string): SandboxSdk {
       all: (sql, parameters) => invoke('homeDatabase.all', [sql, parameters ?? []]) as Promise<SandboxSqlRow[]>,
       transaction: statements => invoke('homeDatabase.transaction', [statements.map(item => ({ sql: item.sql, parameters: item.parameters ?? [] }))]) as Promise<Array<{ changes: number }>>,
     },
-    connections: { request: (slot, request) => answer<SandboxConnectionResponse>(invoke('connections.request', [slot, json(request)])) },
+    connections: {
+      request: (slot, request) => answer<SandboxConnectionResponse>(invoke('connections.request', [slot, json(request)])),
+      describe: (slot, record) => answer<SandboxConnectionDescription>(invoke('connections.describe', [slot, record ?? null])),
+      release: async (slot, record) => { await invoke('connections.release', [slot, record]); },
+    },
     materials: {
       imageTextAvailable: () => answer<boolean>(invoke('materials.imageTextAvailable', [])),
       readDocuments: (files, request) => answer<Awaited<ReturnType<SandboxSdk['materials']['readDocuments']>>>(invoke('materials.readDocuments', [json(files), json(request ?? {})])),

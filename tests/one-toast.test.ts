@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { createLocalHostWorkbenchRenderer } from "@molis-ai/molis-work-app-local-host";
 import { desktopWorkbenchRendererPorts } from "@molis-ai/molis-work-app-desktop";
-import { renderToast } from "@molis-ai/molis-work-design-system";
+import { renderToast } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 // DESIGN「Toasts」: one toast, `.mw-toast`, drawn by the design system. The Workbench's toast, a plugin's toast at the foot
 // of its stage and a completion card are all it; a host says only where it sits.

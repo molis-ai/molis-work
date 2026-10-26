@@ -12,9 +12,10 @@ export function createInboxHomeEventsHandler(ports: InboxContentPorts) {
       const relatedKind = entry.subject_type === "feed_item" ? "feed_item" : entry.subject_type === "goal_decision" ? "goal" : "source";
       let related;
       try { related = await ports.readSubject?.({ kind: relatedKind, id: entry.subject_id }, caller); } catch { /* Keep the attention reference, without unavailable content. */ }
-      let goalLabel = related?.goal_ids.length ? "目标 · " + related.goal_ids.join("、") : "首页";
-      if (related?.goal_ids.length && ports.readSubject) {
-        const titles = await Promise.all(related.goal_ids.map(async id => {
+      const goalIds = related?.goal_ids ?? [];
+      let goalLabel = goalIds.length ? "目标 · " + goalIds.join("、") : "首页";
+      if (goalIds.length && ports.readSubject) {
+        const titles = await Promise.all(goalIds.map(async id => {
           try { return (await ports.readSubject!({ kind: "goal", id }, caller)).title; } catch { return "目标 · " + id; }
         }));
         goalLabel = titles.join("、");

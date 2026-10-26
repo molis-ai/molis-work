@@ -10,7 +10,6 @@ export const registration: PluginRegistration = {
   manifest: feedManifest,
   // Enabling Feed always enables Inbox, so the attention entry cannot disappear.
   companions: ["inbox"],
-  summary: "订阅来源，读消息，留下值得留的。",
   workbench: {
     order: 5,
     contributions: [feedUiContribution],

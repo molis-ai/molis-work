@@ -48,11 +48,18 @@ export interface MolisWorkSettingsView {
   /** Project plugins enabled for the settings context. Personal plugins are listed unless hidden. */
   enabled_plugins?: readonly string[];
   hidden_plugins?: readonly string[];
+  /** The plugins the settings context shows, as the Host works it out (W5-02 B1); their settings pages are listed. */
+  shown_plugins?: readonly string[];
   runtimes: RuntimeIntegrationDetection[];
   mcp_access?: import("./mcp-access.js").McpAccessModel;
   connectors?: readonly ConnectorSettingsCardView[];
   connector_connections?: readonly ConnectorSettingsConnection[];
   connector_setup?: import("./settings-connector-request.js").ConnectorSetupView | null;
+  /**
+   * 服务连接 › 插件用的账号: the installation slots of the Home's plugins and the context project's, with the account bound to each (BL-350).
+   * `tenant`: a service on each tenant's own origin (BL-595), which sends nothing without an account whose site is pinned.
+   */
+  plugin_slots?: ReadonlyArray<{ install_id: string; plugin_id: string; plugin_name: string; slot_id: string; service_id: string; reason: string; connection_id: string | null; tenant: boolean }>;
   projects: WebSettingsProject[];
   web_service: MolisWorkWebServiceDetection;
   diagnostics: WebInstallationDiagnostics;

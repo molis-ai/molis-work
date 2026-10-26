@@ -30,7 +30,7 @@ test("plan changes are checked, applied through the Host's revise action, and to
       assert.equal(sent.source, "host"); assert.equal(sent.run_id, "r");
       if (steerFails) throw new Error("run is not accepting input"); steers.push(sent.text); return { input_id: "steer-1", replayed: false, delivered: "run" }; } }] });
   const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user", escapeHtml: String, translate: (s: string) => s,
-    capabilities: { async invoke<I, O>(definition: { capability_id: string }, _args: I): Promise<O> {
+    agentHost: { async invoke<I, O>(definition: { capability_id: string }, _args: I): Promise<O> {
       if (definition.capability_id === agent.readSession.capability_id) return { runs: [ref] } as O;
       if (definition.capability_id === agent.readRun.capability_id) return { ref, phase: "running", step_board: board } as O;
       throw new Error(`Unexpected capability ${definition.capability_id}`);

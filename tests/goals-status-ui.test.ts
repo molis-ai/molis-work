@@ -3,7 +3,7 @@ import test from "node:test";
 import { createWorkbenchGoalsStatusRenderer, createWorkbenchGoalsFactorsRenderer } from "@molis-ai/molis-work-app-workbench";
 import { type GoalsFactorsPrimitives } from "@molis-ai/molis-work-plugin-goals";
 import { L, runWithLocale } from "@molis-ai/molis-work-app-local-host";
-import { icon, renderStateRing } from "@molis-ai/molis-work-design-system";
+import { icon, renderStateRing } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 const escapeHtml = (value: string) => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 

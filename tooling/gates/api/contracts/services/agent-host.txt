@@ -1260,7 +1260,7 @@ export interface AgentStepBoard {
         reports: Array<{
             note: string;
             at_ms: number;
-            by?: string;
+            by?: AgentStepReportAuthor;
             handover?: true;
             inputs?: import("@molis-ai/molis-work-contracts/services/agent-inputs").AgentInputRef[];
         }>;
@@ -1275,6 +1275,7 @@ export interface AgentStepBoard {
 export interface AgentStepOwner {
     kind: "session" | "subtask" | "person" | "none" | "other";
     label: string;
+    title?: string;
     subagent_id?: string;
     actor_id?: string;
     expired?: true;
@@ -1729,4 +1730,10 @@ interface AgentStartInputFields {
     mcp_tools?: AgentMcpToolRef[];
     mcp_sources?: AgentMcpSourceRef[];
     budget?: AgentRunBudget;
+}
+
+interface AgentStepReportAuthor {
+    kind: "session" | "subtask" | "person" | "handover" | "other";
+    label: string;
+    title?: string;
 }

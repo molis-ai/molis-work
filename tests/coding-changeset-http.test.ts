@@ -20,7 +20,7 @@ test("AC-09: Coding freezes original multi-edit reviews, binds feedback to exact
     document: { kind: "text-edit", target_path: "cart.mjs", exists: true, before_text: n ? "new\r\n" : "old\r\n", after_text: n ? "latest <script>\n" : "new\r\n" } },
     receipt: { review_id: `review-${n}`, status: "approved", effect_settled: applied, effect_error: null } }));
   const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions: pluginActions(store, DEMO_PROJECT_ID), actorId: "web-user", escapeHtml: String, translate: (s: string) => s,
-    capabilities: { async invoke<I, O>(definition: { capability_id: string }, args: I): Promise<O> {
+    agentHost: { async invoke<I, O>(definition: { capability_id: string }, args: I): Promise<O> {
       // Files also refreshes project browsing settings before dispatch; count only Agent reads.
       if ([agent.readSession.capability_id, agent.readRun.capability_id, agent.readRunReviews.capability_id].includes(definition.capability_id)) reads++;
       if (!readable) throw new Error("runtime unavailable");
@@ -48,8 +48,8 @@ test("AC-09: Coding freezes original multi-edit reviews, binds feedback to exact
     assert.deepEqual(auto.body.net_groups, [{ path: "cart.mjs", indices: [0, 1], available: false, reason: "有写入未批准或执行结果不确定，只能逐次查看" }]);
     assert.match(reading.body.html, /评论修改后第 1 行/);
     // VUX-33: the reader asks for side by side; the same write, the same escaping and line feedback, in two columns.
-    assert.match(reading.body.html, /data-mode="unified"/); assert.doesNotMatch(reading.body.html, /diff-split/);
-    const split = await request(prefix+'?change_index=1&layout=split'); assert.match(split.body.html, /data-mode="split"/); assert.match(split.body.html, /<ol class="diff-rows diff-split"/);
+    assert.match(reading.body.html, /data-mode="unified"/); assert.doesNotMatch(reading.body.html, /mw-diff-split/);
+    const split = await request(prefix+'?change_index=1&layout=split'); assert.match(split.body.html, /data-mode="split"/); assert.match(split.body.html, /<ol class="mw-diff-rows mw-diff-split"/);
     assert.match(split.body.html, /latest &lt;script&gt;/); assert.doesNotMatch(split.body.html, /latest <script>/); assert.match(split.body.html, /评论修改后第 1 行/);
     assert.match((await request(prefix+'?change_index=1&layout=columns')).body.html, /data-mode="unified"/, "an unknown layout reads as unified");
     // VUX-33 复制补丁: the write on show as a patch git takes, each line with its own ending (the CRLF stays), the same in either layout.

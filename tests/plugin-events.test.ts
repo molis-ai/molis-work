@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import Database from "better-sqlite3";
@@ -44,7 +45,6 @@ function view(pluginId: string): UiContribution {
   return {
     descriptor: {
       contribution_id: `${pluginId}.main`,
-      plugin_id: pluginId,
       kind: "primary-page",
       label: "main",
       slots: [],
@@ -121,7 +121,7 @@ function eventPlugin(input: {
 }
 
 function harness(definitions: PluginDefinition[]) {
-  const runtime = new PluginRuntime();
+  const runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS });
   const supervisor = new PluginSupervisor(runtime);
   const repository = new MemoryPluginEventsRepository();
   const bus = new PluginEventBus({ projectId: BOARD, lifecycle: supervisor, repository });
@@ -483,7 +483,7 @@ test("reinstall binds a new cursor and cannot inherit pending work or late ackno
   const old = rig.supervisor.installation(FILES)!;
   rig.publish(CODING, CHANGED, 1, 'old'); await entered.promise;
   rig.supervisor.revoke(FILES); await rig.runtime.uninstall(old.install_id);
-  rig.runtime.install({ definition: files.definition, deployment: 'local', grants: [] });
+  rig.runtime.install({ trust: { level: "unsigned" }, definition: files.definition, deployment: 'local', grants: [] });
   await rig.start(); await rig.supervisor.enable(FILES);
   const current = rig.supervisor.installation(FILES)!;
   assert.notEqual(current.installation_generation, old.installation_generation);
@@ -532,7 +532,7 @@ test('a real process killed after subscriber commit leaves an uncertain delivery
   child.once('exit', () => { if (!output.includes('committed\n')) committed.reject(new Error(errors || 'child exited before commit')); ended.resolve(); });
   t.after(async () => { child.kill('SIGKILL'); await ended.promise; rmSync(directory, { recursive: true, force: true }); });
   await committed.promise; child.kill('SIGKILL'); await ended.promise;
-  const db = new Database(file), repository = new SqlitePluginEventsRepository(db), runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(db)), supervisor = new PluginSupervisor(runtime);
+  const db = new Database(file), repository = new SqlitePluginEventsRepository(db), runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(db), undefined, { hostIds: ISOLATED_HOST_IDS }), supervisor = new PluginSupervisor(runtime);
   const bus = new PluginEventBus({ projectId: EVENT_BOARD, lifecycle: supervisor, repository });
   try {
     assert.equal(repository.listCursors(EVENT_BOARD, EVENT_SUBSCRIBER)[0]!.state, 'delivering');

@@ -1,9 +1,9 @@
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
-import { openPagesStore, nodeFromUnknown } from "@molis-ai/molis-work-plugin-pages";
-import { openPptStore } from "@molis-ai/molis-work-plugin-ppt";
-import { openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
+import { nodeFromUnknown } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore, openPptStore } from "./fixtures/plugin-home-stores.js";
+import { openLingguangStore } from "./fixtures/plugin-home-stores.js";
 import type { PagesRecord } from "@molis-ai/molis-work-contracts/modules/pages";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 

@@ -1,6 +1,7 @@
 /// <reference lib="dom" />
 import type { AgentStepBoard, AgentStepOwner } from "@molis-ai/molis-work-contracts/services/agent-host";
-import type { AgentInputImpact, AgentInputKind, AgentInputModelClaim, AgentInputQuestion, AgentInputTarget, AgentInputTreatment, AgentTurnSteer } from "@molis-ai/molis-work-contracts/services/agent-inputs";
+import type { AgentInputModelClaim, AgentInputQuestion, AgentInputTreatment, AgentTurnSteer } from "@molis-ai/molis-work-contracts/services/agent-inputs";
+import { RECEIPT_WORDS, type ReceiptWords } from "@molis-ai/molis-work-contracts/platform/ui";
 import { compactScript } from "./compact-script.js";
 
 /** What the receipt reads of a run-view turn (`AgentTurnView`) and its round: the round's run id and the questions it waits on. */
@@ -56,28 +57,6 @@ export interface InputReceipts {
    */
   agreements(owner: Element, runs: readonly string[]): HTMLElement | null;
 }
-
-/**
- * The words for the values on the ledger and in the model's statement, one table for every place that says them: the receipt
- * (handed to the page program with it) and Coding's report (BL-158). Each set is the contract's closed set, read as it is.
- */
-export const RECEIPT_WORDS = {
-  FACT: { received: "已送达", applied: "已放进上下文，等 AI 回应", read: "AI 已读到", unread: "这一轮结束时 AI 没读到，留给下一轮", withdrawn: "已撤回" },
-  TREATMENT: { "apply-now": "立即影响当前这一步", "later-step": "留到后面某一步", "new-task": "作为新任务", "needs-clarification": "需要你澄清", "not-adopted": "暂不采纳", answered: "已在回复里回答", noted: "记下，不改变执行", merged: "与另一条一起处理" },
-  KIND: { supplement: "补充", correction: "纠正", constraint: "约束", request: "新需求", question: "提问" },
-  IMPACT: { objective: "目标", scope: "范围", priority: "优先级", approach: "实现方案", acceptance: "验收条件", outputs: "已有成果", constraint: "约束" },
-  TARGET: { input: "另一条补充", "app-ref": "应用里的对象", todo: "这一轮的待办", pending: "一个问题", "board-node": "计划的一步" },
-  QUESTION: { open: "等你回答", settled: "已回答", expired: "已过期", cancelled: "已取消", unresolved: "这一轮结束时还没回答" },
-  // A step's state as the plan card says it: the model's report of done or failed is its report, not a check.
-  STEP: { "not-started": "等待前一步", ready: "可以开始", running: "进行中", waiting: "在等别的步骤", succeeded: "模型报告完成", failed: "模型报告失败", cancelled: "已取消", blocked: "受阻，等你决定", "needs-reconciliation": "重启后需要核对" },
-  // A step a person holds ends by their own mark, not by the model's report: the words Coding's plan card uses for it.
-  MARK: { succeeded: "你标记完成", failed: "你标记失败" },
-} satisfies ReceiptWords;
-type ReceiptWords = {
-  FACT: Record<AgentTurnSteer["state"], string>; TREATMENT: Record<AgentInputTreatment, string>; KIND: Record<AgentInputKind, string>;
-  IMPACT: Record<AgentInputImpact, string>; TARGET: Record<AgentInputTarget["kind"], string>; QUESTION: Record<AgentInputQuestion["state"], string>;
-  STEP: Record<AgentStepState, string>; MARK: Partial<Record<AgentStepState, string>>;
-};
 
 /**
  * One receipt for every conversation that takes supplements: Coding's bubble and the Assistant's thread

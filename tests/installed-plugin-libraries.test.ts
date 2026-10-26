@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -56,7 +56,8 @@ function probe(options: ProbeOptions = {}) {
 
 function withDirectory(run: (directory: string) => Promise<void>) {
   return async () => {
-    const directory = mkdtempSync(join(tmpdir(), "installed-plugin-libraries-"));
+    // The real path: the Home snapshot refuses a Home reached through a link (macOS puts tmpdir() under /var -> /private/var).
+    const directory = realpathSync(mkdtempSync(join(tmpdir(), "installed-plugin-libraries-")));
     try { await run(directory); } finally { rmSync(directory, { recursive: true, force: true }); }
   };
 }
@@ -75,7 +76,7 @@ function platformIn(directory: string) {
 }
 
 type Item = ReturnType<typeof platformIn>;
-const install = (item: Item, definition: PluginDefinition) => item.platform.runtime.install({ definition, deployment: "local", grants: GRANTS }).install.install_id;
+const install = (item: Item, definition: PluginDefinition) => item.platform.runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: GRANTS }).install.install_id;
 /** Install and start; resolves with the install id. */
 async function run(item: Item, definition: PluginDefinition) {
   const installId = install(item, definition);
@@ -234,8 +235,8 @@ test("RAC-320 an installed plugin's library is declared the way a shipped one is
 test("RAC-321 uninstall --purge-user-data removes the libraries installed plugins made, named by the ledger, and a row that is not one plain directory name or names a registered store is never listed; a ledger that cannot be read stops the purge", withDirectory(async directory => {
   const item = platformIn(directory), plugin = probe();
   try { await run(item, plugin.definition); } finally { item.store.close(); }
-  const userHome = join(directory, "user");
-  mkdirSync(userHome, { recursive: true });
+  // The person's own home is outside the Home: an entry the Home does not own stops the purge (FIX19).
+  const userHome = mkdtempSync(join(tmpdir(), "installed-plugin-libraries-user-"));
   const service = () => new MolisWorkUninstallService({ homeDirectory: directory, projects: { inspect: async () => ({ projects: [], conflict: null }), removeDemos: async () => {} },
     runtimeIntegrationService: new RuntimeIntegrationService({ homeDirectory: directory, userHomeDirectory: userHome,
       runtimeExecutables: { codex: null, "claude-code": null, opencode: null, "pi-agent": null, "grok-build": null } }),
@@ -246,21 +247,28 @@ test("RAC-321 uninstall --purge-user-data removes the libraries installed plugin
   assert.ok(listed.includes(library), "the plugin's library");
   assert.ok(listed.includes(join(directory, "plugin-libraries")), "and the ledger itself");
 
-  // A row is a name the Host wrote, but it becomes a path that is deleted: tampered names are not followed.
+  // A row is a name the Host wrote, but it becomes a path that is deleted: a tampered name is never followed. The purge reads the
+  // same strict ledger as the Home snapshot (W5-16), so one such row stops it, naming the ledger, rather than deleting around it.
   mkdirSync(join(directory, "feed"), { recursive: true });
-  const db = new DatabaseSync(join(directory, LEDGER));
   for (const name of ["feed", "../outside", "a/b", "Upper"]) {
-    db.prepare("INSERT INTO plugin_home_libraries VALUES (?, ?, ?, 1, 'digest', '2026-10-24T00:00:00.000Z')").run(`tampered.${name}`, "x", name);
+    const db = new DatabaseSync(join(directory, LEDGER));
+    db.prepare("INSERT INTO plugin_home_libraries VALUES (?, ?, ?, 1, ?, '2026-10-24T00:00:00.000Z')").run(`tampered.${name}`, "x", name, "0".repeat(64));
+    db.close();
+    const tampered = await service().prepare({ purge_user_data: true });
+    assert.equal(tampered.status, "conflict", name);
+    assert.match(tampered.conflicts.join(" "), /安装库账本含无效归属、路径或版本/u, name);
+    assert.equal(tampered.changes.some(change => /outside|Upper|a\/b$/u.test(change.target)), false, name);
+    const fix = new DatabaseSync(join(directory, LEDGER));
+    fix.prepare("DELETE FROM plugin_home_libraries WHERE store_name = ?").run(name);
+    fix.close();
   }
-  db.close();
   const after = await targets();
-  assert.equal(after.includes(join(directory, "..", "outside")) || after.includes(join(directory, "..", "outside").replace(/\/\.\.\//u, "/")), false);
   assert.equal(after.filter(target => target === join(directory, "feed")).length, 1, "a registered store is listed once, by its own entry");
   assert.ok(after.includes(library));
-  assert.equal(after.some(target => /outside|Upper|a\/b$/u.test(target)), false);
 
   writeFileSync(join(directory, LEDGER), "not a database\n");
   const plan = await service().prepare({ purge_user_data: true });
   assert.equal(plan.status, "conflict");
   assert.match(plan.conflicts.join(" "), /账本读不出来/u);
+  rmSync(userHome, { recursive: true, force: true });
 }));

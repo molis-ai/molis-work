@@ -48,7 +48,7 @@ export async function packPluginProject(directory: string, output: string): Prom
     files.push({ path: file, content_base64: (await read(file)).toString("base64") });
   }
   const manifest = JSON.parse(Buffer.from(files.find(file => file.path === "manifest.json")!.content_base64, "base64").toString("utf8")) as unknown;
-  const bundle = parsePluginPackage({ payload: { schema_version: 1, manifest, files }, signature: null });
+  const bundle = parsePluginPackage({ payload: { schema_version: 1, manifest, files }, signature: null, publisher_key: null });
   await writePluginPackageFile(output, bundle);
   return bundle;
 }

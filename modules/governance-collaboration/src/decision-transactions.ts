@@ -1,15 +1,12 @@
 import type { GovernanceDecisionApi } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
-import { GovernanceRepository, type GovernanceSqliteDatabase } from "./repository.js";
+import type { GovernanceSqliteDatabase } from "./repository.js";
 
 /** The existing decision and nested preview savepoints, not a separate transaction system. */
 export class GovernanceDecisionTransactions implements GovernanceDecisionApi {
-  private readonly repository: GovernanceRepository;
-  constructor(private readonly db: GovernanceSqliteDatabase) {
-    this.repository = new GovernanceRepository(db);
-  }
+  constructor(private readonly db: GovernanceSqliteDatabase) {}
 
   materializeAtomically<T>(operation: () => T): T {
-    return this.repository.immediate(operation);
+    return this.db.transaction(operation).immediate();
   }
 
   previewMaterialization<T>(operation: () => T): T {

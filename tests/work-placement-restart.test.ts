@@ -10,8 +10,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalHost, MolisWorkLocalHost, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
-import { openFormStore } from "@molis-ai/molis-work-plugin-form";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
+import { openFormStore, openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
 // specs/archive/work-placement AC6 through the whole stack: where things are, how they relate, what was copied or moved, and a

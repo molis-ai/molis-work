@@ -7,11 +7,11 @@ import { join } from "node:path";
 import test from "node:test";
 import type { PagesBody, PagesRecord } from "@molis-ai/molis-work-contracts/modules/pages";
 import {
-  openPagesStore,
   pagesActions,
   type PagesStore,
   type PreparedPagesImport,
 } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { servePages } from "./fixtures/pages-runtime.js";
 

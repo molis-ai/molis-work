@@ -1,4 +1,4 @@
-import { fakeAgentHostActions, pluginActions } from "./fixtures/plugin-actions.js";
+import { PROJECT_SETTINGS_READS, pluginActions, withFakeAgentHost } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -91,10 +91,10 @@ test("a round told to wait for another session's work waits on it, starts on its
     if (id === projectsCapabilities.readWorkspace.capability_id) return null as Output;
     throw new Error(`Unexpected capability ${id}`);
   } };
-  const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions: fakeAgentHostActions(actions, (definition, input) => agentHost.invoke(definition, input)), actorId: "web-user",
+  const host = () => withFakeAgentHost({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
-    capabilities: agentHost,
-  });
+    agentHost,
+  }, [], PROJECT_SETTINGS_READS);
   const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host()).catch(error => { response.writeHead(500); response.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
@@ -125,7 +125,9 @@ test("a round told to wait for another session's work waits on it, starts on its
     assert.equal((calls.find(([id]) => id === agent.queueProjectRound.capability_id)![1] as [string, { data?: unknown }])[1].data, undefined, "the Host is not given the send");
     assert.equal(sessions.get(DEMO_PROJECT_ID, "b").state, "queued");
     assert.equal(started().length, 0, "nothing ran while it waits");
-    assert.equal((await call("/sessions/b/runs", send)).status, 400, "a second send is refused while one waits");
+    // BL-305 (#1304): a coded refusal answers by its kind; the session waiting is a conflict.
+    const second = await call("/sessions/b/runs", send);
+    assert.deepEqual([second.status, second.body.code], [409, "coding.waiting"], "a second send is refused while one waits");
     assert.deepEqual((await call("/sessions/b")).body.session.queued.after_title, "「改标签格式」那一步");
     // A's work is done: B starts on its own, taking over the item it waited as.
     fire("w-wb", "done");

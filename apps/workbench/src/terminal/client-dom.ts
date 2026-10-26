@@ -1,4 +1,4 @@
-import type { StateRingState } from "@molis-ai/molis-work-design-system";
+import type { StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 export type TerminalTranslate = (zh: string, vars?: Record<string, string | number>) => string;
 export type TerminalStatusTone = "idle" | "busy" | "live" | "error";

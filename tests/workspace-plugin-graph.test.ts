@@ -1,4 +1,4 @@
-import { pluginActions } from "./fixtures/plugin-actions.js";
+import { fakeProjectSettings, pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -6,6 +6,7 @@ import { join } from "node:path";
 import test from "node:test";
 
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { MemoryPluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import {
@@ -40,19 +41,25 @@ function capturing(
   };
 }
 
-function project(directory: string, capabilities?: Parameters<typeof createPluginPlatform>[0]["capabilities"]) {
+/** `browsing` answers the project's browsing folder, the only project setting the fixture serves; without it nothing is served. */
+function project(directory: string, browsing?: () => unknown) {
   const file = join(directory, "board.db");
   seedDemoBoard(file);
   const store = new LocalProjectDatabase(file);
   const artifacts = new ArtifactsModule({ db: store.db, appendEvent: (event) => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
-  const platform = createPluginPlatform({ actions: pluginActions(store, DEMO_PROJECT_ID),
+  const actions = pluginActions(store, DEMO_PROJECT_ID);
+  const settings = browsing && fakeProjectSettings(actions, definition => {
+    assert.equal(definition.capability_id, projectSettingsCapabilities.browsingWorkspace.capability_id);
+    return browsing();
+  }, [projectSettingsCapabilities.browsingWorkspace]);
+  const platform = createPluginPlatform({ actions,
     project_id: DEMO_PROJECT_ID,
     actor_id: "tester",
     db: store.db,
     artifacts, processItems: new ProcessItemsModule({ db: store.db, appendEvent: (event) => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) }),
     ui: new UiHost(),
-    home: null,
-    ...(capabilities ? { capabilities } : {}),
+    home: null, consents: new MemoryPluginConsentLedger(),
+    ...(settings ? { dependencyCheck: settings.dependencyCheck } : {}),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }),
   });
   return { store, platform, artifacts };
@@ -68,11 +75,11 @@ test("五个插件在真平台上一起起来，没有一个被依赖挡住", as
   try {
     const { store, platform } = project(directory);
     const report = await platform.start([
-      { definition: createFilesPlugin({ readable: () => true }) },
-      { definition: createDiffPlugin() },
-      { definition: createGitPlugin({ ready: () => true }) },
-      { definition: createTextStatsPlugin() },
-      { definition: createCodingPlugin() },
+      { definition: createFilesPlugin({ readable: () => true }), trust: { level: "host" } },
+      { definition: createDiffPlugin(), trust: { level: "host" } },
+      { definition: createGitPlugin(), trust: { level: "host" } },
+      { definition: createTextStatsPlugin(), trust: { level: "host" } },
+      { definition: createCodingPlugin(), trust: { level: "host" } },
     ]);
     assert.deepEqual(report.failed, []);
     assert.deepEqual(report.blocked, []);
@@ -90,15 +97,9 @@ test("五个插件在真平台上一起起来，没有一个被依赖挡住", as
 test("Files reads browsing settings without a Workspace binding and rejects the retired input", async () => {
   const directory = mkdtempSync(join(tmpdir(), "workspace-settings-graph-"));
   let selected = { workspace_id: "one", display_name: "One", canonical_path: "/one", realpath_verified: true };
-  const { store, platform } = project(directory, {
-    availability: definition => definition.capability_id === projectSettingsCapabilities.browsingWorkspace.capability_id && definition.version === 1
-      ? { available: true } : { available: false, code: "fixture.missing", reason: "Fixture has only browsing settings" },
-    async invoke<Input, Output>(definition: { capability_id: string }, _input: Input): Promise<Output> {
-    assert.equal(definition.capability_id, projectSettingsCapabilities.browsingWorkspace.capability_id);
-    return selected as Output;
-  } });
+  const { store, platform } = project(directory, () => selected);
   try {
-    const report = await platform.start([{ definition: createFilesPlugin() }]);
+    const report = await platform.start([{ definition: createFilesPlugin(), trust: { level: "host" } }]);
     assert.deepEqual(report.failed, []);
     const read = () => platform.router().dispatch({ method: "GET", pathname: "/api/plugins/io.molis.work.files/state", actor_id: "tester", query: {} });
     const first = await read();
@@ -124,8 +125,9 @@ test("Files 捕获的快照到得了 Text stats，数出来的是那一份", asy
           createFilesPlugin({ readable: () => true }),
           (context) => { filesServices = context.services; },
         ),
+        trust: { level: "host" },
       },
-      { definition: createTextStatsPlugin({ onSnapshot: (input) => { counted.push(input); } }) },
+      { definition: createTextStatsPlugin({ onSnapshot: (input) => { counted.push(input); } }), trust: { level: "host" } },
     ]);
 
     platform.wiring.bind({
@@ -159,10 +161,10 @@ test("Coding fixed output reaches Diff through the production default binding wi
   try {
     // As the Host's start list gives them: default wiring applies only between plugins that ship with the Host (W4-03).
     await platform.start([
-      { definition: capturing(createCodingPlugin(), context => { coding = context; }), bundled: true },
-      { definition: createShelfPlugin(), bundled: true },
-      { definition: createFilesPlugin(), bundled: true }, { definition: createGitPlugin(), bundled: true },
-      { definition: createTextStatsPlugin(), bundled: true }, { definition: createDiffPlugin(), bundled: true },
+      { definition: capturing(createCodingPlugin(), context => { coding = context; }), trust: { level: "host" } },
+      { definition: createShelfPlugin(), trust: { level: "host" } },
+      { definition: createFilesPlugin(), trust: { level: "host" } }, { definition: createGitPlugin(), trust: { level: "host" } },
+      { definition: createTextStatsPlugin(), trust: { level: "host" } }, { definition: createDiffPlugin(), trust: { level: "host" } },
     ]);
     bindDeclaredDefaults(platform, DEMO_PROJECT_ID, "tester");
     assert.equal(platform.wiring.selectedGroup(DIFF_PLUGIN_ID), "snapshots", "publishing must not change the user's comparison group");
@@ -187,8 +189,8 @@ test("the default wiring leaves a 成果 version the person gave an input in pla
   const { store, platform, artifacts } = project(directory);
   try {
     await platform.start([
-      { definition: createCodingPlugin(), bundled: true }, { definition: createShelfPlugin(), bundled: true }, { definition: createFilesPlugin(), bundled: true },
-      { definition: createGitPlugin(), bundled: true }, { definition: createTextStatsPlugin(), bundled: true }, { definition: createDiffPlugin(), bundled: true },
+      { definition: createCodingPlugin(), trust: { level: "host" } }, { definition: createShelfPlugin(), trust: { level: "host" } }, { definition: createFilesPlugin(), trust: { level: "host" } },
+      { definition: createGitPlugin(), trust: { level: "host" } }, { definition: createTextStatsPlugin(), trust: { level: "host" } }, { definition: createDiffPlugin(), trust: { level: "host" } },
     ]);
     const shelfReport = () => platform.wiring.view().plugins.find(plugin => plugin.plugin_id === "io.molis.work.shelf")!.ports.find(port => port.port === "coding-report")!;
     bindDeclaredDefaults(platform, DEMO_PROJECT_ID, "tester");
@@ -259,13 +261,6 @@ test("每个插件声明的视图都有对应的 contribution", () => {
         declared.has(view.contribution_id ?? `${manifest.plugin_id}.${view.view_id}`),
         true,
         `${manifest.plugin_id} 的视图 ${view.view_id} 没有对应的 contribution`,
-      );
-    }
-    for (const command of manifest.ui.commands ?? []) {
-      assert.equal(
-        (manifest.ui.views ?? []).some((view) => view.view_id === command.opens_view_id),
-        true,
-        `${manifest.plugin_id} 的命令 ${command.command_id} 指向不存在的视图`,
       );
     }
   }

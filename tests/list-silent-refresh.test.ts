@@ -26,6 +26,7 @@ const lingguangSource = (file: string) => readFileSync(fileURLToPath(new URL(`..
 const datasetSource = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/dataset/src/browser/${file}`, import.meta.url)), "utf8");
 const pagesSource = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/pages/src/browser/${file}`, import.meta.url)), "utf8");
 const formSource = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/form/src/browser/${file}`, import.meta.url)), "utf8");
+const scheduleSource = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/schedule/src/browser/${file}`, import.meta.url)), "utf8");
 const pptSource = (file: string) => readFileSync(fileURLToPath(new URL(`../plugins/native/ppt/src/browser/${file}`, import.meta.url)), "utf8");
 
 const csrClients = {
@@ -125,7 +126,7 @@ test("Feed / Inbox 成功路径改走舞台刷新，工作台脚本含 refresh h
     // The toast is the shared request helper's error (with its 诊断编号 when the call left a row, W3-10), marked as a failure
     // (it carries the failure glyph, DESIGN.md → Toasts); the request names what could not be refreshed.
     assert.match(script, /showToast\(error,\s*true\)/);
-    assert.match(script, /fallback:\s*L\("无法更新 (Feed|Inbox) 列表"\s*\)/);
+    assert.match(script, /fallback:\s*F?L\("无法更新 (Feed|Inbox) 列表"\s*\)/);
   }
 });
 
@@ -152,8 +153,11 @@ test("Inbox fragment and Schedule isolated view refresh retain their presentatio
   assert.equal(inboxPage?.status, 200);
   assert.match(String(inboxPage?.html), /data-inbox-list/);
 
-  assert.match(SCHEDULE_CLIENT_FACTORY_SCRIPT, /await host\.view\.readDocument\(\)/);
-  assert.match(SCHEDULE_CLIENT_FACTORY_SCRIPT, /const refreshStage = async/);
-  assert.match(SCHEDULE_CLIENT_FACTORY_SCRIPT, /await refreshStage\(/);
-  assert.doesNotMatch(SCHEDULE_CLIENT_FACTORY_SCRIPT, /location\.reload\(/);
+  // Schedule's page is TypeScript bundled and minified into its client pack: what its code does is read in the sources.
+  const stage = scheduleSource("stage.ts"), actions = scheduleSource("actions.ts"), form = scheduleSource("form.ts");
+  assert.match(stage, /await host\.view\.readDocument\(\)/);
+  assert.match(stage, /export async function refreshStage/);
+  assert.match(actions + form, /await refreshStage\(|refreshStage\(page/);
+  assert.doesNotMatch(stage + actions + form, /location\.reload\(/);
+  assert.ok(SCHEDULE_CLIENT_FACTORY_SCRIPT.includes("readDocument"), "and the bundle carries it");
 });

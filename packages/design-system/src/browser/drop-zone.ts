@@ -15,7 +15,7 @@
  * same enter/leave counting, so crossing a child does not flicker, and it clears the same ways.
  * The zone still takes the drop itself (`dragover` and `drop`); this only says where it is.
  */
-import type { DropAccepts as Accepts, DropItem, DropMark as Mark } from "../drop-zone.js";
+import type { DropAccepts as Accepts, DropItem, DropMark as Mark } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 
 const zones = new Map<Element | string, { mark: Mark; accepts: Accepts; reason?: string }>();
 const shown = new Map<Mark, boolean>();

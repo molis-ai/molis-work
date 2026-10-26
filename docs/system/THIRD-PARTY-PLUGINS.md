@@ -1,6 +1,6 @@
 # 第三方插件：安装方案
 
-状态：方案，2026-10-08 按 origin/main `31c357df` 核实。本步只写计划，不实现。信任模型用户 2026-10-08 已定（`specs/repository-anti-corruption/spec.md` §1 的 2026-10-08「第三方插件的安装与信任」一行，第五批，PR #312 合入前不在 main 上）：用 `molis-work plugin install <bundle>` 本地装；首次安装时确认并记住发布者密钥；在独立进程的沙箱里运行。其余各节是在现有代码上的设计，待评审。
+状态：方案，2026-10-08 按 origin/main `31c357df` 核实。本步只写计划，不实现。信任模型用户 2026-10-08 已定（`specs/repository-anti-corruption/spec.md` §1 的 2026-10-08「第三方插件的安装与信任」一行，第五批，PR #312 合入前不在 main 上）：用 `molis-work plugin install <bundle>` 本地装；首次安装时确认并记住发布者密钥；在独立进程的沙箱里运行。其余各节是在现有代码上的设计，待评审。2026-10-25 补：安装的信任等级与声明同意（第 4.1 节）已有设计与分片，见 `specs/repository-anti-corruption/slices/ac-trust-install.md`；本文第 3、4 节的命令与受信表按它落地，落地进度也以它的 §7 为准。
 
 任务来源：`docs/prompts/repository-anti-corruption.md` §4.6「第三方插件」：用户自行安装插件的路径目前不存在，给出方案（安装命令、签名信任、市场入口、沙箱边界），不在本步实现。扩展点清单见 [EXTENSION-POINTS.md](EXTENSION-POINTS.md) 3.2，内置插件的迁移计划见 [RUNTIME-MIGRATION.md](RUNTIME-MIGRATION.md)。
 
@@ -12,7 +12,7 @@
 
 **有**（代码事实）：
 
-- `tooling/plugin-cli`：`create`、`validate`、`pack`、`identity`、`sign`、`verify`（`tooling/plugin-cli/src/cli.ts`）。`pack` 把 `package.json` 的 `files` 列出的文件打成一个 JSON 包：拒绝符号链接、越界路径、生命周期脚本，不超过 64 MiB（`package-files.ts`）。
+- `tooling/plugin-cli`：`create`、`validate`、`pack`、`identity`、`sign`、`verify`（`tooling/plugin-cli/src/cli.ts`）。`pack` 把 `package.json` 的 `files` 列出的文件打成一个 JSON 包：拒绝符号链接、越界路径与超过 64 MiB 的包，不执行 glob 或生命周期脚本（`package-files.ts`）。
 - 发布者身份是 Ed25519 公钥的指纹：`ed25519:sha256:<spki 的哈希>`（`pluginPublisherIdentity`，`packages/plugin-runtime/src/package-verification.ts`），Manifest 的 `publisher.signature` 必须等于它，`signPluginPackage` 不一致就拒绝；`verifyPluginPackage(bundle, 可信公钥)` 验签，没签名的包「不是已验证发行物」。
 - Runtime 的安装、授权、升级、回滚、停用、卸载，安装记录有 `execution: "host" | "sandbox"`（`packages/contracts/src/platform/plugin.ts`）。`execution: "sandbox"` 的插件必须带明确的授权清单才能安装（`packages/plugin-runtime/src/index.ts`、`supervisor.ts`）。
 - 沙箱：创作台做出的「生成插件」就是这条路径。`apps/local-host/src/plugin-builder/installed.ts` 的文件头写明「插件的代码从不在宿主进程里跑，界面是宿主的组件渲染器，所以页面里也没有插件脚本」。`packages/plugin-sandbox` 在 macOS 上用 `sandbox-exec` 启动子进程：不继承环境变量；Seatbelt 禁止创建进程、联网和一切文件写入，可读范围只有暂存的包与 worker、Node 可执行文件和系统库；网络和存储都经宿主服务；非 macOS 直接抛 `UNSUPPORTED_PLATFORM`（`packages/plugin-sandbox/README.md`、`runner.ts`）。
@@ -49,7 +49,7 @@ molis-work plugin trust list | revoke <publisher_identity>
 1. 解析包（`parsePluginPackage`：路径、base64、`manifest.json` 与声明一致、入口存在）。
 2. 取发布者指纹（Manifest 的 `publisher.signature`）。没签名的包只在 `--allow-unsigned-development` 的开发路径里存在，`install` 一律拒绝。
 3. **信任判定**（第 4 节）：已受信 → 用对应公钥验签；未受信 → 显示指纹、插件名、版本、全部权限和理由，请用户确认后写入受信表。
-4. 用户逐项授予权限（沙箱形态的插件必须带明确授权清单）。
+4. 用户逐项授予权限（沙箱形态的插件必须带明确授权清单），并对 Manifest 里需要同意的声明逐项同意或拒绝（第 4.1 节）；拒绝一项不阻止安装，那一项不生效。
 5. 以 `execution: "sandbox"` 安装，保留发行物（升级和回滚用）。
 6. 启动，报告结果；失败只影响这个插件。
 
@@ -64,6 +64,26 @@ molis-work plugin trust list | revoke <publisher_identity>
 - 撤销：`trust revoke` 之后，这个发布者所有已装插件停用、不可再升级，数据保留。
 - 官方目录的签名：官方索引（第 6 节）用官方密钥签名，官方公钥随发行物内置。这与内置插件的标签式 `publisher.signature` 无关。
 
+### 4.1 信任等级与要同意的声明（ac-trust，2026-10-25）
+
+安装只有一条路，按信任等级走（等级表在 `specs/repository-anti-corruption/slices/ac-trust-install.md` §2.1，这里不重抄）：
+
+- `host`：代码在宿主构建里，宿主代为同意并记账（`granted_by: "host_build"`），不弹窗，跟着宿主的构建升降版本（`docs/releases/POLICY.md` 第 7.9 节）。
+- `pinned`：包的发布者已固定（本节上文的受信表），每次安装、升级、回滚都验签，在沙箱里跑；权限提升与需要同意的声明仍要确认。
+- `unsigned`：没有可验的发布者（比如创作台的产物），每次安装都确认，权限逐项给，没有「全部允许」，在沙箱里跑。
+
+Manifest 里有三类声明会改变这个插件在别处的效果，安装预览里单列，每一类单独同意或拒绝，`host` 以外的等级都要显式同意：
+
+| 声明 | 同意的是什么 |
+| --- | --- |
+| `always_on: true` | 每个项目都开、删不掉 |
+| `ports.inputs[].default_source` | 默认从某个插件的某个输出口读；同意带来源插件当时的发布者签名，后来占了同一个 `plugin_id` 的别人对不上就不绑 |
+| `ports.input_groups[].default` | 默认用这一组输入 |
+
+同意是同意账本（Home 级，Plugin Runtime 拥有）里的一行，带同意的人（`user` 或 `host_build`）和当时的 Manifest 摘要；声明变了就是新的一项，要新的同意。本人随时可以撤回，各等级一样：撤回只写 `revoked_at`，之后常开名单、默认连线都不再认这一行，宿主也不会再为随它发布的插件代为同意。撤销发布者（上文 `trust revoke`）是另一件事：停用这个发布者所有已装插件，不删同意的行。
+
+落地进度：信任等级、账本和发布者固定表的表结构是 T1，常开按账本生成是 T3，默认连线与默认组要同意是 T4，撤回是 T5，安装身份与 id 前缀是 T6；安装服务、预览与 `plugin install` 命令是 T2（已做：沙箱包的公开格式见 [插件开发](../platform/PLUGIN-DEVELOPMENT.md#沙箱包格式与安装)，S-84），发布者撤销与两个撤回动作是 T5，界面是 T7，以设计稿 §7 为准。
+
 用户没有采纳的另两种做法：
 
 - **只认官方签名**：市场就是官方目录，没有侧载。最简单，但用户自己做的、同事之间传的插件装不上。
@@ -73,7 +93,7 @@ molis-work plugin trust list | revoke <publisher_identity>
 
 ## 5. 沙箱边界
 
-- 第三方安装一律 `execution: "sandbox"`。安装服务在装入前检查，`host` 执行只接受 `bundled: true` 的内置条目。
+- 第三方安装一律 `execution: "sandbox"`。安装服务在装入前检查，`host` 执行只接受 `trust: HOST_BUILD_TRUST` 的内置条目。
 - **阶段一的形态与生成插件相同**：一份 JSON 的 `operations` 合同（查询或命令，严格的 schema 子集）加平台 UI 目录的界面声明；网络、存储、模型、其他动作都只经宿主服务，每次调用复查调用方、授权和 `beforeEffect()`。这样阶段一不需要新的运行机制，只需要把「已验签的包」翻译成现有的 `sandboxedPluginDefinition` 的输入。
 - 第三方不能：在宿主进程里执行代码；在页面里放脚本；直接读写文件或联网；读别的插件的私有存储。
 - **`methods`**（2026-10-08 决定）：第三方 Manifest 声明的 `methods`（给其他 Agent 的方法）和内置插件一样登记：安装启动时登记，停用、卸载、升级时收回（切片 W4-02）。校验沿用 Manifest 的规则（`tools` 只能是业务工具），没有正文的方法不登记（`docs/platform/PLUGIN-DEVELOPMENT.md`「给其他 Agent 的方法」）。方法正文是文本不是代码，怎样随包携带由 W4-02 的设计定。

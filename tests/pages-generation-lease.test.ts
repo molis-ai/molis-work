@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 
 const record = { request_id: "lease-1", project_id: "a", request_hash: "hash", status: "running" as const, document_id: null, inputs: [], instructions: "Keep", title: "Lease", error: null, updated_at: new Date().toISOString() };

@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { OwnedUiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import {
   THEME_BOOTSTRAP_SCRIPT,
   VISUAL_FOUNDATION_CLIENT_SCRIPT,
@@ -52,7 +52,7 @@ test("K1-01 document metadata keeps hostile markup inside its text and attribute
 });
 
 test("UI Host mounts only declared Plugin surfaces into compatible Workbench slots", () => {
-  const contribution: UiContribution<{ title: string }> = {
+  const contribution: OwnedUiContribution<{ title: string }> = {
     descriptor: {
       contribution_id: "io.molis.work.test.ui.v1",
       plugin_id: "io.molis.work.test",
@@ -115,7 +115,7 @@ test("UI Host mounts only declared Plugin surfaces into compatible Workbench slo
 });
 
 test("W5-06 UI Host mounts a surface in the slot its contribution declares, and only in a slot this host offers", () => {
-  const contribution: UiContribution<UiSurfaceCallModel<{ tag: string }>> = {
+  const contribution: OwnedUiContribution<UiSurfaceCallModel<{ tag: string }>> = {
     descriptor: {
       contribution_id: "io.molis.work.test.declared.v1",
       plugin_id: "io.molis.work.test",

@@ -1,9 +1,10 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { HOST_SERVICE_PERMISSIONS, HomePluginHost, LocalHost, LocalProjectDatabase, PluginHostExecutor } from "@molis-ai/molis-work-app-local-host";
+import { HOST_SERVICE_PERMISSIONS, HomePluginHost, LocalHost, LocalProjectDatabase, PluginHostExecutor, hostDependencyCheck } from "@molis-ai/molis-work-app-local-host";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginManifest, PluginPrivateStorage, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
@@ -52,6 +53,9 @@ test("S-60 RAC-238 a sandboxed plugin asking for a service the sandbox is not gi
     ["notifications", declaring({}, {}, [permission("notifications:write", true)]), []],
     ["installations", declaring({}, {}, [permission("plugins:read", true)]), []],
     ["actions", declaring({}, {}, [permission("actions:delegate", true)]), []],
+    // PG-112 RAC-734: the Manifest's local_tools (or the permission) asks for the Host's look for command-line tools, which answers with paths outside the sandbox.
+    ["localTools", declaring({}, { local_tools: { tools: [{ tool_id: "probe", binaries: ["probe"] }] } }, [permission("local-tools:read", true)]), []],
+    ["localTools", declaring({}, {}, [permission("local-tools:read", false)]), ["local-tools:read"]],
     // Project artifacts, process items, ports and events: each declaration, and the artifact permissions, ask for the services the sandbox is not given.
     ["artifacts", declaring({}, { artifacts: { produces: [{ type: "probe" } as never], consumes: [] } }), []],
     ["artifacts", declaring({}, { artifacts: { produces: [], consumes: [{ type: "probe" } as never] } }), []],
@@ -133,9 +137,9 @@ test("S-60 RAC-238 the Host stops a sandboxed installation that asks for a servi
   const processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
   const local = new LocalHost({ runtimeFactory: { open: () => ({ project_id: project.project_id, store, artifacts }), close: () => {} } });
   const actions = { registry: local.actionRegistry(project), client: { ...local.actionClient(project), ...local.syncActionClient(project) }, project_id: project.project_id };
-  const executor = new PluginHostExecutor({ actions, project_id: project.project_id, actor_id: "web-user", artifacts, processItems, ui: new UiHost(), capabilities: local.client(project),
+  const executor = new PluginHostExecutor({ actions, project_id: project.project_id, actor_id: "web-user", artifacts, processItems, ui: new UiHost(), dependencyCheck: hostDependencyCheck(local.client(project)),
     privateStorageFor: () => ({ get: () => null, set: () => {}, delete: () => false }) });
-  const runtime = new PluginRuntime(undefined, executor);
+  const runtime = new PluginRuntime(undefined, executor, { hostIds: ISOLATED_HOST_IDS });
   t.after(async () => { await local.close(); store.close(); await rm(home, { recursive: true, force: true }); });
   const started: string[] = [];
   const definition = (id: string, execution: PluginDefinition["execution"], modelConfiguration = false): PluginDefinition => ({
@@ -143,21 +147,21 @@ test("S-60 RAC-238 the Host stops a sandboxed installation that asks for a servi
     async start(context: PluginStartContext) { started.push(context.plugin_id); return { kind: "app" }; },
   });
   const grants = ["storage:private", "directory:read"];
-  const sandboxed = runtime.install({ definition: definition(`${PLUGIN_ID}.boxed`, "sandbox"), deployment: "local", grants }).install;
-  const hosted = runtime.install({ definition: definition(`${PLUGIN_ID}.hosted`, undefined), deployment: "local", grants }).install;
+  const sandboxed = runtime.install({ trust: { level: "unsigned" }, definition: definition(`${PLUGIN_ID}.boxed`, "sandbox"), deployment: "local", grants }).install;
+  const hosted = runtime.install({ trust: { level: "unsigned" }, definition: definition(`${PLUGIN_ID}.hosted`, undefined), deployment: "local", grants }).install;
   // The Runtime reduces an opaque start failure to a safe message and keeps the code on the installation's record.
   await assert.rejects(runtime.start(sandboxed.install_id), { code: "plugin.executor_failed" });
   assert.deepEqual({ state: runtime.get(sandboxed.install_id).state, code: runtime.get(sandboxed.install_id).last_error_code }, { state: "crashed", code: NOT_GIVEN.code });
   assert.deepEqual(started, [], "the sandboxed plugin's start never ran");
   // A project's platform has no process to run a sandboxed package's Home statements in: a package that declares a library there is stopped before its code starts (BL-490).
   const homeLibrary = { store_name: "sbxhomelib", version: 1, read_permission: "sbxhomelib:read", write_permission: "sbxhomelib:write", schema: "CREATE TABLE sbxhomelib_rows (id INTEGER PRIMARY KEY);" };
-  const withHome = runtime.install({ definition: { ...definition(`${PLUGIN_ID}.withhome`, "sandbox"), manifest: { ...manifest({ databases: { home: homeLibrary } }, [permission(homeLibrary.read_permission, true), permission(homeLibrary.write_permission, true)]), plugin_id: `${PLUGIN_ID}.withhome` } },
+  const withHome = runtime.install({ trust: { level: "unsigned" }, definition: { ...definition(`${PLUGIN_ID}.withhome`, "sandbox"), manifest: { ...manifest({ databases: { home: homeLibrary } }, [permission(homeLibrary.read_permission, true), permission(homeLibrary.write_permission, true)]), plugin_id: `${PLUGIN_ID}.withhome` } },
     deployment: "local", grants: ["storage:private", homeLibrary.read_permission, homeLibrary.write_permission] }).install;
   await assert.rejects(runtime.start(withHome.install_id), { code: "plugin.executor_failed" });
   assert.equal(runtime.get(withHome.install_id).state, "crashed");
   assert.equal(runtime.get(withHome.install_id).last_error_code, "plugin.declaration_invalid");
   assert.deepEqual(started, [], "the package that declares a Home library never started in a project");
-  const configured = runtime.install({ definition: definition(`${PLUGIN_ID}.configured`, "sandbox", true), deployment: "local", grants: ["storage:private", "model:invoke"] }).install;
+  const configured = runtime.install({ trust: { level: "unsigned" }, definition: definition(`${PLUGIN_ID}.configured`, "sandbox", true), deployment: "local", grants: ["storage:private", "model:invoke"] }).install;
   await assert.rejects(runtime.start(configured.install_id), { code: "plugin.executor_failed" });
   assert.equal(runtime.get(configured.install_id).last_error_code, NOT_GIVEN.code, "model_configuration is refused with the S-60 code before services are built");
   assert.deepEqual(started, [], "a model_configuration declaration cannot silently start without its port");
@@ -176,13 +180,13 @@ test("S-60 RAC-238 the Home Runtime stops a sandboxed installation that asks for
   // A sandboxed package is installed with the person's grants; it is never a start-list entry or a fixture.
   // The probe's model and instructions are given; a folder of the person's (directory:read) is not, so it is what the package asks for.
   boxed.definition.manifest.permissions.push({ permission: "directory:read", required: true, reason: "probe" });
-  const { install } = runtime.install({ definition: { ...boxed.definition, execution: "sandbox" }, deployment: "local", grants: ["storage:private", "model:invoke", "directory:read"] });
+  const { install } = runtime.install({ trust: { level: "unsigned" }, definition: { ...boxed.definition, execution: "sandbox" }, deployment: "local", grants: ["storage:private", "model:invoke", "directory:read"] });
   await assert.rejects(runtime.start(install.install_id), { code: "plugin.executor_failed" });
   assert.deepEqual({ state: runtime.get(install.install_id).state, code: runtime.get(install.install_id).last_error_code }, { state: "crashed", code: NOT_GIVEN.code });
   assert.equal(boxed.contexts.length, 0, "the sandboxed plugin's start never ran");
   const configured = homeProbe("sbxmodelconfiguration");
   configured.definition.manifest.model_configuration = { ...MODEL_CONFIGURATION, actions: { read: configured.state, save: configured.save } };
-  const modelInstall = runtime.install({ definition: { ...configured.definition, execution: "sandbox" }, deployment: "local", grants: ["storage:private", "model:invoke"] }).install;
+  const modelInstall = runtime.install({ trust: { level: "unsigned" }, definition: { ...configured.definition, execution: "sandbox" }, deployment: "local", grants: ["storage:private", "model:invoke"] }).install;
   await assert.rejects(runtime.start(modelInstall.install_id), { code: "plugin.executor_failed" });
   assert.equal(runtime.get(modelInstall.install_id).last_error_code, NOT_GIVEN.code, "Home uses the same refusal instead of a later generic declaration error");
   assert.equal(configured.contexts.length, 0, "the model_configuration plugin's start never ran");

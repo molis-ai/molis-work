@@ -2,35 +2,16 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
 
-import { PERSONAL_PLUGIN_IDS, railEntries } from "@molis-ai/molis-work-app-workbench";
+import { railEntries } from "@molis-ai/molis-work-app-workbench";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
-import { LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService, openProjectVersionStores, PERSONAL_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
 import { openTestHome } from "./fixtures/test-home.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
-import { LINGGUANG_CLIENT_FACTORY_SCRIPT, openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
+import { LINGGUANG_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-lingguang";
+import { openLingguangStore, openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { buildInboxUiEntries } from "@molis-ai/molis-work-plugin-inbox";
-import {
-  WORKFLOWS_CLIENT_FACTORY_SCRIPT,
-  WORKFLOWS_PLUGIN_ID,
-  WORKFLOWS_MESSAGES,
-  WORKFLOWS_PROJECT_PLUGIN_ID,
-  applyFunctionRule,
-  insertStation,
-  linkReadiness,
-  manualLink,
-  moveStation,
-  newStation,
-  openWorkflowsStore,
-  parseAiHandoff,
-  parseChain,
-  removeStation,
-  setLink,
-  workflowsManifest,
-  type WorkflowChain,
-  type WorkflowInstance,
-  type WorkflowLink,
-} from "@molis-ai/molis-work-plugin-workflows";
+import { WORKFLOWS_CLIENT_FACTORY_SCRIPT, WORKFLOWS_PLUGIN_ID, WORKFLOWS_MESSAGES, WORKFLOWS_PROJECT_PLUGIN_ID, applyFunctionRule, insertStation, linkReadiness, manualLink, moveStation, newStation, parseAiHandoff, parseChain, removeStation, setLink, workflowsManifest, type WorkflowChain, type WorkflowInstance, type WorkflowLink } from "@molis-ai/molis-work-plugin-workflows";
+import { openWorkflowsStore } from "./fixtures/plugin-home-stores.js";
 
 const fn = (body: string, title = ""): WorkflowLink => ({ kind: "function", title_template: title, body_template: body, instructions: "" });
 const ai = (instructions: string): WorkflowLink => ({ kind: "ai", title_template: "", body_template: "", instructions });

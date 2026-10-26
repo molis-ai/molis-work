@@ -197,9 +197,9 @@ flowchart TB
 
 同一能力只保留一个规范定义和实际处理器映射；不同入口可以有不同可见范围和名称适配。现有内部直接函数调用不必绕一圈 MCP 网络协议。已有对外 MCP Server 逐步改为调用共同核心，不新增另一套业务执行服务。
 
-Host 的既有 typed capability 与新动作服务共用同一个 Kernel registry。项目调用继续使用现有 Runtime 生命周期、串行调用和关闭等待；可信身份与业务 Runtime 由 Host 在调用期间关联，不能放入模型参数。相同插件在不同项目的激活允许复用公开能力 ID/版本，注册实例以可信项目作用域区分；全局与项目同名能力不得互相遮蔽。项目关闭或插件停用时撤回对应实例，其他项目不受影响。旧的内部客户端默认没有额外授权；需要权限的能力必须由 Host 调用方显式提供可信上下文。
+Host 的注册表（Kernel registry）只登记动作（R8 删掉了既有的 typed capability）。项目调用继续使用现有 Runtime 生命周期、串行调用和关闭等待；可信身份与业务 Runtime 由 Host 在调用期间关联，不能放入模型参数。相同插件在不同项目的激活允许复用公开能力 ID/版本，注册实例以可信项目作用域区分；全局与项目同名能力不得互相遮蔽。项目关闭或插件停用时撤回对应实例，其他项目不受影响。旧的内部客户端默认没有额外授权；需要权限的能力必须由 Host 调用方显式提供可信上下文。
 
-Host 上一种东西只有一个登记口（PG-035）：动作只走 `registerAction`（进动作服务，按动作声明检查，声明不全是 `actions.definition_invalid`），`register` / `registerCapability` 只收 typed 条目，拿到带 `action` 的定义直接拒绝（`host.registration_seam`）；组合根按定义上有没有 `action` 分到两边。新能力只登记成动作，不再加 typed 条目。模型起草 `agent.draft-text.v1` 是第一个转过来的宿主能力：只给插件、要 `model:invoke`，插件经 `services.actions.invoke` 调；宿主为每个项目登记的工作区读取与浏览选择（7 条）也只在动作这一边。agent 宿主的能力已全部转成动作（R8 第 1～4 批，`specs/repository-anti-corruption/slices/r8-agent-host-actions.md`），scheduler 的 4 条在 BL-365。
+Host 上只有一个登记口（PG-035，R8 收尾）：动作只走 `registerAction`（进动作服务，按动作声明检查，声明不全是 `actions.definition_invalid`）；typed 的 `register` / `registerCapability`、`HostCapabilityDefinition` 与插件的 `services.capabilities` 已删除，宿主项目客户端 `LocalHost.invoke` 只调动作，没注册的 id 答 `actions.missing`。模型起草 `agent.draft-text.v1` 是第一个转过来的宿主能力：只给插件、要 `model:invoke`，插件经 `services.actions.invoke` 调；宿主为每个项目登记的工作区读取与浏览选择（7 条）也只在动作这一边。agent 宿主的能力已全部转成动作（R8 第 1～4 批，`specs/repository-anti-corruption/slices/r8-agent-host-actions.md`），typed 通道随后整个删掉（同一文件「删 typed 通道」一节）。
 
 ### 动作：一项有明确输入和结果的操作
 
@@ -209,26 +209,45 @@ Host 上一种东西只有一个登记口（PG-035）：动作只走 `registerAc
 
 动作目录以已注册且具有执行实现的定义为事实来源。业务校验与数据写入仍由原插件/模块负责。查询可用性只用于展示，执行时必须重新校验。
 
-各服务接入的 MCP 工具，包括列表和查询，都属于统一能力目录。首页按钮是这个目录的场景化呈现，只有具有适用对象及展示定义的能力才成为首页按钮；接入 MCP 不要求每个工具都生成按钮。
+各服务接入的 MCP 工具，包括列表和查询，都属于同一个动作目录。首页按钮是这个目录的场景化呈现，只有具有适用对象及展示定义的能力才成为首页按钮；接入 MCP 不要求每个工具都生成按钮。
 
 ### 基本合同：注册一次，自动发现，配置与执行一致
 
 **一个符合 SDK 合同的新插件，应仅通过自身声明和实现完成接入。不得为它修改 Host 支持名单、工作流程分支、首页动作分支、函数场景枚举或 MCP 工具总表。** 全新交互形式可能需要新增通用扩展点；使用已有扩展合同的普通插件不应再增加宿主特判。
 
-插件需要能够贡献两种不同的内容：
+插件需要能够贡献两种不同的内容（现行词见 [GLOSSARY](../../docs/system/GLOSSARY.md) §1：动作、动作目录、消费场景、受众）：
 
 | 贡献 | 声明什么 | 必须兑现什么 |
 | --- | --- | --- |
-| 提供能力 | 稳定 ID、合同版本、名称与说明、输入/输出类型、适用对象、查询/判断/写入性质、作用域与权限、允许的调用入口；需要时声明通用表单/专用界面及结果呈现 | 可调用的 handler 或受控服务适配；所需的业务校验、结果合同和状态查询 |
-| 使用能力的场景（消费入口） | 稳定场景 ID、用户可读名称、触发时机、提供的上下文、接受的判断结果类型、如何使用结果、允许推荐或执行的动作范围、配置入口及绑定作用域 | 实际业务触发点读取绑定并调用；结果有真实消费路径；例如新消息到达后使用分类结果，不能只向目录贡献一个标签 |
+| 提供动作 | 稳定 ID、合同版本、名称与说明、输入/输出类型、适用对象、查询/判断/写入性质、作用域与权限、允许的调用入口；需要时声明通用表单/专用界面及结果呈现 | 可调用的 handler 或受控服务适配；所需的业务校验、结果合同和状态查询 |
+| 消费场景（使用判断结果的位置） | 稳定场景 ID、用户可读名称、触发时机、提供的上下文、接受的判断结果类型、如何使用结果、允许推荐或执行的动作范围、配置入口及绑定作用域 | 实际业务触发点读取绑定并调用；结果有真实消费路径；例如新消息到达后使用分类结果，不能只向目录贡献一个标签 |
 
-已发布的用户判断函数也注册为能力；插件及系统场景注册为消费入口。内置功能、可安装插件、生成的插件遵守同一合同。外部 MCP 通过接入适配器贡献已发现工具，不要求用户重复录入工具名和参数；上游没有提供的业务语义不能由系统猜成确定事实。
+已发布的判断规则也注册为动作；插件及系统里使用判断结果的位置注册为消费场景。内置功能、可安装插件、生成的插件遵守同一合同。外部 MCP 通过接入适配器贡献已发现工具，不要求用户重复录入工具名和参数；上游没有提供的业务语义不能由系统猜成确定事实。
 
 SDK 提供规范定义、类型辅助和注册入口；manifest 引用同一份定义生成安装时可检查的元数据，运行时兑现对应处理器。开发期检查重复身份、非法 schema、未兑现的能力和场景；激活期再次验证。声明不完整或处理器缺失的贡献不能进入“可调用”目录，给插件开发者明确错误。能力声明不代表实际 grant。
 
-从已经安装的可信声明可以发现暂不可用能力；真正可执行的目录同时结合处理器兑现、生命周期、权限与连接状态。保留现有按需激活机制，发现过程不通过执行业务动作来探测能力。
+从已经安装的可信声明可以发现暂不可用的动作；真正可执行的目录同时结合处理器兑现、生命周期、权限与连接状态。保留现有按需激活机制，发现过程不通过执行业务动作来探测能力。
 
-所有消费方读取同一注册中心及统一上下文解析：能力库、工作流程步骤选择器、函数场景选择器、Character 能力选择、首页动作及 MCP tools/list。各入口依据权限、输入兼容性和用途作有解释的筛选，不各自复制目录或手写名单。搜索和推荐排序不改变完整目录；分页须能遍历全部授权条目，不能用推荐前几项代替完整发现。
+所有消费方读取同一个动作目录及统一上下文解析：动作目录页、工作流程步骤选择器、消费场景选择器、Character 动作选择、首页动作及 MCP tools/list。各入口依据权限、输入兼容性和用途作有解释的筛选，不各自复制目录或手写名单。搜索和推荐排序不改变完整目录；分页须能遍历全部授权条目，不能用推荐前几项代替完整发现。
+
+#### 现行合同速查
+
+上面是原则；写一个动作时照下面的字段写。类型都在 `packages/contracts/src/platform/actions.ts`，插件作者经 `@molis-ai/molis-work-plugin-sdk` 取同一份；词以 [GLOSSARY](../../docs/system/GLOSSARY.md) 为准。
+
+| 写在哪 | 字段 | 说明 |
+| --- | --- | --- |
+| `ActionDefinition` | `capability_id`、`version`、`operation`（`query` / `command`）、`action` | 动作的稳定身份与元数据；`provider_id` 由注册方注入，不由插件写。形状变了按 [CONTRACT-CHANGES](../../docs/system/CONTRACT-CHANGES.md) 升 `version` |
+| `ActionMetadata`（`action`） | `title`、`description`、`kind`（`query` / `judgment` / `operation` / `navigation`）、`scope`（`home` / `project`）、`input_schema`、`output_schema` | 输入输出是 JSON Schema，注册时检查 |
+| 同上 | `audiences` | 谁能调：`user`、`agent`、`workflow`、`mcp`、`plugin` 的子集。插件要调，必须列 `plugin` |
+| 同上 | `permissions`、`subject_kinds` | 调用者必须持有的权限；适用的对象种类 |
+| 同上 | `effect` | `read` / `write` / `irreversible`；不写就按 id 推断（`actionEffect`）。`irreversible` 不给插件 |
+| 同上 | `scheduling: "concurrent"` | 等模型或外部服务的动作必须声明；返回后 `await caller.beforeEffect()`，再按读取时的版本提交。不声明就是串行，会占住项目队列 |
+| 同上 | `authorship: "session"`、`execution`、`plugin: false` | 只能从稳定 Session 调（外部 Runtime 经 MCP）；声明式限额；不给生成插件 |
+| `ActionCallContext`（处理器拿到的调用者） | `actor_id`、`project_id`、`audience`、`permissions`、`signal` | 可信身份由宿主给，从不从业务输入读；`ActionExecutionContext` 另带 `beforeEffect()`。被取消、撤权、停用后不再写业务记录 |
+| 插件 Manifest | `actions`、`action_scenes` | 插件自己提供的动作与消费场景，与运行时注册的是同一份定义 |
+| 插件 Manifest | `capabilities.consumes` + `permissions` | 要调的别家动作（`capability_id`）与它们要求的权限，两样都写才可用；`capabilities.provides` 列自己提供的 |
+
+动作合同快照（`tooling/gates/actions/`）与公开 API 快照（`tooling/gates/api/`）会拦下没登记的改动，见仓库根的 `AGENTS.md`。
 
 ### 自动匹配：把「齐」与「准」落实为行为
 
@@ -363,7 +382,7 @@ Agent 根据任务上下文选用可用工具；对已纳入动作体系的操�
 
 **依据**
 
-- **情境片段推荐**：定义在 `packages/contracts/src/platform/action-fragments.ts`，注册时由 `packages/plugin-sdk/src/source-declarations.ts` 的 `fragmentOfferDeclarationProblems` 检查选项形状（唯一标识、意图、结果方式、说明、目标动作版本）。生产方是 Goals、灵光、Pages、Todo，另有搜索这个平台提供方；消费方是 `packages/kernel/src/contextual.ts` 的 `fragmentCandidates` 和 `apps/local-host/src/contextual/`，候选完全从动作目录推出，这两处没有任何插件名单（C1 的主体满足）。选项的目标动作要在同一次注册里、范围相同，注册时由 `inspectActionCrossReferences` 检查（W3-05）；调用者看不到目标（受众、权限）时，使用时才在候选上标「原执行能力尚未注册或当前授权不可访问」（C2、C3 部分）。选择只准备输入，不执行；目标动作不是只读的一律按 `record` 呈现，不可撤回的不提供（C4）。意图是封闭的九项（`FRAGMENT_INTENTS`），增加一项要改合同，这属于通用扩展点而不是宿主特判。`defineFragmentOffersAction` 没从 `packages/plugin-sdk/src/index.ts` 导出，生成插件和第三方插件拿不到它（C1 部分）。用例 `tests/contextual-fragment-offers.test.ts`、`tests/contextual-interaction.test.ts` 不涉及停用、撤权、升级（C7 部分）；消费方只有工作台的情境条和助理卡片，它们读同一份目录，没有第二套（C6）。
+- **情境片段推荐**：定义在 `packages/contracts/src/platform/action-fragments.ts`，注册时由 `packages/plugin-sdk/src/source-declarations.ts` 的 `fragmentOfferDeclarationProblems` 检查选项形状（唯一标识、意图、结果方式、说明、目标动作版本）。生产方是 Goals、灵光、Pages、Todo，另有搜索这个平台提供方；消费方是 `packages/kernel/src/contextual.ts` 的 `fragmentCandidates` 和 `apps/local-host/src/contextual/`，候选完全从动作目录推出，这两处没有任何插件名单（C1 的主体满足）。选项的目标动作要在同一次注册里、范围相同，注册时由 `inspectActionCrossReferences` 检查（W3-05）；调用者看不到目标（受众、权限）时，使用时才在候选上标「原执行能力尚未注册或当前授权不可访问」（C2、C3 部分）。选择只准备输入，不执行；目标动作不是只读的一律按 `record` 呈现，不可撤回的不提供（C4）。意图是封闭的九项（`FRAGMENT_INTENTS`），增加一项要改合同，这属于通用扩展点而不是宿主特判。`defineFragmentOffersAction` 当时没从插件 SDK 导出（C1 部分），已随 W2-03 补上（见下面 G1）。用例 `tests/contextual-fragment-offers.test.ts`、`tests/contextual-interaction.test.ts` 不涉及停用、撤权、升级（C7 部分）；消费方只有工作台的情境条和助理卡片，它们读同一份目录，没有第二套（C6）。
 - **对象**：读取器由 `defineSubjectContextAction` 声明（`packages/contracts/src/platform/action-subjects.ts`），事项动作由 `defineSubjectOffersAction` 声明，都已从插件 SDK 导出；注册时 `inspectActionDeclarations` 要求输入输出与规范 schema 逐字相同。21 个插件加宿主自己有读取器，消费方有搜索的打开核对、`@` 引用、放置、助理的工作对象；用例 `tests/system-search-lifecycle.test.ts` 覆盖停用、重新启用、重启。缺口是 C3：注册时接受三种输出形状（现行的、没有 `project_id` 的、没有 `open` 的），后两种是历史取值，`tests/assistant-work-continuity.test.ts` 还在用其中一种，与 AGENTS.md「合同读写都只认现行取值」不符（G3）。声明了的 `result_subject`，注册时检查它是对象、id 与版本的位置在输出合同里（W3-05）；没声明时，`actionResultSubject` 按输出里「带 id 和版本的记录」推断，是一条按形状猜的路径，2026-10-10 决定保留，写成明文规则（`docs/platform/PLUGIN-DEVELOPMENT.md` 与 `actionResultSubject` 的注释），平台不检查猜得对不对（G6）。
 - **情境判断与布局**：`packages/kernel/src/contextual.ts` 含候选过滤、意图先验、规则打分、判断状态文字和布局（`CONTEXTUAL_THRESHOLDS`、`intentPriors`、`ruleScores`、`judgmentState`、`planContextualLayout`），唯一消费方是 `apps/local-host/src/contextual/`。它不引入插件名单，Home 的规则与底栏用同一份候选（`tests/contextual-dock-parity.test.ts`）。判断本身由宿主内的评估器经 TypeSafe 连接和 Prologue 完成，不是注册的判断能力加消费场景（C2 部分）；这是系统自用的排序，不会进用户的判断函数库，需要时另起一项。按 N-03，情境排序属平台产品服务、代码位置不变；内核 README 原来写着「不负责：业务状态机、提供方实现、界面」，与这里的内容不符，要改 README 而不是搬代码（G4）：W3-04 第一个 PR 已改 README，并加了 `pnpm health:check` 的规则 K1–K5（`scripts/gates/kernel-contextual.mjs`）守住两半的边界。
 - **撤销声明**：`ActionMetadata.undo`，注册时要求是命令、不是不可撤回、路径格式正确。生产方是 Pages（两处）、Todo（单项与批量、整理）、灵光的 `lingguang.create`；消费方只有助理：`directEligible`（`apps/local-host/src/assistant/assistant-authority.ts`）要求撤销命令此刻在同一提供方可用、人没设成每次确认，`AssistantService.undo` 以人的身份执行。注册时还检查撤销命令在同一次注册里、是同范围的命令、输入字段对得上、位置在输出合同里（W3-05），谁能用它（受众、权限）仍到使用时按调用者核对；记忆自己的撤销是 `memory.changes.undo` 这条独立的动作，不是 `undo` 声明。用例 `tests/assistant-undo.test.ts`；插件开发 Skill 没写（G7）。

@@ -98,7 +98,7 @@ export const SANDBOX_SERVICE_FATE: { readonly [Service in keyof PluginHostServic
   project_database: 'replaced', ui: 'drawn',
   database: 'entry', files: 'entry', terminal: 'entry', imageGeneration: 'entry',
   model: 'given', background: 'given', agents: 'refused', scheduler: 'refused', directory: 'refused',
-  notifications: 'refused', installations: 'refused', actions: 'refused', artifacts: 'refused', processItems: 'refused', events: 'refused', inputs: 'refused', outputs: 'refused',
+  notifications: 'refused', localTools: 'refused', attention: 'refused', contextLedger: 'refused', installations: 'refused', actions: 'refused', artifacts: 'refused', processItems: 'refused', events: 'refused', inputs: 'refused', outputs: 'refused',
 });
 
 export interface NotGiven {
@@ -139,12 +139,18 @@ export const SANDBOX_NOT_GIVEN: readonly NotGiven[] = [
     declared: definition => !!(definition.methods?.length || definition.manifest.methods?.length || definition.agent_prompts?.length || definition.agent_skills?.length || definition.manifest.agent) },
   { service: 'directory', services: ['directory'], reason: 'A person-authorized directory (directory:read) is not given to sandboxed plugins: it hands the plugin a folder of the person\'s, and has no form without paths yet (PG-017 BL-494).',
     declared: (definition, held) => asksFor(definition, held, ['directory:read']) },
+  { service: 'localTools', services: ['localTools'], reason: 'Looking for command-line tools on this machine (local_tools in the Manifest, local-tools:read) is only given to plugins the Host runs itself: it answers with the paths of files outside the sandbox (PG-112, S-79).',
+    declared: (definition, held) => definition.manifest.local_tools !== undefined || asksFor(definition, held, ['local-tools:read']) },
   { service: 'scheduler', services: ['scheduler'], reason: 'Wakeups (schedule:read, schedule:write) are not given to sandboxed plugins yet (PG-017 BL-494).',
     declared: (definition, held) => asksFor(definition, held, ['schedule:read', 'schedule:write']) },
   { service: 'agents', services: ['agents'], reason: 'Running an Agent (agent:run) is not given to sandboxed plugins yet (PG-017 BL-494).',
     declared: (definition, held) => asksFor(definition, held, ['agent:run']) },
   { service: 'notifications', services: ['notifications'], reason: 'Delivering notifications (notifications:write) is not given to sandboxed plugins yet (PG-017 BL-494).',
     declared: (definition, held) => asksFor(definition, held, ['notifications:write']) },
+  { service: 'attention', services: ['attention'], reason: 'Reading and writing the project\'s Inbox entries (attention:read, attention:write) is not given to sandboxed plugins yet (BL-505).',
+    declared: (definition, held) => asksFor(definition, held, ['attention:read', 'attention:write']) },
+  { service: 'contextLedger', services: ['contextLedger'], reason: 'Reading and writing the project\'s reference edges (context-ledger:read, context-ledger:write) is not given to sandboxed plugins yet (BL-505).',
+    declared: (definition, held) => asksFor(definition, held, ['context-ledger:read', 'context-ledger:write']) },
   { service: 'installations', services: ['installations'], reason: 'Reading the installed plugins (plugins:read) is not given to sandboxed plugins yet (PG-017 BL-494).',
     declared: (definition, held) => asksFor(definition, held, ['plugins:read']) },
   { service: 'actions', services: ['actions'], reason: 'Calling the actions of others (actions:delegate) is not given to sandboxed plugins: a sandboxed package is reached as the actions it declares and calls nothing back (PG-017 BL-494).',

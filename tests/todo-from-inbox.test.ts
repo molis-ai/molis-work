@@ -8,7 +8,8 @@ import { bindActionClient } from "@molis-ai/molis-work-contracts/platform/action
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { renderInboxWorkbench, type InboxUiEntry } from "@molis-ai/molis-work-plugin-inbox";
 import { LINGGUANG_CLIENT_FACTORY_SCRIPT, LINGGUANG_MESSAGES, renderLingguangWorkbench } from "@molis-ai/molis-work-plugin-lingguang";
-import { TODO_ACTION_PERMISSIONS, createTodoActionHandlers, openTodoStore, todoActions, todoManifest, ownTodoStores } from "@molis-ai/molis-work-plugin-todo";
+import { TODO_ACTION_PERMISSIONS, createTodoActionHandlers, todoActions, todoManifest, ownTodoStores } from "@molis-ai/molis-work-plugin-todo";
+import { openTodoStore } from "./fixtures/plugin-home-stores.js";
 
 const escape = (value: unknown) => String(value ?? "").replace(/[&<>"']/gu, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]!));
 const entry = (status: InboxUiEntry["status"]): InboxUiEntry => ({

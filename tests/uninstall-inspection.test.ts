@@ -35,10 +35,14 @@ test("RAC-113: missing releases and registered data still produce read-only unin
   const { home, service, unchanged } = await fixture(t);
   for (const purge_user_data of [false, true]) {
     const plan = await service.prepare({ purge_user_data });
-    assert.equal(plan.status, "no_change");
+    // RAC-105-S-11: the unknown kept.txt now blocks purge even when no registered data exists; the preview stays read-only.
+    assert.equal(plan.status, purge_user_data ? "conflict" : "no_change");
     assert.deepEqual(plan.changes, []);
-    assert.deepEqual(plan.conflicts, []);
-    assert.deepEqual(plan.preserved_paths, purge_user_data ? [] : [join(home, "projects"), join(home, "backups"), join(home, "logs")]);
+    if (purge_user_data) {
+      assert.equal(plan.conflicts.length, 1);
+      assert.match(plan.conflicts[0]!, /kept\.txt/u);
+    } else assert.deepEqual(plan.conflicts, []);
+    assert.deepEqual(plan.preserved_paths, purge_user_data ? [join(home, "agent-runtime")] : [join(home, "projects"), join(home, "backups"), join(home, "logs")]);
   }
   await unchanged();
 });
@@ -96,7 +100,10 @@ test("RAC-113: purge refuses an unreadable registered path and includes it after
   await unchanged();
   mock.mock.restore();
   const plan = await service.prepare({ purge_user_data: true });
-  assert.equal(plan.status, "ready");
+  // RAC-105-S-11: recovering the read includes the store, while the unrelated unknown Home file still protects the person's data.
+  assert.equal(plan.status, "conflict");
+  assert.equal(plan.conflicts.length, 1);
+  assert.match(plan.conflicts[0]!, /kept\.txt/u);
   assert.deepEqual(plan.changes.filter(change => change.kind === "user_data").map(change => change.target), [logs]);
   assert.equal(await fs.readFile(saved, "utf8"), "preserve existing log\n");
   await unchanged();

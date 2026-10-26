@@ -6,9 +6,10 @@ import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
-import { CODING_CLIENT_FACTORY_SCRIPT, CODING_SETTINGS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
+import { CODING_WORKBENCH_CLIENT_FACTORY_SCRIPT, CODING_SETTINGS_CLIENT_SCRIPT } from "@molis-ai/molis-work-plugin-coding";
 
 test("Coding formal routes preserve drafts and isolate projects across server restart", async () => {
+  // BL305-BUSY-03: keep the existing archived 409, unknown-object 404 and unauthorized 403 HTTP paths.
   const root = await mkdtemp(path.join(tmpdir(), "coding-product-http-"));
   const token = "coding-product-control-token-0123456789abcdef";
   let server: ReturnType<typeof createMolisWorkWebServer>;
@@ -27,7 +28,7 @@ test("Coding formal routes preserve drafts and isolate projects across server re
   }
   const close = () => new Promise<void>(resolve => server.close(() => resolve()));
   try {
-    new Function('return (' + CODING_CLIENT_FACTORY_SCRIPT + ')');
+    new Function('return (' + CODING_WORKBENCH_CLIENT_FACTORY_SCRIPT + ')');
     new Function(CODING_SETTINGS_CLIENT_SCRIPT);
     await start();
     const projects = [];
@@ -62,6 +63,12 @@ test("Coding formal routes preserve drafts and isolate projects across server re
     assert.equal(created.status,200);
     const session=created.body.session.session_id;
     assert.equal(created.body.session.state,'idle');
+    // A refusal about an archived session answers by its kind (BL-305): the code says 409, the route does not choose a status.
+    const archived=await request(a+'/sessions','POST',{title:'归档后拒绝编辑'});
+    const archivedId=archived.body.session.session_id;
+    assert.equal((await request(a+'/sessions/'+archivedId,'PATCH',{archive:true})).status,200);
+    const archivedEdit=await request(a+'/sessions/'+archivedId,'PATCH',{draft:'x'});
+    assert.equal(archivedEdit.status,409);assert.equal(archivedEdit.body.code,'coding.archived_edit');
     // What Shelf saved is a piece of the project's knowledge, found like any other (specs/project-knowledge §9).
     const found = await request(`/projects/${projects[0]}/api/knowledge/search?q=${encodeURIComponent('固定端口材料')}`);
     assert.ok(found.body.cards?.some((card: { subject: { kind: string; id: string } }) => card.subject.kind === 'artifact' && card.subject.id === artifactSubjectId(fixedMaterial.body.reference)), JSON.stringify(found.body));

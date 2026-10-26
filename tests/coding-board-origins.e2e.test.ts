@@ -17,7 +17,7 @@ test("RCPT-352/353 the AI's new task waits on the plan card for the person; the 
   if (!browser) { rmSync(directory, { recursive: true, force: true }); t.skip("没有可用的 Chrome"); return; }
   try {
     const page = await browser.page();
-    await page.evaluate(`(()=>{${pageTextScript("zh")}})()`); // the scripts read the page's translator, `L`
+    await page.evaluate(`(()=>{${pageTextScript("zh", "coding")}})()`); // the scripts read the page's translator, `L`
     const result = await page.evaluate<{ offers: string[]; steps: string[][]; dashed: string; prefilled: string; posted: unknown[]; endedOffers: number; badges: string[][]; opened: string[] }>(`(async()=>{
       document.body.innerHTML='<section data-coding-board><h2 data-coding-board-title></h2><p data-coding-board-meta></p><div data-coding-board-list></div><p data-coding-board-status></p></section>';
       ${STATE_RING_CLIENT_SCRIPT}
@@ -25,9 +25,9 @@ test("RCPT-352/353 the AI's new task waits on the plan card for the person; the 
       const board=document.querySelector('[data-coding-board]'),lifetime=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})()(document.body),posted=[],opened=[];
       // The shared receipt's link as Coding hands it on: a button only for a step pointing at a supplement.
       const from=(node,first)=>{const one=node?.origins?.[0];if(!one)return null;const button=document.createElement('button');button.className='mw-btn--link';button.textContent='来自补充「'+one.input_id+'」';button.onclick=()=>{first?.();opened.push(one.input_id);};return button;};
-      const taskboard=(${CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT})({lifetime,board,current:()=>'s',status:()=>{},ownTask:text=>text,roleName:id=>id,navigate:async()=>{},amend:async()=>{},
+      const taskboard=(${CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT})({lifetime,translate:L,board,current:()=>'s',status:()=>{},ownTask:text=>text,roleName:id=>id,navigate:async()=>{},amend:async()=>{},
         from:node=>from(node,()=>opened.push('board closed'))});
-      const card=(${CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT})({lifetime,api:async(path,method,body)=>{posted.push({path,method,body});return {board:{terminal:false},steered:true};},current:()=>'s',status:()=>{},refresh:async()=>{},openStep:()=>{},
+      const card=(${CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT})({lifetime,translate:L,roleLabel:()=>undefined,api:async(path,method,body)=>{posted.push({path,method,body});return {board:{terminal:false},steered:true};},current:()=>'s',status:()=>{},refresh:async()=>{},openStep:()=>{},
         from:node=>from(node),stepOf:taskboard.stepOf,skipped:taskboard.skipped,settled:taskboard.settled,word:(${INPUT_RECEIPTS_CLIENT_SCRIPT})(text=>text).step});
       const claim=(id,treatment,text)=>({turn_id:id,kind:'user',text,steer:{id,state:'read',model_claim:{treatment,targets:[],impacts:['scope'],revisions:1}}});
       const turns=[claim('in-1','new-task','顺便把注册接口也覆盖一下'),claim('in-2','apply-now','日志改成中文'),claim('in-3','new-task','再加一个导出')];
@@ -68,14 +68,14 @@ test("VUX-40: the plan card and the TaskBoard speak English in English", { timeo
   if (!browser) { rmSync(directory, { recursive: true, force: true }); t.skip("没有可用的 Chrome"); return; }
   try {
     const page = await browser.page();
-    await page.evaluate(`(()=>{${pageTextScript("en")}})()`);
+    await page.evaluate(`(()=>{${pageTextScript("en", "coding")}})()`);
     const result = await page.evaluate<{ han: string[]; badge: string; count: string; offer: string; board: string; titles: string; outline: string }>(`(async()=>{
       document.body.innerHTML='<section data-coding-board><h2 data-coding-board-title></h2><p data-coding-board-meta></p><div data-coding-board-list></div><p data-coding-board-status></p></section><section data-coding-board-outline><p data-coding-outline-meta hidden></p><div data-coding-outline-list></div><p data-coding-outline-status></p></section>';
       ${STATE_RING_CLIENT_SCRIPT}
       const sheet=document.createElement('style');sheet.textContent=${JSON.stringify(CODING_STYLES)};document.head.append(sheet);
       const board=document.querySelector('[data-coding-board]'),outline=document.querySelector('[data-coding-board-outline]'),lifetime=(${UI_CLIENT_LIFECYCLE_FACTORY_SCRIPT})()(document.body);
-      const taskboard=(${CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT})({lifetime,board,outline,onShow:()=>true,current:()=>'s',status:()=>{},ownTask:text=>text,roleName:id=>id==='coding-builder'?'Builder':id,navigate:async()=>{},amend:async()=>{},from:()=>null});
-      const card=(${CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT})({lifetime,api:async()=>({board:{terminal:false},steered:true}),current:()=>'s',status:()=>{},refresh:async()=>{},openStep:()=>{},
+      const taskboard=(${CODING_TASKBOARD_CLIENT_FACTORY_SCRIPT})({lifetime,translate:L,board,outline,onShow:()=>true,current:()=>'s',status:()=>{},ownTask:text=>text,roleName:id=>id==='coding-builder'?'Builder':id,navigate:async()=>{},amend:async()=>{},from:()=>null});
+      const card=(${CODING_PLAN_PROGRESS_CLIENT_FACTORY_SCRIPT})({lifetime,translate:L,roleLabel:()=>undefined,api:async()=>({board:{terminal:false},steered:true}),current:()=>'s',status:()=>{},refresh:async()=>{},openStep:()=>{},
         from:()=>null,stepOf:taskboard.stepOf,skipped:taskboard.skipped,settled:taskboard.settled,word:(${INPUT_RECEIPTS_CLIENT_SCRIPT})(globalThis.L).step});
       const turns=[{turn_id:'u',kind:'user',text:'Fix login'},{turn_id:'in-1',kind:'user',text:'Also cover sign-up',steer:{id:'in-1',state:'read',model_claim:{treatment:'new-task',targets:[],impacts:['scope'],revisions:1}}}];
       const plan={revision:2,confirmed:{artifact_id:'x',version:1},content:{title:'Fix login',steps:[{title:'Change the login route',acceptance:'Tests pass'},{title:'Update docs',acceptance:'Docs read well'},
@@ -83,12 +83,12 @@ test("VUX-40: the plan card and the TaskBoard speak English in English", { timeo
       // Every owner kind the Host draws with a word of its own, spelled the way the Host spells it (Chinese), plus both
       // words a report's author can be, and one expired claim: none of it may reach the English page.
       const now=Date.now();
-      const nodes=[{id:'step-1',state:'running',owner:{kind:'session'},reports:[{note:'started',at_ms:now,by:'本会话'}]},
+      const nodes=[{id:'step-1',state:'running',owner:{kind:'session'},reports:[{note:'started',at_ms:now,by:{kind:'session',label:'本会话'}}]},
         {id:'step-2',state:'blocked',depends_on:['step-1'],owner:{kind:'none'},reports:[]},
-        {id:'step-3',state:'running',owner:{kind:'subtask',label:'子任务「two」',subagent_id:'c1'},reports:[{note:'working',at_ms:now,by:'子任务「two」'}]},
-        {id:'step-4',state:'running',owner:{kind:'person'},reports:[{note:'your call',at_ms:now,by:'用户'}]},
-        {id:'step-5',state:'running',owner:{kind:'other',label:'会话「A」'},reports:[{note:'handed over',at_ms:now,by:'改派'}]},
-        {id:'step-6',state:'running',owner:{kind:'session',label:'本会话（认领已过期，3 小时没有动静）',expired:true},reports:[{note:'quiet',at_ms:now,by:'本会话'}]},
+        {id:'step-3',state:'running',owner:{kind:'subtask',label:'子任务「two」',title:'two',subagent_id:'c1'},reports:[{note:'working',at_ms:now,by:{kind:'subtask',label:'子任务「two」',title:'two'}}]},
+        {id:'step-4',state:'running',owner:{kind:'person'},reports:[{note:'your call',at_ms:now,by:{kind:'person',label:'用户'}}]},
+        {id:'step-5',state:'running',owner:{kind:'other',label:'会话「A」'},reports:[{note:'handed over',at_ms:now,by:{kind:'handover',label:'改派'}}]},
+        {id:'step-6',state:'running',owner:{kind:'session',label:'本会话（认领已过期，3 小时没有动静）',expired:true},reports:[{note:'quiet',at_ms:now,by:{kind:'session',label:'本会话'}}]},
         {id:'user-1',state:'not-started',inserted:true,title:'Export',depends_on:['step-2'],reports:[]}];
       const run={ref:{run_id:'r1'},phase:'running',started_at:new Date().toISOString(),frozen:{role_id:'builder',model_id:'m'},turns,activity:[]};
       const entry={run_id:'r1',revision:2,plan,board:{project_id:'b',version:3,terminal:false,nodes},verdicts:{}};

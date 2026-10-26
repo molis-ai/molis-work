@@ -1,11 +1,11 @@
-import { chmodSync, constants, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { accessSync, chmodSync, constants, copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { dirname, join, resolve } from "node:path";
 import { pluginRouteMatcher } from "@molis-ai/molis-work-plugin-runtime";
 import { ActionError, requireSynchronous, type ActionDefinition, type ActionProviderRegistration, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginOwnerFilesClient, PluginOwnerFilesWriter } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { ShelfAiPorts, ShelfMaterialPorts } from "@molis-ai/molis-work-contracts/modules/shelf";
-import { openShelfStore, type ShelfRuntimeProbe, type ShelfStore } from "@molis-ai/molis-work-module-shelf";
+import { openShelfStore, SHELF_ENGINES, type ShelfLocalToolsPort, type ShelfRuntimeLookup, type ShelfStore } from "@molis-ai/molis-work-module-shelf";
 import { createShelfActionHandlers, shelfManifest, shelfStorePorts, SHELF_ACTIONS, SHELF_OWNER_FILES, SHELF_PLUGIN_ID, type ShelfActionPorts, type ShelfPluginRouteHandler, type ShelfPluginRouteRequest } from "@molis-ai/molis-work-plugin-shelf";
 import { shelfTestAi } from "./shelf-test-ai.js";
 
@@ -76,10 +76,29 @@ export function openTestShelfFiles(home: string): PluginOwnerFilesClient {
   });
 }
 
-/** The Shelf of this Home over `openTestShelfFiles`, with the test's own probe, material and AI ports. */
-export function openTestShelfStore(home: string, probe: ShelfRuntimeProbe = {}, materials: ShelfMaterialPorts = {}, ai?: ShelfAiPorts): ShelfStore {
+/**
+ * The terminal Agents a test Shelf finds: none, or the ones in the directories it pins. The platform's service does the same with
+ * `MOLIS_WORK_LOCAL_TOOLS_PATH` (tests/plugin-local-tools-service.test.ts); a test that is not about the service does not meet this
+ * machine's CLIs.
+ */
+export interface TestShelfAgents { readonly disabled?: true; readonly pathEnvironment?: string }
+
+function testShelfLookup(agents: TestShelfAgents): ShelfRuntimeLookup {
+  if (agents.disabled || !agents.pathEnvironment) return {};
+  const directories = agents.pathEnvironment.split(":").filter(Boolean);
+  const runnable = (file: string) => { try { accessSync(file, constants.X_OK); return statSync(file).isFile(); } catch { return false; } };
+  const tools: ShelfLocalToolsPort = {
+    find: async () => SHELF_ENGINES.map(engine => ({ tool_id: engine.key,
+      executable: directories.flatMap(directory => engine.binaries.map(binary => join(directory, binary))).find(runnable) ?? null })),
+    isExecutable: async path => runnable(path),
+  };
+  return { tools };
+}
+
+/** The Shelf of this Home over `openTestShelfFiles`, with the test's own agents, material and AI ports. */
+export function openTestShelfStore(home: string, agents: TestShelfAgents = {}, materials: ShelfMaterialPorts = {}, ai?: ShelfAiPorts): ShelfStore {
   const files = openTestShelfFiles(home);
-  return openShelfStore(files.rootPath(), files, probe, materials, ai);
+  return openShelfStore(files.rootPath(), files, testShelfLookup(agents), materials, ai);
 }
 
 /** Browser boundary tests drive the plugin's own handlers over a fixture store; Host registration is covered by shelf-actions.test.ts. */

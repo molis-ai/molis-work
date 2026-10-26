@@ -26,8 +26,8 @@ export class LocalProjectDatabase extends LocalSqliteStorage {
     try {
       if (!options.existingOnly) applySqliteBaseline(this.db, path, PROJECT_DATABASE_BASELINE);
       this.pluginDatabases = options.existingOnly ? new Map() : openProjectPluginDatabases(this.db, path);
-      const goals = createGoalReadServices(this.db);
-      const governance = createGovernanceReadServices(this.db);
+      const goals = createGoalReadServices(this.db, this);
+      const governance = createGovernanceReadServices(this.db, this);
       this.goalsQuery = goals.query;
       this.snapshotQueries = { goals: goals.query, governance: governance.query };
     } catch (error) { this.close(); throw error; }

@@ -2,10 +2,12 @@ import { SHELF_ADMIT_ACTION } from "@molis-ai/molis-work-contracts/modules/shelf
 import { imagesActions, IMAGES_ACTION_PERMISSIONS } from "./actions.js";
 import { IMAGES_FILES_WRITE, IMAGES_OWNER_FILES } from "./owner-files.js";
 import type { PluginManifest, PluginRouteDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { IMAGES_PLUGIN_ID } from "@molis-ai/molis-work-contracts/modules/images";
+import { IMAGES_PLUGIN_ID } from "./contract.js";
 import { IMAGES_DATABASE } from "./database.js";
 import { IMAGES_IMAGE_GENERATION } from "./image-generation.js";
 
+import { IMAGES_MESSAGES } from "./messages.js";
+import { IMAGES_EN } from "./en.js";
 export const IMAGES_UI_CONTRIBUTION_ID = "io.molis.work.native.images.ui.v1";
 const routes: PluginRouteDeclaration[] = [
   {route_id:"images.connections.list",method:"GET",path:"/connections",permission:"images:connections:read"},
@@ -25,10 +27,12 @@ export const imagesManifest: PluginManifest = {
   plugin_id: IMAGES_PLUGIN_ID,
   version: "0.3.0",
   name: "图片",
+  summary: "连接生图服务，按描述生成图片。",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-images-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   actions: Object.values(imagesActions),
+  runtime: { scope: "home" },
   databases: { home: IMAGES_DATABASE },
   owner_files: IMAGES_OWNER_FILES,
   image_generation: IMAGES_IMAGE_GENERATION,
@@ -43,7 +47,9 @@ export const imagesManifest: PluginManifest = {
   capabilities: { provides: [], consumes: ["shelf.items.admit"] },
   artifacts: { produces: [], consumes: [] },
   ui: {
+    messages: IMAGES_MESSAGES,
+    translations: IMAGES_EN,
     contributions: [IMAGES_UI_CONTRIBUTION_ID],
-    views: [{ view_id: "directory", slot: "navigator", title: "图片", contribution_id: IMAGES_UI_CONTRIBUTION_ID, icon: "image", order: 60, group: "make" }],
+    views: [{ view_id: "directory", slot: "navigator", title: "图片", contribution_id: IMAGES_UI_CONTRIBUTION_ID, icon: "image", hue: "pink", order: 60, group: "make" }],
   },
 };

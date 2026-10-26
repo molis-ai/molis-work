@@ -386,10 +386,21 @@ export interface ConnectorReceipt {
     result: ConnectorPollResult;
 }
 
+export type ConnectorRequestCredential = "bearer" | "bot" | "bare" | "private-token" | "x-figma-token" | "basic";
+
 export interface ConnectorRequestService {
-    readonly origin: string;
-    readonly credential: "bearer";
-    readonly auth_methods: readonly ("token" | "oauth")[];
+    readonly origins: readonly string[];
+    readonly tenant?: ConnectorRequestTenant;
+    readonly credential: {
+        readonly token?: ConnectorRequestCredential;
+        readonly oauth?: ConnectorRequestCredential;
+    };
+    readonly refresh: "host" | "none";
+}
+
+export interface ConnectorRequestTenant {
+    readonly domain: "salesforce.com" | "atlassian.net";
+    readonly gateway?: "atlassian";
 }
 
 export interface ConnectorSetupLink {

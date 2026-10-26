@@ -1,11 +1,12 @@
+import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import {
   ARRIVAL_MOTION_CLIENT_SCRIPT,
   THEME_BOOTSTRAP_SCRIPT,
   VISUAL_FOUNDATION_CLIENT_SCRIPT,
-  escapeHtml,
-  icon,
+  registeredIconNames,
   renderIconSprite,
   renderPrimitiveCatalog,
+  type CatalogPluginIcon,
   renderProjectMonogram,
   renderToggleGroup,
 } from "@molis-ai/molis-work-design-system";
@@ -15,15 +16,28 @@ import { ASSISTANT_SECTION_STYLES, renderAssistantBoardSection } from "./assista
 import { PLUGIN_ROWS_SECTION_STYLES, renderPluginRowsSection } from "./board-plugin-rows.js";
 import { renderPluginRail, renderWorkbenchBar, renderWorkspaceChrome } from "./immersive-shell.js";
 import { renderPersonalMenuItems } from "./settings-directory.js";
-import { DOCK_DEFAULT_PINS, shownProjectPlugins } from "./plugin-catalog.js";
+import { builtinPluginDirectory, pluginTabGlyphs } from "./plugin-catalog.js";
 
 /**
- * The specimen project's plugins: what a fresh project has enabled (the Dock's default pins plus the person plugins), by
- * the same rule the workbench fills a project's rail. The bar specimen draws these bright and the rest of the build-time
- * plugin directory (`pluginMarketCards()`, which already leaves developer plugins out) grey "not added", so the grid
- * follows the directory as it grows rather than a written list. The runtime Manifest directory is BL-388.
+ * The specimen project's plugins, a fixed sample (a development tool, W5-02 B1): the Dock's default pins and the person's plugins
+ * of a fresh project. The bar specimen draws these bright and the rest of the build-time plugin directory (`pluginMarketCards()`,
+ * which already leaves developer plugins out) grey "not added". The board runs no Runtime and no Host, so it is drawn from the
+ * built-in catalog's directory; a project page is drawn from the one the Host supplies (`plugin_directory`, `shown_plugins`).
  */
-const SAMPLE_PROJECT_PLUGINS = shownProjectPlugins([...DOCK_DEFAULT_PINS]);
+const SAMPLE_PROJECT_PLUGINS = ["goals", "inbox", "feed", "issues", "cognia", "plugin-builder", "images", "jelly", "shelf", "lingguang", "todo",
+  "pages", "form", "dataset", "ppt", "alchemist", "workflows"];
+
+/** The workbench's own surfaces that draw a glyph without being a plugin: they are not in any Manifest, so the board names them here. */
+const SURFACE_GLYPHS: readonly CatalogPluginIcon[] = [{ id: "home", name: "项目首页", icon: "home" }, { id: "characters", name: "Characters", icon: "user" }, { id: "market", name: "插件市场", icon: "grid" }];
+
+/** The icon inventory's plugin rows: the glyph each built-in plugin's Manifest declares (the one the rail, tabs and market draw), after the workbench's own surfaces. */
+function iconInventoryPlugins(): CatalogPluginIcon[] {
+  const glyphs = pluginTabGlyphs(), registered = registeredIconNames();
+  return [...SURFACE_GLYPHS, ...builtinPluginDirectory().flatMap(entry => {
+    const glyph = registered.find(name => name === glyphs[entry.id]);
+    return glyph ? [{ id: entry.id, name: entry.name, icon: glyph }] : [];
+  })];
+}
 
 /**
  * The resident bar exactly as the workbench composes it, on a strip of desk: Dock menu, pinned plugins,
@@ -37,7 +51,7 @@ function renderBarSpecimen(): string {
   const projectMenu = `<div class="navigator-project-primary"><details class="navigator-project-menu" data-project-menu><summary class="navigator-project-selector" aria-label="切换项目">${monogram}<strong>${project.display_name}</strong>${icon("chevron-down")}</summary><div class="navigator-project-menu-popover"><span>切换项目</span><nav><a class="navigator-project-option is-current" href="#bar" aria-current="page"><span>${monogram}<strong>${project.display_name}</strong></span>${icon("check")}</a></nav><a class="navigator-project-manage" href="#bar">${icon("database")}<span>管理项目</span></a>${renderPersonalMenuItems(primitives)}</div></details></div>`;
   const bar = renderWorkbenchBar(primitives, {
     enabled: SAMPLE_PROJECT_PLUGINS,
-    rail: renderPluginRail(primitives, SAMPLE_PROJECT_PLUGINS, ""),
+    rail: renderPluginRail(primitives, SAMPLE_PROJECT_PLUGINS, "", "", builtinPluginDirectory()),
     projectChrome: renderWorkspaceChrome(primitives, projectMenu),
   });
   const pin = (id: string, glyph: Parameters<typeof icon>[0], label: string, extra = "") => `<button type="button" class="dock-pin${id === "home" ? " is-fixed" : ""}" data-dock-pin="${id}" aria-label="${label}" title="${label}"${extra}>${icon(glyph)}</button>`;
@@ -182,7 +196,7 @@ export function renderMolisWorkPrimitiveCatalog(say: (text: string, values?: Rec
       { value: "system", label: "系统", current: true, attrs: { "data-theme-option": "system" } },
     ],
   });
-  const catalog = renderPrimitiveCatalog()
+  const catalog = renderPrimitiveCatalog({ plugins: iconInventoryPlugins() })
     .replace("</nav>", `<a href="#foundation" title="视觉机制">视觉机制</a><a href="#conditions" title="${say("条件与状态")}">${say("条件与状态")}</a><a href="#assistant" title="${say("助理信息与任务")}">${say("助理信息与任务")}</a><a href="#plugin-rows" title="${say("插件行视图")}">${say("插件行视图")}</a><a href="#bar" title="底栏与浮层">底栏与浮层</a></nav>`)
     .replace("\n  </div>\n  <script>", `\n    ${renderFoundationSection()}\n    ${renderConditionsSection(say, lang)}\n    ${renderAssistantBoardSection(say, lang)}\n    ${renderPluginRowsSection(say, lang)}\n    ${renderBarSection()}\n  </div>\n  <script>`);
   return `<!doctype html>

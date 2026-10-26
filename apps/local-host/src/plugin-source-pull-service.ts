@@ -30,7 +30,7 @@ export interface SourcePullPortOptions {
 }
 
 /**
- * `services.sourcePull`'s Host side (FI-4 step 4c, S-92 provisional): the transports, the search records and the evidence store of a plugin's pull.
+ * `services.sourcePull`'s Host side (FI-4 step 4c, S-93 provisional): the transports, the search records and the evidence store of a plugin's pull.
  * Every body is announced to the plugin (`run.hold`) before it is written, so what the plugin keeps always includes every body that exists.
  */
 export function createSourcePullPort(options: SourcePullPortOptions): PluginSourcePullPort {
@@ -53,7 +53,12 @@ export function createSourcePullPort(options: SourcePullPortOptions): PluginSour
       try {
         const result = await runtime.intelligenceCollect.executeExact(intent, { signal: run.signal });
         if (refused) throw refused.error;
+        run.current();
         return sourcePullResult(result, runtime);
+      } catch (error) {
+        // A call that went away mid-pull is told so, not by whatever the search layer made of the write it refused.
+        run.current();
+        throw error;
       } finally {
         await runtime.shutdown().catch(() => undefined);
       }

@@ -56,6 +56,35 @@ test("RAC-494: a body goes only when no source of any project holds it; a releas
   assert.deepEqual(f.library.rows(), []);
 });
 
+// RAC-1016 (4c-1 condition): a pull that fails after it held bodies leaves holds nobody refers to; the ledger takes them back.
+test("RAC-1016: holds a failed pull left behind are taken back: only this source's, only the ones named, and a body goes when nobody else holds it", async t => {
+  const f = fixture(t);
+  await f.ledger.markComplete(noEffect, "2026-10-26T00:00:00Z");
+  const kept = f.evidence.write("a body the source's rows point at").contentRef, shared = f.evidence.write("a body another project holds").contentRef,
+    stray = f.evidence.write("a body only the failed pull held").contentRef;
+  const unwritten = "molis-work-feed/sha256/" + "0".repeat(63) + "1";
+  await f.ledger.hold(noEffect, { project_id: "p1", source_id: "s1" }, [kept, shared, stray, unwritten]);
+  await f.ledger.hold(noEffect, { project_id: "p2", source_id: "s1" }, [shared]);
+  // The pull failed after holding all four; the source's rows point at `kept` only. The named three are the ones it does not point at.
+  assert.deepEqual(await f.ledger.reclaim(noEffect, { project_id: "p1", source_id: "s1" }, [shared, stray, unwritten]),
+    { holds_released: 3, bodies_deleted: 1, bodies_kept: 1, complete: true });
+  assert.ok(f.evidence.has(kept) && f.evidence.has(shared) && !f.evidence.has(stray), "the held-and-pointed-at body and the shared one stay, the stray one goes");
+  assert.deepEqual(f.library.rows().map(row => [row.content_ref === kept ? "kept" : row.content_ref === shared ? "shared" : "?", row.project_id, row.source_id]).sort(),
+    [["kept", "p1", "s1"], ["shared", "p2", "s1"]], "this source still holds what it points at; the other project still holds its own");
+  assert.deepEqual(await f.ledger.reclaim(noEffect, { project_id: "p1", source_id: "s1" }, [shared, stray, unwritten]),
+    { holds_released: 0, bodies_deleted: 0, bodies_kept: 1, complete: true }, "taking back twice changes nothing");
+  // A source that did not hold it, and a call refused before it begins, change nothing.
+  await f.ledger.reclaim(noEffect, { project_id: "p1", source_id: "s9" }, [kept]);
+  await assert.rejects(f.ledger.reclaim(async () => { throw new Error("revoked"); }, { project_id: "p1", source_id: "s1" }, [kept]), { message: "revoked" });
+  assert.equal(f.library.rows().length, 2);
+  assert.ok(f.evidence.has(kept));
+  // Without the completeness mark the ledger cannot say "nobody", so it takes nothing back.
+  const early = fixture(t), body = early.evidence.write("early body").contentRef;
+  await early.ledger.hold(noEffect, { project_id: "p1", source_id: "s1" }, [body]);
+  assert.deepEqual(await early.ledger.reclaim(noEffect, { project_id: "p1", source_id: "s1" }, [body]), { holds_released: 0, bodies_deleted: 0, bodies_kept: 1, complete: false });
+  assert.equal(early.library.rows().length, 1);
+});
+
 test("RAC-495: without the completeness mark nothing is released, and the ledger says it could not tell", async t => {
   const f = fixture(t);
   const a = f.evidence.write("body a").contentRef;
@@ -123,6 +152,7 @@ test("RAC-494: a hold takes only well-formed body references, and a batch is bou
   const many = Array.from({ length: FEED_CONTENT_LEDGER_BATCH + 1 }, (_, index) => "molis-work-feed/sha256/" + index.toString(16).padStart(64, "0"));
   await assert.rejects(f.ledger.hold(noEffect, { project_id: "p1", source_id: "s1" }, many), { code: "feed.request_invalid" });
   await assert.rejects(f.ledger.release(noEffect, { project_id: "p1", source_id: "s1" }, many), { code: "feed.request_invalid" });
+  await assert.rejects(f.ledger.reclaim(noEffect, { project_id: "p1", source_id: "s1" }, many), { code: "feed.request_invalid" });
   assert.equal(f.library.rows().length, 1);
 });
 
@@ -131,7 +161,8 @@ test("RAC-494: only Feed's own project instance may hold or release, and the pro
   await f.ledger.markComplete(noEffect, "2026-10-26T00:00:00Z");
   const a = f.evidence.write("body a").contentRef;
   const handlers = createFeedContentLedgerHandlers(f.ledger), hold = handlers.find(item => item.capability_id === feedContentLedgerActions.hold.capability_id)!,
-    release = handlers.find(item => item.capability_id === feedContentLedgerActions.release.capability_id)!;
+    release = handlers.find(item => item.capability_id === feedContentLedgerActions.release.capability_id)!,
+    reclaim = handlers.find(item => item.capability_id === feedContentLedgerActions.reclaim.capability_id)!;
   const call = (overrides: Partial<ActionExecutionContext> & { plugin?: string | null }): ActionExecutionContext => {
     const { plugin = FEED_PLUGIN_ID, ...rest } = overrides;
     return { actor_id: "x", project_id: "p1", audience: "plugin", permissions: ["feed:write"], beforeEffect: async () => {},
@@ -143,11 +174,13 @@ test("RAC-494: only Feed's own project instance may hold or release, and the pro
   for (const refused of [call({ audience: "user" }), call({ audience: "workflow" }), call({ plugin: "io.molis.work.other" }), call({ plugin: null }), call({ project_id: null })]) {
     await assert.rejects(Promise.resolve(hold.handle(refused, input)), { code: "actions.forbidden" });
     await assert.rejects(Promise.resolve(release.handle(refused, { source_id: "s1", candidates: [a] })), { code: "actions.forbidden" });
+    await assert.rejects(Promise.resolve(reclaim.handle(refused, { source_id: "s1", unreferenced: [a] })), { code: "actions.forbidden" });
   }
   assert.equal(f.library.rows().length, 1);
   assert.deepEqual(await release.handle(call({}), { source_id: "s1", candidates: [a] }), { bodies_deleted: 1, bodies_kept: 0, complete: true });
   assert.deepEqual(feedContentLedgerActions.hold.action.audiences, ["plugin"]);
   assert.deepEqual(feedContentLedgerActions.release.action.audiences, ["plugin"]);
+  assert.deepEqual(feedContentLedgerActions.reclaim.action.audiences, ["plugin"]);
 });
 
 test("RAC-495: a new Home's ledger is complete from the start only when Feed is installed in no project", async t => {
@@ -161,7 +194,7 @@ test("RAC-495: a new Home's ledger is complete from the start only when Feed is 
   const fresh = await start({ project_ids: [], complete: true });
   assert.equal(fresh.f.ledger.isComplete(), true);
   assert.deepEqual((fresh.contribution && "actions" in fresh.contribution ? fresh.contribution.actions ?? [] : []).map(item => item.capability_id).sort(),
-    [feedContentLedgerActions.hold.capability_id, feedContentLedgerActions.release.capability_id].sort());
+    [feedContentLedgerActions.hold.capability_id, feedContentLedgerActions.release.capability_id, feedContentLedgerActions.reclaim.capability_id].sort());
   assert.equal((await start({ project_ids: ["p1"], complete: true })).f.ledger.isComplete(), false, "installed somewhere: wait for the maintenance");
   assert.equal((await start({ project_ids: [], complete: false })).f.ledger.isComplete(), false, "installations that could not be read are not none");
 });

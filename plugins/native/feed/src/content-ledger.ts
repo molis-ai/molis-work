@@ -45,6 +45,7 @@ export interface FeedContentLedgerStore {
 
 export interface FeedContentHolder { project_id: string; source_id: string }
 export interface FeedContentRelease { bodies_deleted: number; bodies_kept: number; complete: boolean }
+export interface FeedContentReclaim extends FeedContentRelease { holds_released: number }
 
 const bodies = (refs: readonly string[], what: string): string[] => {
   if (!Array.isArray(refs) || refs.length > FEED_CONTENT_LEDGER_BATCH) throw feedErrors.request_invalid(what + "一次最多 " + FEED_CONTENT_LEDGER_BATCH + " 份正文");
@@ -65,6 +66,22 @@ export function createFeedContentLedger(store: FeedContentLedgerStore, evidence:
       return store.write(beforeEffect, tx => {
         for (const ref of refs) tx.run("INSERT OR IGNORE INTO feed_content_holds (content_ref, project_id, source_id) VALUES (?, ?, ?)", [ref, holder.project_id, holder.source_id]);
         return { held: refs.length };
+      });
+    },
+    /**
+     * Takes back the holds a pull left behind: a pull holds every body before it writes it, so a pull that failed, was cancelled or lost its
+     * authority (or a crash) can leave this source holding bodies none of its rows point at. The caller names exactly those and vouches that
+     * none of its rows refers to them, under the source's sync lease so that no pull of the source is writing at the time. Only this source's
+     * hold on each goes, then each one nobody else holds is deleted, in one transaction like a release. Without the completeness mark nothing goes.
+     */
+    reclaim: async (beforeEffect: () => Promise<void>, holder: FeedContentHolder, unreferenced: readonly string[]): Promise<FeedContentReclaim> => {
+      const refs = bodies(unreferenced, "收回");
+      return store.write(beforeEffect, tx => {
+        if (!marked(tx)) return { holds_released: 0, bodies_deleted: 0, bodies_kept: refs.length, complete: false };
+        let released = 0;
+        for (const ref of refs) released += Number(tx.run("DELETE FROM feed_content_holds WHERE content_ref = ? AND project_id = ? AND source_id = ?", [ref, holder.project_id, holder.source_id]).changes);
+        const { deleted, kept } = evidence.collect({ candidates: refs, isReferenced: ref => tx.get("SELECT 1 AS held FROM feed_content_holds WHERE content_ref = ? LIMIT 1", [ref]) !== null });
+        return { holds_released: released, bodies_deleted: deleted.length, bodies_kept: kept.length, complete: true };
       });
     },
     /**

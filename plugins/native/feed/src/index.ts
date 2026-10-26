@@ -93,7 +93,7 @@ export type { FeedRuleJudgmentSelection } from "./rule-actions.js";
 
 export { feedQueryActions, createFeedQueryHandlers, type FeedDirectorySnapshot } from "./query-actions.js";
 export { feedNotificationActions, FEED_NOTIFICATION_ACTIONS, createFeedNotificationHandlers, type FeedNotificationPorts } from "./notification-actions.js";
-export { createFeedContentLedger, FEED_HOME_DATABASE, FEED_CONTENT_LEDGER_BATCH, type FeedContentLedger, type FeedContentLedgerStore, type FeedEvidenceCollector, type FeedContentHolder, type FeedContentRelease } from "./content-ledger.js";
+export { createFeedContentLedger, FEED_HOME_DATABASE, FEED_CONTENT_LEDGER_BATCH, type FeedContentLedger, type FeedContentLedgerStore, type FeedEvidenceCollector, type FeedContentHolder, type FeedContentRelease, type FeedContentReclaim } from "./content-ledger.js";
 export { feedContentLedgerActions, FEED_CONTENT_LEDGER_ACTIONS, createFeedContentLedgerHandlers } from "./content-ledger-actions.js";
 export { createFeedHomePlugin } from "./home-plugin.js";
 export { feedHomeJudgmentTrigger, HOME_JUDGMENT_EVALUATE, type FeedHomeJudgmentOptions } from "./home-judgment.js";

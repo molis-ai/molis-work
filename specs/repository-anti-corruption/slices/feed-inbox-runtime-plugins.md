@@ -269,8 +269,8 @@ FI-5 的存储层只依赖 `FeedSql`；本片给它第二个适配器 `fromPlugi
 - **4d 的维护脚本（RAC-495）。** `tests/fixtures/feed-content-ledger-maintenance.mjs`（`list` 只读、`backfill` 幂等、`--all-projects` 才写标记；退出码 0/1/2；测试 `tests/feed-content-ledger-maintenance.test.ts`，4 例）和 CHECKLIST 里的一行。动真实 Home 的维护窗口归用户定，合入前在 PR 正文里写明。
 - **4d 给 4c 的一条约束：`hold` 必须在写正文之前返回。** 账的超集不变式要求「先加后写」。`services.sourcePull` 现在若在一次调用里拉取并写正文，就没有地方插入 `hold`。所以 4c 的形状是两段式：`pull()` 只取回并缓存正文、返回引用与摘要，Feed 用这些引用 `hold`，再 `commit()` 写正文（或 `discard()` 丢掉缓存）。这要在 4c 的设计稿里请统筹确认，不是 4d 的内容。
 - **4d 与 RAC-492、493、518 的关系。** 这三条是项目一半的事（连接事件订阅、启动时对账、启动时对 `hold`），随 4e 的 `createFeedPlugin()` 做，不在 4d。
-- **第 4 步 4c-1 已做：`services.sourcePull`（2026-10-26，RAC-1016～1019，暂定 S-92）。** 合同 `plugin-source-pull.ts`；运行时客户端 `packages/plugin-runtime/src/source-pull-service.ts`（权限来自当前调用，和 `services.connections` 同一套规矩；请求闭合）；宿主一半 `plugin-source-pull-service.ts` 的 `createSourcePullPort`（复用 `createFeedSourceRuntime`，所以传输仍是 RSS 允许名单 + 自定义公网地址 + AnySearch，没有新的网络代码）与 `source-pull-intent.ts`（`buildExactRequest` 的宿主一份，与 Feed 那份逐字节一致；4e 删 Feed 的那份）。`createSearchContentPort` 加 `beforeWrite`，`createFeedSourceRuntime` 加 `beforeContentWrite`/`assertCurrent`/`beforeDispatch`（都可选，宿主版 Feed 不传）；存储包导出 `evidenceContentRef`。沙箱：`SANDBOX_SERVICE_FATE.sourcePull = 'refused'` 加 `SANDBOX_NOT_GIVEN` 一行。测试 `tests/security-invariants-plugin-source-pull.test.ts`（8 例，真实项目库 + 假 fetch）。与初稿的差别：不暂存、不 `commit()`，见上面「改定的做法」。
-- **第 4 步 4c-2 已做：`services.sourcePull.repository.read`（2026-10-26，RAC-1019，仍是 S-92）。** 权限 `sources:read_repository`；请求只有 `repository`（`owner/name`）与 `source_id`；宿主一半 `research-repository-read.ts`（`researchRepositorySnapshot` 是原 `research-library-source.ts` 里的 Git 缓存读取原样搬出，`readResearchRepository` 在它上面跑 `readResearchLibrary`，返回仓库、修订号与条目）。**条目写入搬进 Feed 随 4e**：今天宿主的 `syncResearchLibrarySource`（仍在 `research-library-source.ts`，已改成调 `readResearchRepository`，行为不变）在 4e 翻转时由 Feed 自己用 `repository.read` 的结果写条目与运行账，宿主那份删掉。Git 缓存读取共享同一次快照（同仓库并发读共用），所以调用的取消在快照前后检查，不传给共享的 `git`。测试 `tests/security-invariants-plugin-source-pull.test.ts` 加 2 例（假 `git` 经 `sourcePullGit` 接缝）。
+- **第 4 步 4c-1 已做：`services.sourcePull`（2026-10-26，RAC-1016～1019，暂定 S-93）。** 合同 `plugin-source-pull.ts`；运行时客户端 `packages/plugin-runtime/src/source-pull-service.ts`（权限来自当前调用，和 `services.connections` 同一套规矩；请求闭合）；宿主一半 `plugin-source-pull-service.ts` 的 `createSourcePullPort`（复用 `createFeedSourceRuntime`，所以传输仍是 RSS 允许名单 + 自定义公网地址 + AnySearch，没有新的网络代码）与 `source-pull-intent.ts`（`buildExactRequest` 的宿主一份，与 Feed 那份逐字节一致；4e 删 Feed 的那份）。`createSearchContentPort` 加 `beforeWrite`，`createFeedSourceRuntime` 加 `beforeContentWrite`/`assertCurrent`/`beforeDispatch`（都可选，宿主版 Feed 不传）；存储包导出 `evidenceContentRef`。沙箱：`SANDBOX_SERVICE_FATE.sourcePull = 'refused'` 加 `SANDBOX_NOT_GIVEN` 一行。测试 `tests/security-invariants-plugin-source-pull.test.ts`（8 例，真实项目库 + 假 fetch）。与初稿的差别：不暂存、不 `commit()`，见上面「改定的做法」。
+- **第 4 步 4c-2 已做：`services.sourcePull.repository.read`（2026-10-26，RAC-1019，仍是 S-93）。** 权限 `sources:read_repository`；请求只有 `repository`（`owner/name`）与 `source_id`；宿主一半 `research-repository-read.ts`（`researchRepositorySnapshot` 是原 `research-library-source.ts` 里的 Git 缓存读取原样搬出，`readResearchRepository` 在它上面跑 `readResearchLibrary`，返回仓库、修订号与条目）。**条目写入搬进 Feed 随 4e**：今天宿主的 `syncResearchLibrarySource`（仍在 `research-library-source.ts`，已改成调 `readResearchRepository`，行为不变）在 4e 翻转时由 Feed 自己用 `repository.read` 的结果写条目与运行账，宿主那份删掉。Git 缓存读取共享同一次快照（同仓库并发读共用），所以调用的取消在快照前后检查，不传给共享的 `git`。测试 `tests/security-invariants-plugin-source-pull.test.ts` 加 2 例（假 `git` 经 `sourcePullGit` 接缝）。
 
 ## 9. 第 4 步（Feed 进 Runtime）的拆法与缺口清单（2026-10-26，开工前读代码核的）
 
@@ -285,7 +285,7 @@ Feed 的动作要么全由宿主提供、要么全由 Runtime 提供（`BUILD_TI
 建议的次序（每步单独绿、单独推；翻转之前宿主版 Feed 照常工作）：
 1. **4a 平台通知接收方（D6-2）**：Manifest 声明接收、通知服务按声明找、没有接收方留队列。宿主版 Feed 先当接收方，删 `plugin-notification-service.ts` 里的 Feed 构造。
 2. **4b 首页 dock 判断动作 ③**（做完，见 §8：没有新增 Home 动作，现成的 `home.judgment.evaluate` 就是公开动作；Feed 一侧的触发器已写；发现一个要统筹裁定的缺口，决定前 4e 的后台判断不能翻转）。
-3. **4c `services.sourcePull` 与证据正文 ①**（4c-1 做完，见 §8 与 §10：`pull`/`plan`/`evidence.read`/`forget`；4c-2 `repository.read` 未做；沿用 S-10 的地址校验与允许名单，不放宽；S 号暂定 S-92）。
+3. **4c `services.sourcePull` 与证据正文 ①**（4c-1 做完，见 §8 与 §10：`pull`/`plan`/`evidence.read`/`forget`；4c-2 `repository.read` 未做；沿用 S-10 的地址校验与允许名单，不放宽；S 号暂定 S-93）。
 4. **4d Home 引用账 ④**（做完一半，见 §8：账的逻辑、两个动作、Home 一半与维护脚本已写，RAC-494、495；登记与项目一半的 RAC-492、493、518 随 4e）。
 5. **4e 翻转**：`createFeedPlugin()`、监督器条目、`background.wakeups` 的 tick、8 个构造点换成公开动作、删 `feed-native-plugin-http.ts` 与客户端迁移、`BUILD_TIME_ASSEMBLED` 与 `NATIVE_PLUGIN_HTTP_FILES` 去掉 `feed`（RAC-499、500、510～512、516、517）。
 
@@ -320,7 +320,7 @@ type SourcePullRequest =                       // 闭合：多一个字段就拒
 2. （已改定）不做暂存与 `commit()`：`hold` 回调在每份正文写之前被等待，见上。
 3. `evidence.read` 的范围：命名空间内任意引用（等于今天宿主的行为，引用是 256 位哈希、只能从本项目的行里得知）。更强的备选是平台再记一张「本安装在本项目写过 / 收到过哪些引用」，要读先查——那是第二本账，且要与 4d 的账对齐，推荐不做，SI 行里写明这个限度。
 4. （已无）没有行为变化：崩溃后检索记录与正文照旧留下、可重放。
-5. S 号用暂定 `S-92`（以合入时表的末号为准，不占 #1255 的 S-91）。
+5. S 号用暂定 `S-93`（以合入时表的末号为准，不占 #1255 的 S-91）。
 
 | 验收 | 内容 |
 | --- | --- |
@@ -328,6 +328,13 @@ type SourcePullRequest =                       // 闭合：多一个字段就拒
 | RAC-1017 | 拒绝：没声明权限的插件没有这项服务、方法按权限给；启动函数里 / 别的安装的调用 / 已结束的动作 / 非并行动作 / 只读调用 / 没声明权限的动作都拒；请求多一个头 / 方法 / 重定向 / 代理 / 供应商 / 预算字段、未知 kind、缺 `hold`、一种 kind 缺它的权限都拒；私网回环、非 https、带账号的地址在到传输之前就拒（用例里 fetch 一次都没被调用） |
 | RAC-1018 | `evidence.read`：命名空间之外、格式不对、没有 `evidence:read` 的调用都拒；读回的明文与今天 `hydrateFeedItemContent` 读到的相同；不存在的引用返回 `null` |
 | RAC-1019 | `forget`：只忘本项目里这几次取数的检索记录，别的操作号答 0；操作号格式、数量越界、非数组都拒。`repository.read`（4c-2，已做）：只返回仓库、修订号与条目，不返回目录路径与 Git 输出；仓库名不是 `owner/name`、含 `..`、以非字母数字开头一律拒，请求多一个字段拒；Git 参数里来自插件的文本只有固定地址 `https://github.com/<仓库>.git` 里的仓库名；没有权限的插件没有这个方法，不在并行动作 / 只读调用 / 动作外都拒；来源未开放、包文件被改过整次失败；调用已取消时不返回 |
+
+**统筹 10-26 对 4c-1 的三个条件（#1311 评论 6410517262），做法与证明。**
+
+- **① 失败、取消、撤权后已 hold 的引用**：选「由 4d 的整理收回没人引用的 hold」。先 hold 后写意味着任何失败（取数失败、取消、撤权、崩溃）之后，来源可能多持有若干正文，它的行并不指向它们；多持有是安全的一侧（超集）。账新增 `reclaim`（`content-ledger.ts`，动作 `feed.content.reclaim`，只给 Feed 自己的项目实例）：调用者给出「我登记过、但我的行不引用」的引用，账只放掉**这个来源**对它们的登记，再删没有别的来源或项目持有的正文；没有完整标记时什么都不动；调用者的前提是持有来源同步租约（同一来源同时只有一次取数在写）。Feed 在 4e-2 里：取数失败后、以及每次同步开始时，用「`hold` 回调记下的引用 − 来源的行实际引用的引用」调用它。测试：`tests/feed-content-ledger.test.ts` 的「holds a failed pull left behind are taken back」（只收本来源的、只收点名的、别人还持有的正文保留、重复收回不变、没有完整标记不动、调用被拒绝则不写）。
+- **② 检索记录写在哪、失败时留不留**：检索记录是 SEL 的运行与结果记录，写在**项目库**的 `feed_runtime_blobs`（不透明存储，命名空间 `…/data/operation/v1` 等），由平台的内容端口与存储端口写，不经插件的事务。取数中途失败、被取消或撤权后，**已经写下的记录留着**（与今天宿主版 Feed 一样：它们按操作号可重放，同一操作号再取一次接着用），不留半条的保证来自存储端口每次写之前复核调用。要删有两条路：`forget(operation_ids)`（只删本项目这几次取数自己的记录）和来源删除时 Feed 的 `history.release`。
+- **③ 取消或撤权之后不再写**：正文写之前，`hold` 之后端口再复核一次调用（`assertCurrent`）；检索记录每次插入、更新、删除之前同样复核。平台还把「调用已经不在」作为取数的失败原因返回（而不是搜索层包出来的 `persistence_failed`）。测试：`tests/security-invariants-plugin-source-pull.test.ts` 的「loses its authority once a body is held」（撤权发生在第一份正文已 hold 之后：后面的正文不写、检索记录的行数不再增加、取数失败码是 `actions.forbidden`）与既有的取消用例。
+- **S 号**：暂用 S-93（S-92 是 batch-43 里 P2e 的），合批时由统筹按表末给号，测试名跟着改。
 
 ## 11. 第 4 步 4e：翻转的实现方案（2026-10-26，读 8 个宿主构造点与 Feed 的七组处理器后定，等统筹确认）
 
@@ -355,3 +362,10 @@ type SourcePullRequest =                       // 闭合：多一个字段就拒
 - **读路径里的写，测试里第一次暴露：** `readListenerCheckpoint` 读一个没有检查点行的来源时会 `INSERT OR IGNORE` 一行，`feed.snapshot` 因此在只读客户端上失败。改成返回「第一次写会建的那行」（idle、空游标），读不再写；宿主版 Feed 的行为变化只是列来源不再顺带建行，写路径（`writeListenerCursor`、租约）仍先建行。
 - 来源授权（`feed.items.material` 的 `authorize`）对账号型来源先关闭（失败即拒绝，理由「来源连接暂不可用」），手动与公开来源照旧；4e-2 接上 `services.connections` 后与宿主版对齐。
 - `feed.content.receive`（来源、条目、日志事件）是一次提交：测试把调用者的授权在第 1～25 次检查处依次撤掉，每次结果只有「全部写入」或「什么都没有」，两边都出现。
+
+**R-65（用户 2026-10-26 弹窗决定：首页自动判断推荐的动作「能不能用」，由之后点它的那个人判断，不由后台触发器判断）的可行性结论（2026-10-26，4e 前先查）：这一片不做，退到「保持现状，界面里说明」；不给触发器加 `inbox:write`/`attention:write`。**
+
+- 现状（读 `apps/local-host/src/home-actions.ts`）：触发器（`feedHomeJudgmentTrigger`，没有调用者时以插件自己的安装、用人授予的权限判断）经 `home.judgment.evaluate` → `prepare` 里 `prepareOffers(callerDirectory(actions, 触发器))`，只留**触发器**看得到、可用的动作；`record()` 又对触发器逐条 `validate_authority(offer.action)` 与 `assert_authority_current(offer.action)`。读的一侧（`recommendations`）已经用读的人重新核对，显示是对的。
+- 要改成「按点的人判断」，只有两条路：① 触发器合成一个 user 受众的调用者来看目录——后台触发器自造身份，违反「可信身份从调用上下文来」（S-43 的同一类问题），点的人在写入时也未知；② 放松 `record()` 对 `offer.action` 的授权检查——动的是动作服务的授权语义，不是 Feed 的事，得单独过安全评审。两条都不是「4e 顺手」的量，也都比「保持现状」更宽。
+- 保持现状的后果：Feed 安装未被授予 `inbox:write`（它的权限全是可选，由人授予）时，要 `inbox:write` 的动作不会进判断的候选；一条没有任何可推荐动作的条目，自动判断得到 `actions.subject_unavailable`，被触发器吞掉，不记判断。手动点「判断」（调用者是人）不受影响。**宿主版现在没有这个后果**（触发器是宿主身份）；它在 4e-3 翻转时才出现，所以界面说明（首页下一步空状态写明「自动判断只看 Feed 已被授予的动作，需要更多请到权限里授予或手动判断」）归 4e-3，不在这一片加。
+- 要走 ①/② 的话是平台的单独一片（动作服务的 offers 可用性语义），不属于 Feed 线；已写进 #1311 的汇报，由统筹决定要不要开。

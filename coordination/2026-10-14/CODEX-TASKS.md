@@ -36,11 +36,17 @@ PR 粒度：没做完只推分支（只推分支不跑 CI），不开草稿 PR �
 
 ### 2026-10-25 当前交付接续（PIPE）
 
-**Batch41 @f721：实际交接已完成，原审验已开工（非审验通过/非main完成）**：投递前固定 `88089e21ff0b0f5e9ec6788a34c4fe9a6dee4228` 已合 main `2b3dc51ded348325edbf135a13c195ba89fba602`；原4c84的host/lifecycle两处verified packaged.trust缺口已恢复，Root亲核两blob与main全同，不再派重复修。后合N1仍须保先standing guard与packaged.trust共存。01:21:34Z PIPE只读核carrier已到 `f721544429ce00023d56ea2f49511913cf793114`、clean；Root随后独立核前后同头/clean及2fd、N2 9c5307a7、N3 f45ac3cf、N4 ea37e4f8四源均实际祖先，限定hunk继续核，候选采用不冒actual main。3c4六目标同源/TodoBatch仅现行类型import、4ea实际parent b3/生产与test同源、3eb测试与WO同源的原4c84限定证据保持；99父状态不泛化全文件同源。两CSS各+105B及生成物仍按真实合成树统一结算，不让原作者纯共用文件反复同步。
+**Batch41 @f721：四个Ready限定采用已核，T5b正式返原writer**：固定 `f721544429ce00023d56ea2f49511913cf793114` 读取前后同头/clean（Root独立核），main 01:22鲜ref仍 `2b3dc51ded348325edbf135a13c195ba89fba602`。投递前88089合main后，两处verified packaged.trust历史缺口已恢复，Root核host/lifecycle两blob与main全同；后合N1仍须保先standing guard+packaged.trust。3c4/4ea/3eb原限定采用证据保持，均非actual main完成。
+
+**四源限定hunk采用（Root已全文核，不重跑）**：2fd实际祖先，`page-assets.ts`、`settings-local-directories.ts`、`ui-request-client.e2e.test.ts` 三blob同冻结源；PG049仅加入原8f通知WO到§8/原设置状态顺延§9，2fd行为与验证段保留。N2 9c5307a7的PG070+hover-actions两blob同源；N3 f45ac3cf的list-silent-refresh test blob全同；N4 ea37e4f8的PG071组合仅合既有3eb正文P2状态/WO/作者证据，unregister出口说明原行未变，无新产品语义。Claude正式回执[6406104021](https://github.com/molis-ai/molis-work/pull/1308#issuecomment-6406104021)已全文读。四源实际祖先/有限hunk已核，来源须实际最终merge SHA+包含证据才关闭；2fd两CSS各+105B与共用生成物由最终真实合成树统一结算。
 
 **原统筹真实Read→原ac-review-2真实接收/开工**：官方CUA唯一签名user `dd3893c7-ec3b-4fc3-8c4c-750190d43e70` @2026-10-26 01:18:23.010Z（3144字）；原统筹01:18:28.100Z真实Read同包，`toolu_0171vTpQvL1ff6cDVtmshBtB` 成功完整41行。01:18:59.730Z以正式send_message发原 `local_10657859-590c-4bb8-a615-22f3eae2cd1a`；01:19:01.237Z返回 delivered/turn started，message_id `12ff334f-149a-471c-b52d-820fb1853130`。接收方自身01:19:01.278Z user `db2c7796-5ad9-4299-b6d8-f63fcd0bfb00` 含完整定点请求，已读 `25d998b32..cf035a35f` 增量并开始窄审验。Root官方CUA及原日志独立同核。先前noWindowsAvailable/AX回读滞后已由实际唯一消息/双方原件纠正，不猜提交瞬间归属、不再粘贴/发送；不是公开可阅或文件准备冒送达。
 
-**同包与剩余责任**：`/tmp/molis-pipe-batch41-transfer-20261025.md` 已更新真实投递状态，回执原件 `/tmp/molis-pipe-batch41-delivery-receipts-20261025.json`。N1原ac-coding@cf035已实际实现guard/两Mac case；Root未执行的RAC391在途storage撤销/RAC392 lazy-stop静态风险已由原统筹逐项带入原整片审验，正式结论、必要新差异/组合验证仍待，不能把接单当通过或称当前main已复现。临时合9b6又还原的旧运行不冒最终组合；S86/S87/RAC792按原owner同批。N2/3/4和2fd各自SOURCE/TEST/作者final Ready保持，原件与贡献身份保留。四常设writer无Root新派第二题；Memory/#734暂停。PIPE未起新writer/FIRST/build/full/CLI，唯一carrier/全量排程与批入队仍归Claude。
+**cf035独立复审正式退回**：[6406167523](https://github.com/molis-ai/molis-work/pull/1308#issuecomment-6406167523)全文及原probe源码/执行结果已PIPE主核：ac-review-2确认1项挡合RAC391/S87。第1次validate_authority撤回后，无再次list/prepare，notes.add仍returned true/dataChanged=true；未撤回正控正常写。最后回调变体无法区分是否晚于写入，仅旁证，不当第二独立证明。新无写断言ERR_ASSERTION/exit1；原9文件随后全过exit0不消除新反例；未full/browser/最终合成树。review树仍cf035且clean，临时probe已删/未提交；源码与原结果存 `/tmp/molis-pipe-batch41-t5b-review-raw-20261025.json`。S86源缺位与对照口径资源红保留，不冒组合门禁通过。
+
+**实际返修与non-block责任**：原统筹01:25:34.876Z正式退同一ac-coding/`local_b1765f78-56ec-49d5-aef2-8a4a5d19b947`，01:25:36.518Z delivered/turn started（`a65579a6-708f-4556-ad52-8e2e5e0d415d`）；writer自身01:25:36.555Z user `ac58dc08-5c95-4230-833d-6dffa9b62607` 实收，已读写前路径并实际开修，未交固定新head。要求写前同一道live/standing拒绝覆盖storage及真实副作用，无新撤销服务/整Home扫描；拒绝码、无业务写入和未撤回正控必须固化。真实enable冲突由Claude明确例外派原作者一次合main2b3，保standing+verified trust，不沿旧纯共用文件反复同步。RAC392非阻塞说明仍由原ac-coding实施，依赖P1写前截断落地，再在spec/说明写清“下次进入或下次写前”，待实际diff/独立复审/真实合入后关；登记或当前接受语义不免实施责任。退回双方原件 `/tmp/molis-pipe-batch41-t5b-return-receipts-20261025.json`。
+
+**同包与边界**：`/tmp/molis-pipe-batch41-transfer-20261025.md` 保原投递时点正文并追加真实采用/正式退回；原投递回执 `/tmp/molis-pipe-batch41-delivery-receipts-20261025.json`。N1未Ready/未actual main，临时合9b6旧运行不冒最终组合；S86/S87/RAC792按原owner同批。N2/3/4与2fd原SOURCE/TEST/作者final Ready和贡献身份保持。四常设writer无Root新派第二题；Memory/#734暂停；PIPE未起新writer/FIRST/build/full/CLI。唯一carrier/全量排程与批PR入队仍归Claude，下一固定修后head沿同一原审验接续。
 
 
 **本次最新核收（actual合入与23:08Z main元数据）**（以下以本段为准，旧原时点与原件边界保持）：

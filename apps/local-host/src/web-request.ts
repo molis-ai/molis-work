@@ -199,8 +199,9 @@ const planningRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
 
 /** Inbox and Schedule render into the project page and drop its cached view when they change it. */
 const pageOwnerRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
-  { id: "inbox", handle: ({ request, response, url, localHost, hostReference, webViewCache, options, composition, readWebView }) =>
+  { id: "inbox", handle: ({ request, response, url, localHost, hostReference, webViewCache, options, composition, readWebView, shownPlugins }) =>
     handleInboxNativePluginHttp(request, response, url, { actions: bindLocalWebActions(localHost, hostReference, INBOX_ACTION_PERMISSIONS),
+      enabled: async () => (await shownPlugins(options.projectId)).includes("inbox"),
       invalidateWebView: () => webViewCache.delete(options.databasePath), renderer: composition.workbenchRenderer, readWebView }) },
   homeDockRoute,
 

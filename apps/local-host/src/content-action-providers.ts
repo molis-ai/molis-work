@@ -3,11 +3,10 @@ import type { GoalContractView } from "@molis-ai/molis-work-contracts/modules/go
 import { createContextLedger, createContextMaterializer } from "@molis-ai/molis-work-module-context-ledger";
 import { createLocalFeedScene } from "./feed-scene.js";
 import type { FunctionsHostOptions } from "./functions-host.js";
-import { inboxContentActions } from "@molis-ai/molis-work-plugin-inbox";
+import { inboxContentActions, inboxJudgmentTrigger } from "@molis-ai/molis-work-plugin-inbox";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { ActionError, retainActionAuthority, resolveActionSubject, type ActionCallContext, type ActionClient, type ActionSceneClient, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { feedManifest, feedQueryActions, promoteOffered, readLinkedFeedContext, feedItemContext, createFeedQueryHandlers, createFeedCaptureTrigger, createFeedContentHandlers, createFeedInboxHandlers, createFeedItemHandlers, createFeedRuleHandlers, createFeedSourceHandlers, type FeedApplication } from "@molis-ai/molis-work-plugin-feed";
-import { createInboxJudgmentTrigger } from "@molis-ai/molis-work-plugin-inbox";
 import { createHomeJudgmentTrigger } from "./home-actions.js";
 import { createLocalFeedSourceService } from "./feed-source-service.js";
 import { createLocalFeedConnectorSync } from "./feed-connector-sync.js";
@@ -23,10 +22,10 @@ import { hydrateFeedItemContent } from "./feed-content.js";
 import { inspectSourceAuthorization } from "./connector-access.js";
 
 /** New messages a source call brings in are judged with that caller's authority, as the Web route does for the local user. */
-function judgedAs(caller: ActionCallContext, scenes: ActionSceneClient, projectId: string): LocalFeedApplicationOptions {
+function judgedAs(caller: ActionCallContext, scenes: ActionSceneClient, actions: ActionClient, projectId: string): LocalFeedApplicationOptions {
   const context = () => caller;
   return { captureJudgment: createFeedCaptureTrigger({ scenes, projectId, context }), homeJudgment: createHomeJudgmentTrigger({ scenes, projectId, context }),
-    inboxJudgment: createInboxJudgmentTrigger({ scenes, projectId, context }) };
+    inboxJudgment: inboxJudgmentTrigger({ actions, projectId, context }) };
 }
 
 /** Native composition only supplies stores; protocol behavior and definitions belong to each plugin. */
@@ -70,11 +69,11 @@ export function nativeContentProviders(runtime: MolisWorkProjectRuntime, feed: F
       // The offer follows the action: the directory says whether Goals can be written through for this caller (project enabled, granted).
       promoteAvailable: client ? async caller => promoteOffered(await client.discover(caller)) : undefined,
     }),
-    ...(scenes ? createFeedSourceHandlers(runtime.project_id, {
+    ...(scenes && client ? createFeedSourceHandlers(runtime.project_id, {
       feed: () => feed,
-      sources: caller => createLocalFeedSourceService(runtime.store.db, runtime.project_id, undefined, undefined, home, judgedAs(caller, scenes, runtime.project_id)),
+      sources: caller => createLocalFeedSourceService(runtime.store.db, runtime.project_id, undefined, undefined, home, judgedAs(caller, scenes, client, runtime.project_id)),
       connectorSync: caller => createLocalFeedConnectorSync(runtime.store.db, runtime.project_id, undefined,
-        createLocalFeedApplication(runtime.store.db, judgedAs(caller, scenes, runtime.project_id)), home),
+        createLocalFeedApplication(runtime.store.db, judgedAs(caller, scenes, client, runtime.project_id)), home),
     }) : [])])];
   if (scene) Object.assign(providers[0]!, { scenes: feedManifest.action_scenes, scene_handlers: [scene.handler] });
   return providers;

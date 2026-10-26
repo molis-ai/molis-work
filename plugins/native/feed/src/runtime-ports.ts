@@ -30,7 +30,7 @@ export interface FeedRuntimePorts extends Pick<FeedAssemblyPorts, "sql" | "atten
 
 interface Bound { readonly transaction: PluginProjectDatabaseTransaction; readonly sql: FeedSql; readonly actorId: string }
 
-const notBound = (): never => { throw new Error("Feed wrote outside a write transaction"); };
+const notBound = (): never => { throw new ActionError("actions.execution_failed", "Feed wrote outside a write transaction"); };
 
 /**
  * Feed's ports over `services.project_database`, `services.attention` and `services.contextLedger`. One set serves a Feed installation for
@@ -99,7 +99,7 @@ export function createFeedRuntimePorts(services: FeedRuntimeServices): FeedRunti
     },
     subscribeInboxCreated: listener => { inboxCreated = listener; },
     within: (transaction, actorId, body) => {
-      if (bound) throw new Error("Feed's ports are already bound to a transaction");
+      if (bound) throw new ActionError("actions.execution_failed", "Feed's ports are already bound to a transaction");
       bound = { transaction, sql: fromPluginTransaction(transaction), actorId };
       try { return body(); } finally { bound = null; }
     },

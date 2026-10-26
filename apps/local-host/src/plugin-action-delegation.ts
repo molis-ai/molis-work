@@ -43,7 +43,7 @@ export function pluginActionDirectory(context: PluginStartContext, manifest: Plu
       assert_authority_current: () => { source(); requireSynchronous(control?.assert_authority_current?.()); } };
     const own: ActionCallContext = { ...inherited, validate_authority: async target => { await original.validate_authority?.(target); source(); },
       assert_authority_current: original.assert_authority_current };
-    const caller: ActionCallContext = { ...inherited, audience: "workflow", delegated_by: manifest.plugin_id,
+    const caller: ActionCallContext = { ...inherited, audience: "workflow", delegated_by: manifest.plugin_id, delegated_audience: original.audience,
       ...(signal ? { signal } : {}), ...(control?.query_only ? { query_only: true as const } : {}), ...withControlChecks(own, fence),
       validate_permissions: async permissions => { source(); await original.validate_permissions?.(permissions); source(); } };
     return { caller, check, source };

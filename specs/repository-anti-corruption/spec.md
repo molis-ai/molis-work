@@ -1819,7 +1819,7 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `plugins/native/git` | 内置插件 | 32 | 2,668 | `browser/source.ts` 249 | 2 | 2 | 2 | Runtime | 中 | 待审 |
 | `plugins/native/goals` | 内置插件 | 157 | 14,372 | `event-document-client.ts` 742 | 2 | 2 | 2 | 构建期 | 深 | 待审 |
 | `plugins/native/images` | 内置插件 | 34 | 2,104 | `service.ts` 180 | 3 | 3 | 2 | Runtime | 中 | 待审 |
-| `plugins/native/inbox` | 内置插件 | 14 | 1,155 | `ui.ts` 189 | 2 | 1 | 2 | 构建期 | 中 | 待审 |
+| `plugins/native/inbox` | 内置插件 | 16 | 1,308 | `scene-runtime.ts` 190 | 2 | 1 | 2 | Runtime | 中 | 待审 |
 | `plugins/native/issues` | 内置插件 | 28 | 1,914 | `browser/capture.ts` 183 | 2 | 2 | 2 | Runtime | 中 | 待审 |
 | `plugins/native/jelly` | 内置插件 | 56 | 4,521 | `messages.ts` 257 | 3 | 2 | 2 | Runtime | 中 | 待审 |
 | `plugins/native/lingguang` | 内置插件 | 27 | 2,238 | `store.ts` 362 | 2 | 2 | 2 | Runtime | 中 | 待审 |

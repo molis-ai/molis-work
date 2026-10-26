@@ -1,13 +1,12 @@
 import { defineHomeEventsAction, assertHomeEventWindow, type HomeEventWindow, type ActionCallContext, type HomeEvent } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { InboxContentPorts } from "./content-actions.js";
+import type { InboxBriefs, InboxContentPorts } from "./content-actions.js";
 
 export const inboxHomeEventsAction = defineHomeEventsAction("inbox.home.events", ["inbox_entry"], "Inbox 首页事项", ["inbox:read", "feed:read"]);
-export function createInboxHomeEventsHandler(ports: InboxContentPorts) {
+export function createInboxHomeEventsHandler(ports: InboxContentPorts, briefsOf: (caller: ActionCallContext, entries: readonly ReturnType<InboxContentPorts["entries"]>[number][]) => Promise<InboxBriefs>) {
   return { ...inboxHomeEventsAction, handle: async (caller: ActionCallContext, value: unknown) => {
     assertHomeEventWindow(value as HomeEventWindow);
     const entries = ports.entries().filter(entry => entry.status === "open" || entry.status === "in_progress");
-    const items = new Map(ports.items().map(item => [item.item_id, item]));
-    const sources = new Map(ports.sources().map(source => [source.source_id, source]));
+    const { items, sources } = await briefsOf(caller, entries);
     const events = await Promise.all(entries.map(async (entry): Promise<HomeEvent | null> => {
       const relatedKind = entry.subject_type === "feed_item" ? "feed_item" : entry.subject_type === "goal_decision" ? "goal" : "source";
       let related;

@@ -11,12 +11,23 @@ export { INBOX_PLUGIN_ID } from "./identity.js";
 /** What the project database stores for this Plugin. */
 export const INBOX_PROJECT_PLUGIN_ID = "inbox";
 
+/** What Inbox needs of the platform to run: its entries are Attention's, its scene and its judgments are its own, and Feed and Pages answer for their part. */
+const PLATFORM_PERMISSIONS = [
+  { permission: "attention:read", required: true, reason: "读取这个项目的 Inbox 事项" },
+  { permission: "attention:write", required: true, reason: "更改 Inbox 事项的状态" },
+  { permission: "scenes:use", required: true, reason: "绑定并运行 Inbox 下一步的判断场景" },
+  { permission: "judgments:read", required: true, reason: "读取 Inbox 下一步的判断记录" },
+  { permission: "judgments:write", required: true, reason: "记录 Inbox 下一步的判断结果" },
+  { permission: "journal:project", required: true, reason: "把判断结果记进事项的历史" },
+  { permission: "actions:delegate", required: true, reason: "替当前这个调用者读取 Feed 的消息、调用 Pages 生成文稿和已发布的判断规则" },
+] as const;
+
 /**
  * Declarative placement for this first-party Plugin.
  *
  * `native` rather than `app`: the shell derives navigation from these
- * declarations, while this Plugin is still composed at build time instead of
- * being started and isolated by Plugin Runtime.
+ * declarations, while the Plugin itself is started and isolated by Plugin
+ * Runtime (`createInboxPlugin`, one instance per project).
  */
 export const inboxManifest: PluginManifest = {
   schema_version: 2,
@@ -28,8 +39,10 @@ export const inboxManifest: PluginManifest = {
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-inbox-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
-  permissions: [...[...new Set([...INBOX_ACTION_PERMISSIONS, ...Object.values(inboxContentActions).flatMap(d => d.action.permissions)])].map(permission => ({ permission, required: false, reason: "使用对应的 Inbox 能力" })),
-    { permission: "storage:private", required: true, reason: "项目里 Inbox 下一步的绑定" }],
+  permissions: [...[...new Set([...INBOX_ACTION_PERMISSIONS, ...Object.values(inboxContentActions).flatMap(d => d.action.permissions)])]
+    .filter(permission => !PLATFORM_PERMISSIONS.some(platform => platform.permission === permission)).map(permission => ({ permission, required: false, reason: "使用对应的 Inbox 能力" })),
+    { permission: "storage:private", required: true, reason: "项目里 Inbox 下一步的绑定" },
+    ...PLATFORM_PERMISSIONS],
   actions: [...INBOX_ACTIONS, ...Object.values(inboxContentActions), inboxSubjectAction, inboxSearchEntriesAction, inboxHomeEventsAction],
   action_scenes: [inboxNextScene],
   databases: { project: INBOX_PROJECT_DATABASE },

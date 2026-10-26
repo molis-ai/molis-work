@@ -19,7 +19,8 @@ import { GOALS_STATUS_EN } from "./status-en.js";
 import { GOALS_TREE_EN } from "./tree-en.js";
 import { GOALS_WORKSPACE_EN } from "./workspace-en.js";
 
-export const GOALS_PLUGIN_ID = "io.molis.work.goals";
+import { GOALS_PLUGIN_ID } from "./identity.js";
+export { GOALS_PLUGIN_ID };
 /** What the project database stores for this Plugin. */
 export const GOALS_PROJECT_PLUGIN_ID = "goals";
 

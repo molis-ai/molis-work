@@ -28,7 +28,7 @@ export function createFeedContentHandlers(feed: FeedApplication, board: string, 
     },
     receive: async (input, caller) => {
       const now = new Date().toISOString();
-      const source = handInSourceFor(feed, board, caller.audience, now);
+      const source = handInSourceFor(feed, board, caller.delegated_audience ?? caller.audience, now);
       // This action runs beside the project's queue while the model judges, so it judges what its own delivery queued and
       // nothing another producer queued meanwhile: that is judged by its owner, under its owner's authority.
       const { item } = await feed.ingestItemJudged({ source, externalId: input.request_id, title: input.title,

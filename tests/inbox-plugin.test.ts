@@ -125,7 +125,7 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
     body: JSON.stringify({ status: "done", expected_revision: revision + 8 }),
   });
   assert.equal(stale.status, 409);
-  assert.equal((await stale.json() as { code: string }).code, "feed.revision_conflict");
+  assert.equal((await stale.json() as { code: string }).code, "attention.revision_conflict");
 
   const completed = await webFetch(`${origin}${prefix}/api/inbox/entries/${entryId}/status`, {
     method: "POST",
@@ -257,9 +257,9 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
   assert.deepEqual(visible, internal, "MCP writes must be visible through the actual HTTP entry");
 
   catalog.removeProjectPlugin({ project_id: project.project_id, plugin_id: "inbox", actor_id: "test" });
-  const disabled = (await actions.discover(caller)).find(action => action.capability_id === inboxActions.list.capability_id)!;
-  assert.deepEqual(disabled.availability, { available: false, code: "actions.plugin_disabled", reason: "此项目未启用该插件" });
-  await assert.rejects(actions.invoke(caller, inboxActions.list, {}), { code: "actions.plugin_disabled" });
+  // Inbox is a plugin of the project's Runtime: removed, its actions are no longer registered at all.
+  assert.equal((await actions.discover(caller)).find(action => action.capability_id === inboxActions.list.capability_id), undefined);
+  await assert.rejects(actions.invoke(caller, inboxActions.list, {}), { code: "actions.missing" });
   assert.ok(!(await mcp.tools).some(tool => tool.name === statusName));
   assert.equal((await webFetch(`${origin}${prefix}/api/inbox`)).status, 403);
   assert.equal((await webFetch(`${origin}${prefix}/api/inbox/workbench`)).status, 403);

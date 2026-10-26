@@ -101,6 +101,13 @@ export interface ActionCallContext extends ActionCallOrigin {
    * nothing and narrows nothing. Never business input.
    */
   readonly delegated_by?: string;
+  /**
+   * The audience of the call the delegating plugin's running action was itself made under, before the Host ran this one as a workflow
+   * (`delegated_by` says which plugin): a person's direct call, or a workflow handing in through another plugin. Set only together with
+   * `delegated_by`. Attribution reads it (who handed this in: a person, an agent, an MCP client or a workflow); the audience that decides
+   * what the call may reach stays `audience`, so it grants nothing and narrows nothing. Never business input.
+   */
+  readonly delegated_audience?: ActionAudience;
   /** Stable session supplied by the authenticated Host; never a business input. */
   readonly runtime_session_id?: string;
   /**

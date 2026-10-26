@@ -1,3 +1,4 @@
+import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDatabaseReader, PluginDatabaseTransaction, PluginSqlValue } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 /**
@@ -42,7 +43,7 @@ const values = (params: readonly unknown[]) => params as readonly PluginSqlValue
  * write or a transaction through it is a mistake in Feed, not a request to the platform, so it is refused here with no statement sent.
  */
 export function fromPluginReader(reader: PluginDatabaseReader): FeedSql {
-  const refuse = (what: string): never => { throw new Error(`Feed ${what} outside a write transaction`); };
+  const refuse = (what: string): never => { throw new ActionError("actions.execution_failed", `Feed ${what} outside a write transaction`); };
   return {
     get: <Row>(sql: string, ...params: unknown[]) => (reader.get(sql, values(params)) ?? undefined) as Row | undefined,
     all: <Row>(sql: string, ...params: unknown[]) => reader.all(sql, values(params)) as Row[],

@@ -13,7 +13,7 @@ import { MolisWorkLocalHost, molisWorkHostProjectReference, createLocalFeedAppli
   createLocalFeedConnectorSync, createLocalFeedSourceScheduler, listFeedSourceCatalog, scheduleServiceFor, projectActionAvailability, type FeedSourceRuntime } from "@molis-ai/molis-work-app-local-host";
 import { reminderActions, SCHEDULE_PLUGIN_ID, getScheduleReminder } from "@molis-ai/molis-work-plugin-schedule";
 import { accountSourceRecord } from "./fixtures/feed-account-source.js";
-import { INBOX_ACTION_PERMISSIONS, createInboxJudgmentTrigger, inboxActions, inboxNextScene, inboxSceneBindingId } from "@molis-ai/molis-work-plugin-inbox";
+import { INBOX_ACTION_PERMISSIONS, inboxActions, inboxJudgmentTrigger, inboxNextScene, inboxSceneBindingId } from "@molis-ai/molis-work-plugin-inbox";
 import type { ActionCallContext, ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
@@ -26,6 +26,7 @@ test("HTTP admission, ingestion, workflow and scheduler events use the saved Inb
   const created = await catalog.createProject({ display_name: "自动判断", actor_id: "test" });
   const project = catalog.getProject(created.project_id);
   catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "feed", actor_id: "test" });
+  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "inbox", actor_id: "test" });
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const caller: ActionCallContext = { actor_id: "owner", project_id: project.project_id, audience: "user", permissions: [...INBOX_ACTION_PERMISSIONS] };
   const inputs: string[] = [];
@@ -107,7 +108,7 @@ test("HTTP admission, ingestion, workflow and scheduler events use the saved Inb
     let captureCalls = 0;
     host.actionRegistry(reference).registerProvider({ provider: { provider_id: captureDefinition.capability_id, kind: "plugin", title: "Feed fixture" }, definitions: [captureDefinition],
       handlers: [{ ...captureDefinition, handle: () => { captureCalls++; return { status: "ok", suggested_behavior_ids: ["inbox.admit"] }; } }] });
-    const feedOptions = { captureJudgment: createFeedCaptureTrigger({ scenes, context: () => ({ ...caller, permissions: [...caller.permissions, "feed:read", "feed:write"] }), projectId: runtime.project_id }), inboxJudgment: createInboxJudgmentTrigger({ scenes, context: () => caller, projectId: runtime.project_id }) };
+    const feedOptions = { captureJudgment: createFeedCaptureTrigger({ scenes, context: () => ({ ...caller, permissions: [...caller.permissions, "feed:read", "feed:write"] }), projectId: runtime.project_id }), inboxJudgment: inboxJudgmentTrigger({ actions: host.actionClient(reference), context: () => caller, projectId: runtime.project_id }) };
     await assert.rejects(feedOptions.inboxJudgment({ project_id: "other", entry_id: entry.entry_id }), { code: "actions.scope_mismatch" });
     const automatic = createLocalFeedApplication(runtime.store.db, feedOptions);
     const direct = automatic.ingestItem({ source, externalId: "module-attention", title: "直接带入箱请求的材料", summary: "内容", occurredAt: new Date().toISOString(), attention: { reason: "source_rule" } });
@@ -122,12 +123,12 @@ test("HTTP admission, ingestion, workflow and scheduler events use the saved Inb
     await automatic.flushPendingJudgments();
     assert.equal(localCalls, 1, "rolled-back module events cannot trigger a model call");
 
-    const ports = createWorkflowContentPorts(bindActionClient(host.actionClient(reference), () => ({ ...caller, audience: "workflow", permissions: NATIVE_CONTENT_PERMISSIONS })));
+    const ports = createWorkflowContentPorts(bindActionClient(host.actionClient(reference), () => ({ ...caller, audience: "workflow", permissions: [...NATIVE_CONTENT_PERMISSIONS, "judgments:write"] })));
     const handoff = await ports.receive("inbox", { title: "工作流交接", body: "需要核对的交接内容", feed_item_id: null }, "workflow:fixture-flow:1");
     assert.equal(localCalls, 2);
     assert.equal(history().find(record => record.subject.id === handoff.item_id)!.function_key, unknown.capability_id);
     const restricted = createWorkflowContentPorts(bindActionClient(host.actionClient(reference), () => ({ ...caller, actor_id: "restricted-workflow", audience: "workflow",
-      permissions: NATIVE_CONTENT_PERMISSIONS.filter(permission => permission !== "model:invoke") })));
+      permissions: [...NATIVE_CONTENT_PERMISSIONS, "judgments:write"].filter(permission => permission !== "model:invoke") })));
     const withoutModel = await restricted.receive("inbox", { title: "只交接材料", body: "没有模型权限也可以保留材料", feed_item_id: null }, "workflow:restricted-flow:1");
     assert.ok(feed.getInboxEntry(runtime.project_id, withoutModel.item_id));
     assert.equal(localCalls, 2, "a workflow without model permission cannot borrow the native background caller to judge its entry");
@@ -191,7 +192,7 @@ test("HTTP admission, ingestion, workflow and scheduler events use the saved Inb
     stop();
     const unavailable = await admit(addMaterial("提供方已停用"));
     assert.ok(!history().some(record => record.subject.id === unavailable.entry_id));
-    assert.equal((await scenes.usages(caller))[0]!.availability.available, false);
+    assert.equal((await scenes.usages(caller)).find(usage => usage.scene_id === inboxNextScene.scene_id)!.availability.available, false);
     assert.equal(localCalls, 5);
   } finally {
     if (server.listening) await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
@@ -205,6 +206,7 @@ test("a plugin reminder gets the saved Inbox next step like every other arrival,
   const created = await catalog.createProject({ display_name: "提醒判断", actor_id: "test" });
   const project = catalog.getProject(created.project_id);
   catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "feed", actor_id: "test" });
+  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "inbox", actor_id: "test" });
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const caller: ActionCallContext = { actor_id: "owner", project_id: project.project_id, audience: "user", permissions: [...INBOX_ACTION_PERMISSIONS] };
   const inputs: string[] = [];

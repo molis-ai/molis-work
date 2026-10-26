@@ -17,7 +17,7 @@ import {
 } from "@molis-ai/molis-work-module-attention-resumption";
 import { fromBetterSqlite, type FeedLedgerPort, type FeedSql } from "@molis-ai/molis-work-plugin-feed/store";
 import type { ContextAccess, ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
-import { assembleFeedApplication, FEED_PLUGIN_ID, type FeedApplication, FeedOutRuleStore, type FeedApplicationPorts, type FeedArtifactProducer } from "@molis-ai/molis-work-plugin-feed";
+import { assembleFeedApplication, feedOwnedAttention, FEED_PLUGIN_ID, type FeedApplication, FeedOutRuleStore, type FeedApplicationPorts, type FeedArtifactProducer } from "@molis-ai/molis-work-plugin-feed";
 import { projectVersionStores, type ArtifactsSqliteDatabase } from "@molis-ai/molis-work-module-artifacts";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createFeedHistoryRelease } from "./feed-history-release.js";
@@ -89,7 +89,7 @@ export function createLocalFeedApplication(
   }).artifacts;
   return assembleFeedApplication({
     sql, appendEvent,
-    attention: subjects => new AttentionModule(db, {
+    attention: subjects => feedOwnedAttention(new AttentionModule(db, {
       exists: (projectId, subjectType, subjectId) => {
         if (subjectType === "feed_item") return subjects.feedItemExists(projectId, subjectId);
         if (subjectType === "source_fault") return subjects.sourceExists(projectId, subjectId);
@@ -100,7 +100,7 @@ export function createLocalFeedApplication(
         appendEvent(event.project_id, "inbox_entry", event.entry_id, event.type, event.reason, event.payload, event.at);
         if (event.type === "inbox_entry.created") inboxCreated({ project_id: event.project_id, entry_id: event.entry_id });
       },
-    }),
+    })),
     ledger: feedLedger(createContextLedger(db, { authorize: (access) => access.scope.kind === "personal" && access.actor_id === "module:feed" })),
     subscribeInboxCreated: listener => { inboxCreated = listener; },
     // A refused Feed library leaves the project without capture rules; the rest of Feed is the Modules' and goes on.

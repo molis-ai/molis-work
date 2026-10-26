@@ -64,7 +64,7 @@ const FEED: OwnerCodes = { prefix: "feed", status: {
   connector_wrong_sync_kind: 400, connector_needs_auth: 400, connector_failed: 400,
   custom_rss_url_invalid: 400, youtube_channel_invalid: 400, source_use_youtube_channel: 400, source_use_official_reddit: 400,
 } };
-const INBOX: OwnerCodes = { prefix: "inbox", status: { entry_not_found: 404, invalid: 400 } };
+const INBOX: OwnerCodes = { prefix: "inbox", status: { entry_not_found: 404, invalid: 400, revision_conflict: 409 } };
 const SCHEDULE: OwnerCodes = { prefix: "schedule", status: { task_not_found: 404, task_invalid: 400, job_not_found: 404, job_invalid: 400 } };
 
 /** Where each owner's declaration lives: Feed's and Inbox's in the contracts the two plugins, the Host and the RSS and YouTube integrations share, Schedule's in the plugin. */
@@ -89,7 +89,7 @@ async function failingEdge(owner: "feed" | "inbox" | "schedule") {
   const feedOptions: FeedNativePluginHttpOptions = { actions, projectId: "p", routePrefix: "/projects/p", invalidateWebView: () => undefined,
     renderer: { renderFeedWorkbenchFragment: () => "", renderPersistedFeedItemDetail: () => "" }, readWebView: async () => ({} as MolisWorkWebView), store: {} as LocalProjectDatabase };
   const handle = (request: IncomingMessage, response: ServerResponse, url: URL): Promise<boolean> => owner === "feed" ? handleFeedNativePluginHttp(request, response, url, feedOptions)
-    : owner === "inbox" ? handleInboxNativePluginHttp(request, response, url, { actions, invalidateWebView: () => undefined })
+    : owner === "inbox" ? handleInboxNativePluginHttp(request, response, url, { actions, invalidateWebView: () => undefined, enabled: async () => true })
       : handleScheduleTestHttp(request, response, url, actions);
   // A route of the plugin whose handler calls one action, so the failure comes out of the action and goes through the edge.
   const route = { feed: ["POST", "/api/feed/items/item-1/read"], inbox: ["POST", "/api/inbox/entries/entry-1/status"], schedule: ["POST", "/api/plugins/io.molis.work.schedule/tasks"] }[owner] as [string, string];

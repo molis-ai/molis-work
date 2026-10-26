@@ -1,6 +1,7 @@
 import type { AttentionApi } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import type { GoalTreeProposalRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import { goalTreeProposalAttentionGoalId, goalTreeProposalNeedsDecision } from "./decision-groups.js";
+import { GOALS_PLUGIN_ID } from "./identity.js";
 
 interface GoalDecisionAttentionPorts {
   attention: Pick<AttentionApi, "commands" | "query">;
@@ -8,7 +9,7 @@ interface GoalDecisionAttentionPorts {
   goalExists(projectId: string, goalId: string): boolean;
 }
 
-/** Goals owns Goal-decision Attention. Inbox only reads the resulting reference. */
+/** Goals owns Goal-decision Attention, and the entries say so: they are created and found under Goals' own plugin id, which is how the Inbox lists them. */
 export class GoalDecisionAttentionSync {
   constructor(private readonly ports: GoalDecisionAttentionPorts) {}
 
@@ -31,7 +32,7 @@ export class GoalDecisionAttentionSync {
     }
     for (const goalId of pending) this.ensureOpen(projectId, goalId, false);
     for (const entry of this.ports.attention.query.list(projectId)) {
-      if (entry.owner_plugin_id !== null || entry.subject_type !== "goal_decision") continue;
+      if (entry.owner_plugin_id !== GOALS_PLUGIN_ID || entry.subject_type !== "goal_decision") continue;
       if (pending.has(entry.subject_id)) continue;
       if (entry.status === "open" || entry.status === "in_progress") {
         this.ports.attention.commands.setStatus(projectId, entry.entry_id, "done");
@@ -57,6 +58,7 @@ export class GoalDecisionAttentionSync {
     if (!this.ports.goalExists(projectId, goalId)) return;
     const { entry } = this.ports.attention.commands.create({
       project_id: projectId,
+      owner_plugin_id: GOALS_PLUGIN_ID,
       subject_type: "goal_decision",
       subject_id: goalId,
       reason: "goal_decision",
@@ -67,7 +69,7 @@ export class GoalDecisionAttentionSync {
   }
 
   private complete(projectId: string, goalId: string): void {
-    for (const entry of this.ports.attention.query.findForSubject(projectId, "goal_decision", goalId)) {
+    for (const entry of this.ports.attention.query.findForSubject(projectId, "goal_decision", goalId, GOALS_PLUGIN_ID)) {
       if (entry.status === "open" || entry.status === "in_progress") {
         this.ports.attention.commands.setStatus(projectId, entry.entry_id, "done");
       }

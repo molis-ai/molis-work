@@ -7,7 +7,7 @@ import {
 } from "@molis-ai/molis-work-plugin-inbox";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { readNativePluginJsonBody } from "./native-plugin-http.js";
-import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { MolisWorkWebView, WorkbenchRenderer } from "@molis-ai/molis-work-app-workbench";
 
 export interface InboxNativePluginHttpOptions {
@@ -15,6 +15,8 @@ export interface InboxNativePluginHttpOptions {
   readonly invalidateWebView: () => void;
   readonly renderer?: Pick<WorkbenchRenderer, "renderInboxWorkbenchFragment">;
   readonly readWebView?: () => MolisWorkWebView | Promise<MolisWorkWebView>;
+  /** Whether this project has Inbox: a Runtime plugin the project does not have registers no actions, so the route says so itself. */
+  readonly enabled: () => Promise<boolean>;
 }
 
 export async function handleInboxNativePluginHttp(
@@ -26,6 +28,7 @@ export async function handleInboxNativePluginHttp(
   if (url.pathname !== "/api/inbox" && !url.pathname.startsWith("/api/inbox/")) return false;
   const method = request.method;
   if (!method || !["GET", "POST"].includes(method)) return false;
+  if (!await options.enabled()) { writeResponse(response, actionErrorResponse(new ActionError("actions.plugin_disabled", "此项目未启用该插件"))); return true; }
   const routes = new InboxPluginRouteTable(createInboxRouteHandlers({
     actions: options.actions,
     changed: () => options.invalidateWebView(),

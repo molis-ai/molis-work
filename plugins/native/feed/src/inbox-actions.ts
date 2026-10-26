@@ -12,11 +12,13 @@ import type { FeedItemRecord, FeedSourceRecord } from "./projection.js";
 const id = { type: "string", minLength: 1, maxLength: 200 };
 const ids = { type: "array", items: id, maxItems: 200 };
 const closed = (properties: Record<string, unknown>, required: string[]): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });
-/** Reads reach whoever Inbox's own actions reach (a plugin calling reaches an agent action); the admitting command is only the workflow's, as delegated. */
+/** Reads reach whoever Inbox's own actions reach (a plugin calling reaches an agent action); the admitting command is the person's own add-to-Inbox and the workflow's hand-in, as delegated: a plugin run for the person reaches only what the person's own catalog lists, so a workflow-only audience would never be reachable from Inbox. */
 const READERS: readonly ActionAudience[] = ["user", "agent", "workflow", "mcp"];
 
 export interface FeedAdmission { item_id: string; admissible: boolean; reason: "ignored" | null }
 export interface FeedMaterial { item_id: string; revision: number; title: string; body: string; url: string | null; source_label: string | null; provenance: unknown[] }
+/** What a judgment of an Inbox entry reads of its item: the text the person would read, with the retained materials' own text. */
+export interface FeedContent { item_id: string; revision: number; title: string; summary: string | null; body: string | null; materials: Array<{ content: string | null; preview: string | null }> }
 export interface FeedBriefs {
   items: Array<{ item_id: string; title: string; source_label: string | null; source_kind: string | null; summary: string; disposition: string }>;
   sources: Array<{ source_id: string; name: string }>;
@@ -30,7 +32,7 @@ function read<Input, Output>(capability_id: string, title: string, description: 
 
 function command<Input, Output>(capability_id: string, title: string, description: string, input: ActionSchema, output: ActionSchema): ActionDefinition<Input, Output> {
   return { capability_id, version: 1, operation: "command", action: { title, description, kind: "operation", scope: "project", scheduling: "concurrent",
-    audiences: ["workflow"], permissions: ["feed:read", "feed:write", "inbox:write"], subject_kinds: ["feed_item"], input_schema: input, output_schema: output } };
+    audiences: ["user", "workflow"], permissions: ["feed:read", "feed:write", "inbox:write"], subject_kinds: ["feed_item"], input_schema: input, output_schema: output } };
 }
 
 export const feedInboxActions = {
@@ -43,6 +45,12 @@ export const feedInboxActions = {
     closed({ item_id: id }, ["item_id"]),
     closed({ item_id: { type: "string" }, revision: { type: "integer" }, title: { type: "string" }, body: { type: "string" }, url: { type: ["string", "null"] },
       source_label: { type: ["string", "null"] }, provenance: { type: "array" } }, ["item_id", "revision", "title", "body", "url", "source_label", "provenance"])),
+  content: read<{ item_id: string }, FeedContent>("feed.items.content", "读取消息的内容",
+    "读取一条消息的标题、摘要、正文与留存材料的文字，供 Inbox 判断下一步；不检查来源是否仍可用，也不要求有正文",
+    closed({ item_id: id }, ["item_id"]),
+    closed({ item_id: { type: "string" }, revision: { type: "integer" }, title: { type: "string" }, summary: { type: ["string", "null"] }, body: { type: ["string", "null"] },
+      materials: { type: "array", items: { type: "object", properties: { content: { type: ["string", "null"] }, preview: { type: ["string", "null"] } }, required: ["content", "preview"] } } },
+      ["item_id", "revision", "title", "summary", "body", "materials"])),
   briefs: read<{ item_ids?: string[]; source_ids?: string[] }, FeedBriefs>("feed.briefs.read", "读取消息与来源的简介",
     "按编号读取消息的标题、来源名与摘要，以及来源的名称，用于给 Inbox 事项命名；找不到的编号不返回，不含正文",
     closed({ item_ids: ids, source_ids: ids }, []),
@@ -96,13 +104,18 @@ export function createFeedInboxHandlers(feed: FeedApplication, board: string, po
       return { item_id: item.item_id, revision: item.revision, title: item.title, body, url: item.url ?? null, source_label: item.source_label ?? null,
         provenance: item.materials.map(material => material.provenance) };
     }),
+    bind(feedInboxActions.content, ({ item_id }) => {
+      const item = ports.hydrate(feed.getFeedItem(board, item_id));
+      return { item_id: item.item_id, revision: item.revision, title: item.title, summary: item.summary ?? null, body: item.body ?? null,
+        materials: item.materials.map(material => ({ content: material.content ?? null, preview: material.preview ?? null })) };
+    }),
     bind(feedInboxActions.briefs, ({ item_ids = [], source_ids = [] }) => ({
       items: item_ids.flatMap(itemId => found(() => feed.getFeedItem(board, itemId))).map(item => ({ item_id: item.item_id, title: item.title,
         source_label: item.source_label ?? null, source_kind: item.source_kind ?? null, summary: item.summary ?? "", disposition: item.disposition })),
       sources: source_ids.flatMap(sourceId => found(() => feed.getSource(board, sourceId))).map(source => ({ source_id: source.source_id, name: source.name })),
     })),
     bind(feedInboxActions.admit, async ({ item_id }, caller) => {
-      const { entry, created } = admitToInbox(feed, board, item_id, addedByOf(caller.audience));
+      const { entry, created } = admitToInbox(feed, board, item_id, addedByOf(caller.delegated_audience ?? caller.audience));
       // Admission starts the Inbox next-step judgment with the handing-in caller's authority, and judges only the entry it admitted: the
       // action runs beside the project's queue while the model answers.
       await feed.flushPendingInboxJudgments(retainActionAuthority(caller, feedInboxActions.admit), [entry.entry_id]);

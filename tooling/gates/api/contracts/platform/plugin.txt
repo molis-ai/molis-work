@@ -2514,6 +2514,13 @@ export declare const PLUGIN_MODEL_LIMITS: {
     readonly max_output_tokens: 12000;
 };
 
+export declare const PLUGIN_PROJECTS_EXIST_LIMITS: Readonly<{
+    ids: 200;
+    id_length: 200;
+}>;
+
+export declare const PLUGIN_PROJECTS_EXIST_PERMISSION = "projects:exist";
+
 export declare const PLUGIN_SCENES_PERMISSION = "scenes:use";
 
 export declare const PROJECT_JOURNAL_PERMISSION = "journal:project";
@@ -2937,6 +2944,7 @@ export interface PluginExecutorHandle {
 export interface PluginHostServices {
     readonly notifications?: import("platform/plugin-notifications").PluginNotificationClient;
     readonly installations?: import("platform/plugin-installations").PluginInstallationClient;
+    readonly projects?: import("platform/plugin-projects").PluginProjectsClient;
     readonly attention?: import("@molis-ai/molis-work-contracts/platform/plugin-attention").PluginAttentionClient;
     readonly contextLedger?: import("@molis-ai/molis-work-contracts/platform/plugin-attention").PluginContextLedgerClient;
     readonly scenes?: import("@molis-ai/molis-work-contracts/platform/plugin-scenes").PluginSceneClient;
@@ -3781,6 +3789,12 @@ export interface PluginProjectStatements {
     }>>;
 }
 
+export interface PluginProjectsClient {
+    exist(ids: readonly string[], options?: {
+        readonly signal?: AbortSignal;
+    }): Promise<Readonly<Record<string, boolean>>>;
+}
+
 export interface PluginRequirementDeclaration {
     capability_id: string;
     version: number;
@@ -3965,7 +3979,7 @@ export interface PluginUpgradeCompatibilityDeclaration {
 }
 
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
-    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "project_statements" | "database_statements" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "localTools" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "notifications" | "attention" | "contextLedger" | "interaction"> & {
+    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "project_statements" | "database_statements" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "localTools" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "projects" | "notifications" | "attention" | "contextLedger" | "interaction"> & {
         readonly storage?: Pick<PluginPrivateStorage, "get">;
     };
 };

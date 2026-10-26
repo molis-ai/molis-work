@@ -98,7 +98,7 @@ export const SANDBOX_SERVICE_FATE: { readonly [Service in keyof PluginHostServic
   project_database: 'replaced', ui: 'drawn',
   database: 'entry', files: 'entry', terminal: 'entry', imageGeneration: 'entry',
   model: 'given', background: 'given', agents: 'refused', scheduler: 'refused', directory: 'refused',
-  notifications: 'refused', localTools: 'refused', attention: 'refused', contextLedger: 'refused', installations: 'refused', actions: 'refused', scenes: 'refused', judgments: 'refused', artifacts: 'refused', processItems: 'refused', events: 'refused', inputs: 'refused', outputs: 'refused',
+  notifications: 'refused', localTools: 'refused', attention: 'refused', contextLedger: 'refused', installations: 'refused', projects: 'refused', actions: 'refused', scenes: 'refused', judgments: 'refused', artifacts: 'refused', processItems: 'refused', events: 'refused', inputs: 'refused', outputs: 'refused',
 });
 
 export interface NotGiven {
@@ -153,6 +153,8 @@ export const SANDBOX_NOT_GIVEN: readonly NotGiven[] = [
     declared: (definition, held) => asksFor(definition, held, ['context-ledger:read', 'context-ledger:write']) },
   { service: 'installations', services: ['installations'], reason: 'Reading the installed plugins (plugins:read) is not given to sandboxed plugins yet (PG-017 BL-494).',
     declared: (definition, held) => asksFor(definition, held, ['plugins:read']) },
+  { service: 'projects', services: ['projects'], reason: 'Asking whether projects still exist (projects:exist) is not given to sandboxed plugins: the answer is read from the Home\'s project catalog, which a sandboxed package does not reach (BL-680, S-92).',
+    declared: (definition, held) => asksFor(definition, held, ['projects:exist']) },
   { service: 'actions', services: ['actions'], reason: 'Calling the actions of others (actions:delegate) is not given to sandboxed plugins: a sandboxed package is reached as the actions it declares and calls nothing back (PG-017 BL-494).',
     declared: (definition, held) => asksFor(definition, held, ['actions:delegate']) },
   { service: 'scenes', services: ['scenes'], reason: 'Binding and running the plugin\'s own consumption scenes (scenes:use) is not given to sandboxed plugins: it asks the Host\'s judgment functions as the caller of a running action, which a sandboxed package does not have (PG-032 P1).',

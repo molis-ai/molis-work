@@ -60,6 +60,8 @@ Home 或项目里宿主自己运行的插件要调模型：Manifest 声明 `mode
 
 插件要在这台电脑上找命令行工具（例如终端 Agent），在 Manifest 里声明 `local_tools`（PG-112）：`tools` 写工具 id 和文件名（裸名字，不含路径），`directories` 写 `PATH` 之外也找的目录（`~/…` 或绝对路径），人在设置里自己选的路径要问就加 `custom_executables: true`；再声明 `local-tools:read` 权限。得到 `services.localTools`：`find()` 回每个工具的可执行文件路径（找不到是 null），`isExecutable(path)` 只回是或否，`refresh()` 清缓存。宿主只做文件系统查询，**不起进程**；插件包里不读 `process.env`、不 import `child_process`。只给 Home 实例；沙箱插件声明了会在启动时被拒（`sandbox.service_not_given`）。隔离试用与测试用 `MOLIS_WORK_LOCAL_TOOLS=off` 或 `MOLIS_WORK_LOCAL_TOOLS_PATH=<目录>` 钉死。
 
+插件自己存了项目 id（例如副本的出处）、要知道那个项目还在不在，在 Manifest 里声明 `projects:exist` 权限（双实例插件的权限都要写 `required: true`；没问到就当「不知道」，不要当「已删除」），得到 `services.projects.exist(ids)`：只回你传进来的 id 的 `{id: boolean}`，不列项目、不返回名字（S-92，BL-680）；Home 实例和项目实例都有，沙箱包声明它会被拒绝启动。
+
 ### 问题卡、操作卡与下一步行
 
 插件自己的页面要显示一轮 Agent 留下的问题、操作卡和下一步时，不自己画，也不等宿主替路由结果加料：用 `context.services.interaction` 的 `questionHtml`、`cardHtml`、`nextStepsHtml` 拿到与助理一样的 html，语言跟这次调用（页面的语言）走。卡先用 SDK 的 `actionCardView(card)` 变成人读的样子（`AssistantCard`）再交过去。它只画、不读不写任何记录，每个激活都有、不用声明权限；沙箱插件经 broker 拿到同一份（`sdk.interaction`）。交来的字符串都按文字画，结果链接只画本 Home 的路径，形状不对的值整个拒绝（S-56）。

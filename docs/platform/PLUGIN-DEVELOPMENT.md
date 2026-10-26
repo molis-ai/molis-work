@@ -110,6 +110,7 @@ node dist/cli/main.js plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state
 | --- | --- | --- |
 | `services.scheduler` | `schedule:read` / `schedule:write`；`background.wakeups` 声明本插件的动作引用与理由 | 只读写自己所属的闹钟；`join(transaction, writer)` 加入当前项目库事务。唤醒经公开动作网关，动作须向 plugin 开放。旧安装绑定只能明确恢复，不能自动接管。 |
 | `services.installations` | `plugins:read` | 只返回当前项目的安装 id、世代、版本、名字、发布者和状态；不返回授权、签名或路径。`list()` 排除已卸载记录，`get(id)` 保留其最小状态，供业务主人收尾。 |
+| `services.projects` | `projects:exist`（没声明，服务不存在；声明了没拿到授权，调用被拒） | `exist(ids)` 只回答你传进来的项目 id 现在还在不在：`{id: boolean}`，每个传入的 id 一条（重复的算一条），不列项目、不返回名字或状态，也不返回你没问的 id。一次至多 200 个、每个至多 200 个字符。宿主读不到项目目录时报错，不会说成「已删除」；授权被撤回后调用被拒（`actions.forbidden`），实例停用后调用没有回答。Home 实例和项目实例都能用，沙箱包声明它会被拒绝启动（`sandbox.service_not_given`）。用途：你自己存了项目 id 做出处，要知道出处还在不在（Shelf 据此在副本上标「项目已删除」，BL-680，S-92）。 |
 | `services.agents.run` | `agent:run` 与已声明的 role；任务、标题、可选工作区 id、时限 | 复用本 Home 的 Prologue，等待一轮完成并返回正文与运行引用。等待人工交互、超时或失去权限时取消本次运行。须在对应 concurrent command 或保留 job 内使用。 |
 | `services.notifications` | `notifications:write`；通知键、标题、摘要、正文与可选目标插件 id | `deliver(transaction, input)` 与业务记录同笔提交到 Feed/Inbox。提交后在原调用中等待 `receipt.settle()`；重复键不重复投递，回滚的回执不能触发后续判断。 |
 | `services.scenes` | `scenes:use`；Manifest 要有自己的 `action_scenes` | 自己声明的消费场景：`usages`、`discoverScenes`、`targets`、`bind`、`runScene`，方法名同内核的场景客户端，只是不传调用者。只在本插件正在执行的动作里用，调用者是这个动作的原调用者；别人的场景、没声明的场景或版本以 `plugin.scene_not_declared` 拒绝。`bind`、`runScene` 不能出自查询动作，`runScene` 要等判断结果，只能出自 `scheduling: "concurrent"` 的动作。内核对函数与场景兼容、受众、权限的检查一条不放宽。 |
@@ -122,7 +123,7 @@ node dist/cli/main.js plugin dev "$plugin_dev_dir/sample" "$plugin_dev_dir/state
 
 Schedule 是这些服务的生产消费者，工厂见 `plugins/native/schedule/src/plugin.ts`。自己的动态功能可在动作声明中设置 `local_id`，供调度消费方在同一提供方下解析；实际调用仍固定完整 capability/version/provider。原 `schedule.register` typed 入口已移除，作者直接使用公共 scheduler 或 Schedule 的 `reminders.add/cancel`、`schedules.add/cancel` 动作。安装版沙箱的现有生成 API 仍通过能力桥消费公开动作；本节不是向生成 API 增加一套同步事务接口。
 
-工程验证见 `tests/security-invariants-plugin-scheduler.test.ts`、`tests/security-invariants-plugin-agents.test.ts`、`tests/security-invariants-plugin-installations.test.ts`、`tests/security-invariants-plugin-notifications.test.ts`、`tests/security-invariants-plugin-dependencies.test.ts`；真实驻留行为见 `tests/schedule-resident-runtime.test.ts`。
+工程验证见 `tests/security-invariants-plugin-scheduler.test.ts`、`tests/security-invariants-plugin-agents.test.ts`、`tests/security-invariants-plugin-installations.test.ts`、`tests/security-invariants-plugin-projects.test.ts`、`tests/security-invariants-plugin-notifications.test.ts`、`tests/security-invariants-plugin-dependencies.test.ts`；真实驻留行为见 `tests/schedule-resident-runtime.test.ts`。
 
 ## 个人 Home Runtime 与插件 SQLite
 

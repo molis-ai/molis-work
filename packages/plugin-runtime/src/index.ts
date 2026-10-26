@@ -55,6 +55,8 @@ export { createPluginImageGenerationClient } from "./image-generation.js";
 export type { PluginImageGenerationPort, PluginImageGenerationGate, PluginImageGenerationDispatch } from "./image-generation.js";
 export { createPluginLocalToolsClient } from "./local-tools.js";
 export type { PluginLocalToolsPort, PluginLocalToolsGate } from "./local-tools.js";
+export { createPluginProjectsClient } from "./projects.js";
+export type { PluginProjectsPort, PluginProjectsGate } from "./projects.js";
 export type { PluginModelDispatch, PluginModelGate, PluginModelPort } from "./model-service.js";
 export { MemoryPluginRuntimeRepository } from "./memory-repository.js";
 export { NativePluginExecutor } from "./native-executor.js";

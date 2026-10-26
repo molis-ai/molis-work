@@ -64,6 +64,8 @@ export interface PluginHostServices {
   /** Public metadata of installations in this activation's scope. */
   readonly notifications?: import("./plugin-notifications.js").PluginNotificationClient;
   readonly installations?: import("./plugin-installations.js").PluginInstallationClient;
+  /** Whether project ids the plugin holds still exist (BL-680); present with `projects:exist`, answers yes or no per id passed and nothing else. */
+  readonly projects?: import("./plugin-projects.js").PluginProjectsClient;
   /** The project's Attention entries (the Inbox's); present with `attention:read` or `attention:write`. Writes join the plugin's project transaction (PG-087, PG-094 S9-0b). */
   readonly attention?: import("./plugin-attention.js").PluginAttentionClient;
   /** The project's Context Ledger edges; present with `context-ledger:read` or `context-ledger:write`. Writes join the plugin's project transaction (PG-087, PG-094 S9-0b). */

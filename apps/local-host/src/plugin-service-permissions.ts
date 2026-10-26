@@ -1,4 +1,4 @@
-import { PLUGIN_LOCAL_TOOLS_PERMISSION, type PluginHostServices } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { PLUGIN_LOCAL_TOOLS_PERMISSION, PLUGIN_PROJECTS_EXIST_PERMISSION, type PluginHostServices } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { PLUGIN_ATTENTION_READ_PERMISSION, PLUGIN_ATTENTION_WRITE_PERMISSION, PLUGIN_CONTEXT_LEDGER_READ_PERMISSION, PLUGIN_CONTEXT_LEDGER_WRITE_PERMISSION } from "@molis-ai/molis-work-contracts/platform/plugin-attention";
 import { PLUGIN_CONNECTIONS_PERMISSION } from "@molis-ai/molis-work-contracts/platform/plugin-connections";
 import { PLUGIN_SCENES_PERMISSION } from "@molis-ai/molis-work-contracts/platform/plugin-scenes";
@@ -31,6 +31,7 @@ export const HOST_SERVICE_PERMISSIONS: { readonly [Service in keyof PluginHostSe
   agents: [AGENT_RUN_PERMISSION],
   notifications: [NOTIFICATIONS_WRITE_PERMISSION],
   installations: [PLUGINS_READ_PERMISSION],
+  projects: [PLUGIN_PROJECTS_EXIST_PERMISSION],
   attention: [PLUGIN_ATTENTION_READ_PERMISSION, PLUGIN_ATTENTION_WRITE_PERMISSION],
   contextLedger: [PLUGIN_CONTEXT_LEDGER_READ_PERMISSION, PLUGIN_CONTEXT_LEDGER_WRITE_PERMISSION],
   actions: [ACTIONS_DELEGATE_PERMISSION],

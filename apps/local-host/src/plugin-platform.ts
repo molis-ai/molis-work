@@ -87,6 +87,8 @@ export interface PluginPlatformOptions {
   /** Whether an action a plugin consumes is registered and ready in this project (`services.actions.availability`). */
   dependencyCheck?: PluginDependencyCheck;
   scheduler?: PluginHostExecutorOptions["scheduler"];
+  /** Stands in for the Home's project catalog behind `services.projects` (S-92), for a test that has no Home. */
+  projects?: PluginHostExecutorOptions["projects"];
   /** Shared system registry plus the trusted project identity for this activation. */
   actions: PluginHostExecutorOptions["actions"];
   /**
@@ -158,6 +160,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     providerFor,
     databaseFor: identity.databaseFor,
     projectLibrary: projectLibraryOf(options), scheduler: options.scheduler,
+    ...(options.projects ? { projects: options.projects } : {}),
     project_id: options.project_id,
     actor_id: options.actor_id,
     artifacts: options.artifacts,

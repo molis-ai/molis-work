@@ -232,7 +232,7 @@ jobs:
       # workbench shell (no standalone pages); 成果 types have owner previews, writes match Manifests, process items stay out of
       # user lists.
       - name: Build rules reject what they claim to
-        run: node scripts/run-tests.mjs tests/page-assets-budget.test.ts tests/plugin-styles-gate.test.ts tests/dom-events-contract.test.ts tests/storage-baseline.test.ts tests/home-store-baselines.test.ts tests/release-assets.test.ts tests/installer-symlink-dependencies.test.ts tests/shell-page-gate.test.ts tests/artifact-type-gate.test.ts tests/artifact-declaration-gate.test.ts
+        run: node scripts/run-tests.mjs tests/page-assets-budget.test.ts tests/plugin-styles-gate.test.ts tests/dom-events-contract.test.ts tests/storage-baseline.test.ts tests/home-store-baselines.test.ts tests/release-assets.test.ts tests/installer-symlink-dependencies.test.ts tests/shell-page-gate.test.ts tests/artifact-type-gate.test.ts tests/artifact-declaration-gate.test.ts tests/artifact-host-writers.test.ts
 
       # The Alchemist plugin brings its own vitest suite (studio services and contracts); about a second.
       - name: Alchemist plugin tests

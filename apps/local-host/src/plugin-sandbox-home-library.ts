@@ -1,7 +1,8 @@
 import type { HomePluginDatabaseDeclaration, PluginProjectStatements } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginInstance } from "@molis-ai/molis-work-plugin-runtime";
-import { homeSqlitePath, openBaselineHomeSqlite, type HomeStoreRegistry } from "@molis-ai/molis-work-storage";
+import { homeSqlitePath, type HomeStoreRegistry } from "@molis-ai/molis-work-storage";
 import { openInstalledPluginLibrary, type InstalledLibraryOwner } from "./installed-plugin-libraries.js";
+import { openPluginDatabase } from "./plugin-database.js";
 import { isolatedProjectStatements } from "./plugin-project-isolation.js";
 import { ProjectStatementProcess, type StatementLimits } from "./project-statement-process.js";
 
@@ -18,9 +19,9 @@ export function openSandboxHomeLibrary(home: string, owner: InstalledLibraryOwne
   const path = homeSqlitePath(home, declaration.store_name);
   let closed = false;
   const open = () => {
-    // Made here, with its schema, and let go: SQLite's write-ahead log is the library's mode, so the process's connections share the file with it.
-    const created = openBaselineHomeSqlite(home, declaration.store_name, declaration);
-    try { created.exec("PRAGMA journal_mode = WAL"); } finally { created.close(); }
+    // Made here, with its schema and write-ahead log, through the Host's one typed bridge for a plugin's Home library, and let go:
+    // the process's connections share the file with it.
+    openPluginDatabase(home, declaration, authorize, instance).close();
     const processes = new ProjectStatementProcess(path, null, limits);
     return { processes, close() { closed = true; processes.dispose(); } };
   };

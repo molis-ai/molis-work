@@ -27,7 +27,7 @@ test("Feed item commands are directory actions: Home prepares and runs them, sta
   const first = ingest("one", "客户反馈导出失败"), second = ingest("two", "周报已生成"), third = ingest("three", "需要跟进的合同");
   seed.close();
   const reference = molisWorkHostProjectReference({ databasePath: dbPath, projectId: PROJECT });
-  const caller: ActionCallContext = { actor_id: "web-user", project_id: PROJECT, audience: "user", permissions: [...HOME_ACTION_PERMISSIONS, ...NATIVE_CONTENT_PERMISSIONS] };
+  const caller: ActionCallContext = { actor_id: "web-user", project_id: PROJECT, audience: "user", permissions: [...HOME_ACTION_PERMISSIONS, ...NATIVE_CONTENT_PERMISSIONS, "context-ledger:write"] };
   const client = host.actionClient(reference);
   const actions = bindActionClient(client, () => caller);
   const prepare = async (itemId: string, context = caller) => await client.invoke(context, homeOfferActions.offers, { subject: { kind: "feed_item", id: itemId }, request_id: "req-" + itemId }) as HomeActionOffers;
@@ -36,6 +36,22 @@ test("Feed item commands are directory actions: Home prepares and runs them, sta
     return actions.invoke(homeOfferActions.execute, { subject: { kind: "feed_item", id: itemId }, request_id: "req-" + itemId, offer: selected });
   };
   try {
+    // Goals confirms the promoted input through the ledger; a caller missing that permission cannot start a partial promotion.
+    const withoutLedger = { ...caller, permissions: caller.permissions.filter(permission => permission !== "context-ledger:write") };
+    assert.ok(!(await prepare(third.item_id, withoutLedger)).offers.some(offer => offer.title === "升格为 Goal"));
+    const promotion = (await client.discover(withoutLedger)).find(view => view.capability_id === feedItemActions.promote.capability_id)!;
+    assert.equal(promotion.availability.available, false);
+    assert.equal(promotion.availability.code, "actions.forbidden");
+    const promotionState = () => host.withProject(reference, runtime => ({
+      goals: runtime.store.db.prepare("SELECT count(*) AS n FROM goals").get(),
+      events: runtime.store.db.prepare("SELECT count(*) AS n FROM events WHERE object_type LIKE 'io.molis.work.goals:%'").get(),
+      receipts: runtime.store.db.prepare("SELECT count(*) AS n FROM idempotency_records WHERE operation LIKE 'io.molis.work.goals:%'").get(),
+      item: createLocalFeedApplication(runtime.store.db).getFeedItem(PROJECT, third.item_id),
+    }));
+    const beforeRefusal = await promotionState();
+    await assert.rejects(client.invoke(withoutLedger, feedItemActions.promote, { item_id: third.item_id, expected_revision: third.revision }), { code: "actions.forbidden" });
+    assert.deepEqual(await promotionState(), beforeRefusal);
+
     // The offers come from Feed's own declaration, named for what they do, each with the exact revision it read.
     const offered = await prepare(first.item_id);
     assert.deepEqual(offered.offers.map(offer => offer.title), ["加入 Inbox", "保存为资料", "升格为 Goal", "忽略"]);

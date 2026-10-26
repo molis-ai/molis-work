@@ -58,7 +58,7 @@ async function parkedWork(t: TestContext, name: string) {
   const asked = await until(async () => { const read = await service.read(workId); return read.rounds[0]?.awaiting_input.length ? read : undefined; }, "the question");
   const runId = asked.rounds[0]!.run_id!, pendingId = asked.rounds[0]!.awaiting_input[0]!.pending_id;
   await current.adapter.close(); current = await open();
-  const answer = () => service.answer(workId, { run_id: runId, pending_id: pendingId, pending_revision: asked.rounds[0]!.awaiting_input[0]!.pending_revision!, answers: [{ question: 0, value: 45 }] },
+  const answer = () => service.outcomes.answer(workId, { run_id: runId, pending_id: pendingId, pending_revision: asked.rounds[0]!.awaiting_input[0]!.pending_revision!, answers: [{ question: 0, value: 45 }] },
     { project_ref: project });
   return { bodies, service, workId, runId, pendingId, answer, current: () => current };
 }

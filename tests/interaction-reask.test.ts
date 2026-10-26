@@ -85,7 +85,7 @@ async function reasked(fixture: Awaited<ReturnType<typeof assistant>>, workId: s
   const view = await fixture.service.read(workId);
   const old = view.rounds.find(round => round.run_id === runId)!.awaiting_input.find(item => item.pending_id === pendingId)!;
   assert.equal(old.answerable, false, "the closed card stays closed");
-  await assert.rejects(fixture.service.answer(workId, { run_id: runId, pending_id: pendingId, ...(old.pending_revision !== undefined ? { pending_revision: old.pending_revision } : {}), answers: [{ question: 0, value: 45 }] }),
+  await assert.rejects(fixture.service.outcomes.answer(workId, { run_id: runId, pending_id: pendingId, ...(old.pending_revision !== undefined ? { pending_revision: old.pending_revision } : {}), answers: [{ question: 0, value: 45 }] }),
     (error: unknown) => error instanceof ActionError && error.code === "assistant.stale", "and an answer to it is still refused");
 }
 

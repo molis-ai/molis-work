@@ -135,7 +135,7 @@ test("Assistant memory tools keep Memory's forbidden and pending-limit kinds wit
     const person = { actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project.project_id, consumer: "ui" as const, person: true };
     memory.savePrefs(person, "personal", { learn_from_work: true });
     memory.savePrefs(person, "project", { learn_from_work: false });
-    const tools = service.memoryTools(work); assert.ok(tools?.propose);
+    const tools = service.memory.memoryTools(work); assert.ok(tools?.propose);
     const propose = (text: string) => tools.propose!({ scope: "project", text, applies: "", why: "工作里的偏好" });
     await assert.rejects(propose("项目周报先列风险"), error => error instanceof ActionError && error.code === "memory.forbidden" && error.kind === "forbidden" && /没有允许/.test(error.message));
     assert.deepEqual(await memory.candidates(person), []);

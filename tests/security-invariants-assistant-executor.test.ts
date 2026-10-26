@@ -46,7 +46,7 @@ test("RAC-440 S-62 a look-alike is not an executor: a provider short of a role, 
   const kindless = roleViews("io.molis.work.kindless", "没有会话类型", "kindless_session").map((view): ActionView => ({ ...view, action: { ...view.action, subject_kinds: [] } }));
   const { service, caller, reached } = directory([{ plugin: PLUGIN, views: whole }, { plugin: "io.molis.work.short", views: short }, { plugin: "io.molis.work.agents", views: agentsOnly },
     { plugin: "io.molis.work.anonymous", views: anonymous }, { plugin: "io.molis.work.kindless", views: kindless }]);
-  assert.deepEqual((await service.executors(caller)).map(offer => offer.plugin_id), [PLUGIN]);
+  assert.deepEqual((await service.dispatcher.executors(caller)).map(offer => offer.plugin_id), [PLUGIN]);
   for (const name of ["short", "agents", "anonymous", "kindless"]) {
     await assert.rejects(service.send({ ...send(), executor: { kind: "plugin", plugin_id: `io.molis.work.${name}` } }, caller), (error: unknown) => (error as { code?: string }).code === "assistant.executor_unavailable", name);
     assert.equal(reached.get(`io.molis.work.${name}`), undefined, `${name}: none of its actions was called`);
@@ -57,7 +57,7 @@ test("RAC-441 S-62 an executor whose actions are unavailable is shown with its r
   const views = roleViews(PLUGIN, "样例 Agent", KIND).map(view => view.capability_id.endsWith(".run.start")
     ? { ...view, availability: { available: false as const, code: "actions.not_granted", reason: "插件的授权已被撤回" } } : view);
   const { service, store, caller, reached } = directory([{ plugin: PLUGIN, views }]);
-  const [offer] = await service.executors(caller);
+  const [offer] = await service.dispatcher.executors(caller);
   assert.equal(offer!.problem, "插件的授权已被撤回");
   assert.deepEqual(offer!.modes, []);
   await assert.rejects(service.send(send(), caller), (error: unknown) => (error as { code?: string; message?: string }).code === "assistant.executor_unavailable" && /插件的授权已被撤回/.test((error as Error).message));
@@ -72,7 +72,7 @@ test("RAC-442 S-62 a work whose executor is gone is refused and no other provide
   const rounds = store.rounds(first.work.work_id).length, objects = store.relations.forWork({ work_id: first.work.work_id, project_id: "project" }).length;
   mine.length = 0;
   for (const attempt of [() => service.send({ work_id: first.work.work_id, text: "再来一轮", request_id: randomUUID() }, caller),
-    () => service.handover(first.work.work_id, { to: { kind: "assistant" } }).then(() => service.handover(first.work.work_id, { to: choose }))]) {
+    () => service.dispatcher.handover(first.work.work_id, { to: { kind: "assistant" } }).then(() => service.dispatcher.handover(first.work.work_id, { to: choose }))]) {
     await assert.rejects(attempt(), (error: unknown) => (error as { code?: string }).code === "assistant.executor_unavailable");
   }
   assert.equal(reached.get("io.molis.work.other-agent"), undefined, "the other provider was never called");

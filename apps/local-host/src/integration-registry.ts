@@ -87,6 +87,9 @@ export class IntegrationRegistry {
     const manifest = parsePluginManifest(definition.manifest);
     if (this.declarations.has(manifest.plugin_id)) return;
     this.declarations.assertFree(manifest);
+    // A service the Host builds reaches only the platform's table (S-69): origins are a signed sandbox package's own (S-94).
+    const declared = manifest.connection_services?.find(service => service.origins !== undefined);
+    if (declared) throw pluginErrors.declaration_invalid(`宿主构建的插件不写服务的来源：${declared.service_id} 的地址只在平台的请求表里`);
     // Only the Host's own build is enabled here today; an installed plugin's integrations will arrive with the trust it was installed with.
     const installed = this.runtime.install({ definition, deployment: "local", trust: HOST_BUILD_TRUST });
     const installId = installed.install.install_id;

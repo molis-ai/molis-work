@@ -130,11 +130,12 @@ export { PLUGIN_INSTALL_PERMISSIONS, pluginInstallActions } from "./plugin-insta
 export { PluginInstallService } from "./plugin-install-service.js";
 export { runLocalPluginInstall, type LocalPluginInstallInput } from "./plugin-install-client.js";
 export { pluginInstallProvider } from "./plugin-trust-actions.js";
-export { readSandboxPackage } from "./sandbox-package.js";
+export { readSandboxPackage, readSandboxIntegrationPackage } from "./sandbox-package.js";
+export { sandboxIntegrationContribution } from "./sandbox-integration.js";
 export { sandboxPluginManifest } from "./sandbox-plugin-manifest.js";
 export { SandboxPackageStore } from "./sandbox-package-store.js";
 export { HomeConsentLedger } from "./home-plugin-store.js";
-export { createPluginConnectionsPort, pluginSlotScope } from "./connector-plugin-requests.js";
+export { createPluginConnectionsPort, createCallConnectionsPort, pluginSlotScope } from "./connector-plugin-requests.js";
 export { activateConnectorConnection } from "./connector-activation.js";
 export { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 export { connectorRecordActions, CONNECTOR_RECORDS_READ } from "./connector-record-actions.js";

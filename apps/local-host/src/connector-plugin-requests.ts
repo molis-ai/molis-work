@@ -2,9 +2,9 @@ import { existsSync } from "node:fs";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginConnectionDescription, PluginConnectionResponse } from "@molis-ai/molis-work-contracts/platform/plugin-connections";
 import { CONNECTOR_REQUEST_SERVICES, type ConnectorRequestService } from "@molis-ai/molis-work-contracts/services/connector-host";
-import { pluginBindingScope } from "@molis-ai/molis-work-service-connector-host";
+import { pluginBindingScope, type ConnectorConnectionStore } from "@molis-ai/molis-work-service-connector-host";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
-import type { PluginConnectionDispatch, PluginConnectionsPort, PluginConnectionTarget } from "@molis-ai/molis-work-plugin-runtime";
+import type { CallConnection, CallConnectionsPort, PluginConnectionDispatch, PluginConnectionsPort, PluginConnectionTarget } from "@molis-ai/molis-work-plugin-runtime";
 import { resolveApiConnection } from "./connector-access.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { withConnectorRequest } from "./connector-lifecycle.js";
@@ -77,37 +77,8 @@ export function createPluginConnectionsPort(home: string, options: PluginConnect
     async request(target, dispatch) {
       const service = Object.hasOwn(CONNECTOR_REQUEST_SERVICES, target.service_id) ? CONNECTOR_REQUEST_SERVICES[target.service_id]! : undefined;
       if (!service) throw pluginRequestErrors.service_unknown(`平台没有登记服务 ${target.service_id} 的请求来源`);
-      const origin = dispatch.url.origin, tenant = service.tenant;
-      if (tenant ? !origin.endsWith(`.${tenant.domain}`) : !service.origins.includes(origin)) {
-        throw pluginRequestErrors.origin_refused(`连接槽 ${target.slot_id} 只能请求 ${tenant ? `所绑定账号的 ${tenant.domain} 站点` : service.origins.join("、")}`);
-      }
-      const connection = boundConnection(home, target, service, origin);
-      if (connection === null) {
-        if (tenant) throw pluginRequestErrors.origin_refused(`连接槽 ${target.slot_id} 要先由人选好账号，才知道请求哪个站点`);
-        return send(dispatch, undefined, options);
-      }
-      const { connection_id, auth_method } = connection, scheme = service.credential[auth_method]!;
-      return withConnectorRequest(home, connection_id, dispatch.signal, async signal => {
-        // The token, refreshed or not, stays here: a refusal names no credential, and the refreshed token is not in the answer.
-        const access = async <T>(read: Promise<T>): Promise<T> => {
-          try { return await read; }
-          catch { throw pluginRequestErrors.connection_unavailable("所绑定的账号需要重新授权，请在设置里检查连接"); }
-        };
-        // An OAuth connection to a gateway service goes to the gateway of the site it was authorized for; the credential as its scheme writes it.
-        const sendWith = async ({ token, authExtras }: { token: string; authExtras?: Record<string, string> }) => {
-          const url = tenant?.gateway && auth_method === "oauth" ? gatewayUrl(tenant, target.service_id, dispatch.url, origin, authExtras) : dispatch.url;
-          let header: Record<string, string>;
-          try { if (!url) throw new Error("no gateway"); header = credentialHeader(scheme, target.service_id, auth_method, token); }
-          catch { throw pluginRequestErrors.connection_unavailable("所绑定的账号缺少发请求要用的信息，请在设置里重新连接"); }
-          return send({ ...dispatch, url, signal }, header, options);
-        };
-        const first = await sendWith(await access(resolveApiConnection(home, connection_id, target.service_id)));
-        if (first.status !== 401 || service.refresh !== "host" || auth_method !== "oauth") return first;
-        const refreshed = await access(resolveApiConnection(home, connection_id, target.service_id, "if_available"));
-        if (refreshed === null) return first;
-        // Once: the resend asks the call again after its own DNS (`beforeEffect`), so a call that ended meanwhile sends nothing more.
-        return sendWith(refreshed);
-      });
+      const what = `连接槽 ${target.slot_id}`, origin = reachable(service, dispatch.url, what);
+      return sendThrough(home, target.service_id, service, boundConnection(home, target, service, origin), dispatch, what, options);
     },
     describe(target) {
       return describeBinding(home, target);
@@ -116,6 +87,82 @@ export function createPluginConnectionsPort(home: string, options: PluginConnect
       if (existsSync(homeSqlitePath(home, "connectors"))) withConnectorConnections(home, store => store.unbind(targetScope(target), target.plugin_id, target.slot_id));
     },
   };
+}
+
+/**
+ * The Host's side of a call's own connection (S-94): a sandboxed integration's pull uses the account the person chose for the source, which
+ * the Host's proxy names; nothing is looked up by slot and nothing is bound. The service is the platform's when its table has it, and
+ * otherwise the origins the signed package declared for its own service, sent with the account's token as a bearer and never refreshed.
+ * Everything else is the slot's rule: only those origins, only public addresses, a connection that is gone, disabled, disconnected or of
+ * another service refused rather than sent without its credential, and no account (`connection_id: null`) sent as the plugin wrote it.
+ */
+export function createCallConnectionsPort(home: string, options: PluginConnectionsPortOptions = {}): CallConnectionsPort {
+  return {
+    async request(call, dispatch) {
+      const service = callService(call);
+      if (!service) throw pluginRequestErrors.service_unknown(`服务 ${call.service_id} 既不在平台的请求表里，插件也没有写它的来源`);
+      const what = "来源的账号", origin = reachable(service, dispatch.url, what);
+      // A Home that has never saved an account has no connection to name; reading must not create its registry.
+      if (call.connection_id !== null && !existsSync(homeSqlitePath(home, "connectors"))) throw pluginRequestErrors.connection_unavailable("来源的账号已不可用，请在来源上重新选择");
+      const connection = call.connection_id === null ? null : withConnectorConnections(home, store => usableConnection(home, store, call.connection_id!, call.service_id, service, origin));
+      return sendThrough(home, call.service_id, service, connection, dispatch, what, options);
+    },
+    describe(call) {
+      if (call.connection_id === null || !existsSync(homeSqlitePath(home, "connectors"))) return { bound: call.connection_id !== null, ...(call.connection_id === null ? {} : { state: "disconnected" as const }) };
+      return withConnectorConnections(home, store => {
+        const connection = store.get(call.connection_id!);
+        if (!connection) return { bound: true, state: "disconnected" as const };
+        return { bound: true, display_name: connection.display_name, state: connection.service_id === call.service_id ? shownState(home, connection, store.state(connection)) : "disconnected" };
+      });
+    },
+  };
+}
+
+/** A service a package declared the origins of: the account's token as a bearer, no refresh path the Host knows. */
+function callService(call: CallConnection): ConnectorRequestService | undefined {
+  if (Object.hasOwn(CONNECTOR_REQUEST_SERVICES, call.service_id)) return CONNECTOR_REQUEST_SERVICES[call.service_id]!;
+  return call.origins?.length ? { origins: [...call.origins], credential: { token: "bearer" }, refresh: "none" } : undefined;
+}
+
+/** The request's origin when the service may reach it; a tenant's service any of its own sites, the account's pinned one checked later. */
+function reachable(service: ConnectorRequestService, url: URL, what: string): string {
+  const origin = url.origin, tenant = service.tenant;
+  if (tenant ? !origin.endsWith(`.${tenant.domain}`) : !service.origins.includes(origin)) {
+    throw pluginRequestErrors.origin_refused(`${what}只能请求 ${tenant ? `所绑定账号的 ${tenant.domain} 站点` : service.origins.join("、")}`);
+  }
+  return origin;
+}
+
+/** Sends with the connection's credential (refreshed once on a 401 the Host can refresh), or as the plugin wrote it when there is none. */
+async function sendThrough(home: string, service_id: string, service: ConnectorRequestService, connection: { connection_id: string; auth_method: "token" | "oauth" } | null,
+  dispatch: PluginConnectionDispatch, what: string, options: PluginConnectionsPortOptions): Promise<PluginConnectionResponse> {
+  const origin = dispatch.url.origin, tenant = service.tenant;
+  if (connection === null) {
+    if (tenant) throw pluginRequestErrors.origin_refused(`${what}要先由人选好账号，才知道请求哪个站点`);
+    return send(dispatch, undefined, options);
+  }
+  const { connection_id, auth_method } = connection, scheme = service.credential[auth_method]!;
+  return withConnectorRequest(home, connection_id, dispatch.signal, async signal => {
+    // The token, refreshed or not, stays here: a refusal names no credential, and the refreshed token is not in the answer.
+    const access = async <T>(read: Promise<T>): Promise<T> => {
+      try { return await read; }
+      catch { throw pluginRequestErrors.connection_unavailable("所绑定的账号需要重新授权，请在设置里检查连接"); }
+    };
+    // An OAuth connection to a gateway service goes to the gateway of the site it was authorized for; the credential as its scheme writes it.
+    const sendWith = async ({ token, authExtras }: { token: string; authExtras?: Record<string, string> }) => {
+      const url = tenant?.gateway && auth_method === "oauth" ? gatewayUrl(tenant, service_id, dispatch.url, origin, authExtras) : dispatch.url;
+      let header: Record<string, string>;
+      try { if (!url) throw new Error("no gateway"); header = credentialHeader(scheme, service_id, auth_method, token); }
+      catch { throw pluginRequestErrors.connection_unavailable("所绑定的账号缺少发请求要用的信息，请在设置里重新连接"); }
+      return send({ ...dispatch, url, signal }, header, options);
+    };
+    const first = await sendWith(await access(resolveApiConnection(home, connection_id, service_id)));
+    if (first.status !== 401 || service.refresh !== "host" || auth_method !== "oauth") return first;
+    const refreshed = await access(resolveApiConnection(home, connection_id, service_id, "if_available"));
+    if (refreshed === null) return first;
+    // Once: the resend asks the call again after its own DNS (`beforeEffect`), so a call that ended meanwhile sends nothing more.
+    return sendWith(refreshed);
+  });
 }
 
 /**
@@ -142,17 +189,22 @@ function boundConnection(home: string, target: PluginConnectionTarget, service: 
   if (!existsSync(homeSqlitePath(home, "connectors"))) return null;
   return withConnectorConnections(home, store => {
     const binding = store.binding(targetScope(target), target.plugin_id, target.slot_id);
-    if (!binding) return null;
-    const connection = store.get(binding.connection_id);
-    const usable = connection && connection.service_id === target.service_id && shownState(home, connection, store.state(connection)) === "connected"
-      && (connection.auth_method === "token" || connection.auth_method === "oauth") && service.credential[connection.auth_method] !== undefined;
-    if (!usable) throw pluginRequestErrors.connection_unavailable("所绑定的账号已不可用，请在设置里重新选择或解除绑定");
-    const pinned = store.targetOrigin(connection.connection_id);
-    // A tenant's connection saved before its origin was pinned (BL-595) is usable again once the person connects it again.
-    if (service.tenant && pinned === null) throw pluginRequestErrors.connection_unavailable("所绑定的账号还没记下它的站点，请在设置的「服务连接」里重新连接这个账号，插件才能用它");
-    if ((pinned ?? origin) !== origin) throw pluginRequestErrors.connection_unavailable(`所绑定的账号只能请求 ${pinned}`);
-    return { connection_id: connection.connection_id, auth_method: connection.auth_method as "token" | "oauth" };
+    return binding ? usableConnection(home, store, binding.connection_id, target.service_id, service, origin) : null;
   });
+}
+
+/** A connection that can send to `origin` for `service_id` as it is; any other is refused, not sent without its credential. */
+function usableConnection(home: string, store: ConnectorConnectionStore, connection_id: string, service_id: string, service: ConnectorRequestService, origin: string)
+  : { connection_id: string; auth_method: "token" | "oauth" } {
+  const connection = store.get(connection_id);
+  const usable = connection && connection.service_id === service_id && shownState(home, connection, store.state(connection)) === "connected"
+    && (connection.auth_method === "token" || connection.auth_method === "oauth") && service.credential[connection.auth_method] !== undefined;
+  if (!usable) throw pluginRequestErrors.connection_unavailable("所绑定的账号已不可用，请在设置里重新选择或解除绑定");
+  const pinned = store.targetOrigin(connection.connection_id);
+  // A tenant's connection saved before its origin was pinned (BL-595) is usable again once the person connects it again.
+  if (service.tenant && pinned === null) throw pluginRequestErrors.connection_unavailable("所绑定的账号还没记下它的站点，请在设置的「服务连接」里重新连接这个账号，插件才能用它");
+  if ((pinned ?? origin) !== origin) throw pluginRequestErrors.connection_unavailable(`所绑定的账号只能请求 ${pinned}`);
+  return { connection_id: connection.connection_id, auth_method: connection.auth_method as "token" | "oauth" };
 }
 
 async function send(dispatch: PluginConnectionDispatch, credential: Record<string, string> | undefined, options: PluginConnectionsPortOptions): Promise<PluginConnectionResponse> {

@@ -7,11 +7,13 @@
 import { Buffer } from 'node:buffer';
 import { isDeepStrictEqual } from 'node:util';
 import { pluginErrors, SANDBOX_PACKAGE_FILES, type PluginManifest, type PluginPackagePayload, type SandboxPackagePrompt } from '@molis-ai/molis-work-contracts/platform/plugin';
-import type { SandboxEffects, SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import { SANDBOX_INTEGRATION_CONTRACT, SANDBOX_INTEGRATION_OPERATIONS, type SandboxEffects, type SandboxPluginContract } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import { CONNECTOR_REQUEST_SERVICES } from '@molis-ai/molis-work-contracts/services/connector-host';
+import { parsePluginManifest } from '@molis-ai/molis-work-plugin-sdk';
 import { assertContract, effectsFromContract } from '@molis-ai/molis-work-plugin-sandbox';
 import { validatePluginComponentNodes, validatePluginComponentPlans, validatePluginPresentation,
   type PluginComponentNode, type PluginComponentPlan, type PluginPresentation } from '@molis-ai/molis-work-design-system';
-import { sandboxPluginManifest } from './sandbox-plugin-manifest.js';
+import { sandboxIntegrationManifest, sandboxPluginManifest } from './sandbox-plugin-manifest.js';
 
 /** The longest plugin code the Host takes, as the studio's own publish does. */
 const MAX_ENTRYPOINT_BYTES = 8 * 1024 * 1024;
@@ -99,4 +101,59 @@ export function readSandboxPackage(payload: PluginPackagePayload): SandboxPackag
     presentation: presentation !== undefined, upgradesFrom: manifest.upgrade_compatibility?.compatible_from_versions });
   if (!isDeepStrictEqual(JSON.parse(JSON.stringify(manifest)), JSON.parse(JSON.stringify(expected)))) refuse('清单不是沙箱插件的形状：入口、权限、路由、界面声明要与包的其他文件一致，不能自带别的');
   return { manifest, contract, parts, nodes, ...(presentation ? { presentation } : {}), acceptance, prompts, entrypoint, permissions };
+}
+
+/** A sandboxed integration as the Host runs it (BL-530): its Manifest, its contract of the platform's operations and its code. */
+export interface SandboxIntegrationPackage {
+  readonly manifest: PluginManifest;
+  readonly contract: SandboxPluginContract;
+  readonly entrypoint: Uint8Array;
+  /** What the operations ask for in all (the source's account, S-94): the person approves exactly this at install. */
+  readonly permissions: SandboxEffects;
+}
+
+/**
+ * Reads a sandboxed integration (BL-530): the manifest, the contract and the code, no interface and no prompts. The Manifest is an
+ * Integration Plugin's with only what it may choose (who it is, its version, name, what it upgrades from, its services and integrations);
+ * the contract has exactly the platform's operations (`SANDBOX_INTEGRATION_CONTRACT`; `integration.account` may be left out), no pages
+ * and no entities. First version: only `source` integrations. A service the platform's request table has is the table's and declares no
+ * origins; any other declares its own (S-94), checked by the SDK's Manifest rules. Nothing here is written anywhere.
+ */
+export function readSandboxIntegrationPackage(payload: PluginPackagePayload): SandboxIntegrationPackage {
+  const wanted = [SANDBOX_PACKAGE_FILES.manifest, SANDBOX_PACKAGE_FILES.contract, SANDBOX_PACKAGE_FILES.entrypoint] as string[];
+  const files = new Map(payload.files.map(file => [file.path, Buffer.from(file.content_base64, 'base64')] as const));
+  for (const path of files.keys()) if (!wanted.includes(path)) refuse('集成包只有清单、合同和代码，不能带 ' + path);
+  const entrypoint = files.get(SANDBOX_PACKAGE_FILES.entrypoint) ?? refuse('缺少 ' + SANDBOX_PACKAGE_FILES.entrypoint);
+  if (!entrypoint.length || entrypoint.length > MAX_ENTRYPOINT_BYTES) refuse(SANDBOX_PACKAGE_FILES.entrypoint + ' 为空或太大');
+
+  const { manifest } = payload;
+  if (!isDeepStrictEqual(jsonFile(files, SANDBOX_PACKAGE_FILES.manifest), JSON.parse(JSON.stringify(manifest)))) refuse('manifest.json 与包的清单不一致');
+  validated('清单', () => parsePluginManifest(manifest));
+  const services = manifest.connection_services ?? [], integrations = manifest.integrations ?? [];
+  if (!integrations.length) refuse('集成包要在清单里声明 integrations');
+  const document = integrations.find(item => item.kind !== 'source');
+  if (document) refuse('集成 ' + document.integration_id + '：集成包现在只做 Feed 的来源（source），外部文档导入等 W5-11（BL-694）');
+  for (const service of services) {
+    const platform = Object.hasOwn(CONNECTOR_REQUEST_SERVICES, service.service_id);
+    if (platform && service.origins) refuse('服务 ' + service.service_id + ' 在平台的请求表里，它的来源只由平台定，包里不能写 origins');
+    if (!platform && !service.origins) refuse('服务 ' + service.service_id + ' 不在平台的请求表里，要写它的 origins');
+  }
+  const expected = sandboxIntegrationManifest({ pluginId: manifest.plugin_id, version: manifest.version, name: manifest.name, publisher: manifest.publisher,
+    upgradesFrom: manifest.upgrade_compatibility?.compatible_from_versions, connection_services: services, integrations });
+  if (!isDeepStrictEqual(JSON.parse(JSON.stringify(manifest)), JSON.parse(JSON.stringify(expected)))) refuse('清单不是沙箱集成的形状：入口、权限要是平台的，不能有路由、界面或运行范围');
+
+  const contract = validated('contract.json', () => { const raw = jsonFile(files, SANDBOX_PACKAGE_FILES.contract); assertContract(raw); return raw; });
+  if (contract.pluginId !== manifest.plugin_id) refuse('contract.json 的 pluginId 与清单的 plugin_id 不一致');
+  if (contract.pages.length || contract.entities.length) refuse('集成包的合同没有页面和实体');
+  const ids = Object.entries(SANDBOX_INTEGRATION_OPERATIONS);
+  for (const operation of contract.operations) {
+    const entry = ids.find(([, id]) => id === operation.id) ?? refuse('合同里有平台之外的操作：' + operation.id);
+    const fixed = SANDBOX_INTEGRATION_CONTRACT[entry[0] as keyof typeof SANDBOX_INTEGRATION_OPERATIONS];
+    for (const field of ['kind', 'input', 'output', 'effects'] as const) {
+      if (!isDeepStrictEqual(JSON.parse(JSON.stringify(operation[field])), JSON.parse(JSON.stringify(fixed[field])))) refuse('操作 ' + operation.id + ' 的 ' + field + ' 要与平台给的一样');
+    }
+  }
+  for (const id of [SANDBOX_INTEGRATION_OPERATIONS.health, SANDBOX_INTEGRATION_OPERATIONS.poll]) if (!contract.operations.some(item => item.id === id)) refuse('合同缺少操作 ' + id);
+  const permissions = validated('contract.json 的权限', () => effectsFromContract(contract));
+  return { manifest, contract, entrypoint, permissions };
 }

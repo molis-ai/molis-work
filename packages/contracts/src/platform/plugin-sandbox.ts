@@ -331,3 +331,54 @@ export type SandboxHostMessage =
   | { type: 'call'; id: string; operationId: string; input: SandboxJson }
   | { type: 'sdk-result'; id: string; value: SandboxJson }
   | { type: 'sdk-error'; id: string; code: string; message: string };
+
+/**
+ * A sandboxed integration (BL-530): a signed package whose Manifest is an Integration Plugin's and whose contract has exactly these
+ * operations, with these schemas and effects. The platform names them, not the plugin; the Host's proxy calls them for each source and
+ * reads what comes back as the source's pull. `account` is the one the plugin may leave out.
+ */
+export const SANDBOX_INTEGRATION_OPERATIONS = { health: 'integration.health', poll: 'integration.poll', account: 'integration.account' } as const;
+/**
+ * The slot an integration's requests use the source's own account through (S-94): the Host's proxy gives a pull the connection the person
+ * chose for the source, for that one call. It is no slot of the Manifest's and nothing binds it.
+ */
+export const SANDBOX_INTEGRATION_SOURCE_SLOT = 'source';
+/** Most items one pull returns; a cursor is the plugin's own text, kept by the Feed and handed back on the next pull. */
+export const SANDBOX_INTEGRATION_LIMITS = { items: 200, cursorLength: 16_384, configLength: 16_384 } as const;
+
+const text = (maxLength: number, minLength = 0): SandboxSchema => ({ type: 'string', minLength, maxLength });
+/** What every operation of a sandboxed integration receives about the source: its id, its settings as JSON text, whether it has an account. */
+const SOURCE: Record<string, SandboxSchema> = {
+  source_id: text(128, 1), config_json: text(SANDBOX_INTEGRATION_LIMITS.configLength), has_connection: { type: 'boolean' },
+};
+const object = (properties: Record<string, SandboxSchema>, required: string[]): SandboxSchema => ({ type: 'object', properties, required, additionalProperties: false });
+const ITEM = object({
+  externalId: text(256, 1), title: text(512), summary: text(4096), body: text(65_536), url: { type: 'string', format: 'uri', maxLength: 4096 },
+  occurredAt: { type: 'string', format: 'date-time' }, kind: { type: 'string', enum: ['message', 'notification', 'issue', 'pr', 'mention', 'update'] },
+  priority: { type: 'string', enum: ['low', 'medium', 'high', 'urgent'] }, tags: { type: 'array', maxItems: 32, items: text(64) }, author: text(256),
+}, ['externalId', 'title', 'summary']);
+
+/** The schemas and effects of each operation (`account` is optional); a package's contract must carry them exactly. */
+export const SANDBOX_INTEGRATION_CONTRACT: Readonly<Record<keyof typeof SANDBOX_INTEGRATION_OPERATIONS, Pick<SandboxOperationContract, 'kind' | 'input' | 'output' | 'effects'>>> = {
+  health: {
+    kind: 'query', input: object(SOURCE, ['source_id', 'config_json', 'has_connection']),
+    output: object({ ok: { type: 'boolean' }, status: { type: 'string', enum: ['connected', 'disconnected', 'error', 'needs_auth'] }, message: text(2048), action: text(512) }, ['ok', 'status', 'message']),
+    effects: { connections: [SANDBOX_INTEGRATION_SOURCE_SLOT] },
+  },
+  poll: {
+    kind: 'query',
+    input: object({ ...SOURCE, cursor: text(SANDBOX_INTEGRATION_LIMITS.cursorLength), rebuild: { type: 'boolean' } }, ['source_id', 'config_json', 'has_connection', 'rebuild']),
+    // `ok: true` carries `items` and `cursor`; `ok: false` carries `failure` and `message`. The Host checks which before anything reaches the Feed.
+    output: object({
+      ok: { type: 'boolean' }, items: { type: 'array', maxItems: SANDBOX_INTEGRATION_LIMITS.items, items: ITEM }, cursor: text(SANDBOX_INTEGRATION_LIMITS.cursorLength),
+      failure: { type: 'string', enum: ['needs_auth', 'configuration', 'network', 'provider', 'rate_limited', 'stale_history'] }, message: text(2048), action: text(512),
+      http_status: { type: 'integer' }, retry_after_at: { type: 'string', format: 'date-time' },
+    }, ['ok']),
+    effects: { connections: [SANDBOX_INTEGRATION_SOURCE_SLOT] },
+  },
+  account: {
+    kind: 'query', input: object({ ...SOURCE, cursor: text(SANDBOX_INTEGRATION_LIMITS.cursorLength) }, ['source_id', 'config_json', 'has_connection', 'cursor']),
+    // Without `account_label` the source's label stays as it is.
+    output: object({ account_label: text(256, 1) }, []), effects: {},
+  },
+};

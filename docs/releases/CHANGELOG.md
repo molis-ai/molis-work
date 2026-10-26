@@ -17,6 +17,7 @@
 
 ### 变化
 
+- **外部集成插件的沙箱包（BL-530 第一部分，`claude/ac-registry-bl530`）**：沙箱包多一种集成包，只有 `manifest.json`、`contract.json`、`plugin.mjs`，清单是 Integration Plugin 的（`kind: "integration"`），合同只有平台定的 `integration.health`、`integration.poll` 与可选的 `integration.account`（contracts 的 `SANDBOX_INTEGRATION_OPERATIONS`、`SANDBOX_INTEGRATION_CONTRACT`）。拉取时用来源的账号经保留的槽 `source`，只在这一次调用里（S-94）。连接服务的声明多一个可选的 `origins`：只给签名沙箱包里平台请求表没有的服务写；宿主构建的插件写了会被登记拒绝。SDK 多导出 `pollingIntegrationBinding`（`definePollingIntegrationPlugin` 每个来源用的那一份读法，宿主的沙箱代理也用它）。都是新增，现有插件不用改；在 Home 里装集成包要等 BL-628。
 - **合作源码许可**：Molis Work 项目代码（含 SDK、contracts 与内置插件）从 MIT 声明切换为 [Molis AI Cooperation Source License](../../LICENSE)。合作方可在约定范围内阅读和参与开发；对外销售、提供收费服务或转授权须事先取得实际著作权人或其合法授权代表的明确书面授权。Molis AI 的主体公司尚未设立，未来公司须取得相应权利或授权。第三方许可、独立工作成果以及旧版本已合法授予的权利保留；本条不追溯改变过去的发行物。
 
 ## [0.3.0] - 2026-10-16

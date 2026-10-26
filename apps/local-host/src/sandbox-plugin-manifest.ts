@@ -34,3 +34,31 @@ export function sandboxPluginManifest(input: SandboxManifestInput): PluginManife
     ui: { contributions: [uiId], views: [{ view_id: 'app', slot: 'stage', title: input.name, contribution_id: uiId }] },
   };
 }
+
+export interface SandboxIntegrationManifestInput {
+  pluginId: string;
+  version: string;
+  name: string;
+  publisher: PluginManifest['publisher'];
+  upgradesFrom?: readonly string[];
+  /** The services and integrations the package declares, as an Integration Plugin writes them; the rest of the Manifest is the Host's. */
+  connection_services: NonNullable<PluginManifest['connection_services']>;
+  integrations: NonNullable<PluginManifest['integrations']>;
+}
+
+/**
+ * The Manifest of a sandboxed integration (BL-530): an Integration Plugin with one local entrypoint and the private storage grant, its
+ * own services and integrations, and nothing to show: no route, no view, no runtime scope (a Home instance runs it).
+ */
+export function sandboxIntegrationManifest(input: SandboxIntegrationManifestInput): PluginManifest {
+  return {
+    schema_version: 2, host_api_version: 2, plugin_id: input.pluginId, version: input.version, name: input.name, kind: 'integration',
+    publisher: input.publisher,
+    entrypoints: [{ deployment: 'local', entrypoint: './plugin.mjs' }],
+    ...(input.upgradesFrom?.length ? { upgrade_compatibility: { compatible_from_versions: [...input.upgradesFrom] } } : {}),
+    permissions: [{ permission: 'storage:private', required: true, reason: '保存这个插件自己的数据' }],
+    capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },
+    ui: { contributions: [] },
+    connection_services: input.connection_services, integrations: input.integrations,
+  };
+}

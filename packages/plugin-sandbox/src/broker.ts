@@ -63,7 +63,9 @@ export class SandboxBroker {
     for (const { execution } of this.executions.values()) execution.cancel();
     this.executions.clear();
   }
-  invoke(operation: SandboxOperationContract, signal: AbortSignal, method: SandboxSdkMethod, args: SandboxJson[], guard?: () => Promise<void>, serviceTimeoutMs = this.limits.serviceTimeoutMs): Promise<SandboxJson> {
+  /** `connections`: the call's own (S-94), which takes the activation's place for this call; the Host's proxy alone supplies it. */
+  invoke(operation: SandboxOperationContract, signal: AbortSignal, method: SandboxSdkMethod, args: SandboxJson[], guard?: () => Promise<void>, serviceTimeoutMs = this.limits.serviceTimeoutMs,
+    connections: PluginConnectionsClient | undefined = this.services.connections): Promise<SandboxJson> {
     try { this.calls.consume(); assertJson(args); } catch (error) { return Promise.reject(error); }
     return this.queue.submit(async () => {
       signal.throwIfAborted();
@@ -72,7 +74,7 @@ export class SandboxBroker {
       const context: SandboxServiceContext = { identity: this.identity, signal: lifetime.signal, operationId: operation.id, beforeEffect };
       try {
         await lifetime.wait(beforeEffect());
-        const result = await lifetime.wait(this.dispatch(context, operation, method, args));
+        const result = await lifetime.wait(this.dispatch(context, operation, method, args, connections));
         await lifetime.wait(beforeEffect()); assertJson(result);
         if (Buffer.byteLength(JSON.stringify(result)) > this.limits.messageBytes / 2) throw new SandboxError('sandbox.response_too_large', 'Host service response exceeds channel limit');
         return result;
@@ -209,20 +211,20 @@ export class SandboxBroker {
     void execution.result.then(() => undefined, () => undefined).then(() => { this.executions.delete(id); });
     return id;
   }
-  private async dispatchConnectionRecord(operation: SandboxOperationContract, method: SandboxSdkMethod, args: SandboxJson[], { permit, count, string, missing }: DispatchGuards): Promise<SandboxJson> {
+  private async dispatchConnectionRecord(operation: SandboxOperationContract, method: SandboxSdkMethod, args: SandboxJson[], { permit, count, string, missing }: DispatchGuards, connections: PluginConnectionsClient | undefined): Promise<SandboxJson> {
     // A record key names one of the plugin's records on a `per_record` slot; the Host's client checks its form, the slot and the call.
     count(2);
     const slot = string(0, 64);
     permit('connections', slot);
     const record = args[1] === null && method === 'connections.describe' ? undefined : string(1, PLUGIN_CONNECTION_RECORD_KEY_MAX);
     if (method === 'connections.release' && operation.kind === 'query') throw new SandboxError('sandbox.not_authorized', 'A query cannot release a connection');
-    if (!this.services.connections) return missing();
-    if (method === 'connections.release') { await this.services.connections.release(slot, record!); return null; }
+    if (!connections) return missing();
+    if (method === 'connections.release') { await connections.release(slot, record!); return null; }
     // Rebuilt from the three fields as plain JSON.
-    const { bound, display_name, state } = await this.services.connections.describe(slot, record);
+    const { bound, display_name, state } = await connections.describe(slot, record);
     return { bound, ...(display_name === undefined ? {} : { display_name }), ...(state === undefined ? {} : { state }) };
   }
-  private async dispatch(context: SandboxServiceContext, operation: SandboxOperationContract, method: SandboxSdkMethod, args: SandboxJson[]): Promise<SandboxJson> {
+  private async dispatch(context: SandboxServiceContext, operation: SandboxOperationContract, method: SandboxSdkMethod, args: SandboxJson[], connections: PluginConnectionsClient | undefined): Promise<SandboxJson> {
     const guards = this.guards(operation, args), { permit, count, string, missing } = guards;
     if (method.startsWith('storage.')) {
       const write = method === 'storage.set' || method === 'storage.delete';
@@ -266,12 +268,12 @@ export class SandboxBroker {
       permit('connections', slot);
       const request = connectionRequest(args[1]);
       if (operation.kind === 'query' && request.method !== undefined && request.method !== 'GET' && request.method !== 'HEAD') throw new SandboxError('sandbox.not_authorized', 'A query can only read through a connection');
-      if (!this.services.connections) return missing();
+      if (!connections) return missing();
       // Only the four fields cross: the answer is rebuilt as plain JSON, so nothing the Host's client carries besides them reaches the plugin.
-      const { status, headers, body, authenticated } = await this.services.connections.request(slot, { ...request, signal: context.signal });
+      const { status, headers, body, authenticated } = await connections.request(slot, { ...request, signal: context.signal });
       return { status, headers: { ...headers }, body, authenticated };
     }
-    if (method === 'connections.describe' || method === 'connections.release') return this.dispatchConnectionRecord(operation, method, args, guards);
+    if (method === 'connections.describe' || method === 'connections.release') return this.dispatchConnectionRecord(operation, method, args, guards, connections);
     if (method.startsWith('materials.')) return this.dispatchMaterials(context, method, args, guards);
     if (method.startsWith('ownerFiles.')) return this.dispatchOwnerFiles(context, operation, method, args, guards);
     if (method.startsWith('model.')) return this.dispatchModel(context, operation, method, args, guards);

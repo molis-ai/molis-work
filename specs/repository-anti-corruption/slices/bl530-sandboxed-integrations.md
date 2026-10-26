@@ -1,6 +1,6 @@
 # BL-530：装进 Home 的外部集成插件经沙箱进集成登记（设计稿）
 
-状态：设计稿，待统筹审（2026-10-26，ac-registry 线，分支 `claude/ac-registry-bl530`）。只写文档，不改代码；§6 的几项动安全边界，由统筹弹窗问用户，定了再派实现（原定归 ac-sandbox-sched）。代码事实按 main `2b3dc51de` 和 PG-046 分支 `claude/ac-registry-pg046`（头 `72921fbaf`，FI-3 与 BL-528、BL-529，待评审）核过。暂定号：验收 RAC-893～899，后续 BL-691～694；要的新 S 号写成「S-暂」，由统筹给号。
+状态：部分实现（2026-10-26，ac-registry 线，分支 `claude/ac-registry-bl530`，叠在 PG-046 的 `72921fbaf` 上）。§6 七项已定（用户 2026-10-26 弹窗定 6.1～6.4、6.7，统筹按 10-23 授权定 6.5、6.6，都是本稿的推荐），记在 §6。不等 BL-628 的部分已做（§7）：集成包的清单种类与合同、宿主端代理与逐条核对、按调用给的连接（S-94）与拒绝测试。余下（Home 沙箱实例里的 `attach/detach`、安装时查撞 id、卸载清理）等 BL-628 落下来再做，号 RAC-894、897、898 留给它。代码事实按 main `2b3dc51de` 和 PG-046 分支 `claude/ac-registry-pg046`（头 `72921fbaf`）核过。号段 RAC-893～899、BL-691～694 已转正；新 S 号是 S-94（统筹给）。
 
 ## 1. 今天是什么样
 
@@ -24,7 +24,7 @@
   - `integration.health`（query）：输入是绑定（见 2.3），输出是 `ConnectorHealth`。
   - `integration.poll`（query）：输入是绑定、`cursor`、`intent`；输出是 `{ events, cursor, … }`，即 `ConnectorPollResult`，每条事件已经是信号草稿的形状（见 2.3）。
   - `integration.account`（query，可选）：输入是绑定、`cursor`、当前账号名；输出是 `IntegrationAccountPresentation | null`。
-  - 合同里多出或少了这几个（`account` 除外），或输入输出 schema 与平台给的不同，读包时拒。平台给的 schema 写进 contracts（`plugin-sandbox.ts` 旁边），SDK 出一个 `defineSandboxIntegration` 帮作者写。
+  - 合同里多出或少了这几个（`account` 除外），或输入输出 schema 与平台给的不同，读包时拒。平台给的 schema 写进 contracts（`plugin-sandbox.ts` 旁边），给作者的帮手（SDK 的 `defineSandboxIntegration` 一类）还没做，现在照 contracts 的 `SANDBOX_INTEGRATION_CONTRACT` 手写。
 - **只先做 `source`。** `document_import` 的读取今天还在宿主的文档来源提供方里（按 `document_source` 选，W5-11 才移进官方集成插件），外部插件声明一个宿主不认识的 `document_source`，没有东西去读。所以第一版的沙箱集成包只许 `kind: "source"`，写 `document_import` 读包时拒；外部文档导入另开 BL-694，等 W5-11 把读取变成插件的操作再做（§6 第 6 项）。
 
 ### 2.2 跑在哪里：BL-628 的沙箱 Home 实例，登记里不跑外部代码
@@ -41,7 +41,7 @@
 - **代理的 `bind(binding)`** 返回：
   - `connector_driver`：`health()`、`poll()` 各调一次沙箱操作（`SandboxRunner.call`），输入是绑定的数据形状。代理带上这次拉取的可信上下文（项目、来源、连接，见 2.4），不从插件的返回里读。
   - `signal_adapter`：**宿主端的通用适配器**。`toSignalDraft` 是同步的，过不了通道；沙箱的 `poll` 直接返回草稿形状的事件，宿主按 contracts 的 schema 逐条核过（有界 JSON，`messageBytes` 等照 `DEFAULT_SANDBOX_LIMITS`），再交 Feed。这和 SDK 的 `definePollingIntegrationPlugin` 给内置集成的通用适配器是同一份。
-  - `account`：插件声明了 `integration.account` 才有。Feed 的 `FeedConnectorListener.account` 是同步读的，代理在 `poll` 返回后立刻调一次 `integration.account`，把结果和这次拉取的结果一起交回，不让 Feed 等第二次。
+  - `account`：插件声明了 `integration.account` 才有。Feed 的 `FeedConnectorListener.account` 是同步读的，代理在 `poll` 返回后立刻用新游标调一次 `integration.account`，按游标记下结果，Feed 随后同步读到，不等第二次。输入只有来源与游标，不带当前账号名；答复只有可选的 `account_label`，不写就保持原样。
 - **两道门照 S-60**：broker 先按合同里每个操作声明的效果和人批的授权核；然后宿主的服务自己再核（连接、网络、Home 库）。三个操作都是 query：拉取不改插件之外的任何东西，写信号的是 Feed，提交按 Feed 读取时的版本（`scheduling: "concurrent"`，`beforeEffect()`）。
 - **调用被取消、撤权、停用**：代理把 `signal` 和 `beforeEffect` 传给 `SandboxRunner.call`。返回后 Feed 照旧在 `beforeEffect()` 之后才写；已经不让写的，这一轮的事件丢掉，不写业务记录（AGENTS.md 硬约束）。进程退出时按 `installed.ts` 的做法：这次调用不重放，下次调用重启。
 - **游标归 Feed。** 游标随拉取返回、由 Feed 存在来源行上，下次原样交回。插件改不了别的来源的游标，看不到别的来源。
@@ -52,10 +52,10 @@
 - 插件发带账号的请求，只经 `services.connections.request`。问题是今天的槽对不上：
   - S-57 的 `installation` 槽是一个安装一个账号；Feed 是一条来源一个账号，账号是人在 Feed 里加来源时选的，存在 Feed 的来源行上。
   - S-71 的 `per_record` 槽按（安装、插件、槽、项目、记录键）绑定，项目要等于实例自己的项目。Home 实例没有项目，而且绑账号的不是集成的安装，是 Feed 的来源。
-- **推荐：`services.connections` 加一种「按调用给的连接」**（S-暂，§6 第 3 项）：
+- **`services.connections` 加一种「按调用给的连接」**（S-94，§6 第 3 项，已定）：
   - 只有代理能给：代理调 `integration.poll`/`health` 时，把这次调用的连接定成 `binding.connection_id`，写进这一次沙箱调用的可信上下文。插件在这次调用里写保留的槽名 `source` 发请求，broker 和宿主就用这条连接。
   - 宿主核：这条连接存在、没被撤；连接的 `service_id` 是这个集成在自己 Manifest 里声明的那一个；请求的地址在这个服务的登记来源之内（2.5）；调用还没结束。任何一项不符就拒，不匿名发出。
-  - 调用结束、被取消，这条连接就不再可用；插件不能把它存下来、不能在别的调用里用（`source` 槽在没有给连接的调用里是 `sandbox.not_authorized`）。
+  - 调用结束、被取消，这条连接就不再可用；插件不能把它存下来、不能在别的调用里用（没有代理给连接的调用里没有账号服务，是 `sandbox.service_unavailable`；操作没有声明 `source` 是 `sandbox.not_authorized`）。
   - 刷新、401 重发一次、刷新失败标 `reauth_required`，都照 S-57 扩展 §2.3（S-70），只在宿主里做。
   - 插件读不到任何账号列表，`describe` 只给有没有绑、显示名、状态（S-57 那一份视图）。
 - 备选：把来源当记录，用 S-71 的 `per_record` 槽，由人在来源上再绑一次。不推荐：同一个账号绑两次（Feed 的来源一次、集成的槽一次），两边可能不一致，且 Home 实例没有项目，S-71 的键要改。
@@ -104,18 +104,18 @@
 - RAC-893：沙箱包读取认 `kind: "integration"` 的清单；多了路由或视图、写了 `runtime`、少了 `integration.poll`、schema 与平台的不同、`kind: "document_import"`，各自在写任何记录之前拒（`plugin.declaration_invalid`）。
 - RAC-894：装上的集成包在沙箱宿主的 Home 实例里起；登记的共用 Runtime 里没有它，宿主进程里没有它的代码（断言 `registry` 只经 `attach` 拿到它）。
 - RAC-895：Feed 的来源经代理拉到事件；沙箱 `poll` 返回不合 schema 或超限的事件，这一轮拒、不写信号；拉取中途停用插件，这一轮的事件不写。
-- RAC-896（S-暂）：沙箱在拉取里用 `source` 槽带账号请求，宿主用的是来源的连接；在拉取之外、在别的来源的拉取里、连接已撤、连接的服务不是集成声明的服务，各自拒且不匿名发出；沙箱任何返回、错误、日志里都没有令牌和 `credential_ref`。
+- RAC-896（S-94）：沙箱在拉取里用 `source` 槽带账号请求，宿主用的是来源的连接；在拉取之外、在别的来源的拉取里、连接已撤、连接的服务不是集成声明的服务，各自拒且不匿名发出；沙箱任何返回、错误、日志里都没有令牌和 `credential_ref`。
 - RAC-897：预览时声明的 `service_id` 或 `integration_id` 与内置或已装的撞，报 `plugin.integration_declaration_conflict` 并点名，不写任何记录；预览到确认之间有别的装上撞了，确认时拒。
 - RAC-898：停用后来源拉取得 `plugin.integration_unavailable`，再启用接着拉；卸载后设置页没有它的卡片，连接记录与 Feed 来源还在。
 - RAC-899（随 §6 第 4 项）：选 A 时，请求去 Manifest 未声明的来源、IP 字面量、本机或内网地址都拒；升级改了来源要重新确认。
 
 ## 4. 拆片与依赖
 
-- 前置：BL-628（沙箱 Home 实例，`assertHomeScopeAllowed`）、#1255（Home 库）、PG-046 合入（登记、`connection_methods`）、S-57 扩展的 X1～X3 落地（S-69～71）。原 BACKLOG 写的「排在 BL-491、BL-493 之后」：BL-491（模型设置）与集成无关，BL-493（Agent 相关）也不挡；本稿建议改成「排在 BL-628 之后」，由统筹定。
+- 前置：BL-628（沙箱 Home 实例，`assertHomeScopeAllowed`）、#1255（Home 库）、PG-046 合入（登记、`connection_methods`）、S-57 扩展的 X1～X3 落地（S-69～71）。BL-491、BL-493 不挡（统筹 10-26 定）。
 - 第 1 片：包格式与 SDK 帮手、代理与 `attach/detach`、安装时查撞（RAC-893、894、895、897、898）。
 - 第 2 片：「按调用给的连接」与 S-暂，及 2.5 选定的做法（RAC-896、899）。动安全边界，同一个 PR 里补 SECURITY-INVARIANTS 的行和拒绝测试。
-- 后续 BL（暂定号，统筹审稿时一起入 BACKLOG）：
-  - BL-691：BACKLOG 里 BL-530 的前置由「BL-491、BL-493」改成「BL-628」（若统筹同意）。
+- 后续 BL（已入 BACKLOG）：前置的改动已直接写进 BL-530 的行（统筹 10-26 同意），BL-691 改记 S-94 安装时的那一半：
+  - BL-691：预览时列出集成包写的来源、随固定的信任记下、升级改了来源要重新确认（等 BL-628 的 Home 安装路径）。
   - BL-692：安装页上标出「装着但因撞 id 起不来」的集成（2.7 第二段的兜底场景）。
   - BL-693：外部集成的拉取用量与超时上限（`DEFAULT_SANDBOX_LIMITS` 是否够 Feed 一轮拉取）在第 1 片实测后定。
   - BL-694：外部 `document_import`，等 W5-11 把文档读取变成插件的操作。
@@ -126,12 +126,23 @@
 - 不碰 `integration-providers.ts` 的三选一（等 PG-045）。
 - 不新开「官方集成」的特殊安装路径。
 
-## 6. 要用户定的（带推荐）
+## 6. 定下来的（2026-10-26）
 
-1. **外部集成插件在沙箱里跑**（沙箱包加 `integration` 种类，`bind`、拉取经 broker；宿主进程里不跑外部代码）。推荐：是。备选：不支持外部集成，集成只随宿主发。
-2. **信任从发布者签名来，与 S-84 同一条**（签名、预览、本人确认、固定发布者；装进 Home 时预览范围是 Home，与 BL-628 同一套）。推荐：是。
-3. **拉取怎样用来源的账号**：推荐 `services.connections` 加「按调用给的连接」（只由平台代理在这一次拉取里给，连接的服务必须是集成声明的，调用结束即失效，要新 S 号）。备选：S-71 的 `per_record` 槽，人在来源上再绑一次（两处绑定、Home 实例没有项目，不推荐）。
-4. **外部插件新服务的地址**：推荐 A：签名包的 Manifest 给自己的服务写精确 `https://` 来源，预览时列给人、随固定的信任记下、升级改了要重新确认（放宽 S-69，只对签名沙箱包自己的服务）。备选 B：只用平台表里已有的服务（实际上接不了新服务）；C：只许匿名请求（可与 A、B 并存）。
-5. **撞 id 与卸载**：撞 id 推荐在预览时明确拒（确认时再查一次），不用「先装的占住」；卸载推荐只放掉登记和卡片，人的连接记录与 Feed 来源都留着、显示「集成不可用」。备选：卸载时连同用它的来源一起删（会丢人的来源设置，不推荐）。
-6. **第一版只做 `source`**，外部 `document_import` 等 W5-11（BL-694）。推荐：是。
-7. **共用起停**：外部集成跑在 BL-628 的沙箱 Home 实例里，登记只经 `attach/detach` 接代理、不另起进程；BL-530 的前置改成 BL-628。推荐：是。
+用户弹窗定 1～4 与 7（都按本稿推荐），统筹按 10-23 授权按推荐定 5、6：
+
+1. 支持外部集成插件，在沙箱里跑：沙箱包加 `integration` 种类，`bind`、拉取经 broker，宿主进程里不跑外部代码。
+2. 信任从发布者签名来，与 S-84 同一条；装进 Home 时预览范围是 Home，与 BL-628 同一套。
+3. 拉取用来源的账号：`services.connections` 加「按调用给的连接」，只由平台代理在这一次调用里给，连接的服务必须是集成声明的，调用结束即失效（S-94）。
+4. A：签名包给自己的服务写精确 `https://` 来源，预览列出、随固定的信任记下、升级改了要重新确认；只对签名沙箱包自己的服务放宽 S-69。
+5. 撞 id 在预览时明确拒，确认时再查一次，不用「先装的占住」；卸载只放掉登记和卡片，人的连接记录和 Feed 来源都留着、显示「集成不可用」。
+6. 第一版只做 `source`，外部 `document_import` 等 W5-11（BL-694）。
+7. 跑在 BL-628 的沙箱 Home 实例里，登记只经 `attach/detach` 接代理、不另起进程；BL-530 的前置改为 BL-628（BL-491、BL-493 不挡）。
+
+## 7. 已经做了的（不等 BL-628）
+
+- **集成包的格式**：`readSandboxIntegrationPackage`（`apps/local-host/src/sandbox-package.ts`）读三个文件，清单要等于 `sandboxIntegrationManifest`（`sandbox-plugin-manifest.ts`）的形状，合同的操作要等于 contracts 的 `SANDBOX_INTEGRATION_CONTRACT`（`plugin-sandbox.ts`，另有 `SANDBOX_INTEGRATION_OPERATIONS`、`SANDBOX_INTEGRATION_SOURCE_SLOT`、`SANDBOX_INTEGRATION_LIMITS`）。游标是插件自己的文字（至多 16 KB），来源设置以 JSON 文字交进去（至多 16 KB），一次拉取至多 200 条。现在的安装路径（`readSandboxPackage`）照旧只收应用包：集成包在那里被拒，等 BL-628 接上。（RAC-893）
+- **来源的地址**：连接服务的声明多一个可选的 `origins`（contracts `plugin-integrations.ts`），SDK 的 `originProblems` 查形状；集成包里平台表有的服务不能写、没有的必须写；宿主构建的插件写了，`IntegrationRegistry.enable` 拒。（RAC-899 的声明一半；预览列出、随信任记下、升级重新确认等安装路径，BL-691）
+- **代理**：`sandboxIntegrationContribution`（`apps/local-host/src/sandbox-integration.ts`）为每个来源的每次调用开一个只活到这次调用结束的连接，答复交 SDK 新导出的 `pollingIntegrationBinding`（`definePollingIntegrationPlugin` 每个来源用的同一份），所以 Feed 拿到的与内置集成一样。成功的拉取要有 `items` 和 `cursor`、不带失败字段，失败的要有 `failure` 和 `message`、不带条目；同一次拉取里 `externalId` 重复、条目的 `url` 不是 http(s)，整轮拒（`host.integration_pull_invalid`），不合 schema 或超限的由 runner 拒（`sandbox.protocol_error`）。（RAC-895）
+- **按调用给的连接（S-94）**：插件这一侧是 `createCallConnectionsClient`（`packages/plugin-runtime/src/connections-service.ts`），宿主这一侧是 `createCallConnectionsPort`（`apps/local-host/src/connector-plugin-requests.ts`，与槽的发送共用 `sendThrough`、`usableConnection`），沙箱这一侧是 `SandboxCallControl.connections` 和 broker `invoke` 的 `connections`。SECURITY-INVARIANTS 的 S-94 行列出拒绝与测试。（RAC-896）
+- 测试：`tests/security-invariants-call-connections.test.ts`（S-94，五条）、`tests/sandbox-integration.test.ts`（RAC-893、895、899，七条；跑真沙箱的三条要 macOS），后者也进了 `test:security`。
+- 等 BL-628 的：RAC-894（在 Home 沙箱实例里起、登记只经 `attach` 拿到）、RAC-897（预览和确认时查撞 id）、RAC-898（停用、卸载后的来源与卡片），以及 BL-691。

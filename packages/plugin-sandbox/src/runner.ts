@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { randomUUID } from 'node:crypto';
 import { createExecutionLifetime } from '@molis-ai/molis-work-plugin-sdk';
+import type { PluginConnectionsClient } from '@molis-ai/molis-work-contracts/platform/plugin-connections';
 import type { SandboxEffects, SandboxHostMessage, SandboxIdentity, SandboxJson, SandboxOperationContract, SandboxPluginContract, SandboxWorkerMessage } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { SandboxBroker, type SandboxServices } from './broker.js';
 import { modelDeadlines } from './model.js';
@@ -37,6 +38,11 @@ export interface SandboxCallControl {
   signal?: AbortSignal; beforeEffect?(): void | Promise<void>;
   /** Trusted Host policy for this call only; never supplied by the worker or persisted plugin input. */
   limits?: Partial<Pick<SandboxLimits, 'operationTimeoutMs' | 'serviceTimeoutMs'>>;
+  /**
+   * This call's own connections, in place of the activation's (S-94): the Host's proxy gives a sandboxed integration's pull the account of
+   * the source it pulls, and the plugin's requests in this call, and only in it, go through it.
+   */
+  connections?: PluginConnectionsClient;
 }
 
 export async function createSandboxRunner(options: SandboxRunnerOptions): Promise<SandboxRunner> {
@@ -79,7 +85,7 @@ export async function createSandboxRunner(options: SandboxRunnerOptions): Promis
   const broker = new SandboxBroker(identity, grants, options.services, limits);
   const shutdownControl = new AbortController();
   let stopped: SandboxError | undefined, ready = false, buffer = Buffer.alloc(0), stderrBytes = 0;
-  let active: { id: string; operation: SandboxOperationContract; serviceTimeoutMs: number; outcome: { uncertain?: SandboxError }; controller: AbortController; beforeEffect(): Promise<void>; reenter<T>(run: () => T): T; resolve: (v: SandboxJson) => void; reject: (e: unknown) => void; pendingSdk: Set<string> } | undefined;
+  let active: { id: string; operation: SandboxOperationContract; serviceTimeoutMs: number; connections?: PluginConnectionsClient; outcome: { uncertain?: SandboxError }; controller: AbortController; beforeEffect(): Promise<void>; reenter<T>(run: () => T): T; resolve: (v: SandboxJson) => void; reject: (e: unknown) => void; pendingSdk: Set<string> } | undefined;
   let readyResolve: () => void, readyReject: (e: unknown) => void;
   const started = new Promise<void>((resolve, reject) => { readyResolve = resolve; readyReject = reject; });
   let exitResolve: () => void;
@@ -118,7 +124,7 @@ export async function createSandboxRunner(options: SandboxRunnerOptions): Promis
       if (message.callId !== current.id || current.pendingSdk.has(message.id) || !Array.isArray(message.args) || typeof message.method !== 'string') throw new SandboxError('sandbox.protocol_error', 'Invalid SDK request');
       if (current.pendingSdk.size >= limits.sdkQueue) throw new SandboxError('sandbox.queue_full', 'Too many outstanding SDK requests');
       current.pendingSdk.add(message.id);
-      current.reenter(() => broker.invoke(current.operation, current.controller.signal, message.method, message.args, current.beforeEffect, current.serviceTimeoutMs)).then(
+      current.reenter(() => broker.invoke(current.operation, current.controller.signal, message.method, message.args, current.beforeEffect, current.serviceTimeoutMs, current.connections)).then(
         result => { if (active === current && !stopped) send({ type: 'sdk-result', id: message.id, value: result }); },
         error => {
           if (error instanceof SandboxError && error.outcome === 'unknown') current.outcome.uncertain ??= error;
@@ -198,7 +204,7 @@ export async function createSandboxRunner(options: SandboxRunnerOptions): Promis
             const result = await execution.wait(new Promise<SandboxJson>((resolve, reject) => {
               if (stopped) { reject(stopped); return; }
               const id = randomUUID(), controller = new AbortController();
-              active = { id, operation, serviceTimeoutMs, outcome, controller, beforeEffect, reenter, resolve, reject, pendingSdk: new Set() };
+              active = { id, operation, serviceTimeoutMs, ...(control?.connections ? { connections: control.connections } : {}), outcome, controller, beforeEffect, reenter, resolve, reject, pendingSdk: new Set() };
               try { send({ type: 'call', id, operationId, input: snapshot }); } catch (error) { shutdown(error instanceof SandboxError ? error : new SandboxError('sandbox.channel_error', 'Failed to start operation')); }
             }));
             await execution.wait(beforeEffect());

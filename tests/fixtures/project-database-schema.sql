@@ -138,6 +138,24 @@ CREATE TABLE plugin_events (
       correlation_id TEXT,
       occurred_at TEXT NOT NULL
     );
+CREATE TABLE plugin_notifications (
+      notification_id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      sender_plugin_id TEXT NOT NULL,
+      sender_install_id TEXT NOT NULL,
+      sender_generation TEXT NOT NULL,
+      key TEXT NOT NULL,
+      title TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      body TEXT NOT NULL,
+      open_plugin_id TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      delivered_at TEXT,
+      item_id TEXT,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      last_error_code TEXT,
+      UNIQUE (sender_install_id, sender_generation, key)
+    );
 CREATE TABLE plugin_input_groups (
       project_id TEXT NOT NULL,
       plugin_id TEXT NOT NULL,
@@ -293,6 +311,7 @@ CREATE INDEX library_artifacts_project_idx
 CREATE UNIQUE INDEX plugin_events_board_sequence ON plugin_events (project_id, sequence);
 CREATE INDEX plugin_events_board_type_source
       ON plugin_events (project_id, event_type_id, type_version, source_plugin_id, sequence);
+CREATE INDEX plugin_notifications_pending ON plugin_notifications (project_id, created_at) WHERE delivered_at IS NULL;
 CREATE INDEX process_item_versions_type_idx
     ON process_item_versions(artifact_type_id, schema_version, scope, lifecycle_state);
 CREATE INDEX process_items_project_idx

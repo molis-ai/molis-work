@@ -188,6 +188,7 @@ feed.items.offers	1	io.molis.work.feed	io.molis.work.feed	query	query	project	re
 feed.items.promote	1	io.molis.work.feed	io.molis.work.feed	command	operation	project	write	-	agent,mcp,user,workflow	feed:read,feed:write,goals:read,goals:write	feed_item	-	-	b94602754496	f5dc899fb17e	334f71799707
 feed.items.read	1	io.molis.work.feed	io.molis.work.feed	command	operation	project	write	-	agent,mcp,user,workflow	feed:read,feed:write	feed_item	-	-	e7b581b16414	3ec94f5f1dd8	-
 feed.items.restore	1	io.molis.work.feed	io.molis.work.feed	command	operation	project	write	-	agent,mcp,user,workflow	feed:read,feed:write	feed_item	-	-	db87b605413f	3ec94f5f1dd8	-
+feed.notifications.receive	1	io.molis.work.feed	io.molis.work.feed	command	operation	project	write	concurrent	workflow	feed:read,feed:write,inbox:write	-	-	-	0ad4c898e212	b25b8cdae1f3	-
 feed.rules.create	1	io.molis.work.feed	io.molis.work.feed	command	operation	project	write	-	agent,mcp,user,workflow	feed:read,feed:write	feed_item,source	-	-	69c6e3c33063	8709a3814411	-
 feed.rules.delete	1	io.molis.work.feed	io.molis.work.feed	command	operation	project	irreversible	-	agent,mcp,user,workflow	feed:read,feed:write	feed_item,source	-	-	0f077d535eea	8709a3814411	-
 feed.rules.evaluate	1	io.molis.work.feed	io.molis.work.feed	command	operation	project	write	concurrent	agent,mcp,user,workflow	feed:read,feed:write,inbox:write,model:invoke	feed_item,source	-	-	65ecbb991d35	d73b45f94c40	613063238287

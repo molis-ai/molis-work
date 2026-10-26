@@ -294,6 +294,6 @@ Home 级插件要在本人自己的页面里看到各个项目的内容（Todo �
 
 ### 项目插件的闹钟、后台 Agent 与通知
 
-使用 [公共后台服务](../../docs/platform/PLUGIN-DEVELOPMENT.md#项目后台调度与投递)：自己的业务记录用 `services.project_database`，闹钟通过 `services.scheduler.join(transaction, writer)` 同笔提交；在 `background.wakeups` 声明向 plugin 开放的唤醒动作和理由。当前安装元数据用 `services.installations`，等待一轮已声明角色的 Agent 用 `services.agents.run`，同笔投递用 `services.notifications.deliver(transaction, input)`，提交后等待回执的 `settle()`。各自声明对应权限，不从业务输入拿身份或路径，不使用已移除的 typed Schedule 入口。
+使用 [公共后台服务](../../docs/platform/PLUGIN-DEVELOPMENT.md#项目后台调度与投递)：自己的业务记录用 `services.project_database`，闹钟通过 `services.scheduler.join(transaction, writer)` 同笔提交；在 `background.wakeups` 声明向 plugin 开放的唤醒动作和理由。当前安装元数据用 `services.installations`，等待一轮已声明角色的 Agent 用 `services.agents.run`，同笔投递用 `services.notifications.deliver(transaction, input)`（写进平台的通知队列，由项目里声明了 `notifications.receive` 的插件接收；没有时留在队列里），提交后等待回执的 `settle()`。各自声明对应权限，不从业务输入拿身份或路径，不使用已移除的 typed Schedule 入口。
 
 后台动态调用用 `services.actions.dependencies`（`actions:invoke`）：只持有本安装自己的权限与 plugin 受众，不能借用前台调用者的委托目录。输入校验、固定提供方和版本在保存业务记录前完成；派出和提交前再次复核权限。安装变化、停用、取消或只读上下文均不能写结果或失败账。Schedule 的 `createSchedulePlugin` 是实际消费示例，不能在宿主另开一个以插件命名的后台入口。

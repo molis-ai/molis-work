@@ -73,9 +73,11 @@ test("PLIB-01, PLIB-13: the library's baseline imports no plugin package, so no 
 });
 
 test("PLIB-02: the plugins' tables are the ones version 7 had in the baseline, the project they belong to now the root instead of the board", () => {
-  assert.deepEqual(declaring.map(manifest => manifest.plugin_id).sort(), ["io.molis.work.coding", "io.molis.work.feed", "io.molis.work.goals", "io.molis.work.schedule"]);
+  assert.deepEqual(declaring.map(manifest => manifest.plugin_id).sort(), ["io.molis.work.coding", "io.molis.work.feed", "io.molis.work.goals", "io.molis.work.inbox", "io.molis.work.schedule"]);
   const before = shape(fixture("project-database-schema-v7.sql")).tables;
   for (const manifest of declaring) {
+    // Inbox's scene binding table (FI-6 P3) is no table of version 7: Inbox declared none then.
+    if (manifest.plugin_id === "io.molis.work.inbox") continue;
     for (const [table, now] of Object.entries(shape(manifest.databases!.project!.schema).tables)) {
       const then = before[table];
       assert.ok(then, `${table} was in version 7`);
@@ -96,7 +98,7 @@ test("PLIB-09: the project is one root row; the eleven tables and Goals' board, 
   const tables = opened.tables;
   assert.deepEqual(tables.project_root!.columns.map(column => column.name), ["project_id", "created_at"]);
   const pointing = (target: string) => Object.entries(tables).filter(([, table]) => table.foreign_keys.some(key => key.table === target)).map(([name]) => name).sort();
-  assert.deepEqual(pointing("project_root"), [...ROOTED, "boards"].sort());
+  assert.deepEqual(pointing("project_root"), [...ROOTED, "boards", "inbox_scene_bindings"].sort(), "and Inbox's scene binding table (FI-6 P3), declared since version 7");
   const goals = declaring.find(manifest => manifest.plugin_id === GOALS_PLUGIN_ID)!;
   const declared = Object.keys(shape(goals.databases!.project!.schema).tables);
   assert.ok(declared.includes("boards"), "the board is a table Goals declares, no longer one of the baseline's");

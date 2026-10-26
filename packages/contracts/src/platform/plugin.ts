@@ -297,4 +297,5 @@ export type { PluginAgentClient, PluginAgentRunInput, PluginAgentRunResult } fro
 
 export type { PluginInstallationClient, PluginInstallationProjects, PluginInstallationView } from "./plugin-installations.js";
 
-export type { PluginNotificationClient, PluginNotificationInput, PluginNotificationReceipt } from "./plugin-notifications.js";
+export type { PluginNotificationClient, PluginNotificationDelivery, PluginNotificationDeliveryReceipt, PluginNotificationInput, PluginNotificationReceipt, PluginNotificationReceiverDeclaration } from "./plugin-notifications.js";
+export { PLUGIN_NOTIFICATION_DELIVERY_ACTOR } from "./plugin-notifications.js";

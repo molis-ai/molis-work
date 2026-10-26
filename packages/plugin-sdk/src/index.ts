@@ -274,5 +274,6 @@ export type { PluginAgentClient, PluginAgentRunInput, PluginAgentRunResult } fro
 
 export type { PluginInstallationClient, PluginInstallationProjects, PluginInstallationView } from "@molis-ai/molis-work-contracts/platform/plugin";
 
-export type { PluginNotificationClient, PluginNotificationInput, PluginNotificationReceipt } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginNotificationClient, PluginNotificationDelivery, PluginNotificationDeliveryReceipt, PluginNotificationInput, PluginNotificationReceipt, PluginNotificationReceiverDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
+export { PLUGIN_NOTIFICATION_DELIVERY_ACTOR } from "@molis-ai/molis-work-contracts/platform/plugin";
 export { canonicalJsonValue } from "./json-value.js";

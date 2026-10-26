@@ -4,6 +4,7 @@ import { createLocalFeedApplication, scheduleServiceFor } from "@molis-ai/molis-
 import { getScheduleReminder, reminderActions, scheduleActions, SCHEDULE_ACTION_PERMISSIONS, scheduledOperationActions, getScheduledOperation } from "@molis-ai/molis-work-plugin-schedule";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { runningProjectPlatform } from "../apps/local-host/dist/project-plugins.js";
+import { PluginNotificationQueue } from "@molis-ai/molis-work-plugin-runtime";
 import { scheduleRuntimeFixture } from "./fixtures/schedule-runtime.js";
 
 const next = () => new Date(Date.now() + 1000).toISOString();
@@ -51,8 +52,10 @@ test("rejected reminder registration/cancellation and a real notification persis
   store.db.exec("CREATE TRIGGER refuse_cancel BEFORE DELETE ON schedule_plugin_reminders BEGIN SELECT RAISE(ABORT, 'cancel-disk-failed'); END");
   await assert.rejects(f.sdk.invoke(reminderActions.cancel, reminder), { code: "plugin.project_database.statement_refused" });
   assert.ok(clock.get(record.jobId)); assert.ok(getScheduleReminder(store.db, reminder.reminderId)); store.db.exec("DROP TRIGGER refuse_cancel");
-  store.db.exec("CREATE TRIGGER refuse_delivery BEFORE INSERT ON feed_items BEGIN SELECT RAISE(ABORT, 'delivery-disk-failed'); END");
+  // The notification is the platform's queue row now (D6-2): its write is the part of the delivery that shares the reminder's transaction.
+  store.db.exec("CREATE TRIGGER refuse_delivery BEFORE INSERT ON plugin_notifications BEGIN SELECT RAISE(ABORT, 'delivery-disk-failed'); END");
   assert.equal((await f.tick(at)).failed, 1); assert.ok(getScheduleReminder(store.db, reminder.reminderId)); assert.equal((await f.inbox()).length, 0);
+  assert.equal(new PluginNotificationQueue(store.db).pending(f.project.project_id).length, 0, "the refused queue row rolled back with the reminder");
   assert.equal(createLocalFeedApplication(store.db).snapshot(f.project.project_id).sources.filter(source => source.source_id.startsWith("plugin-notifications:")).length, 0);
   store.db.exec("DROP TRIGGER refuse_delivery");
   await f.client.invoke({ actor_id: "web-user", project_id: f.project.project_id, audience: "user", permissions: SCHEDULE_ACTION_PERMISSIONS }, scheduleActions.setJobEnabled, { job_id: record.jobId, enabled: true });

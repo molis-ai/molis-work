@@ -25,9 +25,9 @@ export function scheduledOwnerPlugin() {
   return { id, definition, context, actions: (projectId?: string) => context(projectId).services!.actions!, calls: () => calls, execute: (handler: typeof execute) => { execute = handler; } };
 }
 
-export async function scheduleRuntimeFixture(t: TestContext) {
+export async function scheduleRuntimeFixture(t: TestContext, plugins: readonly string[] = ["feed", "inbox"]) {
   const owner = scheduledOwnerPlugin(), { id, definition } = owner;
-  const f = await openTestHome(t, { host: { pluginFixtures: { project: [definition] } } }), project = await f.createProject("Schedule public runtime");
+  const f = await openTestHome(t, { host: { pluginFixtures: { project: [definition] } } }), project = await f.createProject("Schedule public runtime", plugins);
   const client = f.host.actionClient(project.reference);
   const prepare = () => client.discover({ actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: [] });
   await prepare(); owner.context(project.project_id);

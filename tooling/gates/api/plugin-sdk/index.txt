@@ -226,6 +226,7 @@ export declare const PLUGIN_MESSAGE_LIMITS: {
 };
 
 export { PLUGIN_MODEL_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin";
+export { PLUGIN_NOTIFICATION_DELIVERY_ACTOR } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 export declare const PLUGIN_ROUTE_STREAM_LIMITS: Readonly<{
     line_bytes: 65536;
@@ -265,8 +266,11 @@ export type { PluginModelClient } from "@molis-ai/molis-work-contracts/platform/
 export type { PluginModelRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginModelResult } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginNotificationClient } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginNotificationDelivery } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginNotificationDeliveryReceipt } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginNotificationInput } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginNotificationReceipt } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginNotificationReceiverDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginOriginalContent } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginOriginalRangeContent } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginOriginalRangeRequest } from "@molis-ai/molis-work-contracts/platform/plugin";

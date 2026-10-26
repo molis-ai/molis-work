@@ -1,4 +1,4 @@
-import { bindPluginNotificationFeed } from "./plugin-notification-service.js";
+import { bindProjectNotifications } from "./plugin-notification-delivery.js";
 import { hostErrors } from "./host-errors.js";
 import { informationActionProvider } from "./information-actions.js";
 import { bindHomeSide, bindPluginCatalog, releaseHomeSide, type PluginFixture } from "./home-side.js";
@@ -177,7 +177,6 @@ export class MolisWorkLocalHost {
             const scenes = this.sceneClient(reference);
             const eventFeed = workflowEventsFeedOptions(scenes, this.actionClient(reference), reference.project_id);
             const feed = createLocalFeedApplication(store.db, eventFeed);
-            bindPluginNotificationFeed(store.db, control => workflowEventsFeedOptions(scenes, this.actionClient(reference), reference.project_id, control));
             const providers: ActionProviderRegistration[] = [], add = (provider: ActionProviderRegistration) => { providers.push(provider); };
             add(goalsActionProvider(runtime, personalMethods, this.actionClient(reference)));
             add(projectWorkspaceActionProvider(reference.project_id, () => this.personalPlanningHome && this.catalogRunner ? { home: this.personalPlanningHome, run: this.catalogRunner } : undefined,
@@ -193,6 +192,7 @@ export class MolisWorkLocalHost {
                   payload: { judgment_id: judgment.judgment_id }, at: judgment.created_at });
               }));
             await registerProviders(this.host.actionRegistry(reference), withoutRefusedPlugins(store.db, providers, entry => entry.provider.plugin_id));
+            bindProjectNotifications(store.db, reference.project_id, this.actionClient(reference), control => workflowEventsFeedOptions(scenes, this.actionClient(reference), reference.project_id, control));
             openProjectSchedulers(this, runtime, reference);
             return runtime;
           } catch (error) {

@@ -33,6 +33,26 @@ UPDATE attention_events SET owner_plugin_id = 'io.molis.work.goals' WHERE owner_
 UPDATE context_edges SET edge_key = 'io.molis.work.feed:' || edge_key WHERE scope_kind = 'personal' AND edge_key LIKE 'feed.goal:%';
 UPDATE plugin_project_databases SET version = 2, tables_json = '["feed_item_events","feed_item_events_project_item_idx","feed_items","feed_items_project_signal_idx","feed_items_project_source_external_idx","feed_items_project_updated_idx","feed_materials","feed_materials_project_item_idx","feed_out_rules","feed_out_rules_project_enabled_idx","feed_source_runs","feed_source_runs_project_source_idx","feed_sources","feed_sources_project_updated_idx","listener_deliveries","listener_deliveries_recovery_idx","listener_instances","signal_events","signal_events_project_source_idx","signal_revisions","signals","signals_project_source_observed_idx","source_events","source_events_project_source_idx"]'
   WHERE plugin_id = 'io.molis.work.feed' AND version = 1;
+-- Plugin notifications are the platform's queue now (FI-6 step 4a, D6-2): the table a version 10 library does not have.
+CREATE TABLE IF NOT EXISTS plugin_notifications (
+      notification_id TEXT PRIMARY KEY,
+      project_id TEXT NOT NULL,
+      sender_plugin_id TEXT NOT NULL,
+      sender_install_id TEXT NOT NULL,
+      sender_generation TEXT NOT NULL,
+      key TEXT NOT NULL,
+      title TEXT NOT NULL,
+      summary TEXT NOT NULL,
+      body TEXT NOT NULL,
+      open_plugin_id TEXT NOT NULL,
+      created_at TEXT NOT NULL,
+      delivered_at TEXT,
+      item_id TEXT,
+      attempts INTEGER NOT NULL DEFAULT 0,
+      last_error_code TEXT,
+      UNIQUE (sender_install_id, sender_generation, key)
+    );
+CREATE INDEX IF NOT EXISTS plugin_notifications_pending ON plugin_notifications (project_id, created_at) WHERE delivered_at IS NULL;
 PRAGMA user_version = 11;
 DROP TABLE maintenance_v11_guard;
 COMMIT;

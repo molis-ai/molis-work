@@ -6,7 +6,7 @@ import type { FunctionsHostOptions } from "./functions-host.js";
 import { inboxContentActions, inboxJudgmentTrigger } from "@molis-ai/molis-work-plugin-inbox";
 import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { ActionError, retainActionAuthority, resolveActionSubject, type ActionCallContext, type ActionClient, type ActionSceneClient, type ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
-import { feedManifest, feedQueryActions, promoteOffered, readLinkedFeedContext, feedItemContext, createFeedQueryHandlers, createFeedCaptureTrigger, createFeedContentHandlers, createFeedInboxHandlers, createFeedItemHandlers, createFeedRuleHandlers, createFeedSourceHandlers, type FeedApplication } from "@molis-ai/molis-work-plugin-feed";
+import { feedManifest, feedQueryActions, promoteOffered, readLinkedFeedContext, feedItemContext, createFeedQueryHandlers, createFeedCaptureTrigger, createFeedContentHandlers, createFeedInboxHandlers, createFeedNotificationHandlers, createFeedItemHandlers, createFeedRuleHandlers, createFeedSourceHandlers, type FeedApplication } from "@molis-ai/molis-work-plugin-feed";
 import { createHomeJudgmentTrigger } from "./home-actions.js";
 import { createLocalFeedSourceService } from "./feed-source-service.js";
 import { createLocalFeedConnectorSync } from "./feed-connector-sync.js";
@@ -20,6 +20,8 @@ import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plu
 import type { MolisWorkProjectRuntime } from "./project-host.js";
 import { hydrateFeedItemContent } from "./feed-content.js";
 import { inspectSourceAuthorization } from "./connector-access.js";
+import { hostLog } from "./host-log.js";
+import { pluginNotificationFeedOptions } from "./plugin-notification-service.js";
 
 /** New messages a source call brings in are judged with that caller's authority, as the Web route does for the local user. */
 function judgedAs(caller: ActionCallContext, scenes: ActionSceneClient, actions: ActionClient, projectId: string): LocalFeedApplicationOptions {
@@ -61,6 +63,11 @@ export function nativeContentProviders(runtime: MolisWorkProjectRuntime, feed: F
     ...createFeedRuleHandlers(feed, runtime.project_id, hydrate, scene?.selection),
     ...createFeedInboxHandlers(feed, runtime.project_id, { hydrate,
       authorize: async source => home ? await inspectSourceAuthorization(home, source) : { authorized: false, reason: "来源连接不可用" } }),
+    // The platform's notification service is the only caller; its judgments run under the delivering call (D6-2).
+    ...createFeedNotificationHandlers(runtime.project_id, {
+      feed: caller => createLocalFeedApplication(runtime.store.db, pluginNotificationFeedOptions(runtime.store.db, caller)),
+      judgmentFailed: error => hostLog.warn("plugin_notifications", "judgment_failed", error),
+    }),
     ...createFeedItemHandlers(feed, runtime.project_id, {
       inboxActive: itemId => feed.listInboxEntries(runtime.project_id).some(entry => entry.subject_type === "feed_item" && entry.subject_id === itemId
         && (entry.status === "open" || entry.status === "in_progress")),

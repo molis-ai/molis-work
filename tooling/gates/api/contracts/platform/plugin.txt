@@ -2523,6 +2523,8 @@ export declare const PLUGIN_MODEL_LIMITS: {
     readonly max_output_tokens: 12000;
 };
 
+export declare const PLUGIN_NOTIFICATION_DELIVERY_ACTOR = "platform-notifications";
+
 export declare const PLUGIN_SCENES_PERMISSION = "scenes:use";
 
 export declare const PROJECT_JOURNAL_PERMISSION = "journal:project";
@@ -3378,6 +3380,7 @@ export interface PluginManifest {
         jobs: readonly import("platform/plugin-background").PluginJobDeclaration[];
         wakeups?: readonly import("platform/plugin-scheduler").PluginWakeupDeclaration[];
     };
+    notifications?: import("platform/plugin-notifications").PluginNotificationReceiverDeclaration;
     actions?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionDefinition[];
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneDefinition[];
 }
@@ -3521,6 +3524,25 @@ export interface PluginNotificationClient {
     deliver(transaction: PluginDatabaseTransaction, input: PluginNotificationInput): PluginNotificationReceipt;
 }
 
+export interface PluginNotificationDelivery {
+    notification_id: string;
+    sender_plugin_id: string;
+    sender_name: string;
+    sender_install_id: string;
+    sender_generation: string;
+    key: string;
+    title: string;
+    summary: string;
+    body: string;
+    open_plugin_id: string;
+    created_at: string;
+}
+
+export interface PluginNotificationDeliveryReceipt {
+    item_id: string;
+    created: boolean;
+}
+
 export interface PluginNotificationInput {
     key: string;
     title: string;
@@ -3530,9 +3552,16 @@ export interface PluginNotificationInput {
 }
 
 export interface PluginNotificationReceipt {
-    readonly item_id: string;
+    readonly notification_id: string;
     readonly created: boolean;
     settle(): Promise<void>;
+}
+
+export interface PluginNotificationReceiverDeclaration {
+    readonly receive: {
+        readonly capability_id: string;
+        readonly version: number;
+    };
 }
 
 export interface PluginOriginalContent {

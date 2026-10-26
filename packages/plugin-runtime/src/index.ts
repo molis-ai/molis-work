@@ -70,6 +70,8 @@ export { buildEventContract } from "./event-contract.js";
 export type { PluginEventContract, PluginEventSubscription } from "./event-contract.js";
 export { MemoryPluginEventsRepository, SqlitePluginEventsRepository, PLUGIN_EVENTS_SCHEMA_SQL } from "./event-repository.js";
 export type { PluginEventsDatabase } from "./event-repository.js";
+export { PluginNotificationQueue, PLUGIN_NOTIFICATIONS_SCHEMA_SQL, pluginNotificationId } from "./notification-queue.js";
+export type { PluginNotificationRow, PluginNotificationsDatabase } from "./notification-queue.js";
 export { PLUGIN_ROUTE_PREFIX, PluginRouteRouter, pluginRouteMatcher } from "./routes.js";
 export { INSTANCE_WATCH_INTERVAL_MS, type InstanceWatchTimers } from "./instance-watch.js";
 export type { PluginRouteDispatchInput, PluginRouteMatch } from "./routes.js";

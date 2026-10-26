@@ -164,7 +164,7 @@
 
 另外两条入箱路径：
 
-- **插件提醒**：项目时钟（`horizontal/scheduler`）经公共动作网关唤醒 Schedule 的 Runtime 动作（`plugins/native/schedule/src/runtime-wakeups.ts`），后者通过公共 `services.notifications` 在本插件事务中提交 Feed 与 Inbox；来源为 `plugin-notifications:<plugin_id>`。安装已卸载或世代不符的提醒不投递。事务提交后显式 `settle()` 运行捕捉与 Inbox 判断（`apps/local-host/src/plugin-notification-service.ts`），取消或撤权后不再处理，判断失败不会撤销已经提交的投递。定时操作的结果经同一公共通知服务投递。
+- **插件提醒**：项目时钟（`horizontal/scheduler`）经公共动作网关唤醒 Schedule 的 Runtime 动作（`plugins/native/schedule/src/runtime-wakeups.ts`），后者通过公共 `services.notifications` 在本插件事务中把通知写进平台的队列（`plugin_notifications`）；事务提交后 `settle()` 让平台把队列里的通知交给项目里声明了 `notifications.receive` 的插件（现在是 Feed 的 `feed.notifications.receive`，调用者是平台的通知身份，`apps/local-host/src/plugin-notification-delivery.ts`），接收后来源为 `plugin-notifications:<plugin_id>`，并运行捕捉与 Inbox 判断；项目里没有接收方时通知留在队列里，项目打开和下一次交付时再交。安装已卸载或世代不符的提醒不投递，取消或撤权后不再处理，判断失败不会撤销已经提交的投递。定时操作的结果经同一公共通知服务投递。
 - **到期提醒**：Todo 的 `todo.reminders.window` 由助理每分钟询问一次（`AssistantFollowUps.sweepReminders`，`apps/local-host/src/assistant/assistant-followups.ts`），每个提醒只通知一次，错过的会标明「错过的提醒」。
 
 **通知有三处，没有系统级通知**（`docs/platform/DESKTOP.md` 说明系统通知尚未实现）：

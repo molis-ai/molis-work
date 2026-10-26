@@ -105,6 +105,7 @@ export {
 export { hydrateFeedItemContent, hydrateFeedSnapshotContent } from "./feed-content.js";
 
 export { createLocalFeedApplication } from "./feed-application.js";
+export { createNotificationDelivery, declaredNotificationReceivers } from "./plugin-notification-delivery.js";
 export { HOST_ARTIFACT_PRODUCERS, artifactTypeDeclarations, declaredArtifactTypes, artifactContinuers, artifactReferrerActions, continuerReadsFile, artifactProducerSources, artifactLinkKinds, linkKindProblems, installedArtifacts, supervisedArtifacts, type ArtifactProducerSource, type InstalledArtifactView } from "./artifact-type-registry.js";
 export { bindProjectArtifacts } from "./declared-types.js";
 export { declarationOwnersFor } from "./declaration-owners.js";

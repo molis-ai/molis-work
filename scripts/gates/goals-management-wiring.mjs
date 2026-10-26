@@ -35,10 +35,10 @@ export function checkGoalsManagementWiring(source, mode) {
     && imports.has("./project-storage.js:prepareLocalProjectStorage")
     && text(declarations.get("homeDatabase")?.initializer) === "databaseInHome(home,databasePath)"
     && creates.length === 2 && text(external?.parent.parent) === 'if(operation==="init"&&!homeDatabase)prepareLocalProjectStorage(databasePath,"create");'
-    && text(body.statements[0]) === 'if(homeProject||homeDatabase)ensureHomeStorageOwner(localHost??=createMolisWorkLocalHost(),home);'
+    && text(body.statements[0]) === 'if(homeProject||homeDatabase)ensureHomeStorageOwner(localHost??=createMolisWorkLocalHost({homeDirectory:home}),home);'
     && text(body.statements[1]) === 'if(operation==="init"&&homeDatabase)prepareLocalProjectStorage(databasePath,"create");'
     && ts.isReturnStatement(body.statements[2]) && body.statements[2].expression === call;
-  const expectedClient = mcp ? "caller.localHost.actionClient" : "(localHost??=createMolisWorkLocalHost()).actionClient";
+  const expectedClient = mcp ? "caller.localHost.actionClient" : "(localHost??=createMolisWorkLocalHost({homeDirectory:home})).actionClient";
   if (!imports.has("./goal-callers.js:bindGoalsManagementActions") || !call || call.arguments.length !== 3
     || !opened || !ts.isCallExpression(opened) || text(opened.expression) !== expectedClient || opened.arguments.length !== 1
     || text(opened.arguments[0]) !== "reference"

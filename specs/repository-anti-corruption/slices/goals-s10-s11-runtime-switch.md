@@ -7,6 +7,8 @@
 
 本组合的 PLIB-14 修正：先对完整的声明启动名单核双实例两半，再按本项目的库拒绝结果排除不能启动的那一半。旧顺序先排掉 Goals 后被双实例校验当成缺声明，导致整个项目 Runtime 清空；不是双实例声明错误。开发入口的初始化同时改用现行公开描述符 `goalEntryActions.initialize`（version 2），不再保留旧 version 1 字面量；库自己的拒绝码仍由项目库记录，入口没有对应公开动作时回答 `actions.missing`，不恢复宿主直读 Goals 的私路。对外 `runLocalPluginDevelopment` 在它已校验的专用 `state_directory/home` 中装配隔离 Home，供 Goals 的 Home 库与项目半按同一平台规则启动；不再创建无 Home 的 Host。开发状态标记留在父目录，新的 Home 子目录走现行新 Home 的记忆初始化；不修改或绕过记忆采用检查。既有 W3-07-6-01 / A3-DEV-01 的真实产出、重跑与未声明拒绝用例作为红绿反例，不放宽它们。保留声明/信任校验不变，以真实损坏库断言 Goals 项目动作拒绝、独立 Home 半及其他插件照常可用。
 
+自建 CLI 的同类修正：未借用 Host 时用已经解析的显式/默认 Home 装配 Host，Goals 因此可按公共 Runtime 启动；注册项目仍优先转常驻入口，借用 Host 不替换或关闭。独立项目根初始化在 lazy fallback 已完成 Home 所有权与必要目录准备之后、实际动作派发之前。Home 忙时仍在建目标目录前拒绝，外部 init 的坏 JSON 仍保原父目录顺序且不创建 Host/Home；源码接线检查改为精确要求 `{homeDirectory: home}`，不放宽旧 guard。`tests/cli-home-owner-entry.test.ts` 保两负例并验证新 Host 的外部库、Home 内新路径及关闭后重开。
+
 ## 1. 为什么 S10 与 S11 不能分开
 
 | 事实 | 后果 |

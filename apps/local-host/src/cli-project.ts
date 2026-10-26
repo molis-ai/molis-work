@@ -47,9 +47,9 @@ export async function runV1Cli(args: string[], options: V1CliOptions = {}): Prom
   });
   let homeProject = false;
   const fallback = () => {
-    if (homeProject || homeDatabase) ensureHomeStorageOwner(localHost ??= createMolisWorkLocalHost(), home);
+    if (homeProject || homeDatabase) ensureHomeStorageOwner(localHost ??= createMolisWorkLocalHost({ homeDirectory: home }), home);
     if (operation === "init" && homeDatabase) prepareLocalProjectStorage(databasePath, "create");
-    return bindGoalsManagementActions((localHost ??= createMolisWorkLocalHost()).actionClient(reference), reference, { signal: options.signal });
+    return bindGoalsManagementActions((localHost ??= createMolisWorkLocalHost({ homeDirectory: home })).actionClient(reference), reference, { signal: options.signal });
   };
   try {
     return await withCallId(newCallId(), async () => {
@@ -57,9 +57,9 @@ export async function runV1Cli(args: string[], options: V1CliOptions = {}): Prom
       homeProject = Boolean(project);
       if (project && project.project_id !== reference.project_id) throw new ActionError("actions.scope_mismatch", "管理请求与 Home 登记的项目不匹配");
       if (project) reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-      else if (operation === "init") await ensureStandaloneProjectRoot((localHost ??= createMolisWorkLocalHost()), reference);
       const actions = project ? residentManagementActions({ home, databasePath: project.database_path, projectId: project.project_id,
         origin: options.actionServiceUrl ?? readProductEnv("WEB_URL") ?? DEFAULT_RESIDENT_HOST_URL, signal: options.signal, fallback }) : fallback();
+      if (!project && operation === "init") await ensureStandaloneProjectRoot(localHost!, reference);
       return dispatchCliProjectCommand(actions, args, input);
     });
   } finally { if (ownsLocalHost) await localHost?.close(); }

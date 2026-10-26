@@ -27,3 +27,16 @@ test("RAC-105-S-08: external CLI init keeps the existing malformed-JSON parent-d
   assert.equal((await stat(dirname(database))).isDirectory(), true);
   await assert.rejects(stat(database), { code: "ENOENT" }); await assert.rejects(stat(home), { code: "ENOENT" });
 });
+
+test("RAC-105-S-08: an owned CLI Host uses its explicit Home for standalone init and reopen, including a new path inside Home", async t => {
+  const root = await mkdtemp(join(tmpdir(), "cli-owned-home-")), home = join(root, "home");
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const output: string[] = []; t.mock.method(console, "log", (value: string) => output.push(value));
+  for (const [id, database] of [["external", join(root, "external", "project.db")], ["inside", join(home, "projects", "standalone", "project.db")]]) {
+    const input = JSON.stringify({ project_id: id, idempotency_key: "initialize" });
+    assert.equal(await runV1Cli(["init", "--db", database, "--json", input], { homeDirectory: home }), 0);
+    assert.equal(JSON.parse(output.at(-1)!).project_id, id);
+    assert.equal(await runV1Cli(["snapshot", "--db", database, "--json", JSON.stringify({ project_id: id })], { homeDirectory: home }), 0);
+    assert.equal(JSON.parse(output.at(-1)!).board.project_id, id);
+  }
+});

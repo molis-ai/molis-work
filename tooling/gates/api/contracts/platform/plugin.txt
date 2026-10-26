@@ -5121,6 +5121,7 @@ export declare const pluginErrors: import("platform/action-errors").ErrorCodeRai
     readonly grant_denied: "invalid";
     readonly home_scope_unavailable: "invalid";
     readonly id_namespace_conflict: "invalid";
+    readonly in_process_denied: "invalid";
     readonly install_replaced: "invalid";
     readonly kept_data_incompatible: "invalid";
     readonly manifest_invalid: "invalid";

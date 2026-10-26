@@ -48,10 +48,10 @@ test("RAC-380 the level of an installed plugin does not change by installing it 
 });
 
 test("RAC-383 host evidence is only for code the Host runs, never for a sandboxed definition", () => {
-  assertTrustFitsExecution(HOST_BUILD_TRUST, "host");
-  assertTrustFitsExecution(UNSIGNED_TRUST, "sandbox");
-  assertTrustFitsExecution({ level: "pinned", publisher_key_id: KEY_ID }, "sandbox");
-  assert.throws(() => assertTrustFitsExecution(HOST_BUILD_TRUST, "sandbox"), code("plugin.grant_denied"));
+  assertTrustFitsExecution(HOST_BUILD_TRUST, "host", false);
+  assertTrustFitsExecution(UNSIGNED_TRUST, "sandbox", false);
+  assertTrustFitsExecution({ level: "pinned", publisher_key_id: KEY_ID }, "sandbox", false);
+  assert.throws(() => assertTrustFitsExecution(HOST_BUILD_TRUST, "sandbox", false), code("plugin.grant_denied"));
 });
 
 test("RAC-385 the Host agrees for its own build and a person for every other install", () => {

@@ -45,14 +45,27 @@ export function assertPluginTrust(value: unknown): PluginTrust {
 /**
  * A level and the way the code runs must agree where it is a safety matter: code of the Host's build runs in the Host (a sandboxed
  * definition is a generated plugin's, whose permissions are what a person confirmed, never what its Manifest declares), and a
- * definition run in the sandbox never holds the Host's own level. Nothing in the other direction is refused here yet: the
- * development directory and the Host's test fixtures still run in the Host as `unsigned`; mapping them onto the sandbox is the
- * install service's (T2). Official integrations shipped in the Host's build and registered by its build catalog have `host`
- * trust. If an integration is later distributed independently, its trust follows its own signature instead.
+ * definition run in the sandbox never holds the Host's own level. And the other way round (BL-588, S-75 ⑥): code that runs in the
+ * Host's process holds the Host's level, unless the Host's own code admitted that very definition (`InProcessAdmission`): the
+ * development directory's loaded plugin and the test fixtures are the closed list of such exceptions. `inProcessAdmitted` is true
+ * for a definition so admitted, and for any definition in a Runtime that checks none. Official integrations shipped in the Host's
+ * build and registered by its build catalog have `host` trust. If an integration is later distributed independently, its trust
+ * follows its own signature instead.
  */
-export function assertTrustFitsExecution(trust: PluginTrust, execution: "host" | "sandbox"): void {
+export function assertTrustFitsExecution(trust: PluginTrust, execution: "host" | "sandbox", inProcessAdmitted: boolean): void {
   if (trust.level === "host" && execution === "sandbox") throw pluginErrors.grant_denied("沙箱里的生成插件不能当作随宿主发布的插件：它的权限是人确认的，不是 Manifest 声明的全部");
+  if (trust.level !== "host" && execution === "host" && !inProcessAdmitted) {
+    throw pluginErrors.in_process_denied("在宿主进程里运行的代码只给随宿主发布的插件：别处来的插件要装成沙箱定义（开发目录与测试夹具是宿主代码逐个放行的例外）");
+  }
 }
+
+/**
+ * The definitions the Host's own code lets run in its process without `host` trust (BL-588). A Runtime given one admits exactly these
+ * objects (by identity, as `pluginEntryIdentity` does for the Host's build), an empty set none; a Runtime given none checks nothing,
+ * which only a test's bare Runtime does (a gate keeps every production construction naming it). It is a construction option of the
+ * Host's code: no Manifest, package, caller's input or stored record can set it.
+ */
+export interface InProcessAdmission { readonly admit: ReadonlySet<PluginDefinition> }
 
 /**
  * Where a plugin runs is its Manifest's (`runtime.scope`, PG-011), but nothing a plugin writes can start it in the Home: only code of
@@ -78,8 +91,8 @@ export function assertLocalToolsAllowed(manifest: PluginManifest, trust: PluginT
 }
 
 /** What `install` asks of a definition's trust: it fits where the code runs, and a Home scope or a look for local tools in the Manifest is the Host build's alone. */
-export function assertTrustFitsDefinition(definition: PluginDefinition, trust: PluginTrust): void {
-  assertTrustFitsExecution(trust, definition.execution ?? "host");
+export function assertTrustFitsDefinition(definition: PluginDefinition, trust: PluginTrust, inProcess?: InProcessAdmission): void {
+  assertTrustFitsExecution(trust, definition.execution ?? "host", !inProcess || inProcess.admit.has(definition));
   assertHomeScopeAllowed(definition.manifest, trust);
   assertLocalToolsAllowed(definition.manifest, trust);
 }

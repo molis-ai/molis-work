@@ -19,6 +19,7 @@ export const pluginErrors = defineErrorCodes("plugin", {
   grant_denied: "invalid",
   home_scope_unavailable: "invalid",
   id_namespace_conflict: "invalid",
+  in_process_denied: "invalid",
   install_replaced: "invalid",
   kept_data_incompatible: "invalid",
   manifest_invalid: "invalid",

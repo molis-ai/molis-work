@@ -147,7 +147,7 @@ Workflows 已由 Plugin Runtime 装配（防腐 spec W5-01-WORKFLOWS）：宿主
 
 ### 4.3 浏览器代码（W4-04、W5-04）
 
-Form 同时是浏览器代码打包与类型检查的样板：客户端改成带类型检查的 TypeScript，用 esbuild 打成 IIFE，请求改到 `/api/plugins/io.molis.work.form/`。现在文档族客户端写的是 `/api/plugins/<短名>/…`，由 `native-plugin-api.ts` 改写成 `/api/<短名>/…`；Shelf、Jelly、Todo、Feed、Workflows、Schedule、Cognia、Inbox、Images、Alchemist 的客户端直接请求 `/api/<短名>/…`（`git grep -F "/api/<短名>" -- plugins apps/workbench/src` 分别 31、27、24、24、9、9、7、6、3、1 行）。迁一个，改一个。
+Form 同时是浏览器代码打包与类型检查的样板：客户端改成带类型检查的 TypeScript，用 esbuild 打成 IIFE，请求改到 `/api/plugins/io.molis.work.form/`。当时文档族客户端写的是 `/api/plugins/<短名>/…`，由 `native-plugin-api.ts` 改写成 `/api/<短名>/…`（该文件已于 2026-10-26 删除）；Shelf、Jelly、Todo、Feed、Workflows、Schedule、Cognia、Inbox、Images、Alchemist 的客户端直接请求 `/api/<短名>/…`（`git grep -F "/api/<短名>" -- plugins apps/workbench/src` 分别 31、27、24、24、9、9、7、6、3、1 行）。迁一个，改一个。
 
 ### 4.4 其他前置切片
 
@@ -256,7 +256,7 @@ CHR-1 之前的现状（留作记录）：包 `plugins/native/characters` 有 13
 
 - `tests/builtin-plugin-assembly-gate.test.ts` 已经有三条：每个目录条目要么在 `RUNTIME_ASSEMBLED`，要么在冻结名单；Runtime 条目确实被监督器启动；不再出现名单外的 `*-native-plugin-http.ts`。W1-05 要加：名单与磁盘完全一致（删了文件的条目必须移出）、冻结以插件命名的 `*-actions.ts` 和 `registerProvider` 行数、识别混合插件、按插件统计包外点名次数只许减少。
 - 每个迁移 PR 在同一个 PR 里缩短名单。两种名单的防回头机制不同：`pnpm health:check` 把当前数字和合并基点比对，改不了；而这个测试里的名单是写死在测试文件里的集合，由迁移 PR 直接编辑，缩短靠评审和 W1-05 加的「与磁盘完全一致」那一条，不靠比对基点。
-- 迁完之后（W6-01）：删 `native-plugin-api.ts` 的别名和 `/api/<短名>` 路由；把 AGENTS.md 那条硬约束改写成「新的内置插件 = 自己的包 + 声明」；冻结名单为空，或只留第 3 节的四个例外。
+- 迁完之后（W6-01）：删 `native-plugin-api.ts` 的别名（2026-10-26 已删，RAC-1020）和 `/api/<短名>` 路由（余下的等 Feed/Inbox、Goals、成果库，见 `specs/repository-anti-corruption/slices/w6-01-aliases.md`）；把 AGENTS.md 那条硬约束改写成「新的内置插件 = 自己的包 + 声明」；冻结名单为空，或只留第 3 节的四个例外。
 
 ## 9. 怎样量进展
 

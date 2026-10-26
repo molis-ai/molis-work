@@ -11,7 +11,7 @@ import { mkdtemp, mkdir, readFile, realpath, rm, writeFile, stat } from "node:fs
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import {
@@ -42,7 +42,6 @@ import {
 import { pptManifest, renderPptWorkbench } from "@molis-ai/molis-work-plugin-ppt";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";
 import { homeStores, hostCompleteText } from "@molis-ai/molis-work-app-local-host";
-import { rewriteNativePluginApiPath } from "../apps/local-host/dist/native-plugin-api.js";
 import { MolisWorkUninstallService } from "../apps/local-host/dist/installer/uninstall.js";
 import { RuntimeIntegrationService } from "@molis-ai/molis-work-app-local-host";
 import { MolisWorkWebServiceManager } from "@molis-ai/molis-work-app-local-host";
@@ -193,18 +192,7 @@ test("个人插件 Manifest 声明 storage:private，Pages 另有 artifact:write
   assert.ok(pagesManifest.permissions.some((item) => item.permission === "artifact:write"));
 });
 
-test("客户端使用当前插件路径，保留的 Host 适配按合同改写", () => {
-  // The `/api/plugins/<plugin id>` short-name alias bridge is gone (W6-01/PG-058); only the functions adapter remains.
-  // Form and Pages keep their Manifest routes, so the removed short names leave their paths untouched.
-  assert.equal(rewriteNativePluginApiPath("/api/plugins/io.molis.work.form"), "/api/plugins/io.molis.work.form");
-  assert.equal(rewriteNativePluginApiPath("/api/plugins/pages/abc/promote"), "/api/plugins/pages/abc/promote");
-  // The functions adapter is the one retained rewrite (W6-01).
-  assert.equal(rewriteNativePluginApiPath("/api/plugins/functions"), "/api/functions");
-  assert.equal(rewriteNativePluginApiPath("/api/plugins/io.molis.work.functions/items"), "/api/functions/items");
-  // Shelf's Home half is a Home Runtime instance (PG-026 S2): its routes are served under its own id, with no short native path.
-  assert.equal(rewriteNativePluginApiPath("/api/plugins/io.molis.work.shelf/file"), "/api/plugins/io.molis.work.shelf/file");
-  assert.equal(rewriteNativePluginApiPath("/api/pages/abc"), "/api/pages/abc");
-  assert.equal(rewriteNativePluginApiPath("/api/plugins/unknown/x"), "/api/plugins/unknown/x");
+test("客户端使用当前插件路径", () => {
   // W5-01-PAGES-02: the Runtime client uses its Manifest route, including the resource path.
   // RAC-158: Pages' page names its routes under the plugin ("/pages") and asks the shared host for the full path.
   assert.match(readFileSync(fileURLToPath(new URL("../plugins/native/pages/src/browser/request.ts", import.meta.url)), "utf8"), /host\.pluginRoute\("\/pages" \+ tail\)/);
@@ -237,23 +225,22 @@ test("客户端使用当前插件路径，保留的 Host 适配按合同改写",
 // BFTC-01: FI-2 seeds a rule when its scene registers, after the Host opens the Home; both seeding tests use the same contract input.
 const seedHomeDock = (home: string) => seedSceneRules(home, { provider_id: "test.declarer", title: "测试", kind: "system" }, [HOME_DOCK], { env: {}, credential: () => null });
 
-test("/api/plugins/functions 与 /api/functions 打到同一 handler", async () => {
+test("Functions 只在 /api/functions；旧前缀 /api/plugins/functions 不再进它的 handler（W6-01，RAC-1020）", async () => {
   await withHome(async (home) => {
     // The Host opens the Home first (a fresh Home adopts the current memory format), then registers its scenes.
     const dispatcher = await listenDispatcher(home);
     seedHomeDock(home);
+    assert.equal(existsSync(fileURLToPath(new URL("../apps/local-host/src/native-plugin-api.ts", import.meta.url))), false, "the alias table is gone");
     try {
-      const shortPath = await fetch(`${dispatcher.origin}/api/functions`);
-      const platformPath = await fetch(`${dispatcher.origin}/api/plugins/functions`);
-      assert.equal(shortPath.status, 200);
-      assert.equal(platformPath.status, 200);
-      const shortBody = await shortPath.json() as { functions: Array<{ function_key: string }> };
-      const platformBody = await platformPath.json() as { functions: Array<{ function_key: string }> };
-      assert.deepEqual(
-        shortBody.functions.map((row) => row.function_key).sort(),
-        platformBody.functions.map((row) => row.function_key).sort(),
-      );
-      assert.ok(shortBody.functions.some((row) => row.function_key === SYSTEM_HOME_DOCK_FUNCTION_KEY));
+      const own = await fetch(`${dispatcher.origin}/api/functions`);
+      assert.equal(own.status, 200);
+      const body = await own.json() as { functions: Array<{ function_key: string }> };
+      assert.ok(body.functions.some((row) => row.function_key === SYSTEM_HOME_DOCK_FUNCTION_KEY));
+      for (const old of ["/api/plugins/functions", "/api/plugins/io.molis.work.functions", "/api/plugins/functions/some-id"]) {
+        const refused = await fetch(`${dispatcher.origin}${old}`);
+        assert.equal(refused.status, 404, `${old} is no spelling of /api/functions any more`);
+        assert.equal((await refused.text()).includes("function_key"), false, `${old} lists no functions`);
+      }
     } finally {
       await dispatcher.close();
     }
@@ -387,27 +374,27 @@ test("HTTP 带着过期 updated_at 保存草稿会 409", async () => {
   await withHome(async (home) => {
     const dispatcher = await listenDispatcher(home);
     try {
-      const created = await fetch(`${dispatcher.origin}/api/plugins/functions`, {
+      const created = await fetch(`${dispatcher.origin}/api/functions`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ primitive: "choice", name: "http-cas" }),
       });
       assert.equal(created.status, 200);
       const record = (await created.json() as { function: { id: string; updated_at: string } }).function;
-      const first = await fetch(`${dispatcher.origin}/api/plugins/functions/${record.id}`, {
+      const first = await fetch(`${dispatcher.origin}/api/functions/${record.id}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ name: "first", updated_at: record.updated_at }),
       });
       assert.equal(first.status, 200);
-      const second = await fetch(`${dispatcher.origin}/api/plugins/functions/${record.id}`, {
+      const second = await fetch(`${dispatcher.origin}/api/functions/${record.id}`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ name: "second", updated_at: record.updated_at }),
       });
       assert.equal(second.status, 409);
       assert.equal((await second.json() as { code: string }).code, "functions.conflict");
-      const latest = await fetch(`${dispatcher.origin}/api/plugins/functions/${record.id}`);
+      const latest = await fetch(`${dispatcher.origin}/api/functions/${record.id}`);
       assert.equal(((await latest.json()) as { function: { name: string } }).function.name, "first");
     } finally {
       await dispatcher.close();

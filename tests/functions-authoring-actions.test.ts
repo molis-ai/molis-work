@@ -144,8 +144,7 @@ test("system rule authoring shares the real Host across HTTP and internal calls,
     await assert.rejects(client.invoke(owner, authoring.create, { primitive: "bogus" }), { code: "actions.input_invalid" });
     const published: FunctionRecord[] = [];
     for (const primitive of ["choice", "noul", "score"] as const) {
-      // The legacy URL is only a thin spelling alias, including mutation paths.
-      const draft = (await http("/api/plugins/functions", { primitive, function_key: `auth_${primitive}`, name: `Rule ${primitive}` })).function;
+      const draft = (await http("/api/functions", { primitive, function_key: `auth_${primitive}`, name: `Rule ${primitive}` })).function;
       assert.equal((await actions.invoke(authoring.get, { id: draft.id })).function.function_key, draft.function_key);
       const criteria = primitive === "choice" ? [{ key: "yes", description: "yes" }, { key: "no", description: "no" }]
         : primitive === "score" ? ["low", "high"] : { true_description: "yes", false_description: "no" };

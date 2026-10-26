@@ -98,6 +98,12 @@ export interface PluginHostServices {
    * plugin's code gets this in place of `project_database`, so its statements run in a process the controller can kill.
    */
   readonly project_statements?: import("./plugin-database.js").PluginProjectStatements;
+  /**
+   * The plugin's own library in the Home for a plugin the Host runs outside its own process (`execution: "sandbox"`) on the Home Runtime, present
+   * when its Manifest declares `databases.home`: the same statements and the same killable process as `project_statements`, over a file that is
+   * wholly the plugin's (PG-017 BL-490). The host entry that carries the plugin's code gets this in place of `database`.
+   */
+  readonly database_statements?: import("./plugin-database.js").PluginProjectStatements;
   /** Project wakeups, scoped to this plugin. Writes join its current project database transaction. */
   readonly scheduler?: import("./plugin-scheduler.js").PluginScheduleClient;
   readonly ownerFiles?: import("./plugin-owner-files.js").PluginOwnerFilesClient;

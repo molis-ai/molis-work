@@ -43,7 +43,7 @@ export function storageTransactions(storage: PluginPrivateStorage): NonNullable<
 
 type HostServices = NonNullable<PluginStartContext['services']>;
 /** What the Host built for the activation that the sandbox can be given. */
-export type SandboxHostServices = Pick<HostServices, 'storage' | 'project_statements' | 'interaction' | 'connections' | 'materials' | 'ownerFiles' | 'model' | 'background'>;
+export type SandboxHostServices = Pick<HostServices, 'storage' | 'project_statements' | 'database_statements' | 'interaction' | 'connections' | 'materials' | 'ownerFiles' | 'model' | 'background'>;
 /** Services the caller builds itself (the platform capabilities the person approved, the network adapter): the broker still checks each call against the grants. */
 export type SandboxHostExtras = Pick<SandboxServices, 'capability' | 'network'> & {
   /** The instructions the package registered (`PluginDefinition.instructions`): the only prompts a model request may name (V-20). */
@@ -63,6 +63,7 @@ export function sandboxServicesFor(host: SandboxHostServices | undefined, extras
   return {
     storage: storageTransactions(storage),
     ...(host.project_statements ? { projectDatabase: sandboxDatabase(host.project_statements) } : {}),
+    ...(host.database_statements ? { homeDatabase: sandboxDatabase(host.database_statements) } : {}),
     ...(extras.capability ? { capability: extras.capability } : {}),
     ...(extras.network ? { network: extras.network } : {}),
     // The activation's drawing of questions, cards and next steps, reached through the broker like every other service.
@@ -93,7 +94,7 @@ export type SandboxDeclarations = Pick<PluginDefinition, 'manifest' | 'instructi
  */
 export type SandboxServiceFate = 'given' | 'refused' | 'entry' | 'replaced' | 'drawn';
 export const SANDBOX_SERVICE_FATE: { readonly [Service in keyof PluginHostServices]-?: SandboxServiceFate } = Object.freeze({
-  storage: 'given', project_statements: 'given', interaction: 'given', capabilities: 'given', connections: 'given', materials: 'given', ownerFiles: 'given',
+  storage: 'given', project_statements: 'given', database_statements: 'given', interaction: 'given', capabilities: 'given', connections: 'given', materials: 'given', ownerFiles: 'given',
   project_database: 'replaced', ui: 'drawn',
   database: 'entry', files: 'entry', terminal: 'entry', imageGeneration: 'entry',
   model: 'given', background: 'given', agents: 'refused', scheduler: 'refused', directory: 'refused',

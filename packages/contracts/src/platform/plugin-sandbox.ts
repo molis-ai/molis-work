@@ -31,6 +31,8 @@ export interface SandboxEffects {
   resources?: string[];
   /** The plugin's own tables in the project's library, which its Manifest declares (`databases.project`). */
   projectDatabase?: Array<'read' | 'write'>;
+  /** The plugin's own library in the Home, which its Manifest declares (`databases.home`); only a package the Home Runtime runs has one (`sdk.homeDatabase`, PG-017 BL-490). */
+  homeDatabase?: Array<'read' | 'write'>;
   /** Slots of the Manifest's `connections.slots` the operation sends requests through (`sdk.connections`); the plugin's package also declares `connections:use`. */
   connections?: string[];
   /**
@@ -244,6 +246,15 @@ export interface SandboxSdk {
     transaction(statements: SandboxSqlStatement[]): Promise<Array<{ changes: number }>>;
   };
   /**
+   * The plugin's own library in the Home (`databases.home`), for a package the Home Runtime runs: the same statements, limits and process as
+   * `projectDatabase`, over a file that is wholly the plugin's. Declare `effects.homeDatabase: ['read']` or `['read', 'write']`; a query cannot write.
+   */
+  homeDatabase: {
+    get(sql: string, parameters?: SandboxSqlValue[]): Promise<SandboxSqlRow | null>;
+    all(sql: string, parameters?: SandboxSqlValue[]): Promise<SandboxSqlRow[]>;
+    transaction(statements: SandboxSqlStatement[]): Promise<Array<{ changes: number }>>;
+  };
+  /**
    * Requests through the account the person bound to one of the Manifest's connection slots. The credential never reaches the plugin and
    * only the slot's service can be reached; a query may only send `GET` and `HEAD`. Declare the slot in the operation's `effects.connections`.
    * `describe` tells whether there is an account; `release` unbinds a record's account on a `per_record` slot (not from a query).
@@ -314,6 +325,7 @@ export type SandboxOperations = Record<string, (input: SandboxJson, sdk: Sandbox
 export type SandboxSdkMethod = 'storage.get' | 'storage.set' | 'storage.delete' | 'storage.list'
   | 'artifacts.get' | 'artifacts.put' | 'capability.call' | 'events.publish' | 'network.request' | 'resource.read'
   | 'projectDatabase.get' | 'projectDatabase.all' | 'projectDatabase.transaction' | 'connections.request' | 'connections.describe' | 'connections.release'
+  | 'homeDatabase.get' | 'homeDatabase.all' | 'homeDatabase.transaction'
   | 'materials.imageTextAvailable' | 'materials.readDocuments' | 'materials.extract' | 'materials.readLocalPage'
   | 'materials.claimOriginal' | 'materials.readOriginalRange' | 'materials.releaseOriginal'
   | 'ownerFiles.stat' | 'ownerFiles.list' | 'ownerFiles.read' | 'ownerFiles.write'

@@ -93,7 +93,7 @@
 
 ## 4. 合同与代码改动
 
-- `packages/plugin-runtime`：`PluginRuntime.regrant`（`index.ts`，一个只转交的方法）、步骤在新文件 `regrant.ts`（`regrantInstall`，类已冻结，新增部分先写在新文件里，`HUGE-CLASS-MIGRATION.md`），`toggledGrants` 在 `install-rules.ts`；README「开发要求」加一条。类因此仍多一个方法，`tooling/gates/giant-exceptions.json` 里登记了 class 与 file 两条，等 W5-10 拆分时随之删。
+- `packages/plugin-runtime`：`PluginRuntime.regrant`（`index.ts`，一个只转交的方法）、步骤在新文件 `regrant.ts`（`regrantInstall`，类已冻结，新增部分先写在新文件里，`HUGE-CLASS-MIGRATION.md`），`toggledGrants` 在 `install-rules.ts`；README「开发要求」加一条。类因此仍多一个方法，`tooling/gates/giant-exceptions.json` 里登记了 class 与 file 两条，按内聚单元的例外口径写理由（W5-10 判定 `PluginRuntime` 为内聚例外），类不再变大。
 - `packages/contracts`：`PluginPermissionView.granted`（增量字段，`pnpm api:update`）。
 - `apps/local-host`：动作与处理器在 `plugin-install-actions.ts`（同一个提供方，没有新增 `registerProvider`），`plugin-install-service.ts` 的 `setPermission`，凭据在 `plugin-consent-settings-entry.ts`（第二份登记 `permissionEntries`，没有复制机制），入口是 `plugin-trust-http.ts` 的 `permissions/set`，`project-plugin-ports.ts` 的 `regrantPluginInProject`，`plugin-installed-view.ts` 填 `granted`。
 - `apps/workbench/src/settings-plugins.ts`：开关与作业的暂停标记。
@@ -132,6 +132,7 @@
 | RAC-957 | （BL-700）个人空间的开关只给本人：四种别的调用者发现不了也调不了；没有凭据、手写同文、项目入口的凭据、同意入口的凭据、代本人的调用都是 `actions.forbidden`；输入里写项目或身份被拒 | `tests/security-invariants-plugin-permissions.test.ts` |
 | RAC-958 | （BL-700）宿主设置入口列出并开关个人空间的插件：控制令牌、Origin、方法、多余字段、插件页都被拒；开关后插件按新授权重启、列表读到新值；必需的关不掉、没声明的开不了；项目入口够不到它 | `tests/security-invariants-plugin-permissions-http.test.ts` |
 | RAC-959 | （BL-700）插件页有「个人空间里的插件」一节，从宿主设置入口读、开关发往那里；项目的行仍发往项目入口 | 同上 |
+| RAC-959 | 同一条在真实浏览器里：页面脚本照宿主发的原样运行，点项目插件的开关发往项目入口、点个人空间插件的开关发往宿主设置入口，四类宽权限在确认前不发请求、取消后开关回原位（一轮评审发现源码正则抓不到「开关根本点不动」，2026-10-26） | `tests/plugin-permission-switch.e2e.test.ts`（只在本机跑，没有 Chrome 时跳过） |
 
 ## 7. 裁定（统筹，2026-10-26）
 

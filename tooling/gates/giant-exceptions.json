@@ -3,7 +3,7 @@
   "exceptions": {
     "class packages/plugin-runtime/src/index.ts#PluginRuntime": {
       "kind": "cohesive-unit",
-      "reason": "PluginRuntime 是插件安装的生命周期状态机：安装、启动、停止、升级、回退、改授权都在同一把安装锁、同一份撤权世代和同一个记录库下串行；拆到类外要把锁、记录库和撤权的私有入口全部公开，一致性反而散到类外。PG-002 新增的 regrant 只是一个转交方法，步骤在 regrant.ts（类已冻结，新增部分写在新文件）；W5-10 拆分时这两条一起删。",
+      "reason": "PluginRuntime 是插件安装的生命周期状态机：安装、启动、停止、升级、回退、改授权都在同一把安装锁、同一份撤权世代和同一个记录库下串行；拆到类外要把锁、记录库和撤权的私有入口全部公开，一致性反而散到类外。它是内聚单元，按例外登记（W5-10 判定为内聚例外），不是待拆的债。PG-002 新增的 regrant 在类里只是一个转交方法，步骤在 regrant.ts；类不再变大，往后新增的逻辑写在新文件里。",
       "size": {
         "lines": 625,
         "methods": 31

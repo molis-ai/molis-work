@@ -154,7 +154,7 @@ return item;
 };
 const load = async () => {
 const data = await api("/overview");
-draw($("[data-plugin-trust-list]"), L("这个项目里还没有装插件"), data.plugins.map(installed));
+draw($("[data-plugin-trust-list]"), L("这个项目里还没有装插件"), data.plugins.map((plugin) => installed(plugin)));
 const home = await molisWorkRequest("/api/settings/plugin-permissions/list", { body: {} });
 const homeSend = (payload) => molisWorkRequest("/api/settings/plugin-permissions/set", { body: payload });
 draw($("[data-plugin-trust-home]"), L("个人空间里没有插件"), home.plugins.map((plugin) => installed(plugin, homeSend)));

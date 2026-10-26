@@ -13,6 +13,6 @@
 ## 验收
 
 - FRAME-WEBKIT-01：页面回答的内容安全策略里，`script-src`、`style-src`、`font-src` 带有这次请求自己的 `http://127.0.0.1:<端口>`。测试名或注释写出该编号。
-- FRAME-WEBKIT-02：最终合成树正式构建后，在隔离临时 Home、随机回环端口、非持久系统 WKWebView 中打开真实 Pages；产品脚本与 bridge 自己完成 ready，外链样式与现有字体实际加载并生效，原 10 秒期限后仍没有重试占位。截图、页面/网络与自然退出保留。仅 header、Chrome 或 Native 注入成功不能证明这一项。
+- FRAME-WEBKIT-02：最终合成树正式构建后，在隔离临时 Home、随机回环端口、非持久系统 WKWebView 中打开真实 Pages；产品脚本与 bridge 自己完成 ready，外链样式实际生效，正常系统字体栈与中英文显示正确；实际不透明框中原声明的备用字体通过 `FontFaceSet.load` 产生真实 HTTP 并成功加载，没有 `font-src` 拒绝，不要求 UI 字形改用备用字体。原 10 秒期限后仍没有重试占位。截图、页面/网络与自然退出保留。仅 header、Chrome 或 Native 注入成功不能证明这一项。
 - FRAME-WEBKIT-03：同一实际不透明框读 `parent.document` 被拒，不含宿主 token；直接 XHR 到 `/settings` 被 CSP 拒绝且宿主未收到该标记请求，框导航宿主 HTML 被 403 拒绝而父页保留。复用原 S-02/S-21 的 HTTP 拒绝断言，不放宽安全策略。
 - 原真实桌面窗口中打开 Pages 的最终体验仍待真实安装及用户验收；隔离系统 WK 只证明所测 WebKit 版本与路径。

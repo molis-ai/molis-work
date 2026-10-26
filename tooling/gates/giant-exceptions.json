@@ -190,12 +190,12 @@
     "function plugins/native/goals/src/goal-tree-decision.ts#decideGoalTreeProposal": {
       "kind": "cohesive-unit",
       "reason": "Goal 树提案的决定：一次事务内验证提案、逐项应用、记录修订和提醒，成败必须一起；拆成几个函数只会让事务边界难读。",
-      "size": 269
+      "size": 267
     },
     "function plugins/native/goals/src/goal-tree-decision.ts#result callback 1": {
       "kind": "cohesive-unit",
-      "reason": "decideGoalTreeProposal 里的事务回调（243 行），就是上一条那一次决定的事务体，不是另一件事；与外层函数一起标明。",
-      "size": 243
+      "reason": "decideGoalTreeProposal 里的事务回调（241 行），就是上一条那一次决定的事务体，不是另一件事；与外层函数一起标明。",
+      "size": 241
     },
     "function plugins/native/goals/src/module/event-state-effects.ts#recordTrustedDecision": {
       "kind": "cohesive-unit",

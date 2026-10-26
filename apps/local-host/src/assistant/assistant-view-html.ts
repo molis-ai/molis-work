@@ -1,4 +1,6 @@
-import { renderInteractionNextSteps, type InteractionNextStep, type InteractionValues } from "@molis-ai/molis-work-design-system";
+import type { InteractionNextStep } from "@molis-ai/molis-work-contracts/platform/ui";
+import type { InteractionValues } from "@molis-ai/molis-work-plugin-sdk/page-globals";
+import { renderInteractionNextSteps } from "@molis-ai/molis-work-design-system";
 import type { AssistantCard, AssistantWorkView } from "@molis-ai/molis-work-contracts/services/assistant";
 import { assistantTextHtml, assistantReviewHtml } from "@molis-ai/molis-work-app-workbench";
 import { agentQuestionHtml } from "../agent-question-card.js";

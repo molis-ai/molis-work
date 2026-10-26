@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService } from "@molis-ai/molis-work-app-local-host";
+import { HomeConsentLedger, LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
 test("the Feed reader shows 「升格为 Goal」 only while the project has Goals to write through", { timeout: 60_000 }, async () => {
@@ -33,17 +33,24 @@ test("the Feed reader shows 「升格为 Goal」 only while the project has Goal
       assert.equal(response.status, 200);
       return response.text();
     };
-    const member = (change: "add" | "remove") => withMolisWorkProjectCatalog({ homeDirectory: home }, c => c.commit(() => change === "add"
-      ? c.addProjectPlugin({ project_id: projectId, plugin_id: "goals", actor_id: "test" })
-      : c.removeProjectPlugin({ project_id: projectId, plugin_id: "goals", actor_id: "test" })));
     const withGoals = await detail();
     assert.match(withGoals, /data-feed-action="promote"/);
-    await member("remove");
-    const withoutGoals = await detail();
-    assert.doesNotMatch(withoutGoals, /data-feed-action="promote"/);
-    for (const action of ["inbox", "save", "archive"]) assert.match(withoutGoals, new RegExp(`data-feed-action="${action}"`));
-    await member("add");
+    for (const action of ["inbox", "save", "archive"]) assert.match(withGoals, new RegExp(`data-feed-action="${action}"`));
+    // Goals is 常开 (ac-trust T3): no project removes it while the standing agreement holds, so the reader keeps offering the promotion.
+    const remove = () => withMolisWorkProjectCatalog({ homeDirectory: home }, c => c.commit(() =>
+      c.removeProjectPlugin({ project_id: projectId, plugin_id: "goals", actor_id: "test" })));
+    await assert.rejects(remove(), { code: "catalog.plugin_always_on" });
     assert.match(await detail(), /data-feed-action="promote"/);
+    // The person takes the agreement back (ac-trust T5, `plugins.consents.revoke`): Goals is a plugin like any other, and the project
+    // without it has nothing to write a promotion through, so the reader stops offering it.
+    const ledger = new HomeConsentLedger(home);
+    const agreement = ledger.consents("io.molis.work.goals").find(row => row.kind === "always_on" && row.revoked_at === null);
+    assert.ok(agreement, "the Host agreed for its own build when the project started");
+    ledger.revoke(agreement.consent_id, new Date().toISOString());
+    await remove();
+    const without = await detail();
+    assert.doesNotMatch(without, /data-feed-action="promote"/);
+    for (const action of ["inbox", "save", "archive"]) assert.match(without, new RegExp(`data-feed-action="${action}"`));
   } finally {
     if (server.listening) await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
     rmSync(home, { recursive: true, force: true });

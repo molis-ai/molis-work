@@ -4,7 +4,7 @@ import { molisWorkHostProjectReference, type MolisWorkLocalHost } from "./projec
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { sendLocalWebJson as sendJson, readLocalWebBody as readBody } from "./web-http.js";
 import { renderMcpAccessRows } from "@molis-ai/molis-work-app-workbench";
-import { escapeHtml } from "@molis-ai/molis-work-design-system";
+import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { L, listJoin } from "./web-locale.js";
 import { readMcpActionAccess } from "./mcp-action-access.js";
 import { actionClientAudience, createMcpActionGrant, resolveMcpActionContext } from "./mcp-action-grants.js";

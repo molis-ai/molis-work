@@ -23,9 +23,6 @@ import {
   INBOX_DISMISS_BEHAVIOR_ID,
   INBOX_DONE_BEHAVIOR_ID,
   INBOX_NEXT_SCENE_ID,
-  SYSTEM_HOME_DOCK_FUNCTION_KEY,
-  SYSTEM_INBOX_ADMIT_FUNCTION_KEY,
-  SYSTEM_INBOX_NEXT_FUNCTION_KEY,
   choiceCriteriaFollowContext,
   type FunctionAuthoringCatalog,
   type TypeSafeEvaluateResult,
@@ -554,11 +551,8 @@ test("catalog HTTP saves a TypeSafe key without echoing it and keeps Functions o
   assert.doesNotMatch(await (await fetch(`${origin}/capabilities/connections`)).text(), /sk-live-secret/);
   assert.deepEqual(await (await fetch(`${origin}/api/functions/settings`)).json(), { has_credential: true, source: "ui" });
   const listed = await (await fetch(`${origin}/api/functions`)).json() as { functions: Array<{ function_key: string; scene_id: string | null }> };
-  assert.deepEqual(
-    listed.functions.map((row) => row.function_key).sort(),
-    [SYSTEM_INBOX_ADMIT_FUNCTION_KEY, SYSTEM_HOME_DOCK_FUNCTION_KEY, SYSTEM_INBOX_NEXT_FUNCTION_KEY].sort(),
-  );
-  assert.equal(listed.functions.find((row) => row.function_key === SYSTEM_HOME_DOCK_FUNCTION_KEY)?.scene_id, "home.dock");
+  // A rule is written when the scene that declares it registers (RAC-484), and no project has been opened here, so no scene has.
+  assert.deepEqual(listed.functions, []);
   const catalog = await (await fetch(`${origin}/api/functions/catalog`)).json() as {
     catalog: {
       destinations: Array<{ destination_id: string; configure_at: string; kind: string; when?: string; behavior_ids?: string[]; availability?: { available: boolean; code?: string } }>;

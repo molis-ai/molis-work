@@ -146,6 +146,10 @@
       "types": "./dist/platform/plugin-events.d.ts",
       "import": "./dist/platform/plugin-events.js"
     },
+    "./platform/plugin-trust": {
+      "types": "./dist/platform/plugin-trust.d.ts",
+      "import": "./dist/platform/plugin-trust.js"
+    },
     "./platform/plugin-wiring": {
       "types": "./dist/platform/plugin-wiring.d.ts",
       "import": "./dist/platform/plugin-wiring.js"
@@ -246,14 +250,6 @@
       "types": "./dist/modules/characters.d.ts",
       "import": "./dist/modules/characters.js"
     },
-    "./modules/images": {
-      "types": "./dist/modules/images.d.ts",
-      "import": "./dist/modules/images.js"
-    },
-    "./modules/jelly": {
-      "types": "./dist/modules/jelly.d.ts",
-      "import": "./dist/modules/jelly.js"
-    },
     "./platform/actions": {
       "types": "./dist/platform/actions.d.ts",
       "import": "./dist/platform/actions.js"
@@ -281,6 +277,10 @@
     "./platform/plugin-connections": {
       "types": "./dist/platform/plugin-connections.d.ts",
       "import": "./dist/platform/plugin-connections.js"
+    },
+    "./platform/plugin-attention": {
+      "types": "./dist/platform/plugin-attention.d.ts",
+      "import": "./dist/platform/plugin-attention.js"
     }
   },
   "files": [

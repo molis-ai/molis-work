@@ -2,12 +2,12 @@ import type { IncomingMessage } from "node:http";
 import { readFile, stat } from "node:fs/promises";
 import { readOriginalText } from "./artifact-original-text.js";
 import { readMaterialHtml } from "./material-extraction.js";
-import { ActionError, defineErrorCodes, type ActionCallContext, type ActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import { readExternalDocument } from "@molis-ai/molis-work-integration-catalog";
 import {
-  ARTIFACTS_PLUGIN_ID, DOCUMENT_IMPORT_MAX_BYTES, artifactsActions, documentErrors, importArtifactDocument, storeArtifactOriginal,
-  type ArtifactDocumentImportPorts, type OfferedOriginal, type ArtifactFileImport, type ArtifactImportResult, type ExternalDocumentSource,
-} from "@molis-ai/molis-work-plugin-artifacts";
+  DOCUMENT_IMPORT_MAX_BYTES, documentErrors, importArtifactDocument, storeArtifactOriginal,
+  type ArtifactDocumentImportPorts, type OfferedOriginal, type ExternalDocumentSource,
+} from "@molis-ai/molis-work-module-artifacts";
 import { resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { listConnectorConnectionViews } from "./connector-connection-views.js";
 import { resolveApiConnection } from "./connector-access.js";
@@ -31,11 +31,6 @@ const artifactImportErrors = defineErrorCodes("artifacts.document", {
 const CONNECTOR_IDS: Record<ExternalDocumentSource, string> = {
   notion: "notion", feishu: "feishu", lark: "lark", "google-docs": "google-drive",
 };
-
-/** A file saved into the project's 成果库 through its own import action, as `caller`; refused where the 成果库 is off. */
-export async function importThroughArtifacts(client: ActionClient, caller: ActionCallContext, input: ArtifactFileImport): Promise<ArtifactImportResult> {
-  return await client.invoke(caller, { ...artifactsActions.importFile, provider_id: ARTIFACTS_PLUGIN_ID }, input) as ArtifactImportResult;
-}
 
 export function documentImportConnections(home = resolveMolisWorkHome()) {
   return listConnectorConnectionViews(home).filter(row => Object.values(CONNECTOR_IDS).includes(row.service_id)

@@ -122,6 +122,8 @@ export interface SandboxNetworkResponse {
 /** A request through the account the person bound to a slot (`sdk.connections`): only https addresses on the slot's service, never a credential header. */
 export interface SandboxConnectionRequest {
   url: string;
+  /** Which record's account, on a `per_record` slot (and only there). */
+  record_key?: string;
   method?: 'GET' | 'HEAD' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   headers?: Record<string, string>;
   body?: string;
@@ -132,6 +134,12 @@ export interface SandboxConnectionResponse {
   body: string;
   /** Whether the Host added the bound account's credential; `false` means the request went out anonymously. */
   authenticated: boolean;
+}
+/** Whether a slot (a record's, on a `per_record` slot) has an account, its name and state; never which connection or a credential. */
+export interface SandboxConnectionDescription {
+  bound: boolean;
+  display_name?: string;
+  state?: 'connected' | 'reauth_required' | 'disconnected';
 }
 
 /** A file as it crosses the channel: its name and its bytes in base64 (the Host decodes and checks it before it reads any of it). */
@@ -253,8 +261,13 @@ export interface SandboxSdk {
   /**
    * Requests through the account the person bound to one of the Manifest's connection slots. The credential never reaches the plugin and
    * only the slot's service can be reached; a query may only send `GET` and `HEAD`. Declare the slot in the operation's `effects.connections`.
+   * `describe` tells whether there is an account; `release` unbinds a record's account on a `per_record` slot (not from a query).
    */
-  connections: { request(slot_id: string, request: SandboxConnectionRequest): Promise<SandboxConnectionResponse> };
+  connections: {
+    request(slot_id: string, request: SandboxConnectionRequest): Promise<SandboxConnectionResponse>;
+    describe(slot_id: string, record_key?: string): Promise<SandboxConnectionDescription>;
+    release(slot_id: string, record_key: string): Promise<void>;
+  };
   /**
    * The Host's readers of files the plugin already holds (`services.materials`): `readDocuments` reads Markdown, HTML, text, CSV, DOCX or
    * a ZIP of those, `extract` reads one file (PDF, image, office document) as text, `imageTextAvailable` says whether an image's text can
@@ -318,7 +331,7 @@ export interface SandboxSdk {
 export type SandboxOperations = Record<string, (input: SandboxJson, sdk: SandboxSdk) => Promise<SandboxJson>>;
 export type SandboxSdkMethod = 'storage.get' | 'storage.set' | 'storage.delete' | 'storage.list'
   | 'artifacts.get' | 'artifacts.put' | 'capability.call' | 'events.publish' | 'network.request' | 'resource.read'
-  | 'projectDatabase.get' | 'projectDatabase.all' | 'projectDatabase.transaction' | 'connections.request'
+  | 'projectDatabase.get' | 'projectDatabase.all' | 'projectDatabase.transaction' | 'connections.request' | 'connections.describe' | 'connections.release'
   | 'materials.imageTextAvailable' | 'materials.readDocuments' | 'materials.extract' | 'materials.readSource' | 'materials.readLocalPage'
   | 'materials.claimOriginal' | 'materials.readOriginalRange' | 'materials.releaseOriginal'
   | 'ownerFiles.stat' | 'ownerFiles.list' | 'ownerFiles.read' | 'ownerFiles.write'

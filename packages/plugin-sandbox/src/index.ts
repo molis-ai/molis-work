@@ -8,6 +8,6 @@ export { MODEL_DATA_CHARS, modelDeadlines, sandboxModel, type SandboxModel } fro
 export { sandboxServicesFor, storageTransactions, assertSandboxDeclarations, SANDBOX_NOT_GIVEN, SANDBOX_SERVICE_FATE, type NotGiven, type SandboxServiceFate, type SandboxHostServices, type SandboxHostExtras, type SandboxDeclarations } from './services.js';
 export { createHttpsProxy, isPublicAddress, validateNetworkRequest } from './https-proxy.js';
 export type { HttpsProxyOptions, SandboxSecret } from './https-proxy.js';
-export { assertContract, assertSchema, assertMatches, assertEffects, assertJson, SandboxError } from './schema.js';
+export { assertContract, assertSchema, assertMatches, assertEffects, assertJson, effectsFromContract, SandboxError } from './schema.js';
 export { seatbeltProfile } from './seatbelt.js';
 export const packageDescriptor = { packageName: '@molis-ai/molis-work-plugin-sandbox', packagePath: 'packages/plugin-sandbox', kind: 'foundation', maturity: "partial", contract: '@molis-ai/molis-work-contracts/platform/plugin-sandbox', migrationGoals: ['goal-reorg-f2'], ssot: 'docs/SSOT-MATRIX.md', capabilities: [] } as const;

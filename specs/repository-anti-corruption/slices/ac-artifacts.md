@@ -1,6 +1,32 @@
 # ac-artifacts：成果库去插件身份，成为平台事实的主人（设计稿）
 
-状态：设计稿，等统筹审定（2026-10-24）；只写设计，不改代码。A3 之后的实现片要等 #1098（动 `manifest.ts`）合入。
+状态：设计稿已审定，A1、A2a（客户端与 owner 操作）已随 batch-27 落地；A2b（动作处理器、浏览、导入、原件存取、项目引用、目标引用搬进 `modules/artifacts`，宿主停止 import 成果库插件包）2026-10-24 开发完成，等评审。A3（PG-064、PG-079、PG-077：成果类型登记表搬进宿主并读有效安装的 Manifest，`consumes[].file`，Goals 链接种类 `artifacts.links`，安装时拒重复属主，宿主这一层拒装上的产出者写未声明的类型）2026-10-25 开发完成，在分支 `anticorr/ac-artifacts-a3`，RAC-415～421；§5.1 的 S-69.1、S-70.4 暂记为 S-81，S-70.2、S-70.3 暂记为 S-82（S-69、S-70 已被连接扩展占用，合入时由统筹核号）。A3 之后的实现片要等 ac-registry 的 PG-024 片。
+
+A2b 的取舍（受「插件不能 import 模块」限制，插件在 A6 删除前仍要自己的 Manifest 与登记）：模块持有完整的 `artifact-actions.ts`（动作清单加处理器）、`artifact-provider.ts`（`ARTIFACTS_PROVIDER`：id、名称、版本、签名）及其依赖；插件只留动作清单（`actions.ts`）、`browser-view.ts`（页面视图类型与版本路径）、Home 存储登记与项目删除清理（`original-store.ts`）和界面。两份清单与提供方字段由 `tests/plugin-artifact-schemas.test.ts` 对照（RAC-414），A6 删插件时重复随之消失。
+
+### A3 修复 WO：恢复连接与缺失项目库（2026-10-25，负责人 Codex）
+
+状态：实现与定向产品回归完成，独立审验待交接，准确 parent `8ec03a0979e81a723c06ff5332a8b91645b2df8a`；仅处理 [增量评审的两个 P1](https://github.com/molis-ai/molis-work/pull/1294#issuecomment-6399755660)，不重做 FIRST，不代表 A3 或防腐线完成。
+
+根因与方案：`restoreWorkAssets` 重新打开项目连接，没有 `createPluginPlatform → bindProjectArtifacts` 的 WeakMap 视图。恢复专用判断改经 Runtime 公开的持久安装与精确 release Manifest 读取函数，在恢复事务内读取目标库；已装与停用安装都按该安装的 Manifest 判断，缺发行物或读取失败拒绝，不靠启动插件。只有确实没有该产出者安装记录才用既定历史例外；已卸载记录不能冒充从未安装。普通写入仍只问项目监督器，恢复范围限制、版本比较、原样内容、警告和事务不变。`heldInstalls` 对 catalog 已登记项目的缺文件改为抛出不可读，继续由现有声明检查拒绝安装、清理调用端保留规则和样例；不另写 reader，不改 scope + install_id 排除合同。
+
+范围：`apps/local-host/src/declared-types.ts`、`plugin-holders.ts`，必要的真实恢复接线、对应 tests/fixtures、本 WO 和 S-81/S-82 引用。复用 Runtime 公开读取，不跨 owner 写 SQL，不新增 SDK/Contract 或公开恢复口。FI2 caller、F5/C2、PG049、其他工作树及真实 Home 均不在范围。目标是两个 P1 的功能修复与临时 Home 定向工程证据；独立审验、组批与合入归原流水线。
+
+| 验收编号 | 可观察结果及证据 |
+| --- | --- |
+| RAC-416-R1 | 经生产 `restoreWorkAssets` 新连接，已装/停用者未声明类型均拒绝；混合包在后项拒绝时前项也回滚，成果版本与业务事件零新增；目标库重开后仍可观察。 |
+| RAC-416-R2 | 真正未安装者的历史原样恢复并带原警告；重复恢复不重复写，普通写入仍拒绝；读取安装或精确发行物失败拒绝，不借其他版本 Manifest 放行。已装/停用者合法声明的历史恢复无需启动插件。 |
+| RAC-417-R1 | 隔离 Home 中暂移 catalog 另一项目库，实际 Runtime 安装被拒且零安装记录；真实卸载保留规则、属主和用户样例；finally 恢复文件后正常判断与最后持有者清理。不同项目同 install_id、不同版本及保留数据边界沿原合同。 |
+
+实测记录：RAC-416-R1/R2、RAC-417-R1 均通过。未修 8ec 上新生产入口用例实际复现已装/停用与缺发行物误放行，缺项目库的安装误放行与规则/样例误删；未安装历史正控通过（7 项含子用例，1 通过、6 失败；无取消/跳过）。修后整批 5 文件 38/38，分别为声明 18、规则生命周期 4、跨设备接续 1、网关 2、CLI 13，无失败/取消/跳过。整体构建、相对 origin/main merge-base 的健康门禁及经公共 FIFO 运行的边界门禁均通过。首轮测试夹具遗漏包的 `supersedes_version: null`，修正夹具后重新取得上述有效 RED，首轮日志保留但不当产品复现。未跑 full/CI/browser、通用 Host README 宽批或 TEST 的 5 个独立安装身份 probe；不是用户验收。
+
+验证：先补回归在未修源码上取得定向 RED，再改生产源码并整体 `pnpm build`（公共 build FIFO），运行 `node scripts/run-tests.mjs --jobs 2 --verbose tests/security-invariants-artifact-declarations.test.ts tests/scene-default-rule-lifecycle.test.ts tests/cross-device-continuity.test.ts tests/cross-device-gateway.test.ts tests/server-cli.test.ts`；按实际修改补相关定向用例及 `pnpm boundary:check`、`node scripts/check-health-gates.mjs --base origin/main`、`git diff --check`。不新跑 full/CI/browser，不重已知旧失败。保留原日志、exit、取消/未选边界；推送前 fetch 与 `pnpm secrets:check`，只正常 push 自己 feature，不改原 PR 头、不新 PR、不合并。
+
+A2b 一轮修复合同（FIX6，2026-10-24，首评 `6390053800`）：只收齐本轮四项有效意见，原 FIRST 结论保留。S-55 的 `originalFileOf` 引用改指模块现址，HOME-DATA 对应行改用现行 `openArtifactOriginal`。全仓核对模块新增的 `artifactsProjectData`、`purgeArtifactOriginals` 只有本测试的 label 对照，没有生产消费者，删除这两项声明及出口；项目删除继续由插件已登记的 `artifactsProjectData.purge` 执行，不提前做 A6。模块的 `consumerTypes` 合入已有 `plugin-action-schemas.ts`，动作处理器复用它，删除第三份 schema 文件。
+
+- **RAC-413（补充）**：宿主 `src/` 的 TypeScript 导入检查递归到所有子目录；不新增或修改门禁规则、阈值。模块与插件的公共 schema（含 `consumerTypes`）继续相等。
+- **RAC-414（补充）**：临时 Home 中，以包含 `.` 的非空合法项目 id 经模块 `storeArtifactOriginal` 写入非空原件，核对实际文件和字节，再经插件真实删除声明清理；实际原件目录消失，另一项目的原件仍可读。17 个动作、消费者 schema、提供方与存储声明的原有对照保留。
+- **范围与验证**：仅相关模块文件、原 schema 回归、两处精确文档引用和本稿；不改其他合同、Host 搬移、C2 stdio argv、真实 Home 或后续片。整体 `pnpm build` 走公共单槽，之后跑模块 README 与本题影响用例、真实 merge-base health、boundary、动作快照、资源及推前 fetch/secrets。原作者 123 文件首败和未跑三份浏览器的说法交 TEST 按风险核证据，本题不重跑该全集或另起 full；shared-core、assembly、spans-packages 的整合全量仍交 Claude 唯一组批。
 
 验收编号：RAC-410～429。待办号：BL-575～584。安全不变量先写 S-69、S-70（main 现最大 S-58，在途到 S-68），合入时由统筹核连续。管 `privileges.md` 的 PG-077、PG-078、PG-079、PG-096、PG-097、PG-107；与 PG-060（W5-06）、PG-085（Characters 进 `modules/characters`）、PG-090、PG-001（ac-trust 的提供方身份）的衔接写在 §3.9。本片不改 `privileges.md` 状态列。
 
@@ -68,7 +94,7 @@ Plugin Runtime（有效安装的 Manifest）──► 类型登记表（modules/
 - 登记表由端口取数：Plugin Runtime 提供「有效安装的 Manifest 列表」（含启用状态），Characters 的宿主产出者表由 `modules/characters` 提供（PG-085 的方向），登记表在安装、卸载、启用、停用、升级时重建，不读 `BUILTIN_PLUGIN_CATALOG`。
 - 每条类型登记：`artifact_type_id@schema_version`、属主（插件 id 加发布者签名）、显示名、预览/钉入/比较动作、谁能续写（`produces.continue` 与 `consumes.continue`）、谁声明了「被谁引用」的动作。
 - **「没声明就拒写」对所有产出者一视同仁**：今天宿主检查只覆盖内置、装上的插件靠自己的客户端兜（S-69.1）。外加一层，不撤掉 Runtime 客户端那层。
-- 类型 id 只有一个属主：后来者声明了已被别的发布者占着的 `artifact_type_id` 时，安装被拒（S-70.2）。同一发布者的升级不算冲突。（统筹 10-24 定，见 §10 A 类第 2 项。）
+- 类型 id 只有一个属主：后来者声明了已被别的插件占着的 `artifact_type_id` 时，安装、换版本、启用都被拒（S-70.2）。按 `plugin_id` 比，同一个插件的升级不算冲突；名字空间是整个 Home，属主从 Home 插件库和各项目的安装记录推（停用、卸载但保留数据都算占着），不看此刻开着哪些监督器。（统筹 10-24 定，见 §10 A 类第 2 项。）
 
 ### 3.4 `artifacts.consumes` 能写文件类型（PG-079）
 
@@ -90,7 +116,7 @@ consumes: Array<{ artifact_type_id; schema_version; continue?;
 
 - 链接种类由声明方在 Manifest 里登记：`artifacts.links: Array<{ kind: string; role: "input" | "output" | "reference"; … }>`（字段名实现片定）；`source.module` 取声明方的插件 id，不取输入（可信身份来自调用上下文）。Goals 的 Manifest 声明现有三种。
 - `artifacts.goals.embeds`、`goal-context.ts`、`readReferences` 里的字面量换成登记表查询；`GOAL_ROLES` 表消失。
-- 一个链接种类只有一个属主（S-70.3）：别的插件声明已被占的种类，安装被拒；插件不能写属主是别人的种类的边。
+- 一个链接种类只有一个属主（S-70.3）：别的插件声明已被占的种类，安装、换版本、启用被拒；插件不能写属主是别人的种类的边。
 - Goals 不在项目里时，这些查询返回空，不报错（ac-trust §3.4.1 的 Goals 缺席清单里已列成果库一项，本片的用例要覆盖它）。
 - 动作 `artifacts.goals.embeds` 的名字带 Goals：留不留、改不改，统筹 10-24 定保留，见 §10 A 类第 3 项。
 
@@ -104,8 +130,9 @@ consumes: Array<{ artifact_type_id; schema_version; continue?;
 ### 3.7 事件前缀按事件主人走（PG-096）
 
 - 平台表 `DOM_EVENT_PREFIXES` 只留平台的前缀（`molis-work:`、`molis:`、`workbench-`）。`molis-shelf-` 从表里删除。
-- 插件拥有的事件用一条通用规则：名字以 `molis-<owner>-` 开头，且该事件登记的 `owner` 等于 `<owner>`；Shelf 的现有名字（`molis-shelf-notice`、`molis-shelf-refresh`、`molis-shelf-send-tui`…）已经满足，**不改名**，桌面壳 Rust 侧发的名字也不用动。
+- 插件拥有的事件用一条通用规则：名字以 `molis-<owner>-` 开头，且该事件登记的 `owner` 等于 `<owner>`；插件主人由同一张 `PAGE_STATE_OWNERS` 表判定：其 `files` 全部属于同一个 `plugins/<组>/<目录>/` 包。平台主人只用三个平台前缀；主人文件跨插件与平台、或跨两个插件包，门禁拒绝并要求拆开登记，不另写插件名单。Shelf 的现有名字（`molis-shelf-notice`、`molis-shelf-refresh`、`molis-shelf-send-tui`…）已经满足，**不改名**，桌面壳 Rust 侧发的名字也不用动。
 - 门禁（`scripts/gates/dom-events.mjs`）改成：未登记前缀、或前缀的 `<owner>` 与登记的 `owner` 不一致，直接失败。任何别的插件按同一规则拿到同样待遇。
+- A4 首评修复（#1257，基于 `27d3ef4c0`；[统筹范围裁定](https://github.com/molis-ai/molis-work/pull/1257#issuecomment-6393559237)）：多个已登记主人互为前缀时，按完整 `molis-<owner>-` 的最长匹配确定主人，不依赖登记顺序；合法的长、短插件主人事件都通过，错登到另一个主人、平台主人使用插件前缀、混合归属及未登记的监听、`CustomEvent` 仍拒绝。监听扫描仍识别所有已登记主人的前缀，避免漏掉未登记的平台主人监听。只改合同注释、门禁、直接测试、本节与 UI-PLATFORM 的对应规则；不改事件名、载荷或三个平台前缀，不扩大平台命名政策。
 - 这是 `dom-events.ts` 的合同改动，跑 `pnpm api:update`。
 
 ### 3.8 存储路径与环境变量去插件名（PG-097）
@@ -121,6 +148,14 @@ consumes: Array<{ artifact_type_id; schema_version; continue?;
 | 插件客户端包路由 `^/assets/molis-work-plugins/<id>.js`，由内置目录取 | 路由只认目录 | **同源 `/assets` 路由只发宿主构建里的包**（含 A6 之后「成果」平台面的客户端），按宿主构建清单给，不按「目录里有没有 `<id>.js`」；**非 host 插件的客户端代码不进同源资源路由**，Runtime 插件的客户端照旧走隔离框（S-47）。这一项是把路由的口径写清并加门禁，不放宽任何来源；该路由的字节预算按 `page-assets` 门禁的规则走，不得变大 | 不动存量 |
 
 `packages/storage` 的 Home 存储注册表（`home-stores.ts`）已经要求每个路径登记主人；改名后的两个路径在表里登记为平台主人，不是 Feed 或灵光。
+
+**A7 非目录部分已做（分支 `anticorr/ac-artifacts-a7`，2026-10-24）**：环境变量已改为 `MOLIS_MATERIAL_NATIVE_HELPER`、`MOLIS_MATERIAL_WHISPER_HELPER`，旧名不读；`resolveFeedSecurityDirectory` 改为 `resolveHomeSecurityDirectory`（返回的路径仍是 `{home}/feed`，目录改名等维护时段）；客户端包路由本来就只发宿主构建里的包（`pluginWorkbenchClientAsset`），不看目录，现由测试钉住。测试 `tests/platform-naming-pg097.test.ts`（RAC-412、RAC-427）；**开发机的环境变量要换名**。RAC-428 随目录部分。
+
+**A7 验证补修（Codex 修复16，基于 #1264 `93ba2b5a7`，2026-10-24，本机定向通过，独立审验待齐）**：首评的三项非阻塞问题作为同一 RAC-427 验证主题补齐，生产改名与 RAC-412 的路由口径保持原范围。两个旧名检查共用一次 `git ls-files -z` 的文本快照，不按目录或扩展名挑代码；仅豁免 `specs/archive/` 下的历史 Markdown 和本稿描述旧名的行，测试刻意反例用字符串组装，不豁免其他测试或代码目录。读取先以有界前缀辨认二进制，二进制媒体不整文件读取；文本读取失败必须报错。临时 Git 仓库在原漏扫的 Swift、Rust、YAML、Python、`tooling/`、`.github/`、`examples/` 及无扩展名文件写回两种旧名，必须使同一检查失败；同时验证历史叙述、二进制和读失败的边界。
+
+RAC-427 的行为证据经现有 `extractUploadedMaterial` 入口实际进入 `extractHomeMaterial`，只替换原生可执行 helper：在任何运行平台用现有可信 Host 选项 `platform: "darwin"` 进入原生边界，新变量指向临时可执行助手，断言调用参数、收到的材料字节、返回正文、独立 marker 与临时目录清理；旧变量指向另一个助手，既验证新旧同时配置只调用新助手，也验证仅配置旧名时不调用旧助手、不回退。后一个场景以只读的空安装目录隔离默认助手发现，避免依赖本机是否构建过原生程序。环境变量与临时 Home/文件在 `finally` 恢复或清除，不下载模型、联网或访问真实 Home；这不宣称 Linux 原生提取可用。验收命令为整体构建后运行 `node scripts/run-tests.mjs --jobs 2 tests/platform-naming-pg097.test.ts tests/jelly-native-material.test.ts tests/material-extraction.test.ts tests/feed-local-history-delete.test.ts`，并核 `pnpm boundary:check`、`node scripts/check-health-gates.mjs --base origin/main`、`pnpm secrets:check`；原首评和作者五项测试保留其原证据范围，不能代替补修的独立审验。
+
+本机补修证据（macOS）：上述四文件 33 项全部通过、0 跳过；整体构建、包导入单一来源检查与 `health --base origin/main` 通过。临时把生产读取改为旧变量、以及给新变量加旧名回退，两次都使新增行为用例失败（分别抓到错误正文和未按预期拒绝），随后已原样恢复生产源码。`pnpm boundary:check` 已经公共构建槽执行通过；独立 REVIEW/TEST 与 Linux 主机实跑尚待；该行为用例自身没有平台 skip，但所在文件含已有原生用例，现行 Full suite 的整文件 macOS 标记会略过它，Linux probe 或独立验证须点名运行，不能把本机通过写成 Linux 实跑。补修增量 `affected-tests` 的 `full=[]`；原 #1264 的存储改名仍命中 full，由 Claude 统一组批。
 
 ### 3.9 与相邻条目的衔接
 
@@ -208,7 +243,7 @@ consumes: Array<{ artifact_type_id; schema_version; continue?;
 | --- | --- | --- |
 | RAC-410 | 一个项目只有一份 `ArtifactsModule`：源码里 `new ArtifactsModule(` 只在工厂；同一项目取两次是同一个对象；删项目后释放 | 门禁式测试加单元测试 |
 | RAC-411 | 成果的 `head`、`readOwn` 同 id、不同签名被拒（`artifacts.plugin_denied`）；相同 id 与签名通过；成果与过程项共用一个 `ownsRecord`，过程项仍额外比 owner | `tests/artifacts-actions.test.ts` 扩展；单元测试 |
-| RAC-412 | 同源 `/assets` 路由只发宿主构建里的包，非 host 插件的客户端代码不进该路由（Runtime 插件的客户端仍走隔离框，S-47）；**这一条与目录改名无关，维护时段否了改名也保留** | 路由测试 |
+| RAC-412 | 同源 `/assets` 路由只发宿主构建里的包，非 host 插件的客户端代码不进该路由（Runtime 插件的客户端仍走隔离框，S-47）；**这一条与目录改名无关，维护时段否了改名也保留** | `tests/platform-naming-pg097.test.ts` 路由测试 |
 | RAC-413 | `plugin-host-services.ts` 与宿主 `artifact-*.ts` 不再 import 成果库插件包（边界规则，`pnpm boundary:check`） | 边界规则加名单只减 |
 | RAC-414 | 搬家后 17 个动作的合同快照不变（A5 前提供方仍是原值） | `tests/action-contract-snapshot.test.ts` |
 | RAC-415 | 登记表由有效安装的 Manifest 生成：安装、卸载、启用、停用后即时变化；不读 `BUILTIN_PLUGIN_CATALOG` | Runtime 集成测试 |
@@ -222,8 +257,8 @@ consumes: Array<{ artifact_type_id; schema_version; continue?;
 | RAC-423 | 插件 Manifest 声明 `artifacts.*` 或 `system.*` 的能力 id 被拒 | 安全不变量测试 |
 | RAC-424 | 「成果」入口是平台面，不是插件：不进插件市场与插件常开同意模型，一直在；Dock 上能不能收起跟 Dock 现行规则走，不另开特例。A6 同一片内完成换面与删目录条目，**每一片合入后入口都能用**；经 W5-06 挂载器挂上 | 浏览器冒烟一个 |
 | RAC-425 | 客户端模板随平台面发，`plugin-workbench.ts` 里没有成果库内联模板；`pnpm page-assets:check` 不变大 | 页面资源门禁 |
-| RAC-426 | `DOM_EVENT_PREFIXES` 不含任何插件专用前缀；`molis-<owner>-` 规则：前缀与登记的 `owner` 不一致被门禁拦；Shelf 现有事件名不变 | `scripts/gates/dom-events.mjs` 与测试 |
-| RAC-427 | 代码里读不到 `MOLIS_JELLY_*`；新名生效；平台存储函数名不带 Feed、灵光 | 单元测试加 grep 门禁 |
+| RAC-426 | `DOM_EVENT_PREFIXES` 不含任何插件专用前缀；`molis-<owner>-` 只给文件全属于同一插件包的主人，按完整前缀的最长匹配确定主人；平台使用该前缀、混合归属及主人不一致均拒绝；长、短主人合法事件及现有拒绝规则均回归，Shelf 现有事件名不变 | `scripts/gates/dom-events.mjs` 与 `tests/dom-events-contract.test.ts` |
+| RAC-427 | 代码里读不到 `MOLIS_JELLY_*`；新名生效；平台存储函数名不带 Feed、灵光 | `tests/platform-naming-pg097.test.ts` 的全 tracked 文本检查与故意写回反例；`tests/jelly-native-material.test.ts` 的真实 helper 调用及旧名拒绝 |
 | RAC-428 | 目录改名（按维护时段计划的结论执行）：隔离 Home 演练旧路径→新路径；旧路径在时启动显式报错，不回退；备份可还原 | 隔离 Home 演练记录 |
 | RAC-429 | 公开 API 与动作合同快照只有 §4 列出的变化，PR 里逐项写对调用方的影响；SSOT-MATRIX、`privileges.md`、`SECURITY-INVARIANTS.md` 同步 | `pnpm api:update`、`pnpm actions:update` 的 diff；`pnpm health:check` 的文档引用检查 |
 

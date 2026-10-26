@@ -4,7 +4,7 @@ import test from "node:test";
 
 import { compareChangeSet, compareRunChangeSet, DIFF_LABELS } from "@molis-ai/molis-work-plugin-diff";
 import { renderDiff } from "@molis-ai/molis-work-plugin-sdk/diff-view";
-import { GIT_CLIENT_FACTORY_SCRIPT, GIT_SENTENCE_TABLE, headLabel, projectGit, renderGitChanges, sayHostSentence } from "@molis-ai/molis-work-plugin-git";
+import { GIT_CLIENT_FACTORY_SCRIPT, GIT_SENTENCE_TABLE, headLabel, projectGit, renderGitChanges, sayHostSentence, sayUpstream } from "@molis-ai/molis-work-plugin-git";
 import { parsePorcelainStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { pageText } from "./fixtures/page-text.js";
 import { diffPageText } from "./fixtures/diff-page-text.js";
@@ -81,11 +81,13 @@ test("VUX-40: Git's remote and host-name sentences, path-conflict hints and exec
   assert.equal(said(en, "! [rejected] main -> main (fetch first)"), "! [rejected] main -> main (fetch first)");
   assert.equal(said(en, "刷新.md"), "刷新.md", "a file named like a button is not a sentence");
 
-  // The page's script carries the same lookup and uses it where it shows the sentences, and times in the page's own language.
-  assert.match(GIT_CLIENT_FACTORY_SCRIPT, /S\(support\.message\)/);
-  assert.match(GIT_CLIENT_FACTORY_SCRIPT, /S\(item\?\.summary \|\| ''\)/);
-  assert.doesNotMatch(GIT_CLIENT_FACTORY_SCRIPT, /\.toLocaleString\(\)/, "dates follow the page's language, not the browser's default");
-  assert.match(GIT_CLIENT_FACTORY_SCRIPT, /when=value=>new Date\(value\)\.toLocaleString\(document\.documentElement\.lang/);
+  // The page's code carries the same lookup (the table comes with the bundle) and uses it where it shows the sentences, and times in the page's own language.
+  const browser = (file: string) => readFileSync(new URL(`../plugins/native/git/src/browser/${file}`, import.meta.url), "utf8");
+  assert.match(browser("source.ts"), /S\(support\.message\)/);
+  assert.match(browser("results.ts"), /S\(item\?\.summary \|\| ""\)/);
+  assert.ok(GIT_CLIENT_FACTORY_SCRIPT.includes(JSON.stringify(GIT_SENTENCE_TABLE)), "the bundle is given the table the Host's sentences are found by");
+  for (const file of ["page.ts", "results.ts", "source.ts", "diff.ts", "list.ts", "conflicts.ts"]) assert.doesNotMatch(browser(file), /\.toLocaleString\(\)/, "dates follow the page's language, not the browser's default");
+  assert.match(browser("page.ts"), /when: \(value\) => new Date\(value\)\.toLocaleString\(document\.documentElement\.lang/);
 });
 
 test("VUX-40: every sentence the Host's Git code sends to the Git page has an English one", () => {
@@ -115,21 +117,24 @@ test("VUX-40: every sentence the Host's Git code sends to the Git page has an En
   assert.deepEqual([...new Set(left)], [], "a sentence the Host's Git code sends to the page without an English one");
 });
 
-test("VUX-40: the Git surface's branch, upstream and status lines read in English; an Agent still reads the Chinese ones", () => {
-  const en = pageText("en"), zh = pageText("zh");
+test("VUX-40: the Git surface's branch, upstream and status lines read in English; the upstream is fields the page says (⑧)", () => {
+  const en = pageText("en", "git"), zh = pageText("zh");
   const view = (record: string) => projectGit({ phase: "ready", status: parsePorcelainStatus({ stdout: `${record}\0` }) });
-  const cases: Array<[record: string, zh: string, en: string]> = [
-    ["## main...origin/main", "与 origin/main 同步", "Up to date with origin/main"],
-    ["## main...origin/main [ahead 2]", "origin/main：领先 2", "origin/main: 2 ahead"],
-    ["## main...origin/main [behind 3]", "origin/main：落后 3", "origin/main: 3 behind"],
-    ["## main...origin/main [ahead 2, behind 1]", "origin/main：领先 2 · 落后 1", "origin/main: 2 ahead · 1 behind"],
+  // User 2026-10-23 ⑧: the view gives the upstream's name and how far ahead and behind; the page writes the sentence.
+  const cases: Array<[record: string, fields: { name: string; ahead: number; behind: number }, zh: string, en: string]> = [
+    ["## main...origin/main", { name: "origin/main", ahead: 0, behind: 0 }, "与 origin/main 同步", "Up to date with origin/main"],
+    ["## main...origin/main [ahead 2]", { name: "origin/main", ahead: 2, behind: 0 }, "origin/main：领先 2", "origin/main: 2 ahead"],
+    ["## main...origin/main [behind 3]", { name: "origin/main", ahead: 0, behind: 3 }, "origin/main：落后 3", "origin/main: 3 behind"],
+    ["## main...origin/main [ahead 2, behind 1]", { name: "origin/main", ahead: 2, behind: 1 }, "origin/main：领先 2 · 落后 1", "origin/main: 2 ahead · 1 behind"],
   ];
-  for (const [record, chinese, english] of cases) {
-    const tracking = view(record).tracking;
-    assert.equal(tracking, chinese, "what an Agent reads is the sentence the projection wrote");
-    assert.equal(sayHostSentence(en, GIT_SENTENCE_TABLE, tracking), english);
-    assert.equal(sayHostSentence(zh, GIT_SENTENCE_TABLE, tracking), chinese);
+  for (const [record, fields, chinese, english] of cases) {
+    const upstream = view(record).upstream;
+    assert.deepEqual(upstream, fields, "what an Agent reads is the upstream's fields");
+    assert.equal(sayUpstream(en, upstream), english);
+    assert.equal(sayUpstream(zh, upstream), chinese);
   }
+  assert.equal(view("## main").upstream, null, "no upstream, no fields");
+  assert.equal(sayUpstream(en, null), "");
   assert.equal(sayHostSentence(en, GIT_SENTENCE_TABLE, headLabel({ kind: "detached", commit: "0123456789abcdef" })), "Detached at 01234567");
   const unborn = view("## No commits yet on main");
   assert.equal(sayHostSentence(en, GIT_SENTENCE_TABLE, unborn.head), "main (no commits yet)");
@@ -142,5 +147,5 @@ test("VUX-40: the Git surface's branch, upstream and status lines read in Englis
   const model = { route_prefix: "", view: view("## main...origin/main [ahead 2, behind 1]"), commit_message: "", primitives: primitives("en") };
   const drawn = renderGitChanges(model).replace(/<[^>]*>/g, " ");
   assert.match(drawn, /origin\/main: 2 ahead · 1 behind/);
-  assert.match(GIT_CLIENT_FACTORY_SCRIPT, /\[S\(view\.head\),S\(view\.tracking\)/);
+  assert.match(readFileSync(new URL("../plugins/native/git/src/browser/list.ts", import.meta.url), "utf8"), /\[S\(view\.head\), page\.U\(view\.upstream\)/);
 });

@@ -7,7 +7,9 @@ export function checkGoalsManagementWiring(source, mode) {
   const file = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true);
   const calls = [], accesses = [], names = [], declarations = new Map(), imports = new Set();
   const text = node => node?.getText(file).replace(/\s+/gu, "");
+  const production = mcp ? productionMcpBranch(file, text) : undefined;
   const visit = node => {
+    if (node === production?.node) return;
     if (ts.isImportDeclaration(node) && ts.isStringLiteralLike(node.moduleSpecifier) && !node.importClause?.isTypeOnly
       && node.importClause?.namedBindings && ts.isNamedImports(node.importClause.namedBindings)) {
       for (const element of node.importClause.namedBindings.elements) if (!element.propertyName && !element.isTypeOnly) imports.add(`${node.moduleSpecifier.text}:${element.name.text}`);
@@ -21,15 +23,27 @@ export function checkGoalsManagementWiring(source, mode) {
   };
   visit(file);
   const errors = [], reject = message => errors.push(`${path}: ${message}`);
+  if (production?.error) reject(production.error);
   const namedCalls = name => calls.filter(node => ts.isIdentifier(node.expression) && node.expression.text === name);
   const factory = namedCalls("bindGoalsManagementActions"), call = factory.length === 1 ? factory[0] : undefined;
   const opened = call?.arguments[0], fallback = declarations.get("fallback");
+  const body = fallback?.initializer && ts.isArrowFunction(fallback.initializer) ? fallback.initializer.body : undefined;
+  const creates = namedCalls("prepareLocalProjectStorage").filter(node => text(node.arguments[1]) === '"create"');
+  const external = creates.find(node => node.pos < fallback?.pos);
+  const guarded = !mcp && body && ts.isBlock(body) && body.statements.length === 3
+    && imports.has("./home-storage-lifetime.js:ensureHomeStorageOwner")
+    && imports.has("./project-storage.js:prepareLocalProjectStorage")
+    && text(declarations.get("homeDatabase")?.initializer) === "databaseInHome(home,databasePath)"
+    && creates.length === 2 && text(external?.parent.parent) === 'if(operation==="init"&&!homeDatabase)prepareLocalProjectStorage(databasePath,"create");'
+    && text(body.statements[0]) === 'if(homeProject||homeDatabase)ensureHomeStorageOwner(localHost??=createMolisWorkLocalHost(),home);'
+    && text(body.statements[1]) === 'if(operation==="init"&&homeDatabase)prepareLocalProjectStorage(databasePath,"create");'
+    && ts.isReturnStatement(body.statements[2]) && body.statements[2].expression === call;
   const expectedClient = mcp ? "caller.localHost.actionClient" : "(localHost??=createMolisWorkLocalHost()).actionClient";
   if (!imports.has("./goals-actions.js:bindGoalsManagementActions") || !call || call.arguments.length !== 3
     || !opened || !ts.isCallExpression(opened) || text(opened.expression) !== expectedClient || opened.arguments.length !== 2
     || text(opened.arguments[0]) !== "reference" || opened.arguments[1].kind !== ts.SyntaxKind.FalseKeyword
     || text(call.arguments[1]) !== "reference" || text(call.arguments[2]) !== (mcp ? "{signal:caller.resident?.signal}" : "{signal:options.signal}")
-    || !fallback?.initializer || !ts.isArrowFunction(fallback.initializer) || fallback.initializer.parameters.length !== 0 || fallback.initializer.body !== call) {
+    || !fallback?.initializer || !ts.isArrowFunction(fallback.initializer) || fallback.initializer.parameters.length !== 0 || (mcp ? body !== call : !guarded)) {
     reject("bindGoalsManagementActions must build the single lazy fallback with the unprepared actionClient(reference, false), bound reference and original signal");
   }
   const resident = namedCalls("residentManagementActions"), residentCall = resident.length === 1 ? resident[0] : undefined;
@@ -83,4 +97,43 @@ export function checkGoalsManagementWiring(source, mode) {
   for (const access of accesses) if (!permitted.includes(access)) reject(`no second route through a Host client (${text(access)})`);
   for (const name of names) if (!permitted.some(access => access?.name === name)) reject(`${name.text} is not the single empty scope or factory client`);
   return errors;
+}
+
+/** Production MCP validates through its resident before any local preparation; the embedded/CLI route below stays checked verbatim. */
+function productionMcpBranch(file, text) {
+  const fn = file.statements.find(node => ts.isFunctionDeclaration(node) && node.name?.text === "callMcpV1Tool");
+  const branches = fn?.body?.statements.filter(node => ts.isIfStatement(node) && text(node.expression) === 'audience==="management"&&caller.resident?.ensureResident') ?? [];
+  if (branches.length !== 1) return { error: "the final MCP entry must have exactly one production management resident branch" };
+  const branch = branches[0];
+  const prefix = fn.body.statements.slice(0, fn.body.statements.indexOf(branch));
+  const missingLocation = prefix[2];
+  const refusals = missingLocation && ts.isIfStatement(missingLocation) && ts.isBlock(missingLocation.thenStatement) ? missingLocation.thenStatement.statements : [];
+  const refusal = refusals.length === 1 && ts.isThrowStatement(refusals[0]) ? refusals[0].expression : undefined;
+  const purePrefix = prefix.length === 3 && text(prefix[0]) === "const{audience,runtimeConnection}=caller;"
+    && text(prefix[1]) === 'constlocation=audience==="runtime"?runtimeConnection!.databasePath:namedDatabasePath(arguments_.database_path)??namedDatabasePath(readProductEnv("DATABASE"));'
+    && ts.isIfStatement(missingLocation) && text(missingLocation.expression) === "!location" && !missingLocation.elseStatement
+    && refusal && ts.isNewExpression(refusal) && text(refusal.expression) === "ActionError" && refusal.arguments?.length === 2
+    && ts.isStringLiteralLike(refusal.arguments[0]) && refusal.arguments[0].text === "mcp.path_required" && ts.isStringLiteralLike(refusal.arguments[1]);
+  const statements = branch.thenStatement && ts.isBlock(branch.thenStatement) ? branch.thenStatement.statements : [];
+  const returned = statements.length === 1 && ts.isReturnStatement(statements[0]) ? statements[0].expression : undefined;
+  const dispatch = returned && ts.isCallExpression(returned) && text(returned.expression) === "dispatchMcpProjectTool" ? returned : undefined;
+  const resident = dispatch?.arguments[0];
+  const input = resident && ts.isCallExpression(resident) && text(resident.expression) === "residentManagementActions" && resident.arguments.length === 1 ? resident.arguments[0] : undefined;
+  const expected = { home: "caller.resident.home", origin: "caller.resident.origin", signal: "caller.resident.signal",
+    ensureResident: "caller.resident.ensureResident", databasePath: "path.resolve(location)", projectId: "String(arguments_.project_id)",
+    fallback: '()=>{thrownewActionError("actions.service_unavailable","生产MCP不在本地执行管理操作");}' };
+  const values = new Map(input && ts.isObjectLiteralExpression(input) ? input.properties.map(property =>
+    [property.name && text(property.name), ts.isPropertyAssignment(property) ? text(property.initializer) : undefined]) : []);
+  let firstPreparation;
+  const find = node => {
+    if (!firstPreparation && ts.isCallExpression(node) && text(node.expression) === "prepareLocalProjectStorage") firstPreparation = node;
+    ts.forEachChild(node, find);
+  };
+  if (fn?.body) find(fn.body);
+  const valid = purePrefix && !branch.elseStatement && dispatch?.arguments.length === 4 && text(dispatch.arguments[1]) === "name"
+    && text(dispatch.arguments[2]) === "arguments_" && text(dispatch.arguments[3]) === "{audience,createError:createPresentationError}"
+    && input && ts.isObjectLiteralExpression(input) && input.properties.length === Object.keys(expected).length
+    && values.size === Object.keys(expected).length && Object.entries(expected).every(([key, value]) => values.get(key) === value)
+    && firstPreparation && branch.end < firstPreparation.pos && missingLocation && missingLocation.end <= branch.pos;
+  return { node: valid ? branch : undefined, error: valid ? undefined : "the production MCP branch must forward the trusted Home/signal/ensure before local preparation, with a throwing fallback and no other work" };
 }

@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ActionService } from "@molis-ai/molis-work-kernel";
@@ -23,8 +24,8 @@ test("formal unknown plugins supply namespaced events and checked navigation thr
     permissions: [{ permission: "notes:read", required: false, reason: "读取原笔记" }], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [query] },
     async start() { return { kind: "app", actions: [{ ...query, handle: async () => { await Promise.resolve(); duringRead?.(); return { source: { surface: "notes", title: "我的笔记", icon: "note" }, events }; } }] }; } });
   const repository = new MemoryPluginRuntimeRepository();
-  const runtime = new PluginRuntime(repository, undefined, { actions: { registry: service, project_id: caller.project_id! } });
-  const install = runtime.install({ definition: plugin, deployment: "local", grants: ["notes:read"] }).install;
+  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: service, project_id: caller.project_id! } });
+  const install = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["notes:read"] }).install;
   const read = async (context = caller) => await service.invoke(context, homeEventActions.events, window) as HomeEventsResult;
   try {
     await runtime.start(install.install_id);

@@ -1,7 +1,7 @@
-import { renderButton, type MolisWorkIcon } from "@molis-ai/molis-work-design-system";
+import { renderButton, type PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /** The glyphs the side pane draws for kinds of things and states, rendered once from the shared icon set. */
-const ASSISTANT_GLYPHS: readonly MolisWorkIcon[] = ["file", "note", "image", "zap", "check", "circle", "clock", "flag", "undo", "edit", "alert", "circle-alert", "sparkles", "package",
+const ASSISTANT_GLYPHS: readonly PluginIconName[] = ["file", "note", "image", "zap", "check", "circle", "clock", "flag", "undo", "edit", "alert", "circle-alert", "sparkles", "package",
   "code", "idea", "inbox", "target", "database", "workflow", "upload", "bell", "paperclip", "text", "status-waiting", "x",
   "question", "shield", "terminal", "external", "eye", "search", "list", "refresh", "folder", "git-branch", "link", "user"];
 
@@ -9,7 +9,7 @@ const ASSISTANT_GLYPHS: readonly MolisWorkIcon[] = ["file", "note", "image", "za
  * The resident Assistant: its panel of works and the composer, which at rest is only the input, “+” and send. Where to
  * go lives at the bar's left and search in the project menu (and ⌘K); the project list uses the same composer.
  */
-export function renderAssistantDock(primitives: { L(value: string): string; icon(name: MolisWorkIcon): string }): string {
+export function renderAssistantDock(primitives: { L(value: string): string; icon(name: PluginIconName): string }): string {
   const { L, icon } = primitives;
   return `<div class="bar-center" data-assistant-island data-system-view-owner="assistant">
       <section class="assistant-panel" data-assistant-panel aria-label="${L("助理")}" hidden>

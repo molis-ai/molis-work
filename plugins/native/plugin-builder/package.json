@@ -37,6 +37,9 @@
     "kind": "native-plugin",
     "maturity": "partial",
     "contract": "@molis-ai/molis-work-contracts/platform/plugin",
+    "summary": "Prologue plugin design, assembly and independent applications.",
+    "notResponsibleFor": "Model credentials, runtime ownership or arbitrary code execution.",
+    "legacySources": [],
     "migrationGoals": [
       "goal-reorg-f2"
     ],
@@ -45,6 +48,10 @@
       "plugin-builder.ui.v1",
       "plugin-builder.workflow.v1"
     ],
+    "extraWorkspaceDependencies": [
+      "@molis-ai/molis-work-design-system"
+    ],
+    "extraDependencies": {},
     "registration": "./registration"
   }
 }

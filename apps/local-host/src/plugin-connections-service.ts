@@ -14,6 +14,6 @@ export function pluginConnectionsFor(home: PluginPlatformHome | null | undefined
   if (!home || !manifest.connections?.slots.length
     || !manifest.permissions.some(item => item.permission === PLUGIN_CONNECTIONS_PERMISSION)) return undefined;
   return createPluginConnectionsClient(manifest, createPluginConnectionsPort(home.directory), {
-    install_id: context.install_id, installation_generation: context.installation_generation, assertActive, requireGrant: permission => context.requireGrant(permission),
+    install_id: context.install_id, installation_generation: context.installation_generation, ...(context.project_id ? { project_id: context.project_id } : {}), assertActive, requireGrant: permission => context.requireGrant(permission),
   });
 }

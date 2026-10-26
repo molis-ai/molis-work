@@ -13,12 +13,15 @@ import { browserPrograms } from "../scripts/gates/browser-programs.mjs";
 import { actionMcpToolName, createActionMcpPorts, handleMcpMessage } from "@molis-ai/molis-work-app-mcp";
 import { ActionError, bindActionClient, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { datasetActions, openDatasetStore } from "@molis-ai/molis-work-plugin-dataset";
-import { formActions, openFormStore } from "@molis-ai/molis-work-plugin-form";
+import { datasetActions } from "@molis-ai/molis-work-plugin-dataset";
+import { openDatasetStore, openPagesStore } from "./fixtures/plugin-home-stores.js";
+import { formActions } from "@molis-ai/molis-work-plugin-form";
+import { openFormStore } from "./fixtures/plugin-home-stores.js";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { serveLingguang } from "./fixtures/lingguang-runtime.js";
-import { PAGES_ACTION_PERMISSIONS, createPagesActionHandlers, createPagesContentHandlers, openPagesStore, ownPagesStores, pagesActions, pagesManifest } from "@molis-ai/molis-work-plugin-pages";
-import { PPT_ACTION_PERMISSIONS, openPptStore, pptActions } from "@molis-ai/molis-work-plugin-ppt";
+import { PAGES_ACTION_PERMISSIONS, createPagesActionHandlers, createPagesContentHandlers, ownPagesStores, pagesActions, pagesManifest } from "@molis-ai/molis-work-plugin-pages";
+import { PPT_ACTION_PERMISSIONS, pptActions } from "@molis-ai/molis-work-plugin-ppt";
+import { openPptStore } from "./fixtures/plugin-home-stores.js";
 import { datasetTestPorts } from "./fixtures/dataset-actions.js";
 import { formTestPorts } from "./fixtures/form-actions.js";
 import type { NativeHttpAnswer } from "./fixtures/native-http.js";
@@ -55,7 +58,7 @@ interface OwnerSpec {
 
 const SPECS: Readonly<Record<Owner, OwnerSpec>> = {
   pages: { pkg: "@molis-ai/molis-work-plugin-pages", declarations: "pagesErrors", removed: ["PagesError", "pagesRouteErrorResponse"],
-    status: { invalid: 400, not_found: 404, conflict: 409, unavailable: 409, publication_pending: 409, publication_conflict: 409, publication_owner: 403, unsupported: 400 } },
+    status: { invalid: 400, body_too_large: 400, not_found: 404, conflict: 409, unavailable: 409, publication_pending: 409, publication_conflict: 409, publication_owner: 403, unsupported: 400 } },
   ppt: { pkg: "@molis-ai/molis-work-plugin-ppt", declarations: "pptErrors", removed: ["PptError", "pptRouteErrorResponse"],
     status: { invalid: 400, not_found: 404, conflict: 409, publication_pending: 409, publication_conflict: 409, publication_owner: 403 } },
   dataset: { pkg: "@molis-ai/molis-work-plugin-dataset", declarations: "datasetErrors", removed: ["DatasetError", "datasetRouteErrorResponse"],

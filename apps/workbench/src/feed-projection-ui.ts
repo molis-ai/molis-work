@@ -1,4 +1,4 @@
-import { escapeHtml } from "@molis-ai/molis-work-design-system";
+import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {
   FeedUiEntry,
   FeedUiItem,
@@ -18,7 +18,6 @@ import type {
 } from "@molis-ai/molis-work-plugin-feed";
 import { readRssHttpState } from "@molis-ai/molis-work-integration-rss";
 import { renderRichText, richPlainText } from "@molis-ai/molis-work-plugin-sdk/rich-text";
-import { icon } from "@molis-ai/molis-work-design-system";
 import type { MolisWorkWebView } from "./page-view.js";
 
 export type FeedSupplementalEntry = FeedUiEntry;

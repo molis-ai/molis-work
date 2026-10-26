@@ -11,7 +11,7 @@ export interface GoalsSafetyUiPrimitives {
   escapeHtml(value: unknown): string;
   formatDate(value: string | null | undefined): string;
   icon(name: "chevron-down" | "chevron-right" | "search" | "risk" | "blocked" | "info" | "settings" | "user" | "impact" | "history" | "archive" | "plus" | "check"): string;
-  currentLocale(): "zh" | "en";
+  currentLocale(): string;
   renderReference(value: string, label?: string): string;
   renderList(values: string[], empty: string): string;
 }

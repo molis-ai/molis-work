@@ -1,6 +1,6 @@
 import type { EditorView } from "prosemirror-view";
 import type { Node } from "prosemirror-model";
-import { placeOverlay } from "@molis-ai/molis-work-design-system/floating";
+import { placeOverlay } from "@molis-ai/molis-work-plugin-sdk/browser";
 import { runBlockCommand } from "./editor-block-selection.js";
 import { openEditorComment } from "./editor-comments.js";
 import { blockPos, linkAt, setCalloutStyle, setComment, setLink, setTone, toneAt } from "./commands.js";

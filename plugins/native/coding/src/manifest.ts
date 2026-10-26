@@ -24,6 +24,8 @@ import { codingHomeBackgroundTasks } from "./home-background.js";
 import { codingResultDocument } from "@molis-ai/molis-work-contracts/modules/coding";
 import { CODING_PROJECT_DATABASE } from "./database.js";
 
+import { CODING_MESSAGES } from "./messages.js";
+import { CODING_EN } from "./en.js";
 export const CODING_PLUGIN_ID = "io.molis.work.coding";
 /** What the project database stores for this Plugin. */
 export const CODING_PROJECT_PLUGIN_ID = "coding";
@@ -48,6 +50,7 @@ export const codingManifest: PluginManifest = {
   plugin_id: CODING_PLUGIN_ID,
   version: "0.3.0",
   name: "Coding",
+  summary: "和 Agent 一起写代码，留每轮记录。",
   kind: "app",
   // Both development lines (1.30–1.32 on main, 1.31–1.44 on the Coding goal branch) continue here without migration.
   publisher: { publisher_id: "molis", signature: "official-coding-binding" },
@@ -93,6 +96,7 @@ export const codingManifest: PluginManifest = {
       workspaceReadActions.git.capability_id,
       projectSettingsCapabilities.workspaces.capability_id,
       projectSettingsCapabilities.browsingWorkspace.capability_id,
+      projectSettingsCapabilities.runtime.capability_id,
       ...Object.values(writerDirectoryCapabilities).map(entry => entry.capability_id),
       ...Object.values(writerIntegrationCapabilities).map(entry => entry.capability_id),
     ],
@@ -209,43 +213,19 @@ export const codingManifest: PluginManifest = {
     { route_id: "coding.card-dismiss", method: "POST", path: "/sessions/:sessionId/cards/:cardId/dismiss" },
   ],
   ui: {
+    messages: CODING_MESSAGES,
+    translations: CODING_EN,
     embedded_plugins: ["io.molis.work.files", "io.molis.work.git", "io.molis.work.diff", "io.molis.work.text-stats"],
     contributions: [CODING_UI_CONTRIBUTION_ID, CODING_SETTINGS_UI_CONTRIBUTION_ID],
-    /**
-     * Entries the command menu and content actions offer.
-     *
-     * Each names the object it acts on rather than assuming the current one, so
-     * "open this report" works from anywhere the report is visible instead of
-     * only from inside the session that made it.
-     */
-    commands: [
-      {
-        command_id: "coding.new-session",
-        title: "开一条编码会话",
-        input_kinds: ["current"],
-        opens_view_id: "directory",
-      },
-      {
-        command_id: "coding.open-changeset",
-        title: "查看这一轮的变更",
-        input_kinds: ["agent-session"],
-        opens_view_id: "directory",
-      },
-      {
-        command_id: "coding.open-report",
-        title: "打开报告",
-        input_kinds: ["artifacts"],
-        opens_view_id: "directory",
-      },
-    ],
     views: [
-      { view_id: "conversation", slot: "stage", title: "Coding", contribution_id: CODING_UI_CONTRIBUTION_ID },
+      { view_id: "conversation", slot: "stage", title: "Coding", contribution_id: CODING_UI_CONTRIBUTION_ID, accepts_objects: true },
       {
         view_id: "directory",
         slot: "navigator",
         title: "Coding",
         contribution_id: CODING_UI_CONTRIBUTION_ID,
         icon: "code",
+        hue: "cyan",
         order: 55,
         group: "code",
       },
@@ -254,6 +234,7 @@ export const codingManifest: PluginManifest = {
         slot: "settings",
         title: "Coding",
         contribution_id: CODING_SETTINGS_UI_CONTRIBUTION_ID,
+        settings_runtimes: true,
         icon: "code",
       },
     ],

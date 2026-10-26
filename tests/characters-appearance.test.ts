@@ -1,32 +1,32 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { MW_PLUGINS, renderPaletteTokens, renderPluginTintBindings } from "../packages/design-system/dist/palette.js";
+import { renderPaletteTokens, renderPluginTintBindings } from "../packages/design-system/dist/palette.js";
 import { railEntries, pluginTabGlyphs, pluginMarketCards } from "../apps/workbench/src/plugin-catalog.ts";
 import { groupedGlobalSettingsSections } from "../apps/workbench/src/settings-sections.ts";
 import { renderPluginRail } from "../apps/workbench/src/immersive-shell.ts";
 
-// Soft Workbench (DESIGN.md → Plugin identity): plugins carry no identity colour on screen. Characters keeps
-// purple as registered catalog data, while its tint resolves to the neutral secondary ink in both themes.
-test("Characters keeps its registered hue as data and a neutral tint on screen", () => {
+// Soft Workbench (DESIGN.md → Plugin identity): plugins carry no identity colour on screen. Characters is a surface of the
+// workbench, not a plugin: its purple is the tab strip's hue for it (the Host's own list, pinned by RAC-706 in
+// tests/plugin-hue-declaration.test.ts), while its tint resolves to the neutral secondary ink in both themes like every plugin's.
+test("Characters keeps its tab-strip hue as the Host's data and a neutral tint on screen", () => {
   const light = renderPaletteTokens("light");
   const dark = renderPaletteTokens("dark");
-  assert.equal(MW_PLUGINS.find((plugin) => plugin.id === "characters")?.hue, "purple");
-  assert.match(light, /--plugin-characters: var\(--ink-soft\);/);
+  assert.doesNotMatch(light + dark, /--plugin-characters/);
   assert.match(light, /--hue-purple: #7f5eb0;/);
-  assert.match(dark, /--plugin-characters: var\(--ink-soft\);/);
   assert.match(dark, /--hue-purple: #c0a0ea;/);
 });
 
-test("Characters navigation and work surface receive its registered theme tint", () => {
+test("Characters navigation and work surface receive the one neutral tint every plugin surface gets", () => {
   const bindings = renderPluginTintBindings();
-  assert.match(bindings, /\.plugin-rail \[data-plugin-id="characters"\][^{}]*\{ --plugin-tint: var\(--plugin-characters\); \}/);
-  assert.match(bindings, /\[data-work-surface="characters"\][^{}]*\{ --plugin-tint: var\(--plugin-characters\); \}/);
+  assert.match(bindings, /\.plugin-rail \[data-plugin-id\][^{}]*\{ --plugin-tint: var\(--ink-soft\); \}/);
+  assert.match(bindings, /\[data-work-surface\][^{}]*\{ --plugin-tint: var\(--ink-soft\); \}/);
+  assert.doesNotMatch(bindings, /"characters"/);
 });
 
 // Characters is how AI is asked to work, so its page is Settings › 角色, not a navigation entry (specs/archive/page-interaction-flow).
 // RAC-73: since CHR-1 that page is the Host's own section (D3), between 助理 and 提示词, and a project cannot hide it.
-/** Settings' sections in navigation order: the grouped list the page draws, read as one list. */
-const settingsSections = (enabled?: readonly string[], hidden?: readonly string[]) => groupedGlobalSettingsSections(enabled, hidden).flatMap((group) => group.sections);
+/** Settings' sections in navigation order for the plugins a page shows (the Host's list, W5-02 B1): the grouped list the page draws, read as one list. */
+const settingsSections = (shown?: readonly string[]) => groupedGlobalSettingsSections(shown).flatMap((group) => group.sections);
 
 test("Characters' page is the Host's Settings › 角色 with the user glyph, not in navigation", () => {
   assert.deepEqual(railEntries(["characters"]), []);
@@ -36,7 +36,7 @@ test("Characters' page is the Host's Settings › 角色 with the user glyph, no
   assert.deepEqual(pages.map(({ label, icon, group, kind }) => ({ label, icon, group, kind })), [{ label: "角色", icon: "user", group: "AI", kind: "host" }]);
   const ids = sections.map((item) => item.id);
   assert.deepEqual(ids.slice(ids.indexOf("characters") - 1, ids.indexOf("characters") + 2), ["assistant", "characters", "prompts"]);
-  assert.ok(settingsSections(undefined, ["characters"]).some((item) => item.id === "characters"), "hiding plugins does not hide the Host's page");
+  assert.ok(settingsSections([]).some((item) => item.id === "characters"), "a page that shows no plugin still has the Host's page");
   // Settings › 角色 is the one place for it: the market neither lists it nor lets a project add or remove it.
   assert.equal(pluginMarketCards().find((item) => item.id === "characters"), undefined);
 });

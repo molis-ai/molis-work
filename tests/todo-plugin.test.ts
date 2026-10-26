@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, pluginMarketCards, pluginWorkbenchClientAsset, railEntries } from "@molis-ai/molis-work-app-workbench";
+import { pluginMarketCards, pluginWorkbenchClientAsset, railEntries } from "@molis-ai/molis-work-app-workbench";
 import {
   TODO_ACTION_PERMISSIONS,
   TODO_CLIENT_FACTORY_SCRIPT,
@@ -17,7 +17,7 @@ import {
   todoManifest,
   todoOrganizeActions,
 } from "@molis-ai/molis-work-plugin-todo";
-import { L, runWithLocale, homeAgentDefinitions, homeStores, type HostCompleteText } from "@molis-ai/molis-work-app-local-host";
+import { L, runWithLocale, homeAgentDefinitions, homeStores, type HostCompleteText, PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS, builtinMarketDirectory } from "@molis-ai/molis-work-app-local-host";
 import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { renderMolisWorkWorkbenchClientScript } from "./workbench-renderer-fixture.js";
 import { manifestProblems } from "./fixtures/declaration-manifest.js";
@@ -27,7 +27,7 @@ test("Todo is a personal plugin on the rail after Goals, listed in the market, w
   assert.equal(PROJECT_SCOPED_PLUGIN_IDS.includes(TODO_PROJECT_PLUGIN_ID), false);
   assert.deepEqual(railEntries(["goals", "todo", "inbox"]).map(entry => [entry.id, entry.label, entry.glyph]),
     [["goals", "Goals", "target"], ["todo", "待办", "list"], ["inbox", "Inbox", "inbox"]]);
-  const card = pluginMarketCards().find(entry => entry.id === "todo");
+  const card = pluginMarketCards({}, builtinMarketDirectory()).find(entry => entry.id === "todo");
   assert.equal(card?.personal, true);
   assert.equal(homeStores().get("todo")?.owner, todoManifest.plugin_id, "卸载 --purge 要能删掉待办库");
 });
@@ -70,7 +70,7 @@ test("RAC-130 every word the Todo page says has a stable key with both languages
     assert.deepEqual(names(text.zh), names(text.en), `${key} uses the same placeholders in both languages`);
   }
   assert.ok(used.size > 200, "the page's keys were found");
-  const dynamicOwners = new Set(["actions.ts", "organize-actions.ts", "home-events.ts", "search.ts", "project-data.ts"].map(file => "plugins/native/todo/src/" + file));
+  const dynamicOwners = new Set(["actions.ts", "organize-actions.ts", "home-events.ts", "search.ts", "database.ts"].map(file => "plugins/native/todo/src/" + file));
   for (const key of Object.keys(TODO_EN)) {
     assert.ok(scan.calls.some(call => call.key === key && call.file.startsWith("plugins/native/todo/"))
       || scan.files.some(file => dynamicOwners.has(file.file) && file.mentions.has(key)), `${key} must have a Todo translator or an existing dynamic declaration owner`);

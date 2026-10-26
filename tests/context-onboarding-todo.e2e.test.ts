@@ -4,7 +4,8 @@ import test from "node:test";
 import { createHash, randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { mkdir, writeFile } from "node:fs/promises";
-import { TODO_ACTION_PERMISSIONS, openTodoStore, todoOrganizeActions } from "@molis-ai/molis-work-plugin-todo";
+import { TODO_ACTION_PERMISSIONS, todoOrganizeActions } from "@molis-ai/molis-work-plugin-todo";
+import { openTodoStore } from "./fixtures/plugin-home-stores.js";
 import { withContextJourneys, type ContextJourney } from "../apps/local-host/dist/context-onboarding-store.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { specEvidenceDirectory } from "./fixtures/review-evidence.js";
@@ -69,7 +70,8 @@ for (const width of [1440, 390]) test(`Onboarding ${width}px: the overview and t
   assert.equal(await evaluate("new URL(location.href).searchParams.has('openPlugin')"), false);
   const store = openTodoStore(homeDirectory);
   try {
-    const items = store.list({ projectId: null, everything: true, actor: "user", actorId: "test" });
+    const adoptedProject = String(await evaluate("location.pathname.split('/')[2]"));
+    const items = store.list({ projectId: null, projectIds: [adoptedProject], actor: "user", actorId: "test" });
     assert.deepEqual(items.map(item => item.title), ["发送新版方案"]);
     assert.equal(items[0]!.sources[0]!.kind, "onboarding");
   } finally { store.close(); }

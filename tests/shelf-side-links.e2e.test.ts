@@ -16,9 +16,9 @@ const SHELF_TAB = "plugin:shelf/side";
 const shelfFrame = `document.querySelector('[data-side-body="${SHELF_TAB}"] iframe')`;
 
 test("SHELF-LINK-01 SHELF-LINK-02 SHELF-LINK-03 a stored link, search hit and notice that name Shelf open its side tab on that item", { timeout: 120_000 }, async (t) => {
-  const agentSetting = process.env.MOLIS_WORK_SHELF_AGENT;
-  process.env.MOLIS_WORK_SHELF_AGENT = "off";
-  t.after(() => { if (agentSetting === undefined) delete process.env.MOLIS_WORK_SHELF_AGENT; else process.env.MOLIS_WORK_SHELF_AGENT = agentSetting; });
+  const agentSetting = process.env.MOLIS_WORK_LOCAL_TOOLS;
+  process.env.MOLIS_WORK_LOCAL_TOOLS = "off";
+  t.after(() => { if (agentSetting === undefined) delete process.env.MOLIS_WORK_LOCAL_TOOLS; else process.env.MOLIS_WORK_LOCAL_TOOLS = agentSetting; });
   const browser = await openGoalBrowser(t, true);
   if (!browser) return;
   const child = await pluginFrameBrowser(t, browser, "shelf", `[data-side-body="${SHELF_TAB}"] iframe`);

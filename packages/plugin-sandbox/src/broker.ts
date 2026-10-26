@@ -1,5 +1,5 @@
 import type { PluginBackgroundExecution, PluginInteractionClient, PluginMaterialsClient } from '@molis-ai/molis-work-contracts/platform/plugin';
-import type { PluginConnectionMethod, PluginConnectionsClient } from '@molis-ai/molis-work-contracts/platform/plugin-connections';
+import { PLUGIN_CONNECTION_RECORD_KEY_MAX, type PluginConnectionMethod, type PluginConnectionsClient } from '@molis-ai/molis-work-contracts/platform/plugin-connections';
 import type { SandboxEffects, SandboxIdentity, SandboxJson, SandboxNetworkRequest, SandboxNetworkResponse, SandboxOperationContract, SandboxSdkMethod } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { BACKGROUND_EXECUTIONS, type SandboxBackground } from './background.js';
 import { assertJson, SandboxError } from './schema.js';
@@ -52,12 +52,17 @@ export class SandboxBroker {
   private readonly calls: RateBudget;
   private readonly events: RateBudget;
   /** The executions this broker accepted and that have not ended: the only ones its package can cancel. */
-  private readonly executions = new Map<string, PluginBackgroundExecution<SandboxJson>>();
+  private readonly executions = new Map<string, { target: string; execution: PluginBackgroundExecution<SandboxJson> }>();
   private accepting = 0;
+  private stopped = false;
   constructor(private readonly identity: Readonly<SandboxIdentity>, private readonly grants: SandboxEffects, private readonly services: SandboxServices, private readonly limits: BrokerLimits) {
     this.queue = new BoundedQueue(limits.sdkQueue); this.calls = new RateBudget(limits.sdkPerMinute); this.events = new RateBudget(limits.eventsPerMinute);
   }
-  stop(error: SandboxError): void { this.queue.close(error); for (const execution of this.executions.values()) execution.cancel(); }
+  stop(error: SandboxError): void {
+    this.stopped = true; this.queue.close(error);
+    for (const { execution } of this.executions.values()) execution.cancel();
+    this.executions.clear();
+  }
   invoke(operation: SandboxOperationContract, signal: AbortSignal, method: SandboxSdkMethod, args: SandboxJson[], guard?: () => Promise<void>, serviceTimeoutMs = this.limits.serviceTimeoutMs): Promise<SandboxJson> {
     try { this.calls.consume(); assertJson(args); } catch (error) { return Promise.reject(error); }
     return this.queue.submit(async () => {
@@ -187,9 +192,11 @@ export class SandboxBroker {
     if (method === 'background.cancel') {
       count(1); const id = string(0, 64);
       if (!operation.effects.background?.some(target => this.grants.background?.includes(target))) throw new SandboxError('sandbox.not_authorized', 'Undeclared or unapproved background work');
-      const execution = this.executions.get(id);
-      execution?.cancel();
-      return execution !== undefined;
+      const accepted = this.executions.get(id);
+      if (!accepted) return false;
+      permit('background', accepted.target);
+      accepted.execution.cancel();
+      return true;
     }
     if (method !== 'background.start') throw new SandboxError('sandbox.invalid_request', 'Unknown background method');
     count(2); const target = string(0, 128), input = args[1]!; permit('background', target);
@@ -201,10 +208,28 @@ export class SandboxBroker {
     let execution: PluginBackgroundExecution<SandboxJson>;
     try { execution = await background.client.start(control => background.lane.run(target, input, { signal: control.signal, beforeEffect: control.beforeEffect })); }
     finally { this.accepting -= 1; }
+    if (this.stopped) {
+      execution.cancel();
+      void execution.result.catch(() => undefined);
+      throw new SandboxError('sandbox.stopped', 'Sandbox stopped while accepting background work');
+    }
     const id = randomUUID();
-    this.executions.set(id, execution);
+    this.executions.set(id, { target, execution });
     void execution.result.then(() => undefined, () => undefined).then(() => { this.executions.delete(id); });
     return id;
+  }
+  private async dispatchConnectionRecord(operation: SandboxOperationContract, method: SandboxSdkMethod, args: SandboxJson[], { permit, count, string, missing }: DispatchGuards): Promise<SandboxJson> {
+    // A record key names one of the plugin's records on a `per_record` slot; the Host's client checks its form, the slot and the call.
+    count(2);
+    const slot = string(0, 64);
+    permit('connections', slot);
+    const record = args[1] === null && method === 'connections.describe' ? undefined : string(1, PLUGIN_CONNECTION_RECORD_KEY_MAX);
+    if (method === 'connections.release' && operation.kind === 'query') throw new SandboxError('sandbox.not_authorized', 'A query cannot release a connection');
+    if (!this.services.connections) return missing();
+    if (method === 'connections.release') { await this.services.connections.release(slot, record!); return null; }
+    // Rebuilt from the three fields as plain JSON.
+    const { bound, display_name, state } = await this.services.connections.describe(slot, record);
+    return { bound, ...(display_name === undefined ? {} : { display_name }), ...(state === undefined ? {} : { state }) };
   }
   private async dispatch(context: SandboxServiceContext, operation: SandboxOperationContract, method: SandboxSdkMethod, args: SandboxJson[]): Promise<SandboxJson> {
     const guards = this.guards(operation, args), { permit, count, string, missing } = guards;
@@ -255,6 +280,7 @@ export class SandboxBroker {
       const { status, headers, body, authenticated } = await this.services.connections.request(slot, { ...request, signal: context.signal });
       return { status, headers: { ...headers }, body, authenticated };
     }
+    if (method === 'connections.describe' || method === 'connections.release') return this.dispatchConnectionRecord(operation, method, args, guards);
     if (method.startsWith('materials.')) return this.dispatchMaterials(context, operation, method, args, guards);
     if (method.startsWith('ownerFiles.')) return this.dispatchOwnerFiles(context, operation, method, args, guards);
     if (method.startsWith('model.')) return this.dispatchModel(context, operation, method, args, guards);
@@ -301,13 +327,14 @@ export class SandboxBroker {
   }
 }
 
-const CONNECTION_FIELDS = new Set(['url', 'method', 'headers', 'body']);
+const CONNECTION_FIELDS = new Set(['url', 'record_key', 'method', 'headers', 'body']);
 /** The shape of a connection request across the channel: plain strings only, nothing the plugin could use to pass a signal or a credential of its own. */
-function connectionRequest(value: SandboxJson | undefined): { url: string; method?: PluginConnectionMethod; headers?: Record<string, string>; body?: string } {
+function connectionRequest(value: SandboxJson | undefined): { url: string; record_key?: string; method?: PluginConnectionMethod; headers?: Record<string, string>; body?: string } {
   const invalid = (): never => { throw new SandboxError('sandbox.invalid_request', 'Invalid connection request'); };
   if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).some(key => !CONNECTION_FIELDS.has(key))) return invalid();
-  const { url, method, headers, body } = value as { [key: string]: SandboxJson };
+  const { url, record_key, method, headers, body } = value as { [key: string]: SandboxJson };
   if (typeof url !== 'string' || (method !== undefined && typeof method !== 'string') || (body !== undefined && typeof body !== 'string')) return invalid();
+  if (record_key !== undefined && (typeof record_key !== 'string' || record_key.length > PLUGIN_CONNECTION_RECORD_KEY_MAX)) return invalid();
   if (headers !== undefined && (!headers || typeof headers !== 'object' || Array.isArray(headers) || Object.values(headers).some(item => typeof item !== 'string'))) return invalid();
-  return { url, ...(method === undefined ? {} : { method: method as PluginConnectionMethod }), ...(headers === undefined ? {} : { headers: headers as Record<string, string> }), ...(body === undefined ? {} : { body }) };
+  return { url, ...(record_key === undefined ? {} : { record_key }), ...(method === undefined ? {} : { method: method as PluginConnectionMethod }), ...(headers === undefined ? {} : { headers: headers as Record<string, string> }), ...(body === undefined ? {} : { body }) };
 }

@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { TestContext } from "node:test";
-import { createDesktopWebHost } from "@molis-ai/molis-work-app-desktop";
+import { createDesktopWebHost, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference, type WebServerOptions } from "@molis-ai/molis-work-app-local-host";
 import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
 import { defineInstructionPrompt, instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
@@ -22,7 +22,7 @@ async function within(name: string, operation: Promise<unknown>) {
   finally { clearTimeout(timer); }
 }
 
-/** An isolated Host behind the actual desktop HTTP composition. No store writes or grant shortcuts. */
+/** An isolated Host behind the actual desktop HTTP composition, with the Catalog's directory list. No store writes or grant shortcuts. */
 export async function serveHomeRuntime(t: TestContext, options: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]> = {}, webOptions: Pick<WebServerOptions, "chooseDirectory"> = {}) {
   const home = options.homeDirectory ?? await mkdtemp(join(tmpdir(), "home-runtime-"));
   let host: MolisWorkLocalHost | undefined, server: ReturnType<ReturnType<typeof createDesktopWebHost>> | undefined;
@@ -38,7 +38,15 @@ export async function serveHomeRuntime(t: TestContext, options: NonNullable<Cons
     }
     if (failures.length) throw new AggregateError(failures, "Home runtime fixture cleanup failed");
   });
-  host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, ...options });
+  const workspaceFor = options.workspaceFor;
+  host = new MolisWorkLocalHost({
+    homeDirectory: home, completeText: null,
+    // A supplied single-folder port remains the authority; explicit list options below still win, including an intentional undefined.
+    workspacesFor: workspaceFor
+      ? async projectId => { const workspace = await workspaceFor(projectId); return workspace === null ? [] : [workspace]; }
+      : projectId => withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => catalog.listWorkspaceDirectory(projectId)),
+    ...options,
+  });
   const token = randomUUID();
   server = createDesktopWebHost({ ptyClientFilePath: () => "" })({ homeDirectory: home, localHost: host, controlToken: token, ...webOptions });
   await new Promise<void>(resolve => server!.listen(0, "127.0.0.1", resolve));
@@ -63,6 +71,7 @@ export function homeProbe(name = "homeprobe", version = "1.0.0") {
   const id = `io.molis.work.example.${name}`, read = `${name}:read`, write = `${name}:write`, configure = `${name}:configure`;
   const permissions = ["storage:private", read, write, configure, "model:invoke"];
   const contexts: PluginStartContext[] = [], stopped: unknown[] = [];
+  const routed: Array<string | null> = [];
   const instruction = defineInstructionPrompt({ owner_id: id, prompt_id: "summarize", version: 1, title: "Home 摘要", purpose: "概括本次材料",
     used_by: ["Home 探针"], body: "用一句话概括材料。" });
   const action = <Input, Output>(suffix: string, scope: "home" | "project", required: string[], operation: "query" | "command", input: ActionSchema): ActionDefinition<Input, Output> =>
@@ -89,12 +98,14 @@ export function homeProbe(name = "homeprobe", version = "1.0.0") {
     upgrade_compatibility: { compatible_from_versions: ["1.0.0"], migratable_from_versions: [] } }, instructions: [instruction],
     async start(context) {
       contexts.push(context);
+      const stateRoute = bindPluginActionRoute(context, state, () => ({}), "state");
       return { kind: "app", actions: [
         { ...state, handle(caller) { seen.push({ project_id: caller.project_id, page_context: caller.page_context }); return { value: context.services!.storage!.get("note"), project_id: caller.project_id }; } },
         { ...save, async handle(caller, input) { await caller.beforeEffect(); context.services!.storage!.set("note", (input as { text: string }).text); return "stored"; } },
         { ...project, handle: caller => caller.project_id },
         ...[ask, serial].map(action => ({ ...action, handle: () => behavior.ask(context) })),
-      ], routes: [bindPluginActionRoute(context, state, () => ({}), "state"), bindPluginActionRoute(context, save, request => request.body as { text: string }, "save"),
+      ], routes: [{ ...stateRoute, handle(request) { routed.push(request.execution?.project_id ?? null); return stateRoute.handle(request); } },
+        bindPluginActionRoute(context, save, request => request.body as { text: string }, "save"),
         bindPluginActionRoute(context, project, () => ({}), "project"), bindPluginActionRoute(context, ask, () => ({}), "ask")],
         action_scenes: scenes.map(scene => ({ ...scene, targets: () => [{ binding_id: "original", title: `${name} 原配置位置`, revision: null }], bindings: () => [], bind: () => {}, consume: () => ({}) })) };
     },
@@ -106,7 +117,7 @@ export function homeProbe(name = "homeprobe", version = "1.0.0") {
       stopped.push(refusal); await behavior.stop(context);
     },
   };
-  return { id, definition, state, save, project, ask, serial, scenes, permissions, contexts, stopped, instruction, behavior, seen };
+  return { id, definition, state, save, project, ask, serial, scenes, permissions, contexts, stopped, instruction, behavior, seen, routed };
 }
 
 export async function grantHomeProbe(host: MolisWorkLocalHost, probe: ReturnType<typeof homeProbe>, grants = probe.permissions) {

@@ -132,7 +132,7 @@ const withoutComments = (text) => text.replace(/\/\*[\s\S]*?\*\//g, " ").replace
 // mention count below. (`"\/assets\/x"` in a plain string has the same escapes and is refused the same way.) So once the
 // readable route literals and this pattern are taken out of the code, no word `assets` may be left, whatever sits around it
 // (`[\/]assets`, `/(assets)/`, `assets\/`).
-const PACK_ROUTE_PATTERN = String.raw`/^\/assets\/molis-work-plugins\/([a-z0-9-]+)\.js$/`;
+const PACK_ROUTE_PATTERN = String.raw`/^\/assets\/molis-work-plugins\/([a-z0-9-]+)\.(js|css)$/`;
 const ROUTE_LITERAL = /(["'`])(\/assets\/[^"'`\s\\]+)\1/g;
 const STRAY_ASSETS = /.{0,16}\bassets\b.{0,56}/i;
 const COMPARE = "(?:[!=]==|[!=]=)(?!=)";
@@ -178,13 +178,18 @@ async function measureServed(probe) {
     if (typeof pageAssets[name] !== "function") return fail(`apps/workbench/dist/page-assets.js no longer exports ${name}`);
   }
   if (!Array.isArray(packsModule.BUILTIN_PLUGIN_WORKBENCH)) return fail("apps/workbench/dist/plugin-workbench.js no longer exports BUILTIN_PLUGIN_WORKBENCH");
+  if (typeof packsModule.pluginOnDemandStylesheet !== "function") return fail("apps/workbench/dist/plugin-workbench.js no longer exports pluginOnDemandStylesheet");
 
   const { renderMolisWorkWorkbenchStylesheet, renderMolisWorkWorkbenchClientScript, renderMolisWorkArrivalStylesheet, renderMolisWorkSettingsStylesheet } = pageAssets;
   const served = assetsModule.createLocalWebAssets({
     ptyClientFilePath: () => path.join(root, "dist/web/pty-client.js"),
     renderer: { renderMolisWorkWorkbenchStylesheet, renderMolisWorkWorkbenchClientScript, renderMolisWorkArrivalStylesheet, renderMolisWorkSettingsStylesheet },
   });
-  const packPaths = packsModule.BUILTIN_PLUGIN_WORKBENCH.filter((pack) => pack.clientFactory).map((pack) => `${PLUGIN_PACK_PREFIX}${pack.project_plugin_id}.js`);
+  const packPaths = [
+    ...packsModule.BUILTIN_PLUGIN_WORKBENCH.filter((pack) => pack.clientFactory).map((pack) => `${PLUGIN_PACK_PREFIX}${pack.project_plugin_id}.js`),
+    // A framed plugin's own sheet (PG-070): the rules of its namespace, sent only where its frame links it.
+    ...packsModule.BUILTIN_PLUGIN_WORKBENCH.filter((pack) => packsModule.pluginOnDemandStylesheet(pack.project_plugin_id)).map((pack) => `${PLUGIN_PACK_PREFIX}${pack.project_plugin_id}.css`),
+  ];
   const measured = {};
   const gzip = {};
   const ask = (asset) => {
@@ -237,20 +242,61 @@ const headErrors = (measured, budget, base) => {
 };
 // One-time admissions of small, necessary growth under the user's #17 rule: asset → [merge-base bytes, ceiling]. Each is
 // deleted in the next change to this gate.
+// batch-40 (coordinator review 2026-10-25), each against main b3bac731b, both trees measured on the served asset:
+// - workbench.js +1,717 B: PG-070/071 (#1302, the user's 10-25 decision that plugin styles load on demand and each plugin's English
+//   ships with it): the loader that fetches a plugin's own stylesheet when its view first mounts, and stage summaries that carry
+//   each plugin's id so its own words apply. Tried in the same asset: R-55 rendered the connector slot picker's request path on the
+//   server and reused perform() with an undo, -111 B measured (1,129,577 -> 1,129,466, workbench-only rebuild over the same tree);
+//   the settings panel's stylesheet regex, escaped once more for its template string, nets -20 B (1,129,446).
+//   The same change takes 303,332 B out of workbench.css and 36,506 B out of settings.css (budgets lowered below).
+// - plugin-frame.js +54 B: a frame merges its own plugin's English under the page's (PG-071), the one expression that does it.
+// - plugins/coding.js +45 B: the shared diff classes are drawn as mw-diff-* (PG-070's frozen shared prefix), 15 selectors x 3 B.
 const APPROVED_CEILINGS = {
-  // VUX-TOAST-01: existing button qualifier keeps diagnostic links readable on hover/active.
-  // User approved #1198 on 2026-10-24: each stylesheet grows exactly 7 B from actual #1162 merge 2b253d45.
-  "/assets/molis-work-arrival.css": [694936, 694943],
-  "/assets/molis-work-settings.css": [983223, 983230],
-  "/assets/molis-work-workbench.css": [1552477, 1552484],
+  "/assets/molis-work-workbench.js": [1127729, 1129446],
+  "/assets/molis-work-plugin-frame.js": [190143, 190197],
+  "/assets/molis-work-plugins/coding.js": [289017, 289062],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;
 // An asset the user approved adding, with the bytes it is admitted at once: the merge-base did not budget it, so this is its
 // first freeze; from the next PR on it only falls like every other.
 // User approved 2026-10-21 (specs/archive/system-review-fixes): all plugin pages run in opaque frames. Freeze the final measured
 // shared bridge (including the common UI helpers) once; the original 90325-byte estimate was not a ceiling.
+// User approved 2026-10-24 (pop-up decision, W5-04 third group): Files, Git, Diff and Text Stats each ship their own bundle now that
+// Coding lends them to its panels through `clientUses` instead of copying their code into coding.js; coding.js falls by 82 KB.
+// Each is frozen once at the measured bytes.
+// User approved 2026-10-25 (pop-up decision, PG-070): a plugin whose page runs in a frame sends the rules of its own namespace as
+// /assets/molis-work-plugins/<id>.css, linked only by the frames that need them, instead of inside molis-work-workbench.css. The
+// sheets together are the bytes the workbench sheet loses (the workbench sheet falls by 247609, the sheets add 247526), so the total
+// does not grow. Each is frozen once at the measured bytes.
 const APPROVED_NEW_ASSETS = {
   "/assets/molis-work-plugin-frame.js": 187120,
+  // PG-070 slice 2 (2026-10-25): Shelf no longer keeps its sheet in the settings/workbench sheets, the plugin builder's own
+  // rules leave the shared sheet too; both are linked on demand, so both freeze once at the measured bytes.
+  "/assets/molis-work-plugins/plugin-builder.css": 19893,
+  "/assets/molis-work-plugins/shelf.css": 36541,
+  "/assets/molis-work-plugins/diff.js": 1483,
+  "/assets/molis-work-plugins/files.js": 11227,
+  "/assets/molis-work-plugins/git.js": 29496,
+  "/assets/molis-work-plugins/text-stats.js": 1281,
+  "/assets/molis-work-plugins/alchemist.css": 151,
+  // PG-070 slice 2 renamed the shared diff view's classes to `mw-diff-*`, including the ancestor selectors Coding's rules
+  // use; coding.css and the settings sheet that also embeds Coding's rules each grew by 24 bytes, so the first freeze is what
+  // this branch measures, not the pre-slice-2 number. (The coding.js bundle grew by 45 bytes and workbench.js by 642; both are
+  // existing assets, listed in the delivery comment and admitted by the merge queue, not here.)
+  "/assets/molis-work-plugins/coding.css": 74624,
+  "/assets/molis-work-plugins/cognia.css": 8283,
+  "/assets/molis-work-plugins/dataset.css": 6916,
+  "/assets/molis-work-plugins/files.css": 3199,
+  "/assets/molis-work-plugins/form.css": 8765,
+  "/assets/molis-work-plugins/git.css": 3197,
+  "/assets/molis-work-plugins/images.css": 7851,
+  "/assets/molis-work-plugins/jelly.css": 19603,
+  "/assets/molis-work-plugins/lingguang.css": 4505,
+  "/assets/molis-work-plugins/pages.css": 48265,
+  "/assets/molis-work-plugins/ppt.css": 7028,
+  "/assets/molis-work-plugins/schedule.css": 1269,
+  "/assets/molis-work-plugins/todo.css": 13175,
+  "/assets/molis-work-plugins/workflows.css": 40743,
 };
 // base: the budget file against the merge-base's. Raising a number, or adding an asset, is the laundering move.
 const baseErrors = (budget, base) => {

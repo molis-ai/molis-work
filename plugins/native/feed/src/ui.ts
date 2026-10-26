@@ -6,12 +6,10 @@ import type {
   FeedMaterialRecord,
 } from "@molis-ai/molis-work-contracts/modules/feed";
 import type { SourceRecord } from "@molis-ai/molis-work-contracts/modules/sources";
-import {
-  renderStatusMark, renderStateRing, type StateRingState,
-} from "@molis-ai/molis-work-design-system";
+import { renderStateRing, renderStatusMark, type StateRingState } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {
   UiContribution,
-  UiContributionDescriptor,
+  UiContributionDeclaration,
   UiRenderRequest,
 } from "@molis-ai/molis-work-contracts/platform/ui";
 import {
@@ -154,9 +152,8 @@ export type FeedUiSurface =
   | "persisted-detail"
   | "frame-block";
 
-export const feedUiDescriptor: UiContributionDescriptor = {
+export const feedUiDescriptor: UiContributionDeclaration = {
   contribution_id: FEED_UI_CONTRIBUTION_ID,
-  plugin_id: "io.molis.work.native.feed",
   kind: "primary-page",
   navigation_id: "feed",
   label: "Feed",

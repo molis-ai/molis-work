@@ -1,10 +1,11 @@
 import type { ImMessage, ImMessagePage } from '@molis-ai/molis-work-contracts/services/im';
 import type { StreamKind, ApiError } from './types.js';
-import type { ImCtx } from './controller-types.js';
+import type { ImBaseCtx, ImCtx } from './controller-types.js';
 /** Sending a message and moving to a message (source links and search results). */
-export function createImNavigate(c: ImCtx): Pick<ImCtx, 'locateSource' | 'send' | 'jumpMessage'> {
-  const { s, v, q, dialog, api, merge, drafts } = c;
+export function createImNavigate(base: ImBaseCtx, context: () => ImCtx): Pick<ImCtx, 'locateSource' | 'send' | 'jumpMessage'> {
+  const { s, v, q, dialog, api, merge, drafts } = base;
   async function locateSource(id: string) {
+    const c = context();
     if (s.threadId || s.threadDraft)
       c.closeThread();
     const version = s.epoch;
@@ -35,6 +36,7 @@ export function createImNavigate(c: ImCtx): Pick<ImCtx, 'locateSource' | 'send' 
     }
   }
   async function send(kind: StreamKind) {
+    const c = context();
     const id = c.target(kind), r = s.roomId, t = kind === 'thread' ? s.threadId : '';
     if (!id || s.authLost || s.busyTargets.has(id) || s.roomState?.room.id !== r || (kind === 'thread' && s.threadState?.thread.id !== t))
       return;
@@ -83,6 +85,7 @@ export function createImNavigate(c: ImCtx): Pick<ImCtx, 'locateSource' | 'send' 
     }
   }
   async function jumpMessage(id: string, thread: string) {
+    const c = context();
     c.closeSearch();
     if (!thread) {
       await locateSource(id);

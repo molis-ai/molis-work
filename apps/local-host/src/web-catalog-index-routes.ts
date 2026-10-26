@@ -1,5 +1,6 @@
 import { handlePluginPageHttp } from "./plugin-page-http.js";
 import { handleDirectoryGrantHttp } from "./plugin-directory-http.js";
+import { handlePluginConsentSettingsHttp } from "./plugin-consent-settings-http.js";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
@@ -30,6 +31,7 @@ interface CatalogIndexContext extends WebRequestContext {
 export const CATALOG_INDEX_ROUTES: readonly WebRoute<CatalogIndexContext>[] = [
   { id: "plugin-page", handle: context => handlePluginPageHttp(context) },
   { id: "directory-grant", handle: context => handleDirectoryGrantHttp(context) },
+  { id: "plugin-consents", handle: handlePluginConsentSettingsHttp },
   // Personal memories are managed from the global settings, outside any project.
   { id: "memory", handle: async ({ request, response, url, serverOptions, localHost }) =>
     Boolean(serverOptions.homeDirectory) && url.pathname.startsWith("/api/memory/") && await handleMemoryHttp(request, response, url, { localHost }) },

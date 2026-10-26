@@ -31,7 +31,6 @@
   },
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",
-    "@molis-ai/molis-work-design-system": "workspace:*",
     "@molis-ai/molis-work-plugin-sdk": "workspace:*",
     "@molis-ai/molis-work-storage": "workspace:*",
     "better-sqlite3": "12.8.0",
@@ -43,6 +42,11 @@
     "kind": "native-plugin",
     "maturity": "partial",
     "contract": "@molis-ai/molis-work-contracts/platform/plugin",
+    "summary": "Project-isolated Alchemist studio: discovery, evidence-backed research and founder decisions.",
+    "notResponsibleFor": "Host model credentials or another Plugin implementation.",
+    "legacySources": [
+      "src/web/render.ts"
+    ],
     "migrationGoals": [
       "goal-reorg-f2"
     ],
@@ -51,6 +55,15 @@
       "alchemist.ui-contribution.v1",
       "alchemist.http-routes.v1"
     ],
+    "extraWorkspaceDependencies": [
+      "@molis-ai/molis-work-plugin-sdk",
+      "@molis-ai/molis-work-storage"
+    ],
+    "extraDependencies": {
+      "better-sqlite3": "12.8.0",
+      "hono": "4.12.32",
+      "zod": "4.4.3"
+    },
     "registration": "./registration"
   },
   "devDependencies": {

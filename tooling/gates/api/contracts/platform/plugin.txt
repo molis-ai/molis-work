@@ -407,6 +407,7 @@ export interface ActionCallContext extends ActionCallOrigin {
     readonly user_action?: ActionUserAction;
     readonly project_id: string | null;
     readonly audience: ActionAudience;
+    readonly readable_project_ids?: readonly string[];
     readonly plugin_install_id?: string;
     readonly host_plugin?: import("@molis-ai/molis-work-contracts/platform/app-host").HostPluginCaller;
     readonly original_file?: HostOfferedOriginalFile;
@@ -440,7 +441,11 @@ export interface ActionClient {
     invoke(context: ActionCallContext, reference: ActionReference, input: unknown): Promise<unknown>;
 }
 
-export interface ActionDefinition<Input = unknown, Output = unknown> extends HostCapabilityDefinition<Input, Output> {
+export interface ActionDefinition<Input = unknown, Output = unknown> extends HostCapabilityDescriptor {
+    readonly __types__?: {
+        input: Input;
+        output: Output;
+    };
     readonly operation: "query" | "command";
     readonly provider_id?: string;
     readonly action: ActionMetadata;
@@ -525,6 +530,8 @@ export interface ActionMetadata {
         readonly subject_kind: string;
     };
     readonly home_aggregate?: true;
+    readonly project_reach?: "person";
+    readonly placement_relation?: PlacementRelationDeclaration;
     readonly subject_offer_choices?: readonly SubjectOfferChoice[];
     readonly fragment_offer_choices?: readonly FragmentOfferChoice[];
     readonly intake?: ActionIntake;
@@ -638,6 +645,17 @@ export interface ActionSceneConfigureOptions {
     readonly before_write?: () => void | Promise<void>;
 }
 
+export interface ActionSceneDefaultRule {
+    readonly function_key: string;
+    readonly name: string;
+    readonly instructions: string;
+    readonly options: readonly {
+        readonly key: string;
+        readonly description: string;
+    }[];
+    readonly subject_kinds: readonly string[];
+}
+
 export interface ActionSceneDefinition {
     readonly scene_id: string;
     readonly version: number;
@@ -655,6 +673,7 @@ export interface ActionSceneDefinition {
     readonly permissions: readonly string[];
     readonly configuration_permissions?: readonly string[];
     readonly event_schema?: ActionSchema;
+    readonly default_rule?: ActionSceneDefaultRule;
 }
 
 export interface ActionSceneExecutionContext extends ActionCallContext {
@@ -738,7 +757,7 @@ export interface ActionSubjectContext {
     title: string;
     content: string;
     truncated: boolean;
-    goal_ids: string[];
+    goal_ids?: string[];
     open?: {
         surface: string;
         id: string;
@@ -891,9 +910,20 @@ export interface ArtifactContinueResult {
     };
 }
 
+export interface ArtifactFileDeclaration {
+    extensions: string[];
+    stored_text?: boolean;
+}
+
 export interface ArtifactLineHead {
     version: number;
     source_revision: number | null;
+}
+
+export interface ArtifactLinkDeclaration {
+    kind: string;
+    role: "input" | "output";
+    proposal?: boolean;
 }
 
 export interface ArtifactPinInput {
@@ -2221,6 +2251,7 @@ export interface HomeOpenTarget {
 
 export interface HomePluginDatabaseDeclaration extends PluginDatabaseDeclaration {
     readonly partition?: "project";
+    readonly project_rows?: PluginProjectRowsDeclaration;
 }
 
 export interface HomeStoreDeclaration {
@@ -2257,7 +2288,7 @@ export interface HostReviewSettledPayload {
 
 export interface HostWorkspaceChangedPayload {
     workspace_id: string;
-    cause: "plugin-operation" | "agent-change";
+    cause: "plugin-operation" | "agent-change" | "workspace-settings" | "project-opened";
 }
 
 export declare const ITEM_ATTACH_POSITIONS: readonly ["cursor", "selection", "end"];
@@ -2418,6 +2449,8 @@ export declare const PLACEMENT_MOVE_INPUT_TYPE = "molis.placement.move.input.v1"
 
 export declare const PLACEMENT_MOVE_OUTPUT_TYPE = "molis.placement.move.output.v1";
 
+export declare const PLACEMENT_RELATION_ROLES: readonly ["list", "bind", "release", "candidates", "create"];
+
 export declare const PLACEMENT_RESULT_SCHEMA: {
     type: string;
     properties: {
@@ -2452,7 +2485,23 @@ export declare const PLACEMENT_RESULT_SCHEMA: {
     additionalProperties: boolean;
 };
 
+export declare const PLUGIN_ATTENTION_READ_PERMISSION = "attention:read";
+
+export declare const PLUGIN_ATTENTION_WRITE_PERMISSION = "attention:write";
+
+export declare const PLUGIN_CONTEXT_LEDGER_READ_PERMISSION = "context-ledger:read";
+
+export declare const PLUGIN_CONTEXT_LEDGER_WRITE_PERMISSION = "context-ledger:write";
+
 export declare const PLUGIN_EVENT_PAYLOAD_MAX_BYTES = 16384;
+
+export declare const PLUGIN_LOCAL_TOOLS_LIMITS: Readonly<{
+    tools: 32;
+    binaries: 4;
+    directories: 24;
+}>;
+
+export declare const PLUGIN_LOCAL_TOOLS_PERMISSION = "local-tools:read";
 
 export declare const PLUGIN_MODEL_LIMITS: {
     readonly default_timeout_ms: 120000;
@@ -2474,6 +2523,17 @@ export interface PlacementMoveInput {
     to_project_id: string;
 }
 
+export interface PlacementRelationDeclaration {
+    readonly relation: string;
+    readonly role: PlacementRelationRole;
+    readonly target?: {
+        readonly kind: string;
+        readonly noun: string;
+    };
+}
+
+export type PlacementRelationRole = (typeof PLACEMENT_RELATION_ROLES)[number];
+
 export interface PlacementResult {
     subject: ActionSubject;
     project_id: string;
@@ -2481,6 +2541,7 @@ export interface PlacementResult {
 }
 
 export interface PluginActionClient extends BoundActionClient {
+    availability(reference: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference): import("@molis-ai/molis-work-contracts/platform/actions").ActionAvailability;
     invokeQuery<Input = unknown, Output = unknown>(reference: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference, input: Input): Promise<Output>;
     readonly dependencies?: PluginActionDirectory;
     readonly directory?: PluginActionDirectory;
@@ -2516,8 +2577,6 @@ export interface PluginAppContribution {
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneHandlerBinding[];
     views?: readonly UiContribution[];
     routes?: readonly PluginRouteBinding[];
-    commandAvailability?(commandId: string): UiCommandAvailability;
-    executeCommand?(commandId: string, input: PluginCommandInput): UiOpenedObjectView | Promise<UiOpenedObjectView>;
     onUpstreamReady?(inputs: PluginUpstreamReadyInputs, context: PluginInputDeliveryContext): void | Promise<void>;
     onUpstreamUnavailable?(reason: PluginUpstreamUnavailableReason): void | Promise<void>;
     onEvent?(event: PluginEventRecord, context: PluginEventDeliveryContext): void | Promise<void>;
@@ -2538,6 +2597,49 @@ export interface PluginArtifactPublishInput extends PluginProcessItemInput {
     trace?: ArtifactReference[];
 }
 
+export interface PluginAttentionClient {
+    list(): PluginAttentionEntryRecord[];
+    get(entryId: string): PluginAttentionEntryRecord;
+    findActiveForSubject(subject: PluginAttentionSubjectReference): PluginAttentionEntryRecord | null;
+    findForSubject(subject: PluginAttentionSubjectReference): PluginAttentionEntryRecord[];
+    events(entryId?: string): PluginAttentionEvent[];
+    join<T>(transaction: PluginDatabaseTransaction, write: (writer: PluginAttentionWriter) => T): T;
+}
+
+export interface PluginAttentionDeclaration {
+    readonly subjects: readonly AttentionSubjectType[];
+}
+
+export interface PluginAttentionEntryInput extends PluginAttentionSubjectReference {
+    readonly reason: AttentionReason;
+    readonly detail?: Record<string, unknown>;
+    readonly entry_id?: string;
+    readonly at?: string;
+}
+
+export type PluginAttentionEntryRecord = AttentionEntryRecord & {
+    owner_plugin_id: string;
+};
+
+export type PluginAttentionEvent = AttentionEvent & {
+    owner_plugin_id: string;
+};
+
+export interface PluginAttentionSubjectReference {
+    readonly owner_plugin_id: string;
+    readonly subject_type: AttentionSubjectType;
+    readonly subject_id: string;
+}
+
+export interface PluginAttentionWriter {
+    create(input: PluginAttentionEntryInput): {
+        entry: PluginAttentionEntryRecord;
+        created: boolean;
+    };
+    setStatus(entryId: string, status: AttentionStatus, expectedRevision?: number): AttentionEntryRecord;
+    deleteSubject(subject: PluginAttentionSubjectReference): number;
+}
+
 export interface PluginBackgroundClient {
     start<T>(work: (control: PluginExecutionControl) => Promise<T>, options?: {
         signal?: AbortSignal;
@@ -2550,24 +2652,23 @@ export interface PluginBackgroundExecution<T> {
     cancel(): void;
 }
 
-export interface PluginCapabilityClient {
-    availability(capability: import("@molis-ai/molis-work-contracts/platform/actions").ActionReference): import("@molis-ai/molis-work-contracts/platform/actions").ActionAvailability;
-    invoke<Input, Output>(capability: HostCapabilityDefinition<Input, Output>, input: Input, options?: import("@molis-ai/molis-work-contracts/platform/app-host").HostCapabilityCallOptions): Promise<Output>;
-}
-
-export type PluginCommandInput = PluginCommandInputOf<"current"> | PluginCommandInputOf<"object", {
-    ref: UiViewObjectRef;
-}> | PluginCommandInputOf<"agent-session", {
-    session_id: string;
-}> | PluginCommandInputOf<"artifacts", {
-    references: readonly ArtifactReference[];
-}>;
-
 export interface PluginConsumableVersion extends ArtifactReference {
     kind: "artifact" | "process_item";
     artifact_type_id: string;
     schema_version: number;
     title: string | null;
+}
+
+export interface PluginContextLedgerClient {
+    get(key: string): ContextEdge | null;
+    list(query?: ContextEdgeQuery): ContextEdge[];
+    history(key: string): ContextEdge[];
+    join<T>(transaction: PluginDatabaseTransaction, write: (writer: PluginContextLedgerWriter) => T): T;
+}
+
+export interface PluginContextLedgerWriter {
+    put(input: ContextEdgeInput): ContextEdge;
+    remove(key: string, cause: string, recordedAt?: string): ContextEdge | null;
 }
 
 export type PluginContribution = PluginIntegrationContribution | PluginAppContribution;
@@ -2818,6 +2919,7 @@ export interface PluginExecutor {
     capturePrivateData?(installId: string): Promise<unknown> | unknown;
     restorePrivateData?(installId: string, snapshot: unknown): Promise<void> | void;
     uninstalled?(record: PluginInstanceRecord): Promise<void> | void;
+    prepareReinstall?(record: PluginInstanceRecord): void;
     keptDataDiscarded?(record: PluginInstanceRecord): void;
 }
 
@@ -2828,6 +2930,8 @@ export interface PluginExecutorHandle {
 export interface PluginHostServices {
     readonly notifications?: import("platform/plugin-notifications").PluginNotificationClient;
     readonly installations?: import("platform/plugin-installations").PluginInstallationClient;
+    readonly attention?: import("@molis-ai/molis-work-contracts/platform/plugin-attention").PluginAttentionClient;
+    readonly contextLedger?: import("@molis-ai/molis-work-contracts/platform/plugin-attention").PluginContextLedgerClient;
     readonly agents?: import("platform/plugin-agents").PluginAgentClient;
     readonly background?: import("platform/plugin-background").PluginBackgroundClient;
     readonly actions?: PluginActionClient;
@@ -2840,6 +2944,7 @@ export interface PluginHostServices {
     readonly terminal?: PluginTerminalClient;
     readonly model?: PluginModelClient;
     readonly imageGeneration?: import("platform/plugin-image-generation").PluginImageGenerationClient;
+    readonly localTools?: import("platform/plugin-local-tools").PluginLocalToolsClient;
     readonly materials?: PluginMaterialsClient;
     readonly connections?: import("@molis-ai/molis-work-contracts/platform/plugin-connections").PluginConnectionsClient;
     readonly directory?: import("@molis-ai/molis-work-contracts/platform/plugin-directory").PluginDirectoryService;
@@ -2850,7 +2955,6 @@ export interface PluginHostServices {
     readonly events?: PluginEventsClient;
     readonly inputs?: PluginInputsClient;
     readonly outputs?: PluginOutputsClient;
-    readonly capabilities?: PluginCapabilityClient;
 }
 
 export interface PluginIdempotencyPut {
@@ -3013,6 +3117,7 @@ export interface PluginInstanceRecord {
     selected_entrypoint: string;
     grants: string[];
     execution: "host" | "sandbox";
+    publisher_trust: import("@molis-ai/molis-work-contracts/platform/plugin-trust").PluginTrustLevel;
     state: PluginLifecycleState;
     recovery_count: number;
     last_error_code: string | null;
@@ -3120,6 +3225,28 @@ export type PluginLifecycleState = "installed" | "running" | "disabled" | "crash
 
 export type PluginLocalPageRequest = Pick<MaterialExtractionOptions, "signal">;
 
+export interface PluginLocalToolsClient {
+    find(options?: {
+        readonly signal?: AbortSignal;
+    }): Promise<readonly {
+        readonly tool_id: string;
+        readonly executable: string | null;
+    }[]>;
+    isExecutable(path: string, options?: {
+        readonly signal?: AbortSignal;
+    }): Promise<boolean>;
+    refresh(): void;
+}
+
+export interface PluginLocalToolsDeclaration {
+    readonly tools: readonly {
+        readonly tool_id: string;
+        readonly binaries: readonly string[];
+    }[];
+    readonly directories?: readonly string[];
+    readonly custom_executables?: true;
+}
+
 export interface PluginManifest {
     schema_version: 1 | 2;
     plugin_id: string;
@@ -3132,6 +3259,8 @@ export interface PluginManifest {
     };
     host_api_version: 1 | 2;
     always_on?: boolean;
+    summary?: string;
+    developer?: true;
     entrypoints: PluginEntrypointManifest[];
     permissions: PluginPermissionDeclaration[];
     capabilities: {
@@ -3167,7 +3296,9 @@ export interface PluginManifest {
                 capability_id: string;
                 version: number;
             };
+            file?: ArtifactFileDeclaration;
         }>;
+        links?: ArtifactLinkDeclaration[];
     };
     process_items?: {
         produces: Array<{
@@ -3183,7 +3314,8 @@ export interface PluginManifest {
         contributions: string[];
         embedded_plugins?: string[];
         views?: UiViewDeclaration[];
-        commands?: UiCommandDeclaration[];
+        messages?: PluginMessagesDeclaration;
+        translations?: PluginTranslationsDeclaration;
     };
     ports?: PluginPortsDeclaration;
     events?: PluginEventsDeclaration;
@@ -3196,6 +3328,9 @@ export interface PluginManifest {
     owner_files?: import("platform/plugin-owner-files").PluginOwnerFilesDeclaration;
     model_configuration?: import("platform/plugin-model-configuration").PluginModelConfigurationDeclaration;
     image_generation?: import("platform/plugin-image-generation").PluginImageGenerationDeclaration;
+    runtime?: PluginRuntimeDeclaration;
+    local_tools?: import("platform/plugin-local-tools").PluginLocalToolsDeclaration;
+    attention?: import("@molis-ai/molis-work-contracts/platform/plugin-attention").PluginAttentionDeclaration;
     connections?: import("@molis-ai/molis-work-contracts/platform/plugin-connections").PluginConnectionsDeclaration;
     background?: {
         jobs: readonly import("platform/plugin-background").PluginJobDeclaration[];
@@ -3229,6 +3364,11 @@ export interface PluginMaterialsClient {
     readOriginalRange?(record_key: string, request: PluginOriginalRangeRequest): Promise<PluginOriginalRangeContent>;
     releaseOriginal?(record_key: string): Promise<void>;
 }
+
+export type PluginMessagesDeclaration = Readonly<Record<string, {
+    readonly zh: string;
+    readonly en: string;
+}>>;
 
 export type PluginModelAvailability = ActionAvailability & {
     readonly runtime_label?: string;
@@ -3442,6 +3582,10 @@ export interface PluginPackageBundle {
         algorithm: "ed25519";
         value_base64: string;
     };
+    publisher_key: null | {
+        algorithm: "ed25519";
+        spki_base64: string;
+    };
 }
 
 export interface PluginPackageFile {
@@ -3457,6 +3601,7 @@ export interface PluginPackagePayload {
 
 export interface PluginPackageSigner {
     readonly publisher_identity: string;
+    readonly public_key_spki_base64: string;
     sign(payload: Uint8Array): Uint8Array;
 }
 
@@ -3565,6 +3710,22 @@ export interface PluginProjectDatabaseTransaction extends PluginDatabaseTransact
 }
 
 export type PluginProjectRow = Record<string, null | number | string>;
+
+export interface PluginProjectRowsDeclaration {
+    readonly label: string;
+    readonly order?: number;
+    readonly tables: readonly PluginProjectRowsTable[];
+}
+
+export type PluginProjectRowsTable = {
+    readonly table: string;
+    readonly column: string;
+} | {
+    readonly table: string;
+    readonly column: string;
+    readonly parent: string;
+    readonly key?: string;
+};
 
 export interface PluginProjectStatement {
     readonly sql: string;
@@ -3677,6 +3838,10 @@ export interface PluginRuntimeApi {
     contribution(installId: string): PluginContribution | null;
 }
 
+export interface PluginRuntimeDeclaration {
+    readonly scope: "home";
+}
+
 export interface PluginRuntimeRepository {
     get(installId: string): PluginInstanceRecord | null;
     list(): PluginInstanceRecord[];
@@ -3739,6 +3904,8 @@ export interface PluginTerminalClient {
     }>;
 }
 
+export type PluginTranslationsDeclaration = Readonly<Record<string, string>>;
+
 export interface PluginUiClient {
     register<TModel>(contribution: UiContribution<TModel>): void;
     unregister(contributionId: string): void;
@@ -3751,7 +3918,7 @@ export interface PluginUpgradeCompatibilityDeclaration {
 }
 
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
-    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "project_statements" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "notifications" | "interaction"> & {
+    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "project_statements" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "localTools" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "notifications" | "attention" | "contextLedger" | "interaction"> & {
         readonly storage?: Pick<PluginPrivateStorage, "get">;
     };
 };
@@ -3831,6 +3998,14 @@ export interface RetainedActionAuthority {
     (): Promise<void>;
     readonly assertCurrent: () => void;
 }
+
+export declare const SANDBOX_PACKAGE_FILES: {
+    readonly manifest: "manifest.json";
+    readonly entrypoint: "plugin.mjs";
+    readonly contract: "contract.json";
+    readonly interface: "interface.json";
+    readonly prompts: "prompts.json";
+};
 
 export declare const SEARCH_ENTRIES_INPUT_SCHEMA: {
     type: string;
@@ -4066,6 +4241,14 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA: {
             type: string[];
             maxLength: number;
         };
+        goal_ids: {
+            type: string;
+            items: {
+                type: string;
+                minLength: number;
+            };
+            uniqueItems: boolean;
+        };
         subject: {
             type: string;
             properties: {
@@ -4095,14 +4278,6 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA: {
         };
         truncated: {
             type: string;
-        };
-        goal_ids: {
-            type: string;
-            items: {
-                type: string;
-                minLength: number;
-            };
-            uniqueItems: boolean;
         };
     };
     required: string[];
@@ -4112,6 +4287,14 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA: {
 export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN: {
     type: string;
     properties: {
+        goal_ids: {
+            type: string;
+            items: {
+                type: string;
+                minLength: number;
+            };
+            uniqueItems: boolean;
+        };
         subject: {
             type: string;
             properties: {
@@ -4141,14 +4324,6 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_OPEN: {
         };
         truncated: {
             type: string;
-        };
-        goal_ids: {
-            type: string;
-            items: {
-                type: string;
-                minLength: number;
-            };
-            uniqueItems: boolean;
         };
     };
     required: string[];
@@ -4174,6 +4349,14 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_PROJECT: {
             required: string[];
             additionalProperties: boolean;
         };
+        goal_ids: {
+            type: string;
+            items: {
+                type: string;
+                minLength: number;
+            };
+            uniqueItems: boolean;
+        };
         subject: {
             type: string;
             properties: {
@@ -4203,14 +4386,6 @@ export declare const SUBJECT_CONTEXT_OUTPUT_SCHEMA_WITHOUT_PROJECT: {
         };
         truncated: {
             type: string;
-        };
-        goal_ids: {
-            type: string;
-            items: {
-                type: string;
-                minLength: number;
-            };
-            uniqueItems: boolean;
         };
     };
     required: string[];
@@ -4340,6 +4515,20 @@ export declare const SUBJECT_OFFER_SCHEMA: {
 export declare const SUBJECT_REFERENCE_TYPE = "molis.subject-reference.v1";
 
 export declare const SURFACE_BROWSER_PERMISSION = "surface:browser";
+
+export interface SandboxPackageInterface {
+    parts: SandboxJson[];
+    nodes: SandboxJson[];
+    presentation?: SandboxJson;
+    acceptance?: SandboxJson[];
+}
+
+export interface SandboxPackagePrompt {
+    id: string;
+    title: string;
+    purpose: string;
+    body: string;
+}
 
 export type SceneConfigurationInput = {
     binding_id: string;
@@ -4829,6 +5018,10 @@ export declare function isObjectMover(action: {
     output_type?: string;
 }): boolean;
 
+export declare function isPlacementRelation(action: {
+    placement_relation?: PlacementRelationDeclaration;
+}, relation: string, role: PlacementRelationRole): boolean;
+
 export declare function isReservedEventType(eventTypeId: string): boolean;
 
 export declare function isSearchEntriesSource(action: {
@@ -4905,7 +5098,11 @@ export declare const platformPluginWiringContract: {
 };
 
 export declare const pluginErrors: import("platform/action-errors").ErrorCodeRaisers<{
+    readonly always_on: "invalid";
     readonly capability_denied: "invalid";
+    readonly consent_required: "invalid";
+    readonly consent_revoked: "invalid";
+    readonly consent_unknown: "not_found";
     readonly contribution_kind_invalid: "invalid";
     readonly contribution_unredeemed: "invalid";
     readonly declaration_invalid: "invalid";
@@ -4916,12 +5113,18 @@ export declare const pluginErrors: import("platform/action-errors").ErrorCodeRai
     readonly event_type_undeclared: "invalid";
     readonly executor_failed: "invalid";
     readonly grant_denied: "invalid";
+    readonly home_scope_unavailable: "invalid";
+    readonly id_namespace_conflict: "invalid";
     readonly install_replaced: "invalid";
     readonly kept_data_incompatible: "invalid";
     readonly manifest_invalid: "invalid";
     readonly package_invalid: "invalid";
     readonly permission_invalid: "invalid";
+    readonly preview_unknown: "not_found";
+    readonly publisher_revoked: "invalid";
+    readonly publisher_untrusted: "invalid";
     readonly quarantined: "invalid";
+    readonly rule_key_reserved: "invalid";
     readonly signature_invalid: "invalid";
     readonly signer_mismatch: "invalid";
     readonly state_invalid: "invalid";
@@ -5009,10 +5212,6 @@ interface DestinationDeclaration {
     readonly prepare?: Pick<ActionReference, "capability_id" | "version">;
     readonly places?: readonly SurfacePlace[];
 }
-
-type PluginCommandInputOf<Kind extends UiCommandInputKind, Payload = unknown> = {
-    kind: Kind;
-} & Payload;
 
 type RoundRef = {
     session_id: string;

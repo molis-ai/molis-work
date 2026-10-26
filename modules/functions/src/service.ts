@@ -19,7 +19,7 @@ import {
   type TypeSafeProvider,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import { functionsErrors } from "./errors.js";
-import type { BuiltinRuleSubject } from "./builtin.js";
+import type { DeclaredRuleSubject, DeclaredSceneRule } from "./declared-rules.js";
 import type { RecordJudgmentInput } from "./judgments.js";
 import { assertReadyToEvaluate } from "./record-rules.js";
 import { FunctionsStore, openFunctionsStore } from "./store.js";
@@ -29,8 +29,6 @@ export type { TypeSafeProvider, TypeSafeEvaluateResult };
 export interface FunctionsServiceOptions {
   /** The Home whose Functions library the service opens, and closes with `close()`. */
   readonly home: string;
-  /** Option targets of a built-in rule that only the composition root can resolve, asked when the rule is first seeded. */
-  readonly builtinSceneMap?: (rule: BuiltinRuleSubject) => FunctionSceneMap;
   /** The TypeSafe key of the connection the Home chose for Functions; null when there is none. */
   readonly credential: () => string | null;
   readonly env?: NodeJS.Dict<string>;
@@ -50,7 +48,7 @@ export class FunctionsService {
   private readonly provider: TypeSafeProvider;
 
   constructor(options: FunctionsServiceOptions) {
-    this.store = openFunctionsStore(options.home, { builtinSceneMap: options.builtinSceneMap });
+    this.store = openFunctionsStore(options.home);
     this.credential = options.credential;
     this.env = options.env ?? {};
     this.provider = options.provider ?? missingProvider;
@@ -59,6 +57,14 @@ export class FunctionsService {
   /** Releases the library. The service is not usable afterwards. */
   close(): void {
     this.store.close();
+  }
+
+  /**
+   * Writes the rules scenes declare for themselves, each once (the first declaration of a function key wins). `sceneMap` gives a rule's
+   * option targets that only the composition root can resolve, asked for a rule only when it is first written.
+   */
+  seedDeclaredRules(rules: readonly DeclaredSceneRule[], sceneMap?: (rule: DeclaredRuleSubject) => FunctionSceneMap): void {
+    this.store.seedDeclared(rules, sceneMap);
   }
 
   list(): FunctionRecord[] {

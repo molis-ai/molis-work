@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginActions } from "./fixtures/plugin-actions.js";
@@ -29,7 +30,7 @@ test("W5-01-D1-01: installed Plugins exchange exact Artifact versions by type, w
   const api = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
   const processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
   // A plugin that declares actions (the preview of its 成果 type) is installed against the Kernel that holds them.
-  const runtime = new PluginRuntime(undefined, undefined, { actions: pluginActions(store, DEMO_PROJECT_ID) });
+  const runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS, actions: pluginActions(store, DEMO_PROJECT_ID) });
   try {
     // W5-08-MOD-03/04: process-item publication stays behind the same business services.
     for (const entry of [processItems, processItems.service, processItems.query, processItems.commands]) {
@@ -58,7 +59,7 @@ test("W5-01-D1-01: installed Plugins exchange exact Artifact versions by type, w
         const contribution = await base.start(context);
         return { ...contribution, actions: [...(contribution.actions ?? []), preview.handler] };
       }, stop() { dispose(); } };
-      const installed = runtime.install({ definition, deployment: "local", grants: [
+      const installed = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: [
         "network:github.com", "secret:github", "artifact:write", ...(options.read === false ? [] : ["artifact:read"]),
       ] });
       await runtime.start(installed.install.install_id);
@@ -144,7 +145,7 @@ test("W5-01-D1-01 W5-01-D1-04 W5-01-D1-05: SDK queries expose fixed contracts an
   const api = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
   const processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
   // A plugin that declares actions (the preview of its 成果 type) is installed against the Kernel that holds them.
-  const runtime = new PluginRuntime(undefined, undefined, { actions: pluginActions(store, DEMO_PROJECT_ID) });
+  const runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS, actions: pluginActions(store, DEMO_PROJECT_ID) });
   try {
     const base = createGithubIntegrationPlugin({ provider: {
       type: "fixture", async health() { return { ok: true, status: "connected", message: "ready" }; },
@@ -166,7 +167,7 @@ test("W5-01-D1-01 W5-01-D1-04 W5-01-D1-05: SDK queries expose fixed contracts an
         const contribution = await base.start(context);
         return { ...contribution, actions: [...(contribution.actions ?? []), preview.handler] };
       }, stop() { hosted.dispose(); } };
-      const installed = runtime.install({ definition, deployment: "local", grants: ["network:github.com", "secret:github", "artifact:write", ...(read ? ["artifact:read"] : [])] });
+      const installed = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: ["network:github.com", "secret:github", "artifact:write", ...(read ? ["artifact:read"] : [])] });
       await runtime.start(installed.install.install_id);
       return { ...hosted, installId: installed.install.install_id };
     }

@@ -64,8 +64,7 @@ test("the first-run Goal is made by the Goals action, as the person, and leaves 
 
     assert.deepEqual(host.callLog!.list(projectId).map(row => [row.capability_id, row.provider_id, row.actor_id, row.audience, row.ok]),
       [[goalsActions.create.capability_id, GOALS_PLUGIN_ID, LOCAL_PERSON_ACTOR_ID, "user", true]],
-      "one row: the Goals action, not a typed capability beside it");
-    assert.deepEqual(settled.filter(row => row.path === "typed"), [], "no typed capability was called for the Goal");
+      "one row: the Goals action, nothing beside it");
     assert.deepEqual(settled.filter(row => row.capability_id === goalsActions.create.capability_id).map(row => [row.operation, row.ok]), [["command", true]]);
 
     const reference = molisWorkHostProjectReference({ databasePath: (await withCatalog({ homeDirectory: home }, catalog => catalog.getProject(projectId))).database_path, projectId });
@@ -119,13 +118,13 @@ test("a Run reads the project guidance through the Goals action, once, whether o
 
     await rounds.invoke(agentHostCapabilities.startRun, ["probe", request]);
     assert.match(captured[0]!.role!.prompts.find(prompt => prompt.prompt_id === "project-guidance")!.body, /保留源文件/, "the project layer is delivered");
-    assert.deepEqual(guidanceRows(settled), [{ capability_id: "goals.guidance.read", path: undefined, operation: "query", actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", ok: true, code: undefined }],
+    assert.deepEqual(guidanceRows(settled), [{ capability_id: "goals.guidance.read", operation: "query", actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", ok: true, code: undefined }],
       "one settlement, the Goals action as the person; no typed guidance capability");
 
     settled.length = 0; removed = true;
     await rounds.invoke(agentHostCapabilities.startRun, ["probe", request]);
     assert.equal(captured[1]!.role!.prompts.some(prompt => prompt.prompt_id === "project-guidance"), false, "without Goals the Run starts with no project layer");
-    assert.deepEqual(guidanceRows(settled).map(row => [row.capability_id, row.path, row.ok, row.code]), [["goals.guidance.read", undefined, false, "actions.plugin_disabled"]],
+    assert.deepEqual(guidanceRows(settled).map(row => [row.capability_id, row.ok, row.code]), [["goals.guidance.read", false, "actions.plugin_disabled"]],
       "the refusal is the Goals action's own, told once");
   } finally { await host.close(); store.close(); await rm(home, { recursive: true, force: true }); }
 });

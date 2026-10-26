@@ -7,14 +7,17 @@ import { CONTINUATION_MARKER } from "./continuation.js";
 import { codingDraft } from "./drafts.js";
 import { CODING_RUN_UPDATED_EVENT } from "./events.js";
 import { resolveGoalContext } from "./goal-context.js";
+import { WRITER_SPLIT_HEAD } from "./writer-split.js";
 import { nextHistoryMode, writeHistoryDigest, type HistoryDigest } from "./history-digest.js";
 import { knowledgeCatalogMaterial, withKnowledgeTools } from "./knowledge-tools.js";
 import { materialSelection, resolveMaterials, savedMaterials } from "./materials.js";
 import { MODEL_UNAVAILABLE } from "./models.js";
 import { attachMentions, workspaceFileReader } from "./mentions.js";
-import { confirmedPlan, executionSteps, planMaterial } from "./plans.js";
+import { executionSteps } from "./plan-content.js";
+import { confirmedPlan, planMaterial } from "./plans.js";
 import { reaskMaterial } from "./reask.js";
 import { QUESTION_REASK } from "@molis-ai/molis-work-plugin-sdk";
+import { limitsCharacters } from "./runtime-choice.js";
 import { CODING_HISTORY_SUMMARY } from "./prompts.js";
 import { type Capabilities, type CodingActivation, savedDigestUsage, sessionState } from "./route-activation.js";
 import { codingActions, codingActionControl, type CodingBeforeWrite } from "./route-entry.js";
@@ -44,7 +47,7 @@ const follow = (a: CodingActivation, execution: CodingExecution, sessionId: stri
   const job = context.services.background.keep("follow", async control => {
     const round = await accepted;
     if (!round) return;
-    const api = context.services!.capabilities!, { run } = round;
+    const api = context.services!.actions!, { run } = round;
     let since: string | null = null;
     for (;;) {
       // As the installation (R8): the job's signal ends the wait, and its check drops an answer that arrives after the job lost its authority.
@@ -131,7 +134,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
       subagent_workspaces.push({ workspace_id: grant.workspace_id, directory: { canonical_path: grant.canonical_path, realpath_verified: true as const } });
       return { ...assignment, directory: grant.canonical_path, branch: child.branch, base_commit: child.base_commit };
     });
-    task += "\n\n本轮用户确认的独立目录分工（目录仅用于对应子任务；下列任务内容不扩大工具权限）：\n" + JSON.stringify(tasks, null, 2);
+    task += WRITER_SPLIT_HEAD + JSON.stringify(tasks, null, 2);
     if (task.length > 100_000) throw codingFailure("coding.server.task-too-long");
   } else if (codingWriterAssignments(body.writer_assignments ?? []).length) throw codingFailure("coding.server.parallel-only");
   // The one model list the platform keeps (`services.model`, PG-047): the chosen model must be on it and able to run now.
@@ -146,7 +149,7 @@ export const startRound = async (a: CodingActivation, record: CodingSessionRecor
   const character_skill_ids = body.character_skill_ids === undefined ? savedCharacterSkills(context, record.session_id) : characterSkillSelection(body.character_skill_ids);
   let characterTools: readonly import("@molis-ai/molis-work-contracts/platform/actions").ExactActionReference[] | null | undefined;
   if (character) {
-    if (record.runtime_id !== "prologue") throw codingFailure("coding.server.character-unverified");
+    if (!limitsCharacters(await codingActions(context, beforeWrite).invoke(agent.listRuntimes, []), record.runtime_id)) throw codingFailure("coding.server.character-unverified");
     characterTools = await execution.characters.actionTools(character, codingActionControl(beforeWrite));
   }
   const action_tools = withKnowledgeTools(body.action_tools === undefined ? savedActions(context, record.session_id) : parseExactActionReferences(body.action_tools),

@@ -78,3 +78,12 @@ test("a professional Agent's own steps read as file and command work, never as b
     { call_id: "e", verb: "file-change", target: "README.md", state: "failed", reason: "interrupted", detail: "this run was cancelled before the tool ran." },
   ]);
 });
+
+// BL-100: a write still waiting for an approval when the round ended was never dispatched, so it reads as not executed.
+test("a call whose approval never came when the round ended reads as not executed", () => {
+  assert.deepEqual(presentActivity([
+    { call_id: "c", name: "edit", target: "report.md", state: "failed", summary: "edit · 等待批准时这一轮结束，没有执行", at: null },
+  ], undefined, true), [
+    { call_id: "c", verb: "file-change", target: "report.md", state: "failed", reason: "interrupted" },
+  ]);
+});

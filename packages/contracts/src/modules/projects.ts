@@ -62,8 +62,12 @@ export interface ProjectPluginRegistry {
   companions(pluginId: ProjectPluginId): readonly ProjectPluginId[];
   /** Always-on plugins a project may hide. Absent means none are personal. */
   isPersonal?(pluginId: ProjectPluginId): boolean;
-  /** 常开插件 (the Manifest's `always_on`): on in every project, and no project may hide or remove one. Absent means none are. */
-  isAlwaysOn?(pluginId: ProjectPluginId): boolean;
+  /**
+   * 常开插件 (the Manifest's `always_on`): the plugins that are on in every project, and that no project may hide or remove. The
+   * Host answers from what is installed and agreed to, each time it is asked, so a revoked or newly installed one counts at once.
+   * Absent means none are.
+   */
+  alwaysOn?(): readonly ProjectPluginId[];
 }
 
 export interface AddProjectPluginInput {
@@ -196,6 +200,8 @@ export interface ProjectDeletionResult {
 }
 
 export interface ProjectsQueryApi {
+  /** Stored display facts only, without derived membership or any assertion of plugin availability. Never use for authorization. */
+  storedProjectPluginMembership(projectId: string): ProjectPluginMembership;
   listProjectPlugins(projectId: string): ProjectPluginId[];
   listHiddenPlugins(projectId: string): ProjectPluginId[];
   listProjects(): ProjectRecord[];
@@ -236,6 +242,8 @@ const WORKSPACE_SCHEMA = { type: "object", properties: {
   workspace_id: { type: "string" }, canonical_path: { type: "string" },
   realpath_verified: { type: "boolean" }, display_name: { type: "string" },
 }, required: ["workspace_id", "canonical_path", "realpath_verified", "display_name"], additionalProperties: false };
+
+const RUNTIME_PICK_SCHEMA = { anyOf: [{ type: "string", minLength: 1, maxLength: 200 }, { type: "null" }] };
 
 export const projectsCapabilities = {
   listWorkspaces: {
@@ -278,6 +286,24 @@ export const projectSettingsCapabilities = {
       input_schema: { type: "array", minItems: 1, maxItems: 1, items: { type: "string", minLength: 1, maxLength: 200 } },
       output_schema: WORKSPACE_SCHEMA, output_type: "project.workspace" },
   } as ActionDefinition<[workspaceId: string], ProjectWorkspaceRef>,
+  /** The Runtime the person picked for this project's Agent sessions (`resolveProjectRuntime` reads it); null means the Home default. */
+  runtime: {
+    capability_id: "projects.settings.runtime.read.v1",
+    version: 1,
+    operation: "query",
+    action: { title: "项目运行时", description: "读取当前项目选定的 Agent 运行时标识；没有选择时返回空值，表示用默认运行时", kind: "query", scope: "project",
+      audiences: ["user", "agent", "workflow", "mcp"], permissions: [], subject_kinds: ["project"],
+      input_schema: { type: "array", maxItems: 0 }, output_schema: RUNTIME_PICK_SCHEMA, output_type: "project.runtime.optional" },
+  } as ActionDefinition<[], string | null>,
+  /** Which Runtime this project's sessions run on is the person's own setting: the local user only. Null returns to the Home default. */
+  selectRuntime: {
+    capability_id: "projects.settings.runtime.select.v1",
+    version: 1,
+    operation: "command",
+    action: { title: "选择项目运行时", description: "为当前项目选一个 Agent 运行时；空值恢复为默认运行时。选定的运行时不可用时，新会话与新一轮会被拒绝，不会换别的运行时", kind: "operation", scope: "project",
+      audiences: ["user"], permissions: ["projects:settings"], subject_kinds: ["project"],
+      input_schema: { type: "array", minItems: 1, maxItems: 1, items: RUNTIME_PICK_SCHEMA }, output_schema: RUNTIME_PICK_SCHEMA, output_type: "project.runtime.optional" },
+  } as ActionDefinition<[runtimeId: string | null], string | null>,
 } as const;
 
 /** Which folders belong to this project is the person's own setting at this computer: local user only. Kept by the Home catalog. */

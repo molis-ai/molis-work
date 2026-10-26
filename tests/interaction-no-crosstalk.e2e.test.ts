@@ -6,9 +6,8 @@ import { createHash } from "node:crypto";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { GoalProjectApplication, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
-import { PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-workbench";
+import { GoalProjectApplication, withConnectorConnections, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
+import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { asideReply } from "./fixtures/ending-review.js";
 
@@ -241,8 +240,11 @@ test("AC-08: two tabs answer one Coding question: one is taken, the other is ref
     window.fetch = async (...args) => { const answering = args[1] && typeof args[1].body === 'string' && args[1].body.includes('"kind":"answer"');
       const rereading = Boolean(window.__reply) && !(args[1] && args[1].body) && /\\/sessions\\//.test(String(args[0]));
       if (answering) { window.__sent = true; await window.__held; }
-      if (rereading) { await rereads; const response = await original(...args), json = response.json.bind(response);
-        response.json = async () => { const value = await json(); setTimeout(() => { window.__readsAfter++; }); return value; }; return response; }
+      // A read counts once its body is read, whichever reader the page's request client uses.
+      if (rereading) { await rereads; const response = await original(...args);
+        for (const reader of ['json', 'text']) { const read = response[reader].bind(response);
+          response[reader] = async () => { const value = await read(); setTimeout(() => { window.__readsAfter++; }); return value; }; }
+        return response; }
       const response = await original(...args); if (answering) window.__reply = { status: response.status, body: await response.clone().json() }; return response; }; })()`);
   await otherPage.evaluate(`document.querySelector(${JSON.stringify(`${card(coding)} [data-ix-field="q0"] [data-ix-option="0"]`)}).click()`);
   await otherPage.evaluate(`document.querySelector(${JSON.stringify(`${card(coding)} [data-ix-action="answer"]`)}).click()`);

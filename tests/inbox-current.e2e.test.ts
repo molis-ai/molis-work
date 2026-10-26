@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
@@ -29,8 +30,8 @@ test("Inbox shows and runs an installed plugin judgment, then withdraws advice w
     kind: "app", publisher: { publisher_id: "example", signature: "inbox-fixture" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }], permissions: [{ permission: "fixture:inbox", required: true, reason: "运行插件判断" }],
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [definition] },
     async start() { return { kind: "app", actions: [{ ...definition, handle: (_caller, input) => { assert.ok(_caller.permissions.includes("fixture:inbox")); inputs.push((input as { content: string }).content); return { status: "ok", suggested_behavior_ids: ["inbox.verify"] }; } }] }; } });
-  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { actions: { registry: localHost.actionRegistry(reference), project_id: projectId } });
-  const installed = runtime.install({ definition: plugin, deployment: "local", grants: ["fixture:inbox"] }).install;
+  const runtime = new PluginRuntime(new SqlitePluginRuntimeRepository(store.db), undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: localHost.actionRegistry(reference), project_id: projectId } });
+  const installed = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["fixture:inbox"] }).install;
   await runtime.start(installed.install_id);
   const caller: ActionCallContext = { actor_id: "owner", project_id: projectId, audience: "user", permissions: [...INBOX_ACTION_PERMISSIONS, "fixture:inbox"] };
   await localHost.sceneClient(reference).bind(caller, { binding_id: inboxSceneBindingId(projectId), scene_id: inboxNextScene.scene_id, scene_version: 1, project_id: projectId,

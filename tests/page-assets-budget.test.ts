@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import test, { after, before } from "node:test";
 import { fileURLToPath } from "node:url";
-import { deferredSurfaceClients } from "@molis-ai/molis-work-app-workbench";
+import { deferredSurfaceClients, pluginOnDemandStylesheet, pluginSurfaceClients } from "@molis-ai/molis-work-app-workbench";
 
 // specs/repository-anti-corruption §4.8/§4.13 (W1-07, decision #17): the page assets the host sends are frozen at their
 // current size and may only fall. Each rule is mutation-verified here on a small scratch repository: one violation added
@@ -237,7 +237,7 @@ test("a sizes file that is not valid is exit 2", () => {
 // The fake dist has the same entry points as the real build (the host's createLocalWebAssets, the workbench's page assets
 // and registered plugin packs); the gate reads the routes from the fake host source, asks the fake host for each path and
 // takes the length of the body in bytes.
-const SOURCE_ROUTES = (routes: string[]) => `${routes.map(route => `if (pathname === "${route}") { /* */ }`).join("\n")}\nconst packs = /^\\/assets\\/molis-work-plugins\\/([a-z0-9-]+)\\.js$/;\n`;
+const SOURCE_ROUTES = (routes: string[]) => `${routes.map(route => `if (pathname === "${route}") { /* */ }`).join("\n")}\nconst packs = /^\\/assets\\/molis-work-plugins\\/([a-z0-9-]+)\\.(js|css)$/;\n`;
 const fakeHost = (root: string, { routes, packs, unserved = [] as string[] }: { routes: string[]; packs: Array<{ project_plugin_id: string; clientFactory?: string }>; unserved?: string[] }) => {
   put("package.json", '{ "type": "module" }\n', root);
   put("apps/local-host/src/web-assets.ts", SOURCE_ROUTES(routes), root);
@@ -271,7 +271,7 @@ export const renderMolisWorkWorkbenchClientScript = () => text("workbench.js");
 export const renderMolisWorkArrivalStylesheet = () => text("arrival.css");
 export const renderMolisWorkSettingsStylesheet = () => text("settings.css");
 `, root);
-  put("apps/workbench/dist/plugin-workbench.js", `export const BUILTIN_PLUGIN_WORKBENCH = ${JSON.stringify(packs)};\n`, root);
+  put("apps/workbench/dist/plugin-workbench.js", `export const BUILTIN_PLUGIN_WORKBENCH = ${JSON.stringify(packs)};\nexport const pluginOnDemandStylesheet = () => null;\n`, root);
   for (const [name, text] of Object.entries({ "workbench.css": "a".repeat(100), "workbench.js": "b".repeat(200), "arrival.css": "c".repeat(300), "settings.css": "d".repeat(400) })) put(name, text, root);
   writeFileSync(path.join(root, "font.woff2"), Buffer.alloc(77, 1));
 };
@@ -523,7 +523,7 @@ test("a route spelled as a regular expression or with escaped slashes is exit 2 
   // count nor the comparison check, and a route spelled that way (say a per-plugin stylesheet family) was never measured.
   const root = hostRepo("discovery-regex");
   const original = read(HOST_SOURCE, root);
-  const known = String.raw`const packs = /^\/assets\/molis-work-plugins\/([a-z0-9-]+)\.js$/;`;
+  const known = String.raw`const packs = /^\/assets\/molis-work-plugins\/([a-z0-9-]+)\.(js|css)$/;`;
   assert.ok(original.includes(known), "the fixture spells the plugin pack route like the real host");
   for (const [name, text] of [
     ["a stylesheet family as a regex literal", String.raw`const sheet = pathname.match(/^\/assets\/molis-work-plugin-styles\/([a-z0-9-]+)\.css$/);`],
@@ -532,7 +532,7 @@ test("a route spelled as a regular expression or with escaped slashes is exit 2 
     ["a regex with the slashes escaped inside character classes", String.raw`const sheet = pathname.match(/^[\/]assets[\/]molis-work-plugin-styles[\/]([a-z0-9-]+)\.css$/);`],
     ["a regex with the word in a group", String.raw`const sheet = pathname.match(/^\/(assets)\/molis-work-plugin-styles\/([a-z0-9-]+)\.css$/);`],
     ["a regex with the word in a group and no escaped slash next to it", String.raw`const sheet = pathname.match(/^[/](assets)[/]styles\.css$/);`],
-    ["the pack pattern widened to another extension", String.raw`const packs = /^\/assets\/molis-work-plugins\/([a-z0-9-]+)\.(js|css)$/;`],
+    ["the pack pattern widened to another extension", String.raw`const packs = /^\/assets\/molis-work-plugins\/([a-z0-9-]+)\.(js|css|map)$/;`],
     ["the pack pattern pointed at another folder", String.raw`const packs = /^\/assets\/molis-work-styles\/([a-z0-9-]+)\.js$/;`],
     ["a plain string with escaped slashes", String.raw`const font = "\/assets\/inter.woff2";`],
     ["a string with only the closing slash escaped", String.raw`const sheet = "/assets\/styles.css";`],
@@ -573,7 +573,9 @@ test("this repository's build is within the committed page asset budget, which h
   }
   // Exactly the client bundles the workbench serves: one per plugin with its own client, none for a surface that borrows
   // another's (W4-03: Files, Git, Diff and Text Stats load Coding's), and the Host's own surfaces' (RAC-73: 角色 since CHR-1).
-  const bundles = [...new Set(deferredSurfaceClients().map(client => `/assets/molis-work-plugins/${client.bundle}.js`))].sort();
+  // PG-070: and the sheet a framed plugin brings (its namespace's rules), for each plugin that has one.
+  const bundles = [...new Set([...deferredSurfaceClients().map(client => `/assets/molis-work-plugins/${client.bundle}.js`),
+    ...pluginSurfaceClients().filter(client => pluginOnDemandStylesheet(client.id)).map(client => `/assets/molis-work-plugins/${client.id}.css`)])].sort();
   assert.ok(bundles.length > 0);
   assert.deepEqual(Object.keys(report.measured).filter(asset => asset.startsWith("/assets/molis-work-plugins/")).sort(), bundles, "the plugin client packs are measured");
 });

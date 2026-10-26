@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
+import { HOST_BUILD_TRUST } from "@molis-ai/molis-work-plugin-runtime";
 import type { ActionCallContext, ActionDefinition, ActionExecutionContext, ActionProviderRegistration } from "@molis-ai/molis-work-contracts/platform/actions";
 import { defineInstructionPrompt, instructed, type InstructionPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import { PLUGIN_MODEL_LIMITS, type PluginDefinition, type PluginHostServices, type PluginManifest, type PluginModelClient, type PluginModelResult,
@@ -533,7 +534,7 @@ test("RAC-194 an owner the platform registers itself is refused instructions fro
     // A built-in plugin is no exception: Todo's instructions come with its definition, and nothing else registers them (PG-051).
     const todo = platformIn(directory, { current: standIn().complete }), own = probe({ pluginId: "io.molis.work.todo" });
     try {
-      assert.deepEqual((await todo.platform.start([{ definition: own.definition, ...GRANTED }])).running, ["io.molis.work.todo"]);
+      assert.deepEqual((await todo.platform.start([{ definition: own.definition, ...GRANTED, trust: HOST_BUILD_TRUST }])).running, ["io.molis.work.todo"]);
       assert.deepEqual(await todo.invoke(own.ask), { text: "摘要结果" });
     } finally { todo.store.close(); }
   }));

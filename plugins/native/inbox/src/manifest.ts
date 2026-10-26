@@ -23,6 +23,7 @@ export const inboxManifest: PluginManifest = {
   plugin_id: INBOX_PLUGIN_ID,
   version: "0.3.0",
   name: "Inbox",
+  summary: "只看需要你介入的事项。",
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-inbox-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
@@ -34,7 +35,7 @@ export const inboxManifest: PluginManifest = {
   ui: {
     contributions: [INBOX_UI_CONTRIBUTION_ID],
     views: [
-      { view_id: "directory", slot: "navigator", title: "Inbox", contribution_id: INBOX_UI_CONTRIBUTION_ID, icon: "inbox", order: 30 },
+      { view_id: "directory", slot: "navigator", title: "Inbox", contribution_id: INBOX_UI_CONTRIBUTION_ID, icon: "inbox", hue: "mint", order: 30, rail: "core", pinned_default: true, accepts_objects: true },
     ],
   },
 };

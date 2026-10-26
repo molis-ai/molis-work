@@ -7,7 +7,8 @@ import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/
 import type { ArtifactVersionRecord, ArtifactsApplicationApi, ArtifactsQueryApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { ArtifactsModule, createArtifactsSchema } from "@molis-ai/molis-work-module-artifacts";
 import { createContextLedger, createContextLedgerSchema } from "@molis-ai/molis-work-module-context-ledger";
-import { artifactsActions, artifactsManifest, createArtifactActionHandlers } from "@molis-ai/molis-work-plugin-artifacts";
+import { artifactsActions, createArtifactActionHandlers } from "@molis-ai/molis-work-module-artifacts";
+import { artifactsManifest } from "@molis-ai/molis-work-plugin-artifacts";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 
 // The summary a version offers the system search is what the person reads under the hit: its title and body text,

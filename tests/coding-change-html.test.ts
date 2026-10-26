@@ -10,7 +10,7 @@ import { writerIntegrationCapabilities, type CodingChangeSet } from "@molis-ai/m
 import type { ActionLocale } from "@molis-ai/molis-work-contracts/platform/actions";
 import { compareRunChangeSet, DIFF_LABELS } from "@molis-ai/molis-work-plugin-diff";
 import { renderDiff, unifiedPatch } from "@molis-ai/molis-work-plugin-sdk/diff-view";
-import { escapeHtml, icon } from "@molis-ai/molis-work-design-system";
+import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { codingSessions, noEffect } from "./fixtures/coding-sessions.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
 import { fakeWriterActions, pluginActions, withFakeAgentHost } from "./fixtures/plugin-actions.js";
@@ -20,7 +20,7 @@ import { diffPageText } from "./fixtures/diff-page-text.js";
 // preview itself, with the plugin SDK's `/diff-view`; the server here runs no Coding route hooks, so nothing else could have.
 const CODING = "io.molis.work.coding", HAN = /[一-鿿]/u;
 /** What the Host drew with before: the page's translator as Diff's renderer used it, the design system's escape and icons. */
-const pagePrimitives = (locale: ActionLocale) => ({ escape: (value: unknown) => escapeHtml(String(value)), text: diffPageText(locale), icon: (name: string) => icon(name as Parameters<typeof icon>[0]) });
+const pagePrimitives = (locale: ActionLocale) => ({ escape: (value: unknown) => escapeHtml(String(value)), text: diffPageText(locale, "coding"), icon: (name: string) => icon(name as Parameters<typeof icon>[0]) });
 
 type ChangeBody = { change: CodingChangeSet; reference: { version: number } | null; html: string; patch: string; view_mode: string; net_groups: unknown[] };
 type IntegrationBody = { files: Array<{ path: string[]; before_text?: string | null; after_text?: string | null; diff_html?: string }> };
@@ -64,7 +64,7 @@ test("PG062-09: Coding's change reader and integration preview draw their own ma
     return { workspace_id: "work", writer_workspace_id: "child", source_path: `${root}-child`, target_path: root, branch: "writer/child", base_commit: "abc123", files: structuredClone(files) };
   });
   const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user", escapeHtml: String, translate: (value: string) => value,
-    capabilities: { async invoke<I, O>(definition: { capability_id: string }, args: I): Promise<O> {
+    agentHost: { async invoke<I, O>(definition: { capability_id: string }, args: I): Promise<O> {
       const id = definition.capability_id;
       if (id === agent.readSession.capability_id) return { runs: [ref] } as O;
       if (id === agent.readRun.capability_id) return { ref, phase: "completed" } as O;
@@ -128,7 +128,7 @@ test("PG062-09: Coding's change reader and integration preview draw their own ma
 
 test("PG062-09: the Host no longer draws Coding's change reader or integration preview", () => {
   // coding-surface.ts is gone (PG-036 C9); what took over its stage and route work must not use these names either.
-  const surface = ["project-plugin-stages.ts", "project-plugin-input-refresh.ts"].map(file => readFileSync(new URL(`../apps/local-host/src/${file}`, import.meta.url), "utf8")).join("\n");
+  const surface = ["project-plugin-stages.ts"].map(file => readFileSync(new URL(`../apps/local-host/src/${file}`, import.meta.url), "utf8")).join("\n");
   for (const name of ["renderDiff", "compareRunChangeSet", "unifiedPatch", "codingNetChange", "/integration"]) {
     assert.equal(surface.includes(name), false, `the Host's stage and route code no longer uses ${name}`);
   }

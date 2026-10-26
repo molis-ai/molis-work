@@ -14,12 +14,12 @@ export const FORM_STYLES = `
   }
   @media (prefers-reduced-motion: reduce) { .creative-artifact-act { transition: none; } }
   .form-stage-chrome { pointer-events: auto; }
-  [data-form=workbench] { --plugin-tint: var(--plugin-form); }
+  [data-form=workbench] { --plugin-tint: var(--ink-soft); }
   [data-form-stage-workspace] > .plugin-stage-detail-bar { min-width: 0; max-width: 100%; flex-wrap: wrap; }
   .form-workspace > * { flex-shrink: 0; }
   [data-form-stage-workspace] > .form-note { flex-shrink: 0; }
   .form-tabs { display: flex; gap: 4px; margin-left: auto; }
-  .form-tabs [data-form-tab=editor] { --tab-tone: var(--plugin-form, var(--tone-idle)); }
+  .form-tabs [data-form-tab=editor] { --tab-tone: var(--ink-soft); }
   .form-tabs [data-form-tab=preview] { --tab-tone: var(--tone-progress); }
   .form-tabs [data-form-tab=results] { --tab-tone: var(--tone-done); }
   .form-tabs .mw-btn { transition: background-color var(--dur-hover, 130ms) var(--ease-quint), color var(--dur-hover, 130ms) var(--ease-quint); }
@@ -84,7 +84,7 @@ export const FORM_STYLES = `
     transition: background-color var(--dur-hover, 130ms) var(--ease-quint);
   }
   .form-preview-option:hover, .form-preview-option:has(:focus-visible) {
-    background: color-mix(in srgb, var(--plugin-form, var(--ink)) 8%, transparent);
+    background: color-mix(in srgb, var(--ink-soft) 8%, transparent);
   }
   .form-question .mw-check-row { font-size: 12px; color: var(--muted); gap: 8px; align-items: center; }
   .form-preview-option .mw-check, .form-preview-option .mw-radio,

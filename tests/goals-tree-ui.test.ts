@@ -1,14 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createWorkbenchGoalsTreeRenderer, createWorkbenchUiHost } from "@molis-ai/molis-work-app-workbench";
+import { createWorkbenchGoalsTreeRenderer, createWorkbenchUiHost, inWordsOf, registerPluginMessages } from "@molis-ai/molis-work-app-workbench";
 import { buildGoalCollectionModel, GOALS_NAVIGATION_CLIENT_FACTORY_SCRIPT, GOALS_REFRESH_CLIENT_FACTORY_SCRIPT, GOALS_TREE_CLIENT_FACTORY_SCRIPT, GOALS_TREE_EN, GOALS_TREE_UI_CONTRIBUTION_ID, goalTreeCreatedLabel, goalTreeCreatorHue, goalTreeCreatorInitial, type GoalsTreeItem, type GoalsTreeView } from "@molis-ai/molis-work-plugin-goals";
 import type { GoalRelationRecord } from "@molis-ai/molis-work-contracts/modules/goals";
-import { icon } from "@molis-ai/molis-work-design-system";
+import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { L, currentLocale, listJoin, runWithLocale } from "@molis-ai/molis-work-app-local-host";
-import { GOAL_DISPLAY_STATUSES } from "@molis-ai/molis-work-plugin-goals";
+import { GOAL_DISPLAY_STATUSES, GOALS_PLUGIN_ID, goalsManifest } from "@molis-ai/molis-work-plugin-goals";
 
 const escapeHtml = (value: unknown) => String(value ?? "").replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
-const renderer = createWorkbenchGoalsTreeRenderer({ translate: L, escapeHtml, icon, currentLocale, listJoin,
+// Goals draws in its own words, declared in its Manifest (PG-071), as the Workbench renderer wires it.
+assert.deepEqual(registerPluginMessages(goalsManifest), []);
+const goalsL = inWordsOf(GOALS_PLUGIN_ID, L);
+const renderer = createWorkbenchGoalsTreeRenderer({ translate: goalsL, escapeHtml, icon, currentLocale, listJoin,
   renderStatus: status => `<span>${status}</span>`, renderActionStatus: status => `<span>${status}</span>`,
   renderVisibleGoalStatus: item => `<span>${item.display_status}</span>`, displayStatuses: GOAL_DISPLAY_STATUSES });
 const item = (id: string, title = id, acceptedBy?: string): GoalsTreeItem => ({
@@ -38,14 +41,14 @@ test("collection selection preserves requested/active precedence without default
       execution_blocked: 2, invalidated: 6 } };
   const before = structuredClone(model);
   const select = (id?: string, archive = false, trash = false) =>
-    buildGoalCollectionModel(model, id, archive, trash, L);
+    buildGoalCollectionModel(model, id, archive, trash, goalsL);
   assert.equal(select("requested").selected, requested);
   assert.equal(select("missing").selected, active);
   assert.equal(select().selected, active);
   assert.equal(select(undefined, true).selected, requested, "Archive does not use the current active Goal");
   assert.equal(select("active", true).selected, active);
   assert.equal(select("active", false, true).selected, first);
-  const noDefault = buildGoalCollectionModel({ ...model, active_goal_id: null }, undefined, false, false, L);
+  const noDefault = buildGoalCollectionModel({ ...model, active_goal_id: null }, undefined, false, false, goalsL);
   assert.equal(noDefault.selected, undefined, "Current list does not open the first Goal by default");
   assert.doesNotMatch(
     renderer.renderGoalStageList({ ...model, active_goal_id: null }, noDefault),
@@ -91,7 +94,7 @@ test("collection selection preserves requested/active precedence without default
   assert.match(archive.stage, /data-goal-collection-fold="archive"[^>]*\sopen/);
   assert.match(archive.stage, /data-collection-open/);
   assert.match(archive.stage, /data-tree-root/);
-  const empty = buildGoalCollectionModel({ ...model, goals: [] }, undefined, false, false, L);
+  const empty = buildGoalCollectionModel({ ...model, goals: [] }, undefined, false, false, goalsL);
   assert.equal(empty.selected, undefined);
   assert.equal(empty.selectedId, "");
   assert.equal(empty.title, "Molis Work");
@@ -190,7 +193,7 @@ test("stage list keeps current, archive and trash collection folds", () => {
   const emptyModel = {
     ...view([]), active_goal_id: null, counts: { waiting_for_human: 0, executing: 0, execution_pending: 0, execution_blocked: 0, invalidated: 0 },
   };
-  const emptyCollection = buildGoalCollectionModel(emptyModel, undefined, false, false, L);
+  const emptyCollection = buildGoalCollectionModel(emptyModel, undefined, false, false, goalsL);
   const emptyDirectory = renderer.renderGoalDirectory(view([]), emptyCollection, true);
   const empty = renderer.renderGoalStageList(view([]), emptyCollection);
   assert.doesNotMatch(emptyDirectory, /data-goal-collection-fold|data-select-goal|data-tree-root/);
@@ -207,7 +210,7 @@ test("stage list keeps current, archive and trash collection folds", () => {
   const current = item("live");
   const model = { ...view([current]), archived_goals: [archived], trashed_goals: [trashed],
     active_goal_id: "live", counts: { waiting_for_human: 0, executing: 0, execution_pending: 0, execution_blocked: 0, invalidated: 0 } };
-  const html = renderer.renderGoalStageList(model, buildGoalCollectionModel(model, "old", true, false, L));
+  const html = renderer.renderGoalStageList(model, buildGoalCollectionModel(model, "old", true, false, goalsL));
   assert.match(html, /data-tree-root/);
   assert.match(html, /data-select-goal="live"/);
   assert.doesNotMatch(html, /data-goal-collection-fold="current"[^>]*\sopen/);

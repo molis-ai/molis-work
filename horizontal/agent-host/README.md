@@ -2,7 +2,11 @@
 
 Agent Runtime 的注册、能力矩阵、启动授权，以及宿主拥有的副作用 Review 队列。
 
-显式 `storageRoot` 的 Node 适配器持有 SQLite 独占锁，直到 SDK 正常关闭或进程退出，防止另一执行器把活动审阅误判为重启遗留。获取失败报告 `agent.storage_busy`，不读取恢复记录。该锁保护当前单执行方假设；跨进程调用转发仍由 LocalHost 接通，不能用多个 runtime 直接共享这个目录。
+Node 适配器类型与运行时都要求明确的绝对 `storageRoot`；缺失、空值、相对路径以 `agent.storage_root_invalid` 在 SDK 与磁盘初始化前拒绝，不回退到 cwd 或用户默认目录。适配器通过 storage 的同一 SQLite 独占端口取得所有权，或借用本 Home Host 已持有的 opaque owner；没有另一套锁、同 PID 放行或可复制的 proof。获取或第二借用失败报告 `agent.storage_busy`，不读取恢复记录。只有实际 SDK 关闭成功才归还借用；失败关闭保留所有权，下一次明确 close 可以重试。初始化失败先清理已创建的 Runtime 资源再归还自己的部分，父 Host 继续持锁。跨进程入口转发给常驻 Host，不能用多个 Runtime 直接共享目录。回归：`tests/security-invariants-home-storage-sdk.test.ts`、`tests/security-invariants-home-storage-host.test.ts`。
+
+`verifyPrologueNodeStorageContents` 是离线快照/恢复的无正文薄包装，直接调用 SDK 的公开 `verifyNodeStorageContents`，不创建 Node Host 或 Runtime。可信 Host 从同一 registry 和已持的离线 lease 提供已有归档数据根、原 Home key 根、同步 `assertCurrent` 和 signal；认证所有实际记录 kind/分页、空正文和带密文墓碑，所有 SDK 拒绝都传回。它不读取原锁 fd，不复制 key、补 leases/claims、生成 key 或运行模型；无 sealed 数据不要求 key、不声称认证了 key。回归：`tests/security-invariants-home-snapshot-sdk.test.ts`，完整 C2 结论见 [W5-16 slice](../../specs/repository-anti-corruption/slices/w5-16-home-snapshot.md)。
+
+`createPrologueNodeAdapter(options)` 返回可等待的初始化句柄，`await` 仍取得原 adapter；从创建时保留该句柄，其 `close()` 即使初始化拒绝也可继续清理。初始化失败后的清理再次失败会继续占锁，显式重试只处理未完成项，全部成功才归还 borrow/独立 owner。成功 adapter 的 `close()` 复用同一入口；同次并发共享结果，失败后可以明确重试。Local Host composition 在初始化前保存句柄，dispose 总能关闭它；失败后的显式 ready 先完成旧实例清理，再创建新实例，关闭中的实例不登记为可用。回归：`tests/security-invariants-agent-initialization-cleanup.test.ts`。
 
 包名：`@molis-ai/molis-work-service-agent-host`。工作区内部包，由 Host 装配使用。
 
@@ -46,7 +50,7 @@ Run 的启动/读取/控制/等待、接续的等待。每一条只给插件、�
 - 负责：Agent Runtime 注册、能力矩阵、冻结的启动授权、宿主审查队列与 Prologue 推理接线。
 - 不负责：编码业务含义、角色与提示词正文、模型选择与凭据、批准决定本身。
 - 公开入口：`@molis-ai/molis-work-service-agent-host`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/services/agent-host`。
-- 依赖：`@molis-ai/molis-work-contracts`；第三方依赖见 `package.json`。方向：只依赖合同与同目录适配端口；不决定业务状态（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-storage`；第三方依赖见 `package.json`。方向：依赖合同、同目录适配端口与 storage 的排他所有权技术端口；不决定业务状态（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 目录 Action 的工具时限取提供方 `execution.timeout_ms` 与 Agent 入口上限中的较小者；完整声明参与冻结合同，不按能力名称猜测成本。
   - 仓库里唯一依赖 `@prologue/sdk` 的包。

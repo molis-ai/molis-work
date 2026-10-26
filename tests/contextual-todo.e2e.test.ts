@@ -2,8 +2,7 @@ import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
-import { openTodoStore } from "@molis-ai/molis-work-plugin-todo";
+import { openPagesStore, openTodoStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 
 const FIRST = "联系阿杰确认秋季发布计划。附上本周方案和预算说明。";
@@ -31,7 +30,7 @@ test("S1 W4-1 RAC-136 contextual Todo: real selection → made at once from what
     const text = editor.querySelectorAll('p')[${index}].firstChild, range = document.createRange(); range.selectNodeContents(text);
     const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange'));
   })()`); await waitFor(`window.todoTestFocus?.targets?.[0]?.text === ${JSON.stringify(index === 0 ? FIRST : SECOND)}`); };
-  const access = { actor: "user" as const, actorId: "web-user", projectId: projectId!, everything: true };
+  const access = { actor: "user" as const, actorId: "web-user", projectId: projectId!, projectIds: [] };
   const todos = () => { const owner = openTodoStore(homeDirectory); try { return owner.list(access); } finally { owner.close(); } };
   const BAR = ".mw-ctx:not(.mw-ctx--static):not([hidden]):not([data-away])";
   const TODO = `[...document.querySelectorAll('${BAR} button')].find(button => !button.disabled && button.textContent.startsWith('记成待办'))`;

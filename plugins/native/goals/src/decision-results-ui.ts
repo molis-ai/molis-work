@@ -10,7 +10,7 @@ export interface GoalsDecisionResultsPrimitives extends GoalsDecisionPresentatio
 }
 export interface GoalsDecisionResultsUiModel { view: GoalsDecisionView; primitives: GoalsDecisionResultsPrimitives; }
 export const goalsDecisionResultsUiContribution: UiContribution<GoalsDecisionResultsUiModel> = {
-  descriptor: { contribution_id: GOALS_DECISION_RESULTS_UI_CONTRIBUTION_ID, plugin_id: "io.molis.work.native.goals", kind: "embedded", label: "Recent Goal decisions",
+  descriptor: { contribution_id: GOALS_DECISION_RESULTS_UI_CONTRIBUTION_ID, kind: "embedded", label: "Recent Goal decisions",
     surfaces: [{ surface_id: "recent", target_slot_id: "workbench.main", format: "declarative-html" }], slots: [] },
   render({ surface, model }) {
     if (surface !== "recent") throw new Error("Unknown decision results surface");

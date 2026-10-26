@@ -200,7 +200,7 @@ export const CODING_SERVER_MESSAGES = {
   "coding.server.task-too-long": { zh: "总任务与分工合计超过 100000 字符，请缩短后发送", en: "The task and its parts add up to more than 100,000 characters; shorten them before sending" },
   "coding.server.parallel-only": { zh: "独立写入分工只用于并行写入方式", en: "Separate writing parts are only for Parallel mode" },
   "coding.server.character-unassembled": { zh: "Character 消费尚未装配，请明确移除角色后执行", en: "Characters aren't set up yet; remove the character to run" },
-  "coding.server.character-unverified": { zh: "当前运行时尚未验证 Character 的工具限制，请使用 Prologue 或明确移除角色", en: "This runtime hasn't verified the character's tool limits; use Prologue or remove the character" },
+  "coding.server.character-unverified": { zh: "当前运行时尚未验证 Character 的工具限制，请换用已验证的运行时或明确移除角色", en: "This runtime hasn't verified the character's tool limits; use a verified runtime or remove the character" },
   "coding.server.materials-30": { zh: "计划、目标与材料合计每轮最多 30 份，请移除一份材料后重试", en: "The plan, goal and materials can be at most 30 per turn; remove one material and try again" },
   "coding.field.skip-reason": { zh: "跳过原因", en: "the reason for skipping" },
   "coding.field.new-step": { zh: "新步骤", en: "the new step" },

@@ -31,7 +31,7 @@ export class GoalDecisionAttentionSync {
     }
     for (const goalId of pending) this.ensureOpen(projectId, goalId, false);
     for (const entry of this.ports.attention.query.list(projectId)) {
-      if (entry.subject_type !== "goal_decision") continue;
+      if (entry.owner_plugin_id !== null || entry.subject_type !== "goal_decision") continue;
       if (pending.has(entry.subject_id)) continue;
       if (entry.status === "open" || entry.status === "in_progress") {
         this.ports.attention.commands.setStatus(projectId, entry.entry_id, "done");

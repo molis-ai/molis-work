@@ -4,7 +4,6 @@ import { fileURLToPath } from "node:url";
 import vm from "node:vm";
 import { buildSync } from "esbuild";
 import { pluginWorkbenchPacks } from "@molis-ai/molis-work-app-workbench";
-import { MW_PLUGINS } from "@molis-ai/molis-work-design-system";
 
 // D24 (main regression after #765): the plugin tab groups' ⌘/Ctrl- and middle-click handler, bundled from its browser
 // source and run on a small DOM with the rows the catalog declares. A list that picks several (aria-multiselectable)
@@ -12,9 +11,8 @@ import { MW_PLUGINS } from "@molis-ai/molis-work-design-system";
 // behind in its plugin's group.
 
 const { outputFiles } = buildSync({ entryPoints: [fileURLToPath(new URL("../apps/workbench/src/scripts/client/plugin-tab-groups.ts", import.meta.url))],
-  bundle: true, write: false, format: "iife", globalName: "TabGroups", platform: "browser", target: "es2022", external: ["@molis-ai/molis-work-design-system"] });
-// The group hues come from the built design system (its fonts need node), handed to the bundle as the workbench build takes them.
-const FACTORY = vm.runInNewContext(`${outputFiles[0]!.text};TabGroups.PLUGIN_TAB_GROUPS_FACTORY`, { require: () => ({ MW_PLUGINS }) }) as string;
+  bundle: true, write: false, format: "iife", globalName: "TabGroups", platform: "browser", target: "es2022" });
+const FACTORY = vm.runInNewContext(`${outputFiles[0]!.text};TabGroups.PLUGIN_TAB_GROUPS_FACTORY`, {}) as string;
 const packs = pluginWorkbenchPacks();
 const ROWS = [...packs.flatMap((pack) => pack.recordRow ? [[pack.project_plugin_id, pack.recordRow.selector, pack.recordRow.idDataset]] : []),
   ...packs.flatMap((pack) => pack.searchRow ? [[pack.project_plugin_id, pack.searchRow.selector, pack.searchRow.idDataset]] : [])];

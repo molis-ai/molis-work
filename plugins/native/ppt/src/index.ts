@@ -20,10 +20,9 @@ export { buildPptx, pptxFilename, PPTX_MIME_TYPE } from "./pptx.js";
 export { pptContentActions, pptMarkdown, slidesFromMarkdown, createPptContentHandlers } from "./content-actions.js";
 export type { PptLineHeadPort, PptPublishArtifactPort, PptReadArtifactPort, PptPublicationSnapshot } from "./promote.js";
 export { PPT_PLUGIN_ID, PPT_PROJECT_PLUGIN_ID, pptManifest } from "./manifest.js";
-export { openPptStore, ownPptStores, PptStore, PPT_DATABASE, PPT_HOME_STORE } from "./store.js";
+export { ownPptStores, PptStore, PPT_DATABASE, PPT_HOME_STORE } from "./store.js";
 export { createPptPlugin } from "./plugin.js";
 export type { PptSql, PptSqlValue, PptStores } from "./store.js";
-export { purgePptProject, pptProjectData } from "./project-data.js";
 export { pptErrors } from "./error.js";
 
 export { pptActions, PPT_ACTION_PERMISSIONS, createPptActionHandlers } from "./actions.js";

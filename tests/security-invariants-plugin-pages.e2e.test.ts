@@ -1,7 +1,6 @@
-import { realpathSync } from "node:fs";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { openPagesStore } from "@molis-ai/molis-work-plugin-pages";
+import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pluginFrameBrowser, pluginFrameInitScript } from "./fixtures/plugin-frame-browser.js";
 
@@ -149,10 +148,11 @@ test("SYS-15-F1 SYS-15-F2 desktop search releases only the file selected by a tr
   const selectedId = await child.evaluate<string>("[...document.querySelectorAll('[data-shelf-item]')].find(row=>row.textContent.includes('Selected.txt')).dataset.shelfItem");
   await child.click(`[data-shelf-item="${selectedId}"] .shelf-name`, 2);
   await child.waitFor("!document.querySelector('[data-shelf-bar-hint]').textContent.includes('拒绝')");
-  await browser.waitFor("nativeCalls.some(call=>call.name==='shelf_open_path')");
-  const opened = await browser.evaluate<string>("nativeCalls.find(call=>call.name==='shelf_open_path').input.path");
-  assert.ok(opened.startsWith(realpathSync(browser.homeDirectory) + "/"), opened);
-  assert.ok(opened.endsWith("/Selected.txt"), opened);
+  await browser.waitFor("nativeCalls.some(call=>call.name==='files_open')");
+  const opened = await browser.evaluate<{ endpoint: string; pageId: string; paths: string[] }>("nativeCalls.find(call=>call.name==='files_open').input");
+  assert.equal(opened.paths.length, 1); assert.ok(!opened.paths[0]!.startsWith("/"), "the shell is given a relative path, never a file path");
+  assert.ok(opened.paths[0]!.endsWith("Selected.txt"), opened.paths[0]);
+  assert.match(opened.endpoint, /\/api\/host\/plugin-page-files$/); assert.ok(opened.pageId.length >= 8);
   await find(); await browser.click("[data-native-file-cancel]");
   assert.equal(await browser.evaluate("nativeCalls.filter(call=>call.name==='platform_read_selected_file').length"), 1, "cancel imports nothing else");
 });

@@ -1,7 +1,7 @@
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
-import { icon } from "@molis-ai/molis-work-design-system";
+import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { artifactVersionPath, type ArtifactBrowserView } from "./browser.js";
+import { artifactVersionPath, type ArtifactBrowserView } from "./browser-view.js";
 import { renderArtifactPortInputs } from "./port-input-ui.js";
 import type { ArtifactPluginInput } from "./actions.js";
 
@@ -215,7 +215,7 @@ function renderArtifactFrameBlock({ view, routePrefix, primitives: p }: Artifact
 
 export const artifactBrowserUiContribution: UiContribution<ArtifactBrowserUiModel> = {
   descriptor: {
-    contribution_id: ARTIFACT_BROWSER_UI_CONTRIBUTION_ID, plugin_id: "io.molis.work.native.artifacts",
+    contribution_id: ARTIFACT_BROWSER_UI_CONTRIBUTION_ID,
     kind: "primary-page", navigation_id: "artifacts", label: "成果", slots: [],
     surfaces: [
       { surface_id: "directory", target_slot_id: "workbench.directory", format: "declarative-html" },

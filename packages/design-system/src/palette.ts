@@ -85,36 +85,6 @@ export const MW_STATUS_TONES = [
   { token: "--tone-quiet", label: "Quiet", role: "归档", hue: "gray" },
 ] as const;
 
-export const MW_PLUGINS = [
-  { id: "home", label: "Home", hue: "gray" as const },
-  { id: "cognia", label: "Cognia", hue: "blue" as const },
-  { id: "plugin-builder", label: "Plugin Builder", hue: "indigo" as const },
-  { id: "images", label: "Images", hue: "pink" as const },
-  { id: "jelly", label: "Jelly", hue: "mint" as const },
-  { id: "goals", label: "Goals", hue: "blue" as const },
-  { id: "feed", label: "Feed", hue: "brown" as const },
-  { id: "inbox", label: "Inbox", hue: "mint" as const },
-  { id: "schedule", label: "Schedule", hue: "yellow" as const },
-  { id: "shelf", label: "Shelf", hue: "slate" as const },
-  { id: "lingguang", label: "灵光", hue: "yellow" as const },
-  { id: "todo", label: "待办", hue: "green" as const },
-  { id: "characters", label: "Characters", hue: "purple" as const },
-  { id: "pages", label: "Pages", hue: "cyan" as const },
-  { id: "form", label: "Forms", hue: "orange" as const },
-  { id: "dataset", label: "Dataset", hue: "green" as const },
-  { id: "ppt", label: "PPT", hue: "red" as const },
-  { id: "alchemist", label: "炼金术士", hue: "purple" as const },
-  { id: "workflows", label: "工作流程", hue: "orange" as const },
-  { id: "artifacts", label: "Artifacts", hue: "pink" as const },
-  { id: "coding", label: "Coding", hue: "cyan" as const },
-  { id: "workspace", label: "Workspace", hue: "slate" as const },
-  { id: "files", label: "Files", hue: "yellow" as const },
-  { id: "git", label: "Git", hue: "orange" as const },
-  { id: "diff", label: "Diff", hue: "cyan" as const },
-  { id: "text-stats", label: "Text Stats", hue: "brown" as const },
-  { id: "settings", label: "Settings", hue: "steel" as const },
-] as const;
-
 /**
  * The reading surface is the same Soft Workbench family, not a second skin: Shelf and other reading
  * islands alias the shell tokens through `--content-*` (and Shelf through `--da-*`). Only the terminal
@@ -177,21 +147,10 @@ function contentCustomProperties(theme: "light" | "dark"): string {
   return `${planes}; ${marks}`;
 }
 
-/**
- * Plugins carry no identity colour on screen: the Soft Workbench keeps colour for status and selection,
- * and a plugin is recognised by its glyph, its name and where it sits. Every `--plugin-*` resolves to the
- * neutral secondary ink so existing consumers (icons, kind labels, washes) stay valid and calm.
- * The one exception is the tab strip: a plugin's tab group takes `MW_PLUGINS[].hue` (specs/plugin-tab-groups).
- */
-function pluginCustomProperties(): string {
-  return MW_PLUGINS.map((plugin) => `--plugin-${plugin.id}: var(--ink-soft);`).join(" ");
-}
-
 function semanticAliases(): string {
   return [
     "--tone-idle: var(--hue-gray); --tone-progress: var(--accent); --tone-attention: var(--amber);",
     "--tone-hold: var(--hue-cyan); --tone-blocked: var(--red); --tone-done: var(--green); --tone-quiet: var(--faint);",
-    pluginCustomProperties(),
   ].join(" ");
 }
 
@@ -293,17 +252,21 @@ export function renderShapeTokens(): string {
   ].join(" ");
 }
 
+/**
+ * Plugins carry no identity colour on screen: the Soft Workbench keeps colour for status and selection, and a plugin is recognised by
+ * its glyph, its name and where it sits. Wherever the shell draws a plugin (its rail and island entry, directory section, market
+ * card, work surface, tab) `--plugin-tint` is the neutral secondary ink, the same for every plugin. The rule names no plugin:
+ * a plugin built later, by anyone, is drawn the same way (W5-02 PR-D, PG-075). The one exception is the tab strip, where a plugin's
+ * group takes the `hue` its Manifest declares.
+ */
 export function renderPluginTintBindings(): string {
-  return MW_PLUGINS.flatMap((plugin) => {
-    const extras = plugin.id === "settings"
-      ? ", [data-settings-section=\"project-settings\"], [data-directory-panel=\"project-settings\"]"
-      : "";
-    const surfaces = plugin.id === "goals"
-      ? `[data-work-surface="${plugin.id}"], [data-work-surface="goal"], [data-goal-canvas-shell]`
-      : `[data-work-surface="${plugin.id}"]`;
-    return [
-      `body.immersive-workbench :is(.plugin-rail [data-plugin-id="${plugin.id}"], .assistant-island [data-plugin-id="${plugin.id}"], [data-plugin-section="${plugin.id}"], [data-directory-panel="${plugin.id}"], [data-market-plugin="${plugin.id}"], [data-market-focus="${plugin.id}"], ${surfaces}, .tab-item[data-plugin="${plugin.id}"]${extras}) { --plugin-tint: var(--plugin-${plugin.id}); }`,
-      `.mw-catalog [data-plugin-id="${plugin.id}"] { --plugin-tint: var(--plugin-${plugin.id}); }`,
-    ];
-  }).join("\n  ");
+  const surfaces = [
+    ".plugin-rail [data-plugin-id]", ".assistant-island [data-plugin-id]", "[data-plugin-section]", "[data-directory-panel]",
+    "[data-market-plugin]", "[data-market-focus]", "[data-work-surface]", "[data-goal-canvas-shell]", ".tab-item[data-plugin]",
+    "[data-settings-section=\"project-settings\"]",
+  ];
+  return [
+    `body.immersive-workbench :is(${surfaces.join(", ")}) { --plugin-tint: var(--ink-soft); }`,
+    ".mw-catalog [data-plugin-id] { --plugin-tint: var(--ink-soft); }",
+  ].join("\n  ");
 }

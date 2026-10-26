@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { syncBuiltinESMExports } from "node:module";
 import { LocalSqliteStorage, LocalCatalogMetadata, createFileSecretStore, runWithMolisWorkHome, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
+import { HOST_BUILD_TRUST } from "@molis-ai/molis-work-plugin-runtime";
 import { ModelProviderStore, createModelProviderTables, hostCompleteText } from "@molis-ai/molis-work-app-local-host";
 import { CATALOG_OWNER, CATALOG_SCHEMA_VERSION } from "../apps/local-host/dist/project-catalog-contract.js";
 import { createConsumerModelConfiguration } from "../apps/local-host/dist/model-configuration.js";
@@ -261,7 +262,7 @@ test("W5-01-JMC-02 real configuration rejects stopped, revoked and replaced inst
       if (change === "revoke") f.platform.runtime.grant(f.install.install_id, f.install.grants.filter(grant => grant !== "storage:private"));
       if (change === "reinstall") {
         await f.platform.runtime.uninstall(f.install.install_id);
-        const replacement = f.platform.runtime.install({ definition: f.definitions[0]!, deployment: "local", grants: f.install.grants }).install;
+        const replacement = f.platform.runtime.install({ trust: HOST_BUILD_TRUST, definition: f.definitions[0]!, deployment: "local", grants: f.install.grants }).install;
         assert.notEqual(replacement.installation_generation, f.install.installation_generation);
         await f.platform.runtime.start(replacement.install_id);
       }

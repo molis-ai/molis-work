@@ -167,8 +167,9 @@ async function platform(t: TestContext) {
     } finally { store.close(); rmSync(home, { recursive: true, force: true }); }
   });
   const plugin = probe(), subscriber = listener(() => plugin.services());
-  assert.deepEqual((await running.start([{ definition: withLibrary(plugin.definition, DATABASE), bundled: true },
-    { definition: subscriber.definition, bundled: true }])).running.toSorted(), [LISTENER, ID].toSorted());
+  // The ids are not in the Host's catalog, so the Home reads what they declare from the release each install keeps (A3).
+  const hosted = (definition: PluginDefinition) => ({ definition, trust: { level: "host" } as const, releaseArtifact: { capture: () => "export {}", restore: () => definition } });
+  assert.deepEqual((await running.start([hosted(withLibrary(plugin.definition, DATABASE)), hosted(subscriber.definition)])).running.toSorted(), [LISTENER, ID].toSorted());
   const written = (target: Target, name: string): boolean => {
     const services = plugin.services();
     if (target === "database") return Number(services.database!.get("SELECT count(*) AS n FROM notes WHERE text = ?", [name])!.n) > 0;

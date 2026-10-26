@@ -1,4 +1,4 @@
-import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
+import { homeDefinitionEntries } from "./plugin-registry.js";
 import { type PluginDefinition, type PluginOwnerFilesDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { fixtureDeclarationsFor, type PluginPlatformHome } from "./home-side.js";
 import { PLUGIN_LIBRARY_NAME } from "./plugin-database-entries.js";
@@ -32,7 +32,7 @@ export function ownerFilesGiven(definition: PluginDefinition, given: PluginOwner
  * that declares files it is not given.
  */
 export function homeOwnerFilesEntries(home: string | null): PluginOwnerFilesEntry[] {
-  return [...BUILTIN_PLUGIN_CATALOG.flatMap(entry => entry.runtime ? [{ ...entry.runtime, definition: entry.runtime.create() }] : []),
+  return [...homeDefinitionEntries(),
     ...home === null ? [] : fixtureDeclarationsFor(home, "home")];
 }
 

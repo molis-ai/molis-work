@@ -6,14 +6,15 @@ import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService } from "@molis-ai/molis-work-app-local-host";
-import { WORKFLOWS_PLUGIN_ID, manualLink, newStation, openWorkflowsStore, type WorkflowInstance } from "@molis-ai/molis-work-plugin-workflows";
+import { WORKFLOWS_PLUGIN_ID, manualLink, newStation, type WorkflowInstance } from "@molis-ai/molis-work-plugin-workflows";
+import { openWorkflowsStore } from "./fixtures/plugin-home-stores.js";
 import { openHomeSqliteDatabase } from "@molis-ai/molis-work-storage";
 import { openTestHome } from "./fixtures/test-home.js";
 
 /**
  * docs/system/RUNTIME-MIGRATION.md section 6, item 10 for Workflows: the "project deleted" step clears the workflows and their runs of the
  * deleted project and nothing of another project, whether or not the plugin is running, and a step that failed finishes when the same
- * deletion is sent again. The step is the library's own `purgeWorkflowsProject`, declared on the catalog entry; it works on the Home's file.
+ * deletion is sent again. The step is the rows the library's Manifest declares (`project_rows`), which the platform deletes on the Home's file.
  */
 
 const held = (home: string, projectId: string) => {

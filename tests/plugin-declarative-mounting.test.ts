@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import type {
@@ -23,7 +24,6 @@ function view(pluginId: string, viewId: string): UiContribution {
   return {
     descriptor: {
       contribution_id: `${pluginId}.${viewId}`,
-      plugin_id: pluginId,
       kind: "primary-page",
       label: viewId,
       slots: [],
@@ -36,7 +36,6 @@ function manifestFor(input: {
   id: string;
   name: string;
   views: Array<{ view_id: string; slot: "navigator" | "stage" | "settings" | "island"; title: string; icon?: string; order?: number }>;
-  commands?: Array<{ command_id: string; title: string; input_kinds: Array<"current" | "object" | "agent-session" | "artifacts">; opens_view_id: string }>;
   routes?: Array<{ route_id: string; method: "GET" | "POST"; path: string; permission?: string }>;
   permissions?: string[];
 }): PluginManifest {
@@ -59,7 +58,6 @@ function manifestFor(input: {
     ui: {
       contributions: input.views.map((item) => `${input.id}.${item.view_id}`),
       views: input.views,
-      ...(input.commands ? { commands: input.commands } : {}),
     },
     ...(input.routes ? { routes: input.routes } : {}),
   };
@@ -81,17 +79,6 @@ function definitionFor(
               route_id: route.route_id,
               handle: () => handlers[route.route_id]?.() ?? { status: 200, body: { ok: route.route_id } },
             })),
-          }
-          : {}),
-        ...(manifest.ui.commands
-          ? {
-            commandAvailability: (commandId: string) => commandId === "blocked"
-              ? { available: false, reason: "还没有选择项目" }
-              : { available: true },
-            executeCommand: (commandId: string) => ({
-              ref: { view_id: "session", object_id: commandId },
-              title: commandId,
-            }),
           }
           : {}),
       };
@@ -118,10 +105,6 @@ const codingManifest = manifestFor({
     { view_id: "directory", slot: "navigator", title: "Coding", icon: "terminal", order: 20 },
     { view_id: "session", slot: "stage", title: "Coding" },
     { view_id: "prefs", slot: "settings", title: "Coding 设置" },
-  ],
-  commands: [
-    { command_id: "open-report", title: "打开报告", input_kinds: ["current", "artifacts"], opens_view_id: "session" },
-    { command_id: "blocked", title: "需要项目", input_kinds: ["current"], opens_view_id: "session" },
   ],
   routes: [
     { route_id: "coding.sessions", method: "GET", path: "/sessions" },
@@ -156,27 +139,8 @@ test("a disabled Plugin contributes nothing to the shell", () => {
   assert.equal(registry.view(CODING, "session"), null);
 });
 
-test("commands keep their unavailable reason instead of disappearing", () => {
-  const registry = new UiViewRegistry([{ manifest: codingManifest, enabled: true }]);
-  const commands = registry.commandsFor(
-    "current",
-    (_pluginId, commandId) => commandId === "blocked"
-      ? { available: false, reason: "还没有选择项目" }
-      : { available: true },
-  );
-  assert.deepEqual(commands.map((command) => [command.declaration.command_id, command.availability]), [
-    ["open-report", { available: true }],
-    ["blocked", { available: false, reason: "还没有选择项目" }],
-  ]);
-  assert.deepEqual(
-    registry.commandsFor("artifacts", () => ({ available: true }))
-      .map((command) => command.declaration.command_id),
-    ["open-report"],
-  );
-});
-
 test("declared routes are mounted under the Host prefix and undeclared paths fall through", async () => {
-  const runtime = new PluginRuntime();
+  const runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS });
   const supervisor = new PluginSupervisor(runtime);
   await supervisor.start([{ definition: definitionFor(codingManifest) }]);
   const router = new PluginRouteRouter(supervisor, [codingManifest]);
@@ -213,7 +177,7 @@ test("declared routes are mounted under the Host prefix and undeclared paths fal
 });
 
 test("a route refuses a caller without the permission it declared", async () => {
-  const runtime = new PluginRuntime();
+  const runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS });
   const supervisor = new PluginSupervisor(runtime);
   await supervisor.start([{ definition: definitionFor(codingManifest) }]);
   const router = new PluginRouteRouter(supervisor, [codingManifest]);
@@ -235,7 +199,7 @@ test("a route on a Plugin that cannot start reports unavailable rather than cras
       throw new Error("Coding 启动失败");
     },
   };
-  const runtime = new PluginRuntime();
+  const runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS });
   const supervisor = new PluginSupervisor(runtime);
   await supervisor.start([{ definition: failing }]);
   const router = new PluginRouteRouter(supervisor, [codingManifest]);
@@ -275,13 +239,11 @@ test("route parameters reach the handler as declared", async () => {
             return { status: 200, body: { params: request.params } };
           },
         })),
-        commandAvailability: () => ({ available: true }),
-        executeCommand: () => ({ ref: { view_id: "session", object_id: "x" }, title: "x" }),
       } satisfies PluginAppContribution;
     },
     async stop() {},
   };
-  const runtime = new PluginRuntime();
+  const runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS });
   const supervisor = new PluginSupervisor(runtime);
   await supervisor.start([{ definition }]);
   const router = new PluginRouteRouter(supervisor, [codingManifest]);
@@ -296,8 +258,8 @@ test("route parameters reach the handler as declared", async () => {
 });
 
 test("the bundled catalog reproduces the shell's navigation exactly", async () => {
-  const { railEntries, islandEntries, settingsEntries, PROJECT_SCOPED_PLUGIN_IDS, BUILTIN_PLUGIN_REGISTRY } =
-    await import("@molis-ai/molis-work-app-workbench");
+  const { railEntries, islandEntries, settingsEntries } = await import("@molis-ai/molis-work-app-workbench");
+  const { PROJECT_SCOPED_PLUGIN_IDS, BUILTIN_PLUGIN_REGISTRY } = await import("@molis-ai/molis-work-app-local-host");
 
   // "functions" may still be saved on older projects; rule authoring moved to Capabilities, so it has no rail entry.
   const everything = ["jelly", "goals", "todo", "inbox", "feed", "shelf", "lingguang", "functions", "pages", "form", "dataset", "ppt", "alchemist", "artifacts"];
@@ -364,11 +326,11 @@ test("the bundled catalog reproduces the shell's navigation exactly", async () =
 });
 
 test("a 常开插件 is shown in every project, even one that once hid it, and is neither offered nor removable", async () => {
-  const { shownProjectPlugins, pluginMarketCards, BUILTIN_PLUGIN_REGISTRY } = await import("@molis-ai/molis-work-app-workbench");
-  assert.equal(BUILTIN_PLUGIN_REGISTRY.isAlwaysOn?.("shelf"), true);
-  assert.equal(BUILTIN_PLUGIN_REGISTRY.isAlwaysOn?.("lingguang"), false);
-  // A project that hid Shelf before it became always on still shows it; a hidden ordinary personal plugin stays hidden.
-  const shown = shownProjectPlugins(["goals"], ["shelf", "lingguang"]);
+  const { pluginMarketCards } = await import("@molis-ai/molis-work-app-workbench");
+  const { shownProjectPlugins } = await import("@molis-ai/molis-work-app-local-host");
+  // A project's list of hidden plugins leaves out a 常开 one (tests/security-invariants-always-on-records.test.ts), so a mark made before Shelf became
+  // always on never reaches here; a hidden ordinary personal plugin stays hidden.
+  const shown = shownProjectPlugins(["goals"], ["lingguang"]);
   assert.ok(shown.includes("shelf"));
   assert.equal(shown.includes("lingguang"), false);
   assert.equal(pluginMarketCards().some((card) => card.id === "shelf"), false, "nobody adds what is always on");
@@ -390,4 +352,40 @@ test("OPEN-PLACE-01 a plugin opens where its declarations put it: the work area 
   ]), { "notes-sidecar": "plugin:notes-sidecar/pad" });
   // The shipped plugins: Shelf is the only one with nothing but a side view.
   assert.deepEqual(sideOpenedPlugins(), { shelf: "plugin:shelf/side" });
+});
+
+test("RAC-84 PG-060 a plugin's tab opens one object when a Manifest view of it accepts objects, and is named by its views", async () => {
+  const { builtinPluginDirectory, clientPluginDirectory, pluginTabTitles } = await import("@molis-ai/molis-work-app-workbench");
+  // What the page's scripts read is the directory's `accepts_objects` per plugin; the same projection serves a plugin installed at run time.
+  const objectTabs = (directory: Parameters<typeof clientPluginDirectory>[0]) => clientPluginDirectory(directory).filter(entry => entry.accepts_objects).map(entry => entry.id);
+  const entry = (id: string, views: Array<{ accepts_objects?: boolean }>) => ({ id, plugin_id: id, name: id, chosen: true,
+    ui: { views: views.map((view, at) => ({ view_id: `v${at}`, slot: "stage" as const, title: id, ...view })) } });
+  assert.deepEqual(objectTabs([entry("notes", [{}, { accepts_objects: true }]), entry("plain", [{}]), entry("bare", [])]), ["notes"]);
+  // The shipped plugins: search, placement and side files open these as an object's tab (Artifacts is the platform's own).
+  // Git and Diff take no object by id (no `molis-work:select-item`, no row to click), so they declare none.
+  assert.deepEqual(new Set(objectTabs(builtinPluginDirectory())), new Set(["goals", "inbox", "feed", "pages", "lingguang", "workflows", "files", "coding"]));
+  // The workbench writes no plugin's tab title: each is its navigator or island view's, in the page's language.
+  const zh = pluginTabTitles(), en = pluginTabTitles(true);
+  assert.deepEqual([zh.feed, zh.lingguang, zh.ppt, zh.workflows], ["Feed", "灵光", "PPT", "工作流程"]);
+  assert.deepEqual([en.lingguang, en.workflows], ["Lingguang", "Workflows"]);
+});
+
+test("PG-060 RAC-606 the side panel's 打开 opens a Files file as the file's own tab, a plugin without object tabs at its record", async () => {
+  const { CLIENT_SCRIPT, builtinPluginDirectory, clientPluginDirectory } = await import("@molis-ai/molis-work-app-workbench");
+  // The side panel's file tab decides exactly as search does (specs/archive/side-panel P3): the initialization program reads the
+  // object-tab list once from the page's plugin directory, so all three look at one list: Artifacts and every plugin declaring
+  // accepts_objects. The script keeps no list by plugin.
+  const objectTabs = clientPluginDirectory(builtinPluginDirectory()).filter(entry => entry.accepts_objects).map(entry => entry.id);
+  assert.ok(CLIENT_SCRIPT.includes('document.querySelector("script[data-plugin-directory]")'), "the page's directory is read once, from the page");
+  assert.ok(CLIENT_SCRIPT.includes("openRecord: (plugin, id, title) => itemTabs.includes(plugin)"),
+    "the side panel's openRecord routes by the same object-tab list search uses");
+  assert.doesNotMatch(CLIENT_SCRIPT, /\["artifacts",\s*"(?:goals|inbox|feed|pages|files)"/u, "no plugin's tab is written into the script as a list");
+  assert.equal(objectTabs.includes("sessions"), false, "SC-4's retired Sessions surface does not return through the catalog");
+  // Files declares `accepts_objects`: the file opens as its own tab (before W5-06's remainder the Files page opened with nothing chosen).
+  // Todo opens its records by clicking its row: the record in its list, as search does.
+  assert.ok(objectTabs.includes("files"));
+  assert.ok(!objectTabs.includes("todo"));
+  // `openItem` for the object's tab, `openPluginRecord` for a record-only plugin; no tab workspace yet: optional chaining
+  // keeps it a no-op instead of throwing.
+  assert.ok(CLIENT_SCRIPT.includes("? tabWorkspace?.openItem(plugin, id, title) : tabWorkspace?.openPluginRecord(plugin, id)"));
 });

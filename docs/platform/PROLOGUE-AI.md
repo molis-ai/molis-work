@@ -275,7 +275,9 @@ AI 要人补信息、确认一步或挑一个对象，有四条共用的路，�
 | 错误 | 后果 | 正确做法 |
 | --- | --- | --- |
 | 等模型的动作没声明并发 | 一次对话把整个项目的操作卡住数分钟 | `scheduling: "concurrent"` + 返回后按快照提交 |
-| 在同一 Home 再起一个执行进程/宿主 | `agent.inference.home_in_use` 或 `agent.storage_busy` | 一个 Home 一个执行归属；MCP 等入口转发给常驻 Web 宿主 |
+| 在同一 Home 再起一个执行进程/宿主 | `storage.owner.busy`、`agent.inference.home_in_use` 或 `agent.storage_busy` | Host 在业务初始化前持有同一个 SQLite owner，SDK 只借该 owner；MCP 的动作、context 和面板别名都转发常驻宿主 |
+| 给 Molis Node adapter 省略或使用相对存储目录 | `agent.storage_root_invalid`，SDK 与磁盘尚未初始化 | 显式传绝对 `storageRoot`；不依赖上游 SDK 的 cwd 或用户目录默认值 |
+| Node 初始化拒绝且本次资源清理也失败 | `AggregateError`，存储借用/owner 继续保留 | 从创建时保留初始化句柄，显式调用其 `close()` 重试未完成项；Host composition 的 dispose/下一次明确 ready 复用它，全部成功才归还；关闭中的实例不登记为可用 |
 | 在 Prologue 上登记全局钩子并对别人的会话回 `later` | 并发构建互相挂起 | 钩子一律 `forSession` |
 | 被拒绝后仍写失败记录 | 违反 F2，撤权后仍改数据 | 被拒绝就不写；可重试性另行设计 |
 | 把执行服务不可用报成网络问题 | 用户去查网络 | `inferenceServiceUnavailableReason` |

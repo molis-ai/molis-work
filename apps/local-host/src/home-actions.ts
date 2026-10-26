@@ -6,10 +6,12 @@ import { isDeepStrictEqual } from "node:util";
 import { judgmentRecommendationKeys, subjectOfferCompatibilityReason } from "@molis-ai/molis-work-kernel";
 import { ActionError, requireSynchronous, ACTION_SUBJECT_SCHEMA, resolveActionSubject, type ActionSubject, retainActionAuthority, type ActionExecutionContext, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionProviderRegistration, type ActionReference,
   type ActionSceneBinding, type ActionSceneClient, type ActionSceneDefinition, type ActionSceneHandlerBinding, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
-import { HOME_DOCK_SCENE_ID, type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
+import { HOME_DOCK_SCENE_ID, INBOX_DISMISS_BEHAVIOR_ID, INBOX_DONE_BEHAVIOR_ID, SYSTEM_HOME_DOCK_FUNCTION_KEY, type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 import { publishedFunctionAction, publishedFunctionKey } from "@molis-ai/molis-work-module-functions";
 import { withFunctionsService } from "./functions-host.js";
 import type { InboxSceneServices } from "./inbox-scene.js";
+
+export const HOME_PROVIDER_ID = "system.home";
 
 type HomeSubject = ActionSubject;
 interface HomeSubjectContext extends HomeSubject { content: string; revision: string; reader: ActionReference }
@@ -35,6 +37,8 @@ export const homeDockScene: ActionSceneDefinition = {
   permissions: ["home:read", "model:invoke"], configuration_permissions: ["home:write"], event_schema: subjectSchema,
   input_schema: { type: "object", properties: { content: { type: "string", minLength: 1, maxLength: 8000 } }, required: ["content"], additionalProperties: false },
   result_type: "molis.behavior-recommendation.v1", recommendation_source: "subject-offers",
+  default_rule: { function_key: SYSTEM_HOME_DOCK_FUNCTION_KEY, name: "首页事项处理建议", instructions: "根据事项原文，在当前可用动作中推荐完成或忽略，由用户决定是否执行。",
+    subject_kinds: ["inbox_entry"], options: [{ key: INBOX_DONE_BEHAVIOR_ID, description: "做完了" }, { key: INBOX_DISMISS_BEHAVIOR_ID, description: "忽略" }] },
   // The shared scene service checks the rule's complete finite set against the
   // current declared choices. The consumer checks actual object inputs as well.
   result_schema: { type: "object", properties: { status: { enum: ["ok", "needs_review"] },
@@ -81,7 +85,7 @@ export function homeActionProvider(home: string, projectId: string, services: In
     // can include related objects and must not stand in for provider identity.
     const revision = createHash("sha256").update(JSON.stringify([reader.capability_id, reader.version, reader.provider_id,
       context.subject.kind, context.subject.id, context.revision, context.title, context.content, context.truncated,
-      [...context.goal_ids].sort()])).digest("hex");
+      [...(context.goal_ids ?? [])].sort()])).digest("hex");
     return { ...subject, content: [context.title, context.content].filter(Boolean).join("\n").slice(0, 8000), revision, reader };
   };
   const assertSubjectFits = async (subject: HomeSubject, caller: ActionCallContext) => {
@@ -172,7 +176,7 @@ export function homeActionProvider(home: string, projectId: string, services: In
   const bind = <I, O>(definition: ActionDefinition<I, O>, handle: (input: I, caller: ActionExecutionContext) => O | Promise<O>): ActionHandlerBinding => ({
     ...definition, handle: (caller, input) => handle(input as I, caller),
   });
-  return { provider: { provider_id: "system.home", title: "首页", kind: "system", project_id: projectId },
+  return { provider: { provider_id: HOME_PROVIDER_ID, title: "首页", kind: "system", project_id: projectId },
     definitions: Object.values(homeActions), scenes: [homeDockScene], scene_handlers: [handler], handlers: [
       ...createHomeOfferHandlers(services.actions),
       ...createHomeEventHandlers(services.actions, homeActions.recommendations),
@@ -200,7 +204,7 @@ export function homeActionProvider(home: string, projectId: string, services: In
         const subjects = [...new Map(input.subjects.map(subject => [JSON.stringify([subject.kind, subject.id]), subject])).values()];
         for (const subject of subjects) { await assertSubjectFits(subject, caller); await resolve(subject, caller); }
         const judgments: JudgmentRecord[] = [];
-        const authority = retainActionAuthority(caller, { ...homeActions.evaluate, provider_id: "system.home" }, caller.beforeEffect);
+        const authority = retainActionAuthority(caller, { ...homeActions.evaluate, provider_id: HOME_PROVIDER_ID }, caller.beforeEffect);
         for (const subject of subjects) judgments.push(await services.scenes.runScene(authority, homeDockScene, homeDockBindingId(projectId), subject) as JudgmentRecord);
         return { judgments };
       }),

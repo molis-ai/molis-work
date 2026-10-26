@@ -2,7 +2,6 @@ import {
   HOST_REVIEW_SETTLED_EVENT,
   type HostReviewSettledPayload,
   type PluginAppContribution,
-  type PluginCommandInput,
   type PluginDefinition,
   type PluginStartContext,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -22,13 +21,7 @@ import { gitRoutes } from "./routes.js";
  * change set from being a place where work can be committed.
  */
 export interface GitPluginPorts {
-  /** Whether a workspace is bound and is a repository. */
-  ready?(): boolean;
   onStop?(context: PluginStartContext): void | Promise<void>;
-}
-
-function objectIdFor(input: PluginCommandInput): string | null {
-  return input.kind === "object" ? input.ref.object_id : null;
 }
 
 export function createGitPlugin(ports: GitPluginPorts = {}): PluginDefinition {
@@ -36,7 +29,6 @@ export function createGitPlugin(ports: GitPluginPorts = {}): PluginDefinition {
     manifest: gitManifest,
     event_types: gitEventTypes,
     async start(context: PluginStartContext): Promise<PluginAppContribution> {
-      let repositoryReady = false;
       for (const permission of gitManifest.permissions) {
         if (permission.required) context.requireGrant(permission.permission);
       }
@@ -47,26 +39,12 @@ export function createGitPlugin(ports: GitPluginPorts = {}): PluginDefinition {
         kind: "app",
         views: [gitUiContribution],
         routes: gitRoutes(context),
-        actions: gitActionHandlers(context, ready => { repositoryReady = ready; }),
-        commandAvailability: (commandId) => {
-          if (commandId === "git.open-change") {
-            return repositoryReady || ports.ready?.() === true
-              ? { available: true }
-              : { available: false, reason: "还没有可读的 Git 工作区" };
-          }
-          return { available: false, reason: `未知命令：${commandId}` };
-        },
-        executeCommand: (_commandId, input) => {
-          const objectId = objectIdFor(input);
-          if (objectId === null) throw new Error("没有可打开的改动");
-          return { ref: { view_id: "changes", object_id: objectId }, title: objectId };
-        },
+        actions: gitActionHandlers(context),
         onUpstreamReady: (_inputs, delivery) => {
           delivery.beforeEffect();
           readAgain();
         },
         onUpstreamUnavailable: () => {
-          repositoryReady = false;
           readAgain();
         },
         onEvent: (event, delivery) => {

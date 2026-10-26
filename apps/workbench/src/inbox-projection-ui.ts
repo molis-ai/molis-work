@@ -1,4 +1,4 @@
-import { escapeHtml } from "@molis-ai/molis-work-design-system";
+import { escapeHtml, icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type {
   AttentionEntryRecord,
 } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
@@ -9,7 +9,6 @@ import {
   type InboxUiPrimitives,
   type InboxUiSurface,
 } from "@molis-ai/molis-work-plugin-inbox";
-import { icon } from "@molis-ai/molis-work-design-system";
 import { renderInboxContribution } from "./ui-composition.js";
 import type { MolisWorkWebView } from "./page-view.js";
 

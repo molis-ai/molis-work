@@ -1,12 +1,13 @@
 import { codingArtifacts, CODING_PLAN_TYPE } from "./artifacts.js";
 import { savedCharacter, savedCharacterSkills } from "./characters.js";
 import { symbolsIn, workspaceFileIndex, workspaceFileReader } from "./mentions.js";
-import { confirmedPlan, parseCodingPlan, planFromRun, planMaterial, planReference } from "./plans.js";
+import { parseCodingPlan } from "./plan-content.js";
+import { confirmedPlan, planFromRun, planMaterial, planReference } from "./plans.js";
 import { type CodingActivation, selected } from "./route-activation.js";
 import { bodyOf, savedActions, methodSelection } from "./route-selections.js";
 import { codingActions, codingActionControl } from "./route-entry.js";
 import { text } from "./run-inputs.js";
-import { libraryRuntime } from "./runtime-choice.js";
+import { libraryRuntime, limitsCharacters, runtimeDirectory } from "./runtime-choice.js";
 import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { PluginRouteBinding } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { agentHostCapabilities as agent, type AgentRunView, type AgentMcpServerInput } from "@molis-ai/molis-work-contracts/services/agent-host";
@@ -42,7 +43,7 @@ const ROUTES: RouteMaker[] = [
     return route("coding.save-mcp", async (request, api, _execution, beforeWrite) => {
       const body = bodyOf(request);
       // The project's Runtime holds its MCP servers; one whose matrix offers none refuses before anything is read or kept (PG-054).
-      const runtime = libraryRuntime(await codingActions(context, beforeWrite).invoke(agent.listRuntimes, []), "mcp");
+      const runtime = libraryRuntime(await runtimeDirectory(codingActions(context, beforeWrite), api!), "mcp");
       const input = { id: body.id, expected_version: body.expected_version, label: body.label, enabled: body.enabled, timeout_ms: body.timeout_ms,
         transport: body.transport, executable: body.executable, argv: body.argv, endpoint: body.endpoint, auth: body.auth } as AgentMcpServerInput;
       if (input.transport === "stdio") {
@@ -56,10 +57,10 @@ const ROUTES: RouteMaker[] = [
   },
   (a) => {
     const { context, route } = a;
-    return route("coding.control-mcp", async (request, _api, _execution, beforeWrite) => {
+    return route("coding.control-mcp", async (request, api, _execution, beforeWrite) => {
       const action = bodyOf(request).action;
       if (!["connect","disconnect","cancel","remove"].includes(String(action))) throw codingFailure("coding.server.mcp-action");
-      const runtime = libraryRuntime(await codingActions(context, beforeWrite).invoke(agent.listRuntimes, []), "mcp");
+      const runtime = libraryRuntime(await runtimeDirectory(codingActions(context, beforeWrite), api!), "mcp");
       await codingActions(context, beforeWrite).invoke(agent.controlMcp, [runtime.runtime_id, text(request.params.serverId,"coding.field.mcp-server"), action as "connect" | "disconnect" | "cancel" | "remove"]);
       return { accepted: true };
     });
@@ -68,7 +69,7 @@ const ROUTES: RouteMaker[] = [
     const { context, route } = a;
     return route("coding.discover-methods", async (request, api, _execution, beforeWrite) => {
       const body = bodyOf(request);
-      const runtime = libraryRuntime(await codingActions(context, beforeWrite).invoke(agent.listRuntimes, []), "skills");
+      const runtime = libraryRuntime(await runtimeDirectory(codingActions(context, beforeWrite), api!), "skills");
       const workspaces = await api!.invoke(projectSettingsCapabilities.workspaces, []);
       const workspace = workspaces.find(item => item.workspace_id === body.workspace_id);
       if (!workspace?.realpath_verified) throw codingFailure("coding.server.pick-workspace");
@@ -78,15 +79,15 @@ const ROUTES: RouteMaker[] = [
   },
   (a) => {
     const { context, route } = a;
-    return route("coding.install-method", async (request, _api, _execution, beforeWrite) => {
-      const runtime = libraryRuntime(await codingActions(context, beforeWrite).invoke(agent.listRuntimes, []), "skills");
+    return route("coding.install-method", async (request, api, _execution, beforeWrite) => {
+      const runtime = libraryRuntime(await runtimeDirectory(codingActions(context, beforeWrite), api!), "skills");
       return { method: await codingActions(context, beforeWrite).invoke(agent.installSkill, [runtime.runtime_id, text(bodyOf(request).candidate_id, "coding.field.candidate")]) };
     });
   },
   (a) => {
     const { context, route } = a;
-    return route("coding.read-method", async (request, _api, _execution, beforeWrite) => {
-      const runtime = libraryRuntime(await codingActions(context, beforeWrite).invoke(agent.listRuntimes, []), "skills");
+    return route("coding.read-method", async (request, api, _execution, beforeWrite) => {
+      const runtime = libraryRuntime(await runtimeDirectory(codingActions(context, beforeWrite), api!), "skills");
       const ref = methodSelection([{skill_id: request.params.skillId, version: Number(request.params.version)}])[0]!;
       return { method: await codingActions(context, beforeWrite).invoke(agent.readSkill, [runtime.runtime_id, ref]) };
     });
@@ -167,7 +168,9 @@ const ROUTES: RouteMaker[] = [
     const { context, route } = a;
     return route("coding.characters", async (request, _api, execution, beforeWrite) => {
       const record = selected(a, request, execution);
-      return { characters: await execution.characters.list(codingActionControl(beforeWrite)), selected: savedCharacter(context, record.session_id), character_skill_ids: savedCharacterSkills(context, record.session_id), runtime_id: record.runtime_id };
+      // Whether the session's Runtime has verified a Character's tool limits is the Runtime's own declaration; the page offers Characters only then.
+      const limited = limitsCharacters(await codingActions(context, beforeWrite).invoke(agent.listRuntimes, []), record.runtime_id);
+      return { characters: await execution.characters.list(codingActionControl(beforeWrite)), selected: savedCharacter(context, record.session_id), character_skill_ids: savedCharacterSkills(context, record.session_id), limits_verified: limited };
     });
   },
   // The files a person can name with @: read through the Host's read-only workspace file action, briefly remembered.

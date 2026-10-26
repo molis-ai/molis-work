@@ -22,6 +22,7 @@ export {
 export type { ShelfSettingsUiModel } from "./settings-ui.js";
 export { SHELF_STYLES } from "./styles.js";
 export { SHELF_EN } from "./en.js";
+export { SHELF_MESSAGES } from "./messages.js";
 export { SHELF_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { SHELF_SETTINGS_CLIENT_SCRIPT } from "./settings-client.js";
 export type { ShelfPluginRouteHandler, ShelfPluginRouteRequest, ShelfPluginRouteResponse } from "./routes.js";
@@ -37,6 +38,7 @@ export { SHELF_PLUGIN_ID, SHELF_PROJECT_PLUGIN_ID, shelfManifest } from "./manif
 export { SHELF_RUNTIME_ACTIONS, shelfRuntimeActions } from "./runtime-actions.js";
 export { createShelfPlugin } from "./plugin.js";
 export { SHELF_OWNER_FILES } from "./owner-files.js";
+export { SHELF_LOCAL_TOOLS } from "./local-tools.js";
 export { createHomeShelfPlugin, shelfStorePorts } from "./home-plugin.js";
 export { shelfAiPorts } from "./ai.js";
 export { initializeShelfFiles } from "@molis-ai/molis-work-module-shelf";

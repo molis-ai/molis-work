@@ -1,22 +1,22 @@
 import { hostErrors } from "./host-errors.js";
+import { snapshotHostUserAction } from "./plugin-consent-settings-entry.js";
 import { withSceneConfigurationActions } from "./scene-configuration-actions.js";
 import { HomeLine } from "./home-line.js";
 import { randomUUID } from "node:crypto";
 import { AsyncLocalStorage } from "node:async_hooks";
 import type {
-  HostCapabilityDefinition,
   HostCapabilityCallOptions,
+  HostCapabilityDescriptor,
   HostCapabilityInvocation,
   LocalHostProjectClient,
   LocalHostProjectReference,
   LocalHostStatus,
 } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { ActionService, CapabilityRegistry, judgmentRecommendationKeys, refuseCall, registeredActionMetadata, startHandler, subjectOfferChoices, subjectOfferCompatibilityReason,
+import { ActionService, CapabilityRegistry, judgmentRecommendationKeys, refuseCall, registeredActionMetadata, subjectOfferChoices, subjectOfferCompatibilityReason,
   type CallContext, type CallDescription, type CallOutcome, type CallSettled } from "@molis-ai/molis-work-kernel";
-import { settleTyped } from "./typed-call-settlement.js";
-import { typedCapabilityCaller, typedCapabilityInvocation } from "./typed-capability-invocation.js";
+import { projectCallCaller } from "./project-call-caller.js";
 import { sceneConfigurationActions, ActionError, requireSynchronous, type SyncActionClient, type ActionCallContext, type ActionClient, type ActionDefinition,
-  type ActionRegistryPort, type ActionProviderRegistration, type ActionAvailability, type ActionView, type ActionSceneClient, type ActionSceneView } from "@molis-ai/molis-work-contracts/platform/actions";
+  type ActionRegistryPort, type ActionProviderRegistration, type ActionAvailability, type ActionView, type ActionSceneClient, type ActionSceneDefinition, type ActionSceneView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { hostLog } from "./host-log.js";
 import { admitPluginCall, dependencyCaller, verifiedCaller } from "./plugin-callers.js";
 
@@ -26,7 +26,7 @@ export interface LocalHostRuntimeFactory<Runtime> {
 }
 
 type ActionAvailabilityCheck = (context: ActionCallContext, action: ActionView) => ActionAvailability | Promise<ActionAvailability>;
-/** What a capability the Host registers runs: its project's runtime, the input, and the call's own fences. */
+/** What an action the Host registers runs: its project's runtime, the input, and the call's own fences. */
 export type HostCapabilityHandler<Runtime, Input, Output> = (runtime: Runtime, input: Input, invocation: HostCapabilityInvocation) => Output | Promise<Output>;
 /** What one discovery reads once and shares across its actions' dependency checks. */
 interface DiscoveryPass { actions(): readonly ActionView[]; scenes(): readonly ActionSceneView[]; usages(): ReturnType<ActionService["usages"]> }
@@ -40,8 +40,10 @@ export interface LocalHostOptions<Runtime> {
   instanceId?: string;
   sceneAvailability?(context: ActionCallContext, scene: ActionSceneView): ActionAvailability | Promise<ActionAvailability>;
   actionAvailability?: ActionAvailabilityPolicy;
-  /** A provider was registered or withdrawn, with the project it was bound to. Observers must not throw. */
-  actionProvidersChanged?(provider: import("@molis-ai/molis-work-contracts/platform/actions").ActionProvider): void;
+  /** Throws to refuse a provider before it is registered: nothing is registered or written for a refused one. */
+  admitActionProvider?(provider: import("@molis-ai/molis-work-contracts/platform/actions").ActionProvider, scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneDefinition[]): void;
+  /** A provider was registered or withdrawn, with the project it was bound to; on registration, also the consumption scenes it registered. Observers must not throw. */
+  actionProvidersChanged?(provider: import("@molis-ai/molis-work-contracts/platform/actions").ActionProvider, scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneDefinition[]): void;
   /** Every call, once, as it ended (a handler's result or failure, or a refusal before any handler), with its caller and the operation's call id; never its input or result. */
   actionSettled?(caller: CallContext, action: CallDescription, outcome: CallOutcome): void;
 }
@@ -76,21 +78,21 @@ function normalizeReference(reference: LocalHostProjectReference): LocalHostProj
 
 /**
  * One process-local composition owner. Each storage key is opened exactly
- * once, including concurrent discovery, and all typed Capability calls are
+ * once, including concurrent discovery, and all of its queued action calls are
  * serialized through that Project runtime.
  */
 function snapshotCaller(caller: ActionCallContext): ActionCallContext {
   return { ...caller, permissions: [...caller.permissions],
     ...(caller.page_context ? { page_context: { ...caller.page_context } } : {}),
-    ...(caller.user_action ? { user_action: { ...caller.user_action } } : {}),
+    ...(caller.user_action ? { user_action: snapshotHostUserAction(caller.user_action) } : {}),
     ...(caller.allowed_capability_ids ? { allowed_capability_ids: [...caller.allowed_capability_ids] } : {}),
     ...(caller.allowed_actions ? { allowed_actions: caller.allowed_actions.map(ref => ({ ...ref })) } : {}),
   };
 }
 
 /** Long calls outside the project queue are cancelled before close waits for their cleanup. */
-function callSignal(definition: { scheduling?: string; action?: { scheduling?: string } }, entry: () => Pick<RuntimeEntry<unknown>, "observing">, signal: AbortSignal | undefined): { signal?: AbortSignal } {
-  if (definition.scheduling !== "concurrent" && definition.action?.scheduling !== "concurrent") return signal ? { signal } : {};
+function callSignal(definition: { action?: { scheduling?: string } }, entry: () => Pick<RuntimeEntry<unknown>, "observing">, signal: AbortSignal | undefined): { signal?: AbortSignal } {
+  if (definition.action?.scheduling !== "concurrent") return signal ? { signal } : {};
   const closing = entry().observing.signal;
   return { signal: signal ? AbortSignal.any([signal, closing]) : closing };
 }
@@ -136,9 +138,6 @@ export class LocalHost<Runtime> {
     if (this.state !== "running" || this.executionScope.getStore()?.entry.state === "closing") throw new ActionError("actions.host_closed", "能力所在运行环境已关闭");
   }, beforeEffect: (caller, reference) => this.checkActionAvailability(caller, reference),
     admit: (caller, reference) => this.checkActionAvailability(caller, reference), settled: this.settled });
-  private readonly invocationRuntimes = new WeakMap<ActionCallContext, Runtime>();
-  /** Callers that reached a Host capability through a plugin SDK adapter; restricted independently of the action audience. */
-  private readonly pluginCapabilityCallers = new WeakSet<ActionCallContext>();
   /** `holdsQueue`: the call sits on the project's line (or inside one that does); a concurrent call runs beside the line and holds nothing. */
   private readonly executionScope = new AsyncLocalStorage<{ entry: RuntimeEntry<Runtime>; runtime: Runtime; active: boolean; holdsQueue: boolean }>();
   private readonly entries = new Map<string, RuntimeEntry<Runtime>>();
@@ -149,21 +148,6 @@ export class LocalHost<Runtime> {
 
   constructor(private readonly options: LocalHostOptions<Runtime>) {
     this.instanceId = options.instanceId?.trim() || `local-host-${randomUUID()}`;
-  }
-
-  /** A typed entry, called only through the Host's own clients. An action is refused here: actions have one seam, `registerAction` (PG-035). */
-  register<Input, Output>(definition: HostCapabilityDefinition<Input, Output>, handler: HostCapabilityHandler<Runtime, Input, Output>): () => void {
-    this.assertRunning();
-    if (definition.action) throw hostErrors.registration_seam(`${definition.capability_id} 是动作，只经 registerAction 登记`);
-    const invoke = (caller: ActionCallContext, input: Input) => {
-      if (!this.invocationRuntimes.has(caller)) throw new ActionError("actions.host_context_missing", "此能力需要 Host 的项目运行环境");
-      const invocation = typedCapabilityInvocation(caller, definition, { registry: this.capabilities,
-        active: () => this.invocationRuntimes.has(caller), running: () => this.state === "running" && this.executionScope.getStore()?.entry.state !== "closing",
-        pluginConsumer: this.pluginCapabilityCallers.has(caller), providerId: HOST_PROVIDER_ID, checkAvailability: () => this.checkActionAvailability(caller, definition) });
-      invocation.assertAuthorityCurrent();
-      return startHandler(caller, () => handler(this.invocationRuntimes.get(caller)!, input, invocation));
-    };
-    return this.capabilities.register(definition, invoke);
   }
 
   /** An action of the Host's own (the workspace reads, a model draft), called as every action is; its runtime is the Host's active project scope, never the caller's. */
@@ -192,6 +176,7 @@ export class LocalHost<Runtime> {
         throw new ActionError("actions.scope_mismatch", "能力来源不能注册到其他项目");
       }
       const bound = { ...registration.provider, ...(project ? { project_id: project.project_id } : {}) };
+      this.options.admitActionProvider?.(bound, registration.scenes);
       const remove = this.actionService.registerProvider({ ...withSceneConfigurationActions(registration, this.sceneClient(project)),
         provider: bound,
         availability: caller => this.state !== "running" || entry?.state === "closing"
@@ -199,10 +184,9 @@ export class LocalHost<Runtime> {
           : registration.availability?.(caller) ?? { available: true },
       });
       const owner = entry?.actionDisposers ?? this.globalActionDisposers;
-      const announce = () => { try { this.options.actionProvidersChanged?.(bound); } catch { /* An observer never changes registration. */ } };
+      const announce = (scenes?: readonly ActionSceneDefinition[]) => { try { this.options.actionProvidersChanged?.(bound, scenes); } catch { /* An observer never changes registration. */ } };
       const dispose = () => { remove(); owner.delete(dispose); announce(); };
-      owner.add(dispose);
-      announce();
+      owner.add(dispose); announce(registration.scenes);
       return dispose;
     } };
   }
@@ -279,8 +263,8 @@ export class LocalHost<Runtime> {
       if (!availability.available) throw new ActionError(availability.code, availability.reason);
       if (!scene.compatible) throw new ActionError("actions.scene_incompatible", scene.reason ?? "判断能力与场景不兼容");
     };
-    const queue = <Result>(caller: ActionCallContext, id: string, version: number, operation: () => Promise<Result>) => project
-      ? this.enqueue(project, { capability_id: `scene.${id}`, version, operation: "command" }, caller, operation, true)
+    const queue = <Result>(id: string, version: number, operation: () => Promise<Result>) => project
+      ? this.enqueue(project, { capability_id: `scene.${id}`, version }, operation, true)
       : this.homeLine.run(operation, "step");
     return {
       discoverScenes: async (caller, judgment) => scenes(await prepare(caller), judgment),
@@ -317,7 +301,7 @@ export class LocalHost<Runtime> {
       },
       bind: async (caller, binding, options) => {
         const bound = await prepare(caller);
-        await queue(bound, binding.scene_id, binding.scene_version, async () => {
+        await queue(binding.scene_id, binding.scene_version, async () => {
           await check(bound, binding.scene_id, binding.scene_version, binding.enabled ? binding.function : undefined, Boolean(options && !binding.enabled));
           if (binding.enabled) await this.checkActionAvailability(bound, binding.function);
           await this.actionService.bind(bound, binding, options ? { ...options, before_write: async () => {
@@ -329,7 +313,7 @@ export class LocalHost<Runtime> {
       },
       runScene: async (caller, scene, bindingId, event) => {
         const bound = await prepare(caller);
-        return queue(bound, scene.scene_id, scene.version, async () => {
+        return queue(scene.scene_id, scene.version, async () => {
           const binding = (await this.actionService.usages(bound)).find(use => use.binding_id === bindingId && use.scene_id === scene.scene_id && use.scene_version === scene.version);
           await check(bound, scene.scene_id, scene.version, binding?.function);
           const client = project ? this.actionClient(project, true) : this.homeActionClient(true);
@@ -399,7 +383,7 @@ export class LocalHost<Runtime> {
         const descriptor = this.capabilities.descriptor(capability, bound.project_id);
         if (!descriptor) return refuseCall(this.settled, bound, capability, new ActionError("actions.missing", "能力未注册或版本已失效"));
         bound = { ...bound, ...callSignal(descriptor, () => this.ensureEntry(project), bound.signal) };
-        return this.enqueue(project, descriptor, bound, () => { dispatched = true; return this.actionService.invoke(bound, capability, input); }, step)
+        return this.enqueue(project, descriptor, () => { dispatched = true; return this.actionService.invoke(bound, capability, input); }, step)
           .catch(error => { if (dispatched) throw error; return refuseCall(this.settled, bound, capability, error); });
       },
     };
@@ -416,14 +400,12 @@ export class LocalHost<Runtime> {
         const definition = this.capabilities.descriptor(capability, project.project_id);
         if (!definition) return { available: false, code: "actions.dependency_missing", reason: `所需宿主能力未注册：${capability.capability_id}@${capability.version}` };
         if (capability.provider_id && capability.provider_id !== (definition.action_provider?.provider_id ?? HOST_PROVIDER_ID)) return { available: false, code: "actions.provider_changed", reason: "所需能力的提供方已变化" };
-        const caller = dependencyCaller(project.project_id, definition, options?.consumer);
-        if (options?.consumer === "plugin") this.pluginCapabilityCallers.add(caller);
-        return this.capabilities.availability(caller, definition);
+        return this.capabilities.availability(dependencyCaller(project.project_id, definition, options?.consumer), definition);
       },
       withScope: <Result>(operation: (client: LocalHostProjectClient) => Result | Promise<Result>) =>
         this.withRuntime(project, () => operation(client)),
       invoke: <Input, Output>(
-        capability: HostCapabilityDefinition<Input, Output>,
+        capability: ActionDefinition<Input, Output>,
         input: Input,
         options?: HostCapabilityCallOptions,
       ) => this.invoke(project, capability, input, options),
@@ -433,19 +415,16 @@ export class LocalHost<Runtime> {
 
   async invoke<Input, Output>(
     reference: LocalHostProjectReference,
-    capability: HostCapabilityDefinition<Input, Output>,
+    capability: ActionDefinition<Input, Output>,
     input: Input,
     options?: HostCapabilityCallOptions,
   ): Promise<Output> {
     const registered = this.capabilities.descriptor(capability, reference.project_id);
-    const caller = typedCapabilityCaller(reference.project_id, () => callSignal(registered ?? {}, () => this.ensureEntry(reference), options?.signal), options);
-    if (options?.consumer === "plugin") this.pluginCapabilityCallers.add(caller);
-    // A typed identity may omit the activation scope; only the bound Host supplies it.
-    const scoped = { ...capability, action_provider: registered?.action_provider };
-    // An action is called as the action service calls it (host policy, authority, contract, one settlement); an entry with no action is settled here.
-    return this.enqueue(reference, scoped, caller, registered?.action && registered.operation === capability.operation
-      ? () => this.actionService.invoke(caller, { capability_id: capability.capability_id, version: capability.version }, input) as Promise<Output>
-      : () => settleTyped(this.settled, caller, scoped, () => this.capabilities.invoke<Input, Output>(caller, scoped, input)));
+    const caller = projectCallCaller(reference.project_id, () => callSignal(registered ?? {}, () => this.ensureEntry(reference), options?.signal), options);
+    // The definition may omit the activation scope; only the bound Host supplies it. The call is the action service's (host
+    // policy, authority, contract, one settlement), which also refuses an identity no longer registered.
+    const key = { capability_id: capability.capability_id, version: capability.version, action_provider: registered?.action_provider };
+    return this.enqueue(reference, key, () => this.actionService.invoke(caller, { capability_id: capability.capability_id, version: capability.version }, input) as Promise<Output>);
   }
 
   private async discoverActions(caller: ActionCallContext): Promise<ActionView[]> {
@@ -508,7 +487,7 @@ export class LocalHost<Runtime> {
     return states.find(state => state.available) ?? states[0]!;
   }
 
-  private async checkActionAvailability(caller: ActionCallContext, capability: Pick<HostCapabilityDefinition, "capability_id" | "version">): Promise<void> {
+  private async checkActionAvailability(caller: ActionCallContext, capability: Pick<HostCapabilityDescriptor, "capability_id" | "version">): Promise<void> {
     const definition = this.capabilities.descriptor(capability, caller.project_id);
     if (!definition?.action || !definition.action_provider) return;
     admitPluginCall(caller, definition.capability_id, definition.action);
@@ -520,8 +499,7 @@ export class LocalHost<Runtime> {
 
   private async enqueue<Output>(
     reference: LocalHostProjectReference,
-    capability: HostCapabilityDefinition,
-    caller: ActionCallContext,
+    capability: Pick<HostCapabilityDescriptor, "capability_id" | "version" | "action_provider">,
     execute: () => Promise<Output>,
     step = false,
   ): Promise<Output> {
@@ -530,11 +508,8 @@ export class LocalHost<Runtime> {
       const runtime = await entry.runtime;
       const scope = { entry, runtime, active: true, holdsQueue };
       return this.executionScope.run(scope, async () => {
-        this.invocationRuntimes.set(caller, runtime);
-        try {
-          return await execute();
-        }
-        finally { this.invocationRuntimes.delete(caller); scope.active = false; }
+        try { return await execute(); }
+        finally { scope.active = false; }
       });
     };
     // Everything else of the project waits while a queued operation runs, so one that holds the line for long is named
@@ -550,13 +525,12 @@ export class LocalHost<Runtime> {
     // except a scene run (`step`), which is part of the call that triggered it and takes that call's place.
     const parent = this.executionScope.getStore();
     if (parent?.active && parent.entry === entry && (parent.holdsQueue || step)) return run(parent.holdsQueue);
-    // Registered concurrent actions own their short transactions or only observe (following a live round), and a
-    // capability registered as concurrent touches no project state (a model draft): held in line, each would keep every
-    // later operation of the project waiting until it answers. They run beside the queue; withRuntime keeps close
+    // Registered concurrent actions own their short transactions, only observe (following a live round) or touch no project
+    // state (a model draft): held in line, each would keep every later operation of the project waiting until it answers. They run beside the queue; withRuntime keeps close
     // waiting; callSignal cancels these executions as closing starts, before waiting for their cleanup.
     // Concurrency is read from the registered descriptor, never from the caller.
     const registered = this.capabilities.descriptor(capability, capability.action_provider?.project_id);
-    if (registered?.scheduling === "concurrent" || registered?.action?.scheduling === "concurrent") return this.withRuntime(reference, () => run(false));
+    if (registered?.action?.scheduling === "concurrent") return this.withRuntime(reference, () => run(false));
     const operation = entry.operationTail.then(heldInLine);
     entry.operationTail = operation.then(() => undefined, () => undefined);
     return await operation;

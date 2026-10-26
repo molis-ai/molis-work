@@ -1,5 +1,6 @@
 import type { PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { AgentRunView, AgentStepBoard } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { insertedAcceptance } from "./inserted-step.js";
 import { codingTaskBoardPlans, type CodingStepVerdict } from "./taskboard.js";
 
 /** Evidence captured when the report is saved, never a live task ledger. */
@@ -42,7 +43,7 @@ export function codingReportStepsMarkdown(run: AgentRunView, evidence: CodingRep
   if (board) sections.push(literal(`原步骤图：${board.project_id} v${board.version}\n图状态：${board.terminal ? "已结束" : "尚未结束"}（不代表用户验收）`));
   const steps = board ? board.nodes.map(node => plan?.steps.find(step => step.id === node.id) ?? {
     id: node.id, title: node.title || node.id,
-    acceptance: node.reports.find(report => report.note.startsWith("用户插入"))?.note.split("完成条件：")[1] || "见插入说明",
+    acceptance: insertedAcceptance(node.reports) || "见插入说明",
   }) : plan?.steps ?? [];
   for (const [index, step] of steps.entries()) {
     const node = board?.nodes.find(node => node.id === step.id);
@@ -51,7 +52,7 @@ export function codingReportStepsMarkdown(run: AgentRunView, evidence: CodingRep
       node ? states[node.state] : "步骤回报未知，不能推断已完成。"];
     if (node) {
       // A person's record and a handover are not the model's report; a subtask's report says which subtask.
-      const label = (by?: string) => by === "用户" ? "用户记录" : by === "改派" ? "改派" : by && by !== "本会话" ? `模型回报（${by}）` : "模型回报";
+      const label = (by?: AgentStepBoard["nodes"][number]["reports"][number]["by"]) => by?.kind === "person" ? "用户记录" : by?.kind === "handover" ? "改派" : by && by.kind !== "session" ? `模型回报（${by.label}）` : "模型回报";
       if (node.owner && node.owner.kind !== "session") lines.push(`负责：${node.owner.kind === "person" ? "用户" : node.owner.label}`);
       lines.push(...node.reports.map(report => `${label(report.by)}：${report.note}`));
       if (!node.reports.length) lines.push("尚无模型步骤回报。");

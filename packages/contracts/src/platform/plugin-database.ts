@@ -151,7 +151,31 @@ export interface PluginDatabaseDeclaration {
  */
 export interface HomePluginDatabaseDeclaration extends PluginDatabaseDeclaration {
   readonly partition?: "project";
+  /** The rows of this library that belong to a project, which the platform deletes with the project; never with `partition`. */
+  readonly project_rows?: PluginProjectRowsDeclaration;
 }
+
+/**
+ * What a library in the Home keeps of each project, for the project's deletion (PG-024): the platform deletes these rows itself,
+ * on its own connection to this plugin's own library, in one transaction and in the order written, and runs none of the
+ * plugin's code to do it. Tables are named without a schema (`main.`, an attached library's) and must be this declaration's own.
+ */
+export interface PluginProjectRowsDeclaration {
+  /** What the confirmation dialog says goes with the project. A plugin the Host did not ship is shown as written, never translated. */
+  readonly label: string;
+  /** Where this owner's step runs among the others, ascending; omitted, it runs after every numbered one. */
+  readonly order?: number;
+  /** Children before their parent: a child's rows go by the ids of the parent's rows of the project, so it is cleared first. */
+  readonly tables: readonly PluginProjectRowsTable[];
+}
+
+/**
+ * One table of a project's rows: those whose `column` is the project's id, or, with `parent`, those whose `column` holds the `key`
+ * (default `id`) of the parent's rows of the project. The parent is a table of this list that names no parent, written after it.
+ */
+export type PluginProjectRowsTable =
+  | { readonly table: string; readonly column: string }
+  | { readonly table: string; readonly column: string; readonly parent: string; readonly key?: string };
 
 /**
  * The plugin's own tables, one declaration per scope. `project`: tables in each project's library, which the platform makes from

@@ -1,11 +1,11 @@
-import { fakeAgentHostActions, pluginActions } from "./fixtures/plugin-actions.js";
+import { PROJECT_SETTINGS_READS, pluginActions, withFakeAgentHost } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, filesOutputsRefresh, handleProjectPluginHttp, releaseProjectPlugins, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, DEMO_PROJECT_ID, seedDemoBoard, handleProjectPluginHttp, releaseProjectPlugins, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { agentHostCapabilities as agent } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentCollaborationActions as collaboration, type AgentCollaborationCondition, type AgentCollaborationWait, type AgentContinuationView } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
 import { projectSettingsCapabilities, projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
@@ -81,17 +81,18 @@ test("a round that ends waiting on an answer or a background command waits as th
     }
     if (id === agent.waitRun.capability_id) return { version: "v1", view: { ref: input[1], phase: "completed", frozen: { role_id: "builder", text_materials: [] }, turns: [], activity: [], awaiting_input: [] } } as Output;
     if (id === agent.listRuntimes.capability_id) return [{ runtime_id: "prologue", capabilities: { mcp: "unsupported" } }] as Output;
+    if (id === projectSettingsCapabilities.runtime.capability_id) return null as Output;
     if (id === agent.readSessionStatuses.capability_id) return input[1].map((session_id: string) => ({ session_id, latest_phase: "completed", recovery: false, checkpoint_busy: false })) as Output;
     if (id === agent.listSkills.capability_id) return [] as Output;
     if (id === projectSettingsCapabilities.browsingWorkspace.capability_id) return null as Output;
     if (id === projectsCapabilities.readWorkspace.capability_id) return null as Output;
     throw new Error(`Unexpected capability ${id}`);
   } };
-  const host = () => ({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions: fakeAgentHostActions(actions, (definition, input) => agentHost.invoke(definition, input)), actorId: "web-user",
+  const host = () => withFakeAgentHost({ store, ...openProjectVersionStores(store), homeDirectory: root, projectId: DEMO_PROJECT_ID, actions, actorId: "web-user",
     escapeHtml: (value: unknown) => String(value), translate: (value: string) => value,
-    capabilities: agentHost,
-  });
-  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host(), filesOutputsRefresh).catch(error => { response.writeHead(500); response.end(String(error)); }); });
+    agentHost,
+  }, [], PROJECT_SETTINGS_READS);
+  const server = createServer((request, response) => { void handleProjectPluginHttp(request, response, new URL(request.url!, "http://localhost"), host()).catch(error => { response.writeHead(500); response.end(String(error)); }); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const call = async (path: string, body?: unknown) => {
@@ -111,7 +112,9 @@ test("a round that ends waiting on an answer or a background command waits as th
     const read = await call("/sessions/b");
     assert.equal(read.status, 200, JSON.stringify(read.body));
     assert.deepEqual([read.body.session.queued.waiting_for, read.body.session.queued.after_title], ["reply", "会话「改接口」的答复"]);
-    assert.equal((await call("/sessions/b/runs", send("别的事"))).status, 400);
+    // BL-305 (#1304): a coded refusal answers by its kind; the session waiting is a conflict.
+    const other = await call("/sessions/b/runs", send("别的事"));
+    assert.deepEqual([other.status, other.body.code], [409, "coding.waiting"]);
     // The answer comes: B goes on with its original task, in the same way of working (the answer itself reaches it
     // through the task graph), and the continuation is taken up. The next round waits again, on a check it starts.
     parks.push({ wait_id: "w2", condition: { kind: "command", ref: "bg-0", label: "后台命令 npm test结束" }, reason: "再等一次测试" });

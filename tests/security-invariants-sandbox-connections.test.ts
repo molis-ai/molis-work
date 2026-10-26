@@ -1,10 +1,15 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import test, { type TestContext } from "node:test";
 import { ActionError, type ActionDefinition, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { SandboxEffects, SandboxIdentity, SandboxJson, SandboxOperationContract } from "@molis-ai/molis-work-contracts/platform/plugin-sandbox";
 import { createPluginConnectionsClient, runInPluginAction, type PluginConnectionDispatch, type PluginConnectionsPort } from "@molis-ai/molis-work-plugin-runtime";
 import { DEFAULT_SANDBOX_LIMITS, SandboxBroker, sandboxServicesFor } from "@molis-ai/molis-work-plugin-sandbox";
+import { createPluginConnectionsPort, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { pluginBindingScope } from "@molis-ai/molis-work-service-connector-host";
 
 // S-60 for `services.connections` (PG-017 P2; S-57 is the service itself): a sandboxed plugin sends requests through the account the person
 // bound to a slot, over the broker. Two gates in series: the broker asks the operation's declared and approved `connections` effect for the
@@ -59,6 +64,63 @@ function rig(reply: (dispatch: PluginConnectionDispatch) => Promise<typeof ok> =
   };
 }
 const request = (extra: Record<string, SandboxJson> = {}): SandboxJson[] => ["github", { url: "https://api.github.com/user", ...extra }];
+
+/** Real persisted binding, Host port and Runtime client: only the broker's operation effects and grants vary. */
+async function recordRig(t: TestContext) {
+  const home = await mkdtemp(join(tmpdir(), "sandbox-connection-records-")); t.after(() => rm(home, { recursive: true, force: true }));
+  const scopeId = pluginBindingScope({ install_id: IDENTITY.installationId, project_id: IDENTITY.projectId, record_key: "src-1" });
+  const connection = withConnectorConnections(home, store => store.createToken({ serviceId: "github", displayName: "Sandbox GitHub", token: BEARER }));
+  withConnectorConnections(home, store => store.bind({ scopeId, pluginId: PLUGIN_ID, slotId: "github", serviceId: "github", connectionId: connection.connection_id }));
+  const hostPort = createPluginConnectionsPort(home), calls = { describe: 0, release: 0 };
+  const client = createPluginConnectionsClient({ ...manifest, connections: { slots: [{ slot_id: "github", service_id: "github", binding: "per_record", reason: "probe" }] } }, {
+    ...hostPort,
+    describe(target) { calls.describe += 1; return hostPort.describe(target); },
+    release(target) { calls.release += 1; hostPort.release(target); },
+  }, { install_id: IDENTITY.installationId, installation_generation: "g1", project_id: IDENTITY.projectId, assertActive: () => {}, requireGrant: () => {} });
+  // A command action deliberately surrounds even a query operation: the broker itself must refuse query release.
+  const definition: ActionDefinition = { capability_id: "example.sbx.records", version: 1, operation: "command", action: {
+    title: "records", description: "probe", scope: "project", kind: "operation", subject_kinds: [], audiences: ["user"],
+    permissions: ["connections:use"], scheduling: "concurrent", input_schema: { type: "object", additionalProperties: false } } };
+  const caller = { permissions: ["connections:use"], project_id: IDENTITY.projectId, signal: new AbortController().signal, beforeEffect: async () => {} } as ActionExecutionContext;
+  const services = sandboxServicesFor({ storage: { get: () => null, set: () => {}, delete: () => false, compareAndSet: () => true }, connections: client });
+  return {
+    calls,
+    stored: () => withConnectorConnections(home, store => store.binding(scopeId, PLUGIN_ID, "github")),
+    call(op: SandboxOperationContract, method: "connections.describe" | "connections.release", grants: SandboxEffects = ALLOWED) {
+      const broker = new SandboxBroker(IDENTITY, grants, services, DEFAULT_SANDBOX_LIMITS);
+      return runInPluginAction({ install_id: IDENTITY.installationId, installation_generation: "g1", definition, caller },
+        () => broker.invoke(op, caller.signal, method, ["github", "src-1"]));
+    },
+  };
+}
+
+test("S-71 RAC-347 the broker refuses connections.release in a query before reaching the real Host binding", async t => {
+  const r = await recordRig(t), original = r.stored();
+  await assert.rejects(r.call(operation("query", ALLOWED), "connections.release"), code("sandbox.not_authorized"));
+  assert.deepEqual(r.calls, { describe: 0, release: 0 });
+  assert.deepEqual(r.stored(), original);
+  assert.deepEqual(await r.call(operation("query", ALLOWED), "connections.describe"), { bound: true, display_name: "Sandbox GitHub", state: "connected" });
+  assert.equal(await r.call(operation("command", ALLOWED), "connections.release"), null);
+  assert.equal(r.stored(), null);
+  assert.deepEqual(await r.call(operation("query", ALLOWED), "connections.describe"), { bound: false });
+  assert.deepEqual(r.calls, { describe: 2, release: 1 });
+});
+
+test("S-71 RAC-347 the broker refuses connections.describe and connections.release without the slot in both effects and approval", async t => {
+  const r = await recordRig(t), original = r.stored();
+  for (const method of ["connections.describe", "connections.release"] as const) {
+    await assert.rejects(r.call(operation("command", {}), method), code("sandbox.not_authorized"));
+    await assert.rejects(r.call(operation("command", { connections: ["other"] }), method), code("sandbox.not_authorized"));
+    await assert.rejects(r.call(operation("command", ALLOWED), method, {}), code("sandbox.not_authorized"));
+    await assert.rejects(r.call(operation("command", ALLOWED), method, { connections: ["other"] }), code("sandbox.not_authorized"));
+    assert.deepEqual(r.calls, { describe: 0, release: 0 }, "refused record methods must not reach either Host port");
+    assert.deepEqual(r.stored(), original);
+  }
+  assert.deepEqual(await r.call(operation("query", ALLOWED), "connections.describe"), { bound: true, display_name: "Sandbox GitHub", state: "connected" });
+  assert.equal(await r.call(operation("command", ALLOWED), "connections.release"), null);
+  assert.equal(r.stored(), null);
+  assert.deepEqual(r.calls, { describe: 1, release: 1 });
+});
 
 test("S-60 RAC-230 a connection request needs the slot in the operation's effects and in the person's approval, and a request of a plain shape", async () => {
   const r = rig();

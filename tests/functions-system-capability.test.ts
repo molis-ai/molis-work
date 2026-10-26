@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import test from "node:test";
+import test, { type TestContext } from "node:test";
 import {
   FEED_ARCHIVE_BEHAVIOR_ID,
   FEED_CAPTURE_SCENE_ID,
@@ -29,6 +29,8 @@ import {
   functionsErrors,
   createFunctionsService,
   publishedFunctionAction,
+  publishedFunctionReference,
+  publishedFunctionKey,
   type TypeSafeProvider,
 } from "@molis-ai/molis-work-module-functions";
 import { feedManifest } from "@molis-ai/molis-work-plugin-feed";
@@ -39,8 +41,19 @@ import { projectHomeEvents } from "../apps/workbench/dist/home-flow.js";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { openTestHome } from "./fixtures/test-home.js";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
+
+test("FI-1 RAC-482 published rule references keep their owner, key and exact version without a full definition", () => {
+  const identity = { function_key: "next_step_v7", status: "published" as const, version: 7 };
+  const reference = publishedFunctionReference(identity);
+  assert.deepEqual(reference, { capability_id: "functions.published.next_step_v7", version: 7, provider_id: "system.functions" });
+  assert.equal(publishedFunctionKey(reference), "next_step_v7");
+  for (const record of [{ ...identity, status: "draft" as const }, { ...identity, version: null }, { ...identity, version: 0 }]) {
+    assert.throws(() => publishedFunctionReference(record), { code: "actions.function_unpublished" });
+  }
+});
 
 function fixtureProvider(choice: string | null): TypeSafeProvider {
   return {
@@ -255,24 +268,42 @@ test("Home preserves declared navigation and bound suggestions without inventing
   assert.deepEqual(events[0]?.suggested_behavior_ids, [HOME_CONTINUE_BEHAVIOR_ID]);
 });
 
-test("built-in function keys exist in the Module store", async () => {
-  await withHome(async (home) => {
-    const functions = createFunctionsService({ home, credential: () => null });
-    try {
-      const keys = functions.list().map((row) => row.function_key);
-      assert.ok(keys.includes(SYSTEM_HOME_DOCK_FUNCTION_KEY));
-      assert.ok(keys.includes(SYSTEM_INBOX_ADMIT_FUNCTION_KEY));
-      assert.ok(keys.includes(SYSTEM_INBOX_NEXT_FUNCTION_KEY));
-      const homeDock = functions.getByKey(SYSTEM_HOME_DOCK_FUNCTION_KEY)!;
-      assert.equal(homeDock.status, "published");
-      assert.ok(
-        Array.isArray(homeDock.criteria)
-        && homeDock.criteria.some((row) => "key" in row && row.key === INBOX_DISMISS_BEHAVIOR_ID),
-      );
-    } finally {
-      functions.close();
-    }
-  });
+/** A Home whose project has opened, so the shipped scenes have registered and written the rules they declare (RAC-484). */
+async function openHomeWithRules(t: TestContext) {
+  const home = await openTestHome(t, { host: { functions: { env: {}, credential: () => null } } });
+  const project = await home.createProject("规则", ["feed", "inbox"]);
+  await home.inspect("owner", project.project_id);
+  return home.home;
+}
+
+test("built-in function keys exist in the Module store once the scenes that declare them have registered", async (t) => {
+  const home = await openHomeWithRules(t);
+  const functions = createFunctionsService({ home, credential: () => null });
+  try {
+    const keys = functions.list().map((row) => row.function_key);
+    assert.ok(keys.includes(SYSTEM_HOME_DOCK_FUNCTION_KEY));
+    assert.ok(keys.includes(SYSTEM_INBOX_ADMIT_FUNCTION_KEY));
+    assert.ok(keys.includes(SYSTEM_INBOX_NEXT_FUNCTION_KEY));
+    const homeDock = functions.getByKey(SYSTEM_HOME_DOCK_FUNCTION_KEY)!;
+    assert.equal(homeDock.status, "published");
+    assert.ok(
+      Array.isArray(homeDock.criteria)
+      && homeDock.criteria.some((row) => "key" in row && row.key === INBOX_DISMISS_BEHAVIOR_ID),
+    );
+  } finally {
+    functions.close();
+  }
+});
+
+test("the built-in Home rule is seeded for the Home scene and Inbox entries", async (t) => {
+  const home = await openHomeWithRules(t);
+  const functions = createFunctionsService({ home, credential: () => null });
+  try {
+    assert.equal(functions.getByKey(SYSTEM_HOME_DOCK_FUNCTION_KEY)?.scene_id, HOME_DOCK_SCENE_ID);
+    assert.deepEqual(functions.getByKey(SYSTEM_HOME_DOCK_FUNCTION_KEY)?.subject_kinds, ["inbox_entry"]);
+  } finally {
+    functions.close();
+  }
 });
 
 test("a judgment's choice follows the rule's scene map", () => {
@@ -289,18 +320,6 @@ test("a judgment's choice follows the rule's scene map", () => {
     criteria: { true_description: "够", false_description: "不够" },
     scene_map: { true: INBOX_DONE_BEHAVIOR_ID, false: INBOX_DISMISS_BEHAVIOR_ID },
   }, { noul: 0.8 }), INBOX_DONE_BEHAVIOR_ID);
-});
-
-test("the built-in Home rule is seeded for the Home scene and Inbox entries", async () => {
-  await withHome(async (home) => {
-    const functions = createFunctionsService({ home, credential: () => null });
-    try {
-      assert.equal(functions.getByKey(SYSTEM_HOME_DOCK_FUNCTION_KEY)?.scene_id, HOME_DOCK_SCENE_ID);
-      assert.deepEqual(functions.getByKey(SYSTEM_HOME_DOCK_FUNCTION_KEY)?.subject_kinds, ["inbox_entry"]);
-    } finally {
-      functions.close();
-    }
-  });
 });
 
 test("agent.mcp functions are plain judgments, never a site scene's recommendation", async () => {

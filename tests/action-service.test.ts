@@ -1,3 +1,4 @@
+import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
@@ -51,9 +52,9 @@ test("unknown SDK plugin registers a real write and read through Runtime; stoppi
     async start() { return { kind: "app", actions: [write.handler, read.handler] }; },
   });
   const repository = new MemoryPluginRuntimeRepository();
-  const runtime = new PluginRuntime(repository, undefined, { actions: { registry: service, project_id: context.project_id! } });
+  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: service, project_id: context.project_id! } });
   try {
-    const installed = runtime.install({ definition: plugin, deployment: "local", grants: ["notes:write"] }).install;
+    const installed = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: ["notes:write"] }).install;
     assert.deepEqual(service.discover(context), []);
     await runtime.start(installed.install_id);
     assert.deepEqual(service.discover(context).map(x => x.capability_id), [write.definition.capability_id, read.definition.capability_id]);
@@ -392,8 +393,8 @@ test("unknown Runtime scene exposes actual configuration targets and preserves o
       }, consume: (_caller, _input, result) => result,
     }] }; } });
   const repository = new MemoryPluginRuntimeRepository();
-  const runtime = new PluginRuntime(repository, undefined, { actions: { registry: service, project_id: context.project_id! } });
-  const installed = runtime.install({ definition: plugin, deployment: "local", grants: [] }).install;
+  const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS, actions: { registry: service, project_id: context.project_id! } });
+  const installed = runtime.install({ trust: { level: "unsigned" }, definition: plugin, deployment: "local", grants: [] }).install;
   await runtime.start(installed.install_id);
   try {
     const fn = { ...judgment, provider_id: provider.provider_id };

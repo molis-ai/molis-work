@@ -14,11 +14,15 @@ import {
 import { inspectActionDeclarations } from "@molis-ai/molis-work-plugin-sdk";
 import { createContextLedger, type ContextLedgerDatabase } from "@molis-ai/molis-work-module-context-ledger";
 import { PlacementService, PLACEMENT_LEDGER_ACCESS } from "@molis-ai/molis-work-service-placement";
-import { pagesManifest, openPagesStore } from "@molis-ai/molis-work-plugin-pages";
-import { pptManifest, openPptStore, buildPptx, slidesFromMarkdown } from "@molis-ai/molis-work-plugin-ppt";
-import { formManifest, openFormStore, formFillPageHtml, formResultsCsv, FORM_ANSWER_FORMAT, questionsFromText } from "@molis-ai/molis-work-plugin-form";
-import { datasetManifest, openDatasetStore, parseCsv } from "@molis-ai/molis-work-plugin-dataset";
-import { lingguangManifest, openLingguangStore } from "@molis-ai/molis-work-plugin-lingguang";
+import { pagesManifest } from "@molis-ai/molis-work-plugin-pages";
+import { pptManifest, buildPptx, slidesFromMarkdown } from "@molis-ai/molis-work-plugin-ppt";
+import { openPagesStore, openPptStore } from "./fixtures/plugin-home-stores.js";
+import { formManifest, formFillPageHtml, formResultsCsv, FORM_ANSWER_FORMAT, questionsFromText } from "@molis-ai/molis-work-plugin-form";
+import { openFormStore } from "./fixtures/plugin-home-stores.js";
+import { datasetManifest, parseCsv } from "@molis-ai/molis-work-plugin-dataset";
+import { openDatasetStore } from "./fixtures/plugin-home-stores.js";
+import { lingguangManifest } from "@molis-ai/molis-work-plugin-lingguang";
+import { openLingguangStore } from "./fixtures/plugin-home-stores.js";
 import { createGoalsInputActionHandlers, goalsInputActions } from "../plugins/native/goals/dist/input-actions.js";
 import { SearchService } from "@molis-ai/molis-work-service-search";
 import { openTextSearchIndex } from "@molis-ai/molis-work-storage";
@@ -264,7 +268,7 @@ test("LOGIC-06 when the note cannot move back, a later lookup finds the place th
   assert.deepEqual(f.service.locate(old), { object: { kind: "note", id: "n1", project_id: "q4" }, moved: true });
 });
 
-test("copying makes an independent object that remembers where it came from; converting records its source both ways", async () => {
+test("RAC-129-PLACEMENT: copying makes an independent object that remembers its source; converting records it both ways", async () => {
   const f = fixture();
   f.notes.set("n1", { id: "n1", project: "q4", title: "访谈提纲", body: "问题一\n问题二", version: 1 });
   const source = { kind: "note", id: "n1", project_id: "q4" };

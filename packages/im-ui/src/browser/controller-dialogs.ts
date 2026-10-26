@@ -1,9 +1,9 @@
 import type { ImRoom, ImMessage, ImRoomList } from '@molis-ai/molis-work-contracts/services/im';
 import type { ApiError } from './types.js';
-import type { ImCtx } from './controller-types.js';
+import type { ImBaseCtx, ImCtx } from './controller-types.js';
 /** The modal dialogs: the shared opener and the room, join, share, member and mention dialogs. */
-export function createImDialogs(c: ImCtx): Pick<ImCtx, 'openDialog' | 'newRoom' | 'joinRoom' | 'share' | 'showInvite' | 'members' | 'showMentions'> {
-  const { s, v, e, dialog, dialogBody, api, merge } = c;
+export function createImDialogs(base: ImBaseCtx, context: () => ImCtx): Pick<ImCtx, 'openDialog' | 'newRoom' | 'joinRoom' | 'share' | 'showInvite' | 'members' | 'showMentions'> {
+  const { s, v, e, dialog, dialogBody, api, merge } = base;
   function openDialog(title: string, html: string, submit?: (values: Record<string, string>, current: () => boolean) => Promise<void>) {
     const version = ++s.dialogVersion;
     dialog.dataset.room = s.roomId;
@@ -45,6 +45,7 @@ export function createImDialogs(c: ImCtx): Pick<ImCtx, 'openDialog' | 'newRoom' 
     };
   }
   function newRoom() {
+    const c = context();
     if (!s.member) {
       c.toast('先设置你的名字，再创建群聊。');
       return;
@@ -57,6 +58,7 @@ export function createImDialogs(c: ImCtx): Pick<ImCtx, 'openDialog' | 'newRoom' 
     });
   }
   function joinRoom() {
+    const c = context();
     if (!s.member) {
       c.toast('先设置你的名字，再加入群聊。');
       return;
@@ -69,6 +71,7 @@ export function createImDialogs(c: ImCtx): Pick<ImCtx, 'openDialog' | 'newRoom' 
     });
   }
   function share(messageId: string) {
+    const c = context();
     const reply = s.threadMessages.find(item => item.id === messageId);
     if (!reply)
       return;
@@ -85,6 +88,7 @@ export function createImDialogs(c: ImCtx): Pick<ImCtx, 'openDialog' | 'newRoom' 
     });
   }
   async function showInvite() {
+    const c = context();
     await c.invitations.open(s.roomId, s.roomState!.room.title);
   }
   function members() {

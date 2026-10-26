@@ -18,6 +18,7 @@
 - **插件的界面词随 Manifest 声明**（batch-40，PG-071）：插件自带的界面文字和英文译文写在 Manifest 的 `messages`、`translations` 里，作者和宿主用 `@molis-ai/molis-work-plugin-sdk` 的同一份 `messageDeclarationProblems()` 检查（上限 `PLUGIN_MESSAGE_LIMITS`）；工作台注册 `PluginRegistration` 不再接受 `messages`。自带界面词的外部插件要把这份表搬进 Manifest，再重新打包安装。
 - **六个插件的合同类型从平台合同包移出**（batch-41，PG-111）：`@molis-ai/molis-work-contracts` 删掉 `./modules/form`、`./modules/lingguang`、`./modules/ppt`、`./modules/dataset`、`./modules/todo`、`./modules/pages` 六个子路径，不留转发。它们只是各插件动作的输入输出，现在只在各插件包自己的 `./contract` 里。外部插件不要再从平台合同包取这些类型：按动作 id 调这几个插件，自己声明要读的字段，以动作 schema 为准。
 - **删项目时插件的数据只按插件自己的声明删**（batch-41，PG-024，S-86，`specs/repository-anti-corruption/slices/w5-02-registry.md` §2.1）：`PluginRegistration` 不再接受 `project_data`；分区的 Home 库由 Manifest 声明，删项目时平台删掉这个项目在库里的行；Manifest `project_rows` 新增 `files`，平台只删这个项目的行点名的、插件自己文件里的普通文件，别的项目还在点名的文件留着，查不了的文件让这一步失败、下次再删。`ProjectDataDeclaration.purge` 改为必填。自己在注册里写 `project_data` 的插件改成在 Manifest 里声明；内置插件已在本批改完。
+- **包描述符不再从合同包和插件 SDK 导出**（batch-42，W5-15，`specs/repository-anti-corruption/slices/w5-15-maturity.md`）：`@molis-ai/molis-work-contracts` 删掉值导出 `packageDescriptor` 和类型 `PackageDescriptor`、`PackageKind`、`PackageMaturity`，`platform/package` 的合同成熟度改名 `ContractMaturity`；`@molis-ai/molis-work-plugin-sdk` 删掉 `packageDescriptor` 与 `MolisWorkPackageDescriptor`。包的成熟度只写在 `docs/SSOT-MATRIX.md`，取值为 `production`、`experimental`、`slice`、`absent`。import 过这些名字的插件，重新打包后 ESM 加载会报错，删掉这些 import 即可，运行时行为不受影响。
 
 ### 变化
 

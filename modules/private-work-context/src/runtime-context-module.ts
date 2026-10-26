@@ -7,6 +7,7 @@ import { RuntimeProjectBindingCommands, type RuntimeProjectBindingPorts } from "
 import type { RuntimeProjectBindingValidation } from "./project-binding-validation.js";
 import { RuntimeProjectResolution } from "./project-resolution.js";
 import { createRuntimeProjectSetup, type RuntimeProjectSetupPorts } from "./project-setup.js";
+import { RuntimeBindingRecords } from "./runtime-binding-records.js";
 
 export interface RuntimeContextModuleOptions {
   db: Database.Database;
@@ -22,13 +23,15 @@ export function createRuntimeContextModule({ db, ledger, projects, validation }:
   });
   const resolution = new RuntimeProjectResolution(projects.query, repository);
   const transaction = <T>(operation: () => T): T => db.transaction(operation)();
-  const commands = new RuntimeProjectBindingCommands(repository, resolution, projects, validation, transaction);
+  const records = new RuntimeBindingRecords(repository, projects, validation);
+  const commands = new RuntimeProjectBindingCommands(repository, resolution, projects, validation, transaction, records);
   return {
     commands,
+    records,
     removeProjectFacts: (projectId: string, actorId: string, at: string) => repository.removeProjectFacts(projectId, actorId, at),
     createProjectAndBindRuntimeContext: (input: CreateAndBindRuntimeContextInput,
       provision: Pick<RuntimeProjectSetupPorts, "registerProject" | "provisionCreatedProject">) => createRuntimeProjectSetup({
-      bindings: commands, validation, transaction,
+      bindings: commands, records, validation, transaction,
       getProject: projectId => projects.query.getProject(projectId),
       registerProject: provision.registerProject,
       provisionCreatedProject: provision.provisionCreatedProject,

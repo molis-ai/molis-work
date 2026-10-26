@@ -12,7 +12,7 @@ import type {
 } from "@molis-ai/molis-work-contracts/modules/projects";
 
 import { projectCatalogErrors as catalogErrors } from "@molis-ai/molis-work-contracts/modules/projects";
-import { ProjectsRepository } from "./repository.js";
+import type { ProjectsRepository } from "./repository.js";
 
 export function normalizeProjectWorkspace(
   input: { canonical_path: string; realpath_verified: boolean } | null | undefined,
@@ -48,15 +48,15 @@ export class ProjectWorkspaceService {
   }
 
   listMemberships(): ProjectWorkspaceMembership[] {
-    return this.repository.listWorkspaceMemberships();
+    return this.repository.workspaces.listWorkspaceMemberships();
   }
 
   listDirectory(projectId?: string): ProjectWorkspaceDirectoryRecord[] {
-    return this.repository.listWorkspaceDirectory(projectId?.trim() || undefined);
+    return this.repository.workspaces.listWorkspaceDirectory(projectId?.trim() || undefined);
   }
 
   preferredPath(projectId: string): string | null {
-    return this.repository.preferredWorkspacePath(this.requiredProjectId(projectId));
+    return this.repository.workspaces.preferredWorkspacePath(this.requiredProjectId(projectId));
   }
 
   add(input: AddWorkspaceProjectInput): ProjectWorkspaceDirectoryRecord {
@@ -83,8 +83,8 @@ export class ProjectWorkspaceService {
     this.repository.transaction(() => {
       this.upsertMembership(next, projectId, actorId);
       if (next.workspace_id !== workspaceId) {
-        this.repository.removeWorkspaceMembership(workspaceId, projectId);
-        this.repository.removeWorkspaceIfEmpty(workspaceId);
+        this.repository.workspaces.removeWorkspaceMembership(workspaceId, projectId);
+        this.repository.workspaces.removeWorkspaceIfEmpty(workspaceId);
       }
       this.appendEvent(projectId, "project.workspace_path_repaired", actorId, {
         previous_workspace_id: workspaceId,
@@ -106,9 +106,9 @@ export class ProjectWorkspaceService {
     const actorId = this.requiredActorId(input.actor_id);
     this.requireConfirmation(input.user_confirmed, "只有用户明确确认后才能解除目录与项目的关联");
     this.repository.transaction(() => {
-      const changes = this.repository.removeWorkspaceMembership(workspaceId, projectId);
+      const changes = this.repository.workspaces.removeWorkspaceMembership(workspaceId, projectId);
       if (changes > 0) {
-        this.repository.removeWorkspaceIfEmpty(workspaceId);
+        this.repository.workspaces.removeWorkspaceIfEmpty(workspaceId);
         this.appendEvent(projectId, "project.workspace_unlinked", actorId, { workspace_id: workspaceId });
       }
     });
@@ -117,8 +117,8 @@ export class ProjectWorkspaceService {
 
   upsertMembership(workspace: ProjectWorkspaceRef, projectId: string, actorId: string): void {
     const now = this.now();
-    this.repository.upsertWorkspace(workspace, now);
-    this.repository.upsertWorkspaceMembership({
+    this.repository.workspaces.upsertWorkspace(workspace, now);
+    this.repository.workspaces.upsertWorkspaceMembership({
       membership_id: this.id("workspace-membership"),
       workspace_id: workspace.workspace_id,
       project_id: this.requiredProjectId(projectId),
@@ -137,12 +137,12 @@ export class ProjectWorkspaceService {
     removeEmptyWorkspace = true,
   ): boolean {
     return this.repository.transaction(() => {
-      const changes = this.repository.removeWorkspaceMembership(
+      const changes = this.repository.workspaces.removeWorkspaceMembership(
         this.requiredWorkspaceId(workspaceId),
         this.requiredProjectId(projectId),
       );
       if (changes === 0) return false;
-      if (removeEmptyWorkspace) this.repository.removeWorkspaceIfEmpty(workspaceId);
+      if (removeEmptyWorkspace) this.repository.workspaces.removeWorkspaceIfEmpty(workspaceId);
       this.appendEvent(projectId, "project.workspace_unlinked", this.requiredActorId(actorId), {
         workspace_id: workspaceId,
       });
@@ -162,7 +162,7 @@ export class ProjectWorkspaceService {
     actorId: string,
     payload: Record<string, unknown>,
   ): void {
-    this.repository.appendEvent({
+    this.repository.projects.appendEvent({
       event_id: this.id("project-event"),
       project_id: projectId,
       type,

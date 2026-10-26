@@ -1,4 +1,4 @@
-import type { ProjectsSqliteDatabase } from "./repository.js";
+import type { ProjectsSqliteDatabase } from "./sqlite.js";
 
 /** Inspect stored project locations without opening or migrating the full catalog. */
 export function listProjectDatabasePaths(db: Pick<ProjectsSqliteDatabase, "prepare">): string[] {

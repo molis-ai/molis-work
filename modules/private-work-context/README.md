@@ -18,6 +18,7 @@ Host 在项目编目处调用 `createRuntimeContextModule`，在同一数据库�
 | --- | --- |
 | [src/runtime-context-module.ts](src/runtime-context-module.ts) | 项目绑定、创建与清理服务的装配 |
 | [src/project-binding-commands.ts](src/project-binding-commands.ts) | 项目绑定命令 |
+| [src/runtime-binding-records.ts](src/runtime-binding-records.ts) | 绑定命令周围的读写：绑定与事件列表、目录成员关系、创建请求重放 |
 | [src/project-resolution.ts](src/project-resolution.ts) | 把 Runtime 工作入口解析到已绑定的项目 |
 | [src/context-binding-references.ts](src/context-binding-references.ts) | 绑定与项目之间的 Ledger 关系 |
 | [src/context-bindings.ts](src/context-bindings.ts) | 绑定、建议与拒绝记录的表 |

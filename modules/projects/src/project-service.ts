@@ -12,7 +12,8 @@ import type {
   RemoveProjectPluginInput,
 } from "@molis-ai/molis-work-contracts/modules/projects";
 
-import { deletionRecord, ProjectsRepository, type StoredProjectDeletion } from "./repository.js";
+import { deletionRecord, type StoredProjectDeletion } from "./deletion-repository.js";
+import type { ProjectsRepository } from "./repository.js";
 
 export interface ProjectRecordDraftInput {
   project_id?: string;
@@ -31,7 +32,7 @@ export class ProjectService {
   ) {}
 
   list(): ProjectRecord[] {
-    return this.repository.listProjects();
+    return this.repository.projects.listProjects();
   }
 
   selections(): ProjectSelection[] {
@@ -43,7 +44,7 @@ export class ProjectService {
 
   get(projectId: string): ProjectRecord {
     const normalized = this.requiredProjectId(projectId);
-    const project = this.repository.getProject(normalized);
+    const project = this.repository.projects.getProject(normalized);
     if (!project) throw catalogErrors.project_not_found(`找不到 Molis Work 项目: ${normalized}`);
     return project;
   }
@@ -65,10 +66,10 @@ export class ProjectService {
 
   register(record: ProjectRecord, eventType: string, actorId: string): void {
     this.repository.transaction(() => {
-      this.repository.insertProject(record);
+      this.repository.projects.insertProject(record);
       for (const pluginId of new Set(this.plugins.initial?.() ?? [])) {
         if (!this.plugins.has(pluginId)) throw catalogErrors.plugin_not_found("新项目的默认插件未在目录登记");
-        this.repository.addProjectPlugin(record.project_id, pluginId, record.created_at);
+        this.repository.projects.addProjectPlugin(record.project_id, pluginId, record.created_at);
       }
       this.appendEvent(record.project_id, eventType, this.requiredActorId(actorId), {
         project_id: record.project_id,
@@ -78,7 +79,7 @@ export class ProjectService {
   }
 
   rollbackRegistration(projectId: string): void {
-    this.repository.removeProject(this.requiredProjectId(projectId));
+    this.repository.projects.removeProject(this.requiredProjectId(projectId));
   }
 
   /**
@@ -86,7 +87,7 @@ export class ProjectService {
    * personal plugin is not a stored member whatever it is (it is on unless hidden), so a 常开 one adds nothing here.
    */
   listPlugins(projectId: string, alwaysOn: readonly ProjectPluginId[] = this.plugins.alwaysOn?.() ?? []): ProjectPluginId[] {
-    const stored = this.repository.listProjectPlugins(this.get(projectId).project_id);
+    const stored = this.repository.projects.listProjectPlugins(this.get(projectId).project_id);
     const derived = alwaysOn.filter(id => this.plugins.isPersonal?.(id) !== true && !stored.includes(id));
     return derived.length === 0 ? stored : [...stored, ...derived].sort();
   }
@@ -94,7 +95,7 @@ export class ProjectService {
   /** What the project hid. A hidden mark on a 常开 plugin (one made before it was) changes nothing, so it is not listed. */
   listHidden(projectId: string): ProjectPluginId[] {
     const alwaysOn = this.plugins.alwaysOn?.() ?? [];
-    return this.repository.listHiddenPlugins(this.get(projectId).project_id).filter(id => !alwaysOn.includes(id));
+    return this.repository.projects.listHiddenPlugins(this.get(projectId).project_id).filter(id => !alwaysOn.includes(id));
   }
 
   addPlugin(input: AddProjectPluginInput): ProjectPluginId[] {
@@ -102,7 +103,7 @@ export class ProjectService {
     const actor = this.requiredActorId(input.actor_id);
     if (this.plugins.isPersonal?.(input.plugin_id) === true) {
       return this.repository.transaction(() => {
-        if (this.repository.showProjectPlugin(project.project_id, input.plugin_id)) {
+        if (this.repository.projects.showProjectPlugin(project.project_id, input.plugin_id)) {
           this.appendEvent(project.project_id, "project.plugin_added", actor, { plugin_id: input.plugin_id });
         }
         return this.listPlugins(project.project_id);
@@ -114,7 +115,7 @@ export class ProjectService {
     return this.repository.transaction(() => {
       const at = this.now();
       for (const pluginId of [input.plugin_id, ...this.plugins.companions(input.plugin_id)]) {
-        if (this.repository.addProjectPlugin(project.project_id, pluginId, at)) {
+        if (this.repository.projects.addProjectPlugin(project.project_id, pluginId, at)) {
           this.appendEvent(project.project_id, "project.plugin_added", actor, { plugin_id: pluginId });
         }
       }
@@ -148,16 +149,16 @@ export class ProjectService {
       // A 常开 plugin that needs the one going would go with it, and it cannot.
       if (alwaysOn.some(id => removing.has(id))) throw catalogErrors.plugin_always_on("常开插件依赖它，不能一起移除");
       for (const id of removing) {
-        const deleted = this.repository.removeProjectPlugin(project.project_id, id);
+        const deleted = this.repository.projects.removeProjectPlugin(project.project_id, id);
         const hidden = personal && id === input.plugin_id
-          && this.repository.hideProjectPlugin(project.project_id, id, this.now());
+          && this.repository.projects.hideProjectPlugin(project.project_id, id, this.now());
         if (deleted || hidden) {
           this.appendEvent(project.project_id, "project.plugin_removed", actor, { plugin_id: id });
         }
       }
       return {
         plugins: this.listPlugins(project.project_id, alwaysOn),
-        hidden: this.repository.listHiddenPlugins(project.project_id),
+        hidden: this.repository.projects.listHiddenPlugins(project.project_id),
       };
     });
   }
@@ -167,7 +168,7 @@ export class ProjectService {
     const nextName = this.requiredName(displayName);
     if (existing.display_name === nextName) return existing;
     this.repository.transaction(() => {
-      this.repository.renameProject(existing.project_id, nextName, this.now());
+      this.repository.projects.renameProject(existing.project_id, nextName, this.now());
       this.appendEvent(existing.project_id, "project.renamed", this.requiredActorId(actorId), {
         previous_display_name: existing.display_name,
         display_name: nextName,
@@ -180,21 +181,21 @@ export class ProjectService {
     const existing = this.get(projectId);
     const next = databasePath.trim();
     if (path.resolve(existing.database_path) === path.resolve(next)) return existing;
-    this.repository.updateDatabasePath(existing.project_id, next, this.now());
+    this.repository.projects.updateDatabasePath(existing.project_id, next, this.now());
     return this.get(existing.project_id);
   }
 
   touch(projectId: string, eventType: string, actorId: string, payload: Record<string, unknown>): ProjectRecord {
     const project = this.get(projectId);
     this.repository.transaction(() => {
-      this.repository.touchProject(project.project_id, this.now());
+      this.repository.projects.touchProject(project.project_id, this.now());
       this.appendEvent(project.project_id, eventType, this.requiredActorId(actorId), payload);
     });
     return this.get(project.project_id);
   }
 
   appendEvent(projectId: string, type: string, actorId: string, payload: Record<string, unknown>): void {
-    this.repository.appendEvent({
+    this.repository.projects.appendEvent({
       event_id: this.id("project-event"),
       project_id: this.requiredProjectId(projectId),
       type,
@@ -205,23 +206,23 @@ export class ProjectService {
   }
 
   removeFacts(projectId: string): number {
-    return this.repository.removeProject(this.requiredProjectId(projectId));
+    return this.repository.projects.removeProject(this.requiredProjectId(projectId));
   }
 
   listDeletions(): ProjectDeletionReceipt[] {
-    return this.repository.listProjectDeletions();
+    return this.repository.deletions.listProjectDeletions();
   }
 
   findDeletion(actorId: string, idempotencyKey: string): StoredProjectDeletion | null {
-    return this.repository.findDeletion(this.requiredActorId(actorId), idempotencyKey.trim());
+    return this.repository.deletions.findDeletion(this.requiredActorId(actorId), idempotencyKey.trim());
   }
 
   insertDeletion(record: StoredProjectDeletion): void {
-    this.repository.insertDeletion(record);
+    this.repository.deletions.insertDeletion(record);
   }
 
   getDeletion(deletionId: string): StoredProjectDeletion {
-    const record = this.repository.getDeletion(deletionId);
+    const record = this.repository.deletions.getDeletion(deletionId);
     if (!record) throw catalogErrors.project_storage_invalid("项目删除记录意外丢失");
     return record;
   }
@@ -230,7 +231,7 @@ export class ProjectService {
     deletionId: string,
     input: { state: "complete" | "pending"; error: string | null; cleaned_at: string | null },
   ): StoredProjectDeletion {
-    this.repository.updateDeletionCleanup(deletionId, input);
+    this.repository.deletions.updateDeletionCleanup(deletionId, input);
     return this.getDeletion(deletionId);
   }
 

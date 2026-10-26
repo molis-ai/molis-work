@@ -1,6 +1,6 @@
 # PG-077 成果库的提供方成为平台的（设计稿，方案 A）
 
-状态：设计稿，待统筹审（2026-10-26，ac-platform，分支 `ac-platform/pg077-design`，基于 batch-42 头 `39e17eca1`）；没有代码。统筹 10-26 裁定：走方案 A，提供方 id 不变，不碰存量数据，不清点真实 Home；若论证出必须走 B（新提供方 id 加维护脚本）先报统筹。验收编号 RAC-1040～1049，待办号 BL-760～761。接着 `ac-artifacts.md`（A1～A4、A7 已合，A5、A6 未做）：本稿取代它的 A5（不换 id），并把 A6 拆成「提供方」与「外壳」两步。
+状态：设计稿已认可（统筹 10-26，#1311 评论 6410822456：方案 A、D1 照做、D2 并进维护时段）；第一步已实现（2026-10-26，ac-platform，分支 `ac-platform/pg077-design`，基于 batch-42 头 `39e17eca1`），第二步未做。统筹 10-26 裁定：走方案 A，提供方 id 不变，不碰存量数据，不清点真实 Home；若论证出必须走 B（新提供方 id 加维护脚本）先报统筹。验收编号 RAC-1040～1049，待办号 BL-760～761。接着 `ac-artifacts.md`（A1～A4、A7 已合，A5、A6 未做）：本稿取代它的 A5（不换 id），并把 A6 拆成「提供方」与「外壳」两步。
 
 ## 1. 结论
 
@@ -25,9 +25,12 @@
 3. **本机所有者的权限：** `local-owner-permissions.ts` 的 `ownerProviders()` 现在从内置 Manifest 的 `actions` 推出成果库这一行（`PLATFORM_PLUGIN_REGISTRATIONS` 里 native 且无 `runtime` 的条目）。改成显式一行 `[ARTIFACTS_PROVIDER_ID, ARTIFACT_ACTION_PERMISSIONS]`，权限取自模块，不再靠 Manifest 推：第二步删 Manifest 时这一行不能跟着消失。
 4. **可用性：** `project-action-availability.ts:46` 按 `provider.plugin_id` 判断「此项目未启用该插件」；没有 `plugin_id` 之后成果库的动作不再受项目插件列表限制。见 §4 的 D1。
 5. **测试夹具：** `tests/artifacts-actions.test.ts:41` 按 `provider.plugin_id` 筛，改按 `provider_id`。
-6. **文档：** `SECURITY-INVARIANTS.md` 的 S-08 写着「随宿主发布的插件登记在 `plugin_id` 之下」，补一句成果库是平台提供方，仍以历史 id 登记；`SSOT-MATRIX.md` 成果库一行改成「提供方：平台；外壳（项目键、界面）仍是插件登记，待第二步」。本稿合入时不改 `privileges.md` 的 PG-077 状态格，第一步的代码 PR 合入后改成「部分」，写明剩第二步。
+6. **英文词典的归属（实现时发现，设计稿原先漏了）：** 能力库和对外接入两页用 `provider.plugin_id` 找「这条动作的文字用哪个插件的英文」。成果库动作的英文在成果插件的 `ui.translations` 里，去掉 `plugin_id` 之后这两页的成果库动作会变回中文。不能改成 `plugin_id ?? provider_id`：既有的 RAC-771 钉着「没有插件名的行不取任何词典」，而且 `system.*` 没有被保留，第三方插件可以用同名 id 注册词典去改平台动作的英文。做法是 `ActionProvider` 加一个可选的 `words_of`（只由宿主自己的登记设置，Runtime 构造的提供方带不上），成果库登记写成插件 id；两页取 `plugin_id ?? words_of`。这是公开合同的一处增量（`contracts/platform/actions` 的 API 快照加一行），第二步英文词典搬进平台后随之删掉。
+7. **文档：** `SECURITY-INVARIANTS.md` 的 S-08 写着「随宿主发布的插件登记在 `plugin_id` 之下」，补一句成果库是平台提供方，仍以历史 id 登记；`SSOT-MATRIX.md` 成果库一行改成「提供方：平台；外壳（项目键、界面）仍是插件登记，待第二步」。本稿合入时不改 `privileges.md` 的 PG-077 状态格，第一步的代码 PR 合入后改成「部分」，写明剩第二步。
+8. **外壳的 Manifest 变薄（实现时发现，设计稿原先说「不改 Manifest」是错的）：** 动作合同快照门禁要求「Manifest 里的动作必须由 `plugin_id` 等于该 Manifest 的提供方登记」，同一行又出现在宿主那一份会失败（"is both a Manifest row and a Host row"）。成果库提供方没有 `plugin_id` 之后，这两件事不能并存，所以外壳 Manifest 去掉 `actions`、`permissions` 和 `artifacts.produces/consumes`（界面翻译、贡献、视图留着）；17 个动作的定义早就在模块 `ARTIFACT_ACTIONS` 里，插件包里 `actions.ts`、`action-schemas.ts` 两个重复的文件删掉。
+9. **文档类型的生产者声明：** `artifactDeclarationProblems` 要在声明它的同一份 Manifest 里找到预览动作；Manifest 不再有 `actions` 之后，`io.molis.work.document` 的生产者声明（原 §5 第 2 条）提前到这一步，改由宿主登记的产出者表 `HOST_ARTIFACT_PRODUCERS` 提供（`modules/artifacts` 的 `ARTIFACTS_HOST_PRODUCER`，与 Characters 同一类），`declared-types.ts` 先取宿主表再取 Manifest。
 
-不改：Manifest（`actions`、`artifacts.produces/consumes` 都留着，`artifactDeclarationProblems` 要在同一份 Manifest 里找到预览动作）、17 个动作的合同、`tooling/gates/actions/` 快照、公开 API、工作台与客户端模板、项目库、真实 Home。预计 `pnpm actions:update` 与 `pnpm api:update` 没有 diff（实现时跑，有 diff 就是做错了或漏想了一处）。
+不改：17 个动作的合同（能力 id、版本、权限、输入输出 schema 的哈希，`registered_provider` 一列不变）、公开 API 除 `words_of` 一行外、工作台与客户端模板、项目库、真实 Home、项目键 `artifacts` 与插件登记本身。`pnpm actions:update` 的 diff 是 `actions.tsv` 里 17 行搬到 `host-actions.tsv`（哈希逐列相同，见 RAC-1041），`pnpm api:update` 只多 `words_of` 一行（见第 6 条）。
 
 ## 3. 信任边界
 
@@ -45,7 +48,7 @@
 删外壳：`plugins/native/artifacts` 整个包（Manifest、登记、界面贡献、5 段客户端模板、英文词典）、`BUILTIN_PLUGIN_CATALOG` 里的成果库行、`HOST_ARTIFACT_PRODUCERS` 的内置来源，成果页改由工作台的平台面挂（`ac-artifacts.md` 的 C7、RAC-424、RAC-425）。前置：
 
 1. 维护脚本从每个项目的插件列表和隐藏列表里去掉 `artifacts`，先在隔离 Home 里演练，再对真实 Home 做只读清点，逐项弹窗（`privileges.md` §5 第 5 条）。代码只认新形状，不留兜底。
-2. `io.molis.work.document` 的生产者声明与预览动作原来在成果库 Manifest 里，要改由宿主登记的产出者提供（和 Characters 同一类），`artifactDeclarationProblems` 对宿主产出者的校验要跟上。
+2. （已在第一步做完，见 §2 第 9 条：文档类型的生产者声明改由宿主产出者表提供。）
 3. BL-761：平台提供方 id 单独保留（§3）。
 4. 页面资源字节不许变大：5 段客户端模板原样搬进工作台，`pnpm page-assets:check` 为准。
 
@@ -56,15 +59,15 @@ W5-06 的挂载器（`declared-stages.ts`）和 PG-024 都已合入，不再是�
 | 编号 | 可观察结果 | 证据 |
 | --- | --- | --- |
 | RAC-1040 | 成果库提供方登记为 `kind: "system"`，没有 `plugin_id`，`provider_id` 仍是 `io.molis.work.artifacts`，`project_id` 照旧；发现结果里 17 个动作的 `provider_id`、能力 id、版本都不变 | `tests/artifacts-actions.test.ts` |
-| RAC-1041 | `pnpm actions:update`、`pnpm api:update` 没有 diff | 快照门禁 |
+| RAC-1041 | 17 个动作的合同、`registered_provider` 与哈希不变；成果库提供方没有 `plugin_id`，快照里这 17 行从 `actions.tsv`（Manifest）搬到 `host-actions.tsv`（宿主），除所在文件外逐列相同；外壳 Manifest 不再声明 `actions`、`permissions`、`artifacts.produces/consumes`；`pnpm api:update` 只多 `ActionProvider.words_of` 一行（`platform/actions`、`platform/plugin` 两份快照） | 快照门禁；`tests/plugin-artifact-schemas.test.ts` |
 | RAC-1042 | 授权前后：已授权的 MCP 客户端仍能调（授权记录一字未改）；没有授权的客户端仍发现不到也调不了；撤销后排队中的调用被拒 | 隔离 Home 的 MCP 授权用例（沿用 S-08 的测试） |
 | RAC-1043 | 本机所有者经网页入口仍能调全部 17 个动作；某个插件安装的授权不能借此调到成果库动作；提供方 id 不在表里的 Host 提供方什么权限也拿不到（拒绝本身有断言） | `tests/security-invariants-*.test.ts`，仿 PG-007 阶段 4 的用例 |
 | RAC-1044 | D1：项目插件列表里没有「成果」时，动作仍可用，界面标签不出现；有 `plugin_id` 的别的内置插件被去掉时仍是 `actions.plugin_disabled`（不被连带放开） | 非浏览器用例 |
-| RAC-1045 | 非宿主信任的安装（签名的、固定公钥的、开发的各一）`plugin_id` 为 `io.molis.work.artifacts` 或 `io.molis.work.artifacts.x`，都以 `plugin.id_namespace_conflict` 被拒 | 插件安装用例，仿 S-75.2 |
+| RAC-1045 | 非宿主信任的安装（未签名、固定公钥各一）`plugin_id` 为 `io.molis.work.artifacts` 或 `io.molis.work.artifacts.x`，都以 `plugin.id_namespace_conflict` 被拒 | 插件安装用例，仿 S-75.2 |
 | RAC-1046 | 搜索索引里成果库来源行的 `plugin_id` 不变，已有的索引行不用重建就能读、能搜 | `horizontal/search` 用例，隔离 Home |
 | RAC-1047 | `ARTIFACT_PRODUCER` 三个字段与 `ARTIFACTS_PROVIDER_ID` 的值写死在测试里；新写入的成果版本带这份生产者身份，旧版本照读 | 模块用例 |
 | RAC-1048 | `ownerProviders()` 里成果库一行来自模块，不再依赖内置 Manifest 的 `actions`（用不含该 Manifest 的登记表构造也能得到同一份权限） | 单元用例 |
-| RAC-1049 | 宿主与工作台里没有别处把成果库的 `kind` 当 `"plugin"` 用：`behavior-catalog`、创作台目录、MCP 对外列表对它显示为平台来源，列表里不出现插件名链接 | 目录用例 |
+| RAC-1049 | 宿主与工作台里没有别处把成果库的 `kind` 当 `"plugin"` 用：Function 创作目录对它显示为平台来源；能力库与对外接入两页里它的动作文字仍取成果插件的英文（`words_of`），没有 `plugin_id` 也没有 `words_of` 的行仍不取任何词典 | 目录用例；`tests/plugin-words-owned.test.ts` |
 
 验证（实现时）：`pnpm build`，上表用例，`node scripts/check-health-gates.mjs --base origin/main`，`pnpm boundary:check`，`pnpm test:contracts`，`pnpm secrets:check`。不动真实 Home，演练只用隔离 Home。
 

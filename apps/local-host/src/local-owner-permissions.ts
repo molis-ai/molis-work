@@ -21,6 +21,7 @@ import { SEARCH_PERMISSIONS, SEARCH_PROVIDER_ID } from "@molis-ai/molis-work-con
 import { PLACEMENT_PERMISSIONS, PLACEMENT_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/placement";
 import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/memory";
 import { KNOWLEDGE_PERMISSIONS, KNOWLEDGE_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/knowledge";
+import { ARTIFACT_ACTION_PERMISSIONS, ARTIFACTS_PROVIDER_ID } from "@molis-ai/molis-work-module-artifacts";
 
 const asks = (definitions: Iterable<{ readonly action?: { readonly permissions: readonly string[] } }>) =>
   [...definitions].flatMap(definition => definition.action?.permissions ?? []);
@@ -39,6 +40,7 @@ function ownerProviders(): ReadonlyMap<string, readonly string[]> {
   const entries: Array<readonly [string, readonly string[]]> = [
     ...PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => entry.manifest.kind === "native" && !entry.runtime)
       .map(entry => [entry.manifest.plugin_id, asks(entry.manifest.actions ?? [])] as const),
+    [ARTIFACTS_PROVIDER_ID, ARTIFACT_ACTION_PERMISSIONS],
     [HOME_PROVIDER_ID, HOME_ACTION_PERMISSIONS],
     [CONNECTOR_PROVIDER_ID, [...CONNECTOR_ACCOUNT_PERMISSIONS, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE, ...connectorRecordActions.read.action.permissions]],
     [PLUGIN_CONSENT_PROVIDER_ID, PLUGIN_CONSENT_PERMISSIONS],

@@ -1,6 +1,6 @@
 import { CHARACTER_ARTIFACT_PRODUCER, characterArtifactPreviewAction } from "@molis-ai/molis-work-contracts/modules/characters";
 import { isArtifactReferrersAction, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { ArtifactLinkKinds } from "@molis-ai/molis-work-module-artifacts";
+import { ARTIFACTS_HOST_PRODUCER, type ArtifactLinkKinds } from "@molis-ai/molis-work-module-artifacts";
 import type { ArtifactFileDeclaration, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginRuntime, PluginSupervisor } from "@molis-ai/molis-work-plugin-runtime";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
@@ -66,6 +66,8 @@ export interface HostArtifactProducer {
 
 export const HOST_ARTIFACT_PRODUCERS: readonly HostArtifactProducer[] = [
   { ...CHARACTER_ARTIFACT_PRODUCER, produces: [...CHARACTER_ARTIFACT_PRODUCER.produces], surface: "characters", actions: [characterArtifactPreviewAction] },
+  // The 成果库's own imported-file type (PG-077): the platform writes it, so it is declared here and not in the 成果 plugin's Manifest.
+  { ...ARTIFACTS_HOST_PRODUCER, surface: "artifacts" },
 ];
 
 /** What one Plugin supervisor says is in effect: the Manifests of the installs that are enabled, and every Plugin it has held. */

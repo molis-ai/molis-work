@@ -3,11 +3,11 @@ import test from "node:test";
 import Database from "better-sqlite3";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { ArtifactsModule, createArtifactsSchema } from "@molis-ai/molis-work-module-artifacts";
+import { ArtifactsModule, createArtifactsSchema, ARTIFACTS_PROVIDER_ID, ARTIFACTS_PROVIDER_TITLE, ARTIFACT_ACTIONS } from "@molis-ai/molis-work-module-artifacts";
 import { createContextLedger, createContextLedgerSchema } from "@molis-ai/molis-work-module-context-ledger";
 import { artifactsActions, createArtifactActionHandlers } from "@molis-ai/molis-work-module-artifacts";
 import { artifactLinkKinds } from "@molis-ai/molis-work-app-local-host";
-import { artifactsManifest, artifactBrowserUiContribution } from "@molis-ai/molis-work-plugin-artifacts";
+import { artifactBrowserUiContribution } from "@molis-ai/molis-work-plugin-artifacts";
 import { eventCursorOf, pinnedArtifact } from "./fixtures/artifacts.js";
 
 // 「被谁引用」 (specs/artifact-positioning A4b): the Goals that use a version, by how. An Agent's proposal to use a version
@@ -37,8 +37,8 @@ test("a Goal's proposed input, deliverable and confirmed ones are each listed wi
 
   const actions = new ActionService();
   actions.registerProvider({
-    provider: { provider_id: artifactsManifest.plugin_id, plugin_id: artifactsManifest.plugin_id, title: artifactsManifest.name, kind: "plugin", project_id: projectId },
-    definitions: artifactsManifest.actions!,
+    provider: { provider_id: ARTIFACTS_PROVIDER_ID, plugin_id: ARTIFACTS_PROVIDER_ID, title: ARTIFACTS_PROVIDER_TITLE, kind: "plugin", project_id: projectId },
+    definitions: ARTIFACT_ACTIONS,
     handlers: createArtifactActionHandlers({ projectId, artifacts, ledger: ledger.query, linkKinds: artifactLinkKinds(), goalTitle: id => `Goal ${id}`, importSources: () => ({}),
       importDocument: async () => { throw new Error("n/a"); }, openProjectReference: async () => { throw new Error("n/a"); } }),
   });
@@ -71,8 +71,8 @@ test("RAC-420: with no Plugin declaring link kinds (Goals absent) the links and 
     target: { module: "artifacts", id: "a", version: 1, scope: at.scope } });
   const actions = new ActionService();
   actions.registerProvider({
-    provider: { provider_id: artifactsManifest.plugin_id, plugin_id: artifactsManifest.plugin_id, title: artifactsManifest.name, kind: "plugin", project_id: projectId },
-    definitions: artifactsManifest.actions!,
+    provider: { provider_id: ARTIFACTS_PROVIDER_ID, plugin_id: ARTIFACTS_PROVIDER_ID, title: ARTIFACTS_PROVIDER_TITLE, kind: "plugin", project_id: projectId },
+    definitions: ARTIFACT_ACTIONS,
     handlers: createArtifactActionHandlers({ projectId, artifacts, ledger: ledger.query, linkKinds: artifactLinkKinds([]), importSources: () => ({}),
       importDocument: async () => { throw new Error("n/a"); }, openProjectReference: async () => { throw new Error("n/a"); } }),
   });

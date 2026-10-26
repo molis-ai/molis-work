@@ -1,6 +1,6 @@
 import { LOCAL_PERSON_ACTOR_ID, type ActionClient, type ActionProviderRegistration, type FileContent } from "@molis-ai/molis-work-contracts/platform/actions";
 import { logPreviewFailure } from "./host-log.js";
-import { ARTIFACTS_PLUGIN_ID, ARTIFACTS_PROVIDER, ARTIFACT_ACTIONS, createArtifactActionHandlers, openArtifactProjectReference } from "@molis-ai/molis-work-module-artifacts";
+import { ARTIFACTS_PLUGIN_ID, ARTIFACTS_PROVIDER_ID, ARTIFACTS_PROVIDER_TITLE, ARTIFACT_ACTIONS, createArtifactActionHandlers, openArtifactProjectReference } from "@molis-ai/molis-work-module-artifacts";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { artifactLinkKinds, artifactTypeDeclarations } from "./artifact-type-registry.js";
 import { readProjectReference } from "./project-file-reference.js";
@@ -12,7 +12,10 @@ import type { MolisWorkProjectRuntime, MolisWorkLocalHostOptions } from "./proje
 
 export function artifactActionProvider(runtime: MolisWorkProjectRuntime, options: Pick<MolisWorkLocalHostOptions, "homeDirectory" | "workspaceFor">, client?: ActionClient): ActionProviderRegistration {
   const home = options.homeDirectory ?? resolveMolisWorkHome();
-  const provider: ActionProviderRegistration["provider"] = { provider_id: ARTIFACTS_PROVIDER.plugin_id, plugin_id: ARTIFACTS_PROVIDER.plugin_id, title: ARTIFACTS_PROVIDER.name, kind: "plugin", project_id: runtime.project_id };
+  // The platform's own provider (PG-077): no plugin id, so no plugin's enablement gates it; the id is the one it was called by as a plugin.
+  const provider: ActionProviderRegistration["provider"] = { provider_id: ARTIFACTS_PROVIDER_ID, title: ARTIFACTS_PROVIDER_TITLE, kind: "system", project_id: runtime.project_id,
+    // The English of its action text is still in the 成果 plugin's words, until that shell goes (PG-077 step 2).
+    words_of: ARTIFACTS_PLUGIN_ID };
   return {
     provider,
     definitions: ARTIFACT_ACTIONS,

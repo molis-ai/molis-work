@@ -1,7 +1,5 @@
-import { actionPermissionDeclarations } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ARTIFACT_BROWSER_UI_CONTRIBUTION_ID } from "./browser-ui.js";
-import { ARTIFACT_ACTIONS } from "./actions.js";
 
 import { ARTIFACT_EN } from "./en.js";
 export const ARTIFACTS_PLUGIN_ID = "io.molis.work.artifacts";
@@ -9,7 +7,9 @@ export const ARTIFACTS_PLUGIN_ID = "io.molis.work.artifacts";
 export const ARTIFACTS_PROJECT_PLUGIN_ID = "artifacts";
 
 /**
- * Declarative placement for this first-party Plugin.
+ * The shell of the 成果 page: its project key, its view and its words. The actions, the permissions over them and the 成果 type the
+ * 成果库 writes are the platform's (`modules/artifacts`, PG-077); the Host registers them as a platform provider and declares the
+ * type as its own producer, so this Manifest declares none of them. It goes with the project key's maintenance (PG-077 step 2).
  *
  * `native` rather than `app`: the shell derives navigation from these
  * declarations, while this Plugin is still composed at build time instead of
@@ -25,13 +25,9 @@ export const artifactsManifest: PluginManifest = {
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-artifacts-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
-  permissions: actionPermissionDeclarations(ARTIFACT_ACTIONS, "按调用者授权浏览、导入和引用成果"),
+  permissions: [],
   capabilities: { provides: [], consumes: [] },
-  actions: ARTIFACT_ACTIONS,
-  artifacts: {
-    produces: [{ artifact_type_id: "io.molis.work.document", schema_version: 1, title: "导入的文件", preview: { capability_id: "artifacts.documents.preview", version: 1 } }],
-    consumes: [{ artifact_type_id: "io.molis.work.document", schema_version: 1 }],
-  },
+  artifacts: { produces: [], consumes: [] },
   ui: {
     translations: ARTIFACT_EN,
     contributions: [ARTIFACT_BROWSER_UI_CONTRIBUTION_ID],

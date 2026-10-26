@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -9,34 +9,34 @@ import * as plugin from "@molis-ai/molis-work-plugin-artifacts";
 
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), "utf8");
 
-/** The text between `export const <name> =` and the `;` that ends the statement (schemas carry no `;` of their own). */
-const declaration = (source: string, name: string): string => {
-  const start = source.indexOf(`export const ${name} =`);
-  assert.ok(start >= 0, `${name} is declared`);
-  return source.slice(start, source.indexOf(";\n", start));
-};
-
-test("RAC-413: the plugin and the module keep the same artifact record schemas until the plugin goes", () => {
-  const plugin = read("plugins/native/artifacts/src/action-schemas.ts");
-  const moduleSource = read("modules/artifacts/src/plugin-action-schemas.ts");
-  for (const name of ["object", "array", "nullable", "reference", "consumerTypes", "origin", "record"]) {
-    assert.equal(declaration(moduleSource, name), declaration(plugin, name), `${name} is the same schema in both`);
-  }
-  assert.ok(moduleSource.includes(plugin.slice(plugin.indexOf("const fixedFields"), plugin.indexOf("/** Where a 成果 came from"))), "fixedFields is the same");
+test("RAC-413: the 成果 plugin carries no action definitions and no 成果 type declaration: the module serves the actions alone, the Host declares the type", () => {
+  assert.equal(existsSync(new URL("../plugins/native/artifacts/src/actions.ts", import.meta.url)), false, "no second copy of the actions");
+  assert.equal(existsSync(new URL("../plugins/native/artifacts/src/action-schemas.ts", import.meta.url)), false, "nor of their schemas");
+  const manifest = plugin.artifactsManifest;
+  assert.equal(manifest.actions, undefined, "the Manifest declares none: the Host registers them as a platform provider (PG-077)");
+  assert.deepEqual(manifest.permissions, []);
+  assert.deepEqual(manifest.artifacts, { produces: [], consumes: [] });
+  // The type the 成果库 writes is the Host's own producer's declaration, with the preview action that type names.
+  assert.deepEqual(module.ARTIFACTS_HOST_PRODUCER.produces.map(type => type.artifact_type_id), ["io.molis.work.document"]);
+  assert.deepEqual(module.ARTIFACTS_HOST_PRODUCER.actions.map(action => action.capability_id), ["artifacts.documents.preview"]);
+  assert.ok(module.ARTIFACT_ACTIONS.some(action => action === module.ARTIFACTS_HOST_PRODUCER.actions[0]), "and it is one of the 17 the module serves");
 });
 
-test("RAC-414: the module serves exactly the actions the plugin's Manifest declares, until the plugin goes", () => {
-  assert.deepEqual(JSON.parse(JSON.stringify(module.ARTIFACT_ACTIONS)), JSON.parse(JSON.stringify(plugin.artifactsManifest.actions)), "17 actions, same descriptors");
+test("RAC-414: the module serves the 17 actions, and its constants for the provider and the producer identity match the plugin's shell", () => {
   assert.equal(module.ARTIFACT_ACTIONS.length, 17);
-  assert.deepEqual(module.ARTIFACT_ACTION_PERMISSIONS, plugin.ARTIFACT_ACTION_PERMISSIONS);
   const { plugin_id, name, version, publisher } = plugin.artifactsManifest;
-  assert.deepEqual(module.ARTIFACTS_PROVIDER, { plugin_id, name, version, publisher });
+  // RAC-1047 (PG-077): the id the actions are called by and the identity a version carries are two constants with one value each, pinned.
+  assert.equal(module.ARTIFACTS_PROVIDER_ID, plugin_id);
+  assert.equal(module.ARTIFACTS_PROVIDER_ID, "io.molis.work.artifacts");
+  assert.equal(module.ARTIFACTS_PROVIDER_TITLE, name);
+  assert.deepEqual({ ...module.ARTIFACT_PRODUCER }, { plugin_id, plugin_version: version, binding_signature: publisher.signature });
+  assert.deepEqual({ ...module.ARTIFACT_PRODUCER }, { plugin_id: "io.molis.work.artifacts", plugin_version: "0.3.0", binding_signature: "official-artifacts-binding" });
   assert.equal(module.ARTIFACTS_PLUGIN_ID, plugin.ARTIFACTS_PLUGIN_ID);
   assert.equal(module.ARTIFACTS_PROJECT_PLUGIN_ID, plugin.ARTIFACTS_PROJECT_PLUGIN_ID);
   assert.deepEqual(module.ARTIFACTS_HOME_STORE, plugin.ARTIFACTS_HOME_STORE);
   assert.equal(module.artifactVersionPath({ artifact_id: "a b", version: 3 }), plugin.artifactVersionPath({ artifact_id: "a b", version: 3 }));
-  const sources = readFileSync(new URL("../plugins/native/artifacts/src/actions.ts", import.meta.url), "utf8");
-  for (const source of module.EXTERNAL_DOCUMENT_SOURCES) assert.ok(sources.includes(`"${source}"`), `${source} is in the plugin's source list`);
+  const sources = read("modules/artifacts/src/artifact-actions.ts");
+  for (const source of module.EXTERNAL_DOCUMENT_SOURCES) assert.ok(sources.includes(`"${source}"`), `${source} is in the module's source list`);
 });
 
 test("RAC-414: the module's project deletion removes the originals it wrote and preserves another project's originals", async () => {

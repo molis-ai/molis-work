@@ -9,7 +9,7 @@ import { createLocalFeedSourceService } from "./feed-source-service.js";
 import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorKind } from "@molis-ai/molis-work-plugin-sdk";
 import { shelfActions } from "@molis-ai/molis-work-plugin-shelf";
-import { ARTIFACTS_PROVIDER, DOCUMENT_ARTIFACT_TYPE } from "@molis-ai/molis-work-module-artifacts";
+import { ARTIFACT_PRODUCER, DOCUMENT_ARTIFACT_TYPE } from "@molis-ai/molis-work-module-artifacts";
 import { artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 
@@ -303,7 +303,7 @@ function ingestOnce(
  */
 function seedDemoDeliverable(store: LocalProjectDatabase, projectId: string): void {
   const { artifacts } = openProjectVersionStores(store);
-  const producer = { plugin_id: ARTIFACTS_PROVIDER.plugin_id, plugin_version: ARTIFACTS_PROVIDER.version, binding_signature: ARTIFACTS_PROVIDER.publisher.signature };
+  const producer = ARTIFACT_PRODUCER;
   for (const [version, title, content] of [[1, "生命周期记录已接通", "从约定、报告到收尾形成完整记录"], [2, "可用的生命周期记录", "约定要求已有支持事实，演示收尾"]] as const) {
     artifacts.commands.registerVersion({ project_id: projectId, actor_id: DEMO_ACTOR, artifact_id: DEMO_CORE_ARTIFACT_ID, version,
       artifact_type_id: DOCUMENT_ARTIFACT_TYPE, schema_version: 1, producer, metadata: { origin: "demo-seed", goal_id: "CORE" },

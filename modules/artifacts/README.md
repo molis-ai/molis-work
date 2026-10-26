@@ -49,7 +49,7 @@ node scripts/run-tests.mjs tests/artifacts-module.test.ts
 - 负责：成果库与过程项的身份、版本、类型、内容引用、范围与来源。
 - 不负责：插件实现、跨对象关系、传输回执、插件私有草稿。
 - 公开入口：`@molis-ai/molis-work-module-artifacts`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/artifacts`。
-- 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖 contracts/modules、contracts/services 与 kernel；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
+- 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-storage`（项目原件维护删除复用公开物理路径检查）。方向：经公开合同与基础存储边界协作；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - Repository 只由包内装配；成果与过程项的 Module、service/query/commands 不提供 `repository` 成员，调用方通过业务服务发布和读取固定版本。
   - 错误由本包声明并抛出共同 `ActionError`，Host 不注入错误工厂；现行码、消息、详情与响应分类随 owner 保持。
@@ -72,3 +72,5 @@ node scripts/run-tests.mjs tests/artifacts-module.test.ts
 - Migration Goals: `goal-reorg-f2`, `goal-reorg-ar1`, `goal-reorg-ar3`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
+
+项目原件清理由本模块的 `artifactsProjectData` 拥有，插件仅登记 Home 存储。受控维护沿原 `ProjectDeletionControl` 核对当前许可与原目录身份后同步删除；普通调用保留原异步行为。修改此边界同时验证 `tests/project-deletion-directory-interleaving.test.ts`、`tests/project-deletion-file-boundaries.test.ts` 和 `tests/project-deletion-file-control.test.ts`。

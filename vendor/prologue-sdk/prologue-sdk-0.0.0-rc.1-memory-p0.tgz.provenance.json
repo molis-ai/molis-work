@@ -9,22 +9,22 @@
   "source": {
     "repository": "git+https://github.com/molis-ai/molis-prologue.git",
     "path": "packages/sdk",
-    "commit": "063b0278588c628ffa69fd0d5e969f3e13fd2527",
+    "commit": "b65cc6283762b1d86f102778b63757c3954c1000",
     "dirty": false,
     "dirtyPaths": [],
     "patches": [],
     "candidateUpstream": {
       "pullRequest": "https://github.com/molis-ai/molis-prologue/pull/108",
-      "head": "063b0278588c628ffa69fd0d5e969f3e13fd2527",
+      "head": "b65cc6283762b1d86f102778b63757c3954c1000",
       "status": "draft",
-      "note": "Clean reviewed candidate; App phase consumer and frozen performance acceptance are pending."
+      "note": "Clean reviewed candidate; App composition and frozen performance acceptance are pending."
     }
   },
   "artifact": {
     "file": "prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
-    "bytes": 1409327,
-    "sha256": "2237fec083cdf1021ee6bfed3b800c5b7efe0ccfd5fd87dbbfd0c05f9e2aecaa",
-    "integrity": "sha512-eWNMJEqwQ30tIpZJTo7x6Ljuf1aambPCmzTVr+8/5w6F+RCTXocI37hTqkA+ixL33mD34q3ZfYp2XjzUcHJ2ZQ=="
+    "bytes": 1409443,
+    "sha256": "437e1f1da8ff645140b1ec11d6058c972f352deaa1de5ba0fcae95fbe1ccce5b",
+    "integrity": "sha512-B+TcmJv1eDLpwwPY5dmB+q4cR8Q42UG10wKrIFIKHg5b7nvqruqj0GeX5+Vn3KI2k4OGX6HlIq1HKsxZUMP33g=="
   },
   "build": {
     "node": "24.14.0",
@@ -32,12 +32,12 @@
     "platform": "darwin",
     "architecture": "arm64",
     "steps": [
-      "Use clean source 063b0278588c628ffa69fd0d5e969f3e13fd2527.",
+      "Use clean source b65cc6283762b1d86f102778b63757c3954c1000.",
       "Use existing frozen offline workspace dependencies; run original pnpm build and pnpm pack in an isolated directory.",
       "Verify all 826 archived dist files byte-for-byte against the clean build and unchanged package.json.",
       "Run original clean-consumer.mjs; only its no-lock subprocess sets frozen=false, with offline/ignore-scripts unchanged."
     ],
     "packedOn": "2026-10-26",
-    "note": "Local original type/build/API/ratchet and 198 necessary behavior tests passed; phase first surface failure and narrow correction remain recorded. Original clean installed consumer passed. App performance and phase consumption remain unverified; no full quality, remote CI, merge or release is claimed."
+    "note": "Local original type/build/API/ratchet and 198 necessary behavior tests passed. Original clean installed consumer passed. App composition and frozen collection performance remain pending; no full quality, remote CI, merge or release is claimed."
   }
 }

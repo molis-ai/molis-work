@@ -4,8 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import test, { type TestContext } from "node:test";
 import { projectDeletedHooksFor } from "@molis-ai/molis-work-app-local-host";
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "@molis-ai/molis-work-app-local-host";
-import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
+import { PROBE, partitionFile, partitionHome, write } from "./fixtures/partition-probe.js";
 
 function directoryPair(t: TestContext, owner: string, partition: string) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), "molis-owner-directory-interleaving-")));
@@ -37,21 +36,18 @@ for (const owner of ["plugin-builder", "alchemist", "artifacts"] as const) test(
   pair.verify();
 });
 
-test("MEM-40-FILE-RM-02: partition cleanup cannot yield between its post-purge checks and directory removal", async t => {
-  const owner = "directory-interleaving-probe", pair = directoryPair(t, owner, "projects/gone");
-  const catalog = PLATFORM_PLUGIN_REGISTRATIONS as PluginRegistration[], template = catalog.find(entry => entry.project_plugin_id === "pages")!;
-  let purged = false, queued = false;
-  const control = { assertCurrent() {
-    pair.assertCurrent();
-    if (purged && !queued) { queued = true; queueMicrotask(() => pair.redirect()); }
-  } };
-  catalog.push({ ...template, project_plugin_id: owner, runtime: { scope: "home" },
-    manifest: { ...template.manifest, databases: { home: { store_name: owner, partition: "project" } } },
-    project_data: { label: "directory interleaving", async purge(_home, _project, authority) {
-      assert.equal(authority, control); await Promise.resolve(); purged = true;
-    } } } as PluginRegistration);
+test("MEM-40-FILE-RM-02: partition cleanup cannot yield between its post-close checks and directory removal", async t => {
+  const pair = directoryPair(t, PROBE, "projects/gone"), f = partitionHome(t, undefined, pair.target);
   try {
-    assert.equal(await projectDeletedHooksFor(pair.target).clear(owner, "gone", undefined, control), true);
-    assert.equal(purged, true); assert.equal(queued, true); pair.verify();
-  } finally { catalog.pop(); }
+    await f.ready(); await f.invoke(write, { text: "target selected" }, "gone");
+    const wal = `${partitionFile(pair.target, "gone")}-wal`;
+    assert.equal(existsSync(wal), true, "the running owner holds the real partition open");
+    let queued = false;
+    const control = { assertCurrent() {
+      pair.assertCurrent();
+      if (!existsSync(wal) && !queued) { queued = true; queueMicrotask(() => pair.redirect()); }
+    } };
+    assert.equal(await f.hooks.clear(PROBE, "gone", undefined, control), true);
+    assert.equal(queued, true); pair.verify();
+  } finally { await f.host.close(); }
 });

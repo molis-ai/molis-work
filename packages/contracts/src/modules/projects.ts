@@ -153,11 +153,10 @@ export interface CreateProjectInput {
 }
 
 /**
- * What an owner (a plugin, a module) keeps in the Home for a project outside the project's own directory (its stores are
- * partitioned by `project_id`), and how to clear it when the project is deleted. The owner exports one; a built-in plugin
- * attaches it to its catalog entry (`project_data`), and the Host builds the deletion's owners from the declarations it
- * already collects, so it never names a plugin or lists its tables. The owner's id in the deletion receipt is the
- * plugin's `project_plugin_id`.
+ * What a module of the Host's own keeps in the Home for a project outside the project's own directory (its stores are
+ * partitioned by `project_id`), and how to clear it when the project is deleted. The module exports one and the Host names it
+ * among the deletion's owners. A plugin declares its data in its Manifest instead (`databases.home.project_rows`, PG-024), and the
+ * platform deletes it without running the plugin's code.
  */
 /** Live maintenance authority: the real owner rechecks after waits/locks and before writes/commit.
  * Controlled paths must preserve the original physical target and refuse redirected files or ancestors. */
@@ -172,9 +171,8 @@ export interface ProjectDataDeclaration {
    * Clears the owner's data of the project from the Home. It works on the owner's own files, so any process on the Home
    * can run it without the owner's service running; it is idempotent (a failed receipt is retried, and a library that
    * does not exist yet is not created). Throws when something is left, and the step then stays pending in the receipt.
-   * Only a plugin whose Home library is partitioned by project may leave it out: the Host removes that project's library.
    */
-  purge?(homeDirectory: string, projectId: string, control?: ProjectDeletionControl): void | Promise<void>;
+  purge(homeDirectory: string, projectId: string, control?: ProjectDeletionControl): void | Promise<void>;
 }
 
 /** One owner's part of a deletion: it clears the data it keeps in the Home for the deleted project. */

@@ -1,7 +1,7 @@
 import { bindPluginActionRoute } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, type ActionAvailability, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginArtifactClient, PluginDefinition, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { FORM_ARTIFACT_SCHEMA_VERSION, FORM_ARTIFACT_TYPE_ID } from "@molis-ai/molis-work-contracts/modules/form";
+import { FORM_ARTIFACT_SCHEMA_VERSION, FORM_ARTIFACT_TYPE_ID } from "./contract.js";
 import { formManifest } from "./manifest.js";
 import { createFormActionHandlers, formActions, type FormActionPorts } from "./actions.js";
 import { createFormContentHandlers } from "./content-actions.js";

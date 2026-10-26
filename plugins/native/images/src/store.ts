@@ -1,10 +1,6 @@
-import type { ProjectDeletionControl } from "@molis-ai/molis-work-contracts/modules/projects";
-import { inspectExistingStoragePath, clearInExistingHomeSqlite, type HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
+import type { HomeStoreDeclaration } from "@molis-ai/molis-work-storage";
 import type { ImageConnection, ImageJob, ImageJobStatus, GeneratedImage } from "./contract.js";
-import { DatabaseSync } from "node:sqlite";
 import type { PluginDatabaseTransaction } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { rmSync } from "node:fs";
-import { join } from "node:path";
 import { imagesErrors } from "./error.js";
 import { IMAGES_DATABASE } from "./database.js";
 export { IMAGES_DATABASE };
@@ -94,41 +90,6 @@ export class ImagesStore {
     const result = this.db.run(`UPDATE jobs SET status = ?, images_json = ?, error = ?, finished_at = ?
       WHERE project_id = ? AND id = ? AND status = 'running'`, [status, JSON.stringify(images), error, new Date().toISOString(), projectId, id]);
     return Number(result.changes) === 1;
-  }
-}
-
-/** Removes a project's jobs inside the caller's transaction; returns the names of the image files they held. */
-function deleteProjectJobs(db: DatabaseSync, projectId: string, control?: ProjectDeletionControl): string[] {
-  const files = (db.prepare("SELECT images_json FROM jobs WHERE project_id = ?").all(projectId) as Row[])
-    .flatMap(row => (JSON.parse(String(row.images_json)) as GeneratedImage[]).map(image => image.filename));
-  control?.assertCurrent();
-  db.prepare("DELETE FROM jobs WHERE project_id = ?").run(projectId);
-  return files;
-}
-
-/** Image files are named by a generated id; anything else in a stored record is not ours to delete. */
-const ASSET_FILE = /^[a-f0-9-]+\.(png|jpg|webp)$/u;
-
-/**
- * Clears a deleted project's jobs and pictures straight from the Home's files, for a process that runs no Images
- * service. A library that does not exist yet has nothing to clear and is not created. A job still running in another
- * process loses its record; its result is dropped when it finishes.
- */
-export function purgeImagesProject(homeDirectory: string, projectId: string, control?: ProjectDeletionControl): void {
-  clearInExistingHomeSqlite(homeDirectory, IMAGES_HOME_STORE.path, IMAGES_DATABASE, db => {
-    const files = deleteProjectJobs(db, projectId, control);
-    // A failed removal keeps the original jobs/file list for a retry; already removed files are harmless with force.
-    removeAssetFiles(join(homeDirectory, IMAGES_HOME_STORE.path, "assets"), files, control);
-  }, control);
-}
-
-function removeAssetFiles(directory: string, filenames: readonly string[], control?: ProjectDeletionControl): void {
-  const target = control ? inspectExistingStoragePath(directory, "directory") : undefined;
-  for (const name of filenames) if (ASSET_FILE.test(name)) {
-    control?.assertCurrent();
-    target?.assertCurrent();
-    if (control) inspectExistingStoragePath(join(directory, name), "file").assertCurrent();
-    rmSync(join(directory, name), { force: true });
   }
 }
 

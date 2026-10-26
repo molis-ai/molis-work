@@ -750,6 +750,9 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@molis-ai/molis-work-storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
 
   modules/attention-resumption:
     dependencies:
@@ -980,9 +983,6 @@ importers:
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
-      '@molis-ai/molis-work-storage':
-        specifier: workspace:*
-        version: link:../../../packages/storage
 
   plugins/native/coding:
     dependencies:
@@ -1740,7 +1740,7 @@ packages:
     resolution: {integrity: sha512-rDS5/31E9HfPl/CIzGrn0DOlvBbXFseQ5URJ9sYMfstbKLD/c6Gm9vmRzRGDdAXyOIL4zmO37lc9RIwYqVruZw==}
 
   '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-memory-p0.tgz':
-    resolution: {integrity: sha512-eWNMJEqwQ30tIpZJTo7x6Ljuf1aambPCmzTVr+8/5w6F+RCTXocI37hTqkA+ixL33mD34q3ZfYp2XjzUcHJ2ZQ==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-memory-p0.tgz}
+    resolution: {integrity: sha512-B+TcmJv1eDLpwwPY5dmB+q4cR8Q42UG10wKrIFIKHg5b7nvqruqj0GeX5+Vn3KI2k4OGX6HlIq1HKsxZUMP33g==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-memory-p0.tgz}
     version: 0.0.0-rc.1
 
   '@protobufjs/aspromise@1.1.2':

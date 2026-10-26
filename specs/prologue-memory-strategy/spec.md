@@ -2815,7 +2815,7 @@ product-interaction.e2e、coding-workbench.e2e、code-scale.e2e 三文件仅依�
 
 冷 control 路径由统筹确认必须 existing-only：沿 Storage 新增明确 `openExistingBaselineSqlite(filename, baseline)` 窄入口，复用 schema 描述与对象清单，严格核当前 version/结构；由清理 helper、Characters、Assistant 复用。原 openBaseline/apply 初始化语义不变。SQLite 使用 `mode=rw`，不得创建丢失文件、目录、初始化 version0 空库、修复未知表/trigger/view 或改文件权限；Characters 自身 `.sqlite` 路径同样处理。无 control 的普通路径保持初始化能力。空库/未知结构拒绝须真实回归字节和文件集合不变。
 
-Images 收尾修正依据：初版真实回归确认旧顺序先 COMMIT jobs 后 rm，删首张后撤权会失去剩余原文件清单。统筹确认这是同一恢复闭环缺口；新增正确断言在原构建中撤权与 IO 两例均失败（jobs 实际 0、期望 1），首败 `/private/tmp/molis-memory-file-owner-control-images-before.log` 保留。最小修复仅把原 removeAssetFiles 移回原 clearInExistingHomeSqlite callback，提交前完成，不新增 journal/manifest。普通 live wrapper 与冷文件主人均经同一 imagesProjectData.purge→purgeImagesProject；live wrapper 的任务停止行为不另实现或改变。
+Images 收尾修正依据：初版真实回归确认旧顺序先 COMMIT jobs 后 rm，删首张后撤权会失去剩余原文件清单。统筹确认这是同一恢复闭环缺口；新增正确断言在原构建中撤权与 IO 两例均失败（jobs 实际 0、期望 1），首败 `/private/tmp/molis-memory-file-owner-control-images-before.log` 保留。最小修复仅把原 removeAssetFiles 移回原 clearInExistingHomeSqlite callback，提交前完成，不新增 journal/manifest。普通 live wrapper 与冷文件主人均经同一 imagesProjectData.purge→purgeImagesProject；live wrapper 的任务停止行为不另实现或改变。 此句记录当时实现；2026-10-26 合入 PG-024 后该插件 purge 入口已退役，当前由平台声明式 project_rows/owner_files 在同一事务清理，仍保留本段要求的撤权、IO 失败、原清单与邻居隔离，不恢复旧回调。
 
 本片工程结果：独立树摘入类型/hooks 合同 `715b1e6ed`（本树为 `8f111a9585b6e504490fb92e6eef5a0cd977f348`），现有文件主人控制传递和 existing-only 开库已实现。原 `pnpm build`/FIFO、专项 strict TypeScript、boundary（errors=[]）通过。README 必跑并集 161 文件按 jobs2/browser1/retries0 执行，160 通过；唯一 `verify-release-versions.test.ts` 为 21/22，发布清单仍指拆分前 `text-search-index.ts#SCHEMA_VERSION`，准确父已如此且本片未修改这些文件；统筹负责同聚合修正指针，首败保留 `/private/tmp/molis-memory-file-owner-control-readme.log`。Images 修正后再次原 build 通过，6 个相关文件 36 项通过（专项 9 项），不重复 161 批。日志 `/private/tmp/molis-memory-file-owner-control-{images-build,images-targeted,test-types,boundary,final-health}.log`。准确父 health 仅 projects/Memory 两份既有公开 API 快照待统筹生成，本片不改 gates。
 
@@ -3442,3 +3442,47 @@ App a81原467必要选集完整结束：464文件过、3首红、零retry；摘�
 原69文件收尾批首轮68过、1红：卸载4/4已绿，builtin样式在补import后进入实际断言（shared为空），不再是引用错误。Root核对main现役PG-070：有clientFactory的插件自己的规则由独立CSS和settings页面link送达；没有clientFactory才保留共享表。原fixture保留了factory却只检查旧shared表，不能把缺样式或重复样式当正确。只将该原用例同时严格核对framed的共享为空、独立CSS正文及精确link，和native无两个client时的完整共享CSS/零link；原settings渲染结果保持。生产样式逻辑未改，原8项与现plugin-styles文件定向复核，不重跑已绿69或467；此处是预期变化同步及新增路径断言，不删除样式可达要求。
 
 收尾结果：Root/LocalHost原strict、最终整体build、准确父1f124 health、API通过。69文件首轮68过/1红，646/647，零retry；其中原uninstall4项全绿。沿PG-070同步样式用例后仅补builtin8项与原plugin-styles11项，全19过；不改生产样式或资源额度。合并前独立风险审查按225生产文件分组核对分类/原决定、权限、Session/项目和完整Home恢复主链，未发现新增确定P1/P2；不是405文件逐行深审、未新跑浏览器或代签用户验收。原资源gate4项继续失败：Coding待批阻止原预算工具原子落盘；原467的网络opt-in差额仍未执行。
+
+
+### 2026-10-26 Foundation 合入 batch-41：读取合同与原失败保留
+
+短合同（实现前）：将 #1064 的 `1f124ddd2` 与 main `29f1ffd4` 合成，仍由同一 Agent/Host/Memory 主人执行，不改变首期范围、存储版本或授权默认。双方分别在 `agent.run.read.v1`、`agent.session.read.v1`、`agent.run.wait.v1` 的 @2 改了输出形状；按 `docs/system/CONTRACT-CHANGES.md` 阶段一，合成三个读取口为 @3，拒绝旧 @1/@2，能力 id 不变。start 保留 @2、subagents.list 保留主干 @2、inputs.send 保留 v3@3。沿用主干严格嵌套 schema，保留 Memory 的可选 original_input 和开放 Context 字段，不能删除正文来源、contexts/selected/retrievals/recording_error 或信任输入 source:person。
+
+允许改动仅为本次六处合并冲突、当前调用说明、原 Agent/Context 针对性测试及由原工具生成的合同快照；保留安全测试双方并集。原已批 Workbench +3193 B 与 Coding +612 B 只迁到准确新主干的精确基点；主干已经消费的增长不叠加，资源值须由最终 build 实测后更新。验证三个读取口不让旧版本进入 Runtime、原件和完整 Context 经真实入口保留、错误嵌套字段仍拒绝，再跑必要集成、原门禁和最终 CI/Full。
+
+1f 普通 CI 40260900069 成功；Full 40260896732 保留 1503 文件中 6 首红、5 retry-only 及 crosstalk 原重试仍失败。一次原 AC-05 本机观测通过，只证明该次路径；同步插件查询造成 632–795ms CDP 等待。离线 CPU profile 显示固定参考 schema 重建约占总采样 0.92%，不据此添加缓存或宣称 Linux 根因关闭。旧失败、Cloudflare 原因/影响及后续实际验证仍待闭合。
+
+本轮另一个有界诊断变更：原 ChromeHarness 命令超时时，仅在 Error.cause 加入该命令等待期间的 Node 进程 CPU、主事件循环 active/idle 三个毫秒数，用于区分进程繁忙与对端未答。沿用原计时器、消息长度和原调用栈；不加轮询、额外 CDP 请求、重试或正文输出，不改 CI 步骤、1000ms 清理期限或判定。原 socket 协议用例检查数字可读及原超时仍发生；此诊断不能单独证明根因或把失败算通过。
+
+用户本轮决定：暂不恢复 21db 被人工取消的普通 CI；暂不查看 Cloudflare 私有构建日志，原因和影响保留未核清。该决定不作通过证据，不重新申请同一访问。
+
+实际验证（batch-41 本地合成，尚未推送或合并 main）：冻结离线安装、整体 70 包 build、Agent/test-kit 原项目类型检查、公开 API 检查及原动作快照生成均通过。原 runner 13 个必要文件、3 个 browser、jobs2/browser1/零重试，95/95 首轮通过，含三读版本拒绝、实际 HTTP 原件、SDK Context/回执、关闭失败恢复、crosstalk 4 例、模型控制和 socket 协议；不替代 Linux Full 或最终产品验收。独立静态复审曾发现新增 Context fixture 的 outcome/字段不完整，运行前已按公开类型修正为 ready、完整 basis/parts 并加 satisfies；修正后无新增确定 P1/P2。
+
+资源只读报告独立对照 29f 的实际预算：48 项中仅 Workbench 1,139,387→1,142,580（+3193）、Coding 289,062→289,674（+612），其余相同。先记录合成提交使准确 main 成为祖先，再用原 updater 和 `--base 29f1ffd4` 迁移实测预算并完成门禁；当前不把尚未执行的准确门记作通过。
+
+额外临时测试源码 strict/noEmit 实验未通过，保留两次原日志：初版遗漏 JS 输入和当前 Node API 的 lib；按实际 JS/ES2024 输入修正临时配置后仍有 27 个诊断，位于动作快照 JS 推断、既有动作夹具的结构/负向输入等。未修改仓库 tsconfig、降低 strict 或放宽运行断言，也不宣称该额外检查通过；上述生产项目类型与原运行测试是分别执行的事实，不作相互替代。日志前缀 `/private/tmp/molis-memory-foundation-batch41-`（install/build/focused/agent-types/test-kit-types/api/actions/assets-report/test-types/test-types-v2，20261026）。
+
+合成提交为 `d92f2f918e2112d09de48fb1953ea96015915c1d`。其后原资源 updater/准确 29f 资源检查、`workspace:verify`、准确 29f health 均通过；按原 health 工具只降低本地快查，未改变检查逻辑或阈值。`git fetch origin main` 仍为 29f。后续推送新提交沿原 CI/Full 配置验证，不恢复用户暂缓的 21db 那轮；截至本记录，尚无新头远端通过证据。
+
+
+### 2026-10-26 App 合入 batch-41 与 SDK b65：最小完整合成合同
+
+实现前短合同：App `fc03fe304` 合入父 `b60cb292c`，集中在原 #1101。保留 main PG-024 的删除主人迁移：声明式 project_rows/files 由平台处理，Artifacts 原件归 modules/artifacts；不恢复插件 project_data.purge。App 的 ProjectDeletionControl 必须进入这些现役主人，保持取消/撤权检查、物理目标/邻居隔离、文件失败时数据库行回滚及原清单重试语义；已经发生的文件删除不能伪称回滚。两个分支撞名的 clearProjectRows 第五参数合成 ownerFiles/control 两个独立参数，更新现役在线与离线路径。范围只覆盖已有项目删除/恢复交点，不新造删除框架。
+
+三读的双方 @3 形状不同：父分支细化嵌套 schema，App 另含 class_restrictions/memory_scene；合成统一为 @4，拒绝旧 @1/@2/@3，不静默换版。start 仍 @2，独立归档/恢复仍 lifecycle.*@1。保留完整 frozen/usage/questions/Memory Context，以及原件和冻结分类；当前文档、原生成器快照与真实 dispatcher 断言同步。页面同时保留 main 的双语目录 notice/插件设置与 App 的归档恢复、候选导航；设置样式沿原 PG-070 公共与按需 CSS 分工。
+
+随后仅由 Root 采用已独立检查、干净构建/打包/安装通过的 Prologue b65 原档，保留被替换 063b 原包与完整 sidecar 的 Git blob 可取回记录；不发布。范围为已有集合读取快照复用，不减少原始字节重读、权限/版本/取消/omitted 或回执。合成后先做变化交点的类型、合同、删除恢复与页面验证，再沿原正式规模门决定下一项优化；不因本次包变化重复全部历史专项。
+
+仍保持原资源额度，Coding 恢复 +1206 B 与 Knowledge 整理/零模型边界未获答复，不擅自登记或放宽。旧 Full/规模红、额外测试源码 strict 实验失败、Cloudflare 未核清和人工验收均继续保留；新的实现/局部验证不是 P0 完成。
+
+本次 SDK 实际采用包来自干净 b65cc6283762b1d86f102778b63757c3954c1000，1,409,443 B、826 个 dist 文件；全部文件与原 build 逐字节相符，原干净安装消费者通过。App 仅替换原 memory-p0 归档、完整 sidecar、单一 lock integrity 与既有来源断言，063b 原归档和 sidecar 留在 Git blob 记录；没有增加包数量或新发布版本。45 项历史正式来源审计与当前候选是不同范围，新增同名候选继续记录在 notes，不改写历史审计。App 组合测试和冻结规模性能仍待完成；不把打包成功写成性能通过。
+
+### 2026-10-26 App batch-42 合成验证（尚未合并）
+
+PG-024 交点已按现役声明式清理合成：Artifacts 的物理保护依赖随原件主人从插件迁到 Module；没有新增包或私有跨层入口。真实 partition 测试改在 SQLite 关闭后检查，仍验证撤权/目录替换、屏障释放、原数据可重开与邻居保留；不恢复退役 purge。无待删名称（本项目空列表，或唯一图片仍由邻项目引用）只清本项目行，不访问无关文件目录；最终 COMMIT 前的控制复核仍执行。新增目录交错用例明确保留“首张已删”的事实，失败时 SQL 原名单回滚供原请求重试，不声称文件能回滚。
+
+Node 24.14.0 下冻结离线 install、原完整70包 build、Local Host strict、原动作/API快照刷新通过。原 runner 31个必要文件（2个 browser）、jobs2/browser1/零重试，389/389首轮通过，覆盖上述清理、Memory恢复/维护、SDK采用/当前授权、完整读取合同、真实Context/回执、形成/分类、页面样式、Memory页面与Assistant归档。独立 Ultra 对两个父版本的关键删除合成深审未发现确定新增P1/P2；Root另核实际diff及原日志。没有重复467文件全量，也未据局部结果宣称完整P0通过。
+
+原 workspace:verify 首次在受限沙箱因回环 listen EPERM 失败，日志保留；相同源码、相同命令在允许本地监听的环境重做后，boundary:test、boundary:check和workspace:build全部通过。未改断言、权限规则或重试配置。
+
+实际48项资源相对父 b60：workbench.js 1,142,580→1,175,473（+32,893 B），workbench.css 1,236,084→1,236,764（+680 B），settings.css 932,843→858,919（−73,924 B），coding.js 289,674→291,450（+1,776 B），其余44项不变。前两项只迁移同功能的既有逐项批准；Coding包含已批准archive +570与仍待决定restore +1,206，未写Coding放行项。原资源门仍须保留这一未批准增长的失败。精确父基线health/资源门以及冻结规模性能在合成checkpoint后执行；付费批次尚未开始。

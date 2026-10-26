@@ -1,4 +1,4 @@
-import type { FormRecord } from "@molis-ai/molis-work-contracts/modules/form";
+import type { FormRecord } from "./contract.js";
 import { formErrors } from "./error.js";
 import type { FormStores } from "./store.js";
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";

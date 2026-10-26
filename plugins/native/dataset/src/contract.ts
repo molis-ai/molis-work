@@ -1,13 +1,3 @@
-import type { ContractDescriptor } from "../platform/package.js";
-
-export const modulesDatasetContract = {
-  contractId: "io.molis.work.module.dataset.v1",
-  kind: "module",
-  schemaVersion: 1,
-  maturity: "partial",
-  ssot: "docs/SSOT-MATRIX.md",
-} as const satisfies ContractDescriptor;
-
 export const DATASET_PLUGIN_ID = "io.molis.work.dataset";
 export const DATASET_PROJECT_PLUGIN_ID = "dataset";
 export const DATASET_ARTIFACT_TYPE_ID = "io.molis.work.dataset.table";

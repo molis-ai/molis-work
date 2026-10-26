@@ -1,0 +1,52 @@
+{
+  "name": "@molis-ai/molis-work-plugin-probe",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Declaration-only probe that walks the built-in plugin lifecycle in a one-off Home (W4-01).",
+  "type": "module",
+  "license": "SEE LICENSE IN LICENSE",
+  "engines": {
+    "node": ">=24"
+  },
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./registration": {
+      "types": "./dist/registration.d.ts",
+      "import": "./dist/registration.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@molis-ai/molis-work-contracts": "workspace:*",
+    "@molis-ai/molis-work-plugin-sdk": "workspace:*"
+  },
+  "molis-work": {
+    "path": "plugins/native/probe",
+    "kind": "native-plugin",
+    "maturity": "partial",
+    "contract": "@molis-ai/molis-work-contracts/platform/plugin",
+    "summary": "Declaration-only probe that walks the built-in plugin lifecycle in a one-off Home (W4-01).",
+    "notResponsibleFor": "Any product feature; it ships in no build and is copied into plugins/native/ only by its test.",
+    "legacySources": [],
+    "migrationGoals": [],
+    "ssot": "docs/SSOT-MATRIX.md",
+    "capabilities": [],
+    "extraWorkspaceDependencies": [
+      "@molis-ai/molis-work-plugin-sdk"
+    ],
+    "extraDependencies": {},
+    "registration": "./registration"
+  }
+}

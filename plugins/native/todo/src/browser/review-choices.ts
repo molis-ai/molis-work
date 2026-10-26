@@ -1,4 +1,4 @@
-import type { TodoBatch, TodoCandidate } from "@molis-ai/molis-work-contracts/modules/todo";
+import type { TodoBatch, TodoCandidate } from "../contract.js";
 import type { CandidateChoice, CandidateDecision, TodoPage } from "./types.js";
 
 type ExistingRelation = NonNullable<TodoCandidate["existing"]>["relation"];

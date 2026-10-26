@@ -6,14 +6,13 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
-import { PLATFORM_PLUGIN_REGISTRATIONS } from "@molis-ai/molis-work-app-local-host";
 import { projectDeletedHooksFor, purgeAssistantProject, AssistantStore, ASSISTANT_STORE_BASELINE, ASSISTANT_STORE_NAME } from "@molis-ai/molis-work-app-local-host";
-import { clearInExistingHomeSqlite, createFileSecretStore, homeSqlitePath, homeSqlitePartitionDirectory, openBaselineHomeSqlite, openExistingBaselineSqlite,
+import { clearInExistingHomeSqlite, createFileSecretStore, homeSqlitePath, openBaselineHomeSqlite, openExistingBaselineSqlite,
   peekSealedEntry, runWithMolisWorkHome, type SqliteBaseline } from "@molis-ai/molis-work-storage";
 import { PAGES_DATABASE } from "@molis-ai/molis-work-plugin-pages";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { IMAGES_DATABASE } from "@molis-ai/molis-work-plugin-images";
-import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
+import { PROBE, partitionDirectory, partitionFile, partitionHome, read, write } from "./fixtures/partition-probe.js";
 
 const denied = new Error("test authority revoked");
 function homeFor(t: TestContext) {
@@ -130,18 +129,21 @@ test("Assistant rechecks after live stop and preserves works and relations on re
   assert.equal(db.prepare("SELECT count(*) n FROM assistant_works").get()?.n, 0); db.close();
 });
 
-test("partition owner rechecks after awaiting declared purge before removing its directory", async t => {
-  const home = homeFor(t), catalog = PLATFORM_PLUGIN_REGISTRATIONS as PluginRegistration[], template = catalog.find(entry => entry.project_plugin_id === "pages")!;
-  const directory = homeSqlitePartitionDirectory(home, "control-probe", "gone"); mkdirSync(directory, { recursive: true }); writeFileSync(join(directory, "kept"), "kept");
-  let revoked = false, received: unknown;
-  const control = { assertCurrent() { if (revoked) throw denied; } };
-  catalog.push({ ...template, project_plugin_id: "control-probe", runtime: { scope: "home" },
-    manifest: { ...template.manifest, databases: { home: { store_name: "control-probe", partition: "project" } } },
-    project_data: { label: "probe", async purge(_home, _project, authority) { received = authority; await Promise.resolve(); revoked = true; } } } as PluginRegistration);
-  try {
-    await assert.rejects(projectDeletedHooksFor(home).clear("control-probe", "gone", undefined, control), error => error === denied);
-    assert.equal(received, control); assert.equal(existsSync(join(directory, "kept")), true);
-  } finally { catalog.pop(); }
+test("partition owner rechecks after closing the real library before removing its directory", async t => {
+  const home = realpathSync(mkdtempSync(join(tmpdir(), "molis-partition-file-control-"))), f = partitionHome(t, undefined, home);
+  await f.ready();
+  await f.invoke(write, { text: "original" }, "gone"); await f.invoke(write, { text: "neighbor" }, "kept");
+  const wal = `${partitionFile(home, "gone")}-wal`;
+  assert.equal(existsSync(wal), true, "the running owner holds the real partition open");
+  const control = { assertCurrent() { if (!existsSync(wal)) throw denied; } };
+  await assert.rejects(f.hooks.clear(PROBE, "gone", undefined, control), error => error === denied);
+  assert.equal(existsSync(wal), false);
+  assert.equal(existsSync(partitionDirectory(home, "gone")), true);
+  assert.deepEqual(await f.invoke(read, {}, "gone"), ["original"], "refusal released the library fence without deleting the data");
+  assert.deepEqual(await f.invoke(read, {}, "kept"), ["neighbor"]);
+  assert.equal(await f.hooks.clear(PROBE, "gone", undefined, current), true);
+  assert.equal(existsSync(partitionDirectory(home, "gone")), false);
+  assert.deepEqual(await f.invoke(read, {}, "kept"), ["neighbor"]);
 });
 
 test("Plugin Builder stops after directory removal before touching its sealed secrets", async t => {

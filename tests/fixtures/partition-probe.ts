@@ -5,7 +5,6 @@ import { join } from "node:path";
 import type { TestContext } from "node:test";
 import { HomePluginHost, PLATFORM_PLUGIN_REGISTRATIONS, projectDeletedHooksFor, type HomePluginEntry } from "@molis-ai/molis-work-app-local-host";
 import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { HomePluginDatabaseDeclaration, PluginBackgroundExecution, PluginDatabase, PluginDefinition, PluginExecutionControl, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { ActionService } from "@molis-ai/molis-work-kernel";
@@ -63,10 +62,9 @@ export const probe = {
   beforeRead: async (): Promise<void> => {},
   read: (database: PluginDatabase): unknown => noteTexts(database),
   later: Promise.resolve(),
-  purge: (_home: string, projectId: string): void | Promise<void> => { probe.trace.push(`purge:${projectId}`); },
   reset() {
     Object.assign(probe, { contexts: [], jobs: [], controls: [], trace: [], startRefusal: undefined, hold: async () => {}, write: storeNote, beforeRead: async () => {},
-      read: noteTexts, later: Promise.resolve(), purge: (_home: string, projectId: string) => { probe.trace.push(`purge:${projectId}`); } });
+      read: noteTexts, later: Promise.resolve() });
   },
   database: (): PluginDatabase => probe.contexts.at(-1)?.services?.database ?? assert.fail("the probe was given no services.database"),
 };
@@ -99,12 +97,11 @@ function createProbe(): PluginDefinition {
   } };
 }
 
-const projectData: ProjectDataDeclaration = { label: "分区探针在这个项目里的笔记", purge: (home, projectId) => probe.purge(home, projectId) };
 const catalog = PLATFORM_PLUGIN_REGISTRATIONS as PluginRegistration[];
 const todo = catalog.find(entry => entry.project_plugin_id === "todo")?.runtime;
 assert.ok(todo, "the Todo entry lends its package for the Runtime's release archive");
 const shipped = createProbe();
-catalog.push({ project_plugin_id: PROBE, catalog_order: 10_000, manifest: shipped.manifest, project_data: projectData,
+catalog.push({ project_plugin_id: PROBE, catalog_order: 10_000, manifest: shipped.manifest,
   runtime: { create: createProbe, package_name: todo.package_name, factory_export: todo.factory_export },
   workbench: { order: 10_000, contributions: [] } });
 
@@ -116,7 +113,7 @@ export function probeWithLibrary(library: HomePluginDatabaseDeclaration | undefi
 /** The Home entry the Host makes of a catalog entry (project-host.ts), with what a test changes about it. */
 export function probeEntry(change: Partial<HomePluginEntry> = {}): HomePluginEntry {
   const entry = catalog.find(item => item.project_plugin_id === PROBE)!;
-  return { ...entry.runtime!, scope: "home", manifest: entry.manifest, project_data: { owner_id: PROBE, declaration: entry.project_data! }, ...change };
+  return { ...entry.runtime!, scope: "home", manifest: entry.manifest, project_data: { owner_id: PROBE }, ...change };
 }
 
 /** The probe's library of a project, where the Host puts it. */

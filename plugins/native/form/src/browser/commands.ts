@@ -1,4 +1,4 @@
-import type { FormQuestionType } from "@molis-ai/molis-work-contracts/modules/form";
+import type { FormQuestionType } from "../contract.js";
 import type { Reflow } from "@molis-ai/molis-work-plugin-sdk/page-globals";
 import { arrive } from "./dom.js";
 import { renderPreview } from "./fields.js";

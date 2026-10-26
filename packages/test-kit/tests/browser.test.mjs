@@ -264,6 +264,8 @@ test("a command that gets no reply times out at the given limit and the error na
     // Without an expression, keep the method, measured elapsed time, exact limit and caller; a long expression is cut.
     await assert.rejects(harness.command("Browser.getVersion", {}, undefined, 50), (error) => {
       assert.match(error.message, /^CDP timeout: Browser\.getVersion \(elapsed \d+ms; limit 50ms\)$/);
+      assert.deepEqual(Object.keys(error.cause).sort(), ["eventLoopActiveMs", "eventLoopIdleMs", "nodeCpuMs"]);
+      assert.ok(Object.values(error.cause).every(value => Number.isFinite(value) && value >= 0));
       assert.match(error.stack, /browser\.test\.mjs:\d+:\d+/);
       return true;
     });

@@ -8,7 +8,7 @@ import type {
   DatasetRow,
   DatasetRowInput,
   DatasetVersionRecord,
-} from "@molis-ai/molis-work-contracts/modules/dataset";
+} from "./contract.js";
 import { datasetErrors } from "./error.js";
 import type { DatasetPublicationIntent, DatasetPublicationSnapshot } from "./promote.js";
 import { DATASET_DATABASE } from "./database.js";

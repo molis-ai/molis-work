@@ -62,6 +62,41 @@ test("controlled Images rejects redirected assets and retains its original job l
   assert.deepEqual(after.prepare("SELECT project_id FROM jobs").all().map(row => row.project_id), ["kept"]); after.close();
 });
 
+test("controlled Images refuses an assets ancestor replaced after its first removal and retries the retained original list", async t => {
+  const { source, target, root } = homes(t), sourceAssets = join(source, "images", "assets"), assets = join(target, "images", "assets"), saved = join(root, "original-assets");
+  const first = "aaaa-0001.png", second = "aaaa-0002.png", kept = "bbbb-0001.png";
+  for (const directory of [sourceAssets, assets]) {
+    mkdirSync(directory, { recursive: true });
+    for (const name of [first, second, kept]) writeFileSync(join(directory, name), directory === sourceAssets ? `source ${name}` : `target ${name}`);
+  }
+  const original = [{ filename: first }, { filename: second }], db = openBaselineHomeSqlite(target, "images", IMAGES_DATABASE);
+  const insert = db.prepare(`INSERT INTO jobs (id,project_id,request_id,input_hash,connection_id,connection_name,api_format,model,prompt,size,aspect_ratio,status,images_json,error,created_at,finished_at,runner_id)
+    VALUES (?,?,'r','h','c','c','openai-images','m','synthetic','','','succeeded',?,'','now','now',NULL)`);
+  insert.run("gone-job", "gone", JSON.stringify(original)); insert.run("kept-job", "kept", JSON.stringify([{ filename: kept }])); db.close();
+  let redirected = false;
+  try {
+    await assert.rejects(projectDeletedHooksFor(target).clear("images", "gone", undefined, { assertCurrent() {
+      if (!redirected && !existsSync(join(assets, first))) {
+        redirected = true; renameSync(assets, saved); symlinkSync(sourceAssets, assets);
+      }
+    } }), { code: "storage.maintenance_path" });
+    assert.equal(redirected, true);
+    for (const name of [first, second, kept]) assert.equal(readFileSync(join(sourceAssets, name), "utf8"), `source ${name}`);
+    assert.equal(existsSync(join(saved, first)), false, "the first deletion happened and is not claimed to roll back");
+    for (const name of [second, kept]) assert.equal(readFileSync(join(saved, name), "utf8"), `target ${name}`);
+    const retained = openExistingBaselineSqlite(homeSqlitePath(target, "images"), IMAGES_DATABASE);
+    try {
+      assert.deepEqual(JSON.parse(String(retained.prepare("SELECT images_json FROM jobs WHERE project_id='gone'").get()?.images_json)), original);
+      assert.equal(retained.prepare("SELECT count(*) n FROM jobs").get()?.n, 2);
+    } finally { retained.close(); }
+  } finally { if (redirected) { rmSync(assets); renameSync(saved, assets); } }
+  await projectDeletedHooksFor(target).clear("images", "gone", undefined, current);
+  assert.equal(existsSync(join(assets, first)), false); assert.equal(existsSync(join(assets, second)), false);
+  assert.equal(readFileSync(join(assets, kept), "utf8"), `target ${kept}`);
+  const after = openExistingBaselineSqlite(homeSqlitePath(target, "images"), IMAGES_DATABASE);
+  try { assert.deepEqual(after.prepare("SELECT project_id FROM jobs").all().map(row => row.project_id), ["kept"]); } finally { after.close(); }
+});
+
 for (const owner of ["plugin-builder", "alchemist", "artifacts"] as const) test(`controlled ${owner} refuses redirected removal ancestors`, async t => {
   const { source, target } = homes(t);
   // These owners all keep a project subtree; redirecting the whole owner must be refused even if the project is absent.

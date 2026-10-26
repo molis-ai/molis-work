@@ -335,6 +335,11 @@ export interface AssistantNotice {
     work_id: string;
     work_title: string;
     text: string;
+    text_params?: {
+        plugin: string;
+        folder: string;
+        origin: string;
+    };
     created_at: string;
     open?: {
         surface: string;

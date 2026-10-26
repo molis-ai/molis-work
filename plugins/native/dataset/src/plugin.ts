@@ -1,7 +1,7 @@
 import { bindPluginActionRoute } from "@molis-ai/molis-work-plugin-sdk";
 import { ActionError, type ActionAvailability, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginArtifactClient, PluginDefinition, PluginRouteRequest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { DATASET_ARTIFACT_SCHEMA_VERSION, DATASET_ARTIFACT_TYPE_ID } from "@molis-ai/molis-work-contracts/modules/dataset";
+import { DATASET_ARTIFACT_SCHEMA_VERSION, DATASET_ARTIFACT_TYPE_ID } from "./contract.js";
 import { datasetManifest } from "./manifest.js";
 import { createDatasetActionHandlers, createDatasetContentHandlers, datasetActions, type DatasetActionPorts } from "./actions.js";
 import { datasetErrors } from "./error.js";

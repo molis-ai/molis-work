@@ -7,6 +7,7 @@ import { reading } from "./reading.js";
 import { installResult } from "./result.js";
 import { load } from "./snapshot.js";
 import { stageBusy } from "./model.js";
+import { installTerminal } from "./terminal.js";
 import { installTui } from "./tui.js";
 import type { ShelfHost, ShelfPage } from "./types.js";
 
@@ -42,6 +43,7 @@ export function shelfClient(host: ShelfHost): void {
   installDirectory(page);
   installControls(page);
   installArrange(page);
+  installTerminal(page);
   installTui(page);
   installMaterial(page);
   installResult(page);

@@ -18,7 +18,7 @@
 | 层 | 负责 | 不负责 |
 | --- | --- | --- |
 | 业务插件 / 模块（Pages、灵光、Coding…） | 用户意图、提示词正文、输入材料的选取、结果怎样写回自己的数据、失败时保留什么 | 选模型、拿密钥、直连供应商、构造 Runtime |
-| Local Host（`apps/local-host`） | 把模型端口注入插件（`hostCompleteText`、`resolvePrologueInference`）；模型选择与凭据解析；项目/调用者身份；动作授权与调用记录 | 业务提示词、插件数据 |
+| Local Host（`apps/local-host`） | 给 Runtime 插件提供 `services.model`，自己的代码用 `hostCompleteText`、`resolvePrologueInference`；模型选择与凭据解析；项目/调用者身份；动作授权与调用记录 | 业务提示词、插件数据 |
 | Agent Host（`horizontal/agent-host`） | 唯一直接依赖 `@prologue/sdk` 的包：有界推理、Agent 轮次、角色冻结、目录授权、审查队列、预算、MCP 接入、任务板、子代理、检查点、后台命令 | 业务含义、审批决定本身 |
 | Prologue SDK（`vendor/prologue-sdk/*.tgz`，源码在 `molis-ai/prologue`） | 协议适配、流式事件、用量回执、取消、超时、会话/运行持久化、工具循环 | 产品身份、权限政策、界面 |
 
@@ -28,11 +28,11 @@
 
 | 场景 | 用什么 | 例子 |
 | --- | --- | --- |
-| 一次有界的文字/结构化/图片/判断调用，没有工具 | Host 注入的端口：文字用 `hostCompleteText`，需要结构、进度和回执时用同一绑定的 `hostTextGeneration`（`apps/local-host/src/host-complete-text.ts`）；图片、TypeSafe 判断、需要用量时用 `resolvePrologueInference(home)` 的 `generateImages` / `evaluateTypeSafe` / `completeTextResult` | 灵光对话、Pages 写作助手与生成、Form/Dataset 的 AI 拟题拟列、Images、判断函数 |
-| 有工具、工作区、审查的多轮工作 | Manifest `agent` 块声明角色，经 Host 能力 `agent.session.create.v1` / `agent.run.start.v1` / `agent.run.wait.v1` / `agent.run.control.v1`；宿主自己的调用方在进程内直接 `AgentHost.start` | Coding（经 `agent.run.*`）、个人助理（`apps/local-host/src/assistant/assistant-agent.ts` 的角色）、Schedule 到点任务（`apps/local-host/src/schedule-task-runner.ts` 进程内直接 `agentHost.start`，不经 `agent.run.*`）。Characters（不是插件，是 `modules/characters` 加宿主提供方）不声明角色：它发布的 Character 由 Coding 或助理的一轮按固定版本带上 |
+| 一次有界的文字/结构化/图片/判断调用，没有工具 | 宿主自己的代码：文字用 `hostCompleteText`，需要结构、进度和回执时用同一绑定的 `hostTextGeneration`（`apps/local-host/src/host-complete-text.ts`）；Runtime 插件用 `context.services.model`（第 4 节），构建期插件仍是 Host 注入的端口（见本表下方）；图片、TypeSafe 判断、需要用量时用 `resolvePrologueInference(home)` 的 `generateImages` / `evaluateTypeSafe` / `completeTextResult` | 灵光对话、Pages 写作助手与生成、Form/Dataset 的 AI 拟题拟列、Images、判断函数 |
+| 有工具、工作区、审查的多轮工作 | Manifest `agent` 块声明角色，经 Host 能力 `agent.session.create.v1` / `agent.run.start.v1` / `agent.run.wait.v1` / `agent.run.control.v1`；宿主自己的调用方在进程内直接 `AgentHost.start` | Coding（经 `agent.run.*`）、个人助理（`apps/local-host/src/assistant/assistant-agent.ts` 的角色）、Schedule 到点任务（经 Runtime 的 `services.agents.run`，`plugins/native/schedule/src/runtime-wakeups.ts`；宿主在 `apps/local-host/src/plugin-agent-service.ts` 内调 `AgentHost.start`，不经 `agent.run.*`）。Characters（不是插件，是 `modules/characters` 加宿主提供方）不声明角色：它发布的 Character 由 Coding 或助理的一轮按固定版本带上 |
 | 需要专门编排边界的新 Agent | 在 `horizontal/agent-host/src/adapters/` 为该场景新建适配器，仍用同一 Home Runtime | 插件创作台代码 Agent（`adapters/plugin-builder.ts`） |
 
-宿主自己运行的 Runtime 插件调模型用 `context.services.model`（第 4 节「Runtime 插件」），不再写宿主绑定文件；构建期插件今天仍是 Host 注入的端口，随各自迁移删掉（W5-11）。
+宿主自己运行的 Runtime 插件调模型用 `context.services.model`（第 4 节「Runtime 插件」），不再写宿主绑定文件；构建期插件（`tests/builtin-plugin-assembly-gate.test.ts` 的 `BUILD_TIME_ASSEMBLED` 冻结名单里的那几个，词义见 `docs/system/GLOSSARY.md`）今天仍是 Host 注入的端口，随各自迁移删掉（W5-11）。选哪条入口：插件自己一轮后台 Agent 用 `services.agents.run`；页面、工作流或 MCP 触发宿主的 Agent 用 `agent.run.*` 动作；宿主自己的调用方在进程内直接 `AgentHost.start`。
 
 不要为了统一把单次调用塞进 Agent 循环，也不要在插件或 Host 里直接依赖 `@prologue/sdk`——只有 `horizontal/agent-host` 声明了这个依赖（`scripts/workspace-packages.mjs`），其他包经它的公开入口使用。
 
@@ -87,7 +87,7 @@ Coding 页面 → plugins/native/coding/src/routes.ts
   → Prologue 适配器（adapters/prologue-node.ts 组合，adapters/prologue-run.ts 起跑）运行工具循环
       写文件/跑命令/调用写入动作 → AgentReviewQueue（reviews.ts）等人批准
   → 报告、变更集作为 Artifact 发布
-  ← agent.run.wait.v1@3 长轮询把运行视图推给页面；agent.run.control.v1 暂停/继续/停止/追加指令
+  ← agent.run.wait.v1@4 长轮询把运行视图推给页面；agent.run.control.v1 暂停/继续/停止/追加指令
 ```
 
 **每一轮带一个调用编号**（W3-01 E；见 [调用链](../system/CALL-CHAINS.md) §1 第 5 条）：一轮（助理、Coding 等 Agent、定时任务到点跑的 Agent）开始时，宿主给它一个调用编号。启动权限的 `call_id`（`AgentStartAuthority`）经 `AgentHost.start` 交给适配器，适配器写进这一轮的冻结记录（`AgentRunView.frozen.call_id`，和角色、提示词版本、工具一起冻结，读回时原样）；这一轮每次工具调用的上下文也带同一个编号，所以按编号能从调用记录找到这一轮走过的每一步。编号只记在 Molis Work 自己的冻结记录里，不交给 Prologue（用户 2026-10-10 决定），Prologue 的运行元数据没有它。编号只由宿主给：适配器只读启动权限，不读 `agent.run.start` 的请求体，插件在里面写的 `call_id` 不会成为一轮的编号。有界推理（`hostTextGeneration`、`hostCompleteText`）没有运行记录可挂，不带编号，它所在的那个动作的调用记录行带着。`frozen.call_id` 与 `AgentToolActivity.call_id`（Prologue 给一次工具调用的 id）是两回事。
@@ -264,7 +264,7 @@ AI 要人补信息、确认一步或挑一个对象，有四条共用的路，�
   | --- | --- | --- |
   | 文字补全的默认 | 120 秒，`max_output_tokens` 5000 | `apps/local-host/src/host-complete-text.ts` |
   | Runtime 插件的 `services.model` | 默认 120 秒、至多 600 秒；5000、至多 12000 个输出 token | `PLUGIN_MODEL_LIMITS`（`packages/contracts/src/platform/plugin-model.ts`） |
-  | 生成插件的 `model.generate` | 110 秒 | `apps/local-host/src/plugin-builder/model.ts` |
+  | 生成插件的 `model.generate` | 110 秒（内部调用超时；动作声明是 120 秒） | `apps/local-host/src/plugin-builder/model.ts` |
   | Shelf 的自动处理 | 600 秒、12000 个输出 token | `plugins/native/shelf/src/ai.ts`（Home 实例经 `services.model`） |
   | Cognia 与 Alchemist | 180 秒（Alchemist 4096 个输出 token） | `plugins/native/cognia/src/plugin.ts`、`apps/local-host/src/alchemist-prologue.ts` |
   | 项目上手 | 180 秒 | `apps/local-host/src/context-onboarding-service.ts` |

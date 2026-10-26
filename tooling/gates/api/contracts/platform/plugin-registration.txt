@@ -36,7 +36,6 @@ export interface PluginRegistration {
         readonly package_name: string;
         readonly factory_export: string;
     };
-    readonly project_data?: ProjectDataDeclaration;
     readonly home_store?: HomeStoreDeclaration;
     readonly workbench: PluginWorkbenchRegistration;
 }

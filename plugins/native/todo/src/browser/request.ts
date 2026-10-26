@@ -1,6 +1,6 @@
 import type {} from "@molis-ai/molis-work-plugin-sdk";
 import type { UiRequestFailure } from "@molis-ai/molis-work-contracts/platform/ui";
-import type { TodoItem } from "@molis-ai/molis-work-contracts/modules/todo";
+import type { TodoItem } from "../contract.js";
 import type { TodoClientHost, TodoRequest, Translate } from "./types.js";
 
 /** The todos a write's answer names, so works that relate to them read them again. */

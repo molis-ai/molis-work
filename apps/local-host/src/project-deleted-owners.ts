@@ -1,5 +1,6 @@
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import type { ProjectDataDeclaration } from "@molis-ai/molis-work-contracts/modules/projects";
+import { artifactsProjectData } from "@molis-ai/molis-work-module-artifacts";
 import { charactersProjectData } from "@molis-ai/molis-work-module-characters";
 import { functionsProjectData } from "@molis-ai/molis-work-module-functions";
 import { existsSync, rmSync } from "node:fs";
@@ -13,6 +14,7 @@ import { agentRuntimeDirectory } from "./agent-runtime-paths.js";
 import { alchemistProjectDirectory } from "./alchemist-paths.js";
 import { pluginBuilderProjectOwner } from "./plugin-builder/project-data.js";
 import { clearProjectRows } from "./plugin-project-rows.js";
+import { partitionLabel } from "./plugin-project-cleanup.js";
 import { purgeAssistantProject } from "./assistant/assistant-project-purge.js";
 import { forgetProjectOriginalFiles } from "./material-original-files.js";
 import { forgetProjectConnectionBindings } from "./connector-plugin-requests.js";
@@ -94,56 +96,54 @@ function searchOwnerWithoutService(home: string): ProjectDeletedOwner {
 /**
  * The owners of a project's data in the Home that are plain files, as the packages that keep them declare it. A built-in plugin's
  * library says which of its rows belong to a project (`databases.home.project_rows` in its Manifest) and the platform deletes those
- * rows itself, running no code of the plugin's (PG-024); a plugin whose data is more than rows (Images, BL-615) still says on its
- * catalog entry (`project_data`) how to clear it. Both come from the catalog without the Host naming the plugin. The modules that are no
- * plugin, Functions and Characters, export the same declaration, and the Host names them here. They run in the order the declarations
+ * rows itself, with the files of its own (`owner_files`) the rows name, running no code of the plugin's (PG-024); a library
+ * partitioned by project goes whole. Both come from the catalog without the Host naming the plugin. The modules that are no plugin,
+ * Functions, Characters and the 成果库's originals, export a declaration of what they keep (`ProjectDataDeclaration`), and the Host
+ * names them here. They run in the order the declarations
  * ask (`order`, then catalog order), which is the order the confirmation dialog lists them in.
  */
+type DeclaredOwner = Pick<ProjectDeletedOwner, "id" | "label_values" | "words_of"> & { label: string; order?: number; clear: ProjectDeletedOwner["clear"] };
+
 function declaredProjectOwners(home: string): ProjectDeletedOwner[] {
-  const declared: Array<{ id: string; label: string; order?: number; words_of?: string; clear: ProjectDeletedOwner["clear"] }> = [
-    ...PLATFORM_PLUGIN_REGISTRATIONS.flatMap(entry => {
+  const declared: DeclaredOwner[] = [
+    ...PLATFORM_PLUGIN_REGISTRATIONS.flatMap((entry): DeclaredOwner[] => {
       const library = entry.manifest.databases?.home, pluginId = entry.manifest.plugin_id;
       if (library?.project_rows) {
         return [{ id: entry.project_plugin_id, label: library.project_rows.label, order: library.project_rows.order, words_of: pluginId,
-          clear: (projectId: string, _deletion: Parameters<ProjectDeletedOwner["clear"]>[1], control: Parameters<ProjectDeletedOwner["clear"]>[2]) => clearProjectRows(home, library, pluginId, projectId, control) }];
+          clear: (projectId, _deletion, control) => clearProjectRows(home, library, pluginId, projectId, entry.manifest.owner_files, control) }];
       }
-      if (!entry.project_data) return [];
-      const partitioned = entry.runtime && library?.partition === "project" ? library.store_name : undefined;
-      return [ownerOf(home, entry.project_plugin_id, entry.project_data, partitioned, pluginId)];
+      if (!entry.runtime || library?.partition !== "project") return [];
+      const store = library.store_name;
+      return [{ id: entry.project_plugin_id, ...partitionLabel(entry.manifest.name), words_of: pluginId,
+        clear: removePartition(home, store) }];
     }),
     // Characters keeps its native runs by project in a library of the Home; the drafts it also keeps are the person's and stay.
     ownerOf(home, "characters", charactersProjectData),
+    // The 成果库's originals, kept by the module that writes them (the receipt's id is the one the plugin's entry gave it).
+    ownerOf(home, "artifacts", artifactsProjectData),
     ownerOf(home, "functions", functionsProjectData),
   ];
   return declared.map((item, position) => ({ ...item, position }))
     .sort((a, b) => (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER) || a.position - b.position)
-    .map(({ id, label, clear, words_of }) => ({ id, label, clear, ...(words_of ? { words_of } : {}) }));
+    .map(({ id, label, label_values, clear, words_of }) => ({ id, label, clear, ...(label_values ? { label_values } : {}), ...(words_of ? { words_of } : {}) }));
 }
 
-/** `wordsOf`: the plugin whose text the label is, so the dialog translates it with that plugin's own words (absent for the Host's own modules). */
-function ownerOf(home: string, id: string, data: ProjectDataDeclaration, partitioned?: string, wordsOf?: string) {
-  return { id, label: data.label, order: data.order, ...(wordsOf ? { words_of: wordsOf } : {}), clear: partitioned ? removePartition(home, data, partitioned) : purgeOf(home, id, data) };
+/** A module of the Host's own: its label is in the Host's words. */
+function ownerOf(home: string, id: string, data: ProjectDataDeclaration) {
+  const clear: ProjectDeletedOwner["clear"] = (projectId, _deletion, control) => { control?.assertCurrent(); return data.purge(home, projectId, control); };
+  return { id, label: data.label, order: data.order, clear };
 }
 
-function purgeOf(home: string, id: string, data: ProjectDataDeclaration): ProjectDeletedOwner["clear"] {
-  if (!data.purge) throw new Error(`${id} 的项目数据没有清理办法（purge）`);
-  return (projectId, _deletion, control) => { control?.assertCurrent(); return data.purge!(home, projectId, control); };
-}
-
-/**
- * A Home plugin whose library is partitioned by project, cleared without its instance running here: its own `purge`, if it has one,
- * then the project's library goes. The running instance's owner (`plugin-project-cleanup.ts`) replaces this one while it runs.
- */
-function removePartition(home: string, data: ProjectDataDeclaration, store: string): ProjectDeletedOwner["clear"] {
+/** A stopped plugin's project partition is removed by the platform, with no plugin callback. */
+function removePartition(home: string, store: string): ProjectDeletedOwner["clear"] {
   return async (projectId, _deletion, control) => {
     control?.assertCurrent();
     const directory = homeSqlitePartitionDirectory(home, store, projectId);
-    const target = control ? inspectExistingStoragePath(directory, "directory") : undefined;
-    await data.purge?.(home, projectId, control);
-    control?.assertCurrent();
-    target?.assertCurrent();
-    if (control) rmSync(directory, { recursive: true, force: true });
-    else await rm(directory, { recursive: true, force: true });
+    if (control) {
+      const target = inspectExistingStoragePath(directory, "directory");
+      control.assertCurrent(); target.assertCurrent();
+      rmSync(directory, { recursive: true, force: true });
+    } else await rm(directory, { recursive: true, force: true });
   };
 }
 

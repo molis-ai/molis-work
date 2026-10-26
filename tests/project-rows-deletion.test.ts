@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, mkdtempSync, rmSync, realpathSync } from "node:fs";
+import { chmodSync, existsSync, linkSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -21,10 +21,12 @@ import { pluginActions } from "./fixtures/plugin-actions.js";
 // running none of the plugin's code.
 
 const catalog: PluginRegistration[] = PLATFORM_PLUGIN_REGISTRATIONS as PluginRegistration[];
-const DECLARING = ["dataset", "form", "lingguang", "pages", "ppt", "todo", "workflows"];
+const DECLARING = ["dataset", "form", "images", "lingguang", "pages", "ppt", "todo", "workflows"];
+/** The libraries all of whose tables are a project's. Images also keeps the person's connections, which belong to no project; RAC-577 is its. */
+const WHOLLY_PROJECT = DECLARING.filter(id => id !== "images");
 
 function withHome(t: TestContext): string {
-  const directory = mkdtempSync(join(tmpdir(), "project-rows-"));
+  const directory = realpathSync(mkdtempSync(join(tmpdir(), "project-rows-")));
   t.after(() => rmSync(directory, { recursive: true, force: true }));
   return join(directory, "home");
 }
@@ -73,7 +75,7 @@ test("RAC-560 deleting a project deletes every row of it in the seven declaring 
   const home = withHome(t);
   const declaring = catalog.filter(entry => entry.manifest.databases?.home?.project_rows);
   assert.deepEqual(declaring.map(entry => entry.project_plugin_id).sort(), DECLARING);
-  for (const entry of declaring) {
+  for (const entry of declaring.filter(item => WHOLLY_PROJECT.includes(item.project_plugin_id))) {
     const library = entry.manifest.databases!.home!;
     seed(home, library, ["pa", "pb"]);
     const before = marks(home, library.store_name, ["pa", "pb"]);
@@ -309,4 +311,132 @@ test("MEM-40 running declared-row owner retains current after the actual write l
   await projectDeletedHooksFor(f.home).clear(probe.id, "pa", undefined, { assertCurrent() {} });
   assert.deepEqual(marks(f.home, LIBRARY.store_name, ["pa", "pb"]), { items: { pa: 0, pb: 1 }, notes: { pa: 0, pb: 1 } });
   assert.deepEqual(probe.calls, calls);
+});
+
+for (const controlled of [false, true]) test(`RAC-577 S-86 ${controlled ? "controlled" : "ordinary"} deletion removes only plain files the project's rows name in the plugin's declared directory`, async t => {
+  const home = withHome(t);
+  const images = catalog.find(entry => entry.project_plugin_id === "images")!, library = images.manifest.databases!.home!;
+  assert.deepEqual(library.project_rows?.files, [{ table: "jobs", column: "images_json", key: "filename", directory: "assets" }], "Images declares its pictures");
+  const root = join(home, "images"), assets = join(root, "assets"), outside = join(home, "outside.png");
+  const db = openBaselineHomeSqlite(home, library.store_name, library);
+  try {
+    const job = (project: string, names: readonly string[]) => db.prepare(`INSERT INTO jobs (id, project_id, request_id, input_hash, connection_id, connection_name,
+      api_format, model, prompt, size, aspect_ratio, status, images_json, error, created_at) VALUES (?, ?, ?, 'h', 'c', 'c', 'openai-images', 'm', 'p', '', '', 'succeeded', ?, '', 'now')`)
+      .run(`job-${project}`, project, `request-${project}`, JSON.stringify(names.map(filename => ({ filename, mime_type: "image/png" }))));
+    job("pa", ["a.png", "../outside.png", "/etc/hosts", "sub/b.png", "linked.png", "hard.png", "folder.png", ".", "kept.png", "missing.png"]);
+    job("pb", ["kept.png"]);
+  } finally { db.close(); }
+  mkdirSync(join(assets, "sub"), { recursive: true }); mkdirSync(join(assets, "folder.png"));
+  for (const file of [join(assets, "a.png"), join(assets, "sub", "b.png"), join(assets, "kept.png"), outside, join(root, "outside.png")]) writeFileSync(file, "png");
+  symlinkSync(outside, join(assets, "linked.png"));
+  writeFileSync(join(home, "hard-source.png"), "png"); linkSync(join(home, "hard-source.png"), join(assets, "hard.png"));
+
+  assert.equal(await projectDeletedHooksFor(home).clear("images", "pa", undefined, controlled ? { assertCurrent() {} } : undefined), true);
+  assert.equal(existsSync(join(assets, "a.png")), false, "the project's own picture is removed");
+  assert.ok(existsSync(join(assets, "kept.png")), "a name another project's row still gives is that project's, and stays");
+  for (const kept of [outside, join(root, "outside.png"), join(assets, "sub", "b.png"), join(assets, "folder.png"), join(home, "hard-source.png"), join(assets, "hard.png")]) {
+    assert.ok(existsSync(kept), `${kept} is not one plain file of the declared directory, and stays`);
+  }
+  assert.ok(lstatSync(join(assets, "linked.png")).isSymbolicLink(), "a link is left, and what it points at with it");
+  const left = new DatabaseSync(homeSqlitePath(home, "images"), { readOnly: true });
+  try { assert.deepEqual(left.prepare("SELECT project_id FROM jobs ORDER BY project_id").all().map(row => row.project_id), ["pb"]); } finally { left.close(); }
+});
+
+test("RAC-577 S-86 a file two projects' rows name stays until the last of them goes, and a removal that fails keeps the rows", async t => {
+  const home = withHome(t);
+  const images = catalog.find(entry => entry.project_plugin_id === "images")!, library = images.manifest.databases!.home!;
+  const assets = join(home, "images", "assets");
+  const db = openBaselineHomeSqlite(home, library.store_name, library);
+  try {
+    for (const [project, names] of [["pa", ["shared.png"]], ["pb", ["shared.png"]], ["pc", ["own.png"]]] as const) {
+      db.prepare(`INSERT INTO jobs (id, project_id, request_id, input_hash, connection_id, connection_name, api_format, model, prompt, size,
+        aspect_ratio, status, images_json, error, created_at) VALUES (?, ?, ?, 'h', 'c', 'c', 'openai-images', 'm', 'p', '', '', 'succeeded', ?, '', 'now')`)
+        .run(`job-${project}`, project, `request-${project}`, JSON.stringify(names.map(filename => ({ filename, mime_type: "image/png" }))));
+    }
+  } finally { db.close(); }
+  mkdirSync(assets, { recursive: true });
+  for (const name of ["shared.png", "own.png"]) writeFileSync(join(assets, name), "png");
+  const projects = () => {
+    const left = new DatabaseSync(homeSqlitePath(home, "images"), { readOnly: true });
+    try { return left.prepare("SELECT project_id FROM jobs ORDER BY project_id").all().map(row => row.project_id); } finally { left.close(); }
+  };
+
+  assert.equal(await projectDeletedHooksFor(home).clear("images", "pa"), true);
+  assert.ok(existsSync(join(assets, "shared.png")), "pb still names it");
+  assert.equal(await projectDeletedHooksFor(home).clear("images", "pb"), true);
+  assert.equal(existsSync(join(assets, "shared.png")), false, "the last project that named it is gone");
+
+  chmodSync(assets, 0o555);
+  try {
+    await assert.rejects(() => projectDeletedHooksFor(home).clear("images", "pc"), { code: "EACCES" });
+    assert.ok(existsSync(join(assets, "own.png")));
+    assert.deepEqual(projects(), ["pc"], "the rows stay with the file they name, so the next attempt finds it again");
+  } finally { chmodSync(assets, 0o755); }
+  assert.equal(await projectDeletedHooksFor(home).clear("images", "pc"), true);
+  assert.deepEqual([existsSync(join(assets, "own.png")), projects()], [false, []]);
+});
+
+test("MEM-40 no selected files means controlled row cleanup leaves an unrelated assets directory alone", async t => {
+  const home = withHome(t), images = catalog.find(entry => entry.project_plugin_id === "images")!, library = images.manifest.databases!.home!;
+  const assets = join(home, "images", "assets"), otherAssets = join(home, "other-assets"), shared = [{ filename: "shared.png" }];
+  const db = openBaselineHomeSqlite(home, library.store_name, library);
+  try {
+    for (const [project, names] of [["empty", []], ["shared", shared], ["kept", shared]] as const) {
+      db.prepare(`INSERT INTO jobs (id, project_id, request_id, input_hash, connection_id, connection_name, api_format, model, prompt, size,
+        aspect_ratio, status, images_json, error, created_at) VALUES (?, ?, ?, 'h', 'c', 'c', 'openai-images', 'm', 'p', '', '', 'succeeded', ?, '', 'now')`)
+        .run(`job-${project}`, project, `request-${project}`, JSON.stringify(names));
+    }
+  } finally { db.close(); }
+  mkdirSync(otherAssets); writeFileSync(join(otherAssets, "shared.png"), "the other project's picture");
+  symlinkSync(otherAssets, assets);
+  const hooks = projectDeletedHooksFor(home), control = { assertCurrent() {} };
+  for (const project of ["empty", "shared"]) assert.equal(await hooks.clear("images", project, undefined, control), true);
+  assert.ok(lstatSync(assets).isSymbolicLink(), "neither empty nor shared-only selection owns this directory");
+  assert.equal(readFileSync(join(otherAssets, "shared.png"), "utf8"), "the other project's picture");
+  const left = new DatabaseSync(homeSqlitePath(home, "images"), { readOnly: true });
+  try {
+    const rows = left.prepare("SELECT project_id, images_json FROM jobs").all();
+    assert.deepEqual(rows.map(row => row.project_id), ["kept"]);
+    assert.deepEqual(JSON.parse(String(rows[0]!.images_json)), shared);
+  } finally { left.close(); }
+});
+
+test("RAC-577 S-86 a named file the deletion cannot look at fails the step, and the rows stay for the next attempt", async t => {
+  const home = withHome(t);
+  const images = catalog.find(entry => entry.project_plugin_id === "images")!, library = images.manifest.databases!.home!;
+  const assets = join(home, "images", "assets");
+  const db = openBaselineHomeSqlite(home, library.store_name, library);
+  try {
+    db.prepare(`INSERT INTO jobs (id, project_id, request_id, input_hash, connection_id, connection_name, api_format, model, prompt, size,
+      aspect_ratio, status, images_json, error, created_at) VALUES ('job-pa', 'pa', 'request-pa', 'h', 'c', 'c', 'openai-images', 'm', 'p', '', '', 'succeeded', ?, '', 'now')`)
+      .run(JSON.stringify([{ filename: "unseen.png", mime_type: "image/png" }]));
+  } finally { db.close(); }
+  mkdirSync(assets, { recursive: true });
+  writeFileSync(join(assets, "unseen.png"), "png");
+  const projects = () => {
+    const left = new DatabaseSync(homeSqlitePath(home, "images"), { readOnly: true });
+    try { return left.prepare("SELECT project_id FROM jobs").all().map(row => row.project_id); } finally { left.close(); }
+  };
+
+  chmodSync(assets, 0o000);
+  try {
+    await assert.rejects(() => projectDeletedHooksFor(home).clear("images", "pa"), { code: "EACCES" }, "a file it cannot look at is not taken for one that is gone");
+    assert.deepEqual(projects(), ["pa"], "the rows stay, naming the file");
+  } finally { chmodSync(assets, 0o755); }
+  assert.ok(existsSync(join(assets, "unseen.png")));
+  assert.equal(await projectDeletedHooksFor(home).clear("images", "pa"), true);
+  assert.deepEqual([existsSync(join(assets, "unseen.png")), projects()], [false, []], "the next attempt removes both");
+});
+
+test("RAC-577 S-86 the SDK refuses files that do not hang on a project's own table or name a directory the Manifest does not declare", () => {
+  const files = (entries: unknown, ownerFiles: unknown = { store_name: "rows-probe", entries: [{ name: "assets", kind: "directory" }, { name: "index.json", kind: "file" }], read_permission: "rowsprobe:read", write_permission: "rowsprobe:write" }) =>
+    () => parsePluginManifest({ ...manifest({ ...LIBRARY, project_rows: { ...ROWS, files: entries } }), owner_files: ownerFiles });
+  files([{ table: "items", column: "id", directory: "assets" }])();
+  assert.throws(files([{ table: "notes", column: "id", directory: "assets" }]), { code: "plugin.manifest_invalid", message: /不带 parent 的表/u }, "a child table's names would outlive their parent's check");
+  assert.throws(files([{ table: "items", column: "id", directory: "index.json" }]), /owner_files 里声明的目录/u);
+  assert.throws(files([{ table: "items", column: "id", directory: "../elsewhere" }]), /owner_files 里声明的目录/u);
+  assert.throws(() => parsePluginManifest(manifest({ ...LIBRARY, project_rows: { ...ROWS, files: [{ table: "items", column: "id", directory: "assets" }] } })),
+    /owner_files 里声明的目录/u, "a Manifest with no owner_files has no directory to name");
+  assert.throws(files([{ table: "items", column: "id; DROP TABLE items", directory: "assets" }]), /小写标识符/u);
+  assert.throws(files([]), /至少要有一项/u);
 });

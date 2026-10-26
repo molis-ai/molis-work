@@ -215,9 +215,9 @@ describe("the records of this repository", () => {
     assert.equal(provenance.artifact.file, current);
     assert.equal(json("horizontal/agent-host/package.json").dependencies["@prologue/sdk"], `file:../../${folder}/${current}`);
     // Candidate adoption is explicit; this test does not label an open upstream PR as merged.
-    assert.equal(provenance.source.commit, "063b0278588c628ffa69fd0d5e969f3e13fd2527");
+    assert.equal(provenance.source.commit, "b65cc6283762b1d86f102778b63757c3954c1000");
     assert.equal(provenance.source.candidateUpstream.pullRequest, "https://github.com/molis-ai/molis-prologue/pull/108");
-    assert.equal(provenance.source.candidateUpstream.head, "063b0278588c628ffa69fd0d5e969f3e13fd2527");
+    assert.equal(provenance.source.candidateUpstream.head, "b65cc6283762b1d86f102778b63757c3954c1000");
     assert.equal(provenance.source.candidateUpstream.status, "draft");
     assert.equal(provenance.source.candidateUpstream.mergeCommit, undefined);
     assert.equal(provenance.source.inFlight, undefined);

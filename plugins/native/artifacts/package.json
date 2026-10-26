@@ -30,8 +30,7 @@
   },
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*",
-    "@molis-ai/molis-work-plugin-sdk": "workspace:*",
-    "@molis-ai/molis-work-storage": "workspace:*"
+    "@molis-ai/molis-work-plugin-sdk": "workspace:*"
   },
   "molis-work": {
     "path": "plugins/native/artifacts",
@@ -54,8 +53,7 @@
       "artifacts.browser.v1"
     ],
     "extraWorkspaceDependencies": [
-      "@molis-ai/molis-work-plugin-sdk",
-      "@molis-ai/molis-work-storage"
+      "@molis-ai/molis-work-plugin-sdk"
     ],
     "extraDependencies": {},
     "registration": "./registration"

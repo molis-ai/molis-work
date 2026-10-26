@@ -1,0 +1,16 @@
+{
+  "about": "The plugins scripts/replay-plugins.mjs replays (W4-01): the public SDK sample, one built-in as pnpm pack ships it, and (to come) two or three plugins the studio generated with a real model in an isolated Home. Each names one action to call before and after an upgrade.",
+  "samples": [
+    {
+      "id": "plugin-sample",
+      "source": { "kind": "directory", "path": "../../../examples/plugin-sample", "entry": "index.mjs", "export": "default" },
+      "action": { "capability_id": "io.molis.work.example.notes.results.read", "version": 1, "input": {}, "expect": { "count": 0, "latest": null } }
+    },
+    {
+      "id": "text-stats-packed",
+      "source": { "kind": "packed", "package": "plugins/native/text-stats", "entry": "dist/index.js", "export": "createTextStatsPlugin" },
+      "built_in": true, "project_plugin_id": "text-stats",
+      "action": { "capability_id": "text-stats.count", "version": 1, "input": { "text": "一行\nline" }, "expect": { "characters": 7, "utf8_bytes": 11, "lines": 2 } }
+    }
+  ]
+}

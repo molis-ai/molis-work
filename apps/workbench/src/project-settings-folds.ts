@@ -1,7 +1,7 @@
 import type { PluginIconName } from "@molis-ai/molis-work-plugin-sdk/ui";
 
 /** Standalone hub / embed fold stack. Workbench exclusive settings use project-settings-stage. */
-export type ProjectSettingsFoldId = "general" | "workspaces" | "guidance" | "memory" | "knowledge" | "rules" | "planning";
+export type ProjectSettingsFoldId = "general" | "workspaces" | "guidance" | "memory" | "knowledge" | "plugins" | "rules" | "planning";
 
 export interface ProjectSettingsFoldProject {
   project_id: string;

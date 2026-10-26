@@ -2,9 +2,9 @@
 
 本目录沿用 [AGENTS.md](../../AGENTS.md) 的受控包规则。当前唯一运行依赖为 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz`；`final103-bridge` 保留为上一主线包，不同时装成第二份 Runtime。
 
-当前 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz` 来自 [Draft #108](https://github.com/molis-ai/molis-prologue/pull/108) 的干净源 `063b0278588c628ffa69fd0d5e969f3e13fd2527`，基于已合 #107 的 main `ccafbb74fb9db0e3a124ec502c57291677487e23`。本候选保留完整集合 `listScopes`、当前字节观察及默认0的证明缓存预算；冷读仍实际重读两次，仅复用已认证解码，内部查询减少重复排序复制，权限及最终完整结果检查不省略，存储格式不变。新增可选 `AuditSink.memoryPhase` 观察实际 taskRecall 与 openingMemoryPreparation，两者嵌套且不可相加。尚未合并、发布或通过实际App性能验收。
+当前 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz` 来自 [Draft #108](https://github.com/molis-ai/molis-prologue/pull/108) 的干净源 `b65cc6283762b1d86f102778b63757c3954c1000`，基于已合 #107 的 main `ccafbb74fb9db0e3a124ec502c57291677487e23`。本候选保留完整集合 `listScopes`、当前字节观察及默认0的证明缓存预算；冷读仍实际重读两次，仅复用已认证解码，内部查询减少重复排序复制，并复用已经深冻结的固定授权子树；对外 authorize 仍得到独立可变副本，权限及最终完整结果检查不省略，存储格式不变。新增可选 `AuditSink.memoryPhase` 观察实际 taskRecall 与 openingMemoryPreparation，两者嵌套且不可相加。尚未合并、发布或通过实际App性能验收。
 
-归档1,409,327字节，826个dist文件，SHA-256 `2237fec083cdf1021ee6bfed3b800c5b7efe0ccfd5fd87dbbfd0c05f9e2aecaa`。Root独立核全部dist与干净源原构建逐字节相同，包内package.json与上一份归档一致；sidecar、provenance及lock随消费者同步。仍只保留两份现有包，旧#107及7ebb候选归档和完整sidecar的Git blob与原摘要记录在patch-history notes。
+归档1,409,443字节，826个dist文件，SHA-256 `437e1f1da8ff645140b1ec11d6058c972f352deaa1de5ba0fcae95fbe1ccce5b`。Root独立核全部dist与干净源原构建逐字节相同，包内package.json与上一份归档一致；sidecar、provenance及lock随消费者同步。仍只保留两份现有包，旧#107、7ebb及063b候选归档和完整sidecar的Git blob与原摘要记录在patch-history notes。
 
 Molis必须在实际Host wrapper透传原观察能力，沿同一caller/execution绑定完整scopes，并显式配置App的8 MiB证明保留上限；不会自动打开SDK默认缓存，不以SDK基准代替原App B1+5ms门。旧单scope能力仍顺序回退，完整omitted、最终撤权和原回执保留。#107原canonical wait检查及Session永久屏障继续存在，冷恢复仍先保存完整wait IDs，不能用purge后空页补证明。
 

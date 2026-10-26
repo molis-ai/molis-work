@@ -1,4 +1,4 @@
-import type { TodoBatch } from "@molis-ai/molis-work-contracts/modules/todo";
+import type { TodoBatch } from "../contract.js";
 import { arrive, closeMenu } from "./dom.js";
 import { undoOf } from "./page.js";
 import { applyLabel, choiceFor, keptDecisions } from "./review-choices.js";

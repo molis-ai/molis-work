@@ -1,4 +1,4 @@
-import type { TodoActorKind, TodoChange, TodoEditableField, TodoItem, TodoLink, TodoPlacement, TodoSource, TodoStatus, TodoWaiting } from "@molis-ai/molis-work-contracts/modules/todo";
+import type { TodoActorKind, TodoChange, TodoEditableField, TodoItem, TodoLink, TodoPlacement, TodoSource, TodoStatus, TodoWaiting } from "./contract.js";
 import { todoErrors } from "./error.js";
 import type { TodoAccess } from "./store-types.js";
 

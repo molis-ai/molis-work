@@ -1,6 +1,6 @@
 # 助理卡片与工作简报：设计稿
 
-状态：设计稿（2026-10-26），待用户评审，尚未实现。回答[工作简报需求](spec.md)与[主动式助理](../proactive-assistant/spec.md) §5.5、§9–§12 提出的「不同 Skill 共用同一套卡片、报告、对照、进度、定位」怎样承载。可视规格板（全部卡型、三种尺寸、状态、深浅色、窄屏）在 [docs/design/assistant-cards/](../../docs/design/assistant-cards/README.md)。本文不扩大需求范围；第 12 节是要用户拍板的几点。
+状态：设计稿（2026-10-26），第 12 节四项用户已拍板，视觉待用户验收，尚未实现。回答[工作简报需求](spec.md)与[主动式助理](../proactive-assistant/spec.md) §5.5、§9–§12 提出的「不同 Skill 共用同一套卡片、报告、对照、进度、定位」怎样承载。可视规格板（全部卡型、三种尺寸、状态、深浅色、窄屏）在 [docs/design/assistant-cards/](../../docs/design/assistant-cards/README.md)。本文不扩大需求范围；第 12 节记录用户拍板的四项。
 
 ## 1. 现在的问题
 
@@ -215,7 +215,7 @@ Skill 指导 → 模型在本轮读事实（各插件的查询动作，每次读
 
 ### 10.5 插件形态
 
-- 插件 id `io.molis.work.brief`，目录 `plugins/native/brief`。个人周报要跨项目，建议做成 Home 级插件，每份简报带所属项目或个人，由 Home 监督器装配（`apps/workbench/src/builtin-plugins.ts` 目录条目的 `runtime: { scope: "home" }`，写法见 `skills/molis-plugin-dev/host.md`）。待拍板，见 §12 ②。
+- 插件 id `io.molis.work.brief`，目录 `plugins/native/brief`。个人周报要跨项目，做成 Home 级插件，每份简报带所属项目或个人，由 Home 监督器装配（`apps/workbench/src/builtin-plugins.ts` 目录条目的 `runtime: { scope: "home" }`，写法见 `skills/molis-plugin-dev/host.md`）。用户已定，见 §12 ②。
 - 动作只管简报本身：`brief.briefs.create`、`read`、`list`、`revise`（提案）、`resolve`（逐块处理提案）、`edit`、`versions`、`compare`、`refresh`、`publish`，加 `subject.read`、`subject.summaries`、`search.entries`、`home.events`、`artifacts.preview`。业务动作留在原插件。
 
 ## 11. 卡型目录
@@ -259,12 +259,12 @@ Skill 指导 → 模型在本轮读事实（各插件的查询动作，每次读
 
 19. **机会 `opportunity`**：新资料或新能力能改善当前工作。`*相关的：object`、`*依据：claim`、`*小试：action`（范围小、可审阅）。来源 `feed.goals.context`、`alchemist.opportunities.save`、`plugins.installed.list`。默认是 `notice`，排在最后，不压过当前重点。
 
-## 12. 要拍板的
+## 12. 已拍板（用户 2026-10-26）
 
-1. **名字**：产品里叫「卡片」，合同叫 `Card`；现有的 `AssistantCard` 改名 `ActionCard`（它就是动作块的记录）。按 `docs/system/CONTRACT-CHANGES.md` 现在不留兼容期，一次改完。
-2. **工作简报的范围**：Home 级插件（推荐；个人周报跨项目放得下，项目简报带项目），还是项目级插件。
-3. **主题摘要**：每个插件补一个批量摘要读取（推荐），还是扩大现有 `subject.read` 的输出。前者轻、可批量；后者少一个动作但每次读正文。
-4. **先做哪几张**：P2 先上 `next`、`prepared`、`decision`、`blocked`、`running`、`receipt`（推荐，覆盖主动式助理最常见的判断结果），还是先做回顾类（`pulse`、`report`）。
+1. **名字**：产品里叫「卡片」，合同叫 `Card`；现有的 `AssistantCard` 改名 `ActionCard`（它就是动作块的记录）。按 `docs/system/CONTRACT-CHANGES.md` 不留兼容期，一次改完。
+2. **工作简报的范围**：Home 级插件。个人周报、使用回顾跨项目；项目简报带 `project_id`。装配走 `apps/workbench/src/builtin-plugins.ts` 的 `runtime: { scope: "home" }`。
+3. **主题摘要**：每个插件补一个批量摘要读取 `*.subject.summaries`（协议 `molis.subject-summaries.v1`，一次至多 50 个），不扩大 `subject.read`。
+4. **先做哪几张**：P2 先上 `next`、`prepared`、`decision`、`blocked`、`running`、`receipt`；回顾类随 P3 的工作简报插件。
 
 ## 13. 分期
 

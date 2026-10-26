@@ -2,12 +2,13 @@ import assert from "node:assert/strict";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import test from "node:test";
+import test, { type TestContext } from "node:test";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { SANDBOX_PACKAGE_FILES, type PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginPublisherPin } from "@molis-ai/molis-work-contracts/platform/plugin-trust";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { MemoryPluginConsentLedger, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
+import { SandboxBroker } from "@molis-ai/molis-work-plugin-sandbox";
 import { DEMO_PROJECT_ID, HomeConsentLedger, MolisWorkLocalHost, PLUGIN_INSTALL_PERMISSIONS, PluginInstallService, SandboxPackageStore, molisWorkHostProjectReference,
   pluginInstallActions, pluginInstallProvider, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
@@ -108,47 +109,77 @@ async function installed() {
     async close() { try { await host.close(); } finally { await rm(home, { recursive: true, force: true }); } } };
 }
 
-/** An adding operation that reads, waits, and only then saves the note: the publisher can be taken back between the read and the save. */
+/** A real adding operation whose write request the test can hold after its read has finished. */
 function savesLate(files: PackageFiles) {
   readsAndWrites(files);
   files[SANDBOX_PACKAGE_FILES.entrypoint] = `export const operations = {
   'notes.list': async (_input, sdk) => JSON.parse((await sdk.storage.get('notes')) ?? '[]'),
-  'notes.add': async (input, sdk) => { await sdk.storage.get('notes'); await new Promise(done => setTimeout(done, 3000)); await sdk.storage.set('late', input.text); return true; }
+  'notes.add': async (input, sdk) => { await sdk.storage.get('notes'); await sdk.storage.set('late', input.text); return true; }
 };\n`;
 }
 
-const pause = (ms: number) => new Promise(done => setTimeout(done, ms));
-
 /**
- * Starts the late-saving call and lets it get inside the operation (its first read is done within milliseconds; nothing here writes before the
- * wait, so nothing makes the project look and stop the installation on its own), runs `between`, and answers how the call ended and what was stored.
+ * Hold the same sandbox call's actual write request before the broker handles it. No business write signals readiness, and no project
+ * list/prepare runs between revocation and release. The original method, arguments and standing guard run when the request is released.
  */
-async function lateCall(h: Awaited<ReturnType<typeof installed>>, between: () => void) {
+async function lateCall(h: Awaited<ReturnType<typeof installed>>, between: () => void, t: TestContext) {
   const [running] = await h.plugins(), add = (await h.operation("notes.add"))!;
   assert.ok(add, "the package's action is there");
-  await pause(1000); // whatever the install set going (the knowledge index looks at a project after a change) is done before the call starts
-  const outcome = h.client.invoke(caller, add, { text: "late note" }).then(value => ({ value }), (error: unknown) => ({ error }));
-  await pause(1000);
-  between();
-  return { ...await outcome, stored: JSON.stringify(await h.data(running!.install_id)) };
+  const before = JSON.stringify(await h.data(running!.install_id));
+  const reached = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  const invoke = SandboxBroker.prototype.invoke;
+  let readBy: SandboxBroker | undefined, writes = 0;
+  const observer = t.mock.method(SandboxBroker.prototype, "invoke", async function (this: SandboxBroker, ...args: Parameters<SandboxBroker["invoke"]>) {
+    const [operation, , method, input, guard] = args;
+    if (operation.id === "notes.add" && method === "storage.set") {
+      assert.equal(this, readBy, "the same broker finished the operation's real read");
+      assert.deepEqual(input, ["late", "late note"]);
+      assert.equal(typeof guard, "function", "the original call still carries its guard");
+      assert.equal(++writes, 1, "one write request from the original call");
+      reached.resolve();
+      await release.promise;
+    }
+    const value = await invoke.apply(this, args);
+    if (operation.id === "notes.add" && method === "storage.get") {
+      assert.deepEqual(input, ["notes"]);
+      readBy = this;
+    }
+    return value;
+  });
+  const outcome = Promise.resolve().then(() => h.client.invoke(caller, add, { text: "late note" }))
+    .then(value => ({ value }), (error: unknown) => ({ error }));
+  try {
+    // The existing sandbox/test deadlines only bound failure; no elapsed time orders these steps.
+    await Promise.race([reached.promise, outcome.then(ended => {
+      throw new Error("the call ended before its write request: " + ("error" in ended ? String(ended.error) : JSON.stringify(ended.value)));
+    })]);
+    between();
+    release.resolve();
+    return { ...await outcome, before, stored: JSON.stringify(await h.data(running!.install_id)) };
+  } finally {
+    release.resolve();
+    await outcome;
+    observer.mock.restore();
+  }
 }
 
-test("RAC-392 S-87 a call already inside an operation when the publisher is taken back is refused at its next save, with the denial itself, and writes nothing more", mac, async () => {
+test("RAC-392 S-87 a call already inside an operation when the publisher is taken back is refused at its next save, with the denial itself, and writes nothing more", mac, async t => {
   const h = await installed(), publisher = newPublisher();
   try {
     await h.install(signedPackage(publisher, savesLate));
-    const taken = await lateCall(h, () => h.service().revokePublisher(publisher.identity));
+    const taken = await lateCall(h, () => h.service().revokePublisher(publisher.identity), t);
     assert.ok("error" in taken, "the call did not finish: " + JSON.stringify(taken));
     assert.match(String((taken.error as Error).message), /安装执行身份已失效/, "refused by the installation's standing (the route hands the caller the message, not the sandbox's plugin.capability_denied code), not by a crash");
-        assert.ok(!taken.stored.includes("late note"), "nothing was saved after");
+    assert.ok(!taken.stored.includes("late note"), "nothing was saved after");
+    assert.equal(taken.stored, taken.before, "private business data was not added or changed");
   } finally { await h.close(); }
 });
 
-test("RAC-392 S-87 control: the same call, with the publisher still trusted, saves what it was asked to", mac, async () => {
+test("RAC-392 S-87 control: the same call, with the publisher still trusted, saves what it was asked to", mac, async t => {
   const h = await installed(), publisher = newPublisher();
   try {
     await h.install(signedPackage(publisher, savesLate));
-    const kept = await lateCall(h, () => undefined);
+    const kept = await lateCall(h, () => undefined, t);
     assert.deepEqual("value" in kept ? kept.value : kept, true);
     assert.ok(kept.stored.includes("late note"), "the note was saved");
   } finally { await h.close(); }

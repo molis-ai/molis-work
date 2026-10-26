@@ -4,7 +4,7 @@ import type { AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platfo
  * Methods Pages offers to other Agents (the Assistant, a Character) for business work. Each is declared in the
  * Manifest's `methods` with the same id, version, name, summary and tools; the Host registers the body from here.
  */
-export const pagesMethods: readonly AgentSkillDefinition[] = [
+export const pagesSkills: readonly AgentSkillDefinition[] = [
   {
     skill_id: "meeting-notes",
     version: 2,

@@ -8,7 +8,7 @@ const bullets = (lines: readonly string[]) => lines.map(line => "- " + line);
  * same lines as the page's naming instruction (ISSUE-52, ISSUE-53); the page names its captures itself and never asks the
  * Assistant. Which tool reaches an action, and what happens when one is refused, is the gateway's to say.
  */
-export const issuesMethods: readonly AgentSkillDefinition[] = [{
+export const issuesSkills: readonly AgentSkillDefinition[] = [{
   skill_id: "issues-capture", version: 11, name: "记录与管理个人问题",
   summary: "把用户在开发中遇到的问题记进个人 Issue：起标题、判类型、保存；也能查看、修改或删除。",
   // Method tools are a declaration (contracts METHOD_TOOLS); the Assistant's gateway also offers change-reversible.

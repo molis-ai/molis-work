@@ -1,7 +1,7 @@
 import type { AgentSkillDefinition } from "@molis-ai/molis-work-contracts/platform/plugin-agent";
 
 /** Authored product methods; exact versions are frozen by the Host at start. */
-export const codingMethods: readonly AgentSkillDefinition[] = [
+export const codingSkills: readonly AgentSkillDefinition[] = [
   { skill_id: "coding-review-change", version: 1, name: "审查改动", summary: "根据实际代码与需求查找问题，区分已证实风险和待核实项。", tools: ["read-file", "search"],
     body: "先确认用户要求评审的文件、版本与完成条件，范围不清先问。读取实现及相关调用和测试；逐项核对正确性、失败处理和真实需求。只报告有依据的问题：文件位置、触发条件、影响和最小修正方向。不要修改文件，不因没有运行检查而声称通过。没有发现问题时说明已覆盖范围与未验证项，不制造问题凑数。" },
   { skill_id: "coding-diagnose-fix", version: 1, name: "定位并修复问题", summary: "先找到可复现原因，再做最小修复并检查失败与恢复。", tools: ["read-file", "search", "edit-file", "run-command"],

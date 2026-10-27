@@ -231,11 +231,11 @@ test("RAC-1034 W6-02 BL-755 a project's supervisor keeps uninstall, restarts a l
     const person = await served.host.localPersonContext(project.reference);
     const isRead = (view: { provider: { plugin_id?: string }; capability_id: string }) => view.provider.plugin_id === pages.plugin_id && view.capability_id === "pages.list";
     assert.equal((await served.host.actionClient(project.reference).discover(person)).some(isRead), false, "the person's actual directory hides a read that this installation no longer grants");
-    // Composition inspection exposes registered availability, without borrowing permissions or granting an invocation.
+    // Inspection keeps the same caller: Kernel visibility refuses its withdrawn action before the plugin's own availability check.
     const read = (await served.host.inspectActions(person, project.reference)).find(isRead);
     assert.ok(read);
     assert.equal(read.availability.available, false);
-    assert.equal(read.availability.code, "actions.plugin_permission");
+    assert.equal(read.availability.code, "actions.forbidden");
     const denied = await pagesAt.platform();
     await denied.runtime.stop(pagesInstall.install_id);
     denied.runtime.grant(pagesInstall.install_id, pagesInstall.grants);

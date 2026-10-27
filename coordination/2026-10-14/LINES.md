@@ -213,3 +213,12 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
     - ac-giants：PG-083/084/092/101/108 文案改为「本轮不删」。
   - BL 号段 730～779 按同序分。ac-giants 的消息因会话互发上限没送到，任务写在 #1311。
 - **10-26 暂停**：batch-42 批头 `39e17eca1`（BL-596 修复 + 全量第 14 片归因修复，#1311 评论 6408642333），全量 run 40268478604 第 16 片在跑；评过待进 batch-43、已推未评、待裁定各项见 `HANDOFF-2026-10-26.md`「当前进度」。
+- **10-27 分工（用户在分出的会话里定：「按你调整后的分工来：把方案发给原统筹会话，由它把 C 批交接给新会话，现在开 W5-10 线和 W5-11 线（OAuth 先只做设计），评审和合批到时候再开；W5-14 等 C 和 W5-10 合入后再开。」）**：
+  - **统筹只做统筹**：派片、拍板、登记册（本表、`RISKS-AND-DEFERRED.md`、`privileges.md`）、汇总要问用户的事；不写代码。
+  - **C 线**（Opus，待用户在统筹会话点开卡片）：接 `feature/anticorruption-closeout-c` 头 `aa56bfeb1`（`f695bd1e1` FI-C-03/04 + 原三红夹具根因，feed-runtime-plugin 40/40；`aa56bfeb1` FI-C-05 WIP 未构建未测）→ FI-C-05～07 → Inbox RAC808 测试迁移 → FI7 Feed 一半 → SYS52 → 合成树生成物 → spec §13；推 C 分支，不开 PR。号段 S-97、S-98，不另取 RAC。相关回归 9 文件中 `plugin-query-consumers`、`home-mcp-actions` 红，统筹初判为 C 合成树旧红（未改的 snapshot/inbox.list/briefs 路径），待 C 线用 `fe93d322f` 基线比对；`feed-item-actions` :44 为已知旧红。
+  - **W5-10 线**（Sonnet 5.5 xhigh，待点开）：剩余巨大单元（E 余 4 个、Pages 编辑器挂载、`hoverHandlePlugin`、`commands.ts` 等，依据 HUGE-CLASS-MIGRATION 与 `claude/w510-giant-judgements` `277765a79`）；避开 C 改过的文件（`git diff --name-only origin/main...origin/feature/anticorruption-closeout-c`，现 411 个，`apps/local-host` 下 88 个，每片前重算）；一片一个完整功能叠在自己分支，推远端回报 SHA；职责单一的只登记理由。**RAC-1070～1079、BL-780～789。**
+  - **W5-11 线**（Opus 5.5 high，待点开）：只写设计稿（OAuth 迁进官方集成插件，即 Codex C4；回调留在平台做通用回调；Feishu CLI、Lark MCP 不进第一批；登记 Alchemist 例外）。实现等 C 合入：C 改了约 20 个连接器/OAuth 文件。**RAC-1080～1089、BL-790～799。**
+  - 下一个空段从 RAC-1090、BL-800 起；S 号合批时统筹核（main 已用到 S-96，C 占 S-97/98）。
+  - **以后再开**：评审会话（第一片推上来时，Opus high，只评指定增量，架构与安全先评）；合批会话（C 快开 PR 时，批头、carrier、触发 Full、合并队列的唯一所有者，交接里「只有统筹启动全量」移交给它）；W5-14 改名（C 与 W5-10 都合入后）。
+  - 每份 brief 带交接硬约束：不碰真实 Home、只用一次性 Home；不发版不改版本号；不 force push、不用裸 git stash；只按 pid 停进程；取消 CI 要用户本人同意；推送前 `pnpm secrets:check`；门禁不刷数字、不放宽断言；不动 #1101、#1064、#1059、#784、#734；本机 R-27 建不出 local-host，只建需要的包。
+  - 统筹 hand-off 被 auto 模式拦下，三条线都以待点开的卡片提出，由用户在统筹会话点开。

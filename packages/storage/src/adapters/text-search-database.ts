@@ -1,7 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 
 /** One current search schema, shared by ordinary creation and existing-only maintenance. */
-export const TEXT_SEARCH_SCHEMA_VERSION = "3";
+export const TEXT_SEARCH_SCHEMA_VERSION = "4";
 export const TEXT_SEARCH_SCHEMA = `
       CREATE TABLE search_sources (
         source_key TEXT PRIMARY KEY, project_id TEXT, provider_id TEXT NOT NULL, capability_id TEXT NOT NULL, version INTEGER NOT NULL,

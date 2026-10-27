@@ -4,7 +4,7 @@
 
 包名：`@molis-ai/molis-work-storage`。工作区内部包，通过仓库构建和 Host 装配使用。
 
-Knowledge 当前私库基线为 3，仍使用原卡片、全文检索、额度和回执表；普通打开拒绝旧版本。旧库只由仓内有限维护入口 `tests/fixtures/coding-knowledge-maintenance.mjs` 在独占 owner、物理路径与 schema 核对、备份后按库事务采用，详情随 Knowledge 模块合同。人工关联与卡片正文、FTS 同事务写入；旧机器摘要仅保留供管理，在尚待人工整理期间不写入当前 FTS，人工字段保留。直接回归：`tests/legacy-memory-adoption.test.ts`、`tests/knowledge-cards.test.ts`、`tests/knowledge-retention-policy.test.ts`。
+Knowledge 当前私库基线为 4，仍使用原卡片、全文检索、额度和回执表；普通打开拒绝旧版本。卡片采用与保留绑定使用现行 `source_identity`；旧 v3 的真实插件代只在明确维护中封装成插件身份，未知身份保留 null，旧机器与人工字段不丢失。旧库只由仓内有限维护入口 `tests/fixtures/coding-knowledge-maintenance.mjs` 在独占 owner、物理路径与 schema 核对、备份后按库事务采用，详情随 Knowledge 模块合同。人工关联与卡片正文、FTS 同事务写入；旧机器摘要仅保留供管理，在尚待人工整理期间不写入当前 FTS，人工字段保留。直接回归：`tests/legacy-memory-adoption.test.ts`、`tests/knowledge-cards.test.ts`、`tests/knowledge-retention-policy.test.ts`。
 
 
 `openReadOnlyHomeSqlite` 为插件查询服务提供 SQLite 自身强制的只读连接；Host 用 `openBaselineHomeSqlite` 开当前业务基线，再持有读写连接。`homeStoreRegistry`（`home-stores.ts`）是 Home 存储登记的形状与检查：路径只能是 Home 下的一个名字或 `config/` 下的一个文件，一个路径只有一个主人；登记本身由 Host 组装（`apps/local-host/src/home-stores.ts`），这里不认识任何插件或模块。记忆账本与搜索索引的登记（`MEMORY_LEDGER_HOME_STORE`、`TEXT_SEARCH_HOME_STORE`）在各自的适配器旁，普通卸载保留，明确 purge 才清除。当前基线、回滚与错版拒绝由 `tests/issue-home.test.ts` 验证。
@@ -123,7 +123,7 @@ MEM-40 恢复父决定沿原 Ledger marker 持久化，一次冻结来源含义�
   - `memory_owners` 的既有scope/owner不能改绑project或非空subject；同关系title更新和缺subject的可信准备补齐由同一条件UPSERT原子处理，冲突不改原行。Storage只核关系一致性，不推导Character/hash或授予权限。回归见 `tests/memory-owner-relations.test.ts`。
   - 记忆账本只有成功开始写事务后才进入嵌套状态；连接锁导致开始失败后，同一实例的后续多步写入仍完整回滚或提交。回归见 [memory-ledger-transaction.test.ts](../../tests/memory-ledger-transaction.test.ts)。
   - `memoryLedgerHasOnlyPreferences` 只读核现行精确 schema、完整 prefs 形状及 new-home adoption 标记；任一正文账注、未知标记或未知形状都不证明空态，不创建或迁移数据库。它与 Runtime 目录确实不存在共同支持 Catalog-only 新 Home 的项目删除准备；项目 prefs 是可归属设置，不代表 Memory 原件。对应真实恢复用例为 `tests/project-deletion-recovery.test.ts`。
-  - 搜索索引是可删除的派生缓存：文件缺失、损坏或 schema 版本不符时清空重建，不读回任何业务事实。
+  - 搜索索引当前派生基线为 4，保留绑定也使用 `source_identity`；旧基线只沿普通打开清空重建，existing-only 维护拒绝旧基线。搜索索引是可删除的派生缓存：文件缺失、损坏或 schema 版本不符时清空重建，不读回任何业务事实。
   - 索引切分：中日韩每字单独、相邻两字成词，其余字母数字按小写词、查询用前缀；候选必须在原文（NFKC、小写）里真实出现才返回，两字中文与 `Q4` 这类短词可查。
   - 正文由读取器提供的条目，只对能读该种类的调用来源返回。
   - 项目被删除时清掉它在个人库里的行：`clearInExistingHomeSqlite` 对已存在的库在一个写事务里运行删除（库不存在就不创建、版本不符照常拒绝）。带维护 control 时，经 `openExistingBaselineSqlite` 使用 mode=rw 严格核版本与完整 schema/对象清单，空库、未知结构不初始化或修复；开库、BEGIN、回调与 COMMIT 前检查原同步 control，回调主人还须在每次实际删除前检查。原普通 openBaseline/apply 初始化语义保持；`deleteSecretEntriesWithPrefix` 按引用前缀删密封的密钥，不解密；记忆账本的 `forgetScopes` 一并忘掉已不存在的范围。

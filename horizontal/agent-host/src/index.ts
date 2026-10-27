@@ -131,6 +131,8 @@ export interface AgentStartAuthority {
   assertBeforeStart?(): void;
   /** Recheck installation/material authority at real dispatch, without retaining a completed invocation. */
   beforeDispatch?(): void | Promise<void>;
+  /** Read-only current-source denial in the final synchronous segment of every model send. */
+  assertBeforeDispatch?(): void;
   /** Current runtime grants, resolved by Host; selecting a tool grants nothing. */
   /** The trusted guard must run again at dispatch, including after the Host queue. */
   actions?(runtimeId: string, validate?: () => void | Promise<void>, session?: AgentSessionRef, memory?: Pick<import("@molis-ai/molis-work-contracts/services/agent-host").AgentRecalledMemory, "class_restrictions" | "current_scene"> | null): Promise<AgentActionClient>;
@@ -318,7 +320,7 @@ export class AgentHost implements AgentHostApi {
     const session = await adapter.readSession(request.session);
     checkStartSession(session, request, runtimeId, workspace);
     const { character, hostTools } = selectStartCharacter(role, request, authority);
-    const { validateCharacter, assertBeforeStart, beforeStart, beforeDispatch } = startGuards(authority, character, request);
+    const { validateCharacter, assertBeforeStart, beforeStart, beforeDispatch, assertBeforeDispatch } = startGuards(authority, character, request);
     if (request.execution_plan && STEP_TOOLS.some(tool => !hostTools.includes(tool))) {
       throw agentErrors.role_execution_exceeded("当前角色未开放计划回报工具，请调整角色或取消角色选择后执行计划");
     }
@@ -372,7 +374,7 @@ export class AgentHost implements AgentHostApi {
         ...(compaction ? { compaction } : {}), ...(endingReview ? { ending_review: { prompt: endingReview } } : {}),
         host_tools: hostTools,
       },
-    }, { beforeStart, assertBeforeStart, beforeDispatch, ...(authority.call_id ? { call_id: authority.call_id } : {}) });
+    }, { beforeStart, assertBeforeStart, beforeDispatch, assertBeforeDispatch, ...(authority.call_id ? { call_id: authority.call_id } : {}) });
     if (widensFrozen(handle, { request, role, execution, workspace, actionRefs, gateway, character, characterSkillIds, childWorkspaces, hostTools, mcp, sources, compaction, skills })) {
       await adapter.control(handle.ref, { kind: "cancel" });
       throw agentErrors.role_execution_exceeded(`Runtime 返回的角色权限与 Manifest 冻结的不一致，已取消该 Run`);

@@ -8,6 +8,7 @@ import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import { MolisWorkLocalHost, LocalHost, LocalProjectDatabase, LOCAL_OWNER_PERMISSIONS, molisWorkHostProjectReference, type ActionAvailabilityPolicy } from "@molis-ai/molis-work-app-local-host";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { writeProjectRoot } from "@molis-ai/molis-work-module-projects";
 import { CODING_PLUGIN_ID, CODING_PROJECT_DATABASE } from "@molis-ai/molis-work-plugin-coding";
 import { inspectExistingPluginProjectDatabase } from "@molis-ai/molis-work-plugin-runtime";
 import { acquireStorageOwner, openKnowledgeCards, openTextSearchIndex, homeSqlitePath, describeSqliteSchema, listSqliteObjects } from "@molis-ai/molis-work-storage";
@@ -104,7 +105,7 @@ for (const mode of ["completed", "pending-failure", "handler-pending"] as const)
       if (cards.get(project.project_id, subject) && cards.get(project.project_id, neighbourSubject)) break;
       assert.ok(Date.now() < deadline, "the original Coding source is listed"); await new Promise(resolve => setTimeout(resolve, 20));
     }
-    const original = { ...cards.get(project.project_id, subject)!, retention: { generation: null, restoration_operation_id: null } }; cards.put(original);
+    const original = { ...cards.get(project.project_id, subject)!, retention: { source_identity: null, restoration_operation_id: null } }; cards.put(original);
     const preview = await invoke(knowledgeManageActions.bindPreview.capability_id, { subject }) as KnowledgeBindPreviewResponse;
     assert.equal(preview.candidates.length, 1); const chosen = preview.candidates[0]!;
     const documents = () => index.documents(project.project_id).filter(document => document.kind === subject.kind && document.object_id === subject.id);
@@ -112,7 +113,7 @@ for (const mode of ["completed", "pending-failure", "handler-pending"] as const)
     const neighbourBefore = codingRow(neighbourId), neighbourCard = cards.get(project.project_id, neighbourSubject);
     armed = true;
     const pending = invoke(knowledgeManageActions.bind.capability_id, { subject, operation_id: "binding-archive-race", provider_id: chosen.provider_id,
-      source_key: chosen.source_key, generation: chosen.generation, source_revision: chosen.source_revision });
+      source_key: chosen.source_key, source_identity: chosen.source_identity, source_revision: chosen.source_revision });
     const result = pending.then(value => ({ value, error: undefined }), error => ({ value: undefined, error }));
     await Promise.race([entered.promise, result.then(() => { throw new Error("bind never reached final discovery after four active retention reads"); })]);
     assert.equal(retentionReads, 4); assert.ok(bindingCallId); assert.deepEqual(cards.get(project.project_id, subject), original);
@@ -140,7 +141,7 @@ for (const mode of ["completed", "pending-failure", "handler-pending"] as const)
       assert.equal(retained.state, "temporarily_archived", "the real owner finished archiving in the same installation");
     }
     const current = await client.discover(caller);
-    assert.equal(current.find(view => view.provider.provider_id === chosen.provider_id)?.provider.plugin_installation_generation, chosen.generation);
+    assert.equal(current.find(view => view.provider.provider_id === chosen.provider_id)?.provider.plugin_installation_generation, (chosen.source_identity.kind === "plugin-installation" ? chosen.source_identity.generation : undefined));
     assert.deepEqual(documents(), before, "the existing delayed Search index has not refreshed yet");
     release.resolve(); const outcome = await result;
     t.diagnostic(JSON.stringify({ mode, retentionReads, completed: decision.completed, archiveSettled, adopted: !!cards.get(project.project_id, subject)?.adoption }));
@@ -167,7 +168,7 @@ test("binding preview reads two real providers without mutation, refuses source 
   const { home } = await scratch(t), catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const project = await catalog.createProject({ display_name: "Choose original", actor_id: "web-user" }); catalog.close();
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null }), cards = openKnowledgeCards({ homeDirectory: home });
-  const original = { ...retainedCard(project.project_id), retention: { generation: null, restoration_operation_id: null } }; cards.put(original);
+  const original = { ...retainedCard(project.project_id), retention: { source_identity: null, restoration_operation_id: null } }; cards.put(original);
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const caller: ActionCallContext = { actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: [...LOCAL_OWNER_PERMISSIONS] };
   const model = t.mock.method(globalThis, "fetch", async () => { throw new Error("binding preview cannot request a model"); });
@@ -181,7 +182,7 @@ test("binding preview reads two real providers without mutation, refuses source 
     const read = async () => { reads[id]++; if (id === "b" && failure) throw new Error("injected-source-read");
       if (id === "b" && hold) { entered.resolve(); await release.promise; }
       return subjectContext({ subject, title: `Source ${id}`, revision: `revision-${id}`, content: `Body ${id}` }); };
-    unregister.set(id, host.actionRegistry(reference).registerProvider({ provider: { provider_id: `choice-${id}`, title: `Source ${id}`, kind: "system", plugin_installation_generation: `generation-${id}` },
+    unregister.set(id, host.actionRegistry(reference).registerProvider({ provider: { provider_id: `choice-${id}`, title: `Source ${id}`, kind: "plugin", plugin_installation_generation: `generation-${id}` },
       definitions: [entries, reader, ...(ambiguous ? [otherReader] : [])], handlers: [bindSearchEntriesHandler(entries, () => [{ subject, title: `Source ${id}`, summary: `Summary ${id}`, revision: `revision-${id}`, content: "context", updated_at: null, open: null }]),
         { ...reader, handle: read }, ...(ambiguous ? [{ ...otherReader, handle: read }] : [])] }));
   };
@@ -193,7 +194,7 @@ test("binding preview reads two real providers without mutation, refuses source 
     const before = cards.get(project.project_id, subject), quota = cards.usage(project.project_id, "2026-10-27"), receipts = cards.receipts(project.project_id, { limit: 10, offset: 0 });
     const result = await preview();
     assert.deepEqual(result.candidates.map(candidate => candidate.provider_id).sort(), ["choice-a", "choice-b"]);
-    assert.ok(result.candidates.every(candidate => candidate.generation === `generation-${candidate.provider_id.at(-1)}` && candidate.source_revision === `revision-${candidate.provider_id.at(-1)}`));
+    assert.ok(result.candidates.every(candidate => candidate.source_identity.kind === "plugin-installation" && candidate.source_identity.generation === `generation-${candidate.provider_id.at(-1)}` && candidate.source_revision === `revision-${candidate.provider_id.at(-1)}`));
     assert.deepEqual(cards.get(project.project_id, subject), before); assert.deepEqual(cards.usage(project.project_id, "2026-10-27"), quota);
     assert.deepEqual(cards.receipts(project.project_id, { limit: 10, offset: 0 }), receipts);
     const count = reads.a + reads.b;
@@ -209,10 +210,10 @@ test("binding preview reads two real providers without mutation, refuses source 
     assert.deepEqual(cards.get(project.project_id, subject), before);
     register("b"); await host.search.service.rebuild({ client: host.actionClient(reference), caller }, {});
     const chosen = (await preview()).candidates.find(candidate => candidate.provider_id === "choice-b")!; assert.ok(chosen);
-    const aReads = reads.a, input = { subject, operation_id: "choose-b", provider_id: chosen.provider_id, source_key: chosen.source_key, generation: chosen.generation, source_revision: chosen.source_revision };
+    const aReads = reads.a, input = { subject, operation_id: "choose-b", provider_id: chosen.provider_id, source_key: chosen.source_key, source_identity: chosen.source_identity, source_revision: chosen.source_revision };
     const bound = await invoke(knowledgeManageActions.bind, input) as KnowledgeCardRecord;
     assert.equal(reads.a, aReads, "binding the chosen provider must not read its rival");
-    assert.equal(bound.provider_id, "choice-b"); assert.equal(bound.adoption?.generation, "generation-b"); assert.equal(bound.brief, original.brief);
+    assert.equal(bound.provider_id, "choice-b"); assert.deepEqual(bound.adoption?.source_identity, { kind: "plugin-installation", generation: "generation-b" }); assert.equal(bound.brief, original.brief);
     unregister.get("a")!(); unregister.get("b")!();
     assert.deepEqual((await preview()).candidates, []); assert.deepEqual(cards.get(project.project_id, subject), bound);
     assert.equal(model.mock.callCount(), 0);
@@ -225,7 +226,7 @@ test("private adoption uses the real old Coding 1/2/3 stores and preserves origi
     const store = new LocalProjectDatabase(file);
     const db = store.db, project = "project-original", at = "2026-10-01T00:00:00.000Z";
     // This fixture owns only synthetic rows; normal opening still uses the real baseline and owner declaration.
-    db.prepare("INSERT INTO project_root (project_id, created_at) VALUES (?, ?)").run(project, at);
+    writeProjectRoot(db, project, at);
     const request = { mode: "local", runtime_id: "prologue", operation_id: "original-op", previous_operation_id: null,
       observed: { session_id: "original", title: "Original", state: "idle", archived: false, goal_id: null, updated_at: at } };
     const original = { archived: true, request, at, completed: true, ...(from === 3 ? { content_revision: "real-known-content" } : {}) };
@@ -272,9 +273,48 @@ test("Knowledge1 adoption preserves every original card, usage and receipt, refu
   await maintainCodingKnowledge("apply", { home, knowledge: true, backupDirectory: join(directory, "backup") });
   const after = new DatabaseSync(file);
   try {
-    assert.deepEqual(rows(after, "knowledge_cards"), before.cards.map(row => ({ ...row, body: JSON.stringify({ ...JSON.parse(String(row.body)), retention: { generation: null, restoration_operation_id: null } }) })));
+    assert.deepEqual(rows(after, "knowledge_cards"), before.cards.map(row => ({ ...row, body: JSON.stringify({ ...JSON.parse(String(row.body)), retention: { source_identity: null, restoration_operation_id: null } }) })));
     assert.deepEqual(rows(after, "knowledge_usage"), before.usage); assert.deepEqual(rows(after, "knowledge_receipts"), before.receipts);
   } finally { after.close(); }
+});
+
+test("Knowledge 1/2/3 maintenance preserves original human and machine fields and wraps only stored plugin generations", async t => {
+  for (const from of [1, 2, 3]) await t.test(`v${from}`, async t => {
+    const { directory, home } = await scratch(t), cards = openKnowledgeCards({ homeDirectory: home });
+    const base = retainedCard("project"); cards.put(base); cards.put({ ...retainedCard("other"), excluded: true });
+    cards.addUsage("project", "2026-10-27", { pieces: 4, chars: 901 });
+    cards.addReceipt({ project_id: "project", subject, at: new Date().toISOString(), revision: "old-revision", via: "read", chars: 40,
+      actor_id: "web-user", agent: null, audience: "user", call_id: "original-call", runtime_session_id: null }); cards.close();
+    const file = homeSqlitePath(home, "knowledge"), db = new DatabaseSync(file);
+    const original = { ...base, ...(from >= 2 ? { retention: { generation: from === 3 ? "retained-original" : null, restoration_operation_id: "original-restoration" } } : {}),
+      ...(from === 3 ? { adoption: { operation_id: "original-decision", actor_id: "web-user", source_revision: "confirmed-revision", generation: "adopted-original" } } : {}) };
+    db.prepare("UPDATE knowledge_cards SET body = ? WHERE project_id = 'project'").run(JSON.stringify(original));
+    db.exec(`PRAGMA user_version = ${from}`);
+    const before = { cards: rows(db, "knowledge_cards"), usage: rows(db, "knowledge_usage"), receipts: rows(db, "knowledge_receipts"),
+      fts: rows(db, "knowledge_cards_fts") }; db.close();
+    assert.throws(() => openKnowledgeCards({ homeDirectory: home }), { code: "storage.schema_version_mismatch" });
+    const backupDirectory = join(directory, "backup");
+    const outcome = await maintainCodingKnowledge("apply", { home, knowledge: true, backupDirectory });
+    assert.deepEqual(outcome.completed, ["knowledge"]);
+    const current = openKnowledgeCards({ homeDirectory: home });
+    try {
+      const kept = current.get("project", subject)!;
+      assert.deepEqual(kept, { ...base,
+        retention: { source_identity: from === 3 ? { kind: "plugin-installation", generation: "retained-original" } : null,
+          restoration_operation_id: from >= 2 ? "original-restoration" : null },
+        ...(from === 3 ? { adoption: { operation_id: "original-decision", actor_id: "web-user", source_revision: "confirmed-revision",
+          source_identity: { kind: "plugin-installation", generation: "adopted-original" } } } : {}) });
+    } finally { current.close(); }
+    const backup = new DatabaseSync(join(backupDirectory, "knowledge.sqlite"), { readOnly: true }), after = new DatabaseSync(file, { readOnly: true });
+    try {
+      assert.equal(backup.prepare("PRAGMA user_version").get()!.user_version, from);
+      assert.deepEqual(rows(backup, "knowledge_cards"), before.cards);
+      assert.deepEqual(rows(after, "knowledge_usage"), before.usage); assert.deepEqual(rows(after, "knowledge_receipts"), before.receipts);
+      assert.deepEqual(rows(after, "knowledge_cards_fts"), before.fts);
+      assert.equal(after.prepare("PRAGMA user_version").get()!.user_version, 4);
+    } finally { backup.close(); after.close(); }
+    assert.deepEqual((await maintainCodingKnowledge("apply", { home, knowledge: true })).completed, []);
+  });
 });
 
 test("maintenance refuses replaced owner and backup paths during the actual asynchronous backup, without adopting rows", async t => {
@@ -309,10 +349,10 @@ test("maintenance refuses replaced owner and backup paths during the actual asyn
 
 test("unknown restoration keeps original summaries listed through new revisions and sends no model request", async t => {
   const { home } = await scratch(t), cards = openKnowledgeCards({ homeDirectory: home }); t.after(() => cards.close());
-  const original = { ...retainedCard("project"), retention: { generation: "install", restoration_operation_id: null } }; cards.put(original);
+  const original = { ...retainedCard("project"), retention: { source_identity: { kind: "plugin-installation" as const, generation: "install" }, restoration_operation_id: null } }; cards.put(original);
   let revision = "now", calls = 0;
-  const organizer = new KnowledgeOrganizer({ store: cards, catalog: async () => [{ ...piece, revision, retention: { generation: "install" } }],
-    retention: async () => ({ subject, state: "active", retained: { content_revision: null, restoration_operation_id: "restore-original" } }),
+  const organizer = new KnowledgeOrganizer({ store: cards, catalog: async () => [{ ...piece, revision, retention: { source_identity: { kind: "plugin-installation" as const, generation: "install" } } }],
+    retention: async () => ({ subject, state: "active", current_revision: null, retained: { content_revision: null, restoration_operation_id: "restore-original" } }),
     writer: () => async () => { calls++; return { title: "Model", brief: "Should not run" }; } });
   t.after(() => organizer.close());
   await organizer.kick("project"); revision = "changed-again"; await organizer.kick("project");
@@ -329,13 +369,13 @@ test("maintenance never reports completion after an unknown commit or close outc
     const script = `import assert from 'node:assert/strict'; import {DatabaseSync} from 'node:sqlite';
       import {maintainCodingKnowledge} from ${JSON.stringify(new URL("./fixtures/coding-knowledge-maintenance.mjs", import.meta.url).href)};
       const originalExec=DatabaseSync.prototype.exec, originalClose=DatabaseSync.prototype.close; let committed=false, injected=false;
-      DatabaseSync.prototype.exec=function(sql){const result=originalExec.call(this,sql); if(sql==='COMMIT' && this.prepare('PRAGMA user_version').get().user_version===3){committed=true;
+      DatabaseSync.prototype.exec=function(sql){const result=originalExec.call(this,sql); if(sql==='COMMIT' && this.prepare('PRAGMA user_version').get().user_version===4){committed=true;
         if(${JSON.stringify(fault)}==='commit' && !injected){injected=true;throw new Error('injected-unknown-commit');}} return result;};
       DatabaseSync.prototype.close=function(){const result=originalClose.call(this);if(committed && !injected && ${JSON.stringify(fault)}==='close'){injected=true;throw new Error('injected-close');}return result;};
       await assert.rejects(maintainCodingKnowledge('apply',${JSON.stringify({ home, knowledge: true, backupDirectory: join(directory, "backup") })}), /did not complete/);assert.equal(injected,true);`;
     execFileSync(process.execPath, ["--input-type=module", "--eval", script], { timeout: 15_000, stdio: "pipe" });
     const current = openKnowledgeCards({ homeDirectory: home });
-    try { assert.equal(current.get("project", subject)!.retention!.generation, null); assert.equal(current.get("project", subject)!.brief, "OldMachineOnly"); }
+    try { assert.equal(current.get("project", subject)!.retention!.source_identity, null); assert.equal(current.get("project", subject)!.brief, "OldMachineOnly"); }
     finally { current.close(); }
   });
 });
@@ -344,7 +384,7 @@ test("real Host binds an unbound ordinary source once, guards its installation a
   for (const interleaved of [false, true]) await t.test(interleaved ? "human edit after the final asynchronous check" : "ordinary binding and restart", async t => {
   const { home } = await scratch(t), catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const project = await catalog.createProject({ display_name: "Adopt originals", actor_id: "web-user" }); catalog.close();
-  const original = { ...retainedCard(project.project_id), retention: { generation: null, restoration_operation_id: null } };
+  const original = { ...retainedCard(project.project_id), retention: { source_identity: null, restoration_operation_id: null } };
   let cards = openKnowledgeCards({ homeDirectory: home }); cards.put(original);
   const neighbour = { ...original, subject: { ...subject, id: "neighbour" }, excluded: true }; cards.put(neighbour);
   let host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
@@ -355,7 +395,7 @@ test("real Host binds an unbound ordinary source once, guards its installation a
   let unregister = () => {}, reads = 0;
   const register = async (generation: string) => {
     await host.withProject(reference, () => undefined);
-    unregister(); unregister = host.actionRegistry(reference).registerProvider({ provider: { provider_id: "notes", title: "Notes", kind: "system",
+    unregister(); unregister = host.actionRegistry(reference).registerProvider({ provider: { provider_id: "notes", title: "Notes", kind: "plugin",
       plugin_installation_generation: generation }, definitions: [entries, reader], handlers: [
         bindSearchEntriesHandler(entries, () => [{ subject, title: "Current source", summary: "Current summary", revision: "current", content: "context", updated_at: null, open: null }]),
         { ...reader, handle: () => { reads++; return subjectContext({ subject, revision: "current", title: "Current source", content: "Current original text" }); } },
@@ -378,7 +418,7 @@ test("real Host binds an unbound ordinary source once, guards its installation a
     const listing = await invoke(knowledgeManageActions.cards, {}) as KnowledgeCardsResponse;
     assert.ok(listing.cards.some(card => card.subject.id === subject.id), "the person's management includes the retained unbound card");
     assert.equal((await invoke(knowledgeActions.list, {}) as KnowledgeListResponse).pieces.some(card => card.subject.id === subject.id), false);
-    const input = { subject, operation_id: "bind-original", provider_id: "notes", source_key: searchSourceKey({ project_id: project.project_id, provider_id: "notes", capability_id: entries.capability_id, version: entries.version }), generation: "generation-1", source_revision: "current" };
+    const input = { subject, operation_id: "bind-original", provider_id: "notes", source_key: searchSourceKey({ project_id: project.project_id, provider_id: "notes", capability_id: entries.capability_id, version: entries.version }), source_identity: { kind: "plugin-installation", generation: "generation-1" }, source_revision: "current" };
     await assert.rejects(invoke(knowledgeManageActions.bind, input, { ...caller, audience: "agent" }));
     const cancelled = new AbortController(); cancelled.abort(); await assert.rejects(invoke(knowledgeManageActions.bind, input, { ...caller, signal: cancelled.signal }));
     assert.deepEqual(cards.get(project.project_id, subject), original);
@@ -409,7 +449,7 @@ test("real Host binds an unbound ordinary source once, guards its installation a
       return;
     }
     const adopted = await invoke(knowledgeManageActions.bind, input) as KnowledgeCardRecord;
-    assert.equal(adopted.state, "listed"); assert.equal(adopted.retention, undefined); assert.equal(adopted.adoption?.generation, "generation-1");
+    assert.equal(adopted.state, "listed"); assert.equal(adopted.retention, undefined); assert.deepEqual(adopted.adoption?.source_identity, { kind: "plugin-installation", generation: "generation-1" });
     assert.equal(adopted.brief, original.brief); assert.deepEqual(adopted.outline, original.outline);
     assert.deepEqual(await invoke(knowledgeManageActions.bind, input), adopted);
     await assert.rejects(invoke(knowledgeManageActions.bind, { ...input, source_revision: "changed" }));

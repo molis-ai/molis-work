@@ -114,10 +114,27 @@ test("PMAT-15 PMAT-16 the knowledge routes list, find, edit and keep pieces from
     const cards = openKnowledgeCards({ homeDirectory: home });
     try {
       const existing = cards.get(project.project_id, review.subject)!;
-      const unboundPdf = { ...existing, retention: { generation: null, restoration_operation_id: null } }; cards.put(unboundPdf);
-      assert.deepEqual((await post<KnowledgeBindPreviewResponse>("/api/knowledge/bind-preview", { subject: review.subject })).candidates, [],
-        "the system Artifacts provider has no trusted installation generation; it cannot be offered as a binding target");
+      const unboundPdf = { ...existing, revision: "historical-pdf-revision", organized_revision: "historical-pdf-revision",
+        retention: { source_identity: null, restoration_operation_id: null } }; cards.put(unboundPdf);
+      const pdfPreview = await post<KnowledgeBindPreviewResponse>("/api/knowledge/bind-preview", { subject: review.subject });
+      assert.equal(pdfPreview.candidates.length, 1);
+      const pdfCandidate = pdfPreview.candidates[0]!;
+      assert.equal(pdfCandidate.source_identity.kind, "project-data");
       assert.deepEqual(cards.get(project.project_id, review.subject), unboundPdf);
+      const pdfDecision = { subject: review.subject, operation_id: randomUUID(), provider_id: pdfCandidate.provider_id, source_key: pdfCandidate.source_key,
+        source_identity: pdfCandidate.source_identity, source_revision: pdfCandidate.source_revision };
+      const pdfBound = await post<KnowledgeCardRecord>("/api/knowledge/bind", pdfDecision);
+      assert.deepEqual(pdfBound.adoption?.source_identity, pdfCandidate.source_identity);
+      assert.equal(pdfBound.brief, unboundPdf.brief); assert.equal(pdfBound.excluded, unboundPdf.excluded);
+      assert.equal(pdfBound.revision, pdfCandidate.source_revision, "MEM-SOURCE-04 the bind response itself adopts R2 without waiting for reconcile");
+      assert.equal(pdfBound.organized_revision, "historical-pdf-revision"); assert.equal(pdfBound.state, "listed");
+      assert.deepEqual(await post<KnowledgeCardRecord>("/api/knowledge/bind", pdfDecision), pdfBound);
+      // These routes never call catch-up/reconcile before selecting the card. R1 must not make the new association disappear.
+      const pdfEdited = await post<KnowledgeCardRecord>("/api/knowledge/edit", { subject: review.subject, title: "本人立即可编辑" });
+      assert.equal(pdfEdited.title, "本人立即可编辑");
+      await post<KnowledgeCardRecord>("/api/knowledge/exclude", { subject: review.subject, excluded: false });
+      assert.equal((await post<KnowledgeOrganizeResponse>("/api/knowledge/organize", { subjects: [review.subject] })).queued, 1,
+        "the person's explicit organize is immediately reachable after R1 to R2 binding");
       const created = await post<{ session: { session_id: string } }>("/api/plugins/io.molis.work.coding/sessions", { title: "Choose this installed source" });
       const subject = { kind: "coding_session", id: created.session.session_id };
       for (const until = Date.now() + 10_000;;) {
@@ -125,16 +142,16 @@ test("PMAT-15 PMAT-16 the knowledge routes list, find, edit and keep pieces from
         if (cards.get(project.project_id, subject)) break;
         assert.ok(Date.now() < until, "the installed Coding source is listed"); await new Promise(resolve => setTimeout(resolve, 20));
       }
-      const original = { ...cards.get(project.project_id, subject)!, retention: { generation: null, restoration_operation_id: null } }; cards.put(original);
+      const original = { ...cards.get(project.project_id, subject)!, retention: { source_identity: null, restoration_operation_id: null } }; cards.put(original);
       const preview = await post<KnowledgeBindPreviewResponse>("/api/knowledge/bind-preview", { subject });
       assert.equal(preview.candidates.length, 1); assert.deepEqual(cards.get(project.project_id, subject), original);
       const candidate = preview.candidates[0]!;
       const input = { subject, operation_id: randomUUID(), provider_id: candidate.provider_id, source_key: candidate.source_key,
-        generation: candidate.generation, source_revision: candidate.source_revision };
+        source_identity: candidate.source_identity, source_revision: candidate.source_revision };
       const forged = await send("/api/knowledge/bind", { ...input, actor_id: "another-person" }); assert.equal(forged.status, 400);
       assert.deepEqual(cards.get(project.project_id, subject), original);
       const bound = await post<KnowledgeCardRecord>("/api/knowledge/bind", input);
-      assert.equal(bound.adoption?.generation, candidate.generation); assert.equal(bound.brief, original.brief); assert.equal(bound.excluded, original.excluded);
+      assert.deepEqual(bound.adoption?.source_identity, candidate.source_identity); assert.equal(bound.brief, original.brief); assert.equal(bound.excluded, original.excluded);
       assert.deepEqual(await post<KnowledgeCardRecord>("/api/knowledge/bind", input), bound);
     } finally { cards.close(); }
   } finally {

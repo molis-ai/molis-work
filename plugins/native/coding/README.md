@@ -1,5 +1,7 @@
 # Coding
 
+对象保留查询沿通用 v3 合同：active.current_revision 明确为 null，仍只读取生命周期原件，不新增正文、Runtime 或 Goal 查询；现有正文 reader 独立证明内容版本。
+
 编码会话、本轮执行，以及它们产出的变更集、报告与图。
 
 包名：`@molis-ai/molis-work-plugin-coding`。
@@ -134,7 +136,7 @@ Coding 的目标目录、当前约定/状态、进展保存和回执使用 `@mol
 
 Coding数据库声明为4，nullable lifecycle_json内content_revision可为null，表示旧版本未知；旧库严格拒绝。全局项目基线10不变。维护仅按spec在隔离副本演练，真实Home需另获采用授权。本职责持久接线在session-lifecycle.ts，SDK编排在session-archive.ts，无新增服务/表/journal。改动另必跑coding-retention、coding-session-archive、project-database-baseline、project-plugin-database-refusal与legacy-memory-adoption，README原要求仍适用。
 
-隐藏保留合同见Memory spec的2026-10-27短合同：coding.subject.retention@2通过通用保留类型返回当前subject/state/retained，不带正文、标题、安装身份，不读Run或Goal。pending明确拒绝；deleted只表示当前已授权、已打开的本项目严格库中准确行不存在，权限/库错误不转换为删除。消费方仍需匹配原卡的真实provider、项目与安装代。普通coding.subject.read拒绝归档及pending，本人sessions.read与timeline历史入口保留。
+隐藏保留合同见Memory spec的2026-10-27短合同：coding.subject.retention@3通过通用保留类型返回当前subject/state/current_revision/retained，不带正文、标题、安装身份，不读Run或Goal。pending明确拒绝；deleted只表示当前已授权、已打开的本项目严格库中准确行不存在，权限/库错误不转换为删除。消费方仍需匹配原卡的真实provider、项目与安装代。普通coding.subject.read拒绝归档及pending，本人sessions.read与timeline历史入口保留。
 
 归档冻结与普通来源读取复用subject.ts：最多3个已读Run的完整相关文本、状态、标题、intent、Goal和改动文件决定content_revision，展示再截断；归档updated_at不参与。列表刷新token还包含已取得的标题和Goal标题，不额外读Run。恢复继承原归档版本和原恢复operation，不重新计算原版本或启动模型。Knowledge拥有隐藏卡和是否能复用的判断；端到端零额外模型调用仍须完成通用消费与配对验证后才能交付。
 
@@ -153,4 +155,4 @@ Coding数据库声明为4，nullable lifecycle_json内content_revision可为null
 
 缺生命周期原件的旧业务归档，在 SDK active 时生成 business 决定：固定 observed、previous_operation_id、binding、operation_id、expected_state=active、expected_version。prepared/complete 沿原 Coding 写主人；原 owner/admission 下在提交前复核 SDK 状态与版本，变化、缺失、purged、未知及未决冲突拒绝。观察不是跨 SQLite 锁或 SDK 回执，不调用 SDK unarchive；真实 archived 仍走原 unarchive，无绑定 Local 沿原本地决定。重试只沿完整原请求，取消不新增提交，零模型。
 
-保留输出 molis.subject-retention.v2/coding.subject.retention@2、恢复 preview/unarchive@2。未知旧归档返回暂时归档+null revision，明确恢复返回真实本次 operation+null revision。验收：旧版先拒绝零写、真实维护保留原行/邻居/历史，业务恢复和真实 SDK 恢复、失败/取消/持久重试与零自动模型。
+保留输出 molis.subject-retention.v3/coding.subject.retention@3、恢复 preview/unarchive@2。未知旧归档返回暂时归档+null revision，明确恢复返回真实本次 operation+null revision。验收：旧版先拒绝零写、真实维护保留原行/邻居/历史，业务恢复和真实 SDK 恢复、失败/取消/持久重试与零自动模型。

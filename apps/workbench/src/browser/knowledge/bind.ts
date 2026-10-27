@@ -29,8 +29,8 @@ export function knowledgeBinding(root: HTMLElement, host: Pick<KnowledgeDetailHo
     const key = subjectKey(card.subject), candidate = candidates[picked];
     let body = replacing ? undefined : pending.get(key)?.body;
     if (!body && candidate) {
-      const { provider_id, source_key, generation, source_revision } = candidate;
-      body = Object.freeze({ subject: { ...card.subject }, operation_id: crypto.randomUUID(), provider_id, source_key, generation, source_revision });
+      const { provider_id, source_key, source_identity, source_revision } = candidate;
+      body = Object.freeze({ subject: { ...card.subject }, operation_id: crypto.randomUUID(), provider_id, source_key, source_identity: Object.freeze({ ...source_identity }), source_revision });
       pending.set(key, { body, review: false }); replacing = false;
     }
     if (body) void dispatch(body);
@@ -77,7 +77,7 @@ export function knowledgeBinding(root: HTMLElement, host: Pick<KnowledgeDetailHo
         review.hidden = true;
         error.hidden = true; original.replaceChildren(el("p", "settings-muted", L("保留的旧卡片")), el("strong", "", item.title), el("p", "knowledge-brief", item.brief));
         choices.replaceChildren(el("legend", "", L("选择当前来源")));
-        if (!candidates.length) choices.append(el("p", "", L("当前没有可关联的来源。请检查原资料和插件是否可用，再重新查看。")));
+        if (!candidates.length) choices.append(el("p", "", L("暂无可关联来源，请确认资料或插件可用。")));
         for (const [index, candidate] of candidates.entries()) {
           const label = el("label", "mw-check-row"), radio = el("input", "mw-radio"), copy = el("span", "knowledge-row-copy");
           radio.type = "radio"; radio.name = "knowledge-bind-source"; radio.checked = picked === index;

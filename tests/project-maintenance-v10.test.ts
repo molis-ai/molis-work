@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
-import { LocalProjectDatabase, PROJECT_DATABASE_BASELINE } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { describeSqliteSchema, SqliteSchemaVersionError } from "@molis-ai/molis-work-storage";
 
 // ac-trust T1: the installation records of a project library gain the Host's evidence (`publisher_trust`); S9-0b (#1245): Inbox entries
@@ -12,6 +12,7 @@ import { describeSqliteSchema, SqliteSchemaVersionError } from "@molis-ai/molis-
 // the offline maintenance is `tests/fixtures/project-maintenance-v10.sql`, and these cases are its rehearsal.
 const before = readFileSync(new URL("./fixtures/project-database-schema-v9.sql", import.meta.url), "utf8");
 const maintenance = readFileSync(new URL("./fixtures/project-maintenance-v10.sql", import.meta.url), "utf8");
+const target = readFileSync(new URL("./fixtures/project-database-schema-v10.sql", import.meta.url), "utf8");
 
 const record = (installId: string, execution: string) => JSON.stringify({ install_id: installId, plugin_id: `example.${installId}`, execution, version: "1.0.0" });
 
@@ -40,7 +41,7 @@ const apply = (file: string, sql = maintenance) => { const db = new DatabaseSync
 test("RAC-397: a version 9 library is refused without being touched; the maintenance gives each record the evidence for its execution and leaves the rest as it was", t => {
   const file = fixture(t), original = read(file);
   assert.equal(original.version, 9);
-  assert.throws(() => new LocalProjectDatabase(file), (error: unknown) => error instanceof SqliteSchemaVersionError && error.found === 9 && error.expected === 10);
+  assert.throws(() => new LocalProjectDatabase(file), (error: unknown) => error instanceof SqliteSchemaVersionError && error.found === 9 && error.expected === 11);
   assert.deepEqual(read(file), original, "the refusal writes nothing");
 
   apply(file); const after = read(file);
@@ -56,10 +57,13 @@ test("RAC-397: a version 9 library is refused without being touched; the mainten
   assert.deepEqual(after.events, original.events.map(row => ({ ...row, owner_plugin_id: null })),
     "ATTN-OWNER-07: an old Attention event keeps its rowid and every value, with a null owner");
 
-  const fresh = new DatabaseSync(":memory:"); fresh.exec(PROJECT_DATABASE_BASELINE.schema);
-  assert.deepEqual(after.shape, describeSqliteSchema(fresh), "table by table the same as a new library");
-  fresh.close();
-  new LocalProjectDatabase(file).close();
+  const fresh = new DatabaseSync(":memory:");
+  try {
+    fresh.exec(target);
+    assert.deepEqual(after.shape, describeSqliteSchema(fresh), "table by table the same as the historical version 10 library");
+  } finally { fresh.close(); }
+  assert.throws(() => new LocalProjectDatabase(file), (error: unknown) => error instanceof SqliteSchemaVersionError && error.found === 10 && error.expected === 11);
+  assert.deepEqual(read(file), after, "the current Runtime refuses the historical output without upgrading it");
 });
 
 test("RAC-397: the maintenance stops and changes nothing unless the library is version 9 and every record's execution is one it can name", t => {

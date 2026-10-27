@@ -1,7 +1,7 @@
 import type { HostCapabilityDescriptor } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { ActionService, CapabilityRegistry } from "@molis-ai/molis-work-kernel";
 import { judgmentRecommendationKeys, subjectOfferChoices } from "@molis-ai/molis-work-kernel";
-import { ActionError, type ActionAvailability, type ActionCallContext, type ActionSceneView, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, actionSourceIdentity, requireSynchronous, type ActionAvailability, type ActionCallContext, type ActionReference, type ActionSceneView, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { admitPluginCall } from "./plugin-callers.js";
 import type { ActionAvailabilityPolicy, DiscoveryPass, LocalHostOptions } from "./local-host-types.js";
 
@@ -85,5 +85,25 @@ export class HostAvailability {
     if (!availability.available) return;
     const state = await this.resolve(caller, { ...definition, operation: definition.operation, action: definition.action, provider: definition.action_provider, availability });
     if (!state.available) throw new ActionError(state.code, state.reason);
+  }
+
+  /** Supplemental source fence. Trusted plugin registrations recheck their own live grants/state and command marker;
+   * their existing asynchronous Catalog policy remains with discover/invoke/beforeDispatch, never ignored or awaited here. */
+  checkSync(caller: ActionCallContext, reference: ActionReference, ancestors: ReadonlySet<string> = new Set()): void {
+    const definition = this.capabilities.descriptor(reference, caller.project_id);
+    if (!definition?.action || !definition.action_provider) throw new ActionError("actions.missing", "来源未准备好或已停用");
+    if (reference.provider_id && reference.provider_id !== definition.action_provider.provider_id) throw new ActionError("actions.provider_changed", "来源提供方已变化");
+    const key = JSON.stringify([definition.capability_id, definition.version, definition.action_provider.provider_id]);
+    if (ancestors.has(key)) throw new ActionError("actions.dependency_cycle", "来源能力存在循环依赖");
+    admitPluginCall(caller, definition.capability_id, definition.action);
+    const available = requireSynchronous(this.capabilities.availability(caller, definition), "来源可用性需要异步检查");
+    if (!available.available) throw new ActionError(available.code, available.reason, { kind: available.kind });
+    if (actionSourceIdentity(definition.action_provider, caller.project_id)?.kind === "plugin-installation") return;
+    const state = requireSynchronous(this.options.actionAvailability?.(caller, { ...definition, action: definition.action,
+      provider: definition.action_provider, availability: available }), "来源 Host 策略需要异步检查");
+    if (state && !state.available) throw new ActionError(state.code, state.reason, { kind: state.kind });
+    if (definition.action.required_scene) throw new ActionError("actions.async_required", "来源消费场景需要异步检查");
+    const path = new Set(ancestors).add(key);
+    for (const dependency of definition.action.required_actions ?? []) this.checkSync(caller, dependency, path);
   }
 }

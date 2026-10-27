@@ -301,3 +301,13 @@ Node 装配的可选 `audit` 原样交 SDK `createRuntime`，未传时不增加�
 普通 session 分支的正面依据来自原实现：首次接入 `960b3e961` 的主 Run 无条件传 `history: "session"`，同时保存 `input.task` 和已接受的 `run_id`；`fec41f6c1` 首次引入 digest 时，同一次请求同时写 `frozen.history: "digest"` 并选择 SDK 非 session 入口，此后拆分保留同一规则。因此受支持的主索引启动骨架中 history 缺省可返回 not-applicable；未知形状或非法 history 不能按缺省猜测。代码不按日期、提交号或 SDK 版本分流，不扩展旧索引兼容。
 
 SDK 拥有开场对齐、临时省略和原事件账；App 不替换历史或重写原记录。`history-projected` 沿现 Run 流映射 notice，说明本轮可能缺背景、原记录仍保留；原持久重放使用同一投影，Coding 与 Assistant 沿现 notice 展示，不增加 UI 协议。reader 只接主 Run 的本次参数，不通过 Runtime 配置或子任务装配继承。必要回归为 `tests/prologue-session-opening.test.ts`、`tests/prologue-stream.test.ts`，并保留原输入、恢复和真实非空页面重开验证；新 SDK 包接入后统一构建、执行，尚未据此声明旧历史验收完成。
+
+## Memory 来源的最后模型派出检查（2026-10-28，实施中）
+
+有界推理的可信 `PrologueCredentialInput.assertCurrent(): void` 沿现 inference/AsyncLocalStorage 交给 Node Host `beforeNetworkDispatch` 返回的本次 fence；Agent 同一条链使用 `AgentStartExecution.assertBeforeDispatch`，经 startInput 传到本轮 dispatchGuard。它们都是同步只读否决：原异步 `beforeDispatch` 每次重新准备本次来源事实，最后 fence 只核该事实仍当前，不能写来源、权限或 SDK 状态。`assertBeforeStart` 仍只属于启动接纳阶段，不替代持续派发检查。
+
+最后阶段先执行 SDK 同 handle fence，再执行 App 来源 fence，最后检查取消，无 await。SDK fence 内可能调用可信 App MemoryAuthority 最终授权；来源 fence 放在其后，不能把前者误称为全 SDK 纯读。Node transport 的 HTTPS CONNECT 等待后复核同一 fence；已发 CONNECT 或前一重定向保持原 dispatched/未知事实，不扩大为零网络副作用。此能力只覆盖现 Node ModelNetworkPort HTTP 发送；外部进程/CLI 后端未因此受控。
+
+有界 Knowledge 临时 Session 未装 Memory recipe，其来源规则来自本次业务 control；主 Agent、Memory 与 Assistant 材料组合须各按真实链验证。来源检查缺失不新增授权，已有凭据轮换、取消、SDK policy 与原重试规则不变。fence 返回 Promise 拒绝；一旦该调用的同步派出 fence 曾成功，后续拒绝只保留原错误，不再声称一定未派出，因为先前请求或 CONNECT 可能已发生；实际派出仍由 SDK inspect 回答。没有新配置、槽、表或第二模型链，用户的来源选择仍归消费 App。
+
+本片验证范围：SDK 真实 Node Host loopback 的最后 await 屏障、代理 CONNECT、拒绝与当前发送，以及 App 的 `tests/prologue-inference-native.test.ts`、`tests/host-inference-completion.test.ts` 和实际 Agent 材料生产链。测试源码待 Root 安排正式包安装、构建和运行；当前不声明工程验证或产品验收通过。

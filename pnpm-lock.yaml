@@ -738,6 +738,9 @@ importers:
       '@molis-ai/molis-work-contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
+      '@molis-ai/molis-work-plugin-sdk':
+        specifier: workspace:*
+        version: link:../../packages/plugin-sdk
       '@molis-ai/molis-work-storage':
         specifier: workspace:*
         version: link:../../packages/storage
@@ -1710,7 +1713,7 @@ packages:
     resolution: {integrity: sha512-rDS5/31E9HfPl/CIzGrn0DOlvBbXFseQ5URJ9sYMfstbKLD/c6Gm9vmRzRGDdAXyOIL4zmO37lc9RIwYqVruZw==}
 
   '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-memory-p0.tgz':
-    resolution: {integrity: sha512-Cv5c8/zmI5AG5C+xPTtJAZZmMIL5/u1xV8AmAH0/oPnZlsh9Ip0YXOl9q4jDU8t3iDf2fKAguQTmfstGTpj01Q==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-memory-p0.tgz}
+    resolution: {integrity: sha512-uNmdhQDqwec4GIKLplujB41bxIq4S+myieyQ6v1faF9Zdci/SWLW4SkJnt7z3Gr0+fY2Fc++WHAKrvitWMjMWg==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-memory-p0.tgz}
     version: 0.0.0-rc.1
 
   '@protobufjs/aspromise@1.1.2':

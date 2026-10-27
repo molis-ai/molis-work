@@ -245,6 +245,7 @@ export function pluginHostActions(context: PluginStartContext, manifest: PluginM
 export function withPreparedActions(client: ActionClient, prepare: (caller: ActionCallContext) => Promise<void>,
   refuse: (caller: ActionCallContext, reference: ActionReference, error: unknown) => Promise<never>): ActionClient {
   return {
+    ...(client.captureSources ? { captureSources: (scopes: Parameters<NonNullable<ActionClient["captureSources"]>>[0]) => client.captureSources!(scopes) } : {}),
     discover: async caller => { caller.signal?.throwIfAborted(); await prepare(caller); caller.signal?.throwIfAborted(); return client.discover(caller); },
     invoke: async (caller, capability, input) => {
       try { caller.signal?.throwIfAborted(); await prepare(caller); caller.signal?.throwIfAborted(); }
@@ -262,5 +263,10 @@ export function homePluginActions(host: Pick<import("./local-host.js").LocalHost
     if (!project) throw new ActionError("actions.scope_mismatch", "查询委托缺少已打开的项目运行环境");
     return host.actionClient(project);
   };
-  return { discover: caller => client(caller).discover(caller), invoke: (caller, reference, input) => client(caller).invoke(caller, reference, input) };
+  return { discover: caller => client(caller).discover(caller), invoke: (caller, reference, input) => client(caller).invoke(caller, reference, input),
+    captureSources: scopes => {
+      const selected = host.homeActionClient();
+      if (!selected.captureSources) throw new ActionError("actions.unavailable", "来源同步捕获不可用");
+      return selected.captureSources(scopes);
+    } };
 }

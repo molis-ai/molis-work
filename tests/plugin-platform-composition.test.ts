@@ -1,4 +1,5 @@
 import { pluginActions } from "./fixtures/plugin-actions.js";
+import { writeProjectRoot } from "@molis-ai/molis-work-module-projects";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -357,7 +358,7 @@ test('committed changes to a port\'s process item refresh existing inputs across
     await platform.wiring.drain(); assert.equal(contexts.length, 1);
     // Let the watcher establish its cursor; repeating the current projection is idempotent.
     await delay(1100); assert.equal(contexts.length, 1);
-    store.db.prepare('INSERT INTO project_root (project_id, created_at) VALUES (?, ?)').run('other-board', new Date().toISOString());
+    writeProjectRoot(store.db, 'other-board', new Date().toISOString());
     const originalEvaluate = platform.wiring.evaluateAll.bind(platform.wiring); let refreshes = 0;
     platform.wiring.evaluateAll = () => { refreshes++; originalEvaluate(); };
     store.appendEvent({ eventId: 'other-project-artifact', projectId: 'other-board', actorId: 'tester', type: 'artifact.published',

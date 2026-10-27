@@ -68,11 +68,16 @@ function importedDocumentText(record: ArtifactVersionRecord): string | null {
 }
 
 /** Provenance comes from immutable owner fields. Opaque payload metadata cannot replace it. */
+export function artifactAnalysisRevision(record: Pick<ArtifactVersionRecord, "version" | "content_digest">, goalIds: string[] = []): string {
+  return JSON.stringify([record.version, record.content_digest, [...new Set(goalIds)].sort()]);
+}
+
+/** Provenance comes from immutable owner fields. Opaque payload metadata cannot replace it. */
 export function artifactAnalysisContext(record: ArtifactVersionRecord, goalIds: string[] = [], request?: { offset?: number }): ActionSubjectContext {
   const relatedGoals = [...new Set(goalIds)].sort();
   return subjectContext({
     subject: { kind: ARTIFACT_SUBJECT_KIND, id: artifactSubjectId(record) },
-    revision: JSON.stringify([record.version, record.content_digest, relatedGoals]), title: record.title,
+    revision: artifactAnalysisRevision(record, relatedGoals), title: record.title,
     content: importedDocumentText(record) ?? JSON.stringify({ artifact_id: record.artifact_id, version: record.version,
       artifact_type_id: record.artifact_type_id, schema_version: record.schema_version,
       producer: { plugin_id: record.producer_plugin_id, plugin_version: record.producer_plugin_version,

@@ -14,6 +14,8 @@ export interface AgentStartExecution extends ActionCallOrigin {
   assertBeforeStart?(): void;
   /** Live owner authority, valid beyond the start invocation's lifetime. */
   beforeDispatch?(): void | Promise<void>;
+  /** Synchronous read-only denial after SDK preparation, valid for each model send beyond the start invocation. */
+  assertBeforeDispatch?(): void;
 }
 
 /** An authorized directory. The Host resolves and verifies it; the Plugin never passes a raw path. */

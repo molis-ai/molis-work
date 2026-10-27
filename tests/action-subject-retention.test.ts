@@ -12,7 +12,7 @@ const definition = defineSubjectRetentionAction("notes.retention", subject.kind,
 
 async function source(t: TestContext) {
   const service = new ActionService(), repository = new MemoryPluginRuntimeRepository();
-  let result: unknown = { subject, state: "active", retained: null }, calls = 0, startedGeneration = "";
+  let result: unknown = { subject, state: "active", current_revision: null, retained: null }, calls = 0, startedGeneration = "";
   const plugin = definePlugin({ manifest: {
     schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.retention", version: "1.0.0", name: "Retention source",
     kind: "app", publisher: { publisher_id: "example", signature: "retention-source" },
@@ -38,9 +38,9 @@ async function source(t: TestContext) {
 test("MEM-40 retention is a closed query contract at registration and actual invocation", async t => {
   const s = await source(t);
   const valid = [
-    { subject, state: "active", retained: null },
+    { subject, state: "active", current_revision: null, retained: null },
     { subject, state: "temporarily_archived", retained: { content_revision: "original-body", restoration_operation_id: null } },
-    { subject, state: "active", retained: { content_revision: "original-body", restoration_operation_id: "restore-original" } },
+    { subject, state: "active", current_revision: null, retained: { content_revision: "original-body", restoration_operation_id: "restore-original" } },
     { subject, state: "deleted", retained: null },
   ];
   for (const value of valid) { s.set(value); assert.deepEqual(await s.invoke(), value); }
@@ -51,9 +51,11 @@ test("MEM-40 retention is a closed query contract at registration and actual inv
   for (const value of [
     { ...valid[0], title: "not part of this protocol" },
     { subject, state: "temporarily_archived", retained: null },
-    { subject, state: "active", retained: { content_revision: "original-body", restoration_operation_id: null } },
+    { subject, state: "active", current_revision: null, retained: { content_revision: "original-body", restoration_operation_id: null } },
     { ...valid[3], retained: { content_revision: "original-body", restoration_operation_id: "restore-original" } },
     { ...valid[0], installation_generation: "source-cannot-assert-this" },
+    { subject, state: "active", retained: null },
+    { ...valid[0], current_revision: "" },
   ]) { s.set(value); await assert.rejects(s.invoke(), { code: "actions.output_invalid" }); }
   const bad = { ...definition, action: { ...definition.action, output_schema: { type: "object" } } };
   assert.throws(() => new ActionService().registerProvider({ provider: { provider_id: "bad-source", title: "Bad source", kind: "system" },

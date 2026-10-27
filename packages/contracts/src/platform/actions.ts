@@ -191,7 +191,7 @@ export interface ActionCallContext extends ActionCallOrigin {
 export interface RetainedActionAuthority {
   (): Promise<void>;
   /** Recheck original authority and registrations after a downstream action's final await. With providerCommands, all authority/availability
-   * callbacks finish before the final pure activity check, and the originating handler must still be active. Commit without further waits or
+   * callbacks finish before owner stamp comparisons and the pure lifetime/registration/activity tail; the originating handler must still be active. Commit without further waits or
    * external callbacks. Without providerCommands, no handler lifetime is retained. */
   readonly assertCurrent: () => void;
 }
@@ -205,7 +205,8 @@ export interface ActionExecutionContext extends ActionCallContext {
    * the targets under that audience on this caller's behalf (the plugin action directory, S-43). Every other check is the same, and the guard still grants nothing.
    * `providerCommands: "unchanged"` is limited to this active handler's read/commit interval. Capture before reading: reject active commands, then reject permanently if any command enters a captured
    * provider in this ActionService. Providers are scoped by their trusted registration, not the caller's project. Raw handler completion ends
-   * activity; cancellation/timeout of the outer wait does not. This only denies; it cannot replace permission, source-state or version checks. */
+   * activity; cancellation/timeout of the outer wait does not. Trusted system owner stamps are captured by the same exact registrations.
+   * This only denies; it cannot replace permission, source-state or version checks. */
   readonly retainAuthority?: (references: readonly ActionReference[], options?: { readonly audience?: "workflow"; readonly providerCommands?: "unchanged" }) => RetainedActionAuthority;
   /** Capture this command's registration and original authority while active, for explicitly accepted background work.
    * Additional permissions must already belong to this caller and remain revocable. Entry-owned transport may detach;
@@ -348,6 +349,8 @@ export interface ActionProvider {
    * belong to this generation and must never be rebound to a new one. A plugin's returned data cannot supply it.
    */
   readonly plugin_installation_generation?: string;
+  /** Set only by the Host for a system source actually owned by this project's current data instance. */
+  readonly project_data_instance_id?: string;
   /**
    * Set only by the Host's own registration of a platform provider that has a plugin's shell still: the plugin whose `ui.translations`
    * hold the English of this provider's action text. A provider with a `plugin_id` already says so; a plugin never sets this.
@@ -538,6 +541,10 @@ export interface ActionProviderRegistration {
   readonly scenes?: readonly ActionSceneDefinition[];
   readonly scene_handlers?: readonly ActionSceneHandlerBinding[];
   availability?(context: ActionCallContext): ActionAvailability;
+  /** Trusted Host system owner only: a pure synchronous state stamp, never an authority grant. Receives only the frozen
+   * actor/project scope; must not dispatch actions, mutate state or call authority callbacks. Bound to this exact registration.
+   * Project-data sources require it when callers opt into source capture; unchanged stamps never replace retention/state checks. */
+  sourceRevision?(scope: Readonly<Pick<ActionCallContext, "actor_id" | "project_id">>): string | number;
 }
 
 /** Host lifecycle registers and disposes contributions; clients cannot register implementations. */
@@ -548,6 +555,15 @@ export interface ActionRegistryPort {
 export interface ActionClient {
   discover(context: ActionCallContext): readonly ActionView[] | Promise<readonly ActionView[]>;
   invoke(context: ActionCallContext, reference: ActionReference, input: unknown): Promise<unknown>;
+  /** Deny-only synchronous read/commit fence for already prepared exact sources. Runs no action or asynchronous preparation,
+   * grants no authority and retains no handler lifetime. Capture before owner reads; after the guard, commit synchronously
+   * without further waits or external callbacks. Each scope keeps its own original caller authority and project instance; all scopes'
+   * callbacks finish before any owner comparison, followed only by pure lifecycle checks. Owner stamps complement current permissions,
+   * source state and the consumer's CAS. A trusted plugin-installation uses its existing registration, live Runtime grants/state and public
+   * provider-command marker as a supplemental denial; it receives no Host owner reader. This does not synchronously revalidate the Host's
+   * asynchronous Catalog policy or authorize any read/dispatch: discover, invoke, validate_authority and beforeDispatch retain their checks.
+   * Writes outside the provider's actual ActionService command handler are not observed by its command marker. */
+  captureSources?(scopes: readonly { readonly context: ActionCallContext; readonly references: readonly ExactActionReference[] }[]): () => void;
 }
 
 /** Composition port for transaction-bound SDK operations. Never waits or skips async authority. */

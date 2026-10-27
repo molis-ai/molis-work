@@ -1,5 +1,7 @@
 import {
   ActionError,
+  actionSourceIdentity,
+  sameActionSourceIdentity,
   SUBJECT_RETENTION_REQUEST_TYPE,
   SUBJECT_RETENTION_TYPE,
   isSearchEntriesSource,
@@ -46,7 +48,7 @@ import {
 } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { searchSourceKey, type SearchQueryRequest, type SearchQueryResponse, type SearchRetentionResult } from "@molis-ai/molis-work-contracts/services/search";
 import { WORKSPACE_FILE_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import { readKnowledgeSubject, type KnowledgeSourceRead } from "./source-read.js";
+import { captureKnowledgeSources, readKnowledgeSubject, type KnowledgeSourceRead } from "./source-read.js";
 import { locateSections, type KnowledgeLocator } from "./locate.js";
 import { knowledgeErrors } from "./errors.js";
 import { afterLines, grepLines, lineAt, lineStarts, outlineOf, rangeOf } from "./text.js";
@@ -98,7 +100,18 @@ export interface KnowledgeServiceOptions {
 }
 
 /** An ephemeral guard for the actual cards placed in a model's input; never serialized as Knowledge data. */
-export interface KnowledgeDispatchGuard { beforeDispatch?(views: readonly ActionView[]): Promise<void> }
+export interface KnowledgeDispatchGuard {
+  beforeDispatch?(views: readonly ActionView[]): Promise<void>;
+  assertCurrent?(): void;
+  /** Pure card-owner comparison only; an aggregate source fence must run first. No authority callbacks or source recapture. */
+  assertCardsCurrent?(): void;
+  /** Trusted Node-only composition data for one aggregate capture before all material checks. Never serialize or send to a model. */
+  sourceCapture?: {
+    readonly client: Pick<ActionClient, "captureSources">;
+    readonly scopes: Parameters<NonNullable<ActionClient["captureSources"]>>[0];
+  };
+}
+type KnowledgeVisibility = ((card: KnowledgeCardRecord) => boolean) & { assertCurrent?(): void };
 
 const DEFAULT_CARDS = 10;
 const HINT_CHARS = 160;
@@ -140,10 +153,10 @@ function visibility(views: readonly ActionView[], projectId: string | null): (ca
     }
   }
   return card => (!card.adoption || views.some(view => view.provider.provider_id === card.provider_id && view.availability.available
-    && view.provider.plugin_installation_generation === card.adoption!.generation)) && !views.some(view => view.provider.provider_id === card.provider_id
+    && sameActionSourceIdentity(actionSourceIdentity(view.provider, projectId), card.adoption!.source_identity))) && !views.some(view => view.provider.provider_id === card.provider_id
     && view.action.input_type === SUBJECT_RETENTION_REQUEST_TYPE && view.action.output_type === SUBJECT_RETENTION_TYPE
-    && view.action.subject_kinds.includes(card.subject.kind) && (!card.retention?.generation || !view.availability.available
-      || view.provider.plugin_installation_generation !== card.retention.generation))
+    && view.action.subject_kinds.includes(card.subject.kind) && (!card.retention?.source_identity || !view.availability.available
+      || !sameActionSourceIdentity(actionSourceIdentity(view.provider, projectId), card.retention.source_identity)))
     && !!listed.get(card.source_key)?.has(card.subject.kind) && (card.content_policy === "summary" || !!readable.get(card.provider_id)?.has(card.subject.kind));
 }
 
@@ -186,7 +199,7 @@ export class KnowledgeService {
       const original = originals.get(cards[i]!);
       if (original ? !visible(original) : this.options.requireCard) cards.splice(i, 1);
     }
-    if (cards.length >= limit) return { status: found.status, cards };
+    if (cards.length >= limit) { visible.assertCurrent?.(); return { status: found.status, cards }; }
     for (const card of more.filter(visible).slice(0, limit - cards.length)) cards.push(cardHit(card, "card"));
     // Too few hold every word (a whole question rarely does): those that hold some of them, marked so (§6.4).
     const shown = this.listed(project, visible).filter(card => !cards.some(item => sameSubject(item.subject, card.subject))
@@ -199,6 +212,7 @@ export class KnowledgeService {
       const hit = cardHit(card, "related"), snippet = near.get(`${card.subject.kind}\u0000${card.subject.id}`);
       cards.push(snippet ? { ...hit, hint: snippet.slice(0, HINT_CHARS) } : hit);
     }
+    visible.assertCurrent?.();
     return { status: found.status, cards };
   }
 
@@ -220,7 +234,7 @@ export class KnowledgeService {
    */
   async list(access: KnowledgeAccess, input: KnowledgeListRequest, listing = false): Promise<KnowledgeListResponse> {
     const project = this.project(access);
-    const seen = this.listed(project, await this.visible(access));
+    const visible = await this.visible(access), seen = this.listed(project, visible);
     const sources = new Map<string, { plugin_id: string; plugin_title: string; count: number }>();
     for (const card of seen) {
       const source = sources.get(card.plugin_id) ?? { plugin_id: card.plugin_id, plugin_title: card.plugin_title, count: 0 };
@@ -230,7 +244,9 @@ export class KnowledgeService {
     const kept = seen.filter(card => (!input.plugins?.length || input.plugins.includes(card.plugin_id)) && (!input.kinds?.length || input.kinds.includes(card.subject.kind)));
     const all = relatedFirst(kept, input.related_to ? this.related(project, kept, input.related_to) : []);
     const offset = input.offset ?? 0, limit = Math.min(KNOWLEDGE_LIST_MAX, input.limit ?? DEFAULT_LIST);
-    return { total: all.length, sources: [...sources.values()], listing, pieces: all.slice(offset, offset + limit).map(entryOf) };
+    const result = { total: all.length, sources: [...sources.values()], listing, pieces: all.slice(offset, offset + limit).map(entryOf) };
+    visible.assertCurrent?.();
+    return result;
   }
 
   /**
@@ -238,11 +254,16 @@ export class KnowledgeService {
    * otherwise the pieces most related to the round's words. Cards only; `total` says how many there are in all.
    */
   async catalog(projectId: string, views: readonly ActionView[], words: string, access?: KnowledgeAccess): Promise<{ total: number; whole: boolean; pieces: KnowledgeListEntry[] } & KnowledgeDispatchGuard> {
-    const shown = this.listed(projectId, access ? await this.visible(access, views) : card => !card.retention && visibility(views, projectId)(card));
+    const visible: KnowledgeVisibility = access ? await this.visible(access, views) : card => !card.retention && visibility(views, projectId)(card);
+    const shown = this.listed(projectId, visible);
     const newest = relatedFirst(shown, []).slice(0, KNOWLEDGE_CATALOG_WHOLE_PIECES).map(entryOf);
-    if (knowledgeCatalogWhole({ pieces: newest, total: shown.length })) return { total: shown.length, whole: true, pieces: newest, ...this.dispatchGuard(projectId, shown, access) };
+    if (knowledgeCatalogWhole({ pieces: newest, total: shown.length })) {
+      const result = { total: shown.length, whole: true, pieces: newest, ...this.dispatchGuard(projectId, shown, views, access) };
+      visible.assertCurrent?.(); return result;
+    }
     const picked = relatedFirst(shown, this.related(projectId, shown, words)).slice(0, KNOWLEDGE_CATALOG_RELATED);
-    return { total: shown.length, whole: false, pieces: picked.map(entryOf), ...this.dispatchGuard(projectId, picked, access) };
+    const result = { total: shown.length, whole: false, pieces: picked.map(entryOf), ...this.dispatchGuard(projectId, picked, views, access) };
+    visible.assertCurrent?.(); return result;
   }
 
   /**
@@ -251,18 +272,23 @@ export class KnowledgeService {
    */
   async tally(projectId: string, views: readonly ActionView[], access?: KnowledgeAccess): Promise<{ total: number; sources: Array<{ plugin_title: string; count: number }> } & KnowledgeDispatchGuard> {
     const counts = new Map<string, number>();
-    const shown = this.listed(projectId, access ? await this.visible(access, views) : card => !card.retention && visibility(views, projectId)(card));
+    const visible: KnowledgeVisibility = access ? await this.visible(access, views) : card => !card.retention && visibility(views, projectId)(card);
+    const shown = this.listed(projectId, visible);
     for (const card of shown) counts.set(card.plugin_title, (counts.get(card.plugin_title) ?? 0) + 1);
-    return { total: [...counts.values()].reduce((sum, count) => sum + count, 0), sources: [...counts].map(([plugin_title, count]) => ({ plugin_title, count })), ...this.dispatchGuard(projectId, shown, access) };
+    const result = { total: [...counts.values()].reduce((sum, count) => sum + count, 0), sources: [...counts].map(([plugin_title, count]) => ({ plugin_title, count })), ...this.dispatchGuard(projectId, shown, views, access) };
+    visible.assertCurrent?.(); return result;
   }
 
   async outline(access: KnowledgeAccess, input: KnowledgeOutlineRequest): Promise<KnowledgeOutline> {
-    return (await this.preparedOutline(access, input)).tree;
+    const prepared = await this.preparedOutline(access, input);
+    prepared.assertSourcesCurrent?.();
+    return prepared.tree;
   }
 
   async locate(access: KnowledgeAccess, input: KnowledgeLocateRequest, locator: KnowledgeLocator | null): Promise<KnowledgeLocateResponse> {
-    return locateSections({ question: input.question, subjects: this.named(access, input.subjects) },
-      subject => this.preparedOutline(access, { subject }, knowledgeActions.locate), locator, access.beforeEffect, access.caller.signal);
+    const subjects = this.named(access, input.subjects), sourceCurrent = await this.captureSubjects(access, subjects);
+    return locateSections({ question: input.question, subjects },
+      subject => this.preparedOutline(access, { subject }, knowledgeActions.locate), locator, access.beforeEffect, access.caller.signal, sourceCurrent);
   }
 
   private async preparedOutline(access: KnowledgeAccess, input: KnowledgeOutlineRequest, origin: { capability_id: string; version: number } = knowledgeActions.outline) {
@@ -273,8 +299,21 @@ export class KnowledgeService {
     const notes = new Map(card?.organized_revision === context.revision ? readingCard(card).outline.map(note => [note.anchor, note.summary]) : []);
     const tree: KnowledgeOutline = { subject: context.subject, revision: context.revision, title: context.title, length: context.content.length, owner_truncated: context.truncated,
       sections: outlineOf(context.content).map(({ anchor, title, level, parent, start, line, length }) => ({ anchor, title, level, parent, start, line, length, summary: notes.get(anchor) ?? null })) };
+    const assertCardsCurrent = () => {
+      const current = this.stored(access.caller.project_id!, context.subject);
+      if (current?.excluded || card && (!current || current.revision !== card.revision || current.content_policy !== card.content_policy
+        || current.provider_id !== card.provider_id || current.source_key !== card.source_key
+        || !!current.retention !== !!card.retention || (current.retention?.source_identity || card.retention?.source_identity)
+          && !sameActionSourceIdentity(current.retention?.source_identity, card.retention?.source_identity)
+        || current.title !== card.title || current.brief !== card.brief || current.state !== card.state || current.organized_revision !== card.organized_revision
+        || JSON.stringify(current.edited) !== JSON.stringify(card.edited) || JSON.stringify(current.keywords) !== JSON.stringify(card.keywords)
+        || JSON.stringify(readingCard(current).outline) !== JSON.stringify(readingCard(card).outline)))
+        throw knowledgeErrors.unreadable("本轮定位所用的资料卡片已经变化");
+    };
+    const assertSourcesCurrent = () => { read.assertSourcesCurrent?.(); assertCardsCurrent(); };
     await read.assertCurrent();
-    return { tree, assertCurrent: read.assertCurrent };
+    assertSourcesCurrent();
+    return { tree, assertCurrent: read.assertCurrent, assertSourcesCurrent, assertCardsCurrent };
   }
 
   async read(access: KnowledgeAccess, input: KnowledgeReadRequest): Promise<KnowledgeReadResponse> {
@@ -293,7 +332,9 @@ export class KnowledgeService {
     const until = input.max_lines === undefined ? range.end : Math.min(range.end, afterLines(lines, start, input.max_lines, context.content.length));
     const end = Math.min(until, start + Math.min(asked, left ?? asked));
     const text = context.content.slice(start, end);
-    this.receipt(access, [{ context, via: "read", chars: text.length }]);
+    const readAt = (this.options.clock?.() ?? new Date()).toISOString();
+    read.assertSourcesCurrent?.();
+    this.receipt(access, [{ context, via: "read", chars: text.length }], readAt);
     this.budget.spend(round, text.length);
     const startLine = lineAt(lines, start);
     return { subject: context.subject, ref: knowledgeRef(context.subject, "allow"), revision: context.revision, title: context.title, layer: "original", text, start, end,
@@ -319,6 +360,7 @@ export class KnowledgeService {
     result.more ||= !!picked?.more;
     const all = [...named, ...found?.files.map(file => file.subject) ?? [], ...picked?.subjects ?? []];
     const subjects = all.filter((subject, index) => all.findIndex(other => sameSubject(other, subject)) === index);
+    const sourceCurrent = await this.captureSubjects(access, subjects);
     const read = await Promise.all(subjects.map(subject => this.owner(access, subject, knowledgeActions.grep).then(read => read, (error: unknown) => ({ error }))));
     let left = input.limit ?? DEFAULT_GREP_LIMIT;
     // Reference bookkeeping completes inside this read, before its original authority is checked and receipts are written.
@@ -351,7 +393,10 @@ export class KnowledgeService {
       given.push({ context: outcome.context, via: "grep", chars: taken });
     });
     result.found.sort((a, b) => b.lines - a.lines);
-    this.receipt(access, given);
+    const readAt = (this.options.clock?.() ?? new Date()).toISOString();
+    // Every failed subject is already structured as unread. Only surviving material consumes the original batch fence.
+    if (read.some(outcome => "context" in outcome)) sourceCurrent();
+    this.receipt(access, given, readAt);
     this.budget.spend(round, chars);
     const roundLeft = lines ? fill : this.budget.left(round);
     return { ...result, round_chars_left: roundLeft === null ? null : roundLeft - chars };
@@ -391,9 +436,9 @@ export class KnowledgeService {
   }
 
   /** Who got original text of which piece, written once the call is still current right before it (PMAT-12). */
-  private receipt(access: KnowledgeAccess, reads: Array<{ context: ActionSubjectContext; via: "read" | "grep"; chars: number }>): void {
+  private receipt(access: KnowledgeAccess, reads: Array<{ context: ActionSubjectContext; via: "read" | "grep"; chars: number }>, at: string): void {
     const given = reads.filter(item => item.chars > 0);
-    const { caller } = access, at = (this.options.clock?.() ?? new Date()).toISOString();
+    const { caller } = access;
     for (const { context, via, chars } of given) {
       this.options.cards.addReceipt({ project_id: caller.project_id!, at, subject: context.subject, revision: context.revision, via, chars, actor_id: caller.actor_id,
         agent: caller.audit_actor_id ?? null, audience: caller.audience, call_id: caller.call_id ?? null, runtime_session_id: caller.runtime_session_id ?? null });
@@ -407,31 +452,53 @@ export class KnowledgeService {
   }
 
   /** The rule a caller may be shown a card by, from the directory of the authority it reads with. */
-  async visible(access: KnowledgeAccess, original?: readonly ActionView[]): Promise<(card: KnowledgeCardRecord) => boolean> {
+  async visible(access: KnowledgeAccess, original?: readonly ActionView[]): Promise<KnowledgeVisibility> {
     const reader = knowledgeReader(access), views = await access.client.discover(reader);
     const allowed = visibility(views, reader.project_id ?? null);
     const before = original ? visibility(original, reader.project_id ?? null) : allowed;
+    const candidates = this.options.cards.list(this.project(access)).filter(card => allowed(card) && before(card));
+    const sourceCurrent = captureKnowledgeSources(access.client, reader, views.filter(view => candidates.some(card => card.provider_id === view.provider.provider_id)
+      && isSearchEntriesSource(view.action)));
     const shown = new Set<string>();
-    for (const card of this.options.cards.list(this.project(access))) {
+    for (const card of candidates) {
       if (!allowed(card) || !before(card)) continue;
       const state = await this.retention(access, card, views);
       if (state.state === "active" || state.state === "unsupported") shown.add(JSON.stringify(card));
-      if (state.state === "deleted" && JSON.stringify(this.options.cards.get(card.project_id, card.subject)) === JSON.stringify(card))
-        this.options.cards.remove(card.project_id, card.subject);
+      if (state.state === "deleted") {
+        sourceCurrent();
+        if (JSON.stringify(this.options.cards.get(card.project_id, card.subject)) === JSON.stringify(card)) this.options.cards.remove(card.project_id, card.subject);
+      }
     }
     reader.signal?.throwIfAborted();
     reader.assert_authority_current?.();
-    return card => shown.has(JSON.stringify(card))
-      && JSON.stringify(this.options.cards.get(card.project_id, card.subject)) === JSON.stringify(card);
+    sourceCurrent();
+    // Eligibility is decided after all owner reads: a card replaced or excluded while waiting is omitted, not borrowed anew.
+    for (const card of candidates) if (JSON.stringify(this.options.cards.get(card.project_id, card.subject)) !== JSON.stringify(card)) shown.delete(JSON.stringify(card));
+    const assertCurrent = () => {
+      sourceCurrent();
+      for (const card of candidates) if (shown.has(JSON.stringify(card)) && JSON.stringify(this.options.cards.get(card.project_id, card.subject)) !== JSON.stringify(card))
+        throw knowledgeErrors.unreadable("本轮读取的资料卡片已经变化");
+    };
+    return Object.assign((card: KnowledgeCardRecord) => {
+      if (!shown.has(JSON.stringify(card))) return false;
+      assertCurrent();
+      return true;
+    }, { assertCurrent });
   }
 
-  private async retention(access: KnowledgeAccess, card: KnowledgeRetentionIdentity, views?: readonly ActionView[]): Promise<SearchRetentionResult> {
-    if (this.options.retention) return this.options.retention(access, { project_id: card.project_id, provider_id: card.provider_id, subject: card.subject,
+  private async retention(access: KnowledgeAccess, card: KnowledgeRetentionIdentity & { revision?: string }, views?: readonly ActionView[]): Promise<SearchRetentionResult> {
+    if (this.options.retention) return this.options.retention(access, { project_id: card.project_id, provider_id: card.provider_id, subject: card.subject, expected_revision: card.expected_revision ?? card.revision,
       ...(card.retention ? { retention: card.retention } : {}), ...(card.adoption ? { adoption: card.adoption } : {}) }, views);
     const directory = views ?? await access.client.discover(knowledgeReader(access));
     const declared = directory.some(view => view.provider.provider_id === card.provider_id && view.action.input_type === SUBJECT_RETENTION_REQUEST_TYPE
       && view.action.output_type === SUBJECT_RETENTION_TYPE && view.action.subject_kinds.includes(card.subject.kind));
-    return { state: card.retention || card.adoption || declared ? "unavailable" : "unsupported" };
+    return { state: card.retention || card.adoption || declared || directory.some(view => view.provider.provider_id === card.provider_id && view.provider.kind === "system") ? "unavailable" : "unsupported" };
+  }
+
+  private async captureSubjects(access: KnowledgeAccess, subjects: readonly ActionSubject[]): Promise<() => void> {
+    const caller = knowledgeReader(access), views = await access.client.discover(caller);
+    return captureKnowledgeSources(access.client, caller, views.filter(view => isSubjectReader(view.action)
+      && subjects.some(subject => view.action.subject_kinds.includes(subject.kind))));
   }
 
   /** The pieces a call names by subject or ref, in the caller's own project (none: refused before anything is read). */
@@ -439,23 +506,44 @@ export class KnowledgeService {
     return namedSubjects(this.options.cards, this.project(access), names);
   }
 
-  private dispatchGuard(project: string, cards: readonly KnowledgeCardRecord[], access?: KnowledgeAccess): KnowledgeDispatchGuard {
+  private dispatchGuard(project: string, cards: readonly KnowledgeCardRecord[], views: readonly ActionView[], access?: KnowledgeAccess): KnowledgeDispatchGuard {
     if (!access || !cards.length) return {};
     const original = cards.map(card => ({ card, text: JSON.stringify(entryOf(card)) }));
-    return { beforeDispatch: async views => {
+    const references = views.filter(view => view.availability.available && isSearchEntriesSource(view.action)
+      && actionSourceIdentity(view.provider, project) !== null && cards.some(card => card.source_key === searchSourceKey({
+        project_id: project, provider_id: view.provider.provider_id, capability_id: view.capability_id, version: view.version })))
+      .map(view => ({ provider_id: view.provider.provider_id, capability_id: view.capability_id, version: view.version }));
+    const sourceCapture: KnowledgeDispatchGuard["sourceCapture"] = references.length
+      ? { client: access.client, scopes: [{ context: knowledgeReader(access), references }] } : undefined;
+    let sourceCurrent: () => void = () => { throw knowledgeErrors.unreadable("资料目录尚未完成本次核验"); };
+    const assertCardsCurrent = () => {
+      for (const { card, text } of original) {
+        const current = this.options.cards.get(project, card.subject);
+        if (!current || current.excluded || current.provider_id !== card.provider_id || current.source_key !== card.source_key
+          || !!current.retention !== !!card.retention || (current.retention?.source_identity || card.retention?.source_identity)
+            && !sameActionSourceIdentity(current.retention?.source_identity, card.retention?.source_identity) || JSON.stringify(entryOf(current)) !== text)
+          throw knowledgeErrors.unreadable("本轮带入的资料已经变化");
+      }
+    };
+    const assertCurrent = () => { sourceCurrent(); assertCardsCurrent(); };
+    return { ...(sourceCapture ? { sourceCapture } : {}), assertCurrent, assertCardsCurrent, beforeDispatch: async views => {
+      sourceCurrent = () => { throw knowledgeErrors.unreadable("资料目录尚未完成本次核验"); };
       if (!views.some(view => view.availability.available && view.provider.provider_id === KNOWLEDGE_PROVIDER_ID
         && view.capability_id === knowledgeActions.list.capability_id)) throw knowledgeErrors.unreadable("本轮的资料目录权限已收回");
       const allowed = visibility(views, project);
+      if (sourceCapture && !sourceCapture.client.captureSources) throw knowledgeErrors.unreadable("当前资料来源缺少同步状态校验能力");
+      const captured = sourceCapture ? sourceCapture.client.captureSources!(sourceCapture.scopes) : () => {};
       for (const { card, text } of original) {
         const current = this.options.cards.get(project, card.subject);
         if (!current || current.excluded || !allowed(current) || current.provider_id !== card.provider_id || current.source_key !== card.source_key
-          || current.retention?.generation !== card.retention?.generation || JSON.stringify(entryOf(current)) !== text)
+          || (current.retention?.source_identity || card.retention?.source_identity) && !sameActionSourceIdentity(current.retention?.source_identity, card.retention?.source_identity) || JSON.stringify(entryOf(current)) !== text)
           throw knowledgeErrors.unreadable("本轮带入的资料已经变化，未发给模型");
         const state = await this.retention(access, card);
         if (state.state !== "active" && state.state !== "unsupported") throw knowledgeErrors.unreadable("本轮带入的资料已归档或当前不可读取");
       }
       knowledgeReader(access).signal?.throwIfAborted();
       knowledgeReader(access).assert_authority_current?.();
+      sourceCurrent = captured; assertCurrent();
     } };
   }
 

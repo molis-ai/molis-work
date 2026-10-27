@@ -11,7 +11,7 @@ export const KNOWLEDGE_EN: Record<string, string> = {
   "已关联当前来源，未自动整理": "Current source linked; not organized automatically",
   "保留的旧卡片": "Retained old card",
   "选择当前来源": "Choose current source",
-  "当前没有可关联的来源。请检查原资料和插件是否可用，再重新查看。": "No current source can be linked. Check that the original piece and its plugin are available, then look again.",
+  "暂无可关联来源，请确认资料或插件可用。": "No sources available. Check the source or plugin.",
   "仅提供标题和摘要": "Title and summary only",
   "可读取原文": "Original text available",
   "已保存；关联来源前仍不会给 Agent 使用": "Saved; agents cannot use it until its source is linked",

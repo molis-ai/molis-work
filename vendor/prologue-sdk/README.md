@@ -2,15 +2,17 @@
 
 本目录沿用 [AGENTS.md](../../AGENTS.md) 的受控包规则。唯一运行依赖为 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz`；final103-bridge 仍只保留为上一主线包。
 
-当前包来自 [Draft #108](https://github.com/molis-ai/molis-prologue/pull/108) 的干净源 `90e39ff78c3306d58c251e15adca2bcc4c7746b8`，基于 main `ccafbb74fb9db0e3a124ec502c57291677487e23`。集合读取、每次完整字节验证、默认0证明缓存及原权限/版本/取消/最终回执保留，存储格式未变。Molis沿同一caller/execution读取完整scopes并显式配置8 MiB证明预算；这不解除1000条性能失败，已停止的SQLite实验未进入产品。
+当前包来自 [Draft #108](https://github.com/molis-ai/molis-prologue/pull/108) 的干净源 `9674515302f23e383dab9b1eeffe835b789c5c09`，基于 main `ccafbb74fb9db0e3a124ec502c57291677487e23`。集合读取、每次完整字节验证、默认0证明缓存及原权限/版本/取消/最终回执保留，存储格式未变。Molis沿同一caller/execution读取完整scopes并显式配置8 MiB证明预算；这不解除1000条性能失败，已停止的SQLite实验未进入产品。
 
 保留 `config.memory.modelOrigin` 的 description/label 选择（SDK默认description，Molis选label），管理来源及canonical身份不变。新Agent开场只记caller消息，自动Context仍进入实际模型与回执；显式caller system保留，新账replay/rewind前缀语义随之变化。
 
-本包新增按精确Session/Run读取caller原件的 `SessionOpeningReader`。SDK仅在原连续开场内无歧义对齐，排除无法确认来源的额外user段，原replay/export审计不改；peer/steer/carried及助手、工具顺序保留。Reader缺失或无法证明时不臆造原件；显式配置reader的读取错误/歧义拒绝续聊。未配置reader仍是原SDK行为，不宣称generic旧账已采用。实际省略通过无正文 `history-projected` 持久事件提示，模型发出前完成原发布；公开协作入口首次等待前固定本次history/reader，子任务不自动继承。
+本包保留按精确Session/Run读取caller原件的 `SessionOpeningReader`。SDK仅在原连续开场内无歧义对齐，排除无法确认来源的额外user段，原replay/export审计不改；peer/steer/carried及助手、工具顺序保留。Reader缺失或无法证明时不臆造原件；显式配置reader的读取错误/歧义拒绝续聊。未配置reader仍是原SDK行为，不宣称generic旧账已采用。实际省略通过无正文 `history-projected` 持久事件提示，模型发出前完成原发布；公开协作入口首次等待前固定本次history/reader，子任务不自动继承。
 
-归档 **1,412,081 B**，828个dist文件，SHA-256 `35b2e580842246cfa2576e827625a644f8ea459104a3cb9f2d3290153a124d4b`。Root独立核全部dist与干净源原构建逐字节相同，package.json与上一包一致。被替换f6e及更早包的Git blob和来源sidecar保存在patch-history notes，不新增第三份归档。
+归档 **1,412,463 B**，828个dist文件，SHA-256 `44be3daea594d1a4186a0b243651be7049c8b37bbc41bcde80d2ef908453ae8e`。Root独立核全部dist与干净源原构建逐字节相同，package.json与上一包一致。被替换f6e及更早包的Git blob和来源sidecar保存在patch-history notes，不新增第三份归档。
 
-重建：固定Node24.14.0/pnpm11.9.0、冻结离线依赖，原pnpm build，packages/sdk原pnpm pack到独立目录。原完整quality自然退出0：类型/build/API、相对main ccaf的棘轮、文档、73文件770项、原干净安装消费者及Cargo fmt/clippy通过。独立复审发现的协作入口等待窗口已有4个公开红→绿回归，最终相关5文件58项通过；各类首败保留于SDK现合同。未调整质量门、重试或断言。
+重建：固定Node24.14.0/pnpm11.9.0、冻结离线依赖，原pnpm build，packages/sdk原pnpm pack到独立目录。90e旧头的原完整quality曾自然退出0（不代表当前头）：类型/build/API、相对main ccaf的棘轮、文档、73文件770项、原干净安装消费者及Cargo fmt/clippy通过。独立复审发现的协作入口等待窗口已有4个公开红→绿回归，最终相关5文件58项通过；各类首败保留于SDK现合同。未调整质量门、重试或断言。
+
+本包新增 Node beforeNetworkDispatch 返回同步只读来源否决函数，最后 SDK 等待后和代理 CONNECT 后在实际发送前复核，原授权、取消与真实派出事实不变。独立原构建与包一致性通过；当前 96745153 的原完整 quality 自然退出0，包括类型/build/API、原棘轮、文档、73文件770项、原干净安装消费者与Rust fmt/clippy。session-long已改为真实本机HTTP/SSE并严格校验完成状态；此前首次连接超时保留，环境根因不称已解决。原时限和重试不变，最终pack与此前e61独立包字节相同。
 
 新包的App生产链、旧私库采用、真实旧构建的连续续聊和页面提示、1000条性能门及完整P0验收仍待完成。上述源码旧形状测试用公开adoptRun与真实Node存储，不冒称原57cf亲生产物；0付费模型，不访问真实Home，不发布。
 

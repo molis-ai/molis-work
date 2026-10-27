@@ -48,7 +48,7 @@ test("Knowledge prepares once for unbound cards and keeps every bound card on th
   const pieces = [piece("ordinary"), piece("null-generation"), piece("bound"), piece("leftover")], f = await fixture(t, pieces);
   for (const [id, generation] of [["null-generation", null], ["bound", "original-installation"]] as const) {
     const card = f.raw.get(project, piece(id).subject)!;
-    f.raw.put({ ...card, retention: { generation, restoration_operation_id: null } });
+    f.raw.put({ ...card, retention: { source_identity: generation ? { kind: "plugin-installation", generation } : null, restoration_operation_id: null } });
   }
   const before = f.raw.list(project).filter(card => card.retention);
   let prepared = 0;
@@ -203,7 +203,7 @@ for (const stage of ["io", "retention"] as const) for (const { leftover, change 
       } else if (change === "revision") {
         f.raw.put({ ...original, revision: "r2", title: "Current source revision" });
       } else if (change === "identity") {
-        f.raw.put({ ...original, provider_id: "replacement-owner", retention: { generation: "next-installation", restoration_operation_id: null } });
+        f.raw.put({ ...original, provider_id: "replacement-owner", retention: { source_identity: { kind: "plugin-installation", generation: "next-installation" }, restoration_operation_id: null } });
       } else if (change === "create") {
         f.raw.put({ ...original, title: "New concurrent card", edited: ["title"] });
       } else f.raw.remove(project, original.subject);

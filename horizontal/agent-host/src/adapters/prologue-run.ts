@@ -648,6 +648,7 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
       await deps.mcpLibrary.validate(index.owner, input.mcp_tools ?? []);
       await deps.mcpLibrary.validateSources(index.owner, input.mcp_sources ?? []);
     }
+    return () => { requireSynchronous(input.assertBeforeDispatch?.(), "派出前的最终检查必须同步完成"); };
   };
   // The stop check follows this round; its ending review, when the round's owner gave one, runs with the owner's
   // instructions on the round's own model, behind the same pre-dispatch check.
@@ -675,7 +676,7 @@ export async function startPrologueRun(deps: RunDeps, input: PrologueStartInput)
   watchRoundFacts(state, started.run);
   const stopping: { current: Promise<void> | undefined } = { current: undefined };
   // Every child this round dispatches is let out only after the round's own check passes again (the Runtime asks).
-  state.dispatchChecks.set(started.run.ref.id, async () => { await dispatchGuard(); deps.index.assertAdmission(input.session_id); });
+  state.dispatchChecks.set(started.run.ref.id, async () => { const fence = await dispatchGuard(); deps.index.assertAdmission(input.session_id); fence(); });
   await afterStart(deps, input, index, { started, session, root, attemptIndex, actionController, hasActions: Boolean(actionTools?.names.length), none: mode.none,
     project: materials.project, scopePaths: materials.scopePaths, plan, stepBoard: materials.stepBoard, stopping: () => stopping.current !== undefined });
   return { ...roundHandle(deps, input, { started, session, attemptIndex, actionController, stepBoard: materials.stepBoard, stopping }),

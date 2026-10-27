@@ -6,6 +6,7 @@ import type {
   ArtifactListQuery,
   ArtifactReference,
   ArtifactVersionRecord,
+  ArtifactVersionMetadata,
   FixedVersionCommandApi,
   FixedVersionQueryApi,
   FixedVersionRecord,
@@ -83,6 +84,10 @@ export class ArtifactsService<
 
   getArtifactVersion(projectId: string, reference: ArtifactReference): R | null {
     return this.#repository.getVersion(projectId, reference.artifact_id, reference.version);
+  }
+
+  getArtifactVersionMetadata(projectId: string, reference: ArtifactReference): ArtifactVersionMetadata | null {
+    return this.#repository.getVersionMetadata(projectId, reference.artifact_id, reference.version);
   }
 
   listArtifactVersions(projectId: string, artifactId: string): R[] {

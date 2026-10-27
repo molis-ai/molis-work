@@ -3,7 +3,7 @@ import { isSubjectReader, type ActionSubjectContext, type ActionView } from "@mo
 import type { AssistantDelegations } from "./assistant-delegation.js";
 import type { AssistantMethod, AssistantContextSnapshot, AssistantMaterial, AssistantMaterialText } from "@molis-ai/molis-work-contracts/services/assistant";
 import { ASSISTANT_RULES_PROVIDER } from "./assistant-rule-actions.js";
-import { capabilityDirectory, knowledgeDirectory, knowledgeFact } from "./assistant-directory.js";
+import { capabilityDirectory, knowledgeDirectory, knowledgeFact, type KnowledgeMaterialGuard } from "./assistant-directory.js";
 import { identity } from "./assistant-relations.js";
 import type { AssistantStore, StoredWork } from "./assistant-store.js";
 import type { AssistantJobs } from "./assistant-jobs.js";
@@ -53,7 +53,7 @@ export class AssistantRoundMaterials {
 
   /** The round's situation and the person's materials, as marked data. Changing facts travel here, not in the role. */
   async roundMaterials(work: StoredWork, materials: AssistantMaterial[], context: AssistantContextSnapshot | null, offered: readonly ActionView[], unavailable: readonly ActionView[], previousWaitWithdrawn: boolean): Promise<RoundMaterials> {
-    const knowledgeGuards: Array<(views: readonly ActionView[]) => Promise<void>> = [];
+    const knowledgeGuards: KnowledgeMaterialGuard[] = [];
     const zone = this.ports.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone;
     const now = this.now();
     const local = new Intl.DateTimeFormat("zh-CN", { timeZone: zone, dateStyle: "full", timeStyle: "short" }).format(now);
@@ -157,7 +157,20 @@ export class AssistantRoundMaterials {
         material.object ? `对象：${material.object.title ?? material.object.id}（${material.object.kind}${material.object.version !== undefined ? `，版本 ${material.object.version}` : ""}）` : ""].filter(Boolean).join("\n");
       out.push(...chunked({ ...base, title: `材料：${material.title}` }, `material-${material.material_id}`, `${head}\n\n${material.text ?? "（没有可读正文）"}`));
     }
-    return { materials: out.slice(0, 30), told, beforeDispatch: async views => { for (const guard of knowledgeGuards) await guard(views); } };
+    // All materials come from this Host. Capture their original source scopes together, before any async recheck;
+    // a later material's authority callback must not invalidate an earlier source unnoticed.
+    const sources = knowledgeGuards.flatMap(guard => guard.sourceCapture ? [guard.sourceCapture] : []);
+    const unprepared = () => { throw assistantErrors.invalid("资料尚未完成本次发送前复核"); };
+    let assertCurrent: () => void = unprepared;
+    return { materials: out.slice(0, 30), told, beforeDispatch: async views => {
+      assertCurrent = unprepared;
+      const source = sources[0];
+      if (source && !source.client.captureSources) throw assistantErrors.invalid("当前资料来源不能完成发送前复核");
+      const captured = source ? source.client.captureSources!(sources.flatMap(item => item.scopes)) : () => {};
+      const current = () => { captured(); for (const guard of knowledgeGuards) guard.assertCardsCurrent?.(); };
+      for (const guard of knowledgeGuards) await guard.beforeDispatch?.(views);
+      current(); assertCurrent = current;
+    }, assertCurrent: () => assertCurrent() };
   }
 
   /** One object as its owner has it now: its context, "missing" when the owner says it is gone, null when unreadable. */

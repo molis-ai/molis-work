@@ -77,6 +77,7 @@ function startInput(request: AgentStartRequest, role: FrozenRole, model: Prologu
     beforeStart: execution?.beforeStart,
     assertBeforeStart: execution?.assertBeforeStart,
     beforeDispatch: execution?.beforeDispatch,
+    assertBeforeDispatch: execution?.assertBeforeDispatch,
     provenance,
     session_id: request.session.session_id,
     ...(request.workspace === "none" ? { workspace: "none" } : request.workspace === "business" ? { workspace: "business" } : { root_path: request.directory.canonical_path }),

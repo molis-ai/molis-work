@@ -42,12 +42,12 @@ test("Coding's business surface is redeemed by the project Runtime, owner-bound,
     const control = find("coding.control-run"); assert.equal(control.version, 8);
     for (const version of [1, 2, 3, 4, 5, 6, 7]) await assert.rejects(client.invoke(owner, { ...control, version }, {}), (error: unknown) => error instanceof ActionError && error.code === "actions.missing");
 
-    for (const [id, old] of [["coding.archive-preview", 1], ["coding.update-session", 2]] as const) {
-      assert.equal(find(id).version, old + 1);
+    for (const [id, old] of [["coding.archive-preview", 1], ["coding.unarchive-preview", 1], ["coding.unarchive-session", 1], ["coding.update-session", 2]] as const) {
+      assert.equal(find(id).version, old + 1, id);
       await assert.rejects(client.invoke(owner, { ...find(id), version: old }, {}), (error: unknown) => error instanceof ActionError && error.code === "actions.missing");
     }
-    for (const id of ["coding.archived-sessions", "coding.unarchive-preview", "coding.unarchive-session"]) {
-      assert.equal(find(id).version, 1); assert.deepEqual(find(id).action.audiences, ["user"]);
+    for (const [id, version] of [["coding.archived-sessions", 1], ["coding.unarchive-preview", 2], ["coding.unarchive-session", 2]] as const) {
+      assert.equal(find(id).version, version, id); assert.deepEqual(find(id).action.audiences, ["user"]);
     }
     await assert.rejects(client.invoke(owner, find("coding.update-session"), { session_id: created.session.session_id, archive: true, archive_decision: { mode: "local" } }),
       (error: unknown) => error instanceof ActionError && error.code === "actions.input_invalid");

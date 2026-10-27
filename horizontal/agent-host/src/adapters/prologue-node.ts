@@ -15,7 +15,7 @@ import type { PrologueInferenceClient } from "../inference.js";
 import { createPrologueMcpLibrary } from "./prologue-mcp.js";
 import { createPrologueMemory } from "./prologue-memory.js";
 import { createPrologueMemoryAuthority } from "./prologue-memory-authority.js";
-import { readResource, readResourceText, createRoundState, type DispatchGuards, type PrologueNodeAdapterOptions } from "./prologue-node-kit.js";
+import { readResource, readResourceText, createRoundState, type DispatchGuard, type DispatchGuards, type PrologueNodeAdapterOptions } from "./prologue-node-kit.js";
 import { createNodeCoordination, createNodeInference, createNodeProjectWork } from "./prologue-node-parts.js";
 import { createWorkGraphs } from "./prologue-work-graphs.js";
 import { answerPending, createNodeGitReviews, createNodePort, createNodeRuntime, directoriesIdle, questionReader } from "./prologue-node-port.js";
@@ -140,13 +140,13 @@ export function createPrologueNodeAdapter(
 
 async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions, onFailureClose: (close: () => unknown) => () => Promise<void>) {
   // Async context holds only a trusted denial guard, never serializes it in a Run.
-  const dispatchGuards: DispatchGuards = new AsyncLocalStorage<() => void | Promise<void>>();
+  const dispatchGuards: DispatchGuards = new AsyncLocalStorage<DispatchGuard>();
   const host = createNodeHost({
     // This runtime owns or borrows the storage root's actual owner lock for its whole life, so a write claim
     // found there at start is one a crashed owner left: the Host clears it instead of refusing that record for ever.
     storageRoot: options.storageRoot, exclusiveOwner: true,
     resolveHost: resolveModelHostname,
-    beforeNetworkDispatch: async () => { await dispatchGuards.getStore()?.(); },
+    beforeNetworkDispatch: async () => dispatchGuards.getStore()?.(),
     // A model call that got no response at all (the connection dropped) is sent again under the retry policy, rather
     // than ending the round: the person's decision (2026-09-27), knowing a dropped request may be billed twice.
     retryUnansweredModelCalls: true,
@@ -177,7 +177,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   const mcpLibrary = createPrologueMcpLibrary(runtime, {
     withDispatchGuard: (guard, operation) => {
       const inherited = dispatchGuards.getStore();
-      return dispatchGuards.run(async () => { await inherited?.(); await guard(); }, operation);
+      return dispatchGuards.run(async () => { const fence = await inherited?.(); await guard(); return fence; }, operation);
     },
     directoryAuthorized: options.checks?.directoryAuthorized,
     resolveConnection: options.resolveMcpConnection, saveConnection: options.saveMcpConnection,

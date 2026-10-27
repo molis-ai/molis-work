@@ -1,6 +1,8 @@
 # 公共类型与协议
 
-Knowledge 关联预览：`knowledge.card.bind-preview@1` 为本人 `knowledge:manage` query/read/concurrent，输入仅 `{subject}`，输出 `{subject,candidates}`。每个候选包含 `provider_id/source_key/generation/source_revision/title/plugin_title/summary/content_policy/updated_at`，没有 actor、project 或预览授权凭证。候选选择只限定原读取器的提供方，不授予权限；最终 `knowledge.card.bind@1` 继续独立复核。原空候选、读取失败与取消不得互相冒充。
+系统资料当前身份合同：ActionSourceIdentity 区分真实插件安装代与项目数据实例；本人关联和 retention 共用 source_identity。保留协议 v3 的 active 提供 current_revision；系统来源必须按本次实际版本核对。Knowledge 管理返回升 4，关联预览和提交升 2。未知旧卡不补身份。
+
+Knowledge 关联预览：`knowledge.card.bind-preview@2` 为本人 `knowledge:manage` query/read/concurrent，输入仅 `{subject}`，输出 `{subject,candidates}`。每个候选包含 `provider_id/source_key/source_identity/source_revision/title/plugin_title/summary/content_policy/updated_at`，没有 actor、project 或预览授权凭证。候选选择只限定原读取器的提供方，不授予权限；最终 `knowledge.card.bind@1` 继续独立复核。原空候选、读取失败与取消不得互相冒充。
 
 MEM-40 的 MemoryHomeRecoveryDecision 是 services/memory 现入口导出的纯持久 envelope：固定已解释来源、Memory present-purge/already-cleared 元组、原 AgentSession DTO、事件屏障与 ProjectDeletionRecoveryGroup，不含 Catalog plans/steps/completion 或任意 JSON 授权。来源事实与父 phase 不授写；现 plan-target 的必填版本保持，新父使用独立 header/target 事实。Storage 持有唯一 decoder，Memory 原 interpreter 只解释来源；最终恢复装配不由类型存在证明。
 

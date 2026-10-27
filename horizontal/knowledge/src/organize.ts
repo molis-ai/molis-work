@@ -1,5 +1,5 @@
 import { setImmediate as yieldToIO } from "node:timers/promises";
-import { requireSynchronous, type ActionSubject, type SearchOpenTarget } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, requireSynchronous, sameActionSourceIdentity, type ActionSourceIdentity, type ActionSubject, type SearchOpenTarget } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   KNOWLEDGE_BRIEF_MAX_CHARS,
   KNOWLEDGE_CARD_MAX_KEYWORDS,
@@ -19,7 +19,7 @@ import { outlineOf } from "./text.js";
 
 /** One piece in a project's catalog, as the system search indexed it with the local person's access (spec §4.4). */
 export interface KnowledgePiece {
-  retention?: { generation: string | null };
+  retention?: { source_identity: ActionSourceIdentity | null };
   restoration?: { content_revision: string | null; restoration_operation_id: string };
   subject: ActionSubject;
   source_key: string;
@@ -58,7 +58,7 @@ export interface KnowledgeDraftInput { title: string; summary: string; text: str
 /** What the model proposes. Anything outside these bounds is cut; a section anchor the piece does not have is dropped. */
 /** What a model wrote for one piece: only a title and a brief are certain; keywords and section notes may be missing or partial. */
 export interface KnowledgeDraft { title: string; brief: string; keywords?: string[]; sections?: Array<{ anchor?: string; summary?: string }> }
-export interface KnowledgeWriterControl { beforeDispatch(): Promise<void>; afterResult(): Promise<void> }
+export interface KnowledgeWriterControl { beforeDispatch(): Promise<void>; afterResult(): Promise<void>; assertCurrent?(): void }
 export type KnowledgeWriter = (input: KnowledgeDraftInput, signal?: AbortSignal, control?: KnowledgeWriterControl) => Promise<KnowledgeDraft>;
 
 type UnboundRetentionClassifier = (identity: SearchRetentionIdentity) => "unsupported" | "unavailable";
@@ -112,7 +112,7 @@ export function cardFor(projectId: string, piece: KnowledgePiece): KnowledgeCard
 export function cardSeen(card: KnowledgeCardRecord, piece: KnowledgePiece): KnowledgeCardRecord {
   // An old card cannot be adopted by a different install, or acquire a binding after the fact.
   if (card.provider_id !== piece.provider_id || card.source_key !== piece.source_key
-    || (card.retention?.generation ?? null) !== (piece.retention?.generation ?? null) || !!card.retention !== !!piece.retention) return card;
+    || (card.retention?.source_identity || piece.retention?.source_identity) && !sameActionSourceIdentity(card.retention?.source_identity, piece.retention?.source_identity) || !!card.retention !== !!piece.retention) return card;
   if (card.retention && card.content_policy === "context" && piece.content_policy === "summary") return card;
   const operation = piece.restoration?.restoration_operation_id;
   const firstRestore = !!operation && card.retention?.restoration_operation_id !== operation;
@@ -237,7 +237,7 @@ export class KnowledgeOrganizer {
       let state: SearchRetentionResult;
       if (unbound && target.retention === undefined && !("adoption" in target && target.adoption)) state = this.unboundRetention(projectId, target, unbound);
       else {
-        state = await this.retention(projectId, target);
+        state = await this.retention(projectId, { ...target, revision: candidate.revision });
         if (this.closed || this.removed.has(projectId)) return;
         if (!sameFields(card, store.get(projectId, candidate.subject) ?? undefined)) continue;
       }
@@ -310,7 +310,7 @@ export class KnowledgeOrganizer {
   }
 
   private retention(projectId: string, piece: KnowledgePiece | KnowledgeCardRecord): Promise<SearchRetentionResult> {
-    return this.options.retention?.({ project_id: projectId, provider_id: piece.provider_id, subject: piece.subject,
+    return this.options.retention?.({ project_id: projectId, provider_id: piece.provider_id, subject: piece.subject, expected_revision: piece.revision,
       ...(piece.retention ? { retention: piece.retention } : {}),
       ...("adoption" in piece && piece.adoption ? { adoption: piece.adoption } : {}) }) ?? Promise.resolve({ state: piece.retention || "adoption" in piece && piece.adoption ? "unavailable" : "unsupported" });
   }
@@ -343,6 +343,15 @@ export class KnowledgeOrganizer {
       }
       const authorized = await this.options.authorize?.(projectId, piece, waiting);
       if (this.options.authorize && !authorized) continue;
+      const original = waiting;
+      const matchesCard = (now: KnowledgeCardRecord | null): now is KnowledgeCardRecord => !!now && now.revision === original.revision && now.state === "pending"
+        && !now.excluded && now.provider_id === original.provider_id && now.source_key === original.source_key && now.content_policy === original.content_policy
+        && sameFields(now.edited, original.edited) && now.title === original.title && now.brief === original.brief
+        && sameFields(now.keywords, original.keywords) && sameFields(now.retention, original.retention);
+      const assertCardCurrent = () => {
+        if (!matchesCard(this.options.store.get(projectId, original.subject))) throw new ActionError("actions.subject_unavailable", "资料卡片已被排除、编辑或替换，不能继续使用原材料");
+      };
+      const assertCurrent = () => { authorized?.assertCurrent(); assertCardCurrent(); };
       const input = draftInput(piece);
       const quota = this.quota(projectId);
       if (quota.used_pieces + 1 > quota.limit_pieces || quota.used_chars + input.text.length > quota.limit_chars) {
@@ -350,21 +359,24 @@ export class KnowledgeOrganizer {
         for (const card of this.options.store.list(projectId)) if (card.state === "pending" && !card.excluded) this.options.store.put({ ...card, state: "over_quota" });
         return;
       }
-      authorized?.assertCurrent();
-      this.options.store.addUsage(projectId, this.day(), { pieces: 1, chars: input.text.length });
-      const control = authorized ? { beforeDispatch: () => authorized.beforeDispatch(), afterResult: async () => {
+      const usageDay = this.day();
+      assertCurrent();
+      this.options.store.addUsage(projectId, usageDay, { pieces: 1, chars: input.text.length });
+      const control = authorized ? { beforeDispatch: async () => { await authorized.beforeDispatch(); assertCurrent(); }, assertCurrent, afterResult: async () => {
         if (!await authorized.current()) throw new Error("资料的原授权或正文已经变化");
+        assertCurrent();
       } } : undefined;
       const outcome = await writer(input, signal, control).then(draft => ({ draft }), (error: unknown) => ({ error }));
       if (signal.aborted) return;
       // The piece may have changed, or the person queued it again, while the model wrote: then this draft is for nothing.
       if (authorized && !await authorized.current()) continue;
       const now = this.options.store.get(projectId, waiting.subject);
-      if (!now || now.revision !== waiting.revision || now.state !== "pending" || now.excluded
-        || !sameFields(now.edited, waiting.edited) || now.title !== waiting.title || now.brief !== waiting.brief
-        || !sameFields(now.keywords, waiting.keywords) || !sameFields(now.retention, waiting.retention)) continue;
-      this.options.store.put("draft" in outcome ? cardOrganized(now, input, outcome.draft, this.clock().toISOString())
-        : { ...now, state: "failed", error: (outcome.error instanceof Error ? outcome.error.message : String(outcome.error)).slice(0, ERROR_CHARS) });
+      if (!matchesCard(now)) continue;
+      const updated = "draft" in outcome ? cardOrganized(now, input, outcome.draft, this.clock().toISOString())
+        : { ...now, state: "failed" as const, error: (outcome.error instanceof Error ? outcome.error.message : String(outcome.error)).slice(0, ERROR_CHARS) };
+      assertCurrent();
+      if (!sameFields(now, this.options.store.get(projectId, waiting.subject))) continue;
+      this.options.store.put(updated);
     }
   }
 

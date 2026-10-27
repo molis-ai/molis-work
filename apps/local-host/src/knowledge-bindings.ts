@@ -1,4 +1,4 @@
-import { ActionError, requireSynchronous, resolveActionSubject, type ActionCallContext, type ActionClient, type ActionExecutionContext,
+import { ActionError, requireSynchronous, resolveActionSubject, actionSourceIdentity, sameActionSourceIdentity, type ActionSourceIdentity, type ActionCallContext, type ActionClient, type ActionExecutionContext,
   type ActionHandlerBinding, type ActionReference, type ActionSubject, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { KNOWLEDGE_PROVIDER_ID, knowledgeManageActions, type KnowledgeBindCandidate, type KnowledgeBindPreviewRequest,
   type KnowledgeBindPreviewResponse, type KnowledgeBindRequest, type KnowledgeCardRecord, type KnowledgeCardStorePort,
@@ -40,23 +40,23 @@ export function knowledgeBindingActions(ports: BindingPorts): ActionHandlerBindi
   };
   const viewOf = (views: readonly ActionView[], reference: ActionReference, project: string) => views.find(view => view.provider.provider_id === reference.provider_id
     && view.capability_id === reference.capability_id && view.version === reference.version && (view.provider.project_id == null || view.provider.project_id === project));
-  const assertView = (views: readonly ActionView[], reference: ActionReference, project: string, generation: string) => {
+  const assertView = (views: readonly ActionView[], reference: ActionReference, project: string, source_identity: ActionSourceIdentity) => {
     const view = viewOf(views, reference, project);
-    if (!view?.availability.available || view.provider.plugin_installation_generation !== generation) throw unavailable();
+    if (!view?.availability.available || !sameActionSourceIdentity(actionSourceIdentity(view.provider, project), source_identity)) throw unavailable();
   };
   const check = async (caller: ActionExecutionContext, client: ActionClient, original: KnowledgeCardRecord, piece: KnowledgePiece,
-    expected: Pick<KnowledgeBindRequest, "generation" | "source_revision">, replay = false) => {
+    expected: Pick<KnowledgeBindRequest, "source_identity" | "source_revision">, replay = false) => {
     const project = original.project_id, reference = referenceOf(piece, project);
     if (!replay && piece.revision !== expected.source_revision) throw conflict();
     const current = async () => {
       await caller.validate_authority?.(reference);
-      const views = await client.discover(caller); assertView(views, reference, project, expected.generation);
-      if (piece.retention && piece.retention.generation !== expected.generation) throw unavailable();
-      const state = await ports.retention({ client, caller }, { project_id: project, provider_id: piece.provider_id, subject: piece.subject,
+      const views = await client.discover(caller); assertView(views, reference, project, expected.source_identity);
+      if (piece.retention && !sameActionSourceIdentity(piece.retention.source_identity, expected.source_identity)) throw unavailable();
+      const state = await ports.retention({ client, caller }, { project_id: project, provider_id: piece.provider_id, subject: piece.subject, expected_revision: piece.revision,
         ...(piece.retention ? { retention: piece.retention } : {}) }, views);
       caller.signal?.throwIfAborted();
       if (state.state === "unavailable") throw unavailable();
-      assertView(await client.discover(caller), reference, project, expected.generation);
+      assertView(await client.discover(caller), reference, project, expected.source_identity);
       caller.signal?.throwIfAborted(); requireSynchronous(caller.assert_authority_current?.(reference));
       return state.state === "active" || state.state === "unsupported";
     };
@@ -69,18 +69,19 @@ export function knowledgeBindingActions(ports: BindingPorts): ActionHandlerBindi
     }
     if (!await current()) throw unavailable();
     assertPiece(piece, project); assertCard(original);
-    return { piece, reference, generation: expected.generation };
+    return { piece, reference, source_identity: expected.source_identity };
   };
   type Checked = NonNullable<Awaited<ReturnType<typeof check>>>;
   const finish = (caller: ActionExecutionContext, original: KnowledgeCardRecord, selected: readonly Checked[], action: ActionReference, views: readonly ActionView[]) => {
     caller.signal?.throwIfAborted();
     for (const entry of selected) {
-      assertView(views, entry.reference, original.project_id, entry.generation); assertPiece(entry.piece, original.project_id);
+      assertView(views, entry.reference, original.project_id, entry.source_identity); assertPiece(entry.piece, original.project_id);
       requireSynchronous(caller.assert_authority_current?.(entry.reference));
     }
     requireSynchronous(caller.assert_authority_current?.(action)); assertCard(original);
   };
   const bind = async (caller: ActionExecutionContext, input: KnowledgeBindRequest) => {
+    input = structuredClone(input);
     const original = originalCard(caller, input.subject), client = ports.clientFor(caller);
     const piece = knowledgeCatalog(index, original.project_id).find(piece => sameSubject(piece.subject, input.subject) && piece.provider_id === input.provider_id && piece.source_key === input.source_key);
     if (!piece || !caller.retainAuthority) throw unavailable();
@@ -99,20 +100,21 @@ export function knowledgeBindingActions(ports: BindingPorts): ActionHandlerBindi
     return cards.bind(caller, input, piece);
   };
   const preview = async (caller: ActionExecutionContext, input: KnowledgeBindPreviewRequest): Promise<KnowledgeBindPreviewResponse> => {
+    input = structuredClone(input);
     const original = originalCard(caller, input.subject), client = ports.clientFor(caller), views = await client.discover(caller);
     const candidates = knowledgeCatalog(index, original.project_id).filter(piece => sameSubject(piece.subject, input.subject)).flatMap(piece => {
-      const view = viewOf(views, referenceOf(piece, original.project_id), original.project_id), generation = view?.provider.plugin_installation_generation;
-      return view?.availability.available && generation ? [{ piece, generation }] : [];
+      const view = viewOf(views, referenceOf(piece, original.project_id), original.project_id), source_identity = view ? actionSourceIdentity(view.provider, original.project_id) : null;
+      return view?.availability.available && source_identity ? [{ piece, source_identity }] : [];
     });
     if (!caller.retainAuthority) throw unavailable();
     const sourceAuthority = caller.retainAuthority(candidates.map(({ piece }) => referenceOf(piece, original.project_id)), { providerCommands: "unchanged" });
     const selected: Checked[] = [];
-    for (const { piece, generation } of candidates) {
-      const checked = await check(caller, client, original, piece, { generation, source_revision: piece.revision });
+    for (const { piece, source_identity } of candidates) {
+      const checked = await check(caller, client, original, piece, { source_identity, source_revision: piece.revision });
       if (checked) selected.push(checked);
     }
     // Earlier candidates may have changed while a later owner was being read.
-    for (const entry of selected) if (!await check(caller, client, original, entry.piece, { generation: entry.generation, source_revision: entry.piece.revision })) throw unavailable();
+    for (const entry of selected) if (!await check(caller, client, original, entry.piece, { source_identity: entry.source_identity, source_revision: entry.piece.revision })) throw unavailable();
     const action = { ...knowledgeManageActions.bindPreview, provider_id: KNOWLEDGE_PROVIDER_ID };
     await caller.validate_authority?.(action);
     const current = await client.discover(caller);
@@ -120,8 +122,8 @@ export function knowledgeBindingActions(ports: BindingPorts): ActionHandlerBindi
     sourceAuthority.assertCurrent();
     for (const entry of selected) assertPiece(entry.piece, original.project_id);
     assertCard(original);
-    const result: KnowledgeBindCandidate[] = selected.map(({ piece, generation }) => ({ provider_id: piece.provider_id, source_key: piece.source_key,
-      generation, source_revision: piece.revision, title: piece.title, plugin_title: piece.plugin_title, summary: piece.summary, content_policy: piece.content_policy, updated_at: piece.updated_at }));
+    const result: KnowledgeBindCandidate[] = selected.map(({ piece, source_identity }) => ({ provider_id: piece.provider_id, source_key: piece.source_key,
+      source_identity, source_revision: piece.revision, title: piece.title, plugin_title: piece.plugin_title, summary: piece.summary, content_policy: piece.content_policy, updated_at: piece.updated_at }));
     return { subject: input.subject, candidates: result };
   };
   return [

@@ -384,7 +384,7 @@ export const WORKSPACE_PACKAGES = [
     ]
   }),
   entry("modules/artifacts", "@molis-ai/molis-work-contracts/modules/artifacts", {
-    extraWorkspaceDependencies: ["@molis-ai/molis-work-storage"],
+    extraWorkspaceDependencies: ["@molis-ai/molis-work-storage", "@molis-ai/molis-work-plugin-sdk"],
     maturity: "production",
     capabilities: [
       "artifacts.identity.v1",

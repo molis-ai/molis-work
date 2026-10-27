@@ -109,7 +109,7 @@ for (const { plugin, change, sql, oldVersion } of cases) {
     if (plugin === CODING_PLUGIN_ID) {
       assert.match(panel, /role="alert"/, "the Coding page says it did not open");
       assert.match(panel, /io\.molis\.work\.coding/, "and names the plugin it refused");
-      assert.match(panel, oldVersion ? new RegExp(`是第 ${oldVersion} 版，这次声明的是第 3 版`) : /的表和索引与声明不同/, "the reason is the platform's refusal, not a failure further on");
+      assert.match(panel, oldVersion ? new RegExp(`是第 ${oldVersion} 版，这次声明的是第 4 版`) : /的表和索引与声明不同/, "the reason is the platform's refusal, not a failure further on");
     } else {
       assert.doesNotMatch(panel, /role="alert"/, "Coding opens while another plugin is refused");
     }

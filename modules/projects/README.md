@@ -52,7 +52,7 @@ node scripts/run-tests.mjs tests/projects-module.test.ts
 - 公开入口：`@molis-ai/molis-work-module-projects`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/projects`。
 - 依赖：`@molis-ai/molis-work-contracts`。方向：只依赖 contracts/modules、contracts/services 与 kernel；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
-  - 身份只有 `project_id`：目录条目、项目数据库、库里的根行 `project_root` 与 Goals 的看板同值。项目库正好有一行根行，项目库里引用项目的外键（插件声明的表也一样）指向它，不指向 Goals 的表；根行不存标题，显示名只在目录里（`specs/plugin-project-database` §2.4）。
+  - 业务身份仍是 `project_id`：目录条目、项目数据库、库里的根行 `project_root` 与 Goals 的看板同值。根行的 `data_instance_id` 只标识这份项目数据实例，不替代业务身份。项目库正好有一行根行，项目库里引用项目的外键（插件声明的表也一样）指向它，不指向 Goals 的表；根行不存标题，显示名只在目录里（`specs/plugin-project-database` §2.4）。
   - 目录关联只由本模块管理，不建第二份目录库；按项读取当前项目，不返回其他项目的关联。
   - `query.projectPluginMembership` 在一次同步查询中共用当前常开判断，返回派生成员与过滤后的隐藏标记；先读取注册表，再查项目。结果不留在实例中，后续调用及等待后的写前检查仍须重新读取当前状态。`storedProjectPluginMembership` 只返回显示事实，不能代替它作可达性判断。
   - 卸载检查只提供目录事实，不删除用户文件。
@@ -61,6 +61,14 @@ node scripts/run-tests.mjs tests/projects-module.test.ts
   - `lifecycle.retainedProject` 只给删除 owner 读保留的原目录行；同 ID 原删除仍 pending 时，实际 register 事务同步拒绝后继登记，即使原行已删。普通查询不能把隐藏等同不存在或据旧 complete 删除后继实例。
 - 改动后必跑：`node scripts/run-tests.mjs tests/projects-module.test.ts tests/project-plugin-registry.test.ts tests/current-project-settings.test.ts tests/project-settings-deletion.test.ts tests/project-deletion-hooks.test.ts`
 - 相关手册：[docs/modules/projects.md](../../docs/modules/projects.md)、[docs/platform/PROJECT-SETTINGS.md](../../docs/platform/PROJECT-SETTINGS.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。
+
+## 当前实例身份短合同
+
+本片对应 [Memory 规格](../../specs/prologue-memory-strategy/spec.md)「系统资料来源的当前实例身份」，仅实现项目库 v11 的创建与读取。沿用 `project_root`，不新增表、服务或第二写主人。`writeProjectRoot(db, projectId, createdAt)` 在首次插入时生成随机持久的 `data_instance_id`；同项目重复写不改变该身份及原 `created_at`。`listProjectRoots` 公开投影该必需非空字段；关闭重开、整体移动或完整恢复同一份数据保留身份，同 `project_id` 的全新数据实例产生新身份。
+
+硬边界是 owner 生成身份、现行 schema 无空值或默认补值、未知旧结构拒读；不提供调用方指定或插件替换身份的入口。App 仍传业务 `projectId` 与创建时间；终端用户操作、来源绑定、权限和生命周期复核不归本片。仅允许修改本模块根行实现、必要出口和 README、Host 基线版本 10 → 11 及直接根行行为测试；不做数据维护、旧库补值、其他 owner 或 UI 改动。失败不补写历史；取消、跨库恢复编排沿现 owner，不新增异步流程。
+
+验收使用真实磁盘 SQLite，经包公开入口验证新身份、幂等写、关闭重开、同业务 ID 新库、原创建时间不变、缺失身份拒绝与 v10 原样拒绝。先完成仓库构建，再运行 `node scripts/run-tests.mjs tests/project-root.test.ts`，并保留上列必跑回归；构建和测试由集成根按机器槽位安排。上述工程证据不代替系统资料绑定闭环或用户验收。
 
 ## 进一步阅读
 

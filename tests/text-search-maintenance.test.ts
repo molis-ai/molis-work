@@ -72,7 +72,7 @@ test("actual target absence creates no Home, directory or database and is not a 
 
 test("old, incomplete, collateral-writing and altered FTS schemas are refused without rebuilding", async t => {
   for (const [name, sql] of [
-    ["version", "UPDATE search_meta SET value = '1' WHERE key = 'schema'"],
+    ["old identity version", "UPDATE search_meta SET value = '3' WHERE key = 'schema'"],
     ["missing table", "DROP TABLE search_sources"],
     ["trigger", "CREATE TRIGGER collateral AFTER DELETE ON search_documents BEGIN DELETE FROM search_sources; END"],
     ["collation", "ALTER TABLE search_documents ADD COLUMN unexpected TEXT COLLATE NOCASE"],
@@ -88,6 +88,25 @@ test("old, incomplete, collateral-writing and altered FTS schemas are refused wi
     assert.throws(() => clearProjectInExistingTextSearchIndex(f.input));
     assert.deepEqual(readFileSync(f.path), before);
   });
+});
+
+test("old search identity cache is rebuilt by its ordinary owner without carrying old bindings", t => {
+  const f = fixture(t);
+  const stale = new DatabaseSync(f.path);
+  stale.prepare("UPDATE search_documents SET retention_json = ?").run(JSON.stringify({ generation: "old-install" }));
+  stale.exec("UPDATE search_meta SET value = '3' WHERE key = 'schema'"); stale.close();
+  const before = readFileSync(f.path);
+  assert.throws(() => clearProjectInExistingTextSearchIndex(f.input), { code: "search.maintenance_schema" });
+  assert.deepEqual(readFileSync(f.path), before, "existing-only never adopts or rebuilds the stale cache");
+  const current = openTextSearchIndex({ homeDirectory: f.home });
+  try {
+    assert.deepEqual(current.sources(), []);
+    assert.deepEqual(current.documents("target-project"), []);
+    assert.deepEqual(current.documents("other-project"), []);
+  } finally { current.close(); }
+  const reopened = new DatabaseSync(f.path, { readOnly: true });
+  try { assert.equal(reopened.prepare("SELECT value FROM search_meta WHERE key = 'schema'").get()!.value, "4"); }
+  finally { reopened.close(); }
 });
 
 test("unsafe paths and linked SQLite files are rejected before opening or changing them", async t => {

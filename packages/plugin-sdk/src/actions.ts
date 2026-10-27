@@ -20,7 +20,7 @@ export function defineAction<Input, Output>(
 /** A source owner's cheap lifecycle query; it neither reads the body nor grants access to retained content. */
 export function defineSubjectRetentionAction(capabilityId: string, kind: string, title: string, permissions: string[],
   scope: "project" | "home" = "project"): ActionDefinition<SubjectRetentionRequest, ActionSubjectRetention> {
-  return { capability_id: capabilityId, version: 2, operation: "query", action: {
+  return { capability_id: capabilityId, version: 3, operation: "query", action: {
     title: `读取${title}的保留状态`, description: `读取${title}的当前生命周期与原恢复事实，不读取正文或授予权限。`,
     kind: "query", scope, scheduling: "concurrent", audiences: ["user", "agent", "workflow", "mcp", "plugin"], permissions,
     subject_kinds: [kind], input_type: SUBJECT_RETENTION_REQUEST_TYPE, output_type: SUBJECT_RETENTION_TYPE,

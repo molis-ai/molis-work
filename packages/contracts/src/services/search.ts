@@ -1,5 +1,5 @@
 import type { ContractDescriptor } from "../platform/package.js";
-import type { ActionDefinition, ActionSubject } from "../platform/actions.js";
+import type { ActionDefinition, ActionSubject, ActionSourceIdentity } from "../platform/actions.js";
 import { ACTION_SUBJECT_SCHEMA, SEARCH_OPEN_TARGET_SCHEMA, type SearchOpenTarget } from "../platform/actions.js";
 import { FRAGMENT_ANY_OBJECT, defineFragmentOffersAction, type FragmentActionOffer, type FragmentOfferChoice, type FragmentOffersInput } from "../platform/action-fragments.js";
 
@@ -192,12 +192,14 @@ export interface SearchIndexSourceRecord {
 /** The most of a document's text the search index holds; words past it are found only by reading the piece itself. */
 export const SEARCH_INDEX_CONTENT_CHARS = 32_000;
 /** Binding captured only from the trusted provider directory, never from the subject response. */
-export interface SearchRetentionBinding { generation: string | null }
+export interface SearchRetentionBinding { source_identity: ActionSourceIdentity | null }
 export interface SearchRetentionIdentity {
   project_id: string | null;
   provider_id: string;
   subject: { kind: string; id: string };
   retention?: SearchRetentionBinding;
+  /** The version this operation would disclose or consume; never a persistent lifecycle fact. */
+  expected_revision?: string;
 }
 export type SearchRetentionResult =
   | { state: "unsupported" | "unavailable" }

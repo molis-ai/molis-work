@@ -124,7 +124,7 @@ function subjectProtocolProblems(key: string, operation: unknown, a: ActionBody)
       || a.input_type !== SUBJECT_RETENTION_REQUEST_TYPE || a.output_type !== SUBJECT_RETENTION_TYPE
       || canonicalSchema(a.input_schema) !== canonicalSchema(SUBJECT_RETENTION_INPUT_SCHEMA)
       || canonicalSchema(a.output_schema) !== canonicalSchema(SUBJECT_RETENTION_OUTPUT_SCHEMA)) {
-      problems.push(`能力 ${key} 没有兑现对象保留协议 v1 的输入输出合同`);
+      problems.push(`能力 ${key} 没有兑现对象保留协议 v3 的输入输出合同`);
     }
   }
   if (a.output_type === SUBJECT_CONTEXT_TYPE || a.input_type === SUBJECT_REFERENCE_TYPE) {

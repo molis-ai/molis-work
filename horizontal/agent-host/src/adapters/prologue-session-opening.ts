@@ -2,7 +2,7 @@ import { isDeepStrictEqual } from "node:util";
 import type { SessionOpeningReader } from "@prologue/sdk";
 import type { SessionIndex, SessionIndexStore } from "./prologue-session-index.js";
 
-/** The Host's accepted main attempt attests caller text, never a person's original input or SDK prompt backfill. */
+/** The Host's accepted main attempt attests only its caller text; it cannot create InputOriginal or infer SDK prompt provenance. */
 export function sessionOpeningReader(store: SessionIndexStore, binding: Pick<SessionIndex, "ref" | "owner">): SessionOpeningReader {
   const held = structuredClone(binding);
   return async ({ sessionRef, runRef }) => {

@@ -86,7 +86,7 @@ test("MEM-40 S-71 Coding archive immediately hides the original Knowledge card a
   await call("/api/knowledge/overview");
   await eventually(() => row(id)?.card.state === "ready" && row(id)?.card.organized_revision === context.revision, "the current source is organized");
   const original = row(id)!;
-  assert.ok(original.card.retention?.generation);
+  assert.ok(original.card.retention?.source_identity);
   const archive = async () => { const preview = await call(path + "/archive-preview"); await call(path, { archive: true, archive_decision: preview.archive_decision }, "PATCH"); };
   const restore = async () => { const preview = await call(path + "/unarchive-preview"); await call(path + "/unarchive", { unarchive_decision: preview.unarchive_decision }); };
   const hidden = async () => {

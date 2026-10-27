@@ -4,6 +4,8 @@
 
 ## 在做的
 
+- [plugin-builder-upgrade](plugin-builder-upgrade/spec.md)：插件创作工作台整体升级；首要解决用户至今未跑通的端到端交付与整体体验，平台同时提供手动／个人助理共用的场景组装能力，保留新能力插件的创作，Alchemist 并为完整落地场景；2026-10-27 需求已整理，尚未实现。需求维护 Codex，实现待分配；与三项场景包／Onboarding 需求独立。
+
 - [diff-frame-performance](diff-frame-performance/spec.md)：大型代码变更逐帧高亮性能；负责人 Codex，Work #996 合入后独立修复全量性能失败，执行中。
 
 - [empty-goal-create](empty-goal-create/spec.md)：进入 Goals 且当前列表为空时，自动打开已有的新建弹窗；2026-10-22 实现，待验收。

@@ -505,3 +505,11 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
       - 项目 Dock 和插件市场移除当前项目的插件，都已写明「同时移除：Feed」；
       - 缺口一：插件市场移除别的项目的插件，只说「已移除自 <项目>」，不提 Feed；
       - 缺口二：加回 Inbox 时，哪里都不提 Feed。
+  - **10-27 C FI7 Feed 一半评审完**（8800e07bf..d96bd692d，笔记 review-c-d96bd692.md）：代码没有必须改的。
+    - 授权和传输检查一项没少，还多了一道：Runtime 路由先查插件在不在项目里，再按安装查每条路由的 feed:read/feed:write（S-15）。
+    - 03eb459c9 比原来严。
+    - OPTAREA-02 改成 actions.missing 是预期变化，和 Inbox、Schedule 在 main 上一样。
+    - e8cab012f 和冻结名单只是变严、变小。
+    - 统筹认了 web-home-isolation 的 W3-01 C 变化：没装 Feed 的项目在门口就拒绝，不留行、不带编号，和 Inbox 等 Runtime 插件一视同仁（用户 10-18）。C 要改 local-host README:163，并补一条「门口之后被拒、留行、带编号」的 HTTP 用例。
+    - 舞台分派表按名字写死、`feed_source_catalog` 是宿主按 Feed 命名的投影，这两样都归已登记的 PG-060，不是新私路。C 在 PG-060 的位置列补上 `plugin-stage-fragment-http.ts`、`web-request.ts:201`、`web-view.ts:111`；§13 写明 4c-3「宿主那份到 4e-3 删」那个条件做到没有。
+    - C 还要修过时文档：RUNTIME-MIGRATION.md:78；PG-057 的「/api/feed 23 处」，客户端现在一处也没有了。

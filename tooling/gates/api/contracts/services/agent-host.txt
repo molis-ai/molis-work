@@ -1586,6 +1586,8 @@ export interface AgentScheduleCapability {
         payload: Record<string, unknown>;
         due_at: string;
         max_attempts?: number;
+    }, control?: AgentMemoryExecutionControl & {
+        signal?: AbortSignal;
     }): Promise<AgentScheduledTask>;
     cancel(key: string): Promise<AgentScheduledTask | null>;
     find(key: string): AgentScheduledTask | null;
@@ -1731,6 +1733,7 @@ export interface AgentSessionRef {
 export interface AgentSessionStatus {
     session_id: string;
     latest_phase: AgentRunPhase | null;
+    latest_run_id: string | null;
     recovery: boolean;
     checkpoint_busy: boolean;
     steps?: {

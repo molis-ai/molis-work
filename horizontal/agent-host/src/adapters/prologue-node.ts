@@ -153,7 +153,7 @@ async function initializePrologueNodeAdapter(options: PrologueNodeAdapterOptions
   });
   // Each invocation's SDK writes re-check its caller first (prologue-effects); accepted runs detach from the start call.
   const effects = prologueEffects(host);
-  const schedule = createPrologueSchedule();
+  const schedule = createPrologueSchedule(effects);
   // Bound after the runtime exists; the redactor it is given reaches it only when a screenshot is taken.
   let surfaceHost: PrologueSurfaces | undefined;
   const state = createRoundState();

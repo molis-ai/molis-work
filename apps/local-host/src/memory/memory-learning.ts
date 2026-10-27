@@ -1,3 +1,5 @@
+import { withCodingMemoryLearningSources } from "./memory-coding-learning.js";
+import type { MolisWorkLocalHost } from "../project-host.js";
 import { memoryErrors, type MemoryBackendPort, type MemoryCaller, type MemoryLearned, type MemoryService } from "@molis-ai/molis-work-service-memory";
 import type { AgentMemoryExecutionControl, AgentMemoryFormationResult, AgentMemorySourceSnapshot, AgentRuntimeAdapter, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { assistantMemorySources, assistantMemorySourceWork } from "../assistant/assistant-memory-sources.js";
@@ -30,6 +32,7 @@ export async function learnFromWork(service: MemoryService, request: MemoryLearn
 
 /** The existing queue's one learning invocation, with fresh owner checks through each actual SDK write. */
 export async function learnFromQueuedWork(home: string, task: Pick<AgentScheduledTask, "key" | "session_id" | "payload">, input: {
+  localHost?: MolisWorkLocalHost;
   adapter: AgentRuntimeAdapter;
   service: MemoryService;
   ports: ConstructorParameters<typeof MemoryService>[0];
@@ -37,6 +40,28 @@ export async function learnFromQueuedWork(home: string, task: Pick<AgentSchedule
   alive(): boolean;
   projectExists?(id: string): Promise<boolean | null>;
 }): Promise<MemoryLearningResult> {
+  if (task.payload && typeof task.payload === "object" && "kind" in task.payload && task.payload.kind === "coding") {
+    if (!input.localHost) throw memoryErrors.unavailable("自动形成缺少原项目读取端口");
+    if (typeof task.key !== "string" || !task.key) throw memoryErrors.forbidden("自动形成缺少原任务身份");
+    const result = await withCodingMemoryLearningSources(input.localHost, input.adapter, task, input.alive, async originals => {
+      const request = await originals.request();
+      const { caller, said } = request;
+      const assertCurrent = () => {
+        if (!input.service.worthLearning(caller, said)) throw memoryErrors.forbidden("原学习许可已失效");
+        originals.assertCurrent();
+      };
+      const stillWanted = async () => await originals.current() && input.service.worthLearning(caller, said);
+      if (!await stillWanted()) throw memoryErrors.forbidden("原始输入或学习权限已变化");
+      const controlled = controlledMemoryService(input.ports, input.backend, { assert_current: assertCurrent,
+        beforeEffect: async () => { if (!await stillWanted()) throw memoryErrors.forbidden("原学习执行已失效"); assertCurrent(); } });
+      const outcome = await learnFromWork(controlled, request, stillWanted);
+      if (outcome.recording_error || outcome.formation && !["completed", "skipped"].includes(outcome.formation.outcome))
+        throw memoryErrors.conflict("记忆形成尚未全部记账，请携原操作对账", { formation: outcome.formation, recording_error: outcome.recording_error });
+      return outcome;
+    });
+    if (!result) throw memoryErrors.forbidden("原 Coding 来源已失效或无法核验");
+    return result;
+  }
   const originals = await assistantMemorySources(home, input.adapter, task);
   if (!originals) return { ran: false, reason: "原始输入已失效或无法核验，没有提炼", learned: [] };
   const { caller, said } = originals.request;

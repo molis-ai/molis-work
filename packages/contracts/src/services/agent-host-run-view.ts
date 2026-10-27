@@ -219,6 +219,8 @@ export interface AgentSessionStatus {
   session_id: string;
   /** The latest round's phase; null before the first round. */
   latest_phase: AgentRunPhase | null;
+  /** Canonical latest Run identity, including when consecutive rounds have the same phase. */
+  latest_run_id: string | null;
   /** Persisted work exists but is not safe to continue automatically. */
   recovery: boolean;
   checkpoint_busy: boolean;

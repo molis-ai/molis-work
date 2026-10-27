@@ -1,6 +1,6 @@
 # Prologue 记忆策略与 Molis Work 接入
 
-状态：当前为 Foundation/App batch42 收束阶段；SDK #108 的 b65 候选已采用，10/100档规模门通过，1000档及完整 P0 验收仍未通过。首期实施已获用户授权（2026-10-22）；C0/Q0 已独立交付，Molis C0/Q0 已合入 main；Prologue C0 与 S1 版本恢复、分类授权、业务 key、管理分页、停用恢复及候选期限检查已合入 main；M1 配置采用第一片已完成工程回归并合入 main；完整 P0 的形成、召回、SDK 接入和产品验收仍未完成；后续按 §9.3 的依赖推进。负责人：当前统筹会话；SDK 合同、Molis 产品合同、质量基线分别有执行负责人。已确认目标仍是 Molis Work 的记忆更精准、好用、省 token，以及 Prologue 的多策略组合和 App 自定义记忆矩阵。实施和验证事实只记在 §13；未通过的标准不因计划或合同落地而算完成。用户随后已授权分片提交和依赖交付；2026-10-25 改为尽可能聚合大 PR，复用 #1101 收齐后续 Memory P0 应用片，原独立验收不放宽。真实 Home 数据采用与发布仍不在本次范围内。
+状态：Memory P0 正在开发与集成，尚未完成验收（2026-10-28）。Molis #1101 与 Prologue #108 仍为 Draft；SDK 4ee5b912 已提交推送并在隔离 App 接包，队列授权交接与 Coding 原件去重的本机生产链用例已通过，尚待最终应用交付和全量核收。已推送 App 541fd757 的普通 CI 通过，Full suite 已结束但6个分片失败；新接包的最终CI尚未运行。10/100档规模门已有通过证据，1000档、B1完整答卷对照、最终产品实操与用户验收仍未关闭。首期实施已获用户授权（2026-10-22）；C0/Q0 已独立交付，Molis C0/Q0 已合入 main；Prologue C0 与 S1 版本恢复、分类授权、业务 key、管理分页、停用恢复及候选期限检查已合入 main；M1 配置采用第一片已完成工程回归并合入 main；完整 P0 的形成、召回、SDK 接入和产品验收仍未完成；后续按 §9.3 的依赖推进。负责人：当前统筹会话；SDK 合同、Molis 产品合同、质量基线分别有执行负责人。已确认目标仍是 Molis Work 的记忆更精准、好用、省 token，以及 Prologue 的多策略组合和 App 自定义记忆矩阵。实施和验证事实只记在 §13；未通过的标准不因计划或合同落地而算完成。用户随后已授权分片提交和依赖交付；2026-10-25 改为尽可能聚合大 PR，复用 #1101 收齐后续 Memory P0 应用片，原独立验收不放宽。真实 Home 数据采用与发布仍不在本次范围内。
 
 
 ## 1. 用户结果与责任边界
@@ -3926,7 +3926,7 @@ MCP 还须保留既有的无项目号绑定：只有请求身份精确等于 `da
 
 读取 owner 前用 captureSources 固定原项目实例、来源提供方注册和命令 marker；读取安装/生命周期后再核原 guard，每个异步 beforeEffect 和 SDK/Ledger 最后同步 assert_current 都使用同一执行的原 guard。撤权、停用、关闭、归档或 pending 后迟到结果不能写候选、正式记忆或业务历史；归档再恢复、撤权再同值重授也不能救活旧执行。不保留已结束 enqueue handler 的临时回调，不从持久 JSON 伪造活授权。原批量队列取消、已取消/失败/待对账的终态不重造 key。
 
-**有界观察与恢复。** 当前活会话的进程内 latest Run/phase 与已检查引用仅用于减少重复读取，随插件停用释放。首次激活或 latest Run/终态变化时读取 canonical refs，按有界批量检查尚未处理项，处理完再推进观察位置；普通五秒轮询不读历史正文。重启重新检查引用，但先用原 schedule.find(key) 排除已有任务，再读原件和判断值得形成；不得截“最近30轮”冒充完成恢复。上下文材料继续沿现30轮/6份完整原件及长度上限；触发 Run 必须带新的本人原始输入，恢复、重试、派生文本不算新证据。不新增持久 cursor。Assistant 的原 key/payload/恢复不变，Coding 固定 key 由项目、业务会话、Runtime 会话、Run 组成。queued 及原队列允许的明确失败新 attempt 每次重新授权；done/cancelled/failed/reconcile-required 不重派，未知结果不自动重放。权限恢复允许以后合法 attempt，不能复活原失效 attempt，遵循 PG002，不增加权限历史表。
+**有界观察与恢复。** 当前活会话的进程内 latest Run/phase 与已检查引用仅用于减少重复读取，随插件停用释放。首次激活或 latest Run/终态变化时读取 canonical refs，按有界批量检查尚未处理项，处理完再推进观察位置；普通五秒轮询不读历史正文。重启重新检查引用：先在原来源 guard 下读取指定 Run，核验 canonical original ref，再用原 schedule.find(key) 排除已有任务；只有无原任务时才继续读取有界上下文并判断值得形成。允许为核验身份读取这一条指定 Run，不增加元数据 Port、第二本账或全队列扫描；不得截“最近30轮”冒充完成恢复。上下文材料继续沿现30轮/6份完整原件及长度上限。直接完成的 Run 必须指向本人原始输入；continued_from 派生续跑不独立触发，恢复与同一原件重试不算新证据。同一原件尚无已接受任务时，首次失败、直接重试成功仍可首次形成；已有任务则返回原任务，不覆盖原 payload 或原 Run 分类许可。不新增持久 cursor。Assistant 的原 key/payload/恢复不变，Coding 固定 key 由项目、业务会话、Runtime 会话和 canonical original ref（session_id/input_id/version）组成；触发 Run 只留在 payload，拥有完成事实、分类许可和上下文定位。readOriginalInput 的 accepted_run 仍表示最近接受的直接尝试；来源复核只核对原件身份和有效性，不要求它仍是原 queued Run。queued 及原队列允许的明确失败新 attempt 每次重新授权；done/cancelled/failed/reconcile-required 不重派，未知结果不自动重放。权限恢复允许以后合法 attempt，不能复活原失效 attempt，遵循 PG002，不增加权限历史表。
 
 **允许修改与装配。** Coding 的现 manifest、会话 owner/observe/动作定义；contracts 现 Memory/Agent 入口及相应 schema；Agent Host 的既有状态投影；Local Host 的现 Memory 装配、来源解析与形成调度，以及 Assistant 可复用的纯来源选择逻辑；必要行为测试、生成的 API/Action 快照、原 README/AI/插件手册同步。新文件仅在这些既有模块内承载完整来源编排职责；不增加顶层包、通用执行框架或 Host 插件私路。范围以该可观察结果为限。硬边界为可信身份、原件、版本、最终授权、唯一副作用链；提炼仍是既有可换策略，模型/预算/分类与开关仍由 App 配置，人通过现记忆页调整；不新增空配置。
 
@@ -3954,6 +3954,24 @@ Full 7/16另确认Shelf跨项目测试向同一库创建第二个项目根，先
 
 先补SDK Orchestration原合同，再实现其公开enqueue的非持久提交control，沿现RegistryStore.put.beforeCommit与signal完成异步核权和同步尾检。保存确认前保留同key的进程内等待屏障，不能派出或以find/list冒充成功。明确提交前拒绝为零行零runner；保存结果不明固定原task ID/key/input，读取原行核实，读不清保持待对账、零派出，不能换ID重试；确认原行则保留真实状态，终态不覆盖成queued。
 
-AgentHost现schedule Port转交本次提交control，并用已有effects.detach包住SDK入队，避免SDK timer继承handler frame。首次提交仍检查原Action/source，callback不落盘、不传给timer；每次后台执行沿上节重新取得来源与当前权限。其他effects.call和副作用门不改。硬边界为首次提交核权、单身份、未提交不执行及未知结果不重放；现Host/store/runner仍可装配，App传入当次检查和既有调度配置，用户控制仍在App，无新设置。
+AgentHost现schedule Port转交本次提交control，仅显式带control的新路径用已有effects.detach包住SDK入队，避免SDK timer继承handler frame；无control的既有调用保留原effect上下文，不能借省略参数绕过withEffect。首次提交仍检查原Action/source，callback不落盘、不传给timer；每次后台执行沿上节重新取得来源与当前权限。其他effects.call和副作用门不改。硬边界为首次提交核权、单身份、未提交不执行及未知结果不重放；现Host/store/runner仍可装配，App传入当次检查和既有调度配置，用户控制仍在App，无新设置。
+
+结果不明时冻结原input，只核实原身份；权威完整读取已确认该ID不存在后，下次调用才可用本次完整session/work/dueAt/maxAttempts及新control重新接受，保留原ID/key并以expectedAt:0提交，不能核新input却保存旧input。若期间出现原行，CAS拒绝覆盖，按本次尝试核实；不匹配或读不清保持拒绝。明确提交前拒绝没有接受事实，可释放pending；已合法提交后在回执/时钟等待中撤权不补偿删除，后续runner按fresh权限拒派。
 
 允许SDK queue核心、原composition参数转交、公开类型/快照和相关合同/测试；App仅现schedule Port、适配器及装配、Memory enqueue调用和必要测试。验收覆盖Action结束后真实timer前置保存及fresh runner；已有timer与首次保存等待中撤权零写零派出；同key并发共享结果而不提前成功；已提交但回执失败单行原身份恢复、读不明不派出；终态及重启running→reconcile-required保持。必须完成SDK原quality/干净包、App真实生产链和原定向回归，随后同一PR集成与CI；不放宽性能或质量门。回滚撤接线并保留原持久记录，不清库或重放。
+
+**Coding 原件去重合同修正（2026-10-28，未发布本刀）。** 核对现役原件主人发现 `accepted_run` 是最近直接尝试，不是首次接受者；原 Run key 会让同一原件重试重复提炼。上文改为 canonical original ref key，复用已有原件和队列，不新增 first_accepted_run 字段或持久化登记。M2-CODING-02 增补两条实际路径：已形成后同原件换 Run 重试不新增任务/调用；首次 Run 失败且没有已接受任务时，后续直接成功重试可首次形成。队列进入终态后不重派，后续重试不能替换旧任务的许可或内容。此处修正实现身份，不放宽原去重、恢复或权限验收。
+
+**Coding 形成与 SDK 接包核收（2026-10-28）。** SDK `4ee5b9121d45c5d376ea653de3403170c9b337c6` 已提交推送至同一 Draft #108，独立增量复审未发现新增阻塞。原 pack 为 1,414,090 B，SHA-256 `7edcac4037b3a9dfdbb433f500bd69b798fa984c38b1177be0340d22e7c2be12`；830 个 dist 与 README 对照构建，包元数据仅原 pack 去末尾换行。App 沿原 frozen 离线安装，全部832个安装文件与归档逐字节相同；来源、sidecar、原包历史和锁中唯一 integrity 同步，无就地补丁。SDK 原 quality 首败与分段收束见 SDK 合同，不称单次全绿。
+
+最终 App 统一 build、API/Action 快照、包边界、health、48项资源7,463,060 B均通过，无新增额度。原 secrets 检查通过但范围是已提交增量，下一提交仍须按最终提交复核。新包上13文件234项零重试通过，覆盖真实 HTTP/SDK Coding 形成、独立 Node 进程重开同一 Home、不同 Run 的同原件去重、首次失败后成功、提炼中撤权/同值重授，以及现 Assistant/Memory/来源当前权与原件主人。日志为 `/private/tmp/coding-memory-main-chain-final.log` 和 `/private/tmp/coding-memory-original-regressions.log`。
+
+4个未再变动的状态消费者复用既有11项有效结果；plan-dependencies 首跑误写固定 r1 的夹具失败保留，改回真实 started.ref.run_id 后原文件2/2通过。以上是机制与工程证据，回环模型不能替代质量/token验收。M2整体验收尚未闭合：专门 Coding 排队后关闭项目/归档/pending，以及来源读取/最终提交等待中的生命周期交错仍待真实路径补验；共享 Memory 回归与 SDK 队列反例不冒充这些覆盖。已验证实现先进入现 #1101 供审查，保持 Draft，不合并。
+
+**本地等待修复与已推送头核收（2026-10-28）。** `workflows-action-steps` 的原 Full 日志准确指向 iframe 导航期间 `body` 为 null；只给原等待表达式的 body 加可选访问，期待正文和超时不变。原文件与 busy-feedback、assistant-follow-live 在现树按 jobs1/browser-jobs1/retries0 共3文件5项通过（`/private/tmp/memory-full-ui-failures-20261028.log`）；后两者未改代码，不能据本机绿声称远端时序问题已解决。已推送头 `541fd75756bba9027e3ff7f22d1d4c3d505592b0` 的普通 CI [40581714116](https://github.com/molis-ai/molis-work/actions/runs/40581714116) 已结束：14成功、1原可选跳过，Verify/资源/包边界通过；Full [40581705023](https://github.com/molis-ai/molis-work/actions/runs/40581705023) 当次快照6分片成功、10运行中，不计全量通过。已核1/2分片首轮102/102，10分片101/101中 assistant-undo-refresh 原首次失败、按原一次重试后通过，保留其波动。此CI不覆盖尚未提交的Coding形成、SDK队列接线和上述等待补正；1000条性能、B1完整答卷及最终验收仍开放。
+
+**541 全量最终结果与本机诊断（2026-10-28）。** 原 Full 40581705023 已结束：16分片中10成功、6失败。最终失败文件为 knowledge-source-retention、shelf-dropagent-parity、coding-question-card、late-list-responses、assistant-follow-live、busy-feedback；候选采用和 Assistant undo 曾首败、按原重试通过，仍保留波动。
+
+Root 对新包下 Shelf/Coding question 原文件各采一次 CPU profile，9/9及6/6通过，分别14.1s/91.1s。Coding 最长连续非 idle 为9.456s，目录与 Catalog 读取仍占显著成本；不从本机绿色推断 Linux 已修。知识卡保留在首批1/1通过，workflow 等待补正2/2通过，均不抹掉远端失败。
+
+Profile 位于 `/private/tmp/memory-shelf-cpu-4ee5-20261028/` 与 `/private/tmp/memory-question-cpu-4ee5-20261028/`。原超时、断言、重试、权限与资源门未改。1000条性能、B1答卷、最终交付物实操与用户验收继续开放。

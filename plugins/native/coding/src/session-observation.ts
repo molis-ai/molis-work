@@ -8,7 +8,7 @@ import { codingText } from "./words.js";
 import { agentHostCapabilities as agent, isTerminalAgentPhase, type AgentSessionStatus } from "@molis-ai/molis-work-contracts/services/agent-host";
 
 /** Queries return current projections. Only the activation's observation job persists them (SYS-15-Q1/Q2). */
-export async function readCodingSessions(a: CodingActivation, execution: CodingExecution, beforeWrite: CodingBeforeWrite, persist = false) {
+export async function readCodingSessions(a: CodingActivation, execution: CodingExecution, beforeWrite: CodingBeforeWrite, persist = false, observe?: (record: CodingSessionRecord, status: AgentSessionStatus) => Promise<void>) {
   const { projectId } = a;
   // Every session's standing in one Host call per runtime, rather than one queued read per session.
   const all = execution.sessions.list(projectId), pending = new Set(all.filter(record => execution.sessions.lifecycle.pending(projectId, record.session_id)).map(record => record.session_id));
@@ -49,6 +49,9 @@ export async function readCodingSessions(a: CodingActivation, execution: CodingE
       const status = statuses.get(`${record.runtime_id}:${record.runtime_session_id}`);
       if (status && !("error" in status)) {
         checkpointBusy = status.checkpoint_busy;
+        if (persist && observe) {
+          try { await observe(record, status); } catch { beforeWrite.assert_current(); } // Learning refusal does not block directory facts or other sessions.
+        }
         const read = status.steps ?? null;
         if (JSON.stringify(read) !== JSON.stringify(steps)) { if (persist) await execution.sessions.setSteps(write, projectId, record.session_id, read); steps = read; }
         const next = status.recovery ? "reconcile-required" : status.latest_phase ? sessionState({ phase: status.latest_phase }) : "idle";

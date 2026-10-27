@@ -3,13 +3,15 @@ import type { AgentScheduledTask } from "@molis-ai/molis-work-contracts/services
 import type { PrologueRuntimePort } from "./prologue.js";
 import { agentErrors } from "../errors.js";
 import type { SessionIndexStore } from "./prologue-session-index.js";
+import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PrologueEffects } from "./prologue-effects.js";
 
 /**
  * Timed work the runtime keeps across restarts. Its runner is attached once, when the runtime is made; the Host registers
  * what each kind does later, so a task that falls due while the Host is still starting waits for its runner instead of
  * failing.
  */
-export function createPrologueSchedule() {
+export function createPrologueSchedule(effects: Pick<PrologueEffects, "detach">) {
   const runners = new Map<string, (task: AgentScheduledTask) => Promise<void>>();
   const view = (task: QueuedTask): AgentScheduledTask => ({
     task_id: task.ref.id, key: task.key, session_id: task.sessionRef.id, kind: task.work.kind, payload: { ...task.work.payload },
@@ -23,13 +25,21 @@ export function createPrologueSchedule() {
   /** The schedule port, once the runtime and the session index exist. */
   const port = (runtime: Runtime, index: SessionIndexStore): NonNullable<PrologueRuntimePort["schedule"]> => ({
     claim: () => { const claim = runtime.queue.claim(); return { survives_window_close: claim.survivesWindowClose, why: claim.why }; },
-    enqueue: async input => {
-      const session = await index.read(input.session_id);
+    enqueue: async (input, control) => {
+      const request = structuredClone(input);
+      const beforeEffect = control?.beforeEffect, assertCurrent = control?.assert_current, signal = control?.signal;
+      if (control !== undefined && (typeof beforeEffect !== "function" || typeof assertCurrent !== "function"))
+        throw agentErrors.capability_unavailable("定时提交需要完整的当前授权检查");
+      const session = await index.read(request.session_id);
       if (!session) throw agentErrors.session_unknown("会话不存在，不能安排定时");
-      const due = Date.parse(input.due_at);
+      const due = Date.parse(request.due_at);
       if (!Number.isFinite(due)) throw agentErrors.capability_unavailable("定时的时间无效");
-      return view(await runtime.queue.enqueue({ key: input.key, sessionRef: session.ref, work: { kind: input.kind, payload: { ...input.payload } }, dueAtMs: due,
-        ...(input.max_attempts ? { maxAttempts: input.max_attempts } : {}) }));
+      const enqueue = () => runtime.queue.enqueue({ key: request.key, sessionRef: session.ref, work: { kind: request.kind, payload: { ...request.payload } }, dueAtMs: due,
+        ...(request.max_attempts ? { maxAttempts: request.max_attempts } : {}) }, control ? {
+        ...(signal ? { signal } : {}),
+        beforeCommit: async () => { await beforeEffect!(); return () => requireSynchronous(assertCurrent!(), "最终授权检查必须同步完成"); },
+      } : undefined);
+      return view(await (control ? effects.detach(enqueue) : enqueue()));
     },
     cancel: async key => {
       const task = runtime.queue.find(key);

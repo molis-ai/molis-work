@@ -140,3 +140,6 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
 Session 业务原件恢复 DTO 按 Coding、Assistant 和 ContextLedger 真实主人定义，仅固定身份、现有revision与精确键选集。父 Memory 恢复合同引用这些纯类型，不存正文/hash/活对象或另建阶段。未知 owner 不能表达为无副本完成。
 
 旧私库采用合同（2026-10-27）：保留输出协议 molis.subject-retention.v2/helper 动作@2，content_revision 可空表示历史内容版本未知，三态不变，旧引用拒绝。Knowledge 管理 cards/edit/exclude@3、新 bind@1 仅本人，原卡 adoption={operation_id,actor_id,source_revision,generation}；可信 actor/安装代来自当前上下文，原操作完整目标重放只读。普通来源核 adoption.generation，有保留协议同时核 retention 代，不把 unavailable 降级；采用和目标同原卡事务，不新增表或绑定状态机。
+
+
+`agent.sessions.status.v1@2` 增加必填 nullable latest_run_id，调用方同步升级。Memory 自动形成入口 `memory.learning.enqueue@1` 只收业务会话/Runtime/Session/Run 引用，仅插件受众及 memory:write；来源 owner 实现 `memory.source.session.read@1`，本人只读 artifact:read 查询只返回绑定与生命周期，不能作为形成授权。

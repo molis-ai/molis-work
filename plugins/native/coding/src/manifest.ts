@@ -1,3 +1,4 @@
+import { memoryLearningEnqueueAction, memoryLearningSourceAction } from "@molis-ai/molis-work-contracts/services/memory";
 import { searchActions, SEARCH_READ_PERMISSION } from "@molis-ai/molis-work-contracts/services/search";
 import { CHARACTER_ARTIFACT_TYPE, characterPluginActions } from "@molis-ai/molis-work-contracts/modules/characters";
 import { workspaceReadActions, writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
@@ -56,6 +57,7 @@ export const codingManifest: PluginManifest = {
   publisher: { publisher_id: "molis", signature: "official-coding-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
   permissions: [
+    { permission: "memory:write", required: false, reason: "完成后从本人原始输入提出记忆候选，仍按当前记忆形成设置核验" },
     { permission: SEARCH_READ_PERMISSION, required: true, reason: "在问题卡中查找当前有权读取的引用对象" },
     { permission: "goals:read", required: true, reason: "读取已关联目标的当前约定、状态和固定来源" },
     { permission: "goals:write", required: true, reason: "按用户确认把固定执行报告记录为原目标的进展" },
@@ -79,6 +81,7 @@ export const codingManifest: PluginManifest = {
   capabilities: {
     provides: [],
     consumes: [
+      memoryLearningEnqueueAction.capability_id,
       searchActions.references.capability_id, "goals.subject.read", "goals.search.entries",
       "files.state", "files.directory", "files.open", "files.capture", "diff.state", "text-stats.state",
       "git.state", "git.select-diff", "git.prepare-index", "git.results", "git.summary", "git.pr-support", "git.conflict", "git.operations", "git.prepare-operation", "git.save-result",
@@ -142,7 +145,7 @@ export const codingManifest: PluginManifest = {
     { job_id: "observe", reason: "独立读取并保存会话状态与关联目标标题，页面查询保持只读", permissions: ["artifact:read", "storage:private", "goals:read"] },
   ] },
   // Redeemed by this Runtime instance and bound to the person who owns the sessions; their routes forward to them.
-  actions: [...CODING_ACTIONS, ...Object.values(codingExecutorActions), codingArtifactPreview, codingResultDocument, codingHomeBackgroundTasks],
+  actions: [memoryLearningSourceAction, ...CODING_ACTIONS, ...Object.values(codingExecutorActions), codingArtifactPreview, codingResultDocument, codingHomeBackgroundTasks],
   routes: [
     { route_id: "coding.archived-sessions", method: "GET", path: "/sessions/archived" },
     { route_id: "coding.unarchive-preview", method: "GET", path: "/sessions/:sessionId/unarchive-preview" },

@@ -1,3 +1,5 @@
+import { assertCodingMemoryLearningCaller, codingMemoryLearningPayload, withCodingMemoryLearningSources } from "./memory-coding-learning.js";
+import type { MemoryLearningEnqueueRequest } from "@molis-ai/molis-work-contracts/services/memory";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { openMemoryLedger } from "@molis-ai/molis-work-storage";
 import type { AgentHost, PrologueProjectDeletion } from "@molis-ai/molis-work-service-agent-host";
@@ -165,7 +167,7 @@ function memoryBackgroundWork(input: {
   const runLearning = async (task: Pick<AgentScheduledTask, "key" | "session_id" | "payload">) => {
     try {
       assertBusiness();
-      const outcome = await learnFromQueuedWork(ports.homeDirectory, task, { adapter: ports.agentHost.adapter(RUNTIME), service,
+      const outcome = await learnFromQueuedWork(ports.homeDirectory, task, { localHost: ports.localHost, adapter: ports.agentHost.adapter(RUNTIME), service,
         ports: { backend, ledger, ...(ports.projectTitle ? { projectTitle: ports.projectTitle } : {}) }, backend: control => prologueMemoryBackend(store, control),
         alive: businessAlive, ...(ports.projectExists ? { projectExists: ports.projectExists } : {}) });
       logMemoryLearning(outcome);
@@ -186,6 +188,34 @@ function memoryBackgroundWork(input: {
   };
   void ports.started?.().then(attachQueue).catch(() => undefined);
   return { upkeepNow,
+    enqueueLearning: async (context: ActionExecutionContext, request: MemoryLearningEnqueueRequest): Promise<{ status: "queued" | "existing" | "skipped" }> => {
+      assertBusiness(); await ports.ready(); await context.beforeEffect(); assertBusiness();
+      const adapter = ports.agentHost.adapter(RUNTIME), schedule = adapter.schedule;
+      if (!schedule) throw memoryErrors.unavailable("自动形成持久队列不可用");
+      assertCodingMemoryLearningCaller(context);
+      if (!context.project_id) throw memoryErrors.forbidden("自动形成缺少原项目");
+      const payload = await codingMemoryLearningPayload(ports.localHost, context, request);
+      const task = { session_id: request.session_id, payload: { ...payload } };
+      const result = await withCodingMemoryLearningSources(ports.localHost, adapter, task, businessAlive, async sources => {
+        const key = sources.key;
+        if (schedule.find(key)) return { status: "existing" as const };
+        const learning = await sources.request();
+        if (!service.worthLearning(learning.caller, [sources.triggerText])
+          || !service.worthLearning(learning.caller, learning.said)) return { status: "skipped" as const };
+        await context.beforeEffect();
+        if (!await sources.current()) throw memoryErrors.forbidden("原来源在排队前已失效");
+        sources.assertCurrent(); attachQueue();
+        // Same key is immutable even for cancelled, failed and unknown outcomes.
+        if (schedule.find(key)) return { status: "existing" as const };
+        await schedule.enqueue({ ...task, key, kind: LEARN_KIND, due_at: new Date().toISOString(), max_attempts: 2 }, {
+          ...(context.signal ? { signal: context.signal } : {}),
+          beforeEffect: async () => { await context.beforeEffect(); if (!await sources.current()) throw memoryErrors.forbidden("原来源已失效"); },
+          assert_current: () => { context.assert_authority_current?.(); sources.assertCurrent(); },
+        });
+        return { status: "queued" as const };
+      });
+      return result ?? { status: "skipped" };
+    },
     learnLater: async (request: AssistantMemoryLearningRequest) => {
       assertBusiness();
       await ports.ready();
@@ -244,7 +274,7 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
   const forCall = (context: ActionExecutionContext) => memoryCallService(context, servicePorts,
     control => prologueMemoryBackend(store, control), businessAlive);
   const caller = memoryCaller;
-  const { upkeepNow, learnLater } = memoryBackgroundWork({ ports, service, servicePorts, store, businessAlive, assertBusiness });
+  const { upkeepNow, learnLater, enqueueLearning } = memoryBackgroundWork({ ports, service, servicePorts, store, businessAlive, assertBusiness });
   // Internal Agent identity follows memoryCaller; external MCP runtime Sessions keep their granted non-Run reads.
   const read = async (context: ActionExecutionContext, request: { list: MemoryListRequest } | { recall: MemoryRecallRequest }) => {
     if (context.actor_id.startsWith("agent:")) {
@@ -258,6 +288,7 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
       : service.list(identity, request.list);
   };
   const bindings: ActionHandlerBinding[] = [
+    { ...memoryActions.learningEnqueue, handle: (context, value) => enqueueLearning(context, input<MemoryLearningEnqueueRequest>(value)) },
     { ...memoryActions.recall, handle: (context, value) => read(context, { recall: input<MemoryRecallRequest>(value) }) }, // concurrent: its receipts (最近用于) are its only effect, written after the call's own check
     { ...memoryActions.page, handle: (context, value) => forCall(context).page(memoryCaller(context), input<MemoryPageRequest>(value)) },
     { ...memoryActions.list, handle: (context, value) => read(context, { list: input<MemoryListRequest>(value) }) },

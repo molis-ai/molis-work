@@ -156,3 +156,6 @@ Coding数据库声明为4，nullable lifecycle_json内content_revision可为null
 缺生命周期原件的旧业务归档，在 SDK active 时生成 business 决定：固定 observed、previous_operation_id、binding、operation_id、expected_state=active、expected_version。prepared/complete 沿原 Coding 写主人；原 owner/admission 下在提交前复核 SDK 状态与版本，变化、缺失、purged、未知及未决冲突拒绝。观察不是跨 SQLite 锁或 SDK 回执，不调用 SDK unarchive；真实 archived 仍走原 unarchive，无绑定 Local 沿原本地决定。重试只沿完整原请求，取消不新增提交，零模型。
 
 保留输出 molis.subject-retention.v3/coding.subject.retention@3、恢复 preview/unarchive@2。未知旧归档返回暂时归档+null revision，明确恢复返回真实本次 operation+null revision。验收：旧版先拒绝零写、真实维护保留原行/邻居/历史，业务恢复和真实 SDK 恢复、失败/取消/持久重试与零自动模型。
+
+
+Coding 完成观察沿 `agent.sessions.status.v1@2` 的最新 Run 引用触发，激活内只缓存已检查引用，每次最多登记 16 轮；首次激活/重启重新检查全部 canonical refs，普通轮询不扫描历史正文。`memory.source.session.read@1` 仅回答原会话绑定与 active/pending/archived，不含正文；`memory.learning.enqueue@1` 只收稳定引用，由 Host 原 memory.learn 队列核原件、原 Run 分类与当前安装的可选 memory:write。canonical original ref 的队列 key 跨 Run 重试稳定；首次失败且无任务时，直接成功重试可首次形成，已接受任务不被新 Run 替换。权限缺失不影响原 Coding 对话，不补授旧安装。

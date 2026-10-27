@@ -166,3 +166,6 @@ ln -snf "$HOME/.molis-work/<release>/skills/molis-plugin-dev" "$HOME/.cursor/ski
 ```
 
 `<release>` 来自 `~/.molis-work/config/installation.json` 的 `release_path`。npm 包在 `node_modules/@molis-ai/molis-work/skills/molis-plugin-dev`。
+
+
+插件自动形成记忆只提交 `memory.learning.enqueue@1` 的稳定引用，并声明可选 memory:write 与用途；不得从正文或调用参数伪造 actor/project/install。来源 owner 的 `memory.source.session.read@1` 用 artifact:read 回答无正文 Session 绑定及生命周期。旧安装不自动补授新权限，缺自动形成许可仍允许原业务对话。

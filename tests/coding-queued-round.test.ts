@@ -85,7 +85,7 @@ test("a round told to wait for another session's work waits on it, starts on its
     }
     if (id === agent.waitRun.capability_id) return { version: "v1", view: { ref: input[1], phase: "completed", frozen: { role_id: "builder", text_materials: [] }, turns: [], activity: [], awaiting_input: [] } } as Output;
     if (id === agent.listRuntimes.capability_id) return [{ runtime_id: "prologue", capabilities: { mcp: "unsupported" } }] as Output;
-    if (id === agent.readSessionStatuses.capability_id) return input[1].map((session_id: string) => ({ session_id, latest_phase: "completed", recovery: false, checkpoint_busy: false })) as Output;
+    if (id === agent.readSessionStatuses.capability_id) return input[1].map((session_id: string) => ({ session_id, latest_phase: "completed", latest_run_id: "r1", recovery: false, checkpoint_busy: false })) as Output;
     if (id === agent.listSkills.capability_id) return [] as Output;
     if (id === projectSettingsCapabilities.browsingWorkspace.capability_id) return null as Output;
     if (id === projectsCapabilities.readWorkspace.capability_id) return null as Output;

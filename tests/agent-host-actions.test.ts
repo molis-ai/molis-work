@@ -181,7 +181,7 @@ async function projectWorkSetup(t: TestContext) {
     observe() { throw new Error("Not used by this fixture"); },
     readSession: async (session: { session_id: string }) => ({ session_id: session.session_id, owner: ownerOf(session.session_id) }) as never,
     readSessionStatus: answer("status", args => { const { session_id } = args[0] as { session_id: string };
-      return { owner: ownerOf(session_id), status: { session_id, latest_phase: "completed", recovery: false, checkpoint_busy: false } }; }),
+      return { owner: ownerOf(session_id), status: { session_id, latest_phase: "completed", latest_run_id: "r1", recovery: false, checkpoint_busy: false } }; }),
     // w1 is a round of s2, w3 of s3; both overlap a probe.
     projectWork: { read: answer("read", () => ({ items: [work("w1"), work("w3", "s3")], overlaps: [{ work: work("w1"), paths: ["src/x.ts"] }, { work: work("w3", "s3"), paths: ["src/x.ts"] }] })),
       queue: answer("queue", () => ({ ...work("w2"), state: "waiting", waits_for: ["w1"], wait_id: "wait-1" })), release: answer("release", () => undefined) },
@@ -235,7 +235,7 @@ test("RAC-197 the project's work and the sessions' standing are plugin-only acti
   assert.equal(count("release"), released, "nor to give up work that is not the caller's");
 
   owner.current = mine;
-  assert.deepEqual(await actions.invoke(agent.readSessionStatuses, [RUNTIME, ["s1"]]), [{ session_id: "s1", latest_phase: "completed", recovery: false, checkpoint_busy: false }]);
+  assert.deepEqual(await actions.invoke(agent.readSessionStatuses, [RUNTIME, ["s1"]]), [{ session_id: "s1", latest_phase: "completed", latest_run_id: "r1", recovery: false, checkpoint_busy: false }]);
   const queued = await actions.invoke(agent.queueProjectRound, [RUNTIME, round]);
   assert.deepEqual([queued.work_id, queued.wait_id], ["w2", "wait-1"]);
   assert.deepEqual(last("queue"), [PROJECT, round, "web-user"], "queued for the plugin's own actor, as the person asked");

@@ -1,3 +1,5 @@
+import { memoryLearningEnqueueAction } from "./memory-learning.js";
+export { memoryLearningEnqueueAction, memoryLearningSourceAction, type MemoryLearningEnqueueRequest, type MemoryLearningSourceBinding } from "./memory-learning.js";
 import { memoryBatchActions } from "./memory-batches.js";
 export { MEMORY_BATCH_MAX_ITEMS, type MemoryBatchItem, type MemoryBatchRequest, type MemoryBatchPreview, type MemoryBatchResult } from "./memory-batches.js";
 import { memoryPageAction, runMemoryReadSchema, type MemoryRunReadResult, type MemoryListRequest, type MemoryListResponse, type MemoryOwnerRelation } from "./memory-queries.js";
@@ -5,12 +7,8 @@ export type { MemoryOwnerRelation, MemoryRunReference, MemoryRunReadResult, Memo
 import type { ContractDescriptor } from "../platform/package.js";
 import type { ActionDefinition } from "../platform/actions.js";
 
-/**
- * The platform memory (specs/archive/memory-system): what the person and each project want remembered, shared by the
- * Assistant, Agent runs, plugins, interface suggestions (Jev judgments) and external AI clients through one
- * set of `memory.*` actions and one set of switches. Text, versions, deletion and isolation belong to Prologue
- * Memory; the Host Memory Service owns policy, the write gate, recall orchestration and the settings pages.
- */
+/** Platform Memory (specs/prologue-memory-strategy): all consumers share the same actions and settings.
+ * Prologue owns text, versions, deletion and isolation; Host owns policy, formation, recall and settings pages. */
 export const servicesMemoryContract = {
   contractId: "io.molis.work.service.memory.v2",
   kind: "service",
@@ -555,6 +553,7 @@ const notForPlugins = { plugin: false as const };
  */
 
 export const memoryActions = {
+  learningEnqueue: memoryLearningEnqueueAction,
   ...memoryBatchActions(MEMORY_WRITE_PERMISSION),
   page: memoryPageAction(itemSchema, MEMORY_READ_PERMISSION, MEMORY_KINDS, MEMORY_SOURCES),
   recall: { capability_id: "memory.recall", version: 3, operation: "query", action: { ...reads, ...notForPlugins, scheduling: "concurrent" as const,

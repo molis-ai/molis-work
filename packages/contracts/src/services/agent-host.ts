@@ -261,9 +261,9 @@ const projectWorkOutput = { type: "object", required: ["work_id", "session_id", 
     state: { enum: ["waiting", "running", "done", "failed", "stopped"] }, directory: { type: "string" }, paths: { type: "array", items: { type: "string" } },
     waits_for: { type: "array", items: { type: "string" } }, updated_at_ms: { type: "number" }, wait_id: { type: "string" } } } as const;
 const sessionStatusOutput = { oneOf: [
-  { type: "object", required: ["session_id", "latest_phase", "recovery", "checkpoint_busy"], additionalProperties: false,
+  { type: "object", required: ["session_id", "latest_phase", "latest_run_id", "recovery", "checkpoint_busy"], additionalProperties: false,
     properties: { session_id: { type: "string" }, recovery: { type: "boolean" }, checkpoint_busy: { type: "boolean" },
-      latest_phase: { enum: [...RUN_PHASES, null] },
+      latest_phase: { enum: [...RUN_PHASES, null] }, latest_run_id: { type: ["string", "null"] },
       steps: { type: "object", required: ["mine", "subtasks", "unowned"], additionalProperties: false,
         properties: { mine: { type: "number" }, subtasks: { type: "number" }, unowned: { type: "number" } } } } },
   { type: "object", required: ["session_id", "error"], additionalProperties: false, properties: { session_id: { type: "string" }, error: { type: "string" } } },
@@ -459,7 +459,7 @@ export const agentHostCapabilities = {
    * this project cannot read comes back with an error of its own rather than failing the others.
    */
   readSessionStatuses: {
-    capability_id: "agent.sessions.status.v1", version: 1, operation: "query",
+    capability_id: "agent.sessions.status.v1", version: 2, operation: "query",
     action: { title: "读会话的状态", description: "这个项目里几条会话各自最近一轮的阶段、要不要人来接、步骤由谁拿着；读不了的那条单独带原因。", kind: "query", ...pluginOnly,
       output_schema: { type: "array", items: sessionStatusOutput },
       input_schema: { type: "array", minItems: 2, maxItems: 2, items: [runtimeId, { type: "array", maxItems: 1000, items: entryId }], additionalItems: false } },

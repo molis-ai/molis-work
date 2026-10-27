@@ -311,3 +311,9 @@ SDK 拥有开场对齐、临时省略和原事件账；App 不替换历史或重
 有界 Knowledge 临时 Session 未装 Memory recipe，其来源规则来自本次业务 control；主 Agent、Memory 与 Assistant 材料组合须各按真实链验证。来源检查缺失不新增授权，已有凭据轮换、取消、SDK policy 与原重试规则不变。fence 返回 Promise 拒绝；一旦该调用的同步派出 fence 曾成功，后续拒绝只保留原错误，不再声称一定未派出，因为先前请求或 CONNECT 可能已发生；实际派出仍由 SDK inspect 回答。没有新配置、槽、表或第二模型链，用户的来源选择仍归消费 App。
 
 本片验证范围：SDK 真实 Node Host loopback 的最后 await 屏障、代理 CONNECT、拒绝与当前发送，以及 App 的 `tests/prologue-inference-native.test.ts`、`tests/host-inference-completion.test.ts` 和实际 Agent 材料生产链。测试源码待 Root 安排正式包安装、构建和运行；当前不声明工程验证或产品验收通过。
+
+
+`agent.sessions.status.v1@2` 在原轻量投影中同时返回 `latest_run_id` 与 `latest_phase`；冷恢复和内存路径一致。连续两轮同阶段仍能被完成观察区分，不新增状态服务。
+
+
+Schedule 的首次入队可传当次 execution control 与 signal：适配器在进入等待前隔离完整输入并固定函数/信号引用，显式 control 必须同时提供异步与同步检查，转交 SDK 原 Registry 提交门，并仅对这个显式路径以既有 effects.detach 启动入队；省略 control 的旧调用保留原 effect 上下文。原 Action 仍保护首次提交，后台定时器不保留已结束的 handler；runner 每次建立自己的当前授权。未确认落盘的同 key 不可执行，未知回执按原 ID 核实，终态不重新排队。

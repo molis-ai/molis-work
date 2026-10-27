@@ -376,6 +376,21 @@ export interface MemoryItem {
 
 export type MemoryKind = "preference" | "convention" | "fact" | "experience";
 
+export interface MemoryLearningEnqueueRequest {
+    business_session_id: string;
+    runtime_id: string;
+    session_id: string;
+    run_id: string;
+}
+
+export interface MemoryLearningSourceBinding {
+    business_session_id: string;
+    runtime_id: string;
+    session_id: string;
+    state: "active" | "pending" | "archived";
+    lifecycle_operation_id: string | null;
+}
+
 export interface MemoryLedgerPort {
     forget(memoryId: string): void;
     forgetScopes(input: {
@@ -1012,9 +1027,20 @@ export declare const memoryActions: {
     batchApply: ActionDefinition<{
         preview_id: string;
     }, import("services/memory-batches").MemoryBatchResult>;
+    learningEnqueue: ActionDefinition<import("services/memory-learning").MemoryLearningEnqueueRequest, {
+        status: "queued" | "existing" | "skipped";
+    }>;
 };
 
 export declare function memoryAppliesText(scope: MemoryScope, applies: MemoryApplies, projectTitle?: string | null, characterTitle?: string | null): string;
+
+export declare const memoryLearningEnqueueAction: ActionDefinition<MemoryLearningEnqueueRequest, {
+    status: "queued" | "existing" | "skipped";
+}>;
+
+export declare const memoryLearningSourceAction: ActionDefinition<{
+    session_id: string;
+}, MemoryLearningSourceBinding | null>;
 
 export declare const servicesMemoryContract: {
     readonly contractId: "io.molis.work.service.memory.v2";

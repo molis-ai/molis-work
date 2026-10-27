@@ -163,7 +163,7 @@ export function registerAgentHostCapabilities<Context>(
             return status;
           }
           const view = await readScopedSession(context, session);
-          return { session_id, latest_phase: view.latest_run?.phase ?? null, recovery: Boolean(view.recovery), checkpoint_busy: view.checkpoint_busy === true };
+          return { session_id, latest_phase: view.latest_run?.phase ?? null, latest_run_id: view.latest_run?.ref.run_id ?? null, recovery: Boolean(view.recovery), checkpoint_busy: view.checkpoint_busy === true };
         } catch (error) {
           return { session_id, error: error instanceof Error ? error.message : "会话暂不可读" };
         }

@@ -136,3 +136,6 @@ Shelf 的自动 recipe 是共享 Prologue 消费者：固定指令登记在插�
 ### Memory 原 Run 权限
 
 通用 Memory Action 与内置记忆工具使用同一轮 recipe，Host 在装配动作客户端前捕获分类限制。经插件代办或点击原 Run 建议时，保留原插件、Session、场景和分类快照；不能从模型参数或最新 attempt 补身份。`runtime_memory` 只在 Host 调用上下文中传递，插件 callback view 不暴露它；缺原快照的记忆调用明确不可用。当前规则只能收紧原许可，设置重开不扩大旧 Run。具体范围与待验收项以 `specs/prologue-memory-strategy/spec.md` M3 第三片为准。
+
+
+Coding 完成后的自动记忆经原观察和 `memory.learning.enqueue@1` 进入持久队列。轻量状态使用 `agent.sessions.status.v1@2` 的 latest_run_id；恢复有界检查全部 refs，在原 guard 下核指定 Run 的 canonical original ref，再用这个稳定原件 key 排除已有任务，只有无任务才读取有界上下文；同原件重试不替换旧 payload 或分类许可。读取 source 的本人 context 不授予形成许可，形成使用原 Run 分类和真实安装 memory:write，person=false。来源 guard 必须在 owner 读取前捕获，并贯穿异步复核和 SDK/Ledger 最后同步写；不得缓存已结束 handler 的授权。

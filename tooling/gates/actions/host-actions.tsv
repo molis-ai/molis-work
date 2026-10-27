@@ -48,7 +48,7 @@ agent.session.lifecycle.unarchive.v1	1	platform	command	operation	project	write	
 agent.session.read.v1	4	platform	query	query	project	read	-	plugin	-	-	-	-	39ce5b1e5db9	bcec034dc986	-
 agent.session.recover.v1	1	platform	command	operation	project	write	-	plugin	-	-	-	-	d6b6b8bc631d	6f8c8fdfd5a3	-
 agent.session.recovery.v1	1	platform	query	query	project	read	-	plugin	-	-	-	-	39ce5b1e5db9	6f8c8fdfd5a3	-
-agent.sessions.status.v1	1	platform	query	query	project	read	-	plugin	-	-	-	-	b1def1398a94	d41ff5436dd7	-
+agent.sessions.status.v1	2	platform	query	query	project	read	-	plugin	-	-	-	-	b1def1398a94	5ffd5276f879	-
 agent.skills.discover.v1	1	platform	query	query	project	read	-	plugin	-	-	-	-	6c6a0609eedf	f37ffced5f3d	-
 agent.skills.install.v1	1	platform	command	operation	project	write	-	plugin	-	-	-	-	bf58ebfac373	60f683aa155a	-
 agent.skills.list.v1	1	platform	query	query	project	read	-	plugin	-	-	-	-	d840c5a0a551	6727f8321ca8	-
@@ -174,6 +174,7 @@ memory.changes.undo	1	system.memory	command	operation	home	write	-	user	memory:w
 memory.export	2	system.memory	query	query	home	read	-	user	memory:export	-	-	-	fa7432c0eaf4	7ffbdcc0ada2	-
 memory.history	2	system.memory	query	query	home	read	-	user	memory:read	-	-	-	d5966af3318e	baa4e90fb824	-
 memory.import	2	system.memory	command	operation	home	write	-	user	memory:export	-	-	-	7800d94ff697	a0809c153e83	-
+memory.learning.enqueue	1	system.memory	command	operation	project	write	concurrent	plugin	memory:write	coding_session	-	-	7b12455d54f4	d6584382d9d9	-
 memory.list	5	system.memory	query	query	home	read	-	agent,user	memory:read	-	-	-	1ac220317487	17179a00f3e2	5e0374458cf9
 memory.page	2	system.memory	query	query	home	read	concurrent	user	memory:read	-	-	-	618c5b548a9d	1c511a0f3df8	5e0374458cf9
 memory.pairs.list	1	system.memory	query	query	home	read	-	user	memory:read	-	-	-	8fae6285b822	983c812a2083	-

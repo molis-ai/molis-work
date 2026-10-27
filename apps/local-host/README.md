@@ -396,3 +396,6 @@ Session 业务维护 owner 固定创建时 Home、权威回调与 Catalog resolv
 同一纯归属合并 `collectMemoryOwnerCoverage` 服务在线与冷读取；`openAssistantMemoryRelations` 的 `read/projectSessions/close` 复用原 Assistant 查询及真实只读连接，关闭失败只重试原句柄。冷 `project-runtime` 步骤关闭本次真实 Session 业务资源，不用无操作函数冒充 Runtime 已收尾。当前可证明范围仍以同历史完整停写备份为前提，不能声称扫描了任意污染目标的全部 raw Session 子图。专项回归：`tests/memory-home-recovery-composition.test.ts`、`tests/memory-home-recovery-project.test.ts`、`tests/memory-home-recovery-session.test.ts`、`tests/memory-home-recovery-assistant.test.ts`、`tests/memory-recovery-owner-coverage.test.ts`；公开维护工程结果与最终产品/用户验收分开记录。
 
 HostText 的可选 `assertCurrent(): void` 是原 `beforeDispatch` 后准备的同步只读最终否决，沿唯一 Agent Host inference 交 Node Host 的最后派出 fence；原 credential/config 和取消同时保留，不能用该检查改来源或授权。`afterResult` 仍拥有已发结果的业务复核，归档同内容的结算规则由业务 control 每次重新准备，不能跨整个模型等待保存旧 fence。最后窗口测试与 Node HTTP/CONNECT 范围见 Agent Host README「Memory 来源的最后模型派出检查」；当前接线待统一构建与实际运行，不以类型存在当作通过。
+
+
+Coding 自动形成复用原 memory.learn 持久队列，key 由项目、业务会话、Runtime 和 canonical original ref（Session/input_id/version）构成，安装世代只约束来源。每次 attempt 用当前 homeAggregatePorts/localWebActionContext 只读精确 owner，并在 owner 读取前 captureSources；原 guard、当前安装 memory:write 与原 Run policy 贯穿 SDK 和 Ledger 最终提交。本人 context 仅授权读，形成 caller person=false；触发 Run 留在原 payload 管完成事实、分类与上下文；同一原件的恢复/直接重试不制造新证据，首次失败且无已接受任务时直接成功重试可首次形成，终态 key 不重造，Assistant 原 key/payload 不变。

@@ -33,8 +33,8 @@ test("however many pages poll the Coding directory at once, one read runs and at
     if (definition.capability_id === agent.readSessionStatuses.capability_id) {
       batches.push([...(_args as unknown as [string, string[]])[1]]);
       // One session is mid-review, one has never run, and one cannot be read.
-      return (_args as unknown as [string, string[]])[1].map(session_id => session_id === "sdk-a" ? { session_id, latest_phase: "awaiting-review", recovery: false, checkpoint_busy: false, steps: { mine: 1, subtasks: 1, unowned: 0 } }
-        : session_id === "sdk-b" ? { session_id, latest_phase: null, recovery: false, checkpoint_busy: true } : { session_id, error: "读不到" }) as Output;
+      return (_args as unknown as [string, string[]])[1].map(session_id => session_id === "sdk-a" ? { session_id, latest_phase: "awaiting-review", latest_run_id: "r1", recovery: false, checkpoint_busy: false, steps: { mine: 1, subtasks: 1, unowned: 0 } }
+        : session_id === "sdk-b" ? { session_id, latest_phase: null, latest_run_id: null, recovery: false, checkpoint_busy: true } : { session_id, error: "读不到" }) as Output;
     }
     if (definition.capability_id === agent.listSkills.capability_id) return [] as Output;
     if (definition.capability_id === projectSettingsCapabilities.browsingWorkspace.capability_id) return null as Output;
@@ -129,7 +129,7 @@ async function harness(initial: Entry[]) {
       return letter(input[1] as Wording, "queued") as Output;
     }
     if (id === agent.actOnPeopleMessage.capability_id) return letter({ from_session: "rt-1", to_session: "rt-2", body: JSON.stringify({ title: "t", task: "task" }) }, "delivered") as Output;
-    if (id === agent.readSessionStatuses.capability_id) return (input[1] as string[]).map(session_id => ({ session_id, latest_phase: "completed", recovery: false, checkpoint_busy: false })) as Output;
+    if (id === agent.readSessionStatuses.capability_id) return (input[1] as string[]).map(session_id => ({ session_id, latest_phase: "completed", latest_run_id: "r1", recovery: false, checkpoint_busy: false })) as Output;
     if (id === agent.availableRoles.capability_id) return [{ role_id: "builder", available: true }] as Output;
     if (id === projectSettingsCapabilities.workspaces.capability_id) return [{ workspace_id: "work", canonical_path: root, realpath_verified: true }] as Output;
     if (id === projectSettingsCapabilities.browsingWorkspace.capability_id) return null as Output;

@@ -9,22 +9,22 @@
   "source": {
     "repository": "git+https://github.com/molis-ai/molis-prologue.git",
     "path": "packages/sdk",
-    "commit": "9674515302f23e383dab9b1eeffe835b789c5c09",
+    "commit": "4ee5b9121d45c5d376ea653de3403170c9b337c6",
     "dirty": false,
     "dirtyPaths": [],
     "patches": [],
     "candidateUpstream": {
       "pullRequest": "https://github.com/molis-ai/molis-prologue/pull/108",
-      "head": "9674515302f23e383dab9b1eeffe835b789c5c09",
+      "head": "4ee5b9121d45c5d376ea653de3403170c9b337c6",
       "status": "draft",
-      "note": "Clean candidate validated by original full quality. App integration, frozen performance and final acceptance remain open."
+      "note": "Clean candidate with controlled queue admission and original quality-chain checks completed in segments. App integration, frozen performance and final acceptance remain open."
     }
   },
   "artifact": {
     "file": "prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
-    "bytes": 1412463,
-    "sha256": "44be3daea594d1a4186a0b243651be7049c8b37bbc41bcde80d2ef908453ae8e",
-    "integrity": "sha512-uNmdhQDqwec4GIKLplujB41bxIq4S+myieyQ6v1faF9Zdci/SWLW4SkJnt7z3Gr0+fY2Fc++WHAKrvitWMjMWg=="
+    "bytes": 1414090,
+    "sha256": "7edcac4037b3a9dfdbb433f500bd69b798fa984c38b1177be0340d22e7c2be12",
+    "integrity": "sha512-4271oCV28+CK9/7VJ75r0/Q4cA25b6zjlu9NRHNoGQMQ47pnNOjetEosVZKQjyTPyxmljIhQr6RIZ/V0SrA/wQ=="
   },
   "build": {
     "node": "24.14.0",
@@ -32,12 +32,12 @@
     "platform": "darwin",
     "architecture": "arm64",
     "steps": [
-      "Run original pnpm quality on clean committed source 9674515302f23e383dab9b1eeffe835b789c5c09 with Node24.14.0/pnpm11.9.0.",
+      "Validate final source using original type/build/API/ratchet/docs checks, queue and real Node tests; retain first full-quality snapshot failure and complete the original downstream checks separately.",
+      "Commit reviewed source as 4ee5b9121d45c5d376ea653de3403170c9b337c6 and verify no dirty paths.",
       "Pack packages/sdk with original pnpm pack into an independent directory.",
-      "Verify all 828 dist files against this clean build and unchanged packed package metadata.",
-      "Verify final archive is byte-identical to the independently built e61 candidate already installed in the isolated App."
+      "Verify all 830 dist files and README byte-for-byte against this build; package.json differs from source only by the terminal newline removed by pnpm."
     ],
     "packedOn": "2026-10-28",
-    "note": "Original complete quality exited 0: type/build/API, original ratchet, documentation, 73 files/770 tests, original clean installed consumer and Rust fmt/clippy. Earlier first-connect timeout failures retained; environmental cause is not claimed resolved. Only tests/docs differ from e61 and the final packed archive is byte-identical. No App/full P0 acceptance, merge or release."
+    "note": "Original full quality first reached 782/783 tests with one stale public-surface snapshot. After synchronizing it and adding synchronous final-check rejection, final build and 55 queue/Node/surface tests passed; final type/API/ratchet/docs, original clean installed consumer and Cargo fmt/clippy passed. This is segmented completion, not one entirely green full-quality command. Zero paid model calls, no real Home. App acceptance, performance, merge and release remain open."
   }
 }

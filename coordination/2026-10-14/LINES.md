@@ -447,3 +447,13 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
     - salesforce 比要求的多走了一步：check:tenant 的 keep 一律要 required；令牌响应缺 instance 时报 account_missing。
     - /oauth：根入口的快照和 main 完全相同，新增 16 个函数、3 个类型，只增不减。
     - 两处措辞（oauthPinnedTenant 的注释、AGENTS 清单的说法）并进 Alchemist 脉搏那次改稿。评审核完这一个提交，第 1 片就开 PR。
+  - **10-27 W5-11 推到 800cd0758**：b8c7af87c 补 Alchemist 脉搏，800cd0758 改两处措辞。已经推了的提交不改写，所以措辞没并进 Alchemist 那个提交，单独成一个。已转评审；评审核完，第 1 片开 PR。
+  - **10-27 C 推到 8800e07bf**（快进 4 个提交）：
+    - 3c961464a：边界检查按用户批的改，`check-package-boundaries` 报 errors []，64 个包。
+    - 4 个红文件在干净的 main 9efbf8d04 上全绿，所以都是 C 的回归，已在 C 里修：
+      - ① home-mcp-actions：Feed Manifest 缺 attention.inbox，补上了，这是产品回归的修复；
+      - ② plugin-query-consumers：照 4e-2f 给测试调用方补权限；
+      - ③ feed-item-actions：缺权限时升格从「列出但不可用」变成「目录里没有」；
+      - ④ goals-mcp-grants-fixture：没装 Feed 的项目授权得 404 actions.missing。
+    - a7b722fa9：inbox-plugin 加断言，钉住「移除 Inbox 会连带移除 Feed」。
+    - ③④ 和 a7b722fa9 由评审确认是预期变化、不是削弱断言。评审排在 W5-11 最后一个小提交后面，C 接着做 FI7。

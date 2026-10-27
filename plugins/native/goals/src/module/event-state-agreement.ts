@@ -25,7 +25,7 @@ import {
 import { reopenCompletion } from "./event-state-completion.js";
 import type { GoalEventStateCore, GoalEventStateHost } from "./event-state-host.js";
 import type { GoalEventStateRepository } from "./event-state-repository.js";
-import { agreementView } from "./event-state-repository.js";
+import { agreementView } from "./event-state-owner-records.js";
 
 export class GoalEventStateAgreement {
   constructor(
@@ -63,7 +63,7 @@ export class GoalEventStateAgreement {
       if (expectedConfig !== currentConfig) {
         throw goalErrors["goals.event_agreement.stale_config_version"](`当前配置版本已是 ${currentConfig}，不能用期望版本 ${expectedConfig} 覆盖`, { current_version: currentConfig, expected_version: expectedConfig });
       }
-      const current = this.records.latestAgreement(goal.project_id, goal.goal_id);
+      const current = this.records.owner.latestAgreement(goal.project_id, goal.goal_id);
       const currentOutcome = current?.outcome?.trim() || goal.outcome.trim();
       const requirements = this.host.readCurrentRequirements(goal.project_id, goal.goal_id);
       const change = compactChange(
@@ -96,7 +96,7 @@ export class GoalEventStateAgreement {
         expire_requirement_ids: expiredIds,
         journal_seq: event.journal_seq,
       }, goal);
-      this.records.insertAgreement({
+      this.records.owner.insertAgreement({
         projectId: goal.project_id,
         goalId: goal.goal_id,
         version: nextVersion,
@@ -109,7 +109,7 @@ export class GoalEventStateAgreement {
         this.context.repository.db.prepare("UPDATE goals SET outcome = ?, updated_at = ? WHERE goal_id = ?")
           .run(nextOutcome, event.received_at, goal.goal_id);
       }
-      if (this.records.workStatus(goal.project_id, goal.goal_id) === "completed") {
+      if (this.records.owner.workStatus(goal.project_id, goal.goal_id) === "completed") {
         reopenCompletion(this.records, this.context, this.core,
           goal,
           input.actor_id,
@@ -125,7 +125,7 @@ export class GoalEventStateAgreement {
         observed_event_cursor: event.journal_seq,
         recorded: true as const,
         agreement: agreementView(
-          this.records.latestAgreement(goal.project_id, goal.goal_id),
+          this.records.owner.latestAgreement(goal.project_id, goal.goal_id),
           nextRequirements.length,
           refreshed.outcome,
         ),
@@ -169,8 +169,8 @@ export class GoalEventStateAgreement {
     if (!citedId) {
       throw goalErrors["goals.event_agreement.unauthorized_change"]("替换已有结果、修订要求原文、退休要求或取消人工验收需要引用针对这一份变化的可信用户授权");
     }
-    const existing = this.records.getAppliedDecision(goal.project_id, goal.goal_id, citedId)
-      ?? this.records.getAppliedDecisionByGovernanceId(goal.project_id, goal.goal_id, citedId);
+    const existing = this.records.decisions.getAppliedDecision(goal.project_id, goal.goal_id, citedId)
+      ?? this.records.decisions.getAppliedDecisionByGovernanceId(goal.project_id, goal.goal_id, citedId);
     if (!existing) {
       throw goalErrors["goals.event_decision.not_found"]("只能引用当前 Goal 已持久化的可信决定");
     }
@@ -183,7 +183,7 @@ export class GoalEventStateAgreement {
     if (!agreementChangeCommitmentCurrent(existing.commitment, requirements, currentOutcome, change)) {
       throw goalErrors["goals.event_decision.stale_commitment"]("原约定或受影响要求已经变化，不能把旧决定套用到新约定");
     }
-    const later = laterComparableDecision(this.records.listAppliedDecisions(goal.project_id, goal.goal_id), existing);
+    const later = laterComparableDecision(this.records.decisions.listAppliedDecisions(goal.project_id, goal.goal_id), existing);
     if (later) {
       throw goalErrors["goals.event_decision.superseded"]("已有更新的决定覆盖了这个授权，不能把旧决定当作当前有效结果");
     }

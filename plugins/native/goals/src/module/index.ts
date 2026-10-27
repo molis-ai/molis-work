@@ -119,7 +119,7 @@ export class GoalsModule {
 
 export { GoalLifecycleCommands } from "./lifecycle-commands.js";
 export { GoalEventFacts } from "./event-facts.js";
-export { goalHasEventStateOwner } from "./event-state-repository.js";
+export { goalHasEventStateOwner } from "./event-state-owner-records.js";
 export {
   GoalsPlanningEngine,
 } from "./planning/engine.js";

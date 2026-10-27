@@ -29,7 +29,7 @@ function cancelledGoalTakes(operation: string): boolean {
 /** The goal a state write may land on: writable, and already owned by the event state. */
 export function requireOwnedWritableGoal(deps: GoalEventStateWriteDeps, projectId: string, goalId: string): GoalRecord {
   const goal = deps.host.requireWritableGoal(projectId, goalId);
-  if (!deps.records.isOwner(projectId, goalId)) {
+  if (!deps.records.owner.isOwner(projectId, goalId)) {
     throw goalErrors["goals.event_state.not_owner"]("这个 Goal 还没有事件状态归属。请先保存意图或登记事件配置，不要把旧完成入口和新状态效果混用");
   }
   return goal;
@@ -48,7 +48,7 @@ export function mutateGoalEventState<T extends { event_id: string; observed_even
     const replay = context.replay<T>(input.project_id, input.actor_id, operation, input.idempotency_key, hash);
     if (replay) return { ...replay, replayed: true };
     const goal = requireOwnedWritableGoal(deps, input.project_id, input.goal_id);
-    const cancelled = records.workStatus(goal.project_id, goal.goal_id) === "cancelled";
+    const cancelled = records.owner.workStatus(goal.project_id, goal.goal_id) === "cancelled";
     if (cancelled && !cancelledGoalTakes(operation)) {
       throw goalErrors["goals.event_closure.cancelled"]("已取消的 Goal 不会被普通记录自动恢复，需要显式继续");
     }

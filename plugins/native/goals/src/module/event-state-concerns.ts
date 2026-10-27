@@ -18,7 +18,7 @@ import {
 } from "./event-state-authorization.js";
 import type { GoalEventStateCore } from "./event-state-host.js";
 import type { GoalEventStateRepository } from "./event-state-repository.js";
-import { emptyScope, scopeIsSubset } from "./event-state-repository.js";
+import { emptyScope, scopeIsSubset } from "./event-state-scope.js";
 
 export class GoalEventConcerns {
   constructor(
@@ -69,7 +69,7 @@ export class GoalEventConcerns {
       scope,
       blocks_closure: input.blocks_closure === true,
     });
-    this.records.insertConcern({
+    this.records.concerns.insertConcern({
       concernId,
       projectId: goal.project_id,
       goalId: goal.goal_id,
@@ -84,7 +84,7 @@ export class GoalEventConcerns {
       event_id: event.event_id,
       observed_event_cursor: event.journal_seq,
       recorded: true as const,
-      concern: this.records.getConcern(goal.project_id, goal.goal_id, concernId)!,
+      concern: this.records.concerns.getConcern(goal.project_id, goal.goal_id, concernId)!,
     };
   }
 
@@ -94,7 +94,7 @@ export class GoalEventConcerns {
     actorKind: "user" | "runtime" | null,
   ): Omit<GoalEventConcernResult, "replayed"> {
     const concernId = requiredText(input.concern_id, "goals.event_concern.id_required", "处理 Concern 需要 concern_id");
-    const concern = this.records.getConcern(goal.project_id, goal.goal_id, concernId);
+    const concern = this.records.concerns.getConcern(goal.project_id, goal.goal_id, concernId);
     if (!concern) throw goalErrors["goals.event_concern.not_found"]("Concern 不存在或不属于当前 Goal");
     const reason = requiredText(input.reason, "goals.event_concern.reason_required", "处理 Concern 需要理由和来源");
     const status: GoalEventConcernStatus = input.action === "resolve"
@@ -115,7 +115,7 @@ export class GoalEventConcerns {
       cited_decision_id: citedDecisionId,
       previous_status: concern.status,
     });
-    this.records.updateConcern({
+    this.records.concerns.updateConcern({
       concernId,
       status,
       previousStatus: concern.status,
@@ -128,7 +128,7 @@ export class GoalEventConcerns {
       event_id: event.event_id,
       observed_event_cursor: event.journal_seq,
       recorded: true as const,
-      concern: this.records.getConcern(goal.project_id, goal.goal_id, concernId)!,
+      concern: this.records.concerns.getConcern(goal.project_id, goal.goal_id, concernId)!,
     };
   }
 
@@ -140,8 +140,8 @@ export class GoalEventConcerns {
     citedDecisionId: string | null,
   ): void {
     const cited = citedDecisionId
-      ? this.records.getAppliedDecision(goal.project_id, goal.goal_id, citedDecisionId)
-        ?? this.records.getAppliedDecisionByGovernanceId(goal.project_id, goal.goal_id, citedDecisionId)
+      ? this.records.decisions.getAppliedDecision(goal.project_id, goal.goal_id, citedDecisionId)
+        ?? this.records.decisions.getAppliedDecisionByGovernanceId(goal.project_id, goal.goal_id, citedDecisionId)
       : null;
     if (citedDecisionId && !cited) {
       throw goalErrors["goals.event_decision.not_found"]("引用的决定不属于当前 Goal");
@@ -168,9 +168,9 @@ export class GoalEventConcerns {
     if (supporting.length === 0) {
       throw goalErrors["goals.event_concern.evidence_required"]("处理 Concern 需要关联后续实际事件或已有用户决定");
     }
-    const opened = this.facts.getWorkEvent(goal.project_id, goal.goal_id, concern.event_id);
+    const opened = this.facts.workEvents.getWorkEvent(goal.project_id, goal.goal_id, concern.event_id);
     for (const eventId of supporting) {
-      const event = this.facts.getWorkEvent(goal.project_id, goal.goal_id, eventId);
+      const event = this.facts.workEvents.getWorkEvent(goal.project_id, goal.goal_id, eventId);
       if (!event) throw goalErrors["goals.event_concern.cross_goal_reference"](`事件 ${eventId} 不属于当前 Goal`);
       if (opened && event.journal_seq <= opened.journal_seq) {
         throw goalErrors["goals.event_concern.evidence_not_subsequent"]("解决或推翻 Concern 必须关联打开之后的实际事件");

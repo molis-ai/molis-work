@@ -1,6 +1,6 @@
 # W5-11：连接器 OAuth 从宿主的表移进官方集成插件的声明（设计稿）
 
-状态：设计稿，第二版，待增量评审（2026-10-27，W5-11 线，分支 `claude/w511-oauth-declarations`）。第一版的六个问题都按 A 定了（§10）。两轮评审的必须改 M1～M7、N1～N3 都已改进本稿，建议的取舍写在 §11；统筹和用户在 10-27 的裁定写在 §0 和 §10。本稿只有设计、没有代码。第 1、2 片等增量评审过了再叠在本分支上。§7 里标「依赖 C 合入」的片，要等批次 C（`feature/anticorruption-closeout-c`，头 `fe93d322`；Notion 共享刷新在 `009b773f`）进 main 才动手；标「可以先做」的不碰 C 改过的文件，也不 import 只在 C 上的东西。代码事实按 main `9efbf8d04` 和 C 头 `fe93d322` 核过，文中的行号与形状都是 C 头上的。号段：RAC-1080～1089、BL-790～799，统筹 10-27 核过，没有冲突。新 S 号分成三条，号码由合批会话核对后再定，§3.5 里写「待统筹核」。
+状态：设计稿，第三版，待复核 A2、A4 的增量（2026-10-27，W5-11 线，分支 `claude/w511-oauth-declarations`）。第一版的六个问题都按 A 定了（§10）。三轮评审的必须改 M1～M7、N1～N3、A1～A4 都已改进本稿，建议的取舍写在 §11；统筹和用户在 10-27 的裁定写在 §0 和 §10。本稿只有设计、没有代码。第 2 片等统筹通知再开，第 1 片等 A2、A4 的增量复核过了再开，都叠在本分支上。§7 里标「依赖 C 合入」的片，要等批次 C（`feature/anticorruption-closeout-c`，头 `fe93d322`；Notion 共享刷新在 `009b773f`）进 main 才动手；标「可以先做」的不碰 C 改过的文件，也不 import 只在 C 上的东西。代码事实按 main `9efbf8d04` 和 C 头 `fe93d322` 核过，文中的行号与形状都是 C 头上的。号段：RAC-1080～1089、BL-790～799，统筹 10-27 核过，没有冲突。新 S 号分成三条，号码由合批会话核对后再定，§3.5 里写「待统筹核」。
 
 ## 0. 已经定了的，本稿照着写
 
@@ -152,16 +152,22 @@
 
 **带令牌的请求（identity、context）只发往平台表允许的地方**（M2(b)）：
 - 访问令牌能发到哪里，仍然只由平台定，这样和 S-69「Manifest 不写地址」不冲突。Manifest 只写路径和来源种类：
-  - `url` 写成 `{service}/路径`：发往平台表 `origins` 里的某一个；
+  - `url` 写成 `{service}/路径`：发往平台表 `origins` 里的那一个。`{service}` 只给 `origins` 只有一项的服务；有几项的（cloudflare 有两项），写完整的 https 地址，它的来源必须正好是 `origins` 里的一项（第三轮建议 3）。不用序号写法，平台表换了顺序也不会悄悄换来源；
   - `{tenant}/路径`：发往钉在连接上的租户来源；
   - `{gateway}/路径`：发往 Atlassian 网关；
-  - `{account}/路径`：发往平台表新加的一列 `account_origins`（下面说）。
+  - `{account}/路径`：发往 `account_origins`（下面说）。规则同 `{service}`：只有一项时用 `{account}`，几项时写完整地址，来源必须是其中一项。**`{account}` 和 `account_origins` 随第 4 片落地**（A4，统筹 10-27 选「挪到第 4 片」）：第 1 片的解释器只认 `{service}`、`{tenant}`、`{gateway}`，遇到 `{account}` 当未知占位拒绝。要用 `{account}` 的声明（Gmail 的 userinfo、Atlassian 的 accessible-resources，以及下面列的几家）都在第 4 片及以后才写进 Manifest，所以第 1 片不缺它。
 - 路径里可以写 `{context.<key>}` 和 `{setting}`，按路径段编码。这样 Jira、Confluence 的身份地址可以用 cloud_id 拼出 base，Salesforce 的身份地址发往 kept 的 instance 来源（建议 8、第二轮建议 2）。
-- **`account_origins`**：平台表给每个服务加这一列，只放「取账号和授权上下文」要用、又不在 `origins` 里的来源。例如：
+- **`account_origins`**：只放「取账号和授权上下文」要用、又不在 `origins` 里的来源。例如：
   - Google 的 `https://openidconnect.googleapis.com`；
   - Atlassian 的 `https://api.atlassian.com`（accessible-resources）；
-  - clickup、supabase 列 workspace 的 API 来源，如果它们不在 `origins` 里。
-  - 第 2 片列出全部要补的来源。这一列和 `origins` 一样，是平台的表，改它要过 S-69 的评审。
+  - clickup、supabase 列 workspace 的 API 来源，如果它们不在 `origins` 里；
+  - adobe、bitbucket、feishu、lark 四个 OAuth 服务的身份来源。这四个今天**不在** `CONNECTOR_REQUEST_SERVICES` 里（C 头上核过），只补进 `account_origins`，**不加进 `origins`**，也不为它们在请求表里新开一行。
+  - 第 2 片列出全部要补的来源。它和 `origins` 一样是平台的表，改它要过 S-69 的评审。
+- **`account_origins` 只给平台自己的 identity 和 context 请求用**（A2）：
+  - 插件经 `services.connections` 发的请求（S-69，由 `connector-plugin-requests.ts:88,133` 执行）只认 `origins` 和钉住的租户来源，不认 `account_origins`。经 gmail 连接请求 `https://openidconnect.googleapis.com`，照今天一样被拒（RAC-1082）。
+  - 为了实现时不会把它并进插件请求的放行集合，`account_origins` 不写成 `ConnectorRequestService` 的一个字段，而是 `connector-host.ts` 里单独的一张表 `CONNECTOR_ACCOUNT_ORIGINS`（service_id → 来源列表），`connector-plugin-requests.ts` 不 import 它。名字仍叫 `account_origins`，含义不变。
+  - 不放进请求表还有一个原因：`createCallConnectionsPort` 的 `callService`（`connector-plugin-requests.ts:132-135`）对不在请求表里的服务，退回签名包自己写的来源（S-95）。把那四个服务加进请求表、`origins` 留空，就会改掉它们今天在 S-95 下的行为。单独一张表，这四个服务在插件请求一侧一个字节不变。
+  - 这样写不比今天松：今天 identity 和 context 用裸 `fetch` 发往同一批主机，没有来源限制；新稿限定了来源，还加了 DNS 固定（§2.2）。
 - **端点和带令牌的请求是两回事**：
   - 授权、令牌、刷新、设备授权这几个端点，收到的是 code、verifier、client secret、refresh token，不收拿来调 API 的访问令牌，它们的约束是 §2.8 的 M1；
   - 访问令牌只发往上面这几种平台定的来源。
@@ -171,7 +177,12 @@
 **检查不过，整份 Manifest 不过**（M5，统筹 10-27 裁定）：
 - 和 `manifest.ts:267-269`、S-95 对 `origins` 的做法一样：`plugin.declaration_invalid`，在写任何记录之前拒绝，不开诊断通道。
 - 宿主构建的插件写错了，是构建问题，测试会拦下来。
-- 平台表在 contracts 里，SDK 读得到，所以下面两条也放在 SDK 的形状检查里：「`use: "tenant"` 只给平台表里有 `tenant` 的服务」，「`{account}` 只给有 `account_origins` 的服务」。本人填的租户值，在宿主里按 §2.1 查。
+- 平台表在 contracts 里，SDK 读得到（只读，不改 `connector-host.ts`），所以下面几条也放在 SDK 的形状检查里：
+  - 「`use: "tenant"` 只给平台表里有 `tenant` 的服务」，第 1 片；
+  - 「`{service}` 只给 `origins` 只有一项的服务，完整地址的来源必须在 `origins` 里」，第 1 片；
+  - 「`{account}` 只给 `CONNECTOR_ACCOUNT_ORIGINS` 里有的服务，完整地址的来源必须在其中」，第 4 片，和这张表一起加。
+
+  本人填的租户值，在宿主里按 §2.1 查。
 
 ### 2.2 平台只有一个解释器
 
@@ -205,7 +216,7 @@
 
 - **Gmail**：
   - 声明用通用的 Google 预设：`openid email` 加 `gmail.readonly`（第二轮建议 3；Q2 定了要重新授权，scope 变了也不多花代价）。
-  - `identity` 发往 `{account}/v1/userinfo`（`openidconnect.googleapis.com`），`sub` 当 account_id，`email` 当 label。
+  - `identity` 发往 `{account}/v1/userinfo`（`openidconnect.googleapis.com`，第 4 片补进 `account_origins`），`sub` 当 account_id，`email` 当 label。
   - 重新授权要求 account_id 不变，这是通用规则，从按邮箱改成按 `sub`（Q6）。
   - 入门流程的返回由发起授权的入口写进待完成记录的 `return_to`（`settings` 或 `onboarding`），插件不写。
   - redirect 允许带项目路径段，这条规则留在平台的别名表里（§3.1）。
@@ -241,7 +252,7 @@
   - **旧的 OAuth 连接**（M4）：`auth_method: "oauth"`，引用却不是 `connector-protocol:`（今天的 Gmail、Notion、GitHub 设备授权都是这样）。这种连接直接标 `reauth_required`，不发任何请求，也不落进 token 分支。按 Q2，读取时不认 OAuth 连接上旧的 `connector-connection:<id>:access` 引用；token 连接的 `connector-connection:<id>:token` 照旧。
 - **签名不变**：`resolveApiOAuthToken(home, id, control, forceRefresh, fetchImpl)`，C 的调用方一处不改。
 - **刷新之前，先核对连接绑定的声明**（M1(a)）：
-  - 连接激活时，protocol 配置里记下 `plugin_id`、发布者，和端点指纹。端点指纹是令牌和刷新端点的地址、`client_auth`、`token_format` 规范化后的哈希。
+  - 连接激活时，protocol 配置里记下 `plugin_id`、发布者，和端点指纹。端点指纹是令牌和刷新端点的地址、`client_auth`、`token_format` 规范化后的哈希。salesforce 这类 `{tenant}/路径` 的端点，指纹取模板本身，不取展开后的地址；展开后的租户来源仍由 `connection-store` 的 `assertTarget` 钉住。这样本人改一下 login 来源，不会被当成「换了主人」（第三轮建议 2）。
   - 刷新和发送前，现在声明这个 service_id 的插件要满足三条：
     - 是同一个 `plugin_id`；
     - 发布者相同；
@@ -262,6 +273,8 @@
     - **都过，参与者已经全部取消**（N2(b)，用户 10-27 定「只存新令牌」）：把轮换出的凭据（access token、新的 refresh token、过期时间）写回原来那条连接的引用，别的一概不写，包括调用记录里的业务内容、来源状态和同步游标。划界和 S-35 相同：这一步只保住调用之前已有的连接，算平台维护凭据，不算哪个调用方的业务记录。
     - **插件停用、撤权、卸载，或者安装变了**：轮换出的凭据一律不存（疑问 2，统筹 10-27 裁定，依据是 AGENTS「被取消、撤权、停用的调用不写业务记录」和 §3.4 的「凭据不许写」）。后果是服务方那边旧的 refresh token 已经作废。插件重新启用后第一次使用时，刷新会失败（`invalid_grant`），由那一次正常调用把连接标成 `reauth_required`。这是第二条新 S 的拒绝场景之一。
   - **要改 C 的写法**：C 在 `009b773f` 的写法是最后一个参与者离开就丢掉响应，和上面的「都过，参与者已经全部取消」不一致，本线第 5 片要改这一处。动手前先确认 C 合入之后 `apps/local-host/src/notion-oauth.ts` 的形状，再把这套搬到通用刷新上。
+  - **C 的验收要反过来，在同一个 PR 里写明**（A3）：C 的 `tests/connector-oauth-choice.test.ts`「FI-C-02 Notion shared refresh … stops when both leave」断言了两件事：两个调用方都取消时请求的 signal 被中止；`store.get(access)` 为 null。按用户 10-27 的决定，这两条都反过来：请求不中止，新的 access token 写回原连接。第 5 片在同一个 PR 里改这个测试和 C 的 spec（`feed-inbox-runtime-plugins.md` 的 FI-C-02 行），两处都写明「用户 10-27 定：只存新令牌」，并告知 C 线，免得看起来是为变绿改了别的线的断言。
+  - **和 AGENTS 硬约束的关系**（A3）：AGENTS 写的是「被取消、撤权、停用的调用不再写任何业务记录」。写回凭据是和 S-35 同一类的例外：S-35 恢复调用之前的位置，这里保住调用之前已有的连接。第 9 片在 `AGENTS.md` 里 S-35 那句旁边补上这一条（用户 2026-10-27 定），并在 `docs/system/SECURITY-INVARIANTS.md` 登记（新 S 第 2 条）。
 - **声明它的插件没启用**（停用、卸载）时，OAuth 连接的刷新和发送都拒绝（Q3）：
   - 用一个新的错误码，主人名按 `tooling/gates/error-owners.json` 给这个文件的，用 `defineErrorCodes` 声明，名字实现时定。
   - 不发出任何请求，连接显示「方法不可用」，重新启用后恢复。
@@ -291,12 +304,18 @@
 
 - **怎样拆**：`apps/local-host/cloudflare/worker.ts` 改 import 自己目录里的 `cloudflare/providers.ts`。这份文件是今天 `API_OAUTH_PROVIDERS` 和 `apiOAuthProvider` 的原样拷贝，只给 Worker 用，宿主源码不许 import 它（门禁或测试扫描）。照 loopback 的做法，Worker 单独留一份。
 - **不用重新部署**：Worker 的行为一个字节都不变，所以不需要重新部署。Gmail 走 broker 时 Worker 用的还是 `google()`，本来就带 `openid email`。
-- **由测试钉住**：`tests/connector-oauth-broker.test.ts` 加一条：对 broker 服务的每个服务，Worker 那份展开出来的授权地址、令牌地址、scope、`client_auth`、`token_format`，都要和 Manifest 声明展开的相同。哪天两边不同，测试就失败；要改 Worker 那份，就是重新部署，先报统筹转用户，因为这是发布红线。
+- **由测试钉住**：`tests/connector-oauth-broker.test.ts` 加一条对照测试（A1）：
+  - 对照的是 `cloudflare/providers.ts` 里的**每一项**，不只是已经配置成 broker 的那些。Worker 那份展开出来的授权地址、令牌地址、scope、`client_auth`、`token_format`，都要和 Manifest 声明展开的相同。
+  - `providers.ts` 里有、Manifest 里没有的服务，同样算失败；反过来，Manifest 里有、`providers.ts` 里没有的，只是不能走 broker，不算失败。
+  - 哪天两边不同，测试就红，不能合入。要改 Worker 那份，就是重新部署，先报统筹转用户，因为这是发布红线。
+- **一致性只靠这条测试**（A1）：宿主源码不 import `providers.ts`，Worker 的 `/providers` 也只返回已配置的服务名（`worker.ts:86-88`），不返回端点，所以宿主运行时没法知道两边对不对得上，也不在运行时比。某个服务暂时不能走 broker，就从 `MOLIS_WORK_CONNECTOR_BROKER_SERVICES` 里拿掉，退回产品客户端或本人填的客户端。
+- **测试管不到已部署的版本**：测试保证的是仓库里的 Worker 代码；已部署的是哪一版，以部署记录为准。`cloudflare/README.md` 写着 9 月 27 日的修复还没部署。
 - **broker 流程里，声明指纹由宿主核**：
   - 发起时，待完成记录照样记下声明指纹；
   - 回调回到宿主时，照 §3.3 第 7 条核对。
   - Worker 用自己那份数据换令牌，和声明是否一致只靠上面的测试保证。这一点写进 §3.3。
-  - 声明展开和 Worker 那份对不上的服务，宿主不提供 broker，退回产品客户端或本人填的客户端。
+- **第 4 片一起改的文字**（第三轮建议 1）：`cloudflare/README.md` 第一句「reuses the Host's provider definitions」改成「用自己目录里的 `providers.ts`，由对照测试钉住」；`tests/connector-oauth-broker.test.ts` 里「imports nothing from the workspace」那句注释一起改准。
+- **合入不是发版**（M3，评审第三轮核过）：broker 是 `molis-oauth`（`auth.molis.ai`），手动 `wrangler deploy` 部署；`Workers Builds: molis-work-production` 是另一个账号的另一个 Worker。第 4 片的 PR 说明写上这一节；第一次合入前，请用户在 Cloudflare 后台确认一次 `molis-work-production` 的构建没有指向 `apps/local-host/cloudflare`，由统筹提醒。
 
 ## 3. 通用回调：路由、绑定、判断顺序与拒绝
 
@@ -364,7 +383,7 @@
 | 新 S 第 3 条（待统筹核） | 设备授权：device_code 只在平台里；start 和 poll 是 S-03 的变更请求；`verification_uri` 先查再交给页面；每次 poll 和提交前重查第 6、7、9 条；平台自己限速；过期、被拒、插件停用都终止，只写 §3.4 左边一列 | RAC-1086 | M7、建议 1 |
 | S-37（改证据列） | OAuth 的取消、过时的回调、固定的 revision：Gmail 和 Notion 原来的用例改成通用回调上的同一组 | RAC-1084、RAC-1085 | |
 | S-12（改证据列和措辞） | 插件拿不到 OAuth 流程里的 code、verifier、client secret 和 refresh token；访问令牌交给同步 provider 的缺口归 PG-045、PG-093，不写成「插件拿不到令牌」 | RAC-1087 | M6 |
-| S-69（补一句） | Manifest 写的 OAuth 端点不是请求来源：它们不收访问令牌；带访问令牌的 identity、context 只发往平台表的 `origins`、租户来源、网关和新加的 `account_origins` | RAC-1082 | M2 |
+| S-69（补两句） | Manifest 写的 OAuth 端点不是请求来源：它们不收访问令牌；带访问令牌的 identity、context 只发往平台表的 `origins`、租户来源、网关和新加的 `account_origins`。`account_origins` 只给平台的 identity 和 context 请求用；插件经 `services.connections` 的请求只认 `origins` 和钉住的租户来源（A2） | RAC-1082 | M2、A2 |
 | S-09、S-10、S-70 | 不变，只改证据列里的文件名 | 现有用例 | |
 
 ## 4. 第一批迁哪些，不迁哪些
@@ -428,10 +447,10 @@
 
 - **合同的改动**：
   - `packages/contracts/src/platform/plugin-integrations.ts`：oauth 一员加 §2.1 的字段，加 `grant: "device"`。
-  - `packages/contracts/src/services/connector-host.ts`：
-    - `ConnectorAuthKind` 收窄（§2.7）；
-    - `ConnectorRequestService` 加 `account_origins`（§2.1）。
-  - SDK `integration-declarations.ts`：`methodProblems` 从「只写 kind」改成按 §2.1 检查形状，`AUTH_KINDS` 跟着合同改。SDK 算共享核心，第 1 片本身就要跑全量（§7）。
+  - `packages/contracts/src/services/connector-host.ts`（C 改过这个文件，所以都在依赖 C 合入的片里）：
+    - 新加单独的一张表 `CONNECTOR_ACCOUNT_ORIGINS`（§2.1，A2、A4），第 4 片；`ConnectorRequestService` 和 `CONNECTOR_REQUEST_SERVICES` 不改；
+    - `ConnectorAuthKind` 收窄（§2.7），第 8 片。
+  - SDK `integration-declarations.ts`：`methodProblems` 从「只写 kind」改成按 §2.1 检查形状，`AUTH_KINDS` 跟着合同改。第 1 片做除 `{account}` 以外的检查，`{account}` 那条随第 4 片加。SDK 算共享核心，第 1 片和第 4 片都要跑全量（§7）。
 - **读取不兜底**：
   - 旧形状的 Manifest（只有 `{kind:"oauth"}`）不会出现：内置插件在同一个 PR 里改；外部包带数据的 oauth 被 §2.8 拒绝。外部包只写 `{kind:"oauth"}` 而不带数据的，同样是声明错误，整份不过。
   - 存量连接：`auth_method: "oauth"` 却没有 `connector-protocol:` 引用的，直接 `reauth_required`（§2.6、Q2）。token 连接不受影响。
@@ -454,7 +473,7 @@
 ### 6.3 测试清单
 
 - **要改的**：今天按服务写的用例，改成在通用流程上断言同一件事。
-  - `connector-api-oauth`、`connector-oauth-choice`、`connector-oauth-broker`（加 §2.9 的 Worker 对照）；
+  - `connector-api-oauth`、`connector-oauth-choice`（FI-C-02 的两条断言按 N2 反过来，见 §2.6，第 5 片）、`connector-oauth-broker`（加 §2.9 的 Worker 对照）；
   - `gmail-oauth`、`gmail-factory-boundaries`（第 153、181 行）；
   - `github-device-flow`、`connector-connections`（Gmail 和 Notion 的过时回调）；
   - `connector-authorization-recovery`（ASC-35）、`connector-reconnect-regressions`、`connector-setup`、`connectors-settings-behaviors`、`context-onboarding`；
@@ -474,18 +493,18 @@
 
 | # | 片 | 前提 | 碰的文件 |
 | --- | --- | --- | --- |
-| 1 | 合同加字段，SDK 的形状检查（整份不过），宿主里的解释器纯函数：模板展开、租户检查、令牌与身份请求的组装、端点指纹。只用夹具测试，不接路由，不删表，不发请求 | **可以先做**：C 没碰 `plugin-integrations.ts`；不 import `ConnectorCallControl`、`controlledConnectorFetch`；新文件叫 `apps/local-host/src/connector-*.ts`，不改 `error-owners.json`。SDK 算共享核心，要跑全量：分支先推，全量进合批会话开的集成批，本机不跑，测试 `--jobs 1` | `packages/contracts` 的 `plugin-integrations.ts`、`connector-host.ts`（`account_origins`），SDK 的 `integration-declarations.ts`，宿主的一个新文件 |
-| 2 | catalog 里 40 处 `identity` 逐条写成数据；列出要补进 `account_origins` 的来源 | **可以先做**：只读 catalog 包，产出写进本稿 §2.1 | 无代码 |
+| 1 | 合同加字段，SDK 的形状检查（整份不过，不含 `{account}`），宿主里的解释器纯函数：模板展开（只认 `{service}`、`{tenant}`、`{gateway}`）、租户检查、令牌与身份请求的组装、端点指纹。只用夹具测试，不接路由，不删表，不发请求 | **可以先做**：只改 C 没碰的 `plugin-integrations.ts`；`connector-host.ts` 只读不改（A4，统筹 10-27，不开例外）；不 import `ConnectorCallControl`、`controlledConnectorFetch`；新文件叫 `apps/local-host/src/connector-*.ts`，不改 `error-owners.json`。SDK 算共享核心，要跑全量：分支先推，全量进合批会话开的集成批，本机不跑，测试 `--jobs 1` | `packages/contracts` 的 `plugin-integrations.ts`，SDK 的 `integration-declarations.ts`，宿主的一个新文件 |
+| 2 | catalog 里 40 处 `identity` 逐条写成数据；列出要补进 `account_origins` 的来源，含 adobe、bitbucket、feishu、lark（只进 `account_origins`，不进 `origins`） | **可以先做**，A4 之后仍然能单独做：它只读 catalog 包，产出是写进本稿 §2.1 的数据和来源清单，不依赖 `CONNECTOR_ACCOUNT_ORIGINS` 已经在代码里；清单由第 4 片落成代码。要用 `{account}` 的条目照样写成 `{account}/路径`。开工时间等统筹通知（W5-10 推完 e1、e2、e3、a1 之后，同时最多两条线写代码） | 无代码 |
 | 3 | 通用回调、判断顺序、待完成记录合成一份（§3），§2.8 的拒绝 | 依赖 C 合入 | `connector-api-oauth.ts`、`connector-oauth-targets.ts`、`connector-oauth-callbacks.ts`、`web-connector-api-methods.ts`、`integration-registry.ts` |
-| 4 | catalog 和 github web 的数据写进 Manifest，删掉 `API_OAUTH_PROVIDERS`，`connectorMethodsFor` 改读登记；产品客户端和 broker 只给宿主构建的声明；Worker 数据挪到 `cloudflare/providers.ts`，并加对照测试 | 依赖 C 合入 | catalog 包、`host-connector-methods.ts`、`connector-product-auth.ts`、`cloudflare/worker.ts` |
-| 5 | 共用刷新推广到全部 OAuth 连接，加连接上的绑定和最后一道检查，改掉 C「最后一个离开就丢弃」那一处；`resolveApiConnection` 收成三支，旧 OAuth 连接标 `reauth_required` | 依赖 C 合入（先确认 `apps/local-host/src/notion-oauth.ts` 合入后的形状） | `connector-access.ts`、`connector-api-oauth.ts`、`apps/local-host/src/notion-oauth.ts` |
+| 4 | `CONNECTOR_ACCOUNT_ORIGINS` 按第 2 片的清单加进 contracts，SDK 加 `{account}` 的检查，解释器认 `{account}`（A4）；catalog 和 github web 的数据写进 Manifest，删掉 `API_OAUTH_PROVIDERS`，`connectorMethodsFor` 改读登记；产品客户端和 broker 只给宿主构建的声明；Worker 数据挪到 `cloudflare/providers.ts`，加对照测试，改 `cloudflare/README.md` 第一句和测试注释（§2.9）；PR 说明写上 §2.9「合入不是发版」 | 依赖 C 合入；改 SDK，全量进集成批；第一次合入前用户在 Cloudflare 后台确认一次 | `packages/contracts` 的 `connector-host.ts`、SDK 的 `integration-declarations.ts`、catalog 包、`host-connector-methods.ts`、`connector-product-auth.ts`、`cloudflare/worker.ts`、`cloudflare/providers.ts`、`cloudflare/README.md` |
+| 5 | 共用刷新推广到全部 OAuth 连接，加连接上的绑定和最后一道检查，改掉 C「最后一个离开就丢弃」那一处；`resolveApiConnection` 收成三支，旧 OAuth 连接标 `reauth_required`；同一个 PR 里把 C 的 FI-C-02 两条断言和 spec 行反过来，写明用户 10-27 的决定，告知 C 线（A3） | 依赖 C 合入（先确认 `apps/local-host/src/notion-oauth.ts` 合入后的形状） | `connector-access.ts`、`connector-api-oauth.ts`、`apps/local-host/src/notion-oauth.ts`、`tests/connector-oauth-choice.test.ts`、`specs/…/feed-inbox-runtime-plugins.md` |
 | 6 | Gmail 并进通用流程 | 依赖 C 合入，在 3、5 之后 | gmail 包、`gmail-oauth.ts`、入门流程 |
 | 7 | Notion 并进通用流程 | 依赖 C 合入，在 3、5 之后 | catalog 包、两份 `notion-oauth.ts` |
 | 8 | GitHub 设备授权（§2.5），收窄 `auth_kind` | 依赖 C 合入，在 4 之后 | github 包、`github-oauth.ts`、`connector-github-device.ts`、`web-connectors-settings.ts`、workbench、`connector-directory.ts` |
-| 9 | 文档：§10.1、privileges（§5 的措辞）、EXTENSION-POINTS、SECURITY-INVARIANTS（拿到合批会话给的 S 号之后）、CHANGELOG | 在 3～8 之后 | `docs/`、`specs/` |
+| 9 | 文档：§10.1、privileges（§5 的措辞）、EXTENSION-POINTS、SECURITY-INVARIANTS（拿到合批会话给的 S 号之后，含写回凭据这条例外）、CHANGELOG；`AGENTS.md` 在 S-35 那句旁边补上写回凭据的例外（A3） | 在 3～8 之后 | `docs/`、`specs/`、`AGENTS.md` |
 | 10 | 第二批：`MCP_SERVERS` 的数据 | 另开一片（BL-790），依赖 C 合入 | `connector-mcp.ts`、catalog 包 |
 
-- 第 1、2 片可以和 C 并行，等增量评审过了再开。
+- 第 1、2 片可以和 C 并行。第 2 片等统筹通知再开；第 1 片等 A2、A4 的增量复核过了再开。
 - 第 3～8 片都碰 C 改过的连接器文件，等 C 进 main 后按表里的顺序做，每片一个 PR，交给评审会话。
 - 统筹 10-27 的负载控制下，一次只跑一项重活。
 
@@ -494,8 +513,8 @@
 | 编号 | 验收 | 怎样证明 |
 | --- | --- | --- |
 | RAC-1080 | 连接器方法列表（`connectors.methods.read@1`）只由登记里启用插件的声明算出，宿主里没有按服务写的 OAuth 表；输出形状不变 | 迁移前后逐个服务整份比对 `ConnectorMethodOption`；扫描宿主源码，没有 `API_OAUTH_PROVIDERS`，也不 import 插件的实现或 `cloudflare/providers.ts` |
-| RAC-1081 | 下面这些声明错误都让**整份 Manifest** 抛 `plugin.declaration_invalid`，在写任何记录之前：非 https、带账号密码或端口、主机是 IP、`{setting}` 出现在主机里、平台保留的参数名、未知的 quirk、`use: "tenant"` 用在平台表里没有 `tenant` 的服务上、`{account}` 用在没有 `account_origins` 的服务上；另外，签名沙箱包里带数据的 oauth 被集成登记拒绝（§2.8） | SDK 形状检查逐条用例；`integration-registry` 的 `attach` 拒绝用例 |
-| RAC-1082 | 模板展开后再查一次：tenant、slug 带 `/`、`..`、`%2f`，租户值带端口或凭据、不在 `tenant.domain` 下，kept 的 `instance_url` 不在 `tenant.domain` 下，都在发出任何请求之前拒绝；identity、context 只发往平台表定的来源；从 Manifest 来的请求都经 `sendPublicHttps` | 解释器的纯函数用例；发起授权并断言没有网络请求的用例；用假的 `sendPublicHttps` 断言每类请求都经过它 |
+| RAC-1081 | 下面这些声明错误都让**整份 Manifest** 抛 `plugin.declaration_invalid`，在写任何记录之前：非 https、带账号密码或端口、主机是 IP、`{setting}` 出现在主机里、平台保留的参数名、未知的 quirk、`use: "tenant"` 用在平台表里没有 `tenant` 的服务上、`{service}` 用在 `origins` 不止一项的服务上、完整地址的来源不在 `origins` 里；第 4 片起再加：`{account}` 用在 `CONNECTOR_ACCOUNT_ORIGINS` 里没有的服务上（第 1 片里 `{account}` 是未知占位，同样整份不过）；另外，签名沙箱包里带数据的 oauth 被集成登记拒绝（§2.8） | SDK 形状检查逐条用例（`{account}` 那条随第 4 片）；`integration-registry` 的 `attach` 拒绝用例 |
+| RAC-1082 | 模板展开后再查一次：tenant、slug 带 `/`、`..`、`%2f`，租户值带端口或凭据、不在 `tenant.domain` 下，kept 的 `instance_url` 不在 `tenant.domain` 下，都在发出任何请求之前拒绝；identity、context 只发往平台表定的来源；从 Manifest 来的请求都经 `sendPublicHttps`。**插件的请求不认 `account_origins`**（A2）：插件经 gmail 连接的槽（`services.connections`）请求 `https://openidconnect.googleapis.com/v1/userinfo`，被拒，不发出、不带凭据；adobe、bitbucket、feishu、lark 加进 `account_origins` 之后，插件请求一侧的行为和今天相同 | 解释器的纯函数用例；发起授权并断言没有网络请求的用例；用假的 `sendPublicHttps` 断言每类请求都经过它；`account_origins` 的拒绝用例进 `test:security`（第 4 片，和这张表一起加），另断言 `connector-plugin-requests.ts` 不 import `CONNECTOR_ACCOUNT_ORIGINS` |
 | RAC-1083 | 回调第 1～7 条：拒绝，不发任何请求，只写 §3.4 左边一列，右边一列一个字节不变；Host 不对时 state 不被消耗；带 `error` 的回调消耗 state；三条别名路径只收记录里的那一条；声明了 `issuer` 时 `iss` 缺了或不同都拒绝 | 安全用例（进 `test:security`）：记录令牌端点的请求次数，回调前后对比连接、凭据、protocol 配置和绑定 |
 | RAC-1084 | 回调第 8、9 条：令牌请求已经发出，换到的令牌不暂存、不提交；发起之后插件停用、升级或者声明改了，这次回调拒绝 | 安全用例；Gmail 和 Notion 原来的过时回调用例改到这里 |
 | RAC-1085 | 共用刷新：同一个连接只有一次刷新在途，一个参与者取消不中止别人，刷新请求发出后不因参与者走光而中止。参与者全部取消、响应回来、插件仍启用：轮换出的凭据写回原连接，别的记录一个字节不变。同样的情形下插件停用了：凭据不存；重新启用后第一次使用得到 `invalid_grant`，连接标 `reauth_required`。连接绑定的插件、发布者或端点指纹变了：不发 refresh token，标 `reauth_required` | 延续 C 给 Notion 的用例，推广到 Gmail、一个轮换 refresh token 的服务（Microsoft）和一个 catalog 服务；拒绝场景进 `test:security` |
@@ -547,11 +566,17 @@ BL-795～799 留空。
   - 新 S 号分成三条，每条各有一个拒绝测试（§3.5）。号码由合批会话核对 main 和在途 PR 后再定，本稿继续写「待统筹核」。
   - M5 整份不过；M3 Worker 留一份数据，由测试钉住；疑问 1 登记 BL-794；疑问 2 不存。都见 §0。
 - **用户定**：N2 的另一半选「只存新令牌」（§2.6）。
-- **开工安排**：第 1、2 片等增量评审过了再叠在本分支上，推远端，不开 PR，回报 SHA；第 3～8 片照旧等 C 合入。
+- **开工安排**：第 1、2 片叠在本分支上，推远端，不开 PR，回报 SHA；第 3～8 片照旧等 C 合入。
+
+第三轮评审之后（10-27）：
+
+- **统筹定**：A4 选「挪到第 4 片」，第 1 片不碰 `connector-host.ts`，不开例外（§2.1、§7）。
+- **开工安排**：第 2 片等统筹通知（W5-10 推完 e1、e2、e3、a1 之后，同时最多两条线写代码）；第 1 片等 A2、A4 的增量复核过了再开。
+- **M3 核过**：第 4 片合入不是发版；第一次合入前请用户在 Cloudflare 后台确认一次，统筹提醒（§2.9）。
 
 ## 11. 评审建议的取舍
 
-两轮评审的建议都采纳了，没有不采纳的：
+三轮评审的建议都采纳了，没有不采纳的：
 
 | 建议 | 采纳与否 | 落在哪里 |
 | --- | --- | --- |
@@ -569,3 +594,7 @@ BL-795～799 留空。
 | Q5 改名时 `github/src/oauth.ts:51` 的报错一起处理 | 采纳：那个文件随删除名单删掉，`connector-directory.ts:53-55` 一起改 | §2.3 |
 | §3.4 拆三条，并写明各自的前提 | 采纳 | §3.5 |
 | 第 8、9 条换到的令牌，服务方有撤销端点的就撤销 | 采纳为尽力而为，不进验收 | §3.3 |
+| 第三轮建议 1：`cloudflare/README.md` 第一句和测试注释「imports nothing from the workspace」随第 4 片改 | 采纳 | §2.9、§7 第 4 片 |
+| 第三轮建议 2：`{tenant}/路径` 的端点指纹取模板，不取展开后的地址 | 采纳 | §2.6 |
+| 第三轮建议 3：`origins` 有几项时怎样选 | 采纳第一种：`{service}` 只给一项的服务，几项时写完整地址、来源必须在 `origins` 里；不用 `{service:0}` 序号，平台表换顺序时不会悄悄换来源 | §2.1、RAC-1081 |
+| 第三轮建议 4：§6.3 注明 FI-C-02 的两条断言按 N2 反过来 | 采纳 | §6.3、§2.6、§7 第 5 片 |

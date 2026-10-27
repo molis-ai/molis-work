@@ -42,12 +42,12 @@ export const OAUTH_RESERVED_PARAMETERS = ["client_id", "redirect_uri", "state", 
 /**
  * A request the Host sends with the access token. `url` is `{service}/path` (the one origin of the platform's request table), a full
  * `https://` address whose origin is one of them, `{tenant}/path` (the tenant origin pinned to the connection) or `{gateway}/path`; the
- * path may hold `{context.<key>}` and `{setting.<key>}`. Header and query values are constants, `{client_id}` or `{context.<key>}`.
+ * path may hold `{context.<key>}` and `{setting.<key>}`. Header and query values are constants, `{client_id}` (adobe's API wants the public client id) or `{context.<key>}`.
  */
 export interface OAuthTokenRequestDeclaration {
   readonly url: string;
   readonly method?: "GET" | "POST";
-  /** A fixed JSON body, `POST` only. */
+  /** A fixed JSON body, `POST` only; nothing in it is expanded. */
   readonly body?: unknown;
   readonly headers?: Readonly<Record<string, string>>;
   readonly query?: Readonly<Record<string, string>>;
@@ -70,7 +70,7 @@ export interface OAuthKeepDeclaration {
 
 /** How the connection's account is read after the token comes back (W5-11 §2.1.1). With no `url`, nothing is sent. */
 export interface OAuthIdentityDeclaration extends Partial<OAuthTokenRequestDeclaration> {
-  /** When the response is a list: the entry with the smallest value at `min_by`, or the one whose `slug` is the context's `org`. */
+  /** When the response is a list: the entry with the smallest value at `min_by` (sentry, for an account_id that stays put). Its only key. */
   readonly list?: { readonly min_by: string };
   /**
    * Segments joined with `:`; each takes its first non-empty source. An empty segment is always empty (no prefix). The first of several
@@ -79,6 +79,7 @@ export interface OAuthIdentityDeclaration extends Partial<OAuthTokenRequestDecla
   readonly account_id: readonly (readonly OAuthValueSource[])[];
   /** The first non-empty source is the account's label. */
   readonly label: readonly OAuthValueSource[];
+  /** Taken as written, never expanded; not added again to a label that already starts with it (x's `@`). */
   readonly label_prefix?: string;
   readonly keep?: readonly OAuthKeepDeclaration[];
 }

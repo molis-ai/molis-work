@@ -29,6 +29,8 @@ const HEADER_NAME = /^[A-Za-z][A-Za-z0-9-]{0,63}$/u;
 const POINTER = /^(?:\/(?:[^~/]|~[01])*)+$/u;
 const SOURCE = /^(?:(?:identity|token):(\/.*)|context:(.+)|literal:(.+))$/su;
 const PLACEHOLDER = /\{([^{}]*)\}/gu;
+/** What reads as one of the declaration's placeholders; `body` and `label_prefix` are taken as written, so they may not hold one. */
+const PLACEHOLDER_LIKE = /\{(?:client_id|service|tenant|gateway|account|(?:context|setting)\.[^{}]*)\}/u;
 const IP_LITERAL = /^(?:\d+\.){3}\d+$|^\[/u;
 const LOCAL_SUFFIX = /\.(?:localhost|local|internal|home\.arpa)$/u;
 const HOST_NAME = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/u;
@@ -186,7 +188,7 @@ function identityProblems(where: string, value: unknown, scope: Scope): string[]
   }
   if (!Array.isArray(value.label) || value.label.length === 0) problems.push(`${at}的 label 必须是至少一项的来源数组`);
   else problems.push(...sourceProblems(`${at}的 label`, value.label, sends));
-  if (value.label_prefix !== undefined && typeof value.label_prefix !== "string") problems.push(`${at}的 label_prefix 必须是文字`);
+  if (value.label_prefix !== undefined && (typeof value.label_prefix !== "string" || PLACEHOLDER_LIKE.test(value.label_prefix))) problems.push(`${at}的 label_prefix 必须是文字，不展开占位`);
   if (value.keep !== undefined) problems.push(...keepProblems(`${at}的 keep`, value.keep, scope.service));
   return problems;
 }
@@ -243,6 +245,7 @@ function requestProblems(where: string, request: Record<string, unknown>, scope:
   const problems = urlProblems(`${where}的 url`, request.url, scope);
   if (request.method !== undefined && request.method !== "GET" && request.method !== "POST") problems.push(`${where}的 method 只能是 GET 或 POST`);
   if (request.body !== undefined && request.method !== "POST") problems.push(`${where}只有 POST 才写 body`);
+  if (request.body !== undefined && texts(request.body).some(text => PLACEHOLDER_LIKE.test(text))) problems.push(`${where}的 body 是固定的 JSON，不展开占位`);
   if (request.headers !== undefined) {
     if (!isRecord(request.headers)) problems.push(`${where}的 headers 必须是对象`);
     else for (const [name, header] of Object.entries(request.headers)) {
@@ -324,4 +327,12 @@ function text(value: unknown): value is string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+/** Every string in a JSON value, keys included. */
+function texts(value: unknown): string[] {
+  if (typeof value === "string") return [value];
+  if (Array.isArray(value)) return value.flatMap(texts);
+  if (isRecord(value)) return Object.entries(value).flatMap(([key, entry]) => [key, ...texts(entry)]);
+  return [];
 }

@@ -272,12 +272,12 @@ function oauthCredentialHeader(entry: ConnectorRequestService | undefined, token
 
 /**
  * The account read from the identity response (and the token response and context): `account_id` segment by segment, the label with its
- * prefix, and what `identity.keep` keeps. For a list response, the entry `list` picks.
+ * prefix (not added twice), and what `identity.keep` keeps. For a list response, the entry with the smallest `list.min_by`.
  */
 export function oauthAccount(serviceId: string, identity: OAuthIdentityDeclaration, responses: {
   identity?: unknown; token: unknown; context: Readonly<Record<string, string>>;
 }): { account_id: string; label: string; kept: Record<string, string> } {
-  const entry = identity.list ? listEntry(identity.list.min_by, responses.identity, responses.context) : responses.identity;
+  const entry = identity.list ? listEntry(identity.list.min_by, responses.identity) : responses.identity;
   const read = (source: OAuthValueSource) => sourceValue(source, entry, responses.token, responses.context);
   const segments = identity.account_id.map(segment => segment.map(read).find(Boolean) ?? "");
   segments.forEach((value, index) => {
@@ -286,7 +286,8 @@ export function oauthAccount(serviceId: string, identity: OAuthIdentityDeclarati
   });
   const label = identity.label.map(read).find(Boolean);
   if (!label) throw oauthDeclarationErrors.account_missing("无法读取账号身份");
-  return { account_id: segments.join(":"), label: `${identity.label_prefix ?? ""}${label}`, kept: oauthKept(serviceId, identity.keep, entry) };
+  const prefix = identity.label_prefix ?? "";
+  return { account_id: segments.join(":"), label: label.startsWith(prefix) ? label : `${prefix}${label}`, kept: oauthKept(serviceId, identity.keep, entry) };
 }
 
 /** The value a context request contributes: the sorted ids of a list, or the id of the entry matching a setting's origin. */
@@ -314,9 +315,8 @@ export function oauthEndpointFingerprint(method: PluginOAuthMethodDeclaration): 
   return createHash("sha256").update(canonical).digest("hex");
 }
 
-function listEntry(minBy: string, response: unknown, context: Readonly<Record<string, string>>): unknown {
+function listEntry(minBy: string, response: unknown): unknown {
   const rows = Array.isArray(response) ? response : [];
-  if (context.org) return rows.find(row => textAt(row, "/slug") === context.org);
   return rows.slice().sort((a, b) => textAt(a, minBy).localeCompare(textAt(b, minBy)))[0];
 }
 

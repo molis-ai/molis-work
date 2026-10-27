@@ -91,6 +91,11 @@ test("RAC-1081 each declaration error fails the whole Manifest before anything i
   refused("slack", method({ identity: { url: "{service}/me", query: { team: "{setting.team}" }, account_id: [[], ["identity:/id"]], label: ["identity:/id"] } }), /查询参数/u);
   refused("slack", method({ identity: { url: "{service}/me", account_id: [[], ["secret:/id" as never]], label: ["identity:/id"] } }), /来源/u);
   refused("notion", method({ identity: { account_id: [["identity:/id"]], label: ["token:/workspace_name"] } }), /没写 url/u);
+  // Written down by the slice-2 review: `list` has one key, `body` and `label_prefix` are taken as written.
+  refused("sentry", method({ identity: { url: "{service}/api/0/organizations/", list: { min_by: "/id", by_context: "org" } as never, account_id: [[], ["identity:/id"]], label: ["identity:/slug"] } }), /list/u);
+  refused("linear", method({ identity: { url: "{service}/graphql", method: "POST", body: { query: "{context.team}" }, account_id: [[], ["identity:/id"]], label: ["identity:/id"] } }), /body/u);
+  refused("x", method({ identity: { url: "{service}/2/users/me", account_id: [[], ["identity:/data/id"]], label: ["identity:/data/name"], label_prefix: "{context.handle}" } }), /label_prefix/u);
+  refused("slack", method({ context: [{ key: "teams", url: "{service}/teams", pick: { kind: "ids", pointer: "/*/id" }, when_missing: "fail" } as never] }), /不认这些字段/u);
 });
 
 test("RAC-1081 endpoints are held to the endpoint rule, not to the request table's origins", () => {
@@ -235,6 +240,11 @@ test("RAC-1080 the account fails when a segment other than the prefix is empty, 
   assert.equal(oauthAccount("slack", identity, { identity: { id: 1, name: "a" }, token: {}, context: {} }).account_id, ":1", "an empty prefix");
   assert.throws(() => oauthAccount("slack", identity, { identity: { team: "t", name: "a" }, token: {}, context: {} }), { code: "connector.oauth_declarations.account_missing" });
   assert.throws(() => oauthAccount("slack", identity, { identity: { id: 1 }, token: {}, context: {} }), { code: "connector.oauth_declarations.account_missing" });
+  const x: OAuthIdentityDeclaration = { url: "{service}/2/users/me", account_id: [[], ["identity:/data/id"]], label: ["identity:/data/username", "identity:/data/name"], label_prefix: "@" };
+  assert.equal(oauthAccount("x", x, { identity: { data: { id: "1", name: "@ada" } }, token: {}, context: {} }).label, "@ada", "the prefix is not added twice");
+  const sentry: OAuthIdentityDeclaration = { url: "{service}/api/0/organizations/", list: { min_by: "/id" }, account_id: [[], ["identity:/id"]], label: ["identity:/slug"] };
+  const orgs = [{ id: "9", slug: "beta" }, { id: "10", slug: "alpha" }];
+  assert.equal(oauthAccount("sentry", sentry, { identity: orgs, token: {}, context: { org: "beta" } }).label, "alpha", "the context's org picks nothing");
   const notion: OAuthIdentityDeclaration = { account_id: [["token:/workspace_id"]], label: ["token:/workspace_name"] };
   assert.deepEqual(oauthAccount("notion", notion, { token: { workspace_id: "w-1", workspace_name: "Acme" }, context: {} }), { account_id: "w-1", label: "Acme", kept: {} });
 });

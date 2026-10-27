@@ -93,7 +93,8 @@ export const artifactsActions = {
     object({ embeds: array(object({ relationship: { enum: ["input", "output"] }, view: browser })) })),
   links: define<{ reference: ArtifactReference }, ArtifactReferences>("links", "这一版被谁引用", "列出把这一版作为输入、交付物或提议交付物的目标，以及其他引用的数量；不修改数据",
     "query", object({ reference }), object({ goals: { type: "array", items: object({ goal_id: { type: "string" }, title: { type: "string" },
-      role: { enum: ["input", "deliverable", "proposed", "proposed_input"] } }) }, other: { type: "integer", minimum: 0 } })),
+      role: { enum: ["input", "deliverable", "proposed", "proposed_input"] } }) }, other: { type: "integer", minimum: 0 } }),
+    read),
   pluginInputs: define<{ reference: ArtifactReference }, { inputs: ArtifactPluginInput[] }>("plugin_inputs", "可以接这一版的插件输入",
     "列出已启用插件里能接收这一版类型的输入端口，以及它们现在读的是什么；不修改数据", "query", object({ reference }), pluginInputsOutput),
   // Changing what another plugin reads is the person's own choice (artifact-positioning, 2026-10-04).
@@ -121,8 +122,8 @@ export interface ArtifactActionPorts {
   importSources(): Record<string, boolean>;
   importConnections?(): ConnectorConnectionView[];
   openProjectReference(input: { reference: string }): Promise<{ filename: string; content_base64: string }>;
-  /** A Goal's title for 「被谁引用」, read by the host; null when the Goal is gone. */
-  goalTitle?(goalId: string): string | null;
+  /** A Goal's title for 「被谁引用」, asked as the caller; null when absent or unreadable. */
+  goalTitle?(goalId: string, caller: ActionExecutionContext): string | null | Promise<string | null>;
   /** A 成果 type's display name as its owner declares it (the side panel groups by it); null when undeclared. */
   typeTitle?(artifactTypeId: string): string | null;
   /** A version's text as its type's owner previews it, for a workflow run that starts from it; null when there is none. */
@@ -217,11 +218,12 @@ export function createArtifactActionHandlers(ports: ArtifactActionPorts): Action
       if (!ports.bindPluginInput) throw new ActionError("artifacts.unavailable", "这里没有运行中的插件，不能改插件的输入");
       return { inputs: await ports.bindPluginInput(artifact, { plugin_id: input.plugin_id, port: input.port, restore: input.restore === true }, caller) };
     }),
-    bind(artifactsActions.links, (input, caller) => {
+    bind(artifactsActions.links, async (input, caller) => {
       const edges = ports.ledger.list({ actor_id: caller.actor_id, scope: { kind: "personal", id: ports.projectId } }).filter(edge => edge.state === "active"
         && edge.target.module === "artifacts" && edge.target.id === input.reference.artifact_id && edge.target.version === input.reference.version);
-      const goals = edges.flatMap(edge => { const kind = linkKindOf(ports.linkKinds, edge); return kind === null ? []
-        : [{ goal_id: edge.source.id, title: ports.goalTitle?.(edge.source.id) ?? edge.source.id, role: referenceRole(kind) }]; });
+      const references = edges.flatMap(edge => { const kind = linkKindOf(ports.linkKinds, edge); return kind === null ? [] : [{ edge, kind }]; });
+      const goals = await Promise.all(references.map(async ({ edge, kind }) => ({ goal_id: edge.source.id,
+        title: await ports.goalTitle?.(edge.source.id, caller as ActionExecutionContext) ?? edge.source.id, role: referenceRole(kind) })));
       return { goals, other: edges.length - goals.length } satisfies ArtifactReferences;
     }),
     ...bindWorkflowContentHandlers(artifactsContentActions, {

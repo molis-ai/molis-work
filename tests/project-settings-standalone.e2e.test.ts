@@ -2,6 +2,7 @@ import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { boardSnapshot } from "./fixtures/goal-application.js";
 
 // It walks every settings category in two layouts: about 27 s on a development Mac, about 60 s on the Linux CI runner.
 test("settings serve complete category pages; the project gear opens them in the workbench stage", { timeout: 120_000 }, async t => {
@@ -192,13 +193,13 @@ test("project settings preserve edits on failed saves, record guidance versions,
   assert.match(await evaluate<string>("document.querySelector('.guidance-entry').textContent"), /用户数据和备份只保存在本机/);
   await navigate(() => command("Page.navigate", { url: origin + prefix + "/settings/rules" }, sessionId));
   await waitFor("!!document.querySelector('[data-work-surface=project-settings] [data-policy-form]')", 15_000);
-  const beforeRules = browser.store.snapshot(DEMO_PROJECT_ID).cursor;
+  const beforeRules = boardSnapshot(browser.store, DEMO_PROJECT_ID).cursor;
   const accepted = "document.querySelector('[data-policy-form] [name=human_approval]').checked";
   const original = await evaluate<boolean>(accepted);
   await evaluate(accepted + " = " + String(!original));
   await click('[data-policy-cancel]');
   assert.equal(await evaluate(accepted), original);
-  assert.equal(browser.store.snapshot(DEMO_PROJECT_ID).cursor, beforeRules);
+  assert.equal(boardSnapshot(browser.store, DEMO_PROJECT_ID).cursor, beforeRules);
   await evaluate(accepted + " = " + String(!original));
   await command("Network.setBlockedURLs", { urls: [origin + prefix + "/api/policy-bindings"] }, sessionId);
   await click('[data-policy-form] button[type=submit]');

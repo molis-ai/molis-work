@@ -11,8 +11,7 @@ import { WebSocket, type RawData } from "ws";
 import { desktopAdvancePrompt, desktopLaunchSpec, desktopPanelEnv } from "@molis-ai/molis-work-app-desktop";
 import { createLocalFeedApplication } from "@molis-ai/molis-work-app-local-host";
 
-import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
-import { DEMO_PROJECT_ID, MolisWorkLocalHost, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, MolisWorkLocalHost, seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { resolveWebControlToken, WEB_CONTROL_TOKEN_RELATIVE_PATH } from "@molis-ai/molis-work-app-local-host";
 import { NATIVE_DESKTOP_BOOTSTRAP_SCRIPT } from "@molis-ai/molis-work-app-desktop";
@@ -30,6 +29,8 @@ import {
   renderMolisWorkWorkbenchStylesheet,
 } from "./workbench-renderer-fixture.js";
 import { createMolisWorkWebServer as createBaseMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { GOALS_PLUGIN_ID } from "@molis-ai/molis-work-plugin-goals";
+import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
 const WEB_TEST_CONTROL_TOKEN = "molis-work-web-test-control-token-0123456789abcdef";
 // The Goal terminal's client, split by concern since SC-3 (apps/workbench/src/terminal/client*.ts); read together as one program.
@@ -550,10 +551,10 @@ test("PTY PATH still finds node when NVM_BIN is absent", () => {
   }
 });
 
-test("Web and Desktop share one project workbench; Desktop only adds native chrome hooks", () => {
+test("Web and Desktop share one project workbench; Desktop only adds native chrome hooks", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-desktop-render-"));
   const databasePath = join(directory, "demo.db");
-  seedDemoBoard(databasePath);
+  await seedDemoGoals(databasePath);
   const store = new LocalProjectDatabase(databasePath);
   const coordinator = new GoalProjectApplication(store);
   try {
@@ -1055,13 +1056,14 @@ test("compound parent terminals become read-only and direct execution APIs requi
         .prepare("UPDATE goals SET fulfillment_state = 'satisfied' WHERE goal_id IN (?, ?)")
         .run("TUI-CHILD", "TUI-PARENT");
       // This test-only fixture mutation bypasses the coordinator, so publish a
-      // matching cursor event just as every supported product write does.
+      // matching cursor event just as every supported product write does: under
+      // Goals' own names, the events its cursor counts.
       completionStore.appendEvent({
         eventId: "desktop-tui-compound-completed",
         projectId: fixture.project.project_id,
         actorId: "test-user",
-        type: "test.fixture.updated",
-        objectType: "goal",
+        type: `${GOALS_PLUGIN_ID}:test.fixture.updated`,
+        objectType: `${GOALS_PLUGIN_ID}:goal`,
         objectId: "TUI-PARENT",
         reason: "测试复合 Goal 完成后的只读终端",
         payload: { child_goal_id: "TUI-CHILD" },
@@ -1529,10 +1531,10 @@ test("Inbox Message save and start survives a Web restart without duplicating it
   }
 });
 
-test("TUI menu greys out runtimes whose CLI is missing", () => {
+test("TUI menu greys out runtimes whose CLI is missing", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-desktop-cli-"));
   const databasePath = join(directory, "demo.db");
-  seedDemoBoard(databasePath);
+  await seedDemoGoals(databasePath);
   const store = new LocalProjectDatabase(databasePath);
   const coordinator = new GoalProjectApplication(store);
   try {

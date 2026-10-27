@@ -4,6 +4,7 @@ import { DEMO_PROJECT_ID, openProjectVersionStores } from "@molis-ai/molis-work-
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { installProducers } from "./fixtures/installed-producers.js";
+import { boardSnapshot } from "./fixtures/goal-application.js";
 
 test("Project navigation preserves the fixed Goal workspace, terminal instance, and camera without writing Goal facts", { timeout: 60_000 }, async (t) => {
   const browser = await openGoalBrowser(t);
@@ -68,8 +69,8 @@ test("Project navigation preserves the fixed Goal workspace, terminal instance, 
   assert.equal(await evaluate("document.querySelector('[data-goal-node-workspace]').hidden"), false);
   await click('[data-goal-collapse]');
   assert.equal(await evaluate("document.querySelector('[data-graph-stage]').getAttribute('style')"), camera);
-  assert.deepEqual(store.snapshot(DEMO_PROJECT_ID).goals, before.goals);
-  assert.deepEqual(store.snapshot(DEMO_PROJECT_ID).runs, before.runs);
+  assert.deepEqual(boardSnapshot(store, DEMO_PROJECT_ID).goals, before.goals);
+  assert.deepEqual(boardSnapshot(store, DEMO_PROJECT_ID).runs, before.runs);
   await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
   await click('[data-plugin-strip] [data-plugin-id="goals"]');
   await waitFor("!document.querySelector('[data-workspace]').classList.contains('is-directory-drawer-open') && document.querySelector('[data-workspace]').classList.contains('is-plugin-directory-empty')");

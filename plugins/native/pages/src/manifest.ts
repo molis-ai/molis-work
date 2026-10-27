@@ -4,7 +4,7 @@ import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plu
 import { IMPORTED_DOCUMENT_TYPE } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { PAGES_PLUGIN_ID, PAGES_PROJECT_PLUGIN_ID, PAGES_ARTIFACT_TYPE_ID, PAGES_ARTIFACT_SCHEMA_VERSION } from "./contract.js";
 import { PAGES_UI_CONTRIBUTION_ID } from "./ui.js";
-import { pagesMethods } from "./methods.js";
+import { pagesSkills } from "./skills.js";
 import { PAGES_DATABASE } from "./database.js";
 
 import { PAGES_MESSAGES } from "./messages.js";
@@ -22,8 +22,8 @@ export const pagesManifest: PluginManifest = {
   version: "0.3.0",
   name: "Pages",
   summary: "写文档，可导出 Markdown / PDF。",
-  // Offered to other Agents for business work; bodies in ./methods.ts.
-  methods: pagesMethods.map(({ body: _body, ...declared }) => ({ ...declared, tools: [...declared.tools] })),
+  // Offered to other Agents for business work; bodies in ./skills.ts.
+  methods: pagesSkills.map(({ body: _body, ...declared }) => ({ ...declared, tools: [...declared.tools] })),
   kind: "native",
   publisher: { publisher_id: "molis", signature: "official-pages-binding" },
   entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],

@@ -3,9 +3,9 @@ import { buildMolisWorkWebView } from "./fixtures/web-view.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
-import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
 
 test("refreshing create choices preserves the unsaved draft, selected relations and text cursor without creating a Goal", { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t);
@@ -35,7 +35,7 @@ test("refreshing create choices preserves the unsaved draft, selected relations 
       acceptance_criteria: ["Available as a new choice"] }),
   });
   assert.equal(response.status, 201, await response.text());
-  const baseline = store.snapshot(DEMO_PROJECT_ID);
+  const baseline = boardSnapshot(store, DEMO_PROJECT_ID);
   // Use the application's visible-page refresh listener, not a private refresh function.
   await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
   await waitFor("document.querySelector('[data-create-form] [name=parent_goal_id] option[value=NEW-CHOICE]')");
@@ -48,7 +48,7 @@ test("refreshing create choices preserves the unsaved draft, selected relations 
   })()`), { open: true, title: "Unsaved draft", outcome: "Keep my input", parent: "V1",
     dependencies: ["INTERFACES"], focus: "title", start: 2, end: 7 });
   await click('[data-create-dialog] [data-close-create]');
-  const after = store.snapshot(DEMO_PROJECT_ID);
+  const after = boardSnapshot(store, DEMO_PROJECT_ID);
   assert.deepEqual(after.goals, baseline.goals);
   assert.deepEqual(after.relations, baseline.relations);
   assert.deepEqual(after.claims, baseline.claims);
@@ -61,7 +61,7 @@ test("Goal dialogs create once after retry, cancel without writes, and trash/res
   const { store, origin, before, sessionId, command, evaluate, waitFor, click, navigate, reloadPage, showGoalStageList } = browser;
   const dom = (selector: string) => "document.querySelector(" + JSON.stringify(selector) + ")";
   const goalId = "DIALOG-BROWSER";
-  const current = () => store.snapshot(DEMO_PROJECT_ID);
+  const current = () => boardSnapshot(store, DEMO_PROJECT_ID);
   const goal = () => current().goals.find(item => item.goal_id === goalId)!;
   await command("Network.enable", {}, sessionId);
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1100, deviceScaleFactor: 1, mobile: false }, sessionId);

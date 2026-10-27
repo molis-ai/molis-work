@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
 import type { Issue } from "@molis-ai/molis-work-plugin-issues";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { issueView } from "./fixtures/issue-browser.js";
@@ -122,8 +122,8 @@ test("W2-18-HOME-LOCALE-01: no-model capture opens English settings, retries a f
 });
 
 test("W2-18-HOME-LOCALE-01: rejected Home startup renders the requested language through the real HTTP error route", { timeout: 60_000 }, async t => {
-  const b = await openGoalBrowser(t, "empty", path => {
-    seedDemoBoard(path); const directory = join(dirname(path), "plugin-runtime"); mkdirSync(directory);
+  const b = await openGoalBrowser(t, "empty", async path => {
+    await seedDemoGoals(path); const directory = join(dirname(path), "plugin-runtime"); mkdirSync(directory);
     const db = new DatabaseSync(join(directory, "plugin-runtime.db")); db.exec("PRAGMA user_version=9"); db.close();
   }, null);
   if (!b) return;

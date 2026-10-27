@@ -4,12 +4,15 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { GoalProjectApplication,
+import {
   LocalProjectDatabase,
-  
-  createLocalFeedApplication } from "@molis-ai/molis-work-app-local-host";
-import { hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
+  createLocalFeedApplication,
+} from "@molis-ai/molis-work-app-local-host";
+import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
+import { GOALS_PLUGIN_ID, goalsManifest, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
 import { renderMolisWorkWeb } from "./workbench-renderer-fixture.js";
+import { GoalProjectApplication } from "./fixtures/goal-application.js";
+import { recordInstallation } from "./fixtures/plugin-installations.js";
 
 const BOARD = "board";
 
@@ -18,6 +21,8 @@ function fixture() {
   const store = new LocalProjectDatabase(join(directory, "project.db"));
   const app = new GoalProjectApplication(store);
   app.initializeBoard({ project_id: BOARD, actor_id: "user-1", idempotency_key: "init" });
+  // Goals runs over this library: a start would have left its build and installation here, which is where the Inbox reads its declaration.
+  recordInstallation(store.db, goalsManifest);
   const root = app.goalEvents.createIntent({
     project_id: BOARD,
     goal_id: "root",
@@ -142,6 +147,25 @@ test("Goal pending decisions appear in Inbox and on the Goal document, not in Fe
     assert.doesNotMatch(home, /data-feed-detail="decision:/);
     assert.match(goalPage, /data-goal-decision-panel/);
     assert.match(goalPage, /data-goal-tree-decision-form/);
+  } finally {
+    data.store.close();
+    rmSync(data.directory, { recursive: true, force: true });
+  }
+});
+
+test("RAC-806 the Inbox lists the decision reminder Goals keeps under its own id, and no other plugin's entry of the same kind", () => {
+  const data = fixture();
+  try {
+    propose(data.app, "child-owner", "propose-owner");
+    const mine = goalDecisionEntries(data.feed);
+    assert.equal(mine.length, 1);
+    assert.equal(mine[0]?.owner_plugin_id, GOALS_PLUGIN_ID);
+    // Another plugin may declare the same kind for the same bare id (S9-0b): the Inbox does not resolve it as a Goal's.
+    const other = new AttentionModule(data.store.db, { exists: () => true }, { eventSink: () => undefined })
+      .commands.create({ project_id: BOARD, owner_plugin_id: "io.molis.work.other", subject_type: "goal_decision", subject_id: "root", reason: "goal_decision" }).entry;
+    assert.deepEqual(goalDecisionEntries(data.feed).map(entry => entry.entry_id), [mine[0]!.entry_id]);
+    assert.throws(() => data.feed.getInboxEntry(BOARD, other.entry_id), { code: "inbox.entry_not_found" });
+    assert.equal(data.feed.getInboxEntry(BOARD, mine[0]!.entry_id).entry_id, mine[0]!.entry_id);
   } finally {
     data.store.close();
     rmSync(data.directory, { recursive: true, force: true });

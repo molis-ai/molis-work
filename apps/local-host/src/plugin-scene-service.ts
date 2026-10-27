@@ -63,13 +63,23 @@ export function pluginScenesFor(manifest: PluginManifest, context: PluginStartCo
     const view = (await scenes.discoverScenes(caller)).find(item => item.definition.scene_id === sceneId && item.definition.version === version);
     if (view && view.provider.plugin_id !== manifest.plugin_id) throw pluginErrors.scene_not_declared(`场景 ${sceneKey(sceneId, version)} 是别的提供方登记的`);
   };
+  /** Resolve ownership after reading the rows: a declared id alone does not identify its current provider. */
+  const ownProviders = async (caller: ActionExecutionContext) => new Map((await scenes.discoverScenes(caller))
+    .filter(view => view.provider.plugin_id === manifest.plugin_id && own.has(sceneKey(view.definition.scene_id, view.definition.version)))
+    .map(view => [sceneKey(view.definition.scene_id, view.definition.version), view.provider.provider_id]));
   return Object.freeze<PluginSceneClient>({
     discoverScenes: judgment => call("none", async caller => (await scenes.discoverScenes(caller, judgment))
       .filter(view => view.provider.plugin_id === manifest.plugin_id && own.has(sceneKey(view.definition.scene_id, view.definition.version)))),
-    usages: judgment => call("none", async caller => (await scenes.usages(caller, judgment)).filter(usage => own.has(sceneKey(usage.scene_id, usage.scene_version)))),
+    usages: judgment => call("none", async caller => {
+      const usages = await scenes.usages(caller, judgment), providers = await ownProviders(caller);
+      return usages.filter(usage => providers.has(sceneKey(usage.scene_id, usage.scene_version)));
+    }),
     targets: (judgment, scene) => {
       if (scene) declares(scene.scene_id, scene.scene_version);
-      return call("none", async caller => (await scenes.targets(caller, judgment, scene)).filter(target => own.has(sceneKey(target.scene_id, target.scene_version))));
+      return call("none", async caller => {
+        const targets = await scenes.targets(caller, judgment, scene), providers = await ownProviders(caller);
+        return targets.filter(target => providers.get(sceneKey(target.scene_id, target.scene_version)) === target.provider_id);
+      });
     },
     bind: (binding, options) => {
       declares(binding.scene_id, binding.scene_version);

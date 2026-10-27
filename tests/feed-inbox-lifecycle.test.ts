@@ -6,8 +6,14 @@ import { join } from "node:path";
 import test from "node:test";
 
 import {
-  DEMO_PROJECT_ID, LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceScheduler, createLocalFeedSourceService,
-  listFeedSourceCatalog, seedDemoBoard, type FeedSourceRuntime,
+  DEMO_PROJECT_ID,
+  LocalProjectDatabase,
+  createLocalFeedApplication,
+  createLocalFeedSourceScheduler,
+  createLocalFeedSourceService,
+  listFeedSourceCatalog,
+  seedDemoGoals,
+  type FeedSourceRuntime,
 } from "@molis-ai/molis-work-app-local-host";
 
 type FeedApp = ReturnType<typeof createLocalFeedApplication>;
@@ -18,7 +24,7 @@ async function withProject(prefix: string, run: (store: LocalProjectDatabase) =>
   const directory = mkdtempSync(join(tmpdir(), prefix));
   try {
     const databasePath = join(directory, "molis-work.sqlite");
-    seedDemoBoard(databasePath);
+    await seedDemoGoals(databasePath);
     const store = new LocalProjectDatabase(databasePath);
     try { await run(store); } finally { store.close(); }
   } finally {

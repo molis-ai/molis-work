@@ -10,6 +10,7 @@ import { LocalHost, MolisWorkLocalHost, ProjectDeletionService, molisWorkHostPro
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { controlledAlchemistAi } from "./fixtures/alchemist-actions.js";
 import { alchemistOutput } from "./fixtures/alchemist-output.js";
+import { initializeBoard } from "./fixtures/goals-board.js";
 
 async function setup(t: test.TestContext) {
   const home = await mkdtemp(join(tmpdir(), "alchemist-host-lifecycle-")), hosts: MolisWorkLocalHost[] = [];
@@ -18,7 +19,7 @@ async function setup(t: test.TestContext) {
   const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "project-a" });
   const open = async (actor: string) => {
     const host = new MolisWorkLocalHost({ homeDirectory: home, alchemist: { ai: () => ai, pulseSourceMode: "fixture" } }); hosts.push(host);
-    await host.withProject(ref, r => r.coordinator.initializeBoard({ project_id: ref.project_id, actor_id: "setup", idempotency_key: "init" }));
+    await initializeBoard(host, ref, { actor_id: "setup", idempotency_key: "init" });
     return as(host, actor);
   };
   /** Another caller on the same Host, as separate MCP clients forwarded to the resident service are. */

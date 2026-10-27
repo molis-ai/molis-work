@@ -1639,7 +1639,7 @@ export const TAB_WORKSPACE_FACTORY_SCRIPT = `(host) => {
   /* Esc steps out of a cover, unless something smaller is open in it (a field being typed in, a menu, a dialog, a
      page's own editor marked data-cover-layer) or a save is under way: those take the Esc first. */
   let escapeHadLayer = false;
-  const openLayer = () => Boolean(document.querySelector("dialog[open], :popover-open, details[open][data-layer-open], details[open][data-project-menu], details[open][data-global-menu], [data-plugin-picker-popover]:not([hidden]), [data-dock-overflow]:not([hidden]), [data-assistant-panel]:not([hidden]), [data-cover-layer]:not([hidden]), form[aria-busy=true]"));
+  const openLayer = () => [...document.querySelectorAll("dialog[open], :popover-open, details[open][data-layer-open], details[open][data-project-menu], details[open][data-global-menu], [data-plugin-picker-popover]:not([hidden]), [data-dock-overflow]:not([hidden]), [data-assistant-panel]:not([hidden]), [data-cover-layer]:not([hidden]), form[aria-busy=true]")].some((node) => !node.closest("[hidden], [inert]") && node.getClientRects().length && getComputedStyle(node).visibility === "visible");
   document.addEventListener("keydown", (event) => { if (event.key === "Escape") escapeHadLayer = openLayer(); }, true);
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape" || embedded || !state.exclusive || escapeHadLayer || event.defaultPrevented || editable(event.target)) return;

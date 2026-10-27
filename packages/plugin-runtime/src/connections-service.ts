@@ -10,6 +10,7 @@ const errors = defineErrorCodes("plugin", {
   connections_call_required: "forbidden", connections_permission_undeclared: "forbidden", connections_action_not_concurrent: "forbidden",
   connections_slot_undeclared: "invalid", connections_request_invalid: "invalid", connections_read_only: "forbidden",
   connections_record_key_invalid: "invalid", connections_project_required: "forbidden", connections_release_unsupported: "invalid",
+  connections_call_ended: "forbidden",
 });
 
 const METHODS: readonly PluginConnectionMethod[] = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"];
@@ -117,6 +118,62 @@ export function createPluginConnectionsClient(manifest: PluginManifest, port: Pl
       if ("definition" in scope) await scope.caller.beforeEffect();
       current();
       port.release(target);
+    },
+  });
+}
+
+/**
+ * The account one call of the Host's own gives a sandboxed integration (S-95): the connection the person chose for the source it pulls,
+ * the service its plugin declared for it, and that service's origins when the platform's table has none (the package's, kept with the
+ * publisher the person trusted). `connection_id` is `null` for a source without an account: its requests then go out without one.
+ */
+export interface CallConnection {
+  readonly plugin_id: string;
+  readonly service_id: string;
+  readonly connection_id: string | null;
+  readonly origins?: readonly string[];
+}
+
+/** The Host's side of a call's connection: the connection, its credential, the origins and the transport. */
+export interface CallConnectionsPort {
+  request(connection: CallConnection, request: PluginConnectionDispatch): Promise<PluginConnectionResponse>;
+  describe(connection: CallConnection): PluginConnectionDescription;
+}
+
+/**
+ * The connections a sandboxed integration's pull has for that one call (S-95). The only slot is `slot_id`, the platform's reserved one; it
+ * takes no record key, reads only (GET and HEAD: a pull changes nothing at the service), never releases, and stops answering when the call
+ * ends (`call.signal`). The plugin learns whether the source has an account, its name and how it stands, never which connection.
+ */
+export function createCallConnectionsClient(port: CallConnectionsPort, connection: CallConnection, slot_id: string,
+  call: { readonly signal: AbortSignal; beforeEffect?(): Promise<void> }): PluginConnectionsClient {
+  const enter = (slot: unknown, record_key: unknown) => {
+    if (call.signal.aborted) throw errors.connections_call_ended("这次拉取已经结束，它的账号不能再用");
+    if (slot !== slot_id) throw errors.connections_slot_undeclared(`集成拉取只能经连接槽 ${slot_id} 用来源的账号，不认 ${String(slot)}`);
+    if (record_key !== undefined) throw errors.connections_record_key_invalid(`连接槽 ${slot_id} 是这次拉取的来源的账号，不带记录键`);
+  };
+  const current = (signal: AbortSignal) => async () => {
+    signal.throwIfAborted(); await call.beforeEffect?.(); signal.throwIfAborted();
+  };
+  return Object.freeze({
+    async request(slot: string, request: PluginConnectionRequest): Promise<PluginConnectionResponse> {
+      enter(slot, request?.record_key);
+      const checked = connectionRequest(request);
+      if (checked.method !== "GET" && checked.method !== "HEAD") throw errors.connections_read_only("集成拉取只能发 GET 或 HEAD 请求");
+      const signal = AbortSignal.any([call.signal, request?.signal].filter(item => item !== undefined));
+      const beforeEffect = current(signal);
+      await beforeEffect();
+      const response = await port.request(connection, { ...checked, signal, beforeEffect });
+      await beforeEffect();
+      return response;
+    },
+    async describe(slot: string, record_key?: string): Promise<PluginConnectionDescription> {
+      enter(slot, record_key);
+      const { bound, display_name, state } = port.describe(connection);
+      return bound ? { bound, ...(display_name === undefined ? {} : { display_name }), ...(state === undefined ? {} : { state }) } : { bound };
+    },
+    async release(): Promise<void> {
+      throw errors.connections_release_unsupported(`连接槽 ${slot_id} 是来源的账号，只能由本人在来源上换或解除`);
     },
   });
 }

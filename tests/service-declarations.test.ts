@@ -64,13 +64,15 @@ const declaring = (definition: PluginDefinition, extra: Record<string, unknown>)
   permissions: [...definition.manifest.permissions, { permission: "model:invoke", required: false, reason: "用模型" }] } });
 
 test("RAC-313 a definition that declares model settings or image connections and is not on the Host's start list is refused to start with its own code", async t => {
-  const listed = ownerFilesProbe("listedset"), { host } = await serveHomeRuntime(t, { pluginFixtures: { home: [listed.entry()] } });
+  const listed = ownerFilesProbe("listedset"), installed = new Set<PluginDefinition>();
+  const { host } = await serveHomeRuntime(t, { pluginFixtures: { home: [listed.entry()], installed } });
   const platform = await host.homePlugins!.ready();
   for (const [name, what] of [["besidemodel", "model_configuration"], ["besideimages", "image_generation"]] as const) {
     const beside = ownerFilesProbe(name), own = { ...MODEL, preference: { ...MODEL.preference, store_name: name } };
     const extra = what === "model_configuration" ? { model_configuration: own }
       : { image_generation: { store_name: name, read_permission: beside.read, write_permission: beside.write, generate_permission: beside.write } };
     const definition = declaring(beside.withoutFiles(), extra);
+    installed.add(definition); // the test acts as the Host's code here: it admits this one object to the process (S-75 ⑥)
     const { install } = platform.runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: [...beside.permissions, "model:invoke"] });
     await assert.rejects(platform.runtime.start(install.install_id), /启动失败/u, name);
     assert.equal(beside.contexts.length, 0, `${name}: its code never ran`);

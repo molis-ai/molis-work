@@ -35,7 +35,7 @@ import {
 } from "@molis-ai/molis-work-module-functions";
 import { feedManifest } from "@molis-ai/molis-work-plugin-feed";
 import { inboxManifest } from "@molis-ai/molis-work-plugin-inbox";
-import { liveHostFunctionAuthoringCatalog } from "@molis-ai/molis-work-app-local-host";
+import { liveHostJudgmentRuleAuthoringCatalog } from "@molis-ai/molis-work-app-local-host";
 import { defineSubjectOffersAction, type ActionProvider, type ActionSceneView, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { projectHomeEvents } from "../apps/workbench/dist/home-flow.js";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
@@ -205,14 +205,14 @@ test("authoring derives exact Agent capabilities from the supplied directory wit
   const second = catalogAction("unknown.notes", 2);
   const unavailable = { ...catalogAction("unknown.write"), availability: { available: false as const, code: "notes.offline", reason: "Offline" } };
   const userOnly = { ...catalogAction("private.user"), action: { ...first.action, audiences: ["user" as const] } };
-  const catalog = liveHostFunctionAuthoringCatalog([first, second, unavailable, userOnly]);
+  const catalog = liveHostJudgmentRuleAuthoringCatalog([first, second, unavailable, userOnly]);
   assert.deepEqual(catalog.destinations.map(row => row.destination_id), ["agent.mcp"]);
   assert.equal(catalog.behaviors.length, 3);
   assert.deepEqual(catalog.behaviors.map(row => row.action_ref), [first, second, unavailable].map(row => ({ capability_id: row.capability_id, version: row.version, provider_id: row.provider.provider_id })));
   assert.equal(new Set(catalog.behaviors.map(row => row.behavior_id)).size, 3);
   assert.equal(catalog.behaviors[2]?.availability?.available, false);
-  assert.deepEqual(liveHostFunctionAuthoringCatalog().behaviors, [], "an empty directory cannot expose builtins or legacy aliases");
-  assert.equal(liveHostFunctionAuthoringCatalog([catalogAction("unknown.notes", 1, "replacement")]).behaviors[0]?.behavior_id === catalog.behaviors[0]?.behavior_id, false);
+  assert.deepEqual(liveHostJudgmentRuleAuthoringCatalog().behaviors, [], "an empty directory cannot expose builtins or legacy aliases");
+  assert.equal(liveHostJudgmentRuleAuthoringCatalog([catalogAction("unknown.notes", 1, "replacement")]).behaviors[0]?.behavior_id === catalog.behaviors[0]?.behavior_id, false);
 });
 
 test("authoring names the owning plugin by its plugin id, never by the installation that registered it", () => {
@@ -235,7 +235,7 @@ test("authoring names the owning plugin by its plugin id, never by the installat
   });
   const offered = scene(host, { scene_id: "example.offered", recommendation_source: "subject-offers" });
   const finite = scene(consumer, { scene_id: "example.finite", result_schema: { type: "object", properties: { suggested_behavior_ids: { type: "array", items: { enum: ["example.one"] } } } } });
-  const catalog = liveHostFunctionAuthoringCatalog([read, finish, offers, system], [offered, finite]);
+  const catalog = liveHostJudgmentRuleAuthoringCatalog([read, finish, offers, system], [offered, finite]);
   const behavior = (match: (row: (typeof catalog.behaviors)[number]) => boolean) => catalog.behaviors.find(match)!;
 
   const agentRead = behavior(row => row.action_ref?.capability_id === "notes.read");
@@ -354,7 +354,7 @@ test("Agent suggestions respect subject contracts and exclude other scenes", () 
   const generic = catalogAction("generic.read");
   const note = { ...catalogAction("note.read"), action: { ...generic.action, subject_kinds: ["note"] } };
   const feed = { ...catalogAction("feed.read"), action: { ...generic.action, subject_kinds: ["feed_item"] } };
-  const base = liveHostFunctionAuthoringCatalog([generic, note, feed]);
+  const base = liveHostJudgmentRuleAuthoringCatalog([generic, note, feed]);
   const catalog = { ...base, behaviors: [...base.behaviors, { ...base.behaviors[0]!, behavior_id: "other-scene-symbol", destination_id: "other.scene", action_ref: undefined }] };
   // The page filters these rows by the chosen subject kinds (tests/functions-plugin.test.ts runs that rule); the catalog carries each
   // suggestion with its own subject kinds, hangs only Agent capabilities under agent.mcp, and keeps another scene's symbol out.
@@ -398,6 +398,8 @@ test("Feed, Inbox and home do not import the Functions plugin implementation", a
     "apps/workbench/src/scripts/client/project-home.ts",
     "apps/workbench/src/scripts/client/navigation-inbox.ts",
     "apps/workbench/src/scripts/client/navigation-feed.ts",
+    "apps/workbench/src/scripts/client/navigation-feed-sources.ts",
+    "apps/workbench/src/scripts/client/navigation-feed-stage.ts",
     "apps/workbench/src/scripts/client/events-primary.ts",
     "apps/local-host/src/home-dock-http.ts",
     "apps/local-host/src/feed-native-plugin-http.ts",
@@ -467,7 +469,7 @@ test("home dock HTTP binds a published function at the scene without executing w
   assert.match(page, /"inbox_judgment"/);
   assert.doesNotMatch(page, /"home_dock_functions"/);
   const homeClient = await readFile(join(ROOT, "..", "apps/workbench/src/scripts/client/project-home.ts"), "utf8");
-  const functionsClient = await readFile(join(ROOT, "..", "apps/workbench/src/functions/client.ts"), "utf8");
+  const functionsClient = (await Promise.all(["client", "client-render", "client-records", "client-events"].map(part => readFile(join(ROOT, "..", `apps/workbench/src/functions/${part}.ts`), "utf8")))).join("\n");
   assert.doesNotMatch(homeClient, /data-home-dock-judgment/);
   assert.doesNotMatch(functionsClient, /\/api\/home\/dock-judgment|\/api\/inbox\/judgment/, "the generic editor must not keep native scene dispatch branches");
   const now = new Date();
@@ -528,7 +530,7 @@ test("all builtin action declarations feed the Agent palette without maintaining
   const directory = BUILTIN_PLUGIN_CATALOG.flatMap(entry => (entry.manifest.actions ?? []).map(definition => ({ ...definition,
     provider: { provider_id: entry.manifest.plugin_id, title: entry.manifest.name, kind: "plugin" as const }, availability: { available: true as const },
   })));
-  const actual = liveHostFunctionAuthoringCatalog(directory);
+  const actual = liveHostJudgmentRuleAuthoringCatalog(directory);
   const expected = directory.filter(row => row.action.audiences.some(audience => audience === "agent" || audience === "mcp"));
   assert.ok(expected.length > 0);
   assert.equal(actual.behaviors.length, expected.length);

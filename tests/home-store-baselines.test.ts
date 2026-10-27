@@ -22,13 +22,21 @@ const shape = (sql: string) => { const db = new DatabaseSync(":memory:"); try { 
  * (specs/project-knowledge K1), the original-file registrations plugins keep (plugin-originals, 2026-10-20) and the installations'
  * remembered Agent declarations (agent-declarations, PG-051 2026-10-23) and the local directories the person granted plugins
  * (plugin-directories, PG-049 2026-10-25) are new, so no Home has them yet. A new library either
- * comes with a fixture or is named here.
+ * comes with a fixture or is named here. Goals' new Home library (PG-094 S13) has no real-Home schema receipt yet;
+ * its personal-method writes and isolated catalog-to-Home move are covered separately, not presented as an existing-Home fixture.
  */
-const WITHOUT_REAL_HOME_FIXTURE = ["plugin-runtime", "plugin-libraries", "agent-declarations", "plugin-originals", "plugin-directories", "knowledge", "server", "issues"];
+const WITHOUT_REAL_HOME_FIXTURE = ["plugin-runtime", "plugin-libraries", "agent-declarations", "plugin-originals", "plugin-directories", "knowledge", "server", "issues", "goals"];
 const libraries = homeStores().stores.flatMap(store => store.library ? [[store.path, store.library.baseline] as const] : []);
 test("every library in the Home's store registry has a schema fixture or is named as having none", () => {
   const fixtures = new Set(readdirSync(new URL("./fixtures/home-store-schemas/", import.meta.url)).filter(file => file.endsWith(".sql")).map(file => file.slice(0, -4)));
   assert.deepEqual(libraries.map(([name]) => name).filter(name => !fixtures.has(name)), WITHOUT_REAL_HOME_FIXTURE);
+});
+
+test("RAC-790 RAC-791: the new Goals Home library freezes its accepted v1 personal-method schema, with no real-Home receipt implied", () => {
+  const goals = homeStores().stores.find(store => store.path === "goals");
+  assert.equal(goals?.owner, "io.molis.work.goals");
+  assert.equal(goals?.library?.baseline.version, 1);
+  assert.deepEqual(shape(goals!.library!.baseline.schema), shape(readFileSync(new URL("./fixtures/goals-home-v1.sql", import.meta.url), "utf8")));
 });
 
 // Each Home store's baseline (repository-anti-corruption §4.1) is the structure existing stores already have: the

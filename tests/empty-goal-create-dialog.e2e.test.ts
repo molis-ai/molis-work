@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
 function seedEmptyBoard(databasePath: string, projectId = ""): void {
   const store = new LocalProjectDatabase(databasePath);

@@ -81,6 +81,7 @@ Home 里有 31 种 SQLite 文件：权威库 27 种（Home 级 24 种，按项�
 | `dataset/dataset.db` | `plugins/native/dataset/src/store.ts:310`，基线 `:283` | 1 · 回滚 | `datasets`、`dataset_versions`、`dataset_receipts` |
 | `ppt/ppt.db` | `plugins/native/ppt/src/store.ts:239`，基线 `:218` | 1 · 回滚 | `presentations`、`presentation_copies` |
 | `lingguang/lingguang.db` | `plugins/native/lingguang/src/store.ts:282`，基线 `:246` | 1 · 回滚 | `sparks`、`conversations`、`spark_requests`、`messages` |
+| `goals/goals.db` | Goals 的 Home 半：`plugins/native/goals/src/home-database.ts`（`GOALS_HOME_DATABASE`），由 Manifest 的 `databases.home` 登记；项目半的表在各项目库里 | 1 · 回滚 | `personal_planning_method_packs`（个人规划方法；原在目录库，PG-094 S13 由 `scripts/maintenance/goals-personal-planning-move.mjs` 搬来；同一次维护之前先跑 `scripts/maintenance/goals-journal-names.mjs rename`，把各项目库里 Goals 旧的不带前缀的事件、幂等记录和账本关系改成 `io.molis.work.goals:` 下的名字，S9-2） |
 | `todo/todo.db` | `plugins/native/todo/src/store.ts:522-524`，基线 `:464` | 1 · WAL | `todo_items`、`todo_changes`、`todo_requests`、`todo_batches`、`todo_source_memory` |
 | `jelly/jelly.db` | `plugins/native/jelly/src/store.ts:97-100`，基线 `:89` | 1 · WAL | `jelly_workspace`、`jelly_note_versions`、`jelly_history`、`jelly_previews` |
 | `cognia/cognia.db` | `plugins/native/cognia/src/store.ts:146-148`，基线 `:136` | 1 · WAL | `cognia_domains`、`cognia_sources`、`cognia_materials`、`cognia_versions`、`cognia_previews`、`cognia_drafts` |
@@ -114,14 +115,13 @@ server 库的表：`mw_server_identity`、`mw_members`、`mw_sessions`、`mw_pro
 
 一个 SQLite 文件里可以有多个 owner 的表。结构由宿主按 owner 导出的建表语句拼出；owner 导出，宿主只拼装。
 
-### 4.1 `projects/catalog.db`（v22）
+### 4.1 `projects/catalog.db`（v22；个人规划表搬走随落地时 main 的下一个版本号，见 R-52）
 
 | owner | 表 |
 | --- | --- |
 | `packages/storage` | `catalog_meta`（`src/catalog-metadata.ts`） |
 | `modules/projects` | `projects`、`project_plugins`、`project_plugin_exclusions`、`project_events`、`project_deletions`、`workspaces`、`workspace_project_memberships`（`src/repository.ts`），`project_deletion_steps`（`src/deletion-steps.ts`） |
 | `modules/private-work-context` | `runtime_context_bindings`、`runtime_context_binding_events`、`runtime_context_setup_requests`、`runtime_context_suggestion_rejections` |
-| `modules/goals` | `personal_planning_method_packs`（`src/planning/personal-methods.ts`） |
 | `modules/context-ledger` | `context_edges` |
 | `apps/desktop` | `goal_desktop_panels`、`goal_desktop_panel_aliases`（`src/adapters/sqlite-panels.ts`） |
 | `apps/local-host` | `model_providers`（`src/model-provider-store.ts`）：模型供应商配置，只存 `credential_ref` |
@@ -165,7 +165,7 @@ owner 们仍会在打开时对自己的表执行 `IF NOT EXISTS`，在这里是�
 | Goals（`plugins/native/goals/src/project-database.ts`；语句分在同目录的 `project-database-{goals,event-facts,event-state,governance}.ts`） | `goals` | `boards`、`goals`、`acceptance_criteria`、`goal_relations`、`goal_trash_records`、`goal_trash_relation_records`、`policy_bindings`、`project_guidance_entries`、`project_guidance_revisions`、`planning_method_packs`、`input_bindings`、`goal_event_configs`、`goal_event_config_versions`、`goal_event_types`、`goal_event_requirements`、`goal_event_requirement_bindings`、`goal_work_events`、`goal_work_event_judgments`、`goal_event_state_owners`、`goal_event_agreements`、`goal_event_progress_summaries`、`goal_event_concerns`、`goal_event_decision_requests`、`goal_event_applied_decisions`、`goal_event_requirement_conclusions`、`goal_event_closures`、`goal_event_work_status`、`goal_tree_proposals`、`goal_tree_proposal_items`、`goal_tree_proposal_decisions`、`goal_event_trusted_decisions`（31 张，含 governance 的 4 张） |
 | Schedule（`plugins/native/schedule/src/database.ts`） | `schedule` | `schedule_conversation_tasks`、`schedule_conversation_turns`、`schedule_plugin_reminders`、`schedule_operations`、`schedule_operation_occurrences` |
 
-各插件的库版本记在账本行里，发版时按 `docs/releases/CHECKLIST.md` §3 各一行核对。`boards` 的 `project_id` 指向 `project_root`，不再存项目名（名字的主人是目录库）。`modules/goals` 与 `modules/governance-collaboration` 仍用自己的 SQL 读写 Goals 的这些表，登记在 `tooling/gates/table-owners.json` 的 `shared`，S9 把存储搬进插件时删除。
+各插件的库版本记在账本行里，发版时按 `docs/releases/CHECKLIST.md` §3 各一行核对。`boards` 的 `project_id` 指向 `project_root`，不再存项目名（名字的主人是目录库）。Goal 与 Governance 两个存储模块已并入插件包（`src/module/`、`src/governance/`，S9-3），读写这些表的 SQL 与建表的包是同一个包，`tooling/gates/table-owners.json` 的 `shared` 里这批登记已删。
 
 ### 4.3 `sessions/sessions.db`（v7，已下线）
 
@@ -181,7 +181,7 @@ Sessions 插件下线（SC-4）后，没有业务代码打开 `sessions/sessions
 
 规则：一张表只由建它的包读写，别的包要读写就走那个包导出的函数。门禁是 `scripts/gates/table-owners.mjs`（`pnpm health:check` 里跑，没有基线，出现一处就失败）；它从各包 TypeScript 源码的 SQL 字符串里找 `CREATE TABLE` 定出每张表的 owner 包，再找别的包里对这张表的 `SELECT … FROM`、`JOIN`、`INSERT INTO`、`UPDATE`、`DELETE FROM`、`ALTER TABLE`、`DROP TABLE`。读不到的写在门禁文件开头：表名不是字面量的（`FROM ${table}`，Artifacts 的 Repository 从选项取表名、助理清理项目时遍历一个表名数组）、拼接出来的 SQL、非 TypeScript 文件里的 SQL。
 
-- `events` 和 `idempotency_records` 由 `packages/storage` 定义（`src/sqlite.ts`），不属于任何模块或插件自己的声明。storage 自己的 `LocalSqliteJournal` 有完整的日志函数：`eventCursor`、`appendEvent`、`getIdempotency`、`putIdempotency`，都在项目库的同一条连接上，所以模块自己的事务里调用它，事件和它记的事实照样同事务提交。`modules/goals` 与 `modules/governance-collaboration` 只依赖 `packages/contracts`、没法 import storage，现在由宿主在装配时注入一个日志端口（`GoalsJournal`、`GovernanceJournal`，结构上就是 storage 的那四个函数；Artifacts 用函数注入，做法同类），两个模块里不再有指向这两张表的语句（PG-094 S9-1，`tests/goals-storage-plugin-legal-sql.test.ts`），`tooling/gates/table-owners.json` 里这两条 `shared` 登记已删。
+- `events` 和 `idempotency_records` 由 `packages/storage` 定义（`src/sqlite.ts`），不属于任何模块或插件自己的声明。storage 自己的 `LocalSqliteJournal` 有完整的日志函数：`eventCursor`、`appendEvent`、`getIdempotency`、`putIdempotency`，都在项目库的同一条连接上，所以模块自己的事务里调用它，事件和它记的事实照样同事务提交。Goals 插件包里的 Goal 与 Governance 存储模块（原 `modules/goals`、`modules/governance-collaboration`）只依赖 `packages/contracts`、没法 import storage，现在由宿主在装配时注入一个日志端口（`GoalsJournal`、`GovernanceJournal`，结构上就是 storage 的那四个函数；Artifacts 用函数注入，做法同类），两个模块里不再有指向这两张表的语句（PG-094 S9-1，`tests/goals-storage-plugin-legal-sql.test.ts`），`tooling/gates/table-owners.json` 里这两条 `shared` 登记已删。
 - 一个包新加一句 `CREATE TABLE <别的包已建的表>` 不会让它成为这张表的 owner：同一张表被不止一个包建，必须登记在 `same_name`（表名、建它的包、理由），门禁两头核对。现有两项：`workspaces`（`modules/projects` 的目录库、炼金术士每项目一个的 `studio.sqlite`）和 `jobs`（炼金术士的 `studio.sqlite`、Images 的 `images.db`），都是不同库里互不相干的表（`specs/repository-anti-corruption/spec.md` §9.5 第 9 条定为不改名）。
 - 原先 4 处跨 owner 直接 SQL 已去掉，门禁另量到 2 处，一并改了。都改成 owner 导出的函数：
   - `apps/local-host/src/coding-background-tasks.ts` 读 Coding 的 `coding_sessions`：当时改成 Coding 导出 `listCodingBackgroundSessions`，宿主的路由把它传给跨项目列表。2026-10-21（C4，PG-043）再改：这个文件和导出都删了，Coding 把列表声明成自己的查询 `coding.home.background-tasks@1`（`home_aggregate`，`plugins/native/coding/src/home-background.ts`），宿主的 `apps/local-host/src/home-background-tasks.ts` 对每个已打开的项目问这类查询（`apps/local-host/src/home-aggregate.ts`，S-49），不再打开任何项目库、也不认识 Coding。
@@ -224,7 +224,7 @@ Sessions 插件下线（SC-4）后，没有业务代码打开 `sessions/sessions
 | `browser/sites.json` | `apps/local-host/src/browser/browser-surfaces.ts:36`：侧栏浏览器允许、拒绝了哪些站点，助理能否使用浏览器 | JSON · `version` = 1（`:61`） | 必备份 | purge |
 | `browser/profile/` | `apps/local-host/src/browser/browser-host.ts:81`：侧栏浏览器的 Chrome 用户数据目录（`--user-data-dir`，`:147`），含该浏览器里登录过的站点的 Cookie 等登录态 | 目录（Chrome 自己的格式） | 密钥（登录态）；沿第 7 节既有明确排除，恢复后重新登录，不能声称已恢复登录态 | purge |
 | `browser/downloads/`、`browser/uploads/`、`browser/browser.pid` | `apps/local-host/src/browser/browser-host.ts:82-83`、`:206` | 目录、PID 文件 | 临时 | purge |
-| `plugin-builder/<project_id>/{design,builds,releases,runs}/` | `apps/local-host/src/plugin-builder/agent-surface.ts:133`（根）、`:244`（design）、`:253`（builds）、`:297`（releases）、`:247`（runs）。`runs/<build>/` 是一份独立的 Prologue 存储根，有自己的 `storage.key` | 文件目录 · 无版本 | 必备份（Agent 生成的插件源码、设计稿、发布包） | purge |
+| `plugin-builder/<project_id>/{design,builds,releases,runs}/` | `apps/local-host/src/plugin-builder/agent-surface.ts:44`（根）、`studio-ports.ts:75`（design）、`:84`（builds）、`:128`（releases）、`:78`（runs）。`runs/<build>/` 是一份独立的 Prologue 存储根，有自己的 `storage.key` | 文件目录 · 无版本 | 必备份（Agent 生成的插件源码、设计稿、发布包） | purge |
 | `plugin-files/<install_id>/<store_name>/` | `apps/local-host/src/plugin-sandbox-owner-files.ts` 的 `sandboxOwnerFilesBase`（根，`project_id` 为 null 的一支）、`removeSandboxOwnerFiles`（不留数据的卸载清掉这个安装的目录）。沙箱插件在 Home Runtime 里声明 `owner_files` 的文件，按安装各一份；项目里的在 `projects/<project_id>/plugin-files/<install_id>/` 随项目走 | 文件目录 · 无版本 | 必备份（插件自己的数据） | purge |
 | `cache/research-library/<sha256>/` | `apps/local-host/src/research-library-source.ts:17`：研究库仓库的 bare Git 缓存 | Git 目录 | 可重建 | purge |
 | `jelly/preferences.json` | `apps/local-host/src/model-configuration.ts`：可信 consumer 声明的 Jelly 模型选择 | JSON · `schema_version` = 1 | 必备份 | purge（`jelly` 目录） |

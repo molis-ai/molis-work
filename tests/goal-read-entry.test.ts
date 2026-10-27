@@ -13,6 +13,7 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import type { GoalEventStateView } from "@molis-ai/molis-work-contracts/modules/goals";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
+import { goalApplicationOf } from "./fixtures/goal-application.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 import { runV1Cli } from "@molis-ai/molis-work-app-local-host";
 
@@ -22,9 +23,9 @@ test("CLI and MCP active Goal capabilities preserve rejection, canonical replay,
   // A project of the Home's catalog, made the way the app makes one: its Board is initialised, and the access settings can grant for it.
   const project = await catalog.createProject({ display_name: "原入口行为", actor_id: "user" });
   const { database_path: databasePath, project_id: projectId } = project;
-  const host = createMolisWorkLocalHost({ clock: () => new Date("2026-09-05T01:00:00Z") });
+  const host = createMolisWorkLocalHost({ homeDirectory: directory, clock: () => new Date("2026-09-05T01:00:00Z") });
   const reference = molisWorkHostProjectReference({ databasePath, projectId });
-  const client = managementGoals(host.actionClient(reference, false), projectId);
+  const client = managementGoals(host.actionClient(reference), projectId);
   const runtimeHost = { homeDirectory: directory, runtimeContext: { runtime_id: "codex", stable_work_context_id: "read-entry", host_declares_stable: true } };
   const management = new MolisWorkServer("management", null, null, host);
   const runtime = new MolisWorkServer("runtime", { databasePath, projectId, webBaseUrl: "https://example.com" }, runtimeHost, host);
@@ -48,7 +49,7 @@ test("CLI and MCP active Goal capabilities preserve rejection, canonical replay,
   try {
     await client.invoke(goalsActions.create, makeIntent("working"));
     await client.invoke(goalsActions.create, makeIntent("trashed-goal"));
-    await host.withProject(reference, ({ coordinator }) => coordinator.goals.lifecycle.setTrashed(projectId, {
+    await host.withProject(reference, runtime => goalApplicationOf(runtime).goals.lifecycle.setTrashed(projectId, {
       goal_id: "trashed-goal", trashed: true, reason: "回收站 Goal 不能成为当前目标",
     }, { actor_id: "user", idempotency_key: "trash-working" }));
     const before = await snapshot();
@@ -79,14 +80,14 @@ test("CLI and MCP active Goal capabilities preserve rejection, canonical replay,
     await assert.rejects(runtime.callTool("molis_work_v1_action_goals.active.set__v1", { ...active, legacy_note: "unregistered field" }));
     await assert.rejects(runtime.callTool("molis_work_v1_action_goals.active.set__v1", { ...active, project_id: "foreign" }));
     assert.deepEqual(await snapshot(), afterMcp);
-    const publicState = await managementGoals(host.actionClient(reference, false), projectId).invoke(goalsActions.state, { goal_id: "working" });
+    const publicState = await managementGoals(host.actionClient(reference), projectId).invoke(goalsActions.state, { goal_id: "working" });
     const mcpState = JSON.parse(await runtime.callTool("molis_work_v1_action_goals.state.read__v1", { goal_id: "working" })) as GoalEventStateView;
     assert.equal(publicState.work_status, "open");
     assert.equal(mcpState.work_status, publicState.work_status);
     assert.equal(mcpState.owner?.kind, publicState.owner?.kind);
     await host.close();
-    const restarted = createMolisWorkLocalHost();
-    try { assert.deepEqual(await managementGoals(restarted.actionClient(reference, false), projectId).invoke(goalsActions.snapshot, {}), afterMcp); }
+    const restarted = createMolisWorkLocalHost({ homeDirectory: directory });
+    try { assert.deepEqual(await managementGoals(restarted.actionClient(reference), projectId).invoke(goalsActions.snapshot, {}), afterMcp); }
     finally { await restarted.close(); }
   } finally {
     await management.close(); await runtime.close(); await served.close(); await host.close(); catalog.close();

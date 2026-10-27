@@ -1,11 +1,6 @@
 {
-  "giantUnits": 68,
+  "giantUnits": 49,
   "giant": {
-    "file apps/local-host/src/assistant/assistant-service.ts": 1837,
-    "class apps/local-host/src/assistant/assistant-service.ts#AssistantService": {
-      "lines": 1480,
-      "methods": 90
-    },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
       "lines": 267,
       "methods": 39
@@ -15,34 +10,19 @@
       "methods": 45
     },
     "function apps/local-host/src/browser/surface-driver.ts#createBrowserSurfaceDriver": 166,
-    "function apps/local-host/src/character-import-discovery.ts#createCharacterDiscovery": 205,
-    "function apps/local-host/src/character-import-discovery.ts#discover": 176,
     "function apps/local-host/src/connector-mcp.ts#createConnectorMcpHost": 246,
-    "function apps/local-host/src/demo-seed.ts#seedDemoBoard": 538,
     "function apps/local-host/src/home-actions.ts#homeActionProvider": 182,
-    "class apps/local-host/src/local-host.ts#LocalHost": {
-      "lines": 515,
-      "methods": 24
-    },
-    "function apps/local-host/src/plugin-builder/agent-surface.ts#ensureStudio": 194,
-    "function apps/local-host/src/plugin-builder/agent-surface.ts#created callback 1": 186,
     "class apps/local-host/src/project-catalog.ts#MolisWorkProjectCatalog": {
-      "lines": 267,
+      "lines": 265,
       "methods": 40
     },
-    "function apps/local-host/src/web-catalog.ts#handleLocalCatalogWebRequest": 201,
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 154,
     "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 151,
     "function apps/workbench/src/capsule-items.ts#createCapsuleItemProjection": 229,
     "function apps/workbench/src/feed-projection-ui.ts#createWorkbenchFeedProjectionRenderer": 251,
-    "file apps/workbench/src/functions/client.ts": 1274,
     "file apps/workbench/src/i18n/en.ts": 3266,
-    "function apps/workbench/src/project-settings-pages.ts#createWorkbenchProjectSettingsPages": 174,
-    "function apps/workbench/src/renderer.ts#createWorkbenchRenderer": 284,
     "file apps/workbench/src/scripts/client/assistant-island.ts": 2031,
-    "file apps/workbench/src/scripts/client/navigation-feed.ts": 955,
     "file apps/workbench/src/scripts/client/tab-workspace.ts": 1948,
-    "function apps/workbench/src/settings-renderer.ts#createWorkbenchSettingsRenderer": 181,
     "function apps/workbench/src/shell-page-renderer.ts#createWorkbenchGoalsPageRenderer": 176,
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 425,
     "file horizontal/memory/src/service.ts": 1151,
@@ -51,37 +31,6 @@
       "methods": 48
     },
     "function horizontal/scheduler/src/index.ts#createScheduleService": 215,
-    "class modules/goals/src/event-facts-repository.ts#GoalEventFactsRepository": {
-      "lines": 371,
-      "methods": 29
-    },
-    "class modules/goals/src/event-facts.ts#GoalEventFacts": {
-      "lines": 545,
-      "methods": 34
-    },
-    "class modules/goals/src/event-state-effects.ts#GoalEventStateEffects": {
-      "lines": 515,
-      "methods": 11
-    },
-    "function modules/goals/src/event-state-effects.ts#recordTrustedDecision": 152,
-    "class modules/goals/src/event-state-repository.ts#GoalEventStateRepository": {
-      "lines": 408,
-      "methods": 30
-    },
-    "class modules/goals/src/guidance-commands.ts#GuidanceCommands": {
-      "lines": 328,
-      "methods": 3
-    },
-    "function modules/goals/src/guidance-commands.ts#update": 177,
-    "function modules/goals/src/lifecycle-archive.ts#setTrashed": 155,
-    "class modules/private-work-context/src/project-binding-commands.ts#RuntimeProjectBindingCommands": {
-      "lines": 310,
-      "methods": 12
-    },
-    "class modules/projects/src/repository.ts#ProjectsRepository": {
-      "lines": 287,
-      "methods": 29
-    },
     "file packages/design-system/src/styles/momentum.ts": 819,
     "file packages/design-system/src/styles/primitives.ts": 1258,
     "class packages/kernel/src/action-service.ts#ActionService": {
@@ -93,8 +42,8 @@
       "methods": 23
     },
     "class packages/plugin-runtime/src/index.ts#PluginRuntime": {
-      "lines": 618,
-      "methods": 30
+      "lines": 612,
+      "methods": 29
     },
     "class packages/plugin-runtime/src/supervisor.ts#PluginSupervisor": {
       "lines": 567,
@@ -107,14 +56,6 @@
     "function packages/plugin-sandbox/src/runner.ts#createSandboxRunner": 173,
     "function packages/storage/src/adapters/text-search-index.ts#openTextSearchIndex": 151,
     "function plugins/native/alchemist/src/studio/server/bootstrap/local-runtime.ts#createLocalRuntime": 203,
-    "class plugins/native/alchemist/src/studio/server/db/pulse-repository.ts#SqlitePulseRepository": {
-      "lines": 377,
-      "methods": 23
-    },
-    "class plugins/native/alchemist/src/studio/server/db/research-repository.ts#SqliteResearchRepository": {
-      "lines": 343,
-      "methods": 19
-    },
     "function plugins/native/coding/src/timeline.ts#createCodingTimeline": 224,
     "function plugins/native/coding/src/ui.ts#renderCodingWorkbench": 209,
     "class plugins/native/cognia/src/store.ts#CogniaStore": {
@@ -122,12 +63,34 @@
       "methods": 27
     },
     "class plugins/native/feed/src/application.ts#FeedApplication": {
-      "lines": 493,
+      "lines": 491,
       "methods": 44
     },
-    "function plugins/native/goals/src/event-document-forms.ts#createEventDocumentForms": 348,
-    "function plugins/native/goals/src/goal-tree-decision.ts#decideGoalTreeProposal": 269,
-    "function plugins/native/goals/src/goal-tree-decision.ts#result callback 1": 243,
+    "function plugins/native/goals/src/goal-tree-decision.ts#decideGoalTreeProposal": 267,
+    "function plugins/native/goals/src/goal-tree-decision.ts#result callback 1": 241,
+    "class plugins/native/goals/src/module/event-facts-repository.ts#GoalEventFactsRepository": {
+      "lines": 371,
+      "methods": 29
+    },
+    "class plugins/native/goals/src/module/event-facts.ts#GoalEventFacts": {
+      "lines": 545,
+      "methods": 34
+    },
+    "class plugins/native/goals/src/module/event-state-effects.ts#GoalEventStateEffects": {
+      "lines": 515,
+      "methods": 11
+    },
+    "function plugins/native/goals/src/module/event-state-effects.ts#recordTrustedDecision": 152,
+    "class plugins/native/goals/src/module/event-state-repository.ts#GoalEventStateRepository": {
+      "lines": 408,
+      "methods": 30
+    },
+    "class plugins/native/goals/src/module/guidance-commands.ts#GuidanceCommands": {
+      "lines": 328,
+      "methods": 3
+    },
+    "function plugins/native/goals/src/module/guidance-commands.ts#update": 177,
+    "function plugins/native/goals/src/module/lifecycle-archive.ts#setTrashed": 155,
     "function plugins/native/goals/src/momentum-view.ts#buildGoalMomentumView": 245,
     "class plugins/native/goals/src/proposal-normalizer.ts#GoalTreeProposalNormalizer": {
       "lines": 417,
@@ -142,7 +105,7 @@
     },
     "file plugins/official-integrations/catalog/src/catalog.ts": 1013
   },
-  "testInternalImports": 421,
+  "testInternalImports": 417,
   "testImports": {
     "tests/action-call-log.test.ts": 2,
     "tests/action-gateway.test.ts": 1,
@@ -167,7 +130,6 @@
     "tests/alchemist-structured-output.test.ts": 2,
     "tests/announce-guard.test.ts": 1,
     "tests/artifact-document-import.test.ts": 1,
-    "tests/artifacts-actions.test.ts": 1,
     "tests/assistant-answers.test.ts": 1,
     "tests/assistant-attachments.test.ts": 1,
     "tests/assistant-attention.test.ts": 2,
@@ -244,7 +206,6 @@
     "tests/generated-plugin-prompt-binding.test.ts": 7,
     "tests/generated-plugin-prompts.test.ts": 4,
     "tests/git-operations.test.ts": 1,
-    "tests/goal-events-state.test.ts": 1,
     "tests/goals-kanban-ui.test.ts": 1,
     "tests/home-action-scenes.test.ts": 2,
     "tests/home-event-actions.test.ts": 1,
@@ -288,8 +249,7 @@
     "tests/pages-import-content.test.ts": 1,
     "tests/pages-input-rules.test.ts": 1,
     "tests/pages-surface-naming.test.ts": 1,
-    "tests/personal-planning-actions.test.ts": 1,
-    "tests/personal-plugins-review-fixes.test.ts": 5,
+    "tests/personal-plugins-review-fixes.test.ts": 4,
     "tests/plugin-builder-diagnostics.e2e.test.ts": 1,
     "tests/plugin-composition.e2e.test.ts": 2,
     "tests/plugin-composition.test.ts": 2,
@@ -398,11 +358,9 @@
     "plugins/native/goals/src/project-policy-client.ts": 1,
     "plugins/native/plugin-builder/src/agent-studio.ts": 3
   },
-  "oldNamesTotal": 3,
+  "oldNamesTotal": 1,
   "oldNames": {
-    "packages/storage/src/adapters/file-secret-store.ts": 1,
-    "plugins/native/goals/src/document-collection.ts": 1,
-    "plugins/native/goals/src/goal-tree-materialization-order.ts": 1
+    "packages/storage/src/adapters/file-secret-store.ts": 1
   },
   "scriptConstantsTotal": 98,
   "scriptConstants": {
@@ -493,9 +451,9 @@
     "packages/contracts/src/modules/workspace-artifacts.ts#long-fn:parseChangeSet": 31,
     "packages/contracts/src/modules/workspace-artifacts.ts#long-fn:parseCodingChangeSet": 23
   },
-  "hostEntryExportStarTotal": 10,
+  "hostEntryExportStarTotal": 9,
   "hostEntryExportStar": {
-    "apps/local-host/src/index.ts#export-star": 10
+    "apps/local-host/src/index.ts#export-star": 9
   },
   "layerExceptionsTotal": 10,
   "layerExceptions": {
@@ -518,17 +476,16 @@
   },
   "typedCapabilitiesTotal": 0,
   "typedCapabilities": {},
-  "hostPluginFilesTotal": 7,
+  "hostPluginFilesTotal": 6,
   "hostPluginFiles": {
     "apps/local-host/src/alchemist-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/artifact-actions.ts#actions": 1,
     "apps/local-host/src/artifact-native-plugin-http.ts#native-plugin-http": 1,
     "apps/local-host/src/feed-native-plugin-http.ts#native-plugin-http": 1,
-    "apps/local-host/src/goals-actions.ts#actions": 1,
     "apps/local-host/src/inbox-actions.ts#actions": 1,
     "apps/local-host/src/inbox-native-plugin-http.ts#native-plugin-http": 1
   },
-  "registerProviderSitesTotal": 16,
+  "registerProviderSitesTotal": 15,
   "registerProviderSites": {
     "apps/local-host/src/assistant/assistant-rule-actions.ts#register-provider": 1,
     "apps/local-host/src/connector-mcp-actions.ts#register-provider": 1,
@@ -536,7 +493,6 @@
     "apps/local-host/src/functions-actions.ts#register-provider": 2,
     "apps/local-host/src/local-host.ts#register-provider": 2,
     "apps/local-host/src/memory/memory-host.ts#register-provider": 1,
-    "apps/local-host/src/personal-planning-actions.ts#register-provider": 1,
     "apps/local-host/src/placement-actions.ts#register-provider": 1,
     "apps/local-host/src/plugin-builder/catalog.ts#register-provider": 1,
     "apps/local-host/src/plugin-builder/exposed-actions.ts#register-provider": 1,
@@ -545,7 +501,7 @@
   },
   "hybridPluginsTotal": 0,
   "hybridPlugins": {},
-  "pluginOutsideMentionsTotal": 101,
+  "pluginOutsideMentionsTotal": 99,
   "pluginOutsideMentions": {
     "alchemist#outside-files": 5,
     "artifacts#outside-files": 3,
@@ -557,7 +513,7 @@
     "files#outside-files": 1,
     "form#outside-files": 0,
     "git#outside-files": 0,
-    "goals#outside-files": 27,
+    "goals#outside-files": 25,
     "images#outside-files": 0,
     "inbox#outside-files": 12,
     "issues#outside-files": 0,
@@ -751,7 +707,7 @@
   "emptyCatches": {
     "tests/material-extraction.test.ts": 1
   },
-  "unknownCastsTotal": 156,
+  "unknownCastsTotal": 154,
   "unknownCasts": {
     "apps/local-host/cloudflare/worker.ts": 1,
     "apps/local-host/src/agent-definitions/agent-definitions.ts": 2,
@@ -759,7 +715,6 @@
     "apps/local-host/src/assistant/assistant-http.ts": 2,
     "apps/local-host/src/feed-application.ts": 1,
     "apps/local-host/src/feed-connector-sync.ts": 1,
-    "apps/local-host/src/goal-project-application.ts": 2,
     "apps/local-host/src/placement-http.ts": 2,
     "apps/local-host/src/plugin-builder/agent-surface.ts": 1,
     "apps/local-host/src/plugin-builder/catalog.ts": 2,

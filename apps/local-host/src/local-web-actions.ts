@@ -1,4 +1,5 @@
 import { ActionError, bindActionClient, type ActionCallContext, type ActionProvider, type ActionReference, type ActionView, type BoundActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { ActionUserAction } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import type { MolisWorkLocalHost } from "./project-host.js";
@@ -6,7 +7,7 @@ import { pageLocale } from "./web-locale.js";
 import { localOwnerPermissionsOver } from "./local-owner-permissions.js";
 
 /** What the Host's own entry adds to the person's call: the file the person handed it (an import), never any authority. */
-export type LocalWebEntry = Pick<ActionCallContext, "original_file">;
+export type LocalWebEntry = Pick<ActionCallContext, "original_file"> & { readonly user_action?: () => ActionUserAction };
 
 /** Only the authenticated local-user transport uses this adapter; it is not an Agent/MCP grant resolver. */
 export async function localWebActionContext(host: MolisWorkLocalHost, reference: LocalHostProjectReference | undefined,
@@ -93,14 +94,18 @@ export function bindLocalWebActions(host: MolisWorkLocalHost, reference: LocalHo
   // A bound client serves one request: its calls share one authority snapshot instead of inspecting the whole directory per call.
   // A grant revoked meanwhile is still refused, because every call re-reads its owner (validate_authority) and the dispatcher re-checks availability.
   let context: Promise<ActionCallContext> | undefined;
+  // Provenance belongs to this authenticated entry; it grants no permissions and never comes from an action input.
+  const asEntry = (caller: ActionCallContext): ActionCallContext => entry.user_action ? { ...caller, actor_kind: "user", user_action: entry.user_action() } : caller;
   const current = () => context ??= localWebActionContext(host, reference, builtinPermissions, entry.signal, entry).catch(error => { context = undefined; throw error; });
   return {
-    discover: async () => client.discover(await current()),
+    // What is available can depend on where the act came from (a tree decision needs the page's own provenance), so a discovery carries it too.
+    discover: async () => client.discover(asEntry(await current())),
     // A control (whose call this is still counting, say) joins this caller's checks the way every bound client joins it: at the
     // dispatcher's validation, its last synchronous check and each `beforeEffect` of the handler, up to the effect itself.
     invoke: async (definition, input, control, transport) => {
       const caller = await current();
-      return await bindActionClient(client, () => caller).invoke(definition, input, control, transport);
+      const call = asEntry(caller);
+      return await bindActionClient(client, () => call).invoke(definition, input, control, transport);
     },
   };
 }

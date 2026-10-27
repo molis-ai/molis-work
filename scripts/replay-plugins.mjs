@@ -66,8 +66,8 @@ async function replay(sample) {
 
     // A built-in is replayed in its own slot: the Host already runs the shipped copy under the plugin's id (one id is one plugin, and
     // its actions are registered once), so the packed copy must be that same plugin, and it comes in as the installation's upgrade.
-    const builtIn = sample.built_in === true;
-    host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, ...(builtIn ? {} : { pluginFixtures: { project: [definition] } }) });
+    const builtIn = sample.built_in === true, installed = new Set();
+    host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, ...(builtIn ? {} : { pluginFixtures: { project: [definition], installed } }) });
     const project = await withMolisWorkProjectCatalog({ homeDirectory: home }, async catalog => {
       const created = await catalog.createProject({ display_name: `Replay ${sample.id}`, actor_id: "owner" });
       if (builtIn) await catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: sample.project_plugin_id, actor_id: "owner" });
@@ -96,6 +96,7 @@ async function replay(sample) {
       if (shipped?.version !== definition.manifest.version) throw new Error(`the packed ${definition.manifest.plugin_id} is ${definition.manifest.version}, the Host ships ${shipped?.version}`);
     }
     const upgraded = nextVersion(definition);
+    if (!builtIn) installed.add(upgraded);
     await platform.upgrade(definition.manifest.plugin_id, upgraded);
     const record = platform.runtime.list().find(item => item.plugin_id === definition.manifest.plugin_id);
     if (record?.version !== upgraded.manifest.version || record.state !== "running") throw new Error(`after the upgrade the installation is ${record?.state} at ${record?.version}${record?.last_error_code ? ` (${record.last_error_code})` : ""}`);

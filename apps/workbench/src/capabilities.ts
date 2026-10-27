@@ -37,7 +37,7 @@ const kinds: Record<string, string> = { query: "查询", judgment: "判断", ope
 export function createCapabilitiesRenderer(p: SettingsRenderPrimitives, model: CapabilitiesView, project: WebProjectNavigation | null, projects: readonly WebProjectNavigation[], desktop: boolean) {
   const { L, escapeHtml: e, icon } = p;
   // An action's title, description and input words are its provider's own text: English from that Plugin's own words, whoever published it.
-  const own = (action: ActionView, text: string) => withPluginWords(action.provider.plugin_id ?? "", () => L(text));
+  const own = (action: ActionView, text: string) => withPluginWords(action.provider.plugin_id ?? action.provider.words_of ?? "", () => L(text));
   function href(section: CapabilitySection, extra: Record<string, string> = {}): string {
     const query = new URLSearchParams({ ...(project ? { project: project.project_id } : {}), ...(desktop ? { desktop: "1" } : {}), ...extra });
     return `/capabilities/${section}${query.size ? `?${e(query.toString())}` : ""}`;

@@ -1,6 +1,7 @@
 import { pluginInteraction } from "./plugin-interaction.js";
 import { pluginNotificationsFor } from "./plugin-notification-service.js";
 import { pluginInstallationsFor } from "./plugin-installation-directory.js";
+import { pluginProjectsFor } from "./plugin-projects-service.js";
 import { pluginAgentsFor } from "./plugin-agent-service.js";
 import { pluginSchedulerFor } from "./plugin-scheduler-service.js";
 import { pluginPagesFor } from "./plugin-page-authority.js";
@@ -100,7 +101,8 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
       scheduler: scheduler?.client, agents: agents?.client,
       database: library?.client, ownerFiles: ownerFiles?.client, project_database: projectLibrary?.client, project_statements: definition.execution === "sandbox" ? projectLibrary?.statements : undefined, model: pluginModelFor(options.home, definition, context, assertActive),
       materials: pluginMaterialsFor(options.home, definition, context, assertActive, options.project_id), connections: pluginConnectionsFor(options.home, definition, context, assertActive),
-      background: background?.client, directory: directory?.client });
+      background: background?.client, directory: directory?.client,
+      projects: pluginProjectsFor(definition, context, options.home?.directory, assertActive, options.projects) });
     withdrawPages = options.home ? pluginPagesFor(options.home.directory).connect({ manifest, install_id: context.install_id, project_id: options.project_id, actor_id: options.actor_id,
       invoke: pluginPageActions(manifest, context, { client: options.actions.client, actions: hosted.services?.actions, caller: pluginCaller, provider: providerId }),
       assertCurrent: permission => { assertActive(); if (permission) context.requireGrant(permission); } }) : undefined;
@@ -123,6 +125,7 @@ function openDeclaredLibrary(options: PluginHostExecutorOptions, definition: Plu
   if (definition.execution === "sandbox" && definition.manifest.databases?.home) {
     throw pluginErrors.declaration_invalid(`沙箱插件 ${definition.manifest.plugin_id} 声明了 Home 库 ${definition.manifest.databases.home.store_name}，项目里运行的沙箱插件没有 Home 库，只有 Home Runtime 里的有`);
   }
+  if (!options.home && options.dualInstance?.(definition)) return undefined;
   const library = homeLibraryFor(definition, options.databaseFor?.(definition), options.record?.(context.install_id) ?? null);
   if (library === undefined) return undefined;
   if (!options.home) throw new Error(`插件 ${definition.manifest.plugin_id} 声明了 Home 库，但这个插件平台没有 Home`);
@@ -199,6 +202,8 @@ interface SessionParts {
   readonly background: import("@molis-ai/molis-work-contracts/platform/plugin").PluginBackgroundClient | undefined;
   /** The person-authorized directory reader, only when the Manifest declares `directory:read`. */
   readonly directory: PluginDirectoryService | undefined;
+  /** Whether project ids the plugin holds still exist, only when the Manifest declares `projects:exist` (`pluginProjectsFor`, S-96). */
+  readonly projects: import("@molis-ai/molis-work-contracts/platform/plugin").PluginProjectsClient | undefined;
 }
 
 /** The context the Plugin's `start` receives: its identity plus the services below. */
@@ -233,6 +238,7 @@ function hostedContext(options: PluginHostExecutorOptions, manifest: PluginManif
       ...(parts.connections === undefined ? {} : { connections: parts.connections }),
       ...(parts.background === undefined ? {} : { background: parts.background }),
       ...(parts.directory === undefined ? {} : { directory: parts.directory }),
+      ...(parts.projects === undefined ? {} : { projects: parts.projects }),
       ...coordinationServices(options, manifest, context, parts),
     }) });
 }

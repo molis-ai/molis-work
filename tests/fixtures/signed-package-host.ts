@@ -29,10 +29,10 @@ export async function installedPackageHost() {
   const person = { ...caller, permissions: PLUGIN_INSTALL_PERMISSIONS, user_action: { source: "management" as const, conversation_ref: "s86:install", message_ref: "s86:confirm" } };
   const install = async (bundle: PluginPackageBundle) => {
     const client = host.actionClient(reference);
-    const preview = await client.invoke(person, { capability_id: pluginInstallActions.preview.capability_id, version: 2 }, { bundle }) as { preview_id: string };
+    const preview = await client.invoke(person, { capability_id: pluginInstallActions.preview.capability_id, version: pluginInstallActions.preview.version }, { bundle }) as { preview_id: string };
     return client.invoke(person, { capability_id: pluginInstallActions.confirm.capability_id, version: 1 }, { preview_id: preview.preview_id, consent: true, pin_label: "Example" });
   };
-  const plugins = async () => (await host.actionClient(reference).invoke(person, { capability_id: pluginInstallActions.installed.capability_id, version: 1 }, {}) as
+  const plugins = async () => (await host.actionClient(reference).invoke(person, { capability_id: pluginInstallActions.installed.capability_id, version: pluginInstallActions.installed.version }, {}) as
     { plugins: Array<{ install_id: string; plugin_id: string; version: string; state: string }> }).plugins.filter(item => item.plugin_id === PACKAGE_PLUGIN_ID);
   /** The person switches a signed-package plugin off or on, or takes it off (BL-623). */
   const control = (action: "disable" | "enable" | "uninstall", input: { plugin_id: string; keep_data?: boolean }) =>
@@ -46,6 +46,6 @@ export async function installedPackageHost() {
   return { home, reference, install, control, plugins, operation, data, ledger: new HomeConsentLedger(home), person,
     get host() { return host; }, get client() { return host.actionClient(reference); },
     async reopen() { await host.close(); host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null }); },
-    service: () => new PluginInstallService({ ledger: new HomeConsentLedger(home), packages: new SandboxPackageStore(home), install: async () => undefined, installed: async () => [], control: async () => "disabled" }),
+    service: () => new PluginInstallService({ ledger: new HomeConsentLedger(home), packages: new SandboxPackageStore(home), installInProject: async () => undefined, installInHome: async () => undefined, installed: async () => [], control: async () => "disabled" }),
     async close() { try { await host.close(); } finally { await rm(home, { recursive: true, force: true }); } } };
 }

@@ -1,10 +1,10 @@
-import type { PluginBackgroundExecution, PluginInteractionClient, PluginMaterialsClient } from '@molis-ai/molis-work-contracts/platform/plugin';
+import { PLUGIN_PROJECTS_EXIST_LIMITS, type PluginProjectsClient, type PluginBackgroundExecution, type PluginInteractionClient, type PluginMaterialsClient } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { PLUGIN_CONNECTION_RECORD_KEY_MAX, type PluginConnectionMethod, type PluginConnectionsClient } from '@molis-ai/molis-work-contracts/platform/plugin-connections';
 import type { SandboxEffects, SandboxIdentity, SandboxJson, SandboxNetworkRequest, SandboxNetworkResponse, SandboxOperationContract, SandboxSdkMethod } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import { BACKGROUND_EXECUTIONS, type SandboxBackground } from './background.js';
 import { assertJson, SandboxError } from './schema.js';
 import { sandboxStatement, sandboxStatements, type SandboxDatabaseService } from './database.js';
-import { documentBatchJson, extractionJson, materialLocalUrl, materialRequest, materialSource, materialUploads, originalPart, originalRecordKey, plainJson } from './materials.js';
+import { documentBatchJson, extractionJson, materialLocalUrl, materialReadDomains, materialRequest, materialSource, materialSourceUrl, materialUploads, originalPart, originalRecordKey, plainJson, sourceContentJson } from './materials.js';
 import { availabilityJson, choicesJson, modelCall, modelResultJson, modelSelection, type SandboxModel } from './model.js';
 import { applyOwnerFileChanges, ownerFileChanges, ownerFileInfo, ownerFileList, ownerFilePath, ownerFileRead, type SandboxOwnerFiles } from './owner-files.js';
 import { BoundedQueue, RateBudget } from './queue.js';
@@ -34,6 +34,8 @@ export interface SandboxServices {
   connections?: PluginConnectionsClient;
   /** The activation's `services.materials`, the readers of files the plugin already holds: the Host decides which of them exist (S-60). */
   materials?: PluginMaterialsClient;
+  /** The same declared/granted, lifecycle-bound projects client as an in-process activation. */
+  projects?: PluginProjectsClient;
   /** The activation's `services.ownerFiles` without its `rootPath`: the plugin's own declared files by relative path (S-64). */
   ownerFiles?: SandboxOwnerFiles;
   /** The activation's `services.model` without its `configuration`, with the instructions the package registered (S-66, PG-017 P1). */
@@ -65,7 +67,9 @@ export class SandboxBroker {
     for (const { execution } of this.executions.values()) execution.cancel();
     this.executions.clear();
   }
-  invoke(operation: SandboxOperationContract, signal: AbortSignal, method: SandboxSdkMethod, args: SandboxJson[], guard?: () => Promise<void>, serviceTimeoutMs = this.limits.serviceTimeoutMs): Promise<SandboxJson> {
+  /** `connections`: the call's own (S-95), which takes the activation's place for this call; the Host's proxy alone supplies it. */
+  invoke(operation: SandboxOperationContract, signal: AbortSignal, method: SandboxSdkMethod, args: SandboxJson[], guard?: () => Promise<void>, serviceTimeoutMs = this.limits.serviceTimeoutMs,
+    connections: PluginConnectionsClient | undefined = this.services.connections): Promise<SandboxJson> {
     try { this.calls.consume(); assertJson(args); } catch (error) { return Promise.reject(error); }
     return this.queue.submit(async () => {
       signal.throwIfAborted();
@@ -74,7 +78,7 @@ export class SandboxBroker {
       const context: SandboxServiceContext = { identity: this.identity, signal: lifetime.signal, operationId: operation.id, beforeEffect };
       try {
         await lifetime.wait(beforeEffect());
-        const result = await lifetime.wait(this.dispatch(context, operation, method, args));
+        const result = await lifetime.wait(this.dispatch(context, operation, method, args, connections));
         await lifetime.wait(beforeEffect()); assertJson(result);
         if (Buffer.byteLength(JSON.stringify(result)) > this.limits.messageBytes / 2) throw new SandboxError('sandbox.response_too_large', 'Host service response exceeds channel limit');
         return result;
@@ -96,12 +100,21 @@ export class SandboxBroker {
     const missing = (): never => { throw new SandboxError('sandbox.service_unavailable', 'Host service is not connected'); };
     return { permit, count, string, missing };
   }
-  private async dispatchMaterials(context: SandboxServiceContext, method: SandboxSdkMethod, args: SandboxJson[], { permit, count, missing }: DispatchGuards): Promise<SandboxJson> {
+  private async dispatchMaterials(context: SandboxServiceContext, operation: SandboxOperationContract, method: SandboxSdkMethod, args: SandboxJson[], { permit, count, missing }: DispatchGuards): Promise<SandboxJson> {
     // `read` reads bytes the plugin sent. `fetch_local` and `original` are effects of their own (S-65): the first hands the Host an address as
     // data and takes back extracted text, the second names the Host's saved file by the plugin's own key and takes it back in parts; neither
-    // gives the plugin a socket, an address that was resolved, or a path. A network page (`materials:fetch`) has no method here. The Host's
-    // client checks the Manifest's permission, the grant and the running action each time, and the Host's readers the address and the file.
+    // gives the plugin a socket, an address that was resolved, or a path. `fetch` (S-93) reads one public page and is a network request as far
+    // as the person's approval goes: its host must also be one of the operation's approved `networkDomains`, and the read may contact those
+    // hosts and no others. The Host's client checks the Manifest's permission, the grant and the running action each time, and the Host's
+    // readers the address and the file.
     const materials = this.services.materials;
+    if (method === 'materials.readSource') {
+      permit('materials', 'fetch'); count(1);
+      const url = materialSourceUrl(args[0]);
+      permit('networkDomains', url.hostname);
+      const allowedDomains = materialReadDomains(operation.effects.networkDomains, this.grants.networkDomains);
+      return materials?.readSource ? sourceContentJson(await materials.readSource(url.href, { signal: context.signal, allowedDomains })) : missing();
+    }
     if (method === 'materials.readLocalPage') {
       permit('materials', 'fetch_local'); count(1);
       const url = materialLocalUrl(args[0]);
@@ -211,20 +224,20 @@ export class SandboxBroker {
     void execution.result.then(() => undefined, () => undefined).then(() => { this.executions.delete(id); });
     return id;
   }
-  private async dispatchConnectionRecord(operation: SandboxOperationContract, method: SandboxSdkMethod, args: SandboxJson[], { permit, count, string, missing }: DispatchGuards): Promise<SandboxJson> {
+  private async dispatchConnectionRecord(operation: SandboxOperationContract, method: SandboxSdkMethod, args: SandboxJson[], { permit, count, string, missing }: DispatchGuards, connections: PluginConnectionsClient | undefined): Promise<SandboxJson> {
     // A record key names one of the plugin's records on a `per_record` slot; the Host's client checks its form, the slot and the call.
     count(2);
     const slot = string(0, 64);
     permit('connections', slot);
     const record = args[1] === null && method === 'connections.describe' ? undefined : string(1, PLUGIN_CONNECTION_RECORD_KEY_MAX);
     if (method === 'connections.release' && operation.kind === 'query') throw new SandboxError('sandbox.not_authorized', 'A query cannot release a connection');
-    if (!this.services.connections) return missing();
-    if (method === 'connections.release') { await this.services.connections.release(slot, record!); return null; }
+    if (!connections) return missing();
+    if (method === 'connections.release') { await connections.release(slot, record!); return null; }
     // Rebuilt from the three fields as plain JSON.
-    const { bound, display_name, state } = await this.services.connections.describe(slot, record);
+    const { bound, display_name, state } = await connections.describe(slot, record);
     return { bound, ...(display_name === undefined ? {} : { display_name }), ...(state === undefined ? {} : { state }) };
   }
-  private async dispatch(context: SandboxServiceContext, operation: SandboxOperationContract, method: SandboxSdkMethod, args: SandboxJson[]): Promise<SandboxJson> {
+  private async dispatch(context: SandboxServiceContext, operation: SandboxOperationContract, method: SandboxSdkMethod, args: SandboxJson[], connections: PluginConnectionsClient | undefined): Promise<SandboxJson> {
     const guards = this.guards(operation, args), { permit, count, string, missing } = guards;
     if (method.startsWith('storage.')) {
       const write = method === 'storage.set' || method === 'storage.delete';
@@ -270,14 +283,21 @@ export class SandboxBroker {
       permit('connections', slot);
       const request = connectionRequest(args[1]);
       if (operation.kind === 'query' && request.method !== undefined && request.method !== 'GET' && request.method !== 'HEAD') throw new SandboxError('sandbox.not_authorized', 'A query can only read through a connection');
-      if (!this.services.connections) return missing();
+      if (!connections) return missing();
       // Only the four fields cross: the answer is rebuilt as plain JSON, so nothing the Host's client carries besides them reaches the plugin.
-      const { status, headers, body, authenticated } = await this.services.connections.request(slot, { ...request, signal: context.signal });
+      const { status, headers, body, authenticated } = await connections.request(slot, { ...request, signal: context.signal });
       return { status, headers: { ...headers }, body, authenticated };
     }
-    if (method === 'connections.describe' || method === 'connections.release') return this.dispatchConnectionRecord(operation, method, args, guards);
-    if (method.startsWith('materials.')) return this.dispatchMaterials(context, method, args, guards);
+    if (method === 'connections.describe' || method === 'connections.release') return this.dispatchConnectionRecord(operation, method, args, guards, connections);
+    if (method.startsWith('materials.')) return this.dispatchMaterials(context, operation, method, args, guards);
     if (method.startsWith('ownerFiles.')) return this.dispatchOwnerFiles(context, operation, method, args, guards);
+    if (method === 'projects.exist') {
+      guards.permit('projects', 'exist'); guards.count(1);
+      const ids = args[0];
+      if (!Array.isArray(ids) || ids.length > PLUGIN_PROJECTS_EXIST_LIMITS.ids || !ids.every(id => typeof id === 'string')) throw new SandboxError('sandbox.invalid_request', 'Expected a bounded array of project ids');
+      if (!this.services.projects) guards.missing();
+      return plainJson(await this.services.projects!.exist(ids, { signal: context.signal }));
+    }
     if (method.startsWith('model.')) return this.dispatchModel(context, operation, method, args, guards);
     if (method.startsWith('background.')) return this.dispatchBackground(operation, method, args, guards);
     if (method.startsWith('interaction.')) {

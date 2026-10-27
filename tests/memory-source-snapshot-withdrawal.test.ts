@@ -35,8 +35,8 @@ test(`source snapshot withdrawal: ${scenario}`, { timeout: 60_000 }, async t => 
   });
   // Hold only the real source snapshot's return while the remember callback
   // is active. The original SDK reads and every SourcePort check still run.
-  const memoryTools = Reflect.get(current.service, "memoryTools");
-  const assistantPart = Reflect.get(current.service, "assistantPart");
+  const memoryTools = Reflect.get(current.service.memory, "memoryTools");
+  const assistantPart = Reflect.get(current.service.reads, "assistantPart");
   let remembering = false;
   const observe = async <T>(invoke: () => Promise<T>) => {
     remembering = true;
@@ -44,8 +44,8 @@ test(`source snapshot withdrawal: ${scenario}`, { timeout: 60_000 }, async t => 
     catch (error) { completedCall.resolve({ error: String(error) }); throw error; }
     finally { remembering = false; }
   };
-  Reflect.set(current.service, "memoryTools", function (...args: unknown[]) {
-    const tools: AgentMemoryTools | undefined = Reflect.apply(memoryTools, current.service, args);
+  Reflect.set(current.service.memory, "memoryTools", function (...args: unknown[]) {
+    const tools: AgentMemoryTools | undefined = Reflect.apply(memoryTools, current.service.memory, args);
     if (tools?.remember) {
       const remember = tools.remember.bind(tools);
       tools.remember = (...call) => observe(() => remember(...call));
@@ -56,14 +56,14 @@ test(`source snapshot withdrawal: ${scenario}`, { timeout: 60_000 }, async t => 
     }
     return tools;
   });
-  Reflect.set(current.service, "assistantPart", async function (...args: unknown[]) {
-    const result = await Reflect.apply(assistantPart, current.service, args);
+  Reflect.set(current.service.reads, "assistantPart", async function (...args: unknown[]) {
+    const result = await Reflect.apply(assistantPart, current.service.reads, args);
     if (remembering && !reached) { reached = true; await gate.promise; }
     return result;
   });
   t.after(() => {
-    Reflect.set(current.service, "memoryTools", memoryTools);
-    Reflect.set(current.service, "assistantPart", assistantPart);
+    Reflect.set(current.service.memory, "memoryTools", memoryTools);
+    Reflect.set(current.service.reads, "assistantPart", assistantPart);
   });
   {
     const fetchModel = globalThis.fetch;
@@ -115,7 +115,7 @@ test(`source snapshot withdrawal: ${scenario}`, { timeout: 60_000 }, async t => 
   const ledger = openMemoryLedger({ homeDirectory: home.home });
   let changes: ReturnType<typeof ledger.changes>, projections: ReturnType<typeof ledger.candidates>;
   try { changes = ledger.changes(LOCAL_PERSON_ACTOR_ID, 100); projections = ledger.candidates(LOCAL_PERSON_ACTOR_ID); } finally { ledger.close(); }
-  const visible = await current.service.memories();
+  const visible = await current.service.memory.memories();
   assert.equal((await formal()).length, entries.length, "a later owner read agrees");
   await home.close(); await home.host.close();
   const reopened = new MolisWorkLocalHost({ homeDirectory: home.home, completeText: null });

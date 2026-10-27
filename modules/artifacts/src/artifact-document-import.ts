@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import type { ArtifactsApplicationApi, ArtifactJsonValue } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { ActionError, defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
-import { ARTIFACTS_PROVIDER } from "./artifact-provider.js";
+import { ARTIFACT_PRODUCER } from "./artifact-provider.js";
 import { artifactVersionPath } from "./artifact-browser.js";
 
 import { DOCUMENT_ARTIFACT_TYPE } from "./artifact-document-type.js";
@@ -135,8 +135,7 @@ export async function importArtifactDocument(input: Record<string, unknown>, por
     project_id: ports.projectId, actor_id: ports.actorId, owner_actor_id: ports.ownerActorId, artifact_id: artifactId,
     version: (latest?.version ?? 0) + 1,
     artifact_type_id: DOCUMENT_ARTIFACT_TYPE, schema_version: 1,
-    producer: { plugin_id: ARTIFACTS_PROVIDER.plugin_id, plugin_version: ARTIFACTS_PROVIDER.version,
-      binding_signature: ARTIFACTS_PROVIDER.publisher.signature },
+    producer: ARTIFACT_PRODUCER,
     content: { kind: "inline", payload },
     metadata: { source: document.source, source_id: document.source_id, source_url: document.source_url,
       title: document.title, imported_at: (ports.now ?? (() => new Date().toISOString()))(), ...(document.connection_id ? { connection_id: document.connection_id } : {}) },

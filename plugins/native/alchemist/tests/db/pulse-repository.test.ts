@@ -20,16 +20,16 @@ afterEach(() => {
 describe("SQLite Pulse repository", () => {
   it("persists source settings and a resumable run", () => {
     const repository = setup();
-    expect(repository.listSourceSettings().map((item) => item.sourceId)).toEqual([
+    expect(repository.sources.listSourceSettings().map((item) => item.sourceId)).toEqual([
       "toolify",
       "watcha",
       "github",
     ]);
-    repository.updateSourceSetting("watcha", false, "2026-07-31T10:01:00.000Z");
-    expect(repository.listSourceSettings().find((item) => item.sourceId === "watcha")?.enabled).toBe(false);
+    repository.sources.updateSourceSetting("watcha", false, "2026-07-31T10:01:00.000Z");
+    expect(repository.sources.listSourceSettings().find((item) => item.sourceId === "watcha")?.enabled).toBe(false);
 
     seedJob(database as SqliteDatabase, "job-pulse-01");
-    const run = repository.createRun({
+    const run = repository.runs.createRun({
       id: "pulse-run-01",
       workspaceId: "workspace-local",
       status: "queued",
@@ -40,13 +40,13 @@ describe("SQLite Pulse repository", () => {
       now: "2026-07-31T10:02:00.000Z",
     });
 
-    expect(repository.getRun(run.id)).toEqual(run);
+    expect(repository.runs.getRun(run.id)).toEqual(run);
   });
 
   it("round-trips source fetches, signals, report, and opportunity relationships idempotently", () => {
     const repository = setup();
     seedJob(database as SqliteDatabase, "job-pulse-01");
-    repository.createRun({
+    repository.runs.createRun({
       id: "pulse-run-01",
       workspaceId: "workspace-local",
       status: "running",
@@ -87,9 +87,9 @@ describe("SQLite Pulse repository", () => {
         },
       ],
     };
-    repository.saveSourceCollection("pulse-run-01", "fetch-01", result);
-    repository.saveSourceCollection("pulse-run-01", "fetch-unused", result);
-    repository.saveReport({
+    repository.sources.saveSourceCollection("pulse-run-01", "fetch-01", result);
+    repository.sources.saveSourceCollection("pulse-run-01", "fetch-unused", result);
+    repository.reports.saveReport({
       report: {
         id: "pulse-report-01",
         runId: "pulse-run-01",
@@ -133,18 +133,18 @@ describe("SQLite Pulse repository", () => {
         },
       ],
     });
-    repository.saveReport({
-      report: repository.getReport("pulse-report-01") as NonNullable<
-        ReturnType<SqlitePulseRepository["getReport"]>
+    repository.reports.saveReport({
+      report: repository.reports.getReport("pulse-report-01") as NonNullable<
+        ReturnType<SqlitePulseRepository["reports"]["getReport"]>
       >,
-      opportunities: repository.listOpportunities("pulse-report-01"),
+      opportunities: repository.opportunities.listOpportunities("pulse-report-01"),
     });
 
-    expect(repository.listSourceCollections("pulse-run-01")).toHaveLength(1);
-    expect(repository.getReport("pulse-report-01")).toMatchObject({
+    expect(repository.sources.listSourceCollections("pulse-run-01")).toHaveLength(1);
+    expect(repository.reports.getReport("pulse-report-01")).toMatchObject({
       findings: [{ sourceSignalIds: ["signal-01"] }],
     });
-    expect(repository.listOpportunities("pulse-report-01")).toMatchObject([
+    expect(repository.opportunities.listOpportunities("pulse-report-01")).toMatchObject([
       { id: "opportunity-01", sourceSignalIds: ["signal-01"], status: "new" },
     ]);
   });
@@ -153,7 +153,7 @@ describe("SQLite Pulse repository", () => {
     const repository = setup();
     for (const index of [1, 2]) {
       seedJob(database as SqliteDatabase, `job-pulse-0${index}`);
-      repository.createRun({
+      repository.runs.createRun({
         id: `pulse-run-0${index}`,
         workspaceId: "workspace-local",
         status: "running",
@@ -163,7 +163,7 @@ describe("SQLite Pulse repository", () => {
         jobId: `job-pulse-0${index}`,
         now: `2026-07-31T10:0${index}:00.000Z`,
       });
-      repository.saveSourceCollection(`pulse-run-0${index}`, `fetch-0${index}`, {
+      repository.sources.saveSourceCollection(`pulse-run-0${index}`, `fetch-0${index}`, {
         sourceId: "github",
         status: "completed",
         requestUrl: "https://api.github.com/search/repositories",
@@ -185,8 +185,8 @@ describe("SQLite Pulse repository", () => {
       });
     }
 
-    const first = repository.listSignals("pulse-run-01");
-    const second = repository.listSignals("pulse-run-02");
+    const first = repository.sources.listSignals("pulse-run-01");
+    const second = repository.sources.listSignals("pulse-run-02");
     expect(first).toHaveLength(1);
     expect(second).toHaveLength(1);
     expect(second[0]?.id).not.toBe(first[0]?.id);
@@ -200,7 +200,7 @@ function setup(): SqlitePulseRepository {
   applyStudioBaseline(database, ":memory:");
   seedResearchIdea(database);
   const repository = new SqlitePulseRepository(database);
-  repository.ensureDefaultSourceSettings("2026-07-31T10:00:00.000Z");
+  repository.sources.ensureDefaultSourceSettings("2026-07-31T10:00:00.000Z");
   return repository;
 }
 

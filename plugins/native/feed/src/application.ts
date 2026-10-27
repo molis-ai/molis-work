@@ -1,7 +1,6 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { AttentionEntryRecord, AttentionReason as ModuleAttentionReason, AttentionStatus as ModuleAttentionStatus, AttentionSubjectType as ModuleAttentionSubjectType } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
-import { inboxErrors } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
+import type { AttentionInboxDeclarations, AttentionReason as ModuleAttentionReason, AttentionStatus as ModuleAttentionStatus, AttentionSubjectType as ModuleAttentionSubjectType } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import type { SourceRecord } from "@molis-ai/molis-work-contracts/modules/sources";
 import type { FeedItemDisposition, FeedItemRecord, FeedMaterialRecord, FeedOutRuleRecord, FeedSnapshot, FeedSourceRunRecord, FeedSourceRecord, InboxEntryReason, InboxEntryRecord, InboxEntryStatus, InboxEntrySubjectType, SourceHistoryDecision } from "./projection.js";
 
@@ -61,13 +60,11 @@ export class FeedApplication {
   }
 
   listInboxEntries(projectId: string): InboxEntryRecord[] {
-    return this.ports.attention.query.list(projectId).filter(entry => entry.owner_plugin_id === null);
+    return this.ports.attention.query.listInbox(projectId, declaredInbox(this.ports));
   }
 
   getInboxEntry(projectId: string, entryId: string): InboxEntryRecord {
-    return requireUnassignedEntry(callAttention(
-      () => this.ports.attention.query.get(projectId, entryId),
-    ));
+    return callAttention(() => this.ports.attention.query.getInbox(projectId, entryId, declaredInbox(this.ports)));
   }
 
   getSource(projectId: string, sourceId: string): FeedSourceRecord {
@@ -515,10 +512,9 @@ export class FeedApplication {
 
 }
 
-/** Until Feed/Inbox resolve subjects by owner, their shared entry reader only resolves unassigned facts. */
-function requireUnassignedEntry(entry: AttentionEntryRecord): AttentionEntryRecord {
-  if (entry.owner_plugin_id !== null) throw inboxErrors.entry_not_found("找不到这个 Inbox Entry");
-  return entry;
+/** What each owner declared the Inbox shows of its entries; with no source for it, only the unassigned entries are the Inbox. */
+function declaredInbox(ports: FeedApplicationPorts): AttentionInboxDeclarations {
+  return ports.inboxDeclarations?.() ?? new Map();
 }
 
 function errorCode(error: unknown): string {

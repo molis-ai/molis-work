@@ -53,6 +53,16 @@ test("RAC-771 a third-party Plugin's action title and description are English wh
   runWithLocale("zh", () => assert.match(rows(entry(ACME)), /<h3>整理笔记<\/h3><p>把散落的笔记按主题归到一起<\/p>/));
 }));
 
+test("RAC-1049 a platform provider's action text is English in the dictionary its registration names (words_of), and a row that names none takes nothing", () => withAcme(() => {
+  runWithLocale("en", () => {
+    const platform = { ...entry(), provider_id: "io.platform.provider", words_of: ACME };
+    assert.match(rows(platform), /<h3>Tidy notes<\/h3><p>Gathers loose notes by topic<\/p>/, "the platform provider's own words");
+    assert.match(rows({ ...platform, plugin_id: OTHER }), /<h3>Other's tidy-up<\/h3>/, "a row that names its Plugin takes that Plugin's words first");
+    assert.match(rows({ ...entry(), provider_id: ACME }), /<h3>整理笔记<\/h3>/, "a provider id alone is not a dictionary name");
+    assert.match(rows({ ...platform, words_of: "com.nobody.words" }), /<h3>整理笔记<\/h3>/, "a name with no dictionary registered takes nothing");
+  });
+}));
+
 test("RAC-772 a Plugin's dictionary cannot change what the Host or another Plugin draws, and a word the Host owns is not replaced", () => {
   const host = "设置";
   assert.deepEqual(registerPluginMessages(declared(ACME, { contributions: [], translations: { [host]: "Acme's Settings", [TITLE]: "Tidy notes" } })), []);

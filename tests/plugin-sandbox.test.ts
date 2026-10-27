@@ -141,7 +141,7 @@ test('SDK reads a page on this machine and the saved original file in parts, pas
   } } });
   try {
     assert.equal(await f.runner.call('run', ''), JSON.stringify([614400, '0707', 'material.original.too_large', 'sandbox.invalid_request', '本机页面',
-      ['claimOriginal', 'extract', 'imageTextAvailable', 'readDocuments', 'readLocalPage', 'readOriginal', 'releaseOriginal']]));
+      ['claimOriginal', 'extract', 'imageTextAvailable', 'readDocuments', 'readLocalPage', 'readOriginal', 'readSource', 'releaseOriginal']]));
     assert.deepEqual(seen, ['claim:doc', 'range:doc:0+262144:-', `range:doc:262144+262144:${revision}`, `range:doc:524288+262144:${revision}`, 'range:doc:0+262144:-', 'page:http://127.0.0.1:9/page', 'release:doc']);
   } finally { await f.close(); }
 });

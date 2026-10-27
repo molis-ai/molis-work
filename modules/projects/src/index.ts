@@ -12,12 +12,12 @@ import {
   ProjectService,
   type ProjectRecordDraftInput,
 } from "./project-service.js";
+import type { StoredProjectDeletion } from "./deletion-repository.js";
 import {
   createProjectsSchema,
   ProjectsRepository,
-  type ProjectsSqliteDatabase,
-  type StoredProjectDeletion,
 } from "./repository.js";
+import type { ProjectsSqliteDatabase } from "./sqlite.js";
 import { normalizeProjectWorkspace, ProjectWorkspaceService } from "./workspace.js";
 import { ProjectDeletionSteps } from "./deletion-steps.js";
 
@@ -87,7 +87,7 @@ export class ProjectsModule implements ProjectsApplicationApi {
     this.query = {
       storedProjectPluginMembership: projectId => {
         this.records.get(projectId);
-        return { plugins: repository.listProjectPlugins(projectId), hidden: repository.listHiddenPlugins(projectId) };
+        return { plugins: repository.projects.listProjectPlugins(projectId), hidden: repository.projects.listHiddenPlugins(projectId) };
       },
       projectPluginMembership: (projectId) => this.records.pluginMembership(projectId),
       listProjectPlugins: (projectId) => this.records.listPlugins(projectId),
@@ -98,7 +98,7 @@ export class ProjectsModule implements ProjectsApplicationApi {
       listWorkspaceMemberships: () => this.workspaces.listMemberships(),
       listWorkspaceDirectory: (projectId) => this.workspaces.listDirectory(projectId),
       preferredWorkspacePath: (projectId) => this.workspaces.preferredPath(projectId),
-      workspaceProjectSelections: (workspaceId) => repository.workspaceProjectSelections(workspaceId),
+      workspaceProjectSelections: (workspaceId) => repository.workspaces.workspaceProjectSelections(workspaceId),
       listProjectDeletions: () => this.records.listDeletions().map(receipt => ({ ...receipt, owner_steps: this.deletionSteps.list(receipt.deletion_id) })),
     };
     this.commands = {
@@ -121,7 +121,7 @@ export class ProjectsModule implements ProjectsApplicationApi {
         this.records.appendEvent(projectId, type, actorId, payload),
       removeFacts: (projectId) => this.records.removeFacts(projectId),
       removeWorkspaceMembershipsForProject: (projectId) =>
-        repository.removeWorkspaceMembershipsForProject(projectId),
+        repository.workspaces.removeWorkspaceMembershipsForProject(projectId),
       findDeletion: (actorId, idempotencyKey) => this.records.findDeletion(actorId, idempotencyKey),
       insertDeletion: (record) => this.records.insertDeletion(record),
       insertDeletionSteps: (deletionId, ownerIds) => this.deletionSteps.begin(deletionId, ownerIds),

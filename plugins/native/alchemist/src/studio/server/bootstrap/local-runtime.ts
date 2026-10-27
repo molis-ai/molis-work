@@ -300,6 +300,6 @@ function initializeWorkspace(database: SqliteDatabase, settings: SqliteSettingsR
       )
       .run(actorId, "workspace-local", "local_user", actorId, now);
     settings.ensureDefaults("workspace-local", now);
-    pulse.ensureDefaultSourceSettings(now);
+    pulse.sources.ensureDefaultSourceSettings(now);
   }).immediate();
 }

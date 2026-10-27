@@ -7,7 +7,8 @@ import { DEFAULT_RESIDENT_HOST_URL } from "./resident-host-request.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { namedDatabasePath, prepareLocalProjectStorage } from "./project-storage.js";
 import { createMolisWorkLocalHost, molisWorkHostProjectReference, type MolisWorkLocalHost } from "./project-host.js";
-import { bindGoalsManagementActions } from "./goals-actions.js";
+import { bindGoalsManagementActions } from "./goal-callers.js";
+import { ensureStandaloneProjectRoot } from "./managed-project-database.js";
 import { ensureHomeStorageOwner } from "./home-storage-lifetime.js";
 import { dispatchCliProjectCommand, cliFlagValue as value,
   readCliJsonPayload as payload, printV1Help } from "@molis-ai/molis-work-app-cli";
@@ -46,9 +47,9 @@ export async function runV1Cli(args: string[], options: V1CliOptions = {}): Prom
   });
   let homeProject = false;
   const fallback = () => {
-    if (homeProject || homeDatabase) ensureHomeStorageOwner(localHost ??= createMolisWorkLocalHost(), home);
+    if (homeProject || homeDatabase) ensureHomeStorageOwner(localHost ??= createMolisWorkLocalHost({ homeDirectory: home }), home);
     if (operation === "init" && homeDatabase) prepareLocalProjectStorage(databasePath, "create");
-    return bindGoalsManagementActions((localHost ??= createMolisWorkLocalHost()).actionClient(reference, false), reference, { signal: options.signal });
+    return bindGoalsManagementActions((localHost ??= createMolisWorkLocalHost()).actionClient(reference), reference, { signal: options.signal });
   };
   try {
     return await withCallId(newCallId(), async () => {
@@ -58,6 +59,7 @@ export async function runV1Cli(args: string[], options: V1CliOptions = {}): Prom
       if (project) reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
       const actions = project ? residentManagementActions({ home, databasePath: project.database_path, projectId: project.project_id,
         origin: options.actionServiceUrl ?? readProductEnv("WEB_URL") ?? DEFAULT_RESIDENT_HOST_URL, signal: options.signal, fallback }) : fallback();
+      if (!project && operation === "init") await ensureStandaloneProjectRoot(localHost!, reference);
       return dispatchCliProjectCommand(actions, args, input);
     });
   } finally { if (ownsLocalHost) await localHost?.close(); }

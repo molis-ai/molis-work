@@ -101,11 +101,11 @@ for (const outcome of ["success", "invalid-output", "unknown"] as const) test(`A
     } }] });
   const make = (): AssistantService => new AssistantService(store, { pages: async () => ["home"], host: async () => host,
     authority: async (work, origin) => assistantAuthority(local, work, () => new Set(), undefined,
-      (view, input, output) => assistant.recordResult(work, view, input, output, origin?.source !== "card")) }, "web-user");
+      (view, input, output) => assistant.outcomes.recordResult(work, view, input, output, origin?.source !== "card")) }, "web-user");
   let assistant = make();
   t.after(async () => { assistant.continuations.close(); await local.close(); db.close(); await rm(directory, { recursive: true, force: true }); });
   const work = store.create({ actor_id: "web-user", title: "Connect a service", scope: { kind: "project", project_id: project.project_id }, project_ref: project, origin: null });
-  const authority = assistantAuthority(local, work, () => new Set(), undefined, (view, input, output) => assistant.recordResult(work, view, input, output));
+  const authority = assistantAuthority(local, work, () => new Set(), undefined, (view, input, output) => assistant.outcomes.recordResult(work, view, input, output));
   const client = await authority.actions!("prologue");
   const reference = { capability_id: action.capability_id, version: 1, provider_id: "fixture.receipts" };
   if (outcome !== "success") {

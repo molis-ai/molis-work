@@ -2,7 +2,7 @@ import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plu
 import { TODO_PLUGIN_ID, TODO_PROJECT_PLUGIN_ID } from "./contract.js";
 import { TODO_ACTIONS, TODO_ACTION_PERMISSIONS } from "./actions.js";
 import { TODO_UI_CONTRIBUTION_ID } from "./ui.js";
-import { todoAgentManifest, todoMethods } from "./roles.js";
+import { todoAgentManifest, todoSkills } from "./roles.js";
 import { TODO_DATABASE } from "./database.js";
 
 import { TODO_MESSAGES } from "./messages.js";
@@ -53,7 +53,7 @@ export const todoManifest: PluginManifest = {
   ],
   agent: todoAgentManifest,
   // Offered to other Agents for business work; bodies in ./roles.ts.
-  methods: todoMethods.map(({ body: _body, ...declared }) => ({ ...declared, tools: [...declared.tools] })),
+  methods: todoSkills.map(({ body: _body, ...declared }) => ({ ...declared, tools: [...declared.tools] })),
   ui: {
     messages: TODO_MESSAGES,
     translations: TODO_EN,

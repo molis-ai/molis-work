@@ -9,9 +9,10 @@ import test from "node:test";
 import type { AddressInfo } from "node:net";
 
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
+import { GoalProjectApplication, goalApplicationOf, boardSnapshot } from "./fixtures/goal-application.js";
 
 const BOARD = "board-http-events";
 const TOKEN = "molis-work-event-http-token-0123456789abcdef";
@@ -469,8 +470,8 @@ test("HTTP progress uses the Goal cursor and legal field ids stay content", asyn
     const differentCreate = await postCreate({ ...createBody, goal_id: "old-guard-second", title: "不同输入" }, "create-replay-key");
     assert.equal(differentCreate.status, 400, await differentCreate.clone().text());
     assert.match((await differentCreate.json() as { error: string }).error, /不同|conflict|different|idempot/i);
-    assert.equal(store.snapshot(BOARD).goals.filter((goal) => goal.goal_id === "old-guard-first").length, 1);
-    assert.equal(store.snapshot(BOARD).goals.some((goal) => goal.goal_id === "old-guard-second"), false);
+    assert.equal(boardSnapshot(store, BOARD).goals.filter((goal) => goal.goal_id === "old-guard-first").length, 1);
+    assert.equal(boardSnapshot(store, BOARD).goals.some((goal) => goal.goal_id === "old-guard-second"), false);
   } finally {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
     store.close();
@@ -501,7 +502,7 @@ test("HTTP draft route is gone; event owners and historical drafts stay unchange
     const page = await (await fetch(`${origin}/goals/${encodeURIComponent(created.goal.goal_id)}`)).text();
     assert.match(page, /data-goal-event-document/);
     assert.doesNotMatch(page, /data-draft-editor/);
-    const before = store.snapshot(BOARD).goals.find((goal) => goal.goal_id === created.goal.goal_id)!;
+    const before = boardSnapshot(store, BOARD).goals.find((goal) => goal.goal_id === created.goal.goal_id)!;
     const beforeState = app.goalEvents.readState(BOARD, created.goal.goal_id);
     const rejected = await fetch(`${origin}/api/goals/${encodeURIComponent(created.goal.goal_id)}/draft`, {
       method: "POST",
@@ -513,7 +514,7 @@ test("HTTP draft route is gone; event owners and historical drafts stay unchange
       }),
     });
     assert.equal(rejected.status, 404, await rejected.clone().text());
-    const after = store.snapshot(BOARD).goals.find((goal) => goal.goal_id === created.goal.goal_id)!;
+    const after = boardSnapshot(store, BOARD).goals.find((goal) => goal.goal_id === created.goal.goal_id)!;
     const afterState = app.goalEvents.readState(BOARD, created.goal.goal_id);
     assert.equal(after.outcome, before.outcome);
     assert.equal(after.title, before.title);
@@ -534,7 +535,7 @@ test("HTTP draft route is gone; event owners and historical drafts stay unchange
       }),
     });
     assert.equal(saved.status, 404, await saved.clone().text());
-    const legacyAfter = store.snapshot(BOARD).goals.find((goal) => goal.goal_id === "legacy-http-draft")!;
+    const legacyAfter = boardSnapshot(store, BOARD).goals.find((goal) => goal.goal_id === "legacy-http-draft")!;
     assert.equal(legacyAfter.title, "未转交草稿");
     assert.equal(legacyAfter.outcome, "旧结果");
   } finally {
@@ -574,7 +575,7 @@ test("HTTP Goal page keeps accepted legacy constraints, inputs and outputs reada
     }],
   };
   app.goals.commands.createGoal(BOARD, goal, { actor_id: "definition-fixture", idempotency_key: "legacy-definition-http-create", reason: "隔离验收原字段读取" });
-  const before = store.snapshot(BOARD);
+  const before = boardSnapshot(store, BOARD);
   const server = createMolisWorkWebServer({ databasePath, projectId: BOARD, homeDirectory: directory, controlToken: TOKEN });
   const origin = await listen(server);
   try {
@@ -605,7 +606,7 @@ test("HTTP Goal page keeps accepted legacy constraints, inputs and outputs reada
     for (const value of [...goal.constraints, ...goal.required_inputs, ...goal.promised_outputs]) {
       assert.match(fragment, new RegExp(value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
     }
-    assert.deepEqual(store.snapshot(BOARD).goals, before.goals);
+    assert.deepEqual(boardSnapshot(store, BOARD).goals, before.goals);
     assert.equal(app.goalEvents.isEventStateOwner(BOARD, goal.goal_id), false);
   } finally {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
@@ -901,7 +902,7 @@ test("HTTP create receipt has no retired state aliases and covers requirements a
     const state = app.goalEvents.readState(BOARD, String(created.goal.goal_id));
     assert.equal(state.intent.source_kind, "web");
     assert.deepEqual(state.requirements.map((item) => item.statement), ["真实付款成功"]);
-    const childCount = store.snapshot(BOARD).goals.filter((goal) => goal.title === "付款与收据").length;
+    const childCount = boardSnapshot(store, BOARD).goals.filter((goal) => goal.title === "付款与收据").length;
     assert.equal(childCount, 1);
   } finally {
     await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
@@ -999,7 +1000,8 @@ test("HTTP goal-tree decisions replay the original result with a stable business
       `${origin}/api/goal-tree-proposals/${encodeURIComponent(proposalId)}/decision`,
       {
         method: "POST",
-        headers: { ...headers, "x-molis-work-idempotency-key": key },
+        // The page's "confirm the whole proposal" control alone sends the header; the Host reads it from there, never from the body.
+        headers: { ...headers, "x-molis-work-idempotency-key": key, ...(body.confirm_all_pending === true ? { "x-molis-work-whole-confirmation": "1" } : {}) },
         body: JSON.stringify(body),
       },
     );
@@ -1048,7 +1050,7 @@ test("HTTP goal-tree decisions replay the original result with a stable business
     const rejectReplay = await decide(partial.proposal.proposal_id, rejectBody, "http-tree-reject-new-http");
     assert.equal(rejectReplay.status, 200, await rejectReplay.clone().text());
     assert.equal((await rejectReplay.json() as { replayed: boolean }).replayed, true);
-    assert.equal(store.snapshot(BOARD).goals.filter((goal) => goal.goal_id.startsWith("HTTP-TREE-")).length, 3);
+    assert.equal(boardSnapshot(store, BOARD).goals.filter((goal) => goal.goal_id.startsWith("HTTP-TREE-")).length, 3);
     const blocked = await fetch(`${origin}/api/non-idempotent-management-probe`, {
       method: "POST",
       headers: { ...headers, "x-molis-work-idempotency-key": "http-tree-whole-decide" },
@@ -1078,7 +1080,7 @@ test("HTTP goal-tree reject prefills displayed relation conflict and keeps the s
     parent_goal_id: parent.goal.goal_id,
     actor_id: "web-user", actor_kind: "user", idempotency_key: "rel-conflict-child", source_kind: "web",
   });
-  const relation = store.snapshot(BOARD).relations.find((item) =>
+  const relation = boardSnapshot(store, BOARD).relations.find((item) =>
     item.from_goal_id === child.goal.goal_id &&
     item.to_goal_id === parent.goal.goal_id &&
     item.type === "part_of" &&
@@ -1198,7 +1200,7 @@ test("W3-02-H-02 actual Goals HTTP distinguishes input, owner conflict and inter
   const created = await served.web.post<{ goal: { goal_id: string } }>(path, { title: "保存原事实", idempotency_key: "create" });
   const goalId = created.goal.goal_id;
   const facts = () => host.withProject(project.reference, runtime => ({ events: runtime.store.readEventsDescending(project.project_id),
-    state: runtime.coordinator.goalEvents.readState(project.project_id, goalId) }));
+    state: goalApplicationOf(runtime).goalEvents.readState(project.project_id, goalId) }));
   const before = await facts();
   const post = (suffix: string, body: string) => fetch(served.origin + path + suffix, { method: "POST",
     headers: { "content-type": "application/json", origin: served.origin, "x-molis-work-control-token": served.controlToken,
@@ -1213,12 +1215,14 @@ test("W3-02-H-02 actual Goals HTTP distinguishes input, owner conflict and inter
   const stale = await conflict.json(); assert.equal(stale.code, "goals.event_config.version_conflict");
   assert.deepEqual(stale.details, { current_version: 0, expected_version: 1 });
   assert.equal(host.callLog!.find(stale.call_id)[0]?.code, "goals.event_config.version_conflict", "the owner failure points to its actual diagnostic row");
+  // An internal failure of the owner is made the way storage makes one: the journal refuses the write Goals' command ends with, so the
+  // plugin's own transaction fails and rolls back (PG-094 S12: the Host holds no Goals object to swap a method on). The Home is thrown away.
   await host.withProject(project.reference, runtime => {
-    const original = runtime.coordinator.goalEvents.configure;
-    runtime.coordinator.goalEvents.configure = () => { throw new Error("forced owner failure"); };
-    t.after(() => { runtime.coordinator.goalEvents.configure = original; });
+    runtime.store.db.exec("CREATE TRIGGER forced_owner_failure BEFORE INSERT ON events BEGIN SELECT RAISE(ABORT, 'forced owner failure'); END");
   });
-  const failed = await post(configure, JSON.stringify({ idempotency_key: "internal", expected_version: 0, types: [] }));
-  assert.equal(failed.status, 500); assert.equal((await failed.json()).code, "actions.execution_failed");
+  const failed = await post(configure, JSON.stringify({ idempotency_key: "internal", expected_version: 0, types: [{
+    type_id: "note", version: 1, name: "进展记录", purpose: "记下事实", semantic_family: "progress",
+    fields: [{ field_id: "body", name: "内容", purpose: "原文", format: "longtext", required: true }] }] }));
+  assert.equal(failed.status, 500, await failed.clone().text()); assert.equal((await failed.json()).code, "actions.execution_failed");
   assert.deepEqual(await facts(), before, "no refused request writes a Goal event or state");
 });

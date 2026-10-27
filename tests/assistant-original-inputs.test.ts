@@ -38,7 +38,7 @@ test("MEM-35: protected Assistant input is available to the first real remember 
   assert.deepEqual(run.original_input?.ref, { session_id: sent.work.session_id, input_id: inputId, version: 1 });
   assert.equal(run.original_input?.text, text); assert.equal(run.original_input?.written_by, "person");
   assert.ok(Date.parse(run.original_input!.occurred_at) >= before && Date.parse(run.original_input!.occurred_at) <= Date.now());
-  assert.equal((await current.service.memories()).find(memory => memory.text === text)?.disabled, false);
+  assert.equal((await current.service.memory.memories()).find(memory => memory.text === text)?.disabled, false);
   const count = model.requests.length;
   const retried = await home.web.post<AssistantSendResult>("/api/assistant/send", { text, request_id: inputId });
   assert.equal(retried.run_id, sent.run_id); assert.equal(model.requests.length, count, "an acknowledged HTTP retry does not dispatch again");

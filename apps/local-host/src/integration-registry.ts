@@ -1,4 +1,4 @@
-import type { PluginDefinition, PluginIntegrationContribution } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginContribution, PluginDefinition, PluginIntegrationContribution, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { IntegrationBinding, IntegrationKind, PluginConnectionServiceDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { HOST_BUILD_TRUST, MemoryPluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
@@ -13,15 +13,21 @@ import { HOST_PLUGIN_IDS } from "./host-plugin-ids.js";
  *
  * An id is held by whoever declared it first (`IntegrationDeclarations`): a plugin enabled later that declares a held id fails to
  * enable and the holder is not touched.
+ *
+ * A signed sandbox integration package (BL-530) is not started here: its code runs in the Home's sandbox instance, and the Home hands
+ * the registry its declarations and the Host's proxy (`attach`) while that instance is enabled, and takes them back (`detach`) when it
+ * is switched off or removed. Its ids are checked like a built-in's; only where the code runs differs.
  */
 export class IntegrationRegistry {
   private readonly runtime: PluginRuntime;
   private readonly declarations: IntegrationDeclarations;
   private readonly installs = new Map<string, string>();
+  /** The packages the Home attached: what each one's running instance contributes now (null while it is not running). */
+  private readonly attached = new Map<string, () => PluginContribution | null>();
   private tail: Promise<unknown> = Promise.resolve();
 
   constructor(options: { platform?: readonly PluginConnectionServiceDeclaration[]; now?: () => Date } = {}) {
-    this.runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { now: options.now ?? (() => new Date()), hostIds: HOST_PLUGIN_IDS });
+    this.runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { now: options.now ?? (() => new Date()), hostIds: HOST_PLUGIN_IDS, inProcess: { admit: new Set() } });
     this.declarations = new IntegrationDeclarations(options.platform);
   }
 
@@ -53,6 +59,43 @@ export class IntegrationRegistry {
     return refused;
   }
 
+  /**
+   * Holds the ids of a package running in the Home's sandbox instance and binds its sources to what that instance contributes. Goes in
+   * turn with enabling, so a package and a plugin cannot both pass the check for the same id; `live` is asked in that turn, and a package
+   * switched off meanwhile is not attached. A crash does not let its ids go: its sources are unavailable until it runs again.
+   */
+  attach(manifest: PluginManifest, contribution: () => PluginContribution | null, live: () => boolean): Promise<boolean> {
+    const run = this.tail.then(() => {
+      const parsed = parsePluginManifest(manifest);
+      if (!live()) return false;
+      // The same installation enabled again: a signed package is not upgraded in place, so its declarations are the ones it holds.
+      const current = () => live() ? contribution() : null;
+      if (this.attached.has(parsed.plugin_id)) { this.attached.set(parsed.plugin_id, current); return true; }
+      this.assertFree(parsed);
+      this.declarations.declare(parsed);
+      this.attached.set(parsed.plugin_id, current);
+      return true;
+    });
+    this.tail = run.catch(() => undefined);
+    return run;
+  }
+
+  /** Lets an attached package's ids go: its sources are unavailable from now on, and its services leave the settings page. */
+  detach(pluginId: string): Promise<void> {
+    const run = this.tail.then(() => {
+      if (this.attached.delete(pluginId)) this.declarations.release(pluginId);
+    });
+    this.tail = run.catch(() => undefined);
+    return run;
+  }
+
+  /** Refuses a package whose plugin id, services or integrations are another's: asked before anything of its install is written. */
+  assertFree(manifest: PluginManifest): void {
+    const parsed = parsePluginManifest(manifest);
+    if (this.installs.has(parsed.plugin_id)) throw pluginErrors.integration_declaration_conflict(`插件 ${parsed.plugin_id} 已由宿主自带的集成占用；请给这个包换一个插件 ID`);
+    this.declarations.assertFree(parsed);
+  }
+
   connectionServices(): readonly RegisteredConnectionService[] {
     return this.declarations.connectionServices();
   }
@@ -76,17 +119,26 @@ export class IntegrationRegistry {
     if (entry.declaration.kind !== kind) {
       throw pluginErrors.integration_unavailable(`集成 ${integrationId} 是 ${entry.declaration.kind}，不能当 ${kind} 用`);
     }
-    const installId = this.installs.get(entry.plugin_id)!;
-    if (this.runtime.get(installId).state === "crashed") await this.runtime.recover(installId);
-    const contribution = this.runtime.contribution(installId);
+    const contribution = await this.contributionOf(entry.plugin_id);
     if (!contribution || contribution.kind !== "integration") throw pluginErrors.integration_unavailable(`集成 ${integrationId} 的插件没有在运行`);
     return contribution.bind(binding);
+  }
+
+  private async contributionOf(pluginId: string): Promise<PluginContribution | null> {
+    const attached = this.attached.get(pluginId);
+    if (attached) return attached();
+    const installId = this.installs.get(pluginId)!;
+    if (this.runtime.get(installId).state === "crashed") await this.runtime.recover(installId);
+    return this.runtime.contribution(installId);
   }
 
   private async enableOnce(definition: PluginDefinition): Promise<void> {
     const manifest = parsePluginManifest(definition.manifest);
     if (this.declarations.has(manifest.plugin_id)) return;
     this.declarations.assertFree(manifest);
+    // A service the Host builds reaches only the platform's table (S-69): origins are a signed sandbox package's own (S-95).
+    const declared = manifest.connection_services?.find(service => service.origins !== undefined);
+    if (declared) throw pluginErrors.declaration_invalid(`宿主构建的插件不写服务的来源：${declared.service_id} 的地址只在平台的请求表里`);
     // Only the Host's own build is enabled here today; an installed plugin's integrations will arrive with the trust it was installed with.
     const installed = this.runtime.install({ definition, deployment: "local", trust: HOST_BUILD_TRUST });
     const installId = installed.install.install_id;

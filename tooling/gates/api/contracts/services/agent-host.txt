@@ -979,6 +979,7 @@ export interface AgentMemoryTools {
         scope: "personal" | "project" | "character";
         applies: string;
         note?: string;
+        candidate_id?: string;
     }>;
     list(control: AgentMemoryToolControl): Promise<Array<{
         memory_id: string;

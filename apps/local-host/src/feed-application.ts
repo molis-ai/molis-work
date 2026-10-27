@@ -10,10 +10,6 @@ import {
   createContextLedger,
 } from "@molis-ai/molis-work-module-context-ledger";
 import {
-  createGoalReadServices,
-} from "@molis-ai/molis-work-module-goals";
-
-import {
   AttentionModule,
 } from "@molis-ai/molis-work-module-attention-resumption";
 import {
@@ -35,6 +31,7 @@ import { FEED_PLUGIN_ID, FeedApplication, FeedOutRuleStore, type FeedApplication
 import { projectVersionStores, type ArtifactsSqliteDatabase } from "@molis-ai/molis-work-module-artifacts";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createFeedHistoryRelease } from "./feed-history-release.js";
+import { inboxDeclarationsOf } from "./plugin-inbox-declarations.js";
 import { projectPluginDatabaseRefusal } from "./project-plugin-databases.js";
 export interface LocalFeedApplicationOptions {
   artifacts?: FeedArtifactProducer;
@@ -52,7 +49,6 @@ export function createLocalFeedApplication(
   const journal = new LocalSqliteJournal(db);
   // Listener Host's storage is plain functions, so it has no constructor to create its tables; the other owners do.
   db.exec(LISTENER_HOST_SCHEMA_SQL);
-  const goals = createGoalReadServices(db, journal).query;
   let feedItems!: FeedModule;
   let inboxCreated: (entry: { project_id: string; entry_id: string }) => void = () => {};
   const attention = new AttentionModule(db, {
@@ -67,7 +63,8 @@ export function createLocalFeedApplication(
           throw error;
         }
       }
-      return goals.getGoal(projectId, subjectId) !== null;
+      // Feed opens entries about its own subjects only: a Goal's decision reminder is Goals' to open (its plugin writes it through the platform's Attention service).
+      return false;
     },
   }, {
     eventSink: (event) => {
@@ -112,6 +109,7 @@ export function createLocalFeedApplication(
   }).artifacts;
   return new FeedApplication({
     sources, feed: feedItems, attention, appendEvent,
+    inboxDeclarations: () => inboxDeclarationsOf(db),
     subscribeInboxCreated: listener => { inboxCreated = listener; },
     // A refused Feed library leaves the project without capture rules; the rest of Feed is the Modules' and goes on.
     ...projectPluginDatabaseRefusal(db, FEED_PLUGIN_ID) ? {} : { outRules: new FeedOutRuleStore(db) },

@@ -104,7 +104,7 @@ test("an object picked with “@” is checked with its owner and read by it bef
     assert.equal(requests.length, afterPiece, "a piece that cannot be read stops the round before any model call");
 
     // Which kind an open tab is, from what plugins declare for their searchable objects.
-    const kinds = await service.surfaceKinds({ project_ref: reference });
+    const kinds = await service.reads.surfaceKinds({ project_ref: reference });
     assert.equal(kinds.lingguang, "lingguang_spark");
     assert.equal(kinds[found.open?.surface ?? ""], found.subject.kind);
   } finally {

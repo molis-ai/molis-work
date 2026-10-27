@@ -21,7 +21,7 @@ test("Feed reads and warm Web projections use each owner's current authority, re
     actionAvailability: (_, action) => disabled.has(action.provider.provider_id) ? { available: false, code: "actions.plugin_disabled", reason: "测试中停用" } : { available: true } });
   const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
   const caller: ActionCallContext = { actor_id: "reader", audience: "user", project_id: reference.project_id,
-    permissions: ["goals:read", "feed:read", "inbox:read", "schedule:read", "schedule:write", "feed:write", "goals:write"] };
+    permissions: ["goals:read", "feed:read", "inbox:read", "schedule:read", "schedule:write", "feed:write", "goals:write", "context-ledger:write"] };
   const actions = bindActionClient(host.actionClient(reference), () => caller);
   const server = createMolisWorkWebServer({ databasePath, projectId: DEMO_PROJECT_ID, homeDirectory: home, localHost: host });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));

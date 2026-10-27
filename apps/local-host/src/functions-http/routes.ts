@@ -38,8 +38,6 @@ const FUNCTIONS_HTTP_ROUTES = [
   route("functions.create", "POST", /^\/api\/functions$/u),
   route("functions.catalog", "GET", /^\/api\/functions\/catalog$/u),
   route("functions.published", "GET", /^\/api\/functions\/published$/u),
-  route("functions.describe", "GET", /^\/api\/functions\/by-key\/([^/]+)$/u, ["function_key"]),
-  route("functions.invoke", "POST", /^\/api\/functions\/by-key\/([^/]+)\/invoke$/u, ["function_key"]),
   route("functions.get", "GET", /^\/api\/functions\/([^/]+)$/u, ["id"]),
   route("functions.update", "POST", /^\/api\/functions\/([^/]+)$/u, ["id"]),
   route("functions.preview", "POST", /^\/api\/functions\/([^/]+)\/preview$/u, ["id"]),

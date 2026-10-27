@@ -17,6 +17,11 @@ import { smallSnapshotHome, snapshotBusinessFingerprint } from "./fixtures/home-
 const fixture = fileURLToPath(new URL("./fixtures/home-snapshot-entry-window.ts", import.meta.url));
 const cli = fileURLToPath(new URL("../apps/desktop/launchers/cli/main.ts", import.meta.url));
 
+// PG094-CLI-04: initialize only these fresh CLI Homes before adding business files; unknown-Home fixtures stay unchanged.
+async function initializeFreshCliHome(home: string) {
+  await createMolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+}
+
 function pausedEntry(t: TestContext, mode: "snapshot" | "cli" | "ledger", home: string, target: string) {
   const gate = join(dirname(home), ".entry-gate-" + randomUUID());
   execFileSync("mkfifo", [gate]);
@@ -118,7 +123,7 @@ test("RAC-105-S-07 S-07: purge keeps the original lock directory and inode until
 });
 
 test("RAC-105-S-08 S-07: a Home CLI init fallback refuses before mkdir while snapshot owns Home, then really writes after release", { timeout: 30_000 }, async t => {
-  const f = await smallSnapshotHome(t); await f.file("images/assets/kept.bin");
+  const f = await smallSnapshotHome(t); await initializeFreshCliHome(f.home); await f.file("images/assets/kept.bin");
   const entry = pausedEntry(t, "snapshot", f.home, f.snapshot); await entry.ready;
   assert.throws(() => acquireStorageOwner(join(f.home, "agent-runtime")), { code: "storage.owner.busy" });
   const database = join(f.home, "projects", "entry-window", "molis-work.db");
@@ -137,7 +142,7 @@ test("RAC-105-S-08 S-07: a Home CLI init fallback refuses before mkdir while sna
 });
 
 test("RAC-105-S-08 S-07: a real Home CLI write window refuses snapshot before staging and releases with its Host", { timeout: 30_000 }, async t => {
-  const f = await smallSnapshotHome(t); await f.file("images/assets/kept.bin");
+  const f = await smallSnapshotHome(t); await initializeFreshCliHome(f.home); await f.file("images/assets/kept.bin");
   const database = join(f.home, "projects", "entry-window", "molis-work.db");
   const entry = pausedEntry(t, "cli", f.home, database); await entry.ready;
   const peer = snapshotPeer(f.home, f.snapshot);
@@ -149,20 +154,23 @@ test("RAC-105-S-08 S-07: a real Home CLI write window refuses snapshot before st
   assert.equal((await createHomeSnapshot({ homeDirectory: f.home, destination: f.snapshot })).status, "created");
 });
 
-test("RAC-105-S-08: an unrelated standalone database still initializes while the selected Home is owned by snapshot", { timeout: 30_000 }, async t => {
+test("RAC-105-S-08 PG094-CLI-01: an unrelated standalone database still initializes while the selected Home is owned by snapshot", { timeout: 30_000 }, async t => {
   const f = await smallSnapshotHome(t); await f.file("images/assets/kept.bin");
   const entry = pausedEntry(t, "snapshot", f.home, f.snapshot); await entry.ready;
+  const before = await snapshotBusinessFingerprint(f.home);
   const database = join(f.area, "standalone", "project.db");
   const result = spawnSync(process.execPath, ["--import", "tsx", cli, "v1", "init", "--db", database,
     "--json", JSON.stringify({ project_id: "standalone", idempotency_key: "standalone" })],
     { env: { ...process.env, MOLIS_WORK_HOME: f.home }, encoding: "utf8", timeout: 15_000 });
   assert.equal(result.status, 0, result.stderr);
   assert.equal((await fs.stat(database)).isFile(), true);
+  assert.throws(() => acquireStorageOwner(join(f.home, "agent-runtime")), { code: "storage.owner.busy" });
+  assert.deepEqual(await snapshotBusinessFingerprint(f.home), before, "the external init did not touch the selected Home");
   await entry.release();
 });
 
 test("RAC-105-S-08 S-07: Home and database aliases retain the same ownership boundary before creating a new directory", { timeout: 60_000 }, async t => {
-  const f = await smallSnapshotHome(t); await f.file("images/assets/kept.bin");
+  const f = await smallSnapshotHome(t); await initializeFreshCliHome(f.home); await f.file("images/assets/kept.bin");
   const alias = join(f.area, "home-alias"); await fs.symlink(f.home, alias, "dir");
   const database = join(f.home, "projects", "alias", "molis-work.db");
   const entry = pausedEntry(t, "snapshot", f.home, f.snapshot); await entry.ready;

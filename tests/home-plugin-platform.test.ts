@@ -147,7 +147,8 @@ test("W3-06-F-02 a Home database comes from the trusted definition entry, never 
   const probe = homeProbe("dbprobe");
   const declaration: PluginDatabaseDeclaration = { store_name: "dbprobe-notes", version: 1, schema: "CREATE TABLE notes (text TEXT NOT NULL);",
     read_permission: "dbprobe:read", write_permission: "dbprobe:write" };
-  const { host, home } = await serveHomeRuntime(t, { pluginFixtures: { home: [{ definition: withLibrary(probe.definition, declaration) }] } });
+  const lookalike = homeProbe("dbprobe", "1.1.0");
+  const { host, home } = await serveHomeRuntime(t, { pluginFixtures: { home: [{ definition: withLibrary(probe.definition, declaration) }], installed: new Set([lookalike.definition]) } });
   const platform = await host.homePlugins!.ready();
   const record = host.homePlugins!.installation(probe.id)!;
   assert.equal(record.state, "running");
@@ -172,7 +173,6 @@ test("W3-06-F-02 a Home database comes from the trusted definition entry, never 
   await platform.supervisor.restart(probe.id);
   const currentDatabase = probe.contexts.at(-1)!.services!.database!;
   assert.deepEqual(currentDatabase.all("SELECT text FROM notes").map(row => row.text), ["kept"]);
-  const lookalike = homeProbe("dbprobe", "1.1.0");
   await platform.runtime.upgrade({ install_id: record.install_id, definition: lookalike.definition, grants: probe.permissions });
   assert.equal(lookalike.contexts.at(-1)!.services!.database, undefined, "the new object cannot inherit the old entry's library");
   // BL-411: the upgrade stopped the activation that was given this library: outside every call its write is refused and never answers.

@@ -11,8 +11,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { Script } from "node:vm";
 import { locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
-import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
-import { DEMO_PROJECT_ID, MolisWorkLocalHost, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, MolisWorkLocalHost, seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { type MolisWorkProjectCatalog, normalizeRuntimeWorkContext } from "@molis-ai/molis-work-app-local-host";
 import { RuntimeIntegrationService } from "@molis-ai/molis-work-app-local-host";
@@ -39,6 +38,7 @@ import {
   WEB_GOAL_STATUSES,
 } from "./workbench-renderer-fixture.js";
 import { createMolisWorkWebServer as createBaseMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { GoalProjectApplication, boardSnapshot as snapshotOfStore } from "./fixtures/goal-application.js";
 
 const WEB_TEST_CONTROL_TOKEN = "molis-work-web-test-control-token-0123456789abcdef";
 const WORKBENCH_CLIENT_SCRIPT = renderMolisWorkWorkbenchClientScript();
@@ -286,10 +286,10 @@ function feedDetailHtml(html: string, itemId: string): string {
   return html.slice(start, next === -1 ? html.length : next);
 }
 
-function webFixture() {
+async function webFixture() {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-web-"));
   const databasePath = join(directory, "demo.db");
-  seedDemoBoard(databasePath);
+  await seedDemoGoals(databasePath);
   return { databasePath, homeDirectory: directory };
 }
 
@@ -369,7 +369,7 @@ test("Web health identifies the process serving the response", async () => {
 });
 
 test("Web View cache follows canonical Board events instead of SQLite file lifecycle", async () => {
-  const { databasePath } = webFixture();
+  const { databasePath } = await webFixture();
   const cache = new Map() as Parameters<typeof cachedMolisWorkWebView>[0];
   const options = { databasePath, projectId: DEMO_PROJECT_ID, demo: true };
 
@@ -497,7 +497,7 @@ function webRuntimeIntegrationFixture(homeDirectory: string) {
 function boardSnapshot(databasePath: string, projectId: string) {
   const store = new LocalProjectDatabase(databasePath);
   try {
-    return store.snapshot(projectId);
+    return snapshotOfStore(store, projectId);
   } finally {
     store.close();
   }
@@ -773,7 +773,7 @@ test("Web onboarding creates one real Project, root Draft Goal, and optional Wor
     const project = catalog.getProject(projectId);
     const store = new LocalProjectDatabase(project.database_path);
     try {
-      const goals = store.snapshot(project.project_id).goals;
+      const goals = snapshotOfStore(store, project.project_id).goals;
       assert.equal(goals.length, 1);
       assert.equal(goals[0]?.goal_id, goalId);
       assert.equal(goals[0]?.definition_state, "draft");
@@ -938,8 +938,8 @@ test("Web explains incomplete product decomposition and shows who owns each prod
   }
 });
 
-test("Web normal Tree excludes trashed Goals while the coordinator retains their facts", () => {
-  const { databasePath } = webFixture();
+test("Web normal Tree excludes trashed Goals while the coordinator retains their facts", async () => {
+  const { databasePath } = await webFixture();
   const store = new LocalProjectDatabase(databasePath);
   const coordinator = new GoalProjectApplication(store);
   coordinator.goals.commands.createGoal(
@@ -976,7 +976,7 @@ test("Web normal Tree excludes trashed Goals while the coordinator retains their
   assert.equal(view.goals.some((item) => item.goal.goal_id === "TRASHED-WEB"), false);
   assert.equal(view.archived_goals.some((item) => item.goal.goal_id === "TRASHED-WEB"), false);
   assert.equal(view.trashed_goals.some((item) => item.goal.goal_id === "TRASHED-WEB"), true);
-  assert.equal(store.snapshot(DEMO_PROJECT_ID).goals.find((goal) => goal.goal_id === "TRASHED-WEB")?.trashed_at == null, false);
+  assert.equal(snapshotOfStore(store, DEMO_PROJECT_ID).goals.find((goal) => goal.goal_id === "TRASHED-WEB")?.trashed_at == null, false);
   assert.deepEqual(coordinator.listTrashedGoals(DEMO_PROJECT_ID).map((goal) => goal.goal_id), ["AUTO-CONNECT", "TRASHED-WEB"]);
   store.close();
 });

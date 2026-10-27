@@ -57,8 +57,8 @@ export function createWorkspaceOperations(d: ApiDependencies) {
     annotationCreate: (input: AlchemistOperationInput<"annotationCreate">) => {
       const target = input.target;
       const exists = target.kind === "idea_brief" ? Boolean(d.ideas.getVersion(target.objectId, target.revision))
-        : target.kind === "lens_report" ? d.research.getReport(target.objectId)?.revision === target.revision
-        : d.pulse.getReport(target.objectId)?.revision === target.revision;
+        : target.kind === "lens_report" ? d.research.reports.getReport(target.objectId)?.revision === target.revision
+        : d.pulse.reports.getReport(target.objectId)?.revision === target.revision;
       if (!exists) throw new AlchemistOperationError("alchemist.annotation_target_not_found", "这个报告版本已经不存在或无法定位。", 404);
       const now = d.clock.now();
       const annotation = d.calibration.createAnnotation({ id: d.idFactory.next("annotation"), workspaceId: d.workspaceId, actorId: d.actorId, ...input, status: "open", createdAt: now });
@@ -83,9 +83,9 @@ export function createWorkspaceOperations(d: ApiDependencies) {
     },
     tasteDisable: (input: AlchemistOperationInput<"tasteDisable">) => ({ rule: d.memory.updateTasteStatus(input.id, "disabled", d.clock.now()) }),
     playbookDisable: (input: AlchemistOperationInput<"playbookDisable">) => ({ rule: d.memory.updatePlaybookStatus(input.id, "disabled", d.clock.now()) }),
-    pulseReports: () => ({ latestRun: d.pulse.getLatestRun(), reports: d.pulse.listReports().map(report => ({ report, opportunities: d.pulse.listOpportunities(report.id), signals: d.pulse.listSignals(report.runId) })) }),
-    pulseSources: () => ({ sources: d.pulse.listSourceSettings() }),
-    pulseSourceUpdate: (input: AlchemistOperationInput<"pulseSourceUpdate">) => ({ source: d.pulse.updateSourceSetting(input.sourceId, input.enabled, d.clock.now()) }),
+    pulseReports: () => ({ latestRun: d.pulse.runs.getLatestRun(), reports: d.pulse.reports.listReports().map(report => ({ report, opportunities: d.pulse.opportunities.listOpportunities(report.id), signals: d.pulse.sources.listSignals(report.runId) })) }),
+    pulseSources: () => ({ sources: d.pulse.sources.listSourceSettings() }),
+    pulseSourceUpdate: (input: AlchemistOperationInput<"pulseSourceUpdate">) => ({ source: d.pulse.sources.updateSourceSetting(input.sourceId, input.enabled, d.clock.now()) }),
     pulseStart: async (input: AlchemistOperationInput<"pulseStart">, signal?: AbortSignal, control?: AlchemistEffectControl) => {
       const accepted = await d.jobResumption.prepareStart(DISCOVERY_PULSE_JOB, control);
       signal?.throwIfAborted();

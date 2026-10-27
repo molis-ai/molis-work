@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import test from "node:test";
 import { ensureSystemAgentService, MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 import type { AgentRunRef } from "@molis-ai/molis-work-contracts/services/agent-host";
-import type { AssistantSendResult } from "@molis-ai/molis-work-contracts/services/assistant";
+import type { AssistantMemoryCandidate, AssistantSendResult } from "@molis-ai/molis-work-contracts/services/assistant";
 import { untilSetup } from "./fixtures/connector-assistant-model.js";
 import { cogniaScriptedResponse } from "./fixtures/cognia-model-response.js";
 import { writeFile } from "node:fs/promises";
@@ -138,8 +138,19 @@ for (const executor of ["assistant", "coding"] as const) test(`MIX-IN-01: protec
     const results = f.requests.flatMap(request => request.messages).flatMap(message => typeof message.content === "string" ? [] : message.content)
       .filter(block => block.type === "tool_result") as Array<{ type: string; tool_use_id: string; content: unknown }>;
     const excerpt = results.find(result => result.tool_use_id === calls[0]!.call_id);
-    assert.equal(calls[0]!.state, "failed", "a clause still cannot stand for the whole personal message");
+    assert.equal(calls[0]!.state, "completed", "BL-323: a clause produces a pending suggestion rather than a formal memory");
+    assert.ok(calls[0]!.output);
+    const suggestion = JSON.parse(calls[0]!.output) as { memory_id?: unknown; candidate_id?: unknown; note?: unknown };
+    assert.equal(suggestion.memory_id, "", "the fragment was not directly remembered");
+    assert.ok(typeof suggestion.candidate_id === "string" && suggestion.candidate_id.length > 0, "the controlled call returns its actual candidate id");
+    assert.match(String(suggestion.note), /没有直接记住/);
+    assert.ok(excerpt && String(excerpt.content).startsWith(calls[0]!.output), "the candidate outcome was actually sent in this call's next model tool result");
     assert.match(String(excerpt?.content), /没有直接记住/);
+    const candidates = await f.call<{ candidates: AssistantMemoryCandidate[] }>(f.project.project_id, "/api/assistant/memory-candidates");
+    assert.equal(candidates.status, 200, JSON.stringify(candidates.body));
+    const pending = candidates.body.candidates.find(candidate => candidate.candidate_id === suggestion.candidate_id);
+    assert.ok(pending, "the exact returned candidate is persisted and available to the person");
+    assert.equal(pending.state, "pending"); assert.equal(pending.text, "周报先列风险。"); assert.equal(pending.scope, "personal");
     const whole = results.find(result => result.tool_use_id === calls[1]!.call_id);
     assert.equal(calls[1]!.state, "completed", JSON.stringify(calls[1]));
     assert.ok(calls[1]!.output && String(whole?.content).startsWith(calls[1]!.output), "the matching tool result was actually sent in the next model request");
@@ -148,6 +159,7 @@ for (const executor of ["assistant", "coding"] as const) test(`MIX-IN-01: protec
     const saved = await f.call<{ memories: Array<{ memory_id: string; text: string }> }>(f.project.project_id, "/api/assistant/memories");
     assert.equal(saved.status, 200, JSON.stringify(saved.body));
     assert.equal(saved.body.memories.find(memory => memory.memory_id === memoryId)?.text, raw.trim(), "the persisted memory contains only the person's complete raw message");
+    assert.equal(saved.body.memories.some(memory => memory.text === "周报先列风险。"), false, "the pending fragment suggestion never entered formal memories");
   }
   const wire = JSON.stringify(f.requests[1]); assert.ok(wire.includes(external));
   assert.equal(wire.split("周报先列风险。").length - 1, 1, "the raw original is not appended as a second model message");

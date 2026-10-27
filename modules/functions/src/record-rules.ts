@@ -1,13 +1,13 @@
 import {
   AGENT_MCP_DESTINATION_ID,
-  isFunctionDestinationId,
+  isJudgmentRuleDestinationId,
   functionOutputKeys,
   type ChoiceCriterion,
-  type FunctionActionMap,
-  type FunctionCriteria,
-  type FunctionRecord,
-  type FunctionSceneMap,
-  type FunctionsPrimitive,
+  type JudgmentRuleActionMap,
+  type JudgmentRuleCriteria,
+  type JudgmentRuleRecord,
+  type JudgmentRuleSceneMap,
+  type JudgmentRulePrimitive,
   type NoulCriteria,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import { functionsErrors, assertOptionKey, isPinnedJevModel } from "./keys.js";
@@ -19,7 +19,7 @@ const DEFAULT_CHOICE: readonly ChoiceCriterion[] = [
 const DEFAULT_NOUL: NoulCriteria = { true_description: "", false_description: "" };
 const DEFAULT_SCORE: readonly string[] = ["低", "高"];
 
-export function assertReadyToPublish(record: FunctionRecord): void {
+export function assertReadyToPublish(record: JudgmentRuleRecord): void {
   normalizeInstructions(record.instructions);
   normalizeCriteria(record.primitive, record.criteria, true);
   if (!record.last_preview) {
@@ -30,30 +30,30 @@ export function assertReadyToPublish(record: FunctionRecord): void {
   }
 }
 
-export function assertReadyToEvaluate(record: FunctionRecord): void {
+export function assertReadyToEvaluate(record: JudgmentRuleRecord): void {
   normalizeInstructions(record.instructions);
   normalizeCriteria(record.primitive, record.criteria, true);
 }
 
-export function pinModel(record: FunctionRecord): string {
+export function pinModel(record: JudgmentRuleRecord): string {
   const resolved = record.last_preview?.model?.trim() ?? "";
   if (isPinnedJevModel(resolved)) return resolved;
   return record.model;
 }
 
-export function defaultName(primitive: FunctionsPrimitive): string {
+export function defaultName(primitive: JudgmentRulePrimitive): string {
   if (primitive === "noul") return "未命名判断";
   if (primitive === "score") return "未命名评分";
   return "未命名函数";
 }
 
-export function defaultCriteria(primitive: FunctionsPrimitive): FunctionCriteria {
+export function defaultCriteria(primitive: JudgmentRulePrimitive): JudgmentRuleCriteria {
   if (primitive === "noul") return DEFAULT_NOUL;
   if (primitive === "score") return [...DEFAULT_SCORE];
   return [...DEFAULT_CHOICE];
 }
 
-export function assertPrimitive(value: string): FunctionsPrimitive {
+export function assertPrimitive(value: string): JudgmentRulePrimitive {
   if (value === "noul" || value === "choice" || value === "score") return value;
   throw functionsErrors.invalid("判断类型须为 Noul、Choice 或 Score");
 }
@@ -65,9 +65,9 @@ export function assertSceneReference(sceneId: string | null, version: number | n
   }
 }
 
-export function normalizeSceneId(value: string | null, primitive: FunctionsPrimitive): string | null {
+export function normalizeSceneId(value: string | null, primitive: JudgmentRulePrimitive): string | null {
   if (value == null || value === "") return null;
-  if (!isFunctionDestinationId(value)) {
+  if (!isJudgmentRuleDestinationId(value)) {
     throw functionsErrors.invalid("这个用法不在可选范围里");
   }
   if (primitive === "score" && value !== AGENT_MCP_DESTINATION_ID) {
@@ -90,11 +90,11 @@ export function normalizeSubjectKinds(value: unknown): string[] {
   return kinds;
 }
 
-export function normalizeActionMap(value: FunctionActionMap, sceneId: string | null, primitive: FunctionsPrimitive, criteria: FunctionCriteria): FunctionActionMap {
+export function normalizeActionMap(value: JudgmentRuleActionMap, sceneId: string | null, primitive: JudgmentRulePrimitive, criteria: JudgmentRuleCriteria): JudgmentRuleActionMap {
   if (sceneId !== AGENT_MCP_DESTINATION_ID) return {};
   if (!value || typeof value !== "object" || Array.isArray(value)) throw functionsErrors.invalid("推荐能力映射格式无效");
   const keys = new Set(functionOutputKeys({ primitive, criteria }));
-  const result: Record<string, FunctionActionMap[string]> = {};
+  const result: Record<string, JudgmentRuleActionMap[string]> = {};
   for (const [key, reference] of Object.entries(value)) {
     if (!keys.has(key)) continue;
     if (!reference || typeof reference !== "object" || typeof reference.capability_id !== "string" || !/^[a-zA-Z0-9][a-zA-Z0-9_.:-]*$/u.test(reference.capability_id)
@@ -108,10 +108,10 @@ export function normalizeActionMap(value: FunctionActionMap, sceneId: string | n
 
 export function normalizeSceneMap(
   value: unknown,
-  primitive?: FunctionsPrimitive,
-  criteria?: FunctionCriteria,
+  primitive?: JudgmentRulePrimitive,
+  criteria?: JudgmentRuleCriteria,
   sceneId?: string | null,
-): FunctionSceneMap {
+): JudgmentRuleSceneMap {
   if (value == null) return {};
   if (!isRecord(value) || Array.isArray(value)) {
     throw functionsErrors.invalid("映射格式不对");
@@ -131,11 +131,11 @@ export function normalizeSceneMap(
 }
 
 export function pruneSceneMap(
-  value: FunctionSceneMap,
-  primitive?: FunctionsPrimitive,
-  criteria?: FunctionCriteria,
+  value: JudgmentRuleSceneMap,
+  primitive?: JudgmentRulePrimitive,
+  criteria?: JudgmentRuleCriteria,
   sceneId?: string | null,
-): FunctionSceneMap {
+): JudgmentRuleSceneMap {
   if (sceneId === AGENT_MCP_DESTINATION_ID || sceneId === "") return {};
   if (sceneId === null) return {};
   if (sceneId === undefined) return { ...value };
@@ -179,13 +179,13 @@ export function normalizeSampleInput(value: string): string {
   return input;
 }
 
-export function normalizeCriteria(primitive: FunctionsPrimitive, value: FunctionCriteria, requireComplete: boolean): FunctionCriteria {
+export function normalizeCriteria(primitive: JudgmentRulePrimitive, value: JudgmentRuleCriteria, requireComplete: boolean): JudgmentRuleCriteria {
   if (primitive === "noul") return normalizeNoul(value, requireComplete);
   if (primitive === "score") return normalizeScore(value, requireComplete);
   return normalizeChoice(value, requireComplete);
 }
 
-function normalizeChoice(value: FunctionCriteria, requireDescriptions: boolean): ChoiceCriterion[] {
+function normalizeChoice(value: JudgmentRuleCriteria, requireDescriptions: boolean): ChoiceCriterion[] {
   if (!Array.isArray(value) || value.some((item) => !item || typeof item !== "object" || Array.isArray(item) || !("key" in item))) {
     throw functionsErrors.invalid("选项须是列表");
   }
@@ -208,7 +208,7 @@ function normalizeChoice(value: FunctionCriteria, requireDescriptions: boolean):
   return criteria;
 }
 
-function normalizeNoul(value: FunctionCriteria, requireComplete: boolean): NoulCriteria {
+function normalizeNoul(value: JudgmentRuleCriteria, requireComplete: boolean): NoulCriteria {
   const row = !Array.isArray(value) && value && typeof value === "object"
     ? value as { true_description?: unknown; false_description?: unknown }
     : {};
@@ -223,7 +223,7 @@ function normalizeNoul(value: FunctionCriteria, requireComplete: boolean): NoulC
   return { true_description, false_description };
 }
 
-function normalizeScore(value: FunctionCriteria, requireComplete: boolean): string[] {
+function normalizeScore(value: JudgmentRuleCriteria, requireComplete: boolean): string[] {
   if (!Array.isArray(value) || value.some((item) => typeof item !== "string")) {
     throw functionsErrors.invalid("Score 档位须是文字列表");
   }

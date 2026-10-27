@@ -37,7 +37,7 @@ test("W5-01-CODING-32 Coding declares its background tasks as a read-only projec
   assert.ok(!declared.action.permissions.includes("model:invoke"));
   // The Host no longer opens Coding's tables for the Home: the reader is not part of what the package gives out.
   for (const name of ["listCodingBackgroundSessions", "holdsCodingSessions", "CodingSqliteDatabase"]) assert.ok(!(name in codingPackage), `${name} is no longer exported`);
-  assert.doesNotMatch(source("apps/local-host/src/web-catalog.ts"), /listCodingBackgroundSessions|holdsCodingSessions|codingBackgroundTasks|coding-background-tasks/);
+  for (const file of ["web-catalog.ts", "web-catalog-routes.ts", "web-catalog-settings.ts"]) assert.doesNotMatch(source(`apps/local-host/src/${file}`), /listCodingBackgroundSessions|holdsCodingSessions|codingBackgroundTasks|coding-background-tasks/, file);
 });
 
 test("W5-01-CODING-33 the Home lists the Coding sessions under way or waiting in every open project, newest first, through Coding's own query; the stop route (CODING-35) and the English (CODING-50) follow from the rows", { timeout: 60_000 }, async t => {

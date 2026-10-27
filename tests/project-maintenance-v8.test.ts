@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -15,6 +16,8 @@ import { FEED_PLUGIN_ID, FEED_PROJECT_DATABASE } from "@molis-ai/molis-work-plug
 import { SCHEDULE_PLUGIN_ID, SCHEDULE_PROJECT_DATABASE } from "@molis-ai/molis-work-plugin-schedule";
 import { inspectPluginProjectSchema, openPluginProjectDatabase, type PluginProjectSchemaInspector } from "@molis-ai/molis-work-plugin-runtime";
 import { SqliteSchemaVersionError, applySqliteBaseline, describeSqliteSchema, listSqliteObjects } from "@molis-ai/molis-work-storage";
+import { managementGoals } from "./goal-management-caller.js";
+import { NAMESPACE } from "../scripts/maintenance/goals-journal-names.mjs";
 
 /**
  * Maintenance eight, the project library part (PLIB-05; specs/plugin-project-database/spec.md §3 L1b; the maintenance list of
@@ -137,7 +140,7 @@ async function oldHome(directory: string): Promise<OldHome> {
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: () => ({ available: true }) });
   try {
     const caller: ActionCallContext = { actor_id: "runtime:maintenance", project_id: projectId, audience: "agent", permissions: ["goals:read", "goals:write"] };
-    const bound = bindActionClient(host.actionClient(reference, false), () => caller);
+    const bound = bindActionClient(host.actionClient(reference), () => caller);
     await bound.invoke(goalsActions.create, { title: "维护前的目标", goal_id: "KEPT-GOAL", outcome: "维护后还在", idempotency_key: "create-kept", source_kind: "runtime" as const });
     await bound.invoke(goalsActions.note, { goal_id: "KEPT-GOAL", body: "维护前的便笺", idempotency_key: "note-kept" });
   } finally { await host.close(); }
@@ -149,6 +152,13 @@ async function oldHome(directory: string): Promise<OldHome> {
     db.prepare("INSERT INTO inbox_entries (project_id, entry_id, subject_type, subject_id, reason, status, created_at, updated_at) VALUES (?, 'entry-kept', 'feed_item', 'item-1', 'manual', 'open', ?, ?)").run(projectId, at, at);
     db.prepare("INSERT INTO process_items (artifact_id, project_id, owner_actor_id, producer_plugin_id, producer_binding_signature, created_at) VALUES ('process-kept', ?, 'test-user', 'io.molis.work.feed', 'official-feed-binding', ?)").run(projectId, at);
     db.exec("UPDATE sqlite_sequence SET seq = seq + 100 WHERE name = 'events'");
+    // The source build predates Runtime-owned journal names. Undo only Goals' own namespace in this historical fixture.
+    db.prepare("UPDATE events SET type = substr(type, ?), object_type = substr(object_type, ?) WHERE substr(object_type, 1, ?) = ?")
+      .run(NAMESPACE.length + 1, NAMESPACE.length + 1, NAMESPACE.length, NAMESPACE);
+    db.prepare("UPDATE idempotency_records SET operation = substr(operation, ?) WHERE substr(operation, 1, ?) = ?")
+      .run(NAMESPACE.length + 1, NAMESPACE.length, NAMESPACE);
+    db.prepare("UPDATE context_edges SET edge_key = substr(edge_key, ?) WHERE substr(edge_key, 1, ?) = ?")
+      .run(NAMESPACE.length + 1, NAMESPACE.length, NAMESPACE);
     // Version 7 hashed the board's name into the receipt of the board's making; this build hashes the request without it.
     const made = JSON.stringify(db.prepare("SELECT * FROM idempotency_records WHERE operation = 'initialize_board'").get());
     db.prepare("UPDATE idempotency_records SET request_hash = ? WHERE operation = 'initialize_board'")
@@ -266,13 +276,16 @@ test("PLIB-05: after the maintenance the plugins' tables open as recorded, this 
   });
   new LocalProjectDatabase(databasePath).close();
   new LocalProjectDatabase(databasePath, { existingOnly: true }).close();
-  const making = withDatabase(databasePath, db => db.prepare("SELECT actor_id, idempotency_key FROM idempotency_records WHERE operation = 'initialize_board'").get() as { actor_id: string; idempotency_key: string });
+  execFileSync(process.execPath, [new URL("../scripts/maintenance/goals-journal-names.mjs", import.meta.url).pathname, "rename", "--home", home], { encoding: "utf8" });
+  const making = withDatabase(databasePath, db => db.prepare("SELECT actor_id, idempotency_key FROM idempotency_records WHERE operation = ?")
+    .get(`${NAMESPACE}initialize_board`) as { actor_id: string; idempotency_key: string });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   try {
     const reference = molisWorkHostProjectReference({ projectId, databasePath });
-    const events = await host.withProject(reference, runtime => runtime.coordinator.goalEvents.listEvents(projectId, "KEPT-GOAL"));
+    const actions = managementGoals(host.actionClient(reference), projectId);
+    const events = await actions.invoke(goalsActions.events, { goal_id: "KEPT-GOAL" });
     assert.equal(events.events.filter(event => event.kind === "system" && event.payload.operation === "observation_note").length, 1, "the note written before the maintenance");
-    const retried = await host.withProject(reference, runtime => runtime.coordinator.initializeBoard({ project_id: projectId, ...making }));
+    const retried = await actions.invoke(goalsActions.initialize, { idempotency_key: making.idempotency_key });
     assert.equal(retried.replayed, true, "a retry of the board's making with the key used before the maintenance replays it, not refused as a reused key");
   } finally { await host.close(); }
   const opened = snapshot(databasePath);

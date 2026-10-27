@@ -217,7 +217,8 @@ test("RAC-562 BL-620 the project platform refuses project_rows without a catalog
 });
 
 test("RAC-562 BL-620 an installed Home plugin outside the start list is refused before schema, library ledger or plugin effects", async t => {
-  const f = await serveHomeRuntime(t), platform = await f.host.homePlugins!.ready(), probe = rowsProbe();
+  const installed = new Set<PluginDefinition>(), f = await serveHomeRuntime(t, { pluginFixtures: { installed } }), platform = await f.host.homePlugins!.ready(), probe = rowsProbe();
+  installed.add(probe.definition); // the test acts as the Host's code: this one object may be installed in the process (S-75 ⑥), but it is not on the start list
   assert.equal(f.host.homePlugins!.installation(probe.id), null, "this definition is absent from the Home start list");
   assert.equal(existsSync(join(f.home, "plugin-libraries")), false);
   const schema = t.mock.method(DatabaseSync.prototype, "exec");
@@ -243,12 +244,13 @@ test("RAC-562 BL-619 a sandboxed plugin that declares project_rows is refused wh
 });
 
 test("RAC-563 external Runtime installation refuses project_rows labels with whitespace, controls or Unicode line breaks", async t => {
-  const f = await serveHomeRuntime(t), platform = await f.host.homePlugins!.ready();
+  const installed = new Set<PluginDefinition>(), f = await serveHomeRuntime(t, { pluginFixtures: { installed } }), platform = await f.host.homePlugins!.ready();
   const before = platform.runtime.list();
   const labels = ["", " \u3000 ", "first\nsecond", "first\rsecond", "tab\tlabel", "nul\u0000label", "escape\u001blabel", "del\u007flabel",
     "next\u0085line", "control\u009flabel", "line\u2028break", "paragraph\u2029break", "中".repeat(201)];
   for (const label of labels) {
     const probe = rowsProbe(label);
+    installed.add(probe.definition);
     assert.throws(() => platform.runtime.install({ trust: { level: "unsigned" }, definition: probe.definition, deployment: "local", grants: PERMISSIONS.map(item => item.permission) }),
       { code: "plugin.manifest_invalid", message: /project_rows.label/u }, JSON.stringify(label));
     assert.deepEqual(probe.calls, []);
@@ -259,9 +261,10 @@ test("RAC-563 external Runtime installation refuses project_rows labels with whi
 });
 
 test("RAC-563 external Runtime installation keeps legal Unicode labels and the existing 200-character boundary", async t => {
-  const f = await serveHomeRuntime(t), platform = await f.host.homePlugins!.ready();
+  const installed = new Set<PluginDefinition>(), f = await serveHomeRuntime(t, { pluginFixtures: { installed } }), platform = await f.host.homePlugins!.ready();
   for (const [index, label] of ["清单 café e\u0301 👨‍👩‍👧‍👦 العربية", "中".repeat(200)].entries()) {
     const probe = rowsProbe(label, `io.molis.work.example.rowslabel${index}`);
+    installed.add(probe.definition);
     assert.equal(parsePluginManifest(probe.definition.manifest).databases!.home!.project_rows!.label, label);
     assert.equal(platform.runtime.install({ trust: { level: "unsigned" }, definition: probe.definition, deployment: "local", grants: PERMISSIONS.map(item => item.permission) }).install.state, "installed");
   }

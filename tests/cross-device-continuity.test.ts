@@ -7,12 +7,13 @@ import { randomUUID } from "node:crypto";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { installProducers } from "./fixtures/installed-producers.js";
-import { GoalProjectApplication, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { openServerDatabase, Identity, ServerEvents, ContinuityService, startServer, memberClientId, CONTINUITY_ACTIONS } from "@molis-ai/molis-work-server";
 import type { ActionFactory } from "@molis-ai/molis-work-server";
 import { restoreWorkAssets, readRestoredAssets } from "../apps/server/src/assets.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
+import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
 class Client {
   cookie="";

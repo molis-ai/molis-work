@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
 test("W1-18-GOAL-POLICY-01 Goal requirements use events, while the project rules page saves its current default once", { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t, true); if (!browser) return;

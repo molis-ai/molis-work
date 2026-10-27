@@ -14,6 +14,8 @@ import { assistantThreadActions } from "@molis-ai/molis-work-app-local-host";
 const PAGES = "io.molis.work.pages";
 const PRESENTATION = buildSync({ entryPoints: [fileURLToPath(new URL("../apps/workbench/src/browser/plugin-frame/presentation.ts", import.meta.url))],
   bundle: true, write: false, format: "iife", globalName: "Presentation", platform: "browser", target: "es2022" }).outputFiles[0]!.text;
+const COMMENTS = buildSync({ entryPoints: [fileURLToPath(new URL("../plugins/native/pages/src/comment-side-client.ts", import.meta.url))],
+  bundle: true, write: false, format: "iife", globalName: "Comments", platform: "browser", target: "es2022" }).outputFiles[0]!.text;
 
 type Detail = Record<string, unknown> & { source?: Record<string, unknown> };
 /** The shell's side of one Pages frame: what the page posts goes through `pagePresentation`; what the shell dispatches is kept. */
@@ -45,6 +47,13 @@ test("RAC-914 S-47: the shell names the plugin from the frame; a page that claim
   const pressed = shell(true);
   pressed.post({ ...asked({ surface: "pages", plugin_id: "io.molis.work.todo" }), purpose: "delegate" });
   assert.equal(pressed.sent[0]!.source!.plugin_id, PAGES, "a hand-over the person pressed in the page still names only the frame's plugin");
+  // RAC-916-L5: the side-owner relay does not broaden what the actual opaque bridge admits or how it checks gestures.
+  const unpressed = shell(false);
+  unpressed.post({ ...asked({ surface: "pages", plugin_id: "io.molis.work.todo" }), purpose: "delegate", card: { title: "forged" } });
+  assert.equal(unpressed.sent[0]!.purpose, "suggest");
+  assert.equal(unpressed.sent[0]!.card, undefined);
+  unpressed.post({ ...asked({ surface: "pages" }), purpose: "reply" });
+  assert.equal(unpressed.sent.length, 1, "the opaque plugin still cannot send a reply through the bridge");
 });
 
 interface Step { title: string; dataset: Record<string, string>; children: unknown[]; remove(): void; click(): void; append(...nodes: unknown[]): void; addEventListener(name: string, fn: () => void): void }
@@ -97,4 +106,133 @@ test("RAC-916 S-47: the reply goes to the plugin the shell named, for that objec
   for (const raw of [null, "t1", { thread_id: "t1" }, { thread_id: "", message_id: "m1" }, { thread_id: "t".repeat(161), message_id: "m1" },
     { ...THREAD, draft: { text: "x".repeat(100001), revision: "7" } }, { ...THREAD, draft: { text: "x", revision: "" } }, { ...THREAD, draft: "x" }])
     assert.equal(tidyThread(raw), null, `not a reply: ${JSON.stringify(raw).slice(0, 80)}`);
+});
+
+class CommentNode {
+  value = ""; textContent = ""; hidden = false; disabled = false; checked = false;
+  private handlers = new Map<string, (event: { preventDefault(): void }) => void>();
+  setAttribute(): void {}
+  replaceChildren(): void {}
+  append(): void {}
+  focus(): void {}
+  addEventListener(name: string, handler: (event: { preventDefault(): void }) => void): void { this.handlers.set(name, handler); }
+  fire(name: string): void { this.handlers.get(name)?.({ preventDefault() {} }); }
+}
+
+const tick = () => new Promise<void>(resolve => setImmediate(resolve));
+type SavedComment = { message_id: string; request_id: string; body: string; author: string; created_at: string };
+/** Run the production Pages controller with its existing DOM, storage and HTTP ports; hand offers to the actual shell bridge. */
+async function commentSide() {
+  const nodes = new Map<string, CommentNode>();
+  const node = (name: string) => { if (!nodes.has(name)) nodes.set(name, new CommentNode()); return nodes.get(name)!; };
+  const storage = new Map<string, string>(), framed = shell(false), assistant = row(), raw: Detail[] = [];
+  const threads: Array<{ thread_id: string; anchor: { kind: string; excerpt: string }; messages: SavedComment[] }> = [];
+  let receive = (_message: Record<string, unknown>) => {}, sequence = 0, saves = 0, draftReads = 0, snapshot = "";
+  const copy = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
+  const context = vm.createContext({ JSON, Date, Map, Error, clearTimeout,
+    crypto: { randomUUID: () => `00000000-0000-4000-8000-${String(++sequence).padStart(12, "0")}` },
+    localStorage: { getItem: (key: string) => storage.get(key), setItem: (key: string, value: string) => storage.set(key, value) },
+    document: { querySelector: () => ({ querySelector: (selector: string) => node(selector.slice(14, -1)), querySelectorAll: () => [] }), createElement: () => new CommentNode() },
+    CustomEvent: class { constructor(readonly type: string, readonly init: { detail: Detail }) {} },
+    window: { setTimeout, dispatchEvent: (event: { init: { detail: Detail } }) => {
+      raw.push(copy(event.init.detail));const before = framed.sent.length;framed.post(event.init.detail);
+      for (const detail of framed.sent.slice(before)) assistant.offer(detail);return true;
+    } },
+    molisWorkRequest: async (_path: string, options: { body?: Record<string, string> }) => {
+      if (!options.body) return { threads: copy(threads) };
+      saves++;const body = options.body;
+      let thread = threads.find(item => item.thread_id === body.thread_id);
+      if (!thread) { thread = { thread_id: body.thread_id!, anchor: { kind: "document", excerpt: "" }, messages: [] }; threads.push(thread); }
+      thread.messages.push({ message_id: "11111111-1111-4111-8111-111111111111", request_id: body.request_id!, body: body.body!, author: "user", created_at: "2026-10-25T00:00:00Z" });
+      return { thread: copy(thread) };
+    } });
+  vm.runInContext(COMMENTS, context);
+  const mount = vm.runInContext("Comments.mountComments", context) as (host: unknown) => void;
+  mount({ projectId: "project-1", translate: (key: string) => key, pluginRoute: (path: string) => path,
+    messages: { listen: (listener: typeof receive) => { receive = listener; }, send: (message: { type: string; command?: { request_id: string } }) => {
+      if (message.type === "molis:side-context-command") { draftReads++;receive({ type: "molis:side-context-result", request_id: message.command!.request_id, object_id: "doc-1", text: snapshot, version: 7, notes: [] }); }
+    } } });
+  receive({ type: "molis:side-context", context_epoch: 1, context: { plugin_id: PAGES, unsaved: true,
+    object_ref: { kind: "pages_document", id: "doc-1", title: '周报"\n草稿', version: 7 } } });
+  await tick();
+  const pending = () => {
+    const saved = JSON.parse(storage.get("molis.pages.comments:project-1")!) as Record<string, unknown>;
+    const active = (saved.__active as Record<string, string>)["doc-1"];
+    return saved[`doc-1:${active}`] as { body: string; request_id: string; message_id?: string } | undefined;
+  };
+  return { raw, framed, assistant, threads, node, pending, get saves() { return saves; }, get draftReads() { return draftReads; },
+    body: (text: string) => { node("draft").value = text;node("draft").fire("input"); },
+    ai: () => node("ai").fire("click"),
+    draft: (text: string) => { snapshot = text;node("include-draft").checked = true;node("include-draft").fire("change"); },
+    savedDocument: () => receive({ type: "molis:side-context", context_epoch: 2, context: { plugin_id: PAGES, unsaved: false,
+      object_ref: { kind: "pages_document", id: "doc-1", title: '周报"\n草稿', version: 8 } } }),
+    unsavedDocument: () => receive({ type: "molis:side-context", context_epoch: 3, context: { plugin_id: PAGES, unsaved: true,
+      object_ref: { kind: "pages_document", id: "doc-1", title: '周报"\n草稿', version: 8 } } }),
+    send: async () => { node("form").fire("submit");await tick(); } };
+}
+
+test("RAC-916-L1: complete detail rejects long comments plus draft and JSON escaping before saving; pending input survives", async () => {
+  for (const text of ["x".repeat(85000), '"\n'.repeat(22000)]) {
+    const side = await commentSide();side.ai();side.body("c".repeat(19000));side.draft(text);
+    const request = side.pending()!.request_id;
+    await side.send();
+    assert.deepEqual([side.saves, side.raw.length, side.assistant.steps.length], [0, 0, 0]);
+    assert.equal(side.node("error").textContent, "pages.comments.draft-too-long");
+    assert.equal(side.node("error").hidden, false);
+    assert.equal(side.node("run").textContent, "");
+    assert.equal(side.pending()!.body, "c".repeat(19000));
+    assert.equal(side.pending()!.request_id, request);
+  }
+});
+
+test("RAC-916-L1 RAC-916-L2 RAC-916-L3: final detail at the bridge cap passes; one character over keeps saved identity and retries without another save", async () => {
+  const sample = await commentSide();sample.ai();sample.body('评论"\n原文');sample.draft("");await sample.send();
+  const overhead = JSON.stringify(sample.raw[0]).length;
+  for (const extra of [0, 1]) {
+    const side = await commentSide();side.ai();side.body('评论"\n原文');side.draft("x".repeat(100000 - overhead + extra));
+    const request = side.pending()!.request_id;
+    await side.send();
+    assert.equal(side.saves, 1);
+    if (extra === 0) {
+      assert.equal(JSON.stringify(side.raw[0]).length, 100000);
+      assert.equal(side.framed.sent.length, 1, "the actual bridge accepts exactly its cap");
+      const rejected = shell(false);rejected.post({ ...side.raw[0], text: String(side.raw[0]!.text) + "x" });
+      assert.equal(rejected.sent.length, 0, "the actual bridge rejects 100001");
+    } else {
+      assert.deepEqual([side.raw.length, side.framed.sent.length, side.assistant.steps.length], [0, 0, 0]);
+      assert.equal(side.node("error").textContent, "pages.comments.saved-offer-too-long");
+      assert.equal(side.node("run").textContent, "");
+      assert.equal(side.threads[0]!.messages[0]!.body, '评论"\n原文');
+      assert.equal(side.pending()!.body, '评论"\n原文');
+      assert.equal(side.pending()!.request_id, request);
+      assert.equal(side.pending()!.message_id, side.threads[0]!.messages[0]!.message_id);
+      await side.send();
+      assert.equal(side.saves, 1, "even an unchanged oversize retry reuses the saved comment");
+      assert.equal(side.pending()!.request_id, request);
+      side.draft('缩短后的"\n文档草稿');await side.send();
+      assert.equal(side.saves, 1, "recover by shortening the document draft, without saving the comment again");
+      const offer = side.framed.sent[0]!;
+      assert.deepEqual(offer.thread, { thread_id: side.threads[0]!.thread_id, message_id: side.threads[0]!.messages[0]!.message_id, draft: { text: '缩短后的"\n文档草稿', revision: "7" } });
+      assert.deepEqual(offer.object, { kind: "pages_document", id: "doc-1", title: '周报"\n草稿' });
+      assert.equal(offer.text, '评论"\n原文');
+      assert.equal(offer.source!.plugin_id, PAGES);
+    }
+    assert.equal(side.pending(), undefined, "successful forwarding clears only the pending draft");
+    assert.equal(side.node("error").hidden, true);
+    assert.equal(side.node("run").textContent, "pages.comments.handed");
+    assert.deepEqual([side.assistant.steps.length, side.assistant.replied.length, side.assistant.taken.length], [1, 0, 0], "the real Assistant row still waits for a human press");
+    side.assistant.steps[0]!.click();assert.equal(side.assistant.replied.length, 1);
+  }
+});
+
+test("RAC-916-L2 RAC-916-L3: ordinary comments skip offer limits; a later oversize ask clears the old handed status", async () => {
+  const side = await commentSide();side.savedDocument();side.body("c".repeat(20000));side.draft('"\n'.repeat(50000));await side.send();
+  assert.deepEqual([side.saves, side.draftReads, side.raw.length], [1, 0, 0]);
+  assert.equal(side.node("run").textContent, "");
+  side.ai();side.body("请助理回复");await side.send();
+  assert.equal(side.node("run").textContent, "pages.comments.handed");
+  side.unsavedDocument();side.ai();side.body("c".repeat(19000));side.draft("x".repeat(85000));await side.send();
+  assert.equal(side.saves, 2, "the oversize subsequent ask was not saved");
+  assert.equal(side.node("run").textContent, "", "a previous success cannot label this failed attempt as handed");
+  assert.equal(side.node("error").hidden, false);
 });

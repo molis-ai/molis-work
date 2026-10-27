@@ -311,9 +311,16 @@ test('a quarantined installation is refused a version switch with a reason, befo
   const rig = await hostWithProject(home, fixture);
   try {
     const installed = await rig.control(), next = { ...fixture.release, version: 2 }; installed.releases.release(next);
+    const snapshot = () => ({ supervisor: installed.platform.supervisor.state(fixture.release.pluginId), installation: installed.platform.runtime.get(fixture.install.install_id) });
+    const before = structuredClone(snapshot()), calls = { upgrade: 0, rollback: 0 };
+    const upgrade = installed.platform.upgrade.bind(installed.platform), rollback = installed.platform.rollback.bind(installed.platform);
+    installed.platform.upgrade = (...args) => { calls.upgrade++; return upgrade(...args); };
+    installed.platform.rollback = (...args) => { calls.rollback++; return rollback(...args); };
     await assert.rejects(installed.lifecycle('upgrade', next), /隔离/);
+    assert.deepEqual(snapshot(), before, 'a refused upgrade leaves the restored declaration and the installation unchanged');
     await assert.rejects(installed.lifecycle('rollback', fixture.release), /隔离/);
-    assert.equal(installed.platform.supervisor.state(fixture.release.pluginId), null, 'no question about it was remembered');
+    assert.deepEqual(snapshot(), before, 'a refused rollback leaves the restored declaration and the installation unchanged');
+    assert.deepEqual(calls, { upgrade: 0, rollback: 0 }, 'neither refused version switch reaches the Supervisor');
     await installed.lifecycle('uninstall', fixture.release, { keepData: true });
     await installed.lifecycle('install', next, { consent: true });
     assert.deepEqual(installed.installations().map(({ state, version }) => ({ state, version })), [{ state: 'running', version: 2 }], 'uninstalling and installing again is the way out');
@@ -736,7 +743,7 @@ async function signedInstallFixture() {
     user_action: { source: 'management' as const, conversation_ref: 't2-first:install', message_ref: 't2-first:confirm' } };
   const confirm = async (bundle: PluginPackageBundle) => {
     const client = host.actionClient(reference);
-    const preview = await client.invoke(person, { capability_id: pluginInstallActions.preview.capability_id, version: 2 }, { bundle }) as { preview_id: string };
+    const preview = await client.invoke(person, { capability_id: pluginInstallActions.preview.capability_id, version: pluginInstallActions.preview.version }, { bundle }) as { preview_id: string };
     return client.invoke(person, { capability_id: pluginInstallActions.confirm.capability_id, version: 1 }, { preview_id: preview.preview_id, consent: true, pin_label: 'Test publisher' });
   };
   const control = () => host.withProject(reference, runtime => ensureInstalledPlugins({ store: runtime.store, projectId: DEMO_PROJECT_ID, homeDirectory: home,
@@ -800,7 +807,7 @@ test('RAC-392 S-87 an installation of a publisher taken back is stopped when the
   try {
     await h.confirm(bundle);
     const release = h.packages.load(PACKAGE_PLUGIN_ID, publisher.identity, '1.0.0');
-    new PluginInstallService({ ledger: h.ledger, packages: h.packages, install: async () => undefined, installed: async () => [], control: async () => 'disabled' }).revokePublisher(publisher.identity);
+    new PluginInstallService({ ledger: h.ledger, packages: h.packages, installInProject: async () => undefined, installInHome: async () => undefined, installed: async () => [], control: async () => 'disabled' }).revokePublisher(publisher.identity);
     const stopped = async () => {
       const installed = await h.control();
       assert.equal(installed.platform.runtime.list().find(row => row.plugin_id === PACKAGE_PLUGIN_ID)?.state, 'disabled', 'stopped, not left running');
@@ -821,7 +828,7 @@ test('RAC-392 S-87 a Host restarted right after a publisher was taken back, befo
     const running = await h.control();
     assert.equal(running.platform.runtime.list().find(row => row.plugin_id === PACKAGE_PLUGIN_ID)?.state, 'running', 'it was running when the publisher was taken back');
     const release = h.packages.load(PACKAGE_PLUGIN_ID, publisher.identity, '1.0.0');
-    new PluginInstallService({ ledger: h.ledger, packages: h.packages, install: async () => undefined, installed: async () => [], control: async () => 'disabled' }).revokePublisher(publisher.identity);
+    new PluginInstallService({ ledger: h.ledger, packages: h.packages, installInProject: async () => undefined, installInHome: async () => undefined, installed: async () => [], control: async () => 'disabled' }).revokePublisher(publisher.identity);
     // The restart is the first thing that looks: the installation's record still says it runs, and the package on disk still verifies against its pin.
     const restarted = await h.reopen();
     assert.notEqual(restarted.platform.runtime.list().find(row => row.plugin_id === PACKAGE_PLUGIN_ID)?.state, 'running', 'not started again');

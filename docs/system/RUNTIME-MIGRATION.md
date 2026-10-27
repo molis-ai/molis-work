@@ -26,7 +26,7 @@ Home 路径沿已有 Issue 的 `HomePluginHost` / `HomePluginExecutor`，不再�
 | 2026-10-08 | Characters 的代码身份（去处 2026-10-18 定为 `modules/characters`） | 用户没选推荐。Characters 不再是 Runtime 插件：代码并进宿主或一个 Module，界面仍是设置里的一节；安装记录与 Runtime 条目一起删（第 4 波切片） |
 | 2026-10-08 | 第三方插件的安装与信任 | 本地装、首次确认、沙箱里跑，只写计划（见 THIRD-PARTY-PLUGINS.md） |
 | 2026-10-10 | 迁到 Runtime 的内置插件，能力的来源编号（W3-06 C，弹窗） | 随宿主发布的插件（宿主启动名单标 `bundled`）用插件名，创作台、未签名开发插件与第三方用安装编号；已在 Runtime 上的 7 个插件的存量记录由维护七改写（4.2 提供方身份；开发机的真实 Home 10-11 核对时没有要改的） |
-| 2026-10-10 | 迁到 Runtime 的内置插件声明的权限怎么给（W3-06 B，弹窗；2026-10-18 用户改成与其他插件同一规则，Runtime 的规则已实现，开关界面是下一片） | 当时：内置插件安装与每次启动都拿到清单声明的全部权限，必需的和可选的一样，不能逐项关。现在：必需的总有，可选的全新安装时默认打开、可以关（设置里的开关是下一片），关掉的启动和跟随新构建都不打开（4.2 授权第 5 点，POLICY.md 7.8） |
+| 2026-10-10 | 迁到 Runtime 的内置插件声明的权限怎么给（W3-06 B，弹窗；2026-10-18 用户改成与其他插件同一规则，Runtime 的规则已实现，项目设置里的开关随 PG-002 落地，Home 级插件的开关页是 BL-700） | 当时：内置插件安装与每次启动都拿到清单声明的全部权限，必需的和可选的一样，不能逐项关。现在：必需的总有，可选的全新安装时默认打开、可以关（项目设置的插件页有开关，S-94），关掉的启动和跟随新构建都不打开（4.2 授权第 5 点，POLICY.md 7.8） |
 | 2026-10-18 | 插件同等待遇（弹窗） | 官方、个人、生成、第三方插件同一套合同、声明、Runtime 装配、平台服务、生命周期与授权规则；只有安装信任按来源（首次确认、沙箱、提供方身份）。只给内置的特权（`always_on`、内置之间的默认连线、Goals 信任内置调用者、native 动作算本机所有者权限、工作台手写名单）都改成按声明与授权，名单由 W5-02 生成 |
 | 2026-10-18 | 四个构建期例外（改 10-07，弹窗） | 取消。Goals 是普通插件，按本计划迁；插件创作台不算插件，并进平台能力；成果库与 Sessions 是平台事实；Sessions 这一轮清理、文档留记录，重做另开需求（BL-177） |
 | 2026-10-18 | 内置插件的授权（改 10-10 W3-06 B，弹窗） | 与其他插件同一规则：按清单的必需与可选给，可选的都能关；内置插件装上时可选项默认勾上 |
@@ -147,7 +147,7 @@ Workflows 已由 Plugin Runtime 装配（防腐 spec W5-01-WORKFLOWS）：宿主
 
 ### 4.3 浏览器代码（W4-04、W5-04）
 
-Form 同时是浏览器代码打包与类型检查的样板：客户端改成带类型检查的 TypeScript，用 esbuild 打成 IIFE，请求改到 `/api/plugins/io.molis.work.form/`。现在文档族客户端写的是 `/api/plugins/<短名>/…`，由 `native-plugin-api.ts` 改写成 `/api/<短名>/…`；Shelf、Jelly、Todo、Feed、Workflows、Schedule、Cognia、Inbox、Images、Alchemist 的客户端直接请求 `/api/<短名>/…`（`git grep -F "/api/<短名>" -- plugins apps/workbench/src` 分别 31、27、24、24、9、9、7、6、3、1 行）。迁一个，改一个。
+Form 同时是浏览器代码打包与类型检查的样板：客户端改成带类型检查的 TypeScript，用 esbuild 打成 IIFE，请求改到 `/api/plugins/io.molis.work.form/`。当时文档族客户端写的是 `/api/plugins/<短名>/…`，由 `native-plugin-api.ts` 改写成 `/api/<短名>/…`（该文件已于 2026-10-26 删除）；Shelf、Jelly、Todo、Feed、Workflows、Schedule、Cognia、Inbox、Images、Alchemist 的客户端直接请求 `/api/<短名>/…`（`git grep -F "/api/<短名>" -- plugins apps/workbench/src` 分别 31、27、24、24、9、9、7、6、3、1 行）。迁一个，改一个。
 
 ### 4.4 其他前置切片
 
@@ -239,7 +239,7 @@ CHR-1 之前的现状（留作记录）：包 `plugins/native/characters` 有 13
 8. 提供方身份与授权规则已定（用户 2026-10-10，4.2，W3-06 B、C）：条目标 `bundled: true`，动作登记在 `plugin_id` 之下，清单声明的每一项权限（必需的和可选的）在迁移后都授予；`kind` 按 4.2 授权第 3 点办。**迁移前先清点写死的 `provider_id`**：跑 4.2 提供方身份第 3 类后果里的清点命令，凡指向被迁插件的行（它自己的、别的插件钉着它的）都要在这个 PR 里有交代：提供方身份保持 `plugin_id`，这些行不变，PR 描述里写明；被别的插件钉着的动作，加用例证明迁移后仍然走通（例如迁 Pages 后 Inbox 的 `inbox.pages.generate` 仍可用，迁 Feed 后 Feed 的嵌套调用仍过得了入口的权限核对）。
 9. `methods`：插件有 `methods` 的，W4-02 之后加一个用例，停用后方法不再登记。
 10. **「项目已删」步骤**：2.2 的表里标「有」的插件，按 4.2 末项定下的送达方式保持这一步可用，并加用例：删除一个有该插件数据的项目后，这个项目的数据没了、别的项目的还在；插件被停用时也成立；这一步失败后重试成功。
-11. 跑受影响用例；浏览器里走一遍主路径；W6-02 之后再加生命周期用例（升级、停用、卸载）。
+11. 跑受影响用例；浏览器里走一遍主路径；在 `tests/shipped-plugin-lifecycle.test.ts`（W6-02）里给这个插件加一项生命周期用例：写进去的东西经过移出项目再加回、撤掉必需权限再给回、从旧版本的安装记录升级，都还在；卸载后没有路由、没有动作。现有 Todo、Jelly（Home 监督器）、Pages、灵光（项目监督器）；Goals 随 S9 迁到 Runtime 后再加（BL-756）。
 12. 一个 PR 只迁一个插件或一族，串行合入：它们都改 `project-host.ts`、`web-request.ts`、`web-catalog.ts`、`builtin-plugins.ts`（W5-02 PR-1a 之后目录条目在各包里，`builtin-plugins.ts` 是生成的，冲突时重新生成）。
 
 ## 7. 数据与真实 Home
@@ -256,7 +256,7 @@ CHR-1 之前的现状（留作记录）：包 `plugins/native/characters` 有 13
 
 - `tests/builtin-plugin-assembly-gate.test.ts` 已经有三条：每个目录条目要么在 `RUNTIME_ASSEMBLED`，要么在冻结名单；Runtime 条目确实被监督器启动；不再出现名单外的 `*-native-plugin-http.ts`。W1-05 要加：名单与磁盘完全一致（删了文件的条目必须移出）、冻结以插件命名的 `*-actions.ts` 和 `registerProvider` 行数、识别混合插件、按插件统计包外点名次数只许减少。
 - 每个迁移 PR 在同一个 PR 里缩短名单。两种名单的防回头机制不同：`pnpm health:check` 把当前数字和合并基点比对，改不了；而这个测试里的名单是写死在测试文件里的集合，由迁移 PR 直接编辑，缩短靠评审和 W1-05 加的「与磁盘完全一致」那一条，不靠比对基点。
-- 迁完之后（W6-01）：删 `native-plugin-api.ts` 的别名和 `/api/<短名>` 路由；把 AGENTS.md 那条硬约束改写成「新的内置插件 = 自己的包 + 声明」；冻结名单为空，或只留第 3 节的四个例外。
+- 迁完之后（W6-01）：删 `native-plugin-api.ts` 的别名（2026-10-26 已删，RAC-1020）和 `/api/<短名>` 路由（余下的等 Feed/Inbox、Goals、成果库，见 `specs/repository-anti-corruption/slices/w6-01-aliases.md`）；把 AGENTS.md 那条硬约束改写成「新的内置插件 = 自己的包 + 声明」；冻结名单为空，或只留第 3 节的四个例外。
 
 ## 9. 怎样量进展
 

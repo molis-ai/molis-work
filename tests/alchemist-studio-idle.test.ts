@@ -7,6 +7,7 @@ import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-c
 import { alchemistActions as a, ALCHEMIST_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-alchemist";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { controlledAlchemistAi } from "./fixtures/alchemist-actions.js";
+import { initializeBoard } from "./fixtures/goals-board.js";
 
 // W4-09-04 (roadmap §4.11): an open studio drains its jobs four times a second; one nobody uses and with nothing to do is
 // closed, and the next action opens it again. A job waiting or running, or an action still in flight, keeps it open.
@@ -36,7 +37,7 @@ test("W4-09-04: an idle studio is closed and opened again by the next action; a 
   const host = new MolisWorkLocalHost({ homeDirectory: home, alchemist: { ai: () => ai, pulseSourceMode: "fixture", idleReclaimMs: IDLE_MS } });
   t.after(async () => { held?.resolve(); await host.close(); await rm(home, { recursive: true, force: true }); });
   const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "project-a" });
-  await host.withProject(ref, r => r.coordinator.initializeBoard({ project_id: ref.project_id, actor_id: "setup", idempotency_key: "init" }));
+  await initializeBoard(host, ref, { actor_id: "setup", idempotency_key: "init" });
   const caller: ActionCallContext = { actor_id: "owner", project_id: ref.project_id, audience: "user", permissions: ALCHEMIST_ACTION_PERMISSIONS };
   const bound = bindActionClient(host.actionClient(ref), () => caller);
 
@@ -94,7 +95,7 @@ test("LOGIC-07 a request while an idle studio is closing does not open a second 
   } } });
   t.after(async () => { release?.(); await host.close(); await rm(home, { recursive: true, force: true }); });
   const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "project-a" });
-  await host.withProject(ref, r => r.coordinator.initializeBoard({ project_id: ref.project_id, actor_id: "setup", idempotency_key: "init" }));
+  await initializeBoard(host, ref, { actor_id: "setup", idempotency_key: "init" });
   const caller: ActionCallContext = { actor_id: "owner", project_id: ref.project_id, audience: "user", permissions: ALCHEMIST_ACTION_PERMISSIONS };
   const bound = bindActionClient(host.actionClient(ref), () => caller);
   const { direction } = await bound.invoke(a.directionCreate, { description: "关掉的过程中不能再开一个" });
@@ -125,7 +126,7 @@ test("W5-01-ALC-LIFE-07: idle close failure is observed and retains the only stu
   } });
   t.after(async () => { await host.close(); await rm(home, { recursive: true, force: true }); });
   const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "project-a" });
-  await host.withProject(ref, r => r.coordinator.initializeBoard({ project_id: ref.project_id, actor_id: "setup", idempotency_key: "init" }));
+  await initializeBoard(host, ref, { actor_id: "setup", idempotency_key: "init" });
   const caller: ActionCallContext = { actor_id: "owner", project_id: ref.project_id, audience: "user", permissions: ALCHEMIST_ACTION_PERMISSIONS };
   const bound = bindActionClient(host.actionClient(ref), () => caller);
   await bound.invoke(a.bootstrap, {});

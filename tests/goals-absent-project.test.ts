@@ -3,6 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { createHash, randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { resolveWebControlToken } from "@molis-ai/molis-work-app-local-host";
@@ -53,8 +54,18 @@ test("RAC-400 a project without Goals draws its page, its settings and its board
   assert.ok(linked.status < 500, `a Goal link in a project without Goals: ${linked.status}`);
 });
 
-test("RAC-400 the management entry answers a Goals tool for a project without Goals as a plugin that is off, and writes nothing", { timeout: 240_000 }, async t => {
+test("RAC-400 the management entry refuses an unregistered Goals tool as missing and creates no Goals facts", { timeout: 240_000 }, async t => {
   const env = await withoutGoals(t);
+  const goalFacts = () => {
+    const db = new DatabaseSync(env.project.database_path, { readOnly: true });
+    try {
+      const tables = new Set(db.prepare("SELECT name FROM sqlite_master WHERE type = 'table'").all().map(row => row.name));
+      return Object.fromEntries(["boards", "goals"].map(table => [table, tables.has(table) ? db.prepare(`SELECT * FROM ${table}`).all() : null]));
+    } finally { db.close(); }
+  };
+  const before = goalFacts();
+  assert.equal(before.boards?.length ?? 0, 0);
+  assert.equal(before.goals?.length ?? 0, 0);
   const post = async (capability: { capability_id: string; version: number }, input: unknown) => {
     const response = await fetch(env.origin + "/api/internal/management-action", { method: "POST", headers: { origin: env.origin, "content-type": "application/json",
       "x-molis-work-control-token": env.controlToken, "x-molis-work-idempotency-key": randomUUID() },
@@ -63,6 +74,7 @@ test("RAC-400 the management entry answers a Goals tool for a project without Go
     return { status: response.status, body: await response.json() as Record<string, unknown> };
   };
   const refused = await post({ capability_id: "goals.board.initialize", version: 2 }, { idempotency_key: randomUUID() });
-  assert.equal(refused.body.code, "actions.plugin_disabled", JSON.stringify(refused.body));
+  assert.equal(refused.body.code, "actions.missing", JSON.stringify(refused.body));
   assert.ok(refused.status >= 400 && refused.status < 500, `a refusal the caller can read, not a failure: ${refused.status}`);
+  assert.deepEqual(goalFacts(), before, "the refused initialize created no Goal table, board or Goal fact");
 });

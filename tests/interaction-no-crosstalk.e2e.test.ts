@@ -6,10 +6,11 @@ import { createHash } from "node:crypto";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
-import { GoalProjectApplication, withConnectorConnections, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
+import { withConnectorConnections, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { asideReply } from "./fixtures/ending-review.js";
+import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
 // specs/ai-interaction-experience AC-05: what a person writes into a question, and what they answer, stays with the session,
 // project and object it was asked in. Each test asserts the refusal: the other session, project or object never gets it.

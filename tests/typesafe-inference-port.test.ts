@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createTypeSafeProvider } from "@molis-ai/molis-work-module-functions";
-import type { FunctionRecord } from "@molis-ai/molis-work-contracts/modules/functions";
+import type { JudgmentRuleRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 const base = { function_key: "decision", model: "jev-latest", instructions: "Classify the supplied state" };
 
 test("TypeSafe native questions and outputs retain choice, score and probability semantics", async () => {
@@ -10,7 +10,7 @@ test("TypeSafe native questions and outputs retain choice, score and probability
     ["noul", { true_description: "true condition", false_description: "false condition" }, { true: "true condition", false: "false condition" }, { noul: 0.4 }],
     ["score", ["low", "high"], ["low", "high"], { score: 1, probabilities: { high: 0.9 }, confidence: 0.9 }],
   ] as const) {
-    const record = { ...base, primitive, criteria } as unknown as FunctionRecord;
+    const record = { ...base, primitive, criteria } as unknown as JudgmentRuleRecord;
     const provider = createTypeSafeProvider(async input => {
       assert.deepEqual(input, { model: "jev-latest", state: "untouched state", api_key: "fixture-key", signal: undefined,
         questions: { decision: { type: primitive, instructions: base.instructions, criteria: wireCriteria } } });
@@ -25,7 +25,7 @@ test("TypeSafe native questions and outputs retain choice, score and probability
 });
 
 test("TypeSafe cancellation prevents dispatch and rejects late responses", async () => {
-  const record = { ...base, primitive: "choice", criteria: [] } as unknown as FunctionRecord;
+  const record = { ...base, primitive: "choice", criteria: [] } as unknown as JudgmentRuleRecord;
   const controller = new AbortController(); controller.abort();
   await assert.rejects(createTypeSafeProvider(async () => assert.fail("must not execute")).evaluate("key", record, "state", controller.signal), { name: "AbortError" });
   const late = new AbortController();
@@ -34,7 +34,7 @@ test("TypeSafe cancellation prevents dispatch and rejects late responses", async
 });
 
 test("TypeSafe errors remain actionable without exposing credentials or raw provider content", async () => {
-  const record = { ...base, primitive: "choice", criteria: [] } as unknown as FunctionRecord;
+  const record = { ...base, primitive: "choice", criteria: [] } as unknown as JudgmentRuleRecord;
   for (const [error, code] of [
     [Object.assign(new Error("private fixture-key"), { status: 401 }), "functions.provider_unauthorized"],
     [new DOMException("private fixture-key", "TimeoutError"), "functions.provider_timeout"],

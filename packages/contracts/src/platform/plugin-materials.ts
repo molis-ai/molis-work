@@ -4,7 +4,14 @@ export type { MaterialSourceContent } from "../services/materials.js";
 
 /** Authority comes from the running action. Only a user call can approve a model download. */
 export type PluginMaterialRequest = MaterialExtractionOptions;
-export type PluginMaterialSourceRequest = Pick<MaterialExtractionOptions, "signal" | "allowModelDownload" | "onProgress">;
+export type PluginMaterialSourceRequest = Pick<MaterialExtractionOptions, "signal" | "allowModelDownload" | "onProgress"> & {
+  /**
+   * Exact lowercase host names the read may contact, from the first request through every redirect and every page, API or media file the
+   * source's reader follows to; a request to any other host is refused (`material.source.domain_not_allowed`) before it is looked up or sent.
+   * Without it, every public host may be read. At most 20 names.
+   */
+  readonly allowedDomains?: readonly string[];
+};
 export type PluginMaterialDocumentsRequest = MaterialDocumentOptions;
 /** A local page is read as text only: cancellation is the one thing a caller adds. */
 export type PluginLocalPageRequest = Pick<MaterialExtractionOptions, "signal">;

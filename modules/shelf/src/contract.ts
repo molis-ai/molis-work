@@ -142,6 +142,12 @@ export interface ShelfItemRecord {
   readonly material_coverage?: readonly string[];
   readonly item_id: string;
   readonly artifact_source?: ShelfArtifactSource;
+  /**
+   * Set on a snapshot, never stored: for a copy that came from a project (`artifact_source`), `true` when that project no longer exists and
+   * `false` when it does; absent when the plugin could not ask. The copy stays either way (BL-680, 用户 2026-10-26 弹窗决定); the page says
+   * where it came from is gone.
+   */
+  readonly origin_project_deleted?: boolean;
   readonly group: ShelfItemGroup;
   readonly kind: ShelfItemKind;
   readonly name: string;

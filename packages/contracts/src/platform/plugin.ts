@@ -26,6 +26,8 @@ export * from "./plugin-model.js";
 export type { PluginImageTarget, PluginImageConnectionState, PluginImageGenerationRequest, PluginImageGenerationClient, PluginImageGenerationDeclaration } from "./plugin-image-generation.js";
 export { PLUGIN_LOCAL_TOOLS_PERMISSION, PLUGIN_LOCAL_TOOLS_LIMITS } from "./plugin-local-tools.js";
 export type { PluginLocalToolsClient, PluginLocalToolsDeclaration } from "./plugin-local-tools.js";
+export { PLUGIN_PROJECTS_EXIST_PERMISSION, PLUGIN_PROJECTS_EXIST_LIMITS } from "./plugin-projects.js";
+export type { PluginProjectsClient } from "./plugin-projects.js";
 // The services, the Manifest and the route types are declared beside this file (W5-09); this subpath exports all of them.
 export type { PluginPrivateStorage, PluginUiClient, PluginActionDirectory, PluginActionClient, PluginHostServices, PluginTerminalClient } from "./plugin-host-services.js";
 import type { PluginPrivateStorage, PluginHostServices } from "./plugin-host-services.js";
@@ -150,7 +152,7 @@ export interface PluginStartContext {
 /** Restricted context for reading existing private data during upgrade preflight. */
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
   /** Preflight is deliberately read-only. Upgrade validation cannot mutate plugin data. */
-  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "project_statements" | "database_statements" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "localTools" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "notifications" | "attention" | "contextLedger" | "interaction"> & {
+  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "project_statements" | "database_statements" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "localTools" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "projects" | "notifications" | "attention" | "contextLedger" | "interaction"> & {
     readonly storage?: Pick<PluginPrivateStorage, "get">;
   };
 };
@@ -234,6 +236,13 @@ export interface PluginRuntimeApi {
   /** Generated plugins only: restore earlier code while retaining current private data. */
   rollback(input: { install_id: string; definition: PluginDefinition }): Promise<PluginLifecycleReceipt>;
   grant(installId: string, permissions: string[]): PluginLifecycleReceipt;
+  /**
+   * The person's switch for one optional permission of an installation: stop (if running), change the grants, start again, as one step.
+   * Taking a permission away takes effect at once: the running activation's authority is withdrawn before anything else and the new
+   * grants are saved even if the restart then fails. A permission the Manifest does not declare, or a required one switched off, is
+   * `plugin.grant_denied`.
+   */
+  regrant(installId: string, permission: string, granted: boolean): Promise<PluginLifecycleReceipt>;
   start(installId: string): Promise<PluginLifecycleReceipt>;
   /** Stop a running Plugin without uninstalling it. Restart goes back through `start`. */
   stop(installId: string, options?: { preserve_enabled?: boolean }): Promise<PluginLifecycleReceipt>;

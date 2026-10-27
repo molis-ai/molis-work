@@ -26,7 +26,7 @@ Sessions 插件已下线（SC-4，`specs/repository-anti-corruption/slices/sc-4-
 - `createRuntimeContextModule`：在同一数据库连接里装配绑定、创建并绑定、拒绝建议与清理服务；Repository 不对包外导出。
 - `context-bindings.ts`：Runtime context binding 的身份、控制历史、mapping 和 Repository。
 - `context-binding-references.ts`：当前工作入口到 Project 的 Ledger 适配；通过注入的 Projects Query 校验 Project，不跨 owner 查询表。
-- `project-binding-commands.ts`、`project-binding-validation.ts`、`project-resolution.ts`、`project-setup.ts`、`project-suggestions.ts`：绑定命令、校验、解析、创建与建议。
+- `project-binding-commands.ts`、`runtime-binding-records.ts`、`project-binding-validation.ts`、`project-resolution.ts`、`project-setup.ts`、`project-suggestions.ts`：绑定命令、校验、解析、创建与建议。
 
 Project Catalog 编排选择 Project，不直接保存 Runtime binding SQL；Host MCP 与 Project 通过公开 Contracts 接入。
 

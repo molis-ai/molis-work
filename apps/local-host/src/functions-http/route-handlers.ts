@@ -14,8 +14,6 @@ export function createFunctionsRouteHandlers(
     "functions.create": call(functionAuthoringActions.create, ({ request }) => request.body),
     "functions.catalog": call(functionContextActions.catalog, () => ({})),
     "functions.published": call(functionsActions.list, () => ({})),
-    "functions.describe": call(functionsActions.describe, ({ params }) => ({ function_key: params.function_key })),
-    "functions.invoke": call(functionsActions.invoke, ({ params, request }) => ({ ...request.body, function_key: params.function_key })),
     "functions.get": call(functionAuthoringActions.get, ({ params }) => ({ id: params.id })),
     "functions.update": call(functionAuthoringActions.update, ({ params, request }) => {
       const { updated_at, ...patch } = request.body;

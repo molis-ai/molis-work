@@ -16,7 +16,7 @@ export class GoalTreeMaterializationApplication {
 
   preflight(projectId: string, items: GoalTreeProposalItemRecord[], actorId: string, at: string): Map<string, Record<string, unknown>> {
     const conflicts = new Map<string, Record<string, unknown>>();
-    const groups = goalTreeMaterializationGroups(projectId, items);
+    const groups = goalTreeMaterializationGroups(items);
     return this.ports.transactions.previewMaterialization(() => {
       for (const group of groups) {
         for (const item of group) {

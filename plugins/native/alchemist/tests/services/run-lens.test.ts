@@ -37,11 +37,11 @@ describe("Lens worker", () => {
     acceptTestJob(fixture.worker, run.jobId);
     await fixture.worker.runNext();
 
-    expect(fixture.research.getRun(run.id)).toMatchObject({
+    expect(fixture.research.runs.getRun(run.id)).toMatchObject({
       status: "completed",
       stage: "synthesizing",
     });
-    expect(fixture.research.getLatestReport(marketLensCompatibilityKey("idea-01", 1))).toMatchObject({
+    expect(fixture.research.reports.getLatestReport(marketLensCompatibilityKey("idea-01", 1))).toMatchObject({
       status: "completed",
       runtimeLabel: "演示运行时",
       judgments: [
@@ -79,13 +79,13 @@ describe("Lens worker", () => {
     expect(fixture.runtime.collect).toHaveBeenCalledTimes(1);
     expect(fixture.runtime.crossCheck).not.toHaveBeenCalled();
     expect(fixture.runtime.synthesize).not.toHaveBeenCalled();
-    const report = fixture.research.getLatestReport(marketLensCompatibilityKey("idea-01", 1));
+    const report = fixture.research.reports.getLatestReport(marketLensCompatibilityKey("idea-01", 1));
     expect(report).toMatchObject({
       status: "partial",
       summary: expect.stringContaining("严格调用上限为 1"),
     });
     expect(report?.judgments.every((claim) => claim.status === "unknown")).toBe(true);
-    expect(fixture.research.getRun(run.id)?.status).toBe("partial");
+    expect(fixture.research.runs.getRun(run.id)?.status).toBe("partial");
   });
 
   it("uses exactly two calls when the ceiling is two", async () => {
@@ -98,7 +98,7 @@ describe("Lens worker", () => {
     expect(fixture.runtime.collect).toHaveBeenCalledTimes(1);
     expect(fixture.runtime.crossCheck).toHaveBeenCalledTimes(1);
     expect(fixture.runtime.synthesize).not.toHaveBeenCalled();
-    expect(fixture.research.getLatestReport(marketLensCompatibilityKey("idea-01", 1))).toMatchObject({
+    expect(fixture.research.reports.getLatestReport(marketLensCompatibilityKey("idea-01", 1))).toMatchObject({
       status: "partial",
       summary: expect.stringContaining("严格调用上限为 2"),
     });
@@ -115,7 +115,7 @@ function setup(budgetLimit = 8) {
   const idFactory = { next: (prefix: string) => `${prefix}-lens-${++sequence}` };
   const clock = { now: () => now };
   const research = new SqliteResearchRepository(database);
-  research.createPlan({
+  research.plans.createPlan({
     id: "plan-market",
     key: marketLensCompatibilityKey("idea-01", 1),
     scopeSummary: "验证需求与竞争",

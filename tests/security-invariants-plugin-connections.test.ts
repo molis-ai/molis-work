@@ -93,6 +93,19 @@ test("S-57 a request is refused outside the instance's own concurrent action dec
   release.resolve(); await assert.rejects(late!, code("actions.expired"));
 });
 
+test("S-57 RAC-656 a plugin writes no credential header of its own, in any header a service takes one in and in any case", async t => {
+  const one = connectionsProbe("connectionsheaders");
+  const { host } = await serveHomeRuntime(t, { pluginFixtures: { home: [one.definition] } });
+  await grantConnections(host, one);
+  const client = host.homeActionClient(), caller = person(one.permissions);
+  // The Host writes the person's credential where the service's registry entry says (S-69): Authorization (Bearer, Bot, Basic or
+  // bare), PRIVATE-TOKEN, X-Figma-Token. A plugin writing any of them, beside or instead of it, is refused before anything is sent.
+  for (const name of ["Authorization", "authorization", "Proxy-Authorization", "Cookie", "PRIVATE-TOKEN", "private-token", "Private-Token", "X-Figma-Token", "x-figma-token"]) {
+    one.behavior.send = async context => context.services!.connections!.request("github", { url: "https://api.github.com/user", headers: { [name]: "plugin-written" } });
+    await assert.rejects(client.invoke(caller, one.send, {}), (error: unknown) => code("plugin.connections_request_invalid")(error) && String((error as Error).message).includes(name), name);
+  }
+});
+
 test("S-57 only the person binds a slot; a bound account that is no longer usable is refused rather than sent without it", async t => {
   const probe = connectionsProbe("connectionsbound");
   const { host, home } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });

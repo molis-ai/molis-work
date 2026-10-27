@@ -43,7 +43,7 @@ export function storageTransactions(storage: PluginPrivateStorage): NonNullable<
 
 type HostServices = NonNullable<PluginStartContext['services']>;
 /** What the Host built for the activation that the sandbox can be given. */
-export type SandboxHostServices = Pick<HostServices, 'storage' | 'project_statements' | 'database_statements' | 'interaction' | 'connections' | 'materials' | 'ownerFiles' | 'model' | 'background'>;
+export type SandboxHostServices = Pick<HostServices, 'storage' | 'project_statements' | 'database_statements' | 'projects' | 'interaction' | 'connections' | 'materials' | 'ownerFiles' | 'model' | 'background'>;
 /** Services the caller builds itself (the platform capabilities the person approved, the network adapter): the broker still checks each call against the grants. */
 export type SandboxHostExtras = Pick<SandboxServices, 'capability' | 'network'> & {
   /** The instructions the package registered (`PluginDefinition.instructions`): the only prompts a model request may name (V-20). */
@@ -70,8 +70,9 @@ export function sandboxServicesFor(host: SandboxHostServices | undefined, extras
     ...(host.interaction ? { interaction: host.interaction } : {}),
     // Requests through the person's bound account: the Host's client, which checks the slot, the grant and the call's action itself.
     ...(host.connections ? { connections: host.connections } : {}),
-    // The readers the Host built for the activation from its Manifest's `materials:*` permissions; the broker has methods for the reads of bytes only.
+    // The readers the Host built for the activation from its Manifest's `materials:*` permissions; the broker has methods for bytes, public pages (held to approved domains) and the person's own machine and saved originals.
     ...(host.materials ? { materials: host.materials } : {}),
+    ...(host.projects ? { projects: host.projects } : {}),
     // The plugin's own declared files: the Host's client reduced to the four members the channel can carry (no location, no writer callback).
     ...(host.ownerFiles ? { ownerFiles: sandboxOwnerFiles(host.ownerFiles) } : {}),
     // The Host's text model for the package, which names the instructions it registered and never carries a prompt of its own (S-66).
@@ -98,7 +99,7 @@ export const SANDBOX_SERVICE_FATE: { readonly [Service in keyof PluginHostServic
   project_database: 'replaced', ui: 'drawn',
   database: 'entry', files: 'entry', terminal: 'entry', imageGeneration: 'entry',
   model: 'given', background: 'given', agents: 'refused', scheduler: 'refused', directory: 'refused',
-  notifications: 'refused', localTools: 'refused', attention: 'refused', contextLedger: 'refused', installations: 'refused', actions: 'refused', scenes: 'refused', judgments: 'refused', artifacts: 'refused', processItems: 'refused', events: 'refused', inputs: 'refused', outputs: 'refused',
+  notifications: 'refused', localTools: 'refused', attention: 'refused', contextLedger: 'refused', installations: 'refused', projects: 'given', actions: 'refused', scenes: 'refused', judgments: 'refused', artifacts: 'refused', processItems: 'refused', events: 'refused', inputs: 'refused', outputs: 'refused',
 });
 
 export interface NotGiven {
@@ -131,8 +132,6 @@ function asksFor(definition: SandboxDeclarations, held: readonly string[], permi
 export const SANDBOX_NOT_GIVEN: readonly NotGiven[] = [
   { service: 'model_configuration', services: [], reason: 'Model settings (model_configuration in the Manifest) are not given to sandboxed plugins yet (PG-017 BL-490/491).',
     declared: definition => definition.manifest.model_configuration !== undefined },
-  { service: 'materials', services: [], reason: 'Reading a page from the network (materials:fetch) is not given to sandboxed plugins yet (PG-017 BL-492).',
-    declared: (definition, held) => asksFor(definition, held, ['materials:fetch']) },
   { service: 'background', services: [], reason: 'Background jobs kept for as long as the plugin runs (background.jobs in the Manifest) are not given to sandboxed plugins until the definition can bind them to operations of the package (PG-017 BL-377); a run a command starts (background_job on an action) is.',
     declared: definition => !!definition.manifest.background?.jobs.length },
   { service: 'agent', services: [], reason: 'Roles, prompts, skills and methods that reach other Agents are not given to sandboxed plugins until a package install can show the person what it adds (PG-017 BL-493, PG-001).',

@@ -333,6 +333,11 @@ export interface ActionProvider {
    * under its installation id, so `provider_id` alone does not say which installation a registration belongs to.
    */
   readonly plugin_install_id?: string;
+  /**
+   * Set only by the Host's own registration of a platform provider that has a plugin's shell still: the plugin whose `ui.translations`
+   * hold the English of this provider's action text. A provider with a `plugin_id` already says so; a plugin never sets this.
+   */
+  readonly words_of?: string;
 }
 
 export type ActionAvailability = { readonly available: true } | {

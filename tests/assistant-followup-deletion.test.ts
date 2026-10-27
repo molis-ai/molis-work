@@ -53,7 +53,7 @@ for (const stage of ["state", "materials", "runtime", "enqueue"] as const) {
       authority: async work => ({ ...assistantAuthority(local, work, () => new Set()), ...(stage === "runtime" ? { beforeStart: barrier } : {}) }),
       projectTitle: async () => { if (stage === "materials") await barrier(); return "Project"; }, timeZone: "UTC" }, "web-user");
     t.after(async () => { release.resolve(); service.continuations.close(); await adapter.close(); await local.close(); db.close(); await rm(directory, { recursive: true, force: true }); });
-    await service.attachSchedule();
+    await service.notices.attachSchedule();
     const sent = await service.send({ text: "Begin this work", request_id: "followup-start-0001" }, { project_ref: project });
     await until(async () => (await service.read(sent.work.work_id)).work.state === "completed");
     assert.equal(requests, 1);
@@ -136,10 +136,10 @@ for (const stage of ["session.read", "run.start"] as const) {
       authority: async work => assistantAuthority(local, work, () => new Set()), personActions: async () => bindActionClient(client,
         () => ({ actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: [] })) }, "web-user");
     t.after(async () => { release.resolve(); service.continuations.close(); await adapter.close(); await local.close(); db.close(); executor.close(); await rm(directory, { recursive: true, force: true }); });
-    await service.attachSchedule();
+    await service.notices.attachSchedule();
     const sent = await service.send({ text: "Start as Assistant", request_id: "executor-followup-0001" }, { project_ref: project });
     await until(async () => (await service.read(sent.work.work_id)).work.state === "completed");
-    await service.handover(sent.work.work_id, { to: { kind: "plugin", plugin_id: PLUGIN } });
+    await service.dispatcher.handover(sent.work.work_id, { to: { kind: "plugin", plugin_id: PLUGIN } });
     assert.ok(store.get("web-user", sent.work.work_id).session_id, "the original Assistant session survives the handover");
     const standing = await service.followUps.save({ work_id: sent.work.work_id, text: "Timed executor round", at: new Date(Date.now() + 1200).toISOString(),
       repeat: "daily", label: "Executor daily", time_zone: "UTC" });

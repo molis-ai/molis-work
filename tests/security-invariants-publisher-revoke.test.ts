@@ -37,7 +37,7 @@ test("RAC-392 S-87 a ledger takes a publisher back once: the first time stays, t
 test("RAC-392 S-87 only the person at the Host's settings entry takes a publisher back; an Agent, MCP, a workflow, a plugin and a user call without that entry are refused, and nothing is written", async () => {
   const ledger = new MemoryPluginConsentLedger();
   ledger.pinPublisher(pin());
-  const service = new PluginInstallService({ ledger, packages: new SandboxPackageStore("/nonexistent"), now: () => LATER, install: async () => undefined, installed: async () => [], control: async () => "disabled" });
+  const service = new PluginInstallService({ ledger, packages: new SandboxPackageStore("/nonexistent"), now: () => LATER, installInProject: async () => undefined, installInHome: async () => undefined, installed: async () => [], control: async () => "disabled" });
   const actions = new ActionService();
   actions.registerProvider(pluginInstallProvider(service));
   const caller = (extra: Partial<ActionCallContext> = {}): ActionCallContext => ({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: null, permissions: PLUGIN_INSTALL_PERMISSIONS, ...extra });

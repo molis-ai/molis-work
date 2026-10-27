@@ -71,3 +71,17 @@ test("RAC-159 the Pages page's client is typed browser code bundled by esbuild, 
   }
   assert.doesNotMatch(PAGES_CLIENT_FACTORY_SCRIPT, /molisWorkControlHeaders|io\.molis\.work\./u, "requests go through molisWorkRequest and the plugin id comes from the host");
 });
+
+test("RAC-916-L4 the comment side client only needs its plugin route and ships both oversize outcomes", () => {
+  const ports = readFileSync(join(SRC, "comment-browser-types.ts"), "utf8").split("export interface CommentDraft")[0]!;
+  assert.doesNotMatch(ports, /\broute\(/u, "the unused platform route is no longer a comment-side port");
+  const mount = readFileSync(join(BROWSER, "client.ts"), "utf8").match(/Editor\.mountComments\(\{[^}]+\}\)/u)?.[0];
+  assert.ok(mount);
+  assert.doesNotMatch(mount, /\broute:/u);
+  assert.match(mount, /pluginRoute:/u);
+  const commentsBundle = readFileSync(new URL(import.meta.resolve("@molis-ai/molis-work-plugin-pages/editor")), "utf8");
+  for (const key of ["pages.comments.draft-too-long", "pages.comments.saved-offer-too-long"]) {
+    assert.ok(commentsBundle.includes(key), `the shipped editor/comments bundle carries ${key}`);
+    assert.ok(PAGES_MESSAGES[key as keyof typeof PAGES_MESSAGES].zh && PAGES_MESSAGES[key as keyof typeof PAGES_MESSAGES].en);
+  }
+});

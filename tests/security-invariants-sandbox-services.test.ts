@@ -40,8 +40,6 @@ test("S-60 RAC-238 a sandboxed plugin asking for a service the sandbox is not gi
   const asks: Array<[string, SandboxDeclarations, readonly string[]]> = [
     ["model_configuration", declaring({}, { model_configuration: MODEL_CONFIGURATION }, [permission("model:invoke", false)]), []],
     ["model_configuration", declaring({}, { model_configuration: MODEL_CONFIGURATION }, [permission("model:invoke", true)]), ["model:invoke"]],
-    ["materials", declaring({}, {}, [permission("materials:fetch", true)]), []],
-    ["materials", declaring({}, {}, [permission("materials:fetch", false)]), ["materials:fetch"]],
     ["background", declaring({}, { background: { jobs: [{ job_id: "probe" } as never] } }), []],
     ["agent", declaring({ agent_prompts: [{ prompt_id: "probe", version: 1, body: "probe", layer: "role" }] }), []],
     ["agent", declaring({ methods: [{ method_id: "probe", version: 1 } as never] }), []],
@@ -77,8 +75,8 @@ test("S-60 RAC-238 an optional permission the person did not approve is not an a
   // The model and the package's own instructions are given (PG-017 P1, tests/security-invariants-sandbox-model.test.ts): declaring them is not refused.
   assert.doesNotThrow(() => assertSandboxDeclarations(declaring({ instructions: [{ prompt_id: "probe", version: 1, owner_id: PLUGIN_ID, title: "probe", body: "probe", layer: "task" } as never] },
     {}, [permission("model:invoke", true), permission("model:read", true)]), ["model:invoke", "model:read"]));
-  // Reads of bytes are given (PG-017 P2, tests/security-invariants-sandbox-materials.test.ts): materials:read is not refused.
-  assert.doesNotThrow(() => assertSandboxDeclarations(declaring({}, {}, [permission("materials:read", true)]), ["materials:read"]));
+  // Reads of bytes and of public pages are given (PG-017 P2, tests/security-invariants-sandbox-materials.test.ts): materials:read and materials:fetch are not refused.
+  assert.doesNotThrow(() => assertSandboxDeclarations(declaring({}, {}, [permission("materials:read", true), permission("materials:fetch", true)]), ["materials:read", "materials:fetch"]));
   // Connections are given (PG-017 P2, tests/security-invariants-sandbox-connections.test.ts): declaring a slot is not refused.
   assert.doesNotThrow(() => assertSandboxDeclarations(declaring({}, { connections: { slots: [{ slot_id: "github", service_id: "github", reason: "probe" }] } }, [permission("connections:use", true)]), ["connections:use"]));
   // A run a command starts is given (PG-017 P3, tests/security-invariants-sandbox-background.test.ts): `background_job` on an action is not refused; the kept jobs of the Manifest still are.

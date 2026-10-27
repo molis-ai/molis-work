@@ -14,7 +14,7 @@ import { createFunctionsService } from '@molis-ai/molis-work-module-functions';
 import { createFunctionsRouteHandlers } from '../apps/local-host/src/functions-http/route-handlers.ts';
 import { FunctionsHttpRouteTable } from '../apps/local-host/src/functions-http/routes.ts';
 import { actionErrorResponse } from '@molis-ai/molis-work-plugin-sdk';
-import { liveHostFunctionAuthoringCatalog } from '../apps/local-host/src/behavior-catalog.ts';
+import { liveHostJudgmentRuleAuthoringCatalog } from '../apps/local-host/src/recommendation-catalog.ts';
 import { renderMolisWorkWorkbenchStylesheet } from '../tests/workbench-renderer-fixture.ts';
 import { renderIconSprite } from '@molis-ai/molis-work-design-system';
 const home = await mkdtemp(join(tmpdir(), 'functions-ux-'));
@@ -30,7 +30,7 @@ registry.registerProvider(functionsActionProvider({ read: run => run(service), r
 const actions = bindActionClient(registry, () => ({ actor_id: "fixture", project_id: null, audience: "user", permissions: ["functions:manage", "functions:invoke"] }));
 registry.registerProvider({ provider: { provider_id: "fixture.context", title: "Isolated preview", kind: "system" },
   definitions: [functionContextActions.catalog, functionContextActions.targets, functionContextActions.usages], handlers: [
-    { ...functionContextActions.catalog, handle: async caller => ({ catalog: liveHostFunctionAuthoringCatalog(await registry.discover(caller)) }) },
+    { ...functionContextActions.catalog, handle: async caller => ({ catalog: liveHostJudgmentRuleAuthoringCatalog(await registry.discover(caller)) }) },
     { ...functionContextActions.targets, handle: () => ({ targets: [] }) },
     { ...functionContextActions.usages, handle: () => ({ usages: [] }) },
   ],
@@ -42,7 +42,7 @@ const server = createServer(async (req, res) => {
   if (url.pathname.startsWith('/api/')) {
     let raw = ''; for await (const part of req) raw += part;
     try {
-      const result = await routes.handle({ method: req.method as 'GET' | 'POST', pathname: url.pathname.replace('/api/plugins/functions', '/api/functions'), query: url.searchParams, body: raw ? JSON.parse(raw) : {} });
+      const result = await routes.handle({ method: req.method as 'GET' | 'POST', pathname: url.pathname, query: url.searchParams, body: raw ? JSON.parse(raw) : {} });
       res.writeHead(result?.status ?? 404, { 'content-type':'application/json' }); res.end(JSON.stringify(result?.body ?? {}));
     } catch (error) { const result = actionErrorResponse(error); res.writeHead(result.status, { 'content-type':'application/json' }); res.end(JSON.stringify(result.body)); }
     return;

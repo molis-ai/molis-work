@@ -31,12 +31,16 @@ export interface PluginHostExecutorOptions {
    * Manifest that declares a library for one of those is refused (`homeLibraryFor`). Needs `home`.
    */
   databaseFor?(definition: PluginDefinition): PluginDatabaseDeclaration | undefined;
+  /** The Host's checked start list identifies a dual project half; absent Home services are not redeemed for that half. */
+  dualInstance?(definition: PluginDefinition): boolean;
   /**
    * The project's library, where a plugin whose Manifest declares `databases.project` gets its own tables
    * (`services.project_database`); absent or `null`: none, and such a plugin does not start.
    */
   projectLibrary?: import("./plugin-project-library.js").ProjectLibrary | null;
   installations?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginInstallationClient;
+  /** Stands in for the Home's project catalog behind `services.projects` (S-96); absent: the catalog of `home` is read. */
+  projects?: import("@molis-ai/molis-work-plugin-runtime").PluginProjectsPort;
   scheduler?: import("@molis-ai/molis-work-service-scheduler").ScheduleService;
   /**
    * The provider id a Plugin's actions are registered under, when the Host names one (a plugin that ships with the Host: its

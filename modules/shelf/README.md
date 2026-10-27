@@ -34,7 +34,7 @@ Host 把用户 Home 下的 `shelf/`（声明的条目是 `catalog.json`、`files
 
 PDF/OCR 使用同一端口的 `extract`，原生可用性由 `imageTextAvailable` 被动提供。`admitFile` 异步准备 PDF 预览、复查执行权后入库；底层 `admit` 保存已授权的副本和已准备预览（异步，一次文件客户端写入），供示例及 Coding 文字成果使用。无提取端口的纯 Module 不自行解析 PDF 或启动进程。文件上限保持 32 MiB；OCR 语言选择、逐行“待确认”和提取不完整说明由本模块组织。
 
-Host 明确接收固定成果时，可随 `admit` 提供 `artifact_source`；该来源保存在原 Shelf 目录记录中。相同项目、成果及版本再次接收返回已有副本，保留用户编辑；隐藏副本恢复显示，内容指纹冲突或副本文件缺失明确报错，不覆盖已有内容。来源本身不授予执行或项目写入权限。
+Host 明确接收固定成果时，可随 `admit` 提供 `artifact_source`；该来源保存在原 Shelf 目录记录中。相同项目、成果及版本再次接收返回已有副本，保留用户编辑；隐藏副本恢复显示，内容指纹冲突或副本文件缺失明确报错，不覆盖已有内容。来源本身不授予执行或项目写入权限。项目被删除后，来自它的副本留在架子里（用户 2026-10-26 弹窗决定，BL-680；删项目的路径不动，Shelf 不是它的一步）：读快照时由 Shelf 插件问平台服务 `services.projects.exist`，给每个带来源的副本补 `origin_project_deleted`（只在快照上，不入库；问不到就不标），页面把原成果链接换成“项目已删除”。
 
 工作区依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（只用它的执行生命周期）。
 

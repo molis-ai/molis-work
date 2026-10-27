@@ -16,12 +16,12 @@ S8 把 Goals 的 31 张表交给它自己的 Manifest 声明，项目库的身�
 | `demo-plugin-seed.ts` | 先问「演示项目的看板在不在」 | 问根行在不在 |
 | `tests/goals-host-no-direct-reads.test.ts` | `managed-project-database.ts`、`demo-plugin-seed.ts` 在冻结清单里 | 两个文件从清单删；开发门的原因改指 S9 |
 
-不改：没有根行的库（管理入口对一个新数据库路径调 `goals.board.initialize`）仍由这个动作一并建根行和看板，打开它不会建看板，所以 `molis_work_v1_initialize` 第一次仍是 `replayed: false`、`board.created` 的行为人仍是本人；开发门（`local-plugin-development.ts`）显式建根行和看板，和管理入口同类，S9 改调动作；样例项目（`demo-seed.ts`）由 S9 与样例种子一起改。已有项目（已有看板）打开后没有任何变化。
+历史边界（S8b 时）：没有根行的新库曾由 `goals.board.initialize` 一并建根行和看板。S11 后，现行管理入口先由平台 `ensureStandaloneProjectRoot` 建根行，再调用 Goals 初始化动作；Goals 不写平台根行。已有根行的项目由 Goals Runtime 后台开板，真实 Goals 动作会等待其准备完成，不能把 `withProject` 返回当作开板已完成。没有根行的新库只打开仍不建看板；`molis_work_v1_initialize` 第一次仍是 `replayed: false`，当前 `io.molis.work.goals:board.created` 的行为人仍是本人。开发门与样例项目走 S11 现行平台建根及 Goals 动作/种子入口；已有看板的项目再开不重复写。
 
 ## 3. 验收
 
 - **RAC-261**：用目录建的新项目，库里恰好一行根记录、没有看板、没有 `board.created`；`validateManagedProject` 认它，认不出别的项目号，没有根行的库不认。（`tests/goals-s8b-library-identity.test.ts`）
-- **RAC-262**：打开项目建出看板一次，行为人是本人；再开不再写；用建项目的那个键调 `goals.board.initialize` 得到 `replayed: true`；没有根行的新库打开后不建看板，第一次调动作得到 `replayed: false`。（同上）
+- **RAC-262**：打开已有根行的项目后，等真实 Goals 读取动作完成再观察，看板只建一次、行为人是本人；再开不再写；用建项目的那个键调 `goals.board.initialize` 得到 `replayed: true`。没有根行的新库只打开不建根行或看板；第一次通过现行 CLI 管理初始化（平台建根、Goals 建看板）得到 `replayed: false`。（同上）
 - **RAC-263**：Goals 的库被拒（账本行换了版本）时，库的检查仍通过，打开项目不建看板、不改库里的任何行。（同上；`tests/goals-project-database-refusal.test.ts` 整体仍过）
 - **RAC-264**：`apps/` 里没有 `validateManagedBoard`、`readManagedBoard`；两个文件不在冻结清单里。（同上；`tests/goals-host-no-direct-reads.test.ts`）
 

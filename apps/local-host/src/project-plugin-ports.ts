@@ -9,8 +9,9 @@ import type { InstalledPluginEntry } from "./plugin-installed-view.js";
 import type { InstalledRelease } from "./installed-release.js";
 import type { LocalHost } from "./local-host.js";
 import type { MolisWorkLocalHostOptions, MolisWorkProjectRuntime } from "./project-host.js";
-import { ensureProjectPlugins } from "./project-plugins.js";
+import { ensureProjectPlugins, runningProjectPlatform } from "./project-plugins.js";
 import { hostDependencyCheck } from "./plugin-actions-client.js";
+import type { HomePluginHost } from "./home-plugins.js";
 
 /**
  * What the project's plugin ports are read from. `agents` is read when a call needs it, not when the Host is built: the
@@ -20,6 +21,8 @@ export interface ProjectPluginHost {
   readonly host: LocalHost<MolisWorkProjectRuntime>;
   readonly options: MolisWorkLocalHostOptions;
   agents(): AgentHostComposition | undefined;
+  /** The Home's plugin host, which runs a package that asks for the Home (BL-628); none when the Host has no Home. */
+  homePlugins(): HomePluginHost | undefined;
 }
 
 /** The plugins installed in this project (generated, installed from the market): their actions join the project's directory. */
@@ -67,16 +70,70 @@ export async function controlPackageInProject(source: ProjectPluginHost, project
   });
 }
 
+/** Installs a release read from a signed package in the Home: the Home's plugin host runs it, in the sandbox, for every project. */
+export async function installPackageInHome(source: ProjectPluginHost, release: InstalledRelease): Promise<void> {
+  const home = source.homePlugins();
+  if (!home) throw new ActionError("actions.scope_mismatch", "这个 Host 没有 Home，不能把插件装进 Home");
+  await home.installPackage(release);
+}
+
 /** The plugins installed in a project, each with the Manifest it was installed with; the project's built-in plugins are started first so they are listed too. */
 export async function installedPluginsInProject(source: ProjectPluginHost, projectId: string): Promise<InstalledPluginEntry[]> {
   const reference = source.host.projects().find(row => row.project_id === projectId);
   if (!reference) throw new ActionError("actions.scope_mismatch", "需要一个打开的项目");
   await ensureProjectPluginActions(source, reference);
-  return await source.host.withRuntime(reference, async runtime => {
+  const entries = await source.host.withRuntime(reference, async runtime => {
     // A publisher the person took back since this project last looked: its installations are stopped before they are listed.
     if (source.options.homeDirectory) await (await installedPluginsOf(source, reference, runtime)).reconcilePublishers();
     return installedPluginEntries(runtime.store.db);
   });
+  // The Home's own packages of that publisher stop the same way.
+  await source.homePlugins()?.reconcilePublishers();
+  return entries;
+}
+
+/**
+ * Switches one optional permission through the platform that owns this project's installation: its built-in plugins or its installed
+ * packages. Only that Runtime stops the activation, saves its grants and starts it again.
+ */
+export async function regrantPluginInProject(source: ProjectPluginHost, projectId: string, installId: string, permission: string, granted: boolean): Promise<void> {
+  const reference = source.host.projects().find(row => row.project_id === projectId);
+  if (!reference) throw new ActionError("actions.scope_mismatch", "需要一个打开的项目");
+  await ensureProjectPluginActions(source, reference);
+  await source.host.withRuntime(reference, async runtime => {
+    const platform = await runningProjectPlatform(runtime.store, runtime.project_id);
+    const record = platform?.runtime.list().find(row => row.install_id === installId);
+    if (platform && record && platform.supervisor.state(record.plugin_id)?.install_id === installId) {
+      await platform.runtime.regrant(installId, permission, granted);
+      return;
+    }
+    if (source.options.homeDirectory) {
+      const installed = await installedPluginsOf(source, reference, runtime);
+      const owned = installed.records().find(row => row.install_id === installId);
+      if (owned && installed.releaseFor(owned.plugin_id)) {
+        await installed.platform.runtime.regrant(installId, permission, granted);
+        return;
+      }
+    }
+    throw pluginErrors.grant_denied("这个插件没有可以开关的可选权限");
+  });
+}
+
+/** The plugins that run as the Home's own instance, each with the Manifest the Home runs it by (BL-700). */
+export async function installedHomePlugins(homePlugins: HomePluginHost | undefined): Promise<InstalledPluginEntry[]> {
+  if (!homePlugins) return [];
+  await homePlugins.ready();
+  return homePlugins.installations().filter(record => record.state !== "uninstalled").map(record => ({ record, manifest: homePlugins.manifest(record.plugin_id) }));
+}
+
+/** Switches one optional permission of a Home instance: the Home platform's supervisor runs it, so the Home platform stops it and starts it again. */
+export async function regrantHomePlugin(homePlugins: HomePluginHost | undefined, installId: string, permission: string, granted: boolean): Promise<void> {
+  const platform = await homePlugins?.ready();
+  const record = platform?.runtime.list().find(row => row.install_id === installId && row.state !== "uninstalled");
+  if (!platform || !record || !homePlugins?.manifest(record.plugin_id)) {
+    throw pluginErrors.grant_denied("这个插件没有可以开关的可选权限");
+  }
+  await platform.runtime.regrant(installId, permission, granted);
 }
 
 /** The project's built-in Runtime plugins (Coding, Files, Git, ...): started once per project, their actions registered. */

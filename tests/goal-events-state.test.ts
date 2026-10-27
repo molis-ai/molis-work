@@ -4,13 +4,14 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { GoalProjectApplication, LocalHost, LocalProjectDatabase, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
-import { goalsRoutes, hostEventDecisionAuthority, GOALS_ACTIONS, GOALS_PLUGIN_ID, goalsActions, createGoalsActionHandlers } from "@molis-ai/molis-work-plugin-goals";
+import { LocalHost, LocalProjectDatabase, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { goalsRoutes, hostEventDecisionAuthority, GOALS_ACTION_PERMISSIONS, GOALS_ACTIONS, GOALS_PLUGIN_ID, goalsActions, createGoalsActionHandlers } from "@molis-ai/molis-work-plugin-goals";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
-import { bindGoalsManagementActions, bindGoalsWebActions, readProjectGuidance } from "../apps/local-host/dist/goals-actions.js";
-import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
+import { bindGoalsManagementActions, entryUserAction, readProjectGuidance } from "@molis-ai/molis-work-app-local-host";
+import { LOCAL_PERSON_ACTOR_ID, bindActionClient, type ActionCallContext, type ActionClient, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { GoalEventTypeDefinitionInput, SetGoalEventAgreementInput } from "@molis-ai/molis-work-contracts/modules/goals";
+import { GoalProjectApplication, boardSnapshot, goalsQueryOf } from "./fixtures/goal-application.js";
 
 const BOARD = "board-state";
 
@@ -637,19 +638,19 @@ test("protected Web user entry records a decision; Host-injected identity is req
     const actions = new ActionService();
     actions.registerProvider({ provider: { provider_id: "goals", title: "Goals", kind: "plugin", project_id: BOARD },
       definitions: GOALS_ACTIONS, handlers: createGoalsActionHandlers({ events: data.app.goalEvents, acknowledgements: data.app.goalAcknowledgements, projectId: BOARD,
-        board: { immediate: operation => data.store.immediate(operation), query: data.store.goalsQuery,
+        board: { immediate: operation => data.store.immediate(operation), query: goalsQueryOf(data.store),
         initializeBoard: input => data.app.initializeBoard(input), commands: data.app.goals.commands,
         adoptOwner: input => data.app.goalEvents.adoptOwner(input) },
-      collection: { snapshot: projectId => data.store.snapshot(projectId), events: projectId => data.store.readEventsDescending(projectId),
+      collection: { snapshot: projectId => boardSnapshot(data.store, projectId), events: projectId => data.store.readEventsDescending(projectId),
         goals: data.app.goalQueries, inputs: data.app.goalInputs, eventWork: data.app.goalEvents },
       readGoal: goalId => data.app.goalQueries.getGoal(BOARD, goalId),
         readContract: goalId => data.app.goalQueries.readGoalContract(BOARD, goalId),
       deliverables: { readArtifact: reference => openProjectVersionStores(data.store).artifacts.query.getArtifactVersion(BOARD, reference), ledger: createContextLedger(data.store.db, { authorize: () => true }) },
       history: {
-        snapshot: () => data.store.snapshot(BOARD), journalEvents: () => data.store.readEventsDescending(BOARD),
+        snapshot: () => boardSnapshot(data.store, BOARD), journalEvents: () => data.store.readEventsDescending(BOARD),
       }, planning: { planning: data.app.goals.planning, baseMethods: () => [] }, guidance: { commands: data.app.goals.commands, read: projectId => data.app.goalQueries.readProjectGuidance(projectId) },
       lifecycle: { lifecycle: data.app.goals.lifecycle, setActiveGoal: (...args) => data.app.setActiveGoal(...args), eventCursor: () => data.store.eventCursor(BOARD) },
-      configuration: { commands: data.app.goals.commands, query: data.store.goalsQuery, eventCursor: () => data.store.eventCursor(BOARD) },
+      configuration: { commands: data.app.goals.commands, query: goalsQueryOf(data.store), eventCursor: () => data.store.eventCursor(BOARD) },
       tree: { submitGoalTreeProposal: input => data.app.goalTreeSubmission.submitGoalTreeProposal(input),
         listGoalTreeProposals: input => data.app.goalTree.listGoalTreeProposals(input),
         checkGoalTreeProposal: input => data.app.goalTreeCheck.checkGoalTreeProposal(input),
@@ -661,7 +662,9 @@ test("protected Web user entry records a decision; Host-injected identity is req
     configure(data.app, goalId, "cfg-web", { new_requirements: [{ requirement_id: "web-ok", statement: "用户确认" }] });
     // PG094-09: the page's decision is the declared route `goals.event-decision`, called the way the Host mounts it.
     const route = goalsRoutes({
-      actions: () => bindGoalsWebActions(actions, { project_id: BOARD, storage_key: "fixture" }),
+      // No Host here: the entry is the page's own, as the Host binds it (the person, and where the act came from, never from the input).
+      actions: () => bindActionClient(actions, () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user", project_id: BOARD,
+        permissions: [...GOALS_ACTION_PERMISSIONS], user_action: entryUserAction("web", BOARD, { id: "web-http-1" }) })),
       routePrefix: () => "",
       idempotencyKey: () => undefined,
       changed: () => undefined,
@@ -3081,7 +3084,7 @@ test("the management caller factory acts as the person on this machine, builds t
 
   seen.length = 0;
   await management.invoke(goalsActions.decide, { ...decision, idempotency_key: "event-2" });
-  assert.deepEqual(seen[0]!.caller.user_action, { source: "management", conversation_ref: `management:${BOARD}`, message_ref: "management-event-decision:event-2" }, "no evidence: the decision points at the management entry itself");
+  assert.deepEqual(seen[0]!.caller.user_action, { source: "management", conversation_ref: `management:${BOARD}`, message_ref: "management:event-2" }, "no evidence: the decision points at the management entry itself");
 
   seen.length = 0;
   await management.invoke(goalsActions.snapshot, {});
@@ -3165,19 +3168,19 @@ test("R-GOALS-OWNER-02: create-intent rejects unpermitted fields before facts or
   const data = fixture();
   try {
     const input = { project_id: BOARD, title: "合法意图", actor_id: "runtime-1", actor_kind: "runtime" as const, idempotency_key: "intent-owner-rejection" };
-    const before = data.store.snapshot(BOARD), events = data.store.readEventsDescending(BOARD);
+    const before = boardSnapshot(data.store, BOARD), events = data.store.readEventsDescending(BOARD);
     const unpermitted = { ...input, injected_identity: "another-person" };
     assert.throws(() => data.app.goalEvents.createIntent(unpermitted),
       { code: "goals.intent.unexpected_field", kind: "invalid", message: "不能使用未许可字段：injected_identity", details: { fields: ["injected_identity"] } });
-    assert.deepEqual(data.store.snapshot(BOARD), before);
+    assert.deepEqual(boardSnapshot(data.store, BOARD), before);
     assert.deepEqual(data.store.readEventsDescending(BOARD), events);
     const created = data.app.goalEvents.createIntent(input);
     assert.equal(created.replayed, false);
-    const after = data.store.snapshot(BOARD), afterEvents = data.store.readEventsDescending(BOARD);
+    const after = boardSnapshot(data.store, BOARD), afterEvents = data.store.readEventsDescending(BOARD);
     const replay = data.app.goalEvents.createIntent(input);
     assert.equal(replay.replayed, true);
     assert.equal(replay.goal.goal_id, created.goal.goal_id);
-    assert.deepEqual(data.store.snapshot(BOARD), after);
+    assert.deepEqual(boardSnapshot(data.store, BOARD), after);
     assert.deepEqual(data.store.readEventsDescending(BOARD), afterEvents);
   } finally { close(data); }
 });

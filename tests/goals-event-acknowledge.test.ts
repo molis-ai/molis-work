@@ -14,6 +14,7 @@ import type { GoalWorkEventRecord } from "@molis-ai/molis-work-contracts/modules
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { managementCaller, managementGoals, mcpRuntimeCaller } from "./goal-management-caller.js";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
+import { serveTestHost } from "./fixtures/test-home.js";
 
 /**
  * `goals.events.acknowledge` is how an external AI session says it read a note, a requirement or the person's decision on a Goal and how
@@ -90,16 +91,18 @@ async function mcpRig(runtimeId: string, stable: string | null) {
   const directory = await mkdtemp(join(tmpdir(), "goals-ack-mcp-"));
   const homeDirectory = join(directory, "home");
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
-  const host = createMolisWorkLocalHost();
+  const host = createMolisWorkLocalHost({ homeDirectory });
   const project = await catalog.createProject({ display_name: "Ack MCP", actor_id: "user" });
-  await grantGoalsMcp(homeDirectory, project, `runtime:${runtimeId}`);
+  // The rig's Host is the Home's: the grants go through the access settings it serves.
+  const served = await serveTestHost(null, { home: homeDirectory, host });
+  await grantGoalsMcp({ web: served.web }, project, `runtime:${runtimeId}`);
   const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-  const actions = host.actionClient(ref, false), project_id = project.project_id, person = managementGoals(actions, project_id);
+  const actions = host.actionClient(ref), project_id = project.project_id, person = managementGoals(actions, project_id);
   const mcp = new MolisWorkServer("runtime", { databasePath: project.database_path, projectId: project_id, webBaseUrl: "http://127.0.0.1:4173" },
     { homeDirectory, runtimeContext: { runtime_id: runtimeId, stable_work_context_id: stable, host_declares_stable: stable !== null } }, host);
   const call = async (id: string, input: object) => JSON.parse(await mcp.callTool(TOOL(id), input));
   return { mcp, call, host, actions, person, project_id,
-    close: async () => { await mcp.close(); await host.close(); catalog.close(); await rm(directory, { recursive: true, force: true }); } };
+    close: async () => { await mcp.close(); await served.close(); await host.close(); catalog.close(); await rm(directory, { recursive: true, force: true }); } };
 }
 
 test("RCPT-376: a stable-session MCP caller says how it will treat the person's note: one system record under the session, the note it answers, replayed by key", { timeout: 120_000 }, async () => {

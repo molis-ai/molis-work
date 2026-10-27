@@ -1,3 +1,4 @@
+import { isLoopbackHostname } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { INTEGRATION_KINDS } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 
 // The shape of a Manifest's `connection_services` and `integrations` (PG-046): the services a plugin works with, the cards shown for
@@ -11,7 +12,7 @@ const GROUPS = new Set(["mail", "files", "chat", "code", "work", "design", "crm"
 const AUTH_KINDS = new Set(["github", "gmail", "notion", "feishu", "token", "none"]);
 const METHOD_KINDS = new Set(["oauth", "cli", "token", "mcp"]);
 const FULFILLMENTS = new Set(["live", "unfulfilled"]);
-const SERVICE_FIELDS = new Set(["service_id", "title", "group_id", "summary", "auth_kind", "auth", "auth_help", "capabilities", "outbound_note", "setup_links"]);
+const SERVICE_FIELDS = new Set(["service_id", "title", "group_id", "summary", "auth_kind", "auth", "auth_help", "capabilities", "outbound_note", "setup_links", "origins"]);
 const INTEGRATION_FIELDS = new Set(["integration_id", "kind", "service_id", "document_source", "connection_methods"]);
 const TOKEN_FIELDS = new Set(["kind", "label", "placeholder"]);
 
@@ -54,6 +55,32 @@ function serviceProblems(value: unknown, seen: Set<string>): string[] {
   problems.push(...capabilityProblems(id, value.capabilities));
   if (value.outbound_note !== undefined && !text(value.outbound_note)) problems.push(`连接服务 ${id} 的 outbound_note 必须是非空文字`);
   if (value.setup_links !== undefined) problems.push(...linkProblems(id, value.setup_links));
+  if (value.origins !== undefined) problems.push(...originProblems(id, value.origins));
+  return problems;
+}
+
+/** At most this many origins for one service. */
+const MAX_ORIGINS = 8;
+const IP_LITERAL = /^(?:\d+\.){3}\d+$|^\[/u;
+const LOCAL_SUFFIX = /\.(?:localhost|local|internal|home\.arpa)$/u;
+/** A DNS name of letters, digits and hyphens: no wildcard, no underscore. */
+const HOST_NAME = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/u;
+
+/**
+ * A service's own origins (S-95): each exactly `https://host[:port]`, written as the URL parser writes it back, with a public-looking
+ * name: no address literal, no loopback, no single-label or local name. The Host still refuses a private address after it resolves one.
+ */
+function originProblems(id: string, value: unknown): string[] {
+  if (!Array.isArray(value) || value.length === 0 || value.length > MAX_ORIGINS) return [`连接服务 ${id} 的 origins 必须是 1 到 ${MAX_ORIGINS} 个来源`];
+  const problems: string[] = [];
+  for (const origin of value) {
+    let url: URL | undefined;
+    try { url = typeof origin === "string" ? new URL(origin) : undefined; } catch { url = undefined; }
+    const host = url?.hostname ?? "";
+    if (!url || url.protocol !== "https:" || url.origin !== origin) problems.push(`连接服务 ${id} 的来源 ${String(origin)} 必须正好是 https://主机[:端口]`);
+    else if (IP_LITERAL.test(host) || isLoopbackHostname(host) || !HOST_NAME.test(host) || LOCAL_SUFFIX.test(host)) problems.push(`连接服务 ${id} 的来源 ${origin} 必须是公开的域名，不能是地址、本机或局域网名字`);
+  }
+  if (new Set(value).size !== value.length) problems.push(`连接服务 ${id} 的 origins 有重复`);
   return problems;
 }
 

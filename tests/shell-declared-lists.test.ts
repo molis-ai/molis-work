@@ -64,7 +64,7 @@ const runtime = (id: string, off: readonly string[] = []): AgentRuntimeDescripto
   capabilities: Object.fromEntries(AGENT_RUNTIME_CAPABILITIES.map(name => [name, off.includes(name) ? "unsupported" : "supported"])) as AgentRuntimeDescriptor["capabilities"] });
 
 test("RAC-697 the Host has one route for a plugin's settings page: no plugin is a branch of it, and it imports neither plugin for it", () => {
-  const text = hostSource("web-catalog.ts");
+  const text = ["web-catalog.ts", "web-catalog-routes.ts", "web-catalog-settings.ts"].map(hostSource).join("\n");
   assert.doesNotMatch(text, /plugin-shelf|plugin-coding|SHELF_|CODING_|codingAgentManifest|shelfActions/u);
   assert.match(text, /pluginSettingsDataAction\(pluginSettings\.contribution_id\)/u);
   const view = (id: string) => BUILTIN_PLUGIN_CATALOG.find(entry => entry.project_plugin_id === id)?.manifest.ui?.views?.find(item => item.slot === "settings");

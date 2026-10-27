@@ -7,6 +7,7 @@ import { filesActions } from "@molis-ai/molis-work-plugin-files";
 import * as goals from "@molis-ai/molis-work-plugin-goals";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { initializeBoard } from "./fixtures/goals-board.js";
 
 // The classes Goals composes for itself: how a goal tree's proposals are read, checked, decided and turned into Goal facts.
 const INNER_CLASSES = ["GoalEventApplication", "GoalReadApplication", "GoalDecisionAttentionSync", "GoalTreeQueryApplication",
@@ -25,12 +26,12 @@ test("PG094-07 a project's runtime and its plugin platform write through one pai
   const workspace = { workspace_id: "fixture", canonical_path: await realpath(home), display_name: "Fixture", realpath_verified: true };
   // The runtime's pair keeps the Host's clock; a second pair inside the platform would stamp the machine's time instead.
   const fixed = new Date("2031-02-03T04:05:06.000Z");
-  const host = new MolisWorkLocalHost({ completeText: null, clock: () => fixed, workspacesFor: async () => [workspace] });
+  const host = new MolisWorkLocalHost({ homeDirectory: join(home, "molis-home"), completeText: null, clock: () => fixed, workspacesFor: async () => [workspace] });
   const reference = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "project" });
   const caller: ActionCallContext = { actor_id: "web-user", project_id: "project", audience: "user", permissions: ["artifact:read", "artifact:write", "storage:private", "workspace:read"] };
   const bound = bindActionClient(host.actionClient(reference), () => caller);
   try {
-    await host.withProject(reference, runtime => runtime.coordinator.initializeBoard({ project_id: "project", actor_id: caller.actor_id, idempotency_key: "init" }));
+    await initializeBoard(host, reference, { actor_id: caller.actor_id, idempotency_key: "init" });
     const opened = await bound.invoke(filesActions.open, { workspace_id: "fixture", path: ["note.txt"] });
     if (opened.result.outcome !== "text") throw new Error("expected text");
     // Files is a plugin on the project's platform; what it captures is a process item the platform writes.

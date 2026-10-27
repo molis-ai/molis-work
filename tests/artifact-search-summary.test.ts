@@ -5,10 +5,9 @@ import Database from "better-sqlite3";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ArtifactVersionRecord, ArtifactsApplicationApi, ArtifactsQueryApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { ArtifactsModule, createArtifactsSchema } from "@molis-ai/molis-work-module-artifacts";
+import { ArtifactsModule, createArtifactsSchema, ARTIFACTS_PROVIDER_ID, ARTIFACTS_PROVIDER_TITLE, ARTIFACT_ACTIONS } from "@molis-ai/molis-work-module-artifacts";
 import { createContextLedger, createContextLedgerSchema } from "@molis-ai/molis-work-module-context-ledger";
 import { artifactsActions, createArtifactActionHandlers } from "@molis-ai/molis-work-module-artifacts";
-import { artifactsManifest } from "@molis-ai/molis-work-plugin-artifacts";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 
 // The summary a version offers the system search is what the person reads under the hit: its title and body text,
@@ -33,8 +32,8 @@ function fixture() {
     listArtifacts: (project: string) => artifacts.query.listArtifacts(project).map(record => rewrite ? rewrite(record) : record) });
   const port: ArtifactsApplicationApi = { query, commands: artifacts.commands };
   actions.registerProvider({
-    provider: { provider_id: artifactsManifest.plugin_id, plugin_id: artifactsManifest.plugin_id, title: artifactsManifest.name, kind: "plugin", project_id: projectId },
-    definitions: artifactsManifest.actions!,
+    provider: { provider_id: ARTIFACTS_PROVIDER_ID, plugin_id: ARTIFACTS_PROVIDER_ID, title: ARTIFACTS_PROVIDER_TITLE, kind: "plugin", project_id: projectId },
+    definitions: ARTIFACT_ACTIONS,
     handlers: createArtifactActionHandlers({ projectId, artifacts: port, ledger: ledger.query, importSources: () => ({}),
       importDocument: async () => { throw new Error("read-only fixture"); }, openProjectReference: async () => { throw new Error("must not fetch a file"); } }),
   });

@@ -133,7 +133,7 @@ Manifest 里有三类声明会改变「这个插件在别处的效果」，装�
 - **命令行**：`molis-work plugin install <包> <项目> [--pin-as 名称] [--confirm]` 经常驻 Host 的 `/api/internal/plugin-install` 做同样两个动作，来源 `management`；没有常驻 Host 就停下。
 - **CLI 与 Agent 的核对边界**（T2-FIX-04）：`plugin-install-client.ts` 经 `resident-host-request.ts` 从 Home 令牌文件取控制令牌；`plugin-install-gateway.ts` 在本机变更门之后由 Host 固定 management 身份（S-03、S-06、S-07），三个安装动作的受众限制与可信上下文由 S-17 管。Coding 的 `plugins/native/coding/src/start-round.ts` 调 AgentHost 的 `startRun`；助理的 `apps/local-host/src/assistant/assistant-http.ts` 将同一 Host Agent 服务交给线程。`agent-host-composition.ts` 装配 Prologue Node 适配器，`horizontal/agent-host/src/adapters/prologue-node-port.ts` 选择 workspace-write/untrusted 或 read-only/on-request 执行规则，`prologue-node.ts` 交给 SDK 的 `createNodeHost`。这只核实已有装配/审查配置；本题未执行模型/命令来证明 Coding、助理或用户自选运行时的 OS 文件隔离，也未审尽 SDK 命令驱动，S-06 的 0600 本身不证明同 OS 用户的 Agent 被隔离。此处是未验证边界，不是已证实的绕过。**必要后续裁定**：信任设计须明确“能读 Home 令牌的本机进程”能否作为安装确认，以及 Agent 命令访问该令牌时所需的文件隔离或独立确认；新增授权机制另行裁定，本轮不实现或声称已解决（作者现行 S-81 ③ 相应限定）。
 - **FIRST-3 做完**：生成插件的停用、卸载在撤授权和删密钥之前先过 `leaveRefusal`；生成插件的平台现在接了 Home 账本（`PluginPlatformOptions.consents`）。
-- **没做**：C1 的另一个方向（BL-588）、沙箱包的作者工具与创作台出签名包（BL-589）、升级与换发布者密钥（BL-586，沙箱包就地升级现在是先卸载再装）、界面（T7，已做）。发布者撤销（BL-559）随 T5b 做完，见 §7.5。动作的登记按统筹 10-25 裁定走 `project-host.ts` 里平台提供方的一个列表（只收 `system`、不属于任何插件的提供方），`plugins.install.*`、`plugins.publishers.list` 与同意动作都在里面。
+- **没做**：沙箱包的作者工具与创作台出签名包（BL-589）、升级与换发布者密钥（BL-586，沙箱包就地升级现在是先卸载再装）、界面（T7，已做）。发布者撤销（BL-559）随 T5b 做完，见 §7.5。动作的登记按统筹 10-25 裁定走 `project-host.ts` 里平台提供方的一个列表（只收 `system`、不属于任何插件的提供方），`plugins.install.*`、`plugins.publishers.list` 与同意动作都在里面。
 
 #### T2 FIRST 收尾 WO（2026-10-25，FIX1）
 
@@ -200,7 +200,7 @@ S-81 适配证据：060 证明提交为 `a21f2f0d593fee2a972d094467058177e32a227
 | 链接与标签页 | 做完。`openPlugin`、`openItem`、`goal` 的链接只打开本项目提供的插件（菜单或条里有它的）；存过 Goals 标签的布局在没有 Goals 的项目里重新开始，不恢复丢掉的标签。`frame-container`、`editing-graph`、`global-search`、`placement`、`project-home` 里的 `"goals"` 特判没有逐个加守卫：它们的入口只在有 Goal 时才出现，深链与旧布局两条进路已拦。 |
 | 项目设置 | 做完。「项目说明」是 Goals 的页，没有 Goals 的项目导航与目录不列它，手输地址回到「常规」。设置页先看同一份 Catalog 成员名单；真缺席时不调 Goals 的规划、说明与策略读取，保留设置外壳；仍是成员则实际读取，拒绝保留原 code、错误说明与 call_id。 |
 | 工作台外壳与插件列表 | 做完。插件列表的锁与卡片读 Host 给目录的 `always_on`（来自账本，页面带 Host 目录时，`marksFromHost`），不读 Manifest：撤回之后 Goals 是可以再添加的一项，加回后照常打开，并且可以再移除；没有 Host 的页面仍按 Manifest。 |
-| MCP 与命令行的 goal 工具 | 做完。管理入口（常驻宿主）对没有 Goals 的项目答 `actions.plugin_disabled`，不写任何东西（`tests/goals-absent-project.test.ts` 的管理入口用例）；Runtime 的动作工具来自动作目录，按可用性隐藏。管理工具表是平台的固定表，不随项目变，所以「工具列表不列」只对 Runtime 成立。 |
+| MCP 与命令行的 goal 工具 | 做完。PG-094 切到 Runtime 后，没有 Goals 的项目未注册其动作，管理入口（常驻宿主）精确答 `actions.missing`，不创建 Goals 的表、看板或事实（`tests/goals-absent-project.test.ts` 的管理入口用例）；仍是成员时的真实读取拒绝保持原样，不能当作缺席。Runtime 的动作工具来自动作目录，按可用性隐藏。管理工具表是平台的固定表，不随项目变，所以「工具列表不列」只对 Runtime 成立。 |
 | `goal-advance` Skill | 做完。步骤 2 加一句：项目可能没有 Goals，Goal 工具不在或答 `actions.plugin_disabled` 时照实说，继续用项目有的别的插件，不重新绑定。 |
 | Feed 与成果库 | 做完。Feed 阅读页的「升格为 Goal」见 T3；成果库详情的「作为 Goal 的输入」没有 Goals 时不画；已有挂着 Goal 的记录原样保留（`artifacts.links` 读成果库自己的记录）。 |
 | 新建项目与引导 | T3 已做（建项目只写 `initial()`）；引导步骤里没有对 Goal 的假定，本片核过。 |
@@ -345,7 +345,7 @@ SDK（`packages/plugin-sdk`）的公开 API 不变：Manifest 字段没有增减
 
 **T1 落地时的两处口径（2026-10-24）：**
 
-- C1「非 `host` 等级只在沙箱」在 T1 只强制一个方向：`host` 配沙箱定义被拒（`plugin.grant_denied`）。另一个方向（非 `host` 等级不得在宿主进程里跑）留给 T2：开发目录和宿主的测试夹具今天仍在宿主进程里跑，T1 给它们 `unsigned`，不改它们的执行方式。Feed 的官方集成随宿主构建一起发布、由宿主构建目录登记，T1 给 `host`；以后若独立发布，再按它自己的签名定等级。RAC-383 里「映射不了沙箱形态的 Manifest 安装时拒绝」的那一半随 T2。
+- C1「非 `host` 等级只在沙箱」在 T1 只强制一个方向：`host` 配沙箱定义被拒（`plugin.grant_denied`）。另一个方向（非 `host` 等级不得在宿主进程里跑）已由 BL-588 做完（`specs/repository-anti-corruption/slices/bl588-non-host-trust-in-host-process.md`，S-75 ⑥，`plugin.in_process_denied`）：开发目录刚加载的那一个定义对象和宿主的测试夹具是仅有的两个例外，由宿主代码按对象身份放行。Feed 的官方集成随宿主构建一起发布、由宿主构建目录登记，T1 给 `host`；以后若独立发布，再按它自己的签名定等级。RAC-383 里「映射不了沙箱形态的 Manifest 安装时拒绝」的那一半随 T2 做完（S-84 的 `readSandboxPackage`：清单必须等于沙箱插件的唯一形状，否则 `plugin.declaration_invalid`），BL-588 又把各种超出沙箱形态的声明（integration、常开、本机工具、事件、端口、多出的权限）逐个钉进了那条测试。现行签名沙箱包支持 `runtime: { scope: "home" }`（RAC-961 正例）；未知 runtime scope 是非法 Manifest，在签名前以 `plugin.manifest_invalid` 拒绝、无写入（RAC-383），不把它伪装成已经签名的预览负例。
 - 已装插件不能换信任等级（`plugin.definition_conflict`）；卸载后重装可以。存量记录按 `execution` 补等级的维护见 §6 与检查清单第 4 节。
 
 ### 7.1 #1250 本轮首评修复（2026-10-24，修复已实现）

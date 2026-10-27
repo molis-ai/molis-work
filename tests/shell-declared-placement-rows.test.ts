@@ -5,7 +5,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { DEMO_PROJECT_ID, GoalProjectApplication, LocalProjectDatabase, runWithLocale, seedDemoBoard, PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, runWithLocale, seedDemoBoard, PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
+import { GoalProjectApplication } from "./fixtures/goal-application.js";
 import { BUILTIN_PLUGIN_CATALOG, CLIENT_SCRIPT } from "@molis-ai/molis-work-app-workbench";
 import { buildMolisWorkWebView } from "./fixtures/web-view.js";
 import { renderMolisWorkWeb, type MolisWorkWebView } from "./workbench-renderer-fixture.js";
@@ -23,7 +24,14 @@ function withView<T>(run: (view: MolisWorkWebView, goalId: string) => T): T {
   seedDemoBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath);
   try {
-    const view = buildMolisWorkWebView(store, new GoalProjectApplication(store), { databasePath, projectId: DEMO_PROJECT_ID, demo: true });
+    const application = new GoalProjectApplication(store);
+    application.projectOpened(DEMO_PROJECT_ID);
+    // These render-only cases change UI declarations; their sample is written through the real Goals modules, without publishing that test Manifest.
+    application.goals.commands.createGoal(DEMO_PROJECT_ID, {
+      goal_id: "placement-goal", title: "Placement", outcome: "", why: "", business_logic: "",
+      definition_state: "draft", decomposition_state: "abstract", acceptance_criteria: [],
+    }, { actor_id: "test-user", idempotency_key: "placement-goal" });
+    const view = buildMolisWorkWebView(store, application, { databasePath, projectId: DEMO_PROJECT_ID, demo: true });
     return run(view, view.goals[0]!.goal.goal_id);
   } finally { store.close(); rmSync(directory, { recursive: true, force: true }); }
 }

@@ -201,7 +201,7 @@ for (const change of ["close", "latest-input"] as const) test(`ASC-18 ASC-34: a 
     else store.update("user", work.work_id, null, { continuation_hold: "paused", draft: "Newest intent" });
     release.resolve(); await new Promise(resolve => setImmediate(resolve));
     assert.equal(store.observed("user", work.work_id), "running", "the obsolete observation must not be committed");
-    assert.deepEqual(service.notices(null), [], "there is no false completed notification");
+    assert.deepEqual(service.notices.notices(null), [], "there is no false completed notification");
     if (change === "latest-input") assert.equal(store.get("user", work.work_id).draft, "Newest intent");
   } finally { release.resolve(); service.continuations.close(); await adapter.close(); db.close(); await rm(directory, { recursive: true, force: true }); }
 });

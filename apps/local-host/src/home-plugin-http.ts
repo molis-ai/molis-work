@@ -2,7 +2,7 @@ import { pluginPageRequest } from "./plugin-page-authority.js";
 import { escapeHtml } from "@molis-ai/molis-work-plugin-sdk/ui";
 import type { HomePluginHost, HomePluginPlatform } from "./home-plugins.js";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { inWordsOf, renderHomePluginPage, sideOpenedPlugins, stageContributionId, type UnavailablePluginStage } from "@molis-ai/molis-work-app-workbench";
+import { declaredStageContributionId, inWordsOf, renderHomePluginPage, sideOpenedPlugins, stageContributionId, type UnavailablePluginStage } from "@molis-ai/molis-work-app-workbench";
 import { PLATFORM_PLUGIN_REGISTRATIONS, runsInHome } from "./plugin-registry.js";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
@@ -89,8 +89,18 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
     response.end(renderHomePluginPage(pageEntry(entry), html, platform.supervisor.state(pluginId)?.message ?? null, controlToken, { L, htmlLang, clientI18nScript }, false, Boolean(sideView), project));
     return true;
   }
-  if (["enable", "disable"].includes(operation)) {
+  if (["enable", "disable", "uninstall"].includes(operation)) {
     if (request.method !== "POST") { sendLocalWebJson(response, 405, { error: "请通过 POST 更改插件状态" }); return true; }
+    // A package installed in the Home (BL-628) is switched and removed by the install lifecycle a project's packages have, not by the supervisor alone.
+    if (host.homePlugins.hasPackage(pluginId)) {
+      try {
+        const body = operation === "uninstall" ? await readLocalWebBody(request) as { keep_data?: unknown } | null : null;
+        await host.homePlugins.packageAction(pluginId, operation as "enable" | "disable" | "uninstall", { keepData: body?.keep_data === true });
+        sendLocalWebJson(response, 200, { [operation === "enable" ? "enabled" : operation === "disable" ? "disabled" : "uninstalled"]: true });
+      } catch (error) { const refused = actionErrorResponse(error); sendLocalWebJson(response, refused.status, refused.body); }
+      return true;
+    }
+    if (operation === "uninstall") { sendLocalWebJson(response, 404, { error: "插件没有这个入口" }); return true; }
     if (operation === "enable") {
       const state = await platform.supervisor.enable(pluginId);
       sendLocalWebJson(response, state.status === "running" ? 200 : 503, { state, ...(state.message ? { error: state.message } : {}) });
@@ -191,8 +201,11 @@ export async function renderHomePluginStages(host?: HomePluginHost): Promise<{ h
   try { platform = await host.ready(); }
   catch (error) { failure = error instanceof Error ? error.message : String(error); }
   // Each plugin the Home registers, with a shipped plugin's workbench surfaces (they decide whether it opens in the side panel only).
-  const registered = host.registered().map(entry => ({ project_plugin_id: entry.key, manifest: entry.manifest,
-    workbench: PLATFORM_PLUGIN_REGISTRATIONS.find(item => item.project_plugin_id === entry.key && item.manifest.plugin_id === entry.manifest.plugin_id)?.workbench }));
+  const registered = host.registered().flatMap(entry => {
+    const registration = PLATFORM_PLUGIN_REGISTRATIONS.find(item => item.project_plugin_id === entry.key && item.manifest.plugin_id === entry.manifest.plugin_id);
+    if (registration && !declaredStageContributionId(registration)) return [];
+    return [{ project_plugin_id: entry.key, manifest: entry.manifest, workbench: registration?.workbench }];
+  });
   const ids: string[] = [], sideOnly = sideOpenedPlugins(registered);
   const unavailable: UnavailablePluginStage[] = [];
   const html = registered.filter(entry => !Object.hasOwn(sideOnly, entry.project_plugin_id)).flatMap(entry => {

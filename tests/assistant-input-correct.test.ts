@@ -66,7 +66,7 @@ test("RCPT-323: the Assistant takes back a supplement its round has not read, an
 
   const late = await service.send({ work_id: workId, text: "风险改成只写一条", request_id: "request-5", about: kept.id }, {});
   assert.equal(late.outcome, "queued", "RCPT-323 a correction after the round ended waits for the next round");
-  const session = { runtime_id: adapter.descriptor.runtime_id, session_id: service.workRecord(workId)!.session_id! };
+  const session = { runtime_id: adapter.descriptor.runtime_id, session_id: service.reads.workRecord(workId)!.session_id! };
   assert.equal((await service.read(workId)).rounds.length, 1, "RCPT-323 no round starts on its own");
   const waiting = await adapter.readSession(session);
   assert.deepEqual(waiting.queued_inputs?.map(input => [input.text, input.about]), [["风险改成只写一条", kept.id]], "RCPT-323 it waits with the input it is about");

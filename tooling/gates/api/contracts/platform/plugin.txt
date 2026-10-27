@@ -576,6 +576,7 @@ export interface ActionProvider {
     readonly project_id?: string;
     readonly plugin_id?: string;
     readonly plugin_install_id?: string;
+    readonly words_of?: string;
 }
 
 export interface ActionProviderRegistration {
@@ -2527,6 +2528,13 @@ export declare const PLUGIN_MODEL_LIMITS: {
     readonly max_output_tokens: 12000;
 };
 
+export declare const PLUGIN_PROJECTS_EXIST_LIMITS: Readonly<{
+    ids: 200;
+    id_length: 200;
+}>;
+
+export declare const PLUGIN_PROJECTS_EXIST_PERMISSION = "projects:exist";
+
 export declare const PLUGIN_SCENES_PERMISSION = "scenes:use";
 
 export declare const PROJECT_JOURNAL_PERMISSION = "journal:project";
@@ -2627,6 +2635,7 @@ export interface PluginAttentionClient {
 
 export interface PluginAttentionDeclaration {
     readonly subjects: readonly AttentionSubjectType[];
+    readonly inbox?: readonly AttentionSubjectType[];
 }
 
 export interface PluginAttentionEntryInput extends PluginAttentionSubjectReference {
@@ -2713,6 +2722,10 @@ export interface PluginDatabaseTransaction extends PluginDatabaseReader {
     run(sql: string, parameters?: readonly PluginSqlValue[]): {
         changes: number | bigint;
     };
+    savepoint<T>(body: () => {
+        readonly keep: boolean;
+        readonly value: T;
+    }): T;
 }
 
 export interface PluginDefinition {
@@ -2950,6 +2963,7 @@ export interface PluginExecutorHandle {
 export interface PluginHostServices {
     readonly notifications?: import("platform/plugin-notifications").PluginNotificationClient;
     readonly installations?: import("platform/plugin-installations").PluginInstallationClient;
+    readonly projects?: import("platform/plugin-projects").PluginProjectsClient;
     readonly attention?: import("@molis-ai/molis-work-contracts/platform/plugin-attention").PluginAttentionClient;
     readonly contextLedger?: import("@molis-ai/molis-work-contracts/platform/plugin-attention").PluginContextLedgerClient;
     readonly scenes?: import("@molis-ai/molis-work-contracts/platform/plugin-scenes").PluginSceneClient;
@@ -3224,11 +3238,11 @@ export interface PluginJournalEvent {
 export interface PluginJournalReader {
     eventCursor(objectType?: string): number;
     readEventsDescending(): PluginJournalEvent[];
+    getIdempotency(actorId: string, operation: string, key: string): PluginIdempotencyRecord | null;
 }
 
 export interface PluginJournalWriter extends PluginJournalReader {
     appendEvent(input: PluginJournalAppend): number;
-    getIdempotency(actorId: string, operation: string, key: string): PluginIdempotencyRecord | null;
     putIdempotency(input: PluginIdempotencyPut): void;
 }
 
@@ -3392,7 +3406,9 @@ export type PluginMaterialDocumentsRequest = MaterialDocumentOptions;
 
 export type PluginMaterialRequest = MaterialExtractionOptions;
 
-export type PluginMaterialSourceRequest = Pick<MaterialExtractionOptions, "signal" | "allowModelDownload" | "onProgress">;
+export type PluginMaterialSourceRequest = Pick<MaterialExtractionOptions, "signal" | "allowModelDownload" | "onProgress"> & {
+    readonly allowedDomains?: readonly string[];
+};
 
 export interface PluginMaterialsClient {
     extract?(source: MaterialSource, request?: PluginMaterialRequest): Promise<MaterialExtraction>;
@@ -3794,6 +3810,12 @@ export interface PluginProjectStatements {
     }>>;
 }
 
+export interface PluginProjectsClient {
+    exist(ids: readonly string[], options?: {
+        readonly signal?: AbortSignal;
+    }): Promise<Readonly<Record<string, boolean>>>;
+}
+
 export interface PluginRequirementDeclaration {
     capability_id: string;
     version: number;
@@ -3871,6 +3893,7 @@ export interface PluginRuntimeApi {
         definition: PluginDefinition;
     }): Promise<PluginLifecycleReceipt>;
     grant(installId: string, permissions: string[]): PluginLifecycleReceipt;
+    regrant(installId: string, permission: string, granted: boolean): Promise<PluginLifecycleReceipt>;
     start(installId: string): Promise<PluginLifecycleReceipt>;
     stop(installId: string, options?: {
         preserve_enabled?: boolean;
@@ -3978,7 +4001,7 @@ export interface PluginUpgradeCompatibilityDeclaration {
 }
 
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
-    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "project_statements" | "database_statements" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "localTools" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "notifications" | "attention" | "contextLedger" | "interaction"> & {
+    readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "project_statements" | "database_statements" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "localTools" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "projects" | "notifications" | "attention" | "contextLedger" | "interaction"> & {
         readonly storage?: Pick<PluginPrivateStorage, "get">;
     };
 };
@@ -5175,6 +5198,7 @@ export declare const pluginErrors: import("platform/action-errors").ErrorCodeRai
     readonly grant_denied: "invalid";
     readonly home_scope_unavailable: "invalid";
     readonly id_namespace_conflict: "invalid";
+    readonly in_process_denied: "invalid";
     readonly install_replaced: "invalid";
     readonly integration_declaration_conflict: "invalid";
     readonly integration_unavailable: "unavailable";

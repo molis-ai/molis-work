@@ -11,6 +11,7 @@ import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contrac
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { SqlitePluginPrivateStorage, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
+import { homeSqlitePath, MEMORY_LEDGER_STORE } from "@molis-ai/molis-work-storage";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 
 // `molis-work plugin dev` lists the 成果 versions the run's plugin published. A personal 成果 belongs to the Home's person whoever
@@ -215,6 +216,14 @@ test("W3-07-6-01: nonempty and unsupported development state are refused before 
     await assert.rejects(runLocalPluginDevelopment({ ...input, state_directory: marked }), /不是受支持/);
     assert.equal(readFileSync(join(ordinary, "keep.txt"), "utf8"), "preserve this ordinary directory");
     assert.equal(existsSync(join(ordinary, "development.db")), false); assert.equal(existsSync(join(marked, "development.db")), false);
+    // #1064: a valid developer-state marker does not adopt unknown pre-existing Home contents.
+    const owned = join(directory, "owned"), home = join(owned, "home"); mkdirSync(home, { recursive: true });
+    writeFileSync(join(owned, ".molis-work-plugin-development.json"), JSON.stringify({ kind: "molis-work-plugin-development", schema_version: 1 }));
+    writeFileSync(join(home, "keep.txt"), "unadopted Home");
+    await assert.rejects(runLocalPluginDevelopment({ ...input, state_directory: owned }), { code: "memory.unavailable" });
+    assert.equal(readFileSync(join(home, "keep.txt"), "utf8"), "unadopted Home");
+    assert.equal(existsSync(homeSqlitePath(home, MEMORY_LEDGER_STORE)), false, "no automatic adoption ledger was written");
+    assert.equal(existsSync(join(owned, "development.db")), false);
   } finally { rmSync(directory, { recursive: true, force: true }); }
 });
 

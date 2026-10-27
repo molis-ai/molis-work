@@ -207,7 +207,7 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
       // A destroyed context has already removed its listener. Attempt both cleanup steps without losing the input failure.
       const inputFailures = failures.length;
       const cleanup = async (method: string, params: Record<string, unknown>) => {
-        try { await browser.command(method, params, current.session, 1000); }
+        try { await browser.command(method, params, current.session); }
         catch (error) { if (!/Cannot find context|Cannot find object|Could not find object|Session with given id not found|Target closed/.test(String(error))) failures.push(error); }
       };
       await cleanup("Runtime.callFunctionOn", {objectId, functionDeclaration:'function(){this.dispose();}'});
@@ -235,7 +235,7 @@ export async function pluginFrameBrowser(t: TestContext, browser: Browser, surfa
   }
   async function command<T = Record<string, unknown>>(method: string, params: Record<string, unknown> = {}): Promise<T> {
     const current = await context();
-    return browser.command<T>(method, params, current.session);
+    return browser.command<T>(method, method === "Runtime.evaluate" ? { ...params, contextId: current.id } : params, current.session);
   }
   async function setFiles(selector: string, files: readonly string[]): Promise<void> {
     const current = await context();

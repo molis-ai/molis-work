@@ -21,16 +21,8 @@
       "kind": "cohesive-unit",
       "reason": "项目目录的门面：40 个方法里约三十个是三行的转发，constructor 61 行是装配；它的职责就是给宿主一个入口，行数没超、只是方法数超限；按资源分子门面只会多一层转发。",
       "size": {
-        "lines": 267,
+        "lines": 265,
         "methods": 40
-      }
-    },
-    "class modules/goals/src/event-state-effects.ts#GoalEventStateEffects": {
-      "kind": "cohesive-unit",
-      "reason": "目标事件状态机的写入效果：请求决定、记录可信决定、提交收尾、恢复工作、引用决定各是一个事务内的长命令，共用同一个 context 与 repository；只有 11 个方法、行数超限来自三个长事务（152、116、82 行），拆开会把同一状态机的转移散到几个类。",
-      "size": {
-        "lines": 515,
-        "methods": 11
       }
     },
     "class packages/kernel/src/action-service.ts#ActionService": {
@@ -53,8 +45,8 @@
       "kind": "cohesive-unit",
       "reason": "插件安装生命周期状态机：安装、升级（changeVersion 117 行）、卸载、恢复、崩溃上报、启停，同一张安装记录表和同一套事务/恢复规则；各转移互相依赖前一状态，拆开会让状态转移散在几个类里。授权与兑换（grant、redeem、receipt）合计不到 60 行。",
       "size": {
-        "lines": 618,
-        "methods": 30
+        "lines": 612,
+        "methods": 29
       }
     },
     "class packages/plugin-runtime/src/supervisor.ts#PluginSupervisor": {
@@ -79,6 +71,14 @@
       "size": {
         "lines": 120,
         "methods": 27
+      }
+    },
+    "class plugins/native/goals/src/module/event-state-effects.ts#GoalEventStateEffects": {
+      "kind": "cohesive-unit",
+      "reason": "目标事件状态机的写入效果：请求决定、记录可信决定、提交收尾、恢复工作、引用决定各是一个事务内的长命令，共用同一个 context 与 repository；只有 11 个方法、行数超限来自三个长事务（152、116、82 行），拆开会把同一状态机的转移散到几个类。",
+      "size": {
+        "lines": 515,
+        "methods": 11
       }
     },
     "class plugins/native/goals/src/proposal-normalizer.ts#GoalTreeProposalNormalizer": {
@@ -127,11 +127,6 @@
       "reason": "连接器 MCP 宿主：启动连接、完成授权、取令牌、调用工具、读资源，共享同一张连接表和同一个受保护的 fetch；连接的状态在闭包里，拆开要把这张表传来传去。",
       "size": 246
     },
-    "function apps/local-host/src/demo-seed.ts#seedDemoBoard": {
-      "kind": "cohesive-unit",
-      "reason": "演示数据脚本：先一份目标清单，再按顺序用动作种出一个看得见的演示项目，是一个顺序执行的场景；它是测试与演示用的夹具，拆成几个函数只会把同一个故事的先后顺序散开。",
-      "size": 538
-    },
     "function apps/local-host/src/home-actions.ts#homeActionProvider": {
       "kind": "cohesive-unit",
       "reason": "Home 动作提供方的登记：返回体按动作逐个列出处理器，Talk、Offer、Event 三族处理器已抽成 createHome…Handlers，余下是登记清单与共用的 record、handler 助手；超 150 行 32 行。",
@@ -167,16 +162,6 @@
       "reason": "定时服务：存储、启停、认领、执行 tick 与续租，共享同一张定时表和同一把认领租约；认领与执行必须在同一个服务里才能保证一次只一个执行者。",
       "size": 215
     },
-    "function modules/goals/src/event-state-effects.ts#recordTrustedDecision": {
-      "kind": "cohesive-unit",
-      "reason": "一次可信决定的记录：校验、写决定、落收尾与提醒都在 repository.immediate 的同一个事务里，必须一次成败；超出阈值 2 行，拆成几个函数只会让事务边界更难读。",
-      "size": 152
-    },
-    "function modules/goals/src/lifecycle-archive.ts#setTrashed": {
-      "kind": "cohesive-unit",
-      "reason": "目标进回收站与恢复：一个事务内改状态、联动子目标、写事件与提醒，成败必须一起；超 150 行 5 行。",
-      "size": 155
-    },
     "function packages/plugin-sandbox/src/runner.ts#createSandboxRunner": {
       "kind": "cohesive-unit",
       "reason": "沙箱运行器：启动子进程、收发消息、看门狗、关停，共享同一个 child 和同一套限额；安全边界的实现，拆开会让进程的生命周期有两个所有者，不宜分散。",
@@ -205,12 +190,22 @@
     "function plugins/native/goals/src/goal-tree-decision.ts#decideGoalTreeProposal": {
       "kind": "cohesive-unit",
       "reason": "Goal 树提案的决定：一次事务内验证提案、逐项应用、记录修订和提醒，成败必须一起；拆成几个函数只会让事务边界难读。",
-      "size": 269
+      "size": 267
     },
     "function plugins/native/goals/src/goal-tree-decision.ts#result callback 1": {
       "kind": "cohesive-unit",
-      "reason": "decideGoalTreeProposal 里的事务回调（243 行），就是上一条那一次决定的事务体，不是另一件事；与外层函数一起标明。",
-      "size": 243
+      "reason": "decideGoalTreeProposal 里的事务回调（241 行），就是上一条那一次决定的事务体，不是另一件事；与外层函数一起标明。",
+      "size": 241
+    },
+    "function plugins/native/goals/src/module/event-state-effects.ts#recordTrustedDecision": {
+      "kind": "cohesive-unit",
+      "reason": "一次可信决定的记录：校验、写决定、落收尾与提醒都在 repository.immediate 的同一个事务里，必须一次成败；超出阈值 2 行，拆成几个函数只会让事务边界更难读。",
+      "size": 152
+    },
+    "function plugins/native/goals/src/module/lifecycle-archive.ts#setTrashed": {
+      "kind": "cohesive-unit",
+      "reason": "目标进回收站与恢复：一个事务内改状态、联动子目标、写事件与提醒，成败必须一起；超 150 行 5 行。",
+      "size": 155
     },
     "function plugins/native/goals/src/momentum-view.ts#buildGoalMomentumView": {
       "kind": "cohesive-unit",

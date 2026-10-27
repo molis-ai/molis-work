@@ -341,7 +341,7 @@ export function hostEventDecisionAuthority(
     actor_kind: "user",
     authority_source: source,
     conversation_ref: `${source}:${projectId}`,
-    message_ref: `${source}-event-decision:${idempotencyKey}`,
+    message_ref: `${source}:${idempotencyKey}`,
   };
 }
 

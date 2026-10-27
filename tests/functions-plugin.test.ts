@@ -24,7 +24,7 @@ import {
   INBOX_DONE_BEHAVIOR_ID,
   INBOX_NEXT_SCENE_ID,
   choiceCriteriaFollowContext,
-  type FunctionAuthoringCatalog,
+  type JudgmentRuleAuthoringCatalog,
   type TypeSafeEvaluateResult,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import {
@@ -364,7 +364,7 @@ test("the rules page suggests behaviors by the real page rule: destination, vers
   assert.equal(script.split(from).length, 2, "start anchor appears exactly once");
   assert.equal(script.split(to).length, 2, "end anchor appears exactly once");
   const rule = script.slice(script.indexOf(from), script.indexOf(to));
-  const build = (selected: Record<string, unknown> | undefined, catalog: FunctionAuthoringCatalog) => new Function("L", "cat", "sel", "destKey",
+  const build = (selected: Record<string, unknown> | undefined, catalog: JudgmentRuleAuthoringCatalog) => new Function("L", "cat", "sel", "destKey",
     rule + "\nreturn { suggestedBehaviors: hints, destOf };")((value: string) => value, catalog, selected, () => selected?.scene_id ?? "") as {
     suggestedBehaviors: (destinationId: string, kinds: string[]) => { behavior_id: string; title: string; action_ref?: { capability_id: string } }[];
     destOf: (id: string) => { behavior_ids: string[] } | null;
@@ -373,7 +373,7 @@ test("the rules page suggests behaviors by the real page rule: destination, vers
     plugin_id: "example.review", plugin_title: "Review", subject_kinds: [] as string[], clickable: true, ...extra });
   const scene = (scene_version: number) => ({ destination_id: "example.review", scene_version, provider_id: "example.review", kind: "event" as const, title: "Review", when: "Note submitted",
     configure_at: "", effect: "", subject_kinds: ["note"], behavior_ids: ["ack", "later"] });
-  const catalog: FunctionAuthoringCatalog = {
+  const catalog: JudgmentRuleAuthoringCatalog = {
     subjects: [],
     destinations: [scene(1), scene(2), { destination_id: "agent.mcp", kind: "mcp", title: "Agent", when: "", configure_at: "", effect: "", subject_kinds: [], behavior_ids: ["a.generic", "a.note", "a.feed"] }],
     behaviors: [
@@ -708,7 +708,7 @@ test("invoke uses published config once and does not overwrite last_preview", as
   });
 });
 
-test("HTTP invoke by key and the Functions actions hide drafts", async () => {
+test("invoke by key goes through the Functions actions, drafts stay hidden, and the by-key HTTP routes are gone (BL-081 ②, RAC-1021)", async () => {
   await withHome(async (home) => {
     await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
     const service = createFunctionsService({
@@ -739,14 +739,13 @@ test("HTTP invoke by key and the Functions actions hide drafts", async () => {
       .map((item) => item.function_key);
     assert.ok(publishedKeys.includes(live.function_key));
     assert.equal(publishedKeys.includes(draft.function_key), false);
-    const invoked = await routes.handle({
-      method: "POST",
-      pathname: `/api/functions/by-key/${live.function_key}/invoke`,
-      query: new URLSearchParams(),
-      body: { input: "调用" },
-    });
-    assert.equal(invoked?.status, 200);
-    assert.equal((invoked?.body as { data: { choice: string } }).data.choice, "no");
+    // BL-081 ②: the HTTP spelling of describe and invoke by key was deleted; the route table answers neither (the request falls through to the Host's generic refusal).
+    for (const [method, pathname] of [["GET", `/api/functions/by-key/${live.function_key}`], ["POST", `/api/functions/by-key/${live.function_key}/invoke`]] as const) {
+      assert.equal(await routes.handle({ method, pathname, query: new URLSearchParams(), body: { input: "调用" } }), null, `${method} ${pathname}`);
+    }
+    const invoked = await registeredFunctionActions(service).invoke(functionsActions.invoke, { function_key: live.function_key, input: "调用" }) as { status: string; data: { choice: string } };
+    assert.equal(invoked.status, "ok");
+    assert.equal(invoked.data.choice, "no");
     const actionHost = new MolisWorkLocalHost({ homeDirectory: home, functions: {
       credential: () => "sk-test", provider: fixtureProvider({ choice: "no" }), env: {},
     } });

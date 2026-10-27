@@ -28,8 +28,8 @@ test("RAC-405 the platform names what a platform permission lets a plugin do, a 
 });
 
 test("RAC-405 an install preview lists each permission with the plugin's reason and the platform's meaning", async () => {
-  const service = new PluginInstallService({ ledger: new MemoryPluginConsentLedger(), packages: new SandboxPackageStore("/nonexistent"), now: () => AT, install: async () => undefined, installed: async () => [], control: async () => "disabled" });
-  const shown = service.preview({ bundle: signedPackage(newPublisher()) }, { project_id: "project-one", actor_id: LOCAL_PERSON_ACTOR_ID });
+  const service = new PluginInstallService({ ledger: new MemoryPluginConsentLedger(), packages: new SandboxPackageStore("/nonexistent"), now: () => AT, installInProject: async () => undefined, installInHome: async () => undefined, installed: async () => [], control: async () => "disabled" });
+  const shown = await service.preview({ bundle: signedPackage(newPublisher()) }, { project_id: "project-one", actor_id: LOCAL_PERSON_ACTOR_ID });
   assert.deepEqual(shown.preview.permissions, [{ permission: "storage:private", required: true, reason: "保存这个插件自己的数据", meaning: platformPermissionMeaning("storage:private") }]);
   assert.deepEqual(shown.preview.jobs, [], "a sandbox package keeps no background job");
 });
@@ -55,12 +55,12 @@ test("RAC-406 an installed plugin's detail has its trust, the publisher's name, 
 test("RAC-406 plugins.installed.list is the person's read of one project: other audiences do not see it, and it needs a project", async () => {
   const entries = [{ record: record({}), manifest: undefined }];
   let asked: string | undefined;
-  const service = new PluginInstallService({ ledger: new MemoryPluginConsentLedger(), packages: new SandboxPackageStore("/nonexistent"), now: () => AT, install: async () => undefined,
+  const service = new PluginInstallService({ ledger: new MemoryPluginConsentLedger(), packages: new SandboxPackageStore("/nonexistent"), now: () => AT, installInProject: async () => undefined, installInHome: async () => undefined,
     installed: async projectId => { asked = projectId; return entries; } });
   const actions = new ActionService();
   actions.registerProvider(pluginInstallProvider(service));
   const caller = (extra: Partial<ActionCallContext> = {}): ActionCallContext => ({ actor_id: LOCAL_PERSON_ACTOR_ID, audience: "user", project_id: "project-one", permissions: PLUGIN_INSTALL_PERMISSIONS, ...extra });
-  const target = { capability_id: pluginInstallActions.installed.capability_id, version: 1 };
+  const target = { capability_id: pluginInstallActions.installed.capability_id, version: pluginInstallActions.installed.version };
   for (const audience of ["agent", "mcp", "workflow", "plugin"] as const) {
     assert.deepEqual((await actions.discover(caller({ audience }))).filter(view => view.capability_id === target.capability_id), [], `${audience} does not see it`);
     await assert.rejects(actions.invoke(caller({ audience }), target, {}), error => error instanceof ActionError, `${audience} cannot call it`);

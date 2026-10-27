@@ -673,3 +673,4 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
     - 统筹裁定四条建议都在开 PR 前做：CONTRACT-CHANGES §8 补 join 与 `PluginArtifactWriter`、6 个动作的调用方多要 `artifact:write`；`CALL_REFUSALS` 补 `actions.plugin_permission`、`actions.provider_changed` 并改过时注释；`audit_actor_id` 不同时的用例；演示种子捕获的断言。攒成一批测，评审只评增量，然后开草稿 PR、推 carrier 跑 Full。
     - C 的根目录 `tsc --noEmit` 已过（heavy.sh，日志 `.impeccable/qa/c-root-tsc.log`），PR 正文已起草。
   - **10-28 #1322**：main（74f31c19e）已普通合进分支，无冲突，头 a9480e3de；同一个头推到 `integration/carrier-1028-w511`，PR 的 CI 和 Full 都在排队。
+  - **10-28 评审确认 #1326 增量 `f050cbc33..433829b6c`**（笔记 `review-1326-433829b6.md`）：两条建议都落了，没有别的改动。已叫 `ac-sweep` 合 main、推 `integration/carrier-1028-1326` 跑 Full；PR 的产品子集第一次跑 RAC-1115，两个分片都要看。

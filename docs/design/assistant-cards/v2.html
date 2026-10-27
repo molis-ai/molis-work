@@ -1,0 +1,719 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>助理卡片 v2：视觉优化提案</title>
+<style>
+:root {
+  --desk:#eeefef; --paper:#ffffff; --surface-soft:#fafaf9; --rail:#f5f5f3;
+  --ink:#292a2c; --ink-soft:#5c5d60; --muted:#636569; --faint:#6a6c70;
+  --line:#e9e9e7; --line-strong:#d5d6d4;
+  --action:#292a2c; --action-hover:#3d3e41; --action-ink:#ffffff;
+  --accent:#93604b; --accent-strong:#7a4d3a; --accent-soft:#f6eee8;
+  --green:#42775d; --amber:#8a5c18; --red:#b03d45; --popover:#ffffff;
+  --nav-hover:rgba(41,42,44,.05); --nav-active:rgba(41,42,44,.08); --nav-press:rgba(41,42,44,.11);
+  --control-fill:rgba(41,42,44,.06);
+  --sheet-shadow:0 0 0 .5px rgba(21,23,29,.04),0 1px 2px rgba(21,23,29,.04),0 10px 28px -12px rgba(21,23,29,.10);
+  --lift-1:0 1px 2px rgba(21,23,29,.10),0 0 0 .5px rgba(21,23,29,.05);
+  --lift-3:0 12px 32px -8px rgba(21,23,29,.20),0 2px 6px rgba(21,23,29,.06);
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Segoe UI","Microsoft YaHei",sans-serif;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+  --dur-press:130ms; --dur-hover:130ms; --dur-move:250ms; --dur-arrive:420ms; --dur-moment:640ms;
+  --ease-quint:cubic-bezier(.22,1,.36,1); --ease-spring:cubic-bezier(.2,1.35,.4,1);
+  --panel-w:400px;
+  color-scheme:light;
+}
+:root[data-theme="dark"] {
+  --desk:#1c1d20; --paper:#242528; --surface-soft:#292a2d; --rail:#2e2f32;
+  --ink:#f0efed; --ink-soft:#c0beba; --muted:#a2a19e; --faint:#979693;
+  --line:#36373b; --line-strong:#4c4d50;
+  --action:#ecebe8; --action-hover:#ffffff; --action-ink:#252628;
+  --accent:#d6a18a; --accent-strong:#e8c0ad; --accent-soft:#382f2b;
+  --green:#8db99d; --amber:#d9b67b; --red:#ee858c; --popover:#2c2d31;
+  --nav-hover:rgba(240,239,237,.07); --nav-active:rgba(240,239,237,.11); --nav-press:rgba(240,239,237,.15);
+  --control-fill:rgba(240,239,237,.08);
+  --sheet-shadow:0 0 0 1px rgba(255,255,255,.05),0 10px 28px -12px rgba(0,0,0,.5);
+  --lift-1:0 0 0 1px rgba(255,255,255,.06),0 1px 2px rgba(0,0,0,.4);
+  --lift-3:0 0 0 1px rgba(255,255,255,.06),0 16px 36px -8px rgba(0,0,0,.6);
+  color-scheme:dark;
+}
+* { box-sizing:border-box; }
+body { margin:0; background:var(--desk); color:var(--ink); font:400 13px/1.5 var(--font); letter-spacing:-.011em; font-synthesis-weight:none; -webkit-font-smoothing:antialiased; }
+button { font:inherit; color:inherit; letter-spacing:inherit; }
+:focus-visible { outline:2px solid var(--accent); outline-offset:1px; border-radius:6px; }
+h1,h2,h3,h4,p { margin:0; }
+code { font-family:var(--mono); font-size:12px; background:var(--control-fill); padding:1px 5px; border-radius:4px; color:var(--ink-soft); }
+.ic { width:14px; height:14px; flex:none; stroke:currentColor; fill:none; stroke-width:2; stroke-linecap:round; stroke-linejoin:round; }
+.ic-12 { width:12px; height:12px; } .ic-16 { width:16px; height:16px; }
+.ring { display:inline-flex; flex:none; width:calc(1em + 2px); height:calc(1em + 2px); }
+.ring svg { width:100%; height:100%; overflow:visible; }
+.ring .spin { transform-origin:8px 8px; animation:spin 2.4s steps(12) infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+@keyframes rise { from { opacity:.4; transform:translateY(7px); } }
+@keyframes land { from { background:var(--accent-soft); } }
+@media (prefers-reduced-motion: reduce) { *,*::before,*::after { animation:none !important; transition:none !important; } }
+
+/* ── board chrome ── */
+.top { position:sticky; top:0; z-index:20; background:var(--desk); display:flex; align-items:center; gap:16px; padding:14px 24px; flex-wrap:wrap; }
+.top h1 { font-size:15px; font-weight:600; }
+.top .sub { font-size:12px; color:var(--muted); }
+.top .tools { margin-left:auto; display:flex; gap:10px; flex-wrap:wrap; }
+.seg { display:inline-flex; background:var(--control-fill); border-radius:10px; padding:4px; gap:2px; }
+.seg button { border:0; background:transparent; height:24px; padding:0 10px; border-radius:6px; font-size:12px; font-weight:500; color:var(--muted); cursor:pointer; }
+.seg button[aria-pressed="true"] { background:var(--paper); color:var(--ink); box-shadow:var(--lift-1); }
+main { display:flex; flex-direction:column; gap:14px; padding:0 14px 48px; max-width:1240px; margin:0 auto; }
+.sheet { background:var(--paper); border-radius:14px; box-shadow:var(--sheet-shadow); padding:28px 32px 32px; }
+.sheet > header { margin-bottom:20px; max-width:76ch; }
+.eyebrow { font-size:12px; font-weight:500; color:var(--muted); margin-bottom:6px; }
+.sheet h2 { font-size:24px; font-weight:600; letter-spacing:-.02em; line-height:1.25; }
+.lead { margin-top:8px; color:var(--ink-soft); line-height:1.65; }
+.pair { display:grid; grid-template-columns:var(--panel-w) minmax(0,1fr); gap:28px 32px; align-items:start; padding:20px 0; border-top:1px solid var(--line); }
+.pair:first-of-type { border-top:0; padding-top:4px; }
+.notes { display:grid; gap:10px; color:var(--ink-soft); line-height:1.6; min-width:0; }
+.notes b { color:var(--ink); font-weight:500; }
+.notes .nm { font-size:15px; font-weight:600; color:var(--ink); display:flex; gap:8px; align-items:baseline; flex-wrap:wrap; }
+.notes ul { margin:0; padding-left:18px; display:grid; gap:4px; }
+.why-tag { display:inline-block; font-size:11px; font-weight:500; color:var(--accent-strong); background:var(--accent-soft); border-radius:4px; padding:0 5px; line-height:16px; margin-right:4px; }
+:root[data-theme="dark"] .why-tag { color:var(--accent); }
+
+/* ── buttons ── */
+.btn { height:32px; padding:0 12px; border-radius:8px; border:0; font-size:13px; font-weight:500; display:inline-flex; align-items:center; gap:6px; cursor:pointer; white-space:nowrap; transition:background var(--dur-hover), transform var(--dur-press) var(--ease-spring); max-width:100%; }
+.btn:active { transform:scale(.97); }
+.btn > span { overflow:hidden; text-overflow:ellipsis; }
+.btn-primary { background:var(--action); color:var(--action-ink); box-shadow:var(--lift-1); }
+.btn-primary:hover { background:var(--action-hover); }
+.btn-secondary { background:var(--control-fill); color:var(--ink); }
+.btn-secondary:hover { background:var(--nav-active); }
+.btn-ghost { background:transparent; color:var(--ink-soft); }
+.btn-ghost:hover { background:var(--nav-hover); color:var(--ink); }
+.btn-icon { width:32px; padding:0; justify-content:center; }
+.btn-sm { height:28px; padding:0 10px; font-size:13px; }
+.btn-sm.btn-icon { width:28px; padding:0; }
+
+/* ══ v2 card ══════════════════════════════ */
+.k { position:relative; background:var(--surface-soft); border-radius:12px; padding:14px 16px 12px; display:flex; flex-direction:column; gap:12px; transition:background var(--dur-hover); }
+.k.is-arriving { animation:rise var(--dur-arrive) var(--ease-quint) both; }
+.k.is-new { animation:land var(--dur-moment) var(--ease-quint) 1; }
+.k[data-hit] { cursor:pointer; }
+.k[data-hit]:hover { background:color-mix(in srgb, var(--surface-soft), var(--ink) 3%); }
+
+/* layer 1: glance */
+.k-top { display:flex; align-items:center; gap:6px; font-size:12px; line-height:16px; min-width:0; }
+.k-intent { font-weight:500; color:var(--ink-soft); white-space:nowrap; }
+.k-obj { display:inline-flex; align-items:center; gap:4px; color:var(--muted); min-width:0; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+.k-obj .ic { color:var(--ink-soft); }
+.k-due { margin-left:auto; white-space:nowrap; font-weight:500; color:var(--ink-soft); font-variant-numeric:tabular-nums; display:inline-flex; gap:4px; align-items:center; }
+.k-due.soon { color:var(--amber); }
+.k-head { display:flex; flex-direction:column; gap:4px; }
+.k-title { font-size:15px; font-weight:600; line-height:1.4; letter-spacing:-.015em; color:var(--ink); }
+.k-why { font-size:13px; line-height:1.55; color:var(--ink-soft); }
+
+/* layer 2: one step */
+.k-body { display:flex; flex-direction:column; gap:8px; }
+.choices { display:flex; flex-direction:column; border-radius:10px; background:var(--paper); padding:2px; }
+.ch { display:grid; grid-template-columns:16px minmax(0,1fr) auto; gap:0 10px; align-items:center; min-height:36px; padding:6px 10px; border:0; background:transparent; border-radius:8px; text-align:left; cursor:pointer; width:100%; transition:background var(--dur-hover); }
+.ch:hover { background:var(--nav-hover); }
+.ch + .ch { box-shadow:0 -1px 0 var(--line); }
+.ch:hover + .ch, .ch[aria-checked="true"] + .ch { box-shadow:none; }
+.ch .rd { width:14px; height:14px; border-radius:50%; box-shadow:inset 0 0 0 1.5px var(--line-strong); display:grid; place-items:center; transition:box-shadow var(--dur-move) var(--ease-quint); }
+.ch[aria-checked="true"] { background:var(--nav-active); }
+.ch[aria-checked="true"] .rd { box-shadow:inset 0 0 0 7px var(--action); }
+.ch[aria-checked="true"] .rd::after { content:""; width:5px; height:5px; border-radius:50%; background:var(--action-ink); }
+.ch .l { font-size:13px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.ch .r { grid-column:2 / 4; font-size:12px; color:var(--muted); line-height:1.45; display:none; }
+.ch[aria-checked="true"] .r { display:block; }
+.ch .kbd { font-size:11px; font-weight:500; color:var(--faint); font-family:var(--mono); }
+.ch .rec { font-size:11px; font-weight:500; color:var(--accent-strong); }
+:root[data-theme="dark"] .ch .rec { color:var(--accent); }
+.ch.other .l { color:var(--muted); font-weight:400; }
+
+.chips { display:flex; flex-wrap:wrap; gap:4px 6px; align-items:center; font-size:12px; color:var(--muted); }
+.chip { display:inline-flex; align-items:center; gap:4px; height:24px; padding:0 8px; border-radius:6px; background:var(--control-fill); color:var(--ink-soft); font-size:12px; font-weight:500; max-width:100%; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; border:0; cursor:pointer; }
+.chip:hover { background:var(--nav-active); color:var(--ink); }
+.chip .ic { color:var(--ink-soft); }
+
+.k-act { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+.k-act .end { margin-left:auto; display:flex; gap:2px; }
+.k-act .btn-primary { flex:1 1 auto; justify-content:center; }
+
+/* layer 3: on demand */
+.k-basis { display:flex; align-items:center; gap:6px; width:100%; border:0; background:transparent; padding:2px 0 0; font-size:12px; color:var(--faint); cursor:pointer; text-align:left; }
+.k-basis:hover { color:var(--ink-soft); }
+.k-basis .gapdot { width:6px; height:6px; border-radius:50%; background:var(--amber); flex:none; }
+.k-basis .chev { margin-left:auto; transition:transform var(--dur-move) var(--ease-quint); }
+.k-basis[aria-expanded="true"] .chev { transform:rotate(90deg); }
+.k-basis-body { display:none; font-size:12px; color:var(--ink-soft); line-height:1.6; background:var(--paper); border-radius:10px; padding:8px 10px; gap:4px; }
+.k-basis[aria-expanded="true"] + .k-basis-body { display:grid; animation:rise var(--dur-move) var(--ease-quint) both; }
+.k-basis-body .ln { display:grid; grid-template-columns:14px minmax(0,1fr); gap:6px; align-items:baseline; }
+.k-basis-body .n { font-size:11px; font-weight:500; color:var(--accent-strong); font-variant-numeric:tabular-nums; }
+:root[data-theme="dark"] .k-basis-body .n { color:var(--accent); }
+.k-basis-body .host { color:var(--faint); }
+.k-basis-body .gapl { color:var(--amber); }
+
+/* fact strip & quote & draft */
+.fact { display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; }
+.fact .v { font-size:20px; font-weight:600; letter-spacing:-.02em; font-variant-numeric:tabular-nums; line-height:1.2; }
+.fact .v small { font-size:12px; font-weight:400; color:var(--muted); letter-spacing:0; margin-left:2px; }
+.fact .k2 { font-size:12px; color:var(--muted); }
+.quote { background:var(--paper); border-radius:10px; padding:10px 12px; font-size:13px; line-height:1.65; color:var(--ink-soft); position:relative; }
+.quote .cur { display:inline-block; width:2px; height:15px; background:var(--accent); vertical-align:-3px; margin-left:2px; animation:blink 1.2s steps(2) infinite; }
+@keyframes blink { 50% { opacity:0; } }
+.quote .src { display:flex; align-items:center; gap:4px; font-size:12px; color:var(--muted); margin-bottom:4px; }
+.draft { background:var(--paper); border-radius:10px; padding:10px 12px; display:flex; flex-direction:column; gap:6px; }
+.draft .to { display:flex; gap:6px; align-items:center; font-size:12px; color:var(--muted); }
+.draft .to b { font-weight:500; color:var(--ink-soft); }
+.draft .to .pm { margin-left:auto; font-family:var(--mono); color:var(--green); }
+.draft .body { font-size:13px; line-height:1.65; border-left:2px solid color-mix(in srgb, var(--green) 45%, transparent); padding-left:10px; max-height:4.95em; overflow:hidden; -webkit-mask-image:linear-gradient(#000 60%, transparent); mask-image:linear-gradient(#000 60%, transparent); }
+.draft.open .body { max-height:none; -webkit-mask-image:none; mask-image:none; }
+
+/* progress */
+.track { display:grid; grid-template-columns:repeat(5, 1fr); gap:3px; }
+.track i { height:4px; border-radius:4px; background:var(--line-strong); }
+.track i.done { background:var(--ink-soft); }
+.track i.now { background:var(--accent); }
+.pnow { display:flex; align-items:center; gap:6px; font-size:13px; font-weight:500; }
+.pnow .t2 { margin-left:auto; font-size:12px; font-weight:400; color:var(--muted); font-variant-numeric:tabular-nums; }
+.calm { font-size:12px; color:var(--muted); display:flex; gap:6px; align-items:center; }
+
+/* receipt list */
+.rlist { display:flex; flex-direction:column; background:var(--paper); border-radius:10px; padding:2px; }
+.rl { display:grid; grid-template-columns:16px minmax(0,1fr) auto; gap:8px; align-items:center; min-height:32px; padding:4px 10px; font-size:13px; }
+.rl + .rl { box-shadow:0 -1px 0 var(--line); }
+.rl .ok { color:var(--green); } .rl .x { color:var(--red); }
+.rl .f { font-size:12px; color:var(--muted); }
+
+/* collapsed receipt (after commit) */
+.k.is-done { gap:6px; padding:10px 16px; }
+.k.is-done .k-done { display:flex; }
+.k-done { display:none; align-items:center; gap:8px; font-size:13px; }
+.k-done .t { font-weight:500; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.k-done .f { font-size:12px; color:var(--muted); white-space:nowrap; }
+.k-done .end { margin-left:auto; display:flex; gap:2px; }
+.k.is-done > :not(.k-done) { display:none; }
+
+/* snooze menu */
+.menu { position:absolute; z-index:5; right:12px; bottom:44px; background:var(--popover); border-radius:12px; box-shadow:var(--lift-3); padding:4px; min-width:200px; display:none; }
+.menu.on { display:block; animation:rise var(--dur-move) var(--ease-quint) both; }
+.menu button { display:flex; width:100%; align-items:center; gap:8px; height:34px; border:0; background:transparent; border-radius:8px; padding:0 10px; font-size:13px; cursor:pointer; text-align:left; }
+.menu button:hover { background:var(--nav-hover); }
+.menu .f { margin-left:auto; font-size:12px; color:var(--faint); }
+
+/* ── diagnosis ── */
+.diag { display:grid; grid-template-columns:repeat(auto-fit, minmax(260px,1fr)); gap:12px; }
+.dg { background:var(--surface-soft); border-radius:12px; padding:12px 14px; display:grid; gap:4px; line-height:1.6; color:var(--ink-soft); }
+.dg b { color:var(--ink); font-weight:500; }
+.dg .ev { font-size:12px; color:var(--muted); }
+
+/* ── layers ── */
+.layers { display:grid; grid-template-columns:repeat(auto-fit, minmax(220px,1fr)); gap:12px; }
+.ly { border-radius:12px; padding:12px 14px; background:var(--surface-soft); display:grid; gap:6px; color:var(--ink-soft); line-height:1.6; }
+.ly .h { display:flex; align-items:baseline; gap:8px; }
+.ly .h b { font-size:15px; font-weight:600; color:var(--ink); }
+.ly .h span { font-size:12px; color:var(--muted); }
+
+/* ── brief (home) ── */
+.home { display:grid; grid-template-columns:minmax(0,1fr) var(--panel-w); gap:24px; align-items:start; }
+.brief-hd { display:flex; flex-direction:column; gap:6px; margin-bottom:16px; }
+.brief-hd small { font-size:12px; color:var(--muted); }
+.brief-hd h3 { font-size:30px; font-weight:600; letter-spacing:-.03em; line-height:1.2; }
+.brief-hd p { font-size:15px; line-height:1.6; color:var(--ink-soft); max-width:56ch; }
+.brief-hd p b { color:var(--ink); font-weight:500; }
+.today { display:flex; align-items:center; gap:10px; font-size:12px; color:var(--muted); margin-top:4px; flex-wrap:wrap; }
+.today .dots { display:flex; gap:3px; }
+.today .dots i { width:16px; height:4px; border-radius:4px; background:var(--line-strong); }
+.today .dots i.on { background:var(--green); }
+.filters { display:flex; gap:6px; flex-wrap:wrap; margin:4px 0 12px; }
+.filters button { height:28px; padding:0 10px; border-radius:8px; border:0; background:var(--control-fill); font-size:12px; font-weight:500; color:var(--muted); cursor:pointer; display:inline-flex; align-items:center; gap:6px; }
+.filters button[aria-pressed="true"] { background:var(--action); color:var(--action-ink); }
+.filters .n { font-variant-numeric:tabular-nums; }
+.rows { display:flex; flex-direction:column; gap:2px; }
+.row { display:grid; grid-template-columns:16px minmax(0,1fr) auto; gap:10px; align-items:center; min-height:44px; padding:4px 10px; border-radius:10px; cursor:pointer; transition:background var(--dur-hover); }
+.row:hover { background:var(--nav-hover); }
+.row .ring { font-size:13px; justify-self:center; }
+.row .main { min-width:0; display:flex; flex-direction:column; }
+.row .t { font-size:13px; font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.row .f { font-size:12px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.row .due { font-size:12px; font-weight:500; color:var(--ink-soft); white-space:nowrap; font-variant-numeric:tabular-nums; }
+.row .due.soon { color:var(--amber); }
+.row-head { display:flex; gap:8px; padding:0 10px; margin:14px 0 2px; font-size:12px; font-weight:500; color:var(--muted); }
+.row-head:first-child { margin-top:0; }
+.panel { background:var(--paper); border-radius:14px; box-shadow:var(--sheet-shadow); padding:12px; display:flex; flex-direction:column; gap:10px; }
+.panel .ph { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--muted); padding:2px 4px; }
+.panel .ph b { font-size:13px; font-weight:500; color:var(--ink); }
+
+/* ── tables ── */
+.tbl { width:100%; border-collapse:collapse; font-size:13px; }
+.tbl th { font-size:12px; font-weight:500; color:var(--muted); text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); }
+.tbl td { padding:9px 8px; border-bottom:1px solid var(--line); vertical-align:top; color:var(--ink-soft); line-height:1.55; }
+.tbl td:first-child { color:var(--ink); font-weight:500; white-space:nowrap; }
+.scroll-x { overflow-x:auto; }
+
+.toast { position:fixed; left:0; right:0; margin:0 auto; width:max-content; bottom:24px; opacity:0; pointer-events:none; background:var(--action); color:var(--action-ink); border-radius:999px; padding:9px 16px; font-size:13px; font-weight:500; box-shadow:var(--lift-3); transition:opacity var(--dur-move); max-width:calc(100vw - 32px); z-index:50; }
+.toast.on { opacity:1; }
+
+@media (max-width: 960px) { .pair, .home { grid-template-columns:minmax(0,1fr); } }
+@media (max-width: 600px) {
+  main { padding:0 0 40px; }
+  .sheet { border-radius:0; padding:20px 16px 24px; }
+  :root { --panel-w:100% !important; }
+  .btn, .seg button, .ch, .chip, .filters button, .menu button { min-height:44px; }
+  .brief-hd h3 { font-size:24px; }
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="i-goals" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></symbol>
+  <symbol id="i-pages" viewBox="0 0 24 24"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M16 13H8"/><path d="M16 17H8"/></symbol>
+  <symbol id="i-todo" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="i-schedule" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/></symbol>
+  <symbol id="i-coding" viewBox="0 0 24 24"><path d="m4 17 6-6-6-6"/><path d="M12 19h8"/></symbol>
+  <symbol id="i-form" viewBox="0 0 24 24"><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/></symbol>
+  <symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></symbol>
+  <symbol id="i-chev" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
+  <symbol id="i-talk" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><rect x="14" y="4" width="4" height="16" rx="1"/><rect x="6" y="4" width="4" height="16" rx="1"/></symbol>
+  <symbol id="i-stop" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><rect x="9" y="9" width="6" height="6" rx="1"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+  <symbol id="i-undo" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></symbol>
+  <symbol id="i-locate" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="3"/><path d="M2 12h3"/><path d="M19 12h3"/><path d="M12 2v3"/><path d="M12 19v3"/></symbol>
+  <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="5"/><path d="M20 21a8 8 0 0 0-16 0"/></symbol>
+  <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></symbol>
+</defs></svg>
+
+<header class="top">
+  <div><h1>助理卡片 v2：视觉优化提案</h1><div class="sub">在 v1 规格板之上只改视觉层级与信息密度；合同、块、四道状态、三个点击区不变 · 2026-10-27</div></div>
+  <div class="tools">
+    <div class="seg" data-seg="theme"><button type="button" data-v="light" aria-pressed="true">浅色</button><button type="button" data-v="dark" aria-pressed="false">深色</button></div>
+    <div class="seg" data-seg="panel"><button type="button" data-v="340px" aria-pressed="false">侧栏 340</button><button type="button" data-v="400px" aria-pressed="true">400</button><button type="button" data-v="480px" aria-pressed="false">480</button></div>
+  </div>
+</header>
+
+<main>
+
+<!-- ═════ 诊断 ═════ -->
+<section class="sheet">
+  <header>
+    <div class="eyebrow">0 · 诊断</div>
+    <h2>v1 的卡片哪里累眼</h2>
+    <p class="lead">以 v1 解剖里那张「需要你决定」为样本，400px 侧栏宽、浅色、标准密度下量的。骨架没问题，问题在层级和密度。</p>
+  </header>
+  <div class="diag">
+    <div class="dg"><b>没有第一眼</b>标题 13/500，与选项标题同号同重；头部四样东西都是 12px 灰字。眼睛进来找不到落点。<span class="ev">DESIGN.md「眼睛先找最大最深的」</span></div>
+    <div class="dg"><b>一张卡一屏</b>卡高约 506px：4 个选项都带说明，再加对象列表、动作行、两行依据条。侧栏里一次只看得到一张。<span class="ev">v1 解剖样张实测</span></div>
+    <div class="dg"><b>框中框</b>每个选项是一块纸色框，对象列表又是一块，在浅底卡上叠出 6 个矩形。违背 v1 自己的「不叠卡中卡」。</div>
+    <div class="dg"><b>时间放错了</b>头部右侧是生成时刻 10:20，对人没用；真正决定紧迫度的「周三 10:00 评审」埋在 why 句子里。</div>
+    <div class="dg"><b>依据常驻，喧宾夺主</b>依据条两行、cite 角标遍布正文。信任信息应该一直在、随时可查，但不必一直摊开。</div>
+    <div class="dg"><b>做完没有收尾</b>提交后卡片只换个状态字，仍占原来的高度。用户感觉不到「这件事完了」。</div>
+  </div>
+</section>
+
+<!-- ═════ 三层 ═════ -->
+<section class="sheet">
+  <header>
+    <div class="eyebrow">1 · 新骨架</div>
+    <h2>三层：一眼、一步、按需</h2>
+    <p class="lead">同一条卡片记录，按「看懂要多久」分三层。卡尺寸默认只画前两层，第三层一行收起。目标：侧栏 400px 下一张决定卡 ≤ 300px，一屏看到 2–3 张。</p>
+  </header>
+  <div class="layers">
+    <div class="ly"><div class="h"><b>一眼</b><span>≈ 1 秒</span></div>状态环 · 意图字 · 主对象 · <b>截止或紧迫事实</b>（右上，临近时琥珀）；标题 15/600 写成问题或结论；why 一句。读完这三行就知道要不要现在处理。</div>
+    <div class="ly"><div class="h"><b>一步</b><span>≈ 5 秒</span></div>只放完成这件事所需的那一个块：选项、候选稿摘录、等待事实、进度条。主按钮占满剩余宽度，名字写对象和结果。推荐项默认选中，理由只在选中项下出一行。</div>
+    <div class="ly"><div class="h"><b>按需</b><span>点开才看</span></div>一行「依据 n · 读了 m 个来源 · 生成时刻」，有缺口时前面一个琥珀点。点开才列出依据、宿主的覆盖与缺口。宿主的字仍由宿主写，只是默认收起。</div>
+  </div>
+</section>
+
+<!-- ═════ 决定卡 ═════ -->
+<section class="sheet" id="decide">
+  <header>
+    <div class="eyebrow">2 · P2 六张卡</div>
+    <h2>需要你决定 <code>decision</code></h2>
+  </header>
+  <div class="pair">
+    <article class="k" data-card="decide">
+      <div class="k-top"><i class="ring" data-s="answer"></i><span class="k-intent">需要你决定</span><span class="k-obj"><svg class="ic ic-12"><use href="#i-goals"/></svg>1.0 可发布</span><span class="k-due soon"><svg class="ic ic-12"><use href="#i-clock"/></svg>周三 10:00 前</span></div>
+      <div class="k-head">
+        <h3 class="k-title">1.0 的灰度先开给谁？</h3>
+        <p class="k-why">评审要定；《Q4 发布方案》第 3 节和发布日程都在等这个选择。</p>
+      </div>
+      <div class="k-body">
+        <div class="choices" role="radiogroup" aria-label="灰度对象" data-primary="定为「{x}」">
+          <button class="ch" role="radio" aria-checked="true" type="button" data-label="内测 50 人"><span class="rd"></span><span class="l">内测 50 人</span><span class="rec">推荐</span><span class="r">已有反馈通道（48 份已回收），回滚只影响 50 人</span></button>
+          <button class="ch" role="radio" aria-checked="false" type="button" data-label="5% 新注册用户"><span class="rd"></span><span class="l">5% 新注册用户</span><span class="kbd">2</span><span class="r">数据更有代表性，但没有反馈通道</span></button>
+          <button class="ch" role="radio" aria-checked="false" type="button" data-label="先内部 20 人"><span class="rd"></span><span class="l">先内部 20 人，再扩到内测</span><span class="kbd">3</span><span class="r">多 3 天，评审后才能开始</span></button>
+          <button class="ch other" role="radio" aria-checked="false" type="button" data-label="其他"><span class="rd"></span><span class="l">其他，我来写…</span><span class="kbd">4</span></button>
+        </div>
+      </div>
+      <div class="k-act">
+        <button class="btn btn-primary" type="button" data-commit="已定为「{x}」" data-commit-f="记入 Goal「1.0 可发布」"><span>定为「内测 50 人」</span></button>
+        <button class="btn btn-ghost" type="button" data-snooze>稍后<svg class="ic ic-12"><use href="#i-down"/></svg></button>
+        <span class="end"><button class="btn btn-ghost btn-icon" type="button" aria-label="说一句"><svg class="ic"><use href="#i-talk"/></svg></button></span>
+      </div>
+      <button class="k-basis" type="button" aria-expanded="false"><svg class="ic ic-12"><use href="#i-sparkles"/></svg>依据 2 · 读了 4 个来源 · 10:20<svg class="ic ic-12 chev"><use href="#i-chev"/></svg></button>
+      <div class="k-basis-body">
+        <div class="ln"><span class="n">1</span><span>《内测反馈问卷》· Form · 48/50 份回收</span></div>
+        <div class="ln"><span class="n">2</span><span>日程「1.0 发布评审」· 周三 10:00</span></div>
+        <div class="ln"><span class="n"></span><span class="host">决策 Skill v2 · 读了 Goals、Pages、Schedule、Form（宿主）</span></div>
+        <div class="ln"><span class="n"></span><span class="host">会影响：《Q4 发布方案》§3 草稿 v7、1.0 发布评审</span></div>
+      </div>
+      <div class="menu" role="menu">
+        <button type="button" role="menuitem">今天下班前<span class="f">18:00</span></button>
+        <button type="button" role="menuitem">评审前一小时<span class="f">周三 9:00</span></button>
+        <button type="button" role="menuitem">《Q4 发布方案》再变时</button>
+        <button type="button" role="menuitem">只留给我找回</button>
+      </div>
+      <div class="k-done"><i class="ring" data-s="done"></i><span class="t" data-done-t></span><span class="f" data-done-f></span><span class="end"><button class="btn btn-ghost btn-sm" type="button" data-undo><svg class="ic"><use href="#i-undo"/></svg>改主意</button></span></div>
+    </article>
+    <div class="notes">
+      <div class="nm">改了什么</div>
+      <ul>
+        <li><span class="why-tag">层级</span>标题升到 15/600，是卡里唯一最大最深的字。</li>
+        <li><span class="why-tag">紧迫</span>右上换成截止「周三 10:00 前」；剩余不足 24 小时变琥珀。用的是已有状态色，不给意图上色。</li>
+        <li><span class="why-tag">希克定律</span>选项去掉各自的框，收成一组，行间用发丝线。只有选中项展开理由，未选项只留名字，扫一眼就能比较。</li>
+        <li><span class="why-tag">默认效应</span>推荐项预选，旁边标「推荐」。采用前仍要按主按钮，不替你提交。</li>
+        <li><span class="why-tag">受影响对象</span>从常驻列表挪进依据展开。它回答「为什么要紧」，why 句已经点了名。</li>
+        <li><span class="why-tag">费茨定律</span>主按钮占满剩余宽度；「暂不决定」改成「稍后 ▾」，直接给出时间或条件选项（§6 的三种暂缓）。</li>
+        <li><span class="why-tag">峰终定律</span>点主按钮试试：卡片收成一行回执，带「改主意」，事情明确地结束了。</li>
+      </ul>
+      <p>键盘：卡片聚焦后按 1–4 选项，Enter 提交主按钮。数字提示只在非推荐项出现。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ═════ 已备好 ═════ -->
+<section class="sheet">
+  <header><h2>已备好 <code>prepared</code></h2></header>
+  <div class="pair">
+    <article class="k">
+      <div class="k-top"><i class="ring" data-s="ready"></i><span class="k-intent">已备好</span><span class="k-obj"><svg class="ic ic-12"><use href="#i-pages"/></svg>《Q4 发布方案》v7</span><span class="k-due">评审前</span></div>
+      <div class="k-head">
+        <h3 class="k-title">第 3 节的回滚条件写好了</h3>
+        <p class="k-why">按你 10-22 评审纪要定的三条指标写的，插在 §3 第 2 段之后。</p>
+      </div>
+      <div class="k-body">
+        <div class="draft" data-draft>
+          <div class="to"><svg class="ic ic-12"><use href="#i-pages"/></svg>插入到 <b>§3 第 2 段之后</b><span class="pm">+6 行</span></div>
+          <div class="body">出现以下任一情况，30 分钟内回滚：<br>· 同步失败率 &gt; 0.5%（10 分钟窗口）<br>· 崩溃率高于基线 2 倍<br>· 1 小时内客服工单 ≥ 20 条<br>回滚由当班值班负责人判断，并在 #release 频道同步。</div>
+        </div>
+      </div>
+      <div class="k-act">
+        <button class="btn btn-primary" type="button" data-commit="已插入《Q4 发布方案》§3" data-commit-f="v8 · 可在 Pages 撤回"><span>采用到第 3 节</span></button>
+        <button class="btn btn-ghost" type="button" data-expand-draft>看全文</button>
+        <span class="end"><button class="btn btn-ghost btn-icon" type="button" aria-label="更多"><svg class="ic"><use href="#i-more"/></svg></button></span>
+      </div>
+      <button class="k-basis" type="button" aria-expanded="false"><svg class="ic ic-12"><use href="#i-sparkles"/></svg>依据 2 · 10:05<svg class="ic ic-12 chev"><use href="#i-chev"/></svg></button>
+      <div class="k-basis-body"><div class="ln"><span class="n">1</span><span>《1.0 评审纪要 10-22》第 4 条</span></div><div class="ln"><span class="n">2</span><span>Dataset「1.0 基线」· 崩溃率 0.21%</span></div><div class="ln"><span class="n"></span><span class="host">起草 Skill v1（宿主）</span></div></div>
+      <div class="k-done"><i class="ring" data-s="done"></i><span class="t" data-done-t></span><span class="f" data-done-f></span><span class="end"><button class="btn btn-ghost btn-sm" type="button" data-locate><svg class="ic"><use href="#i-locate"/></svg>查看</button><button class="btn btn-ghost btn-sm" type="button" data-undo><svg class="ic"><use href="#i-undo"/></svg>撤回</button></span></div>
+    </article>
+    <div class="notes">
+      <div class="nm">像 Today 那样「把草稿端上来」</div>
+      <ul>
+        <li><span class="why-tag">先给结果</span>标题直接说「写好了」，把成品摆在面前。v1 的「等你采用」删掉，主按钮已经说明。</li>
+        <li><span class="why-tag">渐进披露</span>候选稿只露 3 行，底部渐隐，暗示还有。「+6 行」计数代替常驻 diff；「看全文」原地展开。</li>
+        <li><span class="why-tag">可逆降焦虑</span>回执里写明「可在 Pages 撤回」。只在主人确有撤销时出现（v1 规则不变）。</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ═════ 卡住了 ═════ -->
+<section class="sheet">
+  <header><h2>卡住了 <code>blocked</code></h2></header>
+  <div class="pair">
+    <article class="k">
+      <div class="k-top"><i class="ring" data-s="blocked"></i><span class="k-intent">卡住了</span><span class="k-obj"><svg class="ic ic-12"><use href="#i-goals"/></svg>1.0 可发布</span></div>
+      <div class="k-head">
+        <h3 class="k-title">隐私条款还在等法务</h3>
+      </div>
+      <div class="k-body">
+        <div class="fact"><span class="v">4<small>天</small></span><span class="k2">自 10-23 发出确认请求，未回复</span></div>
+        <div class="chips"><span>挡住</span><button class="chip" type="button"><svg class="ic ic-12"><use href="#i-todo"/></svg>商店提交材料</button><button class="chip" type="button"><svg class="ic ic-12"><use href="#i-todo"/></svg>隐私页上线</button><button class="chip" type="button"><svg class="ic ic-12"><use href="#i-user"/></svg>等 陈律师</button></div>
+      </div>
+      <div class="k-act">
+        <button class="btn btn-primary" type="button" data-commit="催办草稿已备好" data-commit-f="在讨论里等你发送"><span>起草给陈律师的催办</span></button>
+        <button class="btn btn-ghost" type="button" data-snooze>提醒我<svg class="ic ic-12"><use href="#i-down"/></svg></button>
+      </div>
+      <button class="k-basis" type="button" aria-expanded="false"><span class="gapdot"></span>依据 1 · 邮件未连接<svg class="ic ic-12 chev"><use href="#i-chev"/></svg></button>
+      <div class="k-basis-body"><div class="ln"><span class="n">1</span><span>Goal「1.0 可发布」· 依赖「法务确认」· 10-23</span></div><div class="ln"><span class="n"></span><span class="gapl">邮件未连接：看不到法务是否已在邮件里回复（宿主）</span></div></div>
+      <div class="menu" role="menu"><button type="button">明早 9:00</button><button type="button">周四还没回时</button><button type="button">法务回复时<span class="f">按依赖变化</span></button></div>
+      <div class="k-done"><i class="ring" data-s="ready"></i><span class="t" data-done-t></span><span class="f" data-done-f></span><span class="end"><button class="btn btn-ghost btn-sm" type="button">打开草稿</button></span></div>
+    </article>
+    <div class="notes">
+      <div class="nm">一个大数，说清卡了多久</div>
+      <ul>
+        <li><span class="why-tag">锚定</span>「4 天」用 20/600 的数字，是这张卡的视觉落点。数来自宿主读取，不是助理估的。</li>
+        <li><span class="why-tag">关联可点</span>挡住的待办和等的人做成对象片，一行放下，点了打开并定位。</li>
+        <li><span class="why-tag">缺口前置</span>依据行最前面一个琥珀点、写明「邮件未连接」：这张卡可能不完整，用户一眼就能知道。</li>
+        <li><span class="why-tag">克制</span>没有新条件不出第二张；「提醒我」的选项里有「法务回复时」，不靠定时反复催。</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ═════ 进行中 ═════ -->
+<section class="sheet">
+  <header><h2>进行中 <code>running</code></h2></header>
+  <div class="pair">
+    <article class="k">
+      <div class="k-top"><i class="ring" data-s="running"></i><span class="k-intent">进行中</span><span class="k-obj"><svg class="ic ic-12"><use href="#i-coding"/></svg>Coding</span><span class="k-due">约 10 分钟</span></div>
+      <div class="k-head"><h3 class="k-title">正在修复「离线编辑丢失」</h3></div>
+      <div class="k-body">
+        <div class="track" aria-label="第 3/5 步"><i class="done"></i><i class="done"></i><i class="now"></i><i></i><i></i></div>
+        <div class="pnow"><i class="ring" data-s="running"></i>写字段级合并<span class="t2">第 3/5 步 · 已 8 分钟</span></div>
+        <div class="calm"><svg class="ic ic-12"><use href="#i-bell"/></svg>做完会通知你，不用守着</div>
+      </div>
+      <div class="k-act">
+        <button class="btn btn-secondary" type="button">查看过程</button>
+        <span class="end"><button class="btn btn-ghost btn-icon" type="button" aria-label="暂停"><svg class="ic"><use href="#i-pause"/></svg></button><button class="btn btn-ghost btn-icon" type="button" aria-label="停止"><svg class="ic"><use href="#i-stop"/></svg></button></span>
+      </div>
+    </article>
+    <div class="notes">
+      <div class="nm">让人放心离开</div>
+      <ul>
+        <li><span class="why-tag">目标梯度</span>5 段进度条比步骤清单更快读出「过半了」。段数来自执行主人的真实步骤，不画假百分比。</li>
+        <li><span class="why-tag">释放注意力</span>「做完会通知你」直接回答「我要不要盯着」，对应 Today 的后台任务体验。</li>
+        <li><span class="why-tag">没有主按钮</span>这张卡上没有需要用户提交的东西，所以只放次要按钮和图标控制。不为凑满主按钮编一个动作。</li>
+        <li>步骤清单仍在「查看过程」里，v1 的 <code>progress</code> 块页尺寸不变。</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ═════ 已完成 ═════ -->
+<section class="sheet">
+  <header><h2>已完成 <code>receipt</code></h2></header>
+  <div class="pair">
+    <article class="k">
+      <div class="k-top"><i class="ring" data-s="partial"></i><span class="k-intent">完成 3/5</span><span class="k-obj"><svg class="ic ic-12"><use href="#i-todo"/></svg>Todo</span></div>
+      <div class="k-head"><h3 class="k-title">建好 3 条待办，2 条差一步</h3><p class="k-why">负责人不在这个项目里，改了就能建。</p></div>
+      <div class="k-body">
+        <div class="rlist">
+          <div class="rl"><svg class="ic ok"><use href="#i-check"/></svg><span>准备灰度名单</span><span class="f">周二</span></div>
+          <div class="rl"><svg class="ic ok"><use href="#i-check"/></svg><span>回滚演练</span><span class="f">周三</span></div>
+          <div class="rl"><svg class="ic ok"><use href="#i-check"/></svg><span>更新发布说明</span><span class="f">周四</span></div>
+          <div class="rl"><svg class="ic x"><use href="#i-x"/></svg><span>确认商店截图尺寸</span><span class="f">缺负责人</span></div>
+          <div class="rl"><svg class="ic x"><use href="#i-x"/></svg><span>对齐法务</span><span class="f">缺负责人</span></div>
+        </div>
+      </div>
+      <div class="k-act">
+        <button class="btn btn-primary" type="button" data-commit="5 条待办都建好了" data-commit-f="Todo · 本周"><span>改成我负责，建这 2 条</span></button>
+        <button class="btn btn-ghost" type="button"><svg class="ic"><use href="#i-locate"/></svg>在 Todo 里看</button>
+      </div>
+      <div class="k-done"><i class="ring" data-s="done"></i><span class="t" data-done-t></span><span class="f" data-done-f></span><span class="end"><button class="btn btn-ghost btn-sm" type="button" data-undo><svg class="ic"><use href="#i-undo"/></svg>撤回</button></span></div>
+    </article>
+    <div class="notes">
+      <div class="nm">把「差一步」说成「差一步」</div>
+      <ul>
+        <li><span class="why-tag">蔡格尼克效应</span>没完成的事人会一直惦记。v1 写「没建成」，读起来像失败；v2 写「差一步」，主按钮就是那一步。</li>
+        <li><span class="why-tag">结构即状态</span>对勾和叉放在同一列，成败一眼分开；失败行右侧写原因，不另起红字段落。</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ═════ 接着做 ═════ -->
+<section class="sheet">
+  <header><h2>接着做 <code>next</code></h2></header>
+  <div class="pair">
+    <article class="k" data-hit>
+      <div class="k-top"><i class="ring" data-s="empty"></i><span class="k-intent">可以接着做</span><span class="k-obj"><svg class="ic ic-12"><use href="#i-pages"/></svg>《Q4 发布方案》</span><span class="k-due">评审前</span></div>
+      <div class="k-head"><h3 class="k-title">接着写第 3 节「灰度节奏」</h3><p class="k-why">还缺回滚条件；周三评审会问到。</p></div>
+      <div class="k-body">
+        <div class="quote"><div class="src"><svg class="ic ic-12"><use href="#i-pages"/></svg>你上次停在这里 · 上周五 18:12</div>…首批灰度对象为内测用户，观察 48 小时后扩大到 5% 新注册用户。<span class="cur"></span></div>
+      </div>
+      <div class="k-act">
+        <button class="btn btn-primary" type="button"><span>回到这里接着写</span></button>
+        <button class="btn btn-ghost" type="button">先让助理起草</button>
+      </div>
+    </article>
+    <div class="notes">
+      <div class="nm">把断点原样摆出来</div>
+      <ul>
+        <li><span class="why-tag">情境恢复</span>引用人自己写的最后一句，加一个铜色光标：「我就停在这儿」。比「§3 写了 2/4 段」更快接上思路。</li>
+        <li>引文是主人的字（Pages 正文），由宿主读取；助理只写 why。</li>
+        <li><span class="why-tag">低门槛</span>主按钮只打开并定位，不跑模型；想让助理先写，走第二个按钮，结果是另一张「已备好」。</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ═════ 首页简报 ═════ -->
+<section class="sheet">
+  <header>
+    <div class="eyebrow">3 · 放进首页</div>
+    <h2>今日简报：先一句话，再一叠卡</h2>
+    <p class="lead">参考 Today 的早间简报：开头一句话说今天的局面，下面按「需要你 / 已备好 / 进行中」筛，今天的处理进度用一条小轨道表示。行尺寸与右侧卡尺寸读同一条记录。</p>
+  </header>
+  <div class="home">
+    <div>
+      <div class="brief-hd">
+        <small>Q4 发布 · 截至 08:30</small>
+        <h3>早上好，10月27日 周二</h3>
+        <p>发布主线正常。今天<b>只有一件事必须你定</b>：灰度对象，明早评审要用。另外两份东西已经备好，等你过目。</p>
+        <div class="today"><span class="dots"><i class="on"></i><i></i><i></i><i></i><i></i></span><span>今天处理了 1/5</span></div>
+      </div>
+      <div class="filters" data-filters>
+        <button type="button" aria-pressed="true" data-f="all">全部 <span class="n">5</span></button>
+        <button type="button" aria-pressed="false" data-f="you">需要你 <span class="n">2</span></button>
+        <button type="button" aria-pressed="false" data-f="ready">已备好 <span class="n">2</span></button>
+        <button type="button" aria-pressed="false" data-f="run">进行中 <span class="n">1</span></button>
+      </div>
+      <div class="rows">
+        <div class="row" data-g="you"><i class="ring" data-s="answer"></i><span class="main"><span class="t">1.0 的灰度先开给谁？</span><span class="f">需要你决定 · 推荐「内测 50 人」</span></span><span class="due soon">周三 10:00</span></div>
+        <div class="row" data-g="you"><i class="ring" data-s="blocked"></i><span class="main"><span class="t">隐私条款还在等法务</span><span class="f">卡住了 · 4 天 · 挡住 2 条待办</span></span><span class="due">—</span></div>
+        <div class="row" data-g="ready"><i class="ring" data-s="ready"></i><span class="main"><span class="t">第 3 节的回滚条件写好了</span><span class="f">已备好 · +6 行到《Q4 发布方案》</span></span><span class="due">评审前</span></div>
+        <div class="row" data-g="ready"><i class="ring" data-s="ready"></i><span class="main"><span class="t">内测问卷可以导入数据集了</span><span class="f">已备好 · 48/50 份</span></span><span class="due">—</span></div>
+        <div class="row" data-g="run"><i class="ring" data-s="running"></i><span class="main"><span class="t">正在修复「离线编辑丢失」</span><span class="f">进行中 · 第 3/5 步</span></span><span class="due">约 10 分</span></div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="ph"><svg class="ic"><use href="#i-sparkles"/></svg><b>助理</b><span>· Q4 发布</span></div>
+      <article class="k">
+        <div class="k-top"><i class="ring" data-s="answer"></i><span class="k-intent">需要你决定</span><span class="k-obj"><svg class="ic ic-12"><use href="#i-goals"/></svg>1.0 可发布</span><span class="k-due soon"><svg class="ic ic-12"><use href="#i-clock"/></svg>周三 10:00 前</span></div>
+        <div class="k-head"><h3 class="k-title">1.0 的灰度先开给谁？</h3></div>
+        <div class="k-act"><button class="btn btn-primary" type="button"><span>定为「内测 50 人」</span></button><button class="btn btn-ghost" type="button">看选项</button></div>
+      </article>
+      <article class="k">
+        <div class="k-top"><i class="ring" data-s="ready"></i><span class="k-intent">已备好</span><span class="k-obj"><svg class="ic ic-12"><use href="#i-pages"/></svg>《Q4 发布方案》</span></div>
+        <div class="k-head"><h3 class="k-title">第 3 节的回滚条件写好了</h3></div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<!-- ═════ 依据与边界 ═════ -->
+<section class="sheet">
+  <header>
+    <div class="eyebrow">4 · 依据与边界</div>
+    <h2>用到的心理学，和要你拍板的偏差</h2>
+  </header>
+  <div class="scroll-x">
+  <table class="tbl">
+    <thead><tr><th>原理</th><th>落在哪</th><th>边界（不越过）</th></tr></thead>
+    <tbody>
+      <tr><td>视觉层级 / F 形扫读</td><td>标题 15/600 是唯一焦点；头部左意图右截止</td><td>一张卡只有一个最大字号</td></tr>
+      <tr><td>希克定律</td><td>选项去说明、去框，选中才展开理由</td><td>选项仍全部可见，不藏进菜单</td></tr>
+      <tr><td>默认效应</td><td>推荐项预选</td><td>必须标「推荐」，仍要按按钮才提交</td></tr>
+      <tr><td>渐进披露</td><td>依据一行收起；候选稿 3 行渐隐</td><td>缺口的琥珀点永远在收起行上，模型压不掉</td></tr>
+      <tr><td>峰终定律</td><td>提交后收成一行回执</td><td>回执保留入口与撤回（只在主人可撤时）</td></tr>
+      <tr><td>蔡格尼克效应</td><td>「差一步」「你上次停在这里」</td><td>只对真实未完成的事用，不制造焦虑</td></tr>
+      <tr><td>损失框架 / 紧迫</td><td>截止 &lt; 24 小时变琥珀</td><td>不用红色、不倒计时跳秒、不加「紧急」字样</td></tr>
+      <tr><td>认知卸载</td><td>「做完会通知你」、今日进度轨道</td><td>进度只数今天真实处理的卡，不做连续打卡</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <div class="diag" style="margin-top:16px">
+    <div class="dg"><b>① 卡片标题 15/600</b>DESIGN.md 的 Roles 表里，卡的标题是「Item name 13/500」。v2 要求卡尺寸的标题用「Section title 15/600」；行尺寸仍是 13/500。需要你确认，确认后改 DESIGN.md 的 Roles 表。</div>
+    <div class="dg"><b>② 依据默认收起</b>v1 设计稿 §5.1 写「宿主的覆盖与缺口在卡片底部的依据条里」。v2 把它收成一行，缺口点常驻。CARD-03「分得开、能展开看依据」仍然满足。</div>
+    <div class="dg"><b>③ 头部时间换成截止</b>需要卡片记录有截止字段。建议在 <code>Card</code> 上加 <code>due?: { at, label }</code>，由主对象的主题摘要 <code>when</code> 取值，助理不能自己写。这是合同改动。</div>
+    <div class="dg"><b>④ 首页简报开场句</b>开场句由助理写，属于撰写块，要挂依据。它的位置在首页 Display 标题下，需要首页的主人（Home）同意让出这一行。</div>
+  </div>
+</section>
+
+</main>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  "use strict";
+  var NS = "http://www.w3.org/2000/svg";
+  var C = { line: "var(--line-strong)", ink: "var(--ink-soft)", accent: "var(--accent)", amber: "var(--amber)", red: "var(--red)", green: "var(--green)", faint: "var(--faint)" };
+  var RINGS = {
+    empty: { fill: [[C.line, 12]] }, ready: { fill: [[C.ink, 12]] },
+    answer: { fill: [[C.amber, 12]], dot: C.amber }, blocked: { fill: [[C.red, 12]], bar: C.red },
+    running: { fill: [[C.line, 12]], lit: 4, spin: true },
+    done: { fill: [[C.green, 12]], glyph: "M5.4 8.3l1.7 1.7 3.5-3.7", glyphColor: C.green },
+    partial: { fill: [[C.green, 8], [C.amber, 4]] }
+  };
+  function arc(i) {
+    var a0 = (-90 + i * 30 + 5) * Math.PI / 180, a1 = (-90 + i * 30 + 25) * Math.PI / 180, r = 6;
+    return "M" + (8 + r * Math.cos(a0)).toFixed(2) + " " + (8 + r * Math.sin(a0)).toFixed(2) + "A" + r + " " + r + " 0 0 1 " + (8 + r * Math.cos(a1)).toFixed(2) + " " + (8 + r * Math.sin(a1)).toFixed(2);
+  }
+  function ring(el) {
+    var spec = RINGS[el.getAttribute("data-s")] || RINGS.empty;
+    var svg = document.createElementNS(NS, "svg"); svg.setAttribute("viewBox", "0 0 16 16"); svg.setAttribute("aria-hidden", "true");
+    var colors = []; spec.fill.forEach(function (p) { for (var n = 0; n < p[1]; n += 1) colors.push(p[0]); });
+    var g = document.createElementNS(NS, "g"); if (spec.spin) g.setAttribute("class", "spin");
+    for (var i = 0; i < 12; i += 1) {
+      var p = document.createElementNS(NS, "path");
+      p.setAttribute("d", arc(i)); p.setAttribute("fill", "none"); p.setAttribute("stroke-width", "1.7"); p.setAttribute("stroke-linecap", "round");
+      p.setAttribute("stroke", spec.lit && i < spec.lit ? C.accent : colors[i]);
+      (spec.spin ? g : svg).appendChild(p);
+    }
+    if (spec.spin) svg.appendChild(g);
+    if (spec.glyph) { var q = document.createElementNS(NS, "path"); q.setAttribute("d", spec.glyph); q.setAttribute("fill", "none"); q.setAttribute("stroke", spec.glyphColor); q.setAttribute("stroke-width", "1.6"); q.setAttribute("stroke-linecap", "round"); svg.appendChild(q); }
+    if (spec.dot) { var d = document.createElementNS(NS, "circle"); d.setAttribute("cx", "8"); d.setAttribute("cy", "8"); d.setAttribute("r", "1.6"); d.setAttribute("fill", spec.dot); svg.appendChild(d); }
+    if (spec.bar) { var b = document.createElementNS(NS, "path"); b.setAttribute("d", "M5.8 8h4.4"); b.setAttribute("stroke", spec.bar); b.setAttribute("stroke-width", "1.7"); b.setAttribute("stroke-linecap", "round"); svg.appendChild(b); }
+    el.textContent = ""; el.appendChild(svg); el.setAttribute("role", "img"); el.setAttribute("aria-label", el.getAttribute("data-s"));
+  }
+  Array.prototype.forEach.call(document.querySelectorAll(".ring[data-s]"), ring);
+
+  var toast = document.getElementById("toast"), timer = 0;
+  function say(t) { toast.textContent = "示例 · " + t; toast.classList.add("on"); clearTimeout(timer); timer = setTimeout(function () { toast.classList.remove("on"); }, 2400); }
+  function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); localStorage.setItem(k, v); } catch (e) { return null; } return null; }
+
+  function applySeg(name, value) {
+    var group = document.querySelector('[data-seg="' + name + '"]'); if (!group) return;
+    Array.prototype.forEach.call(group.querySelectorAll("button"), function (b) { b.setAttribute("aria-pressed", String(b.getAttribute("data-v") === value)); });
+    if (name === "theme") document.documentElement.setAttribute("data-theme", value);
+    if (name === "panel") document.documentElement.style.setProperty("--panel-w", value);
+  }
+  var dark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  applySeg("theme", store("ac2-theme") || (dark ? "dark" : "light"));
+  applySeg("panel", store("ac2-panel") || "400px");
+
+  function pick(ch) {
+    var group = ch.parentElement;
+    Array.prototype.forEach.call(group.querySelectorAll(".ch"), function (o) { o.setAttribute("aria-checked", String(o === ch)); });
+    var card = ch.closest(".k"), primary = card.querySelector(".k-act .btn-primary"), label = ch.getAttribute("data-label");
+    primary.querySelector("span").textContent = label === "其他" ? "提交我写的答案" : group.getAttribute("data-primary").replace("{x}", label);
+    primary.setAttribute("data-label", label);
+  }
+  function commit(btn) {
+    var card = btn.closest(".k");
+    var label = btn.getAttribute("data-label") || "内测 50 人";
+    card.querySelector("[data-done-t]").textContent = btn.getAttribute("data-commit").replace("{x}", label);
+    card.querySelector("[data-done-f]").textContent = btn.getAttribute("data-commit-f") || "";
+    card.classList.add("is-done", "is-new");
+    setTimeout(function () { card.classList.remove("is-new"); }, 700);
+  }
+
+  document.addEventListener("click", function (e) {
+    var t = e.target;
+    var seg = t.closest(".seg button");
+    if (seg) { var n = seg.parentElement.getAttribute("data-seg"), v = seg.getAttribute("data-v"); applySeg(n, v); store("ac2-" + n, v); return; }
+    var f = t.closest("[data-filters] button");
+    if (f) {
+      Array.prototype.forEach.call(f.parentElement.querySelectorAll("button"), function (b) { b.setAttribute("aria-pressed", String(b === f)); });
+      var g = f.getAttribute("data-f");
+      Array.prototype.forEach.call(document.querySelectorAll(".row[data-g]"), function (r) { r.hidden = g !== "all" && r.getAttribute("data-g") !== g; });
+      return;
+    }
+    var ch = t.closest(".ch"); if (ch) { pick(ch); return; }
+    var basis = t.closest(".k-basis"); if (basis) { basis.setAttribute("aria-expanded", String(basis.getAttribute("aria-expanded") !== "true")); return; }
+    var sn = t.closest("[data-snooze]");
+    if (sn) { var m = sn.closest(".k").querySelector(".menu"); if (m) m.classList.toggle("on"); return; }
+    var mi = t.closest(".menu button");
+    if (mi) { mi.closest(".menu").classList.remove("on"); say("暂缓到「" + mi.firstChild.textContent.trim() + "」：到时先重读，仍有价值才回来"); return; }
+    var c = t.closest("[data-commit]"); if (c) { commit(c); return; }
+    var u = t.closest("[data-undo]"); if (u) { u.closest(".k").classList.remove("is-done"); say("已撤回，卡片回到待处理"); return; }
+    var dx = t.closest("[data-expand-draft]");
+    if (dx) { var d = dx.closest(".k").querySelector("[data-draft]"); d.classList.toggle("open"); dx.textContent = d.classList.contains("open") ? "收起" : "看全文"; return; }
+    var b = t.closest("button"); if (b) { say("按下「" + b.textContent.trim() + "」：只在页面里演示"); return; }
+    var r = t.closest(".row, .k[data-hit]"); if (r) say("点主体：选中、主区打开并定位，只看不改");
+    Array.prototype.forEach.call(document.querySelectorAll(".menu.on"), function (m2) { m2.classList.remove("on"); });
+  });
+  document.addEventListener("keydown", function (e) {
+    var card = e.target.closest && e.target.closest(".k[data-card]"); if (!card) return;
+    var opts = card.querySelectorAll(".ch"), i = Number(e.key);
+    if (i >= 1 && i <= opts.length) { e.preventDefault(); pick(opts[i - 1]); opts[i - 1].focus(); }
+  });
+  Array.prototype.forEach.call(document.querySelectorAll(".k[data-card]"), function (k) { k.tabIndex = 0; });
+})();
+</script>
+</body>
+</html>

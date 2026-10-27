@@ -43,9 +43,12 @@ const CODING: Record<string, Shipped> = {
   coding: { key: "coding", plugin_id: "io.molis.work.coding", scope: "project", joins: true, stops_when_removed: true,
     write: (web, routes, title) => web.post(`${routes}/sessions`, { title }),
     titles: async (web, routes) => (await web.get<{ sessions: Array<{ title: string }> }>(`${routes}/state`)).sessions.map(session => session.title) },
-  git: { key: "git", plugin_id: "io.molis.work.git", scope: "project", joins: true, stops_when_removed: true, kept: ["selected"],
+  git: { key: "git", plugin_id: "io.molis.work.git", scope: "project", joins: true, stops_when_removed: true, kept: ["note"],
     write: async (web, routes) => web.post(`${routes}/diff`, { workspace_id: await workspaceOf(web, routes), path: ["note"], side: "worktree" }),
-    titles: async (web, routes) => (await web.get<{ selected: object | null }>(`${routes}/state`)).selected ? ["selected"] : [] },
+    titles: async (web, routes) => {
+      const { selected } = await web.get<{ selected: { path: readonly string[] } | null }>(`${routes}/state`);
+      return selected ? [selected.path.join("/")] : [];
+    } },
   files: { key: "files", plugin_id: "io.molis.work.files", scope: "project", joins: true, stops_when_removed: true, kept: ["note.txt"],
     write: async (web, routes) => web.post(`${routes}/open`, { workspace_id: await workspaceOf(web, routes), path: ["note.txt"] }),
     titles: async (web, routes) => {

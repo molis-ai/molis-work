@@ -1,9 +1,10 @@
 // W6-02 rest (specs/repository-anti-corruption/slices/w6-02-lifecycle-rest.md; RAC-1095–RAC-1098): the lifecycle walk of
 // tests/fixtures/shipped-lifecycle.ts, for the personal plugins that run on the Home supervisor: 问题 (Issues), 知识库 (Cognia),
-// 图片 (Images) and 置物架 (Shelf, which is also 常开 and has a half of its own in every project). Each keeps what the person wrote in the Home, whichever project they are in; the project's plugin list only decides
-// whether the project may reach it. Each thing is made through the plugin's own route and read back from its list; the walk then
-// removes the plugin from the project and adds it back, takes a required permission away and gives it back, upgrades the
-// installation and uninstalls it, with a restart after.
+// 图片 (Images) and 置物架 (Shelf, which is also 常开 and has a half of its own in every project). Each keeps what the person
+// wrote in the Home, whichever project they are in; the project's plugin list only decides whether the project may reach it. Each
+// thing is made through the plugin's own route and read back from its list; the walk then removes the plugin from the project and
+// adds it back, takes a required permission away and gives it back, upgrades the installation and uninstalls it, with a restart
+// after.
 import test from "node:test";
 import { titlesOf, walk, type Shipped } from "./fixtures/shipped-lifecycle.js";
 

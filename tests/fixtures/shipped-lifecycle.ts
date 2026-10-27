@@ -38,6 +38,8 @@ export interface Shipped {
    * back runs it again, where a personal plugin's installation keeps running whoever may reach it (apps/local-host/src/project-plugin-enablement.ts).
    */
   readonly stops_when_removed?: true;
+  /** Another plugin's key whose removal takes this one out of the project (it needs that one, or that one embeds it); adding this back brings it too. */
+  readonly removed_by?: string;
   /** The required permission the walk takes back; `storage:private` unless the plugin keeps nothing of its own. */
   readonly revoke?: string;
   /** What `titles` answers after `write("first")`; `["first"]` unless the plugin names what it keeps otherwise. */
@@ -124,7 +126,7 @@ export async function walk(plugin: Shipped, host: Partial<HostOptions> = {}) {
       assert.deepEqual(await at.callable(), callable);
     } else {
       // Taken out of the project: its routes and actions there are refused; the installation (shared, or the project's) keeps running.
-      assert.equal(await answer(served.web.delete(settings, { plugin_id: plugin.key })), 200);
+      assert.equal(await answer(served.web.delete(settings, { plugin_id: plugin.removed_by ?? plugin.key })), 200);
       assert.equal(await answer(plugin.titles(served.web, at.routes)), "403 actions.plugin_disabled", `${plugin.key}: removed from the project`);
       assert.deepEqual(await at.callable(), [], `${plugin.key}: nothing of it to call in the project`);
       assert.equal((await at.installation())?.state, plugin.stops_when_removed ? "disabled" : "running", `${plugin.key}: its installation after removal`);

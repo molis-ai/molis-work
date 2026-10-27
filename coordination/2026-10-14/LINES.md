@@ -526,3 +526,19 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
       - 按子串匹配，写在注释里也能过。
     - 收紧这两条正则属于改门禁本身，开工前要问用户。
     - BL-802 那一行由 C 写进它的 BACKLOG，下一个空号是 BL-803。
+  - **10-27 C 推到 7bb44456b**：
+    - 0f4c83de4：
+      - D-4e3-1 按用户 10-10 的决定改回：本人升格记已确认，其他调用方记待确认；
+      - Feed Manifest 退回 0.3.0，CHECKLIST 补 FEED_HOME_DATABASE；
+      - inbox-automatic-scenes 改走 feed.sources.sync；
+      - FI7 评审的四处跟进。
+    - e66871269：Notion 共享刷新补两条用例，§13 写了 R-68 的取舍。
+    - 4353b5905..7bb44456b 已转评审复核。
+    - 受影响的文件逐个跑，都绿，只有 inbox-automatic-scenes 一处例外。
+  - **RAC-510 统筹裁定在 C 里修，先出方案。**
+    - 现状：Runtime Feed 装配时没给 artifacts 端口，所以每条命中规则的消息都不出 feed.capture 成果，Inbox 还多一条「捕获失败」。main 上是宿主装配时给的。
+    - 这是 C 规格的验收条目，也是对 main 的产品回归，带着它不能合。
+    - 方案首选：平台让 `services.artifacts.publish` 和 attention 一样并进插件的提交，不给 Feed 开私路。
+    - 方案要按时间点写清取消、撤权、停用时会怎样：成果也是业务记录，被取消的调用不能留下。
+    - 方案写在 c-rac510-design.md，先交评审看，统筹批了 C 再动手。
+    - inbox-automatic-scenes 第 166 行在那之前先红着，§13 照实记。

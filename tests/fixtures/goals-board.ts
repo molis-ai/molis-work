@@ -1,13 +1,15 @@
 import { ActionError, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { goalEntryActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import { writeProjectRoot } from "@molis-ai/molis-work-module-projects";
-import type { MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
+import { initializeProjectDatabase, type MolisWorkLocalHost } from "@molis-ai/molis-work-app-local-host";
 
 type Reference = Parameters<MolisWorkLocalHost["withProject"]>[0];
 
 /** A library the test made itself becomes a project the platform runs plugins in once it holds the root row a catalog gives every project. */
 export async function ensureProjectRoot(host: MolisWorkLocalHost, reference: Reference): Promise<void> {
-  await host.withProject(reference, runtime => { writeProjectRoot(runtime.store.db, reference.project_id, new Date().toISOString()); });
+  const project = host.client(reference).project;
+  if (!host.projects().some(entry => entry.storage_key === project.storage_key)) await initializeProjectDatabase(project.storage_key, project.project_id);
+  await host.withProject(project, runtime => { writeProjectRoot(runtime.store.db, project.project_id, new Date().toISOString()); });
 }
 
 /**

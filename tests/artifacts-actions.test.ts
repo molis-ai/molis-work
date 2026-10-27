@@ -11,7 +11,7 @@ import { ARTIFACT_ACTIONS, ARTIFACT_ACTION_PERMISSIONS, ARTIFACTS_PROVIDER_ID, a
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { withConnectorConnections, projectActionAvailability, LOCAL_OWNER_PERMISSIONS, artifactActionProvider } from "@molis-ai/molis-work-app-local-host";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, initializeProjectDatabase, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { serveTestHost } from "./fixtures/test-home.js";
@@ -158,6 +158,7 @@ for (const stop of ["withdraw", "cancel"] as const) test(`Artifact imports stay 
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "project" });
   try {
+    await initializeProjectDatabase(ref.storage_key, ref.project_id);
     await host.withProject(ref, async runtime => {
       goalApplicationOf(runtime).initializeBoard({ project_id: "project", actor_id: "owner", idempotency_key: "init" });
       const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), controller = new AbortController();

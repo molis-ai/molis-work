@@ -16,7 +16,7 @@ import { PLUGIN_REVIEW_KINDS } from "@molis-ai/molis-work-contracts/services/age
 import { codingManifest } from "@molis-ai/molis-work-plugin-coding";
 import { gitManifest } from "@molis-ai/molis-work-plugin-git";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { LocalProjectDatabase, MolisWorkLocalHost, composeAgentHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, initializeProjectDatabase, MolisWorkLocalHost, composeAgentHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { reviewPlugins } from "./fixtures/review-plugins.js";
 import { callAs, callerPlugin, issuedCaller, registerProbe, startPlugin } from "./fixtures/plugin-callers.js";
 
@@ -56,6 +56,7 @@ async function openHost(t: TestContext) {
   let reads = 0, revokeAt = 0, revoke = async () => {};
   const host = new MolisWorkLocalHost({ completeText: null });
   const reference = molisWorkHostProjectReference({ databasePath: join(root, "project.sqlite"), projectId: "project" });
+  await initializeProjectDatabase(reference.storage_key, reference.project_id);
   const composition = composeAgentHost({ localHost: host, homeDirectory: root, workspaceFor: () => workspace,
     workspacesFor: async () => { if (++reads === revokeAt) await revoke(); return [workspace]; },
     authorizeWriterDirectory: async (_project, canonicalPath) => { authorized.push(canonicalPath); },
@@ -247,6 +248,7 @@ async function openGitHost(t: TestContext, clean = false) {
   const workspacesFor = async () => { if (++reads === hookAt) await hook(); return [workspace]; };
   const host = new MolisWorkLocalHost({ completeText: null, workspacesFor, workspaceFor: () => workspace });
   const reference = molisWorkHostProjectReference({ databasePath: join(root, "project.sqlite"), projectId: "project" });
+  await initializeProjectDatabase(reference.storage_key, reference.project_id);
   const composition = composeAgentHost({ localHost: host, homeDirectory: root, workspaceFor: () => workspace, workspacesFor,
     authorizeWriterDirectory: async (_project, canonicalPath) => { authorized.push(canonicalPath); },
     prologue: { storageRoot: join(root, "runtime"), resolveCredential: () => "fixture-only",

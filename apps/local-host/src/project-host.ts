@@ -68,6 +68,8 @@ export interface MolisWorkProjectRuntime extends ProjectVersionStores {
   store: LocalProjectDatabase;
   /** Which project this runtime serves. Capabilities scope their answers to it. */
   project_id: string;
+  /** Explicit project initialization refreshes only this Runtime's fixed Artifact source registration. */
+  refreshArtifactActions(): void;
 }
 
 export interface MolisWorkLocalHostOptions {
@@ -167,7 +169,16 @@ export class MolisWorkLocalHost {
           options.onRuntimeOpen?.(reference);
           const store = new LocalProjectDatabase(reference.storage_key);
           const clock = options.clock ?? (() => new Date());
-          const runtime: MolisWorkProjectRuntime = { store, ...openProjectVersionStores(store, clock), project_id: reference.project_id };
+          let artifactRegistration: { instance: string | undefined; dispose(): void } | undefined;
+          const runtime: MolisWorkProjectRuntime = { store, ...openProjectVersionStores(store, clock), project_id: reference.project_id,
+            refreshArtifactActions: () => {
+              const registration = artifactActionProvider(runtime, options, this.actionClient(reference));
+              const instance = registration.provider.project_data_instance_id;
+              if (artifactRegistration && artifactRegistration.instance === instance) return;
+              artifactRegistration?.dispose(); artifactRegistration = undefined;
+              const dispose = registerPreparedProviders(this.host.actionRegistry(reference), [registration]).get(registration)!;
+              artifactRegistration = { instance, dispose };
+            } };
           try {
             const scenes = this.sceneClient(reference);
             const eventFeed = workflowEventsFeedOptions(scenes, reference.project_id);
@@ -176,7 +187,8 @@ export class MolisWorkLocalHost {
             const providers: ActionProviderRegistration[] = [], add = (provider: ActionProviderRegistration) => { providers.push(provider); };
             add(projectWorkspaceActionProvider(reference.project_id, () => this.personalPlanningHome && this.catalogRunner ? { home: this.personalPlanningHome, run: this.catalogRunner } : undefined,
               workspaceId => announceWorkspaceSettingsChange(store, reference.project_id, workspaceId)));
-            add(artifactActionProvider(runtime, options, this.actionClient(reference)));
+            const artifacts = artifactActionProvider(runtime, options, this.actionClient(reference));
+            add(artifacts);
             for (const provider of nativeContentProviders(runtime, feed, options.homeDirectory, this.actionClient(reference), scenes, options.functions)) add(provider);
             add(inboxActionProvider(runtime, options.homeDirectory, { actions: this.actionClient(reference), scenes, functions: options.functions, readFunctions: this.systemFunctions?.read }, feed));
             if (options.homeDirectory) add(informationActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
@@ -187,7 +199,8 @@ export class MolisWorkLocalHost {
                   objectType: "judgment", objectId: judgment.judgment_id, type: "judgment_completed", reason: judgment.outcome,
                   payload: { judgment_id: judgment.judgment_id }, at: judgment.created_at });
               }));
-            await registerProviders(this.host.actionRegistry(reference), withoutRefusedPlugins(store.db, providers, entry => entry.provider.plugin_id));
+            const registrations = await registerProviders(this.host.actionRegistry(reference), withoutRefusedPlugins(store.db, providers, entry => entry.provider.plugin_id));
+            artifactRegistration = { instance: artifacts.provider.project_data_instance_id, dispose: registrations.get(artifacts)! };
             openProjectSchedulers(this, runtime, reference);
             return runtime;
           } catch (error) {
@@ -427,9 +440,16 @@ function registerHostPlatformProviders(registry: ActionRegistryPort, providers: 
  * Registers a project's providers in the order they were built. Their contracts are compiled first, a little at a time,
  * so that opening a project never holds the Host for the whole of it.
  */
-async function registerProviders(registry: ActionRegistryPort, providers: readonly ActionProviderRegistration[]): Promise<void> {
+async function registerProviders(registry: ActionRegistryPort, providers: readonly ActionProviderRegistration[]): Promise<Map<ActionProviderRegistration, () => void>> {
   await precompileActionSchemas(providers.flatMap(provider => provider.definitions));
-  for (const provider of providers) registry.registerProvider(provider);
+  return registerPreparedProviders(registry, providers);
+}
+
+/** Initial assembly and synchronous source refresh use the same registration owner; refreshed definitions were compiled at open. */
+function registerPreparedProviders(registry: ActionRegistryPort, providers: readonly ActionProviderRegistration[]): Map<ActionProviderRegistration, () => void> {
+  const registrations = new Map<ActionProviderRegistration, () => void>();
+  for (const provider of providers) registrations.set(provider, registry.registerProvider(provider));
+  return registrations;
 }
 
 /**

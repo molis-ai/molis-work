@@ -1,6 +1,14 @@
 {
   "note": "Giant units that stay whole because they are reasonable as one unit (user 2026-10-25: a reasonable oversized unit is not force-split, it is marked; specs/repository-anti-corruption §4.5; the list with every verdict is docs/system/HUGE-CLASS-MIGRATION.md). Each entry has a kind, a reason that says why splitting it would be wrong, and \"size\": the measured size (lines for a file or a function, { lines, methods } for a class), which has to equal what the gate measures, so an entry reserves no headroom and growth shows as an edit here. A unit with a valid entry is admitted by the merge-base comparison, new or grown; a giant unit without one may not appear or grow. Keys are the unit keys of baseline.json; an entry for a unit that is no longer giant fails the gate and has to be deleted. kind: translation-table, stylesheet, static-data, generated-code or cohesive-unit (one responsibility that splitting would scatter: a state machine, a parser, a protocol adapter). A unit that mixes several jobs is split, not marked. Edits here are reviewed like edits to the gate.",
   "exceptions": {
+    "class apps/local-host/src/project-host.ts#MolisWorkLocalHost": {
+      "kind": "cohesive-unit",
+      "reason": "同一 Local Host 的装配与 Runtime、来源注册及撤销生命周期由此类统一持有；业务状态、授权、存储和执行仍委托原有主人，拆分这次单一来源刷新会把同一 Runtime 的注册生命周期散到多个装配主人。",
+      "size": {
+        "lines": 304,
+        "methods": 22
+      }
+    },
     "function apps/workbench/src/browser/knowledge/settings-page.ts#bindKnowledgeSettings": {
       "kind": "cohesive-unit",
       "reason": "同一资料设置页的列表、筛选、选择与刷新生命周期，统一持有当前卡片和选择状态；详情及来源关联已委托独立组件，继续拆开会让同一页面的异步刷新与选择状态分散到多个主人。",

@@ -5,7 +5,7 @@ import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from "node:fs/promi
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { prepareGitOperationCapability, readGitOperationsCapability, workspaceReadActions } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
-import { LocalProjectDatabase, MolisWorkLocalHost, composeAgentHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, MolisWorkLocalHost, composeAgentHost, molisWorkHostProjectReference, initializeProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { callerPlugin, registerProbe, startPlugin } from "./fixtures/plugin-callers.js";
 
 const OPERATION = "review:git-operation";
@@ -31,6 +31,7 @@ test("Git operations approved together in several workspaces each keep what they
   const workspacesFor = async () => workspaces;
   const host = new MolisWorkLocalHost({ completeText: null, workspacesFor, workspaceFor: () => workspaces[0]! });
   const reference = molisWorkHostProjectReference({ databasePath: join(root, "project.sqlite"), projectId: "project" });
+  await initializeProjectDatabase(reference.storage_key, reference.project_id);
   const composition = composeAgentHost({ localHost: host, homeDirectory: root, workspaceFor: () => workspaces[0]!, workspacesFor,
     prologue: { storageRoot: join(root, "runtime"), resolveCredential: () => "fixture-only",
       modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }) } });

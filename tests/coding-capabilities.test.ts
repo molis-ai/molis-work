@@ -4,7 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { writeProjectRoot } from "@molis-ai/molis-work-module-projects";
 import { projectsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 
@@ -27,6 +28,8 @@ async function fixture(workspaceFor?: (projectId: string) => ProjectWorkspaceRef
     databasePath: join(directory, "project.db"),
     projectId: "project-a",
   });
+  const database = new LocalProjectDatabase(reference.storage_key);
+  try { writeProjectRoot(database.db, reference.project_id, new Date().toISOString()); } finally { database.close(); }
   return { directory, host, reference, client: host.client(reference) };
 }
 

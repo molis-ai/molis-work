@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, initializeProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 
 /**
  * Serial project or Home operations wait for each other. An action that waits on a model inside its handler must run
@@ -22,6 +22,7 @@ test("every action that waits on a model runs beside the serial queue unless it 
   const ref = molisWorkHostProjectReference({ databasePath: join(home, "a.sqlite"), projectId: "a" });
   const found = new Map<string, string | undefined>();
   try {
+    await initializeProjectDatabase(ref.storage_key, ref.project_id);
     for (const audience of ["user", "agent", "workflow", "mcp", "plugin"] as const) {
       for (const [project, reference] of [["a", ref], [null, undefined]] as const) {
         for (const view of await host.inspectActions({ actor_id: "web-user", project_id: project, audience, permissions: [] }, reference)) {
@@ -47,6 +48,7 @@ test("real Native AI declarations reach the Builder catalog and stop metered aut
   const host = new MolisWorkLocalHost({ homeDirectory: home });
   const ref = molisWorkHostProjectReference({ databasePath: join(home, 'a.sqlite'), projectId: 'a' });
   try {
+    await initializeProjectDatabase(ref.storage_key, ref.project_id);
     const catalog = await capabilityCatalog({ registry: host.actionRegistry(ref), client: host.actionClient(ref), project_id: 'a', inspect: caller => host.inspectActions(caller, ref) }, 'web-user');
     for (const id of ['pages.ai', 'pages.generate', 'form.questions.draft', 'dataset.columns.ai', 'lingguang.conversation.message', 'jelly.plan.generate', 'cognia.knowledge.query', 'images.jobs.start', 'alchemist.reuse.assess']) {
       const entry = catalog.find(item => item.id === id); assert.ok(entry, id);

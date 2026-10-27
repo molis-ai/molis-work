@@ -6,7 +6,7 @@ import { promisify } from "node:util";
 import { mkdtemp, mkdir, writeFile, readFile, rm, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { MolisWorkLocalHost, composeAgentHost, molisWorkHostProjectReference, createGitWorktreePort } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, initializeProjectDatabase, composeAgentHost, molisWorkHostProjectReference, createGitWorktreePort } from "@molis-ai/molis-work-app-local-host";
 import { writerIntegrationCapabilities as integration } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { codingAgentManifest, codingPrompts } from "@molis-ai/molis-work-plugin-coding";
@@ -30,6 +30,8 @@ for (const parentOutcome of ["completed", "failed"] as const) test(`Host integra
   return parentCalls===1?response("dispatch-subagent",{instruction:"CHILD_TASK read and update note.txt",tools:["read","search","context-remaining","write","edit","run-command"],workspace:"child",character,idempotencyKey:"child",background:false}):parentOutcome === "failed" ? new Response(JSON.stringify({type:"error",error:{type:"invalid_request_error",message:"fixture parent cannot finish its report"}}),{status:400,headers:{"content-type":"application/json"}}):response();
  });
  const localHost=new MolisWorkLocalHost(),reference=molisWorkHostProjectReference({databasePath:path.join(home,"board.db"),projectId: "board"});
+ await initializeProjectDatabase(reference.storage_key,reference.project_id);
+ await initializeProjectDatabase(path.join(home,"other.db"),"other");
  const make=()=>composeAgentHost({localHost,homeDirectory:home,workspaceFor:()=>grants[0]!,workspacesFor:()=>grants,prologue:{storageRoot:path.join(home,"sdk"),modelConfiguration:async()=>({protocol:"anthropic-compatible",endpoint:"https://1.1.1.1/v1/messages",model:"fixture",credential_ref:"fixture"}),resolveCredential:()=>"test-only"}});
  let composition=make();await composition.ready;
  // Integrating is a review only the installation holding review:git-integration asks for, through its own session (S-50); reading

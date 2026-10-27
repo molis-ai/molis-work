@@ -219,8 +219,14 @@ test("invalid, empty, oversized and unauthorized imports leave Artifact records 
 });
 
 test("external document snapshots preserve exact old versions and isolate the same source by project", async t => {
-  const { coordinator, library, get } = await fixture(t);
-  coordinator.initializeBoard({ project_id: "other-project", actor_id: "fixture-owner", idempotency_key: "create-other-project" });
+  const { library, get } = await fixture(t);
+  // A second project owns its own library, including its persistent project root.
+  const otherDirectory = await mkdtemp(join(tmpdir(), "artifact-import-foreign-"));
+  const otherPath = join(otherDirectory, "project.db");
+  seedBoard(otherPath, "other-project");
+  const otherStore = new LocalProjectDatabase(otherPath);
+  t.after(async () => { otherStore.close(); await rm(otherDirectory, { recursive: true, force: true }); });
+  const otherLibrary = openProjectVersionStores(otherStore);
   let document: ImportedArtifactDocument = {
     source: "notion", source_id: "a1b2c3-source", source_url: "https://www.notion.so/a1b2c3-source",
     title: "来源文档", content: "第一次读取的正文", format: "markdown", warnings: [],
@@ -257,12 +263,13 @@ test("external document snapshots preserve exact old versions and isolate the sa
   assert.equal((latest.payload as Record<string, unknown>).content, "第二次读取的正文");
   assert.equal(latest.supersedes_version, 1);
 
-  const other = await importArtifactDocument(input, { ...ports, projectId: "other-project", routePrefix: "/projects/other" });
+  const other = await importArtifactDocument(input, { ...ports, projectId: "other-project", routePrefix: "/projects/other", artifacts: otherLibrary.artifacts });
   assert.notEqual(other.artifact_id, first.artifact_id);
   assert.equal(other.version, 1);
   assert.ok(other.url.startsWith("/projects/other/artifacts/"));
   assert.equal(library.artifacts.query.getArtifactVersion(DEMO_PROJECT_ID, other), null);
-  assert.equal(library.artifacts.query.getArtifactVersion("other-project", first), null);
+  assert.ok(otherLibrary.artifacts.query.getArtifactVersion("other-project", other));
+  assert.equal(otherLibrary.artifacts.query.getArtifactVersion("other-project", first), null);
   const beforeFailure = library.artifacts.query.listArtifacts(DEMO_PROJECT_ID);
   const permissionDenied = new Error("fixture provider denied permission");
   await assert.rejects(importArtifactDocument(input, { ...ports, readExternal: async () => { throw permissionDenied; } }), error => error === permissionDenied);

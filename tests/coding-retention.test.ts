@@ -248,7 +248,7 @@ test("Coding retention is body-free, reads no Run, and preserves the same frozen
   const reads = t.mock.method(f.adapter, "read", async () => { throw new Error("retention must not read a Run"); });
   const sessions = t.mock.method(f.adapter, "readSession", async () => { throw new Error("local retention must not read a Runtime Session"); });
   const before = await source(f, "local");
-  assert.deepEqual(await retention(f, "local"), { subject: before.subject, state: "active", retained: null });
+  assert.deepEqual(await retention(f, "local"), { subject: before.subject, state: "active", current_revision: null, retained: null });
   const archive = await preview(f, "local", true);
   assert.equal((await apply(f, "local", true, archive))?.status, 200);
   const frozen = { subject: before.subject, state: "temporarily_archived", retained: { content_revision: before.revision, restoration_operation_id: null } };
@@ -260,7 +260,7 @@ test("Coding retention is body-free, reads no Run, and preserves the same frozen
   assert.deepEqual(await retention(f, "local"), frozen);
   const restore = await preview(f, "local", false);
   assert.equal((await apply(f, "local", false, restore))?.status, 200);
-  const restored = { subject: before.subject, state: "active", retained: { content_revision: before.revision, restoration_operation_id: operation(restore) } };
+  const restored = { subject: before.subject, state: "active", current_revision: null, retained: { content_revision: before.revision, restoration_operation_id: operation(restore) } };
   assert.deepEqual(await retention(f, "local"), restored);
   assert.equal((await source(f, "local")).revision, before.revision, "archive timestamp and restore operation are not content");
   await restart(f);

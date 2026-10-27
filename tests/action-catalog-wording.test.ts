@@ -4,6 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 
 /**
  * What the Assistant reads to pick an action (AI entry inventory §6, §7.4): a title that names the action, a description that
@@ -13,12 +14,13 @@ const MIN_DESCRIPTION = 14;
 
 test("the Assistant's directory: every action has its own title and a description that says more than the title", async () => {
   const home = await mkdtemp(join(tmpdir(), "action-catalog-wording-"));
+  const project = await withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "Action directory", actor_id: "web-user" }));
   const host = new MolisWorkLocalHost({ homeDirectory: home });
-  const ref = molisWorkHostProjectReference({ databasePath: join(home, "a.sqlite"), projectId: "a" });
+  const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const found = new Map<string, { title: string; description: string }>();
   try {
-    for (const [project, reference] of [["a", ref], [null, undefined]] as const) {
-      for (const view of await host.inspectActions({ actor_id: "web-user", project_id: project, audience: "agent", permissions: [] }, reference)) {
+    for (const [projectId, reference] of [[project.project_id, ref], [null, undefined]] as const) {
+      for (const view of await host.inspectActions({ actor_id: "web-user", project_id: projectId, audience: "agent", permissions: [] }, reference)) {
         found.set(`${view.capability_id}@${view.version}`, { title: view.action.title, description: view.action.description ?? "" });
       }
     }

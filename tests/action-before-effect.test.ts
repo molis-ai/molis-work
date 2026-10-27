@@ -17,7 +17,7 @@ import { cogniaActions, COGNIA_ACTION_PERMISSIONS } from "@molis-ai/molis-work-p
 import { openCogniaStore } from "./fixtures/plugin-home-stores.js";
 import { pptActions, PPT_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-ppt";
 import { openPptStore } from "./fixtures/plugin-home-stores.js";
-import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalHost, MolisWorkLocalHost, molisWorkHostProjectReference, projectActionAvailability } from "@molis-ai/molis-work-app-local-host";
 
 const permissions = [...FORM_ACTION_PERMISSIONS, ...DATASET_ACTION_PERMISSIONS, ...LINGGUANG_ACTION_PERMISSIONS, ...PAGES_ACTION_PERMISSIONS, ...COGNIA_ACTION_PERMISSIONS, ...PPT_ACTION_PERMISSIONS];
@@ -109,25 +109,26 @@ async function prepare(kind: Kind, client: ReturnType<typeof bindActionClient>):
     title: "Source", body: "Original evidence", url: null, source_label: "Manual", captured_at: "2026-09-26T00:00:00Z", provenance: [] }] };
 }
 
-function persisted(home: string, kind: Kind, input: Record<string, unknown>) {
-  if (kind === "form") { const store = openFormStore(home); try { return store.get(input.id as string, "a"); } finally { store.close(); } }
-  if (kind === "dataset") { const store = openDatasetStore(home); try { return store.get(input.id as string, "a"); } finally { store.close(); } }
-  if (kind === "lingguang") { const store = openLingguangStore(home); try { return store.conversation(input.id as string, "a"); } finally { store.close(); } }
-  if (kind === "ppt") { const store = openPptStore(home); try { return store.get(input.id as string, "a"); } finally { store.close(); } }
+function persisted(home: string, kind: Kind, input: Record<string, unknown>, projectId: string) {
+  if (kind === "form") { const store = openFormStore(home); try { return store.get(input.id as string, projectId); } finally { store.close(); } }
+  if (kind === "dataset") { const store = openDatasetStore(home); try { return store.get(input.id as string, projectId); } finally { store.close(); } }
+  if (kind === "lingguang") { const store = openLingguangStore(home); try { return store.conversation(input.id as string, projectId); } finally { store.close(); } }
+  if (kind === "ppt") { const store = openPptStore(home); try { return store.get(input.id as string, projectId); } finally { store.close(); } }
   if (kind === "cognia") { const store = openCogniaStore(home); try { return { drafts: store.drafts(), materials: store.materials() }; } finally { store.close(); } }
-  const store = openPagesStore(home); try { return { documents: store.list("a"), record: store.generation("a", input.request_id as string) }; } finally { store.close(); }
+  const store = openPagesStore(home); try { return { documents: store.list(projectId), record: store.generation(projectId, input.request_id as string) }; } finally { store.close(); }
 }
 
 for (const kind of ["form", "dataset", "lingguang", "pages", "cognia", "ppt"] as const) for (const mode of ["revoked", "disabled", "cancelled"] as const) {
   test(`${kind}: ${mode} during model wait prevents all later original SQLite writes and permits authorized recovery`, { timeout: 15_000 }, async t => {
     const home = await mkdtemp(join(tmpdir(), `${kind}-effect-`)), entered = gate(), release = gate(); let enabled = true, allowed = true, dispatched = 0;
+    const project = await withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "Effect guard", actor_id: caller.actor_id }));
     // The Host's model port: wait (the runtime being prepared), then the action's own pre-dispatch check, then send.
     const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: async (_prompt, options) => { entered.resolve(); await release.promise;
       await options?.beforeDispatch?.(); dispatched++; return output[kind]; },
       actionAvailability: () => enabled ? { available: true } : { available: false, code: "actions.plugin_disabled", reason: "Disabled" } });
-    const reference = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "a" });
+    const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
     const client = kind === "cognia" ? host.homeActionClient() : host.actionClient(reference);
-    const context: ActionCallContext = { ...caller, project_id: kind === "cognia" ? null : "a", validate_authority: () => {
+    const context: ActionCallContext = { ...caller, project_id: kind === "cognia" ? null : project.project_id, validate_authority: () => {
       if (!allowed) throw new ActionError("actions.revoked", "Revoked");
     } };
     const bound = bindActionClient(client, () => context), controller = new AbortController();
@@ -138,25 +139,25 @@ for (const kind of ["form", "dataset", "lingguang", "pages", "cognia", "ppt"] as
       // Cancelled before the model request is sent: the pre-dispatch check is what refuses, for every kind alike.
       const rejected = assert.rejects(pending, mode === "cancelled" ? { name: "AbortError" } : errorCode(mode === "revoked" ? "actions.revoked" : "actions.plugin_disabled"));
       await waitForModel(entered.promise, pending);
-      const before = persisted(home, kind, input);
+      const before = persisted(home, kind, input, project.project_id);
       if (mode === "revoked") allowed = false;
       if (mode === "disabled") enabled = false;
       if (mode === "cancelled") controller.abort();
       release.resolve(); await rejected;
       assert.equal(dispatched, 0, "the action's pre-dispatch check stops the model request itself, not only the write after it");
-      assert.deepEqual(persisted(home, kind, input), before, "neither generated content nor failure bookkeeping may change after rejection");
+      assert.deepEqual(persisted(home, kind, input, project.project_id), before, "neither generated content nor failure bookkeeping may change after rejection");
       allowed = true; enabled = true;
       if (kind === "pages") {
         const store = openPagesStore(home);
         // The refused call wrote nothing; only this process knows its attempt ended, so a new call here takes it over
         // at once instead of waiting out the lease (other processes' attempts keep it: see pages-generation-lease).
-        try { assert.equal(store.generation("a", "request-1")!.status, "running"); assert.equal(store.list("a").length, 0); } finally { store.close(); }
+        try { assert.equal(store.generation(project.project_id, "request-1")!.status, "running"); assert.equal(store.list(project.project_id).length, 0); } finally { store.close(); }
       }
       const restored = await client.invoke(context, actions[kind], input);
-      assert.notDeepEqual(persisted(home, kind, input), before);
+      assert.notDeepEqual(persisted(home, kind, input, project.project_id), before);
       if (kind === "pages") {
         const store = openPagesStore(home);
-        try { assert.equal(store.list("a").length, 1); assert.equal(store.generation("a", "request-1")!.status, "completed"); } finally { store.close(); }
+        try { assert.equal(store.list(project.project_id).length, 1); assert.equal(store.generation(project.project_id, "request-1")!.status, "completed"); } finally { store.close(); }
         assert.equal((await client.invoke(context, actions[kind], input) as { replayed: boolean }).replayed, true);
       }
       assert.ok(restored);

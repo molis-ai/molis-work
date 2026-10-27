@@ -11,9 +11,10 @@ import { ActionService } from "@molis-ai/molis-work-kernel";
 import {
   ARTIFACT_ACTIONS, ARTIFACT_ACTION_PERMISSIONS, ARTIFACTS_PROVIDER_ID, ARTIFACTS_PROVIDER_TITLE, ArtifactsModule, createArtifactsSchema,
 } from "@molis-ai/molis-work-module-artifacts";
+import { PROJECT_ROOT_SCHEMA_SQL, writeProjectRoot } from "@molis-ai/molis-work-module-projects";
 import { createContextLedgerSchema } from "@molis-ai/molis-work-module-context-ledger";
 import { HOST_PLUGIN_IDS, artifactActionProvider, liveHostJudgmentRuleAuthoringCatalog, localOwnerPermissionsOver } from "@molis-ai/molis-work-app-local-host";
-import { MemoryPluginRuntimeRepository, PluginRuntime, UNSIGNED_TRUST } from "@molis-ai/molis-work-plugin-runtime";
+import { MemoryPluginRuntimeRepository, PluginRuntime, HOST_BUILD_TRUST, UNSIGNED_TRUST } from "@molis-ai/molis-work-plugin-runtime";
 import { SearchService } from "@molis-ai/molis-work-service-search";
 import { openTextSearchIndex } from "@molis-ai/molis-work-storage";
 import { eventCursorOf, pinnedArtifact } from "./fixtures/artifacts.js";
@@ -25,16 +26,18 @@ const projectId = "artifacts-platform-project";
 const person: ActionCallContext = { actor_id: "web-user", project_id: projectId, audience: "user", permissions: ["artifacts:read", "search:read"] };
 const FINGERPRINT = `ed25519:sha256:${"c".repeat(64)}`;
 
-/** The registration the Host makes (`artifactActionProvider`), read off the real function with a runtime that has no database behind it. */
+/** The real Host registration over the fixture owner's SQLite database and public journal cursor. */
 function hostRegistration(artifacts: ArtifactsModule, db: Database.Database): ActionProviderRegistration {
-  const runtime = { project_id: projectId, artifacts, store: { db }, coordinator: { goalQueries: { getGoal: () => null } } };
+  const runtime = { project_id: projectId, artifacts, store: { db, eventCursor: eventCursorOf(db) } };
   return artifactActionProvider(runtime as never, {});
 }
 
 function openProject() {
   const db = new Database(":memory:");
   db.pragma("foreign_keys = ON");
-  db.exec("CREATE TABLE project_root (project_id TEXT PRIMARY KEY); INSERT INTO project_root VALUES ('artifacts-platform-project'); CREATE TABLE events (seq INTEGER PRIMARY KEY AUTOINCREMENT, project_id TEXT NOT NULL)");
+  db.exec(PROJECT_ROOT_SCHEMA_SQL);
+  writeProjectRoot(db, projectId, "2026-10-26T00:00:00.000Z");
+  db.exec("CREATE TABLE events (seq INTEGER PRIMARY KEY AUTOINCREMENT, project_id TEXT NOT NULL)");
   createArtifactsSchema(db);
   createContextLedgerSchema(db);
   const artifacts = new ArtifactsModule({ db, now: () => "2026-10-26T00:00:00.000Z",
@@ -45,28 +48,41 @@ function openProject() {
   return { db, artifacts };
 }
 
-/** The registration it had as a plugin, for the comparison: the same handlers and definitions, the old kind and `plugin_id`. */
-function asPlugin(host: ActionProviderRegistration): ActionProviderRegistration {
-  return { ...host, provider: { provider_id: ARTIFACTS_PROVIDER_ID, plugin_id: ARTIFACTS_PROVIDER_ID, title: ARTIFACTS_PROVIDER_TITLE, kind: "plugin", project_id: projectId } };
+/** Compare the same actions as the former Host-shipped plugin through a real Runtime installation, which owns its generation and live grants. */
+async function asPlugin(actions: ActionService, host: ActionProviderRegistration): Promise<() => Promise<unknown>> {
+  const definition: PluginDefinition = { manifest: {
+    schema_version: 2, host_api_version: 2, plugin_id: ARTIFACTS_PROVIDER_ID, version: "1.0.0", name: ARTIFACTS_PROVIDER_TITLE,
+    kind: "app", publisher: { publisher_id: "fixture", signature: "artifacts-comparison" },
+    entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
+    permissions: ARTIFACT_ACTION_PERMISSIONS.map(permission => ({ permission, required: false, reason: "Compare the original action grants" })),
+    capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] },
+    actions: [...host.definitions],
+  }, async start() { return { kind: "app", actions: [...host.handlers] }; } };
+  const runtime = new PluginRuntime(new MemoryPluginRuntimeRepository(), undefined, { hostIds: HOST_PLUGIN_IDS,
+    actions: { registry: actions, project_id: projectId, providerId: () => ARTIFACTS_PROVIDER_ID } });
+  const { install } = runtime.install({ definition, deployment: "local", trust: HOST_BUILD_TRUST, grants: ARTIFACT_ACTION_PERMISSIONS });
+  await runtime.start(install.install_id);
+  return () => runtime.stop(install.install_id);
 }
 
-async function hitsOf(t: test.TestContext, registration: (host: ActionProviderRegistration) => ActionProviderRegistration) {
+async function hitsOf(t: test.TestContext, register = (actions: ActionService, host: ActionProviderRegistration): (() => unknown) | Promise<() => unknown> => actions.registerProvider(host)) {
   const { db, artifacts } = openProject();
   const home = await mkdtemp(join(tmpdir(), "artifacts-platform-provider-"));
   const actions = new ActionService();
-  actions.registerProvider(registration(hostRegistration(artifacts, db)));
+  const dispose = await register(actions, hostRegistration(artifacts, db));
   const index = openTextSearchIndex({ homeDirectory: home });
   const search = new SearchService({ index, clock: () => 1_000_000, freshMs: 3_000, budgetMs: 5_000, refreshDelayMs: 5, indexer: async () => ({ client: actions, caller: person }) });
-  t.after(async () => { await search.close(); index.close(); db.close(); await rm(home, { recursive: true, force: true }); });
+  t.after(async () => { await search.close(); index.close(); await dispose(); db.close(); await rm(home, { recursive: true, force: true }); });
   return { actions, hits: (await search.query({ client: actions, caller: person }, { query: "季度计划" })).hits };
 }
 
-test("RAC-1040 the Host registers the 成果库 as a platform provider under its historical id, with the same 17 actions", async t => {
-  const { actions } = await hitsOf(t, host => host);
+test("RAC-1040 the Host registers the 成果库 as a platform provider under its historical id, with 18 current actions including retention@3", async t => {
+  const { actions } = await hitsOf(t);
   const rows = await actions.discover({ ...person, permissions: ARTIFACT_ACTION_PERMISSIONS });
   const own = rows.filter(row => row.provider.provider_id === ARTIFACTS_PROVIDER_ID);
   assert.deepEqual(own.map(row => `${row.capability_id}@${row.version}`).sort(), ARTIFACT_ACTIONS.map(row => `${row.capability_id}@${row.version}`).sort());
-  assert.equal(own.length, 17);
+  assert.equal(own.length, 18);
+  assert.ok(own.some(row => row.capability_id === "artifacts.subject.retention" && row.version === 3));
   for (const row of own) {
     assert.equal(row.provider.kind, "system"); assert.equal(row.provider.plugin_id, undefined); assert.equal(row.provider.plugin_install_id, undefined);
     assert.equal(row.provider.project_id, projectId); assert.equal(row.provider.words_of, "io.molis.work.artifacts");
@@ -102,7 +118,7 @@ test("RAC-1045 an install that is not of the Host's build cannot take the 成果
 });
 
 test("RAC-1046 the search index names the 成果库 by the same plugin id, and a hit keeps the same reference, as the plugin registration gave", async t => {
-  const platform = await hitsOf(t, host => host), plugin = await hitsOf(t, asPlugin);
+  const platform = await hitsOf(t), plugin = await hitsOf(t, asPlugin);
   assert.equal(platform.hits.length, 1);
   assert.deepEqual(platform.hits.map(hit => ({ hit_id: hit.hit_id, plugin_id: hit.plugin_id, plugin_title: hit.plugin_title, source: hit.source })),
     plugin.hits.map(hit => ({ hit_id: hit.hit_id, plugin_id: hit.plugin_id, plugin_title: hit.plugin_title, source: hit.source })));
@@ -116,7 +132,7 @@ test("RAC-1048 the person's permissions over the 成果库 come from the module'
 });
 
 test("RAC-1049 the judgment rule authoring catalog lists the 成果库's actions as the platform's, not as a plugin's", async t => {
-  const { actions } = await hitsOf(t, host => host);
+  const { actions } = await hitsOf(t);
   const directory = await actions.discover({ ...person, audience: "agent" });
   const behaviors = liveHostJudgmentRuleAuthoringCatalog(directory).behaviors.filter(behavior => "action_ref" in behavior && behavior.action_ref.provider_id === ARTIFACTS_PROVIDER_ID);
   assert.ok(behaviors.length > 0, "the Agent can be offered 成果库 actions");

@@ -6,7 +6,8 @@ import test from "node:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { writeProjectRoot } from "@molis-ai/molis-work-module-projects";
 import { functionsActions, publishedFunctionAction, functionContextActions } from "@molis-ai/molis-work-module-functions";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { JudgmentRuleRecord, JudgmentRulePrimitive, JudgmentRuleCriteria, TypeSafeProvider, TypeSafeEvaluateResult } from "@molis-ai/molis-work-contracts/modules/functions";
@@ -92,6 +93,8 @@ test("published rules become versioned system actions without a project, preserv
     assert.equal(calls.value, beforeDenied);
     options.env.TYPESAFE_API_KEY = "fixture-provider-credential";
     const project = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "project-a" });
+    const database = new LocalProjectDatabase(project.storage_key);
+    try { writeProjectRoot(database.db, project.project_id, new Date().toISOString()); } finally { database.close(); }
     await host.actionClient(project).invoke({ ...caller, project_id: "project-a" }, definition, { content: "project content" });
     const history = withFunctionsService(home, service => service.listJudgments(), options);
     assert.equal(history.filter(row => row.function_key === records[0]!.function_key && row.subject.project_id === "project-a").length, 1);

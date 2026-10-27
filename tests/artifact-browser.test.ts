@@ -145,11 +145,19 @@ test("Artifact HTTP links exact versions, exports opaque records and preserves e
 });
 
 test("Artifact HTTP keeps unknown and cross-project versions missing and rejects malformed exact references", async (t) => {
-  const { coordinator, library, get, surface, direct } = await fixture(t);
+  const { library, get, surface, direct } = await fixture(t);
   const sampled = library.artifacts.query.listArtifacts(DEMO_PROJECT_ID).length;
   library.artifacts.commands.registerVersion(registration());
-  coordinator.initializeBoard({ project_id: "other-project", actor_id: "owner", idempotency_key: "other-project" });
-  library.artifacts.commands.registerVersion(registration({ project_id: "other-project", artifact_id: "other-only" }));
+  // Each project owns a separate library; the foreign record must exist without corrupting the selected project's root.
+  const otherDirectory = await mkdtemp(join(tmpdir(), "artifact-browser-foreign-"));
+  const otherPath = join(otherDirectory, "project.db");
+  seedDemoBoard(otherPath, "other-project");
+  const otherStore = new LocalProjectDatabase(otherPath);
+  t.after(async () => { otherStore.close(); await rm(otherDirectory, { recursive: true, force: true }); });
+  const otherArtifacts = openProjectVersionStores(otherStore).artifacts;
+  installProducers(otherStore.db, { plugin_id: "io.example.writer", artifact_types: ["io.example.report"] });
+  otherArtifacts.commands.registerVersion(registration({ project_id: "other-project", artifact_id: "other-only" }));
+  assert.ok(otherArtifacts.query.getArtifactVersion("other-project", { artifact_id: "other-only", version: 1 }));
   for (const path of [exactPath(2), "/artifacts/missing/versions/1", "/artifacts/other-only/versions/1"]) {
     // Opened directly, the workbench opens on that version and says it is missing there.
     const opened = await direct(path);

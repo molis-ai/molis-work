@@ -3,6 +3,16 @@ import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/p
 import { LocalProjectDatabase } from "./project-database.js";
 import { catalogErrors } from "./project-catalog-contract.js";
 import type { MolisWorkLocalHost } from "./project-host.js";
+import { hostErrors } from "./host-errors.js";
+
+function ensureProjectRoot(store: LocalProjectDatabase, projectId: string): void {
+  store.immediate(() => {
+    const roots = listProjectRoots(store.db);
+    if (roots.length > 1 || roots.length === 1 && roots[0]!.project_id !== projectId)
+      throw catalogErrors.database_invalid("项目数据库的根记录与请求的项目不一致");
+    if (roots.length === 0) writeProjectRoot(store.db, projectId, new Date().toISOString());
+  });
+}
 
 /**
  * A new project's library: the platform's root row and nothing of any plugin's. Goals makes its own board when the project is
@@ -11,7 +21,7 @@ import type { MolisWorkLocalHost } from "./project-host.js";
 export async function initializeProjectDatabase(databasePath: string, projectId: string): Promise<void> {
   const store = new LocalProjectDatabase(databasePath);
   try {
-    writeProjectRoot(store.db, projectId, new Date().toISOString());
+    ensureProjectRoot(store, projectId);
     store.checkpoint();
   } finally {
     store.close();
@@ -43,5 +53,18 @@ export function validateManagedProject(databasePath: string, expectedProjectId: 
  * Goals' action makes the board. A project the catalog made already has it, and a second write leaves it as it is.
  */
 export async function ensureStandaloneProjectRoot(host: MolisWorkLocalHost, reference: LocalHostProjectReference): Promise<void> {
-  await host.withProject(reference, runtime => { writeProjectRoot(runtime.store.db, reference.project_id, new Date().toISOString()); });
+  if (host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
+  const project = host.client(reference).project;
+  if (host.projects().some(entry => entry.storage_key === project.storage_key)) {
+    await host.withProject(project, runtime => {
+      if (host.lifecycle() !== "running") throw hostErrors.closed("Local Host 已关闭");
+      if (host.projects().find(entry => entry.storage_key === project.storage_key)?.state !== "ready")
+        throw hostErrors.project_closing("这个 Project 的 Local Host runtime 正在关闭");
+      ensureProjectRoot(runtime.store, project.project_id);
+      runtime.refreshArtifactActions();
+    });
+  } else {
+    // Explicit initialization creates the root before providers open; ordinary reads never repair a rootless library.
+    await initializeProjectDatabase(project.storage_key, project.project_id);
+  }
 }

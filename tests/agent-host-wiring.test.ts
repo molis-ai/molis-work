@@ -5,6 +5,7 @@ import { join } from "node:path";
 import test from "node:test";
 
 import { LocalProjectDatabase, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { callerPlugin, startPlugin } from "./fixtures/plugin-callers.js";
 import {
@@ -53,14 +54,14 @@ test("Run review reads refresh original receipts and isolate project, session, r
   unavailable = true; await assert.rejects(read(context, [session, run]), /original ledger unavailable/);
 });
 
-function readOnlyAdapter(runtimeId: string): AgentRuntimeAdapter {
+function readOnlyAdapter(runtimeId: string, projectId = "project-a"): AgentRuntimeAdapter {
   const capabilities = emptyCapabilityMatrix();
   capabilities["session.create"] = "supported";
   return {
     descriptor: { runtime_id: runtimeId, display_name: runtimeId, provider_version: "1.0.0", capabilities },
     async health() { return { ok: true, status: "ready", message: "就绪" }; },
     async createSession() { return { session_id: "session-1", runtime_id: runtimeId }; },
-    async readSession(session) { return {session, owner:{project_id:"project-a",plugin_id:"io.molis.work.coding",install_id:"install-1",actor_id:"user"},title:"任务",runs:[],latest_run:null}; },
+    async readSession(session) { return {session, owner:{project_id:projectId,plugin_id:"io.molis.work.coding",install_id:"install-1",actor_id:"user"},title:"任务",runs:[],latest_run:null}; },
     async start() { throw new Error("未使用"); },
     async read() { throw new Error("未使用"); },
     observe() { return () => {}; },
@@ -73,15 +74,16 @@ function readOnlyAdapter(runtimeId: string): AgentRuntimeAdapter {
 
 test("组合根把 Agent Host 接进宿主之后，插件经动作够得到它", async () => {
   const directory = await mkdtemp(join(tmpdir(), "agent-wiring-"));
+  const project = await withMolisWorkProjectCatalog({ homeDirectory: directory }, catalog => catalog.createProject({ display_name: "Agent wiring", actor_id: "web-user" }));
   const localHost = new MolisWorkLocalHost();
   const reference = molisWorkHostProjectReference({
-    databasePath: join(directory, "project.db"),
-    projectId: "project-a",
+    databasePath: project.database_path,
+    projectId: project.project_id,
   });
   const store = new LocalProjectDatabase(join(directory, "plugins.db"));
   try {
     const agentHost = new AgentHost();
-    agentHost.register(readOnlyAdapter("fixture-read-only"));
+    agentHost.register(readOnlyAdapter("fixture-read-only", project.project_id));
 
     // 这一步就是原先缺的那一环：生产装配调用注册入口
     registerAgentHostCapabilities(
@@ -122,7 +124,7 @@ test("组合根把 Agent Host 接进宿主之后，插件经动作够得到它",
     );
 
     // RAC-187: 列项目全部审批的入口已删（插件看自己一轮的审批走 readRunReviews），宿主里没有这一项
-    await assert.rejects(() => client.invoke({ capability_id: "agent.reviews.list.v1", version: 1, operation: "query" } as ActionDefinition, ["project-a"]), { code: "actions.missing" });
+    await assert.rejects(() => client.invoke({ capability_id: "agent.reviews.list.v1", version: 1, operation: "query" } as ActionDefinition, [project.project_id]), { code: "actions.missing" });
   } finally {
     store.close();
     await localHost.closeProject(reference);

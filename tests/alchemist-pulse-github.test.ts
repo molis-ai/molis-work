@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { alchemistActions as a, ALCHEMIST_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-alchemist";
-import { MolisWorkLocalHost, alchemistPulseGithub, molisWorkHostProjectReference, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, initializeProjectDatabase, alchemistPulseGithub, molisWorkHostProjectReference, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { alchemistFixture, controlledAlchemistAi } from "./fixtures/alchemist-actions.js";
 import { initializeBoard } from "./fixtures/goals-board.js";
@@ -154,6 +154,7 @@ test("the choice is one binding for the Home: made from one project it is what e
   t.after(() => host.close());
   const account = connect(directory, "octo", "home-wide-token");
   const refs = ["project-a", "project-b"].map(id => molisWorkHostProjectReference({ databasePath: join(directory, `${id}.sqlite`), projectId: id }));
+  for (const ref of refs) await initializeProjectDatabase(ref.storage_key, ref.project_id);
   const person = (project_id: string | null, permissions: readonly string[] = ALCHEMIST_ACTION_PERMISSIONS): ActionCallContext =>
     ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id, audience: "user", permissions: [...permissions] });
   const inProject = (index: number) => bindActionClient(host.actionClient(refs[index]!), () => person(refs[index]!.project_id));

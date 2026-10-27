@@ -14,13 +14,21 @@ import type { MolisWorkProjectRuntime, MolisWorkLocalHostOptions } from "./proje
 /** Goals' read of one Goal's headline, asked as the caller: a Goal the caller cannot read, or a project without Goals, has no title here. */
 const GOAL_DIRECTORY_READ = { capability_id: "goals.directory.read", version: 1 } as const;
 
+function artifactProjectInstance(runtime: MolisWorkProjectRuntime): string | null {
+  const roots = listProjectRoots(runtime.store.db);
+  // The existing unnamed MCP scope may observe the library, but cannot identify its Artifact source.
+  if (roots.length === 1 && roots[0]!.project_id !== runtime.project_id && runtime.project_id === `database:${runtime.store.path}`) return null;
+  if (roots.length > 1 || roots.length === 1 && roots[0]!.project_id !== runtime.project_id)
+    throw new ActionError("artifacts.project_storage_invalid", "当前项目的数据实例身份不完整");
+  return roots[0]?.data_instance_id ?? null;
+}
+
 export function artifactActionProvider(runtime: MolisWorkProjectRuntime, options: Pick<MolisWorkLocalHostOptions, "homeDirectory" | "workspaceFor">, client?: ActionClient): ActionProviderRegistration {
   const home = options.homeDirectory ?? resolveMolisWorkHome();
-  const roots = listProjectRoots(runtime.store.db);
-  if (roots.length !== 1 || roots[0]!.project_id !== runtime.project_id) throw new ActionError("artifacts.project_storage_invalid", "当前项目的数据实例身份不完整");
+  const instance = artifactProjectInstance(runtime);
   // The platform's own provider (PG-077): no plugin id, so no plugin's enablement gates it; the id is the one it was called by as a plugin.
   const provider: ActionProviderRegistration["provider"] = { provider_id: ARTIFACTS_PROVIDER_ID, title: ARTIFACTS_PROVIDER_TITLE, kind: "system", project_id: runtime.project_id,
-    project_data_instance_id: roots[0]!.data_instance_id,
+    ...(instance ? { project_data_instance_id: instance } : {}),
     // The English of its action text is still in the 成果 plugin's words, until that shell goes (PG-077 step 2).
     words_of: ARTIFACTS_PLUGIN_ID };
   const source = { projectId: runtime.project_id,
@@ -28,7 +36,12 @@ export function artifactActionProvider(runtime: MolisWorkProjectRuntime, options
     linkKinds: artifactLinkKinds() };
   return {
     provider,
-    sourceRevision: caller => JSON.stringify([roots[0]!.data_instance_id, runtime.store.eventCursor(runtime.project_id, "artifact"), artifactGoalRelations(source, caller)]),
+    availability: () => instance && artifactProjectInstance(runtime) === instance ? { available: true }
+      : { available: false, code: "artifacts.project_storage_invalid", reason: "当前项目尚无可用的数据实例身份" },
+    sourceRevision: caller => {
+      if (!instance || artifactProjectInstance(runtime) !== instance) throw new ActionError("artifacts.project_storage_invalid", "当前项目的数据实例身份已变化");
+      return JSON.stringify([instance, runtime.store.eventCursor(runtime.project_id, "artifact"), artifactGoalRelations(source, caller)]);
+    },
     definitions: ARTIFACT_ACTIONS,
     handlers: createArtifactActionHandlers({
       ...source, artifacts: runtime.artifacts,

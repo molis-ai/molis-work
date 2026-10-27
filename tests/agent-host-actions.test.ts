@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test, { type TestContext } from "node:test";
-import { LocalProjectDatabase, MolisWorkLocalHost, composeAgentHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, MolisWorkLocalHost, composeAgentHost, molisWorkHostProjectReference, initializeProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { agentHostCapabilities as agent, type AgentRunRef, type AgentRunView, type AgentRuntimeAdapter, type AgentSessionMessage } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { agentCollaborationActions as collaboration } from "@molis-ai/molis-work-contracts/services/agent-collaboration";
@@ -48,6 +48,7 @@ async function lettersSetup(t: TestContext) {
   const directory = await mkdtemp(join(tmpdir(), "agent-host-actions-"));
   const localHost = new MolisWorkLocalHost();
   const reference = molisWorkHostProjectReference({ databasePath: join(directory, "project.db"), projectId: PROJECT });
+  await initializeProjectDatabase(reference.storage_key, reference.project_id);
   const composition = composeAgentHost({ localHost, workspaceFor: () => null });
   const seen: Array<[string, unknown[]]> = [];
   const runtime = lettersRuntime(seen);
@@ -166,6 +167,7 @@ async function projectWorkSetup(t: TestContext) {
   const directory = await mkdtemp(join(tmpdir(), "agent-host-project-work-"));
   const localHost = new MolisWorkLocalHost();
   const reference = molisWorkHostProjectReference({ databasePath: join(directory, "project.db"), projectId: PROJECT });
+  await initializeProjectDatabase(reference.storage_key, reference.project_id);
   const composition = composeAgentHost({ localHost, workspaceFor: () => null });
   // Every session is `owner.current`'s, but for those `owner.of` names another owner for.
   const seen: Array<[string, unknown[]]> = [], owner: { current?: Record<string, string>; of: Record<string, Record<string, string>> } = { of: {} };
@@ -264,6 +266,7 @@ async function roundsSetup(t: TestContext, home = false) {
   // With a Home the Host keeps its call log, which RAC-181 reads.
   const localHost = home ? new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }) : new MolisWorkLocalHost();
   const reference = molisWorkHostProjectReference({ databasePath: join(directory, "project.db"), projectId: PROJECT });
+  await initializeProjectDatabase(reference.storage_key, reference.project_id);
   // A Host with a Home owns its Agent service; the fixture's Runtime is registered on it either way.
   const composition = home ? localHost.ensureAgentService(directory, () => composeAgentHost({ localHost, homeDirectory: directory, workspaceFor: () => null }))
     : composeAgentHost({ localHost, workspaceFor: () => null });
@@ -526,6 +529,7 @@ async function librarySetup(t: TestContext, home = false) {
   // With a Home the Host keeps its call log (RAC-185) and its own Agent service, whose workspaces `gate` cannot hold.
   const localHost = home ? new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }) : new MolisWorkLocalHost();
   const reference = molisWorkHostProjectReference({ databasePath: join(directory, "project.db"), projectId: PROJECT });
+  await initializeProjectDatabase(reference.storage_key, reference.project_id);
   // The Host reads the project's workspaces for every call's authority: a test holds `gate` to stop a call between its start and its write.
   const gate: { current?: Promise<void> } = {};
   const workspaceFor = async () => { await gate.current; return null; };

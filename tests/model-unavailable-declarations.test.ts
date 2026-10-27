@@ -9,7 +9,7 @@ import { actionMcpToolName, createActionMcpPorts } from "@molis-ai/molis-work-ap
 import { ALCHEMIST_ACTION_PERMISSIONS, ALCHEMIST_GENERATE_PERMISSION, alchemistActions, createAlchemistActionHandlers, type AlchemistAiPort } from "@molis-ai/molis-work-plugin-alchemist";
 import { IMAGES_ACTION_PERMISSIONS, imagesActions } from "@molis-ai/molis-work-plugin-images";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, withConnectorConnections, initializeProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { homeSqlitePath, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 
 // AI entry inventory 7.4: an action that cannot work for want of a model or a connection says so in the directory, so the
@@ -42,6 +42,7 @@ async function fixture(t: test.TestContext, options: { alchemistAi?: boolean } =
     await rm(home, { recursive: true, force: true });
   });
   const ref = molisWorkHostProjectReference({ databasePath: join(home, "a.sqlite"), projectId: "a" });
+  await initializeProjectDatabase(ref.storage_key, ref.project_id);
   const caller = (projectId: string | null, audience: ActionAudience): ActionCallContext => ({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: projectId, audience,
     permissions: [...ALCHEMIST_ACTION_PERMISSIONS, ...IMAGES_ACTION_PERMISSIONS] });
   const availability = async (capabilityId: string, audience: ActionAudience) =>

@@ -17,7 +17,7 @@ async function fixture(run: (f: { as(audience: ActionAudience): ReturnType<typeo
   const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "a" });
   const caller: ActionCallContext = { actor_id: "owner", project_id: "a", audience: "user", permissions: PAGES_ACTION_PERMISSIONS };
   try {
-    await initializeProjectDatabase(ref.database_path, ref.project_id);
+    await initializeProjectDatabase(ref.storage_key, ref.project_id);
     await run({ home, as: audience => bindActionClient(host.actionClient(ref), () => ({ ...caller, audience })) });
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 }

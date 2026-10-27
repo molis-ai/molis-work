@@ -1,5 +1,7 @@
 # 本地应用装配中心
 
+项目库可以只打开，不自动补项目根或 Goals 看板。没有可信项目实例时，Artifacts 保留动作注册但不可用；显式初始化经同一项目根写主人，在原连接内完成后同步刷新这一来源。同身份重试不换注册，来源读取会核对当前根，旧实例的读取凭据不能因重新注册而复活。原 CLI/MCP 的无项目号 `database:<规范路径>` 绑定保持原范围拒绝；它不取得异名根的资料身份。合同与验证见 [Memory 首期 spec](../../specs/prologue-memory-strategy/spec.md)。
+
 显式 Memory 召回通过 `memory-backend` 将个人/项目等获准范围合为同一 Runtime 的完整集合读取；旧 Agent Port 顺序回退，每次等待后检查原取消信号。`memoryRuntimePolicy` 显式给每 Runtime 8 MiB Host 证明保留上限，不是正文结果缓存或 SDK 默认；预算不足只 miss，不裁结果或省去当前权限检查。原规模工具观察真实集合调用及完整返回量，`failLists` 仍作用于实际读取；B1+5ms 门与正式模型批前置不变。
 
 ## Run 记忆展开装配（实施中，未验证）

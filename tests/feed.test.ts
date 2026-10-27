@@ -4,9 +4,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { createLocalFeedApplication } from "@molis-ai/molis-work-app-local-host";
+
 import { DEMO_PROJECT_ID, seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 
 function insertRssFeedItem(store: LocalProjectDatabase, itemId: string): void {
   const now = "2026-08-29T08:00:00.000Z";

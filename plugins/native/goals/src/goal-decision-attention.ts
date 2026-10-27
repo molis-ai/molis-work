@@ -1,6 +1,7 @@
 import type { AttentionCommands, AttentionQuery } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import type { GoalTreeProposalRecord } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import { goalTreeProposalAttentionGoalId, goalTreeProposalNeedsDecision } from "./decision-groups.js";
+import { GOALS_PLUGIN_ID } from "./identity.js";
 
 /** What Goal-decision Attention uses of Attention: four calls, over this plugin's own entries (the platform's service, or the module in a test). */
 export interface GoalDecisionAttentionPort {
@@ -16,7 +17,7 @@ interface GoalDecisionAttentionPorts {
   goalExists(projectId: string, goalId: string): boolean;
 }
 
-/** Goals owns Goal-decision Attention. Inbox only reads the resulting reference. */
+/** Goals owns Goal-decision Attention, and the entries say so: they are created and found under Goals' own plugin id, which is how the Inbox lists them. */
 export class GoalDecisionAttentionSync {
   constructor(private readonly ports: GoalDecisionAttentionPorts) {}
 

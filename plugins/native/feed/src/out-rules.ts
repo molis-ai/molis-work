@@ -8,6 +8,7 @@ import type {
   RegisterArtifactVersionInput,
 } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { FeedItemRecord, FeedOutRuleMatch, FeedOutRuleRecord } from "./projection.js";
+import type { FeedSql } from "./store/sql.js";
 
 import { FEED_CAPTURE_ARTIFACT_TYPE_ID, FEED_CAPTURE_SCHEMA_VERSION, FEED_PLUGIN_ID } from "./identity.js";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -17,15 +18,6 @@ export const FEED_ARTIFACT_PRODUCER = {
   plugin_version: "0.0.0",
   binding_signature: "native:feed",
 } as const;
-
-export interface FeedPluginSqliteDatabase {
-  exec(sql: string): void;
-  prepare(sql: string): {
-    all(...params: unknown[]): unknown[];
-    get(...params: unknown[]): unknown;
-    run(...params: unknown[]): { changes: number | bigint };
-  };
-}
 
 export interface FeedArtifactProducer {
   registerVersion(input: RegisterArtifactVersionInput): ArtifactVersionResult;
@@ -67,18 +59,14 @@ export function feedCaptureArtifactId(itemId: string, ruleId: string): string {
 
 export class FeedOutRuleStore {
   /** The table is already there: the platform made it when the project's library opened with Feed. */
-  constructor(private readonly db: FeedPluginSqliteDatabase) {}
+  constructor(private readonly db: FeedSql) {}
 
   list(projectId: string): FeedOutRuleRecord[] {
-    return (this.db.prepare(
-      "SELECT * FROM feed_out_rules WHERE project_id = ? ORDER BY created_at, rule_id",
-    ).all(projectId) as Row[]).map(mapOutRule);
+    return (this.db.all("SELECT * FROM feed_out_rules WHERE project_id = ? ORDER BY created_at, rule_id", projectId) as Row[]).map(mapOutRule);
   }
 
   get(projectId: string, ruleId: string): FeedOutRuleRecord {
-    const row = this.db.prepare(
-      "SELECT * FROM feed_out_rules WHERE project_id = ? AND rule_id = ?",
-    ).get(projectId, ruleId) as Row | undefined;
+    const row = this.db.get("SELECT * FROM feed_out_rules WHERE project_id = ? AND rule_id = ?", projectId, ruleId) as Row | undefined;
     if (!row) throw feedErrors.out_rule_not_found("找不到这条捕捉规则");
     return mapOutRule(row);
   }
@@ -101,22 +89,13 @@ export class FeedOutRuleStore {
   }
 
   saveCreate(record: FeedOutRuleRecord): FeedOutRuleRecord {
-    this.db.prepare(`
+    this.db.run(`
       INSERT INTO feed_out_rules (
         project_id, rule_id, name, enabled, match_json, created_at, updated_at, admission, judgment_json, revision
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      record.project_id,
-      record.rule_id,
-      record.name,
-      record.enabled ? 1 : 0,
-      JSON.stringify(record.match),
-      record.created_at,
-      record.updated_at,
-      record.admission,
-      record.judgment ? JSON.stringify(record.judgment) : null,
-      record.revision,
-    );
+    `,
+    record.project_id, record.rule_id, record.name, record.enabled ? 1 : 0, JSON.stringify(record.match), record.created_at, record.updated_at,
+    record.admission, record.judgment ? JSON.stringify(record.judgment) : null, record.revision);
     return record;
   }
 
@@ -140,30 +119,20 @@ export class FeedOutRuleStore {
   }
 
   saveUpdate(next: FeedOutRuleRecord, expectedRevision?: string): FeedOutRuleRecord {
-    const result = this.db.prepare(`
+    const result = this.db.run(`
       UPDATE feed_out_rules
       SET name = ?, enabled = ?, match_json = ?, updated_at = ?, admission = ?, judgment_json = ?, revision = ?
       WHERE project_id = ? AND rule_id = ? AND (? IS NULL OR revision = ?)
-    `).run(
-      next.name,
-      next.enabled ? 1 : 0,
-      JSON.stringify(next.match),
-      next.updated_at,
-      next.admission,
-      next.judgment ? JSON.stringify(next.judgment) : null,
-      next.revision,
-      next.project_id,
-      next.rule_id,
-      expectedRevision ?? null,
-      expectedRevision ?? null,
-    );
+    `,
+    next.name, next.enabled ? 1 : 0, JSON.stringify(next.match), next.updated_at, next.admission, next.judgment ? JSON.stringify(next.judgment) : null, next.revision,
+    next.project_id, next.rule_id, expectedRevision ?? null, expectedRevision ?? null);
     if (!result.changes) throw feedErrors.revision_conflict("规则已变化，请刷新后再保存");
     return next;
   }
 
   delete(projectId: string, ruleId: string): FeedOutRuleRecord {
     const current = this.get(projectId, ruleId);
-    this.db.prepare("DELETE FROM feed_out_rules WHERE project_id = ? AND rule_id = ?").run(projectId, ruleId);
+    this.db.run("DELETE FROM feed_out_rules WHERE project_id = ? AND rule_id = ?", projectId, ruleId);
     return current;
   }
 }

@@ -7,19 +7,11 @@ import test from "node:test";
 import Database from "better-sqlite3";
 import { existsSync, mkdirSync } from "node:fs";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import {
-  DEMO_PROJECT_ID,
-  DEMO_CORE_ARTIFACT_ID,
-  DEMO_GITHUB_SOURCE_ID,
-  DEMO_GMAIL_SOURCE_ID,
-  LocalProjectDatabase,
-  createLocalFeedApplication,
-  seedDemoPluginSurfaces,
-  openProjectVersionStores,
-} from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, DEMO_CORE_ARTIFACT_ID, DEMO_GITHUB_SOURCE_ID, DEMO_GMAIL_SOURCE_ID, LocalProjectDatabase, seedDemoPluginSurfaces, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { FEED_CAPTURE_ARTIFACT_TYPE_ID } from "@molis-ai/molis-work-plugin-feed";
 import { renderFeedWorkbenchFragment } from "./workbench-renderer-fixture.js";
 import { GoalProjectApplication, seedBoard } from "./fixtures/goal-application.js";
+import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 
 async function withDirectory<T>(prefix: string, run: (directory: string) => Promise<T>): Promise<T> {
   const directory = await mkdtemp(join(tmpdir(), prefix));

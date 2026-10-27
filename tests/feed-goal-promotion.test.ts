@@ -1,16 +1,11 @@
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { ActionError, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import {
-  LocalProjectDatabase,
-  MolisWorkLocalHost,
-  createLocalFeedApplication,
-  createLocalFeedSourceService,
-  molisWorkHostProjectReference,
-} from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { FEED_PLUGIN_ID, FeedPluginRouteTable, createFeedRouteHandlers, feedItemActions, feedManifest, feedQueryActions, promoteFeedItemToGoal, promoteOffered, type FeedGoalPromotionGoals } from "@molis-ai/molis-work-plugin-feed";
 import { GOALS_PLUGIN_ID, goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { goalApplicationOf, seedBoard } from "./fixtures/goal-application.js";
@@ -61,14 +56,14 @@ test("Feed promotion makes the Goal and binds the item through Goals' actions, l
     const linked = (await f.person.invoke(feedQueryActions.item, { item_id: item!.item_id })).item;
     assert.equal(linked.linked_goal_id, first.goal_id);
     assert.equal(linked.disposition, "promoted");
-    // The item is a confirmed input of the Goal: Goals holds the receipt, with the digest of what was confirmed, and it is the person's.
+    // The item is a proposed input of the Goal: Goals holds the receipt, with the digest of what was proposed, and it is the person's.
     const receipts = (goalId: string) => f.host.withProject(f.reference, runtime => goalApplicationOf(runtime).goalInputs.list(PROJECT).filter(receipt => receipt.goal_id === goalId));
     const bindings = await receipts(first.goal_id);
     assert.deepEqual(bindings.map(receipt => [receipt.source_type, receipt.source_ref, receipt.state, receipt.created_by, receipt.input_name]),
-      [["feed_item", `feed-item:${item!.item_id}`, "confirmed", "web-user", "Feed Item 输入"]]);
-    assert.equal(bindings[0]!.reason, "用户从 Feed Item 创建 Goal 时确认该输入");
+      [["feed_item", `feed-item:${item!.item_id}`, "proposed", "web-user", "Feed Item 输入"]]);
+    assert.equal(bindings[0]!.reason, "从 Feed Item 创建 Goal 时提议该输入，待用户确认");
     assert.match(bindings[0]!.snapshot_digest ?? "", /^sha256:[0-9a-f]{64}$/);
-    assert.equal((await f.person.invoke(goalsActions.state, { goal_id: first.goal_id })).intent.source_kind, "feed");
+    assert.equal((await f.person.invoke(goalsActions.state, { goal_id: first.goal_id })).intent.source_kind, "runtime");
     assert.equal((await goals()).length, before + 1);
 
     await assert.rejects(f.person.invoke(feedItemActions.promote, { item_id: item!.item_id, expected_revision: item!.revision }), { code: "feed.revision_conflict" });
@@ -103,7 +98,7 @@ test("Feed promotion source survives later notes and a reopen of the Host", asyn
   try {
     const promoted = await f.person.invoke(feedItemActions.promote, { item_id: item!.item_id, expected_revision: item!.revision, start_processing: true });
     assert.equal(promoted.created, true);
-    assert.equal((await f.person.invoke(goalsActions.state, { goal_id: promoted.goal_id })).intent.source_kind, "feed");
+    assert.equal((await f.person.invoke(goalsActions.state, { goal_id: promoted.goal_id })).intent.source_kind, "runtime");
     // More events than one page of history holds: the source of the Goal must not depend on the first page.
     await f.host.withProject(f.reference, runtime => {
       for (let index = 0; index < 41; index++) {
@@ -111,11 +106,11 @@ test("Feed promotion source survives later notes and a reopen of the Host", asyn
           body: `继续核对外部反馈 ${index + 1}`, idempotency_key: `feed-source-retention-${index}` });
       }
     });
-    assert.equal((await f.person.invoke(goalsActions.state, { goal_id: promoted.goal_id })).intent.source_kind, "feed");
+    assert.equal((await f.person.invoke(goalsActions.state, { goal_id: promoted.goal_id })).intent.source_kind, "runtime");
     await f.host.close();
     reopened = new MolisWorkLocalHost({ homeDirectory: f.home, completeText: null });
     const again = bindActionClient(reopened.actionClient(f.reference), () => f.personContext);
-    assert.equal((await again.invoke(goalsActions.state, { goal_id: promoted.goal_id })).intent.source_kind, "feed");
+    assert.equal((await again.invoke(goalsActions.state, { goal_id: promoted.goal_id })).intent.source_kind, "runtime");
   } finally { await reopened?.close(); await f.done(); }
 });
 
@@ -388,7 +383,7 @@ test("only the person names the creation channel: a Runtime's promotion is recor
   } finally { await f.done(); }
 });
 
-test("only the person's promotion confirms the input: an assistant, Agent, workflow or MCP client's leaves it proposed, and says so", async () => {
+test("no caller's promotion confirms the input: Goals takes it from the delegated call as a proposal, and the receipt says so (D-4e3-1)", async () => {
   const f = fixture(["Person", "Agent", "Workflow", "MCP"]);
   const callers: Array<[string, ActionCallContext]> = [["person", f.personContext], ["agent", f.runtimeContext],
     ["workflow", { ...f.runtimeContext, audience: "workflow" }], ["mcp", { ...f.runtimeContext, audience: "mcp" }]];
@@ -400,7 +395,7 @@ test("only the person's promotion confirms the input: an assistant, Agent, workf
       return owned.map(receipt => [receipt.state, receipt.created_by, receipt.reason]);
     }));
     assert.deepEqual(callers.map(([name], index) => [name, receipts[index]]), [
-      ["person", [["confirmed", "web-user", "用户从 Feed Item 创建 Goal 时确认该输入"]]],
+      ["person", [["proposed", "web-user", "从 Feed Item 创建 Goal 时提议该输入，待用户确认"]]],
       ["agent", [["proposed", "runtime:promoter:session", "从 Feed Item 创建 Goal 时提议该输入，待用户确认"]]],
       ["workflow", [["proposed", "runtime:promoter:session", "从 Feed Item 创建 Goal 时提议该输入，待用户确认"]]],
       ["mcp", [["proposed", "runtime:promoter:session", "从 Feed Item 创建 Goal 时提议该输入，待用户确认"]]],

@@ -16,7 +16,8 @@ import type { ScheduleWakeupControl } from '@molis-ai/molis-work-contracts/servi
 import { bindPluginNotificationFeed } from '../apps/local-host/dist/plugin-notification-service.js';
 import { scheduleRuntimeFixture } from './fixtures/schedule-runtime.js';
 import { wakeupInstallation } from './fixtures/scheduler-owner.js';
-import { captureHostLog, createLocalFeedApplication, type HostLogEntry } from '@molis-ai/molis-work-app-local-host';
+import { captureHostLog, type HostLogEntry } from '@molis-ai/molis-work-app-local-host';
+import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 
 const at = '2026-09-28T00:00:00.000Z', DAY = 86_400_000;
 const identity = { projectId: 'p', pluginId: 'io.molis.work.test.operations', installationId: 'installed' };

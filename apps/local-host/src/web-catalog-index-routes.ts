@@ -46,9 +46,9 @@ export const CATALOG_INDEX_ROUTES: readonly WebRoute<CatalogIndexContext>[] = [
   { id: "agent-reviews", handle: ({ request, response, url, agentHost, localHost, agentReady }) => handleUnscopedAgentReviews(request, response, url,
     { agentHost, actorId: LOCAL_PERSON_ACTOR_ID, computerHolder: () => computerHolderFor(localHost)?.() ?? null, ready: agentReady }) },
   { id: "catalog", handle: async context => {
-    const { request, response, url, serverOptions, runtimeIntegrations, webService, controlToken, localHost, projects, composition, ptyHost, feedSchedulers, webViewCache, agentReady, agentHost } = context;
+    const { request, response, url, serverOptions, runtimeIntegrations, webService, controlToken, localHost, projects, composition, ptyHost, projectSchedules, webViewCache, agentReady, agentHost } = context;
     await handleLocalCatalogWebRequest(request, response, url, serverOptions, runtimeIntegrations, webService, controlToken, localHost, projects, composition,
-      webProjectDeletionPorts({ isPanelAlive: panelId => ptyHost.alive(panelId), feedSchedulers, webViewCache, localHost }),
+      webProjectDeletionPorts({ isPanelAlive: panelId => ptyHost.alive(panelId), projectSchedules, webViewCache, localHost }),
       async () => { await agentReady(); return agentHost.descriptors(); });
     return true;
   } },

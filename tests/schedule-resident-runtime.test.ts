@@ -4,12 +4,13 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
-import { MolisWorkLocalHost, LocalActionGatewayClient, createLocalFeedApplication, scheduleServiceFor } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, LocalActionGatewayClient, scheduleServiceFor } from "@molis-ai/molis-work-app-local-host";
 import { reminderActions, scheduledOperationActions, getScheduledOperation } from "@molis-ai/molis-work-plugin-schedule";
 import { currentCallId } from "@molis-ai/molis-work-kernel";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { serveTestHost } from "./fixtures/test-home.js";
 import { scheduledOwnerPlugin } from "./fixtures/schedule-runtime.js";
+import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 
 const automaticSchedule: ActionDefinition<{ text: string; at: string }, { reminderId: string }> = {
   capability_id: "fixture.periodic.register", version: 1, operation: "command", action: {

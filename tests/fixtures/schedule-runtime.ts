@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import type { TestContext } from "node:test";
 import type { ActionDefinition, ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { createLocalFeedApplication, scheduleServiceFor } from "@molis-ai/molis-work-app-local-host";
+import { scheduleServiceFor } from "@molis-ai/molis-work-app-local-host";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { reminderActions, scheduledOperationActions, SCHEDULE_PLUGIN_ID } from "@molis-ai/molis-work-plugin-schedule";
 import { openTestHome } from "./test-home.js";
+import { createLocalFeedApplication } from "./feed-library.js";
 
 /** A normal Runtime plugin consumes Schedule's public actions; the caller is the ordinary person, not a magic actor prefix. */
 export function scheduledOwnerPlugin() {
@@ -25,9 +26,9 @@ export function scheduledOwnerPlugin() {
   return { id, definition, context, actions: (projectId?: string) => context(projectId).services!.actions!, calls: () => calls, execute: (handler: typeof execute) => { execute = handler; } };
 }
 
-export async function scheduleRuntimeFixture(t: TestContext) {
+export async function scheduleRuntimeFixture(t: TestContext, plugins: readonly string[] = ["feed", "inbox"]) {
   const owner = scheduledOwnerPlugin(), { id, definition } = owner;
-  const f = await openTestHome(t, { host: { pluginFixtures: { project: [definition] } } }), project = await f.createProject("Schedule public runtime");
+  const f = await openTestHome(t, { host: { pluginFixtures: { project: [definition] } } }), project = await f.createProject("Schedule public runtime", plugins);
   const client = f.host.actionClient(project.reference);
   const prepare = () => client.discover({ actor_id: "web-user", project_id: project.project_id, audience: "user", permissions: [] });
   await prepare(); owner.context(project.project_id);

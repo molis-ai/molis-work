@@ -8,7 +8,6 @@ import { bindLocalWebActions, localWebActionContext, type LocalWebEntry } from "
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import type { bindGoalsWebActions } from "./goal-callers.js";
 import { molisWorkHostProjectReference, type MolisWorkProjectRuntime } from "./project-host.js";
-import type { projectFeedOptions } from "./workflow-feed-options.js";
 import type { ProjectPluginSurfacePorts } from "./project-plugin-stages.js";
 import type { ContextualHttpPorts } from "./contextual/contextual-http.js";
 import type { ResolvedWebBoardOptions } from "./web-types.js";
@@ -39,7 +38,6 @@ export interface ProjectRequestContext extends WebRequestContext {
 /** The same request inside the project's open runtime: the stores, and the ports the project's surfaces are given. */
 export interface ProjectRuntimeContext extends ProjectRequestContext {
   readonly store: MolisWorkProjectRuntime["store"];
-  readonly feedOptions: ReturnType<typeof projectFeedOptions>;
   /** Home shows and runs what any plugin offers the person here: native plugins by their manifests, Runtime plugins by their installed grants. */
   readonly homeActions: ReturnType<typeof bindLocalWebActions>;
   readonly goalActions: ReturnType<typeof bindGoalsWebActions>;

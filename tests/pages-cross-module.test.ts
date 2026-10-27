@@ -8,9 +8,10 @@ import { pagesActions, PAGES_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plu
 import { inboxActions, INBOX_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-inbox";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { createLocalFeedApplication } from "@molis-ai/molis-work-app-local-host";
-import { createLocalFeedSourceService } from "@molis-ai/molis-work-app-local-host";
+
+
 import type { HostCompleteText } from "@molis-ai/molis-work-app-local-host";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 const body = (text: string) => ({ type: "doc" as const, content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
 async function fixture(t: any, completeText: HostCompleteText | null = async () => "Generated from real material [材料 1]") {

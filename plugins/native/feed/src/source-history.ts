@@ -1,6 +1,6 @@
 import type { SourceRecord } from "@molis-ai/molis-work-contracts/modules/sources";
 import type { FeedApplicationPorts } from "./application-ports.js";
-import type { FeedSourceRecord, SourceHistoryDecision } from "./projection.js";
+import type { FeedSnapshot, FeedSourceRecord, SourceHistoryDecision } from "./projection.js";
 
 /**
  * A source's local history is more than rows in the project database: every pull left article bodies in the Home's
@@ -48,19 +48,29 @@ export function withReceiptContentRefs(receipt: Record<string, unknown> | null, 
   return { ...receipt, ...(merged.length > 0 ? { [FEED_RECEIPT_CONTENT_REFS]: merged } : {}) };
 }
 
-function holdingsOfSource(ports: FeedApplicationPorts, projectId: string, sourceId: string): FeedSourceHistoryHolding {
+function collectHoldings(items: Iterable<{ source_id: string | null; materials: ReadonlyArray<{ content_ref?: string | null }> }>,
+  runs: Iterable<{ source_id: string; operation_id: string; receipt: unknown }>, sourceId: string): FeedSourceHistoryHolding {
   const refs = new Set<string>();
-  for (const item of ports.feed.query.list(projectId)) {
+  for (const item of items) {
     if (item.source_id !== sourceId) continue;
     for (const material of item.materials) if (material.content_ref) refs.add(material.content_ref);
   }
   const operations: string[] = [];
-  for (const run of ports.listener.listRuns(projectId)) {
+  for (const run of runs) {
     if (run.source_id !== sourceId) continue;
     operations.push(run.operation_id);
-    for (const ref of receiptContentRefs(run.connector_receipt)) refs.add(ref);
+    for (const ref of receiptContentRefs(run.receipt)) refs.add(ref);
   }
   return { content_refs: [...refs].sort(), operation_ids: operations.sort() };
+}
+
+function holdingsOfSource(ports: FeedApplicationPorts, projectId: string, sourceId: string): FeedSourceHistoryHolding {
+  return collectHoldings(ports.feed.query.list(projectId), ports.listener.listRuns(projectId).map(run => ({ ...run, receipt: run.connector_receipt })), sourceId);
+}
+
+/** What a source's history holds, read from the Feed's snapshot: for a Feed that releases it through other services before the rows go. */
+export function holdingsOfSnapshot(snapshot: Pick<FeedSnapshot, "feed_items" | "runs">, sourceId: string): FeedSourceHistoryHolding {
+  return collectHoldings(snapshot.feed_items, snapshot.runs, sourceId);
 }
 
 function releaseSourceHistory(

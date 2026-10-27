@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, type ActionAudience, type ActionCallContext, type WorkflowContentActions, type WorkflowPayload } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { SearchEntriesPage } from "@molis-ai/molis-work-contracts/platform/search-sources";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, createLocalFeedApplication } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { datasetContentActions } from "@molis-ai/molis-work-plugin-dataset";
 import { feedContentActions } from "@molis-ai/molis-work-plugin-feed";
 import { formContentActions } from "@molis-ai/molis-work-plugin-form";
@@ -15,6 +15,7 @@ import { lingguangContentActions } from "@molis-ai/molis-work-plugin-lingguang";
 import { pagesContentActions } from "@molis-ai/molis-work-plugin-pages";
 import { pptContentActions } from "@molis-ai/molis-work-plugin-ppt";
 import { initializeBoard } from "./fixtures/goals-board.js";
+import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 
 // W4-6a: the request id of a delivery is the entry point's, the same eight real stations (Dataset, Feed, Form, Inbox, Jelly, 灵光, Pages, PPT)
 // make one object per id, and who delivered is read from the call's audience. Nothing here is a stand-in for a station.

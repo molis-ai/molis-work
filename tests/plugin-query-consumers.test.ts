@@ -7,10 +7,11 @@ import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-c
 import { feedQueryActions, feedItemActions } from "@molis-ai/molis-work-plugin-feed";
 import { inboxActions } from "@molis-ai/molis-work-plugin-inbox";
 import { scheduleActions } from "@molis-ai/molis-work-plugin-schedule";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, createLocalFeedApplication, createLocalFeedSourceService, seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { cachedMolisWorkWebView } from "@molis-ai/molis-work-app-local-host";
 import { informationActions } from "../apps/local-host/dist/information-actions.js";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 test("Feed reads and warm Web projections use each owner's current authority, retain exact content, and recover without altering original records", { timeout: 30_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "plugin-query-consumers-")), databasePath = join(home, "project.sqlite");

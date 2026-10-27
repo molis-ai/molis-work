@@ -1,14 +1,15 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import test from "node:test";
 import type { ActionCallContext, ActionClient, ActionSceneBinding, ActionSceneClient, ActionSceneUsage, ActionSceneView, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { INBOX_NEXT_SCENE_ID, type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 import { createFeedSceneRuntime, feedCaptureScene, feedCaptureSubjectRevision, type FeedApplication, type FeedItemRecord } from "@molis-ai/molis-work-plugin-feed";
-import { createInboxSceneRuntime, inboxNextScene, inboxSceneBindingId, type InboxSceneHost, type InboxSceneRule } from "@molis-ai/molis-work-plugin-inbox";
+import { createInboxSceneRuntime, inboxNextScene, inboxSceneBindingId, withStagedFeedContent } from "@molis-ai/molis-work-plugin-inbox";
 
 // FI-1 (specs/repository-anti-corruption/slices/feed-inbox-runtime.md, PG-034): the judgment side of Feed's capture scene and of Inbox's
-// next-step scene belongs to the plugins. The Host supplies the owners' data (the judgment ledger, the readable item); it decides nothing
-// about which judgments hold. These tests run the plugins' runtimes over fake ports, with no database and no Host.
+// next-step scene belongs to the plugins. The Host supplies the owners' data (the judgment ledger, the readable item) to Feed and decides
+// nothing about which judgments hold; Inbox is a Plugin Runtime plugin (FI-6) and runs its scene over the platform's scene and judgment
+// services. These tests run the plugins' runtimes over fake ports, with no database and no Host.
 
 const PROJECT = "project-1";
 const caller = { actor_id: "tester", project_id: PROJECT, permissions: ["feed:read", "feed:write", "inbox:read", "inbox:write"] } as never;
@@ -34,13 +35,14 @@ function feedRuntime(over: { usages?: ActionSceneUsage[]; judgments?: JudgmentRe
   return { ...runtime, recorded };
 }
 
-test("FI-1 RAC-480 the Host's scene files decide nothing about judgments: they only name the owners' data", () => {
-  for (const file of ["apps/local-host/src/feed-scene.ts", "apps/local-host/src/inbox-scene.ts"]) {
+test("FI-1 RAC-480 the Host's scene file decides nothing about judgments, and Inbox has no Host scene file at all", () => {
+  for (const file of ["apps/local-host/src/feed-scene.ts"]) {
     const source = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
     for (const logic of ["usages(", "discoverScenes(", "runScene(", "scenes.bind(", "subject_revision", "scene_provenance.", "createHash"]) {
       assert.equal(source.includes(logic), false, `${file} must not hold judgment logic (${logic})`);
     }
   }
+  assert.equal(existsSync(new URL("../apps/local-host/src/inbox-scene.ts", import.meta.url)), false, "Inbox's scene runs in the plugin, over services.scenes and services.judgments");
 });
 
 test("FI-1 RAC-481 Feed recommends only judgments that still hold: the binding, its revision and the item's content all unchanged", async () => {
@@ -84,28 +86,26 @@ test("FI-1 RAC-481 Feed validates a rule's judgment against the capture scene an
   }
 });
 
-const RULE: InboxSceneRule = { function_key: "rule-a", name: "规则 A", reference: FUNCTION };
 const action = (reference: typeof FUNCTION, title = "规则 A"): ActionView => ({ capability_id: reference.capability_id, version: reference.version, provider: { provider_id: reference.provider_id, title: "Functions" },
   action: { kind: "judgment", title } }) as never;
-const entry = (over: Partial<{ revision: number; status: string; reason: string }> = {}) => ({ entry_id: "entry-1", revision: 1, status: "open", reason: "manual", detail: { k: 1 }, ...over });
+const entry = (over: Partial<{ revision: number; status: string; reason: string }> = {}) =>
+  ({ entry_id: "entry-1", revision: 1, status: "open", reason: "manual", detail: { k: 1 }, subject_type: "manual", subject_id: "entry-1", ...over });
 
 function inboxRuntime(over: { entry?: (id: string) => ReturnType<typeof entry>; bound?: ActionSceneBinding | null; judgments?: JudgmentRecord[]; usages?: ActionSceneUsage[];
-  views?: ActionSceneView[]; capabilities?: ActionView[]; rules?: InboxSceneRule[] } = {}) {
-  const bound: ActionSceneBinding[] = [], events: JudgmentRecord[] = [], recorded: unknown[] = [];
+  views?: ActionSceneView[]; capabilities?: ActionView[] } = {}) {
+  const bound: ActionSceneBinding[] = [], saved: ActionSceneBinding[] = [], events: JudgmentRecord[] = [], recorded: unknown[] = [];
   const scenes = { usages: async () => over.usages ?? [], discoverScenes: async () => over.views ?? [sceneView(INBOX_NEXT_SCENE_ID, 1, true)],
-    bind: async (_caller: unknown, binding: ActionSceneBinding) => { bound.push(binding); }, runScene: async () => ({ ran: true }) } as never;
-  const actions = { discover: async () => over.capabilities ?? [] } as never;
-  const host: InboxSceneHost = {
-    binding: () => over.bound ?? null, saveBinding: () => {}, publishedRules: () => over.rules ?? [RULE],
-    functionKey: reference => reference.capability_id.startsWith("functions.published.") ? reference.capability_id.slice("functions.published.".length) : null,
-    latestJudgments: () => over.judgments ?? [], recordJudgment: input => { recorded.push(input); return { judgment_id: "j1" } as never; },
-    subject: id => { const found = (over.entry ?? (() => entry()))(id); return { entry: found, item: null }; }, recordEvent: judgment => { events.push(judgment); },
-  };
-  return { ...createInboxSceneRuntime({ projectId: PROJECT, actions, scenes, host }), bound, events, recorded };
+    bind: async (binding: ActionSceneBinding) => { bound.push(binding); }, runScene: async () => ({ ran: true }) } as never;
+  const judgments = { latest: () => over.judgments ?? [], record: (input: unknown) => { recorded.push(input); return { judgment_id: "j1" } as never; } } as never;
+  const runtime = createInboxSceneRuntime({ projectId: PROJECT, scenes, judgments,
+    bindings: { get: () => over.bound ?? null, save: (_context, binding) => { saved.push(binding); } },
+    judgmentActions: async () => over.capabilities ?? [], entry: id => (over.entry ?? (() => entry()))(id),
+    content: async () => { throw new Error("these entries point at no Feed item"); }, recordEvent: (_context, judgment) => { events.push(judgment); } });
+  return { ...runtime, bound, saved, events, recorded };
 }
 
 test("FI-1 RAC-482 Inbox binds only a published rule, and unbinding pauses the binding it has", async () => {
-  const runtime = inboxRuntime();
+  const runtime = inboxRuntime({ capabilities: [action(FUNCTION)] });
   await assert.rejects(runtime.ports.writeJudgment!("unknown-rule", caller), { code: "actions.binding_invalid" });
   assert.deepEqual(runtime.bound, []);
   assert.deepEqual(await runtime.ports.writeJudgment!("rule-a", caller), { function_key: "rule-a" });
@@ -113,7 +113,7 @@ test("FI-1 RAC-482 Inbox binds only a published rule, and unbinding pauses the b
   assert.deepEqual({ id: runtime.bound[0]!.binding_id, scene: runtime.bound[0]!.scene_id, version: runtime.bound[0]!.scene_version, fn: runtime.bound[0]!.function, enabled: runtime.bound[0]!.enabled },
     { id: inboxSceneBindingId(PROJECT), scene: inboxNextScene.scene_id, version: inboxNextScene.version, fn: FUNCTION, enabled: true });
   const current: ActionSceneBinding = { ...runtime.bound[0]!, revision: "r1" };
-  const paused = inboxRuntime({ bound: current });
+  const paused = inboxRuntime({ bound: current, capabilities: [action(FUNCTION)] });
   await paused.ports.writeJudgment!(null, caller);
   assert.deepEqual(paused.bound.map(binding => binding.enabled), [false]);
   const none = inboxRuntime();
@@ -155,18 +155,31 @@ test("FI-1 RAC-483 Inbox keeps a judgment only while its entry is open and uncha
   assert.deepEqual(await inboxRuntime().ports.evaluateJudgment!(["entry-1", "entry-1"], caller), { judgments: [{ ran: true }] }, "an id given twice is judged once");
 });
 
-test("FI-1 RAC-483 a judgment is recorded with the binding it came from, the content it read, and becomes an event of the entry", () => {
+test("FI-1 RAC-483 a judgment is recorded with the binding it came from, the content it read, and becomes an event of the entry", async () => {
   const runtime = inboxRuntime();
   const binding = { binding_id: inboxSceneBindingId(PROJECT), revision: "r7", function: FUNCTION } as never;
+  const effects: string[] = [];
+  const context = { ...caller, beforeEffect: async () => { effects.push("checked"); } };
   const handler = runtime.handler as { consume(caller: unknown, input: unknown, result: unknown, execution: { binding: ActionSceneBinding; state: unknown }): unknown };
   const state = { entry_id: "entry-1", revision: 1, status: "open", content: ["manual", JSON.stringify({ k: 1 })].join("\n") };
-  handler.consume(caller, {}, { status: "ok", suggested_behavior_ids: ["inbox.done"] }, { binding, state });
+  await handler.consume(context, {}, { status: "ok", suggested_behavior_ids: ["inbox.done"] }, { binding, state });
+  assert.deepEqual(effects, ["checked"], "the ledger is written only after the call's own check before an effect");
   assert.equal(runtime.recorded.length, 1);
   assert.deepEqual(runtime.recorded[0], { function: FUNCTION, subject: { kind: "inbox_entry", id: "entry-1", project_id: PROJECT }, scene_id: INBOX_NEXT_SCENE_ID,
     scene_provenance: { binding_id: inboxSceneBindingId(PROJECT), binding_revision: "r7", function: FUNCTION, subject_revision: (runtime.recorded[0] as { scene_provenance: { subject_revision: string } }).scene_provenance.subject_revision },
     outcome: "ok", suggested_behavior_ids: ["inbox.done"], error_code: null });
   assert.equal(runtime.events.length, 1);
-  assert.throws(() => handler.consume(caller, {}, { status: "ok", suggested_behavior_ids: [] }, { binding, state: { ...state, revision: 2 } }), { code: "actions.subject_changed" },
+  assert.throws(() => handler.consume(context, {}, { status: "ok", suggested_behavior_ids: [] }, { binding, state: { ...state, revision: 2 } }), { code: "actions.subject_changed" },
     "the entry changed while the judgment ran");
   assert.equal(runtime.recorded.length, 1, "a judgment of a changed entry is not recorded");
+});
+
+test("FI-6 a callback of the scene that no Inbox action started judges nothing for an entry that points at a Feed item", async () => {
+  const feedEntry = { ...entry(), subject_type: "feed_item", subject_id: "item-1" };
+  const runtime = inboxRuntime({ entry: () => feedEntry });
+  const handler = runtime.handler as { prepare(caller: unknown, event: unknown): unknown };
+  assert.throws(() => handler.prepare(caller, { entry_id: "entry-1" }), { code: "actions.subject_unavailable" }, "the item's text arrives only with Inbox's own evaluate action");
+  const staged = withStagedFeedContent(new Map([["item-1", { item_id: "item-1", revision: 1, title: "标题", summary: null, body: "正文", materials: [] }]]),
+    () => handler.prepare(caller, { entry_id: "entry-1" })) as { input: { content: string } };
+  assert.match(staged.input.content, /正文/u);
 });

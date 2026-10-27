@@ -1,4 +1,4 @@
-import { PLATFORM_PLUGIN_REGISTRATIONS, runsInHome } from "./plugin-registry.js";
+import { PLATFORM_PLUGIN_REGISTRATIONS, runsOnlyInHome } from "./plugin-registry.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { openPluginProjectDatabase, type PluginProjectDatabaseRecord, type PluginProjectSchemaInspector, type PluginRuntimeDatabase } from "@molis-ai/molis-work-plugin-runtime";
@@ -27,7 +27,7 @@ const outcomes = new WeakMap<object, ReadonlyMap<string, ProjectPluginDatabaseOu
 
 /** The built-in project plugins that declare tables in the project's library, from the one catalog, in its order. A dual-instance plugin's Home entry is also its project half. */
 function projectDatabasePlugins(): PluginManifest[] {
-  return PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => (!runsInHome(entry) || entry.runtime?.dual_instance === true) && entry.manifest.databases?.project).map(entry => entry.manifest);
+  return PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => !runsOnlyInHome(entry) && entry.manifest.databases?.project).map(entry => entry.manifest);
 }
 
 /** Open one plugin's tables in the library at `path` (made and recorded the first time), or throw its refusal. */

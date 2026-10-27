@@ -1,5 +1,5 @@
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
-import { INBOX_PROJECT_PLUGIN_ID, inboxManifest, inboxUiContribution } from "./index.js";
+import { INBOX_PROJECT_PLUGIN_ID, createInboxPlugin, inboxManifest, inboxUiContribution } from "./index.js";
 
 /**
  * This plugin's entry in the built-in catalog (W5-02). `node scripts/generate-plugin-registry.mjs` lists it in
@@ -8,6 +8,7 @@ import { INBOX_PROJECT_PLUGIN_ID, inboxManifest, inboxUiContribution } from "./i
 export const registration: PluginRegistration = {
   project_plugin_id: INBOX_PROJECT_PLUGIN_ID, catalog_order: 8,
   manifest: inboxManifest,
+  project_runtime: { create: createInboxPlugin, package_name: "@molis-ai/molis-work-plugin-inbox", factory_export: "createInboxPlugin" },
   workbench: {
     order: 6,
     contributions: [inboxUiContribution],

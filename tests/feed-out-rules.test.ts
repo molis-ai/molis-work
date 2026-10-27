@@ -9,15 +9,7 @@ import Database from "better-sqlite3";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
-import {
-  createLocalFeedApplication,
-  createLocalFeedSourceService,
-  DEMO_PROJECT_ID,
-  LocalProjectDatabase,
-  listFeedSourceCatalog,
-  openProjectVersionStores,
-  seedDemoBoard,
-} from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, listFeedSourceCatalog, openProjectVersionStores, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import {
@@ -31,6 +23,7 @@ import {
   FEED_CAPTURE_SCENE_ID,
   INBOX_ADMIT_BEHAVIOR_ID,
 } from "@molis-ai/molis-work-contracts/modules/functions";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 const TOKEN = "feed-out-rules-test-token-0123456789012345";
 

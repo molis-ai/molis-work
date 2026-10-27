@@ -13,6 +13,8 @@ import { normalizeIdempotencyKey, stableId } from "./source-input.js";
 import { toFeedPublicError } from "./application-errors.js";
 import { resolveSourceFaults, safeErrorCode } from "./source-sync-result.js";
 
+type AfterAccepted = Parameters<FeedConnectorSyncPorts["createListener"]>[1];
+
 export class FeedConnectorSync {
   private readonly feed: FeedApplication;
   constructor(private readonly ports: FeedConnectorSyncPorts, private readonly projectId: string) {
@@ -51,8 +53,7 @@ export class FeedConnectorSync {
     let listener!: FeedConnectorListener;
     let listenerResult: ListenerRunReceipt;
     try {
-      listener = await this.ports.createListener(source, async (item, signal, occurredAt) => {
-        await beforeEffect();
+      const ingest: AfterAccepted = (item, signal, occurredAt) => {
         const latest = this.feed.getSource(this.projectId, source.source_id);
         this.feed.ingestItem({
           source: latest,
@@ -72,6 +73,11 @@ export class FeedConnectorSync {
           occurredAt: item.occurredAt ?? occurredAt,
           attention: item.attention,
         });
+      };
+      // With a commit the listener runs this inside the commit of the signal, which has asked the caller's authority already.
+      listener = await this.ports.createListener(source, this.ports.commit ? ingest : async (item, signal, occurredAt) => {
+        await beforeEffect();
+        ingest(item, signal, occurredAt);
       });
       await beforeEffect();
       listenerResult = await listener.run(operationId, input.mode ?? "normal", { signal: input.signal, beforeEffect });
@@ -82,20 +88,22 @@ export class FeedConnectorSync {
       const errorCode = error instanceof ActionError && error.code.startsWith("listener.")
         && Object.hasOwn(listenerErrors, error.code.slice("listener.".length)) ? error.code : safeErrorCode(error);
       // A source's failure is that source's: it is recorded on the source below and never stops the plugin for the others.
-      const latest = this.feed.getSource(this.projectId, sourceId);
-      this.feed.upsertSource({
-        ...latest,
-        status: latest.enabled ? "error" : "paused",
-        last_error_code: errorCode,
-        updated_at: updatedAt,
+      await this.commit(() => {
+        const latest = this.feed.getSource(this.projectId, sourceId);
+        this.feed.upsertSource({
+          ...latest,
+          status: latest.enabled ? "error" : "paused",
+          last_error_code: errorCode,
+          updated_at: updatedAt,
+        });
+        this.ports.appendEvent(
+          this.projectId,
+          source.source_id,
+          "feed_connector.sync_interrupted",
+          `${source.name} 同步未取得终态，可安全重试`,
+          { operation_id: operationId, error_code: errorCode },
+        );
       });
-      this.ports.appendEvent(
-        this.projectId,
-        source.source_id,
-        "feed_connector.sync_interrupted",
-        `${source.name} 同步未取得终态，可安全重试`,
-        { operation_id: operationId, error_code: errorCode },
-      );
       throw feedErrors.source_sync_interrupted("连接器同步未取得可信终态，本次没有写成成功；可稍后安全重试。");
     }
     await beforeEffect();
@@ -112,7 +120,10 @@ export class FeedConnectorSync {
       const action = typeof connectorReceipt.recovery_action === "string"
         ? connectorReceipt.recovery_action
         : undefined;
-      this.ports.transaction(() => {
+      const publicMessage = failure === "needs_auth"
+        ? `${source.name} 授权已失效或不可用，请打开任务设置中的“管理账号连接”重新授权。`
+        : action ? `${message} — ${action}` : message;
+      await this.commit(() => {
         const retrySchedule = failure === "rate_limited"
           && retryAfterAt
           && source.schedule.mode === "interval"
@@ -131,32 +142,32 @@ export class FeedConnectorSync {
           ...(action ? { action } : {}),
           ...(retryAfterAt ? { retry_after_at: retryAfterAt } : {}),
         });
+        this.recordActionableSourceFault(source, listenerResult.error_code!, publicMessage, completedAt);
       });
-      const publicMessage = failure === "needs_auth"
-        ? `${source.name} 授权已失效或不可用，请打开任务设置中的“管理账号连接”重新授权。`
-        : action ? `${message} — ${action}` : message;
-      this.recordActionableSourceFault(source, listenerResult.error_code!, publicMessage, completedAt);
       await this.feed.flushPendingJudgments();
       throw feedErrors.connector_failed(publicMessage, { error_code: listenerResult.error_code! });
     }
     const mode = connectorReceipt.mode === "fixture" ? "fixture" : "live";
     const cursor = listener.checkpoint().cursor;
-    const latest = this.feed.getSource(this.projectId, source.source_id);
-    const durableSource = this.feed.upsertSource({
-      ...latest,
-      status: mode === "live" ? "active" : "error",
-      cursor,
-      ...accountFields(latest, listener.account?.(cursor) ?? null),
-      last_sync_at: completedAt,
-      last_outcome: "completed",
-      last_error_code: mode === "live" ? null : "feed.fixture_not_live",
-      updated_at: completedAt,
+    const durableSource = await this.commit(() => {
+      const latest = this.feed.getSource(this.projectId, source.source_id);
+      const durable = this.feed.upsertSource({
+        ...latest,
+        status: mode === "live" ? "active" : "error",
+        cursor,
+        ...this.ports.sourceMetadata(latest, cursor),
+        last_sync_at: completedAt,
+        last_outcome: "completed",
+        last_error_code: mode === "live" ? null : "feed.fixture_not_live",
+        updated_at: completedAt,
+      });
+      this.ports.appendEvent(this.projectId, source.source_id, "feed_connector.sync_completed", `${source.name} 同步完成：新增 ${listenerResult.created_count}，去重 ${listenerResult.deduped_count}`, {
+        created: listenerResult.created_count,
+        deduped: listenerResult.deduped_count,
+      });
+      if (mode === "live") resolveSourceFaults(this.feed, this.projectId, source.source_id);
+      return durable;
     });
-    this.ports.appendEvent(this.projectId, source.source_id, "feed_connector.sync_completed", `${source.name} 同步完成：新增 ${listenerResult.created_count}，去重 ${listenerResult.deduped_count}`, {
-      created: listenerResult.created_count,
-      deduped: listenerResult.deduped_count,
-    });
-    if (mode === "live") resolveSourceFaults(this.feed, this.projectId, source.source_id);
     return {
       source: durableSource,
       run: this.feed.getSourceRunByOperationId(this.projectId, operationId)!,
@@ -164,6 +175,11 @@ export class FeedConnectorSync {
       deduped: listenerResult.deduped_count,
       replayed: listenerResult.replayed,
     };
+  }
+
+  /** A write after the sync has awaited: the Runtime's commit when the Feed has one, otherwise the transaction it always used. */
+  private async commit<T>(operation: () => T): Promise<T> {
+    return this.ports.commit ? await this.ports.commit(operation) : this.ports.transaction(operation);
   }
 
   private recordActionableSourceFault(

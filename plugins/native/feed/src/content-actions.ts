@@ -1,9 +1,9 @@
 import { retainActionAuthority, ActionError, defineSubjectContextAction, subjectContext, bindSearchEntriesHandler, defineSearchEntriesAction, searchRevisionOf, searchText, type SearchEntry, bindWorkflowContentHandlers, defineWorkflowContentActions, type WorkflowPayload, type ActionSubject, type ActionSubjectContext, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { FeedApplication } from "./application.js";
-import type { FeedItemRecord } from "./projection.js";
 import { createFeedHomeEventsHandler } from "./home-events.js";
 import { handInSourceFor, isHandInSource } from "./hand-in-sources.js";
 import { feedArtifactPreviewHandler } from "./artifact-preview.js";
+import type { FeedHydrate } from "./item-hydration.js";
 
 export const feedContentActions = defineWorkflowContentActions({ id: "feed", title: "Feed", icon: "rss", subject_kind: "feed_item",
   read_permissions: ["feed:read"], write_permissions: ["feed:write"], receive_scheduling: "concurrent" });
@@ -17,24 +17,25 @@ export const feedSourceSubjectAction = defineSubjectContextAction("feed.source.s
 export const feedSearchEntriesAction = defineSearchEntriesAction("feed.search.entries",
   [{ kind: "feed_item", title: "Feed 材料", surface: "feed" }, { kind: "source", title: "来源", surface: "feed" }], "Feed 材料与来源", ["feed:read"]);
 
-export function createFeedContentHandlers(feed: FeedApplication, board: string, hydrate: (item: FeedItemRecord) => FeedItemRecord, readSubject?: (subject: ActionSubject, caller: ActionCallContext) => Promise<ActionSubjectContext>) {
+export function createFeedContentHandlers(feed: FeedApplication, board: string, hydrate: FeedHydrate, readSubject?: (subject: ActionSubject, caller: ActionCallContext) => Promise<ActionSubjectContext>) {
   return [createFeedHomeEventsHandler(feed, board, hydrate, readSubject), feedArtifactPreviewHandler, ...bindWorkflowContentHandlers(feedContentActions, {
     list: () => feed.snapshot(board).feed_items.slice().sort((a, b) => String(b.imported_at).localeCompare(String(a.imported_at)))
       .map(item => ({ item_id: item.item_id, title: item.title, caption: item.source_label || item.source_kind || "Feed", at: item.imported_at })),
-    read: ({ item_id }): WorkflowPayload => {
-      const item = hydrate(feed.getFeedItem(board, item_id));
+    read: async ({ item_id }): Promise<WorkflowPayload> => {
+      const item = await hydrate(feed.getFeedItem(board, item_id));
       const body = item.body || item.materials.map(material => material.content || material.preview).filter(Boolean).join("\n\n") || item.summary || "";
       return { title: item.title, body, url: item.url ?? null, source: item.source_label || item.source_kind || "Feed", feed_item_id: item.item_id };
     },
-    receive: async (input, caller) => {
+    // Not `async`: the source and the item are written before the first wait, and a failure there is thrown, so a Runtime commits both or neither.
+    receive: (input, caller) => {
       const now = new Date().toISOString();
-      const source = handInSourceFor(feed, board, caller.audience, now);
+      const source = handInSourceFor(feed, board, caller.delegated_audience ?? caller.audience, now);
       // This action runs beside the project's queue while the model judges, so it judges what its own delivery queued and
       // nothing another producer queued meanwhile: that is judged by its owner, under its owner's authority.
-      const { item } = await feed.ingestItemJudged({ source, externalId: input.request_id, title: input.title,
+      return feed.ingestItemJudged({ source, externalId: input.request_id, title: input.title,
         summary: input.body.replace(/\s+/g, " ").trim().slice(0, 240), body: input.body, url: input.url ?? null,
-        occurredAt: now, attention: false }, retainActionAuthority(caller, feedContentActions.receive));
-      return { plugin: "feed", item_id: item.item_id, title: item.title };
+        occurredAt: now, attention: false }, retainActionAuthority(caller, feedContentActions.receive))
+        .then(({ item }) => ({ plugin: "feed", item_id: item.item_id, title: item.title }));
     },
   }), bindSearchEntriesHandler(feedSearchEntriesAction, () => {
     const snapshot = feed.snapshot(board);
@@ -47,8 +48,8 @@ export function createFeedContentHandlers(feed: FeedApplication, board: string, 
       subject: { kind: "source", id: source.source_id }, revision: searchRevisionOf([source.updated_at, source.name, source.description ?? "", source.status]), title: source.name,
       summary: searchText(source.description, 600), updated_at: source.updated_at, content: "summary", open: { surface: "feed", id: source.source_id } }));
     return [...items, ...sources];
-  }), { ...feedSubjectAction, handle: (_caller: unknown, input: unknown) => {
-    const item = hydrate(feed.getFeedItem(board, (input as { subject_id: string }).subject_id));
+  }), { ...feedSubjectAction, handle: async (_caller: unknown, input: unknown) => {
+    const item = await hydrate(feed.getFeedItem(board, (input as { subject_id: string }).subject_id));
     if (item.disposition === "archived") throw new ActionError("actions.subject_unavailable", "材料已归档，请回到原记录查看");
     return subjectContext({ subject: { kind: "feed_item", id: item.item_id }, revision: String(item.revision), title: item.title,
       content: item.body || item.materials.map(material => material.content || material.preview).filter(Boolean).join("\n\n") || item.summary || "",

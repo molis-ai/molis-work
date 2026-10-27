@@ -1,4 +1,5 @@
 import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ActionService } from "@molis-ai/molis-work-kernel";
@@ -76,7 +77,7 @@ test("native event providers project original Feed, Inbox and source state", asy
   const databasePath = join(home, "project.db"); await seedDemoGoals(databasePath, caller.project_id!);
   const reference = molisWorkHostProjectReference({ databasePath, projectId: caller.project_id! });
   const host = new MolisWorkLocalHost({ homeDirectory: home });
-  const owner = { ...caller, permissions: ["home:read", "feed:read", "inbox:read", "goals:read"] };
+  const owner = { ...caller, permissions: ["home:read", "feed:read", "evidence:read", "inbox:read", "goals:read"] };
   const now = new Date(); const range = { from: new Date(now.getTime() - 86400000).toISOString(), to: new Date(now.getTime() + 86400000).toISOString(), now: now.toISOString() };
   try {
     const runtime = await host.withProject(reference, runtime => runtime); const feed = createLocalFeedApplication(runtime.store.db);

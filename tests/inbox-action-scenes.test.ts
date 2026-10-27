@@ -4,17 +4,16 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, createLocalFeedApplication, createLocalFeedSourceService, seedDemoBoard, DEMO_PROJECT_ID, withFunctionsService } from "@molis-ai/molis-work-app-local-host";
-import { inboxActions, inboxContentActions, inboxNextScene, inboxSceneBindingId, INBOX_ACTION_PERMISSIONS, type InboxJudgmentState } from "@molis-ai/molis-work-plugin-inbox";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, seedDemoBoard, DEMO_PROJECT_ID, withFunctionsService } from "@molis-ai/molis-work-app-local-host";
+import { inboxActions, inboxContentActions, inboxNextScene, INBOX_ACTION_PERMISSIONS, type InboxJudgmentState } from "@molis-ai/molis-work-plugin-inbox";
 import { feedContentActions, feedItemActions } from "@molis-ai/molis-work-plugin-feed";
 import { createFunctionsService, publishedFunctionAction } from "@molis-ai/molis-work-module-functions";
 import type { ActionCallContext, ActionDefinition, ActionSceneBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
-import { createLocalInboxScene, type InboxSceneServices } from "../apps/local-host/dist/inbox-scene.js";
+import type { FunctionsHostOptions } from "../apps/local-host/dist/functions-host.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
-type FunctionsHostOptions = NonNullable<InboxSceneServices["functions"]>;
-
-test("FI-1 RAC-482 binding a published rule reads stable identities without building any rule's full definition", async t => {
+test("FI-1 RAC-482 binding a published rule goes through the plugin's own scene and refuses drafts, unknown rules, read-only callers and rules of another scene", async () => {
   const home = await mkdtemp(join(tmpdir(), "inbox-rule-identities-"));
   const options: FunctionsHostOptions = { env: { TYPESAFE_API_KEY: "fixture-only" }, provider: { async evaluate(_key, record) {
     return { primitive: "choice", choice: "inbox.done", probabilities: { "inbox.done": 1 }, confidence: null,
@@ -34,35 +33,25 @@ test("FI-1 RAC-482 binding a published rule reads stable identities without buil
     const draft = service.createChoice({ name: "Not published", function_key: "fi1_draft" });
     const databasePath = join(home, "project.db"); seedDemoBoard(databasePath);
     const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
-    const caller: ActionCallContext = { actor_id: "owner", project_id: reference.project_id, audience: "user", permissions: [...INBOX_ACTION_PERMISSIONS] };
-    const feed = await host.withProject(reference, runtime => createLocalFeedApplication(runtime.store.db));
-    const scenes = host.sceneClient(reference);
-    // These are normally published records. Observe the adapter's reads without changing any stored data or field value.
-    const definitionReads: string[] = [];
-    const identityFields = new Set(["status", "version", "function_key", "name"]);
-    const list = service.list.bind(service);
-    t.mock.method(service, "list", () => list().map(record => new Proxy(record, { get(value, property, receiver) {
-      if (typeof property === "string" && !identityFields.has(property)) definitionReads.push(`${record.function_key}.${property}`);
-      return Reflect.get(value, property, receiver);
-    } })));
-    const scene = createLocalInboxScene(home, reference.project_id, feed, { actions: host.actionClient(reference), scenes, readFunctions: operation => operation(service) });
+    const caller: ActionCallContext = { actor_id: "owner", project_id: reference.project_id, audience: "user", permissions: [...INBOX_ACTION_PERMISSIONS, "evidence:read"] };
+    const actions = host.actionClient(reference);
+    await actions.discover(caller); // the project's plugins register their scenes, and a scene's rule is written when it does
+    const read = async () => await actions.invoke(caller, inboxActions.readJudgment, {}) as InboxJudgmentState & { binding: ActionSceneBinding | null };
     assert.equal(service.getByKey(unrelated.function_key)?.status, "published");
-    assert.deepEqual(await scene.ports.writeJudgment!(target.function_key, caller), { function_key: "fi1_target" });
-    const binding = service.actionSceneBinding(inboxNextScene.scene_id, reference.project_id);
+    assert.deepEqual(await actions.invoke(caller, inboxActions.writeJudgment, { function_key: target.function_key }), { function_key: "fi1_target" });
+    const binding = (await read()).binding;
     assert.deepEqual(binding?.function, { capability_id: "functions.published.fi1_target", version: target.version, provider_id: "system.functions" });
-    assert.deepEqual(definitionReads, [], "binding only needs published identities, including when other valid rules are present");
     for (const key of [draft.function_key, "fi1_missing"]) {
-      await assert.rejects(scene.ports.writeJudgment!(key, caller), { code: "actions.binding_invalid" });
-      assert.deepEqual(service.actionSceneBinding(inboxNextScene.scene_id, reference.project_id), binding);
+      await assert.rejects(actions.invoke(caller, inboxActions.writeJudgment, { function_key: key }), { code: "actions.binding_invalid" });
+      assert.deepEqual((await read()).binding, binding);
     }
     const readOnlyCaller = { ...caller, permissions: caller.permissions.filter(permission => permission !== "inbox:write") };
-    await assert.rejects(scene.ports.writeJudgment!(target.function_key, readOnlyCaller), { code: "actions.forbidden" });
-    assert.deepEqual(service.actionSceneBinding(inboxNextScene.scene_id, reference.project_id), binding);
-    await assert.rejects(scene.ports.writeJudgment!("system_admit_inbox", caller), { code: "actions.scene_incompatible" });
-    assert.deepEqual(service.actionSceneBinding(inboxNextScene.scene_id, reference.project_id), binding);
-    const state = await scene.ports.readJudgment!(caller) as InboxJudgmentState;
+    await assert.rejects(actions.invoke(readOnlyCaller, inboxActions.writeJudgment, { function_key: target.function_key }), { code: "actions.forbidden" });
+    assert.deepEqual((await read()).binding, binding);
+    await assert.rejects(actions.invoke(caller, inboxActions.writeJudgment, { function_key: "system_admit_inbox" }), { code: "actions.scene_incompatible" });
+    assert.deepEqual((await read()).binding, binding);
+    const state = await read();
     assert.deepEqual(state.functions.filter(rule => rule.function_key.startsWith("fi1_")).map(rule => rule.function_key).sort(), ["fi1_target", "fi1_unrelated"]);
-    assert.deepEqual(definitionReads, [], "catalog reads and refused bindings also consume only identities from this port");
   } finally {
     service.close();
     await host.close();
@@ -75,12 +64,12 @@ test("Inbox consumes a registered judgment, retains the original binding and his
   await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   const databasePath = join(home, "project.db"); seedDemoBoard(databasePath);
   const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
-  const caller: ActionCallContext = { actor_id: "owner", project_id: reference.project_id, audience: "user", permissions: [...INBOX_ACTION_PERMISSIONS] };
+  const caller: ActionCallContext = { actor_id: "owner", project_id: reference.project_id, audience: "user", permissions: [...INBOX_ACTION_PERMISSIONS, "evidence:read"] };
   const inputs: string[] = [];
-  let duringJudgment: (() => void) | undefined;
+  let duringJudgment: (() => void | Promise<void>) | undefined;
   const options: FunctionsHostOptions = { env: { TYPESAFE_API_KEY: "fixture-only" },
     provider: { async evaluate(_key, record, content) {
-      inputs.push(content); duringJudgment?.();
+      inputs.push(content); await duringJudgment?.();
       return { primitive: "choice", choice: "inbox.done", probabilities: { "inbox.done": 1 }, confidence: null,
         model: record.model, noul: null, score: null, legend: null };
     } } };
@@ -124,7 +113,7 @@ test("Inbox consumes a registered judgment, retains the original binding and his
       assert.equal(events.length, 1, "Feed receives the actual judgment event");
     });
     // Rebinding to the same function is still a changed configuration revision.
-    duringJudgment = () => withFunctionsService(home, service => service.saveActionSceneBinding(reference.project_id, { ...before[0]!, title: "changed while waiting" }), options);
+    duringJudgment = async () => { duringJudgment = undefined; await scenes.bind(caller, { ...before[0]!, title: "changed while waiting" }); };
     await assert.rejects(actions.invoke(caller, inboxActions.evaluateJudgment, { entry_ids: [entry.entry_id] }), { code: "actions.binding_changed" });
     assert.equal(history().length, 1);
     duringJudgment = () => { disabled = true; };
@@ -137,12 +126,13 @@ test("Inbox consumes a registered judgment, retains the original binding and his
     assert.equal(stopped.enabled, false);
     assert.deepEqual(await recommendations(), []);
     await host.close(); host = makeHost(); scenes = host.sceneClient(reference); actions = host.actionClient(reference);
+    await actions.discover(caller); // the project's plugins start when it opens, and a scene is there once its plugin is
     assert.equal((await scenes.usages(caller, fn))[0]!.enabled, false, "disable preserves the binding across restart");
     assert.equal(history().length, 1);
 
     // Any compatible registered judgment can replace Functions; the consumer does not know its ID.
     const unknown: ActionDefinition = { capability_id: `fixture.${randomUUID()}.judge`, version: 1, operation: "command", action: {
-      title: "本地规则", description: "fixture judgment", kind: "judgment", scope: "project", audiences: ["user", "mcp"], permissions: [], subject_kinds: ["inbox_entry"],
+      title: "本地规则", description: "fixture judgment", kind: "judgment", scope: "project", audiences: ["user", "workflow", "mcp"], permissions: [], subject_kinds: ["inbox_entry"],
       input_schema: inboxNextScene.input_schema, output_type: inboxNextScene.result_type,
       output_schema: { type: "object", properties: { status: { enum: ["ok", "needs_review"] }, suggested_behavior_ids: { type: "array", items: { enum: ["inbox.done", "inbox.compose", "inbox.verify"] } } }, required: ["status", "suggested_behavior_ids"] },
     } };
@@ -162,7 +152,8 @@ test("Inbox consumes a registered judgment, retains the original binding and his
       subject: { kind: "inbox_entry", id: entry.entry_id, project_id: reference.project_id }, scene_id: inboxNextScene.scene_id,
       outcome: "ok", suggested_behavior_ids: ["inbox.done"], error_code: null }), options);
     assert.deepEqual(await recommendations(), [], "old history without binding and content provenance is retained but cannot claim current advice");
-    const consumed = await scenes.runScene(caller, inboxNextScene, inboxSceneBindingId(reference.project_id), { entry_id: entry.entry_id }) as JudgmentRecord;
+    // The scene reads a Feed item's text from Inbox's own action, so it is run through that action.
+    const consumed = (await actions.invoke(caller, inboxActions.evaluateJudgment, { entry_ids: [entry.entry_id] }) as { judgments: JudgmentRecord[] }).judgments[0]!;
     assert.equal(consumed.function_key, unknown.capability_id);
     assert.deepEqual(consumed.suggested_behavior_ids, ["inbox.done"]);
     assert.equal(history().length, 3);
@@ -193,7 +184,7 @@ test("Inbox consumes a registered judgment, retains the original binding and his
     // Change the actual entry while the provider is executing, through its business owner.
     const feed = await host.withProject(reference, runtime => createLocalFeedApplication(runtime.store.db));
     unknownEffect = () => feed.setInboxEntryStatus(reference.project_id, entry.entry_id, "in_progress", entry.revision);
-    await assert.rejects(scenes.runScene(caller, inboxNextScene, binding.binding_id, { entry_id: entry.entry_id }), { code: "actions.subject_changed" });
+    await assert.rejects(actions.invoke(caller, inboxActions.evaluateJudgment, { entry_ids: [entry.entry_id] }), { code: "actions.subject_changed" });
     assert.equal(history().length, count);
     assert.deepEqual(await recommendations(), [], "an edited entry invalidates previously saved advice");
     const current = feed.getInboxEntry(reference.project_id, entry.entry_id);
@@ -203,7 +194,7 @@ test("Inbox consumes a registered judgment, retains the original binding and his
     stop();
     assert.deepEqual(await recommendations(), []);
     assert.equal((await actions.invoke(caller, inboxActions.readJudgment, {}) as InboxJudgmentState).summary?.available, false);
-    const orphan = (await scenes.usages(caller))[0]!;
+    const orphan = (await scenes.usages(caller)).find(usage => usage.scene_id === inboxNextScene.scene_id)!;
     assert.equal(orphan.function.capability_id, unknown.capability_id);
     assert.equal(orphan.availability.available, false);
     assert.equal((await actions.discover(caller)).find(action => action.capability_id === inboxActions.evaluateJudgment.capability_id)!.availability.available, false,
@@ -218,7 +209,7 @@ test("admission actions wait for the Inbox next-step judgment beside the project
   await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   const databasePath = join(home, "project.db"); seedDemoBoard(databasePath);
   const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
-  const caller: ActionCallContext = { actor_id: "owner", project_id: reference.project_id, audience: "user", permissions: [...INBOX_ACTION_PERMISSIONS, "feed:read", "feed:write", "inbox:write"] };
+  const caller: ActionCallContext = { actor_id: "owner", project_id: reference.project_id, audience: "user", permissions: [...INBOX_ACTION_PERMISSIONS, "evidence:read", "feed:write", "inbox:write"] };
   let gate = Promise.withResolvers<void>(), asked = Promise.withResolvers<void>();
   const options: FunctionsHostOptions = { env: { TYPESAFE_API_KEY: "fixture-only" },
     provider: { async evaluate(_key, record) {

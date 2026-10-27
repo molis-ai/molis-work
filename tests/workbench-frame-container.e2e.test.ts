@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { createLocalFeedApplication, DEMO_PROJECT_ID, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { installProducers } from "./fixtures/installed-producers.js";
 import { boardSnapshot } from "./fixtures/goal-application.js";
+import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 
 test("Goal Frames use outer tabs, preserve references, and isolate project state", { timeout: 90_000 }, async (t) => {
   const browser = await openGoalBrowser(t, true);

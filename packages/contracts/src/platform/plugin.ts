@@ -314,6 +314,7 @@ export { pluginErrors } from "./plugin-errors.js";
 
 export type { PluginAgentClient, PluginAgentRunInput, PluginAgentRunResult } from "./plugin-agents.js";
 
-export type { PluginInstallationClient, PluginInstallationView } from "./plugin-installations.js";
+export type { PluginInstallationClient, PluginInstallationProjects, PluginInstallationView } from "./plugin-installations.js";
 
-export type { PluginNotificationClient, PluginNotificationInput, PluginNotificationReceipt } from "./plugin-notifications.js";
+export type { PluginNotificationClient, PluginNotificationDelivery, PluginNotificationDeliveryReceipt, PluginNotificationInput, PluginNotificationReceipt, PluginNotificationReceiverDeclaration } from "./plugin-notifications.js";
+export { PLUGIN_NOTIFICATION_DELIVERY_ACTOR } from "./plugin-notifications.js";

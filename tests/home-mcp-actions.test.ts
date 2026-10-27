@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, createLocalFeedApplication, createLocalFeedSourceService } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { feedSubjectAction, feedRuleActions, type FeedOutRuleRecord, type FeedRulePreview } from "@molis-ai/molis-work-plugin-feed";
 import { inboxActions, inboxNextScene } from "@molis-ai/molis-work-plugin-inbox";
 import { inboxSubjectAction } from "../plugins/native/inbox/dist/content-actions.js";
@@ -21,12 +21,15 @@ import { functionContextActions } from "@molis-ai/molis-work-module-functions";
 import { sceneConfigurationActions, type ActionSceneTarget } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 import { serveTestHost } from "./fixtures/test-home.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 // Several MCP clients, each its own Host process: about 88 s on the Linux CI runner. The budget only stops a hang.
 test("formal MCP Home judgment and subject actions share Web facts and revocable authority", { timeout: 180_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "home-formal-mcp-"));
-  const project = await withCatalog({ homeDirectory: home }, catalog => {
-    const project = catalog.createProject({ display_name: "Home MCP", actor_id: "owner" });
+  const project = await withCatalog({ homeDirectory: home }, async catalog => {
+    const project = await catalog.createProject({ display_name: "Home MCP", actor_id: "owner" });
+    // Inbox and Feed are plugins of the project's Runtime: the Home dock offers what the project has enabled.
+    for (const plugin_id of ["feed", "inbox"]) catalog.addProjectPlugin({ project_id: project.project_id, plugin_id, actor_id: "owner" });
     return project;
   });
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
@@ -101,7 +104,8 @@ test("formal MCP Home judgment and subject actions share Web facts and revocable
     assert.equal((await sdk.callTool({ name: molisWorkActionToolName(feedRuleActions.create), arguments: { name: "Wrong source", match: { source_id: "foreign-source" } } })).isError, true);
     await call(feedRuleActions.delete.capability_id, { rule_id: capture.rule.rule_id });
     assert.equal((await call<{ rules: FeedOutRuleRecord[] }>(feedRuleActions.list.capability_id, {})).rules.some(rule => rule.rule_id === capture.rule.rule_id), false);
-    await served.grant(clientId, project.project_id, views([homeActions.events.capability_id, homeActions.openEvent.capability_id, "inbox.home.events"]));
+    // The names an Inbox event shows are Feed's: a client that reads them through Inbox needs Feed's brief action granted as well, and without it the entry shows without names.
+    await served.grant(clientId, project.project_id, views([homeActions.events.capability_id, homeActions.openEvent.capability_id, "inbox.home.events", "feed.briefs.read"]));
     const now = new Date();
     const window = { from: new Date(now.getTime() - 86400000).toISOString(), to: new Date(now.getTime() + 86400000).toISOString(), now: now.toISOString() };
     const events = await call<HomeEventsResult>(homeActions.events.capability_id, window);
@@ -200,7 +204,7 @@ test("formal MCP Home judgment and subject actions share Web facts and revocable
     await call(functionContextActions.configure.capability_id, initialConfig);
     assert.equal((await inboxTarget()).binding?.function.provider_id, "system.functions");
     assert.equal((await sdk.callTool({ name: molisWorkActionToolName(functionContextActions.configure), arguments: initialConfig })).isError, true, "stale MCP configurations cannot overwrite the owner revision");
-    await served.grant(clientId, project.project_id, views([inboxActions.evaluateJudgment.capability_id]));
+    await served.grant(clientId, project.project_id, views([inboxActions.evaluateJudgment.capability_id, "feed.items.content"]));
     const inboxEntry = await host.withProject(reference, runtime => createLocalFeedApplication(runtime.store.db).listInboxEntries(project.project_id).find(entry => entry.subject_id === captureItem.item_id)!);
     const inboxJudgment = await call(inboxActions.evaluateJudgment.capability_id, { entry_ids: [inboxEntry.entry_id] });
     assert.deepEqual((await call(inboxActions.recommendations.capability_id, {})).judgments, inboxJudgment.judgments);

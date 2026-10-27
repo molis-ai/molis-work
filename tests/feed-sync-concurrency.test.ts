@@ -6,8 +6,9 @@ import test from "node:test";
 import { createCompletedIntentResultFixtureV1 } from "@adeptify/intelligence-client/testing";
 import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createFeedSourceHandlers, feedSourceActions, feedManifest } from "@molis-ai/molis-work-plugin-feed";
-import { DEMO_PROJECT_ID, seedDemoBoard, LocalProjectDatabase, createLocalFeedSourceService, createLocalFeedConnectorSync, type FeedSourceRuntime } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, seedDemoBoard, LocalProjectDatabase, type SourcePullRuntime } from "@molis-ai/molis-work-app-local-host";
 import { LocalHost } from "@molis-ai/molis-work-app-local-host";
+import { createLocalFeedSourceService, createLocalFeedConnectorSync } from "./fixtures/feed-library.js";
 
 for (const change of ["paused", "edited", "revoked", "cancelled"] as const) test(`Feed sync ignores the stale result after ${change} and releases its source lease`, { timeout: 15_000 }, async () => {
   const home = mkdtempSync(join(tmpdir(), "feed-sync-guard-")), path = join(home, "project.sqlite");
@@ -21,7 +22,7 @@ for (const change of ["paused", "edited", "revoked", "cancelled"] as const) test
     signal: controller.signal, validate_authority: () => { if (!allowed) throw Object.assign(new Error("Revoked"), { code: "fixture.revoked" }); } };
   try {
     const runtime = await host.withRuntime(reference, value => value);
-    const factory = (): FeedSourceRuntime => ({ intelligenceCollect: { async executeExact(request) {
+    const factory = (): SourcePullRuntime => ({ intelligenceCollect: { async executeExact(request) {
       requests++; if (wait) { entered.resolve(); await release.promise; }
       return createCompletedIntentResultFixtureV1(request);
     }, async shutdown() {} }, content: { write: () => ({ contentRef: "fixture" }), read: () => "", has: () => true,

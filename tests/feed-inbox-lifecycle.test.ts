@@ -5,16 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import {
-  DEMO_PROJECT_ID,
-  LocalProjectDatabase,
-  createLocalFeedApplication,
-  createLocalFeedSourceScheduler,
-  createLocalFeedSourceService,
-  listFeedSourceCatalog,
-  seedDemoGoals,
-  type FeedSourceRuntime,
-} from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, listFeedSourceCatalog, seedDemoGoals, type SourcePullRuntime } from "@molis-ai/molis-work-app-local-host";
+import { createLocalFeedApplication, createLocalFeedSourceScheduler, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 type FeedApp = ReturnType<typeof createLocalFeedApplication>;
 type SourceRecord = Parameters<FeedApp["ingestItem"]>[0]["source"];
@@ -59,10 +51,10 @@ async function itemWithTwoActiveEntries(feed: FeedApp, externalId = "x1") {
 test("a failed scheduled pull still moves the schedule on, so the source is not pulled again on every tick", async () => {
   await withProject("molis-work-feed-sched-fail-", async store => {
     let now = new Date("2026-08-30T09:00:00.000Z"), pulls = 0;
-    const runtimeFactory = (): FeedSourceRuntime => ({
+    const runtimeFactory = (): SourcePullRuntime => ({
       intelligenceCollect: { async executeExact() { pulls++; throw Object.assign(new Error("down"), { code: "feed_unavailable" }); } },
       content: { has: () => false }, publicFeedReceipt: () => null, async shutdown() {},
-    }) as unknown as FeedSourceRuntime;
+    }) as unknown as SourcePullRuntime;
     const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, runtimeFactory, () => now);
     const source = service.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
     service.configureSchedule(source.source_id, { mode: "interval", enabled: true, interval_minutes: 15 });
@@ -93,14 +85,14 @@ test("a failed scheduled pull still moves the schedule on, so the source is not 
 test("a person's edit during a failing scheduled pull still refuses the bookkeeping and keeps the slot", async () => {
   await withProject("molis-work-feed-sched-edit-", async store => {
     let now = new Date("2026-08-30T09:00:00.000Z");
-    const runtimeFactory = (): FeedSourceRuntime => ({
+    const runtimeFactory = (): SourcePullRuntime => ({
       intelligenceCollect: { async executeExact() {
         // The person renames the source while the provider call is in flight, then the provider fails.
         createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, runtimeFactory, () => now).update(source.source_id, { name: "Renamed while pulling" });
         throw Object.assign(new Error("down"), { code: "feed_unavailable" });
       } },
       content: { has: () => false }, publicFeedReceipt: () => null, async shutdown() {},
-    }) as unknown as FeedSourceRuntime;
+    }) as unknown as SourcePullRuntime;
     const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, runtimeFactory, () => now);
     const source = service.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
     service.configureSchedule(source.source_id, { mode: "interval", enabled: true, interval_minutes: 15 });

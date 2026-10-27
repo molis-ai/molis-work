@@ -109,3 +109,12 @@ feed_content_meta  (key TEXT PRIMARY KEY, value TEXT)    -- 'backfilled_at'
 
 - 统筹 10-24 裁定：本稿用 RAC-492～495，FI-5 为 496～498，FI-6 从 499 起顺延进 RAC-500～519；补充条 RAC-518（本稿）与 RAC-519（FI-3）从 500 段末尾倒着取。
 - 拆片稿 §4 的 FI-4 行已改：前置「FI-6 的 Feed 装配骨架」，可开工「设计审过后随 FI-6」。
+
+## 7. 平台一半先落（统筹 10-25 定，2026-10-25 已实现）
+
+Feed 一半要等 FI-6 的骨架，但它依赖的两样平台东西与 Feed 无关，先做完、先带测试进分支：
+
+- **事件与可用性读取（RAC-493a）。** `host.connection.changed@1` 已进 `HOST_EVENT_TYPES`（广播，权限 `connections:observe`，载荷只有 `connection_id`）；发送口是 `apps/local-host/src/connection-change-events.ts` 的 `connectionChanged`（三处调用方：`connector-activation.ts`、`connector-management-service.ts`、`web-connector-connections.ts`），先照旧刷新 `refreshFeedConnectionState`，再向本 Home 里平台正在运行的各项目广播，不为它启动平台，发不出只记日志。**`refreshFeedConnectionState` 和 `connector-source-state.ts` 此刻还在**（RAC-492 要的「宿主不再打开项目库」随 FI-6 删，那时 Feed 实例订阅事件接手）。§3.1 说的「读状态用一个只读动作」补成 `connectors.connection.availability@1`：只有 `plugin` 受众，要 `connections:observe`，只答 `{ connection_id, available }`，不认识的连接与用不了的同答 false；没有该权限的插件在动作目录里看不到它。Feed 实例启动时对账与事件处理都调它。权限取新名 `connections:observe`，不借 `connectors.*` 管理动作的 `connections:read` 一类（那些带账号标签与服务，给订阅方过宽）。
+- **本插件装在哪些项目（RAC-495a，§3.2 的前置）。** `services.installations.projects()` 返回 `{ project_ids, complete }`：本插件在本 Home 里装着、或卸载后留着数据的项目 id（`plugin-installed-projects.ts` 的 `pluginInstalledProjects`，读的是 `plugin-holders.ts` 的 `heldInstalls`，与插件默认规则的「谁还持有」同一份读取），有读不了的就一个也不给、`complete` 为 false。只有 Home 一半能调（项目一半被拒），要 `plugins:read`（与 `list`、`get` 同权限），插件 id 取自 Manifest、不是参数，只给项目 id、不给项目名与路径。Home 一半因此第一次有 `installations` 服务（Home 实例调用带着发起项目的 id，项目范围比对只对项目实例做）。「`complete` 为 false 时账不能当作齐」仍是 Feed 一半的规矩（§3.2）。
+
+安全表：S-54 加第三条宿主事件与可用性读取，S-48 加 `projects()` 一条；动作合同快照加 1 行（`connectors.connection.availability@1`，宿主登记）；公开 API 加 `HOST_CONNECTION_CHANGED_EVENT`、`HOST_CONNECTIONS_OBSERVE_PERMISSION`、`HostConnectionChangedPayload`、`PluginInstallationProjects`、`PluginInstallationClient.projects()`（给插件作者的影响：旧插件不受影响；自己实现 `PluginInstallationClient` 的测试替身要补 `projects`）。

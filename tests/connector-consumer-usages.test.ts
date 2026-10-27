@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { connectorUsagesAction, createLocalFeedApplication, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { connectorUsagesAction, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext, ActionClient, ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { defineConnectorUsagesAction, type ConnectorUsage } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { AGENT_MCP_DESTINATION_ID } from "@molis-ai/molis-work-contracts/modules/functions";
@@ -9,6 +9,7 @@ import { imagesActions } from "@molis-ai/molis-work-plugin-images";
 import { feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
 import { functionAuthoringActions } from "@molis-ai/molis-work-module-functions";
 import { openTestHome } from "./fixtures/test-home.js";
+import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 
 const caller: ActionCallContext = { actor_id: "consumer-reader", audience: "agent", project_id: null,
   permissions: ["connectors:management:read", "images:connections:read", "images:connections:write", "images:generate", "images:files:write", "model:invoke", "feed:read", "feed:write", "functions:manage", "functions:invoke"] };

@@ -234,7 +234,7 @@ function checkMigratedIntegrationOwnership(repositoryRoot) {
     errors.push(`${servicePath}: Feed must consume a Host-composed Listener backed by the Home's integration registry`);
   }
 
-  const listenerPath = "horizontal/listener-host/src/index.ts";
+  const listenerPath = "plugins/native/feed/src/store/listener.ts";
   const listener = fs.readFileSync(path.join(repositoryRoot, listenerPath), "utf8");
   if (/io\.molis\.work\.integration\.|\b(?:github|gmail|youtube)\b/iu.test(listener)) {
     errors.push(`${listenerPath}: Listener Host must remain Provider-neutral`);
@@ -301,8 +301,8 @@ function checkMigratedFeedUiOwnership(repositoryRoot) {
   if (!httpAdapter.includes("createFeedRouteHandlers")) {
     errors.push("Feed HTTP adapter must bind the Native Feed request handlers");
   }
-  const inboxHttpAdapter = read("apps/local-host/src/inbox-native-plugin-http.ts");
-  const inboxPluginRoutes = read("plugins/native/inbox/src/routes.ts");
+  const inboxPlugin = read("plugins/native/inbox/src/plugin.ts");
+  const inboxManifestText = read("plugins/native/inbox/src/manifest.ts");
   const pluginUi = read("plugins/native/feed/src/ui.ts");
   const pluginRoutes = read("plugins/native/feed/src/routes.ts");
   const workbench = read("apps/workbench/src/index.ts") + read("apps/workbench/src/ui-composition.ts");
@@ -326,11 +326,11 @@ function checkMigratedFeedUiOwnership(repositoryRoot) {
       errors.push(`apps/local-host/src/web-request.ts: ${forbidden} must be owned by the Feed Plugin HTTP adapter`);
     }
   }
-  if (server.includes("/api/inbox/")) {
-    errors.push("apps/local-host/src/web-request.ts: /api/inbox/ must be owned by the Inbox Plugin HTTP adapter");
+  if (server.includes("/api/inbox")) {
+    errors.push("apps/local-host/src/web-request.ts: the Host has no /api/inbox route; the Inbox Plugin declares its routes under /api/plugins/<plugin_id>/");
   }
-  if (!server.includes("handleInboxNativePluginHttp") || !inboxHttpAdapter.includes("new InboxPluginRouteTable") || !inboxPluginRoutes.includes("class InboxPluginRouteTable")) {
-    errors.push("apps/local-host/src/web-request.ts: Inbox HTTP caller must delegate through the public Plugin route table");
+  if (!inboxManifestText.includes("routes: [") || !inboxPlugin.includes("createInboxRouteHandlers") || !inboxPlugin.includes("routes,")) {
+    errors.push("plugins/native/inbox: the Inbox page routes must be declared in its Manifest and bound by createInboxPlugin");
   }
   if (pluginRoutes.includes("/api/inbox/")) {
     errors.push("plugins/native/feed/src/routes.ts: /api/inbox must be owned by the Inbox Plugin");

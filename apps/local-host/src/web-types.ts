@@ -1,5 +1,4 @@
 import type { WebProjectNavigation } from "@molis-ai/molis-work-app-workbench";
-import type { FeedSourceScheduler } from "@molis-ai/molis-work-plugin-feed";
 import type { ScheduleService } from "@molis-ai/molis-work-service-scheduler";
 import type { RuntimeIntegrationService } from "./installer/runtime-integration.js";
 import type { MolisWorkWebServiceManager } from "./installer/web-service.js";
@@ -46,8 +45,8 @@ export interface ResolvedWebBoardOptions {
   homeDirectory?: string;
 }
 
-export interface FeedSchedulerRuntime {
-  scheduler: Pick<FeedSourceScheduler, "tick"> & { close?(): void };
+/** What the Host keeps running for one project besides its plugins: the Scheduler service's clock. Feed's source clock is Feed's own (its wakeup job). */
+export interface ProjectScheduleRuntime {
   schedule: ScheduleService;
 }
 

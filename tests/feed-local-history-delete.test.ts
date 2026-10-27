@@ -6,14 +6,12 @@ import { dirname, join } from "node:path";
 import test from "node:test";
 import { createCompletedIntentResultFixtureV1 } from "@adeptify/intelligence-client/testing";
 
-import {
-  DEMO_PROJECT_ID, LocalProjectDatabase, createFeedSourceRuntime, createLocalFeedApplication, createLocalFeedSourceService, listFeedSourceCatalog,
-  seedDemoBoard, type FeedSourceRuntime, type IntelligenceCollectRequest, type IntelligenceCollectResult,
-} from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, createSourcePullRuntime, listFeedSourceCatalog, seedDemoBoard, type SourcePullRuntime, type IntelligenceCollectRequest, type IntelligenceCollectResult } from "@molis-ai/molis-work-app-local-host";
 import {
   LOCAL_OPAQUE_BLOB_SCHEMA_SQL, LocalSqliteStorage, createEvidenceContentStore, createSearchOpaqueBlobStore, resolveHomeSecurityDirectory,
   resolveMolisWorkHome, runWithMolisWorkHome, type SecretStore,
 } from "@molis-ai/molis-work-storage";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 const ref = (markdown: string) => `molis-work-feed/sha256/${createHash("sha256").update(markdown).digest("hex")}`;
 
@@ -109,7 +107,7 @@ test("the search operation store forgets only the entries of its namespace that 
 test("deleting a source with its local history removes its cached bodies and search records, and keeps what another source still holds", { timeout: 60_000 }, async () => {
   await withProject("molis-work-feed-history-shared-", async (store) => {
     const feeds = new Map<string, string>();
-    const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, (db, source) => createFeedSourceRuntime({
+    const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, (db, source) => createSourcePullRuntime({
       db, sourceCursor: source?.cursor,
       async fetch(input) {
         const body = feeds.get(String(input));
@@ -165,7 +163,7 @@ test("deleting a source with its local history removes its cached bodies and sea
 
 test("a Feed source runtime reports the bodies it wrote, whether or not the pull ever reaches a result", async () => {
   await withProject("molis-work-feed-history-written-", async (store) => {
-    const runtime = createFeedSourceRuntime({ db: store.db });
+    const runtime = createSourcePullRuntime({ db: store.db });
     try {
       assert.deepEqual(runtime.writtenContentRefs?.(), []);
       const first = runtime.content.write("# First\n\nWritten by the pull.").contentRef;
@@ -182,7 +180,7 @@ test("a Feed source runtime reports the bodies it wrote, whether or not the pull
 
 test("retaining a source's history keeps its bodies and search records", { timeout: 60_000 }, async () => {
   await withProject("molis-work-feed-history-retain-", async (store) => {
-    const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, (db, source) => createFeedSourceRuntime({
+    const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, (db, source) => createSourcePullRuntime({
       db, sourceCursor: source?.cursor,
       async fetch() { return new Response(rss("Feed", [{ id: "one", title: "One", text: "Kept body." }]), { status: 200, headers: { "content-type": "application/rss+xml" } }); },
     }));
@@ -199,7 +197,7 @@ test("retaining a source's history keeps its bodies and search records", { timeo
 });
 
 /** A runtime that writes real bodies into the Home's store and answers with `outcome`, so the run itself can be inspected. */
-function bodyWritingRuntime(options: { bodies: string[]; outcome: "failed" | "partial" | "throws" }): () => FeedSourceRuntime {
+function bodyWritingRuntime(options: { bodies: string[]; outcome: "failed" | "partial" | "throws" }): () => SourcePullRuntime {
   return () => {
     const content = createEvidenceContentStore();
     const written: string[] = [];
@@ -220,7 +218,7 @@ function bodyWritingRuntime(options: { bodies: string[]; outcome: "failed" | "pa
         async shutdown() {},
       },
       content, writtenContentRefs: () => written, async shutdown() {},
-    } as unknown as FeedSourceRuntime;
+    } as unknown as SourcePullRuntime;
   };
 }
 

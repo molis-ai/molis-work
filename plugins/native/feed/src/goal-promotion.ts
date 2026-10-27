@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 import type { FeedApplication } from "./application.js";
 import { feedItemContext, type FeedItemRecord } from "./projection.js";
 import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
+import { goalEntryActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import type { PluginActionDirectory } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 /**
  * What Feed asks of Goals when a person promotes an item. The Host answers by calling Goals' own actions with the caller's
@@ -28,8 +30,10 @@ export interface FeedGoalPromotionGoals {
 export interface FeedGoalPromotionPorts {
   feed: FeedApplication;
   goals: FeedGoalPromotionGoals;
-  hydrateItem(item: FeedItemRecord): FeedItemRecord;
-  transaction<T>(operation: () => T): T;
+  /** The item with its retained bodies read (the digest of what was confirmed covers them); the Runtime reads them through the platform, so it may take a call. */
+  hydrateItem(item: FeedItemRecord): FeedItemRecord | Promise<FeedItemRecord>;
+  /** Runs the writes as one commit: the Host's synchronous transaction, or the Runtime's commit (which settles after the call's authority is checked again). */
+  transaction<T>(operation: () => T): T | Promise<T>;
   /** Awaited before Feed writes: the call may have been withdrawn while Goals was working. */
   beforeEffect(): Promise<void>;
   /** Whether the person asked (not an assistant, Agent, workflow or MCP client): what the input receipt's reason may say the user did. */
@@ -53,26 +57,27 @@ export interface FeedGoalPromotionInput {
 export async function promoteFeedItemToGoal(ports: FeedGoalPromotionPorts, input: FeedGoalPromotionInput) {
   const { feed, goals } = ports;
   const { itemId, startProcessing, expectedRevision } = input;
-  const read = (revision: number | undefined) => {
-    const item = ports.hydrateItem(feed.getItem(input.projectId, itemId));
-    if (revision != null && revision !== item.revision) {
+  // The checks read the stored item; they run again inside the write, where nothing can be awaited.
+  const check = (revision: number | undefined) => {
+    const stored = feed.getItem(input.projectId, itemId);
+    if (revision != null && revision !== stored.revision) {
       throw feedErrors.revision_conflict("这条 Item 已经变化，请刷新后重试");
     }
-    if (item.disposition === "archived") {
+    if (stored.disposition === "archived") {
       throw feedErrors.invalid_transition("请先恢复这条已忽略的 Feed Item");
     }
-    return item;
+    return stored;
   };
   const goalPath = (goalId: string) => `${input.routePrefix}/goals/${encodeURIComponent(goalId)}`;
-  const item = read(expectedRevision);
+  const item = await ports.hydrateItem(check(expectedRevision));
   const existing = item.linked_goal_id ? await goals.active(item.linked_goal_id) : null;
   if (existing) {
     if (!startProcessing || item.disposition === "processing") {
       return { item, goal_id: existing.goal_id, goal_path: goalPath(existing.goal_id), created: false, runtime_autofill: startProcessing };
     }
     await ports.beforeEffect();
-    return ports.transaction(() => {
-      read(item.revision);
+    return await ports.transaction(() => {
+      check(item.revision);
       return { item: feed.linkGoal(input.projectId, itemId, existing.goal_id, "processing"), goal_id: existing.goal_id,
         goal_path: goalPath(existing.goal_id), created: false, runtime_autofill: true };
     });
@@ -98,9 +103,31 @@ export async function promoteFeedItemToGoal(ports: FeedGoalPromotionPorts, input
     snapshot_digest: `sha256:${createHash("sha256").update(feedItemContext(item)).digest("hex")}`,
     reason: ports.by_person ? `用户从 ${itemTypeLabel} 创建 Goal 时确认该输入` : `从 ${itemTypeLabel} 创建 Goal 时提议该输入，待用户确认` });
   await ports.beforeEffect();
-  return ports.transaction(() => {
-    read(item.revision);
+  return await ports.transaction(() => {
+    check(item.revision);
     return { item: feed.linkGoal(input.projectId, item.item_id, goalId, startProcessing ? "processing" : "promoted"),
       goal_id: goalId, goal_path: goalPath(goalId), created: true, runtime_autofill: startProcessing };
   });
+}
+
+/**
+ * Feed's side of the promotion in the Plugin Runtime: Goals is asked through the action directory (`services.actions.directory`, S-43), as
+ * the caller who promoted, so Goals' own checks (the project's enablement, the caller's grants) apply and Feed writes nothing of Goals'.
+ * A delegated call reaches Goals under the workflow audience, so Goals records the Goal's channel as the Runtime's and the input as proposed
+ * even when the person promoted; the person accepts it in Goals (`goals.inputs.accept`).
+ */
+export function feedGoalsThroughDirectory(directory: PluginActionDirectory): FeedGoalPromotionGoals {
+  return {
+    active: async goalId => {
+      const item = await directory.invoke<{ goal_id: string } | null>(goalEntryActions.directoryItem, { goal_id: goalId });
+      return item ? { goal_id: item.goal_id } : null;
+    },
+    create: async input => {
+      const { goal, replayed } = await directory.invoke<{ goal: { goal_id: string }; replayed: boolean }>(goalEntryActions.create, input);
+      return { goal_id: goal.goal_id, replayed };
+    },
+    confirmInput: async ({ goal_id, item_id, name, snapshot_digest, reason }) => {
+      await directory.invoke(goalEntryActions.inputsConfirm, { goal_id, source: { kind: "feed_item", id: item_id }, name, snapshot_digest, reason });
+    },
+  };
 }

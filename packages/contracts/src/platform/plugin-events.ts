@@ -27,6 +27,9 @@ export const RESERVED_EVENT_NAMESPACES = ["molis.", "host."] as const;
  */
 export const HOST_REVIEW_SETTLED_EVENT = "host.review.settled";
 export const HOST_WORKSPACE_CHANGED_EVENT = "host.workspace.changed";
+export const HOST_CONNECTION_CHANGED_EVENT = "host.connection.changed";
+/** What a subscriber to `host.connection.changed@1` holds, and what `connectors.connection.availability` asks: to learn that a connection changed and whether it can be used now, never its account, label or credentials. */
+export const HOST_CONNECTIONS_OBSERVE_PERMISSION = "connections:observe";
 
 export interface HostEventType {
   readonly event_type_id: string;
@@ -39,6 +42,7 @@ export interface HostEventType {
 export const HOST_EVENT_TYPES: readonly HostEventType[] = [
   { event_type_id: HOST_REVIEW_SETTLED_EVENT, type_version: 1, delivery: "addressed" },
   { event_type_id: HOST_WORKSPACE_CHANGED_EVENT, type_version: 1, delivery: "broadcast", permission: "workspace:read" },
+  { event_type_id: HOST_CONNECTION_CHANGED_EVENT, type_version: 1, delivery: "broadcast", permission: HOST_CONNECTIONS_OBSERVE_PERMISSION },
 ];
 
 /** `source_plugin_id` and `source_install_id` of a host event's record. Never a plugin id: those are `io.molis.work.…`. */
@@ -69,6 +73,17 @@ export interface HostReviewSettledPayload {
 export interface HostWorkspaceChangedPayload {
   workspace_id: string;
   cause: "plugin-operation" | "agent-change" | "workspace-settings" | "project-opened";
+}
+
+/**
+ * `host.connection.changed@1`: a connection of this Home (an account the person connected, enabled, disabled, disconnected or removed,
+ * or whose token was replaced) may now be usable or unusable, so a subscriber that keeps something in step with it looks again. It carries
+ * only which connection, never whether it is usable, its service, account or credentials: the subscriber reads the answer itself
+ * (`connectors.connection.availability`) and does not trust the payload. It goes only to the installations of a project whose platform is
+ * running, so one that starts later reads the connections it cares about when it starts; nothing is kept for it.
+ */
+export interface HostConnectionChangedPayload {
+  connection_id: string;
 }
 
 export type PluginEventErrorCode =

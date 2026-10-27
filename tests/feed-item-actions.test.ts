@@ -4,14 +4,15 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { FeedPluginRouteTable, createFeedRouteHandlers, feedItemActions, type FeedRouteHandlerPorts } from "@molis-ai/molis-work-plugin-feed";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { inboxActions } from "@molis-ai/molis-work-plugin-inbox";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/dist/content-action-providers.js";
+import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/dist/native-content-permissions.js";
 import { HOME_ACTION_PERMISSIONS } from "../apps/local-host/dist/home-actions.js";
 import { homeOfferActions, type HomeActionOffers } from "../apps/local-host/dist/home-offer-actions.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 const PROJECT = "project-feed-items";
 

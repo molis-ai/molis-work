@@ -1,6 +1,6 @@
 import { resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { withHomePluginStorePageRecovery } from "./web-home-plugin-recovery.js";
-import { feedRuleActions } from "@molis-ai/molis-work-plugin-feed";
+import { FEED_ACTION_PERMISSIONS, feedRuleActions } from "@molis-ai/molis-work-plugin-feed";
 import { agentDefinitionsFor } from "./agent-definitions/agent-definitions.js";
 import { builtinRegistrations } from "./agent-definitions/builtin-registrations.js";
 import { handleAgentDefinitionsHttp } from "./agent-definitions/agent-definitions-http.js";
@@ -17,7 +17,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import type { RuntimeIntegrationService } from "./installer/runtime-integration.js";
 import type { MolisWorkWebServiceManager } from "./installer/web-service.js";
-import type { WebServerOptions, FeedSchedulerRuntime, ResolvedWebRequest } from "./web-types.js";
+import type { WebServerOptions, ProjectScheduleRuntime, ResolvedWebRequest } from "./web-types.js";
 import type { LocalWebComposition } from "./web-composition.js";
 import { sendLocalWebJson as sendJson, requestHeader } from "./web-http.js";
 import { dispatchDeclaredPluginRoutes } from "./plugin-route-operations.js";
@@ -28,7 +28,7 @@ import type { MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 import type { MolisWorkPtyHost } from "@molis-ai/molis-work-service-runtime-host";
 import { cachedMolisWorkWebView, lookingForArea, type MolisWorkWebViewCache } from "./web-view.js";
 import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
-import { handleInboxNativePluginHttp } from "./inbox-native-plugin-http.js";
+import { handlePluginStageFragmentHttp } from "./plugin-stage-fragment-http.js";
 import { handleAlchemistNativePluginHttp } from "./alchemist-native-plugin-http.js";
 import { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
 import { redirectFunctionsPage, resolveWebRequest } from "./web-routing.js";
@@ -43,7 +43,7 @@ import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { bindGoalsWebActions } from "./goal-callers.js";
 import { projectFeedOptions } from "./workflow-feed-options.js";
 import { handleFeedNativePluginHttp } from "./feed-native-plugin-http.js";
-import { NATIVE_CONTENT_PERMISSIONS } from "./content-action-providers.js";
+import { NATIVE_CONTENT_PERMISSIONS } from "./native-content-permissions.js";
 import {
   agentReviewsRoute, boardRoute, desktopPanelRoute, directoryGrantRoute, pluginPageRoute, directoryRoutes, homeDockRoute, pluginStudioRoute, projectAssistantRoutes, projectNotFoundRoute,
   projectProbeRoutes, projectRuntimeRoute, projectWorkspacesRoute, projectWriteCheckersRoute, runtimePluginsRoute, sideFilesRoute, sideViewRoute,
@@ -64,7 +64,7 @@ export async function handleMolisWorkWebRequest(
   webService: MolisWorkWebServiceManager,
   controlToken: string,
   webViewCache: MolisWorkWebViewCache,
-  feedSchedulers: Map<string, FeedSchedulerRuntime>,
+  projectSchedules: Map<string, ProjectScheduleRuntime>,
   ptyHost: MolisWorkPtyHost,
   webUrl: string,
   localHost: MolisWorkLocalHost,
@@ -72,7 +72,7 @@ export async function handleMolisWorkWebRequest(
   agentHost: AgentHost,
   agentReady: () => Promise<void>,
 ): Promise<void> {
-  const context: WebRequestContext = { request, response, url, serverOptions, runtimeIntegrations, webService, controlToken, webViewCache, feedSchedulers,
+  const context: WebRequestContext = { request, response, url, serverOptions, runtimeIntegrations, webService, controlToken, webViewCache, projectSchedules,
     ptyHost, webUrl, localHost, composition, agentHost, agentReady };
   if (await homePluginsRoute.handle(context)) return;
   // The personal space always exists for the person; it is made the first time anyone opens it.
@@ -145,13 +145,12 @@ const PROJECT_ROUTES: readonly WebRoute<ProjectRequestContext>[] = [
 function projectRuntimeContext(context: ProjectRequestContext, runtime: MolisWorkProjectRuntime): ProjectRuntimeContext {
   const { localHost, hostReference, options } = context;
   const { store, artifacts, processItems } = runtime;
-  const feedOptions = projectFeedOptions(localHost, hostReference);
   const homeActions = bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS);
   const goalActions = bindGoalsWebActions(localHost, hostReference, context.request);
   const pluginServices = projectPluginServices(context);
   const pluginPorts: ProjectPluginSurfacePorts = { ...pluginServices, routeCaller: () => localWebActionContext(localHost, hostReference, LOCAL_OWNER_PERMISSIONS), store, artifacts, processItems, projectId: options.projectId, routePrefix: projectRoutePrefix(options),
     actorId: LOCAL_PERSON_ACTOR_ID, escapeHtml: (value) => String(value) };
-  const withoutView = { ...context, store, feedOptions, homeActions, goalActions, pluginServices, pluginPorts };
+  const withoutView = { ...context, store, homeActions, goalActions, pluginServices, pluginPorts };
   return { ...withoutView, readWebView: projectWebView(withoutView) };
 }
 
@@ -166,7 +165,7 @@ function projectWebView({ options, webViewCache, store, homeActions, localHost, 
     // What the project shows is its Catalog's selection now (enabled, minus hidden, with the personal plugins), read per request
     // and never kept behind the Goals cursor: the page, its refresh and its fragments all read this one view.
     if (options.project) view = { ...view, shown_plugins: await shownPlugins(options.project.project_id) };
-    const feedActions = bindLocalWebActions(localHost, hostReference, ["feed:read", "feed:write", "inbox:read", "inbox:write", "model:invoke", "functions:invoke"]);
+    const feedActions = bindLocalWebActions(localHost, hostReference, [...FEED_ACTION_PERMISSIONS, "functions:invoke"]);
     try {
       const [{ rules }, { recommendations }] = await Promise.all([lookingForArea(() => feedActions.invoke(feedRuleActions.list, {})), lookingForArea(() => feedActions.invoke(feedRuleActions.recommendations, {}))]);
       view = { ...view, feed: { ...view.feed, out_rules: rules, feed_items: view.feed.feed_items.map(item => ({ ...item,
@@ -197,19 +196,18 @@ const planningRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
     composition.planningHttp.project(request, response, url, controlToken, readWebView, goalActions, bindPersonalPlanningWebActions(localHost, request)) },
 ];
 
-/** Inbox and Schedule render into the project page and drop its cached view when they change it. */
+/** The stages the project page redraws in place, and the home dock's judgment; both drop the page's cached view when they change it. */
 const pageOwnerRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
-  { id: "inbox", handle: ({ request, response, url, localHost, hostReference, webViewCache, options, composition, readWebView }) =>
-    handleInboxNativePluginHttp(request, response, url, { actions: bindLocalWebActions(localHost, hostReference, INBOX_ACTION_PERMISSIONS),
+  { id: "plugin-stage", handle: ({ request, response, url, webViewCache, options, composition, readWebView, shownPlugins }) =>
+    handlePluginStageFragmentHttp(request, response, url, { shown: () => shownPlugins(options.projectId),
       invalidateWebView: () => webViewCache.delete(options.databasePath), renderer: composition.workbenchRenderer, readWebView }) },
   homeDockRoute,
 
 ];
 
-const feedRoute: WebRoute<ProjectRuntimeContext> = { id: "feed", handle: ({ request, response, url, localHost, hostReference, feedOptions, composition, options, store, readWebView, webViewCache, serverOptions }) =>
+const feedRoute: WebRoute<ProjectRuntimeContext> = { id: "feed", handle: ({ request, response, url, localHost, hostReference, composition, options, store, readWebView, webViewCache, serverOptions }) =>
   handleFeedNativePluginHttp(request, response, url, {
     actions: bindLocalWebActions(localHost, hostReference, [...NATIVE_CONTENT_PERMISSIONS, "functions:invoke"]),
-    feedOptions,
     renderer: composition.workbenchRenderer,
     projectId: options.projectId,
     routePrefix: options.routePrefix,

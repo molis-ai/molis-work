@@ -12,7 +12,7 @@ import { join } from "node:path";
 import {
   createEvidenceContentStore, LocalSqliteStorage, LOCAL_OPAQUE_BLOB_SCHEMA_SQL, type SecretStore,
 } from "@molis-ai/molis-work-storage";
-import { createFeedSourceRuntime, type IntelligenceCollectRequest } from "@molis-ai/molis-work-app-local-host";
+import { createSourcePullRuntime, type IntelligenceCollectRequest } from "@molis-ai/molis-work-app-local-host";
 
 // One owner for "how Molis Work reaches AnySearch" (W2-18 decision 15): Feed's web search and Alchemist's research
 // both go through apps/local-host/src/anysearch-transport.ts, so a fake-IP proxy setup that works for one works for both.
@@ -110,7 +110,7 @@ function scriptNetwork(t: test.TestContext, input: { system: string; publicDns?:
 test("Feed web search reaches AnySearch on an ordinary network and never asks public DNS", { timeout: 15_000 }, async t => {
   const f = fixture(t);
   const seen = scriptNetwork(t, { system: "1.1.1.1", proxy: false });
-  const runtime = createFeedSourceRuntime({ db: f.storage.db, secretStore: f.secrets, content: f.content });
+  const runtime = createSourcePullRuntime({ db: f.storage.db, secretStore: f.secrets, content: f.content });
   try {
     const result = await runtime.intelligenceCollect.executeExact(webQuery());
     assert.equal(result.materials[0]?.canonicalUrl, "https://research.example/interviews");
@@ -122,7 +122,7 @@ test("Feed web search reaches AnySearch on an ordinary network and never asks pu
 test("Feed web search works behind a fake-IP proxy, like Alchemist research: the AnySearch host name is checked over public DNS", { timeout: 15_000 }, async t => {
   const f = fixture(t);
   const seen = scriptNetwork(t, { system: "198.18.0.12", publicDns: "1.1.1.1", proxy: true });
-  const runtime = createFeedSourceRuntime({ db: f.storage.db, secretStore: f.secrets, content: f.content });
+  const runtime = createSourcePullRuntime({ db: f.storage.db, secretStore: f.secrets, content: f.content });
   try {
     const result = await runtime.intelligenceCollect.executeExact(webQuery());
     assert.equal(result.materials[0]?.canonicalUrl, "https://research.example/interviews", "a fake-IP answer must not make the Feed source unavailable");
@@ -135,7 +135,7 @@ test("Feed web search works behind a fake-IP proxy, like Alchemist research: the
 test("a fake-IP answer without a configured proxy is still refused before any connection", { timeout: 15_000 }, async t => {
   const f = fixture(t);
   const seen = scriptNetwork(t, { system: "198.18.0.12", publicDns: "1.1.1.1", proxy: false });
-  const runtime = createFeedSourceRuntime({ db: f.storage.db, secretStore: f.secrets, content: f.content });
+  const runtime = createSourcePullRuntime({ db: f.storage.db, secretStore: f.secrets, content: f.content });
   try {
     const result = await runtime.intelligenceCollect.executeExact(webQuery());
     assert.equal(result.materials.length, 0);

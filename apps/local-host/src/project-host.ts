@@ -1,10 +1,9 @@
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { bindPluginNotificationFeed } from "./plugin-notification-service.js";
+import { bindProjectNotifications } from "./plugin-notification-delivery.js";
 import { hostErrors } from "./host-errors.js";
 import { informationActionProvider } from "./information-actions.js";
 import { bindHomeSide, bindPluginCatalog, releaseHomeSide, type PluginFixture } from "./home-side.js";
 import { homeActionProvider } from "./home-actions.js";
-import { workflowEventsFeedOptions } from "./workflow-feed-options.js";
 import { openProjectSchedulers, closeProjectSchedulers } from "./project-schedulers.js";
 import { precompileActionSchemas, refuseCall, type CallSettled } from "@molis-ai/molis-work-kernel";
 import { createConnectorMcpDirectory, type ConnectorMcpDirectory } from "./connector-mcp-actions.js";
@@ -23,8 +22,6 @@ import { HomeConsentLedger } from "./home-plugin-store.js";
 import { pluginConsentProvider } from "./installed-plugin-consent-actions.js";
 import { pluginInstallProviderFor } from "./plugin-trust-actions.js";
 import type { HostCompleteText } from "./host-complete-text.js";
-import { nativeContentProviders } from "./content-action-providers.js";
-import { createLocalFeedApplication } from "./feed-application.js";
 import { SystemFunctionsActions } from "./functions-actions.js";
 import { seedSceneRules, type FunctionsHostOptions } from "./functions-host.js";
 import { admitProviderRules } from "./scene-rule-admission.js";
@@ -45,7 +42,6 @@ import { releaseProjectPlugins } from "./project-plugins.js";
 import type { LocalHostProjectClient, LocalHostProjectReference, LocalHostStatus } from "@molis-ai/molis-work-contracts/platform/app-host";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext, type ActionClient, type ActionDefinition, type ActionProviderRegistration, type ActionRegistryPort, type ActionSceneClient } from "@molis-ai/molis-work-contracts/platform/actions";
-import { inboxActionProvider } from "./inbox-actions.js";
 import type { AgentHostComposition } from "./agent-host-composition.js";
 import { createSearchHost, type SearchHost } from "./search-actions.js";
 import { createPlacementHost, type PlacementHost, type PlacementProjectRecord } from "./placement-actions.js";
@@ -170,15 +166,10 @@ export class MolisWorkLocalHost {
           const runtime: MolisWorkProjectRuntime = { store, ...openProjectVersionStores(store, clock), project_id: reference.project_id };
           try {
             const scenes = this.sceneClient(reference);
-            const eventFeed = workflowEventsFeedOptions(scenes, reference.project_id);
-            const feed = createLocalFeedApplication(store.db, eventFeed);
-            bindPluginNotificationFeed(store.db, control => workflowEventsFeedOptions(scenes, reference.project_id, control));
             const providers: ActionProviderRegistration[] = [], add = (provider: ActionProviderRegistration) => { providers.push(provider); };
             add(projectWorkspaceActionProvider(reference.project_id, () => this.personalPlanningHome && this.catalogRunner ? { home: this.personalPlanningHome, run: this.catalogRunner } : undefined,
               workspaceId => announceWorkspaceSettingsChange(store, reference.project_id, workspaceId)));
             add(artifactActionProvider(runtime, options, this.actionClient(reference)));
-            for (const provider of nativeContentProviders(runtime, feed, options.homeDirectory, this.actionClient(reference), scenes, options.functions)) add(provider);
-            add(inboxActionProvider(runtime, options.homeDirectory, { actions: this.actionClient(reference), scenes, functions: options.functions, readFunctions: this.systemFunctions?.read }, feed));
             if (options.homeDirectory) add(informationActionProvider(options.homeDirectory, reference.project_id, this.actionClient(reference), options.completeText));
             if (options.homeDirectory) add(charactersActionProvider(runtime, { ...options, homeDirectory: options.homeDirectory }, () => this.agents?.service.charactersCatalog(runtime)));
             if (options.homeDirectory) add(homeActionProvider(options.homeDirectory, reference.project_id,
@@ -188,6 +179,7 @@ export class MolisWorkLocalHost {
                   payload: { judgment_id: judgment.judgment_id }, at: judgment.created_at });
               }));
             await registerProviders(this.host.actionRegistry(reference), withoutRefusedPlugins(store.db, providers, entry => entry.provider.plugin_id));
+            bindProjectNotifications(store.db, reference.project_id, this.actionClient(reference));
             openProjectSchedulers(this, runtime, reference);
             return runtime;
           } catch (error) {

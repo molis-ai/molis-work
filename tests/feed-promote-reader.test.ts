@@ -4,8 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { HomeConsentLedger, LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService } from "@molis-ai/molis-work-app-local-host";
+import { HomeConsentLedger, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 test("the Feed reader shows 「升格为 Goal」 only while the project has Goals to write through", { timeout: 60_000 }, async () => {
   const home = mkdtempSync(join(tmpdir(), "molis-work-feed-promote-reader-"));

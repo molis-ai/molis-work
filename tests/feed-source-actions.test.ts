@@ -8,7 +8,7 @@ import { seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { FeedPluginRouteTable, createFeedRouteHandlers, feedSourceActions as s, type FeedRouteHandlerPorts } from "@molis-ai/molis-work-plugin-feed";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/dist/content-action-providers.js";
+import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/dist/native-content-permissions.js";
 
 const PROJECT = "project-feed-sources";
 

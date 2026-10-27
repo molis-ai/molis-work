@@ -5,13 +5,13 @@ import { join } from "node:path";
 import test from "node:test";
 import { createCompletedIntentResultFixtureV1 } from "@adeptify/intelligence-client/testing";
 
-import { createLocalFeedSourceService, listFeedSourceCatalog } from "@molis-ai/molis-work-app-local-host";
-import { createLocalFeedApplication, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { listFeedSourceCatalog } from "@molis-ai/molis-work-app-local-host";
+import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { accountSourceRecord } from "./fixtures/feed-account-source.js";
 
 const gmailSource = (db: LocalProjectDatabase["db"]) => createLocalFeedApplication(db).upsertSource(accountSourceRecord("gmail"));
-import { createLocalFeedSourceScheduler } from "@molis-ai/molis-work-app-local-host";
-import { createFeedSourceRuntime, type FeedSourceRuntime } from "@molis-ai/molis-work-app-local-host";
+
+import { createSourcePullRuntime, type SourcePullRuntime } from "@molis-ai/molis-work-app-local-host";
 import { readRssHttpState } from "@molis-ai/molis-work-integration-rss";
 import type { IntelligenceCollectRequest, IntelligenceCollectResult } from "@molis-ai/molis-work-app-local-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -19,6 +19,7 @@ import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-h
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
+import { createLocalFeedSourceService, createLocalFeedApplication, createLocalFeedSourceScheduler } from "./fixtures/feed-library.js";
 
 test("public Feed sources register offline, replay terminal sync, and roll back failed commits", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-feed-source-"));
@@ -30,7 +31,7 @@ test("public Feed sources register offline, replay terminal sync, and roll back 
       let runtimeCreated = 0;
       let executeCount = 0;
       let retained = "";
-      const runtimeFactory = (): FeedSourceRuntime => {
+      const runtimeFactory = (): SourcePullRuntime => {
         runtimeCreated += 1;
         return {
           intelligenceCollect: {
@@ -244,7 +245,7 @@ test("RSS sync persists feed identity and validators, then treats 304 as a succe
       const seenHeaders: Headers[] = [];
       let fetchCount = 0;
       const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, (db, source) =>
-        createFeedSourceRuntime({
+        createSourcePullRuntime({
           db,
           sourceCursor: source?.cursor,
           async fetch(_input, init) {

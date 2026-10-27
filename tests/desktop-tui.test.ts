@@ -9,7 +9,7 @@ import { execFileSync } from "node:child_process";
 import test from "node:test";
 import { WebSocket, type RawData } from "ws";
 import { desktopAdvancePrompt, desktopLaunchSpec, desktopPanelEnv } from "@molis-ai/molis-work-app-desktop";
-import { createLocalFeedApplication } from "@molis-ai/molis-work-app-local-host";
+
 
 import { DEMO_PROJECT_ID, MolisWorkLocalHost, seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
@@ -31,6 +31,7 @@ import {
 import { createMolisWorkWebServer as createBaseMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { GOALS_PLUGIN_ID } from "@molis-ai/molis-work-plugin-goals";
 import { GoalProjectApplication } from "./fixtures/goal-application.js";
+import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 
 const WEB_TEST_CONTROL_TOKEN = "molis-work-web-test-control-token-0123456789abcdef";
 // The Goal terminal's client, split by concern since SC-3 (apps/workbench/src/terminal/client*.ts); read together as one program.
@@ -1411,13 +1412,13 @@ test("Inbox Message save and start survives a Web restart without duplicating it
     const page = await (await webFetch(`${origin}${prefix}`)).text();
     assert.match(page, new RegExp(`data-feed-entry-id="${itemId}"[^>]*data-feed-entry-type="feed"`));
     assert.doesNotMatch(page, /data-feed-entry-id="inbox:/);
-    const listed = await webFetch(`${origin}${prefix}/api/inbox`);
+    const listed = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.inbox/entries`);
     assert.equal(listed.status, 200);
     const listedBody = await listed.json() as { entries: Array<{ entry_id: string; subject_id: string }> };
     const inboxEntryId = listedBody.entries.find((entry) => entry.subject_id === itemId)?.entry_id;
     assert.ok(inboxEntryId);
 
-    const completed = await webFetch(`${origin}${prefix}/api/inbox/entries/${inboxEntryId}/status`, {
+    const completed = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.inbox/entries/${inboxEntryId}/status`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ status: "done", expected_revision: 1 }),
@@ -1427,7 +1428,7 @@ test("Inbox Message save and start survives a Web restart without duplicating it
     assert.equal(completedBody.entry.status, "done");
     assert.equal(completedBody.entry.revision, 2);
 
-    const completedAgain = await webFetch(`${origin}${prefix}/api/inbox/entries/${inboxEntryId}/status`, {
+    const completedAgain = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.inbox/entries/${inboxEntryId}/status`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ status: "done", expected_revision: 2 }),
@@ -1436,7 +1437,7 @@ test("Inbox Message save and start survives a Web restart without duplicating it
     const completedAgainBody = await completedAgain.json() as { entry: { status: string; revision: number } };
     assert.equal(completedAgainBody.entry.revision, 2, "repeating the same Inbox result stays idempotent");
 
-    const reopened = await webFetch(`${origin}${prefix}/api/inbox/entries/${inboxEntryId}/status`, {
+    const reopened = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.inbox/entries/${inboxEntryId}/status`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ status: "open", expected_revision: 2 }),

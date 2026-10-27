@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { createLocalFeedApplication, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { boardSnapshot } from "./fixtures/goal-application.js";
+import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 
 test("Goal Frame keeps the outer tabs and layout offers explicit bottom splitting", { timeout: 60_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;

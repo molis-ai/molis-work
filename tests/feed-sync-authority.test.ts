@@ -6,17 +6,17 @@ import { join } from "node:path";
 import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { IntegrationProviderPort } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { FEED_SOURCE_ACTIONS, createFeedSourceHandlers, feedQueryActions, feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
-import { SignalsModule } from "@molis-ai/molis-work-module-signals";
-import { DEMO_PROJECT_ID, seedDemoBoard, LocalProjectDatabase, createLocalFeedSourceService, createLocalFeedApplication, createLocalFeedConnectorSync, listFeedSourceCatalog } from "@molis-ai/molis-work-app-local-host";
+import { FEED_ACTION_PERMISSIONS, FEED_PLUGIN_ID, FEED_SOURCE_ACTIONS, createFeedSourceHandlers, feedQueryActions, feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
+import { fromBetterSqlite, SignalsModule } from "@molis-ai/molis-work-plugin-feed/store";
+import { DEMO_PROJECT_ID, seedDemoBoard, LocalProjectDatabase, listFeedSourceCatalog, scheduleServiceFor } from "@molis-ai/molis-work-app-local-host";
 import { accountSourceRecord } from "./fixtures/feed-account-source.js";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { authorizeMcpActions } from "../apps/local-host/dist/mcp-action-client.js";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
-import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { serveTestHost } from "./fixtures/test-home.js";
+import { createLocalFeedSourceService, createLocalFeedApplication, createLocalFeedConnectorSync } from "./fixtures/feed-library.js";
 
-const caller: ActionCallContext = { actor_id: "owner", audience: "user", project_id: DEMO_PROJECT_ID, permissions: ["feed:read", "feed:write"] };
+const caller: ActionCallContext = { actor_id: "owner", audience: "user", project_id: DEMO_PROJECT_ID, permissions: [...FEED_ACTION_PERMISSIONS] };
 const code = (expected: string) => (error: unknown) => !!error && typeof error === "object" && "code" in error && error.code === expected;
 const rss = `<?xml version="1.0"?><rss version="2.0"><channel><title>Product Signals</title><link>https://example.com/</link>
 <item><guid>https://example.com/posts/one</guid><title>One useful update</title><link>https://example.com/posts/one</link>
@@ -25,7 +25,16 @@ const enteredOrFailure = (entered: Promise<void>, pending: Promise<unknown>) => 
   entered, pending.then(() => { throw new Error("Sync returned before the external response gate"); }),
 ]);
 
-test("the real Web scheduler uses the registered Feed action, records refusal, and cannot commit an old response after plugin disablement", { timeout: 20_000 }, async t => {
+/** The project's clock, once Feed has asked it for its wakeup (it asks when the installation is recorded as running). */
+async function feedClock(host: MolisWorkLocalHost, reference: ReturnType<typeof molisWorkHostProjectReference>) {
+  await host.actionClient(reference).discover(caller);
+  const clock = await host.withProject(reference, runtime => scheduleServiceFor(runtime.store.db));
+  for (let waited = 0; !clock.list(FEED_PLUGIN_ID).some(job => job.capability_id === "feed.sources.wake") && waited < 5_000; waited += 25) await new Promise(resolve => setTimeout(resolve, 25));
+  assert.ok(clock.list(FEED_PLUGIN_ID).some(job => job.capability_id === "feed.sources.wake"), "Feed asked the platform's clock for its wakeup");
+  return clock;
+}
+
+test("the platform's clock wakes Feed through its registered action, records refusal, and cannot commit an old response after plugin disablement", { timeout: 20_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "feed-web-schedule-")), database = join(home, "project.sqlite");
   await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   seedDemoBoard(database);
@@ -35,72 +44,42 @@ test("the real Web scheduler uses the registered Feed action, records refusal, a
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(); let enabled = true;
   const host = new MolisWorkLocalHost({ homeDirectory: home, actionAvailability: (_, action) => !enabled && action.provider.plugin_id === "io.molis.work.feed"
     ? { available: false, code: "actions.plugin_disabled", reason: "Disabled" } : { available: true } });
-  const server = createMolisWorkWebServer({ databasePath: database, projectId: DEMO_PROJECT_ID, homeDirectory: home, localHost: host });
-  const fetchPage = globalThis.fetch;
-  t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) => {
-    if (String(input).startsWith("http://127.0.0.1:")) return fetchPage(input, init);
-    entered.resolve(); await release.promise; return new Response(rss, { headers: { "content-type": "application/rss+xml" } });
-  });
-  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  t.mock.method(globalThis, "fetch", async () => { entered.resolve(); await release.promise; return new Response(rss, { headers: { "content-type": "application/rss+xml" } }); });
   try {
-    const address = server.address(); assert.ok(address && typeof address === "object");
-    const page = fetchPage(`http://127.0.0.1:${address.port}/`);
-    await entered.promise;
+    const clock = await feedClock(host, molisWorkHostProjectReference({ databasePath: database, projectId: DEMO_PROJECT_ID }));
+    const waking = clock.tick(new Date(Date.now() + 60_000));
+    await Promise.race([entered.promise, waking.then(() => { throw new Error("The wakeup returned before the external response gate"); })]);
     enabled = false;
     const before = sources.feed.snapshot(DEMO_PROJECT_ID);
-    release.resolve(); await page;
-    const deadline = Date.now() + 5_000;
-    let call = host.callLog!.list(DEMO_PROJECT_ID).find(row => row.capability_id === feedSourceActions.tick.capability_id);
-    while (!call && Date.now() < deadline) {
-      await new Promise(resolve => setTimeout(resolve, 25));
-      call = host.callLog!.list(DEMO_PROJECT_ID).find(row => row.capability_id === feedSourceActions.tick.capability_id);
-    }
-    assert.ok(call, "automatic pull must be visible in the shared Action call log");
+    release.resolve(); await waking;
+    const call = host.callLog!.list(DEMO_PROJECT_ID).find(row => row.capability_id === "feed.sources.wake");
+    assert.ok(call, "the automatic pull must be visible in the shared Action call log");
     assert.equal(call.ok, false); assert.equal(call.code, "actions.plugin_disabled");
     assert.deepEqual(sources.feed.snapshot(DEMO_PROJECT_ID), before);
   } finally {
-    release.resolve(); await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
-    await host.close(); store.close(); await rm(home, { recursive: true, force: true });
+    release.resolve(); await host.close(); store.close(); await rm(home, { recursive: true, force: true });
   }
 });
 
-test("W3-01 C the pull a page request starts, and every tick of the timer, is an operation of its own, not part of the page's", { timeout: 20_000 }, async t => {
+test("W3-01 C every wakeup of the platform's clock is an operation of its own, not part of any request's", { timeout: 20_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "feed-web-call-ids-")), database = join(home, "project.sqlite");
   await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   seedDemoBoard(database);
   const store = new LocalProjectDatabase(database), sources = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, undefined, () => new Date(Date.now() - 360_000));
   const source = sources.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
   sources.configureSchedule(source.source_id, { mode: "interval", enabled: true, interval_minutes: 5 });
-  // The page's own read is turned away, which leaves a row with the page's number; the pull it starts is a command and leaves a row of its own.
-  const host = new MolisWorkLocalHost({ homeDirectory: home, actionAvailability: (_, action) => action.capability_id === feedQueryActions.snapshot.capability_id
-    ? { available: false, code: "actions.binding_required", reason: "Fixture" } : { available: true } });
-  const fetchPage = globalThis.fetch;
-  t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) =>
-    String(input).startsWith("http://127.0.0.1:") ? fetchPage(input, init) : new Response(rss, { headers: { "content-type": "application/rss+xml" } }));
-  // The 30-second timer of the server runs when the test says so.
-  t.mock.timers.enable({ apis: ["setInterval"] });
-  const server = createMolisWorkWebServer({ databasePath: database, projectId: DEMO_PROJECT_ID, homeDirectory: home, localHost: host });
-  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
-  const pulls = () => host.callLog!.list(DEMO_PROJECT_ID).filter(row => row.capability_id === feedSourceActions.tick.capability_id).flatMap(row => row.call_ids ?? [row.call_id]);
-  const until = async (done: () => boolean) => { const deadline = Date.now() + 5_000; while (!done() && Date.now() < deadline) await new Promise(resolve => setImmediate(resolve)); assert.ok(done()); };
+  const host = new MolisWorkLocalHost({ homeDirectory: home });
+  t.mock.method(globalThis, "fetch", async () => new Response(rss, { headers: { "content-type": "application/rss+xml" } }));
   try {
-    const address = server.address(); assert.ok(address && typeof address === "object");
-    const page = await fetchPage(`http://127.0.0.1:${address.port}/api/feed`);
-    const pageId = page.headers.get("x-molis-work-call-id");
-    assert.ok(pageId, "the page's read was refused and recorded, so its answer carries the number");
-    assert.equal(host.callLog!.find(pageId)[0]?.capability_id, feedQueryActions.snapshot.capability_id);
-    await until(() => pulls().length === 1);
-    const [first] = pulls();
-    assert.notEqual(first, pageId, "the pull outlives the request that started it and is not part of it: it has a number of its own");
-    // Thirty seconds later the timer pulls again: another operation.
-    t.mock.timers.tick(30_000);
-    await until(() => pulls().length === 2);
-    const [, second] = pulls();
-    assert.ok(second && ![pageId, first].includes(second), "a tick of the timer has a number of its own");
-  } finally {
-    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
-    await host.close(); store.close(); await rm(home, { recursive: true, force: true });
-  }
+    const clock = await feedClock(host, molisWorkHostProjectReference({ databasePath: database, projectId: DEMO_PROJECT_ID }));
+    const wakeups = () => host.callLog!.list(DEMO_PROJECT_ID).filter(row => row.capability_id === "feed.sources.wake").flatMap(row => row.call_ids ?? [row.call_id]);
+    await clock.tick(new Date(Date.now() + 60_000));
+    assert.equal(wakeups().length, 1);
+    // Thirty seconds later the clock wakes Feed again: another operation.
+    await clock.tick(new Date(Date.now() + 120_000));
+    const [first, second] = wakeups();
+    assert.ok(first && second && first !== second, "a wakeup of the clock has a number of its own");
+  } finally { await host.close(); store.close(); await rm(home, { recursive: true, force: true }); }
 });
 
 for (const mode of ["grant-revoked", "disabled", "paused", "reconfigured", "deleted", "cancelled", "revoked-provider-failure"] as const) {
@@ -152,7 +131,7 @@ for (const mode of ["grant-revoked", "disabled", "paused", "reconfigured", "dele
       // Intelligence retains cancellation/failure receipts. An explicit new pull uses a new key.
       const retryInput = mode === "cancelled" || mode === "revoked-provider-failure" ? { ...input, idempotency_key: "public-authority-recovered" } : input;
       const recovered = await restored.service.invoke(restored.context, feedSourceActions.sync, retryInput);
-      assert.equal(recovered.run.outcome, "completed");
+      assert.equal(recovered.run.outcome, "completed", JSON.stringify(recovered.run));
       assert.equal(sources.feed.snapshot(PROJECT).feed_items.filter(item => item.source_id === source.source_id).length, 1);
       const replay = await restored.service.invoke(restored.context, feedSourceActions.sync, retryInput);
       assert.equal(replay.replayed, true);
@@ -216,7 +195,7 @@ for (const mode of ["revoked", "paused", "cancelled", "disconnected", "revoked-p
     const account = withConnectorConnections(home, rows => rows.createToken({ serviceId: "github", displayName: "Fixture account", token: "fixture-account-token" }));
     const source = feed.upsertSource(accountSourceRecord("github", { status: "active", credential_ref: account.credential_ref, config: { connection_id: account.connection_id } }));
     if (mode === "scheduled-revoked") sources.configureSchedule(source.source_id, { mode: "interval", enabled: true, interval_minutes: 5 });
-    const signals = new SignalsModule(store.db), actions = new ActionService();
+    const signals = new SignalsModule(fromBetterSqlite(store.db)), actions = new ActionService();
     const dispose = actions.registerProvider({ provider: { provider_id: "io.molis.work.feed", title: "Feed", kind: "plugin", project_id: DEMO_PROJECT_ID }, definitions: FEED_SOURCE_ACTIONS,
       handlers: createFeedSourceHandlers(DEMO_PROJECT_ID, { feed: () => feed, sources: () => sources, connectorSync: () => connectorSync }) });
     const context: ActionCallContext = { ...caller, validate_authority: () => { if (!allowed) throw new ActionError("actions.revoked", "Revoked"); } };

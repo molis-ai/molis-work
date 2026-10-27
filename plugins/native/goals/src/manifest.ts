@@ -19,7 +19,8 @@ import { GOALS_TREE_EN } from "./tree-en.js";
 import { GOALS_WORKSPACE_EN } from "./workspace-en.js";
 import { GOALS_HOME_DATABASE } from "./home-database.js";
 
-export const GOALS_PLUGIN_ID = "io.molis.work.goals";
+import { GOALS_PLUGIN_ID } from "./identity.js";
+export { GOALS_PLUGIN_ID };
 /** What the project database stores for this Plugin. */
 export const GOALS_PROJECT_PLUGIN_ID = "goals";
 /** The one job Goals keeps: the board and the decision reminders catch up once when a project opens (it writes Attention, which only an action or a job may). */

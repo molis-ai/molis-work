@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_PROJECT_ID } from '@molis-ai/molis-work-app-local-host';
+import { DEMO_PROJECT_ID } from '@molis-ai/molis-work-app-local-host';
 import { openMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 const live = process.env.MOLIS_WORK_LIVE_ACCEPTANCE === '1';
 test('Live public RSS uses production fetch, deduplicates, and opens retained content', {skip:!live,timeout:120000}, async t => {
@@ -25,7 +26,7 @@ test('Live public RSS uses production fetch, deduplicates, and opens retained co
   const item=createLocalFeedApplication(b.store.db).getItem(DEMO_PROJECT_ID,itemId);
   assert.ok(item.read_at);assert.ok(item.body.length>0);
   await b.navigate(()=>b.click(`[data-feed-detail="${itemId}"] [data-feed-action=inbox]`));
-  const inbox=await (await fetch(`${b.origin}/projects/${b.projectId}/api/inbox`)).json();
+  const inbox=await (await fetch(`${b.origin}/projects/${b.projectId}/api/plugins/io.molis.work.inbox/entries`)).json();
   assert.ok(JSON.stringify(inbox.entries).includes(item.item_id), 'Inbox retains the actual Feed reference');
   t.diagnostic(JSON.stringify({firstCreated:first.created,secondCreated:second.created,retainedBodyCharacters:item.body.length,inbox:true}));
 });

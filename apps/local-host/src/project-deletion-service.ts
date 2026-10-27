@@ -47,14 +47,14 @@ export class ProjectDeletionService {
  */
 export function webProjectDeletionPorts(web: {
   isPanelAlive(panelId: string): boolean;
-  feedSchedulers: Map<string, unknown>;
+  projectSchedules: Map<string, unknown>;
   webViewCache: Map<string, unknown>;
   localHost: Pick<MolisWorkLocalHost, "closeProject">;
 }): ProjectDeletionPorts {
   return {
     isPanelAlive: panelId => web.isPanelAlive(panelId),
     async releaseProject(databasePath) {
-      web.feedSchedulers.delete(databasePath);
+      web.projectSchedules.delete(databasePath);
       web.webViewCache.delete(databasePath);
       await web.localHost.closeProject(databasePath);
     },

@@ -63,7 +63,7 @@ export function createFeedItemHandlers(feed: FeedApplication, board: string, por
   const bind = <Input, Output>(definition: ActionDefinition<Input, Output>, handle: (input: Input, caller: ActionExecutionContext) => Output | Promise<Output>, enabled = true): ActionHandlerBinding => ({
     capability_id: definition.capability_id, version: definition.version,
     availability: () => enabled ? { available: true } : { available: false, code: "actions.connection_required", reason: "此项目尚未接通 Goal 服务" },
-    handle: async (caller, input) => await handle(input as Input, caller),
+    handle: (caller, input) => handle(input as Input, caller),
   });
   const ref = (definition: ActionDefinition) => ({ capability_id: definition.capability_id, version: definition.version });
   return [

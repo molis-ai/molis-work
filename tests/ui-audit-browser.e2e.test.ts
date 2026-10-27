@@ -3,9 +3,10 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 const SHOTS = "/tmp/molis-ui-audit-2026-09-22";
 const TOKEN = "goals-risk-test-control-token-0123456789";

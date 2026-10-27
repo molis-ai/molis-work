@@ -6,8 +6,7 @@ import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { readNativePluginJsonBody } from "./native-plugin-http.js";
 import type { MolisWorkWebView, WorkbenchRenderer } from "@molis-ai/molis-work-app-workbench";
 import type { LocalProjectDatabase } from "./project-database.js";
-import type { LocalFeedApplicationOptions } from "./feed-application.js";
-import { listFeedSourceCatalog } from "./feed-source-service.js";
+import { listFeedSourceCatalog } from "./source-vocabulary.js";
 import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { writeNativePluginJsonResponse } from "./native-plugin-http.js";
 
@@ -20,7 +19,6 @@ export interface FeedNativePluginHttpOptions {
   readonly readWebView: () => MolisWorkWebView | Promise<MolisWorkWebView>;
   readonly invalidateWebView: () => void;
   readonly homeDirectory?: string;
-  readonly feedOptions?: LocalFeedApplicationOptions;
 }
 
 export async function handleFeedNativePluginHttp(

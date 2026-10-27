@@ -125,6 +125,13 @@ export function availableProjectPluginIds(
 /** Whether a catalog entry runs in the Home: its Manifest says so (PG-011), and `catalogProblems` holds that to the registration's code. */
 export const runsInHome = (entry: PluginRegistration): boolean => entry.manifest.runtime?.scope === "home";
 
+/**
+ * Whether the plugin lives only in the Home: a dual-instance plugin has a Home half and also a project half, and the page and the library
+ * a project shows of it are the project half's (Feed keeps its tables in each project's library and the reference ledger of their bodies
+ * in the Home's).
+ */
+export const runsOnlyInHome = (entry: PluginRegistration): boolean => runsInHome(entry) && entry.runtime?.dual_instance !== true;
+
 /** Each Home plugin's definition as the owner-files and scope checks read it, with the dual-instance mark its registration gives it. */
 export function homeDefinitionEntries(): { definition: PluginDefinition; dual_instance?: true }[] {
   return PLATFORM_PLUGIN_REGISTRATIONS.flatMap(entry => entry.runtime

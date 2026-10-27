@@ -208,7 +208,8 @@ export async function renderHomePluginStages(host?: HomePluginHost): Promise<{ h
   });
   const ids: string[] = [], sideOnly = sideOpenedPlugins(registered);
   const unavailable: UnavailablePluginStage[] = [];
-  const html = registered.filter(entry => !Object.hasOwn(sideOnly, entry.project_plugin_id)).flatMap(entry => {
+  // A dual-instance plugin's page is its project half's (`renderProjectRuntimeStages`): its Home half draws none.
+  const html = registered.filter(entry => !Object.hasOwn(sideOnly, entry.project_plugin_id) && !host.dualInstance(entry.manifest.plugin_id)).flatMap(entry => {
     const stage = stageContributionId(entry.manifest);
     if (stage) ids.push(stage);
     const install = host.installation(entry.manifest.plugin_id);

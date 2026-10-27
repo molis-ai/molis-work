@@ -134,7 +134,6 @@
     },
     "feed": {
       "paths": [
-        "modules/feed/",
         "packages/contracts/src/modules/feed.ts",
         "apps/local-host/src/feed-*",
         "apps/local-host/src/research-library-source.ts"
@@ -178,10 +177,9 @@
     },
     "inbox": {
       "paths": [
-        "apps/local-host/src/inbox-*",
         "packages/contracts/src/modules/attention-resumption.ts"
       ],
-      "reason": "The Inbox plugin and the Host files that serve it; the Pages codes it borrowed became inbox.* (spec W3-02 E). The contracts file of the attention module holds the Inbox's declaration (inboxErrors), because the Feed plugin raises the missing entry and the Inbox plugin the invalid request and the two share no other package."
+      "reason": "The Inbox plugin (its Host files are gone, FI-7); the Pages codes it borrowed became inbox.* (spec W3-02 E). The contracts file of the attention module holds the Inbox's declaration (inboxErrors), because the Feed plugin raises the missing entry and the Inbox plugin the invalid request and the two share no other package."
     },
     "installer": {
       "paths": [
@@ -204,10 +202,10 @@
     },
     "listener": {
       "paths": [
-        "horizontal/listener-host/",
+        "plugins/native/feed/src/store/listener.ts",
         "packages/contracts/src/services/listener-host.ts"
       ],
-      "reason": "The listener host: its listener_* codes become listener.*."
+      "reason": "The listener host (inside Feed's store since FI-5): its listener_* codes become listener.*."
     },
     "material": {
       "paths": [
@@ -298,16 +296,16 @@
     },
     "signals": {
       "paths": [
-        "modules/signals/"
+        "plugins/native/feed/src/store/signals.ts"
       ],
-      "reason": "The signals module: its signal_* codes become signals.*."
+      "reason": "The signals module (inside Feed's store since FI-5): its signal_* codes become signals.*."
     },
     "sources": {
       "paths": [
-        "modules/sources/",
+        "plugins/native/feed/src/store/sources.ts",
         "packages/contracts/src/modules/sources.ts"
       ],
-      "reason": "The sources module (SourcesError): its source_* codes become sources.*."
+      "reason": "The sources module (SourcesError; inside Feed's store since FI-5): its source_* codes become sources.*."
     },
     "storage": {
       "paths": [
@@ -329,12 +327,6 @@
         "packages/contracts/src/modules/workspace-artifacts.ts"
       ],
       "reason": "The private work context module owns the runtime-context bindings and workspace artifacts; the context and workspace prefixes become work.* (spec W3-02 R4a). The Sessions plugin that used to share this owner is retired (SC-4)."
-    },
-    "workflows": {
-      "paths": [
-        "apps/local-host/src/workflow-*"
-      ],
-      "reason": "The Workflows plugin and the Host files that serve it; its codes already start with workflows."
     },
     "workspace_git": {
       "paths": [

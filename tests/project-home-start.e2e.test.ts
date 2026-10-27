@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createLocalFeedApplication } from "@molis-ai/molis-work-app-local-host";
+
 import { mkdir, writeFile } from "node:fs/promises";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
 import { boardSnapshot } from "./fixtures/goal-application.js";
+import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 
 const captures = reviewEvidenceUrl("home-start/");
 const homeHasQuotes = "!!document.querySelector('[data-home-quote], [data-home-quotes], .home-reflection, .home-quote-pages, .immersive-home blockquote, .immersive-home figure') || /千里之行|Stephen Hawking|Intelligence is the ability/.test(document.querySelector('.immersive-home')?.textContent || '')";

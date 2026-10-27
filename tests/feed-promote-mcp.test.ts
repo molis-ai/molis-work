@@ -7,15 +7,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import {
-  LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService, createMolisWorkLocalHost, molisWorkHostProjectReference,
-} from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, createMolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { feedItemActions } from "@molis-ai/molis-work-plugin-feed";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import { grantGoalsMcp } from "./fixtures/goals-mcp-grants.js";
 import { serveTestHost } from "./fixtures/test-home.js";
 import { goalApplicationOf } from "./fixtures/goal-application.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 const PROMOTE = "molis_work_v1_action_feed.items.promote__v1";
 const CLIENT = "runtime:codex";

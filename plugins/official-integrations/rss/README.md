@@ -20,7 +20,7 @@ createRssIntegrationPlugin 接收 Provider port 并注册轮询贡献；catalog/
 | [src/http-state.ts](src/http-state.ts) | HTTP 状态 |
 | [src/feed-body.ts](src/feed-body.ts) | 正文读取 |
 
-可对照现有调用方 [apps/local-host/src/feed-source-runtime.ts](../../../apps/local-host/src/feed-source-runtime.ts) 阅读装配方式。
+可对照现有调用方 [apps/local-host/src/source-pull-runtime.ts](../../../apps/local-host/src/source-pull-runtime.ts) 阅读装配方式。
 
 ## 接入与边界
 

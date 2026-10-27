@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { createLocalFeedApplication, createLocalFeedConnectorSync } from "@molis-ai/molis-work-app-local-host";
+
 import { accountSourceRecord } from "./fixtures/feed-account-source.js";
 import { createGithubConnector } from "@molis-ai/molis-work-app-local-host";
 import { createGmailConnector } from "@molis-ai/molis-work-app-local-host";
@@ -17,6 +17,7 @@ import { createFileSecretStore, resetSecretStoreCache } from "@molis-ai/molis-wo
 import type { FeedSourceRecord } from "@molis-ai/molis-work-plugin-feed";
 import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { createLocalFeedApplication, createLocalFeedConnectorSync } from "./fixtures/feed-library.js";
 
 /** A sync the provider reported as failed is one Feed code, and the provider's own code (what a run and a source fault store) rides in its details. */
 function providerFailure(error: unknown, providerCode: string): boolean {

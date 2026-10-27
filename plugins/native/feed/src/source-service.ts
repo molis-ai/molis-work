@@ -9,7 +9,7 @@ import { PublicSourceSync } from "./source-sync.js";
 export class FeedSourceService {
   readonly feed: FeedApplication;
   private readonly publicSync: PublicSourceSync;
-  constructor(private readonly ports: FeedSourcePorts, readonly projectId: string, private readonly now: () => Date = () => new Date()) {
+  constructor(readonly ports: FeedSourcePorts, readonly projectId: string, private readonly now: () => Date = () => new Date()) {
     this.feed = ports.feed;
     this.publicSync = new PublicSourceSync(ports, projectId);
   }

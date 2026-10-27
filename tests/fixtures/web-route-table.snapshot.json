@@ -740,12 +740,17 @@
     "code": "workflows.not_found",
     "error": "找不到这条流程"
   },
-  "GET <project>/api/inbox": {
+  "GET <project>/api/plugins/io.molis.work.inbox/entries": {
     "status": 200,
     "type": "application/json",
     "keys": [
       "entries"
     ]
+  },
+  "GET <project>/api/stage/inbox": {
+    "status": 200,
+    "type": "text/html",
+    "title": ""
   },
   "GET <project>/api/home/dock-judgment": {
     "status": 200,

@@ -291,3 +291,5 @@ inspection 和维护 bridge 的 `verifySessionPurge({target,signal?})` 只核原
 
 
 Node 装配的可选 `audit` 原样交 SDK `createRuntime`，未传时不增加观测。现 `AuditSink.memoryPhase` 同步观察实际 task recall 与开场 Memory 准备，后者包含前者，不能相加；它们不含最终共享 Context 包装或网络时间，不授权任何业务。评测在公开创建 Session 后、start 前绑定，沿 SDK 安全 Session/开场 receipt 配对，以本机单调钟记录有界事件；缺失和无效时长保持 null，旧 forRun 配方时延不作替代，旧 B1 无同口径测量仍不可比。原 sink 失败隔离由 SDK 保持，无新等待、正文日志、Run 注册表或模型调用。回归沿 `tests/memory-evaluation.test.ts` 与 `tests/memory-evaluation-sequence.test.ts` 的真实临时 Home/本机 HTTP，以及本 README 必跑集合。
+
+`PrologueMemoryOptions.modelOrigin` 只控制本轮记忆的模型来源展示，省略时保留 SDK 的 `description` 默认。Molis 的 `memoryRuntimePolicy` 显式选择 `label`：首次召回、展开和本轮整理使用固定 `memory` 标签，当前正文及 canonical 关联不变。原来源仍留在存储、管理页和历史中，真实包装预算与最终使用回执沿 SDK 原链核算；此选项不清洗已失去结构化来源的旧文本历史。

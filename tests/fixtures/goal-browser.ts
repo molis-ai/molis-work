@@ -132,6 +132,8 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   const { sessionId } = await command<{ sessionId: string }>("Target.attachToTarget", { targetId, flatten: true });
   await command("Target.activateTarget", { targetId });
   await command("Page.enable", {}, sessionId);
+  await command("Network.enable", {}, sessionId);
+  await command("Page.setLifecycleEventsEnabled", { enabled: true }, sessionId);
   async function setViewport(width: number, height: number, mobile = false): Promise<void> {
     // Emulation alone leaves the native window small: pointer events outside it can miss plugin frames.
     // Size this window for the current scenario before applying its layout and mobile emulation.
@@ -225,6 +227,49 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   }
   async function navigate(action: () => Promise<unknown>) {
     const timeoutError = new Error("Navigation did not finish");
+    const started = Date.now(), events: unknown[] = [];
+    const requests = new Map<string, { resource: object; type: unknown; frame: unknown; loader: unknown; status?: number; state: "pending" | "finished" | "failed"; canceled?: boolean }>();
+    let mainFrame: string | undefined, loader: string | undefined, omittedEvents = 0, omittedRequests = 0;
+    // Keep only structural metadata: neither arbitrary exception text nor request/response content is diagnostic input.
+    const resource = (value: string) => {
+      const url = URL.parse(value);
+      if (!url) return { scheme: "invalid" };
+      if (!["http:", "https:"].includes(url.protocol) || !["127.0.0.1", "localhost", "[::1]"].includes(url.hostname)) return { scheme: url.protocol };
+      return { path: url.pathname.replace(/\/projects\/[^/]+/g, "/projects/:id").replace(/[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}/gi, ":id").slice(0, 200) };
+    };
+    const record = (kind: string, detail: unknown) => {
+      if (events.length < 40) events.push({ ms: Date.now() - started, kind, detail }); else omittedEvents++;
+    };
+    const listeners = [
+      browser.on("Page.frameNavigated", (event, session) => {
+        const frame = event.frame as { id: string; parentId?: string; loaderId?: string };
+        if (session === sessionId && !frame.parentId) { mainFrame = frame.id; loader = frame.loaderId; record("main-frame", { mainFrame, loader }); }
+      }),
+      browser.on("Page.lifecycleEvent", (event, session) => {
+        if (session === sessionId && event.frameId === mainFrame) record("lifecycle", { name: event.name, loader: event.loaderId, timestamp: event.timestamp });
+      }),
+      browser.on("Page.domContentEventFired", (event, session) => { if (session === sessionId) record("DOMContentLoaded", { timestamp: event.timestamp }); }),
+      browser.on("Page.loadEventFired", (event, session) => { if (session === sessionId) record("load", { timestamp: event.timestamp }); }),
+      browser.on("Network.requestWillBeSent", (event, session) => {
+        if (session !== sessionId) return;
+        const id = String(event.requestId);
+        if (requests.size < 40 || requests.has(id)) requests.set(id, {
+          resource: resource((event.request as { url: string }).url), type: event.type, frame: event.frameId, loader: event.loaderId, state: "pending",
+        }); else omittedRequests++;
+      }),
+      browser.on("Network.responseReceived", (event, session) => {
+        const request = session === sessionId ? requests.get(String(event.requestId)) : undefined;
+        if (request) request.status = (event.response as { status: number }).status;
+      }),
+      browser.on("Network.loadingFinished", (event, session) => {
+        const request = session === sessionId ? requests.get(String(event.requestId)) : undefined;
+        if (request) request.state = "finished";
+      }),
+      browser.on("Network.loadingFailed", (event, session) => {
+        const request = session === sessionId ? requests.get(String(event.requestId)) : undefined;
+        if (request) { request.state = "failed"; request.canceled = event.canceled === true; }
+      }),
+    ];
     let timer: ReturnType<typeof setTimeout>;
     let stopListening = () => {};
     // Hidden plugin frames and optional external assets must not block interaction with an initialized page.
@@ -236,17 +281,25 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     try {
       await Promise.all([loaded, action()]);
     } catch (error) {
-      if (error === timeoutError) {
-        try {
-          timeoutError.message += "; " + await evaluate("JSON.stringify({url:location.pathname,error:document.querySelector('[role=alert]:not([hidden])')?.textContent,invalid:Array.from(document.querySelectorAll(':invalid')).map(x=>x.name)})");
-        } catch (diagnosticError) {
-          timeoutError.message += "; page diagnostics unavailable: " + String(diagnosticError);
-        }
+      let page: unknown = { unavailable: true };
+      try {
+        const result = await command<{ result: { value: unknown }; exceptionDetails?: unknown }>("Runtime.evaluate", {
+          expression: `({readyState:document.readyState,visible:document.visibilityState,
+            timing:performance.getEntriesByType('navigation').slice(-1).map(x=>({domInteractive:x.domInteractive,
+              domContentLoadedEventStart:x.domContentLoadedEventStart,domContentLoadedEventEnd:x.domContentLoadedEventEnd,loadEventEnd:x.loadEventEnd}))})`,
+          returnByValue: true,
+        }, sessionId, 1_000);
+        if (!result.exceptionDetails) page = result.result.value;
+      } catch {
+        // An unresponsive renderer must not replace the original navigation failure or leak CDP exception text.
       }
+      if (error === timeoutError) timeoutError.message += "; " + JSON.stringify(page);
+      t.diagnostic("Navigation: " + JSON.stringify({ mainFrame, loader, events, omittedEvents, requests: [...requests.values()], omittedRequests, page }));
       throw error;
     } finally {
       clearTimeout(timer!);
       stopListening();
+      for (const stop of listeners) stop();
     }
   }
   const reloadPage = () => navigate(() => command("Page.reload", { ignoreCache: true }, sessionId));

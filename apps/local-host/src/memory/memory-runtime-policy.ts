@@ -151,6 +151,7 @@ export function memoryRuntimePolicy(ownerFor: () => MemoryRuntimePolicyOwner | u
     !!state && candidateAcceptanceCurrent(requests) && requests.every(request => permitted(caller, request, state, operation)
       && (!request.before || scoped(caller, request.before, state, request.action !== "read" && request.action !== "manage-read") && namespaceAllowed(caller, request.before.namespace)));
   return {
+    modelOrigin: "label",
     readCache: { maxBytes: 8 * 1024 * 1024 },
     policy: extractor ? { ...POLICY, formation: { maxSlots: 144 },
       // 120 fixed replacement metas can each occupy the SDK's 4 KiB metadata budget, plus 24 creation slots and identities.

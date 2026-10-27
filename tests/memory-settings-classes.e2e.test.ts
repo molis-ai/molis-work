@@ -53,7 +53,7 @@ test("classification controls save independent personal/project restrictions, ke
   const navigate = async (scope: "personal" | "project") => {
     await page.evaluate("document.documentElement.dataset.oldMemoryClasses = '1'");
     await page.command("Page.navigate", { url: env.origin + (scope === "project" ? `/projects/${project.project_id}` : "") + "/settings/memory" });
-    await page.wait("document.documentElement.dataset.oldMemoryClasses !== '1' && [...document.querySelectorAll('[data-memory-settings]')].some(node => node.checkVisibility())");
+    await page.wait("document.documentElement?.dataset.oldMemoryClasses !== '1' && [...document.querySelectorAll('[data-memory-settings]')].some(node => node.checkVisibility())");
     await page.evaluate(`(() => { const node = [...document.querySelectorAll('[data-memory-settings]')].find(node => node.checkVisibility()); node.setAttribute('data-memory-classes-test', ''); })()`);
     await page.wait(`document.querySelector('${root} [data-memory-class-form] fieldset')?.disabled === false`);
     assert.deepEqual(await page.evaluate(`[...document.querySelectorAll('${root} [data-memory-class]')].filter(node =>

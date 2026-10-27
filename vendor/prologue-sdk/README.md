@@ -1,18 +1,20 @@
 # Prologue SDK 受控包
 
-本目录沿用 [AGENTS.md](../../AGENTS.md) 的受控包规则。当前唯一运行依赖为 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz`；`final103-bridge` 保留为上一主线包，不同时装成第二份 Runtime。
+本目录沿用 [AGENTS.md](../../AGENTS.md) 的受控包规则。唯一运行依赖为 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz`；final103-bridge 只保留为上一主线包，不同时装成第二份 Runtime。
 
-当前 `prologue-sdk-0.0.0-rc.1-memory-p0.tgz` 来自 [Draft #108](https://github.com/molis-ai/molis-prologue/pull/108) 的干净源 `57cf75164ff4e89146c500e4b94d5a3bc56cfac4`，基于已合 #107 的 main `ccafbb74fb9db0e3a124ec502c57291677487e23`。本候选保留完整集合 `listScopes`、当前字节观察及默认0的证明缓存预算；冷读仍实际重读两次，仅复用已认证解码，内部查询减少重复排序复制，并复用已经深冻结的固定授权子树，本次目标副本只去掉无用途的键排序；对外 authorize 仍得到独立可变副本，权限及最终完整结果检查不省略，存储格式不变。新增可选 `AuditSink.memoryPhase` 观察实际 taskRecall 与 openingMemoryPreparation，两者嵌套且不可相加。尚未合并、发布或通过实际App性能验收。
+当前包来自 [Draft #108](https://github.com/molis-ai/molis-prologue/pull/108) 的干净源 `f6e605425b53dafc7d533528004270b89d9990ba`，基于 main `ccafbb74fb9db0e3a124ec502c57291677487e23`。保留完整集合 listScopes、当前完整字节校验、默认0证明缓存和原权限/版本/取消/最终回执；存储格式不变。
 
-归档1,409,470字节，826个dist文件，SHA-256 `f2aeebd019d22a53114a28181d0c60a4969b215a98295a10d5ca21e75dbf810a`。Root独立核全部dist与干净源原构建逐字节相同，包内package.json与上一份归档一致；sidecar、provenance及lock随消费者同步。仍只保留两份现有包，旧#107、7ebb、063b及b65候选归档和完整sidecar的Git blob与原摘要记录在patch-history notes。
+本次增加 config.memory.modelOrigin 的 description/label 选择，SDK 默认 description，Molis 明确使用 label。首次召回与展开只缩短模型来源包装，管理来源和 canonical 身份不变。新 Agent 开场仅记录 caller 消息，自动上下文仍进入执行；新账 replay/rewind/恢复前缀也随之变化，显式 caller system 保留。旧污染账未清洗，不把新写入修复当旧账采用完成。
 
-Molis必须在实际Host wrapper透传原观察能力，沿同一caller/execution绑定完整scopes，并显式配置App的8 MiB证明保留上限；不会自动打开SDK默认缓存，不以SDK基准代替原App B1+5ms门。旧单scope能力仍顺序回退，完整omitted、最终撤权和原回执保留。#107原canonical wait检查及Session永久屏障继续存在，冷恢复仍先保存完整wait IDs，不能用purge后空页补证明。
+归档 1,409,839 字节，826个dist文件，SHA-256 `49466055c2b563abdcaecace22781f86020d8a9d19ec34bcc8ab59ce1972ed66`。Root 独立核全部dist与干净源原构建逐字节相同，包内 package.json 与上一归档一致。只保留两份现有包；被替换57cf及更早包的Git blob和完整sidecar记录于 patch-history notes。
 
-重建：固定干净源，用Node24.14.0/pnpm11.9.0、原冻结离线依赖，执行原 `pnpm build` 并在packages/sdk运行 `pnpm pack --pack-destination <独立目录>`。当前源必要6文件138项、类型/build/API/准确ccaf ratchet及原干净消费者通过；b65此前8文件198项另记，不充作当前新跑结果；phase原11文件首跑90过1快照红，按新增公开类型同步快照后原4项通过，保留原首红。phase cancelled/binding-unavailable未完整实操。7ebb的71文件748项与直接Node172项仅属上一源历史，不替代当前验证。原quality单命令环境失败保留；临时无锁consumer仅该命令取消frozen，offline/ignore-scripts不变，未重跑完整quality或声称远端CI通过。SDK作者提交后原构建/打包，Root独立核全部dist，无vendor补丁。完整证据和未通过的App性能门保留在现memory-strategy合同。
+重建使用 Node24.14.0/pnpm11.9.0、原冻结离线依赖，执行 pnpm build，再在 packages/sdk 执行 pnpm pack --pack-destination <独立目录>。原quality的类型/build/API/ratchet/文档、72文件753项及干净安装消费者通过；限定PATH遗漏cargo后中断，补PATH单独执行原fmt/clippy通过，不称原命令一次全绿。仅原无锁临时消费者允许创建自己的lock，offline/ignore-scripts保留。
 
-新主干快照所需 verifyNodeStorageContents 公共入口继续保留，实际离线快照正反例需随本次 App 合成补验；Foundation 的已合 #107 验证不替代 #108 消费者验收。旧 #94 包与 sidecars 可从 c61508d5e15ab4850d256843a0e4110f9ecf1e20 取回。
+来源展示定向68项、回退/Context日期42项及真实Node/loopback开场恢复验证通过，0付费。初期装配、夹具、快照、注释行数和rewind期待失败均保留在现memory-strategy合同。新包Molis生产链、旧私库采用、1000条性能门及完整验收仍待完成；不合并、不发布、不访问真实Home。
 
-快照命令输出的 `manifest.json` 与 `data/` 是离线备份载荷，不含原 Home 密钥，不能直接当作 `recover-home` 的完整 T0/T1 工作副本。本次不增加解包、补密钥或另一套恢复流程。
+Molis 仍沿同一 caller/execution 绑定完整 scopes，并明确配置8 MiB证明保留预算；SDK默认缓存不自动开启。SDK57cf原App冻结规模门1000条仍失败，f6e无新的正式性能结论。AuditSink.memoryPhase 的两个阶段嵌套不能相加。已停止的SQLite实验没有进入本包。
+
+verifyNodeStorageContents 公共入口与 #107 原 Session 永久屏障保留。快照命令 manifest.json 与 data/ 只是离线备份载荷，不含原Home密钥，不能直接冒充 recover-home 完整T0/T1副本。本次不增加解包、补密钥或另一套恢复流程。
 
 ## 保留的上一主线依赖：final103-bridge（2026-10-25）
 

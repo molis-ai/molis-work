@@ -67,54 +67,7 @@ test("VUX-13: a round's steps say what they did to what, open to where they came
     catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "local-only", display_name: "本机 HTTP 模型", base_url: `http://127.0.0.1:${address.port}`, api_format: "anthropic-messages", models: [{ model_id: "fixture-model", enabled: true }] });
   }));
   await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 950, deviceScaleFactor: 1, mobile: false }, sessionId);
-  // Keep the failed CI navigation observable without treating a ready DOM or a different event as success.
-  const started = Date.now(), events: unknown[] = [], pending = new Map<string, unknown>();
-  let mainFrame: string | undefined, loader: string | undefined, omittedEvents = 0, omittedRequests = 0;
-  const record = (kind: string, detail: unknown) => {
-    if (events.length < 40) events.push({ ms: Date.now() - started, kind, detail }); else omittedEvents++;
-  };
-  const listeners = [
-    browser.on("Page.frameNavigated", (event, session) => {
-      const frame = event.frame as { id: string; parentId?: string; loaderId?: string };
-      if (session === sessionId && !frame.parentId) { mainFrame = frame.id; loader = frame.loaderId; record("main-frame", { mainFrame, loader }); }
-    }),
-    browser.on("Page.lifecycleEvent", (event, session) => {
-      if (session === sessionId && event.frameId === mainFrame) record("lifecycle", { name: event.name, loader: event.loaderId, timestamp: event.timestamp });
-    }),
-    browser.on("Page.domContentEventFired", (event, session) => { if (session === sessionId) record("DOMContentLoaded", { timestamp: event.timestamp }); }),
-    browser.on("Network.requestWillBeSent", (event, session) => {
-      if (session !== sessionId) return;
-      const url = new URL((event.request as { url: string }).url);
-      if (pending.size < 40 || pending.has(String(event.requestId))) pending.set(String(event.requestId), {
-        path: url.pathname.slice(0, 200), type: event.type, frame: event.frameId, loader: event.loaderId,
-      }); else omittedRequests++;
-    }),
-    browser.on("Network.loadingFinished", (event, session) => { if (session === sessionId) pending.delete(String(event.requestId)); }),
-    browser.on("Network.loadingFailed", (event, session) => {
-      if (session === sessionId) { record("network-failed", { resource: pending.get(String(event.requestId)), error: String(event.errorText).slice(0, 300) }); pending.delete(String(event.requestId)); }
-    }),
-    browser.on("Runtime.exceptionThrown", (event, session) => {
-      if (session !== sessionId) return;
-      const details = event.exceptionDetails as { text?: string; exception?: { description?: string } };
-      record("page-exception", { text: String(details.exception?.description ?? details.text).slice(0, 400) });
-    }),
-  ];
-  try {
-    await command("Network.enable", {}, sessionId); await command("Runtime.enable", {}, sessionId);
-    await command("Page.setLifecycleEventsEnabled", { enabled: true }, sessionId);
-    await navigate(async () => {
-      const result = await command<{ frameId: string; loaderId?: string; errorText?: string }>("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId);
-      mainFrame = result.frameId; loader = result.loaderId; record("navigate-result", { mainFrame, loader, error: result.errorText });
-    });
-  } catch (error) {
-    const page = await evaluate(`({path:location.pathname,readyState:document.readyState,assistant:!!document.querySelector('[data-assistant-input]'),
-      timing:performance.getEntriesByType('navigation').slice(-1).map(x=>({domInteractive:x.domInteractive,domContentLoadedEventStart:x.domContentLoadedEventStart,
-        domContentLoadedEventEnd:x.domContentLoadedEventEnd,loadEventEnd:x.loadEventEnd}))})`).catch(failure => ({ unavailable: String(failure).slice(0, 300) }));
-    t.diagnostic("Initial navigation: " + JSON.stringify({ mainFrame, loader, events, omittedEvents, pending: [...pending.values()], omittedRequests, page }));
-    throw error;
-  } finally {
-    for (const stop of listeners) stop();
-  }
+  await navigate(() => command("Page.navigate", { url: `${origin}/projects/${projectId}/` }, sessionId));
   await waitFor("Boolean(document.querySelector('[data-assistant-input]'))");
   await click("[data-assistant-input]");
   await command("Input.insertText", { text: "看看这个项目有哪些 Goal" }, sessionId);

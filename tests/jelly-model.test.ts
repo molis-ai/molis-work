@@ -59,7 +59,7 @@ test("Jelly empty model settings do not create a catalog, preferences, secret fi
 
 test("W1-18-MODEL-SCHEMA-01 standalone model consumers refuse old, future and invalid catalogs without changing them", t => {
   const home = homeFor(t), file = join(home, "projects", "catalog.db");
-  for (const version of [21, 23, NaN]) {
+  for (const version of [21, CATALOG_SCHEMA_VERSION - 1, CATALOG_SCHEMA_VERSION + 1, NaN]) {
     const storage = new LocalSqliteStorage(file);
     try { new LocalCatalogMetadata(storage.db).setVersion(version); } finally { storage.close(); }
     const before = readFileSync(file);
@@ -71,7 +71,7 @@ test("W1-18-MODEL-SCHEMA-01 standalone model consumers refuse old, future and in
     try { assert.ok(Object.is(new LocalCatalogMetadata(after.db).version(), version)); } finally { after.close(); }
   }
   const current = new LocalSqliteStorage(file);
-  try { new LocalCatalogMetadata(current.db).setVersion(22); } finally { current.close(); }
+  try { new LocalCatalogMetadata(current.db).setVersion(CATALOG_SCHEMA_VERSION); } finally { current.close(); }
   const before = readFileSync(file);
   assert.equal(completion(home), undefined);
   assert.deepEqual(configuration(home).read(), { configured: false, providers: [], connections: [], source: "none" });

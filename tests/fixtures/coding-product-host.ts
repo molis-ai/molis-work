@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
+import { errorMonitor } from "node:events";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import { mkdtemp, mkdir, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -53,14 +55,47 @@ export async function codingProductHost(t: TestContext, respond: (request: Codin
   }), controlToken = randomUUID();
   const create = createDesktopWebHost({ ptyClientFilePath: () => join(home, "unused-pty-client.js") });
   const server = create({ homeDirectory: home, localHost: host, controlToken });
+  let requestSequence = 0;
+  const observations = new Map<string, { started: number; events: Array<{ event: string; at_ms: number }>; cleanup(): void }>();
+  const observeRequest = (request: IncomingMessage, response: ServerResponse) => {
+    const key = request.headers["x-molis-work-idempotency-key"];
+    const observation = typeof key === "string" ? observations.get(key) : undefined;
+    if (!observation) return;
+    const record = (event: string) => {
+      if (observation.events.length < 8) observation.events.push({ event, at_ms: Math.round(performance.now() - observation.started) });
+    };
+    record("request");
+    const listeners = [
+      [request, "end", "request.end"], [request, "close", "request.close"], [request, errorMonitor, "request.error"],
+      [response, "finish", "response.finish"], [response, "close", "response.close"], [response, errorMonitor, "response.error"],
+    ] as const;
+    const cleanup = listeners.map(([emitter, event, label]) => {
+      const listener = () => record(label); emitter.once(event, listener);
+      return () => emitter.off(event, listener);
+    });
+    observation.cleanup = () => { for (const remove of cleanup) remove(); };
+  };
+  server.prependListener("request", observeRequest);
+  t.after(() => { server.off("request", observeRequest); for (const observation of observations.values()) observation.cleanup(); observations.clear(); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address === "object"); const origin = `http://127.0.0.1:${address.port}`;
   release = async () => { server.closeAllConnections(); await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); await host.close(); };
   const call = async <Output>(projectId: string, path: string, body?: unknown): Promise<{ status: number; body: Output }> => {
-    const response = await fetch(origin + `/projects/${projectId}` + path, { method: body === undefined ? "GET" : "POST", headers: {
-      origin, "content-type": "application/json", "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": randomUUID(),
-    }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
-    return { status: response.status, body: await response.json() as Output };
+    const sequence = ++requestSequence, key = randomUUID(), observation = { started: performance.now(), events: [] as Array<{ event: string; at_ms: number }>, cleanup() {} };
+    observations.set(key, observation);
+    let phase = "headers";
+    try {
+      const response = await fetch(origin + `/projects/${projectId}` + path, { method: body === undefined ? "GET" : "POST", headers: {
+        origin, "content-type": "application/json", "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": key,
+      }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+      phase = "body";
+      return { status: response.status, body: await response.json() as Output };
+    } catch (error) {
+      const template = path.split("?")[0]!.split("/").map(segment => /^(?:|api|plugins|io\.molis\.work\.coding|sessions|runs|workspaces|project-settings|memory|prefs)$/.test(segment) ? segment : ":segment").join("/");
+      t.diagnostic(JSON.stringify({ event: "coding_product_http_failed", sequence, path: template, phase,
+        elapsed_ms: Math.round(performance.now() - observation.started), server: observation.events }));
+      throw error;
+    } finally { observation.cleanup(); observations.delete(key); }
   };
   const added = await call(project.project_id, "/api/workspaces", { workspace_path: directory, user_confirmed: true });
   assert.equal(added.status, 201, JSON.stringify(added.body));

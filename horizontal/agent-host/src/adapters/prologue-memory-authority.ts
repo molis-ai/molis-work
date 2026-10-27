@@ -3,7 +3,7 @@ import { isDeepStrictEqual } from "node:util";
 import { requireSynchronous } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AgentMemoryCaller, AgentMemoryExtractor, AgentMemoryFormationContext, AgentMemoryPromotion, AgentMemorySourceRequest, AgentMemorySourceRef, AgentMemorySourceIdentity, AgentMemorySourceSnapshot, AgentSessionView } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { isMemoryClassRestrictions } from "@molis-ai/molis-work-contracts/services/memory";
-import type { MemoryAuthority, MemoryCallerContext, MemoryExtractor, MemoryPolicyConfig, MemorySourcePort, MemoryPromotionLatch } from "@prologue/sdk";
+import type { MemoryAuthority, MemoryCallerContext, MemoryExtractor, MemoryPolicyConfig, MemoryModelOrigin, MemorySourcePort, MemoryPromotionLatch } from "@prologue/sdk";
 import { createPrologueError } from "@prologue/sdk";
 import { prologueMemoryPromotion } from "./prologue-memory-promotion.js";
 import { prologueMemoryExtractor } from "./prologue-memory-formation.js";
@@ -16,6 +16,8 @@ import type { PrologueEffects } from "./prologue-effects.js";
 /** App policy and live grants; SDK types occur only at this SDK adapter boundary. */
 export interface PrologueMemoryOptions {
   policy: MemoryPolicyConfig;
+  /** Model-only source presentation; omission keeps the SDK description default. */
+  modelOrigin?: MemoryModelOrigin;
   /** Optional Host proof retention budget; omission keeps the SDK default of zero. */
   readCache?: { readonly maxBytes: number };
   promotion?: AgentMemoryPromotion;

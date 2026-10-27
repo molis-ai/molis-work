@@ -117,7 +117,7 @@ async function setup(t: TestContext, legacyText?: string) {
   const navigate = async () => {
     await page.evaluate("document.documentElement.dataset.classificationOld = '1'");
     await page.command("Page.navigate", { url: env.origin + `/projects/${project.project_id}/settings/memory` });
-    await page.wait("document.documentElement.dataset.classificationOld !== '1' && [...document.querySelectorAll('[data-memory-settings]')].some(node => node.checkVisibility())");
+    await page.wait("document.documentElement?.dataset.classificationOld !== '1' && [...document.querySelectorAll('[data-memory-settings]')].some(node => node.checkVisibility())");
     assert.equal(await page.evaluate(`(() => {
       const roots = [...document.querySelectorAll('[data-memory-settings]')].filter(node => node.checkVisibility());
       if (roots.length !== 1 || roots[0].dataset.memoryScope !== 'project') return false;

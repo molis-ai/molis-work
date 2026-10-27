@@ -1,3 +1,4 @@
+import { setImmediate as yieldToIO } from "node:timers/promises";
 import type { ActionSubject, SearchOpenTarget } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   KNOWLEDGE_BRIEF_MAX_CHARS,
@@ -214,10 +215,15 @@ export class KnowledgeOrganizer {
     if (this.closed || this.removed.has(projectId)) return;
     const cards = new Map(store.list(projectId).map(card => [keyOf(card.subject), card]));
     for (const candidate of pieces) {
-      const card = cards.get(keyOf(candidate.subject));
+      const observed = cards.get(keyOf(candidate.subject));
       cards.delete(keyOf(candidate.subject));
+      await yieldToIO();
+      if (this.closed || this.removed.has(projectId)) return;
+      const card = store.get(projectId, candidate.subject) ?? undefined;
+      if (!sameFields(observed, card)) continue;
       const state = await this.retention(projectId, card ?? candidate);
       if (this.closed || this.removed.has(projectId)) return;
+      if (!sameFields(card, store.get(projectId, candidate.subject) ?? undefined)) continue;
       if (state.state !== "unsupported" && state.state !== "active") {
         if (state.state === "deleted") store.remove(projectId, candidate.subject);
         continue;
@@ -226,9 +232,14 @@ export class KnowledgeOrganizer {
       const next = card ? cardSeen(card, piece) : cardFor(projectId, piece);
       if (!card || !sameFields(card, next)) store.put(next);
     }
-    for (const card of cards.values()) {
+    for (const observed of cards.values()) {
+      await yieldToIO();
+      if (this.closed || this.removed.has(projectId)) return;
+      const card = store.get(projectId, observed.subject);
+      if (!card || !sameFields(observed, card)) continue;
       const state = await this.retention(projectId, card);
       if (this.closed || this.removed.has(projectId)) return;
+      if (!sameFields(card, store.get(projectId, card.subject))) continue;
       if (state.state === "deleted") { store.remove(projectId, card.subject); continue; }
       if (state.state !== "unsupported") continue;
       if (card.edited.length || card.excluded) { if (card.state !== "missing") store.put({ ...card, state: "missing" }); }

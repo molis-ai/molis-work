@@ -3643,3 +3643,69 @@ App正式规模源为干净 `83421bf71719035ccc6f13439d60dfedac08f500`、SDK `57
 发布版本同步后，原 health 进一步要求在现有反腐规格 §4.1 登记 Coding 1→3、Knowledge 1→2、Search 2→3 的维护状态，已按实际边界补记。旧 Coding v2 演练不能替代 v3，Knowledge 旧业务卡不能以清空换启动；这两项旧数据版本采用的隔离维护仍待验证。同版本新 Home/T0恢复与旧格式拒绝只能证明各自交点，不能宣称旧 Home 已可直接使用新构建。Search普通重建与 existing-only 拒绝分开验，不改变原语义；真实 Home 未操作。
 
 最终组合的有界补验（dbb28f496/SDK57cf，Node24.14）：`/private/tmp/molis-memory-version-intersection-20261027.json` 已通过旧 Memory 行采用、owner占用/缺确认拒绝、built CLI 同决定恢复重试及T2新写重开，原关闭设置、未选Memory/Coding、Knowledge usage及T0/T1原件保留，遗忘内容未复活。`/private/tmp/molis-memory-final-old-entry-20261027.json` 用真实旧c886构建验证Home/Web/MCP/延迟绑定均由ledger4拒绝，SDK字节不变、模型请求0；首次sandbox listen拒绝及获准后的成功分开保留。`/private/tmp/molis-memory-private-version-boundaries-20261027.json` 区分Coding/Knowledge拒绝与Search普通重建/维护拒绝。主组合私库原本即3/2/3；版本拒绝探针只修改停写副本标记，不冒充历史旧schema迁移，也未新增掉电/close中断覆盖。
+
+
+### 2026-10-27 纠正后的模型来源展示短合同
+
+连续生产 API/SDK 旅程已经走通 Coding 明确授权的 memory.write 候选与 Assistant 实际 memory.extract 队列，经本人接受、后续召回、纠正、关闭、遗忘与独立 Web 进程重启。实际请求还暴露一个精准性缺口：Assistant 正文已改为新要求，但 origin 的原工作标题仍携带旧要求；Coding 的长来源说明也占用了大于正文的包装空间。因此该旅程只证明所覆盖的控制链，不能声称旧值已从整个记忆注入中消失。样例模型为本机受控响应，不证明真实模型质量或全生命周期 token 收益；Chrome 只证明指定非空页面呈现，不冒充全程 UI 点击或用户验收。
+
+复杂度审查：沿现 SDK canonical ContextItem 投影增加 config.memory.modelOrigin = description | label，默认 description 保持其他消费者行为；Molis 由现 PrologueMemoryOptions 装配明确选择 label。label 只将本轮结构化记忆的 origin 投影为固定字符串 memory，保留当前正文和原 receipt/ref/version。原来源、候选、存储、UI 历史不变；无需哈希、显示身份编码、映射库、新槽或格式迁移。现实现与测试已经允许多个记忆共用 origin，模型可见唯一 ID 不是本刀需求，真实身份继续由结构化关联及回执负责。
+
+SDK 负责首次召回和按需展开在原 ContextItem 建立前应用投影，按开跑配置冻结；预算、compaction 材料及派出回执都基于同一实际包装，不在网络末端删字段。授权、状态/版本复核、包装 token 硬预算、取消与零副作用边界不可配置；现 recaller 可替换性不变；展示模式由 App 选择，不新增用户设置页。未知模式必须在装配时拒绝。允许修改 SDK Memory 默认/公开配置与原 composition 读入、展开及相应测试、API 快照，App 原 Agent Host 装配、相关文档与测试；SDK 包和锁文件仍由统筹唯一集成。
+
+验收覆盖默认行为、Runtime/App 与场景配置优先级、Run 冻结、两个不同 canonical 记忆共享标签仍分别对账、首次/展开/本轮整理不发人类来源描述、真实包装预算与回执一致、原存储/UI 来源保留，以及旧配置建立的 Molis Session 在重启切换配置后仍读取当前记忆。正常 Molis 续聊使用 history=session，不把旧召回包装写成下一轮用户输入。SDK 独立起跑后切换 history=session 的旧 prompt 可能已经丢失结构化来源，另行核查其重放边界；不能按 JSON 外观猜来源改写历史，也不能把本刀通过算作该缺口关闭或完整 P0 验收。
+
+
+### 2026-10-27 后台逐项核对的 I/O 公平性修复
+
+原完整回归与保留原断言的 Files 单例均复现导入连接重置。HTTP 记录证明第361条导入复用连接时，服务端已到期计时器先销毁连接，客户端随后报错，fixture关闭在后。后续CPU观测确认约7.7秒连续microtask，主要落在 Knowledge reconcile 每项重新核 Action/插件目录与可用性。没有模型请求；不能据此认定全部Coding错误同因。
+
+最小修复复用 KnowledgeOrganizer 循环、Store 和停止状态：两个循环逐项处理前让一次真实I/O轮次；每个等待点后先查关闭/项目移除，再访问Store。不调整HTTP timeout、后台2秒调度、重试、批量大小或授权，不缓存目录、权限或“未支持”结论。当前必须避免长microtask独占，目录共享延后，不预造缓存失效协议。
+
+新增等待可能让人工编辑或另一轮更新发生。原Map仅代表本轮观察，用已有Store.get和sameFields核观察与当前，以及retention等待前后整卡；变化则放弃该项旧结果，下一次既有核对继续。人工字段、来源/内容修订/安装代、新卡和移除不得被旧结果覆盖或复活。最后核对到put/remove之间不再等待，不新增版本或任务表。
+
+允许修改原organize实现、直接测试和模块说明。验收保留Files原数量、断言和零重试；证明I/O在核对完成前运行、等待期间编辑/新卡/修订不被覆盖、关闭/移除后零Store访问，以及原保留、明确整理和迟到拒绝语义不退化。观测耗时只作归因，不当性能验收；不操作真实Home，不放宽1000条召回门。
+
+### 2026-10-27 旧 Coding / Knowledge 私库采用提案（待用户决定）
+
+实际阻塞：现构建 Coding 私库为 3、Knowledge 为 2，严格拒绝旧库仍然成立；此前同当前版本的 T0/T1/T2 演练不等于旧私库采用。Full suite 的 project-maintenance-v8 进一步确认，历史项目维护 v7→8→9→10 最后仍产出 Coding 私库 1，不能用当前声明直接打开。其合成历史夹具误带 lifecycle_json 也需修正，但不能只修夹具并把私库版本改成 3。历史快照和 v8/v9/v10 SQL保持历史事实。
+
+当前必须的最小完整处理：
+
+- Coding 1 只有业务归档标记；Coding 2 的已完成/在途 lifecycle 决定保留原操作、时间与结果，不能从当前内容补造当年版本。协议显式表达原内容版本未知，不伪造新哈希、归档或恢复回执；原三态不增加第四状态。
+- 旧归档恢复仍零自动模型调用。不能证明旧摘要对应当前内容时，保留全部旧内容与本人编辑，恢复后先列为待手动整理；本人明确整理后才生成当前摘要。当前可证明版本的正常保留协议不变。
+- Coding 1 若只在业务层归档、SDK Session 已是 active，本人撤销归档只恢复业务可见性，记录本次真实决定；不为凑合同先归档再恢复 SDK，也不冒充历史 SDK 恢复。SDK 确实归档或有在途旧决定时，分别沿原恢复/对账路径，不重放未知动作。
+- Knowledge 1 没有可信安装代。保留旧卡、本人字段、旧机器摘要、用量和回执，但不能直接盖上当前安装代使其成为当前来源。没有历史证明的卡保持未绑定，不自动用于普通检索或 Agent；本人明确选择旧卡与当前来源后，记录一次新的绑定采用决定。旧机器摘要仍是历史，不因此伪装成当前有效摘要。用户未确认的卡保留，不计作已采用。
+
+范围仅上述私库的代码、合同和隔离副本维护；不操作真实 Home，不引入新的存储格式、全局迁移器、保留状态或自动 AI 补救。沿现停机单写主人、固定副本/选集、备份与逐主人事务执行；版本与对应数据同事务，跨库中断保留未完成并逐项核实，不能只看顶层版本称成功。回退恢复整份原备份，不能只降版本号。
+
+验收采用真实历史 schema / 已知旧构建产生的非空副本，覆盖 Coding 1 active / archived（含 SDK active）、Coding 2 已完成及在途归档/恢复、无卡/失败/整理中/旧摘要、本人字段与排除状态、未知安装代及重装同 ID、同决定重试和进程重启、未知提交/关闭失败及邻居不变。采用前明确拒绝且不写，采用后原内容/历史/计数保留，归档普通检索不可见，恢复零自动模型，真实删除仍清卡和索引。原历史项目维护的当前插件接受断言保留，必须接入真实 Coding 私库采用后才能通过。此提案尚未获准；不把补字段、改版本标记或一份 active 样例当完整采用。
+
+
+### 2026-10-27 SDK 新开场来源修复与旧账边界
+
+真实 Node Host 的独立 SDK 反例确认 default 起跑后的自动 Memory 被写成 Session user prompt，purge 后 history=session + skip 仍发出旧记忆，实际 Memory 统计为 0。Molis 正常固定 session 路径没有据此被证明重现；但 SDK 缺口属于 P0 来源/遗忘完成门。先做最小新写入修复：仅交给 Session.startRun 的记账 messages 使用原调用方 promptMessages（session 仍只记新 user），循环 recipe 与实际 ContextPack 不动；保留 system-only 接纳和所有既存账，不加新字段、标记、来源哈希或账本。完整短合同在 Prologue docs/slices/memory-strategy.md 的“新开场记账不吸收自动记忆”。原反例、最终实际请求、持久重开与正常续聊/自定义循环是必要验证。
+
+旧已丢来源的账尚未修复。App 原 index 的精确 attempt.task/run_id 提供部分原提交依据，不能冒充所有本人原件；无关联 intent、从首 prompt 回填的子任务和未知额外开场仍需单独核定。新修复不删除旧账、不猜 JSON，也不因此扩大成“所有旧历史已安全”。其采用与最终产品验收继续待完成。
+
+### 2026-10-27 新 SDK 包与回归收束的集成交付
+
+SDK f6e605425b53dafc7d533528004270b89d9990ba 已提交并推到现 Draft #108。Molis 明确采用 modelOrigin=label，真实 Node/HTTP/SQLite 两条 digest/session 请求证明既有原来源仍可管理、重开后模型包装只带当前标签与正文、原使用回执和撤权门保留。新开场的 replay/rewind/恢复前缀只含 caller 输入，自动日期仍进入实际执行；这是公开投影变化，不能写成所有历史读取不变。旧账保留且尚未采用。
+
+包由干净 f6e 原构建生成，1,409,839 B、826个dist，SHA256 49466055c2b563abdcaecace22781f86020d8a9d19ec34bcc8ab59ce1972ed66。统筹逐字节核归档、源dist与App实际安装dist，package元数据未变；锁文件仅此包integrity改变，原57cf包和sidecars的Git blob记于既有patch-history。无vendor补丁，不发布。
+
+整体App构建、宿主类型、API生成器（0变化）、包边界、对最新main 2a56afb81的health与资源门通过。新main的两个文档PR已无冲突合入，与本地实现无交叠。48项资源仍共7,458,470 B，本批不增加任何额度。
+
+新包首批7文件76/76一次通过，单任务零重试：knowledge-source-retention 1、knowledge-reconcile-fairness 23、prologue-memory-run-context 2、security-invariants-knowledge-lifecycle 2、security-invariants-knowledge 8、knowledge-retention-policy 28、knowledge-service 12。覆盖真实卡SQLite、归档/恢复、当前权限、迟到结果、两等待点并发编辑/来源变化/新卡/删除及关闭后零Store访问；不代替完整CI或最终产品验收。
+
+原Files单例在新构建完成505+5导入，未再报连接重置，但随后仍失败。独立一次网络观测确认：刷新按钮可用且点击到达，sources完成后，knowledge/states约21.25秒才完成，新的首屏entries此后才发出，超过原20秒条件。旧分页不是前置屏障；服务端同轮有knowledge.cards@2占队列20秒警告，但HTTP与Action未按ID精确关联。不改原数量/等待/断言，不称本例通过；标签前置依赖与目录读取开销继续收束。
+
+原b93完整CI结论仍失败：普通CI两个Product片红，Gates/Verify/Security两片虽通过也不能替代全体；Full suite收齐16片，7过9失败，共13个最终失败文件。失败包括Jelly版本夹具、Memory导航空节点、Coding连接/收尾、旧私库真实采用、Files、流式文字以及导航/CDP等，不归为统一基线问题。
+
+已验证的夹具修正保持原约束：Coding提前释放受控Provider，失败不会阻塞关闭且原错误仍报；Jelly以当前Catalog版本及相邻错误版本验证；Memory导航等待允许暂时无documentElement；stream动效例按现同类用例解除自动化静止属性。原stream全文件3/3通过，实际14次动画开始/结束且fresh清零，未改产品CSS或5秒条件。上述较早批次的产物和运行边界保留，不冒充新SDK后的完整回归。
+
+导航诊断复用现共享fixture并删掉单例重复，只记录有界同session生命周期和本机路径/状态，不记录正文、query或异常文本；原30秒DCL条件与错误保留。真实Chrome探针按成功、唯一一次受控超时、再成功运行，诊断累计0/1/1，每阶段9个监听全部卸载；不以readyState=complete兜底。初始ESM/Chrome启动环境失败及原Linux未定位问题保留。
+
+既有性能门、旧私库采用提案和旧整包开场来源问题仍未关闭。已核已合main与实际1cc80/ccaf SDK包也可在Coding digest留下整包开场；UI保持digest，不等于已证明真实Home发生切回重放。精确主Run的attempt.task仅证明caller，子任务回填与旧无身份注入不能用来补造原件。尚未实现旧账校正Port或未知段兼容规则，不操作真实Home。
+
+本批日志在 /private/tmp/molis-memory-f6e-first-regressions-20261027.log、molis-memory-files-fairness-fixed-20261027.log、molis-files-refresh-network-20261027-summary.json、molis-navigation-diagnostics-20261027/ 与对应build/health/assets日志。付费批仍未启动。所有未闭合项继续阻塞合并。

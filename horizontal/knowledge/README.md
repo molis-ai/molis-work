@@ -55,3 +55,5 @@ pnpm --filter @molis-ai/molis-work-service-knowledge build
 资料管理的 `knowledge.cards`、`knowledge.card.edit`、`knowledge.card.exclude` 返回合同含保留绑定与可整理状态，现版本为 v2；固定旧 v1 的引用不再解析，不保留同版本兼容壳。普通 Agent 读取合同不把这些管理字段交给模型。
 
 整理沿现有模型派出检查复核原授权、安装代、正文版本和 active 状态；已派出的结果在归档后仅可结算到仍匹配且未经人工修改的原卡。这个结果不会触发第二次模型请求。
+
+后台逐项核对在每份资料和剩余卡片前让出一次 I/O 轮次，避免连续权限查询阻塞 HTTP。每次等待后先检查关闭与项目移除；卡片相对本轮观察或来源查询前发生任何变化，就放弃该项旧结果，保留人工编辑、新卡和当前来源修订。最后读取、比较及写入同步完成；不缓存目录或权限，不改变后台触发时间和整理规则。交错与公平性回归见 `tests/knowledge-reconcile-fairness.test.ts`。

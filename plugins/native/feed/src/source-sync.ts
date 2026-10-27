@@ -89,6 +89,12 @@ export class PublicSourceSync {
       await beforeEffect();
       return await this.commitPublicResult(source, running, result, runtime, write);
     } catch (error) {
+      // A pull refused for its source keeps no receipt, as one the platform refused inside the pull does: the same key pulls again, and what
+      // was fetched for the source as it was is never replayed into it (FI-C-05). A call that may no longer write leaves the record, which the
+      // run still names; a pull that committed keeps it for an explicit retry.
+      if (beforeEffect.refused && this.feed.getSourceRunByOperationId(this.projectId, operationId)?.phase !== "terminal") {
+        await runtime.discard?.().catch(() => undefined);
+      }
       await beforeEffect();
       const current = this.feed.getSourceRunByOperationId(this.projectId, operationId);
       // The pull may have committed before a downstream judgment was cancelled.

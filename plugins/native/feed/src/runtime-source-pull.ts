@@ -53,6 +53,8 @@ export function createRuntimePublicFeed(pull: PluginSourcePullClient, source: Fe
     content: { has: contentRef => available.has(contentRef) },
     writtenContentRefs: () => [...written],
     publicFeedReceipt: () => receipt,
+    // The platform forgets a pull it refused inside the pull; one the sync refuses after it returned is forgotten here.
+    ...(pull.forget ? { discard: async () => { await pull.forget!([operationId]); } } : {}),
     shutdown: async () => {},
   };
 }

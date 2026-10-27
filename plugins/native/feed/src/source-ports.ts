@@ -22,6 +22,8 @@ export interface PublicFeedRuntime {
   /** The evidence bodies this runtime has written so far, including those of a pull that never reached a result. */
   writtenContentRefs?(): readonly string[];
   publicFeedReceipt?(): RssFetchReceipt | null;
+  /** Forgets this pull's search record, for a pull the sync refused before committing it; absent when the runtime keeps none. */
+  discard?(): Promise<void>;
   shutdown(): Promise<void>;
 }
 export interface FeedSourceProviders {

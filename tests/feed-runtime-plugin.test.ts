@@ -1138,6 +1138,8 @@ test("FI-C-07 a start the Home's ledger first refuses still names the library's 
 type SourceChange = "pause" | "configure" | "delete";
 const SOURCE_CHANGES: readonly SourceChange[] = ["pause", "configure", "delete"];
 const SOURCE_REFUSALS = new Set(["feed.source_paused", "feed.source_not_found", "feed.source_configuration_changed", "feed.source_changed"]);
+/** Where the platform keeps the search record of each pull (`intent-run/<scope>/<sha256 of the operation id>`). */
+const PULL_RECORDS = "search-evidence-layer/molis-work/feed-intent-v2/data/operation/v1";
 
 function changeSource(store: LocalProjectDatabase, sourceId: string, change: SourceChange): void {
   if (change === "pause") store.db.prepare("UPDATE feed_sources SET enabled = 0, status = 'paused' WHERE source_id = ?").run(sourceId);
@@ -1152,11 +1154,16 @@ async function sweepSourceChanges(store: LocalProjectDatabase, checks: number, a
     .all() as Array<{ name: string }>).map(row => row.name);
   assert.ok(["feed_items", "feed_source_runs", "inbox_entries", "listener_deliveries"].every(name => tables.includes(name)), tables.join());
   const snapshot = () => JSON.stringify(tables.map(table => db.prepare(`SELECT * FROM "${table}"`).all()));
-  const runs = (sourceId: string) => db.prepare("SELECT * FROM feed_source_runs WHERE source_id = ? ORDER BY run_id").all(sourceId) as Array<{ run_id: string }>;
-  const tally = { refused: { pause: 0, configure: 0, delete: 0 } as Record<SourceChange, number>, midPull: 0, pulledChanged: 0, inTransaction: 0 };
+  /** The rows that differ between two snapshots, by table: `+table row` written, `-table row` removed. */
+  const differences = (before: string, after: string) => tables.flatMap((table, index) => {
+    const was = new Set((JSON.parse(before) as unknown[][])[index]!.map(row => JSON.stringify(row))), is = new Set((JSON.parse(after) as unknown[][])[index]!.map(row => JSON.stringify(row)));
+    return [...[...is].filter(row => !was.has(row)).map(row => `+${table} ${row}`), ...[...was].filter(row => !is.has(row)).map(row => `-${table} ${row}`)];
+  });
+  const runs = (sourceId: string) => db.prepare("SELECT * FROM feed_source_runs WHERE source_id = ? ORDER BY run_id").all(sourceId) as Array<{ run_id: string; operation_id: string }>;
+  const tally = { refused: { pause: 0, configure: 0, delete: 0 } as Record<SourceChange, number>, midPull: 0, pulledChanged: 0, inTransaction: 0, ownRecordForgotten: 0 };
   for (let k = 1; k <= checks + 2; k += 1) {
-    const change = SOURCE_CHANGES[k % 3]!, { sourceId, call } = attempt(k), runsBefore = runs(sourceId).length, what = `${change} at check ${k}`;
-    let atChange: { tables: string; runs: Array<{ run_id: string }> } | undefined, seen = 0;
+    const change = SOURCE_CHANGES[k % 3]!, { sourceId, call } = attempt(k), before = runs(sourceId), runsBefore = before.length, what = `${change} at check ${k}`;
+    let atChange: { tables: string; runs: Array<{ run_id: string; operation_id: string }> } | undefined, seen = 0;
     const who: ActionCallContext = { actor_id: OWNER, project_id: DEMO_PROJECT_ID, audience: "user", permissions: [...SYNC], assert_authority_current: () => {
       if (++seen !== k) return;
       if (db.inTransaction) { tally.inTransaction += 1; return; }
@@ -1174,7 +1181,19 @@ async function sweepSourceChanges(store: LocalProjectDatabase, checks: number, a
       assert.ok(after.length > at.runs.length, `${what}: the pull that wrote began after the change`);
       tally.pulledChanged += 1;
     } else {
-      assert.equal(snapshot(), at.tables, `${what}: nothing of the pull was written after the change`);
+      // A pull refused for its source keeps no receipt: the platform forgets that pull's own search record, so the same key pulls again
+      // (createSourcePullPort). Removing that one record is the only difference a refusal may leave; nothing else goes and nothing is written.
+      const pulls = new Set(at.runs.filter(run => !before.some(old => old.run_id === run.run_id)).map(run => createHash("sha256").update(run.operation_id, "utf8").digest("hex")));
+      const ownRecord = (difference: string) => {
+        if (outcome === null || !difference.startsWith("-feed_runtime_blobs ")) return false;
+        const row = JSON.parse(difference.slice("-feed_runtime_blobs ".length)) as { namespace: string; key: string };
+        const pull = /^intent-run\/[0-9a-f]{64}\/([0-9a-f]{64})$/u.exec(row.key);
+        return row.namespace === PULL_RECORDS && pull !== null && pulls.has(pull[1]!);
+      };
+      const changed = differences(at.tables, snapshot());
+      const left = changed.filter(difference => !ownRecord(difference));
+      assert.deepEqual(left, [], `${what}: nothing of the pull was written after the change (${String(outcome)}):\n${left.join("\n")}`);
+      if (changed.length > left.length) tally.ownRecordForgotten += 1;
       if (outcome !== null) {
         const code = (outcome as { code?: unknown }).code;
         assert.ok(typeof code === "string" && SOURCE_REFUSALS.has(code), `${what}: refused for its source, not otherwise: ${String(outcome)}`);

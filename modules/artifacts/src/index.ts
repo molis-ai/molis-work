@@ -136,7 +136,7 @@ export {
 
 export { ARTIFACTS_HOST_PRODUCER } from "./artifact-host-producer.js";
 export { ARTIFACTS_PLUGIN_ID, ARTIFACTS_PROJECT_PLUGIN_ID, ARTIFACTS_PROVIDER_ID, ARTIFACTS_PROVIDER_TITLE, ARTIFACT_PRODUCER } from "./artifact-provider.js";
-export { artifactsActions, ARTIFACT_ACTIONS, ARTIFACT_ACTION_PERMISSIONS, createArtifactActionHandlers } from "./artifact-actions.js";
+export { artifactsActions, ARTIFACT_ACTIONS, ARTIFACT_ACTION_PERMISSIONS, createArtifactActionHandlers, artifactGoalRelations } from "./artifact-actions.js";
 export type { ArtifactActionPorts, ArtifactFileImport, ArtifactExternalImport, ArtifactImportResult, ArtifactPluginInput } from "./artifact-actions.js";
 export { artifactsErrors } from "./artifact-errors.js";
 export { openArtifactProjectReference } from "./artifact-project-reference.js";

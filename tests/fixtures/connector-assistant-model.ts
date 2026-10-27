@@ -12,7 +12,10 @@ export type ScriptedCall = { name: string; input: unknown };
 /** A real loopback model transport with deterministic replies; no external account or model is used. */
 export async function scriptedModelServer(t: TestContext, script: (body: Record<string, unknown>, turn: number) => ScriptedCall | string, review: (given: string) => string[] = () => []) {
   const requests: Record<string, unknown>[] = [], allRequests: Record<string, unknown>[] = [];
+  const transportRequests: Array<{ method: string | undefined; url: string | undefined }> = [];
   const server = createServer(async (request, response) => {
+    // Count every actual HTTP request before its body is read, parsed or classified as background work.
+    transportRequests.push({ method: request.method, url: request.url });
     const chunks: Buffer[] = []; for await (const chunk of request) chunks.push(Buffer.from(chunk));
     const raw = Buffer.concat(chunks).toString("utf8"), body = JSON.parse(raw) as Record<string, unknown>;
     // The Home's background knowledge cards (specs/project-knowledge §5) are answered aside and kept out of both lists: they are not the assistant's calls.
@@ -28,11 +31,11 @@ export async function scriptedModelServer(t: TestContext, script: (body: Record<
   t.after(async () => { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); });
   const address = server.address(); assert.ok(address && typeof address !== "string");
   const base = `http://127.0.0.1:${address.port}`;
-  return { requests, allRequests, base };
+  return { requests, allRequests, transportRequests, base };
 }
 
 export async function connectorAssistantModel(t: TestContext, home: string, script: (body: Record<string, unknown>, turn: number) => ScriptedCall | string, review: (given: string) => string[] = () => []) {
-  const { requests, allRequests, base } = await scriptedModelServer(t, script, review);
+  const { requests, allRequests, transportRequests, base } = await scriptedModelServer(t, script, review);
   await runWithMolisWorkHome(home, () => withMolisWorkProjectCatalog({ homeDirectory: home }, catalog => {
     const connection = withConnectorConnections(home, store => {
       const row = store.createToken({ serviceId: "model-api", displayName: "Scripted model", token: "fixture-loopback-model" });
@@ -41,7 +44,7 @@ export async function connectorAssistantModel(t: TestContext, home: string, scri
     catalog.models.upsert({ credential_ref: connection.credential_ref!, provider_id: "setup-fixture", display_name: "Local setup test", base_url: base,
       api_format: "anthropic-messages", models: [{ model_id: "fixture", enabled: true }] });
   }));
-  return { requests, allRequests };
+  return { requests, allRequests, transportRequests };
 }
 
 /** Inspect result data, never contract definitions returned by capability discovery. */

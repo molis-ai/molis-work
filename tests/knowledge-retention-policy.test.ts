@@ -61,7 +61,7 @@ async function fixture(t: import("node:test").TestContext) {
           const id = (input as { subject_id: string }).subject_id, note = row(id), subject = { kind: "note", id };
           if (!note) return { subject, state: "deleted", retained: null };
           return note.state === "archived" ? { subject, state: "temporarily_archived", retained: { content_revision: String(note.revision), restoration_operation_id: null } }
-            : { subject, state: "active", retained: note.operation ? { content_revision: String(note.revision), restoration_operation_id: String(note.operation) } : null };
+            : { subject, state: "active", current_revision: null, retained: note.operation ? { content_revision: String(note.revision), restoration_operation_id: String(note.operation) } : null };
         } },
       ] });
   };
@@ -282,7 +282,7 @@ test("MEM-40 S-71 a returned search hit cannot survive deletion or borrow a repl
       },
       retention: async (access, identity, views) => {
         const result = await readSubjectRetention(access, identity, views);
-        if (change === "replaced") f.cards.put({ ...original, provider_id: "another-provider", source_key: "another-source", retention: { generation: "install-2", restoration_operation_id: null } });
+        if (change === "replaced") f.cards.put({ ...original, provider_id: "another-provider", source_key: "another-source", retention: { source_identity: { kind: "plugin-installation", generation: "install-2" }, restoration_operation_id: null } });
         if (change === "excluded") f.cards.put({ ...original, excluded: true });
         return result;
       } });
@@ -444,7 +444,7 @@ test("MEM-40 S-71 a never-card body cannot acquire a newer installation's identi
   const f = await fixture(t); f.add("old-reader");
   let swapped = false;
   const access: KnowledgeAccess = { ...f.access, client: {
-    discover: caller => f.actions.discover(caller), invoke: async (caller, reference, input) => {
+    discover: caller => f.actions.discover(caller), captureSources: scopes => f.actions.captureSources(scopes), invoke: async (caller, reference, input) => {
       const value = await f.actions.invoke(caller, reference, input);
       if (reference.capability_id === "notes.read" && !swapped) { swapped = true; f.bind("install-2"); }
       return value;

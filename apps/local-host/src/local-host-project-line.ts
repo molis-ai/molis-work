@@ -96,6 +96,23 @@ export class ProjectLine<Runtime> {
     return entry.state === "ready" && this.entries.get(entry.reference.storage_key) === entry;
   }
 
+  /** Capture an already opened entry without creating one; a close/reopen never revives its guard. */
+  captureReady(reference: LocalHostProjectReference): () => void {
+    this.assertCompatibleReference(reference);
+    const entry = this.entries.get(reference.storage_key);
+    const check = () => {
+      if (!entry || !this.isReady(entry)) throw hostErrors.project_closing("来源捕获需要已打开且仍有效的项目运行环境");
+    };
+    check(); return check;
+  }
+
+  /** A deny-only batch may contain several independently authorized projects; each must already have one ready instance. */
+  captureProjectReady(projectId: string): () => void {
+    const matches = [...this.entries.values()].filter(entry => entry.reference.project_id === projectId);
+    if (matches.length !== 1) throw hostErrors.project_closing("来源项目没有唯一且已打开的运行环境");
+    return this.captureReady(matches[0]!.reference);
+  }
+
   ensureEntry(reference: LocalHostProjectReference): RuntimeEntry<Runtime> {
     this.host.assertRunning();
     const normalized = normalizeReference(reference);

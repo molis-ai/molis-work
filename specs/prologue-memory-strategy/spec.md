@@ -3802,7 +3802,7 @@ ActionService在共用execute的command handler实际入场与原handler实际�
 
 Full 本轮已核五个失败分片的原日志：导航/CDP 前置超时、窄屏历史点击被侧栏提示遮挡，以及一次代码着色帧耗时超门，分别保留，不能统称旧失败或用重试通过抹除。原重试没有输出再次失败堆栈，其最终根因仍未知。只读核收为 `/private/tmp/molis-app-a77-full-40515916043/audit.md`；原 a77 Full 继续收完后再归并修正。
 
-#### 系统资料来源的当前实例身份（2026-10-27用户已批准实现与隔离演练，尚未实现）
+#### 系统资料来源的当前实例身份（2026-10-28已实现并完成隔离演练，最终交付门仍开放）
 
 旧PDF与成果卡现在可以完整查看，但当前系统来源没有插件安装代，不能完成本人关联后供Agent读取的闭环。平台不能给它们伪造插件安装事实。现Registry注册token只在进程内有效，Home标识由路径产生，项目业务ID可被重用；现有字段都不能证明重启前后仍是同一份项目数据。保持空候选是安全现状，不是本项验收完成。
 
@@ -3832,3 +3832,44 @@ Full 本轮已核五个失败分片的原日志：导航/CDP 前置超时、窄�
 Search 也记录同一来源身份，是因为其当前保留绑定仅核插件代：如果只给 Knowledge 增加身份，Search 的 query/open/context 仍不能区分相同项目 ID 下的新旧系统数据。这是现派生缓存的形状升级，不新增业务库迁移或另一套身份服务。无现行身份的旧索引不作为证据。Knowledge 私库升 4；`knowledge.card.bind-preview/bind` 升 2，返回卡形状的 `knowledge.cards/edit/exclude` 升 4；retention 通用 helper 与 Coding 动作同步升 3，新增 Artifacts retention 动作使用同一现行合同。所有变更同 PR 更新消费者、声明及快照，不保留读取兜底。
 
 原 `adoption.source_revision` 仅记录本人当时确认的版本；后续核验应使用当次被展示/读取/派出的 card 或 piece 版本，不能拿新版本为旧摘要放行，也不能让原采用版本永久阻止新内容整理。身份、可用性和当前版本均从既有主人获得，不另存生命周期状态。
+
+### 2026-10-28 三个模型入口的当前路径与有限剩余项
+
+本节核对 App `a77b0e688` 与 Prologue `b2fa9bbf4` 之上的本轮改动，记录已经落入源码的调用链及尚待验证的边界，不增加实现范围或审批门。前述系统来源提案已有源码实现，仍未完成最终包、统一集成与旧库旅程验收。本次独立核查只读代码与测试源码，未运行测试或构建；下列用例名表示现有覆盖意图，不能据此登记通过。
+
+来源正文、精确版本和生命周期归原提供方；项目实例身份归 Projects；人工字段、排除状态与机器摘要归 Knowledge。系统 Artifacts 的 `sourceRevision` 复用原 artifact 事件游标和同调用人、同项目的 Goal 关系投影。先由原 retention/reader 证明当前对象可用及版本，再以捕获的身份、原注册、命令活动和 owner 修订否决等待期间的变化；缺少系统读口明确不可用，不回落到索引或未知状态。
+
+| 入口 | 原主人及实际传递链 | 等待后与结算时检查 | 对应用例及当前证据边界 |
+| --- | --- | --- | --- |
+| Assistant 资料目录与计数 | Knowledge `catalog/tally` 的 `sourceCapture/assertCardsCurrent` → `assistant-directory` → `AssistantRoundMaterials.beforeDispatch/assertCurrent` → `AssistantDispatch` 的 `AgentStartAuthority.assertBeforeDispatch` → AgentHost `startGuards` / Prologue start input → `prologue-run.dispatchGuard` | 同一 Host 的原 scopes 在全部异步资料 guard 之前捕获为一个 batch；异步末端和每次实际 send 都先核来源，再逐卡做无外部回调的纯读取。结果仍由原 Run/Effect 与回执结算；后续业务写入仍须原 beforeEffect，本片不新增 Knowledge 结果写入，也不宣称能撤回已经发出的材料 | `knowledge-round-fact.test.ts` 的两个 card exclude/edit 用例已改到真实 SDK 同 handle 最后授权等待，走 Web/Assistant/AgentHost/Node；原资料异步检查已完成，再改变原卡，目标原始 HTTP 零增量。直接拒绝时 failed/dispatched=false，Agent终态清理后该handle cancelled/dispatched=false，业务Run仍失败；最终统一回归已通过 |
+| 明确整理 organize | KnowledgeOrganizer 持有原卡；`knowledgeSourceAuthority` 持有原 reader/来源权限 → `knowledgeModelWriter` → `hostTextGeneration` / `completeTextRequest` → Prologue inference | 每次派出先重新准备来源；最终 `authorized.assertCurrent` 后仅纯读原卡的版本、状态、来源、人工字段与 excluded。返回后重新核来源，再比原卡，最后同一同步尾部写入；卡片被排除或编辑时，不以旧成功或失败覆盖人工决定 | `knowledge-plugin-source-capture.test.ts` 的 `MEM-SOURCE-CARD organize` 已迁到真实 Web/Action/Node 的原 App network hook 等待，不补造Agent SDK回调；首轮两项因测试重复关闭Search而退出超时；按原Host统一关闭后通过，时限及拒发断言不变。原来源公开归档的真实最后等待反例已通过；`knowledge-source-retention.test.ts` 已有真实 Coding 已派出后同内容归档结算路径 |
+| 选节 locate | Knowledge `preparedOutline` 从原 source-read 读取固定正文，保存原卡与分节摘要 → `locateSections` → `knowledgeModelLocator` → 同一 HostText / inference 链 | 全部异步 outline/权限 guard 完成后，统一核来源 batch，再逐卡纯读；同一 assert 交到实际 send。结果返回后再核原 reader、版本、权限及全部卡片，才返回选节；不写整理卡、不为失效结果记正文 receipt | `knowledge-plugin-source-capture.test.ts` 的 `MEM-SOURCE-CARD locate` 已迁到真实公开Action/Node的原 App network hook 等待；首轮两项因同一重复关闭而退出超时；按原Host统一关闭后通过，时限及拒发断言不变。原来源公开归档的真实最后等待反例及派出前/模型等待中归档用例已通过，不冒充最终 App 全旅程 |
+
+三条链在同一 Node Host 汇合：异步上下文保留派出 guard，`beforeNetworkDispatch` 完成异步准备后返回同步 fence。Assistant Agent 请求还具有 SDK 同 handle 最终授权；bounded Session.startRun 的 organize/locate 没有该 Agent 专用回调，不能由测试补造。实际已装配的 SDK 授权完成后执行 App fence → 取消检查，之后 transport `beforeSend` 在实际 fetch/http request 前调用同一 fence。HTTPS 代理的 CONNECT 等待结束后再检查，拒绝时销毁隧道。App fence 中的来源/授权回调先完成，再读 owner 修订及纯生命周期/注册/命令事实，最后只读 Knowledge 卡片；尾部到发送或卡片提交不再 await。此合同仅覆盖原 ModelNetworkPort 的 Node HTTP 路径，不扩到外部 CLI 或其他后端。
+
+派出事实仍归 SDK/Host。第一次网络 fence 直接拒绝可证明 `dispatched=false`；CONNECT 或较早重定向已发生时保留保守的 `dispatched=true`、`retryable=false`，目标模型零请求不能改写为整次从未派出。普通来源拒绝保留原因与稳定错误码，异步 fence 作为协议错误拒绝；取消/超时保留原义，不自动换目标或重放。共享覆盖见 SDK `host-dispatch-fence.live.test.ts`、`host-enterprise-network.live.test.ts`，以及 App `prologue-inference-native.test.ts` 的最后 SDK 等待、并发隔离、复用 Error 与 CONNECT 用例；这些不是每个入口各自完成了代理端到端验收。
+
+同内容归档仅允许已经发出的 organize 结果按原合同结算：原 owner 必须给出与当次 piece 一致的 retained 内容版本，同时当前权限和原卡人工状态仍有效，且不得追加模型调用。Coding 有可信原内容版本的路径继续保留；旧未知版本仍拒绝。Artifacts 没有归档时的 Goal 关系快照，`retained.content_revision=null` 不能证明同内容，故放弃旧结果，保留原卡；不补造历史关系或恢复号。locate 归档后不返回旧选节，Assistant 的发送检查不承诺撤回已发请求。
+
+当前收束状态如下，Root 在同一集成批收束，不另建台账，也不按入口、状态、传输方式展开笛卡尔测试矩阵：
+
+1. **插件来源补充已实现，公开归档窗口已验证。** `captureKnowledgeSources`、目录 `sourceCapture` 和 `knowledgeSourceAuthority.capture` 已纳入可信 `plugin-installation`，沿原精确注册、Runtime 当前状态/授权及公开命令标记只作否决。原异步 Catalog 仍在 prepare/invoke/revalidation 核验，不把补充观察当同步重授权，不证明绕过 ActionService 的后台或外部写入。`knowledge-plugin-source-capture.test.ts` 对 Search 及 Assistant/organize/locate 使用真实 Coding 公开归档，Assistant在最后SDK授权等待、organize/locate在原App hook等待，核同代身份、原卡未变、原始目标 HTTP 零增量和真实派出事实。四项已通过。原卡edit/exclude的四项公开链验证在修正测试关闭主人后4/4通过，原首轮超时保留；不以归档证据代替。
+2. **冻结源码的本地集成已完成，最终提交CI待跑。** SDK准确96745153的原quality/pack通过，828个dist及包元数据与App安装核对；统一构建、上表消费链及共享Node/CONNECT回归通过。Assistant两个反例在真实SDK最后授权等待中排除或编辑，目标HTTP为零；bounded四项走原App hook。新增主干改动仍按实际影响补验，已有有效证据不机械重跑。
+3. **旧库采用完整旅程已完成隔离演练。** 使用代表性、非空的历史构建副本，沿同一选集完成：停写及备份 → 显式维护项目/Coding/Knowledge，重建 Search → 本人预览并关联精确来源与版本 → 读取及原决定重试 → 退出重启 → 一致完整恢复和保留目标身份的部分恢复。最终核对来源身份、精确版本、当前权限、人工字段、excluded、旧机器材料、计数与回执；未确认卡保持未绑定，不伪造历史来源或版本，恢复零自动模型。对应基础用例已在 `project-data-instance-maintenance.test.ts`、`legacy-memory-adoption.test.ts`、关联 UI 与 source-retention 文件，但分散用例不替代这条代表性旅程，不操作真实 Home。
+4. **原交付门保持开放。** 最终提交完整 CI、现有资源额度、1000 条性能门及最终 App/用户验收仍按原标准报告。局部用例、静态核查或包构建通过均不代表 P0、旧库闭环或整项交付完成；失败、未跑与真人才能确认的项目分别保留。
+
+
+2026-10-28 初次候选包集成（历史记录，最终quality结果见下段）：SDK 最终来源否决已提交并推送现有 Draft #108 的 `e61a6013`。Root 从该提交 git archive 在独立目录以原锁文件离线安装、原 build/pack，828 个 dist 与独立构建逐字节相同，package.json 与前包相同；包 1,412,463 B。当前 SDK 完整 quality 仍有超时失败，Node24.14 的原始 TCP 对照也在新进程首次连接复现约 3 秒，换 IPv4/IPv6 顺序相同；Python 与现有系统 Node 对照约 10ms，具体环境原因待核。该包用于本隔离树的统一 App 集成验证，不表示完整质量、性能、恢复或交付门通过。原时限、重试和权限门未改。
+
+
+2026-10-28 验证收束更新：SDK 准确 `96745153` 的原完整 quality 已自然退出0（73文件770项、原干净安装消费者及Rust检查）；源码变更相对e61仅测试和文档，原pack与已安装候选逐字节相同。此前单独运行首次 connect 通知约3秒的失败仍保留，不能称系统原因已修复。App统一构建通过；第一轮消费回归暴露两类测试假设错误：Agent拒绝后真实清理会cancel该handle，最终inspect不同于直接Host拒绝瞬间；bounded调用没有Agent专用SDK beforeDispatch。相关验证已改为观察拒绝瞬间/清理后的准确事实，并在各自真实等待口挂起，不增加空fence；此前四项被注入等待的绿色结果不作为生产bounded最终等待验收。另修搜索首次资格判定中过时卡的省略语义，grep全unread保留结构化失败且不产正文/回执；当前定向复验中。
+
+代表性旧库旅程已在真实旧构建 `71c26f224`（SDK90e）创建的非空隔离Home运行：三份Artifact、原机器摘要、人工标题/关键词、excluded与Coding归档记录，连续完成Project10→11、Knowledge3→4、Coding4→4保留、Search重建、本人HTTP预览/关联、角色与权限拒绝、原决定重试、独立进程重启、同路径一致完整恢复、同business id但新实例的部分恢复。Root核对临时驱动与逐阶段/持久化结果：原内容/版本/人工字段/旧机器材料/未确认卡及既有回执保留；完整恢复保留原instance，部分恢复不覆盖目标instance、不自动重绑，旧原决定与读请求拒绝且无新回执。旧seed经本机模型HTTP整理3次，此后六阶段均0模型请求，无产品失败重试。临时结果为`/private/tmp/memory-adoption-journey-20261028/result.json`及`persistence-audit.json`；真实HTTP/Action、磁盘与独立进程证据，不冒称Chrome界面、最终打包App、Coding旧版迁移或真人验收。事务中断/项目已提交后Knowledge失败的恢复另由维护回归覆盖，分开报告，不伪称本旅程经历了中途崩溃。
+
+2026-10-28 公开链首轮与资源复核：非空关联页面2项和隐藏保留页面1项浏览器回归通过；原retention-policy 28项、Artifact retention 4项通过。SOURCE-CAPTURE四项Search/Assistant/organize/locate均通过；新迁入公开链的四项MEM-SOURCE-CARD在原60秒时限超时，先缩小单例定位，未加时限或重试。包边界通过；健康门当时剩余已在71c修复的旧注释/console，以及缩短提示后的英文映射。实际knowledge.js为31,720 B，低于已批准31,721 B；安全身份复制与冻结未删，不新增资源额度。
+
+2026-10-28 本批最终本地结果：上述四项超时已定位为测试手动关闭Search，fixture随后关闭Host时再次关闭同SQLite，阻断其余资源退出。改走原Host统一关闭后4/4通过，25.2秒，原时限与全部断言不变。真实拒发在关闭前已确认；关闭后的整卡保留不冒称自然整理结算。定位时默认沙箱下的Node原生中止另存；补齐原真实回环执行权限后才复现测试退出问题，不将两类失败混为一个原因。上表organize/locate及剩余项1中的待验四项以本段最终结果为准，原失败保留。
+
+SDK准确96745153原完整quality与原pack通过，828个dist及包元数据与App安装核对，统一构建及来源/Node/CONNECT定向回归通过。旧构建非空副本的采用、重启和完整/部分恢复已完成上段隔离演练。71c四处代码/测试修复及原CI失败记录已保留；英文映射同步。资源已按原门登记实测下降：48项7,463,125 B，knowledge.js31,720 B，无新增额度。最终主干整合、提交CI、性能及用户验收仍未关闭。
+
+最终质量对照存在资料缺口：10月22日完整B1答卷原先仅存于sourceReports指向的临时文件，当前原件不存在；仓库仅保留汇总，会话工具输出的答卷也已截断。汇总不能冒充完整逐条盲评依据，已询问是否另有完整副本。尚未启动新的付费批，不擅自重跑B1、不减少原样本或放宽质量/成本验收；既有新批至多192次实际尝试的授权保留。

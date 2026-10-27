@@ -1,11 +1,12 @@
 import { collectRun, type ExactRef, type Runtime } from "@prologue/sdk";
 import { withInferenceImages } from "./prologue-inference-materials.js";
-import { PrologueInferenceError, isDispatchRefusal, markDispatchRefusal, type PrologueCredentialInput, type PrologueInferenceClient, type PrologueTextInput, type PrologueTextResult } from "../inference.js";
+import type { DispatchGuard } from "./prologue-node-kit.js";
+import { PrologueInferenceError, isDispatchCheckFailure, markDispatchRefusal, type PrologueCredentialInput, type PrologueInferenceClient, type PrologueTextInput, type PrologueTextResult } from "../inference.js";
 
 /** Borrows the owning Runtime; never constructs a Host or a second model execution path. */
 export function createPrologueInference(runtime: Runtime,
   credential: (input: PrologueCredentialInput, signal: AbortSignal, optional?: boolean) => Promise<{ ref?: ExactRef<"credential">; assertCurrent(): Promise<void> }>,
-  withDispatchGuard: <T>(guard: () => Promise<void>, operation: () => Promise<T>) => Promise<T>,
+  withDispatchGuard: <T>(guard: DispatchGuard, operation: () => Promise<T>) => Promise<T>,
 ): PrologueInferenceClient & { close(): Promise<void> } {
   const active = new Map<AbortController, Promise<unknown>>();
   let closed = false;
@@ -22,18 +23,35 @@ export function createPrologueInference(runtime: Runtime,
   const execute = <T>(input: PrologueCredentialInput, signal: AbortSignal, optional: boolean, operation: (ref: ExactRef<"credential"> | undefined, check: () => Promise<void>) => Promise<T>): Promise<T> => (async () => {
     const prepared = await waitForInference(credential(input, signal, optional), signal);
     let refused: Error | undefined;
+    let fencePassed = false;
+    const refuse = (error: unknown) => {
+      if (!signal.aborted && error instanceof Error) refused = markDispatchRefusal(error, !fencePassed);
+    };
     const checkCurrent = async (check: PrologueCredentialInput["beforeDispatch"]) => {
       signal.throwIfAborted(); await waitForInference(prepared.assertCurrent(), signal); signal.throwIfAborted();
       await waitForInference(Promise.resolve(check?.()), signal); signal.throwIfAborted();
     };
+    const fence = () => {
+      try {
+        signal.throwIfAborted();
+        const checked: unknown = input.assertCurrent?.();
+        if (checked !== undefined) {
+          if (checked !== null && (typeof checked === "object" || typeof checked === "function") && "then" in checked) void Promise.resolve(checked).catch(() => {});
+          throw new PrologueInferenceError("agent.inference.invalid_dispatch_fence", "派出前的最终检查必须同步完成");
+        }
+        signal.throwIfAborted();
+        // A later refusal cannot establish that an earlier send (or CONNECT) never happened.
+        fencePassed = true;
+      } catch (error) { refuse(error); throw error; }
+    };
     const guard = async () => {
-      try { await checkCurrent(input.beforeDispatch); }
-      catch (error) { if (!signal.aborted && error instanceof Error) refused = markDispatchRefusal(error); throw error; }
+      try { await checkCurrent(input.beforeDispatch); return fence; }
+      catch (error) { refuse(error); throw error; }
     };
     try {
       await guard();
       return await withDispatchGuard(guard, async () => {
-        const value = await operation(prepared.ref, guard);
+        const value = await operation(prepared.ref, async () => { await guard(); });
         await checkCurrent(input.afterResult ?? input.beforeDispatch);
         return value;
       });
@@ -103,7 +121,7 @@ export function createPrologueInference(runtime: Runtime,
   };
 }
 function safeError(error: unknown): Error {
-  if (error instanceof PrologueInferenceError || isDispatchRefusal(error)) return error;
+  if (error instanceof PrologueInferenceError || isDispatchCheckFailure(error)) return error;
   const code = typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" ? error.code : "agent.inference.failed";
   const status = typeof error === "object" && error !== null && "status" in error && typeof error.status === "number" && Number.isInteger(error.status) && error.status >= 400 && error.status <= 599 ? error.status : undefined;
   return new PrologueInferenceError(code, "模型请求失败，原材料已保留", status);

@@ -2,12 +2,13 @@ import { ActionError, bindWorkflowContentHandlers, defineWorkflowContentActions,
 import type { ArtifactConsumerType, ArtifactReference, ArtifactsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { ARTIFACT_FILE_IMPORT_ACTION, ARTIFACT_SUBJECT_KIND, artifactSubjectId, importedDocumentFile, parseArtifactSubjectId, type ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
-import { readArtifactBrowser, readArtifactSelection, exportArtifactVersion, requireArtifactAnalysisRecord, artifactAnalysisContext, artifactVersionPath, importedFileOf, type ArtifactBrowserView } from "./artifact-browser.js";
+import { readArtifactBrowser, readArtifactSelection, exportArtifactVersion, requireArtifactAnalysisRecord, artifactAnalysisContext, artifactAnalysisRevision, artifactVersionPath, importedFileOf, type ArtifactBrowserView } from "./artifact-browser.js";
 import { readGoalArtifactEmbeds, type GoalArtifactEmbed } from "./artifact-goal-context.js";
 import { linkKindOf, type ArtifactLinkKind, type ArtifactLinkKinds } from "./artifact-link-kinds.js";
 import type { ExternalDocumentSource, ModelRequired } from "./artifact-document-import.js";
 import { DOCUMENT_ARTIFACT_TYPE } from "./artifact-document-type.js";
 import type { ConnectorConnectionView } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { defineSubjectRetentionAction } from "@molis-ai/molis-work-plugin-sdk";
 
 import { text, id, version, object, array, nullable, reference, consumerTypes, record } from "./plugin-action-schemas.js";
 const selection = { selected: nullable(record), requested: nullable(reference), compatibility: nullable(object({ artifact: reference,
@@ -70,10 +71,44 @@ function payloadText(value: unknown, title: string, field = "", out: string[] = 
   else if (typeof value === "object") for (const [key, item] of Object.entries(value)) payloadText(item, title, field === "cells" ? field : key, out, budget);
   return out;
 }
+
+/** Search and retention describe this same owner-projected summary; a fixed version alone cannot identify its rules. */
+function artifactSearchEntry(record: ArtifactVersionRecord): SearchEntry {
+  const summary = payloadText(record.payload, searchText(record.title)).join("\n").slice(0, 4000);
+  return { subject: { kind: ARTIFACT_SUBJECT_KIND, id: artifactSubjectId(record) }, revision: searchRevisionOf([`${record.version}:${record.content_digest}`, summary]),
+    title: record.title, summary, updated_at: record.created_at, content: record.artifact_type_id === DOCUMENT_ARTIFACT_TYPE ? "context" : "summary",
+    open: { surface: "artifacts", id: artifactVersionPath(record) } };
+}
+
+/** The exact relations used by document context and the Host's synchronous source revision. No text or history is projected. */
+export function artifactGoalRelations(ports: Pick<ArtifactActionPorts, "projectId" | "ledger" | "linkKinds">,
+  caller: { readonly actor_id: string }): Array<readonly [string, number, string[]]> {
+  const scope = { kind: "personal" as const, id: ports.projectId };
+  const currentProject = (project: string | null | undefined) => project == null || project === ports.projectId;
+  const groups = new Map<string, { id: string; version: number; goals: Set<string> }>();
+  for (const edge of ports.ledger.list({ actor_id: caller.actor_id, scope })) {
+    const kind = linkKindOf(ports.linkKinds, edge), version = edge.target.version;
+    if (kind === null || kind.proposal || edge.target.module !== "artifacts" || typeof version !== "number"
+      || !Number.isSafeInteger(version) || version <= 0 || !currentProject(edge.target.project_id) || !currentProject(edge.source.project_id)) continue;
+    const key = JSON.stringify([edge.target.id, version]);
+    const group = groups.get(key) ?? { id: edge.target.id, version, goals: new Set<string>() };
+    group.goals.add(edge.source.id); groups.set(key, group);
+  }
+  return [...groups.keys()].sort().map(key => { const group = groups.get(key)!; return [group.id, group.version, [...group.goals].sort()] as const; });
+}
+
+function artifactRelatedGoalIds(ports: ArtifactActionPorts, reference: ArtifactReference, caller: ActionExecutionContext): string[] {
+  return artifactGoalRelations(ports, caller).find(([id, version]) => id === reference.artifact_id && version === reference.version)?.[2] ?? [];
+}
+
+const retentionDefinition = defineSubjectRetentionAction("artifacts.subject.retention", ARTIFACT_SUBJECT_KIND, "固定版本成果", read);
+const retention: typeof retentionDefinition = { ...retentionDefinition,
+  action: { ...retentionDefinition.action, audiences: ["user", "agent", "workflow", "mcp"], plugin: false } };
 export const artifactsActions = {
   /** An imported file as the 成果库 and side panel show it (artifact-positioning A4): its text, or its original bytes. */
   preview: defineArtifactPreviewAction("artifacts.documents.preview", "导入的文件", read),
   subject,
+  retention,
   searchEntries,
   fileEntries,
   browser: define<{ reference?: ArtifactReference | null; supported_types?: ArtifactConsumerType[] }, ArtifactBrowserView>("browse", "浏览项目成果", "读取当前项目全部成果版本及指定的固定版本；保留原生产方、正文和可用状态", "query",
@@ -166,15 +201,28 @@ export function createArtifactActionHandlers(ports: ArtifactActionPorts): Action
       if (!reference) throw new ActionError("actions.input_invalid", "成果事项必须包含准确的成果 ID 和版本");
       const artifact = requireArtifactAnalysisRecord(ports.artifacts.query.getArtifactVersion(ports.projectId, reference),
         { project_id: ports.projectId, reference });
-      const scope = { kind: "personal" as const, id: ports.projectId };
-      // Edges in this project's ledger name this project or no project (Goals' input bindings name none).
-      const currentProject = (project: string | null | undefined) => project == null || project === ports.projectId;
-      const edges = ports.ledger.list({ actor_id: caller.actor_id, scope });
-      const goalIds = edges.filter(edge => { const kind = linkKindOf(ports.linkKinds, edge); return kind !== null && !kind.proposal
-        && edge.target.module === "artifacts" && edge.target.id === reference.artifact_id && edge.target.version === reference.version
-        && currentProject(edge.target.project_id) && currentProject(edge.source.project_id); })
-        .map(edge => edge.source.id);
-      return artifactAnalysisContext(artifact, goalIds, input as { offset?: number });
+      return artifactAnalysisContext(artifact, artifactRelatedGoalIds(ports, reference, caller), input as { offset?: number });
+    }),
+    bind(artifactsActions.retention, (input, caller): import("@molis-ai/molis-work-contracts/platform/actions").ActionSubjectRetention => {
+      const reference = parseArtifactSubjectId(input.subject_id);
+      if (!reference) throw new ActionError("actions.input_invalid", "成果事项必须包含准确的成果 ID 和版本");
+      const subject = { kind: ARTIFACT_SUBJECT_KIND, id: input.subject_id };
+      const metadata = ports.artifacts.query.getArtifactVersionMetadata(ports.projectId, reference);
+      if (!metadata) return { subject, state: "deleted", retained: null };
+      if (metadata.availability !== "available") throw new ActionError("actions.subject_unavailable", "这个成果版本不可用");
+      // The owner does not persist the Goal relations as of archival; today's projection cannot prove that old context.
+      if (metadata.lifecycle_state === "archived") return { subject, state: "temporarily_archived",
+        retained: { content_revision: null, restoration_operation_id: null } };
+      let revision: string;
+      if (metadata.artifact_type_id === DOCUMENT_ARTIFACT_TYPE && metadata.content_kind === "inline" && metadata.has_payload) {
+        revision = artifactAnalysisRevision(metadata, artifactRelatedGoalIds(ports, reference, caller));
+      } else {
+        // Search falls back to the summary when a document has no readable inline payload, just as for other types.
+        const artifact = ports.artifacts.query.getArtifactVersion(ports.projectId, reference);
+        if (!artifact) throw new ActionError("actions.subject_unavailable", "当前项目中找不到这个成果版本");
+        revision = artifactSearchEntry(artifact).revision;
+      }
+      return { subject, state: "active", current_revision: revision, retained: null };
     }),
     bindSearchEntriesHandler(artifactsActions.searchEntries, () => {
       const latest = new Map<string, ArtifactVersionRecord>();
@@ -183,15 +231,7 @@ export function createArtifactActionHandlers(ports: ArtifactActionPorts): Action
         const current = latest.get(record.artifact_id);
         if (!current || record.version > current.version) latest.set(record.artifact_id, record);
       }
-      return [...latest.values()].map((record): SearchEntry => {
-        const summary = payloadText(record.payload, searchText(record.title)).join("\n").slice(0, 4000);
-        // The summary is searched text read out of the payload by rules this build owns, so the revision covers it: an index made by an
-        // earlier build, with other rules, reads the entry again instead of keeping its old summary until the next version.
-        return { subject: { kind: ARTIFACT_SUBJECT_KIND, id: artifactSubjectId(record) }, revision: searchRevisionOf([`${record.version}:${record.content_digest}`, summary]),
-          // An imported document is read as its text, so its text is indexed and organized (specs/project-knowledge PMAT-14); other types keep their summary.
-          title: record.title, summary, updated_at: record.created_at, content: record.artifact_type_id === DOCUMENT_ARTIFACT_TYPE ? "context" : "summary",
-          open: { surface: "artifacts", id: artifactVersionPath(record) } };
-      });
+      return [...latest.values()].map(artifactSearchEntry);
     }),
     bindFileEntriesHandler(artifactsActions.fileEntries, () => {
       const latest = new Map<string, ArtifactVersionRecord>();

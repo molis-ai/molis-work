@@ -1,6 +1,7 @@
 import { actionEffect, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { KNOWLEDGE_PROVIDER_ID, knowledgeActions, knowledgeCatalogText, type KnowledgeListEntry } from "@molis-ai/molis-work-contracts/services/knowledge";
 import { directEligible } from "./assistant-authority.js";
+import type { KnowledgeDispatchGuard } from "@molis-ai/molis-work-service-knowledge";
 
 /** Capabilities named as not usable now are capped; the rest are counted, so the directory stays short. */
 const UNAVAILABLE_SHOWN = 12;
@@ -48,8 +49,8 @@ function unavailableLines(unavailable: readonly ActionView[]): string[] {
 }
 
 /** What the Host reads for a round's situation besides the directory itself. */
-export type KnowledgeMaterialGuard = (views: readonly ActionView[]) => Promise<void>;
-type WithKnowledgeGuard<T> = T & { beforeDispatch?: KnowledgeMaterialGuard };
+export type KnowledgeMaterialGuard = KnowledgeDispatchGuard;
+type WithKnowledgeGuard<T> = T & KnowledgeMaterialGuard;
 type MaybeAsync<T> = T | null | Promise<T | null>;
 export interface AssistantRoundFactPorts {
   knowledgeTally?(projectId: string, views: readonly ActionView[]): MaybeAsync<WithKnowledgeGuard<{ total: number; sources: Array<{ plugin_title: string; count: number }> }>>;
@@ -68,7 +69,7 @@ export async function knowledgeFact(ports: AssistantRoundFactPorts, projectId: s
   let tally: Awaited<ReturnType<NonNullable<AssistantRoundFactPorts["knowledgeTally"]>>>;
   try { tally = await ports.knowledgeTally(projectId, offered); } catch { return ""; }
   if (!tally?.total) return "";
-  if (tally.beforeDispatch) guards?.push(tally.beforeDispatch);
+  if (tally.beforeDispatch) guards?.push({ beforeDispatch: tally.beforeDispatch, sourceCapture: tally.sourceCapture, assertCardsCurrent: tally.assertCardsCurrent });
   return `这个项目的资料有 ${tally.total} 份（${tally.sources.map(source => `${source.plugin_title} ${source.count}`).join("、")}）。`;
 }
 
@@ -83,7 +84,7 @@ export async function knowledgeDirectory(ports: AssistantRoundFactPorts, project
   let catalog: Awaited<ReturnType<NonNullable<AssistantRoundFactPorts["knowledgeCatalog"]>>>;
   try { catalog = await ports.knowledgeCatalog(projectId, offered, words); } catch { return ""; }
   if (!catalog?.pieces.length) return "";
-  if (catalog.beforeDispatch) guards?.push(catalog.beforeDispatch);
+  if (catalog.beforeDispatch) guards?.push({ beforeDispatch: catalog.beforeDispatch, sourceCapture: catalog.sourceCapture, assertCardsCurrent: catalog.assertCardsCurrent });
   const input = (view: ActionView) => {
     const schema = view.action.input_schema as { properties?: Record<string, unknown>; required?: string[] };
     return Object.keys(schema.properties ?? {}).map(key => schema.required?.includes(key) ? `${key}（必填）` : key).join("、");

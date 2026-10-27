@@ -1,6 +1,6 @@
 import type { AsyncLocalStorage } from "node:async_hooks";
 import { SYSTEM_TOOL_NAMES, type AuditSink, type ExactRef, type ModelEvent, type Runtime, type Skill } from "@prologue/sdk";
-import type { createNodeHost } from "@prologue/sdk/node";
+import type { createNodeHost, NodeHostOptions } from "@prologue/sdk/node";
 import type { AgentActionClient } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { ActionView, ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PrologueAdapterPorts, PrologueStartInput } from "./prologue.js";
@@ -63,7 +63,8 @@ export interface PrologueNodeAdapterOptions extends PrologueAdapterPorts {
 }
 
 export type NodeHost = ReturnType<typeof createNodeHost>;
-export type DispatchGuards = AsyncLocalStorage<() => void | Promise<void>>;
+export type DispatchGuard = NonNullable<NodeHostOptions["beforeNetworkDispatch"]>;
+export type DispatchGuards = AsyncLocalStorage<DispatchGuard>;
 export type CommandEvent = Extract<ModelEvent, { type: "command-receipt" }>;
 /** The kinds of ending a round's stop check holds once each. */
 export type HeldKind = "memory" | "written" | "button" | "ids" | "saved" | "announce";

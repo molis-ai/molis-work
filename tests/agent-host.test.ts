@@ -763,3 +763,22 @@ test("Host resolves compaction separately from role prompts and rejects missing 
   await assert.rejects(host.start("compact", request, { ...granted, prompts: granted.prompts.map(p => ({ ...p, version: 1 })) }), /对应版本/);
   lie = true; await assert.rejects(host.start("compact", request, granted), /已取消/);
 });
+
+test("AgentHost.start forwards the continuing synchronous source fence without reusing its start-only fence", async () => {
+  const host = new AgentHost(), adapter = adapterFor({ runtimeId: "prologue" });
+  const start = adapter.start.bind(adapter);
+  let dispatchWindow = false, dispatchChecks = 0, targetStarts = 0;
+  adapter.start = async (request, execution) => {
+    await execution?.beforeDispatch?.();
+    execution?.assertBeforeDispatch?.();
+    targetStarts++;
+    return start(request, execution);
+  };
+  host.register(adapter);
+  await assert.rejects(host.start("prologue", startRequest("reader"), { ...authority,
+    assertBeforeStart: () => { assert.equal(dispatchWindow, false, "the start-only invocation fence must never become a dispatch fence"); },
+    beforeDispatch: async () => { dispatchWindow = true; },
+    assertBeforeDispatch: () => { dispatchChecks++; throw new Error("current source refused at dispatch"); },
+  }), /current source refused at dispatch/);
+  assert.equal(dispatchChecks, 1); assert.equal(targetStarts, 0);
+});

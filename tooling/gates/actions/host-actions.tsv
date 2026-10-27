@@ -74,6 +74,7 @@ artifacts.read	1	io.molis.work.artifacts	query	query	project	read	-	agent,mcp,us
 artifacts.references.open	1	io.molis.work.artifacts	query	query	project	read	-	agent,mcp,user,workflow	artifacts:read,workspace:read	artifact	-	-	84081a67f58c	64fbf61ca9ec	-
 artifacts.search.entries	1	io.molis.work.artifacts	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	artifacts:read	artifact	molis.search.entries.window.v1	molis.search.entries.page.v1	09d161bb4729	501913bfa17f	2429110d7c1b
 artifacts.subject.read	2	io.molis.work.artifacts	query	query	project	read	concurrent	agent,mcp,user,workflow	artifacts:read	artifact	molis.subject-reference.v1	molis.subject-context.v1	ab53aeec266b	07aea27d3e00	5e0374458cf9
+artifacts.subject.retention	3	io.molis.work.artifacts	query	query	project	read	concurrent	agent,mcp,user,workflow	artifacts:read	artifact	molis.subject-retention-request.v1	molis.subject-retention.v3	56056e2eba4c	2948ec03606c	5e0374458cf9
 characters.actions.catalog	1	io.molis.work.characters	query	query	project	read	-	agent,mcp,user,workflow	artifact:read	character	-	-	d746974fa9af	42fe29f1a110	-
 characters.artifacts.preview	1	io.molis.work.characters	query	query	project	read	concurrent	user,workflow	artifact:read	artifact	molis.artifacts.preview.request.v1	molis.artifacts.preview.v1	b5dd5a809ad7	3197f1792222	5e0374458cf9
 characters.create	1	io.molis.work.characters	command	operation	project	write	-	agent,mcp,user,workflow	-	character	-	-	d746974fa9af	478e0598d946	-
@@ -147,11 +148,11 @@ home.judgment.read	1	system.home	query	query	project	read	-	agent,mcp,user,workf
 home.judgment.write	1	system.home	command	operation	project	write	-	agent,mcp,user,workflow	home:write	-	-	-	561b3068099c	3bef9ab5352a	-
 home.recommendations.read	1	system.home	query	query	project	read	-	agent,mcp,user,workflow	home:read	-	-	-	99334726611c	1849cb2ba26c	-
 information.plan	1	system.information	query	query	project	read	concurrent	user	feed:read,inbox:read,model:invoke	-	-	-	8e2694dda5f5	4f388ba1b8eb	6249b1c8b85e
-knowledge.card.bind	1	system.knowledge	command	operation	project	write	concurrent	user	knowledge:manage	-	-	-	2e0e0535be59	2a3c3a68fbb9	5e0374458cf9
-knowledge.card.bind-preview	1	system.knowledge	query	query	project	read	concurrent	user	knowledge:manage	-	-	-	99b557e4a48f	314869ef434c	5e0374458cf9
-knowledge.card.edit	3	system.knowledge	command	operation	project	write	-	user	knowledge:manage	-	-	-	6764c11200e2	2a3c3a68fbb9	-
-knowledge.card.exclude	3	system.knowledge	command	operation	project	write	-	user	knowledge:manage	-	-	-	0a3c56932129	2a3c3a68fbb9	-
-knowledge.cards	3	system.knowledge	query	query	project	read	-	user	knowledge:manage	-	-	-	78330c1cb10d	b293a0c2c045	-
+knowledge.card.bind	2	system.knowledge	command	operation	project	write	concurrent	user	knowledge:manage	-	-	-	2bc76dc2ff7c	4485ee8b042e	5e0374458cf9
+knowledge.card.bind-preview	2	system.knowledge	query	query	project	read	concurrent	user	knowledge:manage	-	-	-	99b557e4a48f	fd17db2a552b	5e0374458cf9
+knowledge.card.edit	4	system.knowledge	command	operation	project	write	-	user	knowledge:manage	-	-	-	6764c11200e2	4485ee8b042e	-
+knowledge.card.exclude	4	system.knowledge	command	operation	project	write	-	user	knowledge:manage	-	-	-	0a3c56932129	4485ee8b042e	-
+knowledge.cards	4	system.knowledge	query	query	project	read	-	user	knowledge:manage	-	-	-	78330c1cb10d	5ba287942647	-
 knowledge.glob	1	system.knowledge	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	knowledge:read	-	-	-	52b3aedc093e	95ec33fe4a14	-
 knowledge.grep	1	system.knowledge	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	knowledge:read	-	-	-	174b52327e5d	3a6a8294b57c	-
 knowledge.list	1	system.knowledge	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	knowledge:read	-	-	-	bbbe6be930a8	9ed5d657f112	-

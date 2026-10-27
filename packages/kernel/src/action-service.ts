@@ -2,10 +2,11 @@ import { actionExecutionContext, assertReadOnlyEffects, visibleAction } from "./
 import { assertSceneHandler, consumeScene, protectSceneReads, runSceneEffect } from "./action-scene-execution.js";
 import { inDirectoryPass, rememberInDirectoryPass } from "./directory-pass.js";
 import { registeredActionMetadata } from "./action-metadata.js";
+import { ActionSourceRevisions } from "./action-source-revisions.js";
 import {
   ActionError, requireSynchronous,
   type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionClient, type ActionDefinition,
-  type ActionProvider, type ActionProviderRegistration, type ActionReference, type ActionRegistryPort,
+  type ActionProvider, type ActionProviderRegistration, type ActionReference, type ExactActionReference, type ActionRegistryPort,
   type ActionSceneTarget, type ActionSceneConfigureOptions, type ActionSceneBinding, type ActionSceneDefinition, type ActionSceneHandlerBinding, type ActionView, type ActionSceneView,
 } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostCapabilityDescriptor } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -43,12 +44,15 @@ export class ActionService implements ActionClient, ActionRegistryPort {
   private readonly checkingDependencies = new Set<string>();
   /** Only command lifetimes, shared by split registrations of the same trusted provider scope. */
   private readonly providerCommands = new Map<string, ProviderCommands>();
+  private readonly sourceRevisions = new ActionSourceRevisions();
 
   constructor(readonly registry = new CapabilityRegistry<ActionCallContext>(),
     private readonly effects: {
       beforeEffect?(context: ActionCallContext, reference: ActionReference): void | Promise<void>;
       /** The Host's live runtime check, without yielding after the final authority check. */
       assertCurrent?(context: ActionCallContext, reference: ActionReference): void;
+      /** Trusted pure Host lifecycle read for source-capture tails: no dispatch, mutation or authority callbacks. */
+      sourceCurrent?(): boolean;
       /** Host policy, before anything is resolved or dispatched. Asynchronous, so a synchronous call is never offered to it. */
       admit?(context: CallContext, reference: ActionReference): void | Promise<void>;
       /** When a call is over, once, refusals included: which action, for whom, and how it ended. Never the input or result. */
@@ -60,6 +64,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
     if (problems.length) throw new ActionError("actions.definition_invalid", problems.join("；"));
     const provider = structuredClone(registration.provider);
     if (!provider.provider_id || !provider.title) throw new ActionError("actions.provider_invalid", "能力来源缺少身份或名称");
+    if (registration.sourceRevision && provider.kind !== "system") throw new ActionError("actions.provider_invalid", "同步来源状态读口只接受可信 Host 系统来源");
     const handlers = exactBindings(registration.definitions, registration.handlers, actionKey, "能力");
     const sceneHandlers = exactBindings(registration.scenes ?? [], registration.scene_handlers ?? [], sceneKey, "消费场景");
     // A provider commonly shares its full workspace schema across many commands: check that immutable registration
@@ -144,7 +149,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
           // Copy the context so a concurrent/nested invocation cannot replace this call's check.
           const execution: ActionExecutionContext = { ...actionExecutionContext(context, reference,
             definition.action.permissions, assertCurrent, assertExecutionCurrent, (caller, target) => this.effects.beforeEffect?.(caller, target), this.registry, ref => this.actionDefinition(context, ref),
-            providers => this.captureProviderCommands(providers), this.effects.assertCurrent), ...(lifetime ? { signal: lifetime.signal } : {}) };
+            providers => this.captureProviderCommands(providers), sources => this.sourceRevisions.capture(context, sources), () => this.assertSourcesCurrent(), this.effects.assertCurrent), ...(lifetime ? { signal: lifetime.signal } : {}) };
           const checked = (value: unknown) => checkedActionResult(definition, validateOutput, value);
           // The call is settled by whoever dispatched it (ActionService.invoke / invokeSync), where refusals before this point are seen too.
           try {
@@ -160,6 +165,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
         };
         disposers.push(this.registry.register(registeredDefinition, execute,
           { availability, synchronous: handler.execution === "sync" }));
+        disposers.push(this.sourceRevisions.register(this.registry.registrationToken(registeredDefinition)!, registration.sourceRevision));
       }
       for (const original of registration.scenes ?? []) {
         const definition = structuredClone(original);
@@ -224,6 +230,55 @@ export class ActionService implements ActionClient, ActionRegistryPort {
         throw new ActionError("actions.conflict", "来源在读取期间发生变更，请重新查看");
       }
     };
+  }
+
+  captureSources(scopes: readonly { readonly context: ActionCallContext; readonly references: readonly ExactActionReference[] }[]): () => void {
+    const groups = scopes.map(({ context, references }) => {
+      const caller = { ...context, permissions: [...context.permissions],
+        ...(context.allowed_actions ? { allowed_actions: context.allowed_actions.map(reference => ({ ...reference })) } : {}),
+        ...(context.allowed_capability_ids ? { allowed_capability_ids: [...context.allowed_capability_ids] } : {}) };
+      caller.signal?.throwIfAborted();
+      const snapshots = references.map(source => {
+        if (!source.provider_id) throw new ActionError("actions.provider_changed", "来源捕获需要精确提供方");
+        const reference = Object.freeze({ capability_id: source.capability_id, version: source.version, provider_id: source.provider_id });
+        const definition = requireDefinition(this.actionDefinition(caller, reference), reference);
+        if (!definition.action || !definition.action_provider || !visibleAction(definition as ActionDefinition, definition.action_provider, caller)) {
+          throw new ActionError("actions.forbidden", "不能捕获未获授权的来源");
+        }
+        return { reference, definition, token: this.registry.registrationToken(definition) };
+      });
+      return { caller, snapshots };
+    });
+    const callbacks = () => {
+      for (const { caller, snapshots } of groups) {
+        caller.signal?.throwIfAborted();
+        for (const saved of snapshots) {
+          assertAvailable(requireSynchronous(this.registry.availability(caller, saved.definition), "来源可用性检查必须同步完成"));
+          assertCurrentAuthority(caller, saved.reference, saved.definition.action!.permissions);
+          requireSynchronous(this.effects.assertCurrent?.(caller, saved.reference), "最终运行环境检查必须同步完成");
+        }
+      }
+    };
+    const tail = () => {
+      this.assertSourcesCurrent();
+      for (const { caller, snapshots } of groups) {
+        caller.signal?.throwIfAborted();
+        for (const saved of snapshots) if (!saved.token || this.registry.registrationToken(saved.definition) !== saved.token) {
+          throw new ActionError("actions.provider_changed", "原来源已停用或重新加载，请重新查看");
+        }
+      }
+    };
+    callbacks();
+    const commands = this.captureProviderCommands(groups.flatMap(group => group.snapshots.map(saved => saved.definition.action_provider!)));
+    const revisions = groups.map(group => this.sourceRevisions.capture(group.caller, group.snapshots));
+    tail(); commands();
+    return () => { callbacks(); for (const read of revisions) read(); tail(); commands(); };
+  }
+
+  private assertSourcesCurrent(): void {
+    if (requireSynchronous(this.effects.sourceCurrent?.(), "来源生命周期读口必须同步完成") === false) {
+      throw new ActionError("actions.host_closed", "来源所在运行环境已关闭");
+    }
   }
 
   discover(context: ActionCallContext): ActionView[] {

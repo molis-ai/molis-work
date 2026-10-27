@@ -87,6 +87,7 @@ export interface PrologueStartInput {
   beforeStart?: AgentStartExecution["beforeStart"];
   assertBeforeStart?: AgentStartExecution["assertBeforeStart"];
   beforeDispatch?: AgentStartExecution["beforeDispatch"];
+  assertBeforeDispatch?: AgentStartExecution["assertBeforeDispatch"];
   actions?: NonNullable<AgentStartRequest["role"]>["actions"];
   action_gateway?: NonNullable<AgentStartRequest["role"]>["action_gateway"];
   subagent_workspaces?: import("@molis-ai/molis-work-contracts/services/agent-host").AgentSubagentWorkspace[];

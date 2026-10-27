@@ -9,6 +9,8 @@ export function actionExecutionContext(context: ActionCallContext, reference: Ex
   effect: ((context: ActionCallContext, reference: ActionReference) => void | Promise<void>) | undefined,
   registry: CapabilityRegistry<ActionCallContext>, resolve: (reference: ActionReference) => HostCapabilityDescriptor | undefined,
   captureProviderCommands: (providers: readonly ActionProvider[]) => () => void,
+  captureSourceRevisions: (sources: readonly { definition: HostCapabilityDescriptor; token: symbol | undefined }[]) => () => void,
+  assertSourcesCurrent: () => void,
   assertEnvironment?: (context: ActionCallContext, reference: ActionReference) => void): ActionExecutionContext {
   // A reference to the running action that names no provider is this registration's own, not whichever provider the directory finds first.
   const ownProvider = (source: ActionReference): ActionReference => !source.provider_id && source.capability_id === reference.capability_id
@@ -31,6 +33,17 @@ export function actionExecutionContext(context: ActionCallContext, reference: Ex
       return { reference, definition, provider: definition.action_provider, permissions: [...new Set([...definition.action.permissions, ...required])], token: registry.registrationToken(definition) };
     });
     const checkCommands = providerCommands ? captureProviderCommands(snapshots.map(saved => saved.provider)) : undefined;
+    const checkSources = providerCommands ? captureSourceRevisions(snapshots) : undefined;
+    const sourceTail = () => {
+      context.signal?.throwIfAborted();
+      for (const saved of snapshots) if (!saved.token || registry.registrationToken(saved.definition) !== saved.token) {
+        throw new ActionError("actions.provider_changed", "原能力已停用或重新加载，旧回复不能继续写入");
+      }
+      assertExecutionCurrent();
+      assertSourcesCurrent();
+      checkCommands!();
+    };
+    if (checkCommands) sourceTail();
     const check = () => {
         if (inherited) requireSynchronous(inherited.assertCurrent(), "最终后台授权检查必须同步完成");
         else context.signal?.throwIfAborted();
@@ -44,14 +57,8 @@ export function actionExecutionContext(context: ActionCallContext, reference: Ex
         if (checkCommands) {
           // The opt-in is for this live call's read/commit interval. Finish every external check before the pure tail.
           assertCurrent();
-          context.signal?.throwIfAborted();
-          for (const saved of snapshots) {
-            if (!saved.token || registry.registrationToken(saved.definition) !== saved.token) {
-              throw new ActionError("actions.provider_changed", "原能力已停用或重新加载，旧回复不能继续写入");
-            }
-          }
-          assertExecutionCurrent();
-          checkCommands();
+          checkSources!();
+          sourceTail();
         }
     };
     const guard = async () => {

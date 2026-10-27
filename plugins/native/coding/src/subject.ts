@@ -66,10 +66,10 @@ export function codingSubjectRetention(a: CodingActivation, execution: CodingExe
   const subject = { kind: "coding_session", id: record.session_id };
   if (!original) {
     if (record.archived) return { subject, state: "temporarily_archived", retained: { content_revision: null, restoration_operation_id: null } };
-    return { subject, state: "active", retained: null };
+    return { subject, state: "active", current_revision: null, retained: null };
   }
   if (record.archived) return { subject, state: "temporarily_archived", retained: { content_revision: original.content_revision, restoration_operation_id: null } };
   const request = original.request;
-  return { subject, state: "active", retained: { content_revision: original.content_revision,
+  return { subject, state: "active", current_revision: null, retained: { content_revision: original.content_revision,
     restoration_operation_id: request.mode === "runtime" ? request.decision.operation_id : request.operation_id } };
 }

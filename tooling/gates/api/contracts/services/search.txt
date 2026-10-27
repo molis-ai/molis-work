@@ -200,7 +200,7 @@ export interface SearchReferencesResponse {
 }
 
 export interface SearchRetentionBinding {
-    generation: string | null;
+    source_identity: ActionSourceIdentity | null;
 }
 
 export interface SearchRetentionIdentity {
@@ -211,6 +211,7 @@ export interface SearchRetentionIdentity {
         id: string;
     };
     retention?: SearchRetentionBinding;
+    expected_revision?: string;
 }
 
 export type SearchRetentionResult = {

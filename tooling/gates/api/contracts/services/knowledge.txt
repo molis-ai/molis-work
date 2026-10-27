@@ -61,7 +61,7 @@ export declare const KNOWLEDGE_TITLE_MAX_CHARS = 120;
 export interface KnowledgeBindCandidate {
     provider_id: string;
     source_key: string;
-    generation: string;
+    source_identity: ActionSourceIdentity;
     source_revision: string;
     title: string;
     plugin_title: string;
@@ -84,7 +84,7 @@ export interface KnowledgeBindRequest {
     operation_id: string;
     provider_id: string;
     source_key: string;
-    generation: string;
+    source_identity: ActionSourceIdentity;
     source_revision: string;
 }
 
@@ -119,10 +119,10 @@ export interface KnowledgeCardRecord extends KnowledgeCardFields {
         operation_id: string;
         actor_id: string;
         source_revision: string;
-        generation: string;
+        source_identity: ActionSourceIdentity;
     };
     retention?: {
-        generation: string | null;
+        source_identity: ActionSourceIdentity | null;
         restoration_operation_id: string | null;
     };
     can_organize?: boolean;

@@ -9,22 +9,22 @@
   "source": {
     "repository": "git+https://github.com/molis-ai/molis-prologue.git",
     "path": "packages/sdk",
-    "commit": "90e39ff78c3306d58c251e15adca2bcc4c7746b8",
+    "commit": "9674515302f23e383dab9b1eeffe835b789c5c09",
     "dirty": false,
     "dirtyPaths": [],
     "patches": [],
     "candidateUpstream": {
       "pullRequest": "https://github.com/molis-ai/molis-prologue/pull/108",
-      "head": "90e39ff78c3306d58c251e15adca2bcc4c7746b8",
+      "head": "9674515302f23e383dab9b1eeffe835b789c5c09",
       "status": "draft",
-      "note": "Clean reviewed candidate; exact caller-original projection implemented. App adoption and frozen performance acceptance remain open."
+      "note": "Clean candidate validated by original full quality. App integration, frozen performance and final acceptance remain open."
     }
   },
   "artifact": {
     "file": "prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
-    "bytes": 1412081,
-    "sha256": "35b2e580842246cfa2576e827625a644f8ea459104a3cb9f2d3290153a124d4b",
-    "integrity": "sha512-Cv5c8/zmI5AG5C+xPTtJAZZmMIL5/u1xV8AmAH0/oPnZlsh9Ip0YXOl9q4jDU8t3iDf2fKAguQTmfstGTpj01Q=="
+    "bytes": 1412463,
+    "sha256": "44be3daea594d1a4186a0b243651be7049c8b37bbc41bcde80d2ef908453ae8e",
+    "integrity": "sha512-uNmdhQDqwec4GIKLplujB41bxIq4S+myieyQ6v1faF9Zdci/SWLW4SkJnt7z3Gr0+fY2Fc++WHAKrvitWMjMWg=="
   },
   "build": {
     "node": "24.14.0",
@@ -32,12 +32,12 @@
     "platform": "darwin",
     "architecture": "arm64",
     "steps": [
-      "Use clean source 90e39ff78c3306d58c251e15adca2bcc4c7746b8.",
-      "Run original quality with Node24.14.0/pnpm11.9.0 and frozen offline dependencies.",
+      "Run original pnpm quality on clean committed source 9674515302f23e383dab9b1eeffe835b789c5c09 with Node24.14.0/pnpm11.9.0.",
       "Pack packages/sdk with original pnpm pack into an independent directory.",
-      "Verify every dist file against the clean build and unchanged package metadata."
+      "Verify all 828 dist files against this clean build and unchanged packed package metadata.",
+      "Verify final archive is byte-identical to the independently built e61 candidate already installed in the isolated App."
     ],
-    "packedOn": "2026-10-27",
-    "note": "Original quality passed in full: type/build/API, ratchet against main ccaf, docs, 73 files 770 tests, clean installed consumer and Rust fmt/clippy. Public collaboration freeze issue reproduced red then fixed with four green regressions; final related five files 58 tests passed. First failures retained. No App acceptance, merge or release."
+    "packedOn": "2026-10-28",
+    "note": "Original complete quality exited 0: type/build/API, original ratchet, documentation, 73 files/770 tests, original clean installed consumer and Rust fmt/clippy. Earlier first-connect timeout failures retained; environmental cause is not claimed resolved. Only tests/docs differ from e61 and the final packed archive is byte-identical. No App/full P0 acceptance, merge or release."
   }
 }

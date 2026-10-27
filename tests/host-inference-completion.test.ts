@@ -140,3 +140,14 @@ test("a revocation detected after the model response keeps the caller's reason",
   const complete = hostCompleteText({ env: env(), resolveInference: resolver(async () => "result") })!;
   await assert.rejects(complete("material", { beforeDispatch: async () => { if (++checks === 2) throw refused; } }), error => error === refused);
 });
+
+test("Host text passes its synchronous source fence through the existing inference port", async () => {
+  let prepared = false, checks = 0;
+  const complete = hostCompleteText({ env: env(), resolveInference: resolver(async input => {
+    await input.beforeDispatch?.();
+    input.assertCurrent?.();
+    return "current material";
+  }) })!;
+  assert.equal(await complete("material", { beforeDispatch: () => { prepared = true; }, assertCurrent: () => { assert.equal(prepared, true); checks++; } }), "current material");
+  assert.equal(checks, 1);
+});

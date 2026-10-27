@@ -31,7 +31,7 @@
 
 | 库 | 位置 | 版本 | 记在 | 定义处 | 版本不符时 |
 | --- | --- | --- | --- | --- | --- |
-| 项目库 | `projects/<project_id>/molis-work.db` | 10 | `user_version` | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE` | 拒绝 |
+| 项目库 | `projects/<project_id>/molis-work.db` | 11 | `user_version` | `apps/local-host/src/project-database-schema.ts#PROJECT_DATABASE_BASELINE` | 拒绝 |
 | 项目库里 Coding 的表 | `projects/<project_id>/molis-work.db#coding` | 4 | `plugin_project_databases.version` | `plugins/native/coding/src/database.ts#CODING_PROJECT_DATABASE` | 拒绝（只停 Coding） |
 | 项目库里 Feed 的表 | `projects/<project_id>/molis-work.db#feed` | 1 | `plugin_project_databases.version` | `plugins/native/feed/src/database.ts#FEED_PROJECT_DATABASE` | 拒绝（只停 Feed） |
 | 项目库里 Goals 的表 | `projects/<project_id>/molis-work.db#goals` | 1 | `plugin_project_databases.version` | `plugins/native/goals/src/project-database.ts#GOALS_PROJECT_DATABASE` | 拒绝（只停 Goals） |
@@ -46,7 +46,7 @@
 | Issue | `issues/issues.db` | 2 | `user_version` | `plugins/native/issues/src/database.ts#ISSUES_DATABASE` | 拒绝 |
 | Goals 的个人方法 | `goals/goals.db` | 1 | `user_version` | `plugins/native/goals/src/home-database.ts#GOALS_HOME_DATABASE` | 拒绝；目录库中的旧个人方法须显式维护移入，真实 Home 尚未执行 |
 | 记忆 | `memory/memory.db` | 4 | `user_version` | `packages/storage/src/adapters/memory-ledger.ts#MEMORY_LEDGER_BASELINE` | 拒绝；旧有效偏好需显式采用，不在启动时重设 |
-| 项目资料 | `knowledge/knowledge.db` | 3 | `user_version` | `packages/storage/src/adapters/knowledge-cards.ts#KNOWLEDGE_CARDS_BASELINE` | 拒绝 |
+| 项目资料 | `knowledge/knowledge.db` | 4 | `user_version` | `packages/storage/src/adapters/knowledge-cards.ts#KNOWLEDGE_CARDS_BASELINE` | 拒绝 |
 | Form | `form/form.db` | 2 | `user_version` | `plugins/native/form/src/database.ts#FORM_DATABASE` | 拒绝 |
 | 放置 | `placement/placement.db` | 1 | `user_version` | `apps/local-host/src/placement-actions.ts#PLACEMENT_BASELINE` | 拒绝 |
 | Agent 定义 | `agent-definitions/agent-definitions.db` | 1 | `user_version` | `apps/local-host/src/agent-definitions/agent-definitions.ts#AGENT_DEFINITIONS_BASELINE` | 拒绝 |
@@ -65,7 +65,7 @@
 | 炼金术士工作室 | `alchemist/projects/<编码后的 project_id>/studio.sqlite` | 1 | `user_version` | `plugins/native/alchemist/src/studio/server/db/schema.ts#ALCHEMIST_STUDIO_BASELINE` | 拒绝 |
 | server（讨论） | `server/server.sqlite` | 2 | `user_version` | `server/src/database.ts#SERVER_DATABASE_BASELINE` | 拒绝 |
 | 角色 | `characters/characters.sqlite` | 2 | `user_version` | `modules/characters/src/open.ts#CHARACTERS_STORE_BASELINE` | 拒绝 |
-| 搜索索引（可重建的派生库） | `search/search.db` | 3 | `search_meta.schema` | `packages/storage/src/adapters/text-search-database.ts#TEXT_SEARCH_SCHEMA_VERSION` | 清空重建 |
+| 搜索索引（可重建的派生库） | `search/search.db` | 4 | `search_meta.schema` | `packages/storage/src/adapters/text-search-database.ts#TEXT_SEARCH_SCHEMA_VERSION` | 清空重建 |
 | 密钥与凭据（JSON 文件，不是库） | `feed/secrets.json` | 2 | 文件里的 `version` | `packages/storage/src/adapters/file-secret-store.ts#FORMAT_VERSION` | 拒绝读取（报错 `secrets file format N is not supported`），模型 API Key、连接器凭据和 Feed 证据密钥全部读不出 |
 | MCP 授权（JSON 文件，不是库） | `config/mcp-tools.json` | 3 | 文件里的 `version` | `apps/local-host/src/mcp-settings-store.ts#MCP_TOOL_PREFERENCE_VERSION` | 拒绝读取并报告配置错误；保留原文件，明确修复后恢复 |
 | 炼金术士搜索缓存 | `alchemist/projects/<编码后的 project_id>/search.sqlite` | 1 | `user_version` | `apps/local-host/src/alchemist-search.ts#ALCHEMIST_SEARCH_BASELINE` | 拒绝 |
@@ -169,3 +169,5 @@
 - [ ] 发布 PR 里补上备份路径、维护记录位置和上面各项的结果。
 
 Coding 当前生命周期原件（COD-MEM-RESTORE，2026-10-25）：Coding自有声明version2，仅增加coding_sessions.lifecycle_json nullable列。version1严格拒绝、仅停Coding，不自动修复。真实Home安装前须停写、整份备份并在隔离非空副本核对本spec记录的会话维护命令与结果后，另获实际采用授权；只更新Coding所属ledger，不修改全局user_version9/其他owner。隔离演练不代表真实Home维护完成；本刀未操作真实Home。
+
+- [ ] **系统来源身份隔离（2026-10-27，沿 #1101）**：项目库 10→11、Knowledge 1/2/3→4 只在明确选定、已停写的完整隔离副本维护；复用 `tests/fixtures/coding-knowledge-maintenance.mjs` 的原 owner、物理路径检查、外置备份和逐库事务。显式用 `--project-database <副本中的原项目库> --project-identity` 选项目身份维护，`--knowledge` 选 Knowledge；同时给 `--publisher <原发布者>` 才追加原 Coding 维护，按项目11→Coding的依赖顺序执行。`list` 仅只读时点诊断，不能证明停写或授权维护；`apply --backup <Home外新目录>` 必须取得原独占owner并重新预检，正在运行时拒绝。项目成功而 Knowledge 失败时保持停写，重试保留已提交的 `data_instance_id`；不能把部分库的成功当成整份副本可启动。完整一致恢复保留实例身份；部分导入到已有目标不得复制来源实例身份。旧卡只把实际保留的插件代包成插件身份，未知仍为空；人工、机器字段、用量及回执保留。Search 3→4 只沿原派生重建，existing-only 拒绝旧版。隔离演练和产品验证分别记录，真实 Home 尚未操作。

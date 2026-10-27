@@ -36,7 +36,8 @@ export class LocalHost<Runtime> {
   private readonly settled: CallSettled = (caller, action, outcome) => this.options.actionSettled?.(caller, action, outcome);
   private readonly actionService = new ActionService(this.capabilities, { assertCurrent: () => {
     if (this.state !== "running" || this.line.scopeClosing()) throw new ActionError("actions.host_closed", "能力所在运行环境已关闭");
-  }, beforeEffect: (caller, reference) => this.availability.check(caller, reference),
+  }, sourceCurrent: () => this.state === "running" && !this.line.scopeClosing(),
+    beforeEffect: (caller, reference) => this.availability.check(caller, reference),
     admit: (caller, reference) => this.availability.check(caller, reference), settled: this.settled });
   private readonly line: ProjectLine<Runtime>;
   private readonly availability: HostAvailability;
@@ -139,6 +140,7 @@ export class LocalHost<Runtime> {
     };
     return {
       discover: async caller => this.availability.discover(contextFor(caller)),
+      captureSources: scopes => this.captureSources(scopes),
       invoke: async (caller, capability, input) => {
         let context: ActionCallContext;
         try { context = contextFor(caller); }
@@ -168,6 +170,7 @@ export class LocalHost<Runtime> {
       return verifiedCaller(snapshotCaller(caller));
     };
     return {
+      captureSources: scopes => this.captureSources(scopes, this.line.captureReady(project)),
       discover: async caller => {
         const bound = callerFor(caller);
         await this.withRuntime(project, () => undefined);
@@ -185,6 +188,24 @@ export class LocalHost<Runtime> {
           .catch(error => { if (dispatched) throw error; return refuseCall(this.settled, bound, capability, error); });
       },
     };
+  }
+
+  /** Forward a deny-only guard through the existing live Host policy. Pure lifecycle checks finish after all owner reads. */
+  private captureSources(scopes: Parameters<NonNullable<ActionClient["captureSources"]>>[0], projectCurrent?: () => void): () => void {
+    const groups = scopes.map(scope => ({ caller: verifiedCaller(snapshotCaller(scope.context)), references: scope.references,
+      projectCurrent: scope.context.project_id ? this.line.captureProjectReady(scope.context.project_id) : undefined }));
+    const current = () => {
+      this.assertRunning(); projectCurrent?.();
+      for (const group of groups) { group.caller.signal?.throwIfAborted(); group.projectCurrent?.(); }
+    };
+    current();
+    const guard = this.actionService.captureSources(groups.map(({ caller, references }) => ({ references,
+      context: { ...caller, assert_authority_current: (reference, permissions) => {
+        verifiedCaller(caller);
+        requireSynchronous(caller.assert_authority_current?.(reference, permissions), "最终授权检查必须同步完成");
+        if (reference) this.availability.checkSync(caller, reference);
+      } } })));
+    current(); return () => { guard(); current(); };
   }
 
   client(reference: LocalHostProjectReference): LocalHostProjectClient {

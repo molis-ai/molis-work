@@ -1,4 +1,4 @@
--- The project database baseline, version 10 (repository-anti-corruption §4.1; PG-020): the schema a new project database gets, before
+-- The project database baseline, version 11 (repository-anti-corruption §4.1; PG-020): the schema a new project database gets, before
 -- the Host opens the plugins' own tables in it. Generated from PROJECT_DATABASE_BASELINE; a change to any owner's tables means a new version and a new snapshot.
 CREATE TABLE attention_events (
       event_id TEXT PRIMARY KEY,
@@ -374,7 +374,8 @@ CREATE TABLE project_browsing_settings (
   );
 CREATE TABLE project_root (
       project_id TEXT PRIMARY KEY,
-      created_at TEXT NOT NULL
+      created_at TEXT NOT NULL,
+      data_instance_id TEXT NOT NULL CHECK (length(trim(data_instance_id)) > 0)
     );
 CREATE TABLE schedule_jobs (
       job_id TEXT PRIMARY KEY,

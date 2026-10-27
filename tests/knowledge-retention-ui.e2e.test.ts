@@ -71,7 +71,7 @@ test("MEM-40 S-71 restored context cards offer explicit organizing while summary
     await call("/api/knowledge/overview"); return card()?.state === "pending" && card(summary)?.state === "listed";
   }, "both real owners are indexed before a model is configured");
   const original = card()!;
-  assert.equal(original.content_policy, "context"); assert.ok(original.retention?.generation);
+  assert.equal(original.content_policy, "context"); assert.ok(original.retention?.source_identity);
   assert.equal(card(summary)!.content_policy, "summary"); assert.equal(card(summary)!.can_organize, false);
   const preview = await call<{ archive_decision: unknown }>(sourcePath + "/archive-preview");
   await call(sourcePath, { archive: true, archive_decision: preview.archive_decision }, "PATCH");

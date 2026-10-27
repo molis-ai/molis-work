@@ -43,7 +43,7 @@ test("MEM-40 old Coding cards require a visible decision; a lost response retrie
   }
   const retained: KnowledgeCardRecord = { ...current, title: "本人保留的旧卡片", brief: "旧简介仍保留", keywords: ["本人关键词"], edited: ["title", "keywords"],
     outline: [{ anchor: "old", title: "旧分节", summary: "旧分节摘要" }], suggestion: { brief: "旧建议" },
-    state: "ready", organized_revision: "historical", retention: { generation: null, restoration_operation_id: null } };
+    state: "ready", organized_revision: "historical", retention: { source_identity: null, restoration_operation_id: null } };
   const orphan = { ...retained, subject: { ...subject, id: "missing-old-source" }, title: "来源已经不在的旧卡片" };
   const cards = openKnowledgeCards({ homeDirectory });
   try { cards.put(retained); cards.put(orphan); } finally { cards.close(); }
@@ -66,7 +66,7 @@ test("MEM-40 old Coding cards require a visible decision; a lost response retrie
   await waitFor(`document.querySelector(${JSON.stringify(row)})?.textContent.includes('待关联来源')`);
   await click(missing + " .knowledge-title"); await click(missing + " [data-knowledge-bind]");
   await waitFor(`document.querySelector('${dialog}')?.open`);
-  assert.match(await evaluate<string>(`document.querySelector('${dialog}').textContent`), /当前没有可关联的来源/);
+  assert.match(await evaluate<string>(`document.querySelector('${dialog}').textContent`), /暂无可关联来源，请确认资料或插件可用。/);
   await screenshot(browser, "no-candidate");
   assert.equal(await evaluate(`document.querySelector('[data-knowledge-bind-confirm]').disabled`), true);
   await click("[data-knowledge-bind-cancel]");
@@ -131,7 +131,7 @@ test("MEM-40 multiple live summary sources require a person's choice and preserv
   let revision = "original";
   const register = (provider: string) => {
     const entries = defineSearchEntriesAction("binding." + provider, [{ kind: subject.kind, title: "本人资料", surface: "coding" }], "本人资料", []);
-    const remove = host.actionRegistry(reference).registerProvider({ provider: { provider_id: "binding." + provider, title: provider, kind: "system", plugin_installation_generation: provider + "-generation" },
+    const remove = host.actionRegistry(reference).registerProvider({ provider: { provider_id: "binding." + provider, title: provider, kind: "plugin", plugin_id: "binding." + provider, plugin_installation_generation: provider + "-generation" },
       definitions: [entries], handlers: [bindSearchEntriesHandler(entries, () => [{ subject, title: provider + " 当前来源", summary: provider + " 本人可确认的摘要", revision, content: "summary", updated_at: null, open: null }])] });
     removals.push(remove); return remove;
   };
@@ -147,7 +147,7 @@ test("MEM-40 multiple live summary sources require a person's choice and preserv
   };
   const current = (await call<KnowledgeCardsResponse>("/overview")).cards.find(card => card.subject.kind === subject.kind && card.subject.id === subject.id);
   assert.ok(current);
-  const retained: KnowledgeCardRecord = { ...current, title: "本人选择前完整保留", brief: "完整保留的简介", state: "ready", retention: { generation: null, restoration_operation_id: null } };
+  const retained: KnowledgeCardRecord = { ...current, title: "本人选择前完整保留", brief: "完整保留的简介", state: "ready", retention: { source_identity: null, restoration_operation_id: null } };
   const cards = openKnowledgeCards({ homeDirectory }); try { cards.put(retained); } finally { cards.close(); }
   const preview = await call<KnowledgeBindPreviewResponse>("/bind-preview", { subject });
   assert.equal(preview.candidates.length, 2, "two real registered summary sources are both live candidates");
@@ -187,7 +187,7 @@ test("MEM-40 multiple live summary sources require a person's choice and preserv
   const decision = (await evaluate<KnowledgeBindRequest[]>("window.bindRequests"))[2]!;
   assert.notEqual(decision.operation_id, originalDecision.operation_id, "only a new explicit confirmation replaces the old pending decision");
   const selected = refreshed.candidates[1]!;
-  for (const field of ["provider_id", "source_key", "generation", "source_revision"] as const) assert.equal(decision[field], selected[field]);
+  for (const field of ["provider_id", "source_key", "source_identity", "source_revision"] as const) assert.deepEqual(decision[field], selected[field]);
   await click("[data-knowledge-bind-cancel]"); removeSecond();
   await click(row + " [data-knowledge-bind]");
   await waitFor("window.bindRequests.length===4 && document.querySelector('[data-knowledge-bind-dialog] form').getAttribute('aria-busy')==='false'");

@@ -29,7 +29,7 @@ export const button = (text: string, variant = "mw-btn--ghost", label?: string):
 };
 
 export const subjectKey = (subject: ActionSubject): string => subject.kind + "\u0000" + subject.id;
-export const unbound = (card: KnowledgeCardRecord): boolean => card.retention?.generation === null && !card.adoption;
+export const unbound = (card: KnowledgeCardRecord): boolean => card.retention?.source_identity === null && !card.adoption;
 
 /** Where a card stands, in the person's words, with the badge tone the catalog gives it. `changed` and `excluded` are not states. */
 export function stateOf(card: KnowledgeCardRecord): { label: string; tone: "neutral" | "info" | "success" | "warning" | "danger" } {

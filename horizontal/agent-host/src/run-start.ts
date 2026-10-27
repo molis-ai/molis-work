@@ -224,7 +224,8 @@ export function startGuards(authority: AgentStartAuthority, character: AgentFroz
   const assertBeforeStart = () => { requireSynchronous(authority.assertBeforeStart?.(), "最终授权检查必须同步完成"); validateCharacter?.(); };
   const beforeStart = async () => { await authority.beforeStart?.(); assertBeforeStart(); };
   const beforeDispatch = async () => { await authority.beforeDispatch?.(); validateCharacter?.(); };
-  return { validateCharacter, assertBeforeStart, beforeStart, beforeDispatch };
+  const assertBeforeDispatch = () => { validateCharacter?.(); requireSynchronous(authority.assertBeforeDispatch?.(), "派出前的最终检查必须同步完成"); };
+  return { validateCharacter, assertBeforeStart, beforeStart, beforeDispatch, assertBeforeDispatch };
 }
 
 /** Where the round's actions come from: the runtime must take action tools, and the Host must grant this plugin some. */

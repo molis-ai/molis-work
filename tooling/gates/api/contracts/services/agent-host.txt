@@ -1794,6 +1794,7 @@ export interface AgentStartExecution extends ActionCallOrigin {
     beforeStart?(): void | Promise<void>;
     assertBeforeStart?(): void;
     beforeDispatch?(): void | Promise<void>;
+    assertBeforeDispatch?(): void;
 }
 
 export type AgentStartInput = AgentStartInputFields & AgentWorkspace;

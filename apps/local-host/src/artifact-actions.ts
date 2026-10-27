@@ -1,6 +1,7 @@
-import { LOCAL_PERSON_ACTOR_ID, type ActionClient, type ActionProviderRegistration, type FileContent } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionClient, type ActionProviderRegistration, type FileContent } from "@molis-ai/molis-work-contracts/platform/actions";
+import { listProjectRoots } from "@molis-ai/molis-work-module-projects";
 import { logPreviewFailure } from "./host-log.js";
-import { ARTIFACTS_PLUGIN_ID, ARTIFACTS_PROVIDER_ID, ARTIFACTS_PROVIDER_TITLE, ARTIFACT_ACTIONS, createArtifactActionHandlers, openArtifactProjectReference } from "@molis-ai/molis-work-module-artifacts";
+import { ARTIFACTS_PLUGIN_ID, ARTIFACTS_PROVIDER_ID, ARTIFACTS_PROVIDER_TITLE, ARTIFACT_ACTIONS, createArtifactActionHandlers, artifactGoalRelations, openArtifactProjectReference } from "@molis-ai/molis-work-module-artifacts";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { artifactLinkKinds, artifactTypeDeclarations } from "./artifact-type-registry.js";
 import { readProjectReference } from "./project-file-reference.js";
@@ -15,17 +16,22 @@ const GOAL_DIRECTORY_READ = { capability_id: "goals.directory.read", version: 1 
 
 export function artifactActionProvider(runtime: MolisWorkProjectRuntime, options: Pick<MolisWorkLocalHostOptions, "homeDirectory" | "workspaceFor">, client?: ActionClient): ActionProviderRegistration {
   const home = options.homeDirectory ?? resolveMolisWorkHome();
+  const roots = listProjectRoots(runtime.store.db);
+  if (roots.length !== 1 || roots[0]!.project_id !== runtime.project_id) throw new ActionError("artifacts.project_storage_invalid", "当前项目的数据实例身份不完整");
   // The platform's own provider (PG-077): no plugin id, so no plugin's enablement gates it; the id is the one it was called by as a plugin.
   const provider: ActionProviderRegistration["provider"] = { provider_id: ARTIFACTS_PROVIDER_ID, title: ARTIFACTS_PROVIDER_TITLE, kind: "system", project_id: runtime.project_id,
+    project_data_instance_id: roots[0]!.data_instance_id,
     // The English of its action text is still in the 成果 plugin's words, until that shell goes (PG-077 step 2).
     words_of: ARTIFACTS_PLUGIN_ID };
+  const source = { projectId: runtime.project_id,
+    ledger: createContextLedger(runtime.store.db, { authorize: (access, operation) => operation === "read" && access.scope.kind === "personal" && access.scope.id === runtime.project_id }).query,
+    linkKinds: artifactLinkKinds() };
   return {
     provider,
+    sourceRevision: caller => JSON.stringify([roots[0]!.data_instance_id, runtime.store.eventCursor(runtime.project_id, "artifact"), artifactGoalRelations(source, caller)]),
     definitions: ARTIFACT_ACTIONS,
     handlers: createArtifactActionHandlers({
-      projectId: runtime.project_id, artifacts: runtime.artifacts,
-      ledger: createContextLedger(runtime.store.db, { authorize: (access, operation) => operation === "read" && access.scope.kind === "personal" && access.scope.id === runtime.project_id }).query,
-      linkKinds: artifactLinkKinds(),
+      ...source, artifacts: runtime.artifacts,
       goalTitle: async (goalId, caller) => {
         if (!client) return null;
         try {

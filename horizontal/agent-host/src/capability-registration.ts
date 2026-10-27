@@ -198,5 +198,6 @@ function invocationAuthority(authority: AgentStartAuthority, invocation: HostCap
     beforeStart: async () => { await authority.beforeStart?.(); await invocation.beforeEffect(); },
     assertBeforeStart: () => { requireSynchronous(authority.assertBeforeStart?.(), "最终授权检查必须同步完成"); invocation.assertAuthorityCurrent(); },
     beforeDispatch: async () => { caller?.assertActive(); await authority.beforeDispatch?.(); caller?.assertActive(); },
+    assertBeforeDispatch: () => { caller?.assertActive(); requireSynchronous(authority.assertBeforeDispatch?.(), "派出前的最终检查必须同步完成"); caller?.assertActive(); },
   };
 }

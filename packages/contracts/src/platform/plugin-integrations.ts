@@ -18,12 +18,131 @@ export const INTEGRATION_KINDS = ["source", "document_import"] as const;
 export type IntegrationKind = (typeof INTEGRATION_KINDS)[number];
 
 /**
- * One way to connect to a service. Only `token` carries its card text today; the other kinds are slots for the moment: the platform
- * still reads their data from its own tables until the OAuth, MCP and CLI declarations move into the plugins (W5-11).
+ * One way to connect to a service. `token` carries its card text; `oauth` carries its whole flow as data (W5-11 §2.1), read by the
+ * platform's one interpreter. Until the built-in plugins write that data (W5-11 slice 4), an `oauth` method may still be the bare kind,
+ * and the platform reads it from its own table; `cli` and `mcp` are slots, their data still in the platform's tables.
  */
 export type PluginAuthMethodDeclaration =
   | { readonly kind: "token"; readonly label: string; readonly placeholder?: string }
+  | PluginOAuthMethodDeclaration
   | { readonly kind: Exclude<ConnectorMethodKind, "token"> };
+
+/** `authorization_code`: the browser comes back to the Host's callback; `device`: the person types a code on the service's page. */
+export const OAUTH_GRANTS = ["authorization_code", "device"] as const;
+export type OAuthGrant = (typeof OAUTH_GRANTS)[number];
+/** How the client proves itself to the token endpoint: HTTP Basic, in the form body, or not at all (a public client). */
+export const OAUTH_CLIENT_AUTHS = ["basic", "post", "none"] as const;
+export type OAuthClientAuth = (typeof OAUTH_CLIENT_AUTHS)[number];
+/** What a setting the person fills in may change: a path segment of an endpoint, the scopes, the client auth, or the tenant origin. */
+export const OAUTH_SETTING_USES = ["path", "scope", "client_auth", "tenant"] as const;
+export type OAuthSettingUse = (typeof OAUTH_SETTING_USES)[number];
+/** Parameters the platform writes on the authorization address; a declaration's `parameters` may not name them. */
+export const OAUTH_RESERVED_PARAMETERS = ["client_id", "redirect_uri", "state", "code_challenge", "code_challenge_method", "response_type"] as const;
+
+/**
+ * A request the Host sends with the access token. `url` is `{service}/path` (the one origin of the platform's request table), a full
+ * `https://` address whose origin is one of them, `{tenant}/path` (the tenant origin pinned to the connection) or `{gateway}/path`; the
+ * path may hold `{context.<key>}` and `{setting.<key>}`. Header and query values are constants, `{client_id}` or `{context.<key>}`.
+ */
+export interface OAuthTokenRequestDeclaration {
+  readonly url: string;
+  readonly method?: "GET" | "POST";
+  /** A fixed JSON body, `POST` only. */
+  readonly body?: unknown;
+  readonly headers?: Readonly<Record<string, string>>;
+  readonly query?: Readonly<Record<string, string>>;
+}
+
+/**
+ * Where one value comes from: `identity:/pointer` (the identity response), `token:/pointer` (the token response), `context:key` (the
+ * connection's context) or `literal:text`. Pointers are JSON Pointers.
+ */
+export type OAuthValueSource = `identity:/${string}` | `token:/${string}` | `context:${string}` | `literal:${string}`;
+
+/** A value the connection keeps in its context: from the token response (`keep`) or the identity response (`identity.keep`). */
+export interface OAuthKeepDeclaration {
+  readonly key: string;
+  readonly pointer: string;
+  /** `tenant`: the kept value is an origin that must pass the platform's tenant check, and is pinned to the connection. */
+  readonly check?: "tenant" | { readonly pattern: string };
+  readonly required?: boolean;
+}
+
+/** How the connection's account is read after the token comes back (W5-11 §2.1.1). With no `url`, nothing is sent. */
+export interface OAuthIdentityDeclaration extends Partial<OAuthTokenRequestDeclaration> {
+  /** When the response is a list: the entry with the smallest value at `min_by`, or the one whose `slug` is the context's `org`. */
+  readonly list?: { readonly min_by: string };
+  /**
+   * Segments joined with `:`; each takes its first non-empty source. An empty segment is always empty (no prefix). The first of several
+   * segments may come out empty; any other segment that does fails the authorization.
+   */
+  readonly account_id: readonly (readonly OAuthValueSource[])[];
+  /** The first non-empty source is the account's label. */
+  readonly label: readonly OAuthValueSource[];
+  readonly label_prefix?: string;
+  readonly keep?: readonly OAuthKeepDeclaration[];
+}
+
+/** One read-only request sent after the token comes back, only while its `key` is not in the connection's context yet. */
+export interface OAuthContextDeclaration extends OAuthTokenRequestDeclaration {
+  readonly key: string;
+  /**
+   * `ids`: every value at `pointer` (`*` steps over each entry of a list), sorted and joined with `,`. `match_setting`: the entry whose
+   * `match` value has the same origin as the setting, its `take` value checked against `pattern`.
+   */
+  readonly pick:
+    | { readonly kind: "ids"; readonly pointer: string }
+    | { readonly kind: "match_setting"; readonly setting: string; readonly match: string; readonly take: string; readonly pattern: string };
+}
+
+/** A field the person fills in on the settings page, and the one thing it may change. */
+export interface OAuthSettingDeclaration {
+  readonly key: string;
+  readonly label: string;
+  readonly placeholder?: string;
+  readonly required?: boolean;
+  /** Used when the person leaves the field empty. */
+  readonly default?: string;
+  readonly use: OAuthSettingUse;
+  /** The whole value (each space-separated word, for `scope`) must match; or it must be one of `enum`. */
+  readonly pattern?: string;
+  readonly enum?: readonly string[];
+}
+
+/**
+ * The OAuth flow of one service, all data (W5-11 §2.1). Endpoints are fixed `https://` addresses, or `{tenant}/path` from the one
+ * setting of `use: "tenant"`; `{setting.<key>}` may stand for a path segment. Where the access token may go is the platform's.
+ */
+export interface PluginOAuthMethodDeclaration {
+  readonly kind: "oauth";
+  readonly grant: OAuthGrant;
+  readonly authorize_url?: string;
+  readonly token_url: string;
+  readonly refresh_url?: string;
+  readonly device_authorization_url?: string;
+  /** When written, the callback must carry the same `iss` (RFC 9207). */
+  readonly issuer?: string;
+  /** Joined with spaces; an entry may be `{setting.<key>}`, left out when that setting is empty. */
+  readonly scopes: readonly string[];
+  readonly pkce?: "S256";
+  /** Default `post`; `{ setting }` names a setting of `use: "client_auth"`. */
+  readonly client_auth?: OAuthClientAuth | { readonly setting: string };
+  readonly token_format?: "form" | "json";
+  /** Default `required`; never required when the client auth comes out `none`. */
+  readonly client_secret?: "required" | "optional";
+  readonly parameters?: Readonly<Record<string, string>>;
+  readonly settings?: readonly OAuthSettingDeclaration[];
+  readonly identity: OAuthIdentityDeclaration;
+  readonly keep?: readonly OAuthKeepDeclaration[];
+  readonly context?: readonly OAuthContextDeclaration[];
+  /** The three known departures from the standard exchange. */
+  readonly quirks?: {
+    readonly refresh_redirect_uri?: true;
+    readonly omit_token_params?: readonly ("grant_type" | "redirect_uri")[];
+    readonly expiry?: "jwt_exp";
+  };
+  readonly note?: string;
+}
 
 /** A service the plugin works with and the card shown for it where a person connects accounts. The declaring plugin owns the card. */
 export interface PluginConnectionServiceDeclaration {

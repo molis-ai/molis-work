@@ -38,6 +38,9 @@ export const OAUTH_SETTING_USES = ["path", "scope", "client_auth", "tenant"] as 
 export type OAuthSettingUse = (typeof OAUTH_SETTING_USES)[number];
 /** Parameters the platform writes on the authorization address; a declaration's `parameters` may not name them. */
 export const OAUTH_RESERVED_PARAMETERS = ["client_id", "redirect_uri", "state", "code_challenge", "code_challenge_method", "response_type"] as const;
+/** Headers the platform writes on an identity or context request, or that would carry a credential: a declaration never writes them. */
+export const OAUTH_PLATFORM_HEADERS = ["authorization", "proxy-authorization", "cookie", "host", "content-length", "content-type", "transfer-encoding",
+  "connection", "accept", "user-agent", "private-token", "x-figma-token"] as const;
 
 /**
  * A request the Host sends with the access token. `url` is `{service}/path` (the one origin of the platform's request table), a full
@@ -47,7 +50,7 @@ export const OAUTH_RESERVED_PARAMETERS = ["client_id", "redirect_uri", "state", 
 export interface OAuthTokenRequestDeclaration {
   readonly url: string;
   readonly method?: "GET" | "POST";
-  /** A fixed JSON body, `POST` only; nothing in it is expanded. */
+  /** A fixed JSON body, `POST` only, sent as written: nothing in it is expanded. */
   readonly body?: unknown;
   readonly headers?: Readonly<Record<string, string>>;
   readonly query?: Readonly<Record<string, string>>;
@@ -84,7 +87,7 @@ export interface OAuthIdentityDeclaration extends Partial<OAuthTokenRequestDecla
   readonly keep?: readonly OAuthKeepDeclaration[];
 }
 
-/** One read-only request sent after the token comes back, only while its `key` is not in the connection's context yet. */
+/** One read-only request sent after the token comes back, every time the account is authorized; its value goes into the context at `key`. */
 export interface OAuthContextDeclaration extends OAuthTokenRequestDeclaration {
   readonly key: string;
   /**

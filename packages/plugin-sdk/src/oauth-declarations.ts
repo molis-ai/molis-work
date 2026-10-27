@@ -1,4 +1,3 @@
-import { isLoopbackHostname } from "@molis-ai/molis-work-contracts/platform/loopback";
 import {
   OAUTH_CLIENT_AUTHS,
   OAUTH_GRANTS,
@@ -6,11 +5,23 @@ import {
   OAUTH_SETTING_USES,
 } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { CONNECTOR_REQUEST_SERVICES, type ConnectorRequestService } from "@molis-ai/molis-work-contracts/services/connector-host";
+import {
+  oauthDeclarableHeader,
+  oauthKey,
+  oauthLooksLikePlaceholder,
+  oauthPathPlaceholders,
+  oauthPlaceholders,
+  oauthPublicHostName,
+  oauthSettingValueFault,
+  oauthUrlTemplate,
+  oauthValueTemplate,
+} from "./oauth-templates.js";
 
 // The shape of a `connection_services[].auth.methods` entry of `kind: "oauth"` that carries its flow as data (W5-11 §2.1, §2.1.1). Any
 // problem fails the whole Manifest (M5). Where the access token may go is read from the platform's request table, never from the
 // Manifest: `{service}` only for a service with one origin there, a full address only on one of those origins, `{tenant}` and
 // `{gateway}` only for a service the table puts on tenants' origins. Endpoints receive no access token and are not held to the table.
+// The template and value rules are `oauth-templates.ts`, the same ones the Host's interpreter reads by.
 
 const METHOD_FIELDS = new Set(["kind", "grant", "authorize_url", "token_url", "refresh_url", "device_authorization_url", "issuer", "scopes",
   "pkce", "client_auth", "token_format", "client_secret", "parameters", "settings", "identity", "keep", "context", "quirks", "note"]);
@@ -21,19 +32,8 @@ const SETTING_FIELDS = new Set(["key", "label", "placeholder", "required", "defa
 const KEEP_FIELDS = new Set(["key", "pointer", "check", "required"]);
 const QUIRK_FIELDS = new Set(["refresh_redirect_uri", "omit_token_params", "expiry"]);
 const ENDPOINTS = ["authorize_url", "token_url", "refresh_url", "device_authorization_url"] as const;
-/** Headers the platform writes, or that would carry a credential: a declaration never writes them. */
-const PLATFORM_HEADERS = new Set(["authorization", "proxy-authorization", "cookie", "host", "content-length", "content-type", "transfer-encoding",
-  "connection", "accept", "user-agent", "private-token", "x-figma-token"]);
-const KEY = /^[a-z][a-z0-9_]{0,63}$/u;
-const HEADER_NAME = /^[A-Za-z][A-Za-z0-9-]{0,63}$/u;
 const POINTER = /^(?:\/(?:[^~/]|~[01])*)+$/u;
 const SOURCE = /^(?:(?:identity|token):(\/.*)|context:(.+)|literal:(.+))$/su;
-const PLACEHOLDER = /\{([^{}]*)\}/gu;
-/** What reads as one of the declaration's placeholders; `body` and `label_prefix` are taken as written, so they may not hold one. */
-const PLACEHOLDER_LIKE = /\{(?:client_id|service|tenant|gateway|account|(?:context|setting)\.[^{}]*)\}/u;
-const IP_LITERAL = /^(?:\d+\.){3}\d+$|^\[/u;
-const LOCAL_SUFFIX = /\.(?:localhost|local|internal|home\.arpa)$/u;
-const HOST_NAME = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/u;
 
 type Settings = ReadonlyMap<string, Record<string, unknown>>;
 interface Scope { readonly id: string; readonly service: ConnectorRequestService | undefined; readonly settings: Settings }
@@ -59,9 +59,14 @@ export function oauthMethodProblems(id: string, method: Record<string, unknown>)
   if (method.token_format !== undefined && method.token_format !== "form" && method.token_format !== "json") problems.push(`${where}的 token_format 只能是 form 或 json`);
   if (method.client_secret !== undefined && method.client_secret !== "required" && method.client_secret !== "optional") problems.push(`${where}的 client_secret 只能是 required 或 optional`);
   problems.push(...parameterProblems(where, method.parameters));
-  problems.push(...identityProblems(where, method.identity, scope));
+  const tenantSetting = [...settings.values()].some(setting => setting.use === "tenant");
+  const tenantKeeps = tenantKeepCount(method.keep);
+  const identityTenantKeeps = isRecord(method.identity) ? tenantKeepCount(method.identity.keep) : 0;
+  if (tenantKeeps + identityTenantKeeps > 1) problems.push(`${where}的 keep 和 identity.keep 里至多一项 check: tenant`);
+  // The interpreter pins the tenant to a kept `check: "tenant"` value, else the tenant setting: `{tenant}` needs one of them first.
+  problems.push(...identityProblems(where, method.identity, scope, tenantSetting || tenantKeeps > 0));
   if (method.keep !== undefined) problems.push(...keepProblems(`${where}的 keep`, method.keep, service));
-  if (method.context !== undefined) problems.push(...contextProblems(where, method.context, scope));
+  if (method.context !== undefined) problems.push(...contextProblems(where, method.context, scope, tenantSetting || tenantKeeps + identityTenantKeeps > 0));
   if (method.quirks !== undefined) problems.push(...quirkProblems(where, method.quirks));
   if (method.note !== undefined && !text(method.note)) problems.push(`${where}的 note 必须是非空文字`);
   return problems;
@@ -86,7 +91,7 @@ function settingMap(where: string, value: unknown, service: ConnectorRequestServ
   if (value === undefined) return settings;
   if (!Array.isArray(value)) { problems.push(`${where}的 settings 必须是数组`); return settings; }
   for (const setting of value) {
-    if (!isRecord(setting) || typeof setting.key !== "string" || !KEY.test(setting.key)) { problems.push(`${where}的 setting 要有小写的 key`); continue; }
+    if (!isRecord(setting) || !oauthKey(setting.key)) { problems.push(`${where}的 setting 要有小写的 key`); continue; }
     const at = `${where}的 setting ${setting.key}`;
     if (settings.has(setting.key)) { problems.push(`${at}重复`); continue; }
     settings.set(setting.key, setting);
@@ -94,6 +99,7 @@ function settingMap(where: string, value: unknown, service: ConnectorRequestServ
     if (unknown.length > 0) problems.push(`${at}不认这些字段：${unknown.join("、")}`);
     if (!text(setting.label)) problems.push(`${at}要写 label`);
     for (const field of ["placeholder", "default"] as const) if (setting[field] !== undefined && typeof setting[field] !== "string") problems.push(`${at}的 ${field} 必须是文字`);
+    if (typeof setting.default === "string" && setting.default.trim() !== "") problems.push(...defaultProblems(at, setting, setting.default.trim(), service));
     if (setting.required !== undefined && typeof setting.required !== "boolean") problems.push(`${at}的 required 必须是 true 或 false`);
     if (!(OAUTH_SETTING_USES as readonly unknown[]).includes(setting.use)) problems.push(`${at}的 use 必须是 ${OAUTH_SETTING_USES.join("、")} 之一`);
     if (setting.use === "tenant" && !service?.tenant) problems.push(`${at}写了 use: tenant，但平台的请求表没有把这个服务放在租户的来源上`);
@@ -109,37 +115,48 @@ function settingMap(where: string, value: unknown, service: ConnectorRequestServ
   return settings;
 }
 
+/** A `default` is held to its setting's own rules, as a value the person typed would be; a setting whose rules are broken is reported apart. */
+function defaultProblems(at: string, setting: Record<string, unknown>, value: string, service: ConnectorRequestService | undefined): string[] {
+  if (typeof setting.use !== "string" || (setting.pattern !== undefined && !compiles(setting.pattern))) return [];
+  if (setting.enum !== undefined && !(Array.isArray(setting.enum) && setting.enum.every(entry => typeof entry === "string"))) return [];
+  const fault = oauthSettingValueFault({ use: setting.use, ...(typeof setting.pattern === "string" ? { pattern: setting.pattern } : {}),
+    ...(Array.isArray(setting.enum) ? { enum: setting.enum.filter(entry => typeof entry === "string") } : {}) }, value, service?.tenant?.domain);
+  return fault ? [`${at}的 default 不合这个 setting 自己的规则（${fault}）`] : [];
+}
+
+function tenantKeepCount(keeps: unknown): number {
+  return Array.isArray(keeps) ? keeps.filter(keep => isRecord(keep) && keep.check === "tenant").length : 0;
+}
+
 /**
  * An endpoint: a fixed `https://` address of a public name, no credentials, port, query or fragment, `{setting.<key>}` only as a path
  * segment of a `use: "path"` setting; or `{tenant}/path` when the method has a `use: "tenant"` setting.
  */
 function endpointProblems(where: string, value: unknown, scope: Scope): string[] {
   if (typeof value !== "string") return [`${where}必须是文字`];
-  if (value.startsWith("{tenant}/")) {
+  const template = oauthUrlTemplate(value);
+  if (template && "head" in template) {
+    if (template.head !== "tenant") return [`${where}只认 {tenant} 开头，不认 {${template.head}}`];
     if (![...scope.settings.values()].some(setting => setting.use === "tenant")) return [`${where}写了 {tenant}，但没有 use: tenant 的 setting`];
-    return pathPlaceholderProblems(where, value.slice("{tenant}".length), scope, ["setting"]);
+    return pathPlaceholderProblems(where, template.path, scope, ["setting"]);
   }
-  const url = parse(value.replace(PLACEHOLDER, "x"));
-  if (!url || !fixedHttps(url.href) || !publicName(url.hostname)) return [`${where}必须是 https 地址，主机是公开的名字，不带账号密码、端口、查询或片段`];
-  const pathAt = value.indexOf("/", "https://".length);
-  if (value.slice(0, pathAt < 0 ? value.length : pathAt).includes("{")) return [`${where}的 {setting} 只能写在路径里`];
-  return pathPlaceholderProblems(where, value.slice(pathAt), scope, ["setting"]);
+  const url = template ? parse(template.origin) : undefined;
+  if (!template || !url || !fixedHttps(template.origin) || !oauthPublicHostName(url.hostname)) {
+    return [`${where}必须是 https 地址，主机是公开的名字，不带账号密码、端口、查询或片段；{setting} 只能写在路径里`];
+  }
+  return pathPlaceholderProblems(where, template.path, scope, ["setting"]);
 }
 
 /** The placeholders of a path: each fills a whole segment, and names a setting of `use: "path"` or a context key. */
 function pathPlaceholderProblems(where: string, path: string, scope: Scope, kinds: readonly ("setting" | "context")[]): string[] {
+  const names = oauthPathPlaceholders(path);
+  if (!names) return [`${where}的路径不带查询或片段，花括号成对，每个占位占满一个路径段`];
   const problems: string[] = [];
-  if (/[?#]/u.test(path)) problems.push(`${where}不带查询或片段`);
-  for (const segment of path.split("/")) {
-    const names = [...segment.matchAll(PLACEHOLDER)].map(match => match[1]!);
-    if (segment.replace(PLACEHOLDER, "").includes("{") || segment.replace(PLACEHOLDER, "").includes("}")) problems.push(`${where}的花括号不成对`);
-    if (names.length > 0 && segment !== `{${names[0]}}`) problems.push(`${where}的占位要占满一个路径段：${segment}`);
-    for (const name of names) {
-      const [kind, key = ""] = name.split(".", 2) as [string, string?];
-      if (kind === "setting" && kinds.includes("setting") && scope.settings.get(key)?.use === "path") continue;
-      if (kind === "context" && kinds.includes("context") && KEY.test(key)) continue;
-      problems.push(`${where}有未知的占位 {${name}}`);
-    }
+  for (const name of names) {
+    const [kind, key = ""] = name.split(".", 2) as [string, string?];
+    if (kind === "setting" && kinds.includes("setting") && scope.settings.get(key)?.use === "path") continue;
+    if (kind === "context" && kinds.includes("context") && oauthKey(key)) continue;
+    problems.push(`${where}有未知的占位 {${name}}`);
   }
   return problems;
 }
@@ -149,7 +166,7 @@ function scopeProblems(where: string, value: unknown, settings: Settings): strin
   const problems: string[] = [];
   for (const entry of value) {
     if (!text(entry)) { problems.push(`${where}的 scopes 每项必须是非空文字`); continue; }
-    const names = [...entry.matchAll(PLACEHOLDER)].map(match => match[1]!);
+    const names = oauthPlaceholders(entry);
     if (names.length === 0 && !/[{}]/u.test(entry)) continue;
     const key = names.length === 1 && entry === `{${names[0]}}` && names[0]!.startsWith("setting.") ? names[0]!.slice("setting.".length) : "";
     if (settings.get(key)?.use !== "scope") problems.push(`${where}的 scopes 里 ${entry} 必须正好是一个 use: scope 的 {setting.<key>}`);
@@ -170,14 +187,14 @@ function parameterProblems(where: string, value: unknown): string[] {
   return reserved.length > 0 ? [`${where}的 parameters 不许写平台写的参数：${reserved.join("、")}`] : [];
 }
 
-function identityProblems(where: string, value: unknown, scope: Scope): string[] {
+function identityProblems(where: string, value: unknown, scope: Scope, tenantSource: boolean): string[] {
   const at = `${where}的 identity`;
   if (!isRecord(value)) return [`${at}必须是对象`];
   const unknown = Object.keys(value).filter(field => !IDENTITY_FIELDS.has(field));
   if (unknown.length > 0) return [`${at}不认这些字段：${unknown.join("、")}`];
   const problems: string[] = [];
   const sends = value.url !== undefined;
-  if (sends) problems.push(...requestProblems(at, value, scope));
+  if (sends) problems.push(...requestProblems(at, value, scope, tenantSource));
   else if (["method", "body", "headers", "query", "list", "keep"].some(field => value[field] !== undefined)) problems.push(`${at}不写 url 就不发请求，也不写 method、body、headers、query、list、keep`);
   if (value.list !== undefined && !(isRecord(value.list) && Object.keys(value.list).length === 1 && pointer(value.list.min_by))) problems.push(`${at}的 list 只能是 { min_by: 指针 }`);
   const segments = value.account_id;
@@ -188,7 +205,7 @@ function identityProblems(where: string, value: unknown, scope: Scope): string[]
   }
   if (!Array.isArray(value.label) || value.label.length === 0) problems.push(`${at}的 label 必须是至少一项的来源数组`);
   else problems.push(...sourceProblems(`${at}的 label`, value.label, sends));
-  if (value.label_prefix !== undefined && (typeof value.label_prefix !== "string" || PLACEHOLDER_LIKE.test(value.label_prefix))) problems.push(`${at}的 label_prefix 必须是文字，不展开占位`);
+  if (value.label_prefix !== undefined && (typeof value.label_prefix !== "string" || oauthLooksLikePlaceholder(value.label_prefix))) problems.push(`${at}的 label_prefix 必须是文字，不展开占位`);
   if (value.keep !== undefined) problems.push(...keepProblems(`${at}的 keep`, value.keep, scope.service));
   return problems;
 }
@@ -197,7 +214,7 @@ function sourceProblems(where: string, sources: unknown[], identitySent: boolean
   const problems: string[] = [];
   for (const source of sources) {
     const match = typeof source === "string" ? SOURCE.exec(source) : null;
-    if (!match || (match[1] !== undefined && !pointer(match[1])) || (match[2] !== undefined && !KEY.test(match[2]))) {
+    if (!match || (match[1] !== undefined && !pointer(match[1])) || (match[2] !== undefined && !oauthKey(match[2]))) {
       problems.push(`${where}的来源 ${String(source)} 必须是 identity:/指针、token:/指针、context:键 或 literal:文字`);
     } else if (!identitySent && match[1] !== undefined && String(source).startsWith("identity:")) problems.push(`${where}取了 identity 响应，但 identity 没写 url`);
   }
@@ -208,7 +225,7 @@ function keepProblems(where: string, value: unknown, service: ConnectorRequestSe
   if (!Array.isArray(value) || value.length === 0) return [`${where}必须是非空数组`];
   const problems: string[] = [];
   for (const keep of value) {
-    if (!isRecord(keep) || typeof keep.key !== "string" || !KEY.test(keep.key) || !pointer(keep.pointer)) { problems.push(`${where}每项要有小写的 key 和指针 pointer`); continue; }
+    if (!isRecord(keep) || !oauthKey(keep.key) || !pointer(keep.pointer)) { problems.push(`${where}每项要有小写的 key 和指针 pointer`); continue; }
     const unknown = Object.keys(keep).filter(field => !KEEP_FIELDS.has(field));
     if (unknown.length > 0) problems.push(`${where}的 ${keep.key} 不认这些字段：${unknown.join("、")}`);
     if (keep.required !== undefined && typeof keep.required !== "boolean") problems.push(`${where}的 ${keep.key}.required 必须是 true 或 false`);
@@ -219,20 +236,21 @@ function keepProblems(where: string, value: unknown, service: ConnectorRequestSe
   return problems;
 }
 
-function contextProblems(where: string, value: unknown, scope: Scope): string[] {
+function contextProblems(where: string, value: unknown, scope: Scope, tenantSource: boolean): string[] {
   if (!Array.isArray(value) || value.length === 0) return [`${where}的 context 必须是非空数组`];
   const problems: string[] = [];
   for (const entry of value) {
-    if (!isRecord(entry) || typeof entry.key !== "string" || !KEY.test(entry.key)) { problems.push(`${where}的 context 每项要有小写的 key`); continue; }
+    if (!isRecord(entry) || !oauthKey(entry.key)) { problems.push(`${where}的 context 每项要有小写的 key`); continue; }
     const at = `${where}的 context ${entry.key}`;
     const unknown = Object.keys(entry).filter(field => !CONTEXT_FIELDS.has(field));
     if (unknown.length > 0) { problems.push(`${at}不认这些字段：${unknown.join("、")}`); continue; }
-    problems.push(...requestProblems(at, entry, scope));
+    problems.push(...requestProblems(at, entry, scope, tenantSource));
     const pick = entry.pick;
     if (isRecord(pick) && pick.kind === "ids" && Object.keys(pick).length === 2 && pointer(String(pick.pointer).replaceAll("/*", "/x"))) continue;
-    if (isRecord(pick) && pick.kind === "match_setting" && Object.keys(pick).length === 5 && typeof pick.setting === "string" && scope.settings.has(pick.setting)
+    // The interpreter reads the matched setting as an origin, so it can only be the tenant setting.
+    if (isRecord(pick) && pick.kind === "match_setting" && Object.keys(pick).length === 5 && typeof pick.setting === "string" && scope.settings.get(pick.setting)?.use === "tenant"
       && pointer(pick.match) && pointer(pick.take) && compiles(pick.pattern)) continue;
-    problems.push(`${at}的 pick 只能是 { kind: ids, pointer } 或 { kind: match_setting, setting, match, take, pattern }`);
+    problems.push(`${at}的 pick 只能是 { kind: ids, pointer } 或 { kind: match_setting, setting, match, take, pattern }，setting 指向 use: tenant 的 setting`);
   }
   return problems;
 }
@@ -241,15 +259,15 @@ function contextProblems(where: string, value: unknown, scope: Scope): string[] 
  * A request that carries the access token (identity, context): where it may go is the platform's request table, the Manifest only
  * picks which of its origins and the path. `{account}` comes with the account origins table (W5-11 slice 4).
  */
-function requestProblems(where: string, request: Record<string, unknown>, scope: Scope): string[] {
-  const problems = urlProblems(`${where}的 url`, request.url, scope);
+function requestProblems(where: string, request: Record<string, unknown>, scope: Scope, tenantSource: boolean): string[] {
+  const problems = urlProblems(`${where}的 url`, request.url, scope, tenantSource);
   if (request.method !== undefined && request.method !== "GET" && request.method !== "POST") problems.push(`${where}的 method 只能是 GET 或 POST`);
   if (request.body !== undefined && request.method !== "POST") problems.push(`${where}只有 POST 才写 body`);
-  if (request.body !== undefined && texts(request.body).some(text => PLACEHOLDER_LIKE.test(text))) problems.push(`${where}的 body 是固定的 JSON，不展开占位`);
+  if (request.body !== undefined && texts(request.body).some(oauthLooksLikePlaceholder)) problems.push(`${where}的 body 是固定的 JSON，不展开占位`);
   if (request.headers !== undefined) {
     if (!isRecord(request.headers)) problems.push(`${where}的 headers 必须是对象`);
     else for (const [name, header] of Object.entries(request.headers)) {
-      if (!HEADER_NAME.test(name) || PLATFORM_HEADERS.has(name.toLowerCase())) problems.push(`${where}不能写请求头 ${name}`);
+      if (!oauthDeclarableHeader(name)) problems.push(`${where}不能写请求头 ${name}`);
       problems.push(...valueProblems(`${where}的请求头 ${name}`, header));
     }
   }
@@ -260,29 +278,28 @@ function requestProblems(where: string, request: Record<string, unknown>, scope:
   return problems;
 }
 
-function urlProblems(where: string, value: unknown, scope: Scope): string[] {
+function urlProblems(where: string, value: unknown, scope: Scope, tenantSource: boolean): string[] {
   if (typeof value !== "string") return [`${where}必须是文字`];
   const tenant = scope.service?.tenant;
-  const head = /^\{([a-z]+)\}(\/.*)$/su.exec(value);
-  if (head) {
-    const base = head[1]!;
-    const path = head[2]!;
+  const template = oauthUrlTemplate(value);
+  if (template && "head" in template) {
+    const base = template.head;
     if (base === "service" && scope.service?.origins.length !== 1) return [`${where}的 {service} 只给平台请求表里只有一个来源的服务；有几个来源的写完整地址`];
     if (base === "tenant" && !tenant) return [`${where}的 {tenant} 只给平台请求表里放在租户来源上的服务`];
+    if (base === "tenant" && !tenantSource) return [`${where}写了 {tenant}，但这个方法既没有 use: tenant 的 setting，也没有在这之前留下 check: tenant 的值`];
     if (base === "gateway" && !tenant?.gateway) return [`${where}的 {gateway} 只给平台请求表里有网关的服务`];
     if (!["service", "tenant", "gateway"].includes(base)) return [`${where}有未知的占位 {${base}}`];
-    return pathPlaceholderProblems(where, path, scope, ["setting", "context"]);
+    return pathPlaceholderProblems(where, template.path, scope, ["setting", "context"]);
   }
-  const url = parse(value);
-  if (!url || !fixedHttps(url.href) || !scope.service?.origins.includes(url.origin)) return [`${where}写完整地址时，来源必须是平台请求表里这个服务的来源之一`];
-  return pathPlaceholderProblems(where, value.slice(url.origin.length), scope, ["setting", "context"]);
+  const url = template ? parse(template.origin) : undefined;
+  if (!template || !url || !fixedHttps(template.origin) || !scope.service?.origins.includes(url.origin)) return [`${where}写完整地址时，来源必须是平台请求表里这个服务的来源之一`];
+  return pathPlaceholderProblems(where, template.path, scope, ["setting", "context"]);
 }
 
 /** A header or query value: a constant, or exactly `{client_id}` or `{context.<key>}`. */
 function valueProblems(where: string, value: unknown): string[] {
   if (typeof value !== "string") return [`${where}必须是文字`];
-  if (!/[{}]/u.test(value)) return [];
-  return value === "{client_id}" || /^\{context\.[a-z][a-z0-9_]{0,63}\}$/u.test(value) ? [] : [`${where}只能是固定文字、{client_id} 或 {context.<key>}`];
+  return oauthValueTemplate(value) ? [] : [`${where}只能是固定文字、{client_id} 或 {context.<key>}`];
 }
 
 function quirkProblems(where: string, value: unknown): string[] {
@@ -302,10 +319,6 @@ function fixedHttps(value: unknown): boolean {
   if (typeof value !== "string" || /[?#]/u.test(value)) return false;
   const url = parse(value);
   return !!url && url.protocol === "https:" && !url.username && !url.password && !url.port;
-}
-
-function publicName(host: string): boolean {
-  return !IP_LITERAL.test(host) && !isLoopbackHostname(host) && HOST_NAME.test(host) && !LOCAL_SUFFIX.test(host);
 }
 
 function parse(value: string): URL | undefined {

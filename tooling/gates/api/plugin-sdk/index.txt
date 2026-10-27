@@ -214,6 +214,9 @@ export type { MaterialExtraction } from "@molis-ai/molis-work-contracts/services
 export type { MaterialSource } from "@molis-ai/molis-work-contracts/services/materials";
 export type { MaterialSourceContent } from "@molis-ai/molis-work-contracts/services/materials";
 export type { MaterialUpload } from "@molis-ai/molis-work-contracts/services/materials";
+
+export type OAuthSettingValueFault = "enum" | "pattern" | "path" | "tenant";
+
 export { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export declare const PLUGIN_MESSAGE_LIMITS: {
@@ -462,6 +465,8 @@ export { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompt
 
 export declare function isCodedFailure(error: unknown): boolean;
 
+export declare function isDeclaredOAuth(method: PluginAuthMethodDeclaration): method is PluginOAuthMethodDeclaration;
+
 export declare function isHomeAggregateQuery(definition: {
     readonly operation: string;
     readonly action: object;
@@ -475,6 +480,53 @@ export { linksToArtifactVersion } from "@molis-ai/molis-work-contracts/platform/
 export declare function messageDeclarationProblems(parsed: Pick<PluginManifest, "plugin_id" | "ui">): string[];
 
 export { nextPinnedVersion } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export declare function oauthCodePointOrder(a: string, b: string): number;
+
+export declare function oauthDeclarableHeader(name: string): boolean;
+
+export declare function oauthFillPlaceholders(template: string, fill: (name: string) => string): string;
+
+export declare function oauthKey(value: unknown): value is string;
+
+export declare function oauthLooksLikePlaceholder(text: string): boolean;
+
+export declare function oauthPathPlaceholders(path: string): string[] | undefined;
+
+export declare function oauthPathSegment(value: string): boolean;
+
+export declare function oauthPlaceholders(template: string): string[];
+
+export declare function oauthPointerTokens(pointer: string): string[];
+
+export declare function oauthPublicHostName(host: string): boolean;
+
+export declare function oauthSettingValueFault(setting: {
+    readonly use: string;
+    readonly pattern?: string;
+    readonly enum?: readonly string[];
+}, value: string, tenantDomain: string | undefined): OAuthSettingValueFault | undefined;
+
+export declare function oauthTenantOriginUnder(domain: string, raw: string): string | undefined;
+
+export declare function oauthUrlTemplate(template: string): {
+    readonly head: string;
+    readonly path: string;
+} | {
+    readonly origin: string;
+    readonly path: string;
+} | undefined;
+
+export declare function oauthValueTemplate(value: string): {
+    readonly kind: "literal";
+    readonly value: string;
+} | {
+    readonly kind: "client_id";
+} | {
+    readonly kind: "context";
+    readonly key: string;
+} | null;
+
 export { objectOrMissing } from "@molis-ai/molis-work-contracts/platform/actions";
 
 export declare function parsePluginManifest(input: unknown): PluginManifest;

@@ -22,6 +22,8 @@ export declare const OAUTH_CLIENT_AUTHS: readonly ["basic", "post", "none"];
 
 export declare const OAUTH_GRANTS: readonly ["authorization_code", "device"];
 
+export declare const OAUTH_PLATFORM_HEADERS: readonly ["authorization", "proxy-authorization", "cookie", "host", "content-length", "content-type", "transfer-encoding", "connection", "accept", "user-agent", "private-token", "x-figma-token"];
+
 export declare const OAUTH_RESERVED_PARAMETERS: readonly ["client_id", "redirect_uri", "state", "code_challenge", "code_challenge_method", "response_type"];
 
 export declare const OAUTH_SETTING_USES: readonly ["path", "scope", "client_auth", "tenant"];

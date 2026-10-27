@@ -1,5 +1,4 @@
 import { createHash } from "node:crypto";
-import { isLoopbackHostname } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type {
   OAuthClientAuth,
@@ -11,11 +10,25 @@ import type {
   PluginOAuthMethodDeclaration,
 } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { CONNECTOR_REQUEST_SERVICES, type ConnectorRequestService } from "@molis-ai/molis-work-contracts/services/connector-host";
+import {
+  oauthCodePointOrder,
+  oauthDeclarableHeader,
+  oauthFillPlaceholders,
+  oauthPathPlaceholders,
+  oauthPathSegment,
+  oauthPointerTokens,
+  oauthPublicHostName,
+  oauthSettingValueFault,
+  oauthTenantOriginUnder,
+  oauthUrlTemplate,
+  oauthValueTemplate,
+} from "@molis-ai/molis-work-plugin-sdk";
 
 // The platform's one reader of an `oauth` method declared in a plugin's Manifest (W5-11 §2.2). Everything here is a pure function: it
 // turns the declaration, the settings the person filled in and what the connection already holds into addresses and request
 // descriptions, and reads accounts out of responses. Nothing is sent here. Where an access token may go is the platform's request table;
-// every address is checked again after its template is filled in (S-09, S-10), before anything could be sent to it.
+// every address is checked again after its template is filled in (S-09, S-10), before anything could be sent to it. The template and
+// value rules are the SDK's (`oauth-templates.ts`), the same ones the Manifest check reads by.
 
 export const oauthDeclarationErrors = defineErrorCodes("connector.oauth_declarations", {
   setting_invalid: "invalid", template_invalid: "invalid", target_refused: "forbidden", account_missing: "upstream", context_missing: "upstream",
@@ -23,10 +36,6 @@ export const oauthDeclarationErrors = defineErrorCodes("connector.oauth_declarat
 
 /** The Atlassian gateway an OAuth token is accepted on (`ConnectorRequestTenant.gateway`). */
 const ATLASSIAN_GATEWAY = "https://api.atlassian.com";
-const PLACEHOLDER = /\{([^{}]*)\}/gu;
-const IP_LITERAL = /^(?:\d+\.){3}\d+$|^\[/u;
-const LOCAL_SUFFIX = /\.(?:localhost|local|internal|home\.arpa)$/u;
-const HOST_NAME = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/u;
 const USER_AGENT = "Molis-Work";
 
 type Json = Record<string, unknown>;
@@ -56,14 +65,9 @@ function service(serviceId: string): ConnectorRequestService | undefined {
 export function oauthTenantOrigin(serviceId: string, raw: string): string {
   const domain = service(serviceId)?.tenant?.domain;
   if (!domain) throw oauthDeclarationErrors.target_refused(`${serviceId} 不在租户的来源上`);
-  let url: URL | undefined;
-  try { url = new URL(raw.trim()); } catch { url = undefined; }
-  const host = url?.hostname ?? "";
-  if (!url || url.protocol !== "https:" || url.username || url.password || url.port || (url.pathname !== "/" && url.pathname !== "") || url.search || url.hash
-    || /[?#]/u.test(raw) || !publicName(host) || (host !== domain && !host.endsWith(`.${domain}`))) {
-    throw oauthDeclarationErrors.target_refused(`地址必须是 ${domain} 下的 https 来源，不带账号密码、端口或路径`);
-  }
-  return url.origin;
+  const origin = oauthTenantOriginUnder(domain, raw);
+  if (!origin) throw oauthDeclarationErrors.target_refused(`地址必须是 ${domain} 下的 https 来源，不带账号密码、端口或路径`);
+  return origin;
 }
 
 /** The person's settings checked against the declaration: required, default, `pattern` or `enum`, path-safe, the tenant bounded. */
@@ -77,11 +81,14 @@ export function resolveOAuthSettings(serviceId: string, method: PluginOAuthMetho
       values[setting.key] = "";
       continue;
     }
-    const words = setting.use === "scope" ? value.split(/\s+/u) : [value];
-    if (setting.enum && !words.every(word => setting.enum!.includes(word))) throw oauthDeclarationErrors.setting_invalid(`${setting.label}只能是 ${setting.enum.join("、")}`);
-    if (setting.pattern && !words.every(word => new RegExp(`^(?:${setting.pattern})$`, "u").test(word))) throw oauthDeclarationErrors.setting_invalid(`${setting.label}的格式不对`);
-    if (setting.use === "path" && !pathSegment(value)) throw oauthDeclarationErrors.setting_invalid(`${setting.label}不能带 /、..、反斜杠或编码过的斜杠`);
     if (setting.use === "tenant") tenant = oauthTenantOrigin(serviceId, value);
+    switch (oauthSettingValueFault(setting, value, service(serviceId)?.tenant?.domain)) {
+      case "enum": throw oauthDeclarationErrors.setting_invalid(`${setting.label}只能是 ${setting.enum!.join("、")}`);
+      case "pattern": throw oauthDeclarationErrors.setting_invalid(`${setting.label}的格式不对`);
+      case "path": throw oauthDeclarationErrors.setting_invalid(`${setting.label}不能带 /、..、反斜杠或编码过的斜杠`);
+      case "tenant": throw oauthDeclarationErrors.target_refused(`${setting.label}不是可用的租户地址`);
+      case undefined: break;
+    }
     values[setting.key] = setting.use === "tenant" ? tenant! : value;
   }
   for (const key of Object.keys(raw)) if (!Object.hasOwn(values, key)) throw oauthDeclarationErrors.setting_invalid(`这个服务没有设置项 ${key}`);
@@ -90,18 +97,18 @@ export function resolveOAuthSettings(serviceId: string, method: PluginOAuthMetho
 
 /** An endpoint with its template filled in: `{tenant}` from the tenant setting, `{setting.<key>}` as one encoded path segment. */
 export function oauthEndpoint(template: string, settings: OAuthResolvedSettings): string {
+  const parts = oauthUrlTemplate(template);
+  if (!parts || ("head" in parts && parts.head !== "tenant")) throw oauthDeclarationErrors.template_invalid("端点只认 https 地址或 {tenant} 开头");
   let origin: string | undefined;
-  let rest = template;
-  if (template.startsWith("{tenant}/")) {
+  if ("head" in parts) {
     if (!settings.tenant) throw oauthDeclarationErrors.template_invalid("没有填写租户地址");
     origin = settings.tenant;
-    rest = template.slice("{tenant}".length);
   }
-  const filled = rest.replace(PLACEHOLDER, (_, name: string) => {
+  const filled = fillPath(parts.path, name => {
     if (!name.startsWith("setting.")) throw oauthDeclarationErrors.template_invalid(`端点里有未知的占位 {${name}}`);
-    return segment(settings.values[name.slice("setting.".length)]);
+    return settings.values[name.slice("setting.".length)];
   });
-  const url = checkedUrl(`${origin ?? ""}${filled}`);
+  const url = checkedUrl(`${origin ?? ("origin" in parts ? parts.origin : "")}${filled}`);
   if (origin && url.origin !== origin) throw oauthDeclarationErrors.target_refused("端点不在所填的租户来源上");
   return url.href;
 }
@@ -209,15 +216,24 @@ export function oauthKept(serviceId: string, keeps: readonly OAuthKeepDeclaratio
   return kept;
 }
 
-/** What a request with the access token may fill in: the connection's context so far, the settings, the pinned tenant. */
+/** What a request with the access token may fill in: the connection's context so far (kept values included) and the settings. */
 export interface OAuthRequestScope {
   readonly serviceId: string;
+  readonly method: PluginOAuthMethodDeclaration;
   readonly accessToken: string;
   readonly clientId: string;
   readonly context: Readonly<Record<string, string>>;
   readonly settings: OAuthResolvedSettings;
-  /** The tenant origin pinned to the connection (a kept `check: "tenant"` value, or the tenant setting). */
-  readonly tenant?: string;
+}
+
+/**
+ * The tenant origin a request with the access token goes to, worked out here and never by the caller: the value kept by the method's one
+ * `check: "tenant"` keep (in `keep` or `identity.keep`), checked against the platform's table again, else the tenant setting.
+ */
+export function oauthPinnedTenant(scope: Pick<OAuthRequestScope, "serviceId" | "method" | "context" | "settings">): string | undefined {
+  const keep = [...scope.method.keep ?? [], ...scope.method.identity.keep ?? []].find(entry => entry.check === "tenant");
+  const kept = keep ? (scope.context[keep.key] ?? "").trim() : "";
+  return kept ? oauthTenantOrigin(scope.serviceId, kept) : scope.settings.tenant;
 }
 
 /**
@@ -226,21 +242,20 @@ export interface OAuthRequestScope {
  */
 export function oauthAccountRequest(request: OAuthTokenRequestDeclaration, scope: OAuthRequestScope): OAuthRequestDescription {
   const entry = service(scope.serviceId);
-  const head = /^\{([a-z]+)\}(\/.*)$/su.exec(request.url);
+  const parts = oauthUrlTemplate(request.url);
+  if (!parts) throw oauthDeclarationErrors.template_invalid("请求地址必须是 https 来源或 {service}、{tenant}、{gateway} 开头，再接路径");
+  const tenant = "head" in parts && parts.head === "tenant" && entry?.tenant ? oauthPinnedTenant(scope) : undefined;
   let allowed: readonly string[];
-  let address: string;
-  if (head) {
-    const base = head[1]!;
-    if (base === "service" && entry?.origins.length === 1) allowed = entry.origins;
-    else if (base === "tenant" && entry?.tenant && scope.tenant) allowed = [oauthTenantOrigin(scope.serviceId, scope.tenant)];
-    else if (base === "gateway" && entry?.tenant?.gateway === "atlassian") allowed = [ATLASSIAN_GATEWAY];
-    else throw oauthDeclarationErrors.template_invalid(`请求地址的 {${base}} 在这个服务上不可用`);
-    address = `${allowed[0]}${fillPath(head[2]!, scope)}`;
-  } else {
-    allowed = entry?.origins ?? [];
-    const origin = /^https:\/\/[^/{}]+/u.exec(request.url)?.[0] ?? "";
-    address = `${origin}${fillPath(request.url.slice(origin.length), scope)}`;
-  }
+  if ("origin" in parts) allowed = entry?.origins ?? [];
+  else if (parts.head === "service" && entry?.origins.length === 1) allowed = entry.origins;
+  else if (parts.head === "tenant" && tenant) allowed = [tenant];
+  else if (parts.head === "gateway" && entry?.tenant?.gateway === "atlassian") allowed = [ATLASSIAN_GATEWAY];
+  else throw oauthDeclarationErrors.template_invalid(`请求地址的 {${parts.head}} 在这个服务上不可用`);
+  const address = `${"origin" in parts ? parts.origin : allowed[0]}${fillPath(parts.path, name => {
+    if (name.startsWith("context.")) return scope.context[name.slice("context.".length)];
+    if (name.startsWith("setting.")) return scope.settings.values[name.slice("setting.".length)];
+    throw oauthDeclarationErrors.template_invalid(`请求地址里有未知的占位 {${name}}`);
+  })}`;
   const url = checkedUrl(address);
   if (!allowed.includes(url.origin)) throw oauthDeclarationErrors.target_refused(`请求地址的来源 ${url.origin} 不在平台为这个服务定的来源里`);
   for (const [key, template] of Object.entries(request.query ?? {})) {
@@ -249,6 +264,7 @@ export function oauthAccountRequest(request: OAuthTokenRequestDeclaration, scope
   }
   const headers: Record<string, string> = {};
   for (const [name, template] of Object.entries(request.headers ?? {})) {
+    if (!oauthDeclarableHeader(name)) throw oauthDeclarationErrors.template_invalid(`声明不能写请求头 ${name}`);
     const value = fillValue(template, scope);
     if (value) headers[name.toLowerCase()] = value;
   }
@@ -290,15 +306,19 @@ export function oauthAccount(serviceId: string, identity: OAuthIdentityDeclarati
   return { account_id: segments.join(":"), label: label.startsWith(prefix) ? label : `${prefix}${label}`, kept: oauthKept(serviceId, identity.keep, entry) };
 }
 
-/** The value a context request contributes: the sorted ids of a list, or the id of the entry matching a setting's origin. */
+/**
+ * The value a context request contributes: the ids of a list in code-point order, or the id of the entry matching the tenant setting's
+ * origin. An empty list fails the authorization (W5-11 §2.1.1): the account has nothing yet to authorize, and the message says what to do.
+ */
 export function oauthContextValue(pick: OAuthContextDeclaration["pick"], response: unknown, settings: OAuthResolvedSettings): string {
   if (pick.kind === "ids") {
-    const ids = valuesAt(response, pick.pointer.split("/").slice(1));
+    const ids = valuesAt(response, oauthPointerTokens(pick.pointer));
     if (ids === null) throw oauthDeclarationErrors.context_missing("服务未返回已授权工作区");
-    return ids.sort().join(",");
+    if (ids.length === 0) throw oauthDeclarationErrors.context_missing("这个账号在服务里还没有可授权的工作区或组织，先建一个或加入一个，再重新连接");
+    return ids.sort(oauthCodePointOrder).join(",");
   }
-  let origin: string;
-  try { origin = new URL(settings.values[pick.setting] ?? "").origin; } catch { throw oauthDeclarationErrors.setting_invalid("所填站点不是有效地址"); }
+  const origin = settings.tenant;
+  if (!origin) throw oauthDeclarationErrors.setting_invalid("没有填写站点地址");
   const rows = Array.isArray(response) ? response : [];
   const match = rows.find(row => textAt(row, pick.match).replace(/\/$/u, "") === origin);
   const value = match === undefined ? "" : textAt(match, pick.take);
@@ -317,7 +337,7 @@ export function oauthEndpointFingerprint(method: PluginOAuthMethodDeclaration): 
 
 function listEntry(minBy: string, response: unknown): unknown {
   const rows = Array.isArray(response) ? response : [];
-  return rows.slice().sort((a, b) => textAt(a, minBy).localeCompare(textAt(b, minBy)))[0];
+  return rows.slice().sort((a, b) => oauthCodePointOrder(textAt(a, minBy), textAt(b, minBy)))[0];
 }
 
 function sourceValue(source: OAuthValueSource, identity: unknown, token: unknown, context: Readonly<Record<string, string>>): string {
@@ -330,7 +350,7 @@ function sourceValue(source: OAuthValueSource, identity: unknown, token: unknown
 /** The value at a JSON Pointer as text: a trimmed string or a finite number; anything else is empty. */
 function textAt(value: unknown, pointer: string): string {
   let current = value;
-  for (const token of pointer.split("/").slice(1).map(part => part.replaceAll("~1", "/").replaceAll("~0", "~"))) {
+  for (const token of oauthPointerTokens(pointer)) {
     if (Array.isArray(current) && /^\d+$/u.test(token)) current = current[Number(token)];
     else if (current && typeof current === "object" && !Array.isArray(current) && Object.hasOwn(current, token)) current = (current as Json)[token];
     else return "";
@@ -356,43 +376,30 @@ function valuesAt(value: unknown, path: readonly string[]): string[] | null {
   return next === undefined ? null : valuesAt(next, rest);
 }
 
-/** A path with `{context.<key>}` and `{setting.<key>}` filled in, each as one encoded segment. */
-function fillPath(path: string, scope: OAuthRequestScope): string {
-  return path.replace(PLACEHOLDER, (_, name: string) => {
-    if (name.startsWith("context.")) return segment(scope.context[name.slice("context.".length)]);
-    if (name.startsWith("setting.")) return segment(scope.settings.values[name.slice("setting.".length)]);
-    throw oauthDeclarationErrors.template_invalid(`请求地址里有未知的占位 {${name}}`);
+/** A path with each placeholder filled in as one encoded segment, the value `fill` gives for it. */
+function fillPath(path: string, fill: (name: string) => string | undefined): string {
+  if (!oauthPathPlaceholders(path)) throw oauthDeclarationErrors.template_invalid("地址的每个占位要占满一个路径段，不带查询或片段");
+  return oauthFillPlaceholders(path, name => {
+    const value = fill(name);
+    if (!value || !oauthPathSegment(value)) throw oauthDeclarationErrors.template_invalid("地址的路径段为空，或带 /、..、反斜杠、编码过的斜杠");
+    return encodeURIComponent(value);
   });
 }
 
 /** A header or query value: a constant, `{client_id}` or `{context.<key>}`. */
 function fillValue(template: string, scope: OAuthRequestScope): string {
-  if (template === "{client_id}") return scope.clientId;
-  const context = /^\{context\.([a-z][a-z0-9_]{0,63})\}$/u.exec(template);
-  if (context) return scope.context[context[1]!] ?? "";
-  if (/[{}]/u.test(template)) throw oauthDeclarationErrors.template_invalid(`请求头或查询参数里有未知的占位 ${template}`);
-  return template;
-}
-
-function segment(value: string | undefined): string {
-  if (!value || !pathSegment(value)) throw oauthDeclarationErrors.template_invalid("地址的路径段为空，或带 /、..、反斜杠、编码过的斜杠");
-  return encodeURIComponent(value);
-}
-
-function pathSegment(value: string): boolean {
-  return value !== "." && !value.includes("/") && !value.includes("\\") && !value.includes("..") && !/%2f|%5c|%2e/iu.test(value);
+  const value = oauthValueTemplate(template);
+  if (!value) throw oauthDeclarationErrors.template_invalid(`请求头或查询参数里有未知的占位 ${template}`);
+  if (value.kind === "client_id") return scope.clientId;
+  return value.kind === "context" ? scope.context[value.key] ?? "" : value.value;
 }
 
 /** A filled-in address checked again (S-09, S-10): `https://`, a public name, no credentials, port or fragment. */
 function checkedUrl(address: string): URL {
   let url: URL | undefined;
   try { url = new URL(address); } catch { url = undefined; }
-  if (!url || url.protocol !== "https:" || url.username || url.password || url.port || url.hash || !publicName(url.hostname)) {
+  if (!url || url.protocol !== "https:" || url.username || url.password || url.port || url.hash || !oauthPublicHostName(url.hostname)) {
     throw oauthDeclarationErrors.target_refused("展开后的地址不是可以发往的 https 地址");
   }
   return url;
-}
-
-function publicName(host: string): boolean {
-  return !IP_LITERAL.test(host) && !isLoopbackHostname(host) && HOST_NAME.test(host) && !LOCAL_SUFFIX.test(host);
 }

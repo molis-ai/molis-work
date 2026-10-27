@@ -12,6 +12,7 @@ import {
   oauthEndpointFingerprint,
   oauthExpiry,
   oauthKept,
+  oauthPinnedTenant,
   oauthSecretRequired,
   oauthTenantOrigin,
   oauthTokenRequest,
@@ -22,7 +23,8 @@ import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 
 // W5-11 slice 1 (specs/repository-anti-corruption/slices/w511-connector-oauth-declarations.md): the `oauth` method a plugin declares as
 // data, the SDK's shape check (any problem fails the whole Manifest) and the Host's one interpreter as pure functions. Nothing here sends
-// a request; the identity data is §2.1.1's, read against the catalog's own `readIdentity` on the same responses.
+// a request. The identity data is §2.1.1's, and so are the accounts it must read: the catalog's own `readIdentity` on the same responses
+// only corroborates them, and each place it is meant to differ says why.
 
 const method = (extra: Partial<PluginOAuthMethodDeclaration> = {}): PluginOAuthMethodDeclaration => ({
   kind: "oauth", grant: "authorization_code", authorize_url: "https://auth.example.com/authorize", token_url: "https://auth.example.com/token",
@@ -96,6 +98,21 @@ test("RAC-1081 each declaration error fails the whole Manifest before anything i
   refused("linear", method({ identity: { url: "{service}/graphql", method: "POST", body: { query: "{context.team}" }, account_id: [[], ["identity:/id"]], label: ["identity:/id"] } }), /body/u);
   refused("x", method({ identity: { url: "{service}/2/users/me", account_id: [[], ["identity:/data/id"]], label: ["identity:/data/name"], label_prefix: "{context.handle}" } }), /label_prefix/u);
   refused("slack", method({ context: [{ key: "teams", url: "{service}/teams", pick: { kind: "ids", pointer: "/*/id" }, when_missing: "fail" } as never] }), /不认这些字段/u);
+  // Where `{tenant}` goes is worked out by the interpreter alone, so the declaration must give it one source, and only one kept value.
+  refused("salesforce", method({ identity: { url: "{tenant}/services/oauth2/userinfo", account_id: [[], ["identity:/sub"]], label: ["identity:/name"] } }), /check: tenant/u);
+  refused("salesforce", method({ keep: [{ key: "instance", pointer: "/instance_url", check: "tenant" }],
+    identity: { url: "{tenant}/services/oauth2/userinfo", account_id: [[], ["identity:/sub"]], label: ["identity:/name"], keep: [{ key: "site", pointer: "/urls/custom_domain", check: "tenant" }] } }), /至多一项 check: tenant/u);
+  // A default is held to its setting's own rules.
+  refused("outlook", method({ settings: [{ key: "tenant", label: "租户", default: "everyone", use: "path", pattern: "common|organizations" }] }), /default/u);
+  refused("outlook", method({ settings: [{ key: "tenant", label: "租户", default: "../x", use: "path", pattern: ".+" }] }), /default/u);
+  refused("cloudflare", method({ client_auth: { setting: "auth" }, settings: [{ key: "auth", label: "a", default: "jwt", use: "client_auth", enum: ["basic", "post"] }] }), /default/u);
+  refused("salesforce", method({ settings: [{ key: "login", label: "l", default: "https://login.example.com", use: "tenant" }] }), /default/u);
+  // The matched setting is read as an origin: only the tenant setting is one.
+  refused("jira", method({ settings: [{ key: "site", label: "s", use: "path", pattern: ".+" }],
+    context: [{ key: "cloud_id", url: "{gateway}/oauth/token/accessible-resources", pick: { kind: "match_setting", setting: "site", match: "/url", take: "/id", pattern: ".+" } }] }), /use: tenant/u);
+  refused("slack", method({ identity: { url: "https://slack.com@evil.example/me", account_id: [[], ["identity:/id"]], label: ["identity:/id"] } }), /来源/u);
+  refused("slack", method({ identity: { url: "https://slack.com{context.x}/me", account_id: [[], ["identity:/id"]], label: ["identity:/id"] } }), /来源/u);
+  refused("slack", method({ identity: { url: "{service}/me", headers: { Cookie: "a=b" }, account_id: [[], ["identity:/id"]], label: ["identity:/id"] } }), /Cookie/u);
 });
 
 test("RAC-1081 endpoints are held to the endpoint rule, not to the request table's origins", () => {
@@ -142,7 +159,7 @@ test("RAC-1082 a path setting is one segment: no slash, dot-dot or encoded slash
 });
 
 test("RAC-1082 identity and context requests go only where the platform's table says, with the table's credential", () => {
-  const scope = (serviceId: string, extra: object = {}) => ({ serviceId, accessToken: "access-1", clientId: "client-1", context: {}, settings: { values: {} }, ...extra });
+  const scope = (serviceId: string, extra: object = {}) => ({ serviceId, method: method(), accessToken: "access-1", clientId: "client-1", context: {}, settings: { values: {} }, ...extra });
   const slack = oauthAccountRequest({ url: "{service}/api/auth.test" }, scope("slack"));
   assert.equal(slack.url, "https://slack.com/api/auth.test");
   assert.equal(slack.headers.authorization, "Bearer access-1");
@@ -156,8 +173,13 @@ test("RAC-1082 identity and context requests go only where the platform's table 
     "https://api.atlassian.com/ex/jira/0f6a3c1e-0000-4000-8000-000000000001/rest/api/3/myself");
   assert.throws(() => oauthAccountRequest({ url: "{gateway}/ex/jira/{context.cloud_id}/myself" }, scope("jira", { context: { cloud_id: "../../admin" } })), { code: "connector.oauth_declarations.template_invalid" });
   assert.throws(() => oauthAccountRequest({ url: "{gateway}/ex/jira/{context.cloud_id}/myself" }, scope("jira")), { code: "connector.oauth_declarations.template_invalid" }, "a missing context value");
-  assert.equal(oauthAccountRequest({ url: "{tenant}/services/oauth2/userinfo" }, scope("salesforce", { tenant: "https://acme.my.salesforce.com" })).url, "https://acme.my.salesforce.com/services/oauth2/userinfo");
-  assert.throws(() => oauthAccountRequest({ url: "{tenant}/services/oauth2/userinfo" }, scope("salesforce", { tenant: "https://evil.example.com" })), { code: "connector.oauth_declarations.target_refused" });
+  // What a declaration may not do, the interpreter refuses again on its own (§2.8): a userinfo part, a context value spelling a host, a platform header.
+  assert.throws(() => oauthAccountRequest({ url: "https://slack.com@evil.example/me" }, scope("slack")), { code: "connector.oauth_declarations.target_refused" });
+  assert.throws(() => oauthAccountRequest({ url: "https://slack.com{context.x}/me" }, scope("slack", { context: { x: ".evil.example" } })), { code: "connector.oauth_declarations.template_invalid" });
+  assert.throws(() => oauthAccountRequest({ url: "{service}/me", headers: { Cookie: "a=b" } }, scope("slack")), { code: "connector.oauth_declarations.template_invalid" });
+  assert.throws(() => oauthAccountRequest({ url: "{service}/me", headers: { "X-Figma-Token": "{context.x}" } }, scope("slack")), { code: "connector.oauth_declarations.template_invalid" });
+  // The default port and an upper-case host name are the same origin, written the URL's way.
+  assert.equal(oauthAccountRequest({ url: "https://DASH.Cloudflare.com:443/oauth2/userinfo" }, scope("cloudflare")).url, "https://dash.cloudflare.com/oauth2/userinfo");
   const vercel = oauthAccountRequest({ url: "{service}/v2/user", query: { teamId: "{context.team_id}" } }, scope("vercel", { context: { team_id: "team_1" } }));
   assert.equal(vercel.url, "https://api.vercel.com/v2/user?teamId=team_1");
   assert.equal(oauthAccountRequest({ url: "{service}/v2/user", query: { teamId: "{context.team_id}" } }, scope("vercel")).url, "https://api.vercel.com/v2/user", "an empty query value is left out");
@@ -189,51 +211,121 @@ test("RAC-1082 the authorization address and token request: the platform writes 
   assert.equal(oauthExpiry(method(), { expires_in: 60 }, 1000), 61_000);
 });
 
-// §2.1.1 written as data, read against the catalog's own `readIdentity` on the same responses (RAC-1080, a first set; slice 4 runs all 37).
-const identities: Record<string, { identity: OAuthIdentityDeclaration; response: unknown; token?: object; context?: Record<string, string>; suffix?: string }> = {
+test("RAC-1082 the interpreter pins the tenant itself: the kept instance first, the login setting otherwise", () => {
+  const salesforce = method({
+    authorize_url: "{tenant}/services/oauth2/authorize", token_url: "{tenant}/services/oauth2/token",
+    settings: [{ key: "login_origin", label: "登录地址", default: "https://login.salesforce.com", use: "tenant" }],
+    keep: [{ key: "instance", pointer: "/instance_url", check: "tenant" }],
+    identity: { url: "{tenant}/services/oauth2/userinfo", account_id: [["identity:/organization_id"], ["identity:/sub", "identity:/user_id"]], label: ["identity:/name"] },
+  });
+  const settings = resolved("salesforce", salesforce);
+  const scope = (context: Record<string, string>) => ({ serviceId: "salesforce", method: salesforce, accessToken: "access-1", clientId: "client-1", context, settings });
+  const userinfo = { url: salesforce.identity.url! };
+  const kept = oauthKept("salesforce", salesforce.keep, { instance_url: "https://acme.my.salesforce.com" });
+  assert.equal(oauthAccountRequest(userinfo, scope(kept)).url, "https://acme.my.salesforce.com/services/oauth2/userinfo", "the instance, not the login origin");
+  assert.equal(oauthPinnedTenant(scope({})), "https://login.salesforce.com");
+  assert.equal(oauthAccountRequest(userinfo, scope({})).url, "https://login.salesforce.com/services/oauth2/userinfo");
+  // A kept value is checked against the table again when it is used, not trusted for having been kept.
+  assert.throws(() => oauthAccountRequest(userinfo, scope({ instance: "https://evil.example.com" })), { code: "connector.oauth_declarations.target_refused" });
+  assert.throws(() => oauthAccountRequest({ url: "{tenant}/me" }, { ...scope({}), method: method(), settings: { values: {} } }), { code: "connector.oauth_declarations.template_invalid" }, "no tenant at all");
+});
+
+// §2.1.1 written as data, each with the account §2.1.1 says it reads (RAC-1080, a first set; slice 4 runs all 37). The catalog's own
+// `readIdentity` on the same response corroborates it; where §2.1.1 means to differ from today, `intended` says why, and the catalog
+// must then really read something else.
+interface IdentityFixture {
+  readonly identity: OAuthIdentityDeclaration;
+  readonly keep?: PluginOAuthMethodDeclaration["keep"];
+  readonly response: unknown;
+  readonly token?: object;
+  readonly context?: Record<string, string>;
+  readonly expected: { readonly account_id: string; readonly label: string };
+  readonly intended?: string;
+}
+
+const identities: Record<string, IdentityFixture> = {
   slack: { identity: { url: "{service}/api/auth.test", account_id: [["identity:/team_id"], ["identity:/user_id"]], label: ["identity:/user", "identity:/team"] },
-    response: { ok: true, team_id: "T1", user_id: "U1", user: "ada", team: "Acme" } },
+    response: { ok: true, team_id: "T1", user_id: "U1", user: "ada", team: "Acme" }, expected: { account_id: "T1:U1", label: "ada" } },
   monday: { identity: { url: "{service}/v2", method: "POST", body: { query: "{ me { id name email account { id } } }" }, headers: { "API-Version": "2024-10" },
     account_id: [["identity:/data/me/account/id"], ["identity:/data/me/id"]], label: ["identity:/data/me/name", "identity:/data/me/email"] },
-  response: { data: { me: { id: 42, name: "Ada", email: "ada@example.com", account: { id: 7 } } } } },
-  canva: { identity: { url: "{service}/rest/v1/users/me", account_id: [["identity:/team_user/team_id"], ["identity:/team_user/user_id"]], label: ["identity:/team_user/user_id"] },
-    response: { team_user: { team_id: "TC", user_id: "UC" } } },
+  response: { data: { me: { id: 42, name: "Ada", email: "ada@example.com", account: { id: 7 } } } }, expected: { account_id: "7:42", label: "Ada" } },
+  canva: { identity: { url: "{service}/rest/v1/users/me", account_id: [["identity:/team_user/team_id"], ["identity:/team_user/user_id"]],
+    label: ["identity:/team_user/user_id", "identity:/user/display_name", "identity:/profile/display_name"] },
+  response: { team_user: { team_id: "TC", user_id: "UC" } }, expected: { account_id: "TC:UC", label: "UC" } },
   intercom: { identity: { url: "{service}/me", headers: { "Intercom-Version": "2.13" }, account_id: [["identity:/app/id_code"], ["identity:/id"]], label: ["identity:/email", "identity:/name"] },
-    response: { id: "99", email: "ada@example.com", app: { id_code: "app1" } } },
+    response: { id: "99", email: "ada@example.com", app: { id_code: "app1" } }, expected: { account_id: "app1:99", label: "ada@example.com" } },
   linear: { identity: { url: "{service}/graphql", method: "POST", body: { query: "{ viewer { id name email } }" }, account_id: [[], ["identity:/data/viewer/id"]],
-    label: ["identity:/data/viewer/name", "identity:/data/viewer/email"] }, response: { data: { viewer: { id: "lin-1", name: "Ada" } } } },
+    label: ["identity:/data/viewer/name", "identity:/data/viewer/email"] }, response: { data: { viewer: { id: "lin-1", name: "Ada" } } }, expected: { account_id: ":lin-1", label: "Ada" } },
   cloudflare: { identity: { url: "https://dash.cloudflare.com/oauth2/userinfo", account_id: [[], ["identity:/id", "identity:/sub"]], label: ["identity:/email", "identity:/sub"] },
-    response: { sub: "cf-sub", email: "ada@example.com" } },
+    response: { sub: "cf-sub", email: "ada@example.com" }, expected: { account_id: ":cf-sub", label: "ada@example.com" } },
   salesforce: { identity: { url: "{tenant}/services/oauth2/userinfo", account_id: [["identity:/organization_id"], ["identity:/sub", "identity:/user_id"]], label: ["identity:/preferred_username", "identity:/name"] },
-    response: { organization_id: "00D1", sub: "https://login.salesforce.com/id/00D1/005A", user_id: "005A", preferred_username: "ada@acme" }, context: { instance: "https://acme.my.salesforce.com" } },
+    keep: [{ key: "instance", pointer: "/instance_url", check: "tenant" }],
+    response: { organization_id: "00D1", sub: "https://login.salesforce.com/id/00D1/005A", user_id: "005A", preferred_username: "ada@acme" }, context: { instance: "https://acme.my.salesforce.com" },
+    expected: { account_id: "00D1:https://login.salesforce.com/id/00D1/005A", label: "ada@acme" } },
   sentry: { identity: { url: "{service}/api/0/organizations/", list: { min_by: "/id" }, account_id: [[], ["identity:/id"], ["token:/user/id"]], label: ["identity:/name", "identity:/slug"],
-    keep: [{ key: "org", pointer: "/slug" }] }, response: [{ id: "9", slug: "beta", name: "Beta" }, { id: "10", slug: "alpha", name: "Alpha" }], token: { user: { id: "u-7" } }, suffix: ":u-7" },
+    keep: [{ key: "org", pointer: "/slug" }] }, response: [{ id: "9", slug: "beta", name: "Beta" }, { id: "10", slug: "alpha", name: "Alpha" }], token: { user: { id: "u-7" } },
+  expected: { account_id: ":10:u-7", label: "Alpha" }, intended: "readIdentity 不接令牌响应的 user.id；今天这段由 apiOAuthIdentity 另接，声明里是 account_id 的第三段" },
   supabase: { identity: { url: "{service}/v1/profile", account_id: [[], ["identity:/id", "identity:/gotrue_id"], ["literal:workspaces"], ["context:authorized_workspaces"]],
     label: ["identity:/primary_email", "identity:/username", "identity:/gotrue_id"] }, response: { gotrue_id: "g-1", primary_email: "ada@example.com" },
-  context: { authorized_workspaces: "o1,o2" }, suffix: ":workspaces:o1,o2" },
+  context: { authorized_workspaces: "o1,o2" }, expected: { account_id: ":g-1:workspaces:o1,o2", label: "ada@example.com" },
+  intended: "readIdentity 不接已授权工作区；今天这段由 apiOAuthIdentity 另接，声明里是 account_id 的后两段" },
+  clickup: { identity: { url: "{service}/api/v2/user", account_id: [[], ["identity:/user/id"], ["literal:workspaces"], ["context:authorized_workspaces"]],
+    label: ["identity:/user/username", "identity:/user/email"] }, response: { user: { id: 123, username: "ada", email: "ada@example.com" } },
+  context: { authorized_workspaces: "10,9" }, expected: { account_id: ":123:workspaces:10,9", label: "ada" },
+  intended: "readIdentity 不接已授权工作区；今天这段由 apiOAuthIdentity 另接，声明里是 account_id 的后两段" },
   x: { identity: { url: "{service}/2/users/me", account_id: [[], ["identity:/data/id"]], label: ["identity:/data/username", "identity:/data/name"], label_prefix: "@",
-    keep: [{ key: "user_id", pointer: "/data/id" }] }, response: { data: { id: "x-1", username: "ada", name: "Ada" } } },
+    keep: [{ key: "user_id", pointer: "/data/id" }] }, response: { data: { id: "x-1", username: "ada", name: "Ada" } }, expected: { account_id: ":x-1", label: "@ada" } },
+  notion: { identity: { account_id: [["token:/workspace_id"]], label: ["token:/workspace_name"] }, token: { workspace_id: "w-1", workspace_name: "Acme" },
+    response: { object: "user", id: "bot-1", type: "bot", name: "Molis", bot: { workspace_name: "Acme" } }, context: { workspace_id: "w-1" },
+    expected: { account_id: "w-1", label: "Acme" }, intended: "§2.4：account_id 是令牌响应的 workspace，不再接 bot id（今天是 workspace:bot-id）" },
 };
 
+/** The catalog's reading of the same response, the way today's flow calls it. */
+async function catalogReading(serviceId: string, fixture: IdentityFixture) {
+  let seen = "";
+  const fetchImpl = async (url: string | URL | Request) => {
+    seen = String(url);
+    return new Response(JSON.stringify(fixture.response), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  const reading = await catalogWhoami({ connectorId: serviceId, token: "access-1", authExtras: { auth_method: "oauth", ...fixture.context }, fetchImpl: fetchImpl as typeof fetch });
+  return { reading, seen };
+}
+
 for (const [serviceId, fixture] of Object.entries(identities)) {
-  test(`RAC-1080 ${serviceId}: the declared identity reads the same account as the catalog's readIdentity`, async () => {
+  test(`RAC-1080 ${serviceId}: the declared identity reads the account §2.1.1 writes down`, async () => {
     const context = fixture.context ?? {};
-    const tenant = context.instance;
-    const scope = { serviceId, accessToken: "access-1", clientId: "client-1", context, settings: { values: {} }, ...(tenant ? { tenant } : {}) };
-    const request = oauthAccountRequest(fixture.identity as never, scope);
-    let seen = "";
-    const fetchImpl = async (url: string | URL | Request) => {
-      seen = String(url);
-      return new Response(JSON.stringify(fixture.response), { status: 200, headers: { "content-type": "application/json" } });
-    };
-    const before = await catalogWhoami({ connectorId: serviceId, token: "access-1", authExtras: { auth_method: "oauth", ...context }, fetchImpl: fetchImpl as typeof fetch });
-    assert.ok(before.ok, JSON.stringify(before));
-    assert.equal(new URL(request.url).origin + new URL(request.url).pathname, new URL(seen).origin + new URL(seen).pathname, "the same address");
-    const after = oauthAccount(serviceId, fixture.identity, { identity: fixture.response, token: fixture.token ?? {}, context });
-    assert.equal(after.account_id, `${before.account_id}${fixture.suffix ?? ""}`);
-    assert.equal(after.label.replace(/^@/u, ""), before.login.replace(/^@/u, ""));
+    const after = oauthAccount(serviceId, fixture.identity, { identity: fixture.identity.url ? fixture.response : undefined, token: fixture.token ?? {}, context });
+    assert.deepEqual({ account_id: after.account_id, label: after.label }, fixture.expected);
+    const { reading, seen } = await catalogReading(serviceId, fixture);
+    assert.ok(reading.ok, JSON.stringify(reading));
+    if (fixture.identity.url) {
+      const scope = { serviceId, method: method({ identity: fixture.identity, ...(fixture.keep ? { keep: fixture.keep } : {}) }), accessToken: "access-1", clientId: "client-1", context, settings: { values: {} } };
+      const request = new URL(oauthAccountRequest({ ...fixture.identity, url: fixture.identity.url }, scope).url);
+      assert.equal(request.origin + request.pathname, new URL(seen).origin + new URL(seen).pathname, "the same address as today");
+    }
+    const today = { account_id: reading.account_id, label: reading.login };
+    if (fixture.intended) assert.notDeepEqual(today, fixture.expected, `marked as an intended difference, so today must differ: ${fixture.intended}`);
+    else assert.deepEqual(today, fixture.expected);
   });
 }
+
+test("RAC-1080 the intended tightenings: x with no name, clickup and supabase with no id, and no authorized workspace fail", async () => {
+  const x = identities.x!;
+  const nameless = { ...x, response: { data: { id: "x-1" } } };
+  assert.throws(() => oauthAccount("x", x.identity, { identity: nameless.response, token: {}, context: {} }), { code: "connector.oauth_declarations.account_missing" });
+  assert.equal((await catalogReading("x", nameless)).reading.login, "X", "today shows the fallback X");
+  for (const serviceId of ["clickup", "supabase"]) {
+    const fixture = identities[serviceId]!;
+    const idless = { ...fixture, response: { user: { username: "ada" }, primary_email: "ada@example.com" } };
+    assert.throws(() => oauthAccount(serviceId, fixture.identity, { identity: idless.response, token: {}, context: fixture.context ?? {} }), { code: "connector.oauth_declarations.account_missing" }, serviceId);
+    const today = (await catalogReading(serviceId, idless)).reading;
+    assert.ok(today.ok && !today.account_id, `${serviceId}: today reads no account id and does not fail`);
+  }
+  // An account with no workspace or organization yet has nothing to authorize; the message says what to do next.
+  for (const [pointer, empty] of [["/*/id", []], ["/teams/*/id", { teams: [] }]] as const) {
+    assert.throws(() => oauthContextValue({ kind: "ids", pointer }, empty, { values: {} }), { code: "connector.oauth_declarations.context_missing", message: /先建一个或加入一个/u }, pointer);
+  }
+});
 
 test("RAC-1080 the account fails when a segment other than the prefix is empty, and the label when nothing is found", () => {
   const identity: OAuthIdentityDeclaration = { url: "{service}/me", account_id: [["identity:/team"], ["identity:/id"]], label: ["identity:/name"] };
@@ -245,17 +337,21 @@ test("RAC-1080 the account fails when a segment other than the prefix is empty, 
   const sentry: OAuthIdentityDeclaration = { url: "{service}/api/0/organizations/", list: { min_by: "/id" }, account_id: [[], ["identity:/id"]], label: ["identity:/slug"] };
   const orgs = [{ id: "9", slug: "beta" }, { id: "10", slug: "alpha" }];
   assert.equal(oauthAccount("sentry", sentry, { identity: orgs, token: {}, context: { org: "beta" } }).label, "alpha", "the context's org picks nothing");
+  // By code point, the same on every machine: "B" (U+0042) comes before "a" (U+0061), whatever the locale's collation says.
+  assert.equal(oauthAccount("sentry", sentry, { identity: [{ id: "a", slug: "lower" }, { id: "B", slug: "upper" }], token: {}, context: {} }).label, "upper");
   const notion: OAuthIdentityDeclaration = { account_id: [["token:/workspace_id"]], label: ["token:/workspace_name"] };
   assert.deepEqual(oauthAccount("notion", notion, { token: { workspace_id: "w-1", workspace_name: "Acme" }, context: {} }), { account_id: "w-1", label: "Acme", kept: {} });
 });
 
-test("RAC-1082 context picks: sorted ids of a list, and the id of the entry on the setting's own origin", () => {
+test("RAC-1082 context picks: the ids of a list in code-point order, and the id of the entry on the tenant setting's origin", () => {
   assert.equal(oauthContextValue({ kind: "ids", pointer: "/teams/*/id" }, { teams: [{ id: 3 }, { id: "1" }] }, { values: {} }), "1,3");
-  assert.equal(oauthContextValue({ kind: "ids", pointer: "/*/id" }, [{ id: "b" }, { id: "a" }], { values: {} }), "a,b");
+  assert.equal(oauthContextValue({ kind: "ids", pointer: "/*/id" }, [{ id: "b" }, { id: "a" }, { id: "B" }], { values: {} }), "B,a,b");
+  // `~1` and `~0` are read the same way as everywhere else a pointer is read.
+  assert.equal(oauthContextValue({ kind: "ids", pointer: "/a~1b/*/c~0d" }, { "a/b": [{ "c~d": "x" }] }, { values: {} }), "x");
   assert.throws(() => oauthContextValue({ kind: "ids", pointer: "/teams/*/id" }, { teams: "none" }, { values: {} }), { code: "connector.oauth_declarations.context_missing" });
   const pick = { kind: "match_setting", setting: "site_url", match: "/url", take: "/id", pattern: "[0-9a-f-]{36}" } as const;
   const resources = [{ url: "https://other.atlassian.net", id: "00000000-0000-4000-8000-000000000000" }, { url: "https://acme.atlassian.net/", id: "0f6a3c1e-0000-4000-8000-000000000001" }];
-  assert.equal(oauthContextValue(pick, resources, { values: { site_url: "https://acme.atlassian.net" } }), "0f6a3c1e-0000-4000-8000-000000000001");
-  assert.throws(() => oauthContextValue(pick, resources, { values: { site_url: "https://missing.atlassian.net" } }), { code: "connector.oauth_declarations.context_missing" });
-  assert.throws(() => oauthContextValue(pick, [{ url: "https://acme.atlassian.net", id: "../x" }], { values: { site_url: "https://acme.atlassian.net" } }), { code: "connector.oauth_declarations.context_missing" });
+  assert.equal(oauthContextValue(pick, resources, { values: { site_url: "https://acme.atlassian.net" }, tenant: "https://acme.atlassian.net" }), "0f6a3c1e-0000-4000-8000-000000000001");
+  assert.throws(() => oauthContextValue(pick, resources, { values: { site_url: "https://missing.atlassian.net" }, tenant: "https://missing.atlassian.net" }), { code: "connector.oauth_declarations.context_missing" });
+  assert.throws(() => oauthContextValue(pick, [{ url: "https://acme.atlassian.net", id: "../x" }], { values: { site_url: "https://acme.atlassian.net" }, tenant: "https://acme.atlassian.net" }), { code: "connector.oauth_declarations.context_missing" });
 });

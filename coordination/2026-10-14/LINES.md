@@ -123,7 +123,7 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
 | W5-05 | 基本完成 | 还剩：页面预算降值（统筹）。W5-06 链已随 batch-32 合入，Shelf 等 BL-804 |
 | W5-06 | 部分 | 已落地：#1098、#1107、#1191、#1173 随 batch-32（#1225）。#1112 已关、未合。还剩：挂载器与 BL-542，排在 C 之后 |
 | W5-07 | 收尾时统筹核 | — |
-| W5-08 | 部分 | 已落地：Feed/Functions 出口 #1120。在做：`apps/workbench/src/index.ts` 无人用的出口（BL-635）在 `ac-sweep` 的 5a，攒批测试中；Goals 一组留给 Goals 收尾。还剩：`index.ts` 的 `export *`（统筹，各族迁完后） |
+| W5-08 | 部分 | 已落地：Feed/Functions 出口 #1120。在途：`apps/workbench/src/index.ts` 无人用的出口（BL-635）在 [#1326](https://github.com/molis-ai/molis-work/pull/1326)，评审中；Goals 一组留给 Goals 收尾。还剩：`index.ts` 的 `export *`（统筹，各族迁完后） |
 | W5-09 | **已完成** | #591、#1118 |
 | W5-10 | 进行中（10-25 口径：本身合理的标明，不硬拆） | 已落地：批 A 前两块、B、D、G、H、I、J/K、E 第一片随 A+B；#1314（`e5b173438`）、#1315（`74f31c19e`）。在途：#1316（批 E-3）CI 绿后在 W5-10 会话合；#1317（批 A 重做 tab-workspace）其后 |
 | W5-11 | 进行中 | 在途：第 1、2 片 #1322，等集成批。还剩：第 3 片起等 C 合入 |
@@ -660,3 +660,4 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
     3. `known-red-main.md`：维护人定为合批会话，开出来之前由统筹在收到全量结果时更新；文件头已写。`coord-shared` 里 10-24 的旧副本改成指向这里的说明。
     4. 短名撞名：会话之间一律用完整会话 id。LINE-COMMON §1 加了现行会话 id 表，旧的 10-19 名单留作历史。
   - **10-27 评审复审 #1325 增量 db8e96cdd..a5b713beb**（笔记 `review-1325-a5b713be.md`）：可以合，没有新意见。统筹裁定可合，由 `ac-lifecycle` 执行：先看 `affected-tests --base origin/main --json` 的 `full`（false 照常合，true 先报统筹）；等全部检查跑完（含不挡合并的 Product subset、Security invariants），有红先报；都绿了在它自己的会话里 `gh pr merge 1325 --squash --match-head-commit a5b713beb…`，用户在那里点同意。
+  - **10-28 `ac-sweep` 开 [#1326](https://github.com/molis-ai/molis-work/pull/1326)**：BL-635 + BL-088，两个提交（RAC-1115、RAC-1116），已移交评审线。等评审期间先起草 C 合入后 privileges.md 的改法，写进共享笔记 `privileges-rewrite-draft-2026-10-28.md`，不改仓库。

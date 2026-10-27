@@ -228,8 +228,11 @@ test("RAC-1034 W6-02 BL-755 a project's supervisor keeps uninstall, restarts a l
     scheduleAt = viewOf(served, project, schedule); pagesAt = viewOf(served, project, pages);
     assert.equal(await answer(pages.titles(served.web, pagesAt.routes)), "400 plugin.grant_denied", "Pages: the route's Host client refuses its withdrawn read grant before action dispatch");
     assert.deepEqual(await pagesAt.installation(), { ...pagesInstall, state: "running", grants: narrowedGrants }, "the same installation runs without silently returning the optional grant");
-    const views = await served.host.actionClient(project.reference).discover(await served.host.localPersonContext(project.reference));
-    const read = views.find(view => view.provider.plugin_id === pages.plugin_id && view.capability_id === "pages.list");
+    const person = await served.host.localPersonContext(project.reference);
+    const isRead = (view: { provider: { plugin_id?: string }; capability_id: string }) => view.provider.plugin_id === pages.plugin_id && view.capability_id === "pages.list";
+    assert.equal((await served.host.actionClient(project.reference).discover(person)).some(isRead), false, "the person's actual directory hides a read that this installation no longer grants");
+    // Composition inspection exposes registered availability, without borrowing permissions or granting an invocation.
+    const read = (await served.host.inspectActions(person, project.reference)).find(isRead);
     assert.ok(read);
     assert.equal(read.availability.available, false);
     assert.equal(read.availability.code, "actions.plugin_permission");

@@ -125,8 +125,8 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
 | W5-07 | 收尾时统筹核 | — |
 | W5-08 | 部分 | 已落地：Feed/Functions 出口 #1120。在途：`apps/workbench/src/index.ts` 无人用的出口（BL-635）在 [#1326](https://github.com/molis-ai/molis-work/pull/1326)，评审中；Goals 一组留给 Goals 收尾。还剩：`index.ts` 的 `export *`（统筹，各族迁完后） |
 | W5-09 | **已完成** | #591、#1118 |
-| W5-10 | 进行中（10-25 口径：本身合理的标明，不硬拆） | 已落地：批 A 前两块、B、D、G、H、I、J/K、E 第一片随 A+B；#1314（`e5b173438`）、#1315（`74f31c19e`）。在途：#1316（批 E-3）CI 绿后在 W5-10 会话合；#1317（批 A 重做 tab-workspace）其后 |
-| W5-11 | 进行中 | 在途：第 1、2 片 #1322，由 W5-11 线自己推 carrier 跑 Full（统筹 10-28 批）。还剩：第 3 片起等 C 合入 |
+| W5-10 | 进行中（10-25 口径：本身合理的标明，不硬拆） | 已落地：批 A 前两块、B、D、G、H、I、J/K、E 第一片随 A+B；#1314（`e5b173438`）、#1315（`74f31c19e`）、#1316（`341b4d9cc`）。在途：#1317（批 A 重做 tab-workspace，头 `dfd43b5fd`）CI 跑着，绿后在 W5-10 会话合 |
+| W5-11 | 进行中 | 在途：第 1、2 片 #1322，Full（run 40538077218）只红第 7 片的 `busy-feedback` VUX-31，是 main 的间歇红（见 known-red-main.md），统筹 10-28 裁定可合，在 W5-11 OAuth 会话合。还剩：第 3 片起等 C 合入 |
 | W5-12 | 收尾时统筹核 | — |
 | W5-13 | 部分 | 已落地：RAC113、RAC114。还剩：宿主日志与错误的余片，未派 |
 | W5-14 | 部分 | 已落地：片 1～4 与 W11-1 随 A+B。还剩：余下改名，等 C 与 W5-10 合入后开 |
@@ -134,7 +134,7 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
 | W5-16 | 部分 | 已落地：B1、快照（#1271，batch-40）。还剩：B2b（CLI 必要状态、同 Home lease、全库与非 SQLite 快照恢复）；碰真实 Home 的部分进维护时段 |
 | W5-17 | 等维护时段 | 用户 10-24 定：和 Goals S9 同一时段，先在真实 Home 拷贝上跑 `list` 交用户，维护做完前不合 |
 | W6-01 | 部分 | 已落地：`740f09d4f`（含删 by-key）随 A+B。还剩：冻结名单清零（C 去掉了 Feed 的宿主文件；其余等各族迁完）、AGENTS 改写 |
-| W6-02 | 进行中 | 已落地：Todo、Jelly、Pages、灵光的走查随 A+B。在途：其余 13 个插件 #1325，评审结论是改完文档就能合，由 `ac-lifecycle` 合。还剩：置物架（BL-804），等 C |
+| W6-02 | 进行中 | 已落地：Todo、Jelly、Pages、灵光的走查随 A+B。在途：其余 13 个插件 #1325（头 `a5b713beb`，CLEAN），可合，在 `ac-lifecycle` 会话合。还剩：置物架（BL-804），等 C |
 | W6-03 | 部分 | 已落地：「现在就能改的」16 条随 batch-40（#1308）。还剩：54 条，等 W6 统一改 |
 | W6-04～06 | 未开 | 等 W5 各项与 C 合入 |
 
@@ -676,3 +676,11 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
   - **10-28 评审确认 #1326 增量 `f050cbc33..433829b6c`**（笔记 `review-1326-433829b6.md`）：两条建议都落了，没有别的改动。已叫 `ac-sweep` 合 main、推 `integration/carrier-1028-1326` 跑 Full；PR 的产品子集第一次跑 RAC-1115，两个分片都要看。
   - **10-28 C 的草稿 PR 是 [#1327](https://github.com/molis-ai/molis-work/pull/1327)**（头 7e716e494，base main）。四条建议已改、未提交，正在一次 heavy.sh 里跑：构建、根 tsc、门禁、48 个文件；过了再推，请评审只评增量，然后推 carrier 跑 Full。
   - **10-28 #1326 的 Full** 是 run 40538409916（carrier `integration/carrier-1028-1326`，头 433829b6c；main 仍是 74f31c19e，不用合）。
+
+- 10-28 统筹：三处 Full 结果与裁定。
+  - #1322（carrier-1028-w511，run 40538077218）：16 片里只红第 7 片，`busy-feedback.e2e` 的 VUX-31（切换 Goal 后旧文档被藏），重试也红。#1322 只改 OAuth 合同与 SDK，不碰工作台；同一用例 10-27 在 `integration/memory-p0-application-20261025` 上也红过，#1326 的 carrier 第 7 片却过了。记进 known-red-main.md 间歇红，归 `ac-lifecycle` 查（BL-806）。**#1322 可合**，在 W5-11 OAuth 会话合，用户在那里点同意。
+  - #1325：CLEAN（`a5b713beb`），可合，在 `ac-lifecycle` 会话合。
+  - #1326（carrier-1028-1326，run 40538409916）：15 片绿，第 16 片还在跑。跑完全绿就在 `ac-sweep` 会话合。
+  - C（carrier-1028-c，run 40538450543，旧头 `7e716e494`）：14 片红。新头 `75f21b847` 修了 PR CI 上的 11 处红，多半能对上。不取消、不重推这个 carrier（取消要用户本人同意）；C 把 14 片的失败对到 `75f21b847` 的修复上，再把新头推到新 carrier `integration/carrier-1028-c2` 跑一次 Full，跟 known-red-main.md 比，看 Security invariants，绿了转正式 PR，在 C 会话合。合前再确认 S-97～S-100 没被占。
+  - 评审对 C `75f21b847` 的三条后续登记：崩掉、没启用的安装被 `projectPluginEnablementRefresh` 去停，`runtime.stop` 抛 `plugin.state_invalid`，此后每个页面请求都失败 → R-70，归 C 线，C 合入后先做；内置插件与目录外插件双实例的页面归属不同 → 归 10-18 防腐各行；`listFeedMaterialContentRefs` 没人调 → C 合入后顺手删。
+

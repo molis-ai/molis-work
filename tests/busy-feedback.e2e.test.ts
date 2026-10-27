@@ -19,6 +19,7 @@ const SAMPLE = `window.__marks = []; (() => { const seen = (el) => { if (!el.isC
     if (now.length) window.__marks.push(now.join(', ')); requestAnimationFrame(frame); }; requestAnimationFrame(frame); })();`;
 const ORDER = ["todo", "pages", "coding", "ppt", "workflows", "feed", "goals", "issues", "im", "shelf", "lingguang", "form", "jelly", "files", "git", "home"];
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+type Seen = { busy: boolean; view: string; opacity: number; mark: number | null };
 
 test("VUX-31: quick loads never flash a waiting mark, and a slow refresh shows its spinner after the wait", { timeout: 300_000 }, async (t) => {
   const browser = await openGoalBrowser(t, "seeded"); if (!browser) return;
@@ -86,10 +87,20 @@ test("VUX-31: switching the Goal in the work view keeps the old document until t
   const barrier = await sendBarrier(browser as never, [{ urlPattern: "*/api/goals/V1/document*", requestStage: "Request" }]);
   await evaluate(`[...document.querySelectorAll('.tree-node[data-select-goal="V1"]')].find((node) => node.getClientRects().length).click()`);
   const held = await barrier.next();
-  await new Promise((resolve) => setTimeout(resolve, 60));
-  assert.deepEqual(await evaluate(parts), { busy: true, view: "CORE", opacity: 1, mark: 0 }, "just after the switch the old document stays and no mark shows");
-  await new Promise((resolve) => setTimeout(resolve, 700));
-  assert.deepEqual(await evaluate(parts), { busy: true, view: "CORE", opacity: 0, mark: 1 }, "past the wait the old document has faded under the mark");
+  // The wait is two animations' 250ms delay, so a runner that answers the click late would sample the finished fade. Hold the
+  // pane's real animations at a known time (100ms in, then past delay plus duration) and read both states in one script, as
+  // tests/menu-exit-motion.e2e.test.ts does.
+  const seen = await evaluate<{ motions: string[]; elapsed: number; early: Seen; late: Seen }>(`(() => {
+    const motions = document.querySelector('.document-pane').getAnimations({ subtree: true }).filter((motion) => ['mw-busy-dim', 'mw-loading-in'].includes(motion.animationName));
+    const elapsed = Math.max(0, ...motions.map((motion) => Number(motion.currentTime) || 0));
+    const at = (time) => { for (const motion of motions) { motion.pause(); motion.currentTime = time; } return ${parts}; };
+    return { motions: [...new Set(motions.map((motion) => motion.animationName))].sort(), elapsed, early: at(100), late: at(600) };
+  })()`);
+  // How late the old sleep-based read would have been, so a slow runner (or a slower switch) shows in the log without failing the test.
+  t.diagnostic(`VUX-31 switch: the wait animations were ${Math.round(seen.elapsed)}ms in when read (the wait ends at 250ms)`);
+  assert.deepEqual(seen.motions, ["mw-busy-dim", "mw-loading-in"], "the old document and the mark both wait on a real animation");
+  assert.deepEqual(seen.early, { busy: true, view: "CORE", opacity: 1, mark: 0 }, "just after the switch the old document stays and no mark shows");
+  assert.deepEqual(seen.late, { busy: true, view: "CORE", opacity: 0, mark: 1 }, "past the wait the old document has faded under the mark");
   await barrier.release(held); await barrier.close();
   await waitFor("document.querySelector('.document-pane [data-goal-view]')?.dataset.goalView === 'V1'", 15_000);
   assert.deepEqual(await evaluate(parts), { busy: false, view: "V1", opacity: 1, mark: null }, "the new document shows at once when it answers");

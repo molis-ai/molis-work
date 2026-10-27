@@ -1,6 +1,6 @@
 # W5-11：连接器 OAuth 从宿主的表移进官方集成插件的声明（设计稿）
 
-状态：设计稿，第六版：第 2 片已做，写进 §2.1.1，评审过了（10-27），合同按评审收窄（§2.1.1「写死的三条」）；第 1 片已做，照第 1 片评审（M1～M3、四处对齐、context 收窄）改过，在分支上待复核（2026-10-27，W5-11 线，分支 `claude/w511-oauth-declarations`；合同、SDK 检查和解释器的写法定在 §2.1「第 1 片落地的写法」）。检查连接和读账号也改用解释器（统筹 10-27 选 A，§2.2「检查连接和读账号」，随第 4 片）；旧 OAuth 连接重连怎样认原账号写在 §10 Q2 下（第 5 片）。第一版的六个问题都按 A 定了（§10）。四轮评审的必须改 M1～M7、N1～N3、A1～A4 都已改进本稿，第四轮没有必须改，建议的取舍写在 §11；统筹和用户在 10-27 的裁定写在 §0 和 §10。第 1 片的代码在本分支上，其余各片还只有设计。第 1、2 片统筹 10-27 放行，叠在本分支上，按顺序一次一片。§7 里标「依赖 C 合入」的片，要等批次 C（`feature/anticorruption-closeout-c`，头 `fe93d322`；Notion 共享刷新在 `009b773f`）进 main 才动手；标「可以先做」的不碰 C 改过的文件，也不 import 只在 C 上的东西。代码事实按 main `9efbf8d04` 和 C 头 `fe93d322` 核过，文中的行号与形状都是 C 头上的。号段：RAC-1080～1089、BL-790～799，统筹 10-27 核过，没有冲突。新 S 号分成三条，号码由合批会话核对后再定，§3.5 里写「待统筹核」。
+状态：设计稿，第七版（旧 OAuth 连接的收尾按用户 10-27 改定）：第 2 片已做，写进 §2.1.1，评审过了（10-27），合同按评审收窄（§2.1.1「写死的三条」）；第 1 片已做，照第 1 片评审（M1～M3、四处对齐、context 收窄）改过，在分支上待复核（2026-10-27，W5-11 线，分支 `claude/w511-oauth-declarations`；合同、SDK 检查和解释器的写法定在 §2.1「第 1 片落地的写法」）。检查连接和读账号也改用解释器（统筹 10-27 选 A，§2.2「检查连接和读账号」，随第 4 片）；旧 OAuth 连接不保留绑定：用户 10-27 改定，旧连接只能新增，绑定由本人重新绑，不加只给旧连接走的分支（§10 Q2，第 5 片）。第一版的六个问题都按 A 定了（§10）。四轮评审的必须改 M1～M7、N1～N3、A1～A4 都已改进本稿，第四轮没有必须改，建议的取舍写在 §11；统筹和用户在 10-27 的裁定写在 §0 和 §10。第 1 片的代码在本分支上，其余各片还只有设计。第 1、2 片统筹 10-27 放行，叠在本分支上，按顺序一次一片。§7 里标「依赖 C 合入」的片，要等批次 C（`feature/anticorruption-closeout-c`，头 `fe93d322`；Notion 共享刷新在 `009b773f`）进 main 才动手；标「可以先做」的不碰 C 改过的文件，也不 import 只在 C 上的东西。代码事实按 main `9efbf8d04` 和 C 头 `fe93d322` 核过，文中的行号与形状都是 C 头上的。号段：RAC-1080～1089、BL-790～799，统筹 10-27 核过，没有冲突。新 S 号分成三条，号码由合批会话核对后再定，§3.5 里写「待统筹核」。
 
 ## 0. 已经定了的，本稿照着写
 
@@ -385,7 +385,7 @@
   2. OAuth：`auth_method: "oauth"`，并且凭据引用是 `connector-protocol:`；
   3. token：`auth_method: "token"`。
   - 按服务写的 Notion、Gmail 两支删掉。
-  - **旧的 OAuth 连接**（M4）：`auth_method: "oauth"`，引用却不是 `connector-protocol:`（今天的 Gmail、Notion、GitHub 设备授权都是这样）。这种连接直接标 `reauth_required`，不发任何请求，也不落进 token 分支。按 Q2，读取时不认 OAuth 连接上旧的 `connector-connection:<id>:access` 引用；token 连接的 `connector-connection:<id>:token` 照旧。
+  - **旧的 OAuth 连接**（M4）：`auth_method: "oauth"`，引用却不是 `connector-protocol:`（今天的 Gmail、Notion、GitHub 设备授权都是这样）。这种连接直接标 `reauth_required`，不发任何请求，也不落进 token 分支。按 Q2，读取时不认 OAuth 连接上旧的 `connector-connection:<id>:access` 引用；token 连接的 `connector-connection:<id>:token` 照旧。这种连接不能就地重连成原来那条，只能新增一条，怎样收尾见 §10 Q2「10-27 用户改定」。
 - **签名不变**：`resolveApiOAuthToken(home, id, control, forceRefresh, fetchImpl)`，C 的调用方一处不改。
 - **刷新之前，先核对连接绑定的声明**（M1(a)）：
   - 连接激活时，protocol 配置里记下 `plugin_id`、发布者，和端点指纹。端点指纹是令牌和刷新端点的地址、`client_auth`、`token_format` 规范化后的哈希。salesforce 这类 `{tenant}/路径` 的端点，指纹取模板本身，不取展开后的地址；展开后的租户来源仍由 `connection-store` 的 `assertTarget` 钉住。这样本人改一下 login 来源，不会被当成「换了主人」（第三轮建议 2）。
@@ -592,7 +592,7 @@
   - 存量连接：`auth_method: "oauth"` 却没有 `connector-protocol:` 引用的，直接 `reauth_required`（§2.6、Q2）。token 连接不受影响。
 - **新错误码**：都用 `defineErrorCodes` 声明，不新写 Error 子类。
 - **升级须知**：`docs/releases/CHANGELOG.md` 的 `[Unreleased]`「升级须知」写两条：
-  - Gmail、Notion、GitHub 设备授权的连接要重新授权（Q2）；
+  - Gmail、Notion、GitHub 设备授权的连接要重新新增，原来绑在这些连接上的来源由本人重新绑定，旧连接由本人删掉（Q2，用户 10-27 改定）；
   - 产品客户端的环境变量改名（Q5）。
 
 ### 6.2 快照与名字
@@ -633,7 +633,7 @@
 | 2 | catalog 里 40 处 `identity` 逐条写成数据；列出要补进 `account_origins` 的来源，含 adobe、bitbucket、feishu、lark（只进 `account_origins`，不进 `origins`） | **已做**（2026-10-27）：产出是 §2.1.1，顺带改了 §2.1 的 identity、keep、context 三行，记了 BL-795 | 无代码 |
 | 3 | 通用回调、判断顺序、待完成记录合成一份（§3），§2.8 的拒绝。§2.8 的拒绝最晚和解释器第一次接进请求流程同时落地，哪一片先接就在哪一片，不能晚（第 1 片评审）；从解释器描述发出的请求一律带 `redirect: "error"` | 依赖 C 合入 | `connector-api-oauth.ts`、`connector-oauth-targets.ts`、`connector-oauth-callbacks.ts`、`web-connector-api-methods.ts`、`integration-registry.ts` |
 | 4 | `CONNECTOR_ACCOUNT_ORIGINS` 按第 2 片的清单加进 contracts，SDK 加 `{account}` 的检查，解释器认 `{account}`（A4）；catalog 和 github web 的数据写进 Manifest，删掉 `API_OAUTH_PROVIDERS`，`connectorMethodsFor` 改读登记；产品客户端和 broker 只给宿主构建的声明；Worker 数据挪到 `cloudflare/providers.ts`，加对照测试，改 `cloudflare/README.md` 第一句和测试注释（§2.9）；PR 说明写上 §2.9「合入不是发版」；检查连接和读账号的 OAuth 那一支改调解释器，SDK 加「`token:` 来源要有对应的 `keep`」（§2.2「检查连接和读账号」，统筹 10-27 选 A）。放在第 4 片，是因为声明到这一片才写进 Manifest，授权、检查、读账号在同一个 PR 里一起换，中间没有两套算法并存的时候 | 依赖 C 合入（先核 C 改过的 `connector-access.ts`、`connector-account-actions.ts`）；改 SDK，全量进集成批；第一次合入前用户在 Cloudflare 后台确认一次 | `packages/contracts` 的 `connector-host.ts`、SDK 的 `integration-declarations.ts`、catalog 包、`host-connector-methods.ts`、`connector-product-auth.ts`、`connector-access.ts`、`connector-account-actions.ts`、`cloudflare/worker.ts`、`cloudflare/providers.ts`、`cloudflare/README.md` |
-| 5 | 共用刷新推广到全部 OAuth 连接，加连接上的绑定和最后一道检查，改掉 C「最后一个离开就丢弃」那一处；`resolveApiConnection` 收成三支，旧 OAuth 连接标 `reauth_required`；同一个 PR 里把 C 的 FI-C-02 两条断言和 spec 行反过来，写明用户 10-27 的决定，告知 C 线（A3）；旧 OAuth 连接重连时按 `account_label` 认原账号（§10 Q2 下，待统筹核） | 依赖 C 合入（先确认 `apps/local-host/src/notion-oauth.ts` 合入后的形状） | `connector-access.ts`、`connector-api-oauth.ts`、`apps/local-host/src/notion-oauth.ts`、`tests/connector-oauth-choice.test.ts`、`specs/…/feed-inbox-runtime-plugins.md` |
+| 5 | 共用刷新推广到全部 OAuth 连接，加连接上的绑定和最后一道检查，改掉 C「最后一个离开就丢弃」那一处；`resolveApiConnection` 收成三支，旧 OAuth 连接标 `reauth_required`；同一个 PR 里把 C 的 FI-C-02 两条断言和 spec 行反过来，写明用户 10-27 的决定，告知 C 线（A3）；旧 OAuth 连接的收尾：标「需要重新授权」，设置页提示重新新增连接、重新绑定来源，重连得到「请新增连接」，不认成原账号（§10 Q2「10-27 用户改定」；不按 `account_label` 比对） | 依赖 C 合入（先确认 `apps/local-host/src/notion-oauth.ts` 合入后的形状） | `connector-access.ts`、`connector-api-oauth.ts`、`apps/local-host/src/notion-oauth.ts`、`tests/connector-oauth-choice.test.ts`、`specs/…/feed-inbox-runtime-plugins.md` |
 | 6 | Gmail 并进通用流程 | 依赖 C 合入，在 3、5 之后 | gmail 包、`gmail-oauth.ts`、入门流程 |
 | 7 | Notion 并进通用流程 | 依赖 C 合入，在 3、5 之后 | catalog 包、两份 `notion-oauth.ts` |
 | 8 | GitHub 设备授权（§2.5），收窄 `auth_kind` | 依赖 C 合入，在 4 之后 | github 包、`github-oauth.ts`、`connector-github-device.ts`、`web-connectors-settings.ts`、workbench、`connector-directory.ts` |
@@ -657,7 +657,7 @@
 | RAC-1086 | 设备授权：start 和 poll 缺 S-03 那三样就拒；device_code 不出现在任何响应里；`verification_uri` 不合规就终止；间隔没到的 poll 不发请求，`slow_down` 后加大间隔；每次 poll 和提交前重查第 6、7、9 条；过期、被拒、插件停用都终止，只写 §3.4 左边一列 | 安全用例加一个假的设备端点 |
 | RAC-1087 | 插件拿不到 OAuth 流程里的 code、verifier、client secret 和 refresh token：Gmail、Notion、GitHub 包里没有密钥库的端口。服务换主人（官方集成停用，同一 service_id 由别的插件声明）后，产品客户端、本人的 client secret 和 refresh token 都不发往新声明的端点 | 包导入检查；换主人的拒绝用例，用一个声明了别的 `token_url` 的测试插件 |
 | RAC-1088 | Alchemist 例外，**只管 OAuth 连接**：GitHub 集成插件启用时，脉冲照样带令牌；插件停用时，脉冲退回匿名，令牌不发出去。token 连接不变（BL-794） | 宿主用例，对 `api.github.com` 用假的 fetch；token 连接那一条只断言「行为和今天相同」 |
-| RAC-1089 | 旧的 OAuth 连接（`auth_method: "oauth"`、没有 `connector-protocol:` 引用）直接 `reauth_required`，不发任何请求，也不走 token 分支；token 连接照旧。Gmail、Notion、GitHub 设备授权和一个 catalog 服务的完整流程（发起 → 回调 → 连接可用 → 刷新 → 重新授权）在通用流程上走通，设置页和入门流程的返回不变 | 宿主用例加端到端用例（假的提供方）；浏览器用例按 PARALLEL-DEVELOPMENT 排时段 |
+| RAC-1089 | 旧的 OAuth 连接（`auth_method: "oauth"`、没有 `connector-protocol:` 引用）直接 `reauth_required`，不发任何请求，也不走 token 分支；token 连接照旧。旧形状的连接点重新授权，换到令牌后得到「请新增连接」，不会悄悄认成原来的账号：连接、凭据、protocol 配置和来源的绑定一个字节不变，也不新建连接（§10 Q2「10-27 用户改定」）。Gmail、Notion、GitHub 设备授权和一个 catalog 服务的完整流程（发起 → 回调 → 连接可用 → 刷新 → 重新授权）在通用流程上走通，设置页和入门流程的返回不变 | 宿主用例加端到端用例（假的提供方）；旧形状连接重连的用例三种旧连接各一条，`account_label` 与这次算出的 account_id、label 都相同时同样得到「请新增连接」；浏览器用例按 PARALLEL-DEVELOPMENT 排时段 |
 
 ## 9. 不做与后续（BL）
 
@@ -683,19 +683,17 @@ BL-796～799 留空。
   - A **只用数据**：§2.1 的字段覆盖今天五家的改写、三种怪癖和身份/上下文（含 `{context.*}`）。以后遇到新的特殊情况，就往平台的声明里加字段，插件里没有代码钩子。理由：这符合「缺什么补进平台」，宿主不跑插件代码。
   - B（未选）插件给一个纯函数钩子。
 - **Q2　开发 Home 上已经有的 Gmail、Notion、GitHub 设备授权连接怎么办？**（它们是 `auth_method: "oauth"`，用的是 `connector-connection:<id>:access` 引用，不是通用的 protocol 形状。）　**已定：A，不写迁移**（用户本人，10-27）。
-  - A **不写迁移，标成「需要重新授权」**：走现有的恢复流程（ASC-35）重连，来源的绑定保留。读取时不认 **OAuth 连接上**的旧引用；token 连接的 `connector-connection:<id>:token` 照旧（M4）。
+  - A **不写迁移，标成「需要重新授权」**：~~走现有的恢复流程（ASC-35）重连，来源的绑定保留。~~（这句被下面「10-27 用户改定」取代，留作备查。）读取时不认 **OAuth 连接上**的旧引用；token 连接的 `connector-connection:<id>:token` 照旧（M4）。
   - B（未选）写一次性的维护脚本。
-  - **旧连接重连时怎样认出是原来那个账号**（第 2 片评审发现，第 5 片做；待统筹核，见最后一条）：
-    - 问题：C 头上就地重新授权时，`connector-api-oauth.ts:122-126` 对每条 `auth_method: "oauth"` 的连接都带上 `previousRevision`，回调在 `:278-279` 要求旧连接的 protocol 上下文里有 `account_id`，且和这次算出的相等。旧的 Gmail、Notion、GitHub 设备授权连接没有 protocol 上下文，所以必定报「无法确认这是原账号，请新增连接」，上面 A 说的「走 ASC-35 重连、绑定保留」走不通。
-    - 不能读的：旧连接自己的 `connector-connection:<id>:access`、`:workspace` 这类引用（AGENTS「合同读写只认现行取值」，也是上面 A 说的「读取时不认」）。
-    - 能用的：连接记录的 `account_label` 列。它是连接表的现行列，旧流程把账号标识写在这里：Gmail 写邮箱（`connector-oauth-callbacks.ts:49`），Notion 写 workspace id（`:111`，没有 id 才写名字），GitHub 设备授权写 login（`connector-github-device.ts:85`）。连接库今天在没有稳定账号校验时，就是拿这一列比（`horizontal/connector-host/src/connection-store.ts:251`、`apps/local-host/src/connector-activation.ts:58`）。
-    - 做法：
-      1. 只从这条旧连接自己的重连入口发起（ASC-35 的「重新授权」，带着它的 `connection_id`），新增连接的入口不走这条路。
-      2. 连接上下文里没有 `account_id` 时（今天只有这三种旧连接），回调不比上下文，改比 `account_label`：它等于这次算出的 `account_id` 或 `label` 中的一个，才算原账号，按 Gmail 邮箱、Notion workspace id、GitHub login 正好各对上一项。这条规则不按服务分支。对不上照旧报「请新增连接」。
-      3. 设置页在本人点重连之前写明「请用原来的账号授权：<account_label>」，由本人确认。
-      4. 写成功之后连接有了 protocol 上下文和 `account_id`，以后的重连走通用的比对，这条路对它不再生效。
-    - 第 5 片配用例：三种旧连接各一条，同账号重连成功、绑定保留；换了账号报「请新增连接」、连接和绑定一个字节不变；从新增入口发起不走这条路。
-    - **待统筹核**：这一步不读旧的取值形状，只读连接表的现行列，我判断不算兼容读取；但这条分支只有旧连接会进。统筹认为它算兼容路的话，退路只有「旧连接只能新增，绑定由本人重新绑」，这会改变 Q2 当时「绑定保留」的前提，要由统筹去问用户。另外，GitHub 改过 login 的账号对不上，只能新增连接、重新绑定。
+  - **10-27 用户改定：旧连接不保留绑定，改为新增连接、由本人重新绑定**（用户本人，2026-10-27，经统筹转达）。上面 A 里「走 ASC-35 重连、来源的绑定保留」一句由这条取代。
+    - 为什么：C 头上就地重新授权时，`connector-api-oauth.ts:122-126` 对每条 `auth_method: "oauth"` 的连接都带上 `previousRevision`，回调在 `:278-279` 要求旧连接的 protocol 上下文里有 `account_id`，且和这次算出的相等。旧的 Gmail、Notion、GitHub 设备授权连接没有 protocol 上下文，所以必定报「请新增连接」。第五版想过按连接表的 `account_label` 列比对来认原账号，但那条分支只有旧连接会走，按 AGENTS 属于新增兼容逻辑，**不做**。
+    - 怎样做（第 5 片），不加只给旧连接用的读取分支：
+      1. **标记**：旧连接按 §2.6 标 `reauth_required`，不发请求。这是 §2.6 已有的拒绝，不是另一条读取路。
+      2. **提示**：设置页给它的提示写清楚两件事：「这条连接要重新新增」和「原来绑在它上面的来源要重新绑定到新连接」，旁边给「新增连接」和「删除这条连接」。提示文字由 §2.6 标记时给出，设置页照着显示，不按服务或按「是不是旧连接」另写一支。
+      3. **重连**：本人仍点「重新授权」时，走通用的就地重新授权：回调比 protocol 上下文里的 `account_id`，旧连接没有，就得到「请新增连接」，只写 §3.4 左边一列（消耗 state），连接、凭据、protocol 配置和绑定一个字节不变，也不新建连接。这条错误的文字和第 2 条一样写明要新增连接、重新绑定来源。
+      4. **收尾**：旧连接不由平台删，也不由平台改绑；本人新增连接、在来源的设置里换到新连接后，用现有的删除入口删掉旧连接。动手前先确认 C 合入后来源换连接的入口在哪、长什么样；没有这个入口的话，回统筹，不在本线另开。
+    - 第 5 片配用例（RAC-1089）：三种旧连接各一条，点重连得到「请新增连接」，不会悄悄认成原来的账号，`account_label` 与这次算出的 account_id、label 都相同时也一样；连接和绑定一个字节不变。
+    - 代价：GitHub、Gmail、Notion 的来源都要本人重新绑一次；写进升级须知（§6.1）。
 - **Q3　声明它的插件停用了，已有的 OAuth 连接怎么办？**　**已定：A，刷新和发送都拒**（统筹，10-27）。
   - A **刷新和发送都拒**，连接显示「方法不可用」，重新启用就恢复；Alchemist 退回匿名。理由：和「被停用的调用不再写业务记录」一致。token 连接那一半是 BL-794。
   - B（未选）按停用前最后一份声明的快照继续刷新。
@@ -722,6 +720,10 @@ BL-796～799 留空。
 - **统筹定**：A4 选「挪到第 4 片」，第 1 片不碰 `connector-host.ts`，不开例外（§2.1、§7）。
 - **开工安排**：第 2 片等统筹通知（W5-10 推完 e1、e2、e3、a1 之后，同时最多两条线写代码）；第 1 片等 A2、A4 的增量复核过了再开。
 - **M3 核过**：第 4 片合入不是发版；第一次合入前请用户在 Cloudflare 后台确认一次，统筹提醒（§2.9）。
+
+第 2 片评审之后（10-27）：
+
+- **用户定**：旧 OAuth 连接只能新增，绑定由本人重新绑，不加兼容路；按 `account_label` 比对认原账号那条分支不做（§10 Q2「10-27 用户改定」，第 5 片）。
 
 ## 11. 评审建议的取舍
 

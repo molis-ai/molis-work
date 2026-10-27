@@ -295,3 +295,10 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
     - 第 2 片按负载规矩排：W5-10 推完 e1、e2、e3、a1 再开（同时写代码的线最多两条），统筹到时通知。
     - A1、A3 在第 4、5、9 片动手前改进稿里。四条建议由 W5-11 自己定，不采纳的写一句理由。
     - A3 写进 AGENTS.md 的例外，是用户 10-27「只存新令牌」决定的落地；PR 正文写明出处。C 线已收到 FI-C-02 以后会被改的告知，C 照现在的合同合入，不用改。
+  - **10-27 W5-11 第四轮评审（`85042a7b2..6c9ced77d`）**：没有必须改，第 1、2 片都可以开。评审笔记在共享笔记目录的 review-w511-design-6c9ced77.md。
+    - A2、A4 已落实，第 1 片不再改 `connector-host.ts`，第 1、2 片不写同一个文件。
+    - 和评审原话有一处不同：CONNECTOR_ACCOUNT_ORIGINS 单独一张表，不做成请求表的字段。评审对着 C 头的代码核过，理由成立：`connector-plugin-requests.ts:132-135` 对不在请求表里的服务退回签名包自己的 origins，`sandbox-package.ts:146-148` 按在不在请求表决定包能不能写 origins，加一行就会盖掉包的声明。
+    - 三条建议做片时照做：RAC-1082 的「不 import」只许解释器文件 import；RAC-1081 只限 identity、context 的 url；Atlassian 的 `{gateway}` 用钉住的 cloud_id，accessible-resources 走 `{account}`。
+  - **10-27 W5-10 四片已推（没开 PR）**，依次叠在 main `9efbf8d04` 上，每片一个提交：e1 `claude/w510-e1-guidance` `cc7fe0ce2`、e2 `claude/w510-e2-repositories` `9cf5a7fb2`、e3 `claude/w510-e3-facts` `9ff7482d8`、a1 `claude/w510-a1-tab-workspace` `466df7f33`。自报 14 个覆盖改动的非浏览器用例全过，健康门禁对照 merge-base 通过。
+    - 已转评审逐片评，评审过了统筹再通知开 PR。a2 等 #1101，f1 和 FeedApplication 等 C；W5-10 先空着。
+  - **10-27 写代码的线换人**：W5-10 推完空出来，W5-11 开第 1、2 片，按顺序做，一次一个重活。第 1 片改 SDK，属于共享核心，全量进集成批。同时写代码的仍是两条：C、W5-11。

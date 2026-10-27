@@ -572,3 +572,21 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
     - 评审在同时独立看方案，并复核 bc7c06c07。
   - **登 R-69**：main 时期 Feed 捕获的成果线 producer 是 `native:feed` 0.0.0，C 之后这些旧线再捕获会出可见的 `artifact_out_failed`。处理办法是发版维护，动真实 Home 之前问用户。下一个空号 R-70。
   - **W5-10 #1315**：头还是 a9f9e1d87，等用户本人在 W5-10 会话里点同意，再进合并队列。
+  - **10-27 W5-10 #1315 已合入 main**（`74f31c19e`，14:07Z），用户本人在 W5-10 会话里点的同意。
+    - #1316 的 base 改成了 main，合了 origin/main，正常推送，新头 `7cc01fb34`，CI 在跑。
+    - 合并时有 4 处冲突，原因是 #1314、#1315 在 main 上是 squash 合入的，e3 分支里还带着原提交。
+    - #1317 等 #1316 合入后再做。
+  - **10-27 评审 bc7c06c07 和 RAC-510 方案**（笔记 review-c-bc7c06c0-rac510.md）：
+    - bc7c06c07 可以合。S-99 是空号。另有三处小改：拒绝用例加断言文字、§13 记通过记录、写明本机没跑的部分。
+    - RAC-510 方案 A 的原子性论证成立：
+      - 写库和成果库是同一个 ports.store.db；
+      - better-sqlite3 12.8.0 在外层事务里用 SAVEPOINT；
+      - 公告等外层事务结束才发。
+    - 三处必改，统筹都采纳，并进同一轮：
+      - **M1**：`feed.content.receive` 缺 `attention:write`，命中 inbox 规则就被拒。现在被 catch 静默吞掉；收窄以后会让整个动作失败。补声明 `attention:write` 和 `artifact:write`，加一条正向用例。这是 C 的回归。
+      - **M2**：收窄方向反过来，只把五个平台码往上抛，其余错误照 main 接住，否则会出毒条目。事务句柄的 check() 加一条：inTransaction 为假就拒绝。
+      - **M3**：S-100 的拒绝用例要断言是哪一层拒的，例如加一个只撤 `artifact:write` 的变体。另补 savepoint(keep:false) 和 async body 两条用例。
+    - 实现时确认三处：
+      - writer.head 不要求 artifact:read；
+      - 行为人取 `audit_actor_id ?? actor_id`；
+      - demo-plugin-seed.ts:280 那条演示数据入库后，照样要出捕获成果。

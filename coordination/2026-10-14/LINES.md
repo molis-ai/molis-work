@@ -123,10 +123,10 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
 | W5-05 | 基本完成 | 还剩：页面预算降值（统筹）。W5-06 链已随 batch-32 合入，Shelf 等 BL-804 |
 | W5-06 | 部分 | 已落地：#1098、#1107、#1191、#1173 随 batch-32（#1225）。#1112 已关、未合。还剩：挂载器与 BL-542，排在 C 之后 |
 | W5-07 | 收尾时统筹核 | — |
-| W5-08 | 部分 | 已落地：Feed/Functions 出口 #1120。在途：`apps/workbench/src/index.ts` 无人用的出口（BL-635）在 [#1326](https://github.com/molis-ai/molis-work/pull/1326)，评审中；Goals 一组留给 Goals 收尾。还剩：`index.ts` 的 `export *`（统筹，各族迁完后） |
+| W5-08 | 部分 | 已落地：Feed/Functions 出口 #1120。已落地：`apps/workbench/src/index.ts` 无人用的出口（BL-635）#1326（`47190691d`）。Goals 一组留给 Goals 收尾。还剩：`index.ts` 的 `export *`（统筹，各族迁完后） |
 | W5-09 | **已完成** | #591、#1118 |
-| W5-10 | 进行中（10-25 口径：本身合理的标明，不硬拆） | 已落地：批 A 前两块、B、D、G、H、I、J/K、E 第一片随 A+B；#1314（`e5b173438`）、#1315（`74f31c19e`）、#1316（`341b4d9cc`）。在途：#1317（批 A 重做 tab-workspace，头 `dfd43b5fd`）CI 跑着，绿后在 W5-10 会话合 |
-| W5-11 | 进行中 | 在途：第 1、2 片 #1322，Full（run 40538077218）只红第 7 片的 `busy-feedback` VUX-31，是 main 的间歇红（见 known-red-main.md），统筹 10-28 裁定可合，在 W5-11 OAuth 会话合。还剩：第 3 片起等 C 合入 |
+| W5-10 | 进行中（10-25 口径：本身合理的标明，不硬拆） | 已落地：批 A 前两块、B、D、G、H、I、J/K、E 第一片随 A+B；#1314（`e5b173438`）、#1315（`74f31c19e`）、#1316（`341b4d9cc`）。在途：#1317（批 A 重做 tab-workspace，头 `dfd43b5fd`）CLEAN、`full` 为空，统筹 10-28 裁定可合，在 W5-10 会话合 |
+| W5-11 | 进行中 | 已落地：第 1、2 片 #1322（`31c3ff04d`）。还剩：第 3 片起等 C 合入 |
 | W5-12 | 收尾时统筹核 | — |
 | W5-13 | 部分 | 已落地：RAC113、RAC114。还剩：宿主日志与错误的余片，未派 |
 | W5-14 | 部分 | 已落地：片 1～4 与 W11-1 随 A+B。还剩：余下改名，等 C 与 W5-10 合入后开 |
@@ -134,7 +134,7 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
 | W5-16 | 部分 | 已落地：B1、快照（#1271，batch-40）。还剩：B2b（CLI 必要状态、同 Home lease、全库与非 SQLite 快照恢复）；碰真实 Home 的部分进维护时段 |
 | W5-17 | 等维护时段 | 用户 10-24 定：和 Goals S9 同一时段，先在真实 Home 拷贝上跑 `list` 交用户，维护做完前不合 |
 | W6-01 | 部分 | 已落地：`740f09d4f`（含删 by-key）随 A+B。还剩：冻结名单清零（C 去掉了 Feed 的宿主文件；其余等各族迁完）、AGENTS 改写 |
-| W6-02 | 进行中 | 已落地：Todo、Jelly、Pages、灵光的走查随 A+B。在途：其余 13 个插件 #1325（头 `a5b713beb`，CLEAN），可合，在 `ac-lifecycle` 会话合。还剩：置物架（BL-804），等 C |
+| W6-02 | 进行中 | 已落地：Todo、Jelly、Pages、灵光的走查随 A+B。在途：其余 13 个插件 #1325（头 `a5b713beb`，CLEAN），可合，合并被自动模式拦下，等用户在 `ac-lifecycle` 会话放行。还剩：置物架（BL-804），等 C |
 | W6-03 | 部分 | 已落地：「现在就能改的」16 条随 batch-40（#1308）。还剩：54 条，等 W6 统一改 |
 | W6-04～06 | 未开 | 等 W5 各项与 C 合入 |
 
@@ -683,4 +683,11 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
   - #1326（carrier-1028-1326，run 40538409916）：15 片绿，第 16 片还在跑。跑完全绿就在 `ac-sweep` 会话合。
   - C（carrier-1028-c，run 40538450543，旧头 `7e716e494`）：14 片红。新头 `75f21b847` 修了 PR CI 上的 11 处红，多半能对上。不取消、不重推这个 carrier（取消要用户本人同意）；C 把 14 片的失败对到 `75f21b847` 的修复上，再把新头推到新 carrier `integration/carrier-1028-c2` 跑一次 Full，跟 known-red-main.md 比，看 Security invariants，绿了转正式 PR，在 C 会话合。合前再确认 S-97～S-100 没被占。
   - 评审对 C `75f21b847` 的三条后续登记：崩掉、没启用的安装被 `projectPluginEnablementRefresh` 去停，`runtime.stop` 抛 `plugin.state_invalid`，此后每个页面请求都失败 → R-70，归 C 线，C 合入后先做；内置插件与目录外插件双实例的页面归属不同 → 归 10-18 防腐各行；`listFeedMaterialContentRefs` 没人调 → C 合入后顺手删。
+
+- 10-28 统筹：合入与 #1329。
+  - main 开了合并队列：`gh pr merge` 只把 PR 放进队列，合并方式由队列定。#1322 → `31c3ff04d`，#1326 → `47190691d`。
+  - #1325 的合并被自动模式拦下，等用户在 `ac-lifecycle` 会话放行。
+  - #1317：affected `full` 为空、CLEAN，裁定可合，在 W5-10 会话合。
+  - #1329（BL-806，只改 `tests/busy-feedback.e2e.test.ts`，评审可合）：不单开集成 Full。理由：`full` 为空；C 的 integration Full 正占 10 个 runner，再开一个就占满 20 个、挡住所有 PR 的 Verify；用户要攒批测。PR 检查绿了就在 `ac-lifecycle` 会话合（排在 #1325 之后），合入后看 main 的夜间 Full（17:00 UTC）。评审三条提醒：①② 记 R-71；③ Files spinner 那条同类睡眠取样记 BL-807，归 `ac-lifecycle`。
+  - C：carrier-1028-c 在 `75f21b847` 上排队跑 Full（run 40556272594，用户在 C 会话同意）。C 还在修 32 个新红；修好后等这次 run 跑完，再推同一个 carrier，不并行开 c2，也不顶掉在跑的那次。
 

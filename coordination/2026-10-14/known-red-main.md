@@ -44,7 +44,7 @@
 
 | 文件 | 失败的用例 | 原因类别 | 依据 | 出现 |
 | --- | --- | --- | --- | --- |
-| `busy-feedback.e2e` | 「VUX-31: switching the Goal in the work view keeps the old document until the wait passes」：切换 Goal 后等待标记先出来、旧文档被隐藏（`mark: 1, opacity: 0`，期望 `mark: 0, opacity: 1`），重试也红 | 待查（统筹 10-28 记；归 `ac-lifecycle`，BL-806） | 两个不相干的 carrier 都重试后仍红：`integration/memory-p0-application-20261025`（run 40515916043，10-27）；`integration/carrier-1028-w511`（run 40538077218，#1322 只改 OAuth 合同与 SDK，不碰工作台）。同期 `integration/carrier-1028-1326`（run 40538409916）第 7 片过了，所以是时有时无。不挡合并 | 10-27、10-28 |
+| `busy-feedback.e2e` | 「VUX-31: switching the Goal in the work view keeps the old document until the wait passes」：切换 Goal 后等待标记先出来、旧文档被隐藏（`mark: 1, opacity: 0`，期望 `mark: 0, opacity: 1`），重试也红 | 测试的时序假设（BL-806 查明）：修复 #1329 改成定住真实动画取样，不放宽断言；合入后看 main 夜间 Full，过了就移走这行；R-71 跟后续 | 两个不相干的 carrier 都重试后仍红：`integration/memory-p0-application-20261025`（run 40515916043，10-27）；`integration/carrier-1028-w511`（run 40538077218，#1322 只改 OAuth 合同与 SDK，不碰工作台）。同期 `integration/carrier-1028-1326`（run 40538409916）第 7 片过了，所以是时有时无。不挡合并 | 10-27、10-28 |
 | `workbench-deferred-clients.e2e` | 2/3 通过。「registered clients mount on demand, retry resources and retain their original surfaces」：`Error: CDP timeout: Network.setBlockedURLs`（`:50`，测试端 CDP 命令 20 秒超时） | 环境与时序（待查） | 超时出在第一条 `Network.setBlockedURLs`，早于用例碰到伴随面板，#1049 的改动（删宿主的伙伴面板装饰）不在这条路径上；同一 run 片内重试也红，重跑这一片 3/3 通过。BL-412 已把它列为重试才过的三份文件之一，根因未定 | batch-1023-3 第一次跑；batch-1023-1、batch-1023-2 都通过；batch-1023-4 第一次 2/3、重试通过；batch-1023-9 最终红；batch-1023-10 通过。BL-412 修掉就删 |
 
 ## batch-1024-22/23 的判定（10-24 06:10 UTC）

@@ -542,3 +542,20 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
     - 方案要按时间点写清取消、撤权、停用时会怎样：成果也是业务记录，被取消的调用不能留下。
     - 方案写在 c-rac510-design.md，先交评审看，统筹批了 C 再动手。
     - inbox-automatic-scenes 第 166 行在那之前先红着，§13 照实记。
+  - **10-27 C 7bb44456b 复审**（笔记 review-c-7bb44456.md）：
+    - **一处必改**：`goals/src/action-contract.ts:18` 的 `personAsked`，只要有 `delegated_by` 就算本人。
+      - 绕法：本人在工作流里点「交给下一站」（`workflows.instances.continue`），下一站的 `goals.create` 就会记成已确认，还能指定 `feed`、`onboarding` 这类渠道。
+      - 违反两条：用户 10-10 定的「工作流只记待确认」，以及「只有本人能指定渠道」。
+      - 统筹采纳评审的最小改法：委托来的调用，只有 `delegated_by` 是来源的主人（Feed）才算本人；别的委托方记 proposed、不许指定渠道、不填渠道时记 runtime。
+      - 补拒绝用例：委托方换成 Workflows。
+      - SECURITY-INVARIANTS 新加一行，写清 Goals 怎样认本人，号先写「暂定」，合并时定。
+    - 登 **BL-803**：平台层的做法，由 Host 带出委托方正在跑哪个动作，把「本人」收窄到具体动作；不进 C。下一个空号是 BL-804。
+    - 其余都对：
+      - Goals 只读可信字段；
+      - Feed 的定时、场景、后台作业和两跳委托都不会记成本人；
+      - 两份测试是改回用户的决定；
+      - Manifest 和 CHECKLIST 都对；
+      - inbox-automatic-scenes 的断言一条没动；
+      - FI7 的四处跟进都对；
+      - Notion 两条用例正好钉住「请求已发出后全部取消，新的 refresh token 不写」。
+    - 排序：C 先改这一处，再交 RAC-510 方案。

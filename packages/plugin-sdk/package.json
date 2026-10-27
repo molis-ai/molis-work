@@ -26,6 +26,10 @@
       "types": "./dist/diff-view.d.ts",
       "import": "./dist/diff-view.js"
     },
+    "./oauth": {
+      "types": "./dist/oauth.d.ts",
+      "import": "./dist/oauth.js"
+    },
     "./ui": {
       "types": "./dist/ui.d.ts",
       "import": "./dist/ui.js"

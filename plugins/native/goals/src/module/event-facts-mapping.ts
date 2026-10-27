@@ -3,7 +3,8 @@ import type {
   GoalReportWorkEventRecord,
   GoalWorkEventRecord,
 } from "@molis-ai/molis-work-contracts/modules/goals";
-import type { GoalEventFactsRepository, StoredWorkEvent } from "./event-facts-repository.js";
+import type { StoredWorkEvent } from "./event-facts-work-event-records.js";
+import type { GoalEventFactsRepository } from "./event-facts-repository.js";
 import { configurationPayload } from "./event-facts-config.js";
 import { ownStringRecord } from "./event-facts-validation.js";
 import { parseGoalEventSystemPayload } from "./event-system-payload.js";
@@ -33,14 +34,14 @@ export function mapTimelineItem(records: GoalEventFactsRepository, row: StoredWo
 
 export function mapReportEvent(records: GoalEventFactsRepository, row: StoredWorkEvent): GoalReportWorkEventRecord {
   const type = row.type_id != null && row.type_version != null
-    ? records.getType(row.project_id, row.goal_id, row.type_id, row.type_version)
+    ? records.config.getType(row.project_id, row.goal_id, row.type_id, row.type_version)
     : null;
   return {
     ...workEventBase(row),
     kind: "report",
     type,
     payload: ownStringRecord(row.payload),
-    judgments: records.listJudgments(row.event_id),
+    judgments: records.workEvents.listJudgments(row.event_id),
   };
 }
 
@@ -50,7 +51,7 @@ function mapSystemEvent(records: GoalEventFactsRepository, row: StoredWorkEvent)
     kind: "system",
     type: null,
     payload: parseGoalEventSystemPayload(row.payload),
-    judgments: records.listJudgments(row.event_id),
+    judgments: records.workEvents.listJudgments(row.event_id),
   };
 }
 
@@ -60,7 +61,7 @@ function mapConfigurationEvent(records: GoalEventFactsRepository, row: StoredWor
     kind: "configuration",
     type: null,
     payload: configurationPayload(row.payload),
-    judgments: records.listJudgments(row.event_id),
+    judgments: records.workEvents.listJudgments(row.event_id),
   };
 }
 

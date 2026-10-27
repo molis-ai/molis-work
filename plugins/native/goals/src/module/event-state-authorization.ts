@@ -20,7 +20,7 @@ import {
   affectedExistingRequirementIds,
   type CanonicalAgreementChange,
 } from "./event-agreement-change.js";
-import { emptyScope, scopeIsSubset } from "./event-state-repository.js";
+import { emptyScope, scopeIsSubset } from "./event-state-scope.js";
 
 function requiredEnum<T extends string>(
   value: unknown,

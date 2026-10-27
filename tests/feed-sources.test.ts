@@ -9,7 +9,7 @@ import { listFeedSourceCatalog } from "@molis-ai/molis-work-app-local-host";
 import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { accountSourceRecord } from "./fixtures/feed-account-source.js";
 
-const gmailSource = (db: LocalProjectDatabase["db"]) => createLocalFeedApplication(db).upsertSource(accountSourceRecord("gmail"));
+const gmailSource = (db: LocalProjectDatabase["db"], project_id = DEMO_PROJECT_ID) => createLocalFeedApplication(db).upsertSource(accountSourceRecord("gmail", { project_id }));
 
 import { createSourcePullRuntime, type SourcePullRuntime } from "@molis-ai/molis-work-app-local-host";
 import { readRssHttpState } from "@molis-ai/molis-work-integration-rss";
@@ -17,6 +17,7 @@ import type { IntelligenceCollectRequest, IntelligenceCollectResult } from "@mol
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { DEMO_PROJECT_ID, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { createLocalFeedSourceService, createLocalFeedApplication, createLocalFeedSourceScheduler } from "./fixtures/feed-library.js";
@@ -604,24 +605,25 @@ test("Gmail source configuration accepts only incrementally enforceable range pr
 
 test("Feed source Web API manages local sources and reads accounts from Connectors", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-feed-source-api-"));
-  const databasePath = join(directory, "molis-work.sqlite");
+  const home = join(directory, "home");
   const controlToken = "molis-work-feed-source-api-control-token";
   const oldHome = process.env.MOLIS_WORK_HOME;
   const oldBackend = process.env.MOLIS_WORK_SECRET_BACKEND;
   const oldNodeEnv = process.env.NODE_ENV;
-  process.env.MOLIS_WORK_HOME = join(directory, "home");
+  process.env.MOLIS_WORK_HOME = home;
   process.env.MOLIS_WORK_SECRET_BACKEND = "file";
   process.env.NODE_ENV = "test";
   resetSecretStoreCache();
-  seedDemoBoard(databasePath);
-  const seeded = new LocalProjectDatabase(databasePath);
-  try { gmailSource(seeded.db); } finally { seeded.close(); }
-  const server = createMolisWorkWebServer({
-    databasePath,
-    projectId: DEMO_PROJECT_ID,
-    homeDirectory: join(directory, "home"),
-    controlToken,
+  // Feed runs in the Plugin Runtime of a project that has it (FI-7): the page and its routes are the project's, under its prefix.
+  const projectId = await withMolisWorkProjectCatalog({ homeDirectory: home }, async catalog => {
+    const created = await catalog.createProject({ display_name: "来源", actor_id: "test" });
+    if (!catalog.listProjectPlugins(created.project_id).includes("feed")) catalog.addProjectPlugin({ project_id: created.project_id, plugin_id: "feed", actor_id: "test" });
+    const seeded = new LocalProjectDatabase(catalog.getProject(created.project_id).database_path);
+    try { gmailSource(seeded.db, created.project_id); } finally { seeded.close(); }
+    return created.project_id;
   });
+  const prefix = `/projects/${encodeURIComponent(projectId)}`;
+  const server = createMolisWorkWebServer({ homeDirectory: home, controlToken });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   try {
     const address = server.address();
@@ -630,7 +632,7 @@ test("Feed source Web API manages local sources and reads accounts from Connecto
     let mutation = 0;
     const mutate = async (pathname: string, method: string, body?: unknown) => {
       mutation += 1;
-      return fetch(`${origin}${pathname}`, {
+      return fetch(`${origin}${prefix}${pathname}`, {
         method,
         headers: {
           origin,
@@ -641,7 +643,7 @@ test("Feed source Web API manages local sources and reads accounts from Connecto
         body: body == null ? undefined : JSON.stringify(body),
       });
     };
-    const page = await (await fetch(origin)).text();
+    const page = await (await fetch(`${origin}${prefix}/`)).text();
     assert.match(page, /data-feed-sources-dialog/);
     assert.match(page, /id="feed-source-dialog-title">添加来源/);
     assert.match(page, /<select data-source-config-field="scope">[\s\S]*value="in:inbox is:unread" selected[\s\S]*value="is:starred"/);
@@ -652,7 +654,7 @@ test("Feed source Web API manages local sources and reads accounts from Connecto
     assert.doesNotMatch(page, /不会迁移账号凭据/);
 
     const definition = listFeedSourceCatalog()[0]!;
-    const registered = await mutate("/api/feed/sources", "POST", {
+    const registered = await mutate("/api/plugins/io.molis.work.feed/sources", "POST", {
       kind: "rss",
       definition_id: definition.id,
     });
@@ -661,7 +663,7 @@ test("Feed source Web API manages local sources and reads accounts from Connecto
     assert.equal(registeredBody.source.sync_kind, "public_source");
 
     const paused = await mutate(
-      `/api/feed/sources/${encodeURIComponent(registeredBody.source.source_id)}/pause`,
+      `/api/plugins/io.molis.work.feed/sources/${encodeURIComponent(registeredBody.source.source_id)}/pause`,
       "POST",
       {},
     );
@@ -669,7 +671,7 @@ test("Feed source Web API manages local sources and reads accounts from Connecto
     assert.equal((await paused.json() as { source: { status: string } }).source.status, "paused");
 
     const configured = await mutate(
-      `/api/feed/sources/${encodeURIComponent(registeredBody.source.source_id)}`,
+      `/api/plugins/io.molis.work.feed/sources/${encodeURIComponent(registeredBody.source.source_id)}`,
       "PATCH",
       { name: "Internal RSS", description: "真实来源", scope: "product updates" },
     );
@@ -677,38 +679,37 @@ test("Feed source Web API manages local sources and reads accounts from Connecto
     assert.equal((await configured.json() as { source: { name: string } }).source.name, "Internal RSS");
 
     const scheduled = await mutate(
-      `/api/feed/sources/${encodeURIComponent(registeredBody.source.source_id)}/schedule`,
+      `/api/plugins/io.molis.work.feed/sources/${encodeURIComponent(registeredBody.source.source_id)}/schedule`,
       "PUT",
       { mode: "interval", enabled: true, interval_minutes: 30 },
     );
     assert.equal(scheduled.status, 200);
     assert.equal((await scheduled.json() as { source: { schedule: { mode: string } } }).source.schedule.mode, "interval");
 
-    const realPage = await (await fetch(origin)).text();
+    const realPage = await (await fetch(`${origin}${prefix}/`)).text();
     assert.match(realPage, new RegExp(`data-real-source-id="${registeredBody.source.source_id}"`));
     assert.match(realPage, /data-source-config-save/);
     assert.match(realPage, /首次拉取后验证 Feed 并记录条件请求/);
     assert.match(realPage, /data-source-schedule-save/);
     assert.match(realPage, /data-source-runtime-action="pause"/);
 
-    const home = join(directory, "home");
     const github = withConnectorConnections(home, store => store.createToken({ serviceId: "github", displayName: "GitHub", token: "github-test-token-12345" }));
-    const feed = await (await fetch(`${origin}/api/feed`)).json() as {
+    const feed = await (await fetch(`${origin}${prefix}/api/plugins/io.molis.work.feed/snapshot`)).json() as {
       sources: Array<{ kind: string; status: string }>;
       connector_auth: { github: { bound: boolean } };
-      source_catalog: unknown[];
     };
     assert.equal(feed.connector_auth.github.bound, true);
-    assert.ok(feed.source_catalog.length > 0);
+    // The catalog is the shell's to give with the page, not Feed's route's (the vocabulary is read only inside Feed's own action, S-97).
+    assert.ok(((await (await fetch(`${origin}${prefix}/api/board`)).json()) as { feed_source_catalog: unknown[] }).feed_source_catalog.length > 0);
     assert.equal(feed.sources.some((source) => source.kind === "github"), false, "a connection alone adds no Feed source");
     assert.equal(JSON.stringify(feed).includes("github-test-token-12345"), false);
 
     withConnectorConnections(home, store => store.disconnect(github.connection_id));
-    assert.equal((await (await fetch(`${origin}/api/feed`)).json() as { connector_auth: { github: { bound: boolean } } })
+    assert.equal((await (await fetch(`${origin}${prefix}/api/plugins/io.molis.work.feed/snapshot`)).json() as { connector_auth: { github: { bound: boolean } } })
       .connector_auth.github.bound, false);
 
     const deleted = await mutate(
-      `/api/feed/sources/${encodeURIComponent(registeredBody.source.source_id)}`,
+      `/api/plugins/io.molis.work.feed/sources/${encodeURIComponent(registeredBody.source.source_id)}`,
       "DELETE",
       { history_decision: "retain_history" },
     );

@@ -5,8 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { ActionError, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import { LocalProjectDatabase, MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { FEED_PLUGIN_ID, FeedPluginRouteTable, createFeedRouteHandlers, feedItemActions, feedManifest, feedQueryActions, promoteFeedItemToGoal, promoteOffered, type FeedGoalPromotionGoals } from "@molis-ai/molis-work-plugin-feed";
+import { LocalProjectDatabase, MolisWorkLocalHost, feedItemForReader, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { FEED_PLUGIN_ID, feedItemActions, feedManifest, feedQueryActions, promoteFeedItemToGoal, promoteOffered, type FeedGoalPromotionGoals } from "@molis-ai/molis-work-plugin-feed";
 import { GOALS_PLUGIN_ID, goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { goalApplicationOf, seedBoard } from "./fixtures/goal-application.js";
 
@@ -344,10 +344,10 @@ test("the reader's promotion button follows the promote action: shown while Goal
   const f = fixture(["Review external input"], { disableGoals: () => removed });
   const [item] = f.items;
   try {
+    // The shell's reader (`/api/stage/feed/items/<id>`) asks the Host what to offer for one item, as the person.
     const rendered: boolean[] = [];
-    const table = new FeedPluginRouteTable(createFeedRouteHandlers({ actions: f.person, routePrefix: "", inboxEntries: async () => [], changed: () => {}, hydrateItem: row => row,
-      hydrateSnapshot: async snapshot => snapshot, sourceCatalog: () => [], renderWorkbench: () => "", renderDetail: (_item, options) => { rendered.push(options.promoteAvailable); return "<div></div>"; } }));
-    const detail = async () => assert.equal((await table.handle({ method: "GET", pathname: `/api/feed/items/${item!.item_id}/detail`, query: new URLSearchParams(), body: {} }))?.status, 200);
+    const view = async () => ({ feed: { sources: [], feed_items: [], inbox_entries: [], runs: [], out_rules: [] } });
+    const detail = async () => { rendered.push((await feedItemForReader(f.person, item!.item_id, view)).promoteAvailable); };
     await detail();
     removed = true;
     await detail();

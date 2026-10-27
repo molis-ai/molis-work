@@ -114,7 +114,7 @@ test("Feed creation recovers a failed schedule without duplicating the task", { 
     const original = window.fetch;
     let fail = true; window.sourceCreationRequests = 0;
     window.fetch = (url, options) => {
-      if (options?.method === 'POST' && String(url).endsWith('/api/feed/sources')) window.sourceCreationRequests++;
+      if (options?.method === 'POST' && String(url).endsWith('/api/plugins/io.molis.work.feed/sources')) window.sourceCreationRequests++;
       if (fail && options?.method === 'PUT' && String(url).endsWith('/schedule')) { fail = false; return Promise.resolve(new Response(JSON.stringify({error:'计划暂时无法保存'}), {status:503,headers:{'content-type':'application/json'}})); }
       return original(url, options);
     };

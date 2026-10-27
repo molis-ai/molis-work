@@ -148,6 +148,8 @@ export { connectorDirectory } from "./connector-directory.js";
 export type { IntegrationProviderFactory } from "./integration-providers.js";
 
 export { handleHomeDockJudgmentHttp, type HomeDockHttpOptions } from "./home-dock-http.js";
+/** One Feed item for the shell's reader (`/api/stage/feed/items/<id>`), read through Feed's own actions. */
+export { feedItemForReader } from "./web-request.js";
 export { handleFunctionsHttp } from "./functions-http.js";
 
 export { createLocalArtifactHttp, renderGoalArtifactContext } from "./artifact-native-plugin-http.js";

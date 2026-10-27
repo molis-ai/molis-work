@@ -14,8 +14,6 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import {
   FEED_CAPTURE_ARTIFACT_TYPE_ID,
-  FeedPluginRouteTable,
-  createFeedRouteHandlers,
   feedCaptureArtifactId,
   createFeedRuleHandlers, feedRuleActions,
 } from "@molis-ai/molis-work-plugin-feed";
@@ -24,6 +22,7 @@ import {
   INBOX_ADMIT_BEHAVIOR_ID,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
+import { FEED_API, feedTestRoutes } from "./fixtures/feed-http.js";
 
 const TOKEN = "feed-out-rules-test-token-0123456789012345";
 
@@ -354,36 +353,36 @@ test("Feed out-rule HTTP CRUD is owned by Feed plugin routes", async (t) => {
 
   const prefix = `/projects/${encodeURIComponent(project.project_id)}`;
   // Out-rules belong to a Source; a new project has none until one is added.
-  const registered = await webFetch(`${origin}${prefix}/api/feed/sources`, { method: "POST", headers: { "content-type": "application/json" },
+  const registered = await webFetch(`${origin}${prefix}${FEED_API}/sources`, { method: "POST", headers: { "content-type": "application/json" },
     body: JSON.stringify({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }) });
   assert.equal(registered.status, 201, await registered.clone().text());
   const page = await (await webFetch(`${origin}${prefix}/`)).text();
   assert.match(page, /data-feed-rule-instructions/);
   assert.match(page, /data-feed-out-rule-function-key/);
-  const directory = await (await webFetch(`${origin}${prefix}/api/feed/out-rules/judgments`)).json() as { choices: { reference: { capability_id: string } }[] };
+  const directory = await (await webFetch(`${origin}${prefix}${FEED_API}/out-rules/judgments`)).json() as { choices: { reference: { capability_id: string } }[] };
   assert.ok(directory.choices.some(choice => choice.reference.capability_id === "functions.published.system_admit_inbox"));
   assert.doesNotMatch(page, /data-feed-add-out-rule-function-key/);
 
   const published = (key: string) => ({ capability_id: `functions.published.${key}`, version: 1, provider_id: "system.functions" });
-  const unpublished = await webFetch(`${origin}${prefix}/api/feed/out-rules`, {
+  const unpublished = await webFetch(`${origin}${prefix}${FEED_API}/out-rules`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ name: "坏判断", contains: "launch", judgment: published("not_a_published_function") }),
   });
   assert.equal(unpublished.status, 400);
-  const emptyAfterUnpublished = await webFetch(`${origin}${prefix}/api/feed/out-rules`);
+  const emptyAfterUnpublished = await webFetch(`${origin}${prefix}${FEED_API}/out-rules`);
   assert.equal(((await emptyAfterUnpublished.json()) as { rules: unknown[] }).rules.length, 0);
 
-  const mismatched = await webFetch(`${origin}${prefix}/api/feed/out-rules`, {
+  const mismatched = await webFetch(`${origin}${prefix}${FEED_API}/out-rules`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ name: "首页判断", contains: "launch", judgment: published("system_pick_home_dock") }),
   });
   assert.equal(mismatched.status, 400);
-  const emptyAfterMismatch = await webFetch(`${origin}${prefix}/api/feed/out-rules`);
+  const emptyAfterMismatch = await webFetch(`${origin}${prefix}${FEED_API}/out-rules`);
   assert.equal(((await emptyAfterMismatch.json()) as { rules: unknown[] }).rules.length, 0);
 
-  const bound = await webFetch(`${origin}${prefix}/api/feed/out-rules`, {
+  const bound = await webFetch(`${origin}${prefix}${FEED_API}/out-rules`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ name: "发布判断", contains: "launch", judgment: published("system_admit_inbox") }),
@@ -391,12 +390,12 @@ test("Feed out-rule HTTP CRUD is owned by Feed plugin routes", async (t) => {
   assert.equal(bound.status, 201);
   const boundBody = await bound.json() as { rule: { rule_id: string; judgment: unknown } };
   assert.deepEqual(boundBody.rule.judgment, published("system_admit_inbox"));
-  const deletedBound = await webFetch(`${origin}${prefix}/api/feed/out-rules/${encodeURIComponent(boundBody.rule.rule_id)}`, {
+  const deletedBound = await webFetch(`${origin}${prefix}${FEED_API}/out-rules/${encodeURIComponent(boundBody.rule.rule_id)}`, {
     method: "DELETE",
   });
   assert.equal(deletedBound.status, 200);
 
-  const createdRule = await webFetch(`${origin}${prefix}/api/feed/out-rules`, {
+  const createdRule = await webFetch(`${origin}${prefix}${FEED_API}/out-rules`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ name: "发布相关", contains: "launch" }),
@@ -405,12 +404,12 @@ test("Feed out-rule HTTP CRUD is owned by Feed plugin routes", async (t) => {
   const createdBody = await createdRule.json() as { rule: { rule_id: string; enabled: boolean; match: { contains?: string } } };
   assert.equal(createdBody.rule.match.contains, "launch");
 
-  const listed = await webFetch(`${origin}${prefix}/api/feed/out-rules`);
+  const listed = await webFetch(`${origin}${prefix}${FEED_API}/out-rules`);
   assert.equal(listed.status, 200);
   const listedBody = await listed.json() as { rules: Array<{ rule_id: string }> };
   assert.equal(listedBody.rules.length, 1);
 
-  const patched = await webFetch(`${origin}${prefix}/api/feed/out-rules/${encodeURIComponent(createdBody.rule.rule_id)}`, {
+  const patched = await webFetch(`${origin}${prefix}${FEED_API}/out-rules/${encodeURIComponent(createdBody.rule.rule_id)}`, {
     method: "PATCH",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ enabled: false }),
@@ -419,14 +418,14 @@ test("Feed out-rule HTTP CRUD is owned by Feed plugin routes", async (t) => {
   const patchedBody = await patched.json() as { rule: { enabled: boolean } };
   assert.equal(patchedBody.rule.enabled, false);
 
-  const deleted = await webFetch(`${origin}${prefix}/api/feed/out-rules/${encodeURIComponent(createdBody.rule.rule_id)}`, {
+  const deleted = await webFetch(`${origin}${prefix}${FEED_API}/out-rules/${encodeURIComponent(createdBody.rule.rule_id)}`, {
     method: "DELETE",
   });
   assert.equal(deleted.status, 200);
-  const after = await webFetch(`${origin}${prefix}/api/feed/out-rules`);
+  const after = await webFetch(`${origin}${prefix}${FEED_API}/out-rules`);
   assert.equal(((await after.json()) as { rules: unknown[] }).rules.length, 0);
 
-  const empty = await webFetch(`${origin}${prefix}/api/feed/out-rules`, {
+  const empty = await webFetch(`${origin}${prefix}${FEED_API}/out-rules`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ name: "空规则" }),
@@ -459,18 +458,13 @@ test("Feed rule preview matches recent source messages without writes or backfil
       occurredAt: `2026-09-${String(index + 10).padStart(2, "0")}T00:00:00.000Z`, attention: false,
     });
     data.feed.ingestItem({ source: another, externalId: "foreign", title: "launch from another source", summary: "foreign", occurredAt: "2026-09-30T00:00:00.000Z", attention: false });
-    const unused = (): never => { throw new Error("preview called a mutating or unrelated port"); };
     const service = new ActionService();
     service.registerProvider({ provider: { provider_id: "io.molis.work.feed", title: "Feed", kind: "plugin", project_id: "preview-project" },
       definitions: Object.values(feedRuleActions), handlers: createFeedRuleHandlers(data.feed, DEMO_PROJECT_ID, item => item) });
-    const routes = new FeedPluginRouteTable(createFeedRouteHandlers({
-      actions: bindActionClient(service, () => ({ actor_id: "preview", project_id: "preview-project", audience: "user", permissions: ["feed:read"] })),
-      routePrefix: "", inboxEntries: unused, connectors: unused,
-      changed: unused, hydrateItem: unused, hydrateSnapshot: unused, sourceCatalog: () => [], renderWorkbench: unused, renderDetail: unused,
-    }));
+    const routes = feedTestRoutes(bindActionClient(service, () => ({ actor_id: "preview", project_id: "preview-project", audience: "user", permissions: ["feed:read"] })));
     const writesBefore = data.store.db.prepare("SELECT total_changes() AS n").get();
     const before = data.feed.snapshot(DEMO_PROJECT_ID);
-    const request = { method: "POST" as const, pathname: "/api/feed/out-rules/preview", query: new URLSearchParams(), body: { source_id: data.source.source_id, contains: "launch" } };
+    const request = { method: "POST" as const, pathname: `${FEED_API}/out-rules/preview`, query: new URLSearchParams(), body: { source_id: data.source.source_id, contains: "launch" } };
     const response = await routes.handle(request);
     assert.equal(response?.status, 200);
     const samples = (response?.body as { samples: { title: string; matched: boolean; input: string }[] }).samples;

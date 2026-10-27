@@ -80,7 +80,7 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
 
   insertFeedItem(project, "inbox-plugin-item");
   const prefix = `/projects/${encodeURIComponent(project.project_id)}`;
-  const added = await webFetch(`${origin}${prefix}/api/feed/items/inbox-plugin-item/inbox`, {
+  const added = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.feed/items/inbox-plugin-item/inbox`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ expected_revision: 1 }),
@@ -153,7 +153,7 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
   assert.match(after, /data-feed-entry-id="inbox-plugin-item"/);
 
   insertFeedItem(project, "inbox-plugin-item-2");
-  const addedSecond = await webFetch(`${origin}${prefix}/api/feed/items/inbox-plugin-item-2/inbox`, {
+  const addedSecond = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.feed/items/inbox-plugin-item-2/inbox`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ expected_revision: 1 }),

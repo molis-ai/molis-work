@@ -47,7 +47,7 @@ const HOME_RUNTIME_IDS = new Set(HOME_RUNTIME_ENTRIES.map(entry => entry.project
 
 /** Frozen on 2026-09-30. Remove an id here once its plugin is started by the Runtime. */
 const BUILD_TIME_ASSEMBLED: ReadonlySet<string> = new Set([
-  "alchemist", "artifacts", 
+  "alchemist", "artifacts",
   "plugin-builder",
 ]);
 

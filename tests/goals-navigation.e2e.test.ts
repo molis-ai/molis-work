@@ -143,7 +143,7 @@ test("Sources mutation and Feed reload preserve utility state while fresh Goal l
   await click('[data-feed-source-register]');
   await waitFor("document.body.dataset.desktopSurface === 'feed' && document.querySelector('[data-feed-sources-dialog]').hidden");
   assert.equal(await evaluate("location.pathname"), "/goals/V1");
-  const response = await fetch(origin + "/api/feed");
+  const response = await fetch(origin + "/api/plugins/io.molis.work.feed/snapshot");
   assert.equal(response.status, 200);
   const snapshot = await response.json();
   assert.ok(snapshot.sources.some((source: { definition_id: string }) => source.definition_id === sourceDefinition));

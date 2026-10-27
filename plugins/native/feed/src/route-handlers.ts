@@ -19,7 +19,7 @@ export function createFeedRouteHandlers(options: FeedRouteHandlerPorts): Record<
       const suggested = new Map(recommendations.map(result => [result.item_id, result.suggested_behavior_ids]));
       return { status: 200, body: { ...snapshot, out_rules: rules,
         feed_items: snapshot.feed_items.map(item => ({ ...item, suggested_behavior_ids: suggested.get(item.item_id) ?? [] })),
-        source_catalog: options.sourceCatalog(), connector_auth: connectorAuth } };
+        connector_auth: connectorAuth } };
     },
     ...createFeedOutRuleRouteHandlers(options),
     ...createFeedSourceRouteHandlers(options),

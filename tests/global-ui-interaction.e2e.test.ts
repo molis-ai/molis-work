@@ -46,7 +46,7 @@ test("Feed creates two independent tasks in one page and shared controls keep re
   await click('[data-plugin-strip] [data-plugin-id=feed]');
   await evaluate(`{ const original = window.fetch; window.createdSources = []; window.fetch = async (url, options) => {
     const response = await original(url, options);
-    if (options?.method === 'POST' && String(url).endsWith('/api/feed/sources')) {
+    if (options?.method === 'POST' && String(url).endsWith('/api/plugins/io.molis.work.feed/sources')) {
       window.createdSources.push((await response.clone().json()).source.source_id);
     }
     return response;

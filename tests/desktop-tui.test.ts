@@ -1164,7 +1164,7 @@ test("Feed Item actions create one bound Goal and expose its source context to T
     assert.match(page, /data-feed-entry-id="feed-item-test"/);
     assert.match(page, /用 Item 启动真实工作/);
     assert.doesNotMatch(page, /测试来源资料/);
-    const detailResponse = await webFetch(`${origin}${prefix}/api/feed/items/feed-item-test/detail`);
+    const detailResponse = await webFetch(`${origin}${prefix}/api/stage/feed/items/feed-item-test`);
     assert.equal(detailResponse.status, 200);
     const detail = await detailResponse.text();
     assert.match(detail, /测试来源资料/);
@@ -1177,7 +1177,7 @@ test("Feed Item actions create one bound Goal and expose its source context to T
     assert.match(page, /data-feed-type-filter/);
     assert.match(page, /data-feed-time-filter/);
 
-    const read = await webFetch(`${origin}${prefix}/api/feed/items/feed-item-test/read`, {
+    const read = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.feed/items/feed-item-test/read`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: "{}",
@@ -1187,7 +1187,7 @@ test("Feed Item actions create one bound Goal and expose its source context to T
     assert.ok(readBody.item.read_at);
     assert.equal(readBody.item.revision, 1);
 
-    const addInbox = async () => webFetch(`${origin}${prefix}/api/feed/items/feed-item-test/inbox`, {
+    const addInbox = async () => webFetch(`${origin}${prefix}/api/plugins/io.molis.work.feed/items/feed-item-test/inbox`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ expected_revision: 1 }),
@@ -1201,7 +1201,7 @@ test("Feed Item actions create one bound Goal and expose its source context to T
     assert.doesNotMatch(pageAfterInbox, /data-feed-entry-id="inbox:/);
     assert.match(pageAfterInbox, /data-inbox-detail="/);
 
-    const missingRevision = await webFetch(`${origin}${prefix}/api/feed/items/feed-item-test/start`, {
+    const missingRevision = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.feed/items/feed-item-test/start`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: "{}",
@@ -1209,7 +1209,7 @@ test("Feed Item actions create one bound Goal and expose its source context to T
     assert.equal(missingRevision.status, 400);
     assert.match(await missingRevision.text(), /刷新 Item/);
 
-    const started = await webFetch(`${origin}${prefix}/api/feed/items/feed-item-test/start`, {
+    const started = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.feed/items/feed-item-test/start`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ expected_revision: 1 }),
@@ -1217,7 +1217,6 @@ test("Feed Item actions create one bound Goal and expose its source context to T
     assert.equal(started.status, 200);
     const startedBody = await started.json() as {
       goal_id: string;
-      goal_path: string;
       created: boolean;
       runtime_autofill: boolean;
       item: { revision: number };
@@ -1225,9 +1224,10 @@ test("Feed Item actions create one bound Goal and expose its source context to T
     assert.equal(startedBody.created, true);
     assert.equal(startedBody.runtime_autofill, true);
     assert.equal(startedBody.item.revision, 2);
-    assert.match(startedBody.goal_path, new RegExp(`${prefix}/goals/`));
+    // The page builds the Goal's address from its id: Feed's route answers with the Goal, not with a path of the shell (FI-7).
+    assert.match(startedBody.goal_id, /\S/);
 
-    const stalePromote = await webFetch(`${origin}${prefix}/api/feed/items/feed-item-test/promote`, {
+    const stalePromote = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.feed/items/feed-item-test/promote`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ expected_revision: 1 }),
@@ -1235,7 +1235,7 @@ test("Feed Item actions create one bound Goal and expose its source context to T
     assert.equal(stalePromote.status, 409);
     assert.match(await stalePromote.text(), /已经变化/);
 
-    const promotedAgain = await webFetch(`${origin}${prefix}/api/feed/items/feed-item-test/promote`, {
+    const promotedAgain = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.feed/items/feed-item-test/promote`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ expected_revision: startedBody.item.revision }),
@@ -1321,7 +1321,7 @@ test("Feed start reuses one Draft Goal across repeat clicks and a Web restart", 
     const address = firstServer.address();
     assert.ok(address && typeof address === "object");
     const origin = `http://127.0.0.1:${address.port}`;
-    const started = await webFetch(`${origin}${prefix}/api/feed/items/${itemId}/start`, {
+    const started = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.feed/items/${itemId}/start`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ expected_revision: revision }),
@@ -1336,7 +1336,7 @@ test("Feed start reuses one Draft Goal across repeat clicks and a Web restart", 
     revision = startedBody.item.revision;
     assert.equal(startedBody.created, true);
 
-    const repeated = await webFetch(`${origin}${prefix}/api/feed/items/${itemId}/start`, {
+    const repeated = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.feed/items/${itemId}/start`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ expected_revision: revision }),
@@ -1362,7 +1362,7 @@ test("Feed start reuses one Draft Goal across repeat clicks and a Web restart", 
     const address = restartedServer.address();
     assert.ok(address && typeof address === "object");
     const origin = `http://127.0.0.1:${address.port}`;
-    const restarted = await webFetch(`${origin}${prefix}/api/feed/items/${itemId}/start`, {
+    const restarted = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.feed/items/${itemId}/start`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ expected_revision: revision }),
@@ -1447,7 +1447,7 @@ test("Inbox Message save and start survives a Web restart without duplicating it
     assert.equal(reopenedBody.entry.status, "open");
     assert.equal(reopenedBody.entry.revision, 3);
 
-    const saved = await webFetch(`${origin}${prefix}/api/feed/items/${itemId}/save`, {
+    const saved = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.feed/items/${itemId}/save`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ expected_revision: revision }),
@@ -1457,7 +1457,7 @@ test("Inbox Message save and start survives a Web restart without duplicating it
     assert.equal(savedBody.item.disposition, "saved");
     revision = savedBody.item.revision;
 
-    const started = await webFetch(`${origin}${prefix}/api/feed/items/${itemId}/start`, {
+    const started = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.feed/items/${itemId}/start`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ expected_revision: revision }),
@@ -1484,7 +1484,7 @@ test("Inbox Message save and start survives a Web restart without duplicating it
     const address = restartedServer.address();
     assert.ok(address && typeof address === "object");
     const origin = `http://127.0.0.1:${address.port}`;
-    const repeated = await webFetch(`${origin}${prefix}/api/feed/items/${itemId}/start`, {
+    const repeated = await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.feed/items/${itemId}/start`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ expected_revision: revision }),

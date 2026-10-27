@@ -5,7 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { FeedPluginRouteTable, createFeedRouteHandlers, feedSourceActions as s, type FeedRouteHandlerPorts } from "@molis-ai/molis-work-plugin-feed";
+import { feedSourceActions as s } from "@molis-ai/molis-work-plugin-feed";
+import { FEED_API, feedTestRoutes } from "./fixtures/feed-http.js";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/dist/native-content-permissions.js";
@@ -43,26 +44,26 @@ test("Feed sources are managed through registered actions; the Feed page route f
     assert.ok(!external.some(row => row.capability_id === s.disconnect.capability_id));
     assert.ok(external.some(row => row.capability_id === s.register.capability_id));
 
-    let changes = 0;
-    const table = new FeedPluginRouteTable(createFeedRouteHandlers({ actions, projectId: PROJECT, routePrefix: "/projects/p", changed: () => { changes++; } } as unknown as FeedRouteHandlerPorts));
+    const table = feedTestRoutes(actions);
     const call = (method: "POST" | "PATCH" | "PUT" | "DELETE", pathname: string, body: Record<string, unknown>) =>
       table.handle({ method, pathname, query: new URLSearchParams(), body }).catch(actionErrorResponse);
-    const created = await call("POST", "/api/feed/sources", { kind: "custom_rss", feed_url: "https://example.com/feed.xml", name: "示例", ignored: "extra field" });
+    const created = await call("POST", `${FEED_API}/sources`, { kind: "custom_rss", feed_url: "https://example.com/feed.xml", name: "示例", ignored: "extra field" });
     assert.equal(created?.status, 201);
     const createdId = (created?.body as { source: { source_id: string } }).source.source_id;
-    assert.equal((await call("POST", "/api/feed/sources", { kind: "custom_rss", feed_url: "https://example.com/feed.xml" }))?.status, 200);
-    assert.equal((await call("POST", "/api/feed/sources", { kind: "custom_rss" }))?.status, 400);
-    const badSchedule = await call("PUT", `/api/feed/sources/${createdId}/schedule`, { mode: "interval" });
+    assert.equal((await call("POST", `${FEED_API}/sources`, { kind: "custom_rss", feed_url: "https://example.com/feed.xml" }))?.status, 200);
+    assert.equal((await call("POST", `${FEED_API}/sources`, { kind: "custom_rss" }))?.status, 400);
+    const badSchedule = await call("PUT", `${FEED_API}/sources/${createdId}/schedule`, { mode: "interval" });
     assert.deepEqual([badSchedule?.status, (badSchedule?.body as { code: string }).code], [400, "feed.request_invalid"], "a route's own refusal is a coded error like any other");
-    assert.equal((await call("POST", `/api/feed/sources/${createdId}/pause`, {}))?.status, 200);
-    const undecided = await call("DELETE", `/api/feed/sources/${createdId}`, {});
+    assert.equal((await call("POST", `${FEED_API}/sources/${createdId}/pause`, {}))?.status, 200);
+    const unknownAction = await call("POST", `${FEED_API}/sources/${createdId}/explode`, {});
+    assert.deepEqual([unknownAction?.status, (unknownAction?.body as { code: string }).code], [400, "feed.request_invalid"], "a source action the route does not declare is refused, not run as a sync");
+    const undecided = await call("DELETE", `${FEED_API}/sources/${createdId}`, {});
     assert.deepEqual([undecided?.status, (undecided?.body as { code: string }).code], [400, "feed.request_invalid"], "a delete must say what happens to local history");
-    const deleted = await call("DELETE", `/api/feed/sources/${createdId}`, { history_decision: "retain_history" });
+    const deleted = await call("DELETE", `${FEED_API}/sources/${createdId}`, { history_decision: "retain_history" });
     assert.equal(deleted?.status, 200);
     assert.equal((deleted?.body as { history_decision: string }).history_decision, "retain_history");
-    const absent = await call("PATCH", "/api/feed/sources/missing", { name: "x" });
+    const absent = await call("PATCH", `${FEED_API}/sources/missing`, { name: "x" });
     assert.deepEqual([absent?.status, (absent?.body as { code: string }).code], [404, "feed.source_not_found"]);
-    assert.equal(changes, 4);
   } finally {
     await host.close();
     rmSync(home, { recursive: true, force: true });

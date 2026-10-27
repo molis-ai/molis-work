@@ -5,7 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
-import { FeedPluginRouteTable, createFeedRouteHandlers, feedItemActions, type FeedRouteHandlerPorts } from "@molis-ai/molis-work-plugin-feed";
+import { feedItemActions } from "@molis-ai/molis-work-plugin-feed";
+import { FEED_API, feedTestRoutes } from "./fixtures/feed-http.js";
 import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { inboxActions } from "@molis-ai/molis-work-plugin-inbox";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
@@ -85,22 +86,23 @@ test("Feed item commands are directory actions: Home prepares and runs them, sta
     const reader = { ...caller, permissions: caller.permissions.filter(permission => permission !== "feed:write") };
     assert.ok((await prepare(third.item_id, reader)).offers.every(offer => !offer.availability.available));
 
-    // The Workbench route translates its URL into the same action and keeps its answers.
-    let changes = 0;
-    const table = new FeedPluginRouteTable(createFeedRouteHandlers({ actions, projectId: PROJECT, routePrefix: "/projects/p", changed: () => { changes++; } } as unknown as FeedRouteHandlerPorts));
-    const archived = await table.handle({ method: "POST", pathname: `/api/feed/items/${third.item_id}/archive`, query: new URLSearchParams(), body: { expected_revision: third.revision } });
+    // The page's route (Feed's Manifest, under the plugin prefix) translates its URL into the same action and keeps its answers.
+    const table = feedTestRoutes(actions);
+    const archived = await table.handle({ method: "POST", pathname: `${FEED_API}/items/${third.item_id}/archive`, query: new URLSearchParams(), body: { expected_revision: third.revision } });
     assert.equal(archived?.status, 200);
     assert.equal((archived?.body as { item: { disposition: string } }).item.disposition, "archived");
-    assert.equal(changes, 1);
     assert.deepEqual((await prepare(third.item_id)).offers.map(offer => offer.title), ["恢复到 Feed"]);
-    const stale = await table.handle({ method: "POST", pathname: `/api/feed/items/${third.item_id}/save`, query: new URLSearchParams(), body: { expected_revision: third.revision } }).catch(actionErrorResponse);
+    const stale = await table.handle({ method: "POST", pathname: `${FEED_API}/items/${third.item_id}/save`, query: new URLSearchParams(), body: { expected_revision: third.revision } }).catch(actionErrorResponse);
     assert.deepEqual([stale?.status, (stale?.body as { code: string }).code], [409, "feed.revision_conflict"]);
-    const missing = await table.handle({ method: "POST", pathname: `/api/feed/items/nope/save`, query: new URLSearchParams(), body: { expected_revision: 1 } }).catch(actionErrorResponse);
+    const missing = await table.handle({ method: "POST", pathname: `${FEED_API}/items/nope/save`, query: new URLSearchParams(), body: { expected_revision: 1 } }).catch(actionErrorResponse);
     assert.deepEqual([missing?.status, (missing?.body as { code: string }).code], [404, "feed.item_not_found"]);
-    const goal = await table.handle({ method: "POST", pathname: `/api/feed/items/${first.item_id}/promote`, query: new URLSearchParams(),
+    const undeclared = await table.handle({ method: "POST", pathname: `${FEED_API}/items/${third.item_id}/explode`, query: new URLSearchParams(), body: { expected_revision: third.revision } }).catch(actionErrorResponse);
+    assert.deepEqual([undeclared?.status, (undeclared?.body as { code: string }).code], [400, "feed.request_invalid"], "an item action the route does not declare is refused, not run as an archive");
+    const goal = await table.handle({ method: "POST", pathname: `${FEED_API}/items/${first.item_id}/promote`, query: new URLSearchParams(),
       body: { expected_revision: (await prepare(first.item_id)).offers.map(offer => offer.input as { expected_revision: number })[0]!.expected_revision } });
-    const body = goal?.body as { goal_id: string; goal_path: string; created: boolean };
-    assert.equal(body.goal_path, `/projects/p/goals/${encodeURIComponent(body.goal_id)}`);
+    // The route answers the action's own result; where the page goes next (the Goal's address under its route prefix) is the page's to build.
+    const body = goal?.body as { goal_id: string; created: boolean };
+    assert.equal(typeof body.goal_id, "string");
     assert.equal(body.created, true);
   } finally {
     await host.close();

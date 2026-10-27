@@ -89,7 +89,7 @@ test("formal MCP Home judgment and subject actions share Web facts and revocable
     await served.grant(clientId, project.project_id, views(Object.values(feedRuleActions).map(definition => definition.capability_id)));
     const capture = await call<{ rule: FeedOutRuleRecord }>(feedRuleActions.create.capability_id, { name: "原始资料规则", match: { source_id: item.source_id, contains: "真实" } });
     assert.equal(capture.rule.project_id, project.project_id);
-    const viaWeb = await (await fetch(`${prefix}/api/feed/out-rules`)).json() as { rules: FeedOutRuleRecord[] };
+    const viaWeb = await (await fetch(`${prefix}/api/plugins/io.molis.work.feed/out-rules`)).json() as { rules: FeedOutRuleRecord[] };
     assert.deepEqual(viaWeb.rules.find(rule => rule.rule_id === capture.rule.rule_id), capture.rule);
     const preview = await call<FeedRulePreview>(feedRuleActions.preview.capability_id, { source_id: item.source_id, contains: "真实原文" });
     assert.equal(preview.samples.find(sample => sample.item_id === item.item_id)?.matched, true);
@@ -162,8 +162,8 @@ test("formal MCP Home judgment and subject actions share Web facts and revocable
     const execution = { ...subject, offer };
     const completed = await call<{ result: { entry: { status: string; revision: number } } }>(homeActions.execute.capability_id, execution);
     assert.equal(completed.result.entry.status, "done"); assert.equal(completed.result.entry.revision, entry.revision + 1);
-    const web = await (await fetch(`${prefix}/api/feed`)).json() as { inbox_entries: Array<{ entry_id: string; status: string; revision: number }> };
-    const actual = web.inbox_entries.find(row => row.entry_id === entry.entry_id)!;
+    const web = await (await fetch(`${prefix}/api/plugins/io.molis.work.inbox/entries`)).json() as { entries: Array<{ entry_id: string; status: string; revision: number }> };
+    const actual = web.entries.find(row => row.entry_id === entry.entry_id)!;
     assert.equal(actual.status, "done"); assert.equal(actual.revision, entry.revision + 1);
     assert.equal((await sdk.callTool({ name: molisWorkActionToolName(homeActions.execute), arguments: execution })).isError, true, "the expired offer cannot execute twice");
     const [captureJudgment] = views(["functions.published.system_admit_inbox"]);
@@ -180,8 +180,8 @@ test("formal MCP Home judgment and subject actions share Web facts and revocable
     const feedResult = withFunctionsService(home, service => service.latestJudgment("feed_item", captureItem.item_id, project.project_id, "feed.capture"))!;
     assert.equal(feedResult.outcome, "ok"); assert.deepEqual(feedResult.suggested_behavior_ids, ["inbox.admit"]);
     assert.equal(feedResult.scene_provenance?.binding_id, "feed.capture:" + semantic.rule.rule_id);
-    const capturedWeb = await (await fetch(`${prefix}/api/feed`)).json() as { inbox_entries: { subject_id: string; reason: string }[] };
-    assert.ok(capturedWeb.inbox_entries.some(value => value.subject_id === captureItem.item_id && value.reason === "source_rule"));
+    const capturedWeb = await (await fetch(`${prefix}/api/plugins/io.molis.work.inbox/entries`)).json() as { entries: { subject_id: string; reason: string }[] };
+    assert.ok(capturedWeb.entries.some(value => value.subject_id === captureItem.item_id && value.reason === "source_rule"));
     const capturedSuggestions = await call<{ recommendations: { item_id: string; suggested_behavior_ids: string[] }[] }>(feedRuleActions.recommendations.capability_id, {});
     assert.deepEqual(capturedSuggestions.recommendations.find(row => row.item_id === captureItem.item_id)?.suggested_behavior_ids, ["inbox.admit"]);
     const beforeRevocation = inputs.length;
@@ -208,7 +208,8 @@ test("formal MCP Home judgment and subject actions share Web facts and revocable
     const inboxEntry = await host.withProject(reference, runtime => createLocalFeedApplication(runtime.store.db).listInboxEntries(project.project_id).find(entry => entry.subject_id === captureItem.item_id)!);
     const inboxJudgment = await call(inboxActions.evaluateJudgment.capability_id, { entry_ids: [inboxEntry.entry_id] });
     assert.deepEqual((await call(inboxActions.recommendations.capability_id, {})).judgments, inboxJudgment.judgments);
-    const readInbox = async () => (await (await fetch(`${prefix}/api/feed`)).json() as { inbox_entries: { entry_id: string; next_judgment: JudgmentRecord | null }[] }).inbox_entries.find(entry => entry.entry_id === inboxEntry.entry_id)!;
+    // The page's own view (the board) carries each entry's next judgment, read with the person's authority.
+    const readInbox = async () => (await (await fetch(`${prefix}/api/board`)).json() as { feed: { inbox_entries: { entry_id: string; next_judgment: JudgmentRecord | null }[] } }).feed.inbox_entries.find(entry => entry.entry_id === inboxEntry.entry_id)!;
     assert.equal((await readInbox()).next_judgment?.judgment_id, inboxJudgment.judgments[0]!.judgment_id);
     await served.revoke(clientId, project.project_id, views(["functions.published.system_pick_inbox_next"]));
     assert.deepEqual((await call(inboxActions.recommendations.capability_id, {})).judgments, []);

@@ -147,6 +147,9 @@ const PROJECT_PROBES: Probe[] = [
   { method: "GET", path: "/api/home/actions/choices" },
   { method: "GET", path: "/api/plugins/io.molis.work.schedule/list" },
   { method: "GET", path: "/api/feed" },
+  // Feed's positive paths are its Runtime route and the shell's stage (FI-7); the short route above is only the removed edge.
+  { method: "GET", path: "/api/plugins/io.molis.work.feed/snapshot" },
+  { method: "GET", path: "/api/stage/feed" },
   { method: "GET", path: "/api/capsule" },
   { method: "GET", path: "/api/panels" },
   { method: "GET", path: "/api/panels/no-such-panel" },

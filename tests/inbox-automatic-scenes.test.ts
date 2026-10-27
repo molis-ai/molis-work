@@ -61,7 +61,7 @@ test("HTTP admission, ingestion, workflow and scheduler events use the saved Inb
     const address = server.address(); assert.ok(address && typeof address === "object");
     const origin = `http://127.0.0.1:${address.port}`;
     const admit = async (item: { item_id: string; revision: number }) => {
-      const response = await fetch(`${origin}/projects/${project.project_id}/api/feed/items/${item.item_id}/inbox`, {
+      const response = await fetch(`${origin}/projects/${project.project_id}/api/plugins/io.molis.work.feed/items/${item.item_id}/inbox`, {
         method: "POST", headers: { origin, "content-type": "application/json", "x-molis-work-control-token": token,
           "x-molis-work-idempotency-key": `automatic-admit-${sequence++}` }, body: JSON.stringify({ expected_revision: item.revision }),
       });

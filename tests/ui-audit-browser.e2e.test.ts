@@ -34,7 +34,7 @@ test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async
     "content-type": "application/json",
     "x-molis-work-control-token": TOKEN,
   };
-  const inbox = await fetch(`${origin}/projects/${projectId}/api/feed/items/${item.item_id}/inbox`, {
+  const inbox = await fetch(`${origin}/projects/${projectId}/api/plugins/io.molis.work.feed/items/${item.item_id}/inbox`, {
     method: "POST",
     headers: { ...headers, "x-molis-work-idempotency-key": "ui-audit-inbox" },
     body: JSON.stringify({ expected_revision: item.revision }),

@@ -434,7 +434,6 @@
       "developer_mode",
       "events",
       "feed",
-      "feed_connector_auth",
       "feed_source_catalog",
       "goals",
       "inbox_judgment",
@@ -777,17 +776,21 @@
     ]
   },
   "GET <project>/api/feed": {
-    "status": 200,
+    "status": 404,
     "type": "application/json",
-    "keys": [
-      "connector_auth",
-      "feed_items",
-      "inbox_entries",
-      "out_rules",
-      "runs",
-      "source_catalog",
-      "sources"
-    ]
+    "error": "页面或接口不存在"
+  },
+  "GET <project>/api/plugins/io.molis.work.feed/snapshot": {
+    "status": 403,
+    "type": "application/json",
+    "code": "actions.plugin_disabled",
+    "error": "此项目未启用该插件"
+  },
+  "GET <project>/api/stage/feed": {
+    "status": 403,
+    "type": "application/json",
+    "code": "actions.plugin_disabled",
+    "error": "此项目未启用该插件"
   },
   "GET <project>/api/capsule": {
     "status": 200,
@@ -891,7 +894,6 @@
       "developer_mode",
       "events",
       "feed",
-      "feed_connector_auth",
       "feed_source_catalog",
       "goals",
       "inbox_judgment",

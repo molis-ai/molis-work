@@ -60,12 +60,15 @@ test("OPTAREA-02 a person's own call to a plugin the project does not have is st
   await withProject([], async ({ base, host, projectId, reference }) => {
     await get(`${base}/projects/${projectId}/`);
     const caller = { actor_id: "web-user", project_id: projectId, audience: "user" as const, permissions: ["feed:read"] };
-    await assert.rejects(bindActionClient(host.actionClient(reference), () => caller).invoke(feedQueryActions.snapshot, {}), { code: "actions.plugin_disabled" });
-    assert.deepEqual(rowsOf(host, projectId), [[feedQueryActions.snapshot.capability_id, "actions.plugin_disabled", true]]);
-    // So is the page of an area the person asks for by name: Feed's own route in a project without Feed.
-    assert.equal((await get(`${base}/projects/${projectId}/api/feed`)).status, 403);
+    // Feed is a Runtime plugin (FI-7): where the project lacks it, its Runtime is not started and its actions are not in the project's
+    // directory, so the call is refused as missing, and still recorded as not run.
+    await assert.rejects(bindActionClient(host.actionClient(reference), () => caller).invoke(feedQueryActions.snapshot, {}), { code: "actions.missing" });
+    assert.deepEqual(rowsOf(host, projectId), [[feedQueryActions.snapshot.capability_id, "actions.missing", true]]);
+    // The page of an area the person asks for by name, Feed's stage in a project without Feed, is refused before any call (FI-7: the
+    // stage is the shell's), so the log keeps only the call above.
+    assert.equal((await get(`${base}/projects/${projectId}/api/stage/feed`)).status, 403);
     assert.deepEqual([...new Set(rowsOf(host, projectId).map(row => row[0]))], [feedQueryActions.snapshot.capability_id]);
-    assert.ok(rowsOf(host, projectId).every(row => row[1] === "actions.plugin_disabled" && row[2]));
+    assert.ok(rowsOf(host, projectId).every(row => row[1] === "actions.missing" && row[2]));
   });
 });
 

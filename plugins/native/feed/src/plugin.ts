@@ -16,7 +16,6 @@ import { createFeedRouteHandlers } from "./route-handlers.js";
 import { createFeedRuntimePorts } from "./runtime-ports.js";
 import { createFeedWriter } from "./runtime-writes.js";
 import { createFeedSourceHandlers, feedSourceActions } from "./source-actions.js";
-import { feedSourceCatalog } from "./source-catalog.js";
 import { FeedSourceService } from "./source-service.js";
 import { createFeedSourceSyncLease } from "./source-sync-lease.js";
 import { feedContentLedgerActions } from "./content-ledger-actions.js";
@@ -175,8 +174,8 @@ export function createFeedPlugin(): PluginDefinition {
     const person = services?.actions;
     const routes = (feedManifest.routes ?? []).map(({ route_id }) => ({ route_id, async handle(request: PluginRouteRequest) {
       if (!person) throw new ActionError("actions.unredeemed", "Feed 需要动作服务才能答页面的请求");
-      const handlers = createFeedRouteHandlers({ actions: { invoke: (definition, input) => person.invoke(definition, input, request.execution) },
-        sourceCatalog: () => vocabulary ? feedSourceCatalog(vocabulary) : [] });
+      // The source catalog is not answered here: the vocabulary is read only inside Feed's own action or job (S-97); the page has the shell's.
+      const handlers = createFeedRouteHandlers({ actions: { invoke: (definition, input) => person.invoke(definition, input, request.execution) } });
       return handlers[route_id]!({ params: request.params, request: { method: request.method, pathname: request.pathname,
         query: new URLSearchParams(request.query), body: request.body && typeof request.body === "object" && !Array.isArray(request.body) ? request.body as Record<string, unknown> : {} } });
     } }));

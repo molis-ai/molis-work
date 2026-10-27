@@ -23,7 +23,7 @@ for (const [width,height] of [[1024,400],[390,500]]) test(`Long content keeps ac
   await command("Emulation.setDeviceMetricsOverride",{width,height,deviceScaleFactor:1,mobile:false},sessionId);
   await command("Emulation.setEmulatedMedia",{features:[{name:"prefers-reduced-motion",value:"reduce"}]},sessionId);
   await navigate(()=>command("Page.navigate",{url:`${origin}/projects/${projectId}/`},sessionId));
-  const added=await fetch(`${origin}/projects/${projectId}/api/feed/items/${item.item_id}/inbox`,{method:"POST",headers:{origin,"content-type":"application/json","x-molis-work-control-token":"goals-risk-test-control-token-0123456789","x-molis-work-idempotency-key":"reading-inbox"},body:JSON.stringify({expected_revision:item.revision})});
+  const added=await fetch(`${origin}/projects/${projectId}/api/plugins/io.molis.work.feed/items/${item.item_id}/inbox`,{method:"POST",headers:{origin,"content-type":"application/json","x-molis-work-control-token":"goals-risk-test-control-token-0123456789","x-molis-work-idempotency-key":"reading-inbox"},body:JSON.stringify({expected_revision:item.revision})});
   assert.equal(added.status,200);
   await b.reloadPage();
   const openPlugin=async(id:string)=>{

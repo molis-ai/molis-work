@@ -207,7 +207,7 @@ const pageOwnerRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
  * One Feed item for its reader: the item through Feed's own query, its suggestions and whether it is in the Inbox from the page view (Feed's
  * recommendations and the Inbox's list, each read by its owner), and the promote button only where the action behind it is offered.
  */
-async function feedItemForReader(actions: BoundActionClient, itemId: string, readWebView: () => Promise<MolisWorkWebView>) {
+export async function feedItemForReader(actions: Pick<BoundActionClient, "invoke" | "discover">, itemId: string, readWebView: () => Promise<Pick<MolisWorkWebView, "feed">>) {
   const [{ item }, view, offered] = await Promise.all([actions.invoke(feedQueryActions.item, { item_id: itemId }), readWebView(), actions.discover()]);
   return { item: { ...item, suggested_behavior_ids: view.feed.feed_items.find(row => row.item_id === itemId)?.suggested_behavior_ids ?? [] },
     inboxActive: view.feed.inbox_entries.some(entry => entry.subject_type === "feed_item" && entry.subject_id === itemId && (entry.status === "open" || entry.status === "in_progress")),

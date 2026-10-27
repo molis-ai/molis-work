@@ -182,15 +182,17 @@ test("Home opens original Inbox items and source groups and completes Inbox", { 
       document.querySelector('[data-home-day="' + CSS.escape(id) + '"]')?.click();
       days.push({ id, events: [...document.querySelectorAll("[data-home-open-event]")].map((row) => row.dataset.homeOpenEvent) });
     }
-    const response = await fetch((document.body.dataset.routePrefix || "") + "/api/feed", {
+    const read = (path) => fetch((document.body.dataset.routePrefix || "") + path, {
       cache: "no-store",
       headers: globalThis.molisWorkControlHeaders?.() || {},
     });
-    const snapshot = await response.json();
+    // Feed's sources are Feed's route, the entries the Inbox's (FI-7).
+    const [response, entries] = await Promise.all([read("/api/plugins/io.molis.work.feed/snapshot"), read("/api/plugins/io.molis.work.inbox/entries")]);
+    const snapshot = await response.json(), inbox = await entries.json();
     return JSON.stringify({
-      status: response.status,
+      status: [response.status, entries.status],
       days,
-      inbox: (snapshot.inbox_entries || []).map((entry) => [entry.status, entry.created_at, entry.subject_type]),
+      inbox: (inbox.entries || []).map((entry) => [entry.status, entry.created_at, entry.subject_type]),
       sources: (snapshot.sources || []).map((source) => [source.status, source.last_error_code]),
     });
   })()`;

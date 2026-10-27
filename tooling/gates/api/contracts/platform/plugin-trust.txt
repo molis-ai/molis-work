@@ -40,6 +40,10 @@ export interface PluginInstallPreview {
     readonly jobs: readonly PluginJobView[];
 }
 
+export interface PluginInstalledPermissionView extends PluginPermissionView {
+    readonly granted: boolean;
+}
+
 export interface PluginInstalledView {
     readonly install_id: string;
     readonly plugin_id: string;
@@ -50,7 +54,7 @@ export interface PluginInstalledView {
     readonly publisher_signature: string;
     readonly publisher_label: string | null;
     readonly manifest_available: boolean;
-    readonly permissions: readonly PluginPermissionView[];
+    readonly permissions: readonly PluginInstalledPermissionView[];
     readonly jobs: readonly PluginJobView[];
     readonly consents: readonly PluginConsentRecord[];
 }

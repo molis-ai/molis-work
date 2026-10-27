@@ -40,6 +40,12 @@ export interface PluginConnectionServiceDeclaration {
   readonly capabilities: readonly ConnectorCapability[];
   readonly outbound_note?: string;
   readonly setup_links?: readonly ConnectorSetupLink[];
+  /**
+   * Only in a signed sandbox integration package, and only for a service the platform's request table (`CONNECTOR_REQUEST_SERVICES`)
+   * does not have: the exact `https://` origins its requests with the person's account may reach (S-95, user 2026-10-26). The person
+   * sees them before installing and they are kept with the publisher they trusted. A plugin the Host builds never writes them.
+   */
+  readonly origins?: readonly string[];
 }
 
 /** One thing the plugin does with a service of its own `connection_services`. */

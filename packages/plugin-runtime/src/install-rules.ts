@@ -181,6 +181,19 @@ export function assertMutable(record: PluginInstanceRecord): void {
   }
 }
 
+/**
+ * The grants after the person switches one optional permission on or off (PG-002, docs/releases/POLICY.md section 7.8). It stays inside
+ * what the Manifest declares, in either direction, and a required permission is not the person's to take away: the plugin could not run
+ * without it, and stopping or removing the plugin is the way not to use it. Nothing here looks at who asks; the caller is the Host's
+ * settings door (`PluginRuntime.regrant`).
+ */
+export function toggledGrants(manifest: PluginManifest, held: readonly string[], permission: string, granted: boolean): string[] {
+  const declared = manifest.permissions.find(item => item.permission === permission);
+  if (!declared) throw pluginErrors.grant_denied(`Manifest 没有声明 ${permission}，不能改它的授权`);
+  if (!granted && declared.required) throw pluginErrors.grant_denied(`${permission} 是必需权限，不能关闭`);
+  return normalizeGrants(manifest, granted ? [...held, permission] : held.filter(item => item !== permission));
+}
+
 export function normalizeGrants(manifest: PluginManifest, requested: string[]): string[] {
   const ceiling = new Set(manifest.permissions.map((permission) => permission.permission));
   const grants = [...new Set(requested.map((permission) => permission.trim()).filter(Boolean))].sort();

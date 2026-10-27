@@ -43,6 +43,7 @@ export const shelfManifest: PluginManifest = {
     { permission: "model:invoke", required: true, reason: "按所选配方处理材料" },
     { permission: "artifacts:read", required: true, reason: "读取项目成果" },
     { permission: "artifacts:write", required: true, reason: "将副本保存到项目成果" },
+    { permission: "projects:exist", required: true, reason: "副本来自的项目被删除后，在副本上标出「项目已删除」" },
     { permission: "actions:invoke", required: true, reason: "调用已授权的成果与资料能力" },
     { permission: "model:read", required: true, reason: "读取当前可用模型" },
     { permission: PLUGIN_LOCAL_TOOLS_PERMISSION, required: true, reason: "查找这台电脑上装了哪些终端 Agent" },

@@ -39,6 +39,7 @@ export interface PluginConnectionServiceDeclaration {
     readonly capabilities: readonly ConnectorCapability[];
     readonly outbound_note?: string;
     readonly setup_links?: readonly ConnectorSetupLink[];
+    readonly origins?: readonly string[];
 }
 
 export interface PluginIntegrationDeclaration {

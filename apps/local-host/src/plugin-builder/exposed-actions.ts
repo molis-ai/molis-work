@@ -62,7 +62,7 @@ export function exposeInstalledPlugin(actions: ProjectActions, release: AgentRel
     capability_id: exposedActionId(release, operation.id), version: release.version, provider_id: providerId,
     operation: operation.kind === 'query' ? 'query' : 'command',
     action: { local_id: operation.id, title: title + ' · ' + (operation.description || operation.id), description: '插件「' + title + '」的功能：' + (operation.description || operation.id),
-      kind: operation.kind === 'query' ? 'query' : 'operation', scope: 'project', scheduling: 'concurrent', audiences: ['user', 'agent', 'workflow', 'mcp', 'plugin'], permissions: [], subject_kinds: [],
+      kind: operation.kind === 'query' ? 'query' : 'operation', scope: actions.project_id === null ? 'home' : 'project', scheduling: 'concurrent', audiences: ['user', 'agent', 'workflow', 'mcp', 'plugin'], permissions: [], subject_kinds: [],
       input_schema: operation.input as unknown as ActionSchema, output_schema: operation.output as unknown as ActionSchema },
   }));
   const handlers: ActionHandlerBinding[] = release.design.contract.operations.map(operation => ({
@@ -98,7 +98,7 @@ export function exposeInstalledPlugin(actions: ProjectActions, release: AgentRel
         if (previous?.cost === cost) return;
         // Per-operation replacement preserves unrelated in-flight calls and their registration tokens.
         previous?.dispose(); registrations.delete(operationId);
-        const unregister = actions.registry.registerProvider({ provider: { provider_id: providerId, title, kind: 'plugin', plugin_id: release.pluginId, project_id: actions.project_id, ...(plugin ? { plugin_install_id: plugin.install_id } : {}) },
+        const unregister = actions.registry.registerProvider({ provider: { provider_id: providerId, title, kind: 'plugin', plugin_id: release.pluginId, ...(actions.project_id === null ? {} : { project_id: actions.project_id }), ...(plugin ? { plugin_install_id: plugin.install_id } : {}) },
           definitions: [{ ...definition, action: { ...definition.action, execution: { cost } } }],
           // The target owns the private write; its Runtime scope retains the original caller checks.
           handlers: [{ ...handlers[index]!, handle: (caller, input) => {

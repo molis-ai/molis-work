@@ -481,6 +481,13 @@ export declare function parsePluginManifest(input: unknown): PluginManifest;
 
 export declare function parsePorcelainStatus(input: PorcelainInput): GitStatus;
 
+export declare function pollingIntegrationBinding({ manifest, provider, presentAccount, now }: {
+    manifest: PluginManifest;
+    provider: IntegrationProviderPort;
+    presentAccount?(cursor: unknown, currentAccountLabel: string | null): IntegrationAccountPresentation | null;
+    now?: () => Date;
+}): ReturnType<PluginIntegrationContribution["bind"]>;
+
 export declare function questionAnswer(values: unknown): {
     answers: Array<{
         question: number;

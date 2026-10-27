@@ -11,9 +11,9 @@ import type { PluginDependencyCheck } from "./plugin-actions-client.js";
 import { consentRevision } from "./consent-revision.js";
 import { bindDeclaredDefaults } from "./plugin-default-bindings.js";
 import { nativePluginReleaseArtifact } from "./native-plugin-release-artifact.js";
-import { pluginHomeFor, projectFixtureEntries } from "./home-side.js";
+import { fixtureAdmission, installedFixturesFor, pluginHomeFor, projectFixtureEntries } from "./home-side.js";
 import { projectScopeEntries } from "./plugin-scope-entries.js";
-import { projectPluginEnablement, projectPluginEnablementRefresh } from "./project-plugin-enablement.js";
+import { installationSwitchedOff, projectPluginEnablement, projectPluginEnablementRefresh } from "./project-plugin-enablement.js";
 import { projectPluginDatabaseRefusal, withoutRefusedPlugins } from "./project-plugin-databases.js";
 import { reviewSettlementForwarder, type ObserveReviewSettlements } from "./review-settlement-events.js";
 import { withPluginWords } from "@molis-ai/molis-work-app-workbench";
@@ -34,6 +34,8 @@ export interface ProjectPluginPorts {
   actions: import("./plugin-platform.js").PluginPlatformOptions["actions"];
   routePrefix?: string;
   homeDirectory?: string;
+  /** Definitions a test installs into this platform by hand, which its Runtime then admits to the process (S-75 ⑥); none in production. */
+  installedByHand?: ReadonlySet<PluginDefinition>;
 }
 
 export interface ProjectPluginState {
@@ -87,10 +89,13 @@ async function stopProjectPlugins(platform: PluginPlatform): Promise<void> {
   await platform.closeCoordination();
   for (const pluginId of platform.supervisor.enabledPluginIds()) {
     const active = platform.supervisor.state(pluginId);
-    platform.supervisor.revoke(pluginId);
+    // Closing the project is not switching the plugin off: stopped first with its record kept enabled, then revoked (the
+    // supervisor's own revoke would stop it as disabled), as the Home supervisor does. So the next start runs it, and only a
+    // plugin list keeps a project plugin off; stored disabled records are restarted, with grants still checked (BL-755, choice A).
     if (active?.status === "running" && active.install_id && platform.runtime.get(active.install_id).state === "running") {
-      try { await platform.runtime.stop(active.install_id); } catch (error) { failures.push(error); }
+      try { await platform.runtime.stop(active.install_id, { preserve_enabled: true }); } catch (error) { failures.push(error); }
     }
+    platform.supervisor.revoke(pluginId);
   }
   if (failures.length) throw new AggregateError(failures, "项目插件停止失败");
 }
@@ -123,11 +128,13 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
   const record: ProjectPluginState = { platform: null };
   try {
     // Scope and trust belong to the complete declaration list, before either library refusals or absent Home services filter it.
-    const scoped = projectScopeEntries([...projectPluginEntries(ports), ...projectFixtureEntries(ports.homeDirectory)], ports.homeDirectory);
+    const fixtures = projectFixtureEntries(ports.homeDirectory);
+    const scoped = projectScopeEntries([...projectPluginEntries(ports), ...fixtures], ports.homeDirectory);
     const entries = scoped.filter(entry => ports.homeDirectory !== undefined || !entry.definition.manifest.databases?.home || entry.dual_instance);
     record.plugins = entries.map(entry => entry.definition.manifest.plugin_id);
     const storage = new SqlitePluginPrivateStorage(ports.store.db);
-    const platform = createPluginPlatform({ scheduler: scheduleServiceFor(ports.store.db),
+    // The only definitions that run in the Host's process without `host` trust are the Host's test fixtures, admitted as the objects they are (S-75 ⑥); a product Host is given none.
+    const platform = createPluginPlatform({ scheduler: scheduleServiceFor(ports.store.db), inProcess: fixtureAdmission(fixtures, ports.installedByHand ?? installedFixturesFor(ports.homeDirectory)),
       project_id: ports.projectId,
       actor_id: ports.actorId,
       db: ports.store.db,
@@ -152,7 +159,10 @@ async function startPlatform(ports: ProjectPluginPorts): Promise<ProjectPluginSt
     const enabled = await projectPluginEnablement(ports.homeDirectory, ports.projectId);
     // Validate the declared halves before a per-project database refusal removes one from this start attempt.
     await platform.start(withoutRefusedPlugins(ports.store.db, entries, entry => entry.definition.manifest.plugin_id)
-      .map(entry => ({ ...entry, enabled: enabled?.get(entry.definition.manifest.plugin_id) ?? true })));
+            .map(entry => {
+        const pluginId = entry.definition.manifest.plugin_id;
+        return { ...entry, enabled: (enabled?.get(pluginId) ?? true) && !installationSwitchedOff(platform, pluginId) };
+      }));
     record.refreshEnablement = projectPluginEnablementRefresh(platform, ports.homeDirectory, ports.projectId);
     record.reconciledAt = consentRevision();
     bindDeclaredDefaults(platform, ports.projectId, ports.actorId);

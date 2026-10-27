@@ -1,14 +1,14 @@
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import assert from "node:assert/strict";
-import { mkdtemp, rm } from "node:fs/promises";
+import { copyFile, mkdir, mkdtemp, readFile, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { goalEntryActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
-import { LocalProjectDatabase, MolisWorkLocalHost, developInPrivateHost, isProjectPluginDatabaseRefusal, molisWorkHostProjectReference, openProjectPluginDatabases, releaseProjectPlugins, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, MolisWorkLocalHost, runLocalPluginDevelopment, isProjectPluginDatabaseRefusal, molisWorkHostProjectReference, openProjectPluginDatabases, releaseProjectPlugins, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { CODING_ACTIONS, CODING_PLUGIN_ID } from "@molis-ai/molis-work-plugin-coding";
 import { FEED_ITEM_ACTIONS, FEED_PLUGIN_ID, FEED_SOURCE_ACTIONS } from "@molis-ai/molis-work-plugin-feed";
@@ -74,18 +74,23 @@ async function directory(home: string, projectId: string, databasePath: string):
   } finally { await host.close(); }
 }
 
-/** The developer door now calls Goals' public initialize action; absent project Goals is a missing action, not a private SQL read. */
-async function developerDoor(home: string, projectId: string, databasePath: string, versions?: number[]): Promise<string | undefined> {
-  const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, actionAvailability: (_caller, action) => {
-    if (action.capability_id === goalEntryActions.initialize.capability_id) versions?.push(action.version);
-    return { available: true };
-  } });
-  try {
-    await developInPrivateHost(host, molisWorkHostProjectReference({ projectId, databasePath }), { directory: "/nonexistent", project_id: projectId, grants: [], allow_unsigned_development: true });
-    return undefined;
-  } catch (error) {
-    return (error as { code?: string }).code;
-  } finally { await host.close(); }
+/** RAC-997 PLIB-14: the real developer entry owns its state; no ordinary Home Host is marked private for a test. */
+async function developmentState(t: TestContext) {
+  const directory = await scratch(t), sample = join(directory, "sample");
+  const root = dirname(dirname(fileURLToPath(import.meta.url)));
+  await mkdir(sample);
+  for (const name of ["index.mjs", "manifest.json", "package.json"]) await copyFile(join(root, "examples/plugin-sample", name), join(sample, name));
+  await mkdir(join(sample, "node_modules/@molis-ai"), { recursive: true });
+  await symlink(join(root, "packages/plugin-sdk"), join(sample, "node_modules/@molis-ai/molis-work-plugin-sdk"), "dir");
+  const manifest = JSON.parse(await readFile(join(sample, "manifest.json"), "utf8")) as { permissions: Array<{ permission: string }> };
+  const state = join(directory, "state");
+  const run = () => runLocalPluginDevelopment({ directory: sample, state_directory: state,
+    grants: manifest.permissions.map(value => value.permission), allow_unsigned_development: true });
+  assert.equal((await run()).poll.ok, true, "the real entry reaches current Goals initialize and runs the sample");
+  const databasePath = join(state, "development.db");
+  assert.equal(withDatabase(databasePath, db => db.prepare("SELECT COUNT(*) AS count FROM boards").get()?.count), 1,
+    "the actual owner initialized this development board");
+  return { run, databasePath };
 }
 
 /** The Coding panel of the project's page, from the library as the Host opens it. */
@@ -111,9 +116,8 @@ test("PLIB-14: a library this build made opens Goals' tables from its declaratio
   const open = await directory(home, projectId, databasePath);
   assert.deepEqual([...open.plugins].sort(), [GOALS_PLUGIN_ID, ...OTHERS].sort());
   assert.equal(open.goalsCall, "answered");
-  const initializeVersions: number[] = [];
-  await developerDoor(home, projectId, databasePath, initializeVersions);
-  assert.deepEqual([...new Set(initializeVersions)], [goalEntryActions.initialize.version], "the development entry invokes the current public initialization contract");
+  // Actual entry success pins the current public initialize path; its version is no longer recorded through a Host injection.
+  await developmentState(t);
 });
 
 const cases = [
@@ -146,7 +150,11 @@ for (const { change, sql, code } of cases) {
     assert.deepEqual([...open.plugins].sort(), [...OTHERS].sort(), "the other plugins' actions are");
     assert.deepEqual(open.goalsCall, { code: "actions.missing" }, "and a call to a Goals action is refused: there is nothing registered to answer it");
     assert.doesNotMatch(await codingPanel(databasePath, projectId), /role="alert"/, "Coding opens while Goals is refused");
-    assert.equal(await developerDoor(home, projectId, databasePath), "actions.missing", "the development entry refuses the absent public action before touching Goals' tables");
+    const developer = await developmentState(t);
+    withDatabase(developer.databasePath, db => { db.exec(sql); });
+    const developerBefore = library(developer.databasePath);
+    await assert.rejects(developer.run(), { code: "actions.missing" }, "the real development entry refuses the absent public action");
+    assert.deepEqual(library(developer.databasePath), developerBefore, "the refused development entry repairs nothing and writes no half result");
 
     assert.deepEqual(library(databasePath), before, "the refusal repairs nothing, recreates nothing and records nothing");
   });

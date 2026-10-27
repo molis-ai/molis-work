@@ -15,7 +15,21 @@ export function isMaterialPublicAddress(address: string): boolean {
   const normalized = address.toLowerCase();
   return isIP(address) === 6 && /^[23][0-9a-f]{3}:/u.test(normalized) && !normalized.startsWith("2001:db8:") && !normalized.startsWith("2001::") && !normalized.startsWith("2001:0:") && !normalized.startsWith("2002:");
 }
-export interface MaterialPublicFetchOptions { maxBytes?: number; headers?: Record<string, string>; signal?: AbortSignal; beforeDispatch?(): void | Promise<void> }
+/**
+ * The corporate fake-IP proxy's block, 198.18.0.0/15 exactly (user decision 2026-09-27: plugins and Coding treat it as a normal address; the
+ * proxy is required, and a plugin still reaches only domains it was approved). Not public by S-10's table; only a read that carries an allowed
+ * list, once the host name passed the list, takes a lookup answer in it.
+ */
+function isFakeIpProxyAddress(address: string): boolean {
+  if (isIP(address) !== 4) return false;
+  const [a, b] = address.split(".").map(Number);
+  return a === 198 && (b === 18 || b === 19);
+}
+export interface MaterialPublicFetchOptions {
+  maxBytes?: number; headers?: Record<string, string>; signal?: AbortSignal; beforeDispatch?(): void | Promise<void>;
+  /** Exact host names (lowercase) the reader may contact: the first request and every redirect, before any lookup. Without it, every public host is allowed. */
+  allowedHosts?: readonly string[];
+}
 export interface MaterialPublicResponse { data: Buffer; type: string; final_url: string; status: number }
 /**
  * The source reader's error codes, every one `material.source.<reason>`. The kind is the sort of failure; the Host's edges turn it into the
@@ -25,6 +39,7 @@ export interface MaterialPublicResponse { data: Buffer; type: string; final_url:
 export const materialSourceErrors = defineErrorCodes("material.source", {
   cancelled: "cancelled",
   dns_unavailable: "invalid",
+  domain_not_allowed: "forbidden",
   insufficient: "invalid",
   interrupted: "invalid",
   invalid_encoding: "invalid",
@@ -55,6 +70,17 @@ export function validateMaterialPublicURL(value: string): URL {
   const host = url.hostname.replace(/^\[|\]$/gu, "");
   if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || (isIP(host) && !isMaterialPublicAddress(host))) throw materialSourceErrors.private_address("不能读取本机或内网地址");
   return url;
+}
+/** Refuses a host outside the list the caller allowed, before anything is looked up or sent. */
+export function assertMaterialHostAllowed(url: URL, allowedHosts: readonly string[] | undefined): void {
+  if (allowedHosts && !allowedHosts.includes(url.hostname)) throw materialSourceErrors.domain_not_allowed(`来源地址不在允许的域名内：${url.hostname}`);
+}
+/** Where a redirect goes, if the reader may follow it: a location it can read, on a host the caller allowed. */
+export function materialRedirectTarget(from: URL, location: string | undefined, allowedHosts: readonly string[] | undefined): string {
+  if (!location) throw materialSourceErrors.redirect_invalid("来源跳转地址缺失");
+  let target: URL; try { target = new URL(location, from); } catch { throw materialSourceErrors.redirect_invalid("来源跳转地址无效"); }
+  assertMaterialHostAllowed(target, allowedHosts);
+  return target.href;
 }
 interface Address { address: string; family: number }
 interface MaterialSourceResolverPorts {
@@ -92,15 +118,15 @@ async function trustedPublicDNS(hostname: string, signal?: AbortSignal): Promise
   dnsCache.set(hostname, { expires: Date.now() + 60000, addresses }); return addresses.map(value => ({ ...value }));
 }
 /** Resolver seams are test-only; HTTP requests never bind them. Private answers cannot opt into fallback. */
-export async function resolveMaterialPublicAddresses(hostname: string, signal?: AbortSignal, ports: MaterialSourceResolverPorts = {}, beforeDispatch?: () => void | Promise<void>): Promise<Address[]> {
+export async function resolveMaterialPublicAddresses(hostname: string, signal?: AbortSignal, ports: MaterialSourceResolverPorts = {}, beforeDispatch?: () => void | Promise<void>, fakeIpProxy = false): Promise<Address[]> {
   if (signal?.aborted) throw materialSourceErrors.cancelled("来源读取已取消");
   await beforeDispatch?.(); signal?.throwIfAborted();
   const system = await (ports.lookup ?? (value => lookup(value, { all: true, verbatim: true })))(hostname);
   await beforeDispatch?.(); signal?.throwIfAborted();
   let addresses = system;
-  if (system.length && system.every(value => proxySynthetic(value.address))) addresses = await (ports.trustedDNS ?? trustedPublicDNS)(hostname, signal);
+  if (system.length && system.every(value => proxySynthetic(value.address)) && !(fakeIpProxy && system.every(value => isFakeIpProxyAddress(value.address)))) addresses = await (ports.trustedDNS ?? trustedPublicDNS)(hostname, signal);
   if (signal?.aborted) throw materialSourceErrors.cancelled("来源读取已取消");
-  if (!addresses.length || addresses.some(value => isIP(value.address) !== value.family || !isMaterialPublicAddress(value.address))) throw materialSourceErrors.private_address("不能读取本机或内网地址");
+  if (!addresses.length || addresses.some(value => isIP(value.address) !== value.family || !(isMaterialPublicAddress(value.address) || (fakeIpProxy && isFakeIpProxyAddress(value.address))))) throw materialSourceErrors.private_address("不能读取本机或内网地址");
   return addresses;
 }
 /** Both wire bytes and decoded bytes are bounded, including servers ignoring identity encoding. */
@@ -123,8 +149,9 @@ export async function fetchMaterialPublicBytes(value: string, options: MaterialP
   if (depth > 4) throw materialSourceErrors.redirect_limit("来源重定向过多");
   if (options.signal?.aborted) throw materialSourceErrors.cancelled("来源读取已取消");
   const url = validateMaterialPublicURL(value); const maxBytes = options.maxBytes ?? 4_000_000;
+  assertMaterialHostAllowed(url, options.allowedHosts);
   if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0 || maxBytes > 25 * 1024 * 1024) throw materialSourceErrors.invalid_limit("来源读取上限无效");
-  const addresses = await resolveMaterialPublicAddresses(url.hostname.replace(/^\[|\]$/gu, ""), options.signal, {}, options.beforeDispatch);
+  const addresses = await resolveMaterialPublicAddresses(url.hostname.replace(/^\[|\]$/gu, ""), options.signal, {}, options.beforeDispatch, options.allowedHosts !== undefined);
   const address = addresses[0]!;
   const headers: Record<string, string> = { accept: "text/html,text/plain,application/xhtml+xml,application/json", "accept-encoding": "identity", "user-agent": "MolisWork-Material/1.0" };
   // Site adapters can supply public representation headers, never credentials or cookies.
@@ -134,9 +161,9 @@ export async function fetchMaterialPublicBytes(value: string, options: MaterialP
     const send = url.protocol === "https:" ? httpsRequest : httpRequest;
     const req = send(url, { headers, signal: options.signal, lookup: (_hostname, lookupOptions, callback) => { if (lookupOptions.all) callback(null, [address]); else callback(null, address.address, address.family); } }, response => {
       if ([301, 302, 303, 307, 308].includes(response.statusCode ?? 0)) {
-        response.destroy(); if (!response.headers.location) { reject(materialSourceErrors.redirect_invalid("来源跳转地址缺失")); return; }
-        try { void fetchMaterialPublicBytes(new URL(response.headers.location, url).href, options, depth + 1).then(resolve, reject); }
-        catch { reject(materialSourceErrors.redirect_invalid("来源跳转地址无效")); } return;
+        response.destroy();
+        try { void fetchMaterialPublicBytes(materialRedirectTarget(url, response.headers.location, options.allowedHosts), options, depth + 1).then(resolve, reject); }
+        catch (error) { reject(error); } return;
       }
       const status = response.statusCode ?? 0;
       if (status !== 200) { response.destroy(); reject(([401, 403, 412, 429].includes(status) ? materialSourceErrors.restricted : materialSourceErrors.unavailable)(`来源返回 ${status}；原链接保留，可以粘贴原文或上传文件继续整理`)); return; }

@@ -11,6 +11,9 @@ import type { AgentBuilderPorts } from './installed-plugin-host.js';
 import type { InstalledRelease } from './installed-release.js';
 import { leaveRefusal, UNSIGNED_TRUST, type SqlitePluginPrivateStorage } from '@molis-ai/molis-work-plugin-runtime';
 import type { PluginPlatform } from './plugin-platform.js';
+
+/** What the install lifecycle uses of a platform: a project's, or the Home's (BL-628). */
+export type InstalledPluginPlatform = Pick<PluginPlatform, 'runtime' | 'supervisor' | 'start' | 'consents' | 'upgrade' | 'rollback'>;
 import type { PluginSecrets } from './plugin-builder/secrets.js';
 import { changeInstalledVersion } from './installed-plugin-version.js';
 
@@ -20,7 +23,7 @@ export const covered = (next: SandboxEffects, approved: SandboxEffects) =>
   Object.entries(next).every(([key, values]) => (values as string[]).every(value => ((approved as Record<string, string[]>)[key] ?? []).includes(value)));
 
 export interface InstalledLifecycleContext {
-  platform: PluginPlatform;
+  platform: InstalledPluginPlatform;
   /** The project's own store, where approvals live. */
   storage: PluginPrivateStorage;
   privateStorage: SqlitePluginPrivateStorage;
@@ -162,8 +165,12 @@ export function installedLifecycle(c: InstalledLifecycleContext): AgentBuilderPo
       if (!c.trusted(record)) throw pluginErrors.publisher_revoked('这个插件的发布者已被撤销信任，不能再启用；数据还在，可以卸载');
       const approved = c.approvedFor(pluginId), installed = c.releaseFor(pluginId) ?? release, packaged = c.releaseFor(pluginId)?.packaged;
       if (!approved) throw new Error('找不到此安装的批准记录，请先卸载并重新确认安装');
-      // A switched-off plugin is unknown to the Supervisor after a restart: it is registered now, started below.
-      if (!platform.supervisor.manifest(pluginId)) await platform.start([{ definition: c.definition(installed, approved), grants: record.grants, ...packaged ? { trust: packaged.trust } : {} }]);
+      // A stopped package may have had its optional grants changed. Register its verified definition with the Runtime's current grants,
+      // without starting it, before enable: the supervisor's earlier entry is not another owner of those grants.
+      if (record.state !== 'running' || !platform.supervisor.manifest(pluginId)) {
+        const definition = c.definition(installed, approved); platform.runtime.register(definition);
+        await platform.start([{ definition, grants: record.grants, enabled: false, ...packaged ? { trust: packaged.trust } : {} }]);
+      }
       const state = await platform.supervisor.enable(pluginId);
       if (state.status !== 'running') throw new Error('启用没有完成：' + (c.recoveryErrors.get(pluginId) ?? state.message ?? ''));
       await c.expose(installed); c.registerPrompts(installed, 'enabled'); c.recoveryErrors.delete(pluginId); return;

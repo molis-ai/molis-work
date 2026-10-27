@@ -93,7 +93,8 @@ export const artifactsActions = {
     object({ embeds: array(object({ relationship: { enum: ["input", "output"] }, view: browser })) })),
   links: define<{ reference: ArtifactReference }, ArtifactReferences>("links", "这一版被谁引用", "列出把这一版作为输入、交付物或提议交付物的目标，以及其他引用的数量；不修改数据",
     "query", object({ reference }), object({ goals: { type: "array", items: object({ goal_id: { type: "string" }, title: { type: "string" },
-      role: { enum: ["input", "deliverable", "proposed", "proposed_input"] } }) }, other: { type: "integer", minimum: 0 } })),
+      role: { enum: ["input", "deliverable", "proposed", "proposed_input"] } }) }, other: { type: "integer", minimum: 0 } }),
+    read),
   pluginInputs: define<{ reference: ArtifactReference }, { inputs: ArtifactPluginInput[] }>("plugin_inputs", "可以接这一版的插件输入",
     "列出已启用插件里能接收这一版类型的输入端口，以及它们现在读的是什么；不修改数据", "query", object({ reference }), pluginInputsOutput),
   // Changing what another plugin reads is the person's own choice (artifact-positioning, 2026-10-04).

@@ -5,7 +5,7 @@
  */
 import type { PluginDefinition, PluginManifest } from '@molis-ai/molis-work-contracts/platform/plugin';
 import type { SandboxEffects, SandboxIdentity, SandboxJson } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
-import { createSandboxRunner, sandboxServicesFor, SandboxError, type SandboxRunner, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
+import { createSandboxRunner, effectsFromContract, sandboxServicesFor, SandboxError, type SandboxRunner, type SandboxServices } from '@molis-ai/molis-work-plugin-sandbox';
 import { resolvePluginComponentCall, validatePluginPresentation } from '@molis-ai/molis-work-design-system';
 import type { AgentRelease } from '@molis-ai/molis-work-plugin-builder';
 import { sandboxPluginManifest, sandboxUiContribution } from '../sandbox-plugin-manifest.js';
@@ -14,7 +14,8 @@ import { capabilityLimits, capabilityPolicyBinding, latestCapability, slowOperat
 
 /** Stable across versions of one build, so a new version upgrades the same installation and keeps its data. */
 export const installedSignature = (buildId: string) => 'agent-built:' + buildId;
-const GONE = new Set(['sandbox.process_exit', 'sandbox.stopped', 'sandbox.cancelled', 'sandbox.start_failed', 'sandbox.start_timeout', 'sandbox.operation_timeout', 'sandbox.memory_limit', 'sandbox.cpu_limit', 'sandbox.channel_limit', 'sandbox.channel_error', 'sandbox.protocol_error']);
+/** A sandbox error after which the process is not used again: the next call starts a new one. */
+export const GONE = new Set(['sandbox.process_exit', 'sandbox.stopped', 'sandbox.cancelled', 'sandbox.start_failed', 'sandbox.start_timeout', 'sandbox.operation_timeout', 'sandbox.memory_limit', 'sandbox.cpu_limit', 'sandbox.channel_limit', 'sandbox.channel_error', 'sandbox.protocol_error']);
 const message = (error: unknown) => error instanceof Error ? error.message : String(error);
 
 /**
@@ -23,7 +24,7 @@ const message = (error: unknown) => error instanceof Error ? error.message : Str
  */
 export function generatedPluginManifest(release: Pick<AgentRelease, 'pluginId' | 'version' | 'buildId' | 'design'>, earlierVersions: readonly number[] = []): PluginManifest {
   return sandboxPluginManifest({ pluginId: release.pluginId, version: releaseVersion(release.version), name: release.design.title,
-    publisher: { publisher_id: 'molis-studio', signature: installedSignature(release.buildId) }, presentation: !!release.design.presentation, upgradesFrom: earlierVersions.map(releaseVersion) });
+    publisher: { publisher_id: 'molis-studio', signature: installedSignature(release.buildId) }, presentation: !!release.design.presentation, upgradesFrom: earlierVersions.map(releaseVersion), effects: effectsFromContract(release.design.contract) });
 }
 
 /** `host.capability` serves the platform capabilities the person approved; the broker still checks each call against them. */
@@ -44,7 +45,7 @@ export function sandboxedPluginDefinition(release: AgentRelease, approved: Sandb
       context.requireGrant('storage:private');
       // What the Host built for this activation goes to the sandbox through the broker, which still checks each call against the grants.
       const services = sandboxServicesFor(context.services, host);
-      const identity: SandboxIdentity = { projectId: context.project_id ?? 'local', installationId: context.install_id, pluginId: release.pluginId, namespace: 'installed' };
+      const identity: SandboxIdentity = { projectId: context.project_id ?? null, installationId: context.install_id, pluginId: release.pluginId, namespace: 'installed' };
       const open = (lane: Lane) => {
         const existing = lanes.get(lane); if (existing) return existing;
         const created = createSandboxRunner({ bundlePath: release.bundlePath, contract: release.design.contract, grants: approved, services,

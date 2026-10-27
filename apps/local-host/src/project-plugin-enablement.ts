@@ -16,6 +16,11 @@ export async function projectPluginEnablement(home: string | undefined, projectI
   return new Map(PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => !entry.personal).map(entry => [entry.manifest.plugin_id, pluginReachable(entry, reachable)]));
 }
 
+/** Only uninstall suppresses project startup (BL-755, Root choice A). Stored disabled records are retried under their existing grants. */
+export function installationSwitchedOff(platform: Pick<PluginPlatform, "runtime">, pluginId: string): boolean {
+  return platform.runtime.list().some(record => record.plugin_id === pluginId && record.state === "uninstalled");
+}
+
 /** Serialize reads with activation changes, so an earlier enable cannot outlive a later disable. */
 export function projectPluginEnablementRefresh(platform: PluginPlatform, home: string | undefined, projectId: string): () => Promise<void> {
   let tail = Promise.resolve();
@@ -29,12 +34,16 @@ export function projectPluginEnablementRefresh(platform: PluginPlatform, home: s
         if (wanted === false && active.has(state.plugin_id)) {
           platform.supervisor.revoke(state.plugin_id);
           if (state.install_id) await platform.runtime.stop(state.install_id);
-        } else if (wanted === true && !active.has(state.plugin_id)) await platform.supervisor.enable(state.plugin_id);
+        } else if (wanted === true && !active.has(state.plugin_id) && !uninstalled(platform, state.plugin_id)) await platform.supervisor.enable(state.plugin_id);
       }
     });
     tail = next.catch(() => {}); return next;
   };
 }
+
+/** An uninstalled installation stays uninstalled: being in the project's plugin list does not install it again (BL-755). */
+const uninstalled = (platform: Pick<PluginPlatform, "runtime">, pluginId: string) =>
+  platform.runtime.list().some(record => record.plugin_id === pluginId && record.state === "uninstalled");
 
 /** Settings finish only after an already-open project has stopped or enabled its Runtime owners. */
 export async function refreshOpenProjectPlugins(host: MolisWorkLocalHost, projectId: string): Promise<void> {

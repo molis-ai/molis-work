@@ -12,7 +12,7 @@ import { answerPluginRouteStream } from "./plugin-route-stream.js";
 import { readLocalWebBody, sendLocalWebJson } from "./web-http.js";
 
 /** Host lifecycle entries are never provided by a plugin page, even if its Manifest reuses one of these paths. */
-export const PLUGIN_MANAGEMENT_OPERATIONS = new Set(["retry", "enable", "disable", "restart", "release-quarantine", "upgrade"]);
+export const PLUGIN_MANAGEMENT_OPERATIONS = new Set(["retry", "enable", "disable", "uninstall", "restart", "release-quarantine", "upgrade"]);
 
 /**
  * What the instance that owns a Runtime plugin's routes adds around the shared operations. The operations know no plugin and no
@@ -65,7 +65,15 @@ export async function dispatchRuntimePluginRoute(
   // Native adapters and unrelated routes retain their own ownership. Runtime
   // registration, rather than a second list of built-in IDs, decides this boundary.
   if (!active) return false;
-  if (active.install_id && platform.runtime.get(active.install_id).state === "uninstalled") return false;
+  // An installation the supervisor was started without (switched off) has no install_id in its state: its record says why.
+  const records = active.install_id ? [platform.runtime.get(active.install_id)] : platform.runtime.list().filter(record => record.plugin_id === pluginId);
+  if (records.length > 0 && records.every(record => record.state === "uninstalled")) {
+    // Its own routes answer that it is not installed, as a Home plugin's do (BL-755); a lifecycle operation is another handler's.
+    if (PLUGIN_MANAGEMENT_OPERATIONS.has(operation)) return false;
+    const missing = actionErrorResponse(new ActionError("actions.missing", "这个插件未安装"));
+    sendLocalWebJson(response, missing.status, missing.body);
+    return true;
+  }
   if (operation === "restart" || operation === "release-quarantine") {
     if (request.method !== "POST") { sendLocalWebJson(response, 405, { error: "重试必须通过 POST 确认" }); return true; }
     const state = await platform.supervisor.restart(pluginId, { release_quarantine: operation === "release-quarantine" });

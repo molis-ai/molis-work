@@ -42,8 +42,8 @@
       "methods": 23
     },
     "class packages/plugin-runtime/src/index.ts#PluginRuntime": {
-      "lines": 618,
-      "methods": 30
+      "lines": 612,
+      "methods": 29
     },
     "class packages/plugin-runtime/src/supervisor.ts#PluginSupervisor": {
       "lines": 567,
@@ -105,7 +105,7 @@
     },
     "file plugins/official-integrations/catalog/src/catalog.ts": 1013
   },
-  "testInternalImports": 418,
+  "testInternalImports": 417,
   "testImports": {
     "tests/action-call-log.test.ts": 2,
     "tests/action-gateway.test.ts": 1,
@@ -130,7 +130,6 @@
     "tests/alchemist-structured-output.test.ts": 2,
     "tests/announce-guard.test.ts": 1,
     "tests/artifact-document-import.test.ts": 1,
-    "tests/artifacts-actions.test.ts": 1,
     "tests/assistant-answers.test.ts": 1,
     "tests/assistant-attachments.test.ts": 1,
     "tests/assistant-attention.test.ts": 2,

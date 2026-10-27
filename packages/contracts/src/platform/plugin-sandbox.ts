@@ -33,15 +33,19 @@ export interface SandboxEffects {
   projectDatabase?: Array<'read' | 'write'>;
   /** The plugin's own library in the Home, which its Manifest declares (`databases.home`); only a package the Home Runtime runs has one (`sdk.homeDatabase`, PG-017 BL-490). */
   homeDatabase?: Array<'read' | 'write'>;
+  /** Whether the project ids the plugin already holds still exist; also needs its optional Manifest projects:exist grant. */
+  projects?: Array<'exist'>;
   /** Slots of the Manifest's `connections.slots` the operation sends requests through (`sdk.connections`); the plugin's package also declares `connections:use`. */
   connections?: string[];
   /**
    * `read`: the Host's document and file readers (`sdk.materials`); the plugin's package also declares `materials:read`.
+   * `fetch`: `readSource`, a public https page the Host reads and answers as text (`materials:fetch`); the operation also names the page's host in
+   * `networkDomains`, because the person approves a page's host the way they approve a network request's.
    * `fetch_local`: `readLocalPage`, a page on this machine that the Host fetches and answers as extracted text (`materials:fetch_local`).
    * `original`: `claimOriginal`, `readOriginal` and `releaseOriginal`, the file the person handed the Host's entry, by the plugin's own key
    * (`materials:original`). The last two are never in a query.
    */
-  materials?: Array<'read' | 'fetch_local' | 'original'>;
+  materials?: Array<'read' | 'fetch' | 'fetch_local' | 'original'>;
   /**
    * `read`: `stat`, `list` and `read` of the files the plugin's Manifest declares (`owner_files`, PG-017 P2c); `write`: `write`, never in a query.
    * The package also declares `storage:private` and the Manifest's read and write permissions.
@@ -99,7 +103,8 @@ export interface SandboxPluginContract {
 }
 
 export interface SandboxIdentity {
-  projectId: string;
+  /** The project the instance runs in; `null` for an instance in the Home, which has no project (BL-628). Never a stand-in string. */
+  projectId: string | null;
   installationId: string;
   pluginId: string;
   namespace: 'preview' | 'installed';
@@ -165,6 +170,19 @@ export interface SandboxMaterialExtraction {
   frames?: Array<{ seconds: number; text: string; confidence?: number | null }>;
   duration_seconds?: number;
   coverage: { status: 'sufficient' | 'partial' | 'insufficient'; truncated?: boolean; processed_pages: number; total_pages: number; issues: string[] };
+}
+/** What `readSource` answers, as plain JSON: the page's text with where it came from (see `SandboxMaterialExtraction`). */
+export interface SandboxMaterialSourceContent {
+  text: string;
+  title?: string;
+  source_url: string;
+  provider: string;
+  extractor: string;
+  coverage: SandboxMaterialExtraction['coverage'];
+  pages?: SandboxMaterialExtraction['pages'];
+  segments?: SandboxMaterialExtraction['segments'];
+  frames?: SandboxMaterialExtraction['frames'];
+  model_required?: { approximate_bytes?: number; variant?: string };
 }
 /** What `readDocuments` answers, as plain JSON (see `SandboxMaterialExtraction`). */
 export interface SandboxMaterialDocumentBatch {
@@ -269,6 +287,8 @@ export interface SandboxSdk {
    * a ZIP of those, `extract` reads one file (PDF, image, office document) as text, `imageTextAvailable` says whether an image's text can
    * be read on this machine now. Declare `effects.materials: ['read']` on the operation. A file and a result cross as JSON, so a read
    * is bounded by the channel (half of 1 MiB for the result); pages and the Host's helpers are not the plugin's to choose.
+   * `readSource` (`effects.materials: ['fetch']`) reads a public https page for its text: the page's host must be one of the operation's approved
+   * `networkDomains`, and the read (its redirects, and the interfaces and media of sites the Host knows) goes to those hosts only.
    * `readLocalPage` (`effects.materials: ['fetch_local']`) is a page on this machine: the plugin names an address as data, the Host decides
    * whether it may be read (plain HTTP to a loopback name, never the Host's own ports) and fetches it, and only the extracted text comes back.
    * `claimOriginal`, `readOriginal` and `releaseOriginal` (`effects.materials: ['original']`) keep, read and forget the file the person handed
@@ -279,11 +299,14 @@ export interface SandboxSdk {
     imageTextAvailable(): Promise<boolean>;
     readDocuments(files: SandboxMaterialFile[], request?: Pick<SandboxMaterialRequest, 'timeoutMs'>): Promise<SandboxMaterialDocumentBatch>;
     extract(file: SandboxMaterialFile, request?: SandboxMaterialRequest): Promise<SandboxMaterialExtraction>;
+    readSource(url: string): Promise<SandboxMaterialSourceContent>;
     readLocalPage(url: string): Promise<SandboxMaterialExtraction>;
     claimOriginal(record_key: string): Promise<void>;
     readOriginal(record_key: string, request?: { maxBytes?: number }): Promise<{ bytes: Uint8Array }>;
     releaseOriginal(record_key: string): Promise<void>;
   };
+  /** Existing project ids only, up to 200 per request; needs effects.projects: ['exist'] and the current optional Manifest projects:exist grant. */
+  projects: { exist(ids: readonly string[]): Promise<Readonly<Record<string, boolean>>> };
   /**
    * The plugin's own files, the ones its Manifest declares (`owner_files`): by relative path only, never the folder's location. `read` is
    * one file of at most 256 KiB (`null` when there is none); `write` takes up to 16 steps and 512 KiB of bytes at once, each file at most
@@ -323,10 +346,11 @@ export interface SandboxSdk {
 
 export type SandboxOperations = Record<string, (input: SandboxJson, sdk: SandboxSdk) => Promise<SandboxJson>>;
 export type SandboxSdkMethod = 'storage.get' | 'storage.set' | 'storage.delete' | 'storage.list'
+  | 'projects.exist'
   | 'artifacts.get' | 'artifacts.put' | 'capability.call' | 'events.publish' | 'network.request' | 'resource.read'
   | 'projectDatabase.get' | 'projectDatabase.all' | 'projectDatabase.transaction' | 'connections.request' | 'connections.describe' | 'connections.release'
   | 'homeDatabase.get' | 'homeDatabase.all' | 'homeDatabase.transaction'
-  | 'materials.imageTextAvailable' | 'materials.readDocuments' | 'materials.extract' | 'materials.readLocalPage'
+  | 'materials.imageTextAvailable' | 'materials.readDocuments' | 'materials.extract' | 'materials.readSource' | 'materials.readLocalPage'
   | 'materials.claimOriginal' | 'materials.readOriginalRange' | 'materials.releaseOriginal'
   | 'ownerFiles.stat' | 'ownerFiles.list' | 'ownerFiles.read' | 'ownerFiles.write'
   | 'model.choices' | 'model.availability' | 'model.complete'
@@ -343,3 +367,54 @@ export type SandboxHostMessage =
   | { type: 'call'; id: string; operationId: string; input: SandboxJson }
   | { type: 'sdk-result'; id: string; value: SandboxJson }
   | { type: 'sdk-error'; id: string; code: string; message: string };
+
+/**
+ * A sandboxed integration (BL-530): a signed package whose Manifest is an Integration Plugin's and whose contract has exactly these
+ * operations, with these schemas and effects. The platform names them, not the plugin; the Host's proxy calls them for each source and
+ * reads what comes back as the source's pull. `account` is the one the plugin may leave out.
+ */
+export const SANDBOX_INTEGRATION_OPERATIONS = { health: 'integration.health', poll: 'integration.poll', account: 'integration.account' } as const;
+/**
+ * The slot an integration's requests use the source's own account through (S-95): the Host's proxy gives a pull the connection the person
+ * chose for the source, for that one call. It is no slot of the Manifest's and nothing binds it.
+ */
+export const SANDBOX_INTEGRATION_SOURCE_SLOT = 'source';
+/** Most items one pull returns; a cursor is the plugin's own text, kept by the Feed and handed back on the next pull. */
+export const SANDBOX_INTEGRATION_LIMITS = { items: 200, cursorLength: 16_384, configLength: 16_384 } as const;
+
+const text = (maxLength: number, minLength = 0): SandboxSchema => ({ type: 'string', minLength, maxLength });
+/** What every operation of a sandboxed integration receives about the source: its id, its settings as JSON text, whether it has an account. */
+const SOURCE: Record<string, SandboxSchema> = {
+  source_id: text(128, 1), config_json: text(SANDBOX_INTEGRATION_LIMITS.configLength), has_connection: { type: 'boolean' },
+};
+const object = (properties: Record<string, SandboxSchema>, required: string[]): SandboxSchema => ({ type: 'object', properties, required, additionalProperties: false });
+const ITEM = object({
+  externalId: text(256, 1), title: text(512), summary: text(4096), body: text(65_536), url: { type: 'string', format: 'uri', maxLength: 4096 },
+  occurredAt: { type: 'string', format: 'date-time' }, kind: { type: 'string', enum: ['message', 'notification', 'issue', 'pr', 'mention', 'update'] },
+  priority: { type: 'string', enum: ['low', 'medium', 'high', 'urgent'] }, tags: { type: 'array', maxItems: 32, items: text(64) }, author: text(256),
+}, ['externalId', 'title', 'summary']);
+
+/** The schemas and effects of each operation (`account` is optional); a package's contract must carry them exactly. */
+export const SANDBOX_INTEGRATION_CONTRACT: Readonly<Record<keyof typeof SANDBOX_INTEGRATION_OPERATIONS, Pick<SandboxOperationContract, 'kind' | 'input' | 'output' | 'effects'>>> = {
+  health: {
+    kind: 'query', input: object(SOURCE, ['source_id', 'config_json', 'has_connection']),
+    output: object({ ok: { type: 'boolean' }, status: { type: 'string', enum: ['connected', 'disconnected', 'error', 'needs_auth'] }, message: text(2048), action: text(512) }, ['ok', 'status', 'message']),
+    effects: { connections: [SANDBOX_INTEGRATION_SOURCE_SLOT] },
+  },
+  poll: {
+    kind: 'query',
+    input: object({ ...SOURCE, cursor: text(SANDBOX_INTEGRATION_LIMITS.cursorLength), rebuild: { type: 'boolean' } }, ['source_id', 'config_json', 'has_connection', 'rebuild']),
+    // `ok: true` carries `items` and `cursor`; `ok: false` carries `failure` and `message`. The Host checks which before anything reaches the Feed.
+    output: object({
+      ok: { type: 'boolean' }, items: { type: 'array', maxItems: SANDBOX_INTEGRATION_LIMITS.items, items: ITEM }, cursor: text(SANDBOX_INTEGRATION_LIMITS.cursorLength),
+      failure: { type: 'string', enum: ['needs_auth', 'configuration', 'network', 'provider', 'rate_limited', 'stale_history'] }, message: text(2048), action: text(512),
+      http_status: { type: 'integer' }, retry_after_at: { type: 'string', format: 'date-time' },
+    }, ['ok']),
+    effects: { connections: [SANDBOX_INTEGRATION_SOURCE_SLOT] },
+  },
+  account: {
+    kind: 'query', input: object({ ...SOURCE, cursor: text(SANDBOX_INTEGRATION_LIMITS.cursorLength) }, ['source_id', 'config_json', 'has_connection', 'cursor']),
+    // Without `account_label` the source's label stays as it is.
+    output: object({ account_label: text(256, 1) }, []), effects: {},
+  },
+};

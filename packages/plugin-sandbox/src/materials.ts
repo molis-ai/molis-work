@@ -1,4 +1,4 @@
-import type { SandboxJson, SandboxMaterialDocumentBatch, SandboxMaterialExtraction, SandboxMaterialRequest } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
+import type { SandboxJson, SandboxMaterialDocumentBatch, SandboxMaterialExtraction, SandboxMaterialRequest, SandboxMaterialSourceContent } from '@molis-ai/molis-work-contracts/platform/plugin-sandbox';
 import type { MaterialSource, MaterialUpload } from '@molis-ai/molis-work-contracts/services/materials';
 import { SandboxError } from './schema.js';
 
@@ -61,6 +61,24 @@ export const ORIGINAL_PART_BYTES = 256 * 1024;
 const ORIGINAL_FILE_BYTES = 32 * 1024 * 1024;
 const ADDRESS = 2048;
 
+/**
+ * The page a plugin asked the Host to read: an https address with no credentials and no port of its own, as the sandbox's own network
+ * accepts. Its host is what the broker holds to the operation's approved `networkDomains`.
+ */
+export function materialSourceUrl(value: SandboxJson | undefined): URL {
+  let url: URL;
+  try { url = new URL(typeof value === 'string' && value.length <= ADDRESS ? value : ''); } catch { throw invalid('A page to read is an https address'); }
+  if (url.protocol !== 'https:' || url.username || url.password || url.port || !url.hostname) throw invalid('A page to read is an https address without credentials or a port');
+  return url;
+}
+
+/** The hosts one read may contact: those the operation declared and the person approved. The Host's reader takes at most 20. */
+export function materialReadDomains(declared: readonly string[] | undefined, approved: readonly string[] | undefined): string[] {
+  const domains = (declared ?? []).filter(domain => approved?.includes(domain));
+  if (domains.length > 20) throw invalid('A page read can be held to at most 20 approved domains');
+  return domains;
+}
+
 /** The address of a page on this machine as the plugin sent it: a printable string. Whether it is a loopback address is the Host's judgment alone (S-09). */
 export function materialLocalUrl(value: SandboxJson | undefined): string {
   if (typeof value !== 'string' || !value || value.length > ADDRESS || /[\u0000-\u001f\u007f]/.test(value)) throw invalid('An address is a printable string of at most 2048 characters');
@@ -84,3 +102,4 @@ export function originalPart(offset: SandboxJson | undefined, length: SandboxJso
 /** The answers cross as what the sandbox's declarations promise: a Host reader whose result no longer fits `SandboxMaterial*` fails to compile here. */
 export const documentBatchJson = (batch: SandboxMaterialDocumentBatch): SandboxJson => plainJson(batch);
 export const extractionJson = (extraction: SandboxMaterialExtraction): SandboxJson => plainJson(extraction);
+export const sourceContentJson = (content: SandboxMaterialSourceContent): SandboxJson => plainJson(content);

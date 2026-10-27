@@ -86,6 +86,7 @@ export const SHELF_MESSAGES = {
   "shelf.preview.material": { zh: "材料", en: "Material" },
   "shelf.preview.clipboard": { zh: "剪贴板", en: "Clipboard" },
   "shelf.preview.copy-file": { zh: "复制文件", en: "Copy file" },
+  "shelf.preview.origin-project-deleted": { zh: "项目已删除", en: "Project deleted" },
   "shelf.preview.download-file": { zh: "下载文件", en: "Download file" },
   "shelf.preview.done-editing": { zh: "完成编辑", en: "Done editing" },
   "shelf.preview.edit-copy": { zh: "编辑副本", en: "Edit copy" },

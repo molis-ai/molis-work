@@ -6,6 +6,8 @@ import type { MaterialSourceContent } from "@molis-ai/molis-work-contracts/platf
 type MaterialSourceMaterial = MaterialSourceContent;
 export interface MaterialSourceOptions extends MaterialUploadOptions {
   allow_model_download?: boolean;
+  /** Exact host names the whole read may contact (the page, its redirects, the API and media it follows to); unset, every public host. */
+  allowed_hosts?: readonly string[];
   /** Dependency seams for offline parser/adapter regressions; HTTP routes never bind these fields. */
   fetch?: (url: string, options?: MaterialPublicFetchOptions) => Promise<MaterialPublicResponse>;
   extractMaterial?: (home: string, upload: MaterialUploadRequest, options?: MaterialUploadOptions) => Promise<UploadedMaterial>;
@@ -116,7 +118,7 @@ function coverage(issues: string[], sufficient: boolean, processed = 1, total = 
 function fetcher(options: MaterialSourceOptions) {
   return async (url: string, request: MaterialPublicFetchOptions) => {
     checkAborted(options); await options.beforeEffect?.(); checkAborted(options);
-    return (options.fetch ?? fetchMaterialPublicBytes)(url, { ...request, beforeDispatch: options.beforeEffect });
+    return (options.fetch ?? fetchMaterialPublicBytes)(url, { ...request, ...(options.allowed_hosts ? { allowedHosts: options.allowed_hosts } : {}), beforeDispatch: options.beforeEffect });
   };
 }
 async function readPage(url: string, options: MaterialSourceOptions): Promise<{ html: string; response: MaterialPublicResponse }> {

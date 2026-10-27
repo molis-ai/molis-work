@@ -1,16 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import Database from "better-sqlite3";
-import {
-  ArtifactsModule, createArtifactsSchema, createProcessItemsSchema, ProcessItemsModule, type ArtifactsSqliteDatabase,
-} from "@molis-ai/molis-work-module-artifacts";
+import { ArtifactsModule, createArtifactsSchema, createProcessItemsSchema, ProcessItemsModule, type ArtifactsSqliteDatabase, ARTIFACTS_PROVIDER_ID, ARTIFACT_ACTIONS } from "@molis-ai/molis-work-module-artifacts";
 import type { RegisterArtifactVersionInput } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { createContextLedger, createContextLedgerSchema } from "@molis-ai/molis-work-module-context-ledger";
 import { artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { artifactsActions, createArtifactActionHandlers, importArtifactDocument } from "@molis-ai/molis-work-module-artifacts";
-import { artifactsManifest } from "@molis-ai/molis-work-plugin-artifacts";
 import { installProducers } from "./fixtures/installed-producers.js";
 import { LocalProjectDatabase, openProjectVersionStores, type ProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { eventCursorOf, pinnedArtifact } from "./fixtures/artifacts.js";
@@ -161,8 +158,8 @@ test("subject.read, read and export answer the same for every actor of the Home:
   note("workflow-events", "workflow-import", "imported by a workflow");
   const ledger = createContextLedger(h.db as unknown as Parameters<typeof createContextLedger>[0], { authorize: access => access.scope.kind === "personal" && access.scope.id === "p" });
   const actions = new ActionService();
-  actions.registerProvider({ provider: { provider_id: artifactsManifest.plugin_id, plugin_id: artifactsManifest.plugin_id, title: "成果", kind: "plugin", project_id: "p" },
-    definitions: artifactsManifest.actions!,
+  actions.registerProvider({ provider: { provider_id: ARTIFACTS_PROVIDER_ID, plugin_id: ARTIFACTS_PROVIDER_ID, title: "成果", kind: "plugin", project_id: "p" },
+    definitions: ARTIFACT_ACTIONS,
     handlers: createArtifactActionHandlers({ projectId: "p", artifacts, ledger: ledger.query, importSources: () => ({}),
       importDocument: async () => { throw new Error("read-only fixture"); }, openProjectReference: async () => { throw new Error("must not fetch a file") } }) });
   const caller = (actor_id: string, audience: "user" | "mcp" | "workflow") => ({ actor_id, audience, project_id: "p", permissions: ["artifacts:read"] });

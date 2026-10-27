@@ -89,8 +89,18 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
     response.end(renderHomePluginPage(pageEntry(entry), html, platform.supervisor.state(pluginId)?.message ?? null, controlToken, { L, htmlLang, clientI18nScript }, false, Boolean(sideView), project));
     return true;
   }
-  if (["enable", "disable"].includes(operation)) {
+  if (["enable", "disable", "uninstall"].includes(operation)) {
     if (request.method !== "POST") { sendLocalWebJson(response, 405, { error: "请通过 POST 更改插件状态" }); return true; }
+    // A package installed in the Home (BL-628) is switched and removed by the install lifecycle a project's packages have, not by the supervisor alone.
+    if (host.homePlugins.hasPackage(pluginId)) {
+      try {
+        const body = operation === "uninstall" ? await readLocalWebBody(request) as { keep_data?: unknown } | null : null;
+        await host.homePlugins.packageAction(pluginId, operation as "enable" | "disable" | "uninstall", { keepData: body?.keep_data === true });
+        sendLocalWebJson(response, 200, { [operation === "enable" ? "enabled" : operation === "disable" ? "disabled" : "uninstalled"]: true });
+      } catch (error) { const refused = actionErrorResponse(error); sendLocalWebJson(response, refused.status, refused.body); }
+      return true;
+    }
+    if (operation === "uninstall") { sendLocalWebJson(response, 404, { error: "插件没有这个入口" }); return true; }
     if (operation === "enable") {
       const state = await platform.supervisor.enable(pluginId);
       sendLocalWebJson(response, state.status === "running" ? 200 : 503, { state, ...(state.message ? { error: state.message } : {}) });

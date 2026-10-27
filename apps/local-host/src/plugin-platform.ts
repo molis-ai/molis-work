@@ -24,6 +24,7 @@ import {
   SqlitePluginEventsRepository,
   SqlitePluginRuntimeReleaseArtifactRepository,
   SqlitePluginWiringRepository,
+  type InProcessAdmission,
   type PluginConsentLedger,
   type PluginEventsDatabase,
   type PluginSupervisorEntry,
@@ -87,6 +88,8 @@ export interface PluginPlatformOptions {
   /** Whether an action a plugin consumes is registered and ready in this project (`services.actions.availability`). */
   dependencyCheck?: PluginDependencyCheck;
   scheduler?: PluginHostExecutorOptions["scheduler"];
+  /** Stands in for the Home's project catalog behind `services.projects` (S-96), for a test that has no Home. */
+  projects?: PluginHostExecutorOptions["projects"];
   /** Shared system registry plus the trusted project identity for this activation. */
   actions: PluginHostExecutorOptions["actions"];
   /**
@@ -97,6 +100,12 @@ export interface PluginPlatformOptions {
   home: PluginPlatformHome | null;
   /** The consent ledger for a platform that has no Home of its own to take it from (a generated plugin's platform, a test). */
   consents?: PluginConsentLedger;
+  /**
+   * Which definitions this platform's Runtime lets run in the Host's process without `host` trust (BL-588, S-75 ⑥): the Host's own
+   * code names them (a Host's test fixtures; none in production). A platform given none checks nothing, which only a test's does;
+   * `tests/plugin-in-process-call-sites.test.ts` has every production construction name it.
+   */
+  inProcess?: InProcessAdmission;
   /**
    * Opaque scope key stamped on every Plugin output in this project, so the
    * Host can tell two inputs belong to the same scope. Defaults to the board.
@@ -159,6 +168,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
     databaseFor: identity.databaseFor,
     dualInstance: identity.dualInstance,
     projectLibrary: projectLibraryOf(options), scheduler: options.scheduler,
+    ...(options.projects ? { projects: options.projects } : {}),
     project_id: options.project_id,
     actor_id: options.actor_id,
     artifacts: options.artifacts,
@@ -173,7 +183,7 @@ export function createPluginPlatform(options: PluginPlatformOptions): PluginPlat
   });
   // A project instance of a dual-instance plugin offers only its half; the other half is the Home's (specs/dual-instance-plugins).
   const runtime = new PluginRuntime(records, executor,
-    { declarationOwners: declarationOwnersFor(options.home?.directory ?? null, { db: options.db, scope: { kind: "project", project_id: options.project_id } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId)), redemption: definition => ({ partial: identity.dualInstance(definition) }), hostIds: HOST_PLUGIN_IDS, ...consents ? { consents } : {}, reservedRuleKeys: hostReservedRuleKeys,
+    { ...options.inProcess ? { inProcess: options.inProcess } : {}, declarationOwners: declarationOwnersFor(options.home?.directory ?? null, { db: options.db, scope: { kind: "project", project_id: options.project_id } }, (pluginId: string): PluginManifest | undefined => supervisor.manifest(pluginId)), redemption: definition => ({ partial: identity.dualInstance(definition) }), scope: "project", hostIds: HOST_PLUGIN_IDS, ...consents ? { consents } : {}, reservedRuleKeys: hostReservedRuleKeys,
       actions: { ...options.actions, providerId: (record, definition) => providerFor(definition, record.install_id) } });
   const supervisor = new PluginSupervisor(runtime, {
     releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(options.db),

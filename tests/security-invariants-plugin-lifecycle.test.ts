@@ -161,7 +161,7 @@ test("BL623-05 S-84 S-87 a plugin of a publisher taken back cannot be switched o
 
 test("BL623-06 S-84 only the person in a project reaches the three actions: an Agent, MCP, a workflow, a plugin, a call without the entry's credential and one without a project are refused, and nothing is reached", async () => {
   let reached = 0;
-  const service = new PluginInstallService({ ledger: new MemoryPluginConsentLedger(), packages: new SandboxPackageStore("/nonexistent"), install: async () => undefined, installed: async () => [],
+  const service = new PluginInstallService({ ledger: new MemoryPluginConsentLedger(), packages: new SandboxPackageStore("/nonexistent"), installInProject: async () => undefined, installInHome: async () => undefined, installed: async () => [],
     control: async () => { reached += 1; return "disabled"; } });
   const actions = new ActionService();
   actions.registerProvider(pluginInstallProvider(service));

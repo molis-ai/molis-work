@@ -78,7 +78,7 @@
 | `modules/goals/src/lifecycle-archive.ts#setTrashed` | 155 行 | 内聚单元 |
 | `packages/kernel/src/action-service.ts#ActionService` | 396 行 / 15 方法 | 内聚单元 |
 | `packages/plugin-runtime/src/events.ts#PluginEventBus` | 420 行 / 23 方法 | 内聚单元 |
-| `packages/plugin-runtime/src/index.ts#PluginRuntime` | 618 行 / 30 方法 | 内聚单元 |
+| `packages/plugin-runtime/src/index.ts#PluginRuntime` | 612 行 / 29 方法 | 内聚单元 |
 | `packages/plugin-runtime/src/supervisor.ts#PluginSupervisor` | 567 行 / 30 方法 | 内聚单元 |
 | `packages/plugin-runtime/src/wiring.ts#PluginInputGraph` | 455 行 / 26 方法 | 内聚单元 |
 | `packages/plugin-sandbox/src/runner.ts#createSandboxRunner` | 173 行 | 内聚单元 |

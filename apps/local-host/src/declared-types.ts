@@ -18,8 +18,9 @@ export function bindProjectArtifacts(db: object, view: InstalledArtifactView): (
 
 /** What this Build declares for a producer that ships with it: a built-in plugin's Manifest, or the Host's own producer's entry (it writes no process items). */
 function shippedDeclaration(pluginId: string): Declares | undefined {
-  return PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === pluginId)?.manifest
-    ?? HOST_ARTIFACT_PRODUCERS.filter(host => host.plugin_id === pluginId).map(host => ({ artifacts: { produces: host.produces } }))[0];
+  // The Host's own producer first: the 成果 plugin's shell shares its id and declares no type (PG-077).
+  return HOST_ARTIFACT_PRODUCERS.filter(host => host.plugin_id === pluginId).map(host => ({ artifacts: { produces: host.produces } }))[0]
+    ?? PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === pluginId)?.manifest;
 }
 
 /**

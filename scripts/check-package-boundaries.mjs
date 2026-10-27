@@ -193,15 +193,18 @@ function checkMigratedFeedOwnership(repositoryRoot) {
       errors.push(`${relativePath}: Relay import/compat must stay deleted`);
     }
   }
-  const legacyCallers = [
+  // Only Feed's store/ owns these tables. Every other Feed source file is a caller, the production assembly that the Host's
+  // feed-application.ts used to be (application-assembly.ts) among them; the named files are read as well so a move fails loudly.
+  const feedSource = "plugins/native/feed/src";
+  const feedCallers = filesUnder(path.join(repositoryRoot, feedSource), file => /\.(?:ts|tsx|mts)$/u.test(file))
+    .map(file => path.relative(repositoryRoot, file).split(path.sep).join("/"))
+    .filter(file => !file.startsWith(`${feedSource}/store/`));
+  const legacyCallers = [...new Set([
     "apps/local-host/src/demo-feed-library.ts",
-    "plugins/native/feed/src/application.ts",
-    "plugins/native/feed/src/source-service.ts",
-    "plugins/native/feed/src/source-sync.ts",
-    "plugins/native/feed/src/connector-sync.ts",
-    "plugins/native/feed/src/source-scheduler.ts",
+    ...["application.ts", "application-assembly.ts", "source-service.ts", "source-sync.ts", "connector-sync.ts", "source-scheduler.ts"].map(file => `${feedSource}/${file}`),
+    ...feedCallers,
     ...WEB_DISPATCH_FILES,
-  ];
+  ])];
   const directFactSql = /\b(?:CREATE TABLE IF NOT EXISTS|FROM|INTO|UPDATE|DELETE FROM)\s+(feed_items|feed_materials|inbox_entries)\b/giu;
   for (const relativePath of legacyCallers) {
     const source = fs.readFileSync(path.join(repositoryRoot, relativePath), "utf8");
@@ -227,13 +230,17 @@ function checkMigratedIntegrationOwnership(repositoryRoot) {
       errors.push(`${servicePath}: ${forbidden} belongs to the official Plugin composition boundary`);
     }
   }
-  // The Runtime Feed opens its Listener through the platform connector service, which the Home supervisor backs with the Home's
-  // integration registry (FI-5): the Feed names no Provider and the Host keeps no Feed connector composition of its own.
+  // The Runtime Feed opens its Listener through the platform connector service (FI-5): Feed's `services.connector` is the
+  // platform source-pull connector, and the Host backs that port with the Home's integration registry. The Feed names no
+  // Provider and the Host keeps no Feed connector composition of its own.
   const runtimePath = "plugins/native/feed/src/runtime-connector.ts";
   const runtime = fs.readFileSync(path.join(repositoryRoot, runtimePath), "utf8");
-  const hostPath = "apps/local-host/src/home-plugins.ts";
+  const pluginPath = "plugins/native/feed/src/plugin.ts";
+  const plugin = fs.readFileSync(path.join(repositoryRoot, pluginPath), "utf8");
+  const hostPath = "apps/local-host/src/plugin-source-pull-service.ts";
   const host = fs.readFileSync(path.join(repositoryRoot, hostPath), "utf8");
-  if (!service.includes("this.ports.createListener") || !runtime.includes("services.connector.open(") || !/integrations:\s*\{\s*registry:\s*\(\)\s*=>\s*homeIntegrationRegistry\(/u.test(host)) {
+  if (!service.includes("this.ports.createListener") || !runtime.includes("services.connector.open(") || !plugin.includes("connector = sourcePull?.connector")
+    || !/connector:\s*createConnectorSourcePort\(\{[^}]*\bregistry:[^}]*\bhomeIntegrationRegistry\(home\)/u.test(host)) {
     errors.push(`${servicePath}: Feed must consume a Listener opened through the platform connector service, backed by the Home's integration registry`);
   }
 
@@ -507,7 +514,9 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   ) {
     errors.push(`${goalReadApplicationPath}: compatibility composition must not own Goal persistence or bypass Goals Query`);
   }
-  errors.push(...checkGoalReadOwnerSql(read("apps/local-host/src/demo-feed-library.ts")).map(error => `apps/local-host/src/demo-feed-library.ts: ${error}`));
+  for (const relativePath of ["apps/local-host/src/demo-feed-library.ts", ...["application-assembly.ts", "plugin.ts", "goal-promotion.ts"].map(file => `plugins/native/feed/src/${file}`)]) {
+    errors.push(...checkGoalReadOwnerSql(read(relativePath)).map(error => `${relativePath}: ${error}`));
+  }
   errors.push(...checkNoGoalTypedAdapters(["apps", "horizontal", "modules", "packages", "plugins", "server"]
     .flatMap(directory => filesUnder(path.join(repositoryRoot, directory), file => /\.(?:ts|tsx|mts)$/u.test(file) && !/[\\/](?:tests?|__tests__)[\\/]/u.test(file)))
     .map(file => ({ path: path.relative(repositoryRoot, file).split(path.sep).join("/"), source: fs.readFileSync(file, "utf8") }))));

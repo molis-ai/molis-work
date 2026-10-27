@@ -136,7 +136,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | `plugins/native/ppt` | PPT 一级入口：本机演示稿 | 多页大纲（可按文字、AI 整理或 Pages 文档生成）、主题色、预览、JSON 与 .pptx 导出（不含图片与图表）；对外只经动作目录与逐客户端授权 | `production` | `specs/archive/creative-tools-plugins/spec.md`；`specs/archive/plugin-outbound-mcp/spec.md` | 内置插件：@yijunw0212 |
 | `plugins/native/lingguang` | 灵光一级入口：收想法的唯一处 | 快记、导入文件与读取链接成灵感、转成 Jelly 笔记、流式列表、丢掉确认、「复制内容」；头脑风暴对话经 Prologue 文字模型，未配置模型时如实显示不可用；不写 Goal/Artifact；动作经逐客户端授权对外 | `production` | `specs/archive/lingguang-plugin/spec.md` | 内置插件：@yijunw0212 |
 | `plugins/native/todo` | 待办一级入口：用户需要推进的事项的正式管理位置 | 个人与项目待办（先记录后归属）、五种状态与归档、截止/计划/提醒三种日期、来源与形成原因、关联、修改记录与撤销、视图/搜索/批量；私人库 `{home}/todo/todo.db`；动作 Home 级登记，项目内只见本项目与个人待办，“所有项目”只给本人界面；AI 整理与推进归系统 Assistant | `production` | `specs/archive/todo-plugin/spec.md` | 内置插件：@yijunw0212 |
-| `plugins/native/alchemist` | 炼金术士：项目隔离的 Founder Lab | Direction / Idea / 双 Lens / 证据决策 / Pulse / Copilot / Memory；AI 经 Prologue，公开证据经 SEL；验收见 spec；缺片：重做（用户 2026-10-25：不删、先绕过、后续重做，另立 Goal）；后续：BL-376 | `slice` | `specs/archive/alchemist-plugin/spec.md` | 内置插件：@yijunw0212 |
+| `plugins/native/alchemist` | 炼金术士：项目隔离的 Founder Lab | Direction / Idea / 双 Lens / 证据决策 / Pulse / Copilot / Memory；AI 经 Prologue，公开证据经 SEL；验收见 spec；缺片：工作台升级中的 Alchemist 场景（用户 2026-10-27 归并；现有代码仍不删、先绕过）；后续：BL-377 | `slice` | `specs/plugin-builder-upgrade/spec.md`（旧迁入证据：`specs/archive/alchemist-plugin/spec.md`） | 内置插件：@yijunw0212 |
 | `plugins/native/feed` | Feed 一级入口和处置 UI | Sources/Feed 流水、同步与 promotion；支持研究库发布包接收；用户显式配置规则可自动加入 Inbox，需复核保留原因；仍只写 Attention；缺片：Inbox/Feed 拆插件切片 3；后续：切片 3 计划 | `slice` | FD/Cutover；Inbox/Feed 拆插件切片 3；`specs/archive/function-scene-action-scope/spec.md` | 内置插件：@yijunw0212 |
 | `plugins/native/coding` | Coding App（`app`）：会话、轮次、计划、报告、变更集、协同与委派 | Plugin Runtime 托管；执行经 Agent Host/Prologue；执行报告进成果库（`coding.report.v1`），计划、变更集、图与目标上下文是 Coding 自己的过程项；19 项 `coding.*` 动作（16 项业务动作，另有对象读取、搜索与成果预览） | `production` | `specs/coding-plugin/spec.md` 第 0 节；后续 `next-requirements.md` | 内置插件：@yijunw0212、@jingxusandra-gif |
 | `plugins/native/files` | 工作区文件树与阅读：取有界文本快照与选区（`app`，Coding 家族） | Runtime 托管；目录与文件由 Host 经项目工作区设置能力读取，插件把结果变成树、预览和过程项（集合描述、`before`/`after` 文本快照、用户选中的文字） | `production` | `specs/archive/coding-workbench-repair/spec.md` | 内置插件：@yijunw0212 |
@@ -148,7 +148,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | `plugins/native/jelly` | 个人日历与笔记（收想法在灵光） | Home Runtime 独占原库；模型及配置经有限服务 | `production` | `specs/archive/jelly-plugin/` | 内置插件：@yijunw0212、@jingxusandra-gif |
 | `plugins/native/cognia` | 个人知识库（现行 native 版） | 见下文「Cognia 个人知识库」；Cognia 2（生成插件方向）需求书未实施 | `production` | `specs/archive/cognia-plugin/spec.md`；`specs/archive/cognia-plugin/v2/spec.md` | 内置插件：@yijunw0212 |
 | `plugins/native/workflows` | 工作流程：内容站交接、模板转换、AI 整理、判断规则、动作步骤 | 站点与步骤从动作目录发现；交接幂等、中断复用原结果；由 Plugin Runtime 装配（每个项目一份），经 `actions:delegate` 以调用者本人的身份调站点与步骤，不放宽调用者的授权 | `production` | `specs/action-architecture/spec.md` 工作流程节；`specs/repository-anti-corruption/spec.md` W5-01-WORKFLOWS | 内置插件：@yijunw0212 |
-| `plugins/native/plugin-builder` | 插件创作台：从一句需求生成插件（2026-10-18 改：创作台是平台能力，不是插件；代码迁走前仍按插件装配，见 `specs/repository-anti-corruption/spec.md` §1 的 2026-10-18 各行） | 见下文「插件创作工作台」；缺片：创作台重做（用户 2026-10-25：不删、先绕过、后续重做，另立 Goal）；后续：BL-377 | `slice` | `specs/archive/plugin-builder/work-items/studio-v3/spec.md` | 内置插件：@yijunw0212 |
+| `plugins/native/plugin-builder` | 插件创作台：从一句需求生成插件；现有实现先绕过，后续作为平台场景组装能力的创作入口（2026-10-27） | 见下文「插件创作工作台」；缺片：工作台升级，包含新能力创作与手动／个人助理组合已有插件，Alchemist 为落地场景；后续：BL-377 | `slice` | `specs/plugin-builder-upgrade/spec.md`（旧实现证据：`specs/archive/plugin-builder/work-items/studio-v3/spec.md`） | 内置插件：@yijunw0212 |
 | `plugins/official-integrations/catalog` | 连接器目录与文档导入 Provider | 目录条目、Notion 等 OAuth 与文档导入；账号检查经 `connectors.account.read` | `production` | `specs/archive/connector-method-directory/spec.md` | 官方集成：@yijunw0212 |
 | `plugins/native/actions` | Actions 一级入口 | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec | — |
 | `plugins/native/automation` | Automation 一级入口 | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec | — |
@@ -211,7 +211,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 
 ### 插件创作工作台
 
-`plugins/native/plugin-builder` 拥有设计草稿、构建记录与发布版本（2026-10-18 改：创作台是平台能力，不是插件，这些事实以后归平台，见 `specs/repository-anti-corruption/spec.md` §1 的 2026-10-18 各行；代码迁走前仍在这个包里）。生成插件的后端由为此场景新建的 Prologue 代码 Agent 编写，运行在独立的 macOS 沙箱进程（`packages/plugin-sandbox`），只经宿主通道使用平台能力与安装时授权的其他插件动作；界面由平台用 UI 目录渲染。AgentHost 拥有 Prologue 执行，Host 拥有模型凭据与联网代理，PluginRuntime 拥有安装与私有存储权限。需求与验收见 `specs/archive/plugin-builder/work-items/studio-v3/spec.md`（旧解释器路线已被整体替换）。
+`plugins/native/plugin-builder` 现有实现拥有设计草稿、构建记录与发布版本。后续按用户 2026-10-27 决定，由平台提供通用场景组装能力，工作台保有创作体验和草稿，个人助理使用同一公开动作；Alchemist 是落地场景，现行升级需求与验收见 `specs/plugin-builder-upgrade/spec.md`（BL-377，尚未实现）。下面保留旧实现边界。生成插件的后端由为此场景新建的 Prologue 代码 Agent 编写，运行在独立的 macOS 沙箱进程（`packages/plugin-sandbox`），只经宿主通道使用平台能力与安装时授权的其他插件动作；界面由平台用 UI 目录渲染。AgentHost 拥有 Prologue 执行，Host 拥有模型凭据与联网代理，PluginRuntime 拥有安装与私有存储权限。旧实现的范围与证据见 `specs/archive/plugin-builder/work-items/studio-v3/spec.md`（旧解释器路线已被整体替换），不作为本次升级已实现的证据。
 
 ## Cognia 个人知识库
 

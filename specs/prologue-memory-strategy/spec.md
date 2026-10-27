@@ -3666,7 +3666,7 @@ SDK 负责首次召回和按需展开在原 ContextItem 建立前应用投影，
 
 允许修改原organize实现、直接测试和模块说明。验收保留Files原数量、断言和零重试；证明I/O在核对完成前运行、等待期间编辑/新卡/修订不被覆盖、关闭/移除后零Store访问，以及原保留、明确整理和迟到拒绝语义不退化。观测耗时只作归因，不当性能验收；不操作真实Home，不放宽1000条召回门。
 
-### 2026-10-27 旧 Coding / Knowledge 私库采用提案（待用户决定）
+### 2026-10-27 旧 Coding / Knowledge 私库采用规则（用户已批准，实施与验收待完成）
 
 实际阻塞：现构建 Coding 私库为 3、Knowledge 为 2，严格拒绝旧库仍然成立；此前同当前版本的 T0/T1/T2 演练不等于旧私库采用。Full suite 的 project-maintenance-v8 进一步确认，历史项目维护 v7→8→9→10 最后仍产出 Coding 私库 1，不能用当前声明直接打开。其合成历史夹具误带 lifecycle_json 也需修正，但不能只修夹具并把私库版本改成 3。历史快照和 v8/v9/v10 SQL保持历史事实。
 
@@ -3679,7 +3679,9 @@ SDK 负责首次召回和按需展开在原 ContextItem 建立前应用投影，
 
 范围仅上述私库的代码、合同和隔离副本维护；不操作真实 Home，不引入新的存储格式、全局迁移器、保留状态或自动 AI 补救。沿现停机单写主人、固定副本/选集、备份与逐主人事务执行；版本与对应数据同事务，跨库中断保留未完成并逐项核实，不能只看顶层版本称成功。回退恢复整份原备份，不能只降版本号。
 
-验收采用真实历史 schema / 已知旧构建产生的非空副本，覆盖 Coding 1 active / archived（含 SDK active）、Coding 2 已完成及在途归档/恢复、无卡/失败/整理中/旧摘要、本人字段与排除状态、未知安装代及重装同 ID、同决定重试和进程重启、未知提交/关闭失败及邻居不变。采用前明确拒绝且不写，采用后原内容/历史/计数保留，归档普通检索不可见，恢复零自动模型，真实删除仍清卡和索引。原历史项目维护的当前插件接受断言保留，必须接入真实 Coding 私库采用后才能通过。此提案尚未获准；不把补字段、改版本标记或一份 active 样例当完整采用。
+验收采用真实历史 schema / 已知旧构建产生的非空副本，覆盖 Coding 1 active / archived（含 SDK active）、Coding 2 已完成及在途归档/恢复、无卡/失败/整理中/旧摘要、本人字段与排除状态、未知安装代及重装同 ID、同决定重试和进程重启、未知提交/关闭失败及邻居不变。采用前明确拒绝且不写，采用后原内容/历史/计数保留，归档普通检索不可见，恢复零自动模型，真实删除仍清卡和索引。原历史项目维护的当前插件接受断言保留，必须接入真实 Coding 私库采用后才能通过。不把补字段、改版本标记或一份 active 样例当完整采用。
+
+2026-10-27 用户明确选择“采用上述保守采用规则”。授权覆盖按上述边界实现与隔离副本演练，已同步防腐维护清单；不操作真实Home，不代表采用已完成或用户验收，也不扩大到旧SDK未知历史段的处理决定。实施前核对具体维护owner、当前schema及公开合同，沿本记录补足最小调用链与路径。
 
 
 ### 2026-10-27 SDK 新开场来源修复与旧账边界
@@ -3707,5 +3709,19 @@ SDK f6e605425b53dafc7d533528004270b89d9990ba 已提交并推到现 Draft #108。
 导航诊断复用现共享fixture并删掉单例重复，只记录有界同session生命周期和本机路径/状态，不记录正文、query或异常文本；原30秒DCL条件与错误保留。真实Chrome探针按成功、唯一一次受控超时、再成功运行，诊断累计0/1/1，每阶段9个监听全部卸载；不以readyState=complete兜底。初始ESM/Chrome启动环境失败及原Linux未定位问题保留。
 
 既有性能门、旧私库采用提案和旧整包开场来源问题仍未关闭。已核已合main与实际1cc80/ccaf SDK包也可在Coding digest留下整包开场；UI保持digest，不等于已证明真实Home发生切回重放。精确主Run的attempt.task仅证明caller，子任务回填与旧无身份注入不能用来补造原件。尚未实现旧账校正Port或未知段兼容规则，不操作真实Home。
+
+07df 普通 CI 40488887464 的 Gates/Verify 已失败：vendor-provenance 的当前包采用断言仍固定57cf，而已核归档、sidecar、锁与安装实际均为f6e。这是接包时漏同步的记录，不是包字节不符或来源门应放宽。只将两处候选提交和用例标题同步到已采用f6e，保留所有原断言、草稿身份、无补丁和干净源要求；本地原文件81/81通过（molis-memory-f6e-vendor-fixture-20261027.log）。此时远端仍为07df，不能写成该CI已修复或全绿，其余Product/Security作业继续收集。
+
+### 2026-10-27 普通资料逐项核对的最小读取优化
+
+实际问题是 Files 刷新等待约21秒的资料状态读取。逐项公平性已解除长时间独占I/O，但每张普通卡仍重新取得owner上下文并遍历完整动作目录。仅调整页面显示顺序不能消除这个开销，也不计作本项完成。
+
+复杂度审查后只优化没有retention字段的卡：现有查询在这种情况下不会调用协议，只能得到“未声明协议”或“无法采用”。不缓存完整目录、权限或负结论，不新增epoch、持久状态或批处理队列。KnowledgeOrganizer沿原装配选项增加可选的每轮准备器；Host成功取得一次owner上下文后，提供同步的无绑定分类器。准备失败则本轮保留，不写卡；未装配时沿原逐项查询。
+
+每项仍让出I/O，核关闭/移除和当前整卡。随后从现Host的inspectActionMetadata读取当前声明：用当前非closing项目引用，保留owner actor/project/audience；正常user与现retention helper受众一致。出现同provider/project/kind及协议输入输出类型的声明、项目不再开放或检查出错，均为unavailable。只有确实无声明才沿原unsupported创建、更新或移除规则；此检查忽略旧allowed_actions/permissions仅用于保守否决，不能授权读取、执行、判断active/deleted或补安装代。同步检查至Store写入间不再await。
+
+带retention字段的卡，包括generation为null，仍走原逐项查询、调用授权和安装代复核；organizePending、正文读取、模型派出与结果提交均不改。允许路径为原KnowledgeOrganizer及README、Host的knowledge-actions/search-actions/project-host装配和对应测试；不改ActionClient、retention公共DTO、存储格式、HTTP期限、后台触发时间、重试或资源额度。
+
+验收须击穿裸缓存反例：等待期间新增协议且旧caller没有该动作授权，原无绑定卡仍保留且不补绑；创建、更新与清卡均受同一同步否决。覆盖准备失败、项目关闭、带null安装代、并发人工编辑及停止后不访问Store，保留原有授权/归档/恢复与模型边界回归。最后用原505+5导入及20秒条件验证Files，并记录目录读取次数与耗时；该结果不替代SDK1000条召回性能门或完整CI。
 
 本批日志在 /private/tmp/molis-memory-f6e-first-regressions-20261027.log、molis-memory-files-fairness-fixed-20261027.log、molis-files-refresh-network-20261027-summary.json、molis-navigation-diagnostics-20261027/ 与对应build/health/assets日志。付费批仍未启动。所有未闭合项继续阻塞合并。

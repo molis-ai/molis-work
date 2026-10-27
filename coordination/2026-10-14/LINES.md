@@ -659,3 +659,4 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
     2. 谁执行合并：统筹只裁定「可合」，自己不执行合并。执行的是裁定里点名的会话：单个 PR 由作者会话合，集成批由合批会话组批、跑全量、入队；用户在执行的那个会话里点同意。已写进 `HANDOFF-2026-10-26.md`（「合并一律经统筹」那一条下面）和 LINE-COMMON §1。
     3. `known-red-main.md`：维护人定为合批会话，开出来之前由统筹在收到全量结果时更新；文件头已写。`coord-shared` 里 10-24 的旧副本改成指向这里的说明。
     4. 短名撞名：会话之间一律用完整会话 id。LINE-COMMON §1 加了现行会话 id 表，旧的 10-19 名单留作历史。
+  - **10-27 评审复审 #1325 增量 db8e96cdd..a5b713beb**（笔记 `review-1325-a5b713be.md`）：可以合，没有新意见。统筹裁定可合，由 `ac-lifecycle` 执行：先看 `affected-tests --base origin/main --json` 的 `full`（false 照常合，true 先报统筹）；等全部检查跑完（含不挡合并的 Product subset、Security invariants），有红先报；都绿了在它自己的会话里 `gh pr merge 1325 --squash --match-head-commit a5b713beb…`，用户在那里点同意。

@@ -147,7 +147,6 @@ export { homeIntegrationRegistry } from "./builtin-integrations.js";
 export { connectorDirectory } from "./connector-directory.js";
 export type { IntegrationProviderFactory } from "./integration-providers.js";
 
-export { handleFeedNativePluginHttp, type FeedNativePluginHttpOptions } from "./feed-native-plugin-http.js";
 export { handleHomeDockJudgmentHttp, type HomeDockHttpOptions } from "./home-dock-http.js";
 export { handleFunctionsHttp } from "./functions-http.js";
 

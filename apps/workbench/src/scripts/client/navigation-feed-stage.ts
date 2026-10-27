@@ -9,7 +9,7 @@ export const NAVIGATION_FEED_STAGE_PART = `
       try {
         const scrollTop = list?.scrollTop || 0;
         const selectedId = selectedFeedItem;
-        const html = await molisWorkRequest(route("/api/feed/workbench?preset=" + encodeURIComponent(activeFeedPreset)), {as:"text",fallback:FL("无法更新 Feed 列表" )});
+        const html = await molisWorkRequest(route("/api/stage/feed"), {as:"text",fallback:FL("无法更新 Feed 列表" )});
         const template = document.createElement("template");
         template.innerHTML = html.trim();
         if (seq !== feedStageRefreshSeq) return false;
@@ -96,10 +96,7 @@ export const NAVIGATION_FEED_STAGE_PART = `
         setFeedDetailPlaceholder(FL("正在载入 Item…"), "");
       }
       try {
-        const inboxEntryQuery = row.dataset.inboxEntryId
-          ? "&entry=" + encodeURIComponent(row.dataset.inboxEntryId)
-          : "";
-        const html = await molisWorkRequest(route("/api/feed/items/" + encodeURIComponent(itemId) + "/detail?preset=" + encodeURIComponent(activeFeedPreset) + inboxEntryQuery), {as:"text",signal:controller.signal,fallback:FL("无法读取这条 Item")});
+        const html = await molisWorkRequest(route("/api/stage/feed/items/" + encodeURIComponent(itemId)), {as:"text",signal:controller.signal,fallback:FL("无法读取这条 Item")});
         const template = document.createElement("template");
         template.innerHTML = html.trim();
         const detail = template.content.querySelector('[data-feed-detail="' + CSS.escape(entryId) + '"]');

@@ -133,7 +133,7 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const feedTaskToggle = targ
         try {
           const expectedRevision = Number(feedAction.dataset.feedRevision || 0) || undefined;
           const restoreTarget = feedAction.dataset.feedRestoreTarget;
-          const result = await api("/api/feed/items/" + encodeURIComponent(itemId) + "/" + action,"POST",expectedRevision
+          const result = await api(feedApi + "/items/" + encodeURIComponent(itemId) + "/" + action,"POST",expectedRevision
             ? {expected_revision:expectedRevision,...(restoreTarget?{restore_target:restoreTarget}:{})}:{});
           if (action === "promote" || action === "start") {
             saveUiState();
@@ -151,7 +151,7 @@ export const CLIENT_EVENTS_SECONDARY_SCRIPT = `      const feedTaskToggle = targ
               workspaceMode: action === "start" ? "runtime" : "focus",
               mobileView: action === "start" ? "tui" : "document",
             }));
-            location.assign(globalThis.molisWorkNavigationUrl(result.goal_path + (action === "start" ? "?feed-start=1" : "")));
+            location.assign(globalThis.molisWorkNavigationUrl(route("/goals/" + encodeURIComponent(result.goal_id)) + (action === "start" ? "?feed-start=1" : "")));
             return;
           }
           saveUiState();

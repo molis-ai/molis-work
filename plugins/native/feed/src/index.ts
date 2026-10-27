@@ -63,6 +63,7 @@ export { createFeedSourceSyncLease, type FeedSourceSyncLease } from "./source-sy
 export { promoteFeedItemToGoal, feedGoalsThroughDirectory, type FeedGoalPromotionPorts, type FeedGoalPromotionGoals, type FeedGoalPromotionInput } from "./goal-promotion.js";
 
 export { createFeedRouteHandlers } from "./route-handlers.js";
+export { feedSourceCatalog } from "./source-catalog.js";
 export type { FeedRouteHandlerPorts } from "./route-handler-ports.js";
 export { FEED_PLUGIN_ID, FEED_PROJECT_PLUGIN_ID, feedManifest } from "./manifest.js";
 export { FEED_ACTION_PERMISSIONS } from "./runtime-actions.js";

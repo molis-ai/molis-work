@@ -46,6 +46,25 @@ export const feedManifest: PluginManifest = {
   connections: { slots: Object.keys(CONNECTOR_REQUEST_SERVICES).map(service => ({ slot_id: service, service_id: service, reason: "读取你为这个来源选好的账号", binding: "per_record" as const })) },
   notifications: { receive: { capability_id: "feed.notifications.receive", version: 1 } },
   action_scenes: [feedRuntimeCaptureScene],
+  // The page's requests: each adapts one HTTP call to Feed's own actions (`createFeedRouteHandlers`), under /api/plugins/<plugin_id>/. The
+  // project instance answers them; the page's HTML is the shell's (`/api/stage/feed`).
+  routes: [
+    { route_id: "feed.snapshot", method: "GET", path: "/snapshot", permission: "feed:read" },
+    { route_id: "feed.out-rules.judgments", method: "GET", path: "/out-rules/judgments", permission: "feed:read" },
+    { route_id: "feed.out-rules.preview-judgment", method: "POST", path: "/out-rules/preview-judgment", permission: "feed:read" },
+    { route_id: "feed.out-rules.list", method: "GET", path: "/out-rules", permission: "feed:read" },
+    { route_id: "feed.out-rules.evaluate", method: "POST", path: "/out-rules/evaluate", permission: "feed:write" },
+    { route_id: "feed.out-rules.preview", method: "POST", path: "/out-rules/preview", permission: "feed:read" },
+    { route_id: "feed.out-rules.create", method: "POST", path: "/out-rules", permission: "feed:write" },
+    { route_id: "feed.out-rules.update", method: "PATCH", path: "/out-rules/:rule_id", permission: "feed:write" },
+    { route_id: "feed.out-rules.delete", method: "DELETE", path: "/out-rules/:rule_id", permission: "feed:write" },
+    { route_id: "feed.sources.create", method: "POST", path: "/sources", permission: "feed:write" },
+    { route_id: "feed.sources.update", method: "PATCH", path: "/sources/:source_id", permission: "feed:write" },
+    { route_id: "feed.sources.delete", method: "DELETE", path: "/sources/:source_id", permission: "feed:write" },
+    { route_id: "feed.sources.schedule", method: "PUT", path: "/sources/:source_id/schedule", permission: "feed:write" },
+    { route_id: "feed.sources.action", method: "POST", path: "/sources/:source_id/:action", permission: "feed:write" },
+    { route_id: "feed.item.action", method: "POST", path: "/items/:item_id/:action", permission: "feed:write" },
+  ],
   // The Home says when a connection changed (never which account); the kept job then looks at each account source again.
   events: { publishes: [], subscribes: [{ event_type_id: HOST_CONNECTION_CHANGED_EVENT, type_version: 1 }] },
   background: { jobs: [feedWakeJob, feedReconcileJob], wakeups: [{ action: { capability_id: WAKE.capability_id, version: WAKE.version }, reason: WAKE.action.title }] },

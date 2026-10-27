@@ -1,5 +1,5 @@
 import { ActionError, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDefinition, PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { assembleFeedApplication } from "./application-assembly.js";
 import { createFeedContentHandlers } from "./content-actions.js";
 import { createRuntimeItemStaging, createRuntimeJudgmentTriggers, createRuntimeSceneRuntime } from "./runtime-judgments.js";
@@ -12,9 +12,11 @@ import { feedManifest } from "./manifest.js";
 import { FeedOutRuleStore } from "./out-rules.js";
 import { createFeedQueryHandlers } from "./query-actions.js";
 import { createFeedRuleHandlers } from "./rule-actions.js";
+import { createFeedRouteHandlers } from "./route-handlers.js";
 import { createFeedRuntimePorts } from "./runtime-ports.js";
 import { createFeedWriter } from "./runtime-writes.js";
 import { createFeedSourceHandlers, feedSourceActions } from "./source-actions.js";
+import { feedSourceCatalog } from "./source-catalog.js";
 import { FeedSourceService } from "./source-service.js";
 import { createFeedSourceSyncLease } from "./source-sync-lease.js";
 import { feedContentLedgerActions } from "./content-ledger-actions.js";
@@ -169,7 +171,16 @@ export function createFeedPlugin(): PluginDefinition {
     const watch = createConnectionWatch();
     keepFeedReconcile(services?.background, { feed, projectId, connections, commit: (control, body) => writer.commitAs(control, FEED_RECONCILE_ACTOR, body),
       hold: dependencies ? async (sourceId, contentRefs) => { await ledger(feedContentLedgerActions.hold, { source_id: sourceId, content_refs: [...contentRefs] }); } : undefined }, watch);
-    return { kind: "app", views: [feedUiContribution], action_scenes: [sceneRuntime.handler],
+    // The page's requests only adapt HTTP to Feed's own actions, called as the person who made the request (their authority, not Feed's).
+    const person = services?.actions;
+    const routes = (feedManifest.routes ?? []).map(({ route_id }) => ({ route_id, async handle(request: PluginRouteRequest) {
+      if (!person) throw new ActionError("actions.unredeemed", "Feed 需要动作服务才能答页面的请求");
+      const handlers = createFeedRouteHandlers({ actions: { invoke: (definition, input) => person.invoke(definition, input, request.execution) },
+        sourceCatalog: () => vocabulary ? feedSourceCatalog(vocabulary) : [] });
+      return handlers[route_id]!({ params: request.params, request: { method: request.method, pathname: request.pathname,
+        query: new URLSearchParams(request.query), body: request.body && typeof request.body === "object" && !Array.isArray(request.body) ? request.body as Record<string, unknown> : {} } });
+    } }));
+    return { kind: "app", views: [feedUiContribution], action_scenes: [sceneRuntime.handler], routes,
       onEvent: (_event, delivery) => { delivery.beforeEffect(); watch.changed(); }, actions: [
       ...writer.writing(FEED_PROJECT_ACTIONS.filter(definition => !own.has(idOf(definition))), mine.filter(binding => !own.has(idOf(binding)))),
       ...mine.filter(binding => own.has(idOf(binding))),

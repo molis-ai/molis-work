@@ -120,7 +120,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
   const loadFeedBody = async (body, block) => {
     const row = liveAssetRow(block);
     const itemId = block.itemRef || row?.dataset.feedItemId || (row?.dataset.inboxSubjectType === "feed" ? row.dataset.inboxSubjectId : "") || block.itemId;
-    const html=await molisWorkRequest(toRoute("/api/feed/items/"+encodeURIComponent(itemId)+"/detail?preset=feed&surface=frame-block"),{as:"text",fallback:L("无法读取这条 Item")});
+    const html=await molisWorkRequest(toRoute("/api/stage/feed/items/"+encodeURIComponent(itemId)+"?surface=frame-block"),{as:"text",fallback:L("无法读取这条 Item")});
     const template = document.createElement("template");
     template.innerHTML = html.trim();
     const reading = template.content.querySelector("[data-frame-reading]") || template.content.querySelector(".frame-reading") || template.content.firstElementChild;

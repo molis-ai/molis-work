@@ -402,7 +402,7 @@ test("Feed, Inbox and home do not import the Functions plugin implementation", a
     "apps/workbench/src/scripts/client/navigation-feed-stage.ts",
     "apps/workbench/src/scripts/client/events-primary.ts",
     "apps/local-host/src/home-dock-http.ts",
-    "apps/local-host/src/feed-native-plugin-http.ts",
+    "apps/local-host/src/plugin-stage-fragment-http.ts",
     "apps/local-host/src/web-view.ts",
   ];
   for (const relative of files) {

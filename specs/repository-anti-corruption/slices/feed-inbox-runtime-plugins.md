@@ -1,6 +1,6 @@
 # FI-6 Feed、Inbox 进 Plugin Runtime 设计稿（PG-093、PG-089 余半，并关 PG-040、PG-080、PG-045 的余项）
 
-状态：既有 FI 实现接续中（2026-10-27）；沿 Root 接受的批 C 工单恢复固定 0ea 与14:37 WIP，当前合同和六个 P1 见 §13。此前各片评审只覆盖原范围；本组合尚未构建、测试或采用，真实 Home、维护和本人验收未执行。父稿与历史设计、逐片记录保留。
+状态：批 C 于2026-10-27按用户指令保存并暂停；已恢复固定 0ea 与14:37 WIP，已完成绑定失效和调用控制修复及定向作者验证，当前合同、准确检查点与未完成项见 §13。C01源码已接受；C02最新 Notion 修复待复审，C03–07、Inbox运行证明、FI7 Feed入口、SYS52与最终门禁/独立验证尚未完成。C未合入；真实 Home、维护和本人验收未执行。父稿与历史设计、逐片记录保留。
 
 **先说五件事**：
 
@@ -545,3 +545,22 @@ FI-C-02 的控制是必需参数：Host test/invoke、driver health/poll、SDK b
 SOURCE `1dad39c1` 的 Notion 并发取消 P1 随本片修复：保留原 Home/账号共享刷新去重，每个调用以自身控制认权后参与；取消一方只退出该调用，最后有效调用退出才中止共享传输。发送及持久化前重核有效参与者与原账号 revision/refresh 值，已结束或中止的共享项不接纳新调用；每方返回或抛错仍重核自己的控制，不能把另一方的取消转成认证失败。定向反例沿真实 Catalog 接线到 Notion resolver，覆盖两个已等待调用的两种取消顺序及全取消零后续请求/零落盘，原同 Home 去重与跨 Home 隔离正控保留。
 
 Root 追加的既有 SYS52 首败随 C 收口：Full `40440700816/63d7b896` 原始快照显示 Goal 标题 Text 已断开、选区为空而 frame 仍正确。修复只在标题或结果字符串变化时替换内容；同值生产重绘保原 Text 与真实选区，真实变化仍更新。补实际生产 Frame DOM 路径的确定性反例，保原 More、10秒超时及全部原断言，不修改冻结 AB。Owner PIPE，原件由 Root/TEST 持有，最终 C Full 核验；重试通过不等于已修。
+
+**2026-10-27 暂停交接（用户要求推送最新工作后暂停；下述均为候选，不能记成整批完成）。** 当前分支 `feature/anticorruption-closeout-c`，最后生产/测试改动检查点 `009b773f060ac61ceaa041b68d7681e075709b0a`，tree `0d716a408bb6de3f8ff1303c3050c66af2377678`。该点工作树干净；随后仅补本节交接文字。已采用 main 的祖先关系：`7f8358aecca1e5b0e9c1b593da440dc868554b5f` 的两父为 `1dad39c1efb00ddfee64e4c3c0b4e54dde84c9dd` 与 A+B 实际合入 `9efbf8d044b580c054b93229f9d99264383ea476`，该次合并前后 C tree 严格相同。A+B 最终 `63d7b896` 与 main `9efbf8d0` 的 tree 相同；不得据此声称 main 已采用 C。
+
+| 固定检查点 | 已完成与证据边界 |
+| --- | --- |
+| `028a952e68eda35cdd6d7fa8817dc7c3663d4bc0` | C01绑定owner在成功bind/unbind及三种批量删除后通知原在途登记；同槽ABA永久使旧调用失效。同账号旁槽隔离、bulk通知及原拒绝断言作者文件33/33（含子项）通过，整体build通过；SOURCE接受。该轮“其他槽”原例只是变更后新拉取，真正两条在途例在C02后补；不据此声称Host close已等待所有底层子任务。 |
+| `1dad39c1efb00ddfee64e4c3c0b4e54dde84c9dd` | C02必需控制贯通Host/SDK/provider/OAuth/BL530/DNS发送边界。真实Runtime→默认registry→生产Gmail取消、双在途ABA与tokenRefs刷新取消；通用OAuth等待取消保原凭据/拒绝状态；真实runner→broker→Host TLS401→生产OAuth取消及DNS最终等待拒绝，已保原件。整体build通过；SOURCE确认这些主要修复，但发现同账号Notion共享刷新取消P1，不能关闭C02。 |
+| `2b8c8ccc3e3f7a2f5e3b824afa584099fb3288a0` | 仅三处测试适配：Listener账号展示取实际绑定integration.account；RAC890指向现行connector-source-pull；S70取消以真实fresh-access落盘为相位，断言自身原错误、零第二次TLS发送。SOURCE接受适配，未改生产或放宽业务断言。 |
+| `009b773f060ac61ceaa041b68d7681e075709b0a` | Notion保原Home/账号去重，改为有效参与调用共同维持共享刷新；单方取消不误伤旁调用，最后参与者退出才abort。发送及落盘前仍核有效调用、原revision/refresh值；结束项不再接纳新调用。真实Catalog接线反例覆盖取消首个/第二个调用、全取消零写回，原同Home去重/跨Home隔离保留。整体build及两整文件作者验证通过，最新源码复审尚未收到最终结论。 |
+
+原始本机证据目录 `/tmp/molis-verify-2026-10-26/closeout-c/` 保留01–31日志、命令、自然退出码和固定检查点patch/json；原失败没有覆盖。18整体build自然0/43.3706秒；19三个首败文件重跑自然0/7.7349秒（Runtime Gmail5/5、通用OAuth20/20、Gmail边界5/5）；20真实沙箱OAuth/DNS文件7/7、自然0/2.6875秒（此次Darwin实际执行、不是Linux证明）；22消费者14文件有6红，适配后的24仅复跑这6文件均通过（S70 11/11、registry17/17、Feed connectors13/13、connections9/9、catalog trust4/4、pagination7/7）。18之后Notion生产改动的最新整体build是29，自然0/17.3320秒；30运行 `node scripts/machine-slot.mjs run browser --label "C Notion shared refresh author" -- node scripts/run-tests.mjs --jobs 1 --browser-jobs 1 --retries 0 tests/connector-oauth-choice.test.ts tests/security-invariants-connection-refresh.test.ts`，自然0/5.0448秒，两文件分别9/9与11/11，无跳过/取消/重试。27是新fixture缺access导致账号建档拒绝，不能当产品反例；修正fixture后28在旧生产实现准确因取消首个调用导致共享signal误abort而红。作者验证不冒充独立TEST、完整security或最终Full。
+
+业务基线26在 `2b8c8ccc` 上运行 `tests/feed-runtime-plugin.test.ts`：35/38通过、自然1/21.5691秒、无跳过/取消/重试。三红仍未修改：RAC509规则保存测试caller仅WRITE，缺动作已声明的attention:write/judgments:write；RAC518“held body exists”读取默认runner Home而实际sourcePull写fixture Home；RAC1030删除正文也删默认Home，实际fixture正文未删除。这些是当前代码与失败定位得到的fixture根因候选，尚未修复/复跑确认；后续须按真实owner绑定修测试，不放松权限和正文断言。26原文件38项没有覆盖C03遗漏的三动作正文成功链，也没有覆盖C04研究库同步后的下一次读取。
+
+接手顺序为：先核Notion准确head复审，如有must-fix先修；随后完成C03–07，再补Inbox和FI7/SYS52的实际运行及最终合成验证。C03当前仅安装声明evidence:read，动作级promote、linkedContext、recommendations仍缺；须三处加声明并用真实同步正文证明推荐、升格、Goal上下文和缺权限入口拒绝。C04 hydrate仍把所有content_ref送证据库；只将`molis-work-feed/sha256/`交原evidence客户端，`research:<id>`沿已有item.body/material.preview/provenance，补Runtime同步后item/snapshot(include_contents)/content/subject/规则读取。C05各来源最后await→同步事务仍须核固定来源版本/配置/生命周期；C06真实清理失败须保来源/refs/operation IDs可重试、release≤5000与forget≤1000分批；C07启动补hold须分批及有限恢复，不能吞异常后永久缺登记。以上均未因本次登记而算实现。
+
+Inbox的listInbox/getInbox投影及状态提交重读已在028实现，但运行拒绝矩阵未完成；`tests/security-invariants-attention-inbox.test.ts` RAC808仍导入已删除createLocalFeedApplication并将Feed当全局Inbox，须迁到实际Runtime Inbox/平台投影，保owner/同kind隔离、未分配条目和停用/归档digest/最后admission之后停用拒绝。FI7 Feed一半仍留`feed-native-plugin-http.ts`与Host调用，须迁Manifest/routes/插件前缀，UI账号绑定用`connectors.plugin_slot.bind@2`真实来源record key，保刷新错误及冻结列表；Inbox一半不重做。SYS52最小DOM同值重绘修复尚未开始，不能将AB Full一次重试过算已修。
+
+最终C合成树尚未统一刷新API/actions、registry/inventory、table-owner/S号、SSOT、baseline和页面资源；不得取旧源数字或开门禁例外，必要health/security及唯一CI/Full由全线统筹排期。当前没有C PR、云Full或最终独立验证通过结论。暂停前最后一批本地测试30已自然退出；build/browser公共槽空闲，没有待取消命令。主checkout、真实Home4207、旧库维护和用户验收均未操作。恢复须从本分支准确新head与最新main/在途事实接续，保原贡献与失败证据，不重放旧原始WIP，不继续旧逐层共用文件同步流程。

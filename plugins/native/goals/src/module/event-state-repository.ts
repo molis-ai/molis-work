@@ -4,7 +4,7 @@ import { GoalEventOutcomeRecords } from "./event-state-outcome-records.js";
 import { GoalEventOwnerRecords } from "./event-state-owner-records.js";
 import type { GoalsSqliteDatabase } from "./repository.js";
 
-/** The Goal event state's four table families, each read and written by its own class. */
+/** The Goal event state's four table families, each written by its own class. */
 export class GoalEventStateRepository {
   readonly owner: GoalEventOwnerRecords;
   readonly concerns: GoalEventConcernRecords;

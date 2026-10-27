@@ -3,7 +3,7 @@ import { GoalEventRequirementRecords } from "./event-facts-requirement-records.j
 import { GoalWorkEventRecords } from "./event-facts-work-event-records.js";
 import type { GoalsSqliteDatabase } from "./repository.js";
 
-/** The Goal event facts' three table families, each read and written by its own class. */
+/** The Goal event facts' three table families, each written by its own class. */
 export class GoalEventFactsRepository {
   readonly config: GoalEventConfigRecords;
   readonly requirements: GoalEventRequirementRecords;

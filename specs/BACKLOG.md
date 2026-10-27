@@ -52,6 +52,7 @@
 | BL-022 | 多人协作项目里项目记忆的可见性；团队共享记忆 | [memory-system §3、§15](archive/memory-system/spec.md) | 等协作能力定型 | 低 |
 | BL-023 | Coding 会话的执行目录（项目偏好）与 Files/Git 浏览目录（项目设置）是否合成一个 | [coding-plugin/spec.md 第 0 节「仍未做到」](coding-plugin/spec.md) | 设计取舍 | 中 |
 | BL-128 | 引用声明之间的语义一致性：W3-05 的注册检查只查存在、种类、范围和位置（`inspectActionCrossReferences`），下面四条没有收进去，今天都由使用端兜底，且没有内置声明触犯。①撤销的来源动作按能力 id 被推断为撤不回时，`undo` 的形状检查只看声明的 `effect`，不拦；②撤销命令的受众：助理免确认（`apps/local-host/src/assistant/assistant-authority.ts` 的 `directEligible`）要求撤销命令此刻在提供给 Agent 的目录里可用，只写 `user` 受众不够，注册时不查；③片段选项的目标会写入或不可撤回：内核把 `apply` 改写成 `record`、把不可撤回的标为不可用（`packages/kernel/src/contextual.ts` 的 `fragmentCandidates`），注册时不查 `apply` 与目标效果是否一致；④声明了 `result_subject` 的动作涉及的事项种类不是恰好一个：`actionResultSubject` 直接忽略。要不要把其中几条收紧成注册时的拒绝，会改变哪些声明能被接受 | [action-architecture §3 末尾 G2](action-architecture/spec.md)、W3-05 | 属于合同语义，路线行只写“存在、操作对” | 低 |
+| BL-781 | 把合同 `GoalEventFactsApi` 拆成“事实”和“状态”两个接口，让调用方直接拿 `GoalEventState` 的入口，去掉 `GoalEventFacts`（`plugins/native/goals/src/module/event-facts.ts`）上 29 个合同方法的转发层。这是 `packages/contracts` 的导出变更，要按 [CONTRACT-CHANGES](../docs/system/CONTRACT-CHANGES.md) 同一个 PR 改完所有消费者、刷新 API 快照；做完后可以删掉 `giant-exceptions.json` 里 `GoalEventFacts` 的登记 | [HUGE-CLASS-MIGRATION](../docs/system/HUGE-CLASS-MIGRATION.md) E 线与 `GoalEventFacts` 一行 | 合同拆分会改 Goals 所有调用方的接口，W5-10 只做了不动合同的拆分，等用户定 | 低 |
 
 ## 3. 助理、记忆与动态交互
 

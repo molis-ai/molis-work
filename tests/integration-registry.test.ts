@@ -266,7 +266,7 @@ const fixtureProvider = () => ({
 });
 
 test("RAC-890 a source's account reads the way its integration plugin says; the Host picks no integration's account function", async () => {
-  const host = source("apps/local-host/src/feed-connector-sync.ts");
+  const host = source("apps/local-host/src/connector-source-pull.ts");
   assert.doesNotMatch(host, /AccountPresentation|sync_kind\s*===/u, "the Feed's Host side names no integration's account");
   const registry = await homeIntegrationRegistry("unused-home", fixtureProvider);
   const github = await registry.bind("github", "source", binding("gh"));

@@ -100,12 +100,15 @@ test("S-70 RAC-349 a call that ends before the resend sends nothing more, though
   const home = await connected(t);
   tokenEndpoint(t, () => json({ access_token: "fresh-access", refresh_token: "refresh-2", expires_in: 3600 }));
   const { seen, options } = await asana(t, ["stale-access"]);
-  let checks = 0;
-  // The first request is checked once after its DNS; the call is cancelled before the second one's check.
-  const ended = dispatch({ beforeEffect: async () => { checks += 1; if (checks > 1) throw new ActionError("actions.cancelled", "调用已取消"); } });
-  // The transport refuses it after the second request's DNS, as for any call that lost its authority (S-57); no token is in the refusal.
+  const accessRef = withConnectorConnections(home, store => store.binding(pluginSlotScope(target.install_id), target.plugin_id, target.slot_id)!.credential_ref!);
+  const access = () => runWithMolisWorkHome(home, () => createFileSecretStore().get(accessRef));
+  const cancelled = new ActionError("actions.cancelled", "调用已取消");
+  // Pin the real phase, not an authorization-check count: the refresh has committed, but the resend must not start.
+  const ended = dispatch({ beforeEffect: async () => { if (access() === "fresh-access") throw cancelled; } });
+  // The original cancellation identity/code is preserved rather than classified as authentication or transport failure.
   await assert.rejects(createPluginConnectionsPort(home, options).request(target, ended),
-    (error: unknown) => error instanceof Error && /原调用已取消/u.test(error.message) && !/stale-access|fresh-access/u.test(error.message));
+    (error: unknown) => error === cancelled && error.code === "actions.cancelled" && !/stale-access|fresh-access/u.test(error.message));
+  assert.equal(access(), "fresh-access", "the lawful refresh committed before this later cancellation");
   assert.deepEqual(seen, ["Bearer stale-access"], "the server got no second request");
 });
 

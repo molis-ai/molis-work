@@ -6,9 +6,6 @@ import { pluginErrors, type IntegrationProviderItem } from "@molis-ai/molis-work
 import type { IntegrationBinding } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { createDemoFeedApplication, createDemoFeedSourceService, homeIntegrationRegistry, withConnectorConnections, type DemoFeedApplicationOptions, type IntegrationProviderFactory, type SourcePullRuntime } from "@molis-ai/molis-work-app-local-host";
 import { ConnectorHost } from "@molis-ai/molis-work-service-connector-host";
-import { gmailAccountPresentation } from "@molis-ai/molis-work-integration-gmail";
-import { githubAccountPresentation } from "@molis-ai/molis-work-integration-github";
-import { catalogAccountPresentation } from "@molis-ai/molis-work-integration-catalog";
 import { listProjectDatabasePaths } from "@molis-ai/molis-work-module-projects";
 import { LocalSqliteJournal, LocalSqliteStorage, resolveMolisWorkHome, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import {
@@ -85,15 +82,8 @@ export function createLocalFeedConnectorSync(db: SqliteDatabase, projectId: stri
         run: (operationId, mode, execution) => listener.run({ ...execution, project_id: projectId, source_id: source.source_id, connection_id: connectionId,
           operation_id: operationId, adapter: integration.signal_adapter, intent: { sync_mode: mode } }),
         checkpoint: () => listener.checkpoint(projectId, source.source_id),
+        account: cursor => integration.account?.(cursor, source.account_label) ?? null,
       };
-    },
-    sourceMetadata(source, cursor): Pick<FeedSourceRecord, "account_label" | "config"> | Record<string, never> {
-      const metadata = source.sync_kind === "gmail" ? gmailAccountPresentation(cursor, source.account_label, source.config.scope)
-        : source.sync_kind === "github" ? githubAccountPresentation(cursor, source.account_label)
-        : source.sync_kind === "connector" ? catalogAccountPresentation(cursor, source.account_label) : null;
-      if (!metadata) return {};
-      const { account_label, ...configuration } = metadata;
-      return { account_label, config: { ...source.config, ...configuration } };
     },
     transaction: operation => db.transaction(operation).immediate(),
     appendEvent(eventProject, sourceId, type, reason, payload) {

@@ -10,7 +10,7 @@ import {
   oauthKey,
   oauthLooksLikePlaceholder,
   oauthPathPlaceholders,
-  oauthPlaceholders,
+  oauthPlaceholder,
   oauthPublicHostName,
   oauthSettingValueFault,
   oauthUrlTemplate,
@@ -33,7 +33,7 @@ const KEEP_FIELDS = new Set(["key", "pointer", "check", "required"]);
 const QUIRK_FIELDS = new Set(["refresh_redirect_uri", "omit_token_params", "expiry"]);
 const ENDPOINTS = ["authorize_url", "token_url", "refresh_url", "device_authorization_url"] as const;
 const POINTER = /^(?:\/(?:[^~/]|~[01])*)+$/u;
-const SOURCE = /^(?:(?:identity|token):(\/.*)|context:(.+)|literal:(.+))$/su;
+const SOURCE = /^(?:identity:(\/.*)|context:(.+)|literal:(.+))$/su;
 
 type Settings = ReadonlyMap<string, Record<string, unknown>>;
 interface Scope { readonly id: string; readonly service: ConnectorRequestService | undefined; readonly settings: Settings }
@@ -135,8 +135,8 @@ function tenantKeepCount(keeps: unknown): number {
 function endpointProblems(where: string, value: unknown, scope: Scope): string[] {
   if (typeof value !== "string") return [`${where}必须是文字`];
   const template = oauthUrlTemplate(value);
-  if (template && "head" in template) {
-    if (template.head !== "tenant") return [`${where}只认 {tenant} 开头，不认 {${template.head}}`];
+  if (template && "name" in template) {
+    if (template.head !== "tenant") return [`${where}只认 {tenant} 开头，不认 {${template.name}}`];
     if (![...scope.settings.values()].some(setting => setting.use === "tenant")) return [`${where}写了 {tenant}，但没有 use: tenant 的 setting`];
     return pathPlaceholderProblems(where, template.path, scope, ["setting"]);
   }
@@ -149,13 +149,12 @@ function endpointProblems(where: string, value: unknown, scope: Scope): string[]
 
 /** The placeholders of a path: each fills a whole segment, and names a setting of `use: "path"` or a context key. */
 function pathPlaceholderProblems(where: string, path: string, scope: Scope, kinds: readonly ("setting" | "context")[]): string[] {
-  const names = oauthPathPlaceholders(path);
-  if (!names) return [`${where}的路径不带查询或片段，花括号成对，每个占位占满一个路径段`];
+  const found = oauthPathPlaceholders(path);
+  if (!found) return [`${where}的路径不带查询或片段，花括号成对，每个占位占满一个路径段`];
   const problems: string[] = [];
-  for (const name of names) {
-    const [kind, key = ""] = name.split(".", 2) as [string, string?];
-    if (kind === "setting" && kinds.includes("setting") && scope.settings.get(key)?.use === "path") continue;
-    if (kind === "context" && kinds.includes("context") && oauthKey(key)) continue;
+  for (const { name, placeholder } of found) {
+    if (placeholder?.kind === "setting" && kinds.includes("setting") && scope.settings.get(placeholder.key)?.use === "path") continue;
+    if (placeholder?.kind === "context" && kinds.includes("context")) continue;
     problems.push(`${where}有未知的占位 {${name}}`);
   }
   return problems;
@@ -166,10 +165,9 @@ function scopeProblems(where: string, value: unknown, settings: Settings): strin
   const problems: string[] = [];
   for (const entry of value) {
     if (!text(entry)) { problems.push(`${where}的 scopes 每项必须是非空文字`); continue; }
-    const names = oauthPlaceholders(entry);
-    if (names.length === 0 && !/[{}]/u.test(entry)) continue;
-    const key = names.length === 1 && entry === `{${names[0]}}` && names[0]!.startsWith("setting.") ? names[0]!.slice("setting.".length) : "";
-    if (settings.get(key)?.use !== "scope") problems.push(`${where}的 scopes 里 ${entry} 必须正好是一个 use: scope 的 {setting.<key>}`);
+    if (!/[{}]/u.test(entry)) continue;
+    const placeholder = entry.startsWith("{") && entry.endsWith("}") ? oauthPlaceholder(entry.slice(1, -1)) : undefined;
+    if (placeholder?.kind !== "setting" || settings.get(placeholder.key)?.use !== "scope") problems.push(`${where}的 scopes 里 ${entry} 必须正好是一个 use: scope 的 {setting.<key>}`);
   }
   return problems;
 }
@@ -215,7 +213,8 @@ function sourceProblems(where: string, sources: unknown[], identitySent: boolean
   for (const source of sources) {
     const match = typeof source === "string" ? SOURCE.exec(source) : null;
     if (!match || (match[1] !== undefined && !pointer(match[1])) || (match[2] !== undefined && !oauthKey(match[2]))) {
-      problems.push(`${where}的来源 ${String(source)} 必须是 identity:/指针、token:/指针、context:键 或 literal:文字`);
+      // The token response reaches account_id and the label only through `keep`, as `context:`, so a check reads them the same way.
+      problems.push(`${where}的来源 ${String(source)} 必须是 identity:/指针、context:键 或 literal:文字；令牌响应里的值先经 keep 进上下文`);
     } else if (!identitySent && match[1] !== undefined && String(source).startsWith("identity:")) problems.push(`${where}取了 identity 响应，但 identity 没写 url`);
   }
   return problems;
@@ -282,13 +281,13 @@ function urlProblems(where: string, value: unknown, scope: Scope, tenantSource: 
   if (typeof value !== "string") return [`${where}必须是文字`];
   const tenant = scope.service?.tenant;
   const template = oauthUrlTemplate(value);
-  if (template && "head" in template) {
+  if (template && "name" in template) {
     const base = template.head;
     if (base === "service" && scope.service?.origins.length !== 1) return [`${where}的 {service} 只给平台请求表里只有一个来源的服务；有几个来源的写完整地址`];
     if (base === "tenant" && !tenant) return [`${where}的 {tenant} 只给平台请求表里放在租户来源上的服务`];
     if (base === "tenant" && !tenantSource) return [`${where}写了 {tenant}，但这个方法既没有 use: tenant 的 setting，也没有在这之前留下 check: tenant 的值`];
     if (base === "gateway" && !tenant?.gateway) return [`${where}的 {gateway} 只给平台请求表里有网关的服务`];
-    if (!["service", "tenant", "gateway"].includes(base)) return [`${where}有未知的占位 {${base}}`];
+    if (!base) return [`${where}有未知的占位 {${template.name}}`];
     return pathPlaceholderProblems(where, template.path, scope, ["setting", "context"]);
   }
   const url = template ? parse(template.origin) : undefined;

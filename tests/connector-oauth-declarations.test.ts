@@ -92,7 +92,9 @@ test("RAC-1081 each declaration error fails the whole Manifest before anything i
   refused("slack", method({ identity: { url: "{service}/me", headers: { Authorization: "Bearer x" }, account_id: [[], ["identity:/id"]], label: ["identity:/id"] } }), /Authorization/u);
   refused("slack", method({ identity: { url: "{service}/me", query: { team: "{setting.team}" }, account_id: [[], ["identity:/id"]], label: ["identity:/id"] } }), /查询参数/u);
   refused("slack", method({ identity: { url: "{service}/me", account_id: [[], ["secret:/id" as never]], label: ["identity:/id"] } }), /来源/u);
-  refused("notion", method({ identity: { account_id: [["identity:/id"]], label: ["token:/workspace_name"] } }), /没写 url/u);
+  refused("notion", method({ identity: { account_id: [["identity:/id"]], label: ["context:workspace_name"] } }), /没写 url/u);
+  // The token response reaches the account only through `keep`, as `context:`.
+  refused("notion", method({ identity: { account_id: [["token:/workspace_id" as never]], label: ["context:workspace_name"] } }), /经 keep 进上下文/u);
   // Written down by the slice-2 review: `list` has one key, `body` and `label_prefix` are taken as written.
   refused("sentry", method({ identity: { url: "{service}/api/0/organizations/", list: { min_by: "/id", by_context: "org" } as never, account_id: [[], ["identity:/id"]], label: ["identity:/slug"] } }), /list/u);
   refused("linear", method({ identity: { url: "{service}/graphql", method: "POST", body: { query: "{context.team}" }, account_id: [[], ["identity:/id"]], label: ["identity:/id"] } }), /body/u);
@@ -113,6 +115,19 @@ test("RAC-1081 each declaration error fails the whole Manifest before anything i
   refused("slack", method({ identity: { url: "https://slack.com@evil.example/me", account_id: [[], ["identity:/id"]], label: ["identity:/id"] } }), /来源/u);
   refused("slack", method({ identity: { url: "https://slack.com{context.x}/me", account_id: [[], ["identity:/id"]], label: ["identity:/id"] } }), /来源/u);
   refused("slack", method({ identity: { url: "{service}/me", headers: { Cookie: "a=b" }, account_id: [[], ["identity:/id"]], label: ["identity:/id"] } }), /Cookie/u);
+  // One placeholder grammar: what a path refuses as a near-placeholder, a text taken as written refuses too.
+  for (const near of ["{Context.team}", "{ context.team }", "{SETTING.x}"]) {
+    refused("slack", method({ identity: { url: `{service}/teams/${near}`, account_id: [[], ["identity:/id"]], label: ["identity:/id"] } }), /未知的占位|占满一个路径段/u);
+    refused("linear", method({ identity: { url: "{service}/graphql", method: "POST", body: { query: near }, account_id: [[], ["identity:/id"]], label: ["identity:/id"] } }), /body/u);
+  }
+  refused("slack", method({ identity: { url: "{service}/me", query: { team: "{ context.team }" }, account_id: [[], ["identity:/id"]], label: ["identity:/id"] } }), /查询参数/u);
+  refused("slack", method({ identity: { url: "{service}/me", account_id: [[], ["identity:/id"]], label: ["identity:/id"] }, scopes: ["{setting.Scope}"] }), /scopes/u);
+});
+
+test("RAC-1081 a GraphQL body is a fixed JSON value: its braces are not placeholders", () => {
+  for (const [serviceId, query] of [["linear", "{ viewer { id name email } }"], ["monday", "query { me { id name email account { id } } }"], ["linear", "{viewer{id}}"]] as const) {
+    assert.ok(parsePluginManifest(manifest(serviceId, method({ identity: { url: "{service}/graphql", method: "POST", body: { query }, account_id: [[], ["identity:/data/id"]], label: ["identity:/data/id"] } }))), query);
+  }
 });
 
 test("RAC-1081 endpoints are held to the endpoint rule, not to the request table's origins", () => {
@@ -237,6 +252,7 @@ interface IdentityFixture {
   readonly identity: OAuthIdentityDeclaration;
   readonly keep?: PluginOAuthMethodDeclaration["keep"];
   readonly response: unknown;
+  /** The token response: what the method's `keep` keeps from it joins the context, as an authorization does. */
   readonly token?: object;
   readonly context?: Record<string, string>;
   readonly expected: { readonly account_id: string; readonly label: string };
@@ -262,9 +278,11 @@ const identities: Record<string, IdentityFixture> = {
     keep: [{ key: "instance", pointer: "/instance_url", check: "tenant" }],
     response: { organization_id: "00D1", sub: "https://login.salesforce.com/id/00D1/005A", user_id: "005A", preferred_username: "ada@acme" }, context: { instance: "https://acme.my.salesforce.com" },
     expected: { account_id: "00D1:https://login.salesforce.com/id/00D1/005A", label: "ada@acme" } },
-  sentry: { identity: { url: "{service}/api/0/organizations/", list: { min_by: "/id" }, account_id: [[], ["identity:/id"], ["token:/user/id"]], label: ["identity:/name", "identity:/slug"],
-    keep: [{ key: "org", pointer: "/slug" }] }, response: [{ id: "9", slug: "beta", name: "Beta" }, { id: "10", slug: "alpha", name: "Alpha" }], token: { user: { id: "u-7" } },
-  expected: { account_id: ":10:u-7", label: "Alpha" }, intended: "readIdentity 不接令牌响应的 user.id；今天这段由 apiOAuthIdentity 另接，声明里是 account_id 的第三段" },
+  sentry: { identity: { url: "{service}/api/0/organizations/", list: { min_by: "/id" }, account_id: [[], ["identity:/id"], ["context:oauth_user_id"]], label: ["identity:/name", "identity:/slug"],
+    keep: [{ key: "org", pointer: "/slug" }] }, keep: [{ key: "oauth_user_id", pointer: "/user/id" }],
+  response: [{ id: "9", slug: "beta", name: "Beta" }, { id: "10", slug: "alpha", name: "Alpha" }], token: { user: { id: "u-7" } },
+  expected: { account_id: ":10:u-7", label: "Alpha" },
+  intended: "C 头授权时 apiOAuthIdentity 同样得 :org:user（enrichContext 存的 oauth_user_id）；只有 readIdentity（检查、读账号）不接这一段，第 4 片三处一致" },
   supabase: { identity: { url: "{service}/v1/profile", account_id: [[], ["identity:/id", "identity:/gotrue_id"], ["literal:workspaces"], ["context:authorized_workspaces"]],
     label: ["identity:/primary_email", "identity:/username", "identity:/gotrue_id"] }, response: { gotrue_id: "g-1", primary_email: "ada@example.com" },
   context: { authorized_workspaces: "o1,o2" }, expected: { account_id: ":g-1:workspaces:o1,o2", label: "ada@example.com" },
@@ -275,8 +293,9 @@ const identities: Record<string, IdentityFixture> = {
   intended: "readIdentity 不接已授权工作区；今天这段由 apiOAuthIdentity 另接，声明里是 account_id 的后两段" },
   x: { identity: { url: "{service}/2/users/me", account_id: [[], ["identity:/data/id"]], label: ["identity:/data/username", "identity:/data/name"], label_prefix: "@",
     keep: [{ key: "user_id", pointer: "/data/id" }] }, response: { data: { id: "x-1", username: "ada", name: "Ada" } }, expected: { account_id: ":x-1", label: "@ada" } },
-  notion: { identity: { account_id: [["token:/workspace_id"]], label: ["token:/workspace_name"] }, token: { workspace_id: "w-1", workspace_name: "Acme" },
-    response: { object: "user", id: "bot-1", type: "bot", name: "Molis", bot: { workspace_name: "Acme" } }, context: { workspace_id: "w-1" },
+  notion: { identity: { account_id: [["context:workspace_id"]], label: ["context:workspace_name"] },
+    keep: [{ key: "workspace_id", pointer: "/workspace_id", required: true }, { key: "workspace_name", pointer: "/workspace_name" }], token: { workspace_id: "w-1", workspace_name: "Acme" },
+    response: { object: "user", id: "bot-1", type: "bot", name: "Molis", bot: { workspace_name: "Acme" } },
     expected: { account_id: "w-1", label: "Acme" }, intended: "§2.4：account_id 是令牌响应的 workspace，不再接 bot id（今天是 workspace:bot-id）" },
 };
 
@@ -287,14 +306,15 @@ async function catalogReading(serviceId: string, fixture: IdentityFixture) {
     seen = String(url);
     return new Response(JSON.stringify(fixture.response), { status: 200, headers: { "content-type": "application/json" } });
   };
-  const reading = await catalogWhoami({ connectorId: serviceId, token: "access-1", authExtras: { auth_method: "oauth", ...fixture.context }, fetchImpl: fetchImpl as typeof fetch });
+  const context = { ...fixture.context, ...(fixture.token ? oauthKept(serviceId, fixture.keep, fixture.token) : {}) };
+  const reading = await catalogWhoami({ connectorId: serviceId, token: "access-1", authExtras: { auth_method: "oauth", ...context }, fetchImpl: fetchImpl as typeof fetch });
   return { reading, seen };
 }
 
 for (const [serviceId, fixture] of Object.entries(identities)) {
   test(`RAC-1080 ${serviceId}: the declared identity reads the account §2.1.1 writes down`, async () => {
-    const context = fixture.context ?? {};
-    const after = oauthAccount(serviceId, fixture.identity, { identity: fixture.identity.url ? fixture.response : undefined, token: fixture.token ?? {}, context });
+    const context = { ...fixture.context, ...(fixture.token ? oauthKept(serviceId, fixture.keep, fixture.token) : {}) };
+    const after = oauthAccount(serviceId, fixture.identity, { identity: fixture.identity.url ? fixture.response : undefined, context });
     assert.deepEqual({ account_id: after.account_id, label: after.label }, fixture.expected);
     const { reading, seen } = await catalogReading(serviceId, fixture);
     assert.ok(reading.ok, JSON.stringify(reading));
@@ -312,12 +332,12 @@ for (const [serviceId, fixture] of Object.entries(identities)) {
 test("RAC-1080 the intended tightenings: x with no name, clickup and supabase with no id, and no authorized workspace fail", async () => {
   const x = identities.x!;
   const nameless = { ...x, response: { data: { id: "x-1" } } };
-  assert.throws(() => oauthAccount("x", x.identity, { identity: nameless.response, token: {}, context: {} }), { code: "connector.oauth_declarations.account_missing" });
+  assert.throws(() => oauthAccount("x", x.identity, { identity: nameless.response, context: {} }), { code: "connector.oauth_declarations.account_missing" });
   assert.equal((await catalogReading("x", nameless)).reading.login, "X", "today shows the fallback X");
   for (const serviceId of ["clickup", "supabase"]) {
     const fixture = identities[serviceId]!;
     const idless = { ...fixture, response: { user: { username: "ada" }, primary_email: "ada@example.com" } };
-    assert.throws(() => oauthAccount(serviceId, fixture.identity, { identity: idless.response, token: {}, context: fixture.context ?? {} }), { code: "connector.oauth_declarations.account_missing" }, serviceId);
+    assert.throws(() => oauthAccount(serviceId, fixture.identity, { identity: idless.response, context: fixture.context ?? {} }), { code: "connector.oauth_declarations.account_missing" }, serviceId);
     const today = (await catalogReading(serviceId, idless)).reading;
     assert.ok(today.ok && !today.account_id, `${serviceId}: today reads no account id and does not fail`);
   }
@@ -329,18 +349,19 @@ test("RAC-1080 the intended tightenings: x with no name, clickup and supabase wi
 
 test("RAC-1080 the account fails when a segment other than the prefix is empty, and the label when nothing is found", () => {
   const identity: OAuthIdentityDeclaration = { url: "{service}/me", account_id: [["identity:/team"], ["identity:/id"]], label: ["identity:/name"] };
-  assert.equal(oauthAccount("slack", identity, { identity: { id: 1, name: "a" }, token: {}, context: {} }).account_id, ":1", "an empty prefix");
-  assert.throws(() => oauthAccount("slack", identity, { identity: { team: "t", name: "a" }, token: {}, context: {} }), { code: "connector.oauth_declarations.account_missing" });
-  assert.throws(() => oauthAccount("slack", identity, { identity: { id: 1 }, token: {}, context: {} }), { code: "connector.oauth_declarations.account_missing" });
+  assert.equal(oauthAccount("slack", identity, { identity: { id: 1, name: "a" }, context: {} }).account_id, ":1", "an empty prefix");
+  assert.throws(() => oauthAccount("slack", identity, { identity: { team: "t", name: "a" }, context: {} }), { code: "connector.oauth_declarations.account_missing" });
+  assert.throws(() => oauthAccount("slack", identity, { identity: { id: 1 }, context: {} }), { code: "connector.oauth_declarations.account_missing" });
   const x: OAuthIdentityDeclaration = { url: "{service}/2/users/me", account_id: [[], ["identity:/data/id"]], label: ["identity:/data/username", "identity:/data/name"], label_prefix: "@" };
-  assert.equal(oauthAccount("x", x, { identity: { data: { id: "1", name: "@ada" } }, token: {}, context: {} }).label, "@ada", "the prefix is not added twice");
+  // The prefix is put before the label as written: a response already off (no username, a name starting with @) shows @@, RAC-1080's intended difference.
+  assert.equal(oauthAccount("x", x, { identity: { data: { id: "1", name: "@ada" } }, context: {} }).label, "@@ada");
   const sentry: OAuthIdentityDeclaration = { url: "{service}/api/0/organizations/", list: { min_by: "/id" }, account_id: [[], ["identity:/id"]], label: ["identity:/slug"] };
   const orgs = [{ id: "9", slug: "beta" }, { id: "10", slug: "alpha" }];
-  assert.equal(oauthAccount("sentry", sentry, { identity: orgs, token: {}, context: { org: "beta" } }).label, "alpha", "the context's org picks nothing");
+  assert.equal(oauthAccount("sentry", sentry, { identity: orgs, context: { org: "beta" } }).label, "alpha", "the context's org picks nothing");
   // By code point, the same on every machine: "B" (U+0042) comes before "a" (U+0061), whatever the locale's collation says.
-  assert.equal(oauthAccount("sentry", sentry, { identity: [{ id: "a", slug: "lower" }, { id: "B", slug: "upper" }], token: {}, context: {} }).label, "upper");
-  const notion: OAuthIdentityDeclaration = { account_id: [["token:/workspace_id"]], label: ["token:/workspace_name"] };
-  assert.deepEqual(oauthAccount("notion", notion, { token: { workspace_id: "w-1", workspace_name: "Acme" }, context: {} }), { account_id: "w-1", label: "Acme", kept: {} });
+  assert.equal(oauthAccount("sentry", sentry, { identity: [{ id: "a", slug: "lower" }, { id: "B", slug: "upper" }], context: {} }).label, "upper");
+  const notion: OAuthIdentityDeclaration = { account_id: [["context:workspace_id"]], label: ["context:workspace_name"] };
+  assert.deepEqual(oauthAccount("notion", notion, { context: { workspace_id: "w-1", workspace_name: "Acme" } }), { account_id: "w-1", label: "Acme", kept: {} });
 });
 
 test("RAC-1082 context picks: the ids of a list in code-point order, and the id of the entry on the tenant setting's origin", () => {

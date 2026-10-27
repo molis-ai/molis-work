@@ -86,7 +86,7 @@ export interface OAuthTokenRequestDeclaration {
     readonly query?: Readonly<Record<string, string>>;
 }
 
-export type OAuthValueSource = `identity:/${string}` | `token:/${string}` | `context:${string}` | `literal:${string}`;
+export type OAuthValueSource = `identity:/${string}` | `context:${string}` | `literal:${string}`;
 
 export type PluginAuthMethodDeclaration = {
     readonly kind: "token";

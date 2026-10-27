@@ -27,8 +27,8 @@ export { redactSecrets } from "./redact-secrets.js";
 /** The rules a connector's `oauth` declaration is read by, shared by the Manifest check and the Host's interpreter (W5-11). */
 export {
   isDeclaredOAuth, oauthCodePointOrder, oauthDeclarableHeader, oauthFillPlaceholders, oauthKey, oauthLooksLikePlaceholder, oauthPathPlaceholders, oauthPathSegment,
-  oauthPlaceholders, oauthPointerTokens, oauthPublicHostName, oauthSettingValueFault, oauthTenantOriginUnder, oauthUrlTemplate, oauthValueTemplate,
-  type OAuthSettingValueFault,
+  oauthPlaceholder, oauthPlaceholders, oauthPointerTokens, oauthPublicHostName, oauthSettingValueFault, oauthTenantOriginUnder, oauthUrlTemplate, oauthValueTemplate,
+  type OAuthPlaceholder, type OAuthSettingValueFault,
 } from "./oauth-templates.js";
 export { questionAnswer } from "./question-answers.js";
 export { QUESTION_REASK, questionDraftMaterial } from "./question-drafts.js";

@@ -8,12 +8,12 @@ import {
 // The rules an `oauth` declaration's templates and values are read by (W5-11 §2.1), one copy for both readers: the SDK's shape check
 // and the Host's interpreter take them from here, so neither accepts what the other refuses.
 
-const PLACEHOLDER = /\{([^{}]*)\}/gu;
-const PLACEHOLDER_LIKE = /\{(?:client_id|service|tenant|gateway|account|(?:context|setting)\.[^{}]*)\}/u;
+const BRACES = /\{([^{}]*)\}/gu;
 const KEY = /^[a-z][a-z0-9_]{0,63}$/u;
 const HEADER_NAME = /^[A-Za-z][A-Za-z0-9-]{0,63}$/u;
-const CONTEXT_VALUE = /^\{context\.([a-z][a-z0-9_]{0,63})\}$/u;
-const URL_HEAD = /^\{([a-z]+)\}(\/.*)$/su;
+const WHOLE = /^\{([^{}]*)\}$/u;
+const URL_HEAD = /^\{([^{}]*)\}(\/.*)$/su;
+const HEADS = ["service", "tenant", "gateway"] as const;
 const URL_ORIGIN = /^(https:\/\/[^/{}?#]+)(\/.*)$/su;
 const IP_LITERAL = /^(?:\d+\.){3}\d+$|^\[/u;
 const LOCAL_SUFFIX = /\.(?:localhost|local|internal|home\.arpa)$/u;
@@ -30,43 +30,69 @@ export function oauthKey(value: unknown): value is string {
   return typeof value === "string" && KEY.test(value);
 }
 
-/** The names inside every `{…}` of a template, in order. */
+/** The one placeholder grammar every template is read by: `{client_id}`, an address head, `{context.<key>}`, `{setting.<key>}`. */
+export type OAuthPlaceholder =
+  | { readonly kind: "client_id" }
+  | { readonly kind: "head"; readonly head: (typeof HEADS)[number] }
+  | { readonly kind: "context" | "setting"; readonly key: string };
+
+/** What the text between a pair of braces names; `undefined` when it is not a placeholder. `{account}` joins the heads in slice 4. */
+export function oauthPlaceholder(name: string): OAuthPlaceholder | undefined {
+  if (name === "client_id") return { kind: "client_id" };
+  if ((HEADS as readonly string[]).includes(name)) return { kind: "head", head: name as (typeof HEADS)[number] };
+  const dot = name.indexOf(".");
+  const kind = name.slice(0, dot);
+  const key = name.slice(dot + 1);
+  return dot > 0 && (kind === "context" || kind === "setting") && KEY.test(key) ? { kind, key } : undefined;
+}
+
+/** The text inside every innermost `{…}` of a template, in order; each is read by `oauthPlaceholder`. */
 export function oauthPlaceholders(template: string): string[] {
-  return [...template.matchAll(PLACEHOLDER)].map(match => match[1]!);
+  return [...template.matchAll(BRACES)].map(match => match[1]!);
 }
 
-/** A template with each `{name}` replaced by what `fill` gives for it. */
+/** A template with each `{…}` replaced by what `fill` gives for its text. */
 export function oauthFillPlaceholders(template: string, fill: (name: string) => string): string {
-  return template.replace(PLACEHOLDER, (_, name: string) => fill(name));
-}
-
-/** Whether a text holds what reads as a placeholder; `body` and `label_prefix` are taken as written, so they may not. */
-export function oauthLooksLikePlaceholder(text: string): boolean {
-  return PLACEHOLDER_LIKE.test(text);
+  return template.replace(BRACES, (_, name: string) => fill(name));
 }
 
 /**
- * An address template split where its origin ends: `{service}`, `{tenant}`, `{gateway}` (any `{word}` comes back as `head` for the
- * caller to judge) or a written `https://` origin, then a path starting with `/`. `undefined` for anything else, such as a placeholder
- * in the host name.
+ * Whether a text taken as written (`body`, `label_prefix`) holds a pair of braces the grammar would read as a placeholder once its
+ * spaces and case are set aside, as `{ Context.x }`; GraphQL's `{ viewer { id } }` holds none.
  */
-export function oauthUrlTemplate(template: string): { readonly head: string; readonly path: string } | { readonly origin: string; readonly path: string } | undefined {
+export function oauthLooksLikePlaceholder(text: string): boolean {
+  return oauthPlaceholders(text).some(name => oauthPlaceholder(name.trim().toLowerCase()) !== undefined);
+}
+
+/**
+ * An address template split where its origin ends: a `{…}` head (`head` is what the grammar reads it as, `undefined` when it is not an
+ * address head; `name` is its text) or a written `https://` origin, then a path starting with `/`. `undefined` for anything else, such
+ * as a placeholder in the host name.
+ */
+export function oauthUrlTemplate(template: string): { readonly head: (typeof HEADS)[number] | undefined; readonly name: string; readonly path: string }
+  | { readonly origin: string; readonly path: string } | undefined {
   const head = URL_HEAD.exec(template);
-  if (head) return { head: head[1]!, path: head[2]! };
+  if (head) {
+    const placeholder = oauthPlaceholder(head[1]!);
+    return { head: placeholder?.kind === "head" ? placeholder.head : undefined, name: head[1]!, path: head[2]! };
+  }
   const origin = URL_ORIGIN.exec(template);
   return origin ? { origin: origin[1]!, path: origin[2]! } : undefined;
 }
 
-/** The placeholder names of a path when each fills a whole segment; `undefined` for an unpaired brace, a shared segment, a query or fragment. */
-export function oauthPathPlaceholders(path: string): string[] | undefined {
+/**
+ * The placeholders of a path when each fills a whole segment, with the grammar's reading of each (`undefined` for a name it does not
+ * know); `undefined` for an unpaired brace, a shared segment, a query or fragment.
+ */
+export function oauthPathPlaceholders(path: string): { readonly name: string; readonly placeholder: OAuthPlaceholder | undefined }[] | undefined {
   if (/[?#]/u.test(path)) return undefined;
-  const names: string[] = [];
+  const found: { name: string; placeholder: OAuthPlaceholder | undefined }[] = [];
   for (const segment of path.split("/")) {
     const inner = oauthPlaceholders(segment);
-    if (/[{}]/u.test(segment.replace(PLACEHOLDER, "")) || (inner.length > 0 && segment !== `{${inner[0]}}`)) return undefined;
-    names.push(...inner);
+    if (/[{}]/u.test(segment.replace(BRACES, "")) || (inner.length > 0 && segment !== `{${inner[0]}}`)) return undefined;
+    for (const name of inner) found.push({ name, placeholder: oauthPlaceholder(name) });
   }
-  return names;
+  return found;
 }
 
 /** A value that may fill one path segment: no `/`, `\`, `..`, nor an encoded slash, backslash or dot. */
@@ -74,12 +100,13 @@ export function oauthPathSegment(value: string): boolean {
   return value !== "" && value !== "." && !value.includes("/") && !value.includes("\\") && !value.includes("..") && !/%2f|%5c|%2e/iu.test(value);
 }
 
-/** A header or query value: a constant, `{client_id}` or `{context.<key>}`; `null` for anything else with a brace in it. */
+/** A header or query value: a constant, or exactly `{client_id}` or `{context.<key>}`; `null` for anything else with a brace in it. */
 export function oauthValueTemplate(value: string): { readonly kind: "literal"; readonly value: string } | { readonly kind: "client_id" } | { readonly kind: "context"; readonly key: string } | null {
-  if (value === "{client_id}") return { kind: "client_id" };
-  const context = CONTEXT_VALUE.exec(value);
-  if (context) return { kind: "context", key: context[1]! };
-  return /[{}]/u.test(value) ? null : { kind: "literal", value };
+  if (!/[{}]/u.test(value)) return { kind: "literal", value };
+  const whole = WHOLE.exec(value);
+  const placeholder = whole ? oauthPlaceholder(whole[1]!) : undefined;
+  if (placeholder?.kind === "client_id") return placeholder;
+  return placeholder?.kind === "context" ? { kind: "context", key: placeholder.key } : null;
 }
 
 /** Whether a declaration may write this request header: not one the platform writes, nor one that would carry a credential. */

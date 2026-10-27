@@ -215,6 +215,16 @@ export type { MaterialSource } from "@molis-ai/molis-work-contracts/services/mat
 export type { MaterialSourceContent } from "@molis-ai/molis-work-contracts/services/materials";
 export type { MaterialUpload } from "@molis-ai/molis-work-contracts/services/materials";
 
+export type OAuthPlaceholder = {
+    readonly kind: "client_id";
+} | {
+    readonly kind: "head";
+    readonly head: (typeof HEADS)[number];
+} | {
+    readonly kind: "context" | "setting";
+    readonly key: string;
+};
+
 export type OAuthSettingValueFault = "enum" | "pattern" | "path" | "tenant";
 
 export { PERSONAL_SPACE_PROJECT_ID } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -491,9 +501,14 @@ export declare function oauthKey(value: unknown): value is string;
 
 export declare function oauthLooksLikePlaceholder(text: string): boolean;
 
-export declare function oauthPathPlaceholders(path: string): string[] | undefined;
+export declare function oauthPathPlaceholders(path: string): {
+    readonly name: string;
+    readonly placeholder: OAuthPlaceholder | undefined;
+}[] | undefined;
 
 export declare function oauthPathSegment(value: string): boolean;
+
+export declare function oauthPlaceholder(name: string): OAuthPlaceholder | undefined;
 
 export declare function oauthPlaceholders(template: string): string[];
 
@@ -510,7 +525,8 @@ export declare function oauthSettingValueFault(setting: {
 export declare function oauthTenantOriginUnder(domain: string, raw: string): string | undefined;
 
 export declare function oauthUrlTemplate(template: string): {
-    readonly head: string;
+    readonly head: (typeof HEADS)[number] | undefined;
+    readonly name: string;
     readonly path: string;
 } | {
     readonly origin: string;
@@ -607,3 +623,7 @@ export declare function wallClockIn(at: number, zone: string | undefined): {
 export { withActionEffect } from "@molis-ai/molis-work-contracts/platform/actions";
 export { withinDueReminderWindow } from "@molis-ai/molis-work-contracts/platform/actions";
 export { withinHomeEventWindow } from "@molis-ai/molis-work-contracts/platform/actions";
+
+// Declarations the exports above refer to, which no entry exports itself:
+
+declare const HEADS: readonly ["service", "tenant", "gateway"];

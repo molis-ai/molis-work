@@ -57,10 +57,10 @@ export interface OAuthTokenRequestDeclaration {
 }
 
 /**
- * Where one value comes from: `identity:/pointer` (the identity response), `token:/pointer` (the token response), `context:key` (the
- * connection's context) or `literal:text`. Pointers are JSON Pointers.
+ * Where one value of the account comes from: `identity:/pointer` (the identity response, a JSON Pointer), `context:key` (the connection's
+ * context) or `literal:text`. A value of the token response is first kept (`keep`) and then read as `context:`.
  */
-export type OAuthValueSource = `identity:/${string}` | `token:/${string}` | `context:${string}` | `literal:${string}`;
+export type OAuthValueSource = `identity:/${string}` | `context:${string}` | `literal:${string}`;
 
 /** A value the connection keeps in its context: from the token response (`keep`) or the identity response (`identity.keep`). */
 export interface OAuthKeepDeclaration {
@@ -82,12 +82,15 @@ export interface OAuthIdentityDeclaration extends Partial<OAuthTokenRequestDecla
   readonly account_id: readonly (readonly OAuthValueSource[])[];
   /** The first non-empty source is the account's label. */
   readonly label: readonly OAuthValueSource[];
-  /** Taken as written, never expanded; not added again to a label that already starts with it (x's `@`). */
+  /** Put before the label as written, never expanded (x's `@`). */
   readonly label_prefix?: string;
   readonly keep?: readonly OAuthKeepDeclaration[];
 }
 
-/** One read-only request sent after the token comes back, every time the account is authorized; its value goes into the context at `key`. */
+/**
+ * One read-only request sent after the token comes back, each time the account is authorized and never on a check, an account read or a
+ * refresh (those read what it left); its value goes into the context at `key`.
+ */
 export interface OAuthContextDeclaration extends OAuthTokenRequestDeclaration {
   readonly key: string;
   /**

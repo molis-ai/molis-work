@@ -8,7 +8,7 @@ import { ActionError, bindActionClient } from "@molis-ai/molis-work-contracts/pl
 import { createFeedSourceHandlers, feedSourceActions, feedManifest } from "@molis-ai/molis-work-plugin-feed";
 import { DEMO_PROJECT_ID, seedDemoBoard, LocalProjectDatabase, type SourcePullRuntime } from "@molis-ai/molis-work-app-local-host";
 import { LocalHost } from "@molis-ai/molis-work-app-local-host";
-import { createLocalFeedSourceService, createLocalFeedConnectorSync } from "./fixtures/feed-library.js";
+import { createLocalFeedApplication, createLocalFeedSourceService, createLocalFeedConnectorSync } from "./fixtures/feed-library.js";
 
 for (const change of ["paused", "edited", "revoked", "cancelled"] as const) test(`Feed sync ignores the stale result after ${change} and releases its source lease`, { timeout: 15_000 }, async () => {
   const home = mkdtempSync(join(tmpdir(), "feed-sync-guard-")), path = join(home, "project.sqlite");
@@ -62,7 +62,6 @@ for (const change of ["paused", "edited", "revoked", "cancelled"] as const) test
 });
 
 test("concurrent manual Feed evaluations consume only the Inbox events they created", async () => {
-  const { createLocalFeedApplication } = await import("@molis-ai/molis-work-app-local-host");
   const home = mkdtempSync(join(tmpdir(), "feed-evaluation-owner-")), path = join(home, "project.sqlite");
   seedDemoBoard(path); const store = new LocalProjectDatabase(path);
   const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
@@ -92,7 +91,6 @@ async function cancellableFeed(run: (fixture: {
   feed: import("@molis-ai/molis-work-plugin-feed").FeedApplication; calls: string[]; ingest(id: string): string;
   context(actor_id: string): { actor_id: string; project_id: string; audience: "user"; permissions: string[] };
 }) => Promise<void>): Promise<void> {
-  const { createLocalFeedApplication } = await import("@molis-ai/molis-work-app-local-host");
   const home = mkdtempSync(join(tmpdir(), "feed-judgment-cancel-")), path = join(home, "project.sqlite");
   seedDemoBoard(path); const store = new LocalProjectDatabase(path);
   const calls: string[] = [];

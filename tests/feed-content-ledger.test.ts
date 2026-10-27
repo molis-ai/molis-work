@@ -209,19 +209,23 @@ test("FI-C-07: the kept bodies are named in batches; a ledger that does not answ
   const control = standIn<PluginJobControl>({ job: "feed-reconcile", signal: abort.signal, beforeEffect: async () => {}, assert_authority_current: () => {} });
   let done: Promise<void> | undefined;
   const background = standIn<PluginBackgroundClient>({ keep: (_job: string, work: (control: PluginJobControl) => Promise<void>) => { done = work(control).catch(() => {}); return { done }; } });
-  const watch = createConnectionWatch(), settle = () => new Promise(resolve => setTimeout(resolve, 30));
+  // Waits for the tries a step should make (a loaded machine may take longer than the delays), then a moment more to see none follows.
+  const watch = createConnectionWatch(), settle = async (count: number) => {
+    for (const start = Date.now(); asked.length < count && Date.now() - start < 5_000;) await new Promise(resolve => setTimeout(resolve, 5));
+    await new Promise(resolve => setTimeout(resolve, 30));
+  };
   keepFeedReconcile(background, ports, watch, [1, 1]);
-  await settle();
+  await settle(3);
   assert.deepEqual(asked, ["refused", "refused", "refused"], "at start: one try and one after each delay, then the job waits instead of swallowing it for good");
   watch.changed();
-  await settle();
+  await settle(4);
   assert.deepEqual(asked.slice(3), ["refused"], "a change of a connection tries once more");
   failing = 0;
   watch.changed();
-  await settle();
+  await settle(7);
   assert.deepEqual(asked.slice(4), [`s1:${FEED_CONTENT_LEDGER_BATCH}`, "s1:1", "s2:1"], "the ledger back, every kept body is named, in batches it takes");
   watch.changed();
-  await settle();
+  await settle(7);
   assert.equal(asked.length, 7, "once named, a change names nothing again");
   // At the next start the job names them again, so a library whose ledger entries went missing meanwhile is held again.
   abort.abort();
@@ -231,7 +235,7 @@ test("FI-C-07: the kept bodies are named in batches; a ledger that does not answ
   failing = 1;
   keepFeedReconcile(standIn<PluginBackgroundClient>({ keep: (_job: string, work: (control: PluginJobControl) => Promise<void>) => ({ done: work({ ...control, signal: again.signal }).catch(() => {}) }) }),
     ports, createConnectionWatch(), [1]);
-  await settle();
+  await settle(11);
   assert.deepEqual(asked.slice(7), ["refused", `s1:${FEED_CONTENT_LEDGER_BATCH}`, "s1:1", "s2:1"], "a start the ledger first refuses names them on the next try");
 });
 

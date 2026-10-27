@@ -224,7 +224,7 @@
 - `list: { min_by: "/id" }`：响应是列表时，取 `/id` 最小的那一项，按 Unicode 码点比较（第 1 片评审：`localeCompare` 随运行环境的 locale 变；sentry 的 id 是数字串，两种比较结果相同，今天的连接不受影响）。只有 sentry 用。第一版写的「上下文里已经有 `org` 时取 `slug` 相同的那项」删掉（第 2 片评审）：授权流程里上下文从来没有 `org`，那条路只在 Feed 读取时走，归插件代码。
 
 **写死的三条**（第 2 片评审，第 1 片的 SDK 检查拒绝违反的声明）：
-1. `body` 是固定的 JSON，里面不展开任何占位：哪个字符串（含键名）里有一对最内层的花括号，去掉首尾空白、改成小写后按占位文法（§2.1「每条规则只有一份」）读得出来，比如 `{context.team}`、`{ Context.team }`，整份不过。这和路径用的是同一份文法：同样的写法在路径里也报错。GraphQL 的 `{ viewer { … } }` 不是占位写法，照收。`{ viewer { id name email } }`、`query { me { id } }`、`{viewer{id}}` 都照收，有用例。代价：花括号里只有一个字段、字段名又正好是占位名的（`{ service }`、`query{tenant}`），会被当成占位拒掉；今天的 37 个服务没有这样写的。
+1. `body` 是固定的 JSON，里面不展开任何占位：哪个字符串（含键名）里有一对最内层的花括号，去掉首尾空白、改成小写后按占位文法（§2.1「每条规则只有一份」）读得出来，比如 `{context.team}`、`{ Context.team }`，整份不过。这和路径用的是同一份文法：同样的写法在路径里也报错。GraphQL 的 `{ viewer { … } }` 不是占位写法，照收。`{ viewer { id name email } }`、`query { me { id } }`、`{viewer{id}}` 都照收，有用例。代价：花括号里只有一个字段、字段名又正好是占位名的（`{ service }`、`query{tenant}`），会被当成占位拒掉；看的是最内层那对花括号，所以嵌在里面的也一样：以后 GraphQL 里只要有一层只剩一个字段、字段名正好是占位名，比如 `{ me { tenant } }`，整份就被拒。今天的 37 个服务没有这样写的：写 `body` 的只有 dropbox、linear、monday，写 `label_prefix` 的只有 x，评审 10-27 核过，没有一家会被拒。
 2. `list` 只有 `min_by` 一个键。
 3. `label_prefix` 是字面量，不当模板展开，带占位写法的整份不过；原样拼在 label 前面，不看 label 开头（第 2 片复核删了「已经以它开头就不再加」：只有响应异常时才走得到，那时显示成 `@@名字`，记进 RAC-1080 的有意不同）。
 
@@ -592,7 +592,7 @@
   - 存量连接：`auth_method: "oauth"` 却没有 `connector-protocol:` 引用的，直接 `reauth_required`（§2.6、Q2）。token 连接不受影响。
 - **新错误码**：都用 `defineErrorCodes` 声明，不新写 Error 子类。
 - **升级须知**：`docs/releases/CHANGELOG.md` 的 `[Unreleased]`「升级须知」写两条：
-  - Gmail、Notion、GitHub 设备授权的连接要重新新增，原来绑在这些连接上的 Feed 来源由本人在来源详情里换到新连接（换后是独立的新来源，旧来源暂停，原消息保留；Notion 没有 Feed 来源，文档导入每次选连接），旧连接由本人删掉（Q2，用户 10-27 改定；入口按 C `143d57bb5` 核过，见 §10 Q2 第 4 步）；
+  - Gmail、Notion、GitHub 设备授权的连接要重新新增，原来绑在这些连接上的 Feed 来源由本人在来源详情里换到新连接（换后是独立的新来源，旧来源暂停，原消息保留；Notion 没有 Feed 来源，文档导入每次选连接）；Alchemist 市场脉搏的 GitHub 账号要在它的「来源设置」里重新选，没重新选之前脉冲用匿名搜索（限额较低）；旧连接由本人删掉（Q2，用户 10-27 改定；入口按 C `143d57bb5` 核过，见 §10 Q2 第 4 步）；
   - 产品客户端的环境变量改名（Q5）。
 
 ### 6.2 快照与名字
@@ -657,7 +657,7 @@
 | RAC-1086 | 设备授权：start 和 poll 缺 S-03 那三样就拒；device_code 不出现在任何响应里；`verification_uri` 不合规就终止；间隔没到的 poll 不发请求，`slow_down` 后加大间隔；每次 poll 和提交前重查第 6、7、9 条；过期、被拒、插件停用都终止，只写 §3.4 左边一列 | 安全用例加一个假的设备端点 |
 | RAC-1087 | 插件拿不到 OAuth 流程里的 code、verifier、client secret 和 refresh token：Gmail、Notion、GitHub 包里没有密钥库的端口。服务换主人（官方集成停用，同一 service_id 由别的插件声明）后，产品客户端、本人的 client secret 和 refresh token 都不发往新声明的端点 | 包导入检查；换主人的拒绝用例，用一个声明了别的 `token_url` 的测试插件 |
 | RAC-1088 | Alchemist 例外，**只管 OAuth 连接**：GitHub 集成插件启用时，脉冲照样带令牌；插件停用时，脉冲退回匿名，令牌不发出去。token 连接不变（BL-794） | 宿主用例，对 `api.github.com` 用假的 fetch；token 连接那一条只断言「行为和今天相同」 |
-| RAC-1089 | 旧的 OAuth 连接（`auth_method: "oauth"`、没有 `connector-protocol:` 引用）直接 `reauth_required`，不发任何请求，也不走 token 分支；token 连接照旧。旧形状的连接点重新授权，换到令牌后得到「请新增连接」，不会悄悄认成原来的账号：连接、凭据、protocol 配置和来源的绑定一个字节不变，也不新建连接（§10 Q2「10-27 用户改定」）。Gmail、Notion、GitHub 设备授权和一个 catalog 服务的完整流程（发起 → 回调 → 连接可用 → 刷新 → 重新授权）在通用流程上走通，设置页和入门流程的返回不变 | 宿主用例加端到端用例（假的提供方）；旧形状连接重连的用例三种旧连接各一条，`account_label` 与这次算出的 account_id、label 都相同时同样得到「请新增连接」；浏览器用例按 PARALLEL-DEVELOPMENT 排时段 |
+| RAC-1089 | 旧的 OAuth 连接（`auth_method: "oauth"`、没有 `connector-protocol:` 引用）直接 `reauth_required`，不发任何请求，也不走 token 分支；token 连接照旧。旧形状的连接点重新授权，换到令牌后得到「请新增连接」，不会悄悄认成原来的账号：连接、凭据、protocol 配置和来源的绑定一个字节不变，也不新建连接（§10 Q2「10-27 用户改定」）。Gmail、Notion、GitHub 设备授权和一个 catalog 服务的完整流程（发起 → 回调 → 连接可用 → 刷新 → 重新授权）在通用流程上走通，设置页和入门流程的返回不变 | 宿主用例加端到端用例（假的提供方）；旧形状连接重连的用例三种旧连接各一条，`account_label` 与这次算出的 account_id、label 都相同时同样得到「请新增连接」；Alchemist 市场脉搏绑着旧 GitHub 连接、该连接要求重新授权以后，对 `api.github.com` 的假 fetch 收到的请求不带它的令牌（不修「退成匿名」本身，见 §10 Q2 第 4 步）；浏览器用例按 PARALLEL-DEVELOPMENT 排时段 |
 
 ## 9. 不做与后续（BL）
 
@@ -694,10 +694,11 @@ BL-796～799 留空。
       4. **收尾**：旧连接不由平台删，也不由平台改绑；本人新增连接、在来源的设置里换到新连接后，用现有的删除入口删掉旧连接。
          - **入口已核（只读，C 分支 `feature/anticorruption-closeout-c` 的 `143d57bb5`，10-27）：有，本线不另开。** 换连接在 Feed 来源详情的「使用的账号连接」下拉（`plugins/native/feed/src/ui.ts:427`，`data-source-config-field="connection_id"`）；`apps/workbench/src/scripts/client/navigation-feed-sources.ts:92-120` 列出该服务的全部连接和状态（可用、需要重新授权、已断开），原连接不可用时提示「原连接已不可用，请重新选择或前往 Connectors」。保存走 `feed.source.update` 带 `connection_id`（`plugins/native/feed/src/source-actions.ts:36`），只接受 github、gmail、connector 三种同步方式。
          - **注意，这不是就地改绑**（`plugins/native/feed/src/source-service.ts:131-205`）：换到另一个连接时，按项目、连接器、方式和新 `connection_id` 算出一个新来源 id，建出独立的新来源，旧来源暂停，原消息保留，追加事件「来源已切换到另一账号连接」；新来源 id 原来没有时才复制外发规则。界面上写着「更换账号会创建独立来源并暂停旧来源，原消息会保留。」所以 §6.1 的升级须知要写明：换连接会建出新来源、暂停旧来源，原消息保留，不是把原来源的绑定原样迁过去。
-         - **删除**：`connectors.connection.remove`（`apps/local-host/src/connector-management-actions.ts:42`，`change()` 在 `:66`）比对版本，不可撤销；删凭据和 protocol 配置，保留业务结果；不因为还有来源在用而拦下。谁在用由 `connectors.usages.read` 另读，汇总 `feed.connection.usages`（`plugins/native/feed/src/query-actions.ts:27`）、模型和生图三家；Gmail、Notion、GitHub 的长期绑定只在 Feed 来源上。
+         - **删除**：`connectors.connection.remove`（`apps/local-host/src/connector-management-actions.ts:42`，`change()` 在 `:66`）比对版本，不可撤销；删凭据和 protocol 配置，保留业务结果；不因为还有来源在用而拦下。谁在用由 `connectors.usages.read` 另读，汇总 `feed.connection.usages`（`plugins/native/feed/src/query-actions.ts:27`）、模型和生图三家。
+         - **另一处长期绑定：Alchemist 市场脉搏的 GitHub 账号**（评审 10-27 指出，原先这里写的「长期绑定只在 Feed 来源上」不对）。C 上 `apps/local-host/src/alchemist-pulse-github.ts:8,31-47`：绑定记在连接登记表 `home/alchemist/pulse-github`，整个 Home 共用一条；`auth_method` 是 token 或 oauth 的 GitHub 连接都能选，所以旧的 GitHub 设备授权连接可能绑在这里。旧连接按第 1 条标「需要重新授权」以后，`boundToken` 里 `resolveApiConnection` 抛错被接住，脉冲**悄悄退成匿名搜索**（限额较低），只写一条宿主日志 `pulse_token_unavailable`；这个槽也**不在** `connectors.usages.read` 里，删除连接时看不到它在用。重新选的入口是现成的：Alchemist 市场脉搏的「来源设置」（动作 `alchemist.pulse.github.configure`）。Alchemist 不迁移、以后删（`specs/repository-anti-corruption` 的 Alchemist 决定），所以「退成匿名」和「不在 usages 里」这两件只在这里写明，本线不修；升级须知（§6.1）写一句「市场脉搏的 GitHub 账号要重新选」；RAC-1089 加一条断言：旧 GitHub 连接要求重新授权以后，脉冲不再拿它的令牌发请求。
          - **Notion**：C 上没有 Feed 来源用 Notion；成果库的文档导入（`apps/local-host/src/artifact-document-import.ts:89-92`）每次导入时选连接，不留长期绑定：没给连接、该服务只有一条已连接的就用它，多条就要求本人选。所以 Notion 只需新增连接，没有来源要换。
     - 第 5 片配用例（RAC-1089）：三种旧连接各一条，点重连得到「请新增连接」，不会悄悄认成原来的账号，`account_label` 与这次算出的 account_id、label 都相同时也一样；连接和绑定一个字节不变。
-    - 代价：GitHub、Gmail 的 Feed 来源都要本人换一次连接（换后是新来源，旧来源暂停、原消息保留），Notion 只需新增连接；写进升级须知（§6.1）。
+    - 代价：GitHub、Gmail 的 Feed 来源都要本人换一次连接（换后是新来源，旧来源暂停、原消息保留），市场脉搏的 GitHub 账号要重新选，Notion 只需新增连接；写进升级须知（§6.1）。
 - **Q3　声明它的插件停用了，已有的 OAuth 连接怎么办？**　**已定：A，刷新和发送都拒**（统筹，10-27）。
   - A **刷新和发送都拒**，连接显示「方法不可用」，重新启用就恢复；Alchemist 退回匿名。理由：和「被停用的调用不再写业务记录」一致。token 连接那一半是 BL-794。
   - B（未选）按停用前最后一份声明的快照继续刷新。

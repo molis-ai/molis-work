@@ -126,7 +126,7 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
 | W5-08 | 部分 | 已落地：Feed/Functions 出口 #1120。在途：`apps/workbench/src/index.ts` 无人用的出口（BL-635）在 [#1326](https://github.com/molis-ai/molis-work/pull/1326)，评审中；Goals 一组留给 Goals 收尾。还剩：`index.ts` 的 `export *`（统筹，各族迁完后） |
 | W5-09 | **已完成** | #591、#1118 |
 | W5-10 | 进行中（10-25 口径：本身合理的标明，不硬拆） | 已落地：批 A 前两块、B、D、G、H、I、J/K、E 第一片随 A+B；#1314（`e5b173438`）、#1315（`74f31c19e`）。在途：#1316（批 E-3）CI 绿后在 W5-10 会话合；#1317（批 A 重做 tab-workspace）其后 |
-| W5-11 | 进行中 | 在途：第 1、2 片 #1322，等集成批。还剩：第 3 片起等 C 合入 |
+| W5-11 | 进行中 | 在途：第 1、2 片 #1322，由 W5-11 线自己推 carrier 跑 Full（统筹 10-28 批）。还剩：第 3 片起等 C 合入 |
 | W5-12 | 收尾时统筹核 | — |
 | W5-13 | 部分 | 已落地：RAC113、RAC114。还剩：宿主日志与错误的余片，未派 |
 | W5-14 | 部分 | 已落地：片 1～4 与 W11-1 随 A+B。还剩：余下改名，等 C 与 W5-10 合入后开 |
@@ -661,3 +661,9 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
     4. 短名撞名：会话之间一律用完整会话 id。LINE-COMMON §1 加了现行会话 id 表，旧的 10-19 名单留作历史。
   - **10-27 评审复审 #1325 增量 db8e96cdd..a5b713beb**（笔记 `review-1325-a5b713be.md`）：可以合，没有新意见。统筹裁定可合，由 `ac-lifecycle` 执行：先看 `affected-tests --base origin/main --json` 的 `full`（false 照常合，true 先报统筹）；等全部检查跑完（含不挡合并的 Product subset、Security invariants），有红先报；都绿了在它自己的会话里 `gh pr merge 1325 --squash --match-head-commit a5b713beb…`，用户在那里点同意。
   - **10-28 `ac-sweep` 开 [#1326](https://github.com/molis-ai/molis-work/pull/1326)**：BL-635 + BL-088，两个提交（RAC-1115、RAC-1116），已移交评审线。等评审期间先起草 C 合入后 privileges.md 的改法，写进共享笔记 `privileges-rewrite-draft-2026-10-28.md`，不改仓库。
+  - **10-28 评审 #1326 @ f050cbc33**（笔记 `review-1326-f050cbc3.md`）：CI 绿了就可以合。两条建议都做：RAC-1115 的文件进产品子集（RAC-1116 只在几秒跑完时才进），PMR-15、K-1 两处文档改成已做；名单和文档不再本机预约，靠 CI 量。评审只看增量，确认后由 `ac-sweep` 照 #1325 的做法合。
+  - **10-28 C 推 7e716e494**（RAC-510，从 bc7c06c07 快进，35 个文件；HOST_WRITERS 已去掉 `feed-application.ts`）：与 main 试合无冲突；37 个受影响文件除两个老红外全绿；health、boundary 门禁过。增量已转评审，重点 M1～M3、三处实现约定、6 个动作多要 `artifact:write` 的合同改动。
+    - 合批会话没开（活会话已满 7 个），统筹定 C 的 PR 前验证由 C 自己做：根目录 `tsc --noEmit` 一次预约；开草稿 PR；统筹批准推 `integration/carrier-1028-c` 跑 Full；失败文件与 `known-red-main.md` 和 §13 老红比；Security invariants 作业红了挡合并。全绿后统筹裁定，由 C 在它的会话合。
+  - **10-28 #1322 不再等合批会话**：统筹批准 W5-11 线把 main 普通合进分支后推 `integration/carrier-1028-w511` 跑 Full，比对、看 Security invariants，全绿后由它在自己的会话合。与 C 重叠两个文件（`apps/local-host/src/index.ts`、`packages/plugin-sdk/README.md`），谁后合谁解。
+  - **10-28 #1316 已 CLEAN**：统筹裁定可合，W5-10 在自己的会话走合并队列；之后 #1317（6822578f9，CLEAN）照样合。
+  - 用户接下来会在这几个会话里各点一次合并同意：W6-02（#1325）、W5-10（#1316、#1317）、ac-sweep（#1326）、W5-11 OAuth（#1322，Full 之后）、C（Full 之后）。

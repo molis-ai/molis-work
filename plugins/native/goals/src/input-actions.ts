@@ -1,6 +1,6 @@
 import { ActionError, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { GOAL_PLUGIN_OBJECT_SOURCE, goalPluginObjectRef, parseGoalPluginObjectRef, type GoalInputBindingRecord, type GoalInputBindingsApi } from "@molis-ai/molis-work-contracts/modules/goals";
-import { CONTEXT_LEDGER_WRITE_PERMISSION, goalAction, goalActor, usingServices } from "./action-contract.js";
+import { CONTEXT_LEDGER_WRITE_PERMISSION, goalAction, goalActor, personAsked, usingServices } from "./action-contract.js";
 import { text, identifier, boolean, array, object, nullable, enumeration, goalConfirmedInputSchema, goalEntryActions, inGoalRelation, type GoalConfirmedInput } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 export type { GoalConfirmedInput } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 
@@ -89,13 +89,14 @@ export function createGoalsInputActionHandlers(projectId: string, inputs: Pick<G
       const view = (record: GoalInputBindingRecord) => confirmedView(record, { kind: value.source.kind, id: value.source.id });
       const existing = inputs.list(projectId).find(record => record.goal_id === value.goal_id && record.source_type === kept.source_type
         && record.source_ref === locator && record.state !== "inactive");
+      const person = personAsked(caller);
       // The person's confirmation is not answered with someone else's proposal as if it were settled: accepting it is its own step.
-      if (existing?.state === "proposed" && caller.audience === "user") throw new ActionError("goals.input_proposed", "这条来源已被提议为输入，等你认可；请在目标的输入里认可或移除它");
+      if (existing?.state === "proposed" && person) throw new ActionError("goals.input_proposed", "这条来源已被提议为输入，等你认可；请在目标的输入里认可或移除它");
       if (existing) return { binding: view(existing), replayed: true };
-      // The person decides what a Goal took as input; everyone else proposes (the same line the Goal's deliverables and artifact inputs draw).
+      // The person decides what a Goal took as input, also through a plugin's action they called (`personAsked`); everyone else proposes.
       const record: GoalInputBindingRecord = { binding_id: `${kept.receipt}${crypto.randomUUID()}`, project_id: projectId, goal_id: value.goal_id,
         input_name: value.name.slice(0, 200), source_type: kept.source_type, source_ref: locator, snapshot_digest: value.snapshot_digest,
-        state: caller.audience === "user" ? "confirmed" : "proposed",
+        state: person ? "confirmed" : "proposed",
         reason: value.reason, created_by: goalActor(caller).actor_id, created_at: new Date().toISOString() };
       inputs.register(record);
       return { binding: view(record), replayed: false };

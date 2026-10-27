@@ -30,6 +30,8 @@ async function fixture() {
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   const host = createMolisWorkLocalHost({ homeDirectory });
   const project = await catalog.createProject({ display_name: "升格", actor_id: "user" });
+  // Feed and its companion Inbox are plugins of the project's Runtime (FI-7): the promotion is offered only where the project has them.
+  for (const plugin_id of ["feed", "inbox"]) if (!catalog.listProjectPlugins(project.project_id).includes(plugin_id)) catalog.addProjectPlugin({ project_id: project.project_id, plugin_id, actor_id: "user" });
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const seed = new LocalProjectDatabase(project.database_path);
   const source = createLocalFeedSourceService(seed.db, project.project_id).register({ kind: "web_query", query: "Review external input" }).source;

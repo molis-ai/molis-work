@@ -24,7 +24,7 @@ export const feedManifest: PluginManifest = {
   schema_version: 2,
   host_api_version: 2,
   plugin_id: FEED_PLUGIN_ID,
-  version: "0.4.0",
+  version: "0.3.0",
   name: "Feed",
   summary: "订阅来源，读消息，留下值得留的。",
   kind: "native",

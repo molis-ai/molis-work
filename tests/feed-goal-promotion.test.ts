@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { ActionError, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, bindActionClient, type ActionAudience, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { LocalProjectDatabase, MolisWorkLocalHost, feedItemForReader, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { FEED_PLUGIN_ID, feedItemActions, feedManifest, feedQueryActions, promoteFeedItemToGoal, promoteOffered, type FeedGoalPromotionGoals } from "@molis-ai/molis-work-plugin-feed";
 import { GOALS_PLUGIN_ID, goalsActions } from "@molis-ai/molis-work-plugin-goals";
@@ -56,14 +56,14 @@ test("Feed promotion makes the Goal and binds the item through Goals' actions, l
     const linked = (await f.person.invoke(feedQueryActions.item, { item_id: item!.item_id })).item;
     assert.equal(linked.linked_goal_id, first.goal_id);
     assert.equal(linked.disposition, "promoted");
-    // The item is a proposed input of the Goal: Goals holds the receipt, with the digest of what was proposed, and it is the person's.
+    // The item is a confirmed input of the Goal: Goals holds the receipt, with the digest of what was confirmed, and it is the person's.
     const receipts = (goalId: string) => f.host.withProject(f.reference, runtime => goalApplicationOf(runtime).goalInputs.list(PROJECT).filter(receipt => receipt.goal_id === goalId));
     const bindings = await receipts(first.goal_id);
     assert.deepEqual(bindings.map(receipt => [receipt.source_type, receipt.source_ref, receipt.state, receipt.created_by, receipt.input_name]),
-      [["feed_item", `feed-item:${item!.item_id}`, "proposed", "web-user", "Feed Item 输入"]]);
-    assert.equal(bindings[0]!.reason, "从 Feed Item 创建 Goal 时提议该输入，待用户确认");
+      [["feed_item", `feed-item:${item!.item_id}`, "confirmed", "web-user", "Feed Item 输入"]]);
+    assert.equal(bindings[0]!.reason, "用户从 Feed Item 创建 Goal 时确认该输入");
     assert.match(bindings[0]!.snapshot_digest ?? "", /^sha256:[0-9a-f]{64}$/);
-    assert.equal((await f.person.invoke(goalsActions.state, { goal_id: first.goal_id })).intent.source_kind, "runtime");
+    assert.equal((await f.person.invoke(goalsActions.state, { goal_id: first.goal_id })).intent.source_kind, "feed");
     assert.equal((await goals()).length, before + 1);
 
     await assert.rejects(f.person.invoke(feedItemActions.promote, { item_id: item!.item_id, expected_revision: item!.revision }), { code: "feed.revision_conflict" });
@@ -98,7 +98,7 @@ test("Feed promotion source survives later notes and a reopen of the Host", asyn
   try {
     const promoted = await f.person.invoke(feedItemActions.promote, { item_id: item!.item_id, expected_revision: item!.revision, start_processing: true });
     assert.equal(promoted.created, true);
-    assert.equal((await f.person.invoke(goalsActions.state, { goal_id: promoted.goal_id })).intent.source_kind, "runtime");
+    assert.equal((await f.person.invoke(goalsActions.state, { goal_id: promoted.goal_id })).intent.source_kind, "feed");
     // More events than one page of history holds: the source of the Goal must not depend on the first page.
     await f.host.withProject(f.reference, runtime => {
       for (let index = 0; index < 41; index++) {
@@ -106,11 +106,11 @@ test("Feed promotion source survives later notes and a reopen of the Host", asyn
           body: `继续核对外部反馈 ${index + 1}`, idempotency_key: `feed-source-retention-${index}` });
       }
     });
-    assert.equal((await f.person.invoke(goalsActions.state, { goal_id: promoted.goal_id })).intent.source_kind, "runtime");
+    assert.equal((await f.person.invoke(goalsActions.state, { goal_id: promoted.goal_id })).intent.source_kind, "feed");
     await f.host.close();
     reopened = new MolisWorkLocalHost({ homeDirectory: f.home, completeText: null });
     const again = bindActionClient(reopened.actionClient(f.reference), () => f.personContext);
-    assert.equal((await again.invoke(goalsActions.state, { goal_id: promoted.goal_id })).intent.source_kind, "runtime");
+    assert.equal((await again.invoke(goalsActions.state, { goal_id: promoted.goal_id })).intent.source_kind, "feed");
   } finally { await reopened?.close(); await f.done(); }
 });
 
@@ -383,7 +383,7 @@ test("only the person names the creation channel: a Runtime's promotion is recor
   } finally { await f.done(); }
 });
 
-test("no caller's promotion confirms the input: Goals takes it from the delegated call as a proposal, and the receipt says so (D-4e3-1)", async () => {
+test("only the person's promotion confirms the input: an assistant, Agent, workflow or MCP client's leaves it proposed, and says so", async () => {
   const f = fixture(["Person", "Agent", "Workflow", "MCP"]);
   const callers: Array<[string, ActionCallContext]> = [["person", f.personContext], ["agent", f.runtimeContext],
     ["workflow", { ...f.runtimeContext, audience: "workflow" }], ["mcp", { ...f.runtimeContext, audience: "mcp" }]];
@@ -395,11 +395,55 @@ test("no caller's promotion confirms the input: Goals takes it from the delegate
       return owned.map(receipt => [receipt.state, receipt.created_by, receipt.reason]);
     }));
     assert.deepEqual(callers.map(([name], index) => [name, receipts[index]]), [
-      ["person", [["proposed", "web-user", "从 Feed Item 创建 Goal 时提议该输入，待用户确认"]]],
+      ["person", [["confirmed", "web-user", "用户从 Feed Item 创建 Goal 时确认该输入"]]],
       ["agent", [["proposed", "runtime:promoter:session", "从 Feed Item 创建 Goal 时提议该输入，待用户确认"]]],
       ["workflow", [["proposed", "runtime:promoter:session", "从 Feed Item 创建 Goal 时提议该输入，待用户确认"]]],
       ["mcp", [["proposed", "runtime:promoter:session", "从 Feed Item 创建 Goal 时提议该输入，待用户确认"]]],
     ]);
+  } finally { await f.done(); }
+});
+
+// Goals reads the person from what the Host sets on the nested caller of a plugin's action directory (S-43), so only the person's own call to
+// Feed's action confirms: an assistant, Agent, workflow or MCP client handing in through Feed, a scene's run, a caller that only claims the
+// person, and a plugin's own call (a Feed timer: `plugin` audience, which these Goals actions are not open to) never do.
+test("Goals takes the person only from the Host's delegated caller: no other origin confirms an input or names the Goal's channel", async () => {
+  const f = fixture(["Delegated"]);
+  const [item] = f.items;
+  const delegated = (delegated_audience: ActionAudience, extra: Partial<ActionCallContext> = {}): ActionCallContext =>
+    ({ ...f.personContext, audience: "workflow", delegated_by: FEED_PLUGIN_ID, delegated_audience, ...extra });
+  const callers: Array<[string, ActionCallContext]> = [["person", delegated("user")], ["agent", delegated("agent")], ["workflow", delegated("workflow")],
+    ["mcp", delegated("mcp")], ["scene", delegated("user", { scene_binding: { scene_id: "feed.capture", binding_id: "capture-binding" } })],
+    ["claimed", { ...f.personContext, audience: "workflow", delegated_audience: "user" }]];
+  const intent = (key: string) => ({ title: "Delegated promotion", outcome: "Checked", why: "Who asked", business_logic: "Only the trusted caller", priority: 50, idempotency_key: key });
+  const confirm = (goal_id: string) => ({ goal_id, source: { kind: "feed_item" as const, id: item!.item_id }, name: "Feed Item 输入", snapshot_digest: `sha256:${"0".repeat(64)}`, reason: "who asked" });
+  const receipts = () => f.host.withProject(f.reference, runtime => goalApplicationOf(runtime).goalInputs.list(PROJECT).map(receipt => [receipt.goal_id, receipt.state]));
+  try {
+    const outcomes: unknown[] = [];
+    for (const [name, caller] of callers) {
+      const named = await f.client.invoke(caller, goalsActions.create, { ...intent(`named-${name}`), source_kind: "feed" }).then(() => "named", (error: ActionError) => error.code);
+      const { goal } = await f.client.invoke(caller, goalsActions.create, intent(`plain-${name}`)) as { goal: { goal_id: string } };
+      await f.client.invoke(caller, goalsActions.inputsConfirm, confirm(goal.goal_id));
+      const state = (await receipts()).find(([goalId]) => goalId === goal.goal_id)?.[1];
+      outcomes.push([name, named, (await f.person.invoke(goalsActions.state, { goal_id: goal.goal_id })).intent.source_kind, state]);
+    }
+    assert.deepEqual(outcomes, [
+      ["person", "named", "web", "confirmed"],
+      ["agent", "actions.input_invalid", "runtime", "proposed"],
+      ["workflow", "actions.input_invalid", "runtime", "proposed"],
+      ["mcp", "actions.input_invalid", "runtime", "proposed"],
+      ["scene", "actions.input_invalid", "runtime", "proposed"],
+      ["claimed", "actions.input_invalid", "runtime", "proposed"],
+    ]);
+
+    // Feed's own timer reaches Goals as the plugin's own call (`plugin` audience, S-73), which neither action admits; a caller only shaped like
+    // one is refused before that, as only the Host issues a plugin's caller. Either way nothing is created or recorded.
+    for (const definition of [goalsActions.create, goalsActions.inputsConfirm]) assert.equal(definition.action.audiences?.includes("plugin"), false, definition.capability_id);
+    const before = await receipts();
+    const timer: ActionCallContext = { ...f.personContext, actor_id: "plugin:feed", audience: "plugin", delegated_by: FEED_PLUGIN_ID, delegated_audience: "plugin" };
+    await assert.rejects(f.client.invoke(timer, goalsActions.create, intent("timer")), { code: "host.plugin_caller_invalid" });
+    const { goal } = await f.person.invoke(goalsActions.create, intent("timer-target"));
+    await assert.rejects(f.client.invoke(timer, goalsActions.inputsConfirm, confirm(goal.goal_id)), { code: "host.plugin_caller_invalid" });
+    assert.deepEqual(await receipts(), before);
   } finally { await f.done(); }
 });
 

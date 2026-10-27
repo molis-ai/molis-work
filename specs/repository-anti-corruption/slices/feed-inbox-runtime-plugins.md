@@ -1,6 +1,6 @@
 # FI-6 Feed、Inbox 进 Plugin Runtime 设计稿（PG-093、PG-089 余半，并关 PG-040、PG-080、PG-045 的余项）
 
-状态：批 C 于2026-10-27续做：C03–07、RAC-808 的 Runtime Inbox 证明、SYS52 修复已完成并有作者定向验证（SYS52 浏览器例未在本机跑）；合成树的包登记、断链、类型断言、巨大单元与 API/动作快照已按门禁修好或刷新。边界检查已按用户批准跟上删掉的文件；四个红文件在 main 上是绿的，已在 C 里修（一处产品回归：Feed Manifest 缺 `attention.inbox`）。FI7 Feed 一半已做（页面请求进 Manifest routes，两段 HTML 归外壳舞台，宿主 Feed 边删除；健康门禁对 merge-base 通过，工作台脚本比预算小 186 B、不需放行；改到的浏览器例只写未在本机跑），槽账号绑定 UI 未做；desktop-tui、inbox-automatic-scenes 两个文件在 main 上绿、在 C 上红，待裁定；C02 Notion 复审无必修项；最终独立验证与 Full 未做，见 §13。C未合入；真实 Home、维护和本人验收未执行。父稿与历史设计、逐片记录保留。
+状态：批 C 于2026-10-27续做：C03–07、RAC-808 的 Runtime Inbox 证明、SYS52 修复已完成并有作者定向验证（SYS52 浏览器例未在本机跑）；合成树的包登记、断链、类型断言、巨大单元与 API/动作快照已按门禁修好或刷新。边界检查已按用户批准跟上删掉的文件；四个红文件在 main 上是绿的，已在 C 里修（一处产品回归：Feed Manifest 缺 `attention.inbox`）。FI7 Feed 一半已做（页面请求进 Manifest routes，两段 HTML 归外壳舞台，宿主 Feed 边删除；健康门禁对 merge-base 通过，工作台脚本比预算小 186 B、不需放行；改到的浏览器例只写未在本机跑），槽账号绑定 UI 移到单独切片 FI7b；D-4e3-1 按用户 10-10 的决定改回（本人经 Feed 升格记已确认，Goals 只从 Host 设的委托字段认本人），Feed Manifest 回 0.3.0、发版核对补 Feed 正文引用账，desktop-tui 转绿；inbox-automatic-scenes 改走 Runtime 的 `feed.sources.sync` 后查出 Runtime Feed 没接成果服务（RAC-510 未做），待裁定；FI7 评审（`d96bd692d`）的四处跟进已做（W3-01 C 补回「进了门、被拒、留行、带编号」的 HTTP 用例，PG-060 位置、PG-057 与迁移文档跟上现状），边界检查的余漏记 BL-802；受影响文件逐个跑时又修了 feed-promote-mcp 的夹具（项目缺 Feed）；C02 Notion 复审无必修项；最终独立验证与 Full 未做，见 §13。C未合入；真实 Home、维护和本人验收未执行。父稿与历史设计、逐片记录保留。
 
 **先说五件事**：
 
@@ -592,11 +592,38 @@ Inbox的listInbox/getInbox投影及状态提交重读已在028实现，但运行
 
 仍未完成或未验证（照实记录；门禁数字只按 `--update` 往下降，不开例外）：
 
-- **FI7 还没做的：槽账号绑定 UI。** 要接在 `connectors.plugin_slot.bind@2` 上，用真实来源 record key。缺的有三样：宿主给页面调 bind@2、read@2 的入口，页面拿得到的 `install_id`，以及 Runtime 里创建账号来源的路径。Feed 还要停止往配置里写 `connection_id`。这一块不小，范围请统筹定。
-- **desktop-tui 两红（main 上绿）。** ①「Feed Item actions create one bound Goal…」：本人升格后输入记成 `proposed`，测试期望 `confirmed`。原因是 Goals 把 Feed 转来的委托调用（S-43）一律按 workflow 记，本人也不例外。这条 D-4e3-1 只在合成提交 `d7da3e05c` 带进的 `tests/feed-goal-promotion.test.ts`、`tests/local-web-actions.test.ts` 里，与用户 2026-10-10 的决定（`specs/repository-anti-corruption/spec.md` 决定表：本人升格记「已确认」）相反，所以没照它改 desktop-tui，待裁定。② 发版版本核对：Feed Manifest 是 0.4.0（合成提交改的，main 是 0.3.0），与发版版本 0.3.0 不符；`docs/releases/CHECKLIST.md` 的各库版本表没有 `FEED_HOME_DATABASE`。按「不改版本号」没动，待裁定。
-- **inbox-automatic-scenes 一红（main 上绿）。** 第 170 行公开来源那段在测试进程里直接调 demo 来源服务同步，同步时触发真实 Runtime Feed 的 capture 场景。场景准备条目时没有本动作暂存的条目，退回 `hydrate` 读证据，被 S-97 拒（场景里不许读，按设计）。拒绝发生在拉取自己的提交之后，`source-sync.ts` 的 catch 先做 `beforeEffect()` 再核，于是对外报的是 `feed.source_changed`，盖住了真正的错误。作者判断：生产里同步走 Feed 自己的 `feed.sources.sync`，条目先在动作里暂存，不经这条路；这一点还没有用 Runtime 同步加 capture 场景的用例证明。测试应改走 Feed 的动作加取数替身，不该为过而弯夹具，待裁定。catch 先核会盖住原错误这件事，作为后续另记。
+- **FI7b 移到单独切片（统筹 10-27 定）。** 槽账号绑定 UI 不进 C。FI7 在 C 里只做了 Feed 一半：页面路由进 Manifest，两段 HTML 归外壳舞台，宿主 Feed 文件删除。FI7 还缺的都归 FI7b：
+  - 槽账号绑定 UI 接在 `connectors.plugin_slot.bind@2` 上，用真实来源 record key。缺三样：宿主给页面调 bind@2、read@2 的入口，页面拿得到的 `install_id`，Runtime 里创建账号来源的路径。
+  - Feed 停止往来源配置里写 `connection_id`。
+  - 做法：C 开 PR 之后从 C 的头开分支，C 合入后再开 PR。开工前先把要动的文件报给统筹，因为 W5-11 第 3 片也动连接器。
+- **装配冻结名单为什么提前减（统筹 10-27 同意）。** 本节开头原定 FI7 全部收完才减装配冻结表。实际上 `e5d3cdaeb` 删 `feed-native-plugin-http.ts` 时，就在同一个提交里把 feed 移出了 `tests/builtin-plugin-assembly-gate.test.ts` 的名单。原因是门禁要求名单与磁盘逐项一致，又只许减少：文件删了、名单还留着，门禁就红；名单也不能先删后加。所以名单跟着删文件减，不等 FI7b。
+- **D-4e3-1 按用户 2026-10-10 的决定改回（统筹 10-27 定）。**
+  - **规则**：Goals 新增 `personAsked(caller)`（`plugins/native/goals/src/action-contract.ts`）。算本人的只有两种：本人直接调用；插件经动作目录转来的调用（S-43），且 Host 在嵌套调用上设了 `delegated_by`、`delegated_audience` 是 `user`、不在场景运行里（没有 `scene_binding`）。只读 Host 设的字段，不读输入，也不信 Feed 自报。
+  - **两个动作**：`goals.create` 只许本人指定渠道，别人指定拒为 `actions.input_invalid`，不指定记成 `runtime`。`goals.inputs.confirm` 本人记已确认，别人记提议。Feed 只在本人直接调用、不在场景里时传 `source_kind: "feed"`，理由写「用户从…确认」。
+  - **不改合同**：没有新的上下文字段，所以不跑 `api:update`。
+  - **测试**：`tests/feed-goal-promotion.test.ts`、`tests/local-web-actions.test.ts` 恢复成用户的决定：本人升格是已确认，渠道是 feed。新增用例「Goals takes the person only from the Host's delegated caller…」断言拒绝本身。经 Feed 转来的 Agent、工作流、MCP 调用，场景运行，以及只自称本人（没有 `delegated_by`）的调用，都不能指定渠道，输入只记提议。Feed 自己的定时调用是 `plugin` 受众（S-73），两个动作都不收；伪造的插件调用者在受众检查之前就被 Host 拒（`host.plugin_caller_invalid`），什么都不写。
+  - **变异**：在构建出的 Goals 上，`personAsked` 恒假时 9 例红，去掉场景检查 1 例红，去掉 `delegated_by` 检查 1 例红。构建产物已还原。
+  - **局限**：Goals 看不出委托的插件当时在跑自己哪个动作。如果 Feed 以后在本人直接调用的动作里、场景之外自动升格，也会记成已确认；现在 Feed 没有这样的代码。要堵住，得由平台在调用上带出委托方的动作。另外，两跳委托的 `delegated_audience` 是 `workflow`，记提议。Goals 的交付物与输入释放仍按直接受众判断，不在这次范围。
+  - **SECURITY-INVARIANTS**：作者判断不加新行。`delegated_audience` 本来就是 S-43 下 Host 设的归属字段，这次只是 Goals 读它。统筹要加的话，编号合并时定，先写「暂定」。
+- **发版核对（统筹 10-27 定）。** Feed Manifest 退回 `0.3.0`。这是撤掉合成提交多改的，不算版本变更；升小版本归发版 PR。`docs/releases/CHECKLIST.md` 的各库版本表补了「Feed 的正文引用账」一行（`plugins/native/feed/src/content-ledger.ts#FEED_HOME_DATABASE`，Home 库 `feed-content`，版本 1）。`node scripts/verify-release-versions.mjs` 通过。
+- **inbox-automatic-scenes 改走 Runtime 的 `feed.sources.sync`（统筹 10-27 定），查出一处产品回归，待裁定。**
+  - **改法**：公开来源一段改成经 `bindActionClient(host.actionClient(…))` 调 Feed 的 `feed.sources.sync`，只把 RSS 响应换成 `fetch` 替身，其余照旧。原断言一条没动。
+  - **在 Runtime 路径上对的**：拉取 `created` 1、`completed`；capture 场景跑 1 次；Inbox 条目的判断失败记 `needs_review`；同键重放 `replayed`，不再判断。
+  - **不对的**：Inbox 场景多跑了一次，`localCalls` 是 5，原断言是 4。多出来的是同一条 Feed 条目的 `artifact_out_failed` 条目（`feed_artifact_producer_missing`）。临时把计数改成 5 的草稿整文件 2/2（没入库，跑完即删），说明其余都对。
+  - **原因**：main 上宿主装配 Feed 时给了成果写入端（`artifacts`），每条命中规则的消息登记一个 `feed.capture` 成果。C 删了宿主 Feed，而 Runtime Feed 装配时（`plugins/native/feed/src/plugin.ts` 调 `assembleFeedApplication`）没给 `artifacts`。结果每条命中规则的消息都不出成果，Inbox 里还多一条「捕获失败」。这就是 §6 的 RAC-510（经 `services.artifacts` 写 `feed.capture`），C 里没做，也没有用例。
+  - **为什么不直接接上**：`services.artifacts.publish` 是一次单独的写入，不像 attention 那样有 `join` 进 Feed 的事务。直接在 Feed 的提交里调，能不能调、被取消的同步会不会留下成果，都要先定；也可以挪到提交之后写，像判断队列那样。在 C 里做还是另开，待统筹定。
+  - catch 先 `beforeEffect()` 再核、盖住原错误一事，记为 BL-801。
+- **FI7 评审（`8800e07bf..d96bd692d`）的四处跟进（统筹 10-27 定）。** 评审没有必须改的代码，下面四处是文档与用例跟上：
+  - **W3-01 C 的变化统筹认了。** 没装 Feed 的项目里，Feed 的页面路由（`/api/plugins/io.molis.work.feed/…`）和舞台（`/api/stage/feed`）在门口就拒（403 `actions.plugin_disabled`），没有调用，不留行，答复不带编号；FI-7 之前人按名字调 `/api/feed` 会留一行「未执行」、带编号。现在和 Inbox、Schedule 等 Runtime 插件一样，用户 10-18 定插件一视同仁，给 Feed 单留一行反而是私路。`apps/local-host/README.md` 那句「人按名字调 `/api/feed` 也照常记」改成现行行为。「被拒且留行、答复带编号」这条保证补回一条 HTTP 用例（`tests/web-home-isolation.test.ts`「a plugin's route the door let through, whose call is refused before it runs…」）：项目里装了 Feed，`POST …/items/<201 个字符>/read` 进了门，路由以本人调 Feed 的 `feed.items.read`，条目编号超出动作的上限 200，调用在处理器之前被拒为 `actions.input_invalid`；答复 400，头和体带同一个编号，调用记录里这一行 `refused === true`、能力是 `feed.items.read`。同一个编号下还会有宿主那次读浏览工作区（BL-521 的 `announceProjectOpened`：项目的插件平台打开后，第一条插件路由前读一次，读成功就不再读）：这个夹具的宿主没有项目设置，读取答 `actions.missing`、留自己的一行，失败后下一条路由再读，所以用例认这一行，也只认这一行。测试夹具 `withRequestFixture` 多一个可选参数，给项目加插件。整文件 8/8。
+  - **`feed_source_catalog` 仍是宿主按 Feed 命名的页面投影。** 页面视图的来源目录（`web-view.ts:111` 调 `listFeedSourceCatalog`）main 上就有，归 PG-060，等舞台归插件时一起搬。它取的是 `createSourceVocabulary()`，与 `services.sourcePull.vocabulary` 给插件的同一份，插件和路由都读不到它，所以不绕 S-97。
+  - **4c-3 的条件「宿主那份到 4e-3 删」做到了没有。** 宿主版 Feed 自己注入的词表（main `9efbf8d04` 上 `apps/local-host/src/feed-source-service.ts:50` 的 `providers`）随 `feed-source-service.ts`、`feed-source-runtime.ts` 在合成提交 `d7da3e05c` 删了；Runtime Feed 只经 `services.sourcePull.vocabulary` 拿词表。宿主包里还剩一处同样的注入：离线演示库 `apps/local-host/src/demo-feed-library.ts:108-113`（`createDemoFeedSourceService` 的 `providers`），给演示项目的种子和测试夹具在插件没启动的库上排数据用，不是生产 Feed。它直接用 rss、youtube、gmail 集成包的同一批函数，目录、允许名单和游标格式仍同源。统筹若认为这处也要收，改法是让它的 `providers` 从 `createSourceVocabulary()` 取（Gmail 范围不在词表里，照旧），C 里没改。
+  - **PG-060 位置列补了三处**：`web-view.ts:111`、`plugin-stage-fragment-http.ts:23,34-37`（舞台分派表按名字写死 `inbox`、`feed`、`feed/items/<id>`）、`web-request.ts:201`（`feed/items/<id>` 用 Feed 专用的 `feedItem` 端口）。归在已登记的 PG-060 下，不是新开的私路。
+  - **过时文档**：`docs/system/RUNTIME-MIGRATION.md` 的 Feed 行不再写 `feed-native-plugin-http.ts` 113 和三个已删模块，改成现状（宿主仍 import Feed 的文件 12 个）；privileges PG-057 的「`/api/feed` 23 处、`/api/inbox` 6 处」改成现在客户端里都是 0 处，只剩 Gmail OAuth 回调地址这一个字符串。
+  - **逐个跑受影响文件时又找出一个 C 带来的红：`tests/feed-promote-mcp.test.ts`。** 夹具建的项目没有 Feed；Feed 进 Runtime 后，项目没装它，`feed.items.promote` 就不提供给 MCP 客户端，夹具在授权一步就失败（四例都红，失败后宿主没关，进程挂住，按 pid 停了）。和 `home-mcp-actions` 同一种迁移：夹具给项目加 Feed 与 Inbox，断言不动。改后 4/4；断言本来就是 MCP 客户端升格记 `runtime`、输入 `proposed`，与 D-4e3-1 一致。
+- **边界检查的余漏记 BL-802（来源：C 批评审 `4353b5905`）。** `directFactSql` 只写了 3 张表、JOIN、加引号、库名前缀、ALTER、DROP 都能绕过；Listener 那条按子串匹配，注释里写了也算。改门禁要先问用户，C 接近 PR，不再加范围。
 - **local-host 整包构建**：`tsc` 通过，随后的 `native/materials` Swift 构建在本机因 CommandLineTools 的 `SwiftBridging` 模块重复定义失败，与本批无关。
-- **没跑的**：根 `tsc --noEmit` 对测试文件的类型检查、全部浏览器用例（含 FI7 改到的 6 个）、security 全量、最终 Full，由合并会话在 PR 前排。
+- **测试文件的类型检查**：根 `tsc --noEmit -p tsconfig.json` 通过，但这份配置只含 `apps/desktop/launchers`、排除 `tests`（CI 同样只查这些），所以不查测试。本轮改到的三个测试文件另用一份临时配置查（继承 `tsconfig.base.json`，只列这三个文件）。`feed-goal-promotion`、`inbox-automatic-scenes` 没有错。`local-web-actions` 有 5 处，都在与 main 逐字相同的行上（本分支只改了它的 import 和第 219 行附近）。
+- **没跑的**：全部浏览器用例（含 FI7 改到的 6 个）、security 全量、最终 Full，由合并会话在 PR 前排。
 - **FI-C-02 Notion 复审与补测。** 复审没有必修项。按统筹要求，在 `tests/connector-oauth-choice.test.ts` 补了两条非浏览器用例：
   - 「a call after both callers left starts a new shared refresh…」：两方都取消后，共享请求被中止。响应回来之前，第三个调用另起一个共享项，发出第二个请求。旧响应回来时，两方各按自己的原因被拒，什么都不写。第四个调用加入第三个调用的请求，最后只落第二个请求的结果，连接的 revision 不变。
   - 「a shared refresh a caller still awaits writes nothing when…」：一方取消，另一方还在等。刷新期间，refresh 值被换掉，或连接停用再启用（revision 变了）。留下的一方分别以「Notion 连接在刷新期间已改变，请重试」「连接在刷新期间已变化，请重试」被拒，什么都不写。

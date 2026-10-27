@@ -11,6 +11,8 @@ import { MolisWorkLocalHost, molisWorkHostProjectReference, projectActionAvailab
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { bindActionClient, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { feedItemActions } from "@molis-ai/molis-work-plugin-feed";
+import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
 const controlToken = "home-isolation-test-control-token-0123456789";
@@ -175,10 +177,11 @@ test("async home scopes and retained stores keep secrets and body keys in their 
  */
 const CALL_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const withRequestFixture = async (run: (fixture: { base: string; host: MolisWorkLocalHost; projectId: string; goals: BoundActionClient;
-  post: (path: string, body: unknown, headers?: Record<string, string>) => Promise<Response> }) => Promise<void>) => {
+  post: (path: string, body: unknown, headers?: Record<string, string>) => Promise<Response> }) => Promise<void>, plugins: readonly string[] = []) => {
   const home = mkdtempSync(join(tmpdir(), "molis-work-call-id-web-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const created = await catalog.createProject({ display_name: "编号", actor_id: "test" });
+  for (const plugin_id of plugins) if (!catalog.listProjectPlugins(created.project_id).includes(plugin_id)) catalog.addProjectPlugin({ project_id: created.project_id, plugin_id, actor_id: "test" });
   const project = catalog.getProject(created.project_id);
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   // The policy the desktop gives its Host: a plugin the project has not installed answers "not enabled" (a refused call, so a row).
@@ -226,6 +229,30 @@ test("W3-01 C a read on a page's own route that fails answers with the number of
       assert.equal(Object.hasOwn(refusal, "call_id"), false, path);
     }
   });
+});
+
+test("W3-01 C a plugin's route the door let through, whose call is refused before it runs, leaves a row and answers with its number", { timeout: 60_000 }, async () => {
+  await withRequestFixture(async ({ host, projectId, post }) => {
+    // Feed is in this project, so its route passes the door and calls Feed's own action as the person; the item id is longer than that
+    // action takes, so the call is refused before its handler: a row marked not run, whose number the answer shows.
+    const refused = await post(`/api/plugins/io.molis.work.feed/items/${"x".repeat(201)}/read`, {});
+    assert.equal(refused.status, 400);
+    const id = refused.headers.get("x-molis-work-call-id");
+    assert.match(id ?? "", CALL_ID);
+    const body = await refused.json() as { code?: string; call_id?: string };
+    assert.equal(body.code, "actions.input_invalid");
+    assert.equal(body.call_id, id, "the body and the header carry the same number");
+    const rows = host.callLog!.find(id!);
+    const feedRows = rows.filter(row => row.capability_id === feedItemActions.read.capability_id);
+    assert.equal(feedRows.length, 1, "the number finds the refused call");
+    assert.equal(feedRows[0]!.project_id, projectId);
+    assert.equal(feedRows[0]!.refused, true, "marked as not run");
+    assert.equal(feedRows[0]!.code, "actions.input_invalid");
+    // A plugin route also has the Host read the folder the project browses (BL-521, `announceProjectOpened`), under the same request;
+    // this bare Host has no project settings, so that read is missing, leaves its own row and is tried again on the next route.
+    assert.deepEqual(rows.filter(row => !feedRows.includes(row)).map(row => [row.capability_id, row.code]),
+      rows.length === 1 ? [] : [[projectSettingsCapabilities.browsingWorkspace.capability_id, "actions.missing"]]);
+  }, ["feed", "inbox"]);
 });
 
 test("W3-01 C every request has a number of its own, and a number sent by the client is never taken", { timeout: 60_000 }, async () => {

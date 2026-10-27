@@ -21,6 +21,8 @@ export interface FeedGoalPromotionGoals {
     business_logic: string;
     priority: number;
     idempotency_key: string;
+    /** Named only when the person promoted: Goals refuses a channel from anyone else and records theirs as the Runtime's. */
+    source_kind?: "feed";
   }): Promise<{ goal_id: string; replayed: boolean }>;
   /** The item, as its content digest says it was, taken as an input of the Goal: Goals records it confirmed when the person asked and
    * proposed for anyone else. Repeating it returns the receipt already there. */
@@ -36,7 +38,8 @@ export interface FeedGoalPromotionPorts {
   transaction<T>(operation: () => T): T | Promise<T>;
   /** Awaited before Feed writes: the call may have been withdrawn while Goals was working. */
   beforeEffect(): Promise<void>;
-  /** Whether the person asked (not an assistant, Agent, workflow or MCP client): what the input receipt's reason may say the user did. */
+  /** Whether the person asked (not an assistant, Agent, workflow, MCP client, scene or Feed's own timer): what the input receipt's reason may
+   * say the user did and whether the Goal names Feed as its channel. Goals decides the receipt's state itself, from the trusted caller. */
   by_person: boolean;
 }
 export interface FeedGoalPromotionInput {
@@ -95,7 +98,8 @@ export async function promoteFeedItemToGoal(ports: FeedGoalPromotionPorts, input
   // or whose Goal can still take work.
   let created: Awaited<ReturnType<FeedGoalPromotionGoals["create"]>>;
   for (let attempt = 1; ; attempt++) {
-    created = await goals.create({ ...intent, idempotency_key: `feed-promote-${item.item_id}-r${item.revision}${attempt > 1 ? `-${attempt}` : ""}` });
+    created = await goals.create({ ...intent, ...(ports.by_person ? { source_kind: "feed" as const } : {}),
+      idempotency_key: `feed-promote-${item.item_id}-r${item.revision}${attempt > 1 ? `-${attempt}` : ""}` });
     if (!created.replayed || await goals.active(created.goal_id)) break;
   }
   const goalId = created.goal_id;
@@ -113,8 +117,8 @@ export async function promoteFeedItemToGoal(ports: FeedGoalPromotionPorts, input
 /**
  * Feed's side of the promotion in the Plugin Runtime: Goals is asked through the action directory (`services.actions.directory`, S-43), as
  * the caller who promoted, so Goals' own checks (the project's enablement, the caller's grants) apply and Feed writes nothing of Goals'.
- * A delegated call reaches Goals under the workflow audience, so Goals records the Goal's channel as the Runtime's and the input as proposed
- * even when the person promoted; the person accepts it in Goals (`goals.inputs.accept`).
+ * A delegated call reaches Goals under the workflow audience; Goals reads who asked from what the Host sets on it (`delegated_audience`), so
+ * the person's own promotion is confirmed and names Feed as the channel, and anyone else's is a proposal the person accepts in Goals.
  */
 export function feedGoalsThroughDirectory(directory: PluginActionDirectory): FeedGoalPromotionGoals {
   return {

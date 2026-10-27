@@ -7,6 +7,17 @@ export function goalActor(caller: ActionCallContext) {
     actor_kind: caller.actor_kind === undefined ? (caller.audience === "user" ? "user" as const : "runtime" as const) : caller.actor_kind ?? undefined };
 }
 
+/**
+ * Whether the person asked: their own call, or a plugin's call through its action directory (S-43) made for the person's own direct call to
+ * that plugin's action, outside a scene run (user decision 2026-10-10: the person's promotion is confirmed). Read only from what the Host sets
+ * on the nested caller (`delegated_by`, `delegated_audience`), never from input or the delegating plugin's word. A chain of delegations, a
+ * plugin's own call (a timer, `start`), a scene's judgment, an assistant, Agent, workflow or MCP client is not the person.
+ */
+export function personAsked(caller: ActionCallContext): boolean {
+  if (caller.audience === "user") return true;
+  return caller.delegated_by !== undefined && caller.delegated_audience === "user" && caller.scene_binding === undefined;
+}
+
 export const ATTENTION_WRITE_PERMISSION = "attention:write";
 export const CONTEXT_LEDGER_WRITE_PERMISSION = "context-ledger:write";
 export const ARTIFACTS_READ_PERMISSION = "artifacts:read";

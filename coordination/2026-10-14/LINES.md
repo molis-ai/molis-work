@@ -317,3 +317,13 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
     - e1～e3 按叠放顺序开 PR，一片一个。baseline.json 不每个 PR 都刷，合批时在批头刷一次。
     - a1 不撤，也不交给 W5-04：交接已定批 A 走过渡模板拆分，所以改成按职责重拆。有副作用的语句不改先后，挪不动的留在原文件；不往模板里加注释，送出的字节数只能相等或变小；空 catch 要么留在原文件，要么真的处理错误且不涨字节；做不到就报统筹，不改门禁。这样不算硬拆，不用问用户。
     - 「同时最多两条线写代码」的限制取消（R-28）：单槽已经卡住了 CPU，用户要求不让槽位空着。现在 C、W5-11、W5-10 三条都在写代码，重活排同一个槽位。
+  - **10-27 W5-11 第 2 片评审结论**（988f182e3，评审笔记 review-w511-slice2-988f182e.md）：数据能合；身份字段不算一门小语言，但要收窄。
+    - 第 1 片的合同照这个写：list 只留 `{ min_by }`，删掉 sentry「按上下文里的 org 取 slug」（授权时上下文没有 org）；删掉 `context.when_missing`（37 个服务都没用）；写明 body 不展开占位符、label_prefix 是字面量。只给一个服务用的三个字段（x 的 label_prefix、adobe 的 {client_id}、sentry 的 min_by）可以留，各写一句理由。
+    - 稿:284、稿:640 写错了：`connector-access.ts` 的 inspectApiConnection 和 `connector-account-actions.ts` 的 readConnectorAccount 也给 OAuth 连接用。已经对出来的不一致：Notion 的检查返回 ws:bot，连接上存的是 ws；sentry 检查缺 user；clickup、supabase 缺 workspaces；x 检查仍兜底显示「X」。
+    - x 去掉兜底可以：scope 里有 users.read，/2/users/me 带 username，label 还能退到 name。Notion 照 Q2。clickup、supabase 缺 id 时，以前会拼出 `undefined:workspaces:…`，改成报错，稿里写一句。
+    - 第 5 片的问题：就地重连要求旧连接带 connector-protocol 上下文、而且 account_id 相等（`connector-api-oauth.ts` 278-279 行）。旧的 Gmail、Notion、GitHub 设备授权连接没有这份上下文，所以稿:652「走 ASC-35 重连、保留绑定」在 C 的代码上走不通。
+  - 统筹裁定：
+    - 选 A：上面两处按 auth_method 分开，OAuth 那一支改调解释器，和授权用同一份声明、同一个算法。放在 C 合入后的第一片（第 3 或第 4 片由本线定），动手前先核 C 有没有改过这两个文件；BL-795 只剩 token 连接。不选 B：照 B，同一项事实（OAuth 连接的账号）会有两套算法，上面那些不一致就得长期登记着。
+    - 副作用要写进稿里并配测试：旧检查记下 expected_account 的等待项要再检查一次。这和 Q2「不迁移、重新授权」一致，不另写兼容读取。另加测试：同一个 OAuth 服务，授权、检查、读账号三处算出的 account_id 和 label 都相同；Notion、sentry、clickup、supabase、x 至少各一条。
+    - 第 5 片：先在稿里写明旧连接重连时怎样认出原来那个账号，不许读历史取值兜底。可以考虑从这条旧连接自己的重连入口发起，由本人确认是同一个账号。如果只能留一条兼容路，或者绑定保不住，先报统筹，由统筹去问用户，因为这会改变 Q2 当时的前提。
+    - 改完推新头，评审只复核这几处；第 1 片照收窄后的合同接着做。

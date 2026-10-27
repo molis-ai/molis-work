@@ -1,6 +1,6 @@
 # W6-02 余项：其余已迁入 Plugin Runtime 的内置插件的生命周期走查（名单、各自的写入读取入口与分片）
 
-状态：进行中（2026-10-27，分支 `claude/magical-kare-c6b8ec`，线 ac-lifecycle）：共用夹具 `tests/fixtures/shipped-lifecycle.ts` 已从 `tests/shipped-plugin-lifecycle.test.ts` 抽出（RAC-1030～1034 行为不变），十三个插件各走一遍（`shipped-plugin-lifecycle-content.test.ts` RAC-1090～1094、`-personal.test.ts` RAC-1095～1097、`-coding.test.ts` RAC-1099～1103）；置物架（RAC-1098）走查时撞上产品缺陷，其修复在 C 线的文件里，本线不改，退出本轮通过的测试（第 3、4 节，BL-804）；运行结果见第 5 节。
+状态：已实现，评审中（2026-10-27，分支 `claude/magical-kare-c6b8ec`，线 ac-lifecycle）：共用夹具 `tests/fixtures/shipped-lifecycle.ts` 已从 `tests/shipped-plugin-lifecycle.test.ts` 抽出（RAC-1030～1034 行为不变），十三个插件各走一遍（`shipped-plugin-lifecycle-content.test.ts` RAC-1090～1094、`-personal.test.ts` RAC-1095～1097、`-coding.test.ts` RAC-1099～1103）；置物架（RAC-1098）走查时撞上产品缺陷，其修复在 C 线的文件里，本线不改，退出本轮通过的测试（第 3、4 节，BL-804）；第 5 节三次运行里最后一次四个文件十八项全部通过。
 
 W6-02 的原文（`roadmap-2026-10-07.md` §4.10）：把探针的生命周期（`tests/probe-plugin.test.ts`）延伸到真实已迁的生产者。第一批 Todo、Jelly、Pages、灵光已走完（`tests/shipped-plugin-lifecycle.test.ts`，RAC-1030～1034）；这一片补其余已在 Plugin Runtime 上的内置插件。
 
@@ -75,7 +75,7 @@ shelf: { key: "shelf", plugin_id: "io.molis.work.shelf", scope: "home", always_o
 | --- | --- | --- | --- |
 | 1 | RAC-1030～1034（原四插件）、RAC-1090～1097 | `node scripts/run-tests.mjs tests/shipped-plugin-lifecycle.test.ts tests/shipped-plugin-lifecycle-content.test.ts tests/shipped-plugin-lifecycle-personal.test.ts` | Schedule（RAC-1094）失败：夹具把「移出后安装仍在 `running`」当成所有插件的行为，非个人的项目插件移出后是 `disabled`；夹具加 `stops_when_removed`，其余通过 |
 | 2 | 加上置物架与编程一族（四个文件） | 同上，加 `tests/shipped-plugin-lifecycle-coding.test.ts` | 4 个文件通过 3 个：RAC-1094、RAC-1099～1103 通过；置物架（RAC-1098）在撤权一步失败（第 4 节） |
-| 3 | 去掉置物架之后（四个文件） | 同上 | （待填） |
+| 3 | 去掉置物架之后（四个文件） | 同上 | 4 个文件全部通过，共 18 项（原四插件 5 项、RAC-1090～1094 共 5 项、RAC-1095～1097 共 3 项、RAC-1099～1103 共 5 项） |
 
 没跑的：
 

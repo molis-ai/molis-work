@@ -107,7 +107,7 @@ test("S-41 PMAT-34 PMAT-35 PMAT-38 pieces added for some of the words, a round's
   const related = await knowledge.search(f.access(pagesOnly), { query: question, limit: 10 });
   assert.ok(related.cards.length > 0 && related.cards.every(card => card.subject.kind === "page"), "no goal is added for a caller who cannot read goals");
   assert.ok(!(await knowledge.search(f.access(agent("b")), { query: question })).cards.some(card => card.subject.id !== "gb"), "nor project a's pieces from project b");
-  const catalog = knowledge.catalog("a", await f.actions.discover(pagesOnly), question);
+  const catalog = await knowledge.catalog("a", await f.actions.discover(pagesOnly), question);
   assert.deepEqual(catalog.pieces.map(piece => piece.subject.kind), ["page"], "a round's catalog follows the same rule");
   const shown: KnowledgeLocateDraftInput[] = [];
   const located = await locateSections({ question, subjects: [{ kind: "goal", id: "g1" }, { kind: "goal", id: "gb" }, { kind: "page", id: "p1" }] },

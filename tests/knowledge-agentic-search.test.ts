@@ -183,11 +183,11 @@ test("PMAT-35 PMAT-36 a round's catalog is whole when small, otherwise the piece
   await f.indexAll();
   const views = async (caller = agent()) => f.actions.discover(caller);
   // A caller who cannot read pages sees only the three goals (the rule list applies): the whole catalog.
-  const small = f.knowledge.catalog("a", await views(agent(undefined, ["goals:read", "search:read"])), FIRE);
+  const small = await f.knowledge.catalog("a", await views(agent(undefined, ["goals:read", "search:read"])), FIRE);
   assert.deepEqual([small.whole, small.total, small.pieces.map(piece => piece.subject.kind)], [true, 3, ["goal", "goal", "goal"]]);
   assert.ok(!JSON.stringify(small).includes("十月内部试用"), "cards only");
 
-  const large = f.knowledge.catalog("a", await views(), FIRE);
+  const large = await f.knowledge.catalog("a", await views(), FIRE);
   assert.deepEqual([large.whole, large.total, large.pieces.length], [false, 50, 20]);
   assert.equal(large.pieces[0]!.subject.id, "p2", "the piece related to the round's words comes first");
   const listed = await f.knowledge.list(f.access(agent()), { related_to: FIRE, limit: 3 });

@@ -3601,3 +3601,37 @@ App正式规模源为干净 `83421bf71719035ccc6f13439d60dfedac08f500`、SDK `57
 日志使用 `/private/tmp/molis-memory-main-integration-20261027` 前缀：`-build.log`、`-build-2.log`、`-build-3.log`、`-host-types.log`、`-regression-1.log`、`-contracts.log`。
 
 准确父提交 9efbf8d04 的原 health 与资源门均已通过（`-gates-2.log`）。首次 `-gates.log` 保留登记未同步的失败：按既有 cohesive-unit 规则及独立复审，将项目目录门面的接线实测由 265 更新为 266 行、40 方法不变，删除已经低于门限的全文索引旧例外；没有修改阈值。原 updater 将资源更新为 48 项、7,458,345 B，其中 Coding +1,776 B、workbench.js +32,893 B、workbench.css +680 B 恰好属于此前批准的同功能增量，settings.css 减少 73,924 B 并收紧基线；未增加额度。最终全量、隐藏保留协议实现与整体产品验收仍待完成，1000 条读取性能仍未达标。
+
+已推送的 92a68034aaea24ac0bf6cb433dbb61c8a386cf1c 随后通过 [普通 CI 40454546790](https://github.com/molis-ai/molis-work/actions/runs/40454546790)：14 个作业成功，含 Package boundaries、Verify、产品和安全回归；可选 Linux probe 按原配置跳过。检查结果来自该头的实际作业状态，不包含下述未提交实现，不替代 Full suite、最终产品旅程或历史失败的归因。
+
+### 2026-10-27 Coding 隐藏保留实现短合同
+
+本刀落实用户已批准的结果：归档时保留已有知识卡，普通 Search、Knowledge、Agent 立即看不到；撤销归档时，同内容版本及其触发的后台工作不新增 AI 调用。本人专用归档历史仍可读，真正删除清理卡与全文索引。没有生成过卡、正在整理、整理失败或超额的会话也不能借恢复启动一次新调用。此处“零新增”按恢复前后的实际调用计数验证，不用对照组最终总数相等替代。
+
+复杂度审查与主人：复用现有 Action 查询、Coding 单条 lifecycle_json、Search 索引和 Knowledge 卡；不另建恢复 journal、计时器、执行循环或平台 Coding 特例。Coding 唯一拥有归档状态与原操作；Knowledge 不再持久化第二份 archived/active。Root 先维护共享合同、Runtime 可信元数据与生成快照，再由 Coding 主人和 Search/Knowledge 主人并行接入，最后统一集成、故障/权限深审和最终验收，仍进入 #1101。
+
+- 通用只读合同使用 `molis.subject-retention-request.v1` → `molis.subject-retention.v1`；输入仅 `{subject_id}`。输出严格为 `{subject, state, retained}`：state 为 `active | temporarily_archived | deleted`，retained 为 null 或 `{content_revision, restoration_operation_id}`。归档时只有原内容版本、操作号为 null；只有已完成的撤销归档才返回恢复操作号。普通未归档对象和已删除对象 retained 为 null。待完成的生命周期决定明确拒绝查询，调用方隐藏并保留原卡，不伪装成永久删除。返回值不含正文、标题、路径、授权或安装身份。
+- deleted 限指同一已授权项目、当前真实安装代及已成功校验打开的库中，准确查询确认原对象行不存在；消费方还须与原卡的 provider/项目/subject/安装代匹配。它不声称证明历史上发生过某次删除，也不把任意404、拒权、停用或缺库转成删除。Coding 只将准确 get 的 `coding.session_unknown` 在再次当前性复核后转出，其他失败原样拒绝；不为此新增 tombstone。
+- ActionProvider 增加可选的 `plugin_installation_generation`，仅从 Runtime 的真实安装记录接线；与原 plugin_install_id、provider、项目和 subject 一起绑定保留卡。安装 ID 会在同发布者重装时复用，不能当安装代；owner 自报值不能作为信任依据，也不能把旧卡重新盖上当前安装代。
+- 内容版本与列表刷新 token 分开。Coding 在既有 subject.read 已读取的最近最多三轮相关完整文本及其标题、状态、意图、Goal 关联和改动文件等可读事实中计算内容版本，再截断展示；不把归档时间算作内容。原列表 token 纳入已经拿到的标题/Goal 身份与标题，避免 Goal 独立改名后不刷新；目录不增加 Run 读取。Search 保留 context 的 content_revision 并传给 Knowledge，原 entry.revision 仍用于增量刷新，两者不混比。
+- 单个归档在现有原决定与当前性屏障内冻结内容版本；撤销归档沿用该值，不能在恢复时重算“原版本”。复用 request 中的原操作号，不重复存操作。Known/unknown 的处理沿现有受控生命周期，不绕过并发写或恢复屏障。
+- Knowledge 最小新增可信安装代绑定和已消费恢复操作号（另保留实际读到的 content_revision）。未变内容首次恢复时，版本相同的 ready、failed、over_quota 保持原状态；pending 或未建卡转为 listed，后续 reconcile 不自动再排。如果旧卡仍为 R1、归档已冻结 R2，而恢复正文仍为 R2，也必须零新增 AI：旧摘要失效为 listed 并消费本次恢复号，不能把 R1 摘要当成 R2 ready。本人明确整理或恢复后的正文变化才可进入 pending，旧恢复事实不能再次压回。listed 的“有正文但未整理”和“来源仅有摘要”须区分，前者有真实整理入口，后者原限制不变。
+- 普通搜索命中、Knowledge 列表/FTS/管理、catalog/tally、read/outline/grep、Agent 入参和整理调用前共用当前 owner 状态检查；不能等两秒后台清理才隐藏。只查生命周期与可信元数据，不为目录扫描正文。跨异步步骤保留当前授权与安装代复核；已发出的同版本整理结果仅在原权限、身份与未被人修改等条件仍成立时可落入隐藏原卡，不能新发或重放模型请求。当前 owner 不可用时隐藏/拒绝且保留，不当作删除；确认真删除才由原主人清除。
+- 已核实的派出补口：复用 HostTextRequestOptions.beforeDispatch → PrologueInference → NodeHost.beforeNetworkDispatch，不能只在 writer 调用前检查。HostText 与 Inference 两层增加可选 afterResult，省略时保持原检查；仅 Knowledge 显式区分必须 active 的新派出与可按原保留版本结算的已发结果，凭据、取消和原权限在两层均保留。结果阶段拒绝不能谎称请求未发出。Assistant 把实际带入目录主体的原身份/版本/权限保存为本轮临时闭包，经既有 AgentStartAuthority.beforeDispatch 获取当前 Agent 目录后再检查；不复用旧 offered，不进入 DTO、Memory、数据库或跨轮缓存，不新增租约。
+- 未声明该协议的来源沿用原 missing 语义。硬边界为权限、当前身份、真实删除与零新增调用；是否提供通用协议由来源插件声明，App 装配，人的归档/恢复/整理仍由 App 界面决定。SDK57cf、读取性能门、已停 SQLite 实验不变。本刀不新加后台开关或空注册表。
+
+允许修改相关 contracts/plugin-sdk/Runtime 注册、Coding 自有生命周期与来源、Search/Knowledge 及真实 Host/Assistant/页面调用方、持久格式基线、对应文档和测试；格式变化沿仓库严格版本规则，仅用合成 Home/安装回归，不迁移真实数据。公共行为与模块说明同步，新增页面净资源仍按原规则单独处理，前次批准不覆盖未来增长。
+
+验收必须走真实 App/Action/SQLite/SDK 路径：ready/pending/failed/over_quota/未建卡及进程重启恢复后零新增模型请求；原已发请求与归档/恢复交错无重发、无人为覆盖；显式整理不被后续 reconcile 抹掉，相关正文/Goal 变化正常失效；归档后立即读不泄漏标题/摘要，跨项目、撤权、安装换代、真删除与本人历史入口分别成立。包含真实非空页面、失败原请求重试及重启；公共合同、原资源/health、最终全量与独立深审仍必需。合同冻结时尚无实现通过证据；后续定向验证见下，完整首期验收仍未完成。
+
+实现与定向证据（2026-10-27）：通用保留查询、Runtime 可信安装代、Coding 原决定内容冻结及 Search/Knowledge 消费已接入。Coding 私库严格版本为 3，Knowledge 卡库为 2，Search 索引库为 3，旧格式拒绝且没有迁移。新增 `coding.subject.retention@1`；管理返回形状变化使 `knowledge.cards`、`knowledge.card.edit`、`knowledge.card.exclude` 升至 v2，固定旧 v1 的引用不再解析。公开 API/Action 快照由原生成器更新。
+
+独立读审发现并修正六处真实交点：删除后的旧搜索投影、管理 beforeEffect 后晚归档、定位的派出与返回、尚无卡正文读取及外层补卡等待、旧卡 R1 落后于归档 R2 的首次恢复、归档后真删而普通列表版本不变。原 reader、provider、可信代与版本跨等待保留，不由新补出的卡给旧内容改绑。R1→R2 保留人工编辑，清旧机器摘要/关键词/分节并设为 listed；普通刷新可清已删原件和 FTS，无需先打开旧命中或 rebuild。
+
+目前 35 个不同文件的最新定向结果合计 295/295 通过，单任务、原断言、零重试；这是多次修正后按文件汇总，不是一次全量首过。真实 Node Host/SQLite/Web 验证归档、恢复、重启与已发结果结算；实际 Chrome 非空页面验证 context listed 的说明/整理按钮、summary listed 不可整理，以及显式整理的成功与真实 HTTP 拒绝反馈。该浏览器旅程恢复与模型接通后、点击前实际请求为 0，两次明确点击后为 2，计数未过滤后台调用。使用的是本机协议替身，未宣称真实模型质量或用户验收。
+
+失败原样保留：核心首批两个 60 秒超时是测试在持有项目读取队列时等待也需要该队列的归档，屏障移到真实 Host 返回后的调用方后复验通过，生产调度与时限未改。Knowledge 首批 26/27 文件通过；policy 的原 App 版本不合法、初始化失败时服务器未清理导致挂起，确认专属 worker 后中断并计失败。第二次 policy 又暴露错误的 `onProgress.started` 时序假设与 Action 客户端装配；改为材料 guard 成功后的真实凭据等待、按公开接口接线，保留零请求断言。最终 policy 28/28 与浏览器 1/1 通过；凭据准备屏障不单独证明所有最终发送交错。
+
+本段日志前缀 `/private/tmp/molis-memory-retention-20261027`：`-core-1.log`、`-knowledge-1.log`、`-policy-2.log`、`-policy-ui-3.log`。构建中的类型签名失败在 `-build-2.log`，随后修正并通过；独立复审确认两处读取缺口闭合。原 health 在 `-health-2.log` 对准确 merge-base 9efbf8d04 通过：依现行规则及独立职责审查，仅登记 KnowledgeService 366 行/23 方法、SearchService 301 行/21 方法两个内聚单元，无阈值修改或预留空间。
+
+资源门仍未通过：压短恢复说明省回 42 B 后，`/assets/molis-work-knowledge.js` 为 27,065 B，相对原上限 26,940 B 净增 125 B（`-assets-3.log`）。未将此前 Coding/Workbench 授权挪用到本资源，未抬预算，待单独批准。最终全量/新提交 CI、1000 条读取性能、真实质量/token 及用户验收仍未闭合；旧 92a CI 成功不覆盖本次实现。SDK57cf 只读诊断看到重复目标复制 inclusive 约 2.278 ms，不能解释约 21 ms 暖读差距，不据此声称能达门或重启已停止的 SQLite 实验。

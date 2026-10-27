@@ -191,7 +191,22 @@ export interface SearchIndexSourceRecord {
 }
 /** The most of a document's text the search index holds; words past it are found only by reading the piece itself. */
 export const SEARCH_INDEX_CONTENT_CHARS = 32_000;
+/** Binding captured only from the trusted provider directory, never from the subject response. */
+export interface SearchRetentionBinding { generation: string | null }
+export interface SearchRetentionIdentity {
+  project_id: string | null;
+  provider_id: string;
+  subject: { kind: string; id: string };
+  retention?: SearchRetentionBinding;
+}
+export type SearchRetentionResult =
+  | { state: "unsupported" | "unavailable" }
+  | import("../platform/actions.js").ActionSubjectRetention;
+
 export interface SearchIndexDocument {
+  /** Body version is independent of the entries listing refresh token. */
+  content_revision?: string | null;
+  retention?: SearchRetentionBinding;
   source_key: string;
   kind: string;
   object_id: string;

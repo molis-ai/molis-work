@@ -4,11 +4,12 @@ import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { createHash } from "node:crypto";
 import { createRequire } from "node:module";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { join } from "node:path";
 import type { PluginPrivateStorage } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { DEMO_PROJECT_ID as project } from "@molis-ai/molis-work-app-local-host";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import { agentSessionLifecycleActions as lifecycle, type AgentRunRef, type AgentSessionDecision, type AgentSessionRef } from "@molis-ai/molis-work-contracts/services/agent-host";
+import { agentHostCapabilities as agent, agentSessionLifecycleActions as lifecycle, type AgentRunRef, type AgentSessionDecision, type AgentSessionRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { codingSdkRuntime } from "./fixtures/coding-sdk-runtime.js";
 import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
 import { noEffect } from "./fixtures/coding-sessions.js";
@@ -512,10 +513,17 @@ test("COD-MEM-RESTORE-PENDING a write already awaiting authorization rechecks th
 
 
 /** Real planning, confirmation and execution; only model transport uses fixed responses. */
-async function lifecyclePlan(t: TestContext) {
+async function lifecyclePlan(t: TestContext, readBarrier?: { belongsToCall(): boolean; hold(): Promise<void> }) {
   let storage!: PluginPrivateStorage;
   const f = await codingSdkRuntime(t, { wrapCoding: definition => ({ ...definition, start: context => {
-    storage = context.services!.storage!; return definition.start(context);
+    storage = context.services!.storage!;
+    const actions = context.services!.actions!;
+    return definition.start({ ...context, services: { ...context.services, actions: { ...actions, invoke: async (definition, input, control, transport) => {
+      const result = await actions.invoke(definition, input, control, transport);
+      // A dependency already returned; pausing here does not hold the Host's project queue needed by archive.
+      if (readBarrier?.belongsToCall() && definition.capability_id === agent.readRun.capability_id) await readBarrier.hold();
+      return result;
+    } } } });
   } }) });
   const model = t.mock.method(globalThis, "fetch", async () => cogniaModelResponse(JSON.stringify({ title: "Pending original plan",
     steps: [{ title: "Original step", acceptance: "Keep evidence" }], blockers: "", change_reason: "" })));
@@ -547,19 +555,15 @@ async function beforeSdkArchive(t: TestContext, f: Fixture, original: Decision) 
 }
 
 for (const when of ["already-pending", "pending-during-read"] as const) test(`COD-MEM-RESTORE-PENDING-P2 plan amendment ${when} cannot revise the real board or send supplemental input`, { timeout: 60_000 }, async t => {
-  const { f, ref, model } = await lifecyclePlan(t), original = await preview(f, "pending-plan");
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(), readingScope = new AsyncLocalStorage<boolean>(); let held = false;
+  const { f, ref, model } = await lifecyclePlan(t, { belongsToCall: () => readingScope.getStore() === true, async hold() {
+    if (when === "pending-during-read" && !held) { held = true; entered.resolve(); await release.promise; }
+  } }), original = await preview(f, "pending-plan");
   assert.ok(original.mode === "runtime");
   const sessionBefore = await f.adapter.readSession(original.binding); assert.ok(Array.isArray(sessionBefore.queued_inputs));
   const before = await f.adapter.read(ref), board = before.step_board!, row = f.sessions.get(project, "pending-plan"), modelCalls = model.mock.callCount();
-  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>(); let held = false;
-  const read = f.adapter.read.bind(f.adapter);
-  const hook = t.mock.method(f.adapter, "read", async (...args) => {
-    const view = await read(...args);
-    if (when === "pending-during-read" && !held && args[0].run_id === ref.run_id) { held = true; entered.resolve(); await release.promise; }
-    return view;
-  });
-  const amend = () => f.call(path("pending-plan") + `/runs/${ref.run_id}/plan-amendments`, { amendment: { kind: "insert", after: board.nodes[0]!.id,
-    title: "Must not enter the pending board", acceptance: "No new step or input" }, expected_version: board.version });
+  const amend = () => readingScope.run(true, () => f.call(path("pending-plan") + `/runs/${ref.run_id}/plan-amendments`, { amendment: { kind: "insert", after: board.nodes[0]!.id,
+    title: "Must not enter the pending board", acceptance: "No new step or input" }, expected_version: board.version }));
   let result: Awaited<ReturnType<Fixture["call"]>>, pending;
   try {
     if (when === "already-pending") { pending = await beforeSdkArchive(t, f, original); result = await amend(); }
@@ -568,7 +572,7 @@ for (const when of ["already-pending", "pending-during-read"] as const) test(`CO
       await Promise.race([entered.promise, writing.then(() => { throw new Error("amendment never reached the actual Run read barrier"); })]);
       pending = await beforeSdkArchive(t, f, original); release.resolve(); result = await writing;
     }
-  } finally { release.resolve(); hook.mock.restore(); }
+  } finally { release.resolve(); }
   const after = await f.adapter.read(ref), sessionAfter = await f.adapter.readSession(original.binding), saved = f.sessions.lifecycle.current(project, "pending-plan");
   assert.equal((await archive(f, "pending-plan", original))?.status, 200, "the original archive remains recoverable, even in the independent red example");
   assert.equal(result?.status, 409, JSON.stringify(result?.body));

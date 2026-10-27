@@ -168,7 +168,11 @@ export class AssistantDispatch {
     const adapter = host.adapter(RUNTIME);
     let base = await this.ports.authority(work);
     const original_input = !work.delegated_by && !work.reply_target ? intent?.original_input : undefined;
-    const startAuthority = () => ({ ...base, beforeStart: async () => {
+    let checkMaterials: RoundMaterials["beforeDispatch"];
+    const startAuthority = () => ({ ...base, beforeDispatch: async () => {
+      await base.beforeDispatch?.();
+      if (checkMaterials) await checkMaterials(base.actions ? await (await base.actions(RUNTIME)).discover() : []);
+    }, beforeStart: async () => {
       await base.beforeStart?.(); await beforeStart?.(); assertSendCurrent(stillCurrent); this.link.lifecycle.assertStart(work);
     }, assertBeforeStart: () => {
       requireSynchronous(base.assertBeforeStart?.(), "最终授权检查必须同步完成");
@@ -212,6 +216,7 @@ export class AssistantDispatch {
     try {
       if (!work.reply_target) await this.link.memoryForRound(work, text, context);
       prepared = work.thread_round ? threadReplyMaterials(work.work_id, work.thread_round) : await this.link.roundMaterials(work, materials, context, offered, unavailable, previousWaitWithdrawn);
+      checkMaterials = prepared.beforeDispatch;
       handle = await this.link.delegations.startPlaced(work, async placed => {
         work = placed; assertSendCurrent(stillCurrent);
         return host.start(RUNTIME, roundStartInput(work, { actor_id: this.actorId, session: sessionRef(work), role_id: role, task: text, text_materials: prepared.materials, materials, tokens_left: left, original_input, continued_from: intent?.continued_from }), authority);

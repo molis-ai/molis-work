@@ -44,7 +44,7 @@ export interface SearchHost {
   /** The same read, giving each object's label and revision as its owner has it (null where `confirmReferences` says false). */
   readReferences(projectId: string, picked: readonly ActionSubject[], kinds?: readonly string[]): Promise<({ label: string; revision: string } | null)[]>;
   /** How many pieces of project knowledge a caller whose directory is `views` would see listed (specs/project-knowledge PMAT-33). */
-  knowledgeTally(projectId: string, views: readonly ActionView[]): { total: number; sources: Array<{ plugin_title: string; count: number }> };
+  knowledgeTally(projectId: string, views: readonly ActionView[]): ReturnType<KnowledgeHost["tally"]>;
   knowledgeCatalog(projectId: string, views: readonly ActionView[], words: string): ReturnType<KnowledgeHost["catalog"]>;
   close(): Promise<void>;
 }

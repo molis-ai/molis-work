@@ -1,8 +1,9 @@
 import {
   ActionError,
+  SUBJECT_RETENTION_REQUEST_TYPE,
+  SUBJECT_RETENTION_TYPE,
   isSearchEntriesSource,
   isSubjectReader,
-  resolveActionSubject,
   retainActionAuthority,
   type ActionCallContext,
   type ActionClient,
@@ -17,7 +18,6 @@ import {
   KNOWLEDGE_CATALOG_WHOLE_PIECES,
   KNOWLEDGE_LIST_MAX,
   KNOWLEDGE_PROVIDER_ID,
-  KNOWLEDGE_TEXT_MAX_CHARS,
   KNOWLEDGE_READ_DEFAULT_CHARS,
   KNOWLEDGE_READ_MAX_CHARS,
   knowledgeActions,
@@ -35,14 +35,18 @@ import {
   type KnowledgeListResponse,
   type KnowledgeOutline,
   type KnowledgeOutlineRequest,
+  type KnowledgeLocateRequest,
+  type KnowledgeLocateResponse,
   type KnowledgePieceName,
   type KnowledgeReadRequest,
   type KnowledgeReadResponse,
   type KnowledgeSearchRequest,
   type KnowledgeSearchResponse,
 } from "@molis-ai/molis-work-contracts/services/knowledge";
-import { searchSourceKey, type SearchQueryRequest, type SearchQueryResponse } from "@molis-ai/molis-work-contracts/services/search";
+import { searchSourceKey, type SearchQueryRequest, type SearchQueryResponse, type SearchRetentionIdentity, type SearchRetentionResult } from "@molis-ai/molis-work-contracts/services/search";
 import { WORKSPACE_FILE_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
+import { readKnowledgeSubject, type KnowledgeSourceRead } from "./source-read.js";
+import { locateSections, type KnowledgeLocator } from "./locate.js";
 import { knowledgeErrors } from "./errors.js";
 import { afterLines, grepLines, lineAt, lineStarts, outlineOf, rangeOf } from "./text.js";
 import { KnowledgeWorkspace } from "./workspace.js";
@@ -53,7 +57,7 @@ import { knowledgeRef, namedSubject, namedSubjects } from "./refs.js";
 export { knowledgeErrors, type KnowledgeErrorCode } from "./errors.js";
 export { grepLines, lineAt, lineStarts, outlineOf, rangeOf, PLAIN_SECTION_CHARS } from "./text.js";
 export { KnowledgeOrganizer, knowledgeCatalog, knowledgeCutPieces, DEFAULT_KNOWLEDGE_QUOTA, ORGANIZE_TEXT_CHARS, OUTLINE_MIN_CHARS, cardFor, cardOrganized, cardSeen, draftInput,
-  type KnowledgeDraft, type KnowledgeDraftInput, type KnowledgeOrganizerOptions, type KnowledgePiece, type KnowledgeWriter } from "./organize.js";
+  type KnowledgeDraft, type KnowledgeDraftInput, type KnowledgeOrganizerOptions, type KnowledgePiece, type KnowledgeWriter, type KnowledgeWriterControl } from "./organize.js";
 export { KnowledgeCards } from "./manage.js";
 export { pathPattern, nameMatches, type PathPattern } from "./glob.js";
 export { RoundBudget } from "./budget.js";
@@ -78,6 +82,9 @@ export interface KnowledgeServiceOptions {
   search(access: KnowledgeAccess, input: SearchQueryRequest): Promise<SearchQueryResponse>;
   /** The cards organizing wrote and the person edited (spec §5), and the receipts of what was read. */
   cards: KnowledgeCardStorePort;
+  /** The Host reconciles cards before searching, so an unbound hit cannot outlive its indexed source binding. */
+  requireCard?: boolean;
+  retention?(access: KnowledgeAccess, identity: SearchRetentionIdentity, views?: readonly ActionView[]): Promise<SearchRetentionResult>;
   /**
    * Pieces whose text the search index holds only the start of: a grep over the whole project reads them as well, since a word
    * past what the index holds would otherwise never make its piece a candidate (PMAT-32).
@@ -88,6 +95,9 @@ export interface KnowledgeServiceOptions {
   budget?: RoundBudget;
   clock?: () => Date;
 }
+
+/** An ephemeral guard for the actual cards placed in a model's input; never serialized as Knowledge data. */
+export interface KnowledgeDispatchGuard { beforeDispatch?(views: readonly ActionView[]): Promise<void> }
 
 const DEFAULT_CARDS = 10;
 const HINT_CHARS = 160;
@@ -126,7 +136,11 @@ function visibility(views: readonly ActionView[], projectId: string | null): (ca
       readable.set(view.provider.provider_id, kinds);
     }
   }
-  return card => !!listed.get(card.source_key)?.has(card.subject.kind) && (card.content_policy === "summary" || !!readable.get(card.provider_id)?.has(card.subject.kind));
+  return card => !views.some(view => view.provider.provider_id === card.provider_id
+    && view.action.input_type === SUBJECT_RETENTION_REQUEST_TYPE && view.action.output_type === SUBJECT_RETENTION_TYPE
+    && view.action.subject_kinds.includes(card.subject.kind) && (!card.retention?.generation || !view.availability.available
+      || view.provider.plugin_installation_generation !== card.retention.generation))
+    && !!listed.get(card.source_key)?.has(card.subject.kind) && (card.content_policy === "summary" || !!readable.get(card.provider_id)?.has(card.subject.kind));
 }
 
 /**
@@ -147,19 +161,27 @@ export class KnowledgeService {
     const found = await this.options.search(access, { query: input.query, scope: "project", limit,
       ...(input.kinds?.length ? { kinds: input.kinds } : {}), ...(input.plugins?.length ? { plugins: input.plugins } : {}) });
     const cards: KnowledgeCard[] = [];
+    const originals = new Map<KnowledgeCard, KnowledgeCardRecord>();
     for (const hit of found.hits) {
       if (hit.project_id !== project) continue;
       const stored = this.stored(project, hit.subject, hit.plugin_id);
-      if (stored?.excluded) continue;
-      cards.push({ subject: hit.subject, ref: knowledgeRef(hit.subject), revision: hit.revision, title: stored?.title || hit.title, plugin_id: hit.plugin_id, plugin_title: hit.plugin_title,
-        updated_at: hit.updated_at, matched: hit.locator.field, hint: hit.snippet.slice(0, HINT_CHARS), brief: stored?.brief || null, keywords: stored?.keywords ?? [], open: hit.open });
+      if (stored?.excluded || this.options.requireCard && !stored || stored && (stored.provider_id !== hit.source.provider_id
+        || stored.source_key !== searchSourceKey({ project_id: project, ...hit.source }))) continue;
+      const card: KnowledgeCard = { subject: hit.subject, ref: knowledgeRef(hit.subject), revision: stored?.revision ?? hit.revision, title: stored?.title || hit.title, plugin_id: hit.plugin_id, plugin_title: hit.plugin_title,
+        updated_at: hit.updated_at, matched: hit.locator.field, hint: hit.snippet.slice(0, HINT_CHARS), brief: stored?.brief || null, keywords: stored?.keywords ?? [], open: hit.open };
+      cards.push(card);
+      if (stored) originals.set(card, stored);
     }
     // What only a card's own words match (its brief, keywords, section notes), for a caller who may see the piece.
     const more = this.options.cards.search(project, input.query, limit * 2).map(match => this.options.cards.get(project, match.subject))
       .filter((card): card is KnowledgeCardRecord => !!card && !card.excluded && card.state !== "missing" && !cards.some(item => sameSubject(item.subject, card.subject))
         && (!input.kinds?.length || input.kinds.includes(card.subject.kind)) && (!input.plugins?.length || input.plugins.includes(card.plugin_id)));
-    if (cards.length >= limit) return { status: found.status, cards };
     const visible = await this.visible(access);
+    for (let i = cards.length - 1; i >= 0; i--) {
+      const original = originals.get(cards[i]!);
+      if (original ? !visible(original) : this.options.requireCard) cards.splice(i, 1);
+    }
+    if (cards.length >= limit) return { status: found.status, cards };
     for (const card of more.filter(visible).slice(0, limit - cards.length)) cards.push(cardHit(card, "card"));
     // Too few hold every word (a whole question rarely does): those that hold some of them, marked so (§6.4).
     const shown = this.listed(project, visible).filter(card => !cards.some(item => sameSubject(item.subject, card.subject))
@@ -210,35 +232,50 @@ export class KnowledgeService {
    * A round's catalog of the project's knowledge for a caller whose directory is `views` (§6.4): the whole of it when it is small,
    * otherwise the pieces most related to the round's words. Cards only; `total` says how many there are in all.
    */
-  catalog(projectId: string, views: readonly ActionView[], words: string): { total: number; whole: boolean; pieces: KnowledgeListEntry[] } {
-    const shown = this.listed(projectId, visibility(views, projectId));
+  async catalog(projectId: string, views: readonly ActionView[], words: string, access?: KnowledgeAccess): Promise<{ total: number; whole: boolean; pieces: KnowledgeListEntry[] } & KnowledgeDispatchGuard> {
+    const shown = this.listed(projectId, access ? await this.visible(access, views) : card => !card.retention && visibility(views, projectId)(card));
     const newest = relatedFirst(shown, []).slice(0, KNOWLEDGE_CATALOG_WHOLE_PIECES).map(entryOf);
-    if (knowledgeCatalogWhole({ pieces: newest, total: shown.length })) return { total: shown.length, whole: true, pieces: newest };
-    return { total: shown.length, whole: false, pieces: relatedFirst(shown, this.related(projectId, shown, words)).slice(0, KNOWLEDGE_CATALOG_RELATED).map(entryOf) };
+    if (knowledgeCatalogWhole({ pieces: newest, total: shown.length })) return { total: shown.length, whole: true, pieces: newest, ...this.dispatchGuard(projectId, shown, access) };
+    const picked = relatedFirst(shown, this.related(projectId, shown, words)).slice(0, KNOWLEDGE_CATALOG_RELATED);
+    return { total: shown.length, whole: false, pieces: picked.map(entryOf), ...this.dispatchGuard(projectId, picked, access) };
   }
 
   /**
    * How many pieces `list` would show a caller whose directory is `views`, by source: a round starts knowing there is something
    * here to look in (PMAT-33). Counts only, no titles or text.
    */
-  tally(projectId: string, views: readonly ActionView[]): { total: number; sources: Array<{ plugin_title: string; count: number }> } {
+  async tally(projectId: string, views: readonly ActionView[], access?: KnowledgeAccess): Promise<{ total: number; sources: Array<{ plugin_title: string; count: number }> } & KnowledgeDispatchGuard> {
     const counts = new Map<string, number>();
-    for (const card of this.listed(projectId, visibility(views, projectId))) counts.set(card.plugin_title, (counts.get(card.plugin_title) ?? 0) + 1);
-    return { total: [...counts.values()].reduce((sum, count) => sum + count, 0), sources: [...counts].map(([plugin_title, count]) => ({ plugin_title, count })) };
+    const shown = this.listed(projectId, access ? await this.visible(access, views) : card => !card.retention && visibility(views, projectId)(card));
+    for (const card of shown) counts.set(card.plugin_title, (counts.get(card.plugin_title) ?? 0) + 1);
+    return { total: [...counts.values()].reduce((sum, count) => sum + count, 0), sources: [...counts].map(([plugin_title, count]) => ({ plugin_title, count })), ...this.dispatchGuard(projectId, shown, access) };
   }
 
   async outline(access: KnowledgeAccess, input: KnowledgeOutlineRequest): Promise<KnowledgeOutline> {
-    const context = await this.owner(access, namedSubject(this.options.cards, this.project(access), input.subject), knowledgeActions.outline);
+    return (await this.preparedOutline(access, input)).tree;
+  }
+
+  async locate(access: KnowledgeAccess, input: KnowledgeLocateRequest, locator: KnowledgeLocator | null): Promise<KnowledgeLocateResponse> {
+    return locateSections({ question: input.question, subjects: this.named(access, input.subjects) },
+      subject => this.preparedOutline(access, { subject }, knowledgeActions.locate), locator, access.beforeEffect, access.caller.signal);
+  }
+
+  private async preparedOutline(access: KnowledgeAccess, input: KnowledgeOutlineRequest, origin: { capability_id: string; version: number } = knowledgeActions.outline) {
+    const read = await this.owner(access, namedSubject(this.options.cards, this.project(access), input.subject), origin);
+    const { context } = read;
     const card = this.stored(access.caller.project_id!, context.subject);
     // Section notes are for this very text only: a card organized from another revision says nothing about it.
     const notes = new Map(card?.organized_revision === context.revision ? card.outline.map(note => [note.anchor, note.summary]) : []);
-    return { subject: context.subject, revision: context.revision, title: context.title, length: context.content.length, owner_truncated: context.truncated,
+    const tree: KnowledgeOutline = { subject: context.subject, revision: context.revision, title: context.title, length: context.content.length, owner_truncated: context.truncated,
       sections: outlineOf(context.content).map(({ anchor, title, level, parent, start, line, length }) => ({ anchor, title, level, parent, start, line, length, summary: notes.get(anchor) ?? null })) };
+    await read.assertCurrent();
+    return { tree, assertCurrent: read.assertCurrent };
   }
 
   async read(access: KnowledgeAccess, input: KnowledgeReadRequest): Promise<KnowledgeReadResponse> {
     if (input.line !== undefined && (input.anchor !== undefined || input.offset !== undefined)) throw knowledgeErrors.invalid("按行读（line）时不再给 anchor 或 offset");
-    const context = await this.owner(access, namedSubject(this.options.cards, this.project(access), input.subject), knowledgeActions.read);
+    const read = await this.owner(access, namedSubject(this.options.cards, this.project(access), input.subject), knowledgeActions.read);
+    const { context } = read;
     const lines = lineStarts(context.content);
     if (input.line !== undefined && input.line > lines.length) throw knowledgeErrors.invalid(`这份资料现在只有 ${lines.length} 行`, { line: input.line, total_lines: lines.length, revision: context.revision });
     const range = input.line !== undefined ? { start: lines[input.line - 1]!, end: context.content.length } : rangeOf(context.content, input.anchor);
@@ -246,6 +283,7 @@ export class KnowledgeService {
     const start = range.start + (input.offset ?? 0);
     if (start > range.end) throw knowledgeErrors.invalid("读取位置超出了这一段的长度", { offset: input.offset ?? 0, length: range.end - range.start });
     await access.beforeEffect?.();
+    await read.assertCurrent();
     const round = roundOf(access.caller), left = this.budget.left(round), asked = Math.min(KNOWLEDGE_READ_MAX_CHARS, input.max_chars ?? KNOWLEDGE_READ_DEFAULT_CHARS);
     const until = input.max_lines === undefined ? range.end : Math.min(range.end, afterLines(lines, start, input.max_lines, context.content.length));
     const end = Math.min(until, start + Math.min(asked, left ?? asked));
@@ -258,7 +296,7 @@ export class KnowledgeService {
       remaining: until - end, owner_truncated: context.truncated, round_chars_left: left === null ? null : left - text.length };
   }
 
-  async grep(access: KnowledgeAccess, input: KnowledgeGrepRequest): Promise<KnowledgeGrepResponse> {
+  async grep(access: KnowledgeAccess, input: KnowledgeGrepRequest, prepareReferences?: (subjects: readonly ActionSubject[]) => Promise<void>): Promise<KnowledgeGrepResponse> {
     const project = this.project(access);
     const named = namedSubjects(this.options.cards, project, input.subjects);
     if (named.length > KNOWLEDGE_GREP_MAX_SUBJECTS) throw knowledgeErrors.invalid(`一次最多查 ${KNOWLEDGE_GREP_MAX_SUBJECTS} 份资料`);
@@ -276,10 +314,17 @@ export class KnowledgeService {
     result.more ||= !!picked?.more;
     const all = [...named, ...found?.files.map(file => file.subject) ?? [], ...picked?.subjects ?? []];
     const subjects = all.filter((subject, index) => all.findIndex(other => sameSubject(other, subject)) === index);
-    const read = await Promise.all(subjects.map(subject => this.owner(access, subject, knowledgeActions.grep).then(context => ({ context }), (error: unknown) => ({ error }))));
+    const read = await Promise.all(subjects.map(subject => this.owner(access, subject, knowledgeActions.grep).then(read => read, (error: unknown) => ({ error }))));
     let left = input.limit ?? DEFAULT_GREP_LIMIT;
+    // Reference bookkeeping completes inside this read, before its original authority is checked and receipts are written.
+    await prepareReferences?.(read.flatMap(outcome => "context" in outcome ? [outcome.context.subject] : []));
     // Lines found are original text: they count toward the round's fill, and the rest is left with `more`. Counts are not text.
     await access.beforeEffect?.();
+    for (let index = 0; index < read.length; index++) {
+      const outcome = read[index]!;
+      if ("context" in outcome) try { await outcome.assertCurrent(); }
+      catch (error) { read[index] = { error }; }
+    }
     const round = roundOf(access.caller), fill = lines ? this.budget.left(round) : null;
     let chars = 0;
     const given: Array<{ context: ActionSubjectContext; via: "grep"; chars: number }> = [];
@@ -357,14 +402,56 @@ export class KnowledgeService {
   }
 
   /** The rule a caller may be shown a card by, from the directory of the authority it reads with. */
-  private async visible(access: KnowledgeAccess): Promise<(card: KnowledgeCardRecord) => boolean> {
-    const reader = knowledgeReader(access);
-    return visibility(await access.client.discover(reader), reader.project_id ?? null);
+  async visible(access: KnowledgeAccess, original?: readonly ActionView[]): Promise<(card: KnowledgeCardRecord) => boolean> {
+    const reader = knowledgeReader(access), views = await access.client.discover(reader);
+    const allowed = visibility(views, reader.project_id ?? null);
+    const before = original ? visibility(original, reader.project_id ?? null) : allowed;
+    const shown = new Set<string>();
+    for (const card of this.options.cards.list(this.project(access))) {
+      if (!allowed(card) || !before(card)) continue;
+      const state = await this.retention(access, card, views);
+      if (state.state === "active" || state.state === "unsupported") shown.add(JSON.stringify(card));
+      if (state.state === "deleted" && JSON.stringify(this.options.cards.get(card.project_id, card.subject)) === JSON.stringify(card))
+        this.options.cards.remove(card.project_id, card.subject);
+    }
+    reader.signal?.throwIfAborted();
+    reader.assert_authority_current?.();
+    return card => shown.has(JSON.stringify(card))
+      && JSON.stringify(this.options.cards.get(card.project_id, card.subject)) === JSON.stringify(card);
+  }
+
+  private async retention(access: KnowledgeAccess, card: SearchRetentionIdentity, views?: readonly ActionView[]): Promise<SearchRetentionResult> {
+    if (this.options.retention) return this.options.retention(access, { project_id: card.project_id, provider_id: card.provider_id, subject: card.subject,
+      ...(card.retention ? { retention: card.retention } : {}) }, views);
+    const directory = views ?? await access.client.discover(knowledgeReader(access));
+    const declared = directory.some(view => view.provider.provider_id === card.provider_id && view.action.input_type === SUBJECT_RETENTION_REQUEST_TYPE
+      && view.action.output_type === SUBJECT_RETENTION_TYPE && view.action.subject_kinds.includes(card.subject.kind));
+    return { state: card.retention || declared ? "unavailable" : "unsupported" };
   }
 
   /** The pieces a call names by subject or ref, in the caller's own project (none: refused before anything is read). */
   named(access: KnowledgeAccess, names: readonly KnowledgePieceName[]): ActionSubject[] {
     return namedSubjects(this.options.cards, this.project(access), names);
+  }
+
+  private dispatchGuard(project: string, cards: readonly KnowledgeCardRecord[], access?: KnowledgeAccess): KnowledgeDispatchGuard {
+    if (!access || !cards.length) return {};
+    const original = cards.map(card => ({ card, text: JSON.stringify(entryOf(card)) }));
+    return { beforeDispatch: async views => {
+      if (!views.some(view => view.availability.available && view.provider.provider_id === KNOWLEDGE_PROVIDER_ID
+        && view.capability_id === knowledgeActions.list.capability_id)) throw knowledgeErrors.unreadable("本轮的资料目录权限已收回");
+      const allowed = visibility(views, project);
+      for (const { card, text } of original) {
+        const current = this.options.cards.get(project, card.subject);
+        if (!current || current.excluded || !allowed(current) || current.provider_id !== card.provider_id || current.source_key !== card.source_key
+          || current.retention?.generation !== card.retention?.generation || JSON.stringify(entryOf(current)) !== text)
+          throw knowledgeErrors.unreadable("本轮带入的资料已经变化，未发给模型");
+        const state = await this.retention(access, card);
+        if (state.state !== "active" && state.state !== "unsupported") throw knowledgeErrors.unreadable("本轮带入的资料已归档或当前不可读取");
+      }
+      knowledgeReader(access).signal?.throwIfAborted();
+      knowledgeReader(access).assert_authority_current?.();
+    } };
   }
 
   /** Those of `shown` that hold some of the words, by the indexed text and the cards' own words together. */
@@ -394,22 +481,26 @@ export class KnowledgeService {
    * The piece as its owner has it now for this caller; an owner's refusal keeps its own code. A reader that takes `offset` is
    * read page by page up to `KNOWLEDGE_TEXT_MAX_CHARS`, all pages from one revision; one that does not gives its first page.
    */
-  private async owner(access: KnowledgeAccess, subject: ActionSubject, origin: { capability_id: string; version: number }): Promise<ActionSubjectContext> {
+  private async owner(access: KnowledgeAccess, subject: ActionSubject, origin: { capability_id: string; version: number }): Promise<KnowledgeSourceRead> {
     const project = this.project(access);
-    if (subject.kind === WORKSPACE_FILE_SUBJECT_KIND) return this.workspace.file(access, subject, origin);
+    if (subject.kind === WORKSPACE_FILE_SUBJECT_KIND) {
+      const context = await this.workspace.file(access, subject, origin);
+      return { context, assertCurrent: async () => {
+        const current = await this.workspace.file(access, subject, origin);
+        if (current.revision !== context.revision) throw knowledgeErrors.unreadable("文件已经变化，请重新读取");
+      } };
+    }
     const known = this.stored(project, subject);
     if (known?.excluded) throw knowledgeErrors.excluded("这份资料被设为不给 Agent 用；要用它，请在项目资料里取消这个设置");
     const caller = retainActionAuthority(knowledgeReader(access), { capability_id: origin.capability_id, version: origin.version, provider_id: KNOWLEDGE_PROVIDER_ID });
     try {
-      const { context, reader } = await resolveActionSubject(access.client, caller, subject);
-      let content = context.content, page = context;
-      while (page.truncated && page.length !== undefined && content.length < Math.min(page.length, KNOWLEDGE_TEXT_MAX_CHARS)) {
-        page = await access.client.invoke(caller, reader, { subject_id: subject.id, offset: content.length }) as ActionSubjectContext;
-        if (page.revision !== context.revision || page.offset !== content.length || !page.content) throw knowledgeErrors.unreadable("这份资料在读取时变了，请重试");
-        content += page.content;
+      if (known) {
+        const state = await this.retention(access, known);
+        if (state.state === "deleted" && JSON.stringify(this.stored(project, subject)) === JSON.stringify(known)) this.options.cards.remove(project, known.subject);
+        if (state.state !== "active" && state.state !== "unsupported") throw knowledgeErrors.unreadable("这份资料已归档或当前不可读取");
       }
-      content = content.slice(0, KNOWLEDGE_TEXT_MAX_CHARS);
-      return { ...context, content, truncated: content.length < (page.length ?? content.length) || (page.length === undefined && context.truncated) };
+      return await readKnowledgeSubject({ client: access.client, caller, project, subject, known, currentCard: () => this.stored(project, subject),
+        retention: (identity, views) => this.retention(access, identity, views) });
     } catch (error) {
       // A subject no card knows, of a kind this caller may read, that its owner does not take is not a piece here: most often
       // one written differently from how it was given. Said as that, so the caller does not take the owner's refusal of the id

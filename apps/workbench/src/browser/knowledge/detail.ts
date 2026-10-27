@@ -42,7 +42,7 @@ export function renderDetail(card: KnowledgeCardRecord, host: KnowledgeDetailHos
     box.append(failed);
   }
   if (card.state === "listed") box.append(el("p", "settings-muted", card.content_policy === "summary" ? L("这份资料的主人只让出标题和摘要，正文不交给模型整理，卡片用主人给的标题与摘要。")
-    : L("读不出这份资料的正文（比如图片或二进制文件），不交给模型整理；卡片用它的标题与摘要，Agent 只能看到这些。")));
+    : card.can_organize ? L("恢复后未自动整理，可按需手动整理。") : L("读不出这份资料的正文（比如图片或二进制文件），不交给模型整理；卡片用它的标题与摘要，Agent 只能看到这些。")));
   if (card.excluded && card.state === "pending") box.append(el("p", "settings-muted", L("不给 Agent 用的资料不交给模型整理；取消这个设置后再整理。")));
   if (card.state === "missing") box.append(el("p", "settings-muted", L("这份资料现在不在项目的目录里（可能被移走或停用）。你改过的卡片先留着，资料回来时接上。")));
   const form = el("form", "knowledge-fields");
@@ -83,7 +83,7 @@ export function renderDetail(card: KnowledgeCardRecord, host: KnowledgeDetailHos
   toggle.dataset.knowledgeExcluded = "";
   toggle.addEventListener("change", () => void exclude(toggle.checked));
   keep.append(toggle, el("span", "", L("不给 Agent 用")));
-  organize.hidden = card.excluded || card.state === "listed" || card.state === "missing";
+  organize.hidden = card.excluded || (card.state === "listed" && !card.can_organize) || card.state === "missing";
   actions.append(saveButton, organize, keep);
   form.append(actions);
   form.addEventListener("submit", event => {

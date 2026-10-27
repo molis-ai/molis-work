@@ -147,9 +147,9 @@ home.judgment.read	1	system.home	query	query	project	read	-	agent,mcp,user,workf
 home.judgment.write	1	system.home	command	operation	project	write	-	agent,mcp,user,workflow	home:write	-	-	-	561b3068099c	3bef9ab5352a	-
 home.recommendations.read	1	system.home	query	query	project	read	-	agent,mcp,user,workflow	home:read	-	-	-	99334726611c	1849cb2ba26c	-
 information.plan	1	system.information	query	query	project	read	concurrent	user	feed:read,inbox:read,model:invoke	-	-	-	8e2694dda5f5	4f388ba1b8eb	6249b1c8b85e
-knowledge.card.edit	1	system.knowledge	command	operation	project	write	-	user	knowledge:manage	-	-	-	6764c11200e2	d3f54c851bfe	-
-knowledge.card.exclude	1	system.knowledge	command	operation	project	write	-	user	knowledge:manage	-	-	-	0a3c56932129	d3f54c851bfe	-
-knowledge.cards	1	system.knowledge	query	query	project	read	-	user	knowledge:manage	-	-	-	78330c1cb10d	1b098be587c9	-
+knowledge.card.edit	2	system.knowledge	command	operation	project	write	-	user	knowledge:manage	-	-	-	6764c11200e2	236d9e4d188e	-
+knowledge.card.exclude	2	system.knowledge	command	operation	project	write	-	user	knowledge:manage	-	-	-	0a3c56932129	236d9e4d188e	-
+knowledge.cards	2	system.knowledge	query	query	project	read	-	user	knowledge:manage	-	-	-	78330c1cb10d	a6d4577775e9	-
 knowledge.glob	1	system.knowledge	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	knowledge:read	-	-	-	52b3aedc093e	95ec33fe4a14	-
 knowledge.grep	1	system.knowledge	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	knowledge:read	-	-	-	174b52327e5d	3a6a8294b57c	-
 knowledge.list	1	system.knowledge	query	query	project	read	concurrent	agent,mcp,plugin,user,workflow	knowledge:read	-	-	-	bbbe6be930a8	9ed5d657f112	-

@@ -22,13 +22,21 @@ export function createPrologueInference(runtime: Runtime,
   const execute = <T>(input: PrologueCredentialInput, signal: AbortSignal, optional: boolean, operation: (ref: ExactRef<"credential"> | undefined, check: () => Promise<void>) => Promise<T>): Promise<T> => (async () => {
     const prepared = await waitForInference(credential(input, signal, optional), signal);
     let refused: Error | undefined;
+    const checkCurrent = async (check: PrologueCredentialInput["beforeDispatch"]) => {
+      signal.throwIfAborted(); await waitForInference(prepared.assertCurrent(), signal); signal.throwIfAborted();
+      await waitForInference(Promise.resolve(check?.()), signal); signal.throwIfAborted();
+    };
     const guard = async () => {
-      try { signal.throwIfAborted(); await waitForInference(prepared.assertCurrent(), signal); signal.throwIfAborted(); await waitForInference(Promise.resolve(input.beforeDispatch?.()), signal); signal.throwIfAborted(); }
+      try { await checkCurrent(input.beforeDispatch); }
       catch (error) { if (!signal.aborted && error instanceof Error) refused = markDispatchRefusal(error); throw error; }
     };
     try {
       await guard();
-      return await withDispatchGuard(guard, async () => { const value = await operation(prepared.ref, guard); await guard(); return value; });
+      return await withDispatchGuard(guard, async () => {
+        const value = await operation(prepared.ref, guard);
+        await checkCurrent(input.afterResult ?? input.beforeDispatch);
+        return value;
+      });
     } catch (error) { throw refused ?? error; }
   })();
   const completeTextResult = (input: PrologueTextInput): Promise<PrologueTextResult> => bounded(input, signal => execute(input, signal, false, async (credentialRef, check) => {

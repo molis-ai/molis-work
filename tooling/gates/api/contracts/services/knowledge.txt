@@ -85,6 +85,11 @@ export interface KnowledgeCardMatch {
 }
 
 export interface KnowledgeCardRecord extends KnowledgeCardFields {
+    retention?: {
+        generation: string | null;
+        restoration_operation_id: string | null;
+    };
+    can_organize?: boolean;
     project_id: string;
     subject: ActionSubject;
     source_key: string;

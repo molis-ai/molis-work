@@ -31,13 +31,14 @@ export { cardInputValues, instantIn, wallClockIn } from "./card-values.js";
 /** The rules of a question set and its answer, for a plugin that asks without an Agent run; the same verdicts as the Agent runtime's. */
 export { QUESTION_LIMITS, questionProblems, questionSetFlaw } from "./question-rules.js";
 export { sceneConfigurationActions } from "@molis-ai/molis-work-contracts/platform/actions";
-export { defineAction } from "./actions.js";
+export { defineAction, defineSubjectRetentionAction } from "./actions.js";
 /** The two binders: an HTTP route over an action, and an action over the local owner's personal state. A route answers a failure by its kind. */
 export { PLUGIN_ROUTE_STREAM_LIMITS, bindPluginActionRoute, bindOwnerPluginAction } from "./routes.js";
 /** One error model: raise `ActionError`s whose codes your plugin declares once with `defineErrorCodes`; the Host's edge answers them by kind. */
 export { ActionError, defineErrorCodes, type ActionErrorKind, type ActionErrorOptions } from "@molis-ai/molis-work-contracts/platform/actions";
 export { actionErrorKind, actionHttpStatus, actionErrorBody, actionErrorResponse, actionErrorFromResponse, isCodedFailure, type ActionErrorBody, type ActionErrorBodyOptions } from "./errors.js";
 export { defineSubjectContextAction, subjectContext, resolveActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { ActionSubjectRetention, SubjectRetentionRequest } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineSubjectOffersAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineActionUsagesAction, referencesAction, type ActionUsage, type ActionUsagesInput } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SubjectOffersInput, SubjectActionOffer, SubjectOfferChoice } from "@molis-ai/molis-work-contracts/platform/actions";

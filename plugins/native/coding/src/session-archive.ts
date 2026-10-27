@@ -6,6 +6,7 @@ import type { CodingExecution } from "./routes.js";
 import type { CodingSessionRecord } from "./store.js";
 import { sameLifecycleOriginal as same, type CodingLifecycleDecision, type CodingLifecycleObserved, type CodingLifecycleRecord } from "./session-lifecycle.js";
 import { codingError } from "./words.js";
+import { codingSubject } from "./subject.js";
 
 export type CodingArchiveDecision = CodingLifecycleDecision;
 const conflict = () => codingError(message => new ActionError("actions.conflict", message), "coding.server.archive-changed");
@@ -102,9 +103,12 @@ async function apply(a: CodingActivation, execution: CodingExecution, record: Co
   try {
     await runtimeCurrent(a, input, beforeWrite, archived);
     if (!continuing) {
-      const next: CodingLifecycleRecord = { archived, request: structuredClone(input), at: new Date().toISOString(), completed: false };
+      const source = archived ? await codingSubject(a, execution, record, beforeWrite) : null;
+      if (!archived && (!saved?.completed || !saved.archived)) throw conflict();
+      const content_revision = source ? source.context.revision : saved!.content_revision;
+      const next: CodingLifecycleRecord = { archived, request: structuredClone(input), at: new Date().toISOString(), completed: false, content_revision };
       await store.prepare(beforeWrite, a.projectId, record.session_id, saved, next, current => {
-        beforeWrite.assert_current(); matches(input, current); idle(current);
+        beforeWrite.assert_current(); source?.assertCurrent(); matches(input, current); idle(current);
       });
       saved = next;
     }

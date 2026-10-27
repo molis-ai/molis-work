@@ -20,6 +20,8 @@ import { seedConfiguredModels } from "./configured-models.js";
 export async function codingSdkRuntime(t: TestContext, options: { extraPlugins?: ReadonlyArray<{ definition: PluginDefinition; grants: string[] }>; wrapCoding?: (definition: PluginDefinition) => PluginDefinition;
   /** Stands between Coding and the Host's capability client, to count or refuse a call. */
   wrapCapabilities?: <Client extends object>(client: Client) => Client;
+  /** Complete model endpoint for the real Node Host, e.g. a test's loopback protocol server. */
+  modelEndpoint?: string;
   /** Use the production Host Action queue and registry for nested lifecycle dependencies. */
   hostActions?: boolean } = {}) {
   const home = await mkdtemp(join(tmpdir(), "coding-sdk-regression-")), file = join(home, "project.db");
@@ -28,7 +30,7 @@ export async function codingSdkRuntime(t: TestContext, options: { extraPlugins?:
   seedDemoBoard(file);
   const store = new LocalProjectDatabase(file), sessions = codingSessions(store), reviews = new AgentReviewQueue();
   const makeAdapter = () => createPrologueNodeAdapter({ app: { appId: "io.molis.work.coding-regression-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: reviews,
-    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
+    modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: options.modelEndpoint ?? "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
   let adapter = await makeAdapter(), agentHost = new AgentHost({ reviews }); agentHost.register(adapter);
   const local = new LocalHost<null>({ runtimeFactory: { open: () => null, close: () => {} } }), reference = { project_id: DEMO_PROJECT_ID, storage_key: file };
   const service = { ...local.actionRegistry(reference), ...local.actionClient(reference), ...local.syncActionClient(reference) };

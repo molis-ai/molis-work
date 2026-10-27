@@ -6,7 +6,9 @@
 
 ## 要做的三件事
 
-1. **对象读取器。** 可搜索的每种对象都要有读取器（见 [continuity.md](continuity.md) 第 1 条）。搜索的正文就从它来，所以助理读到的与搜索索引的是同一份。对象不存在、已删除或已归档时抛 `<plugin>.not_found`：搜索据此把旧结果移出，助理显示“已不存在”。
+1. **对象读取器。** 可搜索的每种对象都要有读取器（见 [continuity.md](continuity.md) 第 1 条）。搜索的正文就从它来，所以助理读到的与搜索索引的是同一份。对象不存在、已删除或已归档时，普通读取器明确拒绝，不返回缓存正文。没有保留协议的来源维持原 missing 处理；可撤销归档的来源按下述保留合同区分暂时隐藏与真删除。
+
+   可撤销归档使用 SDK 的 `defineSubjectRetentionAction` 声明无正文查询，只接收 `{subject_id}`，返回严格的 active / temporarily_archived / deleted 与原内容版本、已完成恢复操作号。归档对象不在普通条目列表里，也不能从普通读取器读到；暂时隐藏的卡由 Knowledge 自己保留，插件不跨库写卡。deleted 只表示当前已授权库中准确查询确认不存在，不能把撤权、停用、缺库或待完成决定当删除。可信安装代来自 Runtime，不由插件输出。公开类型与示例见 [Plugin SDK](../../packages/plugin-sdk/README.md)，完整消费合同见 [Memory spec](../../specs/prologue-memory-strategy/spec.md)。
 
 2. **条目列出动作。** 一个来源列出你的全部当前可搜索条目，系统按版本比对：
 

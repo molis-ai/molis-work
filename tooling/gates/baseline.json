@@ -1,5 +1,5 @@
 {
-  "giantUnits": 48,
+  "giantUnits": 50,
   "giant": {
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
       "lines": 267,
@@ -25,12 +25,20 @@
     "file apps/workbench/src/scripts/client/tab-workspace.ts": 1948,
     "function apps/workbench/src/shell-page-renderer.ts#createWorkbenchGoalsPageRenderer": 176,
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 425,
+    "class horizontal/knowledge/src/index.ts#KnowledgeService": {
+      "lines": 366,
+      "methods": 23
+    },
     "file horizontal/memory/src/service.ts": 905,
     "class horizontal/memory/src/service.ts#MemoryService": {
       "lines": 758,
       "methods": 47
     },
     "function horizontal/scheduler/src/index.ts#createScheduleService": 215,
+    "class horizontal/search/src/index.ts#SearchService": {
+      "lines": 301,
+      "methods": 21
+    },
     "file packages/design-system/src/styles/momentum.ts": 819,
     "file packages/design-system/src/styles/primitives.ts": 1258,
     "class packages/kernel/src/action-service.ts#ActionService": {

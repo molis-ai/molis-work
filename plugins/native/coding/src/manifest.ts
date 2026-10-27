@@ -190,6 +190,7 @@ export const codingManifest: PluginManifest = {
     { route_id: "coding.create-session", method: "POST", path: "/sessions" },
     { route_id: "coding.read-session", method: "GET", path: "/sessions/:sessionId" },
     { route_id: "coding.subject", method: "GET", path: "/sessions/:sessionId/subject" },
+    { route_id: "coding.subject-retention", method: "GET", path: "/sessions/:sessionId/retention" },
     { route_id: "coding.search-entries", method: "GET", path: "/search/entries" },
     { route_id: "coding.read-runs", method: "GET", path: "/sessions/:sessionId/runs" },
     { route_id: "coding.taskboard", method: "GET", path: "/sessions/:sessionId/taskboard" },

@@ -11,7 +11,7 @@ export type CodingLifecycleDecision = { observed: CodingLifecycleObserved; previ
   { mode: "runtime"; binding: AgentSessionRef; decision: AgentSessionDecision }
 );
 /** One current decision, overwritten only by a subsequent confirmed lifecycle change. No conversation history. */
-export interface CodingLifecycleRecord { archived: boolean; request: CodingLifecycleDecision; at: string; completed: boolean }
+export interface CodingLifecycleRecord { archived: boolean; request: CodingLifecycleDecision; at: string; completed: boolean; content_revision: string }
 
 /** Object key order is not part of the confirmed original. */
 export const sameLifecycleOriginal = (left: unknown, right: unknown): boolean => {

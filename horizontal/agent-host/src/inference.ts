@@ -12,6 +12,8 @@ export type PrologueTextProgress = { type: "started"; run_ref: PrologueRunRef }
 export interface PrologueCredentialInput {
   /** Host-only continuing authority check, immediately before each actual dispatch. */
   beforeDispatch?(): void | Promise<void>;
+  /** Check an already issued result. Defaults to beforeDispatch; credential and cancellation checks always remain. */
+  afterResult?(): void | Promise<void>;
   credential_ref: string;
   resolveCredential(ref: string): string | null | Promise<string | null>;
 }

@@ -16,6 +16,44 @@ const require = createRequire(new URL("../horizontal/agent-host/package.json", i
 const { createRuntime } = await import(require.resolve("@prologue/sdk"));
 const { createNodeHost } = await import(require.resolve("@prologue/sdk/node"));
 
+test("Host and native inference separate final dispatch from an issued result without weakening default checks", { timeout: 30_000 }, async () => {
+  const home = await mkdtemp(join(tmpdir(), "prologue-retained-result-"));
+  let active = true, authorized = true, revokeAfterSend = false, requests = 0;
+  const server = createServer(async (request, response) => {
+    for await (const _chunk of request) { /* Consume the actual request before changing its source. */ }
+    requests++; active = false;
+    if (revokeAfterSend) authorized = false;
+    response.writeHead(200, { "content-type": "text/event-stream" });
+    response.end('data: {"choices":[{"index":0,"delta":{"content":"retained summary"},"finish_reason":null}]}\n\n' +
+      'data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n');
+  });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address(); assert.ok(address && typeof address !== "string");
+  const adapter = await createPrologueNodeAdapter({ app: { appId: "io.molis.retained-result.test", appVersion: "1.0.0" }, storageRoot: join(home, "runtime") });
+  const beforeDispatch = () => { if (!active || !authorized) throw new Error("source unavailable for dispatch"); };
+  const afterResult = () => { if (!authorized) throw new Error("source authority revoked"); };
+  try {
+    const generate = hostTextGeneration({ homeDirectory: home, env: { MOLIS_WORK_TEXT_API_KEY: "fixture-key",
+      MOLIS_WORK_TEXT_API_FORMAT: "openai-chat-completions", MOLIS_WORK_TEXT_BASE_URL: `http://127.0.0.1:${address.port}/v1`, MOLIS_WORK_TEXT_MODEL: "fixture" },
+      resolveInference: async () => adapter.inference })!;
+    const kept = await generate("public fixture", { beforeDispatch, afterResult });
+    assert.equal(kept.value, "retained summary"); assert.equal(kept.state, "completed"); assert.equal(requests, 1);
+    active = true;
+    await assert.rejects(generate("public fixture", { beforeDispatch }), error => {
+      assert.equal(isDispatchRefusal(error), false, "a refused result must not be described as a request never sent"); return true;
+    });
+    assert.equal(requests, 2, "omitting afterResult keeps the original continuing check");
+    active = true; revokeAfterSend = true;
+    await assert.rejects(generate("public fixture", { beforeDispatch, afterResult }), error => {
+      assert.equal(isDispatchRefusal(error), false); return true;
+    });
+    assert.equal(requests, 3, "an issued result cannot bypass withdrawn authority or silently retry");
+  } finally {
+    await adapter.close(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve()));
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
 test("Host structured generation exposes real Run progress and receipts, and invalid output never succeeds", { timeout: 20_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "prologue-structured-host-"));
   let text = '{"title":"valid"}', requests = 0;

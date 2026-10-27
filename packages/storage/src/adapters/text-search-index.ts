@@ -214,13 +214,13 @@ export function openTextSearchIndex(options: TextSearchIndexOptions): SearchInde
     synced_at: row.synced_at == null ? null : Number(row.synced_at), checked_at: row.checked_at == null ? null : Number(row.checked_at) });
   const openOf = (value: unknown) => { if (value == null) return null; try { return JSON.parse(String(value)) as SearchIndexDocument["open"]; } catch { return null; } };
   const fromDocument = (row: Row): SearchIndexDocument => ({ source_key: str(row.source_key), kind: str(row.kind), object_id: str(row.object_id), project_id: nullable(row.project_id),
-    revision: str(row.revision), title: str(row.title), summary: str(row.summary), content: str(row.content), updated_at: nullable(row.updated_at), open: openOf(row.open_json),
+    revision: str(row.revision), content_revision: nullable(row.content_revision), ...(row.retention_json ? { retention: JSON.parse(String(row.retention_json)) as NonNullable<SearchIndexDocument["retention"]> } : {}), title: str(row.title), summary: str(row.summary), content: str(row.content), updated_at: nullable(row.updated_at), open: openOf(row.open_json),
     content_policy: row.content_policy === "context" ? "context" : "summary" });
 
   const selectDocId = db.prepare("SELECT doc_id FROM search_documents WHERE source_key = ? AND kind = ? AND object_id = ?");
-  const insertDocument = db.prepare(`INSERT INTO search_documents (source_key, kind, object_id, project_id, revision, title, summary, content, updated_at, open_json, content_policy)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
-  const updateDocument = db.prepare(`UPDATE search_documents SET project_id = ?, revision = ?, title = ?, summary = ?, content = ?, updated_at = ?, open_json = ?, content_policy = ? WHERE doc_id = ?`);
+  const insertDocument = db.prepare(`INSERT INTO search_documents (source_key, kind, object_id, project_id, revision, title, summary, content, updated_at, open_json, content_policy, content_revision, retention_json)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+  const updateDocument = db.prepare(`UPDATE search_documents SET project_id = ?, revision = ?, title = ?, summary = ?, content = ?, updated_at = ?, open_json = ?, content_policy = ?, content_revision = ?, retention_json = ? WHERE doc_id = ?`);
   const deleteFts = db.prepare("DELETE FROM search_fts WHERE rowid = ?");
   const insertFts = db.prepare("INSERT INTO search_fts (rowid, title, body) VALUES (?, ?, ?)");
   const deleteDocument = db.prepare("DELETE FROM search_documents WHERE doc_id = ?");
@@ -253,11 +253,11 @@ export function openTextSearchIndex(options: TextSearchIndexOptions): SearchInde
         let docId: number;
         if (existing) {
           docId = Number(existing.doc_id);
-          updateDocument.run(document.project_id, document.revision, title, summary, content, document.updated_at, openJson, document.content_policy, docId);
+          updateDocument.run(document.project_id, document.revision, title, summary, content, document.updated_at, openJson, document.content_policy, document.content_revision ?? null, document.retention ? JSON.stringify(document.retention) : null, docId);
           deleteFts.run(docId);
         } else {
           docId = Number(insertDocument.run(document.source_key, document.kind, document.object_id, document.project_id, document.revision, title, summary, content,
-            document.updated_at, openJson, document.content_policy).lastInsertRowid);
+            document.updated_at, openJson, document.content_policy, document.content_revision ?? null, document.retention ? JSON.stringify(document.retention) : null).lastInsertRowid);
         }
         insertFts.run(docId, searchTokens(title), searchTokens(`${summary}\n${content}`));
       }

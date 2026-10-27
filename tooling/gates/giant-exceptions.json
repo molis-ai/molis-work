@@ -221,6 +221,22 @@
       "kind": "cohesive-unit",
       "reason": "把一份设计答卷展开成插件的文件与验收用例：对零件、表单、读写操作和浏览器验收逐个生成，是一条代码生成流水线（改它必须跑 pnpm studio:replay）；拆开会让同一份答卷的展开散到几处。",
       "size": 225
+    },
+    "class horizontal/knowledge/src/index.ts#KnowledgeService": {
+      "kind": "cohesive-unit",
+      "reason": "同一调用者的项目资料查找与读取入口，统一编排可见性、每轮额度和回执顺序。正文身份复核、模型选节、后台整理、人工编辑及持久化已有独立主人；拆散这些入口会分散同一读取合同的当前授权与预算。",
+      "size": {
+        "lines": 366,
+        "methods": 23
+      }
+    },
+    "class horizontal/search/src/index.ts#SearchService": {
+      "kind": "cohesive-unit",
+      "reason": "同一派生索引的新鲜度、在途同步与关闭生命周期主人，并据此提供当前授权下的查询。同步算法、正文读取及投影已在类外，存储经独立端口；再拆会把正在同步及关闭的状态共享给多个写主人。",
+      "size": {
+        "lines": 301,
+        "methods": 21
+      }
     }
   }
 }

@@ -74,7 +74,7 @@ export function checkText(value: unknown, field: string, max: number): string {
 }
 
 /** What a round is given as marked data, and what in it is told only once (marked told after the round has started). */
-export interface RoundMaterials { materials: AgentTextMaterial[]; told: { undos: string[]; unsettled: string[] } }
+export interface RoundMaterials { beforeDispatch?(views: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionView[]): Promise<void>; materials: AgentTextMaterial[]; told: { undos: string[]; unsettled: string[] } }
 
 /**
  * A Home-kept object that says it belongs to another project (or a project, for personal work): its content is not

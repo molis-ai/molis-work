@@ -135,6 +135,12 @@ Host 为每个提供 `targets` 的场景自动注册三项真实动作：`scenes
 
 首页与能力库的本地用户入口会读取原 Plugin Runtime 安装记录中的 grants；未知权限名不需要加入 Home 权限名单。仅已运行、身份匹配且实际授予所需权限的安装可扩展本地用户调用范围，权限绑定准确的能力版本和提供方，不能借给另一个只声明同名权限的提供方。停用、撤权、重启后重新读取当前状态；其他入口（包括 MCP）的独立授权不受影响。声明不等于安装授权，缺 grant 时仍不可用。真实 Web 接线见 [local-web-actions.test.ts](../../tests/local-web-actions.test.ts)。
 
+### 原对象暂时归档与恢复
+
+来源可以用 `defineSubjectRetentionAction(capabilityId, subjectKind, title, permissions)` 声明无正文查询，沿同一 Action 权限链返回当前 `active`、`temporarily_archived` 或权威不存在的 `deleted`。输入仅有 `subject_id`；`retained` 只带归档前的 `content_revision` 和完成撤销归档后的 `restoration_operation_id`，普通 active/已删除对象为 null。pending、撤权、库不可读必须拒绝，不能冒充删除。安装代由 Runtime 的 `ActionProvider.plugin_installation_generation` 提供，来源不能自报。消费者据当前状态隐藏原卡，不另存第二份归档状态；原来源全文与本人历史仍由其主人管理。
+
+协议声明与输出 schema 固定，运行时再次验证；helper 放在 SDK，合同只声明形状。Memory 的消费与零新增模型调用验收见 [当前短合同](../../specs/prologue-memory-strategy/spec.md)，新增接线仍待集成验证。
+
 ### 为事项提供可执行动作
 
 用 `defineSubjectOffersAction(capabilityId, subjectKinds, title, permissions)` 声明查询，将定义与处理器按常规方式注册。查询接收 `{ subject: { kind, id }, request_id }`，从自己的数据读取当前状态，返回 `{ offers: [{ offer_id, title, action: { capability_id, version }, input }] }`。`action` 指向本插件已经注册的能力，`input` 必须完整且符合该能力的输入合同；例如 Inbox 返回原状态动作和当前 `expected_revision`。已经完成或不适用时返回空数组，读取失败应报错，不能用空数组掩盖故障。

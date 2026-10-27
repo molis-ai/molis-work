@@ -42,6 +42,8 @@
 
 ### 有界推理（以 Pages 写作助手为例）
 
+Host 的 `beforeDispatch` 复查材料与原调用，并经 Inference 接到 Node Host 的实际派出前检查。可选 `afterResult` 用于已发结果的业务复核，省略时仍沿用 `beforeDispatch`；凭据与取消检查在两阶段保留。只有合同明确允许时才能采用不同规则，例如归档前已发出的同版本 Knowledge 整理结果可隐藏结算，普通定位结果仍要求来源当前可读。结果阶段拒绝不能标成未发送，也不能自动重放。
+
 ```text
 页面 → 插件 HTTP 路由（只转发）
   → 动作 pages.ai（plugins/native/pages/src/actions.ts，声明 model:invoke 与 scheduling: "concurrent"）

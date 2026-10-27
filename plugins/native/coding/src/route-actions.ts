@@ -1,4 +1,5 @@
 import { defineSearchEntriesAction, defineSubjectContextAction, type ActionAudience, type ActionDefinition, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
+import { defineSubjectRetentionAction } from "@molis-ai/molis-work-plugin-sdk";
 import type { PluginRouteMethod, PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { codingRunControlInput, controlInput } from "./run-inputs.js";
 
@@ -29,6 +30,7 @@ const result: ActionSchema = { type: "object" };
 const READS: readonly ActionAudience[] = ["user", "agent", "workflow", "mcp"];
 /** Starting, steering and planning rounds change files in authorized directories: only the person at this computer does that. */
 const LOCAL: readonly ActionAudience[] = ["user"];
+const retention = defineSubjectRetentionAction("coding.subject.retention", "coding_session", "编码会话", ["artifact:read"]);
 
 type Translate = { toInput(request: PluginRouteRequest): Record<string, unknown>; toRequest(input: Record<string, unknown>): Pick<PluginRouteRequest, "params" | "query" | "body"> & { method: PluginRouteMethod } };
 function define(name: string, title: string, description: string, operation: "query" | "command", input: ActionSchema,
@@ -48,6 +50,8 @@ const fromRequest = (request: PluginRouteRequest, keys: readonly string[] = []) 
 export const codingRouteActions: Readonly<Record<string, { definition: ActionDefinition<Record<string, unknown>, unknown> } & Translate>> = {
   // One session as a subject: its title, state and latest rounds, by the shared protocol (the Assistant, references).
   "coding.subject": { definition: defineSubjectContextAction("coding.subject.read", "coding_session", "编码会话", ["artifact:read"]) as unknown as ActionDefinition<Record<string, unknown>, unknown>,
+    toInput: request => ({ subject_id: request.params.sessionId }), toRequest: input => ({ method: "GET", params: { sessionId: String(input.subject_id ?? "") }, query: {}, body: {} }) },
+  "coding.subject-retention": { definition: { capability_id: retention.capability_id, version: retention.version, operation: retention.operation, action: retention.action },
     toInput: request => ({ subject_id: request.params.sessionId }), toRequest: input => ({ method: "GET", params: { sessionId: String(input.subject_id ?? "") }, query: {}, body: {} }) },
   // System search: every session of the project by version; its text is read back through `coding.subject`.
   "coding.search-entries": { definition: defineSearchEntriesAction("coding.search.entries", [{ kind: "coding_session", title: "编码会话", surface: "coding" }], "编码会话", ["artifact:read"]) as unknown as ActionDefinition<Record<string, unknown>, unknown>,

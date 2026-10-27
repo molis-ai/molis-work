@@ -582,6 +582,7 @@ export interface ActionProvider {
     readonly project_id?: string;
     readonly plugin_id?: string;
     readonly plugin_install_id?: string;
+    readonly plugin_installation_generation?: string;
     readonly words_of?: string;
 }
 
@@ -776,6 +777,25 @@ export interface ActionSubjectContext {
     offset?: number;
     length?: number;
 }
+
+export type ActionSubjectRetention = {
+    readonly subject: ActionSubject;
+} & ({
+    readonly state: "active";
+    readonly retained: {
+        readonly content_revision: string;
+        readonly restoration_operation_id: string;
+    } | null;
+} | {
+    readonly state: "temporarily_archived";
+    readonly retained: {
+        readonly content_revision: string;
+        readonly restoration_operation_id: null;
+    };
+} | {
+    readonly state: "deleted";
+    readonly retained: null;
+});
 
 export interface ActionUsage {
     usage_id: string;
@@ -4603,6 +4623,137 @@ export declare const SUBJECT_OFFER_SCHEMA: {
 
 export declare const SUBJECT_REFERENCE_TYPE = "molis.subject-reference.v1";
 
+export declare const SUBJECT_RETENTION_INPUT_SCHEMA: {
+    type: string;
+    properties: {
+        subject_id: {
+            type: string;
+            minLength: number;
+        };
+    };
+    required: string[];
+    additionalProperties: boolean;
+};
+
+export declare const SUBJECT_RETENTION_OUTPUT_SCHEMA: {
+    oneOf: ({
+        type: string;
+        properties: {
+            subject: {
+                type: string;
+                properties: {
+                    kind: {
+                        type: string;
+                        minLength: number;
+                    };
+                    id: {
+                        type: string;
+                        minLength: number;
+                    };
+                };
+                required: string[];
+                additionalProperties: boolean;
+            };
+            state: {
+                const: string;
+            };
+            retained: {
+                anyOf: ({
+                    type: string;
+                    properties: {
+                        content_revision: {
+                            type: string;
+                            minLength: number;
+                        };
+                        restoration_operation_id: {
+                            type: string;
+                            minLength: number;
+                        };
+                    };
+                    required: string[];
+                    additionalProperties: boolean;
+                } | {
+                    type: string;
+                })[];
+                type?: undefined;
+            };
+        };
+        required: string[];
+        additionalProperties: boolean;
+    } | {
+        type: string;
+        properties: {
+            subject: {
+                type: string;
+                properties: {
+                    kind: {
+                        type: string;
+                        minLength: number;
+                    };
+                    id: {
+                        type: string;
+                        minLength: number;
+                    };
+                };
+                required: string[];
+                additionalProperties: boolean;
+            };
+            state: {
+                const: string;
+            };
+            retained: {
+                properties: {
+                    content_revision: {
+                        type: string;
+                        minLength: number;
+                    };
+                    restoration_operation_id: {
+                        type: string;
+                    };
+                };
+                type: string;
+                required: string[];
+                additionalProperties: boolean;
+                anyOf?: undefined;
+            };
+        };
+        required: string[];
+        additionalProperties: boolean;
+    } | {
+        type: string;
+        properties: {
+            subject: {
+                type: string;
+                properties: {
+                    kind: {
+                        type: string;
+                        minLength: number;
+                    };
+                    id: {
+                        type: string;
+                        minLength: number;
+                    };
+                };
+                required: string[];
+                additionalProperties: boolean;
+            };
+            state: {
+                const: string;
+            };
+            retained: {
+                type: string;
+                anyOf?: undefined;
+            };
+        };
+        required: string[];
+        additionalProperties: boolean;
+    })[];
+};
+
+export declare const SUBJECT_RETENTION_REQUEST_TYPE = "molis.subject-retention-request.v1";
+
+export declare const SUBJECT_RETENTION_TYPE = "molis.subject-retention.v1";
+
 export declare const SURFACE_BROWSER_PERMISSION = "surface:browser";
 
 export interface SandboxPackageInterface {
@@ -4686,6 +4837,10 @@ export interface SubjectOfferChoice {
 export interface SubjectOffersInput {
     subject: ActionSubject;
     request_id: string;
+}
+
+export interface SubjectRetentionRequest {
+    readonly subject_id: string;
 }
 
 export interface SyncActionClient {

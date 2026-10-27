@@ -339,6 +339,11 @@ export interface ActionProvider {
    */
   readonly plugin_install_id?: string;
   /**
+   * The Runtime's durable installation generation. An install id can be reused after uninstall; retained source facts
+   * belong to this generation and must never be rebound to a new one. A plugin's returned data cannot supply it.
+   */
+  readonly plugin_installation_generation?: string;
+  /**
    * Set only by the Host's own registration of a platform provider that has a plugin's shell still: the plugin whose `ui.translations`
    * hold the English of this provider's action text. A provider with a `plugin_id` already says so; a plugin never sets this.
    */

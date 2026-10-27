@@ -434,6 +434,8 @@ Inbox → Pages 通过 Host 组合各插件公开能力，输入快照与幂等�
 
 ## 可复现验证
 
+可撤销归档的内容来源可声明 SDK `defineSubjectRetentionAction`：只查对象当前保留状态与原内容版本，不读正文，不授予读取权限。归档条目从普通目录和读取器隐藏；Knowledge 仍是卡片写主人，按 Runtime 的可信安装代绑定保留，不接受插件自报安装身份。准确查询确认不存在才是 deleted，撤权、停用、待完成决定和存储错误均不冒充删除。接法见 [搜索协议](../../skills/molis-plugin-dev/search.md)；不声明时维持原 missing 语义。
+
 构建后运行 `node --import tsx --test tests/plugin-sample.e2e.test.ts tests/plugin-package.test.ts`。前者从干净目录实际调用 CLI、安装本地 SDK tarball、运行两个独立进程并核对结果/历史版本/权限/目录边界；后者验证签名与篡改拒绝。其他 Host/Runtime 定向测试覆盖崩溃恢复、卸载失败撤权和不同签名数据隔离。整体前后端用户 E2E 仍在所有重组开发完成后单独执行。
 
 ## 异步动作与原调用授权

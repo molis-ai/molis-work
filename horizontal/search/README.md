@@ -57,3 +57,5 @@ pnpm --filter @molis-ai/molis-work-service-search build
 
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
+
+声明 `subject-retention` 的来源在每次返回命中和打开结果时，按原项目、提供方、对象和可信安装代查询当前状态；归档与不可用都隐藏，只有同一代明确返回 `deleted` 才清索引。索引的 `revision` 仍是列表刷新版本；`content_revision` 保存正文读口给出的版本。`retention_json` 只绑定可信安装代，不缓存归档状态；缺少安装代不承接保留内容。正文版本与绑定字段落在 Search schema 3，可重建缓存不迁移旧格式。

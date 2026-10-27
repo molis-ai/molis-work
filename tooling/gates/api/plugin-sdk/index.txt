@@ -85,6 +85,7 @@ export type { ActionSceneTarget } from "@molis-ai/molis-work-contracts/platform/
 export type { ActionSceneTargetDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { ActionSubjectRetention } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { ActionUsage } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { ActionUsagesInput } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { ArtifactCompareInput } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -315,6 +316,7 @@ export type { SearchSourceKind } from "@molis-ai/molis-work-contracts/platform/a
 export type { SubjectActionOffer } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SubjectOfferChoice } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { SubjectOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
+export type { SubjectRetentionRequest } from "@molis-ai/molis-work-contracts/platform/actions";
 export type { UiClientScope } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiClientTranslate } from "@molis-ai/molis-work-contracts/platform/ui";
 export type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
@@ -439,6 +441,9 @@ export declare function definePollingIntegrationPlugin(input: {
 export { defineSearchEntriesAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineSubjectContextAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineSubjectOffersAction } from "@molis-ai/molis-work-contracts/platform/actions";
+
+export declare function defineSubjectRetentionAction(capabilityId: string, kind: string, title: string, permissions: string[], scope?: "project" | "home"): ActionDefinition<SubjectRetentionRequest, ActionSubjectRetention>;
+
 export { defineWorkExecutorAction } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineWorkExecutorActions } from "@molis-ai/molis-work-contracts/platform/actions";
 export { defineWorkflowContentActions } from "@molis-ai/molis-work-contracts/platform/actions";

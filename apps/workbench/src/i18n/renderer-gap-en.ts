@@ -567,4 +567,6 @@ export const RENDERER_GAP_EN: Record<string, string> = {
   // The start-up page words a todo candidate (it read them from Todo's dictionary before Todo had its own keys).
   "（原文“{phrase}”）": " (as written: “{phrase}”)",
   "在等 {who}": "Waiting on {who}",
+  "待手动整理": "Ready to organize",
+  "恢复后未自动整理，可按需手动整理。": "Restored without automatic processing. Organize it when needed.",
 };

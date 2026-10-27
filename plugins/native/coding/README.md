@@ -132,9 +132,11 @@ Coding 的目标目录、当前约定/状态、进展保存和回执使用 `@mol
 
 当前公开口为archive.preview@2与sessions.update@3，新增sessions.archived.list@1、sessions.unarchive.preview@1、sessions.unarchive@1；均仅user。原件固定所见业务字段、binding及上一生命周期operation，不以updated_at充当唯一revision。每会话仅一个当前lifecycle记录：Coding先在自身事务保存prepared，SDK按原operation完成，再事务一起保存archived与completed；恢复不伪造内容活动时间。部分失败保留真实SDK结果、纯读取不补账，后继归档后旧恢复拒绝。无SDK binding的Local会话同样走当前决定，不被排除，也不因为SDK丢失而回退Local。
 
-Coding数据库声明升到2，只加nullable lifecycle_json；旧版严格拒绝。全局项目基线9不变。维护仅按spec在隔离副本演练，真实Home需另获采用授权。本职责持久接线在session-lifecycle.ts，SDK编排在session-archive.ts，无新增服务/表/journal。改动另必跑coding-session-archive、project-database-baseline、project-plugin-database-refusal，README原要求仍适用。
+Coding数据库声明为3，原nullable lifecycle_json新增必需content_revision；旧版严格拒绝。全局项目基线10不变。维护仅按spec在隔离副本演练，真实Home需另获采用授权。本职责持久接线在session-lifecycle.ts，SDK编排在session-archive.ts，无新增服务/表/journal。改动另必跑coding-retention、coding-session-archive、project-database-baseline、project-plugin-database-refusal，README原要求仍适用。
 
-当前阻塞：非空真实恢复会让归档期间已按Knowledge既有合同删除的自动卡重建，后台新增一次knowledge.organize，违反“恢复不启模型”的既定验收。普通重启对照无此调用；不能按aside过滤后宣称通过。跨owner暂归档保留协议尚未批准，未改搜索可见性/Knowledge规则，候选不可作为恢复完整交付。配对证据与范围决定记录在同Memory spec及会话临时提案。
+隐藏保留合同见Memory spec的2026-10-27短合同：coding.subject.retention@1通过通用保留类型返回当前subject/state/retained，不带正文、标题、安装身份，不读Run或Goal。pending明确拒绝；deleted只表示当前已授权、已打开的本项目严格库中准确行不存在，权限/库错误不转换为删除。消费方仍需匹配原卡的真实provider、项目与安装代。普通coding.subject.read拒绝归档及pending，本人sessions.read与timeline历史入口保留。
+
+归档冻结与普通来源读取复用subject.ts：最多3个已读Run的完整相关文本、状态、标题、intent、Goal和改动文件决定content_revision，展示再截断；归档updated_at不参与。列表刷新token还包含已取得的标题和Goal标题，不额外读Run。恢复继承原归档版本和原恢复operation，不重新计算原版本或启动模型。Knowledge拥有隐藏卡和是否能复用的判断；端到端零额外模型调用仍须完成通用消费与配对验证后才能交付。
 
 持久prepared尚未complete时，同Session原件/绑定与新执行写入明确拒绝；准入沿原调用control进入SDK/model之前，Store普通会话写在最终事务同turn重验。纯读及原archive/unarchive请求可继续，观察/wake不投影、不启动pending Session，另一Session保持独立。此准入只复用当前lifecycle记录，跨Node/SQLite及激活重开仍生效，不创建新锁表或journal。
 

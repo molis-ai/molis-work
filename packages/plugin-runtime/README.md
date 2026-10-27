@@ -1,5 +1,7 @@
 # Plugin 安装与生命周期
 
+Action 提供方的 `plugin_installation_generation` 只由 Runtime 按真实安装记录写入；同一次安装重启保留它，同发布者卸装再装即使 install_id 相同也换代。原对象保留消费者据此约束旧卡，不能从插件返回值取得或给旧卡改盖新代。该元数据不授予读取权限，查询和派出仍核原调用授权；相关 Memory 接线正在集成验证。
+
 ## Run 记忆控制的上下文边界（实施中，未验证）
 
 依 [Memory spec §9.4](../../specs/prologue-memory-strategy/spec.md#94-c0-首期产品配置与采用决定)，Host 的 transient Run 展开 control 与 runtime_memory 一样不进入插件回调可见上下文。内部 Action 授权转发保留原调用身份与控制，不能从插件参数建立或替换。普通插件的 Memory Action 消费许可仍关闭，本片不开放新消费者。此边界不可配置关闭，沿现 callback-context 投影，不新增运行状态或 registry；源码已接入，尚未验证。

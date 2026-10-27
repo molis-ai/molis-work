@@ -87,13 +87,14 @@ test("PLIB-04: a library this build made opens every plugin that declares tables
 });
 
 const cases = [
-  { plugin: CODING_PLUGIN_ID, change: "Coding still has its exact version 1 baseline", sql: `INSERT INTO coding_sessions (project_id, session_id, title, state, runtime_id, created_at, updated_at) SELECT project_id, 'kept-v1', 'Nonempty old Coding', 'idle', 'prologue', '2026-10-25', '2026-10-25' FROM project_root; ALTER TABLE coding_sessions DROP COLUMN lifecycle_json; UPDATE plugin_project_databases SET version = 1 WHERE plugin_id = '${CODING_PLUGIN_ID}'` },
+  { plugin: CODING_PLUGIN_ID, oldVersion: 1, change: "Coding still has its exact version 1 baseline", sql: `INSERT INTO coding_sessions (project_id, session_id, title, state, runtime_id, created_at, updated_at) SELECT project_id, 'kept-v1', 'Nonempty old Coding', 'idle', 'prologue', '2026-10-25', '2026-10-25' FROM project_root; ALTER TABLE coding_sessions DROP COLUMN lifecycle_json; UPDATE plugin_project_databases SET version = 1 WHERE plugin_id = '${CODING_PLUGIN_ID}'` },
+  { plugin: CODING_PLUGIN_ID, oldVersion: 2, change: "Coding still has its nonempty version 2 baseline", sql: `INSERT INTO coding_sessions (project_id, session_id, title, state, runtime_id, created_at, updated_at) SELECT project_id, 'kept-v2', 'Nonempty version 2 Coding', 'idle', 'prologue', '2026-10-25', '2026-10-25' FROM project_root; UPDATE plugin_project_databases SET version = 2 WHERE plugin_id = '${CODING_PLUGIN_ID}'` },
   { plugin: SCHEDULE_PLUGIN_ID, change: "its ledger row says another version", sql: `UPDATE plugin_project_databases SET version = 2 WHERE plugin_id = '${SCHEDULE_PLUGIN_ID}'` },
   { plugin: FEED_PLUGIN_ID, change: "its ledger row names another publisher", sql: `UPDATE plugin_project_databases SET publisher_signature = 'someone-else' WHERE plugin_id = '${FEED_PLUGIN_ID}'` },
   { plugin: CODING_PLUGIN_ID, change: "one of its tables gained a column", sql: "ALTER TABLE coding_plan_drafts ADD COLUMN added_by_hand TEXT" },
 ];
 
-for (const { plugin, change, sql } of cases) {
+for (const { plugin, change, sql, oldVersion } of cases) {
   test(`PLIB-04: when ${change}, only ${plugin} stops and the library is left as it was`, async t => {
     const { home, projectId, databasePath } = await project(await scratch(t));
     withDatabase(databasePath, db => { db.exec(sql); });
@@ -108,7 +109,7 @@ for (const { plugin, change, sql } of cases) {
     if (plugin === CODING_PLUGIN_ID) {
       assert.match(panel, /role="alert"/, "the Coding page says it did not open");
       assert.match(panel, /io\.molis\.work\.coding/, "and names the plugin it refused");
-      assert.match(panel, change.includes("version 1") ? /是第 1 版，这次声明的是第 2 版/ : /的表和索引与声明不同/, "the reason is the platform's refusal, not a failure further on");
+      assert.match(panel, oldVersion ? new RegExp(`是第 ${oldVersion} 版，这次声明的是第 3 版`) : /的表和索引与声明不同/, "the reason is the platform's refusal, not a failure further on");
     } else {
       assert.doesNotMatch(panel, /role="alert"/, "Coding opens while another plugin is refused");
     }

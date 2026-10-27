@@ -42,7 +42,7 @@ export const GAP_EN: Record<string, string> = {
   "常驻在 Dock": "Keep in the Dock",
   "常驻 Dock": "Keep in Dock",
   "未添加": "not added",
-  "从本项目移除": "Remove from this project",
+  "在本项目停用；数据保留，加回即恢复": "Turn off in this project; its data stays and comes back when you add it again",
   "添加到本项目": "Add to this project",
   "常开插件不能从项目移除": "An always-on plugin cannot be removed from a project",
   "再点一次移除；同时移除：{list}": "Press again to remove; also removes: {list}",

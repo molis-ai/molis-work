@@ -38,4 +38,4 @@ RAC-715～719 留给实现里发现的。
 - **`artifactWorkbench`（`ui-composition.ts`，宿主 `artifact-native-plugin-http.ts` 与 `tests/artifact-browser.test.ts` 在用）**：成果库界面经工作台转给宿主，等 A6（BL-580）把「成果」入口做成平台工作台面、经通用挂载器挂上之后删。仍作为具名导出留在入口。
 - **十个 `createWorkbenchGoals*Renderer`（`ui-composition.ts`，只有测试在用）**：Goals 的界面适配，等 Goals S11 把 Goals 界面迁出工作台的组合里后删；仍作为具名导出留在入口。
 - **`BUILTIN_PLUGIN_CATALOG`（`scripts/gates/action-contract-host.mjs` 一个脚本在取）**：是工作台自己的目录，不是转出；留。
-- **没人从入口取的导出**：入口里约 80 个导出在工作台包之外没有任何消费者（静态与动态导入都扫过，没有命名空间导入）。机械地收窄是单独一件事（BL-635），本片只收 ①②。
+- **没人从入口取的导出**：本片只收 ①②；收窄另做（BL-635，2026-10-27 已做）。当天重扫 main、C 分支与在途 PR：入口 211 个名字里 53 个在工作台包之外没有从入口取的人（静态、动态、命名空间导入和 `import()` 类型都算），删去其中 44 个，模块里的定义不动；留下的是 Goals 一组 6 个（等 Goals S11），和宿主声明文件要点名的 3 个类型（`ChooserArrival`、`ProjectSettingsFoldId`、`SideViewDocumentInput`，删了宿主构建报 TS2742）。`tests/workbench-entry-exports.test.ts` 的 RAC-1115 扫一遍入口的取用者，没有取用者又没写明理由的名字直接失败：现在写明的是 Goals 一组 6 个，和宿主声明文件要点名、却不 import 的 9 个类型（`capsule-view` 6 个和上面 3 个）。

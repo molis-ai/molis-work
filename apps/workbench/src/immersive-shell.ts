@@ -169,7 +169,7 @@ export function renderPluginRail(
     const button = renderButton({ variant: owned ? "secondary" : "primary", size: "sm", icon: "plus", iconOnly: true, className: "plugin-toggle", disabled: locked,
       label: say(L, owned ? "移除：{name}" : "添加：{name}", { name: plugin.label }),
       attrs: { "data-plugin-toggle": plugin.id, "data-state": owned ? "added" : "available",
-        title: locked ? L("常开插件不能从项目移除") : owned ? L("从本项目移除") : `${L("添加到本项目")}${alongNote}${sites.length ? say(L, "；会在侧栏浏览器里使用：{sites}", { sites: join(sites) }) : ""}` } });
+        title: locked ? L("常开插件不能从项目移除") : owned ? L("在本项目停用；数据保留，加回即恢复") : `${L("添加到本项目")}${alongNote}${sites.length ? say(L, "；会在侧栏浏览器里使用：{sites}", { sites: join(sites) }) : ""}` } });
     return button.replace(glyph("plus"), glyph("plus", "plugin-toggle-add") + glyph("trash", "plugin-toggle-remove"));
   };
   // At rest the end of the tile shows only a small pin when the plugin is kept; looked at, the buttons replace it.

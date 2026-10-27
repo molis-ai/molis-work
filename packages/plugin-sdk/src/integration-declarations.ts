@@ -1,5 +1,6 @@
 import { isLoopbackHostname } from "@molis-ai/molis-work-contracts/platform/loopback";
 import { INTEGRATION_KINDS } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
+import { oauthMethodProblems } from "./oauth-declarations.js";
 
 // The shape of a Manifest's `connection_services` and `integrations` (PG-046): the services a plugin works with, the cards shown for
 // them, and what it does with each. Only the shape and the references between the two lists are checked here; whether an id is taken
@@ -97,6 +98,7 @@ function methodProblems(id: string, auth: unknown): string[] {
     }
     if (kinds.has(method.kind)) { problems.push(`连接服务 ${id} 的接入方式重复：${method.kind}`); continue; }
     kinds.add(method.kind);
+    if (method.kind === "oauth") { problems.push(...oauthMethodProblems(id, method)); continue; }
     if (method.kind !== "token") {
       if (Object.keys(method).length !== 1) problems.push(`连接服务 ${id} 的 ${method.kind} 接入方式现在只写 kind，数据仍在平台的表里`);
       continue;

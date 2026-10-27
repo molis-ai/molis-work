@@ -23,7 +23,7 @@ test("RAC-690 Pages finds its rows by its own attribute, not by a class that bel
 });
 
 test("RAC-691 the page scripts list no search row by plugin; the two outside the declarations are named in one place and still reach the page", () => {
-  for (const file of ["scripts/client/tab-workspace.ts", "scripts/client/global-search.ts"]) {
+  for (const file of ["scripts/client/tab-workspace.ts", "scripts/client/tab-workspace-layout.ts", "scripts/client/tab-workspace-menus.ts", "scripts/client/global-search.ts"]) {
     const text = source(file);
     assert.doesNotMatch(text, /"characters"|data-character-id|data-feed-task-toggle/u, `${file} lists a row by plugin`);
   }
@@ -34,7 +34,7 @@ test("RAC-691 the page scripts list no search row by plugin; the two outside the
 });
 
 test("RAC-692 a record's tab title is read from the row its plugin declared, not from Feed's and Inbox's selectors", () => {
-  const text = source("scripts/client/tab-workspace.ts");
+  const text = ["tab-workspace.ts", "tab-workspace-layout.ts", "tab-workspace-menus.ts"].map(file => source(`scripts/client/${file}`)).join("\n");
   assert.doesNotMatch(text, /data-feed-entry-id|data-inbox-row|data-inbox-entry-id/u);
   assert.deepEqual(pack("feed")?.recordRow, { selector: "[data-feed-entry-id]", idDataset: "feedEntryId" });
   assert.deepEqual(pack("inbox")?.recordRow, { selector: "[data-inbox-row][data-inbox-entry-id]", idDataset: "inboxEntryId" });

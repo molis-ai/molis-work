@@ -258,7 +258,7 @@ git log --first-parent --format=%h f955605c..4d59cd4d -- <文件…> | wc -l
 | `scripts/client/assistant-island.ts` | 文件 2,813 行 | 归线 · §4.8 · W5-04 | 浏览器脚本模板（2,803/2,813 行在一个模板字符串里）；工作台客户端分段打包并类型检查。 | 18 |
 | `scripts/client/events-primary.ts` | 文件 810 行 | 归线 · §4.8 · W5-04 | 浏览器脚本模板（808/810 行）。 | 7 |
 | `scripts/client/navigation-feed.ts` | 已在阈值以下（W5-10 批 A，2026-10-26） | 过渡拆分 | 脚本模板按原顺序拆成 `navigation-feed.ts`（177 行）和 `navigation-feed-sources.ts`、`navigation-feed-stage.ts` 两个部件，拼回后与原脚本逐字节相同；里面写死的 Feed 客户端随 Feed 迁 Runtime（FI-6）离开，打包成 TS 仍归 W5-04 | 5 |
-| `scripts/client/tab-workspace.ts` | 文件 2,049 行 | 归线 · §4.8 · W5-04 | 浏览器脚本模板（2,014/2,049 行）。 | 11 |
+| `scripts/client/tab-workspace.ts` | 已在阈值以下（W5-10 批 A，2026-10-27） | 过渡拆分 | 脚本模板按原顺序拆成 `tab-workspace.ts`（615 行）和 `tab-workspace-layout.ts`（分栏、历史与所在位置，672 行）、`tab-workspace-menus.ts`（标签与布局菜单、分隔条、标签重排，648 行）两个部件，拼回后与原脚本只差四处空 `catch` 里补的“为什么可以忽略”的注释（去掉注释后逐字节相同；原 167,467 字节，现 167,789 字节，esbuild 打包前后对比）；空 `catch` 按文件计数、搬到新文件算新增，所以搬走的四处在块里写了注释，没有放宽门禁；`placeLayoutMenu` 搬到 `tab-layout-menu.ts`，由 `tab-workspace.ts` 原样转出；`dom-events.ts` 里 `tab-workspace` 主人的文件表加了两个部件。打包成 TS 仍归 W5-04 | 11 |
 | `tab-workspace-ops.ts` | `createTabWorkspaceOps` 函数 461 行 | 拆 · W5-04 | 标签工作区的纯规则，文件头 `// @ts-nocheck`，用 `toString` 序列化后注入浏览器。50 条语句里 `splitPane`（33）、`moveTab`（30）、`normalizeLayout`（22）、`ensureHome`（21）、`openBeside`（21）等本来就各自独立。W5-04 把交付形式改成打包的类型检查模块时，这些变成各自的模块导出，同一个 PR 拆到阈值以下。（本清单对 W5-04 的范围解释：凡在浏览器里跑的代码，不论模板字符串还是 `toString` 注入的函数。） | 2 |
 
 ### Agent Host `horizontal/agent-host`（唯一直接依赖 `@prologue/sdk` 的包）

@@ -229,3 +229,15 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
     - 批 F FeedApplication：等 C。
     - 记忆线 MemoryService：等 #1059、#1101。
     - Pages mount/`commands.ts`/`editor-browser.ts`/`hoverHandlePlugin`、`createEventDocumentForms`：已不在报告里。
+  - **10-27 W5-11 设计稿**：`claude/w511-oauth-declarations` `51d62acc`（`slices/w511-connector-oauth-declarations.md`，只有设计；RAC-1080～1089 全用，BL-790～793 用，794～799 空）。
+    - 用户本人答（10-27 弹窗）：
+      - Q2：不写迁移，开发 Home 上已有的 Gmail、Notion、GitHub 设备授权连接标成「需要重新授权」，走 ASC-35；
+      - Q5：环境变量统一改成 `CONNECTOR_<SVC>_OAUTH_CLIENT_ID/SECRET`，不留旧名，写进 CHANGELOG；
+      - 第 1、2 片（合同、SDK 检查、解释器纯函数，以及 catalog 的 identity.read）评审过后开做，第 3～8 片等 C 合入。
+    - 统筹拍板：
+      - Q1：只用数据，插件里没有代码钩子；
+      - Q3：插件停用后刷新和发送都拒；
+      - Q4：MCP_SERVERS 第二批另开一片（BL-790）；
+      - Q6：按 `sub` 判断是否同一账号；
+      - 新 S 号分三条，各带拒绝测试，号码合批时核。
+  - **10-27 评审会话**：W5-11 设计稿是第一份推上来的，按分工提评审卡片（Opus high，只评统筹指定的增量，先评 W5-11 设计稿；只读，结论回给统筹）。

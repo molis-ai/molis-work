@@ -1,6 +1,6 @@
 # W5-11：连接器 OAuth 从宿主的表移进官方集成插件的声明（设计稿）
 
-状态：设计稿，第三版，待复核 A2、A4 的增量（2026-10-27，W5-11 线，分支 `claude/w511-oauth-declarations`）。第一版的六个问题都按 A 定了（§10）。三轮评审的必须改 M1～M7、N1～N3、A1～A4 都已改进本稿，建议的取舍写在 §11；统筹和用户在 10-27 的裁定写在 §0 和 §10。本稿只有设计、没有代码。第 2 片等统筹通知再开，第 1 片等 A2、A4 的增量复核过了再开，都叠在本分支上。§7 里标「依赖 C 合入」的片，要等批次 C（`feature/anticorruption-closeout-c`，头 `fe93d322`；Notion 共享刷新在 `009b773f`）进 main 才动手；标「可以先做」的不碰 C 改过的文件，也不 import 只在 C 上的东西。代码事实按 main `9efbf8d04` 和 C 头 `fe93d322` 核过，文中的行号与形状都是 C 头上的。号段：RAC-1080～1089、BL-790～799，统筹 10-27 核过，没有冲突。新 S 号分成三条，号码由合批会话核对后再定，§3.5 里写「待统筹核」。
+状态：设计稿，第四版：第 2 片已做，写进 §2.1.1；第 1 片在做（2026-10-27，W5-11 线，分支 `claude/w511-oauth-declarations`）。第一版的六个问题都按 A 定了（§10）。四轮评审的必须改 M1～M7、N1～N3、A1～A4 都已改进本稿，第四轮没有必须改，建议的取舍写在 §11；统筹和用户在 10-27 的裁定写在 §0 和 §10。本稿只有设计、没有代码。第 1、2 片统筹 10-27 放行，叠在本分支上，按顺序一次一片。§7 里标「依赖 C 合入」的片，要等批次 C（`feature/anticorruption-closeout-c`，头 `fe93d322`；Notion 共享刷新在 `009b773f`）进 main 才动手；标「可以先做」的不碰 C 改过的文件，也不 import 只在 C 上的东西。代码事实按 main `9efbf8d04` 和 C 头 `fe93d322` 核过，文中的行号与形状都是 C 头上的。号段：RAC-1080～1089、BL-790～799，统筹 10-27 核过，没有冲突。新 S 号分成三条，号码由合批会话核对后再定，§3.5 里写「待统筹核」。
 
 ## 0. 已经定了的，本稿照着写
 
@@ -138,9 +138,9 @@
 | `client_secret` | `"required"` 或 `"optional"` | 默认 required |
 | `parameters` | 授权地址上固定的参数（如 `audience`、`owner=user`、`access_type=offline`） | 键值都是字符串；不许写 `client_id`、`redirect_uri`、`state`、`code_challenge*`、`response_type`，这几个由平台写 |
 | `settings` | 本人在设置里填的字段 | `{ key, label, placeholder?, required?, use, pattern? 或 enum? }`；`use` 只能是 `path`、`scope`、`client_auth`、`tenant` 之一 |
-| `identity` | 怎样取账号 | `{ url, account_id, label? }`；`url` 见下面的「带令牌的请求」；`account_id` 和 `label` 是 JSON 指针，或几个指针（用 `:` 连起来），可以指 `identity` 响应，也可以指 `token` 响应 |
-| `keep` | 从令牌响应里留进连接上下文的字段 | `{ key, pointer, check }`；`check` 只能是 `tenant`（见下）或 `pattern` |
-| `context` | 授权后另发的只读请求 | `{ key, url, pick }`；`pick` 是「取列表」，或者「按某个 setting 对上一项再取指针」（atlassian 的站点） |
+| `identity` | 怎样取账号 | `{ url, method?, body?, headers?, query?, list?, account_id, label, label_prefix?, keep? }`，逐项的意思和 37 个服务的写法见 §2.1.1（第 2 片）。`url` 见下面的「带令牌的请求」；`account_id` 是几段，每段按顺序取第一个非空的来源，段之间用 `:` 连起来；`label` 是按顺序取第一个非空的指针 |
+| `keep` | 从令牌响应里留进连接上下文的字段 | `{ key, pointer, check?, required? }`；`check` 只能是 `tenant`（见下）或 `pattern`。从 identity 响应里留的写在 `identity.keep`（§2.1.1） |
+| `context` | 授权后另发的只读请求 | `{ key, url, pick, when_missing? }`；`pick` 只有两种：`ids`（取列表里每一项的某个指针，排序后用 `,` 连起来，clickup、supabase）和 `match_setting`（按某个 setting 的来源对上列表里的一项，取它的指针并按 `pattern` 校验，atlassian 的站点），写法见 §2.1.1 |
 | `quirks` | 已知的三种怪癖 | `refresh_redirect_uri`（gitlab）、`omit_token_params: ["grant_type","redirect_uri"]`（clickup）、`expiry: "jwt_exp"`（monday）；只收这几个值 |
 | `note` | 设置页的一句说明 | 字符串 |
 
@@ -160,12 +160,11 @@
 - **`account_origins`**：只放「取账号和授权上下文」要用、又不在 `origins` 里的来源。例如：
   - Google 的 `https://openidconnect.googleapis.com`；
   - Atlassian 的 `https://api.atlassian.com`（accessible-resources）；
-  - clickup、supabase 列 workspace 的 API 来源，如果它们不在 `origins` 里；
-  - adobe、bitbucket、feishu、lark 四个 OAuth 服务的身份来源。这四个今天**不在** `CONNECTOR_REQUEST_SERVICES` 里（C 头上核过），只补进 `account_origins`，**不加进 `origins`**，也不为它们在请求表里新开一行。
-  - 第 2 片列出全部要补的来源。它和 `origins` 一样是平台的表，改它要过 S-69 的评审。
+  - adobe、bitbucket、feishu、lark 四个 OAuth 服务的身份来源（全部清单见 §2.1.1）。这四个今天**不在** `CONNECTOR_REQUEST_SERVICES` 里（C 头上核过），只补进 `account_origins`，**不加进 `origins`**，也不为它们在请求表里新开一行。
+  - 它和 `origins` 一样是平台的表，改它要过 S-69 的评审。
 - **`account_origins` 只给平台自己的 identity 和 context 请求用**（A2）：
   - 插件经 `services.connections` 发的请求（S-69，由 `connector-plugin-requests.ts:88,133` 执行）只认 `origins` 和钉住的租户来源，不认 `account_origins`。经 gmail 连接请求 `https://openidconnect.googleapis.com`，照今天一样被拒（RAC-1082）。
-  - 为了实现时不会把它并进插件请求的放行集合，`account_origins` 不写成 `ConnectorRequestService` 的一个字段，而是 `connector-host.ts` 里单独的一张表 `CONNECTOR_ACCOUNT_ORIGINS`（service_id → 来源列表），`connector-plugin-requests.ts` 不 import 它。名字仍叫 `account_origins`，含义不变。
+  - 为了实现时不会把它并进插件请求的放行集合，`account_origins` 不写成 `ConnectorRequestService` 的一个字段，而是 `connector-host.ts` 里单独的一张表 `CONNECTOR_ACCOUNT_ORIGINS`（service_id → 来源列表），只许解释器所在的那一个文件 import 它（第四轮建议 1：今天读请求表做执法的还有 `connector-request-credentials.ts:34`、`plugin-connection-slots-http.ts:39`、`sandbox-package.ts:146`，反过来写「只许一个文件」，以后新增的执法文件也自动在范围里）。名字仍叫 `account_origins`，含义不变。
   - 不放进请求表还有一个原因：`createCallConnectionsPort` 的 `callService`（`connector-plugin-requests.ts:132-135`）对不在请求表里的服务，退回签名包自己写的来源（S-95）。把那四个服务加进请求表、`origins` 留空，就会改掉它们今天在 S-95 下的行为。单独一张表，这四个服务在插件请求一侧一个字节不变。
   - 这样写不比今天松：今天 identity 和 context 用裸 `fetch` 发往同一批主机，没有来源限制；新稿限定了来源，还加了 DNS 固定（§2.2）。
 - **端点和带令牌的请求是两回事**：
@@ -179,17 +178,120 @@
 - 宿主构建的插件写错了，是构建问题，测试会拦下来。
 - 平台表在 contracts 里，SDK 读得到（只读，不改 `connector-host.ts`），所以下面几条也放在 SDK 的形状检查里：
   - 「`use: "tenant"` 只给平台表里有 `tenant` 的服务」，第 1 片；
-  - 「`{service}` 只给 `origins` 只有一项的服务，完整地址的来源必须在 `origins` 里」，第 1 片；
+  - 「`{service}` 只给 `origins` 只有一项的服务；identity、context 的 `url` 写完整地址时，来源必须在 `origins` 里」，第 1 片。这条只管 identity 和 context 的 `url`，不管 `authorize_url`、`token_url`、`refresh_url`、`device_authorization_url`：端点本来就不在 `origins` 里（如 `oauth2.googleapis.com`），它们的约束是上面的端点规则和 §2.8（第四轮建议 2）；
   - 「`{account}` 只给 `CONNECTOR_ACCOUNT_ORIGINS` 里有的服务，完整地址的来源必须在其中」，第 4 片，和这张表一起加。
 
   本人填的租户值，在宿主里按 §2.1 查。
+
+### 2.1.1 逐个服务的 identity 数据（第 2 片）
+
+第 2 片只读代码，产出就是这一节，没有改代码。数据照 C 头上今天的行为抄：catalog 的 `identity`（`catalog.ts`）、宿主的 `readIdentity`（`provider.ts:61-73`）、`apiOAuthIdentity` 和 `enrichContext`（`connector-api-oauth.ts:199-244`）。第 4 片把它们写进各自的 Manifest。
+
+**今天账号 id 是怎样算的**，数据要原样算出同一个值：
+- Google 三个服务：取 userinfo 的 `sub`，不带前缀。
+- GitHub web：取 `/user` 的 `id`，不带前缀。
+- catalog 的服务：`前缀:id`。
+  - 前缀按顺序取第一个非空的：响应的 `team_id`、`data.me.account.id`、`organization_id`、`app.id_code`、`team_user.team_id`，再是上下文的 `workspace_id`、`cloud_id`、`team_id`。都没有就是空串，所以多数服务的 account_id 以 `:` 开头。
+  - id 按一张 18 项的通用列表取第一个非空的（`id`、`sub`、`user_id`、`portalId`、`account_id`、`accountId`、`uuid`、`gotrue_id`、`team_user.user_id`、`data.open_id`、`data.id`、`data.gid`、`user.id`、`user.permissionId`、`data.viewer.id`、`data.me.id`，monday 先取 `data.me.id`，非 sentry 再取列表第一项的 `id`）。
+- 另有两个后缀：sentry 再接 `:令牌响应的 user.id`；clickup、supabase 再接 `:workspaces:已授权工作区`。
+
+下面每个服务只写出通用列表在**它自己的响应**上实际会取到的那几项，顺序不变。真实响应里可能同时出现的几项，都按今天的顺序列出来：bitbucket 先 `account_id` 再 `uuid`，salesforce 先 `sub` 再 `user_id`，cloudflare、supabase 先 `id`。这样今天已经存在的、走通用流程的 catalog 连接，重新授权时算出的 account_id 不变。
+
+**写法**（表里用的简写）：
+- 请求：`GET`、`POST` 后面跟 `url`（`{service}`、`{tenant}`、`{gateway}`、`{account}` 见 §2.1），`body` 是固定的 JSON。
+  - 令牌怎样写，取平台请求表这个服务的 `credential.oauth`（monday 是 `bare`，其余是 `bearer`）；不在请求表里的四个服务（adobe、bitbucket、feishu、lark）用 `bearer`。
+  - 都带 `Accept: application/json` 和平台的 User-Agent。
+- `headers`、`query`：值只能是固定字符串、`{client_id}`（这次授权用的公开 client id）或 `{context.<key>}`。取值为空的 query 参数不写。不许写 `Authorization`、`Cookie`、`Host`，以及 `Content-Length` 一类由平台写的头。
+- account_id 写成几段，段之间用 `:` 连起来。每段是一组来源，按顺序取第一个非空的：
+  - `i:/指针`：identity 响应；
+  - `t:/指针`：令牌响应；
+  - `c:key`：连接上下文；
+  - `"字面量"`：固定字符串。
+  - 写成 `∅` 的段固定是空串，对应今天的「没有前缀」。前缀那一段取不到就是空串，其余每一段取不到，就是「服务未返回稳定账号身份」，授权失败。
+- `label`：按顺序取第一个非空的 identity 指针，都取不到就是「无法读取账号身份」。
+- `identity.keep`：从 identity 响应里留进连接上下文的键，后面的 Feed 要用。
+- `list: { min_by: "/id" }`：响应是列表时，取 `/id` 最小的那一项（按字符串比较，和今天的 `localeCompare` 一样）。上下文里已经有 `org` 时，取 `slug` 等于它的那一项。只有 sentry 用。
+
+| 服务 | 请求 | account_id | label | 另外留下的 |
+| --- | --- | --- | --- | --- |
+| gmail、google-calendar、google-drive | `GET {account}/v1/userinfo` | `[i:/sub]` | `/email`、`/name`、`/sub` | |
+| github（web） | `GET {service}/user` | `[i:/id]` | `/login` | |
+| outlook | `GET {service}/v1.0/me` | `∅ : [i:/id]` | `/userPrincipalName`、`/mail`、`/displayName` | |
+| onedrive、sharepoint、teams | `GET {service}/v1.0/me` | `∅ : [i:/id]` | `/userPrincipalName`、`/displayName` | |
+| dropbox | `POST {service}/2/users/get_current_account`，`body: null` | `∅ : [i:/account_id]` | `/email`、`/name/display_name` | |
+| box | `GET {service}/2.0/users/me` | `∅ : [i:/id]` | `/login`、`/name` | |
+| notion | 不发 identity 请求（§2.4） | `[t:/workspace_id]` | 令牌响应的 `/workspace_name` | `keep: workspace_id ← t:/workspace_id` |
+| slack | `GET {service}/api/auth.test` | `[i:/team_id] : [i:/user_id]` | `/user`、`/team` | |
+| discord | `GET {service}/api/v10/users/@me` | `∅ : [i:/id]` | `/username`、`/global_name` | |
+| feishu | `GET {account}/open-apis/authen/v1/user_info`（`https://open.feishu.cn`） | `∅ : [i:/data/open_id]` | `/data/name`、`/data/open_id` | |
+| lark | `GET {account}/open-apis/authen/v1/user_info`（`https://open.larksuite.com`） | `∅ : [i:/data/open_id]` | `/data/name`、`/data/open_id` | |
+| zoom | `GET {service}/v2/users/me` | `∅ : [i:/id]` | `/email`、`/display_name` | |
+| gitlab | `GET {service}/api/v4/user` | `∅ : [i:/id]` | `/username`、`/name` | |
+| bitbucket | `GET {account}/2.0/user`（`https://api.bitbucket.org`） | `∅ : [i:/account_id, i:/uuid]` | `/display_name`、`/username` | |
+| vercel | `GET {service}/v2/user`，`query: { teamId: "{context.team_id}" }` | `[c:team_id] : [i:/user/id]` | `/user/username`、`/user/email` | `keep: team_id ← t:/team_id` |
+| cloudflare | `GET https://dash.cloudflare.com/oauth2/userinfo`（`origins` 有两项，写完整地址） | `∅ : [i:/id, i:/sub]` | `/email`、`/sub` | |
+| huggingface | `GET {service}/oauth/userinfo` | `∅ : [i:/sub]` | `/preferred_username` | `identity.keep: name ← /preferred_username` |
+| sentry | `GET {service}/api/0/organizations/`，`list: { min_by: "/id" }` | `∅ : [i:/id] : [t:/user/id]` | `/name`、`/slug` | `identity.keep: org ← /slug`；`keep: oauth_user_id ← t:/user/id`（必填） |
+| supabase | `GET {service}/v1/profile` | `∅ : [i:/id, i:/gotrue_id] : "workspaces" : [c:authorized_workspaces]` | `/primary_email`、`/username`、`/gotrue_id` | `context: authorized_workspaces ← GET {service}/v1/organizations`，`pick: ids "/*/id"` |
+| linear | `POST {service}/graphql`，`body: { query: "{ viewer { id name email } }" }` | `∅ : [i:/data/viewer/id]` | `/data/viewer/name`、`/data/viewer/email` | |
+| jira | `GET {gateway}/ex/jira/{context.cloud_id}/rest/api/3/myself` | `[c:cloud_id] : [i:/accountId]` | `/displayName`、`/emailAddress` | `context: cloud_id ← GET {account}/oauth/token/accessible-resources`（`https://api.atlassian.com`），`pick: match_setting site_url → /url，取 /id`，`pattern` 为 36 位 uuid |
+| confluence | `GET {gateway}/ex/confluence/{context.cloud_id}/wiki/rest/api/user/current` | `[c:cloud_id] : [i:/accountId]` | `/displayName`、`/email` | 同 jira |
+| asana | `GET {service}/api/1.0/users/me` | `∅ : [i:/data/gid]` | `/data/name`、`/data/email` | |
+| clickup | `GET {service}/api/v2/user` | `∅ : [i:/user/id] : "workspaces" : [c:authorized_workspaces]` | `/user/username`、`/user/email` | `context: authorized_workspaces ← GET {service}/api/v2/team`，`pick: ids "/teams/*/id"` |
+| monday | `POST {service}/v2`，`body: { query: "{ me { id name email account { id } } }" }`，`headers: { "API-Version": "2024-10" }` | `[i:/data/me/account/id] : [i:/data/me/id]` | `/data/me/name`、`/data/me/email` | |
+| airtable | `GET {service}/v0/meta/whoami` | `∅ : [i:/id]` | `/email`、`/id` | |
+| figma | `GET {service}/v1/me` | `∅ : [i:/id]` | `/handle`、`/email` | |
+| canva | `GET {service}/rest/v1/users/me` | `[i:/team_user/team_id] : [i:/team_user/user_id]` | `/team_user/user_id`、`/user/display_name`、`/profile/display_name` | |
+| adobe | `GET {account}/ims/userinfo/v2`（`https://ims-na1.adobelogin.com`），`query: { client_id: "{client_id}" }`，`headers: { "X-Api-Key": "{client_id}" }` | `∅ : [i:/sub]` | `/email`、`/name`、`/sub` | |
+| salesforce | `GET {tenant}/services/oauth2/userinfo`（kept 的 instance） | `[i:/organization_id] : [i:/sub, i:/user_id]` | `/preferred_username`、`/name` | `keep: instance ← t:/instance_url`，`check: tenant` |
+| hubspot | `GET {service}/integrations/v1/me` | `∅ : [i:/portalId]` | `/hub_domain`、`/hub_id`、`/portalId` | |
+| intercom | `GET {service}/me`，`headers: { "Intercom-Version": "2.13" }` | `[i:/app/id_code] : [i:/id]` | `/email`、`/name` | |
+| stripe | `GET {service}/v1/account` | `∅ : [i:/id]` | `/display_name`、`/email`、`/id` | |
+| x | `GET {service}/2/users/me` | `∅ : [i:/data/id]` | `/data/username`、`/data/name`，`label_prefix: "@"` | `identity.keep: user_id ← /data/id` |
+| linkedin | `GET {service}/v2/userinfo` | `∅ : [i:/sub]` | `/name`、`/email`、`/sub` | |
+
+几处要说明的：
+- **notion** 按 §2.4 换成令牌响应里的 workspace：今天通用流程算出的是 `workspace:bot-id`，以后是 `workspace`。Q2 定了 Notion 的连接都要重新授权，所以不会有「同一账号」比对失败的旧连接。
+- **x** 今天在响应里没有用户名时，label 写成 `X`；数据里不再保留这个兜底，取不到就按「无法读取账号身份」失败。`users/me` 总会返回 `username`，这是有意的收紧。
+- **cloudflare、supabase** 的 `/id`：C 头上的契约夹具（`tests/connector-provider-contracts.test.ts`）只给了 `sub`、`gotrue_id`。今天的通用列表在 `id` 存在时会先取它，所以数据里照样先写 `/id`。
+- **两条 Atlassian 的路**（第四轮建议 3）：两条都发往 `api.atlassian.com`，但用途不同，所以两边都要列，不是重复。
+  - accessible-resources 在拿到 cloud_id **之前**调，只能走 `{account}`；
+  - identity 和以后的 API 调用走 `{gateway}`，用的是钉在连接上的 cloud_id（C `connector-host.ts:161-166`）。
+- **header 和 query 的值**只收固定字符串、`{client_id}` 和 `{context.<key>}`。`{client_id}` 是公开的 client id（adobe 要它），不是密钥。
+- **令牌的写法从平台表来**：monday 的 OAuth 令牌今天就以 `bare` 发送（`mondayHeaders`），和请求表的 `credential.oauth: "bare"` 一致。Manifest 里不写令牌怎么放。
+
+**要补进 `account_origins`（第 4 片落成 `CONNECTOR_ACCOUNT_ORIGINS`）的来源**，就这些：
+
+| 服务 | 来源 | 用途 |
+| --- | --- | --- |
+| gmail、google-calendar、google-drive | `https://openidconnect.googleapis.com` | identity |
+| jira、confluence | `https://api.atlassian.com` | context（accessible-resources，拿到 cloud_id 之前） |
+| feishu | `https://open.feishu.cn` | identity |
+| lark | `https://open.larksuite.com` | identity |
+| bitbucket | `https://api.bitbucket.org` | identity |
+| adobe | `https://ims-na1.adobelogin.com` | identity |
+
+- 别的服务的 identity 和 context 都落在请求表已有的 `origins`、租户来源或网关里：clickup 的 `api.clickup.com`、supabase 的 `api.supabase.com`、cloudflare 的 `dash.cloudflare.com` 都已经在 `origins` 里。所以 §2.1 原来列的「clickup、supabase 列 workspace 的来源」不用补。
+- feishu、lark、bitbucket、adobe 只进这张表，不进 `origins`，也不在请求表里开新行（A2）。
+- 请求表不能加行，还有一个原因（第四轮评审补充）：`sandbox-package.ts:146-148` 按「服务在不在请求表里」决定签名包能不能自己写 `origins`。加一行，签名包的这项结果也会跟着变。
+
+**第 2 片顺带发现、要改进本稿的**：
+- **声明的写法要比第一版多几样**，第 1 片的合同照这一节写：
+  - identity 要能写 `method`、`body`、`headers`、`query`、`list`、`label_prefix`、`keep`；
+  - account_id 要能写分段和「第一个非空」；
+  - context 的 `pick` 收成 `ids` 和 `match_setting` 两种。
+  - 都只是数据，Q1 不变。
+- **token 连接的 whoami 不在本线**：宿主今天另有两处 import `catalogWhoami`，都是给 token 连接查身份用的：`connector-access.ts:117,121` 和 `connector-account-actions.ts:67,72`。token 连接要先经 `parseToken`、`prepare` 把粘贴的串拆开或换成令牌（飞书和 Lark 的 app 凭据、企业微信、Jira 的 `site|email|token`），这些不是 OAuth 声明能写的。
+  - §2.2「`catalogWhoami` 不再被宿主引用」改成只说 OAuth 流程：OAuth 流程里不再引用。
+  - token 那两处记成 BL-795，和 BL-794 同属 token 连接那一半。
+  - RAC-1080 的扫描也只看 OAuth 流程的文件。
 
 ### 2.2 平台只有一个解释器
 
 - **位置与输入输出**：新的解释器放在 `apps/local-host/src/connector-*.ts`（这个前缀已经归 `connector` 主人，不用改 `tooling/gates/error-owners.json`），替换 `apiOAuthProvider` 和 `connector-api-oauth.ts` 里按 service 分支的代码。
   - 输入是登记里本方法的当前声明，加上本人的 settings 和连接上钉住的租户来源。
   - 输出是授权地址、令牌请求、刷新请求、设备授权请求、身份与上下文请求，都只是描述，不发请求。
-- **宿主不 import 插件的实现**：今天的 `catalogWhoami`、`notionAuthorizationUrl`、`notionOAuthToken`、`createGmailOAuth`、`createGithubDeviceFlow` 都不再被宿主引用。catalog 的 `CatalogConnectorSpec.identity` 从代码（`request(ctx) / read`）改成 §2.1 的 `identity` 数据。catalog 里共 40 处 `identity:`，第 2 片逐条写成数据。按 Q1 只用数据：要是有写不成的，就往平台的 `identity` 声明里补字段，不给插件钩子。
+- **宿主不 import 插件的实现**：OAuth 流程里，今天的 `catalogWhoami`、`notionAuthorizationUrl`、`notionOAuthToken`、`createGmailOAuth`、`createGithubDeviceFlow` 都不再被宿主引用。OAuth 方法的身份改由 §2.1.1 的 `identity` 数据算；catalog 里共 40 处 `identity:`（`types.ts` 1 处，`catalog.ts` 39 处），其中 37 个有 OAuth 方法的服务，第 2 片已经逐条写成数据，wechat、loom 没有 OAuth 方法。token 连接的 whoami 还在 catalog 的代码里，宿主照旧 import，见 BL-795。按 Q1 只用数据：要是有写不成的，就往平台的 `identity` 声明里补字段，不给插件钩子。
 - **请求都走一条路**：凡是从 Manifest 来的请求，都经 `sendPublicHttps` 发出（M2(c)），`redirect: "error"`。具体是：令牌、刷新、设备授权、设备 poll、identity、context。DNS 固定之后再做最后的发送检查（S-10），依赖 C 的片再套上 `controlledConnectorFetch`。今天的 `jsonRequest`、`enrichContext` 里的裸 `fetch` 一起换掉。
 - **设置页看到的不变**：`ConnectorMethodOption` 的形状和 `connectors.methods.read@1` 的输出不变，`client_secret_required`、`fields`、`note`、`login_ready` 都改由声明算出。
 
@@ -494,7 +596,7 @@
 | # | 片 | 前提 | 碰的文件 |
 | --- | --- | --- | --- |
 | 1 | 合同加字段，SDK 的形状检查（整份不过，不含 `{account}`），宿主里的解释器纯函数：模板展开（只认 `{service}`、`{tenant}`、`{gateway}`）、租户检查、令牌与身份请求的组装、端点指纹。只用夹具测试，不接路由，不删表，不发请求 | **可以先做**：只改 C 没碰的 `plugin-integrations.ts`；`connector-host.ts` 只读不改（A4，统筹 10-27，不开例外）；不 import `ConnectorCallControl`、`controlledConnectorFetch`；新文件叫 `apps/local-host/src/connector-*.ts`，不改 `error-owners.json`。SDK 算共享核心，要跑全量：分支先推，全量进合批会话开的集成批，本机不跑，测试 `--jobs 1` | `packages/contracts` 的 `plugin-integrations.ts`，SDK 的 `integration-declarations.ts`，宿主的一个新文件 |
-| 2 | catalog 里 40 处 `identity` 逐条写成数据；列出要补进 `account_origins` 的来源，含 adobe、bitbucket、feishu、lark（只进 `account_origins`，不进 `origins`） | **可以先做**，A4 之后仍然能单独做：它只读 catalog 包，产出是写进本稿 §2.1 的数据和来源清单，不依赖 `CONNECTOR_ACCOUNT_ORIGINS` 已经在代码里；清单由第 4 片落成代码。要用 `{account}` 的条目照样写成 `{account}/路径`。开工时间等统筹通知（W5-10 推完 e1、e2、e3、a1 之后，同时最多两条线写代码） | 无代码 |
+| 2 | catalog 里 40 处 `identity` 逐条写成数据；列出要补进 `account_origins` 的来源，含 adobe、bitbucket、feishu、lark（只进 `account_origins`，不进 `origins`） | **已做**（2026-10-27）：产出是 §2.1.1，顺带改了 §2.1 的 identity、keep、context 三行，记了 BL-795 | 无代码 |
 | 3 | 通用回调、判断顺序、待完成记录合成一份（§3），§2.8 的拒绝 | 依赖 C 合入 | `connector-api-oauth.ts`、`connector-oauth-targets.ts`、`connector-oauth-callbacks.ts`、`web-connector-api-methods.ts`、`integration-registry.ts` |
 | 4 | `CONNECTOR_ACCOUNT_ORIGINS` 按第 2 片的清单加进 contracts，SDK 加 `{account}` 的检查，解释器认 `{account}`（A4）；catalog 和 github web 的数据写进 Manifest，删掉 `API_OAUTH_PROVIDERS`，`connectorMethodsFor` 改读登记；产品客户端和 broker 只给宿主构建的声明；Worker 数据挪到 `cloudflare/providers.ts`，加对照测试，改 `cloudflare/README.md` 第一句和测试注释（§2.9）；PR 说明写上 §2.9「合入不是发版」 | 依赖 C 合入；改 SDK，全量进集成批；第一次合入前用户在 Cloudflare 后台确认一次 | `packages/contracts` 的 `connector-host.ts`、SDK 的 `integration-declarations.ts`、catalog 包、`host-connector-methods.ts`、`connector-product-auth.ts`、`cloudflare/worker.ts`、`cloudflare/providers.ts`、`cloudflare/README.md` |
 | 5 | 共用刷新推广到全部 OAuth 连接，加连接上的绑定和最后一道检查，改掉 C「最后一个离开就丢弃」那一处；`resolveApiConnection` 收成三支，旧 OAuth 连接标 `reauth_required`；同一个 PR 里把 C 的 FI-C-02 两条断言和 spec 行反过来，写明用户 10-27 的决定，告知 C 线（A3） | 依赖 C 合入（先确认 `apps/local-host/src/notion-oauth.ts` 合入后的形状） | `connector-access.ts`、`connector-api-oauth.ts`、`apps/local-host/src/notion-oauth.ts`、`tests/connector-oauth-choice.test.ts`、`specs/…/feed-inbox-runtime-plugins.md` |
@@ -504,7 +606,7 @@
 | 9 | 文档：§10.1、privileges（§5 的措辞）、EXTENSION-POINTS、SECURITY-INVARIANTS（拿到合批会话给的 S 号之后，含写回凭据这条例外）、CHANGELOG；`AGENTS.md` 在 S-35 那句旁边补上写回凭据的例外（A3） | 在 3～8 之后 | `docs/`、`specs/`、`AGENTS.md` |
 | 10 | 第二批：`MCP_SERVERS` 的数据 | 另开一片（BL-790），依赖 C 合入 | `connector-mcp.ts`、catalog 包 |
 
-- 第 1、2 片可以和 C 并行。第 2 片等统筹通知再开；第 1 片等 A2、A4 的增量复核过了再开。
+- 第 1、2 片可以和 C 并行，统筹 10-27 已放行；第 2 片先做，第 1 片的合同照 §2.1.1 的写法。
 - 第 3～8 片都碰 C 改过的连接器文件，等 C 进 main 后按表里的顺序做，每片一个 PR，交给评审会话。
 - 统筹 10-27 的负载控制下，一次只跑一项重活。
 
@@ -512,9 +614,9 @@
 
 | 编号 | 验收 | 怎样证明 |
 | --- | --- | --- |
-| RAC-1080 | 连接器方法列表（`connectors.methods.read@1`）只由登记里启用插件的声明算出，宿主里没有按服务写的 OAuth 表；输出形状不变 | 迁移前后逐个服务整份比对 `ConnectorMethodOption`；扫描宿主源码，没有 `API_OAUTH_PROVIDERS`，也不 import 插件的实现或 `cloudflare/providers.ts` |
+| RAC-1080 | 连接器方法列表（`connectors.methods.read@1`）只由登记里启用插件的声明算出，宿主里没有按服务写的 OAuth 表；输出形状不变 | 迁移前后逐个服务整份比对 `ConnectorMethodOption`；扫描宿主源码，没有 `API_OAUTH_PROVIDERS`，也不 import `cloudflare/providers.ts`；OAuth 流程的文件不 import 插件的实现（token 连接的 whoami 见 BL-795）；37 个服务逐个用 C 头 `tests/connector-provider-contracts.test.ts` 的夹具，比对旧的 `readIdentity` 和新的 identity 数据算出的 account_id 与 label 相同 |
 | RAC-1081 | 下面这些声明错误都让**整份 Manifest** 抛 `plugin.declaration_invalid`，在写任何记录之前：非 https、带账号密码或端口、主机是 IP、`{setting}` 出现在主机里、平台保留的参数名、未知的 quirk、`use: "tenant"` 用在平台表里没有 `tenant` 的服务上、`{service}` 用在 `origins` 不止一项的服务上、完整地址的来源不在 `origins` 里；第 4 片起再加：`{account}` 用在 `CONNECTOR_ACCOUNT_ORIGINS` 里没有的服务上（第 1 片里 `{account}` 是未知占位，同样整份不过）；另外，签名沙箱包里带数据的 oauth 被集成登记拒绝（§2.8） | SDK 形状检查逐条用例（`{account}` 那条随第 4 片）；`integration-registry` 的 `attach` 拒绝用例 |
-| RAC-1082 | 模板展开后再查一次：tenant、slug 带 `/`、`..`、`%2f`，租户值带端口或凭据、不在 `tenant.domain` 下，kept 的 `instance_url` 不在 `tenant.domain` 下，都在发出任何请求之前拒绝；identity、context 只发往平台表定的来源；从 Manifest 来的请求都经 `sendPublicHttps`。**插件的请求不认 `account_origins`**（A2）：插件经 gmail 连接的槽（`services.connections`）请求 `https://openidconnect.googleapis.com/v1/userinfo`，被拒，不发出、不带凭据；adobe、bitbucket、feishu、lark 加进 `account_origins` 之后，插件请求一侧的行为和今天相同 | 解释器的纯函数用例；发起授权并断言没有网络请求的用例；用假的 `sendPublicHttps` 断言每类请求都经过它；`account_origins` 的拒绝用例进 `test:security`（第 4 片，和这张表一起加），另断言 `connector-plugin-requests.ts` 不 import `CONNECTOR_ACCOUNT_ORIGINS` |
+| RAC-1082 | 模板展开后再查一次：tenant、slug 带 `/`、`..`、`%2f`，租户值带端口或凭据、不在 `tenant.domain` 下，kept 的 `instance_url` 不在 `tenant.domain` 下，都在发出任何请求之前拒绝；identity、context 只发往平台表定的来源；从 Manifest 来的请求都经 `sendPublicHttps`。**插件的请求不认 `account_origins`**（A2）：插件经 gmail 连接的槽（`services.connections`）请求 `https://openidconnect.googleapis.com/v1/userinfo`，被拒，不发出、不带凭据；adobe、bitbucket、feishu、lark 加进 `account_origins` 之后，插件请求一侧的行为和今天相同 | 解释器的纯函数用例；发起授权并断言没有网络请求的用例；用假的 `sendPublicHttps` 断言每类请求都经过它；`account_origins` 的拒绝用例进 `test:security`（第 4 片，和这张表一起加），另扫描宿主源码，只有解释器所在的那一个文件 import `CONNECTOR_ACCOUNT_ORIGINS` |
 | RAC-1083 | 回调第 1～7 条：拒绝，不发任何请求，只写 §3.4 左边一列，右边一列一个字节不变；Host 不对时 state 不被消耗；带 `error` 的回调消耗 state；三条别名路径只收记录里的那一条；声明了 `issuer` 时 `iss` 缺了或不同都拒绝 | 安全用例（进 `test:security`）：记录令牌端点的请求次数，回调前后对比连接、凭据、protocol 配置和绑定 |
 | RAC-1084 | 回调第 8、9 条：令牌请求已经发出，换到的令牌不暂存、不提交；发起之后插件停用、升级或者声明改了，这次回调拒绝 | 安全用例；Gmail 和 Notion 原来的过时回调用例改到这里 |
 | RAC-1085 | 共用刷新：同一个连接只有一次刷新在途，一个参与者取消不中止别人，刷新请求发出后不因参与者走光而中止。参与者全部取消、响应回来、插件仍启用：轮换出的凭据写回原连接，别的记录一个字节不变。同样的情形下插件停用了：凭据不存；重新启用后第一次使用得到 `invalid_grant`，连接标 `reauth_required`。连接绑定的插件、发布者或端点指纹变了：不发 refresh token，标 `reauth_required` | 延续 C 给 Notion 的用例，推广到 Gmail、一个轮换 refresh token 的服务（Microsoft）和一个 catalog 服务；拒绝场景进 `test:security` |
@@ -535,7 +637,9 @@
 - **BL-793**：BL-690（OAuth 移走之后对 connection_methods 的检查）在第 4 片做完后重新评估。BL-694（外部的 document_import）不受本线影响。
 - **BL-794**（不做，统筹 10-27 裁定）：插件停用之后，它声明的服务的 **token 连接**也不再发送。包括 Alchemist 绑的 GitHub token 连接，以及 `services.connections` 经 `resolveApiConnection` 发出的 token。今天就是照样发送，本线不放宽也不收紧；本线只收 OAuth 连接（§2.6、RAC-1088）。
 
-BL-795～799 留空。
+- **BL-795**（第 2 片发现）：token 连接的 whoami 还由宿主 import catalog 包的 `catalogWhoami`（`connector-access.ts:117,121`、`connector-account-actions.ts:67,72`）。token 要先经 `parseToken`、`prepare` 拆开或换成令牌，不是 OAuth 声明能写的。和 BL-794 同属 token 连接那一半，本线不做；做的时候按「宿主不跑插件代码」另想办法（token 方法的声明，或由插件自己的动作回报身份）。
+
+BL-796～799 留空。
 
 ## 10. 问题与答复（已定）
 
@@ -576,7 +680,7 @@ BL-795～799 留空。
 
 ## 11. 评审建议的取舍
 
-三轮评审的建议都采纳了，没有不采纳的：
+四轮评审的建议都采纳了，没有不采纳的：
 
 | 建议 | 采纳与否 | 落在哪里 |
 | --- | --- | --- |
@@ -598,3 +702,6 @@ BL-795～799 留空。
 | 第三轮建议 2：`{tenant}/路径` 的端点指纹取模板，不取展开后的地址 | 采纳 | §2.6 |
 | 第三轮建议 3：`origins` 有几项时怎样选 | 采纳第一种：`{service}` 只给一项的服务，几项时写完整地址、来源必须在 `origins` 里；不用 `{service:0}` 序号，平台表换顺序时不会悄悄换来源 | §2.1、RAC-1081 |
 | 第三轮建议 4：§6.3 注明 FI-C-02 的两条断言按 N2 反过来 | 采纳 | §6.3、§2.6、§7 第 5 片 |
+| 第四轮建议 1：只许解释器所在的那一个文件 import `CONNECTOR_ACCOUNT_ORIGINS` | 采纳 | §2.1、RAC-1082 |
+| 第四轮建议 2：「完整地址的来源须在 `origins` 里」只管 identity、context 的 `url` | 采纳，第 1 片照这个意思实现 | §2.1 |
+| 第四轮建议 3：Atlassian 的 `{gateway}` 和 accessible-resources 的 `{account}` 分开写明 | 采纳 | §2.1.1 |

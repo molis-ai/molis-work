@@ -123,7 +123,7 @@
 
 | 编号 | 事项 | 来源 | 类型 | 为什么还没做 | 依赖 | 优先级 | 负责人 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| BL-023 | Coding、公共文件浏览与 Git 默认联动，临时查看不改变执行目录；统一项目文件／资料源并承接 Files 退役 | [coding-harness-optimization R1、CHO-36～39](coding-harness-optimization/spec.md)；[目录与资料讨论方案](product-flow-governance/workspace-and-materials-design.md) | 部分实现 | 2026-10-27 已选 A，补充去掉独立 Files 的方向；源码已有部分联动，公共能力承接与完整验证未完成 | 主工作目录默认规则待对齐；历史过程项须接好，不阻塞独立核对现有联动 | 中 | 未分配 |
+| BL-023 | 项目多输入／单输出目录，输入输出可相同且用户可修改；Coding、公共文件浏览与 Git 默认联动，临时查看不改变执行位置；承接 Files 退役 | [coding-harness-optimization R1、CHO-36～39](coding-harness-optimization/spec.md)；[目录与资料整合方案](product-flow-governance/workspace-and-materials-design.md) | 部分实现 | 2026-10-27 目录模型已定；源码已有部分联动，新配置合同、公共能力承接与完整验证未完成 | 历史过程项与现行目录配置须接好；无待决的主工作目录规则 | 中 | 未分配 |
 | BL-050 | Coding 下一阶段 20 项（A1–E4：仓库说明与 `/init`、斜杠命令、图片输入、代码智能、联网、沙盒与规则、钩子、记忆、多模型对比、VS Code 等） | [coding-plugin/next-requirements.md §5](coding-plugin/next-requirements.md) | 未实现 | 需求已定稿，标「待定」的等 BL-020 | BL-020 | 中 | 未分配 |
 | BL-051 | Coding：子任务预算（现在只显示用量）；重试在真实运行中未触发过；派出子任务的标识格式在 SDK 工具参数里加约束 | [coding-plugin/spec.md 第 0 节](coding-plugin/spec.md) | 部分实现 | 见原文各块「还没做 / 未验证」 | Prologue SDK | 低 | 未分配 |
 | BL-052 | Characters：五家原生 Agent（含 Cursor、OpenCode）真实启动、规则与技能加载、取消与失败实操 | [characters-local-agent-import](archive/characters-local-agent-import/spec.md) | 部分实现 | 本机缺 CLI，且 AI 验证限定走 Prologue | 本机安装对应 CLI | 低 | 未分配 |

@@ -1,7 +1,7 @@
 import { isCurrentTabWorkspace } from "../../tab-workspace-ops.js";
 import { clampSplitRatio, focusedPaneBoxAfterDrop, layoutPaneBoxes, snapSplitRatio, splitDropEdge, splitRatioRange, splitTreeFits } from "../../tab-split-drop.js";
 
-/** Panes of the work area: reconciling the panes with the state, mounting a tab's content, the split tree and its geometry. A part of TAB_WORKSPACE_FACTORY_SCRIPT, joined in place. */
+/** Panes of the work area: reconciling the panes with the state, mounting a tab's content, the split tree and its geometry, and saving the state and telling the parent page. A part of TAB_WORKSPACE_FACTORY_SCRIPT, joined in place. */
 export const TAB_WORKSPACE_PANES_PART = `  const isCurrent = (${isCurrentTabWorkspace.toString()});
   const clampSplitRatio = ${clampSplitRatio.toString()};
   const splitDropEdge = ${splitDropEdge.toString()};

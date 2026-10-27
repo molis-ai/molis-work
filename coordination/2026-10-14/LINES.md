@@ -634,3 +634,9 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
     - BL-635（`apps/workbench/src/index.ts` 无人用的出口，RAC-711 的 `tests/workbench-entry-exports.test.ts`）不在 #1101、C、W 的文件里，能开工；先照 `slices/w5-08-workbench-exports.md` §3 重跑扫描，Goals 一组留给 Goals 收尾。
   - **10-27 派给 ac-sweep 的顺序**：B（PG-064 Schedule 一半，单独一个 PR，RAC-1110～1114）→ BL-635 + BL-088 合成一个 PR、两个提交（RAC-1115～1119）；BL-810～812 两片共用。两项写完后攒成一批，一次 heavy.sh 预约。
   - 下一个空号：BL-813、RAC-1120、R-70。
+  - **10-27 统筹裁定：PG-064 的 Schedule 一半不单独做**。
+    - ac-sweep 核过：改走 `/contract` 入口后，`scripts/gates/assembly.mjs:188` 的 pluginOutsideMentions 照样把子路径算进去，`page-view.ts` 仍是 1 个文件，数字不变。
+    - 要让数字降 1，只能从 `schedule-projection-ui.ts` 转出类型，把点名挪到已经点名 Schedule 的文件里。这样耦合没少，等于刷数字，不做。
+    - 并进 Goals 与外壳收尾：外壳不再画 Schedule 页时一起收。privileges 的 PG-064 行保持开着。
+    - ac-sweep 直接做 5a（BL-635 + BL-088，RAC-1115～1119）；RAC-1110～1114 空着不用。
+  - 下一个空号：BL-813、RAC-1120、R-70。

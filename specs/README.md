@@ -40,7 +40,7 @@
 - [automation-recommender](automation-recommender/spec.md)：项目自动化建议；只读扫描项目，按 hooks/技能包/MCP/子代理/命令各推荐 1–2 个，有证据、可保存、不自动安装；2026-10-18 新立，尚未实现。
 - [plugin-project-database](plugin-project-database/spec.md)：项目库里的插件表——插件在 Manifest 里声明，平台第一次打开时建表、记账本、核对发布者与版本，项目身份改成 `project_root`（PG-020、PG-021）；L1a 已做（声明、检查与打开函数），宿主还不按它建表。S8 让 Goals 的 31 张表（含 `boards`）也改由 Goals 自己声明（待审，与 L1b 同批）。
 - [code-modernization](code-modernization/spec.md)：代码现代化工作流；评估 → 地图 → 业务规则 → 计划批准 → 增量改造 → 行为等价证明 → 报告；2026-10-18 新立，尚未实现。
-- [onboarding-coverage](onboarding-coverage/spec.md)：首次使用与新建项目的引导——模型在流程内可配、读取前讲清数据边界、采用后给下一步、更新页说明变化；2026-10-19 新立，需求已整理，尚未实现。
+- [onboarding-coverage](onboarding-coverage/spec.md)：场景与能力包、动态渐进引导、全局/项目/任务设置——跨项目个人助理、项目助理团、AI 生成交互首页与第一件真实工作；2026-10-27 需求整合，整项尚未实现，本轮只改文档，F 轨统筹。
 - [onboarding-intake-progress](onboarding-intake-progress/spec.md)：引导来源页去掉已废止的 200 份 / 50 MB / 20 MB 文案；大文件夹先按条目显示清点进度，再保存清单。2026-10-25，待验收。
 - [onboarding-model-link](onboarding-model-link/spec.md)：引导里选文件和连接文字模型是前后两步；第二步用模型设置的保存和读取，版式仍是引导的左右栏，不进入设置。2026-10-25，待验收。
 - [onboarding-folder-places](onboarding-folder-places/spec.md)：桌面引导里下载、文稿、桌面和其他文件夹改成一列，并且可以同时选。2026-10-25，待验收。
@@ -51,7 +51,7 @@
 - [prologue-tool-strategy](prologue-tool-strategy/spec.md)：Prologue Tool 的工具面、搜索、结果预算与观测；独立需求，需求已整理，待评审后实施。
 - [prologue-mcp-strategy](prologue-mcp-strategy/spec.md)：Prologue MCP 的服务器信任、发现、健康与认证；独立需求，需求已整理，待评审后实施。
 - [prologue-context-strategy](prologue-context-strategy/spec.md)：Prologue Context 的来源预算、trace、新鲜度与压缩剖面；独立需求，需求已整理，待评审后实施。
-- [post-anticorruption-roadmap](post-anticorruption-roadmap/spec.md)：防腐收尾之后全部未完成需求的清单与实现路径——按工作接得上、体验、易用排先后，按依赖分五段、按文件分七条轨道减少冲突；2026-10-26 规划，防腐线收尾后执行。
+- [post-anticorruption-roadmap](post-anticorruption-roadmap/spec.md)：防腐收尾之后全部未完成需求的清单与实现路径——按依赖分五段、按文件分七条轨道；2026-10-27 补场景引导、项目助理团和生成交互首页的前置与顺序，原轨道归属保留，防腐线收尾后执行。
 - [quiet-home-refresh](quiet-home-refresh/spec.md)：项目首页后台刷新停在当前画面上，日期条和标题没变就不重画，也不先换成「正在读取事项…」；第一次进入和点「重新读取」仍显示加载。2026-10-22，待验收。
 
 ## 现行规范

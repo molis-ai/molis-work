@@ -120,6 +120,8 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 
 本节 9 个包分两类（见[系统架构 §3](system/ARCHITECTURE.md)）：`connector-host`、`listener-host`、`scheduler`、`runtime-host`、`agent-host` 是横向运行服务，只保存 cursor、lease、retry 等可恢复的技术状态。例外只有一处：`agent-host` 另外保存人保存的 Agent 配置，只有外部 MCP 服务器、装进项目的 Skill（界面叫「方法」）、写后检查器三类，各在下面「Agent Host 保存的人的配置」里有一行；除此之外它也只存技术状态。`memory`、`placement`、`search`、`knowledge` 按职责属于「平台产品服务」（目录暂留在 `horizontal/` 下），可以持有跨插件的策略和本服务自己的机制记录（放置的关联与来源、记忆的开关、候选与撤销、可重建的搜索索引）。情境排序（`packages/kernel` 的 `contextual.ts`）同属平台产品服务，代码位置不变。两类都不拥有 Goal、Signal、Action、Session 等插件或 Module 的业务事实。
 
+**规划中的平台产品服务：观测和采集层。** [独立需求](../specs/observation-collection/spec.md)于 2026-10-27 从主动助理中迁出，尚未实现，包位置待设计；不计入上表当前包与成熟度。它负责获准的观察记录、工作关联、历史证据可用性与覆盖缺口，原始业务内容、正式状态及对象身份仍归对应插件或服务；历史证据不产生第二份可编辑事实。评测与主动助理经公开能力消费同一事实，分别负责效果判断和工作建议，不各建采集链；实施沿后续演进计划 C 轨。
+
 ## 7. Plugins
 
 | 目标 package | 产品能力 | 当前来源 | 包成熟度 | 迁移 / 实现 Goal | 归属 |

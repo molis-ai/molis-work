@@ -134,10 +134,9 @@
     },
     "feed": {
       "paths": [
-        "packages/contracts/src/modules/feed.ts",
-        "apps/local-host/src/feed-*"
+        "packages/contracts/src/modules/feed.ts"
       ],
-      "reason": "The Feed module, plugin and the Host files that sync and promote; the feed_* snake codes become feed.* (spec W3-02 E)."
+      "reason": "The Feed module and plugin (the Host's Feed files moved into the plugin, FI-5/FI-7); the feed_* snake codes become feed.* (spec W3-02 E)."
     },
     "functions": {
       "paths": [

@@ -553,7 +553,7 @@ Root 追加的既有 SYS52 首败随 C 收口：Full `40440700816/63d7b896` 原�
 | `028a952e68eda35cdd6d7fa8817dc7c3663d4bc0` | C01绑定owner在成功bind/unbind及三种批量删除后通知原在途登记；同槽ABA永久使旧调用失效。同账号旁槽隔离、bulk通知及原拒绝断言作者文件33/33（含子项）通过，整体build通过；SOURCE接受。该轮“其他槽”原例只是变更后新拉取，真正两条在途例在C02后补；不据此声称Host close已等待所有底层子任务。 |
 | `1dad39c1efb00ddfee64e4c3c0b4e54dde84c9dd` | C02必需控制贯通Host/SDK/provider/OAuth/BL530/DNS发送边界。真实Runtime→默认registry→生产Gmail取消、双在途ABA与tokenRefs刷新取消；通用OAuth等待取消保原凭据/拒绝状态；真实runner→broker→Host TLS401→生产OAuth取消及DNS最终等待拒绝，已保原件。整体build通过；SOURCE确认这些主要修复，但发现同账号Notion共享刷新取消P1，不能关闭C02。 |
 | `2b8c8ccc3e3f7a2f5e3b824afa584099fb3288a0` | 仅三处测试适配：Listener账号展示取实际绑定integration.account；RAC890指向现行connector-source-pull；S70取消以真实fresh-access落盘为相位，断言自身原错误、零第二次TLS发送。SOURCE接受适配，未改生产或放宽业务断言。 |
-| `009b773f060ac61ceaa041b68d7681e075709b0a` | Notion保原Home/账号去重，改为有效参与调用共同维持共享刷新；单方取消不误伤旁调用，最后参与者退出才abort。发送及落盘前仍核有效调用、原revision/refresh值；结束项不再接纳新调用。真实Catalog接线反例覆盖取消首个/第二个调用、全取消零写回，原同Home去重/跨Home隔离保留。整体build及两整文件作者验证通过，最新源码复审尚未收到最终结论。 |
+| `009b773f060ac61ceaa041b68d7681e075709b0a` | Notion保原Home/账号去重，改为有效参与调用共同维持共享刷新；单方取消不误伤旁调用，最后参与者退出才abort。发送及落盘前仍核有效调用、原revision/refresh值；结束项不再接纳新调用。真实Catalog接线反例覆盖取消首个/第二个调用、全取消零写回，原同Home去重/跨Home隔离保留。整体build及两整文件作者验证通过；最新源码复审没有必修项，补测与取舍见下文「FI-C-02 Notion 复审与补测」。 |
 
 原始本机证据目录 `/tmp/molis-verify-2026-10-26/closeout-c/` 保留01–31日志、命令、自然退出码和固定检查点patch/json；原失败没有覆盖。18整体build自然0/43.3706秒；19三个首败文件重跑自然0/7.7349秒（Runtime Gmail5/5、通用OAuth20/20、Gmail边界5/5）；20真实沙箱OAuth/DNS文件7/7、自然0/2.6875秒（此次Darwin实际执行、不是Linux证明）；22消费者14文件有6红，适配后的24仅复跑这6文件均通过（S70 11/11、registry17/17、Feed connectors13/13、connections9/9、catalog trust4/4、pagination7/7）。18之后Notion生产改动的最新整体build是29，自然0/17.3320秒；30运行 `node scripts/machine-slot.mjs run browser --label "C Notion shared refresh author" -- node scripts/run-tests.mjs --jobs 1 --browser-jobs 1 --retries 0 tests/connector-oauth-choice.test.ts tests/security-invariants-connection-refresh.test.ts`，自然0/5.0448秒，两文件分别9/9与11/11，无跳过/取消/重试。27是新fixture缺access导致账号建档拒绝，不能当产品反例；修正fixture后28在旧生产实现准确因取消首个调用导致共享signal误abort而红。作者验证不冒充独立TEST、完整security或最终Full。
 
@@ -597,4 +597,9 @@ Inbox的listInbox/getInbox投影及状态提交重读已在028实现，但运行
 - **inbox-automatic-scenes 一红（main 上绿）。** 第 170 行公开来源那段在测试进程里直接调 demo 来源服务同步，同步时触发真实 Runtime Feed 的 capture 场景。场景准备条目时没有本动作暂存的条目，退回 `hydrate` 读证据，被 S-97 拒（场景里不许读，按设计）。拒绝发生在拉取自己的提交之后，`source-sync.ts` 的 catch 先做 `beforeEffect()` 再核，于是对外报的是 `feed.source_changed`，盖住了真正的错误。作者判断：生产里同步走 Feed 自己的 `feed.sources.sync`，条目先在动作里暂存，不经这条路；这一点还没有用 Runtime 同步加 capture 场景的用例证明。测试应改走 Feed 的动作加取数替身，不该为过而弯夹具，待裁定。catch 先核会盖住原错误这件事，作为后续另记。
 - **local-host 整包构建**：`tsc` 通过，随后的 `native/materials` Swift 构建在本机因 CommandLineTools 的 `SwiftBridging` 模块重复定义失败，与本批无关。
 - **没跑的**：根 `tsc --noEmit` 对测试文件的类型检查、全部浏览器用例（含 FI7 改到的 6 个）、security 全量、最终 Full，由合并会话在 PR 前排。
-- **FI-C-02 Notion 复审**：没有必修项。有一句可选的补充：请求已发出后又全部取消时，可能需要重新授权。
+- **FI-C-02 Notion 复审与补测。** 复审没有必修项。按统筹要求，在 `tests/connector-oauth-choice.test.ts` 补了两条非浏览器用例：
+  - 「a call after both callers left starts a new shared refresh…」：两方都取消后，共享请求被中止。响应回来之前，第三个调用另起一个共享项，发出第二个请求。旧响应回来时，两方各按自己的原因被拒，什么都不写。第四个调用加入第三个调用的请求，最后只落第二个请求的结果，连接的 revision 不变。
+  - 「a shared refresh a caller still awaits writes nothing when…」：一方取消，另一方还在等。刷新期间，refresh 值被换掉，或连接停用再启用（revision 变了）。留下的一方分别以「Notion 连接在刷新期间已改变，请重试」「连接在刷新期间已变化，请重试」被拒，什么都不写。
+  - 作者验证：整文件 13/13（`--jobs 1 --retries 0`）。在构建出的 `notion-oauth.js` 上，分别去掉三处保护——已结束的共享项不再接纳新调用、落盘前比对 refresh 值、`finally` 只删自己那一项——新用例都会变红。构建产物已还原。
+  - **取舍（统筹登记为 R-68）**：所有参与的调用都已取消、而请求已经发出时，Notion 轮换出的新 refresh token 不写盘。如果 Notion 立刻让旧值失效，用户就要重新授权。这是「被取消的调用不写记录」的代价。
+  - **两条建议，这批不改**：① 被取消的一方仍要等共享刷新结束才返回，可以改成和自己的信号赛跑、先行返回。② 权限已被撤销、信号却没有中止的参与者，要到下一次检查才退出。

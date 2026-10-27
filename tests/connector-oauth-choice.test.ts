@@ -159,6 +159,110 @@ test("FI-C-02 Notion shared refresh isolates either caller's cancellation and st
   }));
 });
 
+/** One connection as the shared-refresh cases start: client credentials, the original refresh token, no access token. */
+function seedNotionRefresh(directory: string) {
+  const refs = `connector-connection:${NOTION_CONNECTION}`;
+  const store = createFileSecretStore();
+  store.put("connector:notion:client_id", "fixture-client");
+  store.put("connector:notion:client_secret", "fixture-secret");
+  store.put(`${refs}:refresh`, "original-refresh");
+  store.put(`${refs}:access`, "expired-access");
+  registerNotionConnection(directory);
+  store.delete(`${refs}:access`);
+  const revision = () => withConnectorConnections(directory, connections => connections.require(NOTION_CONNECTION).updated_at);
+  return { store, refs, revision };
+}
+
+/** A token endpoint that holds each request until the test releases it and ignores abort, answering request n with access-n and refresh-n. */
+function heldTokenEndpoint() {
+  const requests: Array<{ refreshToken: string; signal: AbortSignal; release: () => void }> = [];
+  let arrived = () => {};
+  const fetchImpl: typeof fetch = async (_url, init) => {
+    const index = requests.length;
+    const held = new Promise<void>(resolve => requests.push({ refreshToken: JSON.parse(String(init?.body)).refresh_token as string, signal: init!.signal!, release: resolve }));
+    arrived();
+    await held;
+    return Response.json({ access_token: `access-${index}`, refresh_token: `refresh-${index}`, workspace_id: "work", workspace_name: "Work", bot_id: "bot" });
+  };
+  return { requests, fetch: fetchImpl, next: () => new Promise<void>(resolve => { arrived = resolve; }), releaseAll: () => requests.forEach(request => request.release()) };
+}
+
+test("FI-C-02 a call after both callers left starts a new shared refresh, and the abandoned answer writes nothing", async () => isolated(async directory => {
+  const { store, refs, revision } = seedNotionRefresh(directory);
+  const before = revision(), endpoint = heldTokenEndpoint();
+  try {
+    const controllers = [new AbortController(), new AbortController()];
+    const sent = endpoint.next();
+    const leaving = controllers.map(controller => resolveUsableNotionToken(NOTION_CONNECTION, connectorControl({ signal: controller.signal }), true, endpoint.fetch));
+    await sent;
+    await new Promise<void>(resolve => setImmediate(resolve));
+    assert.equal(endpoint.requests.length, 1);
+    const settled = Promise.allSettled(leaving);
+    controllers.forEach(controller => controller.abort(new Error("caller cancelled")));
+    assert.equal(endpoint.requests[0]!.signal.aborted, true, "the last caller leaving ends the shared request");
+    // Before the abandoned answer comes back, a third call arrives: the ended shared refresh does not take it, it sends its own request.
+    const sentAgain = endpoint.next();
+    const third = resolveUsableNotionToken(NOTION_CONNECTION, connectorControl(), true, endpoint.fetch);
+    await sentAgain;
+    assert.equal(endpoint.requests.length, 2);
+    assert.equal(endpoint.requests[1]!.signal.aborted, false);
+    endpoint.requests[0]!.release();
+    for (const [index, result] of (await settled).entries()) {
+      assert.equal(result.status, "rejected");
+      if (result.status === "rejected") assert.equal(result.reason, controllers[index]!.signal.reason);
+    }
+    // The abandoned answer has been checked and dropped: nothing of it is on disk.
+    assert.equal(store.get(`${refs}:access`), null);
+    assert.equal(store.get(`${refs}:refresh`), "original-refresh");
+    assert.equal(store.get(`${refs}:workspace`), null);
+    // Its ending does not drop the third call's shared refresh: a fourth call joins that one, with no third request.
+    const fourth = resolveUsableNotionToken(NOTION_CONNECTION, connectorControl(), true, endpoint.fetch);
+    await new Promise<void>(resolve => setImmediate(resolve));
+    assert.equal(endpoint.requests.length, 2);
+    endpoint.requests[1]!.release();
+    assert.deepEqual(await Promise.all([third, fourth]), ["access-1", "access-1"]);
+    assert.deepEqual(endpoint.requests.map(request => request.refreshToken), ["original-refresh", "original-refresh"]);
+    assert.equal(store.get(`${refs}:access`), "access-1");
+    assert.equal(store.get(`${refs}:refresh`), "refresh-1");
+    assert.equal(revision(), before);
+  } finally { endpoint.releaseAll(); }
+}));
+
+test("FI-C-02 a shared refresh a caller still awaits writes nothing when the refresh token or the connection changes meanwhile", async t => {
+  for (const change of ["refresh", "revision"] as const) await t.test(change, async () => isolated(async directory => {
+    const { store, refs, revision } = seedNotionRefresh(directory);
+    const endpoint = heldTokenEndpoint();
+    try {
+      const leaving = new AbortController();
+      const sent = endpoint.next();
+      const calls = [connectorControl({ signal: leaving.signal }), connectorControl()].map(control => resolveUsableNotionToken(NOTION_CONNECTION, control, true, endpoint.fetch));
+      await sent;
+      await new Promise<void>(resolve => setImmediate(resolve));
+      assert.equal(endpoint.requests.length, 1);
+      const settled = Promise.allSettled(calls);
+      leaving.abort(new Error("caller cancelled"));
+      assert.equal(endpoint.requests[0]!.signal.aborted, false, "the caller still waiting keeps the shared request");
+      if (change === "refresh") store.put(`${refs}:refresh`, "replaced-refresh");
+      else withConnectorConnections(directory, connections => { connections.setEnabled(NOTION_CONNECTION, false); connections.setEnabled(NOTION_CONNECTION, true); });
+      const changed = revision();
+      endpoint.requests[0]!.release();
+      const [left, stayed] = await settled;
+      assert.equal(left!.status, "rejected");
+      if (left!.status === "rejected") assert.equal(left!.reason, leaving.signal.reason);
+      // The caller still waiting is refused by the current rule: a changed refresh token, or a changed connection revision.
+      assert.equal(stayed!.status, "rejected");
+      if (stayed!.status === "rejected") {
+        assert.equal((stayed!.reason as Error).message, change === "refresh" ? "Notion 连接在刷新期间已改变，请重试" : "连接在刷新期间已变化，请重试");
+      }
+      assert.equal(store.get(`${refs}:access`), null);
+      assert.equal(store.get(`${refs}:refresh`), change === "refresh" ? "replaced-refresh" : "original-refresh");
+      assert.equal(store.get(`${refs}:workspace`), null);
+      assert.equal(revision(), changed, "the refused refresh does not touch the connection");
+      assert.equal(endpoint.requests.length, 1);
+    } finally { endpoint.releaseAll(); }
+  }));
+});
+
 test("Notion feed refreshes after an API 401 and retries with the new token", async () => {
   let refreshes = 0;
   const seen: string[] = [];

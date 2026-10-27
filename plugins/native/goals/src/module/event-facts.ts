@@ -36,7 +36,8 @@ import type {
   SubmitGoalEventClosureInput,
 } from "@molis-ai/molis-work-contracts/modules/goals";
 import { GoalsCommandContext, requestHash } from "./command-support.js";
-import { GoalEventFactsRepository, type StoredWorkEvent } from "./event-facts-repository.js";
+import { GoalEventFactsRepository } from "./event-facts-repository.js";
+import type { StoredWorkEvent } from "./event-facts-work-event-records.js";
 import { GoalEventFactsConfig } from "./event-facts-config.js";
 import { GoalEventState } from "./event-state.js";
 import { GoalEventStateRepository } from "./event-state-repository.js";
@@ -71,7 +72,7 @@ export class GoalEventFacts implements GoalEventFactsApi {
       {
         requireWritableGoal: (projectId, goalId) => requireWritableGoal(this.context, projectId, goalId),
         actorKind: (kind) => this.actorKind(kind),
-        configVersion: (projectId, goalId) => this.records.getConfig(projectId, goalId)?.current_version ?? 0,
+        configVersion: (projectId, goalId) => this.records.config.getConfig(projectId, goalId)?.current_version ?? 0,
         readCurrentRequirements: (projectId, goalId) => this.readCurrentRequirements(projectId, goalId),
         applyAgreementChange: (input, goal) => applyGoalEventAgreementChange(this.context, this.records, this.configWrites, input, goal),
         readCompletionContext: (projectId, goalId) => this.readCompletionContext(projectId, goalId),
@@ -203,7 +204,7 @@ export class GoalEventFacts implements GoalEventFactsApi {
       if (replay) return { ...replay, replayed: true };
 
       const goal = requireWritableGoal(this.context, input.project_id, input.goal_id);
-      const current = this.records.getConfig(input.project_id, input.goal_id);
+      const current = this.records.config.getConfig(input.project_id, input.goal_id);
       const currentVersion = current?.current_version ?? 0;
       if (input.expected_version !== currentVersion) {
         throw goalErrors["goals.event_config.version_conflict"](`配置版本已是 ${currentVersion}，不能用期望版本 ${input.expected_version} 覆盖`, { current_version: currentVersion, expected_version: input.expected_version });
@@ -217,12 +218,12 @@ export class GoalEventFacts implements GoalEventFactsApi {
       const addedBindings = this.configWrites.applyBindings(goal, input, addedTypes, addedRequirements, nextVersion, at);
       const adoptedPlanning = normalizeAdoptedPlanning(
         input.adopted_planning,
-        currentVersion === 0 ? [] : this.records.listAdoptedPlanning(goal.project_id, goal.goal_id, currentVersion),
+        currentVersion === 0 ? [] : this.records.config.listAdoptedPlanning(goal.project_id, goal.goal_id, currentVersion),
       );
       if (
         addedTypes.length === 0
         && addedBindings.length === 0
-        && JSON.stringify(adoptedPlanning) === JSON.stringify(currentVersion === 0 ? [] : this.records.listAdoptedPlanning(goal.project_id, goal.goal_id, currentVersion))
+        && JSON.stringify(adoptedPlanning) === JSON.stringify(currentVersion === 0 ? [] : this.records.config.listAdoptedPlanning(goal.project_id, goal.goal_id, currentVersion))
       ) {
         if (!pendingRequirementAdds) {
           throw goalErrors["goals.event_config.no_changes"]("配置没有增加类型、类型版本、绑定或规划来源");
@@ -236,14 +237,14 @@ export class GoalEventFacts implements GoalEventFactsApi {
       }
 
       const eventId = `gevt-${randomUUID()}`;
-      this.records.upsertConfig({
+      this.records.config.upsertConfig({
         project_id: goal.project_id,
         goal_id: goal.goal_id,
         current_version: nextVersion,
         updated_at: at,
         updated_by: input.actor_id,
       });
-      this.records.insertConfigVersion({
+      this.records.config.insertConfigVersion({
         projectId: goal.project_id,
         goalId: goal.goal_id,
         version: nextVersion,
@@ -270,7 +271,7 @@ export class GoalEventFacts implements GoalEventFactsApi {
         payload,
         at,
       });
-      this.records.insertWorkEvent({
+      this.records.workEvents.insertWorkEvent({
         event_id: eventId,
         project_id: goal.project_id,
         goal_id: goal.goal_id,
@@ -353,10 +354,10 @@ export class GoalEventFacts implements GoalEventFactsApi {
           actor_kind: actorKind,
           received_at: at,
           journal_seq: cursor,
-          config_version: this.records.getConfig(goal.project_id, goal.goal_id)?.current_version ?? null,
+          config_version: this.records.config.getConfig(goal.project_id, goal.goal_id)?.current_version ?? null,
         };
-        this.records.insertWorkEvent(event);
-        this.records.insertJudgments(eventId, item.judgments);
+        this.records.workEvents.insertWorkEvent(event);
+        this.records.workEvents.insertJudgments(eventId, item.judgments);
         stored.push(mapReportEvent(this.records, event));
       }
       const judged = [...new Set(prepared.flatMap((item) => item.judgments.map((judgment) => judgment.requirement_id)))];
@@ -364,7 +365,7 @@ export class GoalEventFacts implements GoalEventFactsApi {
       if (progress) {
         this.state.writeProgress(goal, input.actor_id, actorKind, {
           summary: progress.summary,
-          based_on_cursor: this.records.maxGoalCursor(goal.project_id, goal.goal_id),
+          based_on_cursor: this.records.workEvents.maxGoalCursor(goal.project_id, goal.goal_id),
           next_step: progress.next_step,
           next_actor: progress.next_actor,
         });
@@ -393,7 +394,7 @@ export class GoalEventFacts implements GoalEventFactsApi {
     if (!Number.isInteger(limit) || limit < 1 || limit > MAX_PAGE_SIZE) {
       throw goalErrors["goals.event_list.invalid_limit"](`每页最多 ${MAX_PAGE_SIZE} 条`);
     }
-    const rows = this.records.listWorkEvents(projectId, goalId, afterCursor, limit);
+    const rows = this.records.workEvents.listWorkEvents(projectId, goalId, afterCursor, limit);
     return {
       events: rows.map((row) => mapStoredWorkEvent(this.records, row)),
       next_cursor: rows.length === limit ? rows[rows.length - 1]!.journal_seq : null,
@@ -426,14 +427,14 @@ export class GoalEventFacts implements GoalEventFactsApi {
       throw goalErrors["goals.event_list.invalid_limit"](`最新报告最多 ${MAX_LATEST_REPORTS} 条`);
     }
     return {
-      reports: this.records.listLatestReportEvents(projectId, goalId, limit).map((row) => mapReportEvent(this.records, row)),
+      reports: this.records.workEvents.listLatestReportEvents(projectId, goalId, limit).map((row) => mapReportEvent(this.records, row)),
       observed_event_cursor: this.context.repository.eventCursor(projectId),
     };
   }
 
   readEvent(projectId: string, goalId: string, eventId: string): GoalWorkEventRecord {
     this.context.requireGoal(projectId, goalId);
-    const row = this.records.getWorkEvent(projectId, goalId, eventId);
+    const row = this.records.workEvents.getWorkEvent(projectId, goalId, eventId);
     if (!row) throw goalErrors["goals.event.not_found"](`事件不存在: ${eventId}`);
     return mapStoredWorkEvent(this.records, row);
   }
@@ -444,7 +445,7 @@ export class GoalEventFacts implements GoalEventFactsApi {
 
   readIntentSourceKind(projectId: string, goalId: string): GoalIntentSourceKind | null {
     this.context.requireGoal(projectId, goalId);
-    const row = this.records.getIntentCreatedEvent(projectId, goalId);
+    const row = this.records.workEvents.getIntentCreatedEvent(projectId, goalId);
     const value = row?.payload.source_kind;
     if (value === "web" || value === "onboarding" || value === "feed" || value === "runtime" || value === "tree") {
       return value;
@@ -568,15 +569,15 @@ export class GoalEventFacts implements GoalEventFactsApi {
   }
 
   private configView(projectId: string, goalId: string): GoalEventConfigView {
-    const current = this.records.getConfig(projectId, goalId);
+    const current = this.records.config.getConfig(projectId, goalId);
     return {
       project_id: projectId,
       goal_id: goalId,
       version: current?.current_version ?? 0,
-      types: this.records.listLatestTypes(projectId, goalId),
-      adopted_planning: current ? this.records.listAdoptedPlanning(projectId, goalId, current.current_version) : [],
-      extra_requirements: this.records.listExtraRequirements(projectId, goalId),
-      requirement_bindings: this.records.listBindings(projectId, goalId),
+      types: this.records.config.listLatestTypes(projectId, goalId),
+      adopted_planning: current ? this.records.config.listAdoptedPlanning(projectId, goalId, current.current_version) : [],
+      extra_requirements: this.records.requirements.listExtraRequirements(projectId, goalId),
+      requirement_bindings: this.records.requirements.listBindings(projectId, goalId),
       updated_at: current?.updated_at ?? null,
       updated_by: current?.updated_by ?? null,
     };
@@ -592,7 +593,7 @@ export class GoalEventFacts implements GoalEventFactsApi {
     if (!Number.isInteger(limit) || limit < 1 || limit > MAX_PAGE_SIZE) {
       throw goalErrors["goals.event_list.invalid_limit"](`每页最多 ${MAX_PAGE_SIZE} 条`);
     }
-    return this.records.listLatestWorkEvents(projectId, goalId, beforeCursor ?? null, limit);
+    return this.records.workEvents.listLatestWorkEvents(projectId, goalId, beforeCursor ?? null, limit);
   }
 
   private actorKind(kind: "user" | "runtime" | undefined): "user" | "runtime" | null {

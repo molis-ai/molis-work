@@ -78,6 +78,7 @@ shelf: { key: "shelf", plugin_id: "io.molis.work.shelf", scope: "home", always_o
 | 1 | RAC-1030～1034（原四插件）、RAC-1090～1097 | `node scripts/run-tests.mjs tests/shipped-plugin-lifecycle.test.ts tests/shipped-plugin-lifecycle-content.test.ts tests/shipped-plugin-lifecycle-personal.test.ts` | Schedule（RAC-1094）失败：夹具把「移出后安装仍在 `running`」当成所有插件的行为，非个人的项目插件移出后是 `disabled`；夹具加 `stops_when_removed`，其余通过 |
 | 2 | 加上置物架与编程一族（四个文件） | 同上，加 `tests/shipped-plugin-lifecycle-coding.test.ts` | 4 个文件通过 3 个：RAC-1094、RAC-1099～1103 通过；置物架（RAC-1098）在撤权一步失败（第 4 节） |
 | 3 | 去掉置物架之后（四个文件） | 同上 | 4 个文件全部通过，共 18 项（原四插件 5 项、RAC-1090～1094 共 5 项、RAC-1095～1097 共 3 项、RAC-1099～1103 共 5 项） |
+| 4 | 评审后 Git 的读回改为读出所选改动的路径（只重跑这一个文件） | `node scripts/run-tests.mjs --jobs 1 tests/shipped-plugin-lifecycle-coding.test.ts` | 通过，5 项（RAC-1099～1103） |
 
 没跑的：
 

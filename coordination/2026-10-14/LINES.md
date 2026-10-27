@@ -327,3 +327,9 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
     - 副作用要写进稿里并配测试：旧检查记下 expected_account 的等待项要再检查一次。这和 Q2「不迁移、重新授权」一致，不另写兼容读取。另加测试：同一个 OAuth 服务，授权、检查、读账号三处算出的 account_id 和 label 都相同；Notion、sentry、clickup、supabase、x 至少各一条。
     - 第 5 片：先在稿里写明旧连接重连时怎样认出原来那个账号，不许读历史取值兜底。可以考虑从这条旧连接自己的重连入口发起，由本人确认是同一个账号。如果只能留一条兼容路，或者绑定保不住，先报统筹，由统筹去问用户，因为这会改变 Q2 当时的前提。
     - 改完推新头，评审只复核这几处；第 1 片照收窄后的合同接着做。
+  - **10-27 W5-11 第 1 片已推送**：分支 `claude/w511-oauth-declarations`，头 bb62fe31f，基 988f182e3，8 个文件，+1211/-9。
+    - 内容：contracts 加了纯数据的 kind:"oauth" 成员，只增不减，API 快照已刷新；SDK 新增 `oauth-declarations.ts`，接进 Manifest 解析，声明有错时整份 Manifest 被拒；宿主新增 `connector-oauth-declarations.ts`，是唯一的解释器，全是纯函数，还没接进现有流程（第 3 片起才接）；测试覆盖 RAC-1080～1082。
+    - 本机跑过：新测试 19/19、6 个覆盖文件、`check-health-gates --base origin/main`、boundary、secrets。SDK 属共享核心，全量进集成批次，PR 写「本机延后验证」。local-host 的 Swift 原生步骤失败，是 R-27，和这片的改动无关。
+    - 这片推送时，统筹的第 2 片裁定还没送到，所以有几处还没收窄：listEntry 里 sentry 按 `context.org` 取的分支和对应注释还在；「body 原样发出」「label_prefix 是字面量」两条没写；`when_missing` 已经删了。
+    - RAC-1080 拿 catalogWhoami 当期望值对照，按选 A 不对：旧实现不能当真值，和它不同的地方（Notion 的 ws 和 ws:bot、x 的兜底）要标成有意的改变。
+  - 统筹安排：W5-11 在第 1 片上补一个提交，做上面的收窄、改 RAC-1080 的对照方式，第 2 片裁定要改的稿也在这次一起推；不改写已推的历史。评审先评 bb62fe31f（笔记 review-w511-slice1-bb62fe31.md），知道哪几处还会变，补的提交只复核增量。评审过了再开 PR。

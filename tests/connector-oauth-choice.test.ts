@@ -6,7 +6,7 @@ import { join } from "node:path";
 import test from "node:test";
 import { createCatalogProvider, catalogWhoami, readExternalDocument } from "@molis-ai/molis-work-integration-catalog";
 import { createFileSecretStore, resetSecretStoreCache, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
-import { withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { createCatalogConnector, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { feishuCliFetch, feishuCliStatus } from "../apps/local-host/dist/feishu-cli.js";
 import { completeNotionOAuth, resolveUsableNotionToken, startNotionOAuth } from "../apps/local-host/dist/notion-oauth.js";
 import { HOST_CONNECTOR_DIRECTORY } from "../apps/local-host/dist/connector-directory.js";
@@ -93,6 +93,71 @@ test("concurrent Notion refreshes share a request only within the same Home", as
     assert.equal(createFileSecretStore().get(`connector-connection:${NOTION_CONNECTION}:access`), `access-for-refresh-${index}`);
   });
 }));
+
+test("FI-C-02 Notion shared refresh isolates either caller's cancellation and stops when both leave", async t => {
+  for (const cancelled of [0, 1, "both"] as const) await t.test(`cancel ${cancelled}`, async () => isolated(async directory => {
+    const refs = `connector-connection:${NOTION_CONNECTION}`;
+    const store = createFileSecretStore();
+    store.put("connector:notion:client_id", "fixture-client");
+    store.put("connector:notion:client_secret", "fixture-secret");
+    store.put(`${refs}:refresh`, "original-refresh");
+    store.put(`${refs}:access`, "expired-access");
+    registerNotionConnection(directory);
+    store.delete(`${refs}:access`);
+    const revision = withConnectorConnections(directory, connections => connections.require(NOTION_CONNECTION).updated_at);
+    let release!: () => void, sent!: () => void;
+    const waiting = new Promise<void>(resolve => { release = resolve; });
+    const dispatched = new Promise<void>(resolve => { sent = resolve; });
+    const requests: string[] = [], signals: AbortSignal[] = [];
+    const originalFetch = globalThis.fetch;
+    const fetchImpl: typeof fetch = async (url, init) => {
+      requests.push(String(url));
+      if (String(url).endsWith("/oauth/token")) {
+        signals.push(init!.signal!);
+        sent();
+        await waiting;
+        return Response.json({ access_token: "fresh-access", refresh_token: "fresh-refresh", workspace_id: "work", workspace_name: "Work", bot_id: "bot" });
+      }
+      assert.equal(new Headers(init?.headers).get("authorization"), "Bearer fresh-access");
+      return String(url).endsWith("/users/me") ? Response.json({ id: "bot", name: "Bot" }) : Response.json({ results: [] });
+    };
+    globalThis.fetch = fetchImpl;
+    try {
+      const provider = createCatalogConnector({ connectorId: "notion", connectionId: NOTION_CONNECTION, fetchImpl });
+      const controllers = [new AbortController(), new AbortController()];
+      const controls = controllers.map(controller => connectorControl({ signal: controller.signal }));
+      const first = provider.sync({ cursor: {} }, controls[0]!);
+      await dispatched;
+      const second = provider.sync({ cursor: {} }, controls[1]!);
+      // Drain the resolver's microtasks: both calls have entered the same pending refresh, with no second request.
+      await new Promise<void>(resolve => setImmediate(resolve));
+      assert.equal(requests.length, 1);
+      const results = Promise.allSettled([first, second]);
+      if (cancelled === "both") controllers.forEach(controller => controller.abort(new Error("caller cancelled")));
+      else controllers[cancelled]!.abort(new Error("caller cancelled"));
+      assert.equal(signals[0]!.aborted, cancelled === "both", "one remaining caller owns the shared request");
+      release();
+      const settled = await results;
+      for (const [index, result] of settled.entries()) {
+        if (cancelled === "both" || index === cancelled) {
+          assert.equal(result.status, "rejected");
+          if (result.status === "rejected") assert.equal(result.reason, controllers[index]!.signal.reason);
+        } else {
+          assert.equal(result.status, "fulfilled");
+          if (result.status === "fulfilled") assert.equal(result.value.ok, true, "a live caller is not misreported as needs_auth");
+        }
+      }
+      assert.equal(requests.filter(url => url.endsWith("/oauth/token")).length, 1, "normal refresh deduplication remains");
+      assert.equal(store.get(`${refs}:access`), cancelled === "both" ? null : "fresh-access");
+      assert.equal(store.get(`${refs}:refresh`), cancelled === "both" ? "original-refresh" : "fresh-refresh");
+      assert.equal(withConnectorConnections(directory, connections => connections.require(NOTION_CONNECTION).updated_at), revision);
+      if (cancelled === "both") {
+        assert.equal(requests.length, 1, "no API read or retry after the last caller leaves");
+        assert.equal(store.get(`${refs}:workspace`), null);
+      }
+    } finally { release(); globalThis.fetch = originalFetch; }
+  }));
+});
 
 test("Notion feed refreshes after an API 401 and retries with the new token", async () => {
   let refreshes = 0;

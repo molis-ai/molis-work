@@ -542,4 +542,6 @@ type SourcePullRequest =                       // 闭合：多一个字段就拒
 
 FI-C-02 的控制是必需参数：Host test/invoke、driver health/poll、SDK binding、Provider health/sync 和 OAuth resolver 都不能在缺控制时联网。现有独立账号读取组合账号当前修订与已有调用者控制，动作入口传原 caller 的 signal/beforeEffect；FI sourcePull 和 BL530 保原调用、槽、账号及安装整组控制。沿现有 serialized 刷新顺序，不新增队列；刷新后先认权，再同步核账号 revision 与当前令牌后落盘，拒绝标记也受同样控制。超时和请求结束使本次控制失效。Public HTTPS 固定合法 DNS 后最后认权、同步 current，随后才构造请求，原地址、来源、方法、大小及凭据限制保留。
 
+SOURCE `1dad39c1` 的 Notion 并发取消 P1 随本片修复：保留原 Home/账号共享刷新去重，每个调用以自身控制认权后参与；取消一方只退出该调用，最后有效调用退出才中止共享传输。发送及持久化前重核有效参与者与原账号 revision/refresh 值，已结束或中止的共享项不接纳新调用；每方返回或抛错仍重核自己的控制，不能把另一方的取消转成认证失败。定向反例沿真实 Catalog 接线到 Notion resolver，覆盖两个已等待调用的两种取消顺序及全取消零后续请求/零落盘，原同 Home 去重与跨 Home 隔离正控保留。
+
 Root 追加的既有 SYS52 首败随 C 收口：Full `40440700816/63d7b896` 原始快照显示 Goal 标题 Text 已断开、选区为空而 frame 仍正确。修复只在标题或结果字符串变化时替换内容；同值生产重绘保原 Text 与真实选区，真实变化仍更新。补实际生产 Frame DOM 路径的确定性反例，保原 More、10秒超时及全部原断言，不修改冻结 AB。Owner PIPE，原件由 Root/TEST 持有，最终 C Full 核验；重试通过不等于已修。

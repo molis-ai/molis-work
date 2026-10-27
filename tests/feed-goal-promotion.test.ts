@@ -404,8 +404,10 @@ test("only the person's promotion confirms the input: an assistant, Agent, workf
 });
 
 // Goals reads the person from what the Host sets on the nested caller of a plugin's action directory (S-43), so only the person's own call to
-// Feed's action confirms: an assistant, Agent, workflow or MCP client handing in through Feed, a scene's run, a caller that only claims the
-// person, and a plugin's own call (a Feed timer: `plugin` audience, which these Goals actions are not open to) never do.
+// Feed's action confirms, and only for Feed's own source (the `feed` channel, a `feed_item` input; S-99 provisional): an assistant, Agent,
+// workflow or MCP client handing in through Feed, a scene's run, a caller that only claims the person, another plugin handing in for the person
+// (Workflows), and a plugin's own call (a Feed timer: `plugin` audience, which these Goals actions are not open to) never do. A delegation that
+// names no channel is the Runtime's: Feed's own promotion always names `feed` for the person.
 test("Goals takes the person only from the Host's delegated caller: no other origin confirms an input or names the Goal's channel", async () => {
   const f = fixture(["Delegated"]);
   const [item] = f.items;
@@ -413,7 +415,8 @@ test("Goals takes the person only from the Host's delegated caller: no other ori
     ({ ...f.personContext, audience: "workflow", delegated_by: FEED_PLUGIN_ID, delegated_audience, ...extra });
   const callers: Array<[string, ActionCallContext]> = [["person", delegated("user")], ["agent", delegated("agent")], ["workflow", delegated("workflow")],
     ["mcp", delegated("mcp")], ["scene", delegated("user", { scene_binding: { scene_id: "feed.capture", binding_id: "capture-binding" } })],
-    ["claimed", { ...f.personContext, audience: "workflow", delegated_audience: "user" }]];
+    ["claimed", { ...f.personContext, audience: "workflow", delegated_audience: "user" }],
+    ["other plugin", { ...f.personContext, audience: "workflow", delegated_by: "io.molis.work.native.workflows", delegated_audience: "user" }]];
   const intent = (key: string) => ({ title: "Delegated promotion", outcome: "Checked", why: "Who asked", business_logic: "Only the trusted caller", priority: 50, idempotency_key: key });
   const confirm = (goal_id: string) => ({ goal_id, source: { kind: "feed_item" as const, id: item!.item_id }, name: "Feed Item 输入", snapshot_digest: `sha256:${"0".repeat(64)}`, reason: "who asked" });
   const receipts = () => f.host.withProject(f.reference, runtime => goalApplicationOf(runtime).goalInputs.list(PROJECT).map(receipt => [receipt.goal_id, receipt.state]));
@@ -427,12 +430,13 @@ test("Goals takes the person only from the Host's delegated caller: no other ori
       outcomes.push([name, named, (await f.person.invoke(goalsActions.state, { goal_id: goal.goal_id })).intent.source_kind, state]);
     }
     assert.deepEqual(outcomes, [
-      ["person", "named", "web", "confirmed"],
+      ["person", "named", "runtime", "confirmed"],
       ["agent", "actions.input_invalid", "runtime", "proposed"],
       ["workflow", "actions.input_invalid", "runtime", "proposed"],
       ["mcp", "actions.input_invalid", "runtime", "proposed"],
       ["scene", "actions.input_invalid", "runtime", "proposed"],
       ["claimed", "actions.input_invalid", "runtime", "proposed"],
+      ["other plugin", "actions.input_invalid", "runtime", "proposed"],
     ]);
 
     // Feed's own timer reaches Goals as the plugin's own call (`plugin` audience, S-73), which neither action admits; a caller only shaped like

@@ -211,7 +211,10 @@ test("FI-C-02 a call after both callers left starts a new shared refresh, and th
       assert.equal(result.status, "rejected");
       if (result.status === "rejected") assert.equal(result.reason, controllers[index]!.signal.reason);
     }
-    // The abandoned answer has been checked and dropped: nothing of it is on disk.
+    // The abandoned answer has been checked and dropped: nothing of it is on disk. This reads the disk right after `settled`, so it relies on a
+    // cancelled caller returning only once the shared refresh it left has ended (today's behaviour). If cancelled callers are made to return
+    // first (§13 suggestion ①), this would read before the abandoned answer is handled and pass without testing anything: then wait for the
+    // shared refresh itself to end (the fetch of `requests[0]` handed back, then one more turn) before these reads.
     assert.equal(store.get(`${refs}:access`), null);
     assert.equal(store.get(`${refs}:refresh`), "original-refresh");
     assert.equal(store.get(`${refs}:workspace`), null);

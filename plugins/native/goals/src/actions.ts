@@ -170,8 +170,9 @@ export function createGoalsActionHandlers({ events, acknowledgements, projectId,
       return readGoalHistory({ projectId, goalId: query.goal_id, itemId: query.item_id, ports: events, snapshot: history.snapshot(), events: history.journalEvents() }); } },
     { ...goalsActions.create, handle: (caller, input) => {
       const payload = input as GoalCreateActionInput;
-      // The creation channel is a fact about who asked: only the person may name one (directly, or through a plugin's action they called); any other caller is a Runtime.
-      const person = personAsked(caller);
+      // The creation channel is a fact about who asked: only the person may name one (directly, or through the action of the plugin that owns
+      // the channel they called); any other caller is a Runtime.
+      const person = personAsked(caller, payload.source_kind);
       if (!person && payload.source_kind !== undefined && payload.source_kind !== "runtime") {
         throw new ActionError("actions.input_invalid", "只有本人可以指定 Goal 的创建渠道");
       }

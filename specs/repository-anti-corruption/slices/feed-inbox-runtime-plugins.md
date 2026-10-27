@@ -1,6 +1,6 @@
 # FI-6 Feed、Inbox 进 Plugin Runtime 设计稿（PG-093、PG-089 余半，并关 PG-040、PG-080、PG-045 的余项）
 
-状态：批 C 于2026-10-27续做：C03–07、RAC-808 的 Runtime Inbox 证明、SYS52 修复已完成并有作者定向验证（SYS52 浏览器例未在本机跑）；合成树的包登记、断链、类型断言、巨大单元与 API/动作快照已按门禁修好或刷新。边界检查已按用户批准跟上删掉的文件；四个红文件在 main 上是绿的，已在 C 里修（一处产品回归：Feed Manifest 缺 `attention.inbox`）。FI7 Feed 一半已做（页面请求进 Manifest routes，两段 HTML 归外壳舞台，宿主 Feed 边删除；健康门禁对 merge-base 通过，工作台脚本比预算小 186 B、不需放行；改到的浏览器例只写未在本机跑），槽账号绑定 UI 移到单独切片 FI7b；D-4e3-1 按用户 10-10 的决定改回（本人经 Feed 升格记已确认，Goals 只从 Host 设的委托字段认本人），Feed Manifest 回 0.3.0、发版核对补 Feed 正文引用账，desktop-tui 转绿；inbox-automatic-scenes 改走 Runtime 的 `feed.sources.sync` 后查出 Runtime Feed 没接成果服务（RAC-510 未做），统筹定在 C 里修、方案待批，该例第 166 行在落地前保持红；FI7 评审（`d96bd692d`）的四处跟进已做（W3-01 C 补回「进了门、被拒、留行、带编号」的 HTTP 用例，PG-060 位置、PG-057 与迁移文档跟上现状），边界检查的余漏记 BL-802；受影响文件逐个跑时又修了 feed-promote-mcp 的夹具（项目缺 Feed）；C02 Notion 复审无必修项；最终独立验证与 Full 未做，见 §13。C未合入；真实 Home、维护和本人验收未执行。父稿与历史设计、逐片记录保留。
+状态：批 C 于2026-10-27续做：C03–07、RAC-808 的 Runtime Inbox 证明、SYS52 修复已完成并有作者定向验证（SYS52 浏览器例未在本机跑）；合成树的包登记、断链、类型断言、巨大单元与 API/动作快照已按门禁修好或刷新。边界检查已按用户批准跟上删掉的文件；四个红文件在 main 上是绿的，已在 C 里修（一处产品回归：Feed Manifest 缺 `attention.inbox`）。FI7 Feed 一半已做（页面请求进 Manifest routes，两段 HTML 归外壳舞台，宿主 Feed 边删除；健康门禁对 merge-base 通过，工作台脚本比预算小 186 B、不需放行；改到的浏览器例只写未在本机跑），槽账号绑定 UI 移到单独切片 FI7b；D-4e3-1 按用户 10-10 的决定改回（本人经 Feed 升格记已确认，Goals 只从 Host 设的委托字段认本人，且只认来源主人 Feed 的委托，暂定 S-99；收窄到具体动作记 BL-803），Feed Manifest 回 0.3.0、发版核对补 Feed 正文引用账，desktop-tui 转绿；inbox-automatic-scenes 改走 Runtime 的 `feed.sources.sync` 后查出 Runtime Feed 没接成果服务（RAC-510 未做），统筹定在 C 里修、方案待批，该例第 166 行在落地前保持红；FI7 评审（`d96bd692d`）的四处跟进已做（W3-01 C 补回「进了门、被拒、留行、带编号」的 HTTP 用例，PG-060 位置、PG-057 与迁移文档跟上现状），边界检查的余漏记 BL-802；受影响文件逐个跑时又修了 feed-promote-mcp 的夹具（项目缺 Feed）；C02 Notion 复审无必修项；最终独立验证与 Full 未做，见 §13。C未合入；真实 Home、维护和本人验收未执行。父稿与历史设计、逐片记录保留。
 
 **先说五件事**：
 
@@ -604,8 +604,16 @@ Inbox的listInbox/getInbox投影及状态提交重读已在028实现，但运行
   - **不改合同**：没有新的上下文字段，所以不跑 `api:update`。
   - **测试**：`tests/feed-goal-promotion.test.ts`、`tests/local-web-actions.test.ts` 恢复成用户的决定：本人升格是已确认，渠道是 feed。新增用例「Goals takes the person only from the Host's delegated caller…」断言拒绝本身。经 Feed 转来的 Agent、工作流、MCP 调用，场景运行，以及只自称本人（没有 `delegated_by`）的调用，都不能指定渠道，输入只记提议。Feed 自己的定时调用是 `plugin` 受众（S-73），两个动作都不收；伪造的插件调用者在受众检查之前就被 Host 拒（`host.plugin_caller_invalid`），什么都不写。
   - **变异**：在构建出的 Goals 上，`personAsked` 恒假时 9 例红，去掉场景检查 1 例红，去掉 `delegated_by` 检查 1 例红。构建产物已还原。
-  - **局限**：Goals 看不出委托的插件当时在跑自己哪个动作。如果 Feed 以后在本人直接调用的动作里、场景之外自动升格，也会记成已确认；现在 Feed 没有这样的代码。要堵住，得由平台在调用上带出委托方的动作。另外，两跳委托的 `delegated_audience` 是 `workflow`，记提议。Goals 的交付物与输入释放仍按直接受众判断，不在这次范围。
-  - **SECURITY-INVARIANTS**：作者判断不加新行。`delegated_audience` 本来就是 S-43 下 Host 设的归属字段，这次只是 Goals 读它。统筹要加的话，编号合并时定，先写「暂定」。
+  - **局限**：Goals 看不出委托的插件当时在跑自己哪个动作。这有两类后果：
+    - **来源主人自己**：如果 Feed 以后在本人直接调用的动作里、场景之外自动升格，也会记成已确认；现在 Feed 没有这样的代码。
+    - **别的委托方**（C 批评审 7bb44456b 查出，统筹 10-27 定为必改，已修，见下一条）：原来 `personAsked` 不看委托方是哪个插件，本人点 Workflows 的「交给下一站」、下一站是 `goals.create` 时，Workflows 转来的调用也算本人：不填渠道记成 `web`，还能指定 `feed`、`onboarding`、`tree`。任何持有 `actions:delegate` 的插件都能这样做。
+    - 要把「本人」收窄到具体动作，得由平台在调用上带出委托方的动作，登记为 BL-803，不进 C。另外，两跳委托的 `delegated_audience` 是 `workflow`，记提议。Goals 的交付物与输入释放仍按直接受众判断，不在这次范围。
+  - **只认来源主人（统筹 10-27 定，C 批评审 7bb44456b 的必改项）**：
+    - **规则**：`personAsked(caller, source)` 多一个参数，是这次调用涉及的来源。委托来的调用，只有 `delegated_by` 等于这条来源的主人插件才算本人；主人表写在 Goals 自己的 `SOURCE_OWNERS` 里：`feed` 渠道、`feed_item` 输入归 Feed（`io.molis.work.feed`，两者本来就写在 Goals 的公开合同里，不是新开的耦合）。别的插件转来的，指定渠道拒为 `actions.input_invalid`，不填记 `runtime`，确认的输入只记 `proposed`。Feed 自己转来却没指定渠道或指定了别的渠道，也不算本人。
+    - **预期变化**：`feed-goal-promotion`「Goals takes the person only from the Host's delegated caller」那一行 person 不填渠道建的 Goal 从 `web` 变成 `runtime`。原来记成 `web` 本来就不对：经 Feed 转来的不是网页渠道，而 Feed 自己的升格对本人总是传 `feed`。同一个用例加了「别的插件转来」一行，断言拒绝。
+    - **新的安全行与用例**：SECURITY-INVARIANTS 新加暂定 S-99（合并时按 main 和在途 PR 定号）。`tests/security-invariants-goals-person.test.ts` 两条：一条是 Feed、Workflows、第三方插件三种委托的矩阵；一条真走 Workflows 页面路由的 `instances.continue`，下一站是 `goals.create`，指定 `source_kind: "feed"` 被拒、什么都不建，不指定时记 `runtime`，调用记录里这一步是 `workflow` 受众、`delegated_by` 是 Workflows。
+    - **变异**：构建产物里把判断改回「`delegated_by` 存在即可」，两条都红；产物已还原。
+  - **SECURITY-INVARIANTS**：原先作者判断不加新行；统筹 10-27 定加一行，暂定 S-99，写清 Goals 怎样认本人（见上一条）。
 - **发版核对（统筹 10-27 定）。** Feed Manifest 退回 `0.3.0`。这是撤掉合成提交多改的，不算版本变更；升小版本归发版 PR。`docs/releases/CHECKLIST.md` 的各库版本表补了「Feed 的正文引用账」一行（`plugins/native/feed/src/content-ledger.ts#FEED_HOME_DATABASE`，Home 库 `feed-content`，版本 1）。`node scripts/verify-release-versions.mjs` 通过。
 - **inbox-automatic-scenes 改走 Runtime 的 `feed.sources.sync`（统筹 10-27 定），查出一处产品回归，统筹定在 C 里修（RAC-510）。**
   - **改法**：公开来源一段改成经 `bindActionClient(host.actionClient(…))` 调 Feed 的 `feed.sources.sync`，只把 RSS 响应换成 `fetch` 替身，其余照旧。原断言一条没动。

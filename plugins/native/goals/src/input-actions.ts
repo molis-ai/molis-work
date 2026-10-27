@@ -89,11 +89,11 @@ export function createGoalsInputActionHandlers(projectId: string, inputs: Pick<G
       const view = (record: GoalInputBindingRecord) => confirmedView(record, { kind: value.source.kind, id: value.source.id });
       const existing = inputs.list(projectId).find(record => record.goal_id === value.goal_id && record.source_type === kept.source_type
         && record.source_ref === locator && record.state !== "inactive");
-      const person = personAsked(caller);
+      const person = personAsked(caller, value.source.kind);
       // The person's confirmation is not answered with someone else's proposal as if it were settled: accepting it is its own step.
       if (existing?.state === "proposed" && person) throw new ActionError("goals.input_proposed", "这条来源已被提议为输入，等你认可；请在目标的输入里认可或移除它");
       if (existing) return { binding: view(existing), replayed: true };
-      // The person decides what a Goal took as input, also through a plugin's action they called (`personAsked`); everyone else proposes.
+      // The person decides what a Goal took as input, also through the source owner's action they called (`personAsked`); everyone else proposes.
       const record: GoalInputBindingRecord = { binding_id: `${kept.receipt}${crypto.randomUUID()}`, project_id: projectId, goal_id: value.goal_id,
         input_name: value.name.slice(0, 200), source_type: kept.source_type, source_ref: locator, snapshot_digest: value.snapshot_digest,
         state: person ? "confirmed" : "proposed",

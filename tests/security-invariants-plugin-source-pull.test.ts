@@ -136,15 +136,22 @@ test("S-97 RAC-1016: a call that loses its authority once a body is held writes 
   const f = await fixture(t);
   const entry = f.catalog[0]!, probe = await f.start("pullrevoke", [FEED]);
   f.feeds.set(entry.feed_url, rss("Revoke feed", [{ id: "revoke-1", title: "Revoke one", text: "A body whose caller loses its authority while it is held." }, { id: "revoke-2", title: "Revoke two", text: "A second body that must not follow." }]));
-  const records = () => (f.runtime.store.db.prepare("SELECT count(*) AS n FROM feed_runtime_blobs").get() as { n: number }).n;
-  let revoked = false, recordsWhenRevoked = -1;
+  // Each search record by its namespace and key, with the token every insert and update gives it anew.
+  const records = () => new Map((f.runtime.store.db.prepare("SELECT namespace, key, cas_token FROM feed_runtime_blobs").all() as Array<{ namespace: string; key: string; cas_token: string }>)
+    .map(row => [`${row.namespace}\0${row.key}`, row.cas_token]));
+  let revoked = false, recordsWhenRevoked = new Map<string, string>();
   const told: string[] = [];
   await assert.rejects(probe.in(services => services.sourcePull!.pull!({ kind: "rss", operation_id: "pull-revoke-1", source_name: entry.name, definition_id: entry.id }, {
     async hold(refs) { told.push(...refs); if (!revoked) { revoked = true; recordsWhenRevoked = records(); } },
   }), probe.run, [FEED], { assert_authority_current: () => { if (revoked) throw new ActionError("actions.forbidden", "the caller was revoked"); } }), { code: "actions.forbidden" });
   assert.equal(told.length, 1, "the pull stopped at the body that was held when the caller lost its authority");
   for (const ref of told) assert.equal(evidence().has(ref), false, "that body was not written");
-  assert.equal(records(), recordsWhenRevoked, "and no search record was written after the authority went");
+  // No search record was written after the authority went: every one left was there then, unchanged. The refused pull committed nothing,
+  // so the platform forgets its own operation record (the same key pulls again); that one, and only that one, goes.
+  const after = records(), own = (key: string) => key.endsWith(`/${sha("pull-revoke-1")}`);
+  for (const [key, token] of after) assert.equal(recordsWhenRevoked.get(key), token, "no search record was written after the authority went");
+  assert.deepEqual([...recordsWhenRevoked.keys()].filter(key => !after.has(key) && !own(key)), [], "only the refused pull's own record goes");
+  assert.equal([...after.keys()].some(own), false, "and the refused pull keeps no record of its own");
 });
 
 test("S-97 RAC-1016: the platform's fingerprint of a pull is the one the Feed records for the same source", { timeout: 120_000 }, async t => {

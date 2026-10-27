@@ -1,4 +1,3 @@
-import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 import { buildMolisWorkWebView } from "./fixtures/web-view.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -156,15 +155,17 @@ test("RAC-806 the Inbox lists the decision reminder Goals keeps under its own id
   const data = fixture();
   try {
     propose(data.app, "child-owner", "propose-owner");
-    const mine = goalDecisionEntries(data.feed);
+    const mine = goalDecisionEntries(data.store);
     assert.equal(mine.length, 1);
     assert.equal(mine[0]?.owner_plugin_id, GOALS_PLUGIN_ID);
     // Another plugin may declare the same kind for the same bare id (S9-0b): the Inbox does not resolve it as a Goal's.
-    const other = new AttentionModule(data.store.db, { exists: () => true }, { eventSink: () => undefined })
-      .commands.create({ project_id: BOARD, owner_plugin_id: "io.molis.work.other", subject_type: "goal_decision", subject_id: "root", reason: "goal_decision" }).entry;
-    assert.deepEqual(goalDecisionEntries(data.feed).map(entry => entry.entry_id), [mine[0]!.entry_id]);
-    assert.throws(() => data.feed.getInboxEntry(BOARD, other.entry_id), { code: "inbox.entry_not_found" });
-    assert.equal(data.feed.getInboxEntry(BOARD, mine[0]!.entry_id).entry_id, mine[0]!.entry_id);
+    const attention = new AttentionModule(data.store.db, { exists: () => true }, { eventSink: () => undefined });
+    const other = attention.commands.create({ project_id: BOARD, owner_plugin_id: "io.molis.work.other", subject_type: "goal_decision", subject_id: "root", reason: "goal_decision" }).entry;
+    // The Inbox is the platform's projection (RAC-808): Goals' Manifest declares the kind, the other plugin declared nothing.
+    const declared = new Map([[GOALS_PLUGIN_ID, new Set(goalsManifest.attention?.inbox ?? [])]]);
+    assert.deepEqual(attention.query.listInbox(BOARD, declared).filter(entry => entry.subject_type === "goal_decision").map(entry => entry.entry_id), [mine[0]!.entry_id]);
+    assert.throws(() => attention.query.getInbox(BOARD, other.entry_id, declared), { code: "attention.entry_not_found" });
+    assert.equal(attention.query.getInbox(BOARD, mine[0]!.entry_id, declared).entry_id, mine[0]!.entry_id);
   } finally {
     data.store.close();
     rmSync(data.directory, { recursive: true, force: true });

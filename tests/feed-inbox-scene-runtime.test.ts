@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import test from "node:test";
 import type { ActionCallContext, ActionClient, ActionSceneBinding, ActionSceneClient, ActionSceneUsage, ActionSceneView, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { INBOX_NEXT_SCENE_ID, type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
@@ -35,14 +35,11 @@ function feedRuntime(over: { usages?: ActionSceneUsage[]; judgments?: JudgmentRe
   return { ...runtime, recorded };
 }
 
-test("FI-1 RAC-480 the Host's scene file decides nothing about judgments, and Inbox has no Host scene file at all", () => {
-  for (const file of ["apps/local-host/src/feed-scene.ts"]) {
-    const source = readFileSync(new URL(`../${file}`, import.meta.url), "utf8");
-    for (const logic of ["usages(", "discoverScenes(", "runScene(", "scenes.bind(", "subject_revision", "scene_provenance.", "createHash"]) {
-      assert.equal(source.includes(logic), false, `${file} must not hold judgment logic (${logic})`);
-    }
+test("FI-1 RAC-480 the Host has no scene file for Feed or Inbox: both scenes run in their plugins, over services.scenes and services.judgments", () => {
+  // FI-6 deleted the Host's Feed scene file, which by FI-1 had kept no judgment logic; Inbox never had one after FI-1.
+  for (const file of ["apps/local-host/src/feed-scene.ts", "apps/local-host/src/inbox-scene.ts"]) {
+    assert.equal(existsSync(new URL(`../${file}`, import.meta.url)), false, `${file}: the scene runs in the plugin`);
   }
-  assert.equal(existsSync(new URL("../apps/local-host/src/inbox-scene.ts", import.meta.url)), false, "Inbox's scene runs in the plugin, over services.scenes and services.judgments");
 });
 
 test("FI-1 RAC-481 Feed recommends only judgments that still hold: the binding, its revision and the item's content all unchanged", async () => {

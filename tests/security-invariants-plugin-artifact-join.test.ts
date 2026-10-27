@@ -23,7 +23,7 @@ import { pluginActions } from "./fixtures/plugin-actions.js";
 // one the Manifest produces (S-81), and the producer and the author are the platform's.
 
 const deferred = () => Promise.withResolvers<void>();
-const HOST_ACTOR = "tester", OWNER = "owner", WRITE = "artifact:write";
+const HOST_ACTOR = "tester", OWNER = "owner", AUTHOR = "runtime:assistant:session-1", WRITE = "artifact:write";
 const FAILURES = ["revoke", "cancel", "replace"] as const;
 
 interface ProbeInput { readonly name: string; readonly step: string }
@@ -285,6 +285,13 @@ test("S-100 the producer, the author, the project and the scope are the platform
   const f = await platform(t);
   assert.equal(await f.client.invoke(caller(permissionsOf(f.main)).context, f.main.act, { name: "forged", step: "forged" }), true);
   assert.deepEqual(f.pinned("forged"), [{ project_id: DEMO_PROJECT_ID, plugin: f.main.id, signature: "probe-pinmain", version: "1.0.0", author: OWNER, scope: "personal" }]);
+});
+
+// The author a trusted adapter (an Agent run, MCP) records for the call wins over the actor whose grants it holds: `audit_actor_id ?? actor_id`.
+test("S-100 the author is the audit_actor_id the call carries, not its actor_id, when the two differ", async t => {
+  const f = await platform(t), authored: ActionCallContext = { ...caller(permissionsOf(f.main)).context, audit_actor_id: AUTHOR };
+  assert.equal(await f.client.invoke(authored, f.main.act, { name: "authored", step: "pin" }), true);
+  assert.deepEqual(f.pinned("authored"), [{ project_id: DEMO_PROJECT_ID, plugin: f.main.id, signature: "probe-pinmain", version: "1.0.0", author: AUTHOR, scope: "personal" }]);
 });
 
 test("S-100 a read-only call is refused by the plugin's own library before any join, and a join outside every call by the join's gate; neither leaves anything", async t => {

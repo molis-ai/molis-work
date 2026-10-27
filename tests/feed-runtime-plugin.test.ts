@@ -383,18 +383,42 @@ test("RAC-518 a caller revoked at any point leaves every held body named by a ru
   assert.ok(refused >= 1 && completed >= 1, `the sweep reached both sides (refused ${refused}, completed ${completed})`);
 });
 
+/** The search records of the project's pulls: the platform keeps one per pull, under the pull's operation id (`forgetIntelligenceOperations`). */
+const pullRecords = (f: Awaited<ReturnType<typeof syncing>>) => f.count("SELECT count(*) AS n FROM feed_runtime_blobs WHERE key LIKE 'intent-run/%'");
+
+// The Host's release of a source's history (FI-6 deleted it) was proven in tests/feed-local-history-delete.test.ts; these two cases and the
+// Home ledger's own (tests/feed-content-ledger.test.ts: a body another source or project holds, the holds a failed pull left, a ledger that
+// cannot tell) now prove it for the Runtime Feed.
 test("RAC-518 deleting a source with its local history gives its bodies and search records back, and the commit records it", async t => {
   const f = await syncing(t);
   await f.client.invoke(caller(SYNC).context, feedSourceActions.sync, { source_id: f.sourceId, idempotency_key: "to-delete-key" });
   const refs = f.holds().map(hold => hold.content_ref), bodies = f.bodies();
   assert.equal(refs.length, 2);
+  assert.ok(pullRecords(f) > 0, "the pull left its search record");
   const deleted = await f.client.invoke(caller(DELETE).context, feedSourceActions.delete, { source_id: f.sourceId, history_decision: "delete_local_history" }) as { history_decision: string };
   assert.equal(deleted.history_decision, "delete_local_history");
   assert.deepEqual(f.holds(), [], "the ledger holds nothing of the deleted source");
   for (const ref of refs) assert.ok(!bodies.has(ref), "a body nobody else holds is gone");
+  assert.equal(pullRecords(f), 0, "and the search records of its pulls");
   assert.equal(f.count("SELECT count(*) AS n FROM feed_items WHERE source_id = ?", f.sourceId), 0);
   assert.equal(f.sourceEvents("deleted"), 1);
   assert.equal(f.sourceEvents("history_released"), 1, "what the release found is recorded with the deletion");
+});
+
+test("RAC-518 deleting a source that keeps its local history keeps its items, its bodies with their holds, and its search records", async t => {
+  const f = await syncing(t);
+  await f.client.invoke(caller(SYNC).context, feedSourceActions.sync, { source_id: f.sourceId, idempotency_key: "to-retain-key" });
+  const holds = f.holds(), records = pullRecords(f), items = () => f.count("SELECT count(*) AS n FROM feed_items WHERE source_id = ?", f.sourceId);
+  const kept = items();
+  assert.ok(holds.length === 2 && records > 0 && kept === 2);
+  const deleted = await f.client.invoke(caller(DELETE).context, feedSourceActions.delete, { source_id: f.sourceId, history_decision: "retain_history" }) as { history_decision: string };
+  assert.equal(deleted.history_decision, "retain_history");
+  assert.equal(items(), kept, "the items stay as the record they were");
+  assert.deepEqual(f.holds(), holds, "the ledger still holds every body");
+  const bodies = f.bodies();
+  for (const hold of holds) assert.ok(bodies.has(hold.content_ref), "and every body stays");
+  assert.equal(pullRecords(f), records, "the search records stay");
+  assert.deepEqual([f.sourceEvents("deleted"), f.sourceEvents("history_released")], [1, 0], "nothing records a release that did not happen");
 });
 
 // FI-C-06 (specs/.../feed-inbox-runtime-plugins.md §13): the Home's ledger is another service's write, so a deletion releases before it commits.

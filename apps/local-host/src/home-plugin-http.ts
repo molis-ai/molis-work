@@ -204,12 +204,13 @@ export async function renderHomePluginStages(host?: HomePluginHost): Promise<{ h
   const registered = host.registered().flatMap(entry => {
     const registration = PLATFORM_PLUGIN_REGISTRATIONS.find(item => item.project_plugin_id === entry.key && item.manifest.plugin_id === entry.manifest.plugin_id);
     if (registration && !declaredStageContributionId(registration)) return [];
-    return [{ project_plugin_id: entry.key, manifest: entry.manifest, workbench: registration?.workbench }];
+    return [{ project_plugin_id: entry.key, manifest: entry.manifest, workbench: registration?.workbench, shipped: registration !== undefined }];
   });
   const ids: string[] = [], sideOnly = sideOpenedPlugins(registered);
   const unavailable: UnavailablePluginStage[] = [];
-  // A dual-instance plugin's page is its project half's (`renderProjectRuntimeStages`): its Home half draws none.
-  const html = registered.filter(entry => !Object.hasOwn(sideOnly, entry.project_plugin_id) && !host.dualInstance(entry.manifest.plugin_id)).flatMap(entry => {
+  // A shipped dual-instance plugin's page is its project half's (`renderProjectRuntimeStages` draws the shipped ones): its Home half draws
+  // none. Any other dual-instance plugin's page stays its Home half's.
+  const html = registered.filter(entry => !Object.hasOwn(sideOnly, entry.project_plugin_id) && !(entry.shipped && host.dualInstance(entry.manifest.plugin_id))).flatMap(entry => {
     const stage = stageContributionId(entry.manifest);
     if (stage) ids.push(stage);
     const install = host.installation(entry.manifest.plugin_id);

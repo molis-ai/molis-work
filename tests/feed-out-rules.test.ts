@@ -245,10 +245,13 @@ test("registerVersion failure writes artifact_out_failed Attention and keeps the
   }
 });
 
-// RAC-510: a capture is pinned in the commit of its item, and a refusal of the call itself there (cancelled, revoked, stopped) is the call's,
-// not a failed capture: it goes up, so the Runtime rolls the whole commit back, and Feed records no artifact_out_failed for it.
+// RAC-510: a capture is pinned in the commit of its item, and a refusal of the call itself there (cancelled, revoked, stopped, a permission
+// withdrawn from the running installation, the provider replaced) is the call's, not a failed capture: it goes up, so the Runtime rolls the
+// whole commit back, and Feed records no artifact_out_failed for it.
 for (const [what, refusal, expected] of [
   ["revoked", new ActionError("actions.forbidden", "所属安装已停止或撤权"), { code: "actions.forbidden" }],
+  ["permission withdrawn", new ActionError("actions.plugin_permission", "插件所需授权已撤销"), { code: "actions.plugin_permission" }],
+  ["provider replaced", new ActionError("actions.provider_changed", "所需能力的提供方已变化，原引用不能自动替换"), { code: "actions.provider_changed" }],
   ["cancelled", new DOMException("This operation was aborted", "AbortError"), { name: "AbortError" }],
 ] as const) {
   test(`RAC-510 a refusal of the call while capturing (${what}) goes up and is not recorded as a failed capture`, () => {

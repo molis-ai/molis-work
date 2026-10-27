@@ -12,7 +12,8 @@ import { goalsQueryOf } from "./fixtures/goal-application.js";
 // specs/repository-anti-corruption W2-06: a table is read and written only by the package that creates it
 // (scripts/gates/table-owners.mjs). The host used to run SQL on four tables it does not own; these are the owners' own
 // answers it asks now (Coding's list of background work is its own query now: tests/coding-background-tasks.test.ts). The host-side tests
-// (tests/feed-local-history-delete.test.ts, tests/uninstall-catalog.test.ts, tests/im-local-project.test.ts) cover the callers.
+// (tests/uninstall-catalog.test.ts, tests/im-local-project.test.ts) cover the callers; the Host's Feed caller, the release of a source's
+// history, went with FI-6 (the Runtime Feed releases through the Home's ledger: tests/feed-runtime-plugin.test.ts RAC-518).
 
 async function withProject(prefix: string, run: (store: LocalProjectDatabase, directory: string) => void | Promise<void>): Promise<void> {
   const directory = mkdtempSync(join(tmpdir(), prefix));

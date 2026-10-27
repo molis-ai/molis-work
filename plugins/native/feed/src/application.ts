@@ -19,6 +19,7 @@ import {
   captureFeedRules,
   feedCaptureFailure,
   feedOutRuleMatches,
+  throwIfCallRefused,
   type FeedOutRuleWrite,
 } from "./out-rules.js";
 
@@ -459,8 +460,9 @@ export class FeedApplication {
       if (entry.status === "done" || entry.status === "dismissed") {
         this.setInboxEntryStatus(item.project_id, entry.entry_id, "open");
       }
-    } catch {
-      // ingest already persisted; missing Inbox is worse than throwing into sync
+    } catch (error) {
+      // The item commits with this transaction: an Inbox entry for the failed capture that cannot be written does not undo it; a refusal of the call does.
+      throwIfCallRefused(error);
     }
   }
 

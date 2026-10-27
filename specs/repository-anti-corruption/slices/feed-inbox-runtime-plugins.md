@@ -178,7 +178,7 @@ FI-5 的存储层只依赖 `FeedSql`；本片给它第二个适配器 `fromPlugi
 
 - **认权**：`join` 和写入器的每一次 `head`、`publish` 都问 attention 用的同一道门（`gateFor`，S-68）：安装仍在跑、持有 `artifact:write`，原调用方当前有效，动作是声明了 `artifact:write` 的并发动作。被取消、撤权、停用、替换的调用拒绝本身，不算捕捉失败；事务结束后留下的写入器、别的安装的事务、在别的安装的动作里借来的 `join` 都拒为 `actions.forbidden`。
 - **身份**：产出者（插件 id、版本、发布者签名）由平台照 Manifest 盖，作者是原调用方，项目与范围也是平台的，输入里给了也不认；类型不在 `produces` 里拒为 `artifacts.plugin_incompatible`。
-- **Feed 一侧**：`FeedArtifactProducer` 只剩 `capture(projectId, write)`，Runtime 端口经 `join` 绑到这一次的事务上；宿主常量 `FEED_ARTIFACT_PRODUCER` 删除，离线演示库也改用同一个写入器（不再有 `registerVersion:`）。捕捉时只有调用本身被拒的五个平台码（`actions.cancelled`、`actions.forbidden`、`actions.plugin_unavailable`、`actions.expired`、`plugin.grant_denied`）和取消（`AbortError`）往上抛、整次提交回滚；其余错误照 main 接住，记成事项的 `artifact_out_failed`（没有码的记 `feed_artifact_register_failed`），事项照常入库。
+- **Feed 一侧**：`FeedArtifactProducer` 只剩 `capture(projectId, write)`，Runtime 端口经 `join` 绑到这一次的事务上；宿主常量 `FEED_ARTIFACT_PRODUCER` 删除，离线演示库也改用同一个写入器（不再有 `registerVersion:`）。捕捉时只有调用本身被拒的七个平台码（`actions.cancelled`、`actions.forbidden`、`actions.plugin_unavailable`、`actions.expired`、`plugin.grant_denied`、`actions.plugin_permission`、`actions.provider_changed`）和取消（`AbortError`）往上抛、整次提交回滚；其余错误照 main 接住，记成事项的 `artifact_out_failed`（没有码的记 `feed_artifact_register_failed`），事项照常入库。写这条失败账时 Attention 拒的也照此分：调用本身被拒的往上抛，其余吞掉，事项照常提交。
 - **动作权限**：会跑捕捉规则的 6 个动作（`feed.sources.sync`、`feed.sources.tick`、`feed.notifications.receive`、`feed.content.receive`、`feed.rules.evaluate` 与唤醒）多声明 `artifact:write`，调用方要持有它；不留兼容期。`feed.content.receive` 另补 `attention:write`（FI-C-08，见 §13）。
 - **存量**：main 上 Feed 的成果以宿主常量的身份记（`native:feed`、版本 `0.0.0`），改到 Feed Manifest 名下是真实 Home 维护，登记在 `docs/releases/CHECKLIST.md` 的 R-69，没做。
 
@@ -340,8 +340,8 @@ type SourcePullRequest =                       // 闭合：多一个字段就拒
 **统筹 10-26 对 4c-1 的三个条件（#1311 评论 6410517262），做法与证明。**
 
 - **① 失败、取消、撤权后已 hold 的引用**：选「由 4d 的整理收回没人引用的 hold」。先 hold 后写意味着任何失败（取数失败、取消、撤权、崩溃）之后，来源可能多持有若干正文，它的行并不指向它们；多持有是安全的一侧（超集）。账新增 `reclaim`（`content-ledger.ts`，动作 `feed.content.reclaim`，只给 Feed 自己的项目实例）：调用者给出「我登记过、但我的行不引用」的引用，账只放掉**这个来源**对它们的登记，再删没有别的来源或项目持有的正文；没有完整标记时什么都不动；调用者的前提是持有来源同步租约（同一来源同时只有一次取数在写）。Feed 在 4e-2 里：取数失败后、以及每次同步开始时，用「`hold` 回调记下的引用 − 来源的行实际引用的引用」调用它。测试：`tests/feed-content-ledger.test.ts` 的「holds a failed pull left behind are taken back」（只收本来源的、只收点名的、别人还持有的正文保留、重复收回不变、没有完整标记不动、调用被拒绝则不写）。
-- **② 检索记录写在哪、失败时留不留**：检索记录是 SEL 的运行与结果记录，写在**项目库**的 `feed_runtime_blobs`（不透明存储，命名空间 `…/data/operation/v1` 等），由平台的内容端口与存储端口写，不经插件的事务。取数中途失败、被取消或撤权后，**已经写下的记录留着**（与今天宿主版 Feed 一样：它们按操作号可重放，同一操作号再取一次接着用），不留半条的保证来自存储端口每次写之前复核调用。要删有两条路：`forget(operation_ids)`（只删本项目这几次取数自己的记录）和来源删除时 Feed 的 `history.release`。
-- **③ 取消或撤权之后不再写**：正文写之前，`hold` 之后端口再复核一次调用（`assertCurrent`）；检索记录每次插入、更新、删除之前同样复核。平台还把「调用已经不在」作为取数的失败原因返回（而不是搜索层包出来的 `persistence_failed`）。测试：`tests/security-invariants-plugin-source-pull.test.ts` 的「loses its authority once a body is held」（撤权发生在第一份正文已 hold 之后：后面的正文不写、检索记录的行数不再增加、取数失败码是 `actions.forbidden`）与既有的取消用例。
+- **② 检索记录写在哪、失败时留不留**：检索记录是 SEL 的运行与结果记录，写在**项目库**的 `feed_runtime_blobs`（不透明存储，命名空间 `…/data/operation/v1` 等），由平台的内容端口与存储端口写，不经插件的事务。取数中途失败、被取消或撤权后，**已经写下的记录留着**（与今天宿主版 Feed 一样：它们按操作号可重放，同一操作号再取一次接着用），不留半条的保证来自存储端口每次写之前复核调用；在正文写入时被拒的那次取数例外，见 ③。要删有两条路：`forget(operation_ids)`（只删本项目这几次取数自己的记录）和来源删除时 Feed 的 `history.release`。
+- **③ 取消或撤权之后不再写**：正文写之前，`hold` 之后端口再复核一次调用（`assertCurrent`）；检索记录每次插入、更新、删除之前同样复核。平台还把「调用已经不在」作为取数的失败原因返回（而不是搜索层包出来的 `persistence_failed`）。测试：`tests/security-invariants-plugin-source-pull.test.ts` 的「loses its authority once a body is held」（撤权发生在第一份正文已 hold 之后：后面的正文不写；撤权之后检索记录没有新增或改动任何一行，撤权时已有的记录除一条外原样留着——这次取数在正文写入时被拒、什么都没提交，平台删掉它自己那条操作记录（`plugin-source-pull-service.ts`，同一操作号可以再取）；取数失败码是 `actions.forbidden`）与既有的取消用例。
 - **S 号**：暂用 S-97（S-92 是 batch-43 里 P2e 的），合批时由统筹按表末给号，测试名跟着改。
 
 ## 11. 第 4 步 4e：翻转的实现方案（2026-10-26，读 8 个宿主构造点与 Feed 的七组处理器后定，等统筹确认）
@@ -643,7 +643,7 @@ Inbox的listInbox/getInbox投影及状态提交重读已在028实现，但运行
     - `inbox-action-scenes` 交给 `feed.content.receive` 的调用方另给 `artifact:write`：这个动作现在要它，缺这项时调用在入口被拒、用例等到超时；`bc7c06c07` 上 3/3，改后 3/3。
     - `artifact-host-writers` 的名单删掉 Feed 一项（只许减少）。这条在 C 的头上本来就红：`feed-application.ts` 已删，`demo-feed-library.ts` 还在替 Feed 调 `registerVersion:`。
     - 演示库那处的去留（统筹 10-27 问，按 PG-080 定）：`demo-feed-library.ts` 留下，但不再调 `registerVersion`，改用成果库给 `join` 的同一个写入器（`createPluginArtifactOperations(…).writer`，`permit` 为空），类型照 Feed Manifest 的 produces 核、产出者照样是 Feed Manifest，所以不进名单。它只给演示种子和夹具在插件没启动的库上排数据，不在任何调用里，作者是本机的人。PG-080 因此写「已做」。
-  - **新的安全行与用例**：暂定 S-100（合并时按 main 和在途 PR 定号），用例在 `tests/security-invariants-plugin-artifact-join.test.ts`，12 条。设计稿第 1 项（等待中、写入中被取消撤权）由两部分一起证明：探针的 wait、mid、twice 三类，加上 Feed Runtime 的逐点撤权扫描（`feed-runtime-plugin` 的 RAC-510 用例，从第 1 次问询扫到最后一次之后）。调用本身被拒不记成捕捉失败，由 `feed-out-rules` 证明。
+  - **新的安全行与用例**：暂定 S-100（合并时按 main 和在途 PR 定号），用例在 `tests/security-invariants-plugin-artifact-join.test.ts`，13 条（第 13 条是评审 `7e716e494` 后加的，见下）。设计稿第 1 项（等待中、写入中被取消撤权）由两部分一起证明：探针的 wait、mid、twice 三类，加上 Feed Runtime 的逐点撤权扫描（`feed-runtime-plugin` 的 RAC-510 用例，从第 1 次问询扫到最后一次之后）。调用本身被拒不记成捕捉失败，由 `feed-out-rules` 证明。
   - **变异**：在构建产物上逐个去掉一处，对应的用例变红：
     - `join` 的门（只剩事务检查）：「only a concurrent action…」变红。
     - 写入器每次重新认权（permit 换成空函数）：「twice」与「a writer … kept past」变红。
@@ -656,7 +656,7 @@ Inbox的listInbox/getInbox投影及状态提交重读已在028实现，但运行
   - **作者与演示数据**：Runtime 一路捕获的成果，作者记原调用方，不再是宿主写死的本机的人，这是预期变化。`join` 的写入器取的是 `audit_actor_id ?? actor_id`，与 attention 的 `join` 写 Inbox 行时一样（S-63），在每次 `permit` 通过时取；平常的 `services.artifacts.publish` 照旧记 `actor_id`，本片不改。离线演示库不在任何动作里，作者仍是本机的人。`demo-plugin-seed.ts` 经 `createDemoFeedApplication` 入库，`ingestItem` 照样跑捕捉规则，种子里的「目标树」规则照样捕获，产出者是 Feed Manifest。
   - **评审 `review-c-bc7c06c0-rac510.md` 的跟进**：
     - M1 即 FI-C-08，已做。
-    - M2 采纳（统筹 10-27 定）：捕捉时只把调用本身被拒的五个平台码往上抛，其余照 main 接住记 `artifact_out_failed`，事项照常入库，不会因为一条消息的内容错误整次回滚、成为毒消息。另把取消（没有码的 `AbortError`）也算调用本身被拒：宿主取消时给的是 `actions.cancelled`，裸 `AbortError` 只在别的调用方取消时出现，记成捕获失败会让取消的调用写业务记录。名单里没有 `actions.provider_changed`：它只在动作引用的提供方变化时出现，捕获这一路碰不到；即使出现，事务提交前的 `check()` 也会再认一次原调用方，整次回滚。
+    - M2 采纳（统筹 10-27 定）：捕捉时只把调用本身被拒的平台码往上抛，其余照 main 接住记 `artifact_out_failed`，事项照常入库，不会因为一条消息的内容错误整次回滚、成为毒消息。另把取消（没有码的 `AbortError`）也算调用本身被拒：宿主取消时给的是 `actions.cancelled`，裸 `AbortError` 只在别的调用方取消时出现，记成捕获失败会让取消的调用写业务记录。名单起初是五个码，没有 `actions.plugin_permission` 和 `actions.provider_changed`，靠事务提交前的 `check()` 再认一次原调用方、整次回滚兜着；S-100 只撤 `artifact:write` 的那例里 `join` 拒的正是 `actions.plugin_permission`。评审 `7e716e494` 后统筹 10-28 定：两个码都加进名单，写失败账的 `catch` 也把调用本身被拒的往上抛（`throwIfCallRefused`），不靠提交前的 `check()`。
     - M2 的第二处：插件事务句柄的 `check()` 多一条，`inTransaction` 为假就拒为 `actions.forbidden`「事务已被数据库回滚，不能继续访问」（`apps/local-host/src/plugin-database-client.ts`）。SQLite 遇到 `SQLITE_FULL`、`IOERR`、`NOMEM` 会自己回滚整个事务，之后的语句会落进自动提交，只留下插件写的一半。
     - M3 做了：S-100 用例按消息核是哪一层拒的。
       - 调用方那一层核原话；安装那一层：停用时库先关，核「插件数据库已关闭」；只改库里授权时由调度对提供方的复核先拒，核「插件所需授权已撤销」（见下一条）；动作那一层核「写入需要声明了这项权限的可等待并行动作」；事务那一层核「需要此插件当前项目库中仍在执行的事务」。没有授权的探针，核拒绝里点名 `artifact:write`。
@@ -686,6 +686,39 @@ Inbox的listInbox/getInbox投影及状态提交重读已在028实现，但运行
     - 门禁：`check-health-gates --base origin/main` 第一次红两处。一是 `FeedApplication` 从 491 行涨到 497 行（RAC-510 在类里加的捕捉包装和两处拒绝判断）；二是 S-100 引的 `feed-out-rules` 用例名是模板字符串，原文里没有那一整句。改法：逐条规则的捕捉和失败判断搬到 `out-rules.ts`（`captureFeedRules`、`feedCaptureFailure`），与 `registerFeedCaptureVersion` 同属捕捉，类回到 491 行以下；S-100 改引名字里固定的那一段，代码位置跟着改。重跑门禁通过，`pnpm boundary:check` 通过。Feed 重建后重跑：`feed-runtime-plugin` 49/49、`feed-out-rules` 14/14、`feed-capture-scenes` 2/2、`inbox-automatic-scenes` 2/2、`feed-inbox-lifecycle` 12/13（同一条老红）。
     - `tooling/gates/baseline.json` 没跑 `--update`：main 自 merge-base 起改过这个文件，C 一直没动它，现在改会在合并时撞上；CI 只对照 merge-base，不读它。合并后在合并结果上跑一次。
     - **本机延后验证**（本机没跑，由合并会话在 PR 前排）：全部浏览器用例、security 全量、最终 Full、Linux 上的 CI。`security-invariants-goals-person` 里 Workflows 那一条走的是真实的页面路由，Workflows 的浏览器界面没走。
+- **评审 `7e716e494` 的四条建议（统筹 10-28 定，开 PR 之前做）。** 评审没有必须改的，四条都做了：
+  - ① `docs/system/CONTRACT-CHANGES.md` §8 补一条：`services.artifacts.join(tx, write)` 与 `PluginArtifactWriter`。写明它只给有项目库的插件，版本是当前事务里的保存点，每次 `head`、`publish` 都过 S-68 的门，产出者、作者（`audit_actor_id ?? actor_id`）、项目、范围由平台盖章；对调用方的影响：Feed 六个动作多要 `artifact:write`，`feed.content.receive` 还多要 `attention:write`，不留兼容期。
+  - ② Feed 捕捉往上抛的名单 `CALL_REFUSALS` 补两码 `actions.plugin_permission`、`actions.provider_changed`，不再靠提交前的 `check()` 整次回滚兜底。判断抽成 `throwIfCallRefused`，捕捉失败与写失败账的两个 `catch` 都用它。后一个原先什么都吞，注释说「ingest already persisted」，这也不对（事项和失败账在同一次提交里），已改成照实写。`feed-out-rules` 的上抛用例多两例。
+  - ③ S-100 加第 13 条用例：调用带的 `audit_actor_id` 和 `actor_id` 不同时，成果的作者取前者。S-100 那一行引上这条，补上漏写的 `feed.sources.wake`。
+  - ④ 演示种子的用例断言「目标树」规则捕获了那篇文章的一个版本，产出者（插件号、版本、签名）是 Feed 的 Manifest。
+- **草稿 PR #1327 第一次 CI（头 `7e716e494`）的红，逐个归因（统筹 10-28：属实的就在分支上修）。** 都是 C 带来的，没有一个是 main 上的已知红（`known-red-main.md` 现在 0 个文件）；产品代码只改一处（第 2 条），其余是用例跟上 FI-5、FI-6 的预期变化。
+  1. `home-snapshot-content`：Feed 多了 Home 库 `feed-content`，快照夹具的种子没写它。种子补上。
+  2. `runtime-plugin-http-discovery` 的 PG094-STAGE-01：**产品回归**。C 在 `renderHomePluginStages` 里跳过了所有双实例插件的 Home 舞台，本意只是不重复画 Feed（它的页由项目一半画）。改成只跳过内置的双实例插件（`renderProjectRuntimeStages` 只画内置的）；不在目录里的双实例插件，页面照旧由 Home 一半画。
+  3. `runtime-plugin-http-discovery` 的「product Web server mounts a registered unfamiliar plugin…」答 400：用例给项目平台的端口里没有 `scenes`。Feed 和 Inbox 现在是 Runtime 插件，缺这个端口就以 `actions.unredeemed` 崩掉；之后启用刷新去停这两个崩掉的安装，`runtime.stop` 抛 `plugin.state_invalid`，每个请求都失败。端口补上 `scenes`，和生产一样（`project-plugin-ports.ts`）。刷新停崩掉的安装会抛错，这是另一个问题，列在下面的跟进里。
+  4. `action-usages`：工作流的第一站是 Feed 的，用例的项目没启用 Feed。启用 Feed 和 Inbox。
+  5. `security-invariants-plugin-source-pull` 的 S-97（RAC-1016 撤权）：原来按行数比，可平台会删掉被拒那次取数自己的操作记录（`plugin-source-pull-service.ts` 的 `forgetIntelligenceOperations`，同一操作号可以再取），行数就比撤权时少一条。改成逐行核：每条检索记录按命名空间和键，带上每次插入、更新都会换新的 `cas_token`；撤权之后没有一行新增或改动；少的只有这次取数自己那一条。这比原来只比行数更严。
+  6. `security-invariants-doc`：S-20 的文档门把不变量行里的「…」当成用例名。S-97～S-99 正文里引的原话改用 “…”。
+  7. `goal-decision-attention` 的 RAC-806：Inbox 现在是平台的投影（RAC-808），用例改为经 `listInbox`、`getInbox` 读，带上 Goals Manifest 声明的种类。
+  8. `project-plugin-database-refusal`：Runtime Feed 自己设了时钟任务 `feed.sources.wake`，任务从两个变成三个。用例把 Feed 的任务停在远处（`feedClockSet`），只看被测插件的。
+  9. `agent-built-plugins-network`：两种解析阶段的撤权，现在都由调用自己的复核拒绝，报调用自己的错误（FI-C-02：地址确定后、连接打开前复核），不再是套接字查询里那句。
+  10. `connector-tenant-reconnect.e2e`：端口的请求多了 `current`，用例的请求补上。
+  11. `feed-local-history-delete` 的四例：这几例经演示库测删除来源时的历史。FI-6 把删除历史交给 Runtime Feed（经 Home 的引用账）；演示库按设计不放任何历史（它的文件头写着），所以这四例删掉，断言搬走：
+      - 检索记录跟着删，进了 `feed-runtime-plugin` 的 RAC-518 删除用例；
+      - 新加 RAC-518「deleting a source that keeps its local history…」：事项、正文和它们的登记、检索记录都留着，也不记释放；
+      - 别的来源或项目持有的正文、失败取数留下的登记、账说不清时的处理，本来就在 `feed-content-ledger` 里。
+      - 文件只留存储层的三例，文件头指到这两个文件。`search-intelligence-client.ts` 里防 SEL 改键布局的注释，改指 RAC-518；`owner-readers` 里点名它的注释也跟上。
+  12. `goals-navigation.e2e` 第三例（添加来源后对话框不关）：用例跑在没有项目的单库模式里。Feed 现在是 Runtime 插件，平台只在启用它的项目里接它的请求，所以没有项目时 `/api/plugins/io.molis.work.feed/sources` 被拒为 `actions.plugin_disabled`。产品只按项目启动（`apps/desktop/launchers/web/server.ts`：`--db`、`--project-id`、`--demo` 已不支持），所以这是用例要跟上，不是产品问题。这一例改到示例项目里跑（`openGoalBrowser(t, true)`，示例项目启用了 Feed），路径加上项目前缀，断言不变。本机不跑浏览器用例，由 CI 验证。
+  13. 同批另跟上的（这一批 CI 作业没报，按代码核到的）：`home-library-declaration` 的 Home 库名单加 `feed-content`；`package-maturity-vocabulary` 的分布改成 48/2/14（FI-5 把四个 production 包并进 Feed 插件）；`feed-inbox-scene-runtime` 的 RAC-480 改成核宿主的两个场景文件都不存在（FI-6 删了 `feed-scene.ts`）。
+  - **跟进（不在 C 里修，列给统筹排）**：
+    - `projectPluginEnablementRefresh` 去停项目没启用、但已崩掉的安装时，`runtime.stop` 抛 `plugin.state_invalid`。这样一个崩掉的 Runtime 插件会让每个页面请求都失败。
+    - 内置的和不在目录里的双实例插件，页面归哪一半画不一样（见第 2 条）。
+    - `listFeedMaterialContentRefs` 没有调用方了（它的宿主调用方随 FI-6 删了），只剩 `owner-readers` 在测。
+  - **验证**：一次 heavy.sh 预约，`--jobs 1`，不跑浏览器用例，5 分钟。
+    - 构建：重建 local-host，`tsc` 通过。随后的 `native/materials` Swift 构建照旧因本机 CommandLineTools 的 `SwiftBridging` 模块重复定义失败，与本片无关；JS 产物已更新。
+    - 门禁：根 `tsc` 通过；`check-health-gates --base origin/main` 通过。
+    - 用例：16 个文件 16/16 通过。`runtime-plugin-http-discovery` 23/23、`feed-runtime-plugin` 50/50、`security-invariants-plugin-source-pull` 12/12、`security-invariants-doc` 1/1、`project-plugin-database-refusal` 5/5、`home-snapshot-content` 1/1、`demo-plugin-sample` 3/3、`feed-out-rules` 16/16、`owner-readers` 2/2、`dual-instance-coverage` 3/3、`workbench-entry-exports` 4/4、`action-usages` 1/1、`security-invariants-plugin-artifact-join` 13/13、`feed-local-history-delete` 3/3、`feed-content-ledger` 11/11、`agent-built-plugins-network` 7/7。
+    - 测试文件的类型检查：用临时配置，只列本批改到的 18 个测试文件。65 处错误都不在本批改到的行上（逐行对照 `git diff -U0`），是目标库版本（`withResolvers`、`toSorted`）和夹具类型的旧问题。CI 不查测试文件。
+    - 没跑的：两个浏览器用例 `goals-navigation.e2e`、`connector-tenant-reconnect.e2e`，以及 security 全量和 Full，交给 carrier 的 Full 和 PR 的 CI。
 - **FI7 评审（`8800e07bf..d96bd692d`）的四处跟进（统筹 10-27 定）。** 评审没有必须改的代码，下面四处是文档与用例跟上：
   - **W3-01 C 的变化统筹认了。** 没装 Feed 的项目里，Feed 的页面路由（`/api/plugins/io.molis.work.feed/…`）和舞台（`/api/stage/feed`）在门口就拒（403 `actions.plugin_disabled`），没有调用，不留行，答复不带编号；FI-7 之前人按名字调 `/api/feed` 会留一行「未执行」、带编号。现在和 Inbox、Schedule 等 Runtime 插件一样，用户 10-18 定插件一视同仁，给 Feed 单留一行反而是私路。`apps/local-host/README.md` 那句「人按名字调 `/api/feed` 也照常记」改成现行行为。「被拒且留行、答复带编号」这条保证补回一条 HTTP 用例（`tests/web-home-isolation.test.ts`「a plugin's route the door let through, whose call is refused before it runs…」）：项目里装了 Feed，`POST …/items/<201 个字符>/read` 进了门，路由以本人调 Feed 的 `feed.items.read`，条目编号超出动作的上限 200，调用在处理器之前被拒为 `actions.input_invalid`；答复 400，头和体带同一个编号，调用记录里这一行 `refused === true`、能力是 `feed.items.read`。同一个编号下还会有宿主那次读浏览工作区（BL-521 的 `announceProjectOpened`：项目的插件平台打开后，第一条插件路由前读一次，读成功就不再读）：这个夹具的宿主没有项目设置，读取答 `actions.missing`、留自己的一行，失败后下一条路由再读，所以用例认这一行，也只认这一行。测试夹具 `withRequestFixture` 多一个可选参数，给项目加插件。整文件 8/8。
   - **`feed_source_catalog` 仍是宿主按 Feed 命名的页面投影。** 页面视图的来源目录（`web-view.ts:111` 调 `listFeedSourceCatalog`）main 上就有，归 PG-060，等舞台归插件时一起搬。它取的是 `createSourceVocabulary()`，与 `services.sourcePull.vocabulary` 给插件的同一份，插件和路由都读不到它，所以不绕 S-97。

@@ -195,19 +195,31 @@ export function registerFeedCaptureVersion(
   }
 }
 
-/** A refusal of the call itself: cancelled, revoked, stopped, expired, its grant gone, or the transaction over (RAC-510). */
-const CALL_REFUSALS: ReadonlySet<string> = new Set(["actions.cancelled", "actions.forbidden", "actions.plugin_unavailable", "actions.expired", "plugin.grant_denied"]);
+/**
+ * A refusal of the call itself: cancelled, revoked, stopped, expired, its grant gone, a permission withdrawn from the stored grant of the
+ * running installation, the provider replaced, or the transaction over (RAC-510).
+ */
+const CALL_REFUSALS: ReadonlySet<string> = new Set([
+  "actions.cancelled", "actions.forbidden", "actions.plugin_unavailable", "actions.expired", "plugin.grant_denied",
+  "actions.plugin_permission", "actions.provider_changed",
+]);
+
+/** Throws a refusal of the call itself, a cancellation included, again: it stops the call here, not at the commit's last check. */
+export function throwIfCallRefused(error: unknown): void {
+  const code = error && typeof error === "object" && "code" in error && typeof error.code === "string" ? error.code : "";
+  const aborted = !!error && typeof error === "object" && "name" in error && error.name === "AbortError";
+  if (aborted || CALL_REFUSALS.has(code)) throw error;
+}
 
 /**
  * The code Feed records as the item's `artifact_out_failed` for a capture that failed, as on main: the error's own code, or
  * `feed_artifact_register_failed` for one without (a TypeError of the content, a SQLite error), so an item that cannot be captured does not
- * hold back its batch on every retry. A refusal of the call itself, a cancellation included, is not a failed capture: it is thrown again,
+ * hold back its batch on every retry. A refusal of the call itself is not a failed capture: it is thrown again (`throwIfCallRefused`),
  * and the whole commit is rolled back with the item.
  */
 export function feedCaptureFailure(error: unknown): string {
+  throwIfCallRefused(error);
   const code = error && typeof error === "object" && "code" in error && typeof error.code === "string" ? error.code : "";
-  const aborted = !!error && typeof error === "object" && "name" in error && error.name === "AbortError";
-  if (aborted || CALL_REFUSALS.has(code)) throw error;
   return code || "feed_artifact_register_failed";
 }
 

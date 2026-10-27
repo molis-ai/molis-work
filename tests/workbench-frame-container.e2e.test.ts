@@ -137,3 +137,60 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   assert.deepEqual(boardSnapshot(store, DEMO_PROJECT_ID).goals, before.goals);
   assert.deepEqual(boardSnapshot(store, DEMO_PROJECT_ID).runs, before.runs);
 });
+
+// SYS-52: the Frame draws itself again whenever its stored state arrives from another window (the `storage` handler) or a block opens, closes
+// or moves. A redraw with the same words must leave their Text alone, or a selection the person is making in the title or outcome collapses
+// under them; words that did change still show.
+test("SYS-52 a Goal Frame drawn again with the same words keeps the title and outcome Text and the person's selection; other words still show", { timeout: 90_000 }, async (t) => {
+  const browser = await openGoalBrowser(t, true);
+  if (!browser) return;
+  const { command, sessionId, evaluate, waitFor, navigate, click, origin, store, projectId } = browser;
+  const goals = boardSnapshot(store, DEMO_PROJECT_ID).goals;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
+  await waitFor("document.body.dataset.desktopSurface === 'home'");
+  await click('[data-plugin-strip] [data-plugin-id="goals"]');
+  await waitFor("document.querySelector('[data-goal-momentum]')?.dataset.loaded === 'true' && document.body.dataset.desktopSurface === 'goal'");
+  await evaluate("document.querySelector('[data-board-view-tab=canvas]')?.click()");
+  await waitFor("document.querySelector('[data-goal-canvas-shell]')?.dataset.boardView === 'canvas' && Boolean(document.querySelector('[data-graph-node][data-goal-id=CORE] [data-graph-frame]'))");
+  await evaluate("document.querySelector('[data-graph-node][data-goal-id=\"CORE\"] [data-graph-frame]').click()");
+  await waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === 'CORE' && !document.querySelector('[data-goal-frame-surface]').hidden");
+  const core = goals.find(goal => goal.goal_id === "CORE")!;
+  assert.equal(await evaluate("document.querySelector('[data-frame-goal-title]').textContent"), core.title);
+  assert.equal(await evaluate("document.querySelector('[data-frame-goal-outcome]').textContent"), core.outcome);
+  const key = "molis-work-frame-container:" + projectId + ":goal:CORE";
+  // Selects part of one line, then has the Frame's own `storage` handler draw it again with the state it already has. The marker in the
+  // world proves the draw ran (it empties the world); the Text the person selected in is the one still in the page, and so is the selection.
+  const redrawKeeps = async (field: "title" | "outcome") => {
+    const kept = await evaluate<{ drawn: boolean; connected: boolean; same: boolean; anchored: boolean; selected: string; expected: string }>(`(() => {
+      const line = document.querySelector('[data-frame-goal-${field}]'), text = line.firstChild;
+      const range = document.createRange(); range.setStart(text, 1); range.setEnd(text, Math.min(9, text.length));
+      const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range);
+      const expected = selection.toString();
+      const marker = document.createElement('i'); document.querySelector('[data-frame-world]').append(marker);
+      const value = localStorage.getItem(${JSON.stringify(key)}) || JSON.stringify({ camera: { x: 0, y: 0, z: 1 }, blocks: [], expanded: "" });
+      window.dispatchEvent(new StorageEvent('storage', { key: ${JSON.stringify(key)}, newValue: value }));
+      return { drawn: !marker.isConnected, connected: text.isConnected, same: line.firstChild === text, anchored: getSelection().anchorNode === text,
+        selected: getSelection().toString(), expected };
+    })()`);
+    assert.equal(kept.drawn, true, `the Frame drew itself again (${field})`);
+    assert.ok(kept.expected.length > 0, `something of the ${field} was selected`);
+    assert.equal(kept.connected && kept.same, true, `the ${field} keeps its Text when its words are the same`);
+    assert.equal(kept.anchored, true, `the selection stays in the ${field}`);
+    assert.equal(kept.selected, kept.expected, `the selected words of the ${field} stay selected`);
+  };
+  await redrawKeeps("title");
+  await redrawKeeps("outcome");
+  // Other words do show: the same Frame drawn for another Goal says that Goal's title and outcome.
+  const otherId = await evaluate<string>("[...document.querySelectorAll('.tree-node[data-select-goal]')].map(node => node.dataset.selectGoal).find(id => id !== 'CORE')");
+  const other = goals.find(goal => goal.goal_id === otherId)!;
+  assert.ok(other && other.title !== core.title, "another Goal with other words");
+  await evaluate("window.__sys52Title = document.querySelector('[data-frame-goal-title]').firstChild");
+  await evaluate(`(() => { const node = document.querySelector('.tree-node[data-select-goal=${JSON.stringify(otherId)}]');
+    node.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,view:window,detail:1}));
+    node.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,view:window,detail:2})); })()`);
+  await waitFor(`document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal === ${JSON.stringify(otherId)} && !document.querySelector('[data-goal-frame-surface]').hidden`);
+  assert.equal(await evaluate("document.querySelector('[data-frame-goal-title]').textContent"), other.title);
+  assert.equal(await evaluate("document.querySelector('[data-frame-goal-outcome]').textContent"), other.outcome || "还没有写明预期结果，可在工作区补充。");
+  assert.equal(await evaluate("window.__sys52Title.isConnected"), false, "changed words replace the Text");
+});

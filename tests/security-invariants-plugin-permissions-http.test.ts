@@ -159,5 +159,5 @@ test("RAC-959 the 插件 page has a section for the Home's own plugins, reads it
   assert.match(script, /molisWorkRequest\("\/api\/settings\/plugin-permissions\/list"/);
   assert.match(script, /molisWorkRequest\("\/api\/settings\/plugin-permissions\/set", \{ body: payload \}\)/);
   assert.match(script, /home\.plugins\.map\(\(plugin\) => installed\(plugin, homeSend\)\)/, "the Home's rows send their switch to the Home door");
-  assert.match(script, /const installed = \(plugin, send = \(payload\) => api\("\/permissions\/set", payload\)\)/, "a project's rows send theirs to the project's route");
+  assert.match(script, /const installed = \(plugin, send = \(payload\) => api\("\/permissions\/set", payload\), revoked = null\)/, "a project's rows send theirs to the project's route");
 });

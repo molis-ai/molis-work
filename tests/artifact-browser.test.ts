@@ -238,9 +238,20 @@ test("Artifact navigation and export retain the selected catalog Project", async
   assert.match(root, /data-plugin-id="artifacts"/);
   const exported = await fetch(origin + prefix + `/api${exactPath(1)}/export`);
   assert.deepEqual(await exported.json(), original);
-  const other = await fetch(origin + `/projects/${beta.project_id}` + exactPath(1));
-  assert.equal(other.status, 403, "a project without the 成果 plugin is refused with the status of a plugin that is off (it was 404, before the edge read the failure's kind)");
-  assert.doesNotMatch(await other.text(), /Original report|Alpha results/);
+  const betaPrefix = `/projects/${beta.project_id}`;
+  const other = await fetch(origin + betaPrefix + exactPath(1), { redirect: "manual" });
+  assert.equal(other.status, 302, "the platform reader opens this project's workbench without requiring the 成果 shell");
+  const otherOpened = new URL(other.headers.get("location")!, origin);
+  assert.equal(otherOpened.pathname, `${betaPrefix}/`);
+  assert.equal(otherOpened.searchParams.get("openItem"), betaPrefix + exactPath(1));
+  const otherVersion = await fetch(origin + betaPrefix + exactPath(1), { headers: { "x-molis-work-fragment": "artifact-workbench" } });
+  assert.equal(otherVersion.status, 404, "the exact Alpha version is still absent from Beta");
+  const otherHtml = await otherVersion.text();
+  assert.match(otherHtml, /不会自动替换成最新版本/);
+  assert.doesNotMatch(otherHtml, /Original report|Alpha results/);
+  const otherExport = await fetch(origin + betaPrefix + `/api${exactPath(1)}/export`);
+  assert.equal(otherExport.status, 404);
+  await otherExport.text();
 });
 
 test("Goal context embeds explicit exact Artifact relations and refreshes owner state without mutating facts", async (t) => {

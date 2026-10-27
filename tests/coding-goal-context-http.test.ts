@@ -88,8 +88,8 @@ async function rejectStoppedGoalProgress(host: MolisWorkLocalHost, ref: ReturnTy
     await releaseProjectPlugins(owner, DEMO_PROJECT_ID);
     barrier.release();
     const refused = await pending;
-    // W5-01-AQD-07: the shared route checks the stopped instance before the Goal write resumes.
-    assert.deepEqual([refused.status, refused.body.code], [503, "actions.plugin_unavailable"], JSON.stringify(refused.body));
+    // W5-01-AQD-07 / BL-411: withdrawing the running definition refuses its in-flight route before the Goal write resumes.
+    assert.deepEqual([refused.status, refused.body.code], [403, "actions.forbidden"], JSON.stringify(refused.body));
     assert.deepEqual(owner.readEventsDescending(DEMO_PROJECT_ID), before, "revocation writes no progress, receipt or Goal event");
   } finally { barrier.release(); }
   assert.ok(caller);

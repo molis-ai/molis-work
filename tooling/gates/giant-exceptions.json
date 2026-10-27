@@ -73,6 +73,14 @@
         "methods": 27
       }
     },
+    "class plugins/native/goals/src/module/event-facts.ts#GoalEventFacts": {
+      "kind": "cohesive-unit",
+      "reason": "Goal 事件事实的门面：实现合同 GoalEventFactsApi 的 29 个方法，每个都是一行转发，给配置（event-facts-configure.ts）、汇报（event-facts-report.ts）、读取（event-facts-reads.ts）、状态（event-state.ts）和意图（event-intent.ts）五个协作者；193 行没超、只是方法数超限，方法数由合同定。去掉转发要先把合同拆成事实与状态两个接口，那是合同改动，等用户定。",
+      "size": {
+        "lines": 193,
+        "methods": 30
+      }
+    },
     "class plugins/native/goals/src/module/event-state-effects.ts#GoalEventStateEffects": {
       "kind": "cohesive-unit",
       "reason": "目标事件状态机的写入效果：请求决定、记录可信决定、提交收尾、恢复工作、引用决定各是一个事务内的长命令，共用同一个 context 与 repository；只有 11 个方法、行数超限来自三个长事务（152、116、82 行），拆开会把同一状态机的转移散到几个类。",

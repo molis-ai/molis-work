@@ -667,3 +667,5 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
   - **10-28 #1322 不再等合批会话**：统筹批准 W5-11 线把 main 普通合进分支后推 `integration/carrier-1028-w511` 跑 Full，比对、看 Security invariants，全绿后由它在自己的会话合。与 C 重叠两个文件（`apps/local-host/src/index.ts`、`packages/plugin-sdk/README.md`），谁后合谁解。
   - **10-28 #1316 已 CLEAN**：统筹裁定可合，W5-10 在自己的会话走合并队列；之后 #1317（6822578f9，CLEAN）照样合。
   - 用户接下来会在这几个会话里各点一次合并同意：W6-02（#1325）、W5-10（#1316、#1317）、ac-sweep（#1326）、W5-11 OAuth（#1322，Full 之后）、C（Full 之后）。
+  - **10-28 #1326 新头 433829b6c**：RAC-1115 进产品子集；RAC-1116 不进（起 Home、开 MCP，本机 10～11 秒）；PMR-15、K-1 标已做。`affected-tests` 的 `full` 命中 assembly（`apps/workbench/src/immersive-shell.ts` 只改了一句按钮文字）。统筹裁定照 10-23 的规矩看 `full` 字段，跑全量（BL-635 还删了 44 个入口名字），但在 CI 上：评审确认后合 main，推 `integration/carrier-1028-1326`，比对 `known-red-main.md`，全绿后 `ac-sweep` 在自己的会话合。
+  - **10-28 W5-10 在等用户本人同意把 #1316 加入合并队列**（W5-10 会话）。

@@ -640,3 +640,12 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
     - 并进 Goals 与外壳收尾：外壳不再画 Schedule 页时一起收。privileges 的 PG-064 行保持开着。
     - ac-sweep 直接做 5a（BL-635 + BL-088，RAC-1115～1119）；RAC-1110～1114 空着不用。
   - 下一个空号：BL-813、RAC-1120、R-70。
+  - **10-27 ac-lifecycle 开 [#1325](https://github.com/molis-ai/molis-work/pull/1325)（＠ db8e96cdd）**：十三个已迁插件的生命周期走查，4 个文件 18 项全过，健康门禁（对照 merge-base）与密钥检查通过。浏览器、全量、整体 build 没跑，留给集成批。置物架退出本轮：Home 一半停下后答裸 404，修法在 C 的 `home-plugin-http.ts`，登记为 BL-804。
+  - **10-27 评审线评 #1325**（笔记 `review-1325-db8e96cd.md`）：改一处文档就可以合。统筹裁定：
+    - 必改：规格第 2 节的数据表、演示稿、问卷、工作流程四行改成「项目监督器，个人插件，每个项目都有」（登记都是 `personal: true`）。
+    - 建议 2 一起改：规格第 1 节写明 Diff、Text Stats 没有自有数据，数据留存那几步对它们是空的。
+    - 建议 1 也做：Git（RAC-1100）读回比 `selected` 的 `path`，只重跑这一个文件。
+    - BL-804 不加进 C（C 正在收口），C 合入后由 ac-lifecycle 接，同步 `specs/dual-instance-plugins/spec.md`。
+    - 评审只看增量；确认、CI 绿后由 ac-lifecycle 在它自己的会话里合并，用户在那里点同意。
+  - **10-27 ac-sweep 的 5a 写完**：`b7e5e023e`（BL-635）、`d33ca3e01`（BL-088），只用了 RAC-1115、1116。攒批测试 `batch-1d` 在跑：上一批另外 8 个覆盖文件已过，这一批重跑两个 Home 用例。
+  - C 的门禁在排队等槽位；跑完后提交、推送。

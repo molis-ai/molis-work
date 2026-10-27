@@ -592,7 +592,7 @@
   - 存量连接：`auth_method: "oauth"` 却没有 `connector-protocol:` 引用的，直接 `reauth_required`（§2.6、Q2）。token 连接不受影响。
 - **新错误码**：都用 `defineErrorCodes` 声明，不新写 Error 子类。
 - **升级须知**：`docs/releases/CHANGELOG.md` 的 `[Unreleased]`「升级须知」写两条：
-  - Gmail、Notion、GitHub 设备授权的连接要重新新增，原来绑在这些连接上的来源由本人重新绑定，旧连接由本人删掉（Q2，用户 10-27 改定）；
+  - Gmail、Notion、GitHub 设备授权的连接要重新新增，原来绑在这些连接上的 Feed 来源由本人在来源详情里换到新连接（换后是独立的新来源，旧来源暂停，原消息保留；Notion 没有 Feed 来源，文档导入每次选连接），旧连接由本人删掉（Q2，用户 10-27 改定；入口按 C `143d57bb5` 核过，见 §10 Q2 第 4 步）；
   - 产品客户端的环境变量改名（Q5）。
 
 ### 6.2 快照与名字
@@ -691,9 +691,13 @@ BL-796～799 留空。
       1. **标记**：旧连接按 §2.6 标 `reauth_required`，不发请求。这是 §2.6 已有的拒绝，不是另一条读取路。
       2. **提示**：设置页给它的提示写清楚两件事：「这条连接要重新新增」和「原来绑在它上面的来源要重新绑定到新连接」，旁边给「新增连接」和「删除这条连接」。提示文字由 §2.6 标记时给出，设置页照着显示，不按服务或按「是不是旧连接」另写一支。
       3. **重连**：本人仍点「重新授权」时，走通用的就地重新授权：回调比 protocol 上下文里的 `account_id`，旧连接没有，就得到「请新增连接」，只写 §3.4 左边一列（消耗 state），连接、凭据、protocol 配置和绑定一个字节不变，也不新建连接。这条错误的文字和第 2 条一样写明要新增连接、重新绑定来源。
-      4. **收尾**：旧连接不由平台删，也不由平台改绑；本人新增连接、在来源的设置里换到新连接后，用现有的删除入口删掉旧连接。动手前先确认 C 合入后来源换连接的入口在哪、长什么样；没有这个入口的话，回统筹，不在本线另开。
+      4. **收尾**：旧连接不由平台删，也不由平台改绑；本人新增连接、在来源的设置里换到新连接后，用现有的删除入口删掉旧连接。
+         - **入口已核（只读，C 分支 `feature/anticorruption-closeout-c` 的 `143d57bb5`，10-27）：有，本线不另开。** 换连接在 Feed 来源详情的「使用的账号连接」下拉（`plugins/native/feed/src/ui.ts:427`，`data-source-config-field="connection_id"`）；`apps/workbench/src/scripts/client/navigation-feed-sources.ts:92-120` 列出该服务的全部连接和状态（可用、需要重新授权、已断开），原连接不可用时提示「原连接已不可用，请重新选择或前往 Connectors」。保存走 `feed.source.update` 带 `connection_id`（`plugins/native/feed/src/source-actions.ts:36`），只接受 github、gmail、connector 三种同步方式。
+         - **注意，这不是就地改绑**（`plugins/native/feed/src/source-service.ts:131-205`）：换到另一个连接时，按项目、连接器、方式和新 `connection_id` 算出一个新来源 id，建出独立的新来源，旧来源暂停，原消息保留，追加事件「来源已切换到另一账号连接」；新来源 id 原来没有时才复制外发规则。界面上写着「更换账号会创建独立来源并暂停旧来源，原消息会保留。」所以 §6.1 的升级须知要写明：换连接会建出新来源、暂停旧来源，原消息保留，不是把原来源的绑定原样迁过去。
+         - **删除**：`connectors.connection.remove`（`apps/local-host/src/connector-management-actions.ts:42`，`change()` 在 `:66`）比对版本，不可撤销；删凭据和 protocol 配置，保留业务结果；不因为还有来源在用而拦下。谁在用由 `connectors.usages.read` 另读，汇总 `feed.connection.usages`（`plugins/native/feed/src/query-actions.ts:27`）、模型和生图三家；Gmail、Notion、GitHub 的长期绑定只在 Feed 来源上。
+         - **Notion**：C 上没有 Feed 来源用 Notion；成果库的文档导入（`apps/local-host/src/artifact-document-import.ts:89-92`）每次导入时选连接，不留长期绑定：没给连接、该服务只有一条已连接的就用它，多条就要求本人选。所以 Notion 只需新增连接，没有来源要换。
     - 第 5 片配用例（RAC-1089）：三种旧连接各一条，点重连得到「请新增连接」，不会悄悄认成原来的账号，`account_label` 与这次算出的 account_id、label 都相同时也一样；连接和绑定一个字节不变。
-    - 代价：GitHub、Gmail、Notion 的来源都要本人重新绑一次；写进升级须知（§6.1）。
+    - 代价：GitHub、Gmail 的 Feed 来源都要本人换一次连接（换后是新来源，旧来源暂停、原消息保留），Notion 只需新增连接；写进升级须知（§6.1）。
 - **Q3　声明它的插件停用了，已有的 OAuth 连接怎么办？**　**已定：A，刷新和发送都拒**（统筹，10-27）。
   - A **刷新和发送都拒**，连接显示「方法不可用」，重新启用就恢复；Alchemist 退回匿名。理由：和「被停用的调用不再写业务记录」一致。token 连接那一半是 BL-794。
   - B（未选）按停用前最后一份声明的快照继续刷新。

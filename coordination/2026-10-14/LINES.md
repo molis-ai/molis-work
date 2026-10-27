@@ -513,3 +513,16 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
     - 统筹认了 web-home-isolation 的 W3-01 C 变化：没装 Feed 的项目在门口就拒绝，不留行、不带编号，和 Inbox 等 Runtime 插件一视同仁（用户 10-18）。C 要改 local-host README:163，并补一条「门口之后被拒、留行、带编号」的 HTTP 用例。
     - 舞台分派表按名字写死、`feed_source_catalog` 是宿主按 Feed 命名的投影，这两样都归已登记的 PG-060，不是新私路。C 在 PG-060 的位置列补上 `plugin-stage-fragment-http.ts`、`web-request.ts:201`、`web-view.ts:111`；§13 写明 4c-3「宿主那份到 4e-3 删」那个条件做到没有。
     - C 还要修过时文档：RUNTIME-MIGRATION.md:78；PG-057 的「/api/feed 23 处」，客户端现在一处也没有了。
+  - **10-27 C 边界检查复审通过**（d96bd692d..4353b5905，笔记 review-c-4353b590.md）：两处必改都改对了，可以合入。
+    - legacyCallers 递归扫 feed/src 下 store/ 以外的全部文件，没漏目录。
+    - Listener 锚到 plugin-source-pull-service.ts:49，整条供给链是连着的。
+    - Goal 读 SQL 的检查加查三个文件，够用。
+  - 评审还查出几处老漏洞，这次没改，统筹决定登 **BL-802**，不在 C 里改：
+    - directFactSql 正则：
+      - 用 JOIN、表名加引号、加 `main.` 前缀、ALTER 或 DROP，都能绕过；
+      - 表名只写了 3 张，store/ 实际建了 12 张，其余 9 张在包内部没人管。
+    - Listener 正则：
+      - `[^}]*` 不要求 registry 的值正是 homeIntegrationRegistry(home)；
+      - 按子串匹配，写在注释里也能过。
+    - 收紧这两条正则属于改门禁本身，开工前要问用户。
+    - BL-802 那一行由 C 写进它的 BACKLOG，下一个空号是 BL-803。

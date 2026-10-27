@@ -463,3 +463,22 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
     - PR 正文写：根入口没变；新增 /oauth；Manifest 声明字段可写可不写；Alchemist 脉搏的账号要重新选，只写明、不修；本机延后验证。
     - 改了 SDK，算共享核心，所以全量排进集成批次跑，这个 PR 等批次跑完再合。
     - 合并要用户本人在 W5-11 会话里点同意。
+  - **10-27 W5-11 开了 [#1322](https://github.com/molis-ai/molis-work/pull/1322)**（第 1、2 片，base main，Auto-fix 已开）。等集成批次跑全量；合并要用户本人在 W5-11 会话里点同意。
+  - **10-27 C 8800e07bf 评审结论**（笔记 review-c-8800e07b.md）：
+    - 4 个红文件的修法都成立，都是 Feed 进 Runtime 后的预期变化或产品修复，没有放宽断言：
+      - ① 补 attention.inbox，和 Goals 同一写法；
+      - ② 补的两项权限正好是 PLATFORM_NEEDS 多出来的；
+      - ③ 断言比原来严；
+      - ④ 加了 grants 为 [] 的断言，证明不留记录。
+    - a7b722fa9 成立：Feed 的 companion 是 Inbox，移除 Inbox 会连带移除 Feed，这在 main 上就是如此。
+    - 边界检查 3c961464a 有 2 处必须改，已转 C，排在 FI7 之前：
+      - legacyCallers 要覆盖 `plugins/native/feed/src/application-assembly.ts`，或扫 feed/src 下 store/ 以外的全部文件；
+      - Listener 检查的宿主一半改锚 `plugin-source-pull-service.ts:49`，并钉住 plugin.ts:97。
+      - 另建议：读 Goal SQL 的检查也覆盖 application-assembly、plugin、goal-promotion。
+      - §13 跟着改。
+    - 统筹决定，登 **BL-800**：
+      - 问题：在 C 上，移除 Inbox 后再只加回 Inbox，Feed 的消息要等手动加回 Feed 才回来；在 main 上会自动回来。用户会以为消息丢了。
+      - BL-800 要做的：移除 Inbox 时提示会连带移除 Feed，加回 Inbox 时提示把 Feed 也加回。
+      - 不挡 C；C 在 §13 写明这个行为变化，并在 C 的 BACKLOG 加这一行。
+      - C 还要看一眼移除确认界面现在有没有点名 Feed。
+      - BL-800 查过 main、协调分支和 8 个在途 PR，都没用过。下一个空号是 BL-801。

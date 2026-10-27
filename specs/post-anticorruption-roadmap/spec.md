@@ -8,6 +8,8 @@
 
 验收编号：不适用（排期文档；每一项的验收在它自己的 spec 里）。
 
+2026-10-27 治理排期补充：[全平台产品与架构治理](../product-flow-governance/spec.md)已完成首轮静态盘点。现有各轨道实施时采用其相对顺序：先材料与已有工作恢复，再默认连接到实际使用，再同范围批准及发布启用衔接，再流程/提示词/个人设置简化，并持续补齐全部功能的真实路径。具体发现、依赖和退出条件只维护在治理需求 §6 与核查记录；这里不复制派工表，不改原负责人、Memory 暂停或防腐收尾前不开工的安排。真人批准门先核个人委托、团队发布与不可撤回效果的适用范围，不把尚未裁决的全量批准政策变成所有体验修复的前置；当前规则在正式调整前继续有效。
+
 ## 1. 起点：防腐收尾之后的代码
 
 防腐线的收口范围是 §1 的 2026-10-18 那一行：W5、W6 全做完，[privileges.md](../repository-anti-corruption/privileges.md) 的行全部清掉。按这个范围，后面的需求面对的是这样一份代码：
@@ -98,6 +100,7 @@
 | [coding-quality-assurance](../coding-quality-assurance/spec.md) | 自检、交叉评审、对抗评审、安全评审、批准门、有界迭代 | 3·B |
 | [automation-recommender](../automation-recommender/spec.md) | 读项目，推荐值得加的 hooks、技能包、连接、角色、命令；保持只读推荐、不自动安装 | 引导需要的读取/推荐片提前到 2·C；完整能力仍为 3·C |
 | [code-modernization](../code-modernization/spec.md) | 评估 → 地图 → 业务规则 → 计划批准 → 增量改造 → 行为等价证明 | 4·B |
+| [product-flow-governance](../product-flow-governance/spec.md) | 全平台配置负担、工作衔接与检查审批；首轮静态盘点、16 项发现及五批优化顺序已整理，产品实操与整改未做 | 防腐收尾后按治理 §6 沿现有轨道落实；材料/恢复和可用接入先行，不新设统一开发轨或永久验收门，整体收尾要求全平台覆盖 |
 | [onboarding-coverage](../onboarding-coverage/spec.md) | 先修顺多位置/真实文件支持、步骤与恢复、材料采用及 Coding 接续；再扩场景包、动态引导、全局/项目/任务设置、项目助理团与新交互首页 | 本轮完成需求整合；1·F 贯穿设计与设置映射，1～2·F 沿原主人完成材料基础路径；1～2·C/D/E 场景公共能力，2·F 场景闭环及任务复用；持续工作与完整导入导出随阶段 3 |
 | [font-and-skin-system](../font-and-skin-system/spec.md) | 字体、皮肤、语言三套系统 | 分五段，跨阶段 1～3 的 D 轨，见表后 |
 | [risk-plugin](../risk-plugin/spec.md) | 专门记风险的插件 | 1·E（收尾后第一个按新标准从零写的插件） |

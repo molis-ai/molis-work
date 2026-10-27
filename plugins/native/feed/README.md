@@ -20,7 +20,7 @@ FeedApplication 组合注入的 Module API；FeedSourceService、FeedConnectorSy
 | [src/goal-promotion.ts](src/goal-promotion.ts) | Feed 推进为 Goal |
 | [src/route-handlers.ts](src/route-handlers.ts) | HTTP 用例适配 |
 
-可对照现有调用方 [apps/local-host/src/feed-application.ts](../../../apps/local-host/src/feed-application.ts) 阅读装配方式。
+Runtime 里的装配方式见 [src/plugin.ts](src/plugin.ts)（平台服务做端口）；演示数据的装配见 [apps/local-host/src/demo-feed-library.ts](../../../apps/local-host/src/demo-feed-library.ts)。
 
 ## 接入与边界
 

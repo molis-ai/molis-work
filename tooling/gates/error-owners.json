@@ -135,8 +135,7 @@
     "feed": {
       "paths": [
         "packages/contracts/src/modules/feed.ts",
-        "apps/local-host/src/feed-*",
-        "apps/local-host/src/research-library-source.ts"
+        "apps/local-host/src/feed-*"
       ],
       "reason": "The Feed module, plugin and the Host files that sync and promote; the feed_* snake codes become feed.* (spec W3-02 E)."
     },

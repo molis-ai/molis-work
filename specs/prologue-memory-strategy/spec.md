@@ -3624,7 +3624,7 @@ App正式规模源为干净 `83421bf71719035ccc6f13439d60dfedac08f500`、SDK `57
 
 验收必须走真实 App/Action/SQLite/SDK 路径：ready/pending/failed/over_quota/未建卡及进程重启恢复后零新增模型请求；原已发请求与归档/恢复交错无重发、无人为覆盖；显式整理不被后续 reconcile 抹掉，相关正文/Goal 变化正常失效；归档后立即读不泄漏标题/摘要，跨项目、撤权、安装换代、真删除与本人历史入口分别成立。包含真实非空页面、失败原请求重试及重启；公共合同、原资源/health、最终全量与独立深审仍必需。合同冻结时尚无实现通过证据；后续定向验证见下，完整首期验收仍未完成。
 
-实现与定向证据（2026-10-27）：通用保留查询、Runtime 可信安装代、Coding 原决定内容冻结及 Search/Knowledge 消费已接入。Coding 私库严格版本为 3，Knowledge 卡库为 2，Search 索引库为 3，旧格式拒绝且没有迁移。新增 `coding.subject.retention@1`；管理返回形状变化使 `knowledge.cards`、`knowledge.card.edit`、`knowledge.card.exclude` 升至 v2，固定旧 v1 的引用不再解析。公开 API/Action 快照由原生成器更新。
+实现与定向证据（2026-10-27）：通用保留查询、Runtime 可信安装代、Coding 原决定内容冻结及 Search/Knowledge 消费已接入。Coding 私库严格版本为 3，Knowledge 卡库为 2，旧格式拒绝且没有迁移；Search 派生索引为 3，普通打开沿原语义清空重建旧索引，existing-only 维护入口则拒绝旧格式，不迁移业务原件。新增 `coding.subject.retention@1`；管理返回形状变化使 `knowledge.cards`、`knowledge.card.edit`、`knowledge.card.exclude` 升至 v2，固定旧 v1 的引用不再解析。公开 API/Action 快照由原生成器更新。
 
 独立读审发现并修正六处真实交点：删除后的旧搜索投影、管理 beforeEffect 后晚归档、定位的派出与返回、尚无卡正文读取及外层补卡等待、旧卡 R1 落后于归档 R2 的首次恢复、归档后真删而普通列表版本不变。原 reader、provider、可信代与版本跨等待保留，不由新补出的卡给旧内容改绑。R1→R2 保留人工编辑，清旧机器摘要/关键词/分节并设为 listed；普通刷新可清已删原件和 FTS，无需先打开旧命中或 rebuild。
 
@@ -3635,3 +3635,11 @@ App正式规模源为干净 `83421bf71719035ccc6f13439d60dfedac08f500`、SDK `57
 本段日志前缀 `/private/tmp/molis-memory-retention-20261027`：`-core-1.log`、`-knowledge-1.log`、`-policy-2.log`、`-policy-ui-3.log`。构建中的类型签名失败在 `-build-2.log`，随后修正并通过；独立复审确认两处读取缺口闭合。原 health 在 `-health-2.log` 对准确 merge-base 9efbf8d04 通过：依现行规则及独立职责审查，仅登记 KnowledgeService 366 行/23 方法、SearchService 301 行/21 方法两个内聚单元，无阈值修改或预留空间。
 
 首次资源门未通过：压短恢复说明省回 42 B 后，`/assets/molis-work-knowledge.js` 为 27,065 B，相对原上限 26,940 B 净增 125 B（`-assets-3.log`）。当时未将此前 Coding/Workbench 授权挪用到本资源，未抬预算，等待单独批准。2026-10-27 用户明确批准本资源一次性 +125 B；已登记准确的 26,940→27,065 B 放行，原 updater 复测 48 项共 7,458,470 B，通过并只更新这一个资源的实测记录（`-assets-approved.log`）。其他额度和判定不变。最终全量/新提交 CI、1000 条读取性能、真实质量/token 及用户验收仍未闭合；旧 92a CI 成功不覆盖本次实现。SDK57cf 只读诊断看到重复目标复制 inclusive 约 2.278 ms，不能解释约 21 ms 暖读差距，不据此声称能达门或重启已停止的 SQLite 实验。
+
+最终头 dbb28f496 的普通 CI 40465776665 在 release version gate 发现发布清单漏同步 Coding 3、Knowledge 2、Search 3，Verify 随之失败；本地 health/资源成功不覆盖这项。现只同步原清单的三行版本，保留各自主人的拒绝/派生重建语义和原检查。Full suite 40465825195 的第 2 片在 `assistant-process-info.e2e.test.ts:70` 导航超时，原 retry1 后仍失败，其他片被原 fail-fast 取消；已保留失败并开始单文件调用链复现，未提高超时或缩减断言。
+
+导航单文件在本机原 Node24.14/单任务/零重试通过，透明观测也显示同主 frame 的 DOM 与 CDP 事件约 1 秒到达，故尚未复现 Linux 原故障，不称修复。仅给该测试首次导航增加最多 40 条事件与 40 个在途资源的失败诊断；不记录正文/headers，成功静默，finally 撤监听，原 30 秒/业务断言保持。带诊断原文件 1/1 通过（`/private/tmp/molis-memory-assistant-process-info-20261027-diagnostic-validation.log`）。下一轮沿仓库现有 integration 分支规则完整收集各片结果，不修改 CI、重试或验收。
+
+发布版本同步后，原 health 进一步要求在现有反腐规格 §4.1 登记 Coding 1→3、Knowledge 1→2、Search 2→3 的维护状态，已按实际边界补记。旧 Coding v2 演练不能替代 v3，Knowledge 旧业务卡不能以清空换启动；这两项旧数据版本采用的隔离维护仍待验证。同版本新 Home/T0恢复与旧格式拒绝只能证明各自交点，不能宣称旧 Home 已可直接使用新构建。Search普通重建与 existing-only 拒绝分开验，不改变原语义；真实 Home 未操作。
+
+最终组合的有界补验（dbb28f496/SDK57cf，Node24.14）：`/private/tmp/molis-memory-version-intersection-20261027.json` 已通过旧 Memory 行采用、owner占用/缺确认拒绝、built CLI 同决定恢复重试及T2新写重开，原关闭设置、未选Memory/Coding、Knowledge usage及T0/T1原件保留，遗忘内容未复活。`/private/tmp/molis-memory-final-old-entry-20261027.json` 用真实旧c886构建验证Home/Web/MCP/延迟绑定均由ledger4拒绝，SDK字节不变、模型请求0；首次sandbox listen拒绝及获准后的成功分开保留。`/private/tmp/molis-memory-private-version-boundaries-20261027.json` 区分Coding/Knowledge拒绝与Search普通重建/维护拒绝。主组合私库原本即3/2/3；版本拒绝探针只修改停写副本标记，不冒充历史旧schema迁移，也未新增掉电/close中断覆盖。

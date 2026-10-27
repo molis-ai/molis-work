@@ -243,6 +243,7 @@ CI 状态是 10-23 17:40 的快照，以 PR 页面为准。「验证」写的是
 - 发版和版本号。
 - 真实 Home 的维护（R-04、R-05），包括 SC-5 删 Sessions 数据之前的弹窗。
 - 要不要升级这台机器的 macOS/Xcode（R-27）：用户 10-27 定暂不升级，想升时再提。不升也不挡开发：整体构建、`actions:update` 和安装指纹测试交给 CI 或 Codex 那台机器；whisper 的 `swift build` 目前没有一处挡合并（见 §2 R-27）。
+- W5-11 第 4 片第一次合入前（不急，到时统筹提醒）：请在 Cloudflare 后台确认一次，`Workers Builds: molis-work-production` 的构建没有指向 `apps/local-host/cloudflare`。评审 10-27 按仓库核过：broker（molis-oauth，auth.molis.ai）是手动 `wrangler deploy`，账号和名字都和那项检查对不上，合入不等于重新部署、不算发版；只是后台配置在仓库里看不到。
 - 交接时卡在用户这里的：
   - 原机器上约 110 个本地工作树，和 ⑤ 留下的 `integration/batch-*` 远端分支，清不清由用户定。见 `HANDOFF-yijunw0212.md` §8。
   - 接手人能自己批什么（推送、开 PR、合并、裁决）：① 的 10-22 授权不随交接转移，要用户另外说。

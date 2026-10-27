@@ -26,7 +26,7 @@ Molis Work：本地优先的插件基座加多插件工作平台。平台是一�
 
 - 插件不 import 另一个插件的实现；跨模块只走公开 Contract。能力注册一次，由动作目录供页面、工作流、Agent、MCP 使用，不另写名单或宿主分支。
 - 模型调用只经 `horizontal/agent-host`（唯一依赖 `@prologue/sdk` 的包）。一个 Home 只有一个执行进程；其他入口转发给常驻宿主。
-- 外部插件作者只装 `packages/contracts` 与 `packages/plugin-sdk` 两个包：SDK 只依赖 contracts，不依赖也不转出任何私有包（边界规则 `public-sdk-private-dependency`，`pnpm boundary:check` 拦；`tests/plugin-sample.e2e.test.ts` 在本机兜底）。作者和平台共用、会运行的工具放在 SDK 自己里面，平台各层从 SDK 取同一份，不另写第二套（现在是执行生命周期、Manifest 解析、动作、Agent、方法的声明检查、逐行文本比较、问卷答案的读取与检查、操作卡的判断规则、动作的路由绑定、代码着色（`/highlight`）、富文本（`/rich-text`）和密钥脱敏）；SDK 算共享核心，改它按共享核心跑全量。
+- 外部插件作者只装 `packages/contracts` 与 `packages/plugin-sdk` 两个包：SDK 只依赖 contracts，不依赖也不转出任何私有包（边界规则 `public-sdk-private-dependency`，`pnpm boundary:check` 拦；`tests/plugin-sample.e2e.test.ts` 在本机兜底）。作者和平台共用、会运行的工具放在 SDK 自己里面，平台各层从 SDK 取同一份，不另写第二套（现在是执行生命周期、Manifest 解析、动作、Agent、方法的声明检查、逐行文本比较、问卷答案的读取与检查、操作卡的判断规则、动作的路由绑定、代码着色（`/highlight`）、富文本（`/rich-text`）、连接器 OAuth 声明共用的模板与取值规则（`/oauth`）和密钥脱敏）；SDK 算共享核心，改它按共享核心跑全量。
 - 等模型或外部服务的动作声明 `scheduling: "concurrent"`，返回后 `beforeEffect()` 再按读取时的版本提交。被取消、撤权、停用的调用不再写任何业务记录（插件、Module 与 Home 里属于某项事实的数据，含失败记账）；其中处理器开始之前就被拒的，调用记录里只留一行「未执行」的诊断行，只记谁、什么动作、结果与错误码，不记内容（输入、返回、动作给的错误信息都不记），不算业务数据（用户 2026-10-10 决定）。插件已经提交、这一轮随后被拒的跨分区移动，由平台把对象移回原处：只回原来的位置，放置服务关闭后不再移；这一步只恢复调用之前的状态，不算新写的业务记录（用户 2026-10-17 定，安全不变量 S-35）。
 - 合同读写都只认现行取值：存量数据由维护改成现行形状，读取时不兜底历史取值；新增兼容或迁移逻辑要先写进 `specs/repository-anti-corruption` 的保留机制并经用户确认。以后的读取兼容怎样做、从什么时候起算（第一个装到开发机之外的版本），见 `docs/system/CONTRACT-CHANGES.md`。
 - 可信身份（actor、项目、安装）从调用上下文来，不从输入读；密钥只给引用。

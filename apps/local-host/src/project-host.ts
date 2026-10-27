@@ -235,6 +235,7 @@ export class MolisWorkLocalHost {
         project: projectId => this.host.projects().find(row => row.project_id === projectId && row.state !== "closing"),
         projectClient: reference => this.actionClient(reference), homeClient: () => this.homeActionClient(),
         ownerContext: reference => localWebActionContext(this, reference, LOCAL_OWNER_PERMISSIONS),
+        inspectActionMetadata: (caller, reference) => this.inspectActionMetadata(caller, reference),
         // A project is gone only when the catalog no longer has it and no runtime of it is open (deletion closes it first).
         knownProjects: async () => this.catalogRunner
           ? [...await this.catalogRunner({ homeDirectory: home }, catalog => catalog.listProjects().map(project => project.project_id)),

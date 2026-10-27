@@ -37,6 +37,8 @@ export interface KnowledgeHostPorts {
   clientFor(caller: ActionCallContext): ActionClient;
   /** The project owner's authority, which indexing and organizing read every source with. */
   ownerContext?(projectId: string): Promise<ActionCallContext>;
+  /** Metadata can only rule out adopting an unbound piece; it never grants access or supplies an installation generation. */
+  unboundRetention?(caller: ActionCallContext, identity: SearchRetentionIdentity): "unsupported" | "unavailable";
   /** The project's text model now (tests give their own); by default the Home's configured text model. */
   writer?(): KnowledgeWriter | null;
   /** The text model `knowledge.locate` asks (tests give their own); by default the Home's configured text model. */
@@ -114,6 +116,10 @@ export function createKnowledgeHost(ports: KnowledgeHostPorts): KnowledgeHost {
     catch { return { state: "unavailable" }; }
   };
   const organizer = new KnowledgeOrganizer({ store, retention: ownerRetention,
+    ...(ports.unboundRetention && ports.ownerContext ? { prepareUnboundRetention: async (projectId: string) => {
+      const { caller } = await ownerAccess(projectId);
+      return (identity: SearchRetentionIdentity) => ports.unboundRetention!(caller, identity);
+    } } : {}),
     authorize: ports.ownerContext ? async (projectId, piece, card) => {
       const source = ports.index.sources().find(source => source.source_key === piece.source_key);
       return source ? knowledgeSourceAuthority(await ownerAccess(projectId), { provider_id: source.provider_id,

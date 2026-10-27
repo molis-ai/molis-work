@@ -1,5 +1,5 @@
 import { setImmediate as yieldToIO } from "node:timers/promises";
-import type { ActionSubject, SearchOpenTarget } from "@molis-ai/molis-work-contracts/platform/actions";
+import { requireSynchronous, type ActionSubject, type SearchOpenTarget } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   KNOWLEDGE_BRIEF_MAX_CHARS,
   KNOWLEDGE_CARD_MAX_KEYWORDS,
@@ -60,6 +60,8 @@ export interface KnowledgeDraft { title: string; brief: string; keywords?: strin
 export interface KnowledgeWriterControl { beforeDispatch(): Promise<void>; afterResult(): Promise<void> }
 export type KnowledgeWriter = (input: KnowledgeDraftInput, signal?: AbortSignal, control?: KnowledgeWriterControl) => Promise<KnowledgeDraft>;
 
+type UnboundRetentionClassifier = (identity: SearchRetentionIdentity) => "unsupported" | "unavailable";
+
 export interface KnowledgeOrganizerOptions {
   store: KnowledgeCardStorePort;
   /** Every piece the project's catalog holds now. */
@@ -67,6 +69,8 @@ export interface KnowledgeOrganizerOptions {
   /** The project's text model now; null when there is none, and pending cards wait for one. */
   writer(): KnowledgeWriter | null;
   retention?(identity: SearchRetentionIdentity): Promise<SearchRetentionResult>;
+  /** Prepare only the caller; classification of unbound pieces reads the current declarations synchronously. */
+  prepareUnboundRetention?(projectId: string): Promise<UnboundRetentionClassifier>;
   /** Pins the original permission and installation before sending; completion rechecks version without sending again. */
   authorize?(projectId: string, piece: KnowledgePiece, card: KnowledgeCardRecord): Promise<{ assertCurrent(): void; beforeDispatch(): Promise<void>; current(): Promise<boolean> } | null>;
   /** Organizing allowed per project per day before it stops for the person (spec §12 Q3; numbers to be measured). */
@@ -213,6 +217,10 @@ export class KnowledgeOrganizer {
     const store = this.options.store;
     const pieces = await this.options.catalog(projectId);
     if (this.closed || this.removed.has(projectId)) return;
+    let unbound: UnboundRetentionClassifier | undefined;
+    try { unbound = await this.options.prepareUnboundRetention?.(projectId); }
+    catch { return; }
+    if (this.closed || this.removed.has(projectId)) return;
     const cards = new Map(store.list(projectId).map(card => [keyOf(card.subject), card]));
     for (const candidate of pieces) {
       const observed = cards.get(keyOf(candidate.subject));
@@ -221,9 +229,14 @@ export class KnowledgeOrganizer {
       if (this.closed || this.removed.has(projectId)) return;
       const card = store.get(projectId, candidate.subject) ?? undefined;
       if (!sameFields(observed, card)) continue;
-      const state = await this.retention(projectId, card ?? candidate);
-      if (this.closed || this.removed.has(projectId)) return;
-      if (!sameFields(card, store.get(projectId, candidate.subject) ?? undefined)) continue;
+      const target = card ?? candidate;
+      let state: SearchRetentionResult;
+      if (unbound && target.retention === undefined) state = this.unboundRetention(projectId, target, unbound);
+      else {
+        state = await this.retention(projectId, target);
+        if (this.closed || this.removed.has(projectId)) return;
+        if (!sameFields(card, store.get(projectId, candidate.subject) ?? undefined)) continue;
+      }
       if (state.state !== "unsupported" && state.state !== "active") {
         if (state.state === "deleted") store.remove(projectId, candidate.subject);
         continue;
@@ -237,9 +250,13 @@ export class KnowledgeOrganizer {
       if (this.closed || this.removed.has(projectId)) return;
       const card = store.get(projectId, observed.subject);
       if (!card || !sameFields(observed, card)) continue;
-      const state = await this.retention(projectId, card);
-      if (this.closed || this.removed.has(projectId)) return;
-      if (!sameFields(card, store.get(projectId, card.subject))) continue;
+      let state: SearchRetentionResult;
+      if (unbound && card.retention === undefined) state = this.unboundRetention(projectId, card, unbound);
+      else {
+        state = await this.retention(projectId, card);
+        if (this.closed || this.removed.has(projectId)) return;
+        if (!sameFields(card, store.get(projectId, card.subject))) continue;
+      }
       if (state.state === "deleted") { store.remove(projectId, card.subject); continue; }
       if (state.state !== "unsupported") continue;
       if (card.edited.length || card.excluded) { if (card.state !== "missing") store.put({ ...card, state: "missing" }); }
@@ -291,6 +308,14 @@ export class KnowledgeOrganizer {
   private retention(projectId: string, piece: KnowledgePiece | KnowledgeCardRecord): Promise<SearchRetentionResult> {
     return this.options.retention?.({ project_id: projectId, provider_id: piece.provider_id, subject: piece.subject,
       ...(piece.retention ? { retention: piece.retention } : {}) }) ?? Promise.resolve({ state: piece.retention ? "unavailable" : "unsupported" });
+  }
+
+  private unboundRetention(projectId: string, piece: KnowledgePiece | KnowledgeCardRecord,
+    classify: UnboundRetentionClassifier): SearchRetentionResult {
+    try {
+      const state = requireSynchronous(classify({ project_id: projectId, provider_id: piece.provider_id, subject: piece.subject }));
+      return { state: state === "unsupported" ? "unsupported" : "unavailable" };
+    } catch { return { state: "unavailable" }; }
   }
 
   private async organizePending(projectId: string, signal: AbortSignal): Promise<void> {

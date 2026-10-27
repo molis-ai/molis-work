@@ -1,6 +1,6 @@
-import { ActionError, type ActionCallContext, type ActionSubject, type ActionClient, type ActionHandlerBinding, type ActionProvider, type ActionRegistryPort, type ActionView, type FragmentOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, SUBJECT_RETENTION_REQUEST_TYPE, SUBJECT_RETENTION_TYPE, type ActionCallContext, type ActionSubject, type ActionClient, type ActionHandlerBinding, type ActionProvider, type ActionRegistryPort, type ActionView, type FragmentOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { LocalHostProjectReference } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { SEARCH_PROVIDER_ID, prepareSearchFragmentOffers, searchActions, type SearchOpenRequest, type SearchQueryRequest, type SearchRebuildRequest, type SearchReferencesRequest, type SearchScope } from "@molis-ai/molis-work-contracts/services/search";
+import { SEARCH_PROVIDER_ID, prepareSearchFragmentOffers, searchActions, type SearchOpenRequest, type SearchQueryRequest, type SearchRebuildRequest, type SearchReferencesRequest, type SearchRetentionIdentity, type SearchScope } from "@molis-ai/molis-work-contracts/services/search";
 import { SearchService, findReferenceCandidates, readReferences, type SearchAccess } from "@molis-ai/molis-work-service-search";
 import { openTextSearchIndex } from "@molis-ai/molis-work-storage";
 import { PERSONAL_SPACE_PROJECT_ID } from "./personal-space.js";
@@ -22,6 +22,7 @@ interface SearchHostPorts {
   homeClient(): ActionClient;
   /** The local person's trusted context over one scope, as the Web uses it. */
   ownerContext(reference: LocalHostProjectReference | undefined): Promise<ActionCallContext>;
+  inspectActionMetadata?(caller: ActionCallContext, reference: LocalHostProjectReference): readonly Pick<ActionView, "action" | "provider">[];
   /** Project ids still in this Home's catalog; null until the catalog is configured. */
   knownProjects(): Promise<readonly string[] | null>;
   /** Open the personal space when it exists (never creates it), so the person finds its content from any project. */
@@ -84,7 +85,19 @@ export function createSearchHost(ports: SearchHostPorts): SearchHost {
     if (!reference) throw new ActionError("actions.scope_mismatch", "项目资料缺少当前项目运行环境");
     return ports.ownerContext(reference);
   };
-  const knowledge = createKnowledgeHost({ homeDirectory: ports.homeDirectory, search: service, index, clientFor, ownerContext, ...(ports.onError ? { onError: ports.onError } : {}) });
+  const knowledge = createKnowledgeHost({ homeDirectory: ports.homeDirectory, search: service, index, clientFor, ownerContext,
+    ...(ports.inspectActionMetadata ? { unboundRetention: (caller: ActionCallContext, identity: SearchRetentionIdentity) => {
+      try {
+        if (!identity.project_id || identity.project_id !== caller.project_id) return "unavailable" as const;
+        const reference = ports.project(identity.project_id);
+        if (!reference) return "unavailable" as const;
+        return ports.inspectActionMetadata!(caller, reference).some(view => view.provider.provider_id === identity.provider_id
+          && (view.provider.project_id == null || view.provider.project_id === identity.project_id)
+          && view.action.subject_kinds.includes(identity.subject.kind)
+          && view.action.input_type === SUBJECT_RETENTION_REQUEST_TYPE && view.action.output_type === SUBJECT_RETENTION_TYPE)
+          ? "unavailable" as const : "unsupported" as const;
+      } catch { return "unavailable" as const; }
+    } } : {}), ...(ports.onError ? { onError: ports.onError } : {}) });
   const disposers = [{ provider: { provider_id: SEARCH_PROVIDER_ID, title: "搜索", kind: "system" as const }, definitions: Object.values(searchActions), handlers },
     knowledge.registration].map(registration => ports.registry.registerProvider(registration));
   let closed = false;

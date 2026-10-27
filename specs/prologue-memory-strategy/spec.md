@@ -3724,4 +3724,20 @@ SDK f6e605425b53dafc7d533528004270b89d9990ba 已提交并推到现 Draft #108。
 
 验收须击穿裸缓存反例：等待期间新增协议且旧caller没有该动作授权，原无绑定卡仍保留且不补绑；创建、更新与清卡均受同一同步否决。覆盖准备失败、项目关闭、带null安装代、并发人工编辑及停止后不访问Store，保留原有授权/归档/恢复与模型边界回归。最后用原505+5导入及20秒条件验证Files，并记录目录读取次数与耗时；该结果不替代SDK1000条召回性能门或完整CI。
 
+本片实际验证：原整体构建通过；首轮被sandbox阻止Swift系统ModuleCache写入，原命令取得权限后成功，未改构建步骤。公平性34/34与真实Host接线3/3通过；新Host夹具首次缺knowledge:manage导致3项在入口拒绝，补现导出权限常量后单跑通过，生产/断言不变。原5份Knowledge保留与Security回归51/51通过。原late-list全文件12/12、零重试通过，Files的505+5导入、刷新、迟到分页完整用例9.613秒，原20秒条件未变。
+
+一次额外被动观测沿同一原Files场景通过（整例11.265秒）：刷新states 725.353毫秒、点击至忙碌结束818.8毫秒；旧失败观测states为21.250秒，跨批诊断不当正式性能比值。该请求窗口Host inspectActions 13次、同步inspectActionMetadata 528次，属于全窗口聚合，不等于单次reconcile或全部ActionClient.discover。21个200、2个entries 409、0个network failure原样保留，不宣称所有请求成功；原探针第一次Chrome在初始化前退出，修正同命令启动权限后才进入唯一一次场景。摘要molis-files-refresh-unbound-20261027-summary.json，原失败探针保留。
+
+API生成器0变化，资源门48项共7,458,470 B通过，没有新增额度。health首轮被维护表“1 / 2 → 3”的非法版本栏格式拒绝，改回原支持的“1 → 3”写法、说明仍覆盖v2后通过，未改解析器。07df普通CI已经收齐：Product和Security各两片均通过，只有漏同步候选提交的Gates及依赖它的Verify失败；本地包记录修正已提交。最终新头CI、完整Full suite、旧数据采用与SDK1000条性能门仍待，不以本片结果代替。
+
+### 2026-10-27 旧会话额外开场的投影规则（用户已批准，实施与验收待完成）
+
+这与已批准的Coding/Knowledge私库采用是两个边界。旧SDK可能把自动Memory记成user开场，遗忘后又随会话历史重放；额外无身份开场也可能是正常的跨会话注入，不能按JSON外观或Memory回执猜测。f6只修新caller记账，未给所有新旧开场增加可区分标记。
+
+最小处理以精确Session/Run为单位：Molis主Run的attempt.task和实际run_id能证明调用方原提交；子任务回填和无关联记录不能充作原件。SDK通过只读窄口取得该原件并在自身历史投影内核对，App不替换整份历史、不改原审计账。完整开场与原件等价时保留；typed补充、排队输入、助手和工具的顺序、撤回与未读规则沿原投影。调用方任务只表示caller/app，不制造InputOriginal或本人身份。
+
+用户于2026-10-27在得到具体解释后明确批准：对“原任务可证明、但另有无法归属的旧开场”，保留原审计供查看，后续模型不带这些未知额外段，并向人明确提示上下文不完整；其中可能有过去正常附加的内容，不能称作都已确认是自动Memory。没有原任务依据的记录不因此获得静默截断授权，亦不笼统阻止所有旧会话。正常新对话不受此旧记录处理影响。
+
+未来记录应由原Session主人保真表达caller与已接受注入，优先复用现source/peer事实；是否还需要同一本Run账的最小前向来源字段，须按真实入口和持久重开反例确认，不能用时间、提交号或progressVersion替代。旧账不回填，不新增账本、猜测清洗或通用trustLegacy开关。行为已获批准，具体窄口合同、实现和验收仍待完成，不扩大SDK旧历史验收结论。
+
 本批日志在 /private/tmp/molis-memory-f6e-first-regressions-20261027.log、molis-memory-files-fairness-fixed-20261027.log、molis-files-refresh-network-20261027-summary.json、molis-navigation-diagnostics-20261027/ 与对应build/health/assets日志。付费批仍未启动。所有未闭合项继续阻塞合并。

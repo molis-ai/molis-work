@@ -1,6 +1,6 @@
 # FI-6 Feed、Inbox 进 Plugin Runtime 设计稿（PG-093、PG-089 余半，并关 PG-040、PG-080、PG-045 的余项）
 
-状态：批 C 于2026-10-27续做：C03–07、RAC-808 的 Runtime Inbox 证明、SYS52 修复已完成并有作者定向验证（SYS52 浏览器例未在本机跑）；合成树的包登记、断链、类型断言、巨大单元与 API/动作快照已按门禁修好或刷新。边界检查已按用户批准跟上删掉的文件；四个红文件在 main 上是绿的，已在 C 里修（一处产品回归：Feed Manifest 缺 `attention.inbox`）。FI7 Feed 一半已做（页面请求进 Manifest routes，两段 HTML 归外壳舞台，宿主 Feed 边删除；健康门禁对 merge-base 通过，工作台脚本比预算小 186 B、不需放行；改到的浏览器例只写未在本机跑），槽账号绑定 UI 移到单独切片 FI7b；D-4e3-1 按用户 10-10 的决定改回（本人经 Feed 升格记已确认，Goals 只从 Host 设的委托字段认本人），Feed Manifest 回 0.3.0、发版核对补 Feed 正文引用账，desktop-tui 转绿；inbox-automatic-scenes 改走 Runtime 的 `feed.sources.sync` 后查出 Runtime Feed 没接成果服务（RAC-510 未做），待裁定；FI7 评审（`d96bd692d`）的四处跟进已做（W3-01 C 补回「进了门、被拒、留行、带编号」的 HTTP 用例，PG-060 位置、PG-057 与迁移文档跟上现状），边界检查的余漏记 BL-802；受影响文件逐个跑时又修了 feed-promote-mcp 的夹具（项目缺 Feed）；C02 Notion 复审无必修项；最终独立验证与 Full 未做，见 §13。C未合入；真实 Home、维护和本人验收未执行。父稿与历史设计、逐片记录保留。
+状态：批 C 于2026-10-27续做：C03–07、RAC-808 的 Runtime Inbox 证明、SYS52 修复已完成并有作者定向验证（SYS52 浏览器例未在本机跑）；合成树的包登记、断链、类型断言、巨大单元与 API/动作快照已按门禁修好或刷新。边界检查已按用户批准跟上删掉的文件；四个红文件在 main 上是绿的，已在 C 里修（一处产品回归：Feed Manifest 缺 `attention.inbox`）。FI7 Feed 一半已做（页面请求进 Manifest routes，两段 HTML 归外壳舞台，宿主 Feed 边删除；健康门禁对 merge-base 通过，工作台脚本比预算小 186 B、不需放行；改到的浏览器例只写未在本机跑），槽账号绑定 UI 移到单独切片 FI7b；D-4e3-1 按用户 10-10 的决定改回（本人经 Feed 升格记已确认，Goals 只从 Host 设的委托字段认本人），Feed Manifest 回 0.3.0、发版核对补 Feed 正文引用账，desktop-tui 转绿；inbox-automatic-scenes 改走 Runtime 的 `feed.sources.sync` 后查出 Runtime Feed 没接成果服务（RAC-510 未做），统筹定在 C 里修、方案待批，该例第 166 行在落地前保持红；FI7 评审（`d96bd692d`）的四处跟进已做（W3-01 C 补回「进了门、被拒、留行、带编号」的 HTTP 用例，PG-060 位置、PG-057 与迁移文档跟上现状），边界检查的余漏记 BL-802；受影响文件逐个跑时又修了 feed-promote-mcp 的夹具（项目缺 Feed）；C02 Notion 复审无必修项；最终独立验证与 Full 未做，见 §13。C未合入；真实 Home、维护和本人验收未执行。父稿与历史设计、逐片记录保留。
 
 **先说五件事**：
 
@@ -607,12 +607,13 @@ Inbox的listInbox/getInbox投影及状态提交重读已在028实现，但运行
   - **局限**：Goals 看不出委托的插件当时在跑自己哪个动作。如果 Feed 以后在本人直接调用的动作里、场景之外自动升格，也会记成已确认；现在 Feed 没有这样的代码。要堵住，得由平台在调用上带出委托方的动作。另外，两跳委托的 `delegated_audience` 是 `workflow`，记提议。Goals 的交付物与输入释放仍按直接受众判断，不在这次范围。
   - **SECURITY-INVARIANTS**：作者判断不加新行。`delegated_audience` 本来就是 S-43 下 Host 设的归属字段，这次只是 Goals 读它。统筹要加的话，编号合并时定，先写「暂定」。
 - **发版核对（统筹 10-27 定）。** Feed Manifest 退回 `0.3.0`。这是撤掉合成提交多改的，不算版本变更；升小版本归发版 PR。`docs/releases/CHECKLIST.md` 的各库版本表补了「Feed 的正文引用账」一行（`plugins/native/feed/src/content-ledger.ts#FEED_HOME_DATABASE`，Home 库 `feed-content`，版本 1）。`node scripts/verify-release-versions.mjs` 通过。
-- **inbox-automatic-scenes 改走 Runtime 的 `feed.sources.sync`（统筹 10-27 定），查出一处产品回归，待裁定。**
+- **inbox-automatic-scenes 改走 Runtime 的 `feed.sources.sync`（统筹 10-27 定），查出一处产品回归，统筹定在 C 里修（RAC-510）。**
   - **改法**：公开来源一段改成经 `bindActionClient(host.actionClient(…))` 调 Feed 的 `feed.sources.sync`，只把 RSS 响应换成 `fetch` 替身，其余照旧。原断言一条没动。
   - **在 Runtime 路径上对的**：拉取 `created` 1、`completed`；capture 场景跑 1 次；Inbox 条目的判断失败记 `needs_review`；同键重放 `replayed`，不再判断。
   - **不对的**：Inbox 场景多跑了一次，`localCalls` 是 5，原断言是 4。多出来的是同一条 Feed 条目的 `artifact_out_failed` 条目（`feed_artifact_producer_missing`）。临时把计数改成 5 的草稿整文件 2/2（没入库，跑完即删），说明其余都对。
   - **原因**：main 上宿主装配 Feed 时给了成果写入端（`artifacts`），每条命中规则的消息登记一个 `feed.capture` 成果。C 删了宿主 Feed，而 Runtime Feed 装配时（`plugins/native/feed/src/plugin.ts` 调 `assembleFeedApplication`）没给 `artifacts`。结果每条命中规则的消息都不出成果，Inbox 里还多一条「捕获失败」。这就是 §6 的 RAC-510（经 `services.artifacts` 写 `feed.capture`），C 里没做，也没有用例。
-  - **为什么不直接接上**：`services.artifacts.publish` 是一次单独的写入，不像 attention 那样有 `join` 进 Feed 的事务。直接在 Feed 的提交里调，能不能调、被取消的同步会不会留下成果，都要先定；也可以挪到提交之后写，像判断队列那样。在 C 里做还是另开，待统筹定。
+  - **为什么不直接接上**：`services.artifacts.publish` 是一次单独的写入，不像 attention 那样有 `join` 进 Feed 的事务。直接在 Feed 的提交里调，能不能调、被取消的同步会不会留下成果，都要先定；也可以挪到提交之后写，像判断队列那样。统筹 10-27 定在 C 里修，先出方案：成果服务加一个与 attention 同一机制的 `join`，成果版本并进 Feed 自己的提交；方案已交统筹，待批。
+  - **第 166 行在方案落地之前保持红**：原因是 RAC-510 没做完，不弯测试（不把 4 改成 5，也不跳过）。
   - catch 先 `beforeEffect()` 再核、盖住原错误一事，记为 BL-801。
 - **FI7 评审（`8800e07bf..d96bd692d`）的四处跟进（统筹 10-27 定）。** 评审没有必须改的代码，下面四处是文档与用例跟上：
   - **W3-01 C 的变化统筹认了。** 没装 Feed 的项目里，Feed 的页面路由（`/api/plugins/io.molis.work.feed/…`）和舞台（`/api/stage/feed`）在门口就拒（403 `actions.plugin_disabled`），没有调用，不留行，答复不带编号；FI-7 之前人按名字调 `/api/feed` 会留一行「未执行」、带编号。现在和 Inbox、Schedule 等 Runtime 插件一样，用户 10-18 定插件一视同仁，给 Feed 单留一行反而是私路。`apps/local-host/README.md` 那句「人按名字调 `/api/feed` 也照常记」改成现行行为。「被拒且留行、答复带编号」这条保证补回一条 HTTP 用例（`tests/web-home-isolation.test.ts`「a plugin's route the door let through, whose call is refused before it runs…」）：项目里装了 Feed，`POST …/items/<201 个字符>/read` 进了门，路由以本人调 Feed 的 `feed.items.read`，条目编号超出动作的上限 200，调用在处理器之前被拒为 `actions.input_invalid`；答复 400，头和体带同一个编号，调用记录里这一行 `refused === true`、能力是 `feed.items.read`。同一个编号下还会有宿主那次读浏览工作区（BL-521 的 `announceProjectOpened`：项目的插件平台打开后，第一条插件路由前读一次，读成功就不再读）：这个夹具的宿主没有项目设置，读取答 `actions.missing`、留自己的一行，失败后下一条路由再读，所以用例认这一行，也只认这一行。测试夹具 `withRequestFixture` 多一个可选参数，给项目加插件。整文件 8/8。

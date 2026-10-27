@@ -3598,4 +3598,6 @@ App正式规模源为干净 `83421bf71719035ccc6f13439d60dfedac08f500`、SDK `57
 
 本轮工程验证：固定 Node 24.14.0，原整体构建通过；此前两次构建分别发现 Projects 私有 SQLite 类型出口迁移、PluginDatabaseTransaction 新增 savepoint 对冷清理窄口的影响，均已修正并保留失败日志。冷清理只借用实际需要的 get/all/run，不新增无用的嵌套事务能力。原 API、Action 快照和包边界检查通过。原测试器单任务、零重试运行 38 文件、473/473 项通过，包括真实 SQLite 提交后故障、同决定重试与计数、冷恢复非空/缺库、Session 原选集及三份实际浏览器回归。独立深审仅覆盖上述权限、恢复与调用链交点，未宣称审完主干全部改动。
 
-日志：`/private/tmp/molis-memory-main-integration-20261027-build-{1,2,3}.log`（首次为 `-build.log`）、`-host-types.log`、`-regression-1.log`、`-contracts.log`。准确主干父提交的 health/资源检查与最终全量尚待完成；本轮不是隐藏保留协议实现或整体产品验收，1000 条读取性能仍未达标。
+日志使用 `/private/tmp/molis-memory-main-integration-20261027` 前缀：`-build.log`、`-build-2.log`、`-build-3.log`、`-host-types.log`、`-regression-1.log`、`-contracts.log`。
+
+准确父提交 9efbf8d04 的原 health 与资源门均已通过（`-gates-2.log`）。首次 `-gates.log` 保留登记未同步的失败：按既有 cohesive-unit 规则及独立复审，将项目目录门面的接线实测由 265 更新为 266 行、40 方法不变，删除已经低于门限的全文索引旧例外；没有修改阈值。原 updater 将资源更新为 48 项、7,458,345 B，其中 Coding +1,776 B、workbench.js +32,893 B、workbench.css +680 B 恰好属于此前批准的同功能增量，settings.css 减少 73,924 B 并收紧基线；未增加额度。最终全量、隐藏保留协议实现与整体产品验收仍待完成，1000 条读取性能仍未达标。

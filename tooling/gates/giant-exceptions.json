@@ -19,9 +19,9 @@
     },
     "class apps/local-host/src/project-catalog.ts#MolisWorkProjectCatalog": {
       "kind": "cohesive-unit",
-      "reason": "项目目录的门面：40 个方法里约三十个是三行的转发，constructor 61 行是装配；它的职责就是给宿主一个入口，行数没超、只是方法数超限；按资源分子门面只会多一层转发。",
+      "reason": "项目目录的门面：40 个方法里约三十个是三行的转发，constructor 负责装配；本次增加删除提交后的孤儿绑定清理端口接线，业务规则仍归原主人。它给宿主一个入口，只超方法数；按资源再分子门面会增加转发层。",
       "size": {
-        "lines": 265,
+        "lines": 266,
         "methods": 40
       }
     },
@@ -166,11 +166,6 @@
       "kind": "cohesive-unit",
       "reason": "沙箱运行器：启动子进程、收发消息、看门狗、关停，共享同一个 child 和同一套限额；安全边界的实现，拆开会让进程的生命周期有两个所有者，不宜分散。",
       "size": 173
-    },
-    "function packages/storage/src/adapters/text-search-index.ts#openTextSearchIndex": {
-      "kind": "cohesive-unit",
-      "reason": "全文搜索索引的打开：架构版本检查、预备语句和返回体的操作集合（92 行），共享同一个数据库连接；一个适配器对象，超 150 行 1 行。",
-      "size": 151
     },
     "function plugins/native/alchemist/src/studio/server/bootstrap/local-runtime.ts#createLocalRuntime": {
       "kind": "cohesive-unit",

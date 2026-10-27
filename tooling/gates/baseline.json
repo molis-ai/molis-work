@@ -1,5 +1,5 @@
 {
-  "giantUnits": 49,
+  "giantUnits": 48,
   "giant": {
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
       "lines": 267,
@@ -13,7 +13,7 @@
     "function apps/local-host/src/connector-mcp.ts#createConnectorMcpHost": 246,
     "function apps/local-host/src/home-actions.ts#homeActionProvider": 182,
     "class apps/local-host/src/project-catalog.ts#MolisWorkProjectCatalog": {
-      "lines": 265,
+      "lines": 266,
       "methods": 40
     },
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 154,
@@ -21,14 +21,14 @@
     "function apps/workbench/src/capsule-items.ts#createCapsuleItemProjection": 229,
     "function apps/workbench/src/feed-projection-ui.ts#createWorkbenchFeedProjectionRenderer": 251,
     "file apps/workbench/src/i18n/en.ts": 3266,
-    "file apps/workbench/src/scripts/client/assistant-island.ts": 2031,
+    "file apps/workbench/src/scripts/client/assistant-island.ts": 1999,
     "file apps/workbench/src/scripts/client/tab-workspace.ts": 1948,
     "function apps/workbench/src/shell-page-renderer.ts#createWorkbenchGoalsPageRenderer": 176,
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 425,
-    "file horizontal/memory/src/service.ts": 1151,
+    "file horizontal/memory/src/service.ts": 905,
     "class horizontal/memory/src/service.ts#MemoryService": {
-      "lines": 1015,
-      "methods": 48
+      "lines": 758,
+      "methods": 47
     },
     "function horizontal/scheduler/src/index.ts#createScheduleService": 215,
     "file packages/design-system/src/styles/momentum.ts": 819,
@@ -54,7 +54,6 @@
       "methods": 26
     },
     "function packages/plugin-sandbox/src/runner.ts#createSandboxRunner": 173,
-    "function packages/storage/src/adapters/text-search-index.ts#openTextSearchIndex": 151,
     "function plugins/native/alchemist/src/studio/server/bootstrap/local-runtime.ts#createLocalRuntime": 203,
     "function plugins/native/coding/src/timeline.ts#createCodingTimeline": 224,
     "function plugins/native/coding/src/ui.ts#renderCodingWorkbench": 209,

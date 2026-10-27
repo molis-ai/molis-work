@@ -2,6 +2,7 @@
 // the Host (the Host and the tests take it from the plugin's own entry), and it has no `export *`, so a helper added to a module
 // does not become public by itself. What stays for another line is named in slices/w5-08-workbench-exports.md §3.
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
@@ -71,4 +72,45 @@ test("RAC-711 the names ui-composition, i18n and capsule-view give out are liste
   for (const name of [...UI_COMPOSITION_NAMES, "createWorkbenchLocale", "LOCALE_COOKIE", "WEB_LOCALES", "LOCALE_SWITCH_STYLES", ...Object.keys(PLUGIN_WORDS_USERS)]) {
     assert.ok(name in workbench, `${name} is given out`);
   }
+});
+
+/** Names the entry gives out with no importer outside the workbench, each with why it stays. */
+const KEPT_WITHOUT_IMPORTER: Readonly<Record<string, string>> = {
+  ...Object.fromEntries(["createWorkbenchGoalsPageRenderer", "WorkbenchShellPageView", "WorkbenchShellPageOwners", "WorkbenchPlanningPageOwners",
+    "GoalsFragmentRenderers", "WorkbenchGoalPageSelection"].map(name => [name, "Goals' interface adapters, removed when Goals S11 moves them out"])),
+  ...Object.fromEntries(["CapsuleGoalItem", "CapsuleSnapshot", "CapsuleState", "CapsuleStateKind", "CapsuleTab", "CapsuleTabKind", "ChooserArrival",
+    "ProjectSettingsFoldId", "SideViewDocumentInput"].map(name => [name, "types the Host's declarations name without importing (TS2742 without)"])),
+};
+
+test("RAC-1115 every name the workbench entry gives out has an importer outside the workbench, or a listed reason to stay (BL-635)", () => {
+  const PACKAGE = "@molis-ai/molis-work-app-workbench", ENTRY_PATH = /apps\/workbench\/(src|dist)\/index(\.js|\.ts)?$/u;
+  const isEntry = (specifier: string) => specifier === PACKAGE || ENTRY_PATH.test(specifier);
+  const given = new Set<string>();
+  for (const node of exportDeclarations) if (node.exportClause && ts.isNamedExports(node.exportClause)) for (const element of node.exportClause.elements) given.add(element.name.text);
+  const files = execFileSync("git", ["ls-files", "*.ts", "*.mts", "*.mjs", "*.js"], { cwd: fileURLToPath(root), encoding: "utf8" }).trim().split("\n")
+    .filter(file => !file.startsWith("apps/workbench/") && !file.includes("/dist/") && file !== "tests/workbench-entry-exports.test.ts");
+  const used = new Set<string>();
+  for (const file of files) {
+    const text = read(file);
+    if (!text.includes(PACKAGE) && !/apps\/workbench\/(src|dist)\/index/u.test(text)) continue;
+    let whole = false;
+    const visit = (node: ts.Node): void => {
+      const specifier = (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier) ? node.moduleSpecifier.text : null;
+      if (specifier && isEntry(specifier)) {
+        const bindings = ts.isImportDeclaration(node) ? node.importClause?.namedBindings : node.exportClause;
+        if (bindings && (ts.isNamedImports(bindings) || ts.isNamedExports(bindings))) for (const element of bindings.elements) used.add((element.propertyName ?? element.name).text);
+        else whole = true;
+      }
+      if (ts.isCallExpression(node) && node.expression.kind === ts.SyntaxKind.ImportKeyword && node.arguments[0] && ts.isStringLiteral(node.arguments[0]) && isEntry(node.arguments[0].text)) whole = true;
+      if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument) && ts.isStringLiteral(node.argument.literal) && isEntry(node.argument.literal.text)) {
+        if (node.qualifier) used.add(node.qualifier.getText().split(".")[0]!); else whole = true;
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true));
+    // A namespace or dynamic import: a name written in the file counts as taken.
+    if (whole) for (const name of given) if (new RegExp(`\\b${name}\\b`, "u").test(text)) used.add(name);
+  }
+  assert.deepEqual([...given].filter(name => !used.has(name) && !(name in KEPT_WITHOUT_IMPORTER)).sort(), [], "take these out of the entry; the workbench's own modules still have them");
+  assert.deepEqual(Object.keys(KEPT_WITHOUT_IMPORTER).filter(name => !given.has(name) || used.has(name)).sort(), [], "an entry here that left the entry or found an importer comes off the list");
 });

@@ -39,8 +39,9 @@ export const feedManifest: PluginManifest = {
   requires: [],
   runtime: { scope: "home" },
   databases: { project: FEED_PROJECT_DATABASE, home: FEED_HOME_DATABASE },
-  // The kinds of Inbox entry Feed adds and removes: an item's, and a source's fault.
-  attention: { subjects: ["feed_item", "source_fault"] },
+  // The kinds of Inbox entry Feed adds and removes: an item's, and a source's fault. Both are the person's Inbox: Feed writes them under
+  // its own plugin id, and the platform lists an owned entry in the Inbox only for the kinds its owner declares there (PG-094 S12).
+  attention: { subjects: ["feed_item", "source_fault"], inbox: ["feed_item", "source_fault"] },
   // The person binds an account to each account source: one slot per service the platform can pull for (its own list is the only one), the record being the source.
   connections: { slots: Object.keys(CONNECTOR_REQUEST_SERVICES).map(service => ({ slot_id: service, service_id: service, reason: "读取你为这个来源选好的账号", binding: "per_record" as const })) },
   notifications: { receive: { capability_id: "feed.notifications.receive", version: 1 } },

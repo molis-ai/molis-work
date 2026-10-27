@@ -623,3 +623,14 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
     - 合 main 时确认 privileges.md 第 3 行 main 的 10-27 头部说明还在。
     - 同时请 C 在收口提交里照报告 §2 改随 C 完成的 privileges 行。
   - 下一个空号：BL-813、RAC-1115、R-70。
+  - **10-27 ac-sweep 的 6 条待定已核成定论**（报告 §6，计数改为 A 18 / B 11 / C 61 / D 5 / E 2 / 待定 0）：
+    - BL-085 → A，C 合入后删行。
+    - BL-117 → D：只剩 0.3.0 发版一项，是用户的红线，不派。
+    - BL-121 → C，要产品判断，统筹留着：① 决定回执（保持现状 / 只留提示 / 删除）；② `?feed-start=1` 那条链动 Feed 的 `start_processing` 动作合同，等 C；③ 紧凑密度缩进在 `momentum.ts:630` 写了两次。
+    - BL-086、088、635 是 C 类小片（报告 §7 的 5a）。
+  - **10-27 统筹核了 5a 与 #1101 的重叠**：#1101 还改 `apps/workbench/src/scripts/client/assistant-island.ts` 和 `apps/local-host/src/search-actions.ts`。
+    - BL-086（assistant-island.ts:1532、1801，attention.ts:73、94）等 #1101 落地；assistant-island 也是枢纽文件。
+    - BL-088 只做 PMR-15 的非浏览器验证和切换器「移除」文字（带英文），`search-actions.ts` 只读不改。
+    - BL-635（`apps/workbench/src/index.ts` 无人用的出口，RAC-711 的 `tests/workbench-entry-exports.test.ts`）不在 #1101、C、W 的文件里，能开工；先照 `slices/w5-08-workbench-exports.md` §3 重跑扫描，Goals 一组留给 Goals 收尾。
+  - **10-27 派给 ac-sweep 的顺序**：B（PG-064 Schedule 一半，单独一个 PR，RAC-1110～1114）→ BL-635 + BL-088 合成一个 PR、两个提交（RAC-1115～1119）；BL-810～812 两片共用。两项写完后攒成一批，一次 heavy.sh 预约。
+  - 下一个空号：BL-813、RAC-1120、R-70。

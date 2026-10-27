@@ -1,5 +1,7 @@
 # 内置特权与平台缺口（2026-10-19，统筹 ①）
 
+2026-10-27 后续需求归并：本文历史条目中的 BL-376（Alchemist 独立重做）转到 BL-377 的[插件创作工作台升级](../plugin-builder-upgrade/spec.md)，Alchemist 是平台场景组装能力的落地场景。本表描述的现有代码与本轮不迁、不删、绕过范围不变。
+
 本文件把八份只读扫描合成一张清单，列的是现在只给内置插件的特权，以及插件不得不绕开的平台缺口。八份扫描分别看宿主与平台、工作台名单、Docs/Todo/Issues 一族、成果库/创作台/Characters、Coding 一族、Goals/Sessions、Feed/Inbox/Schedule/Workflows、Cognia/Jelly/Images/Alchemist/Shelf。
 
 - **依据**：[spec.md](spec.md) §1 的 2026-10-18 各行，第 1154–1168 行。缩写见 §1；第 1152、1153、1169、1170 行不是特权行（2026-10-24 复核：spec 增行后旧行号失效），这里不用。

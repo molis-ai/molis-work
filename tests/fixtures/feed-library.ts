@@ -2,14 +2,14 @@ import { createHash } from "node:crypto";
 import { existsSync, realpathSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
 import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
-import { pluginErrors, type IntegrationProviderItem } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { IntegrationBinding } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { createDemoFeedApplication, createDemoFeedSourceService, homeIntegrationRegistry, withConnectorConnections, type DemoFeedApplicationOptions, type IntegrationProviderFactory, type SourcePullRuntime } from "@molis-ai/molis-work-app-local-host";
 import { ConnectorHost } from "@molis-ai/molis-work-service-connector-host";
 import { listProjectDatabasePaths } from "@molis-ai/molis-work-module-projects";
 import { LocalSqliteJournal, LocalSqliteStorage, resolveMolisWorkHome, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import {
-  FeedConnectorSync, FeedSourceScheduler, createFeedSourceSyncLease, integrationKeyOf,
+  FeedConnectorSync, FeedSourceScheduler, createFeedSourceSyncLease, integrationKeyOf, providerItemOf,
   type FeedApplication, type FeedSourceRecord, type FeedSourceSchedulerDispatch, type FeedSourceService, type FeedSourceSyncLease,
 } from "@molis-ai/molis-work-plugin-feed";
 import { ListenerHost, SignalsModule, fromBetterSqlite, refreshSourceConnectionState } from "@molis-ai/molis-work-plugin-feed/store";
@@ -76,7 +76,7 @@ export function createLocalFeedConnectorSync(db: SqliteDatabase, projectId: stri
       const sql = fromBetterSqlite(db);
       const signals = new SignalsModule(sql);
       const listener = new ListenerHost(sql, connector, signals.commands, {
-        afterSignalAccepted(event, receipt) { return afterAccepted(event.payload as unknown as IntegrationProviderItem, receipt.signal, event.occurred_at); },
+        afterSignalAccepted(event, receipt) { return afterAccepted(providerItemOf(event.payload), receipt.signal, event.occurred_at); },
       });
       return {
         run: (operationId, mode, execution) => listener.run({ ...execution, project_id: projectId, source_id: source.source_id, connection_id: connectionId,

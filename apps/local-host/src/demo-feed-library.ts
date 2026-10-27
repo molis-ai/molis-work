@@ -4,7 +4,7 @@ import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
 import type { ContextAccess, ContextEdge, ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
-import { projectVersionStores, type ArtifactsSqliteDatabase } from "@molis-ai/molis-work-module-artifacts";
+import { projectVersionStores } from "@molis-ai/molis-work-module-artifacts";
 import { GMAIL_DEFAULT_SCOPE, parseGmailScope } from "@molis-ai/molis-work-integration-gmail/scope";
 import { CUSTOM_RSS_DEFINITION_ID, customRssFeedHost, isRssSourceKind, listRegisterableFeeds, normalizeCustomRssFeedUrl, readRssHttpState, withRssHttpFailure, withRssHttpSuccess } from "@molis-ai/molis-work-integration-rss";
 import { YOUTUBE_CHANNEL_DEFINITION_ID, YOUTUBE_PUBLIC_FEED_HOST, normalizeYouTubeChannelId, youtubeChannelFeedUrl } from "@molis-ai/molis-work-integration-youtube";
@@ -62,7 +62,7 @@ export function createDemoFeedApplication(db: SqliteDatabase, options: DemoFeedA
   }
   // The library's pair of version stores, opened only when no producer was handed in (the first call that writes).
   const artifactsModule = () => projectVersionStores({
-    db: db as unknown as ArtifactsSqliteDatabase,
+    db,
     homeOwner: LOCAL_PERSON_ACTOR_ID,
     appendEvent: input => journal.appendEvent({ eventId: input.eventId, projectId: input.projectId, actorId: input.actorId, type: input.type, objectType: input.objectType,
       objectId: input.objectId, reason: input.reason, payload: input.payload, at: input.at }),

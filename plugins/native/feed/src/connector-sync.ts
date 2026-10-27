@@ -29,15 +29,7 @@ export class FeedConnectorSync {
   }
   private async run(sourceId: string, input: FeedSourceSyncInput & { mode?: ConnectorSyncMode }): Promise<FeedSourceSyncResult> {
     const source = this.feed.getSource(this.projectId, sourceId);
-    if (!isAccountConnectorSyncKind(source.sync_kind)) {
-      throw feedErrors.connector_wrong_sync_kind("这个来源不是账号连接器");
-    }
-    if (source.status === "disconnected") {
-      throw feedErrors.connector_needs_auth("连接已断开，请重新授权后再同步");
-    }
-    if (!source.enabled || source.status === "paused") {
-      throw feedErrors.source_paused("来源已暂停，请先恢复");
-    }
+    assertConnectorPullable(source);
     const key = normalizeIdempotencyKey(input.idempotencyKey);
     const connectionAuthority = this.ports.connectionAuthority?.(source);
     const beforeEffect = createFeedSourceSyncGuard(this.feed, source, { ...input, beforeEffect: async () => {
@@ -213,6 +205,19 @@ export class FeedConnectorSync {
     }
   }
 
+}
+
+/** Refuses a source a connector pull cannot run on: not an account connector, disconnected, or paused. */
+function assertConnectorPullable(source: FeedSourceRecord): void {
+  if (!isAccountConnectorSyncKind(source.sync_kind)) {
+    throw feedErrors.connector_wrong_sync_kind("这个来源不是账号连接器");
+  }
+  if (source.status === "disconnected") {
+    throw feedErrors.connector_needs_auth("连接已断开，请重新授权后再同步");
+  }
+  if (!source.enabled || source.status === "paused") {
+    throw feedErrors.source_paused("来源已暂停，请先恢复");
+  }
 }
 
 /** The source's account label and configuration after a pull, from what its integration said; nothing said keeps both. */

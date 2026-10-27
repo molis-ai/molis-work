@@ -52,6 +52,7 @@ export { createFeedSourceSyncGuard, type FeedSourceSyncAuthority, type FeedSourc
 
 export { FeedConnectorSync } from "./connector-sync.js";
 export { integrationKeyOf } from "./integration-key.js";
+export { providerItemOf } from "./runtime-connector.js";
 export type { ConnectorSyncMode, FeedConnectorSyncPorts, FeedConnectorListener } from "./connector-sync-ports.js";
 
 export type { ConnectorAuthStatus } from "./connector-auth-status.js";

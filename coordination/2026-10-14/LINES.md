@@ -241,3 +241,15 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
       - Q6：按 `sub` 判断是否同一账号；
       - 新 S 号分三条，各带拒绝测试，号码合批时核。
   - **10-27 评审会话**：W5-11 设计稿是第一份推上来的，按分工提评审卡片（Opus high，只评统筹指定的增量，先评 W5-11 设计稿；只读，结论回给统筹）。
+    - 用户已开评审会话：local_f10a3ad3（`local_f10a3ad3-e781-4d53-8fcc-cd46a1429129`）。
+    - W5-11 把答复写进设计稿，新头 `b087ae0b9`：
+      - §10 各题标出谁、哪天定的；
+      - §3.4 的 S 号分成三条；
+      - 按 Q1 改了 identity.read：写不成数据的部分补进平台的 identity 声明；
+      - 已转给评审，以这个头为准。
+    - 第 1、2 片等评审的必改项改完再开。
+  - **10-27 R-27 重开**：用户定先不升级本机工具链（btw 会话转达）。条目在 RISKS-AND-DEFERRED.md（`48411ff2c`），有两处更正：
+    - 这台机器整体构建也红：一是 CLT 的 SwiftBridging 重复定义，二是 whisper 要 Swift 6.2，本机 6.0.3。
+    - jelly-whisper 的 `swift build` 没有一处挡合并（CI 那步 `continue-on-error`，BL-122）。
+    - 改到 `apps/local-host/native/` 的片，PR 正文写明「本机没编 whisper，CI 那一步不挡合并」。
+    - 统筹待办：向 Codex 核实它的机器是不是 macOS、Swift 是否 ≥ 6.2。

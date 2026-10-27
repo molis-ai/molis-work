@@ -333,3 +333,15 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
     - 这片推送时，统筹的第 2 片裁定还没送到，所以有几处还没收窄：listEntry 里 sentry 按 `context.org` 取的分支和对应注释还在；「body 原样发出」「label_prefix 是字面量」两条没写；`when_missing` 已经删了。
     - RAC-1080 拿 catalogWhoami 当期望值对照，按选 A 不对：旧实现不能当真值，和它不同的地方（Notion 的 ws 和 ws:bot、x 的兜底）要标成有意的改变。
   - 统筹安排：W5-11 在第 1 片上补一个提交，做上面的收窄、改 RAC-1080 的对照方式，第 2 片裁定要改的稿也在这次一起推；不改写已推的历史。评审先评 bb62fe31f（笔记 review-w511-slice1-bb62fe31.md），知道哪几处还会变，补的提交只复核增量。评审过了再开 PR。
+  - **10-27 W5-11 第 1 片评审结论**（bb62fe31f，评审笔记 review-w511-slice1-bb62fe31.md）：要改，三处必改，量都不大；收窄那几项没算在内。
+    - M1：公开主机名的判断、占位符的写法、平台自己写的请求头名单，SDK 和宿主各写一份，解释器还缺请求头名单。这和 AGENTS「共用的工具放在 SDK、平台从 SDK 取同一份」冲突。
+    - M2：租户由调用方传进来（OAuthRequestScope.tenant），salesforce「identity 必须发到 instance」这条优先级不在解释器里。SDK 也收下没有租户来源的 {tenant}，没限制 check: tenant 的 keep 至多一个。
+    - M3：RAC-1080 仍拿 catalogWhoami 当真值，比较 label 时还去掉了「@」，所以 label_prefix 写没写都能过。
+    - SDK 和解释器还有四处对不上：{tenant} 的来源（M2）、default 不按规则检查、match_setting 的 setting 不要求是 tenant、ids 指针的 ~1 转义。
+    - 纯度方面只有 localeCompare 会随 locale 变。请求检查方面，评审试了账号密码位、端口、大写主机、结尾的点、编码过的斜杠、{account} 等写法，没找到绕过的路。裸 oauth 可以接受。错误码、API 快照和合同包抽查都对。
+  - 统筹裁定：
+    - 全部照评审改。M1 的函数放进 SDK，宿主从 SDK import，常量可以放 contracts（合同包不许放函数）。M2 由解释器按固定规则自己算租户：先用 keep 下来的，再用 setting；SDK 拒掉上面两种写法。M3 每个夹具写 §2.1.1 规定的字面量当期望值，旧实现只当旁证，和它不同的标成 intended 并断言确实不同。四处不一致一起改，localeCompare 改成按码点比较。
+    - context 注释里「只在 key 不在上下文时才发」，授权流程里从来不生效，和 sentry 的 org 分支一起删。第 5 片要用时带测试加回来。
+    - 写进第 3 片的稿：§2.8 的拒绝不能晚于第一次接线；发请求用 redirect: "error"。
+    - 行为变化，统筹接受：已授权的工作区为空时，今天能连上（account_id 以 :workspaces: 结尾），改后报错。会受影响的是没有任何组织的 Supabase 账号，这种账号碰不到任何项目；ClickUp 授权时必须选工作区，不受影响。允许为空就要给合同加开关，和收窄的方向相反。写进 §2.1.1，报错要说下一步怎么做，并配测试。
+    - W5-11 把第 2 片裁定、收窄、本次评审要改的合成一次推送。评审只复核增量，复核通过再开 PR。

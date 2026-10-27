@@ -560,3 +560,15 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
       - Notion 两条用例正好钉住「请求已发出后全部取消，新的 refresh token 不写」。
     - 排序：C 先改这一处，再交 RAC-510 方案。
   - **10-27 W5-10 #1315 CI 全绿**（14 项成功，1 项跳过，合并状态 CLEAN，base 是 main）。统筹批准合并，照 #1314 的做法走合并队列；合并那一步要用户本人在 W5-10 会话里点同意。合入后 #1316 把 base 改成 main，再 merge origin/main。#1322 的 CI 也全绿了，等集成批次。
+  - **10-27 C 推到 bc7c06c07**：personAsked 必改已修，委托来的调用只有来源主人 Feed 发的才算本人，暂定 S-99。c54cc6a5d 在 §13 记了 RAC-510 的状态。
+  - **RAC-510 方案（c-rac510-design.md），统筹批了方案 A**：平台给 `services.artifacts.join`，和 attention.join 同一套机制、复用同一份 gateFor。
+    - 成果在 Feed 的项目库事务里写：同一个连接，嵌套时用 SAVEPOINT，所以「提交之后、发布之前」这个窗口不存在。
+    - 会触发捕获的 6 个动作都声明 `artifact:write`。取消、撤权、停用一律回滚整个事务，不记 `artifact_out_failed`。
+    - 暂定 S-100，配 8 条拒绝用例。
+    - 条件：
+      - §7 先用用例证实 `feed.content.receive` 缺 `attention:write` 会不会被拒，是 C 的回归就在 C 里修；
+      - CHECKLIST §4.3 加一条候选维护：main 时期 producer 为 `native:feed` 0.0.0 的成果行改成 Feed 身份；
+      - 不写读取兼容。
+    - 评审在同时独立看方案，并复核 bc7c06c07。
+  - **登 R-69**：main 时期 Feed 捕获的成果线 producer 是 `native:feed` 0.0.0，C 之后这些旧线再捕获会出可见的 `artifact_out_failed`。处理办法是发版维护，动真实 Home 之前问用户。下一个空号 R-70。
+  - **W5-10 #1315**：头还是 a9f9e1d87，等用户本人在 W5-10 会话里点同意，再进合并队列。

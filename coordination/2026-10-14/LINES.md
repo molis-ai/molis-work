@@ -457,3 +457,9 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
       - ④ goals-mcp-grants-fixture：没装 Feed 的项目授权得 404 actions.missing。
     - a7b722fa9：inbox-plugin 加断言，钉住「移除 Inbox 会连带移除 Feed」。
     - ③④ 和 a7b722fa9 由评审确认是预期变化、不是削弱断言。评审排在 W5-11 最后一个小提交后面，C 接着做 FI7。
+  - **10-27 W5-11 第 1 片复核结束**：评审核完 ac646bbda..800cd0758，没有必须改的（笔记 review-w511-slice1-fix-d4907d78.md 第四部分）。
+    - RAC-1089 加了一条断言：发往 api.github.com 的请求不带旧连接的令牌。断言的是拒绝本身。
+    - 统筹批准推送并开第 1、2 片的 PR，base main。
+    - PR 正文写：根入口没变；新增 /oauth；Manifest 声明字段可写可不写；Alchemist 脉搏的账号要重新选，只写明、不修；本机延后验证。
+    - 改了 SDK，算共享核心，所以全量排进集成批次跑，这个 PR 等批次跑完再合。
+    - 合并要用户本人在 W5-11 会话里点同意。

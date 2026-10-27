@@ -28,6 +28,16 @@ export interface Shipped {
   readonly joins?: true;
   /** It cannot be taken out of a project (常开): the walk shows the refusal where the others are removed and added back. */
   readonly always_on?: true;
+  /**
+   * A dual-instance plugin: the Home half holds what the person writes and is the one the walk follows (its `home`-scope actions);
+   * each project's own half is a second installation that the Home half's uninstall does not touch.
+   */
+  readonly dual?: true;
+  /**
+   * A project plugin that is not personal: taking it out of the project stops the project's installation (`disabled`) and adding it
+   * back runs it again, where a personal plugin's installation keeps running whoever may reach it (apps/local-host/src/project-plugin-enablement.ts).
+   */
+  readonly stops_when_removed?: true;
   /** The required permission the walk takes back; `storage:private` unless the plugin keeps nothing of its own. */
   readonly revoke?: string;
   /** What `titles` answers after `write("first")`; `["first"]` unless the plugin names what it keeps otherwise. */
@@ -66,17 +76,18 @@ export function declared(pluginId: string): string[] {
 }
 
 /** Where the plugin is, for one Host: its routes in the project, the person's directory, and its installation. */
-export function viewOf(served: Served, project: TestProject, plugin: Pick<Shipped, "key" | "plugin_id" | "scope">) {
+export function viewOf(served: Served, project: TestProject, plugin: Pick<Shipped, "key" | "plugin_id" | "scope" | "dual">) {
   const routes = `/projects/${encodeURIComponent(project.project_id)}/api/plugins/${plugin.plugin_id}`;
   const platform = async () => plugin.scope === "home" ? await served.host.homePlugins!.ready()
     : await served.host.withProject(project.reference, runtime => runningProjectPlatform(runtime.store, project.project_id));
   return {
     routes,
     platform: async () => { const running = await platform(); assert.ok(running, `${plugin.key}: the ${plugin.scope} platform runs`); return running; },
-    /** The plugin's actions the person may call in the project now. */
-    async callable() {
+    /** The plugin's actions the person may call in the project now: those of the half the walk follows, or of the scope asked for. */
+    async callable(scope: "home" | "project" | undefined = plugin.dual ? "home" : undefined) {
       const views = await served.host.actionClient(project.reference).discover(await served.host.localPersonContext(project.reference));
-      return views.filter(view => view.provider.plugin_id === plugin.plugin_id && view.availability.available).map(view => `${view.capability_id}@${view.version}`).sort();
+      return views.filter(view => view.provider.plugin_id === plugin.plugin_id && view.availability.available && (scope === undefined || view.action.scope === scope))
+        .map(view => `${view.capability_id}@${view.version}`).sort();
     },
     async installation() {
       const record = (await platform())?.runtime.list().find(item => item.plugin_id === plugin.plugin_id);
@@ -116,11 +127,12 @@ export async function walk(plugin: Shipped, host: Partial<HostOptions> = {}) {
       assert.equal(await answer(served.web.delete(settings, { plugin_id: plugin.key })), 200);
       assert.equal(await answer(plugin.titles(served.web, at.routes)), "403 actions.plugin_disabled", `${plugin.key}: removed from the project`);
       assert.deepEqual(await at.callable(), [], `${plugin.key}: nothing of it to call in the project`);
-      assert.equal((await at.installation())?.state, "running");
-      // Added back: what was written is there.
+      assert.equal((await at.installation())?.state, plugin.stops_when_removed ? "disabled" : "running", `${plugin.key}: its installation after removal`);
+      // Added back: what was written is there, in the same installation.
       assert.equal(await answer(served.web.post(settings, { plugin_id: plugin.key })), 200);
       assert.deepEqual(await plugin.titles(served.web, at.routes), kept, `${plugin.key}: added back, with its data`);
       assert.deepEqual(await at.callable(), callable);
+      assert.deepEqual(await at.installation(), first, `${plugin.key}: the same installation, running`);
     }
 
     // A permission it requires taken back: it does not start, and nothing of it is called; given back, it runs with its data.
@@ -164,6 +176,7 @@ export async function walk(plugin: Shipped, host: Partial<HostOptions> = {}) {
     assert.equal(await answer(plugin.titles(served.web, at.routes)), "404 actions.missing", `${plugin.key}: not there after a restart`);
     assert.equal((await at.installation())?.state, "uninstalled", `${plugin.key}: still uninstalled after a restart`);
     assert.deepEqual(await at.callable(), []);
+    if (plugin.dual) assert.ok((await at.callable("project")).length > 0, `${plugin.key}: the project's own half is another installation, still there`);
   } finally {
     await served.shut();
     await rm(home, { recursive: true, force: true });

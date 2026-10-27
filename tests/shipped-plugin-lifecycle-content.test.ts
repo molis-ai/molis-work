@@ -20,7 +20,7 @@ const CONTENT: Record<string, Shipped> = {
     write: (web, routes, title) => web.post(`${routes}/workflows`, { title }),
     titles: async (web, routes) => titlesOf((await web.get<{ workflows: Array<{ title: string }> }>(`${routes}/workflows`)).workflows) },
   // In every new project by its plugin list; a daily task is what the person writes here.
-  schedule: { key: "schedule", plugin_id: "io.molis.work.schedule", scope: "project",
+  schedule: { key: "schedule", plugin_id: "io.molis.work.schedule", scope: "project", stops_when_removed: true,
     write: (web, routes, title) => web.post(`${routes}/tasks`, { title, instructions: "每天看一遍", time: "09:00" }),
     titles: async (web, routes) => titlesOf((await web.get<{ tasks: Array<{ title: string }> }>(`${routes}/list`)).tasks) },
 };

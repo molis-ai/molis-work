@@ -62,10 +62,12 @@ export class FeedSourceScheduler {
           // A guard that already refused stays refused: authority and the person's edits are never bookkept past.
           if (!beforeEffect.refused) beforeEffect = createFeedSourceSyncGuard(service.feed, source, authority, { afterOwnFailure: true });
           await beforeEffect();
-          await this.recordActionableFault(service, source, error, at);
+          await this.recordActionableFault(service, source, error, at, beforeEffect);
         }
         await beforeEffect();
-        await this.write(service, () => service.advanceSchedule(source.source_id, plannedAt, at));
+        // Checked again inside the transaction: a source changed while the commit waited keeps the schedule the person gave it (FI-C-05).
+        const guard = beforeEffect;
+        await this.write(service, () => { guard.check(); return service.advanceSchedule(source.source_id, plannedAt, at); });
       } finally {
         this.inFlight.delete(source.source_id);
       }
@@ -85,13 +87,14 @@ export class FeedSourceScheduler {
     return service.ports.commit ? service.ports.commit(operation) : Promise.resolve(operation());
   }
 
-  private async recordActionableFault(service: Pick<FeedSourceService, "feed" | "ports">, source: FeedSourceRecord, error: unknown, at: Date): Promise<void> {
+  private async recordActionableFault(service: Pick<FeedSourceService, "feed" | "ports">, source: FeedSourceRecord, error: unknown, at: Date, guard: FeedSourceSyncGuard): Promise<void> {
     const publicError = toFeedPublicError(error);
     if (publicError.retryable || !["auth", "configuration", "stale_cursor"].includes(publicError.category)) {
       return;
     }
     const feed = service.feed;
     await this.write(service, () => {
+      guard.check();
       const stored = feed.createInboxEntry({
         projectId: this.projectId,
         subjectType: "source_fault",

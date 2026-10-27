@@ -32,10 +32,12 @@ export interface ResearchLibrarySyncPorts {
  * republished under the same id moves its item to the new version together with its material.
  */
 export async function syncResearchLibrary(ports: ResearchLibrarySyncPorts, source: FeedSourceRecord, input: FeedSourceSyncInput): Promise<FeedSourceSyncResult> {
-  const { feed, commit } = ports;
+  const { feed } = ports;
   if (!/^[A-Za-z0-9][A-Za-z0-9:_-]{7,127}$/.test(input.idempotencyKey)) throw feedErrors.source_idempotency_required("同步需要 8–128 位幂等键");
   if (!source.enabled || source.status === "paused" || source.status === "disconnected") throw feedErrors.source_paused("来源已暂停，请先恢复");
   const beforeEffect = createFeedSourceSyncGuard(feed, source, input);
+  // Every write of this pull checks the source again inside its transaction: one changed while the commit waited gets nothing (FI-C-05).
+  const commit = <T>(operation: () => T): Promise<T> => ports.commit(() => { beforeEffect.check(); return operation(); });
   await beforeEffect();
   const operationId = `research-sync-${hash(`${source.source_id}:${input.idempotencyKey}`).slice(0, 32)}`;
   const previous = feed.getSourceRunByOperationId(source.project_id, operationId);

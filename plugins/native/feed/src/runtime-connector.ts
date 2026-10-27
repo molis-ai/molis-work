@@ -73,7 +73,7 @@ export function createRuntimeConnectorSync(ports: RuntimeConnectorSyncPorts): Fe
         if (mark !== original) throw feedErrors.source_connection_changed("账号连接已断开或改变，请重新确认来源账号后拉取");
       };
     },
-    async createListener(source, afterAccepted) {
+    async createListener(source, afterAccepted, checked) {
       const slot = connectorSlotOf(source);
       if (slot === null) throw pluginErrors.integration_unavailable(`来源 ${source.source_id} 没有可用的账号集成`);
       const { adapter } = await services.connector.open(slot, slot);
@@ -83,7 +83,7 @@ export function createRuntimeConnectorSync(ports: RuntimeConnectorSyncPorts): Fe
         services.connector.adapt({ slot_id: slot, integration_id: slot, record_key: context.source_id, event }) };
       return {
         run: (operationId, mode, execution) => new ListenerHost(ports.sql, platformConnector(services, source, slot, execution?.signal), ports.signals, {
-          commit: ports.commit,
+          commit: checked ?? ports.commit,
           afterSignalAccepted: (event, receipt) => afterAccepted(providerItemOf(event.payload), receipt.signal, event.occurred_at),
         }).run({ ...execution, project_id: projectId, source_id: source.source_id, connection_id: `source:${source.source_id}`, operation_id: operationId,
           adapter: raw, intent: { sync_mode: mode } }),

@@ -24,6 +24,8 @@ export class PublicSourceSync {
     }
     const idempotencyKey = normalizeIdempotencyKey(input.idempotencyKey);
     const beforeEffect = createFeedSourceSyncGuard(this.feed, source, input);
+    // Every write of this pull checks the source again inside its transaction: one changed while the commit waited gets nothing (FI-C-05).
+    const write = <T>(operation: () => T): Promise<T> => this.commit(() => { beforeEffect.check(); return operation(); });
     await beforeEffect();
     const operationId = stableId("feed-operation", `${source.source_id}\u0000${idempotencyKey}`);
     const request = buildExactRequest(source, operationId, this.ports.providers);
@@ -62,7 +64,7 @@ export class PublicSourceSync {
       updated_at: startedAt,
     };
     const started = running;
-    await this.commit(() => {
+    await write(() => {
       this.feed.upsertSourceRun(started);
       this.ports.appendEvent(this.projectId, sourceId, "feed_source.sync_started", "开始同步 Feed 来源", {
         operation_id: operationId,
@@ -75,7 +77,7 @@ export class PublicSourceSync {
       await beforeEffect();
       running = { ...running, receipt: withReceiptContentRefs(running.receipt, contentRefs) };
       const named = running;
-      await this.commit(() => { this.feed.upsertSourceRun(named); });
+      await write(() => { this.feed.upsertSourceRun(named); });
       await this.ports.holdContent!(source, contentRefs);
     } : undefined;
     const runtime = this.ports.createRuntime(source, operationId, hold);
@@ -85,7 +87,7 @@ export class PublicSourceSync {
         input.signal ? { signal: input.signal } : undefined,
       );
       await beforeEffect();
-      return await this.commitPublicResult(source, running, result, runtime);
+      return await this.commitPublicResult(source, running, result, runtime, write);
     } catch (error) {
       await beforeEffect();
       const current = this.feed.getSourceRunByOperationId(this.projectId, operationId);
@@ -104,7 +106,7 @@ export class PublicSourceSync {
         receipt: withReceiptContentRefs(running.receipt, runtime.writtenContentRefs?.() ?? []),
         updated_at: updatedAt,
       };
-      await this.commit(() => {
+      await write(() => {
         this.feed.upsertSourceRun(interrupted);
         const latest = this.feed.getSource(this.projectId, sourceId);
         const rssFailure = this.ports.providers.rss.isSourceKind(latest.kind)
@@ -142,6 +144,7 @@ export class PublicSourceSync {
     running: FeedSourceRunRecord,
     result: IntelligenceCollectResult,
     runtime: PublicFeedRuntime,
+    write: <T>(operation: () => T) => Promise<T>,
   ): Promise<FeedSourceSyncResult> {
     const completedAt = new Date().toISOString();
     const consumable = result.outcome === "completed" || (result.outcome === "partial" && result.requirementMet);
@@ -152,7 +155,7 @@ export class PublicSourceSync {
     let durableSource = entrySource;
     let terminal!: FeedSourceRunRecord;
     let actionableRssFailure: ReturnType<typeof rssFailureAction> = null;
-    await this.commit(() => {
+    await write(() => {
       const latest = this.feed.getSource(this.projectId, entrySource.source_id);
       if (consumable) {
         for (const material of result.materials) {

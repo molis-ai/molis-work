@@ -44,6 +44,8 @@ export class FeedConnectorSync {
       await input.beforeEffect?.();
       await connectionAuthority?.();
     } });
+    // Every write of this pull checks the source again inside its transaction: one changed while the commit waited gets nothing (FI-C-05).
+    const write = <T>(operation: () => T): Promise<T> => this.commit(() => { beforeEffect.check(); return operation(); });
     await beforeEffect();
     const operationId = stableId("connector-operation", `${source.source_id}\u0000${key}\u0000${input.mode ?? "normal"}`);
     const prior = this.feed.getSourceRunByOperationId(this.projectId, operationId);
@@ -54,6 +56,8 @@ export class FeedConnectorSync {
     let listenerResult: ListenerRunReceipt;
     try {
       const ingest: AfterAccepted = (item, signal, occurredAt) => {
+        // Delivered inside the commit of its signal: the item lands only on the source this pull checked.
+        beforeEffect.check();
         const latest = this.feed.getSource(this.projectId, source.source_id);
         this.feed.ingestItem({
           source: latest,
@@ -78,7 +82,7 @@ export class FeedConnectorSync {
       listener = await this.ports.createListener(source, this.ports.commit ? ingest : async (item, signal, occurredAt) => {
         await beforeEffect();
         ingest(item, signal, occurredAt);
-      });
+      }, this.ports.commit ? write : undefined);
       await beforeEffect();
       listenerResult = await listener.run(operationId, input.mode ?? "normal", { signal: input.signal, beforeEffect });
       await this.feed.flushPendingJudgments();
@@ -88,7 +92,7 @@ export class FeedConnectorSync {
       const errorCode = error instanceof ActionError && error.code.startsWith("listener.")
         && Object.hasOwn(listenerErrors, error.code.slice("listener.".length)) ? error.code : safeErrorCode(error);
       // A source's failure is that source's: it is recorded on the source below and never stops the plugin for the others.
-      await this.commit(() => {
+      await write(() => {
         const latest = this.feed.getSource(this.projectId, sourceId);
         this.feed.upsertSource({
           ...latest,
@@ -123,7 +127,7 @@ export class FeedConnectorSync {
       const publicMessage = failure === "needs_auth"
         ? `${source.name} 授权已失效或不可用，请打开任务设置中的“管理账号连接”重新授权。`
         : action ? `${message} — ${action}` : message;
-      await this.commit(() => {
+      await write(() => {
         const retrySchedule = failure === "rate_limited"
           && retryAfterAt
           && source.schedule.mode === "interval"
@@ -149,7 +153,7 @@ export class FeedConnectorSync {
     }
     const mode = connectorReceipt.mode === "fixture" ? "fixture" : "live";
     const cursor = listener.checkpoint().cursor;
-    const durableSource = await this.commit(() => {
+    const durableSource = await write(() => {
       const latest = this.feed.getSource(this.projectId, source.source_id);
       const durable = this.feed.upsertSource({
         ...latest,

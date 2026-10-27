@@ -26,11 +26,15 @@ export interface FeedConnectorSyncPorts {
    * it, `afterAccepted` runs inside the commit that accepts a signal and must finish synchronously.
    */
   commit?<T>(operation: () => T): Promise<T>;
+  /**
+   * `commit`, given with `commit` above, is the one the listener writes its runs, signals and checkpoint through: it checks this pull's source
+   * inside each transaction, so a listener never advances a source that changed while it waited (FI-C-05).
+   */
   createListener(source: FeedSourceRecord, afterAccepted: (
     item: IntegrationProviderItem,
     signal: Pick<SignalRecord, "signal_id" | "revision">,
     occurredAt: string,
-  ) => void | Promise<void>): Promise<FeedConnectorListener>;
+  ) => void | Promise<void>, commit?: <T>(operation: () => T) => Promise<T>): Promise<FeedConnectorListener>;
   transaction<T>(operation: () => T): T;
   appendEvent(projectId: string, sourceId: string, type: string, reason: string, payload: Record<string, unknown>): void;
 }

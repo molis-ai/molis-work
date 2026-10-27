@@ -244,8 +244,10 @@ const headErrors = (measured, budget, base) => {
 // deleted in the next change to this gate.
 // #1101's same approved application features, measured against Foundation b60cb292c on 2026-10-26.
 // Carry the prior exact Workbench +32893 B and CSS +680 B; main/Foundation allowances are consumed.
-// Settings CSS reductions use the original updater. Coding restore remains pending, with no allowance here.
+// Settings CSS reductions use the original updater. User approved Coding restore +1206 B on 2026-10-27;
+// together with the earlier archive +570 B, admit only the measured +1776 B. Future retention changes are not included.
 const APPROVED_CEILINGS = {
+  "/assets/molis-work-plugins/coding.js": [289674, 291450],
   "/assets/molis-work-workbench.js": [1142580, 1175473],
   "/assets/molis-work-workbench.css": [1236084, 1236764],
 };

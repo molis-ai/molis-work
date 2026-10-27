@@ -20,7 +20,7 @@ const ALLOWED: Readonly<Record<string, readonly Admission[]>> = {
   "apps/local-host/src/home-plugins.ts": ["fixtures"],
   "apps/local-host/src/plugin-platform.ts": ["given"],
   "apps/local-host/src/installed-plugin-host.ts": ["none"],
-  "apps/local-host/src/official-integrations.ts": ["none"],
+  "apps/local-host/src/integration-registry.ts": ["none"],
 };
 
 const productionFiles = execFileSync("git", ["ls-files", "--cached", "--others", "--exclude-standard", "-z", "--", "apps", "packages", "horizontal", "modules", "plugins", "server", "tooling", "scripts", "examples"],

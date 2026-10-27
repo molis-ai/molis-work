@@ -12,7 +12,7 @@ import {
   ARTIFACT_ACTIONS, ARTIFACT_ACTION_PERMISSIONS, ARTIFACTS_PROVIDER_ID, ARTIFACTS_PROVIDER_TITLE, ArtifactsModule, createArtifactsSchema,
 } from "@molis-ai/molis-work-module-artifacts";
 import { createContextLedgerSchema } from "@molis-ai/molis-work-module-context-ledger";
-import { HOST_PLUGIN_IDS, artifactActionProvider, liveHostFunctionAuthoringCatalog, localOwnerPermissionsOver } from "@molis-ai/molis-work-app-local-host";
+import { HOST_PLUGIN_IDS, artifactActionProvider, liveHostJudgmentRuleAuthoringCatalog, localOwnerPermissionsOver } from "@molis-ai/molis-work-app-local-host";
 import { MemoryPluginRuntimeRepository, PluginRuntime, UNSIGNED_TRUST } from "@molis-ai/molis-work-plugin-runtime";
 import { SearchService } from "@molis-ai/molis-work-service-search";
 import { openTextSearchIndex } from "@molis-ai/molis-work-storage";
@@ -115,10 +115,10 @@ test("RAC-1048 the person's permissions over the 成果库 come from the module'
   assert.deepEqual([...new Set(ARTIFACT_ACTIONS.flatMap(row => row.action.permissions))].sort(), [...ARTIFACT_ACTION_PERMISSIONS].sort());
 });
 
-test("RAC-1049 the Function authoring catalog lists the 成果库's actions as the platform's, not as a plugin's", async t => {
+test("RAC-1049 the judgment rule authoring catalog lists the 成果库's actions as the platform's, not as a plugin's", async t => {
   const { actions } = await hitsOf(t, host => host);
   const directory = await actions.discover({ ...person, audience: "agent" });
-  const behaviors = liveHostFunctionAuthoringCatalog(directory).behaviors.filter(behavior => "action_ref" in behavior && behavior.action_ref.provider_id === ARTIFACTS_PROVIDER_ID);
+  const behaviors = liveHostJudgmentRuleAuthoringCatalog(directory).behaviors.filter(behavior => "action_ref" in behavior && behavior.action_ref.provider_id === ARTIFACTS_PROVIDER_ID);
   assert.ok(behaviors.length > 0, "the Agent can be offered 成果库 actions");
   for (const behavior of behaviors) { assert.equal(behavior.source, "system"); assert.equal(behavior.plugin_id, ARTIFACTS_PROVIDER_ID); assert.equal(behavior.plugin_title, ARTIFACTS_PROVIDER_TITLE); }
 });

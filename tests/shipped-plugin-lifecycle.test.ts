@@ -226,7 +226,7 @@ test("RAC-1034 W6-02 BL-755 a project's supervisor keeps uninstall, restarts a l
     await served.shut();
     served = await serve(home);
     scheduleAt = viewOf(served, project, schedule); pagesAt = viewOf(served, project, pages);
-    assert.equal(await answer(pages.titles(served.web, pagesAt.routes)), "403 actions.plugin_permission", "Pages: the withdrawn read permission still refuses an actual read after restart");
+    assert.equal(await answer(pages.titles(served.web, pagesAt.routes)), "400 plugin.grant_denied", "Pages: the route's Host client refuses its withdrawn read grant before action dispatch");
     assert.deepEqual(await pagesAt.installation(), { ...pagesInstall, state: "running", grants: narrowedGrants }, "the same installation runs without silently returning the optional grant");
     const views = await served.host.actionClient(project.reference).discover(await served.host.localPersonContext(project.reference));
     const read = views.find(view => view.provider.plugin_id === pages.plugin_id && view.capability_id === "pages.list");

@@ -609,3 +609,17 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
       - 报告写到共享笔记目录 `privileges-sweep-2026-10-27.md`，C 合入后统筹照它改登记册。
     - 两份「别碰」名单放在共享笔记目录：`c-branch-files-bc7c06c07.txt`（C 分支 450 个文件）、`w510-w511-pr-files-2026-10-27.txt`（#1316、#1317、#1322 的 35 个文件）。
     - 下一个空号：BL-810、RAC-1110、R-70。
+  - **10-27 两张卡用户都已点开**：`ac-lifecycle` = `local_974f0dd5-26c1-437a-82ca-dce25f83628e`；`ac-sweep` = `local_57451d27-eeaf-4b46-8fd6-b940e63dbb64`。
+  - **10-27 ac-sweep 报告到**（副本 `notes/privileges-sweep-2026-10-27.md`，基线 main `74f31c19e`、C `bc7c06c07`）：
+    - 97 项：A 已在 main 做完 17；B 在 C 上做完 11；C 还剩代码 57；D 维护时段 4；E 绕过 2；待定 6。
+    - 统筹核过的两处更正：
+      - BL-123 等 #1101：同事的草稿 PR 改了 storage 的 memory-ledger*、text-search-index、knowledge-cards，以及 `contracts/services/memory*`、`search.ts`。
+      - BL-646 等 C：C 改了全部三个动作快照。
+    - 现在能开工的只剩 PG-064 的 Schedule 一半，已派回 ac-sweep：先核门禁数字会不会真降，不降就不做。号段 RAC-1110～1114、BL-810～812。
+    - ac-sweep 同时把 6 条待定核成定论。
+    - 其余代码活都排在 C、W5-10（#1316/#1317）、W5-11、#1101、W5-06 挂载器或维护时段之后。眼下最能提速的仍是让 C 合入。
+  - **10-27 转给 C 的合入前两处**：
+    - `tests/artifact-host-writers.test.ts` 的 `HOST_WRITERS` 还列着已删的 `feed-application.ts`，又漏了 `demo-feed-library.ts:89`，按代码看会红；统筹已核。
+    - 合 main 时确认 privileges.md 第 3 行 main 的 10-27 头部说明还在。
+    - 同时请 C 在收口提交里照报告 §2 改随 C 完成的 privileges 行。
+  - 下一个空号：BL-813、RAC-1115、R-70。

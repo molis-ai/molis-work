@@ -1,6 +1,6 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { AttentionReason as ModuleAttentionReason, AttentionStatus as ModuleAttentionStatus, AttentionSubjectType as ModuleAttentionSubjectType } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
+import { inboxErrors, type AttentionEntryRecord, type AttentionReason as ModuleAttentionReason, type AttentionStatus as ModuleAttentionStatus, type AttentionSubjectType as ModuleAttentionSubjectType } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import type { SourceRecord } from "@molis-ai/molis-work-contracts/modules/sources";
 import type { FeedItemDisposition, FeedItemRecord, FeedMaterialRecord, FeedOutRuleRecord, FeedSnapshot, FeedSourceRunRecord, FeedSourceRecord, InboxEntryReason, InboxEntryRecord, InboxEntryStatus, InboxEntrySubjectType, SourceHistoryDecision } from "./projection.js";
 
@@ -514,7 +514,6 @@ export class FeedApplication {
 
 }
 
-/** Until Feed/Inbox resolve subjects by owner, their shared entry reader only resolves unassigned facts. */
 /**
  * The entries Feed's application lists and acts on: the unassigned ones the host's Attention Module still holds, and its own once the
  * platform's service records the owner. Another plugin's entries (a Goal's decision) are that plugin's, and Feed does not find them.

@@ -4,7 +4,6 @@ import { listProjectRoots, type ProjectsModule } from "@molis-ai/molis-work-modu
 import { DEMO_PROJECT_ID } from "./demo-project-id.js";
 import { DEMO_CORE_ARTIFACT_ID, registerDemoDeliverableVersions } from "./demo-deliverable.js";
 import { LocalProjectDatabase } from "./project-database.js";
-import { openProjectVersionStores } from "./project-version-stores.js";
 import { createDemoFeedApplication, createDemoFeedSourceService } from "./demo-feed-library.js";
 import type { BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionErrorKind } from "@molis-ai/molis-work-plugin-sdk";

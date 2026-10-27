@@ -60,6 +60,9 @@ export interface PluginAttentionWriter {
 export interface PluginAttentionClient {
   list(): PluginAttentionEntryRecord[];
   get(entryId: string): PluginAttentionEntryRecord;
+  /** The person's Inbox: unassigned entries and each running build's explicitly declared inbox kinds, by owner. */
+  listInbox(): AttentionEntryRecord[];
+  getInbox(entryId: string): AttentionEntryRecord;
   findActiveForSubject(subject: PluginAttentionSubjectReference): PluginAttentionEntryRecord | null;
   findForSubject(subject: PluginAttentionSubjectReference): PluginAttentionEntryRecord[];
   events(entryId?: string): PluginAttentionEvent[];

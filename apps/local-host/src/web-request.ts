@@ -41,7 +41,6 @@ import type { MolisWorkProjectRuntime } from "./project-host.js";
 import type { ProjectPluginSurfacePorts } from "./project-plugin-stages.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
 import { bindGoalsWebActions } from "./goal-callers.js";
-import { projectFeedOptions } from "./workflow-feed-options.js";
 import { handleFeedNativePluginHttp } from "./feed-native-plugin-http.js";
 import { NATIVE_CONTENT_PERMISSIONS } from "./native-content-permissions.js";
 import {

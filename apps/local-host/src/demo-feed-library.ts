@@ -3,7 +3,6 @@ import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contrac
 import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
 import type { ContextAccess, ContextEdge, ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
-import { createGoalReadServices } from "@molis-ai/molis-work-module-goals";
 import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
 import { projectVersionStores, type ArtifactsSqliteDatabase } from "@molis-ai/molis-work-module-artifacts";
 import { GMAIL_DEFAULT_SCOPE, parseGmailScope } from "@molis-ai/molis-work-integration-gmail/scope";
@@ -56,7 +55,6 @@ function feedLedger(ledger: ContextLedgerApi): FeedLedgerPort {
 export function createDemoFeedApplication(db: SqliteDatabase, options: DemoFeedApplicationOptions = {}): FeedApplication {
   const sql = fromBetterSqlite(db);
   const journal = new LocalSqliteJournal(db);
-  const goals = createGoalReadServices(db, journal).query;
   let inboxCreated: (entry: { project_id: string; entry_id: string }) => void = () => {};
   function appendEvent(...args: Parameters<FeedApplicationPorts["appendEvent"]>): void {
     const [projectId, objectType, objectId, type, reason, payload, at] = args;
@@ -76,7 +74,7 @@ export function createDemoFeedApplication(db: SqliteDatabase, options: DemoFeedA
       exists: (projectId, subjectType, subjectId) => {
         if (subjectType === "feed_item") return subjects.feedItemExists(projectId, subjectId);
         if (subjectType === "source_fault") return subjects.sourceExists(projectId, subjectId);
-        return goals.getGoal(projectId, subjectId) !== null;
+        return false;
       },
     }, {
       eventSink: event => {

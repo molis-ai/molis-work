@@ -153,7 +153,7 @@ async function withTimeout<T>(
 }
 
 export { ConnectorConnectionStore, CONNECTOR_CONNECTIONS_SCHEMA, normalizeConnectorTokenInput } from "./connection-store.js";
-export type { ConnectorConnectionSecrets, ConnectorTokenInput } from "./connection-store.js";
+export type { ConnectorBindingKey, ConnectorConnectionSecrets, ConnectorTokenInput } from "./connection-store.js";
 export { parsePluginBindingScope, pluginBindingErrors, pluginBindingScope, type PluginBindingTarget } from "./plugin-binding-scopes.js";
 
 export * from "./protocol-store.js";

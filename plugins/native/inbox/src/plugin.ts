@@ -1,9 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { ActionError, WORKFLOW_CONTENT_VERSIONS, resolveActionSubject, type ActionCallContext, type ActionClient, type ActionReference, type WorkflowItemRef, type WorkflowPayload } from "@molis-ai/molis-work-contracts/platform/actions";
-import { inboxErrors, type AttentionStatus } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
+import { inboxErrors, type AttentionEntryRecord, type AttentionStatus } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import { INBOX_NEXT_SCENE_ID } from "@molis-ai/molis-work-contracts/modules/functions";
-import type { PagesGenerationRecord, PagesInputSnapshot, PagesRecord } from "@molis-ai/molis-work-contracts/modules/pages";
-import type { PluginAttentionEntryRecord, PluginDefinition, PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { InboxPagesGeneration, InboxPagesInputSnapshot, InboxPagesDocument } from "./pages-shapes.js";
+import type { PluginDefinition, PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createInboxActionHandlers, type InboxActionEntry } from "./actions.js";
 import { createInboxContentHandlers, type InboxBriefs, type InboxItemBrief } from "./content-actions.js";
 import { inboxManifest } from "./manifest.js";
@@ -53,10 +53,10 @@ export function createInboxPlugin(): PluginDefinition {
     if (!attention || !database || !scenes || !judgments || !own || !directory) throw new ActionError("actions.unredeemed", "Inbox 需要注意力、项目库、场景、判断账与动作目录服务");
     const ask = <Output>(reference: ActionReference, input: unknown) => directory.invoke<Output>(reference, input);
     const feedMissing = (error: unknown) => error instanceof ActionError && error.code === "actions.dependency_missing";
-    const recordOf = (entry: PluginAttentionEntryRecord): InboxActionEntry => ({ ...entry, project_id: projectId });
+    const recordOf = (entry: AttentionEntryRecord): InboxActionEntry => ({ ...entry, project_id: projectId });
     /** The entry as Attention has it; one that is not Inbox's to show is `inbox.entry_not_found`, the code the pages and callers know. */
-    const entryOf = (entryId: string): PluginAttentionEntryRecord => {
-      try { return attention.get(entryId); }
+    const entryOf = (entryId: string): AttentionEntryRecord => {
+      try { return attention.getInbox(entryId); }
       catch (error) { if (error instanceof ActionError && error.code === "attention.entry_not_found") throw inboxErrors.entry_not_found("Inbox Entry 不存在"); throw error; }
     };
     const bindings = new InboxSceneBindings({ get: (statement, ...parameters) => database.get(statement, parameters as never[]) ?? undefined,
@@ -90,11 +90,11 @@ export function createInboxPlugin(): PluginDefinition {
       return { items, sources };
     };
     const pages = createInboxPagesHandlers({
-      generation: async requestId => (await ask<{ record: PagesGenerationRecord | null }>(PAGES.generation, { request_id: requestId })).record,
-      generations: async () => (await ask<{ records: PagesGenerationRecord[] }>(PAGES.generations, {})).records,
-      readDocument: async id => (await ask<{ document: PagesRecord }>(PAGES.get, { id })).document,
+      generation: async requestId => (await ask<{ record: InboxPagesGeneration | null }>(PAGES.generation, { request_id: requestId })).record,
+      generations: async () => (await ask<{ records: InboxPagesGeneration[] }>(PAGES.generations, {})).records,
+      readDocument: async id => (await ask<{ document: InboxPagesDocument }>(PAGES.get, { id })).document,
       generate: (input) => ask(PAGES.generate, { ...input, inputs: [...input.inputs] }),
-      readMaterial: async (entryId, caller): Promise<PagesInputSnapshot> => {
+      readMaterial: async (entryId, caller): Promise<InboxPagesInputSnapshot> => {
         await caller.validate_permissions?.(["inbox:read"]);
         caller.signal?.throwIfAborted();
         const entry = entryOf(entryId);
@@ -104,11 +104,11 @@ export function createInboxPlugin(): PluginDefinition {
         if (entryOf(entryId).revision !== entry.revision) throw new ActionError("actions.offer_changed", "检查期间原材料或来源已变化，请重新载入");
         caller.signal?.throwIfAborted();
         return { entry_id: entryId, item_id: material.item_id, revision: material.revision, title: material.title, body: material.body, url: material.url,
-          source_label: material.source_label, captured_at: new Date().toISOString(), provenance: material.provenance } as PagesInputSnapshot;
+          source_label: material.source_label, captured_at: new Date().toISOString(), provenance: material.provenance } as InboxPagesInputSnapshot;
       },
     });
     const actions = [...createInboxActionHandlers({ ...sceneRuntime.ports, ...pages,
-      listEntries: () => attention.list().map(recordOf),
+      listEntries: () => attention.listInbox().map(recordOf),
       setStatus: async (entryId, status, revision, caller) => {
         const entry = entryOf(entryId);
         // Reopening is admission too: an ignored item's entries stay closed until the person restores the item, and only Feed can say so.
@@ -117,10 +117,13 @@ export function createInboxPlugin(): PluginDefinition {
             .catch(error => { if (feedMissing(error)) throw inboxErrors.invalid("Feed 未启用，无法确认这条消息能否重新打开"); throw error; });
           if (!admission.admissible) throw inboxErrors.invalid("请先恢复这条已忽略的 Feed 消息");
         }
-        return recordOf(await database.transaction(() => caller.beforeEffect(), tx => attention.join(tx, writer => writer.setStatus(entryId, status as AttentionStatus, revision)) as PluginAttentionEntryRecord));
+        return recordOf(await database.transaction(() => caller.beforeEffect(), tx => attention.join(tx, writer => {
+          entryOf(entryId);
+          return writer.setStatus(entryId, status as AttentionStatus, revision);
+        })));
       },
     }), ...createInboxContentHandlers({
-      entries: () => attention.list(), entry: entryOf, briefs,
+      entries: () => attention.listInbox(), entry: entryOf, briefs,
       readSubject: async (subject, caller) => (await resolveActionSubject(subjects, caller, subject)).context,
       readFeed: id => ask<WorkflowPayload>(FEED.read, { item_id: id }),
       receiveFeed: input => ask<WorkflowItemRef>(FEED.receive, input),

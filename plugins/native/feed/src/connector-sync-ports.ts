@@ -18,6 +18,8 @@ export interface FeedConnectorSyncPorts {
   acquireSync?(projectId: string, sourceId: string): () => void;
   /** The connection owner pins its original account; Feed owns source configuration. */
   connectionAuthority?(source: FeedSourceRecord): () => void | Promise<void>;
+  /** Account presentation from the current platform binding; no account identifier is written into source configuration. */
+  sourceMetadata?(source: FeedSourceRecord, cursor: unknown): Pick<FeedSourceRecord, "account_label" | "config"> | Record<string, never>;
   /**
    * One write that may wait for the caller's authority first (the Runtime: `createFeedWriter().commit`). Absent, a write is `transaction`.
    * Everything a sync writes after it has awaited goes through here, because a Runtime Feed cannot write outside its transaction. With

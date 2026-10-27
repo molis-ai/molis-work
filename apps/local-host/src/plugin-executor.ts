@@ -38,7 +38,7 @@ export interface PluginHostExecutorOptions {
    * (`services.project_database`); absent or `null`: none, and such a plugin does not start.
    */
   projectLibrary?: import("./plugin-project-library.js").ProjectLibrary | null;
-  installations?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginInstallationClient;
+  installations?: Pick<import("@molis-ai/molis-work-contracts/platform/plugin").PluginInstallationClient, "list" | "get">;
   /** Stands in for the Home's project catalog behind `services.projects` (S-96); absent: the catalog of `home` is read. */
   projects?: import("@molis-ai/molis-work-plugin-runtime").PluginProjectsPort;
   /** Test seam for `services.sourcePull`: the fetch its public-feed pulls go through. Production never passes it. */

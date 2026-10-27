@@ -49,21 +49,23 @@ export function createConnectorSourcePort(options: ConnectorSourcePortOptions): 
       const account = accountOf(home, target);
       if (!account) return refusal(request.integration_id);
       const marker = markerOf(account);
-      const integration = await registry.bind(request.integration_id, "source", bindingOf(account, source_id, request.settings));
-      const connector = new ConnectorHost(), connection_id = `source:${source_id}`;
-      connector.registerDriver(integration.connector_driver);
-      connector.connect({ connection_id, driver_id: integration.connector_driver.driver_id });
-      await run.beforeEffect();
-      const receipt = await withConnectorRequest(home, account.connection_id, run.signal, signal => runWithMolisWorkHome(home, () => {
-        signal.throwIfAborted();
-        return connector.invoke({ connection_id, cursor: request.cursor, intent: { ...request.intent } });
-      }));
-      await run.beforeEffect();
-      // The account the pull was made with is the one the person has now: a swap or a change in the middle gives events of two accounts.
-      const now = accountOf(home, target);
-      if (!now || markerOf(now) !== marker) throw connectorSourcePullErrors.connection_changed("账号连接已断开或改变，请重新确认来源账号后拉取");
-      const { receipt_id, driver_id, started_at, completed_at, result } = receipt;
-      return { receipt_id, driver_id, started_at, completed_at, result };
+      // Register synchronously after reading the binding, before the first wait. A slot's ABA cannot revive this controller.
+      return withConnectorRequest(home, account.connection_id, run.signal, async signal => {
+        const current = () => {
+          signal.throwIfAborted(); run.current();
+          const now = accountOf(home, target);
+          if (!now || markerOf(now) !== marker) throw connectorSourcePullErrors.connection_changed("账号连接已断开或改变，请重新确认来源账号后拉取");
+        };
+        const integration = await registry.bind(request.integration_id, "source", bindingOf(account, source_id, request.settings));
+        const connector = new ConnectorHost(), connection_id = `source:${source_id}`;
+        connector.registerDriver(integration.connector_driver);
+        connector.connect({ connection_id, driver_id: integration.connector_driver.driver_id });
+        await run.beforeEffect(); current();
+        const receipt = await runWithMolisWorkHome(home, () => connector.invoke({ connection_id, cursor: request.cursor, intent: { ...request.intent } }));
+        await run.beforeEffect(); current();
+        const { receipt_id, driver_id, started_at, completed_at, result } = receipt;
+        return { receipt_id, driver_id, started_at, completed_at, result };
+      }, { scope_id: targetScope(target), plugin_id: target.plugin_id, slot_id: target.slot_id });
     },
     async adapt(target, integration_id, event) {
       const registry = await integrationOf(integration_id, target.service_id);

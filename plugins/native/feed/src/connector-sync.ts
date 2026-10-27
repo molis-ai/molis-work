@@ -155,7 +155,7 @@ export class FeedConnectorSync {
         ...latest,
         status: mode === "live" ? "active" : "error",
         cursor,
-        ...this.ports.sourceMetadata(latest, cursor),
+        ...(this.ports.sourceMetadata ? this.ports.sourceMetadata(latest, cursor) : accountFields(latest, listener.account?.(cursor) ?? null)),
         last_sync_at: completedAt,
         last_outcome: "completed",
         last_error_code: mode === "live" ? null : "feed.fixture_not_live",

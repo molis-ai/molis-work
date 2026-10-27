@@ -200,7 +200,7 @@ test("S-97 RAC-1021: a pull whose call is cancelled, revoked, stopped or refused
 // ── The Host's side ──────────────────────────────────────────────────────────────────────────────────────────────────
 
 /** A Home with a GitHub account bound to record `src-1` of the `github` slot in project `p-1`, and a registry whose provider this test owns. */
-async function hostRig(t: TestContext, options: { home?: string; sync?: (binding: IntegrationBinding) => void } = {}) {
+async function hostRig(t: TestContext, options: { home?: string; sync?: (binding: IntegrationBinding) => void | Promise<void> } = {}) {
   const home = options.home ?? await mkdtemp(join(tmpdir(), "connector-source-home-"));
   if (!options.home) t.after(() => rm(home, { recursive: true, force: true }));
   const bindings: IntegrationBinding[] = [], syncs: IntegrationBinding[] = [];
@@ -210,7 +210,7 @@ async function hostRig(t: TestContext, options: { home?: string; sync?: (binding
       type: "github",
       async health() { return { ok: true, status: "connected", message: "ok" }; },
       async sync() {
-        syncs.push(binding); options.sync?.(binding);
+        syncs.push(binding); await options.sync?.(binding);
         return { ok: true, mode: "live", items: [{ externalId: "n1", title: "Review requested", summary: "A pull request wants your review" }], cursor: "c1" };
       },
     };
@@ -222,7 +222,7 @@ async function hostRig(t: TestContext, options: { home?: string; sync?: (binding
   const bind = (connectionId: string, scope = target, serviceId = "github") => withConnectorConnections(home, store => store.bind({
     scopeId: pluginBindingScope({ install_id: scope.install_id, project_id: scope.project_id, record_key: scope.record_key }), pluginId: scope.plugin_id, slotId: scope.slot_id, serviceId, connectionId }));
   const request = { integration_id: "github", cursor: null as unknown };
-  return { home, port, target, run, connect, bind, request, bindings, syncs };
+  return { home, port, target, run, connect, bind, request, bindings, syncs, registry: await registry };
 }
 const needsAuth = (receipt: ConnectorPullReceipt) => !receipt.result.ok && receipt.result.failure === "needs_auth";
 
@@ -291,11 +291,66 @@ test("S-97 RAC-1022: an account changed in the middle of a pull is refused, and 
   const f = await hostRig(t, { sync: () => swap?.() }), first = f.connect(), second = f.connect();
   f.bind(first.connection_id);
   swap = () => f.bind(second.connection_id);
-  await assert.rejects(f.port.pull(f.target, f.request, f.run), code("connector.source_pull.connection_changed"));
+  await assert.rejects(f.port.pull(f.target, f.request, f.run), /账号连接槽已改变/u);
   // A disconnect aborts the requests in flight on that account itself, before the platform's own recheck.
   swap = () => withConnectorConnections(f.home, store => store.disconnect(second.connection_id));
   await assert.rejects(f.port.pull(f.target, f.request, f.run), /连接已改变/u);
   assert.equal(f.syncs.length, 2);
+});
+
+function pullBarrier() {
+  let entered!: () => void, release!: () => void;
+  const reached = new Promise<void>(resolve => { entered = resolve; });
+  const wait = new Promise<void>(resolve => { release = resolve; });
+  return { reached, release, async hold() { entered(); await wait; } };
+}
+
+test("S-97 FI-C-01: binding changes during registry bind or the final authorization wait send nothing", { timeout: 60_000 }, async t => {
+  for (const at of ["bind", "beforeEffect"]) for (const change of ["unbind", "swap", "project", "installation-project", "installation"]) {
+    await t.test(`${at}/${change}`, async t => {
+      const f = await hostRig(t), account = f.connect(), other = f.connect(), gate = pullBarrier();
+      f.bind(account.connection_id);
+      if (at === "bind") {
+        const bind = f.registry.bind.bind(f.registry);
+        f.registry.bind = async (...args) => { const bound = await bind(...args); await gate.hold(); return bound; };
+      } else f.run.beforeEffect = gate.hold;
+      const pending = f.port.pull(f.target, f.request, f.run);
+      const rejected = assert.rejects(pending, /账号连接槽已改变/u);
+      try {
+        await gate.reached;
+        withConnectorConnections(f.home, store => {
+          if (change === "unbind") store.unbind(pluginBindingScope(f.target), PLUGIN, "github");
+          else if (change === "swap") f.bind(other.connection_id);
+          else if (change === "project") store.forgetProjectBindings(f.target.project_id);
+          else if (change === "installation-project") store.forgetInstallationProjectBindings(INSTALL, f.target.project_id);
+          else store.forgetInstallationBindings(INSTALL);
+        });
+      } finally { gate.release(); }
+      await rejected;
+      assert.equal(f.syncs.length, 0, "the old account never entered its provider");
+    });
+  }
+});
+
+test("S-97 FI-C-01: ABA never revives an old pull and does not cancel another record on the same account", { timeout: 60_000 }, async t => {
+  for (const via of ["unbind", "other-account"]) await t.test(via, async t => {
+    const gate = pullBarrier(); let first = true;
+    const f = await hostRig(t, { sync: async binding => { if (binding.source_id === "src-1" && first) { first = false; await gate.hold(); } } });
+    const a = f.connect(), b = f.connect(), other = { ...f.target, record_key: "src-other" };
+    f.bind(a.connection_id); f.bind(a.connection_id, other);
+    const old = f.port.pull(f.target, f.request, f.run);
+    const rejected = assert.rejects(old, /账号连接槽已改变/u);
+    try {
+      await gate.reached;
+      if (via === "unbind") withConnectorConnections(f.home, store => store.unbind(pluginBindingScope(f.target), PLUGIN, "github"));
+      else f.bind(b.connection_id);
+      f.bind(a.connection_id);
+      assert.equal((await f.port.pull(other, f.request, f.run)).result.ok, true, "another slot on A remains authorized");
+    } finally { gate.release(); }
+    await rejected;
+    assert.equal((await f.port.pull(f.target, f.request, f.run)).result.ok, true, "a new pull may use the newly bound A");
+    assert.equal(f.syncs.length, 3);
+  });
 });
 
 test("S-97 RAC-1022: adapting uses the registry's adapter with no account, and accounts answers only whether the Home has one", { timeout: 60_000 }, async t => {

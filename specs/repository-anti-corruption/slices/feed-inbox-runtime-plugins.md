@@ -537,3 +537,5 @@ type SourcePullRequest =                       // 闭合：多一个字段就拒
 核验沿现有 `scripts/run-tests.mjs` 的具名定向文件与原第一失败，必须测试实际生产 provider/refresh resolver/runner/owner调用链；自制port stub不能证明发送或写回已停。真实临时Host覆盖Feed两半重启、槽换号、hold/正文/共享保留、删除重试、Inbox/Pages/Goal、规则排程与权限不足；真实测试Chrome验新路由/刷新/失败恢复。独立TEST不改断言，SOURCE只评新增修复和未覆盖4e2/collector/翻转。构建、API/actions、registry/inventory/table-owner、health/security/assets及唯一最终CI/Full按Root资源队列接续；当前阶段仅源码，不占独立TEST的build/browser槽。
 
 不启动 R62/R63 等新需求、六种未支持连接器、真实Home/4207、旧库回填或完整性标记、安装/发版、BL739/RAC999维护。fa04仅取既有RAC482读取路径段；公共文件和准确资源额度只在真实合成树上更新，不沿旧源预算或放宽门禁。必须修、非阻塞恢复和验证缺口逐项保实际owner、提交、独立复审/验证与真实采用，登记不代表闭环。
+
+组合检查点 `d7da3e05c9f36a111261c0a431a6c6152dc71edd` 已保全固定来源与72处冲突解决；`11bf8bbba23a9107085c003d2e3c794565db5feb` 普通合并准确 AB `63d7b896`，包含0c之后11路径末尾修正，尚不代表工程通过。Inbox 的 #1295 投影通过现有平台 Attention query 暴露 `listInbox/getInbox`：每次从可信项目连接读取实际 running 安装及确切归档 digest 的 `attention.inbox`，保留未分配条目，普通 list/get 语义不变。Inbox 列表、详情、场景与 Pages 共用该投影，状态变更在原异步 admission/认权之后的同步事务体再次读投影；Feed 只拥有自己的事项，不读取 Goals 私表。Pages 消费形状沿 Inbox 已有 pages-shapes，不恢复删除的公共 Pages 合同或增加插件实现依赖。此适配沿现有 RAC-807/808 与运行安装/归档/owner 反例验证。

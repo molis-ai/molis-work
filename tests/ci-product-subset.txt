@@ -498,3 +498,5 @@ tests/security-invariants-secret-snapshot.test.ts
 tests/security-invariants-home-storage-owner.test.ts
 # W5-06 RAC-75～78: view placement declarations are checked by the SDK and read by the rail, settings, creates and starts.
 tests/view-placement-declarations.test.ts
+# BL-635 RAC-1115: every name the workbench entry gives out has an importer outside the workbench, or a listed reason to stay.
+tests/workbench-entry-exports.test.ts

@@ -235,8 +235,9 @@ export interface OAuthRequestScope {
 /**
  * The tenant origin a request with the access token goes to, worked out here and never by the caller: the value kept by the method's one
  * `check: "tenant"` keep, checked against the platform's table again, else the tenant setting. A token-response keep is there once the
- * authorization passed (it is `required`), so its absence is refused, not filled from the setting; an `identity.keep` one falls back to the
- * setting only for the identity request it comes from.
+ * authorization passed (it is `required`), so its absence is refused, not filled from the setting. An `identity.keep` one falls back to the
+ * setting whenever the context lacks it: this function cannot tell the identity request from a later one, and the two only agree because
+ * the keep is `required`, so the authorization fails rather than store a connection without it. No service declares one today.
  */
 export function oauthPinnedTenant(scope: Pick<OAuthRequestScope, "serviceId" | "method" | "context" | "settings">): string | undefined {
   const keep = (scope.method.keep ?? []).find(entry => entry.check === "tenant");

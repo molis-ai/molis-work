@@ -158,7 +158,7 @@
 **来源可变的只有租户，范围由平台表定。**
 - Manifest 不写主机后缀，也不写来源列表。端点主机是写死的；只有 `use: "tenant"` 的那一个 setting 能换来源，写成 `{tenant}/路径`。
 - 平台检查这个值时，用的是平台表里这个服务的 `CONNECTOR_REQUEST_SERVICES[service].tenant.domain`，和今天 `salesforceOrigin` 是同一组规则：https，不带凭据、端口、路径，主机等于这个域或在它下面。平台表里没有 `tenant` 的服务，声明了 `use: "tenant"` 就是声明错误。
-- `keep` 的 `check: "tenant"` 也一样：留下来的来源（salesforce 的 `instance_url`）必须过同一个检查，再钉进 `connector_connection_targets`。这一条不比今天的 `salesforce.com` 后缀松。写了 `check: "tenant"` 的 keep 必须同时写 `required: true`（统筹 10-27，照第 1 片复核）：响应里没有就授权失败，之后连接里缺了这个值也拒绝，不悄悄退回登录来源，因为 identity 和后面的请求发到哪里不该悄悄变。只有写在 `identity.keep` 里的那项，在它自己那次 identity 请求时还没有，那次发往 tenant 设置。
+- `keep` 的 `check: "tenant"` 也一样：留下来的来源（salesforce 的 `instance_url`）必须过同一个检查，再钉进 `connector_connection_targets`。这一条不比今天的 `salesforce.com` 后缀松。写了 `check: "tenant"` 的 keep 必须同时写 `required: true`（统筹 10-27，照第 1 片复核）：响应里没有就授权失败，之后连接里缺了这个值也拒绝，不悄悄退回登录来源，因为 identity 和后面的请求发到哪里不该悄悄变。写在 `identity.keep` 里的那项不一样：上下文里没有它时，解释器就用 tenant 设置，分不出这是那次 identity 请求本身还是之后的请求；两者结果一样，只是因为它也 `required`，授权时取不到就失败，连接里不会缺它。今天没有服务这样写。
 - SDK 不需要公共后缀表（M5）。第一版的 `origins` 列表和 `origin_setting` 都去掉了，`settings.use: "origin"` 也一起去掉（建议 9）。
 
 **带令牌的请求（identity、context）只发往平台表允许的地方**（M2(b)）：

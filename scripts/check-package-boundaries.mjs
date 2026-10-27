@@ -194,8 +194,7 @@ function checkMigratedFeedOwnership(repositoryRoot) {
     }
   }
   const legacyCallers = [
-    "apps/local-host/src/feed-application.ts",
-    "apps/local-host/src/feed-source-service.ts",
+    "apps/local-host/src/demo-feed-library.ts",
     "plugins/native/feed/src/application.ts",
     "plugins/native/feed/src/source-service.ts",
     "plugins/native/feed/src/source-sync.ts",
@@ -228,10 +227,14 @@ function checkMigratedIntegrationOwnership(repositoryRoot) {
       errors.push(`${servicePath}: ${forbidden} belongs to the official Plugin composition boundary`);
     }
   }
-  const hostPath = "apps/local-host/src/feed-connector-sync.ts";
+  // The Runtime Feed opens its Listener through the platform connector service, which the Home supervisor backs with the Home's
+  // integration registry (FI-5): the Feed names no Provider and the Host keeps no Feed connector composition of its own.
+  const runtimePath = "plugins/native/feed/src/runtime-connector.ts";
+  const runtime = fs.readFileSync(path.join(repositoryRoot, runtimePath), "utf8");
+  const hostPath = "apps/local-host/src/home-plugins.ts";
   const host = fs.readFileSync(path.join(repositoryRoot, hostPath), "utf8");
-  if (!service.includes("this.ports.createListener") || !host.includes("homeIntegrationRegistry")) {
-    errors.push(`${servicePath}: Feed must consume a Host-composed Listener backed by the Home's integration registry`);
+  if (!service.includes("this.ports.createListener") || !runtime.includes("services.connector.open(") || !/integrations:\s*\{\s*registry:\s*\(\)\s*=>\s*homeIntegrationRegistry\(/u.test(host)) {
+    errors.push(`${servicePath}: Feed must consume a Listener opened through the platform connector service, backed by the Home's integration registry`);
   }
 
   const listenerPath = "plugins/native/feed/src/store/listener.ts";
@@ -495,7 +498,7 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   ) {
     errors.push(`${goalReadApplicationPath}: compatibility composition must not own Goal persistence or bypass Goals Query`);
   }
-  errors.push(...checkGoalReadOwnerSql(read("apps/local-host/src/feed-application.ts")).map(error => `apps/local-host/src/feed-application.ts: ${error}`));
+  errors.push(...checkGoalReadOwnerSql(read("apps/local-host/src/demo-feed-library.ts")).map(error => `apps/local-host/src/demo-feed-library.ts: ${error}`));
   errors.push(...checkNoGoalTypedAdapters(["apps", "horizontal", "modules", "packages", "plugins", "server"]
     .flatMap(directory => filesUnder(path.join(repositoryRoot, directory), file => /\.(?:ts|tsx|mts)$/u.test(file) && !/[\\/](?:tests?|__tests__)[\\/]/u.test(file)))
     .map(file => ({ path: path.relative(repositoryRoot, file).split(path.sep).join("/"), source: fs.readFileSync(file, "utf8") }))));

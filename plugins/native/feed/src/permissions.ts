@@ -23,6 +23,7 @@ export const FEED_PERMISSIONS: PluginPermissionDeclaration[] = [
   { permission: "attention:write", required: true, reason: "把消息加入或移出 Inbox" },
   { permission: "context-ledger:read", required: true, reason: "读取消息与 Goal 的关联" },
   { permission: "context-ledger:write", required: true, reason: "记录消息与 Goal 的关联" },
+  { permission: "artifact:write", required: true, reason: "把捕捉规则捕获的消息存进成果库" },
   { permission: "journal:project", required: true, reason: "把消息的变化记进项目历史" },
   { permission: "evidence:read", required: true, reason: "读取留存的原始正文" },
   { permission: PLUGIN_EVIDENCE_COLLECT_PERMISSION, required: true, reason: "删除 Home 引用账里已没有人引用的留存正文" },

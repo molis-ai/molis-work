@@ -2,26 +2,28 @@ import { randomUUID } from "node:crypto";
 import type { AttentionSubjectType } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type {
-  PluginAttentionClient, PluginAttentionEntryInput, PluginAttentionWriter, PluginContextLedgerClient, PluginContextLedgerWriter,
+  PluginArtifactClient, PluginAttentionClient, PluginAttentionEntryInput, PluginAttentionWriter, PluginContextLedgerClient, PluginContextLedgerWriter,
   PluginProjectDatabase, PluginProjectDatabaseTransaction,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { FeedAssemblyPorts } from "./application-assembly.js";
+import type { FeedArtifactProducer } from "./out-rules.js";
 import { FEED_PLUGIN_ID } from "./identity.js";
 import { fromPluginReader, fromPluginTransaction, type FeedAttentionPort, type FeedLedgerPort, type FeedSql } from "./store/index.js";
 
-/** What the platform gives a Feed installation for one project: its tables, the project's Inbox entries and its Context Ledger. */
+/** What the platform gives a Feed installation for one project: its tables, the project's Inbox entries, its Context Ledger and its 成果库. */
 export interface FeedRuntimeServices {
   readonly projectId: string;
   readonly database: PluginProjectDatabase;
   readonly attention: PluginAttentionClient;
   readonly contextLedger: PluginContextLedgerClient;
+  readonly artifacts: PluginArtifactClient;
 }
 
-/** The four ports `assembleFeedApplication` takes, over the platform's services, and the one way to write through them. */
-export interface FeedRuntimePorts extends Pick<FeedAssemblyPorts, "sql" | "attention" | "ledger" | "appendEvent" | "subscribeInboxCreated"> {
+/** The ports `assembleFeedApplication` takes, over the platform's services, and the one way to write through them. */
+export interface FeedRuntimePorts extends Pick<FeedAssemblyPorts, "sql" | "attention" | "ledger" | "artifacts" | "appendEvent" | "subscribeInboxCreated"> {
   /**
-   * Runs `body` with every port bound to the plugin's current write transaction, so a row, its Inbox entry, its ledger edge and its
-   * journal event are one commit or none. `actorId` is the original caller's: the journal records no one else. Outside it the ports
+   * Runs `body` with every port bound to the plugin's current write transaction, so a row, its Inbox entry, its ledger edge, the 成果
+   * it captures and its journal event are one commit or none. `actorId` is the original caller's: the journal records no one else. Outside it the ports
    * read through the read-only client and refuse every write. Synchronous, like the transaction it joins; the ports are unbound
    * when it ends, so nothing kept from `body` can write later.
    */
@@ -33,7 +35,7 @@ interface Bound { readonly transaction: PluginProjectDatabaseTransaction; readon
 const notBound = (): never => { throw new ActionError("actions.execution_failed", "Feed wrote outside a write transaction"); };
 
 /**
- * Feed's ports over `services.project_database`, `services.attention` and `services.contextLedger`. One set serves a Feed installation for
+ * Feed's ports over `services.project_database`, `services.attention`, `services.contextLedger` and `services.artifacts`. One set serves a Feed installation for
  * its life: the application built over it keeps its queues between calls, and each call binds the set to its own transaction.
  */
 export function createFeedRuntimePorts(services: FeedRuntimeServices): FeedRuntimePorts {
@@ -83,6 +85,10 @@ export function createFeedRuntimePorts(services: FeedRuntimeServices): FeedRunti
       deleteSubject: (projectId, type, id, owner) => (inProject(projectId), ownedByFeed(owner), writeAttention(writer => writer.deleteSubject(subject(type, id)))),
     },
   };
+  // A capture is pinned in the commit of the item it captures (`services.artifacts.join`); a platform without `join` gives Feed nowhere to pin it.
+  const { artifacts: library } = services;
+  const artifacts: FeedArtifactProducer | undefined = library.join === undefined ? undefined
+    : { capture: (projectId, write) => (inProject(projectId), library.join!(writing().transaction, write)) };
   const ledger: FeedLedgerPort = {
     get: (projectId, key) => (inProject(projectId), services.contextLedger.get(key)),
     list: (projectId, query) => (inProject(projectId), services.contextLedger.list(query)),
@@ -90,7 +96,7 @@ export function createFeedRuntimePorts(services: FeedRuntimeServices): FeedRunti
     remove: (projectId, key, cause, recordedAt) => (inProject(projectId), writeLedger(writer => writer.remove(key, cause, recordedAt))),
   };
   return {
-    sql, ledger,
+    sql, ledger, artifacts,
     attention: () => attention,
     appendEvent: (projectId, objectType, objectId, type, reason, payload, at) => {
       inProject(projectId);

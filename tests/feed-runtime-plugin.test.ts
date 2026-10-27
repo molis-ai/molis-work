@@ -35,6 +35,8 @@ const READ = ["feed:read"];
 /** An action that gives an item's retained text, or judges the item by it, reads the bodies through the platform, so its caller holds this too (4e-2f). */
 const BODIES = [...READ, "evidence:read"];
 const WRITE = ["feed:read", "feed:write", "inbox:write", "evidence:read"];
+/** A hand-in is judged by the capture rules in its own commit: a rule may open the item's Inbox entry (FI-C-08) and pin what it captures (RAC-510). */
+const RECEIVE = [...WRITE, "attention:write", "artifact:write"];
 /** Saving a rule asks whether the caller may use the capture scene for its judgment, so it declares the scene's permissions and the caller holds them. */
 const RULES = [...WRITE, "attention:write", "judgments:write"];
 
@@ -43,20 +45,25 @@ const RULES = [...WRITE, "attention:write", "judgments:write"];
  * provided by a plugin of its own, so the project instance asks it through the action directory as it will ask the real one.
  */
 async function ledgerStandIn(home: string): Promise<{ definition: PluginDefinition; holds(): Array<{ content_ref: string; project_id: string; source_id: string }>; forget(): void; close(): void;
-  breakWrites(count: number): void; unmark(): void }> {
+  breakWrites(count: number): void; unmark(): void; pauseAfterWrite(pause: () => Promise<void>): void }> {
   const db = new Database(join(home, "ledger.db"));
   db.exec(FEED_HOME_DATABASE.schema);
   const bind = (parameters: readonly PluginSqlValue[] = []) => [...parameters];
   const reader = { get: (sql: string, parameters?: readonly PluginSqlValue[]) => (db.prepare(sql).get(...bind(parameters)) as Record<string, PluginSqlValue> | undefined) ?? null,
     all: (sql: string, parameters?: readonly PluginSqlValue[]) => db.prepare(sql).all(...bind(parameters)) as Record<string, PluginSqlValue>[] };
-  // The next `broken` writes fail as a Home that went away would, before anything is written.
-  let broken = 0;
+  // The next `broken` writes fail as a Home that went away would, before anything is written; the next write once committed waits for `paused`.
+  let broken = 0, paused: (() => Promise<void>) | undefined;
   const store = { read: reader, async write<T>(beforeEffect: () => Promise<void>, body: (tx: typeof reader & { run(sql: string, parameters?: readonly PluginSqlValue[]): { changes: number } }) => T): Promise<T> {
     await beforeEffect();
     if (broken > 0) { broken -= 1; throw new Error("the Home's ledger is unavailable"); }
     db.exec("BEGIN IMMEDIATE");
-    try { const result = body({ ...reader, run: (sql, parameters) => ({ changes: db.prepare(sql).run(...bind(parameters)).changes }) }); db.exec("COMMIT"); return result; }
+    let result: T;
+    try { result = body({ ...reader, run: (sql, parameters) => ({ changes: db.prepare(sql).run(...bind(parameters)).changes }) }); db.exec("COMMIT"); }
     catch (error) { db.exec("ROLLBACK"); throw error; }
+    const pause = paused;
+    paused = undefined;
+    await pause?.();
+    return result;
   } };
   // The collector deletes from this Home's evidence store, as the platform's does (`runWithMolisWorkHome`), never from the process's default Home.
   const evidence = runWithMolisWorkHome(home, () => createEvidenceContentStore({ secretStore: createLazyFileSecretStore(home) }));
@@ -69,7 +76,7 @@ async function ledgerStandIn(home: string): Promise<{ definition: PluginDefiniti
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions },
   async start() { return { kind: "app", actions: createFeedContentLedgerHandlers(ledger) }; } };
   return { definition, close: () => db.close(), forget: () => { db.exec("DELETE FROM feed_content_holds"); }, breakWrites: count => { broken = count; },
-    unmark: () => { db.exec("DELETE FROM feed_content_meta"); },
+    unmark: () => { db.exec("DELETE FROM feed_content_meta"); }, pauseAfterWrite: pause => { paused = pause; },
     holds: () => reader.all("SELECT content_ref, project_id, source_id FROM feed_content_holds ORDER BY content_ref") as Array<{ content_ref: string; project_id: string; source_id: string }> };
 }
 
@@ -121,7 +128,9 @@ function goalsStandIn(known: readonly string[], asked: GoalsAsked): PluginDefini
 async function platform(t: TestContext, options: { fetch?: (input: string | URL) => Promise<Response>; ledger?: boolean; git?: ReturnType<typeof libraryGit>; clock?: boolean; goals?: readonly string[]; provider?: (binding: IntegrationBinding) => IntegrationProviderPort } = {}) {
   const home = mkdtempSync(join(tmpdir(), "feed-runtime-plugin-")), file = join(home, "project.db");
   seedDemoBoard(file);
-  const store = new LocalProjectDatabase(file), actions = pluginActions(store, DEMO_PROJECT_ID);
+  // Every call once it is over, as the Host's call log writes it: which action, and whether it went through.
+  const calls: Array<{ capability_id: string; ok: boolean }> = [];
+  const store = new LocalProjectDatabase(file), actions = pluginActions(store, DEMO_PROJECT_ID, (_call, action, outcome) => { calls.push({ capability_id: action.capability_id, ok: outcome.ok }); });
   const ports = { db: store.db, appendEvent: (event: Parameters<LocalProjectDatabase["appendEvent"]>[0]) => store.appendEvent(event),
     eventCursor: (projectId: string) => store.eventCursor(projectId) };
   const running = createPluginPlatform({ actions, project_id: DEMO_PROJECT_ID, actor_id: HOST_ACTOR, db: store.db, journal: store,
@@ -151,8 +160,8 @@ async function platform(t: TestContext, options: { fetch?: (input: string | URL)
   // The bodies the platform keeps are this fixture Home's, sealed with its own key; never the Home the test process would resolve to by default.
   const bodies = () => runWithMolisWorkHome(home, () => createEvidenceContentStore({ secretStore: createLazyFileSecretStore(home) }));
   return { store, home, running, client: actions.client, registry: actions.registry, count, holds: () => homeHalf?.holds() ?? [], forgetHolds: () => homeHalf?.forget(),
-    breakLedger: (count = 1) => homeHalf?.breakWrites(count), unmarkLedger: () => homeHalf?.unmark(), clock: () => scheduleServiceFor(store.db), installId,
-    bodies, goalsAsked };
+    breakLedger: (count = 1) => homeHalf?.breakWrites(count), unmarkLedger: () => homeHalf?.unmark(), pauseLedger: (pause: () => Promise<void>) => homeHalf!.pauseAfterWrite(pause),
+    clock: () => scheduleServiceFor(store.db), installId, bodies, goalsAsked, calls };
 }
 
 /** The original caller of an action, who can be cancelled or revoked from outside. */
@@ -162,7 +171,8 @@ function caller(permissions: readonly string[], refuseFrom?: number) {
   const context: ActionCallContext = { actor_id: OWNER, project_id: DEMO_PROJECT_ID, audience: "user", permissions: [...permissions], signal: abort.signal,
     // The authority is asked again at every point the platform has to trust the caller; from `refuseFrom` on, it is gone.
     assert_authority_current: () => { checks += 1; if (refuseFrom !== undefined && checks >= refuseFrom) throw new ActionError("actions.forbidden", "the caller was revoked"); } };
-  return { context, checks: () => checks };
+  // The Host cancels a call whose connection went away with this reason (action-gateway-http.ts).
+  return { context, checks: () => checks, cancel: () => abort.abort(new ActionError("actions.cancelled", "调用连接已断开")) };
 }
 
 const receive = (requestId: string) => ({ request_id: requestId, title: `T ${requestId}`, body: `body of ${requestId}` });
@@ -171,7 +181,7 @@ const receive = (requestId: string) => ({ request_id: requestId, title: `T ${req
 test("RAC-506 a Runtime Feed's content action commits the source, the item and the journal event together under the original caller", async t => {
   const { client, count } = await platform(t);
   const before = { items: count("SELECT count(*) AS n FROM feed_items"), events: count(`SELECT count(*) AS n FROM events WHERE object_type = '${FEED_OBJECT}'`) };
-  const written = await client.invoke(caller(WRITE).context, feedContentActions.receive, receive("one")) as { plugin: string; item_id: string; title: string };
+  const written = await client.invoke(caller(RECEIVE).context, feedContentActions.receive, receive("one")) as { plugin: string; item_id: string; title: string };
   assert.equal(written.title, "T one");
   assert.equal(count("SELECT count(*) AS n FROM feed_items WHERE item_id = ?", written.item_id), 1);
   assert.equal(count("SELECT count(*) AS n FROM feed_items"), before.items + 1);
@@ -192,14 +202,14 @@ test("RAC-509 the caller cancelled or revoked at any point writes nothing partia
   const state = () => ({ sources: count("SELECT count(*) AS n FROM feed_sources"), items: count("SELECT count(*) AS n FROM feed_items"),
     events: count(`SELECT count(*) AS n FROM events WHERE object_type = '${FEED_OBJECT}'`) });
   // How many times one delivery asks whether its caller is still allowed.
-  const probe = caller(WRITE);
+  const probe = caller(RECEIVE);
   await client.invoke(probe.context, feedContentActions.receive, receive("probe"));
   const asked = probe.checks();
   assert.ok(asked >= 2, "the platform asks more than once: " + asked);
   let refused = 0, committed = 0, late = 0;
   for (let from = 1; from <= asked + 1; from += 1) {
     const before = state(), requestId = `sweep-${from}`;
-    const outcome = await client.invoke(caller(WRITE, from).context, feedContentActions.receive, receive(requestId)).then(() => "written" as const, (error: unknown) => error as ActionError);
+    const outcome = await client.invoke(caller(RECEIVE, from).context, feedContentActions.receive, receive(requestId)).then(() => "written" as const, (error: unknown) => error as ActionError);
     const after = state();
     if (outcome === "written") {
       committed += 1;
@@ -243,7 +253,7 @@ test("RAC-509 a rule is saved after its choices are checked, as a commit of its 
 // RAC-506 (4e-2a)
 test("RAC-506 a Runtime Feed changes a source's schedule and pause state in one commit with its journal event, under the original caller", async t => {
   const { client, count } = await platform(t);
-  const written = await client.invoke(caller(WRITE).context, feedContentActions.receive, receive("sourced")) as { item_id: string };
+  const written = await client.invoke(caller(RECEIVE).context, feedContentActions.receive, receive("sourced")) as { item_id: string };
   const sourceId = (await client.invoke(caller(BODIES).context, feedQueryActions.item, { item_id: written.item_id }) as { item: { source_id: string } }).item.source_id;
   const events = (type: string) => count(`SELECT count(*) AS n FROM events WHERE object_type = '${FEED_PLUGIN_ID}:feed_source' AND object_id = ? AND type = ? AND actor_id = ?`, sourceId, `${FEED_PLUGIN_ID}:feed_source.${type}`, OWNER);
   const paused = await client.invoke(caller(WRITE).context, feedSourceActions.enabled, { source_id: sourceId, enabled: false }) as { source: { enabled: boolean } };
@@ -290,7 +300,7 @@ test("RAC-506 a Runtime Feed registers a source from the platform's vocabulary, 
 // 4c-4: an account source is pulled with the person's bound account, so a sync also holds connections:use and sources:pull_connector,
 // and records a source that needs the person in the Inbox.
 const CONNECTOR = ["connections:use", "sources:pull_connector"];
-const SYNC = [...WRITE, "sources:pull_feed", "sources:pull_query", "sources:read_repository", ...CONNECTOR, "attention:write"];
+const SYNC = [...WRITE, "sources:pull_feed", "sources:pull_query", "sources:read_repository", ...CONNECTOR, "attention:write", "artifact:write"];
 /** Deleting a source also removes its items' Inbox entries and links to Goals, so the call holds what those ledgers ask. */
 const DELETE = [...DESCRIBE, "attention:write", "context-ledger:write"];
 const feedXml = (entries: Array<{ id: string; title: string }>) => `<?xml version="1.0"?><rss version="2.0"><channel><title>Runtime feed</title><link>https://example.com/</link>${entries.map(entry => `
@@ -564,7 +574,7 @@ test("RAC-518 the platform's clock wakes Feed: its job is set once, and a wakeup
 // RAC-507 (4e-2d)
 test("RAC-507 feed.goals.context reads the Goal as the caller, then the item the Context Ledger links to it; nothing else is given", async t => {
   const f = await platform(t, { goals: ["goal-1"] });
-  const receiveItem = async (id: string) => (await f.client.invoke(caller(WRITE).context, feedContentActions.receive, receive(id)) as { item_id: string }).item_id;
+  const receiveItem = async (id: string) => (await f.client.invoke(caller(RECEIVE).context, feedContentActions.receive, receive(id)) as { item_id: string }).item_id;
   const [linked, newer, unlinked] = [await receiveItem("linked"), await receiveItem("newer"), await receiveItem("unlinked")];
   // The link is Feed's edge in the project's Context Ledger, stored under Feed's namespace and read by the platform's service.
   const ledger = createContextLedger(f.store.db, { authorize: () => true, initializeSchema: false });
@@ -855,11 +865,11 @@ test("RAC-1029 feed.content.receive is one write: a delivery that fails after th
   const before = [sources(), items()];
   // The item cannot be written (the project's database refuses it), after the source it would belong to has been.
   f.store.db.exec("CREATE TRIGGER refuse_item BEFORE INSERT ON feed_items WHEN NEW.title = 'refused' BEGIN SELECT RAISE(ABORT, 'the item is refused'); END");
-  await assert.rejects(f.client.invoke(caller(WRITE).context, feedContentActions.receive, { request_id: "refused", title: "refused", body: "b" }));
+  await assert.rejects(f.client.invoke(caller(RECEIVE).context, feedContentActions.receive, { request_id: "refused", title: "refused", body: "b" }));
   assert.deepEqual([sources(), items()], before, "nothing of the failed delivery remains");
   // The same delivery with an item the database takes is one source and one item.
   f.store.db.exec("DROP TRIGGER refuse_item");
-  const ok = await f.client.invoke(caller(WRITE).context, feedContentActions.receive, { request_id: "taken", title: "Taken", body: "b" }) as { item_id: string };
+  const ok = await f.client.invoke(caller(RECEIVE).context, feedContentActions.receive, { request_id: "taken", title: "Taken", body: "b" }) as { item_id: string };
   assert.deepEqual([sources(), items(), f.count("SELECT count(*) AS n FROM feed_items WHERE item_id = ?", ok.item_id)], [before[0]! + 1, before[1]! + 1, 1]);
 });
 
@@ -883,7 +893,7 @@ test("RAC-1030 a Runtime Feed gives an item's retained text through the platform
 // RAC-1031 .. RAC-1034 (4e-2f; provisional numbers): the capture rules judge what a Runtime Feed brings in. The judgment, Home's and the
 // Inbox's are the platform's scene client, ledger and action directory, called as the action's caller; every write is a commit.
 /** The scene is available to a caller who holds what it declares: its callbacks write Inbox entries and the judgment ledger, and the model answers. */
-const JUDGING = [...WRITE, "model:invoke", "attention:write", "judgments:write"];
+const JUDGING = [...WRITE, "model:invoke", "attention:write", "judgments:write", "artifact:write"];
 const JUDGING_SYNC = [...SYNC, "model:invoke", "judgments:write"];
 const JUDGE = { capability_id: "feed.test.capture-judge", version: 1 };
 const JUDGE_PROVIDER = "feed-test-judgments";
@@ -1043,6 +1053,92 @@ test("RAC-1035 admitting an item to the Inbox asks the Inbox and Home to judge t
   await f.client.invoke(caller(JUDGING).context, feedItemActions.disposition, { item_id: item.item_id, disposition: "archived", expected_revision: await revision() });
   assert.equal(open(), 0, "ignoring the item closed its entry");
   await f.client.invoke(caller(JUDGING).context, feedItemActions.restore, { item_id: item.item_id, expected_revision: await revision() });
+});
+
+// FI-C-08 (specs/.../feed-inbox-runtime-plugins.md §13): a hand-in that a rule admits to the Inbox, without a judgment, opens the entry in the same
+// commit as the item, as it did on main where the host's Feed held the Attention module. The platform lets a call write the Inbox only when its
+// action declares attention:write (S-68), so `feed.content.receive` declares it; a caller who holds everything else is refused at the entry.
+test("FI-C-08 a hand-in a plain rule admits to the Inbox opens its entry with the item; the action declares attention:write, and a caller without it is refused at the entry", async t => {
+  const f = await platform(t);
+  await f.client.invoke(caller(RULES).context, feedRuleActions.create, { name: "into the Inbox", match: { contains: "admit me" }, admission: "inbox" });
+  const entries = (itemId: string) => f.store.db.prepare("SELECT reason FROM inbox_entries WHERE subject_type = 'feed_item' AND subject_id = ?").all(itemId) as Array<{ reason: string }>;
+  const admitted = await f.client.invoke(caller(RECEIVE).context, feedContentActions.receive, { request_id: "admit-1", title: "Please admit me", body: "b" }) as { item_id: string };
+  assert.deepEqual(entries(admitted.item_id).map(entry => entry.reason), ["source_rule"], "the rule admitted the item in the hand-in's own commit");
+  // The rule also captures what it admits (RAC-510): the item, its entry and its 成果 are there together, and no capture failed.
+  assert.equal(f.count("SELECT count(*) AS n FROM library_artifact_versions WHERE json_extract(metadata_json, '$.feed_item_id') = ?", admitted.item_id), 1);
+  assert.equal(f.count("SELECT count(*) AS n FROM inbox_entries WHERE reason = 'artifact_out_failed'"), 0);
+  const declared = feedManifest.actions!.find(definition => definition.capability_id === feedContentActions.receive.capability_id)!.action.permissions;
+  assert.ok(declared.includes("attention:write"), JSON.stringify(declared));
+  const items = f.count("SELECT count(*) AS n FROM feed_items");
+  await assert.rejects(f.client.invoke(caller(RECEIVE.filter(permission => permission !== "attention:write")).context, feedContentActions.receive, { request_id: "admit-2", title: "Also admit me", body: "b" }), { code: "actions.forbidden" });
+  assert.equal(f.count("SELECT count(*) AS n FROM feed_items"), items, "the refused hand-in wrote nothing");
+});
+
+// RAC-510 (specs/.../feed-inbox-runtime-plugins.md §13): what a capture rule matches is pinned in the 成果库 inside the hand-in's own commit
+// (`services.artifacts.join`), as the host's Feed did on main: the producer is Feed's Manifest, the author is the caller. Every action whose items
+// the rules judge declares artifact:write, so a caller without it is refused at the entry, and a caller revoked at any point leaves the item
+// and its capture together or neither.
+test("RAC-510 a hand-in a capture rule matches pins its capture in the same commit, as Feed's Manifest and the caller; a caller revoked at any point leaves both or neither", async t => {
+  const f = await platform(t);
+  await f.client.invoke(caller(RULES).context, feedRuleActions.create, { name: "pin it", match: { contains: "pin me" } });
+  const pinned = (itemId: string) => f.store.db.prepare(`SELECT i.producer_plugin_id AS plugin, i.producer_binding_signature AS signature,
+    v.producer_plugin_version AS version, v.created_by AS author FROM library_artifacts i JOIN library_artifact_versions v USING (artifact_id)
+    WHERE json_extract(v.metadata_json, '$.feed_item_id') = ?`).all(itemId);
+  const written = await f.client.invoke(caller(RECEIVE).context, feedContentActions.receive, { request_id: "pin-1", title: "Please pin me", body: "b" }) as { item_id: string };
+  assert.deepEqual(pinned(written.item_id), [{ plugin: feedManifest.plugin_id, signature: feedManifest.publisher.signature, version: feedManifest.version, author: OWNER }]);
+  assert.equal(f.count("SELECT count(*) AS n FROM inbox_entries WHERE subject_id = ? AND reason = 'artifact_out_failed'", written.item_id), 0, "the capture did not fail");
+  for (const definition of [feedContentActions.receive, feedNotificationActions.receive, feedRuleActions.evaluate, feedSourceActions.sync, feedSourceActions.tick]) {
+    const declared = feedManifest.actions!.find(action => action.capability_id === definition.capability_id)!.action.permissions;
+    assert.ok(declared.includes("artifact:write"), `${definition.capability_id}: ${JSON.stringify(declared)}`);
+  }
+  const items = f.count("SELECT count(*) AS n FROM feed_items");
+  await assert.rejects(f.client.invoke(caller(RECEIVE.filter(permission => permission !== "artifact:write")).context, feedContentActions.receive, { request_id: "pin-2", title: "Also pin me", body: "b" }), { code: "actions.forbidden" });
+  assert.equal(f.count("SELECT count(*) AS n FROM feed_items"), items, "the refused hand-in wrote nothing");
+  const state = () => ({ items: f.count("SELECT count(*) AS n FROM feed_items"), captures: f.count("SELECT count(*) AS n FROM library_artifacts WHERE producer_plugin_id = ?", feedManifest.plugin_id) });
+  const probe = caller(RECEIVE);
+  await f.client.invoke(probe.context, feedContentActions.receive, { request_id: "pin-probe", title: "pin me", body: "b" });
+  const asked = probe.checks();
+  let before = 0, after = 0;
+  for (let from = 1; from <= asked + 1; from += 1) {
+    const was = state();
+    await f.client.invoke(caller(RECEIVE, from).context, feedContentActions.receive, { request_id: `pin-sweep-${from}`, title: "pin me", body: "b" }).catch(() => undefined);
+    const now = state(), gained = now.items - was.items;
+    assert.equal(now.captures - was.captures, gained, `delivery ${from}: the item and its capture are one commit`);
+    if (gained === 0) before += 1; else after += 1;
+  }
+  assert.ok(before >= 1 && after >= 1, `the sweep reached both sides of the commit (cut off before ${before}, committed ${after})`);
+});
+
+// RAC-510 (§13, review case 1): a sync cancelled once its pull is done, while it waits to commit, writes none of what its capture rule makes: no
+// item, no Inbox entry, no 成果 and no artifact_out_failed. The join pins inside Feed's own commit, never by a call, so no call publishes
+// through the 成果 SDK either way; the calls are heard as the Host's call log hears them, nested ones included.
+test("RAC-510 a sync cancelled after its pull and before its commit leaves no item, Inbox entry, 成果 or capture failure, and no SDK publish", async t => {
+  const f = await syncing(t);
+  await f.client.invoke(caller(RULES).context, feedRuleActions.create, { name: "admit and pin", match: { contains: "Captured" }, admission: "inbox" });
+  const state = () => ({ items: f.count("SELECT count(*) AS n FROM feed_items WHERE source_id = ?", f.sourceId),
+    entries: f.count("SELECT count(*) AS n FROM inbox_entries WHERE subject_type = 'feed_item' AND reason = 'source_rule'"),
+    captures: f.count("SELECT count(*) AS n FROM library_artifacts WHERE producer_plugin_id = ?", feedManifest.plugin_id),
+    failures: f.count("SELECT count(*) AS n FROM inbox_entries WHERE reason = 'artifact_out_failed'") });
+  const published = () => f.calls.filter(call => /^sdk\.artifacts\..+\.publish$/u.test(call.capability_id) && call.ok);
+  // The same rule on an uncancelled pull makes all four but the failure.
+  const start = state();
+  f.feeds.set(f.entry.feed_url, feedXml([{ id: "captured-a", title: "Captured A" }]));
+  await f.client.invoke(caller(SYNC).context, feedSourceActions.sync, { source_id: f.sourceId, idempotency_key: "uncancelled-sync-key" });
+  const before = state();
+  assert.deepEqual([before.items - start.items, before.entries - start.entries, before.captures - start.captures, before.failures], [1, 1, 1, 0]);
+  f.feeds.set(f.entry.feed_url, feedXml([{ id: "captured-b", title: "Captured B" }]));
+  const call = caller(SYNC), entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  // The pull is done once the Home's ledger holds its bodies; the commit to the project is what is left.
+  f.pauseLedger(() => { entered.resolve(); return release.promise; });
+  const pending = f.client.invoke(call.context, feedSourceActions.sync, { source_id: f.sourceId, idempotency_key: "cancelled-sync-key" })
+    .then(() => "written" as const, (error: unknown) => error as { code?: string });
+  await entered.promise;
+  call.cancel();
+  release.resolve();
+  assert.equal((await pending as { code?: string }).code, "actions.cancelled");
+  assert.deepEqual(state(), before, "nothing of the cancelled sync's commit is there");
+  assert.ok(f.calls.some(heard => heard.capability_id === feedContentLedgerActions.hold.capability_id && heard.ok), "nested calls are heard: the ledger's hold went through");
+  assert.deepEqual(published(), [], "no call published a 成果, for the pin that went in or the one cancelled");
 });
 
 // RAC-1036 .. RAC-1038 (4e-2f; provisional numbers until the coordinator assigns the range): what a Runtime Feed sets right with no call. A kept job

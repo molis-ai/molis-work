@@ -153,7 +153,7 @@ const HYBRID_RUNTIME_PLUGINS: ReadonlySet<string> = new Set<string>(["goals"]);
  * (`goals-actions.ts` became `goal-callers.ts` in S12, and the name rule alone no longer saw it). A new entry needs the same ruling.
  */
 const HOST_FILES_NAMED_FOR: ReadonlyMap<string, readonly string[]> = new Map([
-  ["goals", ["goal-callers.ts", "web-goals-read.ts", "feed-goal-promotion.ts"]],
+  ["goals", ["goal-callers.ts", "web-goals-read.ts"]],
 ]);
 
 test("Runtime plugins that the Host also assembles by hand are named, and no plugin joins them", async () => {

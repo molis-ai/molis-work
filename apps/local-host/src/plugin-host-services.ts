@@ -28,6 +28,7 @@ import { homeLibraryFor } from "./plugin-database-entries.js";
 import { openInstalledPluginLibrary } from "./installed-plugin-libraries.js";
 import { openPluginProjectLibrary } from "./plugin-project-library.js";
 import { pluginAttentionFor, pluginContextLedgerFor } from "./plugin-attention-service.js";
+import { withArtifactJoin } from "./plugin-artifact-join.js";
 import { pluginScenesFor } from "./plugin-scene-service.js";
 import { pluginJudgmentsFor } from "./plugin-judgments-service.js";
 import type { PluginHostExecutorOptions } from "./plugin-executor.js";
@@ -229,7 +230,8 @@ function hostedContext(options: PluginHostExecutorOptions, manifest: PluginManif
       ...sceneServices(options, manifest, context, assertActive),
       storage: manifest.permissions.some(item => item.permission === "storage:private")
         ? options.privateStorageFor(context, manifest) : undefined,
-      artifacts: artifactService.client,
+      artifacts: withArtifactJoin(artifactService.client, artifactService.writer, parts.project_database, context, options.project_id, assertActive,
+        () => options.record?.(context.install_id) ?? null),
       ...((manifest.process_items?.produces ?? []).length > 0 ? { processItems: artifactService.process } : {}),
       ui: ui.client,
       interaction: pluginInteraction,

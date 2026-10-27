@@ -2627,6 +2627,7 @@ export interface PluginArtifactClient {
     head(artifactId: string): ArtifactLineHead | null;
     readOwn(reference: ArtifactReference): ArtifactVersionRecord | null;
     listConsumable(): PluginConsumableVersion[];
+    join?<T>(transaction: PluginDatabaseTransaction, write: (writer: PluginArtifactWriter) => T): T;
 }
 
 export interface PluginArtifactPublishInput extends PluginProcessItemInput {
@@ -2634,6 +2635,11 @@ export interface PluginArtifactPublishInput extends PluginProcessItemInput {
     title: string;
     media_type: string;
     trace?: ArtifactReference[];
+}
+
+export interface PluginArtifactWriter {
+    head(artifactId: string): ArtifactLineHead | null;
+    publish(input: PluginArtifactPublishInput): ArtifactVersionResult;
 }
 
 export interface PluginAttentionClient {

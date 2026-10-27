@@ -32,7 +32,6 @@ export { receiptContentRefs, releaseHeldHistory, FEED_FORGET_BATCH, FEED_RECEIPT
 export * from "./application-errors.js";
 
 export {
-  FEED_ARTIFACT_PRODUCER,
   FEED_CAPTURE_ARTIFACT_TYPE_ID,
   FEED_CAPTURE_SCHEMA_VERSION,
   FeedOutRuleStore,

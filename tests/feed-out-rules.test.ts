@@ -205,12 +205,13 @@ test("creating a rule does not backfill historical Feed Items", () => {
 test("registerVersion failure writes artifact_out_failed Attention and keeps the Feed Item", () => {
   const data = harness({
     artifacts: {
-      registerVersion() {
-        throw Object.assign(new Error("injected artifact failure"), { code: "artifacts.artifact.unavailable" });
-      },
-      latestVersion() {
-        return null;
-      },
+      // The 成果库 refuses the capture itself, not the call: Feed records it as the item's failed capture.
+      capture: (_projectId, write) => write({
+        head: () => null,
+        publish() {
+          throw Object.assign(new Error("injected artifact failure"), { code: "artifacts.artifact.unavailable" });
+        },
+      }),
     },
   });
   try {
@@ -239,6 +240,58 @@ test("registerVersion failure writes artifact_out_failed Attention and keeps the
       }).length,
       0,
     );
+  } finally {
+    close(data);
+  }
+});
+
+// RAC-510: a capture is pinned in the commit of its item, and a refusal of the call itself there (cancelled, revoked, stopped) is the call's,
+// not a failed capture: it goes up, so the Runtime rolls the whole commit back, and Feed records no artifact_out_failed for it.
+for (const [what, refusal, expected] of [
+  ["revoked", new ActionError("actions.forbidden", "所属安装已停止或撤权"), { code: "actions.forbidden" }],
+  ["cancelled", new DOMException("This operation was aborted", "AbortError"), { name: "AbortError" }],
+] as const) {
+  test(`RAC-510 a refusal of the call while capturing (${what}) goes up and is not recorded as a failed capture`, () => {
+    const data = harness({
+      artifacts: { capture: () => { throw refusal; } },
+    });
+    try {
+      data.feed.createOutRule(DEMO_PROJECT_ID, { name: "发布相关", match: { contains: "launch" } });
+      assert.throws(() => data.feed.ingestItem({
+        source: data.source,
+        externalId: "launch-refused",
+        title: "Launch refused",
+        summary: "The call was refused",
+        occurredAt: "2026-09-15T00:00:00.000Z",
+        attention: false,
+      }), expected);
+      assert.equal(data.feed.listInboxEntries(DEMO_PROJECT_ID).filter((entry) => entry.reason === "artifact_out_failed").length, 0);
+    } finally {
+      close(data);
+    }
+  });
+}
+
+// Anything else a capture throws is the item's failed capture, as on main, an error without a code too (a TypeError of the content, a SQLite
+// error): the item stays, so one item that cannot be captured does not hold its batch back on every retry.
+test("RAC-510 a capture that throws without a code is recorded as feed_artifact_register_failed and keeps the Feed Item", () => {
+  const data = harness({
+    artifacts: { capture: (_projectId, write) => write({ head: () => null, publish() { throw new TypeError("不是可保存的 JSON 值"); } }) },
+  });
+  try {
+    data.feed.createOutRule(DEMO_PROJECT_ID, { name: "发布相关", match: { contains: "launch" } });
+    const ingested = data.feed.ingestItem({
+      source: data.source,
+      externalId: "launch-uncapturable",
+      title: "Launch uncapturable",
+      summary: "The content cannot be saved",
+      occurredAt: "2026-09-15T00:00:00.000Z",
+      attention: false,
+    });
+    const failures = data.feed.listInboxEntries(DEMO_PROJECT_ID).filter((entry) =>
+      entry.subject_id === ingested.item.item_id && entry.reason === "artifact_out_failed");
+    assert.deepEqual(failures.map((entry) => entry.detail.error_codes), [["feed_artifact_register_failed"]]);
+    assert.equal(data.feed.getFeedItem(DEMO_PROJECT_ID, ingested.item.item_id).item_id, ingested.item.item_id);
   } finally {
     close(data);
   }

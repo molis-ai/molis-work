@@ -40,7 +40,7 @@
 | PG-046 集成登记 | **FI-3 已做**（`c98614235`）：`official-integrations.ts` 删掉，集成与连接服务由插件的 Manifest 声明，一个 Home 一份登记、一个共用 Runtime；余项由 [PG-046 片](pg046-integrations-from-manifest.md) 接：BL-528、BL-529 已做，BL-530 归沙箱线（统筹 10-26 定） | FI-3 |
 | PG-010 余项（BL-465） | **FI-2 已做**：三条默认规则随声明它们的场景（Feed、Inbox 的 Manifest 与宿主自己的首页场景）提供，`modules/functions` 没有规则文件；剩「装上的插件的事项动作还不参与首页规则的目标映射」转 BL-531 | FI-2 |
 | PG-045 连接 | `services.connections` 已有（S-57）；`feed-connector-auth.ts` 只剩 11 行 | 在 FI-6 里收 |
-| PG-080 成果由插件自写 | **没做**。`services.artifacts` 已有，Feed 还是宿主 `projectVersionStores` 写；`feed-application.ts` 里有 `as unknown as ArtifactsSqliteDatabase` | 在 FI-6 里收（Feed 的 `produces` 已在 Manifest 声明 `feed.capture`） |
+| PG-080 成果由插件自写 | **已做**（C 线 RAC-510，2026-10-27，`feed-inbox-runtime-plugins.md` §3.7）：Feed 经 `services.artifacts.join` 在自己的项目事务里写，`feed-application.ts` 已删。此前：`services.artifacts` 已有，Feed 还是宿主 `projectVersionStores` 写；`feed-application.ts` 里有 `as unknown as ArtifactsSqliteDatabase` | 在 FI-6 里收（Feed 的 `produces` 已在 Manifest 声明 `feed.capture`） |
 
 没验证的：Feed 的 Module 代码（`modules/feed`、`modules/sources`、`modules/signals`、`horizontal/listener-host`，合计约 2300 行，同步、直接用 `db.prepare`/`db.transaction`）能否在 `services.project_database` 的受检客户端上原样跑——我只读了接口（`transaction(beforeEffect, tx => …)`，`tx.get/all/run` 同步），没试，见 §3 D1。
 

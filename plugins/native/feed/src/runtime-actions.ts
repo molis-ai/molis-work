@@ -14,6 +14,8 @@ import { feedSourceActions } from "./source-actions.js";
 
 const FEED_PULL = "sources:pull_feed", QUERY_PULL = "sources:pull_query", REPOSITORY_READ = "sources:read_repository";
 const CONNECTIONS = "connections:use", CONNECTOR_PULL = "sources:pull_connector", EVIDENCE = "evidence:read";
+/** An action whose new or judged items the capture rules match pins what they capture in the 成果库, in its own commit (RAC-510). */
+const CAPTURE = "artifact:write";
 /** What the capture scene declares beyond Feed's own: a caller is offered a judgment, or has one run, only if it holds the scene's permissions. */
 const SCENE = ["attention:write", "judgments:write"];
 
@@ -29,9 +31,9 @@ const PLATFORM_NEEDS: ReadonlyMap<ActionDefinition, readonly string[]> = new Map
   // An account source is pulled with the account the person bound to it (`sources:pull_connector`), whose state it asks (`connections:use`),
   // and one whose account needs the person is recorded in the Inbox (`attention:write`).
   // New items are judged as the sync ends, which reads their retained bodies (`evidence:read`) for the capture rules.
-  [feedSourceActions.sync, [FEED_PULL, QUERY_PULL, REPOSITORY_READ, CONNECTIONS, CONNECTOR_PULL, "attention:write", EVIDENCE]],
+  [feedSourceActions.sync, [FEED_PULL, QUERY_PULL, REPOSITORY_READ, CONNECTIONS, CONNECTOR_PULL, "attention:write", EVIDENCE, CAPTURE]],
   // A tick runs the syncs, so it needs what they need, and it records a source's fault in the Inbox.
-  [feedSourceActions.tick, [FEED_PULL, QUERY_PULL, REPOSITORY_READ, "attention:write", CONNECTIONS, CONNECTOR_PULL, EVIDENCE]],
+  [feedSourceActions.tick, [FEED_PULL, QUERY_PULL, REPOSITORY_READ, "attention:write", CONNECTIONS, CONNECTOR_PULL, EVIDENCE, CAPTURE]],
   // Disconnecting an account source takes the person's binding off it.
   [feedSourceActions.disconnect, [CONNECTIONS]],
   // Reading an item's material asks whether its source's account still works; the status asks whether the Home has an account at all.
@@ -43,9 +45,10 @@ const PLATFORM_NEEDS: ReadonlyMap<ActionDefinition, readonly string[]> = new Map
   [feedQueryActions.linkedContext, [EVIDENCE]], [feedRuleActions.recommendations, [EVIDENCE]],
   // A notification the platform delivers is admitted to the Inbox as it is received, and judged by the capture rules.
   // The Inbox's next-step judgment of that entry is asked as the same caller, which then holds what the judgment needs (inbox:read, model:invoke, the rule's functions:invoke, judgments:write).
-  [feedNotificationActions.receive, ["attention:write", EVIDENCE, "inbox:read", "model:invoke", "functions:invoke", "judgments:write"]],
-  // What a call hands in or has judged again is judged by the capture rules, which read the retained bodies.
-  [feedContentActions.receive, [EVIDENCE]], [feedRuleActions.evaluate, [EVIDENCE, ...SCENE]],
+  [feedNotificationActions.receive, ["attention:write", EVIDENCE, "inbox:read", "model:invoke", "functions:invoke", "judgments:write", CAPTURE]],
+  // What a call hands in or has judged again is judged by the capture rules, which read the retained bodies; a rule that admits without a
+  // judgment opens the item's Inbox entry in the hand-in's own commit (FI-C-08).
+  [feedContentActions.receive, [EVIDENCE, "attention:write", CAPTURE]], [feedRuleActions.evaluate, [EVIDENCE, ...SCENE, CAPTURE]],
   // Saving a rule that names a judgment asks whether the caller may use the scene for it.
   [feedRuleActions.create, SCENE], [feedRuleActions.update, SCENE],
   // Admitting an item opens its Inbox entry, and saving, ignoring or restoring one settles or reopens the entries it has.

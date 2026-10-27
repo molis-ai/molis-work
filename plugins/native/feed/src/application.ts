@@ -16,8 +16,9 @@ import { FEED_PLUGIN_ID } from "./identity.js";
 import { JudgmentQueue } from "./judgment-queue.js";
 import { admitToInbox, isIgnored } from "./inbox-admission.js";
 import {
+  captureFeedRules,
+  feedCaptureFailure,
   feedOutRuleMatches,
-  registerFeedCaptureVersion,
   type FeedOutRuleWrite,
 } from "./out-rules.js";
 
@@ -282,7 +283,7 @@ export class FeedApplication {
       try {
         this.captureAfterIngest(item);
       } catch (error) {
-        this.recordArtifactOutFailure(item, [], [errorCode(error)]);
+        this.recordArtifactOutFailure(item, [], [feedCaptureFailure(error)]);
       }
       this.judgments.queueItem(item);
     }
@@ -436,16 +437,7 @@ export class FeedApplication {
       this.recordArtifactOutFailure(item, matched.map((rule) => rule.rule_id), ["feed_artifact_producer_missing"]);
       return;
     }
-    const failedRuleIds: string[] = [];
-    const errorCodes: string[] = [];
-    for (const rule of matched) {
-      try {
-        registerFeedCaptureVersion(this.ports.artifacts, item, rule);
-      } catch (error) {
-        failedRuleIds.push(rule.rule_id);
-        errorCodes.push(errorCode(error));
-      }
-    }
+    const { failedRuleIds, errorCodes } = this.ports.artifacts.capture(item.project_id, writer => captureFeedRules(writer, item, matched));
     if (failedRuleIds.length > 0) {
       this.recordArtifactOutFailure(item, failedRuleIds, errorCodes);
       return;
@@ -525,11 +517,4 @@ function isFeedEntry(entry: AttentionEntryRecord): boolean {
 function requireFeedEntry(entry: AttentionEntryRecord): AttentionEntryRecord {
   if (!isFeedEntry(entry)) throw inboxErrors.entry_not_found("找不到这个 Inbox Entry");
   return entry;
-}
-
-function errorCode(error: unknown): string {
-  if (error && typeof error === "object" && "code" in error && typeof error.code === "string" && error.code) {
-    return error.code;
-  }
-  return "feed_artifact_register_failed";
 }

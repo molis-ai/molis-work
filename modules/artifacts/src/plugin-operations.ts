@@ -1,6 +1,6 @@
 import type { ArtifactsApplicationApi, ProcessItemsApplicationApi, ProcessItemRecord, ArtifactVersionRecord } from "@molis-ai/molis-work-contracts/modules/artifacts";
 import { artifactLineHeadOf, type ActionSchema } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginArtifactClient, PluginProcessItemClient, PluginManifest, PluginProcessItemInput, PluginConsumableVersion } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginArtifactClient, PluginArtifactPublishInput, PluginArtifactWriter, PluginProcessItemClient, PluginManifest, PluginProcessItemInput, PluginConsumableVersion } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { pluginArtifactErrors } from "./plugin-errors.js";
 import { pluginArtifactContracts, referenceInput, processInput, artifactInput } from "./plugin-action-contracts.js";
 
@@ -23,15 +23,20 @@ const UNCONSUMABLE_MESSAGE: Readonly<Record<string, string>> = {
   consumer_missing: "这个插件没有声明能使用这种成果",
 };
 
-/** Owner policy over the two stores; the trusted entry supplies identity, live authorization and the shared validator. */
-export function createPluginArtifactOperations(input: PluginArtifactOperationsInput): { client: PluginArtifactClient; process: PluginProcessItemClient } {
+/**
+ * Owner policy over the two stores; the trusted entry supplies identity, live authorization and the shared validator. `writer` is the same
+ * policy for a write inside the plugin's own transaction (`PluginArtifactClient.join`): `permit` is the transaction's gate, asked before each
+ * call and again right before the version is written, in place of the client's grant and caller checks, and `author` is who the version
+ * records as written by once `permit` passed.
+ */
+export function createPluginArtifactOperations(input: PluginArtifactOperationsInput): { client: PluginArtifactClient; process: PluginProcessItemClient; writer(permit: () => void, author: () => string): PluginArtifactWriter } {
   const { api, process, project_id, actor_id } = input;
   const access = { api, process, project_id, actor_id };
   const manifest = structuredClone(input.manifest);
-  const requirePermission = (permission: "artifact:read" | "artifact:write") => {
+  const declaresPermission = (permission: "artifact:read" | "artifact:write") => {
     if (!manifest.permissions.some(item => item.permission === permission)) throw pluginArtifactErrors.plugin_denied("Manifest 未声明该成果权限");
-    input.authorize(permission);
   };
+  const requirePermission = (permission: "artifact:read" | "artifact:write") => { declaresPermission(permission); input.authorize(permission); };
   const checked = <T>(operation: keyof typeof pluginArtifactContracts, value: T): T => {
     input.assertInput(pluginArtifactContracts[operation].input, value);
     return value;
@@ -41,7 +46,7 @@ export function createPluginArtifactOperations(input: PluginArtifactOperationsIn
   const unused = (other: ArtifactsApplicationApi | ProcessItemsApplicationApi, artifactId: string, what: string) => {
     if (other.query.latestArtifactVersion(project_id, artifactId)) throw pluginArtifactErrors.plugin_incompatible(`这个 ID 已用于${what}`);
   };
-  const fixed = <T extends PluginProcessItemInput>(value: T) => ({ ...value, project_id, actor_id: input.author?.() ?? actor_id,
+  const fixed = <T extends PluginProcessItemInput>(value: T, author = input.author?.() ?? actor_id) => ({ ...value, project_id, actor_id: author,
     producer: { plugin_id: manifest.plugin_id, plugin_version: manifest.version, binding_signature: manifest.publisher.signature },
     scope: "personal" as const });
   const ownProcess = (value: ProcessItemRecord | null) => {
@@ -49,14 +54,29 @@ export function createPluginArtifactOperations(input: PluginArtifactOperationsIn
     return value;
   };
   const issue = (value: ProcessItemRecord, kind: PluginConsumableVersion["kind"]) => consumptionIssue(access, manifest, value, kind);
-  return { client: {
+  /** Pins a version once it is valid, declared and not a process item's id; `current` is asked right before the write. */
+  const publish = (value: PluginArtifactPublishInput, current: () => void, author?: () => string) => {
+    const projected = checked("publish", artifactInput(value));
+    if (!declares(manifest.artifacts.produces, projected)) throw pluginArtifactErrors.plugin_incompatible("Manifest 未声明生产此成果 type/schema");
+    unused(process, projected.artifact_id, "过程项");
+    current();
+    return api.commands.registerVersion(fixed(projected, author?.()));
+  };
+  const lineHead = (artifactId: string) => {
+    checked("head", { artifact_id: artifactId });
+    const latest = api.query.latestArtifactVersion(project_id, artifactId);
+    if (!latest) return null;
+    if (!ownsRecord(latest, manifest, null)) throw pluginArtifactErrors.plugin_denied("这条成果线不是这个插件的");
+    return artifactLineHeadOf(latest);
+  };
+  const writer = (permit: () => void, author: () => string): PluginArtifactWriter => Object.freeze<PluginArtifactWriter>({
+    head(artifactId) { declaresPermission("artifact:write"); permit(); return lineHead(artifactId); },
+    publish(value) { declaresPermission("artifact:write"); permit(); return publish(value, permit, author); },
+  });
+  return { writer, client: {
     publish(value) {
       requirePermission("artifact:write");
-      const projected = checked("publish", artifactInput(value));
-      if (!declares(manifest.artifacts.produces, projected)) throw pluginArtifactErrors.plugin_incompatible("Manifest 未声明生产此成果 type/schema");
-      unused(process, projected.artifact_id, "过程项");
-      input.assertCallerCurrent();
-      return api.commands.registerVersion(fixed(projected));
+      return publish(value, input.assertCallerCurrent);
     },
     read(value) {
       requirePermission("artifact:read");
@@ -71,11 +91,7 @@ export function createPluginArtifactOperations(input: PluginArtifactOperationsIn
     },
     head(artifactId) {
       requirePermission("artifact:read");
-      checked("head", { artifact_id: artifactId });
-      const latest = api.query.latestArtifactVersion(project_id, artifactId);
-      if (!latest) return null;
-      if (!ownsRecord(latest, manifest, null)) throw pluginArtifactErrors.plugin_denied("这条成果线不是这个插件的");
-      return artifactLineHeadOf(latest);
+      return lineHead(artifactId);
     },
     readOwn(value) {
       requirePermission("artifact:read");

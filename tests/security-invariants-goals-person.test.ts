@@ -46,7 +46,8 @@ test("S-99 Goals takes the person only from the source owner's delegation: anoth
       snapshot_digest: `sha256:${"0".repeat(64)}`, reason: "who asked" });
     const channel = async (goal_id: string) => (await client.invoke(person, goalsActions.state, { goal_id }) as { intent: { source_kind: string } }).intent.source_kind;
     const create = (caller: ActionCallContext, key: string, kind?: string) => client.invoke(caller, goalsActions.create, intent(key, kind))
-      .then(async created => channel((created as { goal: { goal_id: string } }).goal.goal_id), (error: ActionError) => error.code);
+      .then(async created => channel((created as { goal: { goal_id: string } }).goal.goal_id), (error: ActionError) => `${error.code} ${error.message}`);
+    const REFUSED = "actions.input_invalid 只有本人可以指定 Goal 的创建渠道";
     const outcomes: unknown[] = [];
     for (const [name, plugin] of [["feed", FEED_PLUGIN_ID], ["workflows", WORKFLOWS_PLUGIN_ID], ["third party", THIRD_PARTY]] as const) {
       const caller = handedInBy(plugin);
@@ -60,9 +61,9 @@ test("S-99 Goals takes the person only from the source owner's delegation: anoth
     }
     assert.deepEqual(outcomes, [
       // Feed owns the `feed` channel and the `feed_item` input; a delegation that names no channel, or another one, is not the person.
-      ["feed", "feed", "actions.input_invalid", "runtime", "confirmed"],
-      ["workflows", "actions.input_invalid", "actions.input_invalid", "runtime", "proposed"],
-      ["third party", "actions.input_invalid", "actions.input_invalid", "runtime", "proposed"],
+      ["feed", "feed", REFUSED, "runtime", "confirmed"],
+      ["workflows", REFUSED, REFUSED, "runtime", "proposed"],
+      ["third party", REFUSED, REFUSED, "runtime", "proposed"],
     ]);
     // The person's own call still names any channel, and an unnamed one is theirs.
     assert.equal(await create(person, "person-onboarding", "onboarding"), "onboarding");
@@ -116,6 +117,7 @@ test("S-99 a Workflows step that runs goals.create after the person pressed cont
   const refused = await s.call("POST", `/workflows/instances/${named}/continue`, {});
   assert.notEqual(refused.status, 200, JSON.stringify(refused.body));
   assert.equal(refused.body.code, "actions.input_invalid", JSON.stringify(refused.body));
+  assert.match(String(refused.body.error), /只有本人可以指定 Goal 的创建渠道/, JSON.stringify(refused.body));
   assert.deepEqual((await s.goals()).filter(goal => goal.title === "导出失败"), [], "nothing was created for the refused step");
 
   const plain = await s.runTo("wf-plain", {});

@@ -1,6 +1,6 @@
 import { pluginArtifactErrors } from "./plugin-errors.js";
 import type {
-  PluginArtifactClient, PluginStartContext, PluginArtifactPublishInput, PluginProcessItemClient, PluginProcessItemInput,
+  PluginArtifactClient, PluginArtifactWriter, PluginStartContext, PluginArtifactPublishInput, PluginProcessItemClient, PluginProcessItemInput,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { ActionDefinition, ActionRegistryPort, SyncActionClient, ActionCallContext, ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
@@ -9,13 +9,14 @@ import { pluginArtifactContracts, referenceInput, processInput, artifactInput } 
 
 /**
  * Created by the trusted Host for one installation; authors receive only the returned clients. Its calls run under the caller
- * the Host issued that same session (`plugin_caller`), so they stop with the session.
+ * the Host issued that same session (`plugin_caller`), so they stop with the session. `writer` is not an author's: the Host gives it
+ * the plugin's transaction gate to make `join` (it does not go through the SDK actions, so a pin a rollback undid leaves no call row).
  */
 export function createPluginArtifactClient(input: Omit<PluginArtifactOperationsInput, "authorize"> & {
   actions: { registry: ActionRegistryPort; client: SyncActionClient; project_id: string };
   context: PluginStartContext;
   plugin_caller: HostPluginCaller;
-}): { client: PluginArtifactClient; process: PluginProcessItemClient; dispose(): void } {
+}): { client: PluginArtifactClient; process: PluginProcessItemClient; writer(permit: () => void, author: () => string): PluginArtifactWriter; dispose(): void } {
   const { context, actor_id } = input;
   const manifest = structuredClone(input.manifest);
   if (manifest.plugin_id !== context.plugin_id || manifest.version !== context.version) {
@@ -63,7 +64,7 @@ export function createPluginArtifactClient(input: Omit<PluginArtifactOperationsI
     requirePermission(definition.action.permissions[0]!);
     return input.actions.client.invokeSync(caller, definition, value);
   };
-  return { dispose, client: {
+  return { dispose, writer: operations.writer, client: {
     read: value => invoke(read, referenceInput(value)) as ReturnType<PluginArtifactClient["read"]>,
     head: artifactId => invoke(head, { artifact_id: artifactId }) as ReturnType<PluginArtifactClient["head"]>,
     readOwn: value => invoke(own, referenceInput(value)) as ReturnType<PluginArtifactClient["readOwn"]>,

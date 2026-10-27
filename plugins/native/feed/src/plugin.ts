@@ -38,21 +38,22 @@ const idOf = (value: { capability_id: string; version: number }) => `${value.cap
 /**
  * Feed as a Plugin Runtime plugin, one instance per project (specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §11).
  * The application is the same one the Host builds; what changes is what it stands on. Its tables are the plugin's own library, its Inbox
- * entries are Attention's (`services.attention`), its links to Goals the Context Ledger's, its journal the project's, and its retained
+ * entries are Attention's (`services.attention`), its links to Goals the Context Ledger's, what its out rules capture the 成果库's
+ * (`services.artifacts.join`, in the same commit), its journal the project's, and its retained
  * bodies are read through the platform (`services.sourcePull.evidence`). Writes happen only inside `createFeedWriter`'s commit.
  */
 export function createFeedPlugin(): PluginDefinition {
   return { manifest: feedManifest, async start(context) {
     for (const permission of feedManifest.permissions) if (permission.required) context.requireGrant(permission.permission);
     const projectId = context.project_id, services = context.services;
-    const database = services?.project_database, attention = services?.attention, contextLedger = services?.contextLedger;
+    const database = services?.project_database, attention = services?.attention, contextLedger = services?.contextLedger, artifacts = services?.artifacts;
     if (!projectId) throw new ActionError("actions.scope_mismatch", "Feed 只属于一个项目");
-    if (!database || !attention || !contextLedger) throw new ActionError("actions.unredeemed", "Feed 需要项目库、注意力与 Context Ledger 服务");
+    if (!database || !attention || !contextLedger || !artifacts) throw new ActionError("actions.unredeemed", "Feed 需要项目库、注意力、Context Ledger 与成果库服务");
     // The capture scene's judgments, Home's and the Inbox's: the platform's scene client, judgment ledger and action directory.
     const scenes = services?.scenes, judgments = services?.judgments, directory = services?.actions?.directory;
     if (!scenes || !judgments || !directory) throw new ActionError("actions.unredeemed", "Feed 需要场景、判断账与动作目录服务");
     const judgmentServices = { scenes, judgments, directory };
-    const ports = createFeedRuntimePorts({ projectId, database, attention, contextLedger });
+    const ports = createFeedRuntimePorts({ projectId, database, attention, contextLedger, artifacts });
     const evidence = services?.sourcePull?.evidence;
     // A body that is gone, or that cannot be read, is unavailable and never makes the item unreadable; a call that is cancelled or no longer allowed fails.
     // Only the Home's evidence store is asked, and only for its own bodies: a research package's material (`research:<id>`) is its library's,
@@ -73,7 +74,7 @@ export function createFeedPlugin(): PluginDefinition {
     let assembled: FeedApplication | undefined;
     const application = (): FeedApplication => assembled ?? ((): never => { throw new ActionError("actions.execution_failed", "Feed 还没有装配完"); })();
     const staging = createRuntimeItemStaging(application, projectId);
-    const feed = assembleFeedApplication({ sql: ports.sql, ledger: ports.ledger, attention: ports.attention, appendEvent: ports.appendEvent,
+    const feed = assembleFeedApplication({ sql: ports.sql, ledger: ports.ledger, attention: ports.attention, artifacts: ports.artifacts, appendEvent: ports.appendEvent,
       subscribeInboxCreated: ports.subscribeInboxCreated, outRules: new FeedOutRuleStore(ports.sql), history,
       ...createRuntimeJudgmentTriggers({ projectId, services: judgmentServices, feed: application, hydrate, staging }) });
     assembled = feed;

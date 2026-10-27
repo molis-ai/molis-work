@@ -209,7 +209,8 @@ test("admission actions wait for the Inbox next-step judgment beside the project
   await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   const databasePath = join(home, "project.db"); seedDemoBoard(databasePath);
   const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
-  const caller: ActionCallContext = { actor_id: "owner", project_id: reference.project_id, audience: "user", permissions: [...INBOX_ACTION_PERMISSIONS, "evidence:read", "feed:write", "inbox:write"] };
+  // The hand-in reaches feed.content.receive, which pins what the capture rules match in its commit (artifact:write, RAC-510).
+  const caller: ActionCallContext = { actor_id: "owner", project_id: reference.project_id, audience: "user", permissions: [...INBOX_ACTION_PERMISSIONS, "evidence:read", "feed:write", "inbox:write", "artifact:write"] };
   let gate = Promise.withResolvers<void>(), asked = Promise.withResolvers<void>();
   const options: FunctionsHostOptions = { env: { TYPESAFE_API_KEY: "fixture-only" },
     provider: { async evaluate(_key, record) {

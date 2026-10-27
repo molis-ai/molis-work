@@ -4,13 +4,14 @@ import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
 import type { ContextAccess, ContextEdge, ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
-import { projectVersionStores } from "@molis-ai/molis-work-module-artifacts";
+import { assertActionInput } from "@molis-ai/molis-work-kernel";
+import { createPluginArtifactOperations, projectVersionStores } from "@molis-ai/molis-work-module-artifacts";
 import { GMAIL_DEFAULT_SCOPE, parseGmailScope } from "@molis-ai/molis-work-integration-gmail/scope";
 import { CUSTOM_RSS_DEFINITION_ID, customRssFeedHost, isRssSourceKind, listRegisterableFeeds, normalizeCustomRssFeedUrl, readRssHttpState, withRssHttpFailure, withRssHttpSuccess } from "@molis-ai/molis-work-integration-rss";
 import { YOUTUBE_CHANNEL_DEFINITION_ID, YOUTUBE_PUBLIC_FEED_HOST, normalizeYouTubeChannelId, youtubeChannelFeedUrl } from "@molis-ai/molis-work-integration-youtube";
 import { LocalSqliteJournal, resolveMolisWorkHome, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import {
-  FEED_PLUGIN_ID, FeedOutRuleStore, FeedSourceService, assembleFeedApplication, feedOwnedAttention,
+  FEED_PLUGIN_ID, FeedOutRuleStore, FeedSourceService, assembleFeedApplication, feedManifest, feedOwnedAttention,
   type FeedApplication, type FeedApplicationPorts, type FeedArtifactProducer, type FeedSourceRecord, type FeedSourceSyncLease,
 } from "@molis-ai/molis-work-plugin-feed";
 import { fromBetterSqlite, type FeedLedgerPort } from "@molis-ai/molis-work-plugin-feed/store";
@@ -61,13 +62,20 @@ export function createDemoFeedApplication(db: SqliteDatabase, options: DemoFeedA
     journal.appendEvent({ eventId: `event-${randomUUID()}`, projectId, actorId: LOCAL_PERSON_ACTOR_ID, objectType, objectId, type, reason, payload, at });
   }
   // The library's pair of version stores, opened only when no producer was handed in (the first call that writes).
-  const artifactsModule = () => projectVersionStores({
+  const versionStores = () => projectVersionStores({
     db,
     homeOwner: LOCAL_PERSON_ACTOR_ID,
     appendEvent: input => journal.appendEvent({ eventId: input.eventId, projectId: input.projectId, actorId: input.actorId, type: input.type, objectType: input.objectType,
       objectId: input.objectId, reason: input.reason, payload: input.payload, at: input.at }),
     eventCursor: projectId => journal.eventCursor(projectId),
-  }).artifacts;
+  });
+  // What the Runtime plugin's `services.artifacts.join` gives it, without a call to check: the same declared types and the same producer
+  // (Feed's Manifest), so a capture this seeds is one the Runtime Feed owns.
+  const capture: FeedArtifactProducer["capture"] = (projectId, write) => {
+    const stores = versionStores();
+    return write(createPluginArtifactOperations({ api: stores.artifacts, process: stores.processItems, manifest: feedManifest, project_id: projectId,
+      actor_id: LOCAL_PERSON_ACTOR_ID, authorize: () => {}, assertCallerCurrent: () => {}, assertInput: assertActionInput }).writer(() => {}, () => LOCAL_PERSON_ACTOR_ID));
+  };
   return assembleFeedApplication({
     sql, appendEvent,
     attention: subjects => feedOwnedAttention(new AttentionModule(db, {
@@ -85,10 +93,7 @@ export function createDemoFeedApplication(db: SqliteDatabase, options: DemoFeedA
     ledger: feedLedger(createContextLedger(db, { authorize: access => access.scope.kind === "personal" && access.actor_id === FEED_PLUGIN_ID })),
     subscribeInboxCreated: listener => { inboxCreated = listener; },
     outRules: new FeedOutRuleStore(sql),
-    artifacts: options.artifacts ?? {
-      registerVersion: input => artifactsModule().commands.registerVersion(input),
-      latestVersion: (projectId, artifactId) => artifactsModule().query.latestArtifactVersion(projectId, artifactId),
-    },
+    artifacts: options.artifacts ?? { capture },
     captureJudgment: options.captureJudgment,
     inboxJudgment: options.inboxJudgment,
     homeJudgment: options.homeJudgment,

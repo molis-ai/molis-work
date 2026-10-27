@@ -173,7 +173,8 @@ test("an archived Feed item cannot be admitted to the Inbox by the person, a wor
 
 test("an ignored Feed item that a source sees again with a failing capture-out gets no Inbox entry", async () => {
   await withProject("molis-work-feed-archived-capture-out-", async store => {
-    const failing = { registerVersion() { throw Object.assign(new Error("down"), { code: "artifact_store_down" }); }, latestVersion: () => null };
+    const failing = { capture: (_projectId: string, write: (writer: object) => unknown) =>
+      write({ head: () => null, publish() { throw Object.assign(new Error("down"), { code: "artifact_store_down" }); } }) };
     const feed = createLocalFeedApplication(store.db, { artifacts: failing as never });
     const source = workflowSource(feed, "src-1");
     const signal = (revision: number) => ({ signal_id: "sig-1", revision });

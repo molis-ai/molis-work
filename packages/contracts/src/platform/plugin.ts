@@ -9,7 +9,7 @@ import type { PluginInputDeliveryContext, PluginUpstreamReadyInputs, PluginUpstr
 import type { AgentPromptText, AgentSkillDefinition } from "./plugin-agent.js";
 import type { InstructionPrompt } from "./model-prompts.js";
 export type { PluginMaterialsClient, PluginMaterialRequest, PluginMaterialSourceRequest, PluginMaterialDocumentsRequest, PluginLocalPageRequest, PluginOriginalRequest, PluginOriginalContent, PluginOriginalRangeRequest, PluginOriginalRangeContent, MaterialSourceContent } from "./plugin-materials.js";
-export type { PluginArtifactClient, PluginArtifactPublishInput, PluginProcessItemClient, PluginProcessItemInput, PluginProcessItemHead, PluginConsumableVersion } from "./plugin-artifacts.js";
+export type { PluginArtifactClient, PluginArtifactPublishInput, PluginArtifactWriter, PluginProcessItemClient, PluginProcessItemInput, PluginProcessItemHead, PluginConsumableVersion } from "./plugin-artifacts.js";
 export type { PluginPackageFile, PluginPackagePayload, PluginPackageBundle, PluginPackageSigner, SandboxPackageInterface, SandboxPackagePrompt } from "./plugin-package.js";
 export { SANDBOX_PACKAGE_FILES } from "./plugin-package.js";
 export * from "./plugin-events.js";

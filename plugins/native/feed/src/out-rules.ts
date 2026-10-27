@@ -1,27 +1,21 @@
 import type { ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createHash, randomUUID } from "node:crypto";
 import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
-import type {
-  ArtifactJsonValue,
-  ArtifactVersionRecord,
-  ArtifactVersionResult,
-  RegisterArtifactVersionInput,
-} from "@molis-ai/molis-work-contracts/modules/artifacts";
+import type { ArtifactJsonValue, ArtifactVersionResult } from "@molis-ai/molis-work-contracts/modules/artifacts";
+import type { PluginArtifactPublishInput, PluginArtifactWriter } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { FeedItemRecord, FeedOutRuleMatch, FeedOutRuleRecord } from "./projection.js";
 import type { FeedSql } from "./store/sql.js";
 
-import { FEED_CAPTURE_ARTIFACT_TYPE_ID, FEED_CAPTURE_SCHEMA_VERSION, FEED_PLUGIN_ID } from "./identity.js";
-import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
+import { FEED_CAPTURE_ARTIFACT_TYPE_ID, FEED_CAPTURE_SCHEMA_VERSION } from "./identity.js";
 export { FEED_CAPTURE_ARTIFACT_TYPE_ID, FEED_CAPTURE_SCHEMA_VERSION } from "./identity.js";
-export const FEED_ARTIFACT_PRODUCER = {
-  plugin_id: FEED_PLUGIN_ID,
-  plugin_version: "0.0.0",
-  binding_signature: "native:feed",
-} as const;
 
+/**
+ * Where Feed pins what its out rules capture: `capture` runs `write` with the 成果库 inside Feed's current write transaction
+ * (`services.artifacts.join`), so a capture is committed with its item or rolled back with it. The platform stamps the producer
+ * (Feed's Manifest) and the author (the original caller); Feed names neither.
+ */
 export interface FeedArtifactProducer {
-  registerVersion(input: RegisterArtifactVersionInput): ArtifactVersionResult;
-  latestVersion(projectId: string, artifactId: string): ArtifactVersionRecord | null;
+  capture<T>(projectId: string, write: (writer: PluginArtifactWriter) => T): T;
 }
 
 export interface FeedOutRuleWrite {
@@ -170,22 +164,18 @@ function feedCapturePayload(item: FeedItemRecord): ArtifactJsonValue {
 }
 
 export function registerFeedCaptureVersion(
-  artifacts: FeedArtifactProducer,
+  artifacts: PluginArtifactWriter,
   item: FeedItemRecord,
   rule: FeedOutRuleRecord,
-  actorId = LOCAL_PERSON_ACTOR_ID,
 ): ArtifactVersionResult {
   const artifactId = feedCaptureArtifactId(item.item_id, rule.rule_id);
   const payload = feedCapturePayload(item);
-  const latest = artifacts.latestVersion(item.project_id, artifactId);
-  const input = (version: number, supersedes: number | null): RegisterArtifactVersionInput => ({
-    project_id: item.project_id,
+  const latest = artifacts.head(artifactId);
+  const input = (version: number, supersedes: number | null): PluginArtifactPublishInput => ({
     artifact_id: artifactId,
     version,
-    actor_id: actorId,
     artifact_type_id: FEED_CAPTURE_ARTIFACT_TYPE_ID,
     schema_version: FEED_CAPTURE_SCHEMA_VERSION,
-    producer: { ...FEED_ARTIFACT_PRODUCER },
     content: { kind: "inline", payload },
     metadata: {
       feed_item_id: item.item_id,
@@ -198,11 +188,42 @@ export function registerFeedCaptureVersion(
     ...(supersedes != null ? { supersedes_version: supersedes } : {}),
   });
   try {
-    return artifacts.registerVersion(input(latest?.version ?? 1, null));
+    return artifacts.publish(input(latest?.version ?? 1, null));
   } catch (error) {
     if (!isVersionConflict(error) || latest == null) throw error;
-    return artifacts.registerVersion(input(latest.version + 1, latest.version));
+    return artifacts.publish(input(latest.version + 1, latest.version));
   }
+}
+
+/** A refusal of the call itself: cancelled, revoked, stopped, expired, its grant gone, or the transaction over (RAC-510). */
+const CALL_REFUSALS: ReadonlySet<string> = new Set(["actions.cancelled", "actions.forbidden", "actions.plugin_unavailable", "actions.expired", "plugin.grant_denied"]);
+
+/**
+ * The code Feed records as the item's `artifact_out_failed` for a capture that failed, as on main: the error's own code, or
+ * `feed_artifact_register_failed` for one without (a TypeError of the content, a SQLite error), so an item that cannot be captured does not
+ * hold back its batch on every retry. A refusal of the call itself, a cancellation included, is not a failed capture: it is thrown again,
+ * and the whole commit is rolled back with the item.
+ */
+export function feedCaptureFailure(error: unknown): string {
+  const code = error && typeof error === "object" && "code" in error && typeof error.code === "string" ? error.code : "";
+  const aborted = !!error && typeof error === "object" && "name" in error && error.name === "AbortError";
+  if (aborted || CALL_REFUSALS.has(code)) throw error;
+  return code || "feed_artifact_register_failed";
+}
+
+/** Pins each matched rule's capture in `writer`; a rule whose capture failed is listed with its code (`feedCaptureFailure`). */
+export function captureFeedRules(writer: PluginArtifactWriter, item: FeedItemRecord, rules: readonly FeedOutRuleRecord[]): { failedRuleIds: string[]; errorCodes: string[] } {
+  const failedRuleIds: string[] = [];
+  const errorCodes: string[] = [];
+  for (const rule of rules) {
+    try {
+      registerFeedCaptureVersion(writer, item, rule);
+    } catch (error) {
+      errorCodes.push(feedCaptureFailure(error));
+      failedRuleIds.push(rule.rule_id);
+    }
+  }
+  return { failedRuleIds, errorCodes };
 }
 
 export function parseFeedOutRuleWrite(body: Readonly<Record<string, unknown>>): FeedOutRuleWrite {

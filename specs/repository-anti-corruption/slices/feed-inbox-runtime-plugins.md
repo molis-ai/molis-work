@@ -1,6 +1,6 @@
 # FI-6 Feed、Inbox 进 Plugin Runtime 设计稿（PG-093、PG-089 余半，并关 PG-040、PG-080、PG-045 的余项）
 
-状态：批 C 于2026-10-27续做：C03–07、RAC-808 的 Runtime Inbox 证明、SYS52 修复已完成并有作者定向验证（SYS52 浏览器例未在本机跑）；合成树的包登记、断链、类型断言、巨大单元与 API/动作快照已按门禁修好或刷新。边界检查已按用户批准跟上删掉的文件；四个红文件在 main 上是绿的，已在 C 里修（一处产品回归：Feed Manifest 缺 `attention.inbox`）。FI7 Feed 一半已做（页面请求进 Manifest routes，两段 HTML 归外壳舞台，宿主 Feed 边删除；健康门禁对 merge-base 通过，工作台脚本比预算小 186 B、不需放行；改到的浏览器例只写未在本机跑），槽账号绑定 UI 移到单独切片 FI7b；D-4e3-1 按用户 10-10 的决定改回（本人经 Feed 升格记已确认，Goals 只从 Host 设的委托字段认本人，且只认来源主人 Feed 的委托，暂定 S-99；收窄到具体动作记 BL-803），Feed Manifest 回 0.3.0、发版核对补 Feed 正文引用账，desktop-tui 转绿；inbox-automatic-scenes 改走 Runtime 的 `feed.sources.sync` 后查出 Runtime Feed 没接成果服务（RAC-510 未做），统筹定在 C 里修、方案待批，该例第 166 行在落地前保持红；FI7 评审（`d96bd692d`）的四处跟进已做（W3-01 C 补回「进了门、被拒、留行、带编号」的 HTTP 用例，PG-060 位置、PG-057 与迁移文档跟上现状），边界检查的余漏记 BL-802；受影响文件逐个跑时又修了 feed-promote-mcp 的夹具（项目缺 Feed）；C02 Notion 复审无必修项；最终独立验证与 Full 未做，见 §13。C未合入；真实 Home、维护和本人验收未执行。父稿与历史设计、逐片记录保留。
+状态：批 C 于2026-10-27续做：C03–07、RAC-808 的 Runtime Inbox 证明、SYS52 修复已完成并有作者定向验证（SYS52 浏览器例未在本机跑）；合成树的包登记、断链、类型断言、巨大单元与 API/动作快照已按门禁修好或刷新。边界检查已按用户批准跟上删掉的文件；四个红文件在 main 上是绿的，已在 C 里修（一处产品回归：Feed Manifest 缺 `attention.inbox`）。FI7 Feed 一半已做（页面请求进 Manifest routes，两段 HTML 归外壳舞台，宿主 Feed 边删除；健康门禁对 merge-base 通过，工作台脚本比预算小 186 B、不需放行；改到的浏览器例只写未在本机跑），槽账号绑定 UI 移到单独切片 FI7b；D-4e3-1 按用户 10-10 的决定改回（本人经 Feed 升格记已确认，Goals 只从 Host 设的委托字段认本人，且只认来源主人 Feed 的委托，暂定 S-99；收窄到具体动作记 BL-803），Feed Manifest 回 0.3.0、发版核对补 Feed 正文引用账，desktop-tui 转绿；inbox-automatic-scenes 改走 Runtime 的 `feed.sources.sync` 后查出 Runtime Feed 没接成果服务，统筹批了方案 A：RAC-510 已做（`services.artifacts.join`，捕捉的成果与事项同一次提交，暂定 S-100；6 个动作多要 `artifact:write`，不留兼容期；存量记 R-69），该例第 166 行原断言转绿，顺带修了 FI-C-08；FI7 评审（`d96bd692d`）的四处跟进已做（W3-01 C 补回「进了门、被拒、留行、带编号」的 HTTP 用例，PG-060 位置、PG-057 与迁移文档跟上现状），边界检查的余漏记 BL-802；受影响文件逐个跑时又修了 feed-promote-mcp 的夹具（项目缺 Feed）；C02 Notion 复审无必修项；最终独立验证与 Full 未做，见 §13。C未合入；真实 Home、维护和本人验收未执行。父稿与历史设计、逐片记录保留。
 
 **先说五件事**：
 
@@ -23,7 +23,7 @@
 | `AttentionModule(db, { exists, eventSink })` | `services.attention`：`join(tx, writer => writer.create/setStatus/deleteSubject)`，读 `list/get/findActiveForSubject/findForSubject/events` | 与 Feed 的行同一个事务；`exists` 回调没有了——插件自己为主体存在负责；`eventSink` 改写 `tx.journal` |
 | `createContextLedger(db, { authorize: module:feed })` | `services.contextLedger`：`join(tx, writer => writer.put/remove)`，读 `get/list/history` | 键存成 `<plugin_id>:<键>`；调用的人是 actor |
 | `createGoalReadServices(db, journal).query`（只给 Attention 的 `exists` 查 Goal 在不在） | 删 | 跟着 `exists` 一起没有 |
-| `projectVersionStores(…)` + `as unknown as ArtifactsSqliteDatabase` | `services.artifacts`（Manifest `artifacts.produces` 已声明 `feed.capture`） | 关 PG-080，并删 `feed-application.ts` 里那处 `as unknown as` |
+| `projectVersionStores(…)` + `as unknown as ArtifactsSqliteDatabase` | `services.artifacts`（Manifest `artifacts.produces` 已声明 `feed.capture`）；捕捉经 `join` 进 Feed 自己的事务（RAC-510，§3.7） | 关 PG-080，并删 `feed-application.ts` 里那处 `as unknown as`（已做，10-27） |
 | `FeedOutRuleStore(db)`，`projectPluginDatabaseRefusal(db, FEED_PLUGIN_ID)` | `FeedSql`；被拒由平台状态承担 | |
 | `createFeedHistoryRelease(db)` | FI-4 的 Home 引用账 | |
 | listener 七个函数（`saveListenerRun` 等） | `FeedSql` | FI-5 已搬进 Feed |
@@ -174,6 +174,14 @@ FI-5 的存储层只依赖 `FeedSql`；本片给它第二个适配器 `fromPlugi
 
 `feed.capture` 的版本写入改用 `services.artifacts`，类型 `feed.capture` 已在 `artifacts.produces` 声明；未声明的类型被宿主拒绝（`artifact-type-gate`）。`FeedArtifactProducer` 端口保留，生产端换成服务。`feed-application.ts` 里的 `as unknown as ArtifactsSqliteDatabase` 随文件删。
 
+**已做（RAC-510，统筹 10-27 批方案 A，暂定 S-100）。** 成果服务加了与 `services.attention.join` 同一机制的 `join(tx, write)`（`apps/local-host/src/plugin-artifact-join.ts`）：成果库就在插件写事务所用的那条项目库连接上，成果版本是这次事务里的一个保存点，和 Feed 自己的行一起提交或一起回滚，日志事件也写在同一个事务里。
+
+- **认权**：`join` 和写入器的每一次 `head`、`publish` 都问 attention 用的同一道门（`gateFor`，S-68）：安装仍在跑、持有 `artifact:write`，原调用方当前有效，动作是声明了 `artifact:write` 的并发动作。被取消、撤权、停用、替换的调用拒绝本身，不算捕捉失败；事务结束后留下的写入器、别的安装的事务、在别的安装的动作里借来的 `join` 都拒为 `actions.forbidden`。
+- **身份**：产出者（插件 id、版本、发布者签名）由平台照 Manifest 盖，作者是原调用方，项目与范围也是平台的，输入里给了也不认；类型不在 `produces` 里拒为 `artifacts.plugin_incompatible`。
+- **Feed 一侧**：`FeedArtifactProducer` 只剩 `capture(projectId, write)`，Runtime 端口经 `join` 绑到这一次的事务上；宿主常量 `FEED_ARTIFACT_PRODUCER` 删除，离线演示库也改用同一个写入器（不再有 `registerVersion:`）。捕捉时只有调用本身被拒的五个平台码（`actions.cancelled`、`actions.forbidden`、`actions.plugin_unavailable`、`actions.expired`、`plugin.grant_denied`）和取消（`AbortError`）往上抛、整次提交回滚；其余错误照 main 接住，记成事项的 `artifact_out_failed`（没有码的记 `feed_artifact_register_failed`），事项照常入库。
+- **动作权限**：会跑捕捉规则的 6 个动作（`feed.sources.sync`、`feed.sources.tick`、`feed.notifications.receive`、`feed.content.receive`、`feed.rules.evaluate` 与唤醒）多声明 `artifact:write`，调用方要持有它；不留兼容期。`feed.content.receive` 另补 `attention:write`（FI-C-08，见 §13）。
+- **存量**：main 上 Feed 的成果以宿主常量的身份记（`native:feed`、版本 `0.0.0`），改到 Feed Manifest 名下是真实 Home 维护，登记在 `docs/releases/CHECKLIST.md` 的 R-69，没做。
+
 ## 4. 需要统筹裁的（推荐都写了；统筹 10-25 已逐项裁定，写在各项末尾）
 
 - **D6-1 来源拉取的 SEL 组装放哪。** FI-3 明确把 `public_source`（rss、web-query、youtube，无账号）留在 `feed-source-runtime.ts`/`feed-source-service.ts` 里，没进登记。它需要：公开网络抓取（带 `ETag`/`Last-Modified` 条件头和 RSS 允许名单）、证据正文存储（`createEvidenceContentStore`，写 Home 里的文件）、不透明块表（`createSearchOpaqueBlobStore(db)`，基线里存储包拥有的表，系统搜索也用）、密钥库。`services.materials.readSource` 只做公开 HTTP GET，没有条件头，也没有证据正文存储。三条路：（a）**推荐**：把「按来源拉取并写证据」做成平台服务（`services.sourcePull`，输入路由与游标，输出条目、回执、写过的正文引用），内部就是今天这套 SEL 组装，所有插件同样可用；写过的正文引用交给 FI-4 的 Home 账。（b）Feed 自己组装 SEL，缺的端口逐个补成平台服务（网络、正文存储、块表）——服务多、面大。（c）宿主保留这块、Feed 经私有端口调——这是私路，同等待遇下不做。 **统筹 10-25 定：选（a），新增平台服务（暂名 `services.sourcePull`），所有插件同等可用。约束是不放宽任何边界：地址校验、上限、允许名单沿用材料读取的 broker（S-57）；要凭据的只经 `services.connections`，插件拿不到密钥；证据正文写到 Home，其引用交给 FI-4 的 Home 账；Manifest 声明权限，新增 SI 行带拒绝测试（S 号到时问统筹）。实现时若发现必须放宽某条边界（私网、任意请求头、跟随跳转出允许名单等），停下回统筹，由统筹弹窗问用户**
@@ -202,7 +210,7 @@ FI-5 的存储层只依赖 `FeedSql`；本片给它第二个适配器 `fromPlugi
 | RAC-507 | 情境账经 `services.contextLedger`：`feed.goal` 边带命名空间；别的插件读不到、写不了 Feed 的边；维护后「事项关联 Goal」原样可见 |
 | RAC-508 | 日志经 `tx.journal`：Feed 的新事件名带命名空间，Feed 读不到别的插件的事件；不能以别人的名义写 |
 | RAC-509 | 提交前再认权：模型返回后、`beforeEffect()` 前把调用取消、撤权、停用，各自之后 Feed 不写事项、条目、情境账、日志、失败记账；处理器开始前就被拒的，只留一行「未执行」诊断行 |
-| RAC-510 | 成果经 `services.artifacts`：`feed.capture` 写入成功；写未声明的类型被拒；Feed 代码无 `projectVersionStores`、无 `as unknown as ArtifactsSqliteDatabase` |
+| RAC-510 | 成果经 `services.artifacts`：`feed.capture` 写入成功，与捕捉它的事项同一次提交，产出者是 Feed 的 Manifest、作者是调用方；写未声明的类型被拒；调用在提交前被取消、撤权时事项与成果都不留；成果库拒的记 `artifact_out_failed`，调用本身被拒的往上抛；Feed 代码无 `projectVersionStores`、无 `as unknown as ArtifactsSqliteDatabase` |
 | RAC-511 | tick 由平台以 Feed 安装身份唤醒：Feed 没装或停用的项目没有 tick；`web-project-schedulers.ts` 无 Feed 调用 |
 | RAC-512 | 来源互斥：同一来源同时第二次同步被拒；不同项目同名来源互不影响；`feed-source-sync-lease.ts` 已删；崩溃后的中断运行被恢复 |
 | RAC-513 | 平台通知落点（按 D6-1、D6-2 裁定）：通知能到 Feed，Feed 没装时不写别处也不丢 |
@@ -613,6 +621,7 @@ Inbox的listInbox/getInbox投影及状态提交重读已在028实现，但运行
     - **预期变化**：`feed-goal-promotion`「Goals takes the person only from the Host's delegated caller」那一行 person 不填渠道建的 Goal 从 `web` 变成 `runtime`。原来记成 `web` 本来就不对：经 Feed 转来的不是网页渠道，而 Feed 自己的升格对本人总是传 `feed`。同一个用例加了「别的插件转来」一行，断言拒绝。
     - **新的安全行与用例**：SECURITY-INVARIANTS 新加暂定 S-99（合并时按 main 和在途 PR 定号）。`tests/security-invariants-goals-person.test.ts` 两条：一条是 Feed、Workflows、第三方插件三种委托的矩阵；一条真走 Workflows 页面路由的 `instances.continue`，下一站是 `goals.create`，指定 `source_kind: "feed"` 被拒、什么都不建，不指定时记 `runtime`，调用记录里这一步是 `workflow` 受众、`delegated_by` 是 Workflows。
     - **变异**：构建产物里把判断改回「`delegated_by` 存在即可」，两条都红；产物已还原。
+    - **统筹准合 `bc7c06c07` 时的三处小改（10-27）**：两条拒绝用例除了码，也核原话「只有本人可以指定 Goal 的创建渠道」：矩阵里的拒绝记成「码 + 原话」；Workflows 一条核答复的 `error` 里有这句。通过记录见本节 RAC-510 一条的「验证」。
   - **SECURITY-INVARIANTS**：原先作者判断不加新行；统筹 10-27 定加一行，暂定 S-99，写清 Goals 怎样认本人（见上一条）。
 - **发版核对（统筹 10-27 定）。** Feed Manifest 退回 `0.3.0`。这是撤掉合成提交多改的，不算版本变更；升小版本归发版 PR。`docs/releases/CHECKLIST.md` 的各库版本表补了「Feed 的正文引用账」一行（`plugins/native/feed/src/content-ledger.ts#FEED_HOME_DATABASE`，Home 库 `feed-content`，版本 1）。`node scripts/verify-release-versions.mjs` 通过。
 - **inbox-automatic-scenes 改走 Runtime 的 `feed.sources.sync`（统筹 10-27 定），查出一处产品回归，统筹定在 C 里修（RAC-510）。**
@@ -620,9 +629,63 @@ Inbox的listInbox/getInbox投影及状态提交重读已在028实现，但运行
   - **在 Runtime 路径上对的**：拉取 `created` 1、`completed`；capture 场景跑 1 次；Inbox 条目的判断失败记 `needs_review`；同键重放 `replayed`，不再判断。
   - **不对的**：Inbox 场景多跑了一次，`localCalls` 是 5，原断言是 4。多出来的是同一条 Feed 条目的 `artifact_out_failed` 条目（`feed_artifact_producer_missing`）。临时把计数改成 5 的草稿整文件 2/2（没入库，跑完即删），说明其余都对。
   - **原因**：main 上宿主装配 Feed 时给了成果写入端（`artifacts`），每条命中规则的消息登记一个 `feed.capture` 成果。C 删了宿主 Feed，而 Runtime Feed 装配时（`plugins/native/feed/src/plugin.ts` 调 `assembleFeedApplication`）没给 `artifacts`。结果每条命中规则的消息都不出成果，Inbox 里还多一条「捕获失败」。这就是 §6 的 RAC-510（经 `services.artifacts` 写 `feed.capture`），C 里没做，也没有用例。
-  - **为什么不直接接上**：`services.artifacts.publish` 是一次单独的写入，不像 attention 那样有 `join` 进 Feed 的事务。直接在 Feed 的提交里调，能不能调、被取消的同步会不会留下成果，都要先定；也可以挪到提交之后写，像判断队列那样。统筹 10-27 定在 C 里修，先出方案：成果服务加一个与 attention 同一机制的 `join`，成果版本并进 Feed 自己的提交；方案已交统筹，待批。
-  - **第 166 行在方案落地之前保持红**：原因是 RAC-510 没做完，不弯测试（不把 4 改成 5，也不跳过）。
+  - **为什么不直接接上**：`services.artifacts.publish` 是一次单独的写入，不像 attention 那样有 `join` 进 Feed 的事务。直接在 Feed 的提交里调，能不能调、被取消的同步会不会留下成果，都要先定；也可以挪到提交之后写，像判断队列那样。统筹 10-27 定在 C 里修，先出方案：成果服务加一个与 attention 同一机制的 `join`，成果版本并进 Feed 自己的提交。统筹 10-27 批了这个方案（方案 A），做法见下一条与 §3.7。
+  - **第 166 行在方案落地之前保持红**：原因是 RAC-510 没做完，不弯测试（不把 4 改成 5，也不跳过）。RAC-510 落地后，原断言（4）一字未改，整文件 2/2。
+- **RAC-510 方案 A 已做（统筹 10-27 批）。** 做法见 §3.7，这里记过程、对调用方的影响和验证。
+  - **平台**：合同加 `PluginArtifactClient.join?` 与 `PluginArtifactWriter`（`pnpm api:update` 刷新 `tooling/gates/api/contracts/platform/plugin.txt`）。成果库的 `writer(permit)` 与 `publish` 共用一套校验（`modules/artifacts/src/plugin-operations.ts`），宿主的 `withArtifactJoin` 把它接到插件当前的项目事务上，门与 S-68 的 `attention.join` 是同一个 `gateFor`。
+  - **Feed**：`FeedArtifactProducer` 只剩 `capture`，`FEED_ARTIFACT_PRODUCER` 删除；Runtime 端口经 `join` 绑在这一次的事务上。离线演示库（`demo-feed-library.ts`）没有调用可认，用同一个写入器、`permit` 为空，只给演示种子与夹具用，不是生产 Feed。
+  - **动作权限（对调用方的影响，不留兼容期）**：`pnpm actions:update` 列出 6 个动作，形状、版本不变，只多要权限：`feed.sources.sync`、`feed.sources.tick`、`feed.sources.wake`、`feed.notifications.receive`、`feed.rules.evaluate` 多要 `artifact:write`；`feed.content.receive` 多要 `artifact:write` 和 `attention:write`。工作流步骤、MCP 客户端、Agent 调这几个动作，调用方没有这些权限就在入口拒为 `actions.forbidden`。
+  - **FI-C-08（C 自己带来的回归，一并修）**：`feed.content.receive` 命中「直接进 Inbox」的规则时，在同一次提交里开 Inbox 条目，但动作没声明 `attention:write`，被 S-68 拒。补了声明，新用例「FI-C-08 a hand-in a plain rule admits to the Inbox…」断言缺这项权限的调用方在入口被拒。
+  - **用例的预期变化**：
+    - `feed-inbox-lifecycle`「an ignored Feed item … failing capture-out」的替身只换成新的 `capture(write)` 形状，码仍是 `artifact_store_down`，照 main 记成捕获失败。
+    - `feed-out-rules` 的失败替身改成成果库拒（`artifacts.artifact.unavailable`）；另加两条：「RAC-510 a refusal of the call while capturing (…) goes up…」（撤权、取消两例，往上抛、不记失败）和「RAC-510 a capture that throws without a code is recorded as feed_artifact_register_failed…」（`TypeError` 照 main 记失败，事项留下）。
+    - `feed-runtime-plugin` 的 RAC-1029 改用 `RECEIVE`，SYNC、JUDGING 加 `artifact:write`。
+    - `inbox-action-scenes` 交给 `feed.content.receive` 的调用方另给 `artifact:write`：这个动作现在要它，缺这项时调用在入口被拒、用例等到超时；`bc7c06c07` 上 3/3，改后 3/3。
+    - `artifact-host-writers` 的名单删掉 Feed 一项（只许减少）。这条在 C 的头上本来就红：`feed-application.ts` 已删，`demo-feed-library.ts` 还在替 Feed 调 `registerVersion:`。
+    - 演示库那处的去留（统筹 10-27 问，按 PG-080 定）：`demo-feed-library.ts` 留下，但不再调 `registerVersion`，改用成果库给 `join` 的同一个写入器（`createPluginArtifactOperations(…).writer`，`permit` 为空），类型照 Feed Manifest 的 produces 核、产出者照样是 Feed Manifest，所以不进名单。它只给演示种子和夹具在插件没启动的库上排数据，不在任何调用里，作者是本机的人。PG-080 因此写「已做」。
+  - **新的安全行与用例**：暂定 S-100（合并时按 main 和在途 PR 定号），用例在 `tests/security-invariants-plugin-artifact-join.test.ts`，12 条。设计稿第 1 项（等待中、写入中被取消撤权）由两部分一起证明：探针的 wait、mid、twice 三类，加上 Feed Runtime 的逐点撤权扫描（`feed-runtime-plugin` 的 RAC-510 用例，从第 1 次问询扫到最后一次之后）。调用本身被拒不记成捕捉失败，由 `feed-out-rules` 证明。
+  - **变异**：在构建产物上逐个去掉一处，对应的用例变红：
+    - `join` 的门（只剩事务检查）：「only a concurrent action…」变红。
+    - 写入器每次重新认权（permit 换成空函数）：「twice」与「a writer … kept past」变红。
+    - 事务存活检查：「a writer … kept past」变红。
+    - 成果库的 produces 检查：「a type the Manifest does not produce」变红。
+    - 产出者盖章（让输入覆盖）：「the producer, the author…」变红。
+    - 去掉门时 mid 仍绿：事务自己的 `check()` 已经重新认原调用方，两层都在。构建产物已还原（sha 核对）。
+  - **存量**：main 上 Feed 的成果记在宿主常量名下，改到 Feed Manifest 名下登记为 R-69（`docs/releases/CHECKLIST.md` §4.3），候选，没做。
   - catch 先 `beforeEffect()` 再核、盖住原错误一事，记为 BL-801。
+  - **作者与演示数据**：Runtime 一路捕获的成果，作者记原调用方，不再是宿主写死的本机的人，这是预期变化。`join` 的写入器取的是 `audit_actor_id ?? actor_id`，与 attention 的 `join` 写 Inbox 行时一样（S-63），在每次 `permit` 通过时取；平常的 `services.artifacts.publish` 照旧记 `actor_id`，本片不改。离线演示库不在任何动作里，作者仍是本机的人。`demo-plugin-seed.ts` 经 `createDemoFeedApplication` 入库，`ingestItem` 照样跑捕捉规则，种子里的「目标树」规则照样捕获，产出者是 Feed Manifest。
+  - **评审 `review-c-bc7c06c0-rac510.md` 的跟进**：
+    - M1 即 FI-C-08，已做。
+    - M2 采纳（统筹 10-27 定）：捕捉时只把调用本身被拒的五个平台码往上抛，其余照 main 接住记 `artifact_out_failed`，事项照常入库，不会因为一条消息的内容错误整次回滚、成为毒消息。另把取消（没有码的 `AbortError`）也算调用本身被拒：宿主取消时给的是 `actions.cancelled`，裸 `AbortError` 只在别的调用方取消时出现，记成捕获失败会让取消的调用写业务记录。名单里没有 `actions.provider_changed`：它只在动作引用的提供方变化时出现，捕获这一路碰不到；即使出现，事务提交前的 `check()` 也会再认一次原调用方，整次回滚。
+    - M2 的第二处：插件事务句柄的 `check()` 多一条，`inTransaction` 为假就拒为 `actions.forbidden`「事务已被数据库回滚，不能继续访问」（`apps/local-host/src/plugin-database-client.ts`）。SQLite 遇到 `SQLITE_FULL`、`IOERR`、`NOMEM` 会自己回滚整个事务，之后的语句会落进自动提交，只留下插件写的一半。
+    - M3 做了：S-100 用例按消息核是哪一层拒的。
+      - 调用方那一层核原话；安装那一层：停用时库先关，核「插件数据库已关闭」；只改库里授权时由调度对提供方的复核先拒，核「插件所需授权已撤销」（见下一条）；动作那一层核「写入需要声明了这项权限的可等待并行动作」；事务那一层核「需要此插件当前项目库中仍在执行的事务」。没有授权的探针，核拒绝里点名 `artifact:write`。
+      - 「插件持有自己的写权、只撤 `artifact:write`」：运行中的安装改授权会被 Runtime 拒（`plugin.state_invalid`），所以用两种做法合起来证明。一是先停、改成只缺 `artifact:write`；二是安装照跑，直接改库里的安装记录，只去掉 `artifact:write`（门读的是库里的现行记录）。停用会关掉插件的库，所以前一例（和只停用的一例）等待之后的写在库那一层就被拒为「插件数据库已关闭」，碰不到 `join`；后一例在事务体里、插件自己的行写进去之后才改库里的记录，`join` 被调到，但它的第一道检查先问事务、事务再问调用方，调度对提供方的复核看见所需授权没了，`join` 和调用都拒为「插件所需授权已撤销」（`actions.plugin_permission`），轮不到 `join` 的 S-68 门去读安装记录。都整个事务回滚。原先写的是在等待处改记录、由 `join` 的门拒为「所属安装已停止或撤权」，跑下来不对：等待之后库开写时就被同一处复核拒了，`join` 根本没被调到。`join` 的门读安装记录这一层在动作调用里排在调度复核之后，本文件没有走到它的用例；它与 attention 的 join 是同一道门（`gateFor`）。
+      - 串行动作：探针的串行动作自己持有写权、开事务，不是并发的（核了 `scheduling` 与 `permissions`），被拒为「可等待并行动作」那句。
+      - 只读调用：只读场景的调用连插件自己的库都写不了，在 `join` 之前就被库拒为「只读场景不能写入业务记录」，碰不到 `join` 的门。所以另加一例在任何调用之外写：`join` 的门拒为「写入需要当前项目中的可写插件调用」。两例都什么都不留。
+      - 事务结束后留下的写入器或句柄、交给别的安装的 `join` 的事务：核「需要此插件当前项目库中仍在执行的事务」，不出成果。在别的安装的动作里借用这个安装的库：开事务时就被库拒为「这次写入属于另一个插件实例，不属于正在运行的动作」，碰不到 `join`，同样不出成果。
+      - 另加两例：保存点里 `publish` 后插件 `keep: false` 丢掉，外层事务提交，没有成果；`join(tx, async w => …)` 被 `requireSynchronous` 拒为 `actions.async_required`，返回前钉的那一版随事务回滚。
+      - Feed 一侧加「RAC-510 a sync cancelled after its pull and before its commit…」：同步拉取之后、提交之前取消（Home 账写完之后的可控延迟里），答 `actions.cancelled`，事项、Inbox 条目、成果、`artifact_out_failed` 四样都没有。调用记录里没有一行成功的 `sdk.artifacts.<安装>.publish`：这一点经宿主写 `logs/action-calls.jsonl` 用的同一个 `settled` 钩子核（`tests/fixtures/plugin-actions.ts` 多一个可选参数），不读文件。同一用例先跑一次不取消的对照，四样各 1、0、1、0。
+    - M1 的正面用例：`feed.content.receive` 命中直接进 Inbox 的规则，事项、Inbox 条目、成果各一，没有 `artifact_out_failed`（FI-C-08 用例加断言）。
+    - 评审要核的三件：`writer.head` 只看 Manifest 声明了 `artifact:write`，不要 `artifact:read`；作者见上一条；`demo-plugin-seed` 照样捕获，见上一条。
+  - **老红（定向跑与逐个验证时查出，都不是 RAC-510 带来的）。** 认定办法：`git worktree add --detach` 在 `bc7c06c07` 开基线工作树，拷本工作树已构建的 dist，只重建本片改到的 contracts、module-artifacts、plugin-feed、local-host 四个包，跑同一批文件（`--jobs 1`），用后删除。
+    - `content-station-request-id`：它的夹具只给调用者八个站静态声明的权限。C 的头上 `feed.content.receive` 登记时就多要 `evidence:read`（`d7da3e05c` 起，动作快照可查）。所以 Feed 一站、经 Inbox 交给 Feed 的两站、W4-6-05 的三例，在 C 的头上本来就被 `actions.forbidden` 或 `actions.dependency_missing` 拒。夹具改成另给 `FEED_ACTION_PERMISSIONS`，与 Feed 其他用例给本人的一样。基线上 12/21，改后 21/21。
+    - 由此看到的跟进：`inbox.content.receive` 声明的权限（`inbox:write`、`feed:write`、`feed:read`）不含 Feed 的接收登记后要的那几项。只持有它声明的权限的调用方，嵌套到 Feed 时会被拒。这事在 C 的头上就有，本片不改 Inbox 的合同。
+    - `feed-inbox-lifecycle`「syncing a research library again after a package was republished…」报 `feed.source_invalid_configuration`（研究库适配器不可用）。原因是 `d7da3e05c` 删了宿主的 `feed-source-service.ts`，演示来源服务从此不接研究库，C 的头上同样红。要么改走 Runtime 的 `feed.sources.sync`，要么删掉宿主那一路，留给接手 Feed 来源的切片。
+    - `feed-sync-authority`「public RSS grant-revoked: real Host dispatch cannot commit stale data…」：来源运行答 `reconciliation_required`（`ambiguous_transport`），断言要 `completed`；基线上同样 17/18。
+    - `action-model-scheduling`「every action that waits on a model runs beside the serial queue…」：`feed.notifications.receive` 没有声明 `metered` 的模型用量（`d7da3e05c` 起）；基线上同样 1/2。
+    - `schedule-resident-runtime` 的 W2-18-SCHEDULE-01（自动服务的效果没有落定）与 W2-18-SCHEDULE-02（来源 tick 没走到 Home 准备）；基线上同样 3/5。
+    - 这三个不在 RAC-510 的范围，C 里不修，列给统筹排。
+  - **C 带来、本轮顺手修的：`plugin-project-database`「RAC-302 every shipped plugin's Home library is registered to that plugin…」。** C 给 Feed 加了 Home 库 `feed-content`（`d7da3e05c`，正文引用账，发版核对的各库版本表已登记），用例里写死的 Home 库名单没加。按代码看，`bc7c06c07` 上就红（它的 Feed Manifest 已声明 `databases.home`，名单没有），main 上 Feed 没有 Home 库、这条是绿的；两边都没在基线上跑。名单补上 `feed-content`（预期变化），其余断言不动，同一个用例照样核它登记给 Feed、基线是 Feed Manifest 声明的那一版：10/11 → 11/11。
+  - **一次误跑**：定向跑时 `--test-name-pattern` 少写了 `=`，`run-tests` 把它当成文件名，node 就跑了默认匹配，也就是全部用例，跑了约 11 分钟。已按 pid 停下，删掉了它建的一份空的临时 Home，没有碰别的进程和 Home。
+  - **验证（2026-10-27，照统筹的批测做法：一次 heavy.sh 预约、`--jobs 1`、不跑浏览器用例）。**
+    - 一批：先重建 contracts、module-artifacts、plugin-feed、local-host，再逐个跑 37 个受影响的非浏览器文件，12.5 分钟，33/37 通过。红的四个：`feed-inbox-lifecycle` 12/13、`feed-sync-authority` 17/18（老红，见上）；`plugin-project-database` 10/11（C 带来，已修，见上）；`security-invariants-plugin-artifact-join` 10/12（M3 新写的断言核错了层，见 M3 那条）。
+    - 通过的里面有：`feed-runtime-plugin` 49/49、`feed-out-rules` 14/14、`content-station-request-id` 21/21、`inbox-automatic-scenes` 2/2、`inbox-action-scenes` 3/3、`action-contract-snapshot` 25/25、`artifact-host-writers` 1/1。统筹准合 `bc7c06c07` 时要的通过记录：`security-invariants-goals-person` 2/2，在这一批里跑的。
+    - 重跑：`plugin-project-database` 11/11；装配门禁改名单后 `builtin-plugin-assembly-gate` 9/9；S-100 改了两轮层级断言，12/12。
+    - 测试文件的类型检查（临时配置，只含本轮改到的测试文件）：5 处错误，`tests/fixtures/plugin-actions.ts` 3 处、`inbox-action-scenes` 1 处、`plugin-project-database` 1 处，在 `bc7c06c07` 的基线工作树上是同样 5 处，不是本轮带来的；S-100 文件没有错误。
+    - 门禁：`check-health-gates --base origin/main` 第一次红两处。一是 `FeedApplication` 从 491 行涨到 497 行（RAC-510 在类里加的捕捉包装和两处拒绝判断）；二是 S-100 引的 `feed-out-rules` 用例名是模板字符串，原文里没有那一整句。改法：逐条规则的捕捉和失败判断搬到 `out-rules.ts`（`captureFeedRules`、`feedCaptureFailure`），与 `registerFeedCaptureVersion` 同属捕捉，类回到 491 行以下；S-100 改引名字里固定的那一段，代码位置跟着改。重跑门禁通过，`pnpm boundary:check` 通过。Feed 重建后重跑：`feed-runtime-plugin` 49/49、`feed-out-rules` 14/14、`feed-capture-scenes` 2/2、`inbox-automatic-scenes` 2/2、`feed-inbox-lifecycle` 12/13（同一条老红）。
+    - `tooling/gates/baseline.json` 没跑 `--update`：main 自 merge-base 起改过这个文件，C 一直没动它，现在改会在合并时撞上；CI 只对照 merge-base，不读它。合并后在合并结果上跑一次。
+    - **本机延后验证**（本机没跑，由合并会话在 PR 前排）：全部浏览器用例、security 全量、最终 Full、Linux 上的 CI。`security-invariants-goals-person` 里 Workflows 那一条走的是真实的页面路由，Workflows 的浏览器界面没走。
 - **FI7 评审（`8800e07bf..d96bd692d`）的四处跟进（统筹 10-27 定）。** 评审没有必须改的代码，下面四处是文档与用例跟上：
   - **W3-01 C 的变化统筹认了。** 没装 Feed 的项目里，Feed 的页面路由（`/api/plugins/io.molis.work.feed/…`）和舞台（`/api/stage/feed`）在门口就拒（403 `actions.plugin_disabled`），没有调用，不留行，答复不带编号；FI-7 之前人按名字调 `/api/feed` 会留一行「未执行」、带编号。现在和 Inbox、Schedule 等 Runtime 插件一样，用户 10-18 定插件一视同仁，给 Feed 单留一行反而是私路。`apps/local-host/README.md` 那句「人按名字调 `/api/feed` 也照常记」改成现行行为。「被拒且留行、答复带编号」这条保证补回一条 HTTP 用例（`tests/web-home-isolation.test.ts`「a plugin's route the door let through, whose call is refused before it runs…」）：项目里装了 Feed，`POST …/items/<201 个字符>/read` 进了门，路由以本人调 Feed 的 `feed.items.read`，条目编号超出动作的上限 200，调用在处理器之前被拒为 `actions.input_invalid`；答复 400，头和体带同一个编号，调用记录里这一行 `refused === true`、能力是 `feed.items.read`。同一个编号下还会有宿主那次读浏览工作区（BL-521 的 `announceProjectOpened`：项目的插件平台打开后，第一条插件路由前读一次，读成功就不再读）：这个夹具的宿主没有项目设置，读取答 `actions.missing`、留自己的一行，失败后下一条路由再读，所以用例认这一行，也只认这一行。测试夹具 `withRequestFixture` 多一个可选参数，给项目加插件。整文件 8/8。
   - **`feed_source_catalog` 仍是宿主按 Feed 命名的页面投影。** 页面视图的来源目录（`web-view.ts:111` 调 `listFeedSourceCatalog`）main 上就有，归 PG-060，等舞台归插件时一起搬。它取的是 `createSourceVocabulary()`，与 `services.sourcePull.vocabulary` 给插件的同一份，插件和路由都读不到它，所以不绕 S-97。
@@ -630,6 +693,11 @@ Inbox的listInbox/getInbox投影及状态提交重读已在028实现，但运行
   - **PG-060 位置列补了三处**：`web-view.ts:111`、`plugin-stage-fragment-http.ts:23,34-37`（舞台分派表按名字写死 `inbox`、`feed`、`feed/items/<id>`）、`web-request.ts:201`（`feed/items/<id>` 用 Feed 专用的 `feedItem` 端口）。归在已登记的 PG-060 下，不是新开的私路。
   - **过时文档**：`docs/system/RUNTIME-MIGRATION.md` 的 Feed 行不再写 `feed-native-plugin-http.ts` 113 和三个已删模块，改成现状（宿主仍 import Feed 的文件 12 个）；privileges PG-057 的「`/api/feed` 23 处、`/api/inbox` 6 处」改成现在客户端里都是 0 处，只剩 Gmail OAuth 回调地址这一个字符串。
   - **逐个跑受影响文件时又找出一个 C 带来的红：`tests/feed-promote-mcp.test.ts`。** 夹具建的项目没有 Feed；Feed 进 Runtime 后，项目没装它，`feed.items.promote` 就不提供给 MCP 客户端，夹具在授权一步就失败（四例都红，失败后宿主没关，进程挂住，按 pid 停了）。和 `home-mcp-actions` 同一种迁移：夹具给项目加 Feed 与 Inbox，断言不动。改后 4/4；断言本来就是 MCP 客户端升格记 `runtime`、输入 `proposed`，与 D-4e3-1 一致。
+- **privileges 随 C 收口（统筹 10-27，按只读核查线的逐行核对）。**
+  - **§3 的状态**：PG-040、043、087、089、031 写「已做」，PG-020 写「代码已做」、存量 v10→v11 待维护窗口，PG-045、058 写「部分」（余项各自写明），PG-080 见 RAC-510。T0 表这五行（031、043、045、058、089）各补一句「C 合入后…，见 §3」。原状态都留在「此前」后面。
+  - **PG-093 没有写「已做」**：核查建议写已做，但这一行点名的「Feed 的客户端住在工作台里」还在（`apps/workbench/src/scripts/client/navigation-feed.ts` 与两个部件、`feed-rule-authoring.ts`），所以写「宿主一半已做」，客户端与 PG-060 的 Feed 部分一起收。`information-actions.ts` 是平台提供方，不算特权；它从 Feed、Inbox 插件包 import 的两处留给 C 合入后的一片。
+  - **装配门禁**：`tests/builtin-plugin-assembly-gate.test.ts` 的 `HOST_FILES_NAMED_FOR` 删掉 C 已删的 `feed-goal-promotion.ts`。Goals 仍因 `goal-callers.ts`、`web-goals-read.ts` 留在 `HYBRID_RUNTIME_PLUGINS`，名单不变。
+  - **main 的头部说明**：main 在 privileges 第 3 行加了 10-27 那句（BL-376 并入 BL-377），C 是从更早的 main（`9efbf8d04`）切的，所以没有。`git merge-tree` 试合 C 与 `origin/main`（`74f31c19e`）没有冲突，合出的文件第 3 行就是 main 那句。C 合 main 时再核一次。
 - **边界检查的余漏记 BL-802（来源：C 批评审 `4353b5905`）。** `directFactSql` 只写了 3 张表、JOIN、加引号、库名前缀、ALTER、DROP 都能绕过；Listener 那条按子串匹配，注释里写了也算。改门禁要先问用户，C 接近 PR，不再加范围。
 - **local-host 整包构建**：`tsc` 通过，随后的 `native/materials` Swift 构建在本机因 CommandLineTools 的 `SwiftBridging` 模块重复定义失败，与本批无关。
 - **测试文件的类型检查**：根 `tsc --noEmit -p tsconfig.json` 通过，但这份配置只含 `apps/desktop/launchers`、排除 `tests`（CI 同样只查这些），所以不查测试。本轮改到的三个测试文件另用一份临时配置查（继承 `tsconfig.base.json`，只列这三个文件）。`feed-goal-promotion`、`inbox-automatic-scenes` 没有错。`local-web-actions` 有 5 处，都在与 main 逐字相同的行上（本分支只改了它的 import 和第 219 行附近）。

@@ -1,6 +1,6 @@
 # W5-11：连接器 OAuth 从宿主的表移进官方集成插件的声明（设计稿）
 
-状态：设计稿，第五版：第 2 片已做，写进 §2.1.1，评审过了（10-27），合同按评审收窄（§2.1.1「写死的三条」）；第 1 片已做，照收窄后的合同改过，在分支上待评审（2026-10-27，W5-11 线，分支 `claude/w511-oauth-declarations`；合同、SDK 检查和解释器的写法定在 §2.1「第 1 片落地的写法」）。检查连接和读账号也改用解释器（统筹 10-27 选 A，§2.2「检查连接和读账号」，随第 4 片）；旧 OAuth 连接重连怎样认原账号写在 §10 Q2 下（第 5 片）。第一版的六个问题都按 A 定了（§10）。四轮评审的必须改 M1～M7、N1～N3、A1～A4 都已改进本稿，第四轮没有必须改，建议的取舍写在 §11；统筹和用户在 10-27 的裁定写在 §0 和 §10。第 1 片的代码在本分支上，其余各片还只有设计。第 1、2 片统筹 10-27 放行，叠在本分支上，按顺序一次一片。§7 里标「依赖 C 合入」的片，要等批次 C（`feature/anticorruption-closeout-c`，头 `fe93d322`；Notion 共享刷新在 `009b773f`）进 main 才动手；标「可以先做」的不碰 C 改过的文件，也不 import 只在 C 上的东西。代码事实按 main `9efbf8d04` 和 C 头 `fe93d322` 核过，文中的行号与形状都是 C 头上的。号段：RAC-1080～1089、BL-790～799，统筹 10-27 核过，没有冲突。新 S 号分成三条，号码由合批会话核对后再定，§3.5 里写「待统筹核」。
+状态：设计稿，第六版：第 2 片已做，写进 §2.1.1，评审过了（10-27），合同按评审收窄（§2.1.1「写死的三条」）；第 1 片已做，照第 1 片评审（M1～M3、四处对齐、context 收窄）改过，在分支上待复核（2026-10-27，W5-11 线，分支 `claude/w511-oauth-declarations`；合同、SDK 检查和解释器的写法定在 §2.1「第 1 片落地的写法」）。检查连接和读账号也改用解释器（统筹 10-27 选 A，§2.2「检查连接和读账号」，随第 4 片）；旧 OAuth 连接重连怎样认原账号写在 §10 Q2 下（第 5 片）。第一版的六个问题都按 A 定了（§10）。四轮评审的必须改 M1～M7、N1～N3、A1～A4 都已改进本稿，第四轮没有必须改，建议的取舍写在 §11；统筹和用户在 10-27 的裁定写在 §0 和 §10。第 1 片的代码在本分支上，其余各片还只有设计。第 1、2 片统筹 10-27 放行，叠在本分支上，按顺序一次一片。§7 里标「依赖 C 合入」的片，要等批次 C（`feature/anticorruption-closeout-c`，头 `fe93d322`；Notion 共享刷新在 `009b773f`）进 main 才动手；标「可以先做」的不碰 C 改过的文件，也不 import 只在 C 上的东西。代码事实按 main `9efbf8d04` 和 C 头 `fe93d322` 核过，文中的行号与形状都是 C 头上的。号段：RAC-1080～1089、BL-790～799，统筹 10-27 核过，没有冲突。新 S 号分成三条，号码由合批会话核对后再定，§3.5 里写「待统筹核」。
 
 ## 0. 已经定了的，本稿照着写
 
@@ -140,7 +140,7 @@
 | `settings` | 本人在设置里填的字段 | `{ key, label, placeholder?, required?, default?, use, pattern? 或 enum? }`；`default` 是留空时的取值（Microsoft 的 `common`、Salesforce 的登录地址）；`use` 只能是 `path`、`scope`、`client_auth`、`tenant` 之一 |
 | `identity` | 怎样取账号 | `{ url, method?, body?, headers?, query?, list?, account_id, label, label_prefix?, keep? }`，逐项的意思和 37 个服务的写法见 §2.1.1（第 2 片）。`url` 见下面的「带令牌的请求」；`account_id` 是几段，每段按顺序取第一个非空的来源，段之间用 `:` 连起来；`label` 是按顺序取第一个非空的指针 |
 | `keep` | 从令牌响应里留进连接上下文的字段 | `{ key, pointer, check?, required? }`；`check` 只能是 `tenant`（见下）或 `pattern`。从 identity 响应里留的写在 `identity.keep`（§2.1.1） |
-| `context` | 授权后另发的只读请求 | `{ key, url, method?, body?, headers?, query?, pick }`，只在连接上下文里还没有这个 `key` 时才发（第一版的 `when_missing` 由此去掉）；`pick` 只有两种：`ids`（取列表里每一项的某个指针，排序后用 `,` 连起来，clickup、supabase）和 `match_setting`（按某个 setting 的来源对上列表里的一项，取它的指针并按 `pattern` 校验，atlassian 的站点），写法见 §2.1.1 |
+| `context` | 授权后另发的只读请求 | `{ key, url, method?, body?, headers?, query?, pick }`，每次授权都发，取到的值写进连接上下文的这个 `key`（第一版的 `when_missing` 去掉，第 2 片评审；「键已在上下文里就不发」也去掉，第 1 片评审：第 5 片真要用时再加，带测试）；`pick` 只有两种：`ids`（取列表里每一项的某个指针，按码点排序后用 `,` 连起来，clickup、supabase；列表为空时授权失败，见 §2.1.1）和 `match_setting`（按 `use: "tenant"` 那个 setting 的来源对上列表里的一项，取它的指针并按 `pattern` 校验，atlassian 的站点），写法见 §2.1.1 |
 | `quirks` | 已知的三种怪癖 | `refresh_redirect_uri`（gitlab）、`omit_token_params: ["grant_type","redirect_uri"]`（clickup）、`expiry: "jwt_exp"`（monday）；只收这几个值 |
 | `note` | 设置页的一句说明 | 字符串 |
 
@@ -151,6 +151,9 @@
 - identity、context 的 `headers` 不许写平台写的头：`Authorization`、`Proxy-Authorization`、`Cookie`、`Host`、`Content-Length`、`Content-Type`、`Transfer-Encoding`、`Connection`、`Accept`、`User-Agent`，以及写令牌的 `PRIVATE-TOKEN`、`X-Figma-Token`。
 - **只写 `{kind:"oauth"}`、不带数据的旧写法，到第 4 片之前照样收**：今天的内置 Manifest 都是这样写的，数据仍在平台的表里。第 4 片把它们都写成数据，同一个 PR 里让 SDK 把这种写法改成声明错误（§6.1）。
 - 解释器只给描述，不发请求：设置检查、端点展开、授权地址、令牌和刷新请求、设备授权请求、identity 和 context 请求、账号与 label、`keep`、context 取值、过期时间、端点指纹。错误码用 `defineErrorCodes("connector.oauth_declarations", …)`。宿主入口按名字导出这些函数，测试从入口取。
+- **每条规则只有一份**（第 1 片评审 M1）：公开主机名的判断、租户来源的判断、占位的写法（地址开头、整段占位、`{context.<key>}` 的键）、header 和 query 值的写法、setting 值的规则、JSON Pointer 的转义、码点排序，都是 SDK `oauth-templates.ts` 的函数，从 SDK 根入口按名字导出；平台写的请求头名单是 contracts 的常量 `OAUTH_PLATFORM_HEADERS`。SDK 的形状检查和宿主的解释器都 import 这一份，不各写一套。解释器照同一份规则自己再拒一次：声明里的平台请求头、地址里的 userinfo、主机名里的占位，不靠 SDK 先拦。`isDeclaredOAuth` 是区分「带数据的 oauth」和裸 `{kind:"oauth"}` 的共用判断，第 3、4 片都用它。`public-https.ts` 的 `publicAddress` 查的是解析出的地址，是另一件事，不并进来。
+- **租户由解释器自己算，调用方不传**（第 1 片评审 M2）：`{tenant}` 发往的来源，先取 `keep` 或 `identity.keep` 里唯一那项 `check: "tenant"` 留下的值（用时按平台表再查一次），没有再取 `use: "tenant"` 的 setting（`oauthPinnedTenant`）。SDK 拒绝两种声明：identity 或 context 写了 `{tenant}`，却既没有 `use: "tenant"` 的 setting，也没有在这之前留下 `check: "tenant"` 的值；`keep` 和 `identity.keep` 里加起来有不止一项 `check: "tenant"`。salesforce 的 identity 因此发往 kept 的 instance，不是登录地址。
+- **SDK 和解释器对齐的四处**（第 1 片评审）：setting 的 `default` 也按这个 setting 自己的 `pattern`、`enum`、路径段规则和租户域检查，写错了整份不过；`match_setting.setting` 只能指向 `use: "tenant"` 的 setting；`ids` 的指针和其他指针一样还原 `~1`、`~0`；`list.min_by` 和 `ids` 都按 Unicode 码点排序，不用随 locale 变的 `localeCompare`。
 
 **来源可变的只有租户，范围由平台表定。**
 - Manifest 不写主机后缀，也不写来源列表。端点主机是写死的；只有 `use: "tenant"` 的那一个 setting 能换来源，写成 `{tenant}/路径`。
@@ -218,7 +221,7 @@
   - 写成 `∅` 的段固定是空串，对应今天的「没有前缀」。前缀那一段取不到就是空串，其余每一段取不到，就是「服务未返回稳定账号身份」，授权失败。
 - `label`：按顺序取第一个非空的 identity 指针，都取不到就是「无法读取账号身份」。
 - `identity.keep`：从 identity 响应里留进连接上下文的键，后面的 Feed 要用。
-- `list: { min_by: "/id" }`：响应是列表时，取 `/id` 最小的那一项（按字符串比较，和今天的 `localeCompare` 一样）。只有 sentry 用。第一版写的「上下文里已经有 `org` 时取 `slug` 相同的那项」删掉（第 2 片评审）：授权流程里上下文从来没有 `org`，那条路只在 Feed 读取时走，归插件代码。
+- `list: { min_by: "/id" }`：响应是列表时，取 `/id` 最小的那一项，按 Unicode 码点比较（第 1 片评审：`localeCompare` 随运行环境的 locale 变；sentry 的 id 是数字串，两种比较结果相同，今天的连接不受影响）。只有 sentry 用。第一版写的「上下文里已经有 `org` 时取 `slug` 相同的那项」删掉（第 2 片评审）：授权流程里上下文从来没有 `org`，那条路只在 Feed 读取时走，归插件代码。
 
 **写死的三条**（第 2 片评审，第 1 片的 SDK 检查拒绝违反的声明）：
 1. `body` 是固定的 JSON，里面不展开任何占位：哪个字符串（含键名）里出现 `{client_id}`、`{service}`、`{tenant}`、`{gateway}`、`{account}`、`{context.…}`、`{setting.…}` 这样的写法，整份不过。GraphQL 的 `{ viewer { … } }` 不是占位写法，照收。
@@ -274,6 +277,7 @@
 - **notion** 按 §2.4 换成令牌响应里的 workspace：今天通用流程算出的是 `workspace:bot-id`，以后是 `workspace`。Q2 定了 Notion 的连接都要重新授权，所以不会有「同一账号」比对失败的旧连接。
 - **x** 今天在响应里没有用户名时，label 写成 `X`；数据里不再保留这个兜底，取不到就按「无法读取账号身份」失败。这是有意的收紧，评审核过（10-27）：我们申请的 scope 有 `users.read`，`/2/users/me` 默认就带 `id`、`name`、`username`，`username` 是每个账号都有的；取不到还会退到 `/data/name`，两项都没有只会是异常响应。
 - **clickup、supabase** 的 identity 里没有 id 时，今天 `readIdentity` 不写 `account_id`，随后拼出 `undefined:workspaces:…` 这样的坏数据，不报错。照数据写，这时报「服务未返回稳定账号身份」，授权失败。这是有意的改动。
+- **clickup、supabase 已授权的工作区为空时，授权失败**（统筹 10-27 接受的行为变化）：今天 `ids` 取到空列表时写成空串，拼出 `…:workspaces:` 这样的 account_id，连接照样建起来，但连不到任何工作区。以后报 `connector.oauth_declarations.context_missing`，告诉本人下一步：「这个账号在服务里还没有可授权的工作区或组织，先建一个或加入一个，再重新连接」。
 - **cloudflare、supabase** 的 `/id`：C 头上的契约夹具（`tests/connector-provider-contracts.test.ts`）只给了 `sub`、`gotrue_id`。今天的通用列表在 `id` 存在时会先取它，所以数据里照样先写 `/id`。
 - **两条 Atlassian 的路**（第四轮建议 3）：两条都发往 `api.atlassian.com`，但用途不同，所以两边都要列，不是重复。
   - accessible-resources 在拿到 cloud_id **之前**调，只能走 `{account}`；
@@ -320,7 +324,7 @@
 **检查连接和读账号**（统筹 10-27 选 A，随第 4 片）：
 - `inspectApiConnection` 和 `readConnectorAccount` 按连接的 `auth_method` 分两支。`oauth` 那一支取登记里这个服务的当前声明，用连接上存的上下文发 identity 请求（`oauthAccountRequest`），再用 `oauthAccount` 算 account_id 和 label，和授权时是同一个函数；401 时先强制刷新再查一次，和今天一样。token 那一支不变。
 - 检查时没有令牌响应：`token:/指针` 的来源改读 `keep` 从同一个指针留下的上下文键。第 4 片的 SDK 检查加一条：account_id 和 label 里每个 `token:` 来源，都要有一条 `keep` 从同一个指针留下，不然整份不过。按这条，Notion 的 `keep` 加上 `workspace_name ← t:/workspace_name`；sentry 的 `oauth_user_id`、vercel 的 `team_id` 已经有了。
-- context 请求只在键不在上下文里时才发，检查时 clickup、supabase 的 `authorized_workspaces` 已在上下文里，不再发。
+- 检查连接和读账号不发 context 请求，用连接上存的上下文：clickup、supabase 的 `authorized_workspaces` 是授权时存下的值。context 请求只在授权时发，每次授权都发（§2.1）。
 - **Notion 的 identity 加上 `url`**：`GET {service}/v1/users/me`，带 catalog 今天就发的 `Notion-Version` 头。不写 `url` 的话，检查什么请求都不发，就看不出令牌还能不能用。account_id 和 label 照旧取令牌响应留下的 workspace，授权时多发这一次请求，只是验证令牌。
 - **副作用**：改完之后，检查返回的 `verified_account.account_id` 就是连接上存的那个。在这之前用旧检查记下 `expected_account` 的等待项（`connector-ready-checker.ts:42` 比的是两次检查记下的值），会停在「当前检查尚未确认所选账号」，要重新检查一次。这和 Q2「不迁移、重新授权」一致，不另写兼容读取。第 4 片配一条用例：旧检查记下的等待项保持 pending，重新检查后满足。
 - 动手前先核 C 合入后这两个文件的形状：C 改过它们（`9efbf8d04..fe93d322`，`connector-access.ts` 40 行、`connector-account-actions.ts` 24 行）。
@@ -625,9 +629,9 @@
 
 | # | 片 | 前提 | 碰的文件 |
 | --- | --- | --- | --- |
-| 1 | 合同加字段，SDK 的形状检查（整份不过，不含 `{account}`），宿主里的解释器纯函数：模板展开（只认 `{service}`、`{tenant}`、`{gateway}`）、租户检查、令牌与身份请求的组装、端点指纹。只用夹具测试，不接路由，不删表，不发请求 | **已做**（2026-10-27，待评审；测试 `tests/connector-oauth-declarations.test.ts`，RAC-1080 先比对 10 个服务，其余随第 4 片）。**可以先做**：只改 C 没碰的 `plugin-integrations.ts`；`connector-host.ts` 只读不改（A4，统筹 10-27，不开例外）；不 import `ConnectorCallControl`、`controlledConnectorFetch`；新文件叫 `apps/local-host/src/connector-*.ts`，不改 `error-owners.json`。SDK 算共享核心，要跑全量：分支先推，全量进合批会话开的集成批，本机不跑，测试 `--jobs 1` | `packages/contracts` 的 `plugin-integrations.ts`，SDK 的 `integration-declarations.ts` 和新的 `oauth-declarations.ts`，宿主的新文件 `connector-oauth-declarations.ts`，`apps/local-host/src/index.ts` 加一行按名字导出（C 也改了这个文件，但在 Feed 那几行，不挨着 `startApiOAuth` 那行），新测试 `tests/connector-oauth-declarations.test.ts` |
+| 1 | 合同加字段，SDK 的形状检查（整份不过，不含 `{account}`），宿主里的解释器纯函数：模板展开（只认 `{service}`、`{tenant}`、`{gateway}`）、租户检查、令牌与身份请求的组装、端点指纹。只用夹具测试，不接路由，不删表，不发请求 | **已做**（2026-10-27，照第 1 片评审改过，待复核；测试 `tests/connector-oauth-declarations.test.ts`，RAC-1080 先比对 12 个服务：每个夹具写 §2.1.1 的 account_id 和 label 字面量作期望值，`catalogWhoami` 只作旁证，有意不同的标 `intended` 并断言确实不同，其余随第 4 片）。**可以先做**：只改 C 没碰的 `plugin-integrations.ts`；`connector-host.ts` 只读不改（A4，统筹 10-27，不开例外）；不 import `ConnectorCallControl`、`controlledConnectorFetch`；新文件叫 `apps/local-host/src/connector-*.ts`，不改 `error-owners.json`。SDK 算共享核心，要跑全量：分支先推，全量进合批会话开的集成批，本机不跑，测试 `--jobs 1` | `packages/contracts` 的 `plugin-integrations.ts`，SDK 的 `integration-declarations.ts`、新的 `oauth-declarations.ts`、`oauth-templates.ts` 和根入口 `index.ts`（多了导出，跑 `pnpm api:update`），宿主的新文件 `connector-oauth-declarations.ts`，`apps/local-host/src/index.ts` 加一行按名字导出（C 也改了这个文件，但在 Feed 那几行，不挨着 `startApiOAuth` 那行），新测试 `tests/connector-oauth-declarations.test.ts` |
 | 2 | catalog 里 40 处 `identity` 逐条写成数据；列出要补进 `account_origins` 的来源，含 adobe、bitbucket、feishu、lark（只进 `account_origins`，不进 `origins`） | **已做**（2026-10-27）：产出是 §2.1.1，顺带改了 §2.1 的 identity、keep、context 三行，记了 BL-795 | 无代码 |
-| 3 | 通用回调、判断顺序、待完成记录合成一份（§3），§2.8 的拒绝 | 依赖 C 合入 | `connector-api-oauth.ts`、`connector-oauth-targets.ts`、`connector-oauth-callbacks.ts`、`web-connector-api-methods.ts`、`integration-registry.ts` |
+| 3 | 通用回调、判断顺序、待完成记录合成一份（§3），§2.8 的拒绝。§2.8 的拒绝最晚和解释器第一次接进请求流程同时落地，哪一片先接就在哪一片，不能晚（第 1 片评审）；从解释器描述发出的请求一律带 `redirect: "error"` | 依赖 C 合入 | `connector-api-oauth.ts`、`connector-oauth-targets.ts`、`connector-oauth-callbacks.ts`、`web-connector-api-methods.ts`、`integration-registry.ts` |
 | 4 | `CONNECTOR_ACCOUNT_ORIGINS` 按第 2 片的清单加进 contracts，SDK 加 `{account}` 的检查，解释器认 `{account}`（A4）；catalog 和 github web 的数据写进 Manifest，删掉 `API_OAUTH_PROVIDERS`，`connectorMethodsFor` 改读登记；产品客户端和 broker 只给宿主构建的声明；Worker 数据挪到 `cloudflare/providers.ts`，加对照测试，改 `cloudflare/README.md` 第一句和测试注释（§2.9）；PR 说明写上 §2.9「合入不是发版」；检查连接和读账号的 OAuth 那一支改调解释器，SDK 加「`token:` 来源要有对应的 `keep`」（§2.2「检查连接和读账号」，统筹 10-27 选 A）。放在第 4 片，是因为声明到这一片才写进 Manifest，授权、检查、读账号在同一个 PR 里一起换，中间没有两套算法并存的时候 | 依赖 C 合入（先核 C 改过的 `connector-access.ts`、`connector-account-actions.ts`）；改 SDK，全量进集成批；第一次合入前用户在 Cloudflare 后台确认一次 | `packages/contracts` 的 `connector-host.ts`、SDK 的 `integration-declarations.ts`、catalog 包、`host-connector-methods.ts`、`connector-product-auth.ts`、`connector-access.ts`、`connector-account-actions.ts`、`cloudflare/worker.ts`、`cloudflare/providers.ts`、`cloudflare/README.md` |
 | 5 | 共用刷新推广到全部 OAuth 连接，加连接上的绑定和最后一道检查，改掉 C「最后一个离开就丢弃」那一处；`resolveApiConnection` 收成三支，旧 OAuth 连接标 `reauth_required`；同一个 PR 里把 C 的 FI-C-02 两条断言和 spec 行反过来，写明用户 10-27 的决定，告知 C 线（A3）；旧 OAuth 连接重连时按 `account_label` 认原账号（§10 Q2 下，待统筹核） | 依赖 C 合入（先确认 `apps/local-host/src/notion-oauth.ts` 合入后的形状） | `connector-access.ts`、`connector-api-oauth.ts`、`apps/local-host/src/notion-oauth.ts`、`tests/connector-oauth-choice.test.ts`、`specs/…/feed-inbox-runtime-plugins.md` |
 | 6 | Gmail 并进通用流程 | 依赖 C 合入，在 3、5 之后 | gmail 包、`gmail-oauth.ts`、入门流程 |
@@ -644,7 +648,7 @@
 
 | 编号 | 验收 | 怎样证明 |
 | --- | --- | --- |
-| RAC-1080 | 连接器方法列表（`connectors.methods.read@1`）只由登记里启用插件的声明算出，宿主里没有按服务写的 OAuth 表；输出形状不变 | 迁移前后逐个服务整份比对 `ConnectorMethodOption`；扫描宿主源码，没有 `API_OAUTH_PROVIDERS`，也不 import `cloudflare/providers.ts`；OAuth 流程的文件不 import 插件的实现（token 连接的 whoami 见 BL-795）；37 个服务逐个用 C 头 `tests/connector-provider-contracts.test.ts` 的夹具，比对旧的 `readIdentity` 和新的 identity 数据算出的 account_id 与 label 相同（Notion、sentry、clickup、supabase、x 按 §2.1.1 有意不同）；同一个 OAuth 服务，授权、检查连接（`inspectApiConnection`）、读账号（`connectors.account.read`）三处算出的 account_id 和 label 相同，Notion、sentry、clickup、supabase、x 至少各一条（第 4 片）；检查连接和读账号的 OAuth 那一支不 import `catalogWhoami` |
+| RAC-1080 | 连接器方法列表（`connectors.methods.read@1`）只由登记里启用插件的声明算出，宿主里没有按服务写的 OAuth 表；输出形状不变 | 迁移前后逐个服务整份比对 `ConnectorMethodOption`；扫描宿主源码，没有 `API_OAUTH_PROVIDERS`，也不 import `cloudflare/providers.ts`；OAuth 流程的文件不 import 插件的实现（token 连接的 whoami 见 BL-795）；37 个服务逐个用 C 头 `tests/connector-provider-contracts.test.ts` 的夹具，新的 identity 数据算出的 account_id 与 label 等于夹具里照 §2.1.1 写下的字面量；旧的 `readIdentity` 只作旁证，和字面量相同，按 §2.1.1 有意不同的（Notion、sentry、clickup、supabase 的后缀，x 的兜底，clickup、supabase 缺 id，工作区为空）在夹具里写明理由，并断言旧的确实不同（第 1 片评审 M3）；同一个 OAuth 服务，授权、检查连接（`inspectApiConnection`）、读账号（`connectors.account.read`）三处算出的 account_id 和 label 相同，Notion、sentry、clickup、supabase、x 至少各一条（第 4 片）；检查连接和读账号的 OAuth 那一支不 import `catalogWhoami` |
 | RAC-1081 | 下面这些声明错误都让**整份 Manifest** 抛 `plugin.declaration_invalid`，在写任何记录之前：非 https、带账号密码或端口、主机是 IP、`{setting}` 出现在主机里、平台保留的参数名、未知的 quirk、`use: "tenant"` 用在平台表里没有 `tenant` 的服务上、`{service}` 用在 `origins` 不止一项的服务上、identity 和 context 的完整地址来源不在 `origins` 里（端点不套这一条，第四轮建议 2）；第 4 片起再加：`{account}` 用在 `CONNECTOR_ACCOUNT_ORIGINS` 里没有的服务上（第 1 片里 `{account}` 是未知占位，同样整份不过）；另外，签名沙箱包里带数据的 oauth 被集成登记拒绝（§2.8） | SDK 形状检查逐条用例（`{account}` 那条随第 4 片）；`integration-registry` 的 `attach` 拒绝用例 |
 | RAC-1082 | 模板展开后再查一次：tenant、slug 带 `/`、`..`、`%2f`，租户值带端口或凭据、不在 `tenant.domain` 下，kept 的 `instance_url` 不在 `tenant.domain` 下，都在发出任何请求之前拒绝；identity、context 只发往平台表定的来源；从 Manifest 来的请求都经 `sendPublicHttps`。**插件的请求不认 `account_origins`**（A2）：插件经 gmail 连接的槽（`services.connections`）请求 `https://openidconnect.googleapis.com/v1/userinfo`，被拒，不发出、不带凭据；adobe、bitbucket、feishu、lark 加进 `account_origins` 之后，插件请求一侧的行为和今天相同 | 解释器的纯函数用例；发起授权并断言没有网络请求的用例；用假的 `sendPublicHttps` 断言每类请求都经过它；`account_origins` 的拒绝用例进 `test:security`（第 4 片，和这张表一起加），另扫描宿主源码，只有解释器所在的那一个文件 import `CONNECTOR_ACCOUNT_ORIGINS` |
 | RAC-1083 | 回调第 1～7 条：拒绝，不发任何请求，只写 §3.4 左边一列，右边一列一个字节不变；Host 不对时 state 不被消耗；带 `error` 的回调消耗 state；三条别名路径只收记录里的那一条；声明了 `issuer` 时 `iss` 缺了或不同都拒绝 | 安全用例（进 `test:security`）：记录令牌端点的请求次数，回调前后对比连接、凭据、protocol 配置和绑定 |

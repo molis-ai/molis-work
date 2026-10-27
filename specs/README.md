@@ -14,7 +14,8 @@
 - [prologue-memory-strategy](prologue-memory-strategy/spec.md)：以记忆更精准、好用、省 token 为目标；App 自定义分类与读写策略矩阵、Prologue 多策略组合、首期质量闭环及 40 项验收。C0/Q0 已独立交付，Prologue C0 与 S1 版本恢复/分类授权已合并；M1 配置采用 PR 的完整回归与产品验收仍待完成。
 - [pr-review-remediation](pr-review-remediation/spec.md)：最近三天 PR 复审确认的 P1 安全边界、P2 功能/合同问题、P3 文档与验收、合并门禁；2026-10-20 新立，实现完成，待评审（PR #901；QA-017 本机 Chrome 未跑通，Product subset 待跑）。
 - [unified-input-voice](unified-input-voice/spec.md)：统一输入体验与本地语音输入；需求已整理，尚未实现。
-- [proactive-assistant](proactive-assistant/spec.md)：主动式助理与场景 Skill；需求已整理，尚未实现。2026-10-18 补充工作记忆初始化、每日例程、前门路由、从一次对话生成 Skill 与跨源搜索规划。
+- [observation-collection](observation-collection/spec.md)：观测和采集层，统一记录全平台获准的用户行为、过程、结果与历史条件，供评测和主动助理共用；2026-10-27 从主动助理需求迁出，需求已整理，尚未实现。需求维护 Codex；实施沿用 C 轨（Claude），防腐收尾后阶段 1 设计、阶段 2 接通、阶段 3 验证下游效果。
+- [proactive-assistant](proactive-assistant/spec.md)：主动式助理与场景 Skill；需求已整理，尚未实现。2026-10-18 补充工作记忆初始化、每日例程、前门路由、从一次对话生成 Skill 与跨源搜索规划。2026-10-27 共用采集与维护要求迁至 observation-collection，本需求保留助理消费与集成、平台评测要求。
 - [work-brief](work-brief/spec.md)：工作简报内容插件；用户已确认纳入，需求已整理，尚未实现。2026-10-18 补充 living page、一页式脉搏、使用回顾与交互式报告页。
 - [long-turn-performance](long-turn-performance/spec.md)：长对话单节点样式测量修复；本地及与 #1010 的组合验证完成，待合入 #1017。负责人：Codex。
 - [coding-harness-optimization](coding-harness-optimization/spec.md)：Coding 与平台性能；需求已整理，尚未实现。
@@ -55,7 +56,7 @@
 - [prologue-tool-strategy](prologue-tool-strategy/spec.md)：Prologue Tool 的工具面、搜索、结果预算与观测；独立需求，需求已整理，待评审后实施。
 - [prologue-mcp-strategy](prologue-mcp-strategy/spec.md)：Prologue MCP 的服务器信任、发现、健康与认证；独立需求，需求已整理，待评审后实施。
 - [prologue-context-strategy](prologue-context-strategy/spec.md)：Prologue Context 的来源预算、trace、新鲜度与压缩剖面；独立需求，需求已整理，待评审后实施。
-- [post-anticorruption-roadmap](post-anticorruption-roadmap/spec.md)：防腐收尾之后全部未完成需求的清单与实现路径——按依赖分五段、按文件分七条轨道；2026-10-27 补材料基础路径优先、场景引导、项目助理团和生成交互首页的前置与顺序，原轨道归属保留，防腐线收尾后执行。
+- [post-anticorruption-roadmap](post-anticorruption-roadmap/spec.md)：防腐收尾之后全部未完成需求的清单与实现路径——按依赖分五段、按文件分七条轨道；2026-10-27 补材料基础路径优先、场景引导、项目助理团和生成交互首页的前置与顺序，并独立排入观测和采集层及其与评测、主动助理的依赖；原轨道归属保留，防腐线收尾后执行。
 - [quiet-home-refresh](quiet-home-refresh/spec.md)：项目首页后台刷新停在当前画面上，日期条和标题没变就不重画，也不先换成「正在读取事项…」；第一次进入和点「重新读取」仍显示加载。2026-10-22，待验收。
 
 ## 现行规范

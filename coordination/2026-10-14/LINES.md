@@ -253,3 +253,20 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
     - jelly-whisper 的 `swift build` 没有一处挡合并（CI 那步 `continue-on-error`，BL-122）。
     - 改到 `apps/local-host/native/` 的片，PR 正文写明「本机没编 whisper，CI 那一步不挡合并」。
     - 统筹待办：向 Codex 核实它的机器是不是 macOS、Swift 是否 ≥ 6.2。
+  - **10-27 W5-11 设计稿评审（评的是 `51d62acc`）**：结论是改完再评，有 7 条必须改。原文在评审会话的笔记 review-w511-design-51d62acc.md 里。
+    - M1：已有连接只认 service_id，官方集成停用后，签名沙箱包可以认领同一个 service_id。要绑定插件、发布者和令牌来源，产品客户端只给部署配置的那份；T1 之前，非宿主构建的包写带数据的 oauth 一律拒绝。
+    - M2：三处比今天松：salesforce 的后缀限制没了；identity 和 context 的发往地址与 S-69 冲突；DNS 固定只覆盖了令牌请求。
+    - M3：Worker import 了 `API_OAUTH_PROVIDERS`。
+    - M4：旧的 `connector-connection:` 连接会落进 token 分支，成了一条兼容旁路，要改成要求重连。
+    - M5：方法声明检查不过时，是整份 Manifest 不过，还是只去掉这个方法？另外 SDK 没有公共后缀表。
+    - M6：「插件拿不到令牌」说多了，PG-045、PG-093 两处 provider 拿得到访问令牌。
+    - M7：新 S 第 2 条要分清哪些记录能写（消费 state、标 failed、清暂存），哪些不能写（连接、凭据、protocol 配置）。
+  - 统筹对评审结论的裁定：
+    - M5：整份 Manifest 不过，第 1 片仍然不碰 C；SDK 不带公共后缀表，后缀放宽不许比今天松。
+    - M3：要重新部署 Worker 的，先报统筹，由统筹转给用户。
+    - 疑问 1：插件停用后，它声明的服务一律不发。token 连接那一半如果超出本线范围，在 BL-794～799 登记，RAC-1088 写明这个边界。
+    - 疑问 2：刷新途中插件被停用，已经轮换的 refresh token 不存；重新启用后第一次刷新拿到 invalid_grant，再标成「需要重新授权」。
+    - 编号：查了最近 80 个远端分支，没有冲突。
+    - 第 1 片改 SDK，属于共享核心，要跑全量，等合批会话开集成批再跑。
+    - 建议各条由 W5-11 自己定，不采纳的写一句理由。
+  - W5-11 改完推新头后，评审只评 `b087ae0b9` 之后的增量。

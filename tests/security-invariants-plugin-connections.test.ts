@@ -1,3 +1,4 @@
+import { connectorControl } from "./fixtures/connector-control.js";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
@@ -200,7 +201,7 @@ test("S-57 RAC-657 the connections page tells the truth about a tenant's service
   assert.ok(bound.includes('data-connector-open="jira">重新连接 Jira</button>'), "the page offers to connect the account again");
   // The plugin's request says the same: connect the account again, not choose another or unbind.
   await assert.rejects(createPluginConnectionsPort(home).request({ plugin_id: probe.id, install_id: install.install_id, slot_id: "github", service_id: "jira" },
-    { url: new URL("https://acme.atlassian.net/rest/api/3/myself"), method: "GET", headers: {}, signal: new AbortController().signal, beforeEffect: async () => {} }),
+    { ...connectorControl(), url: new URL("https://acme.atlassian.net/rest/api/3/myself"), method: "GET", headers: {}, signal: new AbortController().signal, beforeEffect: async () => {} }),
   (error: unknown) => code("connector.plugin_requests.connection_unavailable")(error) && /重新连接/.test((error as Error).message) && !/解除/.test((error as Error).message));
   assert.equal(bound.includes(BEARER_VALUE), false);
 });
@@ -251,7 +252,7 @@ async function githubStandIn(t: TestContext) {
 }
 
 const dispatch = (url: string, extra: Partial<PluginConnectionDispatch> = {}): PluginConnectionDispatch =>
-  ({ url: new URL(url), method: "GET", headers: {}, signal: new AbortController().signal, beforeEffect: async () => {}, ...extra });
+  ({ ...connectorControl(), url: new URL(url), method: "GET", headers: {}, signal: new AbortController().signal, beforeEffect: async () => {}, ...extra });
 
 test("S-57 the Host adds the bound credential only on the service origin, hides cookies, hands redirects back and refuses private addresses", { timeout: 30_000 }, async t => {
   const home = await mkdtemp(join(tmpdir(), "connections-home-")); t.after(() => rm(home, { recursive: true, force: true }));

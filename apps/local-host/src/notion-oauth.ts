@@ -1,3 +1,5 @@
+import type { ConnectorCallControl } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { controlledConnectorFetch } from "@molis-ai/molis-work-plugin-sdk";
 import { randomBytes, timingSafeEqual } from "node:crypto";
 import { CatalogLiveError, NotionOAuthError, notionAuthorizationUrl, notionOAuthToken, type NotionOAuthTokens } from "@molis-ai/molis-work-integration-catalog";
 import { createFileSecretStore, readProductEnv, resolveMolisWorkHome } from "@molis-ai/molis-work-storage";
@@ -137,7 +139,8 @@ export async function completeNotionOAuth(input: {
 }
 
 /** A connection's Notion access token, refreshed once when asked or when only the refresh token is left. */
-export async function resolveUsableNotionToken(connectionId: string, forceRefresh = false, fetchImpl?: typeof fetch): Promise<string | null> {
+export async function resolveUsableNotionToken(connectionId: string, control: ConnectorCallControl, forceRefresh = false, fetchImpl?: typeof fetch): Promise<string | null> {
+  control.current();
   const beforePersist = oauthRefreshGuard(resolveMolisWorkHome(), connectionId);
   const store = createFileSecretStore();
   const refs = scopedRefs(connectionId);
@@ -154,14 +157,16 @@ export async function resolveUsableNotionToken(connectionId: string, forceRefres
       let tokens: NotionOAuthTokens;
       try {
         tokens = await notionOAuthToken({
-          clientId, clientSecret, grant: { type: "refresh_token", refreshToken }, fetchImpl,
+          clientId, clientSecret, grant: { type: "refresh_token", refreshToken }, fetchImpl: controlledConnectorFetch(fetchImpl ?? fetch, control),
         });
       } catch (error) {
+        await control.beforeEffect(); control.current();
         if (error instanceof NotionOAuthError && [400, 401, 403].includes(error.status)) {
           throw new CatalogLiveError("needs_auth", error.status, "Notion 授权已失效，请重新授权");
         }
         throw error;
       }
+      await control.beforeEffect(); control.current();
       if (store.get(refs.refresh)?.trim() !== refreshToken) throw new Error("Notion 连接在刷新期间已改变，请重试");
       beforePersist();
       saveTokens(tokens, refs);
@@ -169,5 +174,7 @@ export async function resolveUsableNotionToken(connectionId: string, forceRefres
     })().finally(() => { refreshInFlight.delete(key); });
     refreshInFlight.set(key, pending);
   }
-  return refreshInFlight.get(key)!;
+  const token = await refreshInFlight.get(key)!;
+  await control.beforeEffect(); control.current();
+  return token;
 }

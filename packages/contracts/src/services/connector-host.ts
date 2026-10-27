@@ -54,10 +54,18 @@ export type ConnectorPollResult =
       retry_after_at?: string;
     };
 
+/** One Host-issued call, passed as an argument through drivers, providers and credential refresh. Never serialized as plugin input. */
+export interface ConnectorCallControl {
+  readonly signal: AbortSignal;
+  beforeEffect(): Promise<void>;
+  /** Synchronous check after the last wait and immediately before dispatch or persistence. */
+  current(): void;
+}
+
 export interface ConnectorDriver {
   readonly driver_id: string;
-  health(): Promise<ConnectorHealth>;
-  poll(input: { cursor: unknown; intent?: Record<string, unknown> }): Promise<ConnectorPollResult>;
+  health(control: ConnectorCallControl): Promise<ConnectorHealth>;
+  poll(input: { cursor: unknown; intent?: Record<string, unknown> }, control: ConnectorCallControl): Promise<ConnectorPollResult>;
 }
 
 export interface ConnectorReceipt {
@@ -72,12 +80,12 @@ export interface ConnectorReceipt {
 export interface ConnectorHostApi {
   registerDriver(driver: ConnectorDriver): void;
   connect(input: { connection_id: string; driver_id: string }): void;
-  test(connectionId: string): Promise<ConnectorHealth>;
+  test(connectionId: string, control: ConnectorCallControl): Promise<ConnectorHealth>;
   invoke(input: {
     connection_id: string;
     cursor: unknown;
     intent?: Record<string, unknown>;
-  }): Promise<ConnectorReceipt>;
+  }, control: ConnectorCallControl): Promise<ConnectorReceipt>;
   revoke(connectionId: string): void;
 }
 

@@ -1,3 +1,4 @@
+import { connectorControl } from "./fixtures/connector-control.js";
 import assert from "node:assert/strict";
 import { createHash, randomBytes } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -145,7 +146,7 @@ test("production Host uses the cloud broker for start, callback, identity and re
     const callback = new URL(returned.headers.get("location")!);
     const result = await completeApiOAuth(directory, { origin: local, state: callback.searchParams.get("state")!, code: callback.searchParams.get("code")! }, transport);
     assert.equal(result.connection.account_label, "Molis tester");
-    assert.equal(await resolveApiOAuthToken(directory, started.connection_id, true, transport), "provider-access");
+    assert.equal(await resolveApiOAuthToken(directory, started.connection_id, connectorControl(), true, transport), "provider-access");
     assert.doesNotMatch(connectorProtocolSecrets(directory, started.connection_id).get("client")!, /server-only-secret/);
     assert.equal(f.calls[1]!.get("refresh_token"), "provider-refresh");
   } finally { keys.forEach((k, i) => { if (old[i] === undefined) delete process.env[k]; else process.env[k] = old[i]; }); rmSync(directory, { recursive: true, force: true }); }

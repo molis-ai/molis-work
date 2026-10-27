@@ -7,6 +7,7 @@ import type {
   ConnectorHealth,
   ConnectorHostApi,
   ConnectorReceipt,
+  ConnectorCallControl,
 } from "@molis-ai/molis-work-contracts/services/connector-host";
 
 
@@ -40,15 +41,18 @@ export class ConnectorHost implements ConnectorHostApi {
     this.connections.set(input.connection_id, { driver_id: input.driver_id });
   }
 
-  async test(connectionId: string): Promise<ConnectorHealth> {
+  async test(connectionId: string, control: ConnectorCallControl): Promise<ConnectorHealth> {
     const driver = this.driverFor(connectionId);
     try {
-      return await withTimeout(
-        driver.health(),
+      const result = await withTimeout(
+        call => driver.health(call), control,
         this.options.timeoutMs ?? 15_000,
         () => connectorErrors["connector.timeout"]("Connector 健康检查超时"),
       );
+      await control.beforeEffect(); control.current();
+      return result;
     } catch (error) {
+      control.current();
       if ((error instanceof ActionError && ["connector.driver_missing","connector.driver_duplicate","connector.connection_missing","connector.timeout","connector.invocation_failed"].includes(error.code))) throw error;
       throw connectorErrors["connector.invocation_failed"]("Connector 健康检查没有取得可信结果");
     }
@@ -58,7 +62,7 @@ export class ConnectorHost implements ConnectorHostApi {
     connection_id: string;
     cursor: unknown;
     intent?: Record<string, unknown>;
-  }): Promise<ConnectorReceipt> {
+  }, control: ConnectorCallControl): Promise<ConnectorReceipt> {
     const connection = this.connections.get(input.connection_id);
     if (!connection) {
       throw connectorErrors["connector.connection_missing"]("Connector Connection 不存在或已撤销");
@@ -67,10 +71,11 @@ export class ConnectorHost implements ConnectorHostApi {
     const startedAt = this.now().toISOString();
     try {
       const result = await withTimeout(
-        driver.poll({ cursor: structuredClone(input.cursor), intent: structuredClone(input.intent ?? {}) }),
+        call => driver.poll({ cursor: structuredClone(input.cursor), intent: structuredClone(input.intent ?? {}) }, call), control,
         this.options.timeoutMs ?? 15_000,
         () => connectorErrors["connector.timeout"]("Connector 调用超时"),
       );
+      await control.beforeEffect(); control.current();
       if (result.ok) {
         for (const event of result.events) assertRawEvent(event);
       }
@@ -83,6 +88,7 @@ export class ConnectorHost implements ConnectorHostApi {
         result: structuredClone(result),
       };
     } catch (error) {
+      control.current();
       if ((error instanceof ActionError && ["connector.driver_missing","connector.driver_duplicate","connector.connection_missing","connector.timeout","connector.invocation_failed"].includes(error.code))) throw error;
       throw connectorErrors["connector.invocation_failed"]("Connector 调用没有取得可信结果");
     }
@@ -135,20 +141,23 @@ function assertRawEvent(event: {
 }
 
 async function withTimeout<T>(
-  operation: Promise<T>,
+  operation: (control: ConnectorCallControl) => Promise<T>,
+  parent: ConnectorCallControl,
   timeoutMs: number,
   timeoutError: () => Error,
 ): Promise<T> {
-  let timer: ReturnType<typeof setTimeout> | undefined;
+  const ended = new AbortController(), signal = AbortSignal.any([parent.signal, ended.signal]);
+  const current = () => { signal.throwIfAborted(); parent.current(); signal.throwIfAborted(); };
+  const control = { signal, current, beforeEffect: async () => { current(); await parent.beforeEffect(); current(); } };
+  current();
+  const task = Promise.resolve().then(async () => { await control.beforeEffect(); current(); return operation(control); });
+  let abort!: () => void;
+  const cancelled = new Promise<never>((_resolve, reject) => { abort = () => reject(signal.reason); signal.addEventListener("abort", abort, { once: true }); });
+  const timer = setTimeout(() => ended.abort(timeoutError()), timeoutMs);
   try {
-    return await Promise.race([
-      operation,
-      new Promise<T>((_resolve, reject) => {
-        timer = setTimeout(() => reject(timeoutError()), timeoutMs);
-      }),
-    ]);
+    return await Promise.race([task, cancelled]);
   } finally {
-    if (timer) clearTimeout(timer);
+    clearTimeout(timer); signal.removeEventListener("abort", abort); ended.abort();
   }
 }
 

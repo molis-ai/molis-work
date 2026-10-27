@@ -297,7 +297,7 @@ export type IntegrationProviderSyncResult =
 
 export interface IntegrationProviderPort {
   readonly type: string;
-  health(): Promise<{
+  health(control: import("../services/connector-host.js").ConnectorCallControl): Promise<{
     account?: { login: string; account_id?: string };
     ok: boolean;
     status: "connected" | "disconnected" | "error" | "mock" | "needs_auth";
@@ -307,7 +307,7 @@ export interface IntegrationProviderPort {
   sync(input: {
     cursor: unknown;
     mode?: "normal" | "rebuild_cursor";
-  }): Promise<IntegrationProviderSyncResult>;
+  }, control: import("../services/connector-host.js").ConnectorCallControl): Promise<IntegrationProviderSyncResult>;
 }
 
 export { pluginErrors } from "./plugin-errors.js";

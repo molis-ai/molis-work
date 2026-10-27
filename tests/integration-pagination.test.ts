@@ -1,3 +1,4 @@
+import { connectorControl } from "./fixtures/connector-control.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { createGmailConnector, createGithubConnector, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
@@ -128,7 +129,7 @@ test("W2-18-GMAIL-02: initial snapshot still fetches at most 25 details", async 
     if (url.includes("/messages?")) return json({ messages: Array.from({ length: 52 }, (_, index) => ({ id: `m-${index + 1}` })), nextPageToken: "unused" });
     details++; return json(gmailMessage(new URL(url).pathname.split("/").at(-1)!));
   } });
-  const result = await port.sync({ cursor: null });
+  const result = await port.sync({ cursor: null }, connectorControl());
   assert.equal(result.ok, true); assert.equal(details, 25);
   if (result.ok) assert.equal(result.items.length, 25);
 });
@@ -143,7 +144,7 @@ test("W2-18-GITHUB-PAGES-01: the 20-page work bound rejects an unfinished respon
     const page = Number(new URL(url).searchParams.get("page") ?? 1); pages++;
     return json([], { headers: { link: `<https://api.github.com/notifications?page=${page + 1}&per_page=50>; rel="next"` } });
   } });
-  const result = await port.sync({ cursor: {} });
+  const result = await port.sync({ cursor: {} }, connectorControl());
   assert.equal(pages, 20); assert.equal(result.ok, false); assert.equal("cursor" in result, false);
 });
 
@@ -188,7 +189,7 @@ test("W2-18-GITHUB-PAGES-01: hostile Link destinations and later-page rate limit
       if (new URL(url).searchParams.get("page") === "2") return json({}, { status: 429, headers: { "retry-after": "120" } });
       return json(notifications.slice(0, 50), { headers: { link } });
     } });
-    const result = await port.sync({ cursor: {} }); assert.equal(result.ok, false);
+    const result = await port.sync({ cursor: {} }, connectorControl()); assert.equal(result.ok, false);
     assert.equal(calls.every(url => new URL(url).origin === "https://api.github.com"), true);
     if (!result.ok && link.includes('page=2>;') && link.includes('https://api.github.com/notifications')) {
       assert.equal(result.failure, "rate_limited"); assert.equal(result.retryAfterAt, "2026-08-30T10:02:00.000Z");

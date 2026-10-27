@@ -1,3 +1,4 @@
+import { connectorControl } from "./fixtures/connector-control.js";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
@@ -71,7 +72,7 @@ async function asana(t: TestContext, refused: readonly string[], hostname = "app
 }
 
 const dispatch = (extra: Partial<PluginConnectionDispatch> = {}): PluginConnectionDispatch =>
-  ({ url: new URL("https://app.asana.com/api/1.0/users/me"), method: "GET", headers: {}, signal: new AbortController().signal, beforeEffect: async () => {}, ...extra });
+  ({ ...connectorControl(), url: new URL("https://app.asana.com/api/1.0/users/me"), method: "GET", headers: {}, signal: new AbortController().signal, beforeEffect: async () => {}, ...extra });
 
 test("S-70 RAC-349 a 401 to an OAuth credential the Host can refresh is refreshed once and the same request sent once more; the new token never comes back", { timeout: 30_000 }, async t => {
   const home = await connected(t);

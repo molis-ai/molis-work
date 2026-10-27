@@ -1,3 +1,4 @@
+import { connectorControl } from "./fixtures/connector-control.js";
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
@@ -430,7 +431,7 @@ test("Connectors HTTP saves a GitHub connection, hides plaintext, and gates the 
       assert.equal(liveCatalog.catalog.destinations.find(row => row.destination_id === "agent.mcp")?.behavior_ids.includes("github.whoami"), false,
         "the account check is the registered connector action, not a catalog behavior");
       assert.equal(connectorAccountActions.read.capability_id, "connectors.account.read");
-      assert.deepEqual(await readConnectorAccount(homeDirectory, connectionId),
+      assert.deepEqual(await readConnectorAccount(homeDirectory, connectionId, connectorControl()),
         { connection_id: connectionId, service_id: "github", login: "octocat", scopes: ["notifications"] });
       assert.deepEqual(githubCalls, ["https://api.github.com/user"]);
       const disconnected = await fetch(`${origin}/api/settings/connectors/connections/${connectionId}`, {

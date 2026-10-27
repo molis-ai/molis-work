@@ -1,3 +1,4 @@
+import { connectorControl } from "./fixtures/connector-control.js";
 import assert from "node:assert/strict";
 import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -57,8 +58,8 @@ test("Notion OAuth rejects wrong state, exchanges code into its connection, and 
   assert.equal(exchanges, 0);
   assert.equal((await completeNotionOAuth({ code: "code-1", state, callbackUrl, fetchImpl })).connectionId, NOTION_CONNECTION);
   registerNotionConnection(directory);
-  assert.equal(await resolveUsableNotionToken(NOTION_CONNECTION), "access-1");
-  assert.equal(await resolveUsableNotionToken(NOTION_CONNECTION, true, fetchImpl), "access-2");
+  assert.equal(await resolveUsableNotionToken(NOTION_CONNECTION, connectorControl()), "access-1");
+  assert.equal(await resolveUsableNotionToken(NOTION_CONNECTION, connectorControl(), true, fetchImpl), "access-2");
   assert.equal(createFileSecretStore().get(`connector-connection:${NOTION_CONNECTION}:refresh`), "refresh-2");
   assert.equal(createFileSecretStore().get("connector:notion:token"), null, "tokens live only under the connection");
 }));
@@ -83,7 +84,7 @@ test("concurrent Notion refreshes share a request only within the same Home", as
     await waiting;
     return Response.json({ access_token: `access-for-${token}`, refresh_token: `rotated-${token}`, workspace_id: token, workspace_name: token, bot_id: token });
   };
-  const pending = homes.flatMap(home => [0, 1].map(() => runWithMolisWorkHome(home, () => resolveUsableNotionToken(NOTION_CONNECTION, true, fetchImpl))));
+  const pending = homes.flatMap(home => [0, 1].map(() => runWithMolisWorkHome(home, () => resolveUsableNotionToken(NOTION_CONNECTION, connectorControl(), true, fetchImpl))));
   release();
   assert.deepEqual(await Promise.all(pending), ["access-for-refresh-0", "access-for-refresh-0", "access-for-refresh-1", "access-for-refresh-1"]);
   assert.deepEqual(requests.sort(), ["refresh-0", "refresh-1"]);
@@ -110,7 +111,7 @@ test("Notion feed refreshes after an API 401 and retries with the new token", as
       return Response.json({ results: [] });
     },
   });
-  const result = await provider.sync({ cursor: {} });
+  const result = await provider.sync({ cursor: {} }, connectorControl());
   assert.equal(result.ok, true);
   assert.equal(refreshes, 1);
   assert.deepEqual(seen, ["Bearer stale-token", "Bearer fresh-token", "Bearer fresh-token"]);
@@ -134,7 +135,7 @@ else if (args[0] === "api" && args[1] === "GET") {
   const whoami = await catalogWhoami({ connectorId: "feishu", token: "lark-cli", fetchImpl: feishuCliFetch });
   assert.deepEqual(whoami, { ok: true, login: "Ada" });
   const provider = createCatalogProvider({ connectorId: "feishu", token: "lark-cli", fetchImpl: feishuCliFetch });
-  const synced = await provider.sync({ cursor: {} });
+  const synced = await provider.sync({ cursor: {} }, connectorControl());
   assert.equal(synced.ok, true);
   if (synced.ok) assert.equal(synced.items[0]?.title, "Team");
   const document = await readExternalDocument({ source: "feishu", url: "https://example.feishu.cn/docx/abcdefghij" }, { token: "lark-cli", fetch: feishuCliFetch });

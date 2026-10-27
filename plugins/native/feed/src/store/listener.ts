@@ -314,7 +314,7 @@ export class ListenerHost implements ListenerHostApi {
         connection_id: input.connection_id,
         cursor: checkpoint.cursor,
         intent: input.intent,
-      });
+      }, { signal: input.signal ?? AbortSignal.any([]), beforeEffect, current: () => input.signal?.throwIfAborted() });
       await beforeEffect();
       run.connector_receipt = summarizeConnectorReceipt(connectorReceipt);
       if (!connectorReceipt.result.ok) {

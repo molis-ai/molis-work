@@ -133,8 +133,9 @@ export function pollingIntegrationBinding({ manifest, provider, presentAccount, 
   return {
     connector_driver: {
       driver_id: `${manifest.plugin_id}:connector`,
-      async health() {
-        const health = await provider.health();
+      async health(control) {
+        const health = await provider.health(control);
+        await control.beforeEffect(); control.current();
         return {
           ok: health.ok,
           status: health.status === "mock" ? "error" : health.status,
@@ -142,11 +143,12 @@ export function pollingIntegrationBinding({ manifest, provider, presentAccount, 
           ...(health.action ? { action: health.action } : {}),
         };
       },
-      async poll(request) {
+      async poll(request, control) {
         const mode = request.intent?.sync_mode === "rebuild_cursor"
           ? "rebuild_cursor"
           : "normal";
-        const result = await provider.sync({ cursor: request.cursor, mode });
+        const result = await provider.sync({ cursor: request.cursor, mode }, control);
+        await control.beforeEffect(); control.current();
         if (!result.ok) {
           return {
             ok: false,
@@ -281,3 +283,5 @@ export type { PluginInstallationClient, PluginInstallationProjects, PluginInstal
 export type { PluginNotificationClient, PluginNotificationDelivery, PluginNotificationDeliveryReceipt, PluginNotificationInput, PluginNotificationReceipt, PluginNotificationReceiverDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 export { PLUGIN_NOTIFICATION_DELIVERY_ACTOR } from "@molis-ai/molis-work-contracts/platform/plugin";
 export { canonicalJsonValue } from "./json-value.js";
+
+export { controlledConnectorFetch } from "./connector-call.js";

@@ -1,3 +1,6 @@
+import type { ConnectorCallControl } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { controlledConnectorFetch } from "@molis-ai/molis-work-plugin-sdk";
+import { connectorAccountControl } from "./connector-oauth-targets.js";
 import type { ActionClient, ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { connectorUsagesAction, connectorUsagesHandler } from "./connector-usage-actions.js";
 import { modelConnectionUsages, modelConnectionUsagesHandler } from "./model-connection-usages.js";
@@ -43,27 +46,32 @@ const failed = (failure: string | undefined, message: string | undefined, fallba
     : failure === "configuration" ? accountErrors.configuration(message || fallback) : accountErrors.unavailable(message || fallback);
 
 /** Account identity behind one connection, through the same resolver and provider calls its readers use. */
-export async function readConnectorAccount(home: string, connectionId: string): Promise<ConnectorAccount> {
+export async function readConnectorAccount(home: string, connectionId: string, control: ConnectorCallControl): Promise<ConnectorAccount> {
   let access: Awaited<ReturnType<typeof resolveApiConnection>>;
-  try { access = await resolveApiConnection(home, connectionId); }
+  try { access = await resolveApiConnection(home, connectionId, control); }
   catch (error) {
+    await control.beforeEffect(); control.current();
     if ((error instanceof ActionError && ["connector.connection.invalid","connector.connection.not_found","connector.connection.service_mismatch","connector.connection.disconnected"].includes(error.code)) && error.code === "connector.connection.not_found") throw accountErrors.unknown("没有这条连接");
     throw accountErrors.disconnected(error instanceof Error ? error.message : "连接不可用");
   }
+  control = connectorAccountControl(home, connectionId, control);
   const service = access.connection.service_id;
   const identity = { connection_id: connectionId, service_id: service };
   if (service === "github") {
-    const result = await githubWhoami({ token: access.token });
+    const result = await githubWhoami({ token: access.token, fetchImpl: controlledConnectorFetch(globalThis.fetch, control) });
+    await control.beforeEffect(); control.current();
     if (!result.ok) throw failed(result.failure, result.failure === "needs_auth" ? "GitHub 需要重新授权" : result.message, "无法读取 GitHub 账号");
     return { ...identity, login: result.login, scopes: [...result.scopes], ...(result.account_id ? { account_id: result.account_id } : {}) };
   }
   if (!isCatalogConnectorId(service)) throw accountErrors.unknown("这条连接的服务不提供账号读取");
-  let result = await catalogWhoami({ connectorId: service, token: access.token, authExtras: access.authExtras, fetchImpl: access.fetchImpl });
+  let result = await catalogWhoami({ connectorId: service, token: access.token, authExtras: access.authExtras, fetchImpl: controlledConnectorFetch(access.fetchImpl ?? globalThis.fetch, control) });
+  await control.beforeEffect(); control.current();
   if (!result.ok && result.failure === "needs_auth" && access.connection.auth_method === "oauth") {
     try {
-      access = await resolveApiConnection(home, connectionId, service, true);
-      result = await catalogWhoami({ connectorId: service, token: access.token, authExtras: access.authExtras, fetchImpl: access.fetchImpl });
-    } catch { /* Keep the original account error. */ }
+      access = await resolveApiConnection(home, connectionId, control, service, true);
+      result = await catalogWhoami({ connectorId: service, token: access.token, authExtras: access.authExtras, fetchImpl: controlledConnectorFetch(access.fetchImpl ?? globalThis.fetch, control) });
+      await control.beforeEffect(); control.current();
+    } catch { await control.beforeEffect(); control.current(); /* Keep the original account error. */ }
   }
   if (!result.ok) throw failed(result.failure, result.message, "无法读取账号");
   return { ...identity, login: result.login, ...(result.account_id ? { account_id: result.account_id } : {}) };
@@ -78,7 +86,7 @@ export function connectorAccountActionProvider(home: string, remember: Connector
       handle: async (caller, input) => {
         const id = (input as { connection_id: string }).connection_id, revision = withConnectorConnections(home, store => store.get(id)?.updated_at);
         await caller.beforeEffect();
-        const result = await readConnectorAccount(home, id);
+        const result = await readConnectorAccount(home, id, { signal: caller.signal ?? AbortSignal.any([]), beforeEffect: () => caller.beforeEffect(), current: () => caller.signal?.throwIfAborted() });
         await caller.beforeEffect(); caller.signal?.throwIfAborted();
         if (revision && !rememberConnectorCheck(home, id, { at: new Date().toISOString(), revision, outcome: "connected", authorization: "verified", account: { login: result.login, ...(result.account_id ? { account_id: result.account_id } : {}) }, ...(result.scopes?.length ? { scopes: result.scopes } : {}) })) throw accountErrors.disconnected("读取期间连接已变化，请重新检查");
         return result;

@@ -1,3 +1,4 @@
+import { connectorControl } from "./fixtures/connector-control.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -123,10 +124,10 @@ test("J2A-01: the connector owner refuses missing, duplicate and revoked wiring,
   connector.registerDriver(driver);
   assert.throws(() => connector.registerDriver({ ...driver }), { code: "connector.driver_duplicate" });
   connector.connect({ connection_id: "refusal-connection", driver_id: driver.driver_id });
-  await assert.rejects(connector.invoke({ connection_id: "refusal-connection", cursor: null }), { code: "connector.invocation_failed" });
+  await assert.rejects(connector.invoke({ connection_id: "refusal-connection", cursor: null }, connectorControl()), { code: "connector.invocation_failed" });
   assert.equal(polls, 1);
   connector.revoke("refusal-connection");
-  await assert.rejects(connector.invoke({ connection_id: "refusal-connection", cursor: null }), { code: "connector.connection_missing" });
+  await assert.rejects(connector.invoke({ connection_id: "refusal-connection", cursor: null }, connectorControl()), { code: "connector.connection_missing" });
   assert.equal(polls, 1, "a revoked connection cannot invoke its driver again");
 });
 

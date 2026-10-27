@@ -16,7 +16,7 @@ ConnectorHost 注册 driver 后，test 检查健康，invoke 传入连接、游�
 | --- | --- |
 | [src/index.ts](src/index.ts) | ConnectorHost、连接/driver 注册与调用 |
 
-可对照现有调用方 [apps/local-host/src/feed-connector-sync.ts](../../apps/local-host/src/feed-connector-sync.ts) 阅读装配方式。
+可对照现有调用方 [apps/local-host/src/connector-source-pull.ts](../../apps/local-host/src/connector-source-pull.ts) 阅读装配方式。
 
 ## 接入与边界
 
@@ -62,3 +62,5 @@ node scripts/run-tests.mjs tests/feed-receive-chain.test.ts
 
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
+
+FI-C-02：`test/invoke` 与 driver 的 `health/poll` 都显式接收本次 `ConnectorCallControl`（signal、异步 beforeEffect、同步 current）。控制经 SDK 实参传给 Provider，不存为 provider 的可变当前调用，也不序列化进 intent。Host 超时同时中止该控制；每次实际 HTTP 或刷新写回前认权，最后一次 await 后同步核对才发送或持久化。绑定通知只使确切槽的在途请求失效，保留账号修订检查和 close 等待。

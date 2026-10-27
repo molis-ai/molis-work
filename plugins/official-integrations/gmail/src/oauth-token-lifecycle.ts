@@ -1,6 +1,8 @@
 import { GMAIL_ACCESS_TOKEN_SKEW_MS, TOKEN_ENDPOINT, RESTART_HINT, REAUTH_ACTION, type GmailOAuthPorts, type GmailTokenLifecycle, type OAuthFetch } from "./oauth-types.js";
 import type { GmailTokenRefs, GmailUsableTokenResult } from "./provider.js";
 import type { createGmailOAuthConfiguration } from "./oauth-configuration.js";
+import type { ConnectorCallControl } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { controlledConnectorFetch } from "@molis-ai/molis-work-plugin-sdk";
 
 type GmailConfiguration = ReturnType<typeof createGmailOAuthConfiguration>;
 
@@ -77,6 +79,7 @@ function loadGmailTokenLifecycle(ports: GmailOAuthPorts, refs: GmailTokenRefs): 
  * Never returns secrets in failure payloads.
  */
 async function resolveUsableGmailAccessToken(ports: GmailOAuthPorts, resolveGmailClientId: GmailConfiguration["resolveGmailClientId"], resolveGmailClientSecret: GmailConfiguration["resolveGmailClientSecret"], opts: {
+  control: ConnectorCallControl;
   fetchImpl?: OAuthFetch;
   /** Deterministic clock for tests (epoch ms). */
   nowMs?: number;
@@ -86,6 +89,8 @@ async function resolveUsableGmailAccessToken(ports: GmailOAuthPorts, resolveGmai
   /** The connection owner rechecks its revision synchronously before any refreshed credential is saved. */
   beforePersist?: () => void;
 }): Promise<GmailUsableTokenResult> {
+  const { control } = opts;
+  control.current();
   const lifecycle = loadGmailTokenLifecycle(ports, opts.tokenRefs);
   if (!lifecycle) {
     return { ok: false, status: "none" };
@@ -129,7 +134,7 @@ async function resolveUsableGmailAccessToken(ports: GmailOAuthPorts, resolveGmai
 
   let res: Response;
   try {
-    res = await fetchImpl(TOKEN_ENDPOINT, {
+    res = await controlledConnectorFetch(fetchImpl, control)(TOKEN_ENDPOINT, {
       method: "POST",
       headers: {
         "Content-Type": "application/x-www-form-urlencoded",
@@ -138,6 +143,7 @@ async function resolveUsableGmailAccessToken(ports: GmailOAuthPorts, resolveGmai
       body: body.toString(),
     });
   } catch {
+    await control.beforeEffect(); control.current();
     return needsAuthResult(
       `Gmail token refresh failed (network) — ${RESTART_HINT}`,
     );
@@ -153,17 +159,20 @@ async function resolveUsableGmailAccessToken(ports: GmailOAuthPorts, resolveGmai
   try {
     json = (await res.json()) as typeof json;
   } catch {
+    await control.beforeEffect(); control.current();
     return needsAuthResult(
       `Gmail token refresh returned a malformed response — ${RESTART_HINT}`,
     );
   }
 
+  await control.beforeEffect(); control.current();
   if (!res.ok || !json.access_token?.trim()) {
     // Never echo Google error bodies that might carry token fragments.
     return needsAuthResult(`Gmail token refresh rejected — ${RESTART_HINT}`,
         res.status === 400 || res.status === 401 || json.error === "invalid_grant" || json.error === "invalid_client");
   }
 
+  control.current();
   if (loadRefreshToken(ports, opts.tokenRefs) !== refreshToken) return needsAuthResult("Gmail connection changed while refreshing; retry");
   opts.beforePersist?.();
   persistGmailAccessLifecycle(ports, {

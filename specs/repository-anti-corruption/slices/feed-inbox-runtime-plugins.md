@@ -539,3 +539,7 @@ type SourcePullRequest =                       // 闭合：多一个字段就拒
 不启动 R62/R63 等新需求、六种未支持连接器、真实Home/4207、旧库回填或完整性标记、安装/发版、BL739/RAC999维护。fa04仅取既有RAC482读取路径段；公共文件和准确资源额度只在真实合成树上更新，不沿旧源预算或放宽门禁。必须修、非阻塞恢复和验证缺口逐项保实际owner、提交、独立复审/验证与真实采用，登记不代表闭环。
 
 组合检查点 `d7da3e05c9f36a111261c0a431a6c6152dc71edd` 已保全固定来源与72处冲突解决；`11bf8bbba23a9107085c003d2e3c794565db5feb` 普通合并准确 AB `63d7b896`，包含0c之后11路径末尾修正，尚不代表工程通过。Inbox 的 #1295 投影通过现有平台 Attention query 暴露 `listInbox/getInbox`：每次从可信项目连接读取实际 running 安装及确切归档 digest 的 `attention.inbox`，保留未分配条目，普通 list/get 语义不变。Inbox 列表、详情、场景与 Pages 共用该投影，状态变更在原异步 admission/认权之后的同步事务体再次读投影；Feed 只拥有自己的事项，不读取 Goals 私表。Pages 消费形状沿 Inbox 已有 pages-shapes，不恢复删除的公共 Pages 合同或增加插件实现依赖。此适配沿现有 RAC-807/808 与运行安装/归档/owner 反例验证。
+
+FI-C-02 的控制是必需参数：Host test/invoke、driver health/poll、SDK binding、Provider health/sync 和 OAuth resolver 都不能在缺控制时联网。现有独立账号读取组合账号当前修订与已有调用者控制，动作入口传原 caller 的 signal/beforeEffect；FI sourcePull 和 BL530 保原调用、槽、账号及安装整组控制。沿现有 serialized 刷新顺序，不新增队列；刷新后先认权，再同步核账号 revision 与当前令牌后落盘，拒绝标记也受同样控制。超时和请求结束使本次控制失效。Public HTTPS 固定合法 DNS 后最后认权、同步 current，随后才构造请求，原地址、来源、方法、大小及凭据限制保留。
+
+Root 追加的既有 SYS52 首败随 C 收口：Full `40440700816/63d7b896` 原始快照显示 Goal 标题 Text 已断开、选区为空而 frame 仍正确。修复只在标题或结果字符串变化时替换内容；同值生产重绘保原 Text 与真实选区，真实变化仍更新。补实际生产 Frame DOM 路径的确定性反例，保原 More、10秒超时及全部原断言，不修改冻结 AB。Owner PIPE，原件由 Root/TEST 持有，最终 C Full 核验；重试通过不等于已修。

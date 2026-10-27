@@ -1,3 +1,5 @@
+import type { ConnectorCallControl } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { controlledConnectorFetch } from "@molis-ai/molis-work-plugin-sdk";
 import { submitConnectorActivation } from "./connector-authorization-commit.js";
 import { assertConnectorAuthorizationPending, beginConnectorAuthorization, finishConnectorAuthorization } from "./connector-authorization-status.js";
 import { checkConnectorSetupSubmission } from "./connector-setup-submission.js";
@@ -38,7 +40,7 @@ function localOrigin(raw: string): string {
   return url.origin;
 }
 async function jsonRequest(fetchImpl: typeof fetch, url: string, init: RequestInit): Promise<Json> {
-  const response = await fetchImpl(url, { ...init, redirect: "error", signal: AbortSignal.timeout(25_000) });
+  const response = await fetchImpl(url, { ...init, redirect: "error", signal: AbortSignal.any([AbortSignal.timeout(25_000), ...(init.signal ? [init.signal] : [])]) });
   const json = object(await response.json());
   if (!response.ok || json.error || json.ok === false || (typeof json.code === "number" && json.code !== 0)) {
     throw new ApiOAuthError(`授权服务拒绝请求（HTTP ${response.status}）；请检查应用配置、回调、权限或重新授权`, undefined, tokenEndpointRefused(response.status, json.error));
@@ -293,8 +295,10 @@ export async function completeApiOAuth(home: string, input: { origin: string; st
     throw new ApiOAuthError(error instanceof ApiOAuthError ? error.message : "授权未完成，请检查应用配置与权限后重试", config.serviceId);
   } finally { staged.clear(); }
 }
-export async function resolveApiOAuthToken(home: string, id: string, forceRefresh = false, fetchImpl: typeof fetch = fetch): Promise<string> {
+export async function resolveApiOAuthToken(home: string, id: string, control: ConnectorCallControl, forceRefresh = false, fetchImpl: typeof fetch = fetch): Promise<string> {
   return serialized(home, id, async () => {
+    await control.beforeEffect(); control.current();
+    const request = controlledConnectorFetch(fetchImpl, control);
     const config = configured(home, id);
     const revision = withConnectorConnections(home, store => store.require(id)).updated_at;
     const secrets = connectorProtocolSecrets(home, id);
@@ -303,10 +307,11 @@ export async function resolveApiOAuthToken(home: string, id: string, forceRefres
     if (token && !forceRefresh && (!expires || expires > Date.now() + 60_000)) return token;
     const refreshToken = secrets.get("oauth");
     if (!refreshToken) throw new ApiOAuthError("访问令牌已失效，请重新授权此连接");
-    const json = await exchange(home, config, { refreshToken }, fetchImpl);
+    const json = await exchange(home, config, { refreshToken }, request);
     const next = text(json.access_token);
     if (!next) throw new ApiOAuthError("刷新失败，请重新授权此连接");
-    await enrichContext(config, json, fetchImpl);
+    await enrichContext(config, json, request);
+    await control.beforeEffect(); control.current();
     // A disconnect during the network request must win over a token refresh.
     configured(home, id);
     if (withConnectorConnections(home, store => store.require(id)).updated_at !== revision) throw new ApiOAuthError("连接在刷新期间已变化，请重试");

@@ -61,7 +61,7 @@ export function createConnectorSourcePort(options: ConnectorSourcePortOptions): 
         connector.registerDriver(integration.connector_driver);
         connector.connect({ connection_id, driver_id: integration.connector_driver.driver_id });
         await run.beforeEffect(); current();
-        const receipt = await runWithMolisWorkHome(home, () => connector.invoke({ connection_id, cursor: request.cursor, intent: { ...request.intent } }));
+        const receipt = await runWithMolisWorkHome(home, () => connector.invoke({ connection_id, cursor: request.cursor, intent: { ...request.intent } }, { signal, current, beforeEffect: async () => { current(); await run.beforeEffect(); current(); } }));
         await run.beforeEffect(); current();
         const { receipt_id, driver_id, started_at, completed_at, result } = receipt;
         return { receipt_id, driver_id, started_at, completed_at, result };

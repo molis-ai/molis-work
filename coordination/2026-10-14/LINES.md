@@ -223,3 +223,9 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
   - 每份 brief 带交接硬约束：不碰真实 Home、只用一次性 Home；不发版不改版本号；不 force push、不用裸 git stash；只按 pid 停进程；取消 CI 要用户本人同意；推送前 `pnpm secrets:check`；门禁不刷数字、不放宽断言；不动 #1101、#1064、#1059、#784、#734。
   - **R-27 口径（分工会话 10-27 更正，已转 C 线）**：local-host 的 build 先 tsc 再编原生程序，tsc 本机能过，只有 jelly-whisper（swift-tools-version 6.2）编不了。本机能做：逐包构建（含 local-host tsc）、FI7 临时 Host 加浏览器验证（machine-slot）。本机做不了、交 CI 或 Codex 那台机器：整体 `pnpm build`/`workspace:build`、`pnpm actions:update`、page-assets 核对、安装类指纹测试、用到 jelly 原生程序的用例。升级工具链用户未定。
   - 统筹 hand-off 被 auto 模式拦下，三条线改以卡片提出，用户已点开。
+  - **10-27 W5-10 开工清单裁定**：在 main `9efbf8d04` 上实测巨大单元 49 个，38 个已标例外，余 11 个。片序 e1 GuidanceCommands → e2 Goals 两个事件仓储 → e3 GoalEventFacts → a1 `tab-workspace.ts`（批 A 过渡拆分），都与 C 不重叠。暂不做的：
+    - a2 `assistant-island.ts`：等 #1101（草稿、仍在更新，同文件）。a1 之后 #1101 若已合入就做，否则记等待。
+    - f1 `feed-projection-ui.ts`：等 C 的 FI7（判定表挂「Feed 迁 Runtime 时搬走」，避免原地拆完又被搬）。
+    - 批 F FeedApplication：等 C。
+    - 记忆线 MemoryService：等 #1059、#1101。
+    - Pages mount/`commands.ts`/`editor-browser.ts`/`hoverHandlePlugin`、`createEventDocumentForms`：已不在报告里。

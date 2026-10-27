@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { spawn } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -170,3 +171,29 @@ for (const transition of ["archive", "unavailable"] as const) {
     assert.equal(transition === "archive" ? source.lifecycle_state : source.availability, transition === "archive" ? "archived" : "unavailable");
   });
 }
+
+test("MEM-SOURCE-CAPTURE real PDF and summary Artifacts adopt through the Host and replay after an independent process restart", { timeout: 60_000 }, async t => {
+  const root = await mkdtemp(join(tmpdir(), "system-source-adoption-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  const run = (stage: "adopt" | "reopen") => new Promise<{ pid: number; networkCalls: number }>((resolve, reject) => {
+    const child = spawn(process.execPath, [new URL("./fixtures/knowledge-system-adoption-process.mjs", import.meta.url).pathname, root, stage], {
+      cwd: process.cwd(), stdio: ["ignore", "ignore", "pipe", "ipc"],
+      env: { ...process.env, MOLIS_WORK_HOME: join(root, "home"), MOLIS_WORK_SECRET_BACKEND: "file" },
+    });
+    let errors = "", result: { pid: number; networkCalls: number } | undefined;
+    child.stderr!.on("data", bytes => { errors = (errors + String(bytes)).slice(-8_000); });
+    child.on("message", message => { result = message as typeof result; });
+    child.on("error", reject);
+    const stop = () => { child.kill("SIGTERM"); };
+    t.signal.addEventListener("abort", stop, { once: true });
+    child.on("exit", code => {
+      t.signal.removeEventListener("abort", stop);
+      if (code === 0 && result) resolve(result);
+      else reject(new Error(`${stage} exited ${code}: ${errors}`));
+    });
+  });
+  const adopted = await run("adopt"), reopened = await run("reopen");
+  assert.notEqual(adopted.pid, reopened.pid);
+  assert.equal(adopted.networkCalls, 0);
+  assert.equal(reopened.networkCalls, 0);
+});

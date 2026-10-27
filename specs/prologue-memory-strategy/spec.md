@@ -1,6 +1,6 @@
 # Prologue 记忆策略与 Molis Work 接入
 
-状态：Memory P0 正在开发与集成，尚未完成验收（2026-10-28）。Molis #1101 与 Prologue #108 仍为 Draft；SDK 4ee5b912 已提交推送并在隔离 App 接包，队列授权交接与 Coding 原件去重的本机生产链用例已通过，尚待最终应用交付和全量核收。已推送 App 02114764a 的普通 CI 因测试内部导入、目录可用性和一项 HTTP 连接重置失败，Verify 未通过；同头 Full suite 仍有失败和运行中分片。前两项已完成本机修正，尚待修正提交的 CI；连接重置与浏览器响应阻塞继续定位。10/100档规模门已有通过证据，1000档、B1完整答卷对照、最终产品实操与用户验收仍未关闭。首期实施已获用户授权（2026-10-22）；C0/Q0 已独立交付，Molis C0/Q0 已合入 main；Prologue C0 与 S1 版本恢复、分类授权、业务 key、管理分页、停用恢复及候选期限检查已合入 main；M1 配置采用第一片已完成工程回归并合入 main；完整 P0 的形成、召回、SDK 接入和产品验收仍未完成；后续按 §9.3 的依赖推进。负责人：当前统筹会话；SDK 合同、Molis 产品合同、质量基线分别有执行负责人。已确认目标仍是 Molis Work 的记忆更精准、好用、省 token，以及 Prologue 的多策略组合和 App 自定义记忆矩阵。实施和验证事实只记在 §13；未通过的标准不因计划或合同落地而算完成。用户随后已授权分片提交和依赖交付；2026-10-25 改为尽可能聚合大 PR，复用 #1101 收齐后续 Memory P0 应用片，原独立验收不放宽。真实 Home 数据采用与发布仍不在本次范围内。
+状态：Memory P0 正在开发与集成，尚未完成验收（2026-10-28）。Molis #1101 与 Prologue #108 仍为 Draft；SDK 4ee5b912 已提交推送并在隔离 App 接包，队列授权交接与 Coding 原件去重的本机生产链用例已通过，尚待最终应用交付和全量核收。已推送 App 5b0c61b 的 Health、Package boundaries 与 Verify 已通过，原内部导入与目录可用性失败已关闭；但普通 CI 的 Security 1/2 和 Product subset 2/2 因 HTTP 连接重置失败，不能称整体通过。02114764a 的 Full suite 已结束：9/16 分片成功、7/16 失败；连接重置与浏览器响应阻塞继续定位。10/100档规模门已有通过证据，1000档、B1完整答卷对照、最终产品实操与用户验收仍未关闭。首期实施已获用户授权（2026-10-22）；C0/Q0 已独立交付，Molis C0/Q0 已合入 main；Prologue C0 与 S1 版本恢复、分类授权、业务 key、管理分页、停用恢复及候选期限检查已合入 main；M1 配置采用第一片已完成工程回归并合入 main；完整 P0 的形成、召回、SDK 接入和产品验收仍未完成；后续按 §9.3 的依赖推进。负责人：当前统筹会话；SDK 合同、Molis 产品合同、质量基线分别有执行负责人。已确认目标仍是 Molis Work 的记忆更精准、好用、省 token，以及 Prologue 的多策略组合和 App 自定义记忆矩阵。实施和验证事实只记在 §13；未通过的标准不因计划或合同落地而算完成。用户随后已授权分片提交和依赖交付；2026-10-25 改为尽可能聚合大 PR，复用 #1101 收齐后续 Memory P0 应用片，原独立验收不放宽。真实 Home 数据采用与发布仍不在本次范围内。
 
 
 ## 1. 用户结果与责任边界
@@ -3997,3 +3997,30 @@ Profile 位于 `/private/tmp/memory-shelf-cpu-4ee5-20261028/` 与 `/private/tmp/
 **目录修正及公开入口最终核收（2026-10-28）。** 两处生产改动沿原可信调用者检查；独立深审未发现新增生产阻塞。整树 build 通过，同一构建的最终5文件62项按原 runner、jobs1/browser-jobs1/retries0分段通过：Coding learning 15、observation 1、memory-actions 25，以及最终 Creator 18、memory-scopes 3。后两者保留 Home 原读写/audience 反例（入队明确以 actions.project_required 拒绝），真实项目中已签发且持有 memory:write 的普通插件则在 discover/inspect/调用均被 memory.forbidden 拒绝，前后记忆列表不变；不以缺项目或伪造 caller 的失败冒充身份门证明。首轮两个夹具错误及 observer 的命名 ESM timer 绑定失败均保留，修后原时限和业务断言不变。日志为 `/private/tmp/memory-admission-availability-final-20261028.log`、`/private/tmp/memory-admission-home-project-final-20261028.log`；公开端口和虚拟时钟仅验证观察循环，不冒充真实 Host 安全，后者由前述生产链覆盖。
 
 已跟踪最终测试的 health 通过，内部导入417、双重断言154；48项资源仍为7,463,060 B，无新增额度。021普通CI已结束失败，完整跑40590141610当前7成功、5失败、4运行中；已知剩余页面失败包括 Coding question、Assistant typed questions/follow live、Workbench Feed、Pages Assistant surfaces。连接重置的本机原文件8/8通过只表示未复现，不认定 Linux 已修。修正继续并入现有#1101，保留Draft；真实Home、发布、1000条性能、B1完整答卷和最终用户验收边界不变。
+
+#### 写前复核的重复目录读取（2026-10-28）
+
+当前真实阻塞是 Coding 问卷及多页 CI 在 Node 忙碌期间无法及时响应。单个原 AC-22 旅程的 V8 覆盖显示目录投影1,196次、Host availability resolve 619,563次；临时只读调用栈定位到 owner binder 的写前检查重复列出全项目动作（至少133次直接路径及27次经会话生命周期的路径；采样栈有界，不当完整分摊）。这不是每次写入不该复核，而是已有原调用 fence 已能完成同一检查，另列全目录重复付出成本。
+
+最小合同 OWNER-WRITE-MEM-01：删除 `bindOwnerPluginAction` 写前的 discover/find/目录 availability 和重复 validate，仍在每次写前调用原 `caller.beforeEffect()`、检查 grants、同步 authority 和取消。原 Kernel 捕获精确 provider、registration 和调用生命周期；原 Runtime 复核安装与 grants；Host 实时策略和 CodingSessionWrite 的准入均保留。旧注册、停止、撤权、取消及异步等待后失效必须拒绝且零业务写入；不能用新目录条目使旧调用恢复。不存在普通 ActionCallContext 直接执行 handler 的支持合同，相关旧夹具改为真实 ActionService 调度，保留错误码/kind与零写断言。
+
+只改 plugin-sdk 原 routes helper、README 和既有 owner/availability/provider 回归，不新建缓存、窄口、配置或状态，不改变调用次数、权限、超时、重试、资源与性能标准。当前必须是消除已定位的重复元数据读取；跨请求缓存、同步检查跨 await、减少任何最终 fence 均删除于方案。独立边界评审支持此收窄，收益仍待同一原页面旅程实测。先整体 build、实际 owner/Host/Runtime 反例与原 AC-22，再按共享核心要求跑完整检查和 CI；本机绿色不关闭 Linux 失败。无有效收益则撤回本刀，不操作真实 Home。
+
+**owner binder 候选停止（2026-10-28）。** 真实授权/注册/依赖等待5文件27项通过，完整Coding问卷6/6通过；但原6例CPU profile90.934→90.894s、最长连续非idle9.456→9.485s，未显示实际响应改善。单例目录1,196→903次，resolve619,563→613,086，Home开库6,582→6,631；移除的是较窄的安装目录，不能把目录数量下降当作用户收益。依本刀停止条件，仅逆向撤回4个自有代码/README/测试文件并保留补丁，不进入生产。整体build首次因沙箱拒绝Swift模块缓存未完成；允许原编译缓存访问后原命令通过，未换工具链。
+
+新的有界完整调用栈（200个不同栈，后续栈可能截断）把大量剩余目录投影定位到 Knowledge 整理的来源核验：beforeDispatch 的 retention→subject reader→retention 每条各408次，afterResult对应各228次。这些是当前授权与版本检查，不可直接删除或跨等待复用结果。下一步只读核对如何在保留原主人/版本/撤权/归档复核的同时减少无关目录投影，不继续沿无收益 binder/scene 候选叠补丁。
+
+
+#### 系统资料实际载荷与连接诊断补验（2026-10-28）
+
+旧系统资料证据中 Markdown 旅程和伪 PDF payload 不足以证明真实 PDF 采用；本批通过原 Artifact importFile 输入有效文字层 PDF，确认原字节与抽取固定文本；summary 由已声明的 Character Artifact owner 发布。归档后故意保留旧 Search 投影仍拒绝预览与列表；v2 预览后发布 v3，原决定以 `actions.subject_unavailable` 拒绝，卡与回执不变。本人采用 PDF/v3 summary 后同决定幂等；第二个独立 App 进程打开同一隔离 Home，原卡、项目实例身份、版本、决定及已有非空回执逐项一致。summary 只列摘要，正文读取以 `knowledge.unreadable` 拒绝且无新增正文回执。
+
+采用前真实 Knowledge 读取产生一条合法旧回执；预览、确认、重放和重启完整保留它，后续合法读取仅追加。除合同允许变化的8个来源/状态字段外整卡比较，旧 organized_at/error/updated_at/open 设非空，人工标题/关键词和旧机器字段完整保留；未认可的机器摘要不作为当前 brief 暴露。旧卡由公共存储端口构造，是隔离采用 fixture，不冒称真实旧库迁移。没有配置模型，fetch 调用为0；不将它写成已配置模型的完整零自动派发证明。
+
+Node24.14：相关文件13/13已通过；补齐拒绝码与非空原字段/回执后新增旅程1/1、零跳过零重试通过（`/private/tmp/memory-system-pdf-summary-preservation-node24.14-20261028.log`）。首轮默认Node25 ABI失败未进入业务，保留原日志，不覆盖成通过。未重复已验证的维护/完整及部分恢复矩阵，未操作真实 Home，不代替最终原生App与真人验收。
+
+CI新头5b普通检查已结束：Security1/2的失败在 `coding-material-consumption` 第13次 `GET /projects/:project/api/knowledge/states`，等待头2095ms、server事件为空，未触发45s用例时限；Product2/2在 `coding-history-requirements` RCPT-102 同样连接重置。不同请求只有相同症状，尚不能认定共同根因。原021 Full结果为9成功/7失败，保留失败及首轮失败后重试成功的事实；原时限、断言、重试与CI步骤均未改。
+
+本批只给原 codingProductHost 增加被动诊断：有界8个socket/每个8事件，Undici与server请求分别关联，失败时记录复用次数、完成/关闭时间、server监听与Host生命周期。未监听会改变默认关闭行为的server/request/response timeout或clientError，不改连接头、dispatcher或计时器，不输出正文/令牌/端口；截断窗口明确标记，候选端口匹配不当作已确认请求关联。原输入8/8、另两个已失败CI文件4/4均在本机零重试通过，尚未在Linux捕获新字段，连接根因未关闭。
+
+原生产构建已在撤回无收益候选后重新通过；本片没有生产或资源变更，保留已有资源门证据，不申请新额度。此批进入现有 #1101，不新增PR；下一轮完整集成需覆盖最终生产头，旧Full不代表当前头。

@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { randomUUID } from "node:crypto";
+import { channel } from "node:diagnostics_channel";
 import { errorMonitor } from "node:events";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { mkdtemp, mkdir, rm } from "node:fs/promises";
+import { Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { TestContext } from "node:test";
@@ -55,12 +58,61 @@ export async function codingProductHost(t: TestContext, respond: (request: Codin
   }), controlToken = randomUUID();
   const create = createDesktopWebHost({ ptyClientFilePath: () => join(home, "unused-pty-client.js") });
   const server = create({ homeDirectory: home, localHost: host, controlToken });
-  let requestSequence = 0;
-  const observations = new Map<string, { started: number; events: Array<{ event: string; at_ms: number }>; cleanup(): void }>();
+  let requestSequence = 0, socketSequence = 0, cleanupStarted = false, socketsTruncated = false;
+  type Observation = { started: number; active: boolean; events: Array<{ event: string; at_ms: number }>;
+    clientSocketId?: number; serverSocketId?: number; clientPort?: number; previousSends?: number; cleanup(): void };
+  type SocketObservation = { id: number; side: "client" | "server"; port?: number; sends: number;
+    lastFinish?: number; truncated: boolean; events: Array<{ event: string; at: number }>; cleanup(): void };
+  const observations = new Map<string, Observation>(), sockets = new Map<number, SocketObservation>();
+  const socketIds = new WeakMap<Socket, number>(), clientRequests = new WeakMap<object, Observation>();
+  const requestContext = new AsyncLocalStorage<Observation>();
+  const socketEvent = (id: number | undefined, event: string) => {
+    const entry = id === undefined ? undefined : sockets.get(id);
+    if (!entry) return;
+    const at = performance.now();
+    if (event === "response.finish") entry.lastFinish = at;
+    if (entry.events.length === 8) { entry.events.shift(); entry.truncated = true; }
+    entry.events.push({ event, at });
+  };
+  const observeSocket = (socket: Socket, side: SocketObservation["side"]) => {
+    const known = socketIds.get(socket); if (known !== undefined) return known;
+    if (sockets.size === 8) {
+      const oldest = sockets.values().next().value!; oldest.cleanup(); sockets.delete(oldest.id); socketsTruncated = true;
+    }
+    const id = ++socketSequence, entry: SocketObservation = { id, side,
+      port: side === "client" ? socket.localPort : socket.remotePort, sends: 0, truncated: false, events: [], cleanup() {} };
+    sockets.set(id, entry); socketIds.set(socket, id);
+    // Socket listeners leave Node's request/response/server timeout handling intact.
+    const remove = (["finish", "end", "close", "timeout", errorMonitor] as const).map(event => {
+      const listener = () => socketEvent(id, event === errorMonitor ? "socket.error" : `socket.${event}`);
+      socket.on(event, listener); return () => socket.off(event, listener);
+    });
+    entry.cleanup = () => { for (const off of remove) off(); };
+    socketEvent(id, "socket.observed"); return id;
+  };
+  const observeConnection = (socket: Socket) => { observeSocket(socket, "server"); };
+  const created = channel("undici:request:create"), sent = channel("undici:client:sendHeaders");
+  const observeCreated = (message: unknown) => {
+    const observation = requestContext.getStore();
+    if (observation?.active && message && typeof message === "object" && "request" in message && message.request && typeof message.request === "object") {
+      clientRequests.set(message.request, observation);
+    }
+  };
+  const observeSent = (message: unknown) => {
+    if (!message || typeof message !== "object" || !("request" in message) || !message.request || typeof message.request !== "object" || !("socket" in message) || !(message.socket instanceof Socket)) return;
+    const observation = clientRequests.get(message.request); if (!observation?.active) return;
+    const id = observeSocket(message.socket, "client"), entry = sockets.get(id);
+    observation.clientSocketId = id; observation.clientPort = message.socket.localPort;
+    observation.previousSends = entry?.sends;
+    if (entry) entry.sends++;
+    socketEvent(id, "request.sent");
+  };
+  server.on("connection", observeConnection); created.subscribe(observeCreated); sent.subscribe(observeSent);
   const observeRequest = (request: IncomingMessage, response: ServerResponse) => {
     const key = request.headers["x-molis-work-idempotency-key"];
     const observation = typeof key === "string" ? observations.get(key) : undefined;
     if (!observation) return;
+    observation.serverSocketId = observeSocket(request.socket, "server");
     const record = (event: string) => {
       if (observation.events.length < 8) observation.events.push({ event, at_ms: Math.round(performance.now() - observation.started) });
     };
@@ -70,32 +122,48 @@ export async function codingProductHost(t: TestContext, respond: (request: Codin
       [response, "finish", "response.finish"], [response, "close", "response.close"], [response, errorMonitor, "response.error"],
     ] as const;
     const cleanup = listeners.map(([emitter, event, label]) => {
-      const listener = () => record(label); emitter.once(event, listener);
+      const listener = () => { record(label); if (label === "response.finish") socketEvent(observation.serverSocketId, label); }; emitter.once(event, listener);
       return () => emitter.off(event, listener);
     });
     observation.cleanup = () => { for (const remove of cleanup) remove(); };
   };
   server.prependListener("request", observeRequest);
-  t.after(() => { server.off("request", observeRequest); for (const observation of observations.values()) observation.cleanup(); observations.clear(); });
+  t.after(() => {
+    server.off("request", observeRequest); server.off("connection", observeConnection);
+    created.unsubscribe(observeCreated); sent.unsubscribe(observeSent); requestContext.disable();
+    for (const entry of sockets.values()) entry.cleanup(); sockets.clear();
+    for (const observation of observations.values()) { observation.active = false; observation.cleanup(); observation.cleanup = () => {}; } observations.clear();
+  });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address(); assert.ok(address && typeof address === "object"); const origin = `http://127.0.0.1:${address.port}`;
-  release = async () => { server.closeAllConnections(); await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); await host.close(); };
+  release = async () => { cleanupStarted = true; server.closeAllConnections(); await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); await host.close(); };
   const call = async <Output>(projectId: string, path: string, body?: unknown): Promise<{ status: number; body: Output }> => {
-    const sequence = ++requestSequence, key = randomUUID(), observation = { started: performance.now(), events: [] as Array<{ event: string; at_ms: number }>, cleanup() {} };
+    const sequence = ++requestSequence, key = randomUUID(), observation: Observation = { started: performance.now(), active: true, events: [], cleanup() {} };
     observations.set(key, observation);
     let phase = "headers";
     try {
-      const response = await fetch(origin + `/projects/${projectId}` + path, { method: body === undefined ? "GET" : "POST", headers: {
+      const response = await requestContext.run(observation, () => fetch(origin + `/projects/${projectId}` + path, { method: body === undefined ? "GET" : "POST", headers: {
         origin, "content-type": "application/json", "x-molis-work-control-token": controlToken, "x-molis-work-idempotency-key": key,
-      }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+      }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }));
       phase = "body";
       return { status: response.status, body: await response.json() as Output };
     } catch (error) {
       const template = path.split("?")[0]!.split("/").map(segment => /^(?:|api|plugins|io\.molis\.work\.coding|sessions|runs|workspaces|project-settings|memory|prefs)$/.test(segment) ? segment : ":segment").join("/");
       t.diagnostic(JSON.stringify({ event: "coding_product_http_failed", sequence, path: template, phase,
-        elapsed_ms: Math.round(performance.now() - observation.started), server: observation.events }));
+        elapsed_ms: Math.round(performance.now() - observation.started), server: observation.events,
+        listening: server.listening, host_state: host.lifecycle(), cleanup_started: cleanupStarted,
+        client_socket_id: observation.clientSocketId ?? null,
+        server_socket_id: observation.serverSocketId ?? null,
+        port_matched_server_socket_ids: observation.clientPort === undefined ? [] : [...sockets.values()].filter(entry => entry.side === "server" && entry.port === observation.clientPort).map(entry => entry.id),
+        previous_sends_in_fixture: observation.previousSends ?? null,
+        reused_in_fixture: observation.previousSends === undefined || observation.previousSends === 0 ? null : true,
+        sockets_truncated: socketsTruncated,
+        sockets: [...sockets.values()].map(entry => ({ id: entry.id, side: entry.side, truncated: entry.truncated,
+          last_finish_age_ms: entry.lastFinish === undefined ? null : Math.round(performance.now() - entry.lastFinish),
+          events: entry.events.map(event => ({ event: event.event, at_ms: Math.round(event.at - observation.started) })) })),
+      }));
       throw error;
-    } finally { observation.cleanup(); observations.delete(key); }
+    } finally { observation.active = false; observation.cleanup(); observation.cleanup = () => {}; observations.delete(key); }
   };
   const added = await call(project.project_id, "/api/workspaces", { workspace_path: directory, user_confirmed: true });
   assert.equal(added.status, 201, JSON.stringify(added.body));

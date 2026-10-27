@@ -77,7 +77,7 @@ D1 需要裁：O2（推荐）还是 O3。O2 不改变任何用户可见的行为
 
 ### 3.7 RAC-383 的另一半：映射不了沙箱形态的 Manifest 安装时拒绝
 
-沙箱定义由 `AgentRelease`（operations 契约）经 `sandboxedPluginDefinition`（`plugin-builder/installed.ts`）建出。签名包的 Manifest 里哪些声明沙箱形态承载不了（比如连接器驱动、Manifest 的某些贡献类型），**本稿还没逐项核对**，不下结论。实现片先写一条测试把「Manifest 能声明的」与「沙箱定义实际兑现的」逐项对出来：对出来是空集，就只补一条断言并记录；不是空集，就在预览阶段（`plugins.install.preview`）拒绝并带具名错误码，不留装了但不生效的状态。这一片独立于其余几片，可以最后做或在 D 项里砍掉。
+沙箱定义由 `AgentRelease`（operations 契约）经 `sandboxedPluginDefinition`（`plugin-builder/installed.ts`）建出。RAC-383 逐项核对合法 Manifest 中沙箱形态承载不了的声明（integration、常开、本机工具、事件、端口、多出的权限），连同包文件、接口与贡献不匹配，在签名通过后的安装预览以 `plugin.declaration_invalid` 拒绝，并确认没有固定发布者、保存包或安装。现行签名沙箱包支持 `runtime: { scope: "home" }`，由 RAC-961 保留安装正例；未知 runtime scope 在签名前由 Manifest 解析以 `plugin.manifest_invalid` 拒绝、无写入，RAC-383 单独验证这一更早的边界。
 
 ### 3.8 文档与安全表
 

@@ -186,6 +186,7 @@ test("RAC-1034 W6-02 BL-755 a project's supervisor keeps uninstall, restarts a l
     const scheduleInstall = await scheduleAt.installation(), pagesInstall = await pagesAt.installation();
     assert.ok(scheduleInstall && pagesInstall);
     assert.deepEqual([scheduleInstall.state, pagesInstall.state], ["running", "running"]);
+    await pages.write(served.web, pagesAt.routes, "kept through restart");
     const pagesCallable = await pagesAt.callable();
     assert.ok(pagesCallable.length > 0 && pagesCallable.every(action => declared(pages.plugin_id).includes(action)), 'Pages offers its declared actions that this Home can use');
     const noModel = async () => {
@@ -215,20 +216,31 @@ test("RAC-1034 W6-02 BL-755 a project's supervisor keeps uninstall, restarts a l
     assert.deepEqual(await pagesAt.callable(), pagesCallable, 'a restart restores the same callable actions, without inventing a model');
     await noModel();
 
-    // Restarting a legacy record does not return a permission that was withdrawn.
+    // POLICY 7.8: the Host build keeps required grants; an optional permission the person withdrew stays off across a restart.
+    assert.equal(BUILTIN_PLUGIN_CATALOG.find(entry => entry.manifest.plugin_id === pages.plugin_id)!.manifest.permissions
+      .find(permission => permission.permission === "pages:read")?.required, false);
+    const narrowedGrants = pagesInstall.grants.filter(permission => permission !== "pages:read");
     const reopened = await pagesAt.platform();
     await reopened.runtime.stop(pagesInstall.install_id);
-    reopened.runtime.grant(pagesInstall.install_id, pagesInstall.grants.filter(permission => permission !== "storage:private"));
+    reopened.runtime.grant(pagesInstall.install_id, narrowedGrants);
     await served.shut();
     served = await serve(home);
     scheduleAt = viewOf(served, project, schedule); pagesAt = viewOf(served, project, pages);
-    assert.equal(await answer(pages.titles(served.web, pagesAt.routes)), "503 actions.plugin_unavailable", "Pages: revoked grants still refuse execution after restart");
-    assert.deepEqual(await pagesAt.callable(), []);
+    assert.equal(await answer(pages.titles(served.web, pagesAt.routes)), "403 actions.plugin_permission", "Pages: the withdrawn read permission still refuses an actual read after restart");
+    assert.deepEqual(await pagesAt.installation(), { ...pagesInstall, state: "running", grants: narrowedGrants }, "the same installation runs without silently returning the optional grant");
+    const views = await served.host.actionClient(project.reference).discover(await served.host.localPersonContext(project.reference));
+    const read = views.find(view => view.provider.plugin_id === pages.plugin_id && view.capability_id === "pages.list");
+    assert.ok(read);
+    assert.equal(read.availability.available, false);
+    assert.equal(read.availability.code, "actions.plugin_permission");
     const denied = await pagesAt.platform();
-    await assert.rejects(denied.runtime.start(pagesInstall.install_id), { code: "plugin.grant_denied" });
+    await denied.runtime.stop(pagesInstall.install_id);
     denied.runtime.grant(pagesInstall.install_id, pagesInstall.grants);
     await denied.runtime.start(pagesInstall.install_id);
     assert.equal(await answer(pages.titles(served.web, pagesAt.routes)), 200, "Pages: explicitly returning grants restores execution");
+    assert.deepEqual(await pages.titles(served.web, pagesAt.routes), ["kept through restart"], "the original content survives both restarts and the permission's return");
+    assert.deepEqual(await pagesAt.installation(), pagesInstall, "restoring permission does not replace the installation");
+    assert.deepEqual(await pagesAt.callable(), pagesCallable);
 
     // Taken out of the project and added back: the list does not install it again either.
     assert.equal(await answer(served.web.delete(settings, { plugin_id: "schedule" })), 200);

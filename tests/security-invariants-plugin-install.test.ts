@@ -80,7 +80,6 @@ const NOT_IN_THE_FORMAT: Array<[string, (files: PackageFiles, manifest: PluginMa
   ["an integration plugin (a connector driver runs in the Host)", (_files, manifest) => { Object.assign(manifest, { kind: "integration" }); }],
   ["a request for every project's always-on place", (_files, manifest) => { manifest.always_on = true; }],
   ["a look for local tools", (_files, manifest) => { Object.assign(manifest, { local_tools: { tools: [{ tool_id: "git", binaries: ["git"] }] } }); manifest.permissions = [...manifest.permissions, { permission: "local-tools:read", required: true, reason: "x" }]; }],
-  ["an unknown runtime scope", (_files, manifest) => { Object.assign(manifest, { runtime: { scope: "unknown" } }); }],
   ["an event of its own", (_files, manifest) => { Object.assign(manifest, { events: { publishes: [{ event_type_id: "io.molis.work.example.notes.changed", type_version: 1 }], subscribes: [] } }); }],
   ["a port of its own", (_files, manifest) => { Object.assign(manifest, { ports: { inputs: [], outputs: [] } }); }],
   ["a permission the contract does not ask for", (_files, manifest) => { manifest.permissions = [...manifest.permissions, { permission: "network:any", required: true, reason: "x" }]; }],
@@ -95,6 +94,16 @@ test("RAC-383 S-84 a package that verifies but is not in the sandbox package for
       h.nothingWritten();
     } finally { await h.done(); }
   }
+});
+
+test("RAC-383 S-84 an unknown runtime scope is refused before signing with plugin.manifest_invalid, before anything is written", async () => {
+  const h = await harness();
+  try {
+    assert.throws(() => signedPackage(newPublisher(), (_files, manifest) => {
+      Object.assign(manifest, { runtime: { scope: "unknown" } });
+    }), refused("plugin.manifest_invalid"));
+    h.nothingWritten();
+  } finally { await h.done(); }
 });
 
 test("RAC-382 S-84 a publisher the person has not pinned is pinned only when they give a name, and a preview confirms once", async () => {

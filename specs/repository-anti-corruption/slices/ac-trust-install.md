@@ -345,7 +345,7 @@ SDK（`packages/plugin-sdk`）的公开 API 不变：Manifest 字段没有增减
 
 **T1 落地时的两处口径（2026-10-24）：**
 
-- C1「非 `host` 等级只在沙箱」在 T1 只强制一个方向：`host` 配沙箱定义被拒（`plugin.grant_denied`）。另一个方向（非 `host` 等级不得在宿主进程里跑）已由 BL-588 做完（`specs/repository-anti-corruption/slices/bl588-non-host-trust-in-host-process.md`，S-75 ⑥，`plugin.in_process_denied`）：开发目录刚加载的那一个定义对象和宿主的测试夹具是仅有的两个例外，由宿主代码按对象身份放行。Feed 的官方集成随宿主构建一起发布、由宿主构建目录登记，T1 给 `host`；以后若独立发布，再按它自己的签名定等级。RAC-383 里「映射不了沙箱形态的 Manifest 安装时拒绝」的那一半随 T2 做完（S-84 的 `readSandboxPackage`：清单必须等于沙箱插件的唯一形状，否则 `plugin.declaration_invalid`），BL-588 又把各种超出沙箱形态的声明（integration、常开、本机工具、Home 运行时、事件、端口、多出的权限）逐个钉进了那条测试。
+- C1「非 `host` 等级只在沙箱」在 T1 只强制一个方向：`host` 配沙箱定义被拒（`plugin.grant_denied`）。另一个方向（非 `host` 等级不得在宿主进程里跑）已由 BL-588 做完（`specs/repository-anti-corruption/slices/bl588-non-host-trust-in-host-process.md`，S-75 ⑥，`plugin.in_process_denied`）：开发目录刚加载的那一个定义对象和宿主的测试夹具是仅有的两个例外，由宿主代码按对象身份放行。Feed 的官方集成随宿主构建一起发布、由宿主构建目录登记，T1 给 `host`；以后若独立发布，再按它自己的签名定等级。RAC-383 里「映射不了沙箱形态的 Manifest 安装时拒绝」的那一半随 T2 做完（S-84 的 `readSandboxPackage`：清单必须等于沙箱插件的唯一形状，否则 `plugin.declaration_invalid`），BL-588 又把各种超出沙箱形态的声明（integration、常开、本机工具、事件、端口、多出的权限）逐个钉进了那条测试。现行签名沙箱包支持 `runtime: { scope: "home" }`（RAC-961 正例）；未知 runtime scope 是非法 Manifest，在签名前以 `plugin.manifest_invalid` 拒绝、无写入（RAC-383），不把它伪装成已经签名的预览负例。
 - 已装插件不能换信任等级（`plugin.definition_conflict`）；卸载后重装可以。存量记录按 `execution` 补等级的维护见 §6 与检查清单第 4 节。
 
 ### 7.1 #1250 本轮首评修复（2026-10-24，修复已实现）

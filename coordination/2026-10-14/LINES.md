@@ -482,3 +482,20 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
       - 不挡 C；C 在 §13 写明这个行为变化，并在 C 的 BACKLOG 加这一行。
       - C 还要看一眼移除确认界面现在有没有点名 Feed。
       - BL-800 查过 main、协调分支和 8 个在途 PR，都没用过。下一个空号是 BL-801。
+  - **10-27 C 推到 d96bd692d**：FI7 的 Feed 一半做完，健康门禁 --base 通过。
+    - workbench.js 降到 1147055，抵掉 +21 B 后还有余，不用放行。
+    - 8800e07bf..d96bd692d 已转评审。
+    - 统筹对 C 提的 4 件事的裁定：
+      1. **D-4e3-1 不成立，按用户 10-10 的决定在 C 里改产品。** 用户的决定是：本人升格记「已确认」，其他调用方记「待确认」。D-4e3-1 只出现在合成提交 d7da3e05c 的两份测试里，main 和协调分支都查不到裁定记录。
+         - 改法：Goals 按可信上下文里委托链的原调用者判断，不读输入，也不信 Feed 自报。
+         - 测试：desktop-tui 回绿；那两份测试改回用户的决定；新加一条拒绝用例：工作流、Agent、MCP 或 Feed 自己发起的升格，只记 proposed。
+      2. **发版核对。**
+         - Feed Manifest 退回 0.3.0，和 main 一样。POLICY 规定版本只在发布 PR 里改，所以这是撤掉越线的改动。
+         - CHECKLIST 补 `FEED_HOME_DATABASE` 一行。
+         - C 改了库结构，下次发布要升次版本，留给发布 PR。
+      3. **inbox-automatic-scenes 在 C 里改写**：改走 `feed.sources.sync` 加取数替身，正好证明 Runtime 同步加 capture 场景这条路；原断言不动。另登 **BL-801**：Feed `source-sync.ts` 的 catch 先做 beforeEffect 再核，把原错误盖成 `feed.source_changed`，主人是 C 线。
+      4. **FI7b 槽账号 UI 另开切片，不进 C。** C 不做它也没有回归，Feed 照旧写 connection_id。C 开出 PR 后，C 线从 C 的头开分支接着做，C 合并后再开 PR。开工前查和 W5-11 第 3 片起有没有撞文件。
+    - 装配冻结名单 NATIVE_PLUGIN_HTTP_FILES 去掉 feed：同意，名单只许减少。
+    - 这一轮 C 还要做：边界检查的 2 处必改、BL-800，再在 heavy.sh 下跑根 `tsc --noEmit`。
+    - 浏览器用例、security 全量和 Full 不在本机跑，由合并会话来排。
+    - 下一个空号 BL-802。

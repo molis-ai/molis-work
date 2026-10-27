@@ -3901,3 +3901,59 @@ MCP 还须保留既有的无项目号绑定：只有请求身份精确等于 `da
 远端 `fc043ace9` 普通 CI 40558676558 与 `d3f326cc1` Full suite 40556717048 已结束且失败，不能以这些定向结果宣布远端全绿。后者的 16 个分片均有失败；其中最终仍失败的浏览器用例在排除现已通过的 plugin-sample 后还有 10 份，需要进一步核导航/CPU、可信点击及页面更新时序。首次失败但原重试已通过的 chooser-open-result、undo-refresh 不计为最终阻塞；原日志未输出重试具体错误，不能声称两次均为同根因。本批提交后需在同一提交继续原普通 CI 与 Full suite，不改原重试规则。
 
 这批证据仅支持工程修复。冻结的 1000 条性能门、B1 原答卷缺口、真实质量/全生命周期 token 对照、最终交付物完整非空旅程与用户验收仍未完成；未触真实 Home、未新增付费模型请求、未合并或发布。
+
+#### 2026-10-28：53f30d141 非空旅程发现的剩余 P0 接线与展示
+
+53f30d141 已推到现有 #1101 和原集成分支，普通 CI 40570832932、Full suite 40570819077 已启动，结果待定。原浏览器 process-info、retry-countdown、busy-feedback 在本机零重试通过，不代替 Linux 结论。本地 ad-hoc App/DMG/ZIP 构建成功，SDK 829 文件与已审包逐字节一致，四个本批 Host 模块与当前 dist 一致。仅用 App 自带 payload/Node 在既有非空隔离 Home 运行；未启动原生剪贴板监听，原生 App 实操仍未验证。
+
+生产调用链复核发现：Coding follower 完成后只结算会话与通知；现 memory.learn 队列来源限定 Assistant Work，并拒绝 plugin executor。虽然 Coding 可信原件、SourcePort 和人工记忆/召回已有能力，自动形成调度尚未接通，不能据此宣布 §9.1 P0-B 和 §9.3 M2 完成。补齐方案须复用原持久队列、SourcePort、统一 Action 和安装/后台授权，不新增队列或正文账本；具体短合同待沿实际接口审查后写入，未先编码。
+
+当前完整候选的一键采用符合 CAND-01/05：未知分类或正式期限才要求本人明确选择，不强制所有候选增加确认框。但非空页面在采用前只展示 kind、依据和候选等待截止，没有显示将采用的场景/生命周期/正式期限，尚未完整满足 §8.2。允许最小修复为 paintCandidates 复用原 classificationText/expiryText 展示既有事实，明确区分候选等待与正式期限；不改默认策略、后端批准链、未知值处理或权限。范围限 settings-memory.ts、必要现有翻译和原候选采用回归。验收为完整候选点击前可看清分类及正式期限，采用后的真实持久结果一致，未知候选仍走原选择/取消流程；资源按原门实测，未有通用增长授权。
+
+53f30d141 后续验证：普通 CI 40570832932 已完成，14 个作业（含 Verify、包边界、健康门、两组安全）成功，可选 Linux probe 跳过，不记作运行通过。Full suite 40570819077 尚未结束；1/16 的 coding-input-receipts 最终失败，首次卡在项目设置工作区入口等待，未进入 Coding 输入/回执断言。该窗口 Node CPU 13090ms、事件循环 active 12544ms/idle 0；具体热点未定，重试错误未展开，不能只归因同分片并行。原门、时限和重试保持不变。
+
+同一 53f 打包 payload 在非空隔离 Home 经真实页面完成：完整候选一键采用；人工纠正自动记忆；撤销尚未被修改的另一条自动记忆；将已采用项从助理/长期改为 Coding/短期及明确期限，先取消并核持久未变，再确认；分别保存 Coding 分类读取 off、形成 inherit。真实进程重启后页面、公开 HTTP 中正式记忆/候选/变动/设置与重启前一致。人工纠正后的旧撤销请求以 400/memory.invalid“这次变动不能撤销”拒绝且正文保留；诊断脚本最初错误地预期409，已按实际业务拒绝核对，没有重发或改实现。此段操作前后本机替身模型请求始终23条，零新增模型；不证明真实模型质量、全部生命周期成本或原生壳体验。候选展示最小补丁复用既有“保留时间”翻译，原浏览器文件6/6通过；workbench.js仍实测+138 B，资源门保持失败，尚未登记放行。
+
+#### M2-Coding：完成后自动形成的补齐合同（实现中，未验收）
+
+真实场景：本人在 Coding 原始输入中表达可复用偏好，一轮完成后由原后台记忆队列提出候选；两份独立原始证据是否允许自动记住，仍由现行 v3 门决定。手动保存不能替代这条链。引用本 spec §9.1 P0-B、§9.3 M2、§10 的来源/形成合同，以及 PG002 插件权限与现行 Agent Schedule 合同。
+
+**必要性与范围。** 复用现有完成观察、Agent 状态投影、统一 Action、Host memory.learn 持久队列、canonical SourcePort、worthLearning、SDK candidates.form 与唯一 Ledger。当前必须增加来源主人提供的无正文会话绑定查询，并将最新 Run 引用加入已有轻量状态投影；前者弥补 retention 不含 Runtime 绑定、sessions.read 携正文的缺口，后者避免仅凭 phase/时间戳漏掉两轮均在观察间隔内完成。保留原状态投影入口，按合同升动作版本并更新所有直接消费者；不另建状态服务。可以延后其它插件的自动形成入口；删除新授权代账本、第二队列、持久扫描表和周期性全文扫描方案。不改 SDK 格式/包、数据库版本、模型提示词、UI 或门禁。
+
+**调用链与主人。** Coding 原 observe 发现新的 completed Run → 统一 memory.learning.enqueue 动作 → Host 从可信调用上下文、canonical Session/Run 和来源 owner 查询核对绑定 → 原队列 → 每次执行重新取源和授权 → 同一 SDK form/promotion。入队输入仅稳定业务/Runtime 引用，不收正文、actor、project、install、分类或批准。提供方与安装从上下文绑定，不给内置身份额外权限。来源查询由 Coding 当前实例使用自己的 byRuntimeSession 与 lifecycle current/assertWritable 回答绑定和 active/pending/archived；Host 不读 Coding 私表。入队与恢复均检查真实安装世代；世代作为来源约束，不加入逻辑任务 key。来源及出处必须保持真实 Coding 身份，不伪造 Assistant Work。
+
+**授权与取消。** Host runner 使用现 homeAggregatePorts 的 whileOpen/context/client，只进入已打开项目；每次执行以当次 localWebActionContext、query_only 和精确 provider 读取来源。这个本人 context 只授权读取，形成 caller 从 canonical owner/原 Run policy 得出，person=false，不能经 memoryCaller 变成手动保存。来源查询沿现 artifact:read；自动形成另外核当前安装的 memory:write、运行状态及原 Run 分类许可。Coding Manifest 为此声明 memory:write 和用途，不借用仅覆盖显式起草的 model:invoke，不自动补授旧安装权限；没有自动形成权限不应破坏原 Coding 对话。本人显式保存不新增自动形成权限要求。
+
+读取 owner 前用 captureSources 固定原项目实例、来源提供方注册和命令 marker；读取安装/生命周期后再核原 guard，每个异步 beforeEffect 和 SDK/Ledger 最后同步 assert_current 都使用同一执行的原 guard。撤权、停用、关闭、归档或 pending 后迟到结果不能写候选、正式记忆或业务历史；归档再恢复、撤权再同值重授也不能救活旧执行。不保留已结束 enqueue handler 的临时回调，不从持久 JSON 伪造活授权。原批量队列取消、已取消/失败/待对账的终态不重造 key。
+
+**有界观察与恢复。** 当前活会话的进程内 latest Run/phase 与已检查引用仅用于减少重复读取，随插件停用释放。首次激活或 latest Run/终态变化时读取 canonical refs，按有界批量检查尚未处理项，处理完再推进观察位置；普通五秒轮询不读历史正文。重启重新检查引用，但先用原 schedule.find(key) 排除已有任务，再读原件和判断值得形成；不得截“最近30轮”冒充完成恢复。上下文材料继续沿现30轮/6份完整原件及长度上限；触发 Run 必须带新的本人原始输入，恢复、重试、派生文本不算新证据。不新增持久 cursor。Assistant 的原 key/payload/恢复不变，Coding 固定 key 由项目、业务会话、Runtime 会话、Run 组成。queued 及原队列允许的明确失败新 attempt 每次重新授权；done/cancelled/failed/reconcile-required 不重派，未知结果不自动重放。权限恢复允许以后合法 attempt，不能复活原失效 attempt，遵循 PG002，不增加权限历史表。
+
+**允许修改与装配。** Coding 的现 manifest、会话 owner/observe/动作定义；contracts 现 Memory/Agent 入口及相应 schema；Agent Host 的既有状态投影；Local Host 的现 Memory 装配、来源解析与形成调度，以及 Assistant 可复用的纯来源选择逻辑；必要行为测试、生成的 API/Action 快照、原 README/AI/插件手册同步。新文件仅在这些既有模块内承载完整来源编排职责；不增加顶层包、通用执行框架或 Host 插件私路。范围以该可观察结果为限。硬边界为可信身份、原件、版本、最终授权、唯一副作用链；提炼仍是既有可换策略，模型/预算/分类与开关仍由 App 配置，人通过现记忆页调整；不新增空配置。
+
+**冻结验收。** M2-CODING-01：正常 Coding 完成、完成后立即进程重启，均通过真实入口进入同一持久队列，并在现记忆入口看到真实来源候选。M2-CODING-02：无信号、重复 observe/恢复/同一原始输入重试不增加提炼或独立证据；多轮完成与有界恢复不漏项，终态任务不换 key。M2-CODING-03：排队后撤权/关闭项目/归档/pending，派出前零模型；权限重开不扩张原 Run 的分类许可。M2-CODING-04：在模型、来源读取和实际提交等待中撤权/关闭/归档，迟到结果零候选/正文/历史；同值重授或恢复不能救活旧 attempt。M2-CODING-05：原 queued 可按当前权限合法恢复，cancelled/failed/reconcile-required 保持原状态，不重放未知结果。M2-CODING-06：Coding/Assistant、项目、安装、Run 来源不能混用；本人手动记住与原 Coding 对话不受新自动学习权限误伤，Assistant 原队列回归不变。M2-CODING-07：原构建、相关 Agent/Prologue/Memory/权限行为、合同/包边界/健康/资源门通过，真实 SDK+本机模型服务验生产链；最终打包非空旅程与真实模型质量/成本及用户验收分层报告。模型替身只能证明机制，不能替代未完成的质量/token门。
+
+回滚只撤本次接线与新增声明，保留已产生的合法原件、候选和原队列记录；不清库、不自动重放，不改已批准采用规则。实现并入现 #1101，不新开切片 PR。原计划 SDK 不变；2026-10-28 的真实消费链复现证明必须先修既有 queue 入队边界，依赖增量和验收见下节，归入现 #108。
+
+#### 当前 Full 浏览器阻塞：目录初始许可匹配优化合同
+
+53f 的真实 coding-input-receipts 单文件、原时限、零重试在本机1/1通过（19.83秒）；对实际测试/Host/CDP子进程24000的22.06秒CPU采样显示非idle85.9%，HostAvailability.discover含下游5.23秒、visibleAction权限匹配2.15秒。热点彼此重叠不相加；尚未与Linux设置点击窗口或renderer采样对齐，不能据此宣布全部超时根因或修复。
+
+当前必须仅优化 ActionService.directory 中无外部回调的 metadata 初始过滤：为固定 allowed_actions 在本次过滤建 capability→version→provider 的局部索引，保留动态getter原匹配路径；不使用有碰撞的字符串拼接键。undefined不附加限制、空数组全拒、版本严格相同、缺省/空provider为通配而字面星号不是通配，与权限/受众/项目/只读/allowed_capability_ids仍求交。inspect仍展示metadata及真实availability，不变成discover。provider availability之后、invoke、retain及capture的检查全部保留原实时匹配，不能复用此索引；外部回调中撤权或同长度替换数组必须立即生效。
+
+这是现有权限合同的实现优化，不新增状态、公开API或授权机制。可以延后权限字符串、Home库打开/结构检查等其它热点；删除长期context缓存、availability结论缓存和跳过校验方案。允许路径仅packages/kernel/src/action-service.ts、action-execution-context.ts、原tests/action-directory-pass.test.ts及必要README/本spec。DIRECTORY-MEM-01验匹配组合及连续两次目录之间改变许可；DIRECTORY-MEM-02在provider availability回调中撤掉/同长度替换许可，后检查拒绝且invoke零业务写；保留原安装目录、MCP授权和插件委托回归。原构建/包边界/健康及共享核心完整CI不减，原设置入口及时限复验；收益实测，不以本机通过代替Linux。回滚只撤索引，恢复原线性匹配。
+
+Full 7/16另确认Shelf跨项目测试向同一库创建第二个项目根，先触发artifacts.project_storage_invalid，未到原shelf.unavailable隔离断言。夹具改由原项目catalog创建独立合法外项目库，外Artifact写入该库，原错误码、正文、幂等及持久化断言全部保留；不降低来源身份门。候选显示复用已有classificationText及expiryText替换三处等价展开。统一构建后8个原定向文件56项通过（候选6、分页2、分类4、安装目录1、MCP授权7、插件委托30、Shelf1、目录5）；原时限、零重试。workbench.js实测1,180,134→1,180,069 B，少65 B，其余47项不变；按原工具下调资源账，门禁通过，无新增额度。这些不是Linux Full或最终产品验收。
+
+改后同一原coding-input-receipts文件一次CPU对照1/1通过：用例19.833→18.418秒，测试进程22.183→19.947秒；profile22.057→19.839秒，action-execution-context栈每样本去重包含耗时2.261→1.510秒，HostAvailability.discover含下游5.230→4.192秒。样本与栈互有重叠，不能累加或推广为Linux收益；两条Search actions.conflict警告保留，未改时限/重试。原始改后profile和日志在/private/tmp/memory-coding-input-cpu-after-20261028/。
+
+53f普通CI 40570832932已成功（Verify及14个实际成功job，另1个可选probe跳过）；Full 40570819077已结束，11分片失败、5通过，最终13文件失败：pages-assistant-surfaces、coding-question-card、coding-client-lifecycle、busy-feedback、shelf-dropagent-parity、coding-input-receipts、workflows-action-steps、interaction-no-crosstalk、assistant-process-info、workbench-pane-feed、late-list-responses、assistant-follow-live及shelf-project-results-http。除最后一项夹具身份错误已本地修验，其余仍需核对真实调用链；CDP/导航超时、反馈时限和DOM空值分开保留，不统称同一根因。Cognia、composer-steady、stream-text、coding-model-controls等在原流水线自带重试后通过，不冒称首次通过。当前本地修改尚未获得新提交CI，不代表整项可合并。
+
+#### Coding 形成的原队列入队依赖（2026-10-28）
+
+真实链在schedule.enqueue的effect frame内创建SDK timer；原Action返回后timer继承已结束授权，tick在调用runner之前的running保存报actions.expired。不能只detach runner或删除enqueue尾门。独审还确认原队列先发布held/byKey再保存，同key并发会提前成功，旧timer也能运行未提交任务。两项直接阻塞本片可靠形成；无新队列、定时器API、权限历史表或格式迁移。
+
+先补SDK Orchestration原合同，再实现其公开enqueue的非持久提交control，沿现RegistryStore.put.beforeCommit与signal完成异步核权和同步尾检。保存确认前保留同key的进程内等待屏障，不能派出或以find/list冒充成功。明确提交前拒绝为零行零runner；保存结果不明固定原task ID/key/input，读取原行核实，读不清保持待对账、零派出，不能换ID重试；确认原行则保留真实状态，终态不覆盖成queued。
+
+AgentHost现schedule Port转交本次提交control，并用已有effects.detach包住SDK入队，避免SDK timer继承handler frame。首次提交仍检查原Action/source，callback不落盘、不传给timer；每次后台执行沿上节重新取得来源与当前权限。其他effects.call和副作用门不改。硬边界为首次提交核权、单身份、未提交不执行及未知结果不重放；现Host/store/runner仍可装配，App传入当次检查和既有调度配置，用户控制仍在App，无新设置。
+
+允许SDK queue核心、原composition参数转交、公开类型/快照和相关合同/测试；App仅现schedule Port、适配器及装配、Memory enqueue调用和必要测试。验收覆盖Action结束后真实timer前置保存及fresh runner；已有timer与首次保存等待中撤权零写零派出；同key并发共享结果而不提前成功；已提交但回执失败单行原身份恢复、读不明不派出；终态及重启running→reconcile-required保持。必须完成SDK原quality/干净包、App真实生产链和原定向回归，随后同一PR集成与CI；不放宽性能或质量门。回滚撤接线并保留原持久记录，不清库或重放。

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ActionService, forgetInDirectoryPass, inDirectoryPass, rememberInDirectoryPass } from "@molis-ai/molis-work-kernel";
-import { ActionError, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionDefinition, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 
 const context: ActionCallContext = { actor_id: "alice", project_id: "project-one", audience: "user", permissions: [] };
 const provider = { provider_id: "notes", title: "笔记", kind: "system" as const, project_id: "project-one" };
@@ -68,4 +68,72 @@ test("VUX-37 a write within a directory makes the next read in it fresh, and the
   assert.deepEqual(seen, [1, 1, 2, 2]);
   forgetInDirectoryPass(scope, "install");
   assert.equal(read(), 3, "outside a pass there is nothing to forget, and a read reads");
+});
+
+test("DIRECTORY-MEM-01 initial permission matching preserves exact references, visibility intersections and fresh callers", () => {
+  const service = new ActionService();
+  const first = action(1), secondVersion = { ...first, version: 2 };
+  const permission = { ...action(2), action: { ...action(2).action, permissions: ["notes.read"] } };
+  const command: ActionDefinition = { ...action(3), operation: "command", action: { ...action(3).action, kind: "operation" } };
+  const metered: ActionDefinition = { ...action(4), action: { ...action(4).action, execution: { cost: "metered" } } };
+  const workflow: ActionDefinition = { ...action(5), action: { ...action(5).action, audiences: ["workflow"] } };
+  const definitions = [first, secondVersion, permission, command, metered, workflow];
+  const register = (source: typeof provider, items: ActionDefinition[]) => service.registerProvider({ provider: source, definitions: items,
+    handlers: items.map(definition => ({ ...definition, handle: () => ({ ok: true }) })) });
+  register(provider, definitions);
+  const otherAction = action(6);
+  register({ ...provider, provider_id: "other" }, [otherAction]);
+  register({ ...provider, provider_id: "foreign", project_id: "project-two" }, [first]);
+  const visible = (caller: ActionCallContext) => service.discover(caller).map(view => [view.capability_id, view.version, view.provider.provider_id]);
+  const base = { ...context, allowed_capability_ids: [first.capability_id, otherAction.capability_id] };
+  const notes = [first.capability_id, 1, "notes"], other = [otherAction.capability_id, 1, "other"];
+  assert.deepEqual(visible(base), [notes, [first.capability_id, 2, "notes"], other], "undefined adds no restriction");
+  assert.deepEqual(visible({ ...base, allowed_actions: [] }), [], "empty grants deny all");
+  assert.deepEqual(visible({ ...base, allowed_actions: [first, otherAction] }), [notes, other], "omitted providers match, exact versions only");
+  assert.deepEqual(visible({ ...base, allowed_actions: [first, otherAction].map(reference => ({ ...reference, provider_id: "" })) }), [notes, other], "empty provider retains wildcard meaning");
+  assert.deepEqual(visible({ ...base, allowed_actions: [{ ...first, provider_id: "*" }] }), [], "a literal star is not a wildcard");
+  assert.deepEqual(visible({ ...base, allowed_actions: [{ ...first, provider_id: "notes" }, { ...first, provider_id: "notes" }] }), [notes]);
+  const grants: ActionReference[] = [{ ...first, provider_id: "notes" }];
+  const caller = { ...base, allowed_actions: grants };
+  assert.deepEqual(visible(caller), [notes]);
+  grants.splice(0, 1, { ...secondVersion, provider_id: "notes" });
+  assert.deepEqual(visible(caller), [[first.capability_id, 2, "notes"]], "the next directory sees same-length replacement");
+
+  const restricted = { ...context, query_only: true, allowed_actions: definitions,
+    allowed_capability_ids: [first.capability_id, permission.capability_id, command.capability_id, metered.capability_id, workflow.capability_id] };
+  assert.deepEqual(visible(restricted), [notes, [first.capability_id, 2, "notes"]], "permissions, query cost, audience and project still intersect");
+  assert.deepEqual(visible({ ...restricted, allowed_capability_ids: [permission.capability_id], permissions: ["notes.read"] }), [[permission.capability_id, 1, "notes"]]);
+  assert.deepEqual(visible({ ...restricted, actor_id: "" }), []);
+
+  const dynamicGrants: ActionReference[] = [permission];
+  const dynamic: ActionCallContext = { ...base, allowed_actions: dynamicGrants, allowed_capability_ids: [permission.capability_id],
+    get permissions() { dynamicGrants.length = 0; return ["notes.read"]; } };
+  assert.deepEqual(visible(dynamic), [], "a caller getter that withdraws grants must use the live matcher");
+});
+
+test("DIRECTORY-MEM-02 availability can revoke or replace grants after initial filtering; invoke never writes", async () => {
+  for (const replacement of [[], [action(2)]] satisfies ActionReference[][]) {
+    const service = new ActionService();
+    const definition: ActionDefinition = { ...action(1), operation: "command", action: { ...action(1).action, kind: "operation" } };
+    const grants: ActionReference[] = [definition];
+    const caller = { ...context, allowed_actions: grants };
+    const writes: string[] = [];
+    let checks = 0;
+    service.registerProvider({ provider, definitions: [definition],
+      availability: () => { checks++; grants.splice(0, grants.length, ...replacement); return { available: true }; },
+      handlers: [{ ...definition, handle: () => { writes.push("written"); return { ok: true }; } }] });
+    const views = service.discover(caller);
+    assert.equal(views.length, 1, "the initial grant admitted metadata before the callback");
+    assert.equal(views[0]!.availability.available, false);
+    assert.equal(views[0]!.availability.code, "actions.forbidden");
+    assert.deepEqual(grants, replacement, "the callback's revocation or replacement remains in effect");
+    assert.equal(checks, 1);
+    grants.splice(0, grants.length, definition);
+    await assert.rejects(service.invoke(caller, definition, {}), (error: ActionError) => error.code === "actions.forbidden");
+    assert.equal(checks, 2, "invoke performs its own live provider check");
+    assert.deepEqual(writes, [], "neither directory nor denied dispatch reached the business handler");
+    const inspected = service.inspect(caller);
+    assert.equal(inspected.length, 1, "inspect still includes metadata outside the caller's grants");
+    assert.equal(inspected[0]!.availability.code, "actions.forbidden");
+  }
 });

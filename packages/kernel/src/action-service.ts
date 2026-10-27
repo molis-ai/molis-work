@@ -1,4 +1,4 @@
-import { actionExecutionContext, assertReadOnlyEffects, visibleAction } from "./action-execution-context.js";
+import { actionExecutionContext, assertReadOnlyEffects, directoryActionVisibility, visibleAction } from "./action-execution-context.js";
 import { assertSceneHandler, consumeScene, protectSceneReads, runSceneEffect } from "./action-scene-execution.js";
 import { inDirectoryPass, rememberInDirectoryPass } from "./directory-pass.js";
 import { registeredActionMetadata } from "./action-metadata.js";
@@ -292,7 +292,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
 
   private directory(context: ActionCallContext, inspection: boolean): ActionView[] {
     // Visibility is checked with the rest of the directory's checks, before any row is made. One pass: a provider is asked once for all its actions.
-    const visible = inspection ? undefined : (definition: ActionDefinition, provider: ActionProvider) => visibleAction(definition, provider, context);
+    const visible = inspection ? undefined : directoryActionVisibility(context);
     return inDirectoryPass(() => registeredActionMetadata(this.registry, context, visible).map(metadata =>
       ({ ...metadata, availability: this.registry.availability(context, { ...metadata, action_provider: metadata.provider }) })));
   }

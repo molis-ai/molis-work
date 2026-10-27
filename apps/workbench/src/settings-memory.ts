@@ -283,11 +283,13 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         const copy = el("div", "memory-row-copy");
         copy.append(el("strong", "memory-text", candidate.text));
         const meta = el("div", "memory-meta");
-        meta.append(el("span", "memory-tag", L(KIND[candidate.kind] || candidate.kind)));
+        meta.append(el("span", "memory-tag", L(KIND[candidate.kind] || candidate.kind)),
+          el("span", "", classificationText(candidate.classification)),
+          el("span", "", L("保留时间") + "：" + expiryText(candidate.formal_expires_at)));
         // Held by the gate, the reason it waits is its whole basis: said once, below, not twice.
         if (candidate.why && candidate.why !== candidate.hold_reason) meta.append(el("span", "", L("依据") + "：" + candidate.why));
         if (candidate.work) meta.append(el("span", "", L("工作") + "「" + candidate.work.title + "」"));
-        if (candidate.waiting_expires_at) meta.append(el("span", "", L("建议等待至") + "：" + new Date(candidate.waiting_expires_at).toLocaleString()));
+        if (candidate.waiting_expires_at) meta.append(el("span", "", L("建议等待至") + "：" + expiryText(candidate.waiting_expires_at)));
         copy.append(meta);
         if (candidate.hold_reason) copy.append(el("span", "memory-hold", candidate.hold_reason));
         const actions = el("div", "memory-actions");
@@ -508,14 +510,12 @@ export const MEMORY_SETTINGS_CLIENT_SCRIPT = String.raw`
         copy.append(el("strong", "memory-text", item.text));
         const meta = el("div", "memory-meta");
         meta.append(el("span", "memory-tag", L(KIND[item.kind] || CLASS[item.kind] || item.kind)));
-        const classification = item.classification;
-        meta.append(el("span", "memory-tag", classification
-          ? classification.scenes.map(scene => L(CLASS[scene] || scene)).concat(L(CLASS[classification.lifecycle] || classification.lifecycle)).join(" · ") : L("未归类")));
+        meta.append(el("span", "memory-tag", classificationText(item.classification)));
         if (item.scope === "character") meta.append(el("span", "memory-tag memory-tag--character", L("角色") + "「" + (item.character_title || item.character_id) + "」"));
         if (item.plugin_id) meta.append(el("span", "memory-tag", L("插件") + " " + item.plugin_id));
         meta.append(el("span", "memory-tag memory-tag--" + item.source, L(SOURCE[item.source] || item.source) + " " + day(item.created_at)));
         if (item.state !== "active") { const status = el("span", "memory-tag memory-tag--state", L(STATE[item.state]) + (item.state_reason ? " · " + item.state_reason : "")); status.dataset.mwState = item.state; meta.append(status); }
-        if (item.expired || item.expires_at) meta.append(el("span", "memory-tag", L(item.expired ? "已到期" : "有效至") + (item.expires_at ? " " + new Date(item.expires_at).toLocaleString() : "")));
+        if (item.expired || item.expires_at) meta.append(el("span", "memory-tag", L(item.expired ? "已到期" : "有效至") + (item.expires_at ? " " + expiryText(item.expires_at) : "")));
         meta.append(el("span", "", L("适用") + "：" + appliesText(item.applies, item.scope)));
         meta.append(el("span", "", item.last_used ? L("最近参考轮次") + "：" + item.last_used.title + " · " + day(item.last_used.at) : L("暂无已确认参考")));
         copy.append(meta);

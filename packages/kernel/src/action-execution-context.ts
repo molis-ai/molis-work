@@ -78,12 +78,38 @@ export function actionExecutionContext(context: ActionCallContext, reference: Ex
     retainAuthority: (references, options) => retain(references, false, [], options?.audience, options?.providerCommands), retainBackgroundAuthority: additionalPermissions => retain([reference], true, additionalPermissions) };
 }
 
-export function visibleAction(d: ActionDefinition, provider: ActionProvider, c: ActionCallContext): boolean {
+function visibleActionScope(d: ActionDefinition, provider: ActionProvider, c: ActionCallContext): boolean {
   return (!c.query_only || (d.operation === "query" && d.action.execution?.cost !== "metered")) && !!c.actor_id && (!provider.project_id || provider.project_id === c.project_id)
     && actionReachesAudience(d.action, d.capability_id, c.audience) && d.action.permissions.every(p => c.permissions.includes(p))
-    && (!c.allowed_capability_ids || c.allowed_capability_ids.includes(d.capability_id))
+    && (!c.allowed_capability_ids || c.allowed_capability_ids.includes(d.capability_id));
+}
+
+export function visibleAction(d: ActionDefinition, provider: ActionProvider, c: ActionCallContext): boolean {
+  return visibleActionScope(d, provider, c)
     && (!c.allowed_actions || c.allowed_actions.some(ref => ref.capability_id === d.capability_id && ref.version === d.version
       && (!ref.provider_id || ref.provider_id === provider.provider_id)));
+}
+
+/** Only for the callback-free initial metadata filter. Availability and execution must keep using visibleAction. */
+export function directoryActionVisibility(c: ActionCallContext): (d: ActionDefinition, provider: ActionProvider) => boolean {
+  const live = (d: ActionDefinition, provider: ActionProvider) => visibleAction(d, provider, c);
+  const plainData = (value: object) => (Object.getPrototypeOf(value) === Object.prototype || Object.getPrototypeOf(value) === null)
+    && Object.values(Object.getOwnPropertyDescriptors(value)).every(descriptor => "value" in descriptor);
+  // Accessors can change grants while another visibility field is read; preserve their original evaluation path.
+  if (!plainData(c) || !c.allowed_actions || !c.allowed_actions.every(plainData)) return live;
+  const allowed = new Map<string, Map<number, Set<string | undefined>>>();
+  for (const reference of c.allowed_actions) {
+    let versions = allowed.get(reference.capability_id);
+    if (!versions) allowed.set(reference.capability_id, versions = new Map());
+    let providers = versions.get(reference.version);
+    if (!providers) versions.set(reference.version, providers = new Set());
+    providers.add(reference.provider_id || undefined);
+  }
+  return (definition, provider) => {
+    if (!visibleActionScope(definition, provider, c)) return false;
+    const providers = allowed.get(definition.capability_id)?.get(definition.version);
+    return !!providers && (providers.has(undefined) || providers.has(provider.provider_id));
+  };
 }
 
 /** Scene preparation can inspect an authorized judgment without acquiring permission to execute it. */

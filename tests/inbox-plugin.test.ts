@@ -263,8 +263,14 @@ test("Inbox plugin lists Attention entries, completes without deleting the Feed 
   assert.ok(!(await mcp.tools).some(tool => tool.name === statusName));
   assert.equal((await webFetch(`${origin}${prefix}/api/plugins/io.molis.work.inbox/entries`)).status, 403);
   assert.equal((await webFetch(`${origin}${prefix}/api/stage/inbox`)).status, 403);
+  // Feed needs Inbox (its companion), so removing Inbox took Feed out of the project too.
+  assert.ok(!catalog.projectPluginMembership(project.project_id).plugins.includes("feed"));
   catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "inbox", actor_id: "test" });
   await host.closeProject(reference);
+  // Feed owns its item's entry, and the Inbox lists an owned entry only while its owner runs in the project (PG-094 S12): with
+  // Inbox back but Feed still out, the entry is kept but not listed; putting Feed back lists it again.
+  assert.deepEqual(await actions.invoke(caller, inboxActions.list, {}), { ...internal, entries: [] });
+  catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "feed", actor_id: "test" });
   assert.deepEqual(await actions.invoke(caller, inboxActions.list, {}), internal, "reopening registers actions and retains the real business state");
 
   function webFetch(input: string, init: RequestInit = {}): Promise<Response> {

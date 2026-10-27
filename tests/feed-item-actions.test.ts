@@ -40,9 +40,11 @@ test("Feed item commands are directory actions: Home prepares and runs them, sta
     // Goals confirms the promoted input through the ledger; a caller missing that permission cannot start a partial promotion.
     const withoutLedger = { ...caller, permissions: caller.permissions.filter(permission => permission !== "context-ledger:write") };
     assert.ok(!(await prepare(third.item_id, withoutLedger)).offers.some(offer => offer.title === "升格为 Goal"));
-    const promotion = (await client.discover(withoutLedger)).find(view => view.capability_id === feedItemActions.promote.capability_id)!;
-    assert.equal(promotion.availability.available, false);
-    assert.equal(promotion.availability.code, "actions.forbidden");
+    // Feed links the item to its Goal through the platform's ledger, so promotion declares `context-ledger:write` itself: the directory
+    // does not list it to a caller without that permission, and a direct call is refused below.
+    const declared = (await client.discover(caller)).find(view => view.capability_id === feedItemActions.promote.capability_id)!;
+    assert.deepEqual(declared.action.permissions.filter(permission => !withoutLedger.permissions.includes(permission)), ["context-ledger:write"]);
+    assert.equal((await client.discover(withoutLedger)).find(view => view.capability_id === feedItemActions.promote.capability_id), undefined);
     const promotionState = () => host.withProject(reference, runtime => ({
       goals: runtime.store.db.prepare("SELECT count(*) AS n FROM goals").get(),
       events: runtime.store.db.prepare("SELECT count(*) AS n FROM events WHERE object_type LIKE 'io.molis.work.goals:%'").get(),

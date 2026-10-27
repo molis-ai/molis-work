@@ -21,8 +21,10 @@ test("Feed reads and warm Web projections use each owner's current authority, re
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null,
     actionAvailability: (_, action) => disabled.has(action.provider.provider_id) ? { available: false, code: "actions.plugin_disabled", reason: "测试中停用" } : { available: true } });
   const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
+  // Feed's actions declare the platform services they use, and a caller holds those too (4e-2f): its reads decrypt retained bodies
+  // (`evidence:read`; the snapshot still leaves the body out unless asked for it), and a promotion settles the item's Inbox entries (`attention:write`).
   const caller: ActionCallContext = { actor_id: "reader", audience: "user", project_id: reference.project_id,
-    permissions: ["goals:read", "feed:read", "inbox:read", "schedule:read", "schedule:write", "feed:write", "goals:write", "context-ledger:write"] };
+    permissions: ["goals:read", "feed:read", "inbox:read", "schedule:read", "schedule:write", "feed:write", "goals:write", "context-ledger:write", "evidence:read", "attention:write"] };
   const actions = bindActionClient(host.actionClient(reference), () => caller);
   const server = createMolisWorkWebServer({ databasePath, projectId: DEMO_PROJECT_ID, homeDirectory: home, localHost: host });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
@@ -99,7 +101,8 @@ for (const phase of ["dispatch", "response"] as const) {
         ? { available: false, code: "actions.plugin_disabled", reason: "Inbox 已停用" } : { available: true },
     });
     const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
-    const caller: ActionCallContext = { actor_id: "planner", audience: "user", project_id: reference.project_id, permissions: ["feed:read", "inbox:read", "model:invoke"] };
+    // The plan reads Feed's snapshot, which a caller reaches only holding `evidence:read` too (4e-2f).
+    const caller: ActionCallContext = { actor_id: "planner", audience: "user", project_id: reference.project_id, permissions: ["feed:read", "inbox:read", "model:invoke", "evidence:read"] };
     const actions = bindActionClient(host.actionClient(reference), () => caller);
     try {
       const pending = actions.invoke(informationActions.plan, { prompt: "整理一下当前材料" });

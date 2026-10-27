@@ -3,7 +3,7 @@ import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
 import type { AttentionEntryRecord } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import type { ContextEdge } from "@molis-ai/molis-work-contracts/modules/context-ledger";
-import type { PluginAttentionClient, PluginContextLedgerClient, PluginProjectDatabase, PluginProjectDatabaseTransaction, PluginSqlValue } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginArtifactClient, PluginAttentionClient, PluginContextLedgerClient, PluginProjectDatabase, PluginProjectDatabaseTransaction, PluginSqlValue } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { assembleFeedApplication, createFeedRuntimePorts, FEED_PLUGIN_ID, FEED_PROJECT_DATABASE } from "@molis-ai/molis-work-plugin-feed";
 import { FeedModule } from "@molis-ai/molis-work-plugin-feed/store";
 
@@ -95,7 +95,9 @@ function world() {
     }),
   });
   const database = standIn<PluginProjectDatabase>({ get, all, journal: {}, transaction: async () => assert.fail("Feed opens no transaction of its own") });
-  const ports = createFeedRuntimePorts({ projectId: PROJECT, database, attention, contextLedger });
+  // These cases capture nothing; a capture is pinned through `join` in the bound transaction (RAC-510), proven in feed-runtime-plugin.
+  const artifacts = standIn<PluginArtifactClient>({ join: () => assert.fail("no capture rule runs in these cases") });
+  const ports = createFeedRuntimePorts({ projectId: PROJECT, database, attention, contextLedger, artifacts });
   const created: string[] = [];
   const app = assembleFeedApplication({ ...ports, subscribeInboxCreated: listener => ports.subscribeInboxCreated(entry => { created.push(entry.entry_id); listener(entry); }) });
   const ingest = (module: FeedModule, externalId: string, withEntry = true) => module.commands.ingest({ project_id: PROJECT, source_id: "source", source_kind: "rss", source_label: "来源",

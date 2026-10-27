@@ -13,13 +13,15 @@ const text = (maxLength: number) => ({ type: "string", maxLength });
 
 export const feedNotificationActions = {
   receive: { capability_id: "feed.notifications.receive", version: 1, operation: "command", action: {
-    title: "接收平台通知", description: "把插件发给平台的通知收进 Feed 的「插件发送的通知」来源，并按当前规则判断；只由平台的通知服务调用",
+    title: "接收平台通知", description: "把插件发给平台的通知收进 Feed 的「插件发送的通知」来源，并按当前规则判断；判断失败时消息照样留下，回执只带失败的码；只由平台的通知服务调用",
     kind: "operation", scope: "project", scheduling: "concurrent", audiences: ["workflow"], permissions: ["feed:read", "feed:write", "inbox:write"], subject_kinds: [],
+    // The capture rules and the Inbox's next-step judgment of what it keeps may ask a model.
+    execution: { cost: "metered" },
     input_schema: closed({
       notification_id: text(100), sender_plugin_id: text(200), sender_name: text(200), sender_install_id: text(200), sender_generation: text(200),
       key: text(300), title: text(200), summary: text(1000), body: text(100000), open_plugin_id: text(200), created_at: text(40),
     }, ["notification_id", "sender_plugin_id", "sender_name", "sender_install_id", "sender_generation", "key", "title", "summary", "body", "open_plugin_id", "created_at"]),
-    output_schema: closed({ item_id: { type: "string" }, created: { type: "boolean" } }, ["item_id", "created"]),
+    output_schema: closed({ item_id: { type: "string" }, created: { type: "boolean" }, judgment_error_code: text(200) }, ["item_id", "created"]),
   } } satisfies ActionDefinition<PluginNotificationDelivery, PluginNotificationDeliveryReceipt>,
 } as const;
 export const FEED_NOTIFICATION_ACTIONS: readonly ActionDefinition[] = Object.values(feedNotificationActions);
@@ -27,8 +29,6 @@ export const FEED_NOTIFICATION_ACTIONS: readonly ActionDefinition[] = Object.val
 export interface FeedNotificationPorts {
   /** The Feed application a delivery writes through, its judgments run under the delivering call's authority. */
   feed(caller: ActionExecutionContext): FeedApplication;
-  /** The item is kept when a judgment of it fails; the failure is only reported. */
-  judgmentFailed(error: unknown): void;
 }
 
 export function createFeedNotificationHandlers(projectId: string, ports: FeedNotificationPorts): ActionHandlerBinding[] {
@@ -51,6 +51,10 @@ export function createFeedNotificationHandlers(projectId: string, ports: FeedNot
       occurredAt: input.created_at, attention: { reason: "source_rule", detail: { plugin: input.sender_plugin_id, installation: input.sender_install_id } } });
     caller.signal?.throwIfAborted();
     const receipt = { item_id: result.item.item_id, created: result.created } satisfies PluginNotificationDeliveryReceipt;
-    return feed.flushPendingJudgments().then(() => receipt, error => { caller.assert_authority_current?.(); ports.judgmentFailed(error); return receipt; });
+    // The item is kept when judging it fails afterwards (D4-d): the receipt says so with the failure's code, which the platform logs.
+    return feed.flushPendingJudgments().then(() => receipt, (error: unknown): PluginNotificationDeliveryReceipt => {
+      caller.assert_authority_current?.();
+      return { ...receipt, judgment_error_code: error instanceof ActionError ? error.code : "actions.judgment_failed" };
+    });
   } }];
 }

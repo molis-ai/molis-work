@@ -54,7 +54,15 @@ export async function readConnectorAccount(home: string, connectionId: string, c
     if ((error instanceof ActionError && ["connector.connection.invalid","connector.connection.not_found","connector.connection.service_mismatch","connector.connection.disconnected"].includes(error.code)) && error.code === "connector.connection.not_found") throw accountErrors.unknown("没有这条连接");
     throw accountErrors.disconnected(error instanceof Error ? error.message : "连接不可用");
   }
-  control = connectorAccountControl(home, connectionId, control);
+  // The account changing or going away under the read is the account's refusal and keeps its code (ASC-25), as the check's write said it
+  // before FI-C-02 moved the check in front of it; the caller's own cancellation and refusals pass as they are.
+  const signal = control.signal;
+  const keep = (error: unknown): never => {
+    throw error instanceof ActionError || signal.aborted ? error : accountErrors.disconnected("读取期间连接已变化，请重新检查");
+  };
+  const account = (() => { try { return connectorAccountControl(home, connectionId, control); } catch (error) { return keep(error); } })();
+  control = { signal: account.signal, current: () => { try { account.current(); } catch (error) { keep(error); } },
+    beforeEffect: () => account.beforeEffect().catch(keep) };
   const service = access.connection.service_id;
   const identity = { connection_id: connectionId, service_id: service };
   if (service === "github") {

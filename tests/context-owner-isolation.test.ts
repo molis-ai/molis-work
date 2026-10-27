@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { fromBetterSqlite, FeedModule } from "@molis-ai/molis-work-plugin-feed/store";
 import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
+import { feedLedgerPort } from "./fixtures/feed-ledger.js";
 import { installProducers } from "./fixtures/installed-producers.js";
 import { openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
@@ -22,7 +23,7 @@ test("losing the Ledger does not delete Goal, Artifact or Feed content or recrea
     const ledger = createContextLedger(store.db, { authorize: () => true });
     let feed: FeedModule;
     const attention = new AttentionModule(store.db, { exists: (projectId, _type, id) => feed.query.exists(projectId, id) });
-    feed = new FeedModule(fromBetterSqlite(store.db), attention, { ledger });
+    feed = new FeedModule(fromBetterSqlite(store.db), attention, { ledger: feedLedgerPort(ledger) });
     return { coordinator, library, ledger, feed, attention };
   };
   try {

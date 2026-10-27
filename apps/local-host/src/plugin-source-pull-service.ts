@@ -50,12 +50,15 @@ export function createSourcePullPort(options: SourcePullPortOptions): PluginSour
     plan: request => ({ intent_fingerprint: sourcePullFingerprint(request) }),
     async pull(request, run) {
       const intent = buildSourcePullIntent(request);
-      // SEL turns a failed body write into a partial result; a body the plugin could not hold fails the whole pull instead.
+      // SEL turns a failed body write or caller check into a partial result; a body the plugin could not hold, or a call that went stale
+      // (a revoked grant is not a cancellation: the signal stays live), fails the whole pull instead. A cancelled pull keeps its receipt.
       let refused: { readonly error: unknown } | undefined;
+      const stale = (error: unknown): never => { if (!run.signal.aborted) refused ??= { error }; throw error; };
       const runtime = createSourcePullRuntime({
         db: options.db, secretStore, content, sourceCursor: "cursor" in request ? request.cursor : undefined,
         ...(options.fetch ? { fetch: options.fetch } : {}),
-        assertCurrent: run.current, beforeDispatch: run.beforeEffect,
+        assertCurrent: () => { try { run.current(); } catch (error) { stale(error); } },
+        beforeDispatch: async () => { try { await run.beforeEffect(); } catch (error) { stale(error); } },
         beforeContentWrite: async contentRef => {
           try { await run.beforeEffect(); await run.hold([contentRef]); } catch (error) { refused ??= { error }; throw error; }
         },

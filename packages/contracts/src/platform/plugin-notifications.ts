@@ -52,6 +52,8 @@ export interface PluginNotificationDelivery {
 export interface PluginNotificationDeliveryReceipt {
   item_id: string;
   created: boolean;
+  /** The receiver kept the item, and judging it afterwards failed: the failure's code only, never its message or the notification's text. */
+  judgment_error_code?: string;
 }
 
 /**

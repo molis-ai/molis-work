@@ -28,6 +28,7 @@ export interface NotificationDeliveryPorts {
 
 /** The receiver is not there for this call (not registered, disabled, or missing what it needs): the notification waits, it did not fail. */
 const UNAVAILABLE = new Set(["actions.missing", "actions.plugin_disabled", "actions.dependency_missing", "actions.unavailable"]);
+const ERROR_CODE_SHAPE = /^[a-z][a-z0-9_]*(\.[a-z0-9_]+)+$/;
 
 /** The receivers a set of Manifests declares: each plugin with `notifications.receive` whose action is one of its own commands. */
 export function declaredNotificationReceivers(manifests: Iterable<PluginManifest>): NotificationReceiver[] {
@@ -57,8 +58,9 @@ export function projectNotificationSources(db: PluginRuntimeDatabase): Pick<Noti
  * Hands the queued notifications of one project to the receiver its plugins declare (D6-2). The platform calls the receiving action as
  * itself (the workflow audience under `PLUGIN_NOTIFICATION_DELIVERY_ACTOR`) with only the permissions that action declares; a receiver
  * keeps the content, the queue keeps the record that a key was used. With no receiver that can take it now a notification stays queued
- * and is offered again at the next flush; one that fails stays queued with the code of the failure. Flushes of a project run one after
- * another, so a notification is never offered twice at once.
+ * and is offered again at the next flush; one that fails stays queued with the code of the failure. One the receiver kept but could not
+ * judge afterwards is delivered, and its receipt's code is logged. Flushes of a project run one after another, so a notification is never
+ * offered twice at once.
  */
 export function createNotificationDelivery(ports: NotificationDeliveryPorts) {
   let chain: Promise<void> = Promise.resolve();
@@ -73,6 +75,12 @@ export function createNotificationDelivery(ports: NotificationDeliveryPorts) {
         const receipt = await ports.client.invoke(caller, receiver.reference, delivery) as PluginNotificationDeliveryReceipt;
         if (typeof receipt?.item_id !== "string") throw new ActionError("actions.output_invalid", "通知接收方没有返回有效回执");
         ports.queue.delivered(row.notification_id, receipt.item_id, new Date().toISOString());
+        // The receiver kept the item and judging it failed afterwards (D4-d): delivered all the same, and logged by its code alone. The code
+        // is the receiver's to give, so only one shaped like a code (`<owner>.<reason>`) is written to the log, never other text it sent.
+        if (receipt.judgment_error_code !== undefined) {
+          const code = typeof receipt.judgment_error_code === "string" && ERROR_CODE_SHAPE.test(receipt.judgment_error_code) ? { error_code: receipt.judgment_error_code } : {};
+          hostLog.warn("plugin_notifications", "judgment_failed", undefined, { project_id: ports.project_id, notification_id: row.notification_id, receiver: receiver.plugin_id, ...code });
+        }
         return;
       } catch (error) {
         if (error instanceof ActionError && UNAVAILABLE.has(error.code)) continue;
@@ -95,7 +103,7 @@ export type NotificationDelivery = ReturnType<typeof createNotificationDelivery>
 /**
  * A project's notifications as its runtime opens, after its providers are registered: the delivery is bound to its database, and what
  * was queued while no receiver could take it (or before this Host stopped) is offered again. The judgments a delivered item starts are
- * the receiver's own (Feed's, in its action).
+ * the receiver's own (Feed's, in its action); a failed one comes back as the receipt's `judgment_error_code`.
  */
 export function bindProjectNotifications(db: SqliteDatabase, projectId: string, client: ActionClient): void {
   const delivery = createNotificationDelivery({ project_id: projectId, queue: new PluginNotificationQueue(db), client, ...projectNotificationSources(db) });

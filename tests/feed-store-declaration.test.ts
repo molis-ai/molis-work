@@ -10,7 +10,6 @@ import { FeedModule, ListenerHost, SignalsModule, SourcesModule, type FeedSql } 
 import { GOALS_PLUGIN_ID } from "@molis-ai/molis-work-plugin-goals";
 import { describeSqliteSchema } from "@molis-ai/molis-work-storage";
 import { WORKSPACE_PACKAGES } from "../scripts/workspace-packages.mjs";
-import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 
 /**
  * FI-5 (specs/repository-anti-corruption/slices/feed-inbox-store-into-feed.md): the Feed, Sources, Signals and Listener Host tables are
@@ -141,7 +140,10 @@ test("RAC-496 a version 10 library is refused by the version 11 Host, not upgrad
   try { assert.equal((after.prepare("PRAGMA user_version").get() as { user_version: number }).user_version, 10, "and left as it was"); } finally { after.close(); }
 });
 
-test("RAC-497 when the library refuses Feed's declaration only Feed stops: its paths throw the refusal, the library opens and Goals' tables are there", t => {
+// What a refused Feed does at run time is the project's plugin supervisor's since FI-6 deleted the Host's Feed paths: the same edit leaves
+// Feed's actions out of the project's directory while Goals' are there (tests/project-plugin-database-refusal.test.ts, PLIB-04's Feed case).
+// The demo library is arranged over a library nobody started a plugin on and does not check the refusal.
+test("RAC-497 when the library refuses Feed's declaration only Feed stops: the library opens, Goals' tables are there and nothing is repaired", t => {
   const file = scratch(t);
   new LocalProjectDatabase(file).close();
   const edit = new DatabaseSync(file); edit.exec(`UPDATE plugin_project_databases SET publisher_signature = 'someone-else' WHERE plugin_id = '${FEED_PLUGIN_ID}'`); edit.close();
@@ -152,9 +154,6 @@ test("RAC-497 when the library refuses Feed's declaration only Feed stops: its p
     const feed = opened.pluginDatabases.get(FEED_PLUGIN_ID), goals = opened.pluginDatabases.get(GOALS_PLUGIN_ID);
     assert.ok(feed && "error" in feed && isProjectPluginDatabaseRefusal(feed.error), "Feed's declaration was refused");
     assert.ok(goals && "record" in goals, "Goals' was not");
-    const application = createLocalFeedApplication(opened.db);
-    assert.throws(() => application.getSource("project", "source"), (error: unknown) => isProjectPluginDatabaseRefusal(error), "a Feed path says why, rather than failing on a table");
-    assert.throws(() => application.snapshot("project"), (error: unknown) => isProjectPluginDatabaseRefusal(error), "and so does the snapshot of the items");
   } finally { opened.close(); }
   assert.deepEqual(ledger(file), before, "the refusal repairs and records nothing");
 });

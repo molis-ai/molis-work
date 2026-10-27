@@ -21,7 +21,10 @@ async function fixture(t: any, completeText: HostCompleteText | null = async () 
   const project = catalog.getProject(created.project_id);
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText });
   const ref = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-  const caller: ActionCallContext = { actor_id: "owner", project_id: project.project_id, audience: "user", permissions: [...PAGES_ACTION_PERMISSIONS, ...INBOX_ACTION_PERMISSIONS] };
+  // Inbox reads an entry's material through Feed's `feed.items.material` as this caller (FI-6), which asks the source's account
+  // (`connections:use`) and decrypts the retained body (`evidence:read`): the caller holds both, as the person's page caller does.
+  const caller: ActionCallContext = { actor_id: "owner", project_id: project.project_id, audience: "user",
+    permissions: [...PAGES_ACTION_PERMISSIONS, ...INBOX_ACTION_PERMISSIONS, "connections:use", "evidence:read"] };
   const client = host.actionClient(ref), bound = bindActionClient(client, () => caller);
   await host.withProject(ref, () => undefined);
   t.after(async () => { await host.close(); catalog.close(); await rm(home, { recursive: true, force: true }); });

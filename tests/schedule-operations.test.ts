@@ -8,16 +8,12 @@ import { once } from 'node:events';
 import type { PluginInstanceRecord } from '@molis-ai/molis-work-contracts/platform/plugin';
 import { createScheduledOperationManagement, createScheduledOperations, getScheduledOperation, listScheduledOperations, listScheduledOperationOccurrences,
   prepareScheduledOperation, reconcileScheduledOperations, runScheduledOperation, setScheduledOperationEnabled,
-  SCHEDULE_PLUGIN_ID, SCHEDULE_OPERATION_WAKEUP, scheduledOperationActions, type ScheduledOperation, type ScheduledOperationOutcome } from '@molis-ai/molis-work-plugin-schedule';
+  SCHEDULE_PLUGIN_ID, SCHEDULE_OPERATION_WAKEUP, type ScheduledOperation, type ScheduledOperationOutcome } from '@molis-ai/molis-work-plugin-schedule';
 import { SqlitePluginRuntimeRepository } from '@molis-ai/molis-work-plugin-runtime';
 import { LocalProjectDatabase } from '@molis-ai/molis-work-app-local-host';
 import { seedDemoBoard } from '@molis-ai/molis-work-app-local-host';
 import type { ScheduleWakeupControl } from '@molis-ai/molis-work-contracts/services/scheduler';
-import { bindPluginNotificationFeed } from '../apps/local-host/dist/plugin-notification-service.js';
-import { scheduleRuntimeFixture } from './fixtures/schedule-runtime.js';
 import { wakeupInstallation } from './fixtures/scheduler-owner.js';
-import { captureHostLog, type HostLogEntry } from '@molis-ai/molis-work-app-local-host';
-import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 
 const at = '2026-09-28T00:00:00.000Z', DAY = 86_400_000;
 const identity = { projectId: 'p', pluginId: 'io.molis.work.test.operations', installationId: 'installed' };
@@ -82,38 +78,7 @@ test('unavailable execution remains durable; binding cannot dispatch, a fresh ti
   h.clock.now = new Date(Date.parse(at) + DAY); await h.schedule.tick(); assert.equal(calls, 1);
 });
 
-test('a real Runtime scheduled result starts the ordinary Feed and Inbox judgments after committing', async t => {
-  const f = await scheduleRuntimeFixture(t), store = await f.store(), seen: string[] = [], at = new Date(Date.now() + 1000).toISOString();
-  bindPluginNotificationFeed(store.db, () => ({
-    inboxJudgment: async entry => { seen.push('inbox:' + entry.entry_id); throw new Error('provider down'); },
-    captureJudgment: async event => { seen.push('capture:' + event.item_id); }, homeJudgment: async subject => { seen.push('home:' + subject.kind); },
-  }));
-  const { scheduleId } = await f.sdk.invoke(scheduledOperationActions.add, { at, operation: 'summarize', input: { text: '今天的汇总' }, inbox: true });
-  f.execute(async () => { assert.deepEqual(seen, [], 'nothing is judged before delivery'); return { text: '今天的汇总' }; });
-  await f.tick(at);
-  const [item] = await f.inbox(); assert.ok(item);
-  const entry = createLocalFeedApplication(store.db).listInboxEntries(f.project.project_id).find(row => row.subject_id === item.item_id); assert.ok(entry);
-  assert.ok(seen.includes('inbox:' + entry.entry_id)); assert.ok(seen.includes('capture:' + item.item_id) && seen.includes('home:feed_item'));
-  assert.equal(listScheduledOperationOccurrences(store.db, f.project.project_id, scheduleId)[0]?.state, 'succeeded');
-});
-
-test('a failed post-commit judgment preserves the queued judgments and logs only its code (D4-d)', async t => {
-  const f = await scheduleRuntimeFixture(t), store = await f.store(), seen: string[] = [], at = new Date(Date.now() + 1000).toISOString();
-  bindPluginNotificationFeed(store.db, () => ({
-    captureJudgment: async event => { seen.push('capture:' + event.item_id); throw Object.assign(new Error('rule store: 用户的笔记正文'), { code: 'feed.rule_store_down' }); },
-    homeJudgment: async subject => { seen.push('home:' + subject.kind); }, inboxJudgment: async entry => { seen.push('inbox:' + entry.entry_id); },
-  }));
-  const { scheduleId } = await f.sdk.invoke(scheduledOperationActions.add, { at, operation: 'summarize', input: { text: '今天的汇总' }, inbox: true });
-  const log: HostLogEntry[] = [], restore = captureHostLog(log);
-  try { await f.tick(at); } finally { restore(); }
-  const [item] = await f.inbox(); assert.ok(item);
-  const entry = createLocalFeedApplication(store.db).listInboxEntries(f.project.project_id).find(row => row.subject_id === item.item_id); assert.ok(entry);
-  assert.deepEqual(seen, ['capture:' + item.item_id, 'home:feed_item', 'inbox:' + entry.entry_id, 'home:inbox_entry']);
-  assert.equal(listScheduledOperationOccurrences(store.db, f.project.project_id, scheduleId)[0]?.state, 'succeeded');
-  const failed = log.filter(line => line.event === 'judgment_failed');
-  assert.deepEqual(failed.map(line => [line.level, line.area, line.error]), [['warn', 'plugin_notifications', { name: 'Error', code: 'feed.rule_store_down' }]]);
-  assert.ok(!JSON.stringify(log).includes('笔记正文'));
-});
+// The judgments a delivered scheduled result starts, and D4-d, are the Runtime Feed's now: RAC-1028 in tests/feed-runtime-plugin.test.ts.
 
 test('an explicit failure is failed, and an unknown outcome stops future cadence without an automatic replay', async t => {
   const h = await harness(t);

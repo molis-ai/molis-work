@@ -22,7 +22,9 @@ test("the Dock and the contextual service see one set: same offers and keys, the
   const home = await mkdtemp(join(tmpdir(), "contextual-dock-parity-"));
   const databasePath = join(home, "project.db");
   const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
-  const caller: ActionCallContext = { actor_id: "owner", project_id: reference.project_id, audience: "user", permissions: [...HOME_ACTION_PERMISSIONS, "inbox:read", "inbox:write", "judgments:write", "attention:write", "feed:read", ...GOALS_ACTION_PERMISSIONS] };
+  // A Feed item's context is its retained text, which Feed's subject reader decrypts through the platform (`evidence:read`, FI-6 4e-2f): the
+  // person holds it, and so does this caller, or the item and the Inbox entry on it have no context to offer from.
+  const caller: ActionCallContext = { actor_id: "owner", project_id: reference.project_id, audience: "user", permissions: [...HOME_ACTION_PERMISSIONS, "inbox:read", "inbox:write", "judgments:write", "attention:write", "feed:read", "evidence:read", ...GOALS_ACTION_PERMISSIONS] };
   const options: FunctionsHostOptions = { env: { TYPESAFE_API_KEY: "fixture-only" }, provider: {
     async evaluate(_key, record) {
       return { primitive: "choice", choice: "inbox.done", probabilities: { "inbox.done": 1 }, confidence: null, model: record.model, noul: null, score: null, legend: null };

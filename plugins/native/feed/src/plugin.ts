@@ -1,4 +1,4 @@
-import { ActionError, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, resolveActionSubject, type ActionClient, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginDefinition, PluginRouteRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { assembleFeedApplication } from "./application-assembly.js";
 import { createFeedContentHandlers } from "./content-actions.js";
@@ -142,12 +142,14 @@ export function createFeedPlugin(): PluginDefinition {
       return readLinkedFeedContext(feed, projectId, input, hydrate);
     };
     const delegation = services?.actions?.directory;
+    // A home event's subject is read through the directory as the caller, as the Inbox reads its own (`resolveActionSubject`).
+    const subjects: ActionClient | undefined = delegation && { discover: () => delegation.discover(), invoke: (_caller, reference, input) => delegation.invoke(reference, input) };
     const bindings: ActionHandlerBinding[] = [
-      ...createFeedContentHandlers(feed, projectId, hydrate),
+      ...createFeedContentHandlers(feed, projectId, hydrate, subjects ? async (subject, caller) => (await resolveActionSubject(subjects, caller, subject)).context : undefined),
       ...createFeedQueryHandlers(feed, projectId, { hydrate, authStatus: connector ? () => runtimeConnectorStatus(connector) : later("连接状态"), linkedContext }),
       ...createFeedRuleHandlers(feed, projectId, hydrate, sceneRuntime.selection, (caller, body) => writer.commit(caller, body)),
-      // The platform's notifications are written in one commit, as the platform's notification service; the judgments that follow report themselves.
-      ...createFeedNotificationHandlers(projectId, { feed: () => feed, judgmentFailed: () => {} }),
+      // The platform's notifications are written in one commit, as the platform's notification service; a judgment that fails afterwards keeps the item and comes back as the receipt's code.
+      ...createFeedNotificationHandlers(projectId, { feed: () => feed }),
       ...createFeedInboxHandlers(feed, projectId, { hydrate, authorize: authorizeRuntimeSource(connections) }),
       // Disconnecting an account source also takes the person's binding off it (after the commit, as the platform's own binding is not Feed's).
       ...sourceHandlers.map(binding => binding.capability_id !== feedSourceActions.disconnect.capability_id || !connections ? binding : { ...binding, handle: (caller: ActionExecutionContext, input: unknown) => {

@@ -10,7 +10,7 @@ import type { IntegrationProviderPort, PluginDefinition, PluginProjectDatabase, 
 import { PLUGIN_NOTIFICATION_DELIVERY_ACTOR } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { HOST_CONNECTION_CHANGED_EVENT } from "@molis-ai/molis-work-contracts/platform/plugin-events";
 import type { IntegrationBinding } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
-import { createNotificationDelivery, createPluginPlatform, declaredNotificationReceivers, DEMO_PROJECT_ID, homeIntegrationRegistry, homeStores, listFeedSourceCatalog, LocalProjectDatabase, scheduleServiceFor, seedDemoBoard, withConnectorConnections, withFunctionsService } from "@molis-ai/molis-work-app-local-host";
+import { captureHostLog, createNotificationDelivery, createPluginPlatform, declaredNotificationReceivers, DEMO_PROJECT_ID, homeIntegrationRegistry, homeStores, listFeedSourceCatalog, LocalProjectDatabase, scheduleServiceFor, seedDemoBoard, withConnectorConnections, withFunctionsService, type HostLogEntry } from "@molis-ai/molis-work-app-local-host";
 import { PluginNotificationQueue } from "@molis-ai/molis-work-plugin-runtime";
 import { pluginBindingScope } from "@molis-ai/molis-work-service-connector-host";
 import { createEvidenceContentStore, createLazyFileSecretStore, homeStoreRegistry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
@@ -925,7 +925,7 @@ const JUDGE_PROVIDER = "feed-test-judgments";
 /** Stand-ins for what Feed does not own: a judgment the capture scene can be bound to, and the Inbox's and Home's actions that judge what Feed opens. */
 async function judging(t: TestContext, options: { goals?: readonly string[] } = {}) {
   const f = await syncing(t, options);
-  const seen = { judged: [] as string[], inbox: [] as string[][], home: [] as Array<Array<{ kind: string; id: string }>>, onJudge: async (_content: string) => {} };
+  const seen = { judged: [] as string[], inbox: [] as string[][], home: [] as Array<Array<{ kind: string; id: string }>>, onJudge: async (_content: string) => {}, onInbox: async () => {} };
   const define = (id: string, kind: "judgment" | "operation", input: object, output: object, extra: object = {}): ActionDefinition => ({ capability_id: id, version: 1, operation: "command",
     action: { title: id, description: id, kind, scope: "project", audiences: ["user", "workflow", "mcp", "agent"], permissions: [], subject_kinds: kind === "judgment" ? ["feed_item"] : [],
       input_schema: input, output_schema: output, ...extra } as ActionDefinition["action"] });
@@ -936,7 +936,7 @@ async function judging(t: TestContext, options: { goals?: readonly string[] } = 
   f.registry.registerProvider({ provider: { provider_id: JUDGE_PROVIDER, title: "判断", kind: "system" }, definitions: [judge, inboxEvaluate, homeEvaluate], handlers: [
     { ...judge, handle: async (_caller: ActionCallContext, input: unknown) => { const { content } = input as { content: string }; seen.judged.push(content); await seen.onJudge(content);
       return { status: "ok", suggested_behavior_ids: ["inbox.admit"] }; } },
-    { ...inboxEvaluate, handle: (_caller: ActionCallContext, input: unknown) => { seen.inbox.push((input as { entry_ids: string[] }).entry_ids); return {}; } },
+    { ...inboxEvaluate, handle: async (_caller: ActionCallContext, input: unknown) => { seen.inbox.push((input as { entry_ids: string[] }).entry_ids); await seen.onInbox(); return {}; } },
     { ...homeEvaluate, handle: (_caller: ActionCallContext, input: unknown) => { seen.home.push((input as { subjects: Array<{ kind: string; id: string }> }).subjects); return {}; } },
   ] });
   const judgment = { ...JUDGE, provider_id: JUDGE_PROVIDER };
@@ -980,6 +980,56 @@ test("RAC-1032 a sync judges what it brought in by the retained bodies, which on
   assert.deepEqual([synced.created, synced.run.outcome], [1, "completed"]);
   assert.equal(f.seen.judged.length, 3);
   assert.equal(f.ledger().filter(row => row.scene_id === feedCaptureScene.scene_id).length, 2, "the judgment of a changed rule is not recorded");
+});
+
+// RAC-1028 (FI-6, D6-2; provisional number): what a delivered notification brings in is judged after its commit, as the delivery's own call,
+// like any other item Feed takes in. These replace the Host's own Feed hooks that tests/schedule-operations.test.ts used to bind.
+async function delivering(t: TestContext) {
+  const f = await judging(t), queue = new PluginNotificationQueue(f.store.db);
+  const send = async (key: string) => {
+    queue.enqueue({ project_id: DEMO_PROJECT_ID, sender_plugin_id: SENDER, sender_install_id: "install-1", sender_generation: "g1", key, title: `Title ${key}`, summary: "s",
+      body: `Body of ${key}: 用户的笔记正文`, open_plugin_id: SENDER, created_at: "2026-10-26T12:00:00.000Z" });
+    await createNotificationDelivery({ project_id: DEMO_PROJECT_ID, queue, client: f.client, receivers: () => declaredNotificationReceivers([feedManifest]), senderName: () => "Sender" }).flush();
+    return f.store.db.prepare("SELECT notification_id, item_id, delivered_at, last_error_code FROM plugin_notifications WHERE key = ?").get(key) as
+      { notification_id: string; item_id: string | null; delivered_at: string | null; last_error_code: string | null };
+  };
+  const judgedSubjects = () => f.seen.home.flat().map(subject => `${subject.kind}:${subject.id}`).sort();
+  return { ...f, send, judgedSubjects };
+}
+
+test("RAC-1028 a notification the platform delivers is judged after its commit as the delivery's call: the capture rule, then the Inbox and Home on what it opened", async t => {
+  const f = await delivering(t);
+  await f.rule({ contains: "judged" });
+  const row = await f.send("judged-1");
+  assert.ok(row.delivered_at && row.item_id && row.last_error_code === null, JSON.stringify(row));
+  assert.equal(f.seen.judged.length, 1, "the capture rule asked the model once");
+  assert.ok(f.seen.judged[0]!.includes("Body of judged-1"), "it read the item");
+  const recorded = f.ledger().filter(entry => entry.scene_id === feedCaptureScene.scene_id);
+  assert.deepEqual(recorded.map(entry => [entry.subject.kind, entry.subject.id, entry.outcome]), [["feed_item", row.item_id, "ok"]]);
+  const entries = f.entriesOf(row.item_id!);
+  assert.equal(entries.length, 1, "the item is in the Inbox once");
+  assert.deepEqual(f.seen.inbox.flat(), [entries[0]!.entry_id], "the Inbox judged the entry the delivery opened");
+  assert.deepEqual(f.judgedSubjects(), [`feed_item:${row.item_id}`, `inbox_entry:${entries[0]!.entry_id}`].sort(), "Home judged the item and the entry");
+});
+
+test("RAC-1028 D4-d: a judgment that fails after a delivered notification keeps the item, the other judgments still run, and the platform logs only the code", async t => {
+  const f = await delivering(t);
+  await f.rule({ contains: "judged" });
+  f.seen.onInbox = async () => { throw new ActionError("inbox.rule_store_down", "rule store: 用户的笔记正文"); };
+  const log: HostLogEntry[] = [], restore = captureHostLog(log);
+  let row: Awaited<ReturnType<typeof f.send>>;
+  try { row = await f.send("judged-2"); } finally { restore(); }
+  // Delivered, not left queued to be offered again: the item and its entry were committed before the judgments started.
+  assert.ok(row.delivered_at && row.item_id && row.last_error_code === null, JSON.stringify(row));
+  const entries = f.entriesOf(row.item_id!);
+  assert.equal(entries.length, 1, "the item and its Inbox entry are kept");
+  assert.equal(f.seen.judged.length, 1, "the capture rule judged the item");
+  assert.deepEqual(f.seen.inbox.flat(), [entries[0]!.entry_id], "the Inbox was asked, and failed");
+  assert.deepEqual(f.judgedSubjects(), [`feed_item:${row.item_id}`, `inbox_entry:${entries[0]!.entry_id}`].sort(), "Home still judged both after the Inbox failed");
+  const failed = log.filter(line => line.event === "judgment_failed");
+  assert.deepEqual(failed.map(line => [line.level, line.area, line.error, line.fields]), [["warn", "plugin_notifications", undefined,
+    { project_id: DEMO_PROJECT_ID, notification_id: row.notification_id, receiver: FEED_PLUGIN_ID, error_code: "inbox.rule_store_down" }]]);
+  assert.ok(!JSON.stringify(log).includes("笔记正文"), "neither the failure's message nor the notification's text is logged");
 });
 
 // FI-C-03 (specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §13): the promotion, the Goal's linked material and the capture

@@ -5,6 +5,7 @@ import { getScheduleReminder, reminderActions, scheduleActions, SCHEDULE_ACTION_
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { runningProjectPlatform } from "../apps/local-host/dist/project-plugins.js";
 import { PluginNotificationQueue } from "@molis-ai/molis-work-plugin-runtime";
+import { FEED_PLUGIN_ID } from "@molis-ai/molis-work-plugin-feed";
 import { scheduleRuntimeFixture } from "./fixtures/schedule-runtime.js";
 import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 
@@ -45,10 +46,12 @@ test("Host reminders need no Studio page, survive restart once, and stay isolate
 
 test("rejected reminder registration/cancellation and a real notification persistence failure roll back the entire public transaction", { timeout: 60_000 }, async t => {
   const f = await scheduleRuntimeFixture(t), store = await f.store(), clock = scheduleServiceFor(store.db), at = next();
+  // Feed keeps its own job on the platform's clock (FI-6), set a moment after the project opens; only Schedule's jobs are counted here.
+  const scheduled = () => clock.list().filter(job => job.plugin_id !== FEED_PLUGIN_ID);
   // Project SQL refuses trigger bytecode before execution; this happens after the scheduler write, so it must still roll back that write.
   store.db.exec("CREATE TRIGGER refuse_reminder BEFORE INSERT ON schedule_plugin_reminders BEGIN SELECT RAISE(ABORT, 'disk-write-failed'); END");
   await assert.rejects(f.sdk.invoke(reminderActions.add, { at, text: "fail" }), { code: "plugin.project_database.statement_refused" });
-  assert.equal(clock.list().length, 0); store.db.exec("DROP TRIGGER refuse_reminder");
+  assert.equal(scheduled().length, 0); store.db.exec("DROP TRIGGER refuse_reminder");
   const reminder = await f.sdk.invoke(reminderActions.add, { at, text: "real reminder" }), record = getScheduleReminder(store.db, reminder.reminderId)!;
   store.db.exec("CREATE TRIGGER refuse_cancel BEFORE DELETE ON schedule_plugin_reminders BEGIN SELECT RAISE(ABORT, 'cancel-disk-failed'); END");
   await assert.rejects(f.sdk.invoke(reminderActions.cancel, reminder), { code: "plugin.project_database.statement_refused" });

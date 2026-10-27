@@ -32,9 +32,10 @@ function rules(home: string, pluginId: string) {
 
 for (const scope of ["project", "home"] as const) {
   test(`RAC-504a ${scope === "project" ? "a project" : "the Home"} holding two signatures of one plugin: cleaning one leaves the rule row, its sample and its key while the other is installed or kept, and the last to go takes them`, { timeout: 120_000 }, async t => {
-    const testHome = await openTestHome(t, { catalogPolicy: false, host: { functions: OPTIONS } });
     const probe = ownerFilesProbe(`samescope${scope}`, scope), third = ownerFilesProbe(`samescopethird${scope}`, scope);
     const definitions = [signedAs(probe.withoutFiles(), "signature-one"), signedAs(probe.withoutFiles(), "signature-two")] as const;
+    // Installed by hand into the Host's own Home Runtime, which runs unsigned code in its process only for the objects it was told of (S-75 ⑥).
+    const testHome = await openTestHome(t, { catalogPolicy: false, host: { functions: OPTIONS, pluginFixtures: { installed: new Set(definitions) } } });
     let runtime;
     if (scope === "project") {
       const entry = await testHome.createProject("同一项目");

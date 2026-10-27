@@ -4,7 +4,7 @@ import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { boardSnapshot } from "./fixtures/goal-application.js";
-import { createLocalFeedApplication } from "./fixtures/feed-library.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 test("Goal Frame keeps the outer tabs and layout offers explicit bottom splitting", { timeout: 60_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
@@ -139,7 +139,6 @@ test("Feed creation recovers a failed schedule without duplicating the task", { 
 test("Feed configuration cancels drafts and saves its schedule independently", { timeout: 60_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
   const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId, homeDirectory } = b;
-  const { createLocalFeedSourceService } = await import("@molis-ai/molis-work-app-local-host");
   const source = createLocalFeedSourceService(b.store.db, DEMO_PROJECT_ID).register({kind:"web_query",query:"设计资料"}).source;
   const feed = createLocalFeedApplication(b.store.db);
   const catalog = await openMolisWorkProjectCatalog({homeDirectory});
@@ -213,7 +212,6 @@ test("Feed configuration cancels drafts and saves its schedule independently", {
 test("Feed reader keeps one title, tracks read state, collapses and retries a failed detail", {timeout:60_000}, async t=>{
   const b=await openGoalBrowser(t,true);if(!b)return;
   const {evaluate,waitFor,click,command,sessionId,navigate,origin,projectId,homeDirectory}=b;
-  const {createLocalFeedSourceService}=await import("@molis-ai/molis-work-app-local-host");
   const source=createLocalFeedSourceService(b.store.db,DEMO_PROJECT_ID).register({kind:'web_query',query:'阅读测试'}).source;
   const feed=createLocalFeedApplication(b.store.db);
   const item=feed.ingestItem({source,externalId:'reader-test',title:'一次清楚的阅读',summary:'列表摘要',body:'## 核心内容\n\n阅读正文与完整来源。\n\n'+Array.from({length:30},(_,i)=>`### 检查项 ${i+1}\n\n保持标题和操作在视野内，让阅读区独立滚动。`).join('\n\n'),priority:'normal',occurredAt:'2026-09-16T00:00:00.000Z',attention:false}).item;

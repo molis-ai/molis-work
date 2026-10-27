@@ -5,7 +5,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import { DEMO_PROJECT_ID, LocalProjectDatabase, listFeedSourceCatalog, seedDemoGoals, type SourcePullRuntime } from "@molis-ai/molis-work-app-local-host";
+import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import {
+  DEMO_PROJECT_ID, LocalProjectDatabase, MolisWorkLocalHost, listFeedSourceCatalog, molisWorkHostProjectReference, seedDemoBoard, seedDemoGoals, type SourcePullRuntime,
+} from "@molis-ai/molis-work-app-local-host";
+import { FEED_ACTION_PERMISSIONS, feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
 import { createLocalFeedApplication, createLocalFeedSourceScheduler, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 type FeedApp = ReturnType<typeof createLocalFeedApplication>;
@@ -280,7 +284,7 @@ function researchTree(claim: string): Map<string, string> {
     [`${path}/manifest.json`, manifest], [`${path}/research.json`, research], [`${path}/report.md`, report]]);
 }
 
-test("syncing a research library again after a package was republished under the same id refreshes its Feed item", async () => {
+test("syncing a research library again after a package was republished under the same id refreshes its Feed item", { timeout: 30_000 }, async () => {
   const home = mkdtempSync(join(tmpdir(), "molis-work-research-republish-"));
   const bin = join(home, "bin"), tree = join(home, "tree"), previousEnvironment = { PATH: process.env.PATH, tree: process.env.FAKE_GIT_TREE };
   const publish = (claim: string) => {
@@ -288,7 +292,7 @@ test("syncing a research library again after a package was republished under the
     for (const [name, text] of researchTree(claim)) { mkdirSync(join(tree, name, ".."), { recursive: true }); writeFileSync(join(tree, name), text); }
   };
   try {
-    // The Host reads the library through git; this stands in for it with the files of the currently published tree.
+    // The platform reads the library through git (`services.sourcePull.repository.read`); this stands in for it with the files of the currently published tree.
     mkdirSync(bin, { recursive: true });
     writeFileSync(join(bin, "git"), `#!/bin/sh
 dir="$2"; command="$3"
@@ -301,15 +305,25 @@ esac
 `);
     chmodSync(join(bin, "git"), 0o755);
     process.env.PATH = `${bin}:${process.env.PATH}`; process.env.FAKE_GIT_TREE = tree;
-    await withProject("molis-work-research-republish-db-", async store => {
-      const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, undefined, undefined, home);
+    // Syncing a research library is the Runtime Feed's (FI-6): the sync is its action, run by a real Host, and the library is read by the platform.
+    // The Host takes a Home of its own: it refuses a directory that already holds other files.
+    const hostHome = join(home, "home");
+    await new MolisWorkLocalHost({ homeDirectory: hostHome, completeText: null }).close();
+    const database = join(hostHome, "project.sqlite");
+    seedDemoBoard(database);
+    const store = new LocalProjectDatabase(database), host = new MolisWorkLocalHost({ homeDirectory: hostHome, completeText: null });
+    try {
+      const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, undefined, undefined, hostHome);
       const source = service.register({ kind: "research_library", repository: "fixture/research", research_source: "obs" }).source;
+      const owner: ActionCallContext = { actor_id: "owner", audience: "user", project_id: DEMO_PROJECT_ID, permissions: [...FEED_ACTION_PERMISSIONS] };
+      const client = host.actionClient(molisWorkHostProjectReference({ databasePath: database, projectId: DEMO_PROJECT_ID }));
+      const sync = (key: string) => client.invoke(owner, feedSourceActions.sync, { source_id: source.source_id, idempotency_key: key });
       const items = () => service.feed.snapshot(DEMO_PROJECT_ID).feed_items.filter(item => item.source_id === source.source_id);
       publish("第一版结论");
-      assert.equal((await service.sync(source.source_id, { idempotencyKey: "research-sync-one" })).created, 1);
+      assert.equal((await sync("research-sync-one")).created, 1);
       assert.equal(items()[0]!.title, "第一版结论");
       publish("第二版结论");
-      const second = await service.sync(source.source_id, { idempotencyKey: "research-sync-two" });
+      const second = await sync("research-sync-two");
       assert.equal(second.created, 0);
       assert.equal(items().length, 1);
       assert.equal(items()[0]!.title, "第二版结论", "the item follows the republished package");
@@ -317,9 +331,9 @@ esac
       assert.match(items()[0]!.materials[0]!.preview, /第二版结论/);
       // The next sync of the same version leaves the item alone.
       const revision = items()[0]!.revision;
-      await service.sync(source.source_id, { idempotencyKey: "research-sync-three" });
+      await sync("research-sync-three");
       assert.equal(items()[0]!.revision, revision);
-    });
+    } finally { await host.close(); store.close(); }
   } finally {
     process.env.PATH = previousEnvironment.PATH;
     if (previousEnvironment.tree === undefined) delete process.env.FAKE_GIT_TREE; else process.env.FAKE_GIT_TREE = previousEnvironment.tree;

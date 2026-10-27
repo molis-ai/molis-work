@@ -1066,3 +1066,108 @@ test("RAC-518 a Runtime Feed names every body its library keeps in the Home's le
   await new Promise(resolve => setTimeout(resolve, 100));
   assert.equal(f.holds().length, held.length);
 });
+
+// FI-C-05 (specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §13): a pull checks its source again as the first statement of
+// every commit body, so a person who pauses, edits or deletes the source while a commit waits for the caller gets nothing of the old pull
+// written. The sweep makes the change at each of the caller's checks in turn, which are the points where the call waits; a check inside a
+// transaction is passed over, since a change made there would be part of the pull's own write. A change made before the pull read its source
+// is simply the source it pulls: that pull begins after the change, and only an edited configuration lets it finish.
+type SourceChange = "pause" | "configure" | "delete";
+const SOURCE_CHANGES: readonly SourceChange[] = ["pause", "configure", "delete"];
+const SOURCE_REFUSALS = new Set(["feed.source_paused", "feed.source_not_found", "feed.source_configuration_changed", "feed.source_changed"]);
+
+function changeSource(store: LocalProjectDatabase, sourceId: string, change: SourceChange): void {
+  if (change === "pause") store.db.prepare("UPDATE feed_sources SET enabled = 0, status = 'paused' WHERE source_id = ?").run(sourceId);
+  else if (change === "configure") store.db.prepare("UPDATE feed_sources SET config_json = json_set(config_json, '$.fi_c_05', 'changed') WHERE source_id = ?").run(sourceId);
+  else store.db.prepare("UPDATE feed_sources SET config_json = json_set(config_json, '$._molis_work_lifecycle', json_object('deleted_at', ?)) WHERE source_id = ?").run(new Date().toISOString(), sourceId);
+}
+
+/** Calls `attempt(k)` for every check `k` a call asks (and two more), changing its source at that check; what the call left is compared with the moment of the change. */
+async function sweepSourceChanges(store: LocalProjectDatabase, checks: number, attempt: (k: number) => { sourceId: string; call(who: ActionCallContext): Promise<unknown> }) {
+  const { db } = store;
+  const tables = (db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND (name LIKE 'feed%' OR name LIKE '%listener%' OR name LIKE '%signal%' OR name IN ('inbox_entries', 'events')) ORDER BY name")
+    .all() as Array<{ name: string }>).map(row => row.name);
+  assert.ok(["feed_items", "feed_source_runs", "inbox_entries", "listener_deliveries"].every(name => tables.includes(name)), tables.join());
+  const snapshot = () => JSON.stringify(tables.map(table => db.prepare(`SELECT * FROM "${table}"`).all()));
+  const runs = (sourceId: string) => db.prepare("SELECT * FROM feed_source_runs WHERE source_id = ? ORDER BY run_id").all(sourceId) as Array<{ run_id: string }>;
+  const tally = { refused: { pause: 0, configure: 0, delete: 0 } as Record<SourceChange, number>, midPull: 0, pulledChanged: 0, inTransaction: 0 };
+  for (let k = 1; k <= checks + 2; k += 1) {
+    const change = SOURCE_CHANGES[k % 3]!, { sourceId, call } = attempt(k), runsBefore = runs(sourceId).length, what = `${change} at check ${k}`;
+    let atChange: { tables: string; runs: Array<{ run_id: string }> } | undefined, seen = 0;
+    const who: ActionCallContext = { actor_id: OWNER, project_id: DEMO_PROJECT_ID, audience: "user", permissions: [...SYNC], assert_authority_current: () => {
+      if (++seen !== k) return;
+      if (db.inTransaction) { tally.inTransaction += 1; return; }
+      changeSource(store, sourceId, change);
+      atChange = { tables: snapshot(), runs: runs(sourceId) };
+    } };
+    const outcome = await call(who).then(() => null, (error: unknown) => error);
+    if (!atChange) { assert.equal(outcome, null, `${what}: with nothing changed, nothing refuses`); continue; }
+    const at = atChange;
+    if (outcome === null && snapshot() !== at.tables) {
+      // Only a pull begun after the change writes after it: the configuration it pulled is the edited one, and the run it finished is its own.
+      assert.equal(change, "configure", `${what}: the pull finished and wrote after the source was changed`);
+      const after = runs(sourceId);
+      assert.deepEqual(after.filter(run => at.runs.some(old => old.run_id === run.run_id)), at.runs, `${what}: no run begun before the change was carried on`);
+      assert.ok(after.length > at.runs.length, `${what}: the pull that wrote began after the change`);
+      tally.pulledChanged += 1;
+    } else {
+      assert.equal(snapshot(), at.tables, `${what}: nothing of the pull was written after the change`);
+      if (outcome !== null) {
+        const code = (outcome as { code?: unknown }).code;
+        assert.ok(typeof code === "string" && SOURCE_REFUSALS.has(code), `${what}: refused for its source, not otherwise: ${String(outcome)}`);
+        tally.refused[change] += 1;
+        if (at.runs.length > runsBefore) tally.midPull += 1;
+      }
+    }
+    db.prepare("UPDATE feed_sources SET enabled = 1, status = 'active', config_json = json_remove(config_json, '$.fi_c_05', '$._molis_work_lifecycle') WHERE source_id = ?").run(sourceId);
+  }
+  // Each change was refused somewhere, and some refusals came after the pull had begun writing: the waits inside the pull were reached.
+  assert.ok(SOURCE_CHANGES.every(change => tally.refused[change] >= 1) && tally.midPull >= 1, JSON.stringify(tally));
+  return tally;
+}
+
+test("FI-C-05 a public source paused, edited or deleted while a pull waits to commit gets nothing of that pull written", async t => {
+  const f = await syncing(t);
+  const probe = caller(SYNC);
+  await f.client.invoke(probe.context, feedSourceActions.sync, { source_id: f.sourceId, idempotency_key: "fi-c-05-public-probe" });
+  await sweepSourceChanges(f.store, probe.checks(), k => {
+    f.feeds.set(f.entry.feed_url, feedXml([{ id: `fi-c-05-${k}`, title: `Change ${k}` }]));
+    return { sourceId: f.sourceId, call: who => f.client.invoke(who, feedSourceActions.sync, { source_id: f.sourceId, idempotency_key: `fi-c-05-public-${k}` }) };
+  });
+});
+
+test("FI-C-05 a research library paused, edited or deleted while a pull waits to commit gets nothing of that pull written", async t => {
+  const files = new Map<string, string>();
+  publishLibrary(files);
+  const f = await platform(t, { git: libraryGit(files) });
+  const { source: { source_id: sourceId } } = await f.client.invoke(caller(DESCRIBE).context, feedSourceActions.register, { kind: "research_library", repository: "fixture/research", research_source: "observations" }) as { source: { source_id: string } };
+  const probe = caller(SYNC);
+  await f.client.invoke(probe.context, feedSourceActions.sync, { source_id: sourceId, idempotency_key: "fi-c-05-research-probe" });
+  await sweepSourceChanges(f.store, probe.checks(), k => ({ sourceId, call: who => f.client.invoke(who, feedSourceActions.sync, { source_id: sourceId, idempotency_key: `fi-c-05-research-${k}` }) }));
+});
+
+test("FI-C-05 an account source paused, edited or deleted while its Listener pull waits to commit gets nothing of that pull written", async t => {
+  const f = await connecting(t), account = f.connect();
+  const probe = f.of("feed-source-fi-c-05-probe"), who = caller(SYNC);
+  probe.bind(account.connection_id);
+  await probe.sync("fi-c-05-account-probe", who);
+  // Each attempt has a source of its own: a pull cut off in the middle keeps its lease until it expires (RAC-1026).
+  await sweepSourceChanges(f.store, who.checks(), k => {
+    const one = f.of(`feed-source-fi-c-05-${k}`);
+    one.bind(account.connection_id);
+    return { sourceId: one.sourceId, call: context => f.client.invoke(context, feedSourceActions.sync, { source_id: one.sourceId, idempotency_key: `fi-c-05-account-${k}` }) };
+  });
+});
+
+test("FI-C-05 a source paused, edited or deleted while a tick's pull or its schedule waits to commit keeps the schedule the person gave it", async t => {
+  const f = await syncing(t);
+  await f.client.invoke(caller(WRITE).context, feedSourceActions.schedule, { source_id: f.sourceId, mode: "interval", enabled: true, interval_minutes: 30 });
+  dueNow(f.store, f.sourceId);
+  const probe = caller(SYNC);
+  assert.equal((await f.client.invoke(probe.context, feedSourceActions.tick, {}) as { completed: number }).completed, 1);
+  await sweepSourceChanges(f.store, probe.checks(), k => {
+    dueNow(f.store, f.sourceId);
+    f.feeds.set(f.entry.feed_url, feedXml([{ id: `fi-c-05-tick-${k}`, title: `Tick ${k}` }]));
+    return { sourceId: f.sourceId, call: who => f.client.invoke(who, feedSourceActions.tick, {}) };
+  });
+});

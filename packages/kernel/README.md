@@ -71,6 +71,7 @@ node scripts/run-tests.mjs tests/local-host.test.ts
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（只用它的执行生命周期和动作声明检查）；第三方依赖见 `package.json`。方向：平台包只依赖 contracts/platform 与更低层平台包，公开发布面（contracts、plugin-sdk）在最下层（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 目录从唯一的 `CapabilityRegistry` 派生，不另存名单。
+  - `retainAuthority(refs, { providerCommands: "unchanged" })` 限原 handler 活跃期间的读后提交，可在初读前捕获来源命令活动：已有活动即拒绝，之后同提供方任何命令入场均使捕获永久失效。活动只在现 `execute` 的真实 handler 入场/终态计数，按可信注册的 project/provider 共享；分批注册共用，Home 跨项目共享，项目相互隔离，nested 不按调用编号去重。取消或超时停止等待不代表 handler 已结束；状态在注册与真实活动均归零后释放。最终同步检查先完成全部授权/可用性回调，再纯复核原执行生命周期、来源注册和活动。此选项只能否决，不能授权、断言业务状态或保护外部/后台写入；默认保留授权和后台授权语义不变。回归：`tests/action-provider-commands.test.ts`（MEM-BIND-FENCE-02/03/04）。
   - 输入与结果按合同校验：查询与判断不合合同报 `actions.output_invalid`；已提交的写动作报 `actions.output_invalid_after_effect`。
   - `action.execution` 明确声明的时限与调用频率由统一执行器落实；费用只作声明，未声明为未知。计数按 actor、项目、安装隔离且跨入口共享，注册退出时释放，不承担持久计费。超时转发 signal 并停止等待，迟到处理器必须经写入 fence，不能承诺抢占同步代码或撤销外部请求。
   - `beforeEffect` 每次复查注册版本、可用性、授权与权限；最后一次异步检查后以可信 `assert_authority_current` 同步核对精确来源/目标及原注册、时限和取消，Promise 尾检被拒绝。场景绑定与成功/失败消费在最后等待后使用同一尾检，同时核对当前场景/启用声明的独立权限；停用绑定仍核原配置权限和来源，不新增目标函数授权。调用结束后不能再产生副作用。 可用性拒绝的可选 `kind` 与码、原因一起抛出；动作派发与 Registry 的 typed 派发使用同一分类。

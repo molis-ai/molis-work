@@ -3741,3 +3741,57 @@ API生成器0变化，资源门48项共7,458,470 B通过，没有新增额度。
 未来记录应由原Session主人保真表达caller与已接受注入，优先复用现source/peer事实；是否还需要同一本Run账的最小前向来源字段，须按真实入口和持久重开反例确认，不能用时间、提交号或progressVersion替代。旧账不回填，不新增账本、猜测清洗或通用trustLegacy开关。行为已获批准，具体窄口合同、实现和验收仍待完成，不扩大SDK旧历史验收结论。
 
 本批日志在 /private/tmp/molis-memory-f6e-first-regressions-20261027.log、molis-memory-files-fairness-fixed-20261027.log、molis-files-refresh-network-20261027-summary.json、molis-navigation-diagnostics-20261027/ 与对应build/health/assets日志。付费批仍未启动。所有未闭合项继续阻塞合并。
+
+### 2026-10-27 已批准边界的实现与当前交付状态
+
+旧开场投影已在SDK `90e39ff78c3306d58c251e15adca2bcc4c7746b8`实现并推送现有Draft #108。`Session.conversation`及`startAgentRun({history: "session"})`接受只读`readOpening`，只在连续开场中唯一匹配caller原件；未知额外段不进入后续模型，原账、回放及导出保留。Session自身注入沿现有`source: "peer"`标记。发生省略时记录无正文的`history-projected`事件，在模型开始前持久化；没有省略的路径不增加这次等待。公开起跑入口在首个等待前固定history和reader，避免调用方随后修改选项绕过投影。未提供reader的SDK路径语义不变，不宣称所有消费App的旧历史均已安全。
+
+Molis仅为非digest的主会话续聊装配reader。原index的精确Run、唯一已接纳attempt、有效冻结配置和独立task共同提供caller依据；无依据、歧义和子任务回填均不可用。已证明的普通session记录可返回不适用。读取前后复核当前会话归属与准入，省略事件复用既有notice，直播与恢复投影使用同一提示链。代码已在本地集成，尚未作为本批完成项推送。
+
+SDK原完整`pnpm quality`自然退出0，包括原main `ccafbb74` ratchet、770项测试及干净安装消费者；公开入口等待期间修改选项的4个反例先红后绿。新包独立解包后828个dist均与干净90e构建及App实际安装逐字节一致。App整体构建通过；旧开场14项与stream34项定向通过。另一个干净安装消费者以MemoryHost验证最终模型recipe、省略事件持久化及原审计不变，不能替代真实磁盘或最终App实操。旧构建非空历史的Coding/Assistant完整续聊、可见提示和重启仍待验收。
+
+私库采用沿已有SQLite主人调整现行schema，不增加物理存储布局、表或迁移服务：Coding v4允许历史content revision未知；Knowledge v3保存本人采用的operation、actor、source revision与可信安装代。公开保留结果升v2，Knowledge管理动作升v3，新增本人绑定命令v1。普通来源以采用决定中的安装代核对当前安装；有保留协议的来源还须与协议安装代一致。旧机器摘要仅保留为历史，不能因绑定直接成为当前有效摘要；本人编辑和排除状态保留。
+
+维护仅在显式选定的隔离副本停写后执行，复用原owner、备份和逐库事务；通过现有`tests/fixtures/coding-knowledge-maintenance.mjs`复现，不自动接入产品启动。两处真实竞态已经修复并独立复审：异步备份中替换锁/owner目录必须拒写；绑定最后一次等待后的人编辑必须由写前同步整卡比较拒绝。14个选中用例通过，包含Coding2 local在途双向采用和真实SDK active业务恢复的取消/重开；这些证据不覆盖Coding2 runtime在途跨采用。本人关联界面、整文件回归、全部非空旧库采用及产品验收仍待完成。
+
+远端App `86f1c05bb`的普通CI `40496811664`现已收齐：Gates、Verify、Product两片与Security两片均通过，Linux probe按原配置跳过。这仅属于86f已推送内容，不包含本地90e接包和上述旧数据增量，也不抹去旧Full suite失败。最终头完整CI、SDK1000条性能门、真实模型质量/token对照和用户验收继续待完成；SQLite替代布局实验保持停止，付费对照尚未启动。
+
+#### 本人关联界面的最小实施合同
+
+实际场景是旧卡仍可查看，但人需要辨认当前来源后才能重新给Search/Agent使用。现有列表和搜索不提供当前可信安装代，不能由页面拿旧卡字段猜测。当前必须补一个只读预览及已有绑定命令的页面入口；不新增持久状态、来源注册表、迁移服务或自动整理流程。
+
+`knowledge.card.bind-preview@1`仅user及`knowledge:manage`可调用，输入subject，返回该subject的当前候选。每项包含provider_id、source_key、generation、source_revision和标题、来源名、摘要、内容策略、更新时间。只允许同项目同subject、当前可用且有可信安装代的来源；保留协议须active，未声明协议按既有unsupported处理；context来源的公开reader及revision须一致。预览不写卡、不触发reconcile或AI，取消及授权变化仍拒绝；没有可关联来源时返回空候选。预览不是最终授权，绑定仍在原命令内复核来源、权限、版本和整卡。
+
+页面沿现资料详情、确认框和请求助手：先展示旧卡与当前候选，多项时明确选择，单项也须本人确认；确认后才创建operation_id。取消零绑定，失败保留同一body和operation_id供重试，不刷新候选后静默换成新决定。未绑定状态明确显示“不会被搜索或Agent使用”，保留本人编辑入口，不显示可直接整理的误导入口。沿现HTTP桥接增加bind-preview和bind，不绕过动作目录。仅改Knowledge合同/Host桥接、资料页、必要词典及相应测试；不调整权限、资源上限或旧资料维护范围。
+
+验收：MEM-BIND-UI-01 非空旧卡确认、取消、无候选及多候选选择；MEM-BIND-UI-02 来源变化/撤权/版本冲突拒写并保留旧卡；MEM-BIND-UI-03 失败和丢回应以原决定重试，重启后保留绑定和本人字段；MEM-BIND-UI-04 关联本身零模型调用、旧机器摘要不作为当前摘要、未确认卡不进入Search/Agent。最终页面资源先复用压缩，必要增长单独量出并取得本片授权；未批准不提高上限。
+
+确定冲突后的恢复仍由本人触发：先重新读取管理卡片，发现adoption已存在便收束原请求；读不到卡不等于原决定未提交，保留原请求。只有确认仍未绑定后才重新预览，取消预览仍保留旧body，再次明确确认才创建新决定。离页后不承诺保留内存中的原请求，但持久adoption由原卡主人保存，不能以新请求覆盖它。
+
+本批新增工程证据：90e接入后的输入、恢复、生命周期、精确index、删除与vendor来源共11文件234项通过；原独立开场/stream48项不重复计入。真实旧App `702b96fc5`（构建指纹与清洁源码相符）及其安装的SDK `a83e0476`生成非空digest历史，随后由当前90e App适配器继续：caller任务与助手回复保留，额外无来源附加段不再发送，提示重开后保持，原Run replay逐字不变。旧SDK安装的780个dist与原归档独立逐字节核对通过。两次请求均到本机脚本Provider，零外部模型；这是生产调用链工程验证，不是模型质量或页面实操。日志为`/private/tmp/molis-memory-old-opening-producer-20261027.log`。
+
+Coding2 runtime在途归档和恢复也已按原操作/回执走通隔离采用与重开，SDK账不改。首轮business故障夹具使用trigger，被原插件SQL门提前拒绝，不能算预期故障覆盖；改沿现事务测试缝后原Coding保留完整文件18项通过。相关16文件首轮15过，仅管理动作集合断言遗漏新增命令；按明确的新动作合同同步后，当前Knowledge卡片文件16项通过。本人关联的整体构建通过，新后端批次尚有HTTP夹具失败：原PDF/Artifacts来源没有安装代，正确返回空候选，不能伪造安装代满足成功断言。真实安装的Coding成功来源及无代来源拒绝边界分别补验。
+
+剩余具体边界：当前系统来源若没有可信安装代，不提供关联候选，旧卡仍保留；这不是所有来源的采用已完成。独立评审还指出同代来源归档可发生在最后一次retention读取后的等待中，而索引延后刷新，现有整片/整卡比较不足以证明最终active，正在准备真实交错验证，不以新增异步重查作为关闭证据。UI首轮Coding场景通过，多来源恢复场景被错误toast遮挡中断；候选间距、错误可见性修补和完整页面重验仍待。以上均不满足本片完整交付或合并门。
+
+上述归档窗口随后在真实Host/Coding入口复现：4次active读取后挂起最终discover，公开归档完成，同代、原索引未刷新，恢复后adoption仍被写入。原红例保留于`/private/tmp/molis-memory-bind-final-discovery-red-20261027.log`，目前阻塞交付。Search的成功命令通知只能覆盖已settle成功的变化，不能单独覆盖在途pending和失败；修复须沿当前调用主人保护实际提交，不追加异步检查来假装窗口已关闭。HTTP原单例改用真实Coding来源后首过，同时保留PDF无安装代的空候选与零写断言。
+
+另一项SDK性能候选已经停止：只移除Registry认证unchanged分支的空Promise等待，保留完整字节、原集合和授权。原App/57cf单模块overlay诊断使用交错A/B、3副本、原1000档计时，共120有效样本、零模型；暖读中位数31.927→32.058ms、P95 33.872→34.508ms，副本方向不一致，无实质收益，不称统计回退或正式验收。候选生产/测试已撤回并核对与90e一致，dist重建恢复，未换App包；原性能门和SQLite停止决定不变。结果在`/private/tmp/prologue-registry-overlay-20261027-v2/summary.json`，首次sandbox回环启动失败为零样本并另存，未重试实际样本。
+
+#### 来源命令交错的最小修复合同
+
+已复现的用户问题是“归档已完成，旧卡仍关联成功”。仅追加查询会留下新的等待窗口；仅采用Search的成功结算通知会遗漏已写pending后失败和handler尚未返回的情形；给整个项目加锁或序列化长命令会阻塞正常使用。当前必须复用真正执行命令的ActionService，补足它本身缺少的活动事实，并接入已有retainAuthority；不新增存储、执行通道、锁、队列或Search授权状态。
+
+ActionService在共用execute的command handler实际入场与原handler实际结束之间维护按可信注册provider及注册project作用域共享的短期活动数/变动标记。同步成功/抛错、异步成功/失败都收尾；外层取消/超时提前返回不代表原handler结束。Home注册在各项目调用间共享，项目注册相互隔离；同provider分批注册共享，nested每次真实入场独立记账，不拿call_id去重。状态随现注册及活动引用释放，失败也不能让较早捕获重新变为有效。
+
+现retainAuthority增加显式可选的“来源provider命令保持未变化”检查，默认语义不变，不扩展后台授权。初读前捕获，已有活动命令时拒绝；捕获后有命令入场则最终拒绝。绑定/预览仍做原retention、安装代、版本、权限和整卡比较；所有外部同步授权回调完成后，最后统一做纯活动标记检查，再同步CAS/写入，之间无await。该观察只能否决同一ActionService已观察到的命令，不能授权读取、断言active，亦不证明外部文件或后台修改的原子性。新调用仍靠原来源主人识别此前失败留下的pending。
+
+允许修改现actions执行上下文类型、Kernel ActionService及上下文接线、knowledge-bindings与对应模块合同和必要回归。若职责粒度需要内部文件，仍属于同一执行主人，不另造registry。代价是同provider无关长命令也可能暂时阻止关联，页面明确可重试，不自动重放。MEM-BIND-FENCE-01 原真实归档红例转绿且原卡不变；MEM-BIND-FENCE-02 pending后失败、已写未结束、取消后handler仍运行均不可关联；MEM-BIND-FENCE-03 同步/nested、分批注册、Home/项目隔离及注销收尾正确；MEM-BIND-FENCE-04 未启用选项的原授权路径保持，读取/权限/模型门不可被活动检查替代。最终合并仍需共享核心全量，不以定向通过替代。
+
+2026-10-27用户明确批准本人关联界面的knowledge.js一次性+4,656 B（27,065→31,721 B）。27,065是本分支含原获准+125 B的值，准确merge-base仍为26,940；本PR合计授权为125+4,656=4,781 B，上限31,721，其余额度不变。第一次登记误把分支值作为merge-base，原门拒绝写预算后按两次既有授权纠正，未扩大额度或放宽门。现确认、取消、候选选择、原请求重试与结果核实两条非空浏览器用例通过，1440/1024/390的浅深色截图已检查；此为对应路径证据，不包括随后Kernel并发增量或完整验收。授权仅资源增长，不代表合并或用户验收。准确登记后资源门通过，48项合计7,463,126 B，其他资源不变。
+
+活动检查选项只用于原handler仍活跃的读后提交，不延长调用寿命；默认retained/background行为不变。最后一次检查先完成来源与原调用的所有外部授权回调，再同步检查取消、全部原注册、原执行生命周期和命令活动，之后整卡比较并提交，中间没有await或外部回调。这样既拒绝读后归档，也拒绝最终授权回调中取消或替换注册；不是对外部文件写入的全局锁。
+
+最终集成已合入仅文档变化的main `bb0158a28`，没有冲突。完整构建、包边界、按新merge-base的health与资源门通过；版本清单同步Coding4/Knowledge3，三个内聚单元按现行规则登记实测大小而未改阈值。最终产物的关联页面与HTTP两文件3项、原Kernel/Contracts相关36文件590项通过；6个回环环境失败仅修正执行权限后原断言通过，原日志保留。第二次独立深审核过跨模块提交、旧库采用、重试及开场reader，无新增阻塞。日志为`/private/tmp/molis-memory-adoption-final-{build,health,ui}-20261027.log`及`/private/tmp/molis-memory-adoption-boundaries-20261027.log`；这些仍不替代最终head的完整CI。
+
+这一修复的真实Host/Coding归档反例已转绿：归档已完成、本地持久pending后失败、归档已提交但handler尚未返回三种交错均拒绝关联，旧卡及邻居不变；pending仍按原请求恢复和重放。完整采用文件21项首轮通过；Kernel新17项通过，覆盖原handler完成、同步/异步、取消/超时、嵌套、注册与项目隔离。Kernel首轮夹具误将query声明为operation，被注册门拒绝，修正测试声明后通过，未改生产或放宽门。两份日志为`/private/tmp/molis-memory-bind-activity-integration-20261027.log`和`/private/tmp/molis-action-provider-fence-final-20261027.log`，零重试。独立复核未发现新阻塞；共享核心完整回归、最终提交CI、系统来源无安装代的采用覆盖及性能门仍待，不能据此称P0完成。

@@ -293,3 +293,11 @@ inspection 和维护 bridge 的 `verifySessionPurge({target,signal?})` 只核原
 Node 装配的可选 `audit` 原样交 SDK `createRuntime`，未传时不增加观测。现 `AuditSink.memoryPhase` 同步观察实际 task recall 与开场 Memory 准备，后者包含前者，不能相加；它们不含最终共享 Context 包装或网络时间，不授权任何业务。评测在公开创建 Session 后、start 前绑定，沿 SDK 安全 Session/开场 receipt 配对，以本机单调钟记录有界事件；缺失和无效时长保持 null，旧 forRun 配方时延不作替代，旧 B1 无同口径测量仍不可比。原 sink 失败隔离由 SDK 保持，无新等待、正文日志、Run 注册表或模型调用。回归沿 `tests/memory-evaluation.test.ts` 与 `tests/memory-evaluation-sequence.test.ts` 的真实临时 Home/本机 HTTP，以及本 README 必跑集合。
 
 `PrologueMemoryOptions.modelOrigin` 只控制本轮记忆的模型来源展示，省略时保留 SDK 的 `description` 默认。Molis 的 `memoryRuntimePolicy` 显式选择 `label`：首次召回、展开和本轮整理使用固定 `memory` 标签，当前正文及 canonical 关联不变。原来源仍留在存储、管理页和历史中，真实包装预算与最终使用回执沿 SDK 原链核算；此选项不清洗已失去结构化来源的旧文本历史。
+
+### 旧开场的 caller 原件与提示
+
+主 Run 采用 session 历史时，通过 SDK 的 `readOpening` 只读原 SessionIndex：绑定本次精确 Session 与原 owner，复用索引读取、生命周期及项目准入屏障。只有唯一实际 `run_id`、无拒绝记录且保有完整启动骨架的主 attempt 可证明原件；digest 返回原 `task`，它只是 caller 内容，不制造本人 InputOriginal。子任务的 `task` 可能从 SDK prompt 回填，任何带 `parent_run` 的索引均不可采用。缺失、冲突、损坏或屏障变化返回 unavailable，SDK 明确拒绝续聊，不从 prompt 补原件。
+
+普通 session 分支的正面依据来自原实现：首次接入 `960b3e961` 的主 Run 无条件传 `history: "session"`，同时保存 `input.task` 和已接受的 `run_id`；`fec41f6c1` 首次引入 digest 时，同一次请求同时写 `frozen.history: "digest"` 并选择 SDK 非 session 入口，此后拆分保留同一规则。因此受支持的主索引启动骨架中 history 缺省可返回 not-applicable；未知形状或非法 history 不能按缺省猜测。代码不按日期、提交号或 SDK 版本分流，不扩展旧索引兼容。
+
+SDK 拥有开场对齐、临时省略和原事件账；App 不替换历史或重写原记录。`history-projected` 沿现 Run 流映射 notice，说明本轮可能缺背景、原记录仍保留；原持久重放使用同一投影，Coding 与 Assistant 沿现 notice 展示，不增加 UI 协议。reader 只接主 Run 的本次参数，不通过 Runtime 配置或子任务装配继承。必要回归为 `tests/prologue-session-opening.test.ts`、`tests/prologue-stream.test.ts`，并保留原输入、恢复和真实非空页面重开验证；新 SDK 包接入后统一构建、执行，尚未据此声明旧历史验收完成。

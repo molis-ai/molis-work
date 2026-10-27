@@ -91,6 +91,8 @@ Casebook 已于 2026-10-10 按用户决定删除，不再有对外合同 id；�
 
 只记插件作者要知道的改动（不是兼容窗口，阶段一不留兼容期）；新的写在最后。
 
+- `ActionExecutionContext.retainAuthority(refs, { providerCommands: "unchanged" })` 新增显式选择，限原 handler 活跃期间的读后提交：初读前捕获来源 provider 命令活动，已有活动或之后任一真实命令入场均拒绝该捕获，失败不恢复旧捕获。`assertCurrent()` 在所有原授权/availability 回调后纯复核原执行生命周期、来源注册和活动；提交必须紧随其后，不再等待或调用外部回调。仅否决同一 ActionService 观察到的命令，不授权、不替代业务状态/事务，不改变默认路径或后台授权。首个消费者是旧 Knowledge 卡片的来源预览/绑定；仅 TypeScript 可选参数变化，不改 Action schema/version，公开快照由统筹生成。
+
 - **`PluginDatabaseTransaction.savepoint(body)`**（PG-094 S10/S11，S-67 暂定号，落地时重编）：事务句柄多一个**必需**方法，让插件撤销事务的一部分而不结束事务。`body` 同步返回 `{ keep, value }`，`keep: false` 或抛错就撤销这一点之后的写入（含项目日志里的事件与提交后效果），嵌套的点只撤销自己。点的名字由平台生成，插件不发 SQL。对既有插件：用平台给的事务句柄的不受影响；**自己实现 `PluginDatabaseTransaction` 的**（把自己的库包成这个类型，如 Jelly 的商店、测试替身）要补这个方法，`tests/fixtures/plugin-database.ts` 的 `memoryPluginDatabase` 已补。沙箱插件的语句通道（`project_statements`）没有它。
 - **项目日志的只读句柄多了 `getIdempotency(actorId, operation, key)`**（PG-094 S9-1/S11）：此前只有写句柄能读自己存的幂等记录，查询路径（只读窗口）读不到，Goals 的重放读取要在查询里用，所以读句柄也有了；写句柄原有的签名不变。自己实现 `PluginJournalReader` 的（测试替身、沙箱适配）要补这个方法。记录仍按调用的 `actorId` 隔离，别的人读不到。
 - **`services.attention` 与 `services.contextLedger`，权限 `attention:read`/`attention:write`、`context-ledger:read`/`context-ledger:write`，Manifest v2 的 `attention: { subjects }`**（PG-087、PG-094 S9-0b）：新增、可选，没声明对应权限的插件拿到的是 `undefined`。写入加入插件当前的项目事务；对象的所有者（`owner_plugin_id`）由安装的可信 Manifest 记下，不从调用者输入读，`subjects` 只能是平台的封闭列表（`feed_item`、`goal_decision`、`source_fault`）里的种类。Attention 的条目与事件记录多一个**必需**字段 `owner_plugin_id`（`string | null`，null 是明确的「未指派」），`AttentionSubjectType` 改成上面的封闭列表，`deleteSubject` 多一个可选的所有者参数。自己构造这些记录的代码（测试替身）要补字段。
@@ -101,3 +103,11 @@ Casebook 已于 2026-10-10 按用户决定删除，不再有对外合同 id；�
 
 - **Manifest 的 `attention.inbox`：插件声明哪些种类的条目是人的 Inbox；Inbox 读取入口改按声明解析；Feed 不再能开 `goal_decision` 条目**（PG-094 S12，RAC-806～809，统筹 2026-10-25 定）：`attention` 在 `subjects` 之外可选地加 `inbox`（`subjects` 的子集，不空、不重复）；`AttentionQuery` 加 `listInbox(projectId, declared)` 与 `getInbox(projectId, entryId, declared)`，`declared` 是 `AttentionInboxDeclarations`（主人插件号 → 它声明的种类）。Inbox 是未归属条目，加上「主人声明了该种类」的有主条目，别的一律不解析（声明只对声明者自己的条目生效，A 声明的种类不会让 B 的条目出现）。宿主从项目库里运行中的安装、按发行物归档里的 Manifest 读出声明（`apps/local-host/src/plugin-inbox-declarations.ts`），Feed 的 `listInboxEntries`、`getInboxEntry`、`setInboxEntryStatus` 经 `FeedApplicationPorts.inboxDeclarations` 调这两个查询，代码里不点名任何插件。Goals 的 Manifest 声明 `inbox: ["goal_decision"]`。停用、卸载或发行物未归档的安装不贡献声明。同时 Feed 不再读 Goals 的表，`inbox.add` 一类入口对 `goal_decision` 一律以 `feed.invalid_transition` 拒绝（提醒由 Goals 自己开）。调用方的影响：不声明 `inbox` 的插件，它的有主条目不进 Inbox（照旧只经 `services.attention` 读）；想往 Inbox 手动加一个 Goal 的客户端会得到拒绝，没有正常路径依赖它。
 - **没有 Home 的 Host，项目插件名单里不含声明 Home 库的插件**（PG-094 S12）：Goals 声明了 Home 库，没有 Home 的 Host 原先整张名单被 `assertDatabaseEntries` 拒绝而全部起不来，现在只是 Goals 不在名单里、其余照常启动。产品里的 Host 都有 Home，不受影响。
+
+### 2026-10-27 旧 Coding / Knowledge 私库采用
+
+按已批准 Memory spec：Coding4/Knowledge3 是同 SQLite/原表的形状版本，生产严格拒绝旧版。保留输出 v2/helper@2 允许 content_revision=null，Coding unarchive preview/command@2 增明确业务恢复；Knowledge cards/edit/exclude@3、新 bind@1 保存最小本人采用事实，不猜安装代、不自动模型。
+
+本人选择入口补 `knowledge.card.bind-preview@1`（query/read/concurrent，仍仅 knowledge:manage/user）；只返回当前同项目同 subject 候选及其可信安装代和内容版本，不生成采用决定。HTTP 的 bind-preview/bind 都走原 Action。多个提供方按本人选中的提供方限定原 resolver，不能跨提供方降级或跳过撤权；来源读取错误不能当空候选。管理动作固定集合断言同步包含新增 query/command，原权限约束不变。
+
+沿既有限期 fixtures 模式，将 tests/fixtures/coding-knowledge-maintenance.mjs 与隔离真实回归入库以供 CI 复现，不属于产品运行时迁移器。历史识别仅留此工具；采用完成后随演练删除，历史记录保留可取回提交。旧 v8/v9/v10 SQL 不改，v8 演练先证明真实 Coding1 被当前拒绝，再调用同一工具。真实 Home、发布和 UI 不在本片执行范围。

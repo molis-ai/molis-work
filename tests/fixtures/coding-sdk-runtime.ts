@@ -18,16 +18,23 @@ import { seedConfiguredModels } from "./configured-models.js";
 
 /** The existing Coding effect fixture's real Plugin Runtime, Host and SDK composition, shared by recovery tests. */
 export async function codingSdkRuntime(t: TestContext, options: { extraPlugins?: ReadonlyArray<{ definition: PluginDefinition; grants: string[] }>; wrapCoding?: (definition: PluginDefinition) => PluginDefinition;
+  /** Offline fixture preparation, after initial seeding and before any product database, SDK or plugin owner opens. */
+  prepareProject?: (home: string, file: string) => Promise<void>;
+  /** Reopen a stopped, already seeded synthetic Home; the caller retains its cleanup ownership. */
+  homeDirectory?: string;
   /** Stands between Coding and the Host's capability client, to count or refuse a call. */
   wrapCapabilities?: <Client extends object>(client: Client) => Client;
   /** Complete model endpoint for the real Node Host, e.g. a test's loopback protocol server. */
   modelEndpoint?: string;
   /** Use the production Host Action queue and registry for nested lifecycle dependencies. */
   hostActions?: boolean } = {}) {
-  const home = await mkdtemp(join(tmpdir(), "coding-sdk-regression-")), file = join(home, "project.db");
+  const home = options.homeDirectory ?? await mkdtemp(join(tmpdir(), "coding-sdk-regression-")), file = join(home, "project.db");
   // The model Coding lists comes from the Home's provider catalog through `services.model` (PG-047), as it does in the Host.
-  await seedConfiguredModels(home, [{ provider_id: "fixture", model_id: "fixture" }]);
-  seedDemoBoard(file);
+  if (!options.homeDirectory) {
+    await seedConfiguredModels(home, [{ provider_id: "fixture", model_id: "fixture" }]);
+    seedDemoBoard(file);
+  }
+  await options.prepareProject?.(home, file);
   const store = new LocalProjectDatabase(file), sessions = codingSessions(store), reviews = new AgentReviewQueue();
   const makeAdapter = () => createPrologueNodeAdapter({ app: { appId: "io.molis.work.coding-regression-test", appVersion: "1.0.0" }, storageRoot: join(home, "sdk"), reviewQueue: reviews,
     modelConfiguration: async () => ({ protocol: "anthropic-compatible", endpoint: options.modelEndpoint ?? "https://1.1.1.1/v1/messages", model: "fixture", credential_ref: "fixture" }), resolveCredential: () => "fixture-only" });
@@ -56,13 +63,19 @@ export async function codingSdkRuntime(t: TestContext, options: { extraPlugins?:
   const platform = createPluginPlatform({ project_id: DEMO_PROJECT_ID, actor_id: "web-user", db: store.db, artifacts, processItems, ui: new UiHost(), home: { directory: home, completeText: () => undefined, stores: homeStores() },
     actions: { registry: actionRegistry, client: actionClient, project_id: DEMO_PROJECT_ID }, capabilities: (options.wrapCapabilities ?? (client => client))(local.client(reference)), privateStorageFor: (context, manifest) => privateStorage.forPlugin(context, manifest) });
   await platform.start([{ definition: (options.wrapCoding ?? (definition => definition))(createCodingPlugin()), trust: { level: "host" }, grants: ["search:read", "goals:read", "goals:write", "artifact:read", "artifact:write", "knowledge:read", "model:read", "storage:private", "workspace:read", "review:git-worktree", "review:git-integration"] }, ...(options.extraPlugins ?? [])]);
-  t.after(async () => { await platform.closeCoordination(); for (const id of platform.supervisor.enabledPluginIds()) { const active = platform.supervisor.state(id); platform.supervisor.revoke(id); if (active?.install_id) await platform.runtime.stop(active.install_id); }
-    await local.close(); await adapter.close(); store.close(); await rm(home, { recursive: true, force: true }); });
+  let closed = false;
+  const close = async (revoke: boolean) => {
+    if (closed) return;
+    await platform.closeCoordination();
+    for (const id of platform.supervisor.enabledPluginIds()) { const active = platform.supervisor.state(id); if (revoke) platform.supervisor.revoke(id); if (active?.install_id) await platform.runtime.stop(active.install_id); }
+    await local.close(); await adapter.close(); store.close(); closed = true;
+  };
+  t.after(async () => { await close(true); if (!options.homeDirectory) await rm(home, { recursive: true, force: true }); });
   const router = platform.router(), prefix = "/api/plugins/io.molis.work.coding";
   const call = (path: string, body?: unknown, method = body === undefined ? "GET" : "POST", execution?: PluginRouteRequest["execution"]) => router.dispatch({ method, pathname: prefix + path, actor_id: "web-user", execution, ...(body === undefined ? {} : { body }) });
   const create = (id: string) => sessions.create(noEffect, { project_id: DEMO_PROJECT_ID, session_id: id, title: id, runtime_id: "prologue", at: new Date().toISOString() });
   const reopenSdk = async () => { await adapter.close(); adapter = await makeAdapter(); agentHost = new AgentHost({ reviews }); agentHost.register(adapter); };
-  return { home, store, sessions, service, reviews, platform, call, create, reopenSdk, get adapter() { return adapter; } };
+  return { home, store, sessions, service, reviews, platform, call, create, reopenSdk, close: () => close(false), get adapter() { return adapter; } };
 }
 
 export function codingToolResponse(name: string, input: unknown): Response {

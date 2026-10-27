@@ -1,5 +1,5 @@
 {
-  "giantUnits": 50,
+  "giantUnits": 49,
   "giant": {
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
       "lines": 267,
@@ -18,6 +18,7 @@
     },
     "function apps/local-host/src/web-server.ts#createLocalWebServerFactory": 154,
     "function apps/local-host/src/web-server.ts#createMolisWorkWebServer": 151,
+    "function apps/workbench/src/browser/knowledge/settings-page.ts#bindKnowledgeSettings": 155,
     "function apps/workbench/src/capsule-items.ts#createCapsuleItemProjection": 229,
     "function apps/workbench/src/feed-projection-ui.ts#createWorkbenchFeedProjectionRenderer": 251,
     "file apps/workbench/src/i18n/en.ts": 3266,
@@ -26,7 +27,7 @@
     "function apps/workbench/src/shell-page-renderer.ts#createWorkbenchGoalsPageRenderer": 176,
     "function apps/workbench/src/tab-workspace-ops.ts#createTabWorkspaceOps": 425,
     "class horizontal/knowledge/src/index.ts#KnowledgeService": {
-      "lines": 366,
+      "lines": 367,
       "methods": 23
     },
     "file horizontal/memory/src/service.ts": 905,
@@ -42,8 +43,8 @@
     "file packages/design-system/src/styles/momentum.ts": 819,
     "file packages/design-system/src/styles/primitives.ts": 1258,
     "class packages/kernel/src/action-service.ts#ActionService": {
-      "lines": 396,
-      "methods": 15
+      "lines": 437,
+      "methods": 17
     },
     "class packages/plugin-runtime/src/events.ts#PluginEventBus": {
       "lines": 420,
@@ -92,11 +93,6 @@
       "lines": 408,
       "methods": 30
     },
-    "class plugins/native/goals/src/module/guidance-commands.ts#GuidanceCommands": {
-      "lines": 328,
-      "methods": 3
-    },
-    "function plugins/native/goals/src/module/guidance-commands.ts#update": 177,
     "function plugins/native/goals/src/module/lifecycle-archive.ts#setTrashed": 155,
     "function plugins/native/goals/src/momentum-view.ts#buildGoalMomentumView": 245,
     "class plugins/native/goals/src/proposal-normalizer.ts#GoalTreeProposalNormalizer": {

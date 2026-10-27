@@ -1,5 +1,7 @@
 # 公共类型与协议
 
+Knowledge 关联预览：`knowledge.card.bind-preview@1` 为本人 `knowledge:manage` query/read/concurrent，输入仅 `{subject}`，输出 `{subject,candidates}`。每个候选包含 `provider_id/source_key/generation/source_revision/title/plugin_title/summary/content_policy/updated_at`，没有 actor、project 或预览授权凭证。候选选择只限定原读取器的提供方，不授予权限；最终 `knowledge.card.bind@1` 继续独立复核。原空候选、读取失败与取消不得互相冒充。
+
 MEM-40 的 MemoryHomeRecoveryDecision 是 services/memory 现入口导出的纯持久 envelope：固定已解释来源、Memory present-purge/already-cleared 元组、原 AgentSession DTO、事件屏障与 ProjectDeletionRecoveryGroup，不含 Catalog plans/steps/completion 或任意 JSON 授权。来源事实与父 phase 不授写；现 plan-target 的必填版本保持，新父使用独立 header/target 事实。Storage 持有唯一 decoder，Memory 原 interpreter 只解释来源；最终恢复装配不由类型存在证明。
 
 source confirmed-plan 的 actor_id 允许原 adoption-cleanup 全局事实的空字符串；原样保存来源，不代填操作者，也不把它用作 SelectedRetention 的执行 actor。
@@ -84,6 +86,7 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
 - 公开入口：`@molis-ai/molis-work-contracts`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/package`。
 - 依赖：不依赖任何工作区包，也不依赖 App、业务实现、数据库或网络客户端（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 2 节）；所有包都依赖它。
 - 不变量：
+  - `ActionExecutionContext.retainAuthority` 的可选 `providerCommands: "unchanged"` 限原 handler 活跃期间的读后提交，在初读前拒绝已有活动命令，并在同一 ActionService 观察到任一来源 provider 命令入场后永久拒绝该捕获。最终 `assertCurrent()` 完成所有原授权/availability 回调后才纯复核原执行生命周期、来源注册和活动；调用方之后不得再跑外部回调或等待再提交。按可信注册项目/provider 共享，Home 跨项目，命令原 handler 结束才释放活动。它不替代权限、来源状态、业务版本或事务，也不扩展 `retainBackgroundAuthority`，未选择时原合同不变。
   - 不依赖任何其他工作区包；按显式子路径导出，不做根 barrel。
   - 结果合同读写都只认现行取值：存量数据由维护改成现行形状，schema 里不留历史取值。
   - 动作的 `effect` 按 id 推断会误判时用 `withActionEffect` 显式声明（比如 `delete_preview` 只存确认凭证）。
@@ -133,3 +136,5 @@ node scripts/run-tests.mjs tests/plugin-authoring.test.ts
 ### 独立 Session 业务原件冷维护（MEM-40）
 
 Session 业务原件恢复 DTO 按 Coding、Assistant 和 ContextLedger 真实主人定义，仅固定身份、现有revision与精确键选集。父 Memory 恢复合同引用这些纯类型，不存正文/hash/活对象或另建阶段。未知 owner 不能表达为无副本完成。
+
+旧私库采用合同（2026-10-27）：保留输出协议 molis.subject-retention.v2/helper 动作@2，content_revision 可空表示历史内容版本未知，三态不变，旧引用拒绝。Knowledge 管理 cards/edit/exclude@3、新 bind@1 仅本人，原卡 adoption={operation_id,actor_id,source_revision,generation}；可信 actor/安装代来自当前上下文，原操作完整目标重放只读。普通来源核 adoption.generation，有保留协议同时核 retention 代，不把 unavailable 降级；采用和目标同原卡事务，不新增表或绑定状态机。

@@ -19,7 +19,12 @@ const decisionSchema = (state: "active" | "archived"): ActionSchema => {
   ] };
 };
 const codingArchiveDecisionSchema = decisionSchema("active");
-const codingUnarchiveDecisionSchema = decisionSchema("archived");
+const codingUnarchiveDecisionSchema: ActionSchema = { oneOf: [decisionSchema("archived"), {
+  type: "object", required: ["mode", "observed", "previous_operation_id", "binding", "operation_id", "expected_state", "expected_version"], additionalProperties: false,
+  properties: { mode: { const: "business" }, observed, previous_operation_id: { oneOf: [id, { type: "null" }] },
+    binding: { type: "object", required: ["runtime_id", "session_id"], additionalProperties: false, properties: { runtime_id: id, session_id: id } },
+    operation_id: id, expected_state: { const: "active" }, expected_version: { type: "integer", minimum: 1 } },
+} ] };
 
 const session = { session_id: id };
 const round = { session_id: id, run_id: id };
@@ -69,10 +74,10 @@ export const codingRouteActions: Readonly<Record<string, { definition: ActionDef
     toInput: request => fromRequest(request), toRequest: input => ({ method: "GET", params: params(input), query: {}, body: {} }) },
   "coding.archived-sessions": { definition: define("sessions.archived.list", "已归档编码会话", "只读取本项目的已归档业务会话，不唤醒运行时", "query", closed({}), ["artifact:read"], LOCAL),
     toInput: () => ({}), toRequest: () => ({ method: "GET", params: {}, query: {}, body: {} }) },
-  "coding.unarchive-preview": { definition: define("sessions.unarchive.preview", "预览恢复编码会话", "读取原恢复决定，不写入或启动模型", "query", closed(session), ["artifact:read"], LOCAL, undefined, "concurrent", 1,
+  "coding.unarchive-preview": { definition: define("sessions.unarchive.preview", "预览恢复编码会话", "读取原恢复决定，不写入或启动模型", "query", closed(session), ["artifact:read"], LOCAL, undefined, "concurrent", 2,
     closed({ unarchive_decision: codingUnarchiveDecisionSchema })),
     toInput: request => fromRequest(request), toRequest: input => ({ method: "GET", params: params(input), query: {}, body: {} }) },
-  "coding.unarchive-session": { definition: define("sessions.unarchive", "恢复编码会话", "按本人确认的原决定恢复会话，不自动继续任务", "command", closed({ ...session, unarchive_decision: codingUnarchiveDecisionSchema }), ["storage:private"], LOCAL, undefined, "concurrent"),
+  "coding.unarchive-session": { definition: define("sessions.unarchive", "恢复编码会话", "按本人确认的原决定恢复会话，不自动继续任务", "command", closed({ ...session, unarchive_decision: codingUnarchiveDecisionSchema }), ["storage:private"], LOCAL, undefined, "concurrent", 2),
     toInput: request => ({ ...body(request), session_id: request.params.sessionId }), toRequest: input => ({ method: "POST", params: params(input), query: {}, body: without(input, "session_id") }) },
   "coding.update-session": { definition: define("sessions.update", "修改编码会话", "改名、归档，或保存草稿、材料、方法、角色、预算等本会话设置", "command", open({ ...session, archive: { type: "boolean" }, archive_decision: codingArchiveDecisionSchema }, ["session_id"]), ["storage:private"], LOCAL, undefined, "concurrent", 3),
     toInput: request => ({ ...body(request), session_id: request.params.sessionId }), toRequest: input => ({ method: "PATCH", params: params(input), query: {}, body: without(input, "session_id") }) },

@@ -139,7 +139,7 @@ Host 为每个提供 `targets` 的场景自动注册三项真实动作：`scenes
 
 来源可以用 `defineSubjectRetentionAction(capabilityId, subjectKind, title, permissions)` 声明无正文查询，沿同一 Action 权限链返回当前 `active`、`temporarily_archived` 或权威不存在的 `deleted`。输入仅有 `subject_id`；`retained` 只带归档前的 `content_revision` 和完成撤销归档后的 `restoration_operation_id`，普通 active/已删除对象为 null。pending、撤权、库不可读必须拒绝，不能冒充删除。安装代由 Runtime 的 `ActionProvider.plugin_installation_generation` 提供，来源不能自报。消费者据当前状态隐藏原卡，不另存第二份归档状态；原来源全文与本人历史仍由其主人管理。
 
-协议声明与输出 schema 固定，运行时再次验证；helper 放在 SDK，合同只声明形状。Memory 的消费与零新增模型调用验收见 [当前短合同](../../specs/prologue-memory-strategy/spec.md)，新增接线仍待集成验证。
+协议声明与输出 schema 固定，运行时再次验证；helper 放在 SDK，合同只声明形状。当前 helper 声明 retention@2，输出 `molis.subject-retention.v2`；采用旧私库后无法证明的历史 `content_revision` 必须为 null，不能用当前正文制造历史版本。消费者不得据 null 自动整理。Memory 的消费与零新增模型调用验收见 [当前短合同](../../specs/prologue-memory-strategy/spec.md)，新增接线仍待集成验证。
 
 ### 为事项提供可执行动作
 

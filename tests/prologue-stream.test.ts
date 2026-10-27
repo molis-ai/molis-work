@@ -14,6 +14,16 @@ import {
 
 const AT = "2026-09-19T00:00:00.000Z";
 
+test("old opening omission is a Host notice, not user input, memory use or a budget-compaction result", () => {
+  const state = emptyPrologueStreamState();
+  applyRunEvent(state, { type: "history-projected", sourceRun: { kind: "run", id: "legacy", revision: 1 }, omitted: 2, reason: "unattributed-opening" }, AT);
+  assert.deepEqual(state.turns.map(turn => ({ kind: turn.kind, text: turn.text, at: turn.at })), [{ kind: "notice", at: AT,
+    text: "本轮未带入部分无法确认来源的旧开场内容，可能缺少背景；原会话记录仍保留供查看。" }]);
+  assert.equal(state.turns[0]!.steer, undefined);
+  assert.equal(state.unknown_frames, 0);
+  assert.deepEqual(state.activity, []);
+});
+
 test("supplements retain user wording and distinguish receipt, context inclusion and the end of the round before a read", () => {
   const state = emptyPrologueStreamState();
   apply(state, { type: "prompt", role: "user", text: "保留测试", steerId: "steer-1" },

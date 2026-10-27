@@ -1,23 +1,25 @@
 import { isSubjectReader, requireSynchronous, resolveActionSubject, SUBJECT_RETENTION_REQUEST_TYPE, SUBJECT_RETENTION_TYPE,
   type ActionCallContext, type ActionClient, type ActionSubject, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
-import { KNOWLEDGE_TEXT_MAX_CHARS, type KnowledgeCardRecord } from "@molis-ai/molis-work-contracts/services/knowledge";
-import type { SearchRetentionIdentity, SearchRetentionResult } from "@molis-ai/molis-work-contracts/services/search";
+import { KNOWLEDGE_TEXT_MAX_CHARS, type KnowledgeRetentionIdentity, type KnowledgeCardRecord } from "@molis-ai/molis-work-contracts/services/knowledge";
+import type { SearchRetentionResult } from "@molis-ai/molis-work-contracts/services/search";
 import { knowledgeErrors } from "./errors.js";
 
 /** The text and its original read authority travel together until the consumer returns or dispatches it. */
 export interface KnowledgeSourceRead { context: ActionSubjectContext; assertCurrent(): Promise<void> }
 export async function readKnowledgeSubject(input: { client: ActionClient; caller: ActionCallContext; project: string; subject: ActionSubject;
   known: KnowledgeCardRecord | null; currentCard(): KnowledgeCardRecord | null;
-  retention(identity: SearchRetentionIdentity, views?: readonly ActionView[]): Promise<SearchRetentionResult> }): Promise<KnowledgeSourceRead> {
+  retention(identity: KnowledgeRetentionIdentity, views?: readonly ActionView[]): Promise<SearchRetentionResult> }): Promise<KnowledgeSourceRead> {
   const { client, caller, subject, project, known } = input;
   // Capture the trusted directory before invoking the reader; a later install cannot bless an earlier install's body.
+  if (known?.retention?.generation === null) throw knowledgeErrors.unreadable("这份保留卡片尚未由本人明确关联当前来源");
   const original = await client.discover(caller);
   const { context, reader } = await resolveActionSubject({ discover: () => original, invoke: (context, reference, value) => client.invoke(context, reference, value) }, caller, subject);
   const selected = original.find(view => view.provider.provider_id === reader.provider_id && view.capability_id === reader.capability_id && view.version === reader.version)!;
   const generation = selected.provider.plugin_installation_generation;
   const declared = original.some(view => view.provider.provider_id === reader.provider_id && view.action.input_type === SUBJECT_RETENTION_REQUEST_TYPE
     && view.action.output_type === SUBJECT_RETENTION_TYPE && view.action.subject_kinds.includes(subject.kind));
-  const identity: SearchRetentionIdentity = { project_id: project, provider_id: reader.provider_id!, subject,
+  const identity: KnowledgeRetentionIdentity = { project_id: project, provider_id: reader.provider_id!, subject,
+    ...(known?.adoption ? { adoption: known.adoption } : {}),
     ...(known?.retention ? { retention: known.retention } : declared ? { retention: { generation: generation ?? null } } : {}) };
   const refuse = () => { throw knowledgeErrors.unreadable("这份资料或原读取权限已变化，请重新读取"); };
   const check = async (version: boolean) => {
@@ -26,6 +28,7 @@ export async function readKnowledgeSubject(input: { client: ActionClient; caller
     const current = views.find(view => view.provider.provider_id === reader.provider_id && view.capability_id === reader.capability_id && view.version === reader.version);
     if (!current?.availability.available || !isSubjectReader(current.action) || current.provider.project_id !== selected.provider.project_id
       || current.provider.plugin_installation_generation !== generation || (current.provider.project_id != null && current.provider.project_id !== project)
+      || known?.adoption && generation !== known.adoption.generation
       || (known && (known.provider_id !== reader.provider_id || (declared && !known.retention)))) refuse();
     if (version) {
       const now = await client.invoke(caller, reader, { subject_id: subject.id }) as ActionSubjectContext;

@@ -1710,7 +1710,7 @@ packages:
     resolution: {integrity: sha512-rDS5/31E9HfPl/CIzGrn0DOlvBbXFseQ5URJ9sYMfstbKLD/c6Gm9vmRzRGDdAXyOIL4zmO37lc9RIwYqVruZw==}
 
   '@prologue/sdk@file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-memory-p0.tgz':
-    resolution: {integrity: sha512-zyF8dQYAfIX3+PEkw419sQ1a+SHGgjUru2uB958kkj11aJ/clKcCnYKHbffubwqo8Orb9GfLorYQM/eLKnJozQ==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-memory-p0.tgz}
+    resolution: {integrity: sha512-Cv5c8/zmI5AG5C+xPTtJAZZmMIL5/u1xV8AmAH0/oPnZlsh9Ip0YXOl9q4jDU8t3iDf2fKAguQTmfstGTpj01Q==, tarball: file:vendor/prologue-sdk/prologue-sdk-0.0.0-rc.1-memory-p0.tgz}
     version: 0.0.0-rc.1
 
   '@protobufjs/aspromise@1.1.2':

@@ -3,15 +3,15 @@ import { ActionError, type ActionCallContext, type ActionClient, type ActionDefi
 export const SUBJECT_REFERENCE_TYPE = "molis.subject-reference.v1";
 export const SUBJECT_CONTEXT_TYPE = "molis.subject-context.v1";
 export const SUBJECT_RETENTION_REQUEST_TYPE = "molis.subject-retention-request.v1";
-export const SUBJECT_RETENTION_TYPE = "molis.subject-retention.v1";
+export const SUBJECT_RETENTION_TYPE = "molis.subject-retention.v2";
 export interface ActionSubject { kind: string; id: string }
 export interface SubjectRetentionRequest { readonly subject_id: string }
 /** The owner supplies lifecycle facts only. Installation identity comes from the Runtime's provider metadata. */
 export type ActionSubjectRetention = {
   readonly subject: ActionSubject;
 } & (
-  | { readonly state: "active"; readonly retained: { readonly content_revision: string; readonly restoration_operation_id: string } | null }
-  | { readonly state: "temporarily_archived"; readonly retained: { readonly content_revision: string; readonly restoration_operation_id: null } }
+  | { readonly state: "active"; readonly retained: { readonly content_revision: string | null; readonly restoration_operation_id: string } | null }
+  | { readonly state: "temporarily_archived"; readonly retained: { readonly content_revision: string | null; readonly restoration_operation_id: null } }
   | { readonly state: "deleted"; readonly retained: null }
 );
 export interface ActionSubjectContext {
@@ -43,13 +43,13 @@ const id = { type: "string", minLength: 1 };
 const position = { type: "integer", minimum: 0 };
 export const ACTION_SUBJECT_SCHEMA = { type: "object", properties: { kind: id, id }, required: ["kind", "id"], additionalProperties: false };
 export const SUBJECT_RETENTION_INPUT_SCHEMA = { type: "object", properties: { subject_id: id }, required: ["subject_id"], additionalProperties: false };
-const retainedContent = { type: "object", properties: { content_revision: id, restoration_operation_id: id },
+const retainedContent = { type: "object", properties: { content_revision: { anyOf: [id, { type: "null" }] }, restoration_operation_id: id },
   required: ["content_revision", "restoration_operation_id"], additionalProperties: false };
 export const SUBJECT_RETENTION_OUTPUT_SCHEMA = { oneOf: [
   { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, state: { const: "active" }, retained: { anyOf: [retainedContent, { type: "null" }] } },
     required: ["subject", "state", "retained"], additionalProperties: false },
   { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, state: { const: "temporarily_archived" },
-    retained: { ...retainedContent, properties: { content_revision: id, restoration_operation_id: { type: "null" } } } },
+    retained: { ...retainedContent, properties: { content_revision: { anyOf: [id, { type: "null" }] }, restoration_operation_id: { type: "null" } } } },
     required: ["subject", "state", "retained"], additionalProperties: false },
   { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, state: { const: "deleted" }, retained: { type: "null" } },
     required: ["subject", "state", "retained"], additionalProperties: false },

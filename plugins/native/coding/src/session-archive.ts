@@ -12,7 +12,7 @@ export type CodingArchiveDecision = CodingLifecycleDecision;
 const conflict = () => codingError(message => new ActionError("actions.conflict", message), "coding.server.archive-changed");
 const observed = ({ session_id, title, state, archived, goal_id, updated_at }: CodingSessionRecord): CodingLifecycleObserved =>
   ({ session_id, title, state, archived, goal_id, updated_at });
-const operation = (request: CodingLifecycleDecision) => request.mode === "local" ? request.operation_id : request.decision.operation_id;
+const operation = (request: CodingLifecycleDecision) => request.mode === "runtime" ? request.decision.operation_id : request.operation_id;
 const idle = (record: CodingSessionRecord) => {
   if (!["idle", "done", "failed", "stopped", "cancelled"].includes(record.state)) {
     throw codingError(message => Object.assign(new Error(message), { code: "agent.session_busy" }), "coding.server.stop-before-archive");
@@ -37,6 +37,11 @@ const runtimeCurrent = async (a: CodingActivation, input: CodingLifecycleDecisio
   if (input.mode === "local") return;
   const view = await actions(a).invoke(lifecycle.read, { session: input.binding }, codingActionControl(beforeWrite));
   beforeWrite.assert_current();
+  if (input.mode === "business") {
+    if (archived || !same(view.session, input.binding) || view.state !== "active" || view.version !== input.expected_version
+      || view.operation && !view.operation.completed) throw conflict();
+    return;
+  }
   if (!same(view.session, input.binding) || !(view.state === input.decision.expected_state && view.version === input.decision.expected_version
     && (!view.operation || view.operation.completed || same(view.operation.decision, input.decision))
     || view.state === (archived ? "archived" : "active") && view.version === input.decision.expected_version + 1
@@ -66,6 +71,9 @@ async function preview(a: CodingActivation, execution: CodingExecution, record: 
     || view.session.runtime_id !== binding.runtime_id || view.session.session_id !== binding.session_id) throw conflict();
   const action = archived ? "archive" : "unarchive", expected_state = archived ? "active" : "archived";
   const original = view.operation;
+  if (!archived && !saved && view.state === "active" && view.version !== null && (!original || original.completed)) {
+    return { ...common, mode: "business", binding, operation_id: crypto.randomUUID(), expected_state: "active", expected_version: view.version };
+  }
   if (original?.action === action) {
     if (original.decision.expected_state !== expected_state || !(view.state === (archived ? "archived" : "active")
       && view.version === original.decision.expected_version + 1 || !original.completed && view.state === expected_state
@@ -95,7 +103,7 @@ async function apply(a: CodingActivation, execution: CodingExecution, record: Co
     if (saved!.archived !== archived || !same(saved!.request, input)) throw conflict();
     matches(input, record, saved!);
   } else {
-    if (saved && !saved.completed || input.previous_operation_id !== (saved ? operation(saved.request) : null)
+    if (input.mode === "business" && (archived || saved) || saved && !saved.completed || input.previous_operation_id !== (saved ? operation(saved.request) : null)
       || input.observed.archived === archived) throw conflict();
     matches(input, record);
   }
@@ -104,10 +112,13 @@ async function apply(a: CodingActivation, execution: CodingExecution, record: Co
     await runtimeCurrent(a, input, beforeWrite, archived);
     if (!continuing) {
       const source = archived ? await codingSubject(a, execution, record, beforeWrite) : null;
-      if (!archived && (!saved?.completed || !saved.archived)) throw conflict();
-      const content_revision = source ? source.context.revision : saved!.content_revision;
+      if (!archived && saved && (!saved.completed || !saved.archived)) throw conflict();
+      const content_revision = source ? source.context.revision : saved?.content_revision ?? null;
       const next: CodingLifecycleRecord = { archived, request: structuredClone(input), at: new Date().toISOString(), completed: false, content_revision };
-      await store.prepare(beforeWrite, a.projectId, record.session_id, saved, next, current => {
+      const prepare = input.mode === "business" ? Object.assign(async () => {
+        await beforeWrite(); await runtimeCurrent(a, input, beforeWrite, archived);
+      }, { assert_current: beforeWrite.assert_current }) : beforeWrite;
+      await store.prepare(prepare, a.projectId, record.session_id, saved, next, current => {
         beforeWrite.assert_current(); source?.assertCurrent(); matches(input, current); idle(current);
       });
       saved = next;
@@ -123,7 +134,10 @@ async function apply(a: CodingActivation, execution: CodingExecution, record: Co
         || receipt.state !== (archived ? "archived" : "active") || !same(receipt.session, session)
         || receipt.operation_id !== input.decision.operation_id || receipt.version !== input.decision.expected_version + 1) throw conflict();
     }
-    return { session: await store.complete(beforeWrite, a.projectId, record.session_id, saved!, current => {
+    const complete = input.mode === "business" ? Object.assign(async () => {
+      await beforeWrite(); await runtimeCurrent(a, input, beforeWrite, archived);
+    }, { assert_current: beforeWrite.assert_current }) : beforeWrite;
+    return { session: await store.complete(complete, a.projectId, record.session_id, saved!, current => {
       beforeWrite.assert_current(); matches(input, current, saved!); idle(current);
     }) };
   } finally { a.busy.delete(record.session_id); }

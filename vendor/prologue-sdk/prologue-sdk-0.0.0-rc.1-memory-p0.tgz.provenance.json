@@ -9,22 +9,22 @@
   "source": {
     "repository": "git+https://github.com/molis-ai/molis-prologue.git",
     "path": "packages/sdk",
-    "commit": "f6e605425b53dafc7d533528004270b89d9990ba",
+    "commit": "90e39ff78c3306d58c251e15adca2bcc4c7746b8",
     "dirty": false,
     "dirtyPaths": [],
     "patches": [],
     "candidateUpstream": {
       "pullRequest": "https://github.com/molis-ai/molis-prologue/pull/108",
-      "head": "f6e605425b53dafc7d533528004270b89d9990ba",
+      "head": "90e39ff78c3306d58c251e15adca2bcc4c7746b8",
       "status": "draft",
-      "note": "Clean reviewed candidate; legacy history, App integration and frozen performance acceptance remain open."
+      "note": "Clean reviewed candidate; exact caller-original projection implemented. App adoption and frozen performance acceptance remain open."
     }
   },
   "artifact": {
     "file": "prologue-sdk-0.0.0-rc.1-memory-p0.tgz",
-    "bytes": 1409839,
-    "sha256": "49466055c2b563abdcaecace22781f86020d8a9d19ec34bcc8ab59ce1972ed66",
-    "integrity": "sha512-zyF8dQYAfIX3+PEkw419sQ1a+SHGgjUru2uB958kkj11aJ/clKcCnYKHbffubwqo8Orb9GfLorYQM/eLKnJozQ=="
+    "bytes": 1412081,
+    "sha256": "35b2e580842246cfa2576e827625a644f8ea459104a3cb9f2d3290153a124d4b",
+    "integrity": "sha512-Cv5c8/zmI5AG5C+xPTtJAZZmMIL5/u1xV8AmAH0/oPnZlsh9Ip0YXOl9q4jDU8t3iDf2fKAguQTmfstGTpj01Q=="
   },
   "build": {
     "node": "24.14.0",
@@ -32,12 +32,12 @@
     "platform": "darwin",
     "architecture": "arm64",
     "steps": [
-      "Use clean source f6e605425b53dafc7d533528004270b89d9990ba.",
-      "Use original Node24.14 build and pnpm11.9 pack with frozen offline workspace dependencies.",
-      "Verify every archived dist file against that build and unchanged package metadata.",
-      "Run original quality; complete its Rust checks after correcting PATH. Only fresh no-lock installed consumer may create its own lock."
+      "Use clean source 90e39ff78c3306d58c251e15adca2bcc4c7746b8.",
+      "Run original quality with Node24.14.0/pnpm11.9.0 and frozen offline dependencies.",
+      "Pack packages/sdk with original pnpm pack into an independent directory.",
+      "Verify every dist file against the clean build and unchanged package metadata."
     ],
     "packedOn": "2026-10-27",
-    "note": "Original quality: type/build/API/ratchet/docs, 72 files 753 tests and clean installed consumer passed. Missing cargo PATH stopped the command; original fmt/clippy passed separately. 42 rewind/context checks and origin-specific tests passed. First failures retained. No App acceptance, merge or release."
+    "note": "Original quality passed in full: type/build/API, ratchet against main ccaf, docs, 73 files 770 tests, clean installed consumer and Rust fmt/clippy. Public collaboration freeze issue reproduced red then fixed with four green regressions; final related five files 58 tests passed. First failures retained. No App acceptance, merge or release."
   }
 }

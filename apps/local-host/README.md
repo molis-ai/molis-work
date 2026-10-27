@@ -21,6 +21,10 @@
 
 包名：`@molis-ai/molis-work-app-local-host`。工作区内部包，通过仓库构建和 Host 装配使用。
 
+旧 Knowledge 卡片的 `knowledge.card.bind@1` 仅接受本人明确选择；Host 在原 Action 权限链读取当前来源、内容版本与可信安装代，写前再次复核，再交卡片 owner 原子保存关联决定。未知安装代的旧卡片只在本人管理动作可见，不进入检索、Agent 或自动整理；普通无 retention 协议的来源关联后也必须守住采用时安装代。UI 接线不在本次后端范围。直接回归：`tests/legacy-memory-adoption.test.ts`、`tests/knowledge-unbound-retention.test.ts`、`tests/knowledge-retention-policy.test.ts`。
+
+绑定与来源预览在首次读取来源前，通过原 `retainAuthority` 一次捕获全部相关来源的 `providerCommands: "unchanged"`。来源已有命令活动、或读取期间任何命令入场时拒绝本次关联/预览；同 provider 的无关长命令也可能暂时阻止关联，用户可重新查看。最后在全部同步授权与可用性回调后统一检查活动，再无等待地比较原卡和索引并交原 owner 写入；原 retention、权限、安装代、版本检查保持。它只覆盖同一 ActionService 执行的命令，外部文件/后台修改与先前失败留下的 pending 仍由来源主人识别。合同和验收见 Memory spec 的“来源命令交错的最小修复合同”。
+
 
 `HomePluginHost` 是同一 Local Host 的个人插件装配，安装事实为 `{home}/plugin-runtime/plugin-runtime.db`。`HomePluginExecutor` 提供受安装授权和撤销约束的 `PluginDatabase`；连接技术在 storage，业务 SQL 在插件。公共 Home 页面与项目工作台读取运行 contribution，MCP 只转发；Home 数据不随项目删除，按项目分开的库（`partition: "project"`，`plugin-database-partitions.ts`）除外：它按调用所在的项目给库，删项目时由 `plugin-project-cleanup.ts` 在停掉这个项目的后台执行的同一轮关掉、`purge` 之后删目录，改动后跑 `tests/plugin-database-partition.test.ts`、`tests/plugin-database-partition-deletion.test.ts`（[specs/plugin-project-partition](../../specs/plugin-project-partition/spec.md)）。详见 [Home Runtime 合同](../../docs/platform/PLUGIN-DEVELOPMENT.md#个人-home-runtime-与插件-sqlite)。
 

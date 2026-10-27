@@ -28,6 +28,12 @@ interface RegisteredScene {
   validateResult: ActionValidator;
 }
 
+interface ProviderCommands {
+  registrations: number;
+  active: number;
+  marker: symbol;
+}
+
 export type { ActionSceneView } from "@molis-ai/molis-work-contracts/platform/actions";
 
 /** One execution registry, shared by UI, workflows, SDK and protocol adapters. */
@@ -35,6 +41,8 @@ export class ActionService implements ActionClient, ActionRegistryPort {
   private readonly scenes = new Map<string, RegisteredScene>();
   /** Availability is synchronous; this stack exists only during a directory/execution check. */
   private readonly checkingDependencies = new Set<string>();
+  /** Only command lifetimes, shared by split registrations of the same trusted provider scope. */
+  private readonly providerCommands = new Map<string, ProviderCommands>();
 
   constructor(readonly registry = new CapabilityRegistry<ActionCallContext>(),
     private readonly effects: {
@@ -65,7 +73,13 @@ export class ActionService implements ActionClient, ActionRegistryPort {
       if (!validator) { validator = compileSchema(snapshot); validators.set(original, validator); }
       return validator;
     };
-    const disposers: Array<() => void> = [];
+    const commandKey = JSON.stringify([provider.project_id ?? null, provider.provider_id]);
+    const commands = this.providerCommands.get(commandKey) ?? { registrations: 0, active: 0, marker: Symbol() };
+    this.providerCommands.set(commandKey, commands); commands.registrations++;
+    const releaseCommands = () => {
+      if (!commands.registrations && !commands.active) this.providerCommands.delete(commandKey);
+    };
+    const disposers: Array<() => void> = [() => { commands.registrations--; releaseCommands(); }];
     let active = true;
     const sourceAvailability = (context: ActionCallContext): ActionAvailability => {
       if (!active) return unavailable("actions.stopped", "能力来源已停止");
@@ -116,21 +130,26 @@ export class ActionService implements ActionClient, ActionRegistryPort {
           const registration = this.registry.registrationToken(registeredDefinition);
           const reference = { capability_id: definition.capability_id, version: definition.version, provider_id: provider.provider_id };
           let executing = true;
-          const assertCurrent = () => {
+          const assertExecutionCurrent = () => {
             if (!executing) throw new ActionError("actions.expired", "原调用已经结束，不能继续产生副作用");
             lifetime?.assertActive();
             context.signal?.throwIfAborted();
             if (this.registry.registrationToken(registeredDefinition) !== registration) throw new ActionError("actions.provider_changed", "能力已重新加载，不能继续原副作用");
+          };
+          const assertCurrent = () => {
+            assertExecutionCurrent();
             assertAvailable(availability(context));
             requireSynchronous(this.effects.assertCurrent?.(context, reference), "最终运行环境检查必须同步完成");
           };
           // Copy the context so a concurrent/nested invocation cannot replace this call's check.
           const execution: ActionExecutionContext = { ...actionExecutionContext(context, reference,
-            definition.action.permissions, assertCurrent, (caller, target) => this.effects.beforeEffect?.(caller, target), this.registry, ref => this.actionDefinition(context, ref), this.effects.assertCurrent), ...(lifetime ? { signal: lifetime.signal } : {}) };
+            definition.action.permissions, assertCurrent, assertExecutionCurrent, (caller, target) => this.effects.beforeEffect?.(caller, target), this.registry, ref => this.actionDefinition(context, ref),
+            providers => this.captureProviderCommands(providers), this.effects.assertCurrent), ...(lifetime ? { signal: lifetime.signal } : {}) };
           const checked = (value: unknown) => checkedActionResult(definition, validateOutput, value);
           // The call is settled by whoever dispatched it (ActionService.invoke / invokeSync), where refusals before this point are seen too.
           try {
-            const result = runActionHandler(context, execution, () => executing, () => handler.handle(execution, input));
+            const result = runActionHandler(context, execution, () => executing, () => definition.operation === "command"
+              ? this.runProviderCommand(commands, releaseCommands, () => handler.handle(execution, input)) : handler.handle(execution, input));
             if (handler.execution === "sync") {
               try { return checked(requireSynchronous(result)); }
               finally { executing = false; lifetime?.dispose(); }
@@ -177,6 +196,34 @@ export class ActionService implements ActionClient, ActionRegistryPort {
       }
     } catch (error) { dispose(); throw error; }
     return dispose;
+  }
+
+  private runProviderCommand(commands: ProviderCommands, release: () => void, run: () => unknown): unknown {
+    commands.active++; commands.marker = Symbol();
+    const finish = () => { commands.active--; release(); };
+    let result: unknown;
+    try {
+      result = run();
+      if (result && (typeof result === "object" || typeof result === "function") && typeof (result as PromiseLike<unknown>).then === "function") {
+        // Follow the raw handler, not lifetime.wait: a cancelled caller can leave the handler running.
+        return Promise.resolve(result).finally(finish);
+      }
+    } catch (error) { finish(); throw error; }
+    finish(); return result;
+  }
+
+  private captureProviderCommands(providers: readonly ActionProvider[]): () => void {
+    const captured = providers.map(provider => {
+      const commands = this.providerCommands.get(JSON.stringify([provider.project_id ?? null, provider.provider_id]));
+      if (!commands || commands.active) throw new ActionError("actions.conflict", "来源正在变更，请稍后重新查看");
+      return { commands, marker: commands.marker };
+    });
+    return () => {
+      // No external callbacks here: a later provider's authority check can synchronously start an earlier one's command.
+      if (captured.some(({ commands, marker }) => commands.active || commands.marker !== marker)) {
+        throw new ActionError("actions.conflict", "来源在读取期间发生变更，请重新查看");
+      }
+    };
   }
 
   discover(context: ActionCallContext): ActionView[] {

@@ -24,6 +24,7 @@ import {
   knowledgeCatalogWhole,
   type KnowledgeCard,
   type KnowledgeCardRecord,
+  type KnowledgeRetentionIdentity,
   type KnowledgeCardStorePort,
   type KnowledgeGlobRequest,
   type KnowledgeGlobResponse,
@@ -43,7 +44,7 @@ import {
   type KnowledgeSearchRequest,
   type KnowledgeSearchResponse,
 } from "@molis-ai/molis-work-contracts/services/knowledge";
-import { searchSourceKey, type SearchQueryRequest, type SearchQueryResponse, type SearchRetentionIdentity, type SearchRetentionResult } from "@molis-ai/molis-work-contracts/services/search";
+import { searchSourceKey, type SearchQueryRequest, type SearchQueryResponse, type SearchRetentionResult } from "@molis-ai/molis-work-contracts/services/search";
 import { WORKSPACE_FILE_SUBJECT_KIND } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { readKnowledgeSubject, type KnowledgeSourceRead } from "./source-read.js";
 import { locateSections, type KnowledgeLocator } from "./locate.js";
@@ -84,7 +85,7 @@ export interface KnowledgeServiceOptions {
   cards: KnowledgeCardStorePort;
   /** The Host reconciles cards before searching, so an unbound hit cannot outlive its indexed source binding. */
   requireCard?: boolean;
-  retention?(access: KnowledgeAccess, identity: SearchRetentionIdentity, views?: readonly ActionView[]): Promise<SearchRetentionResult>;
+  retention?(access: KnowledgeAccess, identity: KnowledgeRetentionIdentity, views?: readonly ActionView[]): Promise<SearchRetentionResult>;
   /**
    * Pieces whose text the search index holds only the start of: a grep over the whole project reads them as well, since a word
    * past what the index holds would otherwise never make its piece a candidate (PMAT-32).
@@ -109,12 +110,14 @@ const reasonOf = (error: unknown) => (error instanceof Error ? error.message : S
 /** How an owner refuses a subject it does not have: no reader for the kind, an id it cannot parse, or another object. */
 const UNKNOWN_SUBJECT_CODES = new Set(["actions.subject_unavailable", "actions.input_invalid", "actions.subject_mismatch"]);
 /** A card search found only by the card's own words, or only by some of the words: what organizing wrote stands in for the hit. */
-const cardHit = (card: KnowledgeCardRecord, matched: KnowledgeMatchLayer): KnowledgeCard => ({ subject: card.subject, ref: knowledgeRef(card.subject), revision: card.revision, title: card.title,
-  plugin_id: card.plugin_id, plugin_title: card.plugin_title, updated_at: card.updated_at, matched, hint: card.brief.slice(0, HINT_CHARS), brief: card.brief || null, keywords: card.keywords, open: card.open });
+const readingCard = (card: KnowledgeCardRecord): KnowledgeCardRecord => (card.adoption && card.state !== "ready" || card.retention?.restoration_operation_id && (card.state === "listed" || card.organized_revision === null))
+  ? { ...card, brief: card.edited.includes("brief") ? card.brief : "", keywords: card.edited.includes("keywords") ? card.keywords : [], outline: [] } : card;
+const cardHit = (original: KnowledgeCardRecord, matched: KnowledgeMatchLayer): KnowledgeCard => { const card = readingCard(original); return ({ subject: card.subject, ref: knowledgeRef(card.subject), revision: card.revision, title: card.title,
+  plugin_id: card.plugin_id, plugin_title: card.plugin_title, updated_at: card.updated_at, matched, hint: card.brief.slice(0, HINT_CHARS), brief: card.brief || null, keywords: card.keywords, open: card.open }); };
 
 /** A card as `list` shows it: no text, and section notes only when organized from this revision. */
-const entryOf = (card: KnowledgeCardRecord): KnowledgeListEntry => ({ subject: card.subject, ref: knowledgeRef(card.subject), revision: card.revision, title: card.title, plugin_id: card.plugin_id,
-  plugin_title: card.plugin_title, updated_at: card.updated_at, brief: card.brief || null, keywords: card.keywords, sections: card.organized_revision === card.revision ? card.outline.length : 0, open: card.open });
+const entryOf = (original: KnowledgeCardRecord): KnowledgeListEntry => { const card = readingCard(original); return ({ subject: card.subject, ref: knowledgeRef(card.subject), revision: card.revision, title: card.title, plugin_id: card.plugin_id,
+  plugin_title: card.plugin_title, updated_at: card.updated_at, brief: card.brief || null, keywords: card.keywords, sections: card.organized_revision === card.revision ? card.outline.length : 0, open: card.open }); };
 
 /**
  * Whether a caller may be shown a card, by the rule the system search applies to its index (system-search §5): the source
@@ -136,7 +139,8 @@ function visibility(views: readonly ActionView[], projectId: string | null): (ca
       readable.set(view.provider.provider_id, kinds);
     }
   }
-  return card => !views.some(view => view.provider.provider_id === card.provider_id
+  return card => (!card.adoption || views.some(view => view.provider.provider_id === card.provider_id && view.availability.available
+    && view.provider.plugin_installation_generation === card.adoption!.generation)) && !views.some(view => view.provider.provider_id === card.provider_id
     && view.action.input_type === SUBJECT_RETENTION_REQUEST_TYPE && view.action.output_type === SUBJECT_RETENTION_TYPE
     && view.action.subject_kinds.includes(card.subject.kind) && (!card.retention?.generation || !view.availability.available
       || view.provider.plugin_installation_generation !== card.retention.generation))
@@ -167,8 +171,9 @@ export class KnowledgeService {
       const stored = this.stored(project, hit.subject, hit.plugin_id);
       if (stored?.excluded || this.options.requireCard && !stored || stored && (stored.provider_id !== hit.source.provider_id
         || stored.source_key !== searchSourceKey({ project_id: project, ...hit.source }))) continue;
+      const summary = stored && readingCard(stored);
       const card: KnowledgeCard = { subject: hit.subject, ref: knowledgeRef(hit.subject), revision: stored?.revision ?? hit.revision, title: stored?.title || hit.title, plugin_id: hit.plugin_id, plugin_title: hit.plugin_title,
-        updated_at: hit.updated_at, matched: hit.locator.field, hint: hit.snippet.slice(0, HINT_CHARS), brief: stored?.brief || null, keywords: stored?.keywords ?? [], open: hit.open };
+        updated_at: hit.updated_at, matched: hit.locator.field, hint: hit.snippet.slice(0, HINT_CHARS), brief: summary?.brief || null, keywords: summary?.keywords ?? [], open: hit.open };
       cards.push(card);
       if (stored) originals.set(card, stored);
     }
@@ -265,7 +270,7 @@ export class KnowledgeService {
     const { context } = read;
     const card = this.stored(access.caller.project_id!, context.subject);
     // Section notes are for this very text only: a card organized from another revision says nothing about it.
-    const notes = new Map(card?.organized_revision === context.revision ? card.outline.map(note => [note.anchor, note.summary]) : []);
+    const notes = new Map(card?.organized_revision === context.revision ? readingCard(card).outline.map(note => [note.anchor, note.summary]) : []);
     const tree: KnowledgeOutline = { subject: context.subject, revision: context.revision, title: context.title, length: context.content.length, owner_truncated: context.truncated,
       sections: outlineOf(context.content).map(({ anchor, title, level, parent, start, line, length }) => ({ anchor, title, level, parent, start, line, length, summary: notes.get(anchor) ?? null })) };
     await read.assertCurrent();
@@ -420,13 +425,13 @@ export class KnowledgeService {
       && JSON.stringify(this.options.cards.get(card.project_id, card.subject)) === JSON.stringify(card);
   }
 
-  private async retention(access: KnowledgeAccess, card: SearchRetentionIdentity, views?: readonly ActionView[]): Promise<SearchRetentionResult> {
+  private async retention(access: KnowledgeAccess, card: KnowledgeRetentionIdentity, views?: readonly ActionView[]): Promise<SearchRetentionResult> {
     if (this.options.retention) return this.options.retention(access, { project_id: card.project_id, provider_id: card.provider_id, subject: card.subject,
-      ...(card.retention ? { retention: card.retention } : {}) }, views);
+      ...(card.retention ? { retention: card.retention } : {}), ...(card.adoption ? { adoption: card.adoption } : {}) }, views);
     const directory = views ?? await access.client.discover(knowledgeReader(access));
     const declared = directory.some(view => view.provider.provider_id === card.provider_id && view.action.input_type === SUBJECT_RETENTION_REQUEST_TYPE
       && view.action.output_type === SUBJECT_RETENTION_TYPE && view.action.subject_kinds.includes(card.subject.kind));
-    return { state: card.retention || declared ? "unavailable" : "unsupported" };
+    return { state: card.retention || card.adoption || declared ? "unavailable" : "unsupported" };
   }
 
   /** The pieces a call names by subject or ref, in the caller's own project (none: refused before anything is read). */

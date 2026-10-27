@@ -210,14 +210,14 @@ describe("the records of this repository", () => {
     assert.deepEqual(vendoredProvenanceProblems(repoRoot), []);
   });
 
-  test("the current Prologue package is the one agent-host depends on, packed from the clean collection-read and context-source candidate without a patch", () => {
+  test("the current Prologue package is the one agent-host depends on, packed from the clean collection-read and caller-opening candidate without a patch", () => {
     const provenance = json(`${folder}/${current}.provenance.json`);
     assert.equal(provenance.artifact.file, current);
     assert.equal(json("horizontal/agent-host/package.json").dependencies["@prologue/sdk"], `file:../../${folder}/${current}`);
     // Candidate adoption is explicit; this test does not label an open upstream PR as merged.
-    assert.equal(provenance.source.commit, "f6e605425b53dafc7d533528004270b89d9990ba");
+    assert.equal(provenance.source.commit, "90e39ff78c3306d58c251e15adca2bcc4c7746b8");
     assert.equal(provenance.source.candidateUpstream.pullRequest, "https://github.com/molis-ai/molis-prologue/pull/108");
-    assert.equal(provenance.source.candidateUpstream.head, "f6e605425b53dafc7d533528004270b89d9990ba");
+    assert.equal(provenance.source.candidateUpstream.head, "90e39ff78c3306d58c251e15adca2bcc4c7746b8");
     assert.equal(provenance.source.candidateUpstream.status, "draft");
     assert.equal(provenance.source.candidateUpstream.mergeCommit, undefined);
     assert.equal(provenance.source.inFlight, undefined);

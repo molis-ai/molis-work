@@ -1,6 +1,11 @@
 {
   "note": "Giant units that stay whole because they are reasonable as one unit (user 2026-10-25: a reasonable oversized unit is not force-split, it is marked; specs/repository-anti-corruption §4.5; the list with every verdict is docs/system/HUGE-CLASS-MIGRATION.md). Each entry has a kind, a reason that says why splitting it would be wrong, and \"size\": the measured size (lines for a file or a function, { lines, methods } for a class), which has to equal what the gate measures, so an entry reserves no headroom and growth shows as an edit here. A unit with a valid entry is admitted by the merge-base comparison, new or grown; a giant unit without one may not appear or grow. Keys are the unit keys of baseline.json; an entry for a unit that is no longer giant fails the gate and has to be deleted. kind: translation-table, stylesheet, static-data, generated-code or cohesive-unit (one responsibility that splitting would scatter: a state machine, a parser, a protocol adapter). A unit that mixes several jobs is split, not marked. Edits here are reviewed like edits to the gate.",
   "exceptions": {
+    "function apps/workbench/src/browser/knowledge/settings-page.ts#bindKnowledgeSettings": {
+      "kind": "cohesive-unit",
+      "reason": "同一资料设置页的列表、筛选、选择与刷新生命周期，统一持有当前卡片和选择状态；详情及来源关联已委托独立组件，继续拆开会让同一页面的异步刷新与选择状态分散到多个主人。",
+      "size": 155
+    },
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
       "kind": "cohesive-unit",
       "reason": "助理模块的 SQLite 存储：39 个方法共 267 行（均值 7 行），每个是对某张助理表的一两条 SQL（回合、卡片、通知、用量、设置）；一个模块的存储由一个类独占，行数没超、只是方法数超限。提醒与跟进已在 W4-05 拆成自己的表与协作者。",
@@ -27,10 +32,10 @@
     },
     "class packages/kernel/src/action-service.ts#ActionService": {
       "kind": "cohesive-unit",
-      "reason": "动作服务：登记提供方（registerProvider 131 行，登记时的全部声明检查）、绑定、调用、场景和依赖可用性，共享同一份登记表；内核的唯一动作注册与调用入口，只超 300 行 96 行，拆开会让登记表有两个读写者。",
+      "reason": "内核唯一动作登记与调用主人，统一提供方注册、真实处理器生命周期和依赖可用性；来源命令活动与注册释放必须跟随同一执行入口，拆成独立服务会分散取消后尚未结束的处理器状态。授权快照与副作用检查已委托现有内聚实现。",
       "size": {
-        "lines": 396,
-        "methods": 15
+        "lines": 437,
+        "methods": 17
       }
     },
     "class packages/plugin-runtime/src/events.ts#PluginEventBus": {
@@ -226,7 +231,7 @@
       "kind": "cohesive-unit",
       "reason": "同一调用者的项目资料查找与读取入口，统一编排可见性、每轮额度和回执顺序。正文身份复核、模型选节、后台整理、人工编辑及持久化已有独立主人；拆散这些入口会分散同一读取合同的当前授权与预算。",
       "size": {
-        "lines": 366,
+        "lines": 367,
         "methods": 23
       }
     },

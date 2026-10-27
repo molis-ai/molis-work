@@ -8,10 +8,11 @@ import { codingStoreErrors } from "./store-errors.js";
 export type CodingLifecycleObserved = Pick<CodingSessionRecord, "session_id" | "title" | "state" | "archived" | "goal_id" | "updated_at">;
 export type CodingLifecycleDecision = { observed: CodingLifecycleObserved; previous_operation_id: string | null } & (
   { mode: "local"; runtime_id: string; operation_id: string } |
-  { mode: "runtime"; binding: AgentSessionRef; decision: AgentSessionDecision }
+  { mode: "runtime"; binding: AgentSessionRef; decision: AgentSessionDecision } |
+  { mode: "business"; binding: AgentSessionRef; operation_id: string; expected_state: "active"; expected_version: number }
 );
 /** One current decision, overwritten only by a subsequent confirmed lifecycle change. No conversation history. */
-export interface CodingLifecycleRecord { archived: boolean; request: CodingLifecycleDecision; at: string; completed: boolean; content_revision: string }
+export interface CodingLifecycleRecord { archived: boolean; request: CodingLifecycleDecision; at: string; completed: boolean; content_revision: string | null }
 
 /** Object key order is not part of the confirmed original. */
 export const sameLifecycleOriginal = (left: unknown, right: unknown): boolean => {

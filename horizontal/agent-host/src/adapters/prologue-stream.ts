@@ -56,6 +56,7 @@ export type PrologueEvent =
   | { type: "compacted"; replaced?: number; usageRecorded?: boolean }
   | { type: "compaction-failed"; why?: string }
   | { type: "compaction-cancelled" }
+  | Extract<ModelEvent, { type: "history-projected" }>
   | { type: "tripped"; stage: "input" | "output"; rail: string; why: string; failed?: boolean }
   | { type: "agent-control"; state: "running" | "pausing" | "paused" | "sleeping"; untilMs?: number }
   | { type: "retry-waiting"; model: string; attempt: number; waitMs: number; retryAtMs: number; reason: "rate-limited" | "unavailable" | "not-sent"; why: string; status?: number }
@@ -473,6 +474,12 @@ function applyRunRecovered(state: PrologueStreamState, event: PrologueEvent, at:
   return true;
 }
 
+function applyHistoryProjected(state: PrologueStreamState, _event: PrologueEvent, at: string | null): boolean {
+  state.turns.push({ turn_id: `history-projected-${state.turns.length + 1}`, kind: "notice", at, sequence: state.next_sequence++,
+    text: "本轮未带入部分无法确认来源的旧开场内容，可能缺少背景；原会话记录仍保留供查看。" });
+  return true;
+}
+
 /**
  * A model call that failed and will be tried again (Prologue's `retry-waiting`, emitted just before the wait). The time and
  * the reason are the runtime's; a later wait replaces an earlier one. Nothing is added to the activity: it is not a step.
@@ -661,6 +668,7 @@ const HANDLERS: Readonly<Record<string, Handler>> = {
   "turn-changes": applyTurnChanges,
   "model-switched": applyModelSwitched,
   "run-recovered": applyRunRecovered,
+  "history-projected": applyHistoryProjected,
   // Facts about supplements: applyRunEvent projects them into the receipts; the stream itself has nothing to show.
   ...Object.fromEntries(["steer-applied", "steer-read", "steer-withdrawn", "inputs-acknowledged"].map(type => [type, () => false])),
 };

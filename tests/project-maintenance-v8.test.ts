@@ -17,6 +17,7 @@ import { SCHEDULE_PLUGIN_ID, SCHEDULE_PROJECT_DATABASE } from "@molis-ai/molis-w
 import { inspectPluginProjectSchema, openPluginProjectDatabase, type PluginProjectSchemaInspector } from "@molis-ai/molis-work-plugin-runtime";
 import { SqliteSchemaVersionError, applySqliteBaseline, describeSqliteSchema, listSqliteObjects } from "@molis-ai/molis-work-storage";
 import { managementGoals } from "./goal-management-caller.js";
+import { maintainCodingKnowledge } from "./fixtures/coding-knowledge-maintenance.mjs";
 import { NAMESPACE } from "../scripts/maintenance/goals-journal-names.mjs";
 
 /**
@@ -167,6 +168,7 @@ async function oldHome(directory: string): Promise<OldHome> {
     db.exec("PRAGMA foreign_keys = OFF; BEGIN IMMEDIATE");
     const sequence = db.prepare("SELECT seq FROM sqlite_sequence WHERE name = 'events'").get() as { seq: number };
     toVersion9(db);
+    db.exec("ALTER TABLE coding_sessions DROP COLUMN lifecycle_json");
     for (const table of MOVED) pointAtBoard(db, table);
     nameTheBoard(db);
     db.prepare("UPDATE sqlite_sequence SET seq = ? WHERE name = 'events'").run(sequence.seq);
@@ -181,7 +183,7 @@ async function oldHome(directory: string): Promise<OldHome> {
 function freshDatabase(directory: string): string {
   const path = join(directory, "fresh.db");
   new LocalProjectDatabase(path).close();
-  withDatabase(path, db => { toVersion9(db); db.exec("DROP TABLE schedule_action_bindings; PRAGMA user_version = 8"); });
+  withDatabase(path, db => { toVersion9(db); db.exec("ALTER TABLE coding_sessions DROP COLUMN lifecycle_json; UPDATE plugin_project_databases SET version = 1 WHERE store_name = 'coding'; DROP TABLE schedule_action_bindings; PRAGMA user_version = 8"); });
   return path;
 }
 
@@ -266,7 +268,15 @@ test("PLIB-05: after the maintenance the plugins' tables open as recorded, this 
   const fresh = snapshot(freshPath);
   runMaintenance(databasePath);
   withDatabase(databasePath, db => { db.exec(NEXT_MAINTENANCE); db.exec(FINAL_MAINTENANCE); });
+  const beforeAdoption = snapshot(databasePath);
+  withDatabase(databasePath, db => {
+    assert.throws(() => openPluginProjectDatabase(db as never, PLUGINS[0]!, inspector, { path: databasePath }), /1.*4/);
+  });
+  assert.deepEqual(snapshot(databasePath), beforeAdoption, "current Coding refuses the real old private store without writing");
+  await maintainCodingKnowledge("apply", { home, projectDatabase: databasePath, publisher: "official-coding-binding", backupDirectory: join(directory, "coding-backup") });
+  withDatabase(freshPath, db => { db.exec("ALTER TABLE coding_sessions ADD COLUMN lifecycle_json TEXT; UPDATE plugin_project_databases SET version = 4 WHERE store_name = 'coding'"); });
   const after = snapshot(databasePath);
+  fresh.shape = snapshot(freshPath).shape;
 
   withDatabase(databasePath, db => {
     for (const plugin of PLUGINS) {

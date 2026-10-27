@@ -130,11 +130,11 @@ Coding 的目标目录、当前约定/状态、进展保存和回执使用 `@mol
 
 已归档目录仅从本人当前项目的Coding业务库读取，不调用SDK、不进入观察或wakeLoop。本人预览并确认后，恢复同一Runtime Session；不启动模型、不创建Run、不自动继续旧任务、不续期Memory。取消不提交，失败重试必须沿完整原请求；重开页面从持久当前决定继续。永久清除尚未提供。
 
-当前公开口为archive.preview@2与sessions.update@3，新增sessions.archived.list@1、sessions.unarchive.preview@1、sessions.unarchive@1；均仅user。原件固定所见业务字段、binding及上一生命周期operation，不以updated_at充当唯一revision。每会话仅一个当前lifecycle记录：Coding先在自身事务保存prepared，SDK按原operation完成，再事务一起保存archived与completed；恢复不伪造内容活动时间。部分失败保留真实SDK结果、纯读取不补账，后继归档后旧恢复拒绝。无SDK binding的Local会话同样走当前决定，不被排除，也不因为SDK丢失而回退Local。
+当前公开口为archive.preview@2与sessions.update@3、sessions.archived.list@1、sessions.unarchive.preview@2、sessions.unarchive@2；均仅user。原件固定所见业务字段、binding及上一生命周期operation，不以updated_at充当唯一revision。每会话仅一个当前lifecycle记录：Coding先在自身事务保存prepared，需改变SDK时按原operation完成，再事务一起保存archived与completed；恢复不伪造内容活动时间。部分失败保留真实SDK结果、纯读取不补账，后继归档后旧恢复拒绝。无SDK binding的Local会话同样走当前决定，不被排除，也不因为SDK丢失而回退Local。
 
-Coding数据库声明为3，原nullable lifecycle_json新增必需content_revision；旧版严格拒绝。全局项目基线10不变。维护仅按spec在隔离副本演练，真实Home需另获采用授权。本职责持久接线在session-lifecycle.ts，SDK编排在session-archive.ts，无新增服务/表/journal。改动另必跑coding-retention、coding-session-archive、project-database-baseline、project-plugin-database-refusal，README原要求仍适用。
+Coding数据库声明为4，nullable lifecycle_json内content_revision可为null，表示旧版本未知；旧库严格拒绝。全局项目基线10不变。维护仅按spec在隔离副本演练，真实Home需另获采用授权。本职责持久接线在session-lifecycle.ts，SDK编排在session-archive.ts，无新增服务/表/journal。改动另必跑coding-retention、coding-session-archive、project-database-baseline、project-plugin-database-refusal与legacy-memory-adoption，README原要求仍适用。
 
-隐藏保留合同见Memory spec的2026-10-27短合同：coding.subject.retention@1通过通用保留类型返回当前subject/state/retained，不带正文、标题、安装身份，不读Run或Goal。pending明确拒绝；deleted只表示当前已授权、已打开的本项目严格库中准确行不存在，权限/库错误不转换为删除。消费方仍需匹配原卡的真实provider、项目与安装代。普通coding.subject.read拒绝归档及pending，本人sessions.read与timeline历史入口保留。
+隐藏保留合同见Memory spec的2026-10-27短合同：coding.subject.retention@2通过通用保留类型返回当前subject/state/retained，不带正文、标题、安装身份，不读Run或Goal。pending明确拒绝；deleted只表示当前已授权、已打开的本项目严格库中准确行不存在，权限/库错误不转换为删除。消费方仍需匹配原卡的真实provider、项目与安装代。普通coding.subject.read拒绝归档及pending，本人sessions.read与timeline历史入口保留。
 
 归档冻结与普通来源读取复用subject.ts：最多3个已读Run的完整相关文本、状态、标题、intent、Goal和改动文件决定content_revision，展示再截断；归档updated_at不参与。列表刷新token还包含已取得的标题和Goal标题，不额外读Run。恢复继承原归档版本和原恢复operation，不重新计算原版本或启动模型。Knowledge拥有隐藏卡和是否能复用的判断；端到端零额外模型调用仍须完成通用消费与配对验证后才能交付。
 
@@ -146,3 +146,11 @@ Coding数据库声明为3，原nullable lifecycle_json新增必需content_revisi
 ### 独立 Session 业务原件冷维护（MEM-40）
 
 独立 canonical Session 的冷清理由 Coding 定义精确自有两表与私有键选集；keys 在 SDK 清 wait 前固定到父恢复决定。PluginRuntime 拥有私有存储，Coding 不跨表写 SQL。清理先核完整原集合、同安装世代和 canonical 绑定，再在同项目事务删原键/计划/会话；同ID后继保持，updated_at 不当版本。共享 Goal title 与独立 Assistant Work/成果保留。
+
+### 旧私库明确采用与恢复（2026-10-27，实施合同）
+
+按 Memory spec 已批准规则：Coding 私库升 4，同 SQLite/原表保存 nullable content_revision；1 的业务归档不合成 SDK 历史，2 的原请求、时间、操作和完成事实不变，仅补未知 revision=null，3 的原事实不变。生产严格拒绝旧版。tests/fixtures/coding-knowledge-maintenance.mjs 只处理显式点名的离线库，复用 owner/物理路径/schema 检查、备份与每库事务；未知提交或关闭结果不报完成。真实 Home 不在本片执行范围。
+
+缺生命周期原件的旧业务归档，在 SDK active 时生成 business 决定：固定 observed、previous_operation_id、binding、operation_id、expected_state=active、expected_version。prepared/complete 沿原 Coding 写主人；原 owner/admission 下在提交前复核 SDK 状态与版本，变化、缺失、purged、未知及未决冲突拒绝。观察不是跨 SQLite 锁或 SDK 回执，不调用 SDK unarchive；真实 archived 仍走原 unarchive，无绑定 Local 沿原本地决定。重试只沿完整原请求，取消不新增提交，零模型。
+
+保留输出 molis.subject-retention.v2/coding.subject.retention@2、恢复 preview/unarchive@2。未知旧归档返回暂时归档+null revision，明确恢复返回真实本次 operation+null revision。验收：旧版先拒绝零写、真实维护保留原行/邻居/历史，业务恢复和真实 SDK 恢复、失败/取消/持久重试与零自动模型。

@@ -1,13 +1,14 @@
 import type { KnowledgeCardRecord, KnowledgeCardsResponse, KnowledgeOrganizeResponse, KnowledgeReadReceipt, KnowledgeReceiptsResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
-import { badge, el, L, readerOf, request, stateOf, subjectKey, when } from "./common.js";
+import { badge, el, L, readerOf, request, stateOf, subjectKey, unbound, when } from "./common.js";
 import { renderDetail, type KnowledgeDetailHost } from "./detail.js";
 import { drawQuota, drawReceipts, pageNotices } from "./settings-parts.js";
+import { knowledgeBinding } from "./bind.js";
 
 type Overview = KnowledgeCardsResponse & { recent: KnowledgeReceiptsResponse };
 const POLL_MS = 4_000;
 const BACKEND_STATES = ["pending", "ready", "listed", "failed", "over_quota", "missing"];
 /** Waiting for organizing; a piece kept from agents waits for nothing (its text goes to no model). */
-const waiting = (card: KnowledgeCardRecord) => card.state === "pending" && !card.excluded;
+const waiting = (card: KnowledgeCardRecord) => card.state === "pending" && !card.excluded && !unbound(card);
 
 /**
  * The read asked for last wins (VUX-31): an answer that comes after a newer question (another state, a refresh, a longer list)
@@ -51,6 +52,7 @@ export function bindKnowledgeSettings(root: HTMLElement): void {
   async function load(more = false): Promise<boolean> {
     return reading(more, () => api<Overview>("/overview?offset=" + (more ? cards.length : 0) + (backendState() ? "&state=" + backendState() : "")), data => {
       cards = more ? [...cards, ...data.cards] : data.cards;
+      binding.current(cards);
       total = data.total; recent = data.recent.receipts; modelReady = data.model_ready; listing = data.listing;
       $("[data-knowledge-model]").hidden = modelReady || !cards.some(waiting);
       errorBox.hidden = true;
@@ -99,7 +101,7 @@ export function bindKnowledgeSettings(root: HTMLElement): void {
     list.replaceChildren(...(shown.length ? shown.map(row) : [el("li", "settings-muted knowledge-empty", cards.length ? L("没有符合筛选的资料。") : L("这里还是空的。"))]));
     $("[data-knowledge-more]").hidden = cards.length >= total;
     $(".knowledge-select-all").hidden = !shown.length;
-    $("[data-knowledge-organize-all]").hidden = !cards.some(card => !card.excluded && (card.state === "failed" || card.state === "over_quota"));
+    $("[data-knowledge-organize-all]").hidden = !cards.some(card => !unbound(card) && !card.excluded && (card.state === "failed" || card.state === "over_quota"));
     drawBatch();
   }
 
@@ -148,8 +150,12 @@ export function bindKnowledgeSettings(root: HTMLElement): void {
       await reload();
     } catch (error) { fail(error); }
   }
+  const binding = knowledgeBinding(root, { api, fail, toast,
+    redraw: drawList,
+    replaced: card => detailHost.replaced(card),
+  });
   const detailHost: KnowledgeDetailHost = {
-    api, fail, toast,
+    api, fail, toast, ...binding,
     replaced: card => { cards = cards.map(item => subjectKey(item.subject) === subjectKey(card.subject) ? card : item); drawList(); },
     organize: card => organize([card.subject]),
   };
@@ -157,11 +163,11 @@ export function bindKnowledgeSettings(root: HTMLElement): void {
   async function batch(action: string) {
     const picked = cards.filter(card => selected.has(subjectKey(card.subject)));
     if (action === "clear") { selected.clear(); drawList(); return; }
-    if (action === "organize") { await organize(picked.map(card => card.subject)); selected.clear(); drawList(); return; }
+    if (action === "organize") { await organize(picked.filter(card => !unbound(card)).map(card => card.subject)); selected.clear(); drawList(); return; }
     const excluded = action === "exclude";
     try {
       for (const card of picked.filter(item => item.excluded !== excluded)) detailHost.replaced(await api<KnowledgeCardRecord>("/exclude", { subject: card.subject, excluded }));
-      toast(excluded ? L("这些资料不再给 Agent 用") : L("这些资料又能给 Agent 用了"));
+      toast(excluded ? L("这些资料不再给 Agent 用") : picked.some(unbound) ? L("已保存；待关联的旧卡片仍不会给 Agent 使用") : L("这些资料又能给 Agent 用了"));
       selected.clear(); drawList();
     } catch (error) { fail(error); }
   }

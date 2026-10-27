@@ -59,6 +59,8 @@ export async function handleKnowledgeHttp(request: IncomingMessage, response: Se
       if (method === "GET" && route === "glob") return { status: 200, body: await call(knowledgeActions.glob, { pattern: query.get("pattern") ?? "", limit: PAGE }) };
       if (method === "GET" && route === "search") return { status: 200, body: await call(knowledgeActions.search, { query: query.get("q") ?? "", limit: 30 }) };
       if (method !== "POST") return null;
+      if (route === "bind-preview") return { status: 200, body: await call(knowledgeManageActions.bindPreview, body) };
+      if (route === "bind") return { status: 200, body: await call(knowledgeManageActions.bind, body) };
       if (route === "edit") return { status: 200, body: await call(knowledgeManageActions.edit, body) };
       if (route === "exclude") return { status: 200, body: await call(knowledgeManageActions.exclude, body) };
       if (route === "organize") return { status: 200, body: await call(knowledgeManageActions.organize, body) };

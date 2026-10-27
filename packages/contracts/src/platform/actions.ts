@@ -190,7 +190,9 @@ export interface ActionCallContext extends ActionCallOrigin {
  * The provider still owns the following transaction and optimistic concurrency checks. */
 export interface RetainedActionAuthority {
   (): Promise<void>;
-  /** Recheck original authority and registrations after a downstream action's final await. No handler lifetime is retained. */
+  /** Recheck original authority and registrations after a downstream action's final await. With providerCommands, all authority/availability
+   * callbacks finish before the final pure activity check, and the originating handler must still be active. Commit without further waits or
+   * external callbacks. Without providerCommands, no handler lifetime is retained. */
   readonly assertCurrent: () => void;
 }
 
@@ -200,8 +202,11 @@ export interface ActionExecutionContext extends ActionCallContext {
   readonly current_action?: ExactActionReference;
   /** Capture existing registrations while this handler is active. A background owner must recheck the returned guard before each new action; this grants no new permissions and does not extend beforeEffect.
    * `audience: "workflow"` admits each target as the workflow audience sees it instead of this caller's own audience, for the Host when it calls
-   * the targets under that audience on this caller's behalf (the plugin action directory, S-43). Every other check is the same, and the guard still grants nothing. */
-  readonly retainAuthority?: (references: readonly ActionReference[], options?: { readonly audience?: "workflow" }) => RetainedActionAuthority;
+   * the targets under that audience on this caller's behalf (the plugin action directory, S-43). Every other check is the same, and the guard still grants nothing.
+   * `providerCommands: "unchanged"` is limited to this active handler's read/commit interval. Capture before reading: reject active commands, then reject permanently if any command enters a captured
+   * provider in this ActionService. Providers are scoped by their trusted registration, not the caller's project. Raw handler completion ends
+   * activity; cancellation/timeout of the outer wait does not. This only denies; it cannot replace permission, source-state or version checks. */
+  readonly retainAuthority?: (references: readonly ActionReference[], options?: { readonly audience?: "workflow"; readonly providerCommands?: "unchanged" }) => RetainedActionAuthority;
   /** Capture this command's registration and original authority while active, for explicitly accepted background work.
    * Additional permissions must already belong to this caller and remain revocable. Entry-owned transport may detach;
    * absent a separate authority, the original cancellation boundary remains. */

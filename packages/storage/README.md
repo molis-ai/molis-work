@@ -4,6 +4,8 @@
 
 包名：`@molis-ai/molis-work-storage`。工作区内部包，通过仓库构建和 Host 装配使用。
 
+Knowledge 当前私库基线为 3，仍使用原卡片、全文检索、额度和回执表；普通打开拒绝旧版本。旧库只由仓内有限维护入口 `tests/fixtures/coding-knowledge-maintenance.mjs` 在独占 owner、物理路径与 schema 核对、备份后按库事务采用，详情随 Knowledge 模块合同。人工关联与卡片正文、FTS 同事务写入；旧机器摘要仅保留供管理，在尚待人工整理期间不写入当前 FTS，人工字段保留。直接回归：`tests/legacy-memory-adoption.test.ts`、`tests/knowledge-cards.test.ts`、`tests/knowledge-retention-policy.test.ts`。
+
 
 `openReadOnlyHomeSqlite` 为插件查询服务提供 SQLite 自身强制的只读连接；Host 用 `openBaselineHomeSqlite` 开当前业务基线，再持有读写连接。`homeStoreRegistry`（`home-stores.ts`）是 Home 存储登记的形状与检查：路径只能是 Home 下的一个名字或 `config/` 下的一个文件，一个路径只有一个主人；登记本身由 Host 组装（`apps/local-host/src/home-stores.ts`），这里不认识任何插件或模块。记忆账本与搜索索引的登记（`MEMORY_LEDGER_HOME_STORE`、`TEXT_SEARCH_HOME_STORE`）在各自的适配器旁，普通卸载保留，明确 purge 才清除。当前基线、回滚与错版拒绝由 `tests/issue-home.test.ts` 验证。
 

@@ -12,7 +12,7 @@ import { normalizeSearchText, relatedQueryPlan, searchQueryPlan, searchTokens } 
  */
 export const KNOWLEDGE_CARDS_STORE = "knowledge";
 
-export const KNOWLEDGE_CARDS_BASELINE: SqliteBaseline = { version: 2, schema: `
+export const KNOWLEDGE_CARDS_BASELINE: SqliteBaseline = { version: 3, schema: `
 CREATE TABLE knowledge_cards (
   card_id INTEGER PRIMARY KEY, project_id TEXT NOT NULL, kind TEXT NOT NULL, object_id TEXT NOT NULL, body TEXT NOT NULL,
   UNIQUE (project_id, kind, object_id)
@@ -30,7 +30,12 @@ CREATE INDEX knowledge_receipts_subject ON knowledge_receipts (project_id, kind,
 ` };
 
 type Row = Record<string, unknown>;
-const cardText = (record: KnowledgeCardRecord) => [record.brief, record.keywords.join(" "), ...record.outline.map(note => `${note.title} ${note.summary}`)].join("\n");
+const cardText = (record: KnowledgeCardRecord) => {
+  const original = record.adoption && record.state !== "ready" || record.retention?.restoration_operation_id && (record.state === "listed" || record.organized_revision === null);
+  return [original && !record.edited.includes("brief") ? "" : record.brief,
+    original && !record.edited.includes("keywords") ? "" : record.keywords.join(" "),
+    ...(original ? [] : record.outline.map(note => `${note.title} ${note.summary}`))].join("\n");
+};
 
 export function openKnowledgeCards(options: { homeDirectory: string }): KnowledgeCardStorePort {
   const db = openBaselineHomeSqlite(options.homeDirectory, KNOWLEDGE_CARDS_STORE, KNOWLEDGE_CARDS_BASELINE);

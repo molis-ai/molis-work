@@ -1,7 +1,7 @@
 import type { ContractDescriptor } from "../platform/package.js";
 import type { ActionDefinition, ActionSubject } from "../platform/actions.js";
 import { ACTION_SUBJECT_SCHEMA, SEARCH_OPEN_TARGET_SCHEMA, type SearchOpenTarget } from "../platform/actions.js";
-import type { SearchQueryStatus } from "./search.js";
+import type { SearchQueryStatus, SearchRetentionIdentity } from "./search.js";
 
 /**
  * Project knowledge (specs/project-knowledge): one catalog of what a project holds, read by every agent in it through the same
@@ -243,6 +243,7 @@ export interface KnowledgeSectionNote { anchor: string; title: string; summary: 
  */
 export interface KnowledgeCardRecord extends KnowledgeCardFields {
   /** Original trusted installation binding and last consumed restoration; never a cached lifecycle state. */
+  adoption?: { operation_id: string; actor_id: string; source_revision: string; generation: string };
   retention?: { generation: string | null; restoration_operation_id: string | null };
   /** A retained listed card with readable text may be explicitly organized. */
   can_organize?: boolean;
@@ -313,6 +314,21 @@ export interface KnowledgeCardStorePort {
   close(): void;
 }
 
+export type KnowledgeRetentionIdentity = SearchRetentionIdentity & Pick<KnowledgeCardRecord, "adoption">;
+export interface KnowledgeBindPreviewRequest { subject: ActionSubject }
+export interface KnowledgeBindCandidate {
+  provider_id: string; source_key: string; generation: string; source_revision: string;
+  title: string; plugin_title: string; summary: string; content_policy: "context" | "summary"; updated_at: string | null;
+}
+export interface KnowledgeBindPreviewResponse { subject: ActionSubject; candidates: KnowledgeBindCandidate[] }
+export interface KnowledgeBindRequest {
+  subject: ActionSubject;
+  operation_id: string;
+  provider_id: string;
+  source_key: string;
+  generation: string;
+  source_revision: string;
+}
 export interface KnowledgeCardsRequest { states?: KnowledgeCardState[]; limit?: number; offset?: number }
 /**
  * `model_ready`: whether the project has a text model now; without one, waiting cards stay waiting (and are found by title and
@@ -423,6 +439,8 @@ export const knowledgeActions = {
 };
 
 const cardRecord = { type: "object", properties: {
+  adoption: { type: "object", properties: { operation_id: text, actor_id: text, source_revision: text, generation: text },
+    required: ["operation_id", "actor_id", "source_revision", "generation"], additionalProperties: false },
   retention: { type: "object", properties: { generation: nullableText, restoration_operation_id: nullableText }, required: ["generation", "restoration_operation_id"], additionalProperties: false },
   can_organize: { type: "boolean" }, project_id: text, subject: ACTION_SUBJECT_SCHEMA, source_key: text, provider_id: text, plugin_id: text, plugin_title: text,
   content_policy: { enum: ["context", "summary"] }, revision: text, organized_revision: nullableText, state: { enum: [...KNOWLEDGE_CARD_STATES] }, title: text, brief: text, keywords,
@@ -443,18 +461,32 @@ const manage = { kind: "operation" as const, scope: "project" as const, effect: 
 
 /** The person's management of cards (spec §8.3): user only; agents find and read through `knowledgeActions`. Registered with them as `system.knowledge`. */
 export const knowledgeManageActions = {
-  cards: { capability_id: "knowledge.cards", version: 2, operation: "query", action: { ...manage, kind: "query" as const, effect: "read" as const,
+  bindPreview: { capability_id: "knowledge.card.bind-preview", version: 1, operation: "query", action: { ...manage, kind: "query", effect: "read", plugin: false, scheduling: "concurrent",
+    title: "查看可关联来源", description: "只读核对这份保留卡片当前可关联的来源，供本人选择与确认。",
+    input_schema: { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA }, required: ["subject"], additionalProperties: false },
+    output_schema: { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, candidates: { type: "array", items: { type: "object", properties: {
+      provider_id: { ...text, minLength: 1 }, source_key: { ...text, minLength: 1 }, generation: { ...text, minLength: 1 }, source_revision: { ...text, minLength: 1 },
+      title: text, plugin_title: text, summary: text, content_policy: { enum: ["context", "summary"] }, updated_at: nullableText },
+      required: ["provider_id", "source_key", "generation", "source_revision", "title", "plugin_title", "summary", "content_policy", "updated_at"], additionalProperties: false } } },
+      required: ["subject", "candidates"], additionalProperties: false } } } as ActionDefinition<KnowledgeBindPreviewRequest, KnowledgeBindPreviewResponse>,
+  bind: { capability_id: "knowledge.card.bind", version: 1, operation: "command", action: { ...manage, plugin: false, scheduling: "concurrent",
+    title: "关联保留资料", description: "本人明确将旧卡片关联到当前可信来源，保留原内容，不自动整理。",
+    input_schema: { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, operation_id: token, provider_id: { ...text, minLength: 1 },
+      source_key: { ...text, minLength: 1 }, generation: { ...text, minLength: 1 }, source_revision: { ...text, minLength: 1 } },
+      required: ["subject", "operation_id", "provider_id", "source_key", "generation", "source_revision"], additionalProperties: false },
+    output_schema: cardRecord } } as ActionDefinition<KnowledgeBindRequest, KnowledgeCardRecord>,
+  cards: { capability_id: "knowledge.cards", version: 3, operation: "query", action: { ...manage, kind: "query" as const, effect: "read" as const,
     title: "列出资料卡片", description: "列出当前项目每份资料的卡片、整理状态和今天的整理额度，供管理页使用。",
     input_schema: { type: "object", properties: { states: { type: "array", maxItems: KNOWLEDGE_CARD_STATES.length, items: { enum: [...KNOWLEDGE_CARD_STATES] } },
       limit: { type: "integer", minimum: 1, maximum: 200 }, offset: count }, additionalProperties: false },
     output_schema: { type: "object", properties: { cards: { type: "array", items: cardRecord }, total: count, quota, model_ready: { type: "boolean" }, listing: { type: "boolean" } },
       required: ["cards", "total", "quota", "model_ready", "listing"], additionalProperties: false } } } as ActionDefinition<KnowledgeCardsRequest, KnowledgeCardsResponse>,
-  edit: { capability_id: "knowledge.card.edit", version: 2, operation: "command", action: { ...manage,
+  edit: { capability_id: "knowledge.card.edit", version: 3, operation: "command", action: { ...manage,
     title: "编辑资料卡片", description: "改一份资料卡片的标题、简介或关键词；改过的字段以后重新整理也不会被覆盖。也可以采用整理给出的新建议。",
     input_schema: { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, title: { type: "string", minLength: 1, maxLength: KNOWLEDGE_TITLE_MAX_CHARS, pattern: "\\S" },
       brief: { type: "string", maxLength: KNOWLEDGE_BRIEF_MAX_CHARS }, keywords, adopt: editable }, required: ["subject"], additionalProperties: false },
     output_schema: cardRecord } } as ActionDefinition<KnowledgeEditRequest, KnowledgeCardRecord>,
-  exclude: { capability_id: "knowledge.card.exclude", version: 2, operation: "command", action: { ...manage,
+  exclude: { capability_id: "knowledge.card.exclude", version: 3, operation: "command", action: { ...manage,
     title: "设置资料是否给 Agent 用", description: "不给 Agent 用的资料仍在资料列表里，但查找不会返回它，读取会被拒绝。",
     input_schema: { type: "object", properties: { subject: ACTION_SUBJECT_SCHEMA, excluded: { type: "boolean" } }, required: ["subject", "excluded"], additionalProperties: false },
     output_schema: cardRecord } } as ActionDefinition<KnowledgeExcludeRequest, KnowledgeCardRecord>,

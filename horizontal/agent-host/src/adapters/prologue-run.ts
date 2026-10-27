@@ -37,6 +37,7 @@ import type { PrologueEvent, PrologueUsageReceipt } from "./prologue-stream.js";
 import type { PrologueRuntimePort, PrologueStartInput } from "./prologue.js";
 import { prologueToolName, retainRunObserver, sameRef, stageInstructions, stageTextResource, type DispatchGuards, type PrologueNodeAdapterOptions, type RoundState } from "./prologue-node-kit.js";
 import type { SessionIndex, SessionIndexStore } from "./prologue-session-index.js";
+import { sessionOpeningReader } from "./prologue-session-opening.js";
 import { ensureStopGuard, guardRound, watchRoundFacts } from "./prologue-stop-guard.js";
 
 /**
@@ -425,7 +426,7 @@ function sdkStart(deps: RunDeps, input: PrologueStartInput, index: SessionIndex,
     ...(parts.binding ? { collaboration: { board: parts.binding.board, node: parts.binding.node } } : {}),
     ...(root ? { rootRef: root.ref } : business ? { workspace: "app" as const } : { workspace: "none" as const }),
     // A digest round carries earlier rounds in its task; replaying them verbatim too is what stopped long sessions.
-    ...(input.history === "digest" ? {} : { history: "session" as const }),
+    ...(input.history === "digest" ? {} : { history: "session" as const, readOpening: sessionOpeningReader(deps.index, { ref: session.ref, owner: index.owner }) }),
     // Supplements kept in the session for the next round come in only when the Host says so (specs/ai-input-receipts §4.4).
     ...(input.queued ? { queued: input.queued } : {}),
     ...(childRoles.size ? { subagents: {

@@ -65,11 +65,11 @@ export function codingSubjectRetention(a: CodingActivation, execution: CodingExe
   if (original && (!original.completed || original.archived !== record.archived)) throw changed();
   const subject = { kind: "coding_session", id: record.session_id };
   if (!original) {
-    if (record.archived) throw changed();
+    if (record.archived) return { subject, state: "temporarily_archived", retained: { content_revision: null, restoration_operation_id: null } };
     return { subject, state: "active", retained: null };
   }
   if (record.archived) return { subject, state: "temporarily_archived", retained: { content_revision: original.content_revision, restoration_operation_id: null } };
   const request = original.request;
   return { subject, state: "active", retained: { content_revision: original.content_revision,
-    restoration_operation_id: request.mode === "local" ? request.operation_id : request.decision.operation_id } };
+    restoration_operation_id: request.mode === "runtime" ? request.decision.operation_id : request.operation_id } };
 }

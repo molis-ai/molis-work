@@ -1,3 +1,4 @@
+import { knowledgeBindingActions } from "./knowledge-bindings.js";
 import { knowledgeSourceAuthority } from "./knowledge-source-authority.js";
 import { ActionError, requireSynchronous, type ActionCallContext, type ActionClient, type ActionExecutionContext, type ActionHandlerBinding, type ActionProviderRegistration, type ActionReference, type ActionSubject, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { instructed } from "@molis-ai/molis-work-contracts/platform/model-prompts";
@@ -8,6 +9,7 @@ import {
   knowledgeManageActions,
   type KnowledgeCardsRequest,
   type KnowledgeCardRecord,
+  type KnowledgeRetentionIdentity,
   type KnowledgeEditRequest,
   type KnowledgeExcludeRequest,
   type KnowledgeGlobRequest,
@@ -109,9 +111,23 @@ export function createKnowledgeHost(ports: KnowledgeHostPorts): KnowledgeHost {
     const caller = await ports.ownerContext(projectId);
     return { caller, client: ports.clientFor(caller) };
   };
-  const retention = (access: KnowledgeAccess, identity: SearchRetentionIdentity, views?: readonly ActionView[]) => readSubjectRetention({ client: access.client, caller: knowledgeReader(access) }, identity, views);
-  const ownerRetention = async (identity: SearchRetentionIdentity): Promise<SearchRetentionResult> => {
-    if (!ports.ownerContext && !identity.retention) return { state: "unsupported" };
+  const retention = async (access: KnowledgeAccess, identity: KnowledgeRetentionIdentity, views?: readonly ActionView[]): Promise<SearchRetentionResult> => {
+    const caller = knowledgeReader(access);
+    if (identity.adoption) {
+      const current = await access.client.discover(caller);
+      if (!current.some(view => view.provider.provider_id === identity.provider_id && view.availability.available
+        && view.provider.plugin_installation_generation === identity.adoption!.generation)
+        || identity.retention && identity.retention.generation !== identity.adoption.generation) return { state: "unavailable" };
+      const result = await readSubjectRetention({ client: access.client, caller }, identity, current);
+      const final = await access.client.discover(caller);
+      caller.signal?.throwIfAborted(); requireSynchronous(caller.assert_authority_current?.());
+      return final.some(view => view.provider.provider_id === identity.provider_id && view.availability.available
+        && view.provider.plugin_installation_generation === identity.adoption!.generation) ? result : { state: "unavailable" };
+    }
+    return readSubjectRetention({ client: access.client, caller }, identity, views);
+  };
+  const ownerRetention = async (identity: KnowledgeRetentionIdentity): Promise<SearchRetentionResult> => {
+    if (!ports.ownerContext && !identity.retention && !identity.adoption) return { state: "unsupported" };
     try { return await retention(await ownerAccess(identity.project_id!), identity); }
     catch { return { state: "unavailable" }; }
   };
@@ -173,19 +189,26 @@ export function createKnowledgeHost(ports: KnowledgeHostPorts): KnowledgeHost {
   const known = async (projectId: string | null | undefined, subjects: readonly ActionSubject[]) => {
     if (projectId && subjects.some(subject => !store.get(projectId, subject))) await organizer.reconcile(projectId).catch(error => ports.onError?.(error, "knowledge.reconcile"));
   };
+  const unboundCard = (card: KnowledgeCardRecord) => card.retention?.generation === null && !card.adoption;
+  const manageable = async (caller: ActionExecutionContext, action: ActionReference) => {
+    const visible = await service.visible(await access(caller, action));
+    return (card: KnowledgeCardRecord) => card.project_id === caller.project_id && (visible(card) || unboundCard(card))
+      && JSON.stringify(card) === JSON.stringify(store.get(card.project_id, card.subject));
+  };
   const changeCards = async <Result>(caller: ActionExecutionContext, action: ActionReference, subjects: readonly ActionSubject[],
     write: (selected: readonly ActionSubject[]) => Result, partial = false): Promise<Result> => {
-    const asked = await access(caller, action), visible = await service.visible(asked);
+    const asked = await access(caller, action), visible = action.capability_id === knowledgeManageActions.organize.capability_id ? await service.visible(asked) : await manageable(caller, action);
     const original = subjects.map(subject => store.get(caller.project_id!, subject)).filter((card): card is KnowledgeCardRecord => !!card && visible(card));
     if (!partial && original.length !== subjects.length) throw new ActionError("actions.subject_unavailable", "这份资料已归档或当前不可读取");
     await caller.beforeEffect();
-    const current = await service.visible(asked);
+    const current = action.capability_id === knowledgeManageActions.organize.capability_id ? await service.visible(asked) : await manageable(caller, action);
     if (original.some(card => !current(card))) throw new ActionError("actions.subject_unavailable", "资料或原授权已变化，这次修改没有执行");
     caller.signal?.throwIfAborted();
     requireSynchronous(caller.assert_authority_current?.({ ...action, provider_id: KNOWLEDGE_PROVIDER_ID }));
     return write(original.map(card => card.subject));
   };
   const handlers: ActionHandlerBinding[] = [
+    ...knowledgeBindingActions({ store, cards, index: ports.index, clientFor: ports.clientFor, retention }),
     { ...knowledgeActions.list, handle: async (caller, input) => service.list(await access(caller, knowledgeActions.list), input as KnowledgeListRequest, await caughtUp(caller)) },
     // A search brings the project's sources current; what it found new is organized shortly after.
     { ...knowledgeActions.search, handle: async (caller, input) => { await caughtUp(caller); const found = await service.search(await access(caller, knowledgeActions.search), input as KnowledgeSearchRequest);
@@ -202,7 +225,7 @@ export function createKnowledgeHost(ports: KnowledgeHostPorts): KnowledgeHost {
     // A page past the first comes from the same catch-up as the first: paging through every card catches up once.
     { ...knowledgeManageActions.cards, handle: async (caller, input) => { const asked = input as KnowledgeCardsRequest;
       const listing = asked.offset ? false : await caughtUp(caller);
-      return cards.list(caller, asked, listing, await service.visible(await access(caller, knowledgeManageActions.cards))); } },
+      return cards.list(caller, asked, listing, await manageable(caller, knowledgeManageActions.cards)); } },
     { ...knowledgeManageActions.receipts, handle: (caller, input) => cards.receipts(caller, input as KnowledgeReceiptsRequest) },
     { ...knowledgeManageActions.edit, handle: async (caller, input) => { return changeCards(caller, knowledgeManageActions.edit, [(input as KnowledgeEditRequest).subject], () => cards.edit(caller, input as KnowledgeEditRequest)); } },
     { ...knowledgeManageActions.exclude, handle: async (caller, input) => { return changeCards(caller, knowledgeManageActions.exclude, [(input as KnowledgeExcludeRequest).subject], () => cards.exclude(caller, input as KnowledgeExcludeRequest)); } },

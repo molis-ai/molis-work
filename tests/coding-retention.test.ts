@@ -2,6 +2,9 @@ import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { createServer } from "node:http";
 import { AsyncLocalStorage } from "node:async_hooks";
+import { realpath, rm } from "node:fs/promises";
+import { basename, dirname, join } from "node:path";
+import { DatabaseSync } from "node:sqlite";
 import { DEMO_PROJECT_ID as project } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, type ActionSubjectContext, type ActionSubjectRetention, type SearchEntriesPage } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginPrivateStorage } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -10,11 +13,193 @@ import { codingRouteActions } from "@molis-ai/molis-work-plugin-coding";
 import { codingSdkRuntime } from "./fixtures/coding-sdk-runtime.js";
 import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
 import { noEffect } from "./fixtures/coding-sessions.js";
+import { maintainCodingKnowledge } from "./fixtures/coding-knowledge-maintenance.mjs";
 
 type Fixture = Awaited<ReturnType<typeof codingSdkRuntime>>;
 type Decision = NonNullable<ReturnType<Fixture["sessions"]["lifecycle"]["current"]>>["request"];
 const path = (id: string) => `/sessions/${id}`;
-const operation = (decision: Decision) => decision.mode === "local" ? decision.operation_id : decision.decision.operation_id;
+const operation = (decision: Decision) => decision.mode === "runtime" ? decision.decision.operation_id : decision.operation_id;
+
+test("Coding2 runtime pending originals keep real SDK receipts across offline adoption and complete only the original operation", async t => {
+  for (const archived of [true, false]) await t.test(archived ? "pending SDK archive" : "pending SDK unarchive", async t => {
+    const model = t.mock.method(globalThis, "fetch", async () => { throw new Error("runtime adoption cannot call a model"); });
+    const first = await codingSdkRuntime(t, { hostActions: true }); let reopened: Fixture | undefined;
+    try {
+      await first.create("runtime-pending"); await first.create("neighbour");
+      const owner = { project_id: project, plugin_id: "io.molis.work.coding", actor_id: "web-user", install_id: first.platform.supervisor.state("io.molis.work.coding")!.install_id! };
+      const session = await first.adapter.createSession({ ...owner, title: "Original", directory: { canonical_path: first.home, realpath_verified: true } });
+      await first.sessions.setRuntimeSession(noEffect, project, "runtime-pending", session.session_id, new Date().toISOString());
+      if (!archived) assert.equal((await apply(first, "runtime-pending", true, await preview(first, "runtime-pending", true)))?.status, 200);
+      const request = await preview(first, "runtime-pending", archived); assert.equal(request.mode, "runtime");
+      const method = archived ? "archive" : "unarchive", lifecycle = first.adapter.sessionLifecycle!, invoke = lifecycle[method].bind(lifecycle);
+      let receipt: Awaited<ReturnType<typeof invoke>> | undefined;
+      const lost = t.mock.method(lifecycle, method, async (...args) => { receipt = await invoke(...args); throw new Error("injected-lost-original-receipt"); });
+      const refused = await apply(first, "runtime-pending", archived, request); lost.mock.restore();
+      assert.ok(refused!.status >= 400); assert.match(JSON.stringify(refused!.body), /injected-lost-original-receipt/); assert.ok(receipt);
+      const pending = first.sessions.lifecycle.current(project, "runtime-pending")!;
+      assert.equal(pending.completed, false); assert.deepEqual(pending.request, request);
+      const sdk = await lifecycle.read(session, owner), neighbour = first.sessions.get(project, "neighbour");
+      assert.equal(sdk.state, archived ? "archived" : "active"); assert.equal(receipt.operation_id, operation(request));
+      assert.equal(sdk.operation?.completed, true); assert.equal(sdk.version, receipt.version);
+      // Shut every genuine writer before making only the old Coding2 shape; the SDK files and receipt are never seeded or edited.
+      await first.close();
+      const home = await realpath(first.home), file = join(home, "project.db"), db = new DatabaseSync(file);
+      const { content_revision: _unknown, ...old } = pending;
+      db.prepare("UPDATE coding_sessions SET lifecycle_json=? WHERE session_id='runtime-pending'").run(JSON.stringify(old));
+      db.prepare("UPDATE plugin_project_databases SET version=2 WHERE plugin_id='io.molis.work.coding'").run(); db.close();
+      const backupDirectory = join(dirname(home), `${basename(home)}-runtime-backup`); t.after(() => rm(backupDirectory, { recursive: true, force: true }));
+      await maintainCodingKnowledge("apply", { home, projectDatabase: file, publisher: "official-coding-binding", backupDirectory });
+      reopened = await codingSdkRuntime(t, { homeDirectory: first.home, hostActions: true });
+      assert.equal(reopened.platform.supervisor.state("io.molis.work.coding")!.install_id, owner.install_id);
+      assert.deepEqual(await reopened.adapter.sessionLifecycle!.read(session, owner), sdk);
+      assert.deepEqual(reopened.sessions.lifecycle.current(project, "runtime-pending"), { ...old, content_revision: null });
+      assert.deepEqual(await preview(reopened, "runtime-pending", archived), request);
+      assert.equal((await apply(reopened, "runtime-pending", archived, request))?.status, 200);
+      const completed = reopened.sessions.lifecycle.current(project, "runtime-pending");
+      assert.deepEqual(completed, { ...old, completed: true, content_revision: null });
+      assert.deepEqual(await reopened.adapter.sessionLifecycle!.read(session, owner), sdk, "the real completed SDK operation is not replayed as a new effect");
+      assert.equal((await apply(reopened, "runtime-pending", archived, request))?.status, 200);
+      assert.deepEqual(reopened.sessions.lifecycle.current(project, "runtime-pending"), completed);
+      assert.deepEqual(await reopened.adapter.sessionLifecycle!.read(session, owner), sdk);
+      assert.deepEqual(reopened.sessions.get(project, "neighbour"), neighbour);
+      assert.equal(model.mock.callCount(), 0);
+    } finally { await reopened?.close(); await first.close(); }
+  });
+});
+
+test("Coding2 pending archive and unarchive survive actual offline adoption and finish the exact original request", async t => {
+  for (const archived of [true, false]) await t.test(archived ? "pending archive" : "pending unarchive", async t => {
+    const at = "2026-10-01T00:00:00.000Z", priorAt = "2026-09-30T00:00:00.000Z";
+    const request: Decision = { mode: "local", runtime_id: "prologue", operation_id: "original-pending", previous_operation_id: archived ? null : "previous-archive",
+      observed: { session_id: "pending", title: "Original", state: "idle", archived: !archived, goal_id: null, updated_at: priorAt } };
+    const original = { archived, request, at, completed: false };
+    const f = await codingSdkRuntime(t, { hostActions: true, prepareProject: async (home, file) => {
+      const db = new DatabaseSync(file);
+      db.prepare("INSERT INTO coding_sessions (project_id, session_id, title, state, archived, runtime_id, created_at, updated_at, lifecycle_json) VALUES (?, 'pending', 'Original', 'idle', ?, 'prologue', ?, ?, ?)")
+        .run(project, Number(!archived), priorAt, priorAt, JSON.stringify(original));
+      db.prepare("UPDATE plugin_project_databases SET version=2 WHERE plugin_id='io.molis.work.coding'").run(); db.close();
+      const canonical = await realpath(home);
+      const backupDirectory = join(dirname(canonical), `${basename(canonical)}-backup`); t.after(() => rm(backupDirectory, { recursive: true, force: true }));
+      await maintainCodingKnowledge("apply", { home: canonical, projectDatabase: await realpath(file), publisher: "official-coding-binding", backupDirectory });
+      const after = new DatabaseSync(file);
+      try { assert.deepEqual(JSON.parse(String(after.prepare("SELECT lifecycle_json FROM coding_sessions WHERE session_id='pending'").get()!.lifecycle_json)), { ...original, content_revision: null }); }
+      finally { after.close(); }
+    } });
+    await f.create("neighbour"); const neighbour = f.sessions.get(project, "neighbour");
+    const sdkArchive = t.mock.method(f.adapter.sessionLifecycle!, "archive", async () => { throw new Error("local original cannot create SDK history"); });
+    const sdkRestore = t.mock.method(f.adapter.sessionLifecycle!, "unarchive", async () => { throw new Error("local original cannot create SDK history"); });
+    assert.equal((await f.call(path("pending") + "/retention"))?.status, 409);
+    assert.deepEqual(await preview(f, "pending", archived), request);
+    assert.equal((await apply(f, "pending", archived, request))?.status, 200);
+    const completed = f.sessions.lifecycle.current(project, "pending")!;
+    assert.deepEqual(completed, { ...original, completed: true, content_revision: null });
+    assert.equal((await apply(f, "pending", archived, request))?.status, 200);
+    assert.deepEqual(f.sessions.lifecycle.current(project, "pending"), completed);
+    assert.deepEqual(f.sessions.get(project, "neighbour"), neighbour);
+    assert.equal(sdkArchive.mock.callCount(), 0); assert.equal(sdkRestore.mock.callCount(), 0);
+  });
+});
+
+test("business-only restore cancellation preserves SDK state and any original pending decision through reopening", async t => {
+  for (const afterPrepare of [false, true]) await t.test(afterPrepare ? "after prepare" : "before prepare", async t => {
+    const f = await codingSdkRuntime(t, { hostActions: true }); await f.create("cancelled"); await f.create("neighbour");
+    const owner = { project_id: project, plugin_id: "io.molis.work.coding", actor_id: "web-user", install_id: f.platform.supervisor.state("io.molis.work.coding")!.install_id! };
+    const session = await f.adapter.createSession({ ...owner, title: "Original", directory: { canonical_path: f.home, realpath_verified: true } });
+    await f.sessions.setRuntimeSession(noEffect, project, "cancelled", session.session_id, new Date().toISOString());
+    f.store.db.prepare("UPDATE coding_sessions SET archived=1 WHERE session_id='cancelled'").run();
+    const original = f.sessions.get(project, "cancelled"), neighbour = f.sessions.get(project, "neighbour"), request = await preview(f, "cancelled", false);
+    const sdk = await f.adapter.sessionLifecycle!.read(session, owner), abort = new AbortController(); let injected = false;
+    const read = f.adapter.sessionLifecycle!.read.bind(f.adapter.sessionLifecycle);
+    const gate = t.mock.method(f.adapter.sessionLifecycle!, "read", async (...args) => {
+      const result = await read(...args);
+      if (!injected && Boolean(f.sessions.lifecycle.current(project, "cancelled")) === afterPrepare) {
+        injected = true; abort.abort(new Error("injected-business-cancel"));
+      }
+      return result;
+    });
+    const current = () => abort.signal.throwIfAborted();
+    const failed = await f.call(path("cancelled") + "/unarchive", { unarchive_decision: request }, "POST", { signal: abort.signal, beforeEffect: async () => current(), assert_authority_current: current });
+    gate.mock.restore(); assert.equal(injected, true); assert.ok(failed!.status >= 400); assert.match(JSON.stringify(failed!.body), /injected-business-cancel/);
+    assert.deepEqual(await f.adapter.sessionLifecycle!.read(session, owner), sdk); assert.deepEqual(f.sessions.get(project, "cancelled"), original);
+    const saved = f.sessions.lifecycle.current(project, "cancelled");
+    if (afterPrepare) { assert.equal(saved?.completed, false); assert.deepEqual(saved?.request, request); }
+    else assert.equal(saved, null);
+    await restart(f); assert.deepEqual(f.sessions.lifecycle.current(project, "cancelled"), saved);
+    assert.equal((await apply(f, "cancelled", false, request))?.status, 200);
+    assert.deepEqual(await f.adapter.sessionLifecycle!.read(session, owner), sdk); assert.deepEqual(f.sessions.get(project, "neighbour"), neighbour);
+  });
+});
+
+test("a business-only restore refuses the original preview after the real SDK lifecycle changes, with no Coding write", async t => {
+  const f = await codingSdkRuntime(t, { hostActions: true }); await f.create("adopted");
+  const owner = { project_id: project, plugin_id: "io.molis.work.coding", actor_id: "web-user",
+    install_id: f.platform.supervisor.state("io.molis.work.coding")!.install_id! };
+  const session = await f.adapter.createSession({ ...owner, title: "Original", directory: { canonical_path: f.home, realpath_verified: true } });
+  await f.sessions.setRuntimeSession(noEffect, project, "adopted", session.session_id, new Date().toISOString());
+  f.store.db.prepare("UPDATE coding_sessions SET archived = 1 WHERE session_id = 'adopted'").run();
+  const original = f.sessions.get(project, "adopted"), request = await preview(f, "adopted", false);
+  assert.equal(request.mode, "business");
+  const initial = await f.adapter.sessionLifecycle!.read(session, owner);
+  await f.adapter.sessionLifecycle!.archive(session, { operation_id: "independent-archive", expected_state: "active", expected_version: initial.version! }, owner);
+  const changed = await f.adapter.sessionLifecycle!.read(session, owner);
+  assert.equal((await apply(f, "adopted", false, request))!.status, 409);
+  assert.deepEqual(f.sessions.get(project, "adopted"), original); assert.equal(f.sessions.lifecycle.current(project, "adopted"), null);
+  assert.deepEqual(await f.adapter.sessionLifecycle!.read(session, owner), changed);
+});
+
+test("adopted Coding1 restores business-only active Sessions without inventing SDK history, and real archived Sessions still unarchive", async t => {
+  for (const sdkArchived of [false, true]) await t.test(sdkArchived ? "SDK archived" : "SDK active", async t => {
+    let failComplete = false, injected = false;
+    const f = await codingSdkRuntime(t, { hostActions: true, wrapCoding: definition => ({ ...definition, start: context => {
+      const database = context.services!.project_database!;
+      return definition.start({ ...context, services: { ...context.services, project_database: { ...database,
+        transaction: (beforeEffect, write) => database.transaction(beforeEffect, tx => {
+          const result = write(tx);
+          const row = tx.get("SELECT lifecycle_json FROM coding_sessions WHERE project_id=? AND session_id=?", [project, "adopted"]);
+          if (failComplete && row?.lifecycle_json && JSON.parse(String(row.lifecycle_json)).completed === true) {
+            injected = true; throw new Error("injected-complete");
+          }
+          return result;
+        }),
+      } } });
+    } }) }); await f.create("adopted"); await f.create("neighbour");
+    const owner = { project_id: project, plugin_id: "io.molis.work.coding", actor_id: "web-user",
+      install_id: f.platform.supervisor.state("io.molis.work.coding")!.install_id! };
+    const session = await f.adapter.createSession({ ...owner, title: "Original", directory: { canonical_path: f.home, realpath_verified: true } });
+    await f.sessions.setRuntimeSession(noEffect, project, "adopted", session.session_id, new Date().toISOString());
+    const initial = await f.adapter.sessionLifecycle!.read(session, owner);
+    if (sdkArchived) await f.adapter.sessionLifecycle!.archive(session, { operation_id: "actual-sdk-archive", expected_state: "active", expected_version: initial.version! }, owner);
+    f.store.db.prepare("UPDATE coding_sessions SET archived = 1, lifecycle_json = NULL WHERE session_id = 'adopted'").run();
+    const original = f.sessions.get(project, "adopted"), neighbour = f.sessions.get(project, "neighbour");
+    const beforeSdk = await f.adapter.sessionLifecycle!.read(session, owner);
+    const model = t.mock.method(globalThis, "fetch", async () => { throw new Error("old restoration must not request a model"); });
+    assert.equal((await retention(f, "adopted")).retained?.content_revision, null);
+    const decision = await preview(f, "adopted", false);
+    assert.equal(decision.mode, sdkArchived ? "runtime" : "business");
+    assert.deepEqual(f.sessions.get(project, "adopted"), original, "preview does not fill missing history");
+    if (!sdkArchived) {
+      failComplete = true;
+      const failed = await apply(f, "adopted", false, decision);
+      assert.ok(failed!.status >= 400); assert.match(JSON.stringify(failed!.body), /injected-complete/); assert.equal(injected, true);
+      assert.equal(f.sessions.lifecycle.current(project, "adopted")?.completed, false);
+      assert.equal(f.sessions.get(project, "adopted").archived, true);
+      assert.deepEqual(await f.adapter.sessionLifecycle!.read(session, owner), beforeSdk);
+      failComplete = false;
+      await restart(f);
+      assert.deepEqual(await preview(f, "adopted", false), decision, "reopening keeps the exact original operation");
+    }
+    assert.equal((await apply(f, "adopted", false, decision))?.status, 200);
+    const kept = f.sessions.lifecycle.current(project, "adopted")!;
+    assert.equal(kept.content_revision, null); assert.equal(kept.completed, true);
+    assert.deepEqual(kept.request, decision); assert.equal(f.sessions.get(project, "adopted").updated_at, original.updated_at);
+    assert.equal((await apply(f, "adopted", false, decision))?.status, 200);
+    assert.deepEqual(f.sessions.lifecycle.current(project, "adopted"), kept);
+    const afterSdk = await f.adapter.sessionLifecycle!.read(session, owner);
+    if (sdkArchived) { assert.equal(afterSdk.state, "active"); assert.equal(afterSdk.version, beforeSdk.version! + 1); }
+    else assert.deepEqual(afterSdk, beforeSdk, "business-only restore produces no SDK operation or version");
+    assert.deepEqual(f.sessions.get(project, "neighbour"), neighbour); assert.equal(model.mock.callCount(), 0);
+  });
+});
 /** Real Node Host HTTP requests, including any background requests; none are filtered from the count. */
 async function loopbackModel(t: TestContext, text: string) {
   const requests: Array<{ method: string | undefined; path: string | undefined; body: unknown }> = [];

@@ -9,6 +9,13 @@ export async function knowledgeSourceAuthority(access: KnowledgeAccess, source: 
   const caller = retainActionAuthority(access.caller, source);
   const identity = { project_id: card.project_id, provider_id: piece.provider_id, subject: piece.subject,
     ...(piece.retention ? { retention: piece.retention } : {}) };
+  const installation = async () => {
+    if (!card.adoption) return true;
+    return (await access.client.discover(caller)).some(view => view.provider.provider_id === piece.provider_id && view.availability.available
+      && view.provider.plugin_installation_generation === card.adoption!.generation)
+      && (!piece.retention || piece.retention.generation === card.adoption.generation);
+  };
+  if (!await installation()) return null;
   const initial = await readSubjectRetention({ ...access, caller }, identity);
   if (initial.state !== "active" && initial.state !== "unsupported") return null;
   const original = await resolveActionSubject(access.client, caller, piece.subject);
@@ -24,11 +31,13 @@ export async function knowledgeSourceAuthority(access: KnowledgeAccess, source: 
       if (reader.provider_id !== original.reader.provider_id || reader.capability_id !== original.reader.capability_id
         || reader.version !== original.reader.version || context.revision !== piece.revision) return false;
       // The body read itself may await an owner. Recheck the lifecycle after it and at the actual model dispatch gate.
+      if (!await installation()) return false;
       const final = await readSubjectRetention({ ...access, caller }, identity);
+      if (!await installation()) return false;
       assertCurrent();
       if (!dispatch && final.state === "temporarily_archived") return final.retained.content_revision === piece.revision;
       if (final.state !== "active" && final.state !== "unsupported") return false;
-      return !dispatch || final.state !== "active" || !final.retained || final.retained.content_revision !== piece.revision
+      return !dispatch || final.state !== "active" || !final.retained || final.retained.content_revision !== null && final.retained.content_revision !== piece.revision
         || final.retained.restoration_operation_id === card.retention?.restoration_operation_id;
     } catch { return false; }
   };

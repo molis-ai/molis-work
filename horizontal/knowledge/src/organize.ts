@@ -7,6 +7,7 @@ import {
   KNOWLEDGE_SECTION_SUMMARY_MAX_CHARS,
   KNOWLEDGE_TITLE_MAX_CHARS,
   type KnowledgeCardFields,
+  type KnowledgeRetentionIdentity,
   type KnowledgeCardRecord,
   type KnowledgeCardStorePort,
   type KnowledgeEditableField,
@@ -19,7 +20,7 @@ import { outlineOf } from "./text.js";
 /** One piece in a project's catalog, as the system search indexed it with the local person's access (spec §4.4). */
 export interface KnowledgePiece {
   retention?: { generation: string | null };
-  restoration?: { content_revision: string; restoration_operation_id: string };
+  restoration?: { content_revision: string | null; restoration_operation_id: string };
   subject: ActionSubject;
   source_key: string;
   provider_id: string;
@@ -68,7 +69,7 @@ export interface KnowledgeOrganizerOptions {
   catalog(projectId: string): Promise<KnowledgePiece[]>;
   /** The project's text model now; null when there is none, and pending cards wait for one. */
   writer(): KnowledgeWriter | null;
-  retention?(identity: SearchRetentionIdentity): Promise<SearchRetentionResult>;
+  retention?(identity: KnowledgeRetentionIdentity): Promise<SearchRetentionResult>;
   /** Prepare only the caller; classification of unbound pieces reads the current declarations synchronously. */
   prepareUnboundRetention?(projectId: string): Promise<UnboundRetentionClassifier>;
   /** Pins the original permission and installation before sending; completion rechecks version without sending again. */
@@ -99,7 +100,7 @@ const bare = (piece: KnowledgePiece) => piece.content_policy === "summary" || !p
 
 /** A new card for a piece: a bare piece is listed as its owner describes it; the rest wait for organizing. */
 export function cardFor(projectId: string, piece: KnowledgePiece): KnowledgeCardRecord {
-  const listed = bare(piece) || piece.restoration?.content_revision === piece.revision;
+  const listed = bare(piece) || piece.restoration?.content_revision === null || piece.restoration?.content_revision === piece.revision;
   return { project_id: projectId, subject: piece.subject, source_key: piece.source_key, provider_id: piece.provider_id, plugin_id: piece.plugin_id, plugin_title: piece.plugin_title,
     ...(piece.retention ? { retention: { ...piece.retention, restoration_operation_id: piece.restoration?.restoration_operation_id ?? null } } : {}),
     can_organize: !bare(piece), content_policy: piece.content_policy, revision: piece.revision, organized_revision: null, state: listed ? "listed" : "pending",
@@ -118,6 +119,9 @@ export function cardSeen(card: KnowledgeCardRecord, piece: KnowledgePiece): Know
   const next: KnowledgeCardRecord = { ...card, source_key: piece.source_key, provider_id: piece.provider_id, plugin_id: piece.plugin_id, plugin_title: piece.plugin_title,
     ...(card.retention ? { retention: { ...card.retention, restoration_operation_id: operation ?? card.retention.restoration_operation_id } } : {}),
     can_organize: !bare(piece), content_policy: piece.content_policy, revision: piece.revision, updated_at: piece.updated_at, open: piece.open };
+  if (firstRestore && piece.restoration?.content_revision === null) return { ...next, state: "listed" };
+  if (card.state === "listed" && piece.restoration?.content_revision === null) return { ...next, state: "listed" };
+  if (card.adoption && card.state === "listed") return { ...next, state: "listed" };
   if (piece.restoration?.content_revision === piece.revision && card.state === "listed" && card.content_policy === "summary"
     && card.organized_revision === null && card.retention?.restoration_operation_id === operation) return { ...next, state: "listed" };
   if (firstRestore && piece.restoration?.content_revision === piece.revision) {
@@ -231,7 +235,7 @@ export class KnowledgeOrganizer {
       if (!sameFields(observed, card)) continue;
       const target = card ?? candidate;
       let state: SearchRetentionResult;
-      if (unbound && target.retention === undefined) state = this.unboundRetention(projectId, target, unbound);
+      if (unbound && target.retention === undefined && !("adoption" in target && target.adoption)) state = this.unboundRetention(projectId, target, unbound);
       else {
         state = await this.retention(projectId, target);
         if (this.closed || this.removed.has(projectId)) return;
@@ -251,7 +255,7 @@ export class KnowledgeOrganizer {
       const card = store.get(projectId, observed.subject);
       if (!card || !sameFields(observed, card)) continue;
       let state: SearchRetentionResult;
-      if (unbound && card.retention === undefined) state = this.unboundRetention(projectId, card, unbound);
+      if (unbound && card.retention === undefined && !card.adoption) state = this.unboundRetention(projectId, card, unbound);
       else {
         state = await this.retention(projectId, card);
         if (this.closed || this.removed.has(projectId)) return;
@@ -307,7 +311,8 @@ export class KnowledgeOrganizer {
 
   private retention(projectId: string, piece: KnowledgePiece | KnowledgeCardRecord): Promise<SearchRetentionResult> {
     return this.options.retention?.({ project_id: projectId, provider_id: piece.provider_id, subject: piece.subject,
-      ...(piece.retention ? { retention: piece.retention } : {}) }) ?? Promise.resolve({ state: piece.retention ? "unavailable" : "unsupported" });
+      ...(piece.retention ? { retention: piece.retention } : {}),
+      ...("adoption" in piece && piece.adoption ? { adoption: piece.adoption } : {}) }) ?? Promise.resolve({ state: piece.retention || "adoption" in piece && piece.adoption ? "unavailable" : "unsupported" });
   }
 
   private unboundRetention(projectId: string, piece: KnowledgePiece | KnowledgeCardRecord,

@@ -478,6 +478,7 @@ export interface ActionExecutionContext extends ActionCallContext {
     readonly current_action?: ExactActionReference;
     readonly retainAuthority?: (references: readonly ActionReference[], options?: {
         readonly audience?: "workflow";
+        readonly providerCommands?: "unchanged";
     }) => RetainedActionAuthority;
     readonly retainBackgroundAuthority?: (additionalPermissions?: readonly string[]) => RetainedActionAuthority;
 }
@@ -781,13 +782,13 @@ export type ActionSubjectRetention = {
 } & ({
     readonly state: "active";
     readonly retained: {
-        readonly content_revision: string;
+        readonly content_revision: string | null;
         readonly restoration_operation_id: string;
     } | null;
 } | {
     readonly state: "temporarily_archived";
     readonly retained: {
-        readonly content_revision: string;
+        readonly content_revision: string | null;
         readonly restoration_operation_id: null;
     };
 } | {
@@ -2880,8 +2881,12 @@ export declare const SUBJECT_RETENTION_OUTPUT_SCHEMA: {
                     type: string;
                     properties: {
                         content_revision: {
-                            type: string;
-                            minLength: number;
+                            anyOf: ({
+                                type: string;
+                                minLength: number;
+                            } | {
+                                type: string;
+                            })[];
                         };
                         restoration_operation_id: {
                             type: string;
@@ -2922,8 +2927,12 @@ export declare const SUBJECT_RETENTION_OUTPUT_SCHEMA: {
             retained: {
                 properties: {
                     content_revision: {
-                        type: string;
-                        minLength: number;
+                        anyOf: ({
+                            type: string;
+                            minLength: number;
+                        } | {
+                            type: string;
+                        })[];
                     };
                     restoration_operation_id: {
                         type: string;
@@ -2970,7 +2979,7 @@ export declare const SUBJECT_RETENTION_OUTPUT_SCHEMA: {
 
 export declare const SUBJECT_RETENTION_REQUEST_TYPE = "molis.subject-retention-request.v1";
 
-export declare const SUBJECT_RETENTION_TYPE = "molis.subject-retention.v1";
+export declare const SUBJECT_RETENTION_TYPE = "molis.subject-retention.v2";
 
 export type SceneConfigurationInput = {
     binding_id: string;

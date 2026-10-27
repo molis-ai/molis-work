@@ -443,3 +443,7 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
     - 已转评审复核；
     - Alchemist 那个小提交推了，评审一并核完，第 1 片就开 PR：base 是 main，正文写清 /oauth 对插件作者的影响和「本机延后验证」，SDK 全量进集成批。
   - #1314 已合入 main。#1315 已改基到 main、合了 origin/main，推到 a9f9e1d87，CI 在跑。
+  - **10-27 ac646bbda 复核**：四条小改都落实了，可以合。
+    - salesforce 比要求的多走了一步：check:tenant 的 keep 一律要 required；令牌响应缺 instance 时报 account_missing。
+    - /oauth：根入口的快照和 main 完全相同，新增 16 个函数、3 个类型，只增不减。
+    - 两处措辞（oauthPinnedTenant 的注释、AGENTS 清单的说法）并进 Alchemist 脉搏那次改稿。评审核完这一个提交，第 1 片就开 PR。

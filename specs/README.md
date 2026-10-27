@@ -4,7 +4,7 @@
 
 ## 在做的
 
-- [product-flow-governance](product-flow-governance/spec.md)：全产品流程与架构治理——内部概念、状态与内容依赖、检查及审查的必要性；先贯穿真实材料到项目的完整 Onboarding，再核其他工作路径。2026-10-27 需求已整理，全面核查与整改未开始；需求维护 Codex，专项执行待分配。
+- [product-flow-governance](product-flow-governance/spec.md)：全平台产品与架构系统性审查和优化——覆盖全部功能、入口、设置、交互与公共机制，核功能完整性、流程依赖、AI 效果和检查审查；Onboarding 为首个切入口，全平台覆盖与优化验证后才算专项完成。2026-10-27 需求已整理，全面核查与整改未开始；需求维护 Codex，专项执行待分配。
 
 - [plugin-builder-upgrade](plugin-builder-upgrade/spec.md)：插件创作工作台整体升级；首要解决用户至今未跑通的端到端交付与整体体验，平台同时提供手动／个人助理共用的场景组装能力，保留新能力插件的创作，Alchemist 并为完整落地场景；2026-10-27 需求已整理，尚未实现。需求维护 Codex，实现待分配；与三项场景包／Onboarding 需求独立。
 

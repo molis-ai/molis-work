@@ -669,3 +669,7 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
   - 用户接下来会在这几个会话里各点一次合并同意：W6-02（#1325）、W5-10（#1316、#1317）、ac-sweep（#1326）、W5-11 OAuth（#1322，Full 之后）、C（Full 之后）。
   - **10-28 #1326 新头 433829b6c**：RAC-1115 进产品子集；RAC-1116 不进（起 Home、开 MCP，本机 10～11 秒）；PMR-15、K-1 标已做。`affected-tests` 的 `full` 命中 assembly（`apps/workbench/src/immersive-shell.ts` 只改了一句按钮文字）。统筹裁定照 10-23 的规矩看 `full` 字段，跑全量（BL-635 还删了 44 个入口名字），但在 CI 上：评审确认后合 main，推 `integration/carrier-1028-1326`，比对 `known-red-main.md`，全绿后 `ac-sweep` 在自己的会话合。
   - **10-28 W5-10 在等用户本人同意把 #1316 加入合并队列**（W5-10 会话）。
+  - **10-28 评审 C 的 `bc7c06c07..7e716e494`**（笔记 `review-c-7e716e49-rac510.md`）：可以合，合并前看 Security invariants 作业。M1～M3、三处实现约定、写入者名单都成立；合同只是谁能调变了，schema 哈希不变，不升 version。S-97～S-100 在 main（末号 S-96）和在途 PR 里都空着。
+    - 统筹裁定四条建议都在开 PR 前做：CONTRACT-CHANGES §8 补 join 与 `PluginArtifactWriter`、6 个动作的调用方多要 `artifact:write`；`CALL_REFUSALS` 补 `actions.plugin_permission`、`actions.provider_changed` 并改过时注释；`audit_actor_id` 不同时的用例；演示种子捕获的断言。攒成一批测，评审只评增量，然后开草稿 PR、推 carrier 跑 Full。
+    - C 的根目录 `tsc --noEmit` 已过（heavy.sh，日志 `.impeccable/qa/c-root-tsc.log`），PR 正文已起草。
+  - **10-28 #1322**：main（74f31c19e）已普通合进分支，无冲突，头 a9480e3de；同一个头推到 `integration/carrier-1028-w511`，PR 的 CI 和 Full 都在排队。

@@ -13,7 +13,7 @@ const KEY = /^[a-z][a-z0-9_]{0,63}$/u;
 const HEADER_NAME = /^[A-Za-z][A-Za-z0-9-]{0,63}$/u;
 const WHOLE = /^\{([^{}]*)\}$/u;
 const URL_HEAD = /^\{([^{}]*)\}(\/.*)$/su;
-const HEADS = ["service", "tenant", "gateway"] as const;
+const HEADS: readonly OAuthUrlHead[] = ["service", "tenant", "gateway"];
 const URL_ORIGIN = /^(https:\/\/[^/{}?#]+)(\/.*)$/su;
 const IP_LITERAL = /^(?:\d+\.){3}\d+$|^\[/u;
 const LOCAL_SUFFIX = /\.(?:localhost|local|internal|home\.arpa)$/u;
@@ -30,16 +30,19 @@ export function oauthKey(value: unknown): value is string {
   return typeof value === "string" && KEY.test(value);
 }
 
+/** A placeholder that stands for an address's origin. */
+export type OAuthUrlHead = "service" | "tenant" | "gateway";
+
 /** The one placeholder grammar every template is read by: `{client_id}`, an address head, `{context.<key>}`, `{setting.<key>}`. */
 export type OAuthPlaceholder =
   | { readonly kind: "client_id" }
-  | { readonly kind: "head"; readonly head: (typeof HEADS)[number] }
+  | { readonly kind: "head"; readonly head: OAuthUrlHead }
   | { readonly kind: "context" | "setting"; readonly key: string };
 
 /** What the text between a pair of braces names; `undefined` when it is not a placeholder. `{account}` joins the heads in slice 4. */
 export function oauthPlaceholder(name: string): OAuthPlaceholder | undefined {
   if (name === "client_id") return { kind: "client_id" };
-  if ((HEADS as readonly string[]).includes(name)) return { kind: "head", head: name as (typeof HEADS)[number] };
+  if ((HEADS as readonly string[]).includes(name)) return { kind: "head", head: name as OAuthUrlHead };
   const dot = name.indexOf(".");
   const kind = name.slice(0, dot);
   const key = name.slice(dot + 1);
@@ -69,7 +72,7 @@ export function oauthLooksLikePlaceholder(text: string): boolean {
  * address head; `name` is its text) or a written `https://` origin, then a path starting with `/`. `undefined` for anything else, such
  * as a placeholder in the host name.
  */
-export function oauthUrlTemplate(template: string): { readonly head: (typeof HEADS)[number] | undefined; readonly name: string; readonly path: string }
+export function oauthUrlTemplate(template: string): { readonly head: OAuthUrlHead | undefined; readonly name: string; readonly path: string }
   | { readonly origin: string; readonly path: string } | undefined {
   const head = URL_HEAD.exec(template);
   if (head) {

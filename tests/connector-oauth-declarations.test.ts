@@ -51,7 +51,7 @@ test("RAC-1081 a well-formed oauth method passes, and the bare kind is still rea
   assert.ok(parsePluginManifest(manifest("salesforce", method({
     authorize_url: "{tenant}/services/oauth2/authorize", token_url: "{tenant}/services/oauth2/token",
     settings: [{ key: "login_origin", label: "登录地址", default: "https://login.salesforce.com", use: "tenant" }],
-    keep: [{ key: "instance", pointer: "/instance_url", check: "tenant" }],
+    keep: [{ key: "instance", pointer: "/instance_url", check: "tenant", required: true }],
     identity: { url: "{tenant}/services/oauth2/userinfo", account_id: [["identity:/organization_id"], ["identity:/sub", "identity:/user_id"]], label: ["identity:/name"] },
   }))));
   assert.ok(parsePluginManifest(manifest("outlook", method({
@@ -79,7 +79,7 @@ test("RAC-1081 each declaration error fails the whole Manifest before anything i
   refused("slack", { ...method(), origin_setting: "x" }, /不认这些字段/u);
   // The tenant is bounded by the platform's table: a service the table keeps on fixed origins cannot take one.
   refused("slack", method({ settings: [{ key: "login", label: "l", use: "tenant" }] }), /use: tenant/u);
-  refused("slack", method({ keep: [{ key: "instance", pointer: "/instance_url", check: "tenant" }] }), /check: tenant/u);
+  refused("slack", method({ keep: [{ key: "instance", pointer: "/instance_url", check: "tenant", required: true }] }), /check: tenant/u);
   // Where the access token may go is the table's: `{service}` for one origin, a full address only on one of them.
   refused("cloudflare", method({ identity: { url: "{service}/oauth2/userinfo", account_id: [[], ["identity:/id"]], label: ["identity:/email"] } }), /\{service\}/u);
   refused("slack", method({ identity: { url: "https://evil.example.com/me", account_id: [[], ["identity:/id"]], label: ["identity:/id"] } }), /来源/u);
@@ -102,8 +102,12 @@ test("RAC-1081 each declaration error fails the whole Manifest before anything i
   refused("slack", method({ context: [{ key: "teams", url: "{service}/teams", pick: { kind: "ids", pointer: "/*/id" }, when_missing: "fail" } as never] }), /不认这些字段/u);
   // Where `{tenant}` goes is worked out by the interpreter alone, so the declaration must give it one source, and only one kept value.
   refused("salesforce", method({ identity: { url: "{tenant}/services/oauth2/userinfo", account_id: [[], ["identity:/sub"]], label: ["identity:/name"] } }), /check: tenant/u);
-  refused("salesforce", method({ keep: [{ key: "instance", pointer: "/instance_url", check: "tenant" }],
-    identity: { url: "{tenant}/services/oauth2/userinfo", account_id: [[], ["identity:/sub"]], label: ["identity:/name"], keep: [{ key: "site", pointer: "/urls/custom_domain", check: "tenant" }] } }), /至多一项 check: tenant/u);
+  refused("salesforce", method({ keep: [{ key: "instance", pointer: "/instance_url", check: "tenant", required: true }],
+    identity: { url: "{tenant}/services/oauth2/userinfo", account_id: [[], ["identity:/sub"]], label: ["identity:/name"], keep: [{ key: "site", pointer: "/urls/custom_domain", check: "tenant", required: true }] } }), /至多一项 check: tenant/u);
+  // Where later requests go may not quietly fall back to the login origin: a kept tenant is required.
+  refused("salesforce", method({ authorize_url: "{tenant}/services/oauth2/authorize", token_url: "{tenant}/services/oauth2/token",
+    settings: [{ key: "login_origin", label: "登录地址", default: "https://login.salesforce.com", use: "tenant" }],
+    keep: [{ key: "instance", pointer: "/instance_url", check: "tenant" }] }), /required: true/u);
   // A default is held to its setting's own rules.
   refused("outlook", method({ settings: [{ key: "tenant", label: "租户", default: "everyone", use: "path", pattern: "common|organizations" }] }), /default/u);
   refused("outlook", method({ settings: [{ key: "tenant", label: "租户", default: "../x", use: "path", pattern: ".+" }] }), /default/u);
@@ -149,7 +153,7 @@ test("RAC-1082 the tenant is checked against the table's domain after the templa
   const salesforce = method({
     authorize_url: "{tenant}/services/oauth2/authorize", token_url: "{tenant}/services/oauth2/token",
     settings: [{ key: "login_origin", label: "登录地址", default: "https://login.salesforce.com", use: "tenant" }],
-    keep: [{ key: "instance", pointer: "/instance_url", check: "tenant" }],
+    keep: [{ key: "instance", pointer: "/instance_url", check: "tenant", required: true }],
   });
   assert.equal(oauthEndpoint(salesforce.token_url, resolved("salesforce", salesforce)), "https://login.salesforce.com/services/oauth2/token");
   assert.equal(oauthEndpoint(salesforce.token_url, resolved("salesforce", salesforce, { login_origin: "https://test.salesforce.com" })), "https://test.salesforce.com/services/oauth2/token");
@@ -193,7 +197,8 @@ test("RAC-1082 identity and context requests go only where the platform's table 
   assert.throws(() => oauthAccountRequest({ url: "https://slack.com{context.x}/me" }, scope("slack", { context: { x: ".evil.example" } })), { code: "connector.oauth_declarations.template_invalid" });
   assert.throws(() => oauthAccountRequest({ url: "{service}/me", headers: { Cookie: "a=b" } }, scope("slack")), { code: "connector.oauth_declarations.template_invalid" });
   assert.throws(() => oauthAccountRequest({ url: "{service}/me", headers: { "X-Figma-Token": "{context.x}" } }, scope("slack")), { code: "connector.oauth_declarations.template_invalid" });
-  // The default port and an upper-case host name are the same origin, written the URL's way.
+  // Let through, not refused: the default port and an upper-case host name are the same origin, written the URL's way (a port other
+  // than the default is refused, by the shape check and by the tenant rule).
   assert.equal(oauthAccountRequest({ url: "https://DASH.Cloudflare.com:443/oauth2/userinfo" }, scope("cloudflare")).url, "https://dash.cloudflare.com/oauth2/userinfo");
   const vercel = oauthAccountRequest({ url: "{service}/v2/user", query: { teamId: "{context.team_id}" } }, scope("vercel", { context: { team_id: "team_1" } }));
   assert.equal(vercel.url, "https://api.vercel.com/v2/user?teamId=team_1");
@@ -226,11 +231,11 @@ test("RAC-1082 the authorization address and token request: the platform writes 
   assert.equal(oauthExpiry(method(), { expires_in: 60 }, 1000), 61_000);
 });
 
-test("RAC-1082 the interpreter pins the tenant itself: the kept instance first, the login setting otherwise", () => {
+test("RAC-1082 the interpreter pins the tenant itself: the kept instance, never quietly the login origin once it is missing", () => {
   const salesforce = method({
     authorize_url: "{tenant}/services/oauth2/authorize", token_url: "{tenant}/services/oauth2/token",
     settings: [{ key: "login_origin", label: "登录地址", default: "https://login.salesforce.com", use: "tenant" }],
-    keep: [{ key: "instance", pointer: "/instance_url", check: "tenant" }],
+    keep: [{ key: "instance", pointer: "/instance_url", check: "tenant", required: true }],
     identity: { url: "{tenant}/services/oauth2/userinfo", account_id: [["identity:/organization_id"], ["identity:/sub", "identity:/user_id"]], label: ["identity:/name"] },
   });
   const settings = resolved("salesforce", salesforce);
@@ -238,8 +243,13 @@ test("RAC-1082 the interpreter pins the tenant itself: the kept instance first, 
   const userinfo = { url: salesforce.identity.url! };
   const kept = oauthKept("salesforce", salesforce.keep, { instance_url: "https://acme.my.salesforce.com" });
   assert.equal(oauthAccountRequest(userinfo, scope(kept)).url, "https://acme.my.salesforce.com/services/oauth2/userinfo", "the instance, not the login origin");
-  assert.equal(oauthPinnedTenant(scope({})), "https://login.salesforce.com");
-  assert.equal(oauthAccountRequest(userinfo, scope({})).url, "https://login.salesforce.com/services/oauth2/userinfo");
+  // A token response without the instance fails the authorization; a connection that lost it is refused, not sent to the login origin.
+  assert.throws(() => oauthKept("salesforce", salesforce.keep, { access_token: "access-1" }), { code: "connector.oauth_declarations.account_missing" });
+  assert.throws(() => oauthPinnedTenant(scope({})), { code: "connector.oauth_declarations.target_refused" });
+  assert.throws(() => oauthAccountRequest(userinfo, scope({})), { code: "connector.oauth_declarations.target_refused" });
+  // A tenant kept from the identity response is not there yet for the identity request itself, which goes to the login setting.
+  const fromIdentity = method({ settings: salesforce.settings, identity: { ...salesforce.identity, keep: [{ key: "instance", pointer: "/urls/custom_domain", check: "tenant", required: true }] } });
+  assert.equal(oauthPinnedTenant({ ...scope({}), method: fromIdentity }), "https://login.salesforce.com");
   // A kept value is checked against the table again when it is used, not trusted for having been kept.
   assert.throws(() => oauthAccountRequest(userinfo, scope({ instance: "https://evil.example.com" })), { code: "connector.oauth_declarations.target_refused" });
   assert.throws(() => oauthAccountRequest({ url: "{tenant}/me" }, { ...scope({}), method: method(), settings: { values: {} } }), { code: "connector.oauth_declarations.template_invalid" }, "no tenant at all");
@@ -275,7 +285,7 @@ const identities: Record<string, IdentityFixture> = {
   cloudflare: { identity: { url: "https://dash.cloudflare.com/oauth2/userinfo", account_id: [[], ["identity:/id", "identity:/sub"]], label: ["identity:/email", "identity:/sub"] },
     response: { sub: "cf-sub", email: "ada@example.com" }, expected: { account_id: ":cf-sub", label: "ada@example.com" } },
   salesforce: { identity: { url: "{tenant}/services/oauth2/userinfo", account_id: [["identity:/organization_id"], ["identity:/sub", "identity:/user_id"]], label: ["identity:/preferred_username", "identity:/name"] },
-    keep: [{ key: "instance", pointer: "/instance_url", check: "tenant" }],
+    keep: [{ key: "instance", pointer: "/instance_url", check: "tenant", required: true }],
     response: { organization_id: "00D1", sub: "https://login.salesforce.com/id/00D1/005A", user_id: "005A", preferred_username: "ada@acme" }, context: { instance: "https://acme.my.salesforce.com" },
     expected: { account_id: "00D1:https://login.salesforce.com/id/00D1/005A", label: "ada@acme" } },
   sentry: { identity: { url: "{service}/api/0/organizations/", list: { min_by: "/id" }, account_id: [[], ["identity:/id"], ["context:oauth_user_id"]], label: ["identity:/name", "identity:/slug"],

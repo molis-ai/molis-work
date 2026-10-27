@@ -24,13 +24,13 @@ import {
   oauthUrlTemplate,
   oauthValueTemplate,
   type OAuthPlaceholder,
-} from "@molis-ai/molis-work-plugin-sdk";
+} from "@molis-ai/molis-work-plugin-sdk/oauth";
 
 // The platform's one reader of an `oauth` method declared in a plugin's Manifest (W5-11 §2.2). Everything here is a pure function: it
 // turns the declaration, the settings the person filled in and what the connection already holds into addresses and request
 // descriptions, and reads accounts out of responses. Nothing is sent here. Where an access token may go is the platform's request table;
 // every address is checked again after its template is filled in (S-09, S-10), before anything could be sent to it. The template and
-// value rules are the SDK's (`oauth-templates.ts`), the same ones the Manifest check reads by.
+// value rules are the SDK's (the `/oauth` subpath, `src/oauth.ts`), the same ones the Manifest check reads by.
 
 export const oauthDeclarationErrors = defineErrorCodes("connector.oauth_declarations", {
   setting_invalid: "invalid", template_invalid: "invalid", target_refused: "forbidden", account_missing: "upstream", context_missing: "upstream",
@@ -83,7 +83,6 @@ export function resolveOAuthSettings(serviceId: string, method: PluginOAuthMetho
       values[setting.key] = "";
       continue;
     }
-    if (setting.use === "tenant") tenant = oauthTenantOrigin(serviceId, value);
     switch (oauthSettingValueFault(setting, value, service(serviceId)?.tenant?.domain)) {
       case "enum": throw oauthDeclarationErrors.setting_invalid(`${setting.label}只能是 ${setting.enum!.join("、")}`);
       case "pattern": throw oauthDeclarationErrors.setting_invalid(`${setting.label}的格式不对`);
@@ -91,6 +90,8 @@ export function resolveOAuthSettings(serviceId: string, method: PluginOAuthMetho
       case "tenant": throw oauthDeclarationErrors.target_refused(`${setting.label}不是可用的租户地址`);
       case undefined: break;
     }
+    // The switch above refused a tenant value off the table's domain, so this is its origin.
+    if (setting.use === "tenant") tenant = oauthTenantOriginUnder(service(serviceId)!.tenant!.domain, value);
     values[setting.key] = setting.use === "tenant" ? tenant! : value;
   }
   for (const key of Object.keys(raw)) if (!Object.hasOwn(values, key)) throw oauthDeclarationErrors.setting_invalid(`这个服务没有设置项 ${key}`);
@@ -233,12 +234,17 @@ export interface OAuthRequestScope {
 
 /**
  * The tenant origin a request with the access token goes to, worked out here and never by the caller: the value kept by the method's one
- * `check: "tenant"` keep (in `keep` or `identity.keep`), checked against the platform's table again, else the tenant setting.
+ * `check: "tenant"` keep, checked against the platform's table again, else the tenant setting. A token-response keep is there once the
+ * authorization passed (it is `required`), so its absence is refused, not filled from the setting; an `identity.keep` one falls back to the
+ * setting only for the identity request it comes from.
  */
 export function oauthPinnedTenant(scope: Pick<OAuthRequestScope, "serviceId" | "method" | "context" | "settings">): string | undefined {
-  const keep = [...scope.method.keep ?? [], ...scope.method.identity.keep ?? []].find(entry => entry.check === "tenant");
-  const kept = keep ? (scope.context[keep.key] ?? "").trim() : "";
-  return kept ? oauthTenantOrigin(scope.serviceId, kept) : scope.settings.tenant;
+  const keep = (scope.method.keep ?? []).find(entry => entry.check === "tenant");
+  const identityKeep = (scope.method.identity.keep ?? []).find(entry => entry.check === "tenant");
+  const kept = (scope.context[(keep ?? identityKeep)?.key ?? ""] ?? "").trim();
+  if (kept) return oauthTenantOrigin(scope.serviceId, kept);
+  if (keep) throw oauthDeclarationErrors.target_refused(`连接里没有服务返回的 ${keep.key}，请重新授权`);
+  return scope.settings.tenant;
 }
 
 /**

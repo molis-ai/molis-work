@@ -15,13 +15,13 @@ import {
   oauthSettingValueFault,
   oauthUrlTemplate,
   oauthValueTemplate,
-} from "./oauth-templates.js";
+} from "./oauth.js";
 
 // The shape of a `connection_services[].auth.methods` entry of `kind: "oauth"` that carries its flow as data (W5-11 §2.1, §2.1.1). Any
 // problem fails the whole Manifest (M5). Where the access token may go is read from the platform's request table, never from the
 // Manifest: `{service}` only for a service with one origin there, a full address only on one of those origins, `{tenant}` and
 // `{gateway}` only for a service the table puts on tenants' origins. Endpoints receive no access token and are not held to the table.
-// The template and value rules are `oauth-templates.ts`, the same ones the Host's interpreter reads by.
+// The template and value rules are `oauth.ts`, the `/oauth` subpath, the same ones the Host's interpreter reads by.
 
 const METHOD_FIELDS = new Set(["kind", "grant", "authorize_url", "token_url", "refresh_url", "device_authorization_url", "issuer", "scopes",
   "pkce", "client_auth", "token_format", "client_secret", "parameters", "settings", "identity", "keep", "context", "quirks", "note"]);
@@ -229,7 +229,11 @@ function keepProblems(where: string, value: unknown, service: ConnectorRequestSe
     if (unknown.length > 0) problems.push(`${where}的 ${keep.key} 不认这些字段：${unknown.join("、")}`);
     if (keep.required !== undefined && typeof keep.required !== "boolean") problems.push(`${where}的 ${keep.key}.required 必须是 true 或 false`);
     const check = keep.check;
-    if (check === "tenant") { if (!service?.tenant) problems.push(`${where}的 ${keep.key} 写了 check: tenant，但平台的请求表没有把这个服务放在租户的来源上`); }
+    if (check === "tenant") {
+      if (!service?.tenant) problems.push(`${where}的 ${keep.key} 写了 check: tenant，但平台的请求表没有把这个服务放在租户的来源上`);
+      // Where later requests go must not quietly fall back to the login origin when the response leaves the tenant out.
+      if (keep.required !== true) problems.push(`${where}的 ${keep.key} 写了 check: tenant，要同时写 required: true`);
+    }
     else if (check !== undefined && !(isRecord(check) && Object.keys(check).length === 1 && compiles(check.pattern))) problems.push(`${where}的 ${keep.key}.check 只能是 tenant 或 { pattern }`);
   }
   return problems;

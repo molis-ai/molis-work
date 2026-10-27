@@ -3795,3 +3795,40 @@ ActionService在共用execute的command handler实际入场与原handler实际�
 最终集成已合入仅文档变化的main `bb0158a28`，没有冲突。完整构建、包边界、按新merge-base的health与资源门通过；版本清单同步Coding4/Knowledge3，三个内聚单元按现行规则登记实测大小而未改阈值。最终产物的关联页面与HTTP两文件3项、原Kernel/Contracts相关36文件590项通过；6个回环环境失败仅修正执行权限后原断言通过，原日志保留。第二次独立深审核过跨模块提交、旧库采用、重试及开场reader，无新增阻塞。日志为`/private/tmp/molis-memory-adoption-final-{build,health,ui}-20261027.log`及`/private/tmp/molis-memory-adoption-boundaries-20261027.log`；这些仍不替代最终head的完整CI。
 
 这一修复的真实Host/Coding归档反例已转绿：归档已完成、本地持久pending后失败、归档已提交但handler尚未返回三种交错均拒绝关联，旧卡及邻居不变；pending仍按原请求恢复和重放。完整采用文件21项首轮通过；Kernel新17项通过，覆盖原handler完成、同步/异步、取消/超时、嵌套、注册与项目隔离。Kernel首轮夹具误将query声明为operation，被注册门拒绝，修正测试声明后通过，未改生产或放宽门。两份日志为`/private/tmp/molis-memory-bind-activity-integration-20261027.log`和`/private/tmp/molis-action-provider-fence-final-20261027.log`，零重试。独立复核未发现新阻塞；共享核心完整回归、最终提交CI、系统来源无安装代的采用覆盖及性能门仍待，不能据此称P0完成。
+
+`a77b0e688`已作为同一批提交推送#1101及既有集成分支。普通CI `40515911386`的Gates发现本地暂存前检查未覆盖的两个新文件：开场reader注释里的否定性backfill词元，以及副本维护CLI的两处console输出。修正为准确描述来源证明的注释和直接stdout/stderr输出，未改变投影、维护行为或门禁；须在已跟踪状态重新验门。Full suite `40515916043`继续运行，原失败保留，尚不作通过结论。
+
+普通 Product 1/2 又发现 Coding 撤销归档动作仍按版本 1 断言，实际合同已为 2；已同步精确版本并增加旧引用拒绝，原单文件 1/1 通过。Security 1/2 的唯一失败是旧 Coding 私库拒绝消息仍期待声明 3、实际正确拒绝并声明 4；只同步版本文字，原旧库拒写、邻居可用与全库不变断言全部保留，单文件 7/7 通过（`/private/tmp/molis-memory-current-private-refusal-20261027.log`）。已跟踪状态的原 health 门也通过；这不覆盖待运行的最终提交 CI。
+
+Full 本轮已核五个失败分片的原日志：导航/CDP 前置超时、窄屏历史点击被侧栏提示遮挡，以及一次代码着色帧耗时超门，分别保留，不能统称旧失败或用重试通过抹除。原重试没有输出再次失败堆栈，其最终根因仍未知。只读核收为 `/private/tmp/molis-app-a77-full-40515916043/audit.md`；原 a77 Full 继续收完后再归并修正。
+
+#### 系统资料来源的当前实例身份（2026-10-27用户已批准实现与隔离演练，尚未实现）
+
+旧PDF与成果卡现在可以完整查看，但当前系统来源没有插件安装代，不能完成本人关联后供Agent读取的闭环。平台不能给它们伪造插件安装事实。现Registry注册token只在进程内有效，Home标识由路径产生，项目业务ID可被重用；现有字段都不能证明重启前后仍是同一份项目数据。保持空候选是安全现状，不是本项验收完成。
+
+首选复用现项目数据主人，在原project_root根行增加随机持久的data_instance_id；不新增表、注册表或服务，不改变project_id。新项目创建时产生，普通关闭、重开、移动和归档不变；独立重建为新实例。系统项目来源只从当前项目主人投影该身份，插件仍取真实安装记录。绑定合同明确区分plugin-installation与project-data，不能把后者塞进plugin_installation_generation或悄悄重释现generation。
+
+这是对前述预览合同“不新增持久状态”的实质增量，并扩展了原先仅Coding/Knowledge私库的维护范围：项目库现baseline10须升11，Knowledge现baseline3的adoption形状须升版，相关公开动作和消费者同步。仅在显式选定、停写的隔离副本中维护；新身份只证明从现在起的实例，旧卡仍未绑定，不能批量补写来源。本人预览并确认准确对象与版本后，沿原卡事务保存关联，零模型调用，旧机器摘要继续只作历史。
+
+预览、最终绑定、可见性、原文读取、整理派出与结果提交统一复核身份，并保留现权限、版本、命令交错拒绝和同步整卡比较。缺身份、关闭或状态不明时保留旧卡并拒绝使用。身份投影首期仅给确由该项目库持有的Artifacts/PDF，不能按system类型套给全部提供方；旧v3采用记录仅按已有plugin-installation语义保真升级，不猜来源或补绑。
+
+所有拟采用成果，包括只提供summary的成果，都须经原owner核对当前精确对象的可用/归档状态及版本，后续可见性与模型派出复用同一否决；优先沿现reader/保留协议，不另存生命周期。索引、实例身份或unsupported都不能代替此检查，命令活动标记也不能证明捕获前已经完成的归档。
+
+完整一致恢复同一项目数据及关联卡时保留实例身份，身份相等本身不证明恢复完整或版本一致；向已有目标部分导入时保留目标身份，不能复制源ID以凑匹配，新实例或部分恢复拒绝不匹配关联。项目库升级成功而Knowledge升级失败时保持停写、报告部分完成，重试必须保留已生成ID；同步调整现维护工具要求项目版本10的顺序依赖。失败沿原备份与逐库事务恢复，不在启动时自动补值。以上必要补充经过独立只读权限与恢复合同复核，用户已明确批准本提案的实现与隔离演练；不包括真实Home切换或发布。
+
+验收：真实PDF/Artifacts非空预览→确认→读取→重启/原决定重放；取消及未确认卡不进Search/Agent；权限撤销、版本变化、关闭、归档和提交交错拒写；相同project_id的新实例拒绝旧关联；完整和部分恢复分别验证；零自动模型、旧卡及人工字段完整保留。现有资源与性能门不放宽，不操作真实Home、不发布；新增资源仍按实测单独处理。该范围已经批准；验证不足时继续保留旧卡并拒绝不可信关联，覆盖项保持未完成。
+
+
+本轮实现依赖与最小合同（2026-10-27）：
+
+| 顺序 | 改动与主人 | 独立验收及依赖 |
+| --- | --- | --- |
+| I1 | Projects 原根行增加必需的 `data_instance_id`，项目基线 11 | 新建随机身份；幂等写、关闭重开保留身份与创建时间；相同业务 ID 的新库身份不同；版本 10 不补值、不自动升级。可与 C0 合同核对并行 |
+| C0 / I2 | 原 Actions 值合同增加 `ActionSourceIdentity`：`plugin-installation` 带 `generation`，`project-data` 带 `data_instance_id`。提供方新增 `project_data_instance_id`，仅真实项目 Artifacts 装配投影。Knowledge adoption/bind 和既有 retention 绑定统一使用 `source_identity` | 旧插件代不重释为系统身份；捕获后重建或重新安装均拒绝；权限与命令交错保护不变。实现依赖 I1，源状态与消费代码一起进入现有 PR |
+| I3 | 沿原 retention 查询核当前对象：协议 v3 的 active 增加 `current_revision: string 或 null`，Artifacts 必须给准确版本，Coding 保持生命周期职责并明确为 null | summary 成果也向原主人核状态及版本；context 使用正文版本，summary 使用列表版本。null/unsupported 不能证明系统来源有效。retained 仍只表示真实归档恢复事实，不伪造恢复号 |
+| I4 | 项目 10→11、Knowledge 1/2/3→4 在明确选定的停写副本维护；Search 派生索引 3→4 沿原重建机制 | 旧 v3 adoption/retention 只把真实 generation 包成插件身份，未知身份仍为空；项目成功、Knowledge 失败后重试不换身份。完整恢复保留实例；部分导入不得替换目标实例。依赖 I1 与 C0 |
+| 集成 | 实际 PDF 和 summary 成果采用、拒绝、读取、重启、归档与版本交错，加现有 UI/调用链验证 | 工程、产品实操与用户验收分别报告；并入 #1101，不另开小 PR；最终完整 CI 及性能门仍必须收束 |
+
+Search 也记录同一来源身份，是因为其当前保留绑定仅核插件代：如果只给 Knowledge 增加身份，Search 的 query/open/context 仍不能区分相同项目 ID 下的新旧系统数据。这是现派生缓存的形状升级，不新增业务库迁移或另一套身份服务。无现行身份的旧索引不作为证据。Knowledge 私库升 4；`knowledge.card.bind-preview/bind` 升 2，返回卡形状的 `knowledge.cards/edit/exclude` 升 4；retention 通用 helper 与 Coding 动作同步升 3，新增 Artifacts retention 动作使用同一现行合同。所有变更同 PR 更新消费者、声明及快照，不保留读取兜底。
+
+原 `adoption.source_revision` 仅记录本人当时确认的版本；后续核验应使用当次被展示/读取/派出的 card 或 piece 版本，不能拿新版本为旧摘要放行，也不能让原采用版本永久阻止新内容整理。身份、可用性和当前版本均从既有主人获得，不另存生命周期状态。

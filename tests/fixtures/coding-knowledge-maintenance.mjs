@@ -151,7 +151,7 @@ export async function maintainCodingKnowledge(mode, options) {
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
   const [mode, ...args] = process.argv.slice(2), value = flag => { const at = args.indexOf(flag); return at < 0 ? undefined : args[at + 1]; };
-  try { console.log(JSON.stringify(await maintainCodingKnowledge(mode, { home: value("--home"), projectDatabase: value("--project-database"),
-    publisher: value("--publisher"), knowledge: args.includes("--knowledge"), backupDirectory: value("--backup") }))); }
-  catch (error) { console.error(error.message, JSON.stringify({ completed: error.completed, backupDirectory: error.backupDirectory })); process.exitCode = 1; }
+  try { process.stdout.write(JSON.stringify(await maintainCodingKnowledge(mode, { home: value("--home"), projectDatabase: value("--project-database"),
+    publisher: value("--publisher"), knowledge: args.includes("--knowledge"), backupDirectory: value("--backup") })) + "\n"); }
+  catch (error) { process.stderr.write(`${error.message} ${JSON.stringify({ completed: error.completed, backupDirectory: error.backupDirectory })}\n`); process.exitCode = 1; }
 }

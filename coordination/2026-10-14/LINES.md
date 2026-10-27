@@ -590,3 +590,4 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
       - writer.head 不要求 artifact:read；
       - 行为人取 `audit_actor_id ?? actor_id`；
       - demo-plugin-seed.ts:280 那条演示数据入库后，照样要出捕获成果。
+  - **10-27 统筹核了 #1316 的冲突解法**：合并后 7cc01fb34 相对 main 74f31c19e 的改动，和合并前 e3 在 9cf5a7fb2 之上的改动完全相同（同样 9 个文件，patch-id 都是 f0da16dd9102，逐个文件也相同），冲突只是 squash 带来的重复。不用评审复核；CI 绿了就请用户在 W5-10 会话里点同意。

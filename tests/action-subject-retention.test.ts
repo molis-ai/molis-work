@@ -3,7 +3,9 @@ import test, { type TestContext } from "node:test";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { definePlugin, defineSubjectRetentionAction } from "@molis-ai/molis-work-plugin-sdk";
 import { MemoryPluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
-import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionSourceIdentity, defineSubjectContextAction, type ActionCallContext, type ActionDiscoveryFilter } from "@molis-ai/molis-work-contracts/platform/actions";
+import { LocalHost } from "@molis-ai/molis-work-app-local-host";
+import { readSubjectRetention } from "@molis-ai/molis-work-service-search";
 import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 
 const caller: ActionCallContext = { actor_id: "owner", project_id: "project-one", audience: "user", permissions: ["notes:read"] };
@@ -12,7 +14,7 @@ const definition = defineSubjectRetentionAction("notes.retention", subject.kind,
 
 async function source(t: TestContext) {
   const service = new ActionService(), repository = new MemoryPluginRuntimeRepository();
-  let result: unknown = { subject, state: "active", current_revision: null, retained: null }, calls = 0, startedGeneration = "";
+  let result: unknown = { subject, state: "active", current_revision: null, retained: null }, calls = 0, startedGeneration = "", onRead = () => {};
   const plugin = definePlugin({ manifest: {
     schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.example.retention", version: "1.0.0", name: "Retention source",
     kind: "app", publisher: { publisher_id: "example", signature: "retention-source" },
@@ -22,7 +24,7 @@ async function source(t: TestContext) {
   }, async start(context) {
     startedGeneration = context.installation_generation;
     return { kind: "app", actions: [{ capability_id: definition.capability_id, version: definition.version,
-      handle() { calls++; return result; } }] };
+      handle() { calls++; onRead(); return result; } }] };
   } });
   const runtime = new PluginRuntime(repository, undefined, { hostIds: ISOLATED_HOST_IDS,
     actions: { registry: service, project_id: caller.project_id! } });
@@ -31,7 +33,7 @@ async function source(t: TestContext) {
   await runtime.start(first.install_id);
   t.after(() => runtime.stop(first.install_id));
   return { service, repository, runtime, install, first,
-    set: (value: unknown) => { result = value; }, calls: () => calls, generation: () => startedGeneration,
+    set: (value: unknown) => { result = value; }, onRead: (observe: () => void) => { onRead = observe; }, calls: () => calls, generation: () => startedGeneration,
     invoke: (input: unknown = { subject_id: subject.id }, context = caller) => service.invoke(context, definition, input) };
 }
 
@@ -84,4 +86,48 @@ test("MEM-40 retention uses current caller grants and the Runtime installation g
   await s.runtime.start(replacement.install_id);
   assert.equal(provider().plugin_installation_generation, s.generation());
   assert.notEqual(provider().plugin_installation_generation, original, "a new installation cannot claim the previous generation");
+});
+
+test("retention provider projection still distinguishes missing system protocol from an unsupported old plugin", async t => {
+  const projected: string[] = [];
+  const host = new LocalHost({ runtimeFactory: { open: () => ({}), close: () => {} },
+    actionAvailability: async (_caller, view) => { projected.push(view.provider.provider_id); return { available: true }; } });
+  t.after(() => host.close());
+  const reference = { project_id: caller.project_id!, storage_key: "memory:retention-projection" };
+  let reads = 0;
+  for (const kind of ["system", "plugin"] as const) {
+    const reader = defineSubjectContextAction(`${kind}.reader`, "note", "Note", ["notes:read"]);
+    host.actionRegistry(reference).registerProvider({ provider: { provider_id: kind, title: kind, kind }, definitions: [reader],
+      handlers: [{ ...reader, handle: () => { reads++; throw new Error("No body should be read"); } }] });
+  }
+  const client = host.actionClient(reference);
+  assert.deepEqual(await readSubjectRetention({ client, caller }, { project_id: caller.project_id!, provider_id: "system", subject }), { state: "unavailable" });
+  assert.deepEqual(projected, ["system"], "provider filtering retains the system reader that proves a missing retention protocol");
+  projected.length = 0;
+  assert.deepEqual(await readSubjectRetention({ client, caller }, { project_id: caller.project_id!, provider_id: "plugin", subject }), { state: "unsupported" });
+  assert.deepEqual(projected, ["plugin"]);
+  assert.equal(reads, 0);
+});
+
+test("retention filters both fresh directories by provider and refuses withdrawal during the owner's read", async t => {
+  const s = await source(t), filters: Array<ActionDiscoveryFilter | undefined> = [];
+  const view = s.service.discover(caller).find(item => item.capability_id === definition.capability_id)!;
+  const identity = { project_id: caller.project_id!, provider_id: view.provider.provider_id, subject,
+    retention: { source_identity: actionSourceIdentity(view.provider, caller.project_id!) } };
+  const discover = s.service.discover.bind(s.service);
+  t.mock.method(s.service, "discover", (context: ActionCallContext, filter?: ActionDiscoveryFilter) => {
+    filters.push(filter); return discover(context, filter);
+  });
+  assert.equal((await readSubjectRetention({ client: s.service, caller }, identity)).state, "active");
+  assert.deepEqual(filters, [{ provider_id: identity.provider_id }, { provider_id: identity.provider_id }]);
+  filters.length = 0;
+  const entered = Promise.withResolvers<void>(), release = Promise.withResolvers<void>();
+  s.set((async () => { await release.promise; return { subject, state: "active", current_revision: null, retained: null }; })());
+  s.onRead(() => entered.resolve());
+  const pending = readSubjectRetention({ client: s.service, caller }, identity);
+  await entered.promise;
+  s.repository.save({ ...s.runtime.get(s.first.install_id), grants: [] });
+  release.resolve();
+  assert.deepEqual(await pending, { state: "unavailable" });
+  assert.ok(filters.every(filter => filter?.provider_id === identity.provider_id));
 });

@@ -144,7 +144,7 @@ export function isSubjectReader(action: Pick<ActionDefinition["action"], "input_
 }
 /** Protocol discovery confers no authority; invocation keeps the original caller and exact provider. */
 export async function resolveActionSubject(client: ActionClient, caller: ActionCallContext, subject: ActionSubject): Promise<{ context: ActionSubjectContext; reader: ActionReference }> {
-  const matches = (await client.discover(caller)).filter(view => view.action.input_type === SUBJECT_REFERENCE_TYPE
+  const matches = (await client.discover(caller, { input_type: SUBJECT_REFERENCE_TYPE, output_type: SUBJECT_CONTEXT_TYPE, subject_kind: subject.kind })).filter(view => view.action.input_type === SUBJECT_REFERENCE_TYPE
     && view.action.output_type === SUBJECT_CONTEXT_TYPE && view.action.subject_kinds.includes(subject.kind));
   const available = matches.filter(view => view.availability.available);
   if (available.length > 1) throw new ActionError("actions.subject_ambiguous", "有多个能力提供此对象上下文，不能任意选择提供方");

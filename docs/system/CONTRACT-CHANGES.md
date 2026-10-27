@@ -111,3 +111,5 @@ Casebook 已于 2026-10-10 按用户决定删除，不再有对外合同 id；�
 本人选择入口补 `knowledge.card.bind-preview@1`（query/read/concurrent，仍仅 knowledge:manage/user）；只返回当前同项目同 subject 候选及其可信安装代和内容版本，不生成采用决定。HTTP 的 bind-preview/bind 都走原 Action。多个提供方按本人选中的提供方限定原 resolver，不能跨提供方降级或跳过撤权；来源读取错误不能当空候选。管理动作固定集合断言同步包含新增 query/command，原权限约束不变。
 
 沿既有限期 fixtures 模式，将 tests/fixtures/coding-knowledge-maintenance.mjs 与隔离真实回归入库以供 CI 复现，不属于产品运行时迁移器。历史识别仅留此工具；采用完成后随演练删除，历史记录保留可取回提交。旧 v8/v9/v10 SQL 不改，v8 演练先证明真实 Coding1 被当前拒绝，再调用同一工具。真实 Home、发布和 UI 不在本片执行范围。
+
+`ActionClient.discover` 新增可选 `ActionDiscoveryFilter`，provider_id/input_type/output_type/subject_kind 精确求交；`matchesActionDiscovery` 是公共纯匹配函数。筛选只收窄目录返回及 Host 投影 roots，原完整依赖目录、身份与权限保持。实现 ActionClient 的转发包装须传递筛选；只掌握已授权完整结果的包装可在末端筛选。BoundActionClient、网关 HTTP DTO、动作 schema/version 均不变；来源 retention 与 subject resolver 是当前消费者，不改变实际调用与最终复核。

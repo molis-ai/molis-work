@@ -1,4 +1,4 @@
-import { actionSourceIdentity, sameActionSourceIdentity, isSubjectReader, requireSynchronous, resolveActionSubject, SUBJECT_RETENTION_REQUEST_TYPE, SUBJECT_RETENTION_TYPE,
+import { actionSourceIdentity, sameActionSourceIdentity, isSubjectReader, requireSynchronous, resolveActionSubject, matchesActionDiscovery, SUBJECT_RETENTION_REQUEST_TYPE, SUBJECT_RETENTION_TYPE,
   type ActionCallContext, type ActionClient, type ActionSubject, type ActionSubjectContext, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { KNOWLEDGE_TEXT_MAX_CHARS, type KnowledgeRetentionIdentity, type KnowledgeCardRecord } from "@molis-ai/molis-work-contracts/services/knowledge";
 import type { SearchRetentionResult } from "@molis-ai/molis-work-contracts/services/search";
@@ -21,7 +21,7 @@ export async function readKnowledgeSubject(input: { client: ActionClient; caller
   if (known?.retention?.source_identity === null) throw knowledgeErrors.unreadable("这份保留卡片尚未由本人明确关联当前来源");
   const original = await client.discover(caller);
   const sourceCurrent = captureKnowledgeSources(client, caller, original.filter(view => isSubjectReader(view.action) && view.action.subject_kinds.includes(subject.kind)));
-  const { context, reader } = await resolveActionSubject({ discover: () => original, invoke: (context, reference, value) => client.invoke(context, reference, value) }, caller, subject);
+  const { context, reader } = await resolveActionSubject({ discover: (_context, filter) => original.filter(view => matchesActionDiscovery(view, filter)), invoke: (context, reference, value) => client.invoke(context, reference, value) }, caller, subject);
   const selected = original.find(view => view.provider.provider_id === reader.provider_id && view.capability_id === reader.capability_id && view.version === reader.version)!;
   const sourceIdentity = actionSourceIdentity(selected.provider, project);
   const declared = original.some(view => view.provider.provider_id === reader.provider_id && view.action.input_type === SUBJECT_RETENTION_REQUEST_TYPE

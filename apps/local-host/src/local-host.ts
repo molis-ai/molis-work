@@ -139,7 +139,7 @@ export class LocalHost<Runtime> {
       return verifiedCaller(snapshotCaller(caller));
     };
     return {
-      discover: async caller => this.availability.discover(contextFor(caller)),
+      discover: async (caller, filter) => this.availability.discover(contextFor(caller), filter),
       captureSources: scopes => this.captureSources(scopes),
       invoke: async (caller, capability, input) => {
         let context: ActionCallContext;
@@ -171,11 +171,11 @@ export class LocalHost<Runtime> {
     };
     return {
       captureSources: scopes => this.captureSources(scopes, this.line.captureReady(project)),
-      discover: async caller => {
+      discover: async (caller, filter) => {
         const bound = callerFor(caller);
         await this.withRuntime(project, () => undefined);
         caller.signal?.throwIfAborted();
-        return this.availability.discover(bound);
+        return this.availability.discover(bound, filter);
       },
       invoke: async (caller, capability, input) => {
         let bound = caller, dispatched = false;

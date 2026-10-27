@@ -4024,3 +4024,23 @@ CI新头5b普通检查已结束：Security1/2的失败在 `coding-material-consu
 本批只给原 codingProductHost 增加被动诊断：有界8个socket/每个8事件，Undici与server请求分别关联，失败时记录复用次数、完成/关闭时间、server监听与Host生命周期。未监听会改变默认关闭行为的server/request/response timeout或clientError，不改连接头、dispatcher或计时器，不输出正文/令牌/端口；截断窗口明确标记，候选端口匹配不当作已确认请求关联。原输入8/8、另两个已失败CI文件4/4均在本机零重试通过，尚未在Linux捕获新字段，连接根因未关闭。
 
 原生产构建已在撤回无收益候选后重新通过；本片没有生产或资源变更，保留已有资源门证据，不申请新额度。此批进入现有 #1101，不新增PR；下一轮完整集成需覆盖最终生产头，旧Full不代表当前头。
+
+#### 来源协议读取的目录投影收窄（有界候选，2026-10-28）
+
+**实际问题与必要性。** Coding问卷响应中的同步阻塞已定位到来源核验反复投影所有动作的当前可用性。来源状态必须反复确认，但协议读取只消费其中一小组。现有 `HostAvailability.views(caller, roots, dependencySnapshot)` 已支持相关roots与完整依赖目录分离；直接复用该能力，不加服务、索引、registry、缓存或授权快照。`inspectActionMetadata` 缺权限检查、`check`不能解析所有owner、`captureSources`不能替代异步policy，均不能直接代用。
+
+**合同与改动范围。** 为原 `ActionClient.discover` 增加可选纯数据筛选（provider/input type/output type/subject kind，精确匹配、组合求交，无callback）。筛选只限制返回与Host投影的roots，不限制依赖解析，也不改变caller/allowed_actions。Host仍按原入口准备runtime、验证项目/身份、取得完整Kernel目录，再筛roots；完整目录继续作为dependencySnapshot。Kernel若实现同合同，只在原计算结果末端过滤，不减少原授权计算。原ActionClient热路径透传筛选；HTTP gateway及Goals Bound客户端沿原完整授权响应在末端筛选，不扩大HTTP DTO或Bound API，也不冒称这些冷路径减少了投影。同步contracts/Host/Kernel相关README与API快照；只在Search retention与公开subject resolver两个已定位入口使用，不顺手扩大其它路径。文件范围限contracts action client/subject、原Host action client/availability及其准备包装、Kernel目录末端、Search retention、相应用例和本记录；不改变Schema、refreshEnablement、invoke、check、capture或最终beforeEffect。
+
+Retention前后两次discover仅按provider筛选，以保留“可见system缺retention=unavailable”和普通旧插件unsupported的区别；subject resolver按input/output/kind筛选，继续检查所有provider及多owner歧义，保留原本地匹配。筛选不是授权，也不允许跨await复用任何检查结果。权限、安装代、项目实例、归档/版本、取消及最终写入不变量不可配置；本刀没有新策略槽或终端用户选项。
+
+**验证与停止。** 原授权/安装/依赖/subject/retention测试证明筛选外依赖仍有效、allowed_actions仍求交、owner跨等待变化仍拒绝、第二owner仍歧义、system缺协议仍拒绝。新增只针对筛选的真实行为/调用量，不用源码匹配自证。先构建及最小相关回归，再在同Node24.14/同原AC22单例作有界对照；需有明显实际收益（单例wall至少下降10%，同时原响应断言不放宽）才进入原6例完整CPU对照。无收益或授权反例失败则停止/撤回，不叠缓存或扩大候选。该诊断阈值不替代原1000档性能门、完整CI或产品验收，原冻结门仍必须通过。
+
+**本刀有界结果。** 独立深审未发现新增生产阻塞：Host仍保留完整依赖目录，retention保留system缺协议语义，subject reader仍遍历所有当前可用owner。原生产构建通过。首批system来源13/13、retention4/4通过；目录新增用例首轮7/8，原因是把既有已注册但未获allowed_actions授权的依赖误期望为dependency_missing，原Kernel合同直接返回forbidden。对照未筛选同caller结果后固定精确forbidden，并比较完整返回，单文件8/8通过，不改生产拒绝逻辑；原失败日志保留。API由原生成器更新，giant仅同一ActionService方法增加一行，491→492/19，独立审查确认职责不变，未改通用阈值。
+
+同Node24.14与V8 coverage仪器的原AC22：17.638→15.095秒（下降约14.4%），Host resolve619,563→166,449次；views1,196→1,094，背景调度次数也会随耗时变化，不把计数当固定业务工作量。达到诊断收益条件后，原六例完整CPU对照6/6通过：原无额外调用栈探针的profile90.933792秒、idle15.382829秒、最长连续非idle9.456秒；候选79.499916、15.287153、8.1725秒。这里衡量进程profile时段及原用例，不等于某次点击反馈；仍有长忙碌段，不能关闭页面响应或Linux CI门。结果在 `/private/tmp/memory-source-directory-ac22-coverage-20261028/`、`/private/tmp/memory-source-directory-full-profile-20261028/`。回查发现旧owner-binder完整profile多了views调用栈探针，其全量耗时只作参考；停止依据仍有同coverage单例17.638→17.426秒无明显收益，本候选完整CPU未加该探针。
+
+页面资源仍48项/7,463,060 B，未增长。按涉及包README去重后的104个必跑及直接受影响文件、1197项已单并发零重试全部通过（7.5分钟，原日志 /private/tmp/memory-source-directory-required-20261028.log），不重复已通过的本刀目录单文件。远端主干已获取，当前还差3个main提交，与本刀文件没有重叠；PR #1101和SDK #108目前均无文本冲突，但合并门未关闭。主干集成后仍须覆盖最终提交。
+
+**CI诊断输出限制。** 729342287普通CI两组Security通过，Product2仍失败（历史摘要两例ECONNRESET），Verify通过不代表整体通过。原product报告只保留错误行和失败section，t.diagnostic被省略，不能声称已经得到socket根因。fixture现在把同一有界诊断字符串附到原Error的可枚举可更新字段，继续抛原对象；不改CI解析器、连接、时限、请求或重试。临时受控序列化用同一TypeError/同一cause两次，断言身份/type/message/stack/cause不变后故意重抛，原解析器能保留最新sequence与核心字段。临时测试exit1是故意输出失败，解析断言exit0；首次临时.ts加载失败也保留。现1800字符限制仍截尾，不承诺8×8事件完整展示；这是诊断格式验证，不是Linux连接复现或修复。
+
+最终tracked树 health（对origin/main merge-base）、包边界和页面资源门通过；未改通用阈值、资源上限、CI步骤或重试。后续主干集成与最终提交CI结果另记，不能用本机1197项覆盖它们。

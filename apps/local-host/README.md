@@ -45,6 +45,8 @@ Host 在业务库、插件与后台初始化前持有同一 `agent-runtime/.moli
 
 ## 一次典型调用
 
+来源协议读取可通过 `ActionClient.discover(context, filter?)` 收窄本次目录 roots。Host 保留原 Runtime 准备、身份校验和完整 Kernel 目录，再筛 roots 交给 `HostAvailability.views`；完整目录继续供 required_actions/场景依赖解析。每次仍重新核查当前策略，不跨等待复用。准备与项目包装透传筛选；网关保持原 HTTP DTO，在完整授权响应末端本地筛选，不把此冷路径称为投影优化。回归见 `tests/action-directory-pass.test.ts`、`tests/action-subject-retention.test.ts`。
+
 createMolisWorkLocalHost 为项目创建运行实例与 Host Client；同一项目复用运行实例，capability 调用进入受控队列。project-host 负责连接生命周期，project-capabilities 绑定各 owner；Goals 的用例由它自己的插件组合（`plugins/native/goals/src/plugin.ts`），宿主不持有（PG-094 S12）。Web 工厂在入口统一解析显式 Home、MOLIS_WORK_HOME 和默认目录。
 
 Web 和进程内嵌入式 MCP 通过 `ensureSystemAgentService` 装配 Agent/Git 后台服务，由 LocalHost 持有，同一 Host 只装配一次。正式 stdio launcher 有明确 Runtime Home 时，只构造无 Home 的协议装配；公共动作经 `LocalActionGatewayClient` 转发，context 的 resolve/list/bind/unbind/reject/create+bind、恢复绑定读取与 panel alias 也交给常驻 Host，不打开本地可写 Catalog，不装配 Home 业务 Host 或第二个 SDK。常驻传输调用同一套 MCP context handlers、presenter 和原 Catalog owner，保留确认、幂等、协议 Session 作者和面板别名行为；工具 arguments 不携带传输身份。创建并绑定项目的目录暂存、提升和提交前均复查原调用。失败、拒绝或结果未知不回退本地写入。回归：`tests/security-invariants-home-context.test.ts`、`tests/security-invariants-home-context-lifecycle.test.ts`。嵌入者关闭借用 Host 的传输后，仍须在整个 Host 不再使用时 `await host.close()`。能力注册不会启动 SDK、CLI 或请求模型，实际操作才初始化执行器。

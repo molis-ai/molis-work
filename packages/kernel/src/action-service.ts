@@ -4,7 +4,7 @@ import { inDirectoryPass, rememberInDirectoryPass } from "./directory-pass.js";
 import { registeredActionMetadata } from "./action-metadata.js";
 import { ActionSourceRevisions } from "./action-source-revisions.js";
 import {
-  ActionError, requireSynchronous,
+  ActionError, requireSynchronous, matchesActionDiscovery, type ActionDiscoveryFilter,
   type ActionAvailability, type ActionCallContext, type ActionExecutionContext, type ActionClient, type ActionDefinition,
   type ActionProvider, type ActionProviderRegistration, type ActionReference, type ExactActionReference, type ActionRegistryPort,
   type ActionSceneTarget, type ActionSceneConfigureOptions, type ActionSceneBinding, type ActionSceneDefinition, type ActionSceneHandlerBinding, type ActionView, type ActionSceneView,
@@ -281,8 +281,9 @@ export class ActionService implements ActionClient, ActionRegistryPort {
     }
   }
 
-  discover(context: ActionCallContext): ActionView[] {
-    return this.directory(context, false);
+  discover(context: ActionCallContext, filter?: ActionDiscoveryFilter): ActionView[] {
+    const directory = this.directory(context, false);
+    return filter ? directory.filter(view => matchesActionDiscovery(view, filter)) : directory;
   }
 
   /** Composition-only metadata inspection. Never grants execution or exposes handlers. */

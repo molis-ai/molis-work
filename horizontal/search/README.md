@@ -25,6 +25,8 @@
 
 ## 接入与边界
 
+`readSubjectRetention` 的前后目录读取只按原 provider_id 筛选，随后仍做原协议、对象、身份和版本匹配。不能按 retention 协议提前筛掉同 provider 的其它动作，否则会把“可见 system 缺协议”的拒绝误当普通旧插件的 unsupported；两次读取和最终来源 guard 均保留。回归见 `tests/action-subject-retention.test.ts`。
+
 插件只声明搜索来源动作与对象读取器即可接入，Host 与本服务都不改。索引是派生缓存：可删除重建，不作为任何业务事实。
 
 工作区依赖：`@molis-ai/molis-work-contracts`。

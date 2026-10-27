@@ -48,7 +48,7 @@ async function fixture(t: TestContext, personal = false) {
   let armed = false, insideFinal = false, readState = false, changed = false;
   const captureBatches: string[][] = [];
   const client: ActionClient = {
-    discover: value => main.client.discover(value),
+    discover: (value, filter) => main.client.discover(value, filter),
     invoke: async (value, action, input) => {
       const result = await main.client.invoke(value, action, input);
       if (action.capability_id === artifactsActions.retention.capability_id) readState = true;

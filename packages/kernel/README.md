@@ -8,6 +8,8 @@
 
 ActionService.registerProvider 注册同一提供方的合同、处理器与消费场景，并返回注销函数；discover 从底层唯一 CapabilityRegistry 派生授权目录。invoke 在实际派发前检查宿主策略（`admit`）、授权、提供方实例、可用性及输入输出合同。
 
+`discover(context, filter?)` 先完成原完整目录的可见性和授权计算，再按公共 `ActionDiscoveryFilter` 精确求交；筛选不跳过原 provider 检查，不改变 allowed_actions。它只收窄返回值，Host 的投影优化另由 Host 在完整依赖目录上执行。回归见 `tests/action-directory-pass.test.ts`。
+
 每次调用有一个调用编号（`call_id`）：同一次入口级操作（一个页面请求、一次工具调用、一轮助理、一条命令）引起的所有调用共用它，只用于诊断，不是身份、不授予权限。内核给没带编号的调用补上：沿用此刻打开的作用域（[call-scope.ts](src/call-scope.ts)）里的编号，没有就新生成一个；处理器拿到的执行上下文里一定有。每次 `invoke` 与 `invokeSync` 恰好结算一次（[action-settlement.ts](src/action-settlement.ts)）：处理器的结果或失败，以及处理器之前的每一种拒绝（缺失、提供方变化、无权、输入不合、限流、宿主策略、同步入口自己的检查），都交给宿主的 `settled` 钩子；拒绝带 `refused: true`，表示处理器根本没跑。
 
 事务内的插件数据接口使用 invokeSync，处理器必须由可信注册方显式声明 `execution: "sync"`，与异步调用复用原记录和校验。它不等待 Promise：异步授权、未声明同步的处理器和意外 Promise 返回均被拒绝。此声明是处理器实现合同，Kernel 不为违反合同的处理器回滚已发生的副作用。Local Host 的同步端口只接收 plugin audience 的私有 SDK 动作；公共动作仍走异步调度，不能借同步端口绕过队列或异步策略。

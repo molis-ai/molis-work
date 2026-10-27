@@ -478,7 +478,7 @@ export interface ActionCallOrigin {
 }
 
 export interface ActionClient {
-    discover(context: ActionCallContext): readonly ActionView[] | Promise<readonly ActionView[]>;
+    discover(context: ActionCallContext, filter?: ActionDiscoveryFilter): readonly ActionView[] | Promise<readonly ActionView[]>;
     invoke(context: ActionCallContext, reference: ActionReference, input: unknown): Promise<unknown>;
     captureSources?(scopes: readonly {
         readonly context: ActionCallContext;
@@ -494,6 +494,13 @@ export interface ActionDefinition<Input = unknown, Output = unknown> extends Hos
     readonly operation: "query" | "command";
     readonly provider_id?: string;
     readonly action: ActionMetadata;
+}
+
+export interface ActionDiscoveryFilter {
+    readonly provider_id?: string;
+    readonly input_type?: string;
+    readonly output_type?: string;
+    readonly subject_kind?: string;
 }
 
 export declare class ActionError extends Error {
@@ -5352,6 +5359,8 @@ export declare function isValidPortName(value: unknown): value is string;
 export declare function linkedArtifactVersion(href: string): ArtifactReference | null;
 
 export declare function linksToArtifactVersion(value: unknown, reference: ArtifactReference): boolean;
+
+export declare function matchesActionDiscovery(view: ActionView, filter?: ActionDiscoveryFilter): boolean;
 
 export declare function nextPinnedVersion(input: {
     recorded: number;

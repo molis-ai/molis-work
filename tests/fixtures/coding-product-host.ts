@@ -149,7 +149,7 @@ export async function codingProductHost(t: TestContext, respond: (request: Codin
       return { status: response.status, body: await response.json() as Output };
     } catch (error) {
       const template = path.split("?")[0]!.split("/").map(segment => /^(?:|api|plugins|io\.molis\.work\.coding|sessions|runs|workspaces|project-settings|memory|prefs)$/.test(segment) ? segment : ":segment").join("/");
-      t.diagnostic(JSON.stringify({ event: "coding_product_http_failed", sequence, path: template, phase,
+      const diagnostic = JSON.stringify({ event: "coding_product_http_failed", sequence, path: template, phase,
         elapsed_ms: Math.round(performance.now() - observation.started), server: observation.events,
         listening: server.listening, host_state: host.lifecycle(), cleanup_started: cleanupStarted,
         client_socket_id: observation.clientSocketId ?? null,
@@ -161,7 +161,11 @@ export async function codingProductHost(t: TestContext, respond: (request: Codin
         sockets: [...sockets.values()].map(entry => ({ id: entry.id, side: entry.side, truncated: entry.truncated,
           last_finish_age_ms: entry.lastFinish === undefined ? null : Math.round(performance.now() - entry.lastFinish),
           events: entry.events.map(event => ({ event: event.event, at_ms: Math.round(event.at - observation.started) })) })),
-      }));
+      });
+      t.diagnostic(diagnostic);
+      if (error instanceof Error && Object.isExtensible(error)) {
+        Object.defineProperty(error, "coding_product_http_diagnostic", { value: diagnostic, enumerable: true, configurable: true });
+      }
       throw error;
     } finally { observation.active = false; observation.cleanup(); observation.cleanup = () => {}; observations.delete(key); }
   };

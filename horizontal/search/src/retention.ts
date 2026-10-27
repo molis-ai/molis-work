@@ -14,7 +14,7 @@ export async function readSubjectRetention(access: { client: ActionClient; calle
   directory?: readonly ActionView[]): Promise<SearchRetentionResult> {
   if (identity.project_id !== null && identity.project_id !== (access.caller.project_id ?? null)) return { state: "unavailable" };
   try {
-    const views = directory ?? await access.client.discover(access.caller);
+    const views = directory ?? await access.client.discover(access.caller, { provider_id: identity.provider_id });
     const view = retentionView(views, identity.provider_id, identity.subject.kind, identity.project_id);
     const system = views.some(candidate => candidate.provider.provider_id === identity.provider_id && candidate.provider.kind === "system");
     if (!view) return { state: identity.retention || system ? "unavailable" : "unsupported" };
@@ -26,7 +26,7 @@ export async function readSubjectRetention(access: { client: ActionClient; calle
     const result = await access.client.invoke(access.caller, reference, { subject_id: identity.subject.id }) as SearchRetentionResult;
     if (!("subject" in result) || result.subject.kind !== identity.subject.kind || result.subject.id !== identity.subject.id) return { state: "unavailable" };
     await access.caller.validate_authority?.(reference);
-    const current = retentionView(await access.client.discover(access.caller), identity.provider_id, identity.subject.kind, identity.project_id);
+    const current = retentionView(await access.client.discover(access.caller, { provider_id: identity.provider_id }), identity.provider_id, identity.subject.kind, identity.project_id);
     requireSynchronous(access.caller.assert_authority_current?.(reference));
     if (!current?.availability.available || !sameActionSourceIdentity(actionSourceIdentity(current.provider, identity.project_id), sourceIdentity)) return { state: "unavailable" };
     if (view.provider.kind === "system" && (sourceIdentity?.kind !== "project-data" || result.state === "active"

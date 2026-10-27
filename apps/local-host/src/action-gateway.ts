@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { resolveHomeDirectory } from "@molis-ai/molis-work-storage";
-import { ActionError, type ActionClient, type ActionCallContext, type ActionReference, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, matchesActionDiscovery, type ActionDiscoveryFilter, type ActionClient, type ActionCallContext, type ActionReference, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { currentCallId, markCallRecorded, newCallId } from "@molis-ai/molis-work-kernel";
 import { actionErrorFromResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { postToResidentHost, residentHostOrigin, type ResidentHostAnswer } from "./resident-host-request.js";
@@ -27,12 +27,12 @@ export class LocalActionGatewayClient implements ActionClient {
   constructor(private readonly options: { url: string; homeDirectory: string; clientId: string; projectId: string | null; controlToken?: string; runtimeSessionId?: string }) {
     this.origin = residentHostOrigin(options.url);
   }
-  async discover(caller: ActionCallContext): Promise<ActionView[]> {
+  async discover(caller: ActionCallContext, filter?: ActionDiscoveryFilter): Promise<ActionView[]> {
     this.checkCaller(caller);
     const reply = await this.request({ operation: "discover" }, caller);
     if (typeof reply.instance_id !== "string" || !Array.isArray(reply.actions)) throw new ActionError("actions.transport_invalid", "系统动作目录响应无效");
     this.instance = reply.instance_id;
-    return reply.actions as ActionView[];
+    return (reply.actions as ActionView[]).filter(view => matchesActionDiscovery(view, filter));
   }
   async invoke<Output = unknown>(caller: ActionCallContext, reference: ActionReference, input: unknown): Promise<Output> {
     this.checkCaller(caller);

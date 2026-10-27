@@ -1,5 +1,7 @@
 # 公共类型与协议
 
+`ActionClient.discover(context, filter?)` 的 `ActionDiscoveryFilter` 按 provider_id、input_type、output_type、subject_kind 精确求交，只收窄目录结果，不授权、不改变 caller/allowed_actions 或依赖解析。共享纯函数 `matchesActionDiscovery` 供目录实现与已有完整结果包装使用；不提供回调筛选。`resolveActionSubject` 只请求指定协议和对象种类，仍跨全部 provider 检查多 owner 歧义并保留本地协议匹配。BoundActionClient 与网关 HTTP DTO 不变。
+
 系统资料当前身份合同：ActionSourceIdentity 区分真实插件安装代与项目数据实例；本人关联和 retention 共用 source_identity。保留协议 v3 的 active 提供 current_revision；系统来源必须按本次实际版本核对。Knowledge 管理返回升 4，关联预览和提交升 2。未知旧卡不补身份。
 
 Knowledge 关联预览：`knowledge.card.bind-preview@2` 为本人 `knowledge:manage` query/read/concurrent，输入仅 `{subject}`，输出 `{subject,candidates}`。每个候选包含 `provider_id/source_key/source_identity/source_revision/title/plugin_title/summary/content_policy/updated_at`，没有 actor、project 或预览授权凭证。候选选择只限定原读取器的提供方，不授予权限；最终 `knowledge.card.bind@1` 继续独立复核。原空候选、读取失败与取消不得互相冒充。

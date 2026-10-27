@@ -62,7 +62,7 @@ export function knowledgeBindingActions(ports: BindingPorts): ActionHandlerBindi
     };
     if (!await current()) return null;
     if (piece.content_policy === "context") {
-      const selected: ActionClient = { discover: async context => (await client.discover(context)).filter(view => view.provider.provider_id === piece.provider_id),
+      const selected: ActionClient = { discover: async (context, filter) => (await client.discover(context, filter)).filter(view => view.provider.provider_id === piece.provider_id),
         invoke: (context, reference, input) => client.invoke(context, reference, input) };
       const read = await resolveActionSubject(selected, caller, piece.subject);
       if (read.reader.provider_id !== piece.provider_id || read.context.revision !== piece.revision) throw conflict();

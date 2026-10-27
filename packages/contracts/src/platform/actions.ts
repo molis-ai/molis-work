@@ -552,8 +552,23 @@ export interface ActionRegistryPort {
   registerProvider(registration: ActionProviderRegistration): () => void;
 }
 
+/** Exact intersection over directory roots, never an authority grant or a restriction on dependency resolution. */
+export interface ActionDiscoveryFilter {
+  readonly provider_id?: string;
+  readonly input_type?: string;
+  readonly output_type?: string;
+  readonly subject_kind?: string;
+}
+
+export function matchesActionDiscovery(view: ActionView, filter?: ActionDiscoveryFilter): boolean {
+  return (!filter || (filter.provider_id === undefined || view.provider.provider_id === filter.provider_id)
+    && (filter.input_type === undefined || view.action.input_type === filter.input_type)
+    && (filter.output_type === undefined || view.action.output_type === filter.output_type)
+    && (filter.subject_kind === undefined || view.action.subject_kinds.includes(filter.subject_kind)));
+}
+
 export interface ActionClient {
-  discover(context: ActionCallContext): readonly ActionView[] | Promise<readonly ActionView[]>;
+  discover(context: ActionCallContext, filter?: ActionDiscoveryFilter): readonly ActionView[] | Promise<readonly ActionView[]>;
   invoke(context: ActionCallContext, reference: ActionReference, input: unknown): Promise<unknown>;
   /** Deny-only synchronous read/commit fence for already prepared exact sources. Runs no action or asynchronous preparation,
    * grants no authority and retains no handler lifetime. Capture before owner reads; after the guard, commit synchronously

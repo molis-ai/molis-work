@@ -7,7 +7,8 @@ import type {
 } from "@molis-ai/molis-work-contracts/modules/goals";
 import { requestHash, type GoalsCommandContext } from "./command-support.js";
 import { goalErrors } from "./errors.js";
-import type { GoalEventFactsRepository, StoredWorkEvent } from "./event-facts-repository.js";
+import type { StoredWorkEvent } from "./event-facts-work-event-records.js";
+import type { GoalEventFactsRepository } from "./event-facts-repository.js";
 import { requiredText } from "./event-facts-validation.js";
 import type { GoalEventStateRepository } from "./event-state-repository.js";
 import { eventActorKind, mutateGoalEventState, type GoalEventStateWriteDeps } from "./event-state-write.js";
@@ -75,7 +76,7 @@ export class GoalEventAcknowledgements implements GoalEventAcknowledgementsApi {
 
   /** The record on this Goal the caller named. One refusal covers a record that does not exist, is on another Goal or in another project. */
   private reference(projectId: string, goalId: string, eventId: string): GoalEventAcknowledgementReference {
-    const event = this.facts.getWorkEvent(projectId, goalId, eventId);
+    const event = this.facts.workEvents.getWorkEvent(projectId, goalId, eventId);
     if (!event) throw goalErrors["goals.event_acknowledgement.reference_missing"]("这个 Goal 上没有这条记录");
     const kind = acknowledgeable(event);
     if (!kind) throw goalErrors["goals.event_acknowledgement.reference_kind"]("只能对笔记、要求或本人的决定说明处理方式");

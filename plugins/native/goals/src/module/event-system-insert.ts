@@ -5,7 +5,8 @@ import type {
   GoalSystemWorkEventRecord,
 } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GoalsCommandContext } from "./command-support.js";
-import type { GoalEventFactsRepository, StoredWorkEvent } from "./event-facts-repository.js";
+import type { StoredWorkEvent } from "./event-facts-work-event-records.js";
+import type { GoalEventFactsRepository } from "./event-facts-repository.js";
 
 /**
  * Writes one `kind: "system"` record on a goal: appends it to the `events` log first, then inserts the
@@ -46,9 +47,9 @@ export function insertGoalSystemEvent(
     actor_kind: actorKind,
     received_at: at,
     journal_seq: cursor,
-    config_version: facts.getConfig(goal.project_id, goal.goal_id)?.current_version ?? null,
+    config_version: facts.config.getConfig(goal.project_id, goal.goal_id)?.current_version ?? null,
   };
-  facts.insertWorkEvent(stored);
+  facts.workEvents.insertWorkEvent(stored);
   return {
     event_id: eventId,
     project_id: goal.project_id,

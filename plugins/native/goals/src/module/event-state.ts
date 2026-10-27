@@ -28,11 +28,9 @@ import { type GoalEventStateWriteDeps, mutateGoalEventState, requireOwnedWritabl
 import type { GoalEventStateHost } from "./event-state-host.js";
 import { currentEffectiveDecisions } from "./event-state-authorization.js";
 import { insertGoalSystemEvent } from "./event-system-insert.js";
-import {
-  GoalEventStateRepository,
-  agreementView,
-  normalizeScope,
-} from "./event-state-repository.js";
+import { GoalEventStateRepository } from "./event-state-repository.js";
+import { agreementView } from "./event-state-owner-records.js";
+import { normalizeScope } from "./event-state-scope.js";
 
 export type { GoalEventStateCore, GoalEventStateHost } from "./event-state-host.js";
 
@@ -58,24 +56,24 @@ export class GoalEventState {
   }
 
   isEventStateOwner(projectId: string, goalId: string): boolean {
-    return this.records.isOwner(projectId, goalId);
+    return this.records.owner.isOwner(projectId, goalId);
   }
 
   readWorkState(projectId: string, goalId: string): GoalEventWorkStateView {
     const goal = this.context.requireGoal(projectId, goalId);
     const requirements = this.host.readCurrentRequirements(projectId, goalId);
-    const progress = this.records.latestProgress(projectId, goalId);
-    const progressEvent = progress ? this.facts.getWorkEvent(projectId, goalId, progress.event_id) : null;
+    const progress = this.records.outcomes.latestProgress(projectId, goalId);
+    const progressEvent = progress ? this.facts.workEvents.getWorkEvent(projectId, goalId, progress.event_id) : null;
     const progressPayload = progressEvent?.payload as GoalEventSystemPayload | undefined;
     const source = progressPayload?.operation === "progress_summary" ? parseGoalProgressSource(progressPayload.source) : undefined;
     const laterCursor = progress
-      ? this.facts.maxGoalCursor(projectId, goalId, progress.event_id)
-      : this.facts.maxGoalCursor(projectId, goalId);
-    const applied = this.records.listAppliedDecisions(projectId, goalId);
+      ? this.facts.workEvents.maxGoalCursor(projectId, goalId, progress.event_id)
+      : this.facts.workEvents.maxGoalCursor(projectId, goalId);
+    const applied = this.records.decisions.listAppliedDecisions(projectId, goalId);
     return {
-      owner: this.records.readOwner(projectId, goalId),
-      work_status: this.records.workStatus(projectId, goalId),
-      agreement: agreementView(this.records.latestAgreement(projectId, goalId), requirements.length, goal.outcome),
+      owner: this.records.owner.readOwner(projectId, goalId),
+      work_status: this.records.owner.workStatus(projectId, goalId),
+      agreement: agreementView(this.records.owner.latestAgreement(projectId, goalId), requirements.length, goal.outcome),
       progress_summary: progress
         ? {
             ...progress,
@@ -84,11 +82,11 @@ export class GoalEventState {
             stale_because_cursor: laterCursor > progress.based_on_cursor ? laterCursor : null,
           }
         : null,
-      concerns: this.records.listConcerns(projectId, goalId),
-      pending_decisions: this.records.listDecisionRequests(projectId, goalId).filter((item) => item.status === "pending"),
+      concerns: this.records.concerns.listConcerns(projectId, goalId),
+      pending_decisions: this.records.decisions.listDecisionRequests(projectId, goalId).filter((item) => item.status === "pending"),
       applied_decisions: applied,
       current_decisions: currentEffectiveDecisions(applied),
-      closure: this.records.latestClosure(projectId, goalId),
+      closure: this.records.outcomes.latestClosure(projectId, goalId),
     };
   }
 
@@ -100,7 +98,7 @@ export class GoalEventState {
     outcome?: string;
   }): void {
     const at = this.context.now().toISOString();
-    this.records.adoptOwner({
+    this.records.owner.adoptOwner({
       projectId: input.project_id,
       goalId: input.goal_id,
       actorId: input.actor_id,
@@ -108,8 +106,8 @@ export class GoalEventState {
       at,
     });
     const outcome = input.outcome?.trim();
-    if (outcome && !this.records.latestAgreement(input.project_id, input.goal_id)) {
-      this.records.insertAgreement({
+    if (outcome && !this.records.owner.latestAgreement(input.project_id, input.goal_id)) {
+      this.records.owner.insertAgreement({
         projectId: input.project_id,
         goalId: input.goal_id,
         version: 1,
@@ -136,7 +134,7 @@ export class GoalEventState {
       next_actor: input.next_actor,
     });
     const summaryId = `gsum-${randomUUID()}`;
-    this.records.insertProgress({
+    this.records.outcomes.insertProgress({
       summaryId,
       projectId: goal.project_id,
       goalId: goal.goal_id,
@@ -172,7 +170,7 @@ export class GoalEventState {
     this.context.requireGoal(projectId, goalId);
     const receipt = this.context.repository.getIdempotency(projectId, actorId, "record_goal_progress", key);
     const result = receipt?.outcome as GoalEventProgressResult | undefined;
-    if (!result || !this.facts.getWorkEvent(projectId, goalId, result.event_id)) return null;
+    if (!result || !this.facts.workEvents.getWorkEvent(projectId, goalId, result.event_id)) return null;
     return { ...result, replayed: true };
   }
 
@@ -192,7 +190,7 @@ export class GoalEventState {
       if (!Number.isInteger(input.based_on_cursor) || input.based_on_cursor < 0) {
         throw goalErrors["goals.event_progress.invalid_cursor"]("摘要必须依据当前 Goal 已存在的事件游标");
       }
-      const maxCursor = this.facts.maxGoalCursor(goal.project_id, goal.goal_id);
+      const maxCursor = this.facts.workEvents.maxGoalCursor(goal.project_id, goal.goal_id);
       if (input.expected_goal_cursor !== undefined && input.expected_goal_cursor !== maxCursor) {
         throw goalErrors["goals.event_progress.stale_goal"]("原目标已变化，请重新查看目标和拟记录内容后再确认");
       }
@@ -202,7 +200,7 @@ export class GoalEventState {
       if (input.based_on_cursor > maxCursor) {
         throw goalErrors["goals.event_progress.future_cursor"]("不能引用尚未发生的事件游标");
       }
-      if (!this.facts.hasGoalCursor(goal.project_id, goal.goal_id, input.based_on_cursor)) {
+      if (!this.facts.workEvents.hasGoalCursor(goal.project_id, goal.goal_id, input.based_on_cursor)) {
         throw goalErrors["goals.event_progress.cursor_not_on_goal"]("摘要游标必须是当前 Goal 的事件，不能用其他 Goal 的更新");
       }
       return this.writeProgress(goal, input.actor_id, actorKind, {
@@ -273,7 +271,7 @@ export class GoalEventState {
   private requireLocalScope(goal: GoalRecord, raw?: Partial<GoalEventScope>): GoalEventScope {
     const scope = normalizeScope(raw);
     for (const eventId of scope.event_ids) {
-      if (!this.facts.getWorkEvent(goal.project_id, goal.goal_id, eventId)) {
+      if (!this.facts.workEvents.getWorkEvent(goal.project_id, goal.goal_id, eventId)) {
         throw goalErrors["goals.event_concern.cross_goal_reference"](`事件 ${eventId} 不属于当前 Goal`);
       }
     }
@@ -285,7 +283,7 @@ export class GoalEventState {
       }
     }
     for (const concernId of scope.concern_ids) {
-      if (!this.records.getConcern(goal.project_id, goal.goal_id, concernId)) {
+      if (!this.records.concerns.getConcern(goal.project_id, goal.goal_id, concernId)) {
         throw goalErrors["goals.event_concern.cross_goal_reference"](`Concern ${concernId} 不属于当前 Goal`);
       }
     }
@@ -300,7 +298,7 @@ export class GoalEventState {
   }
 
   private assertAgreementVersion(goal: GoalRecord, expected: number, code: "goals.event_closure.stale_version" | "goals.event_agreement.stale_version"): void {
-    const current = this.records.latestAgreement(goal.project_id, goal.goal_id)?.version ?? 0;
+    const current = this.records.owner.latestAgreement(goal.project_id, goal.goal_id)?.version ?? 0;
     if (expected !== current) {
       throw goalErrors[code](`当前约定版本已是 ${current}，不能用期望版本 ${expected} 覆盖`, { current_version: current, expected_version: expected });
     }

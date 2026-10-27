@@ -51,7 +51,7 @@ export class GoalEventIntent {
     const at = this.context.now().toISOString();
     for (const requirement of input.requirements ?? []) {
       const requirementId = requirement.requirement_id?.trim() || `req-${randomUUID()}`;
-      this.records.insertRequirement({
+      this.records.requirements.insertRequirement({
         requirement_id: requirementId,
         project_id: input.project_id,
         goal_id: input.goal_id,

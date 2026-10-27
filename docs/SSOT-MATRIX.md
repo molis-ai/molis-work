@@ -148,7 +148,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 | `plugins/native/jelly` | 个人日历与笔记（收想法在灵光） | Home Runtime 独占原库；模型及配置经有限服务 | `production` | `specs/archive/jelly-plugin/` | 内置插件：@yijunw0212、@jingxusandra-gif |
 | `plugins/native/cognia` | 个人知识库（现行 native 版） | 见下文「Cognia 个人知识库」；Cognia 2（生成插件方向）需求书未实施 | `production` | `specs/archive/cognia-plugin/spec.md`；`specs/archive/cognia-plugin/v2/spec.md` | 内置插件：@yijunw0212 |
 | `plugins/native/workflows` | 工作流程：内容站交接、模板转换、AI 整理、判断规则、动作步骤 | 站点与步骤从动作目录发现；交接幂等、中断复用原结果；由 Plugin Runtime 装配（每个项目一份），经 `actions:delegate` 以调用者本人的身份调站点与步骤，不放宽调用者的授权 | `production` | `specs/action-architecture/spec.md` 工作流程节；`specs/repository-anti-corruption/spec.md` W5-01-WORKFLOWS | 内置插件：@yijunw0212 |
-| `plugins/native/plugin-builder` | 插件创作台：从一句需求生成插件；现有实现先绕过，后续作为平台场景组装能力的创作入口（2026-10-27） | 见下文「插件创作工作台」；缺片：工作台升级，包含新能力创作与手动／个人助理组合已有插件，Alchemist 为落地场景；后续：BL-377 | `slice` | `specs/plugin-builder-upgrade/spec.md`（旧实现证据：`specs/archive/plugin-builder/work-items/studio-v3/spec.md`） | 内置插件：@yijunw0212 |
+| `plugins/native/plugin-builder` | 插件创作台：从一句需求生成插件；现有实现先绕过，后续作为平台场景组装能力的创作入口（2026-10-27） | 见下文「插件创作工作台」；缺片：整体体验与端到端交付（用户 2026-10-27 反馈至今未完整跑通），包含新能力创作与手动／个人助理组合已有插件，Alchemist 为落地场景；后续：BL-377 | `slice` | `specs/plugin-builder-upgrade/spec.md`（旧实现证据：`specs/archive/plugin-builder/work-items/studio-v3/spec.md`） | 内置插件：@yijunw0212 |
 | `plugins/official-integrations/catalog` | 连接器目录与文档导入 Provider | 目录条目、Notion 等 OAuth 与文档导入；账号检查经 `connectors.account.read` | `production` | `specs/archive/connector-method-directory/spec.md` | 官方集成：@yijunw0212 |
 | `plugins/native/actions` | Actions 一级入口 | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec | — |
 | `plugins/native/automation` | Automation 一级入口 | 占位包已删除；未来功能 | `absent` | F2；未来独立功能 Spec | — |
@@ -211,7 +211,7 @@ Goal 是 Goals 插件拥有的一项事实（§7 `plugins/native/goals`；原 `m
 
 ### 插件创作工作台
 
-`plugins/native/plugin-builder` 现有实现拥有设计草稿、构建记录与发布版本。后续按用户 2026-10-27 决定，由平台提供通用场景组装能力，工作台保有创作体验和草稿，个人助理使用同一公开动作；Alchemist 是落地场景，现行升级需求与验收见 `specs/plugin-builder-upgrade/spec.md`（BL-377，尚未实现）。下面保留旧实现边界。生成插件的后端由为此场景新建的 Prologue 代码 Agent 编写，运行在独立的 macOS 沙箱进程（`packages/plugin-sandbox`），只经宿主通道使用平台能力与安装时授权的其他插件动作；界面由平台用 UI 目录渲染。AgentHost 拥有 Prologue 执行，Host 拥有模型凭据与联网代理，PluginRuntime 拥有安装与私有存储权限。旧实现的范围与证据见 `specs/archive/plugin-builder/work-items/studio-v3/spec.md`（旧解释器路线已被整体替换），不作为本次升级已实现的证据。
+`plugins/native/plugin-builder` 现有实现拥有设计草稿、构建记录与发布版本。用户 2026-10-27 反馈至今未完整跑通；后续首先整体升级创作体验和端到端交付能力，同时由平台提供通用场景组装能力，工作台保有创作体验和草稿，个人助理使用同一公开动作；Alchemist 是落地场景，现行升级需求与验收见 `specs/plugin-builder-upgrade/spec.md`（BL-377，尚未实现）。下面保留旧实现边界。生成插件的后端由为此场景新建的 Prologue 代码 Agent 编写，运行在独立的 macOS 沙箱进程（`packages/plugin-sandbox`），只经宿主通道使用平台能力与安装时授权的其他插件动作；界面由平台用 UI 目录渲染。AgentHost 拥有 Prologue 执行，Host 拥有模型凭据与联网代理，PluginRuntime 拥有安装与私有存储权限。旧实现的范围与证据见 `specs/archive/plugin-builder/work-items/studio-v3/spec.md`（旧解释器路线已被整体替换），不作为本次升级已实现的证据。
 
 ## Cognia 个人知识库
 

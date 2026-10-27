@@ -237,9 +237,12 @@ test("discovery takes each runtime's rules and Skills from the same places, in t
   put(join(home, ".cursor/AGENTS.md"), "cursor"); skill(join(home, ".cursor/skills/cu"));
   skill(join(home, ".config/opencode/skills/o"));
   put(join(home, ".grok/GROK.md"), "grok"); put(join(home, ".grok/AGENTS.md"), "grok agents"); put(join(home, ".grok/rules/g.md"), "g"); skill(join(home, ".grok/skills/g"));
+  put(join(home, ".grok/Agents.md"), "grok agents");
   skill(join(home, ".agents/skills/shared")); skill(join(home, ".agents/skills/nested/deeper"));
   mkdirSync(project);
   put(join(project, "AGENTS.md"), "p agents"); put(join(project, "CLAUDE.md"), "p claude"); put(join(project, ".claude/CLAUDE.md"), "p claude dir"); put(join(project, "CLAUDE.local.md"), "p local");
+  put(join(project, "Agents.md"), "p agents");
+  put(join(project, "Claude.md"), "p claude");
   put(join(project, ".claude/rules/p.md"), "---\npaths:\n  - a/**\n---\np"); put(join(project, ".cursor/rules/t.mdc"), "---\nglobs: '*.ts'\n---\nt"); put(join(project, ".grok/rules/pg.md"), "pg");
   for (const dir of [".agents", ".codex", ".opencode", ".grok", ".claude", ".cursor"]) skill(join(project, dir, "skills", dir.slice(1)));
   const manual = join(home, "manual"); put(join(manual, "AGENTS.md"), "manual"); skill(join(manual, "skills/m"));

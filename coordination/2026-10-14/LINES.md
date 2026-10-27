@@ -674,3 +674,5 @@ W6-01（删别名与短路由、冻结名单清零、AGENTS 改写）→ W6-02�
     - C 的根目录 `tsc --noEmit` 已过（heavy.sh，日志 `.impeccable/qa/c-root-tsc.log`），PR 正文已起草。
   - **10-28 #1322**：main（74f31c19e）已普通合进分支，无冲突，头 a9480e3de；同一个头推到 `integration/carrier-1028-w511`，PR 的 CI 和 Full 都在排队。
   - **10-28 评审确认 #1326 增量 `f050cbc33..433829b6c`**（笔记 `review-1326-433829b6.md`）：两条建议都落了，没有别的改动。已叫 `ac-sweep` 合 main、推 `integration/carrier-1028-1326` 跑 Full；PR 的产品子集第一次跑 RAC-1115，两个分片都要看。
+  - **10-28 C 的草稿 PR 是 [#1327](https://github.com/molis-ai/molis-work/pull/1327)**（头 7e716e494，base main）。四条建议已改、未提交，正在一次 heavy.sh 里跑：构建、根 tsc、门禁、48 个文件；过了再推，请评审只评增量，然后推 carrier 跑 Full。
+  - **10-28 #1326 的 Full** 是 run 40538409916（carrier `integration/carrier-1028-1326`，头 433829b6c；main 仍是 74f31c19e，不用合）。

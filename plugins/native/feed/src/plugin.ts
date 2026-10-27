@@ -18,12 +18,12 @@ import { createFeedSourceHandlers, feedSourceActions } from "./source-actions.js
 import { FeedSourceService } from "./source-service.js";
 import { createFeedSourceSyncLease } from "./source-sync-lease.js";
 import { feedContentLedgerActions } from "./content-ledger-actions.js";
-import { isFeedBodyRef } from "./content-ledger.js";
+import { isFeedBodyRef, type FeedContentRelease } from "./content-ledger.js";
 import { FEED_PROJECT_ACTIONS, GOAL_CONTRACT, SELF_COMMITTING, WAKE } from "./runtime-actions.js";
 import { createRuntimePublicFeed } from "./runtime-source-pull.js";
 import { keepFeedWakeup } from "./runtime-wake.js";
 import { syncResearchLibrary } from "./research-library-sync.js";
-import { holdingsOfSnapshot, type FeedSourceHistory, type FeedSourceHistoryRelease } from "./source-history.js";
+import { holdingsOfSnapshot, releaseHeldHistory, type FeedSourceHistory, type FeedSourceHistoryRelease } from "./source-history.js";
 import type { FeedSourceProviders } from "./source-ports.js";
 import { createFeedNotificationHandlers } from "./notification-actions.js";
 import { readLinkedFeedContext } from "./linked-context.js";
@@ -92,7 +92,7 @@ export function createFeedPlugin(): PluginDefinition {
       youtube: { definitionId: "", host: "", normalizeChannel: noVocabulary, feedUrl: noVocabulary }, gmail: { defaultScope: "", parseScope: noVocabulary },
       rss: { isSourceKind: noVocabulary, failureCount: noVocabulary, withFailure: noVocabulary, withSuccess: noVocabulary },
     };
-    const sourcePull = services?.sourcePull, dependencies = services?.actions?.dependencies;
+    const sourcePull = services?.sourcePull, dependencies = services?.actions?.dependencies, forget = sourcePull?.forget;
     // An account source is read with the account the person bound to it: both services come with the two optional permissions (`connections:use`, `sources:pull_connector`).
     const connections = services?.connections, connector = sourcePull?.connector, signals = new SignalsModule(ports.sql);
     // The Home's reference ledger is Feed's own Home half, asked as this installation: no body is written before it has been told.
@@ -119,18 +119,11 @@ export function createFeedPlugin(): PluginDefinition {
         return createRuntimePublicFeed(sourcePull, source, operationId ?? "", providers, hold ?? (async () => {}));
       },
       holdContent: async (source, contentRefs) => { await ledger(feedContentLedgerActions.hold, { source_id: source.source_id, content_refs: [...contentRefs] }); },
-      releaseHistory: async input => {
-        const held = holdingsOfSnapshot(feed.snapshot(input.project_id), input.source_id);
-        try {
-          const bodies = await ledger<{ bodies_deleted: number; bodies_kept: number; complete: boolean }>(feedContentLedgerActions.release, { source_id: input.source_id, candidates: [...held.content_refs] });
-          const forgotten = sourcePull?.forget ? await sourcePull.forget(held.operation_ids) : null;
-          return { bodies_deleted: bodies.bodies_deleted, bodies_kept: bodies.bodies_kept, records_deleted: forgotten?.records_deleted ?? 0, complete: bodies.complete && forgotten !== null };
-        } catch (error) {
-          // A call that went away is not a release that failed; anything else is reported, and deleting the source again finishes it.
-          if (error instanceof Error && error.name === "AbortError") throw error;
-          return { bodies_deleted: 0, bodies_kept: held.content_refs.length, records_deleted: 0, complete: false };
-        }
-      } }, projectId);
+      // A release that fails throws before anything is committed: the source stays with what it holds, and deleting it again finishes.
+      releaseHistory: input => releaseHeldHistory(holdingsOfSnapshot(feed.snapshot(input.project_id), input.source_id), {
+        reclaim: unreferenced => ledger<FeedContentRelease>(feedContentLedgerActions.reclaim, { source_id: input.source_id, unreferenced }),
+        release: candidates => ledger<FeedContentRelease>(feedContentLedgerActions.release, { source_id: input.source_id, candidates }),
+        forget: forget ? operationIds => forget(operationIds) : null }) }, projectId);
     const connectorSync = (caller: ActionExecutionContext) => {
       if (!connections || !connector) throw new ActionError("actions.dependency_missing", "Feed 没有使用账号来源的权限");
       return createRuntimeConnectorSync({ feed, projectId, sql: ports.sql, signals: signals.commands, services: { connections, connector }, commit: operation => writer.commit(caller, operation),

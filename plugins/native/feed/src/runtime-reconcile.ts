@@ -2,6 +2,7 @@ import { setTimeout } from "node:timers/promises";
 import type { PluginBackgroundClient, PluginJobControl, PluginJobDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginConnectionsClient } from "@molis-ai/molis-work-contracts/platform/plugin-connections";
 import type { FeedApplication } from "./application.js";
+import { FEED_CONTENT_LEDGER_BATCH, isFeedBodyRef } from "./content-ledger.js";
 import { connectorSlotOf } from "./runtime-connector.js";
 import { holdingsOfSnapshot } from "./source-history.js";
 
@@ -72,31 +73,54 @@ export async function refreshAccountSourceStates(ports: FeedReconcilePorts, cont
   return changed;
 }
 
-/** Names every body the project's library keeps in the Home's ledger; a body already named stays named. */
+/**
+ * Names every body the project's library keeps in the Home's ledger, in batches the ledger takes; a body already named stays named. Only the
+ * ledger's own bodies are named, not what another library keeps (`research:<id>`).
+ */
 export async function holdKeptBodies(ports: FeedReconcilePorts): Promise<void> {
   const { feed, projectId, hold } = ports;
   if (!hold) return;
   const snapshot = feed.snapshot(projectId);
   for (const source of snapshot.sources) {
-    const kept = holdingsOfSnapshot(snapshot, source.source_id).content_refs;
-    if (kept.length > 0) await hold(source.source_id, [...kept]);
+    const kept = holdingsOfSnapshot(snapshot, source.source_id).content_refs.filter(isFeedBodyRef);
+    for (let start = 0; start < kept.length; start += FEED_CONTENT_LEDGER_BATCH) await hold(source.source_id, kept.slice(start, start + FEED_CONTENT_LEDGER_BATCH));
+  }
+}
+
+/** How long the job waits before each further try at start when the Home's ledger does not answer (it may start after this instance). */
+export const FEED_HOLD_RETRY_DELAYS_MS: readonly number[] = [500, 2_000, 10_000, 30_000];
+
+/** A failed step is the job's to try again, unless the job was stopped or lost its authority. */
+function unlessStopped(control: PluginJobControl, error: unknown): void {
+  control.assert_authority_current();
+  if (error instanceof Error && error.name === "AbortError") throw error;
+}
+
+/** Whether every kept body is named, trying once and then once after each delay. */
+async function holdWithRetries(ports: FeedReconcilePorts, control: PluginJobControl, delays: readonly number[]): Promise<boolean> {
+  for (let attempt = 0; ; attempt += 1) {
+    try { await holdKeptBodies(ports); return true; }
+    catch (error) { unlessStopped(control, error); if (attempt >= delays.length) return false; }
+    await setTimeout(delays[attempt], undefined, { signal: control.signal });
   }
 }
 
 /**
  * Keeps the job: the bodies are named at start, the states are set right at start, and again each time the Home says a connection changed.
- * A step that fails (the account service or the ledger is not there yet, a call refused) is tried again at the next change; the job ends
- * only when the installation stops.
+ * Naming the bodies is tried a few times at start, then again at each change until it has worked, and at every start: the library itself
+ * says which bodies to name, so a later try names all of them, never a failure swallowed for good. A state that fails to refresh (the account
+ * service not there yet, a call refused) is tried again at the next change; the job ends only when the installation stops.
  */
-export function keepFeedReconcile(background: PluginBackgroundClient | undefined, ports: FeedReconcilePorts, watch: ReturnType<typeof createConnectionWatch>): void {
+export function keepFeedReconcile(background: PluginBackgroundClient | undefined, ports: FeedReconcilePorts, watch: ReturnType<typeof createConnectionWatch>,
+  retryDelays: readonly number[] = FEED_HOLD_RETRY_DELAYS_MS): void {
   background?.keep(FEED_RECONCILE_JOB, async control => {
     await setTimeout(0, undefined, { signal: control.signal });
-    try { await holdKeptBodies(ports); }
-    catch (error) { control.assert_authority_current(); if (error instanceof Error && error.name === "AbortError") throw error; }
+    let named = await holdWithRetries(ports, control, retryDelays);
     while (!control.signal.aborted) {
       try { await refreshAccountSourceStates(ports, control); }
-      catch (error) { control.assert_authority_current(); if (error instanceof Error && error.name === "AbortError") throw error; }
+      catch (error) { unlessStopped(control, error); }
       await watch.next(control.signal);
+      if (!named && !control.signal.aborted) named = await holdWithRetries(ports, control, []);
     }
   });
 }

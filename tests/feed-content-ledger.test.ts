@@ -5,10 +5,11 @@ import { join } from "node:path";
 import test from "node:test";
 import Database from "better-sqlite3";
 import { createEvidenceContentStore, createFileSecretStore } from "@molis-ai/molis-work-storage";
-import { createFeedContentLedger, createFeedContentLedgerHandlers, createFeedHomePlugin, FEED_CONTENT_LEDGER_BATCH, FEED_HOME_DATABASE, FEED_PLUGIN_ID, feedContentLedgerActions, feedManifest,
-  type FeedContentLedgerStore, type FeedEvidenceCollector } from "@molis-ai/molis-work-plugin-feed";
+import { createFeedContentLedger, createFeedContentLedgerHandlers, createFeedHomePlugin, FEED_CONTENT_LEDGER_BATCH, FEED_FORGET_BATCH, FEED_HOME_DATABASE, FEED_PLUGIN_ID, feedContentLedgerActions, feedManifest,
+  createConnectionWatch, keepFeedReconcile, releaseHeldHistory, type FeedApplication, type FeedContentLedgerStore, type FeedEvidenceCollector, type FeedHistoryReleasePorts,
+  type FeedReconcilePorts } from "@molis-ai/molis-work-plugin-feed";
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginManifest, PluginSqlValue, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginBackgroundClient, PluginJobControl, PluginManifest, PluginSqlValue, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 // RAC-494 and RAC-495 (the ledger half; the project half and the maintenance come with Feed's move into the Runtime).
 
@@ -115,6 +116,123 @@ test("RAC-494: a release that fails part way leaves the ledger as it was, so a r
   await assert.rejects(f.ledger.hold(async () => { throw new Error("revoked"); }, { project_id: "p1", source_id: "s2" }, [a]), { message: "revoked" });
   assert.equal(f.library.rows().length, 2, "a hold refused before it begins writes nothing");
   assert.deepEqual(await f.ledger.release(noEffect, { project_id: "p1", source_id: "s1" }, [a, b]), { bodies_deleted: 1, bodies_kept: 0, complete: true }, "a retry finds one of them already gone");
+});
+
+// FI-C-06 (specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §13): a deletion gives a source's history back in bounded
+// batches; a batch not reached yet stays held, a failure throws so the source stays to be deleted again, and a missing mark keeps the bodies.
+test("FI-C-06: a large history is given back in batches of at most 5000 bodies and 1000 records; a failure part way keeps what is not reached, and deleting again finishes", async t => {
+  const f = fixture(t);
+  await f.ledger.markComplete(noEffect, "2026-10-26T00:00:00Z");
+  const ref = (n: number) => "molis-work-feed/sha256/" + n.toString(16).padStart(64, "0");
+  const refs = Array.from({ length: FEED_CONTENT_LEDGER_BATCH + 1_001 }, (_, n) => ref(n + 1)), stray = ref(999_999), shared = [refs[0]!, refs[FEED_CONTENT_LEDGER_BATCH + 500]!];
+  // The bodies exist until the collector deletes them; it counts what it deleted, so a second deletion of the same body is no deletion.
+  const existing = new Set([...refs, stray]);
+  const collector: FeedEvidenceCollector = { collect({ candidates, isReferenced }) {
+    const deleted: string[] = [], kept: string[] = [];
+    for (const candidate of new Set(candidates)) if (isReferenced(candidate)) kept.push(candidate); else if (existing.delete(candidate)) deleted.push(candidate);
+    return { deleted, kept };
+  } };
+  const ledger = createFeedContentLedger(f.library.store, collector), mine = { project_id: "p1", source_id: "s1" };
+  await ledger.hold(noEffect, mine, refs.slice(0, FEED_CONTENT_LEDGER_BATCH));
+  await ledger.hold(noEffect, mine, [...refs.slice(FEED_CONTENT_LEDGER_BATCH), stray]);
+  await ledger.hold(noEffect, { project_id: "p2", source_id: "s1" }, shared);
+  const operations = Array.from({ length: 2 * FEED_FORGET_BATCH + 500 }, (_, n) => `op-${n}`), forgotten = new Set<string>();
+  const asked: string[] = [];
+  let failAt = 2;
+  const ports: FeedHistoryReleasePorts = {
+    reclaim: async batch => { asked.push(`reclaim:${batch.length}`); if (--failAt === 0) throw new Error("the Home went away"); return ledger.reclaim(noEffect, mine, batch); },
+    release: async batch => { asked.push(`release:${batch.length}`); if (--failAt === 0) throw new Error("the Home went away"); return ledger.release(noEffect, mine, batch); },
+    forget: async ids => { asked.push(`forget:${ids.length}`); let n = 0; for (const id of ids) if (!forgotten.has(id)) { forgotten.add(id); n += 1; } return { records_deleted: n }; },
+  };
+  // The held history names a research note too: it is not a body of the ledger's, so no batch carries it.
+  const held = { content_refs: [...refs, "research:note-1"], operation_ids: operations };
+  await assert.rejects(releaseHeldHistory(held, ports), { message: "the Home went away" });
+  assert.deepEqual(asked, [`reclaim:${FEED_CONTENT_LEDGER_BATCH}`, "release:1001"], "the first batch went back, the second failed, and no record was forgotten");
+  const holdsOf = (project: string) => f.library.rows().filter(row => row.project_id === project).map(row => row.content_ref as string).sort();
+  assert.deepEqual(holdsOf("p1"), [...refs.slice(FEED_CONTENT_LEDGER_BATCH), stray].sort(), "the batch not reached is still held by the source whose rows point at it");
+  assert.deepEqual(holdsOf("p2"), [...shared].sort(), "another project's holds are never touched");
+  assert.ok(shared.every(body => existing.has(body)), "a body another project holds stays");
+  assert.ok(refs.slice(FEED_CONTENT_LEDGER_BATCH).every(body => existing.has(body)), "no body of the batch not reached went");
+  assert.equal(refs.slice(1, FEED_CONTENT_LEDGER_BATCH).filter(body => existing.has(body)).length, 0, "the batch given back is gone");
+  // Deleting again repeats each step: the batch already given back finds its bodies gone, the rest goes now, and every record is forgotten.
+  asked.length = 0;
+  assert.deepEqual(await releaseHeldHistory(held, ports), { bodies_deleted: 1_000, bodies_kept: 2, records_deleted: operations.length, complete: true });
+  assert.deepEqual(asked, [`reclaim:${FEED_CONTENT_LEDGER_BATCH}`, "release:1001", `forget:${FEED_FORGET_BATCH}`, `forget:${FEED_FORGET_BATCH}`, "forget:500"]);
+  assert.deepEqual(holdsOf("p1"), [], "the last batch takes back every hold the source had left, the stray one a failed pull left too");
+  assert.deepEqual(holdsOf("p2"), [...shared].sort());
+  assert.ok(shared.every(body => existing.has(body)) && existing.has(stray), "shared bodies stay; the stray one was no candidate, so it is kept, not deleted");
+  // A forget that fails throws as well, after the bodies: the source stays to be deleted again.
+  await assert.rejects(releaseHeldHistory({ content_refs: [], operation_ids: ["op-x"] }, { ...ports, forget: async () => { throw new Error("search went away"); } }), { message: "search went away" });
+  // A Feed that may not forget records gives the bodies back and says the history is not all gone.
+  assert.deepEqual(await releaseHeldHistory({ content_refs: [], operation_ids: ["op-y"] }, { ...ports, forget: null }), { bodies_deleted: 0, bodies_kept: 0, records_deleted: 0, complete: false });
+});
+
+test("FI-C-06: without the completeness mark a deletion keeps every body and its holds, stops after one ask, and is not a failure", async t => {
+  const f = fixture(t);
+  const ref = (n: number) => "molis-work-feed/sha256/" + n.toString(16).padStart(64, "0");
+  const refs = Array.from({ length: FEED_CONTENT_LEDGER_BATCH + 10 }, (_, n) => ref(n + 1)), mine = { project_id: "p1", source_id: "s1" };
+  const collector: FeedEvidenceCollector = { collect: () => { throw new Error("nothing is collected without the mark"); } };
+  const ledger = createFeedContentLedger(f.library.store, collector);
+  await ledger.hold(noEffect, mine, refs.slice(0, FEED_CONTENT_LEDGER_BATCH));
+  await ledger.hold(noEffect, mine, refs.slice(FEED_CONTENT_LEDGER_BATCH));
+  const asked: string[] = [];
+  const outcome = await releaseHeldHistory({ content_refs: refs, operation_ids: ["op-1"] }, {
+    reclaim: async batch => { asked.push(`reclaim:${batch.length}`); return ledger.reclaim(noEffect, mine, batch); },
+    release: async batch => { asked.push(`release:${batch.length}`); return ledger.release(noEffect, mine, batch); },
+    forget: async ids => { asked.push(`forget:${ids.length}`); return { records_deleted: ids.length }; },
+  });
+  assert.deepEqual(outcome, { bodies_deleted: 0, bodies_kept: refs.length, records_deleted: 1, complete: false });
+  assert.deepEqual(asked, [`reclaim:${FEED_CONTENT_LEDGER_BATCH}`, "forget:1"]);
+  assert.equal(f.library.rows().length, refs.length, "every hold stays, so no body is ever taken for nobody's");
+});
+
+/** A stand-in for a platform or application handle: only the members these cases exercise, the rest absent. */
+const standIn = <T extends object>(members: Partial<Record<keyof T, unknown>>): T => members as T;
+
+// FI-C-07 (specs/.../feed-inbox-runtime-plugins.md §13): the job that names a project's kept bodies in the Home's ledger at start does it in
+// batches, tries again a bounded number of times while the ledger does not answer, then at each change of a connection until it has worked.
+test("FI-C-07: the kept bodies are named in batches; a ledger that does not answer is tried a bounded number of times, then at each change until it works", async t => {
+  const ref = (n: number) => "molis-work-feed/sha256/" + n.toString(16).padStart(64, "0");
+  const kept = Array.from({ length: FEED_CONTENT_LEDGER_BATCH + 1 }, (_, n) => ref(n + 1));
+  const snapshot = { sources: [{ source_id: "s1" }, { source_id: "s2" }], runs: [{ source_id: "s2", operation_id: "op-1", receipt: { content_refs: [ref(0)] } }],
+    feed_items: [{ source_id: "s1", materials: [...kept.map(content_ref => ({ content_ref })), { content_ref: "research:note-1" }] }] };
+  let failing = Number.POSITIVE_INFINITY;
+  const asked: string[] = [];
+  const ports: FeedReconcilePorts = { feed: standIn<FeedApplication>({ snapshot: () => snapshot }), projectId: "p1", connections: undefined, commit: async (_control, body) => body(),
+    hold: async (sourceId, refs) => {
+      if (failing > 0) { failing -= 1; asked.push("refused"); throw new Error("the Home's ledger is unavailable"); }
+      assert.ok(refs.every(each => each.startsWith("molis-work-feed/sha256/")), "only the ledger's own bodies are named");
+      asked.push(`${sourceId}:${refs.length}`);
+    } };
+  const abort = new AbortController();
+  t.after(() => abort.abort());
+  const control = standIn<PluginJobControl>({ job: "feed-reconcile", signal: abort.signal, beforeEffect: async () => {}, assert_authority_current: () => {} });
+  let done: Promise<void> | undefined;
+  const background = standIn<PluginBackgroundClient>({ keep: (_job: string, work: (control: PluginJobControl) => Promise<void>) => { done = work(control).catch(() => {}); return { done }; } });
+  const watch = createConnectionWatch(), settle = () => new Promise(resolve => setTimeout(resolve, 30));
+  keepFeedReconcile(background, ports, watch, [1, 1]);
+  await settle();
+  assert.deepEqual(asked, ["refused", "refused", "refused"], "at start: one try and one after each delay, then the job waits instead of swallowing it for good");
+  watch.changed();
+  await settle();
+  assert.deepEqual(asked.slice(3), ["refused"], "a change of a connection tries once more");
+  failing = 0;
+  watch.changed();
+  await settle();
+  assert.deepEqual(asked.slice(4), [`s1:${FEED_CONTENT_LEDGER_BATCH}`, "s1:1", "s2:1"], "the ledger back, every kept body is named, in batches it takes");
+  watch.changed();
+  await settle();
+  assert.equal(asked.length, 7, "once named, a change names nothing again");
+  // At the next start the job names them again, so a library whose ledger entries went missing meanwhile is held again.
+  abort.abort();
+  await done;
+  const again = new AbortController();
+  t.after(() => again.abort());
+  failing = 1;
+  keepFeedReconcile(standIn<PluginBackgroundClient>({ keep: (_job: string, work: (control: PluginJobControl) => Promise<void>) => ({ done: work({ ...control, signal: again.signal }).catch(() => {}) }) }),
+    ports, createConnectionWatch(), [1]);
+  await settle();
+  assert.deepEqual(asked.slice(7), ["refused", `s1:${FEED_CONTENT_LEDGER_BATCH}`, "s1:1", "s2:1"], "a start the ledger first refuses names them on the next try");
 });
 
 test("RAC-494: a hold cannot enter while a release deletes files, so a body is written again or kept, never lost under a new holder", async t => {

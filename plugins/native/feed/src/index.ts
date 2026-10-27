@@ -27,7 +27,8 @@ export { FeedApplication } from "./application.js";
 export { assembleFeedApplication, type FeedAssemblyPorts, type FeedSubjects } from "./application-assembly.js";
 export { createFeedRuntimePorts, type FeedRuntimePorts, type FeedRuntimeServices } from "./runtime-ports.js";
 export type { FeedApplicationPorts } from "./application-ports.js";
-export { receiptContentRefs, FEED_RECEIPT_CONTENT_REFS, type FeedSourceHistory, type FeedSourceHistoryHolding, type FeedSourceHistoryRelease } from "./source-history.js";
+export { createConnectionWatch, FEED_HOLD_RETRY_DELAYS_MS, holdKeptBodies, keepFeedReconcile, type FeedReconcilePorts } from "./runtime-reconcile.js";
+export { receiptContentRefs, releaseHeldHistory, FEED_FORGET_BATCH, FEED_RECEIPT_CONTENT_REFS, type FeedHistoryReleasePorts, type FeedSourceHistory, type FeedSourceHistoryHolding, type FeedSourceHistoryRelease } from "./source-history.js";
 export * from "./application-errors.js";
 
 export {

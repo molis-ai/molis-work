@@ -1,5 +1,6 @@
 import type { SourceRecord } from "@molis-ai/molis-work-contracts/modules/sources";
 import type { FeedApplicationPorts } from "./application-ports.js";
+import { FEED_CONTENT_LEDGER_BATCH, isFeedBodyRef, type FeedContentRelease } from "./content-ledger.js";
 import type { FeedSnapshot, FeedSourceRecord, SourceHistoryDecision } from "./projection.js";
 
 /**
@@ -13,6 +14,47 @@ export interface FeedSourceHistory {
    * pulls that nothing else holds. Never throws: the deletion has already happened, so a failure is reported.
    */
   release(input: FeedSourceHistoryHolding & { project_id: string; source_id: string }): FeedSourceHistoryRelease;
+}
+
+/** Most search records one `forget` may name: the platform's bound (`services.sourcePull.forget`). */
+export const FEED_FORGET_BATCH = 1_000;
+
+/** The Home's ledger and the platform's search records, as a deletion asks them: each call is one bounded write of another service. */
+export interface FeedHistoryReleasePorts {
+  /** This source's hold on exactly these bodies goes, then each that nobody else holds (`feed.content.reclaim`): every batch but the last. */
+  reclaim(contentRefs: string[]): Promise<FeedContentRelease>;
+  /** Every hold this source has left goes, then each of these bodies nobody else holds (`feed.content.release`): the last batch. */
+  release(contentRefs: string[]): Promise<FeedContentRelease>;
+  /** The pulls' search records go; null when the Feed may not forget them, and they stay. */
+  forget: ((operationIds: string[]) => Promise<{ records_deleted: number }>) | null;
+}
+
+/**
+ * Gives a source's history back before its rows go, in bounded batches. Each batch but the last takes back only the holds it names, so the
+ * bodies of a batch not reached yet stay held by this source while its rows still point at them; the last takes back whatever holds are left.
+ * A call that fails throws: nothing of the deletion has been committed, the source and its rows (and with them the references and operation
+ * ids) stay, and deleting it again repeats each step harmlessly. A ledger without the completeness mark is not a failure: it keeps every body
+ * and says so (`complete: false`), and the deletion goes ahead with them kept. The ledger, the evidence store and the search records are
+ * other services' writes: nothing here rolls one back when a later one fails.
+ */
+export async function releaseHeldHistory(held: FeedSourceHistoryHolding, ports: FeedHistoryReleasePorts): Promise<FeedSourceHistoryRelease> {
+  const bodies = held.content_refs.filter(isFeedBodyRef);
+  let deleted = 0, kept = 0, complete = true;
+  for (let start = 0; ; start += FEED_CONTENT_LEDGER_BATCH) {
+    const end = start + FEED_CONTENT_LEDGER_BATCH, batch = bodies.slice(start, end);
+    const outcome = await (end >= bodies.length ? ports.release(batch) : ports.reclaim(batch));
+    deleted += outcome.bodies_deleted; kept += outcome.bodies_kept;
+    // Without the mark no batch can say "nobody", so the rest stay held as they are.
+    if (!outcome.complete) { complete = false; kept += Math.max(0, bodies.length - end); break; }
+    if (end >= bodies.length) break;
+  }
+  let records = 0;
+  if (ports.forget) {
+    for (let start = 0; start < held.operation_ids.length; start += FEED_FORGET_BATCH) {
+      records += (await ports.forget(held.operation_ids.slice(start, start + FEED_FORGET_BATCH))).records_deleted;
+    }
+  }
+  return { bodies_deleted: deleted, bodies_kept: kept, records_deleted: records, complete: complete && ports.forget !== null };
 }
 
 /** What one source's history held on to, read before its rows are deleted. */

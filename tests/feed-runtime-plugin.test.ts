@@ -42,14 +42,18 @@ const RULES = [...WRITE, "attention:write", "judgments:write"];
  * Feed's Home half, stood in for: the same ledger and the same two-and-one actions (`hold`, `release`, `reclaim`), over a library of its own,
  * provided by a plugin of its own, so the project instance asks it through the action directory as it will ask the real one.
  */
-async function ledgerStandIn(home: string): Promise<{ definition: PluginDefinition; holds(): Array<{ content_ref: string; project_id: string; source_id: string }>; forget(): void; close(): void }> {
+async function ledgerStandIn(home: string): Promise<{ definition: PluginDefinition; holds(): Array<{ content_ref: string; project_id: string; source_id: string }>; forget(): void; close(): void;
+  breakWrites(count: number): void; unmark(): void }> {
   const db = new Database(join(home, "ledger.db"));
   db.exec(FEED_HOME_DATABASE.schema);
   const bind = (parameters: readonly PluginSqlValue[] = []) => [...parameters];
   const reader = { get: (sql: string, parameters?: readonly PluginSqlValue[]) => (db.prepare(sql).get(...bind(parameters)) as Record<string, PluginSqlValue> | undefined) ?? null,
     all: (sql: string, parameters?: readonly PluginSqlValue[]) => db.prepare(sql).all(...bind(parameters)) as Record<string, PluginSqlValue>[] };
+  // The next `broken` writes fail as a Home that went away would, before anything is written.
+  let broken = 0;
   const store = { read: reader, async write<T>(beforeEffect: () => Promise<void>, body: (tx: typeof reader & { run(sql: string, parameters?: readonly PluginSqlValue[]): { changes: number } }) => T): Promise<T> {
     await beforeEffect();
+    if (broken > 0) { broken -= 1; throw new Error("the Home's ledger is unavailable"); }
     db.exec("BEGIN IMMEDIATE");
     try { const result = body({ ...reader, run: (sql, parameters) => ({ changes: db.prepare(sql).run(...bind(parameters)).changes }) }); db.exec("COMMIT"); return result; }
     catch (error) { db.exec("ROLLBACK"); throw error; }
@@ -64,7 +68,8 @@ async function ledgerStandIn(home: string): Promise<{ definition: PluginDefiniti
     publisher: { publisher_id: "example", signature: "fixture-feed-home" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }], permissions,
     capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions },
   async start() { return { kind: "app", actions: createFeedContentLedgerHandlers(ledger) }; } };
-  return { definition, close: () => db.close(), forget: () => { db.exec("DELETE FROM feed_content_holds"); },
+  return { definition, close: () => db.close(), forget: () => { db.exec("DELETE FROM feed_content_holds"); }, breakWrites: count => { broken = count; },
+    unmark: () => { db.exec("DELETE FROM feed_content_meta"); },
     holds: () => reader.all("SELECT content_ref, project_id, source_id FROM feed_content_holds ORDER BY content_ref") as Array<{ content_ref: string; project_id: string; source_id: string }> };
 }
 
@@ -145,7 +150,8 @@ async function platform(t: TestContext, options: { fetch?: (input: string | URL)
   const installId = () => running.runtime.list().find(record => record.plugin_id === feedManifest.plugin_id)!.install_id;
   // The bodies the platform keeps are this fixture Home's, sealed with its own key; never the Home the test process would resolve to by default.
   const bodies = () => runWithMolisWorkHome(home, () => createEvidenceContentStore({ secretStore: createLazyFileSecretStore(home) }));
-  return { store, home, running, client: actions.client, registry: actions.registry, count, holds: () => homeHalf?.holds() ?? [], forgetHolds: () => homeHalf?.forget(), clock: () => scheduleServiceFor(store.db), installId,
+  return { store, home, running, client: actions.client, registry: actions.registry, count, holds: () => homeHalf?.holds() ?? [], forgetHolds: () => homeHalf?.forget(),
+    breakLedger: (count = 1) => homeHalf?.breakWrites(count), unmarkLedger: () => homeHalf?.unmark(), clock: () => scheduleServiceFor(store.db), installId,
     bodies, goalsAsked };
 }
 
@@ -379,6 +385,46 @@ test("RAC-518 deleting a source with its local history gives its bodies and sear
   assert.equal(f.count("SELECT count(*) AS n FROM feed_items WHERE source_id = ?", f.sourceId), 0);
   assert.equal(f.sourceEvents("deleted"), 1);
   assert.equal(f.sourceEvents("history_released"), 1, "what the release found is recorded with the deletion");
+});
+
+// FI-C-06 (specs/.../feed-inbox-runtime-plugins.md §13): the Home's ledger is another service's write, so a deletion releases before it commits.
+// A release that fails commits nothing: the source, its rows and with them its references and operation ids stay, and deleting it again
+// finishes and records the deletion once. A ledger without the completeness mark is no failure: the source goes and its bodies stay.
+test("FI-C-06 a deletion the Home's ledger fails keeps the source and what it holds; deleting again finishes and records the deletion once", async t => {
+  const f = await syncing(t);
+  await f.client.invoke(caller(SYNC).context, feedSourceActions.sync, { source_id: f.sourceId, idempotency_key: "fi-c-06-key" });
+  const holds = f.holds(), refs = holds.map(hold => hold.content_ref), bodies = f.bodies();
+  assert.equal(refs.length, 2);
+  const live = () => f.count("SELECT count(*) AS n FROM feed_sources WHERE source_id = ? AND json_extract(config_json, '$._molis_work_lifecycle.deleted_at') IS NULL", f.sourceId);
+  const rows = () => [f.count("SELECT count(*) AS n FROM feed_items WHERE source_id = ?", f.sourceId), f.count("SELECT count(*) AS n FROM feed_source_runs WHERE source_id = ?", f.sourceId)];
+  const kept = rows();
+  assert.ok(kept[0]! > 0 && kept[1]! > 0);
+  const remove = () => f.client.invoke(caller(DELETE).context, feedSourceActions.delete, { source_id: f.sourceId, history_decision: "delete_local_history" });
+  f.breakLedger();
+  await assert.rejects(remove());
+  assert.equal(live(), 1, "the source is not deleted");
+  assert.deepEqual(rows(), kept, "its items and runs (the operation ids of its search records) stay");
+  assert.deepEqual(f.holds(), holds, "the ledger still holds what the source's rows point at");
+  for (const ref of refs) assert.ok(bodies.has(ref), "no body went");
+  assert.deepEqual([f.sourceEvents("deleted"), f.sourceEvents("history_released")], [0, 0], "nothing records a deletion that did not happen");
+  await remove();
+  assert.equal(live(), 0);
+  assert.deepEqual(rows(), [0, 0]);
+  assert.deepEqual(f.holds(), []);
+  for (const ref of refs) assert.ok(!bodies.has(ref), "a body nobody else holds is gone");
+  assert.deepEqual([f.sourceEvents("deleted"), f.sourceEvents("history_released")], [1, 1], "the deletion is recorded once");
+
+  const unmarked = await syncing(t);
+  await unmarked.client.invoke(caller(SYNC).context, feedSourceActions.sync, { source_id: unmarked.sourceId, idempotency_key: "fi-c-06-unmarked" });
+  const held = unmarked.holds(), heldBodies = unmarked.bodies();
+  unmarked.unmarkLedger();
+  await unmarked.client.invoke(caller(DELETE).context, feedSourceActions.delete, { source_id: unmarked.sourceId, history_decision: "delete_local_history" });
+  assert.equal(unmarked.count("SELECT count(*) AS n FROM feed_items WHERE source_id = ?", unmarked.sourceId), 0, "the source and its rows go");
+  assert.deepEqual(unmarked.holds(), held, "a ledger that cannot say nobody holds a body keeps every hold");
+  for (const hold of held) assert.ok(heldBodies.has(hold.content_ref), "and every body");
+  const released = unmarked.store.db.prepare(`SELECT payload_json AS payload FROM events WHERE object_id = ? AND type = '${FEED_PLUGIN_ID}:feed_source.history_released'`).all(unmarked.sourceId) as Array<{ payload: string }>;
+  assert.equal(released.length, 1);
+  assert.equal((JSON.parse(released[0]!.payload) as { complete: boolean }).complete, false, "the record says the history was kept, not that it is gone");
 });
 
 /** A stand-in for a platform handle: only the members these cases exercise, the rest absent. */
@@ -1065,6 +1111,23 @@ test("RAC-518 a Runtime Feed names every body its library keeps in the Home's le
   await f.running.runtime.start(f.installId());
   await new Promise(resolve => setTimeout(resolve, 100));
   assert.equal(f.holds().length, held.length);
+});
+
+// FI-C-07 (specs/.../feed-inbox-runtime-plugins.md §13): the Home's ledger may not answer when the instance starts (it starts on its own, maybe
+// later); the job tries again rather than leave the library's bodies unnamed, and a ledger without its completeness mark still keeps them.
+test("FI-C-07 a start the Home's ledger first refuses still names the library's bodies, and a ledger without its mark keeps every one", async t => {
+  const f = await syncing(t);
+  await f.client.invoke(caller(SYNC).context, feedSourceActions.sync, { source_id: f.sourceId, idempotency_key: "fi-c-07-key" });
+  const held = f.holds().map(hold => hold.content_ref).sort(), bodies = f.bodies();
+  assert.equal(held.length, 2);
+  f.forgetHolds();
+  f.unmarkLedger();
+  await f.running.runtime.stop(f.installId());
+  f.breakLedger(1);
+  await f.running.runtime.start(f.installId());
+  await until(() => f.holds().length === held.length, "the ledger holds the library's bodies after it first refused");
+  assert.deepEqual(f.holds().map(hold => hold.content_ref).sort(), held);
+  for (const ref of held) assert.ok(bodies.has(ref), "no body went while the ledger could not tell who holds it");
 });
 
 // FI-C-05 (specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §13): a pull checks its source again as the first statement of

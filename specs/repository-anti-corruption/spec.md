@@ -1989,7 +1989,7 @@ CI 目前只跑边界、类型、合同与炼金术士（`.github/workflows/ci.y
 | PMR-12 | 核实中 | **状态不准**：助理会话 9-30 已修（c48a8608，在 main）：左栏看不到时对话顶部一行给出状态与暂停、继续、停止；抽屉开着时点对话区先收起抽屉。当时用替身在 800、1440 核对，**没有自动守护用例**（9.4 #9） | `git merge-base --is-ancestor c48a8608 main`；`assistant-dock.ts` 的 `data-assistant-strip` |
 | PMR-13 | 已关闭 | 不适用 | — |
 | PMR-14 | 已修（W2-02） | `assistant-island.ts` 的 `L("正在看") + "："` 已改成 `L("正在看：{title}", { title })`；同类拼接还有 66 处，并进 W5-03 | `git grep`、`tests/assistant-island-script.test.ts` |
-| PMR-15 | 已定，交第二步 | 已做（BL-088，2026-10-27）：动作、路由与 MCP 的拒绝是 PG-013（S-72）；移除 Pages 后项目搜索不再命中、助理与 MCP 调不到、加回后都恢复且文档还在，由 RAC-1116 证明；切换器上「移除」的说明改成「在本项目停用；数据保留，加回即恢复」 | `tests/plugin-remove-reach.test.ts`、`tests/security-invariants-hidden-personal-plugin.test.ts` |
+| PMR-15 | 已做 | 已做（BL-088，2026-10-27）：动作、路由与 MCP 的拒绝是 PG-013（S-72）；移除 Pages 后项目搜索不再命中、助理与 MCP 调不到、加回后都恢复且文档还在，由 RAC-1116 证明；切换器上「移除」的说明改成「在本项目停用；数据保留，加回即恢复」 | `tests/plugin-remove-reach.test.ts`、`tests/security-invariants-hidden-personal-plugin.test.ts` |
 | PMR-16 | 已修 #144 | 未复发 | `system-search`、`todo-actions`（全量通过） |
 | PMR-17 | 已关闭（未复现） | 不适用；第二步重跑场景 1 时留意 | — |
 | PMR-18 | 已修 #146 | 未复发 | `jelly-outside-changes.e2e`（全量通过） |

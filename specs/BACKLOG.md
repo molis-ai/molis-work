@@ -50,7 +50,6 @@
 | 编号 | 事项 | 来源 | 为什么还没做 | 优先级 |
 | --- | --- | --- | --- | --- |
 | BL-020 | Coding 下一阶段 Q1–Q8：模型联网与搜索服务、命令沙盒档位与放行规则、用户钩子审批、长期记忆是否逐条确认、语言服务器是否自动下载、多模型对比上限与语音服务、GitHub 账号与推送范围、是否做 VS Code 扩展 | [coding-plugin/next-requirements.md §4](coding-plugin/next-requirements.md) | 影响费用、权限与联网范围，原文要求先拍板 | 中 |
-| BL-021 | macOS 公开发布：是否申请 Developer ID 与公证 | [macos-desktop-release](archive/macos-desktop-release/spec.md) | 外部账号与费用 | 低 |
 | BL-022 | 多人协作项目里项目记忆的可见性；团队共享记忆 | [memory-system §3、§15](archive/memory-system/spec.md) | 等协作能力定型 | 低 |
 | BL-128 | 引用声明之间的语义一致性：W3-05 的注册检查只查存在、种类、范围和位置（`inspectActionCrossReferences`），下面四条没有收进去，今天都由使用端兜底，且没有内置声明触犯。①撤销的来源动作按能力 id 被推断为撤不回时，`undo` 的形状检查只看声明的 `effect`，不拦；②撤销命令的受众：助理免确认（`apps/local-host/src/assistant/assistant-authority.ts` 的 `directEligible`）要求撤销命令此刻在提供给 Agent 的目录里可用，只写 `user` 受众不够，注册时不查；③片段选项的目标会写入或不可撤回：内核把 `apply` 改写成 `record`、把不可撤回的标为不可用（`packages/kernel/src/contextual.ts` 的 `fragmentCandidates`），注册时不查 `apply` 与目标效果是否一致；④声明了 `result_subject` 的动作涉及的事项种类不是恰好一个：`actionResultSubject` 直接忽略。要不要把其中几条收紧成注册时的拒绝，会改变哪些声明能被接受 | [action-architecture §3 末尾 G2](action-architecture/spec.md)、W3-05 | 属于合同语义，路线行只写“存在、操作对” | 低 |
 
@@ -217,6 +216,7 @@
 
 | 编号 | 事项 | 来源 | 类型 | 为什么还没做 | 依赖 | 优先级 | 负责人 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
+| BL-021 | macOS 公开发布：使用已有 Apple Developer 账号接入 Developer ID 签名与公证（2026-10-27 用户已定） | [macos-desktop-release](archive/macos-desktop-release/spec.md)、[发布策略 §6](../docs/releases/POLICY.md#6-交付状态与尚缺项) | 明确后续做 | 账号采用已定；证书与公证配置、最终发行物验证仍未完成 | 既有账号的发布凭据与发布流水线 | 低 | Codex（F 轨）；账号与证书由用户办理 |
 | BL-569 | 安全不变量门禁的游离测试检查漏掉 `.e2e.test.ts`：`scripts/gates/security-invariants.mjs` 的 `hasTests` 与末尾扫描只匹配普通 `.test.ts`，需在独立片纳入浏览器文件，并补未登记 e2e 的拒绝回归；落实后删本行 | AC-AUDIT-08；[#1173 一轮建议](https://github.com/molis-ai/molis-work/pull/1173#issuecomment-6380866302)、[统筹接续](https://github.com/molis-ai/molis-work/pull/1173#issuecomment-6380869179) | 已知缺口 | 本片仅校正文档与登记，门禁实现另片先核权限依据 | 独立门禁片与评审 | 中 | 防腐线（本线） |
 | BL-070 | Outbox 的实现与重放验收（目标架构保留，本期只重组现有功能） | [molis-work-architecture-reorganization](molis-work-architecture-reorganization/spec.md) 开头 2026-09-06 范围澄清 | 明确后续做 | 用户 2026-09-06 定为后续 | 无 | 低 | 未分配 |
 | BL-071 | 团队空间与多人共享项目（Identity & Space 的团队部分属于 Server） | [work-placement §9](archive/work-placement/spec.md) | 明确后续做 | 未开始 | Server | 低 | 未分配 |

@@ -23,7 +23,7 @@ export const codingMemoryLearningKey = (projectId: string, input: Pick<MemoryLea
   `memory-learn:coding:${JSON.stringify([projectId, input.business_session_id, input.runtime_id, original.session_id, original.input_id, original.version])}`;
 
 /** Even an already-known queue key is private to its trusted source caller. */
-export function assertCodingMemoryLearningCaller(context: ActionExecutionContext): void {
+export function assertCodingMemoryLearningCaller(context: ActionCallContext): void {
   const caller = context.host_plugin;
   if (!caller || caller.plugin_id !== CODING || !context.project_id || caller.project_id !== context.project_id
     || caller.actor_id !== LOCAL_PERSON_ACTOR_ID || context.audience !== "plugin") throw memoryErrors.forbidden("自动形成必须由原来源插件发起");

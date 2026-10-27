@@ -399,3 +399,5 @@ HostText 的可选 `assertCurrent(): void` 是原 `beforeDispatch` 后准备的�
 
 
 Coding 自动形成复用原 memory.learn 持久队列，key 由项目、业务会话、Runtime 和 canonical original ref（Session/input_id/version）构成，安装世代只约束来源。每次 attempt 用当前 homeAggregatePorts/localWebActionContext 只读精确 owner，并在 owner 读取前 captureSources；原 guard、当前安装 memory:write 与原 Run policy 贯穿 SDK 和 Ledger 最终提交。本人 context 仅授权读，形成 caller person=false；触发 Run 留在原 payload 管完成事实、分类与上下文；同一原件的恢复/直接重试不制造新证据，首次失败且无已接受任务时直接成功重试可首次形成，终态 key 不重造，Assistant 原 key/payload 不变。
+
+入队动作的目录可用性与执行入口共用可信 Coding caller 检查。创作台不能把仅供当前本人项目 Coding 安装使用的入口显示为可申请；其它插件只见不可用的入队声明，普通记忆正文读写仍不可发现。目录检查不替代实际入队、后台 attempt 和最终提交的重新核权。

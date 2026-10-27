@@ -288,7 +288,10 @@ export function registerMemoryHost(ports: MemoryHostPorts): MemoryHost {
       : service.list(identity, request.list);
   };
   const bindings: ActionHandlerBinding[] = [
-    { ...memoryActions.learningEnqueue, handle: (context, value) => enqueueLearning(context, input<MemoryLearningEnqueueRequest>(value)) },
+    { ...memoryActions.learningEnqueue, availability: context => {
+      try { assertCodingMemoryLearningCaller(context); return { available: true }; }
+      catch { return { available: false, code: "memory.forbidden", reason: "自动形成必须由原来源插件发起" }; }
+    }, handle: (context, value) => enqueueLearning(context, input<MemoryLearningEnqueueRequest>(value)) },
     { ...memoryActions.recall, handle: (context, value) => read(context, { recall: input<MemoryRecallRequest>(value) }) }, // concurrent: its receipts (最近用于) are its only effect, written after the call's own check
     { ...memoryActions.page, handle: (context, value) => forCall(context).page(memoryCaller(context), input<MemoryPageRequest>(value)) },
     { ...memoryActions.list, handle: (context, value) => read(context, { list: input<MemoryListRequest>(value) }) },

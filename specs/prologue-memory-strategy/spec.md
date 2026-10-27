@@ -1,6 +1,6 @@
 # Prologue 记忆策略与 Molis Work 接入
 
-状态：Memory P0 正在开发与集成，尚未完成验收（2026-10-28）。Molis #1101 与 Prologue #108 仍为 Draft；SDK 4ee5b912 已提交推送并在隔离 App 接包，队列授权交接与 Coding 原件去重的本机生产链用例已通过，尚待最终应用交付和全量核收。已推送 App 541fd757 的普通 CI 通过，Full suite 已结束但6个分片失败；新接包的最终CI尚未运行。10/100档规模门已有通过证据，1000档、B1完整答卷对照、最终产品实操与用户验收仍未关闭。首期实施已获用户授权（2026-10-22）；C0/Q0 已独立交付，Molis C0/Q0 已合入 main；Prologue C0 与 S1 版本恢复、分类授权、业务 key、管理分页、停用恢复及候选期限检查已合入 main；M1 配置采用第一片已完成工程回归并合入 main；完整 P0 的形成、召回、SDK 接入和产品验收仍未完成；后续按 §9.3 的依赖推进。负责人：当前统筹会话；SDK 合同、Molis 产品合同、质量基线分别有执行负责人。已确认目标仍是 Molis Work 的记忆更精准、好用、省 token，以及 Prologue 的多策略组合和 App 自定义记忆矩阵。实施和验证事实只记在 §13；未通过的标准不因计划或合同落地而算完成。用户随后已授权分片提交和依赖交付；2026-10-25 改为尽可能聚合大 PR，复用 #1101 收齐后续 Memory P0 应用片，原独立验收不放宽。真实 Home 数据采用与发布仍不在本次范围内。
+状态：Memory P0 正在开发与集成，尚未完成验收（2026-10-28）。Molis #1101 与 Prologue #108 仍为 Draft；SDK 4ee5b912 已提交推送并在隔离 App 接包，队列授权交接与 Coding 原件去重的本机生产链用例已通过，尚待最终应用交付和全量核收。已推送 App 02114764a 的普通 CI 因测试内部导入、目录可用性和一项 HTTP 连接重置失败，Verify 未通过；同头 Full suite 仍有失败和运行中分片。前两项已完成本机修正，尚待修正提交的 CI；连接重置与浏览器响应阻塞继续定位。10/100档规模门已有通过证据，1000档、B1完整答卷对照、最终产品实操与用户验收仍未关闭。首期实施已获用户授权（2026-10-22）；C0/Q0 已独立交付，Molis C0/Q0 已合入 main；Prologue C0 与 S1 版本恢复、分类授权、业务 key、管理分页、停用恢复及候选期限检查已合入 main；M1 配置采用第一片已完成工程回归并合入 main；完整 P0 的形成、召回、SDK 接入和产品验收仍未完成；后续按 §9.3 的依赖推进。负责人：当前统筹会话；SDK 合同、Molis 产品合同、质量基线分别有执行负责人。已确认目标仍是 Molis Work 的记忆更精准、好用、省 token，以及 Prologue 的多策略组合和 App 自定义记忆矩阵。实施和验证事实只记在 §13；未通过的标准不因计划或合同落地而算完成。用户随后已授权分片提交和依赖交付；2026-10-25 改为尽可能聚合大 PR，复用 #1101 收齐后续 Memory P0 应用片，原独立验收不放宽。真实 Home 数据采用与发布仍不在本次范围内。
 
 
 ## 1. 用户结果与责任边界
@@ -3974,4 +3974,26 @@ AgentHost现schedule Port转交本次提交control，仅显式带control的新�
 
 Root 对新包下 Shelf/Coding question 原文件各采一次 CPU profile，9/9及6/6通过，分别14.1s/91.1s。Coding 最长连续非 idle 为9.456s，目录与 Catalog 读取仍占显著成本；不从本机绿色推断 Linux 已修。知识卡保留在首批1/1通过，workflow 等待补正2/2通过，均不抹掉远端失败。
 
+#### Full 浏览器阻塞：场景目录的单次策略读取合同
+
+当前必须：只读目录已按一次调用复用 Action policy，但场景列表和 `required_scene` 仍逐项调用实时 Catalog。CPU profile 证明 Catalog/成员查询是当前长时间占用的一部分，不能从重叠栈计算独立收益，也尚未证明全部 Linux 失败都由它引起。本片沿用现有 `snapshotForDiscovery`，为场景目录提供同形状的可选查询快照；不新建缓存服务、状态或执行路径。普通函数策略仍维持原行为。
+
+允许路径：`apps/local-host/src/local-host-types.ts`、`local-host-availability.ts`、`local-host-scenes.ts`、本包 README 与现有目录/场景回归。`discoverScenes/usages/targets` 显式采用只读快照，内部 `scenes` 默认仍实时；`HostAvailability.views` 只有实际遇到 `required_scene` 才建立并复用本 pass 的一个 Promise。每次内部目录投影独立读取，不为了最外层请求只读一次而跨两层传递授权结果。每项 scene/provider 的原可用性、权限、版本、绑定仍检查，不复用 `resolve` 结果。`check/bind/runScene/beforeConsume` 及调用/副作用前检查始终实时。下一次目录必须重新读取；错误 Schema、缺库回退与 Runtime 启停不变。
+
+验收 DIRECTORY-MEM-03：多个场景的一次目录只建立一次策略快照，无 `required_scene` 不建立无用快照；连续目录之间撤权/重授立即反映，普通函数策略仍逐项调用。DIRECTORY-MEM-04：目录后、排队后及消费前撤权仍拒绝，实际 handler/业务写入及持久历史不增加；快照工厂失败不静默回落到允许。先跑现有目录、LocalHost 场景及 Inbox 持久断言，再在同一构建上复验原浏览器失败用例/采样，并保留原 CI 完整门。不调超时、重试、断言或资源门；本机通过不代替 Linux，性能收益待测。
+
+可以延后同事务 consent 数组复用，其收益尚不足以单独解释阻塞；应当删除跨请求 policy 缓存、Home 开库/Schema 缓存、同步 directory pass 跨 await、以及复用旧 `refreshEnablement` 的方案。回滚仅移除场景快照接线，恢复原实时逐项读取，不涉及存储迁移。
+
+**候选已停止并撤回（2026-10-28）。** 独立深审及定向测试证明上述只读/执行边界可保持；最终3文件19项通过，补齐真实排队撤权、非空 targets、factory 失败及持久历史不增长。非空 targets 夹具首轮缺少配置权限声明被原门拒绝，补齐后原断言通过，失败保留。两个原浏览器文件的同机 CPU profile 未显示可支持此复杂度的收益：Shelf 9/9通过，profile14.042→13.811s、最长非idle5.846→5.792s；Question总profile90.934→90.936s、最长非idle9.456→9.525s，且5/6、AC-22点击再次超时，Node在7.597s等待期间CPU7.760s、idle0。不能用微小波动认定改进，也不将该失败直接认定为新增回归。Root已仅逆向撤回本候选7个自有文件，保留临时补丁及原日志，不合入生产；权限、时限、重试、CI与格式不变。下一步需定位长忙碌区间的实际调用次数和触发方，不再沿这项无收益候选叠补丁。
+
+2026-10-28 交付更新：Coding 形成与 SDK4ee5 接包已提交为 `02114764a` 并推送现有 Draft #1101 和原 Full suite 集成分支，提交范围秘密扫描通过；新头普通 CI [40590151872](https://github.com/molis-ai/molis-work/actions/runs/40590151872) 运行中，未计通过。SDK #108 保持 Draft。专门的 Coding 生命周期交错验证正在补齐，未减少上述未关闭项。
+
+021普通CI后续已明确 Health/Verify 失败：新增 coding-memory-learning 测试有1个内部导入，coding-memory-observation有3个内部导入和1个双重断言。原本地health在这些文件未跟踪时运行；现役脚本以git ls-files为集合，因此该结果未覆盖新文件。修复改走真实公开入口并保留全部反例，不增加仅为测试的生产导出、不修改门禁；提交后必须对已跟踪最终树重核。真实Coding生命周期初次14/14、加入冻结分类后15/15零重试通过，仍需在公开入口修正后复验；不以此覆盖当前健康失败。
+
+**M2 目录可用性补正合同。** 同轮CI的创作台目录与memory-scopes反例暴露：新增入队动作声明plugin audience，却未在注册availability中复用执行处的可信Coding检查，创作台因此将实际会被拒绝的入口显示为可申请。现有执行断言仍拒绝非本人项目/非可信Coding，未发现越权写入；不能只更新列表期望掩盖后续offered断言。最小修复是在原Memory单项handler的availability复用同一caller断言，不新增授权名单、目录或缓存；执行、权限、最终来源检查不变。其它插件只能看到不可用的入队声明，recall/list/write仍不可发现，管理者看到真实关闭理由。M2-CODING-07验真实Host的创作台不提供该动作、普通可信插件的目录/元数据均不可用及实际调用拒绝且记忆不增长，可信Coding正常形成仍成立。旧“所有memory.*都没有plugin audience”期望仅对新增受限入队声明做明确同步，不放宽任何业务权限。只改原Memory接线、caller参数类型与既有目录/范围测试；无新API、资源额度或存储变化。
+
 Profile 位于 `/private/tmp/memory-shelf-cpu-4ee5-20261028/` 与 `/private/tmp/memory-question-cpu-4ee5-20261028/`。原超时、断言、重试、权限与资源门未改。1000条性能、B1答卷、最终交付物实操与用户验收继续开放。
+
+**目录修正及公开入口最终核收（2026-10-28）。** 两处生产改动沿原可信调用者检查；独立深审未发现新增生产阻塞。整树 build 通过，同一构建的最终5文件62项按原 runner、jobs1/browser-jobs1/retries0分段通过：Coding learning 15、observation 1、memory-actions 25，以及最终 Creator 18、memory-scopes 3。后两者保留 Home 原读写/audience 反例（入队明确以 actions.project_required 拒绝），真实项目中已签发且持有 memory:write 的普通插件则在 discover/inspect/调用均被 memory.forbidden 拒绝，前后记忆列表不变；不以缺项目或伪造 caller 的失败冒充身份门证明。首轮两个夹具错误及 observer 的命名 ESM timer 绑定失败均保留，修后原时限和业务断言不变。日志为 `/private/tmp/memory-admission-availability-final-20261028.log`、`/private/tmp/memory-admission-home-project-final-20261028.log`；公开端口和虚拟时钟仅验证观察循环，不冒充真实 Host 安全，后者由前述生产链覆盖。
+
+已跟踪最终测试的 health 通过，内部导入417、双重断言154；48项资源仍为7,463,060 B，无新增额度。021普通CI已结束失败，完整跑40590141610当前7成功、5失败、4运行中；已知剩余页面失败包括 Coding question、Assistant typed questions/follow live、Workbench Feed、Pages Assistant surfaces。连接重置的本机原文件8/8通过只表示未复现，不认定 Linux 已修。修正继续并入现有#1101，保留Draft；真实Home、发布、1000条性能、B1完整答卷和最终用户验收边界不变。

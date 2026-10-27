@@ -18,6 +18,7 @@ import { createFeedSourceHandlers, feedSourceActions } from "./source-actions.js
 import { FeedSourceService } from "./source-service.js";
 import { createFeedSourceSyncLease } from "./source-sync-lease.js";
 import { feedContentLedgerActions } from "./content-ledger-actions.js";
+import { isFeedBodyRef } from "./content-ledger.js";
 import { FEED_PROJECT_ACTIONS, GOAL_CONTRACT, SELF_COMMITTING, WAKE } from "./runtime-actions.js";
 import { createRuntimePublicFeed } from "./runtime-source-pull.js";
 import { keepFeedWakeup } from "./runtime-wake.js";
@@ -53,10 +54,12 @@ export function createFeedPlugin(): PluginDefinition {
     const ports = createFeedRuntimePorts({ projectId, database, attention, contextLedger });
     const evidence = services?.sourcePull?.evidence;
     // A body that is gone, or that cannot be read, is unavailable and never makes the item unreadable; a call that is cancelled or no longer allowed fails.
+    // Only the Home's evidence store is asked, and only for its own bodies: a research package's material (`research:<id>`) is its library's,
+    // whose text the sync already gave the item and the material's preview, so it stays as synced (FI-C-04).
     const hydrate: FeedHydrate = async item => {
-      if (!item.materials.some(material => material.content_ref)) return item;
+      if (!item.materials.some(material => material.content_ref && isFeedBodyRef(material.content_ref))) return item;
       return { ...item, materials: await Promise.all(item.materials.map(async material => {
-        if (!material.content_ref) return material;
+        if (!material.content_ref || !isFeedBodyRef(material.content_ref)) return material;
         const content = evidence ? await evidence.read(material.content_ref) : null;
         return content === null ? { ...material, content: null, content_available: false } : { ...material, content, content_available: true };
       })) };

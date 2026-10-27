@@ -39,6 +39,8 @@ const PLATFORM_NEEDS: ReadonlyMap<ActionDefinition, readonly string[]> = new Map
   // The actions that give an item's retained text decrypt its bodies through the platform (`evidence.read`), which the action must declare and the caller hold (4e-2f decision).
   [feedQueryActions.snapshot, [EVIDENCE]], [feedQueryActions.item, [EVIDENCE]], [feedInboxActions.content, [EVIDENCE]], [feedRuleActions.previewJudgment, [EVIDENCE, ...SCENE]],
   [feedRuleActions.preview, [EVIDENCE]], [feedContentActions.read, [EVIDENCE]], [feedSubjectAction, [EVIDENCE]], [feedHomeEventsAction, [EVIDENCE]],
+  // A Goal's linked material is the item's text, and a capture recommendation holds only while the judged text is unchanged, so both read the bodies (FI-C-03).
+  [feedQueryActions.linkedContext, [EVIDENCE]], [feedRuleActions.recommendations, [EVIDENCE]],
   // A notification the platform delivers is admitted to the Inbox as it is received, and judged by the capture rules.
   // The Inbox's next-step judgment of that entry is asked as the same caller, which then holds what the judgment needs (inbox:read, model:invoke, the rule's functions:invoke, judgments:write).
   [feedNotificationActions.receive, ["attention:write", EVIDENCE, "inbox:read", "model:invoke", "functions:invoke", "judgments:write"]],
@@ -49,8 +51,8 @@ const PLATFORM_NEEDS: ReadonlyMap<ActionDefinition, readonly string[]> = new Map
   // Admitting an item opens its Inbox entry, and saving, ignoring or restoring one settles or reopens the entries it has.
   [feedInboxActions.admit, ["attention:write"]], [feedItemActions.inbox, ["attention:write"]],
   [feedItemActions.disposition, ["attention:write"]], [feedItemActions.restore, ["attention:write"]],
-  // A promotion links the item to its Goal (an edge in the Context Ledger) and settles the Inbox entries the item has.
-  [feedItemActions.promote, ["attention:write", "context-ledger:write"]],
+  // A promotion links the item to its Goal (an edge in the Context Ledger) and settles the Inbox entries the item has; the Goal's input is the item's text (FI-C-03).
+  [feedItemActions.promote, ["attention:write", "context-ledger:write", EVIDENCE]],
 ]);
 /** Actions that commit for themselves, because what they write comes after something they must wait for. */
 export const SELF_COMMITTING: ReadonlySet<ActionDefinition> = new Set<ActionDefinition>([feedSourceActions.sync, feedSourceActions.delete, feedSourceActions.tick, feedRuleActions.create, feedRuleActions.update,

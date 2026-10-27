@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -12,11 +13,11 @@ import type { IntegrationBinding } from "@molis-ai/molis-work-contracts/platform
 import { createNotificationDelivery, createPluginPlatform, declaredNotificationReceivers, DEMO_PROJECT_ID, homeIntegrationRegistry, homeStores, listFeedSourceCatalog, LocalProjectDatabase, scheduleServiceFor, seedDemoBoard, withConnectorConnections, withFunctionsService } from "@molis-ai/molis-work-app-local-host";
 import { PluginNotificationQueue } from "@molis-ai/molis-work-plugin-runtime";
 import { pluginBindingScope } from "@molis-ai/molis-work-service-connector-host";
-import { createEvidenceContentStore, homeStoreRegistry } from "@molis-ai/molis-work-storage";
-import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
+import { createEvidenceContentStore, createLazyFileSecretStore, homeStoreRegistry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { goalEntryActions, goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 import { CONNECTOR_REQUEST_SERVICES } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
-import { createFeedContentLedger, createFeedContentLedgerHandlers, createFeedPlugin, createFeedWriter, FEED_HOME_DATABASE, FEED_PLUGIN_ID, feedCaptureScene, feedContentActions, feedContentLedgerActions, feedInboxActions, feedItemActions, feedNotificationActions, feedQueryActions, feedRuleActions, feedManifest, feedSceneBindingId, feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
+import { createFeedContentLedger, createFeedContentLedgerHandlers, createFeedPlugin, createFeedWriter, FEED_HOME_DATABASE, FEED_PLUGIN_ID, feedCaptureScene, feedContentActions, feedContentLedgerActions, feedInboxActions, feedItemActions, feedNotificationActions, feedQueryActions, feedRuleActions, feedManifest, feedSceneBindingId, feedSourceActions, feedSubjectAction } from "@molis-ai/molis-work-plugin-feed";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { pluginActions } from "./fixtures/plugin-actions.js";
@@ -34,6 +35,8 @@ const READ = ["feed:read"];
 /** An action that gives an item's retained text, or judges the item by it, reads the bodies through the platform, so its caller holds this too (4e-2f). */
 const BODIES = [...READ, "evidence:read"];
 const WRITE = ["feed:read", "feed:write", "inbox:write", "evidence:read"];
+/** Saving a rule asks whether the caller may use the capture scene for its judgment, so it declares the scene's permissions and the caller holds them. */
+const RULES = [...WRITE, "attention:write", "judgments:write"];
 
 /**
  * Feed's Home half, stood in for: the same ledger and the same two-and-one actions (`hold`, `release`, `reclaim`), over a library of its own,
@@ -51,7 +54,9 @@ async function ledgerStandIn(home: string): Promise<{ definition: PluginDefiniti
     try { const result = body({ ...reader, run: (sql, parameters) => ({ changes: db.prepare(sql).run(...bind(parameters)).changes }) }); db.exec("COMMIT"); return result; }
     catch (error) { db.exec("ROLLBACK"); throw error; }
   } };
-  const ledger = createFeedContentLedger(store, createEvidenceContentStore());
+  // The collector deletes from this Home's evidence store, as the platform's does (`runWithMolisWorkHome`), never from the process's default Home.
+  const evidence = runWithMolisWorkHome(home, () => createEvidenceContentStore({ secretStore: createLazyFileSecretStore(home) }));
+  const ledger = createFeedContentLedger(store, { collect: input => runWithMolisWorkHome(home, () => evidence.collect(input)) });
   await ledger.markComplete(async () => {}, new Date().toISOString());
   const permissions = ["feed:read", "feed:write", "evidence:collect"].map(permission => ({ permission, required: true, reason: "The reference ledger" }));
   const actions = Object.values(feedContentLedgerActions);
@@ -63,20 +68,48 @@ async function ledgerStandIn(home: string): Promise<{ definition: PluginDefiniti
     holds: () => reader.all("SELECT content_ref, project_id, source_id FROM feed_content_holds ORDER BY content_ref") as Array<{ content_ref: string; project_id: string; source_id: string }> };
 }
 
-/** Goals, stood in for: it answers `goals.contract.read` for the goals it knows and refuses the rest, as the real one does for a goal that is not there. */
-function goalsStandIn(known: readonly string[]): PluginDefinition {
-  // The real contract's output is the whole Goal; this one answers only what Feed reads it for, that the Goal is there.
-  const contract: ActionDefinition = { ...goalPluginActions.contract, action: { ...goalPluginActions.contract.action, output_schema: { type: "object", required: ["goal"] } } };
+/** What the Goals stand-in was asked to make and to take as input: a promotion's trace on the Goals side. */
+interface GoalsAsked { created: string[]; confirmed: Array<{ goal_id: string; source_id: string; snapshot_digest: string }> }
+
+/**
+ * Goals, stood in for: it answers `goals.contract.read` for the goals it knows and refuses the rest, as the real one does for a goal that is not
+ * there, and the three actions a promotion asks (`goals.directory.read`, `goals.create`, `goals.inputs.confirm`). A Goal it makes is known from then on.
+ */
+function goalsStandIn(known: readonly string[], asked: GoalsAsked): PluginDefinition {
+  // The real outputs are the whole Goal and the whole receipt; these answer only what Feed reads them for. Placement's Goal relation needs Goals'
+  // whole set of actions, so the stand-in plays no part in it.
+  const answering = (definition: ActionDefinition, output: object): ActionDefinition => {
+    const { placement_relation: _placement, ...action } = definition.action;
+    return { ...definition, action: { ...action, output_schema: output } };
+  };
+  const contract = answering(goalPluginActions.contract, { type: "object", required: ["goal"] });
+  const create = answering(goalEntryActions.create, { type: "object", required: ["goal", "replayed"] });
+  const confirm = answering(goalEntryActions.inputsConfirm, { type: "object", required: ["binding", "replayed"] });
+  const goals = new Set(known);
   return { manifest: { schema_version: 2, host_api_version: 2, plugin_id: "io.molis.work.goals", name: "Goals (test)", version: "1.0.0", kind: "app",
     publisher: { publisher_id: "example", signature: "fixture-goals" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
-    permissions: [{ permission: "goals:read", required: true, reason: "The Goal contract" }], capabilities: { provides: [], consumes: [] },
-    artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [contract] },
+    permissions: ["goals:read", "goals:write"].map(permission => ({ permission, required: true, reason: "The Goal contract and the promotion" })), capabilities: { provides: [], consumes: [] },
+    artifacts: { produces: [], consumes: [] }, ui: { contributions: [] }, actions: [contract, goalEntryActions.directoryItem, create, confirm] },
   async start() {
-    return { kind: "app", actions: [{ capability_id: contract.capability_id, version: contract.version, handle: (_caller, input) => {
-      const goalId = (input as { goal_id: string }).goal_id;
-      if (!known.includes(goalId)) throw new ActionError("goals.not_found", `no goal ${goalId}`);
-      return { goal: { goal_id: goalId, project_id: DEMO_PROJECT_ID } };
-    } }] };
+    const bind = (definition: ActionDefinition, handle: (input: Record<string, unknown>) => unknown) => ({ capability_id: definition.capability_id, version: definition.version,
+      handle: (_caller: ActionExecutionContext, input: unknown) => handle(input as Record<string, unknown>) });
+    return { kind: "app", actions: [
+      bind(contract, input => {
+        const goalId = input.goal_id as string;
+        if (!goals.has(goalId)) throw new ActionError("goals.not_found", `no goal ${goalId}`);
+        return { goal: { goal_id: goalId, project_id: DEMO_PROJECT_ID } };
+      }),
+      bind(goalEntryActions.directoryItem, () => null),
+      bind(create, input => {
+        const goalId = `goal-from-${input.idempotency_key as string}`, replayed = goals.has(goalId);
+        if (!replayed) { goals.add(goalId); asked.created.push(goalId); }
+        return { goal: { goal_id: goalId }, replayed };
+      }),
+      bind(confirm, input => {
+        asked.confirmed.push({ goal_id: input.goal_id as string, source_id: (input.source as { id: string }).id, snapshot_digest: input.snapshot_digest as string });
+        return { binding: {}, replayed: false };
+      }),
+    ] };
   } };
 }
 
@@ -96,6 +129,7 @@ async function platform(t: TestContext, options: { fetch?: (input: string | URL)
     ...(options.fetch ? { sourcePullFetch: options.fetch } : {}), ...(options.git ? { sourcePullGit: options.git } : {}),
     ...(options.clock ? { scheduler: scheduleServiceFor(store.db) } : {}) });
   const homeHalf = options.ledger ? await ledgerStandIn(home) : null;
+  const goalsAsked: GoalsAsked = { created: [], confirmed: [] };
   t.after(async () => {
     try {
       await running.closeCoordination();
@@ -104,11 +138,15 @@ async function platform(t: TestContext, options: { fetch?: (input: string | URL)
   });
   const trust = { level: "host" as const };
   const started = await running.start([{ definition: createFeedPlugin(), trust, dual_instance: true }, ...(homeHalf ? [{ definition: homeHalf.definition, trust }] : []),
-    ...(options.goals ? [{ definition: goalsStandIn(options.goals), trust }] : [])]);
-  assert.deepEqual(started.running, [feedManifest.plugin_id, ...(homeHalf ? [homeHalf.definition.manifest.plugin_id] : []), ...(options.goals ? ["io.molis.work.goals"] : [])], JSON.stringify(started));
+    ...(options.goals ? [{ definition: goalsStandIn(options.goals, goalsAsked), trust }] : [])]);
+  // Which plugin the Runtime starts first is its own business; that each one runs is the fixture's.
+  assert.deepEqual([...started.running].sort(), [feedManifest.plugin_id, ...(homeHalf ? [homeHalf.definition.manifest.plugin_id] : []), ...(options.goals ? ["io.molis.work.goals"] : [])].sort(), JSON.stringify(started));
   const count = (sql: string, ...parameters: unknown[]) => (store.db.prepare(sql).get(...parameters as never[]) as { n: number }).n;
   const installId = () => running.runtime.list().find(record => record.plugin_id === feedManifest.plugin_id)!.install_id;
-  return { store, home, running, client: actions.client, registry: actions.registry, count, holds: () => homeHalf?.holds() ?? [], forgetHolds: () => homeHalf?.forget(), clock: () => scheduleServiceFor(store.db), installId };
+  // The bodies the platform keeps are this fixture Home's, sealed with its own key; never the Home the test process would resolve to by default.
+  const bodies = () => runWithMolisWorkHome(home, () => createEvidenceContentStore({ secretStore: createLazyFileSecretStore(home) }));
+  return { store, home, running, client: actions.client, registry: actions.registry, count, holds: () => homeHalf?.holds() ?? [], forgetHolds: () => homeHalf?.forget(), clock: () => scheduleServiceFor(store.db), installId,
+    bodies, goalsAsked };
 }
 
 /** The original caller of an action, who can be cancelled or revoked from outside. */
@@ -181,14 +219,14 @@ test("RAC-509 the caller cancelled or revoked at any point writes nothing partia
 test("RAC-509 a rule is saved after its choices are checked, as a commit of its own: a caller revoked at any point leaves the whole rule or none of it", async t => {
   const { client, count } = await platform(t);
   const rules = () => count("SELECT count(*) AS n FROM feed_out_rules");
-  const probe = caller(WRITE);
+  const probe = caller(RULES);
   await client.invoke(probe.context, feedRuleActions.create, { name: "probe", match: { contains: "x" }, enabled: false });
   const asked = probe.checks();
   assert.ok(asked >= 2 && rules() === 1, "the rule is saved, and the platform asks the caller more than once: " + asked);
   let cut = 0, saved = 0;
   for (let from = 1; from <= asked + 1; from += 1) {
     const before = rules();
-    const outcome = await client.invoke(caller(WRITE, from).context, feedRuleActions.create, { name: `swept ${from}`, match: { contains: "x" }, enabled: false }).then(() => "saved" as const, () => "refused" as const);
+    const outcome = await client.invoke(caller(RULES, from).context, feedRuleActions.create, { name: `swept ${from}`, match: { contains: "x" }, enabled: false }).then(() => "saved" as const, () => "refused" as const);
     const gained = rules() - before;
     if (outcome === "saved") { saved += 1; assert.equal(gained, 1, `rule ${from} is there`); } else { cut += 1; assert.ok(gained === 0 || gained === 1, `rule ${from} is whole or not there`); }
     assert.equal(count("SELECT count(*) AS n FROM feed_out_rules WHERE name = ?", `swept ${from}`), gained, `rule ${from}: the row is the only trace`);
@@ -253,14 +291,14 @@ const feedXml = (entries: Array<{ id: string; title: string }>) => `<?xml versio
   <item><guid>https://example.com/posts/${entry.id}</guid><title>${entry.title}</title><link>https://example.com/posts/${entry.id}</link>
   <description>Body of ${entry.title} for the runtime sync test.</description><pubDate>Sat, 30 Aug 2026 08:00:00 GMT</pubDate></item>`).join("")}</channel></rss>`;
 
-async function syncing(t: TestContext, options: { ledger?: boolean; clock?: boolean } = {}) {
+async function syncing(t: TestContext, options: { ledger?: boolean; clock?: boolean; goals?: readonly string[] } = {}) {
   const fetched: string[] = [], feeds = new Map<string, string>();
   const fetch = async (input: string | URL) => {
     fetched.push(String(input));
     const body = feeds.get(String(input));
     return body ? new Response(body, { status: 200, headers: { "content-type": "application/rss+xml" } }) : new Response("missing", { status: 404 });
   };
-  const f = await platform(t, { fetch, ledger: options.ledger ?? true, ...(options.clock ? { clock: true } : {}) });
+  const f = await platform(t, { fetch, ledger: options.ledger ?? true, ...(options.clock ? { clock: true } : {}), ...(options.goals ? { goals: options.goals } : {}) });
   const entry = listFeedSourceCatalog()[0]!;
   feeds.set(entry.feed_url, feedXml([{ id: "one", title: "First" }, { id: "two", title: "Second" }]));
   const registered = await f.client.invoke(caller(DESCRIBE).context, feedSourceActions.register, { kind: "rss", definition_id: entry.id }) as { source: { source_id: string } };
@@ -282,7 +320,7 @@ test("RAC-518 a Runtime Feed pulls a public source through the platform: one wri
   assert.equal(f.holds().length, 2, "the Home's ledger holds both bodies for this project's source");
   assert.ok(f.holds().every(hold => hold.project_id === DEMO_PROJECT_ID && hold.source_id === f.sourceId));
   assert.deepEqual([...f.named()].sort(), f.holds().map(hold => hold.content_ref).sort(), "the run names exactly the bodies the ledger holds");
-  const bodies = createEvidenceContentStore();
+  const bodies = f.bodies();
   for (const hold of f.holds()) assert.ok(bodies.has(hold.content_ref), "the held body exists");
   // The same key is the same pull: nothing is fetched again, nothing is written again.
   const fetchedBefore = f.fetched.length, eventsBefore = f.sourceEvents("sync_started");
@@ -307,7 +345,7 @@ test("RAC-518 a source that cannot be read ends the run failed, and a pull the l
   assert.equal(refused.count("SELECT count(*) AS n FROM feed_source_runs WHERE source_id = ? AND phase = 'interrupted'", refused.sourceId), 1);
   assert.equal(refused.count("SELECT count(*) AS n FROM feed_items WHERE source_id = ?", refused.sourceId), 0);
   assert.equal(refused.sourceEvents("sync_interrupted"), 1);
-  const bodies = createEvidenceContentStore();
+  const bodies = refused.bodies();
   assert.ok(refused.named().length > 0, "the run names the body before it is held");
   for (const ref of refused.named()) assert.equal(bodies.has(ref), false, "a body the ledger refused was never written");
 });
@@ -332,7 +370,7 @@ test("RAC-518 a caller revoked at any point leaves every held body named by a ru
 test("RAC-518 deleting a source with its local history gives its bodies and search records back, and the commit records it", async t => {
   const f = await syncing(t);
   await f.client.invoke(caller(SYNC).context, feedSourceActions.sync, { source_id: f.sourceId, idempotency_key: "to-delete-key" });
-  const refs = f.holds().map(hold => hold.content_ref), bodies = createEvidenceContentStore();
+  const refs = f.holds().map(hold => hold.content_ref), bodies = f.bodies();
   assert.equal(refs.length, 2);
   const deleted = await f.client.invoke(caller(DELETE).context, feedSourceActions.delete, { source_id: f.sourceId, history_decision: "delete_local_history" }) as { history_decision: string };
   assert.equal(deleted.history_decision, "delete_local_history");
@@ -436,6 +474,32 @@ test("RAC-518 a research library is read through the platform: one item per publ
   assert.equal(f.count("SELECT count(*) AS n FROM feed_items WHERE source_id = ?", sourceId), 1);
 });
 
+// FI-C-04 (specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §13): a research package's material is its library's
+// (`research:<id>`), not a body of the Home's evidence store, so no read of the item asks the evidence store for it. Each read action gives the
+// package's text after a real Runtime sync, the next rule preview sees it too, and a caller revoked is still refused.
+test("FI-C-04 an item synced from a research library is read by every read action, with its library's text and its reference left as synced", async t => {
+  const files = new Map<string, string>();
+  publishLibrary(files);
+  const f = await platform(t, { git: libraryGit(files) });
+  const { source: { source_id: sourceId } } = await f.client.invoke(caller(DESCRIBE).context, feedSourceActions.register, { kind: "research_library", repository: "fixture/research", research_source: "observations" }) as { source: { source_id: string } };
+  await f.client.invoke(caller(SYNC).context, feedSourceActions.sync, { source_id: sourceId, idempotency_key: "fi-c-04-sync" });
+  const { item_id: itemId } = f.store.db.prepare("SELECT item_id FROM feed_items WHERE source_id = ?").get(sourceId) as { item_id: string };
+  const text = "One verifiable finding", read = (permissions: readonly string[] = BODIES) => caller(permissions).context;
+  type Material = { content_ref?: string | null; content_available?: boolean; preview?: string | null };
+  const { item } = await f.client.invoke(read(), feedQueryActions.item, { item_id: itemId }) as { item: { body: string | null; materials: Material[] } };
+  assert.ok(item.body?.includes(text), `the item carries the package's text: ${item.body}`);
+  assert.deepEqual(item.materials.map(material => [material.content_ref?.startsWith("research:"), material.content_available, Boolean(material.preview?.includes(text))]), [[true, false, true]],
+    "the material is the library's, as the sync recorded it");
+  const snapshot = await f.client.invoke(read(), feedQueryActions.snapshot, { include_contents: true }) as { feed_items: Array<{ item_id: string; body: string | null }> };
+  assert.ok(snapshot.feed_items.find(row => row.item_id === itemId)?.body?.includes(text));
+  assert.ok((await f.client.invoke(read(), feedContentActions.read, { item_id: itemId }) as { body: string }).body.includes(text));
+  assert.ok((await f.client.invoke(read(), feedSubjectAction, { subject_id: itemId })).content.includes(text));
+  const preview = await f.client.invoke(read(), feedRuleActions.preview, { source_id: sourceId, contains: "verifiable" }) as { samples: Array<{ item_id: string; matched: boolean }> };
+  assert.deepEqual(preview.samples.map(sample => [sample.item_id, sample.matched]), [[itemId, true]], "the next rule read matches the package's text");
+  // Not asking the evidence store does not skip the call's own checks.
+  await assert.rejects(f.client.invoke(caller(BODIES, 1).context, feedQueryActions.item, { item_id: itemId }), { code: "actions.forbidden" });
+});
+
 test("RAC-518 the platform's clock wakes Feed: its job is set once, and a wakeup pulls what is due", async t => {
   const f = await syncing(t, { clock: true });
   const jobs = () => f.clock().list(FEED_PLUGIN_ID).filter(job => job.capability_id === "feed.sources.wake");
@@ -464,13 +528,14 @@ test("RAC-507 feed.goals.context reads the Goal as the caller, then the item the
       target: { module: "goals", id: "goal-1", version: null, scope }, cause: "feed.link_goal" });
   }
   f.store.db.prepare("UPDATE feed_items SET updated_at = ? WHERE item_id = ?").run("2099-01-01T00:00:00.000Z", newer);
-  const ask = (input: { goal_id: string; item_id?: string }, permissions: readonly string[] = [...READ, "goals:read"]) =>
+  const ask = (input: { goal_id: string; item_id?: string }, permissions: readonly string[] = [...BODIES, "goals:read"]) =>
     f.client.invoke(caller(permissions).context, feedQueryActions.linkedContext, input) as Promise<{ source_context: string } | null>;
   assert.match((await ask({ goal_id: "goal-1", item_id: linked }))!.source_context, /标题：T linked/, "the named item that is linked");
   assert.match((await ask({ goal_id: "goal-1" }))!.source_context, /标题：T newer/, "without a name, the most recently changed linked item");
   assert.equal(await ask({ goal_id: "goal-1", item_id: unlinked }), null, "an item no edge links is not injected by naming it");
   await assert.rejects(ask({ goal_id: "goal-2" }), { code: "goals.not_found" }, "a Goal that is not there gives nothing, whatever is linked to it");
-  await assert.rejects(ask({ goal_id: "goal-1" }, READ), { code: "actions.forbidden" }, "a caller who may not read Goals is refused before any material");
+  await assert.rejects(ask({ goal_id: "goal-1" }, BODIES), { code: "actions.forbidden" }, "a caller who may not read Goals is refused before any material");
+  await assert.rejects(ask({ goal_id: "goal-1" }, [...READ, "goals:read"]), { code: "actions.forbidden" }, "FI-C-03: a caller who may not read the retained bodies is refused before any material");
   // The links are read live and the content is the owner's at the time of the call: a relinked item leaves, an edited one reads as edited, a removed edge ends the link.
   f.store.db.prepare("UPDATE feed_items SET title = ? WHERE item_id = ?").run("T newer, edited", newer);
   assert.match((await ask({ goal_id: "goal-1" }))!.source_context, /标题：T newer, edited/);
@@ -633,7 +698,9 @@ test("RAC-1025 the Runtime Feed's Manifest asks for one slot per service the pla
   assert.ok(declared(feedInboxActions.material).includes("connections:use"));
   // 4e-2f: the actions that give an item's retained text, and those that judge a new item by it, declare evidence:read; the status of accounts does not.
   for (const definition of [feedQueryActions.snapshot, feedQueryActions.item, feedInboxActions.material, feedInboxActions.content, feedContentActions.read, feedRuleActions.previewJudgment,
-    feedSourceActions.sync, feedSourceActions.tick, feedContentActions.receive, feedRuleActions.evaluate, feedNotificationActions.receive]) assert.ok(declared(definition).includes("evidence:read"), definition.capability_id);
+    feedSourceActions.sync, feedSourceActions.tick, feedContentActions.receive, feedRuleActions.evaluate, feedNotificationActions.receive,
+    // FI-C-03: a promotion takes the item's text as the Goal's input, the Goal's linked material is that text, and a recommendation holds only for the text judged.
+    feedItemActions.promote, feedQueryActions.linkedContext, feedRuleActions.recommendations]) assert.ok(declared(definition).includes("evidence:read"), definition.capability_id);
   assert.ok(!declared(feedQueryActions.connections).includes("evidence:read"));
   // The actions that wait for a scene's judgment are concurrent, and the scene is declared with what its callbacks write.
   const scheduling = (definition: ActionDefinition) => feedManifest.actions!.find(action => action.capability_id === definition.capability_id)!.action.scheduling;
@@ -762,7 +829,7 @@ test("RAC-1030 a Runtime Feed gives an item's retained text through the platform
   // A caller who may read Feed but not decrypt its bodies is refused by the action, before any body is read.
   await assert.rejects(read(READ), { code: "actions.forbidden" });
   // A body the platform no longer has makes the material unavailable, not the item unreadable.
-  for (const material of retained) createEvidenceContentStore().delete(material.content_ref!);
+  for (const material of retained) f.bodies().delete(material.content_ref!);
   const gone = (await read(BODIES)).item.materials.filter(material => material.content_ref);
   assert.ok(gone.every(material => material.content_available === false && material.content === null), JSON.stringify(gone));
 });
@@ -776,8 +843,8 @@ const JUDGE = { capability_id: "feed.test.capture-judge", version: 1 };
 const JUDGE_PROVIDER = "feed-test-judgments";
 
 /** Stand-ins for what Feed does not own: a judgment the capture scene can be bound to, and the Inbox's and Home's actions that judge what Feed opens. */
-async function judging(t: TestContext) {
-  const f = await syncing(t);
+async function judging(t: TestContext, options: { goals?: readonly string[] } = {}) {
+  const f = await syncing(t, options);
   const seen = { judged: [] as string[], inbox: [] as string[][], home: [] as Array<Array<{ kind: string; id: string }>>, onJudge: async (_content: string) => {} };
   const define = (id: string, kind: "judgment" | "operation", input: object, output: object, extra: object = {}): ActionDefinition => ({ capability_id: id, version: 1, operation: "command",
     action: { title: id, description: id, kind, scope: "project", audiences: ["user", "workflow", "mcp", "agent"], permissions: [], subject_kinds: kind === "judgment" ? ["feed_item"] : [],
@@ -833,6 +900,43 @@ test("RAC-1032 a sync judges what it brought in by the retained bodies, which on
   assert.deepEqual([synced.created, synced.run.outcome], [1, "completed"]);
   assert.equal(f.seen.judged.length, 3);
   assert.equal(f.ledger().filter(row => row.scene_id === feedCaptureScene.scene_id).length, 2, "the judgment of a changed rule is not recorded");
+});
+
+// FI-C-03 (specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §13): the promotion, the Goal's linked material and the capture
+// recommendations read an item's retained text, so each declares evidence:read. A synced item whose bodies the platform keeps is promoted, gives its
+// Goal its text and keeps its recommendation; a caller who holds everything else but not evidence:read is refused at the entry, before any write.
+const PROMOTE = [...WRITE, "goals:read", "goals:write", "attention:write", "context-ledger:write"];
+test("FI-C-03 a synced item's retained text reaches its capture recommendation, its promotion and its Goal's linked material; without evidence:read each is refused at the entry", async t => {
+  const f = await judging(t, { goals: [] });
+  await f.rule({ source_id: f.sourceId });
+  await f.client.invoke(caller(JUDGING_SYNC).context, feedSourceActions.sync, { source_id: f.sourceId, idempotency_key: "fi-c-03-sync" });
+  const { item_id: itemId } = f.store.db.prepare("SELECT item_id FROM feed_items WHERE source_id = ? AND title = ?").get(f.sourceId, "First") as { item_id: string };
+  type Item = { item: { revision: number; linked_goal_id: string | null; materials: Array<{ content_ref?: string | null; content?: string | null; content_available?: boolean }> } };
+  const read = async () => (await f.client.invoke(caller(BODIES).context, feedQueryActions.item, { item_id: itemId }) as Item).item;
+  const before = await read();
+  const retained = before.materials.filter(material => material.content_ref);
+  assert.ok(retained.length > 0 && retained.every(material => material.content_available === true), "the synced item's text is kept by the platform, not in Feed's row");
+  const without = (permissions: readonly string[]) => permissions.filter(permission => permission !== "evidence:read");
+
+  // The recommendation holds for the text that was judged, so reading it reads the bodies; it is offered to a caller who may use the scene.
+  const recommend = (permissions: readonly string[]) => f.client.invoke(caller(permissions).context, feedRuleActions.recommendations, {}) as Promise<{ recommendations: Array<{ item_id: string; suggested_behavior_ids: string[] }> }>;
+  assert.deepEqual((await recommend(JUDGING)).recommendations.find(row => row.item_id === itemId)?.suggested_behavior_ids, ["inbox.admit"]);
+  await assert.rejects(recommend(without(JUDGING)), { code: "actions.forbidden" }, "a caller who may not read the bodies is refused, not given a shorter list");
+
+  // A caller without evidence:read is refused before Goals is asked or Feed writes anything.
+  await assert.rejects(f.client.invoke(caller(without(PROMOTE)).context, feedItemActions.promote, { item_id: itemId, expected_revision: before.revision }), { code: "actions.forbidden" });
+  assert.deepEqual([f.goalsAsked.created, f.goalsAsked.confirmed, (await read()).linked_goal_id], [[], [], null], "the refused promotion reached nothing");
+  const promoted = await f.client.invoke(caller(PROMOTE).context, feedItemActions.promote, { item_id: itemId, expected_revision: before.revision }) as { goal_id: string; created: boolean };
+  assert.equal(promoted.created, true);
+  assert.deepEqual([f.goalsAsked.created, f.goalsAsked.confirmed.map(row => [row.goal_id, row.source_id])], [[promoted.goal_id], [[promoted.goal_id, itemId]]]);
+  assert.equal((await read()).linked_goal_id, promoted.goal_id);
+
+  // The Goal's linked material is the same text the promotion took as its input: its digest is the one Goals was asked to confirm.
+  const context = (permissions: readonly string[]) => f.client.invoke(caller(permissions).context, feedQueryActions.linkedContext, { goal_id: promoted.goal_id }) as Promise<{ source_context: string } | null>;
+  const linked = await context([...BODIES, "goals:read"]);
+  assert.ok(linked && retained.every(material => linked.source_context.includes(`正文：${material.content!.slice(0, 40)}`)), `the linked material carries the retained text: ${linked?.source_context}`);
+  assert.equal(f.goalsAsked.confirmed[0]!.snapshot_digest, `sha256:${createHash("sha256").update(linked.source_context).digest("hex")}`, "the promotion's input is the text with its retained bodies");
+  await assert.rejects(context([...READ, "goals:read"]), { code: "actions.forbidden" });
 });
 
 test("RAC-1033 a caller revoked at any point of a judged hand-in never leaves an Inbox entry or a judgment event the ledger does not have, and writes nothing after", async t => {

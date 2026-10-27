@@ -28,6 +28,8 @@ export const FEED_HOME_DATABASE: HomePluginDatabaseDeclaration = { store_name: "
 
 /** The only bodies this ledger counts: what the Home's evidence store names. A reference to anything else (a research note) is not its. */
 const BODY_REF = /^molis-work-feed\/sha256\/[0-9a-f]{64}$/u;
+/** Whether a material's reference names a body in the Home's evidence store, rather than something another library keeps (`research:<id>`). */
+export const isFeedBodyRef = (contentRef: string): boolean => BODY_REF.test(contentRef);
 const COMPLETE = "complete_since";
 /** Most references one call may name, so a hold or release is one bounded write. */
 export const FEED_CONTENT_LEDGER_BATCH = 5_000;

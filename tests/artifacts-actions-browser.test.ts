@@ -58,7 +58,7 @@ test("actual Artifact import, fixed version and Goal embed retain the platform r
   await visit("/goals/V1");
   assert.equal(await evaluate(fixedInput), true);
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: b.homeDirectory });
-  const artifactEntry = 'button[data-plugin-id="artifacts"][data-work-surface-open]';
+  const artifactEntry = '.plugin-rail-items button.plugin-rail-item[data-plugin-id="artifacts"][data-work-surface-open]';
   try {
     assert.equal(await evaluate(`Boolean(document.querySelector(${JSON.stringify(artifactEntry)}))`), true, "the enabled shell has a real navigation entry");
     catalog.removeProjectPlugin({ project_id: projectId!, plugin_id: "artifacts", actor_id: "browser-owner" });

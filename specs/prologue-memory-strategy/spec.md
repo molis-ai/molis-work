@@ -3634,4 +3634,4 @@ App正式规模源为干净 `83421bf71719035ccc6f13439d60dfedac08f500`、SDK `57
 
 本段日志前缀 `/private/tmp/molis-memory-retention-20261027`：`-core-1.log`、`-knowledge-1.log`、`-policy-2.log`、`-policy-ui-3.log`。构建中的类型签名失败在 `-build-2.log`，随后修正并通过；独立复审确认两处读取缺口闭合。原 health 在 `-health-2.log` 对准确 merge-base 9efbf8d04 通过：依现行规则及独立职责审查，仅登记 KnowledgeService 366 行/23 方法、SearchService 301 行/21 方法两个内聚单元，无阈值修改或预留空间。
 
-资源门仍未通过：压短恢复说明省回 42 B 后，`/assets/molis-work-knowledge.js` 为 27,065 B，相对原上限 26,940 B 净增 125 B（`-assets-3.log`）。未将此前 Coding/Workbench 授权挪用到本资源，未抬预算，待单独批准。最终全量/新提交 CI、1000 条读取性能、真实质量/token 及用户验收仍未闭合；旧 92a CI 成功不覆盖本次实现。SDK57cf 只读诊断看到重复目标复制 inclusive 约 2.278 ms，不能解释约 21 ms 暖读差距，不据此声称能达门或重启已停止的 SQLite 实验。
+首次资源门未通过：压短恢复说明省回 42 B 后，`/assets/molis-work-knowledge.js` 为 27,065 B，相对原上限 26,940 B 净增 125 B（`-assets-3.log`）。当时未将此前 Coding/Workbench 授权挪用到本资源，未抬预算，等待单独批准。2026-10-27 用户明确批准本资源一次性 +125 B；已登记准确的 26,940→27,065 B 放行，原 updater 复测 48 项共 7,458,470 B，通过并只更新这一个资源的实测记录（`-assets-approved.log`）。其他额度和判定不变。最终全量/新提交 CI、1000 条读取性能、真实质量/token 及用户验收仍未闭合；旧 92a CI 成功不覆盖本次实现。SDK57cf 只读诊断看到重复目标复制 inclusive 约 2.278 ms，不能解释约 21 ms 暖读差距，不据此声称能达门或重启已停止的 SQLite 实验。

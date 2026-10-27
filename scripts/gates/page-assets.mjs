@@ -245,8 +245,10 @@ const headErrors = (measured, budget, base) => {
 // #1101 carries the same approved Memory features onto main 9efbf8d04. Main's allowances are consumed.
 // Coding +1776 B = archive +570 B and user-approved restore +1206 B (2026-10-27).
 // Workbench's original approved features allow +32893 B and CSS +680 B; shrink to actual build measurements.
-// Retention-protocol additions are not covered. The original updater must measure the combined build.
+// User approved 2026-10-27: Knowledge's manual-organization state/entry adds 125 B after saving 42 B in copy.
+// This exact Knowledge allowance covers retention; other future additions are not covered.
 const APPROVED_CEILINGS = {
+  "/assets/molis-work-knowledge.js": [26940, 27065],
   "/assets/molis-work-plugins/coding.js": [289674, 291450],
   "/assets/molis-work-workbench.js": [1147241, 1180134],
   "/assets/molis-work-workbench.css": [1236101, 1236781],

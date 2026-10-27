@@ -91,16 +91,19 @@ test("OPTAREA-04 the page follows the project's plugins as they change: enabling
   });
 });
 
-test("OPTAREA-05 a Goal of a project without Artifacts still says so on its page, without a refusal in the call log", { timeout: 90_000 }, async () => {
+test("OPTAREA-05 a Goal reads the platform Artifacts with or without its project shell, without a refusal in the call log", { timeout: 90_000 }, async () => {
   await withProject([], async ({ base, host, catalog, projectId, reference }) => {
     const goals = bindActionClient(host.actionClient(reference), () => ({ actor_id: "web-user", project_id: projectId, audience: "user" as const, permissions: ["goals:read", "goals:write"] }));
     await goals.invoke(goalsActions.create, { goal_id: "G1", title: "一个目标", idempotency_key: "create" });
     const without = await get(`${base}/projects/${projectId}/goals/G1`);
-    assert.match(without.text, /data-artifact-unavailable[^>]*>[^<]*未启用/);
-    assert.deepEqual(rowsOf(host, projectId).map(row => row[0]), [goalsActions.create.capability_id]);
+    assert.equal(without.status, 200);
+    assert.doesNotMatch(without.text, /data-artifact-unavailable/);
+    assert.deepEqual(rowsOf(host, projectId), [[goalsActions.create.capability_id, "ok", false]]);
     catalog.addProjectPlugin({ project_id: projectId, plugin_id: "artifacts", actor_id: "test" });
-    assert.doesNotMatch((await get(`${base}/projects/${projectId}/goals/G1`)).text, /data-artifact-unavailable/);
-    assert.deepEqual(rowsOf(host, projectId).map(row => row[0]), [goalsActions.create.capability_id]);
+    const withShell = await get(`${base}/projects/${projectId}/goals/G1`);
+    assert.equal(withShell.status, 200);
+    assert.doesNotMatch(withShell.text, /data-artifact-unavailable/);
+    assert.deepEqual(rowsOf(host, projectId), [[goalsActions.create.capability_id, "ok", false]]);
   });
 });
 

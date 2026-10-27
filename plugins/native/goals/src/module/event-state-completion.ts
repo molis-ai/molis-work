@@ -14,8 +14,9 @@ import {
   pendingBlocksCompletion,
   requirementCurrentlySatisfied,
 } from "./event-state-authorization.js";
-import { agreementView } from "./event-state-repository.js";
-import type { AppliedDecisionWithRound, GoalEventStateRepository } from "./event-state-repository.js";
+import { agreementView } from "./event-state-owner-records.js";
+import type { GoalEventStateRepository } from "./event-state-repository.js";
+import type { AppliedDecisionWithRound } from "./event-state-decision-records.js";
 
 export interface GoalEventCompletionContext {
   open_dependencies: Array<{ goal_id: string; title: string }>;
@@ -123,8 +124,8 @@ export function syncClosedState(
   status: GoalEventWorkStatus,
   at: string,
 ): void {
-  records.setWorkStatus(goal.project_id, goal.goal_id, status, at);
-  records.setFulfillment(goal.goal_id, fulfillmentForWorkStatus(status), at);
+  records.owner.setWorkStatus(goal.project_id, goal.goal_id, status, at);
+  records.outcomes.setFulfillment(goal.goal_id, fulfillmentForWorkStatus(status), at);
 }
 
 /**
@@ -171,9 +172,9 @@ export function reopenCompletion(
   requirementIds: string[],
   reason: string,
 ): void {
-  const previous = records.workStatus(goal.project_id, goal.goal_id);
+  const previous = records.owner.workStatus(goal.project_id, goal.goal_id);
   const at = context.now().toISOString();
-  records.supersedeAppliedClosures(goal.project_id, goal.goal_id, reason);
+  records.outcomes.supersedeAppliedClosures(goal.project_id, goal.goal_id, reason);
   syncClosedState(records, goal, "open", at);
   core.insertSystem(goal, actorId, actorKind, "相关事实使完成效果不再成立", {
     operation: "completion_reopened",

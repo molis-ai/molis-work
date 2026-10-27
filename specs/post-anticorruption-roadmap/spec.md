@@ -90,7 +90,7 @@
 
 | 需求 | 一句话 | 去处 |
 | --- | --- | --- |
-| [unified-input-voice](../unified-input-voice/spec.md) | 首页、助理、Coding 一个输入框，加本机语音 | 文字部分 1·A；语音 2·A（要真机验麦克风与中文输入法） |
+| [unified-input-voice](../unified-input-voice/spec.md) | 平台统一输入组件的整体交互与 UI；首页、助理、Coding 首批接入，向所有适用插件／组件开放注册扩展，加本机语音（10-27 已定，§2.1～2.2） | 文字与公共扩展部分 1·A；语音 2·A（要真机验麦克风与中文输入法） |
 | [skill-packs](../skill-packs/spec.md) | 只有 Manifest 的内容插件，助理和 Coding 共用一份方法目录；纯内容的包助理看得见（产品建议 G1），从 Claude Code、Codex 导入的 Skills 直接变成技能包（G2） | 1·C（`assistant-service.ts` 那处改动由 A 轨落，见第 5 节规则 7） |
 | [work-brief](../work-brief/spec.md) | 工作简报插件：综合结果的正文、版本、来源、修订 | 插件本体 1·E；每日状态简报 2·A；周期报告 3·A |
 | [proactive-assistant](../proactive-assistant/spec.md) | 主动发现值得推进的事，按场景 Skill 处理；访谈式初始化与每日更新的工作记忆（产品建议 E2）；含平台共用的完整工作记录（§3.4） | 工作记录：设计 1·C、第一版 2·C；助理本身 3·A |
@@ -358,7 +358,7 @@ flowchart LR
 | # | 事项 | 卡住哪一步 |
 | --- | --- | --- |
 | 1 | **已定（2026-10-27）**：多个输入目录、一个固定且用户可修改的输出目录，输入输出可相同；默认联动，临时查看不改变执行位置（BL-023）。去掉独立 Files 插件、共用文件／资料源，见[整合方案](../product-flow-governance/workspace-and-materials-design.md) | 已写入 1·B 的 R1；新目录模型、公共能力承接与 Files 退役待实施，完整验证未完成 |
-| 2 | 输入框的主人与「打断 / 转向 / 排队」三种送达的键位（产品建议 H2）；本文建议 A 轨做主人 | 1·A |
+| 2 | **已定（2026-10-27）**：平台统一输入组件，由 [unified-input-voice](../unified-input-voice/spec.md)收口整体交互／UI，插件及组件经公共合同／SDK 自定义注册；原回执与领域 owner 不变。Command/Ctrl + Shift + Enter 排队，打断通过明确按钮或菜单（H2） | 1·A 待实施；已有 Enter 换行、Command/Ctrl + Enter 发送／默认补充、Esc 不直接停止与队列消费规则保持 |
 | 3 | 一句话该记进记忆、Skill 还是项目长期说明（产品建议 E3） | 1·C 技能包、2·A 每日简报 |
 | 4 | 风险插件的三项待定（顾虑与风险的关系、登记册视图、复查提醒） | 1·E |
 | 5 | 开发者账号与公证（BL-021）、正式 OAuth 应用的申请主体 | 1·F（外部账号与费用，审核要时间） |

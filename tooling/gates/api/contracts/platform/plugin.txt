@@ -3584,6 +3584,7 @@ export interface PluginNotificationDelivery {
 export interface PluginNotificationDeliveryReceipt {
     item_id: string;
     created: boolean;
+    judgment_error_code?: string;
 }
 
 export interface PluginNotificationInput {

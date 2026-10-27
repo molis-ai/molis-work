@@ -1,5 +1,5 @@
 {
-  "giantUnits": 49,
+  "giantUnits": 45,
   "giant": {
     "class apps/local-host/src/assistant/assistant-store.ts#AssistantStore": {
       "lines": 267,
@@ -63,33 +63,20 @@
       "methods": 27
     },
     "class plugins/native/feed/src/application.ts#FeedApplication": {
-      "lines": 491,
+      "lines": 483,
       "methods": 44
     },
     "function plugins/native/goals/src/goal-tree-decision.ts#decideGoalTreeProposal": 267,
     "function plugins/native/goals/src/goal-tree-decision.ts#result callback 1": 241,
-    "class plugins/native/goals/src/module/event-facts-repository.ts#GoalEventFactsRepository": {
-      "lines": 371,
-      "methods": 29
-    },
     "class plugins/native/goals/src/module/event-facts.ts#GoalEventFacts": {
-      "lines": 545,
-      "methods": 34
+      "lines": 193,
+      "methods": 30
     },
     "class plugins/native/goals/src/module/event-state-effects.ts#GoalEventStateEffects": {
       "lines": 515,
       "methods": 11
     },
     "function plugins/native/goals/src/module/event-state-effects.ts#recordTrustedDecision": 152,
-    "class plugins/native/goals/src/module/event-state-repository.ts#GoalEventStateRepository": {
-      "lines": 408,
-      "methods": 30
-    },
-    "class plugins/native/goals/src/module/guidance-commands.ts#GuidanceCommands": {
-      "lines": 328,
-      "methods": 3
-    },
-    "function plugins/native/goals/src/module/guidance-commands.ts#update": 177,
     "function plugins/native/goals/src/module/lifecycle-archive.ts#setTrashed": 155,
     "function plugins/native/goals/src/momentum-view.ts#buildGoalMomentumView": 245,
     "class plugins/native/goals/src/proposal-normalizer.ts#GoalTreeProposalNormalizer": {
@@ -105,7 +92,7 @@
     },
     "file plugins/official-integrations/catalog/src/catalog.ts": 1013
   },
-  "testInternalImports": 415,
+  "testInternalImports": 414,
   "testImports": {
     "tests/action-call-log.test.ts": 2,
     "tests/action-gateway.test.ts": 1,
@@ -276,7 +263,6 @@
     "tests/release-assets.test.ts": 3,
     "tests/runtime-dependency-flatten.test.ts": 2,
     "tests/runtime-plugin-http-discovery.test.ts": 1,
-    "tests/schedule-operations.test.ts": 1,
     "tests/search-evidence-runtime.test.ts": 1,
     "tests/secret-store-keychain-retry.test.ts": 1,
     "tests/shelf-ai-host.test.ts": 3,
@@ -704,7 +690,7 @@
   "emptyCatches": {
     "tests/material-extraction.test.ts": 1
   },
-  "unknownCastsTotal": 150,
+  "unknownCastsTotal": 148,
   "unknownCasts": {
     "apps/local-host/cloudflare/worker.ts": 1,
     "apps/local-host/src/agent-definitions/agent-definitions.ts": 2,
@@ -783,7 +769,6 @@
     "tests/connector-document-import.test.ts": 2,
     "tests/contextual-interaction.test.ts": 1,
     "tests/feed-inbox-lifecycle.test.ts": 2,
-    "tests/feed-local-history-delete.test.ts": 2,
     "tests/feed-source-actions.test.ts": 2,
     "tests/fixtures/coding-surface.ts": 1,
     "tests/generated-plugin-prompts.test.ts": 1,

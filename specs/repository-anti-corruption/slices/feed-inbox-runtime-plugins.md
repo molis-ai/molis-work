@@ -1,6 +1,6 @@
 # FI-6 Feed、Inbox 进 Plugin Runtime 设计稿（PG-093、PG-089 余半，并关 PG-040、PG-080、PG-045 的余项）
 
-状态：批 C 于2026-10-27续做：C03–07、RAC-808 的 Runtime Inbox 证明、SYS52 修复已完成并有作者定向验证（SYS52 浏览器例未在本机跑）；合成树的包登记、断链、类型断言、巨大单元与 API/动作快照已按门禁修好或刷新。边界检查已按用户批准跟上删掉的文件；四个红文件在 main 上是绿的，已在 C 里修（一处产品回归：Feed Manifest 缺 `attention.inbox`）。FI7 Feed 一半已做（页面请求进 Manifest routes，两段 HTML 归外壳舞台，宿主 Feed 边删除；健康门禁对 merge-base 通过，工作台脚本比预算小 186 B、不需放行；改到的浏览器例只写未在本机跑），槽账号绑定 UI 移到单独切片 FI7b；D-4e3-1 按用户 10-10 的决定改回（本人经 Feed 升格记已确认，Goals 只从 Host 设的委托字段认本人，且只认来源主人 Feed 的委托，暂定 S-99；收窄到具体动作记 BL-803），Feed Manifest 回 0.3.0、发版核对补 Feed 正文引用账，desktop-tui 转绿；inbox-automatic-scenes 改走 Runtime 的 `feed.sources.sync` 后查出 Runtime Feed 没接成果服务，统筹批了方案 A：RAC-510 已做（`services.artifacts.join`，捕捉的成果与事项同一次提交，暂定 S-100；6 个动作多要 `artifact:write`，不留兼容期；存量记 R-69），该例第 166 行原断言转绿，顺带修了 FI-C-08；FI7 评审（`d96bd692d`）的四处跟进已做（W3-01 C 补回「进了门、被拒、留行、带编号」的 HTTP 用例，PG-060 位置、PG-057 与迁移文档跟上现状），边界检查的余漏记 BL-802；受影响文件逐个跑时又修了 feed-promote-mcp 的夹具（项目缺 Feed）；C02 Notion 复审无必修项；最终独立验证与 Full 未做，见 §13。C未合入；真实 Home、维护和本人验收未执行。父稿与历史设计、逐片记录保留。
+状态：批 C 于2026-10-27续做：C03–07、RAC-808 的 Runtime Inbox 证明、SYS52 修复已完成并有作者定向验证（SYS52 浏览器例未在本机跑）；合成树的包登记、断链、类型断言、巨大单元与 API/动作快照已按门禁修好或刷新。边界检查已按用户批准跟上删掉的文件；四个红文件在 main 上是绿的，已在 C 里修（一处产品回归：Feed Manifest 缺 `attention.inbox`）。FI7 Feed 一半已做（页面请求进 Manifest routes，两段 HTML 归外壳舞台，宿主 Feed 边删除；健康门禁对 merge-base 通过，工作台脚本比预算小 186 B、不需放行；改到的浏览器例只写未在本机跑），槽账号绑定 UI 移到单独切片 FI7b；D-4e3-1 按用户 10-10 的决定改回（本人经 Feed 升格记已确认，Goals 只从 Host 设的委托字段认本人，且只认来源主人 Feed 的委托，暂定 S-99；收窄到具体动作记 BL-803），Feed Manifest 回 0.3.0、发版核对补 Feed 正文引用账，desktop-tui 转绿；inbox-automatic-scenes 改走 Runtime 的 `feed.sources.sync` 后查出 Runtime Feed 没接成果服务，统筹批了方案 A：RAC-510 已做（`services.artifacts.join`，捕捉的成果与事项同一次提交，暂定 S-100；6 个动作多要 `artifact:write`，不留兼容期；存量记 R-69），该例第 166 行原断言转绿，顺带修了 FI-C-08；FI7 评审（`d96bd692d`）的四处跟进已做（W3-01 C 补回「进了门、被拒、留行、带编号」的 HTTP 用例，PG-060 位置、PG-057 与迁移文档跟上现状），边界检查的余漏记 BL-802；受影响文件逐个跑时又修了 feed-promote-mcp 的夹具（项目缺 Feed）；C02 Notion 复审无必修项；10-28 第一次 carrier Full 的 47 个红已逐个归因（14 个已修、1 个 main 登记的间歇红、32 个新红本轮修了，其中 5 处产品回归），并合了 main，第二次 Full（`integration/carrier-1028-c2`）待跑，见 §13。C未合入；真实 Home、维护和本人验收未执行。父稿与历史设计、逐片记录保留。
 
 **先说五件事**：
 
@@ -719,6 +719,44 @@ Inbox的listInbox/getInbox投影及状态提交重读已在028实现，但运行
     - 用例：16 个文件 16/16 通过。`runtime-plugin-http-discovery` 23/23、`feed-runtime-plugin` 50/50、`security-invariants-plugin-source-pull` 12/12、`security-invariants-doc` 1/1、`project-plugin-database-refusal` 5/5、`home-snapshot-content` 1/1、`demo-plugin-sample` 3/3、`feed-out-rules` 16/16、`owner-readers` 2/2、`dual-instance-coverage` 3/3、`workbench-entry-exports` 4/4、`action-usages` 1/1、`security-invariants-plugin-artifact-join` 13/13、`feed-local-history-delete` 3/3、`feed-content-ledger` 11/11、`agent-built-plugins-network` 7/7。
     - 测试文件的类型检查：用临时配置，只列本批改到的 18 个测试文件。65 处错误都不在本批改到的行上（逐行对照 `git diff -U0`），是目标库版本（`withResolvers`、`toSorted`）和夹具类型的旧问题。CI 不查测试文件。
     - 没跑的：两个浏览器用例 `goals-navigation.e2e`、`connector-tenant-reconnect.e2e`，以及 security 全量和 Full，交给 carrier 的 Full 和 PR 的 CI。
+- **第一次 carrier Full（`integration/carrier-1028-c`，头 `7e716e494`，run 40538450543）的红，逐个归因（统筹 10-28）。** 重试后仍红的 47 个文件分三类，逐个的表在共享笔记 `c-full-1028.md`：
+  - 14 个已由 `75f21b847` 修掉（上一条的 1～13），对过失败的用例名；
+  - 1 个是 `known-red-main.md` 登记过的 `busy-feedback.e2e`（VUX-31 间歇红）；
+  - 32 个是新的，都是 C 带来的，这一轮修。
+  
+  另有 5 个片内重试后通过，不算。新的 32 个里，产品回归 5 个，改产品代码：
+  1. `action-model-scheduling`：`feed.notifications.receive` 收下后会判断（等模型），没声明费用。补 `cost: "metered"`。
+  2. `schedule-operations`（D4-d）：Runtime Feed 的 `judgmentFailed` 端口是空的，收下后判断失败没人记。改成投递回执带可选的 `judgment_error_code`，只给码；平台照常记投递，按码记 `judgment_failed`，只记形如 `<主人>.<原因>` 的码，不记接收方给的其他文字。用例搬到 `feed-runtime-plugin`（RAC-1028 两例）。
+  3. `feed-sync-authority`（S-97）：撤权不是取消，signal 还活着。`assertCurrent`、`beforeDispatch` 抛错时没记成拒绝，过期那次拉取的回执留下了。两处抛错先记 `refused`，回执照删；取消的拉取仍留回执。
+  4. `connector-status`（ASC-25）：FI-C-02 把账号检查提前到 `connectorAccountControl`，它抛普通 Error，读取期间账号变了就丢了 `connector.account.disconnected`。非 `ActionError`、又不是调用方取消的，转成账号自己的码。
+  5. `home-event-actions`：Runtime Feed 的首页事件没接主题读取，「挂在」退回「目标 · V1」。照 Inbox 的写法，经目录以调用方身份 `resolveActionSubject`。
+
+  其余 27 个是用例跟上 FI-5、FI-6 的预期变化：
+  - 11 个还引着删掉的宿主 Feed 导出，改从 `tests/fixtures/feed-library.ts` 和新的 `tests/fixtures/feed-ledger.ts` 取；
+  - 4 个用 v10 的 `goal-event-history` 夹具，夹具重生成到 v11；
+  - `home-store-baselines` 补 `feed-content` 的 Home 库基线；
+  - 11 个跟上 Feed 自己的时钟任务、Runtime 的同步路径、4e-2f 的权限与双实例名单顺序。
+  
+  `feed-store-declaration` 的 RAC-497 改由 PLIB-04 的 Feed 一例证明，见 `feed-inbox-store-into-feed.md`。
+  - **顺带查的两个疑点**：
+    - 项目页以 `INBOX_ACTION_PERMISSIONS` 读「下一步建议」，疑缺 `evidence:read`。第一次 Full 里 `home-mcp-actions` 第 213 行经 `/api/board` 读到了建议，不成立。
+    - `inbox.pages.generate` 生成前经 `feed.items.material` 再读材料，`required_actions` 没写，只授权了生成的客户端会在嵌套调用处被拒（`inbox.judgment.evaluate` 已因同样原因补了 `feed.items.content`）。补上声明。
+  - **验证**：一次 heavy.sh 预约，`--jobs 1`，不跑浏览器用例。
+    - 用例（合 main 之前）：16 个文件 15 个通过：
+      - `feed-runtime-plugin` 52/52、`schedule-operations` 16/16、`feed-sync-authority` 18/18、`security-invariants-plugin-source-pull` 12/12、`security-invariants-plugin-notification-delivery` 4/4；
+      - `connector-status` 7/7、`connector-call-control` 5/5、`home-event-actions` 4/4、`home-mcp-actions` 1/1、`action-model-scheduling` 2/2；
+      - `contextual-dock-parity` 1/1、`pages-cross-module` 2/2、`inbox-plugin` 2/2、`feed-store-declaration` 7/7、`plugin-runtime-scope` 6/6。
+      
+      没过的 `inbox-prepared-pages`：新加的 `required_actions` 让生成在只有 Inbox、Pages 的夹具里依赖缺失，用例卡住，按 pid 停掉。夹具补一个只占位的 Feed 提供方，断言不动，重跑 9/9；`inbox-native-plugin` 8/8。
+      
+      fork 改的其余 15 个用例文件各自跑过，最后一次都通过；其中 `feed-inbox-lifecycle` 先是 12/13，修后单跑失败的那一例通过。
+    - 合 main（`47190691d`，含 #1322、#1326、W5-10 批 E）：没有冲突。#1322 与 C 重叠的 `apps/local-host/src/index.ts`、`packages/plugin-sdk/README.md` 都自动合上了。
+    - 合并后构建：整体 `pnpm build`，TypeScript 全部通过，根 `tsc` 也过；local-host 的 Swift 一步照旧因本机 `SwiftBridging` 失败，server、desktop 另外构建。
+    - 合并后门禁：`check-health-gates --base origin/main`、`boundary:check`、`page-assets:check` 都过了。`baseline.json` 在合并结果上 `--update`。
+    - 快照：
+      - 动作快照点出两个同版本变形：`feed.notifications.receive@1`（输出、特征）和 `inbox.pages.generate@1`（特征）。不升版本，C 没发过版，不留兼容期。前者只由平台按 Feed 的 Manifest 调；后者是新声明对 Feed 材料读取的依赖。
+      - API 快照：`contracts/platform/plugin` 多一个可选字段。
+    - 没跑：合并后的用例、security 全量，以及浏览器用例（含只改了 import 的 `attention-journey`、`dense-workspace`、`immersive-directory`、`product-interaction` 四个 e2e，第一次 Full 里它们没跑到用例本体）。交给 `integration/carrier-1028-c2` 的 Full 与 PR 的 CI。
 - **FI7 评审（`8800e07bf..d96bd692d`）的四处跟进（统筹 10-27 定）。** 评审没有必须改的代码，下面四处是文档与用例跟上：
   - **W3-01 C 的变化统筹认了。** 没装 Feed 的项目里，Feed 的页面路由（`/api/plugins/io.molis.work.feed/…`）和舞台（`/api/stage/feed`）在门口就拒（403 `actions.plugin_disabled`），没有调用，不留行，答复不带编号；FI-7 之前人按名字调 `/api/feed` 会留一行「未执行」、带编号。现在和 Inbox、Schedule 等 Runtime 插件一样，用户 10-18 定插件一视同仁，给 Feed 单留一行反而是私路。`apps/local-host/README.md` 那句「人按名字调 `/api/feed` 也照常记」改成现行行为。「被拒且留行、答复带编号」这条保证补回一条 HTTP 用例（`tests/web-home-isolation.test.ts`「a plugin's route the door let through, whose call is refused before it runs…」）：项目里装了 Feed，`POST …/items/<201 个字符>/read` 进了门，路由以本人调 Feed 的 `feed.items.read`，条目编号超出动作的上限 200，调用在处理器之前被拒为 `actions.input_invalid`；答复 400，头和体带同一个编号，调用记录里这一行 `refused === true`、能力是 `feed.items.read`。同一个编号下还会有宿主那次读浏览工作区（BL-521 的 `announceProjectOpened`：项目的插件平台打开后，第一条插件路由前读一次，读成功就不再读）：这个夹具的宿主没有项目设置，读取答 `actions.missing`、留自己的一行，失败后下一条路由再读，所以用例认这一行，也只认这一行。测试夹具 `withRequestFixture` 多一个可选参数，给项目加插件。整文件 8/8。
   - **`feed_source_catalog` 仍是宿主按 Feed 命名的页面投影。** 页面视图的来源目录（`web-view.ts:111` 调 `listFeedSourceCatalog`）main 上就有，归 PG-060，等舞台归插件时一起搬。它取的是 `createSourceVocabulary()`，与 `services.sourcePull.vocabulary` 给插件的同一份，插件和路由都读不到它，所以不绕 S-97。

@@ -21,7 +21,7 @@ Shelf 的 `registration.workbench.clientAssets` 写 `/desktop/pty-client.js`：�
 
 只剩 Shelf 这一处（PG-053 行末句）：入口点名一个插件包，该插件的客户端代码躲在平台的打包里。
 
-1. `startShelfTerminalClient` 搬进 Shelf 自己的浏览器包（`plugins/native/shelf/src/browser/terminal.ts`），由 `shelfClient(host)` 在 `installTui` 之前调用，随根的生命周期结束（观察器断开、桥删掉）。仍用平台给每个插件框架的 `molisPageTerminal`，不新开合同。
+1. Shelf 的终端井搬进 Shelf 自己的浏览器包（`plugins/native/shelf/src/browser/terminal.ts`）。这一步与 ac-shell 的 PG-053 片（`8ec97dab4`）撞在同一处，合并时按它的形状：`installTerminal(page)` 由 `shelfClient` 在 `installTui` 之前调用，随根的生命周期结束（不再是 `startShelfTerminalClient(host.pluginRoute)`）。仍用平台给每个插件框架的 `molisPageTerminal`，不新开合同。
 2. 删 Shelf 的 `./terminal-client` 导出与 `src/terminal-client.ts`；`apps/workbench/src/terminal-client.ts` 不再 import 任何插件包。
 3. Shelf 的 `clientAssets` 删掉 `/desktop/pty-client.js`：插件调 `terminal.mount()`，平台在第一次挂载时按需装渲染部件（框架的 CSP 本来就允许它）。Shelf 不再预装 xterm，没打开「对话」的 Shelf 页少加载 0.5 MB。
 4. 同步登记与文档：`dom-events.ts` 里 `molis-shelf-tui-unsent` 的发出文件、Shelf README、GLOSSARY 里点名旧文件的行、`ui-host` README。

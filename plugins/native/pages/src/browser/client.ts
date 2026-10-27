@@ -15,7 +15,7 @@ import type { PagesHost } from "./types.js";
 export function pagesClient(host: PagesHost) {
   const Editor = window.MolisWorkPagesEditor;
   if (host.side) {
-    Editor.mountComments({ messages: host.messages, translate: host.translate, projectId: host.projectId, route: (path) => host.route(path), pluginRoute: (path) => host.pluginRoute(path) });
+    Editor.mountComments({ messages: host.messages, translate: host.translate, projectId: host.projectId, pluginRoute: (path) => host.pluginRoute(path) });
     return;
   }
   const page = createPage(host, Editor);

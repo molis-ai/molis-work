@@ -2,15 +2,15 @@ import { createHash } from "node:crypto";
 import {
   FUNCTIONS_DEFAULT_MODEL,
   type ChoiceCriterion,
-  type FunctionCriteria,
-  type FunctionsPrimitive,
+  type JudgmentRuleCriteria,
+  type JudgmentRulePrimitive,
   type NoulCriteria,
 } from "@molis-ai/molis-work-contracts/modules/functions";
 
 export function hashFunctionConfig(input: {
-  readonly primitive: FunctionsPrimitive;
+  readonly primitive: JudgmentRulePrimitive;
   readonly instructions: string;
-  readonly criteria: FunctionCriteria;
+  readonly criteria: JudgmentRuleCriteria;
   readonly model?: string;
 }): string {
   const payload = JSON.stringify({
@@ -35,7 +35,7 @@ export function hashChoiceConfig(input: {
   });
 }
 
-function canonicalizeCriteria(primitive: FunctionsPrimitive, criteria: FunctionCriteria): unknown {
+function canonicalizeCriteria(primitive: JudgmentRulePrimitive, criteria: JudgmentRuleCriteria): unknown {
   if (primitive === "choice") {
     const items = criteria as readonly ChoiceCriterion[];
     return [...items]

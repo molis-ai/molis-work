@@ -8,7 +8,8 @@ export type StatementRow = Record<string, StatementValue>;
 
 export interface StatementMemoryLimits { readonly heapMb: number; readonly rssMb: number; readonly sampleMs: number }
 type StatementCommand =
-  | { readonly op: "open"; readonly path: string; readonly record: PluginProjectDatabaseRecord; readonly limits: StatementMemoryLimits }
+  /** `record` is the plugin's tables in a project's library; `null` is a library in the Home, which is wholly the plugin's (PG-017 BL-490). */
+  | { readonly op: "open"; readonly path: string; readonly record: PluginProjectDatabaseRecord | null; readonly limits: StatementMemoryLimits }
   | { readonly op: "get"; readonly sql: string; readonly parameters: readonly StatementValue[]; readonly bytes: number }
   /** `rows` and `bytes` are the most one answer may carry; the process stops reading at the first row past either. */
   | { readonly op: "all"; readonly sql: string; readonly parameters: readonly StatementValue[]; readonly rows: number; readonly bytes: number }

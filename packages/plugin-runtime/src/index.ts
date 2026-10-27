@@ -7,7 +7,7 @@ import { assertContributionMatchesManifest, offeredManifest, redemptionIn, type 
 
 import { pluginManifestDigest } from "./identity.js";
 import { abandonRefusal, assertMutable, followHostBuild, installationGrants, normalizeGrants, prepareInstallationData, recordToFollow, saveInstalled, validateInstalledManifest, assertStartable, type DeclarationOwners } from "./install-rules.js";
-import { assertRuleKeysUnreserved, isHostTrust } from "./trust-rules.js";
+import { assertRuleKeysUnreserved, isHostTrust, type InProcessAdmission } from "./trust-rules.js";
 import { actionProviderId, assertInstallIdentity, assertStartIdentity, isIdentityFailure } from "./install-identity.js";
 import { InstallLocks } from "./install-locks.js";
 import { recordInstallConsents, type PluginConsentLedger } from "./consent-ledger.js";
@@ -18,8 +18,9 @@ import { outsidePluginAction } from "./action-scope.js";
 import { OfferedContributions } from "./offered-contributions.js";
 import { MemoryPluginRuntimeRepository } from "./memory-repository.js";
 import { NativePluginExecutor } from "./native-executor.js";
-import { assertRecoverableState, assertRequiredGrants, cloneRecord, definitionKey, installIdentity, normalizeErrorCode, safeErrorCode, safeErrorMessage, sameStrings, validateManifest } from "./runtime-rules.js";
+import { assertRecoverableState, assertRequiredGrants, cloneRecord, definitionKey, installIdentity, normalizeErrorCode, requireDefinition, requireInstall, safeErrorCode, safeErrorMessage, sameStrings, validateManifest } from "./runtime-rules.js";
 import { createActivationContext } from "./activation-context.js";
+import { regrantInstall } from "./regrant.js";
 
 export { SqlitePluginPrivateStorage, PLUGIN_PRIVATE_STORAGE_SCHEMA_SQL, existingPluginPrivateKeys } from "./private-storage.js";
 export type { PluginPrivateStorageDatabase } from "./private-storage.js";
@@ -27,7 +28,7 @@ export { SqlitePluginRuntimeRepository, readPluginRuntimeRecords, PLUGIN_RUNTIME
 export { alwaysOnAgreed, consentStands, leaveRefusal } from "./always-on-rules.js";
 export { MemoryPluginConsentLedger, PLUGIN_TRUST_SCHEMA_SQL, SqlitePluginConsentLedger } from "./consent-ledger.js";
 export type { PluginConsentEntry, PluginConsentLedger } from "./consent-ledger.js";
-export { HOST_BUILD_TRUST, UNSIGNED_TRUST, assertConsentsDeclared, assertHomeScopeAllowed, assertLocalToolsAllowed, assertPluginTrust, assertTrustFitsDefinition, assertTrustFitsExecution, consentGranter, consentSubject, declarationsNeedingConsent, hostBuildConsents, isHostTrust } from "./trust-rules.js";
+export { HOST_BUILD_TRUST, UNSIGNED_TRUST, assertConsentsDeclared, assertHomeScopeAllowed, assertLocalToolsAllowed, assertScopeFitsRuntime, assertPluginTrust, assertTrustFitsDefinition, assertTrustFitsExecution, consentGranter, consentSubject, declarationsNeedingConsent, hostBuildConsents, isHostTrust, type InProcessAdmission } from "./trust-rules.js";
 export type { PluginRuntimeDatabase } from "./repository.js";
 export { PLUGIN_PROJECT_DATABASES_SCHEMA_SQL, PROJECT_ROOT_REFERENCE, inspectPluginProjectSchema, openPluginProjectDatabase, inspectExistingPluginProjectDatabase, listPluginProjectDatabases, pluginProjectDatabaseErrors, type PluginProjectDatabaseRecord, type PluginProjectSchemaInspector, type PluginSchemaObject, type PluginSchemaShape } from "./project-database.js";
 export { PLUGIN_STATEMENT_SQLITE_VERSION, pluginStatementGuard, type PluginStatementMode } from "./project-database-statements.js";
@@ -42,7 +43,7 @@ export type {
   PluginRuntimeReleaseArtifactRepository,
 } from "./release-artifacts.js";
 
-export { assertPluginActionCurrent, assertCapturedPluginActionCurrent, inPluginInstance, markPluginActionChecked, currentPluginAction, currentPluginInvocation, insideOpenPluginCall, lastBegunPluginInvocation, pluginInvocationReadOnly, outsidePluginAction, runInPluginAction } from "./action-scope.js";
+export { assertPluginActionCurrent, assertCapturedPluginActionCurrent, inPluginInstance, markPluginActionChecked, pluginSceneEffectPassed, currentPluginAction, currentPluginInvocation, insideOpenPluginCall, lastBegunPluginInvocation, pluginInvocationReadOnly, outsidePluginAction, runInPluginAction } from "./action-scope.js";
 export type { PluginInstance } from "./action-scope.js";
 export { inertAfterStop, StoppedServiceCalls, type StoppedServiceCall } from "./stopped-services.js";
 export { createPluginOwnerFilesClient } from "./owner-files-service.js";
@@ -55,6 +56,8 @@ export { createPluginImageGenerationClient } from "./image-generation.js";
 export type { PluginImageGenerationPort, PluginImageGenerationGate, PluginImageGenerationDispatch } from "./image-generation.js";
 export { createPluginLocalToolsClient } from "./local-tools.js";
 export type { PluginLocalToolsPort, PluginLocalToolsGate } from "./local-tools.js";
+export { createPluginProjectsClient } from "./projects.js";
+export type { PluginProjectsPort, PluginProjectsGate } from "./projects.js";
 export type { PluginModelDispatch, PluginModelGate, PluginModelPort } from "./model-service.js";
 export { MemoryPluginRuntimeRepository } from "./memory-repository.js";
 export { NativePluginExecutor } from "./native-executor.js";
@@ -111,17 +114,6 @@ import type {
   ActionRegistryPort,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-plugin-runtime",
-  packagePath: "packages/plugin-runtime",
-  kind: "foundation",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/platform/plugin",
-  migrationGoals: ["goal-reorg-f2", "goal-reorg-fd3", "goal-reorg-dv3"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["plugin.lifecycle.v1", "plugin.grants.v1", "plugin.recovery.v1"],
-} as const;
-
 /** What an install is called with. */
 export interface PluginInstallInput {
   definition: PluginDefinition;
@@ -158,8 +150,8 @@ export class PluginRuntime implements PluginRuntimeApi {
     private readonly options: { now?: () => Date; maxRecoveryAttempts?: number; redemption?(definition: PluginDefinition): RedemptionScope; declarationOwners?: DeclarationOwners; reservedRuleKeys?(): ReadonlySet<string>;
       /** Where consents are recorded (the Home's ledger). Without one a Runtime records none, so nothing it installs has any consent in effect. */
       consents?: PluginConsentLedger;
-      /** The Host's actual shipped `plugin_id`s; required even for a Host shipping no plugins (S-75). */
-      hostIds: ReadonlySet<string>;
+      /** The Host's actual shipped `plugin_id`s; required even for a Host shipping no plugins (S-75). `inProcess`: the definitions its own code lets run in the process without `host` trust, exactly these objects (BL-588, S-75 ⑥); none given, nothing is checked (a test's bare Runtime; a gate has every production construction name it). */
+      hostIds: ReadonlySet<string>; scope?: "home" | "project"; inProcess?: InProcessAdmission;
       actions?: { registry: ActionRegistryPort; project_id?: string; providerId?(record: PluginInstanceRecord, definition: PluginDefinition): string; projectReach?: PluginProjectReach } },
   ) { if (!options?.hostIds) throw pluginErrors.state_invalid("Runtime 需要宿主明确给出随构建发布的插件 ID 名单"); }
 
@@ -172,7 +164,7 @@ export class PluginRuntime implements PluginRuntimeApi {
   }
 
   install(input: PluginInstallInput): PluginLifecycleReceipt {
-    const trust = assertInstallIdentity(input, this.repository.list(), this.options.hostIds);
+    const trust = assertInstallIdentity(input, this.repository.list(), this.options.hostIds, this.options.scope, this.options.inProcess);
     assertRuleKeysUnreserved(input.definition.manifest, trust, this.options.reservedRuleKeys?.());
     const receipt = this.installRecord(input, trust);
     recordInstallConsents(this.options.consents, receipt.install, trust, input.consents ?? [], this.now());
@@ -220,7 +212,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       return this.receipt("install", moved, false);
     }
     const grants = installationGrants(current, manifest, host, input.grants);
-    prepareInstallationData(this.executor, current, manifest, host, input.discard_kept_data === true);
+    prepareInstallationData(this.executor, installId, current, manifest, host, input.discard_kept_data === true);
     this.register(input.definition);
     if (current && current.version !== manifest.version && current.state !== "uninstalled") {
       if (!(manifest.upgrade_compatibility?.compatible_from_versions ?? []).includes(current.version)) {
@@ -294,7 +286,7 @@ export class PluginRuntime implements PluginRuntimeApi {
     return this.locks.run(input.install_id, async () => {
       const target = input.definition.manifest;
       validateInstalledManifest(target, this.options.declarationOwners);
-      const current = this.requireInstall(input.install_id);
+      const current = requireInstall(this.repository, input.install_id);
       if (current.execution !== (input.definition.execution ?? "host")) throw pluginErrors.definition_conflict("不能在升级时改变执行信任边界");
       if (rollbackCode && current.execution !== "sandbox") throw pluginErrors.state_invalid("代码回滚只适用于隔离的生成插件");
       if (current.state === "uninstalled" || current.state === "quarantined") {
@@ -303,6 +295,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       if (current.plugin_id !== target.plugin_id || current.publisher_signature !== target.publisher.signature) {
         throw pluginErrors.definition_conflict("升级目标必须属于同一插件和发布者签名");
       }
+      assertStartIdentity(current, input.definition, this.repository.list(), this.options.hostIds, this.options.scope, this.options.inProcess);
       if (current.version === target.version && current.manifest_digest !== pluginManifestDigest(target)) {
         throw pluginErrors.definition_conflict("同一版本的 Manifest 指纹不同，不能升级");
       }
@@ -329,7 +322,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       }
 
       if (current.state === "running") await this.stopOnce(input.install_id);
-      const stopped = this.requireInstall(input.install_id);
+      const stopped = requireInstall(this.repository, input.install_id);
       const oldDefinition = this.definitions.get(definitionKey(stopped));
       let privateDataSnapshot: unknown;
       let hasPrivateDataSnapshot = false;
@@ -409,9 +402,9 @@ export class PluginRuntime implements PluginRuntimeApi {
   }
 
   grant(installId: string, permissions: string[]): PluginLifecycleReceipt {
-    const current = this.requireInstall(installId);
+    const current = requireInstall(this.repository, installId);
     assertMutable(current);
-    const definition = this.requireDefinition(current);
+    const definition = requireDefinition(this.definitions, current);
     const grants = normalizeGrants(definition.manifest, permissions);
     if (sameStrings(current.grants, grants)) return this.receipt("grant", current, true);
     if (current.state === "running") {
@@ -420,6 +413,13 @@ export class PluginRuntime implements PluginRuntimeApi {
     const updated = { ...current, grants, updated_at: this.now() };
     this.repository.save(updated);
     return this.receipt("grant", updated, false);
+  }
+
+  /** The person's switch for one optional permission (PG-002, S-94); the steps are in `regrant.ts`, on the lifecycle steps this class lends. */
+  regrant(installId: string, permission: string, granted: boolean): Promise<PluginLifecycleReceipt> {
+    return regrantInstall({ install: id => requireInstall(this.repository, id), manifest: record => requireDefinition(this.definitions, record).manifest, save: record => this.repository.save(record), now: () => this.now(),
+      revoke: id => this.revokeContext(id, true), locked: (id, run) => this.locks.run(id, run), stop: id => this.stopOnce(id, true), start: id => this.startOnce(id),
+      receipt: (record, replayed) => this.receipt("grant", record, replayed) }, installId, permission, granted);
   }
 
   start(installId: string): Promise<PluginLifecycleReceipt> {
@@ -452,14 +452,14 @@ export class PluginRuntime implements PluginRuntimeApi {
 
   /** Recheck identity even for a live replay. Cold running rows activate again; crashed/quarantined rows require recover. */
   private async startOnce(installId: string): Promise<PluginLifecycleReceipt> {
-    const current = this.requireInstall(installId);
+    const current = requireInstall(this.repository, installId);
     if (current.state !== "installed" && current.state !== "disabled" && current.state !== "running") {
       throw pluginErrors.state_invalid(`Plugin 当前状态 ${current.state} 不能直接启动`);
     }
-    const definition = this.requireDefinition(current);
+    const definition = requireDefinition(this.definitions, current);
     assertStartable(definition.manifest, current.grants, this.options.declarationOwners);
     try {
-      assertStartIdentity(current, definition, this.repository.list(), this.options.hostIds);
+      assertStartIdentity(current, definition, this.repository.list(), this.options.hostIds, this.options.scope, this.options.inProcess);
       if (current.state === "running" && this.hasLiveInstance(installId)) return this.receipt("start", current, true);
       const handle = await outsidePluginAction(() => this.executor.start(definition, this.activateContext(current, definition)));
       await this.redeem(definition, current, handle.contribution);
@@ -489,7 +489,7 @@ export class PluginRuntime implements PluginRuntimeApi {
   }
 
   private async stopOnce(installId: string, preserveEnabled = false): Promise<PluginLifecycleReceipt> {
-    const current = this.requireInstall(installId);
+    const current = requireInstall(this.repository, installId);
     if (current.state === "disabled") return this.receipt("stop", current, true);
     if (current.state !== "running") {
       throw pluginErrors.state_invalid(`Plugin 当前状态 ${current.state} 不能停止`);
@@ -506,7 +506,7 @@ export class PluginRuntime implements PluginRuntimeApi {
       this.repository.save(updated);
       return this.receipt("stop", updated, false);
     }
-    const definition = this.requireDefinition(current);
+    const definition = requireDefinition(this.definitions, current);
     const live = this.liveContext(installId);
     // Cleanup may await user code; withdraw the activation before yielding to it.
     this.revokeContext(installId);
@@ -538,12 +538,12 @@ export class PluginRuntime implements PluginRuntimeApi {
     installId: string,
     errorCode: string,
   ): Promise<PluginLifecycleReceipt> {
-    const current = this.requireInstall(installId);
+    const current = requireInstall(this.repository, installId);
     if (current.state !== "running") {
       throw pluginErrors.state_invalid("只有运行中的 Plugin 能报告 crash");
     }
     if (this.hasLiveInstance(installId)) {
-      const definition = this.requireDefinition(current);
+      const definition = requireDefinition(this.definitions, current);
       const live = this.liveContext(installId);
       try {
         if (live) await outsidePluginAction(() => this.executor.stop(definition, live));
@@ -563,7 +563,7 @@ export class PluginRuntime implements PluginRuntimeApi {
   }
 
   private async recoverOnce(installId: string, releaseQuarantine = false): Promise<PluginLifecycleReceipt> {
-    const current = this.requireInstall(installId);
+    const current = requireInstall(this.repository, installId);
     assertRecoverableState(current, releaseQuarantine);
     const maxAttempts = this.options.maxRecoveryAttempts ?? 3;
     if (!releaseQuarantine && current.recovery_count >= maxAttempts) {
@@ -575,11 +575,11 @@ export class PluginRuntime implements PluginRuntimeApi {
       this.repository.save(quarantined);
       throw pluginErrors.quarantined("Plugin 多次恢复失败，已隔离");
     }
-    const definition = this.requireDefinition(current);
+    const definition = requireDefinition(this.definitions, current);
     assertRequiredGrants(definition.manifest, current.grants);
     const recoveryCount = current.recovery_count + 1;
     try {
-      assertStartIdentity(current, definition, this.repository.list(), this.options.hostIds);
+      assertStartIdentity(current, definition, this.repository.list(), this.options.hostIds, this.options.scope, this.options.inProcess);
       // Explicit release admits this attempt's start-time jobs; a failed start below restores quarantine.
       if (releaseQuarantine) this.repository.save({ ...current, state: "crashed", updated_at: this.now() });
       const handle = await outsidePluginAction(() => this.executor.start(definition, this.activateContext(current, definition)));
@@ -621,7 +621,7 @@ export class PluginRuntime implements PluginRuntimeApi {
   /** Take back an install that did not finish (`installed`): the row goes back to the uninstalled record it replaced (`earlier`), whole, or is marked uninstalled with nothing kept when there was none; its code stops. See `abandonRefusal`. */
   abandonInstall(installed: PluginInstanceRecord, earlier?: PluginInstanceRecord): Promise<PluginLifecycleReceipt> {
     return this.locks.run(installed.install_id, async () => {
-      const refusal = abandonRefusal(this.requireInstall(installed.install_id), installed, earlier);
+      const refusal = abandonRefusal(requireInstall(this.repository, installed.install_id), installed, earlier);
       if (refusal) throw refusal;
       return this.uninstallOnce(installed.install_id, { retain_private_data: false }, earlier);
     });
@@ -632,10 +632,10 @@ export class PluginRuntime implements PluginRuntimeApi {
     options: { retain_private_data?: boolean },
     restore?: PluginInstanceRecord,
   ): Promise<PluginLifecycleReceipt> {
-    const current = this.requireInstall(installId);
+    const current = requireInstall(this.repository, installId);
     const replayed = current.state === "uninstalled" && (!restore || restore.installation_generation === current.installation_generation);
     if (current.state === "running" && this.hasLiveInstance(installId)) {
-      const definition = this.requireDefinition(current);
+      const definition = requireDefinition(this.definitions, current);
       const live = this.liveContext(installId);
       this.revokeContext(installId);
       try {
@@ -666,7 +666,7 @@ export class PluginRuntime implements PluginRuntimeApi {
   }
 
   get(installId: string): PluginInstanceRecord {
-    return this.requireInstall(installId);
+    return requireInstall(this.repository, installId);
   }
 
   list(): PluginInstanceRecord[] {
@@ -704,20 +704,6 @@ export class PluginRuntime implements PluginRuntimeApi {
       }
       throw error;
     }
-  }
-
-  private requireInstall(installId: string): PluginInstanceRecord {
-    const record = this.repository.get(installId);
-    if (!record) throw pluginErrors.definition_missing("Plugin installation 不存在");
-    return record;
-  }
-
-  private requireDefinition(record: PluginInstanceRecord): PluginDefinition {
-    const definition = this.definitions.get(definitionKey(record));
-    if (!definition) {
-      throw pluginErrors.definition_missing("找不到当前安装版本与签名绑定的 Plugin 代码");
-    }
-    return definition;
   }
 
   private hasLiveInstance(installId: string): boolean {
@@ -769,8 +755,6 @@ function forgetUninstalledDefinitions(definitions: Map<string, PluginDefinition>
   }
 }
 
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
-
 const runtimeFailureCodes = {
   "plugin.manifest_invalid": true,
   "plugin.definition_missing": true,
@@ -780,6 +764,7 @@ const runtimeFailureCodes = {
   "plugin.state_invalid": true,
   "plugin.signer_mismatch": true,
   "plugin.id_namespace_conflict": true,
+  "plugin.in_process_denied": true,
   "plugin.install_replaced": true,
   "plugin.executor_failed": true,
   "plugin.contribution_kind_invalid": true,
@@ -793,4 +778,5 @@ const runtimeFailureCodes = {
 } as const;
 
 export { createPluginMaterialsClient, type PluginMaterialsPort, type PluginMaterialsDispatch, type PluginMaterialsGate, type PluginOriginalFileKey } from "./materials-service.js";
-export { createPluginConnectionsClient, type PluginConnectionsPort, type PluginConnectionDispatch, type PluginConnectionTarget, type PluginConnectionsGate } from "./connections-service.js";
+export { createPluginConnectionsClient, createCallConnectionsClient, type PluginConnectionsPort, type PluginConnectionDispatch, type PluginConnectionTarget, type PluginConnectionsGate,
+  type CallConnection, type CallConnectionsPort } from "./connections-service.js";

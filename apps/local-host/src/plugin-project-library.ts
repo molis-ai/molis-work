@@ -64,6 +64,6 @@ export function openPluginProjectLibrary(library: ProjectLibrary, manifest: Plug
 const refused = () => { throw new ActionError("actions.service_unavailable", "这个项目库没有日志"); };
 /** A library with no journal gives the plugin one whose every method says so, rather than none: the type has it. */
 const noJournal: ProjectJournalBinding = {
-  reader: () => ({ eventCursor: refused, readEventsDescending: refused }),
+  reader: () => ({ eventCursor: refused, readEventsDescending: refused, getIdempotency: refused }),
   writer: () => Object.freeze({ eventCursor: refused, readEventsDescending: refused, appendEvent: refused, getIdempotency: refused, putIdempotency: refused }),
 };

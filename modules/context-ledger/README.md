@@ -64,9 +64,6 @@ node scripts/run-tests.mjs tests/context-ledger.test.ts
 - [职责与接入说明](../../docs/modules/context-ledger.md)
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 
-- Status: `partial`
-- Contract entrypoint: `@molis-ai/molis-work-contracts/modules/context-ledger`
-- Migration Goals: `goal-reorg-f2`, `goal-reorg-ar2`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
 

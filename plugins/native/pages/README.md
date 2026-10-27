@@ -18,7 +18,6 @@ Pages 存储基线为 2；本次未实现旧库读取兼容或自动迁移，也
 
 不改 Goal 树。Promote 经 Host 发出个人 Artifact。对外能力就是它声明的动作，经「能力 → 对外接入」授权后才出现在 MCP；Host 从绑定项目注入分区。
 
-- Status: `partial`
 - Contract: `@molis-ai/molis-work-contracts/platform/plugin`
 - Migration: `goal-reorg-f2`
 
@@ -43,6 +42,7 @@ Inbox 通过 `pages.generations.get/list`、`pages.get` 和 `pages.generate` 读
 - 公开入口：`@molis-ai/molis-work-plugin-pages`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；插件协议 `@molis-ai/molis-work-contracts/platform/plugin`，数据合同 `@molis-ai/molis-work-plugin-pages/contract`（`src/contract.ts`）；别的使用方按动作 id 调用，就地声明自己用到的字段，不 import 它。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（`defineErrorCodes`，错误码都是 `pages.<原因>`，状态由错误种类决定，Pages 不自带状态表）；第三方依赖见 `package.json`。方向：只依赖合同、SDK 与声明过的 Module/Service/UI 包；不导入另一个插件的实现（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
+  - Pages 的未保存上下文按完整 JSON 的 UTF-16 长度保持在接收方的 32,000 严格上限内，只缩至多 20,000 的正文摘要且不拆完整代理项对；没有空间时省略可选摘要，对象身份、版本、标题与 unsaved 不改。纯元数据自身超限仍由原接收方拒绝。回归见 `tests/pages-surface-naming.test.ts` 的 PAGESCTX-01..04 与 `tests/pages-actions.e2e.test.ts` 的 PAGESCTX-05。
   - 导入、模板选择、命名和确认弹窗复用 `mw-dialog--form`：内容单独滚动，底部操作始终留在弹窗内；长列表、展开预览、错误提示和矮窗口不把按钮推到裁切区域。`tests/pages-import-entry.e2e.test.ts` 在点击助手自动滚动之前检查按钮完整可见与命中区域。
   - 新建、导入打开和提取返回时，先核对正在编辑的文档与本次编辑状态；新输入通过原版本保存，提取与输入冲突时保留草稿并明确报错，不用返回值确认未显示过的编辑。
   - 不支持的正文结构只读保留；返回、导入打开、发布、提取、导出和打印不把编辑器占位正文写回或当成原文。图片读取、写作候选及卡片浮层属于打开它们的文档；切文档结束这些资源，同文档的延迟图片沿原插入位置映射。

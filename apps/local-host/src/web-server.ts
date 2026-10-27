@@ -6,7 +6,7 @@ import { handlePluginInstallHttp } from "./plugin-install-gateway.js";
 import { handleActionGatewayHttp } from "./action-gateway-http.js";
 import { webProjectDeletionPorts } from "./project-deletion-service.js";
 import { handleMcpContextHttp } from "./mcp-context-gateway.js";
-import { resolveMolisWorkHome, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
+import { runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import fs from "node:fs";
 import http from "node:http";
@@ -21,7 +21,7 @@ import { MolisWorkWebServiceManager } from "./installer/web-service.js";
 import { resolveWebControlToken, sendWebHealth } from "./web-control-token.js";
 import { sendUnhandledWebError, authorizeLocalWebRequest, refuseForeignRequest, type LocalMutationState } from "./web-http.js";
 import type { MolisWorkWebViewCache } from "./web-view.js";
-import { seedDemoBoard } from "./demo-seed.js";
+import { startDemoSeed } from "./demo-seed.js";
 import { attachMolisWorkPtySocket } from "./pty-socket.js";
 import { bindPluginTerminalHost } from "./plugin-terminal-service.js";
 import { isWebLocale, localeSetCookie, resolveWebLocale, runWithLocale, safeNextPath } from "./web-locale.js";
@@ -36,6 +36,7 @@ import { trackHostListener } from "./host-endpoints.js";
 import { attachMolisWorkBrowserSocket } from "./browser/browser-socket.js";
 import { handleBrowserHttp } from "./browser/browser-http.js";
 import { createWebStorageResources } from "./web-storage-resources.js";
+import { resolveConfiguredHome } from "./product-home.js";
 import type { createWebCatalogAccess } from "./web-catalog-access.js";
 import type { LocalWebCatalogRunner } from "./web-project-settings.js";
 import { closeHostResourceSteps, retainHomeStorageResources, retainInitializationCleanup } from "./home-storage-lifetime.js";
@@ -60,7 +61,7 @@ function nativeTerminal() {
 
 export function createLocalWebServerFactory(platform: LocalWebPlatform) {
   return function createMolisWorkWebServer(options: WebServerOptions = {}): http.Server {
-    const storageHome = path.resolve(options.homeDirectory ?? resolveMolisWorkHome());
+    const storageHome = resolveConfiguredHome(options.homeDirectory);
     let catalogAccess: ReturnType<typeof createWebCatalogAccess> | undefined;
     const withCatalog: LocalWebCatalogRunner = (settings, operation) => (catalogAccess?.withCatalog ?? platform.withCatalog)(settings, operation);
     const serverOptions: WebServerOptions = { ...options, homeDirectory: storageHome };
@@ -112,7 +113,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     const controlToken = resolveWebControlToken(serverOptions);
     const mutationKeys = new Map<string, LocalMutationState>();
     const webViewCache: MolisWorkWebViewCache = new Map();
-    if (fixture?.demo && !fs.existsSync(fixture.databasePath)) seedDemoBoard(fixture.databasePath);
+    const demoSeeding = startDemoSeed(fixture);
     const { periodicTasks: periodic } = composition;
     resources.push(["periodic", () => periodic.stop()]);
     const { im, browserHost, sites, computer, projectExists, feedSchedulers } = createWebStorageResources({
@@ -120,7 +121,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     });
     const server = trackHostListener(http.createServer((request, response) => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), async () => {
       const url = new URL(request.url ?? "/", "http://localhost");
-      try {
+      try { await demoSeeding;
         // Every route (locale switch included) answers only a request addressed to this machine by a loopback name, and none can be framed by another origin (S-02, S-21).
         if (refuseForeignRequest(request, response)) return;
         if (request.method === "GET" && url.pathname === "/locale") {

@@ -68,7 +68,7 @@ test(`forget ${scope} final commit: ${permission}`, { timeout: 60_000 }, async t
     return ["completed", "failed", "stopped", "cancelled"].includes(run.phase) ? true : undefined;
   }, "forget Run settled");
   const after = (await formal()).find(entry => entry.memory_id === targetId)!;
-  const historyAfter = history(), visible = (await current.service.memories(project.project_id)).find(entry => entry.memory_id === targetId)!;
+  const historyAfter = history(), visible = (await current.service.memory.memories(project.project_id)).find(entry => entry.memory_id === targetId)!;
   await home.close(); await home.host.close();
   const reopened = new MolisWorkLocalHost({ homeDirectory: home.home, completeText: null });
   let restored: typeof before | undefined, restoredHistory: ReturnType<typeof history> = [];

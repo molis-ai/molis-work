@@ -8,10 +8,11 @@ import type { Socket } from "node:net";
 import type { TestContext } from "node:test";
 import { ChromeHarness, locateTestChrome } from "@molis-ai/molis-work-test-kit/browser";
 import { LocalHostHttpClient } from "@molis-ai/molis-work-test-kit/local-host-http";
-import { DEMO_PROJECT_ID, seedDemoBoard, MolisWorkLocalHost, projectActionAvailability, type HostCompleteText, type WebServerOptions, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, seedDemoGoals, MolisWorkLocalHost, projectActionAvailability, type HostCompleteText, type WebServerOptions, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../../apps/desktop/launchers/web/server.js";
 import { webServerProcess } from "./web-server-process.js";
+import { boardSnapshot } from "./goal-application.js";
 
 /** The control token every Goals browser fixture serves with; e2e files that call the server by hand use this one (`controlToken` in the return). */
 const CONTROL_TOKEN = "goals-risk-test-control-token-0123456789";
@@ -32,7 +33,7 @@ async function browserServer(options: WebServerOptions, separateProcess: boolean
 }
 
 /** One isolated project and Chrome profile; no user services or Runtime bindings. */
-export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "empty" | "seeded" | "user" = false, seed: (databasePath: string, projectId?: string) => void = seedDemoBoard, completion?: HostCompleteText | null,
+export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "empty" | "seeded" | "user" = false, seed: (databasePath: string, projectId?: string) => void | Promise<void> = seedDemoGoals, completion?: HostCompleteText | null,
   functions?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["functions"], workspaceFor?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["workspaceFor"],
   webOptions: Pick<WebServerOptions, "chooseDirectory"> & { processServer?: boolean } = {},
   pluginFixtures?: NonNullable<ConstructorParameters<typeof MolisWorkLocalHost>[0]>["pluginFixtures"], chromeArgs?: readonly string[]) {
@@ -99,11 +100,11 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
       await rm(databasePath, { force: true });
       await rm(`${databasePath}-wal`, { force: true });
       await rm(`${databasePath}-shm`, { force: true });
-      seed(databasePath, projectId);
+      await seed(databasePath, projectId);
     }
   } else {
     await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
-    seed(databasePath);
+    await seed(databasePath);
   }
   store = new LocalProjectDatabase(databasePath);
   localHost = completion === undefined && !functions && !workspaceFor && !pluginFixtures ? undefined : new MolisWorkLocalHost({ homeDirectory: directory, completeText: completion, functions, workspaceFor, pluginFixtures,
@@ -126,7 +127,7 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
   assert.ok(processServer || address && typeof address === "object");
   const origin = processServer?.origin ?? `http://127.0.0.1:${(address as { port: number }).port}`;
   await (await fetch(origin + "/health")).text();
-  const before = store.snapshot(projectId ?? DEMO_PROJECT_ID);
+  const before = boardSnapshot(store, projectId ?? DEMO_PROJECT_ID);
   const { targetId } = await command<{ targetId: string }>("Target.createTarget", { url: "about:blank" });
   const { sessionId } = await command<{ sessionId: string }>("Target.attachToTarget", { targetId, flatten: true });
   await command("Target.activateTarget", { targetId });

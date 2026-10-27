@@ -83,6 +83,7 @@ export function pluginDatabaseClient<Connection extends PluginDatabaseConnection
         if (!active) throw new ActionError("actions.forbidden", "事务已结束，不能继续访问");
         permitWrite();
       };
+      let savepoints = 0;
       const handle: PluginDatabaseTransaction | PluginProjectDatabaseTransaction = Object.freeze({ ...reads(writer, check),
           ...(journal ? { journal: journal.writer(check) } : {}),
           run(sql: string, parameters: readonly PluginSqlValue[] = []) {
@@ -90,6 +91,26 @@ export function pluginDatabaseClient<Connection extends PluginDatabaseConnection
             assertWriteStatement(sql);
             connections.check?.(writer, sql, parameters, "write");
             return writer.prepare(sql).run(...parameters) as { changes: number | bigint };
+          },
+          // The point's name is the platform's: nothing the plugin passes reaches the SQL text.
+          savepoint<T>(body: () => { readonly keep: boolean; readonly value: T }): T {
+            check();
+            const name = `plugin_savepoint_${++savepoints}`, effects = binding.mark();
+            writer.exec(`SAVEPOINT ${name}`);
+            const undo = () => { binding.rewind(effects); writer.exec(`ROLLBACK TO ${name}`); };
+            try {
+              const result = body();
+              requireSynchronous(result, "插件数据库保存点必须同步完成，不能包含异步等待");
+              check();
+              if (!result.keep) undo();
+              writer.exec(`RELEASE ${name}`);
+              return result.value;
+            } catch (error) {
+              try {
+                if (connections.inTransaction()) { undo(); writer.exec(`RELEASE ${name}`); }
+              } catch (rollbackError) { hostLog.error("plugin_database", "savepoint_rollback_failed", rollbackError); }
+              throw error;
+            }
           },
         });
       const binding = bindPluginTransaction(handle, client, check);

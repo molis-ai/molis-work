@@ -17,24 +17,6 @@ import {
   type ArtifactsServiceOptions,
 } from "./service.js";
 
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-module-artifacts",
-  packagePath: "modules/artifacts",
-  kind: "module",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/modules/artifacts",
-  migrationGoals: ["goal-reorg-f2","goal-reorg-ar1","goal-reorg-ar3"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: [
-    "artifacts.identity.v1",
-    "artifacts.version-repository.v1",
-    "artifacts.opaque-content.v1",
-    "artifacts.compatibility.v1",
-  ],
-} as const;
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
-
 export interface ArtifactsModuleOptions extends ArtifactsServiceOptions {
   db: ArtifactsSqliteDatabase;
   /**
@@ -152,7 +134,8 @@ export {
   type VersionStoreKind,
 } from "./service.js";
 
-export { ARTIFACTS_PLUGIN_ID, ARTIFACTS_PROJECT_PLUGIN_ID, ARTIFACTS_PROVIDER } from "./artifact-provider.js";
+export { ARTIFACTS_HOST_PRODUCER } from "./artifact-host-producer.js";
+export { ARTIFACTS_PLUGIN_ID, ARTIFACTS_PROJECT_PLUGIN_ID, ARTIFACTS_PROVIDER_ID, ARTIFACTS_PROVIDER_TITLE, ARTIFACT_PRODUCER } from "./artifact-provider.js";
 export { artifactsActions, ARTIFACT_ACTIONS, ARTIFACT_ACTION_PERMISSIONS, createArtifactActionHandlers } from "./artifact-actions.js";
 export type { ArtifactActionPorts, ArtifactFileImport, ArtifactExternalImport, ArtifactImportResult, ArtifactPluginInput } from "./artifact-actions.js";
 export { artifactsErrors } from "./artifact-errors.js";

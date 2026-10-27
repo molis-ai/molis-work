@@ -7,7 +7,7 @@ import type {
   ShelfClipboardRecord,
   ShelfItemKind,
   ShelfItemRecord,
-} from "@molis-ai/molis-work-contracts/modules/shelf";
+} from "@molis-ai/molis-work-module-shelf/contract";
 import { icon, renderButton } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { SHELF_GLYPH, glyphForKind, toneForKind } from "./glyphs.js";
 
@@ -98,6 +98,7 @@ export function renderShelfWorkbench(model: ShelfListModel): string {
         ${renderButton({ label: p.text("shelf.ui.use-in-this-project"), variant: "ghost", attrs: { "data-shelf-use-in-project": "", hidden: true, title: p.text("shelf.ui.the-project-home-lists-it") } })}
         ${renderButton({ label: p.text("shelf.ui.save-to-project-knowledge"), variant: "ghost", attrs: { "data-shelf-project-material": "", hidden: true, title: p.text("shelf.ui.save-an-unchanging-copy-to") } })}
         <a class="mw-btn mw-btn--ghost" data-shelf-original-artifact hidden>${p.text("shelf.ui.view-original-saved-result")}</a>
+        <span class="shelf-chrome-tag" data-shelf-origin-gone hidden>${p.text("shelf.preview.origin-project-deleted")}</span>
         <span class="shelf-paper" role="button" tabindex="0" data-shelf-edit hidden>${p.text("shelf.preview.edit-copy")}</span>
       </header>
       <div class="shelf-stage" data-shelf-stage>

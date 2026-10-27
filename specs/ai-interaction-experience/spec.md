@@ -389,7 +389,7 @@ SDK 源码支持、分发包支持、适配器接入、插件真实可用须分�
 | Dataset | `services.model`（`plugins/native/dataset/src/actions.ts`） | Plugin Runtime（项目） | 无 | 不接入：模型只按一句话起一个列名，没有要先问的 |
 | Workflows | 宿主注入的 `completeText`（`apps/local-host/src/workflows-actions.ts`），只用于 AI 交接环节 | 构建期 | 无 | 不接入：交接要的说明在编辑环节时填齐，运行前已核对就绪 |
 | Todo | `services.model`（整理）；整理角色带 `ask-user`（`plugins/native/todo/src/roles.ts`） | Plugin Runtime（Home） | Agent 一侧的 `ask-user` 用助理的问卷卡；批量审阅是自写的 | 已覆盖（Agent 路径） |
-| Issues | 助理方法 `issues-capture` 带 `ask-user`、`suggest-action`（`plugins/native/issues/src/methods.ts`） | Plugin Runtime（Home） | 经助理 | 已覆盖（经助理） |
+| Issues | 助理方法 `issues-capture` 带 `ask-user`、`suggest-action`（`plugins/native/issues/src/skills.ts`） | Plugin Runtime（Home） | 经助理 | 已覆盖（经助理） |
 | Jelly | `services.model` 的 JSON 输出（`plan.generate`，`plugins/native/jelly/src/actions.ts`） | Plugin Runtime（Home） | 无；生成的是待采纳的任务，不自动写入 | 不接入问卷：已经是「先看再采纳」，输入是原文或选区 |
 | Shelf | `services.model`（`jobs.generate`，`plugins/native/shelf/src/ai.ts`） | Plugin Runtime（Home） | 无 | 不接入：固定配方处理选中的材料，没有要先问的 |
 | Schedule | 只读 Agent（`plugins/native/schedule/src/roles.ts`，读文件、搜索） | 构建期 | 无 | 不适用：定时任务在后台跑，没有人在场回答 |

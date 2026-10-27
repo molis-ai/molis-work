@@ -1,11 +1,10 @@
 import { ActionError, type ActionDefinition, type ActionHandlerBinding, type ActionSchema, type ActionAudience } from "@molis-ai/molis-work-contracts/platform/actions";
 import { bindOwnerPluginAction } from "@molis-ai/molis-work-plugin-sdk";
 import type { ArtifactReference } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { type ShelfArtifactPreview, type ShelfItemRecord, type ShelfSnapshot } from "@molis-ai/molis-work-contracts/modules/shelf";
+import { type ShelfArtifactPreview, type ShelfItemRecord, type ShelfSnapshot } from "@molis-ai/molis-work-module-shelf/contract";
 import type { PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { shelfErrors } from "@molis-ai/molis-work-module-shelf";
-import { codingResultDocument } from "@molis-ai/molis-work-contracts/modules/coding";
-import { checkedDocument, shelfCopyOf } from "./coding-result.js";
+import { checkedDocument, codingResultDocument, shelfCopyOf } from "./coding-result.js";
 
 const text = { type: "string" };
 const object = (properties: Record<string, unknown>, required = Object.keys(properties)): ActionSchema => ({ type: "object", properties, required, additionalProperties: false });

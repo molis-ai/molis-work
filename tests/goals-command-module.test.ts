@@ -6,15 +6,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import * as goalsPackage from "@molis-ai/molis-work-module-goals";
+import { goalsModuleExports as goalsPackage } from "./fixtures/goals-modules.js";
 import {
   GoalsModule,
-} from "@molis-ai/molis-work-module-goals";
+} from "./fixtures/goals-modules.js";
 
-import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { writeProjectRoot } from "@molis-ai/molis-work-module-projects";
 import { pluginLegalSql } from "./fixtures/plugin-legal-sql.js";
+import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
 function acceptedGoal(goalId: string, title: string, outcome: string) {
   return {

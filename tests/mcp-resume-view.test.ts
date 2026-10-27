@@ -6,7 +6,6 @@ import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import {
   createMolisWorkLocalHost,
-  GoalProjectApplication,
   LocalProjectDatabase,
   molisWorkHostProjectReference,
 } from "@molis-ai/molis-work-app-local-host";
@@ -14,6 +13,7 @@ import { buildMcpResumeView, type McpResumeFacts } from "@molis-ai/molis-work-ap
 import { MolisWorkServer } from "../apps/desktop/launchers/mcp/server.js";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { serveTestHost, type TestHostServer } from "./fixtures/test-home.js";
+import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
 function factsFor(entries: Array<[string, McpResumeFacts["goals"][number]["work_status"], boolean]>): McpResumeFacts {
   return {
@@ -67,7 +67,7 @@ test("context_resolve restores Host focus outside the discovery window and write
   let store: LocalProjectDatabase | undefined;
   let runtime: MolisWorkServer | undefined;
   let served: TestHostServer | undefined;
-  let host = createMolisWorkLocalHost();
+  let host = createMolisWorkLocalHost({ homeDirectory: directory });
   try {
     const project = await catalog.createProject({ display_name: "Host 焦点恢复", actor_id: "focus-user" });
     store = new LocalProjectDatabase(project.database_path);
@@ -130,7 +130,7 @@ test("context_resolve restores Host focus outside the discovery window and write
     await runtime.close();
     await served.close();
     await host.close();
-    host = createMolisWorkLocalHost();
+    host = createMolisWorkLocalHost({ homeDirectory: directory });
     runtimeHost.goalId = "FOCUS-HOST";
     runtime = new MolisWorkServer("runtime", connection, runtimeHost, host);
     result = await resolve();

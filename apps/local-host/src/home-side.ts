@@ -5,7 +5,7 @@ import { homeStoreRegistry, type HomeStore, type HomeStoreRegistry } from "@moli
 import type { HostCompleteText } from "./host-complete-text.js";
 import { homeStores } from "./home-stores.js";
 import { HomeConsentLedger } from "./home-plugin-store.js";
-import type { PluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
+import type { InProcessAdmission, PluginConsentLedger } from "@molis-ai/molis-work-plugin-runtime";
 import { PLUGIN_LIBRARY_NAME } from "./plugin-database-entries.js";
 import type { PluginOwnerFilesEntry } from "./plugin-owner-files-entries.js";
 import type { PluginPlatformEntry } from "./plugin-platform.js";
@@ -119,6 +119,20 @@ export function homeFixtureEntries(homeDirectory: string): PluginPlatformEntry[]
 /** Pure projection for cross-scope declaration checks; unrelated execution checks stay at the original startup entry. */
 export function pluginFixtureDeclarations(fixtures: readonly PluginFixture[]): PluginPlatformEntry[] {
   return fixtures.map(fixture => "manifest" in fixture ? { definition: fixture } : { ...fixture });
+}
+
+/**
+ * What a Host given test fixtures admits to its Runtimes' process without `host` trust (S-75 ⑥): the fixtures it starts, and the
+ * definitions its test installs by hand (`pluginFixtures.installed`, a set the test fills before it installs). Objects, as given.
+ */
+export function fixtureAdmission(entries: readonly PluginPlatformEntry[], installed: ReadonlySet<PluginDefinition> | undefined): InProcessAdmission {
+  const listed = new Set(entries.map(entry => entry.definition));
+  return { admit: { has: definition => listed.has(definition) || installed?.has(definition) === true } };
+}
+
+/** The set of definitions the test Host bound to this Home was told it would install by hand. */
+export function installedFixturesFor(homeDirectory: string | undefined): ReadonlySet<PluginDefinition> | undefined {
+  return homeDirectory ? sides.get(path.resolve(homeDirectory))?.options.pluginFixtures?.installed : undefined;
 }
 
 export function fixtureDeclarationsFor(homeDirectory: string | undefined, scope: "home" | "project"): PluginPlatformEntry[] {

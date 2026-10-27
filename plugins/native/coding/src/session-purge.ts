@@ -1,5 +1,5 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { CodingSessionPurgeSelection } from "@molis-ai/molis-work-contracts/modules/coding";
+import type { CodingSessionPurgeSelection } from "./contract.js";
 import type { PluginDatabaseReader, PluginDatabaseTransaction, PluginSqlRow } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { CODING_PLUGIN_ID } from "./manifest.js";
 
@@ -43,7 +43,7 @@ export function prepareCodingSessionPurge(db: PluginDatabaseReader, input: Omit<
 }
 
 /** Called inside the Host's one project transaction; all bindings are checked before the first delete. */
-export function clearCodingSessionPurge(tx: PluginDatabaseTransaction, selection: CodingSessionPurgeSelection,
+export function clearCodingSessionPurge(tx: Pick<PluginDatabaseTransaction, "get" | "all" | "run">, selection: CodingSessionPurgeSelection,
   storage: CodingPrivatePurgeKeys, current: () => void): void {
   validate(selection); current();
   const keys = storage.keys();

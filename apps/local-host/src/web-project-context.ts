@@ -6,7 +6,7 @@ import { shownProjectPlugins } from "./plugin-registry.js";
 import { observeReviewSettlements } from "./review-settlement-events.js";
 import { bindLocalWebActions, localWebActionContext, type LocalWebEntry } from "./local-web-actions.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
-import type { bindGoalsWebActions } from "./goals-actions.js";
+import type { bindGoalsWebActions } from "./goal-callers.js";
 import { molisWorkHostProjectReference, type MolisWorkProjectRuntime } from "./project-host.js";
 import type { projectFeedOptions } from "./workflow-feed-options.js";
 import type { ProjectPluginSurfacePorts } from "./project-plugin-stages.js";
@@ -87,7 +87,7 @@ export const projectRoutePrefix = (options: ResolvedWebBoardOptions) => options.
 
 export function projectPluginServices({ localHost, hostReference, options, agentHost, serverOptions }: ProjectRequestContext): ProjectPluginServices {
   return {
-    actions: { registry: localHost.actionRegistry(hostReference), client: { ...localHost.actionClient(hostReference), ...localHost.syncActionClient(hostReference) }, project_id: hostReference.project_id, inspect: caller => localHost.inspectActions(caller, hostReference) },
+    actions: { registry: localHost.actionRegistry(hostReference), client: { ...localHost.actionClient(hostReference), ...localHost.syncActionClient(hostReference) }, scenes: localHost.sceneClient(hostReference), project_id: hostReference.project_id, inspect: caller => localHost.inspectActions(caller, hostReference) },
     observeReviewSettlements: listener => observeReviewSettlements(agentHost.reviews, options.projectId, listener),
     homeDirectory: serverOptions.homeDirectory,
     dependencyCheck: hostDependencyCheck(localHost.client(hostReference)),

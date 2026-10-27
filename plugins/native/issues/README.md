@@ -42,9 +42,6 @@
 - 导入时检查声明类型与文件头并解码，类型不符立即提示，原有图文保留。编辑某条记录时开始导入、导入完成前离开了这条记录，图片不会挂到别的记录上。
 - `images` 是有序的 `{ name, data_url }` 数组；更新时省略表示不改、空数组表示全部移除。列表只返回 `image_count`，详情和写入结果返回完整图片。服务端独立校验类型、base64、文件头、数量与大小，不接受远程 URL 或 SVG。
 
-- Status: `partial`
-- Migration Goals: `goal-reorg-f2`, `goal-plugin-platform-v2`.
-- Contract entrypoint: `@molis-ai/molis-work-contracts/platform/plugin`
 
 ## 开发要求
 

@@ -3585,3 +3585,17 @@ App正式规模源为干净 `83421bf71719035ccc6f13439d60dfedac08f500`、SDK `57
 两项原“待用户决定”至此结束；协议尚未实现，资源须以实际更新器结果为准，Memory P0 其余性能、质量、完整回归与用户验收门保持不变。继续汇入现有 #1101，不另开切片 PR。
 
 本次仅修改批准记录和原资源额度，未改产品、SDK、模型调用、CI 或比较逻辑。原资源更新器已按共同祖先 1b66 实测 48 项、7,453,306 B 并原子更新；原 check 与 health 均通过，原先四条资源失败已在此产品树消除。settings.css 的 −73,924 B 同步收紧，不留可复用余量；Workbench 两项仅采用先前既有批准。最新 main 9efbf8d04 的资源和集成结果尚未验证，旧 34c CI 失败仍为历史事实，不改写成成功。health 日志 `/private/tmp/molis-memory-approved-retention-resource-20261027-health.log`。
+
+### 2026-10-27 最新主干集成短合同（9efbf8d04）
+
+本刀将已推送 aa5789742 与当前 main 9efbf8d04 合成，沿用现有 #1101，不增加产品范围。复杂度审查：沿主干拆出的 Projects 子库、Assistant 调度与 MemoryBridge，以及 Coding 自有合同落点，迁移本分支已有行为；不恢复巨类、被删除的 Coding 通用模块出口或第二套存储主人。SDK57cf、原冷恢复协议与已批准性能门保持不变。
+
+修改限定冲突文件及其真实调用方、对应测试、文档和原生成快照。Projects 的 pending 隔离、includePending 恢复读、原决定 recovery_plan 与绑定计数必须进入主干的 projects/workspaces/deletions 子库；不能留下不用的旧实现冒充保留。Assistant 的本人权限、recipe、开始/绑定/迟到结果屏障迁入主干 Dispatch/MemoryBridge 等同一调用链，保留新候选返回与主干调度。Coding 原无正文清理选择属于 Home 恢复持久决定：将同形 DTO 留在现 Memory 恢复服务合同，由 Coding 公开合同引用，业务清理规则仍归 Coding；contracts 不反向依赖插件，序列化形状不变。
+
+生成内容由原脚本量取或生成，已批准同功能资源增量只对新准确父实测登记；新增长不借用旧额度。合成后整体构建、类型/API/Action、准确父 health/资源及直接相关删除/恢复、Assistant、Coding/Memory 调用链验证，再统一最终全量。失败与未执行如实记录；仅消除冲突不代表验证通过。真实 Home、已停止的 SQLite 布局候选、旧人工取消 CI 与 Cloudflare 决定均不变。
+
+已核清普通删除与冷恢复的连接边界：主干的安装级孤儿清扫是附带维护，其他库读不全时保留绑定；安装前仍经 prepareNewInstall/prepareReinstall 检查并清除无其他持有者的旧授权，读不全则拒装。普通 Catalog 通过现清理端口，在 Catalog 删除事务提交后、最终 complete 前执行该扫描，失败仍回到原 pending 决定。冷恢复不装配全 Home 清扫端口，仅用 existing-only 与当前控制清原项目 per_record 分区；原 recovery_plan 没有安装级绑定选集，不扩大授权、不伪造 no-op 成功证明，也不宣称 complete 表示全 Home 无孤儿。
+
+本轮工程验证：固定 Node 24.14.0，原整体构建通过；此前两次构建分别发现 Projects 私有 SQLite 类型出口迁移、PluginDatabaseTransaction 新增 savepoint 对冷清理窄口的影响，均已修正并保留失败日志。冷清理只借用实际需要的 get/all/run，不新增无用的嵌套事务能力。原 API、Action 快照和包边界检查通过。原测试器单任务、零重试运行 38 文件、473/473 项通过，包括真实 SQLite 提交后故障、同决定重试与计数、冷恢复非空/缺库、Session 原选集及三份实际浏览器回归。独立深审仅覆盖上述权限、恢复与调用链交点，未宣称审完主干全部改动。
+
+日志：`/private/tmp/molis-memory-main-integration-20261027-build-{1,2,3}.log`（首次为 `-build.log`）、`-host-types.log`、`-regression-1.log`、`-contracts.log`。准确主干父提交的 health/资源检查与最终全量尚待完成；本轮不是隐藏保留协议实现或整体产品验收，1000 条读取性能仍未达标。

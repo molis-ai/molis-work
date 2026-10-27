@@ -24,7 +24,7 @@ Manifest 定义在 `packages/contracts/src/platform/plugin-manifest.ts`，仍从
 - Runtime 检查目标 Manifest 保留全部旧 grant 和必需权限，不会自动授予新权限。相同身份的普通安装仍要求指纹一致；同版本不同 Manifest 只有明确兼容声明才可用于继续运行，存储的版本与指纹保持不变。
 - `validateUpgrade` 收到旧安装记录和受限上下文；只有目标 Manifest 声明且旧安装已授予的 `storage:private.get` 可用，不暴露其他服务。校验失败时旧安装记录、grant 和存储仍留在原位。
 
-内置插件（监督器条目 `trust: HOST_BUILD_TRUST`）不用这些声明：它随宿主版本升级，安装记录跟着提升。授权和其他插件同一规则：必需的总有，可选的按人留下的给，人关掉的可选权限升级后仍关着（设置里的开关是下一片，现在只有 Runtime 的授权接口能关）；新 Manifest 不再声明的去掉，新声明的可选权限像新装一样默认打开（全新安装时可选的都默认打开）。所以给内置插件加一项可选权限，已装的人升级后就有；关了它，只是用到它的动作不可用。
+内置插件（监督器条目 `trust: HOST_BUILD_TRUST`）不用这些声明：它随宿主版本升级，安装记录跟着提升。授权和其他插件同一规则：必需的总有，可选的按人留下的给，人关掉的可选权限升级后仍关着（项目设置的插件页对每项可选权限有开关，只有本人能开关，关掉立即生效、插件重启一次）；新 Manifest 不再声明的去掉，新声明的可选权限像新装一样默认打开（全新安装时可选的都默认打开）。所以给内置插件加一项可选权限，已装的人升级后就有；关了它，只是用到它的动作不可用。
 
 完整流程和 Manifest 片段见[本地 Plugin 开发·版本升级](../../docs/platform/PLUGIN-DEVELOPMENT.md#插件版本升级)。
 
@@ -175,7 +175,7 @@ Manifest 里没有 `behaviors`、`function_scenes`、`judgment_subjects`（2026-
 
 ## Integration
 
-`kind: "integration"`。`definePollingIntegrationPlugin`：Manifest + `createProvider` → Connector Driver + Signal Adapter。Host 只看 Contract 和 Receipt。细节：[integrations.md](integrations.md)。
+`kind: "integration"`。`definePollingIntegrationPlugin`：Manifest + `createProvider(context, binding)` → 每个来源一对 Connector Driver + Signal Adapter；Manifest 的 `connection_services`、`integrations` 声明它的服务与用途。Host 只看 Contract 和 Receipt。细节：[integrations.md](integrations.md)。
 
 ## 当前项目设置能力
 

@@ -3,6 +3,7 @@ import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { createLocalFeedApplication, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { boardSnapshot } from "./fixtures/goal-application.js";
 
 test("Goal Frame keeps the outer tabs and layout offers explicit bottom splitting", { timeout: 60_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
@@ -14,7 +15,7 @@ test("Goal Frame keeps the outer tabs and layout offers explicit bottom splittin
   await openGoalFrame('.tree-node[data-select-goal="CORE"]');
   await waitFor("document.querySelector('[data-goal-frame-surface]')?.dataset.frameGoal==='CORE' && !document.querySelector('[data-goal-frame-surface]').hidden");
   assert.equal(await evaluate("document.querySelector('[data-titlebar-tabs]').getBoundingClientRect().height>0"), true);
-  const core = b.store.snapshot(DEMO_PROJECT_ID).goals.find(goal => goal.goal_id === "CORE")!;
+  const core = boardSnapshot(b.store, DEMO_PROJECT_ID).goals.find(goal => goal.goal_id === "CORE")!;
   assert.equal(await evaluate<string>("document.querySelector('[data-frame-goal-title]').textContent"), core.title);
   assert.equal(await evaluate<string>("document.querySelector('[data-frame-goal-outcome]').textContent"), core.outcome);
   assert.equal(await evaluate<string>("document.querySelector('[data-frame-goal-status]').textContent"), "已完成");

@@ -17,6 +17,7 @@ import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 test("context handlers preserve a denied binding and hold the catalog open through async response failure", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-context-entry-"));
   const homeDirectory = join(directory, "home");
+  await createMolisWorkLocalHost({ homeDirectory }).close();
   const fixture = await openMolisWorkProjectCatalog({ homeDirectory });
   try {
     const project = await fixture.createProject({ display_name: "Scoped connection", actor_id: "user" });
@@ -76,7 +77,7 @@ test("context handlers preserve a denied binding and hold the catalog open throu
     assert.equal(currentConnection()?.projectId, project.project_id);
     assert.deepEqual(fixture.listRuntimeContextBindings(), before, "recovering the response does not create a second binding");
     assert.throws(() => scoped!.listProjects(), /closed|not open/);
-    const localHost = createMolisWorkLocalHost();
+    const localHost = createMolisWorkLocalHost({ homeDirectory });
     const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
     // The resume reader the MCP server composes: the Goals directory through the connected client's own actions.
     const actions = bindActionClient(localHost.actionClient(reference), () => ({ actor_id: "runtime:context-entry", audience: "mcp" as const,

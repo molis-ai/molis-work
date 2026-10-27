@@ -106,7 +106,7 @@ test("RAC-116: learning enqueue refusal stays observable and private while the c
       const original = { input_id: randomUUID(), text, written_by: "person" as const, occurred_at: new Date().toISOString() };
       const originalRef = { session_id: session.session_id, input_id: original.input_id, version: 1 as const };
       // MEM-CLASS: use the real preference owner's recipe; the completed source must retain its own frozen policy.
-      const memory = await service.memoryForRound(store.get(LOCAL_PERSON_ACTOR_ID, work.work_id), text);
+      const memory = await service.memory.memoryForRound(store.get(LOCAL_PERSON_ACTOR_ID, work.work_id), text);
       assert.ok(memory, "the real Memory owner supplies this round's recipe");
       const run = await adapter.start({ ...owner, session, task: text, workspace: "none", role_id: "assistant",
         original_input: original,
@@ -232,7 +232,7 @@ test("RAC-116-01: a settlement storage failure keeps the real HTTP notice and lo
     const notice = f.store.raiseNotice(LOCAL_PERSON_ACTOR_ID, { work_id: work.work_id, work_title: PRIVATE_TEXT, kind: "completed", text: PRIVATE_TEXT }, "catch-notice");
     assert.ok(notice);
     // Only the result owner's observation is supplied; the settlement service, its failed write and persisted notice are real.
-    t.mock.method(f.service, "workObjects", async () => [{ relation: "result", subject: { kind: "note", id: "result" }, title: "result", recorded_revision: "1",
+    t.mock.method(f.service.reads, "workObjects", async () => [{ relation: "result", subject: { kind: "note", id: "result" }, title: "result", recorded_revision: "1",
       current_revision: "2", recorded_at: notice.created_at, state: "changed" }]);
     const settle = f.store.settleNotices.bind(f.store), failure = privateFailure();
     let refuse = true, attempts = 0, failureCallId: string | undefined;

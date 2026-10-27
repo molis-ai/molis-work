@@ -39,7 +39,7 @@ const DEFAULT_ONBOARDING_STATE: MolisWorkOnboardingState = Object.freeze({
 });
 
 function molisWorkHome(homeDirectory?: string): string {
-  return path.resolve(homeDirectory ?? resolveConfiguredHome());
+  return resolveConfiguredHome(homeDirectory);
 }
 
 function optionalString(value: unknown): string | null {

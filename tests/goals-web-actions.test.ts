@@ -7,6 +7,7 @@ import { join } from "node:path";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { goalApplicationOf } from "./fixtures/goal-application.js";
 
 test("Web Goals use shared actions and store a result exactly once across async policy and replay", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "goals-web-actions-"));
@@ -28,7 +29,7 @@ test("Web Goals use shared actions and store a result exactly once across async 
   } });
   // What the business side has stored so far: a call that is still waiting at the policy checkpoint has stored nothing.
   const storedCount = (matches: (payload: Record<string, unknown>) => boolean) => host.withProject(reference, async runtime =>
-    (await runtime.coordinator.goalEvents.listEvents(project.project_id, "WEB-ACTION-GOAL")).events.filter(event => matches({ ...event.payload })).length);
+    (await goalApplicationOf(runtime).goalEvents.listEvents(project.project_id, "WEB-ACTION-GOAL")).events.filter(event => matches({ ...event.payload })).length);
   const token = "goals-web-actions-control-token-0123456789";
   const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });
   try {
@@ -58,7 +59,7 @@ test("Web Goals use shared actions and store a result exactly once across async 
     const recorded = await response.json() as { event_id: string; recorded: boolean; replayed: boolean };
     assert.equal(recorded.recorded, true); assert.equal(recorded.replayed, false); assert.ok(recorded.event_id);
     assert.equal(await storedCount(payload => payload.operation === "observation_note"), 1);
-    const stored = await host.withProject(reference, runtime => runtime.coordinator.goalEvents.readEvent(project.project_id, input.goal_id, recorded.event_id));
+    const stored = await host.withProject(reference, runtime => goalApplicationOf(runtime).goalEvents.readEvent(project.project_id, input.goal_id, recorded.event_id));
     assert.equal((stored.payload as { body: string }).body, noteInput.note);
     assert.equal(stored.actor_id, "web-user"); assert.equal(stored.actor_kind, "user");
     response = await request(notePath, noteInput);
@@ -139,7 +140,7 @@ test("Web Goals use shared actions and store a result exactly once across async 
     denied = true; release!(); response = await pending; pending = undefined; gate = undefined;
     assert.equal(response.status, 403);
     assert.equal((await response.json() as { code: string }).code, "actions.plugin_disabled");
-    const events = await host.withProject(reference, runtime => runtime.coordinator.goalEvents.listEvents(project.project_id, input.goal_id));
+    const events = await host.withProject(reference, runtime => goalApplicationOf(runtime).goalEvents.listEvents(project.project_id, input.goal_id));
     assert.equal(events.events.filter(event => event.kind === "system" && event.payload.operation === "observation_note").length, 1);
     assert.equal(events.events.filter(event => event.kind === "system" && event.payload.operation === "user_decision").length, 1);
   } finally {

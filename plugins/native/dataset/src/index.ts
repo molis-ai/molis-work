@@ -1,13 +1,3 @@
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-plugin-dataset",
-  packagePath: "plugins/native/dataset",
-  kind: "native-plugin",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/platform/plugin",
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["dataset.ui-contribution.v1", "dataset.http-routes.v1"],
-} as const;
-
 export { DATASET_UI_CONTRIBUTION_ID, datasetUiContribution, datasetUiDescriptor, renderDatasetWorkbench } from "./ui.js";
 export type { DatasetUiModel, DatasetUiPrimitives, DatasetUiSurface } from "./ui.js";
 export { DATASET_STYLES } from "./styles.js";

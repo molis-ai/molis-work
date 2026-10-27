@@ -1,6 +1,8 @@
 # PG-017：沙箱插件经 broker 拿到宿主服务（设计稿）
 
-状态：设计已由统筹会话审定（2026-10-23，防腐线 ac-sandbox-sched 片，PG-017 组：PG-017、PG-102～104、PG-106 与 V-20）；P0 的一部分在 #1139 做了（Manifest 一半，见 §4 第 1 条与 RAC-238 的拆分），其余按分片排队；P2c（主人文件，S-64，项目里与 Home Runtime 里各一支，RAC-350～359）已在本地分支 `claude/ac-pg017-p2-owner-files` 做完（叠在 P2b #1144 之上，统筹 10-24 要求这条线在积压清掉之前不开新 PR），§3.6 已按用户 2026-10-24 的决定改写；原先叫 P2c 的“材料联网（BL-492）”改名 P2e（分支 `claude/ac-pg017-p2-fetch` 名字不改，统筹 10-24 裁定）；P2d（材料的 `fetch_local` 与 `original`，S-65，RAC-360～369）在本地分支 `claude/ac-pg017-p2-local-original`（叠在 P2c 上），§3.4 同样已改写。P1（模型 + 指令，S-66，RAC-232、RAC-233）与 P3（后台运行，S-67，RAC-236）合成一个 PR，分支 `claude/ac-pg017-p1-p3`（基于 main，两个提交分开保留；S 号暂定，合入顺序由统筹定）：代码与测试做完，已构建、`pnpm api:update` 过、相关测试过，§3.5 已按下面的决定改写。代码按 main `c68071cdc` 核过，`services.project_statements`（#1119，S-59）按已定稿算。
+状态：设计已由统筹会话审定（2026-10-23，防腐线 ac-sandbox-sched 片，PG-017 组：PG-017、PG-102～104、PG-106 与 V-20）；P0 的一部分在 #1139 做了（Manifest 一半，见 §4 第 1 条与 RAC-238 的拆分），其余按分片排队；P2c（主人文件，S-64，项目里与 Home Runtime 里各一支，RAC-350～359）已在本地分支 `claude/ac-pg017-p2-owner-files` 做完（叠在 P2b #1144 之上，统筹 10-24 要求这条线在积压清掉之前不开新 PR），§3.6 已按用户 2026-10-24 的决定改写；原先叫 P2c 的“材料联网（BL-492）”改名 P2e（分支 `claude/ac-pg017-p2-fetch` 名字不改，统筹 10-24 裁定）；P2d（材料的 `fetch_local` 与 `original`，S-65，RAC-360～369）在本地分支 `claude/ac-pg017-p2-local-original`（叠在 P2c 上），§3.4 同样已改写。P1（模型 + 指令，S-66，RAC-232、RAC-233）与 P3（后台运行，S-67，RAC-236）合成一个 PR，分支 `claude/ac-pg017-p1-p3`（基于 main，两个提交分开保留；S 号暂定，合入顺序由统筹定）：代码与测试做完，已构建、`pnpm api:update` 过、相关测试过，§3.5 已按下面的决定改写。
+P2e（联网读取：BL-492 的读取器域名名单加沙箱一侧，S-93 暂定，RAC-235 的联网半）在分支 `claude/ac-pg017-p2e`（基于 main，P1+P3 已在 main；只推分支，未开 PR），代码与测试做完、已构建。
+代码按 main `c68071cdc` 核过，`services.project_statements`（#1119，S-59）按已定稿算。
 
 ## 1. 现状
 
@@ -22,7 +24,7 @@
 | 连接 `services.connections`（协调的清单里没列，同一批排除，S-57） | `plugin-connections-service.ts:14` | Manifest `connections:use` + 槽位 | Manifest ✔ |
 | 后台作业 `services.background` | `plugin-background-service.ts:8` | Manifest `actions[].background_job` 或 `background.jobs` | Manifest ✔ |
 | 插件指令与方法（V-20） | `plugin-instructions.ts:33` | `PluginDefinition.instructions`/`methods`（正文），Manifest `methods`/`agent`（声明） | 定义 + Manifest；PG-051 P2 归到唯一登记口 |
-| Home 库 `services.database` | `plugin-database-entries.ts:34` | 宿主启动名单的 `databaseFor` | **只在条目上**（PG-022） |
+| Home 库 `services.database` | `plugin-database-entries.ts:34` | Manifest `databases.home`（PG-022） | Home Runtime 里给（BL-490，S-91）；项目里拒 |
 | 私有文件 `services.files` | `plugin-files-entries.ts:12` | 条目 `files` | **只在条目上**（PG-102、PG-104） |
 | 主人文件 `ownerFiles` | `plugin-owner-files-entries.ts:40` | 条目 `owner_files` | **只在条目上**（PG-102、PG-103） |
 | 模型设置 `services.model.configuration` | `services.ts` 的 `NOT_GIVEN`（S-60 启动拒绝） | Manifest `model_configuration` + 宿主启动名单绑定 | Manifest 已有声明；沙箱尚不给（BL-490/491） |
@@ -72,10 +74,10 @@
 材料服务里的 `readSource`/`extract(url)`/`readLocalPage` 是**宿主替插件去抓网页**。沙箱的网络是“精确批准的域名、443、不跟重定向”（`createHttpsProxy`），如果把材料抓取原样开给沙箱，就绕过了这道门。设计：
 
 - **第一批只给不联网的部分**：`imageTextAvailable()`（只读状态）和 `readDocuments`（字节来自沙箱已有的存储/成果，不联网）。
-- **联网的 `readSource`/`extract(url)`**：只在 broker 额外对 URL 的主机做 `permit("networkDomains", host)` 之后放行，**且**材料读取器要接受“允许域名列表、不跟出列表外的重定向”这个选项（现在没有，要在 `material-source-providers` 里加）——这个宿主侧改动做完才开，登记为 BL-492（分片叫 P2e）。
+- **联网的 `readSource`/`extract(url)`**：只在 broker 额外对 URL 的主机做 `permit("networkDomains", host)` 之后放行，**且**材料读取器要接受“允许域名列表、不跟出列表外的重定向”这个选项（现在没有，要在 `material-source-providers` 里加）——这个宿主侧改动做完才开，登记为 BL-492（分片叫 P2e）。**已做**（P2e，S-93）：读取器的名单是操作声明与人批准的网络域名的交集，见「P2e 验收」。
 - **`fetch_local`**（P2d，S-65，用户 2026-10-24 定：给）：沙箱拿不到 socket 和地址，所以不是“让沙箱探本机网络”：插件把一个地址当数据交给 broker，宿主用已有的规则（`material-local-page.ts`：只有 `http://` 的 loopback 名、没有凭据、不是宿主自己的端口、每次重定向再查）判断并去取，回给插件的只有抽出的文字，不带地址、头和 cookie。效果键 `materials: ["fetch_local"]`，只在命令操作里。规则是宿主的一份，沙箱这边不另写 loopback 判断（S-09）。
 - **`original`**（P2d，S-65）：句柄是宿主登记表里的一行（插件、安装、项目、插件自己起的键），不是路径，路径不出宿主。认领只能在人驱动的调用里、带着宿主入口交给本安装的那个文件（和宿主内的插件一样）。读取分段：沙箱通道一次带不了 32 MiB，所以宿主客户端加了 `readOriginalRange`（起点、长度至多 1 MiB，broker 只要 256 KiB 一段，返回文件大小和不透明的 `revision`），每一段都是一次完整的宿主读取（动作作用域、授权、`beforeEffect`、路径与文件身份在读前读后各查一遍），第一段的 `revision` 在后面每段带回去，文件中途变了就拒绝，不读成混合内容。我没选“broker 里读一次整份、按段发”：那样后面的段不再过宿主的闸门，撤权后还会继续发。沙箱 SDK 的 `readOriginal(key, { maxBytes })` 是 worker 里对这个方法的循环，和宿主内插件同名同形。
-- **仍不给**：联网的 `readSource`（`materials:fetch`，BL-492，P2e）。
+- 联网的 `readSource`（`materials:fetch`）由 P2e 给（S-93），见「P2e 验收」；材料这一块没有仍不给的了。
 - 授权：broker `permit("materials", "read"|"fetch")` + 上面的域名门；宿主 `createPluginMaterialsClient` 的权限与 `assertActive`。字节结果 base64、有界。
 
 ### 3.5 后台作业（`background.*`）
@@ -103,7 +105,7 @@
 
 这四项都属于“**Home 级**”：库在 Home、偏好文件在 Home、连接绑定在 Home、清理由宿主在删项目时调函数。沙箱插件今天只会作为项目里的实例运行（创作台的第二个平台 `home: null`，PG-083）。设计：
 
-- **Home 库（`database`）**：项目库已经给了（`projectDatabase`，S-59）。Home 库要等 PG-022 把声明搬进 Manifest；之后沿用 S-59 的子进程语句执行（它只认“库文件路径 + 账本记录”，路径换成 Home 里的库即可），不另写一套（BL-490）。
+- **Home 库（`database`）**（BL-490，S-91，已做）：项目库已经给了（`projectDatabase`，S-59）。PG-022 把声明搬进 Manifest 之后，Home Runtime 里的沙箱包按 `databases.home` 拿账本里的库（`openInstalledPluginLibrary`，和装进来的任何插件一样），语句沿用 S-59 的子进程（`ProjectStatementProcess` 的 `record` 为空即 Home 库，引擎换 node:sqlite 的两条连接，没有 S-46 的记录检查，因为整个文件都归这个插件），不另写一套；宿主只做出文件就放手，不留连接。broker 多 `homeDatabase` 效果（和 `projectDatabase` 同一段检查），服务多 `database_statements`。项目里运行的沙箱包不能声明 Home 库（`plugin.declaration_invalid`）。
 - **模型设置（`model.configuration`）、生图（`imageGeneration`）**：形状都能变成 JSON（选择、状态、`generate` 的图片结果 base64）。模型设置现有 Manifest 字段 `model_configuration` 已能声明，沙箱还没有其 broker 方法与设置端口，按 S-60 启动即以 `sandbox.service_not_given` 拒绝该声明；不让项目平台静默不给，Home 也不等后续条目校验才报错。正式开放仍属 BL-490/491，不随本轮修复接入。生图按 PG-102 的前提开放，`generate` 是花钱的，只给 `command`，字节结果有大小上限（BL-491）。
 - **项目清理**：`purge` 是宿主调的函数，沙箱插件没有。设计：沙箱插件的数据（私有存储、项目库里它自己的表、`files`）都归平台按安装和声明清掉（删项目时平台先停它的后台，再关库、清分区，§4 a），不需要它交一个函数。这一项不是“给沙箱一项服务”，而是确认**声明式清理对沙箱插件同样成立**，测试里补一条；`assertProjectCleanupEntries` 里对沙箱的拒绝改成带码的错误并写明理由。
 
@@ -139,7 +141,7 @@
 4. **P3 后台**（S-67，本地分支 `claude/ac-pg017-p3-background`）：3.5，第二个进程（lane）而不是 runner 并行；验收见下面「P3 验收」。
 4a. **P2c 主人文件**（S-64，本地分支）：3.6 的 `ownerFiles`（项目里与 Home Runtime 里，含卸载清理），验收见下面「P2c 验收」。
 4b. **P2d 本机页面与原文件**（S-65，本地分支，叠在 P2c 上）：3.4 的 `fetch_local` 与 `original`，验收见下面「P2d 验收」。
-5. 之后：**P2e 材料联网**（BL-492，分支 `claude/ac-pg017-p2-fetch`，原先误叫 P2c）、PG-022/102 之后的 Home 库/文件/模型设置/生图（BL-490/491）、方法与角色（BL-493）。
+5. P2e 材料联网（BL-492，S-93）已做，在分支 `claude/ac-pg017-p2e`（旧分支 `claude/ac-pg017-p2-fetch` 作废）。Home 里的库（BL-490，S-91）已做；之后：模型设置/生图（BL-491）、方法与角色（BL-493）。
 
 ## 5. 验收与安全不变量
 
@@ -152,12 +154,25 @@
 | RAC-232 | 模型：在声明了 `model` 效果的操作所对应的并发动作里 `complete` 成功；在路由里调用被拒 `model_action_required`；`kind: "query"` 声明 `model.invoke` 的合同被拒；没登记的指令 id / 别的主人的指令被拒；沙箱代码不能送进自带文字的提示词 |
 | RAC-233 | 指令（V-20）：沙箱定义登记本插件的指令成功，登记别的主人的指令拒绝启动；角色与方法正文按 Q2 的结论（默认不登记）有拒绝本身的断言 |
 | RAC-234 | 连接：槽位没在这次操作声明的效果里、人没批准、批准成别的槽拒；非 GET/HEAD 的请求在查询操作里拒；槽位没绑定账号不是拒，是匿名发出（S-57）；凭据头由宿主的真实端口按固定头集合滤掉（S-57 的测试），沙箱一侧的用例用假端口，只断言答复在 broker 一侧重建成纯 JSON；响应超上限拒 |
-| RAC-235 | 材料：联网读取（`materials:fetch`）被拒（`fetch_local` 与 `original` 已由 P2d 给，见下面「P2d 验收」）；联网读取的主机不在批准域名里拒（BL-492 之后补重定向离开域名拒） |
+| RAC-235 | 材料：联网读取（`materials:fetch`）要效果、批准，且主机在操作声明并获批的域名里，重定向或来源的接口离开域名即拒（P2e，见下面「P2e 验收」）；`fetch_local` 与 `original` 已由 P2d 给，见「P2d 验收」 |
 | RAC-236 | 后台：受理的沙箱操作在卸载、删项目、取消时被停，之后不写业务记录；进程死后不重放 |
 | RAC-237 | 同一份 Manifest 声明，宿主内运行和沙箱运行，对同一输入得到同一个拒绝码（同等待遇，抽样每项服务各一例） |
 | RAC-238（Manifest 一半，#1139 已做） | 现在不给的、由 Manifest 或定义声明的项（模型、指令、连接、材料、后台作业、角色/提示词/技能/方法、目录、唤醒、运行 Agent、通知、已装插件、调用别人的动作、项目成果/过程项/端口/事件）在沙箱定义里声明时，启动以 `sandbox.service_not_given` 拒绝，指明是哪一项、为什么，代码一行不跑；项目平台与 Home 执行器各一例；宿主认的每个权限名要么被给、要么有一行拒绝（完整性测试），没归类的变红 |
 | RAC-238（条目一半，PG-022/PG-102 之后；`ownerFiles` 已由 P2c 给） | 现在只在宿主条目上声明的项（`ownerFiles`、Home 库、`files`、生图；模型设置的现行声明按 §3.7 带码拒绝）：声明搬进 Manifest 之后，沙箱定义里声明它们时同样带码拒绝或给出，不再是六处无码的 `Error`；在那之前它们在沙箱里根本没有入口，这一半不算做完 |
 | RAC-239 | 声明式清理对沙箱插件成立：删项目时它的私有存储、项目库里的表、后台执行被平台清掉，不需要它交 `purge` |
+
+**BL-490 验收**（S-91，RAC-240～249 本片 240～246）：`tests/security-invariants-sandbox-home-database.test.ts`
+
+| 编号 | 断言 |
+| --- | --- |
+| RAC-240 | 沙箱包的 Home 库经账本做出，发布者是安装记录的；写、读都在子进程里（宿主进程没有连接） |
+| RAC-241 | 别的发布者、被宿主存储或别的插件占用的名字、Home 里已有的目录、按项目分开的库：一律带码拒绝，什么库都没做、没起进程 |
+| RAC-242 | 授权被撤之后下一次读、写被拒且什么都没写；关闭库之后的调用被拒，子进程随库结束 |
+| RAC-243 | 读只认 SELECT、WITH，写只认 INSERT、UPDATE、DELETE；PRAGMA、ATTACH 都不过；以 WITH 开头的写句过了关键字也写不进只读连接 |
+| RAC-244 | 读超时的进程被杀并带码回答，宿主照常；递归查询不会被拒、由时钟截止；下一次读在新进程里跑 |
+| RAC-245 | 写超时整个事务回滚，没有任何一句留下，下一个事务照常 |
+| RAC-246 | 真沙箱里：操作没声明、人只批准读、人什么都没批准、用项目库的效果，一律 `sandbox.not_authorized`；形状错的请求 `sandbox.invalid_request`，都没到宿主 |
+| RAC-238（条目一半的 Home 库） | 沙箱定义声明 `databases.home` 不再被拒；项目里运行的沙箱包声明它启动即被拒（`plugin.declaration_invalid`），代码一行不跑 |
 
 **P2c 验收**（S-64，统筹 10-24 给 RAC-350～369：本片 RAC-350～359，P2d 用 RAC-360～369）：`tests/security-invariants-sandbox-owner-files.test.ts`
 
@@ -221,6 +236,16 @@ RAC-357-U1 的实现覆盖 Runtime 卸载 `finally` 释放定义，以及不留�
 | RAC-238 | 声明 model_configuration 的沙箱定义在项目与 Home Runtime 启动即以 sandbox.service_not_given 拒绝，start 未执行；只声明 model:read/invoke 与本插件指令仍可启动 |
 | RAC-232 | 会等模型的操作的截止时间在宿主的模型上限之后；其余操作不变；配置得更长的保持 |
 
+**P2e 验收**（S-93，RAC-235 的联网半；BL-492 的读取器一侧另有 BL492-01～08，在 `slices/bl-492-material-domains.md`）：`tests/security-invariants-sandbox-materials.test.ts`
+
+| 编号 | 断言 |
+| --- | --- |
+| RAC-235 | 页面读取要 `materials: ["fetch"]` 的声明与批准，网页主机同时在该操作声明与人批准的 `networkDomains` 里；`read` 不等于 `fetch`；没声明、没批准、主机不在两处之一、别的主机都被拒，被拒的读取没到宿主 |
+| RAC-235 | 交给读取器的名单正是声明与批准的交集；地址只收 https、没有账号密码、没有自带端口的字符串，IP 字面量被拒；名单超过 20 个域名即拒 |
+| RAC-235（同 RAC-237） | 宿主的客户端仍要求在插件自己的并发动作里（动作之外同一个码），宿主没建服务答 `sandbox.service_unavailable` |
+| RAC-235 | 本机页面与原文件不是页面读取：没有对应效果时 `fetch_local`、`original` 的方法不被批准，合同里 `read`、`fetch`、`fetch_local`、`original` 都能载入，别的取值不载入 |
+| BL-492 | 读取器：名单按精确主机名；首个请求与每一跳重定向在查找之前拒绝；来源的接口、字幕、媒体下载同样带名单；带名单的读取把 198.18/15 的查找结果当正常地址，IP 字面量与别的保留段仍拒（`tests/jelly-source-providers.test.ts`、`tests/plugin-materials-allowed-domains.test.ts`） |
+
 **安全不变量**：建议新增 S-60（沙箱经 broker 使用宿主服务的总规则：两道门、有界 JSON、撤权后不写、不给的拒绝）一行，承接 S-15 里“沙箱进程没有……”的那句和 S-59 的数据库一条；各项服务的测试挂在这一行的“拒绝测试”里。如果统筹希望每片各占一行（S-60 模型、S-61 连接与材料、S-62 后台），也可以，**请定**。S-15、S-46 里描述“沙箱没有这些服务”的话要同时改成现状。
 
 ## 6. 要统筹定的
@@ -228,7 +253,7 @@ RAC-357-U1 的实现覆盖 Runtime 卸载 `finally` 释放定义，以及不留�
 - **Q1 沙箱插件的模型调用靠“每个声明了 `model` 效果的操作登记一个 Manifest 动作”（3.1）还是别的办法？** 推荐：登记动作。理由：不为沙箱放宽 `model_action_required`，也让沙箱插件的操作和别的插件一样出现在动作目录里（同等待遇）；代价是沙箱定义工厂要生成动作，这是 P0 的一部分。另一种是在路由里开一条“沙箱调用模型”的专用口子，这就是给沙箱开私路，不推荐。
 - **Q2 沙箱插件的角色与方法正文给不给？** 推荐：现在不给，指令给；外部插件有了安装确认页能列出它们（PG-001）之后再给（BL-493）。另一种：和宿主内第三方插件完全一样，现在就给——同等待遇的字面做法，但今天没有地方让人在装的时候看到这个包要往他的 Agent 里加什么。
 - **Q3 安全不变量一行还是每片一行？** 推荐一行 S-60。
-- **Q4 材料联网部分**：是否接受“要先在材料读取器里加允许域名列表选项（BL-492），之后才给”这个顺序，而不是先给 `readSource` 再补？推荐先补后给——先给就是临时绕过沙箱的网络闸门。
+- **Q4 材料联网部分**：是否接受“要先在材料读取器里加允许域名列表选项（BL-492），之后才给”这个顺序，而不是先给 `readSource` 再补？推荐先补后给——先给就是临时绕过沙箱的网络闸门。**已答**（用户 10-24 定材料都做、broker 有界）：P2e 照此做，先补读取器的名单（BL-492），再给 `readSource`。
 
 ## 7. 开工前核对（代码位置有没有被在途 PR 改）
 

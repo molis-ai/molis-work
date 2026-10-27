@@ -1,13 +1,14 @@
 import { pluginInteraction } from "./plugin-interaction.js";
 import { pluginNotificationsFor } from "./plugin-notification-service.js";
 import { pluginInstallationsFor } from "./plugin-installation-directory.js";
+import { pluginProjectsFor } from "./plugin-projects-service.js";
 import { pluginAgentsFor } from "./plugin-agent-service.js";
 import { pluginSchedulerFor } from "./plugin-scheduler-service.js";
 import { pluginPagesFor } from "./plugin-page-authority.js";
 import { pluginPageActions } from "./plugin-page-actions.js";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
-import type { PluginDatabase, PluginDefinition, PluginManifest, PluginModelClient, PluginProjectDatabase, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
+import { pluginErrors, type PluginDatabase, type PluginDefinition, type PluginManifest, type PluginModelClient, type PluginProjectDatabase, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { PluginDirectoryService } from "@molis-ai/molis-work-contracts/platform/plugin-directory";
 import { assertActionInput } from "@molis-ai/molis-work-kernel";
 import { createPluginArtifactClient } from "@molis-ai/molis-work-module-artifacts";
@@ -27,6 +28,8 @@ import { homeLibraryFor } from "./plugin-database-entries.js";
 import { openInstalledPluginLibrary } from "./installed-plugin-libraries.js";
 import { openPluginProjectLibrary } from "./plugin-project-library.js";
 import { pluginAttentionFor, pluginContextLedgerFor } from "./plugin-attention-service.js";
+import { pluginScenesFor } from "./plugin-scene-service.js";
+import { pluginJudgmentsFor } from "./plugin-judgments-service.js";
 import type { PluginHostExecutorOptions } from "./plugin-executor.js";
 import { registerPluginAgentDefinitions } from "./plugin-instructions.js";
 import { pluginModelFor } from "./plugin-model-service.js";
@@ -98,7 +101,8 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
       scheduler: scheduler?.client, agents: agents?.client,
       database: library?.client, ownerFiles: ownerFiles?.client, project_database: projectLibrary?.client, project_statements: definition.execution === "sandbox" ? projectLibrary?.statements : undefined, model: pluginModelFor(options.home, definition, context, assertActive),
       materials: pluginMaterialsFor(options.home, definition, context, assertActive, options.project_id), connections: pluginConnectionsFor(options.home, definition, context, assertActive),
-      background: background?.client, directory: directory?.client });
+      background: background?.client, directory: directory?.client,
+      projects: pluginProjectsFor(definition, context, options.home?.directory, assertActive, options.projects) });
     withdrawPages = options.home ? pluginPagesFor(options.home.directory).connect({ manifest, install_id: context.install_id, project_id: options.project_id, actor_id: options.actor_id,
       invoke: pluginPageActions(manifest, context, { client: options.actions.client, actions: hosted.services?.actions, caller: pluginCaller, provider: providerId }),
       assertCurrent: permission => { assertActive(); if (permission) context.requireGrant(permission); } }) : undefined;
@@ -117,6 +121,11 @@ export function openHostSession(options: PluginHostExecutorOptions, definition: 
  * nothing, its own `stop` hook included.
  */
 function openDeclaredLibrary(options: PluginHostExecutorOptions, definition: PluginDefinition, context: PluginStartContext, assertActive: () => void) {
+  // A sandboxed package's library in the Home is the Home Runtime's (`openSandboxHomeLibrary`): a project's platform has no process to run its statements in.
+  if (definition.execution === "sandbox" && definition.manifest.databases?.home) {
+    throw pluginErrors.declaration_invalid(`沙箱插件 ${definition.manifest.plugin_id} 声明了 Home 库 ${definition.manifest.databases.home.store_name}，项目里运行的沙箱插件没有 Home 库，只有 Home Runtime 里的有`);
+  }
+  if (!options.home && options.dualInstance?.(definition)) return undefined;
   const library = homeLibraryFor(definition, options.databaseFor?.(definition), options.record?.(context.install_id) ?? null);
   if (library === undefined) return undefined;
   if (!options.home) throw new Error(`插件 ${definition.manifest.plugin_id} 声明了 Home 库，但这个插件平台没有 Home`);
@@ -144,6 +153,14 @@ function projectServices(options: PluginHostExecutorOptions, manifest: PluginMan
   const attention = pluginAttentionFor(manifest, context, database, ports, assertActive, record);
   const contextLedger = pluginContextLedgerFor(manifest, context, database, ports, assertActive, record);
   return { ...(attention ? { attention } : {}), ...(contextLedger ? { contextLedger } : {}) };
+}
+
+/** `services.scenes` (PG-032 P1, S-89) and `services.judgments` (P2, S-90): the plugin's own consumption scenes and their judgment ledger, in the project the activation runs in. */
+function sceneServices(options: PluginHostExecutorOptions, manifest: PluginManifest, context: PluginStartContext, assertActive: () => void) {
+  const record = () => options.record?.(context.install_id) ?? null;
+  const scenes = pluginScenesFor(manifest, context, { scenes: options.actions.scenes, project_id: options.project_id, assertActive, record });
+  const judgments = options.home ? pluginJudgmentsFor(manifest, context, { home_directory: options.home.directory, project_id: options.project_id, assertActive, record }) : undefined;
+  return { ...(scenes ? { scenes } : {}), ...(judgments ? { judgments } : {}) };
 }
 
 function hostPluginCaller(options: PluginHostExecutorOptions, definition: PluginDefinition, context: PluginStartContext, assertActive: () => void): HostPluginCaller {
@@ -185,6 +202,8 @@ interface SessionParts {
   readonly background: import("@molis-ai/molis-work-contracts/platform/plugin").PluginBackgroundClient | undefined;
   /** The person-authorized directory reader, only when the Manifest declares `directory:read`. */
   readonly directory: PluginDirectoryService | undefined;
+  /** Whether project ids the plugin holds still exist, only when the Manifest declares `projects:exist` (`pluginProjectsFor`, S-96). */
+  readonly projects: import("@molis-ai/molis-work-contracts/platform/plugin").PluginProjectsClient | undefined;
 }
 
 /** The context the Plugin's `start` receives: its identity plus the services below. */
@@ -202,6 +221,7 @@ function hostedContext(options: PluginHostExecutorOptions, manifest: PluginManif
       notifications: pluginNotificationsFor(manifest, context, parts.project_database, options.projectLibrary?.db, options.project_id, assertActive, () => options.record?.(context.install_id) ?? null, options.installations),
       installations: pluginInstallationsFor(manifest, context, options.project_id, options.installations, assertActive),
       ...projectServices(options, manifest, context, parts.project_database, assertActive),
+      ...sceneServices(options, manifest, context, assertActive),
       storage: manifest.permissions.some(item => item.permission === "storage:private")
         ? options.privateStorageFor(context, manifest) : undefined,
       artifacts: artifactService.client,
@@ -218,6 +238,7 @@ function hostedContext(options: PluginHostExecutorOptions, manifest: PluginManif
       ...(parts.connections === undefined ? {} : { connections: parts.connections }),
       ...(parts.background === undefined ? {} : { background: parts.background }),
       ...(parts.directory === undefined ? {} : { directory: parts.directory }),
+      ...(parts.projects === undefined ? {} : { projects: parts.projects }),
       ...coordinationServices(options, manifest, context, parts),
     }) });
 }

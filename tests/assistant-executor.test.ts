@@ -104,11 +104,11 @@ test("RAC-430 the executors on offer are the providers that publish all six prot
   const whole = fakeExecutor(), partial = fakeExecutor("io.molis.work.partial", "partial_session");
   partial.views.splice(partial.views.findIndex(view => view.capability_id.endsWith(".run.control")), 1);
   const { service, caller } = fixture([whole, partial]);
-  const offers = await service.executors(caller);
+  const offers = await service.dispatcher.executors(caller);
   assert.deepEqual(offers.map(offer => offer.plugin_id), [PLUGIN]);
   assert.deepEqual(offers[0], { plugin_id: PLUGIN, title: "样例 Agent", session_kind: KIND, modes: MODES, default_mode: "execute",
     capability_ids: { "session.update": `${PLUGIN}.session.update`, "run.start": `${PLUGIN}.run.start` } });
-  assert.deepEqual(await service.executors({ project_ref: undefined as never }), [], "personal work has no project to find an executor in");
+  assert.deepEqual(await service.dispatcher.executors({ project_ref: undefined as never }), [], "personal work has no project to find an executor in");
 });
 
 test("RAC-431 a work is kept with its plugin by id: it goes on in that plugin, and is refused, not moved to another, once the plugin no longer offers the protocol", async () => {
@@ -148,7 +148,7 @@ test("a plugin work keeps its mode on the executor's own session, so the bottom 
   assert.equal(exec.started.at(-1)!.mode, "discuss");
 
   // Switching from the bottom changes the session's own setting, where the plugin's page reads it.
-  const view = await service.setExecutorMode(first.work.work_id, "execute");
+  const view = await service.dispatcher.setExecutorMode(first.work.work_id, "execute");
   assert.equal((view.work.executor as { mode?: string }).mode, "execute");
   assert.equal(exec.sessions.get(sessionId)!.mode, "execute");
   await service.send({ work_id: first.work.work_id, text: "现在改吧", request_id: randomUUID() }, caller);
@@ -233,9 +233,9 @@ test("RC-14: while a question waits, the person's choice decides where the words
 test("only a plugin work has a mode, and only a mode the executor knows: it refuses in its own words", async () => {
   const { store, service, caller, plugin, project } = fixture();
   const own = store.create({ actor_id: "web-user", title: "整理周报", scope: { kind: "personal" }, origin: null });
-  await assert.rejects(service.setExecutorMode(own.work_id, "execute"), /不由执行方插件承担/);
+  await assert.rejects(service.dispatcher.setExecutorMode(own.work_id, "execute"), /不由执行方插件承担/);
   const carried = await service.send({ executor: plugin, scope: project, text: "修测试", request_id: randomUUID() }, caller);
-  await assert.rejects(service.setExecutorMode(carried.work.work_id, "yolo"), /不认识的方式/);
+  await assert.rejects(service.dispatcher.setExecutorMode(carried.work.work_id, "yolo"), /不认识的方式/);
   // A new plugin work can start in the mode chosen before its first Send; an existing one keeps the session's setting.
   const planned = await service.send({ executor: plugin, mode: "plan", scope: project, text: "先出个方案", request_id: randomUUID() }, caller);
   assert.equal(((await service.read(planned.work.work_id)).work.executor as { mode?: string }).mode, "plan");
@@ -253,7 +253,7 @@ test("a new plugin work can continue the session the person started on the plugi
   assert.equal((sent.work.executor as { session_id: string }).session_id, started.session_id);
   assert.equal(exec.calls.filter(call => call.role === "session.open").length, before, "no second session");
   // The relation keeps the kind the provider's session.open declares, not a name the Assistant knows.
-  assert.deepEqual((await service.related("project", { kind: KIND, id: started.session_id })).map(row => [row.work_id, row.relation]), [[sent.work.work_id, "session"]]);
+  assert.deepEqual((await service.reads.related("project", { kind: KIND, id: started.session_id })).map(row => [row.work_id, row.relation]), [[sent.work.work_id, "session"]]);
   await assert.rejects(service.send({ executor: plugin, executor_session_id: started.session_id, scope: project, text: "再开一个", request_id: randomUUID() }, caller), /已属于工作/);
   await assert.rejects(service.send({ work_id: sent.work.work_id, executor_session_id: "other", text: "换会话", request_id: randomUUID() }, caller), /只有交给执行方插件的新工作/);
 });
@@ -264,7 +264,7 @@ test("an Assistant work handed to a plugin stays one work: the first round is to
   const work = store.create({ actor_id: "web-user", title: "加法函数", scope: { kind: "project", project_id: "project" }, origin: null, project_ref });
   store.addRound(work.work_id, { run_id: "assistant-1", text: "写一个加法函数，放在 calc.js", materials: [], context: null, started_at: "2026-09-28T00:00:00.000Z" });
 
-  const handed = await service.handover(work.work_id, { to: plugin, mode: "execute" });
+  const handed = await service.dispatcher.handover(work.work_id, { to: plugin, mode: "execute" });
   const sessionId = (handed.work.executor as { session_id: string }).session_id;
   assert.equal(handed.work.executor.kind, "plugin");
   assert.ok(!("handover_brief" in handed.work), "the note is not part of the work as shown");
@@ -281,15 +281,15 @@ test("an Assistant work handed to a plugin stays one work: the first round is to
 
   let view = await service.read(work.work_id);
   assert.deepEqual(view.rounds.map(round => round.executor), ["plugin", "plugin"]);
-  await assert.rejects(service.handover(work.work_id, { to: plugin }), /已经由执行方插件承担/);
+  await assert.rejects(service.dispatcher.handover(work.work_id, { to: plugin }), /已经由执行方插件承担/);
 
   // Back to the Assistant: the plugin's rounds still belong to the work.
-  view = await service.handover(work.work_id, { to: { kind: "assistant" } });
+  view = await service.dispatcher.handover(work.work_id, { to: { kind: "assistant" } });
   assert.equal(view.work.executor.kind, "assistant");
   assert.deepEqual(view.rounds.map(round => round.executor), ["plugin", "plugin"]);
   // And to the plugin again: the same session, not a new one.
   const opens = exec.calls.filter(call => call.role === "session.open").length;
-  view = await service.handover(work.work_id, { to: plugin });
+  view = await service.dispatcher.handover(work.work_id, { to: plugin });
   assert.equal((view.work.executor as { session_id: string }).session_id, sessionId);
   assert.equal(exec.calls.filter(call => call.role === "session.open").length, opens);
 });
@@ -312,7 +312,7 @@ test("handing a work to a plugin carries what its documents say now, read from t
   store.addRound(work.work_id, { run_id: "assistant-1", text: "整理成需求文档", materials: [], context: null, started_at: "2026-09-30T00:00:00.000Z" });
   store.relations.link({ work_id: work.work_id, project_id: "project" }, "result", { kind: "pages_document", id: "doc-1", revision: "2" }, "助理产出");
 
-  await service.handover(work.work_id, { to: { kind: "plugin", plugin_id: PLUGIN }, mode: "execute" });
+  await service.dispatcher.handover(work.work_id, { to: { kind: "plugin", plugin_id: PLUGIN }, mode: "execute" });
   await service.send({ work_id: work.work_id, text: "按文档实现", request_id: randomUUID() }, { project_ref });
   const task = exec.started.at(-1)!.task;
   assert.match(task, /相关对象的当前内容/);

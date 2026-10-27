@@ -30,10 +30,11 @@ export function installationGrants(current: PluginInstanceRecord | null, manifes
 }
 
 /** Every reinstall first revokes its earlier installation's authorization; private cleanup follows the existing retention choice. */
-export function prepareInstallationData(executor: PluginExecutor, previous: PluginInstanceRecord | null, manifest: PluginManifest, host: boolean, discard: boolean): void {
+export function prepareInstallationData(executor: PluginExecutor, installId: string, previous: PluginInstanceRecord | null, manifest: PluginManifest, host: boolean, discard: boolean): void {
   const refusal = keptDataRefusal(previous, manifest, host, discard);
   if (refusal) throw pluginErrors.kept_data_incompatible(refusal);
-  if (previous?.state !== "uninstalled") return;
+  if (!previous) { prepareNewInstall(executor, installId); return; }
+  if (previous.state !== "uninstalled") return;
   try {
     executor.prepareReinstall?.(previous);
     if (previous.retain_private_data) return;
@@ -46,6 +47,15 @@ export function prepareInstallationData(executor: PluginExecutor, previous: Plug
   catch (error) {
     if (error instanceof ActionError) throw error;
     throw pluginErrors.executor_failed("Plugin 已卸载数据清理失败，暂不能重装，请重试清理");
+  }
+}
+
+/** A first install in a scope has no earlier row of its own to revoke, but other places' last uninstall may have left its identity's shared bindings (BL-596). */
+function prepareNewInstall(executor: PluginExecutor, installId: string): void {
+  try { executor.prepareNewInstall?.(installId); }
+  catch (error) {
+    if (error instanceof ActionError) throw error;
+    throw pluginErrors.executor_failed("Plugin 早先安装留下的连接绑定清理失败，暂不能安装，请重试");
   }
 }
 
@@ -169,6 +179,19 @@ export function assertMutable(record: PluginInstanceRecord): void {
   if (record.state === "uninstalled" || record.state === "quarantined") {
     throw pluginErrors.state_invalid(`Plugin 当前状态 ${record.state} 不允许修改`);
   }
+}
+
+/**
+ * The grants after the person switches one optional permission on or off (PG-002, docs/releases/POLICY.md section 7.8). It stays inside
+ * what the Manifest declares, in either direction, and a required permission is not the person's to take away: the plugin could not run
+ * without it, and stopping or removing the plugin is the way not to use it. Nothing here looks at who asks; the caller is the Host's
+ * settings door (`PluginRuntime.regrant`).
+ */
+export function toggledGrants(manifest: PluginManifest, held: readonly string[], permission: string, granted: boolean): string[] {
+  const declared = manifest.permissions.find(item => item.permission === permission);
+  if (!declared) throw pluginErrors.grant_denied(`Manifest 没有声明 ${permission}，不能改它的授权`);
+  if (!granted && declared.required) throw pluginErrors.grant_denied(`${permission} 是必需权限，不能关闭`);
+  return normalizeGrants(manifest, granted ? [...held, permission] : held.filter(item => item !== permission));
 }
 
 export function normalizeGrants(manifest: PluginManifest, requested: string[]): string[] {

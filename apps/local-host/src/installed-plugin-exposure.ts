@@ -7,7 +7,7 @@ import { pluginPagesFor } from './plugin-page-authority.js';
 
 interface ExposurePorts {
   homeDirectory: string; actorId: string;
-  actions: Parameters<typeof exposeInstalledPlugin>[0]; platform: PluginPlatform;
+  actions: Parameters<typeof exposeInstalledPlugin>[0]; platform: Pick<PluginPlatform, 'runtime' | 'supervisor' | 'router'>;
   exposed: Map<string, InstalledPluginActions>; recoveryErrors: Map<string, string>;
   recordFor(pluginId: string): PluginInstanceRecord | undefined;
   closed(): boolean; withdraw(pluginId: string): void; changed(): void; catalog(): Promise<unknown>;

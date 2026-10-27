@@ -1,5 +1,6 @@
 import type { ConnectorMethodOption, ConnectorSetupLink } from "@molis-ai/molis-work-contracts/services/connector-host";
-import { officialMethodsFor } from "@molis-ai/molis-work-integration-catalog";
+import { OFFICIAL_CONNECTOR_METHODS, officialMethodsFor } from "@molis-ai/molis-work-integration-catalog";
+import type { PluginConnectionServiceDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { API_OAUTH_PROVIDERS } from "./connector-api-oauth-providers.js";
 import { MCP_SERVERS } from "./connector-mcp.js";
 import { CONNECTOR_CLIS, cliAvailability } from "./connector-cli.js";
@@ -46,6 +47,18 @@ const HOST_METHODS: Readonly<Record<string, readonly ConnectorMethodOption[]>> =
     },
   ],
 };
+
+/** Whether the platform's own tables hold the ways to connect this service (the OAuth, MCP and CLI data stays there until W5-11). */
+export function hasConnectorMethods(connectorId: string): boolean {
+  return Object.hasOwn(HOST_METHODS, connectorId) || Object.hasOwn(OFFICIAL_CONNECTOR_METHODS, connectorId);
+}
+
+/** The ways to connect a declared service: the tables' when they hold it, otherwise the token method its declaration gives, and no other. */
+export function connectorMethodsOf(declaration: PluginConnectionServiceDeclaration): readonly ConnectorMethodOption[] {
+  if (hasConnectorMethods(declaration.service_id)) return connectorMethodsFor(declaration.service_id);
+  if (!declaration.auth.methods.some(method => method.kind === "token")) return [];
+  return [{ kind: "token", support: "paste", note: declaration.auth_help ?? "", links: declaration.setup_links ?? [] }];
+}
 
 export function connectorMethodsFor(connectorId: string): readonly ConnectorMethodOption[] {
   return HOST_METHODS[connectorId] ?? officialMethodsFor(connectorId).map(method => {

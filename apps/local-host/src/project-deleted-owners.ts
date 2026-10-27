@@ -18,6 +18,7 @@ import { partitionLabel } from "./plugin-project-cleanup.js";
 import { purgeAssistantProject } from "./assistant/assistant-project-purge.js";
 import { forgetProjectOriginalFiles } from "./material-original-files.js";
 import { forgetProjectConnectionBindings } from "./connector-plugin-requests.js";
+import { forgetOrphanedInstallationBindings } from "./plugin-installation-cleanup.js";
 
 /** The two owners whose data sits in a running service: what each says in the deletion receipt and, if it has one, in the dialog. */
 export const MEMORY_OWNER = { id: "memory", label: "这个项目及其角色的记忆" } as const;
@@ -169,7 +170,12 @@ export function homeProjectOwners(home: string): ProjectDeletedOwner[] {
     // Where a project's plugins may read an imported file again: only the Host's record of the place goes, never the person's file.
     { id: "plugin-originals", label: null, clear: (projectId, _deletion, control) => { forgetProjectOriginalFiles(home, projectId, control); } },
     // Which account a plugin uses for each of its records in the project (`per_record` slots); the accounts are the person's and stay.
-    { id: "plugin-connections", label: null, clear: (projectId, _deletion, control) => { forgetProjectConnectionBindings(home, projectId, control); } },
+    { id: "plugin-connections", label: null, clear: (projectId, deletion, control) => {
+      forgetProjectConnectionBindings(home, projectId, control);
+      // A receipt retains Catalog until every owner finishes. Its ordinary orphan sweep runs after that commit.
+      // Maintenance is restricted to the original project's bindings, never an incidental whole-Home sweep.
+      if (!deletion && !control) forgetOrphanedInstallationBindings(home);
+    } },
     // Their services exist only in a Host: here they wait for it (the Host's own owners take these ids over while it runs).
     memoryOwnerWithoutService(home),
     searchOwnerWithoutService(home),

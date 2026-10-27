@@ -35,9 +35,6 @@ Coding 不按类型解析材料，也没有输入端口。运行中的这一轮�
 固定报告缺失时不重新拼接替代。用户可将一份已保存报告设为 report 输出端口的当前值；下游读取原精确引用，不复制报告。
 旧确认不能覆盖后来的输出选择，已保存报告和历史来源不受切换影响。Coding「产物」面按引用读取已保存的报告（成果库）与固定变更（过程项），支持标题搜索、刷新、类型/修改数/版本/归档标记及重开精确版本；未保存预览不会混入。通用成果页展示保存时的报告正文，并可返回原固定成果及其任务；变更集不进成果库，其逐条文件提案及批准与执行状态在 Coding 产物面和 Diff 里查看。来源、身份、版本或正文不可用时不提供业务预览，也不读取运行时重新生成。Shelf 可接收 Coding 固定报告和变更为独立副本，保存为固定文字材料后再供下一轮选择；Character 可明确选用本项目已发布的精确版本或不使用；本轮冻结正文与来源，下一轮改选、角色更新或停用不改变已有执行及报告。直接多模态输入、其他成果类型与协作链仍待接通；Character 行为收益和整体体验未完成验收。
 
-- Status: `partial`
-- Migration Goals: `goal-reorg-f2`, `goal-plugin-platform-v2`.
-- Contract entrypoint: `@molis-ai/molis-work-contracts/platform/plugin`
 - 需求书：[`specs/coding-plugin/spec.md`](../../../specs/coding-plugin/spec.md)
 
 ## 当前执行入口
@@ -104,7 +101,7 @@ Store 的普通 `archive` 调用（含任意 guard）仍拒绝重复归档；只
     - 就绪：路由入口不再等 `execution.ready()`，Agent 能力在被调用时自己初始化。恢复起来的唤醒循环（`wake-loop.ts`）遇到暂时读取失败按 5–30 秒退避重试，不依赖页面查询重新启动；Runtime 明确不支持等待续接时才结束该消费者。
     - Goal 标题：读 Goals 的公开读动作 `goals.list`（`goalPluginActions.list`，plugin 受众，写在 Manifest `capabilities.consumes`）。目录面板同步渲染，等不了一次动作，所以 `goal-titles.ts` 的 `codingGoalTitles` 在 Coding 一侧缓存标题。查询只刷新内存；独立后台观察每 5 秒读取并保存标题及会话状态到本插件存储，选择 Goal 的命令也会记下标题。查询不写持久记录、不启动唤醒；后台观察在停止或撤权后结束。还没读过的 Goal，目录第一次绘制显示 Goal 的 id，路由一读就换成标题。
     - Character：列表读 `characters.list@1`（是浏览用的预览，读取按容忍的 `publishedOf` 写法），能不能运行以 `characters.runnable@1` 的回答为准（只答能不能跑与原因；本机程序与工作目录的 `characters.execution@1` 只给本人）；两者都对 `plugin` 受众开放（`characters.runnable` 也给本人，助理的角色选择器用它），都写在 Manifest `capabilities.consumes`，授权在设置页撤回后调用以 `plugin.grant_denied` 拒绝，没声明的以 `actions.forbidden` 拒绝（S-15）。助理（`assistant-http.ts`）也经这两个动作读（C2b），宿主不再给 Coding 造端口。
-  - 固定成果的正文只有一处写法：`coding.results.document@1`（定义在合同包 `@molis-ai/molis-work-contracts/modules/coding`，Coding 的 Manifest 声明的就是这个对象，处理器在 `results-document.ts`；plugin 受众的查询，权限 `artifact:read`，输入 `{ reference }`，输出 `{ reference, title, saved_at, markdown }`）。它用 `readOwn` 读自己的版本，已归档、不属于当前项目、不可用、不是报告或变更、成果里的身份与引用不符，一律以 `coding.shelf_material_invalid` 拒绝；别的生产者的版本由平台以 `artifacts.plugin_denied` 先拒。不动 `coding.artifacts.preview@1`。消费方（Shelf）在自己的 Manifest `capabilities.consumes` 声明它，宿主不拼这段文字（W5-01-CODING-01 至 -14）。
+  - 固定成果的正文只有一处写法：`coding.results.document@1`（定义在 Coding 自己的公开入口 `@molis-ai/molis-work-plugin-coding/contract`（`src/contract.ts`，PG-111），Coding 的 Manifest 声明的就是这个对象，处理器在 `results-document.ts`；plugin 受众的查询，权限 `artifact:read`，输入 `{ reference }`，输出 `{ reference, title, saved_at, markdown }`）。它用 `readOwn` 读自己的版本，已归档、不属于当前项目、不可用、不是报告或变更、成果里的身份与引用不符，一律以 `coding.shelf_material_invalid` 拒绝；别的生产者的版本由平台以 `artifacts.plugin_denied` 先拒。不动 `coding.artifacts.preview@1`。消费方（Shelf）在自己的 Manifest `capabilities.consumes` 声明它，宿主不拼这段文字（W5-01-CODING-01 至 -14）。
   - 自己的报告、变更、计划列表经 `services.artifacts.listConsumable()` 按类型取，再留下生产者是自己的版本（`outputs.ts` 的 `codingOutputReferences`）；宿主不再给列表端口。已归档或不可用的版本不在列表里。
   - 按精确引用消费材料与报告；生产者发布新版本不改写在跑的任务与历史报告；归档、删除或超限显式拒绝，不截断或偷换版本。
   - 目标变化拒绝旧确认，同一确认的重试读取原回执；不替换下一轮关联、不自动发起任务或验收目标。

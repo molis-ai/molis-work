@@ -1,4 +1,4 @@
-import type { ArtifactPluginInput } from "./actions.js";
+import type { ArtifactPluginInput } from "./browser-view.js";
 
 interface Primitives { escape(value: string): string; text(value: string): string }
 

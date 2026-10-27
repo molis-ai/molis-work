@@ -209,8 +209,20 @@ test("SYS-52 P2: a word is looked up in the search palette; a write goes to the 
   await waitFor(`JSON.parse(document.querySelector('[data-goal-frame-surface]')?.getAttribute('data-assistant-context') || '{}').object?.id === ${JSON.stringify(goalId)}`, 10_000);
   await evaluate(`(() => { const frame = document.querySelector('[data-goal-frame-surface]'); const walker = document.createTreeWalker(frame, NodeFilter.SHOW_TEXT);
     let node; while ((node = walker.nextNode())) { if (node.textContent.trim().length > 12 && !node.parentElement.closest('button, input, textarea')) break; }
+    window.__goalContextSelection = { node, text: node.textContent };
     const range = document.createRange(); range.setStart(node, 0); range.setEnd(node, node.textContent.length); const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range); document.dispatchEvent(new Event('selectionchange')); })()`);
-  await waitFor(`document.querySelectorAll(${JSON.stringify(ACTION)}).length > 0`, 10_000);
+  try {
+    await waitFor(`document.querySelectorAll(${JSON.stringify(ACTION)}).length > 0`, 10_000);
+  } catch (error) {
+    const diagnostic = await evaluate(`(() => { const chosen = window.__goalContextSelection, selection = getSelection(), frame = document.querySelector('[data-goal-frame-surface]');
+      const shape = node => node ? { text: node.textContent, connected: node.isConnected, tag: node.nodeType === 1 ? node.tagName : node.parentElement?.tagName } : null;
+      return { chosen: shape(chosen?.node), chosenText: chosen?.text, sameTitleTextNode: chosen?.node === frame?.querySelector('[data-frame-goal-title]')?.firstChild,
+        selection: { text: selection?.toString(), anchor: shape(selection?.anchorNode), focus: shape(selection?.focusNode) },
+        frame: frame ? { connected: frame.isConnected, hidden: frame.hidden, hiddenAncestor: Boolean(frame.closest('[hidden], [inert]')), rect: frame.getBoundingClientRect().toJSON(), context: frame.getAttribute('data-assistant-context') } : null,
+        plan: window.__contextPlan ?? null, toolbar: [...document.querySelectorAll('.mw-ctx')].map(el => ({ hidden: el.hidden, rect: el.getBoundingClientRect().toJSON(), keys: [...el.querySelectorAll('[data-key]')].map(button => button.dataset.key) })) };
+    })()`).catch(captureError => ({ captureError: String(captureError) }));
+    throw new Error(`Goal context toolbar timed out: ${JSON.stringify(diagnostic)}`, { cause: error });
+  }
   await click(MORE);
   await waitFor("[...document.querySelectorAll('.mw-ctx-menu button')].some(button => button.textContent.startsWith('拆成目标步骤'))", 5000);
 });

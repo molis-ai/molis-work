@@ -1,4 +1,4 @@
-import { ActionError, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionDefinition, type ActionExecutionContext, type ActionHandlerBinding, type ActionAvailability } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PlanningMethodPack, PlanningMethodPackInput } from "@molis-ai/molis-work-contracts/modules/goals";
 import { goalAction } from "./action-contract.js";
 import { object, array } from "@molis-ai/molis-work-contracts/modules/goal-actions";
@@ -18,7 +18,7 @@ export const personalPlanningActions = {
 export const PERSONAL_PLANNING_ACTIONS = Object.values(personalPlanningActions);
 export interface PersonalPlanningActionPorts {
   list(): PlanningMethodPack[];
-  save(method: PlanningMethodPackInput): Promise<PlanningMethodPack>;
+  save(caller: ActionExecutionContext, method: PlanningMethodPackInput): Promise<PlanningMethodPack>;
   saveAvailability(): ActionAvailability;
 }
 function userAvailability(caller: ActionCallContext): ActionAvailability {
@@ -35,7 +35,7 @@ export function createPersonalPlanningActionHandlers(ports: PersonalPlanningActi
     }, handle: async (caller, input) => {
       const authority = userAvailability(caller);
       if (!authority.available) throw new ActionError(authority.code, authority.reason);
-      return { method: await ports.save((input as { method: PlanningMethodPackInput }).method) };
+      return { method: await ports.save(caller, (input as { method: PlanningMethodPackInput }).method) };
     } },
   ];
 }

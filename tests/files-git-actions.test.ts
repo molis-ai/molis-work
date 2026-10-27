@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { ensureProjectRoot } from "./fixtures/goals-board.js";
+import { startProjectPlugins } from "./fixtures/plugin-callers.js";
 import { mkdtemp, writeFile, rm, realpath } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
@@ -29,7 +31,9 @@ test("Files/Git production Host actions keep fixed ownership, reject impersonati
     validate_authority: () => { if (!allowed) throw new ActionError("actions.revoked", "已撤权"); } };
   const client = host.actionClient(reference), bound = bindActionClient(client, () => caller);
   try {
-    await host.withProject(reference, runtime => runtime.coordinator.initializeBoard({ project_id: "project", actor_id: caller.actor_id, idempotency_key: "init" }));
+    // The project's plugins start as the workbench starts them on opening the project; this Host has no Home, so no Goals is among them.
+    await ensureProjectRoot(host, reference);
+    await startProjectPlugins(host, reference);
     const directory = await client.discover(caller);
     // Actions that need the Host review backend: staging, its results, and commit/branch/push/PR with their log.
     const reviewActions = [gitActions.prepareIndex.capability_id, gitActions.results.capability_id, gitActions.saveResult.capability_id,

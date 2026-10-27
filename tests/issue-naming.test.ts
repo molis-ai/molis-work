@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openPluginDatabase } from "@molis-ai/molis-work-app-local-host";
 import { IssueStore, IssueCaptures, ISSUES_DATABASE, ISSUES_NAME, ISSUES_PLUGIN_ID, ISSUE_ASK, ISSUE_SCREENSHOTS_UNREAD, ISSUE_TITLE_RULES, ISSUE_TOO_LITTLE, ISSUE_TYPE_RULES,
-  createIssuesPlugin, issueActionHandlers, issuesActions, issuesManifest, issuesMethods, titleLanguage, type Issue, type IssueListResult } from "@molis-ai/molis-work-plugin-issues";
+  createIssuesPlugin, issueActionHandlers, issuesActions, issuesManifest, issuesSkills, titleLanguage, type Issue, type IssueListResult } from "@molis-ai/molis-work-plugin-issues";
 import type { ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { InstructedPrompt } from "@molis-ai/molis-work-contracts/platform/model-prompts";
 import type { PluginModelAvailability, PluginModelClient, PluginModelRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -189,13 +189,13 @@ test("ISSUE-51 suggesting a name for a saved record's edit writes nothing", asyn
 });
 
 test("ISSUE-52 ISSUE-53 Issue's rules are written once: the naming instruction and the Assistant's method share them, and the method names no tool", () => {
-  const [method] = issuesMethods;
+  const [method] = issuesSkills;
   for (const line of [...ISSUE_TOO_LITTLE, ...ISSUE_TITLE_RULES, ...ISSUE_TYPE_RULES]) {
     assert.ok(ISSUES_NAME.body.includes(line), line); assert.ok(method!.body.includes(line), line);
   }
   // Carried by Issue's own definition, registered while it runs, so the person can read and edit it in “Prompt 与 Character” (PG-051).
   const definition = createIssuesPlugin();
-  assert.deepEqual(definition.methods, issuesMethods);
+  assert.deepEqual(definition.methods, issuesSkills);
   assert.deepEqual(definition.instructions?.map(prompt => `${prompt.owner_id}/${prompt.prompt_id}@${prompt.version}`), [`${ISSUES_PLUGIN_ID}/issues.name@1`]);
   assert.equal(method!.version, 11);
   for (const word of ["change-reversible", "change-capability", "read-capability", "find-capabilities", "suggest-action", "ask-user", "录入草稿", "待整理记录"]) assert.ok(!method!.body.includes(word), word);

@@ -124,8 +124,5 @@ node --import tsx apps/desktop/launchers/web/server.ts --port 4182 --home /tmp/m
 - [UI Platform](../../docs/platform/UI-PLATFORM.md)：Workbench / UI Host / Design System 分工
 - [SSOT 索引](../../docs/SSOT-MATRIX.md)
 
-- Status: `partial`
-- Contract entrypoint: `@molis-ai/molis-work-contracts/platform/ui`
-- Migration Goals: `goal-reorg-f2`, `goal-reorg-ap3`
 
 当前行为以本包公开入口、组件板、调用方和对应测试为准。Coss 全表落地过程见 `specs/archive/coss-primitive-library/spec.md`，Soft Workbench 迁移见 `specs/archive/soft-workbench-rollout/`；那些是任务书，不是用法手册。

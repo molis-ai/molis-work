@@ -104,8 +104,8 @@ export type AssistantMessagePurpose = "background" | "change" | "suggest" | "del
 export interface AssistantPluginMessage {
   message_id: string;
   purpose: AssistantMessagePurpose;
-  /** The surface speaking, as the person knows it. */
-  source: { surface: string; title?: string };
+  /** The surface speaking, as the person knows it; the shell writes it, with `plugin_id` from the frame, over a page's own. */
+  source: { surface: string; title?: string; plugin_id?: string };
   /** The object it concerns (for change, reply, and what a suggestion or delegation is about). */
   object?: { kind: string; id: string; title?: string; version?: number | string | null };
   /** For suggest/delegate: the request in the person's words. For background: what the page shows now. */
@@ -114,12 +114,12 @@ export interface AssistantPluginMessage {
   materials?: Array<{ title: string; text: string }>;
   /** For reply (and to continue a work on delegate): the work it belongs to. */
   work_id?: string;
-  /**
-   * For suggest, after a real user gesture on the page: an action the page already prepared exactly (the capability and
+  /** For suggest, after a real user gesture on the page: an action the page already prepared exactly (the capability and
    * its full input), to be shown as a card in a work. It is checked against what the Assistant may use there now and runs
-   * only when the person clicks it; no model round starts. Without a gesture it is an ordinary suggestion.
-   */
+   * only when the person clicks it; no model round starts. Without a gesture it is an ordinary suggestion. */
   card?: AssistantPreparedCard;
+  /** Suggest (PG-057): a comment thread under `object` to answer; only the person's press on 「让助理回复」 starts the reply. */
+  thread?: { thread_id: string; message_id: string; draft?: { text: string; revision: string } };
 }
 
 /**

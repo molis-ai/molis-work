@@ -5,11 +5,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { MolisWorkServer, withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { goalsActions, managementEventDecisionAuthority, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
+import { goalsActions, hostEventDecisionAuthority, GOALS_PLUGIN_ID } from "@molis-ai/molis-work-plugin-goals";
+import { bindGoalsManagementActions } from "@molis-ai/molis-work-app-local-host";
 import { LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { readMcpActionAccess } from "@molis-ai/molis-work-test-kit/local-host-http";
 import { serveTestHost } from "./fixtures/test-home.js";
 import { callerPlugin, projectPluginCaller } from "./fixtures/plugin-callers.js";
+import { goalApplicationOf } from "./fixtures/goal-application.js";
 
 test("user decisions share the action path without granting user authority to models or business input", async t => {
   const home = await mkdtemp(join(tmpdir(), "goals-decisions-"));
@@ -36,7 +38,7 @@ test("user decisions share the action path without granting user authority to mo
   const trusted: ActionCallContext = { ...caller, user_action: provenance };
   // What the management entry may send: where the decision came from. Who decides is the Host's to fix.
   const evidence = { conversation_ref: provenance.conversation_ref, message_ref: provenance.message_ref };
-  const cursor = () => host.withProject(ref, r => r.coordinator.goalEvents.readState(project.project_id, goal_id).goal_event_cursor);
+  const cursor = () => host.withProject(ref, r => goalApplicationOf(r).goalEvents.readState(project.project_id, goal_id).goal_event_cursor);
   try {
     await client.invoke(caller, goalsActions.create, { title: "用户决定", goal_id, idempotency_key: "create" });
     const decisionView = (await host.inspectActions(caller, ref)).find(v => v.capability_id === goalsActions.decide.capability_id)!;
@@ -69,16 +71,15 @@ test("user decisions share the action path without granting user authority to mo
     for (const authority of [hostEventDecisionAuthority("management", project.project_id, "another-person", payload.idempotency_key),
       hostEventDecisionAuthority("web", project.project_id, LOCAL_PERSON_ACTOR_ID, payload.idempotency_key), oldAuthority,
       { ...evidence, actor_id: "another-person" }, { ...evidence, actor_kind: "runtime" }, { ...evidence, authority_source: "web" }]) {
-      assert.throws(() => managementEventDecisionAuthority(project.project_id, payload.idempotency_key, authority), { code: "goals.event_decision_authority_invalid" });
+      await assert.rejects(bindGoalsManagementActions(client, ref).invoke(goalsActions.decide, payload, authority), { code: "goals.event_decision_authority_invalid" });
       await assert.rejects(client.invoke(trusted, goalsActions.decide, { ...payload, authority } as never), { code: "actions.input_invalid" });
     }
     assert.equal(await cursor(), before, "rejected authority never appends a decision");
 
-    const old = await host.withProject(ref, r => r.coordinator.goalEvents.recordTrustedDecision({ ...payload, project_id: project.project_id, authority: oldAuthority }));
+    const old = await host.withProject(ref, r => goalApplicationOf(r).goalEvents.recordTrustedDecision({ ...payload, project_id: project.project_id, authority: oldAuthority }));
     const expected = { ...JSON.parse(JSON.stringify(old)), replayed: true };
     assert.deepEqual(await client.invoke(trusted, goalsActions.decide, payload), expected);
     assert.deepEqual(JSON.parse(await management.callTool("molis_work_v1_event_decide", { database_path: project.database_path, project_id: project.project_id, ...payload })), expected);
-    assert.deepEqual(managementEventDecisionAuthority(project.project_id, payload.idempotency_key), oldAuthority, "the management owner keeps the recorded default provenance");
     assert.equal(await cursor(), old.observed_event_cursor, "legacy decision retries use the same receipt and provenance");
 
     const pendingInput = { ...payload, idempotency_key: "snapshot", conclusion: "第二次真实用户操作" };
@@ -90,7 +91,7 @@ test("user decisions share the action path without granting user authority to mo
     mutable.message_ref = "changed-while-waiting";
     release!();
     const saved = await pending as typeof old; gate = undefined;
-    const stored = await host.withProject(ref, r => r.coordinator.governance.eventDecisions.read(project.project_id, saved.decision.governance_decision_id));
+    const stored = await host.withProject(ref, r => goalApplicationOf(r).governance.eventDecisions.read(project.project_id, saved.decision.governance_decision_id));
     assert.equal(stored?.message_ref, "original-user-message", "queued calls retain their provenance snapshot");
     assert.equal(stored?.conversation_ref, provenance.conversation_ref);
     const replay = await client.invoke({ ...caller, user_action: { ...provenance, message_ref: "original-user-message" } }, goalsActions.decide, pendingInput) as typeof old;
@@ -100,8 +101,10 @@ test("user decisions share the action path without granting user authority to mo
       "SELECT count(*) AS n FROM goal_event_trusted_decisions WHERE project_id = ? AND goal_id = ?",
     ).get(project.project_id, goal_id) as { n: number }).n));
     const beforeFailure = await cursor(), beforeGovernance = await governanceCount();
-    await host.withProject(ref, r => r.store.db.exec(`CREATE TEMP TRIGGER fail_goal_decision_event BEFORE INSERT ON goal_work_events
-      WHEN json_extract(NEW.payload_json, '$.operation') = 'user_decision'
+    // The plugin's own tables take no trigger (a statement with one is refused), so the failure comes at the last write of the decision:
+    // the platform's receipt of it, after the Governance record, the event and the applied decision are written.
+    await host.withProject(ref, r => r.store.db.exec(`CREATE TRIGGER fail_goal_decision_event BEFORE INSERT ON idempotency_records
+      WHEN NEW.operation = '${GOALS_PLUGIN_ID}:record_goal_user_decision' AND NEW.idempotency_key = 'atomic-decision'
       BEGIN SELECT RAISE(FAIL, 'injected decision event failure'); END`));
     const failedInput = { ...payload, idempotency_key: "atomic-decision", conclusion: "必须原子保存的用户决定" };
     await assert.rejects(client.invoke(trusted, goalsActions.decide, failedInput), /injected decision event failure/);

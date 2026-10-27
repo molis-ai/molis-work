@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { ShelfItemRecord, ShelfMaterialPorts } from "@molis-ai/molis-work-contracts/modules/shelf";
+import type { ShelfItemRecord, ShelfMaterialPorts } from "./contract.js";
 import type { PluginOwnerFilesReader } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { readShelfCopy, shelfErrors } from "./errors.js";
 

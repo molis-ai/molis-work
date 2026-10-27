@@ -47,8 +47,8 @@ test("a cap the person puts on one work holds its rounds: what is left bounds th
     assert.deepEqual(first.usage, { tokens: 610, rounds: 1, budget_tokens: null }, "what the round used is counted, with no cap yet");
 
     // Too small a cap, or one on a sub-task, is refused with why.
-    await assert.rejects(service.saveWorkBudget(sent.work.work_id, 500), /至少 1000 tokens/);
-    const capped = await service.saveWorkBudget(sent.work.work_id, 1000);
+    await assert.rejects(service.budget.saveWorkBudget(sent.work.work_id, 500), /至少 1000 tokens/);
+    const capped = await service.budget.saveWorkBudget(sent.work.work_id, 1000);
     assert.deepEqual(capped.usage, { tokens: 610, rounds: 1, budget_tokens: 1000 });
     assert.equal(capped.work.budget_tokens, 1000);
 
@@ -67,13 +67,13 @@ test("a cap the person puts on one work holds its rounds: what is left bounds th
     assert.equal((await service.read(sent.work.work_id)).work.draft, "第三轮");
 
     // Raised, it goes on; cleared, the work has no cap of its own (the daily cap still applies as before).
-    await service.saveWorkBudget(sent.work.work_id, 5000);
+    await service.budget.saveWorkBudget(sent.work.work_id, 5000);
     await service.send({ text: "第三轮", request_id: "work-budget-4", work_id: sent.work.work_id }, {});
     await until(async () => { const view = await service.read(sent.work.work_id); return view.rounds.length === 3 && view.work.state === "completed"; }, "third round");
-    const cleared = await service.saveWorkBudget(sent.work.work_id, null);
+    const cleared = await service.budget.saveWorkBudget(sent.work.work_id, null);
     assert.equal(cleared.work.budget_tokens, undefined);
     assert.equal(cleared.usage?.budget_tokens, null);
-    assert.equal((await service.usage()).today.rounds, 3, "the daily count sees the same rounds");
+    assert.equal((await service.budget.usage()).today.rounds, 3, "the daily count sees the same rounds");
 
     // A stop at the round's token limit, in a work with a cap, is that cap in the person's words.
     assert.match(stopInWords("AGENT_BUDGET_EXCEEDED: This run already used 1200 of its 390 tokens; nothing was sent.", 1000), /这项工作的用量上限（1,000 tokens）/);

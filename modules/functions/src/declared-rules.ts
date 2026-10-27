@@ -1,5 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
-import { FUNCTIONS_DEFAULT_MODEL, type FunctionSceneMap } from "@molis-ai/molis-work-contracts/modules/functions";
+import { FUNCTIONS_DEFAULT_MODEL, type JudgmentRuleSceneMap } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { ActionSceneBinding, ActionSceneDefaultRule } from "@molis-ai/molis-work-contracts/platform/actions";
 import { publishedFunctionKey } from "./actions.js";
 import { functionsErrors } from "./errors.js";
@@ -51,7 +51,7 @@ export function admitDeclaredRules(db: DatabaseSync, rules: readonly DeclaredSce
  * the first declaration of a key wins and a user's edit to a rule is never written over. `sceneMap` gives a rule's option targets that
  * only the composition root can name, asked for a rule only when it is first written.
  */
-export function seedDeclaredRules(db: DatabaseSync, rules: readonly DeclaredSceneRule[], sceneMap: (rule: DeclaredRuleSubject) => FunctionSceneMap = () => ({})): void {
+export function seedDeclaredRules(db: DatabaseSync, rules: readonly DeclaredSceneRule[], sceneMap: (rule: DeclaredRuleSubject) => JudgmentRuleSceneMap = () => ({})): void {
   admitDeclaredRules(db, rules);
   for (const { declarer, scene_id, recommendation_source, rule } of rules) {
     if (db.prepare("SELECT id FROM functions WHERE function_key = ?").get(rule.function_key)) continue;

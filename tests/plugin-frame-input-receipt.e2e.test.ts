@@ -83,7 +83,7 @@ for (const fault of ["wrong frame", "synthetic after a previous trusted move", "
       t.diagnostic(`same-coordinate trusted moves: ${JSON.stringify(events)}`);
       await child.click(capture);
       await child.waitFor("document.querySelector('[data-lingguang=workbench]').dataset.expanded === 'true'",20_000);
-      assert.equal(presses,1); assert.equal(releases,1); assert.equal(posts,1); assert.equal(count(),1);
+      assert.equal(presses,1,"one real press"); assert.equal(releases,1,"one real release"); assert.equal(posts,1,"one creation request"); assert.equal(count(),1,"one stored item");
       // The one listener installed by this test remains; the fixture's temporary listener does not.
       assert.equal(await pointerListeners(child),listenersBefore+1);
       return;
@@ -155,6 +155,48 @@ for (const fault of ["before final guard", "immediately before press"] as const)
     assert.equal(await pointerListeners(child,true),listenersBefore,"success and rejection both remove all temporary receipt listeners");
   });
 }
+
+test("plugin frame input receipt keeps its ordinary CDP budget for a delayed real disposal acknowledgement", {timeout:60_000}, async t => {
+  const b = await openGoalBrowser(t, true); if (!b) return;
+  let armed = false, receipt: { objectId: string; session?: string } | undefined;
+  let presses = 0, releases = 0, posts = 0, disposalAcknowledgements = 0;
+  const command: typeof b.command = async <T>(method: string, params: Record<string, unknown> = {}, session?: string, timeout?: number): Promise<T> => {
+    if (armed && method === "Input.dispatchMouseEvent") {
+      if (params.type === "mousePressed") presses++;
+      if (params.type === "mouseReleased") releases++;
+    }
+    if (armed && receipt && params.objectId === receipt.objectId && session === receipt.session
+      && method === "Runtime.callFunctionOn" && params.functionDeclaration === "function(){this.dispose();}") {
+      disposalAcknowledgements++;
+      // Dispose this same real receipt immediately; only its actual protocol acknowledgement waits.
+      // Forward the helper's budget unchanged, so an isolated 1s override fails this case.
+      return b.command<T>(method, { ...params, functionDeclaration: "async function(){this.dispose();await new Promise(resolve=>setTimeout(resolve,1100));}", awaitPromise: true }, session, timeout);
+    }
+    const result = await b.command<T>(method, params, session, timeout);
+    if (armed && method === "Runtime.evaluate" && params.contextId !== undefined && params.returnByValue === false) {
+      const objectId = (result as { result?: { objectId?: string } }).result?.objectId;
+      if (objectId) receipt = { objectId, session };
+    }
+    return result;
+  };
+  const child = await pluginFrameBrowser(t, { ...b, command }, "lingguang");
+  b.server.on("request", request => { if (request.method === "POST" && request.url?.endsWith("/api/plugins/io.molis.work.lingguang/sparks")) posts++; });
+  await b.command("Emulation.setDeviceMetricsOverride", { width: 1280, height: 900, deviceScaleFactor: 1, mobile: false }, b.sessionId);
+  await b.navigate(() => b.command("Page.navigate", { url: `${b.origin}/projects/${b.projectId}/` }, b.sessionId));
+  await b.waitFor("document.querySelector('[data-plugin-picker-popover] [data-plugin-id=lingguang]')", 20_000);
+  await b.click("[data-plugin-picker-popover] [data-plugin-id=lingguang]");
+  await child.waitFor("document.querySelector('[data-lingguang-capture]')", 20_000);
+  const listenersBefore = await pointerListeners(child, true);
+  armed = true;
+  await child.click(capture);
+  armed = false;
+  assert.equal(disposalAcknowledgements, 1);
+  assert.equal(presses, 1); assert.equal(releases, 1); assert.equal(posts, 1);
+  assert.equal(await pointerListeners(child, true), listenersBefore, "the original real receipt's listeners were disposed");
+  assert.equal(await child.evaluate("document.querySelector('[data-lingguang=workbench]').dataset.expanded"), "true");
+  const store = openLingguangStore(b.homeDirectory);
+  try { assert.equal(store.list(b.projectId!).length, 1, "one input made one real item"); } finally { store.close(); }
+});
 
 test("plugin frame input receipt preserves input and both cleanup failures", {timeout:60_000}, async t => {
   let modelCalls = 0;

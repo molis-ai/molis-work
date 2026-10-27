@@ -5,9 +5,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import test from "node:test";
-import { GoalProjectApplication, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
 import { materializeGoalEventHistory, type GoalEventHistoryKind } from "./goal-event-history-fixture.js";
+import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
 const BOARD = "goalboard-v1-demo";
 

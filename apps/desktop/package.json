@@ -31,24 +31,5 @@
     "@molis-ai/molis-work-storage": "workspace:*",
     "@molis-ai/molis-work-service-runtime-host": "workspace:*",
     "@molis-ai/molis-work-plugin-sdk": "workspace:*"
-  },
-  "molis-work": {
-    "path": "apps/desktop",
-    "kind": "app",
-    "maturity": "partial",
-    "contract": "@molis-ai/molis-work-contracts/platform/app-host",
-    "migrationGoals": [
-      "goal-reorg-f2",
-      "goal-reorg-ap4",
-      "goal-reorg-dv4"
-    ],
-    "ssot": "docs/SSOT-MATRIX.md",
-    "capabilities": [
-      "desktop.shell.v1",
-      "desktop.runtime-launch.v1",
-      "desktop.advance-prompt.v1",
-      "desktop.panels.v1",
-      "desktop.capsule-shell.v1"
-    ]
   }
 }

@@ -9,17 +9,5 @@ export { defaultPrefs, completePrefs, isCompletePrefs, consumerAccess, CONSUMER_
 export { memoryClassReadAllowed, memoryClassReadPossible, memoryClassFormationAllowed, type MemoryClassContext, type MemoryClassTarget } from "./class-restrictions.js";
 export { recallKeywords, keywordScore, sameText, sameWords, looksLikeSecret, looksLikeInstruction } from "./text.js";
 export { quotedFrom, theirWords } from "./spoken.js";
-
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-service-memory",
-  packagePath: "horizontal/memory",
-  kind: "horizontal",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/services/memory",
-  migrationGoals: ["goal-reorg-f2"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["memory.recall.v1", "memory.manage.v1"],
-} as const;
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
 export { interpretMemoryLedgerRecoveryFact, resolveForgottenMemoryIdentity, type MemoryRecoveryObservation } from "./recovery-facts.js";
 export { collectMemoryLedgerRecoveryObservations, type MemoryRecoverySourceReader, type MemoryRecoverySourceObservation } from "./recovery-source.js";

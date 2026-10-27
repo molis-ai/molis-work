@@ -7,6 +7,7 @@ import {
 import { readStoredDrafts, writeStoredDrafts } from "./drafts.js";
 import { characterImportClient, type ImportClient } from "./import-client.js";
 import { renderList, renderVersions } from "./list.js";
+import { startCharacterTerminal } from "./terminal.js";
 
 const EDIT_FIELDS = "[data-character-title], [data-character-instructions], [data-character-inherit], [data-character-tools]";
 const IMPORT_DIALOGS = "[data-character-import-dialog], [data-character-run-dialog]";
@@ -241,4 +242,5 @@ export function mountCharacters(): void {
   const root = document.querySelector<HTMLElement>("[data-characters]");
   if (!root) return;
   new CharactersPage(root).start();
+  startCharacterTerminal();
 }

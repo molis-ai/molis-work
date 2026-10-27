@@ -8,7 +8,7 @@ import { projectGoalDocument } from "./document-projection.js";
 export function buildGoalsDocumentCollection(ports: GoalsDocumentReadPorts, projectId: string) {
   const snapshot = ports.snapshot(projectId);
   const inputBindings = ports.inputs.list(projectId)
-    .map(({ project_id: _boardId, ...binding }): GoalsInputBinding => binding);
+    .map(({ project_id: _projectId, ...binding }): GoalsInputBinding => binding);
   const policyBindings: GoalsPolicyBinding[] = ports.goals.listPolicyHistory(projectId);
   const events = ports.events(projectId);
   const index = createGoalDocumentIndex(snapshot, inputBindings, policyBindings, events, ports.goals.listWorkEventGoalLinks(projectId));

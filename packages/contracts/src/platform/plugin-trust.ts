@@ -81,6 +81,11 @@ export interface PluginPermissionView {
   readonly meaning: string | null;
 }
 
+/** An installed plugin's permission: what the Manifest asks for, and whether this installation holds it now (a required one always does). */
+export interface PluginInstalledPermissionView extends PluginPermissionView {
+  readonly granted: boolean;
+}
+
 /**
  * One plugin installed in a project, as the plugin's detail page shows it (ac-trust T7): who signed it and how far that is trusted, what it
  * asked for and why, what it keeps doing in the background, and the agreements the person gave it. `manifest_available` is false when the
@@ -97,7 +102,7 @@ export interface PluginInstalledView {
   /** The name the person gave the publisher when pinning it; null for a publisher that is not pinned. */
   readonly publisher_label: string | null;
   readonly manifest_available: boolean;
-  readonly permissions: readonly PluginPermissionView[];
+  readonly permissions: readonly PluginInstalledPermissionView[];
   readonly jobs: readonly PluginJobView[];
   readonly consents: readonly PluginConsentRecord[];
 }

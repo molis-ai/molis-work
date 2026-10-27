@@ -9,7 +9,7 @@ export interface TerminalPaneModel {
   icon(name: "chevron-right" | "target" | "plus" | "tree" | "play" | "copy" | "refresh" | "terminal"): string;
 }
 
-/** The Goal terminal pane beside the Goal document; `startGoalTerminalClient` drives it in the page. */
+/** The Goal terminal pane beside the Goal document; `startWorkTerminalClient` drives it in the page. */
 export function renderTerminalPane(model: TerminalPaneModel): string {
   const { selected, children, cliAvailability, text: L, icon } = model;
   const selectedGoalId = selected?.goal_id ?? "";

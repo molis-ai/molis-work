@@ -25,7 +25,7 @@ interface Dependencies {
 export function createStartPulseRunService(dependencies: Dependencies) {
   return (input: { sourceIds?: readonly PulseSourceId[] } = {}): PulseRun => {
     const enabledSourceIds = dependencies.pulse
-      .listSourceSettings()
+      .sources.listSourceSettings()
       .filter((setting) => setting.enabled)
       .map((setting) => setting.sourceId);
     const sourceIds = input.sourceIds
@@ -40,7 +40,7 @@ export function createStartPulseRunService(dependencies: Dependencies) {
         kind: DISCOVERY_PULSE_JOB,
         payload: { pulseRunId, periodStart } satisfies DiscoveryPulseJobInput,
       });
-      return dependencies.pulse.createRun({
+      return dependencies.pulse.runs.createRun({
         id: pulseRunId,
         workspaceId: dependencies.workspaceId,
         status: "queued",

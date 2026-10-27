@@ -1,13 +1,3 @@
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-plugin-pages",
-  packagePath: "plugins/native/pages",
-  kind: "native-plugin",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/platform/plugin",
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["pages.ui-contribution.v1", "pages.http-routes.v1"],
-} as const;
-
 export { PAGES_UI_CONTRIBUTION_ID, pagesUiContribution, pagesUiDescriptor, renderPagesWorkbench } from "./ui.js";
 export type { PagesUiModel, PagesUiPrimitives, PagesUiSurface } from "./ui.js";
 import { PAGES_STYLES as PAGES_BASE_STYLES } from "./styles.js";
@@ -20,7 +10,7 @@ export { PAGES_MESSAGES } from "./messages.js";
 export { PAGES_INSTRUCTIONS, PAGES_WRITING_ASSISTANT, PAGES_GENERATE_FROM_MATERIALS } from "./prompts.js";
 export { PAGES_CLIENT_FACTORY_SCRIPT } from "./client.js";
 export { PAGES_PLUGIN_ID, PAGES_PROJECT_PLUGIN_ID, pagesManifest } from "./manifest.js";
-export { pagesMethods } from "./methods.js";
+export { pagesSkills } from "./skills.js";
 export { ownPagesStores, PagesStore, PAGES_DATABASE, PAGES_HOME_STORE } from "./store.js";
 export { createPagesPlugin } from "./plugin.js";
 export type { PagesSql, PagesSqlValue, PagesStores } from "./store.js";

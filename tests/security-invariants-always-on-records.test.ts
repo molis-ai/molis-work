@@ -364,7 +364,9 @@ for (const corruption of ["version", "structure"] as const) {
       }
       assert.deepEqual(filesAt(home), before, "strict reads and refused commands write no files or business records");
       const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-      await assert.rejects(f.host.actionClient(reference, false).invoke(caller, goalsActions.snapshot, {}), refusal);
+      const client = f.host.actionClient(reference, false);
+      await assert.rejects(client.invoke(caller, goalsActions.snapshot, {}), { code: "actions.missing" });
+      await assert.rejects(client.discover(caller), refusal);
       for (const path of [`/projects/${project.project_id}/`, `/projects/${project.project_id}/settings/general`, `/settings/appearance?project=${project.project_id}`, `/projects/${project.project_id}/side/pages/comments`]) {
         const page = await f.request(path);
         assert.equal(page.status, 200, await page.clone().text());

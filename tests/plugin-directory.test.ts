@@ -9,7 +9,7 @@ import test from "node:test";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { UI_VIEW_GROUPS } from "@molis-ai/molis-work-contracts/platform/ui";
 import {
-  DEMO_PROJECT_ID, GoalProjectApplication, LocalProjectDatabase, createPluginPlatform, ensureProjectPlugins, mergePluginDirectories, openProjectVersionStores, releaseProjectPlugins, runningPluginDirectory, seedDemoBoard, PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS,
+  DEMO_PROJECT_ID, LocalProjectDatabase, createPluginPlatform, ensureProjectPlugins, mergePluginDirectories, openProjectVersionStores, releaseProjectPlugins, runningPluginDirectory, seedDemoBoard, seedDemoGoals, PERSONAL_PLUGIN_IDS, PROJECT_SCOPED_PLUGIN_IDS,
 } from "@molis-ai/molis-work-app-local-host";
 import {
   BUILTIN_PLUGIN_CATALOG, CLIENT_SCRIPT, builtinPluginDirectory, clientPluginDirectory, creatableKinds, homeStarts,
@@ -18,6 +18,7 @@ import {
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { defineWorkflowContentActions } from "@molis-ai/molis-work-plugin-sdk";
+import { GoalProjectApplication } from "./fixtures/goal-application.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import { buildMolisWorkWebView } from "./fixtures/web-view.js";
 import { renderMolisWorkWeb, type MolisWorkWebView } from "./workbench-renderer-fixture.js";
@@ -50,16 +51,17 @@ function view(directory?: readonly PluginDirectoryEntry[]): MolisWorkWebView {
 }
 
 /** The Demo project's view with a Goal, so the Goal's own page (its 「为这个 Goal 新建」 buttons) is drawn, and the directory laid over it. */
-function withGoal<T>(directory: readonly PluginDirectoryEntry[], run: (render: () => string) => T): T {
+async function withGoal<T>(directory: readonly PluginDirectoryEntry[], run: (render: () => string) => T): Promise<T> {
   const folder = mkdtempSync(join(tmpdir(), "molis-work-directory-goal-"));
   const databasePath = join(folder, "demo.db");
-  seedDemoBoard(databasePath);
-  const store = new LocalProjectDatabase(databasePath);
+  let store: LocalProjectDatabase | undefined;
   try {
+    await seedDemoGoals(databasePath);
+    store = new LocalProjectDatabase(databasePath);
     const base = buildMolisWorkWebView(store, new GoalProjectApplication(store), { databasePath, projectId: DEMO_PROJECT_ID, demo: true });
     const shown = { ...base, enabled_plugins: [...EVERYTHING], hidden_plugins: [], plugin_directory: directory } as MolisWorkWebView;
-    return run(() => renderMolisWorkWeb(shown, base.goals[0]!.goal.goal_id));
-  } finally { store.close(); rmSync(folder, { recursive: true, force: true }); }
+    return await run(() => renderMolisWorkWeb(shown, base.goals[0]!.goal.goal_id));
+  } finally { store?.close(); rmSync(folder, { recursive: true, force: true }); }
 }
 
 const unescape = (value: string) => value.replaceAll("&quot;", '"').replace(/&#0?39;/gu, "'").replaceAll("&lt;", "<").replaceAll("&gt;", ">").replaceAll("&amp;", "&");
@@ -228,10 +230,13 @@ test("RAC-605 the Host reads the directory from the Manifests the project's Runt
   const database = join(home, "project.db");
   seedDemoBoard(database);
   const store = new LocalProjectDatabase(database);
+  const installedByHand = new Set<PluginDefinition>();
+  /** The test acts as the Host's code: each definition it hands the platform is admitted to the process as that object (S-75 ⑥). */
+  const admit = (value: PluginDefinition): PluginDefinition => { installedByHand.add(value); return value; };
   const ports = { store, ...openProjectVersionStores(store), projectId: DEMO_PROJECT_ID, actorId: "web-user", actions: pluginActions(store, DEMO_PROJECT_ID),
-    escapeHtml: String, translate: (value: string) => value };
+    escapeHtml: String, translate: (value: string) => value, installedByHand };
   const pluginId = "io.molis.work.example.directory-fixture";
-  const definition = (name: string): PluginDefinition => ({
+  const definition = (name: string): PluginDefinition => admit({
     manifest: { schema_version: 2, host_api_version: 2, plugin_id: pluginId, version: "1.0.0", name, kind: "app",
       publisher: { publisher_id: "example", signature: "plugin-directory" }, entrypoints: [{ deployment: "local", entrypoint: "./index.js" }],
       permissions: [], capabilities: { provides: [], consumes: [] }, artifacts: { produces: [], consumes: [] },
@@ -335,18 +340,18 @@ test("RAC-607 the rail lists an installed plugin under the group its view names,
     ["order-b", "order-a"], "order is the declared order");
 });
 
-test("RAC-608 creatableKinds and homeStarts read an installed plugin like a built-in one, and the Goal's page writes its declared texts escaped", () => {
+test("RAC-608 creatableKinds and homeStarts read an installed plugin like a built-in one, and the Goal's page writes its declared texts escaped", async () => {
   const notes = installed("notes", { creates: { station: "notes", title: "笔记" }, start: { title: "写一条笔记", hint: "先写下来。" } });
   const directory = pluginDirectoryFor([notes]);
   assert.deepEqual(creatableKinds(["goals"], directory).map(kind => [kind.id, kind.station, kind.title]), [["notes", "notes", "笔记"]]);
   assert.deepEqual(homeStarts(["goals"], directory).filter(start => start.id === "notes").map(start => [start.title, start.hint, start.glyph]), [["写一条笔记", "先写下来。", "note"]]);
-  withGoal([notes], render => {
+  await withGoal([notes], render => {
     const html = render();
     assert.ok(createButtons(html).some(button => button.station === "notes" && button.title === "笔记"), "the Goal's new buttons take it in");
     assert.ok(homeStartList(html).some(start => start.id === "notes"));
   });
   const hostile = installed("evil", { creates: { station: "notes", title: HOSTILE }, start: { title: HOSTILE, hint: HOSTILE } }, "Evil");
-  withGoal([hostile], render => {
+  await withGoal([hostile], render => {
     const html = render();
     assert.deepEqual(createButtons(html).find(button => button.station === "notes")?.title, HOSTILE.slice(0, 40), "the button reads the text as it was written, cut to the 40 characters a kind's name may have");
     assert.doesNotMatch(html, /<img\b[^>]*src=x/u, "and it is text, not markup");

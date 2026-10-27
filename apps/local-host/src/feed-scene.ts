@@ -10,7 +10,7 @@ export function createLocalFeedScene(home: string, projectId: string, feed: Feed
   services: { actions: ActionClient; scenes: ActionSceneClient; functions?: FunctionsHostOptions }) {
   const read = <T>(operation: Parameters<typeof withFunctionsService<T>>[1]) => withFunctionsService(home, operation, services.functions);
   return createFeedSceneRuntime({ projectId, feed, actions: services.actions, scenes: services.scenes, host: {
-    latestJudgments: sceneId => read(service => service.latestSceneJudgments(projectId, sceneId)),
+    latestJudgments: sceneId => read(service => service.latestSceneJudgments(projectId, sceneId, null)),
     recordJudgment: input => read(service => service.recordSceneJudgment({
       function_key: publishedFunctionKey(input.function) ?? input.function.capability_id, function_version: input.function.version,
       subject: input.subject, scene_id: input.scene_id, scene_provenance: input.scene_provenance,

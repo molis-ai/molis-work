@@ -46,10 +46,6 @@
       "types": "./dist/modules/governance-collaboration.d.ts",
       "import": "./dist/modules/governance-collaboration.js"
     },
-    "./modules/coding": {
-      "types": "./dist/modules/coding.d.ts",
-      "import": "./dist/modules/coding.js"
-    },
     "./modules/model-providers": {
       "types": "./dist/modules/model-providers.d.ts",
       "import": "./dist/modules/model-providers.js"
@@ -61,10 +57,6 @@
     "./modules/projects": {
       "types": "./dist/modules/projects.d.ts",
       "import": "./dist/modules/projects.js"
-    },
-    "./modules/shelf": {
-      "types": "./dist/modules/shelf.d.ts",
-      "import": "./dist/modules/shelf.js"
     },
     "./modules/signals": {
       "types": "./dist/modules/signals.d.ts",
@@ -121,6 +113,14 @@
     "./platform/plugin-events": {
       "types": "./dist/platform/plugin-events.d.ts",
       "import": "./dist/platform/plugin-events.js"
+    },
+    "./platform/plugin-judgments": {
+      "types": "./dist/platform/plugin-judgments.d.ts",
+      "import": "./dist/platform/plugin-judgments.js"
+    },
+    "./platform/plugin-scenes": {
+      "types": "./dist/platform/plugin-scenes.d.ts",
+      "import": "./dist/platform/plugin-scenes.js"
     },
     "./platform/plugin-trust": {
       "types": "./dist/platform/plugin-trust.d.ts",
@@ -254,6 +254,10 @@
       "types": "./dist/platform/plugin-connections.d.ts",
       "import": "./dist/platform/plugin-connections.js"
     },
+    "./platform/plugin-integrations": {
+      "types": "./dist/platform/plugin-integrations.d.ts",
+      "import": "./dist/platform/plugin-integrations.js"
+    },
     "./platform/plugin-attention": {
       "types": "./dist/platform/plugin-attention.d.ts",
       "import": "./dist/platform/plugin-attention.js"
@@ -267,16 +271,5 @@
     "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc --noEmit -p tsconfig.json"
-  },
-  "molis-work": {
-    "path": "packages/contracts",
-    "kind": "foundation",
-    "maturity": "contract-only",
-    "contract": "@molis-ai/molis-work-contracts/platform/package",
-    "migrationGoals": [
-      "goal-reorg-f2",
-      "goal-reorg-f3"
-    ],
-    "ssot": "docs/SSOT-MATRIX.md"
   }
 }

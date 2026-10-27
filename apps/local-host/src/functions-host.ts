@@ -3,7 +3,7 @@ import { selectedTypeSafeConnection, typeSafeCredential, typeSafeConfiguration }
 import { withConnectorConnections } from "./connector-connection-store.js";
 import { PLATFORM_PLUGIN_REGISTRATIONS } from "./plugin-registry.js";
 import { peekSealedEntry, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
-import type { FunctionSceneMap, FunctionsSettingsStatus } from "@molis-ai/molis-work-contracts/modules/functions";
+import type { JudgmentRuleSceneMap, JudgmentRuleSettingsStatus } from "@molis-ai/molis-work-contracts/modules/functions";
 import { SUBJECT_OFFERS_INPUT_TYPE, SUBJECT_OFFERS_OUTPUT_TYPE, type ActionProvider, type ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import {
   admitDeclaredRulesIn,
@@ -19,7 +19,7 @@ import { subjectOfferChoiceKey } from "@molis-ai/molis-work-kernel";
  * options, and its target is the key of the declaration that answers to that id, which names the declaring plugin as the key's owner.
  * An id that two declarations answer to is left unmapped rather than guessed. Any other rule keeps its option keys as they are.
  */
-function declaredRuleTargets(rule: DeclaredRuleSubject): FunctionSceneMap {
+function declaredRuleTargets(rule: DeclaredRuleSubject): JudgmentRuleSceneMap {
   if (rule.recommendation_source !== "subject-offers") return {};
   const targets = new Map<string, Set<string>>();
   for (const { manifest } of PLATFORM_PLUGIN_REGISTRATIONS) {
@@ -84,7 +84,7 @@ export function functionsConnectionId(home: string, options: FunctionsHostOption
   return (options.env ?? process.env).TYPESAFE_API_KEY?.trim() || options.credential ? null : selectedTypeSafeConnection(home)?.connection_id ?? null;
 }
 
-export function functionsConnectionStatus(home: string, options: FunctionsHostOptions = {}): FunctionsSettingsStatus {
+export function functionsConnectionStatus(home: string, options: FunctionsHostOptions = {}): JudgmentRuleSettingsStatus {
   const configured = functionsCredentialConfigured(home, options);
   return { has_credential: configured, source: (options.env ?? process.env).TYPESAFE_API_KEY?.trim() ? "env" : configured ? "ui" : "none" };
 }

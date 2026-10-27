@@ -392,6 +392,7 @@ export interface AssistantPluginMessage {
     source: {
         surface: string;
         title?: string;
+        plugin_id?: string;
     };
     object?: {
         kind: string;
@@ -406,6 +407,14 @@ export interface AssistantPluginMessage {
     }>;
     work_id?: string;
     card?: AssistantPreparedCard;
+    thread?: {
+        thread_id: string;
+        message_id: string;
+        draft?: {
+            text: string;
+            revision: string;
+        };
+    };
 }
 
 export interface AssistantPreparedCard {

@@ -18,12 +18,16 @@ export * from "./plugin-agent.js";
 export * from "./actions.js";
 export * from "./plugin-database.js";
 export * from "./plugin-attention.js";
+export * from "./plugin-scenes.js";
+export * from "./plugin-judgments.js";
 export type { PluginScheduleClient, PluginScheduleWriter, PluginScheduleJob, PluginScheduleRegisterInput, PluginWakeupDeclaration } from "./plugin-scheduler.js";
 export type { PluginOwnerFileInfo, PluginOwnerFileEntry, PluginOwnerFilesReader, PluginOwnerFilesWriter, PluginOwnerFilesClient, PluginOwnerFilesDeclaration } from "./plugin-owner-files.js";
 export * from "./plugin-model.js";
 export type { PluginImageTarget, PluginImageConnectionState, PluginImageGenerationRequest, PluginImageGenerationClient, PluginImageGenerationDeclaration } from "./plugin-image-generation.js";
 export { PLUGIN_LOCAL_TOOLS_PERMISSION, PLUGIN_LOCAL_TOOLS_LIMITS } from "./plugin-local-tools.js";
 export type { PluginLocalToolsClient, PluginLocalToolsDeclaration } from "./plugin-local-tools.js";
+export { PLUGIN_PROJECTS_EXIST_PERMISSION, PLUGIN_PROJECTS_EXIST_LIMITS } from "./plugin-projects.js";
+export type { PluginProjectsClient } from "./plugin-projects.js";
 // The services, the Manifest and the route types are declared beside this file (W5-09); this subpath exports all of them.
 export type { PluginPrivateStorage, PluginUiClient, PluginActionDirectory, PluginActionClient, PluginHostServices, PluginTerminalClient } from "./plugin-host-services.js";
 import type { PluginPrivateStorage, PluginHostServices } from "./plugin-host-services.js";
@@ -76,8 +80,19 @@ export interface PluginInstanceRecord {
 
 export interface PluginIntegrationContribution {
   kind: "integration";
-  connector_driver: ConnectorDriver;
-  signal_adapter: RawEventAdapter;
+  /**
+   * The driver and the adapter for one source. The plugin is started once and serves every source of its integrations; what
+   * differs between sources arrives here as references (`IntegrationBinding`), so a source's change needs no restart.
+   */
+  bind(binding: import("./plugin-integrations.js").IntegrationBinding): {
+    connector_driver: ConnectorDriver;
+    signal_adapter: RawEventAdapter;
+    /**
+     * How the source's account reads after a pull, from the pull's cursor and the label it has now; `null` keeps both as they are.
+     * Without it the source's account label and configuration stay as they are.
+     */
+    account?(cursor: unknown, current_account_label: string | null): import("./plugin-integrations.js").IntegrationAccountPresentation | null;
+  };
   actions?: readonly import("./actions.js").ActionHandlerBinding[];
   action_scenes?: readonly import("./actions.js").ActionSceneHandlerBinding[];
 }
@@ -137,7 +152,7 @@ export interface PluginStartContext {
 /** Restricted context for reading existing private data during upgrade preflight. */
 export type PluginUpgradeContext = Omit<PluginStartContext, "services"> & {
   /** Preflight is deliberately read-only. Upgrade validation cannot mutate plugin data. */
-  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "project_statements" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "localTools" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "notifications" | "attention" | "contextLedger" | "interaction"> & {
+  readonly services?: Omit<Partial<PluginHostServices>, "storage" | "database" | "project_database" | "project_statements" | "database_statements" | "files" | "ownerFiles" | "terminal" | "model" | "imageGeneration" | "localTools" | "materials" | "connections" | "directory" | "background" | "scheduler" | "agents" | "installations" | "projects" | "notifications" | "attention" | "contextLedger" | "interaction"> & {
     readonly storage?: Pick<PluginPrivateStorage, "get">;
   };
 };
@@ -188,6 +203,8 @@ export interface PluginExecutor {
   uninstalled?(record: PluginInstanceRecord): Promise<void> | void;
   /** Synchronous, idempotent revocation of an earlier uninstalled record's authorization before a reinstall registers code or saves its row, even when private data is kept. Hosts owning installation authorization supply this hook; it must not remove private data. A throw refuses the reinstall. */
   prepareReinstall?(record: PluginInstanceRecord): void;
+  /** Synchronous, idempotent. Before an install that has no earlier row in this executor's scope registers code or saves its row: the Host drops what other places' earlier installations of the same `install_id` left in its own keeping and nothing still installed uses (BL-596). A throw refuses the install. */
+  prepareNewInstall?(installId: string): void;
   /** Synchronous, idempotent Host cleanup of the earlier uninstalled `record`. With `retain_private_data: false`, before a reinstall registers code or saves a new row: remove its owner files, then private KV; a throw refuses the reinstall. With retained data and explicit `discard_kept_data`, called after the replacement row is saved as before; the Host's existing kept-data handling remains responsible for private KV. */
   keptDataDiscarded?(record: PluginInstanceRecord): void;
 }
@@ -219,6 +236,13 @@ export interface PluginRuntimeApi {
   /** Generated plugins only: restore earlier code while retaining current private data. */
   rollback(input: { install_id: string; definition: PluginDefinition }): Promise<PluginLifecycleReceipt>;
   grant(installId: string, permissions: string[]): PluginLifecycleReceipt;
+  /**
+   * The person's switch for one optional permission of an installation: stop (if running), change the grants, start again, as one step.
+   * Taking a permission away takes effect at once: the running activation's authority is withdrawn before anything else and the new
+   * grants are saved even if the restart then fails. A permission the Manifest does not declare, or a required one switched off, is
+   * `plugin.grant_denied`.
+   */
+  regrant(installId: string, permission: string, granted: boolean): Promise<PluginLifecycleReceipt>;
   start(installId: string): Promise<PluginLifecycleReceipt>;
   /** Stop a running Plugin without uninstalling it. Restart goes back through `start`. */
   stop(installId: string, options?: { preserve_enabled?: boolean }): Promise<PluginLifecycleReceipt>;

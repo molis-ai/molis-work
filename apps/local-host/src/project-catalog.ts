@@ -8,6 +8,7 @@ import { BUILTIN_PLUGIN_REGISTRY } from "./plugin-registry.js";
 import { alwaysOnProjectPlugins } from "./always-on-plugins.js";
 import { homePluginsOutsideBuild } from "./home-registration.js";
 import { ManagedProjectDeletion } from "./managed-project-deletion.js";
+import { forgetOrphanedInstallationBindings } from "./plugin-installation-cleanup.js";
 import { projectDeletedHooksFor } from "./project-deleted-hooks.js";
 import { DemoProjectLifecycle } from "./demo-project-lifecycle.js";
 import { exists } from "./project-file-paths.js";
@@ -26,7 +27,6 @@ import { resolveConfiguredHome } from "./product-home.js";
 import { LocalSqliteStorage, type SqliteDatabase } from "@molis-ai/molis-work-storage";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import type { ContextLedgerApi } from "@molis-ai/molis-work-contracts/modules/context-ledger";
-import { PersonalPlanningMethods } from "@molis-ai/molis-work-module-goals";
 import {
   type DesktopPanelCatalogApi,
   type DesktopPanelContextPort,
@@ -63,7 +63,7 @@ import type {
 import {
   createRuntimeContextModule, createRuntimeProjectBindingValidation,
 } from "@molis-ai/molis-work-module-private-work-context";
-import { DEMO_PROJECT_ID, seedDemoBoard } from "./demo-seed.js";
+import { DEMO_PROJECT_ID, seedDemoGoals } from "./demo-seed.js";
 import { LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 
 
@@ -152,7 +152,7 @@ export interface LocalCatalogPlatform {
 
 /** The Home adoption gate precedes the catalog's first filesystem or SQLite write. */
 async function prepareCatalogStorage(options: MolisWorkProjectCatalogOptions) {
-  const homeDirectory = path.resolve(options.homeDirectory ?? resolveConfiguredHome());
+  const homeDirectory = resolveConfiguredHome(options.homeDirectory);
   prepareMemoryHome(homeDirectory);
   const projectsDirectory = path.join(homeDirectory, "projects");
   await fs.mkdir(projectsDirectory, { recursive: true });
@@ -183,7 +183,6 @@ export class MolisWorkProjectCatalog {
   private readonly projects: ProjectsModule;
   private readonly runtimeContexts: ReturnType<typeof createRuntimeContextModule>;
   readonly desktopPanels: DesktopPanelCatalogApi;
-  readonly personalPlanningMethods: PersonalPlanningMethods;
   readonly models: ModelProviderStore;
 
   readonly commit: CatalogCommit;
@@ -196,7 +195,6 @@ export class MolisWorkProjectCatalog {
   ) {
     const db = storage.db;
     this.commit = createCatalogCommit(db, () => this.assertCurrentSchema());
-    this.personalPlanningMethods = new PersonalPlanningMethods(db);
     this.models = new ModelProviderStore({ db, secrets: {
       get: (ref) => runWithMolisWorkHome(homeDirectory, () => createFileSecretStore().get(ref)),
     } });
@@ -214,11 +212,12 @@ export class MolisWorkProjectCatalog {
     this.projectDeletion = new ManagedProjectDeletion(this.projects, this.projectsDirectory, {
       removeBindings: (projectId, actorId, at) => this.runtimeContexts.removeProjectFacts(projectId, actorId, at),
       removePanels: projectId => this.desktopPanels.deleteForProject(projectId),
+      removeOrphanedBindings: () => forgetOrphanedInstallationBindings(homeDirectory),
     }, contextBindingValidation, this.commit, projectDeletedHooksFor(homeDirectory));
     this.demoProjects = new DemoProjectLifecycle(
       this.projects,
       this.projectsDirectory,
-      { projectId: DEMO_PROJECT_ID, seed: seedDemoBoard },
+      { projectId: DEMO_PROJECT_ID, seed: seedDemoGoals },
       this.projectDeletion,
       contextBindingValidation,
       this.commit, projectDeletedHooksFor(homeDirectory),
@@ -334,8 +333,8 @@ export class MolisWorkProjectCatalog {
   }
   listRuntimeContextBindingEvents(
     context?: RuntimeWorkContext,
-  ): MolisWorkRuntimeContextBindingEvent[] { return this.runtimeContexts.commands.listRuntimeContextBindingEvents(context); }
-  listRuntimeContextBindings(): MolisWorkRuntimeContextBinding[] { return this.runtimeContexts.commands.listRuntimeContextBindings(); }
+  ): MolisWorkRuntimeContextBindingEvent[] { return this.runtimeContexts.records.listRuntimeContextBindingEvents(context); }
+  listRuntimeContextBindings(): MolisWorkRuntimeContextBinding[] { return this.runtimeContexts.records.listRuntimeContextBindings(); }
 
   openDesktopPanel(input: OpenMolisWorkDesktopPanelInput): MolisWorkDesktopPanelRecord {
     return this.desktopPanels.open(input);

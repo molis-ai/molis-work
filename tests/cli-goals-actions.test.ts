@@ -63,7 +63,7 @@ async function setup() {
       return JSON.parse(lines.at(-1)!) as Printed;
     } finally { printing.mock.restore(); }
   };
-  const person = managementGoals(host.actionClient(reference, false), PROJECT);
+  const person = managementGoals(host.actionClient(reference), PROJECT);
   return { home, host, reference, cli, person, calls: watchCalls(host),
     done: async () => { await host.close(); await rm(home, { recursive: true, force: true }); } };
 }
@@ -120,7 +120,7 @@ test("the CLI acts as the caller the management test helper builds, and keeps th
     assert.equal(managed.length, 1, "init reaches the Host's action client once, as a management caller (not through a typed capability)");
     const initialize = managed[0]!;
     assert.deepEqual(pick(initialize), pick(managementCaller(PROJECT, "init")), "init: the same actor, kind, audience, source and reference format as the helper");
-    assert.deepEqual(host.preparedManagementCalls(), [], "a command starts none of the project's Runtime plugins: Goals is registered when the project opens");
+    assert.deepEqual(host.preparedManagementCalls(), [goalsActions.initialize.capability_id], "a command goes through the project's client, which starts the project's Runtime plugins: Goals is one of them");
     assert.deepEqual([initialize.permissions, initialize.allowed_actions], [goalsActions.initialize.action.permissions,
       [{ capability_id: goalsActions.initialize.capability_id, version: goalsActions.initialize.version, provider_id: GOALS_PLUGIN_ID }]], "only that one action, with its own permissions");
 
@@ -145,7 +145,7 @@ test("the CLI acts as the caller the management test helper builds, and keeps th
       affected_objects: [{ object_type: "goal", object_id: "other" }] }] })).proposal.proposal_id;
     await cli("goal-tree-decide", { project_id: PROJECT, proposal_id: second, decisions: [{ item_id: "other", decision: "confirm" }], reason: "确认", idempotency_key: "decide-2" });
     const [stored] = (await cli<Listed>("goal-tree-read", { project_id: PROJECT, proposal_id: second })).proposals[0]!.decisions;
-    assert.deepEqual([stored!.actor_id, stored!.authority_source, stored!.conversation_ref, stored!.message_ref], [LOCAL_PERSON_ACTOR_ID, "management", `management:${PROJECT}`, "management-tree-decision:decide-2"]);
+    assert.deepEqual([stored!.actor_id, stored!.authority_source, stored!.conversation_ref, stored!.message_ref], [LOCAL_PERSON_ACTOR_ID, "management", `management:${PROJECT}`, "management:decide-2"]);
   } finally { await done(); }
 });
 

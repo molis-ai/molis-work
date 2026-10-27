@@ -36,4 +36,4 @@ Runtime 工作入口到 Project 的当前绑定保存为 `work.binding_project` 
 
 Agent 运行里的对象（2026-10-19，`specs/ai-input-receipts` S3）：`ObjectRef` 新增命名空间 `agent-host`，指 Agent 运行持有、Molis 不持有的对象。`object_type: "agent_input"` 是运行会话里的一条输入，`id` 为 `<session>/<input_id>`；`object_type: "runtime_session"` 是一个运行会话。Ledger 只保存引用，不读取、不核对这个对象存在，也没有它的对象上下文读取；Molis 不知道运行里的版本，所以 `version` 一律写 `null`（身份引用）。Ledger 比较引用时连 `version` 一起比，填了数字就成了另一个对象。第一个使用者是 Goals 的「来自对话的输入」：边由 Goals 作为语义所有者写在自己的分区，引用是 AI 的说法，页面标「AI 转述」。
 
-AR2 的现有职责迁移、caller 与基线审计已通过，Molis Work 已完成该叶子的证据与自验。未来 Publication Receipt、异步 Materialization 请求/取消与后台 handler 尚未实现，包成熟度仍为 partial；不能把本次迁移完成说成全部未来能力可用。范围与直接证据见[验收记录](../../specs/molis-work-architecture-reorganization/ar2-validation.md)。
+AR2 的现有职责迁移、caller 与基线审计已通过，Molis Work 已完成该叶子的证据与自验。未来 Publication Receipt、异步 Materialization 请求/取消与后台 handler 尚未实现，包成熟度仍为 `slice`（[`docs/SSOT-MATRIX.md`](../SSOT-MATRIX.md) §2）；不能把本次迁移完成说成全部未来能力可用。范围与直接证据见[验收记录](../../specs/molis-work-architecture-reorganization/ar2-validation.md)。

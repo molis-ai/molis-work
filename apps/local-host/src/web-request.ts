@@ -40,7 +40,7 @@ import { homeRouteProjectPlugins, projectPluginServices, projectRequestContext, 
 import type { MolisWorkProjectRuntime } from "./project-host.js";
 import type { ProjectPluginSurfacePorts } from "./project-plugin-stages.js";
 import { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
-import { bindGoalsWebActions } from "./goals-actions.js";
+import { bindGoalsWebActions } from "./goal-callers.js";
 import { projectFeedOptions } from "./workflow-feed-options.js";
 import { handleFeedNativePluginHttp } from "./feed-native-plugin-http.js";
 import { NATIVE_CONTENT_PERMISSIONS } from "./content-action-providers.js";
@@ -147,7 +147,7 @@ function projectRuntimeContext(context: ProjectRequestContext, runtime: MolisWor
   const { store, artifacts, processItems } = runtime;
   const feedOptions = projectFeedOptions(localHost, hostReference);
   const homeActions = bindLocalWebActions(localHost, hostReference, LOCAL_OWNER_PERMISSIONS);
-  const goalActions = bindGoalsWebActions(localHost.actionClient(hostReference), hostReference);
+  const goalActions = bindGoalsWebActions(localHost, hostReference, context.request);
   const pluginServices = projectPluginServices(context);
   const pluginPorts: ProjectPluginSurfacePorts = { ...pluginServices, routeCaller: () => localWebActionContext(localHost, hostReference, LOCAL_OWNER_PERMISSIONS), store, artifacts, processItems, projectId: options.projectId, routePrefix: projectRoutePrefix(options),
     actorId: LOCAL_PERSON_ACTOR_ID, escapeHtml: (value) => String(value) };
@@ -194,7 +194,7 @@ const planningRoutes: readonly WebRoute<ProjectRuntimeContext>[] = [
   { id: "goals-settings", handle: ({ request, response, url, readWebView, controlToken, goalActions, composition, goalsHere }) =>
     composition.goalsReadHttp.settings(request, response, url, readWebView, controlToken, goalActions, goalsHere) },
   { id: "planning", handle: ({ request, response, url, controlToken, readWebView, goalActions, composition, localHost }) =>
-    composition.planningHttp.project(request, response, url, controlToken, readWebView, goalActions, bindPersonalPlanningWebActions(localHost.homeActionClient())) },
+    composition.planningHttp.project(request, response, url, controlToken, readWebView, goalActions, bindPersonalPlanningWebActions(localHost, request)) },
 ];
 
 /** Inbox and Schedule render into the project page and drop its cached view when they change it. */

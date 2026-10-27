@@ -35,16 +35,5 @@
   },
   "dependencies": {
     "@molis-ai/molis-work-contracts": "workspace:*"
-  },
-  "molis-work": {
-    "path": "packages/test-kit",
-    "kind": "foundation",
-    "maturity": "partial",
-    "contract": "@molis-ai/molis-work-contracts/platform/testing",
-    "migrationGoals": [
-      "goal-reorg-f2",
-      "goal-reorg-f3"
-    ],
-    "ssot": "docs/SSOT-MATRIX.md"
   }
 }

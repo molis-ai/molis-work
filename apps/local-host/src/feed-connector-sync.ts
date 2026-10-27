@@ -5,21 +5,20 @@ import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
 import { ConnectorHost } from "@molis-ai/molis-work-service-connector-host";
 import { ListenerHost } from "@molis-ai/molis-work-service-listener-host";
 import { SignalsModule } from "@molis-ai/molis-work-module-signals";
-import { gmailAccountPresentation } from "@molis-ai/molis-work-integration-gmail";
-import { githubAccountPresentation } from "@molis-ai/molis-work-integration-github";
-import { catalogAccountPresentation } from "@molis-ai/molis-work-integration-catalog";
-import type { IntegrationProviderItem } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { FeedConnectorSync, type FeedApplication, type FeedSourceRecord } from "@molis-ai/molis-work-plugin-feed";
+import { pluginErrors, type IntegrationProviderItem } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { IntegrationBinding } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
+import { FeedConnectorSync, integrationKeyOf, type FeedApplication, type FeedSourceRecord } from "@molis-ai/molis-work-plugin-feed";
 import { createLocalFeedApplication } from "./feed-application.js";
-import { OfficialIntegrationRegistry, type OfficialProviderFactory } from "./official-integrations.js";
+import { homeIntegrationRegistry } from "./builtin-integrations.js";
+import type { IntegrationProviderFactory } from "./integration-providers.js";
 import { withConnectorConnections } from "./connector-connection-store.js";
 
 export function createLocalFeedConnectorSync(
-  db: SqliteDatabase, projectId: string, providerFactory?: OfficialProviderFactory,
+  db: SqliteDatabase, projectId: string, providerFactory?: IntegrationProviderFactory,
   feed: FeedApplication = createLocalFeedApplication(db),
   homeDirectory = resolveMolisWorkHome(),
 ): FeedConnectorSync {
-  const integrations = new OfficialIntegrationRegistry(providerFactory);
+  const registry = homeIntegrationRegistry(homeDirectory, providerFactory);
   const journal = new LocalSqliteJournal(db);
   return new FeedConnectorSync({
     feed, acquireSync: feedSourceSyncLease(db),
@@ -36,7 +35,9 @@ export function createLocalFeedConnectorSync(
       });
     },
     async createListener(source, afterAccepted) {
-      const integration = await integrations.contributionFor(source);
+      const key = integrationKeyOf(source);
+      if (key === null) throw pluginErrors.integration_unavailable(`来源 ${source.source_id} 没有可用的账号集成`);
+      const integration = await (await registry).bind(key, "source", bindingOf(source));
       const connector = new ConnectorHost();
       const connectionId = `source:${source.source_id}`;
       connector.registerDriver(integration.connector_driver);
@@ -52,20 +53,8 @@ export function createLocalFeedConnectorSync(
           connection_id: connectionId, operation_id: operationId, adapter: integration.signal_adapter,
           intent: { sync_mode: mode } }),
         checkpoint: () => listener.checkpoint(projectId, source.source_id),
+        ...(integration.account ? { account: (cursor: unknown) => integration.account!(cursor, source.account_label) } : {}),
       };
-    },
-    reportCrash: (sourceId, code) => integrations.reportCrash(sourceId, code),
-    sourceMetadata(source, cursor): Pick<FeedSourceRecord, "account_label" | "config"> | Record<string, never> {
-      const metadata = source.sync_kind === "gmail"
-        ? gmailAccountPresentation(cursor, source.account_label, source.config.scope)
-        : source.sync_kind === "github"
-          ? githubAccountPresentation(cursor, source.account_label)
-          : source.sync_kind === "connector"
-            ? catalogAccountPresentation(cursor, source.account_label)
-            : null;
-      if (!metadata) return {};
-      const { account_label, ...configuration } = metadata;
-      return { account_label, config: { ...source.config, ...configuration } };
     },
     transaction: (operation) => db.transaction(operation).immediate(),
     appendEvent(projectId, sourceId, type, reason, payload) {
@@ -75,4 +64,14 @@ export function createLocalFeedConnectorSync(
         objectType: "feed_source", objectId: sourceId, reason, payload, at: new Date().toISOString() });
     },
   }, projectId);
+}
+
+/** What an integration plugin is given for one source: the references it holds, never a secret. */
+function bindingOf(source: FeedSourceRecord): IntegrationBinding {
+  return {
+    source_id: source.source_id,
+    connection_id: typeof source.config.connection_id === "string" ? source.config.connection_id : null,
+    credential_ref: source.credential_ref ?? null,
+    config: source.config,
+  };
 }

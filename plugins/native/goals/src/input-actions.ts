@@ -1,6 +1,6 @@
 import { ActionError, type ActionDefinition, type ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { GOAL_PLUGIN_OBJECT_SOURCE, goalPluginObjectRef, parseGoalPluginObjectRef, type GoalInputBindingRecord, type GoalInputBindingsApi } from "@molis-ai/molis-work-contracts/modules/goals";
-import { goalAction, goalActor } from "./action-contract.js";
+import { CONTEXT_LEDGER_WRITE_PERMISSION, goalAction, goalActor, usingServices } from "./action-contract.js";
 import { text, identifier, boolean, array, object, nullable, enumeration, goalConfirmedInputSchema, goalEntryActions, inGoalRelation, type GoalConfirmedInput } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 export type { GoalConfirmedInput } from "@molis-ai/molis-work-contracts/modules/goal-actions";
 
@@ -42,7 +42,7 @@ export const goalsInputActions = {
   bind: inGoalRelation(goalAction<{ goal_id: string; subject: { kind: string; id: string }; title: string }, { binding: GoalBoundObject; replayed: boolean }>("goals.inputs.bind",
     "把资料关联到目标", "把一份资料（文档、演示稿、问卷、数据表、Shelf 材料等）记为目标的绑定资料；不复制、不移动原对象，重复关联返回原记录", "command",
     object({ goal_id: identifier, subject, title: { ...identifier, maxLength: 200 } }), object({ binding: bound, replayed: boolean })), "bind"),
-  confirm: goalEntryActions.inputsConfirm,
+  confirm: usingServices(goalEntryActions.inputsConfirm, [CONTEXT_LEDGER_WRITE_PERMISSION]),
   accept: userOnly(goalAction<{ goal_id: string; binding_id: string }, { binding: GoalConfirmedInput; replayed: boolean }>("goals.inputs.accept",
     "认可待确认的输入", "用户本人认可一条由助理、Agent、工作流或外部工具提议的输入，把「待确认」记为「已确认」，摘要和理由不变；只有用户本人能调用；已确认的返回原记录，已移除的不能再认可", "command",
     object({ goal_id: identifier, binding_id: identifier }), object({ binding: confirmed, replayed: boolean }))),

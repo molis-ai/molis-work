@@ -215,7 +215,7 @@ test("W4-2-03 W4-2-04: 存为文档 is made at once by Pages, in Pages too, and 
 });
 
 test("W4-2-05: 拆成目标步骤 always comes back as a draft for a card, and nothing is filed until the person submits it", { timeout: 60_000 }, async () => {
-  const { actions, invoke, close } = await openHost(["goals:read", "goals:write"]);
+  const { actions, invoke, close } = await openHost(["goals:read", "goals:write", "attention:write"]);
   try {
     const directory = await actions.discover();
     const at = focus("g1");

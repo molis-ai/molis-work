@@ -3,6 +3,7 @@ import { existsSync, readFileSync, readdirSync, writeFileSync, mkdtempSync } fro
 import { join } from "node:path";
 import test from "node:test";
 import type { ActionAudience } from "@molis-ai/molis-work-contracts/platform/actions";
+import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPluginPlatform, LocalProjectDatabase, DEMO_PROJECT_ID, homeStores, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { ArtifactsModule, ProcessItemsModule } from "@molis-ai/molis-work-module-artifacts";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
@@ -76,7 +77,7 @@ test("PG-050 / W5-01-PAGES-01 a document batch is read by the Host under materia
   await assert.rejects(probe.contexts.at(-1)!.services!.materials!.readDocuments!([upload("outside.md", "x")]), { code: "plugin.materials_action_required" });
 });
 
-test("RAC-25 S-60 RAC-235 a sandboxed definition receives the Host's readers of bytes, a page on this machine and the saved original files, and a package that asks for a network read is refused at start", async t => {
+test("RAC-25 S-60 RAC-235 a sandboxed definition receives the Host's readers of bytes, public pages, a page on this machine and the saved original files", async t => {
   const { home } = await serveHomeRuntime(t);
   const file = join(mkdtempSync(join(home, "project-")), "project.db"); seedDemoBoard(file);
   const store = new LocalProjectDatabase(file), shared = pluginActions(store, DEMO_PROJECT_ID);
@@ -95,14 +96,10 @@ test("RAC-25 S-60 RAC-235 a sandboxed definition receives the Host's readers of 
     const local = materialsProbe("boxedlocal", { execution: "sandbox", permissions: ["materials:read", "materials:fetch_local", "materials:original"] });
     await platform.start([{ definition: local.definition, grants: local.permissions }]);
     assert.deepEqual(Object.keys(local.contexts[0]!.services!.materials!).sort(), ["claimOriginal", "extract", "imageTextAvailable", "readDocuments", "readLocalPage", "readOriginal", "readOriginalRange", "releaseOriginal"]);
-    // What the sandbox is not given is refused with a code before its code starts, whether the package needs it or the person approved it.
-    for (const refused of [["materials:fetch"], ["materials:read", "materials:fetch"]]) {
-      const name = `boxed${refused.join("").replace(/[^a-z]/g, "")}`, probe = materialsProbe(name, { execution: "sandbox", permissions: refused });
-      await platform.start([{ definition: probe.definition, grants: probe.permissions }]);
-      assert.equal(probe.contexts.length, 0, `${refused.join(", ")}: the sandboxed package's start never ran`);
-      const installed = platform.runtime.list().find(item => item.plugin_id === probe.id)!;
-      assert.deepEqual({ state: installed.state, code: installed.last_error_code }, { state: "crashed", code: "sandbox.service_not_given" }, refused.join(", "));
-    }
+    // A package that asks to read a public page is started too: its client has the page reader, the broker the host check (S-93).
+    const pages = materialsProbe("boxedpages", { execution: "sandbox", permissions: ["materials:read", "materials:fetch"] });
+    await platform.start([{ definition: pages.definition, grants: pages.permissions }]);
+    assert.deepEqual(Object.keys(pages.contexts[0]!.services!.materials!).sort(), ["extract", "imageTextAvailable", "readDocuments", "readSource"]);
   } finally {
     for (const installed of platform.runtime.list()) if (installed.state === "running") await platform.runtime.stop(installed.install_id);
     store.close();
@@ -191,7 +188,7 @@ test("S-39 RAC-26 only a user's explicit choice reaches the speech helper as dow
 // are listed under 「只在本机跑」.
 for (const method of ["extract", "readDocuments"] as const) for (const invalidation of ["cancel", "stop", "revoke", "upgrade"] as const) {
   test(`S-39 RAC-27 ${invalidation} while ${method === "extract" ? "material extraction" : "a document batch read"} waits refuses the late result and every business write, on any platform`, { timeout: 60_000 }, async t => {
-    const probe = materialsProbe(), { host } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
+    const probe = materialsProbe(), installed = new Set<PluginDefinition>(), { host } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition], installed } });
     const { platform, install } = await grantMaterials(host, probe);
     const entered = deferred(), release = deferred(), over = deferred(), abort = new AbortController();
     let waited = false, handed = false;
@@ -224,6 +221,7 @@ for (const method of ["extract", "readDocuments"] as const) for (const invalidat
       if (invalidation === "cancel") abort.abort();
       else if (invalidation === "upgrade") {
         replacement = materialsProbe("materialsprobe", { version: "1.1.0" });
+        installed.add(replacement.definition); // the test acts as the Host's code: the new version's object may run in the process (S-75 ⑥)
         await platform.runtime.upgrade({ install_id: install.install_id, definition: replacement.definition, grants: probe.permissions });
         assert.equal(replacement.preflight[0]!.services?.materials, undefined, "RAC-25 upgrade preflight is read-only");
       } else {
@@ -241,7 +239,7 @@ for (const method of ["extract", "readDocuments"] as const) for (const invalidat
 
 for (const invalidation of ["cancel", "stop", "revoke", "upgrade"] as const) {
   test(`RAC-27 RAC-30 ${invalidation} during material extraction refuses late results and persistent business writes`, { timeout: 60_000, skip: process.platform !== "darwin" }, async t => {
-    const probe = materialsProbe(), { host, home } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
+    const probe = materialsProbe(), installed = new Set<PluginDefinition>(), { host, home } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition], installed } });
     const { platform, install } = await grantMaterials(host, probe), helper = join(home, "waiting-helper"), release = join(home, "release");
     const prior = process.env.MOLIS_MATERIAL_WHISPER_HELPER; process.env.MOLIS_MATERIAL_WHISPER_HELPER = helper;
     t.after(() => { if (prior === undefined) delete process.env.MOLIS_MATERIAL_WHISPER_HELPER; else process.env.MOLIS_MATERIAL_WHISPER_HELPER = prior; });
@@ -261,6 +259,7 @@ for (const invalidation of ["cancel", "stop", "revoke", "upgrade"] as const) {
       if (invalidation === "cancel") abort.abort();
       else if (invalidation === "upgrade") {
         replacement = materialsProbe("materialsprobe", { version: "1.1.0" });
+        installed.add(replacement.definition); // the test acts as the Host's code: the new version's object may run in the process (S-75 ⑥)
         await platform.runtime.upgrade({ install_id: install.install_id, definition: replacement.definition, grants: probe.permissions });
         assert.equal(replacement.preflight[0]!.services?.materials, undefined, "RAC-25 upgrade preflight is read-only");
       } else {

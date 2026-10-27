@@ -14,7 +14,12 @@ Host 把用户 Home 下的 `shelf/`（声明的条目是 `catalog.json`、`files
 
 | 文件 | 用途 |
 | --- | --- |
-| [src/store.ts](src/store.ts) | 架子目录、进货、隐藏/删除、任务 |
+| [src/store.ts](src/store.ts) | `ShelfStore`：设置、运行环境探测、快照，其余转发给下面四个协作者 |
+| [src/catalog.ts](src/catalog.ts) | 目录文件的形状与唯一的读写入口（`ShelfCatalogAccess`） |
+| [src/admissions.ts](src/admissions.ts) | 进货：文件、文件夹、文字、链接、示例、结果再用作材料 |
+| [src/copies.ts](src/copies.ts) | 已在架子上的副本：读取、隐藏、登记原件、编辑、删除 |
+| [src/jobs.ts](src/jobs.ts)、[src/job-steps.ts](src/job-steps.ts) | 任务：计划、暂存、生成、提交、记失败，以及取消 |
+| [src/clipboard-store.ts](src/clipboard-store.ts) | 剪贴板历史，以及把一条变成材料 |
 | [src/copy-checks.ts](src/copy-checks.ts) | 副本的内容 Hash；任务开始前与每次写入前核对原件 |
 | [src/extract.ts](src/extract.ts) | 提取结果的产品 Markdown 与文件名 |
 | [src/pdf.ts](src/pdf.ts) | 示例 PDF 的生成与已知正文 |
@@ -29,7 +34,7 @@ Host 把用户 Home 下的 `shelf/`（声明的条目是 `catalog.json`、`files
 
 PDF/OCR 使用同一端口的 `extract`，原生可用性由 `imageTextAvailable` 被动提供。`admitFile` 异步准备 PDF 预览、复查执行权后入库；底层 `admit` 保存已授权的副本和已准备预览（异步，一次文件客户端写入），供示例及 Coding 文字成果使用。无提取端口的纯 Module 不自行解析 PDF 或启动进程。文件上限保持 32 MiB；OCR 语言选择、逐行“待确认”和提取不完整说明由本模块组织。
 
-Host 明确接收固定成果时，可随 `admit` 提供 `artifact_source`；该来源保存在原 Shelf 目录记录中。相同项目、成果及版本再次接收返回已有副本，保留用户编辑；隐藏副本恢复显示，内容指纹冲突或副本文件缺失明确报错，不覆盖已有内容。来源本身不授予执行或项目写入权限。
+Host 明确接收固定成果时，可随 `admit` 提供 `artifact_source`；该来源保存在原 Shelf 目录记录中。相同项目、成果及版本再次接收返回已有副本，保留用户编辑；隐藏副本恢复显示，内容指纹冲突或副本文件缺失明确报错，不覆盖已有内容。来源本身不授予执行或项目写入权限。项目被删除后，来自它的副本留在架子里（用户 2026-10-26 弹窗决定，BL-680；删项目的路径不动，Shelf 不是它的一步）：读快照时由 Shelf 插件问平台服务 `services.projects.exist`，给每个带来源的副本补 `origin_project_deleted`（只在快照上，不入库；问不到就不标），页面把原成果链接换成“项目已删除”。
 
 工作区依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`（只用它的执行生命周期）。
 
@@ -45,7 +50,7 @@ node scripts/run-tests.mjs tests/shelf-plugin.test.ts
 
 - 负责：个人置物架：材料副本、副本任务、Hash、提取结果组织与剪贴板历史。
 - 不负责：项目 Goal 事实、Artifact 版本、桌面轮盘与热键。
-- 公开入口：`@molis-ai/molis-work-module-shelf`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/modules/shelf`。
+- 公开入口：`@molis-ai/molis-work-module-shelf`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同入口 `@molis-ai/molis-work-contracts/platform/package`（包描述；Shelf 自己的合同是本包的 `@molis-ai/molis-work-module-shelf/contract`，`src/contract.ts`，PG-111 起由本包拥有，contracts 包里没有 Shelf 子路径）。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`。方向：只依赖 contracts/modules、contracts/services 与 plugin-sdk（执行生命周期）；不导入另一个 Module 的实现或 Store（[包边界规则](../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
   - 不写回原件；原路径只用于事后 Hash 校验，不进 Prompt 或 API。
@@ -67,9 +72,6 @@ node scripts/run-tests.mjs tests/shelf-plugin.test.ts
 - [架构与当前实现索引](../../docs/SSOT-MATRIX.md)
 - [Shelf 插件需求](../../specs/archive/shelf-plugin/spec.md)
 
-- Status: `partial`
-- Contract entrypoint: `@molis-ai/molis-work-contracts/modules/shelf`
-- Migration Goals: `goal-reorg-f2`
 
 ## 被动发现与真实执行
 

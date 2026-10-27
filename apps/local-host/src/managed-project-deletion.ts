@@ -14,6 +14,8 @@ import type { ProjectDeletionControl } from "@molis-ai/molis-work-contracts/modu
 export interface ProjectDeletionCleanupPorts {
   removeBindings(projectId: string, actorId: string, at: string): number;
   removePanels(projectId: string): void;
+  /** Ordinary Home deletion's best-effort orphan sweep; cold recovery has no whole-Home grant and does not install it. */
+  removeOrphanedBindings?(): void;
 }
 /** Already reconciled by the cold Catalog owner against the complete source/target receipt histories. */
 export interface ProjectDeletionRecoveryAcceptance {
@@ -219,6 +221,8 @@ export class ManagedProjectDeletion {
           { state: "pending", error: null, cleaned_at: null, add_binding_count: removed });
       }));
       proof.assertCurrent(); this.maintenance?.assertCurrent();
+      // The holder reader uses another connection: only the committed Catalog removal releases this project's installations.
+      this.cleanup.removeOrphanedBindings?.();
       if (directory) await directory.remove(); else await fs.rm(record.staged_directory, { recursive: true, force: true });
       this.maintenance?.assertCurrent();
       let assertCovered!: () => void;

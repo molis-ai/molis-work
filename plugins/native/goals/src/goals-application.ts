@@ -1,9 +1,9 @@
-import type { AttentionApi } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import type { GoalEventFactsApi, GoalsApplicationApi, GoalsQueryApi } from "@molis-ai/molis-work-contracts/modules/goals";
 import type { GovernanceApplicationApi } from "@molis-ai/molis-work-contracts/modules/governance-collaboration";
 import { GoalEventApplication } from "./goal-event-application.js";
 import { GoalReadApplication } from "./goal-query-application.js";
-import { GoalDecisionAttentionSync } from "./goal-decision-attention.js";
+import { GoalDecisionAttentionSync, type GoalDecisionAttentionPort } from "./goal-decision-attention.js";
+import { GOALS_PLUGIN_ID } from "./manifest.js";
 import { GoalTreeQueryApplication } from "./goal-tree-query.js";
 import { GoalTreeSubmissionApplication } from "./goal-tree-submission.js";
 import { GoalTreeInputReader } from "./goal-tree-inputs.js";
@@ -19,7 +19,7 @@ import { GoalTreeDecisionApplication } from "./goal-tree-decision.js";
 export interface GoalsApplicationPorts {
   readonly goals: GoalsApplicationApi & { readonly query: GoalsQueryApi; readonly events: GoalEventFactsApi };
   readonly governance: GovernanceApplicationApi;
-  readonly attention: Pick<AttentionApi, "commands" | "query">;
+  readonly attention: GoalDecisionAttentionPort;
   readonly clock: () => Date;
 }
 
@@ -32,7 +32,7 @@ export function createGoalsApplication(ports: GoalsApplicationPorts) {
   const goalEvents = new GoalEventApplication({ query: goals.query, commands: goals.commands, events: goals.events, planning: goals.planning,
     recordTrustedDecision: input => governance.eventDecisions.record(input) });
   const goalTree = new GoalTreeQueryApplication({ goals: goals.query, governance });
-  const goalDecisionAttention = new GoalDecisionAttentionSync({ attention: ports.attention,
+  const goalDecisionAttention = new GoalDecisionAttentionSync({ attention: ports.attention, owner: GOALS_PLUGIN_ID,
     listProposals: projectId => goalTree.listGoalTreeProposals({ project_id: projectId }).proposals,
     goalExists: (projectId, goalId) => goals.query.getGoal(projectId, goalId) !== null });
   const goalTreeSubmission = new GoalTreeSubmissionApplication({ goals: { query: goals.query, commands: goals.commands, planning: goals.planning },

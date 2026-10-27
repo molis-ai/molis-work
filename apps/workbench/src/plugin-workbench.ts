@@ -151,8 +151,11 @@ export function pluginSurfaceClients(packs: readonly BuiltinPluginWorkbenchPack[
     : []);
 }
 
-/** Surfaces the Host renders itself with their own bundle, served under the plugin pack address (CHR-1 D5: 角色). */
-const HOST_SURFACE_CLIENTS: readonly Pick<PluginSurfaceClient, "id" | "bundle" | "assets">[] = [{ id: "characters", bundle: "characters", assets: [] }];
+/**
+ * Surfaces the Host renders itself with their own bundle, served under the plugin pack address (CHR-1 D5: 角色). Characters' native
+ * runs show in the platform's terminal, so its bundle is preceded by the terminal bundle (renderer and page terminal; PG-053).
+ */
+const HOST_SURFACE_CLIENTS: readonly Pick<PluginSurfaceClient, "id" | "bundle" | "assets">[] = [{ id: "characters", bundle: "characters", assets: ["/desktop/pty-client.js"] }];
 
 /** Every surface the deferred loader mounts on first show: the plugins' and the Host's own. */
 export function deferredSurfaceClients(): (Pick<PluginSurfaceClient, "id" | "bundle" | "assets"> & Partial<Pick<PluginSurfaceClient, "plugin_id" | "styles" | "searchRow" | "recordRow">>)[] {

@@ -25,20 +25,20 @@ export function createOpportunityActions(dependencies: Dependencies): Opportunit
   return {
     saveForLater(id) {
       try {
-        return dependencies.pulse.saveOpportunityForLater(id, dependencies.clock.now());
+        return dependencies.pulse.opportunities.saveOpportunityForLater(id, dependencies.clock.now());
       } catch (error) {
         throw mapError(error);
       }
     },
     convert(id) {
-      const opportunity = dependencies.pulse.getOpportunity(id);
+      const opportunity = dependencies.pulse.opportunities.getOpportunity(id);
       if (!opportunity) throw alchemistStateErrors.opportunity_not_found("alchemist.opportunity_not_found");
       if (opportunity.convertedDirectionId) {
         const direction = dependencies.directions.get(opportunity.convertedDirectionId);
         if (!direction) throw alchemistStateErrors.opportunity_direction_not_found("alchemist.opportunity_direction_not_found");
         return { opportunity, direction, created: false };
       }
-      const report = dependencies.pulse.getReport(opportunity.reportId);
+      const report = dependencies.pulse.reports.getReport(opportunity.reportId);
       if (!report) throw alchemistStateErrors.pulse_report_not_found("alchemist.pulse_report_not_found");
       try {
         return dependencies.database.transaction(() => {
@@ -61,7 +61,7 @@ export function createOpportunityActions(dependencies: Dependencies): Opportunit
             createdAt: now,
             updatedAt: now,
           });
-          const converted = dependencies.pulse.convertOpportunity(opportunity.id, direction.id, now);
+          const converted = dependencies.pulse.opportunities.convertOpportunity(opportunity.id, direction.id, now);
           return { opportunity: converted, direction, created: true };
         })();
       } catch (error) {

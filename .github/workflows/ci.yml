@@ -232,7 +232,7 @@ jobs:
       # workbench shell (no standalone pages); 成果 types have owner previews, writes match Manifests, process items stay out of
       # user lists.
       - name: Build rules reject what they claim to
-        run: node scripts/run-tests.mjs tests/page-assets-budget.test.ts tests/plugin-styles-gate.test.ts tests/dom-events-contract.test.ts tests/storage-baseline.test.ts tests/home-store-baselines.test.ts tests/release-assets.test.ts tests/installer-symlink-dependencies.test.ts tests/shell-page-gate.test.ts tests/artifact-type-gate.test.ts tests/artifact-declaration-gate.test.ts
+        run: node scripts/run-tests.mjs tests/page-assets-budget.test.ts tests/plugin-styles-gate.test.ts tests/dom-events-contract.test.ts tests/storage-baseline.test.ts tests/home-store-baselines.test.ts tests/release-assets.test.ts tests/installer-symlink-dependencies.test.ts tests/shell-page-gate.test.ts tests/artifact-type-gate.test.ts tests/artifact-declaration-gate.test.ts tests/artifact-host-writers.test.ts
 
       # The Alchemist plugin brings its own vitest suite (studio services and contracts); about a second.
       - name: Alchemist plugin tests
@@ -484,15 +484,23 @@ jobs:
   # of about 100 minutes meets that often. The probe rewrites its three files after every file and, on the SIGINT/SIGTERM a
   # cancel or the time limit sends, stops the running tests and writes a final partial report (unfinished files are `not-run`,
   # `endedBy` says why); the upload step below is `if: always()`, so a cancelled run still keeps what it had.
-  # The probe stays an information job (about 50 minutes for every non-browser file is too long to wait for). What its first run
-  # showed became tests/ci-product-subset.txt (W2-16), run by the `product-subset` job below, which is the one that joins Verify.
+  # The probe stays an information job. What its first run showed became tests/ci-product-subset.txt (W2-16), run by the
+  # `product-subset` job below, which is the one that joins Verify.
+  # One job no longer reaches every file (R-58, user 2026-10-26): the manual run 40219623393 spent its 85 minutes before the last 44
+  # files started, so the list is spread over six jobs (`--shard k/6`, every sixth runnable file of the sorted list; the six
+  # `linux-probe-k` artifacts together hold each file once). Each job installs uv, which the managed Python installer test
+  # (connector-managed-install, ASC-06/17) runs for real, at the version and action pin full-suite.yml uses.
   # It runs nightly on main and when started by hand (workflow_dispatch), not on every push (user 2026-10-14): an hour of runner
   # on each push decided nothing, and on main the next merge usually cancelled it.
   linux-probe:
-    name: Linux probe (not required)
+    name: Linux probe ${{ matrix.shard }}/6 (not required)
     if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6]
     # The probe stops starting files after 85 minutes and still writes its report; this is the hard stop around it. Reaching it
     # cancels the job like a newer push does, and the probe writes its partial report on that signal.
     timeout-minutes: 120
@@ -510,19 +518,26 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # ASC-06/17: the managed Python MCP test runs real uv against a local package registry (the same pin as full-suite.yml).
+      - name: uv for the managed Python installer tests
+        uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.12.19"
+          enable-cache: false
+
       # The tests import the built workspace packages and dist/; a full build, as `pnpm test` does before the suite.
       - name: Build
         run: pnpm build
 
       # `exec` makes the probe the step's own process: the SIGINT/SIGTERM of a cancel then reach it and not only the shell around it.
-      - name: Run the non-browser test files and record which pass
-        run: exec node scripts/ci-linux-probe.mjs --expect-platform linux --out "$RUNNER_TEMP/linux-probe" --jobs 2 --timeout-seconds 600 --retries 1 --budget-minutes 85
+      - name: Run this shard's non-browser test files and record which pass
+        run: exec node scripts/ci-linux-probe.mjs --expect-platform linux --out "$RUNNER_TEMP/linux-probe" --jobs 2 --timeout-seconds 600 --retries 1 --budget-minutes 85 --shard ${{ matrix.shard }}/6
 
       - name: Keep the report
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
-          name: linux-probe
+          name: linux-probe-${{ matrix.shard }}
           path: ${{ runner.temp }}/linux-probe
           retention-days: 30
           if-no-files-found: warn

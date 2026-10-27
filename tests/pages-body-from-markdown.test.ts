@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { bindActionClient, type ActionAudience, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pagesActions, PAGES_ACTION_PERMISSIONS, blocksFromMarkdown } from "@molis-ai/molis-work-plugin-pages";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
-import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, initializeProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 
 async function fixture(run: (f: { as(audience: ActionAudience): ReturnType<typeof bindActionClient>; home: string }) => Promise<void>) {
   const home = await mkdtemp(join(tmpdir(), "pages-body-from-markdown-"));
@@ -17,7 +17,7 @@ async function fixture(run: (f: { as(audience: ActionAudience): ReturnType<typeo
   const ref = molisWorkHostProjectReference({ databasePath: join(home, "project.sqlite"), projectId: "a" });
   const caller: ActionCallContext = { actor_id: "owner", project_id: "a", audience: "user", permissions: PAGES_ACTION_PERMISSIONS };
   try {
-    await host.withProject(ref, runtime => runtime.coordinator.initializeBoard({ project_id: ref.project_id, actor_id: "owner", idempotency_key: "init" }));
+    await initializeProjectDatabase(ref.database_path, ref.project_id);
     await run({ home, as: audience => bindActionClient(host.actionClient(ref), () => ({ ...caller, audience })) });
   } finally { await host.close(); await rm(home, { recursive: true, force: true }); }
 }

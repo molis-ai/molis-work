@@ -1,5 +1,5 @@
 import type { Chord, SettingsPage } from "./types.js";
-import type { ShelfPanelKeyChord, ShelfPanelKeySlot } from "@molis-ai/molis-work-contracts/modules/shelf";
+import type { ShelfPanelKeyChord, ShelfPanelKeySlot } from "@molis-ai/molis-work-module-shelf/contract";
 
 export const chordFromEvent = (page: SettingsPage, event: KeyboardEvent): Chord | null => {
   const { tables } = page;

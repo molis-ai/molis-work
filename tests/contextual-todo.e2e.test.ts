@@ -1,9 +1,9 @@
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
 import { openPagesStore, openTodoStore } from "./fixtures/plugin-home-stores.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
 const FIRST = "联系阿杰确认秋季发布计划。附上本周方案和预算说明。";
 const SECOND = "联系小王确认周末徒步路线。附上集合时间。";

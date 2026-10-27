@@ -40,8 +40,6 @@ test("S-60 RAC-238 a sandboxed plugin asking for a service the sandbox is not gi
   const asks: Array<[string, SandboxDeclarations, readonly string[]]> = [
     ["model_configuration", declaring({}, { model_configuration: MODEL_CONFIGURATION }, [permission("model:invoke", false)]), []],
     ["model_configuration", declaring({}, { model_configuration: MODEL_CONFIGURATION }, [permission("model:invoke", true)]), ["model:invoke"]],
-    ["materials", declaring({}, {}, [permission("materials:fetch", true)]), []],
-    ["materials", declaring({}, {}, [permission("materials:fetch", false)]), ["materials:fetch"]],
     ["background", declaring({}, { background: { jobs: [{ job_id: "probe" } as never] } }), []],
     ["agent", declaring({ agent_prompts: [{ prompt_id: "probe", version: 1, body: "probe", layer: "role" }] }), []],
     ["agent", declaring({ methods: [{ method_id: "probe", version: 1 } as never] }), []],
@@ -77,8 +75,8 @@ test("S-60 RAC-238 an optional permission the person did not approve is not an a
   // The model and the package's own instructions are given (PG-017 P1, tests/security-invariants-sandbox-model.test.ts): declaring them is not refused.
   assert.doesNotThrow(() => assertSandboxDeclarations(declaring({ instructions: [{ prompt_id: "probe", version: 1, owner_id: PLUGIN_ID, title: "probe", body: "probe", layer: "task" } as never] },
     {}, [permission("model:invoke", true), permission("model:read", true)]), ["model:invoke", "model:read"]));
-  // Reads of bytes are given (PG-017 P2, tests/security-invariants-sandbox-materials.test.ts): materials:read is not refused.
-  assert.doesNotThrow(() => assertSandboxDeclarations(declaring({}, {}, [permission("materials:read", true)]), ["materials:read"]));
+  // Reads of bytes and of public pages are given (PG-017 P2, tests/security-invariants-sandbox-materials.test.ts): materials:read and materials:fetch are not refused.
+  assert.doesNotThrow(() => assertSandboxDeclarations(declaring({}, {}, [permission("materials:read", true), permission("materials:fetch", true)]), ["materials:read", "materials:fetch"]));
   // Connections are given (PG-017 P2, tests/security-invariants-sandbox-connections.test.ts): declaring a slot is not refused.
   assert.doesNotThrow(() => assertSandboxDeclarations(declaring({}, { connections: { slots: [{ slot_id: "github", service_id: "github", reason: "probe" }] } }, [permission("connections:use", true)]), ["connections:use"]));
   // A run a command starts is given (PG-017 P3, tests/security-invariants-sandbox-background.test.ts): `background_job` on an action is not refused; the kept jobs of the Manifest still are.
@@ -86,6 +84,9 @@ test("S-60 RAC-238 an optional permission the person did not approve is not an a
   assert.doesNotThrow(() => assertSandboxDeclarations(declaring(), ["storage:private"]));
   // The project's own tables are given (S-59): declaring them is not refused.
   assert.doesNotThrow(() => assertSandboxDeclarations(declaring({}, { databases: { project: { store_name: "probe", version: 1, read_permission: "probe:read", write_permission: "probe:write", schema: "CREATE TABLE probe_rows (id INTEGER PRIMARY KEY);" } } },
+    [permission("probe:read", true), permission("probe:write", true)]), ["probe:read", "probe:write"]));
+  // A library in the Home is given on the Home Runtime (BL-490, tests/security-invariants-sandbox-home-database.test.ts): declaring one is not refused here.
+  assert.doesNotThrow(() => assertSandboxDeclarations(declaring({}, { databases: { home: { store_name: "probehome", version: 1, read_permission: "probe:read", write_permission: "probe:write", schema: "CREATE TABLE probehome_rows (id INTEGER PRIMARY KEY);" } } },
     [permission("probe:read", true), permission("probe:write", true)]), ["probe:read", "probe:write"]));
 });
 
@@ -150,6 +151,14 @@ test("S-60 RAC-238 the Host stops a sandboxed installation that asks for a servi
   await assert.rejects(runtime.start(sandboxed.install_id), { code: "plugin.executor_failed" });
   assert.deepEqual({ state: runtime.get(sandboxed.install_id).state, code: runtime.get(sandboxed.install_id).last_error_code }, { state: "crashed", code: NOT_GIVEN.code });
   assert.deepEqual(started, [], "the sandboxed plugin's start never ran");
+  // A project's platform has no process to run a sandboxed package's Home statements in: a package that declares a library there is stopped before its code starts (BL-490).
+  const homeLibrary = { store_name: "sbxhomelib", version: 1, read_permission: "sbxhomelib:read", write_permission: "sbxhomelib:write", schema: "CREATE TABLE sbxhomelib_rows (id INTEGER PRIMARY KEY);" };
+  const withHome = runtime.install({ trust: { level: "unsigned" }, definition: { ...definition(`${PLUGIN_ID}.withhome`, "sandbox"), manifest: { ...manifest({ databases: { home: homeLibrary } }, [permission(homeLibrary.read_permission, true), permission(homeLibrary.write_permission, true)]), plugin_id: `${PLUGIN_ID}.withhome` } },
+    deployment: "local", grants: ["storage:private", homeLibrary.read_permission, homeLibrary.write_permission] }).install;
+  await assert.rejects(runtime.start(withHome.install_id), { code: "plugin.executor_failed" });
+  assert.equal(runtime.get(withHome.install_id).state, "crashed");
+  assert.equal(runtime.get(withHome.install_id).last_error_code, "plugin.declaration_invalid");
+  assert.deepEqual(started, [], "the package that declares a Home library never started in a project");
   const configured = runtime.install({ trust: { level: "unsigned" }, definition: definition(`${PLUGIN_ID}.configured`, "sandbox", true), deployment: "local", grants: ["storage:private", "model:invoke"] }).install;
   await assert.rejects(runtime.start(configured.install_id), { code: "plugin.executor_failed" });
   assert.equal(runtime.get(configured.install_id).last_error_code, NOT_GIVEN.code, "model_configuration is refused with the S-60 code before services are built");

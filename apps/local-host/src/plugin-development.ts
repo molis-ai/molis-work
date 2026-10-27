@@ -21,7 +21,7 @@ export async function runPluginDevelopment(input: PluginDevelopmentInput, option
 }): Promise<PluginDevelopmentResult> {
   if (input.allow_unsigned_development !== true) throw new Error("需要明确授权运行未签名本地开发代码");
   const definition = await loadDevelopmentPlugin(input.directory);
-  const runtime = new PluginRuntime(options.repository, new PluginHostExecutor({ ...options, record: id => options.repository.get(id) }), { declarationOwners: developmentDeclarationOwners(), actions: options.actions, hostIds: HOST_PLUGIN_IDS, reservedRuleKeys: hostReservedRuleKeys });
+  const runtime = new PluginRuntime(options.repository, new PluginHostExecutor({ ...options, record: id => options.repository.get(id) }), { declarationOwners: developmentDeclarationOwners(), actions: options.actions, hostIds: HOST_PLUGIN_IDS, inProcess: { admit: new Set([definition]) }, reservedRuleKeys: hostReservedRuleKeys });
   const installed = runtime.install({ definition, deployment: "local", trust: UNSIGNED_TRUST, grants: input.grants, retain_private_data: true });
   const id = installed.install.install_id;
   const inEffect = () => { const state = runtime.get(id)?.state; return state === "installed" || state === "running"; };
@@ -35,8 +35,10 @@ export async function runPluginDevelopment(input: PluginDevelopmentInput, option
     if (contribution.kind !== "integration") {
       throw new Error("本开发入口只运行 Integration Plugin，app Plugin 请用项目 Host 装配");
     }
-    const health = await contribution.connector_driver.health();
-    const poll = await contribution.connector_driver.poll({ cursor: null });
+    // One source with no account: the run shows what the plugin does with nothing bound to it.
+    const { connector_driver } = contribution.bind({ source_id: "development", connection_id: null, credential_ref: null, config: {} });
+    const health = await connector_driver.health();
+    const poll = await connector_driver.poll({ cursor: null });
     const rendered_ui = options.ui.list().filter(value => value.plugin_id === definition.manifest.plugin_id)
       .flatMap(value => (value.surfaces ?? []).map(surface => ({ contribution_id: value.contribution_id,
         surface: surface.surface_id, html: options.ui.render({ contribution_id: value.contribution_id, surface: surface.surface_id, model: null }) })));

@@ -133,7 +133,7 @@ Manifest 里有三类声明会改变「这个插件在别处的效果」，装�
 - **命令行**：`molis-work plugin install <包> <项目> [--pin-as 名称] [--confirm]` 经常驻 Host 的 `/api/internal/plugin-install` 做同样两个动作，来源 `management`；没有常驻 Host 就停下。
 - **CLI 与 Agent 的核对边界**（T2-FIX-04）：`plugin-install-client.ts` 经 `resident-host-request.ts` 从 Home 令牌文件取控制令牌；`plugin-install-gateway.ts` 在本机变更门之后由 Host 固定 management 身份（S-03、S-06、S-07），三个安装动作的受众限制与可信上下文由 S-17 管。Coding 的 `plugins/native/coding/src/start-round.ts` 调 AgentHost 的 `startRun`；助理的 `apps/local-host/src/assistant/assistant-http.ts` 将同一 Host Agent 服务交给线程。`agent-host-composition.ts` 装配 Prologue Node 适配器，`horizontal/agent-host/src/adapters/prologue-node-port.ts` 选择 workspace-write/untrusted 或 read-only/on-request 执行规则，`prologue-node.ts` 交给 SDK 的 `createNodeHost`。这只核实已有装配/审查配置；本题未执行模型/命令来证明 Coding、助理或用户自选运行时的 OS 文件隔离，也未审尽 SDK 命令驱动，S-06 的 0600 本身不证明同 OS 用户的 Agent 被隔离。此处是未验证边界，不是已证实的绕过。**必要后续裁定**：信任设计须明确“能读 Home 令牌的本机进程”能否作为安装确认，以及 Agent 命令访问该令牌时所需的文件隔离或独立确认；新增授权机制另行裁定，本轮不实现或声称已解决（作者现行 S-81 ③ 相应限定）。
 - **FIRST-3 做完**：生成插件的停用、卸载在撤授权和删密钥之前先过 `leaveRefusal`；生成插件的平台现在接了 Home 账本（`PluginPlatformOptions.consents`）。
-- **没做**：C1 的另一个方向（BL-588）、沙箱包的作者工具与创作台出签名包（BL-589）、升级与换发布者密钥（BL-586，沙箱包就地升级现在是先卸载再装）、界面（T7，已做）。发布者撤销（BL-559）随 T5b 做完，见 §7.5。动作的登记按统筹 10-25 裁定走 `project-host.ts` 里平台提供方的一个列表（只收 `system`、不属于任何插件的提供方），`plugins.install.*`、`plugins.publishers.list` 与同意动作都在里面。
+- **没做**：沙箱包的作者工具与创作台出签名包（BL-589）、升级与换发布者密钥（BL-586，沙箱包就地升级现在是先卸载再装）、界面（T7，已做）。发布者撤销（BL-559）随 T5b 做完，见 §7.5。动作的登记按统筹 10-25 裁定走 `project-host.ts` 里平台提供方的一个列表（只收 `system`、不属于任何插件的提供方），`plugins.install.*`、`plugins.publishers.list` 与同意动作都在里面。
 
 #### T2 FIRST 收尾 WO（2026-10-25，FIX1）
 
@@ -143,7 +143,7 @@ Manifest 里有三类声明会改变「这个插件在别处的效果」，装�
 - `T2-FIX-02`：明确确认后的发布者 pin 与已验证不可变包在安装失败后保留供重试，二者不代表安装或启用成功；按既有寻址复用，不盲删包、不加 GC。经真实失败路径核对无安装记录不会执行，并保留原安装/恢复边界；不发明新生命周期。
 - `T2-FIX-03`：只在 BL-559 补明未来发布者撤销必须在启动及 `packagedFor` 读包时复查这一依赖，本轮不实现撤销动作。
 - `T2-FIX-04`：S-81 的 Agent 结论限定实际动作受众/可信入口；CLI 依 Home 令牌与既有本机通道边界。按 Coding/助理现有执行入口有界核对，引用能证实的不变量；无 OS 隔离或端到端证据的部分写明未验证及后续裁定，不把不确定当作实际绕过，不泛称所有 Agent 已被系统隔离。
-- `T2-FIX-05`：pinned 包不允许就地升级/回滚改用既有 `plugin.state_invalid`，保留拒绝时机与原消息。只改这一新增用户拒绝，不改其他旧 Error 或提供方内部断言；真实临时 Home 验两动作精确错误码及安装状态/业务副作用不变。
+- `T2-FIX-05`：pinned 包不允许就地升级/回滚改用既有 `plugin.state_invalid`，保留拒绝时机与原消息。只改这一新增用户拒绝，不改其他旧 Error 或提供方内部断言；真实临时 Home 验两动作精确错误码及安装状态/业务副作用不变。（BL-623 改：升级现在走 §7.6 的路，同版本是 `plugin.upgrade_required`；回滚仍是这里的 `plugin.state_invalid`。）
 
 源码变化后以公共 FIFO 做整体 `pnpm build`，再跑文档 S-20、必要的错误码/失败边界定向用例及文档检查；所有执行用临时 Home。保留首个失败及基点对照，不重复 T2 原整套 12 项或 full，共享核心全量归 carrier。固定提交附准确 diff/raw、实际通过与未覆盖边界直交 REVIEW、必要 TEST、PIPE；双核前不接下一题。
 
@@ -196,11 +196,11 @@ S-81 适配证据：060 证明提交为 `a21f2f0d593fee2a972d094467058177e32a227
 
 | 地方 | T3b 的结果 |
 | --- | --- |
-| 项目页与画板 | 做完。`cachedMolisWorkWebView` 把被拒的 Goals 读当作「没有 Goal」（Goals 自己导出的 `emptyGoalsDocumentCollection`，不由宿主直接读 Goals 的表）；`/api/capsule` 同样。页面从首页打开，不画 Goal 视图。Goals 的舞台与对话框仍留在隐藏的画面池里：工作台只有一个客户端程序，去掉它们会让整页空白（试过），它们没有入口、不显示。 |
+| 项目页与画板 | 做完。Goals 是否在项目里由 Catalog 成员名单判断；只有真缺席时才跳过 Goals 调用，由 `cachedMolisWorkWebView` 使用 Goals 自己导出的 `emptyGoalsDocumentCollection`（宿主不直接读 Goals 的表），`/api/capsule` 也不调 Goals、按空列表投影。仍是成员时执行这些真实读取，拒绝原样传播，不能把 `actions.plugin_disabled`、`actions.missing` 或 `actions.forbidden` 当作缺席。缺席时页面从首页打开，不画 Goal 视图。Goals 的舞台与对话框仍留在隐藏的画面池里：工作台只有一个客户端程序，去掉它们会让整页空白（试过），它们没有入口、不显示。 |
 | 链接与标签页 | 做完。`openPlugin`、`openItem`、`goal` 的链接只打开本项目提供的插件（菜单或条里有它的）；存过 Goals 标签的布局在没有 Goals 的项目里重新开始，不恢复丢掉的标签。`frame-container`、`editing-graph`、`global-search`、`placement`、`project-home` 里的 `"goals"` 特判没有逐个加守卫：它们的入口只在有 Goal 时才出现，深链与旧布局两条进路已拦。 |
-| 项目设置 | 做完。「项目说明」是 Goals 的页，没有 Goals 的项目导航与目录不列它，手输地址回到「常规」；设置页读 Goals 的规划被拒就是没有 Goals，不报错。 |
+| 项目设置 | 做完。「项目说明」是 Goals 的页，没有 Goals 的项目导航与目录不列它，手输地址回到「常规」。设置页先看同一份 Catalog 成员名单；真缺席时不调 Goals 的规划、说明与策略读取，保留设置外壳；仍是成员则实际读取，拒绝保留原 code、错误说明与 call_id。 |
 | 工作台外壳与插件列表 | 做完。插件列表的锁与卡片读 Host 给目录的 `always_on`（来自账本，页面带 Host 目录时，`marksFromHost`），不读 Manifest：撤回之后 Goals 是可以再添加的一项，加回后照常打开，并且可以再移除；没有 Host 的页面仍按 Manifest。 |
-| MCP 与命令行的 goal 工具 | 做完。管理入口（常驻宿主）对没有 Goals 的项目答 `actions.plugin_disabled`，不写任何东西（`tests/goals-absent-project.test.ts` 的管理入口用例）；Runtime 的动作工具来自动作目录，按可用性隐藏。管理工具表是平台的固定表，不随项目变，所以「工具列表不列」只对 Runtime 成立。 |
+| MCP 与命令行的 goal 工具 | 做完。PG-094 切到 Runtime 后，没有 Goals 的项目未注册其动作，管理入口（常驻宿主）精确答 `actions.missing`，不创建 Goals 的表、看板或事实（`tests/goals-absent-project.test.ts` 的管理入口用例）；仍是成员时的真实读取拒绝保持原样，不能当作缺席。Runtime 的动作工具来自动作目录，按可用性隐藏。管理工具表是平台的固定表，不随项目变，所以「工具列表不列」只对 Runtime 成立。 |
 | `goal-advance` Skill | 做完。步骤 2 加一句：项目可能没有 Goals，Goal 工具不在或答 `actions.plugin_disabled` 时照实说，继续用项目有的别的插件，不重新绑定。 |
 | Feed 与成果库 | 做完。Feed 阅读页的「升格为 Goal」见 T3；成果库详情的「作为 Goal 的输入」没有 Goals 时不画；已有挂着 Goal 的记录原样保留（`artifacts.links` 读成果库自己的记录）。 |
 | 新建项目与引导 | T3 已做（建项目只写 `initial()`）；引导步骤里没有对 Goal 的假定，本片核过。 |
@@ -265,7 +265,7 @@ S-81 适配证据：060 证明提交为 `a21f2f0d593fee2a972d094467058177e32a227
 | C3 | `validateInstalledManifest` | `(manifest, bundled)` → `(manifest)`；`always_on` 不再在这里拒，改由安装时的同意检查（`plugin.consent_required`） | 不对外 |
 | C4 | 新合同子路径 `platform/plugin-trust` | `PluginTrustLevel`、`PluginInstallPreview`、`PluginDeclarationNeedingConsent`、`PluginConsentRecord`、`PluginConsentGrant`、`PluginPublisherPin` | 新增一个 contracts 子路径快照 |
 | C5 | 错误码 | `plugin.consent_required`、`plugin.consent_revoked`、`plugin.publisher_untrusted`、`plugin.publisher_revoked`、`plugin.id_namespace_conflict` 加进 `plugin-errors.ts`（写法同现有 `defineErrorCodes("plugin", …)`） | contracts 快照 |
-| C6 | 宿主登记的用户动作（不是 Manifest 动作） | 新增六个，只给人：`plugins.install.preview@2`、`plugins.install.confirm@1`、`plugins.consents.list@1`、`plugins.consents.revoke@1`、`plugins.publishers.list@1`、`plugins.publishers.revoke@1`（名字最终以 `host-actions.tsv` 现有命名习惯为准，实现片定）。受众只有 `user`，处理器要 `caller.user_action`（S-58），模型、MCP、工作流、插件调不到（S-17） | `host-actions.tsv`；`pnpm actions:update` |
+| C6 | 宿主登记的用户动作（不是 Manifest 动作） | 新增六个，只给人：`plugins.install.preview@2`、`plugins.install.confirm@1`、`plugins.consents.list@1`、`plugins.consents.revoke@1`、`plugins.publishers.list@1`、`plugins.publishers.revoke@1`（名字最终以 `host-actions.tsv` 现有命名习惯为准，实现片定）；BL-623 再加三个：`plugins.installed.disable@1`、`plugins.installed.enable@1`、`plugins.installed.uninstall@1`（项目范围、同样只给本人）。受众只有 `user`，处理器要 `caller.user_action`（S-58），模型、MCP、工作流、插件调不到（S-17） | `host-actions.tsv`；`pnpm actions:update` |
 | C7 | `ProjectPluginCatalog` | `isAlwaysOn?(id)` → `alwaysOn(): readonly ProjectPluginId[]`；`register` 不再写死 `"goals"` | contracts `modules/projects` 快照 |
 | C8 | Goals 的 Manifest | 加 `always_on: true` | 动作合同快照不变（只是 Manifest 字段） |
 | C9 | `PluginPackageBundle` | 加 `publisher_key: { algorithm: "ed25519"; spki_base64: string } \| null`（`signature` 为 null 时必须为 null）；`parsePluginPackage` 与 `tooling/plugin-cli` 的 `pack`/`sign` 同步 | contracts 快照；`payload.schema_version` 不变（签名字节只覆盖 payload） |
@@ -345,7 +345,7 @@ SDK（`packages/plugin-sdk`）的公开 API 不变：Manifest 字段没有增减
 
 **T1 落地时的两处口径（2026-10-24）：**
 
-- C1「非 `host` 等级只在沙箱」在 T1 只强制一个方向：`host` 配沙箱定义被拒（`plugin.grant_denied`）。另一个方向（非 `host` 等级不得在宿主进程里跑）留给 T2：开发目录和宿主的测试夹具今天仍在宿主进程里跑，T1 给它们 `unsigned`，不改它们的执行方式。Feed 的官方集成随宿主构建一起发布、由宿主构建目录登记，T1 给 `host`；以后若独立发布，再按它自己的签名定等级。RAC-383 里「映射不了沙箱形态的 Manifest 安装时拒绝」的那一半随 T2。
+- C1「非 `host` 等级只在沙箱」在 T1 只强制一个方向：`host` 配沙箱定义被拒（`plugin.grant_denied`）。另一个方向（非 `host` 等级不得在宿主进程里跑）已由 BL-588 做完（`specs/repository-anti-corruption/slices/bl588-non-host-trust-in-host-process.md`，S-75 ⑥，`plugin.in_process_denied`）：开发目录刚加载的那一个定义对象和宿主的测试夹具是仅有的两个例外，由宿主代码按对象身份放行。Feed 的官方集成随宿主构建一起发布、由宿主构建目录登记，T1 给 `host`；以后若独立发布，再按它自己的签名定等级。RAC-383 里「映射不了沙箱形态的 Manifest 安装时拒绝」的那一半随 T2 做完（S-84 的 `readSandboxPackage`：清单必须等于沙箱插件的唯一形状，否则 `plugin.declaration_invalid`），BL-588 又把各种超出沙箱形态的声明（integration、常开、本机工具、事件、端口、多出的权限）逐个钉进了那条测试。现行签名沙箱包支持 `runtime: { scope: "home" }`（RAC-961 正例）；未知 runtime scope 是非法 Manifest，在签名前以 `plugin.manifest_invalid` 拒绝、无写入（RAC-383），不把它伪装成已经签名的预览负例。
 - 已装插件不能换信任等级（`plugin.definition_conflict`）；卸载后重装可以。存量记录按 `execution` 补等级的维护见 §6 与检查清单第 4 节。
 
 ### 7.1 #1250 本轮首评修复（2026-10-24，修复已实现）
@@ -418,7 +418,15 @@ RAC-401 的针对性测试检查查询前后的实际文件、库内容和账本
 
 发布者撤销（BL-559，RAC-391、RAC-392，S-87），叠在 T7 与 T3b 的分支上。**动作**：`plugins.publishers.revoke@1`（Home 范围、只给本人、`plugin-install:write`），处理器和同意撤回一样只收宿主设置入口的凭据（S-77），入口是 `/api/settings/plugin-publishers/revoke`；项目设置的「插件」页在“你信任的发布者”那一栏给每个未撤销的发布者一个“撤销信任”按钮，确认后调它。**账本**：`revokePublisher(key_id, at)`，只写第一次的 `revoked_at`，行不删，`pinPublisher` 再固定解不开；撤销不能撤回，要再信任同一个人要换发布者密钥（BL-586）。**停用**不做跨项目的逐个扫描，而是让每个项目自己判断：`installed-publisher-standing.ts` 按 `consentRevision` 读一次账本，已装的包的发布者没固定或已撤销就算失效——`assertInstalled`（每次副作用之前）拒，所以撤销之前开始的调用走到下一次副作用也被拒、不写业务记录；项目下一次被看（列概览、准备项目的插件）时 `reconcilePublishers` 把它们停用（`disabled`，数据保留）；启动恢复先问同一个判断，失效的不启动、写上原因；`packagedFor` 读包前先问它，不只验签；`enable` 以 `plugin.publisher_revoked` 拒；账本读不出来时谁都不信任。安装一侧本来就拒已撤销的发布者（T2，预览和确认）。
 
-没做的：撤销时不主动打开所有项目去停用（别的项目在下次被看时停，在那之前它的插件已经什么都做不了）；取回撤销（见上）。BL-559 做完，行已删。
+**撤销什么时候生效（RAC-392 的口径，统筹 10-26 定）**：撤销那一刻只写账本，不主动打开别的项目。已经在跑的项目里，它的插件在三个时点停：① **下一次写之前**——撤销之前已经开始的调用，在它的下一次副作用之前被拒：操作自己的 `beforeEffect` 每次问 `assertInstalled`（`sandboxedPluginDefinition` 的 `assertLive`），存储、项目库、模型、能力、网络对这一道检查都一样，所以在途的写被截在写前、不写业务记录（`tests/security-invariants-publisher-revoke.test.ts` 的在途用例）；② **项目下一次被看时**——列概览、准备项目的插件，`reconcilePublishers` 把失效的安装停用（`disabled`，数据保留）；③ **重启时**——启动恢复先问同一个判断，失效的不启动（`tests/installed-plugin-host.test.ts` 的撤销后重启用例）。在这三个时点之间，它没有可做的事：每一次副作用都要先过第 ① 道。
+
+没做的：撤销时不主动打开所有项目去停用；取回撤销（见上）。BL-559 做完，行已删。
+
+### 7.6 BL-623 签名包的生命周期入口（2026-10-26）
+
+装好的签名包插件，人可以升级、停用、启用、卸载，不必再“先卸载再装”。**升级**不是新动作：同一个插件、同一个发布者的更高版本的包走原来的预览（`plugins.install.preview@2`）和确认（`plugins.install.confirm@1`），确认时 `PluginInstallService` 看项目里是不是已经有这个插件：有且发布者不是同一个，`plugin.definition_conflict`，在固定发布者之前就拒；是同一个，就由安装宿主走 `upgrade`（`installed-plugin-lifecycle.ts` 的 `upgradePackage`）——先核发布者没被撤销，再把已装版本的发行物和批准记录读回来，已停用的先登记给 Supervisor（重启之后它不认识停用的安装），然后 `changeInstalledVersion`：Runtime 要求同一个插件、同一个发布者签名、更高的版本，且新清单的 `upgrade_compatibility.compatible_from_versions` 含当前版本，否则 `plugin.upgrade_required`；安装 id 与数据不变，新版本的权限就是预览里列给人、人同意的那些。**停用、启用、卸载**是三个新动作 `plugins.installed.disable@1`、`plugins.installed.enable@1`、`plugins.installed.uninstall@1`（卸载要明说 `keep_data`）：项目范围、只给本人（`plugin-install:write`、`caller.user_action`、要项目），经项目路由 `/projects/<id>/api/plugin-trust/installed/{disable,enable,uninstall}` 由入口盖上本人的 `user_action`；作用对象只能是签名包装进来的插件，别的 id 是 `plugin.state_invalid`；仍先过常开拒绝（S-34）。发布者被撤销之后，启用与升级被拒（`plugin.publisher_revoked`），卸载走不查发布者状态的包读取，所以仍可做。页面：项目设置的「插件」页，已安装的签名包插件展开后有“停用/启用”“卸载并保留数据”“卸载并删除数据”（每项先确认；发布者已被撤销的不显示“启用”），选一个更新的包时预览上多一行“已装的是 x，装上后升级到 y”。
+
+没做的：命令行 `molis-work plugin` 的停用、启用、卸载子命令（现在只有 `install`，升级也经它的预览与确认）；回滚；取回撤销（BL-586，见 §7.5）。BL-623 的行在 ac-registry 的分支上，落地时随它删。
 
 ## 8. 验收
 
@@ -453,6 +461,14 @@ RAC-401 的针对性测试检查查询前后的实际文件、库内容和账本
 | RAC-396 | 提供方 id：`host` 用 `plugin_id`，其余用 `plugin-install-…`；动作合同快照里内置插件的 `registered_provider` 不变（S-75.3） | `tests/security-invariants-install-identity.test.ts`、`tests/runtime-provider-identity.test.ts`、`tests/action-contract-snapshot.test.ts` |
 | RAC-397 | 存量：旧基线的库被拒绝；新基线下 `publisher_trust` 与同意行由启动幂等补齐；在隔离 Home 演练维护步骤 | 隔离 Home 的演练记录 |
 | RAC-398 | 公开 API 与动作合同快照：只有 §4 列出的变化，PR 里逐项写对调用方的影响；文档一致：S-15、S-34、S-67、S-75 与 `SECURITY-INVARIANTS.md` 的测试列、POLICY 7.8、THIRD-PARTY-PLUGINS、手册 | `pnpm api:update`、`pnpm actions:update` 的 diff；`pnpm health:check` 的文档引用检查 |
+| BL623-01 | 升级：同一个安装、数据留下、新代码在跑、重启后仍是新版本；新版本多要的权限由人在预览里同意后才有 | `tests/security-invariants-plugin-lifecycle.test.ts` 的 BL623-01 两条 |
+| BL623-02 | 不是升级的被拒且什么都不变：同一个版本、没声明能从当前版本升的、另一个发布者的包（也不固定它）；回滚仍拒 | 同上 BL623-02；`tests/installed-plugin-host.test.ts` 的 T2-FIX-05 |
+| BL623-03 | 停用保留数据、重启后仍停用、动作不再提供，启用后恢复；停用着的也能升级、升级后仍停用 | 同上 BL623-03 两条 |
+| BL623-04 | 卸载按人的话保留或删除数据；保留的，同一个插件再装能接着用 | 同上 BL623-04 |
+| BL623-05 | 发布者被撤销：不能启用、不能升级，数据在，仍可卸载 | 同上 BL623-05 |
+| BL623-06 | 三个动作只有项目里的本人、带入口凭据能调：Agent、MCP、工作流、插件、缺凭据、缺项目、多余输入都拒，拒绝没有走到项目 | 同上 BL623-06 |
+| BL623-07 | 不是签名包装进来的插件不受这三个动作影响（`plugin.state_invalid`） | 同上 BL623-07 |
+| BL623-08 | 项目路由：三步都要控制令牌与页面的 Origin，不读请求体里的 `user_action`；走完停用、启用、卸载，概览逐步读回 | `tests/security-invariants-plugin-trust-http.test.ts` 的 RAC-407 与 BL623-08 |
 | RAC-399 | 宿主启动名单里的 `plugin_id` 及其点分段前缀，非 `host` 等级的安装使用时被拒（S-75.4） | 同 RAC-394 的测试文件 |
 
 ## 9. 待办

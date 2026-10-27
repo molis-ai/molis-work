@@ -202,6 +202,9 @@ test("a start list that declares a library wrongly does not start at all, and no
     const beside = probe({ name: "besideprobe" });
     await refuse("sandboxed", [{ definition: withLibrary(probe({ name: "sandboxed", execution: "sandbox" }).definition, DECLARATION), grants: [STORAGE.permission, READ.permission, WRITE.permission] },
       { definition: beside.definition }], /沙箱/);
+    // PG094-CLI-02: even the Host's dual mark cannot redeem an in-process Home library for sandboxed code without Home.
+    await refuse("sandboxed dual without Home", [{ definition: withLibrary(probe({ name: "sandboxdual", execution: "sandbox" }).definition, DECLARATION), dual_instance: true },
+      { definition: beside.definition }], /沙箱/, null);
     await refuse("no Home", [{ definition: withLibrary(probe().definition, DECLARATION), trust: { level: "host" } }, { definition: beside.definition }], /Home/, null);
     await refuse("permissions not listed", [{ definition: withLibrary(probe({ permissions: [STORAGE] }).definition, DECLARATION), trust: { level: "host" } }, { definition: beside.definition }], /权限/);
     await refuse("another probe's", [{ definition: withLibrary(probe({ name: "first" }).definition, DECLARATION), trust: { level: "host" } },
@@ -303,7 +306,7 @@ test("RAC-302 every shipped plugin's Home library is registered to that plugin, 
       ...entry.home_store ? [{ path: entry.home_store.path, owner: entry.manifest.plugin_id, baseline: undefined }] : [],
       ...library ? [{ path: library.store_name, owner: entry.manifest.plugin_id, baseline: library }] : []];
   });
-  assert.deepEqual(shipped.map(store => store.path).sort(), ["artifacts", "cognia", "dataset", "form", "images", "issues", "jelly", "lingguang", "pages", "ppt", "shelf", "todo", "workflows"]);
+  assert.deepEqual(shipped.map(store => store.path).sort(), ["artifacts", "cognia", "dataset", "form", "goals", "images", "issues", "jelly", "lingguang", "pages", "ppt", "shelf", "todo", "workflows"]);
   for (const { path, owner, baseline } of shipped) {
     const store = homeStores().get(path);
     assert.equal(store?.owner, owner, path);

@@ -4,10 +4,11 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { MolisWorkLocalHost, DEMO_PROJECT_ID, GoalProjectApplication, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
 const controlToken = "artifact-source-links-control-token-0123456789";
 
@@ -16,7 +17,7 @@ test("a pinned document shows when the original changed or was deleted, and whic
   const directory = await mkdtemp(join(tmpdir(), "molis-work-artifact-source-"));
   const databasePath = join(directory, "fixture.db");
   await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
-  seedDemoBoard(databasePath);
+  await seedDemoGoals(databasePath);
   const store = new LocalProjectDatabase(databasePath);
   const coordinator = new GoalProjectApplication(store);
   const server = createMolisWorkWebServer({ databasePath, projectId: DEMO_PROJECT_ID, homeDirectory: directory, controlToken });
@@ -88,7 +89,7 @@ test("a pinned document that moved to another place says so, instead of saying i
   const directory = await mkdtemp(join(tmpdir(), "molis-work-artifact-moved-"));
   const databasePath = join(directory, "fixture.db");
   await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
-  seedDemoBoard(databasePath);
+  await seedDemoGoals(databasePath);
   const server = createMolisWorkWebServer({ databasePath, projectId: DEMO_PROJECT_ID, homeDirectory: directory, controlToken });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();

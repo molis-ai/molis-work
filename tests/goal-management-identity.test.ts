@@ -15,6 +15,7 @@ import { bindActionClient, LOCAL_PERSON_ACTOR_ID, type ActionDefinition, type Ac
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
 import { managementCaller, managementGoals } from "./goal-management-caller.js";
 import { callAs, callerPlugin, issuedCaller, registerProbe, startProjectPlugins } from "./fixtures/plugin-callers.js";
+import { goalApplicationOf } from "./fixtures/goal-application.js";
 
 /**
  * The ten writes that used to have a typed management door of their own. They are registered actions now, and a management caller
@@ -50,7 +51,7 @@ test("every management write records the person on this machine and refuses an i
   const typed = host.client(ref), actions = host.actionClient(ref), project_id = project.project_id, goal_id = "IDENTITY-GOAL";
   const management = managementGoals(actions, project_id);
   const cursor = async () => (await management.invoke(goalsActions.state, { goal_id })).goal_event_cursor;
-  const event = (eventId: string) => host.withProject(ref, runtime => runtime.coordinator.goalEvents.readEvent(project_id, goal_id, eventId));
+  const event = (eventId: string) => host.withProject(ref, runtime => goalApplicationOf(runtime).goalEvents.readEvent(project_id, goal_id, eventId));
   try {
     const intent = { goal_id, title: "管理入口", outcome: "记在本机这个人身上", idempotency_key: "create" };
     assert.equal((await management.invoke(goalsActions.create, intent)).replayed, false);
@@ -59,7 +60,7 @@ test("every management write records the person on this machine and refuses an i
 
     for (const [definition, business] of [[goalsActions.create, { title: "目标" }], [goalsActions.decide, { goal_id, conclusion: "可以" }]] as const) {
       for (const identity of [{ actor_id: "someone-else" }, { actor_kind: "runtime" }, { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user" }]) {
-        await assert.rejects(actions.invoke({ ...managementCaller(project_id), permissions: ["goals:read", "goals:write", "goals:decide"] }, definition, { ...business, idempotency_key: "refused", ...identity } as never),
+        await assert.rejects(actions.invoke({ ...managementCaller(project_id), permissions: ["goals:read", "goals:write", "goals:decide", "attention:write"] }, definition, { ...business, idempotency_key: "refused", ...identity } as never),
           { code: "actions.input_invalid" });
       }
       await assert.rejects(actions.invoke(managementCaller("foreign"), definition, { ...business, idempotency_key: "foreign", actor_id: "someone-else" } as never),
@@ -129,7 +130,7 @@ test("W3-07-5-01 / W3-07-8-02: all fourteen retired Goals literals refuse Host a
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { project: [writer.definition, retired.definition] } });
   const typed = host.client(ref), project_id = project.project_id, goal_id = "PLUGIN-GOAL";
   const management = managementGoals(host.actionClient(ref), project_id);
-  const event = (eventId: string) => host.withProject(ref, runtime => runtime.coordinator.goalEvents.readEvent(project_id, goal_id, eventId));
+  const event = (eventId: string) => host.withProject(ref, runtime => goalApplicationOf(runtime).goalEvents.readEvent(project_id, goal_id, eventId));
   try {
     await host.withProject(ref, () => undefined);
     // The caller the Host issued the writer plugin's session; a plugin's call presents it, and only it.
@@ -158,7 +159,7 @@ test("W3-07-5-01 / W3-07-8-02: all fourteen retired Goals literals refuse Host a
     assert.deepEqual(await management.invoke(goalsActions.snapshot, {}), before, "retired entries write no Goal, active selection or proposal");
     assert.deepEqual(Object.values(goalsPlugin).filter(value => value && typeof value === "object" && "capability_id" in value
       && RETIRED_GOALS_ENTRIES.some(([id]) => id === value.capability_id)), [], "the package exports no retired descriptor");
-    const second = () => host.withProject(ref, runtime => runtime.coordinator.goalQueries.getGoal(project_id, "PLUGIN-SECOND"));
+    const second = () => host.withProject(ref, runtime => goalApplicationOf(runtime).goalQueries.getGoal(project_id, "PLUGIN-SECOND"));
     await assert.rejects(second(), { code: "goals.not_found" }, "the retired create entry left no record");
 
     // Reversible create/note record the plugin's actual caller, the person its session runs for; an identity in the input is refused.
@@ -197,9 +198,9 @@ async function approvalProject(name: string) {
   const project_id = project.project_id, management = managementGoals(host.actionClient(ref), project_id);
   const mcp = new MolisWorkServer("management", null, null, host);
   const runtime = bindActionClient(host.actionClient(ref), () => ({ actor_id: "runtime:closer", audit_actor_id: "runtime:closer:session",
-    actor_kind: "runtime", audience: "agent", project_id, permissions: ["goals:read", "goals:write"] }));
+    actor_kind: "runtime", audience: "agent", project_id, permissions: ["goals:read", "goals:write", "attention:write"] }));
   const web = bindActionClient(host.actionClient(ref), () => ({ actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user", audience: "user", project_id,
-    permissions: ["goals:read", "goals:write", "goals:decide"], user_action: { source: "web", conversation_ref: "web:approval", message_ref: "web:click" } }));
+    permissions: ["goals:read", "goals:write", "goals:decide", "attention:write"], user_action: { source: "web", conversation_ref: "web:approval", message_ref: "web:click" } }));
   const requirement = (goal_id: string) => `${goal_id}-requirement`;
   const supported = async (goal_id: string, { human = false } = {}) => {
     await runtime.invoke(goalsActions.create, { goal_id, title: "需要点头", outcome: "结果可以检查", idempotency_key: `create-${goal_id}`,
@@ -247,7 +248,7 @@ test("under the project approval rule a close from the management door, the Web 
       assert.deepEqual(held.unmet_reasons.map(reason => reason.code), [APPROVAL_REQUIRED], name);
       if (name === "management") {
         // What makes the case worth pinning: the held close is recorded as the person on this machine, a user.
-        const recorded = await host.withProject(ref, open => open.coordinator.goalEvents.readEvent(project_id, "DECIDED", held.event_id));
+        const recorded = await host.withProject(ref, open => goalApplicationOf(open).goalEvents.readEvent(project_id, "DECIDED", held.event_id));
         assert.deepEqual([recorded.actor_id, recorded.actor_kind], [LOCAL_PERSON_ACTOR_ID, "user"]);
       }
     }
@@ -444,7 +445,7 @@ test("a structure proposal written through the management door records the perso
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null });
   const project_id = project.project_id, management = managementGoals(host.actionClient(ref), project_id);
   const runtime = bindActionClient(host.actionClient(ref), () => ({ actor_id: "runtime:writer", audit_actor_id: "runtime:writer:session", actor_kind: "runtime",
-    audience: "agent", project_id, permissions: ["goals:read", "goals:write"], runtime_session_id: "session" }));
+    audience: "agent", project_id, permissions: ["goals:read", "goals:write", "attention:write"], runtime_session_id: "session" }));
   const identities = [{ actor_id: "someone-else" }, { actor_kind: "runtime" }, { actor_id: LOCAL_PERSON_ACTOR_ID, actor_kind: "user" }];
   try {
     // Structure proposal submit.
@@ -472,7 +473,8 @@ test("structure submit takes a plugin's own action identity and refuses an ident
   const home = await mkdtemp(join(tmpdir(), "goal-management-entries-plugin-"));
   const project = await withCatalog({ homeDirectory: home }, catalog => catalog.createProject({ display_name: "EntriesPlugin", actor_id: "user" }));
   const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
-  const writer = callerPlugin("goalproposer", "project", { "goals:read": true, "goals:write": true });
+  // A proposal opens the decision reminder through the platform's Attention service, which asks its caller for `attention:write` (PG-094 S11).
+  const writer = callerPlugin("goalproposer", "project", { "goals:read": true, "goals:write": true, "attention:write": true });
   const host = new MolisWorkLocalHost({ homeDirectory: home, completeText: null, pluginFixtures: { project: [writer.definition] } });
   const project_id = project.project_id, actions = host.actionClient(ref), proposal = proposalEntry("plugin-submit");
   try {
@@ -480,7 +482,7 @@ test("structure submit takes a plugin's own action identity and refuses an ident
     const probe = registerProbe(host.actionRegistry(ref), "project");
     await startProjectPlugins(host, ref);
     const issued = await issuedCaller(probe, writer, project_id);
-    const caller = callAs(issued, ["goals:read", "goals:write"]);
+    const caller = callAs(issued, ["goals:read", "goals:write", "attention:write"]);
     await assert.rejects(actions.invoke(caller, goalsActions.treeSubmit, { ...proposal, actor_id: LOCAL_PERSON_ACTOR_ID } as never), { code: "actions.input_invalid" });
     assert.deepEqual((await actions.invoke(caller, goalsActions.treeRead, {})).proposals, []);
     const saved = await actions.invoke(caller, goalsActions.treeSubmit, proposal);

@@ -2,7 +2,7 @@ import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { PluginHostExecutor } from "@molis-ai/molis-work-app-local-host";
-import { codingResultDocument } from "@molis-ai/molis-work-contracts/modules/coding";
+import { codingResultDocument } from "@molis-ai/molis-work-plugin-coding/contract";
 import { PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { shelfManifest } from "@molis-ai/molis-work-plugin-shelf";
 import { UiHost } from "@molis-ai/molis-work-ui-host";

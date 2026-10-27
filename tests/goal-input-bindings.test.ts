@@ -4,7 +4,7 @@ import Database from "better-sqlite3";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { GoalInputBindings } from "@molis-ai/molis-work-module-goals";
+import { GoalInputBindings } from "./fixtures/goals-modules.js";
 import { GOALS_PROJECT_DATABASE } from "@molis-ai/molis-work-plugin-goals";
 import type { GoalInputBindingRecord } from "@molis-ai/molis-work-contracts/modules/goals";
 import { createContextLedger } from "@molis-ai/molis-work-module-context-ledger";

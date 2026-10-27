@@ -13,6 +13,7 @@ import {
   createMolisWorkLocalHost, molisWorkHostProjectReference,
 } from "@molis-ai/molis-work-app-local-host";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
+import { boardSnapshot } from "./fixtures/goal-application.js";
 
 test("offline Home restore preserves Project, Goal history, and Artifact versions", async () => {
   const directory = await mkdtemp(join(tmpdir(), "molis-work-home-recovery-"));
@@ -23,9 +24,9 @@ test("offline Home restore preserves Project, Goal history, and Artifact version
     const project = await catalog.createProject({ display_name: "恢复演练项目", actor_id: "user" });
     catalog.close();
     const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
-    const host = createMolisWorkLocalHost({ instanceId: "backup-source" });
+    const host = createMolisWorkLocalHost({ instanceId: "backup-source", homeDirectory: home });
     try {
-      await managementGoals(host.actionClient(reference, false), project.project_id).invoke(goalsActions.create, { idempotency_key: "backup-goal",
+      await managementGoals(host.actionClient(reference), project.project_id).invoke(goalsActions.create, { idempotency_key: "backup-goal",
         goal_id: "retained-goal", title: "保留交接正文", outcome: "恢复后继续工作",
         why: "不能只恢复空壳", business_logic: "保留正文、关系、版本和历史", priority: 50,
       });
@@ -41,7 +42,7 @@ test("offline Home restore preserves Project, Goal history, and Artifact version
         content: { kind: "inline", payload: { text: `第${version}版报告`, custom: [null, 7, "附件说明"] } },
       });
     } catch (error) { source.close(); throw error; }
-    const before = source.snapshot(project.project_id);
+    const before = boardSnapshot(source, project.project_id);
     source.close();
 
     // Offline backup: every product writer is closed. Restore to the original
@@ -53,9 +54,9 @@ test("offline Home restore preserves Project, Goal history, and Artifact version
     const restoredCatalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
     try { assert.deepEqual(restoredCatalog.getProject(project.project_id), project); }
     finally { restoredCatalog.close(); }
-    const restoredHost = createMolisWorkLocalHost({ instanceId: "backup-restored" });
+    const restoredHost = createMolisWorkLocalHost({ instanceId: "backup-restored", homeDirectory: home });
     try {
-      const snapshot = await managementGoals(restoredHost.actionClient(reference, false), project.project_id).invoke(goalsActions.snapshot, {});
+      const snapshot = await managementGoals(restoredHost.actionClient(reference), project.project_id).invoke(goalsActions.snapshot, {});
       assert.deepEqual(snapshot, before, "all Goal facts and event history survive, not only IDs");
       assert.equal(snapshot.goals.find(goal => goal.goal_id === "retained-goal")?.outcome, "恢复后继续工作");
     } finally { await restoredHost.close(); }

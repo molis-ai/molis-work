@@ -13,7 +13,7 @@ const RELATION_OF = new Map<string, AssistantRelation>(Object.entries(ASSISTANT_
 const RANK: Record<AssistantRelation, number> = { origin: 0, material: 1, session: 2, result: 3 };
 
 /** A work, as the source of its relations. */
-interface WorkIdentity { work_id: string; project_id: string | null }
+export interface WorkIdentity { work_id: string; project_id: string | null }
 
 /** A work as the source of its relations: its project namespace, or none for personal work. */
 export function identity(work: { work_id: string; scope: AssistantScope }): WorkIdentity {

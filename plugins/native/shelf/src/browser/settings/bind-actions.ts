@@ -2,7 +2,7 @@ import type {} from "@molis-ai/molis-work-plugin-sdk";
 import { fresh } from "./bind-basic.js";
 import { invoke, messageOf, refreshSettings, save, savePatch, say } from "./save.js";
 import type { SettingsPage } from "./types.js";
-import type { ShelfItemKind, ShelfShortcutAction } from "@molis-ai/molis-work-contracts/modules/shelf";
+import type { ShelfItemKind, ShelfShortcutAction } from "@molis-ai/molis-work-module-shelf/contract";
 
 const fieldOf = (form: ParentNode, selector: string): HTMLInputElement | null => form.querySelector<HTMLInputElement>(selector);
 

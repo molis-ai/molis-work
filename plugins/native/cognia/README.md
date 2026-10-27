@@ -1,6 +1,5 @@
 # Cognia
 
-Status: `partial`. Workspace migration: `goal-reorg-f2`. Contract: `@molis-ai/molis-work-contracts/platform/plugin`.
 
 Personal knowledge workspace for the current Molis Work Home. Import a local Obsidian, LLM Wiki or Markdown folder, preview the fixed snapshot, then explicitly commit. Browser folder uploads create an independent source; select an existing upload source to update it. Local path previews use a Host directory grant and record its grant ID as the source locator. Re-entering the same path obtains a new grant and currently creates a separate source; automatic source matching for that UI path remains unresolved. Source files are never changed. See [format compatibility](../../../specs/archive/cognia-plugin/compatibility.md).
 

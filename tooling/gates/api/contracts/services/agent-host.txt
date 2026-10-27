@@ -1111,6 +1111,7 @@ export interface AgentMemoryTools {
         scope: "personal" | "project" | "character";
         applies: string;
         note?: string;
+        candidate_id?: string;
     }>;
     list?(control: AgentMemoryToolControl): Promise<import("@molis-ai/molis-work-contracts/services/memory").MemoryRunReadResult>;
     forget?(memoryId: string, control: AgentMemoryToolControl): Promise<{

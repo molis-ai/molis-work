@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_PROJECT_ID, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
 
 test("Kanban routes wheel by pointer and axis without switching axes at column boundaries", { timeout: 60_000 }, async t => {
   const b = await openGoalBrowser(t); if (!b) return;
@@ -56,7 +57,7 @@ test("Frame picker adds a persistent reference in place; current tab, directory 
   const source = createLocalFeedSourceService(b.store.db, DEMO_PROJECT_ID).register({kind:"web_query",query:"设计反馈"}).source;
   const feed = createLocalFeedApplication(b.store.db);
   const item = feed.ingestItem({source,externalId:"attention-reference",title:"核对键盘焦点",summary:"需要保留当前输入位置",body:"需要保留当前输入位置",occurredAt:new Date().toISOString(),attention:false}).item;
-  const before = b.store.snapshot(DEMO_PROJECT_ID);
+  const before = boardSnapshot(b.store, DEMO_PROJECT_ID);
   await command("Emulation.setDeviceMetricsOverride",{width:1280,height:800,deviceScaleFactor:1,mobile:false},sessionId);
   await navigate(()=>command("Page.navigate",{url:`${origin}/projects/${projectId}/`},sessionId));
   await click('[data-plugin-id="goals"]');
@@ -119,6 +120,6 @@ test("Frame picker adds a persistent reference in place; current tab, directory 
   await evaluate(`document.querySelector('[data-momentum-node][data-goal-id="${goal.goal_id}"] [data-graph-frame]').click()`);
   await waitFor("!document.querySelector('[data-goal-frame-surface]').hidden");
   assert.equal(await evaluate("document.querySelector('[data-frame-goal-title]').textContent"),"整理设计反馈", "explicit Frame entry overrides the saved work view");
-  assert.deepEqual(b.store.snapshot(DEMO_PROJECT_ID).goals,before.goals);
-  assert.deepEqual(b.store.snapshot(DEMO_PROJECT_ID).runs,before.runs);
+  assert.deepEqual(boardSnapshot(b.store, DEMO_PROJECT_ID).goals,before.goals);
+  assert.deepEqual(boardSnapshot(b.store, DEMO_PROJECT_ID).runs,before.runs);
 });

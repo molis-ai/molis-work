@@ -3,7 +3,7 @@ import { existsSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { PluginOwnerFilesWriter } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginDefinition, PluginOwnerFilesWriter } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { deferred, serveHomeRuntime } from "./fixtures/home-runtime.js";
 import { grantOwnerFiles, ownerFileActions, ownerFilesProbe } from "./fixtures/plugin-owner-files.js";
 
@@ -122,7 +122,7 @@ for (const invalidation of ["cancel", "caller-revoke", "stop", "revoke", "reinst
 }
 
 test("SHF-IO-S02 SHF-IO-S07 RAC-307 stop callback loses file authority and upgrade cannot inherit a declaration by plugin id", async t => {
-  const probe = ownerFilesProbe(), { host, home } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.entry()] } });
+  const probe = ownerFilesProbe(), installed = new Set<PluginDefinition>(), { host, home } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.entry()], installed } });
   const { platform, install } = await grantOwnerFiles(host, probe), run = ownerFileActions(host, probe);
   await run.write(writer => writer.writeFile("catalog.json", Buffer.from("keep"), "create"));
   let stopChecked = false;
@@ -133,13 +133,16 @@ test("SHF-IO-S02 SHF-IO-S07 RAC-307 stop callback loses file authority and upgra
   // A different definition under the same plugin_id is not on the Host's list: one that declares the files in its own Manifest is refused,
   // not started without them (RAC-307), and the plugin it would have replaced keeps running.
   const replacement = ownerFilesProbe("ownerprobe", "home", "1.1.0");
+  installed.add(replacement.definition); // the test acts as the Host's code: the object may run in the process (S-75 ⑥); what is refused here is its declaration
   await assert.rejects(platform.runtime.upgrade({ install_id: install.install_id, definition: replacement.definition, grants: replacement.permissions }), /启动失败/u);
   assert.equal(stopChecked, true);
   assert.equal(replacement.contexts.length, 0, "its code never ran, so it read and wrote nothing");
   assert.equal(platform.runtime.get(install.install_id).version, "1.0.0");
   // One that declares none starts, and has no files service: nothing is inherited from the plugin it replaces.
   const plain = ownerFilesProbe("ownerprobe", "home", "1.2.0");
-  await platform.runtime.upgrade({ install_id: install.install_id, definition: plain.withoutFiles(), grants: plain.permissions });
+  const withoutFiles = plain.withoutFiles();
+  installed.add(withoutFiles);
+  await platform.runtime.upgrade({ install_id: install.install_id, definition: withoutFiles, grants: plain.permissions });
   assert.equal(plain.preflight[0]!.services?.ownerFiles, undefined);
   assert.equal(plain.contexts.at(-1)!.services?.ownerFiles, undefined, "a different same-id definition has no trusted binding");
   assert.equal(readFileSync(join(home, probe.owner_files.store_name, "catalog.json"), "utf8"), "keep");

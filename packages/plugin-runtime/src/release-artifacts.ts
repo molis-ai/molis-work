@@ -1,4 +1,4 @@
-import type { PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { PluginAttentionDeclaration, PluginInstanceRecord, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { pluginManifestDigest } from "./identity.js";
 
 export interface PluginRuntimeReleaseArtifact {
@@ -48,6 +48,17 @@ export class SqlitePluginRuntimeReleaseArtifactRepository implements PluginRunti
       WHERE plugin_id = ? AND publisher_signature = ? AND version = ? AND manifest_digest = ?`)
       .get(pluginId, publisherSignature, version, manifestDigest) as { artifact_json: string } | undefined;
     return row ? JSON.parse(row.artifact_json) as PluginRuntimeReleaseArtifact : null;
+  }
+
+  /**
+   * The `attention` one build's Manifest declared, or null (the build is not archived, or declares none). The Inbox asks it of every running
+   * installation, so it is read in SQLite without parsing the build's module source.
+   */
+  declaredAttention(pluginId: string, publisherSignature: string, version: string, manifestDigest: string): PluginAttentionDeclaration | null {
+    const row = this.db.prepare(`SELECT json_extract(artifact_json, '$.manifest.attention') AS attention FROM plugin_runtime_release_artifacts
+      WHERE plugin_id = ? AND publisher_signature = ? AND version = ? AND manifest_digest = ?`)
+      .get(pluginId, publisherSignature, version, manifestDigest) as { attention: string | null } | undefined;
+    return row?.attention ? JSON.parse(row.attention) as PluginAttentionDeclaration : null;
   }
 
   list(pluginId: string, publisherSignature: string): PluginRuntimeReleaseArtifact[] {

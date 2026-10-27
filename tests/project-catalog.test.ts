@@ -9,8 +9,9 @@ import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
 import { catalogSchemaCompatibilityError, type MolisWorkProjectCatalog, type RuntimeWorkContext } from "@molis-ai/molis-work-app-local-host";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { DEMO_PROJECT_ID, GoalProjectApplication } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
 
 async function withTemporaryDirectory<T>(run: (directory: string) => Promise<T>): Promise<T> {
   const directory = await mkdtemp(join(tmpdir(), "molis-work-project-catalog-"));
@@ -187,7 +188,7 @@ test("managed projects have immutable identities, duplicate names, and isolated 
       const secondStore = new LocalProjectDatabase(second.database_path);
       try {
         new GoalProjectApplication(secondStore).projectOpened(second.project_id);
-        assert.equal(secondStore.snapshot(second.project_id).goals.length, 0);
+        assert.equal(boardSnapshot(secondStore, second.project_id).goals.length, 0);
       } finally {
         secondStore.close();
       }
@@ -228,7 +229,7 @@ test("demo data is classified, idempotently opened, reset, and removable without
 
       const demoStore = new LocalProjectDatabase(created.project.database_path);
       try {
-        const demoSnapshot = demoStore.snapshot(demoId);
+        const demoSnapshot = boardSnapshot(demoStore, demoId);
         assert.equal(demoSnapshot.board.project_id, demoId);
         assert.equal(
           demoSnapshot.goals.find((goal) => goal.goal_id === "V1")?.title,
@@ -288,7 +289,7 @@ test("demo data is classified, idempotently opened, reset, and removable without
       assert.equal(reset.status, "reset");
       const resetStore = new LocalProjectDatabase(reset.project.database_path);
       try {
-        const resetSnapshot = resetStore.snapshot(demoId);
+        const resetSnapshot = boardSnapshot(resetStore, demoId);
         assert.equal(resetSnapshot.goals.some((goal) => goal.goal_id === "temporary-demo-change"), false);
         assert.ok(resetSnapshot.goals.find((goal) => goal.goal_id === "AUTO-CONNECT")?.trashed_at);
         assert.equal(new GoalProjectApplication(resetStore).goalEvents.isEventStateOwner(demoId, "CORE"), true);

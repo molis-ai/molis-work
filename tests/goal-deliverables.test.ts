@@ -4,10 +4,11 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { MolisWorkLocalHost, DEMO_PROJECT_ID, GoalProjectApplication, LocalProjectDatabase, seedDemoBoard, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoGoals, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { GOAL_PLUGIN_OBJECT_SOURCE, goalPluginObjectRef } from "@molis-ai/molis-work-contracts/modules/goals";
+import { GoalProjectApplication } from "./fixtures/goal-application.js";
 
 const controlToken = "goal-deliverables-test-control-token-0123456789";
 
@@ -16,7 +17,7 @@ test("a Goal records, lists and removes deliverables from the 成果库, and its
   const directory = await mkdtemp(join(tmpdir(), "molis-work-goal-deliverables-"));
   const databasePath = join(directory, "fixture.db");
   await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
-  seedDemoBoard(databasePath);
+  await seedDemoGoals(databasePath);
   const store = new LocalProjectDatabase(databasePath);
   const library = openProjectVersionStores(store);
   const server = createMolisWorkWebServer({ databasePath, projectId: DEMO_PROJECT_ID, homeDirectory: directory, controlToken });
@@ -66,7 +67,7 @@ test("a Goal pins a bound document on the spot through Pages and hands in the ne
   const directory = await mkdtemp(join(tmpdir(), "molis-work-goal-pin-"));
   const databasePath = join(directory, "fixture.db");
   await new MolisWorkLocalHost({ homeDirectory: directory, completeText: null }).close();
-  seedDemoBoard(databasePath);
+  await seedDemoGoals(databasePath);
   const store = new LocalProjectDatabase(databasePath);
   const coordinator = new GoalProjectApplication(store), library = openProjectVersionStores(store);
   const server = createMolisWorkWebServer({ databasePath, projectId: DEMO_PROJECT_ID, homeDirectory: directory, controlToken });

@@ -40,10 +40,17 @@ test("Coding formal routes preserve drafts and isolate projects across server re
     // Shelf is personal and always available; it is not a per-project opt-in. What it saves into a project is project knowledge.
     const shelfItem = await request('/api/plugins/io.molis.work.shelf/items', 'POST', { filename: 'port.md', bytes_base64: Buffer.from('固定端口材料').toString('base64') });
     assert.equal(shelfItem.status, 200);
-    // It is saved through the 成果库's import, so a project without the 成果库 refuses it, as the side panel's import does.
+    // RAC-1044 (PG-077 D1): the platform import remains available without the project's 成果 shell; the same write still requires the person's token.
+    assert.equal((await request(`/api/settings/projects/${projects[1]}/plugins`, 'DELETE', { plugin_id: 'artifacts' })).status, 200);
     const elsewhere = `/projects/${projects[1]}/api/plugins/io.molis.work.shelf/items/${shelfItem.body.item.item_id}/project-material`;
-    const refused = await request(elsewhere, 'POST', { expected_fingerprint: (await request(elsewhere)).body.fingerprint });
+    const elsewherePreview = await request(elsewhere);
+    assert.equal(elsewherePreview.status, 200);
+    const elsewhereInput = { expected_fingerprint: elsewherePreview.body.fingerprint };
+    const refused = await request(elsewhere, 'POST', elsewhereInput, false);
     assert.equal(refused.status, 403, JSON.stringify(refused.body));
+    const elsewhereMaterial = await request(elsewhere, 'POST', elsewhereInput);
+    assert.equal(elsewhereMaterial.status, 200, JSON.stringify(elsewhereMaterial.body));
+    assert.equal(elsewhereMaterial.body.reference.version, 1);
     assert.equal((await request(`/api/settings/projects/${projects[0]}/plugins`, 'POST', { plugin_id: 'artifacts' })).status, 200);
     const projectMaterial = `/projects/${projects[0]}/api/plugins/io.molis.work.shelf/items/${shelfItem.body.item.item_id}/project-material`;
     const materialPreview = await request(projectMaterial);

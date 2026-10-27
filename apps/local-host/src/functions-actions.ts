@@ -3,7 +3,7 @@ import { sceneConfigurationActions, retainActionAuthority, ActionError, type Act
 import { AGENT_MCP_DESTINATION_ID } from "@molis-ai/molis-work-contracts/modules/functions";
 import { actionSceneCompatibilityReason } from "@molis-ai/molis-work-kernel";
 import { functionsConnectionId, functionsCredentialConfigured, openFunctionsService, type FunctionsHostOptions } from "./functions-host.js";
-import { liveHostFunctionAuthoringCatalog } from "./behavior-catalog.js";
+import { liveHostJudgmentRuleAuthoringCatalog } from "./recommendation-catalog.js";
 
 type FunctionContext = (caller: ActionCallContext) => { actions: ActionClient; scenes: ActionSceneClient; projectId?: string };
 
@@ -46,7 +46,7 @@ export class SystemFunctionsActions {
         if (matches.length > 1) throw new ActionError("actions.scene_ambiguous", "此用途有多个版本，请选择具体场景版本和提供方");
         const matched = matches[0];
         if (!matched) throw new ActionError("actions.scene_missing", "原消费场景版本或提供方不存在或不可访问，草稿已保留");
-        const purpose = liveHostFunctionAuthoringCatalog(directory, matches).destinations.find(row => row.destination_id === record.scene_id
+        const purpose = liveHostJudgmentRuleAuthoringCatalog(directory, matches).destinations.find(row => row.destination_id === record.scene_id
           && row.scene_version === matched.definition.version && row.provider_id === matched.provider.provider_id);
         if (!purpose) throw new ActionError("actions.scene_missing", "原消费场景不存在或当前调用者无权使用，草稿已保留");
         if (purpose.availability?.available === false) throw new ActionError(purpose.availability.code, purpose.availability.reason);
@@ -101,7 +101,7 @@ export class SystemFunctionsActions {
         { ...functionContextActions.catalog, handle: async caller => {
           const { actions, scenes } = context(caller);
           const [directory, consumers] = await Promise.all([actions.discover(caller), scenes.discoverScenes(caller)]);
-          return { catalog: liveHostFunctionAuthoringCatalog(directory, consumers) };
+          return { catalog: liveHostJudgmentRuleAuthoringCatalog(directory, consumers) };
         } },
         { ...functionContextActions.usages, handle: async (caller, input) => {
           const record = this.ports.read(service => service.get((input as { id: string }).id));

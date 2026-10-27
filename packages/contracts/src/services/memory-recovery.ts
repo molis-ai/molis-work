@@ -2,8 +2,16 @@ import type { MemoryOwnerRelation, MemoryScope } from "./memory.js";
 import type { AgentSessionDecision, AgentSessionPurgePreview, AgentSessionRef } from "./agent-host-runtime.js";
 import type { AgentSessionOwner } from "./agent-host-start.js";
 import type { ProjectDeletionRecoveryGroup } from "../modules/projects.js";
-import type { CodingSessionPurgeSelection } from "../modules/coding.js";
 import type { AssistantSessionPurgeSelection } from "./assistant-session-purge.js";
+
+/** Original body-free selection, saved by the Home recovery owner before SDK Session destruction. */
+export interface CodingSessionPurgeSelection {
+  readonly session: AgentSessionRef;
+  readonly owner: AgentSessionOwner;
+  readonly installation_generation: string;
+  readonly sessions: readonly { readonly session_id: string; readonly created_at: string; readonly keys: readonly string[] }[];
+  readonly waits: readonly { readonly wait_id: string; readonly keys: readonly string[] }[];
+}
 
 /** Explicit stopped working copies. This DTO carries no maintenance authority or default Home. */
 export interface MemoryHomeRecoveryRequest {

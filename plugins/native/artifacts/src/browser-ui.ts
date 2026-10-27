@@ -1,9 +1,8 @@
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
 import { icon } from "@molis-ai/molis-work-plugin-sdk/ui";
 import { artifactSubjectId } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { artifactVersionPath, type ArtifactBrowserView } from "./browser-view.js";
+import { artifactVersionPath, type ArtifactBrowserView, type ArtifactPluginInput } from "./browser-view.js";
 import { renderArtifactPortInputs } from "./port-input-ui.js";
-import type { ArtifactPluginInput } from "./actions.js";
 
 /** A type's display name as its owner declares it (artifact-positioning A4); an undeclared type shows its last segment. */
 function artifactTypeLabel(typeId: string, titles: ArtifactBrowserUiModel["typeTitles"], p: ArtifactBrowserUiModel["primitives"]): string {

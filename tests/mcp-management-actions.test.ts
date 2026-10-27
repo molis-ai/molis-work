@@ -7,9 +7,10 @@ import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work
 import { LocalMcpServer, MolisWorkLocalHost, molisWorkHostProjectReference, runV1Cli } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { GoalEventDecisionResult } from "@molis-ai/molis-work-contracts/modules/goals";
-import type { GoalTreeProposalDecisionResult, GoalTreeApplicationApi } from "@molis-ai/molis-work-plugin-goals";
+import { GOALS_PLUGIN_ID, type GoalTreeProposalDecisionResult, type GoalTreeApplicationApi } from "@molis-ai/molis-work-plugin-goals";
 import { dispatchMcpProjectTool, mcpWebUrl, type McpToolResult } from "@molis-ai/molis-work-app-mcp";
 import { actionHttpStatus } from "@molis-ai/molis-work-plugin-sdk";
+import { goalApplicationOf, boardSnapshot } from "./fixtures/goal-application.js";
 
 const PROJECT = "management-actions", FORGED = "11111111-2222-4333-8444-555555555555";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -38,8 +39,8 @@ async function setup(t: TestContext) {
     servers.push(value); return value;
   };
   const facts = (host: MolisWorkLocalHost) => host.withProject(reference, runtime => ({
-    snapshot: runtime.store.snapshot(PROJECT), events: runtime.store.readEventsDescending(PROJECT),
-    proposals: runtime.coordinator.goalTree.listGoalTreeProposals({ project_id: PROJECT }),
+    snapshot: boardSnapshot(runtime.store, PROJECT), events: runtime.store.readEventsDescending(PROJECT),
+    proposals: goalApplicationOf(runtime).goalTree.listGoalTreeProposals({ project_id: PROJECT }),
   }));
   const args = (input: Record<string, unknown>) => ({ database_path: databasePath, project_id: PROJECT, ...input });
   return { home, databasePath, reference, host, server, closed, facts, args };
@@ -87,7 +88,7 @@ test("W3-07-4-01 / W3-07-4-02: management MCP shares Goals actions and CLI propo
   assert.deepEqual([initialized.project_id, initialized.replayed], [PROJECT, false]);
   assert.deepEqual(await success(host, management, "molis_work_v1_initialize", initialize, "goals.board.initialize"), { ...initialized, replayed: true });
   const boardFacts = await fixture.facts(host);
-  assert.equal(boardFacts.events.find(event => event.type === "board.created")?.actor_id, LOCAL_PERSON_ACTOR_ID);
+  assert.equal(boardFacts.events.find(event => event.type === `${GOALS_PLUGIN_ID}:board.created`)?.actor_id, LOCAL_PERSON_ACTOR_ID);
   const proposalInput = { project_id: PROJECT, summary: "首个目标", idempotency_key: "propose",
     items: [{ item_id: "first", kind: "goal", operation: "create", payload: { goal_id: "first", title: "验证管理入口", outcome: "重启后决定" },
       source_refs: ["conversation://management-actions"], reason: "明确用户要留的结果", confidence: 1 }] };
@@ -116,13 +117,13 @@ test("W3-07-4-01 / W3-07-4-02: management MCP shares Goals actions and CLI propo
     reason: "逐项确认", idempotency_key: "tree-defaults" });
   const plain = await success<GoalTreeProposalDecisionResult>(restarted, afterRestart, "molis_work_v1_goal_tree_decide", plainInput, "goals.tree.decide");
   assert.deepEqual(plain.proposal.decisions.map(item => [item.actor_id, item.authority_source, item.runtime_actor_id, item.conversation_ref, item.message_ref]),
-    [[LOCAL_PERSON_ACTOR_ID, "management", null, `management:${PROJECT}`, "management-tree-decision:tree-defaults"]]);
+    [[LOCAL_PERSON_ACTOR_ID, "management", null, `management:${PROJECT}`, "management:tree-defaults"]]);
   const event = fixture.args({ goal_id: "first", idempotency_key: 7, conclusion: 9, effects: [{ kind: "authorize_action", action: "publish" }], scope: { action: "publish" } });
   const recorded = await success<GoalEventDecisionResult>(restarted, afterRestart, "molis_work_v1_event_decide", event, "goals.decisions.record");
   assert.deepEqual([recorded.recorded, recorded.replayed, recorded.decision.actor_id, recorded.decision.authority_source], [true, false, LOCAL_PERSON_ACTOR_ID, "management"]);
-  const stored = await restarted.withProject(fixture.reference, runtime => runtime.coordinator.governance.eventDecisions.read(PROJECT, recorded.decision.governance_decision_id));
+  const stored = await restarted.withProject(fixture.reference, runtime => goalApplicationOf(runtime).governance.eventDecisions.read(PROJECT, recorded.decision.governance_decision_id));
   assert.deepEqual([stored?.actor_id, stored?.actor_kind, stored?.authority_source, stored?.conversation_ref, stored?.message_ref],
-    [LOCAL_PERSON_ACTOR_ID, "user", "management", `management:${PROJECT}`, "management-event-decision:7"]);
+    [LOCAL_PERSON_ACTOR_ID, "user", "management", `management:${PROJECT}`, "management:7"]);
   const afterEvent = await fixture.facts(restarted);
   assert.deepEqual(await success(restarted, afterRestart, "molis_work_v1_event_decide", event, "goals.decisions.record"), { ...recorded, replayed: true });
   assert.deepEqual(await fixture.facts(restarted), afterEvent, "event replay saves no second owner fact");

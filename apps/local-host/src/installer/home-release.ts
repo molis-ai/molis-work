@@ -71,7 +71,7 @@ export async function createRelease(
   const planningMethodsDirectory = path.join(
     embeddedNodeModules,
     "@molis-ai",
-    "molis-work-module-goals",
+    "molis-work-plugin-goals",
     "methods",
   );
   if ((await pathState(planningMethodsDirectory))?.isDirectory()) {

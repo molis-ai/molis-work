@@ -14,6 +14,8 @@ export interface RecordJudgmentInput {
   error_code: string | null;
   scene_provenance?: JudgmentRecord["scene_provenance"];
   recommended_actions?: JudgmentRecord["recommended_actions"];
+  /** The plugin installation that records it (`services.judgments`); absent for a judgment the Host records itself. */
+  install_id?: string;
 }
 
 export function getActionSceneBinding(db: DatabaseSync, sceneId: string, projectId: string): ActionSceneBinding | null {
@@ -60,8 +62,8 @@ export function recordJudgment(db: DatabaseSync, input: RecordJudgmentInput): Ju
   db.prepare(`
     INSERT INTO function_judgments (
       judgment_id, function_key, function_version, subject_kind, subject_id, project_id,
-      scene_id, outcome, suggested_json, error_code, created_at, scene_provenance_json, recommended_actions_json
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      scene_id, outcome, suggested_json, error_code, created_at, scene_provenance_json, recommended_actions_json, install_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     record.judgment_id,
     record.function_key,
@@ -76,6 +78,7 @@ export function recordJudgment(db: DatabaseSync, input: RecordJudgmentInput): Ju
     record.created_at,
     record.scene_provenance ? JSON.stringify(record.scene_provenance) : null,
     record.recommended_actions ? JSON.stringify(record.recommended_actions) : null,
+    input.install_id ?? null,
   );
   return record;
 }
@@ -87,13 +90,17 @@ export function listJudgments(db: DatabaseSync): JudgmentRecord[] {
   return rows.map(mapJudgment);
 }
 
-export function latestSceneJudgments(db: DatabaseSync, projectId: string, sceneId: string): JudgmentRecord[] {
+/**
+ * The newest judgment of each subject of a scene in a project, among those one recorder made: a plugin installation (`installId`) or the
+ * Host itself (`null`). A scene id says nothing of who owns the judgments made under it, so the recorder is always named.
+ */
+export function latestSceneJudgments(db: DatabaseSync, projectId: string, sceneId: string, installId: string | null): JudgmentRecord[] {
   const rows = db.prepare(`
     SELECT * FROM (
       SELECT *, ROW_NUMBER() OVER (PARTITION BY subject_kind, subject_id ORDER BY created_at DESC, rowid DESC) AS subject_rank
-      FROM function_judgments WHERE project_id = ? AND scene_id = ?
+      FROM function_judgments WHERE project_id = ? AND scene_id = ? AND install_id IS ?
     ) WHERE subject_rank = 1 ORDER BY created_at DESC
-  `).all(projectId, sceneId) as Record<string, unknown>[];
+  `).all(projectId, sceneId, installId) as Record<string, unknown>[];
   return rows.map(mapJudgment);
 }
 

@@ -2,12 +2,14 @@ import type { CreateAndBindRuntimeContextInput, MolisWorkRuntimeContextResolutio
 import type { ProjectRecord } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { RuntimeContextBindingRepository } from "./context-bindings.js";
 import type { RuntimeProjectBindingCommands } from "./project-binding-commands.js";
+import type { RuntimeBindingRecords } from "./runtime-binding-records.js";
 import type { RuntimeProjectBindingValidation } from "./project-binding-validation.js";
 import { bindingErrors } from "./binding-errors.js";
 import { boundResolution } from "./project-resolution.js";
 
 export interface RuntimeProjectSetupPorts {
-  bindings: Pick<RuntimeProjectBindingCommands, "resolveRuntimeContext" | "findRuntimeContextSetupRequest" | "findWorkspaceMembershipByIds" | "bindRuntimeContextInTransaction">;
+  bindings: Pick<RuntimeProjectBindingCommands, "resolveRuntimeContext" | "bindRuntimeContextInTransaction">;
+  records: Pick<RuntimeBindingRecords, "findRuntimeContextSetupRequest" | "findWorkspaceMembershipByIds">;
   validation: RuntimeProjectBindingValidation;
   getProject(projectId: string): ProjectRecord;
   registerProject(record: ProjectRecord, eventType: "project.created", actorId: string): void;
@@ -39,7 +41,7 @@ return async function createProjectAndBindRuntimeContext(
       rebind_confirmed: input.rebind_confirmed === true,
       binding_scope: input.binding_scope ?? null,
     });
-    const replay = ports.bindings.findRuntimeContextSetupRequest(normalized, idempotencyKey);
+    const replay = ports.records.findRuntimeContextSetupRequest(normalized, idempotencyKey);
     if (replay) {
       if (replay.request_fingerprint !== requestFingerprint) {
         throw bindingErrors.idempotency_conflict("同一个项目创建请求键不能用于不同的项目名称、执行者或切换决定",
@@ -47,7 +49,7 @@ return async function createProjectAndBindRuntimeContext(
       }
       const current = ports.bindings.resolveRuntimeContext(input.context);
       const replayMembership = normalized.workspace
-        ? ports.bindings.findWorkspaceMembershipByIds(normalized.workspace.workspace_id, replay.project_id)
+        ? ports.records.findWorkspaceMembershipByIds(normalized.workspace.workspace_id, replay.project_id)
         : null;
       if (
         (current.status === "bound" && current.project?.project_id !== replay.project_id)
@@ -72,7 +74,7 @@ return async function createProjectAndBindRuntimeContext(
 
     return ports.provisionCreatedProject({ displayName, actorId }, (record) =>
       ports.transaction(() => {
-        const racedReplay = ports.bindings.findRuntimeContextSetupRequest(normalized, idempotencyKey);
+        const racedReplay = ports.records.findRuntimeContextSetupRequest(normalized, idempotencyKey);
         if (racedReplay) {
           throw bindingErrors.idempotency_conflict("同一个项目创建请求正在或已经由另一个调用处理，请重新解析当前项目连接",
           );

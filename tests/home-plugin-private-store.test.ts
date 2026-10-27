@@ -50,8 +50,10 @@ for (const version of [1, 3] as const) {
     await assert.rejects(first, refusal);
     assert.equal(host.homePlugins!.ready(), first, "ordinary preparation keeps the failure and never retries");
     const one = await project("A broken Home has a recovery page");
-    // T3 now checks the Home ledger for Goals too. Use the production availability policy instead of an unconstrained fixture Host.
-    await assert.rejects(host.actionClient(one.reference, false).invoke(person(["goals:read"], one.project_id), goalsActions.snapshot, {}), refusal);
+    // The stopped Runtime registered no Goals action; public discovery still enforces the original damaged-Home refusal.
+    const client = host.actionClient(one.reference, false), caller = person(["goals:read"], one.project_id);
+    await assert.rejects(client.invoke(caller, goalsActions.snapshot, {}), { code: "actions.missing" });
+    await assert.rejects(client.discover(caller), refusal);
     const page = await request(`/projects/${one.project_id}`, { headers: { accept: "text/html" } });
     assert.equal(page.status, 200, await page.clone().text());
     assert.match(page.headers.get("content-type") ?? "", /^text\/html\b/iu);
@@ -139,10 +141,11 @@ test("W3-06-F-04 Home KV survives shutdown, isolates installs and rejects an int
 });
 
 test("W3-06-F-04 candidate preflight is read-only and failed startup restores the original Home KV", { timeout: 60_000 }, async t => {
-  const probe = homeProbe(), { host } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition] } });
+  const probe = homeProbe(), next = homeProbe("homeprobe", "1.1.0");
+  // The test acts as the Host's code: the candidate is the one other object admitted to the process (S-75 ⑥).
+  const { host } = await serveHomeRuntime(t, { pluginFixtures: { home: [probe.definition], installed: new Set([next.definition]) } });
   const { platform, install } = await grantHomeProbe(host, probe);
   probe.contexts.at(-1)!.services!.storage!.set("draft", "original draft");
-  const next = homeProbe("homeprobe", "1.1.0");
   let checked: PluginUpgradeContext["services"];
   next.definition.validateUpgrade = async ({ context }) => { checked = context.services; assert.equal(context.services!.storage!.get("draft"), "original draft"); };
   next.definition.start = async context => { context.services!.storage!.set("draft", "candidate corruption"); throw new Error("candidate failed"); };

@@ -1,6 +1,6 @@
 import type { AgentSessionOwner, AgentSessionRef } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { ASSISTANT_PLUGIN_ID, type AssistantSessionPurgeSelection } from "@molis-ai/molis-work-contracts/services/assistant";
-import type { CodingSessionPurgeSelection } from "@molis-ai/molis-work-contracts/modules/coding";
+import type { CodingSessionPurgeSelection } from "@molis-ai/molis-work-contracts/services/memory";
 import type { PluginDatabaseReader, PluginDatabaseTransaction, PluginManifest, PluginSqlRow } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { hostErrors } from "./host-errors.js";
 import { existingPluginPrivateKeys, inspectExistingPluginProjectDatabase, readPluginRuntimeRecords, pluginStatementGuard,
@@ -15,6 +15,7 @@ import { SessionBusinessDatabases } from "./session-business-database.js";
 export type SessionBusinessPurgeSelection = { readonly kind: "coding"; readonly selection: CodingSessionPurgeSelection }
   | { readonly kind: "assistant"; readonly selection: AssistantSessionPurgeSelection };
 type Binding = { readonly session: AgentSessionRef; readonly owner: AgentSessionOwner };
+type CodingPurgeStatements = Pick<PluginDatabaseTransaction, "get" | "all" | "run">;
 export interface SessionBusinessPurgeInput {
   readonly homeDirectory: string;
   /** The original Home recovery owner/adopting guard; synchronous and checked again after the write lock. */
@@ -37,7 +38,7 @@ const inspector: PluginProjectSchemaInspector = { scratch: () => new LocalSqlite
 interface CodingBusinessPurgePort {
   readonly manifest: PluginManifest;
   prepare(db: PluginDatabaseReader, input: Omit<CodingSessionPurgeSelection, "sessions" | "waits">, keys: readonly string[], waitIds: readonly string[]): CodingSessionPurgeSelection;
-  clear(db: PluginDatabaseTransaction, selection: CodingSessionPurgeSelection, storage: ReturnType<typeof privateKeys>, current: () => void): void;
+  clear(db: CodingPurgeStatements, selection: CodingSessionPurgeSelection, storage: ReturnType<typeof privateKeys>, current: () => void): void;
   verify(db: PluginDatabaseReader, selection: CodingSessionPurgeSelection, storage: ReturnType<typeof privateKeys>): void;
 }
 
@@ -48,7 +49,7 @@ export function createSessionBusinessPurgeOwner(input: SessionBusinessPurgeInput
   const assistant = <T>(write: boolean, work: (db: SqliteDatabase, current: () => void) => T, absent: () => T) =>
     resources.withDatabase(homeSqlitePath(homeDirectory, ASSISTANT_STORE_NAME), ASSISTANT_STORE_BASELINE, false, write, work, absent);
   const coding = <T>(binding: Binding, write: boolean, generation: string | undefined,
-    work: (db: PluginDatabaseTransaction, storage: ReturnType<typeof privateKeys>, current: () => void, generation: string) => T): T => {
+    work: (db: CodingPurgeStatements, storage: ReturnType<typeof privateKeys>, current: () => void, generation: string) => T): T => {
     resources.current(); const location = projectDatabase(binding.owner.project_id);
     const { path, assertCurrent: assertLocationCurrent } = location; resources.current(assertLocationCurrent);
     return resources.withDatabase(path, PROJECT_DATABASE_BASELINE, true, write, (db, live) => {
@@ -58,7 +59,7 @@ export function createSessionBusinessPurgeOwner(input: SessionBusinessPurgeInput
       const declaration = codingOwner.manifest.databases?.project; if (!declaration) throw conflict();
       const record = inspectExistingPluginProjectDatabase(db, { plugin_id: codingOwner.manifest.plugin_id, publisher_signature: codingOwner.manifest.publisher.signature, declaration }, inspector, { path });
       const guard = pluginStatementGuard(db, record);
-      const scoped: PluginDatabaseTransaction = {
+      const scoped: CodingPurgeStatements = {
         get(sql, values = []) { current(); guard(sql, values, "read"); return db.prepare(sql).get(...values) as PluginSqlRow | undefined ?? null; },
         all(sql, values = []) { current(); guard(sql, values, "read"); return db.prepare(sql).all(...values) as PluginSqlRow[]; },
         run(sql, values = []) { current(); if (!write || !db.inTransaction) throw conflict(); guard(sql, values, "write"); return db.prepare(sql).run(...values); },

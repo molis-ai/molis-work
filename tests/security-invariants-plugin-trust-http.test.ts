@@ -27,14 +27,20 @@ async function setup(t: Parameters<typeof residentManagement>[0]) {
 test("RAC-407 the plugin routes need the control token, take only the steps they name, and refuse a body that says who the person is", mac, async t => {
   const env = await setup(t);
   const bundle = signedPackage(newPublisher());
-  for (const step of ["install/preview", "install/confirm"]) {
+  const control = ["installed/disable", "installed/enable", "installed/uninstall"];
+  for (const step of ["install/preview", "install/confirm", ...control]) {
     assert.equal((await env.send(`/api/plugin-trust/${step}`, { body: { bundle }, headers: { "x-molis-work-control-token": undefined } })).status >= 400, true, `${step} without the control token`);
+    assert.equal((await env.send(`/api/plugin-trust/${step}`, { body: { bundle }, headers: { origin: "http://127.0.0.1:1" } })).status >= 400, true, `${step} from another origin`);
   }
   assert.equal((await env.send("/api/plugin-trust/install/preview", { body: { bundle }, headers: { origin: "http://127.0.0.1:1" } })).status >= 400, true, "another origin");
   assert.equal((await env.send("/api/plugin-trust/install/preview", { method: "GET" })).status >= 400, true, "a read of a step");
   assert.equal((await env.send("/api/plugin-trust/nowhere", { body: {} })).status >= 400, true, "no such step");
   const forged = await env.send("/api/plugin-trust/install/preview", { body: { bundle, user_action: { source: "web", conversation_ref: "a", message_ref: "b" } } });
   assert.equal(forged.body.code, "actions.input_invalid", "the entry stamps who acted; the body is not read for it");
+  for (const step of control) {
+    const said = await env.send(`/api/plugin-trust/${step}`, { body: { plugin_id: PACKAGE_PLUGIN_ID, keep_data: true, user_action: { source: "web", conversation_ref: "a", message_ref: "b" } } });
+    assert.equal(said.body.code, "actions.input_invalid", `${step}: the body is not read for who acted`);
+  }
   // An agreement is not taken back here: the one door for it is the Host's settings route (S-77), so this route has no such step.
   assert.equal((await env.send("/api/plugin-trust/consents/revoke", { body: { consent_id: "x" } })).status >= 400, true, "no revoke step on the plugin page's routes");
 });
@@ -57,6 +63,24 @@ test("RAC-408 a package is previewed (nothing is written), then installed under 
   assert.deepEqual([plugin.trust, plugin.publisher_label, plugin.manifest_available, plugin.permissions.map(item => item.permission)], ["pinned", "Example", true, ["storage:private"]]);
   assert.deepEqual(after.publishers.map(pin => [pin.key_id, pin.label]), [[publisher.identity, "Example"]]);
   assert.equal(after.plugins.some(item => item.trust === "host"), true, "the plugins that ship with Molis Work are listed too, as such");
+});
+
+test("BL623-08 S-84 the project's 插件 page switches a signed plugin off and on and takes it off, as the person: each step is read back in the overview", mac, async t => {
+  const env = await setup(t);
+  const bundle = signedPackage(newPublisher());
+  const preview = await env.send<{ preview_id: string }>("/api/plugin-trust/install/preview", { body: { bundle } });
+  assert.equal((await env.send("/api/plugin-trust/install/confirm", { body: { preview_id: preview.body.preview_id, consent: true, pin_label: "Example" } })).status, 200);
+  const state = async () => (await env.overview()).plugins.find(item => item.plugin_id === PACKAGE_PLUGIN_ID)?.state;
+  assert.equal(await state(), "running");
+  const step = (name: string, body: Record<string, unknown> = {}) => env.send<{ plugin_id?: string; state?: string; code?: string }>(`/api/plugin-trust/installed/${name}`, { body: { plugin_id: PACKAGE_PLUGIN_ID, ...body } });
+  assert.deepEqual((await step("disable")).body, { plugin_id: PACKAGE_PLUGIN_ID, state: "disabled" });
+  assert.equal(await state(), "disabled");
+  assert.deepEqual((await step("enable")).body, { plugin_id: PACKAGE_PLUGIN_ID, state: "running" });
+  assert.equal(await state(), "running");
+  assert.equal((await step("uninstall")).body.code, "actions.input_invalid", "taking it off says whether its data is kept");
+  assert.deepEqual((await step("uninstall", { keep_data: true })).body, { plugin_id: PACKAGE_PLUGIN_ID, state: "uninstalled" });
+  assert.equal(await state(), undefined, "it is gone from the overview");
+  assert.equal((await step("disable", { plugin_id: "goals" })).body.code, "plugin.state_invalid", "a plugin that did not come from a signed package is not touched");
 });
 
 test("RAC-409 taking an agreement back through the settings door writes revoked_at, and the overview shows it as revoked", mac, async t => {

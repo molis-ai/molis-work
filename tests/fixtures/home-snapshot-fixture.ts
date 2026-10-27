@@ -46,7 +46,7 @@ export async function populatedSnapshotHome(t: TestContext) {
   } finally { catalog.close(); }
   const first = projects[0]!, host = createMolisWorkLocalHost({ instanceId: "snapshot-source", homeDirectory: home, completeText: null });
   try {
-    await managementGoals(host.actionClient(molisWorkHostProjectReference({ databasePath: first.database_path, projectId: first.project_id }), false), first.project_id)
+    await managementGoals(host.actionClient(molisWorkHostProjectReference({ databasePath: first.database_path, projectId: first.project_id })), first.project_id)
       .invoke(goalsActions.create, { goal_id: "snapshot-goal", title: "Retained goal", outcome: "Keep the actual history", why: "Offline capture", business_logic: "Preserve owner facts", priority: 50, idempotency_key: "snapshot-goal-create" });
   } finally { await host.close(); }
   const project = new LocalProjectDatabase(first.database_path);

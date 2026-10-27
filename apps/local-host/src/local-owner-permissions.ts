@@ -8,7 +8,6 @@ import { connectorRecordActions } from "./connector-record-actions.js";
 import { PLUGIN_CONSENT_PERMISSIONS, PLUGIN_CONSENT_PROVIDER_ID } from "./installed-plugin-consent-actions.js";
 import { PLUGIN_INSTALL_PERMISSIONS, PLUGIN_INSTALL_PROVIDER_ID } from "./plugin-install-actions.js";
 import { informationActions, INFORMATION_PROVIDER_ID } from "./information-actions.js";
-import { PERSONAL_PLANNING_PERMISSIONS, PERSONAL_PLANNING_PROVIDER_ID } from "./personal-planning-actions.js";
 import { ASSISTANT_RULES_PROVIDER, ASSISTANT_RULE_ACTIONS, ASSISTANT_FOLLOW_UP_ACTIONS } from "./assistant/assistant-rule-actions.js";
 import { assistantThreadActions } from "./assistant/assistant-thread-actions.js";
 import { FUNCTIONS_PROVIDER_ID, functionsActions, functionAuthoringActions, functionContextActions } from "@molis-ai/molis-work-module-functions";
@@ -21,6 +20,7 @@ import { SEARCH_PERMISSIONS, SEARCH_PROVIDER_ID } from "@molis-ai/molis-work-con
 import { PLACEMENT_PERMISSIONS, PLACEMENT_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/placement";
 import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/memory";
 import { KNOWLEDGE_PERMISSIONS, KNOWLEDGE_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/knowledge";
+import { ARTIFACT_ACTION_PERMISSIONS, ARTIFACTS_PROVIDER_ID } from "@molis-ai/molis-work-module-artifacts";
 
 const asks = (definitions: Iterable<{ readonly action?: { readonly permissions: readonly string[] } }>) =>
   [...definitions].flatMap(definition => definition.action?.permissions ?? []);
@@ -39,6 +39,7 @@ function ownerProviders(): ReadonlyMap<string, readonly string[]> {
   const entries: Array<readonly [string, readonly string[]]> = [
     ...PLATFORM_PLUGIN_REGISTRATIONS.filter(entry => entry.manifest.kind === "native" && !entry.runtime)
       .map(entry => [entry.manifest.plugin_id, asks(entry.manifest.actions ?? [])] as const),
+    [ARTIFACTS_PROVIDER_ID, ARTIFACT_ACTION_PERMISSIONS],
     [HOME_PROVIDER_ID, HOME_ACTION_PERMISSIONS],
     [CONNECTOR_PROVIDER_ID, [...CONNECTOR_ACCOUNT_PERMISSIONS, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGEMENT_WRITE, ...connectorRecordActions.read.action.permissions]],
     [PLUGIN_CONSENT_PROVIDER_ID, PLUGIN_CONSENT_PERMISSIONS],
@@ -47,7 +48,6 @@ function ownerProviders(): ReadonlyMap<string, readonly string[]> {
     [FUNCTIONS_PROVIDER_ID, asks([...Object.values(functionsActions), ...Object.values(functionAuthoringActions), ...Object.values(functionContextActions)])],
     [PROJECT_WORKSPACE_PROVIDER_ID, asks(Object.values(projectWorkspaceActions))],
     [CHARACTER_PLUGIN_ID, CHARACTER_ACTION_PERMISSIONS],
-    [PERSONAL_PLANNING_PROVIDER_ID, PERSONAL_PLANNING_PERMISSIONS],
     [ASSISTANT_RULES_PROVIDER, asks([...Object.values(ASSISTANT_RULE_ACTIONS), ...Object.values(ASSISTANT_FOLLOW_UP_ACTIONS), ...Object.values(assistantThreadActions)])],
     [SEARCH_PROVIDER_ID, SEARCH_PERMISSIONS],
     [KNOWLEDGE_PROVIDER_ID, [...KNOWLEDGE_PERMISSIONS, "model:invoke"]],

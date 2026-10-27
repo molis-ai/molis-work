@@ -15,6 +15,7 @@ import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { parsePluginBindingScope, pluginBindingScope } from "@molis-ai/molis-work-service-connector-host";
 import { connectionsProbe, grantConnections } from "./fixtures/connections-runtime.js";
 import { person, serveHomeRuntime } from "./fixtures/home-runtime.js";
+import { ownerFilesProbe, ownerFilesProject } from "./fixtures/plugin-owner-files.js";
 
 // S-71 (docs/system/SECURITY-INVARIANTS.md, provisional number; slice s57-connections-extension X2): a `per_record` slot binds one of
 // the person's accounts to one of the plugin's records, in one project. Only the person binds; the plugin names a record key, reads
@@ -269,6 +270,11 @@ test("S-71 RAC-470 deleting a project removes its per_record bindings, of every 
   const home = join(directory, "home"), catalog = await openMolisWorkProjectCatalog({ homeDirectory: home }); t.after(() => catalog.close());
   const gone = await catalog.createProject({ display_name: "要删除的项目", actor_id: "test-user" });
   const kept = await catalog.createProject({ display_name: "留下的项目", actor_id: "test-user" });
+  // An installation that stays in the kept project: a binding no installation holds goes with a deleted project too (S-71 RAC-864), so these are held.
+  const probe = ownerFilesProbe("recordsdeletion", "project"), rig = ownerFilesProject(home, probe, { file: kept.database_path, projectId: kept.project_id }); t.after(() => rig.close());
+  const record = rig.platform.runtime.install({ trust: { level: "unsigned" }, definition: probe.withoutFiles(), deployment: "local", grants: probe.permissions }).install;
+  await rig.platform.runtime.start(record.install_id);
+  const INSTALL = record.install_id;
   const connection = withConnectorConnections(home, store => store.createToken({ serviceId: "github", displayName: "Work GitHub", token: BEARER_VALUE }));
   // The kept project's id begins with the deleted one's, as an anchored match must tell apart; and an id that only ends like it.
   const rows: Array<{ scope: string; plugin: string; slot: string }> = [

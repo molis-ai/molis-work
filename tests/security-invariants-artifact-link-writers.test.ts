@@ -3,10 +3,9 @@ import test from "node:test";
 import Database from "better-sqlite3";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
-import { ArtifactsModule, artifactsActions, createArtifactActionHandlers, createArtifactsSchema } from "@molis-ai/molis-work-module-artifacts";
+import { ArtifactsModule, artifactsActions, createArtifactActionHandlers, createArtifactsSchema, ARTIFACTS_PROVIDER_ID, ARTIFACTS_PROVIDER_TITLE, ARTIFACT_ACTIONS } from "@molis-ai/molis-work-module-artifacts";
 import { createContextLedger, createContextLedgerSchema } from "@molis-ai/molis-work-module-context-ledger";
 import { artifactLinkKinds } from "@molis-ai/molis-work-app-local-host";
-import { artifactsManifest } from "@molis-ai/molis-work-plugin-artifacts";
 import { eventCursorOf, pinnedArtifact } from "./fixtures/artifacts.js";
 
 // ac-artifacts A3 (slices/ac-artifacts.md §3.5), RAC-421 / S-82: a link kind belongs to the Plugin that declares it. An edge of that
@@ -28,8 +27,8 @@ function rig(t: test.TestContext, linkKinds: ReturnType<typeof artifactLinkKinds
     source: { module, id, version: null, scope: at.scope }, target: { module: "artifacts", id: "a", version: 1, scope: at.scope } });
   const actions = new ActionService();
   actions.registerProvider({
-    provider: { provider_id: artifactsManifest.plugin_id, plugin_id: artifactsManifest.plugin_id, title: artifactsManifest.name, kind: "plugin", project_id: projectId },
-    definitions: artifactsManifest.actions!,
+    provider: { provider_id: ARTIFACTS_PROVIDER_ID, plugin_id: ARTIFACTS_PROVIDER_ID, title: ARTIFACTS_PROVIDER_TITLE, kind: "plugin", project_id: projectId },
+    definitions: ARTIFACT_ACTIONS,
     handlers: createArtifactActionHandlers({ projectId, artifacts, ledger: ledger.query, linkKinds, goalTitle: id => `Goal ${id}`, importSources: () => ({}),
       importDocument: async () => { throw new Error("n/a"); }, openProjectReference: async () => { throw new Error("n/a"); } }),
   });

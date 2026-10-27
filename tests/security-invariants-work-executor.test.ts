@@ -92,10 +92,10 @@ test("S-51 a follow-up scheduled before its executor plugin's grant is revoked, 
     // The Assistant as the Host composes it, with the person's own clients.
     const { service, store } = assistantServiceFor({ localHost: local, homeDirectory: home, agentHost: agents, agentReady: async () => {},
       projectTitle: async () => "执行方撤权", projectReference: async () => reference, pages: async () => [] });
-    assert.equal(await service.attachSchedule(), true);
+    assert.equal(await service.notices.attachSchedule(), true);
     const sent = await service.send({ text: "先整理一下这项工作", request_id: "executor-revoked-0001" }, { project_ref: reference });
     await until(async () => (await service.read(sent.work.work_id)).work.state === "completed");
-    await service.handover(sent.work.work_id, { to: { kind: "plugin", plugin_id: EXECUTOR_ID } });
+    await service.dispatcher.handover(sent.work.work_id, { to: { kind: "plugin", plugin_id: EXECUTOR_ID } });
     assert.ok(executor.handled.includes("session.open"), "the work's session is opened with the executor plugin");
     const ranOnce = async (label: string) => {
       const standing = await service.followUps.save({ work_id: sent.work.work_id, text: label, at: new Date(Date.now() + 1200).toISOString(), repeat: "daily", label, time_zone: "UTC" });

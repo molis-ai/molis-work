@@ -20,7 +20,7 @@ import { latestCapability, type ModelGenerateInput, type CapabilityImplementatio
 export const CATALOG_VERSION = 'actions/1';
 export const PLATFORM_PROVIDER_ID = 'plugin-platform';
 /** The project's action service; `inspect` is the host's metadata-only directory (it prepares the project's plugins first). */
-export interface ProjectActions { registry: ActionRegistryPort; client: ActionClient; project_id: string; inspect?(caller: ActionCallContext): Promise<readonly ActionView[]> | readonly ActionView[] }
+export interface ProjectActions { registry: ActionRegistryPort; client: ActionClient; /** `null` for the Home's (BL-628): its actions are the Home's, not a project's. */ project_id: string | null; inspect?(caller: ActionCallContext): Promise<readonly ActionView[]> | readonly ActionView[] }
 
 export interface CatalogCapability {
   id: string; version: number; provider_id: string;
@@ -53,7 +53,7 @@ export function registerPlatformCapabilities(actions: ProjectActions, implementa
     { capability_id: 'model.generate', version: 1, handle: async (context, input) => implementations.generate(pluginOf(context), input as ModelGenerateInput, context.signal ?? new AbortController().signal,
       () => context.beforeEffect(), { project_id: context.project_id, plugin_install_id: context.plugin_install_id }) },
   ];
-  return actions.registry.registerProvider({ provider: { provider_id: PLATFORM_PROVIDER_ID, title: '插件平台', kind: 'system', project_id: actions.project_id }, definitions, handlers });
+  return actions.registry.registerProvider({ provider: { provider_id: PLATFORM_PROVIDER_ID, title: '插件平台', kind: 'system', ...(actions.project_id === null ? {} : { project_id: actions.project_id }) }, definitions, handlers });
 }
 
 /** Everything a generated plugin may be granted in this project, and the agent-facing actions it may not, with the reason. */

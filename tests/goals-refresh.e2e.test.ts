@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { boardSnapshot } from "./fixtures/goal-application.js";
 
 async function post(origin: string, path: string, body: object, key: string) {
   const response = await fetch(origin + path, {
@@ -29,13 +30,13 @@ test("background refresh follows external archive and restore without changing t
   await navigate(() => command("Page.navigate", { url: origin + "/goals/CORE" }, sessionId));
   for (const archived of [true, false]) {
     await post(origin, "/api/goals/CORE/archive", { archived, reason: "Another user's archive action" }, "refresh-archive-" + archived);
-    const afterExternalWrite = store.snapshot(DEMO_PROJECT_ID);
+    const afterExternalWrite = boardSnapshot(store, DEMO_PROJECT_ID);
     await navigate(() => evaluate("document.dispatchEvent(new Event('visibilitychange'))"));
     const path = archived ? "/archive/goals/CORE" : "/goals/CORE";
     assert.equal(await evaluate("location.pathname"), path);
     await waitFor("document.querySelector('[data-goal-view]')?.dataset.goalView === 'CORE'");
     assert.match(await evaluate<string>("document.querySelector('[data-toast]').textContent"), archived ? /已归档/ : /已恢复/);
-    assert.deepEqual(store.snapshot(DEMO_PROJECT_ID), afterExternalWrite, "Refresh is read-only, including history and active Goal");
+    assert.deepEqual(boardSnapshot(store, DEMO_PROJECT_ID), afterExternalWrite, "Refresh is read-only, including history and active Goal");
   }
 });
 
@@ -63,7 +64,7 @@ test("a completed refresh response cannot overwrite a Goal selected while it was
     };
   })()`);
   await addGoal(origin, "REFRESH-RACE");
-  const afterExternalWrite = store.snapshot(DEMO_PROJECT_ID);
+  const afterExternalWrite = boardSnapshot(store, DEMO_PROJECT_ID);
   await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
   // The board refreshes on the UI lifecycle's 4-second poll (#150); a synthetic visibilitychange does not restart it, so
   // the held refresh comes with the next poll. Under a full run that can take longer than the 4-second default wait.
@@ -78,8 +79,49 @@ test("a completed refresh response cannot overwrite a Goal selected while it was
   assert.equal(await evaluate("document.querySelector('[data-goal-view]').dataset.goalView"), "RELEASE");
   assert.equal(await evaluate("document.querySelector('.tree-node.is-selected').dataset.selectGoal"), "RELEASE");
   assert.equal(await evaluate("location.pathname"), "/goals/RELEASE");
-  assert.deepEqual(store.snapshot(DEMO_PROJECT_ID), afterExternalWrite);
+  // PG094-TITLE-02: the focused item still owns its normal Goal title.
+  const release = afterExternalWrite.goals.find(goal => goal.goal_id === "RELEASE")!;
+  assert.equal(await evaluate("document.title"), release.title + " · Molis Work", "the focused Goal item still updates its own title");
+  assert.deepEqual(boardSnapshot(store, DEMO_PROJECT_ID), afterExternalWrite);
 });
+
+for (const destination of ["home", "settings"] as const) {
+  test(`PG094-TITLE-01 a real completed Goal refresh preserves the focused ${destination} title`, { timeout: 60_000 }, async t => {
+    const browser = await openGoalBrowser(t); if (!browser) return;
+    const { store, origin, command, sessionId, evaluate, waitFor, navigate, openGoalWork, click } = browser;
+    await navigate(() => command("Page.navigate", { url: origin + "/goals/V1?desktop=1" }, sessionId));
+    await openGoalWork();
+    await evaluate(`(() => {
+      const original = fetch.bind(globalThis); let held = false;
+      globalThis.fetch = async (input, options) => {
+        const response = await original(input, options);
+        if (!held && new URL(String(input), location.href).pathname === '/api/board/refresh') {
+          held = true; const body = await response.text();
+          globalThis.__refreshHeld = true;
+          await new Promise(resolve => { globalThis.__releaseRefresh = resolve; });
+          globalThis.__refreshDelivered = true;
+          return new Response(body, { status: response.status, headers: response.headers });
+        }
+        return response;
+      };
+    })()`);
+    const goalId = `TITLE-${destination.toUpperCase()}`;
+    await addGoal(origin, goalId);
+    const afterExternalWrite = boardSnapshot(store, DEMO_PROJECT_ID);
+    await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
+    await waitFor("globalThis.__refreshHeld === true", 10_000);
+    await click(destination === "home" ? '[data-dock-pin="home"]' : '[data-directory-open="settings"]');
+    await waitFor(destination === "home" ? "document.querySelector('.tab-item[data-tab-kind=home][aria-current]') && document.body.dataset.desktopSurface === 'home'"
+      : "document.querySelector('[data-tab-workspace]').dataset.exclusive === 'settings'");
+    const title = await evaluate<string>("document.title");
+    assert.match(title, destination === "home" ? /^项目首页/ : /^设置/);
+    await evaluate("globalThis.__releaseRefresh()");
+    await waitFor(`Number(JSON.parse(document.querySelector('#molis-work-data').textContent).snapshot.cursor) === ${afterExternalWrite.cursor} && document.querySelector('.tree-node[data-select-goal="${goalId}"]')`, 10_000);
+    assert.equal(await evaluate("globalThis.__refreshDelivered"), true);
+    assert.deepEqual(boardSnapshot(store, DEMO_PROJECT_ID), afterExternalWrite, "refresh made no writes beyond the one actual external Goal creation");
+    assert.equal(await evaluate("document.title"), title, "the background response applied without taking the focused surface's title");
+  });
+}
 
 test("failed compact refresh falls back to the full Goal page and keeps other work surfaces intact", { timeout: 60_000 }, async t => {
   const browser = await openGoalBrowser(t);
@@ -103,7 +145,7 @@ test("failed compact refresh falls back to the full Goal page and keeps other wo
     };
   })()`);
   await addGoal(origin, "REFRESH-FALLBACK");
-  const afterExternalWrite = store.snapshot(DEMO_PROJECT_ID);
+  const afterExternalWrite = boardSnapshot(store, DEMO_PROJECT_ID);
   await evaluate("document.dispatchEvent(new Event('visibilitychange'))");
   // Since #150 the board refreshes on the UI lifecycle's 4-second poll; a synthetic visibilitychange that does not change
   // visibility does not restart it, so the external write shows up on the next poll.
@@ -113,7 +155,7 @@ test("failed compact refresh falls back to the full Goal page and keeps other wo
   assert.ok(paths.indexOf("/goals/V1") > paths.indexOf("/api/board/refresh"));
   assert.equal(await evaluate("document.querySelector('[data-goal-view]').dataset.goalView"), "V1");
   assert.equal(await evaluate("Boolean(globalThis.__feedSurface) && document.querySelector('[data-work-surface=feed]') === globalThis.__feedSurface"), true);
-  assert.deepEqual(store.snapshot(DEMO_PROJECT_ID), afterExternalWrite);
+  assert.deepEqual(boardSnapshot(store, DEMO_PROJECT_ID), afterExternalWrite);
 });
 
 // BL-140: right after a save the next poll sees a new cursor and replaces the Goal document; a menu the person had just opened
@@ -185,7 +227,7 @@ test("ASC-41: a pending save blocks an in-flight refresh and later polls until i
   await click("[data-goal-trash-submit]");
   await waitFor("window.__saveHeld === true");
   assert.equal(await evaluate("document.activeElement === document.body"), true, "disabling the submit button loses focus");
-  const saved = store.snapshot(DEMO_PROJECT_ID);
+  const saved = boardSnapshot(store, DEMO_PROJECT_ID);
   assert.ok(saved.goals.find(goal => goal.goal_id === goalId)?.trashed_at);
   // The request began before saving; its actual response now describes the Goal in the trash.
   await evaluate("window.__releaseRefresh()");
@@ -199,9 +241,9 @@ test("ASC-41: a pending save blocks an in-flight refresh and later polls until i
     open: document.querySelector('[data-goal-trash-dialog]').open,
     busy: document.querySelector('[data-goal-trash-form]').getAttribute('aria-busy') })`),
   { requests: 1, saves: 1, open: true, busy: "true" });
-  assert.deepEqual(store.snapshot(DEMO_PROJECT_ID), saved, "waiting and refreshing cause no further writes");
+  assert.deepEqual(boardSnapshot(store, DEMO_PROJECT_ID), saved, "waiting and refreshing cause no further writes");
   await navigate(() => evaluate("window.__releaseSave()"));
   await waitFor("document.querySelector('.trash-goal-panel--restore [data-open-goal-restore]')");
   assert.equal(await evaluate("location.pathname"), "/trash/goals/" + goalId);
-  assert.deepEqual(store.snapshot(DEMO_PROJECT_ID), saved);
+  assert.deepEqual(boardSnapshot(store, DEMO_PROJECT_ID), saved);
 });

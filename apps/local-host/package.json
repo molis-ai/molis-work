@@ -54,8 +54,6 @@
     "@molis-ai/molis-work-module-context-ledger": "workspace:*",
     "@molis-ai/molis-work-module-feed": "workspace:*",
     "@molis-ai/molis-work-module-functions": "workspace:*",
-    "@molis-ai/molis-work-module-goals": "workspace:*",
-    "@molis-ai/molis-work-module-governance-collaboration": "workspace:*",
     "@molis-ai/molis-work-module-private-work-context": "workspace:*",
     "@molis-ai/molis-work-module-projects": "workspace:*",
     "@molis-ai/molis-work-module-shelf": "workspace:*",
@@ -108,21 +106,6 @@
     "pdfjs-dist": "6.3.289",
     "typescript": "^5.8.0",
     "ws": "^8.21.3"
-  },
-  "molis-work": {
-    "path": "apps/local-host",
-    "kind": "app",
-    "maturity": "partial",
-    "contract": "@molis-ai/molis-work-contracts/platform/app-host",
-    "migrationGoals": [
-      "goal-reorg-f2",
-      "goal-reorg-ap2"
-    ],
-    "ssot": "docs/SSOT-MATRIX.md",
-    "capabilities": [
-      "local-host.client.v1",
-      "local-host.single-writer.v1"
-    ]
   },
   "devDependencies": {
     "@types/ws": "^8.18.1"

@@ -75,7 +75,7 @@ test("a work hands an independent part to a work of its own, waits for it, reads
     assert.ok(starts.length > 1 && starts.slice(1).every(input => input.browser === false), "the delegated work starts without it");
     assert.ok(starts.every(input => input.queued === "carry"), "RC-06: each round takes the words its session kept from a round that had just ended");
     await service.list();
-    assert.deepEqual(service.notices(null).filter(notice => notice.work_id === child.work.work_id), [], "a delegated work reports to its parent, not to the person");
+    assert.deepEqual(service.notices.notices(null).filter(notice => notice.work_id === child.work.work_id), [], "a delegated work reports to its parent, not to the person");
 
     // WG-01: the work's own graph — its root held by its session, the part a step under it held by the part's session,
     // ended as the part's round ended; the part keeps only that step, and which work asked is read from the graph.
@@ -512,7 +512,7 @@ for (const stage of ["authority", "before-start", "sdk-prepared-start"] as const
       assert.deepEqual(f.store.get("web-user", sent.work.work_id), beforeArchive, "a prepared SDK start refuses a real archive without a Work effect");
     }
     release.resolve();
-    await until(() => f.service.notices(null).some(notice => notice.kind === "needs-decision" && notice.text.includes("没有自动接着做")), "cancelled hand-back settles");
+    await until(() => f.service.notices.notices(null).some(notice => notice.kind === "needs-decision" && notice.text.includes("没有自动接着做")), "cancelled hand-back settles");
     const after = await f.adapter.readSession({ session_id: before.session_id });
     assert.deepEqual(after.runs, beforeSession.runs, "the actual SDK accepted no hand-back run");
     assert.equal(f.store.rounds(sent.work.work_id).length, 1); assert.equal(f.store.get("web-user", sent.work.work_id).archived, true);
@@ -552,7 +552,7 @@ for (const change of ["stop", "new-round"] as const) test(`W2-18-HANDBACK-CURREN
       await until(async () => (await f.service.read(parent.work_id)).work.state === "completed");
     }
     release.resolve();
-    await until(() => f.service.notices(null).some(notice => notice.text.includes("没有自动接着做")), "old hand-back refused");
+    await until(() => f.service.notices.notices(null).some(notice => notice.text.includes("没有自动接着做")), "old hand-back refused");
     assert.equal((await f.adapter.readSession({ session_id: parent.session_id })).runs.length, change === "stop" ? 1 : 2);
     if (change === "stop") {
       assert.equal((await rootOf(f, parent.work_id)).continuation?.state, "blocked", "the person's stop holds what came back for them");
@@ -582,7 +582,7 @@ test("W2-18-HANDBACK-CURRENT-03: a hand-back refused after it took the continuat
     await until(async () => (await f.service.read(sent.work.work_id)).work.state === "completed", "parent finishes before child");
     f.flags.beforeStart = async () => { if (!refused && (await rootOf(f, sent.work.work_id)).continuation?.state === "claimed") { refused++; throw new Error("这一刻不能开始"); } };
     finishChild.resolve();
-    await until(() => f.service.notices(null).some(notice => notice.text.includes("没有自动接着做")), "the refused hand-back is told");
+    await until(() => f.service.notices.notices(null).some(notice => notice.text.includes("没有自动接着做")), "the refused hand-back is told");
     await new Promise(resolve => setTimeout(resolve, 500));
     assert.equal(refused, 1);
     assert.equal(f.store.rounds(sent.work.work_id).length, 1, "not started again by itself");

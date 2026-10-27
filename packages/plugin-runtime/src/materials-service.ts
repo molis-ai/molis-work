@@ -1,16 +1,18 @@
 import { ActionError, defineErrorCodes, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { MaterialSourceContent, PluginLocalPageRequest, PluginManifest, PluginMaterialDocumentsRequest, PluginMaterialRequest, PluginMaterialsClient, PluginOriginalContent, PluginOriginalRangeContent, PluginOriginalRangeRequest, PluginOriginalRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
+import type { MaterialSourceContent, PluginLocalPageRequest, PluginManifest, PluginMaterialDocumentsRequest, PluginMaterialRequest, PluginMaterialSourceRequest, PluginMaterialsClient, PluginOriginalContent, PluginOriginalRangeContent, PluginOriginalRangeRequest, PluginOriginalRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { MaterialDocumentBatch, MaterialExtraction, MaterialSource, MaterialUpload } from "@molis-ai/molis-work-contracts/services/materials";
 import { currentPluginAction, inPluginInstance, type PluginInstance } from "./action-scope.js";
 
 const errors = defineErrorCodes("plugin", {
   materials_action_required: "forbidden", materials_permission_undeclared: "forbidden", materials_action_not_concurrent: "forbidden",
-  materials_original_key_invalid: "invalid", materials_original_not_offered: "forbidden",
+  materials_original_key_invalid: "invalid", materials_original_not_offered: "forbidden", materials_domains_invalid: "invalid",
 });
 
 export interface PluginMaterialsDispatch extends PluginMaterialRequest {
   readonly signal: AbortSignal;
   readonly allowModelDownload: boolean;
+  /** Exact host names a source read may contact, when the caller narrowed it; `undefined` allows every public host. */
+  readonly allowedDomains?: readonly string[];
   /** Recheck immediately before a network request, download or native extraction effect. */
   beforeEffect(): Promise<void>;
 }
@@ -50,6 +52,16 @@ export interface PluginMaterialsGate extends PluginInstance {
   requireGrant(permission: string): void;
 }
 
+/** Exact lowercase DNS names, one to twenty of them, each once: a list a reader can compare a host name against as it is. */
+function allowedDomainList(value: unknown): readonly string[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value) || !value.length || value.length > 20 || new Set(value).size !== value.length
+    || value.some(item => typeof item !== "string" || !/^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z][a-z0-9-]*$/.test(item))) {
+    throw errors.materials_domains_invalid("允许读取的域名必须是 1 到 20 个互不相同的小写域名");
+  }
+  return Object.freeze([...value as string[]]);
+}
+
 /** A plugin's own record key: a short, printable name. The Host stores it as given, so its shape is settled here, once. */
 function originalRecordKey(value: unknown): string {
   if (typeof value !== "string" || !value || value.length > 200 || /[\u0000-\u001f\u007f]/u.test(value)) {
@@ -61,19 +73,20 @@ function originalRecordKey(value: unknown): string {
 /** Bind authority from the actual running action, never a caller-shaped business argument. */
 export function createPluginMaterialsClient(manifest: PluginManifest, port: PluginMaterialsPort, gate: PluginMaterialsGate): PluginMaterialsClient {
   const declared = (permission: string) => manifest.permissions.some(item => item.permission === permission);
-  async function run<T>(permission: string, request: PluginMaterialRequest, invoke: (options: PluginMaterialsDispatch, caller: ActionExecutionContext) => Promise<T>): Promise<T> {
+  async function run<T>(permission: string, request: PluginMaterialRequest & Pick<PluginMaterialSourceRequest, "allowedDomains">, invoke: (options: PluginMaterialsDispatch, caller: ActionExecutionContext) => Promise<T>): Promise<T> {
     const scope = currentPluginAction();
     if (!scope || !inPluginInstance(scope, gate)) throw errors.materials_action_required("材料只能在本插件自己的动作里读取");
     const { definition, caller } = scope;
     if (!definition.action.permissions.includes(permission)) throw errors.materials_permission_undeclared(`动作 ${definition.capability_id} 没有声明 ${permission}`);
     if (definition.action.scheduling !== "concurrent") throw errors.materials_action_not_concurrent("读取材料的动作必须声明 scheduling: concurrent");
     if (!caller.permissions.includes(permission)) throw new ActionError("actions.forbidden", "这次调用没有材料读取权限");
+    const allowedDomains = allowedDomainList(request.allowedDomains);
     const signal = AbortSignal.any([caller.signal, request.signal].filter(item => item !== undefined));
     const current = () => { signal.throwIfAborted(); gate.assertActive(); gate.requireGrant(permission); };
     const beforeEffect = async () => { current(); await caller.beforeEffect(); current(); };
     await beforeEffect();
     const { limits, timeoutMs, textFormat, pdfMode, ocrLanguages } = request;
-    const result = await invoke({ signal, beforeEffect, limits, timeoutMs, textFormat, pdfMode, ocrLanguages,
+    const result = await invoke({ signal, beforeEffect, limits, timeoutMs, textFormat, pdfMode, ocrLanguages, ...(allowedDomains ? { allowedDomains } : {}),
       allowModelDownload: caller.audience === "user" && request.allowModelDownload === true,
       onProgress: progress => { current(); caller.on_progress?.(progress); request.onProgress?.(progress); },
     }, caller);
@@ -92,7 +105,7 @@ export function createPluginMaterialsClient(manifest: PluginManifest, port: Plug
       gate.assertActive(); gate.requireGrant("materials:read");
       return port.imageTextAvailable!();
     } } : {}),
-    ...(declared("materials:fetch") ? { readSource: (url: string, request: PluginMaterialRequest = {}) =>
+    ...(declared("materials:fetch") ? { readSource: (url: string, request: PluginMaterialRequest & Pick<PluginMaterialSourceRequest, "allowedDomains"> = {}) =>
       run("materials:fetch", request, options => port.readSource(url, options)) } : {}),
     ...(declared("materials:fetch_local") && port.readLocalPage ? { readLocalPage: (url: string, request: PluginLocalPageRequest = {}) =>
       run("materials:fetch_local", { signal: request.signal }, options => port.readLocalPage!(url, options)) } : {}),

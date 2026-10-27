@@ -8,8 +8,7 @@ import { actionErrorFromResponse } from "@molis-ai/molis-work-plugin-sdk";
 import { assertOwnedCatalog, assertCurrentCatalog } from "./catalog-schema.js";
 import { actionGatewayHomeId } from "./action-gateway.js";
 import { postToResidentHost, residentHostOrigin } from "./resident-host-request.js";
-import type { GoalsManagementActions } from "./goals-actions.js";
-import { goalsManagementContext } from "./goals-actions.js";
+import { goalsManagementContext, type GoalsManagementActions } from "./goal-callers.js";
 
 export const MANAGEMENT_ACTION_PATH = "/api/internal/management-action";
 

@@ -2,7 +2,7 @@ import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plu
 import { TODO_PLUGIN_ID, TODO_PROJECT_PLUGIN_ID } from "./contract.js";
 import { TODO_ACTIONS, TODO_ACTION_PERMISSIONS } from "./actions.js";
 import { TODO_UI_CONTRIBUTION_ID } from "./ui.js";
-import { todoAgentManifest, todoMethods } from "./roles.js";
+import { todoAgentManifest, todoSkills } from "./roles.js";
 import { TODO_DATABASE } from "./database.js";
 
 import { TODO_MESSAGES } from "./messages.js";
@@ -27,7 +27,7 @@ export const todoManifest: PluginManifest = {
     ...TODO_ACTION_PERMISSIONS.map(permission => ({ permission, required: permission === "todo:read", reason: "按每项能力的授权读取或修改待办" })),
     { permission: "projects:reach", required: false, reason: "在你自己的待办页里看到并整理你各个项目里的待办；不给时只处理当前项目里的待办" },
   ],
-  capabilities: { provides: [], consumes: [] },
+  capabilities: { provides: [], consumes: ["assistant.works.related"] },
   artifacts: { produces: [], consumes: [] },
   actions: [...TODO_ACTIONS],
   // Fixed paths before `/items/:id`, and each mapped to the action of the same name in ./plugin.ts.
@@ -53,7 +53,7 @@ export const todoManifest: PluginManifest = {
   ],
   agent: todoAgentManifest,
   // Offered to other Agents for business work; bodies in ./roles.ts.
-  methods: todoMethods.map(({ body: _body, ...declared }) => ({ ...declared, tools: [...declared.tools] })),
+  methods: todoSkills.map(({ body: _body, ...declared }) => ({ ...declared, tools: [...declared.tools] })),
   ui: {
     messages: TODO_MESSAGES,
     translations: TODO_EN,

@@ -21,6 +21,7 @@ export { charactersProvider, type CharactersProject } from "./characters-host.js
 export { collectHomeAggregate, homeAggregatePorts, type HomeAggregateAnswer, type HomeAggregateIssue, type HomeAggregatePorts, type HomeAggregateResult } from "./home-aggregate.js";
 export { openPluginDatabase } from "./plugin-database.js";
 export { openPluginProjectLibrary, type ProjectLibrary } from "./plugin-project-library.js";
+export { openSandboxHomeLibrary } from "./plugin-sandbox-home-library.js";
 export { createPluginPlatform } from "./plugin-platform.js";
 export { dispatchDeclaredPluginRoutes, type DeclaredPluginRoutes } from "./plugin-route-operations.js";
 export { bindDeclaredDefaults } from "./plugin-default-bindings.js";
@@ -35,19 +36,6 @@ export type { PluginHostExecutorOptions } from "./plugin-executor.js";
 export { runPluginDevelopment } from "./plugin-development.js";
 export type { LocalProjectStoragePreparation } from "./project-storage.js";
 
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-app-local-host",
-  packagePath: "apps/local-host",
-  kind: "app",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/platform/app-host",
-  migrationGoals: ["goal-reorg-f2","goal-reorg-ap2"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["local-host.client.v1", "local-host.single-writer.v1"],
-} as const;
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;
-
 export * from "./local-host.js";
 export type { HomeInitializationFailure } from "./home-storage-lifetime.js";
 export { MolisWorkWebServiceManager } from "./installer/web-service.js";
@@ -59,14 +47,12 @@ export { createMcpResidentStarter, type EnsureMcpResidentHost } from "./mcp-resi
 export { finishMcpWebStartup, reportMcpWebStartupFailure, watchMcpWebStartup } from "./mcp-web-startup.js";
 export { createMolisWorkRuntimePayload, type MolisWorkRuntimePayloadOptions } from "./installer/runtime-payload.js";
 export { createMolisWorkNpmPackageDirectory } from "./installer/npm-package.js";
-export { readPersonalPlanningMethodPacks } from "./personal-planning-methods.js";
 
 
 export { LocalProjectDatabase } from "./project-database.js";
 export { isProjectPluginDatabaseRefusal, openProjectPluginDatabases } from "./project-plugin-databases.js";
 export { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
 
-export * from "./goal-project-application.js";
 export { openProjectVersionStores, restoreArtifactVersions, type RestoredArtifactVersion, type ProjectVersionStores } from "./project-version-stores.js";
 
 export * from "./web-locale.js";
@@ -94,7 +80,7 @@ export type { CreateMolisWorkProjectInput, ManageMolisWorkDemoProjectInput, Moli
 export { initializeCatalog, assertOwnedCatalog, assertCurrentCatalog, type CatalogDesktopSchema } from "./catalog-schema.js";
 
 export * from "./project-catalog.js";
-export { seedDemoBoard, DEMO_PROJECT_ID } from "./demo-seed.js";
+export { seedDemoBoard, seedDemoGoals, DEMO_PROJECT_ID } from "./demo-seed.js";
 export {
   seedDemoPluginSurfaces,
   seedDemoHomeSamples,
@@ -111,7 +97,7 @@ export { HOST_ARTIFACT_PRODUCERS, artifactTypeDeclarations, declaredArtifactType
 export { bindProjectArtifacts } from "./declared-types.js";
 export { declarationOwnersFor } from "./declaration-owners.js";
 export { heldInstalls, pluginHeldElsewhere, type HeldInstall, type InstallRef, type InstallScope } from "./plugin-holders.js";
-export { liveHostFunctionAuthoringCatalog } from "./behavior-catalog.js";
+export { liveHostJudgmentRuleAuthoringCatalog } from "./recommendation-catalog.js";
 export { seedSceneRules, withFunctionsService } from "./functions-host.js";
 
 export { createFeedSourceRuntime, type FeedSourceRuntime } from "./feed-source-runtime.js";
@@ -128,18 +114,21 @@ export { connectorManagementActions, CONNECTOR_MANAGEMENT_READ, CONNECTOR_MANAGE
 export { connectorUsagesAction } from "./connector-usage-actions.js";
 export { connectorPluginSlotActions } from "./connector-plugin-slot-actions.js";
 export { PLUGIN_CONSENT_PERMISSIONS, pluginConsentActions, pluginConsentProvider } from "./installed-plugin-consent-actions.js";
-export { PLUGIN_INSTALL_PERMISSIONS, pluginInstallActions } from "./plugin-install-actions.js";
+export { PLUGIN_INSTALL_PERMISSIONS, pluginControlActions, pluginInstallActions } from "./plugin-install-actions.js";
 export { PluginInstallService } from "./plugin-install-service.js";
 export { installedPluginViews } from "./plugin-installed-view.js";
 export { runLocalPluginInstall, type LocalPluginInstallInput } from "./plugin-install-client.js";
 export { pluginInstallProvider } from "./plugin-trust-actions.js";
-export { readSandboxPackage } from "./sandbox-package.js";
+export { readSandboxPackage, readSandboxIntegrationPackage } from "./sandbox-package.js";
+export { sandboxIntegrationContribution } from "./sandbox-integration.js";
 export { sandboxPluginManifest } from "./sandbox-plugin-manifest.js";
 export { SandboxPackageStore } from "./sandbox-package-store.js";
 export { HomeConsentLedger } from "./home-plugin-store.js";
-export { createPluginConnectionsPort, pluginSlotScope } from "./connector-plugin-requests.js";
+export { createPluginConnectionsPort, createCallConnectionsPort, pluginSlotScope } from "./connector-plugin-requests.js";
 export { activateConnectorConnection } from "./connector-activation.js";
-export { LOCAL_OWNER_PERMISSIONS } from "./local-owner-permissions.js";
+export { LOCAL_OWNER_PERMISSIONS, localOwnerPermissionsOver } from "./local-owner-permissions.js";
+export { artifactActionProvider } from "./artifact-actions.js";
+export { HOST_PLUGIN_IDS } from "./host-plugin-ids.js";
 export { connectorRecordActions, CONNECTOR_RECORDS_READ } from "./connector-record-actions.js";
 export { connectorSetupAction } from "./connector-setup.js";
 export { connectorSetupExecuteAction } from "./connector-setup-execute.js";
@@ -156,7 +145,10 @@ export * from "./gmail-oauth.js";
 export { createGithubConnector } from "./github-connector.js";
 export { createGmailConnector } from "./gmail-connector.js";
 export { createCatalogConnector } from "./catalog-connector.js";
-export { OfficialIntegrationRegistry, type OfficialProviderFactory } from "./official-integrations.js";
+export { IntegrationRegistry } from "./integration-registry.js";
+export { homeIntegrationRegistry } from "./builtin-integrations.js";
+export { connectorDirectory } from "./connector-directory.js";
+export type { IntegrationProviderFactory } from "./integration-providers.js";
 
 export { createLocalFeedConnectorSync } from "./feed-connector-sync.js";
 
@@ -181,7 +173,6 @@ export { attachMolisWorkPtySocket } from "./pty-socket.js";
 
 export { buildMolisWorkWebView, cachedMolisWorkWebView, type MolisWorkWebViewCache, type WebViewOptions } from "./web-view.js";
 export { developerMode } from "./developer-mode.js";
-export { rewriteNativePluginApiPath, withRewrittenPluginApi } from "./native-plugin-api.js";
 export { hostCompleteText, hostTextGeneration, textModelAvailability, textModelMissing, type HostCompleteText, type HostTextGeneration, type HostTextOptions, type HostTextRequestOptions } from "./host-complete-text.js";
 // Context-driven interaction: the judgment service and the readers of what a page claims, for the tests that drive them (new tests import the entry).
 export { createContextualJudgmentService, type ContextualJudgmentPorts, type ContextualJudgmentService } from "./contextual/judgment-service.js";
@@ -204,7 +195,7 @@ export * from "./web-project-settings.js";
 export * from "./web-project-presentation.js";
 export * from "./project-host.js";
 export { projectActionAvailability } from "./project-action-availability.js";
-export { runLocalPluginDevelopment, developInPrivateHost } from "./local-plugin-development.js";
+export { runLocalPluginDevelopment, developInPrivateHost, createPrivateDevelopmentHost } from "./local-plugin-development.js";
 export { createLocalOnboardingHttp } from "./web-onboarding.js";
 export { createLocalPanelHttp } from "./web-panel.js";
 export { handleLocalProjectReferenceHttp } from "./web-project-reference.js";
@@ -283,6 +274,9 @@ export { recoverMemoryHome, type MemoryHomeRecoveryInput, type MemoryHomeRecover
 export { collectMemoryOwnerCoverage, type MemoryOwnerCoverage, type MemoryOwnerCoverageFacts } from "./memory/memory-owner-coverage.js";
 export { openAssistantMemoryRelations, type AssistantMemoryRelation, type AssistantMemoryRelationsReader } from "./assistant/assistant-memory-relations.js";
 export { ComputerRecords } from "./computer/computer-records.js";
+export { handleComputerHttp, type ComputerShelf } from "./computer/computer-http.js";
+export { assistantRelatedAction, assistantRelatedRegistration, type RelatedWorksSource } from "./assistant/assistant-related-action.js";
+export { assistantThreadActions } from "./assistant/assistant-thread-actions.js";
 export { ComputerDesk } from "./computer/computer-desk.js";
 export { ComputerSettings } from "./computer/computer-settings.js";
 export { ComputerDriver, type DeskContext } from "./computer/computer-driver.js";
@@ -328,3 +322,5 @@ export { createColdMemoryProjectOwner, type ColdMemoryProjectOwnerInput, type Co
 export type { ColdProjectMemoryInspection, ColdProjectMemoryWriter, ColdProjectMemoryPurgeTarget } from "./memory/memory-cold-project-sdk.js";
 export { createSessionBusinessPurgeOwner } from "./memory/memory-home-recovery.js";
 export type { SessionBusinessPurgeInput, SessionBusinessPurgeOwner, SessionBusinessPurgeSelection } from "./session-business-purge.js";
+export { bindGoalsManagementActions, readProjectGuidance } from "./goal-callers.js";
+export { entryUserAction } from "./entry-user-action.js";

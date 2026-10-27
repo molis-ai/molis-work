@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { once } from "node:events";
 import { chmodSync, existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { DatabaseSync } from "node:sqlite";
 import test, { type TestContext } from "node:test";
-import { CONNECTORS_BASELINE, projectDeletedHooksFor, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { openMolisWorkProjectCatalog, openDesktopProjectDeletionRecoveryTarget } from "@molis-ai/molis-work-app-desktop";
+import { CONNECTORS_BASELINE, openProjectDeletionRecoveryInspection, openProjectDeletionCatalogObservation, projectDeletedHooksFor, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { pluginBindingScope } from "@molis-ai/molis-work-service-connector-host";
 import { homeSqlitePath, openBaselineHomeSqlite } from "@molis-ai/molis-work-storage";
 import { homeStorageTree } from "./fixtures/home-storage-files.js";
@@ -31,10 +33,10 @@ function bindings(home: string) {
 }
 const intact = { selected: [true, true], kept: [true, true], accounts: 1 };
 
-for (const controlled of [true, false]) test(`S-71 maintenance owner preserves project scope and accounts (${controlled ? "controlled" : "ordinary"})`, async t => {
+for (const controlled of [true, false]) test(`S-71 ${controlled ? "maintenance preserves project scope" : "direct cleanup sweeps unheld installations"} and preserves accounts`, async t => {
   const home = homeFor(t); seed(home);
   assert.equal(await projectDeletedHooksFor(home).clear("plugin-connections", "gone", undefined, controlled ? current : undefined), true);
-  assert.deepEqual(bindings(home), { selected: [false, false], kept: [true, true], accounts: 1 });
+  assert.deepEqual(bindings(home), { selected: [false, false], kept: controlled ? [true, true] : [false, false], accounts: 1 });
   assert.equal(existsSync(join(home, "feed")), false, "binding cleanup never creates or reads a secret store");
 });
 
@@ -123,4 +125,63 @@ test("S-71 maintenance rolls back the real binding DELETE when authority is lost
     await assert.rejects(projectDeletedHooksFor(home).clear("plugin-connections", "gone", undefined, { assertCurrent() { if (deleted) throw denied; } }), error => error === denied);
   } finally { interception.mock.restore(); }
   assert.equal(deleted, true); assert.deepEqual(bindings(home), intact);
+});
+
+
+test("MEM-40 S-71 RAC-864: cold Catalog recovery clears only exact project records and never sweeps installation slots or initializes missing connectors", async t => {
+  for (const populated of [true, false]) await t.test(populated ? "nonempty connectors" : "missing connectors", async t => {
+    const home = homeFor(t), sourceHome = homeFor(t), projectId = `project-onboarding-${randomUUID()}`;
+    const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+    const sourceCatalog = await openMolisWorkProjectCatalog({ homeDirectory: sourceHome });
+    const request = { project_id: projectId, actor_id: "test-user", delete_confirmed: true, idempotency_key: "source-deletion" };
+    try {
+      await catalog.createProject({ project_id: projectId, display_name: "恢复时精确清理", actor_id: request.actor_id });
+      await sourceCatalog.createProject({ project_id: projectId, display_name: "原删除来源", actor_id: request.actor_id });
+      const sourceReceipt = await sourceCatalog.deleteProject(request);
+      assert.equal(sourceReceipt.deletion.cleanup_state, "complete");
+      const exact = [scope(projectId), scope(projectId, "second")];
+      const untouched = [scope(projectId + "-neighbour"), pluginBindingScope({ install_id: "first" }),
+        pluginBindingScope({ install_id: "old-orphan" }), scope("old-unrelated-project", "old-orphan")];
+      if (populated) withConnectorConnections(home, store => {
+        const account = store.saveCli({ serviceId: "synthetic", displayName: "unchanged account", externalId: "synthetic", accountLabel: "synthetic" });
+        for (const scopeId of [...exact, ...untouched]) store.bind({ scopeId, pluginId, slotId, serviceId: "synthetic", connectionId: account.connection_id });
+      });
+      const file = homeSqlitePath(home, "connectors");
+      // Read-only observation cannot create the missing database or initialize a production store after cleanup.
+      const read = () => {
+        const db = new DatabaseSync(file, { readOnly: true });
+        try { return { bindings: db.prepare("SELECT * FROM connector_bindings ORDER BY scope_id, plugin_id, slot_id").all(),
+          accounts: db.prepare("SELECT * FROM connector_connections ORDER BY connection_id").all() }; }
+        finally { db.close(); }
+      };
+      const before = populated ? read() : null;
+      const observation = openProjectDeletionCatalogObservation({ homeDirectory: home, assertCurrent() {} });
+      const source = await openProjectDeletionRecoveryInspection({ homeDirectory: sourceHome, assertCurrent() {} });
+      const memory = projectDeletedHooksFor(home).owners().find(owner => owner.id === "memory")!;
+      const marker = join(home, "recovery-targets.json");
+      let checks = 0;
+      let target: Awaited<ReturnType<typeof openDesktopProjectDeletionRecoveryTarget>> | undefined;
+      try {
+        target = await openDesktopProjectDeletionRecoveryTarget({ homeDirectory: home, source, groups: [], memory,
+        assertCurrent() { checks++; }, async recordTargets(group) { writeFileSync(marker, JSON.stringify(group)); },
+        catalogCommitted(change) { assert.deepEqual(observation.read(), change.after); } });
+        const restored = await target.restore(sourceReceipt.deletion.deletion_id);
+        assert.equal(restored.cleanup_state, "complete");
+        assert.notEqual(restored.target_deletion_id, sourceReceipt.deletion.deletion_id);
+        assert.equal(JSON.parse(readFileSync(marker, "utf8")).disposal.primary_target, restored.target_deletion_id);
+        assert.ok(checks > 0, "the real cold-maintenance authority was exercised");
+        assert.deepEqual(observation.read().projects, []);
+        if (before) {
+          const after = read();
+          assert.deepEqual(after.bindings, before.bindings.filter(row => !exact.includes(String(row.scope_id))),
+            "only this project's per_record rows go; installation slots, old orphans and prefix neighbours stay byte-for-field identical");
+          assert.deepEqual(after.accounts, before.accounts, "no account is disabled, changed or removed");
+        } else {
+          assert.equal(existsSync(file), false);
+          assert.equal(existsSync(join(home, "connectors")), false, "cold recovery must not create the absent connector directory");
+        }
+        assert.equal(existsSync(join(home, "feed")), false, "cold recovery never opens a secret store");
+      } finally { await target?.close(); await source.close(); observation.close(); }
+    } finally { catalog.close(); sourceCatalog.close(); }
+  });
 });

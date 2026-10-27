@@ -13,10 +13,11 @@ import { assertPluginActionCurrent, PluginRuntime } from "@molis-ai/molis-work-p
 import { createGithubIntegrationPlugin } from "@molis-ai/molis-work-integration-github";
 import type { PluginArtifactClient, PluginDefinition, PluginManifest, PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { HostPluginCaller } from "@molis-ai/molis-work-contracts/platform/app-host";
-import { seedDemoBoard, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { artifactPreview } from "./fixtures/artifact-preview.js";
+import { boardSnapshot, seedBoard } from "./fixtures/goal-application.js";
 
 /** A bare kernel has no action gateway; the client still runs under the caller its Host would issue the session. */
 const sessionCaller = (manifest: PluginManifest, context: PluginStartContext, actor: string): HostPluginCaller =>
@@ -25,7 +26,7 @@ const sessionCaller = (manifest: PluginManifest, context: PluginStartContext, ac
 test("W5-01-D1-01: installed Plugins exchange exact Artifact versions by type, with bound authority and real denied side effects", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-plugin-artifacts-"));
   const databasePath = join(directory, "board.db");
-  seedDemoBoard(databasePath);
+  seedBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath);
   const api = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
   const processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
@@ -36,10 +37,10 @@ test("W5-01-D1-01: installed Plugins exchange exact Artifact versions by type, w
     for (const entry of [processItems, processItems.service, processItems.query, processItems.commands]) {
       assert.equal("repository" in entry, false);
     }
-    const base = createGithubIntegrationPlugin({ provider: {
+    const base = createGithubIntegrationPlugin({ providerFor: () => ({
       type: "fixture", async health() { return { ok: true, status: "connected", message: "ready" }; },
       async sync() { return { ok: true, mode: "fixture", items: [], cursor: null }; },
-    } });
+    }) });
     async function author(name: string, options: { read?: boolean; schema?: number; actor?: string } = {}) {
       let client!: PluginArtifactClient;
       let dispose = () => {};
@@ -115,7 +116,7 @@ test("W5-01-D1-01: installed Plugins exchange exact Artifact versions by type, w
     assert.equal(denied.availability.kind, "forbidden");
     const wrongSchema = await author("wrong-schema", { schema: 2 });
     const otherUser = await author("other-user", { actor: "other" });
-    const before = store.snapshot(DEMO_PROJECT_ID);
+    const before = boardSnapshot(store, DEMO_PROJECT_ID);
     const versions = api.query.listArtifactVersions(DEMO_PROJECT_ID, value.artifact_id);
     assert.throws(() => noRead.client.read(value), (error: unknown) => (error instanceof ActionError && error.kind === "invalid")
       && error.code === "plugin.grant_denied");
@@ -125,7 +126,7 @@ test("W5-01-D1-01: installed Plugins exchange exact Artifact versions by type, w
     assert.deepEqual(otherUser.client.read(value), first.artifact);
     assert.throws(() => producer.client.publish({ ...value, artifact_id: "not-created", schema_version: 2 }),
       { code: "artifacts.plugin_incompatible", kind: "invalid", message: "Manifest 未声明生产此成果 type/schema" });
-    assert.deepEqual(store.snapshot(DEMO_PROJECT_ID), before);
+    assert.deepEqual(boardSnapshot(store, DEMO_PROJECT_ID), before);
     assert.deepEqual(api.query.listArtifactVersions(DEMO_PROJECT_ID, value.artifact_id), versions);
     assert.equal(api.query.getArtifactVersion(DEMO_PROJECT_ID, { artifact_id: "not-created", version: 1 }), null);
     await runtime.uninstall(producer.installId);
@@ -140,17 +141,17 @@ test("W5-01-D1-01: installed Plugins exchange exact Artifact versions by type, w
 test("W5-01-D1-01 W5-01-D1-04 W5-01-D1-05: SDK queries expose fixed contracts and preserve real installation authority", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-plugin-process-read-"));
   const databasePath = join(directory, "board.db");
-  seedDemoBoard(databasePath);
+  seedBoard(databasePath);
   const store = new LocalProjectDatabase(databasePath);
   const api = new ArtifactsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
   const processItems = new ProcessItemsModule({ db: store.db, appendEvent: event => store.appendEvent(event), eventCursor: projectId => store.eventCursor(projectId) });
   // A plugin that declares actions (the preview of its 成果 type) is installed against the Kernel that holds them.
   const runtime = new PluginRuntime(undefined, undefined, { hostIds: ISOLATED_HOST_IDS, actions: pluginActions(store, DEMO_PROJECT_ID) });
   try {
-    const base = createGithubIntegrationPlugin({ provider: {
+    const base = createGithubIntegrationPlugin({ providerFor: () => ({
       type: "fixture", async health() { return { ok: true, status: "connected", message: "ready" }; },
       async sync() { return { ok: true, mode: "fixture", items: [], cursor: null }; },
-    } });
+    }) });
     async function install(name: string, actor: string, read = true) {
       let hosted!: ReturnType<typeof createPluginArtifactClient>;
       const preview = artifactPreview(`io.molis.work.example.${name}`);

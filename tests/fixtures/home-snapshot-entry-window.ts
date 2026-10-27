@@ -29,7 +29,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     try { await createHomeSnapshot({ homeDirectory: home, destination: target }); }
     finally { fs.writeSync = original; syncBuiltinESMExports(); process.disconnect(); }
   } else if (mode === "cli") {
-    const host = createMolisWorkLocalHost({ onRuntimeOpen: () => barrier("cli-runtime", gate) });
+    const host = createMolisWorkLocalHost({ homeDirectory: home, onRuntimeOpen: () => barrier("cli-runtime", gate) });
     try {
       await runV1Cli(["init", "--db", target, "--json", JSON.stringify({ project_id: "entry-window", idempotency_key: "entry-window" })],
         { homeDirectory: home, localHost: host });

@@ -56,8 +56,8 @@ export declare const DOM_EVENTS: readonly [{
     readonly kind: "request";
     readonly owner: "character-terminal";
     readonly on: "window";
-    readonly detail: "PtySpawnRequest (services/runtime-host), or { panelId, attachOnly } for a run already started";
-    readonly summary: "Attach the Character terminal to a process the Characters page spawned or found running.";
+    readonly detail: "{ panelId, attachOnly: true }: the panel of a run the Characters page started or found running; nothing it could start a process with";
+    readonly summary: "Attach the Character terminal to the process of a run the Characters page started or found running.";
 }, {
     readonly name: "molis-work:character-terminal-reset";
     readonly kind: "request";
@@ -243,7 +243,7 @@ export declare const DOM_EVENTS: readonly [{
     readonly owner: "assistant";
     readonly on: "window";
     readonly detail: "AssistantPluginMessage (services/assistant); ASSISTANT_MESSAGE_EVENT";
-    readonly summary: "A plugin page tells the Assistant something. What happens depends on message.purpose: background, change, suggest, delegate or reply.";
+    readonly summary: "A plugin page tells the Assistant something. What happens depends on message.purpose: background, change, suggest, delegate or reply. A suggest with `thread` offers 「让助理回复」 for that comment thread; only the person's press there starts it, for the plugin whose frame sent it.";
 }, {
     readonly name: "molis:assistant-open";
     readonly kind: "request";
@@ -512,7 +512,7 @@ export declare const PAGE_STATE_OWNERS: {
         readonly state: "The application chrome around the work area, including the Goal work mode.";
     };
     readonly "navigation-feed": {
-        readonly files: readonly ["apps/workbench/src/scripts/client/navigation-feed.ts"];
+        readonly files: readonly ["apps/workbench/src/scripts/client/navigation-feed.ts", "apps/workbench/src/scripts/client/navigation-feed-sources.ts", "apps/workbench/src/scripts/client/navigation-feed-stage.ts"];
         readonly state: "The Feed directory: its groups, the open group and the selected Feed task.";
     };
     readonly "goal-selection": {
@@ -524,7 +524,7 @@ export declare const PAGE_STATE_OWNERS: {
         readonly state: "The person's display preferences on this device: theme, density and terminal theme (localStorage molis-work:theme, molis-work:density, molis-work:terminal-theme).";
     };
     readonly shelf: {
-        readonly files: readonly ["plugins/native/shelf/src/browser/document.ts", "plugins/native/shelf/src/browser/terminal.ts", "plugins/native/shelf/src/browser/tui.ts", "plugins/native/shelf/src/browser/settings/reload.ts"];
+        readonly files: readonly ["plugins/native/shelf/src/browser/document.ts", "plugins/native/shelf/src/browser/tui.ts", "plugins/native/shelf/src/browser/terminal.ts", "plugins/native/shelf/src/browser/settings/reload.ts"];
         readonly state: "The Shelf surface: its list and selection, the notice line and the input to the terminal Agent.";
     };
     readonly coding: {
@@ -532,7 +532,7 @@ export declare const PAGE_STATE_OWNERS: {
         readonly state: "The Coding surface: its sessions, the open session and its composer.";
     };
     readonly "character-terminal": {
-        readonly files: readonly ["apps/workbench/src/character-terminal-client.ts"];
+        readonly files: readonly ["apps/workbench/src/browser/characters/terminal.ts"];
         readonly state: "The terminal that shows a Character run: which process it is attached to.";
     };
     readonly "goals-event-document": {

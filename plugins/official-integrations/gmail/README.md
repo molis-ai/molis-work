@@ -25,7 +25,7 @@ createGmailIntegrationPlugin 注册 Provider/Adapter；OAuth 处理配置、pend
 | [src/provider-fixture.ts](src/provider-fixture.ts) | 显式测试模式的夹具（包内私有） |
 | [src/history-cursor.ts](src/history-cursor.ts) | 历史游标 |
 
-可对照现有调用方 [apps/local-host/src/official-integrations.ts](../../../apps/local-host/src/official-integrations.ts) 阅读装配方式。
+可对照现有调用方 [apps/local-host/src/builtin-integrations.ts](../../../apps/local-host/src/builtin-integrations.ts) 阅读装配方式。
 
 ## 接入与边界
 
@@ -71,9 +71,6 @@ node scripts/run-tests.mjs tests/gmail-oauth.test.ts tests/gmail-factory-boundar
 - [职责与接入说明](../../../docs/platform/PLUGIN-DEVELOPMENT.md)
 - [架构与当前实现索引](../../../docs/SSOT-MATRIX.md)
 
-- Status: `partial`
-- Contract entrypoint: `@molis-ai/molis-work-contracts/platform/plugin`
-- Migration Goals: `goal-reorg-f2`, `goal-reorg-fd3`.
 
 上述状态用于追踪架构实现范围；当前行为以本包公开入口、调用方和对应测试为准。
 

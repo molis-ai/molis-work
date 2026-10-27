@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 
 import type {
   AttentionApi,
+  AttentionInboxDeclarations,
   AttentionEntryRecord,
   AttentionEvent,
   AttentionReason,
@@ -11,17 +12,6 @@ import type {
   AttentionSubjectType,
   CreateAttentionEntryInput,
 } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
-
-export const packageDescriptor = {
-  packageName: "@molis-ai/molis-work-module-attention-resumption",
-  packagePath: "modules/attention-resumption",
-  kind: "module",
-  maturity: "partial",
-  contract: "@molis-ai/molis-work-contracts/modules/attention-resumption",
-  migrationGoals: ["goal-reorg-f2", "goal-reorg-fd2"],
-  ssot: "docs/SSOT-MATRIX.md",
-  capabilities: ["attention.query.v1", "attention.command.v1"],
-} as const;
 
 type Row = Record<string, unknown>;
 type Statement = {
@@ -106,6 +96,12 @@ export class AttentionModule implements AttentionApi {
   readonly query = {
     list: (projectId: string) => this.list(projectId),
     get: (projectId: string, entryId: string) => this.get(projectId, entryId),
+    listInbox: (projectId: string, declared: AttentionInboxDeclarations) => this.list(projectId).filter(entry => inInbox(entry, declared)),
+    getInbox: (projectId: string, entryId: string, declared: AttentionInboxDeclarations) => {
+      const entry = this.get(projectId, entryId);
+      if (!inInbox(entry, declared)) throw attentionErrors.entry_not_found("找不到这个 Inbox Entry");
+      return entry;
+    },
     findActiveForSubject: (
       projectId: string,
       subjectType: AttentionSubjectType,
@@ -423,6 +419,11 @@ function mapAttentionEvent(row: Row): AttentionEvent {
   };
 }
 
+/** Unassigned entries are the person's Inbox; an owned one is, only when its own owner declared its kind (`attention.inbox`). */
+function inInbox(entry: AttentionEntryRecord, declared: AttentionInboxDeclarations): boolean {
+  return entry.owner_plugin_id === null || declared.get(entry.owner_plugin_id)?.has(entry.subject_type) === true;
+}
+
 function ownerOf(value: unknown): string | null {
   if (value === null || typeof value === "string" && value.trim()) return value;
   throw attentionErrors.invalid_reference("Attention 对象必须有明确的主人或 null");
@@ -445,5 +446,3 @@ function json<T>(value: unknown, fallback: T): T {
     return fallback;
   }
 }
-
-export type MolisWorkPackageDescriptor = typeof packageDescriptor;

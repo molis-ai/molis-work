@@ -138,8 +138,8 @@ test("Assistant memory tools keep Memory's forbidden and pending-limit kinds wit
     const session = await agent.agentHost.adapter("prologue").createSession({ actor_id: LOCAL_PERSON_ACTOR_ID, project_id: project.project_id,
       plugin_id: ASSISTANT_PLUGIN_ID, install_id: ASSISTANT_INSTALL_ID, title: work.title, workspace: "business", role_id: "assistant" });
     work = store.update(LOCAL_PERSON_ACTOR_ID, work.work_id, null, { session_id: session.session_id });
-    await service.memoryForRound(work, "写周报");
-    const tools = service.memoryTools(work); assert.ok(tools?.propose);
+    await service.memory.memoryForRound(work, "写周报");
+    const tools = service.memory.memoryTools(work); assert.ok(tools?.propose);
     const propose = (text: string) => tools.propose!({ scope: "project", text, applies: "", why: "工作里的偏好" }, memoryToolControl());
     await assert.rejects(propose("项目周报先列风险"), error => error instanceof ActionError && error.code === "memory.forbidden" && error.kind === "forbidden" && /没有允许/.test(error.message));
     assert.deepEqual(await memory.candidates(person), []);

@@ -86,7 +86,7 @@ export function registerAssistantRuleActions(registry: ActionRegistryPort, servi
     } },
     { capability_id: "assistant.methods.read", version: 1, handle: async (context, input) => {
       const work = callingWork(context);
-      const method = await service().readMethod(work ? service().workRecord(work) : null, String((input as { method_id?: unknown }).method_id ?? ""));
+      const method = await service().reads.readMethod(work ? service().reads.workRecord(work) : null, String((input as { method_id?: unknown }).method_id ?? ""));
       return { method_id: method.method_id, name: method.name, plugin_title: method.plugin_title, version: method.version, body: method.body };
     } },
     { capability_id: "assistant.followups.remove", version: 1, handle: async (context, input) => {

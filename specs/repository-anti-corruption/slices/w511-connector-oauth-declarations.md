@@ -1,10 +1,10 @@
 # W5-11：连接器 OAuth 从宿主的表移进官方集成插件的声明（设计稿）
 
-状态：设计稿，只有设计、没有代码，§10 的问题等用户定（2026-10-27，W5-11 线，分支 `claude/w511-oauth-declarations`）。§7 里标「依赖 C 合入」的片，要等批次 C（`feature/anticorruption-closeout-c`，头 `fe93d322`；Notion 共享刷新在 `009b773f`）进 main 才动手；标「可以先做」的不碰 C 改过的文件。代码事实按 main `9efbf8d04` 和 C 头 `fe93d322` 核过；文中的行号与形状都是 C 头上的。号段：RAC-1080～1089、BL-790～799。新 S 号不预先写，§3.4 里写「待统筹核」。
+状态：设计稿，问题已定，待评审（2026-10-27，W5-11 线，分支 `claude/w511-oauth-declarations`）。只有设计、没有代码；§10 的六题都按 A 定了（Q2、Q5 由用户本人定，Q1、Q3、Q4、Q6 由统筹定，都在 10-27）。第 1、2 片等评审的「必须改」改完、统筹转达可以开工后再叠在本分支上；§7 里标「依赖 C 合入」的片，要等批次 C（`feature/anticorruption-closeout-c`，头 `fe93d322`；Notion 共享刷新在 `009b773f`）进 main 才动手；标「可以先做」的不碰 C 改过的文件。代码事实按 main `9efbf8d04` 和 C 头 `fe93d322` 核过；文中的行号与形状都是 C 头上的。号段：RAC-1080～1089、BL-790～799。新 S 号不预先写，§3.4 里写「待统筹核」。
 
 ## 0. 已经定了的，本稿照着写
 
-- **主人是 Manifest**（FI-3 §3.4，`feed-inbox-integration-registry.md`）。OAuth 怎样授权，写在官方集成插件 Manifest 的 `connection_services[].auth.methods` 里，基本是数据、代码很少。宿主那三张表（`API_OAUTH_PROVIDERS`、`MCP_SERVERS`、`CONNECTOR_CLIS`）都删掉。特殊情况只能写成纯数据，或者写成不碰密钥库、连接记录和路由的纯函数（选哪种见 §10 Q1）。下面几样留在平台：
+- **主人是 Manifest**（FI-3 §3.4，`feed-inbox-integration-registry.md`）。OAuth 怎样授权，写在官方集成插件 Manifest 的 `connection_services[].auth.methods` 里，基本是数据、代码很少。宿主那三张表（`API_OAUTH_PROVIDERS`、`MCP_SERVERS`、`CONNECTOR_CLIS`）都删掉。FI-3 允许特殊情况写成纯数据，或者写成不碰密钥库、连接记录和路由的纯函数；本线按 §10 Q1 只用数据。下面几样留在平台：
   - 回调路由；
   - state 与待完成记录；
   - 凭据先暂存、最后一次检查之后再生效；
@@ -123,7 +123,7 @@
   - 输入是登记里本方法的当前声明，加上本人的 settings。
   - 输出是授权地址、令牌请求、刷新请求、身份与上下文请求。
 - 宿主不 import 任何插件的实现。今天的 `catalogWhoami`、`notionAuthorizationUrl`、`notionOAuthToken`、`createGmailOAuth`、`createGithubDeviceFlow` 都不再被宿主引用；catalog 的 `CatalogConnectorSpec.identity` 从代码（`request(ctx) / read`）改成 §2.1 的 `identity` 数据。
-  - catalog 里共 40 处 `identity:`；`read` 能不能都写成指针，实现第一片先数清。写不成的记在本稿，按 Q1 的选择办。
+  - catalog 里共 40 处 `identity:`；`read` 能不能都写成指针，实现第一片先数清。写不成的，按 Q1（只用数据）往平台的 `identity` 声明里补字段，不给插件钩子。
 - `ConnectorMethodOption` 的形状和 `connectors.methods.read@1` 的输出不变：`client_secret_required`、`fields`、`note`、`login_ready` 都改由声明算出。
 
 ### 2.3 客户端凭据还是平台的
@@ -174,7 +174,7 @@ client id 和 secret 只以引用存在平台的密钥库里（S-12），插件�
   - 最后一个参与者取消，网络请求才中止；
   - 结果在 `beforeEffect()` 之后，按读取时的 revision 提交。
   这就是 C 在 `009b773f` 给 Notion 做的那套，推广到所有 OAuth 连接。今天通用引擎的 `serialized` 只是排队，换成这套。
-- **声明它的插件没启用**（停用、卸载、声明不过检查）时，刷新和发送都拒绝，用一个新的错误码（主人名按 `tooling/gates/error-owners.json` 给这个文件的，用 `defineErrorCodes` 声明，名字实现时定），不发出任何请求。连接显示「方法不可用」，重新启用后恢复。见 Q3。
+- **声明它的插件没启用**（停用、卸载、声明不过检查）时，刷新和发送都拒绝，用一个新的错误码（主人名按 `tooling/gates/error-owners.json` 给这个文件的，用 `defineErrorCodes` 声明，名字实现时定），不发出任何请求。连接显示「方法不可用」，重新启用后恢复。（Q3 已定）。
 - 发送边界不变：凭据只发往第一次绑定的来源（S-12），401 只刷新一次（S-70），`redirect: "error"`。
 
 ### 2.7 `auth_kind` 收窄
@@ -241,7 +241,7 @@ client id 和 secret 只以引用存在平台的密钥库里（S-12），插件�
 | S-09 | 回调的 Host 判断用同一份 `isLoopbackHostname` | RAC-1083 |
 | S-69/S-70 | 不变，只改证据列里的文件名 | 现有用例 |
 
-三个新 S 号合成一条还是分成三条，由统筹看在途 PR 之后定。
+新 S 号分成三条，每条各有一个断言拒绝的测试（统筹 10-27 定）。号码由合批会话核对 main 和在途 PR 后再定，本稿不预填。
 
 ## 4. 第一批迁哪些，不迁哪些
 
@@ -301,8 +301,8 @@ client id 和 secret 只以引用存在平台的密钥库里（S-12），插件�
   - 存量连接按 Q2 处理，读取时不认旧的 `connector-connection:` 引用。
 - 新错误码都用 `defineErrorCodes` 声明，不新写 Error 子类。
 - `docs/releases/CHANGELOG.md` 的 `[Unreleased]`「升级须知」写一条：
-  - Gmail、Notion、GitHub 设备授权的连接要重新授权（若 Q2 选 A）；
-  - 产品客户端的环境变量改名（若 Q5 选 A）。
+  - Gmail、Notion、GitHub 设备授权的连接要重新授权（Q2）；
+  - 产品客户端的环境变量改名（Q5）。
 
 ### 6.2 快照与名字
 
@@ -340,7 +340,7 @@ client id 和 secret 只以引用存在平台的密钥库里（S-12），插件�
 | # | 片 | 前提 | 碰的文件 |
 | --- | --- | --- | --- |
 | 1 | 合同加字段、SDK 检查、平台解释器的纯函数部分（模板展开、地址检查、令牌请求的组装），只用夹具测试；不接路由，不删表 | **可以先做** | `packages/contracts` 的 `plugin-integrations.ts`、SDK 的 `integration-declarations.ts`、宿主里一个新文件；C 没碰这几处（`plugin-integrations.ts` 只改注释，会在合并时对齐） |
-| 2 | 数 catalog 的 `identity.read`，写成数据；写不成的记下来（Q1） | **可以先做**（只读 catalog 包，产出写进本稿） | 无代码 |
+| 2 | 数 catalog 的 `identity.read`，写成数据；写不成的，列出要往 `identity` 声明里补的字段（Q1） | **可以先做**（只读 catalog 包，产出写进本稿） | 无代码 |
 | 3 | 通用回调与 state 绑定（§3），待完成记录合成一份 | 依赖 C 合入 | `connector-api-oauth.ts`、`connector-oauth-targets.ts`、`connector-oauth-callbacks.ts`、`web-connector-api-methods.ts` |
 | 4 | catalog 与 github web 的数据写进 Manifest，删 `API_OAUTH_PROVIDERS`，`connectorMethodsFor` 改读登记 | 依赖 C 合入 | catalog 包、`host-connector-methods.ts`、`connector-product-auth.ts` |
 | 5 | 共用刷新推广到所有 OAuth 连接，`resolveApiConnection` 收成三支（§2.6） | 依赖 C 合入（C 的 `009b773f`） | `connector-access.ts`、`connector-api-oauth.ts`、`notion-oauth.ts` |
@@ -371,30 +371,34 @@ client id 和 secret 只以引用存在平台的密钥库里（S-12），插件�
 
 - **BL-790**：第二批，`MCP_SERVERS` 数据写成 `kind: "mcp"` 的声明（§4.2）。
 - **BL-791**：本地进程连接的平台服务。做完它，飞书 CLI、飞书和 Lark 的 stdio MCP、figma 本机 MCP 才能迁（§4.3）。
-- **BL-792**：catalog 里写不成数据的 `identity.read`（§7 第 2 片的结果；如果数出来是 0，删掉这一行）。
+- **BL-792**：给 catalog 里今天的 `identity` 声明写不下的 `identity.read` 补平台字段（按 Q1 只用数据；§7 第 2 片的结果，如果数出来是 0，删掉这一行）。
 - **BL-793**：BL-690（OAuth 移走之后对 connection_methods 的检查）在本线第 4 片做完后重新评估；BL-694（外部的 document_import）不受本线影响，本线只把 OAuth 移出宿主，不移文档读取。
 
 BL-794～799 留空。
 
-## 10. 要问用户的问题
+## 10. 问题与答复（已定）
 
-每题第一个选项是推荐。
+六题都选 A。Q2、Q5 由用户本人定，Q1、Q3、Q4、Q6 由统筹定（按 10-22 的授权），日期都是 2026-10-27。另一个选项留在下面，作为备查。
 
-- **Q1　Manifest 写不下的特殊情况，怎么办？**
-  - A（推荐）**只用数据**：§2.1 的字段覆盖今天全部五家改写、三种怪癖和身份/上下文；以后再遇到新的特殊情况，就往平台的声明里加字段，插件里没有代码钩子。好处是宿主不跑插件代码，审一份数据就够。
-  - B　插件可以给一个纯函数钩子（只拿响应、返回字段，不碰密钥库、记录和路由）。写起来更灵活，但宿主要执行插件代码，外部插件得进沙箱才能用，审查也更难。
-- **Q2　开发 Home 上已经有的 Gmail、Notion、GitHub 设备授权连接怎么办？**（它们用的是 `connector-connection:<id>:*` 引用，不是通用的 protocol 形状。）
-  - A（推荐）**不写迁移，标成「需要重新授权」**：用现有的恢复流程（ASC-35）重连，来源的绑定保留。CONTRACT-CHANGES 的读取兼容从第一个装到开发机之外的版本才开始算；这台机器上没有真实 Home。
-  - B　写一次性的维护脚本，把引用改成新形状。这要先写进 `specs/repository-anti-corruption` 的保留机制，经你确认。
-- **Q3　声明它的插件停用了，已有的 OAuth 连接怎么办？**
-  - A（推荐）**刷新和发送都拒**，连接显示「方法不可用」，重新启用就恢复；Alchemist 退回匿名。
-  - B　按停用前最后一份声明的快照继续刷新。但这样停用插件就没有实际效果，而且声明的主人已经不在了。
-- **Q4　`MCP_SERVERS` 的数据放在同一片，还是第二批？**
-  - A（推荐）**第二批另开一片**（BL-790）：MCP 有动态客户端注册和自己的回调，混进来会让第一批的评审和回归变大。
-  - B　和第一批一起做，一次把三张表里的两张删掉。
-- **Q5　产品客户端的环境变量统一改名吗？**
-  - A（推荐）**统一成 `CONNECTOR_<SVC>_OAUTH_CLIENT_ID/SECRET`**：`MOLIS_WORK_GMAIL_CLIENT_*` 和 `GITHUB_CLIENT_ID` 不留旧名，在 CHANGELOG 写升级须知。今天 GitHub 的报错文字和代码读的变量名已经不一致。
-  - B　保留这两组旧名，平台多认这两个特例。
-- **Q6　Gmail 判断「重新授权是同一个账号」，从按邮箱改成按 Google 的 `sub`，可以吗？**
-  - A（推荐）**按 `sub`**：和通用规则一致，邮箱改名也不会把账号认错。
-  - B　Gmail 保留按邮箱。这样声明里就要多一个字段：「重新授权时比较的指针」。
+- **Q1　Manifest 写不下的特殊情况，怎么办？**　**已定：A，只用数据**（统筹，10-27）。
+  - A **只用数据**：§2.1 的字段覆盖今天五家的改写、三种怪癖和身份/上下文。以后遇到新的特殊情况，就往平台的声明里加字段，插件里没有代码钩子。理由：这符合「缺什么补进平台」，宿主不跑插件代码。
+  - B（未选）插件给一个纯函数钩子。
+- **Q2　开发 Home 上已经有的 Gmail、Notion、GitHub 设备授权连接怎么办？**（它们用的是 `connector-connection:<id>:*` 引用，不是通用的 protocol 形状。）　**已定：A，不写迁移**（用户本人，10-27）。
+  - A **不写迁移，标成「需要重新授权」**：走现有的恢复流程（ASC-35）重连，来源的绑定保留。读取时不认旧的引用。
+  - B（未选）写一次性的维护脚本。
+- **Q3　声明它的插件停用了，已有的 OAuth 连接怎么办？**　**已定：A，刷新和发送都拒**（统筹，10-27）。
+  - A **刷新和发送都拒**，连接显示「方法不可用」，重新启用就恢复；Alchemist 退回匿名。理由：和「被停用的调用不再写业务记录」一致。
+  - B（未选）按停用前最后一份声明的快照继续刷新。
+- **Q4　`MCP_SERVERS` 的数据放在同一片，还是第二批？**　**已定：A，第二批另开一片**（统筹，10-27）。
+  - A **第二批另开一片**（BL-790）。
+  - B（未选）和第一批一起做。
+- **Q5　产品客户端的环境变量统一改名吗？**　**已定：A，统一改名**（用户本人，10-27）。
+  - A **统一成 `CONNECTOR_<SVC>_OAUTH_CLIENT_ID/SECRET`**：`MOLIS_WORK_GMAIL_CLIENT_*` 和 `GITHUB_CLIENT_ID` 不留旧名，升级须知写进 CHANGELOG。统筹核过，CI 不用这几个变量。
+  - B（未选）保留这两组旧名。
+- **Q6　Gmail 判断「重新授权是同一个账号」，从按邮箱改成按 Google 的 `sub`？**　**已定：A，按 `sub`**（统筹，10-27）。
+  - A **按 `sub`**：和通用规则一致。因为 Q2 不迁移，旧连接不会被认错。
+  - B（未选）保留按邮箱。
+
+另外定了两件事（统筹，10-27）：
+- 新 S 号分成三条，每条各有一个拒绝测试（§3.4）。号码由合批会话核对 main 和在途 PR 后再定，本稿继续写「待统筹核」。
+- 第 1、2 片等评审的「必须改」改完、统筹转达可以开工后，叠在本分支上：推远端，不开 PR，回报 SHA。第 3～8 片照旧等 C 合入。

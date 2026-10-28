@@ -259,7 +259,7 @@ export class FormStore {
   generateQuestions(id: string, prompt: string, projectId?: string, expectedVersion?: number): FormRecord {
     const current = this.get(id, projectId);
     const title = prompt.trim() || "请填写你的回答";
-    if (title.length > 200) throw formErrors.invalid("出题提示须为 1 到 200 个字");
+    if ([...title].length > 200) throw formErrors.invalid("出题提示须为 1 到 200 个字");
     const question: FormQuestion = {
       id: crypto.randomUUID(),
       type: "text",
@@ -392,12 +392,12 @@ function normalizeProjectId(value: string): string {
 
 function normalizeTitle(value: string): string {
   const title = value.trim() || "未命名问卷";
-  if (title.length > FORM_TITLE_LIMIT) throw formErrors.invalid(`标题须为 1 到 ${FORM_TITLE_LIMIT} 个字`);
+  if ([...title].length > FORM_TITLE_LIMIT) throw formErrors.invalid(`标题须为 1 到 ${FORM_TITLE_LIMIT} 个字`);
   return title;
 }
 
 function normalizeDescription(value: string): string {
-  if (value.length > 2000) throw formErrors.invalid("说明须为 0 到 2000 个字");
+  if ([...value].length > 2000) throw formErrors.invalid("说明须为 0 到 2000 个字");
   return value;
 }
 
@@ -411,7 +411,7 @@ function normalizeQuestions(value: readonly FormQuestionInput[]): FormQuestion[]
   const normalized = value.map((question: FormQuestionInput, index) => {
     const type = question.type && QUESTION_TYPES.includes(question.type) ? question.type : "text";
     const title = String(question.title ?? "").trim() || `问题 ${index + 1}`;
-    if (title.length > 200) throw formErrors.invalid("题目标题须为 1 到 200 个字");
+    if ([...title].length > 200) throw formErrors.invalid("题目标题须为 1 到 200 个字");
     const options = usesOptions(type)
       ? (question.options ?? []).map((option: Partial<FormOption>, optionIndex: number) => ({
         id: option.id || crypto.randomUUID(),
@@ -447,7 +447,7 @@ function normalizeAnswers(
     if (question.required && !value) {
       throw formErrors.invalid(`请回答：${question.title}`);
     }
-    if (value.length > FORM_ANSWER_LIMIT) throw formErrors.invalid("回答过长");
+    if ([...value].length > FORM_ANSWER_LIMIT) throw formErrors.invalid("回答过长");
     if (value && usesOptions(question.type)) {
       const allowed = new Set((question.options ?? []).map(option => option.label));
       const values = question.type === "multiChoice" ? value.split("\n") : [value];

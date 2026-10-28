@@ -11,7 +11,7 @@ import { personalPlanningActions } from "@molis-ai/molis-work-plugin-goals";
 import { BUILTIN_PLANNING_METHOD_PACKS } from "./fixtures/goals-modules.js";
 import { savePersonalMethod } from "./fixtures/personal-planning.js";
 
-// T-050 / BL-820: the Home's Goals library stores the person's method packs as JSON in `personal_planning_method_packs`.
+// T-050: the Home's Goals library stores the person's method packs as JSON in `personal_planning_method_packs`.
 // A row that cannot be read must stop the read with the owner's "record unreadable" code, not quietly become "no such method".
 const UNREADABLE = "goals.storage.record_unreadable";
 const MARKER = "RAC-1495-personal-method-marker";
@@ -29,7 +29,7 @@ async function twoMethods(home: string): Promise<{ a: PlanningMethodPack; b: Pla
   } finally { await host.close(); }
 }
 
-/** The stored text of B's row is made unreadable while no Host is open, the way a maintenance people would find it broken. */
+/** The stored text of B's row is made unreadable while no Host is open, the way maintenance would find it broken. */
 function breakStoredPack(home: string, methodId: string): void {
   const db = new DatabaseSync(join(home, "goals", "goals.db"));
   try { db.prepare("UPDATE personal_planning_method_packs SET pack_json = ? WHERE method_id = ?").run(`{"${MARKER}":`, methodId); }
@@ -43,7 +43,7 @@ function storedRows(home: string): unknown[] {
   finally { db.close(); }
 }
 
-function unreadable(error: unknown): void {
+function unreadable(error: unknown): boolean {
   assert.ok(error instanceof ActionError, "读不出来的个人方法包应当抛 ActionError，而不是当成没有这个方法");
   assert.equal(error.code, UNREADABLE);
   assert.equal(error.kind, "internal");

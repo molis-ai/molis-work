@@ -194,6 +194,7 @@ test("RAC-1470: a listener that cannot prove this Home answers tools/list with t
     refusal(reply, "actions.transport_invalid");
     assert.equal(resident.requests.length, 1, "only the read-only health probe reached the other listener");
     assert.equal(resident.requests[0]?.headers["x-molis-work-control-token"], undefined, "the probe sent no credentials");
+    assert.equal(resident.requests[0]?.headers.authorization, undefined, "the probe sent no authorization header");
   });
 });
 

@@ -20,6 +20,8 @@ const BOARD = "coordination/2026-10-28/BOARD.md";
 const ISSUE = 1332;
 const CODEX_QUEUE_CAP = 2;
 const STALE_HOURS = 2;
+const DEPTH = 3;
+const PUSH_MINUTES = 60;
 const SUFFIX = { A: "a", B: "b", Codex: "cx", 本机: "m" };
 const DEVICE = { a: "A", b: "B", cx: "Codex", m: "本机" };
 const SIGNATURE = { a: "DeepSeek（设备 A）", b: "DeepSeek（设备 B）", cx: "Codex（设备 A）", m: "Claude" };
@@ -70,10 +72,13 @@ function parseStage(comment) {
 function parseBoard(text) {
   const rows = [];
   const standingLocks = [];
+  const urgent = new Set();
   let header = null;
   for (const line of text.split("\n")) {
     if (!line.startsWith("|")) {
       header = null;
+      const listed = line.match(/^加急[:：](.*)$/);
+      if (listed) for (const m of listed[1].matchAll(/T-\d{3}/g)) urgent.add(m[0]);
       continue;
     }
     const cells = line.slice(1, -1).split("|").map((c) => c.trim());
@@ -96,7 +101,7 @@ function parseBoard(text) {
       });
     } else if (header.includes("锁定的文件")) standingLocks.push(...locks);
   }
-  return { rows, standingLocks };
+  return { rows, standingLocks, urgent };
 }
 
 function checkState(pr, test) {
@@ -118,7 +123,7 @@ function fixtureSnapshot(file) {
     boardSha: "fixture",
     boardTime: f.boardTime ?? new Date(0).toISOString(),
     mainSha: "fixture",
-    branches: f.branches.map(taskOf).map((m) => ({ id: `T-${m[1]}`, suffix: m[2], branch: m[0] })),
+    branches: f.branches.map((b) => (typeof b === "string" ? { branch: b } : b)).map((b) => ({ ...b, m: taskOf(b.branch) })).map(({ m, time }) => ({ id: `T-${m[1]}`, suffix: m[2], branch: m[0], time })),
     open: f.open.map((pr) => ({ ...pr, m: taskOf(pr.headRefName) })).map((pr) => ({ ...pr, id: `T-${pr.m[1]}`, suffix: pr.m[2] })),
     merged: new Set(f.merged),
     issue: f.issue.map(parseStage).filter(Boolean),
@@ -145,6 +150,15 @@ function snapshot() {
     .map(taskOf)
     .filter(Boolean)
     .map((m) => ({ id: `T-${m[1]}`, suffix: m[2], branch: m[0] }));
+  // When each claim was last pushed: a claim with no pushes or comments for hours is one the coordinator asks about.
+  const pushed = new Map(
+    run("git", ["for-each-ref", "--format=%(refname:short) %(committerdate:iso-strict)", "refs/remotes/origin/task/"])
+      .split("\n")
+      .filter(Boolean)
+      .map((line) => line.split(" "))
+      .map(([ref, time]) => [ref.replace(/^origin\//, ""), time]),
+  );
+  for (const b of branches) b.time = pushed.get(b.branch);
   const prFields = "number,title,url,headRefName,headRefOid,isDraft,createdAt,labels,statusCheckRollup,files,comments";
   const open = ghJson(["pr", "list", "--state", "open", "--limit", "100", "--json", prFields])
     .map((pr) => ({ ...pr, m: taskOf(pr.headRefName) }))
@@ -186,7 +200,7 @@ const last = (list) => list.at(-1);
 const hoursSince = (time) => (Date.now() - Date.parse(time)) / 3_600_000;
 const SECURITY_FILES = /^(tests\/security-invariants|docs\/system\/SECURITY-INVARIANTS\.md)/;
 
-function analyse(pr, issueStages) {
+function analyse(pr, issueStages, tier) {
   const fromPr = (pr.comments ?? [])
     .map((c) => parseStage({ ...c, id: c.id ?? c.url }))
     .filter(Boolean)
@@ -198,8 +212,8 @@ function analyse(pr, issueStages) {
   const lastChange = last([...of("一审", ["要改"]), ...of("二审", ["要改"]), ...of("验证", ["失败"])].sort((x, y) => x.time.localeCompare(y.time)));
   const fresh = (s) => !lastChange || s.time > lastChange.time;
   const passed = (kind, verdicts) => last(of(kind, verdicts).filter((s) => fresh(s) && holdsAt(s.fixedAt ?? s.at, head)));
-  // Codex's own tasks and the local lines get no 一审: Opus 二审 reviews them, Codex only verifies.
-  const needYi = pr.suffix !== "m" && pr.suffix !== "cx";
+  // Codex's own tasks, the local lines and 丙 get no 一审: 二审 reviews them with the 一审 list too, Codex only verifies.
+  const needYi = pr.suffix !== "m" && pr.suffix !== "cx" && tier !== "丙";
   const yi = needYi ? passed("一审", ["可进二审", "已小修"]) : null;
   const yan = passed("验证", ["通过"]);
   const er = passed("二审", ["可合"]);
@@ -241,8 +255,17 @@ function analyse(pr, issueStages) {
 function plan(snap) {
   const { board, open, merged, branches, issue } = snap;
   const tasks = new Map(board.rows.map((r) => [r.id, r]));
-  const states = open.map((pr) => analyse(pr, issue));
-  const claimedIds = new Set([...branches.map((b) => b.id), ...open.map((p) => p.id), ...merged]);
+  const states = open.map((pr) => analyse(pr, issue, tasks.get(pr.id)?.tier));
+  // A branch holds its task only while the board still gives the task to that branch's device: moving the row takes the task back.
+  const fits = (b) => {
+    const row = tasks.get(b.id);
+    return !row || row.owner === "池" || SUFFIX[row.owner] === b.suffix;
+  };
+  const claims = branches.filter(fits);
+  const claimedIds = new Set([...claims.map((b) => b.id), ...open.map((p) => p.id), ...merged]);
+  const urgent = (id) => board.urgent.has(id);
+  const tierOf = (s) => tasks.get(s.pr.id)?.tier;
+  const lastTouch = (b) => [b.time, ...issue.filter((s) => s.task === b.id).map((s) => s.time)].filter(Boolean).sort().at(-1);
   const inflightLocks = new Set(board.standingLocks);
   for (const row of board.rows) if (claimedIds.has(row.id) && !merged.has(row.id)) row.locks.forEach((l) => inflightLocks.add(l));
   const lockHeld = (row) => row.locks.some((l) => [...inflightLocks].some((held) => held === l || l.startsWith(held.endsWith("/") ? held : `${held}/`)));
@@ -266,29 +289,40 @@ function plan(snap) {
     const me = SIGNATURE[suffix];
     const mine = states.filter((s) => s.pr.suffix === suffix);
     for (const s of mine) {
-      if (s.phase === "要改") out.push(item(`fix:${s.pr.number}:${s.lastChange.id}`, `修：${ref(s)} 的【${s.lastChange.kind} ${s.lastChange.verdict}】`, s.lastChange.url, 1));
-      else if (s.verify === "failure") out.push(item(`verify:${s.pr.number}:${s.head9}`, `修：${ref(s)} 的 Verify 红了`, s.pr.url, 1));
+      const first = urgent(s.pr.id) ? 0 : 1;
+      const tag = urgent(s.pr.id) ? "（加急，先做）" : "";
+      if (s.phase === "要改") out.push(item(`fix:${s.pr.number}:${s.lastChange.id}`, `修：${ref(s)} 的【${s.lastChange.kind} ${s.lastChange.verdict}】${tag}`, s.lastChange.url, first));
+      else if (s.verify === "failure") out.push(item(`verify:${s.pr.number}:${s.head9}`, `修：${ref(s)} 的 Verify 红了${tag}`, s.pr.url, first));
     }
     for (const s of states)
       if (s.answerUnread && s.audience === me) out.push(item(`answer:${s.answerUnread.id}`, `读：${s.pr.id} 的【统筹答】`, s.answerUnread.url, 1));
-    const myBranches = branches.filter((b) => b.suffix === suffix && !open.some((p) => p.id === b.id) && !merged.has(b.id));
+    const unopened = branches.filter((b) => b.suffix === suffix && !open.some((p) => p.id === b.id) && !merged.has(b.id));
+    for (const b of unopened.filter((x) => !fits(x)))
+      out.push(item(`reclaimed:${b.branch}`, `${b.id} 已收回，看板改派给 ${tasks.get(b.id).owner}：不再推 ${b.branch}，在 #${ISSUE} 说一句推到了哪个提交；远端分支留着，不删`, null, 1));
+    const myBranches = unopened.filter(fits);
     for (const b of myBranches) {
       for (const a of issue.filter((s) => s.kind === "统筹答" && s.task === b.id)) {
         const mineAfter = issue.some((s) => s.task === b.id && s.sig === me && s.time > a.time);
         if (!mineAfter) out.push(item(`answer:${a.id}`, `读：${b.id} 的【统筹答】（#${ISSUE}）`, a.url, 1));
       }
-      const twin = branches.find((o) => o.id === b.id && o.suffix !== suffix);
+      const twin = claims.find((o) => o.id === b.id && o.suffix !== suffix);
       if (twin && twin.suffix < suffix) out.push(item(`twin:${b.branch}`, `${b.id} 已被设备 ${DEVICE[twin.suffix]} 先领：删掉 ${b.branch}，领下一项`, null, 1));
     }
     const blocked = (id) => issueOpen(id, "方案").length > 0 || issueOpen(id, "问统筹").length > 0;
     const developing = myBranches.filter((b) => !blocked(b.id)).length;
-    const queued = mine.filter((s) => s.phase === "待一审").length;
+    for (const b of myBranches.filter((x) => !blocked(x.id) && x.time)) {
+      const minutes = (Date.now() - Date.parse(b.time)) / 60_000;
+      if (minutes > PUSH_MINUTES) out.push(item(`push:${b.branch}:${b.time}`, `推一次进度：${b.branch} 已 ${Math.round(minutes)} 分钟没推（推一个写明做到哪里的提交；卡住了在 #${ISSUE} 贴【阻塞】）`, null, 5));
+    }
+    // 丙 PRs get only Codex's light 验证, so they do not count against the queue.
+    const queued = mine.filter((s) => s.phase === "待一审" && tierOf(s) !== "丙").length;
     const fixing = mine.some((s) => s.phase === "要改" || s.verify === "failure");
     if (role === "codex") {
-      for (const s of states.filter((x) => x.phase === "待一审").sort((x, y) => (x.lastDev.kind === "修复" ? 0 : 1) - (y.lastDev.kind === "修复" ? 0 : 1) || x.lastDev.time.localeCompare(y.lastDev.time))) {
+      const rank = (x) => (urgent(x.pr.id) ? 0 : x.lastDev.kind === "修复" ? 1 : 2);
+      for (const s of states.filter((x) => x.phase === "待一审").sort((x, y) => rank(x) - rank(y) || x.lastDev.time.localeCompare(y.lastDev.time))) {
         const what = [s.needYi && !s.yi ? "一审" : null, !s.yan ? "验证" : null].filter(Boolean).join("、");
         const note = s.verify === "pending" ? "（Verify 未出，验证结论等它）" : s.verify === "failure" ? "（Verify 红，退回开发）" : "";
-        if (s.verify !== "failure") out.push(item(`review1:${s.pr.number}:${s.head9}`, `${what}：${ref(s)}（${s.lastDev.kind}，档 ${tasks.get(s.pr.id)?.tier ?? "?"}）${note}`, s.lastDev.url, s.lastDev.kind === "修复" ? 2 : 3));
+        if (s.verify !== "failure") out.push(item(`review1:${s.pr.number}:${s.head9}`, `${what}：${ref(s)}（${s.lastDev.kind}，档 ${tierOf(s) ?? "?"}${urgent(s.pr.id) ? "，加急" : ""}）${note}`, s.lastDev.url, urgent(s.pr.id) ? 1 : s.lastDev.kind === "修复" ? 2 : 3));
       }
       const reported = issue.filter((s) => s.kind === "main 红");
       for (const wf of ["CI", "Full suite"]) {
@@ -307,8 +341,8 @@ function plan(snap) {
   }
 
   if (role === "review") {
-    for (const s of states.filter((x) => x.phase === "待二审").sort((x, y) => x.since.localeCompare(y.since)))
-      out.push(item(`review2:${s.pr.number}:${s.head9}`, `二审：${ref(s)}（档 ${tasks.get(s.pr.id)?.tier ?? "?"}，${s.pr.files?.length ?? "?"} 个文件）`, s.pr.url, 3));
+    for (const s of states.filter((x) => x.phase === "待二审").sort((x, y) => urgent(y.pr.id) - urgent(x.pr.id) || x.since.localeCompare(y.since)))
+      out.push(item(`review2:${s.pr.number}:${s.head9}`, `二审：${ref(s)}（档 ${tierOf(s) ?? "?"}，${s.pr.files?.length ?? "?"} 个文件${urgent(s.pr.id) ? "，加急" : ""}${s.needYi ? "" : "，没有一审：连一审的清单一起看"}）`, s.pr.url, urgent(s.pr.id) ? 2 : 3));
   }
 
   if (role === "coord") {
@@ -340,9 +374,15 @@ function plan(snap) {
     const lastCoord = last(issue.filter((s) => s.sig === "Claude 统筹"))?.time ?? "";
     for (const s of issue.filter((x) => ["空闲", "阻塞", "main 红", "设备"].includes(x.kind) || (x.kind === "问统筹" && !x.task)))
       if (s.time > lastCoord) out.push(item(`issue:${s.id}`, `#${ISSUE}：【${s.kind}】${s.sig}`, s.url, 3));
+    const asking = (id) => issueOpen(id, "方案").length > 0 || issueOpen(id, "问统筹").length > 0;
+    for (const b of claims.filter((x) => !open.some((p) => p.id === x.id) && !merged.has(x.id) && !asking(x.id))) {
+      const touched = lastTouch(b);
+      if (touched && hoursSince(touched) > STALE_HOURS)
+        out.push(item(`stalled:${b.branch}:${touched}`, `${b.id} ${b.branch} 已 ${hoursSince(touched).toFixed(1)} 小时没有推送或评论：在 #${ISSUE} 问一声；问后 1 小时仍没回音，可以在看板改派给收回`, null, 4));
+    }
     for (const device of ["A", "B", "池"]) {
-      const left = board.rows.filter((r) => r.owner === device && !claimedIds.has(r.id)).length;
-      if (left < 2) out.push(item(`depth:${device}:${left}`, `补任务书：${device === "池" ? "公共池" : `设备 ${device}`} 待领只剩 ${left} 份`, null, 5));
+      const left = board.rows.filter((r) => r.owner === device && !claimedIds.has(r.id) && r.deps.every((d) => merged.has(d))).length;
+      if (left < DEPTH) out.push(item(`depth:${device}:${left}`, `补任务书：${device === "池" ? "公共池" : `设备 ${device}`} 能领的只剩 ${left} 份（常备 ${DEPTH} 份）`, null, 5));
     }
   }
   return { out: out.sort((x, y) => x.order - y.order), states, tasks, claimedIds };

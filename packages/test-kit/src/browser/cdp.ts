@@ -53,7 +53,12 @@ interface CdpMessage {
 const CHROME_TOP_METHODS = 3;
 const PROFILE_SEGMENT_MS = 20_000;
 const PROFILE_SAMPLE_INTERVAL_US = 10_000;
-/** How long a timed-out command may wait for the optional profile read; the limit itself is never extended. */
+/**
+ * How long an already-decided timeout may wait for one optional profile read (B2) before settling without samples.
+ * The timeout is still decided at the command's own limit (plus at most the check-phase turn); this bounded read only
+ * delays the rejection and does not extend the decision, so B2-on failures stay inside `limit`..`limit + 250` and the
+ * diagnostics report how long the read held them (`profileReadMs`). Approved in the task book at `10a24449a`.
+ */
 const DIAGNOSTICS_GRACE_MS = 150;
 const SELF_TIME_TOP = 5;
 const SELF_TIME_NAME_LIMIT = 120;
@@ -69,6 +74,8 @@ interface TimeoutDiagnostics {
   readonly nodeSelfTime?: readonly SelfTimeEntry[];
   /** Whether the sampled segment covered the command's whole window; a boundary can be missed on a busy thread. */
   readonly nodeSelfTimeComplete?: boolean;
+  /** How many milliseconds the optional profile read held the rejection; only with `profileTimeouts` on. */
+  readonly profileReadMs?: number;
 }
 
 interface SelfTimeEntry {
@@ -308,14 +315,17 @@ export class ChromeHarness {
             chromeMessages: this.messagesSeen - messagesStarted,
             chromeTopMethods: chromeTopMethods(this.messageCounts, methodsStarted, CHROME_TOP_METHODS),
           };
+          const decidedAt = performance.now();
           const settle = (profile: { readonly nodeSelfTime: readonly SelfTimeEntry[]; readonly nodeSelfTimeComplete: boolean } | undefined, profiling: boolean) => {
             // A profile that could not be read inside its grace leaves no samples and must not claim the window was
             // covered: empty self time with `nodeSelfTimeComplete: false` says "not proven" rather than guessing.
-            failure.diagnostics = profile ? { ...diagnostics, ...profile }
+            const counters = profile ? { ...diagnostics, ...profile }
               : profiling ? { ...diagnostics, nodeSelfTime: [], nodeSelfTimeComplete: false }
               : diagnostics;
-            // `elapsed` says how long the command actually stayed unsettled: the optional profile read may hold the
-            // timeout back for its grace, and the message must not report a shorter wait than the caller saw.
+            // `elapsed` says how long the command actually stayed unsettled, including this optional read; `profileReadMs`
+            // says how much of it was the read, so the timer's own lateness can be told apart.
+            if (profiling) failure.diagnostics = { ...counters, profileReadMs: Math.max(0, Math.round(performance.now() - decidedAt)) };
+            else failure.diagnostics = counters;
             failure.message += ` (elapsed ${Math.round(performance.now() - started)}ms; limit ${timeoutMs}ms)`;
             reject(failure);
           };

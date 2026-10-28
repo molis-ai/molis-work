@@ -358,18 +358,46 @@ test("a slow profile read cannot postpone the timeout past its grace, and elapse
   await withDelayedProfileStop(400, async () => {
     await withHarness(() => {}, { profileTimeouts: true }, async (harness) => {
       const started = Date.now();
+      // RAC-1452 (task book 10a24449a): with B2 on the rejection still lands between the limit and limit + 250 ms,
+      // even when the single bounded profile read is slower than its grace.
       await assert.rejects(harness.command("Never", {}, undefined, 100), (error) => {
         const settledAfter = Date.now() - started;
-        assert.ok(settledAfter >= 100 && settledAfter <= 350, `settled after ${settledAfter}ms`);
+        assert.ok(settledAfter >= 100 && settledAfter <= 350, `settled after ${settledAfter}ms, outside limit..limit + 250`);
         const stated = Number(/\(elapsed (\d+)ms; limit 100ms\)/.exec(error.message)?.[1]);
         assert.ok(stated >= 140, `elapsed ${stated}ms includes the profile wait`);
         assert.ok(stated <= settledAfter, `elapsed ${stated}ms claims more than the ${settledAfter}ms the caller waited`);
         assert.ok(error.diagnostics, "Chrome counters still ride along without the profile");
         assert.deepEqual(error.diagnostics.nodeSelfTime, [], "no samples without a profile");
         assert.equal(error.diagnostics.nodeSelfTimeComplete, false, "an unread profile does not claim coverage");
+        assert.ok(error.diagnostics.profileReadMs >= 140, `profileReadMs ${error.diagnostics.profileReadMs} says how long the read held the rejection`);
+        assert.ok(error.diagnostics.profileReadMs <= settledAfter, "the bounded read cannot outlast the settlement");
         return true;
       });
     });
+  });
+});
+
+test("a close during the bounded profile read still rejects the timed-out command (RAC-1452)", async () => {
+  await withDelayedProfileStop(400, async () => {
+    const devtools = await fakeDevTools(() => {});
+    const harness = await ChromeHarness.connect(devtools.url, { profileTimeouts: true });
+    try {
+      const command = harness.command("Never", {}, undefined, 100);
+      // Past the timeout decision, while the bounded read is still waiting: closing must stop the read and keep the
+      // rejection the command already earned.
+      await new Promise((resolve) => setTimeout(resolve, 240));
+      const closing = harness.close();
+      const error = await command.then(
+        () => { throw new Error("a timed-out command must not resolve"); },
+        (rejection) => rejection,
+      );
+      assert.match(error.message, /^CDP timeout: Never \(elapsed \d+ms; limit 100ms\)$/);
+      assert.deepEqual(error.diagnostics.nodeSelfTime, []);
+      assert.equal(error.diagnostics.nodeSelfTimeComplete, false);
+      await closing;
+    } finally {
+      await devtools.close();
+    }
   });
 });
 

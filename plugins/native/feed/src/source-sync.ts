@@ -89,17 +89,18 @@ export class PublicSourceSync {
       await beforeEffect();
       return await this.commitPublicResult(source, running, result, runtime, write);
     } catch (error) {
+      // A pull that has already committed is done, whatever a judgment made of it afterwards: report that failure as it is. The guard below
+      // counts the pull's own source write as one person's edit of another (it keeps the revision the source had when the pull started), so it
+      // must not be asked once the terminal run is there; the run keeps the record an explicit retry can replay.
+      const current = this.feed.getSourceRunByOperationId(this.projectId, operationId);
+      if (current?.phase === "terminal") throw error;
       // A pull refused for its source keeps no receipt, as one the platform refused inside the pull does: the same key pulls again, and what
       // was fetched for the source as it was is never replayed into it (FI-C-05). A call that may no longer write leaves the record, which the
-      // run still names; a pull that committed keeps it for an explicit retry.
-      if (beforeEffect.refused && this.feed.getSourceRunByOperationId(this.projectId, operationId)?.phase !== "terminal") {
+      // run still names.
+      if (beforeEffect.refused) {
         await runtime.discard?.().catch(() => undefined);
       }
       await beforeEffect();
-      const current = this.feed.getSourceRunByOperationId(this.projectId, operationId);
-      // The pull may have committed before a downstream judgment was cancelled.
-      // Preserve the refusal; an explicit retry can replay the durable pull.
-      if (current?.phase === "terminal") throw error;
       await input.beforeEffect?.();
       input.signal?.throwIfAborted();
       const updatedAt = new Date().toISOString();

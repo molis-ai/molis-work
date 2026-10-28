@@ -164,11 +164,14 @@ test('SYS-15-S1 Host alone restores installed actions and scheduled operations, 
       const own = clock.list(SCHEDULE_PLUGIN_ID).filter(job => job.capability_id === SCHEDULE_OPERATION_WAKEUP), feed = feedJobs();
       assert.equal(own.length, 1, JSON.stringify(clock.list()));
       assert.equal(feed.length, 1, JSON.stringify(clock.list()));
-      // RAC-1170: the tick reaches this test's own one-shot task and its operation's side effect (`read` answers 'scheduled' below).
-      assert.equal(clock.get(own[0]!.job_id)?.enabled, true, JSON.stringify(clock.list()));
-      assert.ok(Date.parse(own[0]!.next_due_at) <= Date.parse(feed[0]!.next_due_at) + 1, JSON.stringify(clock.list()));
-      // RAC-1171: the receipt still counts every due task of the whole project clock — this one and Feed's wakeup.
+      // The tick happens late enough for both due tasks: whichever of them was registered later is not this test's contract,
+      // so compare against the tick's own moment instead of the two due times against each other.
       const tickAt = new Date(Math.max(at + 1000, Date.parse(feed[0]!.next_due_at) + 1));
+      // RAC-1170: the tick reaches this test's own one-shot task, which is due and enabled at that moment; its operation's side
+      // effect is the `read` answering 'scheduled' below, and the tick marks its last_wakeup done.
+      assert.equal(own[0]!.enabled, true, JSON.stringify(clock.list()));
+      assert.ok(Date.parse(own[0]!.next_due_at) <= tickAt.getTime(), JSON.stringify(clock.list()));
+      // RAC-1171: the receipt still counts every due task of the whole project clock — this one and Feed's wakeup.
       const due = clock.list().filter(job => job.enabled && Date.parse(job.next_due_at) <= tickAt.getTime());
       assert.deepEqual(due.map(job => job.job_id).sort(), [own[0]!.job_id, feed[0]!.job_id].sort(), JSON.stringify(clock.list()));
       assert.deepEqual(await clock.tick(tickAt), { invoked: 2, failed: 0, skipped: 0 }, JSON.stringify(clock.list()));

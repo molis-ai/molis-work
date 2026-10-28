@@ -60,6 +60,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-049 | 受管理安装目录缺所有权记录时，移除报 `connector.install.invalid`，不再抛原生 ENOENT | 乙 | 池 | 14 | — | `apps/local-host/src/connector-tool-install.ts`（只改 `removeManagedConnectorTool`）、`tests/security-invariants-connector-install.test.ts`、`tests/connector-local-actions.test.ts` |
 | T-050 | Goals 个人方法包的 JSON 读不出来时报错，不再悄悄当成没有这个方法 | 乙 | 池 | 15 | — | `plugins/native/goals/src/module/planning/personal-methods.ts`、`plugins/native/goals/src/module/repository.ts`（只给 `parseJson` 加 `export`）、`plugins/native/goals/README.md`（`:116`、`:123`）、`tests/goals-personal-methods-stored-json.test.ts`（新） |
 | T-051 | MCP 发现被常驻服务拒绝时 tools/list 回 JSON-RPC 错误，启动器不再退出进程（BL-108 的第二半） | 乙 | A | 16 | — | `apps/local-host/src/mcp-request-lifetime.ts`、`tests/mcp-tools-list-refusal.test.ts`（新） |
+| T-052 | 四处文档指向已改名、已删的文件：PLUGIN-PLATFORM 的 `methods` 一格、Pages README、Feed README、BL-182 的路径 | 丙 | B | 10 | — | `docs/platform/PLUGIN-PLATFORM.md`（只第 148 行）、`plugins/native/pages/README.md`（只第 66 行）、`plugins/native/feed/README.md`（只第 98 行）、`specs/BACKLOG.md`（只 BL-182 行，不锁） |
 
 ## 在途，不走任务书
 

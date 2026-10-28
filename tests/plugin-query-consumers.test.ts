@@ -89,7 +89,7 @@ test("Feed reads and warm Web projections use each owner's current authority, re
 });
 
 for (const phase of ["dispatch", "response"] as const) {
-  test(`information proposals retain dependency authority during model ${phase} waits`, { timeout: 30_000 }, async () => {
+  test(`RAC-1180 RAC-1182 information proposals retain dependency authority during model ${phase} waits`, { timeout: 30_000 }, async () => {
     const home = await mkdtemp(join(tmpdir(), "information-authority-")), databasePath = join(home, "project.sqlite");
     await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
     seedDemoBoard(databasePath);
@@ -119,8 +119,11 @@ for (const phase of ["dispatch", "response"] as const) {
       disabled = false; pause = false;
       const result = await actions.invoke(informationActions.plan, { prompt: "整理" });
       assert.equal(result.action, null); assert.equal(result.context.project_id, reference.project_id);
-      // RAC-340: the Feed and Inbox dependencies are named by capability only; the directory supplies the one provider of each.
-      assert.ok(informationActions.plan.action.required_actions!.every(dependency => dependency.provider_id === undefined));
+      // RAC-1182: the Feed and Inbox dependencies are exactly the two capability ids, with no pinned provider; the directory supplies the one provider of each.
+      assert.deepEqual(informationActions.plan.action.required_actions, [
+        { capability_id: feedQueryActions.snapshot.capability_id, version: 1 },
+        { capability_id: inboxActions.list.capability_id, version: 1 },
+      ]);
       assert.equal(dispatched, phase === "dispatch" ? 1 : 2);
       const runtime = await host.withProject(reference, r => r);
       assert.equal(createLocalFeedApplication(runtime.store.db).snapshot(DEMO_PROJECT_ID).feed_items.length, 0);

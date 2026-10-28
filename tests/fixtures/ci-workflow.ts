@@ -1,10 +1,17 @@
-// Reading .github/workflows/ci.yml in the tests that pin parts of it (the Linux probe, the product subset, its plan): a job's block,
-// and the jobs that block a merge, which are the needs of `verify` (the required check `Verify`).
+// Reading .github/workflows/ci.yml in the tests that pin parts of it (the Linux probe, the product subset, its plan, the install
+// step): a job's block, and the jobs that block a merge, which are the needs of `verify` (the required check `Verify`). The one
+// test that also pins the install of full-suite.yml reads that file too.
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 export const workflow = readFileSync(fileURLToPath(new URL("../../.github/workflows/ci.yml", import.meta.url)), "utf8");
+
+/** .github/workflows/full-suite.yml, for the test that pins its install step as well. */
+export const fullSuiteWorkflow = readFileSync(
+  fileURLToPath(new URL("../../.github/workflows/full-suite.yml", import.meta.url)),
+  "utf8",
+);
 
 /** The lines of one job, from `  <name>:` to the next job. */
 export function jobBlock(name: string, text = workflow): string {

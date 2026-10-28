@@ -4,8 +4,9 @@ import { mkdtemp,rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { resolveMolisWorkHome } from '@molis-ai/molis-work-storage';
-import { LocalProjectDatabase,seedDemoBoard,DEMO_PROJECT_ID,createLocalFeedApplication,createLocalFeedConnectorSync,createLocalFeedSourceService,withConnectorConnections } from '@molis-ai/molis-work-app-local-host';
+import { LocalProjectDatabase, seedDemoBoard, DEMO_PROJECT_ID, withConnectorConnections } from '@molis-ai/molis-work-app-local-host';
 import { accountSourceRecord } from './fixtures/feed-account-source.js';
+import { createLocalFeedApplication, createLocalFeedConnectorSync, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 for(const kind of ['github','gmail'] as const) {
   test(`Live ${kind} account performs read-only production sync`,{skip:process.env.MOLIS_WORK_LIVE_ACCOUNTS!=='1',timeout:60000},async t=>{

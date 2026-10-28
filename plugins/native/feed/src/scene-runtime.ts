@@ -1,4 +1,4 @@
-import { ActionError, type ActionClient, type ActionReference, type ActionSceneClient, type ActionSceneHandlerBinding, type ActionSceneView } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionClient, type ActionReference, type ActionSceneClient, type ActionSceneHandlerBinding, type ActionSceneView } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { FeedApplication } from "./application.js";
 import type { FeedItemRecord } from "./projection.js";
@@ -26,7 +26,17 @@ export interface FeedSceneHost {
   latestJudgments(sceneId: string): readonly JudgmentRecord[];
   recordJudgment(input: FeedSceneJudgmentInput): JudgmentRecord;
   /** The item with its retained bodies read; throws `feed.item_not_found`. */
-  item(itemId: string): FeedItemRecord;
+  item(itemId: string): FeedItemRecord | Promise<FeedItemRecord>;
+}
+
+/**
+ * How the callbacks of a scene write when the Feed's writes are commits of the callback's own (a Runtime Feed): the recheck of the
+ * original caller comes first, before the ledger row (which commits on its own, in the Home) and before the Feed's rows, which are one commit.
+ */
+export interface FeedSceneWrites {
+  commit<T>(caller: ActionCallContext, body: () => T): Promise<T>;
+  /** Asked before any write of a callback; throws when the call is no longer allowed. */
+  beforeRecord(caller: ActionCallContext): Promise<void>;
 }
 
 export interface FeedSceneRuntimeOptions {
@@ -35,11 +45,16 @@ export interface FeedSceneRuntimeOptions {
   readonly actions: ActionClient;
   readonly scenes: ActionSceneClient;
   readonly host: FeedSceneHost;
+  /**
+   * Absent for the Host, whose writes are the transaction it is already in. With it, the Inbox entry a judgment admitted stays queued for the
+   * action that started the judgment: a callback reaches no action, and the action's authority is what reaches the Inbox's own judgment.
+   */
+  readonly writes?: FeedSceneWrites;
 }
 
 /** The scene handler the project's action provider registers, and the selection the rule handlers use to validate and preview a rule's judgment. */
 export function createFeedSceneRuntime(options: FeedSceneRuntimeOptions): { handler: ActionSceneHandlerBinding; selection: FeedRuleJudgmentSelection } {
-  const { projectId, feed, actions, scenes, host } = options;
+  const { projectId, feed, actions, scenes, host, writes } = options;
   const captureScenes = (found: readonly ActionSceneView[]) =>
     found.filter(scene => scene.definition.scene_id === feedCaptureScene.scene_id && scene.definition.version === feedCaptureScene.version);
   const selection: FeedRuleJudgmentSelection = {
@@ -53,7 +68,7 @@ export function createFeedSceneRuntime(options: FeedSceneRuntimeOptions): { hand
           && use.function.capability_id === provenance.function.capability_id && use.function.version === provenance.function.version && use.function.provider_id === provenance.function.provider_id);
         if (!binding) continue;
         let item;
-        try { item = host.item(record.subject.id); }
+        try { item = await host.item(record.subject.id); }
         catch (error) { if (error instanceof Error && "code" in error && error.code === "feed.item_not_found") continue; throw error; }
         if (feedCaptureSubjectRevision(item) !== provenance.subject_revision) continue;
         recommendations.push({ item_id: item.item_id, suggested_behavior_ids: [...record.suggested_behavior_ids] });
@@ -84,17 +99,21 @@ export function createFeedSceneRuntime(options: FeedSceneRuntimeOptions): { hand
   const handler = createFeedCaptureSceneHandler({ projectId,
     rules: () => feed.listOutRules(projectId),
     resolve: itemId => host.item(itemId),
-    save: (rule, binding, saveOptions) => {
-      const next = feed.prepareOutRuleUpdate(projectId, rule.rule_id, { judgment: binding.function, enabled: binding.enabled });
-      feed.saveOutRuleUpdate(next, saveOptions?.expected_revision ?? rule.revision);
+    save: async (rule, binding, saveOptions, caller) => {
+      const save = () => {
+        const next = feed.prepareOutRuleUpdate(projectId, rule.rule_id, { judgment: binding.function, enabled: binding.enabled });
+        feed.saveOutRuleUpdate(next, saveOptions?.expected_revision ?? rule.revision);
+      };
+      await (writes ? writes.commit(caller, save) : save());
     },
     record: async (item, rule, binding, result, caller) => {
+      await writes?.beforeRecord(caller);
       const judgment = host.recordJudgment({ function: binding.function,
         subject: { kind: "feed_item", id: item.item_id, project_id: projectId }, scene_id: feedCaptureScene.scene_id,
         scene_provenance: { binding_id: binding.binding_id, binding_revision: binding.revision!, function: binding.function, subject_revision: feedCaptureSubjectRevision(item) },
         outcome: result.status, suggested_behavior_ids: result.suggested_behavior_ids, error_code: result.error_code ?? null });
-      const entryId = feed.recordCaptureJudgment(item, rule, judgment);
-      if (entryId) await feed.flushPendingInboxJudgments(caller, [entryId]);
+      const entryId = writes ? await writes.commit(caller, () => feed.recordCaptureJudgment(item, rule, judgment)) : feed.recordCaptureJudgment(item, rule, judgment);
+      if (entryId && !writes) await feed.flushPendingInboxJudgments(caller, [entryId]);
       return judgment;
     },
   });

@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { createLocalFeedApplication, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 
 test("search exposes keyboard selection and offers a touch dismissal that returns focus", { timeout: 60_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
@@ -45,7 +46,7 @@ test("Feed creates two independent tasks in one page and shared controls keep re
   await click('[data-plugin-strip] [data-plugin-id=feed]');
   await evaluate(`{ const original = window.fetch; window.createdSources = []; window.fetch = async (url, options) => {
     const response = await original(url, options);
-    if (options?.method === 'POST' && String(url).endsWith('/api/feed/sources')) {
+    if (options?.method === 'POST' && String(url).endsWith('/api/plugins/io.molis.work.feed/sources')) {
       window.createdSources.push((await response.clone().json()).source.source_id);
     }
     return response;

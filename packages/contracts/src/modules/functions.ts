@@ -9,6 +9,14 @@ export const modulesFunctionsContract = {
 } as const satisfies ContractDescriptor;
 
 export const FUNCTIONS_EVALUATE_CAPABILITY_ID = "functions.evaluate";
+/** The provider every published rule is registered under, and the prefix of its capability id: the one place a rule's key is read from a reference. */
+export const FUNCTIONS_PROVIDER_ID = "system.functions";
+export const PUBLISHED_FUNCTION_PREFIX = "functions.published.";
+/** The Functions rule a judgment reference names, if it names one; scene judgments are filed under that rule's key. */
+export function publishedFunctionKey(reference: { readonly provider_id?: string; readonly capability_id: string }): string | null {
+  return reference.provider_id === FUNCTIONS_PROVIDER_ID && reference.capability_id.startsWith(PUBLISHED_FUNCTION_PREFIX)
+    ? reference.capability_id.slice(PUBLISHED_FUNCTION_PREFIX.length) : null;
+}
 export const HOME_DOCK_SCENE_ID = "home.dock";
 export const FEED_CAPTURE_SCENE_ID = "feed.capture";
 export const INBOX_NEXT_SCENE_ID = "inbox.next";

@@ -25,6 +25,13 @@ export interface ConnectorConnectionSecrets {
   has?(reference: string): boolean;
 }
 
+/** The exact owner key of one binding, not the account it happens to name. */
+export interface ConnectorBindingKey {
+  readonly scope_id: string;
+  readonly plugin_id: string;
+  readonly slot_id: string;
+}
+
 
 
 function connectionFromRow(row: Row): ConnectorConnectionRecord {
@@ -114,7 +121,8 @@ export const CONNECTOR_CONNECTIONS_SCHEMA = `
 /** Home-scoped metadata over the connectors store's baseline tables. Secret values only live in the existing SecretStore. */
 export class ConnectorConnectionStore {
   constructor(private readonly db: DatabaseSync, private readonly secrets: ConnectorConnectionSecrets,
-    private readonly now = () => new Date(), private readonly onChange?: (connectionId: string) => void) {}
+    private readonly now = () => new Date(), private readonly onChange?: (connectionId: string) => void,
+    private readonly onBindingChange?: (binding: ConnectorBindingKey) => void) {}
 
   list(serviceId?: string): ConnectorConnectionRecord[] {
     const sql = serviceId
@@ -350,6 +358,7 @@ export class ConnectorConnectionStore {
     this.db.prepare(`INSERT INTO connector_bindings (scope_id,plugin_id,slot_id,connection_id,updated_at)
       VALUES (?,?,?,?,?) ON CONFLICT(scope_id,plugin_id,slot_id) DO UPDATE SET connection_id=excluded.connection_id,updated_at=excluded.updated_at`)
       .run(scope, plugin, slot, connection.connection_id, this.now().toISOString());
+    this.onBindingChange?.({ scope_id: scope, plugin_id: plugin, slot_id: slot });
   }
 
   binding(scopeId: string, pluginId: string, slotId: string): ConnectorConnectionRecord | null {
@@ -361,7 +370,7 @@ export class ConnectorConnectionStore {
   /** A deleted project's `per_record` bindings, of every plugin (S-57 extension X4); the accounts themselves stay. */
   forgetProjectBindings(projectId: string): number {
     const match = projectBindingsWhere(projectId);
-    return match ? Number(this.db.prepare(`DELETE FROM connector_bindings WHERE ${match.where}`).run(...match.parameters).changes) : 0;
+    return forgetBindings(this.db, match, this.onBindingChange);
   }
 
   /**
@@ -370,7 +379,7 @@ export class ConnectorConnectionStore {
    */
   forgetInstallationProjectBindings(installId: string, projectId: string): number {
     const match = installationProjectBindingsWhere(installId, projectId);
-    return match ? Number(this.db.prepare(`DELETE FROM connector_bindings WHERE ${match.where}`).run(...match.parameters).changes) : 0;
+    return forgetBindings(this.db, match, this.onBindingChange);
   }
 
   /**
@@ -379,7 +388,7 @@ export class ConnectorConnectionStore {
    */
   forgetInstallationBindings(installId: string): number {
     const match = installationBindingsWhere(installId);
-    return match ? Number(this.db.prepare(`DELETE FROM connector_bindings WHERE ${match.where}`).run(...match.parameters).changes) : 0;
+    return forgetBindings(this.db, match, this.onBindingChange);
   }
 
   /** The installations that have a binding of any kind, so a caller can ask which of them are still installed (BL-596). */
@@ -389,7 +398,19 @@ export class ConnectorConnectionStore {
   }
 
   unbind(scopeId: string, pluginId: string, slotId: string): void {
-    this.db.prepare("DELETE FROM connector_bindings WHERE scope_id = ? AND plugin_id = ? AND slot_id = ?")
+    const result = this.db.prepare("DELETE FROM connector_bindings WHERE scope_id = ? AND plugin_id = ? AND slot_id = ?")
       .run(scopeId, pluginId, slotId);
+    if (result.changes) this.onBindingChange?.({ scope_id: scopeId, plugin_id: pluginId, slot_id: slotId });
   }
+}
+
+/** Deletes the bindings `match` selects and tells `onBindingChange` about each one that went. */
+function forgetBindings(db: DatabaseSync, match: { readonly where: string; readonly parameters: readonly (string | number)[] } | null,
+  onBindingChange?: (binding: ConnectorBindingKey) => void): number {
+  if (!match) return 0;
+  const bindings = db.prepare(`SELECT scope_id,plugin_id,slot_id FROM connector_bindings WHERE ${match.where}`).all(...match.parameters)
+    .map(row => ({ scope_id: String(row.scope_id), plugin_id: String(row.plugin_id), slot_id: String(row.slot_id) }));
+  const result = db.prepare(`DELETE FROM connector_bindings WHERE ${match.where}`).run(...match.parameters);
+  for (const binding of bindings) onBindingChange?.(binding);
+  return Number(result.changes);
 }

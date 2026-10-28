@@ -1,8 +1,9 @@
+import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { openMolisWorkProjectCatalog } from '@molis-ai/molis-work-app-desktop';
-import { createLocalFeedApplication, DEMO_PROJECT_ID } from '@molis-ai/molis-work-app-local-host';
+import { DEMO_PROJECT_ID } from '@molis-ai/molis-work-app-local-host';
 import { openGoalBrowser } from './fixtures/goal-browser.js';
 import { REVIEW_EVIDENCE } from "./fixtures/review-evidence.js";
 import { GoalProjectApplication } from './fixtures/goal-application.js';
@@ -90,7 +91,7 @@ for (const [width,height] of [[1440,900],[390,640]]) {
     const entryId=await evaluate<string>("document.querySelector('[data-inbox-detail]:not([hidden])').dataset.inboxDetail");
     await click('[data-inbox-detail]:not([hidden]) [data-inbox-action=done]');
     await waitFor(`document.querySelector('[data-inbox-stage-group="history"] [data-inbox-entry-id="${entryId}"]') && !document.querySelector('[data-inbox-stage-group="active"] [data-inbox-entry-id="${entryId}"]') && document.querySelector('[data-inbox-stage-shell]').dataset.expanded === 'false'`);
-    const history=await (await fetch(prefix+'/api/inbox?filter=history')).json();
+    const history=await (await fetch(prefix+'/api/plugins/io.molis.work.inbox/entries?filter=history')).json();
     assert.equal(history.entries.find((e:{entry_id:string})=>e.entry_id===entryId)?.status,'done');
     assert.equal(feed.getItem(DEMO_PROJECT_ID,item.item_id).body,item.body);
     await b.reloadPage();assert.equal(await evaluate('document.scrollingElement.scrollHeight<=innerHeight+1'),true);

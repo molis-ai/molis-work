@@ -1,5 +1,5 @@
 import { declaredStageContributionId, type PluginRestartOffer, type UnavailablePluginStage } from "@molis-ai/molis-work-app-workbench";
-import { PLATFORM_PLUGIN_REGISTRATIONS, runsInHome } from "./plugin-registry.js";
+import { PLATFORM_PLUGIN_REGISTRATIONS, runsOnlyInHome } from "./plugin-registry.js";
 import type { UiContribution, UiSlotDescriptor } from "@molis-ai/molis-work-contracts/platform/ui";
 import type { PluginSupervisorState } from "@molis-ai/molis-work-plugin-runtime";
 import { hostLog } from "./host-log.js";
@@ -28,7 +28,7 @@ export interface ProjectRuntimeStageOptions {
  * W5-06 (PG-060): the stage of a built-in plugin this project's Runtime runs is drawn by its running instance, not from the build
  * catalog, so a stopped, failed or refused instance does not come back on the page from the catalog; it gets the unavailable
  * shell in its stage instead. Each stage drawn here is reported by its contribution id, so the shell's declared stages do not draw
- * it again. A Home plugin's stage, a dual-instance plugin's included, is the Home's (`renderHomePluginStages`).
+ * it again. A Home plugin's stage is the Home's (`renderHomePluginStages`); a dual-instance plugin's is its project half's, drawn here.
  */
 export function renderProjectRuntimeStages(state: ProjectPluginState, store: LocalProjectDatabase,
   options: ProjectRuntimeStageOptions): { html: string[]; ids: string[]; unavailable: UnavailablePluginStage[] } {
@@ -36,7 +36,7 @@ export function renderProjectRuntimeStages(state: ProjectPluginState, store: Loc
   const html: string[] = [], ids: string[] = [];
   const unavailable: UnavailablePluginStage[] = [];
   for (const entry of PLATFORM_PLUGIN_REGISTRATIONS) {
-    if (runsInHome(entry) || !runs.has(entry.manifest.plugin_id) || !shown.has(entry.project_plugin_id)) continue;
+    if (runsOnlyInHome(entry) || !runs.has(entry.manifest.plugin_id) || !shown.has(entry.project_plugin_id)) continue;
     const contributionId = declaredStageContributionId(entry);
     if (!contributionId || drawn.has(contributionId)) continue;
     ids.push(contributionId);

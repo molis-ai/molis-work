@@ -81,6 +81,9 @@ export function pluginDatabaseClient<Connection extends PluginDatabaseConnection
       let active = true;
       const check = () => {
         if (!active) throw new ActionError("actions.forbidden", "事务已结束，不能继续访问");
+        // SQLite rolls the whole transaction back by itself on some errors (SQLITE_FULL, IOERR, NOMEM); a statement after that would
+        // land in autocommit, half of the plugin's write.
+        if (!connections.inTransaction()) throw new ActionError("actions.forbidden", "事务已被数据库回滚，不能继续访问");
         permitWrite();
       };
       let savepoints = 0;

@@ -1,11 +1,11 @@
-import { ActionError, type ActionCallContext, type ActionSceneClient, type ActionSceneDefinition, type ActionSceneConfigureOptions, type ActionSceneBinding, type ActionSceneHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext, type ActionSceneDefinition, type ActionSceneConfigureOptions, type ActionSceneBinding, type ActionSceneExecutionContext, type ActionSceneHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { INBOX_DISMISS_BEHAVIOR_ID, INBOX_DONE_BEHAVIOR_ID, INBOX_NEXT_SCENE_ID, SYSTEM_INBOX_NEXT_FUNCTION_KEY, type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
 
 export const inboxNextScene: ActionSceneDefinition = {
   scene_id: INBOX_NEXT_SCENE_ID, version: 1, title: "Inbox 下一步",
   description: "根据事项内容推荐下一步，保存建议供用户选择，不自动执行建议。",
   trigger: "事项进入 Inbox 或用户要求重新判断", scope: "project", subject_kinds: ["inbox_entry"],
-  permissions: ["inbox:read", "model:invoke"], configuration_permissions: ["inbox:write"],
+  permissions: ["inbox:read", "model:invoke", "judgments:write"], configuration_permissions: ["inbox:write"],
   event_schema: { type: "object", properties: { entry_id: { type: "string", minLength: 1 } }, required: ["entry_id"], additionalProperties: false },
   input_schema: { type: "object", properties: { content: { type: "string", minLength: 1, maxLength: 8000 } }, required: ["content"], additionalProperties: false },
   result_type: "molis.behavior-recommendation.v1",
@@ -23,9 +23,10 @@ export interface InboxJudgmentSubject {
 export interface InboxScenePorts {
   projectId: string;
   binding(): ActionSceneBinding | null;
-  save(binding: ActionSceneBinding, options?: ActionSceneConfigureOptions): void;
+  save(context: ActionSceneExecutionContext, binding: ActionSceneBinding, options?: ActionSceneConfigureOptions): void | Promise<void>;
+  /** Reads what the callbacks of one run see: the entry and the text of the item it points at, both from the run that started them. */
   resolve(entryId: string): InboxJudgmentSubject;
-  record(subject: InboxJudgmentSubject, binding: ActionSceneBinding, result: { status: "ok" | "needs_review"; suggested_behavior_ids: string[]; error_code?: string }): JudgmentRecord;
+  record(context: ActionSceneExecutionContext, subject: InboxJudgmentSubject, binding: ActionSceneBinding, result: { status: "ok" | "needs_review"; suggested_behavior_ids: string[]; error_code?: string }): JudgmentRecord | Promise<JudgmentRecord>;
 }
 
 export function inboxSceneBindingId(projectId: string): string { return `${INBOX_NEXT_SCENE_ID}:${projectId}`; }
@@ -48,42 +49,51 @@ export function createInboxSceneHandler(ports: InboxScenePorts): ActionSceneHand
     bind: (caller, binding, options) => {
       if (!caller.permissions.includes("inbox:write")) throw new ActionError("actions.forbidden", "缺少 Inbox 配置权限");
       if (binding.binding_id !== inboxSceneBindingId(ports.projectId)) throw new ActionError("actions.binding_invalid", "Inbox 只接受当前项目的下一步绑定");
-      ports.save(binding, options);
+      return ports.save(caller, binding, options);
     },
     prepare: (_caller, event) => {
       const subject = ports.resolve((event as { entry_id: string }).entry_id);
       if (subject.status !== "open" && subject.status !== "in_progress") throw new ActionError("actions.subject_unavailable", "已完成或已忽略的事项请先重新打开");
       return { input: { content: subject.content }, state: subject };
     },
-    consume: (_caller, _input, result, execution) => {
+    consume: (caller, _input, result, execution) => {
       const subject = checkedSubject(execution.state);
       const recommendation = result as { status: "ok" | "needs_review"; suggested_behavior_ids: string[] };
-      return ports.record(subject, execution.binding, { status: recommendation.status,
+      return ports.record(caller, subject, execution.binding, { status: recommendation.status,
         suggested_behavior_ids: recommendation.status === "ok" ? recommendation.suggested_behavior_ids : [] });
     },
-    failed: (_caller, _input, error, execution) => ports.record(checkedSubject(execution.state), execution.binding, {
+    failed: (caller, _input, error, execution) => ports.record(caller, checkedSubject(execution.state), execution.binding, {
       status: "needs_review", suggested_behavior_ids: [],
       error_code: error instanceof Error && "code" in error && typeof error.code === "string" ? error.code : "actions.judgment_failed",
     }),
   };
 }
 
-/** An automatic trigger has the same caller and scope as its host-owned event source. */
-export function createInboxJudgmentTrigger(options: { scenes: ActionSceneClient; context(): ActionCallContext; projectId: string }) {
+/** What starting the next-step judgment of an entry needs of its caller; the Host and Feed each give theirs. */
+export interface InboxJudgmentTriggerOptions {
+  readonly projectId: string;
+  /** The caller of an event that has no person's request behind it (a source tick, a workflow's handoff). */
+  context(): ActionCallContext;
+  /** Whether `inbox.judgment.evaluate` is ready for this caller: a rule is bound, enabled and usable. Nothing is run to find out. */
+  available(caller: ActionCallContext): Promise<boolean>;
+  /** Runs `inbox.judgment.evaluate` for the one entry, as the caller. */
+  evaluate(entryId: string, caller: ActionCallContext): Promise<unknown>;
+}
+
+/** Judgment errors that invalidate this event's decision (an entry no longer open says `actions.subject_unavailable`); they must not turn a saved Inbox entry into an ingestion failure. */
+const TOLERATED_CODES: readonly string[] = ["actions.binding_changed", "actions.binding_missing", "actions.provider_changed", "actions.subject_changed", "actions.subject_unavailable"];
+
+/** An automatic trigger has the same caller and scope as its event source, and asks the Inbox's own action to judge. */
+export function createInboxJudgmentTrigger(options: InboxJudgmentTriggerOptions) {
   return async (entry: { project_id: string; entry_id: string }, explicitCaller?: ActionCallContext): Promise<void> => {
     if (entry.project_id !== options.projectId) throw new ActionError("actions.scope_mismatch", "入箱事件不属于当前项目");
     const caller = explicitCaller ?? options.context();
-    const usage = (await options.scenes.usages(caller)).find(binding => binding.scene_id === inboxNextScene.scene_id
-      && binding.scene_version === inboxNextScene.version && binding.binding_id === inboxSceneBindingId(caller.project_id!));
-    if (!usage?.enabled || !usage.availability.available) return;
+    if (!await options.available(caller)) return;
     try {
-      await options.scenes.runScene(caller, inboxNextScene, usage.binding_id, { entry_id: entry.entry_id });
+      await options.evaluate(entry.entry_id, caller);
     } catch (error) {
-      // These invalidate this event's decision; they must not turn a saved Inbox entry into an ingestion failure.
-      if (error instanceof ActionError && ["actions.binding_changed", "actions.binding_missing", "actions.provider_changed",
-        "actions.subject_changed", "actions.subject_unavailable"].includes(error.code)) return;
-      const current = (await options.scenes.usages(caller)).find(binding => binding.binding_id === usage.binding_id);
-      if (!current?.enabled || !current.availability.available) return;
+      if (error instanceof ActionError && TOLERATED_CODES.includes(error.code)) return;
+      if (!await options.available(caller)) return;
       throw error;
     }
   };

@@ -48,7 +48,7 @@ export function terminalErrorCode(result: IntelligenceCollectResult): string | n
     .map((receipt) => "errorCode" in receipt ? receipt.errorCode : undefined)
     .find(isSafeCode);
   if (receiptCode) return receiptCode;
-  const stopReason = result.budget.stopReason;
+  const stopReason = "stopReason" in result.budget ? result.budget.stopReason : undefined;
   if (isSafeCode(stopReason)) return stopReason;
   return "feed." + (result.outcome === "failed" ? "provider_failed" : result.outcome);
 }

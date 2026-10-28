@@ -16,7 +16,7 @@ AttentionModule 通过 subject resolver 检查对象；commands 创建或更新�
 | --- | --- |
 | [src/index.ts](src/index.ts) | AttentionModule、状态转换与 subject 校验 |
 
-可对照现有调用方 [apps/local-host/src/feed-application.ts](../../apps/local-host/src/feed-application.ts) 阅读装配方式。
+可对照现有调用方 [apps/local-host/src/demo-feed-library.ts](../../apps/local-host/src/demo-feed-library.ts) 阅读装配方式。
 
 ## 接入与边界
 

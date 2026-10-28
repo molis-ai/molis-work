@@ -1,10 +1,10 @@
 import { defineConnectorUsagesAction } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { ActionError, ACTION_REFERENCE_SCHEMA, type ActionDefinition, type ActionProviderRegistration, type ActionCallContext, type ActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
-import { AGENT_MCP_DESTINATION_ID, type JudgmentRuleRecord, JudgmentRuleSummary, JudgmentRuleDescribe, JudgmentRuleInvokeResult } from "@molis-ai/molis-work-contracts/modules/functions";
+import { AGENT_MCP_DESTINATION_ID, FUNCTIONS_PROVIDER_ID, PUBLISHED_FUNCTION_PREFIX, publishedFunctionKey, type JudgmentRuleRecord, JudgmentRuleSummary, JudgmentRuleDescribe, JudgmentRuleInvokeResult } from "@molis-ai/molis-work-contracts/modules/functions";
 import type { FunctionsService } from "./service.js";
 import { functionAuthoringActions, functionAuthoringHandlers } from "./authoring-actions.js";
 
-export const FUNCTIONS_PROVIDER_ID = "system.functions";
+export { FUNCTIONS_PROVIDER_ID, publishedFunctionKey };
 
 const text = { type: "string" };
 const integer = { type: "integer", minimum: 1 };
@@ -43,16 +43,10 @@ export const functionsActions = {
   }, resultSchema, true),
 } as const;
 
-/** The Functions rule a judgment reference names, if it names one; scene judgments are filed under that rule's key. */
-export function publishedFunctionKey(reference: ActionReference): string | null {
-  return reference.provider_id === FUNCTIONS_PROVIDER_ID && reference.capability_id.startsWith("functions.published.")
-    ? reference.capability_id.slice("functions.published.".length) : null;
-}
-
 /** Stable identity for a published rule; callers do not need its complete action definition. */
 export function publishedFunctionReference(record: Pick<JudgmentRuleRecord, "function_key" | "status" | "version">): ActionReference {
   if (record.status !== "published" || !record.version) throw new ActionError("actions.function_unpublished", "草稿不能注册为可调用判断");
-  return { capability_id: `functions.published.${record.function_key}`, version: record.version, provider_id: provider.provider_id };
+  return { capability_id: `${PUBLISHED_FUNCTION_PREFIX}${record.function_key}`, version: record.version, provider_id: provider.provider_id };
 }
 
 export function publishedFunctionAction(record: JudgmentRuleRecord): ActionDefinition<{ content: string }, JudgmentRuleInvokeResult> {
@@ -96,7 +90,7 @@ export function functionsActionProvider(ports: FunctionsActionPorts): ActionProv
     ...functionAuthoringHandlers(ports),
     { ...functionsActions.connectionUsages, handle: (_caller, input) => ({ usages: ports.connectionId?.() === (input as { connection_id: string }).connection_id
       ? ports.read(service => service.listPublished()).map(record => ({ usage_id: record.function_key, title: record.name, detail: `判断模型：${record.model}`, enabled: ports.credentialAvailable(),
-        actions: [{ action: { capability_id: `functions.published.${record.function_key}`, version: record.version, provider_id: provider.provider_id }, input: {} }] })) : [] }) },
+        actions: [{ action: { capability_id: `${PUBLISHED_FUNCTION_PREFIX}${record.function_key}`, version: record.version, provider_id: provider.provider_id }, input: {} }] })) : [] }) },
     { ...functionsActions.list, handle: () => ports.read(service => ({ functions: service.listPublished() })) },
     { ...functionsActions.describe, handle: (_caller, input) => ports.read(service => ({ function: service.describePublished((input as { function_key: string }).function_key) })) },
     { ...functionsActions.invoke, availability: () => credentialAvailability(ports), handle: (caller, input) => {

@@ -2,7 +2,7 @@ import { clearInExistingHomeSqlite, createFileSecretStore, peekSealedEntry, runW
 import type { ProjectDeletionControl } from "@molis-ai/molis-work-contracts/modules/projects";
 import { CONNECTORS_BASELINE, openConnectorsStore } from "./connectors-store.js";
 import { ConnectorConnectionStore, type ConnectorConnectionSecrets } from "@molis-ai/molis-work-service-connector-host";
-import { invalidateConnectorRequests } from "./connector-lifecycle.js";
+import { invalidateConnectorBindingRequests, invalidateConnectorRequests } from "./connector-lifecycle.js";
 
 export { ConnectorConnectionStore } from "@molis-ai/molis-work-service-connector-host";
 
@@ -30,5 +30,6 @@ function connectionStoreFor(homeDirectory: string, db: ReturnType<typeof openCon
     put: (ref, value) => runWithMolisWorkHome(homeDirectory, () => createFileSecretStore().put(ref, value)),
     delete: (ref) => runWithMolisWorkHome(homeDirectory, () => createFileSecretStore().delete(ref)),
   };
-  return new ConnectorConnectionStore(db, secrets, undefined, id => invalidateConnectorRequests(homeDirectory, id));
+  return new ConnectorConnectionStore(db, secrets, undefined, id => invalidateConnectorRequests(homeDirectory, id),
+    binding => invalidateConnectorBindingRequests(homeDirectory, binding));
 }

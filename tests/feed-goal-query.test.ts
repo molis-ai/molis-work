@@ -3,7 +3,7 @@ import test from "node:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createLocalFeedApplication } from "@molis-ai/molis-work-app-local-host";
+import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 import { DEMO_PROJECT_ID, seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";

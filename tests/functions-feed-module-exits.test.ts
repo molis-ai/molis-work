@@ -16,7 +16,7 @@ import {
 import type { ActionSceneDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginRegistration } from "@molis-ai/molis-work-contracts/platform/plugin-registration";
 import { subjectOfferChoiceKey } from "@molis-ai/molis-work-kernel";
-import * as feedModule from "@molis-ai/molis-work-module-feed";
+import * as feedModule from "@molis-ai/molis-work-plugin-feed/store";
 import * as functionsModule from "@molis-ai/molis-work-module-functions";
 import { createFunctionsService } from "@molis-ai/molis-work-module-functions";
 import { homeSqlitePath } from "@molis-ai/molis-work-storage";

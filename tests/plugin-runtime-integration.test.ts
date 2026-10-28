@@ -18,10 +18,10 @@ import type {
   PluginUpstreamReadyInputs,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import type { UiContribution } from "@molis-ai/molis-work-contracts/platform/ui";
-import { SignalsModule } from "@molis-ai/molis-work-module-signals";
-import { SourcesModule } from "@molis-ai/molis-work-module-sources";
+import { fromBetterSqlite, SignalsModule } from "@molis-ai/molis-work-plugin-feed/store";
+import { SourcesModule } from "@molis-ai/molis-work-plugin-feed/store";
 import { ConnectorHost } from "@molis-ai/molis-work-service-connector-host";
-import { ListenerHost } from "@molis-ai/molis-work-service-listener-host";
+import { ListenerHost } from "@molis-ai/molis-work-plugin-feed/store";
 import {
   createGithubIntegrationPlugin,
   githubIntegrationManifest,
@@ -35,7 +35,7 @@ const SOURCE_ID = "source-fd3-github";
 const CONNECTION_ID = "connection-fd3-github";
 
 function saveSource(store: LocalProjectDatabase): void {
-  new SourcesModule(store.db).commands.save({
+  new SourcesModule(fromBetterSqlite(store.db)).commands.save({
     project_id: DEMO_PROJECT_ID,
     source_id: SOURCE_ID,
     kind: "github",
@@ -130,9 +130,9 @@ test("official GitHub Plugin installs, grants, produces Signal, recovers, and un
       if (!firstContribution || firstContribution.kind !== "integration") return;
       const binding = { source_id: SOURCE_ID, connection_id: CONNECTION_ID, credential_ref: null, config: {} };
       const firstBound = firstContribution.bind(binding);
-      const signals = new SignalsModule(store.db);
+      const signals = new SignalsModule(fromBetterSqlite(store.db));
       const firstListener = new ListenerHost(
-        store.db,
+        fromBetterSqlite(store.db),
         connectorFor(firstBound.connector_driver),
         signals.commands,
       );
@@ -161,7 +161,7 @@ test("official GitHub Plugin installs, grants, produces Signal, recovers, and un
       assert.equal(recoveredContribution?.kind, "integration");
       if (!recoveredContribution || recoveredContribution.kind !== "integration") return;
       const recoveredListener = new ListenerHost(
-        store.db,
+        fromBetterSqlite(store.db),
         connectorFor(recoveredContribution.bind(binding).connector_driver),
         signals.commands,
       );

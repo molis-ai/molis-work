@@ -1,17 +1,12 @@
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { ActionError, bindActionClient, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import {
-  LocalProjectDatabase,
-  MolisWorkLocalHost,
-  createLocalFeedApplication,
-  createLocalFeedSourceService,
-  molisWorkHostProjectReference,
-} from "@molis-ai/molis-work-app-local-host";
-import { FEED_PLUGIN_ID, FeedPluginRouteTable, createFeedRouteHandlers, feedItemActions, feedManifest, feedQueryActions, promoteFeedItemToGoal, promoteOffered, type FeedGoalPromotionGoals } from "@molis-ai/molis-work-plugin-feed";
+import { ActionError, bindActionClient, type ActionAudience, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { LocalProjectDatabase, MolisWorkLocalHost, feedItemForReader, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { FEED_PLUGIN_ID, feedItemActions, feedManifest, feedQueryActions, promoteFeedItemToGoal, promoteOffered, type FeedGoalPromotionGoals } from "@molis-ai/molis-work-plugin-feed";
 import { GOALS_PLUGIN_ID, goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { goalApplicationOf, seedBoard } from "./fixtures/goal-application.js";
 
@@ -349,10 +344,10 @@ test("the reader's promotion button follows the promote action: shown while Goal
   const f = fixture(["Review external input"], { disableGoals: () => removed });
   const [item] = f.items;
   try {
+    // The shell's reader (`/api/stage/feed/items/<id>`) asks the Host what to offer for one item, as the person.
     const rendered: boolean[] = [];
-    const table = new FeedPluginRouteTable(createFeedRouteHandlers({ actions: f.person, routePrefix: "", inboxEntries: async () => [], changed: () => {}, hydrateItem: row => row,
-      hydrateSnapshot: async snapshot => snapshot, sourceCatalog: () => [], renderWorkbench: () => "", renderDetail: (_item, options) => { rendered.push(options.promoteAvailable); return "<div></div>"; } }));
-    const detail = async () => assert.equal((await table.handle({ method: "GET", pathname: `/api/feed/items/${item!.item_id}/detail`, query: new URLSearchParams(), body: {} }))?.status, 200);
+    const view = async () => ({ feed: { sources: [], feed_items: [], inbox_entries: [], runs: [], out_rules: [] } });
+    const detail = async () => { rendered.push((await feedItemForReader(f.person, item!.item_id, view)).promoteAvailable); };
     await detail();
     removed = true;
     await detail();
@@ -405,6 +400,54 @@ test("only the person's promotion confirms the input: an assistant, Agent, workf
       ["workflow", [["proposed", "runtime:promoter:session", "从 Feed Item 创建 Goal 时提议该输入，待用户确认"]]],
       ["mcp", [["proposed", "runtime:promoter:session", "从 Feed Item 创建 Goal 时提议该输入，待用户确认"]]],
     ]);
+  } finally { await f.done(); }
+});
+
+// Goals reads the person from what the Host sets on the nested caller of a plugin's action directory (S-43), so only the person's own call to
+// Feed's action confirms, and only for Feed's own source (the `feed` channel, a `feed_item` input; S-99 provisional): an assistant, Agent,
+// workflow or MCP client handing in through Feed, a scene's run, a caller that only claims the person, another plugin handing in for the person
+// (Workflows), and a plugin's own call (a Feed timer: `plugin` audience, which these Goals actions are not open to) never do. A delegation that
+// names no channel is the Runtime's: Feed's own promotion always names `feed` for the person.
+test("Goals takes the person only from the Host's delegated caller: no other origin confirms an input or names the Goal's channel", async () => {
+  const f = fixture(["Delegated"]);
+  const [item] = f.items;
+  const delegated = (delegated_audience: ActionAudience, extra: Partial<ActionCallContext> = {}): ActionCallContext =>
+    ({ ...f.personContext, audience: "workflow", delegated_by: FEED_PLUGIN_ID, delegated_audience, ...extra });
+  const callers: Array<[string, ActionCallContext]> = [["person", delegated("user")], ["agent", delegated("agent")], ["workflow", delegated("workflow")],
+    ["mcp", delegated("mcp")], ["scene", delegated("user", { scene_binding: { scene_id: "feed.capture", binding_id: "capture-binding" } })],
+    ["claimed", { ...f.personContext, audience: "workflow", delegated_audience: "user" }],
+    ["other plugin", { ...f.personContext, audience: "workflow", delegated_by: "io.molis.work.native.workflows", delegated_audience: "user" }]];
+  const intent = (key: string) => ({ title: "Delegated promotion", outcome: "Checked", why: "Who asked", business_logic: "Only the trusted caller", priority: 50, idempotency_key: key });
+  const confirm = (goal_id: string) => ({ goal_id, source: { kind: "feed_item" as const, id: item!.item_id }, name: "Feed Item 输入", snapshot_digest: `sha256:${"0".repeat(64)}`, reason: "who asked" });
+  const receipts = () => f.host.withProject(f.reference, runtime => goalApplicationOf(runtime).goalInputs.list(PROJECT).map(receipt => [receipt.goal_id, receipt.state]));
+  try {
+    const outcomes: unknown[] = [];
+    for (const [name, caller] of callers) {
+      const named = await f.client.invoke(caller, goalsActions.create, { ...intent(`named-${name}`), source_kind: "feed" }).then(() => "named", (error: ActionError) => error.code);
+      const { goal } = await f.client.invoke(caller, goalsActions.create, intent(`plain-${name}`)) as { goal: { goal_id: string } };
+      await f.client.invoke(caller, goalsActions.inputsConfirm, confirm(goal.goal_id));
+      const state = (await receipts()).find(([goalId]) => goalId === goal.goal_id)?.[1];
+      outcomes.push([name, named, (await f.person.invoke(goalsActions.state, { goal_id: goal.goal_id })).intent.source_kind, state]);
+    }
+    assert.deepEqual(outcomes, [
+      ["person", "named", "runtime", "confirmed"],
+      ["agent", "actions.input_invalid", "runtime", "proposed"],
+      ["workflow", "actions.input_invalid", "runtime", "proposed"],
+      ["mcp", "actions.input_invalid", "runtime", "proposed"],
+      ["scene", "actions.input_invalid", "runtime", "proposed"],
+      ["claimed", "actions.input_invalid", "runtime", "proposed"],
+      ["other plugin", "actions.input_invalid", "runtime", "proposed"],
+    ]);
+
+    // Feed's own timer reaches Goals as the plugin's own call (`plugin` audience, S-73), which neither action admits; a caller only shaped like
+    // one is refused before that, as only the Host issues a plugin's caller. Either way nothing is created or recorded.
+    for (const definition of [goalsActions.create, goalsActions.inputsConfirm]) assert.equal(definition.action.audiences?.includes("plugin"), false, definition.capability_id);
+    const before = await receipts();
+    const timer: ActionCallContext = { ...f.personContext, actor_id: "plugin:feed", audience: "plugin", delegated_by: FEED_PLUGIN_ID, delegated_audience: "plugin" };
+    await assert.rejects(f.client.invoke(timer, goalsActions.create, intent("timer")), { code: "host.plugin_caller_invalid" });
+    const { goal } = await f.person.invoke(goalsActions.create, intent("timer-target"));
+    await assert.rejects(f.client.invoke(timer, goalsActions.inputsConfirm, confirm(goal.goal_id)), { code: "host.plugin_caller_invalid" });
+    assert.deepEqual(await receipts(), before);
   } finally { await f.done(); }
 });
 

@@ -32,8 +32,8 @@ const definitions = db => db.prepare("SELECT type, name, sql FROM sqlite_master 
 function projectSchema(db, from, file) {
   const reference = new DatabaseSync(":memory:");
   try {
-    const schema = from === 10 ? PROJECT_DATABASE_BASELINE.schema.replace(PROJECT_ROOT_SCHEMA_SQL, oldRoot) : PROJECT_DATABASE_BASELINE.schema;
-    if (from === 10 && schema === PROJECT_DATABASE_BASELINE.schema) invalid("Project root baseline changed");
+    const schema = from === 11 ? PROJECT_DATABASE_BASELINE.schema.replace(PROJECT_ROOT_SCHEMA_SQL, oldRoot) : PROJECT_DATABASE_BASELINE.schema;
+    if (from === 11 && schema === PROJECT_DATABASE_BASELINE.schema) invalid("Project root baseline changed");
     reference.exec(schema);
     for (const original of listPluginProjectDatabases(db)) {
       const manifest = PLATFORM_PLUGIN_REGISTRATIONS.find(entry => entry.manifest.plugin_id === original.plugin_id)?.manifest;
@@ -53,9 +53,9 @@ function projectSchema(db, from, file) {
 }
 
 function projectRows(db, from) {
-  const rows = db.prepare(`SELECT rowid AS original_rowid, project_id, created_at${from === 11 ? ", data_instance_id" : ""} FROM project_root ORDER BY rowid`).all();
+  const rows = db.prepare(`SELECT rowid AS original_rowid, project_id, created_at${from === 12 ? ", data_instance_id" : ""} FROM project_root ORDER BY rowid`).all();
   if (rows.length !== 1 || typeof rows[0].project_id !== "string" || !rows[0].project_id || typeof rows[0].created_at !== "string" || !rows[0].created_at
-    || from === 11 && (typeof rows[0].data_instance_id !== "string" || !rows[0].data_instance_id.trim())) invalid("Project original root is invalid");
+    || from === 12 && (typeof rows[0].data_instance_id !== "string" || !rows[0].data_instance_id.trim())) invalid("Project original root is invalid");
   return rows;
 }
 
@@ -64,9 +64,9 @@ function inspectProject(file) {
   const db = new DatabaseSync(uri.href);
   try {
     const from = version(db);
-    if (![10, 11].includes(from)) invalid("Finish the original project v8/v9/v10 maintenance first");
+    if (![11, 12].includes(from)) invalid("Finish the original project v8/v9/v10/v11 maintenance first");
     projectSchema(db, from, file);
-    return { file, db, kind: "project", from, to: 11, rows: projectRows(db, from) };
+    return { file, db, kind: "project", from, to: 12, rows: projectRows(db, from) };
   } catch (error) { db.close(); throw error; }
 }
 
@@ -114,7 +114,7 @@ function inspectCoding(file, publisher, selectedProject) {
   const uri = pathToFileURL(file); uri.searchParams.set("mode", "rw");
   const db = new DatabaseSync(uri.href);
   try {
-    if (version(db) !== 11 && !(selectedProject && version(db) === 10)) invalid("Finish the original project v8/v9/v10/v11 maintenance first");
+    if (version(db) !== 12 && !(selectedProject && version(db) === 11)) invalid("Finish the original project v8/v9/v10/v11 and project identity v12 maintenance first");
     const row = db.prepare("SELECT version FROM plugin_project_databases WHERE plugin_id = ?").get(CODING_PLUGIN_ID);
     const from = Number(row?.version);
     if (![1, 2, 3, 4].includes(from)) invalid("Unsupported Coding private version");
@@ -194,10 +194,10 @@ export async function maintainCodingKnowledge(mode, options) {
             db.prepare("INSERT INTO project_root_adopting (rowid, project_id, created_at, data_instance_id) VALUES (?, ?, ?, ?)")
               .run(root.original_rowid, root.project_id, root.created_at, randomUUID());
             db.exec("DROP TABLE project_root; ALTER TABLE project_root_adopting RENAME TO project_root");
-            projectSchema(db, 11, entry.file); projectRows(db, 11);
-            db.exec("PRAGMA user_version = 11");
+            projectSchema(db, 12, entry.file); projectRows(db, 12);
+            db.exec("PRAGMA user_version = 12");
           } else if (entry.kind === "coding") {
-            if (version(db) !== 11) invalid("Project identity maintenance must complete before Coding adoption");
+            if (version(db) !== 12) invalid("Project identity maintenance must complete before Coding adoption");
             const current = db.prepare("SELECT version, publisher_signature FROM plugin_project_databases WHERE plugin_id = ?").get(CODING_PLUGIN_ID);
             if (Number(current?.version) !== entry.from || current.publisher_signature !== entry.publisher) invalid("Coding selection changed");
             if (JSON.stringify(codingRows(db, entry.from)) !== JSON.stringify(entry.rows)) invalid("Coding originals changed");

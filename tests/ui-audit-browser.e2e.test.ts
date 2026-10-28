@@ -3,9 +3,10 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { pluginFrameBrowser } from "./fixtures/plugin-frame-browser.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 const SHOTS = "/tmp/molis-ui-audit-2026-09-22";
 const TOKEN = "goals-risk-test-control-token-0123456789";
@@ -33,7 +34,7 @@ test("UI audit fixes hold in an isolated workbench", { timeout: 120_000 }, async
     "content-type": "application/json",
     "x-molis-work-control-token": TOKEN,
   };
-  const inbox = await fetch(`${origin}/projects/${projectId}/api/feed/items/${item.item_id}/inbox`, {
+  const inbox = await fetch(`${origin}/projects/${projectId}/api/plugins/io.molis.work.feed/items/${item.item_id}/inbox`, {
     method: "POST",
     headers: { ...headers, "x-molis-work-idempotency-key": "ui-audit-inbox" },
     body: JSON.stringify({ expected_revision: item.revision }),

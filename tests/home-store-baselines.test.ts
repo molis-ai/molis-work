@@ -24,8 +24,9 @@ const shape = (sql: string) => { const db = new DatabaseSync(":memory:"); try { 
  * (plugin-directories, PG-049 2026-10-25) are new, so no Home has them yet. A new library either
  * comes with a fixture or is named here. Goals' new Home library (PG-094 S13) has no real-Home schema receipt yet;
  * its personal-method writes and isolated catalog-to-Home move are covered separately, not presented as an existing-Home fixture.
+ * Feed's Home reference ledger (feed-content, FI-6) is new with the Feed Home half, so no Home has it either; its v1 is frozen below.
  */
-const WITHOUT_REAL_HOME_FIXTURE = ["plugin-runtime", "plugin-libraries", "agent-declarations", "plugin-originals", "plugin-directories", "knowledge", "server", "issues", "goals"];
+const WITHOUT_REAL_HOME_FIXTURE = ["plugin-runtime", "plugin-libraries", "agent-declarations", "plugin-originals", "plugin-directories", "knowledge", "server", "issues", "goals", "feed-content"];
 const libraries = homeStores().stores.flatMap(store => store.library ? [[store.path, store.library.baseline] as const] : []);
 test("every library in the Home's store registry has a schema fixture or is named as having none", () => {
   const fixtures = new Set(readdirSync(new URL("./fixtures/home-store-schemas/", import.meta.url)).filter(file => file.endsWith(".sql")).map(file => file.slice(0, -4)));
@@ -37,6 +38,13 @@ test("RAC-790 RAC-791: the new Goals Home library freezes its accepted v1 person
   assert.equal(goals?.owner, "io.molis.work.goals");
   assert.equal(goals?.library?.baseline.version, 1);
   assert.deepEqual(shape(goals!.library!.baseline.schema), shape(readFileSync(new URL("./fixtures/goals-home-v1.sql", import.meta.url), "utf8")));
+});
+
+test("FI-6: Feed's Home reference ledger freezes its accepted v1 schema, with no real-Home receipt implied", () => {
+  const ledger = homeStores().stores.find(store => store.path === "feed-content");
+  assert.equal(ledger?.owner, "io.molis.work.feed");
+  assert.equal(ledger?.library?.baseline.version, 1);
+  assert.deepEqual(shape(ledger!.library!.baseline.schema), shape(readFileSync(new URL("./fixtures/feed-content-home-v1.sql", import.meta.url), "utf8")));
 });
 
 // Each Home store's baseline (repository-anti-corruption §4.1) is the structure existing stores already have: the

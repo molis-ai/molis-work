@@ -128,4 +128,6 @@ export { attentionErrors } from "./attention-errors.js";
 export const inboxErrors = defineErrorCodes("inbox", {
   entry_not_found: "not_found",
   invalid: "invalid",
+  /** The scene binding changed since the caller read it. */
+  revision_conflict: "conflict",
 });

@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { createLocalFeedApplication, DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { boardSnapshot } from "./fixtures/goal-application.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 test("Goal Frame keeps the outer tabs and layout offers explicit bottom splitting", { timeout: 60_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
@@ -113,7 +114,7 @@ test("Feed creation recovers a failed schedule without duplicating the task", { 
     const original = window.fetch;
     let fail = true; window.sourceCreationRequests = 0;
     window.fetch = (url, options) => {
-      if (options?.method === 'POST' && String(url).endsWith('/api/feed/sources')) window.sourceCreationRequests++;
+      if (options?.method === 'POST' && String(url).endsWith('/api/plugins/io.molis.work.feed/sources')) window.sourceCreationRequests++;
       if (fail && options?.method === 'PUT' && String(url).endsWith('/schedule')) { fail = false; return Promise.resolve(new Response(JSON.stringify({error:'计划暂时无法保存'}), {status:503,headers:{'content-type':'application/json'}})); }
       return original(url, options);
     };
@@ -138,7 +139,6 @@ test("Feed creation recovers a failed schedule without duplicating the task", { 
 test("Feed configuration cancels drafts and saves its schedule independently", { timeout: 60_000 }, async t => {
   const b = await openGoalBrowser(t, true); if (!b) return;
   const { evaluate, waitFor, click, command, sessionId, navigate, origin, projectId, homeDirectory } = b;
-  const { createLocalFeedSourceService } = await import("@molis-ai/molis-work-app-local-host");
   const source = createLocalFeedSourceService(b.store.db, DEMO_PROJECT_ID).register({kind:"web_query",query:"设计资料"}).source;
   const feed = createLocalFeedApplication(b.store.db);
   const catalog = await openMolisWorkProjectCatalog({homeDirectory});
@@ -212,7 +212,6 @@ test("Feed configuration cancels drafts and saves its schedule independently", {
 test("Feed reader keeps one title, tracks read state, collapses and retries a failed detail", {timeout:60_000}, async t=>{
   const b=await openGoalBrowser(t,true);if(!b)return;
   const {evaluate,waitFor,click,command,sessionId,navigate,origin,projectId,homeDirectory}=b;
-  const {createLocalFeedSourceService}=await import("@molis-ai/molis-work-app-local-host");
   const source=createLocalFeedSourceService(b.store.db,DEMO_PROJECT_ID).register({kind:'web_query',query:'阅读测试'}).source;
   const feed=createLocalFeedApplication(b.store.db);
   const item=feed.ingestItem({source,externalId:'reader-test',title:'一次清楚的阅读',summary:'列表摘要',body:'## 核心内容\n\n阅读正文与完整来源。\n\n'+Array.from({length:30},(_,i)=>`### 检查项 ${i+1}\n\n保持标题和操作在视野内，让阅读区独立滚动。`).join('\n\n'),priority:'normal',occurredAt:'2026-09-16T00:00:00.000Z',attention:false}).item;
@@ -223,11 +222,11 @@ test("Feed reader keeps one title, tracks read state, collapses and retries a fa
   await waitFor("document.querySelector('[data-titlebar-tabs] .tab-item')");await click('[data-plugin-id=feed]');
   const row=`[data-feed-entry-id="${item.item_id}"]`;
   await waitFor(`Boolean(document.querySelector('${row}'))`);
-  // The detail fails until the retry is pressed. Until then the attention read's board cursor is held back: a new cursor
+  // The detail (the shell's reader, `/api/stage/feed/items/<id>` since FI-7) fails until the retry is pressed. Until then the attention read's board cursor is held back: a new cursor
   // refreshes the board, which opens the selected item again and hides the retry while it does. The page also records
   // whether the first detail request after the press was made by the press itself (the window's capture listener runs
   // before the page's click handler, its bubble listener after), so a later refresh cannot stand in for the retry.
-  await evaluate(`{const original=window.fetch;let fail=true,pressing=false;addEventListener('click',event=>{if(event.target.closest?.('[data-retry-feed-detail]')){fail=false;pressing=true;}},true);addEventListener('click',()=>{pressing=false;});window.fetch=(url,options)=>{const address=String(url);if(address.includes('/detail?')){if(fail)return Promise.resolve(new Response('failed',{status:503}));window.__firstDetailAfterRetry??=pressing?'the press':'something else';}if(fail&&address.includes('/api/attention?'))return original(url,options).then(async response=>new Response(JSON.stringify({...await response.json(),board_cursor:null}),{status:response.status,headers:response.headers}));return original(url,options);};}`);
+  await evaluate(`{const original=window.fetch;let fail=true,pressing=false;addEventListener('click',event=>{if(event.target.closest?.('[data-retry-feed-detail]')){fail=false;pressing=true;}},true);addEventListener('click',()=>{pressing=false;});window.fetch=(url,options)=>{const address=String(url);if(address.includes('/api/stage/feed/items/')){if(fail)return Promise.resolve(new Response('failed',{status:503}));window.__firstDetailAfterRetry??=pressing?'the press':'something else';}if(fail&&address.includes('/api/attention?'))return original(url,options).then(async response=>new Response(JSON.stringify({...await response.json(),board_cursor:null}),{status:response.status,headers:response.headers}));return original(url,options);};}`);
   const retry='[data-feed-stage-workspace] [data-feed-detail-empty] [data-retry-feed-detail]';
   await click(row);await waitFor(`document.querySelector('[data-feed-stage-shell][data-expanded=true] ${retry}')?.checkVisibility()`);
   // One retry, in the placeholder under the reader bar.

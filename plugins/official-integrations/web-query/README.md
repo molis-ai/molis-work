@@ -18,7 +18,7 @@ createWebQueryIntegrationPlugin({ provider, now }) 调用 SDK 的轮询 helper�
 
 ## 接入与边界
 
-本包有实际工厂，但当前生产 Host 尚未调用它。现有网页查询走 [feed-source-runtime.ts](../../../apps/local-host/src/feed-source-runtime.ts) 的 AnySearch/Search Runtime 路径。这里没有自带搜索引擎或抓取实现；使用工厂时须自行提供 Provider 和 Host 授权上下文。
+本包有实际工厂，但当前生产 Host 尚未调用它。现有网页查询走 [source-pull-runtime.ts](../../../apps/local-host/src/source-pull-runtime.ts) 的 AnySearch/Search Runtime 路径。这里没有自带搜索引擎或抓取实现；使用工厂时须自行提供 Provider 和 Host 授权上下文。
 
 工作区依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`。其他运行依赖见 [package.json](package.json)。
 
@@ -46,7 +46,7 @@ node scripts/run-tests.mjs tests/plugin-runtime-integration.test.ts
 - 公开入口：`@molis-ai/molis-work-integration-web-query`（`src/index.ts`，经 `dist` 导出，不深入 `src/` 导入）；合同 `@molis-ai/molis-work-contracts/platform/plugin`。
 - 依赖：`@molis-ai/molis-work-contracts`、`@molis-ai/molis-work-plugin-sdk`。方向：只依赖合同与 plugin SDK；Provider 协议留在本包（[包边界规则](../../../docs/system/PACKAGE-BOUNDARIES.md)第 1 节）。
 - 不变量：
-  - 生产 Host 还没有调用本工厂（网页查询走 `apps/local-host/src/feed-source-runtime.ts`），不要当作已接入。
+  - 生产 Host 还没有调用本工厂（网页查询走 `apps/local-host/src/source-pull-runtime.ts`），不要当作已接入。
   - 不自带搜索引擎或抓取实现，使用时自行提供 Provider 与授权上下文；启动要求 `network:web-query` 授予。
 - 改动后必跑：`node scripts/run-tests.mjs tests/plugin-runtime-integration.test.ts`（暂无专门测试；上面是 SDK 轮询链路的公共回归。）
 - 相关手册：[skills/molis-plugin-dev/integrations.md](../../../skills/molis-plugin-dev/integrations.md)；通用要求见 [docs/system/DEVELOPMENT-REQUIREMENTS.md](../../../docs/system/DEVELOPMENT-REQUIREMENTS.md)。

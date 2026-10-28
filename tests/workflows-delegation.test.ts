@@ -3,10 +3,11 @@ import { randomUUID } from "node:crypto";
 import test, { type TestContext } from "node:test";
 import type { ActionCallContext, ActionDefinition, ActionExecutionContext, ActionReference, ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { pluginErrors, type PluginActionDirectory, type PluginDatabase, type PluginStartContext } from "@molis-ai/molis-work-contracts/platform/plugin";
-import { LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { feedManifest } from "@molis-ai/molis-work-plugin-feed";
 import { WORKFLOWS_ACTION_PERMISSIONS, WORKFLOWS_PLUGIN_ID, createWorkflowsPlugin, workflowsActions, workflowsManifest, type WorkflowInstance } from "@molis-ai/molis-work-plugin-workflows";
 import { openTestHome } from "./fixtures/test-home.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 /**
  * Workflows on the Plugin Runtime reaches every station, action step and judgment rule through the action directory (`actions:delegate`) as the

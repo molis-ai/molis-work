@@ -66,7 +66,7 @@
 - **RAC-582**（同文件，走项目 Runtime 路由）：隐藏了的个人插件的 `/projects/<id>/api/plugins/<插件>/…` 返回 `actions.plugin_disabled`；没隐藏的照常；Home 级路径（无项目）不受影响。
 - **RAC-583**（同文件）：取消隐藏后立即可用，加上不缓存的断言（隐藏、调用被拒、取消隐藏、再调用成功，同一个 Host 里连续做）。
 - **RAC-584**（新 `tests/security-invariants-plugin-self-call.test.ts`）：外层是 agent、mcp、workflow 的动作 A，经 `services.actions.invoke` 调自己的动作 B，B 看到的 `audience` 与外层相同；外层是 `user` 的，B 仍是 `user`（`actor_id`、`allowed_actions` 与现在一致，DELEGATE-03 的断言保持）。
-- **RAC-585**（同文件）：外层是别的插件按 `consumes` 调来的（`plugin` 受众），A 自调用后 B 仍是 `plugin`；B 里用 `services.actions.directory` 被拒 `actions.forbidden`，目标处理器没跑（原来能被洗成 `user` 再升工作流受众）。
+- **RAC-585**（同文件）：外层是别的插件按 `consumes` 调来的（`plugin` 受众），A 自调用后 B 仍是 `plugin`；B 里用 `services.actions.directory` 仍是发起插件自己的调用，目标不在发起插件消费的动作里被拒 `actions.dependency_missing`，目标处理器没跑（原来能被洗成 `user` 再升工作流受众；2026-10-26 用户定 A 之前这里拒 `actions.forbidden`，见 S-43）。
 - **RAC-586**（同文件）：`start` 里、`start` 里设的定时器里自调用，受众是 `plugin`；动作的 `audiences` 到不了 `plugin` 的被拒，处理器没跑。
 - **RAC-587**（`tests/security-invariants-plugin-materials.test.ts` 加在「S-39 RAC-26」旁）：agent、mcp、workflow 的外层动作经自调用要 `allowModelDownload`，语音助手没带 `--allow-model-download`，`material.model_required`；`user` 外层则带；定时器里的自调用不带。变异检查：把自调用的受众改回 `user`，这条失败。
 - **RAC-588**（同文件）：S-39 的表（agent、mcp、workflow、plugin）再加「自调用」一栏，每一栏都不下载、不落地模型。

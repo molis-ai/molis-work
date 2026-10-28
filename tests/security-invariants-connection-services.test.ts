@@ -1,3 +1,4 @@
+import { connectorControl } from "./fixtures/connector-control.js";
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
@@ -89,7 +90,7 @@ async function standIn(t: TestContext, hosts: readonly string[]) {
 }
 
 const dispatch = (url: string): PluginConnectionDispatch =>
-  ({ url: new URL(url), method: "GET", headers: {}, signal: new AbortController().signal, beforeEffect: async () => {} });
+  ({ ...connectorControl(), url: new URL(url), method: "GET", headers: {}, signal: new AbortController().signal, beforeEffect: async () => {} });
 
 async function bound(t: TestContext, service_id: string) {
   const home = await mkdtemp(join(tmpdir(), "connection-services-home-")); t.after(() => rm(home, { recursive: true, force: true }));

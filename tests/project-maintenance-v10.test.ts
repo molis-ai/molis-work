@@ -41,7 +41,7 @@ const apply = (file: string, sql = maintenance) => { const db = new DatabaseSync
 test("RAC-397: a version 9 library is refused without being touched; the maintenance gives each record the evidence for its execution and leaves the rest as it was", t => {
   const file = fixture(t), original = read(file);
   assert.equal(original.version, 9);
-  assert.throws(() => new LocalProjectDatabase(file), (error: unknown) => error instanceof SqliteSchemaVersionError && error.found === 9 && error.expected === 11);
+  assert.throws(() => new LocalProjectDatabase(file), (error: unknown) => error instanceof SqliteSchemaVersionError && error.found === 9 && error.expected === 12);
   assert.deepEqual(read(file), original, "the refusal writes nothing");
 
   apply(file); const after = read(file);
@@ -62,7 +62,7 @@ test("RAC-397: a version 9 library is refused without being touched; the mainten
     fresh.exec(target);
     assert.deepEqual(after.shape, describeSqliteSchema(fresh), "table by table the same as the historical version 10 library");
   } finally { fresh.close(); }
-  assert.throws(() => new LocalProjectDatabase(file), (error: unknown) => error instanceof SqliteSchemaVersionError && error.found === 10 && error.expected === 11);
+  assert.throws(() => new LocalProjectDatabase(file), (error: unknown) => error instanceof SqliteSchemaVersionError && error.found === 10 && error.expected === 12);
   assert.deepEqual(read(file), after, "the current Runtime refuses the historical output without upgrading it");
 });
 

@@ -249,10 +249,12 @@ const headErrors = (measured, budget, base) => {
 // User approved 2026-10-27: explicit source association, confirmation and original-request recovery add 4656 B.
 // Reuses the existing dialog, request client and styles. Main still starts at 26940: prior approved 125 + this 4656 = 4781 B.
 // These two exact allowances are combined for this PR; no future growth is covered.
+// Main reduced workbench.js by 294 B; carry the same approved 32,828 B delta, with no new allowance.
+// Knowledge is now 1 B smaller than its approval; freeze the measured 31,720 B.
 const APPROVED_CEILINGS = {
-  "/assets/molis-work-knowledge.js": [26940, 31721],
+  "/assets/molis-work-knowledge.js": [26940, 31720],
   "/assets/molis-work-plugins/coding.js": [289674, 291450],
-  "/assets/molis-work-workbench.js": [1147189, 1180017],
+  "/assets/molis-work-workbench.js": [1146895, 1179723],
   "/assets/molis-work-workbench.css": [1236101, 1236781],
 };
 const approvedCeiling = (asset, bytes) => APPROVED_CEILINGS[asset]?.[0] === bytes ? APPROVED_CEILINGS[asset][1] : bytes;

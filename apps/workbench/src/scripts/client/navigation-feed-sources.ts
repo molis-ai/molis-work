@@ -238,7 +238,7 @@ export const NAVIGATION_FEED_SOURCES_PART = `
       feedWorkbench.setAttribute("aria-busy", "true");
       feedWorkbenchRequest = (async () => {
         try {
-          const html = await molisWorkRequest(route("/api/feed/workbench?preset=" + encodeURIComponent(activeFeedPreset)), {as:"text",fallback:FL("无法打开 Item 工作区" )});
+          const html = await molisWorkRequest(route("/api/stage/feed"), {as:"text",fallback:FL("无法打开 Item 工作区" )});
           const template = document.createElement("template");
           template.innerHTML = html.trim();
           if (requestedPreset !== activeFeedPreset) return false;

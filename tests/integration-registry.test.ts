@@ -1,3 +1,4 @@
+import { connectorControl } from "./fixtures/connector-control.js";
 import assert from "node:assert/strict";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -93,8 +94,8 @@ test("RAC-488 a plugin nothing names is registered and bound the way the built-i
   assert.ok(connectorDirectory(registry).some(entry => entry.connector_id === "ext-feed" && entry.feed_available === true));
   const key = integrationKeyOf({ sync_kind: "connector", kind: "ext-feed" })!;
   const bound = await registry.bind(key, "source", binding("source-ext"));
-  assert.equal((await bound.connector_driver.health()).ok, true);
-  assert.equal((await bound.connector_driver.poll({ cursor: null })).ok, true);
+  assert.equal((await bound.connector_driver.health(connectorControl())).ok, true);
+  assert.equal((await bound.connector_driver.poll({ cursor: null }, connectorControl())).ok, true);
 });
 
 test("RAC-489 one start per plugin, one provider per bound source, and a source's failure stays that source's", async () => {
@@ -113,8 +114,8 @@ test("RAC-489 one start per plugin, one provider per bound source, and a source'
   assert.notEqual(first.connector_driver, second.connector_driver);
   await assert.rejects(registry.bind("shared", "source", binding("bad")), /cannot be built/u);
   const third = await registry.bind("shared", "source", binding("three"));
-  assert.equal((await first.connector_driver.health()).ok, true, "a source that was bound earlier is untouched");
-  assert.equal((await third.connector_driver.health()).ok, true, "one source failing does not stop the integration for the others");
+  assert.equal((await first.connector_driver.health(connectorControl())).ok, true, "a source that was bound earlier is untouched");
+  assert.equal((await third.connector_driver.health(connectorControl())).ok, true, "one source failing does not stop the integration for the others");
   assert.equal(starts, 1);
   assert.deepEqual(providers.map(item => item.source_id), ["one", "two", "bad", "three"]);
 });
@@ -140,7 +141,7 @@ test("RAC-489 a disabled plugin leaves its sources with an integration-unavailab
   await assert.rejects(registry.bind("gone", "source", binding("one")), { code: "plugin.integration_unavailable" });
   assert.equal(registry.integration("gone"), undefined);
   assert.equal(registry.connectionServices().some(entry => entry.declaration.service_id === "gone"), false);
-  assert.equal((await (await registry.bind("stays", "source", binding("two"))).connector_driver.health()).ok, true);
+  assert.equal((await (await registry.bind("stays", "source", binding("two"))).connector_driver.health(connectorControl())).ok, true);
 });
 
 test("RAC-490 a later plugin that declares a held id fails to enable naming the id and the holder, and the holder is untouched", async () => {
@@ -158,7 +159,7 @@ test("RAC-490 a later plugin that declares a held id fails to enable naming the 
   assert.equal(registry.integration("contested")?.plugin_id, "io.molis.work.example.first");
   assert.equal(registry.connectionServices().find(entry => entry.declaration.service_id === "contested")?.owner, "io.molis.work.example.first");
   assert.equal(registry.connectionServices().some(entry => entry.declaration.service_id === "rival-service"), false, "a refused plugin records nothing");
-  assert.equal((await (await registry.bind("contested", "source", binding("one"))).connector_driver.health()).ok, true);
+  assert.equal((await (await registry.bind("contested", "source", binding("one"))).connector_driver.health(connectorControl())).ok, true);
 });
 
 test("RAC-490 installed plugins restore oldest first: the earlier install holds the id and the later one is reported refused", async () => {
@@ -265,7 +266,7 @@ const fixtureProvider = () => ({
 });
 
 test("RAC-890 a source's account reads the way its integration plugin says; the Host picks no integration's account function", async () => {
-  const host = source("apps/local-host/src/feed-connector-sync.ts");
+  const host = source("apps/local-host/src/connector-source-pull.ts");
   assert.doesNotMatch(host, /AccountPresentation|sync_kind\s*===/u, "the Feed's Host side names no integration's account");
   const registry = await homeIntegrationRegistry("unused-home", fixtureProvider);
   const github = await registry.bind("github", "source", binding("gh"));

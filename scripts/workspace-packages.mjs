@@ -213,18 +213,14 @@ export const WORKSPACE_PACKAGES = [
       "@molis-ai/molis-work-module-attention-resumption",
       "@molis-ai/molis-work-module-characters",
       "@molis-ai/molis-work-module-context-ledger",
-      "@molis-ai/molis-work-module-feed",
       "@molis-ai/molis-work-module-functions",
       "@molis-ai/molis-work-module-private-work-context",
       "@molis-ai/molis-work-module-projects",
       "@molis-ai/molis-work-module-shelf",
-      "@molis-ai/molis-work-module-signals",
-      "@molis-ai/molis-work-module-sources",
       "@molis-ai/molis-work-plugin-runtime",
       "@molis-ai/molis-work-plugin-sdk",
       "@molis-ai/molis-work-service-agent-host",
       "@molis-ai/molis-work-service-connector-host",
-      "@molis-ai/molis-work-service-listener-host",
       "@molis-ai/molis-work-service-runtime-host",
       "@molis-ai/molis-work-service-scheduler",
       "@molis-ai/molis-work-service-placement",
@@ -346,30 +342,6 @@ export const WORKSPACE_PACKAGES = [
       "context.edges.v1"
     ]
   }),
-  entry("modules/sources", "@molis-ai/molis-work-contracts/modules/sources", {
-    maturity: "production",
-    capabilities: [
-      "sources.query.v1",
-      "sources.command.v1"
-    ]
-  }),
-  entry("modules/signals", "@molis-ai/molis-work-contracts/modules/signals", {
-    maturity: "production",
-    capabilities: [
-      "signals.query.v1",
-      "signals.command.v1"
-    ]
-  }),
-  entry("modules/feed", "@molis-ai/molis-work-contracts/modules/feed", {
-    maturity: "production",
-    capabilities: [
-      "feed.query.v1",
-      "feed.command.v1"
-    ],
-    extraWorkspaceDependencies: [
-      "@molis-ai/molis-work-storage"
-    ]
-  }),
   entry("modules/attention-resumption", "@molis-ai/molis-work-contracts/modules/attention-resumption", {
     maturity: "slice",
     capabilities: [
@@ -444,12 +416,6 @@ export const WORKSPACE_PACKAGES = [
     maturity: "production",
     capabilities: [
       "connector.host.v1"
-    ]
-  }),
-  entry("horizontal/listener-host", "@molis-ai/molis-work-contracts/services/listener-host", {
-    maturity: "production",
-    capabilities: [
-      "listener.host.v1"
     ]
   }),
   entry("horizontal/runtime-host", "@molis-ai/molis-work-contracts/services/runtime-host", {

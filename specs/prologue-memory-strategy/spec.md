@@ -3826,7 +3826,7 @@ Full 本轮已核五个失败分片的原日志：导航/CDP 前置超时、窄�
 | I1 | Projects 原根行增加必需的 `data_instance_id`，项目基线 11 | 新建随机身份；幂等写、关闭重开保留身份与创建时间；相同业务 ID 的新库身份不同；版本 10 不补值、不自动升级。可与 C0 合同核对并行 |
 | C0 / I2 | 原 Actions 值合同增加 `ActionSourceIdentity`：`plugin-installation` 带 `generation`，`project-data` 带 `data_instance_id`。提供方新增 `project_data_instance_id`，仅真实项目 Artifacts 装配投影。Knowledge adoption/bind 和既有 retention 绑定统一使用 `source_identity` | 旧插件代不重释为系统身份；捕获后重建或重新安装均拒绝；权限与命令交错保护不变。实现依赖 I1，源状态与消费代码一起进入现有 PR |
 | I3 | 沿原 retention 查询核当前对象：协议 v3 的 active 增加 `current_revision: string 或 null`，Artifacts 必须给准确版本，Coding 保持生命周期职责并明确为 null | summary 成果也向原主人核状态及版本；context 使用正文版本，summary 使用列表版本。null/unsupported 不能证明系统来源有效。retained 仍只表示真实归档恢复事实，不伪造恢复号 |
-| I4 | 项目 10→11、Knowledge 1/2/3→4 在明确选定的停写副本维护；Search 派生索引 3→4 沿原重建机制 | 旧 v3 adoption/retention 只把真实 generation 包成插件身份，未知身份仍为空；项目成功、Knowledge 失败后重试不换身份。完整恢复保留实例；部分导入不得替换目标实例。依赖 I1 与 C0 |
+| I4 | 项目先完成主干原 10→11，再做实例身份 11→12；Knowledge 1/2/3→4 在明确选定的停写副本维护；Search 派生索引 3→4 沿原重建机制 | 旧 v3 adoption/retention 只把真实 generation 包成插件身份，未知身份仍为空；项目成功、Knowledge 失败后重试不换身份。完整恢复保留实例；部分导入不得替换目标实例。依赖 I1 与 C0 |
 | 集成 | 实际 PDF 和 summary 成果采用、拒绝、读取、重启、归档与版本交错，加现有 UI/调用链验证 | 工程、产品实操与用户验收分别报告；并入 #1101，不另开小 PR；最终完整 CI 及性能门仍必须收束 |
 
 Search 也记录同一来源身份，是因为其当前保留绑定仅核插件代：如果只给 Knowledge 增加身份，Search 的 query/open/context 仍不能区分相同项目 ID 下的新旧系统数据。这是现派生缓存的形状升级，不新增业务库迁移或另一套身份服务。无现行身份的旧索引不作为证据。Knowledge 私库升 4；`knowledge.card.bind-preview/bind` 升 2，返回卡形状的 `knowledge.cards/edit/exclude` 升 4；retention 通用 helper 与 Coding 动作同步升 3，新增 Artifacts retention 动作使用同一现行合同。所有变更同 PR 更新消费者、声明及快照，不保留读取兜底。
@@ -4129,3 +4129,20 @@ Retention前后两次discover仅按provider筛选，以保留“可见system缺r
 
 
 撤下全部临时诊断后，目录+Home期望复用的原列表12项正式回归全部通过、零重试（`/private/tmp/memory-directory-home-lists-20261028.log`）。505项侧栏保留原30秒首次加载、20秒刷新与原迟到页释放/计数断言，实际走完新资料可见且旧页不覆盖；不把含造数和初载的49.181秒case总时长当点击时延。原11/12和诊断失败保留，不隐藏失败阶段的推进；相关包剩余66文件622/622通过、零重试（`/private/tmp/memory-directory-home-required-66-20261028.log`）；与先前目录11文件133/133、Home直接6文件66/66分段记录，不冒充一次全量。health、boundary与资源门通过；48资源合计7,463,008 B，无新增资源额度，ActionService实际行数492→491同步收紧既有例外。最终主干集成及Full尚未覆盖。
+
+
+### 项目库双分支衔接短合同（2026-10-28，实施中）
+
+目录与原列表已收束并推送 d0ea0bbe2。按用户本轮明确要求保留两边迁移语义，接入主干 dc902156e 后：主干10→11仍将Feed/Sources/Signals/Listener表交还插件声明、核对并更新Feed ledger，加入通知表；Memory的实例身份增量顺延为严格11→12，运行时只接受12。两步各有原独立事务，不称整体原子迁移。现有主人、绑定合同、Knowledge1/2/3→4与Coding4语义不变，不新建迁移系统。
+
+- MEM-PROJECT-V12-01：保留历史v8/v9/v10/v11 SQL和原10→11前提；以真实历史10形状连续走原10→11与身份11→12，保留业务行、插件表/ledger、外键与通知结构。
+- MEM-PROJECT-V12-02：身份维护仅接受完整主干11或当前12形状；同号但异构的旧Memory11在list/apply/普通Runtime打开均拒绝，未建立备份或写选中库前拒绝。不猜格式、不改PRAGMA冒充维护、不删除原身份。
+- MEM-PROJECT-V12-03：当前12重放保留原实例身份；项目已提交而Knowledge失败后，按原选集只继续未完成部分，不重新生成身份、不开放失败后写入。保留原取消、拒绝与故障恢复断言。
+- MEM-PROJECT-V12-04：更新原维护工具的版本前提和受影响消费者；整树构建、真实隔离副本、相关原回归与健康/边界/资源门通过后推送同一#1101，再跑最终集成CI/Full。新旧失败分开记录，不降低时限、断言或门槛。
+
+允许修改主干合并冲突、项目baseline、既有维护夹具/回归和对应合同文档；生产不加旧格式兼容。回滚仅保留原逐库备份和停写恢复，不操作真实Home，不转换旧Memory11实验数据，不发布。用户已授权本次冲突衔接；若需新增上述范围外的转换路径再提出决定。
+
+
+项目库衔接首轮：独立审查发现并修正测试备份放在Home内、两处当前版本断言遗留；不改变生产备份/拒绝门。两份11快照分别与主干、d0ea原导出逐字节一致，原v8/v9/v10/v11维护SQL均未改。Node24.14离线冻结安装和整树build通过，真实SQLite的10文件98/98零重试通过（`/private/tmp/memory-project-v12-direct-10-20261028.log`），包括10→main11→12、旧Memory11在normal/existingOnly/list/apply精确拒绝、选中库/旁库不变、12重放、项目已提交而Knowledge失败及重试不换ID。其余相关包与新主干列表路径待补；这不是最终Full或产品验收。
+
+合并资源实测48项7,462,714 B，workbench.js由1,180,017降至1,179,723 B；主干基数同步少294 B，沿用原已批准净增32,828 B，不新增额度。knowledge.js按实测31,720 B再收紧已有上限1 B；其它资源沿原额度，最后资源门仍待按已提交合并的真实merge-base核验。

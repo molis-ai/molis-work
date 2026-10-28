@@ -123,6 +123,19 @@ const jobs = (path: string) => withDatabase(path, db => db.prepare(
   "SELECT job_id, capability_id, enabled, next_due_at, lease_until, lease_token, last_wakeup_id FROM schedule_jobs ORDER BY job_id").all().map(row => JSON.stringify(row)));
 const wakeups = (path: string) => withDatabase(path, db => (db.prepare("SELECT COUNT(*) AS count FROM schedule_wakeups").get() as { count: number }).count);
 
+/**
+ * Feed keeps its own job on the platform's clock (FI-6), set by its activation a moment after the project opens. It is not Schedule's:
+ * once the open host has set it, the closed library moves it past the round below, which then sees only Schedule's two jobs (the running
+ * Feed leaves a current job of its own alone).
+ */
+async function feedClockSet(path: string): Promise<void> {
+  const set = () => withDatabase(path, db => (db.prepare("SELECT COUNT(*) AS count FROM schedule_jobs WHERE plugin_id = ?").get(FEED_PLUGIN_ID) as { count: number }).count);
+  for (const deadline = Date.now() + 10_000; set() !== 1;) {
+    assert.ok(Date.now() < deadline, "Feed set its clock job when the project opened");
+    await new Promise(resolve => setTimeout(resolve, 50));
+  }
+}
+
 test("PLIB-04/S-46: a refused Schedule claims none of its due jobs; they wait as they were until its library is put right", async t => {
   const { home, projectId, databasePath } = await project(await scratch(t));
   const due = new Date(Date.now() + 60_000), later = new Date(due.getTime() + 1_000);
@@ -134,10 +147,14 @@ test("PLIB-04/S-46: a refused Schedule claims none of its due jobs; they wait as
     await host.actionClient(reference).discover({ actor_id: "web-user", project_id: projectId, audience: "user", permissions: PERMISSIONS });
     await owner.actions(projectId).invoke(reminderActions.add, { at: due.toISOString(), text: "到点的一次性提醒" });
     await owner.actions(projectId).invoke(scheduledOperationActions.add, { at: due.toISOString(), operation: "summarize", input: { text: "到点的定时操作" }, inbox: true });
+    await feedClockSet(databasePath);
   } finally { await host.close(); }
-  withDatabase(databasePath, db => { db.exec(`UPDATE plugin_project_databases SET version = 2 WHERE plugin_id = '${SCHEDULE_PLUGIN_ID}'`); });
+  withDatabase(databasePath, db => {
+    db.exec(`UPDATE plugin_project_databases SET version = 2 WHERE plugin_id = '${SCHEDULE_PLUGIN_ID}'`);
+    db.exec(`UPDATE schedule_jobs SET next_due_at = '9999-12-31T00:00:00.000Z' WHERE plugin_id = '${FEED_PLUGIN_ID}'`);
+  });
   const before = { jobs: jobs(databasePath), wakeups: wakeups(databasePath), library: library(databasePath) };
-  assert.equal(before.jobs.length, 2, "both jobs are due");
+  assert.equal(before.jobs.length, 3, "both jobs are due, beside Feed's parked one");
 
   const reopened = new MolisWorkLocalHost(options);
   try {

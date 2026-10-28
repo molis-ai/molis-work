@@ -64,11 +64,11 @@ node scripts/run-tests.mjs tests/projects-module.test.ts
 
 ## 当前实例身份短合同
 
-本片对应 [Memory 规格](../../specs/prologue-memory-strategy/spec.md)「系统资料来源的当前实例身份」，仅实现项目库 v11 的创建与读取。沿用 `project_root`，不新增表、服务或第二写主人。`writeProjectRoot(db, projectId, createdAt)` 在首次插入时生成随机持久的 `data_instance_id`；同项目重复写不改变该身份及原 `created_at`。`listProjectRoots` 公开投影该必需非空字段；关闭重开、整体移动或完整恢复同一份数据保留身份，同 `project_id` 的全新数据实例产生新身份。
+本片对应 [Memory 规格](../../specs/prologue-memory-strategy/spec.md)「系统资料来源的当前实例身份」，仅实现项目库 v12 的创建与读取（保留主干 v11 的插件移交之后再增加实例身份）。沿用 `project_root`，不新增表、服务或第二写主人。`writeProjectRoot(db, projectId, createdAt)` 在首次插入时生成随机持久的 `data_instance_id`；同项目重复写不改变该身份及原 `created_at`。`listProjectRoots` 公开投影该必需非空字段；关闭重开、整体移动或完整恢复同一份数据保留身份，同 `project_id` 的全新数据实例产生新身份。
 
-硬边界是 owner 生成身份、现行 schema 无空值或默认补值、未知旧结构拒读；不提供调用方指定或插件替换身份的入口。App 仍传业务 `projectId` 与创建时间；终端用户操作、来源绑定、权限和生命周期复核不归本片。仅允许修改本模块根行实现、必要出口和 README、Host 基线版本 10 → 11 及直接根行行为测试；不做数据维护、旧库补值、其他 owner 或 UI 改动。失败不补写历史；取消、跨库恢复编排沿现 owner，不新增异步流程。
+硬边界是 owner 生成身份、现行 schema 无空值或默认补值、未知旧结构拒读；不提供调用方指定或插件替换身份的入口。App 仍传业务 `projectId` 与创建时间；终端用户操作、来源绑定、权限和生命周期复核不归本片。仅允许修改本模块根行实现、必要出口和 README、Host 基线版本 11 → 12 及直接根行行为测试；不做数据维护、旧库补值、其他 owner 或 UI 改动。失败不补写历史；取消、跨库恢复编排沿现 owner，不新增异步流程。
 
-验收使用真实磁盘 SQLite，经包公开入口验证新身份、幂等写、关闭重开、同业务 ID 新库、原创建时间不变、缺失身份拒绝与 v10 原样拒绝。先完成仓库构建，再运行 `node scripts/run-tests.mjs tests/project-root.test.ts`，并保留上列必跑回归；构建和测试由集成根按机器槽位安排。上述工程证据不代替系统资料绑定闭环或用户验收。
+验收使用真实磁盘 SQLite，经包公开入口验证新身份、幂等写、关闭重开、同业务 ID 新库、原创建时间不变、缺失身份拒绝与旧版原样拒绝。先完成仓库构建，再运行 `node scripts/run-tests.mjs tests/project-root.test.ts`，并保留上列必跑回归；构建和测试由集成根按机器槽位安排。上述工程证据不代替系统资料绑定闭环或用户验收。
 
 ## 进一步阅读
 

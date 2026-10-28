@@ -6,10 +6,11 @@ import test from "node:test";
 
 import { toFeedPublicError } from "@molis-ai/molis-work-plugin-feed";
 import { PROVIDER_CONTRACT_FIXTURES } from "./fixtures/provider-contract.js";
-import { createLocalFeedApplication } from "@molis-ai/molis-work-app-local-host";
+
 import type { FeedSourceRecord } from "@molis-ai/molis-work-plugin-feed";
 import { DEMO_PROJECT_ID, seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
 import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 
 test("GitHub, Gmail and RSS fixtures all write FeedItem first and attention separately", async () => {
   const directory = mkdtempSync(join(tmpdir(), "molis-work-infoflow-fixtures-"));

@@ -42,6 +42,7 @@ function libraryFacts(project: string): Record<string, Seed> {
     dataset: { table: "datasets", values: { id, title, description: "Kept dataset", status: "draft", columns_json: JSON.stringify([{ id: "name", title: "Name", type: "text" }]), rows_json: JSON.stringify([{ name: "Retained row" }]), created_at: at, updated_at: at, version: 3, project_id: project }, field: "rows_json" },
     ppt: { table: "presentations", values: { id, title, description: "Kept deck", color_primary: "#123456", color_background: "#ffffff", color_text: "#111111", slides_json: JSON.stringify([{ id: "slide", title: "Retained slide" }]), created_at: at, updated_at: at, version: 2, project_id: project }, field: "slides_json" },
     workflows: { table: "workflows", values: { workflow_id: id, project_id: project, title, chain_json: "[]", revision: 3, created_at: at, updated_at: at }, field: "title" },
+    "feed-content": { table: "feed_content_holds", values: { content_ref: "molis-work-feed/sha256/" + "5".repeat(64), project_id: project, source_id: id }, field: "source_id" },
   };
 }
 

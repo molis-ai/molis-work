@@ -41,7 +41,7 @@ export type { ActionSceneView } from "@molis-ai/molis-work-contracts/platform/ac
 export class ActionService implements ActionClient, ActionRegistryPort {
   private readonly scenes = new Map<string, RegisteredScene>();
   /** Availability is synchronous; this stack exists only during a directory/execution check. */
-  private readonly checkingDependencies = new Set<string>();
+  private readonly checkingDependencies = new WeakMap<ActionCallContext, Set<string>>(); // per context: a delegated caller's authority check reads its original's own, which is not a cycle
   /** Only command lifetimes, shared by split registrations of the same trusted provider scope. */
   private readonly providerCommands = new Map<string, ProviderCommands>();
   private readonly sourceRevisions = new ActionSourceRevisions();
@@ -504,8 +504,8 @@ export class ActionService implements ActionClient, ActionRegistryPort {
 
   private dependencyAvailability(context: ActionCallContext, definition: ActionDefinition): ActionAvailability {
     const key = JSON.stringify([context.project_id, definition.capability_id, definition.version]);
-    if (this.checkingDependencies.has(key)) return unavailable("actions.dependency_cycle", "能力之间存在循环依赖，请修正插件声明");
-    this.checkingDependencies.add(key);
+    const checking = this.checkingDependencies.get(context) ?? this.checkingDependencies.set(context, new Set<string>()).get(context)!;
+    if (checking.has(key)) return unavailable("actions.dependency_cycle", "能力之间存在循环依赖，请修正插件声明"); checking.add(key);
     try {
       for (const reference of definition.action.required_actions ?? []) {
         const dependency = this.actionDefinition(context, reference);
@@ -517,7 +517,7 @@ export class ActionService implements ActionClient, ActionRegistryPort {
         }
       }
       return { available: true };
-    } finally { this.checkingDependencies.delete(key); }
+    } finally { checking.delete(key); }
   }
 
   private requireCompatible(context: ActionCallContext, scene: RegisteredScene, ref: ActionReference): ActionView {

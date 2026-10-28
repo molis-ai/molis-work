@@ -1,3 +1,6 @@
+import type { ConnectorCallControl } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { controlledConnectorFetch } from "@molis-ai/molis-work-plugin-sdk";
+import { connectorAccountControl, oauthRefreshGuard } from "./connector-oauth-targets.js";
 import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { CatalogLiveError, catalogWhoami, createCatalogProvider, getCatalogSpec, isCatalogConnectorId } from "@molis-ai/molis-work-integration-catalog";
 import type { ConnectorConnectionRecord } from "@molis-ai/molis-work-contracts/services/connector-host";
@@ -30,17 +33,20 @@ interface ApiConnectionAccess {
 }
 
 /** A plugin's 401 retry: `null` means no refresh material or refresh path, never a failed refresh. */
-export function resolveApiConnection(home: string, id: string, service: string | undefined, forceRefresh: "if_available"): Promise<ApiConnectionAccess | null>;
+export function resolveApiConnection(home: string, id: string, control: ConnectorCallControl, service: string | undefined, forceRefresh: "if_available"): Promise<ApiConnectionAccess | null>;
 /** Single account-bound resolver for API readers. The existing boolean force-refresh contract is unchanged. */
-export function resolveApiConnection(home: string, id: string, service?: string, forceRefresh?: boolean): Promise<ApiConnectionAccess>;
-export async function resolveApiConnection(home: string, id: string, service?: string, forceRefresh: boolean | "if_available" = false): Promise<ApiConnectionAccess | null> {
+export function resolveApiConnection(home: string, id: string, control: ConnectorCallControl, service?: string, forceRefresh?: boolean): Promise<ApiConnectionAccess>;
+export async function resolveApiConnection(home: string, id: string, control: ConnectorCallControl, service?: string, forceRefresh: boolean | "if_available" = false): Promise<ApiConnectionAccess | null> {
+  control.current();
   const connection = withConnectorConnections(home, store => store.require(id, service));
+  const accountCurrent = oauthRefreshGuard(home, id);
+  const current = () => { control.current(); accountCurrent(); };
   if (!connection.enabled || connection.disconnected_at || connection.auth_method === "mcp" || connection.auth_method === "none") throw new Error("所选连接不能用于此 API 读取，请选择有效的 API 账号");
   const refresh = forceRefresh !== false;
   // A refresh the token endpoint refuses marks the connection (`connector-refresh-refusals.ts`); a forced refresh that succeeds clears it.
   const refreshing = async <T>(run: () => Promise<T>, refusedBy: (error: unknown) => boolean): Promise<T> => {
-    try { const value = await run(); if (refresh) clearRefreshRefused(home, id); return value; }
-    catch (error) { if (refusedBy(error)) markRefreshRefused(home, connection); throw error; }
+    try { const value = await run(); await control.beforeEffect(); current(); if (refresh) clearRefreshRefused(home, id); return value; }
+    catch (error) { await control.beforeEffect(); current(); if (refusedBy(error)) markRefreshRefused(home, connection); throw error; }
   };
   return runWithMolisWorkHome(home, async () => {
     if (forceRefresh === "if_available" && (connection.auth_method !== "oauth" || !connection.refresh_ref
@@ -52,11 +58,11 @@ export async function resolveApiConnection(home: string, id: string, service?: s
     }
     const oauthId = apiOAuthConnectionId(connection.credential_ref ?? undefined);
     if (oauthId) {
-      const token = await refreshing(() => resolveApiOAuthToken(home, id, refresh), error => error instanceof ApiOAuthError && error.refused);
+      const token = await refreshing(() => resolveApiOAuthToken(home, id, control, refresh), error => error instanceof ApiOAuthError && error.refused);
       return { connection, token, authExtras: apiOAuthContext(home, id), fetchImpl: undefined };
     }
     if (connection.auth_method === "oauth" && connection.service_id === "notion" && connection.refresh_ref) {
-      const token = await refreshing(() => resolveUsableNotionToken(id, refresh),
+      const token = await refreshing(() => resolveUsableNotionToken(id, control, refresh),
         error => error instanceof CatalogLiveError && error.kind === "needs_auth" && tokenEndpointRefused(error.status));
       if (!token) throw new Error("Notion 连接需要重新授权");
       return { connection, token, authExtras: undefined, fetchImpl: undefined };
@@ -64,7 +70,7 @@ export async function resolveApiConnection(home: string, id: string, service?: s
     if (connection.auth_method === "oauth" && connection.service_id === "gmail" && connection.credential_ref && connection.refresh_ref && connection.expires_ref) {
       const refs = { access: connection.credential_ref, refresh: connection.refresh_ref, expiresAt: connection.expires_ref };
       const result = await refreshing(async () => {
-        const answer = await resolveUsableGmailAccessToken({ forceRefresh: refresh, tokenRefs: refs });
+        const answer = await resolveUsableGmailAccessToken({ control, forceRefresh: refresh, tokenRefs: refs });
         if (!answer.ok) throw Object.assign(new Error("Gmail 连接需要重新授权"), { refused: answer.status === "needs_auth" && answer.refused === true });
         return answer;
       }, error => (error as { refused?: boolean }).refused === true);
@@ -92,7 +98,7 @@ export async function inspectSourceAuthorization(home: string, source: {
     if (connection) {
       if (!connection.enabled || connection.disconnected_at) return denied("连接已断开", connection.updated_at);
       if (connection.auth_method === "cli") await inspectCliConnection(home, connection.connection_id);
-      else await resolveApiConnection(home, connection.connection_id, source.kind);
+      else await resolveApiConnection(home, connection.connection_id, connectorAccountControl(home, connection.connection_id), source.kind);
       const latest = withConnectorConnections(home, store => store.require(connection.connection_id));
       if (!latest.enabled || latest.disconnected_at || latest.updated_at !== connection.updated_at) return denied("检查期间连接已改变", latest.updated_at);
       return { authorized: true, connection_id: connection.connection_id, revision: connection.updated_at };
@@ -103,32 +109,34 @@ export async function inspectSourceAuthorization(home: string, source: {
 
 export async function inspectApiConnection(home: string, id: string, preview = false, signal?: AbortSignal, beforeRead?: () => void | Promise<void>) {
   return withConnectorRequest(home, id, signal, async signal => {
-  let access = await resolveApiConnection(home, id);
-  const fetchImpl: typeof fetch = (input, init) => (access.fetchImpl ?? globalThis.fetch)(input, { ...init,
-    signal: AbortSignal.any([signal, ...(init?.signal ? [init.signal] : [])]) });
+  const control = connectorAccountControl(home, id, { signal, beforeEffect: beforeRead });
+  let access = await resolveApiConnection(home, id, control);
+  const fetchImpl: typeof fetch = controlledConnectorFetch((input, init) => (access.fetchImpl ?? globalThis.fetch)(input, init), control);
   const service = access.connection.service_id;
   if (isCatalogConnectorId(service)) {
     let result = await catalogWhoami({ connectorId: service, token: access.token, authExtras: access.authExtras, fetchImpl });
+    await control.beforeEffect(); control.current();
     if (!result.ok && result.http_status === 401 && access.connection.auth_method === "oauth") {
-      access = await resolveApiConnection(home, id, service, true);
+      access = await resolveApiConnection(home, id, control, service, true);
       result = await catalogWhoami({ connectorId: service, token: access.token, authExtras: access.authExtras, fetchImpl });
+      await control.beforeEffect(); control.current();
     }
     if (!result.ok) throw new Error(result.message);
     const verified = { ok: true, account: result.login, verified_account: { login: result.login, ...(result.account_id ? { account_id: result.account_id } : {}) }, checked_at: new Date().toISOString() };
     if (!preview || getCatalogSpec(service).feed_available === false) return verified;
     const provider = createCatalogProvider({ connectorId: service, token: access.token, authExtras: access.authExtras, fetchImpl });
     await beforeRead?.(); signal.throwIfAborted();
-    const read = await provider.sync({ cursor: null });
+    const read = await provider.sync({ cursor: null }, control);
     if (!read.ok) throw new Error(read.message);
     return { ...verified, record_count: read.items.length, items: read.items };
   }
   if (!["github", "gmail"].includes(service)) throw new Error("请在使用此连接的模型、Images、Functions 或 Coding 设置中运行对应功能，验证目标服务");
   const provider = runWithMolisWorkHome(home, () => service === "github" ? createGithubConnector({ token: access.token, fetchImpl, allowFixture: false }) : createGmailConnector({ accessToken: access.token, fetchImpl, allowFixture: false }));
-  const health = await provider.health();
+  const health = await provider.health(control);
   if (!health.ok) throw new Error(health.message);
   if (!preview) return { ...health, checked_at: new Date().toISOString() };
   await beforeRead?.(); signal.throwIfAborted();
-  const read = await provider.sync({ cursor: null });
+  const read = await provider.sync({ cursor: null }, control);
   if (!read.ok) throw new Error(read.message);
   return { ...health, record_count: read.items.length, items: read.items, checked_at: new Date().toISOString() };
   });

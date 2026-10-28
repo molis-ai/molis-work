@@ -18,11 +18,23 @@ export interface FeedConnectorSyncPorts {
   acquireSync?(projectId: string, sourceId: string): () => void;
   /** The connection owner pins its original account; Feed owns source configuration. */
   connectionAuthority?(source: FeedSourceRecord): () => void | Promise<void>;
+  /** Account presentation from the current platform binding; no account identifier is written into source configuration. */
+  sourceMetadata?(source: FeedSourceRecord, cursor: unknown): Pick<FeedSourceRecord, "account_label" | "config"> | Record<string, never>;
+  /**
+   * One write that may wait for the caller's authority first (the Runtime: `createFeedWriter().commit`). Absent, a write is `transaction`.
+   * Everything a sync writes after it has awaited goes through here, because a Runtime Feed cannot write outside its transaction. With
+   * it, `afterAccepted` runs inside the commit that accepts a signal and must finish synchronously.
+   */
+  commit?<T>(operation: () => T): Promise<T>;
+  /**
+   * `commit`, given with `commit` above, is the one the listener writes its runs, signals and checkpoint through: it checks this pull's source
+   * inside each transaction, so a listener never advances a source that changed while it waited (FI-C-05).
+   */
   createListener(source: FeedSourceRecord, afterAccepted: (
     item: IntegrationProviderItem,
     signal: Pick<SignalRecord, "signal_id" | "revision">,
     occurredAt: string,
-  ) => void | Promise<void>): Promise<FeedConnectorListener>;
+  ) => void | Promise<void>, commit?: <T>(operation: () => T) => Promise<T>): Promise<FeedConnectorListener>;
   transaction<T>(operation: () => T): T;
   appendEvent(projectId: string, sourceId: string, type: string, reason: string, payload: Record<string, unknown>): void;
 }

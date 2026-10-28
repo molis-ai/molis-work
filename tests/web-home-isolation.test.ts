@@ -7,10 +7,12 @@ import { join } from "node:path";
 import test from "node:test";
 import type { Server } from "node:http";
 import { createEvidenceContentStore, createFileSecretStore, resetSecretStoreCache, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, projectActionAvailability, seedDemoBoard, DEMO_PROJECT_ID, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, projectActionAvailability, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { bindActionClient, type BoundActionClient } from "@molis-ai/molis-work-contracts/platform/actions";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
+import { feedItemActions } from "@molis-ai/molis-work-plugin-feed";
+import { projectSettingsCapabilities } from "@molis-ai/molis-work-contracts/modules/projects";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 
 const controlToken = "home-isolation-test-control-token-0123456789";
@@ -39,7 +41,7 @@ test("RAC-212: Web resolves environment Home once for Catalog, control token and
       return `http://127.0.0.1:${address.port}`;
     };
     let origin = await start();
-    const feedPath = `/projects/${project.project_id}/api/feed`;
+    const feedPath = `/projects/${project.project_id}/api/plugins/io.molis.work.feed/snapshot`;
     let response = await fetch(origin + feedPath);
     assert.equal(response.status, 200, await response.text());
     const token = readFileSync(join(envHome, "config/web-control-token"), "utf8").trim();
@@ -82,22 +84,30 @@ test("explicit Web homes read only their own connections and survive service rec
   delete process.env.MOLIS_WORK_GITHUB_TOKEN;
   delete process.env.MOLIS_WORK_GMAIL_ACCESS_TOKEN;
   const homes = [join(root, "a"), join(root, "b")];
-  const databases = homes.map((_, i) => join(root, `board-${i}.sqlite`));
+  // Each Home has its own catalog project with Feed: Feed's routes are that project's Runtime plugin's (FI-7), under its prefix.
+  const projects: string[] = [];
   async function start(i: number) {
-    const server = createMolisWorkWebServer({ homeDirectory: homes[i], databasePath: databases[i], projectId: DEMO_PROJECT_ID, controlToken });
+    const server = createMolisWorkWebServer({ homeDirectory: homes[i], controlToken });
     servers.push(server);
     await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
     const address = server.address();
     assert.ok(address && typeof address === "object");
-    return `http://127.0.0.1:${address.port}`;
+    return `http://127.0.0.1:${address.port}/projects/${encodeURIComponent(projects[i]!)}`;
   }
   try {
-    databases.forEach((db) => seedDemoBoard(db));
+    for (const home of homes) {
+      const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+      try {
+        const { project_id } = await catalog.createProject({ display_name: "连接", actor_id: "test" });
+        if (!catalog.listProjectPlugins(project_id).includes("feed")) catalog.addProjectPlugin({ project_id, plugin_id: "feed", actor_id: "test" });
+        projects.push(project_id);
+      } finally { catalog.close(); }
+    }
     const defaultStore = createFileSecretStore();
     defaultStore.put(defaultOnlyRef, "default-home-only-0000");
     const urls = await Promise.all([start(0), start(1)]);
     const bound = async (url: string) => {
-      const response = await fetch(`${url}/api/feed`);
+      const response = await fetch(`${url}/api/plugins/io.molis.work.feed/snapshot`);
       assert.equal(response.status, 200);
       return (await response.json()).connector_auth.github.bound;
     };
@@ -167,10 +177,11 @@ test("async home scopes and retained stores keep secrets and body keys in their 
  */
 const CALL_ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const withRequestFixture = async (run: (fixture: { base: string; host: MolisWorkLocalHost; projectId: string; goals: BoundActionClient;
-  post: (path: string, body: unknown, headers?: Record<string, string>) => Promise<Response> }) => Promise<void>) => {
+  post: (path: string, body: unknown, headers?: Record<string, string>) => Promise<Response> }) => Promise<void>, plugins: readonly string[] = []) => {
   const home = mkdtempSync(join(tmpdir(), "molis-work-call-id-web-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
   const created = await catalog.createProject({ display_name: "编号", actor_id: "test" });
+  for (const plugin_id of plugins) if (!catalog.listProjectPlugins(created.project_id).includes(plugin_id)) catalog.addProjectPlugin({ project_id: created.project_id, plugin_id, actor_id: "test" });
   const project = catalog.getProject(created.project_id);
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   // The policy the desktop gives its Host: a plugin the project has not installed answers "not enabled" (a refused call, so a row).
@@ -193,11 +204,11 @@ const withRequestFixture = async (run: (fixture: { base: string; host: MolisWork
   }
 };
 
-test("W3-01 C a refused read on a page's own route answers with the number of its row, in the header and in the error body", { timeout: 60_000 }, async () => {
+test("W3-01 C a read on a page's own route that fails answers with the number of its row; one refused at the door carries none", { timeout: 60_000 }, async () => {
   await withRequestFixture(async ({ base, host, projectId }) => {
-    // Feed's own route in a project that has no Feed: the person asked for it by name, so the host answers 403 and records it as not run.
-    const response = await fetch(`${base}/api/feed`);
-    assert.equal(response.status, 403);
+    // The project has no confirmed workspace: the read runs, fails, and leaves its row, so its number is one the call log can find.
+    const response = await fetch(`${base}/api/project-references/no-such`);
+    assert.equal(response.status, 409);
     const id = response.headers.get("x-molis-work-call-id");
     assert.match(id ?? "", CALL_ID);
     const body = await response.json() as { call_id?: string; error?: string };
@@ -206,15 +217,49 @@ test("W3-01 C a refused read on a page's own route answers with the number of it
     const rows = host.callLog!.find(id!);
     assert.equal(rows.length, 1, "the number is one the call log can find");
     assert.equal(rows[0]!.project_id, projectId);
-    assert.equal(rows[0]!.code, "actions.plugin_disabled");
-    assert.equal(rows[0]!.refused, true);
+    assert.equal(rows[0]!.code, "artifacts.workspace_unconfirmed");
+    // Feed's own route and stage in a project that has no Feed are refused at the door (FI-7: the Runtime's route, the shell's stage):
+    // no call ran, so no row, and the answer names no number.
+    for (const path of ["/api/plugins/io.molis.work.feed/snapshot", "/api/stage/feed"]) {
+      const refused = await fetch(base + path);
+      assert.equal(refused.status, 403, path);
+      assert.equal(refused.headers.get("x-molis-work-call-id"), null, path);
+      const refusal = await refused.json() as { code?: string; call_id?: string };
+      assert.equal(refusal.code, "actions.plugin_disabled", path);
+      assert.equal(Object.hasOwn(refusal, "call_id"), false, path);
+    }
   });
+});
+
+test("W3-01 C a plugin's route the door let through, whose call is refused before it runs, leaves a row and answers with its number", { timeout: 60_000 }, async () => {
+  await withRequestFixture(async ({ host, projectId, post }) => {
+    // Feed is in this project, so its route passes the door and calls Feed's own action as the person; the item id is longer than that
+    // action takes, so the call is refused before its handler: a row marked not run, whose number the answer shows.
+    const refused = await post(`/api/plugins/io.molis.work.feed/items/${"x".repeat(201)}/read`, {});
+    assert.equal(refused.status, 400);
+    const id = refused.headers.get("x-molis-work-call-id");
+    assert.match(id ?? "", CALL_ID);
+    const body = await refused.json() as { code?: string; call_id?: string };
+    assert.equal(body.code, "actions.input_invalid");
+    assert.equal(body.call_id, id, "the body and the header carry the same number");
+    const rows = host.callLog!.find(id!);
+    const feedRows = rows.filter(row => row.capability_id === feedItemActions.read.capability_id);
+    assert.equal(feedRows.length, 1, "the number finds the refused call");
+    assert.equal(feedRows[0]!.project_id, projectId);
+    assert.equal(feedRows[0]!.refused, true, "marked as not run");
+    assert.equal(feedRows[0]!.code, "actions.input_invalid");
+    // A plugin route also has the Host read the folder the project browses (BL-521, `announceProjectOpened`), under the same request;
+    // this bare Host has no project settings, so that read is missing, leaves its own row and is tried again on the next route.
+    assert.deepEqual(rows.filter(row => !feedRows.includes(row)).map(row => [row.capability_id, row.code]),
+      rows.length === 1 ? [] : [[projectSettingsCapabilities.browsingWorkspace.capability_id, "actions.missing"]]);
+  }, ["feed", "inbox"]);
 });
 
 test("W3-01 C every request has a number of its own, and a number sent by the client is never taken", { timeout: 60_000 }, async () => {
   await withRequestFixture(async ({ base, host }) => {
     const forged = "11111111-2222-4333-8444-555555555555";
-    const [first, second, third] = await Promise.all([fetch(`${base}/api/feed`), fetch(`${base}/api/feed`), fetch(`${base}/api/feed`, { headers: { "x-molis-work-call-id": forged } })]);
+    const read = `${base}/api/project-references/no-such`;
+    const [first, second, third] = await Promise.all([fetch(read), fetch(read), fetch(read, { headers: { "x-molis-work-call-id": forged } })]);
     const ids = [first, second, third].map(response => response.headers.get("x-molis-work-call-id"));
     for (const id of ids) assert.match(id ?? "", CALL_ID);
     assert.equal(new Set(ids).size, 3, "three requests, three numbers, even when they run at the same time");

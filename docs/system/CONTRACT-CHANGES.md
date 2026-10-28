@@ -103,6 +103,7 @@ Casebook 已于 2026-10-10 按用户决定删除，不再有对外合同 id；�
 
 - **Manifest 的 `attention.inbox`：插件声明哪些种类的条目是人的 Inbox；Inbox 读取入口改按声明解析；Feed 不再能开 `goal_decision` 条目**（PG-094 S12，RAC-806～809，统筹 2026-10-25 定）：`attention` 在 `subjects` 之外可选地加 `inbox`（`subjects` 的子集，不空、不重复）；`AttentionQuery` 加 `listInbox(projectId, declared)` 与 `getInbox(projectId, entryId, declared)`，`declared` 是 `AttentionInboxDeclarations`（主人插件号 → 它声明的种类）。Inbox 是未归属条目，加上「主人声明了该种类」的有主条目，别的一律不解析（声明只对声明者自己的条目生效，A 声明的种类不会让 B 的条目出现）。宿主从项目库里运行中的安装、按发行物归档里的 Manifest 读出声明（`apps/local-host/src/plugin-inbox-declarations.ts`），Feed 的 `listInboxEntries`、`getInboxEntry`、`setInboxEntryStatus` 经 `FeedApplicationPorts.inboxDeclarations` 调这两个查询，代码里不点名任何插件。Goals 的 Manifest 声明 `inbox: ["goal_decision"]`。停用、卸载或发行物未归档的安装不贡献声明。同时 Feed 不再读 Goals 的表，`inbox.add` 一类入口对 `goal_decision` 一律以 `feed.invalid_transition` 拒绝（提醒由 Goals 自己开）。调用方的影响：不声明 `inbox` 的插件，它的有主条目不进 Inbox（照旧只经 `services.attention` 读）；想往 Inbox 手动加一个 Goal 的客户端会得到拒绝，没有正常路径依赖它。
 - **没有 Home 的 Host，项目插件名单里不含声明 Home 库的插件**（PG-094 S12）：Goals 声明了 Home 库，没有 Home 的 Host 原先整张名单被 `assertDatabaseEntries` 拒绝而全部起不来，现在只是 Goals 不在名单里、其余照常启动。产品里的 Host 都有 Home，不受影响。
+- **`services.artifacts.join(tx, write)` 与 `PluginArtifactWriter`；Feed 六个动作多声明 `artifact:write`**（RAC-510，S-100 暂定号，统筹 2026-10-27 批）：`PluginArtifactClient` 多一个可选方法 `join`，只给有项目库的插件，没有项目库的拿到的是 `undefined`。`write` 同步拿到一个 `PluginArtifactWriter`（`head`、`publish`）；它钉的成果版本是插件当前项目事务的一个保存点，和插件自己的行一起提交、一起回滚，日志事件也在同一个事务里，事务结束后写入器失效。写入器每次 `head`、`publish` 都问 S-68 那道门：安装在跑、持有 `artifact:write`、原调用方仍有效，调用是声明了 `artifact:write` 的可等待并行动作。产出者、作者（原调用方的 `audit_actor_id ?? actor_id`）、项目和范围由平台盖，类型照 Manifest 的 `artifacts.produces` 核。原有的 `services.artifacts.publish` 不变。调用方的影响：`feed.sources.sync`、`feed.sources.tick`、`feed.sources.wake`、`feed.notifications.receive`、`feed.rules.evaluate`、`feed.content.receive` 多声明 `artifact:write`，`feed.content.receive` 另多声明 `attention:write`（FI-C-08）；调用它们的客户端（页面、助手、MCP、工作流、场景）要多持有这几项，不留兼容期。动作合同快照里这 6 行的 `谁能调` 随之变，输入输出形状不变，版本不升。
 
 ### 2026-10-27 旧 Coding / Knowledge 私库采用
 
@@ -113,3 +114,8 @@ Casebook 已于 2026-10-10 按用户决定删除，不再有对外合同 id；�
 沿既有限期 fixtures 模式，将 tests/fixtures/coding-knowledge-maintenance.mjs 与隔离真实回归入库以供 CI 复现，不属于产品运行时迁移器。历史识别仅留此工具；采用完成后随演练删除，历史记录保留可取回提交。旧 v8/v9/v10 SQL 不改，v8 演练先证明真实 Coding1 被当前拒绝，再调用同一工具。真实 Home、发布和 UI 不在本片执行范围。
 
 `ActionClient.discover` 新增可选 `ActionDiscoveryFilter`，provider_id/input_type/output_type/subject_kind 精确求交；`matchesActionDiscovery` 是公共纯匹配函数。筛选只收窄目录返回及 Host 投影 roots，原完整依赖目录、身份与权限保持。实现 ActionClient 的转发包装须传递筛选；只掌握已授权完整结果的包装可在末端筛选。BoundActionClient、网关 HTTP DTO、动作 schema/version 均不变；来源 retention 与 subject resolver 是当前消费者，不改变实际调用与最终复核。
+
+
+### 2026-10-28 项目库维护衔接
+
+按 Memory spec 与本轮用户要求保留双方语义：先完成主干原10→11的Feed/Sources/Signals/Listener表移交、Feed声明账与通知表，再由既有隔离维护工具执行11→12的项目实例身份增量。生产只接受12，不自动迁移。Coding4和Knowledge4合同不变；旧Memory实验11与主干11同号异构，完整形状核验拒绝前者，不据版本号猜测或补造身份。当前12重复维护及项目已完成、Knowledge失败后的重试保留原身份；两步各自事务，不声称跨步原子性。真实Home仍须另行当次授权。

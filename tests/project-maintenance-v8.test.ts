@@ -33,6 +33,8 @@ import { NAMESPACE } from "../scripts/maintenance/goals-journal-names.mjs";
 const MAINTENANCE = readFileSync(new URL("./fixtures/project-maintenance-v8.sql", import.meta.url), "utf8");
 const NEXT_MAINTENANCE = readFileSync(new URL("./fixtures/project-maintenance-v9.sql", import.meta.url), "utf8");
 const FINAL_MAINTENANCE = readFileSync(new URL("./fixtures/project-maintenance-v10.sql", import.meta.url), "utf8");
+/** Version 11 (FI-5): Feed's declaration makes the Feed, Sources, Signals and Listener Host tables, so two records change. */
+const LAST_MAINTENANCE = readFileSync(new URL("./fixtures/project-maintenance-v11.sql", import.meta.url), "utf8");
 /** The version 9 schema (where tests/project-maintenance-v10.test.ts starts): the shape the Attention tables had before version 10. */
 const VERSION_9_SCHEMA = readFileSync(new URL("./fixtures/project-database-schema-v9.sql", import.meta.url), "utf8");
 /** The version 7 schema, as that build's baseline made it (the fixture of tests/project-database-baseline.test.ts at 7ca40f1c3). */
@@ -40,6 +42,8 @@ const VERSION_7_SCHEMA = readFileSync(new URL("./fixtures/project-database-schem
 /** The tables whose foreign key version 8 points at the root instead of the board. */
 const MOVED = ["coding_sessions", "events", "feed_items", "feed_materials", "feed_out_rules", "feed_source_runs", "feed_sources",
   "idempotency_records", "inbox_entries", "library_artifacts", "process_items"];
+/** Inbox declares a table since FI-6; version 7 had none of it, so the maintenance records no row for it and the library makes it when it opens. */
+const INBOX_PLUGIN_ID = "io.molis.work.inbox";
 const PLUGINS = [
   { plugin_id: CODING_PLUGIN_ID, publisher_signature: "official-coding-binding", declaration: CODING_PROJECT_DATABASE },
   { plugin_id: FEED_PLUGIN_ID, publisher_signature: "official-feed-binding", declaration: FEED_PROJECT_DATABASE },
@@ -94,6 +98,7 @@ function pointAtBoard(db: DatabaseSync, table: string): void {
  * (#1245). The callers separately remove or restore the project root. Attention rows keep their row ids.
  */
 function toVersion9(db: DatabaseSync): void {
+  db.exec(`UPDATE plugin_project_databases SET version = 1, tables_json = '["feed_out_rules","feed_out_rules_project_enabled_idx"]' WHERE plugin_id = '${FEED_PLUGIN_ID}'`);
   db.exec("ALTER TABLE plugin_runtime_installs DROP COLUMN publisher_trust");
   const statements = VERSION_9_SCHEMA.split(/;\s*\n/).map(statement => statement.replace(/^(?:\s*--[^\n]*\n)+/, "").trim());
   for (const table of ["inbox_entries", "attention_events"]) {
@@ -172,32 +177,35 @@ async function oldHome(directory: string): Promise<OldHome> {
     for (const table of MOVED) pointAtBoard(db, table);
     nameTheBoard(db);
     db.prepare("UPDATE sqlite_sequence SET seq = ? WHERE name = 'events'").run(sequence.seq);
-    db.exec(`DROP TABLE schedule_action_bindings; DROP TABLE plugin_project_databases; DROP TABLE project_root; PRAGMA user_version = 7; COMMIT; PRAGMA foreign_keys = ON`);
+    db.exec(`DROP TABLE schedule_action_bindings; DROP TABLE plugin_notifications; DROP TABLE inbox_scene_bindings; DROP TABLE plugin_project_databases; DROP TABLE project_root; PRAGMA user_version = 7; COMMIT; PRAGMA foreign_keys = ON`);
     db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
     return made;
   });
   return { home, projectId, databasePath: project.database_path, receipt };
 }
 
-/** The intermediate v8 library, before the separately rehearsed v9 action bindings are installed. */
+/**
+ * The intermediate v8 library, before the separately rehearsed v9 action bindings are installed. It also takes back what later
+ * versions added to a new library: the notification queue (version 11) and the table and ledger row Inbox has declared since FI-6.
+ */
 function freshDatabase(directory: string): string {
-  const path = join(directory, "fresh.db");
+  const path = join(directory, "fresh-v8.db");
   new LocalProjectDatabase(path).close();
-  withDatabase(path, db => { toVersion9(db); db.exec("ALTER TABLE project_root DROP COLUMN data_instance_id; ALTER TABLE coding_sessions DROP COLUMN lifecycle_json; UPDATE plugin_project_databases SET version = 1 WHERE store_name = 'coding'; DROP TABLE schedule_action_bindings; PRAGMA user_version = 8"); });
+  withDatabase(path, db => { toVersion9(db); db.exec("ALTER TABLE project_root DROP COLUMN data_instance_id; ALTER TABLE coding_sessions DROP COLUMN lifecycle_json; UPDATE plugin_project_databases SET version = 1 WHERE store_name = 'coding'; DROP TABLE schedule_action_bindings; DROP TABLE plugin_notifications; DROP TABLE inbox_scene_bindings; DELETE FROM plugin_project_databases WHERE plugin_id = 'io.molis.work.inbox'; PRAGMA user_version = 8"); });
   return path;
 }
 
 const runMaintenance = (path: string) => withDatabase(path, db => { db.exec(MAINTENANCE); });
 
-test("PLIB-05: this build's project library is version 11, and a version 7 one, exactly that build's schema, is refused without being touched", async t => {
-  assert.equal(PROJECT_DATABASE_BASELINE.version, 11, "historical maintenance outputs require separately selected current adoption");
+test("PLIB-05: this build's project library is version 12, and a version 7 one, exactly that build's schema, is refused without being touched", async t => {
+  assert.equal(PROJECT_DATABASE_BASELINE.version, 12, "historical maintenance outputs require separately selected current adoption");
   const { databasePath } = await oldHome(await scratch(t));
   const before = snapshot(databasePath);
   assert.equal(before.version, 7);
   assert.deepEqual(before.shape, shapeOfSql(VERSION_7_SCHEMA), "the rehearsal library is what the version 7 build made, table for table");
   for (const table of ["coding_sessions", "events", "feed_out_rules", "feed_sources", "inbox_entries", "process_items"]) assert.ok((before.rows[table]?.length ?? 0) > 0, `${table} holds a row`);
 
-  assert.throws(() => new LocalProjectDatabase(databasePath), (error: unknown) => error instanceof SqliteSchemaVersionError && error.path === databasePath && error.found === 7 && error.expected === 11);
+  assert.throws(() => new LocalProjectDatabase(databasePath), (error: unknown) => error instanceof SqliteSchemaVersionError && error.path === databasePath && error.found === 7 && error.expected === 12);
   assert.throws(() => new LocalProjectDatabase(databasePath, { existingOnly: true }), { code: "catalog.project_recovery_unsupported_schema" });
   assert.deepEqual(snapshot(databasePath), before, "a refused library keeps its version, its tables and its rows: opening never upgrades in place");
 });
@@ -224,8 +232,8 @@ test("PLIB-05, PLIB-13: the maintenance makes a version 7 library the historical
   }
   for (const object of goals.objects) assert.ok(after.master.some(entry => entry.endsWith(`:${object}`)), `${object} is in the maintained library`);
   const ledgerIds = (rows: string[]) => rows.map(row => (JSON.parse(row) as { plugin_id: string }).plugin_id).sort();
-  assert.deepEqual(ledgerIds(fresh.rows.plugin_project_databases!), [CODING_PLUGIN_ID, FEED_PLUGIN_ID, GOALS_PLUGIN_ID, SCHEDULE_PLUGIN_ID].sort(), "a new library records four plugins");
-  assert.deepEqual(ledgerIds(after.rows.plugin_project_databases!), ledgerIds(fresh.rows.plugin_project_databases!), "and so does the maintained one");
+  assert.deepEqual(ledgerIds(fresh.rows.plugin_project_databases!), [CODING_PLUGIN_ID, FEED_PLUGIN_ID, GOALS_PLUGIN_ID, SCHEDULE_PLUGIN_ID].sort(), "the historical version 8 library records only its four plugins");
+  assert.deepEqual(ledgerIds(after.rows.plugin_project_databases!), ledgerIds(fresh.rows.plugin_project_databases!), "and so does the maintained one, the four plugins that had tables in version 7: Inbox's is made when the library opens with it");
   // Outside the board, the one row the maintenance rewrites is the receipt of the board's making: it gets the hash this build writes.
   const madeBoard = (row: string) => (JSON.parse(row) as { operation: string }).operation === "initialize_board";
   assert.equal(before.rows.idempotency_records!.filter(madeBoard).length, 1);
@@ -267,10 +275,10 @@ test("PLIB-05: after the historical chain and explicit project/Coding adoption, 
   new LocalProjectDatabase(freshPath).close();
   const fresh = snapshot(freshPath);
   runMaintenance(databasePath);
-  withDatabase(databasePath, db => { db.exec(NEXT_MAINTENANCE); db.exec(FINAL_MAINTENANCE); });
+  withDatabase(databasePath, db => { db.exec(NEXT_MAINTENANCE); db.exec(FINAL_MAINTENANCE); db.exec(LAST_MAINTENANCE); });
   const beforeAdoption = snapshot(databasePath);
-  assert.equal(beforeAdoption.version, 10, "the historical 7→8→9→10 chain still stops at its original target");
-  assert.throws(() => new LocalProjectDatabase(databasePath), (error: unknown) => error instanceof SqliteSchemaVersionError && error.found === 10 && error.expected === 11);
+  assert.equal(beforeAdoption.version, 11, "the original 7→8→9→10→11 chain precedes separately selected identity adoption");
+  assert.throws(() => new LocalProjectDatabase(databasePath), (error: unknown) => error instanceof SqliteSchemaVersionError && error.found === 11 && error.expected === 12);
   assert.deepEqual(snapshot(databasePath), beforeAdoption, "current opening does not perform the separately selected project adoption");
   withDatabase(databasePath, db => {
     assert.throws(() => openPluginProjectDatabase(db as never, PLUGINS[0]!, inspector, { path: databasePath }), /1.*4/);
@@ -278,11 +286,11 @@ test("PLIB-05: after the historical chain and explicit project/Coding adoption, 
   assert.deepEqual(snapshot(databasePath), beforeAdoption, "current Coding refuses the real old private store without writing");
   const adoption = { home, projectDatabase: databasePath, projectIdentity: true, publisher: "official-coding-binding", backupDirectory: join(directory, "coding-backup") };
   const selected = await maintainCodingKnowledge("list", adoption);
-  assert.deepEqual(selected.stores, [{ kind: "project", from: 10, to: 11 }, { kind: "coding", from: 1, to: 4 }]);
+  assert.deepEqual(selected.stores, [{ kind: "project", from: 11, to: 12 }, { kind: "coding", from: 1, to: 4 }]);
   assert.deepEqual(snapshot(databasePath), beforeAdoption, "listing the two explicitly selected stores writes neither");
   assert.deepEqual((await maintainCodingKnowledge("apply", adoption)).completed, ["project", "coding"]);
   const after = snapshot(databasePath);
-  assert.equal(after.version, 11);
+  assert.equal(after.version, 12);
 
   withDatabase(databasePath, db => {
     for (const plugin of PLUGINS) {
@@ -305,10 +313,11 @@ test("PLIB-05: after the historical chain and explicit project/Coding adoption, 
     assert.equal(retried.replayed, true, "a retry of the board's making with the key used before the maintenance replays it, not refused as a reused key");
   } finally { await host.close(); }
   const opened = snapshot(databasePath);
-  assert.deepEqual(opened.shape, fresh.shape, "opening it as the Host does adds nothing");
-  assert.deepEqual(opened.rows.plugin_project_databases, after.rows.plugin_project_databases, "and records nothing new: the four rows the maintenance wrote, Goals' among them, are all there is");
-  assert.equal(opened.rows.plugin_project_databases!.length, 4);
-  assert.equal(opened.version, 11);
+  assert.deepEqual(opened.shape, fresh.shape, "after current opening it matches a new current library");
+  const notInbox = (row: string) => (JSON.parse(row) as { plugin_id: string }).plugin_id !== INBOX_PLUGIN_ID;
+  assert.deepEqual(opened.rows.plugin_project_databases!.filter(notInbox), after.rows.plugin_project_databases, "only Inbox gains its separately declared ledger row on current open");
+  assert.equal(opened.rows.plugin_project_databases!.length, 5);
+  assert.equal(opened.version, 12);
 });
 
 test("PLIB-05: the maintenance stops and changes nothing unless the library is exactly a version 7 one with one board", async t => {

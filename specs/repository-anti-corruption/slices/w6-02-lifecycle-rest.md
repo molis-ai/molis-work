@@ -1,6 +1,6 @@
 # W6-02 余项：其余已迁入 Plugin Runtime 的内置插件的生命周期走查（名单、各自的写入读取入口与分片）
 
-状态：已实现，评审中（2026-10-27，分支 `claude/magical-kare-c6b8ec`，线 ac-lifecycle）：共用夹具 `tests/fixtures/shipped-lifecycle.ts` 已从 `tests/shipped-plugin-lifecycle.test.ts` 抽出（RAC-1030～1034 行为不变），十三个插件各走一遍（`shipped-plugin-lifecycle-content.test.ts` RAC-1090～1094、`-personal.test.ts` RAC-1095～1097、`-coding.test.ts` RAC-1099～1103）；置物架（RAC-1098）走查时撞上产品缺陷，其修复在 C 线的文件里，本线不改，退出本轮通过的测试（第 3、4 节，BL-804）；第 5 节三次运行里最后一次四个文件十八项全部通过。
+状态：已实现（2026-10-28 合入 main，#1325，线 ac-lifecycle）：共用夹具 `tests/fixtures/shipped-lifecycle.ts` 已从 `tests/shipped-plugin-lifecycle.test.ts` 抽出（RAC-1030～1034 行为不变），十三个插件各走一遍（`shipped-plugin-lifecycle-content.test.ts` RAC-1090～1094、`-personal.test.ts` RAC-1095～1097、`-coding.test.ts` RAC-1099～1103）；置物架（RAC-1098）走查时撞上产品缺陷，其修复在 C 线的文件里，本线不改，退出本轮通过的测试（第 3、4 节，BL-804）；第 5 节三次运行里最后一次四个文件十八项全部通过。
 
 W6-02 的原文（`roadmap-2026-10-07.md` §4.10）：把探针的生命周期（`tests/probe-plugin.test.ts`）延伸到真实已迁的生产者。第一批 Todo、Jelly、Pages、灵光已走完（`tests/shipped-plugin-lifecycle.test.ts`，RAC-1030～1034）；这一片补其余已在 Plugin Runtime 上的内置插件。
 
@@ -38,6 +38,8 @@ Diff 与 Text Stats 没有自有数据：对它们，上面「写下的东西还
 | 文件 Files | `io.molis.work.files`／`files` | 项目监督器，`joins`，非个人；登记上没有 `project_runtime`，由 `apps/local-host/src/project-plugins.ts` 手工起 | `POST /open` `{workspace_id, path}`（打开一个文件） | `GET /state` → `position.path` | RAC-1101 |
 | 对比 Diff | `io.molis.work.diff`／`diff` | 项目监督器，`joins`，非个人 | 无自有数据 | `GET /state` → `view.phase`（`waiting`） | RAC-1102 |
 | 字数 Text Stats | `io.molis.work.text-stats`／`text-stats` | 项目监督器，`joins`，非个人；随 Files 一起移出、加回 | 无自有数据 | `GET /state` → `view.phase`（`waiting`） | RAC-1103 |
+| Feed | `io.molis.work.feed`／`feed` | 项目监督器，双实例的项目一半，`joins`，非个人 | `POST /sources` `{kind: "custom_rss", name, feed_url}` | `GET /snapshot` → `sources[].name` | RAC-1200 |
+| Inbox | `io.molis.work.inbox`／`inbox` | 项目监督器，`joins`，非个人 | 无自有数据 | `GET /entries` → `entries[].entry_id`（恒为空，不当作留存证明） | RAC-1201 |
 
 路由前缀都是 `/projects/<项目>/api/plugins/<plugin_id>`；个人插件的数据在 Home，项目的插件列表只决定这个项目够不够得着它。Git、Files 要一个绑定了的工作区：夹具在临时目录里 `git init` 出一个仓库（一次提交、一处未提交改动、一个文本文件），经 `POST /projects/<项目>/api/workspaces` 绑上，再从 `GET /projects/<项目>/api/project-settings/workspaces` 取 `workspace_id`。
 
@@ -79,6 +81,7 @@ shelf: { key: "shelf", plugin_id: "io.molis.work.shelf", scope: "home", always_o
 | 2 | 加上置物架与编程一族（四个文件） | 同上，加 `tests/shipped-plugin-lifecycle-coding.test.ts` | 4 个文件通过 3 个：RAC-1094、RAC-1099～1103 通过；置物架（RAC-1098）在撤权一步失败（第 4 节） |
 | 3 | 去掉置物架之后（四个文件） | 同上 | 4 个文件全部通过，共 18 项（原四插件 5 项、RAC-1090～1094 共 5 项、RAC-1095～1097 共 3 项、RAC-1099～1103 共 5 项） |
 | 4 | 评审后 Git 的读回改为读出所选改动的路径（只重跑这一个文件） | `node scripts/run-tests.mjs --jobs 1 tests/shipped-plugin-lifecycle-coding.test.ts` | 通过，5 项（RAC-1099～1103） |
+| 5 | Feed、Inbox（RAC-1200、RAC-1201；夹具 `declared()` 补上场景声明的三项配置动作） | `node scripts/run-tests.mjs --jobs 1 tests/shipped-plugin-lifecycle-feed.test.ts tests/shipped-plugin-lifecycle-content.test.ts`（经机器槽位） | 通过，7 项：Feed 2 项（RAC-1200、RAC-1201）与作为对照的 content 5 项 |
 
 没跑的：
 
@@ -87,11 +90,6 @@ shelf: { key: "shelf", plugin_id: "io.molis.work.shelf", scope: "home", always_o
 - 整体 `pnpm build`：在本机停在 `apps/local-host` 的原生 Swift 一步（命令行工具里 `SwiftBridging` 模块重复定义），`tsc` 本身通过；环境问题，与这一片的改动无关。测试要从包名加载 `dist`，所以只补建了缺 `dist` 的 `apps/desktop` 与 `apps/server`。
 - 置物架的撤权之后三步（升级、卸载、重启）：见第 4 节。
 
-## 6. 待 ① 落入 `specs/BACKLOG.md` 的行
+## 6. 落入 `specs/BACKLOG.md` 的行
 
-`specs/BACKLOG.md` 与 `docs/system/RUNTIME-MIGRATION.md` 在 C 线与 W5-10 的文件名单里，这一片不改；下面两行请 ① 落入（链接按 `specs/` 下的相对路径写）：
-
-```markdown
-| BL-804 | 置物架 Shelf 的生命周期用例（等 C 线合入后由 ac-lifecycle 线接）：走查在撤权一步撞上产品缺陷（Home 一半停了之后 Home 路由答裸 404，不是 `503 actions.plugin_unavailable`），修复在 `apps/local-host/src/home-plugin-http.ts` 的 `projectHalfRoute`；修好后把 [W6-02 余项](repository-anti-corruption/slices/w6-02-lifecycle-rest.md) 第 3 节的条目与夹具的 `always_on`、`dual` 两个字段加回 `tests/shipped-plugin-lifecycle-personal.test.ts`（RAC-1098） |
-| BL-805 | Feed、Inbox 的生命周期用例：C 线 `feature/anticorruption-closeout-c` 合入后，照 [W6-02 余项](repository-anti-corruption/slices/w6-02-lifecycle-rest.md) 第 1 节在 `tests/shipped-plugin-lifecycle-*.test.ts` 各加一项 |
-```
+BL-804（置物架）、BL-805（Feed、Inbox）已落入 `specs/BACKLOG.md` 第 8 节。

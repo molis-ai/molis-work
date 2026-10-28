@@ -3,8 +3,11 @@ import type { PluginInstallationClient, PluginInstanceRecord, PluginManifest, Pl
 import { assertCapturedPluginActionCurrent, currentPluginInvocation, SqlitePluginRuntimeReleaseArtifactRepository } from "@molis-ai/molis-work-plugin-runtime";
 import type { PluginRuntimeDatabase } from "@molis-ai/molis-work-plugin-runtime";
 import { pluginInstallRecords } from "./plugin-install-records.js";
+import { pluginInstalledProjects } from "./plugin-installed-projects.js";
 import { PLUGINS_READ_PERMISSION } from "./plugin-service-permissions.js";
 
+/** What the Runtime's repository can answer for the scope it is in; `projects()` is added where the Host knows the Home. */
+export type InstallationDirectoryClient = Pick<PluginInstallationClient, "list" | "get">;
 type ManifestReader = (pluginId: string) => PluginManifest | undefined;
 const readers = new WeakMap<object, Set<ManifestReader>>();
 
@@ -18,7 +21,7 @@ export function openPluginInstallationDirectory(db: PluginRuntimeDatabase, recor
       version: record.version, publisher_id: record.publisher_id, name: declared?.name ?? record.plugin_id, state: record.state };
   };
   const current = () => { if (!active) throw new ActionError("actions.forbidden", "插件安装目录已关闭"); };
-  const client: PluginInstallationClient = Object.freeze({
+  const client: InstallationDirectoryClient = Object.freeze({
     list: () => { current(); return records.list().filter(record => record.state !== "uninstalled").map(view); },
     get: (installId: string) => { current(); const record = records.get(installId); return record ? view(record) : null; },
   });
@@ -57,14 +60,27 @@ export async function installedConnectionSlots<Reference>(install_id: string, pl
   return manifest ? manifest.connections?.slots ?? [] : null;
 }
 
+/**
+ * `homeDirectory` is given to a Home activation only (`projectId` null): it is what `projects()` reads, the projects of that Home in which
+ * this plugin (`manifest.plugin_id`, never an argument) is installed or kept. A project activation is refused that call.
+ */
 export function pluginInstallationsFor(manifest: PluginManifest, context: PluginStartContext, projectId: string | null,
-  source: PluginInstallationClient | undefined, assertActive: () => void): PluginInstallationClient | undefined {
+  source: InstallationDirectoryClient | undefined, assertActive: () => void, homeDirectory?: string): PluginInstallationClient | undefined {
   if (!source || !manifest.permissions.some(item => item.permission === PLUGINS_READ_PERMISSION)) return undefined;
   const check = () => {
     assertActive(); context.requireGrant(PLUGINS_READ_PERMISSION);
     const scope = currentPluginInvocation();
     assertCapturedPluginActionCurrent(scope, context);
-    if (scope && scope.caller.project_id !== projectId) throw new ActionError("actions.forbidden", "安装查询不属于这个项目");
+    // A Home instance's call carries the project it was made from: only a project instance is held to its own.
+    if (projectId !== null && scope && scope.caller.project_id !== projectId) throw new ActionError("actions.forbidden", "安装查询不属于这个项目");
   };
-  return Object.freeze({ list: () => { check(); return source.list(); }, get: (id: string) => { check(); return source.get(id); } });
+  return Object.freeze({
+    list: () => { check(); return source.list(); },
+    get: (id: string) => { check(); return source.get(id); },
+    projects: () => {
+      check();
+      if (projectId !== null || homeDirectory === undefined) throw new ActionError("actions.forbidden", "只有 Home 一半能查询本插件装在哪些项目");
+      return pluginInstalledProjects(homeDirectory, manifest.plugin_id);
+    },
+  });
 }

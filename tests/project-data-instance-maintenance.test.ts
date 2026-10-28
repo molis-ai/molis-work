@@ -11,6 +11,8 @@ import { acquireStorageOwner, describeSqliteSchema, homeSqlitePath, listSqliteOb
 import { cardFor } from "@molis-ai/molis-work-service-knowledge";
 import { maintainCodingKnowledge } from "./fixtures/coding-knowledge-maintenance.mjs";
 
+const mainV11 = readFileSync(new URL("./fixtures/project-database-schema-v11.sql", import.meta.url), "utf8");
+const memoryV11 = readFileSync(new URL("./fixtures/project-database-schema-memory-v11.sql", import.meta.url), "utf8");
 const projectId = "same-business-project", at = "2026-10-01T00:00:00.000Z";
 function withDatabase<T>(file: string, run: (db: DatabaseSync) => T): T {
   const db = new DatabaseSync(file); try { return run(db); } finally { db.close(); }
@@ -29,12 +31,13 @@ function facts(file: string) {
 function fixture(t: test.TestContext) {
   const root = realpathSync(mkdtempSync(join(tmpdir(), "project-data-maintenance-"))), home = join(root, "offline-copy");
   mkdirSync(home); t.after(() => rmSync(root, { recursive: true, force: true }));
-  const file = join(home, "selected-project.db"), live = new LocalProjectDatabase(file);
-  writeProjectRoot(live.db, projectId, at);
-  live.db.prepare("UPDATE project_root SET rowid = 7").run();
-  live.db.prepare("INSERT INTO events(event_id,project_id,actor_id,type,object_type,object_id,reason,payload_json,at) VALUES('kept-event',?,'original-actor','original-event','original-object','kept','original','{}',?)").run(projectId, at);
-  live.close();
-  withDatabase(file, db => { db.exec("ALTER TABLE project_root DROP COLUMN data_instance_id; PRAGMA user_version = 10; PRAGMA wal_checkpoint(TRUNCATE)"); });
+  const file = join(home, "selected-project.db");
+  withDatabase(file, db => {
+    db.exec(mainV11);
+    db.prepare("INSERT INTO project_root(rowid,project_id,created_at) VALUES(7,?,?)").run(projectId, at);
+    db.prepare("INSERT INTO events(event_id,project_id,actor_id,type,object_type,object_id,reason,payload_json,at) VALUES('kept-event',?,'original-actor','original-event','original-object','kept','original','{}',?)").run(projectId, at);
+    db.exec("PRAGMA user_version = 11; PRAGMA wal_checkpoint(TRUNCATE)");
+  });
   return { root, home, file, input: { home, projectDatabase: file, projectIdentity: true } };
 }
 function rootOf(file: string) {
@@ -50,17 +53,17 @@ function oldKnowledge(home: string) {
   return { file, original };
 }
 
-test("selected offline project 10 becomes the exact baseline 11 with one persistent identity and all original rows kept", async t => {
+test("selected offline main project 11 becomes the exact baseline 12 with one persistent identity and all original rows kept", async t => {
   const f = fixture(t), before = facts(f.file), rootBefore = rootOf(f.file);
   const other = join(f.home, "unselected-project.db"); cpSync(f.file, other); const untouched = readFileSync(other);
   assert.throws(() => new LocalProjectDatabase(f.file), { code: "storage.schema_version_mismatch" });
   assert.deepEqual(facts(f.file), before);
   const listed = await maintainCodingKnowledge("list", f.input);
-  assert.deepEqual(listed.stores, [{ kind: "project", from: 10, to: 11 }]); assert.deepEqual(facts(f.file), before);
+  assert.deepEqual(listed.stores, [{ kind: "project", from: 11, to: 12 }]); assert.deepEqual(facts(f.file), before);
   const backupDirectory = join(f.root, "before-adoption");
   assert.deepEqual((await maintainCodingKnowledge("apply", { ...f.input, backupDirectory })).completed, ["project"]);
   const after = facts(f.file), current = rootOf(f.file);
-  assert.equal(after.version, 11); assert.equal(current.rowid, 7); assert.equal(current.project_id, rootBefore.project_id); assert.equal(current.created_at, rootBefore.created_at);
+  assert.equal(after.version, 12); assert.equal(current.rowid, 7); assert.equal(current.project_id, rootBefore.project_id); assert.equal(current.created_at, rootBefore.created_at);
   assert.equal(typeof current.data_instance_id, "string"); assert.ok(String(current.data_instance_id).trim());
   assert.deepEqual({ ...after.rows, project_root: undefined }, { ...before.rows, project_root: undefined });
   assert.deepEqual(facts(join(backupDirectory, "project.sqlite")), before);
@@ -91,7 +94,7 @@ test("project commit followed by Knowledge failure keeps the durable identity, p
   const outcome = await maintainCodingKnowledge("apply", { ...f.input, knowledge: true, backupDirectory }).then(() => undefined, error => error);
   fault.mock.restore();
   assert.equal(injected, true); assert.ok(outcome instanceof Error); assert.deepEqual(outcome.completed, ["project"]);
-  const committed = rootOf(f.file); assert.ok(committed.data_instance_id); assert.equal(facts(f.file).version, 11);
+  const committed = rootOf(f.file); assert.ok(committed.data_instance_id); assert.equal(facts(f.file).version, 12);
   assert.deepEqual(facts(knowledge.file), beforeKnowledge); assert.deepEqual(facts(join(backupDirectory, "project.sqlite")), originalProject);
   assert.deepEqual(facts(join(backupDirectory, "knowledge.sqlite")), beforeKnowledge);
   assert.throws(() => openKnowledgeCards({ homeDirectory: f.home }), { code: "storage.schema_version_mismatch" });
@@ -113,7 +116,7 @@ test("an interrupted project transaction rolls back root, children and version b
   fault.mock.restore(); assert.equal(injected, true); assert.ok(outcome instanceof Error); assert.deepEqual(outcome.completed, []);
   assert.deepEqual(facts(f.file), before); assert.deepEqual(facts(join(f.root, "rollback-backup", "project.sqlite")), before);
   await maintainCodingKnowledge("apply", { ...f.input, backupDirectory: join(f.root, "successful-backup") });
-  assert.ok(rootOf(f.file).data_instance_id); assert.equal(facts(f.file).version, 11);
+  assert.ok(rootOf(f.file).data_instance_id); assert.equal(facts(f.file).version, 12);
 });
 
 test("full consistent restore keeps the instance while partial Knowledge import cannot replace an existing target instance", async t => {
@@ -165,5 +168,38 @@ test("missing selection, running owner, old version, unknown structure and unsaf
     assert.deepEqual(readFileSync(f.file), before); assert.deepEqual(readFileSync(knowledge.file), knowledgeBefore);
     if (kind !== "readonly") assert.equal(existsSync(join(f.root, "refused-backup")), false);
     assert.equal(existsSync(join(f.home, "absent.db")), false);
+  });
+});
+
+
+// MEM-PROJECT-V12-02: the true old Memory 11 shape must fail at the format gate, before backups or selected-store writes.
+test("the old Memory 11 structure is refused by normal opening and every selected maintenance before backup or another store changes", async t => {
+  for (const mode of ["list", "apply"] as const) for (const selection of ["project", "coding", "both"] as const) await t.test(`${mode}: ${selection}`, async t => {
+    const f = fixture(t), knowledge = oldKnowledge(f.home);
+    const oldFile = join(f.home, "old-memory-11.db");
+    withDatabase(oldFile, db => {
+      db.exec("PRAGMA journal_mode = WAL");
+      db.exec(memoryV11);
+      db.prepare("INSERT INTO project_root(rowid,project_id,created_at,data_instance_id) VALUES(7,?,?,?)").run(projectId, at, "original-memory-instance");
+      db.exec("PRAGMA user_version = 11; PRAGMA wal_checkpoint(TRUNCATE)");
+    });
+    const before = readFileSync(oldFile), knowledgeBefore = readFileSync(knowledge.file), siblingBefore = readFileSync(f.file);
+    assert.throws(() => new LocalProjectDatabase(oldFile), { code: "storage.schema_version_mismatch" });
+    assert.throws(() => new LocalProjectDatabase(oldFile, { existingOnly: true }), { code: "catalog.project_recovery_unsupported_schema" });
+    const backupDirectory = join(f.root, "refused-old-memory-backup");
+    const expectedCause = selection === "coding"
+      ? "Finish the original project v8/v9/v10/v11 and project identity v12 maintenance first"
+      : "Project original schema has unknown or altered objects";
+    await assert.rejects(maintainCodingKnowledge(mode, { home: f.home, projectDatabase: oldFile,
+      projectIdentity: selection !== "coding", ...(selection !== "project" ? { publisher: "official-coding-binding" } : {}), knowledge: true, backupDirectory }), (error: unknown) => {
+      assert.ok(error instanceof Error);
+      assert.ok(error.cause instanceof Error);
+      assert.equal(error.cause.message, expectedCause);
+      return true;
+    });
+    assert.deepEqual(readFileSync(oldFile), before);
+    assert.deepEqual(readFileSync(knowledge.file), knowledgeBefore);
+    assert.deepEqual(readFileSync(f.file), siblingBefore);
+    assert.equal(existsSync(backupDirectory), false);
   });
 });

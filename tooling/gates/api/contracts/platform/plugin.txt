@@ -435,6 +435,7 @@ export interface ActionCallContext extends ActionCallOrigin {
     readonly locale?: ActionLocale;
     readonly audit_actor_id?: string;
     readonly delegated_by?: string;
+    readonly delegated_audience?: ActionAudience;
     readonly runtime_session_id?: string;
     readonly runtime_memory_read?: import("@molis-ai/molis-work-contracts/services/memory").MemoryRunReadControl;
     readonly runtime_memory?: {
@@ -448,6 +449,7 @@ export interface ActionCallContext extends ActionCallOrigin {
     readonly project_id: string | null;
     readonly audience: ActionAudience;
     readonly readable_project_ids?: readonly string[];
+    readonly calling_plugin_id?: string;
     readonly plugin_install_id?: string;
     readonly host_plugin?: import("@molis-ai/molis-work-contracts/platform/app-host").HostPluginCaller;
     readonly original_file?: HostOfferedOriginalFile;
@@ -2254,6 +2256,10 @@ export declare const HOME_OPEN_TARGET_SCHEMA: {
     })[];
 };
 
+export declare const HOST_CONNECTIONS_OBSERVE_PERMISSION = "connections:observe";
+
+export declare const HOST_CONNECTION_CHANGED_EVENT = "host.connection.changed";
+
 export declare const HOST_EVENT_SOURCE = "host";
 
 export declare const HOST_EVENT_TYPES: readonly HostEventType[];
@@ -2351,6 +2357,10 @@ export interface HomeStoreDeclaration {
     };
 }
 
+export interface HostConnectionChangedPayload {
+    connection_id: string;
+}
+
 export interface HostEventType {
     readonly event_type_id: string;
     readonly type_version: number;
@@ -2418,7 +2428,7 @@ export interface IntegrationProviderItem {
 
 export interface IntegrationProviderPort {
     readonly type: string;
-    health(): Promise<{
+    health(control: import("@molis-ai/molis-work-contracts/services/connector-host").ConnectorCallControl): Promise<{
         account?: {
             login: string;
             account_id?: string;
@@ -2431,7 +2441,7 @@ export interface IntegrationProviderPort {
     sync(input: {
         cursor: unknown;
         mode?: "normal" | "rebuild_cursor";
-    }): Promise<IntegrationProviderSyncResult>;
+    }, control: import("@molis-ai/molis-work-contracts/services/connector-host").ConnectorCallControl): Promise<IntegrationProviderSyncResult>;
 }
 
 export type IntegrationProviderSyncResult = {
@@ -2609,6 +2619,8 @@ export declare const PLUGIN_MODEL_LIMITS: {
     readonly max_output_tokens: 12000;
 };
 
+export declare const PLUGIN_NOTIFICATION_DELIVERY_ACTOR = "platform-notifications";
+
 export declare const PLUGIN_PROJECTS_EXIST_LIMITS: Readonly<{
     ids: 200;
     id_length: 200;
@@ -2696,6 +2708,7 @@ export interface PluginArtifactClient {
     head(artifactId: string): ArtifactLineHead | null;
     readOwn(reference: ArtifactReference): ArtifactVersionRecord | null;
     listConsumable(): PluginConsumableVersion[];
+    join?<T>(transaction: PluginDatabaseTransaction, write: (writer: PluginArtifactWriter) => T): T;
 }
 
 export interface PluginArtifactPublishInput extends PluginProcessItemInput {
@@ -2705,9 +2718,16 @@ export interface PluginArtifactPublishInput extends PluginProcessItemInput {
     trace?: ArtifactReference[];
 }
 
+export interface PluginArtifactWriter {
+    head(artifactId: string): ArtifactLineHead | null;
+    publish(input: PluginArtifactPublishInput): ArtifactVersionResult;
+}
+
 export interface PluginAttentionClient {
     list(): PluginAttentionEntryRecord[];
     get(entryId: string): PluginAttentionEntryRecord;
+    listInbox(): AttentionEntryRecord[];
+    getInbox(entryId: string): AttentionEntryRecord;
     findActiveForSubject(subject: PluginAttentionSubjectReference): PluginAttentionEntryRecord | null;
     findForSubject(subject: PluginAttentionSubjectReference): PluginAttentionEntryRecord[];
     events(entryId?: string): PluginAttentionEvent[];
@@ -3065,6 +3085,8 @@ export interface PluginHostServices {
     readonly localTools?: import("platform/plugin-local-tools").PluginLocalToolsClient;
     readonly materials?: PluginMaterialsClient;
     readonly connections?: import("@molis-ai/molis-work-contracts/platform/plugin-connections").PluginConnectionsClient;
+    readonly sourcePull?: import("@molis-ai/molis-work-contracts/platform/plugin-source-pull").PluginSourcePullClient;
+    readonly evidenceCollector?: import("@molis-ai/molis-work-contracts/platform/plugin-source-pull").PluginEvidenceCollectorClient;
     readonly directory?: import("@molis-ai/molis-work-contracts/platform/plugin-directory").PluginDirectoryService;
     readonly artifacts?: PluginArtifactClient;
     readonly processItems?: PluginProcessItemClient;
@@ -3211,6 +3233,12 @@ export interface PluginInputsClient {
 export interface PluginInstallationClient {
     list(): readonly PluginInstallationView[];
     get(installId: string): PluginInstallationView | null;
+    projects(): PluginInstallationProjects;
+}
+
+export interface PluginInstallationProjects {
+    readonly project_ids: readonly string[];
+    readonly complete: boolean;
 }
 
 export interface PluginInstallationView {
@@ -3474,6 +3502,7 @@ export interface PluginManifest {
         jobs: readonly import("platform/plugin-background").PluginJobDeclaration[];
         wakeups?: readonly import("platform/plugin-scheduler").PluginWakeupDeclaration[];
     };
+    notifications?: import("platform/plugin-notifications").PluginNotificationReceiverDeclaration;
     actions?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionDefinition[];
     action_scenes?: readonly import("@molis-ai/molis-work-contracts/platform/actions").ActionSceneDefinition[];
 }
@@ -3619,6 +3648,26 @@ export interface PluginNotificationClient {
     deliver(transaction: PluginDatabaseTransaction, input: PluginNotificationInput): PluginNotificationReceipt;
 }
 
+export interface PluginNotificationDelivery {
+    notification_id: string;
+    sender_plugin_id: string;
+    sender_name: string;
+    sender_install_id: string;
+    sender_generation: string;
+    key: string;
+    title: string;
+    summary: string;
+    body: string;
+    open_plugin_id: string;
+    created_at: string;
+}
+
+export interface PluginNotificationDeliveryReceipt {
+    item_id: string;
+    created: boolean;
+    judgment_error_code?: string;
+}
+
 export interface PluginNotificationInput {
     key: string;
     title: string;
@@ -3628,9 +3677,16 @@ export interface PluginNotificationInput {
 }
 
 export interface PluginNotificationReceipt {
-    readonly item_id: string;
+    readonly notification_id: string;
     readonly created: boolean;
     settle(): Promise<void>;
+}
+
+export interface PluginNotificationReceiverDeclaration {
+    readonly receive: {
+        readonly capability_id: string;
+        readonly version: number;
+    };
 }
 
 export interface PluginOriginalContent {

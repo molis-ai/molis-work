@@ -19,6 +19,7 @@ import { fixtureAdmission, pluginFixtureEntries, pluginHomeFor, fixtureDeclarati
 import { assertOwnerFilesEntries } from "./plugin-owner-files-entries.js";
 import { recordHostAlwaysOnAgreements } from "./always-on-plugins.js";
 import { openHomePluginStore } from "./home-plugin-store.js";
+import { openPluginInstallationDirectory } from "./plugin-installation-directory.js";
 import { HOST_PLUGIN_IDS } from "./host-plugin-ids.js";
 import type { PluginPlatform } from "./plugin-platform.js";
 import { bindHomeRegistration } from "./home-registration.js";
@@ -50,6 +51,7 @@ export class HomePluginHost {
   private retryable = false;
   private installed?: HomeInstalledPlugins;
   private releaseProjectOwners?: () => void;
+  private installationDirectory?: ReturnType<typeof openPluginInstallationDirectory>;
   private unwatchArtifacts?: () => void;
   private readonly releaseRegistration: () => void;
   constructor(private readonly options: { home: string; actorId: string; registry: ActionRegistryPort; client: ActionClient;
@@ -170,6 +172,7 @@ export class HomePluginHost {
       }
     } finally {
       this.releaseProjectOwners?.(); this.releaseProjectOwners = undefined;
+      this.installationDirectory?.dispose(); this.installationDirectory = undefined;
       this.unwatchArtifacts?.(); this.unwatchArtifacts = undefined;
       this.db?.close();
       this.db = undefined; this.platform = undefined; this.executor = undefined;
@@ -205,7 +208,7 @@ export class HomePluginHost {
     this.db = db;
     const repository = pluginInstallRecords(db);
     const executor = this.executor = new HomePluginExecutor({ ...this.options, storage, active: () => !this.closed, record: id => repository.get(id),
-      invalidateView: pluginId => this.platform?.invalidateView(pluginId), database: identity.databaseFor,
+      invalidateView: pluginId => this.platform?.invalidateView(pluginId), installations: () => this.installationDirectory?.client, database: identity.databaseFor,
       modelConfiguration: identity.modelConfigurationFor, imageGeneration: identity.imageGenerationFor, ownerFiles: identity.ownerFilesFor,
       providerFor: identity.providerFor, dualInstance: identity.dualInstance });
     // The Home half of a dual-instance plugin offers only its share, and no project reaches it: its ports and events are the project half's.
@@ -219,6 +222,7 @@ export class HomePluginHost {
       definition: entry.definition, project_data: identity.projectDataFor(entry.definition),
     })), executor);
     const supervisor = new PluginSupervisor(runtime, { releaseArtifacts: new SqlitePluginRuntimeReleaseArtifactRepository(db), hostCapabilities: [PLUGIN_PRESENTATION_CAPABILITY] });
+    this.installationDirectory = openPluginInstallationDirectory(db, repository, pluginId => supervisor.manifest(pluginId));
     const epoch = randomUUID(), revisions = new Map<string, number>();
     this.unwatchArtifacts = installedArtifacts.watch(supervisedArtifacts(supervisor, runtime, () => !this.closed));
     this.platform = { runtime, supervisor, upgrade: (pluginId, definition, options) => supervisor.upgrade(pluginId, definition, options),

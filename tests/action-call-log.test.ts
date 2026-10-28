@@ -10,7 +10,7 @@ import { LocalHost, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { expectingRefusal, recordedCallId, refusalExpected, withCallId, type CallContext } from "@molis-ai/molis-work-kernel";
 import { feedQueryActions as q, feedSourceActions as s } from "@molis-ai/molis-work-plugin-feed";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
-import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/dist/content-action-providers.js";
+import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/dist/native-content-permissions.js";
 import { ActionCallLog } from "../apps/local-host/dist/action-call-log.js";
 
 const PROJECT = "project-call-log";

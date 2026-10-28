@@ -116,7 +116,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
     const demoSeeding = startDemoSeed(fixture);
     const { periodicTasks: periodic } = composition;
     resources.push(["periodic", () => periodic.stop()]);
-    const { im, browserHost, sites, computer, projectExists, feedSchedulers } = createWebStorageResources({
+    const { im, browserHost, sites, computer, projectExists, projectSchedules } = createWebStorageResources({
       home: storageHome, localHost, withCatalog, fixture, periodic, webViewCache, resources, server: () => server,
     });
     const server = trackHostListener(http.createServer((request, response) => runWithMolisWorkHome(storageHome, () => withCallId(newCallId(), async () => {
@@ -163,7 +163,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
           if (await computer.handleHttp(request, response, url)) return;
           if (await im.handle(request, response, url, loopbackWebOrigin(server))) return;
           if (await handleMcpContextHttp(request, response, url, { home: storageHome, host: localHost, withCatalog,
-            deletion: webProjectDeletionPorts({ isPanelAlive: panelId => pty.host?.alive(panelId) ?? false, feedSchedulers, webViewCache, localHost }) })) return;
+            deletion: webProjectDeletionPorts({ isPanelAlive: panelId => pty.host?.alive(panelId) ?? false, projectSchedules, webViewCache, localHost }) })) return;
           if (await handleManagementActionHttp(request, response, url, storageHome, localHost) || await handlePluginInstallHttp(request, response, url, storageHome, localHost) || await handleActionGatewayHttp(request, response, url, storageHome, localHost, withCatalog)) return;
           if (serveWorkbenchAsset(request, response, url.pathname)) return;
           if (!pty.host) throw new Error("终端宿主尚未就绪");
@@ -176,7 +176,7 @@ export function createLocalWebServerFactory(platform: LocalWebPlatform) {
             webService,
             controlToken,
             webViewCache,
-            feedSchedulers,
+            projectSchedules,
             pty.host,
             loopbackWebOrigin(server),
             localHost,

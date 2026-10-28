@@ -1,3 +1,5 @@
+import type { ConnectorCallControl } from "@molis-ai/molis-work-contracts/services/connector-host";
+import { controlledConnectorFetch } from "@molis-ai/molis-work-plugin-sdk";
 import { gmailHealthResponse } from "./health-response.js";
 /**
  * Gmail Connector - live mode by default; deterministic fixture mode is
@@ -64,7 +66,8 @@ interface GmailProviderOperations {
   fetchImpl: GmailFetch | undefined;
   scope: GmailScope;
   getNowMs: (() => number) | undefined;
-  resolveUsable: () => Promise<GmailUsableTokenResult>;
+  resolveUsable: (control: ConnectorCallControl) => Promise<GmailUsableTokenResult>;
+  fetchForCall?: (control: ConnectorCallControl) => GmailFetch;
 }
 
 export function createGmailProvider(opts?: {
@@ -79,12 +82,15 @@ export function createGmailProvider(opts?: {
   /** One of the closed, incrementally enforceable Gmail range presets. */
   scope?: string;
   fetchImpl?: GmailFetch;
+  /** Host adapter whose retry and refresh belong to this call, never mutable provider state. */
+  fetchForCall?: (control: ConnectorCallControl) => GmailFetch;
   /** Deterministic clock for tests (epoch ms). */
   getNowMs?: () => number;
   /** Host-owned Secret reference resolver; never exposed to Signal/Feed data. */
   resolveAuthRef?: (authRef: string) => string | null | undefined;
   /** Host-owned OAuth refresh boundary for a connection's tokens. */
   resolveUsableToken?: (input: {
+    control: ConnectorCallControl;
     fetchImpl?: GmailFetch;
     nowMs?: number;
     tokenRefs?: GmailTokenRefs;
@@ -103,7 +109,8 @@ export function createGmailProvider(opts?: {
    * One shared path for health + sync: direct inject, custom authRef, or
    * SecretStore lifecycle (reuse fresh / refresh once near expiry).
    */
-  const resolveUsable = async (): Promise<GmailUsableTokenResult> => {
+  const resolveUsable = async (control: ConnectorCallControl): Promise<GmailUsableTokenResult> => {
+    control.current();
     if (envToken) {
       return { ok: true, accessToken: envToken };
     }
@@ -112,18 +119,19 @@ export function createGmailProvider(opts?: {
         const t = opts?.resolveAuthRef?.(authRef);
         if (t?.trim()) return { ok: true, accessToken: t.trim() };
       } catch {
+        control.current();
         /* ignore */
       }
       return { ok: false, status: "none" };
     }
     return opts?.resolveUsableToken?.({
-      fetchImpl,
+      control, fetchImpl,
       nowMs: getNowMs?.(),
       tokenRefs,
     }) ?? { ok: false, status: "none" };
   };
 
-  const operations: GmailProviderOperations = { fixture, allowFixture, fetchImpl, scope, getNowMs, resolveUsable };
+  const operations: GmailProviderOperations = { fixture, allowFixture, fetchImpl, scope, getNowMs, resolveUsable, ...(opts?.fetchForCall ? { fetchForCall: opts.fetchForCall } : {}) };
   return {
     type: "gmail",
     health: checkGmailHealth.bind(undefined, operations),
@@ -131,9 +139,12 @@ export function createGmailProvider(opts?: {
   };
 }
 
-async function checkGmailHealth(operations: GmailProviderOperations): Promise<ConnectorHealth> {
-  const { resolveUsable, allowFixture, fetchImpl } = operations;
-  const usable = await resolveUsable();
+async function checkGmailHealth(operations: GmailProviderOperations, control: ConnectorCallControl): Promise<ConnectorHealth> {
+  const { resolveUsable, allowFixture } = operations;
+  const request = operations.fetchForCall?.(control) ?? operations.fetchImpl;
+  const fetchImpl = request ? controlledConnectorFetch(request, control) : undefined;
+  const usable = await resolveUsable(control);
+  await control.beforeEffect(); control.current();
   if (!usable.ok) {
     if (usable.status === "needs_auth") {
       return {
@@ -187,8 +198,11 @@ async function checkGmailHealth(operations: GmailProviderOperations): Promise<Co
         action: boundaryFailure.action,
       };
     }
-    return await gmailHealthResponse(res);
+    const result = await gmailHealthResponse(res);
+    await control.beforeEffect(); control.current();
+    return result;
   } catch {
+    await control.beforeEffect(); control.current();
     return {
       ok: false,
       status: "error",
@@ -197,9 +211,12 @@ async function checkGmailHealth(operations: GmailProviderOperations): Promise<Co
   }
 }
 
-async function syncGmail(operations: GmailProviderOperations, { cursor, mode }: Parameters<ConnectorPort["sync"]>[0]): Promise<ConnectorSyncResult> {
-  const { resolveUsable, allowFixture, fixture, fetchImpl, scope, getNowMs } = operations;
-  const usable = await resolveUsable();
+async function syncGmail(operations: GmailProviderOperations, { cursor, mode }: Parameters<ConnectorPort["sync"]>[0], control: ConnectorCallControl): Promise<ConnectorSyncResult> {
+  const { resolveUsable, allowFixture, fixture, scope, getNowMs } = operations;
+  const request = operations.fetchForCall?.(control) ?? operations.fetchImpl;
+  const fetchImpl = request ? controlledConnectorFetch(request, control) : undefined;
+  const usable = await resolveUsable(control);
+  await control.beforeEffect(); control.current();
   if (!usable.ok) {
     if (usable.status === "needs_auth") {
       return liveFailure("needs_auth", usable.message, {
@@ -236,14 +253,12 @@ async function syncGmail(operations: GmailProviderOperations, { cursor, mode }: 
     nowMs: getNowMs?.(),
   };
   try {
-    if (decision.decision === "full_sync") {
-      return await runFullSync(ctx, decision);
-    }
-    if (decision.decision === "incremental") {
-      return await runIncremental(ctx, decision.cursor);
-    }
-    return invalidCursorFailure(decision.message);
+    const result = decision.decision === "full_sync" ? await runFullSync(ctx, decision)
+      : decision.decision === "incremental" ? await runIncremental(ctx, decision.cursor) : invalidCursorFailure(decision.message);
+    await control.beforeEffect(); control.current();
+    return result;
   } catch (e) {
+    await control.beforeEffect(); control.current();
     // No raw exception, stack, or HTTP body may leak.
     void e;
     return liveFailure("provider", "Gmail sync failed", {

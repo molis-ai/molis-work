@@ -4,7 +4,7 @@ import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { MolisWorkLocalHost } from "./project-host.js";
 import type { RuntimeIntegrationService } from "./installer/runtime-integration.js";
 import type { MolisWorkWebServiceManager } from "./installer/web-service.js";
-import type { WebServerOptions, FeedSchedulerRuntime } from "./web-types.js";
+import type { WebServerOptions, ProjectScheduleRuntime } from "./web-types.js";
 import type { LocalWebComposition } from "./web-composition.js";
 import type { MolisWorkWebViewCache } from "./web-view.js";
 
@@ -34,7 +34,7 @@ export interface WebRequestContext {
   readonly webService: MolisWorkWebServiceManager;
   readonly controlToken: string;
   readonly webViewCache: MolisWorkWebViewCache;
-  readonly feedSchedulers: Map<string, FeedSchedulerRuntime>;
+  readonly projectSchedules: Map<string, ProjectScheduleRuntime>;
   readonly ptyHost: MolisWorkPtyHost;
   readonly webUrl: string;
   readonly localHost: MolisWorkLocalHost;

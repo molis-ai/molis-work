@@ -51,7 +51,7 @@ export { sealExistingHomePayload, openExistingHomePayload, type SealedHomePayloa
 
 export * from "./adapters/search-storage.js";
 
-export { createEvidenceContentStore, type EvidenceContentStore } from "./adapters/evidence-content.js";
+export { createEvidenceContentStore, evidenceContentRef, type EvidenceContentStore } from "./adapters/evidence-content.js";
 export { openMemoryLedger, readMemoryLedgerProfiles, memoryLedgerHasOnlyPreferences, MEMORY_LEDGER_STORE, MEMORY_LEDGER_BASELINE, MEMORY_LEDGER_HOME_STORE } from "./adapters/memory-ledger.js";
 export { inspectMemoryLedgerAdoption, beginMemoryLedgerAdoption, completeMemoryLedgerAdoption, type MemoryLedgerAdoptionSnapshot, type MemoryLedgerAdoptionProfile } from "./adapters/memory-ledger-adoption.js";
 export type { MemoryLedgerCloseFailure } from "./adapters/memory-ledger-close.js";

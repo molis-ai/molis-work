@@ -6,16 +6,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { ConnectorConnectionStore, withConnectorConnections } from "../apps/local-host/dist/connector-connection-store.js";
-import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { createFileSecretStore, resetSecretStoreCache, runWithMolisWorkHome } from "@molis-ai/molis-work-storage";
 import { CONNECTOR_CONNECTIONS_SCHEMA } from "@molis-ai/molis-work-service-connector-host";
 import { HomePluginHost } from "@molis-ai/molis-work-app-local-host";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { bindActionClient, LOCAL_PERSON_ACTOR_ID } from "@molis-ai/molis-work-contracts/platform/actions";
-import { imagesActions, IMAGES_ACTION_PERMISSIONS, imagesManifest, createImagesPlugin } from "@molis-ai/molis-work-plugin-images";
-import { refreshFeedConnectionState } from "../apps/local-host/dist/web-connector-connections.js";
+import { imagesActions, IMAGES_ACTION_PERMISSIONS, imagesManifest, createImagesPlugin, imagesProjectData } from "@molis-ai/molis-work-plugin-images";
+import { refreshFeedConnectionState } from "./fixtures/feed-library.js";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.ts";
 import { bindPrologueInference } from "../apps/local-host/dist/prologue-inference-host.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 const PIXEL = "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/l9sAAAAASUVORK5CYII=";
 

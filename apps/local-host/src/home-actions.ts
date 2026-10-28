@@ -5,11 +5,10 @@ import { createHash, randomUUID } from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { judgmentRecommendationKeys, subjectOfferCompatibilityReason } from "@molis-ai/molis-work-kernel";
 import { ActionError, requireSynchronous, ACTION_SUBJECT_SCHEMA, resolveActionSubject, type ActionSubject, retainActionAuthority, type ActionExecutionContext, type ActionCallContext, type ActionDefinition, type ActionHandlerBinding, type ActionProviderRegistration, type ActionReference,
-  type ActionSceneBinding, type ActionSceneClient, type ActionSceneDefinition, type ActionSceneHandlerBinding, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
+  type ActionClient, type ActionSceneBinding, type ActionSceneClient, type ActionSceneDefinition, type ActionSceneHandlerBinding, type ActionView } from "@molis-ai/molis-work-contracts/platform/actions";
 import { HOME_DOCK_SCENE_ID, INBOX_DISMISS_BEHAVIOR_ID, INBOX_DONE_BEHAVIOR_ID, SYSTEM_HOME_DOCK_FUNCTION_KEY, type JudgmentRecord } from "@molis-ai/molis-work-contracts/modules/functions";
-import { publishedFunctionAction, publishedFunctionKey } from "@molis-ai/molis-work-module-functions";
-import { withFunctionsService } from "./functions-host.js";
-import type { InboxSceneServices } from "./inbox-scene.js";
+import { publishedFunctionAction, publishedFunctionKey, type FunctionsActionPorts } from "@molis-ai/molis-work-module-functions";
+import { withFunctionsService, type FunctionsHostOptions } from "./functions-host.js";
 
 export const HOME_PROVIDER_ID = "system.home";
 
@@ -72,7 +71,13 @@ const sameBinding = (left: ActionSceneBinding | null, right: ActionSceneBinding)
   && left.function.version === right.function.version && left.function.provider_id === right.function.provider_id;
 
 /** Home owns its consumption contract; Functions remains the owner of saved bindings and history. */
-export function homeActionProvider(home: string, projectId: string, services: InboxSceneServices, onRecorded: (judgment: JudgmentRecord, caller: ActionCallContext) => void): ActionProviderRegistration {
+export interface HomeSceneServices {
+  actions: ActionClient; scenes: ActionSceneClient; functions?: FunctionsHostOptions;
+  /** A running Host owns this connection; standalone scene callers use a scoped service. */
+  readFunctions?: FunctionsActionPorts["read"];
+}
+
+export function homeActionProvider(home: string, projectId: string, services: HomeSceneServices, onRecorded: (judgment: JudgmentRecord, caller: ActionCallContext) => void): ActionProviderRegistration {
   const read = services.readFunctions ?? (<T>(operation: Parameters<typeof withFunctionsService<T>>[1]) => withFunctionsService(home, operation, services.functions));
   const published = () => read(service => service.list().filter(rule => rule.status === "published" && rule.version));
   const bindingFor = (key: string, version: number): ActionSceneBinding => ({ binding_id: homeDockBindingId(projectId), scene_id: HOME_DOCK_SCENE_ID,

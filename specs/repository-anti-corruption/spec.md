@@ -1752,6 +1752,8 @@ Images 后台执行的后续边界（本片不实现）：当前 `ImagesService.
 | `projects/<project_id>/molis-work.db` | 7 → 8 | L1b（`feat/project-library-l1b`，叠在 #857 上；与 S8 同一批） | 维护八，未做：每个项目库一个事务跑 `tests/fixtures/project-maintenance-v8.sql`，建 `project_root` 并抄 Board 的那一行，重建 `boards`（去掉 `title`，外键指 `project_root`，行与 rowid 不变，S8）和外键指向 `boards` 的 11 张表改指 `project_root`（行、rowid 与自增序号不变），建插件库账本写 Coding、Feed、Goals、Schedule 四行（Goals 一行与 `boards` 的改建是 S8 加进同一份脚本的两步），写 `user_version = 8`；前置或后置核对任一不对整库回滚。演练 `tests/project-maintenance-v8.test.ts`（一次性 Home）；做法见检查清单第 4.3 节维护八。2026-10-20 本机没有真实 Home |
 | `projects/<project_id>/molis-work.db` | 8 → 9 | `feature/system-review-fixes`（SYS-15 公共调度安装绑定，待提交） | 未维护真实 Home：备份副本严格核对 v8，事务中新增 `schedule_action_bindings`、暂停未绑定闹钟、保留业务数据与历史，写 v9；错误版本和失败整笔回滚。SYS-15-S6 临时库演练已通过（`tests/project-maintenance-v9.test.ts`，脚本 `tests/fixtures/project-maintenance-v9.sql`），切换真实 Home 前另定维护窗口。 |
 | `projects/<project_id>/molis-work.db` | 9 → 10 | ac-trust T1（[PR #1250](https://github.com/molis-ai/molis-work/pull/1250)）与 S9-0b（[PR #1245](https://github.com/molis-ai/molis-work/pull/1245)，[slice](slices/goals-s9-0b-attention-ledger-services.md)）合成同一版（batch-36） | 未维护真实 Home，动之前弹窗问用户，时段与 W5-17 同一次：备份副本严格核对 v9（两张 Attention 表的列数也要正好是 v9 的，多一列整笔拒绝），一个事务里重建 `plugin_runtime_installs`（多 `publisher_trust` 列，按记录的 `execution` 写：`host` → `host`，`sandbox` → `unsigned`，别的取值整笔回滚），再重建 `inbox_entries` 与 `attention_events`（多 `owner_plugin_id`，旧行全部保留、rowid 不变、owner 为 null，不按 ID 或 kind 猜；按 owner 区分的两条部分唯一索引），写 v10。演练是 `tests/project-maintenance-v10.test.ts`，脚本 `tests/fixtures/project-maintenance-v10.sql`；设计 [slices/ac-trust-install.md](slices/ac-trust-install.md) §6。 |
+| `projects/<project_id>/molis-work.db` | 10 → 11 | FI-5（`claude/ac-feed-inbox-designs`；Feed 的表归 Feed 声明，[slice](slices/feed-inbox-store-into-feed.md)；版本号暂定，别的分支先合入则顺延） | 未维护真实 Home，动之前弹窗问用户，时段与 W5-17 同一次：备份副本严格核对 v10（11 张表和 11 条索引都在、Feed 的账本行正好是版本 1 的那一行，任一不对整笔拒绝），一个事务里把 `plugin_project_databases` 的 Feed 行改成版本 2 与 12 张表的 `tables_json`、`user_version` 写 11；表和行一行不动，没有数据搬迁。演练是 `tests/project-maintenance-v11.test.ts`，脚本 `tests/fixtures/project-maintenance-v11.sql`。 |
+| `projects/<project_id>/molis-work.db#feed` | 1 → 2 | FI-5（同上一行，同一次维护） | 未维护真实 Home，随上一行同一个事务：Feed 的声明从只有 `feed_out_rules` 与它的索引，变为 12 张表（加 Feed 条目、Sources、Signals、Listener Host 的 11 张）与它们的索引；账本行改成版本 2 和新的 `tables_json`，表与行不动。演练同上一行（`tests/project-maintenance-v11.test.ts`）。 |
 | `plugin-runtime/plugin-runtime.db` | 2 → 3 | ac-trust T1（`claude/ac-trust-t1`） | 同上一行，同一次：事务中重建 `plugin_runtime_installs` 并建同意账本 `plugin_consents` 与发布者固定表 `plugin_publishers`，写 v3。演练是 `tests/plugin-runtime-maintenance-v3.test.ts`（用本构建的 Home 退回 v2 再维护、再打开），脚本 `tests/fixtures/plugin-runtime-maintenance-v3.sql`。 |
 | `characters/characters.sqlite` | 1 → 2 | Sessions 收尾 SC-2（`migrate/sessions-sc2-characters-runs`；Characters 自己记原生执行，D3） | 未维护真实 Home：停宿主、整份备份，副本上一个事务跑 `tests/fixtures/characters-maintenance-v2.sql`（只核对 `user_version` 正好是 1，不比表结构；只加 `character_runs` 表与索引，草稿不动），演练是 `tests/characters-maintenance-v2.test.ts`；以前记在会话库里的角色运行不迁，留给 SC-5 随会话库一起处理。与装新构建同一步做，动真实 Home 之前弹窗问用户 |
 | `functions/functions.db` | 3 → 4 | 平台服务 P2（`claude/ac-platform-scenes`；判断账按记它的插件安装分开存，S-90，[slice](slices/platform-scenes-judgments-services.md)） | 未维护真实 Home：停宿主、整份备份，副本上一个事务跑 `tests/fixtures/functions-maintenance-v4.sql`（只核对 `user_version` 正好是 3；给 `function_judgments` 加 `install_id` 列，写 4；已有的判断都留着，`install_id` 为空，即宿主自己记的），演练是 `tests/functions-maintenance-v4.test.ts`。Feed、Inbox 现在经宿主私路记的判断都是空；它们迁到 Runtime（FI-6）后读 `latest()` 只看自己安装记的，要不要把旧行按场景号补成插件的安装号（`plugin-install-` 加 `plugin_id` 与发布者签名算出的号，逐项目一致）由 FI-6 那一步定，不补则旧判断不再被采用、重新判断一次。与装下一个版本同一步做，动真实 Home 之前弹窗问用户，不得先用新构建打开旧库或让旧构建打开维护后的库。 |
@@ -1804,7 +1806,6 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `horizontal/agent-host` | 横向 | 96 | 13,630 | `adapters/prologue-stream.ts` 723 | 1 | 2 | 1 | 在用 | 深 | 已审 |
 | `horizontal/connector-host` | 横向 | 5 | 754 | `connection-store.ts` 396 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
 | `horizontal/knowledge` | 横向 | 11 | 1,300 | `index.ts` 425 | 1 | 1 | 1 | 在用 | 浅 | 待审 |
-| `horizontal/listener-host` | 横向 | 1 | 768 | `index.ts` 768 | 1 | 1 | 1 | 在用 | 中 | 已审 |
 | `horizontal/memory` | 横向 | 23 | 3,180 | `service.ts` 1,151 | 1 | 1 | 1 | 在用 | 中 | 已审 |
 | `horizontal/placement` | 横向 | 2 | 650 | `index.ts` 613 | 1 | 1 | 1 | 在用 | 中 | 已审 |
 | `horizontal/runtime-host` | 横向 | 2 | 436 | `adapters/terminal-pty.ts` 424 | 1 | 1 | 2 | 在用 | 浅 | 已审 |
@@ -1814,13 +1815,10 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `modules/attention-resumption` | 模块 | 1 | 449 | `index.ts` 449 | 1 | 1 | 1 | 在用 | 浅 | 待审 |
 | `modules/characters` | 模块 | 15 | 808 | `action-handlers.ts` 129 | 1 | 2 | 1 | 在用 | 浅 | 已审 |
 | `modules/context-ledger` | 模块 | 5 | 284 | `repository.ts` 98 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
-| `modules/feed` | 模块 | 8 | 811 | `ingest.ts` 208 | 1 | 2 | 1 | 在用 | 中 | 已审 |
 | `modules/functions` | 模块 | 17 | 1,969 | `store.ts` 290 | 1 | 2 | 1 | 在用 | 中 | 已审 |
 | `modules/private-work-context` | 模块 | 10 | 1,208 | `project-binding-commands.ts` 330 | 1 | 1 | 1 | 在用 | 中 | 已审 |
 | `modules/projects` | 模块 | 8 | 1,215 | `repository.ts` 470 | 1 | 1 | 1 | 在用 | 中 | 已审 |
 | `modules/shelf` | 模块 | 25 | 3,114 | `contract.ts` 367 | 2 | 2 | 2 | 在用 | 中 | 已审 |
-| `modules/signals` | 模块 | 1 | 359 | `index.ts` 359 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
-| `modules/sources` | 模块 | 1 | 379 | `index.ts` 379 | 1 | 1 | 1 | 在用 | 浅 | 已审 |
 | `packages/contracts` | 基础 | 139 | 21,034 | `modules/goals.ts` 776 | 63 | 0 | 67 | 在用 | 深 | 待审 |
 | `packages/design-system` | 基础 | 97 | 15,500 | `styles/primitives.ts` 1,258 | 1 | 2 | 5 | 在用 | 深 | 已审 |
 | `packages/im-ui` | 基础 | 23 | 1,730 | `views.ts` 168 | 1 | 3 | 3 | 在用 | 中 | 已审 |
@@ -1837,13 +1835,13 @@ W1-18 原排期分三片：事实表；计划「深」11 个和「中」43 个�
 | `plugins/native/cognia` | 内置插件 | 36 | 1,789 | `store.ts` 149 | 2 | 2 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/dataset` | 内置插件 | 33 | 2,535 | `store.ts` 423 | 3 | 2 | 2 | Runtime | 中 | 待审 |
 | `plugins/native/diff` | 内置插件 | 18 | 829 | `comparison.ts` 192 | 2 | 2 | 2 | Runtime | 浅 | 已审 |
-| `plugins/native/feed` | 内置插件 | 48 | 5,545 | `ui.ts` 644 | 2 | 2 | 2 | 构建期 | 中 | 已审 |
+| `plugins/native/feed` | 内置插件 | 85 | 9,735 | `store/listener.ts` 779 | 3 | 2 | 2 | Runtime | 深 | 待审 |
 | `plugins/native/files` | 内置插件 | 31 | 1,697 | `actions.ts` 167 | 2 | 2 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/form` | 内置插件 | 36 | 3,245 | `store.ts` 466 | 3 | 2 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/git` | 内置插件 | 32 | 2,655 | `browser/source.ts` 249 | 2 | 2 | 2 | Runtime | 中 | 已审 |
 | `plugins/native/goals` | 内置插件 | 220 | 25,273 | `event-document-client.ts` 742 | 4 | 2 | 2 | Runtime | 深 | 待审 |
 | `plugins/native/images` | 内置插件 | 34 | 2,092 | `service.ts` 181 | 3 | 3 | 2 | Runtime | 中 | 待审 |
-| `plugins/native/inbox` | 内置插件 | 15 | 1,191 | `ui.ts` 189 | 2 | 1 | 2 | 构建期 | 中 | 已审 |
+| `plugins/native/inbox` | 内置插件 | 19 | 1,443 | `scene-runtime.ts` 190 | 2 | 1 | 2 | Runtime | 中 | 待审 |
 | `plugins/native/issues` | 内置插件 | 28 | 1,908 | `browser/capture.ts` 183 | 2 | 2 | 2 | Runtime | 浅 | 已审 |
 | `plugins/native/jelly` | 内置插件 | 56 | 4,517 | `messages.ts` 257 | 3 | 2 | 2 | Runtime | 中 | 待审 |
 | `plugins/native/lingguang` | 内置插件 | 28 | 2,264 | `store.ts` 362 | 3 | 2 | 2 | Runtime | 中 | 已审 |
@@ -4553,3 +4551,6 @@ I8合9ab并串行纳已接受I26–I33后固定73d73c658，27冲突逐块裁定�
 **109独立修复准备与进度PR归回（尚未运行）。** 108持续冻结c2017a9ac，独立109从main再ff该头，只由Root写入，未启第二构建/测试队列。e028ce555补调度前一次拒绝结算和取消命令声明-only命名，Root/协调只读源核接受；现有真实Host取消、等待中取消/open失败/close、原对象/编号、未知descriptor不泄另一项目标题与Runtime/Host snapshot/provider policy/handler五项零计数回归已准备，parse0不是类型或运行证明。随后23文件最小修正沿原合同：Builder和卡片owner入口、当前错误码/kind、MCP真实版本、编辑器边界stub及源码绑定名，保所有业务断言；Pages无pending null来源head按已接受W1-18-PIN-CURRENT生成第二版、保旧内容/各producer/person owner，正常三阶段pending恢复未改，删除陈旧说明。源核/22TS parse0与diff检查通过，正式构建/短验仍待108释放名额。#490 exact655866561全部七CI通过后于2026-10-14T16:57:16Z合入main cbbeada4e；该PR只补唯一spec，不能宣告候选代码已合入或整线完成。
 
 **暂停交接（2026-10-14T17:15Z）。** 用户明确暂停本线；新的修改、构建、验证排队与推送/合并均已停止。108原冻结树c201 clean、session6308仍跑完整回归，driver只有health→full两步，无自动后续任务；结果须恢复时先查原state/footer，不重复启动。109 HEAD39bfa481c仅保留pages-publication/ppt-mcp/project-deletion-service三文件未提交22+/10-，已交统筹汇入单份handoff；没有109构建或测试已排队。之后按用户明确恢复再推进§10.10、108失败裁决与原RAC/W4–6，不把暂停当完成。
+
+
+**Memory 项目库衔接（2026-10-28，用户已授权实施，尚在验证）。** 原隔离维护保留机制不扩成运行时迁移链：主干10→11的插件移交及Feed声明账保持，Memory实例身份步骤顺延为11→12。仅沿现有限期 `tests/fixtures/coding-knowledge-maintenance.mjs` 与测试重现，普通打开严格12；旧Memory实验11同号异构明确拒绝，无转换兼容。当前12重放不换身份，后续Knowledge失败沿原逐库备份/停写恢复。历史SQL保留，真实Home不操作；详细合同与验收仍归Memory spec。

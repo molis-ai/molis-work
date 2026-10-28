@@ -1,3 +1,4 @@
+import { connectorControl } from "./fixtures/connector-control.js";
 import assert from "node:assert/strict";
 import { existsSync } from "node:fs";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
@@ -16,14 +17,7 @@ import {
   catalogWhoami,
 } from "@molis-ai/molis-work-integration-catalog";
 import { feedUiContribution, type FeedUiModel } from "@molis-ai/molis-work-plugin-feed";
-import {
-  DEMO_PROJECT_ID,
-  LocalProjectDatabase,
-  createLocalFeedApplication,
-  liveHostJudgmentRuleAuthoringCatalog,
-  seedDemoBoard,
-  withConnectorConnections,
-} from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, liveHostJudgmentRuleAuthoringCatalog, seedDemoBoard, withConnectorConnections } from "@molis-ai/molis-work-app-local-host";
 import { createFileSecretStore, resetSecretStoreCache } from "@molis-ai/molis-work-storage";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
@@ -31,6 +25,7 @@ import { connectorAccountActions, readConnectorAccount } from "../apps/local-hos
 import { HOST_CONNECTOR_DIRECTORY } from "../apps/local-host/dist/connector-directory.js";
 import { CONNECTOR_MARKS } from "../apps/workbench/dist/connector-marks.js";
 import { renderConnectorsSettings } from "../apps/workbench/dist/settings-connectors.js";
+import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 
 const ROOT = dirname(fileURLToPath(import.meta.url));
 const TOKEN = "ghp_liveTokenABCD";
@@ -436,7 +431,7 @@ test("Connectors HTTP saves a GitHub connection, hides plaintext, and gates the 
       assert.equal(liveCatalog.catalog.destinations.find(row => row.destination_id === "agent.mcp")?.behavior_ids.includes("github.whoami"), false,
         "the account check is the registered connector action, not a catalog behavior");
       assert.equal(connectorAccountActions.read.capability_id, "connectors.account.read");
-      assert.deepEqual(await readConnectorAccount(homeDirectory, connectionId),
+      assert.deepEqual(await readConnectorAccount(homeDirectory, connectionId, connectorControl()),
         { connection_id: connectionId, service_id: "github", login: "octocat", scopes: ["notifications"] });
       assert.deepEqual(githubCalls, ["https://api.github.com/user"]);
       const disconnected = await fetch(`${origin}/api/settings/connectors/connections/${connectionId}`, {

@@ -5,14 +5,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import {
-  MolisWorkLocalHost,
-  molisWorkHostProjectReference,
-  createLocalFeedApplication,
-  createLocalFeedSourceService,
-  DEMO_PROJECT_ID,
-  cachedMolisWorkWebView,
-} from "@molis-ai/molis-work-app-local-host";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, DEMO_PROJECT_ID, cachedMolisWorkWebView } from "@molis-ai/molis-work-app-local-host";
 import { ActionError, bindActionClient, type ActionCallContext, type ActionDefinition, type ActionSceneBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { definePlugin, defineSubjectContextAction, defineHomeEventsAction, defineSubjectOffersAction, subjectContext } from "@molis-ai/molis-work-plugin-sdk";
@@ -24,13 +17,14 @@ import { GOALS_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-goals";
 import { withFunctionsService, withFunctionsServiceAsync, type FunctionsHostOptions } from "../apps/local-host/dist/functions-host.js";
 import { homeActions, homeDockScene, homeDockBindingId, HOME_ACTION_PERMISSIONS, createHomeJudgmentTrigger } from "../apps/local-host/dist/home-actions.js";
 import { seedBoard } from "./fixtures/goal-application.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 test("Home scene uses original bindings and history, accepts unknown judgments, and never projects stale recommendations", async () => {
   const home = await mkdtemp(join(tmpdir(), "home-action-scene-"));
   await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
   const databasePath = join(home, "project.db"); seedBoard(databasePath);
   const reference = molisWorkHostProjectReference({ databasePath, projectId: DEMO_PROJECT_ID });
-  const caller: ActionCallContext = { actor_id: "owner", project_id: reference.project_id, audience: "user", permissions: [...HOME_ACTION_PERMISSIONS, "inbox:write", ...GOALS_ACTION_PERMISSIONS] };
+  const caller: ActionCallContext = { actor_id: "owner", project_id: reference.project_id, audience: "user", permissions: [...HOME_ACTION_PERMISSIONS, "inbox:write", "attention:write", "evidence:read", ...GOALS_ACTION_PERMISSIONS] };
   let effect: (() => void) | undefined;
   let fail = false;
   let calls = 0;

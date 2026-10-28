@@ -224,6 +224,7 @@ export declare const PLUGIN_MESSAGE_LIMITS: {
 };
 
 export { PLUGIN_MODEL_LIMITS } from "@molis-ai/molis-work-contracts/platform/plugin";
+export { PLUGIN_NOTIFICATION_DELIVERY_ACTOR } from "@molis-ai/molis-work-contracts/platform/plugin";
 
 export declare const PLUGIN_ROUTE_STREAM_LIMITS: Readonly<{
     line_bytes: 65536;
@@ -248,6 +249,7 @@ export type { PluginHostServices } from "@molis-ai/molis-work-contracts/platform
 export type { PluginIdempotencyPut } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginIdempotencyRecord } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginInstallationClient } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginInstallationProjects } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginInstallationView } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginJournalAppend } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginJournalEvent } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -262,8 +264,11 @@ export type { PluginModelClient } from "@molis-ai/molis-work-contracts/platform/
 export type { PluginModelRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginModelResult } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginNotificationClient } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginNotificationDelivery } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginNotificationDeliveryReceipt } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginNotificationInput } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginNotificationReceipt } from "@molis-ai/molis-work-contracts/platform/plugin";
+export type { PluginNotificationReceiverDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginOriginalContent } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginOriginalRangeContent } from "@molis-ai/molis-work-contracts/platform/plugin";
 export type { PluginOriginalRangeRequest } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -402,6 +407,8 @@ export declare function cardSubject(view: Pick<ActionView, "action" | "operation
 export declare function comparePluginVersions(left: string, right: string): number;
 
 export declare function compareTexts(before: string, after: string): TextDiff;
+
+export declare function controlledConnectorFetch<Input>(fetchImpl: (input: Input, init?: RequestInit) => Promise<Response>, control: ConnectorCallControl): (this: unknown, input: Input, init?: RequestInit) => Promise<Response>;
 
 export declare function createExecutionLifetime(options?: ExecutionLifetimeOptions): ExecutionLifetime;
 

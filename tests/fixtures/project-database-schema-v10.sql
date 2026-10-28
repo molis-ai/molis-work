@@ -1,5 +1,5 @@
--- The project database baseline, version 10 (repository-anti-corruption §4.1; PG-020): the schema a new project database gets, before
--- the Host opens the plugins' own tables in it. Generated from PROJECT_DATABASE_BASELINE; a change to any owner's tables means a new version and a new snapshot.
+-- The project database baseline as it was at version 10 (repository-anti-corruption §4.1; PG-020), kept as the start of the version 11
+-- maintenance (tests/project-maintenance-v11.test.ts): the Feed items, Sources, Signals and Listener Host tables were still the baseline's.
 CREATE TABLE attention_events (
       event_id TEXT PRIMARY KEY,
       project_id TEXT NOT NULL,

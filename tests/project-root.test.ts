@@ -16,7 +16,7 @@ test("project root keeps its data instance and creation time through repeated wr
     const first = new LocalProjectDatabase(filename);
     let original: ReturnType<typeof listProjectRoots>;
     try {
-      assert.equal(PROJECT_DATABASE_BASELINE.version, 11);
+      assert.equal(PROJECT_DATABASE_BASELINE.version, 12);
       assert.deepEqual(listProjectRoots(first.db), []);
       assert.equal(writeProjectRoot(first.db, projectId, createdAt), true);
       original = listProjectRoots(first.db);
@@ -70,7 +70,7 @@ test("a version 10 project is refused without adding or filling a data instance"
       old.prepare("INSERT INTO project_root (project_id, created_at) VALUES (?, ?)").run("original-project", "2026-10-26");
     } finally { old.close(); }
     assert.throws(() => new LocalProjectDatabase(filename), error =>
-      error instanceof SqliteSchemaVersionError && error.found === 10 && error.expected === 11);
+      error instanceof SqliteSchemaVersionError && error.found === 10 && error.expected === 12);
     const unchanged = new Database(filename, { readonly: true });
     try {
       assert.equal(unchanged.pragma("user_version", { simple: true }), 10);

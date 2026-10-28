@@ -7,9 +7,10 @@ import { request } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import { LocalProjectDatabase, createLocalFeedSourceService, seedDemoGoals, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, seedDemoGoals, PROJECT_SCOPED_PLUGIN_IDS } from "@molis-ai/molis-work-app-local-host";
 import { BUILTIN_PLUGIN_CATALOG } from "@molis-ai/molis-work-app-workbench";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 // Every plugin is content in the one workbench (specs/shell-page-exceptions, S7). Following every local link a seeded
 // workbench offers, as a person opening it in the address bar would, each address is the workbench itself, leads into it,

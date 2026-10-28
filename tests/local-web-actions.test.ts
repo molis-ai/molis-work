@@ -6,9 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { withMolisWorkProjectCatalog as withCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LOCAL_OWNER_PERMISSIONS } from "@molis-ai/molis-work-app-local-host";
-import {
-  LocalProjectDatabase, MolisWorkLocalHost, createLocalFeedApplication, createLocalFeedSourceService, molisWorkHostProjectReference, resolveWebControlToken, seedDemoBoard,
-} from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase, MolisWorkLocalHost, molisWorkHostProjectReference, resolveWebControlToken, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { feedItemActions, feedManifest } from "@molis-ai/molis-work-plugin-feed";
 import { goalsActions } from "@molis-ai/molis-work-plugin-goals";
 import { SqlitePluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
@@ -22,6 +20,7 @@ import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.j
 import { bindLocalWebActions, localWebActionContext } from "../apps/local-host/dist/local-web-actions.js";
 import { HOME_ACTION_PERMISSIONS } from "../apps/local-host/dist/home-actions.js";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 test("real Home HTTP and capability library use installed plugin grants without a Host permission list", { timeout: 60_000 }, async () => {
   const home = await mkdtemp(join(tmpdir(), "home-local-grants-"));

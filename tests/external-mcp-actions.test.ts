@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 import test from "node:test";
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
@@ -10,7 +11,7 @@ import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { createPrologueNodeAdapter, AgentReviewQueue } from "@molis-ai/molis-work-service-agent-host";
 import { WORKFLOWS_ACTION_PERMISSIONS, workflowsActions as w } from "@molis-ai/molis-work-plugin-workflows";
 import { MolisWorkLocalHost, type MolisWorkProjectRuntime } from "../apps/local-host/dist/project-host.js";
-import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/dist/content-action-providers.js";
+import { NATIVE_CONTENT_PERMISSIONS } from "../apps/local-host/dist/native-content-permissions.js";
 import { createExternalMcpDirectory } from "../apps/local-host/dist/external-mcp-actions.js";
 import { EXTERNAL_MCP_PERMISSION, isMcpToolCapability, mcpInputContract } from "../apps/local-host/dist/mcp-tool-actions.js";
 import { MCP_FIXTURE } from "./fixtures/mcp-notes-server.js";
@@ -63,7 +64,6 @@ test("ASC-01 ASC-02 ASC-32: a connected external MCP tool is one directory actio
     const { workflow } = await actions.invoke(w.create, { title: "消息记成外部笔记", chain: { stations: [{ plugin: "feed" },
       { plugin: "action", action: { ref: step.ref, title: step.title, group: step.group, mapping: { note: { from: "title" } } } }],
       links: [{ kind: "function", title_template: "", body_template: "{正文}", instructions: "" }] } });
-    const { createLocalFeedApplication, createLocalFeedSourceService } = await import("@molis-ai/molis-work-app-local-host");
     const source = createLocalFeedSourceService(runtime.store.db, project.project_id).register({ kind: "research_library", repository: "molis-ai/research-library", research_source: "twitter-ai-observation" }).source;
     createLocalFeedApplication(runtime.store.db).ingestItem({ source, externalId: "one", title: "工作流交来的标题", summary: "s", body: "正文", occurredAt: new Date().toISOString(), attention: false });
     const item = (await actions.invoke(w.stationItems, { plugin: "feed" })).items[0]!;

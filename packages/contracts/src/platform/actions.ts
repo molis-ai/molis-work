@@ -117,6 +117,13 @@ export interface ActionCallContext extends ActionCallOrigin {
    * nothing and narrows nothing. Never business input.
    */
   readonly delegated_by?: string;
+  /**
+   * The audience of the call the delegating plugin's running action was itself made under, before the Host ran this one as a workflow
+   * (`delegated_by` says which plugin): a person's direct call, or a workflow handing in through another plugin. Set only together with
+   * `delegated_by`. Attribution reads it (who handed this in: a person, an agent, an MCP client or a workflow); the audience that decides
+   * what the call may reach stays `audience`, so it grants nothing and narrows nothing. Never business input.
+   */
+  readonly delegated_audience?: ActionAudience;
   /** Stable session supplied by the authenticated Host; never a business input. */
   readonly runtime_session_id?: string;
   /** Host-only, same-Run read intent. Stripped from plugin callback views; never accepted from input. */
@@ -143,6 +150,12 @@ export interface ActionCallContext extends ActionCallOrigin {
    * project the call is made in". Never business input.
    */
   readonly readable_project_ids?: readonly string[];
+  /**
+   * The plugin whose installation made this call, as the Host issued its caller (S-15): set on every call of the plugin audience a plugin's own
+   * handler answers, fresh on each call, and never one a caller carried in. A plugin's handler never sees the issued caller itself
+   * (`host_plugin`), so this is how a handler of one plugin's Home half knows the call came from that plugin's project instance. Never business input.
+   */
+  readonly calling_plugin_id?: string;
   /** Host-bound installation identity for private Plugin SDK services. */
   readonly plugin_install_id?: string;
   /** The Host-issued plugin caller this call is made for. Never accepted from business arguments or persisted. */

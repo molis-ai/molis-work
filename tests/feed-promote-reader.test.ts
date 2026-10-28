@@ -4,8 +4,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { HomeConsentLedger, LocalProjectDatabase, createLocalFeedApplication, createLocalFeedSourceService } from "@molis-ai/molis-work-app-local-host";
+import { HomeConsentLedger, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 test("the Feed reader shows 「升格为 Goal」 only while the project has Goals to write through", { timeout: 60_000 }, async () => {
   const home = mkdtempSync(join(tmpdir(), "molis-work-feed-promote-reader-"));
@@ -29,7 +30,7 @@ test("the Feed reader shows 「升格为 Goal」 only while the project has Goal
     const address = server.address();
     assert.ok(address && typeof address === "object");
     const detail = async () => {
-      const response = await fetch(`http://127.0.0.1:${address.port}/projects/${encodeURIComponent(projectId)}/api/feed/items/${itemId}/detail`);
+      const response = await fetch(`http://127.0.0.1:${address.port}/projects/${encodeURIComponent(projectId)}/api/stage/feed/items/${itemId}`);
       assert.equal(response.status, 200);
       return response.text();
     };

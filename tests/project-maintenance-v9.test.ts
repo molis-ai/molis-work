@@ -12,7 +12,7 @@ import { SCHEDULE_PROJECT_DATABASE } from "@molis-ai/molis-work-plugin-schedule"
 const before = readFileSync(new URL("./fixtures/project-database-schema-v8.sql", import.meta.url), "utf8");
 const maintenance = readFileSync(new URL("./fixtures/project-maintenance-v9.sql", import.meta.url), "utf8");
 // The separately rehearsed next step still stops at v10. Scheduler checks borrow the historical store directly;
-// only the explicitly selected project-instance rehearsal proves opening the current v11 library.
+// only the explicitly selected project-instance rehearsal proves opening the current v12 library.
 const next = readFileSync(new URL("./fixtures/project-maintenance-v10.sql", import.meta.url), "utf8");
 function fixture(t: TestContext) {
   const directory = mkdtempSync(join(tmpdir(), "project-maintenance-v9-")), file = join(directory, "project.db");
@@ -51,7 +51,7 @@ test("SYS-15-S6: v8 is refused; offline maintenance preserves jobs/history, paus
   assert.deepEqual(after.task, original.task); assert.deepEqual(after.turn, original.turn);
   apply(file, next);
   const historical = read(file); assert.equal(historical.version, 10);
-  assert.throws(() => new LocalProjectDatabase(file), (error: unknown) => error instanceof SqliteSchemaVersionError && error.found === 10 && error.expected === 11);
+  assert.throws(() => new LocalProjectDatabase(file), (error: unknown) => error instanceof SqliteSchemaVersionError && error.found === 10 && error.expected === 12);
   assert.deepEqual(read(file), historical, "current opening does not adopt the historical maintenance output");
   const store = new LocalSqliteStorage(file, { fileMustExist: true }), clock = createScheduleService(store.db);
   try {

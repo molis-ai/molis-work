@@ -193,16 +193,18 @@ function checkMigratedFeedOwnership(repositoryRoot) {
       errors.push(`${relativePath}: Relay import/compat must stay deleted`);
     }
   }
-  const legacyCallers = [
-    "apps/local-host/src/feed-application.ts",
-    "apps/local-host/src/feed-source-service.ts",
-    "plugins/native/feed/src/application.ts",
-    "plugins/native/feed/src/source-service.ts",
-    "plugins/native/feed/src/source-sync.ts",
-    "plugins/native/feed/src/connector-sync.ts",
-    "plugins/native/feed/src/source-scheduler.ts",
+  // Only Feed's store/ owns these tables. Every other Feed source file is a caller, the production assembly that the Host's
+  // feed-application.ts used to be (application-assembly.ts) among them; the named files are read as well so a move fails loudly.
+  const feedSource = "plugins/native/feed/src";
+  const feedCallers = filesUnder(path.join(repositoryRoot, feedSource), file => /\.(?:ts|tsx|mts)$/u.test(file))
+    .map(file => path.relative(repositoryRoot, file).split(path.sep).join("/"))
+    .filter(file => !file.startsWith(`${feedSource}/store/`));
+  const legacyCallers = [...new Set([
+    "apps/local-host/src/demo-feed-library.ts",
+    ...["application.ts", "application-assembly.ts", "source-service.ts", "source-sync.ts", "connector-sync.ts", "source-scheduler.ts"].map(file => `${feedSource}/${file}`),
+    ...feedCallers,
     ...WEB_DISPATCH_FILES,
-  ];
+  ])];
   const directFactSql = /\b(?:CREATE TABLE IF NOT EXISTS|FROM|INTO|UPDATE|DELETE FROM)\s+(feed_items|feed_materials|inbox_entries)\b/giu;
   for (const relativePath of legacyCallers) {
     const source = fs.readFileSync(path.join(repositoryRoot, relativePath), "utf8");
@@ -228,13 +230,21 @@ function checkMigratedIntegrationOwnership(repositoryRoot) {
       errors.push(`${servicePath}: ${forbidden} belongs to the official Plugin composition boundary`);
     }
   }
-  const hostPath = "apps/local-host/src/feed-connector-sync.ts";
+  // The Runtime Feed opens its Listener through the platform connector service (FI-5): Feed's `services.connector` is the
+  // platform source-pull connector, and the Host backs that port with the Home's integration registry. The Feed names no
+  // Provider and the Host keeps no Feed connector composition of its own.
+  const runtimePath = "plugins/native/feed/src/runtime-connector.ts";
+  const runtime = fs.readFileSync(path.join(repositoryRoot, runtimePath), "utf8");
+  const pluginPath = "plugins/native/feed/src/plugin.ts";
+  const plugin = fs.readFileSync(path.join(repositoryRoot, pluginPath), "utf8");
+  const hostPath = "apps/local-host/src/plugin-source-pull-service.ts";
   const host = fs.readFileSync(path.join(repositoryRoot, hostPath), "utf8");
-  if (!service.includes("this.ports.createListener") || !host.includes("homeIntegrationRegistry")) {
-    errors.push(`${servicePath}: Feed must consume a Host-composed Listener backed by the Home's integration registry`);
+  if (!service.includes("this.ports.createListener") || !runtime.includes("services.connector.open(") || !plugin.includes("connector = sourcePull?.connector")
+    || !/connector:\s*createConnectorSourcePort\(\{[^}]*\bregistry:[^}]*\bhomeIntegrationRegistry\(home\)/u.test(host)) {
+    errors.push(`${servicePath}: Feed must consume a Listener opened through the platform connector service, backed by the Home's integration registry`);
   }
 
-  const listenerPath = "horizontal/listener-host/src/index.ts";
+  const listenerPath = "plugins/native/feed/src/store/listener.ts";
   const listener = fs.readFileSync(path.join(repositoryRoot, listenerPath), "utf8");
   if (/io\.molis\.work\.integration\.|\b(?:github|gmail|youtube)\b/iu.test(listener)) {
     errors.push(`${listenerPath}: Listener Host must remain Provider-neutral`);
@@ -294,15 +304,27 @@ function checkMigratedFeedUiOwnership(repositoryRoot) {
   const renderer = read("apps/workbench/src/renderer.ts");
   const server = WEB_DISPATCH_FILES.map(read).join("\n");
   const uiAdapter = read("apps/workbench/src/feed-projection-ui.ts");
-  const httpAdapter = read("apps/local-host/src/feed-native-plugin-http.ts");
-  if (fs.existsSync(path.join(repositoryRoot, "src/web/feed-native-plugin-http.ts"))) {
-    errors.push("src/web/feed-native-plugin-http.ts: migrated Feed HTTP entry must stay deleted");
+  for (const retired of ["src/web/feed-native-plugin-http.ts", "apps/local-host/src/feed-native-plugin-http.ts"]) {
+    if (fs.existsSync(path.join(repositoryRoot, retired))) {
+      errors.push(`${retired}: the Host's Feed HTTP edge was deleted (FI-7); Feed declares its routes under /api/plugins/<plugin_id>/ and must stay that way`);
+    }
   }
-  if (!httpAdapter.includes("createFeedRouteHandlers")) {
-    errors.push("Feed HTTP adapter must bind the Native Feed request handlers");
+  // The Host answers no /api/feed address of Feed's. The one /api/feed path left is the Gmail OAuth callback's, which is the Host's
+  // connector settings (the address registered with Google), not Feed's edge.
+  const gmailCallback = "/api/feed/connectors/gmail/oauth/callback";
+  for (const filePath of filesUnder(path.join(repositoryRoot, "apps/local-host/src"), (candidate) => SOURCE_EXTENSIONS.has(path.extname(candidate)))) {
+    const source = fs.readFileSync(filePath, "utf8");
+    if (source.split(gmailCallback).join("").includes("/api/feed")) {
+      errors.push(`${path.relative(repositoryRoot, filePath)}: the Host has no /api/feed route; the Feed Plugin declares its routes under /api/plugins/<plugin_id>/`);
+    }
   }
-  const inboxHttpAdapter = read("apps/local-host/src/inbox-native-plugin-http.ts");
-  const inboxPluginRoutes = read("plugins/native/inbox/src/routes.ts");
+  const feedPlugin = read("plugins/native/feed/src/plugin.ts");
+  const feedManifestText = read("plugins/native/feed/src/manifest.ts");
+  if (!feedManifestText.includes("routes: [") || !feedPlugin.includes("createFeedRouteHandlers") || !feedPlugin.includes("routes,")) {
+    errors.push("plugins/native/feed: the Feed page routes must be declared in its Manifest and bound by createFeedPlugin");
+  }
+  const inboxPlugin = read("plugins/native/inbox/src/plugin.ts");
+  const inboxManifestText = read("plugins/native/inbox/src/manifest.ts");
   const pluginUi = read("plugins/native/feed/src/ui.ts");
   const pluginRoutes = read("plugins/native/feed/src/routes.ts");
   const workbench = read("apps/workbench/src/index.ts") + read("apps/workbench/src/ui-composition.ts");
@@ -321,27 +343,24 @@ function checkMigratedFeedUiOwnership(repositoryRoot) {
   if (!renderer.includes("renderFeedNativePluginSurface")) {
     errors.push("apps/workbench/src/renderer.ts: Feed caller must render through the Native Plugin adapter");
   }
-  for (const forbidden of ["/api/feed", "promoteFeedItemToGoal(", "sendFeedError("]) {
+  for (const forbidden of ["/api/feed", "handleFeedNativePluginHttp", "promoteFeedItemToGoal(", "sendFeedError("]) {
     if (server.includes(forbidden)) {
-      errors.push(`apps/local-host/src/web-request.ts: ${forbidden} must be owned by the Feed Plugin HTTP adapter`);
+      errors.push(`apps/local-host/src/web-request.ts: ${forbidden} must be owned by the Feed Plugin's declared routes and actions`);
     }
   }
-  if (server.includes("/api/inbox/")) {
-    errors.push("apps/local-host/src/web-request.ts: /api/inbox/ must be owned by the Inbox Plugin HTTP adapter");
+  if (server.includes("/api/inbox")) {
+    errors.push("apps/local-host/src/web-request.ts: the Host has no /api/inbox route; the Inbox Plugin declares its routes under /api/plugins/<plugin_id>/");
   }
-  if (!server.includes("handleInboxNativePluginHttp") || !inboxHttpAdapter.includes("new InboxPluginRouteTable") || !inboxPluginRoutes.includes("class InboxPluginRouteTable")) {
-    errors.push("apps/local-host/src/web-request.ts: Inbox HTTP caller must delegate through the public Plugin route table");
+  if (!inboxManifestText.includes("routes: [") || !inboxPlugin.includes("createInboxRouteHandlers") || !inboxPlugin.includes("routes,")) {
+    errors.push("plugins/native/inbox: the Inbox page routes must be declared in its Manifest and bound by createInboxPlugin");
   }
   if (pluginRoutes.includes("/api/inbox/")) {
     errors.push("plugins/native/feed/src/routes.ts: /api/inbox must be owned by the Inbox Plugin");
   }
-  if (!server.includes("handleFeedNativePluginHttp") || !httpAdapter.includes("new FeedPluginRouteTable") || !httpAdapter.includes("routes.handle")) {
-    errors.push("apps/local-host/src/web-request.ts: Feed HTTP caller must delegate through the public Plugin route table");
-  }
   if (!uiAdapter.includes("renderFeedContribution") || !pluginUi.includes("feedUiContribution")) {
     errors.push("Feed UI must cross the Workbench public contribution entrypoint");
   }
-  if (!pluginRoutes.includes("class FeedPluginRouteTable") || !hasWorkbenchUiContribution(workbench, read("apps/workbench/src/plugin-workbench.ts"), "feedUiContribution", builtinCatalogText(repositoryRoot))) {
+  if (!hasWorkbenchUiContribution(workbench, read("apps/workbench/src/plugin-workbench.ts"), "feedUiContribution", builtinCatalogText(repositoryRoot))) {
     errors.push("Feed route/UI contributions must be registered by their declared public hosts");
   }
   if (!uiHost.includes("class UiHost") || !uiHost.includes("render<TModel>(request")) {
@@ -495,7 +514,9 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
   ) {
     errors.push(`${goalReadApplicationPath}: compatibility composition must not own Goal persistence or bypass Goals Query`);
   }
-  errors.push(...checkGoalReadOwnerSql(read("apps/local-host/src/feed-application.ts")).map(error => `apps/local-host/src/feed-application.ts: ${error}`));
+  for (const relativePath of ["apps/local-host/src/demo-feed-library.ts", ...["application-assembly.ts", "plugin.ts", "goal-promotion.ts"].map(file => `plugins/native/feed/src/${file}`)]) {
+    errors.push(...checkGoalReadOwnerSql(read(relativePath)).map(error => `${relativePath}: ${error}`));
+  }
   errors.push(...checkNoGoalTypedAdapters(["apps", "horizontal", "modules", "packages", "plugins", "server"]
     .flatMap(directory => filesUnder(path.join(repositoryRoot, directory), file => /\.(?:ts|tsx|mts)$/u.test(file) && !/[\\/](?:tests?|__tests__)[\\/]/u.test(file)))
     .map(file => ({ path: path.relative(repositoryRoot, file).split(path.sep).join("/"), source: fs.readFileSync(file, "utf8") }))));
@@ -565,7 +586,7 @@ function checkMigratedGoalsCommandOwnership(repositoryRoot) {
     "apps/mcp/src/tool-dispatch.ts",
     "apps/cli/src/command-dispatch.ts",
     "apps/local-host/src/demo-seed.ts",
-    "apps/local-host/src/feed-native-plugin-http.ts",
+    "plugins/native/feed/src/plugin.ts",
     "plugins/native/feed/src/goal-promotion.ts",
   ]) {
     if (removedFacadeCall.test(read(relativePath))) {

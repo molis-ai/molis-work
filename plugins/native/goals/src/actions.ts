@@ -4,7 +4,7 @@ export type { GoalReadActionInput } from "@molis-ai/molis-work-contracts/modules
 import { ActionError, defineSearchEntriesAction, defineSubjectContextAction, searchEntriesPage, searchText, subjectContext, type SearchEntriesInput, type SearchEntry } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ActionDefinition, ActionHandlerBinding } from "@molis-ai/molis-work-contracts/platform/actions";
 import { type GoalEventAcknowledgementsApi, type GoalEventDirectoryQuery, type GoalEventMutationResult, type RecordGoalNoteInput, type GoalEventHistoryPage, type GoalEventHistoryQuery, type GoalEventListPage, type GoalEventListQuery, type GoalEventTimelinePage, type GoalWorkEventRecord } from "@molis-ai/molis-work-contracts/modules/goals";
-import { goalAction as action, goalActor } from "./action-contract.js";
+import { goalAction as action, goalActor, personAsked } from "./action-contract.js";
 import { goalsFragmentOffersAction, prepareGoalsFragmentOffers } from "./fragment-offers.js";
 import type { FragmentOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
 import { goalsEventActions, createGoalsEventActionHandlers } from "./event-command-actions.js";
@@ -170,12 +170,14 @@ export function createGoalsActionHandlers({ events, acknowledgements, projectId,
       return readGoalHistory({ projectId, goalId: query.goal_id, itemId: query.item_id, ports: events, snapshot: history.snapshot(), events: history.journalEvents() }); } },
     { ...goalsActions.create, handle: (caller, input) => {
       const payload = input as GoalCreateActionInput;
-      // The creation channel is a fact about who asked: only the person may name one; any other caller is a Runtime.
-      if (caller.audience !== "user" && payload.source_kind !== undefined && payload.source_kind !== "runtime") {
+      // The creation channel is a fact about who asked: only the person may name one (directly, or through the action of the plugin that owns
+      // the channel they called); any other caller is a Runtime.
+      const person = personAsked(caller, payload.source_kind);
+      if (!person && payload.source_kind !== undefined && payload.source_kind !== "runtime") {
         throw new ActionError("actions.input_invalid", "只有本人可以指定 Goal 的创建渠道");
       }
       return events.createIntent({ ...payload, project_id: projectId,
-        source_kind: caller.audience === "user" ? payload.source_kind ?? "web" : "runtime",
+        source_kind: person ? payload.source_kind ?? "web" : "runtime",
         ...goalActor(caller) });
     } },
     { ...goalsActions.note, handle: (caller, input) => events.recordNote({ ...(input as GoalNoteActionInput), project_id: projectId,

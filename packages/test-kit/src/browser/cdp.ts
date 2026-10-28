@@ -53,6 +53,8 @@ interface CdpMessage {
 const CHROME_TOP_METHODS = 3;
 const PROFILE_SEGMENT_MS = 20_000;
 const PROFILE_SAMPLE_INTERVAL_US = 10_000;
+/** How long a timed-out command may wait for the optional profile read; the limit itself is never extended. */
+const DIAGNOSTICS_GRACE_MS = 150;
 const SELF_TIME_TOP = 5;
 const SELF_TIME_NAME_LIMIT = 120;
 const SELF_TIME_URL_LIMIT = 200;
@@ -170,12 +172,15 @@ class TimeoutProfiler {
     return profiler;
   }
 
-  /** Reads the self time at or after `windowStarted` and starts a fresh segment. `undefined` when it cannot be read. */
+  /**
+   * Reads the self time at or after `windowStarted` and starts a fresh segment. `undefined` when it cannot be read. The
+   * segment start is read in the same serialized step that stops its profile, so a read queued behind another one
+   * cannot pair a fresh profile with the start of the segment that was current when it was requested.
+   */
   recent(windowStarted: number): Promise<{ readonly nodeSelfTime: readonly SelfTimeEntry[]; readonly nodeSelfTimeComplete: boolean } | undefined> {
-    const segmentStarted = this.segmentStarted;
-    return this.finishSegment().then((profile) => {
-      if (!profile) return undefined;
-      return { nodeSelfTime: selfTimeEntries(profile, segmentStarted, windowStarted), nodeSelfTimeComplete: windowStarted >= segmentStarted };
+    return this.finishSegment().then((read) => {
+      if (!read) return undefined;
+      return { nodeSelfTime: selfTimeEntries(read.profile, read.segmentStarted, windowStarted), nodeSelfTimeComplete: windowStarted >= read.segmentStarted };
     });
   }
 
@@ -204,13 +209,15 @@ class TimeoutProfiler {
     });
   }
 
-  private finishSegment(): Promise<InspectorProfile | undefined> {
+  private finishSegment(): Promise<{ readonly profile: InspectorProfile; readonly segmentStarted: number } | undefined> {
     const run = this.queue.then(async () => {
       try {
         const stopped = (await this.session.post("Profiler.stop")) as { readonly profile: InspectorProfile };
-        const profile = stopped.profile;
+        // Read the start while this segment is still the current one: an earlier queued read may already have restarted
+        // sampling and the next one will, so the profile and the window it covers must leave this step together.
+        const segmentStarted = this.segmentStarted;
         if (!this.closed) await this.beginSegment();
-        return profile;
+        return { profile: stopped.profile, segmentStarted };
       } catch {
         // A failed read must not replace the timeout error; the caller falls back to the message and `cause`.
         return undefined;
@@ -297,19 +304,36 @@ export class ChromeHarness {
           this.pending.delete(id);
           const cpu = process.cpuUsage(cpuStarted), loop = performance.eventLoopUtilization(loopStarted);
           failure.cause = { nodeCpuMs: Math.round((cpu.user + cpu.system) / 1000), eventLoopActiveMs: Math.round(loop.active), eventLoopIdleMs: Math.round(loop.idle) };
-          failure.message += ` (elapsed ${Math.round(performance.now() - started)}ms; limit ${timeoutMs}ms)`;
           const diagnostics: TimeoutDiagnostics = {
             chromeMessages: this.messagesSeen - messagesStarted,
             chromeTopMethods: chromeTopMethods(this.messageCounts, methodsStarted, CHROME_TOP_METHODS),
           };
-          const settle = (profile: { readonly nodeSelfTime: readonly SelfTimeEntry[]; readonly nodeSelfTimeComplete: boolean } | undefined) => {
-            failure.diagnostics = profile ? { ...diagnostics, ...profile } : diagnostics;
+          const settle = (profile: { readonly nodeSelfTime: readonly SelfTimeEntry[]; readonly nodeSelfTimeComplete: boolean } | undefined, profiling: boolean) => {
+            // A profile that could not be read inside its grace leaves no samples and must not claim the window was
+            // covered: empty self time with `nodeSelfTimeComplete: false` says "not proven" rather than guessing.
+            failure.diagnostics = profile ? { ...diagnostics, ...profile }
+              : profiling ? { ...diagnostics, nodeSelfTime: [], nodeSelfTimeComplete: false }
+              : diagnostics;
+            // `elapsed` says how long the command actually stayed unsettled: the optional profile read may hold the
+            // timeout back for its grace, and the message must not report a shorter wait than the caller saw.
+            failure.message += ` (elapsed ${Math.round(performance.now() - started)}ms; limit ${timeoutMs}ms)`;
             reject(failure);
           };
-          // Reading the sample is asynchronous; a failed read keeps the message and `cause` and settles in the same way.
           const profiler = this.profile;
-          if (profiler) void profiler.recent(started).then((summary) => { settle(summary); }, () => { settle(undefined); });
-          else settle(undefined);
+          if (!profiler) { settle(undefined, false); return; }
+          // Reading the sample is asynchronous; a failed read keeps the message and `cause` and settles in the same way.
+          // It is only a diagnostic, so bound how long it may postpone the answer the command's caller already waited
+          // past: after the grace the timeout settles with the Chrome counters and `cause` alone.
+          let grace: ReturnType<typeof setTimeout> | undefined;
+          const bounded = new Promise<undefined>((resolve) => {
+            grace = setTimeout(() => resolve(undefined), DIAGNOSTICS_GRACE_MS);
+            grace.unref();
+          });
+          const finish = (summary: { readonly nodeSelfTime: readonly SelfTimeEntry[]; readonly nodeSelfTimeComplete: boolean } | undefined) => {
+            if (grace) clearTimeout(grace);
+            settle(summary, true);
+          };
+          void Promise.race([profiler.recent(started), bounded]).then(finish, () => { finish(undefined); });
         });
       }, timeoutMs);
       this.pending.set(id, { resolve: (value) => resolve(value as T), reject, timer });

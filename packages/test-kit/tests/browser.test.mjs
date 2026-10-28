@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { chmod, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:http";
+import { Session } from "node:inspector/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
@@ -244,6 +245,21 @@ async function withHarness(handle, options, run) {
   finally { await harness.close(); await devtools.close(); }
 }
 
+/** Delays handing back the first `Profiler.stop` result, modelling a slow read of the sample. */
+async function withDelayedProfileStop(delayMs, run) {
+  const original = Session.prototype.post;
+  let delayed = false;
+  Session.prototype.post = async function post(...args) {
+    const result = await original.apply(this, args);
+    if (args[0] === "Profiler.stop" && !delayed) {
+      delayed = true;
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+    return result;
+  };
+  try { await run(); } finally { Session.prototype.post = original; }
+}
+
 test("a command resolves with the result and an error reply rejects with the protocol error", async () => {
   await withHarness((message, reply) => {
     if (message.method === "Good") reply({ result: { value: 7 } });
@@ -335,6 +351,39 @@ test("a timed-out command profiles what kept Node busy, without the script URL's
     );
     const dumped = JSON.stringify({ message: error.message, cause: error.cause, diagnostics });
     assert.ok(!dumped.includes(sentinel), "the script URL's query string is not copied into the error");
+  });
+});
+
+test("a slow profile read cannot postpone the timeout past its grace, and elapsed says how long it waited (RAC-1452)", async () => {
+  await withDelayedProfileStop(400, async () => {
+    await withHarness(() => {}, { profileTimeouts: true }, async (harness) => {
+      const started = Date.now();
+      await assert.rejects(harness.command("Never", {}, undefined, 100), (error) => {
+        const settledAfter = Date.now() - started;
+        assert.ok(settledAfter >= 100 && settledAfter <= 350, `settled after ${settledAfter}ms`);
+        const stated = Number(/\(elapsed (\d+)ms; limit 100ms\)/.exec(error.message)?.[1]);
+        assert.ok(stated >= 140, `elapsed ${stated}ms includes the profile wait`);
+        assert.ok(stated <= settledAfter, `elapsed ${stated}ms claims more than the ${settledAfter}ms the caller waited`);
+        assert.ok(error.diagnostics, "Chrome counters still ride along without the profile");
+        assert.deepEqual(error.diagnostics.nodeSelfTime, [], "no samples without a profile");
+        assert.equal(error.diagnostics.nodeSelfTimeComplete, false, "an unread profile does not claim coverage");
+        return true;
+      });
+    });
+  });
+});
+
+test("a profile read queued behind another times its window against the segment it was taken from (RAC-1451)", async () => {
+  await withDelayedProfileStop(80, async () => {
+    await withHarness(() => {}, { profileTimeouts: true }, async (harness) => {
+      const first = harness.command("FirstSlow", {}, undefined, 30).catch((error) => error);
+      await new Promise((resolve) => setTimeout(resolve, 40));
+      const second = harness.command("SecondSlow", {}, undefined, 30).catch((error) => error);
+      const [firstError, secondError] = await Promise.all([first, second]);
+      assert.equal(firstError.diagnostics.nodeSelfTimeComplete, true);
+      assert.equal(secondError.diagnostics.nodeSelfTimeComplete, false,
+        "the second window started before the segment its profile came from");
+    });
   });
 });
 

@@ -1,6 +1,6 @@
 # Prologue Skill 策略：选择、唤起与渐进披露
 
-状态：需求已整理（2026-10-21），待评审后实施。独立需求；包装、安装、信任与文件形状沿用 [skill-packs](../skill-packs/spec.md)，本 spec 只补“选哪份、怎么唤起、怎么组合、怎么证明有用”。
+状态：需求已整理（2026-10-21；2026-10-27 用户确定启用后默认自动选用、点名优先及仅手动选项），其余策略仍待逐项评审，尚未实施本次决定。独立需求；包装、安装、信任与文件形状沿用 [skill-packs](../skill-packs/spec.md)，本 spec 只补“选哪份、怎么唤起、怎么组合、怎么证明有用”。
 
 同系列：[Tool](../prologue-tool-strategy/spec.md) · [MCP](../prologue-mcp-strategy/spec.md) · [Context](../prologue-context-strategy/spec.md)。
 
@@ -44,13 +44,16 @@ Prologue 的 `skill/` 已经有：精确版本登记、`bounded` / `full-package
 
 ### 3.1 选择：三档，不是布尔
 
+2026-10-27 用户确定：启用 Skill 后默认允许 AI 按当前任务查找和选用，用户点名优先，也可将 Skill 设为“仅手动点名”。启用入口说明这个默认；仅导入、安装或查看不自动启用，用户已有的仅手动选择不被升级或重新启用重置。自动选用不扩展操作权限，不要求每次为选用已获准的 Skill 另行确认；真实操作仍沿当前授权与必要批准。以下档位是实现提案，用户入口只表达自动选用与仅手动的区别。
+
 | 档 | 行为 | 默认 |
 | --- | --- | --- |
-| `off` | 不进目录；只能由 App/人显式点名 | 是 |
-| `router` | 按任务、工具面、`applies_to`、`when_to_use` 选一个短名单（默认 3 份），带选择理由 | 打开自动选用时用这一档 |
+| `off` | 不进入自动候选；由用户本次点名或 App 携带明确点名调用 | 用户选择仅手动时使用 |
+| `router` | 从已启用且允许自动选用的 Skill 中，按任务、工具面、`applies_to`、`when_to_use` 选一个短名单（默认 3 份），带选择理由 | 启用 Skill 且没有明确的仅手动选择时使用 |
 | `all` | 所有 `autoSelectable` 都进目录 | 仅兼容旧行为，逐步退出 |
 
-- 短名单之外的方法仍可通过精确 `invoke-skill` 调用；`skillNames` 仍是本 Run 的天花板。
+- 用户本次点名优先于自动推荐；点名对象不可用、不适用或缺必要能力时说明影响，不静默替换。仅手动的 Skill 不能被搜索、自动候选或已知的精确引用绕过；用户本次点名后沿同一调用链使用。
+- 短名单之外的方法仍可在有效使用方式和授权范围内通过精确 `invoke-skill` 调用；`skillNames` 仍是本 Run 的天花板。
 - 选择理由只报“为什么是它”（命中哪个条件、与哪些工具匹配），不报正文。
 - 选择结果在开跑时冻住；运行中改目录只影响下一跑。
 
@@ -137,7 +140,7 @@ interface SkillCatalogEntry {
 - `selectSkills({ task, tools, capabilities, limit })`：确定性短名单；不调模型。P1 可加 `skill-selector` 槽，让 App 用模型/向量做选择。
 - `find-skills` 系统工具：按名字/描述/适用面搜索，返回元数据；正文仍要 `invoke-skill` 才读。
 - `SkillInvocationReceipt` 与 `skill-invoked` 事件：只带引用、版本、来源、理由、状态、用量，不带正文。
-- `config.skill.selection`：`off` / `router` / `all`；默认 `off`；`router` 打开时 `maxSelected` 默认 3。
+- `config.skill.selection`：`off` / `router` / `all`；Molis 对已启用且允许自动选用的 Skill 默认采用 `router`，仅手动选择须在自动候选与调用处生效；沿应用同一份有效设置映射，不新增第二份启用状态。`router` 的 `maxSelected` 默认 3 仍为实现提案。
 - `config.skill.composition`：`maxDepth` 默认 2、`maxCalls` 默认 8；环/超限在准备阶段拒绝。
 - 现有 `invoke-skill` 保持精确引用；不把“按名字找最新”加回来。
 - `find-skills` 是系统工具闭集的新增项：同步 `SYSTEM_TOOL_NAMES`、需求分册与 AGENTS 槽/工具表；不加就装配报不可用，不偷偷用 `invoke-skill` 兼任搜索。
@@ -148,7 +151,7 @@ interface SkillCatalogEntry {
 | --- | --- | --- |
 | `horizontal/agent-host` | 消费 `description/when_to_use/applies_to`；接 `find-skills`；`router` 短名单；派生方法；调用回执 | 不另建方法注册表；不改安装与信任 |
 | `apps/local-host` | 方法目录按项目启用；斜杠命令/按钮；选择理由与用量投影；审计 | 不把 Skill 正文写进业务事实 |
-| `apps/workbench` | 方法选择器、斜杠命令、最近使用、改选/停用；显示“为什么选它” | 不做自动选用的默认全开 |
+| `apps/workbench` | 方法选择器、斜杠命令、最近使用、改选/停用；启用后默认自动选用，可改为仅手动，显示“为什么选它” | 不自动启用刚导入/安装的 Skill，不覆盖已有仅手动选择 |
 | `packages/contracts` | `AgentSkillDeclaration` 对齐新字段；`skill-invoked` 事件；API 快照 | 不复制 Prologue 的类型 |
 | `packages/storage` | 复用调用记录/审计；不新增第二套方法账 | 不存正文副本 |
 
@@ -158,7 +161,7 @@ Molis 的 [skill-packs](../skill-packs/spec.md) 继续拥有包形状、安装�
 
 | 期 | 内容 | 完成时能证明 |
 | --- | --- | --- |
-| S0 | 元数据字段、`find-skills`、`router` 短名单、调用回执 | 模型能先找再调；关着自动选用也有入口；选择理由可解释 |
+| S0 | 元数据字段、`find-skills`、`router` 短名单、调用回执 | 启用后默认能自动找选，用户点名优先；仅手动设置实际限制自动选用，选择理由可解释 |
 | S1 | 资源按需读取、`deprecatedBy`、`minHostVersion` | 正文/参考/脚本不整包进上下文；旧版本仍可回放 |
 | S2 | `uses` 组合、派生方法、`skill-selector` 槽、评测 | 方法链有界、权限不扩、触发率/成功率可测 |
 
@@ -166,9 +169,9 @@ Molis 的 [skill-packs](../skill-packs/spec.md) 继续拥有包形状、安装�
 
 | 编号 | 可观察标准 | 证明方式 |
 | --- | --- | --- |
-| SKL-01 | 自动选用默认关；关着时目录为空，但人/App 精确点名仍可调用 | Prologue 单测 |
+| SKL-01 | Molis 启用 Skill 后默认允许 AI 自动选用，用户点名优先；设为仅手动后不再自动选用，精确引用不绕过限制，用户本次点名仍可调用；未启用的 Skill 不自动参与，已有仅手动选择不被升级或重新启用重置 | Prologue 单测 + Molis 设置与实际调用验证 |
 | SKL-02 | `router` 在给定任务/工具面下只选 ≤ `maxSelected` 份，理由与命中条件可解释 | Prologue 单测 |
-| SKL-03 | `find-skills` 只返回元数据；正文要 `invoke-skill` 才读；搜索不返回未装配/无权限的方法 | Prologue 单测 + live |
+| SKL-03 | `find-skills` 只返回元数据；正文要 `invoke-skill` 才读；自动查找不返回未装配、无权限或仅手动的方法作为可自动调用候选 | Prologue 单测 + live |
 | SKL-04 | 三种来源都走同一权限岛；技能要的工具比本轮多时整份拒绝 | Prologue 单测 |
 | SKL-05 | 正文/参考/脚本按需读取；路径逃逸、跨版本引用、缺失文件被拒绝 | Prologue 单测 |
 | SKL-06 | 运行中改目录不影响已冻住的 Run；升级只影响下一跑 | Prologue 单测 |
@@ -176,7 +179,7 @@ Molis 的 [skill-packs](../skill-packs/spec.md) 继续拥有包形状、安装�
 | SKL-08 | `bounded` 配方仍不展开成开放循环；`fork` 只回摘要与引用 | Prologue 回归 |
 | SKL-09 | `deprecatedBy` / `minHostVersion` 只提示，不自动换绑、不静默隐藏 | Prologue 单测 |
 | SKL-10 | 组合环、超深、超次数、跨权限岛在准备阶段整次拒绝 | Prologue 单测 |
-| SKL-11 | Molis 能看到“为什么选这份方法”，可改选/停用；默认不自动全开 | Molis 设置页/工作台测试 |
+| SKL-11 | Molis 能看到“为什么选这份方法”，可改选、停用或切为仅手动；两处设置与重启后有效值一致，自动选用不额外要求逐次确认，也不放宽实际操作授权 | Molis 设置页/工作台测试 |
 | SKL-12 | Molis 的模型自动调用与派生方法接通；显式选择不退化 | Molis `agent-host` 测试 + 真实运行 |
 | SKL-13 | 同一方法在助理与 Coding 的 id/version/正文一致；升级后旧 Run 不换绑 | Molis `skill-service` 测试 |
 | SKL-14 | `[人工]` 在真实项目里用一次方法完成工作，能看到选择理由、用量和结果；没有把方法正文写进业务事实 | 人工 |
@@ -184,7 +187,7 @@ Molis 的 [skill-packs](../skill-packs/spec.md) 继续拥有包形状、安装�
 
 ## 8. 非目标与风险
 
-- 不做“所有方法自动全开”；`router` 也必须显式打开。
+- 不自动启用全部已安装方法，也不把全部 Skill 正文注入每轮；启用后的自动选用默认与仅手动选择遵循 §3.1，不再要求另开一个自动选用开关。
 - 不做第二套方法安装/信任；沿用 skill-packs 与 Plugin Runtime。
 - 不在 SDK 里执行任意脚本；脚本走沙箱/命令审查。
 - 组合只做有界方法链，不做通用工作流图。

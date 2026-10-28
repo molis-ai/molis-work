@@ -200,3 +200,70 @@ test("an action that writes through other actions is granted together with them:
     await host.close(); catalog.close(); await rm(home, { recursive: true, force: true });
   }
 });
+
+test("RAC-1331 W3-02-G4-04 an unavailable action answers by the kind its owner declares; one without a kind still answers 400", { timeout: 30_000 }, async () => {
+  const home = await mkdtemp(join(tmpdir(), "mcp-action-kind-")), token = "mcp-action-kind-test-control-token";
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  const created = await catalog.createProject({ display_name: "授权的种类", actor_id: "test" });
+  const project = catalog.getProject(created.project_id);
+  const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
+  const host = new MolisWorkLocalHost({ homeDirectory: home });
+  let connected = true, kind: "conflict" | "unavailable" | undefined;
+  const id = `kind.${randomUUID()}`;
+  const definition: ActionDefinition = { capability_id: id, version: 1, operation: "command", action: {
+    title: "Kind", description: "An action whose refusal kind its owner declares", kind: "operation", scope: "project", audiences: ["mcp"],
+    permissions: ["fixture:write"], subject_kinds: [], input_schema: { type: "object", properties: {}, additionalProperties: false }, output_schema: { type: "integer" },
+  } };
+  const stop = host.actionRegistry(ref).registerProvider({ provider: { provider_id: id, title: "种类的插件", kind: "plugin" }, definitions: [definition],
+    handlers: [{ capability_id: id, version: 1, handle: () => 1, availability: () => connected ? { available: true }
+      : { available: false, code: "fixture.offline", reason: "服务未连接", ...(kind ? { kind } : {}) } }] });
+  const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });
+  try {
+    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address(); assert.ok(address && typeof address === "object"); const origin = `http://127.0.0.1:${address.port}`;
+    const input = { client_id: "runtime:external", project_id: project.project_id, capability_id: id, version: 1, provider_id: id, enabled: true };
+    const send = () => fetch(`${origin}/api/settings/mcp/actions`, { method: "POST", body: JSON.stringify(input), headers: {
+      origin, "content-type": "application/json", "x-molis-work-idempotency-key": randomUUID(), "x-molis-work-control-token": token,
+    } });
+    connected = false;
+    kind = "conflict";
+    const conflict = await send();
+    assert.equal(conflict.status, 409, await conflict.clone().text());
+    assert.equal((await conflict.json() as { code?: string }).code, "fixture.offline");
+    kind = "unavailable";
+    assert.equal((await send()).status, 503);
+    kind = undefined;
+    assert.equal((await send()).status, 400);
+    stop();
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    await host.close();
+    catalog.close();
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("RAC-1332 an oversized body answers 413 and a POST naming a missing project answers 404, both with their codes", { timeout: 30_000 }, async () => {
+  const home = await mkdtemp(join(tmpdir(), "mcp-action-limits-")), token = "mcp-action-limits-test-control-token";
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  const host = new MolisWorkLocalHost({ homeDirectory: home });
+  const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });
+  try {
+    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address(); assert.ok(address && typeof address === "object"); const origin = `http://127.0.0.1:${address.port}`;
+    const send = (body: string) => fetch(`${origin}/api/settings/mcp/actions`, { method: "POST", body, headers: {
+      origin, "content-type": "application/json", "x-molis-work-idempotency-key": randomUUID(), "x-molis-work-control-token": token,
+    } });
+    const oversized = await send(JSON.stringify({ client_id: "runtime:external", project_id: null, padding: "x".repeat(300_000) }));
+    assert.equal(oversized.status, 413, await oversized.clone().text());
+    assert.equal((await oversized.json() as { code?: string }).code, "actions.input_too_large");
+    const missing = await send(JSON.stringify({ client_id: "runtime:external", project_id: "no-such-project", capability_id: "x", version: 1, provider_id: "x", enabled: true }));
+    assert.equal(missing.status, 404, await missing.clone().text());
+    assert.equal((await missing.json() as { code?: string }).code, "catalog.project_not_found");
+  } finally {
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    await host.close();
+    catalog.close();
+    await rm(home, { recursive: true, force: true });
+  }
+});

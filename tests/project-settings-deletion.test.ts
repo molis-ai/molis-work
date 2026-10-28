@@ -188,3 +188,21 @@ test("project deletion refuses a live terminal and succeeds after the user close
     assert.deepEqual(catalog.listDesktopPanels(project.project_id), []);
   } finally { socket.terminate(); }
 });
+
+test("RAC-1330 project deletion of a project that is not in the catalog answers 404 with its code", async t => {
+  const { origin, post } = await fixture(t);
+  const response = await post("/api/settings/projects/no-such-project/delete", { delete_confirmed: true, idempotency_key: "missing-project-delete" });
+  assert.equal(response.status, 404);
+  assert.equal((await response.json() as { code?: string }).code, "catalog.project_not_found");
+});
+
+test("RAC-1333 a deletion failure that is not an ActionError keeps its text out of the response", async t => {
+  const { origin, post } = await fixture(t);
+  // A project id whose percent-encoding does not decode is a plain URIError on the way in, not a refusal: the exit rethrows it,
+  // the Host's unhandled answer logs it and answers with a diagnostic id, never with the internal text.
+  const response = await post("/api/settings/projects/%zz/delete", { delete_confirmed: true, idempotency_key: "malformed-project-id" });
+  assert.equal(response.status, 500);
+  const body = await response.json() as { error?: string; diagnostic_id?: string };
+  assert.equal(typeof body.diagnostic_id, "string", JSON.stringify(body));
+  assert.doesNotMatch(body.error ?? "", /URI|malformed/i);
+});

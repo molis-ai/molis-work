@@ -292,3 +292,36 @@ test("W4-2-06: pages.create with a request id makes the document once; other con
     await assert.rejects(client.invoke({ ...caller, permissions: ["pages:write"] }, actions.intakeOffers, selection({})), { code: "actions.forbidden" });
   });
 });
+test("RAC-1625: Pages counts a document's title in Unicode characters, as its action schemas do", async () => {
+  // create and update in src/actions.ts allow an 80-character title; one 🟢 is one character but two UTF-16 units.
+  await fixture(async ({ bound }) => {
+    const wide = (count: number) => "🟢".repeat(count);
+    const { document } = await bound.invoke(actions.create, { title: wide(80) });
+    assert.equal(document.title, wide(80), "create keeps an 80-character title");
+    const renamed = (await bound.invoke(actions.update, { id: document.id, title: "改" + wide(79) })).document;
+    assert.equal(renamed.title, "改" + wide(79), "update keeps an 80-character title");
+    assert.equal((await bound.invoke(actions.get, { id: document.id })).document.title, "改" + wide(79), "the stored title reads back whole");
+    await assert.rejects(bound.invoke(actions.create, { title: wide(81) }), { code: "actions.input_invalid" }, "81 characters is still past the schema");
+  });
+});
+
+test("RAC-1626: a folder name is counted in Unicode characters, as the folder actions' schemas do", async () => {
+  // folders.create and folders.update in src/actions.ts allow a 40-character name.
+  await fixture(async ({ bound }) => {
+    const wide = (count: number) => "🟢".repeat(count);
+    const { folder } = await bound.invoke(actions.createFolder, { title: wide(40) });
+    assert.equal(folder.title, wide(40), "folders.create keeps a 40-character name");
+    const renamed = (await bound.invoke(actions.updateFolder, { id: folder.id, title: "夹" + wide(39) })).folder;
+    assert.equal(renamed.title, "夹" + wide(39), "folders.update keeps a 40-character name");
+    await assert.rejects(bound.invoke(actions.createFolder, { title: wide(41) }), { code: "actions.input_invalid" }, "41 characters is still past the schema");
+  });
+});
+
+test("RAC-1627: a workflow hand-off's long title is cut at whole Unicode characters, never half of one", async () => {
+  // receive in src/content-actions.ts cuts the headline to the 80 characters a title holds, then saves it through pages.documents.import.
+  await fixture(async ({ bound }) => {
+    const wide = (count: number) => "🟢".repeat(count);
+    const received = await bound.invoke(content.receive, { title: "收" + wide(80), body: "正文", request_id: "workflow:unicode-title:1" });
+    assert.equal((await bound.invoke(actions.get, { id: received.item_id })).document.title, "收" + wide(79), "the stored title keeps 80 whole characters");
+  });
+});

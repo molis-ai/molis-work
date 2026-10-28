@@ -102,3 +102,34 @@ test("RAC-1494 cleanup of a managed install without its ownership record is a de
   });
   assert.equal(existsSync(join(directory, "keep.txt")), true, "nothing in a directory we cannot own is removed");
 });
+// RAC-1640: an ownership record that is there but is not JSON is still an owner we cannot read, so the install stays and the
+// refusal is the same declared invalid one (not the raw SyntaxError the parse throws).
+test("RAC-1640 cleanup of a managed install whose ownership record is not valid JSON is a declared invalid refusal and removes nothing", async t => {
+  const home = await openTestHome(t), id = "6f1c2d3e-4a5b-4c6d-8e7f-90a1b2c3d4e5", directory = join(home.home, "runtime/connectors/installs", id);
+  mkdirSync(directory, { recursive: true });
+  writeFileSync(join(directory, "installation.json"), "{\"id\":");
+  writeFileSync(join(directory, "keep.txt"), "not ours");
+  await assert.rejects(home.host.homeActionClient().invoke(caller, connectorLocalActions.cleanup, { installation_id: id }), (error: { code?: string; kind?: string; message?: string }) => {
+    assert.equal(error.code, "connector.install.invalid");
+    assert.equal(error.kind, "invalid");
+    assert.equal(error.message, "安装所有权记录无法读取，未移除任何文件", "the action passes the declared refusal's own sentence on");
+    return true;
+  });
+  assert.equal(existsSync(join(directory, "keep.txt")), true, "nothing in an install whose owner we cannot read is removed");
+  assert.equal(readFileSync(join(directory, "installation.json"), "utf8"), "{\"id\":", "the unreadable record is left as it was");
+});
+
+// RAC-1641: an ownership record path that is a directory reads as EISDIR; it gets the same declared refusal and nothing goes.
+test("RAC-1641 cleanup of a managed install whose ownership record is a directory is a declared invalid refusal and removes nothing", async t => {
+  const home = await openTestHome(t), id = "7a2b3c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d", directory = join(home.home, "runtime/connectors/installs", id);
+  mkdirSync(join(directory, "installation.json"), { recursive: true });
+  writeFileSync(join(directory, "keep.txt"), "not ours");
+  await assert.rejects(home.host.homeActionClient().invoke(caller, connectorLocalActions.cleanup, { installation_id: id }), (error: { code?: string; kind?: string; message?: string }) => {
+    assert.equal(error.code, "connector.install.invalid");
+    assert.equal(error.kind, "invalid");
+    assert.equal(error.message, "安装所有权记录无法读取，未移除任何文件", "the action passes the declared refusal's own sentence on");
+    return true;
+  });
+  assert.equal(existsSync(join(directory, "keep.txt")), true, "nothing in an install whose owner we cannot read is removed");
+  assert.equal(existsSync(join(directory, "installation.json")), true, "the record directory is left in place");
+});

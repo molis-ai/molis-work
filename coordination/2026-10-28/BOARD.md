@@ -85,6 +85,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-085 | Pages 评论按 Unicode 字数数上限，与发送评论的动作 schema 一致 | 乙 | B | 38 | — | `plugins/native/pages/src/comments-store.ts`、`tests/pages-comments.test.ts` |
 | T-086 | 问卷的标题、说明、题目标题、出题提示与回答按 Unicode 字数数上限，与动作 schema 一致 | 乙 | B | 39 | — | `plugins/native/form/src/store.ts`、`tests/creative-tools-plugins.test.ts` |
 | T-087 | 受管理安装的所有权记录读不出来（不是合法 JSON、是目录）时，移除报 `connector.install.invalid`，不再抛原生错误 | 乙 | B | 40 | — | `apps/local-host/src/connector-tool-install.ts`（只改 `removeManagedConnectorTool`）、`tests/connector-local-actions.test.ts` |
+| T-088 | 终端进程自己退出时也删掉它的重放缓冲 | 乙 | 池 | 41 | — | `horizontal/runtime-host/src/adapters/terminal-pty.ts`、`tests/runtime-host.test.ts` |
 
 ## 在途，不走任务书
 

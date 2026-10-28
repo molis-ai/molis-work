@@ -105,6 +105,25 @@ function installRecords(store: LocalProjectDatabase): Array<{ install_id: string
   return rows.map(row => JSON.parse(row.record_json) as { install_id: string; state: string });
 }
 
+/** Run the cleanup steps one by one: a failing step is recorded, and the later steps still run. */
+async function collectCleanupErrors(steps: ReadonlyArray<() => void | Promise<void>>): Promise<unknown[]> {
+  const errors: unknown[] = [];
+  for (const step of steps) {
+    try {
+      await step();
+    } catch (error) {
+      errors.push(error);
+    }
+  }
+  return errors;
+}
+
+/** After the cleanup steps: throw the recorded failures with the test body's own failure first, so nothing masks it. */
+function throwCleanupErrors(failure: unknown, errors: readonly unknown[]): void {
+  if (errors.length === 0) return;
+  throw new AggregateError(failure === undefined ? [...errors] : [failure, ...errors], "测试收尾失败");
+}
+
 test("RAC-1453 a project plugin whose install record the Runtime cannot give is one close failure, and the plugins after it still stop and are revoked", async () => {
   const { home, store, ports } = await openProject();
   const platform = (await ensureProjectPlugins(ports)).platform;
@@ -116,6 +135,7 @@ test("RAC-1453 a project plugin whose install record the Runtime cannot give is 
   const saved = store.db.prepare("SELECT * FROM plugin_runtime_installs WHERE install_id = ?").get(gone.install) as Record<string, unknown>;
   assert.ok(saved);
   store.db.prepare("DELETE FROM plugin_runtime_installs WHERE install_id = ?").run(gone.install);
+  let failure: unknown;
   try {
     await assert.rejects(releaseProjectPlugins(store, DEMO_PROJECT_ID), error => {
       assert.ok(error instanceof AggregateError);
@@ -131,14 +151,25 @@ test("RAC-1453 a project plugin whose install record the Runtime cannot give is 
       assert.ok(!platform.supervisor.enabledPluginIds().includes(plugin.id), `${plugin.id} is revoked`);
       assert.equal(platform.supervisor.state(plugin.id)?.code, "plugin.revoked");
     }
+  } catch (error) {
+    failure = error;
+    throw error;
   } finally {
-    const columns = Object.keys(saved);
-    store.db.prepare(`INSERT INTO plugin_runtime_installs (${columns.join(", ")}) VALUES (${columns.map(column => `@${column}`).join(", ")})`).run(saved);
-    // Nobody stopped the instance whose record was gone; the project is already forgotten, so release cannot reach it.
-    if (platform.runtime.get(gone.install).state === "running") await platform.runtime.stop(gone.install);
-    await releaseProjectPlugins(store, DEMO_PROJECT_ID);
-    store.close();
-    rmSync(home, { recursive: true, force: true });
+    // Nobody stopped the instances the close left running (on the red branch, all of `rest` too); the project is already
+    // forgotten, so release cannot reach them, and each installation is its own cleanup step.
+    const errors = await collectCleanupErrors([
+      () => {
+        const columns = Object.keys(saved);
+        store.db.prepare(`INSERT INTO plugin_runtime_installs (${columns.join(", ")}) VALUES (${columns.map(column => `@${column}`).join(", ")})`).run(saved);
+      },
+      ...running.map(plugin => async () => {
+        if (platform.runtime.get(plugin.install).state === "running") await platform.runtime.stop(plugin.install);
+      }),
+      () => releaseProjectPlugins(store, DEMO_PROJECT_ID),
+      () => store.close(),
+      () => rmSync(home, { recursive: true, force: true }),
+    ]);
+    throwCleanupErrors(failure, errors);
   }
 });
 
@@ -152,6 +183,7 @@ test("RAC-1454 a crashed installation the supervisor still counts running is not
   await platform.runtime.reportCrash(crashed.install);
   assert.equal(platform.runtime.get(crashed.install).state, "crashed");
   assert.equal(platform.supervisor.state(crashed.id)?.status, "running", "the supervisor does not hear about a crash");
+  let failure: unknown;
   try {
     await releaseProjectPlugins(store, DEMO_PROJECT_ID);
     const records = installRecords(store);
@@ -161,10 +193,16 @@ test("RAC-1454 a crashed installation the supervisor still counts running is not
       assert.ok(!platform.supervisor.enabledPluginIds().includes(plugin.id));
       assert.equal(platform.supervisor.state(plugin.id)?.code, "plugin.revoked");
     }
+  } catch (error) {
+    failure = error;
+    throw error;
   } finally {
-    await releaseProjectPlugins(store, DEMO_PROJECT_ID);
-    store.close();
-    rmSync(home, { recursive: true, force: true });
+    const errors = await collectCleanupErrors([
+      () => releaseProjectPlugins(store, DEMO_PROJECT_ID),
+      () => store.close(),
+      () => rmSync(home, { recursive: true, force: true }),
+    ]);
+    throwCleanupErrors(failure, errors);
   }
 });
 
@@ -181,6 +219,7 @@ test("RAC-1455 every running project plugin is stopped exactly once with preserv
     return stop(installId, options);
   };
   let reopened: Awaited<ReturnType<typeof ensureProjectPlugins>> | null = null;
+  let failure: unknown;
   try {
     await releaseProjectPlugins(store, DEMO_PROJECT_ID);
     assert.deepEqual(stopped.map(entry => entry.install).sort(), running.map(plugin => plugin.install).sort());
@@ -193,9 +232,16 @@ test("RAC-1455 every running project plugin is stopped exactly once with preserv
     reopened = await ensureProjectPlugins(ports);
     assert.ok(reopened.platform);
     for (const plugin of running) assert.equal(reopened.platform.supervisor.state(plugin.id)?.status, "running");
+  } catch (error) {
+    failure = error;
+    throw error;
   } finally {
-    await releaseProjectPlugins(store, DEMO_PROJECT_ID);
-    store.close();
-    rmSync(home, { recursive: true, force: true });
+    // The release below is the platform this test reopened; it cannot be skipped.
+    const errors = await collectCleanupErrors([
+      () => releaseProjectPlugins(store, DEMO_PROJECT_ID),
+      () => store.close(),
+      () => rmSync(home, { recursive: true, force: true }),
+    ]);
+    throwCleanupErrors(failure, errors);
   }
 });

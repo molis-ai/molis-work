@@ -32,7 +32,7 @@ Feed/Inbox 正由 ac-sandbox-sched 迁 Runtime（FI-3～6，分支 `claude/ac-fe
 - `content-action-providers.ts`：Feed 的处理器、`linkedContext` 钉 `feedManifest.plugin_id`、`NATIVE_CONTENT_PERMISSIONS` import Pages、Lingguang、Inbox 包取权限。
 - `feed-goal-promotion.ts`（钉 `FEED_PLUGIN_ID`）、`inbox-actions.ts`（import Inbox、Feed、Pages 包）。
 - `plugins/native/inbox/src/actions.ts`、`plugins/native/inbox/src/pages.ts`（Inbox 声明的跨插件依赖，原按裁定保留精确提供方）。
-- 宿主里其余 import Feed、Inbox 包的 `feed-*`、`inbox-scene.ts`、`information-planner.ts`、`workflow-feed-options.ts`、`official-integrations.ts`、`research-library-source.ts`、`demo-plugin-seed.ts`，以及 `web-request.ts`、`web-view.ts`、`web-panel.ts`、`web-types.ts` 里的 Feed/Inbox 部分。
+- 宿主里其余 import Feed、Inbox 包的 `feed-*`、`inbox-scene.ts`、`workflow-feed-options.ts`、`official-integrations.ts`、`research-library-source.ts`、`demo-plugin-seed.ts`，以及 `web-request.ts`、`web-view.ts`、`web-panel.ts`、`web-types.ts` 里的 Feed/Inbox 部分。
 
 ## 4. 别的线，或不属于本行
 

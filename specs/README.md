@@ -59,6 +59,8 @@
 - [post-anticorruption-roadmap](post-anticorruption-roadmap/spec.md)：防腐收尾之后全部未完成需求的清单与实现路径——按依赖分五段、按文件分七条轨道；2026-10-27 补材料基础路径优先、场景引导、项目助理团和生成交互首页的前置与顺序，并独立排入观测和采集层及其与评测、主动助理的依赖；原轨道归属保留，防腐线收尾后执行。
 - [quiet-home-refresh](quiet-home-refresh/spec.md)：项目首页后台刷新停在当前画面上，日期条和标题没变就不重画，也不先换成「正在读取事项…」；第一次进入和点「重新读取」仍显示加载。2026-10-22，待验收。
 
+- [qa-acceptance-2026-10](qa-acceptance-2026-10/spec.md)：已合入 main 的七条线独立 QA；首轮报告与逐编号判定，待修复复验和用户验收，只报告、不修复。
+
 ## 现行规范
 
 仍被 `AGENTS.md`、SSOT、Skill 或包 README 引为现行规则的 spec。它们不归档；改规则就改它们。

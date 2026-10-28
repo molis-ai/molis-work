@@ -580,3 +580,80 @@ test("a failed upgrade from a crashed install leaves the old code with its own e
   assert.equal(publish("b"), "plugin.event_not_declared", "and nothing the failed candidate declared");
   await runtime.stop(id);
 });
+
+/** A Runtime over the Native executor that counts stop hooks; `failStop` makes the next ones throw. */
+function countingRuntime(repository = new MemoryPluginRuntimeRepository()) {
+  const native = new NativePluginExecutor(), seen = { stops: 0, failStop: false };
+  const executor: PluginExecutor = {
+    start: (definition, context) => native.start(definition, context),
+    async stop(definition, context) { seen.stops += 1; if (seen.failStop) throw new Error("stop hook failed"); return native.stop(definition, context); },
+  };
+  return { repository, executor, seen, runtime: new PluginRuntime(repository, executor, { hostIds: ISOLATED_HOST_IDS }) };
+}
+
+// RAC-1193 T-034: stopping a crashed or never-started install is the person switching it off. Nothing runs, so no stop hook runs;
+// the record says disabled and keeps its crash code and recovery count, a new Runtime on the same repository reads it back, and
+// start runs it again.
+test("RAC-1193 stopping a crashed or never-started install records disabled, keeps its crash code and recovery count, and start runs it again", async t => {
+  for (const crashed of [true, false]) await t.test(crashed ? "crashed" : "never started", async () => {
+    const { repository, executor, seen, runtime } = countingRuntime(), definition = probe("1.0.0");
+    const id = runtime.install({ trust: { level: "unsigned" }, definition, deployment: "local", grants: [] }).install.install_id;
+    // One recovery on the way, so the count the stop has to keep is 1, not the 0 every install starts from.
+    if (crashed) { await runtime.start(id); await runtime.reportCrash(id); await runtime.recover(id); await runtime.reportCrash(id); }
+    const before = runtime.get(id), stops = seen.stops;
+    assert.equal(before.state, crashed ? "crashed" : "installed");
+    assert.deepEqual([before.last_error_code, before.recovery_count], crashed ? ["plugin.process_crashed", 1] : [null, 0]);
+
+    const receipt = await runtime.stop(id);
+    assert.equal(receipt.replayed, false);
+    const kept = (record: PluginInstanceRecord) => [record.state, record.last_error_code, record.recovery_count];
+    assert.deepEqual(kept(runtime.get(id)), ["disabled", before.last_error_code, before.recovery_count], "only the state changes");
+    assert.deepEqual(kept(receipt.install), kept(runtime.get(id)));
+    assert.equal(seen.stops, stops, "nothing was running, so no stop hook runs");
+
+    const restarted = new PluginRuntime(repository, executor, { hostIds: ISOLATED_HOST_IDS });
+    restarted.register(definition);
+    assert.deepEqual(kept(restarted.get(id)), ["disabled", before.last_error_code, before.recovery_count], "the switch-off outlives the Runtime");
+    assert.equal((await restarted.start(id)).install.state, "running");
+    // Current behaviour pinned here: start leaves the recovery count alone; only install, a version switch and a quarantine release reset it.
+    assert.equal(restarted.get(id).recovery_count, before.recovery_count);
+    await restarted.stop(id);
+  });
+});
+
+// RAC-1194 T-034: what a stop still refuses, leaving the record as it was. A quarantine is released only explicitly, and a disabled
+// install can be started, so a stop does not turn one into the other. Host shutdown's preserve_enabled neither erases a crash nor
+// turns a never-started install into the person's choice. An uninstalled install has nothing to stop. And a running install whose
+// stop hook fails is still recorded crashed.
+test("RAC-1194 a stop still refuses a quarantined or uninstalled install and a preserve_enabled stop of a crashed or never-started one; a failing stop hook still records crashed", async () => {
+  const { seen, runtime } = countingRuntime();
+  const id = runtime.install({ trust: { level: "unsigned" }, definition: probe("1.0.0"), deployment: "local", grants: [] }).install.install_id;
+  const refused = async (options?: { preserve_enabled: true }) => {
+    const before = runtime.get(id), stops = seen.stops;
+    assert.equal(await code(runtime.stop(id, options)), "plugin.state_invalid", before.state);
+    assert.deepEqual(runtime.get(id), before, before.state + " stays as it was");
+    assert.equal(seen.stops, stops, "no stop hook runs");
+  };
+
+  await refused({ preserve_enabled: true });
+  assert.equal(runtime.get(id).state, "installed");
+  await runtime.start(id); await runtime.reportCrash(id);
+  await refused({ preserve_enabled: true });
+  assert.equal(runtime.get(id).state, "crashed");
+
+  for (let n = 0; n < 3; n++) { await runtime.recover(id); await runtime.reportCrash(id); }
+  assert.equal(await code(runtime.recover(id)), "plugin.quarantined");
+  await refused();
+  await refused({ preserve_enabled: true });
+  assert.equal(runtime.get(id).state, "quarantined");
+
+  await runtime.recover(id, { release_quarantine: true });
+  seen.failStop = true;
+  assert.equal(await code(runtime.stop(id)), "plugin.executor_failed");
+  assert.equal(runtime.get(id).state, "crashed");
+  assert.equal(runtime.get(id).last_error_code, "plugin.executor_failed");
+
+  await runtime.uninstall(id);
+  await refused();
+  assert.equal(runtime.get(id).state, "uninstalled");
+});

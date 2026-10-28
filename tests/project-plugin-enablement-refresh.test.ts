@@ -6,12 +6,11 @@ import { SCHEDULE_PLUGIN_ID } from "@molis-ai/molis-work-plugin-schedule";
 import { serveHomeRuntime } from "./fixtures/home-runtime.js";
 
 // RAC-1120 (T-007, R-70 / BL-813): the enablement refresh each project request runs used to stop every switched-off plugin it still
-// counted as enabled, crashed ones included; the Runtime refuses to stop an installation that is not running (`plugin.state_invalid`),
-// and the refusal failed the request that ran into the refresh (the revoke before it means the next refresh no longer tries). The
-// refresh now takes that one refusal as "left as it is" and throws every other failure. The same refusal covers a running plugin whose
-// stop, queued by the revoke, fails in its stop hook and leaves it crashed before the refresh's own stop runs; no case here has such
-// a hook, so that window rests on the refresh accepting only `plugin.state_invalid` (a failing stop hook itself is `plugin.executor_failed`).
-test("RAC-1120 a project plugin that crashed and is then switched off stays as it is, the project's pages keep answering, and adding it back starts it", async t => {
+// counted as enabled, crashed ones included; the Runtime refused to stop an installation that was not running (`plugin.state_invalid`),
+// and the refusal failed the request that ran into the refresh (the revoke before it means the next refresh no longer tries). Since
+// T-034 the Runtime records a stopped crashed or never-started installation disabled and refuses only a quarantined one; the refresh
+// takes that refusal as "left as it is" and throws every other failure (a failing stop hook itself is `plugin.executor_failed`).
+test("RAC-1120 a project plugin that crashed and is then switched off is recorded disabled, the project's pages keep answering, and adding it back starts it", async t => {
   const { home, host, project, request } = await serveHomeRuntime(t);
   const one = await project("Crashed, then switched off");
   const page = async (path: string) => (await request(`/projects/${one.project_id}${path}`)).status;
@@ -28,12 +27,12 @@ test("RAC-1120 a project plugin that crashed and is then switched off stays as i
   await plugins("removeProjectPlugin");
   for (const path of ["/", "/api/board", "/"]) assert.equal(await page(path), 200, path);
   assert.equal(platform.supervisor.enabledPluginIds().includes(SCHEDULE_PLUGIN_ID), false, "switched off");
-  assert.equal(platform.runtime.get(installId).state, "crashed", "left as it was: not stopped, not started");
+  assert.equal(platform.runtime.get(installId).state, "disabled", "switching it off is a stop: recorded disabled, not started");
 
   await plugins("addProjectPlugin");
   assert.equal(await page("/"), 200);
   assert.equal(platform.supervisor.state(SCHEDULE_PLUGIN_ID)?.status, "running");
-  assert.equal(platform.runtime.get(installId).state, "running", "adding it back recovers and starts the same installation");
+  assert.equal(platform.runtime.get(installId).state, "running", "adding it back starts the same installation");
 });
 
 test("RAC-1120 a quarantined project plugin switched off and back on stays quarantined, and the project's pages keep answering", async t => {

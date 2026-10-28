@@ -90,12 +90,6 @@ html,body{margin:0;min-height:100%;background:var(--paper);color:var(--ink)}
 .side-view{box-sizing:border-box;height:100dvh;display:flex;font-size:13px;line-height:1.6}.side-view>[data-work-surface]{position:relative;display:flex;flex:1;min-width:0}
 `;
 
-/** Every enabled side view's key, for the Host to answer 404 on anything else. */
-export function sideViewKeys(enabled: readonly ProjectPluginId[]): string[] {
-  return sideEntries(enabled).map(entry => `${entry.project_plugin_id}/${entry.view_id}`);
-}
-
-
 /** The same parent protocol serves Runtime Home views and project side views. */
 export function sideViewBridgeScript(routePrefix: string): string {
   const route = JSON.stringify(routePrefix);

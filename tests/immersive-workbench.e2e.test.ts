@@ -226,23 +226,48 @@ test("RAC-1313 RAC-1314 a market change to another project says what came or wen
   await click('[data-market-plugin="feed"] [data-market-add]');
   await waitFor("document.querySelector('[data-market-plugin=\"feed\"] [data-market-add]').dataset.marketMembership === 'added'", 10_000);
   assert.doesNotMatch(await evaluate<string>("document.querySelector('[data-market-plugin=\"inbox\"] [data-market-add]').getAttribute('title') || ''"), /依赖它的插件不会一并添加/);
-  // RAC-1313: in this project the line stays the one sentence; the toast says what came along, once.
+  // RAC-1313: in this project the same two things are done in place, and the line stays the one sentence: the toast says
+  // what came along, once. The current project starts with Feed and Inbox; taking Inbox out takes Feed with it.
   await selectProject(projectId!);
-  await waitFor("Boolean(document.querySelector('[data-market-plugin=\"artifacts\"] [data-market-add]')) && !document.querySelector('[data-market-plugin=\"artifacts\"] [data-market-add]').disabled", 10_000);
+  await waitFor("Boolean(document.querySelector('[data-market-plugin=\"inbox\"] [data-market-add]'))", 10_000);
   const here = await evaluate<string>("document.querySelector('[data-market-project-label]').textContent");
-  assert.equal(await evaluate("document.querySelector('[data-market-plugin=\"artifacts\"] [data-market-add]').dataset.marketMembership"), "available", "artifacts is not in this project yet");
-  await click('[data-market-plugin="artifacts"] [data-market-add]');
-  await waitFor("document.querySelector('[data-market-plugin=\"artifacts\"] [data-market-add]').dataset.marketMembership === 'added'", 10_000);
-  // In this project the change is applied in place (follow redraws the market), so the transient line is either the one existing
-  // sentence or already gone: it never repeats what the toast says (one thing said once).
-  await waitFor("(() => { const s = document.querySelector('[data-market-status]'); return s && !/正在读取项目|正在添加|正在移除/.test(s.textContent); })()", 10_000);
-  const added = await status();
-  assert.doesNotMatch(added, /同时添加了|同时移除了|依赖它的插件不会一并添加/);
-  if (added) assert.equal(added, "已添加到 " + here);
-  await click('[data-market-plugin="artifacts"] [data-market-add]');
-  await waitFor("document.querySelector('[data-market-plugin=\"artifacts\"] [data-market-add]').dataset.marketMembership === 'available'", 10_000);
-  await waitFor("(() => { const s = document.querySelector('[data-market-status]'); return s && !/正在读取项目|正在添加|正在移除/.test(s.textContent); })()", 10_000);
-  const removed = await status();
-  assert.doesNotMatch(removed, /同时添加了|同时移除了|依赖它的插件不会一并添加/);
-  if (removed) assert.equal(removed, "已移除自 " + here);
+  const membership = () => evaluate<string[]>(`fetch('/api/settings/project-plugins').then(r=>r.json()).then(r=>r.projects.find(p=>p.project_id===${JSON.stringify(projectId)})?.plugins || [])`);
+  if ((await evaluate("document.querySelector('[data-market-plugin=\"inbox\"] [data-market-add]').dataset.marketMembership")) === "added") {
+    await click('[data-market-plugin="inbox"] [data-market-add]');
+    await waitFor("document.querySelector('[data-market-plugin=\"inbox\"] [data-market-add]').dataset.marketMembership === 'available'", 10_000);
+  }
+  assert.deepEqual((await membership()).filter(id => ["feed", "inbox"].includes(id)), [], "neither is in this project now");
+  // Every write of the status line from here on, wherever the market's own surface is redrawn: the writer the page keeps holds
+  // the element it was made with, so a line written after a redraw would be invisible — record the writes themselves.
+  await evaluate(`(() => {
+    window.__marketStatusWrites = [];
+    const descriptor = Object.getOwnPropertyDescriptor(Node.prototype, "textContent");
+    Object.defineProperty(Node.prototype, "textContent", {
+      configurable: true,
+      get() { return descriptor.get.call(this); },
+      set(value) {
+        if (this instanceof Element && this.hasAttribute("data-market-status")) window.__marketStatusWrites.push(String(value));
+        descriptor.set.call(this, value);
+      },
+    });
+    return true;
+  })()`);
+  // Adding Feed in this project brings Inbox with it: the membership shows both, the toast says so once, the line does not.
+  await click('[data-market-plugin="feed"] [data-market-add]');
+  await waitFor("document.querySelector('[data-market-plugin=\"feed\"] [data-market-add]').dataset.marketMembership === 'added'", 10_000);
+  await waitFor("(() => { const t = document.querySelector('[data-toast]'); return t && /同时添加了：Inbox/.test(t.textContent || ''); })()", 10_000);
+  assert.deepEqual((await membership()).filter(id => ["feed", "inbox"].includes(id)).sort(), ["feed", "inbox"], "Inbox came along");
+  const addedWrites: string[] = await evaluate("window.__marketStatusWrites");
+  assert.ok(addedWrites.includes("已添加到 " + here), "the one existing sentence was written: " + JSON.stringify(addedWrites));
+  assert.deepEqual(addedWrites.filter(line => /同时添加了|同时移除了|依赖它的插件不会一并添加/.test(line)), [],
+    "the line never repeats what the toast says: " + JSON.stringify(addedWrites));
+  // Removing Inbox takes Feed with it: same rule, the other way.
+  await click('[data-market-plugin="inbox"] [data-market-add]');
+  await waitFor("document.querySelector('[data-market-plugin=\"inbox\"] [data-market-add]').dataset.marketMembership === 'available'", 10_000);
+  await waitFor("(() => { const t = document.querySelector('[data-toast]'); return t && /同时移除了：Feed/.test(t.textContent || ''); })()", 10_000);
+  assert.deepEqual((await membership()).filter(id => ["feed", "inbox"].includes(id)), [], "Feed went with Inbox");
+  const removedWrites: string[] = await evaluate("window.__marketStatusWrites");
+  assert.ok(removedWrites.includes("已移除自 " + here), "the one existing sentence was written: " + JSON.stringify(removedWrites));
+  assert.deepEqual(removedWrites.filter(line => /同时添加了|同时移除了|依赖它的插件不会一并添加/.test(line)), [],
+    "the line never repeats what the toast says: " + JSON.stringify(removedWrites));
 });

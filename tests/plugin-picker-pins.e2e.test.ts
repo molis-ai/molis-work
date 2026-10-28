@@ -604,3 +604,33 @@ test("RAC-1317 the market's longest status line lays out cleanly at 390 in light
     await assertLayoutClean(evaluate, `RAC-1317 market status · 390 · ${scheme}`);
   }
 });
+
+test("RAC-1317 an English page reads the market's and the Dock's relation sentences in English", { timeout: 180_000 }, async t => {
+  const b = await openGoalBrowser(t, "user");
+  if (!b) return;
+  const { command, sessionId, evaluate, click, waitFor, navigate, origin, projectId } = b;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await command("Network.setCookie", { name: "molis_work_locale", value: "en", url: origin }, sessionId);
+  // The workbench's own control headers are part of the page: open one first, then make the projects the test uses.
+  await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
+  await waitFor("document.body.dataset.desktopSurface === 'home'");
+  const another = await evaluate<string>("(async()=>{const r=await fetch('/api/settings/projects',{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({display_name:'Another project',user_confirmed:true})});if(!r.ok)throw new Error(await r.text());return (await r.json()).project.project_id;})()");
+  const home = await evaluate<string>("(async()=>{const r=await fetch('/api/settings/projects',{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({display_name:'Home project',user_confirmed:true})});if(!r.ok)throw new Error(await r.text());return (await r.json()).project.project_id;})()");
+  await navigate(() => command("Page.navigate", { url: origin + "/projects/" + home + "/" }, sessionId));
+  await waitFor("document.body.dataset.desktopSurface === 'home'");
+  // The Dock's add button says which plugin will not come with it, in English.
+  await waitFor("Boolean(document.querySelector('[data-plugin-tile=\"inbox\"] [data-plugin-toggle]')) && !document.querySelector('[data-plugin-tile=\"inbox\"] [data-plugin-toggle]').disabled");
+  assert.equal(await evaluate<string>("document.querySelector('[data-plugin-tile=\"inbox\"] [data-plugin-toggle]').getAttribute('title')"),
+    "Add to this project; plugins that depend on it are not added with it: Feed");
+  // The market says it on the buttons and after the change on its status line, in English.
+  await click('[data-work-surface-open="market"]');
+  await waitFor("!document.querySelector('[data-market-project]').disabled");
+  await evaluate("(()=>{const s=document.querySelector('[data-market-project]');s.value=" + JSON.stringify(another) + ";s.dispatchEvent(new Event('change',{bubbles:true}));})()");
+  await waitFor("Boolean(document.querySelector('[data-market-plugin=\"feed\"] [data-market-add]')) && !document.querySelector('[data-market-plugin=\"feed\"] [data-market-add]').disabled", 10_000);
+  assert.equal(await evaluate<string>("document.querySelector('[data-market-plugin=\"feed\"] [data-market-add]').getAttribute('title')"), "Also adds: Inbox");
+  assert.equal(await evaluate<string>("document.querySelector('[data-market-plugin=\"inbox\"] [data-market-add]').getAttribute('title')"),
+    "Plugins that depend on it are not added with it: Feed");
+  await click('[data-market-plugin="feed"] [data-market-add]');
+  await waitFor("document.querySelector('[data-market-plugin=\"feed\"] [data-market-add]').dataset.marketMembership === 'added'", 10_000);
+  assert.equal(await evaluate("document.querySelector('[data-market-status]').textContent"), "Added to Another project; Also added: Inbox");
+});

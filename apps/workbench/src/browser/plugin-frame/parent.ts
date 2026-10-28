@@ -74,6 +74,8 @@ function openPlugin(host: FrameHost, surface: unknown, prefix: string): void {
 export async function mountFrame(root: HTMLElement, host: FrameHost, pack: FramePack) {
   const route = host.route ?? (path => path), scope = host.mountPluginClient(root);
   if (!scope) throw new Error("View is already mounted");
+  // The owner's deferred client already wrote the same guard before it called this; only the raw mounts own it.
+  let own = false;
   try {
   const grant = pack.authorization ?? await molisWorkRequest<{ page_id: string; storage_scope: string }>(route("/api/host/plugin-pages"), { body: { plugin_id: pack.plugin_id }, scope });
   const surfaces = await subjectSurfaces(route, scope);
@@ -116,7 +118,11 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
   scope.observe(new MutationObserver(state), document.documentElement, { attributes: true, attributeFilter: ["data-theme", "data-resolved-theme", "data-density", "data-terminal-theme", "data-resolved-terminal-theme"] });
   scope.observe(new MutationObserver(state), document.body, { subtree: true, attributes: true, attributeFilter: ["data-exclusive"] });
   scope.whenVisible(() => { state(); navigation.focus(); return state; });
-  const fail = (error: Error) => { clearTimeout(deadline); readyReject(error); };
+  const fail = (error: Error) => {
+    clearTimeout(deadline);
+    if (own) { root.inert = false; root.removeAttribute("aria-busy"); root.dataset.uiClientState = "failed"; }
+    readyReject(error);
+  };
   const pickFile = pageFilePicker(port, scope, frame, grant.page_id, route, host.translate);
   port.onmessage = (event: MessageEvent<FrameUp>) => {
     const message = event.data;
@@ -149,7 +155,11 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
       if (message.type === "page-message") receiveMessage(message.message);
       else if (message.type === "download" && message.bytes instanceof ArrayBuffer && typeof message.filename === "string" && typeof message.mime === "string") downloadPageBlob(new Blob([message.bytes], { type: message.mime }), message.filename, scope);
       else if (message.type === "print" && typeof message.html === "string") printPageDocument(message.html, scope);
-      else if (message.type === "ready") { clearTimeout(deadline); root.dataset.uiClientState = "ready"; root.removeAttribute("data-deferred-surface"); state(); navigation.focus(); readyResolve(); }
+      else if (message.type === "ready") {
+        clearTimeout(deadline);
+        if (own) { root.inert = false; root.removeAttribute("aria-busy"); root.dataset.uiClientState = "ready"; }
+        root.removeAttribute("data-deferred-surface"); state(); navigation.focus(); readyResolve();
+      }
       else if (message.type === "failed") fail(new Error(message.message));
       else if (message.type === "ui" && Array.isArray(message.args)) {
         if (message.name === "showToast" && typeof message.args[0] === "string") host.showToast?.(message.args[0], message.args[1] === true);
@@ -186,7 +196,13 @@ export async function mountFrame(root: HTMLElement, host: FrameHost, pack: Frame
       messages: { ...globalThis.MOLIS_WORK_PLUGIN_WORDS?.[pack.plugin_id], ...globalThis.MOLIS_WORK_MESSAGES }, titles: globalThis.MOLIS_WORK_PLUGIN_TITLES ?? {}, storage };
     frame.contentWindow?.postMessage({ type: "molis:plugin-connect", config }, "*", [channel.port2]);
   };
-  frame.srcdoc = frameDocument(root, pack); root.append(frame);
+  frame.srcdoc = frameDocument(root, pack);
+  own = root.dataset.uiClientState !== "loading";
+  if (own) { root.inert = true; root.setAttribute("aria-busy", "true"); root.dataset.uiClientState = "loading"; }
+  root.append(frame);
   await ready; return { frame, scope };
-  } catch (error) { scope.dispose(); throw error; }
+  } catch (error) {
+    if (own) { root.inert = false; root.removeAttribute("aria-busy"); root.dataset.uiClientState = "failed"; }
+    scope.dispose(); throw error;
+  }
 }

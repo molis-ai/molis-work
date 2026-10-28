@@ -57,6 +57,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-046 | 接入授权的读取与取消只认准备者（BL-180） | 乙 | 池 | 13 | — | `apps/local-host/src/connector-management-actions.ts`、`apps/local-host/src/connector-authorization-status.ts`（只改 `requireConnectorInitiator` 的注释与文案）、`tests/security-invariants-connector-scope.test.ts`、`tests/connector-setup.test.ts`、`tests/security-invariants-connector-intent.test.ts`、`tests/assistant-connector-continuation.test.ts`（`docs/system/SECURITY-INVARIANTS.md` 只 S-37 一行、`specs/BACKLOG.md` 只删 BL-180 行，不锁） |
 | T-047 | 零碎四处：清理清单里两个已删导出、调用编号入口与日志、R-A5 的文件数、Pages 评论侧栏的请求 | 丙 | A | 14 | T-039 | `specs/repository-cleanup/inventory.md`（只第 168、169 行）、`docs/system/EXTENSION-POINTS.md`（只第 284 行）、`docs/system/GLOSSARY.md`（只第 415 行）、`specs/repository-anti-corruption/slices/w5-03-pages.md`（只第 71 行） |
 | T-048 | 插件框从挂上到就绪或失败都带加载守护，加载期间点不进去（BL-544） | 乙 | A | 15 | T-006 | `apps/workbench/src/browser/plugin-frame/parent.ts`（落点 A）或 `apps/workbench/src/side-view-document.ts`（落点 B）、`tests/plugin-frame-readiness.e2e.test.ts`、`tooling/gates/page-assets.json`、`scripts/gates/page-assets.mjs`（只 `APPROVED_CEILINGS`）（`specs/BACKLOG.md` 只删 BL-544 行，不锁） |
+| T-049 | 受管理安装目录缺所有权记录时，移除报 `connector.install.invalid`，不再抛原生 ENOENT | 乙 | 池 | 14 | — | `apps/local-host/src/connector-tool-install.ts`（只改 `removeManagedConnectorTool`）、`tests/security-invariants-connector-install.test.ts`、`tests/connector-local-actions.test.ts` |
 
 ## 在途，不走任务书
 

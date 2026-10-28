@@ -128,6 +128,7 @@ function fixtureSnapshot(file) {
     issue: f.issue.map(parseStage).filter(Boolean),
     mainRuns: f.mainRuns ?? [],
     fullsRunning: f.fullsRunning ?? 0,
+    carrierRunning: f.carrierRunning ?? 0,
   };
 }
 
@@ -173,8 +174,10 @@ function snapshot() {
     .map(parseStage)
     .filter(Boolean);
   const mainRuns = ghJson(["run", "list", "--branch", "main", "--limit", "20", "--json", "databaseId,workflowName,conclusion,status,event,createdAt,url"]);
-  const fullsRunning = ghJson(["run", "list", "--workflow", "full-suite.yml", "--limit", "20", "--json", "status"]).filter((r) => r.status !== "completed").length;
-  return { board, boardSha, boardTime, mainSha, branches, open, merged, issue, mainRuns, fullsRunning };
+  const fulls = ghJson(["run", "list", "--workflow", "full-suite.yml", "--limit", "20", "--json", "status,headBranch"]).filter((r) => r.status !== "completed");
+  const fullsRunning = fulls.length;
+  const carrierRunning = fulls.filter((r) => r.headBranch.startsWith("integration/")).length;
+  return { board, boardSha, boardTime, mainSha, branches, open, merged, issue, mainRuns, fullsRunning, carrierRunning };
 }
 
 const patchIds = new Map();
@@ -344,12 +347,21 @@ function plan(snap) {
   }
 
   if (role === "coord") {
-    const { fullsRunning } = snap;
+    const { fullsRunning, carrierRunning } = snap;
+    // README 第 9 节的 runner 预算：承载分支在排或在跑时不排 PR Full；晚高峰（UTC 10～15 点）最多一个，平时最多两个。
+    const utcHour = new Date().getUTCHours();
+    const fullCap = utcHour >= 10 && utcHour < 15 ? 1 : 2;
+    const fullWait = carrierRunning > 0 ? "承载分支的 Full 在排或在跑" : fullsRunning >= fullCap ? `已有 ${fullsRunning} 个 Full（现在最多 ${fullCap} 个）` : null;
     for (const s of states) {
       if (s.askOpen) out.push(item(`ask:${s.askOpen.id}`, `答：${s.pr.id} 的【问统筹】`, s.askOpen.url, 1));
       if (s.planOpen) out.push(item(`plan:${s.planOpen.id}`, `批：${s.pr.id} 的【方案】`, s.planOpen.url, 1));
-      if (s.full === "true" && (!s.needYi || s.yi) && s.fullRun !== "success" && s.fullRun !== "pending")
-        out.push(item(`full:${s.pr.number}:${s.head9}`, `排 Full：${ref(s)}（在跑 ${fullsRunning} 个）：gh pr edit ${s.pr.number} --remove-label full-suite; gh pr edit ${s.pr.number} --add-label full-suite`, s.pr.url, 2));
+      if (s.full === "true" && (!s.needYi || s.yi) && s.fullRun === "failure")
+        out.push(item(`fullred:${s.pr.number}:${s.head9}`, `Full 在这个头上红了：${ref(s)}：先归因（第 9 节）；无关的偶发只重跑失败的作业 gh run rerun <run> --failed，不重加标签`, s.pr.url, 2));
+      else if (s.full === "true" && (!s.needYi || s.yi) && s.fullRun !== "success" && s.fullRun !== "pending") {
+        if (s.verify !== "success") out.push(item(`fullverify:${s.pr.number}:${s.head9}:${s.verify}`, `待排 Full：${ref(s)}：等 Verify 绿（现在 ${s.verify}）`, s.pr.url, 8));
+        else if (fullWait) out.push(item(`fullwait:${s.pr.number}:${s.head9}`, `待排 Full：${ref(s)}：${fullWait}`, s.pr.url, 6));
+        else out.push(item(`full:${s.pr.number}:${s.head9}`, `排 Full：${ref(s)}（在跑 ${fullsRunning} 个）：gh pr edit ${s.pr.number} --remove-label full-suite; gh pr edit ${s.pr.number} --add-label full-suite`, s.pr.url, 2));
+      }
       if (s.phase === "待合") {
         const missing = [
           s.verify !== "success" ? `Verify ${s.verify}` : null,

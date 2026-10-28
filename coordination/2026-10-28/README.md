@@ -212,10 +212,30 @@ gh pr merge <号> --match-head-commit <H 的完整 sha>
 | 本机 | — | 只跑门禁 |
 
 - `full` 由 `node scripts/affected-tests.mjs --base origin/main --json` 的 `full` 字段定。
-- CI Full 只由统筹排。PR 上加 `full-suite` 标签跑一次（同一个头要再跑，先去掉标签再加），最多占 6 个 runner、约 30～35 分钟；同时最多两个，给 `Verify` 和合并队列留够 runner。几个 PR 一起时进一条 `integration/**` 承载分支，占 10 个 runner，同时只一条；它在排队或在跑时不再往承载分支推（会取消它）。取消任何 CI 都要用户本人同意。
-- `full=true` 的，一审过了就排，和验证、二审并行，不等到最后。
+- CI Full 只由统筹排。PR 上加 `full-suite` 标签跑一次（同一个头要整份再跑，先去掉标签再加），16 片、同时占 6 个 runner、约 30～35 分钟。几个 PR 一起时进一条 `integration/**` 承载分支，占 10 个 runner。取消任何 CI 都要用户本人同意。
+
+**runner 预算**（2026-10-28 晚起）。组织一共 20 个并发作业，至少留 8 个给 `Verify` 和合并队列：
+
+- 所有 Full 合计不超过约 12 个 runner。要么一条承载分支，要么最多两个 PR Full，两种不混：承载分支在排队或在跑时，不排 PR Full。
+- 承载分支同时只一条。同一批的子分支（`…-c`、`…-c2` 这类）也占这一条的名额。它在排队或在跑时不往它推（会取消它）。
+- 晚高峰（本机 18:00～23:00，即 UTC 10:00～15:00）最多一个 PR Full。这段时间两台设备都在推，合并队列也最忙；不急的承载分支挪到这段之外。
+- 什么时候排：`full=true` 的 PR，一审过了、同头 `Verify` 绿了就排，和验证、二审并行。`Verify` 红的头不排；一审「要改」的，等改完的头。
+- `next.mjs --role coord` 按这几条给「排 Full」，或者「待排 Full：等…」。
+
+**Full 红了，先归因再动手。** 合并标准不变：`full=true` 的，Full 要在 H 上通过。
+
+1. 先看红的文件和本 PR、本批的改动有没有关系：affected-tests 的列表、改了哪些文件、错误信息。有关的，回给作者修，修完攒成一次推。
+2. 无关、像偶发的（重试才过、超时、`CDP timeout`、`Navigation did not finish`），只重跑失败的作业：`gh run rerun <run> --failed`。不去掉标签再加，那会把 16 片整份重跑。
+3. 同一个无关的文件第二次红（同一个 PR 或别的分支上），不再重跑第三次。统筹开加急的零碎单修这个文件（像 BL-806、BL-807 那样）；这个 PR 等它合入，合一次 main 再跑。
+4. 「main 也红」以 main 的夜间 Full（`schedule` 那次）为准。只在承载分支或 task 分支上红、main 夜间不红的，先怀疑分支里的内容，不当作底噪。T-036 量到的 `CDP timeout` 多数出在几条承载分支上。不过 main 夜间跑 `--bail`，重试才过的那次失败日志里看不见，所以「main 夜间没有」只说明下限。
+
+**承载分支。** 推之前，上一次 Full 红的文件先在设备上修好、跑过（设备 A 的浏览器用例在 `machine-slot` 里跑），一轮修复只推一次。连着两次红在本批没碰的文件上，先按上面第 4 点归因，不接着推。
+
+**其他。**
+
 - Codex 在本机跑全量会把设备 A 占住约一小时，只在统筹点名的时候跑；它只是提前发现问题，不替代 CI Full。
 - 设备 A 上 DeepSeek 和 Codex 共用一台机器：构建、浏览器用例包在 `node scripts/machine-slot.mjs run <build|browser> --label "<谁> <任务>" -- <命令>` 里排队；全量只由 Codex 跑。
+- 改 `.github/workflows/*`（比如承载分支从 10 个 runner 降到 6 个、PR 上按改动的路径跳过作业）算 CI 改动：T-019 合入、观察一天后，统筹写方案，用户批了再改。
 
 ## 10. 号段
 

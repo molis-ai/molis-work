@@ -342,7 +342,7 @@ function plan(snap) {
       if (s.time > lastCoord) out.push(item(`issue:${s.id}`, `#${ISSUE}：【${s.kind}】${s.sig}`, s.url, 3));
     for (const device of ["A", "B", "池"]) {
       const left = board.rows.filter((r) => r.owner === device && !claimedIds.has(r.id)).length;
-      if (left < 2) out.push(item(`depth:${device}:${left}:${snap.boardSha}`, `补任务书：${device === "池" ? "公共池" : `设备 ${device}`} 待领只剩 ${left} 份`, null, 5));
+      if (left < 2) out.push(item(`depth:${device}:${left}`, `补任务书：${device === "池" ? "公共池" : `设备 ${device}`} 待领只剩 ${left} 份`, null, 5));
     }
   }
   return { out: out.sort((x, y) => x.order - y.order), states, tasks, claimedIds };

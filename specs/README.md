@@ -15,7 +15,7 @@
 - [pr-review-remediation](pr-review-remediation/spec.md)：最近三天 PR 复审确认的 P1 安全边界、P2 功能/合同问题、P3 文档与验收、合并门禁；2026-10-20 新立，实现完成，待评审（PR #901；QA-017 本机 Chrome 未跑通，Product subset 待跑）。
 - [unified-input-voice](unified-input-voice/spec.md)：平台统一输入组件与本地语音；10-27 已定整体体验归属、插件开放注册与补充／排队／打断操作，尚未实现。
 - [proactive-assistant](proactive-assistant/spec.md)：主动式助理与场景 Skill；需求已整理，尚未实现。2026-10-18 补充工作记忆初始化、每日例程、前门路由、从一次对话生成 Skill 与跨源搜索规划。
-- [work-brief](work-brief/spec.md)：工作简报内容插件；用户已确认纳入，需求已整理，尚未实现。2026-10-18 补充 living page、一页式脉搏、使用回顾与交互式报告页。
+- [work-brief](work-brief/spec.md)：项目综合首页与工作简报；10-27 已定可选安装、未安装时的基础首页、共用公开来源／呈现、承接生成页面及 Feed 归属。保留 Home 级范围、周期报告、living page、风险总览接续与版本能力；需求已整理，尚未实现。需求维护 Codex，实施沿原 E 轨并与 C/D/A 协作。
 - [long-turn-performance](long-turn-performance/spec.md)：长对话单节点样式测量修复；本地及与 #1010 的组合验证完成，待合入 #1017。负责人：Codex。
 - [coding-harness-optimization](coding-harness-optimization/spec.md)：Coding 与平台性能；需求已整理，尚未实现。
 - [attention-aggregate-performance](attention-aggregate-performance/spec.md)：attention/Home 聚合及同类项目状态查询性能修复；本地实现和隔离对比通过，PR #1073 的 CI 与评审跟进中。负责人：Codex。

@@ -4,10 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
-import {
-  LocalProjectDatabase,
-  createLocalFeedApplication,
-} from "@molis-ai/molis-work-app-local-host";
+import { LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { AttentionModule } from "@molis-ai/molis-work-module-attention-resumption";
 import { GOALS_PLUGIN_ID, goalsManifest, hostEventDecisionAuthority } from "@molis-ai/molis-work-plugin-goals";
 import { renderMolisWorkWeb } from "./workbench-renderer-fixture.js";
@@ -33,7 +30,7 @@ function fixture() {
     idempotency_key: "root-intent",
     source_kind: "web",
   });
-  return { directory, store, app, feed: createLocalFeedApplication(store.db), rootId: root.goal.goal_id };
+  return { directory, store, app, rootId: root.goal.goal_id };
 }
 
 function propose(app: GoalProjectApplication, childId: string, key: string) {
@@ -69,23 +66,24 @@ function decide(app: GoalProjectApplication, proposalId: string, key: string) {
   });
 }
 
-function goalDecisionEntries(feed: ReturnType<typeof createLocalFeedApplication>) {
-  return feed.listInboxEntries(BOARD).filter((entry) =>
-    entry.subject_type === "goal_decision" && entry.subject_id === "root",
-  );
+/** The Goal's decision entries as the Inbox lists them: every explicitly owned entry, here Goals' own. */
+function goalDecisionEntries(store: LocalProjectDatabase) {
+  return store.db.prepare("SELECT entry_id, status, reason, revision, subject_id, owner_plugin_id FROM inbox_entries WHERE project_id = ? AND subject_type = 'goal_decision' AND subject_id = 'root'")
+    .all(BOARD) as Array<{ entry_id: string; status: string; reason: string; revision: number; subject_id: string; owner_plugin_id: string | null }>;
 }
 
 test("submitting a Goal proposal writes one open Attention row and keeps it for later proposals on the same Goal", () => {
   const data = fixture();
   try {
     propose(data.app, "child-a", "propose-a");
-    let entries = goalDecisionEntries(data.feed);
+    let entries = goalDecisionEntries(data.store);
     assert.equal(entries.length, 1);
     assert.equal(entries[0]?.status, "open");
     assert.equal(entries[0]?.reason, "goal_decision");
+    assert.equal(entries[0]?.owner_plugin_id, GOALS_PLUGIN_ID, "the entry says Goals owns it, which is how the Inbox lists it");
     const entryId = entries[0]!.entry_id;
     propose(data.app, "child-b", "propose-b");
-    entries = goalDecisionEntries(data.feed);
+    entries = goalDecisionEntries(data.store);
     assert.equal(entries.length, 1);
     assert.equal(entries[0]?.entry_id, entryId);
     assert.equal(entries[0]?.status, "open");
@@ -100,11 +98,11 @@ test("deciding the last pending proposal marks Attention done; a new submit reop
   try {
     const first = propose(data.app, "child-done", "propose-done");
     decide(data.app, first.proposal_id, "decide-done");
-    let entries = goalDecisionEntries(data.feed);
+    let entries = goalDecisionEntries(data.store);
     assert.equal(entries.length, 1);
     assert.equal(entries[0]?.status, "done");
     propose(data.app, "child-reopen", "propose-reopen");
-    entries = goalDecisionEntries(data.feed);
+    entries = goalDecisionEntries(data.store);
     assert.equal(entries.length, 1);
     assert.equal(entries[0]?.status, "open");
   } finally {
@@ -117,13 +115,13 @@ test("reconcile does not reopen a dismissed Goal decision; a new submit does", (
   const data = fixture();
   try {
     propose(data.app, "child-dismiss", "propose-dismiss");
-    const open = goalDecisionEntries(data.feed)[0];
+    const open = goalDecisionEntries(data.store)[0];
     assert.ok(open);
-    data.feed.setInboxEntryStatus(BOARD, open.entry_id, "dismissed", open.revision);
+    data.store.db.prepare("UPDATE inbox_entries SET status = 'dismissed', revision = revision + 1 WHERE entry_id = ?").run(open.entry_id);
     data.app.goalDecisionAttention.reconcile(BOARD);
-    assert.equal(goalDecisionEntries(data.feed)[0]?.status, "dismissed");
+    assert.equal(goalDecisionEntries(data.store)[0]?.status, "dismissed");
     propose(data.app, "child-after-dismiss", "propose-after-dismiss");
-    assert.equal(goalDecisionEntries(data.feed)[0]?.status, "open");
+    assert.equal(goalDecisionEntries(data.store)[0]?.status, "open");
   } finally {
     data.store.close();
     rmSync(data.directory, { recursive: true, force: true });
@@ -157,15 +155,17 @@ test("RAC-806 the Inbox lists the decision reminder Goals keeps under its own id
   const data = fixture();
   try {
     propose(data.app, "child-owner", "propose-owner");
-    const mine = goalDecisionEntries(data.feed);
+    const mine = goalDecisionEntries(data.store);
     assert.equal(mine.length, 1);
     assert.equal(mine[0]?.owner_plugin_id, GOALS_PLUGIN_ID);
     // Another plugin may declare the same kind for the same bare id (S9-0b): the Inbox does not resolve it as a Goal's.
-    const other = new AttentionModule(data.store.db, { exists: () => true }, { eventSink: () => undefined })
-      .commands.create({ project_id: BOARD, owner_plugin_id: "io.molis.work.other", subject_type: "goal_decision", subject_id: "root", reason: "goal_decision" }).entry;
-    assert.deepEqual(goalDecisionEntries(data.feed).map(entry => entry.entry_id), [mine[0]!.entry_id]);
-    assert.throws(() => data.feed.getInboxEntry(BOARD, other.entry_id), { code: "inbox.entry_not_found" });
-    assert.equal(data.feed.getInboxEntry(BOARD, mine[0]!.entry_id).entry_id, mine[0]!.entry_id);
+    const attention = new AttentionModule(data.store.db, { exists: () => true }, { eventSink: () => undefined });
+    const other = attention.commands.create({ project_id: BOARD, owner_plugin_id: "io.molis.work.other", subject_type: "goal_decision", subject_id: "root", reason: "goal_decision" }).entry;
+    // The Inbox is the platform's projection (RAC-808): Goals' Manifest declares the kind, the other plugin declared nothing.
+    const declared = new Map([[GOALS_PLUGIN_ID, new Set(goalsManifest.attention?.inbox ?? [])]]);
+    assert.deepEqual(attention.query.listInbox(BOARD, declared).filter(entry => entry.subject_type === "goal_decision").map(entry => entry.entry_id), [mine[0]!.entry_id]);
+    assert.throws(() => attention.query.getInbox(BOARD, other.entry_id, declared), { code: "attention.entry_not_found" });
+    assert.equal(attention.query.getInbox(BOARD, mine[0]!.entry_id, declared).entry_id, mine[0]!.entry_id);
   } finally {
     data.store.close();
     rmSync(data.directory, { recursive: true, force: true });
@@ -176,11 +176,11 @@ test("reconcile restores Attention for a historical pending Goal that has no row
   const data = fixture();
   try {
     propose(data.app, "child-history", "propose-history");
-    assert.equal(goalDecisionEntries(data.feed).length, 1);
+    assert.equal(goalDecisionEntries(data.store).length, 1);
     data.store.db.prepare("DELETE FROM inbox_entries WHERE project_id = ? AND subject_type = 'goal_decision'").run(BOARD);
-    assert.equal(goalDecisionEntries(data.feed).length, 0);
+    assert.equal(goalDecisionEntries(data.store).length, 0);
     data.app.goalDecisionAttention.reconcile(BOARD);
-    const restored = goalDecisionEntries(data.feed);
+    const restored = goalDecisionEntries(data.store);
     assert.equal(restored.length, 1);
     assert.equal(restored[0]?.status, "open");
     assert.equal(restored[0]?.subject_id, "root");
@@ -206,7 +206,7 @@ test("W2-18-ATTENTION-TX-01 independent Goal reconcile refuses a failing journal
     data.store.db.exec("DROP TRIGGER refuse_attention");
     data.app.goalDecisionAttention.reconcile(BOARD);
     data.app.goalDecisionAttention.reconcile(BOARD);
-    assert.equal(goalDecisionEntries(data.feed).length, 1);
+    assert.equal(goalDecisionEntries(data.store).length, 1);
     assert.equal(snapshot().attention.length - before.attention.length, 1);
     assert.equal(snapshot().journal.length - before.journal.length, 1);
   } finally { data.store.close(); rmSync(data.directory, { recursive: true, force: true }); }

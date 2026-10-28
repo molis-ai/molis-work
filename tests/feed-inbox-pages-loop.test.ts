@@ -9,7 +9,7 @@ import test from "node:test";
 import { readResearchLibrary } from "@molis-ai/molis-work-integration-github";
 import { generatePagesFromMaterials, ownPagesStores, type PagesStore } from "@molis-ai/molis-work-plugin-pages";
 import { openPagesStore } from "./fixtures/plugin-home-stores.js";
-import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { createFeedContentHandlers, feedContentActions } from "@molis-ai/molis-work-plugin-feed";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { ActionService } from "@molis-ai/molis-work-kernel";
@@ -18,6 +18,7 @@ import { hostCompleteText } from "@molis-ai/molis-work-app-local-host";
 import { planInformationWork } from "../apps/local-host/dist/information-planner.js";
 import { ASSISTANT_ISLAND_FACTORY_SCRIPT } from "../apps/workbench/dist/scripts/client/assistant-island.js";
 import { CLIENT_NAVIGATION_INBOX_SCRIPT } from "../apps/workbench/dist/scripts/client/navigation-inbox.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 /** Generation as the Runtime gives it: Pages' own stores, an original caller that is never refused, and the model's whole result. */
 const generate = (store: PagesStore, record: PagesGenerationRecord, completeText?: (input: Parameters<NonNullable<Parameters<typeof generatePagesFromMaterials>[3]>>[0]) => Promise<string>) =>

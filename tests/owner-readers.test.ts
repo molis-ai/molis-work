@@ -4,15 +4,16 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 import { DEMO_PROJECT_ID, LocalProjectDatabase, seedDemoGoals } from "@molis-ai/molis-work-app-local-host";
-import { listFeedMaterialContentRefs } from "@molis-ai/molis-work-module-feed";
-import { listListenerRunReceipts, saveListenerRun } from "@molis-ai/molis-work-service-listener-host";
+import { fromBetterSqlite, listFeedMaterialContentRefs } from "@molis-ai/molis-work-plugin-feed/store";
+import { listListenerRunReceipts, saveListenerRun } from "@molis-ai/molis-work-plugin-feed/store";
 import { GOALS_PLUGIN_ID } from "@molis-ai/molis-work-plugin-goals";
 import { goalsQueryOf } from "./fixtures/goal-application.js";
 
 // specs/repository-anti-corruption W2-06: a table is read and written only by the package that creates it
 // (scripts/gates/table-owners.mjs). The host used to run SQL on four tables it does not own; these are the owners' own
 // answers it asks now (Coding's list of background work is its own query now: tests/coding-background-tasks.test.ts). The host-side tests
-// (tests/feed-local-history-delete.test.ts, tests/uninstall-catalog.test.ts, tests/im-local-project.test.ts) cover the callers.
+// (tests/uninstall-catalog.test.ts, tests/im-local-project.test.ts) cover the callers; the Host's Feed caller, the release of a source's
+// history, went with FI-6 (the Runtime Feed releases through the Home's ledger: tests/feed-runtime-plugin.test.ts RAC-518).
 
 async function withProject(prefix: string, run: (store: LocalProjectDatabase, directory: string) => void | Promise<void>): Promise<void> {
   const directory = mkdtempSync(join(tmpdir(), prefix));
@@ -39,9 +40,9 @@ test("Feed lists the evidence bodies its materials point at, and the Listener Ho
     material.run(DEMO_PROJECT_ID, "m2", "ref/a", now, now);
     material.run(DEMO_PROJECT_ID, "m3", null, now, now);
     material.run(DEMO_PROJECT_ID, "m4", "ref/b", now, now);
-    assert.deepEqual(listFeedMaterialContentRefs(store.db).sort(), ["ref/a", "ref/b"]);
+    assert.deepEqual(listFeedMaterialContentRefs(fromBetterSqlite(store.db)).sort(), ["ref/a", "ref/b"]);
 
-    const run = (id: string, receipt: Record<string, unknown> | null) => saveListenerRun(store.db, {
+    const run = (id: string, receipt: Record<string, unknown> | null) => saveListenerRun(fromBetterSqlite(store.db), {
       run_id: id, operation_id: `op-${id}`, project_id: DEMO_PROJECT_ID, source_id: "source-1", phase: "terminal", outcome: "completed",
       created_count: 0, deduped_count: 0, recovery_count: 0, empty: true, error_code: null, connector_receipt: receipt,
       started_at: now, completed_at: now, updated_at: now,
@@ -49,10 +50,10 @@ test("Feed lists the evidence bodies its materials point at, and the Listener Ho
     run("r1", { content_refs: ["ref/a"] });
     run("r2", null);
     run("r3", { content_refs: ["ref/c"] });
-    assert.deepEqual(listListenerRunReceipts(store.db).map((receipt) => (receipt as { content_refs: string[] }).content_refs).sort(), [["ref/a"], ["ref/c"]]);
+    assert.deepEqual(listListenerRunReceipts(fromBetterSqlite(store.db)).map((receipt) => (receipt as { content_refs: string[] }).content_refs).sort(), [["ref/a"], ["ref/c"]]);
 
     // A receipt that cannot be read must not count as holding nothing: the caller proves "unreferenced" from this list.
     store.db.prepare("UPDATE feed_source_runs SET receipt_json = '{broken' WHERE run_id = 'r3'").run();
-    assert.throws(() => listListenerRunReceipts(store.db), SyntaxError);
+    assert.throws(() => listListenerRunReceipts(fromBetterSqlite(store.db)), SyntaxError);
   });
 });

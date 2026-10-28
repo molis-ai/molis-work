@@ -38,9 +38,15 @@ export interface PluginHostExecutorOptions {
    * (`services.project_database`); absent or `null`: none, and such a plugin does not start.
    */
   projectLibrary?: import("./plugin-project-library.js").ProjectLibrary | null;
-  installations?: import("@molis-ai/molis-work-contracts/platform/plugin").PluginInstallationClient;
+  installations?: Pick<import("@molis-ai/molis-work-contracts/platform/plugin").PluginInstallationClient, "list" | "get">;
   /** Stands in for the Home's project catalog behind `services.projects` (S-96); absent: the catalog of `home` is read. */
   projects?: import("@molis-ai/molis-work-plugin-runtime").PluginProjectsPort;
+  /** Test seam for `services.sourcePull`: the fetch its public-feed pulls go through. Production never passes it. */
+  sourcePullFetch?: (input: string | URL, init?: RequestInit) => Promise<Response>;
+  /** Test seam for `services.sourcePull.repository`: the `git` it runs. Production never passes it. */
+  sourcePullGit?: import("./research-repository-read.js").ResearchGit;
+  /** Test seam for `services.sourcePull.connector`: the Home's integration registry, with providers of the test's own. Production never passes it. */
+  sourcePullIntegrations?: () => Promise<import("./integration-registry.js").IntegrationRegistry>;
   scheduler?: import("@molis-ai/molis-work-service-scheduler").ScheduleService;
   /**
    * The provider id a Plugin's actions are registered under, when the Host names one (a plugin that ships with the Host: its

@@ -5,7 +5,7 @@ import { createFileSecretStore, runWithMolisWorkHome } from "@molis-ai/molis-wor
 import { connectorErrors } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { withConnectorConnections, type ConnectorConnectionStore } from "./connector-connection-store.js";
 import { withConnectorProtocols, type ConnectorProtocolConfiguration } from "./connector-protocol-store.js";
-import { refreshFeedConnectionState } from "./connector-source-state.js";
+import { connectionChanged } from "./connection-change-events.js";
 import { connectionTenantOrigin, serviceTenant } from "./connector-request-credentials.js";
 
 type Input<K extends "createToken" | "upsertOAuth" | "saveProtocol" | "saveCli"> = Parameters<ConnectorConnectionStore[K]>[0];
@@ -68,6 +68,6 @@ export function activateConnectorConnection(home: string, completion: ConnectorA
     if (completion.protocol) withConnectorProtocols(home, store => store.save(completion.protocol!));
   }
   const cleanup = cleanupConnectorInstallation(home, oldInstallation);
-  refreshFeedConnectionState(home, row.connection_id);
+  connectionChanged(home, row.connection_id);
   return { ...withConnectorConnections(home, store => store.view(row)), ...(cleanup ? { cleanup } : {}) };
 }

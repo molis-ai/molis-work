@@ -5,6 +5,7 @@ import { createFilesPlugin } from "@molis-ai/molis-work-plugin-files";
 import type { ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import type { PluginDefinition } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { createPluginPlatform, type PluginPlatform, type PluginPlatformEntry } from "./plugin-platform.js";
+import { noteProjectOpened, noteProjectReleased } from "./running-project-platforms.js";
 import type { LocalProjectDatabase } from "./project-database.js";
 import { HOST_BUILD_TRUST, SqlitePluginPrivateStorage } from "@molis-ai/molis-work-plugin-runtime";
 import type { PluginDependencyCheck } from "./plugin-actions-client.js";
@@ -64,8 +65,8 @@ export function projectPluginProblem(state: ProjectPluginState, store: LocalProj
   return { reason: projectPluginDatabaseRefusal(store.db, pluginId)?.message ?? active?.message ?? state.error ?? null };
 }
 
-const started = new WeakMap<LocalProjectDatabase, Map<string, { ports: ProjectPluginPorts; ready: Promise<ProjectPluginState> }>>();
-
+type StartedProject = { ports: ProjectPluginPorts; ready: Promise<ProjectPluginState> };
+const started = new WeakMap<LocalProjectDatabase, Map<string, StartedProject>>();
 /** A project's plugin platform when it is already running; never starts one. */
 export async function runningProjectPlatform(store: LocalProjectDatabase, projectId: string): Promise<PluginPlatform | null> {
   const opening = started.get(store)?.get(projectId);
@@ -78,6 +79,7 @@ export async function releaseProjectPlugins(store: LocalProjectDatabase, project
   const opening = boards?.get(projectId);
   if (!opening) return;
   boards!.delete(projectId);
+  noteProjectReleased(opening);
   const record = await opening.ready;
   record.stopObservers?.();
   if (!record.platform) return;
@@ -120,7 +122,9 @@ export async function ensureProjectPlugins(ports: ProjectPluginPorts): Promise<P
   }
   const configuration = { ...ports };
   const opening = startPlatform(configuration);
-  boards.set(ports.projectId, { ports: configuration, ready: opening });
+  const project = { ports: configuration, ready: opening };
+  boards.set(ports.projectId, project);
+  noteProjectOpened(project);
   return opening;
 }
 

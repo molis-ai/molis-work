@@ -3,10 +3,11 @@ import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { createLocalFeedApplication, createLocalFeedSourceService, DEMO_PROJECT_ID, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
+import { DEMO_PROJECT_ID, openProjectVersionStores } from "@molis-ai/molis-work-app-local-host";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { pinnedArtifact } from "./fixtures/artifacts.js";
 import { installProducers } from "./fixtures/installed-producers.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 for (const [width,height] of [[1024,400],[390,500]]) test(`Long content keeps actions and reading usable at ${width}×${height}`,{timeout:90_000},async t=>{
   const b=await openGoalBrowser(t,true); if(!b)return;
@@ -22,7 +23,7 @@ for (const [width,height] of [[1024,400],[390,500]]) test(`Long content keeps ac
   await command("Emulation.setDeviceMetricsOverride",{width,height,deviceScaleFactor:1,mobile:false},sessionId);
   await command("Emulation.setEmulatedMedia",{features:[{name:"prefers-reduced-motion",value:"reduce"}]},sessionId);
   await navigate(()=>command("Page.navigate",{url:`${origin}/projects/${projectId}/`},sessionId));
-  const added=await fetch(`${origin}/projects/${projectId}/api/feed/items/${item.item_id}/inbox`,{method:"POST",headers:{origin,"content-type":"application/json","x-molis-work-control-token":"goals-risk-test-control-token-0123456789","x-molis-work-idempotency-key":"reading-inbox"},body:JSON.stringify({expected_revision:item.revision})});
+  const added=await fetch(`${origin}/projects/${projectId}/api/plugins/io.molis.work.feed/items/${item.item_id}/inbox`,{method:"POST",headers:{origin,"content-type":"application/json","x-molis-work-control-token":"goals-risk-test-control-token-0123456789","x-molis-work-idempotency-key":"reading-inbox"},body:JSON.stringify({expected_revision:item.revision})});
   assert.equal(added.status,200);
   await b.reloadPage();
   const openPlugin=async(id:string)=>{
@@ -53,7 +54,7 @@ for (const [width,height] of [[1024,400],[390,500]]) test(`Long content keeps ac
   // Completing is handled in place (status request, then the Inbox stage refreshes); the page does not navigate.
   await click('[data-inbox-detail]:not([hidden]) [data-inbox-action="done"]');
   await waitFor("document.querySelector(" + JSON.stringify('[data-inbox-stage-group="history"] [data-inbox-entry-id="' + entryId + '"]') + ")");
-  const history=await (await fetch(`${origin}/projects/${projectId}/api/inbox?filter=history`)).json() as {entries:Array<{entry_id:string;status:string}>};
+  const history=await (await fetch(`${origin}/projects/${projectId}/api/plugins/io.molis.work.inbox/entries?filter=history`)).json() as {entries:Array<{entry_id:string;status:string}>};
   assert.equal(history.entries.find(e=>e.entry_id===entryId)?.status,"done");
   assert.equal(createLocalFeedApplication(b.store.db).getItem(DEMO_PROJECT_ID,item.item_id).body,"需要保留原消息。","completing the attention reference retains its Feed item");
   await openPlugin("artifacts");

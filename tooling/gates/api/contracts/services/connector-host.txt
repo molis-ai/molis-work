@@ -149,6 +149,12 @@ export declare const CONNECTOR_USAGE_SCHEMA: {
 
 export type ConnectorAuthKind = "github" | "gmail" | "notion" | "feishu" | "token" | "none";
 
+export interface ConnectorCallControl {
+    readonly signal: AbortSignal;
+    beforeEffect(): Promise<void>;
+    current(): void;
+}
+
 export interface ConnectorCallObservation {
     at: string;
     revision: string;
@@ -278,11 +284,11 @@ export type ConnectorDirectoryGroupId = "mail" | "files" | "chat" | "code" | "wo
 
 export interface ConnectorDriver {
     readonly driver_id: string;
-    health(): Promise<ConnectorHealth>;
+    health(control: ConnectorCallControl): Promise<ConnectorHealth>;
     poll(input: {
         cursor: unknown;
         intent?: Record<string, unknown>;
-    }): Promise<ConnectorPollResult>;
+    }, control: ConnectorCallControl): Promise<ConnectorPollResult>;
 }
 
 export type ConnectorFailureKind = "needs_auth" | "configuration" | "network" | "provider" | "rate_limited" | "stale_history";
@@ -300,12 +306,12 @@ export interface ConnectorHostApi {
         connection_id: string;
         driver_id: string;
     }): void;
-    test(connectionId: string): Promise<ConnectorHealth>;
+    test(connectionId: string, control: ConnectorCallControl): Promise<ConnectorHealth>;
     invoke(input: {
         connection_id: string;
         cursor: unknown;
         intent?: Record<string, unknown>;
-    }): Promise<ConnectorReceipt>;
+    }, control: ConnectorCallControl): Promise<ConnectorReceipt>;
     revoke(connectionId: string): void;
 }
 

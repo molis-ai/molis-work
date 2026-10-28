@@ -120,7 +120,7 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
   const loadFeedBody = async (body, block) => {
     const row = liveAssetRow(block);
     const itemId = block.itemRef || row?.dataset.feedItemId || (row?.dataset.inboxSubjectType === "feed" ? row.dataset.inboxSubjectId : "") || block.itemId;
-    const html=await molisWorkRequest(toRoute("/api/feed/items/"+encodeURIComponent(itemId)+"/detail?preset=feed&surface=frame-block"),{as:"text",fallback:L("无法读取这条 Item")});
+    const html=await molisWorkRequest(toRoute("/api/stage/feed/items/"+encodeURIComponent(itemId)+"?surface=frame-block"),{as:"text",fallback:L("无法读取这条 Item")});
     const template = document.createElement("template");
     template.innerHTML = html.trim();
     const reading = template.content.querySelector("[data-frame-reading]") || template.content.querySelector(".frame-reading") || template.content.firstElementChild;
@@ -217,12 +217,12 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
       tab.title = goalTitle(goalId);
       if (curTab === goalId) tab.setAttribute("aria-current", "page");
       const label = document.createElement("span");
-      label.textContent = goalTitle(goalId);
+      label.textContent = tab.title;
       const close = document.createElement("button");
       close.type = "button";
       close.className = "container-tab-close";
       close.dataset.containerTabClose = goalId;
-      close.setAttribute("aria-label", L("关闭 Frame：{title}", { title: goalTitle(goalId) }));
+      close.setAttribute("aria-label", L("关闭 Frame：{title}", { title: tab.title }));
       close.title = L("关闭");
       close.innerHTML = '<svg aria-hidden="true"><use href="#icon-x"></use></svg>';
       tab.append(label, close);
@@ -243,16 +243,16 @@ export const FRAME_CONTAINER_FACTORY_SCRIPT = `(host) => {
     const frame = frameOf(curTab);
     const item = visibleGoals().find((entry) => entry.goal.goal_id === curTab);
     surfaceEl.dataset.frameGoal = curTab;
-    surfaceEl.querySelector('[data-frame-goal-title]').textContent = goalTitle(curTab);
+    const put = (selector, text) => { const el = surfaceEl.querySelector(selector); if (el.textContent !== text) el.textContent = text; };
+    put('[data-frame-goal-title]', goalTitle(curTab));
     const status = item?.display_status || item?.status || "";
     const statusEl = surfaceEl.querySelector('[data-frame-goal-status]');
     const source = document.querySelector('[data-goal-id="' + CSS.escape(curTab) + '"] .goal-status');
     statusEl.className = source?.className || ("goal-status" + (status ? " goal-status--" + status : ""));
-    statusEl.setAttribute("data-frame-goal-status", "");
     if (source) statusEl.innerHTML = source.innerHTML;
     else statusEl.textContent = item?.status_label || L(status);
     statusEl.dataset.status = status;
-    surfaceEl.querySelector('[data-frame-goal-outcome]').textContent = item?.goal.outcome || L("还没有写明预期结果，可在工作区补充。");
+    put('[data-frame-goal-outcome]', item?.goal.outcome || L("还没有写明预期结果，可在工作区补充。"));
     surfaceEl.querySelector('[data-frame-empty]').hidden = frame.blocks.length > 0;
     setCamera();
     worldEl.replaceChildren();

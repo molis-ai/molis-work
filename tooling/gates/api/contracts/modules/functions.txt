@@ -33,6 +33,8 @@ export declare const FUNCTIONS_PLUGIN_ID = "io.molis.work.functions";
 
 export declare const FUNCTIONS_PROJECT_PLUGIN_ID = "functions";
 
+export declare const FUNCTIONS_PROVIDER_ID = "system.functions";
+
 export declare const HOME_ASK_BEHAVIOR_ID = "home.ask";
 
 export declare const HOME_CONTINUE_BEHAVIOR_ID = "home.continue";
@@ -242,6 +244,8 @@ export interface NoulCriteria {
     readonly false_description: string;
 }
 
+export declare const PUBLISHED_FUNCTION_PREFIX = "functions.published.";
+
 export declare const SYSTEM_HOME_DOCK_FUNCTION_KEY = "system_pick_home_dock";
 
 export declare const SYSTEM_INBOX_ADMIT_FUNCTION_KEY = "system_admit_inbox";
@@ -296,6 +300,11 @@ export declare const modulesFunctionsContract: {
     readonly maturity: "partial";
     readonly ssot: "specs/archive/functions-independent-authoring/spec.md";
 };
+
+export declare function publishedFunctionKey(reference: {
+    readonly provider_id?: string;
+    readonly capability_id: string;
+}): string | null;
 
 export declare function visibleFeedDispositionIds(suggested: readonly string[] | null | undefined, canAdmit: boolean): string[];
 

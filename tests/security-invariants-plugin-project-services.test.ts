@@ -8,15 +8,7 @@ import type {
   PluginDatabaseDeclaration, PluginDefinition, PluginHostServices, PluginManifest, PluginProjectDatabaseTransaction, PluginAttentionWriter,
 } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
-import {
-  createPluginPlatform,
-  createFeedSourceRuntime,
-  createLocalFeedApplication,
-  createLocalFeedSourceService,
-  listFeedSourceCatalog,
-  DEMO_PROJECT_ID,
-  LocalProjectDatabase,
-} from "@molis-ai/molis-work-app-local-host";
+import { createPluginPlatform, createSourcePullRuntime, listFeedSourceCatalog, DEMO_PROJECT_ID, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
 import { ActionService } from "@molis-ai/molis-work-kernel";
 import { createInboxContentHandlers, inboxManifest } from "@molis-ai/molis-work-plugin-inbox";
 import { createEvidenceContentStore, type SecretStore } from "@molis-ai/molis-work-storage";
@@ -26,6 +18,7 @@ import { UiHost } from "@molis-ai/molis-work-ui-host";
 import { deferred } from "./fixtures/home-runtime.js";
 import { pluginActions } from "./fixtures/plugin-actions.js";
 import { GoalProjectApplication, seedBoard } from "./fixtures/goal-application.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 // S-68 (PG-087, PG-094 S9-0b): a plugin reaches the project's Attention entries and Context Ledger edges only through
 // `services.attention` and `services.contextLedger`. Each call asks the grants, the installation and the original caller of the action
@@ -393,7 +386,7 @@ test("S-68 ATTN-OWNER-08 a real successful RSS pull resolves only the old source
     deleteIfPresent: key => values.delete(key), backend: () => ({ kind: "aes-gcm-file", label: "test memory", masterKeyExternal: false, formatVersion: 2 }) };
   const content = createEvidenceContentStore({ secretStore: secrets, rootDirectory: join(home, "evidence") });
   let pulls = 0;
-  const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, (db, source) => createFeedSourceRuntime({
+  const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, (db, source) => createSourcePullRuntime({
     db, sourceCursor: source?.cursor, secretStore: secrets, content,
     async fetch() {
       pulls++;

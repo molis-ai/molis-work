@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createLocalFeedApplication, scheduleServiceFor } from "@molis-ai/molis-work-app-local-host";
+import { scheduleServiceFor } from "@molis-ai/molis-work-app-local-host";
 import { SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { SCHEDULE_PLUGIN_ID, scheduleActions, SCHEDULE_ACTION_PERMISSIONS } from "@molis-ai/molis-work-plugin-schedule";
 import { openTestHome } from "./fixtures/test-home.js";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
+import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 
 // The real settings endpoint returns after withdrawing the activation, not merely after hiding its UI.
 test("SYS-15-S7: new projects enable Schedule; settings stop its Runtime, preserve tasks and restore the same installation", { timeout: 60_000 }, async t => {

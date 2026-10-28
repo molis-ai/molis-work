@@ -1,6 +1,6 @@
 import { ActionError } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
-import type { AttentionInboxDeclarations, AttentionReason as ModuleAttentionReason, AttentionStatus as ModuleAttentionStatus, AttentionSubjectType as ModuleAttentionSubjectType } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
+import { inboxErrors, type AttentionEntryRecord, type AttentionReason as ModuleAttentionReason, type AttentionStatus as ModuleAttentionStatus, type AttentionSubjectType as ModuleAttentionSubjectType } from "@molis-ai/molis-work-contracts/modules/attention-resumption";
 import type { SourceRecord } from "@molis-ai/molis-work-contracts/modules/sources";
 import type { FeedItemDisposition, FeedItemRecord, FeedMaterialRecord, FeedOutRuleRecord, FeedSnapshot, FeedSourceRunRecord, FeedSourceRecord, InboxEntryReason, InboxEntryRecord, InboxEntryStatus, InboxEntrySubjectType, SourceHistoryDecision } from "./projection.js";
 
@@ -12,10 +12,14 @@ import { feedErrors } from "@molis-ai/molis-work-contracts/modules/feed";
 import { feedItemRecord, sourceRunRecord } from "./application-projection.js";
 import type { FeedApplicationPorts } from "./application-ports.js";
 import { retireFeedSource } from "./source-history.js";
+import { FEED_PLUGIN_ID } from "./identity.js";
 import { JudgmentQueue } from "./judgment-queue.js";
+import { admitToInbox, isIgnored } from "./inbox-admission.js";
 import {
+  captureFeedRules,
+  feedCaptureFailure,
   feedOutRuleMatches,
-  registerFeedCaptureVersion,
+  throwIfCallRefused,
   type FeedOutRuleWrite,
 } from "./out-rules.js";
 
@@ -60,11 +64,13 @@ export class FeedApplication {
   }
 
   listInboxEntries(projectId: string): InboxEntryRecord[] {
-    return this.ports.attention.query.listInbox(projectId, declaredInbox(this.ports));
+    return this.ports.attention.query.list(projectId).filter(isFeedEntry);
   }
 
   getInboxEntry(projectId: string, entryId: string): InboxEntryRecord {
-    return callAttention(() => this.ports.attention.query.getInbox(projectId, entryId, declaredInbox(this.ports)));
+    return requireFeedEntry(callAttention(
+      () => this.ports.attention.query.get(projectId, entryId),
+    ));
   }
 
   getSource(projectId: string, sourceId: string): FeedSourceRecord {
@@ -176,10 +182,7 @@ export class FeedApplication {
     if (expectedRevision != null && expectedRevision !== item.revision) {
       throw feedErrors.revision_conflict("这条 Item 已经变化，请刷新后重试");
     }
-    const stored = this.ensureInboxEntryForFeedItem(projectId, itemId, "manual", { added_by: "web_user" });
-    if (stored.entry.status === "done" || stored.entry.status === "dismissed") {
-      this.setInboxEntryStatus(projectId, stored.entry.entry_id, "open", stored.entry.revision);
-    }
+    admitToInbox(this, projectId, itemId, "web_user");
     return item;
   }
 
@@ -281,7 +284,7 @@ export class FeedApplication {
       try {
         this.captureAfterIngest(item);
       } catch (error) {
-        this.recordArtifactOutFailure(item, [], [errorCode(error)]);
+        this.recordArtifactOutFailure(item, [], [feedCaptureFailure(error)]);
       }
       this.judgments.queueItem(item);
     }
@@ -297,12 +300,13 @@ export class FeedApplication {
     return this.judgments.judgeOwn(() => this.ingestItem(input), caller);
   }
 
-  async evaluateItems(projectId: string, itemIds: readonly string[], caller?: ActionCallContext): Promise<{ evaluated: number }> {
+  // Not an `async` method, for the reason `JudgmentQueue.judgeOwn` is not: what the step throws reaches the caller as a throw, so a Runtime that
+  // commits the step as one write rolls it back.
+  evaluateItems(projectId: string, itemIds: readonly string[], caller?: ActionCallContext): Promise<{ evaluated: number }> {
     if (!itemIds.length || itemIds.length > 20) throw feedErrors.invalid_transition("请选择 1–20 条消息试跑规则");
     const items = [...new Set(itemIds)].map((id) => this.getFeedItem(projectId, id));
     // Concurrent evaluations own their input batch; they must not drain another call's queue.
-    await this.judgments.judgeOwn(() => { for (const item of items) this.captureAfterIngest(item); }, caller, items);
-    return { evaluated: items.length };
+    return this.judgments.judgeOwn(() => { for (const item of items) this.captureAfterIngest(item); }, caller, items).then(() => ({ evaluated: items.length }));
   }
 
   recordInboxJudgmentEvent(projectId: string, judgment: JudgmentRecord): void {
@@ -403,7 +407,7 @@ export class FeedApplication {
   }
 
   private isArchived(projectId: string, itemId: string): boolean {
-    return this.ports.feed.query.exists(projectId, itemId) && this.getFeedItem(projectId, itemId).disposition === "archived";
+    return this.ports.feed.query.exists(projectId, itemId) && isIgnored(this.getFeedItem(projectId, itemId));
   }
 
   /** An ignored item comes back through restore, never by being admitted, reopened or reported on in the Inbox. */
@@ -434,16 +438,7 @@ export class FeedApplication {
       this.recordArtifactOutFailure(item, matched.map((rule) => rule.rule_id), ["feed_artifact_producer_missing"]);
       return;
     }
-    const failedRuleIds: string[] = [];
-    const errorCodes: string[] = [];
-    for (const rule of matched) {
-      try {
-        registerFeedCaptureVersion(this.ports.artifacts, item, rule);
-      } catch (error) {
-        failedRuleIds.push(rule.rule_id);
-        errorCodes.push(errorCode(error));
-      }
-    }
+    const { failedRuleIds, errorCodes } = this.ports.artifacts.capture(item.project_id, writer => captureFeedRules(writer, item, matched));
     if (failedRuleIds.length > 0) {
       this.recordArtifactOutFailure(item, failedRuleIds, errorCodes);
       return;
@@ -465,8 +460,9 @@ export class FeedApplication {
       if (entry.status === "done" || entry.status === "dismissed") {
         this.setInboxEntryStatus(item.project_id, entry.entry_id, "open");
       }
-    } catch {
-      // ingest already persisted; missing Inbox is worse than throwing into sync
+    } catch (error) {
+      // The item commits with this transaction: an Inbox entry for the failed capture that cannot be written does not undo it; a refusal of the call does.
+      throwIfCallRefused(error);
     }
   }
 
@@ -512,14 +508,15 @@ export class FeedApplication {
 
 }
 
-/** What each owner declared the Inbox shows of its entries; with no source for it, only the unassigned entries are the Inbox. */
-function declaredInbox(ports: FeedApplicationPorts): AttentionInboxDeclarations {
-  return ports.inboxDeclarations?.() ?? new Map();
+/**
+ * The entries Feed's application lists and acts on: the unassigned ones the host's Attention Module still holds, and its own once the
+ * platform's service records the owner. Another plugin's entries (a Goal's decision) are that plugin's, and Feed does not find them.
+ */
+function isFeedEntry(entry: AttentionEntryRecord): boolean {
+  return entry.owner_plugin_id === null || entry.owner_plugin_id === FEED_PLUGIN_ID;
 }
 
-function errorCode(error: unknown): string {
-  if (error && typeof error === "object" && "code" in error && typeof error.code === "string" && error.code) {
-    return error.code;
-  }
-  return "feed_artifact_register_failed";
+function requireFeedEntry(entry: AttentionEntryRecord): AttentionEntryRecord {
+  if (!isFeedEntry(entry)) throw inboxErrors.entry_not_found("找不到这个 Inbox Entry");
+  return entry;
 }

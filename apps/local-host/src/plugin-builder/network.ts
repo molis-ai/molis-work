@@ -65,7 +65,12 @@ export function hostNetwork(options: HostNetworkOptions): NonNullable<SandboxSer
         headers[secret.header.toLowerCase()] = secret.value;
       }
       context.signal.throwIfAborted(); await context.beforeEffect?.(); context.signal.throwIfAborted();
-      const response = await sendPublicHttps({ url, method, headers, ...(request.body === undefined ? {} : { body: request.body }), signal: context.signal,
+      const current = () => {
+        context.signal.throwIfAborted();
+        const now = options.reach(context.identity);
+        if (now === 'none' || now === 'read' && method !== 'GET' && method !== 'HEAD') throw new SandboxError('plugin_builder.not_authorized', '插件的联网授权已改变');
+      };
+      const response = await sendPublicHttps({ url, method, headers, ...(request.body === undefined ? {} : { body: request.body }), signal: context.signal, current,
         ...(context.beforeEffect ? { beforeEffect: context.beforeEffect } : {}), ...(options.lookup ? { lookup: options.lookup } : {}),
         ...(options.allowAddress ? { allowAddress: options.allowAddress } : {}), ...(options.testServer ? { testServer: options.testServer } : {}),
         failure: (reason, detail) => new SandboxError(FAILURE_CODES[reason], detail) });

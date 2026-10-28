@@ -31,7 +31,7 @@ Host 把任务和 job 记录交给隔离页中的 UI contribution；Plugin Runti
 
 ## 接入与边界
 
-不导入 Feed / Goals 实现，也不接收数据库连接、安装仓库或专用宿主端口。工厂只使用 `services.project_database`、`scheduler`、`installations`、`notifications`、`agents`、`background` 与公开动作目录。业务记录与闹钟、通知通过同一个项目库事务提交；安装身份取网关和公共安装目录。宿主进程停止期间不执行闹钟。
+不导入 Feed / Goals 实现，也不接收数据库连接、安装仓库或专用宿主端口。工厂只使用 `services.project_database`、`scheduler`、`installations`、`notifications`、`agents`、`background` 与公开动作目录。业务记录与闹钟、通知（平台的通知队列行）通过同一个项目库事务提交；安装身份取网关和公共安装目录。宿主进程停止期间不执行闹钟。
 
 任务、提醒与定时操作均由 Schedule 的 Manifest 注册，采用同一启停规则。新项目通过普通插件 membership 默认启用；关闭 Schedule 会一起暂停页面和后台，重开同一安装沿原身份恢复，重装不能接管旧任务。现有项目不会在读取时自动补启用。
 

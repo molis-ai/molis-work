@@ -4,7 +4,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { createLocalFeedApplication } from "@molis-ai/molis-work-app-local-host";
+import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { GoalProjectApplication, boardSnapshot } from "./fixtures/goal-application.js";
 

@@ -5,15 +5,15 @@ import test from "node:test";
 import {
   FEED_STYLES,
   FEED_UI_CONTRIBUTION_ID,
-  FeedPluginRouteTable,
   createFeedRouteHandlers,
+  feedManifest,
   feedUiContribution,
   type FeedPluginRouteHandler,
   type FeedUiModel,
   type PersistedFeedDetailModel,
 } from "@molis-ai/molis-work-plugin-feed";
 import { UiHost } from "@molis-ai/molis-work-ui-host";
-import { actionErrorResponse } from "@molis-ai/molis-work-plugin-sdk";
+import { pluginRouteMatcher } from "@molis-ai/molis-work-plugin-runtime";
 import { createWorkbenchFeedProjectionRenderer, type MolisWorkWebView } from "@molis-ai/molis-work-app-workbench";
 
 const primitives: FeedUiModel["primitives"] = {
@@ -578,94 +578,27 @@ test("Feed with nothing to show says so: no sources, or a source with no message
   assert.doesNotMatch(none + quiet, /data-prototype|adeptify|Latent Space/);
 });
 
-test("Feed Plugin route table owns matching while the Host supplies handlers", async () => {
+test("Feed's Manifest declares exactly the routes Feed answers, matched under its plugin prefix", async () => {
   let observed: { itemId: string; action: string } | null = null;
-  const fallback: FeedPluginRouteHandler = () => ({ status: 204 });
-  const handlers = Object.fromEntries([
-    "feed.snapshot",
-    "feed.workbench",
-    "feed.out-rules.judgments",
-    "feed.out-rules.preview-judgment",
-    "feed.out-rules.list",
-    "feed.out-rules.evaluate",
-    "feed.out-rules.preview",
-    "feed.out-rules.create",
-    "feed.out-rules.update",
-    "feed.out-rules.delete",
-    "feed.sources.create",
-    "feed.sources.update",
-    "feed.sources.delete",
-    "feed.sources.schedule",
-    "feed.sources.action",
-    "feed.connector.token.set",
-    "feed.connector.token.delete",
-    "feed.connector.github.client",
-    "feed.connector.github.device.start",
-    "feed.connector.github.device.poll",
-    "feed.connector.gmail.client",
-    "feed.connector.gmail.oauth.start",
-    "feed.connector.gmail.oauth.callback",
-    "feed.item.detail",
-    "feed.item.action",
-  ].map((routeId) => [routeId, routeId === "feed.item.action"
-    ? (({ params }) => {
-        observed = { itemId: params.item_id!, action: params.action! };
-        return { status: 200, body: observed };
-      }) satisfies FeedPluginRouteHandler
-    : fallback]));
-  const routes = new FeedPluginRouteTable(handlers);
-  const result = await routes.handle({
-    method: "POST",
-    pathname: "/api/feed/items/item%2Fone/archive",
-    query: new URLSearchParams(),
-    body: { revision: 2 },
-  });
-  assert.equal(result?.status, 200);
-  assert.deepEqual(observed, { itemId: "item/one", action: "archive" });
-  assert.equal(await routes.handle({
-    method: "GET",
-    pathname: "/api/not-feed",
-    query: new URLSearchParams(),
-    body: {},
-  }), null);
-  assert.equal((await routes.handle({
-    method: "GET",
-    pathname: "/api/feed/out-rules",
-    query: new URLSearchParams(),
-    body: {},
-  }))?.status, 204);
-});
-
-test("Feed workbench HTTP rejects inbox_message and serves the Feed surface", async () => {
   const unused = () => {
-    throw new Error("unused Feed workbench port");
+    throw new Error("unused Feed route port");
   };
-  const routes = new FeedPluginRouteTable(createFeedRouteHandlers({
-    actions: { discover: unused, invoke: unused },
-    routePrefix: "",
-    inboxEntries: unused,
-    connectors: unused,
-    changed: unused,
-    hydrateItem: unused,
-    hydrateSnapshot: unused,
-    sourceCatalog: () => [],
-    renderWorkbench: () => "<div data-feed-workbench></div>",
-    renderDetail: unused,
-  }));
-  // The route refuses with a coded error; the Host's edge answers it 400 through the SDK like any other.
-  const rejected = await routes.handle({
-    method: "GET",
-    pathname: "/api/feed/workbench",
-    query: new URLSearchParams("preset=inbox_message"),
-    body: {},
-  }).catch(actionErrorResponse);
-  assert.deepEqual([rejected?.status, (rejected?.body as { code: string }).code], [400, "feed.request_invalid"]);
-  const served = await routes.handle({
-    method: "GET",
-    pathname: "/api/feed/workbench",
-    query: new URLSearchParams(),
-    body: {},
-  });
-  assert.equal(served?.status, 200);
-  assert.equal(served?.html, "<div data-feed-workbench></div>");
+  const handlers = createFeedRouteHandlers({ actions: { invoke: unused } });
+  // The page's HTML is the shell's stage (`/api/stage/feed`); Feed declares only JSON routes, each with a handler of its own.
+  assert.deepEqual(Object.keys(handlers).sort(), (feedManifest.routes ?? []).map(({ route_id }) => route_id).sort());
+  assert.ok(!Object.keys(handlers).some((routeId) => routeId === "feed.workbench" || routeId === "feed.item.detail"));
+  const match = pluginRouteMatcher(feedManifest);
+  const routed = match("POST", "/api/plugins/io.molis.work.feed/items/item%2Fone/archive");
+  assert.equal(routed?.route_id, "feed.item.action");
+  assert.deepEqual(routed?.params, { item_id: "item/one", action: "archive" });
+  const echo: FeedPluginRouteHandler = ({ params }) => {
+    observed = { itemId: params.item_id!, action: params.action! };
+    return { status: 200, body: observed };
+  };
+  assert.equal((await echo({ params: routed!.params, request: { method: "POST", pathname: "", query: new URLSearchParams(), body: {} } })).status, 200);
+  assert.deepEqual(observed, { itemId: "item/one", action: "archive" });
+  assert.equal(match("GET", "/api/not-feed"), null);
+  assert.equal(match("GET", "/api/feed/out-rules"), null, "the Host's retired edge is not Feed's");
+  assert.equal(match("GET", "/api/plugins/io.molis.work.feed/out-rules")?.route_id, "feed.out-rules.list");
+  assert.equal(match("GET", "/api/plugins/io.molis.work.feed/workbench"), null);
 });

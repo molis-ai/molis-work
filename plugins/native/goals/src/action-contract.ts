@@ -7,6 +7,26 @@ export function goalActor(caller: ActionCallContext) {
     actor_kind: caller.actor_kind === undefined ? (caller.audience === "user" ? "user" as const : "runtime" as const) : caller.actor_kind ?? undefined };
 }
 
+/**
+ * The plugin that owns each source Goals' public contract names (`source_kind: "feed"`, an input's `feed_item`): the only one whose delegated
+ * call can speak for the person about it.
+ */
+const SOURCE_OWNERS: Readonly<Record<string, string>> = { feed: "io.molis.work.feed", feed_item: "io.molis.work.feed" };
+
+/**
+ * Whether the person asked about `source`: their own call, or the call of the plugin that owns the source, through its action directory
+ * (S-43), made for the person's own direct call to that plugin's action, outside a scene run (user decision 2026-10-10: the person's promotion
+ * is confirmed). Read only from what the Host sets on the nested caller (`delegated_by`, `delegated_audience`), never from input or the
+ * delegating plugin's word. Any other plugin handing in for the person (Workflows' step, a third party's action), a delegation that names no
+ * source, a chain of delegations, a plugin's own call (a timer, `start`), a scene's judgment, an assistant, Agent, workflow or MCP client is
+ * not the person.
+ */
+export function personAsked(caller: ActionCallContext, source?: string): boolean {
+  if (caller.audience === "user") return true;
+  const owner = source === undefined ? undefined : SOURCE_OWNERS[source];
+  return owner !== undefined && caller.delegated_by === owner && caller.delegated_audience === "user" && caller.scene_binding === undefined;
+}
+
 export const ATTENTION_WRITE_PERMISSION = "attention:write";
 export const CONTEXT_LEDGER_WRITE_PERMISSION = "context-ledger:write";
 export const ARTIFACTS_READ_PERMISSION = "artifacts:read";

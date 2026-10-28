@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import test, { type TestContext } from "node:test";
 import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { createLocalFeedApplication, scheduleServiceFor } from "@molis-ai/molis-work-app-local-host";
+import { scheduleServiceFor } from "@molis-ai/molis-work-app-local-host";
 import { scheduleActions, SCHEDULE_ACTION_PERMISSIONS, SCHEDULE_PLUGIN_ID, getScheduleConversationTask } from "@molis-ai/molis-work-plugin-schedule";
 import { newCallId, withCallId } from "@molis-ai/molis-work-kernel";
 import { MEMORY_PERMISSIONS, memoryActions } from "@molis-ai/molis-work-contracts/services/memory";
@@ -11,6 +11,7 @@ import { openTestHome } from "./fixtures/test-home.js";
 import { seedConfiguredModels } from "./fixtures/configured-models.js";
 import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
 import { asideReply } from "./fixtures/ending-review.js";
+import { createLocalFeedApplication } from "./fixtures/feed-library.js";
 
 async function scheduledAgent(t: TestContext, options: { hold?: boolean; workspace?: boolean; model?: boolean } = {}) {
   const f = await openTestHome(t), project = await f.createProject("Scheduled Agent");

@@ -6,7 +6,7 @@ import { PAGE_PLUGINS_WITHOUT_SELECTION, type MolisWorkWebView, type WebProjectN
 import type { LocalProjectDatabase } from "./project-database.js";
 import { currentLocale } from "./web-locale.js";
 import { developerMode } from "./developer-mode.js";
-import { listFeedSourceCatalog } from "./feed-source-service.js";
+import { listFeedSourceCatalog } from "./source-vocabulary.js";
 import { scheduleActions } from "@molis-ai/molis-work-plugin-schedule";
 import { inboxActions } from "@molis-ai/molis-work-plugin-inbox";
 import { shownProjectPlugins } from "./plugin-registry.js";

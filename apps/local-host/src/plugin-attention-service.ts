@@ -15,6 +15,8 @@ import type { ContextEdge } from "@molis-ai/molis-work-contracts/modules/context
 import type { LocalSqliteJournal } from "@molis-ai/molis-work-storage";
 import { pluginNamespace } from "./plugin-namespace.js";
 import { joinPluginTransaction } from "./plugin-transaction.js";
+import { inboxDeclarationsOf } from "./plugin-inbox-declarations.js";
+import type { PluginRuntimeDatabase, PluginRuntimeReleaseArtifactDatabase } from "@molis-ai/molis-work-plugin-runtime";
 
 /**
  * What the Host gives `services.attention` and `services.contextLedger` of one installation (PG-087, PG-094 S9-0b): the project and the
@@ -98,6 +100,7 @@ export function pluginAttentionFor(manifest: PluginManifest, context: PluginStar
       type: event.type, reason: event.reason, payload: event.payload, at: event.at });
   } });
   const reading = () => { gate.read(PLUGIN_ATTENTION_READ_PERMISSION); };
+  const inboxLibrary = connection as AttentionSqliteDatabase & PluginRuntimeDatabase & PluginRuntimeReleaseArtifactDatabase;
   const owns = (subject: PluginAttentionSubjectReference) => {
     if (subject.owner_plugin_id !== owner) throw new ActionError("actions.forbidden", "插件只能添加或删除自己的对象");
     if (!(subjects as readonly string[]).includes(subject.subject_type)) throw new ActionError("actions.forbidden", "插件没有在 Manifest 里声明这种对象");
@@ -105,6 +108,8 @@ export function pluginAttentionFor(manifest: PluginManifest, context: PluginStar
   return Object.freeze<PluginAttentionClient>({
     list: () => { reading(); return attentionModule.query.list(projectId).filter(hasAttentionOwner); },
     get: entryId => { reading(); return assignedEntry(attentionModule.query.get(projectId, entryId)); },
+    listInbox: () => { reading(); return attentionModule.query.listInbox(projectId, inboxDeclarationsOf(inboxLibrary)); },
+    getInbox: entryId => { reading(); return attentionModule.query.getInbox(projectId, entryId, inboxDeclarationsOf(inboxLibrary)); },
     findActiveForSubject: subject => {
       reading(); const entry = attentionModule.query.findActiveForSubject(projectId, subject.subject_type, subject.subject_id, subject.owner_plugin_id);
       return entry && hasAttentionOwner(entry) ? entry : null;

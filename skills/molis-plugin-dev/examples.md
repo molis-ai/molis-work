@@ -8,10 +8,10 @@
 
 人盯着一条 `feed_item`。详情上四条竞争处置：加入 Inbox、保存、升格 Goal、忽略。
 
-Feed、Inbox 还在构建期装配的冻结名单里（`tests/builtin-plugin-assembly-gate.test.ts`）：只对照产品行为（动作、场景、不进池的规则、搜索），装配与 HTTP 不要抄；新插件按 [host.md](host.md) 必改第 6、8 步。
+Feed、Inbox 已由 Plugin Runtime 装配：页面请求写在各自 Manifest `routes`，页面 HTML 是外壳的舞台（`/api/stage/feed`、`/api/stage/inbox`）；宿主里给它们写的代码只剩冻结名单（`tests/builtin-plugin-assembly-gate.test.ts`）记着的那些，不要抄。对照产品行为（动作、场景、不进池的规则、搜索）；新插件按 [host.md](host.md) 必改第 6、8 步。
 
 - UI：plugin-stage 外壳里的文章列 + 阅读页：来源收在列顶的来源菜单，时间线 + 全部 / 未读 / 已保存，点卡片在右侧读。
-- HTTP：Host `/api/feed/items/:id/(inbox|save|promote|archive|…)`。
+- HTTP：Manifest `routes`，`/api/plugins/io.molis.work.feed/items/:item_id/:action`（`inbox|save|promote|archive|…`）；阅读页是外壳的舞台 `/api/stage/feed/items/<item_id>`。
 - 动作：`feed.*` 与内容协议 `feed.content.*`；处置按钮由事项动作查询准备，旧 HTTP 只转发。
 - 场景：`feed.capture`。`feed.open` 只映射「留在 Feed」，不是 footer 按钮。打开原文常驻。
 - 不进池：标已读、恢复、来源设置、token、计划。

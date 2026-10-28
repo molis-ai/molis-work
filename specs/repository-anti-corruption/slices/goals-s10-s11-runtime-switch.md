@@ -173,7 +173,7 @@ savepoint<T>(body: () => { keep: boolean; value: T }): T
 - **RAC-805**：Goals 的表只有一个主人：`tooling/gates/table-owners.json` 里没有与 Goals 共用的表，`scripts/gates/table-owners.mjs` 通过。（同 RAC-803 的测试文件）
 - **RAC-806**：Inbox 照常列出 Goals 的待决定提醒：Goals 以自己的插件号记的 `goal_decision` 条目，因 Goals 的 Manifest 声明了 `attention.inbox`，Feed 的 Inbox 读取入口（`listInboxEntries`、`getInboxEntry`、`setInboxEntryStatus`）认得；别的插件号记的同种类同裸 ID 条目仍不解析（S9-0b 的隔离不动），按原不存在码拒绝。（`tests/goal-decision-attention.test.ts`）
 - **RAC-807**：Inbox 查询只给未归属条目和「主人声明了该种类」的有主条目：主人没声明的种类不出现（列表与直接读取一样）；A 声明的种类不让 B 的同种类条目出现，反之亦然；谁也没声明时只有未归属条目，完整列表不变。（`tests/security-invariants-attention-inbox.test.ts`）
-- **RAC-808**：声明来自项目里运行中的安装：停用的安装、没有发行物归档的安装、声明了种类却没写 `inbox` 的安装都不贡献；Feed 的 Inbox 不点名任何插件。（同上）
+- **RAC-808**：声明来自项目里运行中的安装：停用的安装、没有发行物归档的安装、声明了种类却没写 `inbox` 的安装都不贡献；Inbox（Runtime 插件，读平台投影）不点名任何插件；准入之后才停用的主人，那次调用读不到也改不了它的条目。（同上）
 - **RAC-809**：SDK 解析 Manifest 时，`attention.inbox` 必须是 `attention.subjects` 的非空、不重复的子集；多余字段拒绝。（同上）
 
 ## 8. 风险与要先核对的

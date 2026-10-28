@@ -19,7 +19,7 @@ createContextLedger(db, { authorize }) 提供边的查询、写入和删除；cr
 | [src/materialization.ts](src/materialization.ts) | 上下文解析 |
 | [src/repository.ts](src/repository.ts) | 关联持久化 |
 
-可对照现有调用方 [apps/local-host/src/content-action-providers.ts](../../apps/local-host/src/content-action-providers.ts) 阅读装配方式。
+可对照现有调用方 [plugins/native/feed/src/runtime-ports.ts](../../plugins/native/feed/src/runtime-ports.ts) 阅读装配方式（它经平台的情境账服务读写，不直接开库）。
 
 ## 接入与边界
 

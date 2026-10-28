@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { createLocalFeedSourceService } from "@molis-ai/molis-work-app-local-host";
+
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { assertLayoutClean, layoutFindings } from "./fixtures/layout-audit.js";
 import { goalsQueryOf } from "./fixtures/goal-application.js";
+import { createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 // The switcher's grid in a real browser (specs/archive/plugin-picker-dock): buttons that appear when an entry is looked at, a pin
 // that keeps a plugin in the Dock, a plus (a red trash can once the plugin is in) that adds or removes it without bringing the

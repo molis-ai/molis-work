@@ -93,8 +93,9 @@ export async function importLocalArtifactDocument(input: Record<string, unknown>
       try { return await withConnectorRequest(home, id, ports.signal, async signal => {
         const beforeDispatch = async () => { await ports.beforeDispatch?.(); signal.throwIfAborted(); assertConnection(); };
         await beforeDispatch();
+        const control = { signal, beforeEffect: beforeDispatch, current: () => { signal.throwIfAborted(); assertConnection(); } };
         let access: Awaited<ReturnType<typeof resolveApiConnection>>;
-        try { access = await resolveApiConnection(home, id, service); }
+        try { access = await resolveApiConnection(home, id, control, service); }
         catch { signal.throwIfAborted(); throw artifactImportErrors.credentials_unavailable("所选连接不可用，请在连接器设置中重新授权"); }
         usedConnection = id;
         usedRevision = access.connection.updated_at;
@@ -106,7 +107,7 @@ export async function importLocalArtifactDocument(input: Record<string, unknown>
           assertConnection();
           if (access.connection.auth_method !== "oauth" || !(error instanceof ActionError) || error.code !== "catalog_integration.needs_auth") throw error;
           await beforeDispatch();
-          access = await resolveApiConnection(home, id, service, true);
+          access = await resolveApiConnection(home, id, control, service, true);
           return { ...await read(), connection_id: id };
         }
       }); }

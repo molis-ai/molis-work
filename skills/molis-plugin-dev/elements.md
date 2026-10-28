@@ -89,7 +89,7 @@ Manifest 里有三类声明会改变插件在别处的效果，安装预览把�
 两条路径，不要抄错：
 
 1. **Manifest `routes`（第三方插件与新的内置插件）**：`routes[]`（`route_id`、method、`path` 带 `:name`）。Host 挂 `/api/plugins/<plugin_id>/`，处理器用 `bindPluginActionRoute` 转调动作。未声明路径到不了插件。经 Plugin Runtime 启动的插件必须兑现每条 `routes[].handle`；请求体默认最多读 256 000 字节（Home 级实例的路由默认 12 MiB），某条路由要收更大的内容（如导入文件）就声明 `max_body_bytes`（至多 45 000 000 字节，`packages/plugin-sdk/src/manifest.ts` 的 `MAX_ROUTE_BODY_BYTES`，超过的 Manifest 解析时被拒）。
-2. **构建期 Native（冻结，只许减少）**：Host 文件把短名接到产品 API（`/api/feed/`、`/api/inbox/`），由 `*-native-plugin-http.ts` 调用。新的内置插件不走这条，走第 1 条。`project_id` 由 Host 从当前项目注入，不要从 body / MCP schema 收。
+2. **构建期 Native（冻结，只许减少）**：Host 文件把短名接到产品 API（`/api/alchemist`），由 `*-native-plugin-http.ts` 调用（Inbox、Feed 已迁走，路由写在各自的 Manifest `routes` 里，挂在 `/api/plugins/<plugin_id>/` 下）。新的内置插件不走这条，走第 1 条。`project_id` 由 Host 从当前项目注入，不要从 body / MCP schema 收。
 
 写操作要 revision / 幂等；冲突可恢复。handler 用注入的 Module/端口，不 import 别的插件实现。
 

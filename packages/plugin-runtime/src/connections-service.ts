@@ -1,3 +1,4 @@
+import type { ConnectorCallControl } from "@molis-ai/molis-work-contracts/services/connector-host";
 import { defineErrorCodes } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import {
@@ -35,6 +36,7 @@ export interface PluginConnectionDispatch {
   readonly signal: AbortSignal;
   /** Recheck right before the request leaves (after its address is known) and before its answer is handed back. */
   beforeEffect(): Promise<void>;
+  current(): void;
 }
 
 /**
@@ -99,7 +101,7 @@ export function createPluginConnectionsClient(manifest: PluginManifest, port: Pl
       const current = currentFor(scope, signal);
       const beforeEffect = async () => { current(); if ("definition" in scope) await scope.caller.beforeEffect(); current(); };
       await beforeEffect();
-      const response = await port.request(target, { ...checked, signal, beforeEffect });
+      const response = await port.request(target, { ...checked, signal, beforeEffect, current });
       await beforeEffect();
       return response;
     },
@@ -146,24 +148,24 @@ export interface CallConnectionsPort {
  * ends (`call.signal`). The plugin learns whether the source has an account, its name and how it stands, never which connection.
  */
 export function createCallConnectionsClient(port: CallConnectionsPort, connection: CallConnection, slot_id: string,
-  call: { readonly signal: AbortSignal; beforeEffect?(): Promise<void> }): PluginConnectionsClient {
+  call: ConnectorCallControl): PluginConnectionsClient {
   const enter = (slot: unknown, record_key: unknown) => {
     if (call.signal.aborted) throw errors.connections_call_ended("这次拉取已经结束，它的账号不能再用");
+    call.current();
     if (slot !== slot_id) throw errors.connections_slot_undeclared(`集成拉取只能经连接槽 ${slot_id} 用来源的账号，不认 ${String(slot)}`);
     if (record_key !== undefined) throw errors.connections_record_key_invalid(`连接槽 ${slot_id} 是这次拉取的来源的账号，不带记录键`);
   };
-  const current = (signal: AbortSignal) => async () => {
-    signal.throwIfAborted(); await call.beforeEffect?.(); signal.throwIfAborted();
-  };
+  const currentFor = (signal: AbortSignal) => () => { signal.throwIfAborted(); call.current(); signal.throwIfAborted(); };
   return Object.freeze({
     async request(slot: string, request: PluginConnectionRequest): Promise<PluginConnectionResponse> {
       enter(slot, request?.record_key);
       const checked = connectionRequest(request);
       if (checked.method !== "GET" && checked.method !== "HEAD") throw errors.connections_read_only("集成拉取只能发 GET 或 HEAD 请求");
       const signal = AbortSignal.any([call.signal, request?.signal].filter(item => item !== undefined));
-      const beforeEffect = current(signal);
-      await beforeEffect();
-      const response = await port.request(connection, { ...checked, signal, beforeEffect });
+      const current = currentFor(signal);
+      const beforeEffect = async () => { current(); await call.beforeEffect(); current(); };
+      await beforeEffect(); current();
+      const response = await port.request(connection, { ...checked, signal, beforeEffect, current });
       await beforeEffect();
       return response;
     },
@@ -179,7 +181,7 @@ export function createCallConnectionsClient(port: CallConnectionsPort, connectio
 }
 
 /** The binding a call reaches: an installation slot takes no record key; a `per_record` slot needs one, and the call's own project. */
-function slotTarget(manifest: PluginManifest, gate: PluginConnectionsGate, slot: PluginConnectionSlotDeclaration, record_key: unknown,
+export function slotTarget(manifest: PluginManifest, gate: PluginConnectionsGate, slot: PluginConnectionSlotDeclaration, record_key: unknown,
   project_id: string | null): PluginConnectionTarget {
   const target = { plugin_id: manifest.plugin_id, install_id: gate.install_id, slot_id: slot.slot_id, service_id: slot.service_id };
   if (slot.binding !== "per_record") {
@@ -192,7 +194,7 @@ function slotTarget(manifest: PluginManifest, gate: PluginConnectionsGate, slot:
 }
 
 /** The request's shape, settled once before anything reaches the Host: an https address and the headers a plugin may write. */
-function connectionRequest(request: PluginConnectionRequest): Omit<PluginConnectionDispatch, "signal" | "beforeEffect"> {
+function connectionRequest(request: PluginConnectionRequest): Omit<PluginConnectionDispatch, "signal" | "beforeEffect" | "current"> {
   if (!request || typeof request !== "object") throw errors.connections_request_invalid("请求必须是对象");
   const method = request.method ?? "GET";
   if (!METHODS.includes(method)) throw errors.connections_request_invalid(`不支持的请求方法：${String(method)}`);

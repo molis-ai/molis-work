@@ -29,7 +29,7 @@ export const FEED_RULE_AUTHORING_SCRIPT = `
     };
     let feedJudgmentCatalogRequest = null;
     const readFeedJudgmentCatalog = () => {
-      if (!feedJudgmentCatalogRequest) feedJudgmentCatalogRequest = api("/api/feed/out-rules/judgments", "GET").finally(() => { feedJudgmentCatalogRequest = null; });
+      if (!feedJudgmentCatalogRequest) feedJudgmentCatalogRequest = api(feedApi + "/out-rules/judgments", "GET").finally(() => { feedJudgmentCatalogRequest = null; });
       return feedJudgmentCatalogRequest;
     };
     const loadFeedJudgments = async (section) => {
@@ -148,7 +148,7 @@ export const FEED_RULE_AUTHORING_SCRIPT = `
         const rule = readFeedRule(section);
         const state = feedRuleState(section);
         if (preview) {
-          const result = await api("/api/feed/out-rules/preview", "POST", { source_id: section.dataset.feedOutRules, contains: rule.contains });
+          const result = await api(feedApi + "/out-rules/preview", "POST", { source_id: section.dataset.feedOutRules, contains: rule.contains });
           if (!result.samples.length) throw new Error(FL("还没有可预览的消息。先拉取来源内容，再试一次。"));
           if (rule.mode === "natural") {
             const settings = await api("/api/functions/settings", "GET");
@@ -167,7 +167,7 @@ export const FEED_RULE_AUTHORING_SCRIPT = `
               matched = !needsReview && evaluated.noul >= 0.5;
               rememberFeedRule(section);
             } else if (rule.mode === "existing") {
-              const evaluated = await api("/api/feed/out-rules/preview-judgment", "POST", { judgment: rule.judgment, item_id: sample.item_id });
+              const evaluated = await api(feedApi + "/out-rules/preview-judgment", "POST", { judgment: rule.judgment, item_id: sample.item_id });
               needsReview = evaluated.status !== "ok";
               matched = !needsReview && evaluated.suggested_behavior_ids.includes(${JSON.stringify(INBOX_ADMIT_BEHAVIOR_ID)});
             }
@@ -195,7 +195,7 @@ export const FEED_RULE_AUTHORING_SCRIPT = `
             rule.judgment = { capability_id: "functions.published." + state.function.function_key, version: state.function.version, provider_id: "system.functions" };
             rememberFeedRule(section);
           }
-          await api("/api/feed/out-rules", "POST", { name: rule.name || FL("来源捕捉规则"), contains: rule.contains, source_id: section.dataset.feedOutRules, admission: rule.admission, judgment: rule.judgment });
+          await api(feedApi + "/out-rules", "POST", { name: rule.name || FL("来源捕捉规则"), contains: rule.contains, source_id: section.dataset.feedOutRules, admission: rule.admission, judgment: rule.judgment });
           feedRuleDrafts.delete(feedRuleKey(section));
           try { sessionStorage.removeItem(feedRuleKey(section)); } catch {}
           section.querySelectorAll("[data-feed-rule-composer] input, [data-feed-rule-composer] textarea").forEach(field => field.value = "");

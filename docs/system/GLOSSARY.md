@@ -269,7 +269,7 @@
 | --- | --- | --- | --- |
 | `goals` | Goals | Goals | |
 | `inbox` | Inbox | Inbox | |
-| `feed` | Feed | Feed | 出站规则生成的成果版本记着生产者 `io.molis.work.native.feed`（表后第 3 条） |
+| `feed` | Feed | Feed | 存量的捕获成果记着旧生产者 `io.molis.work.native.feed` / `native:feed`（表后第 3 条） |
 | `schedule` | Schedule | Schedule | |
 | `artifacts` | 成果 | 成果 | |
 | `coding` | Coding | Coding | |
@@ -298,7 +298,7 @@
 
 1. **Manifest 的 `plugin_id` 多一段 `.native.`**：只有工作流程（`plugins/native/workflows/src/model.ts:7`）。它是安装记录、事件订阅、发行物留存和提示词覆盖（`owner_id`，`plugins/native/workflows/src/prompts.ts:5`）的键，改名属 R-B8。
 2. **UI 声明里不写 `plugin_id`（PG-098，2026-10-25 已改）**：原来 5 个插件共 16 个描述写成 `io.molis.work.native.<x>`，而它们的 Manifest 是 `io.molis.work.<x>`，构建期装配的插件没有一致性检查，所以没被发现。现在插件写的 `UiContribution.descriptor` 是 `UiContributionDeclaration`，没有 `plugin_id`；平台登记时按受信任的 Manifest 填（`ownedContribution`：`ui:register` 用安装上下文的 `plugin_id`，内置的 `registration.workbench.contributions` 用登记项的 `manifest.plugin_id`），声明自己带 `plugin_id` 一律拒绝（`declaresOwner`）。所以不再有「描述里的身份与 Manifest 不一致」这件事，R-A9 作废。
-3. **成果版本里记着一个不同的生产者 id**：Feed 的出站规则生成成果版本时，生产者写的是 `FEED_ARTIFACT_PRODUCER`（`plugins/native/feed/src/out-rules.ts:16-17,221`），`plugin_id` 为 `io.molis.work.native.feed`，`binding_signature` 为 `native:feed`；Feed 的 Manifest 是 `io.molis.work.feed`（`plugins/native/feed/src/identity.ts:1`）。生产者存进成果表的 `producer_plugin_id`（`modules/artifacts/src/repository.ts:52`），所以这是已存数据，改名属 R-B9。它还有一个后果：宿主按声明检查内置插件的写入时用生产者的 `plugin_id` 查内置目录，查不到的生产者放行（`apps/local-host/src/declared-types.ts:11-17`），所以这条写入没有被对照 Feed 的 `artifacts.produces` 检查。
+3. **存量成果版本里记着旧的生产者**：宿主时代 Feed 的出站规则自己写生产者 `FEED_ARTIFACT_PRODUCER`：版本 `0.0.0`、签名 `native:feed`，`plugin_id` 在 10-25（`6cac075ed`）之前是 `io.molis.work.native.feed`，之后是 `io.molis.work.feed`。RAC-510（2026-10-27，批 C）之后 Feed 经 `services.artifacts.join` 写，生产者由平台按 Feed 的 Manifest 盖（`io.molis.work.feed`、`0.3.0`、`official-feed-binding`），类型对照 `artifacts.produces` 检查，`FEED_ARTIFACT_PRODUCER` 已删。生产者存在成果表的 `producer_plugin_id`、`producer_binding_signature`（`modules/artifacts/src/repository.ts:52`），所以存量还是旧值，改存量属 R-B9。
 4. **贡献 id（`contribution_id`）不是插件 id**：多数内置插件的贡献 id 以 `io.molis.work.native.<x>.` 开头（如 `io.molis.work.native.todo.ui.v1`，`plugins/native/todo/src/ui.ts:4`）。这是贡献 id 的命名空间，不要拿它推 `plugin_id`；它不在改名范围内。
 
 
@@ -433,7 +433,7 @@ B　说工作者本身的（做事、用自己的权限、请求授权和提问�
 | R-B6 | Agent 动作工具名 `find-capabilities`、`read-capability`、`change-capability` | `find-actions`、`read-action`、`change-action`（`suggest-action`、`change-reversible` 已一致） | 源码 6 个文件 46 处，测试 10 个文件 | 助理提示词引用这些名字（`apps/local-host/src/assistant/assistant-agent.ts`），提示词可由用户改写（`user_revision`），改名要升提示词版本并核对用户改写的版本 |
 | R-B7 | 工作流程衔接类型 `function`（模板转换） | `template` | `plugins/native/workflows/src` 的 `actions.ts`、`client.ts`、`model.ts` | 已保存的流程和实例里存着这个值 |
 | R-B8 | 工作流程的 `plugin_id` `io.molis.work.native.workflows` | `io.molis.work.workflows` | 字面量在 `plugins/native/workflows/src/` 的 3 个源码文件（`client.ts:69,213`、`model.ts:8`、`prompts.ts:5`），常量 `WORKFLOWS_PLUGIN_ID` 另有 `actions.ts`、`manifest.ts`、`ui.ts` 引用 | `plugin_id` 是安装记录、事件订阅、发行物留存和提示词覆盖（`owner_id`）的键，改名要改这些存量 |
-| R-B9 | Feed 出站规则生成的成果版本里的生产者 `FEED_ARTIFACT_PRODUCER`：`plugin_id` `io.molis.work.native.feed`、`binding_signature` `native:feed`（`plugins/native/feed/src/out-rules.ts:16-17,221`） | `plugin_id` 改 `io.molis.work.feed`（Feed 的 Manifest id，`plugins/native/feed/src/identity.ts:1`），签名取 Feed Manifest 的发布者签名 | 源码 1 个文件定义，存量是成果表 `producer_plugin_id`、`producer_binding_signature` 两列里 Feed 写过的行 | 已存的成果版本带旧值，读取不兜底，要先由维护改存量；改后宿主按声明检查写入时才查得到 Feed（`apps/local-host/src/declared-types.ts:11-17`，现在查不到就放行），所以改前要先确认 Feed 的 `artifacts.produces` 与实际写入一致 |
+| R-B9 | 存量捕获成果的生产者：签名 `native:feed`、版本 `0.0.0`，`plugin_id` 是 `io.molis.work.native.feed`（10-25 之前）或 `io.molis.work.feed` | 改成 Feed Manifest 的身份：`io.molis.work.feed`、`0.3.0`、`official-feed-binding`。源码已改（RAC-510，批 C：生产者由平台按 Manifest 盖，`FEED_ARTIFACT_PRODUCER` 已删） | 源码已无旧值；存量是成果表 `producer_plugin_id`、`producer_binding_signature` 与版本表 `producer_plugin_version` 里 Feed 写过的行 | 读取不兜底：成果线只认插件号和签名都相同的生产者（PG-107），存量线 Feed 认不出，同一条消息再被捕获时记 `artifact_out_failed`。存量由维护改，候选条目在 `docs/releases/CHECKLIST.md` §4.3（R-69，与项目库 v11 同一个窗口，动真实 Home 前问用户） |
 
 ### R-C　不改名（记入术语表即可）
 

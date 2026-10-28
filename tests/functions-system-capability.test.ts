@@ -402,7 +402,7 @@ test("Feed, Inbox and home do not import the Functions plugin implementation", a
     "apps/workbench/src/scripts/client/navigation-feed-stage.ts",
     "apps/workbench/src/scripts/client/events-primary.ts",
     "apps/local-host/src/home-dock-http.ts",
-    "apps/local-host/src/feed-native-plugin-http.ts",
+    "apps/local-host/src/plugin-stage-fragment-http.ts",
     "apps/local-host/src/web-view.ts",
   ];
   for (const relative of files) {
@@ -422,6 +422,8 @@ test("home dock HTTP binds a published function at the scene without executing w
   const homeDirectory = await mkdtemp(join(tmpdir(), "molis-work-home-dock-"));
   const catalog = await openMolisWorkProjectCatalog({ homeDirectory });
   const created = await catalog.createProject({ display_name: "卡底绑定", actor_id: "test" });
+  // The Home dock's choices are the Inbox's behaviors: they exist while the project has the Inbox (FI-6: a Runtime plugin of the project, not always there).
+  for (const plugin_id of ["feed", "inbox"]) catalog.addProjectPlugin({ project_id: created.project_id, plugin_id, actor_id: "test" });
   const project = catalog.getProject(created.project_id);
   const token = "home-dock-test-token-0123456789012345";
   const localHost = new MolisWorkLocalHost({ homeDirectory, functions: { env: { TYPESAFE_API_KEY: "fixture-only" } } });

@@ -15,7 +15,7 @@ import { projectWorkspaceActions } from "@molis-ai/molis-work-contracts/modules/
 import { PROJECT_WORKSPACE_PROVIDER_ID } from "./project-workspace-actions.js";
 import { HOST_PROVIDER_ID } from "./local-host.js";
 import { EXTERNAL_MCP_PERMISSION } from "./mcp-tool-actions.js";
-import { NATIVE_CONTENT_PERMISSIONS } from "./content-action-providers.js";
+import { NATIVE_CONTENT_PERMISSIONS } from "./native-content-permissions.js";
 import { SEARCH_PERMISSIONS, SEARCH_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/search";
 import { PLACEMENT_PERMISSIONS, PLACEMENT_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/placement";
 import { MEMORY_PERMISSIONS, MEMORY_PROVIDER_ID } from "@molis-ai/molis-work-contracts/services/memory";

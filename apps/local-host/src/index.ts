@@ -48,7 +48,6 @@ export { finishMcpWebStartup, reportMcpWebStartupFailure, watchMcpWebStartup } f
 export { createMolisWorkRuntimePayload, type MolisWorkRuntimePayloadOptions } from "./installer/runtime-payload.js";
 export { createMolisWorkNpmPackageDirectory } from "./installer/npm-package.js";
 
-
 export { LocalProjectDatabase } from "./project-database.js";
 export { isProjectPluginDatabaseRefusal, openProjectPluginDatabases } from "./project-plugin-databases.js";
 export { PROJECT_DATABASE_BASELINE } from "./project-database-schema.js";
@@ -88,9 +87,8 @@ export {
   DEMO_CORE_ARTIFACT_ID,
 } from "./demo-plugin-seed.js";
 
-export { hydrateFeedItemContent, hydrateFeedSnapshotContent } from "./feed-content.js";
-
-export { createLocalFeedApplication } from "./feed-application.js";
+export { createDemoFeedApplication, createDemoFeedSourceService, type DemoFeedApplicationOptions, type DemoFeedSourceOptions } from "./demo-feed-library.js";
+export { createNotificationDelivery, declaredNotificationReceivers } from "./plugin-notification-delivery.js";
 export { HOST_ARTIFACT_PRODUCERS, artifactTypeDeclarations, declaredArtifactTypes, artifactContinuers, artifactReferrerActions, continuerReadsFile, artifactProducerSources, artifactLinkKinds, linkKindProblems, installedArtifacts, supervisedArtifacts, type ArtifactProducerSource, type InstalledArtifactView } from "./artifact-type-registry.js";
 export { bindProjectArtifacts } from "./declared-types.js";
 export { declarationOwnersFor } from "./declaration-owners.js";
@@ -98,10 +96,10 @@ export { heldInstalls, pluginHeldElsewhere, type HeldInstall, type InstallRef, t
 export { liveHostJudgmentRuleAuthoringCatalog } from "./recommendation-catalog.js";
 export { seedSceneRules, withFunctionsService } from "./functions-host.js";
 
-export { createFeedSourceRuntime, type FeedSourceRuntime } from "./feed-source-runtime.js";
+export { createSourcePullRuntime, type SourcePullRuntime } from "./source-pull-runtime.js";
 export { createIntelligenceCollectAdapter, type IntelligenceCollectRequest, type IntelligenceCollectResult, type IntelligenceCollectAdapter } from "./search-intelligence-client.js";
 
-export { createLocalFeedSourceService, listFeedSourceCatalog } from "./feed-source-service.js";
+export { listFeedSourceCatalog } from "./source-vocabulary.js";
 export type { FeedSourceService, RegisterFeedSourceInput, UpdateFeedSourceInput, ConfigureFeedSourceScheduleInput, FeedSourceSyncResult, FeedSourceCatalogView } from "@molis-ai/molis-work-plugin-feed";
 
 export { withConnectorConnections } from "./connector-connection-store.js";
@@ -124,6 +122,7 @@ export { sandboxPluginManifest } from "./sandbox-plugin-manifest.js";
 export { SandboxPackageStore } from "./sandbox-package-store.js";
 export { HomeConsentLedger } from "./home-plugin-store.js";
 export { createPluginConnectionsPort, createCallConnectionsPort, pluginSlotScope } from "./connector-plugin-requests.js";
+export { createConnectorSourcePort } from "./connector-source-pull.js";
 export { activateConnectorConnection } from "./connector-activation.js";
 export { LOCAL_OWNER_PERMISSIONS, localOwnerPermissionsOver } from "./local-owner-permissions.js";
 export { artifactActionProvider } from "./artifact-actions.js";
@@ -150,17 +149,9 @@ export { homeIntegrationRegistry } from "./builtin-integrations.js";
 export { connectorDirectory } from "./connector-directory.js";
 export type { IntegrationProviderFactory } from "./integration-providers.js";
 
-export { createLocalFeedConnectorSync } from "./feed-connector-sync.js";
-
-export { feedConnectorAuthStatus } from "./feed-connector-auth.js";
-
-export { createLocalFeedSourceScheduler } from "./feed-source-scheduler.js";
-
-export { createLocalFeedGoalPromotion } from "./feed-goal-promotion.js";
-
-export { handleFeedNativePluginHttp, type FeedNativePluginHttpOptions } from "./feed-native-plugin-http.js";
-export { handleInboxNativePluginHttp, type InboxNativePluginHttpOptions } from "./inbox-native-plugin-http.js";
 export { handleHomeDockJudgmentHttp, type HomeDockHttpOptions } from "./home-dock-http.js";
+/** One Feed item for the shell's reader (`/api/stage/feed/items/<id>`), read through Feed's own actions. */
+export { feedItemForReader } from "./web-request.js";
 export { handleFunctionsHttp } from "./functions-http.js";
 
 export { createLocalArtifactHttp, renderGoalArtifactContext } from "./artifact-native-plugin-http.js";
@@ -227,6 +218,7 @@ export { handleAgentReviewHttp, handleUnscopedAgentReviews, type AgentReviewHttp
 export { renderProjectRuntimeStages, type ProjectPluginSurfacePorts } from "./project-plugin-stages.js";
 export { handleProjectPluginHttp, type ProjectPluginHttpPorts } from "./project-plugin-http.js";
 export { ensureProjectPlugins, projectPluginProblem, releaseProjectPlugins, runningProjectPlatform } from "./project-plugins.js";
+export { announceConnectionChanged } from "./connection-change-events.js";
 export { builtinMarketDirectory, homePluginDirectory, mergePluginDirectories, runningPluginDirectory, type DirectorySource } from "./plugin-directory.js";
 export { observeReviewSettlements, reviewSettlementForwarder, type AgentWritePlaces, type ObserveReviewSettlements, type ReviewSettlement } from "./review-settlement-events.js";
 export { createGitWorktreePort, type GitWorktreePort } from "./workspace-git-worktrees.js";

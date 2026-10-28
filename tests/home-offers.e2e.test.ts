@@ -2,7 +2,7 @@ import { ISOLATED_HOST_IDS } from "./fixtures/isolated-host.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdir, writeFile } from "node:fs/promises";
-import { createLocalFeedApplication, createLocalFeedSourceService, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
+import { molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { PluginRuntime, SqlitePluginRuntimeRepository } from "@molis-ai/molis-work-plugin-runtime";
 import { definePlugin, defineSubjectOffersAction } from "@molis-ai/molis-work-plugin-sdk";
 import type { ActionDefinition, SubjectOffersInput } from "@molis-ai/molis-work-contracts/platform/actions";
@@ -10,6 +10,7 @@ import { subjectOfferChoiceKey } from "@molis-ai/molis-work-kernel";
 import { withFunctionsService } from "../apps/local-host/dist/functions-host.js";
 import { openGoalBrowser } from "./fixtures/goal-browser.js";
 import { reviewEvidenceUrl } from "./fixtures/review-evidence.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 const captures = reviewEvidenceUrl("home-offer-actions/");
 
 test("RAC-214: Home renders and executes unknown plugin offers and Inbox status without restoring the retired Talk entry", { timeout: 120_000 }, async t => {
@@ -119,7 +120,7 @@ test("RAC-214: Home renders and executes unknown plugin offers and Inbox status 
     assert.equal(feed.getInboxEntry(projectId, entry.entry_id).revision, entry.revision + 1);
     const requests = await evaluate<string[]>("window.__homeRequests");
     assert.ok(requests.some(path => path.endsWith('/api/home/actions/execute')));
-    assert.ok(!requests.some(path => path.includes('/api/inbox/entries/') && path.endsWith('/status')));
+    assert.ok(!requests.some(path => path.includes('/api/plugins/io.molis.work.inbox/entries/') && path.endsWith('/status')));
     assert.equal(await evaluate("document.documentElement.scrollWidth <= innerWidth"), true);
     await capture("mobile-inbox-complete");
     // The owner makes this material actionable again. Lose the next response after the real write.

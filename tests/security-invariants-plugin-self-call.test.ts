@@ -97,17 +97,18 @@ test("RAC-584 S-73 an Agent's, an MCP client's or a workflow's call cannot reach
   assert.equal(probe.ran(probe.actions.userOnly), 1);
 });
 
-test("RAC-585 S-73 a call another plugin made (plugin audience) stays plugin through the callee's own action, which then cannot use the action directory", async t => {
+test("RAC-585 S-73 a call another plugin made (plugin audience) stays plugin through the callee's own action, which then reaches through the action directory only what the calling plugin could", async t => {
   const callee = selfCallProbe("callee", { delegate: true }), caller = selfCallProbe("calleruser", { consumes: ["callee.outer"] });
   const s = await setup(t, [callee, caller], [callee]);
   callee.behavior.outer = (context, execution) => context.services!.actions!.invoke(callee.actions.inner, {}, execution) as Promise<unknown>;
   callee.behavior.inner = (context) => context.services!.actions!.directory!.invoke(ref(OPEN), {});
   caller.behavior.outer = (context, execution) => context.services!.actions!.invoke(callee.actions.outer, {}, execution) as Promise<unknown>;
-  await assert.rejects(s.run(caller, caller.actions.outer, "user"), { code: "actions.forbidden" });
+  // The directory keeps that call the calling plugin's own (user decision 2026-10-26, S-43): the target is not among the actions its Manifest consumes.
+  await assert.rejects(s.run(caller, caller.actions.outer, "user"), { code: "actions.dependency_missing" });
   const inner = callee.saw(callee.actions.inner).at(-1)!;
   assert.equal(inner.audience, "plugin", "the person's call went through another plugin: what that plugin called is not the person's");
   assert.deepEqual(s.targetRan, [], "the directory's target never ran");
-  // The directory itself works for the person's own call of the plugin's action: the audience is what the refusal above rests on.
+  // The directory works for the person's own call of the plugin's action: the calling plugin's reach is what the refusal above rests on.
   callee.behavior.outer = (context) => context.services!.actions!.directory!.invoke(ref(OPEN), {});
   assert.equal(await s.run(callee, callee.actions.outer, "user"), "done");
   assert.deepEqual(s.targetRan, [OPEN.capability_id]);

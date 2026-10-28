@@ -1,16 +1,11 @@
 import { SCHEDULE_NATIVE_PLUGIN_ROUTES } from "./schedule-direct-actions.js";
-import { inboxActions } from "@molis-ai/molis-work-plugin-inbox";
+import { inboxManifest } from "@molis-ai/molis-work-plugin-inbox";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { FUNCTIONS_CLIENT_FACTORY_SCRIPT } from "../apps/workbench/dist/functions/client.js";
-import {
-  INBOX_NATIVE_PLUGIN_ROUTES,
-  InboxPluginRouteTable,
-  createInboxRouteHandlers,
-} from "@molis-ai/molis-work-plugin-inbox";
 import { ALCHEMIST_CLIENT_FACTORY_SCRIPT } from "@molis-ai/molis-work-plugin-alchemist";
 import {
   SCHEDULE_CLIENT_FACTORY_SCRIPT,
@@ -133,27 +128,12 @@ test("Feed / Inbox 成功路径改走舞台刷新，工作台脚本含 refresh h
 });
 
 test("Inbox fragment and Schedule isolated view refresh retain their presentation boundaries", async () => {
-  assert.ok(INBOX_NATIVE_PLUGIN_ROUTES.some((route) => route.route_id === "inbox.workbench"));
+  // The Inbox list is redrawn from the shell's stage fragment (`/api/stage/inbox`), not from a route of the plugin: the plugin's routes answer JSON for its own actions.
+  assert.ok(!(inboxManifest.routes ?? []).some((route) => route.route_id === "inbox.workbench"));
+  assert.ok((inboxManifest.routes ?? []).every((route) => route.path.startsWith("/")));
+  assert.match(CLIENT_NAVIGATION_INBOX_SCRIPT, /route\("\/api\/stage\/inbox"\)/);
   assert.ok(!SCHEDULE_NATIVE_PLUGIN_ROUTES.some((route) => route.route_id === "schedule.workbench"));
   assert.ok(SCHEDULE_NATIVE_PLUGIN_ROUTES.some((route) => route.route_id === "schedule.task.archive"));
-
-  const inbox = new InboxPluginRouteTable(createInboxRouteHandlers({
-    actions: { discover: async () => [], invoke: async <Input, Output>(definition: import("@molis-ai/molis-work-contracts/platform/actions").ActionDefinition<Input, Output>, input: Input): Promise<Output> => {
-      assert.equal(definition, inboxActions.list);
-      assert.deepEqual(input, {});
-      return { entries: [] } as Output;
-    } },
-    changed() {},
-    renderWorkbench: () => '<section data-inbox-workbench><div data-inbox-list></div><div data-inbox-stage-workspace></div></section>',
-  }));
-  const inboxPage = await inbox.handle({
-    method: "GET",
-    pathname: "/api/inbox/workbench",
-    query: new URLSearchParams(),
-    body: {},
-  });
-  assert.equal(inboxPage?.status, 200);
-  assert.match(String(inboxPage?.html), /data-inbox-list/);
 
   // Schedule's page is TypeScript bundled and minified into its client pack: what its code does is read in the sources.
   const stage = scheduleSource("stage.ts"), actions = scheduleSource("actions.ts"), form = scheduleSource("form.ts");

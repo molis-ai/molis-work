@@ -4,10 +4,11 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import test from "node:test";
 import { openMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
-import { MolisWorkLocalHost, molisWorkHostProjectReference, createLocalFeedApplication, createLocalFeedSourceService, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
-import { feedCaptureScene, feedRuleActions, feedSceneBindingId, createFeedCaptureTrigger } from "@molis-ai/molis-work-plugin-feed";
+import { MolisWorkLocalHost, molisWorkHostProjectReference, LocalProjectDatabase } from "@molis-ai/molis-work-app-local-host";
+import { FEED_ACTION_PERMISSIONS, feedCaptureScene, feedRuleActions, feedSceneBindingId, createFeedCaptureTrigger } from "@molis-ai/molis-work-plugin-feed";
 import { bindActionClient, type ActionCallContext, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { withFunctionsService, type FunctionsHostOptions } from "../apps/local-host/dist/functions-host.js";
+import { createLocalFeedApplication, createLocalFeedSourceService } from "./fixtures/feed-library.js";
 
 async function fixture() {
   const home = await mkdtemp(join(tmpdir(), "feed-capture-scenes-"));
@@ -17,7 +18,7 @@ async function fixture() {
   catalog.addProjectPlugin({ project_id: project.project_id, plugin_id: "feed", actor_id: "test" });
   const reference = molisWorkHostProjectReference({ databasePath: project.database_path, projectId: project.project_id });
   const caller: ActionCallContext = { actor_id: "test", project_id: project.project_id, audience: "user",
-    permissions: ["feed:read", "feed:write", "inbox:read", "inbox:write", "model:invoke", "functions:invoke"] };
+    permissions: [...FEED_ACTION_PERMISSIONS, "functions:invoke"] };
   const inputs: string[] = [];
   const functions: FunctionsHostOptions = { env: { TYPESAFE_API_KEY: "fixture" }, provider: { async evaluate(_key, record, input) {
     inputs.push(input);
@@ -45,6 +46,8 @@ test("Feed capture runs through the common scene, keeps judgment history and sur
     store.close();
     const runtime = await f.host.withProject(f.reference, runtime => runtime);
     const scenes = f.host.sceneClient(f.reference);
+    // The project's Runtime plugins (Feed) attach as it opens; a discovery waits for them.
+    await f.host.actionClient(f.reference).discover(f.caller);
     const feed = createLocalFeedApplication(runtime.store.db, { captureJudgment: createFeedCaptureTrigger({ scenes, context: () => f.caller, projectId: runtime.project_id }) });
     const opened = feed.listOutRules(runtime.project_id).find(rule => rule.rule_id === original.rule_id)!;
     assert.deepEqual(opened.judgment, judgment);

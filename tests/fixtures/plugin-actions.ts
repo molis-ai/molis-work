@@ -1,4 +1,4 @@
-import { ActionService } from "@molis-ai/molis-work-kernel";
+import { ActionService, type CallSettled } from "@molis-ai/molis-work-kernel";
 import { ActionError, type ActionCallContext, type ActionDefinition, type ActionSubject } from "@molis-ai/molis-work-contracts/platform/actions";
 import { writerDirectoryCapabilities, writerIntegrationCapabilities } from "@molis-ai/molis-work-contracts/modules/workspace-artifacts";
 import { goalPluginActions } from "@molis-ai/molis-work-contracts/modules/goal-actions";
@@ -6,13 +6,16 @@ import { agentHostCapabilities } from "@molis-ai/molis-work-contracts/services/a
 import { projectSettingsCapabilities, type ProjectWorkspaceRef } from "@molis-ai/molis-work-contracts/modules/projects";
 import { KNOWLEDGE_PROVIDER_ID, knowledgeActions, type KnowledgeReadRequest, type KnowledgeReadResponse } from "@molis-ai/molis-work-contracts/services/knowledge";
 
-/** Standalone owner fixtures explicitly share one Kernel, just as the application Host does. */
+/**
+ * Standalone owner fixtures explicitly share one Kernel, just as the application Host does. `settled` hears every call once it is over, as
+ * the Host's call log (`logs/action-calls.jsonl`) does; only the call that makes the Kernel is heard.
+ */
 const services = new WeakMap<object, Map<string, ActionService>>();
-export function pluginActions(owner: object, project_id: string) {
+export function pluginActions(owner: object, project_id: string, settled?: CallSettled) {
   let projects = services.get(owner);
   if (!projects) { projects = new Map(); services.set(owner, projects); }
   let service = projects.get(project_id);
-  if (!service) { service = new ActionService(); projects.set(project_id, service); }
+  if (!service) { service = new ActionService(undefined, settled ? { settled } : {}); projects.set(project_id, service); }
   return { registry: service, client: service, scenes: service, project_id };
 }
 

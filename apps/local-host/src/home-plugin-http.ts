@@ -18,6 +18,7 @@ import { dispatchRuntimePluginRoute, PLUGIN_MANAGEMENT_OPERATIONS } from "./plug
 import { projectRouteControl } from "./plugin-actions-client.js";
 import { pluginRouteControl } from "./plugin-route-control.js";
 import { L, htmlLang, clientI18nScript } from "./web-locale.js";
+import { hostErrors } from "./host-errors.js";
 import { randomUUID } from "node:crypto";
 
 /** The project a Home route names: where its library is and whether it reaches a Home plugin (`projectReachablePlugins`); null when there is none. */
@@ -47,6 +48,13 @@ export async function handleHomePluginHttp(request: IncomingMessage, response: S
   const sideView = side ? entry?.manifest.ui?.views?.find(view => view.slot === "side" && view.view_id === side) : undefined;
   if (side !== null && !sideView) { sendLocalWebJson(response, 404, { error: "插件没有这个侧栏入口" }); return true; }
   const operation = route ? url.pathname.slice(`/api/plugins/${pluginId}/`.length) : "";
+  // A segment that is not valid percent-encoding cannot name any declared route of either half; the caller's 400, before a half's
+  // matcher decodes the path (the same answer the retired Host dispatcher gave, BL-386).
+  if (operation.split("/").some((segment) => { try { decodeURIComponent(segment); return false; } catch { return true; } })) {
+    const refusal = actionErrorResponse(hostErrors.request_path_invalid("请求路径里有无效的编码"));
+    sendLocalWebJson(response, refusal.status, refusal.body);
+    return true;
+  }
   // The Host's lifecycle operations are the Home's: under a project's path they are not there, and nothing starts or retries.
   if (prefixed && PLUGIN_MANAGEMENT_OPERATIONS.has(operation)) {
     const missing = actionErrorResponse(new ActionError("actions.missing", "插件没有这个入口"));

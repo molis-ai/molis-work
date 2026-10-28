@@ -1053,9 +1053,18 @@ test("HTTP goal-tree decisions replay the original result with a stable business
     assert.equal(rejectReplay.status, 200, await rejectReplay.clone().text());
     assert.equal((await rejectReplay.json() as { replayed: boolean }).replayed, true);
     assert.equal(boardSnapshot(store, BOARD).goals.filter((goal) => goal.goal_id.startsWith("HTTP-TREE-")).length, 3);
+    // A Host one-time key that a successful write already settled is refused on any address the Host does not replay: the page's own
+    // retry spends a fresh Host key (the body key replays the act), so this repeat can only be a duplicate mutation.
+    const settledKey = randomUUID();
+    const settled = await fetch(`${origin}/api/plugins/io.molis.work.goals/goals/${encodeURIComponent(boardSnapshot(store, BOARD).goals[0]!.goal_id)}/event-note`, {
+      method: "POST",
+      headers: { ...headers, "x-molis-work-idempotency-key": settledKey },
+      body: JSON.stringify({ note: "这个键已经用过", idempotency_key: "settle-guard-note" }),
+    });
+    assert.equal(settled.status, 200, await settled.clone().text());
     const blocked = await fetch(`${origin}/api/non-idempotent-management-probe`, {
       method: "POST",
-      headers: { ...headers, "x-molis-work-idempotency-key": "http-tree-whole-decide" },
+      headers: { ...headers, "x-molis-work-idempotency-key": settledKey },
       body: JSON.stringify({}),
     });
     assert.equal(blocked.status, 409, await blocked.clone().text());

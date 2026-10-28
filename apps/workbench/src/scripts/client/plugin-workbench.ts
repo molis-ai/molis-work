@@ -22,6 +22,15 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
   const marketLink = document.querySelector('[data-global-menu] [data-plugin-id="market"], [data-plugin-strip] [data-plugin-id="market"]');
   const updateCount = marketLink?.querySelector("[data-market-update-count]");
   let projects = null, updates = [], marketRequest = null, updatesRequest = null, pending = false, marketDirty = true, marketRevision = 0;
+  // What a market card brings or takes, from the Host's own marks on the cards (W5-02 B1): the same data the Projects service applies.
+  const listOf = (value) => (value || "").split(" ").filter(Boolean);
+  const marketName = (id) => {
+    const card = market.querySelector('[data-market-plugin="' + id + '"]');
+    const heading = card && card.querySelector("h2");
+    return heading ? heading.textContent : id;
+  };
+  // One sentence with the names filled in; no sentence when the list is empty (so a button has no empty title).
+  const relation = (ids, template) => ids.length ? L(template).replace("{list}", ids.map(marketName).join(L("、"))) : "";
   const paintUpdateCount = () => {
     if (updateCount) {
       updateCount.hidden = updates.length === 0;
@@ -117,14 +126,22 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
       const button = card.querySelector("[data-market-add]");
       button.disabled = !current || pending || marketDirty;
       button.dataset.marketMembership = added ? "added" : "available";
-      button.textContent = added ? L("移除") : L("添加");
+      const action = added ? L("移除") : L("添加");
+      button.textContent = action;
       const currentProject = selector.value === projectId;
       const openButton = card.querySelector('[data-market-open]');
       openButton.hidden = !added || !currentProject;
       openButton.disabled = pending;
       button.classList.toggle('mw-btn--ghost', added);
       button.classList.toggle('mw-btn--secondary', !added);
-      button.setAttribute('aria-label', (added ? L('移除') : L('添加')) + ' ' + card.querySelector('h2').textContent);
+      button.setAttribute('aria-label', action + ' ' + card.querySelector('h2').textContent);
+      // What the operation brings or takes: said on the button before it is pressed, and only when there is something to say.
+      const needs = listOf(card.dataset.marketNeeds), neededBy = listOf(card.dataset.marketNeededBy);
+      const title = added
+        ? relation(neededBy.filter(id => addedIds.includes(id)), "移除会同时移除：{list}")
+        : [relation(needs.filter(id => !addedIds.includes(id)), "添加会同时添加：{list}"),
+          relation(neededBy.filter(id => !addedIds.includes(id)), "依赖它的插件不会一并添加：{list}")].filter(Boolean).join(L("；"));
+      if (title) button.title = title; else button.removeAttribute("title");
       const update = added && currentProject ? updates.find(item => item.project_plugin_id === card.dataset.marketPlugin && item.plugin_id === card.dataset.marketRuntimeId) : null;
       const upgradeButton = card.querySelector("[data-market-upgrade]");
       upgradeButton.dataset.marketUpgrade = update?.plugin_id || "";
@@ -242,6 +259,9 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
     if (!button || button.disabled || pending) return;
     const targetProject = selector.value;
     const removing = button.dataset.marketMembership === "added";
+    const beforeIds = (projects.find(project => project.project_id === targetProject)?.plugins || []).slice();
+    const clickedCard = button.closest("[data-market-plugin]");
+    const clickedNeededBy = clickedCard ? listOf(clickedCard.dataset.marketNeededBy) : [];
     pending = true; selector.disabled = true; filter();
     status.textContent = removing ? L("正在移除…") : L("正在添加…");
     try {
@@ -257,7 +277,14 @@ export const PLUGIN_WORKBENCH_FACTORY_SCRIPT = `(host) => {
       const project = projects.find(project => project.project_id === targetProject);
       project.plugins = result.plugins;
       project.hidden = result.hidden || [];
-      status.textContent = (removing ? L("已移除自") : L("已添加到")) + " " + project.display_name;
+      // What went or came with it, from the plugin list before and after (not from the directory: the service decides); a plugin
+      // that depends on it is not added with it, and the line says so when it happened.
+      const also = (removing ? beforeIds.filter(id => !result.plugins.includes(id)) : result.plugins.filter(id => !beforeIds.includes(id)))
+        .filter(id => id !== button.dataset.marketAdd);
+      const came = targetProject === projectId ? "" : relation(also, removing ? "同时移除了：{list}" : "同时添加了：{list}");
+      const missing = removing ? "" : relation(clickedNeededBy.filter(id => !result.plugins.includes(id)), "依赖它的插件不会一并添加：{list}");
+      const note = [came, missing].filter(Boolean).map(part => L("；") + part).join("");
+      status.textContent = (removing ? L("已移除自") : L("已添加到")) + " " + project.display_name + note;
       if (targetProject === projectId && !host.membership) { saveUiState(); location.reload(); }
     } catch (error) { molisWorkRequest.show(status,error); }
     finally { pending = false; selector.disabled = !projects?.length; filter(); if (marketDirty) void loadMarket(); }

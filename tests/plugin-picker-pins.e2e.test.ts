@@ -560,3 +560,85 @@ test("SH1303-01 Alt digits use visible Dock and rail entries while extension con
   await press(nextIndex + 1);
   assert.equal(await evaluate("window.__shortcutClick"), after[nextIndex]!.id, "the next visible plugin follows the same click route");
 });
+
+test("RAC-1311 RAC-1312 the market says what adding and removing brings, from the directory, before the button is pressed", { timeout: 120_000 }, async t => {
+  const b = await openPicker(t);
+  if (!b) return;
+  const { evaluate, click, waitFor } = b;
+  await evaluate("document.querySelector('[data-plugin-picker-toggle]').click()");
+  await click('.plugin-picker-extend [data-plugin-id="market"]');
+  await waitFor("document.body.dataset.desktopSurface === 'market' || !document.querySelector('[data-work-surface=\"market\"]').hidden");
+  await waitFor("Boolean(document.querySelector('[data-market-plugin=\"feed\"] [data-market-add]')) && !document.querySelector('[data-market-plugin=\"feed\"] [data-market-add]').disabled", 10_000);
+  const title = (id: string) => evaluate<string>(`document.querySelector('[data-market-plugin="${id}"] [data-market-add]').getAttribute("title") || ""`);
+  const label = (id: string) => evaluate<string>(`document.querySelector('[data-market-plugin="${id}"] [data-market-add]').getAttribute("aria-label") || ""`);
+  // RAC-1312: neither of the pair is in this project yet; the buttons already say what the operation does.
+  assert.match(await title("feed"), /添加会同时添加：Inbox/);
+  assert.match(await title("inbox"), /依赖它的插件不会一并添加：Feed/);
+  assert.equal(await label("feed"), "添加 Feed");
+  assert.equal(await label("inbox"), "添加 Inbox");
+  await click('[data-market-plugin="feed"] [data-market-add]');
+  await waitFor("document.querySelector('[data-market-plugin=\"feed\"] [data-market-add]').dataset.marketMembership === 'added' && document.querySelector('[data-market-plugin=\"inbox\"] [data-market-add]').dataset.marketMembership === 'added'", 10_000);
+  // RAC-1311: both in now. Taking Inbox out takes Feed with it; taking Feed out takes nothing else.
+  assert.match(await title("inbox"), /移除会同时移除：Feed/);
+  assert.equal(await title("feed"), "");
+  assert.equal(await label("inbox"), "移除 Inbox");
+  assert.equal(await label("feed"), "移除 Feed");
+  // RAC-1316: a plugin with no companions says nothing, and has no empty title either.
+  assert.equal(await evaluate("document.querySelector('[data-market-plugin=\"schedule\"] [data-market-add]').hasAttribute(\"title\")"), false);
+});
+
+test("RAC-1317 the market's longest status line lays out cleanly at 390 in light and dark", { timeout: 180_000 }, async t => {
+  const b = await openPicker(t);
+  if (!b) return;
+  const { evaluate, click, waitFor, command, sessionId, frames } = b;
+  await evaluate("document.querySelector('[data-plugin-picker-toggle]').click()");
+  await click('.plugin-picker-extend [data-plugin-id="market"]');
+  await waitFor("Boolean(document.querySelector('[data-market-status]')) && (document.body.dataset.desktopSurface === 'market' || !document.querySelector('[data-work-surface=\"market\"]').hidden)");
+  const longest = "已添加到 另一个项目；同时添加了：知识库、工作流程；依赖它的插件不会一并添加：成果库";
+  for (const scheme of ["light", "dark"] as const) {
+    await command("Emulation.setEmulatedMedia", { features: [{ name: "prefers-color-scheme", value: scheme }, { name: "prefers-reduced-motion", value: "reduce" }] }, sessionId);
+    await command("Emulation.setDeviceMetricsOverride", { width: 390, height: 844, deviceScaleFactor: 1, mobile: true }, sessionId);
+    await frames(); await frames();
+    await evaluate(`document.querySelector('[data-market-status]').textContent = ${JSON.stringify(longest)}`);
+    await frames(); await frames();
+    await assertLayoutClean(evaluate, `RAC-1317 market status · 390 · ${scheme}`);
+  }
+});
+
+test("RAC-1317 an English page reads the market's and the Dock's relation sentences in English", { timeout: 180_000 }, async t => {
+  const b = await openGoalBrowser(t, "user");
+  if (!b) return;
+  const { command, sessionId, evaluate, click, waitFor, navigate, origin, projectId } = b;
+  await command("Emulation.setDeviceMetricsOverride", { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false }, sessionId);
+  await command("Network.setCookie", { name: "molis_work_locale", value: "en", url: origin }, sessionId);
+  // The workbench's own control headers are part of the page: open one first, then make the projects the test uses.
+  await navigate(() => command("Page.navigate", { url: origin + "/projects/" + projectId + "/" }, sessionId));
+  await waitFor("document.body.dataset.desktopSurface === 'home'");
+  const another = await evaluate<string>("(async()=>{const r=await fetch('/api/settings/projects',{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({display_name:'Another project',user_confirmed:true})});if(!r.ok)throw new Error(await r.text());return (await r.json()).project.project_id;})()");
+  const home = await evaluate<string>("(async()=>{const r=await fetch('/api/settings/projects',{method:'POST',headers:globalThis.molisWorkControlHeaders(),body:JSON.stringify({display_name:'Home project',user_confirmed:true})});if(!r.ok)throw new Error(await r.text());return (await r.json()).project.project_id;})()");
+  await navigate(() => command("Page.navigate", { url: origin + "/projects/" + home + "/" }, sessionId));
+  await waitFor("document.body.dataset.desktopSurface === 'home'");
+  // The Dock's add button says which plugin will not come with it, in English.
+  await waitFor("Boolean(document.querySelector('[data-plugin-tile=\"inbox\"] [data-plugin-toggle]')) && !document.querySelector('[data-plugin-tile=\"inbox\"] [data-plugin-toggle]').disabled");
+  assert.equal(await evaluate<string>("document.querySelector('[data-plugin-tile=\"inbox\"] [data-plugin-toggle]').getAttribute('title')"),
+    "Add to this project; plugins that depend on it are not added with it: Feed");
+  // The market says it on the buttons and after the change on its status line, in English.
+  await click('[data-work-surface-open="market"]');
+  await waitFor("!document.querySelector('[data-market-project]').disabled");
+  await evaluate("(()=>{const s=document.querySelector('[data-market-project]');s.value=" + JSON.stringify(another) + ";s.dispatchEvent(new Event('change',{bubbles:true}));})()");
+  await waitFor("Boolean(document.querySelector('[data-market-plugin=\"feed\"] [data-market-add]')) && !document.querySelector('[data-market-plugin=\"feed\"] [data-market-add]').disabled", 10_000);
+  assert.equal(await evaluate<string>("document.querySelector('[data-market-plugin=\"feed\"] [data-market-add]').getAttribute('title')"), "Also adds: Inbox");
+  assert.equal(await evaluate<string>("document.querySelector('[data-market-plugin=\"inbox\"] [data-market-add]').getAttribute('title')"),
+    "Plugins that depend on it are not added with it: Feed");
+  await click('[data-market-plugin="feed"] [data-market-add]');
+  await waitFor("document.querySelector('[data-market-plugin=\"feed\"] [data-market-add]').dataset.marketMembership === 'added'", 10_000);
+  assert.equal(await evaluate("document.querySelector('[data-market-status]').textContent"), "Added to Another project; Also added: Inbox");
+  // With Feed in it, the Inbox button is a removal and says what it takes with it — in English.
+  assert.equal(await evaluate<string>("document.querySelector('[data-market-plugin=\"inbox\"] [data-market-add]').getAttribute('title')"), "Removing also removes: Feed");
+  await click('[data-market-plugin="inbox"] [data-market-add]');
+  await waitFor("document.querySelector('[data-market-plugin=\"inbox\"] [data-market-add]').dataset.marketMembership === 'available' && document.querySelector('[data-market-plugin=\"feed\"] [data-market-add]').dataset.marketMembership === 'available'", 10_000);
+  // Adding Inbox alone does not bring Feed: the status line says so, in English.
+  await click('[data-market-plugin="inbox"] [data-market-add]');
+  await waitFor("document.querySelector('[data-market-plugin=\"inbox\"] [data-market-add]').dataset.marketMembership === 'added'", 10_000);
+  assert.equal(await evaluate("document.querySelector('[data-market-status]').textContent"), "Added to Another project; Plugins that depend on it are not added with it: Feed");
+});

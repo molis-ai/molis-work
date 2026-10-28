@@ -1,6 +1,6 @@
 // Security invariant S-15 (docs/system/SECURITY-INVARIANTS.md): a plugin route's own declared permission is checked against the
 // installation behind the route alone, whoever calls and whatever the caller holds. `home:write` is one of the person's own permissions
-// over the Host's services (`HOST_OWNER_PERMISSIONS` in apps/local-host/src/local-owner-permissions.ts), so every page caller's context
+// over the Host's services (the Home provider's `HOME_ACTION_PERMISSIONS` in apps/local-host/src/home-actions.ts, taken into `LOCAL_OWNER_PERMISSIONS` in apps/local-host/src/local-owner-permissions.ts), so every page caller's context
 // carries it. A route that declares it is still refused while its installation does not hold it: a dispatch entry that handed the
 // caller's permissions to the router (as Home routes did before #788) would let this route through.
 import assert from "node:assert/strict";

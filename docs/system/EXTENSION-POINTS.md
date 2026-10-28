@@ -45,7 +45,7 @@ git grep -l -E '"text-stats"|text-stats:' -- apps packages scripts package.json 
 | 9 | 记忆作用域 | 10 | 3 | 无切片，建议并入 W4-08 的边界规则 |
 | 10 | 新 Module | 6（有项目库表 7） | 4 | X-1（包登记生成）；表登记靠 W4-11、X-5 |
 | 11 | 新横向服务 | 6 | 4 | 同上 |
-| 12 | 新 Agent Runtime | Agent Host 内自写适配器 3；外部 Runtime 接入 6，接入加角色导入 11–15 | 3 / 2 | 无切片，建议新增 |
+| 12 | 新 Agent Runtime | Agent Host 内自写适配器 3；外部 Runtime 接入 5，接入加角色导入 12–15 | 3 / 2 | 无切片，建议新增 |
 | 13 | 界面插槽 | 5 | 2 | 无切片 |
 | 14 | 界面语言 | 6 个代码文件 + 42 份词典 | 1 + 每个词典所有者各交一份 | W5-03（2026-10-08 改为稳定键）覆盖一部分 |
 | 15 | 操作系统平台 | 20 个 macOS 专用文件 | 4 个适配器 | 属 W1-21（C 端计划），本阶段不实现 |
@@ -190,7 +190,7 @@ Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs
 | 种类 | 现在 | 位置 | 目标 |
 | --- | --- | --- | --- |
 | Agent Host 里自写适配器 | 3 | `horizontal/agent-host/src/adapters/<名>.ts`（实现 `AgentRuntimeAdapter`，`packages/contracts/src/services/agent-host.ts`）、`horizontal/agent-host/src/index.ts` 导出、`agent-host-composition.ts` 注册 | 3 |
-| 外部 Runtime（Codex、Claude Code、OpenCode 这类，经 MCP 和 Skill 接入 Molis Work） | 接入 5；接入加角色导入 11–15 | 以 `pi-agent` 为例（5）：`packages/contracts/src/platform/installation-detection.ts`（`SUPPORTED_RUNTIME_IDS`）、`apps/local-host/src/installer/runtime-config-adapters.ts`、`apps/desktop/src/launch.ts`、`apps/desktop/src/web-host.ts`、`apps/workbench/src/terminal/pane.ts`；`grok-build` 还点名 Characters 导入（11 个文件），`opencode` 再加 Shelf 和设置页（15 个文件，分布在 8 个包） | 2 |
+| 外部 Runtime（Codex、Claude Code、OpenCode 这类，经 MCP 和 Skill 接入 Molis Work） | 接入 5；接入加角色导入 12–15 | 以 `pi-agent` 为例（5）：`packages/contracts/src/platform/installation-detection.ts`（`SUPPORTED_RUNTIME_IDS`）、`apps/local-host/src/installer/runtime-config-adapters.ts`、`apps/desktop/src/launch.ts`、`apps/desktop/src/web-host.ts`、`apps/workbench/src/terminal/pane.ts`；`grok-build` 还点名 Characters 导入（12 个文件），`opencode` 再加 Characters 的原生执行（`apps/local-host/src/character-native-execution.ts`）和 Shelf（`modules/shelf/src/runtimes.ts`、`plugins/native/shelf/src/local-tools.ts`）（15 个文件，分布在 7 个包） | 2 |
 
 外部 Runtime 的目标是一张 Runtime 描述表（id、可执行名、配置与 Skill 路径、恢复参数、导入根、显示名），各处读它。无切片，建议新增（X-4）。`horizontal/agent-host/README.md` 没有写怎么加适配器，这一节补上。
 
@@ -281,7 +281,7 @@ Text Stats 原来的 12 个文件是：上表的 `scripts/workspace-packages.mjs
 
 **F6 调用诊断**（合同包里的 `platform/observability` 占位子路径已在 W2-01 删除；`docs/platform/CONTRACTS-AND-OPERATIONS.md` 写明 `packages/observability` 尚未创建；路线 W3-01 的调用编号）。
 
-- 现在（推演，约 12）：内核给每次调用编号（`packages/kernel/src/action-service.ts`、`packages/contracts/src/platform/actions.ts`）2；六类入口各自带出编号：Web（`apps/local-host/src/web-request.ts`）、MCP（`apps/mcp/src/action-tools.ts`）、助理（`apps/local-host/src/assistant/assistant-service.ts`）、Agent 工具（`horizontal/agent-host/src/adapters/prologue-action-gateway.ts`）、CLI（`apps/cli/src/command-dispatch.ts`）、调度（`apps/local-host/src/schedule-task-runner.ts`）6；调用记录 `apps/local-host/src/action-call-log.ts` 1；诊断界面 `apps/local-host/src/web-capabilities.ts`、`apps/workbench/src/capabilities.ts`、`apps/workbench/src/settings-agent-diagnostics.ts` 3。宿主里还有 60 处 `console.*` 在 10 个文件，没有统一日志器。
+- 现在（推演，约 12）：内核给每次调用编号（`packages/kernel/src/action-service.ts`、`packages/contracts/src/platform/actions.ts`）2；六类入口各自带出编号：Web（`apps/local-host/src/web-request.ts`）、MCP（`apps/mcp/src/action-tools.ts`）、助理（`apps/local-host/src/assistant/assistant-service.ts`）、Agent 工具（`horizontal/agent-host/src/adapters/prologue-action-gateway.ts`）、CLI（`apps/cli/src/command-dispatch.ts`）、调度（`apps/local-host/src/web-project-schedulers.ts`）6；调用记录 `apps/local-host/src/action-call-log.ts` 1；诊断界面 `apps/local-host/src/web-capabilities.ts`、`apps/workbench/src/capabilities.ts`、`apps/workbench/src/settings-agent-diagnostics.ts` 3。宿主里还有 60 处 `console.*` 在 10 个文件，没有统一日志器。
 - 补什么：W3-01（编号贯通）、W3-02（一个错误模型）、W5-13（结构化日志）。这些是一次性铺设，不是每个功能都付的成本。界面形态按用户 2026-10-08 的决定 #5（`specs/repository-anti-corruption/spec.md` §1「调用编号是否上界面」，PR #312）：错误详情里显示可复制的短编号，「设置 › 诊断」按编号列出最近的调用。**再推演：3**（面板、导出路由、登记一项）。
 
 ### 4.3 补充的扩展点（不在 §10 的 87 片内，待用户并入路线时定）

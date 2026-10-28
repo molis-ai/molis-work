@@ -235,6 +235,7 @@ tests/goals-query-facts.test.ts
 tests/goals-query-module.test.ts
 tests/goals-relation-ui.test.ts
 tests/goals-status-ui.test.ts
+tests/goals-stored-json.test.ts
 tests/goals-tree-ui.test.ts
 
 # memory

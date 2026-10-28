@@ -22,7 +22,7 @@ Home 的存储登记（`home-stores.ts`，`uninstall --purge-user-data` 靠它�
 1. **声明只有一个地方：Manifest。** 宿主的启动名单与目录条目不再带 `database`、`files`、`owner_files`、`model_configuration`、`image_generation`、`initialize_owner_files`。条目和 Manifest 不会同时有，也就没有两份要对齐。
 2. **给不给服务，由三样东西一起决定**：Manifest 声明了、安装时人批准了对应权限（`context.requireGrant`，现有）、这项资源在宿主一侧登记在这个插件名下（Home 的存储登记，同基线）。缺一样，启动被拒，**带码的错误**，不是静默没有这项服务。
 3. **登记不由插件写。** 存储登记仍是宿主的一张表：内置插件的从目录条目的 Manifest 推出（`home_store` 不再写 `library`，库名和基线就是 `databases.home`），其他插件的登记在 P1b（见 §6 Q1）。没有登记的库，任何 Manifest 都开不出来；别人登记的库名，声明了也被拒。
-4. **沙箱插件**一样在 Manifest 声明；broker 方法在 PG-017 的 BL-490/491 加，两道门（合同 `effects` ∩ 批准的 `grants`，再加宿主服务自己的检查）照 PG-017 设计的第 2 条，到那时宿主一侧的 `execution === "sandbox"` 拒绝才去掉。P1 里沙箱定义声明 `databases.home` 仍被拒：在名单上被 `assertDatabaseEntries` 拒，不在名单上被 `homeLibraryFor` 拒。
+4. **沙箱插件**一样在 Manifest 声明；broker 方法在 PG-017 的 BL-490（已做）、BL-491 加，两道门（合同 `effects` ∩ 批准的 `grants`，再加宿主服务自己的检查）照 PG-017 设计的第 2 条，到那时宿主一侧的 `execution === "sandbox"` 拒绝才去掉。P1 里沙箱定义声明 `databases.home` 仍被拒：在名单上被 `assertDatabaseEntries` 拒，不在名单上被 `homeLibraryFor` 拒。
 
 ## 3. 分期
 

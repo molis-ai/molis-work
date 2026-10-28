@@ -78,7 +78,7 @@ const minutes = (milliseconds) => `${(milliseconds / 60_000).toFixed(1)} min`;
  * Runs the failed files again, up to `retries` rounds with the same caps; a file that passes in a later round is flaky. Prints a line
  * per attempt. Resolves to { flaky, failed }, `failed` being the entries still failing after the last round.
  */
-async function retryFailed(failed, { retries, jobs, browserJobs, runFile, verbose, timeoutSeconds }) {
+async function retryFailed(failed, { retries, jobs, browserJobs, runFile, timeoutSeconds }) {
   let still = failed;
   const flaky = [];
   for (let round = 1; round <= retries && still.length; round++) {
@@ -92,7 +92,7 @@ async function retryFailed(failed, { retries, jobs, browserJobs, runFile, verbos
         console.log(`[retry ${round}] ${ok ? "ok  " : status.toUpperCase().padEnd(4)}  ${entry.file}  ${seconds(result.seconds)}`);
         if (ok) flaky.push(entry.file);
         else again.push({ entry, status, result });
-        if (!ok && verbose) console.log(`${result.output.trimEnd()}\n${result.timedOut ? `(killed after ${timeoutSeconds} s)\n` : ""}`);
+        if (!ok) console.log(`${result.output.trimEnd()}\n${result.timedOut ? `(killed after ${timeoutSeconds} s)\n` : ""}`);
       },
     });
     still = again;
@@ -157,7 +157,7 @@ export async function runParallel(root, targets, { jobs, browserJobs, timeoutSec
     });
 
     // A file that failed and then passed on a retry is flaky: listed on its own, and it does not fail the run.
-    const later = bail ? { flaky: [], failed } : await retryFailed(failed, { retries, jobs, browserJobs, runFile, verbose, timeoutSeconds });
+    const later = bail ? { flaky: [], failed } : await retryFailed(failed, { retries, jobs, browserJobs, runFile, timeoutSeconds });
     const flaky = [...flakyAtOnce, ...later.flaky], still = later.failed;
     const slowest = [...results].sort((a, b) => b.result.seconds - a.result.seconds).slice(0, 8);
     console.log(`\nrun-tests: ${passed + later.flaky.length} of ${files.length} files passed${flaky.length ? ` (${flaky.length} only on a retry)` : ""} in ${minutes(Date.now() - started)} (${Math.min(jobs, files.length)} at a time)`);

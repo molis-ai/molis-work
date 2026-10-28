@@ -149,12 +149,66 @@ export async function openGoalBrowser(t: TestContext, catalogMode: boolean | "em
     assert.equal(result.exceptionDetails, undefined, JSON.stringify(result.exceptionDetails));
     return result.result.value;
   }
+  let surfaceWaitSequence = 0;
   async function waitFor(expression: string, timeoutMs = 10_000): Promise<void> {
-    const result = await command<{ result: { value: unknown }; exceptionDetails?: unknown }>("Runtime.evaluate", { expression: `new Promise((resolve, reject) => {
-      const deadline = Date.now() + ${timeoutMs};
-      const check = () => { if (${expression}) resolve(true); else if (Date.now() >= deadline) reject(new Error('DOM condition timeout: ' + ${JSON.stringify(expression.slice(0, 200))} + '; toast=' + document.querySelector('[data-toast]')?.textContent + '; focused=' + document.activeElement?.outerHTML.slice(0,300))); else setTimeout(check, 16); }; check();
-    })`, awaitPromise: true, returnByValue: true }, sessionId, timeoutMs + 2_000);
-    assert.equal(result.exceptionDetails, undefined, JSON.stringify(result.exceptionDetails));
+    // MEM-CI-TRACE-02: a command may time out before its expression runs; do not report a previous click's snapshot.
+    const sequence = expression === SURFACES_SETTLED ? ++surfaceWaitSequence : undefined;
+    const nodeStarted = sequence === undefined ? undefined : performance.now(), nodeStartedAt = sequence === undefined ? undefined : Date.now();
+    const recording = sequence === undefined ? "" : `
+      const trace = { sequence: ${sequence}, started_ms: performance.now(), started_at_ms: Date.now(), deadline_at_ms: deadline,
+        last_checked_ms: null, ended_ms: null, outcome: 'waiting', last_blocked: null, recorder_failed: false };
+      const recordSurfaceWait = outcome => {
+        try {
+          const ms = performance.now(), roots = [];
+          trace.last_checked_ms = ms; trace.outcome = outcome;
+          if (outcome !== 'waiting') trace.ended_ms = ms;
+          if (outcome === 'ready') return;
+          let more_roots = false;
+          for (const root of document.querySelectorAll('[data-ui-client-state="loading"], [data-deferred-surface]')) {
+            const loading = root.dataset.uiClientState === 'loading', deferred = root.hasAttribute('data-deferred-surface');
+            const hidden = !!root.closest('[hidden]');
+            if (!loading && (!deferred || hidden || root.dataset.uiClientState === 'failed')) continue;
+            if (roots.length === 8) { more_roots = true; break; }
+            roots.push({ kind: root.hasAttribute('data-settings-page') ? 'settings' : root.querySelector('[data-plugin-document]') ? 'plugin'
+              : root.hasAttribute('data-work-surface') ? 'work' : 'other', loading, deferred, hidden, pool: !!root.closest('[data-surface-pool]') });
+          }
+          trace.last_blocked = { ms, roots, more_roots };
+        } catch { trace.recorder_failed = true; }
+      };
+      try { window.__molisSurfaceWaitDiagnostic = trace; } catch { trace.recorder_failed = true; }`;
+    const record = (outcome: string) => sequence === undefined ? "" : `recordSurfaceWait('${outcome}');`;
+    try {
+      const result = await command<{ result: { value: unknown }; exceptionDetails?: unknown }>("Runtime.evaluate", { expression: `new Promise((resolve, reject) => {
+        const deadline = Date.now() + ${timeoutMs};
+        const check = () => { if (${expression}) { ${record("ready")}resolve(true); } else if (Date.now() >= deadline) { ${record("timeout")}reject(new Error('DOM condition timeout: ' + ${JSON.stringify(expression.slice(0, 200))} + '; toast=' + document.querySelector('[data-toast]')?.textContent + '; focused=' + document.activeElement?.outerHTML.slice(0,300))); } else { ${record("waiting")}setTimeout(check, 16); } };${recording}
+        check();
+      })`, awaitPromise: true, returnByValue: true }, sessionId, timeoutMs + 2_000);
+      assert.equal(result.exceptionDetails, undefined, JSON.stringify(result.exceptionDetails));
+    } catch (error) {
+      if (sequence !== undefined) {
+        const nodeElapsed = performance.now() - nodeStarted!, nodeFailedAt = Date.now();
+        let snapshot: unknown = { unavailable: "read-failed" };
+        try {
+          const result = await command<{ result: { value?: unknown }; exceptionDetails?: unknown }>("Runtime.evaluate", {
+            // Read the stored observation only. Recovery must not replace the last blocking state.
+            expression: `(() => { const trace = window.__molisSurfaceWaitDiagnostic;
+              if (trace?.sequence !== ${sequence}) return '{"unavailable":"not-current"}';
+              if (trace.recorder_failed) return '{"unavailable":"record-failed"}';
+              const text = JSON.stringify(trace);
+              return text.length <= 2048 ? text : '{"unavailable":"too-large"}'; })()`, returnByValue: true,
+          }, sessionId, 1_000);
+          if (!result.exceptionDetails && typeof result.result.value === "string" && result.result.value.length <= 2048) snapshot = JSON.parse(result.result.value);
+        } catch { /* An unresponsive renderer cannot replace the original wait failure. */ }
+        let diagnostic = JSON.stringify({ node_started_at_ms: nodeStartedAt, node_failed_at_ms: nodeFailedAt,
+          node_elapsed_ms: Math.round(nodeElapsed), browser: snapshot });
+        if (diagnostic.length > 2304) diagnostic = '{"unavailable":"too-large"}';
+        try {
+          if (error instanceof Error) Object.defineProperty(error, "surface_wait_diagnostic", { value: diagnostic, enumerable: true, configurable: true });
+        } catch { diagnostic = '{"unavailable":"error-property"}'; }
+        try { t.diagnostic("Surface wait: " + diagnostic); } catch { /* Diagnostics never replace the original failure. */ }
+      }
+      throw error;
+    }
   }
   /** No shown plugin surface is still loading its client; one whose client failed to load shows its own retry. */
   const SURFACES_SETTLED = `!document.querySelector('[data-ui-client-state="loading"]')

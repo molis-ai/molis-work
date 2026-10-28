@@ -16,10 +16,14 @@ import { asideReply } from "./fixtures/ending-review.js";
 import { isKnowledgeOrganize } from "./fixtures/knowledge-organize.js";
 import { cogniaModelResponse } from "./fixtures/cognia-model-response.js";
 
-async function eventually(check: () => boolean | Promise<boolean>, message: string) {
-  for (const deadline = Date.now() + 20_000; !await check();) {
+async function eventually(check: (deadline: number) => boolean | Promise<boolean>, message: string) {
+  const deadline = Date.now() + 20_000;
+  for (;;) {
     assert.ok(Date.now() < deadline, message);
-    await new Promise(resolve => setTimeout(resolve, 40));
+    const ready = await check(deadline);
+    assert.ok(Date.now() < deadline, message);
+    if (ready) return;
+    await new Promise(resolve => setTimeout(resolve, Math.min(40, Math.max(0, deadline - Date.now()))));
   }
 }
 
@@ -61,8 +65,9 @@ test("MEM-40 S-71 Coding archive immediately hides the original Knowledge card a
   });
   const token = randomUUID(), server = await webServerProcess(home, token);
   t.after(() => server.close());
-  const call = async (path: string, body?: unknown, method = body === undefined ? "GET" : "POST") => {
+  const call = async (path: string, body?: unknown, method = body === undefined ? "GET" : "POST", deadline?: number) => {
     const response = await fetch(`${server.origin}/projects/${project.project_id}${path}`, { method,
+      ...(deadline === undefined ? {} : { signal: AbortSignal.timeout(Math.max(0, deadline - Date.now())) }),
       headers: { origin: server.origin, "content-type": "application/json", "x-molis-work-control-token": token, "x-molis-work-idempotency-key": randomUUID() },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
     const result = await response.json(); assert.ok(response.ok, `${path}: ${response.status} ${JSON.stringify(result)}`); return result;
@@ -81,11 +86,36 @@ test("MEM-40 S-71 Coding archive immediately hides the original Knowledge card a
   const created = await call("/api/plugins/io.molis.work.coding/sessions", { title: "Retention discussion" });
   const id = created.session.session_id, subject = { kind: "coding_session", id }, path = `/api/plugins/io.molis.work.coding/sessions/${id}`;
   await call(path + "/runs", { task: "Explain retention.", intent: "discuss", workspace_id, provider_id: "fixture", model_id: "fixture" });
-  await eventually(async () => (await call(path)).session.state === "done", "Coding finishes through the real SDK");
-  const context = await call(path + "/subject");
+  await eventually(async deadline => (await call(path, undefined, "GET", deadline)).session.state === "done", "Coding finishes through the real SDK");
+  const initialRevision: string = (await call(path + "/subject")).revision;
   await call("/api/knowledge/overview");
-  await eventually(() => row(id)?.card.state === "ready" && row(id)?.card.organized_revision === context.revision, "the current source is organized");
-  const original = row(id)!;
+  const observed: { card: ReturnType<typeof row>; revision: string | null } = { card: null, revision: null };
+  let original!: NonNullable<ReturnType<typeof row>>;
+  try {
+    await eventually(async deadline => {
+      let current = observed.card = row(id);
+      if (current?.card.state !== "ready") return false;
+      // GET can project a completed Run before Coding's follower persists its source state.
+      // Read the current source only after organizing; this query never kicks another pass.
+      observed.revision = (await call(path + "/subject", undefined, "GET", deadline)).revision;
+      current = observed.card = row(id);
+      if (current?.card.state !== "ready" || current.card.revision !== observed.revision || current.card.organized_revision !== observed.revision) return false;
+      original = current;
+      return true;
+    }, "the current source is organized");
+  } catch (error) {
+    try { t.diagnostic(JSON.stringify({ event: "knowledge_source_organization_failed", initial_revision: initialRevision, current_revision: observed.revision,
+      card: observed.card ? { card_id: observed.card.card_id, state: observed.card.card.state, revision: observed.card.card.revision,
+        organized_revision: observed.card.card.organized_revision, has_error: Boolean(observed.card.card.error) } : null,
+      model_requests: { total: traffic.length, ...traffic.reduce((counts, raw) => {
+        if (isKnowledgeOrganize(raw)) counts.knowledge++;
+        else if (asideReply(raw) !== undefined) counts.ending_review++;
+        else counts.other++;
+        return counts;
+      }, { knowledge: 0, ending_review: 0, other: 0 }) } })); }
+    catch { /* Diagnostics must not replace the original failure. */ }
+    throw error;
+  }
   assert.ok(original.card.retention?.source_identity);
   const archive = async () => { const preview = await call(path + "/archive-preview"); await call(path, { archive: true, archive_decision: preview.archive_decision }, "PATCH"); };
   const restore = async () => { const preview = await call(path + "/unarchive-preview"); await call(path + "/unarchive", { unarchive_decision: preview.unarchive_decision }); };

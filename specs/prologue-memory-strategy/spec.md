@@ -4027,7 +4027,7 @@ CI新头5b普通检查已结束：Security1/2的失败在 `coding-material-consu
 
 #### 来源协议读取的目录投影收窄（有界候选，2026-10-28）
 
-**实际问题与必要性。** Coding问卷响应中的同步阻塞已定位到来源核验反复投影所有动作的当前可用性。来源状态必须反复确认，但协议读取只消费其中一小组。现有 `HostAvailability.views(caller, roots, dependencySnapshot)` 已支持相关roots与完整依赖目录分离；直接复用该能力，不加服务、索引、registry、缓存或授权快照。`inspectActionMetadata` 缺权限检查、`check`不能解析所有owner、`captureSources`不能替代异步policy，均不能直接代用。
+**实际问题与必要性。** Coding问卷六例的CPU采样显示，来源核验反复投影所有动作的当前可用性成本显著；尚未证明它是Linux准备门超时的根因或连续事件循环阻塞。来源状态必须反复确认，但协议读取只消费其中一小组。现有 `HostAvailability.views(caller, roots, dependencySnapshot)` 已支持相关roots与完整依赖目录分离；直接复用该能力，不加服务、索引、registry、缓存或授权快照。`inspectActionMetadata` 缺权限检查、`check`不能解析所有owner、`captureSources`不能替代异步policy，均不能直接代用。
 
 **合同与改动范围。** 为原 `ActionClient.discover` 增加可选纯数据筛选（provider/input type/output type/subject kind，精确匹配、组合求交，无callback）。筛选只限制返回与Host投影的roots，不限制依赖解析，也不改变caller/allowed_actions。Host仍按原入口准备runtime、验证项目/身份、取得完整Kernel目录，再筛roots；完整目录继续作为dependencySnapshot。Kernel若实现同合同，只在原计算结果末端过滤，不减少原授权计算。原ActionClient热路径透传筛选；HTTP gateway及Goals Bound客户端沿原完整授权响应在末端筛选，不扩大HTTP DTO或Bound API，也不冒称这些冷路径减少了投影。同步contracts/Host/Kernel相关README与API快照；只在Search retention与公开subject resolver两个已定位入口使用，不顺手扩大其它路径。文件范围限contracts action client/subject、原Host action client/availability及其准备包装、Kernel目录末端、Search retention、相应用例和本记录；不改变Schema、refreshEnablement、invoke、check、capture或最终beforeEffect。
 
@@ -4054,3 +4054,25 @@ Retention前后两次discover仅按provider筛选，以保留“可见system缺r
 **产出与停止。** 只回答成本主要落在哪条实际链上、证据不能回答什么；即使发现可优化处，也先提出最小方案，不自动重开候选实施。不能用分段更快覆盖旧冻结失败，不能以旧实验诊断作为当前包或产品完成证据。跑完这一批即停止，不追加采样、调参、改后端或实施。原报告明确“本候选停止，不采用”“本次不再调参、换后端、迁移或接入产品”；用户此前也限定未达标停止，所以新的执行保持待授权，不能将本轮只读核查当作重启许可。App当前PR收束及CI不依赖该答复。
 
 主干47190691已无冲突合入001a17b；最终生产树重新整体构建通过，新主干用例、来源筛选/采用及原连接失败路径9文件67项零重试通过（/private/tmp/memory-source-directory-main-targeted-20261028.log）。随后health与包边界通过，资源对当前main merge-base通过且仍48项/7,463,060 B。这些不是远端最终CI或产品验收；后续仅spec更新不改变本次生产构建。
+
+#### 最终检查的反例与诊断修正（2026-10-28，未完成）
+
+**当前结论。** b1b531c87 的[普通CI](https://github.com/molis-ai/molis-work/actions/runs/40605422295)已完成success，14项成功，原可选Linux probe按工作流跳过。两个产品子集431文件首轮通过，flaky/skipped/fail/timeout/not-run均0；两组Security各129文件通过，Verify通过。旧连接重置用例本轮通过，不据一次成功宣布Linux根因已修复。[同头Full](https://github.com/molis-ai/molis-work/actions/runs/40605618381)仍未通过：最终14片成功、第10与第15片失败。第15片的busy-feedback和late-list-responses重试后仍文件失败；前者首轮early采样mark=0.97/opacity=0.03，后者首轮三例未等到DOMContentLoaded，已有导航记录显示主Document完成而静态脚本仍pending，浏览器状态读取不可取得。尚不能把它们归为同一根因；重试阶段同样缺详情。第10片首轮Coding问卷5/6，AC-27-5在openCoding第66行、尚未点击设置之前的通用界面就绪门超时；重试仍文件失败，但原runner没有输出重试详情，具体case/阶段未知。已确认仅重试通过的文件为knowledge-source-retention、assistant-retry-countdown、assistant-typed-questions、context-pick-result、interaction-no-crosstalk、cognia-actions、alchemist-workbench；不会把它们写成首轮通过。
+
+**计时证据更正。** 原CPU非idle连续段不能直接证明事件循环连续阻塞或点击迟反馈。本机原RCPT-102两例在事件循环观测下通过，包含启动的最大回调延迟约255ms；一次原Goal切换观测中，early采样距点击310ms、距busy开始55ms，Node最大回调延迟237ms而浏览器rAF最大间隔16.8ms。一次原AC-27-5本机通过，准备门无阻挡root，但Profiler启动自身占177ms、扰动了准备时序，不能用该样本排除Linux问题或作为新性能验收。日志分别为 `/private/tmp/memory-event-loop-history-isolated-20261028.log`、`/private/tmp/busy-feedback-goal-observation-20261028.log`、`/private/tmp/ac27-preparation-observation-20261028/run.log`。前次直接运行的Home路径别名拒绝保留；改用原runner规范化TMPDIR后才进入用例，没有操作真实Home。
+
+**Knowledge前置条件。** 公开Port屏障只扣住真实follower完成结果：GET已投影done，而持久Session仍running；释放原结果后持久状态变done。同一Run与回复不变，subject仅状态行变化，revision从R1变R2。真实Node/SDK/SQLite和loopback运行已证明这个窗口（`/private/tmp/coding-source-revision-window-20261028-loopback.log`），前置ESM装配及沙箱监听失败日志保留；未运行生产Knowledge organizer，不认定原CI就是这条根因。
+
+本批只修正验证的前置条件与失败可见性，不改生产权限、来源、等待时限、重试、CI步骤或资源额度；改动限原runner、相关测试/浏览器fixture与本记录：
+
+- 沿原MEM-40/S-71：只调用一次overview，20秒内仍须卡片ready。ready后只读当前subject，再读原卡，要求revision和organized_revision均等于该当前来源版本；保存这份已复核原卡继续原归档、重启、恢复和零新模型断言。pending/failed不重新调度；HTTP和成功判断共用原截止点，不给新请求另续预算。失败只记录已观察到的结构状态和模型请求分类计数，继续抛出原失败。
+- MEM-CI-TRACE-01：集成Full的失败重试默认输出原有界失败详情，复用runOnce原128KiB尾部，不改变重试、退出码、skipped/flaky判断或原1800字符摘要上限。首次与重试故意产生不同错误，已有runner真实子进程用例必须分别看见两份错误并保持失败。修正前临时用例已准确失败于“缺少重试错误”，日志 `/private/tmp/memory-runner-retry-output-red-20261028.log`；不改用例来掩盖失败。
+- MEM-CI-TRACE-02：仅为原SURFACES_SETTLED门增加有界浏览器状态记录，保持原谓词、10秒截止和12秒CDP时限。失败后一次有界读取当时快照，附在原Error；缺失或过期快照明确不可取得，诊断失败不替换原错。不启动Profiler，不记录正文/HTML/URL；此限制只针对新增字段，原错误已有的toast/focused描述不被悄悄改写。真实Chrome构造loading状态，原门仍须拒绝且不发pointer，并检验新增字段与失败保留。
+
+本批先审核临时补丁，再整体构建及定向验证；本机通过不代替Linux失败现场，下一次远端执行需携带新的诊断，不重复无变化的本机样本。修正通过与完整P0合并仍是两层结论。
+
+本批整体构建通过；运行器、来源保留与真实Chrome诊断三个文件12项单并发零重试通过（`/private/tmp/memory-ci-diagnostic-targeted-20261028.log`）。独立只读复核未发现降低原门或吞掉原错误。原问卷6项与加载反馈2项本机通过；原列表文件10/12，切回pending后未出现200条，以及505份资料侧栏在迟到响应交错之前未出现翻页入口，保留失败（`/private/tmp/memory-ci-diagnostic-browser-20261028.log`）。这不是三个Linux失败已修复。
+
+505条原单case的一次CPU观测仍在同一等待失败，CDP32秒限额实际46.675秒，NodeCPU47.957秒；profile总79.426秒。`KnowledgeCards.list`累计栈样本8.888秒，其中`visible.assertCurrent`8.782秒；两者嵌套，不相加。现代码每个visible(card)重新循环全部候选，每页过滤后才分页；侧栏先等states、states按200逐页重做，确认重复整批核验有实际成本。HostAvailability.discover累计28.498秒，ActionService目录构造闭包34.962秒也互相重叠，仍有其他成本，不能将删除一处重复核验等同解决全部延迟。原profile保存在 `/private/tmp/memory-side-files-profile-20261028/`，仅原用例/隔离Home/原断言和时限，不是正式性能门或SQLite实验。下一步先评审已有最终整批核验能否消除逐卡嵌套循环，不删来源、授权或完整原卡检查，不新增缓存。
+
+SQLite待批诊断驱动已在 `/private/tmp/memory-sqlite-segments-review-20261028/` 准备并独立只读深审，固定原App与原包，最多12次召回、未配置模型；无法分离的constructor/open/native仍未归属。仅语法和文本核对，尚未导入或运行驱动、未建Home。执行仍待用户批准，不自动恢复旧候选。

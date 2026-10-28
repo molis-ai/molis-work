@@ -189,10 +189,10 @@ export class ActionService implements ActionClient, ActionRegistryPort {
   }
 
   private directory(context: ActionCallContext, inspection: boolean): ActionView[] {
-    // Visibility is checked with the rest of the directory's checks, before any row is made. One pass: a provider is asked once for all its actions.
-    const visible = inspection ? undefined : (definition: ActionDefinition, provider: ActionProvider) => visibleAction(definition, provider, context);
+    // Visibility is checked before any row is made. One pass: a provider is asked once for all its actions, the caller once for its authority.
+    const visible = inspection ? undefined : (definition: ActionDefinition, provider: ActionProvider) => visibleAction(definition, provider, context), caller = rowCaller(context);
     return inDirectoryPass(() => registeredActionMetadata(this.registry, context, visible).map(metadata =>
-      ({ ...metadata, availability: this.registry.availability(context, { ...metadata, action_provider: metadata.provider }) })));
+      ({ ...metadata, availability: this.registry.availability(caller, { ...metadata, action_provider: metadata.provider }) })));
   }
 
   /** Every way in is settled once, whether the handler ran or the call was turned away: host policy, lookup, authority, contract, rate limit. */
@@ -468,6 +468,20 @@ function requireDefinition(definition: HostCapabilityDescriptor | undefined, ref
     throw new ActionError("actions.provider_changed", "能力提供方已变化，原引用不能自动替换");
   }
   return definition;
+}
+/**
+ * The caller as the rows of one directory see it. Every plugin action's availability asks the caller's own authority check, and a delegated
+ * caller's check walks its whole chain of original callers; within this directory it is asked once, with no reference, and kept only when it
+ * passed (`rememberInDirectoryPass`, on this directory's own caller: a directory nested in it asks again), so a refusal is thrown again on
+ * every row. A check naming a reference asks the caller itself, and so does everything outside the pass: a call, its `beforeEffect` and last
+ * check, the next directory.
+ */
+function rowCaller(context: ActionCallContext): ActionCallContext {
+  const assert = context.assert_authority_current;
+  if (!assert) return context;
+  const rows: ActionCallContext = { ...context, assert_authority_current: (reference, required) => reference || required ? assert(reference, required)
+    : rememberInDirectoryPass(rows, rowCaller, () => assert()) };
+  return rows;
 }
 function assertAvailable(value: ActionAvailability): void { if (!value.available) throw new ActionError(value.code, value.reason, { kind: value.kind }); }
 function unavailable(code: string, reason: string): ActionAvailability { return { available: false, code, reason }; }

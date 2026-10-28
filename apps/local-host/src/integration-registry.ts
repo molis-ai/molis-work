@@ -1,10 +1,17 @@
 import type { PluginContribution, PluginDefinition, PluginIntegrationContribution, PluginManifest } from "@molis-ai/molis-work-contracts/platform/plugin";
 import { pluginErrors } from "@molis-ai/molis-work-contracts/platform/plugin";
-import type { IntegrationBinding, IntegrationKind, PluginConnectionServiceDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
+import type { IntegrationBinding, IntegrationKind, PluginAuthMethodDeclaration, PluginConnectionServiceDeclaration } from "@molis-ai/molis-work-contracts/platform/plugin-integrations";
 import { HOST_BUILD_TRUST, MemoryPluginRuntimeRepository, PluginRuntime } from "@molis-ai/molis-work-plugin-runtime";
 import { parsePluginManifest } from "@molis-ai/molis-work-plugin-sdk";
 import { IntegrationDeclarations, type RegisteredConnectionService, type RegisteredIntegration } from "./integration-declarations.js";
 import { HOST_PLUGIN_IDS } from "./host-plugin-ids.js";
+
+export interface OAuthServiceOwner {
+  readonly plugin_id: string;
+  readonly install_id: string;
+  readonly publisher_id: string;
+  readonly method: PluginAuthMethodDeclaration | null;
+}
 
 /**
  * The Home's integration registry (PG-046): built only from the declarations of the plugins enabled in it, plus the platform's own
@@ -89,11 +96,31 @@ export class IntegrationRegistry {
     return run;
   }
 
-  /** Refuses a package whose plugin id, services or integrations are another's: asked before anything of its install is written. */
+  /**
+   * Refuses a package whose plugin id, services or integrations are another's, or that carries an OAuth flow as data: asked before
+   * anything of its install is written.
+   */
   assertFree(manifest: PluginManifest): void {
     const parsed = parsePluginManifest(manifest);
     if (this.installs.has(parsed.plugin_id)) throw pluginErrors.integration_declaration_conflict(`插件 ${parsed.plugin_id} 已由宿主自带的集成占用；请给这个包换一个插件 ID`);
+    // Until installs are trusted by signature (T1), an `oauth` method with its flow as data is the Host's build's alone (W5-11 §2.8):
+    // a package's would send the product client, the person's secret and refresh tokens to endpoints it chose.
+    const carried = parsed.connection_services?.find(service => service.auth.methods.some(method => method.kind === "oauth" && Object.keys(method).length > 1));
+    if (carried) throw pluginErrors.declaration_invalid(`签名安装包不能写带数据的 OAuth 方法：${carried.service_id} 的授权流程只由宿主构建的插件声明`);
     this.declarations.assertFree(parsed);
+  }
+
+  /**
+   * The Host-built plugin that declares a service now, the installation it runs as, its publisher and its `oauth` method if it
+   * declares one (W5-11 §3.2). An authorization is pinned to this when it starts and refused at its callback once any of it changed.
+   * A package's or the platform's service has none: the OAuth flow is the Host's build's only (§2.8).
+   */
+  oauthOwner(serviceId: string): OAuthServiceOwner | undefined {
+    const service = this.declarations.connectionServices().find(entry => entry.declaration.service_id === serviceId);
+    const installId = service ? this.installs.get(service.owner) : undefined;
+    if (!service || !installId) return undefined;
+    const method = service.declaration.auth.methods.find(entry => entry.kind === "oauth") ?? null;
+    return { plugin_id: service.owner, install_id: installId, publisher_id: this.runtime.get(installId).publisher_id, method };
   }
 
   connectionServices(): readonly RegisteredConnectionService[] {

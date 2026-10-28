@@ -24,7 +24,8 @@ export async function handleConnectorApiMethodsHttp(request: IncomingMessage, re
     if (!host) throw new ApiOAuthError("连接操作必须来自本机应用");
     const origin = `http://${host}`;
     if (request.method === "GET" && url.pathname === `${ROOT}/oauth/callback`) {
-      const result = await completeApiOAuth(home, { origin, state: url.searchParams.get("state") || "", code: url.searchParams.get("code") || "", error: url.searchParams.get("error") || undefined });
+      const result = await completeApiOAuth(home, { origin, callback: `${origin}${url.pathname}`, state: url.searchParams.get("state") || "",
+        code: url.searchParams.get("code") || "", error: url.searchParams.get("error") || undefined, iss: url.searchParams.get("iss") ?? undefined });
       response.writeHead(302, { location: result.status === "pending" ? `/capabilities/connections?setup=${result.authorization_id}`
         : `/settings/connectors?connected=${encodeURIComponent(result.service_id)}&connection=${encodeURIComponent(result.connection.connection_id)}`, "cache-control": "no-store" }); response.end(); return true;
     }

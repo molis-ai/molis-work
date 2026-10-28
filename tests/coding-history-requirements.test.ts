@@ -17,9 +17,34 @@ const textOf = (request: CodingProviderRequest) => JSON.stringify(request);
 // A round that ends having called nothing has its last words reviewed once (D1②); that call is the review's, not the round's.
 const isReview = (request: CodingProviderRequest) => endingReviewAnswer(request, () => []) !== undefined;
 
-type Summary = "model" | "error" | "empty";
+type Summary = "model" | "error" | "empty" | "timeout";
+
+// RAC-1340/RAC-1341 (BL-311, QA-010, RCPT-102's timeout arm): the summary call is held until the production two-minute
+// deadline really passes; only the calls made with that exact limit are shortened, everything else keeps its delay.
+const LATE_SUMMARY_MARKER = "LATE-SUMMARY-MARKER";
+const DEADLINE_DUE_MS = 500, DEADLINE_LATE_MS = 1_400;
+
+/** Shorten only the production deadline calls (120 000 ms) and record who made them; every other delay is untouched. */
+function shortenProductionDeadline(t: TestContext): Array<{ call: "setTimeout" | "AbortSignal.timeout"; delay: number; frames: string }> {
+  const calls: Array<{ call: "setTimeout" | "AbortSignal.timeout"; delay: number; frames: string }> = [];
+  const realSetTimeout = globalThis.setTimeout, realAbortTimeout = AbortSignal.timeout;
+  // The first production frames that made the call, past this test's own mock wrapper.
+  const frames = () => (new Error().stack ?? "").split("\n").slice(1).map(line => line.trim().replace(/^at /, ""))
+    .filter(line => !line.includes("coding-history-requirements.test.ts") && !line.includes("node:internal/test_runner"))
+    .slice(0, 3).join(" | ");
+  t.mock.method(globalThis, "setTimeout", (callback: (...args: unknown[]) => void, delay?: number, ...args: unknown[]) => {
+    calls.push({ call: "setTimeout", delay: delay ?? 0, frames: frames() });
+    return realSetTimeout(callback, delay === 120_000 ? DEADLINE_DUE_MS : delay, ...args);
+  });
+  t.mock.method(AbortSignal, "timeout", (milliseconds: number) => {
+    calls.push({ call: "AbortSignal.timeout", delay: milliseconds, frames: frames() });
+    return realAbortTimeout(milliseconds === 120_000 ? DEADLINE_DUE_MS : milliseconds);
+  });
+  return calls;
+}
 
 async function twoRounds(t: TestContext, summary: Summary) {
+  let summaryArrivedAt = 0, patchedAt = 0, deadlineCalls: ReturnType<typeof shortenProductionDeadline> = [];
   let release = () => {};
   const held = new Promise<void>(resolve => { release = resolve; });
   let round = 1;
@@ -28,6 +53,12 @@ async function twoRounds(t: TestContext, summary: Summary) {
     if (review !== undefined) return cogniaModelResponse(review);
     if (textOf(request).includes(SUMMARY_PROMPT)) {
       if (summary === "error") return new Response(JSON.stringify({ type: "error", error: { type: "invalid_request_error", message: "fixture refuses the summary" } }), { status: 400, headers: { "content-type": "application/json" } });
+      if (summary === "timeout") {
+        // Held here until the production deadline has passed; the answer is late and must change nothing (RAC-1341).
+        summaryArrivedAt = Date.now();
+        await new Promise(resolve => setTimeout(resolve, DEADLINE_LATE_MS));
+        return cogniaModelResponse(`${LATE_SUMMARY_MARKER}\n1. 目标与要求：${SUPPLEMENTS.at(-1)}\n2. 已完成：无`);
+      }
       // The model's summary keeps only the last supplement: the Host's own section must still carry all six.
       return cogniaModelResponse(summary === "empty" ? "" : `1. 目标与要求：${SUPPLEMENTS.at(-1)}\n2. 已完成：无`);
     }
@@ -39,7 +70,7 @@ async function twoRounds(t: TestContext, summary: Summary) {
   const session = await f.call<{ session: { session_id: string } }>(project, coding + "/sessions", {});
   assert.equal(session.status, 200, JSON.stringify(session.body));
   const id = session.body.session.session_id;
-  const start = (task: string) => f.call<{ run: { ref: AgentRunRef } }>(project, coding + `/sessions/${id}/runs`, {
+  const start = (task: string) => f.call<{ run: { ref: AgentRunRef }; digest?: { source: string; problem?: string } }>(project, coding + `/sessions/${id}/runs`, {
     task, intent: "edit", workspace_id: f.workspaceId, provider_id: "fixture", model_id: "fixture-model" });
   const first = await start("把登录改到新接口");
   assert.equal(first.status, 200, JSON.stringify(first.body));
@@ -59,6 +90,7 @@ async function twoRounds(t: TestContext, summary: Summary) {
   const roundOne = f.requests.length;
   assert.equal((await f.call(project, coding + `/sessions/${id}/compact`, { on: true })).status, 200);
   round = 2;
+  if (summary === "timeout") { patchedAt = Date.now(); deadlineCalls = shortenProductionDeadline(t); }
   const second = await start("接着把超时也改了");
   assert.equal(second.status, 200, JSON.stringify(second.body));
   const next = await f.ended(second.body.run.ref);
@@ -66,7 +98,7 @@ async function twoRounds(t: TestContext, summary: Summary) {
   const reviews = f.requests.slice(roundOne).filter(isReview), later = f.requests.slice(roundOne).filter(request => !isReview(request));
   const summaries = later.filter(request => textOf(request).includes(SUMMARY_PROMPT));
   const roundTwo = later.filter(request => !textOf(request).includes(SUMMARY_PROMPT));
-  return { steers, later, summaries, roundTwo, reviews };
+  return { steers, later, summaries, roundTwo, reviews, f, project, coding, id, second, summaryArrivedAt, patchedAt, deadlineCalls };
 }
 
 function assertCarried(request: CodingProviderRequest, steers: AgentRunView["turns"]) {
@@ -100,3 +132,30 @@ for (const summary of ["error", "empty"] as const) {
     assertCarried(roundTwo[0]!, steers);
   });
 }
+
+test("RAC-1340 a summary still pending at the production deadline is replaced by the record-based digest, and round two starts from it", { timeout: 60_000 }, async t => {
+  const { steers, later, summaries, roundTwo, reviews, second, summaryArrivedAt, patchedAt, deadlineCalls } = await twoRounds(t, "timeout");
+  // The shortened calls are exactly the production deadline ones: execution-lifetime's setTimeout and host-complete-text's
+  // AbortSignal.timeout, both made with 120 000 ms.
+  assert.deepEqual([...new Set(deadlineCalls.filter(call => call.delay === 120_000).map(call => call.call))].sort(), ["AbortSignal.timeout", "setTimeout"],
+    "both production deadline timers were the shortened ones: " + JSON.stringify(deadlineCalls.filter(call => call.delay === 120_000)));
+  assert.ok(summaryArrivedAt - patchedAt < DEADLINE_DUE_MS, `the summary request reached the provider stub before the deadline (${summaryArrivedAt - patchedAt} ms)`);
+  assert.equal(summaries.length, 1, "exactly one summary attempt, no second one");
+  assert.equal(later.length, 2, "one summary attempt plus the round's own call, nothing more");
+  assert.equal(reviews.length, 1, "round two called nothing: its ending is reviewed once, and nothing more");
+  assert.deepEqual(second.body.digest, { source: "records", problem: "起草超过两分钟，已停止，可重试" }, "the production deadline's own sentence, not the fetch signal's");
+  assert.match(textOf(roundTwo[0]!), /的记录由宿主根据执行记录整理/, "the record-based digest stood in");
+  assertCarried(roundTwo[0]!, steers);
+});
+
+test("RAC-1341 a summary that comes back after the deadline changes no request and records no usage", { timeout: 60_000 }, async t => {
+  const { f, project, coding, id } = await twoRounds(t, "timeout");
+  const afterRound = f.requests.length;
+  // Let the late answer land, then read: it reached nothing.
+  await new Promise(resolve => setTimeout(resolve, DEADLINE_LATE_MS + 400));
+  assert.equal(f.requests.length, afterRound, "the late summary added no provider request");
+  assert.deepEqual(f.requests.filter(request => textOf(request).includes(LATE_SUMMARY_MARKER)), [], "no request carries the late summary");
+  const read = await f.call<{ usage_total?: { digests?: unknown } }>(project, coding + `/sessions/${id}?window=20`);
+  assert.equal(read.status, 200, JSON.stringify(read.body));
+  assert.equal(read.body.usage_total?.digests, undefined, "a summary that never answered records no digest usage");
+});

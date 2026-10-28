@@ -75,6 +75,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-074 | 写进「1.0.0 之前都是开发版本」、BL-812 改为后续做、spec 一处过时句 | 丙 | B | 28 | — | `docs/system/CONTRACT-CHANGES.md`、`specs/repository-anti-corruption/c-end-readiness.md`、`specs/repository-anti-corruption/spec.md`、`docs/releases/CHECKLIST.md`（`specs/BACKLOG.md` 只 BL-812 行，不锁） |
 | T-078 | 删项目两个路由的路径写坏答 400（decodeLocalWebPathPart），RAC-1333 改用删除端口抛普通 Error 造（T-013 二审观察 5） | 乙 | A | 29 | T-013 | `apps/local-host/src/web-project-deletion.ts`、`tests/project-settings-deletion.test.ts` |
 | T-077 | Dataset 的列名、标题、说明和快照备注按 Unicode 字数数上限，与动作 schema 一致 | 乙 | A | 30 | — | `plugins/native/dataset/src/store.ts`、`plugins/native/dataset/src/actions.ts`、`tests/dataset-actions.test.ts` |
+| T-079 | PPT 的标题、说明按 Unicode 字数数上限，页标题、要点、备注与大纲按整字截取，与动作 schema 一致 | 乙 | A | 31 | — | `plugins/native/ppt/src/store.ts`、`plugins/native/ppt/src/content-actions.ts`、`tests/ppt-actions.test.ts` |
 
 ## 在途，不走任务书
 

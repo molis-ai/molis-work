@@ -12,7 +12,8 @@ test('Relation HTTP validates direction/type/project scope and replays writes wi
   const other=await catalog.createProject({display_name:'其他隔离项目',actor_id:'test'});catalog.close();
   const prefix=`/projects/${b.projectId}`;
   await b.navigate(()=>b.command('Page.navigate',{url:b.origin+prefix+'/'},b.sessionId));
-  const post=(path:string,body:unknown,key:string)=>b.evaluate<{status:number,body:any}>(`(async()=>{const r=await fetch(${JSON.stringify(path)},{method:'POST',headers:{...globalThis.molisWorkControlHeaders(),'x-molis-work-idempotency-key':${JSON.stringify(key)}},body:JSON.stringify(${JSON.stringify(body)})});return {status:r.status,body:await r.json()}})()`);
+  // The page names the act in the body (a retry replays by that key) and spends a fresh Host one-time key per attempt.
+  const post=(path:string,body:unknown,key:string)=>b.evaluate<{status:number,body:any}>(`(async()=>{const r=await fetch(${JSON.stringify(path)},{method:'POST',headers:{...globalThis.molisWorkControlHeaders(),'x-molis-work-idempotency-key':crypto.randomUUID()},body:JSON.stringify({...${JSON.stringify(body)},idempotency_key:${JSON.stringify(key)}})});return {status:r.status,body:await r.json()}})()`);
   const payload={direction:'incoming',target_goal_id:'PLATFORM',type:'extends',reason:'独立关系HTTP验收'};
   const count=boardSnapshot(b.store, DEMO_PROJECT_ID).relations.length;
   for(const invalid of [{...payload,type:'unknown'},{...payload,direction:'unknown'},{...payload,reason:''}])assert.equal((await post(prefix+'/api/plugins/io.molis.work.goals/goals/CORE/relations',invalid,'invalid-payload')).status,400);

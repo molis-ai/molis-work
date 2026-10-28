@@ -31,7 +31,7 @@ const SOURCE_ID = "src-inbox-actions";
 function ingest(feed: Feed, externalId: string, extra: Record<string, unknown> = {}) {
   const now = new Date().toISOString();
   const existing = feed.snapshot(DEMO_PROJECT_ID).sources.find(row => row.source_id === SOURCE_ID);
-  const stored = existing ?? feed.upsertSource({
+  const stored = existing ?? feed.sources.upsert({
     project_id: DEMO_PROJECT_ID, source_id: SOURCE_ID, kind: "workflow", definition_id: null, sync_kind: "manual", name: "Reading list", description: "",
     status: "active", enabled: true, origin: "molis_work", config: {}, schedule: { mode: "manual" }, credential_ref: null,
     account_label: null, last_sync_at: null, last_outcome: null, last_error_code: null, imported_at: now, updated_at: now, item_count: 0, cursor: null,

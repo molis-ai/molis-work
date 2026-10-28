@@ -40,7 +40,7 @@ export function createFeedNotificationHandlers(projectId: string, ports: FeedNot
     }
     const input = raw as PluginNotificationDelivery, feed = ports.feed(caller);
     const sourceId = "plugin-notifications:" + input.sender_plugin_id;
-    const source = feed.snapshot(projectId).sources.find(item => item.source_id === sourceId) ?? feed.upsertSource({
+    const source = feed.snapshot(projectId).sources.find(item => item.source_id === sourceId) ?? feed.sources.upsert({
       project_id: projectId, source_id: sourceId, kind: "plugin", definition_id: null, sync_kind: "manual", name: input.sender_name,
       description: "插件发送的通知", status: "active", enabled: true, origin: "molis_work", config: {}, schedule: { mode: "manual" },
       credential_ref: null, account_label: null, last_sync_at: null, last_outcome: null, last_error_code: null,

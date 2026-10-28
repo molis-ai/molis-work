@@ -64,7 +64,7 @@ for (const [width,height] of [[1440,900],[390,640]]) {
     await waitFor("document.querySelector('[data-feed-sources-dialog]').hidden && [...document.querySelectorAll('[data-feed-task]')].some(e=>e.textContent.includes('团队设计资料'))");
     await directory();
     const sourceId=await evaluate<string>("[...document.querySelectorAll('[data-feed-task]')].find(e=>e.textContent.includes('团队设计资料')).dataset.feedTask");
-    const feed=createLocalFeedApplication(b.store.db),source=feed.getSource(DEMO_PROJECT_ID,sourceId);
+    const feed=createLocalFeedApplication(b.store.db),source=feed.sources.get(DEMO_PROJECT_ID,sourceId);
     // External fetching is outside this UI journey; the source above is created by the actual form.
     const item=feed.ingestItem({source,externalId:'journey-item',title:'评审工作区的用户动线',summary:'明确需要确认的页面与处理动作。',body:'这是一条隔离验收资料。\n'+Array.from({length:30},(_,i)=>`检查 ${i+1}：内容在所属组件内滚动，操作入口保持可见。`).join('\n'),occurredAt:new Date().toISOString(),attention:false}).item;
     await b.reloadPage();

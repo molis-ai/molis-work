@@ -15,7 +15,7 @@ test("W2-18-ATTENTION-TX-01 independent Feed admission and multi-entry deletion 
   const store = new LocalProjectDatabase(path);
   try {
     const feed = createLocalFeedApplication(store.db), at = "2026-10-12T00:00:00.000Z";
-    const source = feed.upsertSource({ project_id: DEMO_PROJECT_ID, source_id: "atomic-source", kind: "workflow", definition_id: null,
+    const source = feed.sources.upsert({ project_id: DEMO_PROJECT_ID, source_id: "atomic-source", kind: "workflow", definition_id: null,
       sync_kind: "manual", name: "Atomic", description: "", status: "active", enabled: true, origin: "molis_work", config: {},
       schedule: { mode: "manual" }, credential_ref: null, account_label: null, last_sync_at: null, last_outcome: null,
       last_error_code: null, imported_at: at, updated_at: at, item_count: 0, cursor: null });

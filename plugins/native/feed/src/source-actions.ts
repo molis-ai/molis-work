@@ -82,7 +82,7 @@ export function createFeedSourceHandlers(board: string, ports: FeedSourceActionP
   });
   const a = feedSourceActions;
   const sync = async (input: { source_id: string; idempotency_key?: string; mode?: "normal" | "rebuild_cursor" }, caller: ActionExecutionContext) => {
-    const current = ports.feed().getSource(board, input.source_id);
+    const current = ports.feed().sources.get(board, input.source_id);
     const idempotencyKey = input.idempotency_key ?? "";
     if (current.sync_kind === "public_source") {
       return await ports.sources(caller).sync(input.source_id, { idempotencyKey, beforeEffect: caller.beforeEffect,
@@ -117,7 +117,7 @@ export function createFeedSourceHandlers(board: string, ports: FeedSourceActionP
     }),
     bind(a.enabled, (input, caller) => ({ source: ports.sources(caller).setEnabled(input.source_id, input.enabled) })),
     bind(a.disconnect, (input, caller) => {
-      if (!isAccountConnectorSyncKind(ports.feed().getSource(board, input.source_id).sync_kind)) {
+      if (!isAccountConnectorSyncKind(ports.feed().sources.get(board, input.source_id).sync_kind)) {
         throw feedErrors.source_invalid_state("公开来源不需要断开账号；可以暂停或删除");
       }
       return { source: ports.sources(caller).disconnect(input.source_id) };

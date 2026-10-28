@@ -60,7 +60,7 @@ test("Feed discovers an installed plugin judgment, previews without admission, s
     await click(section + ' [data-feed-out-rule-create]');
     await waitFor(`Array.from(document.querySelectorAll('${section} [data-feed-out-rule-row]')).some(row => row.textContent.includes('需要跟进的消息')) || document.querySelector('${section} [data-feed-rule-status]')?.dataset.error === 'true'`);
     assert.notEqual(await evaluate(`document.querySelector('${section} [data-feed-rule-status]')?.dataset.error`), 'true', await evaluate(`document.querySelector('${section}')?.innerText`));
-    const saved = feed.listOutRules(projectId).find(rule => rule.name === "需要跟进的消息")!;
+    const saved = feed.outRules.list(projectId).find(rule => rule.name === "需要跟进的消息")!;
     assert.equal(saved.judgment?.capability_id, definition.capability_id); assert.ok(saved.judgment?.provider_id);
     await evaluate(`document.querySelector('${section} [data-feed-out-rules-evaluate]').closest('details').open = true`);
     // A natural-height disclosure clips its children while opening; wait until it contains the control before scrolling.
@@ -75,7 +75,7 @@ test("Feed discovers an installed plugin judgment, previews without admission, s
     await runtime.stop(install.install_id);
     await click(section + ' [data-feed-rule-mode="existing"]');
     await waitFor(`document.querySelector('${section} [data-feed-rule-binding-status]')?.textContent !== '已启用'`);
-    assert.ok(feed.listOutRules(projectId).find(rule => rule.rule_id === saved.rule_id)!.judgment, "stopping the provider preserves the exact saved reference");
+    assert.ok(feed.outRules.list(projectId).find(rule => rule.rule_id === saved.rule_id)!.judgment, "stopping the provider preserves the exact saved reference");
     const usages = await localHost.sceneClient(reference).usages({ actor_id: "web-user", project_id: projectId, audience: "user", permissions: ["feed:read", "feed:write", "model:invoke"] });
     const usage = usages.find(usage => usage.binding_id === "feed.capture:" + saved.rule_id)!;
     assert.ok(usage.href);
@@ -89,7 +89,7 @@ test("Feed discovers an installed plugin judgment, previews without admission, s
     await writeFile(reviewEvidenceUrl("feed-capture/unavailable-narrow.png"), Buffer.from(screenshot.data, "base64"));
   } catch (error) {
     t.diagnostic(await evaluate(`JSON.stringify({ section: document.querySelector('${section}')?.innerText, busy: document.querySelector('${section} [data-feed-rule-composer]')?.getAttribute('aria-busy') })`));
-    t.diagnostic(JSON.stringify(feed.listOutRules(projectId).filter(rule => rule.match.source_id === source.source_id)));
+    t.diagnostic(JSON.stringify(feed.outRules.list(projectId).filter(rule => rule.match.source_id === source.source_id)));
     throw error;
   } finally { await runtime.stop(install.install_id); }
 });

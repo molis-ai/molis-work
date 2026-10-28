@@ -39,5 +39,5 @@ export async function withIntegrationHome(run: (home: {
 function integrationChain(store: LocalProjectDatabase, port: IntegrationProviderPort, directory: string) {
   const feed = createLocalFeedApplication(store.db);
   const sync = createLocalFeedConnectorSync(store.db, DEMO_PROJECT_ID, () => port, feed, directory);
-  return { feed, sync, source(kind: "gmail" | "github") { return feed.upsertSource(accountSourceRecord(kind, { status: "active" })); } };
+  return { feed, sync, source(kind: "gmail" | "github") { return feed.sources.upsert(accountSourceRecord(kind, { status: "active" })); } };
 }

@@ -40,8 +40,8 @@ export async function syncResearchLibrary(ports: ResearchLibrarySyncPorts, sourc
   const commit = <T>(operation: () => T): Promise<T> => ports.commit(() => { beforeEffect.check(); return operation(); });
   await beforeEffect();
   const operationId = `research-sync-${hash(`${source.source_id}:${input.idempotencyKey}`).slice(0, 32)}`;
-  const previous = feed.getSourceRunByOperationId(source.project_id, operationId);
-  if (previous?.phase === "terminal") return { source: feed.getSource(source.project_id, source.source_id), run: previous, created: 0, deduped: 0, replayed: true };
+  const previous = feed.sources.runByOperationId(source.project_id, operationId);
+  if (previous?.phase === "terminal") return { source: feed.sources.get(source.project_id, source.source_id), run: previous, created: 0, deduped: 0, replayed: true };
   const at = new Date().toISOString();
   const run: FeedSourceRunRecord = {
     project_id: source.project_id, source_id: source.source_id, operation_id: operationId,
@@ -49,7 +49,7 @@ export async function syncResearchLibrary(ports: ResearchLibrarySyncPorts, sourc
     error_code: null, receipt: null, created_count: 0, deduped_count: 0,
     recovery_count: previous ? previous.recovery_count + 1 : 0, started_at: at, completed_at: null, updated_at: at,
   };
-  await commit(() => feed.upsertSourceRun(run));
+  await commit(() => feed.sources.upsertRun(run));
   try {
     const repository = String(source.config.repository ?? "");
     const researchSource = String(source.config.research_source ?? "");
@@ -62,7 +62,7 @@ export async function syncResearchLibrary(ports: ResearchLibrarySyncPorts, sourc
       const existing = new Map(feed.snapshot(source.project_id).feed_items.filter(item => item.source_id === source.source_id).map(item => [item.external_id, item]));
       for (const entry of entries) {
         input.signal?.throwIfAborted();
-        const current = feed.getSource(source.project_id, source.source_id);
+        const current = feed.sources.get(source.project_id, source.source_id);
         if (!current.enabled) throw new Error("来源已暂停");
         const externalId = `${repository}:${researchSource}:${entry.id}`;
         // An unrelated repository commit does not change an immutable research package.
@@ -89,9 +89,9 @@ export async function syncResearchLibrary(ports: ResearchLibrarySyncPorts, sourc
       created_count: created, deduped_count: deduped, completed_at: completed, updated_at: completed,
       receipt: { repository, source_id: researchSource, revision, verified_packages: true } };
     const saved = await commit(() => {
-      feed.upsertSourceRun(terminal);
-      const latest = feed.getSource(source.project_id, source.source_id);
-      return feed.upsertSource({ ...latest, status: latest.enabled ? "active" : "paused", cursor: { revision },
+      feed.sources.upsertRun(terminal);
+      const latest = feed.sources.get(source.project_id, source.source_id);
+      return feed.sources.upsert({ ...latest, status: latest.enabled ? "active" : "paused", cursor: { revision },
         last_sync_at: completed, last_outcome: "completed", last_error_code: null, updated_at: completed });
     });
     return { source: saved, run: terminal, created, deduped, replayed: false };
@@ -99,9 +99,9 @@ export async function syncResearchLibrary(ports: ResearchLibrarySyncPorts, sourc
     await beforeEffect();
     const completed = new Date().toISOString();
     await commit(() => {
-      feed.upsertSourceRun({ ...run, phase: "interrupted", error_code: "research_library_sync_failed", updated_at: completed });
-      const latest = feed.getSource(source.project_id, source.source_id);
-      feed.upsertSource({ ...latest, status: latest.enabled ? "error" : "paused", last_error_code: "research_library_sync_failed", updated_at: completed });
+      feed.sources.upsertRun({ ...run, phase: "interrupted", error_code: "research_library_sync_failed", updated_at: completed });
+      const latest = feed.sources.get(source.project_id, source.source_id);
+      feed.sources.upsert({ ...latest, status: latest.enabled ? "error" : "paused", last_error_code: "research_library_sync_failed", updated_at: completed });
     });
     // Git errors can contain credential-bearing URLs from a helper; never return raw stderr.
     const message = error instanceof Error && !("stderr" in error) ? error.message : "无法读取 GitHub 研究库，请检查本机 Git 登录与仓库权限后重试";

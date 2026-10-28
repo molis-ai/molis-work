@@ -16,13 +16,13 @@ for(const kind of ['github','gmail'] as const) {
       const connection=withConnectorConnections(home,rows=>rows.list(kind).find(row=>rows.state(row)==='connected'));
       assert.ok(connection,'An existing account connection is required');
       const feed=createLocalFeedApplication(store.db);
-      const base=feed.upsertSource(accountSourceRecord(kind));
+      const base=feed.sources.upsert(accountSourceRecord(kind));
       // Choosing the account goes through the same Source update a person makes in Feed.
       const source=createLocalFeedSourceService(store.db,DEMO_PROJECT_ID,undefined,undefined,home).update(base.source_id,{connection_id:connection.connection_id});
       const result=await createLocalFeedConnectorSync(store.db,DEMO_PROJECT_ID,undefined,feed,home).sync(source.source_id,{idempotencyKey:'live-account-check',mode:'normal'});
       t.diagnostic(JSON.stringify({kind,outcome:result.run.outcome,errorCode:result.run.error_code,created:result.created}));
       assert.equal(result.run.outcome,'completed',result.run.error_code || 'Account sync did not complete');
-      assert.equal(feed.getSource(DEMO_PROJECT_ID,source.source_id).last_outcome,'completed');
+      assert.equal(feed.sources.get(DEMO_PROJECT_ID,source.source_id).last_outcome,'completed');
     } finally {store.close();await rm(dir,{recursive:true,force:true});}
   });
 }

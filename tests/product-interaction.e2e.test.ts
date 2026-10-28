@@ -68,7 +68,7 @@ test("Feed task creation is a scoped panel with validation and persistent schedu
   assert.equal(await evaluate("!document.querySelector('[data-feed-sources-dialog]').hidden"), true);
   assert.equal(await evaluate(`document.querySelector('[data-feed-task-config="${sourceId}"] [data-source-schedule-interval]').value`), "360");
   assert.equal(await evaluate(`document.querySelector('[data-feed-task-config="${sourceId}"] [data-source-schedule-enabled]').checked`), true);
-  const saved = createLocalFeedApplication(b.store.db).getSource(DEMO_PROJECT_ID, sourceId);
+  const saved = createLocalFeedApplication(b.store.db).sources.get(DEMO_PROJECT_ID, sourceId);
   assert.equal(saved.name, "设计观察");
   assert.equal(saved.schedule.mode, "interval");
   if (saved.schedule.mode === "interval") {
@@ -82,13 +82,13 @@ test("Feed task creation is a scoped panel with validation and persistent schedu
     document.querySelector('${section} [data-feed-out-rule-name]').value='发布相关';
     document.querySelector('${section} [data-feed-out-rule-contains]').value='launch';
   }`);
-  const beforePreview = createLocalFeedApplication(b.store.db).listOutRules(DEMO_PROJECT_ID);
+  const beforePreview = createLocalFeedApplication(b.store.db).outRules.list(DEMO_PROJECT_ID);
   await click(section + ' [data-feed-rule-preview-run]');
   await waitFor(`document.querySelector('${section} [data-feed-rule-preview]')?.textContent.includes('Launch preview')`);
-  assert.deepEqual(createLocalFeedApplication(b.store.db).listOutRules(DEMO_PROJECT_ID), beforePreview, "preview has no rule write");
+  assert.deepEqual(createLocalFeedApplication(b.store.db).outRules.list(DEMO_PROJECT_ID), beforePreview, "preview has no rule write");
   await click(section + ' [data-feed-out-rule-create]');
   await waitFor(`document.querySelector('${section}')?.textContent.includes('发布相关')`);
-  const rules = createLocalFeedApplication(b.store.db).listOutRules(DEMO_PROJECT_ID)
+  const rules = createLocalFeedApplication(b.store.db).outRules.list(DEMO_PROJECT_ID)
     .filter((rule) => rule.match.source_id === sourceId);
   assert.equal(rules.length, 1);
   assert.equal(rules[0]?.name, "发布相关");
@@ -122,7 +122,7 @@ test("Feed creation recovers a failed schedule without duplicating the task", { 
   await click('[data-feed-source-register]');
   await waitFor("document.querySelector('[data-feed-add-form]').dataset.createdSourceId && document.querySelector('[data-feed-add-error]').textContent.includes('任务已创建')");
   const sourceId = await evaluate<string>("document.querySelector('[data-feed-add-form]').dataset.createdSourceId");
-  assert.equal(createLocalFeedApplication(b.store.db).getSource(DEMO_PROJECT_ID, sourceId).schedule.mode, "manual");
+  assert.equal(createLocalFeedApplication(b.store.db).sources.get(DEMO_PROJECT_ID, sourceId).schedule.mode, "manual");
   await click('[data-feed-sources-dialog] header [data-feed-sources-close]');
   await click('[data-feed-add-toggle]');
   assert.equal(await evaluate("document.querySelector('[data-feed-source-value=custom_rss]').value"), "https://example.com/retry.xml");
@@ -131,7 +131,7 @@ test("Feed creation recovers a failed schedule without duplicating the task", { 
   await waitFor("document.querySelector('[data-feed-sources-dialog]').hidden");
   await waitFor(`document.querySelector('[data-feed-source-rail] [data-feed-task="${sourceId}"][aria-current=page]')`);
   assert.equal(await evaluate("window.sourceCreationRequests"), 1);
-  const saved = createLocalFeedApplication(b.store.db).getSource(DEMO_PROJECT_ID, sourceId);
+  const saved = createLocalFeedApplication(b.store.db).sources.get(DEMO_PROJECT_ID, sourceId);
   assert.equal(saved.schedule.mode, "interval");
   if (saved.schedule.mode === "interval") assert.equal(saved.schedule.interval_minutes, 60);
 });
@@ -152,7 +152,7 @@ test("Feed configuration cancels drafts and saves its schedule independently", {
   await openSettings();
   await evaluate(`document.querySelector('${panel} [data-source-config-field=name]').value='丢弃的名称'`);
   await click('[data-feed-sources-dialog] footer [data-feed-sources-close]');
-  assert.equal(feed.getSource(DEMO_PROJECT_ID,source.source_id).name, source.name);
+  assert.equal(feed.sources.get(DEMO_PROJECT_ID,source.source_id).name, source.name);
   await openSettings();
   assert.equal(await evaluate(`document.querySelector('${panel} [data-source-config-field=name]').value`),source.name);
   await click(`${panel} [data-feed-plan-region] > summary`);
@@ -163,8 +163,8 @@ test("Feed configuration cancels drafts and saves its schedule independently", {
   await evaluate(`{document.querySelector('${panel} [data-source-config-field=name]').value='保留中的名称';const field=document.querySelector('${panel} [data-source-schedule-mode]');field.value='interval';field.dispatchEvent(new Event('change',{bubbles:true}));document.querySelector('${panel} [data-source-schedule-interval]').value='360';}`);
   await click(`${panel} [data-source-schedule-save]`);
   await waitFor(`!document.querySelector('${panel} [data-source-schedule-save]').disabled`);
-  assert.equal(feed.getSource(DEMO_PROJECT_ID,source.source_id).schedule.mode,"interval");
-  assert.equal(feed.getSource(DEMO_PROJECT_ID,source.source_id).name,source.name);
+  assert.equal(feed.sources.get(DEMO_PROJECT_ID,source.source_id).schedule.mode,"interval");
+  assert.equal(feed.sources.get(DEMO_PROJECT_ID,source.source_id).name,source.name);
   assert.equal(await evaluate(`document.querySelector('${panel} [data-source-config-field=name]').value`),"保留中的名称");
   await click(`${panel} [data-source-schedule-enabled]`);
   await click(`${panel} [data-source-schedule-save]`);
@@ -188,7 +188,7 @@ test("Feed configuration cancels drafts and saves its schedule independently", {
   }; }`);
   await click('[data-feed-config-submit]');
   await waitFor('window.configResponseReady === true');
-  assert.equal(feed.getSource(DEMO_PROJECT_ID,source.source_id).name,"保留中的名称");
+  assert.equal(feed.sources.get(DEMO_PROJECT_ID,source.source_id).name,"保留中的名称");
   // ASC-40: disabled cancel and submit controls receive real negative interaction attempts.
   assert.equal(await evaluate("document.querySelector('[data-feed-sources-dialog] footer [data-feed-sources-close]').disabled"), true);
   await click('[data-feed-sources-dialog] footer [data-feed-sources-close]', { allowDisabled: true });
@@ -204,8 +204,8 @@ test("Feed configuration cancels drafts and saves its schedule independently", {
   await waitFor("!document.querySelector('[data-feed-sources-dialog]').hasAttribute('aria-busy')");
   assert.equal(await evaluate("!document.querySelector('[data-feed-sources-dialog]').hidden"), true);
   await waitFor(`document.querySelector('[data-feed-source-rail] [data-feed-task="${source.source_id}"]')?.textContent.includes('保留中的名称')`);
-  assert.equal(feed.getSource(DEMO_PROJECT_ID,source.source_id).name,"保留中的名称");
-  const plan=feed.getSource(DEMO_PROJECT_ID,source.source_id).schedule;
+  assert.equal(feed.sources.get(DEMO_PROJECT_ID,source.source_id).name,"保留中的名称");
+  const plan=feed.sources.get(DEMO_PROJECT_ID,source.source_id).schedule;
   assert.equal(plan.mode,"interval"); if(plan.mode==='interval') assert.equal(plan.interval_minutes,360);
 });
 

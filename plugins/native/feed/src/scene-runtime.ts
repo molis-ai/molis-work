@@ -97,12 +97,12 @@ export function createFeedSceneRuntime(options: FeedSceneRuntimeOptions): { hand
     },
   };
   const handler = createFeedCaptureSceneHandler({ projectId,
-    rules: () => feed.listOutRules(projectId),
+    rules: () => feed.outRules.list(projectId),
     resolve: itemId => host.item(itemId),
     save: async (rule, binding, saveOptions, caller) => {
       const save = () => {
-        const next = feed.prepareOutRuleUpdate(projectId, rule.rule_id, { judgment: binding.function, enabled: binding.enabled });
-        feed.saveOutRuleUpdate(next, saveOptions?.expected_revision ?? rule.revision);
+        const next = feed.outRules.prepareUpdate(projectId, rule.rule_id, { judgment: binding.function, enabled: binding.enabled });
+        feed.outRules.saveUpdate(next, saveOptions?.expected_revision ?? rule.revision);
       };
       await (writes ? writes.commit(caller, save) : save());
     },
@@ -112,7 +112,7 @@ export function createFeedSceneRuntime(options: FeedSceneRuntimeOptions): { hand
         subject: { kind: "feed_item", id: item.item_id, project_id: projectId }, scene_id: feedCaptureScene.scene_id,
         scene_provenance: { binding_id: binding.binding_id, binding_revision: binding.revision!, function: binding.function, subject_revision: feedCaptureSubjectRevision(item) },
         outcome: result.status, suggested_behavior_ids: result.suggested_behavior_ids, error_code: result.error_code ?? null });
-      const entryId = writes ? await writes.commit(caller, () => feed.recordCaptureJudgment(item, rule, judgment)) : feed.recordCaptureJudgment(item, rule, judgment);
+      const entryId = writes ? await writes.commit(caller, () => feed.capture.recordJudgment(item, rule, judgment)) : feed.capture.recordJudgment(item, rule, judgment);
       if (entryId && !writes) await feed.flushPendingInboxJudgments(caller, [entryId]);
       return judgment;
     },

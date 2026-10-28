@@ -22,7 +22,7 @@ test("GitHub, Gmail and RSS fixtures all write FeedItem first and attention sepa
       const feed = createLocalFeedApplication(store.db);
       const now = "2026-08-30T00:00:00.000Z";
       const ingested = PROVIDER_CONTRACT_FIXTURES.map((fixture) => {
-        const source: FeedSourceRecord = feed.upsertSource({
+        const source: FeedSourceRecord = feed.sources.upsert({
           project_id: DEMO_PROJECT_ID,
           source_id: fixture.source.source_id,
           kind: fixture.provider,
@@ -80,10 +80,10 @@ test("GitHub, Gmail and RSS fixtures all write FeedItem first and attention sepa
       assert.equal(sourceFault.entry.subject_type, "source_fault");
 
       const github = PROVIDER_CONTRACT_FIXTURES[0]!;
-      const githubSource = feed.getSource(DEMO_PROJECT_ID, github.source.source_id);
+      const githubSource = feed.sources.get(DEMO_PROJECT_ID, github.source.source_id);
       // J3D-01/J3D-03: the internal deletion contract refuses before any facts change.
       const beforeBadDelete = feed.snapshot(DEMO_PROJECT_ID);
-      assert.throws(() => feed.retireSource(DEMO_PROJECT_ID, githubSource.source_id, "invalid-history" as never), { code: "feed.contract_source_history_decision_required", kind: "internal" });
+      assert.throws(() => feed.sources.retire(DEMO_PROJECT_ID, githubSource.source_id, "invalid-history" as never), { code: "feed.contract_source_history_decision_required", kind: "internal" });
       assert.deepEqual(feed.snapshot(DEMO_PROJECT_ID), beforeBadDelete);
       const replay = feed.ingestItem({
         source: githubSource,
@@ -96,7 +96,7 @@ test("GitHub, Gmail and RSS fixtures all write FeedItem first and attention sepa
       assert.equal(replay.created, false);
       assert.equal(feed.snapshot(DEMO_PROJECT_ID).feed_items.length, 3);
 
-      const secondGithubSource = feed.upsertSource({
+      const secondGithubSource = feed.sources.upsert({
         ...githubSource,
         source_id: "fixture-source-github-second",
         name: "GITHUB SECOND",

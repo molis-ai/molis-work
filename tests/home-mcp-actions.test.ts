@@ -171,7 +171,7 @@ test("formal MCP Home judgment and subject actions share Web facts and revocable
     const captureSourceId = item.source_id; assert.ok(captureSourceId);
     const captureItem = await host.withProject(reference, runtime => {
       const feed = createLocalFeedApplication(runtime.store.db);
-      return feed.ingestItem({ source: feed.getSource(project.project_id, captureSourceId), externalId: "mcp-capture-actual", title: "MCP 捕捉新消息",
+      return feed.ingestItem({ source: feed.sources.get(project.project_id, captureSourceId), externalId: "mcp-capture-actual", title: "MCP 捕捉新消息",
         summary: "原文", body: "真正执行 Feed 场景", occurredAt: new Date().toISOString(), attention: false }).item;
     });
     const semantic = await call<{ rule: FeedOutRuleRecord }>(feedRuleActions.create.capability_id, { name: "MCP 自动入箱", match: { source_id: item.source_id },

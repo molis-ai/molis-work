@@ -63,9 +63,9 @@ export async function refreshAccountSourceStates(ports: FeedReconcilePorts, cont
     if (status === source.status) continue;
     const moved = await ports.commit(control, () => {
       // The source may have moved since it was read; only the one that was read is changed.
-      const latest = feed.getSource(projectId, source.source_id);
+      const latest = feed.sources.get(projectId, source.source_id);
       if (latest.status !== source.status) return false;
-      feed.upsertSource({ ...latest, status, updated_at: new Date().toISOString(), last_error_code: usable ? null : "sources.connector_disconnected" });
+      feed.sources.upsert({ ...latest, status, updated_at: new Date().toISOString(), last_error_code: usable ? null : "sources.connector_disconnected" });
       return true;
     });
     if (moved) changed += 1;

@@ -28,7 +28,7 @@ export class FeedConnectorSync {
     try { return await this.run(sourceId, input); } finally { release?.(); }
   }
   private async run(sourceId: string, input: FeedSourceSyncInput & { mode?: ConnectorSyncMode }): Promise<FeedSourceSyncResult> {
-    const source = this.feed.getSource(this.projectId, sourceId);
+    const source = this.feed.sources.get(this.projectId, sourceId);
     assertConnectorPullable(source);
     const key = normalizeIdempotencyKey(input.idempotencyKey);
     const connectionAuthority = this.ports.connectionAuthority?.(source);
@@ -40,9 +40,9 @@ export class FeedConnectorSync {
     const write = <T>(operation: () => T): Promise<T> => this.commit(() => { beforeEffect.check(); return operation(); });
     await beforeEffect();
     const operationId = stableId("connector-operation", `${source.source_id}\u0000${key}\u0000${input.mode ?? "normal"}`);
-    const prior = this.feed.getSourceRunByOperationId(this.projectId, operationId);
+    const prior = this.feed.sources.runByOperationId(this.projectId, operationId);
     if (prior?.phase === "terminal") {
-      return { source: this.feed.getSource(this.projectId, sourceId), run: prior, created: 0, deduped: 0, replayed: true };
+      return { source: this.feed.sources.get(this.projectId, sourceId), run: prior, created: 0, deduped: 0, replayed: true };
     }
     let listener!: FeedConnectorListener;
     let listenerResult: ListenerRunReceipt;
@@ -50,7 +50,7 @@ export class FeedConnectorSync {
       const ingest: AfterAccepted = (item, signal, occurredAt) => {
         // Delivered inside the commit of its signal: the item lands only on the source this pull checked.
         beforeEffect.check();
-        const latest = this.feed.getSource(this.projectId, source.source_id);
+        const latest = this.feed.sources.get(this.projectId, source.source_id);
         this.feed.ingestItem({
           source: latest,
           externalId: `${latest.source_id}:${item.externalId}`,
@@ -85,8 +85,8 @@ export class FeedConnectorSync {
         && Object.hasOwn(listenerErrors, error.code.slice("listener.".length)) ? error.code : safeErrorCode(error);
       // A source's failure is that source's: it is recorded on the source below and never stops the plugin for the others.
       await write(() => {
-        const latest = this.feed.getSource(this.projectId, sourceId);
-        this.feed.upsertSource({
+        const latest = this.feed.sources.get(this.projectId, sourceId);
+        this.feed.sources.upsert({
           ...latest,
           status: latest.enabled ? "error" : "paused",
           last_error_code: errorCode,
@@ -125,7 +125,7 @@ export class FeedConnectorSync {
           && source.schedule.mode === "interval"
           ? { ...source.schedule, next_pull_at: retryAfterAt }
           : source.schedule;
-        this.feed.upsertSource({
+        this.feed.sources.upsert({
           ...source,
           status: failure === "rate_limited" ? "active" : "error",
           schedule: retrySchedule,
@@ -146,8 +146,8 @@ export class FeedConnectorSync {
     const mode = connectorReceipt.mode === "fixture" ? "fixture" : "live";
     const cursor = listener.checkpoint().cursor;
     const durableSource = await write(() => {
-      const latest = this.feed.getSource(this.projectId, source.source_id);
-      const durable = this.feed.upsertSource({
+      const latest = this.feed.sources.get(this.projectId, source.source_id);
+      const durable = this.feed.sources.upsert({
         ...latest,
         status: mode === "live" ? "active" : "error",
         cursor,
@@ -166,7 +166,7 @@ export class FeedConnectorSync {
     });
     return {
       source: durableSource,
-      run: this.feed.getSourceRunByOperationId(this.projectId, operationId)!,
+      run: this.feed.sources.runByOperationId(this.projectId, operationId)!,
       created: listenerResult.created_count,
       deduped: listenerResult.deduped_count,
       replayed: listenerResult.replayed,

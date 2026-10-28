@@ -19,7 +19,7 @@ test("Goal Frames use outer tabs, preserve references, and isolate project state
   catalog.close();
   const now = new Date().toISOString();
   const feed = createLocalFeedApplication(store.db);
-  const source = feed.upsertSource({
+  const source = feed.sources.upsert({
     project_id: DEMO_PROJECT_ID, source_id: "frame-rss", kind: "rss", definition_id: "rss", sync_kind: "manual",
     name: "产品观察", description: "Frame 验证", status: "active", enabled: true, item_count: 0, origin: "molis_work",
     config: {}, schedule: { mode: "manual" }, cursor: null, credential_ref: null, account_label: null,

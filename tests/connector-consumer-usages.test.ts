@@ -83,7 +83,7 @@ test("ASC-10 ASC-13 ASC-21: Functions reports its actual selected account and in
 test("ASC-10 ASC-13 ASC-21: Feed reports only this project's account sources and source control changes the next result", async t => {
   const home = await openTestHome(t), a = await home.createProject("A", ["feed"]), b = await home.createProject("B", ["feed"]);
   const account = withConnectorConnections(home.home, store => store.createToken({ serviceId: "github", displayName: "Work", token: "fixture-feed-usage-key" }));
-  for (const project of [a, b]) await home.host.withProject(project.reference, runtime => createLocalFeedApplication(runtime.store.db).upsertSource({
+  for (const project of [a, b]) await home.host.withProject(project.reference, runtime => createLocalFeedApplication(runtime.store.db).sources.upsert({
     project_id: project.project_id, source_id: `usage-${project.display_name}`, kind: "github", definition_id: "github", sync_kind: "github",
     name: `${project.display_name} notifications`, description: "", status: "active", enabled: true, item_count: 0, origin: "molis_work",
     config: { connection_id: account.connection_id }, schedule: { mode: "manual", enabled: false }, cursor: {}, credential_ref: account.credential_ref,

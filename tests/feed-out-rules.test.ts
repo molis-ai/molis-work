@@ -48,7 +48,7 @@ function close(data: ReturnType<typeof harness>): void {
 test("new Feed Item matching an out rule leaves an exact Artifact and no success Inbox row", () => {
   const data = harness();
   try {
-    const rule = data.feed.createOutRule(DEMO_PROJECT_ID, {
+    const rule = data.feed.outRules.create(DEMO_PROJECT_ID, {
       name: "发布相关",
       match: { contains: "launch" },
     });
@@ -85,14 +85,14 @@ test("out-rule judgment records a suggestion without admitting the Feed Item", a
   const data = harness(fixture.options);
   fixture.attach(data.feed, DEMO_PROJECT_ID);
   try {
-    const rule = data.feed.createOutRule(DEMO_PROJECT_ID, {
+    const rule = data.feed.outRules.create(DEMO_PROJECT_ID, {
       name: "发布相关",
       match: { contains: "launch" },
       judgment: fixture.reference,
     });
-    assert.throws(() => data.feed.updateOutRule(DEMO_PROJECT_ID, rule.rule_id, { name: " " }));
-    assert.throws(() => data.feed.updateOutRule(DEMO_PROJECT_ID, "missing-rule", { name: "替换" }));
-    assert.deepEqual(data.feed.listOutRules(DEMO_PROJECT_ID)[0]?.judgment, fixture.reference);
+    assert.throws(() => data.feed.outRules.update(DEMO_PROJECT_ID, rule.rule_id, { name: " " }));
+    assert.throws(() => data.feed.outRules.update(DEMO_PROJECT_ID, "missing-rule", { name: "替换" }));
+    assert.deepEqual(data.feed.outRules.list(DEMO_PROJECT_ID)[0]?.judgment, fixture.reference);
     const ingested = data.feed.ingestItem({
       source: data.source,
       externalId: "launch-judge",
@@ -116,7 +116,7 @@ test("out-rule judgment records a suggestion without admitting the Feed Item", a
 test("re-ingesting the same envelope does not create a new Artifact lineage", () => {
   const data = harness();
   try {
-    const rule = data.feed.createOutRule(DEMO_PROJECT_ID, {
+    const rule = data.feed.outRules.create(DEMO_PROJECT_ID, {
       name: "发布相关",
       match: { contains: "launch" },
     });
@@ -175,7 +175,7 @@ test("creating a rule does not backfill historical Feed Items", () => {
       occurredAt: "2026-09-14T00:00:00.000Z",
       attention: false,
     });
-    data.feed.createOutRule(DEMO_PROJECT_ID, {
+    data.feed.outRules.create(DEMO_PROJECT_ID, {
       name: "发布相关",
       match: { contains: "launch" },
     });
@@ -215,7 +215,7 @@ test("registerVersion failure writes artifact_out_failed Attention and keeps the
     },
   });
   try {
-    data.feed.createOutRule(DEMO_PROJECT_ID, {
+    data.feed.outRules.create(DEMO_PROJECT_ID, {
       name: "发布相关",
       match: { contains: "launch" },
     });
@@ -259,7 +259,7 @@ for (const [what, refusal, expected] of [
       artifacts: { capture: () => { throw refusal; } },
     });
     try {
-      data.feed.createOutRule(DEMO_PROJECT_ID, { name: "发布相关", match: { contains: "launch" } });
+      data.feed.outRules.create(DEMO_PROJECT_ID, { name: "发布相关", match: { contains: "launch" } });
       assert.throws(() => data.feed.ingestItem({
         source: data.source,
         externalId: "launch-refused",
@@ -282,7 +282,7 @@ test("RAC-510 a capture that throws without a code is recorded as feed_artifact_
     artifacts: { capture: (_projectId, write) => write({ head: () => null, publish() { throw new TypeError("不是可保存的 JSON 值"); } }) },
   });
   try {
-    data.feed.createOutRule(DEMO_PROJECT_ID, { name: "发布相关", match: { contains: "launch" } });
+    data.feed.outRules.create(DEMO_PROJECT_ID, { name: "发布相关", match: { contains: "launch" } });
     const ingested = data.feed.ingestItem({
       source: data.source,
       externalId: "launch-uncapturable",
@@ -303,7 +303,7 @@ test("RAC-510 a capture that throws without a code is recorded as feed_artifact_
 test("source_rule Attention can coexist with a successful out capture", () => {
   const data = harness();
   try {
-    const rule = data.feed.createOutRule(DEMO_PROJECT_ID, {
+    const rule = data.feed.outRules.create(DEMO_PROJECT_ID, {
       name: "发布相关",
       match: { contains: "launch" },
     });
@@ -332,16 +332,16 @@ test("source_rule Attention can coexist with a successful out capture", () => {
 test("out-rule CRUD rejects an empty match and can disable a rule", () => {
   const data = harness();
   try {
-    assert.equal(data.feed.listOutRules(DEMO_PROJECT_ID).length, 0);
+    assert.equal(data.feed.outRules.list(DEMO_PROJECT_ID).length, 0);
     assert.throws(
-      () => data.feed.createOutRule(DEMO_PROJECT_ID, { name: "空规则", match: {} }),
+      () => data.feed.outRules.create(DEMO_PROJECT_ID, { name: "空规则", match: {} }),
       (error: unknown) => error instanceof ActionError && error.code === "feed.out_rule_invalid",
     );
-    const rule = data.feed.createOutRule(DEMO_PROJECT_ID, {
+    const rule = data.feed.outRules.create(DEMO_PROJECT_ID, {
       name: "发布相关",
       match: { contains: "launch" },
     });
-    data.feed.updateOutRule(DEMO_PROJECT_ID, rule.rule_id, { enabled: false });
+    data.feed.outRules.update(DEMO_PROJECT_ID, rule.rule_id, { enabled: false });
     data.feed.ingestItem({
       source: data.source,
       externalId: "launch-disabled",
@@ -356,8 +356,8 @@ test("out-rule CRUD rejects an empty match and can disable a rule", () => {
       }).length,
       0,
     );
-    data.feed.deleteOutRule(DEMO_PROJECT_ID, rule.rule_id);
-    assert.equal(data.feed.listOutRules(DEMO_PROJECT_ID).length, 0);
+    data.feed.outRules.delete(DEMO_PROJECT_ID, rule.rule_id);
+    assert.equal(data.feed.outRules.list(DEMO_PROJECT_ID).length, 0);
   } finally {
     close(data);
   }
@@ -536,7 +536,7 @@ test("Feed rule preview matches recent source messages without writes or backfil
 test("Feed rule validation cannot overwrite a rule edited while its selected capability was being checked", async () => {
   const data = harness();
   try {
-    const rule = data.feed.createOutRule(DEMO_PROJECT_ID, { name: "原规则", match: { contains: "launch" } });
+    const rule = data.feed.outRules.create(DEMO_PROJECT_ID, { name: "原规则", match: { contains: "launch" } });
     const service = new ActionService();
     let entered!: () => void, release!: () => void;
     const ready = new Promise<void>(resolve => { entered = resolve; });
@@ -550,9 +550,9 @@ test("Feed rule validation cannot overwrite a rule edited while its selected cap
     const pending = client.invoke(feedRuleActions.update, { rule_id: rule.rule_id, patch: {
       judgment: { capability_id: "fixture.judgment", version: 1, provider_id: "fixture" }, name: "旧页面修改" } });
     await ready;
-    data.feed.updateOutRule(DEMO_PROJECT_ID, rule.rule_id, { name: "另一窗口的新修改" });
+    data.feed.outRules.update(DEMO_PROJECT_ID, rule.rule_id, { name: "另一窗口的新修改" });
     release(); await assert.rejects(pending, { code: "feed.revision_conflict" });
-    const saved = data.feed.listOutRules(DEMO_PROJECT_ID).find(value => value.rule_id === rule.rule_id)!;
+    const saved = data.feed.outRules.list(DEMO_PROJECT_ID).find(value => value.rule_id === rule.rule_id)!;
     assert.equal(saved.name, "另一窗口的新修改"); assert.equal(saved.judgment, null);
   } finally { close(data); }
 });

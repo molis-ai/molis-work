@@ -169,7 +169,7 @@ for (const mode of ["disabled", "paused", "reconfigured"] as const) {
       enabled = true;
       if (mode === "paused") sources.setEnabled(source.source_id, true);
       assert.equal((await client.invoke(caller, feedSourceActions.tick, {})).completed, 1);
-      assert.notDeepEqual(sources.feed.getSource(DEMO_PROJECT_ID, source.source_id).schedule, original.schedule);
+      assert.notDeepEqual(sources.feed.sources.get(DEMO_PROJECT_ID, source.source_id).schedule, original.schedule);
       assert.equal(sources.feed.snapshot(DEMO_PROJECT_ID).feed_items.filter(item => item.source_id === source.source_id).length, 1);
       const calls = requests;
       assert.equal((await client.invoke(caller, feedSourceActions.tick, {})).due, 0);
@@ -193,7 +193,7 @@ for (const mode of ["revoked", "paused", "cancelled", "disconnected", "revoked-p
     const connectorSync = createLocalFeedConnectorSync(store.db, DEMO_PROJECT_ID, () => provider, feed, home);
     const sources = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, undefined, () => new Date(Date.now() - 360_000), home);
     const account = withConnectorConnections(home, rows => rows.createToken({ serviceId: "github", displayName: "Fixture account", token: "fixture-account-token" }));
-    const source = feed.upsertSource(accountSourceRecord("github", { status: "active", credential_ref: account.credential_ref, config: { connection_id: account.connection_id } }));
+    const source = feed.sources.upsert(accountSourceRecord("github", { status: "active", credential_ref: account.credential_ref, config: { connection_id: account.connection_id } }));
     if (mode === "scheduled-revoked") sources.configureSchedule(source.source_id, { mode: "interval", enabled: true, interval_minutes: 5 });
     const signals = new SignalsModule(fromBetterSqlite(store.db)), actions = new ActionService();
     const dispose = actions.registerProvider({ provider: { provider_id: "io.molis.work.feed", title: "Feed", kind: "plugin", project_id: DEMO_PROJECT_ID }, definitions: FEED_SOURCE_ACTIONS,
@@ -224,7 +224,7 @@ for (const mode of ["revoked", "paused", "cancelled", "disconnected", "revoked-p
         const replacement = withConnectorConnections(home, rows => rows.createToken({ serviceId: "github", displayName: "Restored account", token: "fixture-restored-token" }));
         recoverySource = sources.update(source.source_id, { connection_id: replacement.connection_id }).source_id;
         assert.notEqual(recoverySource, source.source_id, "a different account keeps a separate source identity and dedupe scope");
-        assert.equal(feed.getSource(DEMO_PROJECT_ID, source.source_id).enabled, false);
+        assert.equal(feed.sources.get(DEMO_PROJECT_ID, source.source_id).enabled, false);
       }
       const retry = { ...input, source_id: recoverySource };
       if (mode === "scheduled-revoked") {
@@ -232,7 +232,7 @@ for (const mode of ["revoked", "paused", "cancelled", "disconnected", "revoked-p
       } else assert.equal((await actions.invoke(context, feedSourceActions.sync, retry)).run.outcome, "completed");
       assert.equal(signals.query.list(DEMO_PROJECT_ID, recoverySource).length, 1);
       assert.equal(snapshot().feed.feed_items.filter(item => item.source_id === recoverySource).length, 1);
-      assert.deepEqual(feed.getSource(DEMO_PROJECT_ID, recoverySource).cursor, { position: "after-one" });
+      assert.deepEqual(feed.sources.get(DEMO_PROJECT_ID, recoverySource).cursor, { position: "after-one" });
       const calls = requests;
       if (mode === "scheduled-revoked") assert.equal((await actions.invoke(context, feedSourceActions.tick, {})).due, 0);
       else assert.equal((await actions.invoke(context, feedSourceActions.sync, retry)).replayed, true);

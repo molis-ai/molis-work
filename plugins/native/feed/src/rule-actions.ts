@@ -86,19 +86,19 @@ export function createFeedRuleHandlers(feed: FeedApplication, projectId: string,
       const item = await hydrate(feed.getFeedItem(projectId, args.item_id));
       return judgments.preview(args.judgment, feedCaptureContent(item), caller);
     }),
-    bind(feedRuleActions.list, () => ({ rules: feed.listOutRules(projectId) })),
+    bind(feedRuleActions.list, () => ({ rules: feed.outRules.list(projectId) })),
     bind(feedRuleActions.create, async (args, caller) => {
       checkSource(args.match.source_id);
-      const next = await select(feed.prepareOutRuleCreate(projectId, args), args, caller);
-      return { rule: await write(caller, () => feed.saveOutRuleCreate(next)) };
+      const next = await select(feed.outRules.prepareCreate(projectId, args), args, caller);
+      return { rule: await write(caller, () => feed.outRules.saveCreate(next)) };
     }),
     bind(feedRuleActions.update, async (args, caller) => {
       checkSource(args.patch.match?.source_id);
-      const current = feed.listOutRules(projectId).find(rule => rule.rule_id === args.rule_id);
-      const next = await select(feed.prepareOutRuleUpdate(projectId, args.rule_id, args.patch), args.patch, caller, current);
-      return { rule: await write(caller, () => feed.saveOutRuleUpdate(next, current!.revision)) };
+      const current = feed.outRules.list(projectId).find(rule => rule.rule_id === args.rule_id);
+      const next = await select(feed.outRules.prepareUpdate(projectId, args.rule_id, args.patch), args.patch, caller, current);
+      return { rule: await write(caller, () => feed.outRules.saveUpdate(next, current!.revision)) };
     }),
-    bind(feedRuleActions.delete, args => ({ rule: feed.deleteOutRule(projectId, args.rule_id) })),
+    bind(feedRuleActions.delete, args => ({ rule: feed.outRules.delete(projectId, args.rule_id) })),
     bind(feedRuleActions.evaluate, (args, caller) => feed.evaluateItems(projectId, args.item_ids, retainActionAuthority(caller, feedRuleActions.evaluate, caller.beforeEffect))),
     bind(feedRuleActions.preview, async args => {
       const snapshot = feed.snapshot(projectId);

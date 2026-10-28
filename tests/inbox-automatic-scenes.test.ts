@@ -143,7 +143,7 @@ test("HTTP admission, ingestion, workflow and scheduler events use the saved Inb
         async health() { return { ok: true, status: "connected", message: "fixture" }; },
         async sync() { return { ok: true, mode: "live", cursor: { fixture: 1 }, items: [{ externalId: "auto-issue", title: "连接器材料", summary: "需要处理", occurredAt: new Date().toISOString(), attention: { reason: "source_rule" } }] }; },
       }), connectorFeed, home);
-      const connector = connectorFeed.upsertSource(accountSourceRecord("github", { project_id: runtime.project_id, status: "active" }));
+      const connector = connectorFeed.sources.upsert(accountSourceRecord("github", { project_id: runtime.project_id, status: "active" }));
       await connectors.sync(connector.source_id, { idempotencyKey: "auto-connector-once" });
       assert.equal(localCalls, 3, "connector sync passes the trigger through its own application");
       await connectors.sync(connector.source_id, { idempotencyKey: "auto-connector-once" });
@@ -156,7 +156,7 @@ test("HTTP admission, ingestion, workflow and scheduler events use the saved Inb
     const pull = t.mock.method(globalThis, "fetch", async () => new Response(rss, { headers: { "content-type": "application/rss+xml" } }));
     const publicSources = createLocalFeedSourceService(runtime.store.db, runtime.project_id, undefined, () => now, home, feedOptions);
     const publicSource = publicSources.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
-    publicSources.feed.createOutRule(runtime.project_id, { name: "纳入 Inbox", match: { source_id: publicSource.source_id }, admission: "inbox", judgment: { capability_id: captureDefinition.capability_id, version: 1, provider_id: captureDefinition.capability_id } });
+    publicSources.feed.outRules.create(runtime.project_id, { name: "纳入 Inbox", match: { source_id: publicSource.source_id }, admission: "inbox", judgment: { capability_id: captureDefinition.capability_id, version: 1, provider_id: captureDefinition.capability_id } });
     const feedActions = bindActionClient(host.actionClient(reference), () => ({ ...caller, permissions: [...new Set([...caller.permissions, ...FEED_ACTION_PERMISSIONS])] }));
     const syncPublic = () => feedActions.invoke(feedSourceActions.sync, { source_id: publicSource.source_id, idempotency_key: "auto-public-once" });
     localFailure = true;

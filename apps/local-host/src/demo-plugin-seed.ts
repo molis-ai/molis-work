@@ -68,8 +68,8 @@ export function seedDemoPluginSurfaces(databasePath: string, projectId = DEMO_PR
       config: { scope: "in:inbox" },
     }, projectId);
 
-    if (!feed.listOutRules(projectId).some((rule) => rule.name === DEMO_OUT_RULE_NAME)) {
-      feed.createOutRule(projectId, {
+    if (!feed.outRules.list(projectId).some((rule) => rule.name === DEMO_OUT_RULE_NAME)) {
+      feed.outRules.create(projectId, {
         name: DEMO_OUT_RULE_NAME,
         match: { contains: "目标树", source_id: rss.source_id },
         enabled: true,
@@ -236,7 +236,7 @@ function upsertConnectorSource(
 ): FeedSourceRecord {
   const existing = feed.snapshot(projectId).sources.find((source) => source.source_id === input.source_id);
   if (existing) return existing;
-  return feed.upsertSource({
+  return feed.sources.upsert({
     project_id: projectId,
     source_id: input.source_id,
     kind: input.kind,

@@ -75,7 +75,7 @@ test("concurrent manual Feed evaluations consume only the Inbox events they crea
     });
     const source = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID).register({ kind: "web_query", query: "ownership" }).source;
     const items = ["a", "b"].map(id => feed.ingestItem({ source, externalId: id, title: id, summary: id, occurredAt: new Date().toISOString(), attention: false }).item);
-    feed.createOutRule(DEMO_PROJECT_ID, { name: "Own events", match: { source_id: source.source_id }, admission: "inbox" });
+    feed.outRules.create(DEMO_PROJECT_ID, { name: "Own events", match: { source_id: source.source_id }, admission: "inbox" });
     const context = (actor_id: string) => ({ actor_id, project_id: DEMO_PROJECT_ID, audience: "user" as const, permissions: [] });
     const first = feed.evaluateItems(DEMO_PROJECT_ID, [items[0]!.item_id], context("a"));
     await entered.promise;
@@ -103,7 +103,7 @@ async function cancellableFeed(run: (fixture: {
   try {
     const feed = createLocalFeedApplication(store.db, { captureJudgment: judge("capture"), homeJudgment: judge("home"), inboxJudgment: judge("inbox") });
     const source = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID).register({ kind: "web_query", query: "cancel" }).source;
-    feed.createOutRule(DEMO_PROJECT_ID, { name: "Every item", match: { source_id: source.source_id }, admission: "inbox" });
+    feed.outRules.create(DEMO_PROJECT_ID, { name: "Every item", match: { source_id: source.source_id }, admission: "inbox" });
     await run({ feed, calls, context: actor_id => ({ actor_id, project_id: DEMO_PROJECT_ID, audience: "user" as const, permissions: [] }),
       ingest: id => feed.ingestItem({ source, externalId: id, title: id, summary: id, occurredAt: new Date().toISOString(), attention: false }).item.item_id });
   } finally { store.close(); rmSync(home, { recursive: true, force: true }); }

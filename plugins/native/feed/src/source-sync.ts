@@ -30,14 +30,14 @@ export class PublicSourceSync {
     const operationId = stableId("feed-operation", `${source.source_id}\u0000${idempotencyKey}`);
     const request = buildExactRequest(source, operationId, this.ports.providers);
     const planFingerprint = fingerprintSearchIntentExactV1(request);
-    const prior = this.feed.getSourceRunByOperationId(this.projectId, operationId);
+    const prior = this.feed.sources.runByOperationId(this.projectId, operationId);
     if (prior?.phase === "terminal") {
       const storedFingerprint = prior.receipt?.intent_fingerprint;
       if (storedFingerprint && storedFingerprint !== planFingerprint) {
         throw feedErrors.source_idempotency_conflict("同一幂等键对应的来源配置已经变化");
       }
       return {
-        source: this.feed.getSource(this.projectId, sourceId),
+        source: this.feed.sources.get(this.projectId, sourceId),
         run: prior,
         created: 0,
         deduped: 0,
@@ -65,7 +65,7 @@ export class PublicSourceSync {
     };
     const started = running;
     await write(() => {
-      this.feed.upsertSourceRun(started);
+      this.feed.sources.upsertRun(started);
       this.ports.appendEvent(this.projectId, sourceId, "feed_source.sync_started", "开始同步 Feed 来源", {
         operation_id: operationId,
       });
@@ -77,7 +77,7 @@ export class PublicSourceSync {
       await beforeEffect();
       running = { ...running, receipt: withReceiptContentRefs(running.receipt, contentRefs) };
       const named = running;
-      await write(() => { this.feed.upsertSourceRun(named); });
+      await write(() => { this.feed.sources.upsertRun(named); });
       await this.ports.holdContent!(source, contentRefs);
     } : undefined;
     const runtime = this.ports.createRuntime(source, operationId, hold);
@@ -92,7 +92,7 @@ export class PublicSourceSync {
       // A pull that has already committed is done, whatever a judgment made of it afterwards: report that failure as it is. The guard below
       // counts the pull's own source write as one person's edit of another (it keeps the revision the source had when the pull started), so it
       // must not be asked once the terminal run is there; the run keeps the record an explicit retry can replay.
-      const current = this.feed.getSourceRunByOperationId(this.projectId, operationId);
+      const current = this.feed.sources.runByOperationId(this.projectId, operationId);
       if (current?.phase === "terminal") throw error;
       // A pull refused for its source keeps no receipt, as one the platform refused inside the pull does: the same key pulls again, and what
       // was fetched for the source as it was is never replayed into it (FI-C-05). A call that may no longer write leaves the record, which the
@@ -114,15 +114,15 @@ export class PublicSourceSync {
         updated_at: updatedAt,
       };
       await write(() => {
-        this.feed.upsertSourceRun(interrupted);
-        const latest = this.feed.getSource(this.projectId, sourceId);
+        this.feed.sources.upsertRun(interrupted);
+        const latest = this.feed.sources.get(this.projectId, sourceId);
         const rssFailure = this.ports.providers.rss.isSourceKind(latest.kind)
           ? this.ports.providers.rss.withFailure(latest.cursor)
           : null;
         const actionable = rssFailure
           ? rssFailureAction(errorCode, rssFailure.failures)
           : null;
-        this.feed.upsertSource({
+        this.feed.sources.upsert({
           ...latest,
           status: latest.enabled ? (actionable ? "error" : rssFailure ? "active" : "error") : "paused",
           cursor: rssFailure?.cursor ?? latest.cursor,
@@ -134,7 +134,7 @@ export class PublicSourceSync {
           error_code: errorCode,
         });
         // The fault that explains the failure is part of the same write.
-        const failedSource = this.feed.getSource(this.projectId, sourceId);
+        const failedSource = this.feed.sources.get(this.projectId, sourceId);
         if (this.ports.providers.rss.isSourceKind(failedSource.kind)) {
           const fault = rssFailureAction(errorCode, this.ports.providers.rss.failureCount(failedSource.cursor));
           if (fault) this.recordRssSourceFault(failedSource, errorCode, fault, updatedAt);
@@ -163,7 +163,7 @@ export class PublicSourceSync {
     let terminal!: FeedSourceRunRecord;
     let actionableRssFailure: ReturnType<typeof rssFailureAction> = null;
     await write(() => {
-      const latest = this.feed.getSource(this.projectId, entrySource.source_id);
+      const latest = this.feed.sources.get(this.projectId, entrySource.source_id);
       if (consumable) {
         for (const material of result.materials) {
           const externalId = `${latest.kind}:${sourceDedupeScope(latest)}:${material.candidateId}`;
@@ -237,7 +237,7 @@ export class PublicSourceSync {
         completed_at: completedAt,
         updated_at: completedAt,
       };
-      durableSource = this.feed.upsertSource({
+      durableSource = this.feed.sources.upsert({
         ...latest,
         status: latest.enabled
           ? (actionableRssFailure
@@ -255,7 +255,7 @@ export class PublicSourceSync {
         last_error_code: errorCode,
         updated_at: completedAt,
       });
-      this.feed.upsertSourceRun(terminal);
+      this.feed.sources.upsertRun(terminal);
       this.ports.appendEvent(this.projectId, latest.source_id, "feed_source.sync_completed", `来源同步${result.outcome}：新增 ${created}，去重 ${deduped}`, {
         operation_id: running.operation_id,
         outcome: result.outcome,

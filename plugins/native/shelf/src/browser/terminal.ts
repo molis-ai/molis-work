@@ -7,14 +7,13 @@ declare global {
   var molisPageTerminal: UiPageTerminal;
 }
 
-const ENDED = "终端会话已结束，未发送的输入已恢复。", DROPPED = "终端连接已断开，未发送的输入已恢复。";
-
 /**
  * The terminal well of 「对话」: the page asks Shelf's own backend to open a terminal, then attaches only to the panel it returns,
  * through the platform's terminal handle (the renderer is the platform's, loaded when the well first mounts). It leaves the bridge
  * `tui.ts` sends through on the page for as long as the root lives.
  */
 export function installTerminal(page: ShelfPage): void {
+  const ended = page.L("shelf.tui.terminal-ended"), dropped = page.L("shelf.tui.terminal-dropped");
   const screen = page.bench.querySelector<HTMLElement>("[data-shelf-tty-screen]");
   if (!screen) return;
   const terminal = globalThis.molisPageTerminal;
@@ -36,10 +35,10 @@ export function installTerminal(page: ShelfPage): void {
     if (event.type === "spawned") {
       live = event.started || event.attached;
       if (live) for (const line of queued.splice(0)) write(line);
-      else end(ENDED);
-    } else if (event.type === "exit") end(ENDED);
+      else end(ended);
+    } else if (event.type === "exit") end(ended);
     else if (event.type === "disconnected") {
-      live = false; recover(DROPPED);
+      live = false; recover(dropped);
     } else if (event.type === "error") recover(event.message);
   };
   const open = async () => {

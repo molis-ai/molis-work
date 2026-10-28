@@ -30,7 +30,7 @@ Shelf 的 `registration.workbench.clientAssets` 写 `/desktop/pty-client.js`：�
 
 - `startGoalTerminalClient` 与 `[data-tui-pane]` 窗格是 Goals 的界面，随 Goals S11 一起改成 Goals 自己的客户端（BL-637）；入口里这一行留着。
 - `molisTerminalRenderer`、Characters 终端：平台自己的，留在入口。
-- Shelf 里留下两处小尾巴，不是这片的事（BL-638）：包里早已没人引用的 `@xterm` 依赖与 `xterm-css.d.ts`，以及终端井两句写死的中文恢复提示（原样搬过来，没有进翻译键）。
+- Shelf 里留下两处小尾巴，不是这片的事（BL-638）：包里早已没人引用的 `@xterm` 依赖与 `xterm-css.d.ts`，以及终端井两句写死的中文恢复提示（原样搬过来，没有进翻译键）。已做（T-012）。
 - 终端合同（`UiPageTerminal`）不动：`molisPageTerminal` 仍是框架给每个插件的句柄；把它放进 `UiPluginClientHost` 是合同新字段，另议。
 - 页面资源：Shelf 包（`shelf.js`）因接收这段代码增大约 1.4 KB，`pty-client.js` 同量减小（它不在预算里）。这是搬家，不是新功能；放行写在 PR。
 

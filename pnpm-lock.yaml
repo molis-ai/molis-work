@@ -1178,12 +1178,6 @@ importers:
       '@molis-ai/molis-work-plugin-sdk':
         specifier: workspace:*
         version: link:../../../packages/plugin-sdk
-      '@xterm/addon-fit':
-        specifier: ^0.11.0
-        version: 0.11.0
-      '@xterm/xterm':
-        specifier: ^6.0.0
-        version: 6.0.0
     devDependencies:
       esbuild:
         specifier: ^0.28.2

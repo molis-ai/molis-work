@@ -89,6 +89,8 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-089 | Runtime 解除目录关联成功那条路补用例，绑定错误码用例进 CI 产品子集 | 丙 | B | 42 | — | `tests/runtime-binding-error-codes.test.ts`、`tests/ci-product-subset.txt` |
 | T-090 | 待办的标题、说明、等待对象与内容、来源和关联的名称按 Unicode 字数数上限，与动作 schema 一致 | 乙 | B | 43 | — | `plugins/native/todo/src/store-normalize.ts`、`plugins/native/todo/src/store-writes.ts`、`tests/todo-actions.test.ts` |
 | T-091 | 定时对话任务的标题与说明按 Unicode 字数数上限，与动作说明和报错一致 | 乙 | 池 | 44 | — | `plugins/native/schedule/src/tasks.ts`、`tests/schedule-conversation-tasks.test.ts` |
+| T-092 | Issue 的标题、描述、图片名称与录入草稿按 Unicode 字数数上限，与动作 schema 和表的 CHECK 一致 | 乙 | B | 45 | — | `plugins/native/issues/src/store.ts`、`plugins/native/issues/src/images.ts`、`plugins/native/issues/src/capture.ts`、`tests/issue-home.test.ts`、`tests/issue-capture.test.ts` |
+| T-093 | Issue 起名时模型给的标题、追问和编辑中的描述按 Unicode 字数数上限，与动作 schema 一致 | 乙 | 池 | 46 | T-092（只排合并） | `plugins/native/issues/src/naming.ts`、`plugins/native/issues/src/actions.ts`、`tests/issue-naming.test.ts` |
 
 ## 在途，不走任务书
 

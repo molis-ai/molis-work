@@ -53,6 +53,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-041 | 把 Feed 的标签用例加进 CI 产品子集，改正「现在 363 个」 | 丙 | B | 8 | T-025 | `tests/ci-product-subset.txt`、`docs/system/PACKAGE-BOUNDARIES.md`（只第 142 行） |
 | T-042 | 启动或恢复到一半被人停用，Runtime 不再记成崩溃、不再花恢复预算 | 甲 | 本机 | 4 | T-034 | `packages/plugin-runtime/src/index.ts`（只改 `startOnce`、`recoverOnce` 的 `catch` 和 `contexts` 的类型）、`packages/plugin-runtime/src/activation-context.ts`、`packages/plugin-runtime/README.md`（只改 stop 同步撤销那一条）、`tooling/gates/giant-exceptions.json`（只改 `PluginRuntime` 的 `size`）、`tests/plugin-lifecycle-states.test.ts`（只在文件末尾追加，不加 import） |
 | T-044 | 助理底栏输入法用例的键盘事件不再带 nativeVirtualKeyCode（BL-393） | 丙 | A | 13 | — | `tests/assistant-dock-ime.e2e.test.ts`（`specs/BACKLOG.md` 只删 BL-393 行，不锁） |
+| T-045 | BACKLOG 清理：BL-143 删行，BL-464 改成只写没做的，BL-544 核对后留着 | 丙 | B | 9 | — | —（`specs/BACKLOG.md` 只这三行，不锁） |
 | T-046 | 接入授权的读取与取消只认准备者（BL-180） | 乙 | 池 | 13 | — | `apps/local-host/src/connector-management-actions.ts`、`apps/local-host/src/connector-authorization-status.ts`（只改 `requireConnectorInitiator` 的注释与文案）、`tests/security-invariants-connector-scope.test.ts`、`tests/connector-setup.test.ts`、`tests/security-invariants-connector-intent.test.ts`、`tests/assistant-connector-continuation.test.ts`（`docs/system/SECURITY-INVARIANTS.md` 只 S-37 一行、`specs/BACKLOG.md` 只删 BL-180 行，不锁） |
 
 ## 在途，不走任务书

@@ -55,7 +55,7 @@
 
 | 编号 | 事项 | 来源 | 类型 | 为什么还没做 | 依赖 | 优先级 | 负责人 |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| BL-022 | 团队记忆：成员选择有权分享的记忆发布到团队，团队管理员管理；个人记忆不自动公开 | [team-collaboration §2.4](team-collaboration/spec.md#24-成员发布记忆团队管理员管理2026-10-28-用户决定)、[现行记忆方案](prologue-memory-strategy/spec.md) | 明确后续做 | 发布与管理原则已定，交互、版本更新与同步仍待实施验证 | 团队身份／访问、个人同步与现行记忆公开合同 | 低 | 需求维护 Codex，实现待分配 |
+| BL-022 | 独立团队记忆：成员发布前再次确认并告知不可撤回，团队吸收和融合贡献，管理员维护团队记忆；个人内容不自动公开 | [team-memory](team-memory/spec.md)、[现行记忆机制](prologue-memory-strategy/spec.md) | 明确后续做 | 发布确认与不可撤回已定，个人／团队不同策略及融合、管理、使用方案待细化，尚未实现 | 团队身份／访问、个人同步与现行记忆公开合同；不扩大原 P0 | 低 | 需求维护 Codex，实现待分配 |
 | BL-030 | 关闭应用后的持续执行与按时提醒：定时与委托只在服务进程活着时运行，Todo 提醒在关闭期间也不送达 | [system-assistant/implementation.md §4、§16 AC24](archive/system-assistant/implementation.md)、[todo-plugin D09](archive/todo-plugin/implementation.md) | 已知缺口 | 本机单进程的环境边界 | 常驻服务或系统级唤醒 | 低 | 未分配 |
 | BL-031 | Prologue：停止时为等待审批的工具补记取消；真正发出后没回执的修改只能显示「结果未确认」 | [system-assistant/implementation.md §4](archive/system-assistant/implementation.md)、[prologue-capability-matrix 缺口 7](archive/system-assistant/prologue-capability-matrix.md) | 已知缺口 | 需改 SDK | Prologue 上游 | 中 | 未分配 |
 | BL-032 | 「只说不做」自动续做一次：真实模型下的复现验证 | [system-assistant/implementation.md §4](archive/system-assistant/implementation.md) | 部分实现 | 待真实复现 | 无 | 低 | 未分配 |

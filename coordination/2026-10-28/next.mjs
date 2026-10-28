@@ -72,12 +72,15 @@ function parseBoard(text) {
   const rows = [];
   const standingLocks = [];
   const urgent = new Set();
+  const notices = [];
   let header = null;
   for (const line of text.split("\n")) {
     if (!line.startsWith("|")) {
       header = null;
       const listed = line.match(/^加急[:：](.*)$/);
       if (listed) for (const m of listed[1].matchAll(/T-\d{3}/g)) urgent.add(m[0]);
+      const notice = line.match(/^公告[:：](.*)$/);
+      if (notice) notices.push(notice[1].trim());
       continue;
     }
     const cells = line.slice(1, -1).split("|").map((c) => c.trim());
@@ -102,7 +105,7 @@ function parseBoard(text) {
       });
     } else if (header.includes("锁定的文件")) standingLocks.push(...locks);
   }
-  return { rows, standingLocks, urgent };
+  return { rows, standingLocks, urgent, notices };
 }
 
 function checkState(pr, test) {
@@ -298,6 +301,8 @@ function plan(snap) {
   const item = (key, text, url, order = 5) => ({ key, text, url, order });
   const ref = (s) => `${s.pr.id} #${s.pr.number} @${s.head9}`;
   const out = [];
+  // A 「公告：」 line on the board (the coordinator's, e.g. a pause on opening pull requests) comes first for every role until it is removed.
+  for (const [i, text] of board.notices.entries()) out.push(item(`notice:${i}:${text}`, `公告：${text}`, null, 0));
 
   if (role === "dev-a" || role === "dev-b" || role === "dev-ca" || role === "codex") {
     const suffix = role === "codex" ? "cx" : role.slice(4);

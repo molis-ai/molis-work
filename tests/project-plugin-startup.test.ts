@@ -78,3 +78,124 @@ test("background startup shares its instance with later UI execution adapters an
     assert.equal((await actions.client.discover(caller)).length, 0);
   } finally { await releaseProjectPlugins(store, DEMO_PROJECT_ID); store.close(); rmSync(home, { recursive: true, force: true }); }
 });
+
+type RunningPlugin = { readonly id: string; readonly install: string };
+type RunningPlatform = NonNullable<Awaited<ReturnType<typeof ensureProjectPlugins>>["platform"]>;
+
+async function openProject() {
+  const home = mkdtempSync(join(tmpdir(), "project-plugin-close-")), file = join(home, "project.sqlite");
+  await new MolisWorkLocalHost({ homeDirectory: home, completeText: null }).close();
+  seedDemoBoard(file);
+  const store = new LocalProjectDatabase(file);
+  const ports = { store, ...openProjectVersionStores(store), projectId: DEMO_PROJECT_ID, actorId: "web-user", homeDirectory: home, actions: pluginActions(store, DEMO_PROJECT_ID) };
+  return { home, store, ports };
+}
+
+/** The plugins the close loop stops, in the loop's own order, and each one's installation. */
+function runningPlugins(platform: RunningPlatform): RunningPlugin[] {
+  return platform.supervisor.enabledPluginIds().flatMap(id => {
+    const state = platform.supervisor.state(id);
+    return state?.status === "running" && state.install_id ? [{ id, install: state.install_id }] : [];
+  });
+}
+
+/** Every installation's Runtime record, read the way the Host's record store reads it (`plugin_runtime_installs.record_json`). */
+function installRecords(store: LocalProjectDatabase): Array<{ install_id: string; state: string }> {
+  const rows = store.db.prepare("SELECT record_json FROM plugin_runtime_installs").all() as Array<{ record_json: string }>;
+  return rows.map(row => JSON.parse(row.record_json) as { install_id: string; state: string });
+}
+
+test("RAC-1453 a project plugin whose install record the Runtime cannot give is one close failure, and the plugins after it still stop and are revoked", async () => {
+  const { home, store, ports } = await openProject();
+  const platform = (await ensureProjectPlugins(ports)).platform;
+  assert.ok(platform);
+  const running = runningPlugins(platform);
+  assert.ok(running.length > 1, "a project has more than one running plugin");
+  const [gone, ...rest] = running;
+  // Keep the row so the finally can put it back; deleting it is how the close meets a record the Runtime cannot give.
+  const saved = store.db.prepare("SELECT * FROM plugin_runtime_installs WHERE install_id = ?").get(gone.install) as Record<string, unknown>;
+  assert.ok(saved);
+  store.db.prepare("DELETE FROM plugin_runtime_installs WHERE install_id = ?").run(gone.install);
+  try {
+    await assert.rejects(releaseProjectPlugins(store, DEMO_PROJECT_ID), error => {
+      assert.ok(error instanceof AggregateError);
+      assert.match(error.message, /项目插件停止失败/);
+      assert.equal(error.errors.length, 1);
+      assert.equal((error.errors[0] as { code?: string }).code, "plugin.definition_missing");
+      return true;
+    });
+    assert.equal(store.db.prepare("SELECT 1 FROM plugin_runtime_installs WHERE install_id = ?").get(gone.install), undefined);
+    const records = installRecords(store);
+    for (const plugin of rest) assert.equal(records.find(record => record.install_id === plugin.install)?.state, "installed", `${plugin.id} stops after the plugin whose record is gone`);
+    for (const plugin of running) {
+      assert.ok(!platform.supervisor.enabledPluginIds().includes(plugin.id), `${plugin.id} is revoked`);
+      assert.equal(platform.supervisor.state(plugin.id)?.code, "plugin.revoked");
+    }
+  } finally {
+    const columns = Object.keys(saved);
+    store.db.prepare(`INSERT INTO plugin_runtime_installs (${columns.join(", ")}) VALUES (${columns.map(column => `@${column}`).join(", ")})`).run(saved);
+    // Nobody stopped the instance whose record was gone; the project is already forgotten, so release cannot reach it.
+    if (platform.runtime.get(gone.install).state === "running") await platform.runtime.stop(gone.install);
+    await releaseProjectPlugins(store, DEMO_PROJECT_ID);
+    store.close();
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test("RAC-1454 a crashed installation the supervisor still counts running is not stopped, does not fail the close, and keeps its record", async () => {
+  const { home, store, ports } = await openProject();
+  const platform = (await ensureProjectPlugins(ports)).platform;
+  assert.ok(platform);
+  const running = runningPlugins(platform);
+  assert.ok(running.length > 1);
+  const crashed = running[0];
+  await platform.runtime.reportCrash(crashed.install);
+  assert.equal(platform.runtime.get(crashed.install).state, "crashed");
+  assert.equal(platform.supervisor.state(crashed.id)?.status, "running", "the supervisor does not hear about a crash");
+  try {
+    await releaseProjectPlugins(store, DEMO_PROJECT_ID);
+    const records = installRecords(store);
+    assert.equal(records.find(record => record.install_id === crashed.install)?.state, "crashed");
+    for (const plugin of running.slice(1)) assert.equal(records.find(record => record.install_id === plugin.install)?.state, "installed");
+    for (const plugin of running) {
+      assert.ok(!platform.supervisor.enabledPluginIds().includes(plugin.id));
+      assert.equal(platform.supervisor.state(plugin.id)?.code, "plugin.revoked");
+    }
+  } finally {
+    await releaseProjectPlugins(store, DEMO_PROJECT_ID);
+    store.close();
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test("RAC-1455 every running project plugin is stopped exactly once with preserve_enabled, recorded installed, and starts again when the project reopens", async () => {
+  const { home, store, ports } = await openProject();
+  const platform = (await ensureProjectPlugins(ports)).platform;
+  assert.ok(platform);
+  const running = runningPlugins(platform);
+  assert.ok(running.length > 0);
+  const stop = platform.runtime.stop.bind(platform.runtime);
+  const stopped: Array<{ install: string; options: { preserve_enabled?: boolean } | undefined }> = [];
+  platform.runtime.stop = async (installId, options) => {
+    stopped.push({ install: installId, options });
+    return stop(installId, options);
+  };
+  let reopened: Awaited<ReturnType<typeof ensureProjectPlugins>> | null = null;
+  try {
+    await releaseProjectPlugins(store, DEMO_PROJECT_ID);
+    assert.deepEqual(stopped.map(entry => entry.install).sort(), running.map(plugin => plugin.install).sort());
+    for (const entry of stopped) {
+      assert.equal(stopped.filter(other => other.install === entry.install).length, 1, "each installation is stopped once");
+      assert.deepEqual(entry.options, { preserve_enabled: true });
+    }
+    const records = installRecords(store);
+    for (const plugin of running) assert.equal(records.find(record => record.install_id === plugin.install)?.state, "installed");
+    reopened = await ensureProjectPlugins(ports);
+    assert.ok(reopened.platform);
+    for (const plugin of running) assert.equal(reopened.platform.supervisor.state(plugin.id)?.status, "running");
+  } finally {
+    await releaseProjectPlugins(store, DEMO_PROJECT_ID);
+    store.close();
+    rmSync(home, { recursive: true, force: true });
+  }
+});

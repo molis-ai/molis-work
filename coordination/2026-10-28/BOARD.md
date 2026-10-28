@@ -10,8 +10,6 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 
 ## 任务
 
-加急：T-019
-
 | 任务 | 标题 | 档 | 派给 | 顺位 | 依赖 | 锁定的文件 |
 | --- | --- | --- | --- | --- | --- | --- |
 | T-001 | 删掉 Feed 两个没有调用方的读取函数 | 丙 | A | 1 | — | `plugins/native/feed/src/store/items/index.ts`、`plugins/native/feed/src/store/listener.ts`、`tests/owner-readers.test.ts`、`plugins/native/feed/README.md`、`docs/system/HOME-DATA.md` |
@@ -49,6 +47,11 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-035 | Host 关闭时只停 Runtime 记录里确实在跑的安装，崩掉的不再让整次关闭失败 | 乙 | 池 | 11 | T-032 | `apps/local-host/src/installed-plugin-host.ts`（只改关闭循环）、`tests/installed-plugin-host.test.ts`（与 T-032、T-033、T-034 共改：T-035 只在文件末尾追加，不加 import） |
 | T-037 | 关闭项目插件时 Runtime 读不到记录，不再跳过它的撤销和排在后面的插件 | 甲 | 池 | 12 | — | `apps/local-host/src/project-plugins.ts`（只改 `stopProjectPlugins` 的守卫）、`tests/project-plugin-startup.test.ts`（只在文件末尾追加，不加 import） |
 | T-036 | CDP 命令的回复先于到期的定时器算数，超时的错误带上 Chrome 消息量与 Node 占用 | 乙 | A | 6 | — | `packages/test-kit/src/browser/cdp.ts`、`packages/test-kit/tests/browser.test.mjs`（只在 `:258-273` 那例之后追加）、`packages/test-kit/README.md` |
+| T-038 | 装依赖守卫（ci-install）认得更多写法，再加一个计数哨兵 | 乙 | A | 10 | — | `tests/ci-install.test.ts`、`tests/fixtures/ci-workflow.ts`（只加 `workflowFiles()`） |
+| T-039 | 七个文件里的陈旧话：BL-490 旧状态、预览数、R-A5、外部 Runtime 文件数、调度入口、一条测试注释 | 丙 | A | 11 | — | `specs/repository-anti-corruption/slices/pg017-sandbox-services.md`（只第 109 行）、`specs/repository-anti-corruption/privileges.md`（只第 179 行）、`specs/repository-anti-corruption/slices/pg022-manifest-declarations.md`（只第 25 行）、`docs/platform/PLUGIN-PLATFORM.md`（只第 138 行）、`docs/system/GLOSSARY.md`（只第 415 行）、`docs/system/EXTENSION-POINTS.md`（只第 48、193、284 行）、`tests/security-invariants-route-grants.test.ts`（只第 3 行注释） |
+| T-040 | 删掉 `renderPluginRail` 里没人传的 `accountFooter` 参数和一条没人用的翻译 | 丙 | A | 12 | T-006 | `apps/workbench/src/immersive-shell.ts`、`apps/workbench/src/shell-page-renderer.ts`（只第 260 行）、`apps/workbench/src/primitive-catalog.ts`（只第 54 行）、`apps/workbench/src/i18n/gap-en.ts`（只第 54 行）、`tests/agent-built-plugins-workbench.test.ts`、`tests/characters-appearance.test.ts`、`tests/plugin-picker-pins.test.ts` |
+| T-041 | 把 Feed 的标签用例加进 CI 产品子集，改正「现在 363 个」 | 丙 | B | 8 | T-025 | `tests/ci-product-subset.txt`、`docs/system/PACKAGE-BOUNDARIES.md`（只第 142 行） |
+| T-042 | 启动或恢复到一半被人停用，Runtime 不再记成崩溃、不再花恢复预算 | 甲 | 本机 | 4 | T-034 | `packages/plugin-runtime/src/index.ts`（只改 `startOnce`、`recoverOnce` 的 `catch` 和 `contexts` 的类型）、`packages/plugin-runtime/src/activation-context.ts`、`packages/plugin-runtime/README.md`（只改 stop 同步撤销那一条）、`tooling/gates/giant-exceptions.json`（只改 `PluginRuntime` 的 `size`）、`tests/plugin-lifecycle-states.test.ts`（只在文件末尾追加，不加 import） |
 
 ## 在途，不走任务书
 

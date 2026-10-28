@@ -9,17 +9,20 @@ import { sendBarrier } from "./fixtures/assistant-send-journey.js";
 // opens (twice round) and Files and Git refresh. Before, Todo's skeleton showed for 3 frames on its first open, and the
 // Files and Git refresh spinners for 1 to 4 frames on every open and refresh; marks now wait 250ms (`.mw-loading`'s rule).
 // A refresh held back in Chrome (a real request) keeps the button's label at first and shows the spinner after the wait.
-// How long a load takes is the runner's, not the rule's: a mark that shows only once its own 250ms wait has passed is a slow
-// load and is not counted; a mark with no such wait (none, or a shorter one) is the flash this test is for.
+// How long a load takes is the runner's, not the rule's: a mark that shows only once its own 250ms wait (`mw-loading-in` or
+// `mw-busy-dim`, on the mark or an ancestor) has passed is a slow load and is not counted; a mark with no such wait (none, a
+// shorter one, or only an unrelated ancestor's delayed animation) is the flash this test is for.
 
 const SAMPLE = `window.__marks = []; (() => { const seen = (el) => { if (!el.isConnected) return false; const box = el.getBoundingClientRect(); if (!box.width || !box.height || box.bottom <= 0 || box.top >= innerHeight) return false;
     for (let node = el; node; node = node.parentElement) { const style = getComputedStyle(node); if (style.display === 'none' || +style.opacity < 0.05 || (node === el && style.visibility !== 'visible')) return false; } return true; };
   const name = (el) => el.tagName.toLowerCase() + (typeof el.className === 'string' && el.className ? '.' + el.className.trim().split(/\\s+/)[0] : '');
-  const waited = (el) => { for (let node = el; node; node = node.parentElement) if (node.getAnimations().some((motion) => { const delay = motion.effect?.getTiming().delay ?? 0; return delay >= 250 && motion.currentTime >= delay; })) return true; return false; };
-  const frame = () => { const now = [];
-    for (const el of document.querySelectorAll('.mw-spinner, .mw-skeleton')) if (seen(el) && !waited(el)) now.push(name(el));
-    for (const el of document.querySelectorAll('[aria-busy=true]')) if (seen(el)) for (const part of [el, ...el.children]) if (seen(part) && +getComputedStyle(part).opacity < 0.95 && !waited(part)) { now.push('dim ' + name(part)); break; }
-    if (now.length) window.__marks.push(now.join(', ')); requestAnimationFrame(frame); }; requestAnimationFrame(frame); })();`;
+  const waited = (el) => { for (let node = el; node; node = node.parentElement) if (node.getAnimations().some((motion) => { const delay = motion.effect?.getTiming().delay ?? 0; return ['mw-loading-in', 'mw-busy-dim'].includes(motion.animationName) && delay >= 250 && motion.currentTime >= delay; })) return true; return false; };
+  const marksNow = (root = document) => { const now = [];
+    for (const el of root.querySelectorAll('.mw-spinner, .mw-skeleton')) if (seen(el) && !waited(el)) now.push(name(el));
+    for (const el of root.querySelectorAll('[aria-busy=true]')) if (seen(el)) for (const part of [el, ...el.children]) if (seen(part) && +getComputedStyle(part).opacity < 0.95 && !waited(part)) { now.push('dim ' + name(part)); break; }
+    return now; };
+  window.__marksNow = marksNow;
+  const frame = () => { const now = marksNow(); if (now.length) window.__marks.push(now.join(', ')); requestAnimationFrame(frame); }; requestAnimationFrame(frame); })();`;
 const ORDER = ["todo", "pages", "coding", "ppt", "workflows", "feed", "goals", "issues", "im", "shelf", "lingguang", "form", "jelly", "files", "git", "home"];
 const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 type Seen = { busy: boolean; view: string; opacity: number; mark: number | null };
@@ -37,6 +40,31 @@ test("VUX-31: quick loads never flash a waiting mark, and a slow refresh shows i
   await waitFor("document.readyState === 'complete' && typeof molisWorkOpenPlugin === 'function'", 20_000);
   await pause(1_500);
   await evaluate(SAMPLE);
+  // The criterion has to catch what it is for. Each probe is made, read and removed in one script, with its animations held at a
+  // known time, so no frame samples it and no runner speed enters. A stand-in for craft-rise's staggered arrival (`both`, a delay
+  // past 250ms) is an ancestor that must not excuse a mark; the same mark under its own finished wait is the slow load.
+  const probes = await evaluate<Record<string, string[]>>(`(() => {
+    const style = document.createElement('style'); style.textContent = '@keyframes probe-rise { from { opacity: 0 } to { opacity: 1 } }'; document.head.append(style);
+    const stage = document.createElement('div'); stage.style.cssText = 'position: fixed; top: 8px; left: 8px'; document.body.append(stage);
+    const probe = (html, time) => { stage.innerHTML = html; for (const motion of stage.getAnimations({ subtree: true })) { motion.pause(); motion.currentTime = time; } const marks = window.__marksNow(stage); stage.replaceChildren(); return marks; };
+    const skeleton = (style) => '<div class="mw-skeleton" style="width: 40px; ' + style + '"></div>';
+    const dim = (style) => '<div aria-busy="true"><div style="width: 40px; height: 10px; --busy-dim: .5; ' + style + '">x</div></div>';
+    const result = {
+      noWait: probe(skeleton('animation: none'), 600),
+      shortWait: probe(skeleton('animation-delay: 200ms'), 600),
+      unrelatedAncestor: probe('<div style="animation: probe-rise 100ms 300ms both">' + skeleton('animation: none') + '</div>', 600),
+      dimNoWait: probe(dim('opacity: .5'), 600),
+      ownWait: probe(skeleton(''), 600),
+      inWait: probe(skeleton(''), 240),
+      ancestorWait: probe('<div style="animation: mw-loading-in 250ms ease 250ms both">' + skeleton('animation: none') + '</div>', 600),
+      dimWait: probe(dim('animation: mw-busy-dim 250ms ease 250ms both'), 600),
+    };
+    style.remove(); stage.remove(); return result;
+  })()`);
+  assert.deepEqual(probes, {
+    noWait: ["div.mw-skeleton"], shortWait: ["div.mw-skeleton"], unrelatedAncestor: ["div.mw-skeleton"], dimNoWait: ["dim div"],
+    ownWait: [], inWait: [], ancestorWait: [], dimWait: [],
+  }, "the sampler counts a mark with no wait, a short one or only an unrelated ancestor's delay, and not one past its own 250ms wait");
   const flashes: string[] = [];
   const visibleChild = (id: string) => evaluate<boolean>(`(()=>{const owner=${id === "shelf" ? `document.querySelector('[data-side-body="plugin:shelf/side"] iframe')` : "null"};
     return !!(owner?.contentDocument??document).querySelector('iframe[data-plugin-frame="${id}"]');})()`);
@@ -62,14 +90,14 @@ test("VUX-31: quick loads never flash a waiting mark, and a slow refresh shows i
     return { busy: button.hasAttribute('data-loading'), label: opacity(button.querySelector(':scope > :not(.mw-spinner)')), spinner: button.querySelector('.mw-spinner').hidden ? 0 : opacity(button.querySelector('.mw-spinner')) }; })()`;
   // The wait is two animations' 250ms delay, so a runner that answers the click late would read the finished swap, and the label's
   // animation (a `backwards` fill) is gone from getAnimations() once it ends. Have the button's animations start paused, then hold
-  // them at a known time (100ms in, then past delay plus duration) and read both states in one script, as
+  // them at a known time (240ms in, just inside the wait, then past delay plus duration) and read both states in one script, as
   // tests/menu-exit-motion.e2e.test.ts does.
   await views.files!.evaluate(`document.head.append(Object.assign(document.createElement('style'), { textContent: '.mw-btn[data-loading], .mw-btn[data-loading] > * { animation-play-state: paused !important; }' }))`);
   await views.files!.evaluate("document.querySelector('[data-files-refresh]').click()"); const held = await barrier.next();
   const seen = await views.files!.evaluate<{ motions: string[]; early: Refresh; late: Refresh }>(`(() => {
     const motions = document.querySelector('[data-files-refresh]').getAnimations({ subtree: true }).filter((motion) => ['mw-loading-in', 'mw-loading-out'].includes(motion.animationName));
     const at = (time) => { for (const motion of motions) motion.currentTime = time; return ${parts}; };
-    return { motions: [...new Set(motions.map((motion) => motion.animationName))].sort(), early: at(100), late: at(600) };
+    return { motions: [...new Set(motions.map((motion) => motion.animationName))].sort(), early: at(240), late: at(600) };
   })()`);
   assert.deepEqual(seen.motions, ["mw-loading-in", "mw-loading-out"], "the label and the spinner both wait on a real animation");
   assert.deepEqual(seen.early, { busy: true, label: 1, spinner: 0 }, "just after the click the label stays and no spinner shows");
@@ -99,13 +127,13 @@ test("VUX-31: switching the Goal in the work view keeps the old document until t
   await evaluate(`[...document.querySelectorAll('.tree-node[data-select-goal="V1"]')].find((node) => node.getClientRects().length).click()`);
   const held = await barrier.next();
   // The wait is two animations' 250ms delay, so a runner that answers the click late would sample the finished fade. Hold the
-  // pane's real animations at a known time (100ms in, then past delay plus duration) and read both states in one script, as
+  // pane's real animations at a known time (240ms in, just inside the wait, then past delay plus duration) and read both states in one script, as
   // tests/menu-exit-motion.e2e.test.ts does.
   const seen = await evaluate<{ motions: string[]; elapsed: number; early: Seen; late: Seen }>(`(() => {
     const motions = document.querySelector('.document-pane').getAnimations({ subtree: true }).filter((motion) => ['mw-busy-dim', 'mw-loading-in'].includes(motion.animationName));
     const elapsed = Math.max(0, ...motions.map((motion) => Number(motion.currentTime) || 0));
     const at = (time) => { for (const motion of motions) { motion.pause(); motion.currentTime = time; } return ${parts}; };
-    return { motions: [...new Set(motions.map((motion) => motion.animationName))].sort(), elapsed, early: at(100), late: at(600) };
+    return { motions: [...new Set(motions.map((motion) => motion.animationName))].sort(), elapsed, early: at(240), late: at(600) };
   })()`);
   // How late the old sleep-based read would have been, so a slow runner (or a slower switch) shows in the log without failing the test.
   t.diagnostic(`VUX-31 switch: the wait animations were ${Math.round(seen.elapsed)}ms in when read (the wait ends at 250ms)`);

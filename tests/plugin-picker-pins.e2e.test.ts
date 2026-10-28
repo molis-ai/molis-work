@@ -633,4 +633,12 @@ test("RAC-1317 an English page reads the market's and the Dock's relation senten
   await click('[data-market-plugin="feed"] [data-market-add]');
   await waitFor("document.querySelector('[data-market-plugin=\"feed\"] [data-market-add]').dataset.marketMembership === 'added'", 10_000);
   assert.equal(await evaluate("document.querySelector('[data-market-status]').textContent"), "Added to Another project; Also added: Inbox");
+  // With Feed in it, the Inbox button is a removal and says what it takes with it — in English.
+  assert.equal(await evaluate<string>("document.querySelector('[data-market-plugin=\"inbox\"] [data-market-add]').getAttribute('title')"), "Removing also removes: Feed");
+  await click('[data-market-plugin="inbox"] [data-market-add]');
+  await waitFor("document.querySelector('[data-market-plugin=\"inbox\"] [data-market-add]').dataset.marketMembership === 'available' && document.querySelector('[data-market-plugin=\"feed\"] [data-market-add]').dataset.marketMembership === 'available'", 10_000);
+  // Adding Inbox alone does not bring Feed: the status line says so, in English.
+  await click('[data-market-plugin="inbox"] [data-market-add]');
+  await waitFor("document.querySelector('[data-market-plugin=\"inbox\"] [data-market-add]').dataset.marketMembership === 'added'", 10_000);
+  assert.equal(await evaluate("document.querySelector('[data-market-status]').textContent"), "Added to Another project; Plugins that depend on it are not added with it: Feed");
 });

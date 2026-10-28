@@ -1732,7 +1732,7 @@ Images 后台执行的后续边界（本片不实现）：当前 `ImagesService.
 
 | 位置 | 版本 | 改版本的提交 | 维护 |
 | --- | --- | --- | --- |
-| `projects/<project_id>/molis-work.db` | 10 → 11 | 系统来源身份隔离（2026-10-27，沿 #1101） | 用户已批准有限维护和隔离恢复演练；只在明确选定、停写的完整副本，经原 owner、完整 schema/物理路径检查与外置 backup 后重建原 project_root，保留原 project_id、created_at、rowid 和其他 owner 行，生成一次必需非空 data_instance_id，逐库事务完成11；平台与本构建公开Manifest声明共同核完整结构，未知第三方原声明不可得即拒绝，不猜结构。旧版普通打开拒绝，不自动补值；项目提交而后库失败保持停写，重试11不换身份。完整一致恢复保留实例；部分导入到已有目标不得复制来源身份；真实Home未操作；非空旧构建副本的维护、重启、完整恢复及保留目标身份的部分恢复已验，证据与边界见Memory spec。 |
+| `projects/<project_id>/molis-work.db` | 11 → 12 | 系统来源身份隔离（2026-10-28，`cdce28683`，沿 #1101） | 用户已批准保留主干10→11后将实例身份顺延为11→12；仅接受完整主干11或当前12，异构旧Memory11拒绝且不写入。只在明确选定、停写的完整副本，经原 owner、完整 schema/物理路径检查与外置 backup 后重建原 project_root，保留原 project_id、created_at、rowid 和其他 owner 行，生成一次必需非空 data_instance_id，逐库事务完成12；平台与本构建公开Manifest声明共同核完整结构，未知第三方原声明不可得即拒绝，不猜结构。旧版普通打开拒绝，不自动补值；项目提交而后库失败保持停写，重试12不换身份。完整一致恢复保留实例；部分导入到已有目标不得复制来源身份；真实Home未操作；非空旧构建副本的维护、重启、完整恢复及保留目标身份的部分恢复已验，证据与边界见Memory spec。 |
 | `knowledge/knowledge.db` | 1 → 4 | 同 #1101 的累计版本变化，系统来源身份片 | 相对当前merge-base为1→4；沿本表既有1/2/3→4有限维护，普通打开严格拒旧。项目/Knowledge采用、失败事务回滚及完整/部分隔离恢复已验；不自动提炼或改来源事实，真实Home未操作。 |
 | `search/search.db` | 2 → 4 | 同 #1101 的累计版本变化，系统来源身份片 | 相对当前merge-base为2→4；只在原派生缓存写主人内按版本清空重建，existing-only拒旧，所有来源身份来自当前获准目录，不改业务原件，真实Home未操作。 |
 | `knowledge/knowledge.db` | 3 → 4 | 系统来源身份隔离（2026-10-27，沿 #1101） | 原有限维护 tests/fixtures/coding-knowledge-maintenance.mjs 扩展为1/2/3→4；普通打开严格拒旧。v3 adoption/retention只将原存插件generation封装成plugin-installation source_identity，不重释成project-data；未知retention身份为null，保留全部人工/机器字段、原采用决定、用量及回执，不据此启动模型。原owner/路径核对、外置backup、逐库事务和部分失败报告保留；不新增在线兼容，真实Home未操作；非空旧构建副本采用与恢复已验，保留全部原人工与机器字段，见Memory spec。 |

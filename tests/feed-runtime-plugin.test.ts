@@ -1032,6 +1032,27 @@ test("RAC-1028 D4-d: a judgment that fails after a delivered notification keeps 
   assert.ok(!JSON.stringify(log).includes("笔记正文"), "neither the failure's message nor the notification's text is logged");
 });
 
+// RAC-1121 (T-007): the other half of the old D4-d, the capture rule's own judgment failing. The scene records the failure in the Home's
+// ledger as a judgment that needs review, with its code only; the delivery is not failed by it, and the Inbox and Home judge as usual.
+test("RAC-1121 RAC-1028 D4-d: a capture rule whose judgment fails after a delivered notification records the failure in the ledger by its code, and the Inbox and Home still judge", async t => {
+  const f = await delivering(t);
+  await f.rule({ contains: "judged" });
+  f.seen.onJudge = async () => { throw new ActionError("functions.model_down", "模型不可用：用户的笔记正文"); };
+  const log: HostLogEntry[] = [], restore = captureHostLog(log);
+  let row: Awaited<ReturnType<typeof f.send>>;
+  try { row = await f.send("judged-3"); } finally { restore(); }
+  assert.ok(row.delivered_at && row.item_id && row.last_error_code === null, JSON.stringify(row));
+  assert.equal(f.seen.judged.length, 1, "the capture rule asked the model once, and it failed");
+  const recorded = f.ledger().filter(entry => entry.scene_id === feedCaptureScene.scene_id);
+  assert.deepEqual(recorded.map(entry => [entry.subject.kind, entry.subject.id, entry.outcome, entry.error_code]), [["feed_item", row.item_id, "needs_review", "functions.model_down"]]);
+  const entries = f.entriesOf(row.item_id!);
+  assert.equal(entries.length, 1, "the item and its Inbox entry are kept");
+  assert.deepEqual(f.seen.inbox.flat(), [entries[0]!.entry_id], "the Inbox still judged the entry");
+  assert.deepEqual(f.judgedSubjects(), [`feed_item:${row.item_id}`, `inbox_entry:${entries[0]!.entry_id}`].sort(), "Home still judged the item and the entry");
+  assert.deepEqual(log.filter(line => line.event === "judgment_failed"), [], "a failure the scene recorded is not the delivery's");
+  assert.ok(!JSON.stringify([recorded, log]).includes("笔记正文"), "neither the ledger nor the log keeps the failure's message");
+});
+
 // FI-C-03 (specs/repository-anti-corruption/slices/feed-inbox-runtime-plugins.md §13): the promotion, the Goal's linked material and the capture
 // recommendations read an item's retained text, so each declares evidence:read. A synced item whose bodies the platform keeps is promoted, gives its
 // Goal its text and keeps its recommendation; a caller who holds everything else but not evidence:read is refused at the entry, before any write.

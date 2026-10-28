@@ -58,6 +58,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-047 | 零碎四处：清理清单里两个已删导出、调用编号入口与日志、R-A5 的文件数、Pages 评论侧栏的请求 | 丙 | A | 14 | T-039 | `specs/repository-cleanup/inventory.md`（只第 168、169 行）、`docs/system/EXTENSION-POINTS.md`（只第 284 行）、`docs/system/GLOSSARY.md`（只第 415 行）、`specs/repository-anti-corruption/slices/w5-03-pages.md`（只第 71 行） |
 | T-048 | 插件框从挂上到就绪或失败都带加载守护，加载期间点不进去（BL-544） | 乙 | A | 15 | T-006 | `apps/workbench/src/browser/plugin-frame/parent.ts`（落点 A）或 `apps/workbench/src/side-view-document.ts`（落点 B）、`tests/plugin-frame-readiness.e2e.test.ts`、`tooling/gates/page-assets.json`、`scripts/gates/page-assets.mjs`（只 `APPROVED_CEILINGS`）（`specs/BACKLOG.md` 只删 BL-544 行，不锁） |
 | T-049 | 受管理安装目录缺所有权记录时，移除报 `connector.install.invalid`，不再抛原生 ENOENT | 乙 | 池 | 14 | — | `apps/local-host/src/connector-tool-install.ts`（只改 `removeManagedConnectorTool`）、`tests/security-invariants-connector-install.test.ts`、`tests/connector-local-actions.test.ts` |
+| T-050 | Goals 个人方法包的 JSON 读不出来时报错，不再悄悄当成没有这个方法 | 乙 | 池 | 15 | — | `plugins/native/goals/src/module/planning/personal-methods.ts`、`plugins/native/goals/src/module/repository.ts`（只给 `parseJson` 加 `export`）、`plugins/native/goals/README.md`（`:116`、`:123`）、`tests/goals-personal-methods-stored-json.test.ts`（新） |
 
 ## 在途，不走任务书
 

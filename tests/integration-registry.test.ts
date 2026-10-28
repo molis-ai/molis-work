@@ -302,3 +302,33 @@ test("RAC-892 the SDK refuses connection_methods missing, empty, repeated or unk
     { code: "plugin.declaration_invalid", message: /只有文档导入才写 connection_methods/u });
   assert.ok(parsePluginManifest(documents({ connection_methods: ["token", "oauth", "cli"] })));
 });
+
+// W5-11 slice 3 §2.8 (specs/repository-anti-corruption/slices/w511-connector-oauth-declarations.md): until installs are trusted by
+// signature, an OAuth flow as data is the Host's build's alone. A signed sandbox package that carries one is refused before anything of
+// its install or its ids is held; the bare kind (the platform's table) and its other methods stay as they were.
+test("RAC-1081 a signed package's data-bearing oauth method is refused at attach and at the install preview, and holds nothing", async () => {
+  const flow = { kind: "oauth", grant: "authorization_code", authorize_url: "https://auth.example.com/authorize", token_url: "https://auth.example.com/token",
+    scopes: ["read"], identity: { url: "https://api.example.com/me", account_id: [[], ["identity:/id"]], label: ["identity:/name"] } } as const;
+  const carrying = manifestOf("io.molis.work.example.oauth-carrier", [service("oauth-carrier", { auth: { methods: [{ kind: "token", label: "token" }, flow] } })],
+    [{ integration_id: "oauth-carrier", kind: "source", service_id: "oauth-carrier" }]);
+  const registry = new IntegrationRegistry();
+  let asked = 0;
+  assert.throws(() => registry.assertFree(carrying), { code: "plugin.declaration_invalid", message: /oauth-carrier.*宿主构建的插件/u });
+  await assert.rejects(registry.attach(carrying, () => { asked += 1; return null; }, () => true), { code: "plugin.declaration_invalid", message: /oauth-carrier/u });
+  assert.equal(asked, 0, "the package's instance is never asked for a contribution");
+  assert.equal(registry.connectionServices().some(entry => entry.declaration.service_id === "oauth-carrier"), false);
+  assert.equal(registry.integration("oauth-carrier"), undefined);
+  assert.equal(registry.oauthOwner("oauth-carrier"), undefined);
+  // The bare kind is the platform's table, not a flow the package chose: attached, but no OAuth owner, so no authorization can start.
+  const bare = manifestOf("io.molis.work.example.oauth-bare", [service("oauth-bare", { auth: { methods: [{ kind: "oauth" }] } })], [{ integration_id: "oauth-bare", kind: "source", service_id: "oauth-bare" }]);
+  assert.equal(await registry.attach(bare, () => null, () => true), true);
+  assert.ok(registry.connectionServices().some(entry => entry.declaration.service_id === "oauth-bare"));
+  assert.equal(registry.oauthOwner("oauth-bare"), undefined, "a package's service has no OAuth owner");
+  // The Host's own build may carry the flow: it is enabled, and is the owner with its install, publisher and method.
+  await registry.enable(fixturePlugin("io.molis.work.example.oauth-built", [service("oauth-built", { auth: { methods: [flow] } })], []));
+  const owner = registry.oauthOwner("oauth-built");
+  assert.equal(owner?.plugin_id, "io.molis.work.example.oauth-built");
+  assert.equal(owner?.publisher_id, "io.example");
+  assert.ok(owner?.install_id);
+  assert.deepEqual(owner?.method, flow);
+});

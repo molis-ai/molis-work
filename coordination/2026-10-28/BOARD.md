@@ -109,7 +109,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | 合同链 T-110～T-113（PG-111 Feed 加 MISC:19 → W5-14 R-A5/R-A6 → PG-111 Goals 加 BL-781 → BL-646，串行） | Claude（设备 A） | 每本开工时在 #1332 的【方案】里报，统筹记到这里 |
 | 工作台摘 Goals 链 T-114～T-118（PG-094 ② 加 PG-060 → PG-060 末片 → PG-064 → 小收尾，串行；不碰 T-043 的文件） | Claude（设备 A） | 同上 |
 | 连接器尾巴 T-119～T-122（BL-740、`integration-providers.ts`、FI-7b、BL-530 批 B） | Claude（设备 A） | 同上 |
-| 零碎甲行 T-123（MISC:10，等 T-036）、T-124（MISC:18，等 T-042）；只出方案 T-125（BL-802）、T-126（BL-636） | Claude（设备 A） | 同上；T-125、T-126 用户裁完才写代码 |
+| 零碎甲行 T-123（MISC:10；T-036 已合入 main `1fb5cf413`，可开工）、T-124（MISC:18，等 T-042）；只出方案 T-125（BL-802）、T-126（BL-636） | Claude（设备 A） | 同上；T-125、T-126 用户裁完才写代码 |
 | 双实例页面归属 T-127（改成「哪一半有舞台视图就由哪一半画」，先出【方案】，含半边停着时的判据） | Claude（设备 A） | `apps/local-host/src/home-plugin-http.ts`、`apps/local-host/src/project-plugin-stages.ts`，其余在【方案】里报 |
 | CI 减负 T-128～T-130（T-128 作业与安装步骤加超时，直接做；T-129 push main 不重跑队列里已过的挡合并作业；T-130 PR 按路径挑作业，两个不挡合并的作业只跑受影响的文件；后两本先出【方案】） | Claude（设备 A） | `.github/workflows/ci.yml`（不碰 `linux-probe` 一段，#734 在改）、`tests/ci-install.test.ts`、`tests/fixtures/ci-workflow.ts`、`docs/system/PARALLEL-DEVELOPMENT.md`（只 `:68-69`），其余在【方案】里报 |
 | BL-596 评审三条 T-131（`RAC-1700`；安装记录读不了时如实报错，统筹 20:50Z 批号，问统筹 6480287951） | Claude（设备 A，原防腐统筹会话） | `apps/local-host/src/plugin-installation-cleanup.ts`、`tests/security-invariants-installation-bindings.test.ts`（只追加，另改 RAC-866 两处断言；#1101 草稿也改这份）、`docs/system/SECURITY-INVARIANTS.md`（S-71 一行） |

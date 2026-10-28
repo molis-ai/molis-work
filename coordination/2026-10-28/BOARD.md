@@ -23,6 +23,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-008 | Runtime 动作调用路径的成本（BL-814） | 甲 | 本机 | 2 | T-007 | 开工时补 |
 | T-009 | 助理只认 not-found 码（BL-810） | 甲 | 本机 | 1 | — | `apps/local-host/src/assistant/`、`apps/local-host/src/installed-publisher-standing.ts`、`tests/host-log-listeners.test.ts`、`tests/assistant-not-found.test.ts`；`docs/system/SECURITY-INVARIANTS.md` 只改 S-87 一行 |
 | T-010 | W5-11 第 3 片：OAuth 通用回调与判断顺序 | 甲 | 本机 | 1 | — | `apps/local-host/src/connector-api-oauth.ts`、`apps/local-host/src/web-connector-api-methods.ts`、`apps/local-host/src/integration-registry.ts`、`apps/local-host/src/connector-protocol-store.ts`、`horizontal/connector-host/src/protocol-store.ts`（只加按 state 取的方法）、`tests/connector-api-oauth.test.ts`、`tests/integration-registry.test.ts`、`tests/security-invariants-connector-oauth-callback.test.ts`、`docs/system/SECURITY-INVARIANTS.md`（与 T-009 共改，各改各的行）、`specs/repository-anti-corruption/slices/w511-connector-oauth-declarations.md` |
+| T-017 | privileges 与 BACKLOG 的三处陈旧话（T-002 二审的建议） | 丙 | 池 | 1 | T-002 | `specs/repository-anti-corruption/privileges.md`（只 PG-017 状态格与 §8 一句）、`specs/repository-anti-corruption/slices/w5-08-workbench-exports.md`（只「等 A3」两处） |
 
 ## 在途，不走任务书
 

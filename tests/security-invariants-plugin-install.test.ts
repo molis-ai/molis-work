@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import { chmod, mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { isDeepStrictEqual } from "node:util";
 import test from "node:test";
 import { ActionError, LOCAL_PERSON_ACTOR_ID, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { PluginInstanceRecord, PluginManifest, PluginPackageBundle } from "@molis-ai/molis-work-contracts/platform/plugin";
@@ -11,6 +12,7 @@ import { MemoryPluginConsentLedger, SqlitePluginRuntimeRepository, type PluginCo
 import { DEMO_PROJECT_ID, HomeConsentLedger, LocalProjectDatabase, MolisWorkLocalHost, PLUGIN_INSTALL_PERMISSIONS, PluginInstallService, SandboxPackageStore, molisWorkHostProjectReference,
   pluginConsentProvider, pluginInstallActions, pluginInstallProvider, seedDemoBoard } from "@molis-ai/molis-work-app-local-host";
 import { PACKAGE_PLUGIN_ID, newPublisher, packageFiles, payloadOf, signedPackage, type PackageFiles } from "./fixtures/sandbox-package.js";
+import { SECOND_PLUGIN_ID } from "./fixtures/home-sandbox.js";
 
 // S-84 (ac-trust T2): a plugin is installed from a signed package only through one path the person walks, and the Host checks the package
 // before it writes anything. Unsigned, altered, wrongly signed, from a revoked publisher, or not in the sandbox package format: refused at
@@ -21,19 +23,32 @@ const AT = "2026-10-25T00:00:00.000Z";
 const who = { project_id: "project-one", actor_id: LOCAL_PERSON_ACTOR_ID };
 const refused = (code: string) => (error: unknown) => error instanceof ActionError && error.code === code;
 
-async function harness(ledger: PluginConsentLedger = new MemoryPluginConsentLedger()) {
+/** The Home's record of a signed package installed there, as its Runtime keeps it. */
+const homeRecord = (manifest: PluginManifest): PluginInstanceRecord => ({ install_id: `home-${manifest.plugin_id}-${manifest.version}`, installation_generation: "1",
+  plugin_id: manifest.plugin_id, version: manifest.version, publisher_id: "publisher", publisher_signature: manifest.publisher.signature, manifest_digest: "digest",
+  deployment: "local", selected_entrypoint: "plugin.mjs", grants: [], execution: "sandbox", publisher_trust: "pinned", state: "running", recovery_count: 0,
+  last_error_code: null, installed_at: AT, updated_at: AT, uninstalled_at: null, retain_private_data: false });
+
+/** `withHome`: the Host has a Home, whose installations the confirmation can read (`homeInstalled`); a Home install adds its record there. */
+async function harness(ledger: PluginConsentLedger = new MemoryPluginConsentLedger(), withHome = false) {
   const home = await mkdtemp(join(tmpdir(), "molis-work-install-"));
   const installed: Array<{ project: string; plugin: string; trust: unknown }> = [];
+  const homeRecords: PluginInstanceRecord[] = [];
   const service = new PluginInstallService({ ledger, packages: new SandboxPackageStore(home), now: () => AT,
     installInProject: async (project, release) => { installed.push({ project, plugin: release.pluginId, trust: release.packaged?.trust }); },
-    installInHome: async release => { installed.push({ project: "~home", plugin: release.pluginId, trust: release.packaged?.trust }); }, installed: async () => [], control: async () => "disabled" });
+    installInHome: async release => {
+      installed.push({ project: "~home", plugin: release.pluginId, trust: release.packaged?.trust });
+      if (withHome) homeRecords.push(homeRecord(release.packaged!.manifest));
+    },
+    installed: async () => [], control: async () => "disabled",
+    ...(withHome ? { homeInstalled: async () => homeRecords.map(record => ({ record, manifest: undefined })) } : {}) });
   /** Nothing the install path writes exists: no pinned publisher, no kept package, no installation. */
   const nothingWritten = () => {
     assert.deepEqual(ledger.publishers(), [], "no publisher was pinned");
     assert.equal(existsSync(join(home, "plugin-packages")), false, "no package was kept");
     assert.deepEqual(installed, [], "nothing was installed");
   };
-  return { home, ledger, service, installed, nothingWritten, done: () => rm(home, { recursive: true, force: true }) };
+  return { home, ledger, service, installed, homeRecords, nothingWritten, done: () => rm(home, { recursive: true, force: true }) };
 }
 
 test("RAC-387 S-84 a package with no signature is refused at the preview with plugin.signature_invalid, and nothing is written", async () => {
@@ -227,6 +242,54 @@ test("S-84 a kept package is read back with the checks it was installed with: it
     const code = join(h.home, "plugin-packages", directory!, "plugin.mjs");
     await chmod(code, 0o600); await writeFile(code, "export const operations = {};\n");
     assert.throws(() => store.load(...key), /被改过/, "code that differs from the signed package is not run");
+  } finally { await h.done(); }
+});
+
+/** A signed package that asks for the Home. */
+const homeBundle = (publisher: ReturnType<typeof newPublisher>, options: { pluginId?: string; version?: string } = {}) =>
+  signedPackage(publisher, (_files, manifest) => { manifest.runtime = { scope: "home" }; }, options);
+
+/** Previews and confirms a package as the person, naming its publisher; answers "installed" or the code it was refused with. */
+const confirmIn = (service: PluginInstallService) => async (bundle: PluginPackageBundle) => {
+  const preview = await service.preview({ bundle }, who);
+  return service.confirm({ preview_id: preview.preview_id, consent: true, pin_label: "Example" }, who)
+    .then(() => "installed", (error: unknown) => error instanceof ActionError ? error.code : String(error));
+};
+
+test("RAC-1500 RAC-1501 RAC-1502 S-84 another publisher's package of a plugin the Home already holds is refused at the confirmation, before its publisher is pinned or the package is kept, whether that installation runs or is switched off", async () => {
+  const h = await harness(undefined, true);
+  try {
+    const a = newPublisher(), b = newPublisher(), c = newPublisher();
+    const confirm = confirmIn(h.service);
+    const snapshot = async () => ({ pins: h.ledger.publishers().map(pin => pin.key_id).sort(), dirs: (await readdir(join(h.home, "plugin-packages"))).sort(), installs: h.installed.length });
+    assert.equal(await confirm(homeBundle(a)), "installed");
+
+    // Each step is compared with what was written just before it, and all of them in one assertion, so a failure shows every step.
+    const step = async (bundle: PluginPackageBundle) => { const before = await snapshot(); return { code: await confirm(bundle), unchanged: isDeepStrictEqual(await snapshot(), before) }; };
+    const results: Record<string, { code: string; unchanged: boolean }> = {};
+    results["RAC-1500 b, not pinned yet"] = await step(homeBundle(b, { version: "2.0.0" }));
+    assert.equal(await confirm(homeBundle(c, { pluginId: SECOND_PLUGIN_ID })), "installed", "c is pinned by a plugin of its own");
+    results["RAC-1501 c, pinned"] = await step(homeBundle(c, { version: "2.0.0" }));
+    h.homeRecords.find(record => record.plugin_id === PACKAGE_PLUGIN_ID)!.state = "disabled";
+    results["RAC-1502 b, installation switched off"] = await step(homeBundle(b, { version: "2.1.0" }));
+    const refusedUntouched = { code: "plugin.definition_conflict", unchanged: true };
+    assert.deepEqual(results, { "RAC-1500 b, not pinned yet": refusedUntouched, "RAC-1501 c, pinned": refusedUntouched, "RAC-1502 b, installation switched off": refusedUntouched },
+      "refused, with no publisher pinned, no package kept and nothing installed");
+  } finally { await h.done(); }
+});
+
+test("RAC-1503 S-84 the Home check refuses only another publisher's package: the same publisher's upgrade and an id the Host's own Home plugin holds pass it", async () => {
+  const h = await harness(undefined, true);
+  try {
+    const a = newPublisher(), b = newPublisher();
+    const confirm = confirmIn(h.service);
+    assert.equal(await confirm(homeBundle(a)), "installed");
+    assert.equal(await confirm(homeBundle(a, { version: "1.1.0" })), "installed", "the same publisher's package reaches the Home's install");
+    assert.equal(h.installed.length, 2);
+    // A record the Host built itself is not a signed package's: this check leaves it to the Runtime.
+    for (const record of h.homeRecords) record.publisher_trust = "host";
+    assert.notEqual(await confirm(homeBundle(b, { version: "2.0.0" })), "plugin.definition_conflict", "an id the Host's own plugin holds is not this check's");
+    assert.equal(h.installed.length, 3, "it went on to the Home's install");
   } finally { await h.done(); }
 });
 

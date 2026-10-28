@@ -5,12 +5,14 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import test from "node:test";
 
-import type { ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionCallContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { createCompletedIntentResultFixtureV1 } from "@adeptify/intelligence-client/testing";
 import {
   DEMO_PROJECT_ID, LocalProjectDatabase, MolisWorkLocalHost, listFeedSourceCatalog, molisWorkHostProjectReference, seedDemoBoard, seedDemoGoals, type SourcePullRuntime,
 } from "@molis-ai/molis-work-app-local-host";
 import { FEED_ACTION_PERMISSIONS, feedSourceActions } from "@molis-ai/molis-work-plugin-feed";
 import { createLocalFeedApplication, createLocalFeedSourceScheduler, createLocalFeedSourceService } from "./fixtures/feed-library.js";
+import type { IntelligenceCollectRequest, IntelligenceCollectResult } from "@molis-ai/molis-work-app-local-host";
 
 type FeedApp = ReturnType<typeof createLocalFeedApplication>;
 type SourceRecord = Parameters<FeedApp["ingestItem"]>[0]["source"];
@@ -52,6 +54,7 @@ async function itemWithTwoActiveEntries(feed: FeedApp, externalId = "x1") {
   return item;
 }
 
+// RAC-1212 BL-801: a failed pull that never committed still spends its slot and reports its own failure.
 test("a failed scheduled pull still moves the schedule on, so the source is not pulled again on every tick", async () => {
   await withProject("molis-work-feed-sched-fail-", async store => {
     let now = new Date("2026-08-30T09:00:00.000Z"), pulls = 0;
@@ -339,4 +342,75 @@ esac
     if (previousEnvironment.tree === undefined) delete process.env.FAKE_GIT_TREE; else process.env.FAKE_GIT_TREE = previousEnvironment.tree;
     rmSync(home, { recursive: true, force: true });
   }
+});
+
+/** The one material a provider pull that completes brings in; the judgments on it run after the commit. */
+const COMMITTED_MATERIAL = {
+  id: "material:scheduled-committed-then-failed",
+  candidateId: "candidate:scheduled-committed-then-failed",
+  canonicalUrl: "https://example.com/scheduled-committed-then-failed",
+  title: "定时拉取已提交的材料",
+  sourceName: "Example",
+  preview: "定时拉取提交之后判断才失败的正文",
+  contentRef: `molis-work-feed/sha256/${"e".repeat(64)}`,
+  contentHash: `sha256:${"e".repeat(64)}`,
+  contentHashProfile: "search-markdown-v1",
+  contentType: "text/markdown",
+  characterCount: 12,
+  capturedAt: "2026-08-30T09:10:00.000Z",
+  provenance: {
+    operationId: "feed-operation", providerId: "rss", providerVersion: "1.0.0", bindingRevision: 1,
+    retrievedAt: "2026-08-30T09:10:00.000Z", matchedLaneIds: ["intent:exact"], rankProfile: "feed-v1",
+    transportProfileFingerprint: `sha256:${"f".repeat(64)}`,
+  },
+  extractorRef: { providerId: "rss", providerVersion: "1.0.0" },
+  truncated: false,
+  availability: "available",
+};
+
+// RAC-1214 BL-801: a scheduled pull that committed and then failed in its judgments spends its slot and reports the failure as a result, not a refusal.
+test("a scheduled pull that fails judging after it committed spends its slot and raises no source fault", { timeout: 15_000 }, async () => {
+  await withProject("molis-work-feed-sched-judged-", async store => {
+    let now = new Date("2026-08-30T09:00:00.000Z"), renaming = "";
+    const runtimeFactory = (): SourcePullRuntime => ({
+      intelligenceCollect: {
+        async executeExact(request: IntelligenceCollectRequest): Promise<IntelligenceCollectResult> {
+          // A person may rename the source while the pull is in flight, which must still be a refusal.
+          if (renaming) createLocalFeedSourceService(store.db, DEMO_PROJECT_ID).update(renaming, { name: "Renamed while pulling" });
+          return { ...createCompletedIntentResultFixtureV1(request), materials: [COMMITTED_MATERIAL] } as IntelligenceCollectResult;
+        },
+        async shutdown() {},
+      },
+      content: {
+        write() { return { contentRef: COMMITTED_MATERIAL.contentRef }; },
+        read() { return COMMITTED_MATERIAL.preview; },
+        has() { return true; },
+        inspect() { return { referenced: 1, available: 1, missing: 0, keyAvailable: true }; },
+      },
+      async shutdown() {},
+    });
+    const feedOptions = { captureJudgment: async () => { throw new ActionError("actions.execution_failed", "判断失败"); } };
+    const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, runtimeFactory, () => now, undefined, feedOptions);
+    const source = service.register({ kind: "rss", definition_id: listFeedSourceCatalog()[0]!.id }).source;
+    service.configureSchedule(source.source_id, { mode: "interval", enabled: true, interval_minutes: 15 });
+    const scheduler = createLocalFeedSourceScheduler(store.db, DEMO_PROJECT_ID, async (candidate, key, authority) =>
+      await createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, runtimeFactory, () => now, undefined, feedOptions)
+        .sync(candidate.source_id, { idempotencyKey: key, beforeEffect: authority.beforeEffect }), () => now);
+    const nextPull = () => {
+      const schedule = service.feed.getSource(DEMO_PROJECT_ID, source.source_id).schedule;
+      return schedule.mode === "interval" ? schedule.next_pull_at : null;
+    };
+    now = new Date("2026-08-30T09:15:00.000Z");
+    const first = await scheduler.tick(now);
+    assert.equal(first.failed, 1, "the failure is a result of the tick, not a refusal of the whole tick");
+    assert.equal(nextPull(), "2026-08-30T09:30:00.000Z", "the slot is spent");
+    const runs = service.feed.snapshot(DEMO_PROJECT_ID).runs.filter(run => run.source_id === source.source_id);
+    assert.deepEqual(runs.map(run => run.phase), ["terminal"], "the pull's own result is the only run");
+    assert.equal(service.feed.snapshot(DEMO_PROJECT_ID).feed_items.length, 1);
+    // A person's edit during the pull is still a refusal, and still keeps the slot.
+    renaming = source.source_id;
+    now = new Date("2026-08-30T09:30:00.000Z");
+    await assert.rejects(() => scheduler.tick(now), (error: { code?: string }) => error.code === "feed.source_changed");
+    assert.equal(nextPull(), "2026-08-30T09:30:00.000Z", "the slot stays due for the new settings");
+  });
 });

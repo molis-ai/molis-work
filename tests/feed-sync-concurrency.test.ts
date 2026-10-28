@@ -9,7 +9,9 @@ import { createFeedSourceHandlers, feedSourceActions, feedManifest } from "@moli
 import { DEMO_PROJECT_ID, seedDemoBoard, LocalProjectDatabase, type SourcePullRuntime } from "@molis-ai/molis-work-app-local-host";
 import { LocalHost } from "@molis-ai/molis-work-app-local-host";
 import { createLocalFeedApplication, createLocalFeedSourceService, createLocalFeedConnectorSync } from "./fixtures/feed-library.js";
+import type { IntelligenceCollectRequest, IntelligenceCollectResult } from "@molis-ai/molis-work-app-local-host";
 
+// RAC-1212 BL-801: the paths that fail before the pull commits keep their old behaviour; these cases pin it.
 for (const change of ["paused", "edited", "revoked", "cancelled"] as const) test(`Feed sync ignores the stale result after ${change} and releases its source lease`, { timeout: 15_000 }, async () => {
   const home = mkdtempSync(join(tmpdir(), "feed-sync-guard-")), path = join(home, "project.sqlite");
   seedDemoBoard(path);
@@ -146,4 +148,101 @@ test("what a cancelled call judging its own work leaves is neither judged nor re
     await feed.flushPendingJudgments(context("other"));
     assert.deepEqual(calls.splice(0), [], "neither the item nor its entry went back to the shared queue");
   });
+});
+
+/** The one material a pull the provider completes brings in; the judgments then run on it after the commit. */
+const COMMITTED_MATERIAL = {
+  id: "material:committed-then-failed",
+  candidateId: "candidate:committed-then-failed",
+  canonicalUrl: "https://example.com/committed-then-failed",
+  title: "已提交的材料",
+  sourceName: "Example",
+  preview: "提交之后判断才失败的正文",
+  contentRef: `molis-work-feed/sha256/${"c".repeat(64)}`,
+  contentHash: `sha256:${"c".repeat(64)}`,
+  contentHashProfile: "search-markdown-v1",
+  contentType: "text/markdown",
+  characterCount: 12,
+  capturedAt: "2026-08-29T08:00:00.000Z",
+  provenance: {
+    operationId: "feed-operation", providerId: "rss", providerVersion: "1.0.0", bindingRevision: 1,
+    retrievedAt: "2026-08-29T08:00:00.000Z", matchedLaneIds: ["intent:exact"], rankProfile: "feed-v1",
+    transportProfileFingerprint: `sha256:${"d".repeat(64)}`,
+  },
+  extractorRef: { providerId: "rss", providerVersion: "1.0.0" },
+  truncated: false,
+  availability: "available",
+};
+
+/** A provider pull that commits one material; the judgment port then refuses, after the commit. */
+async function committedPull(refuse: () => ActionError) {
+  const home = mkdtempSync(join(tmpdir(), "feed-judgment-after-commit-")), path = join(home, "project.sqlite");
+  seedDemoBoard(path);
+  const store = new LocalProjectDatabase(path);
+  const reader = createLocalFeedApplication(store.db);
+  let committed: ReturnType<typeof reader.snapshot> | undefined;
+  let pulls = 0;
+  try {
+    const service = createLocalFeedSourceService(store.db, DEMO_PROJECT_ID, () => ({
+      intelligenceCollect: {
+        async executeExact(request: IntelligenceCollectRequest): Promise<IntelligenceCollectResult> {
+          pulls += 1;
+          return { ...createCompletedIntentResultFixtureV1(request), materials: [COMMITTED_MATERIAL] } as IntelligenceCollectResult;
+        },
+        async shutdown() {},
+      },
+      content: {
+        write() { return { contentRef: COMMITTED_MATERIAL.contentRef }; },
+        read() { return COMMITTED_MATERIAL.preview; },
+        has() { return true; },
+        inspect() { return { referenced: 1, available: 1, missing: 0, keyAvailable: true }; },
+      },
+      async shutdown() {},
+    }), undefined, undefined, {
+      captureJudgment: async () => { committed = reader.snapshot(DEMO_PROJECT_ID); throw refuse(); },
+    });
+    const source = service.register({ kind: "custom_rss", feed_url: "https://example.com/committed-then-failed.xml" }).source;
+    return {
+      service, source,
+      pulls: () => pulls,
+      committed: () => committed!,
+      snapshot: () => service.feed.snapshot(DEMO_PROJECT_ID),
+      close() { store.close(); rmSync(home, { recursive: true, force: true }); },
+    };
+  } catch (error) { store.close(); rmSync(home, { recursive: true, force: true }); throw error; }
+}
+
+// RAC-1210 BL-801: a pull that committed and then failed in a judgment reports that failure; the guard must not read the pull's own source write as an edit.
+test("a judgment that fails after the pull committed reports its own failure and keeps the committed rows", { timeout: 15_000 }, async () => {
+  const pull = await committedPull(() => new ActionError("actions.execution_failed", "判断失败"));
+  try {
+    await assert.rejects(
+      pull.service.sync(pull.source.source_id, { idempotencyKey: "committed-judgment-failed" }),
+      { code: "actions.execution_failed" },
+    );
+    assert.deepEqual(pull.snapshot(), pull.committed(), "the source, the item and the terminal run are the pull's own writes, nothing more");
+  } finally { pull.close(); }
+});
+
+// RAC-1211 BL-801: a pull that committed but failed in its judgments replays its terminal run under the same key instead of pulling again.
+test("a pull whose judgment failed after the commit replays its terminal run under the same key", { timeout: 15_000 }, async () => {
+  const pull = await committedPull(() => new ActionError("actions.execution_failed", "判断失败"));
+  try {
+    await assert.rejects(pull.service.sync(pull.source.source_id, { idempotencyKey: "committed-judgment-replay" }), { code: "actions.execution_failed" });
+    const replay = await pull.service.sync(pull.source.source_id, { idempotencyKey: "committed-judgment-replay" });
+    assert.deepEqual([replay.replayed, replay.created, pull.pulls()], [true, 0, 1]);
+    assert.deepEqual(pull.snapshot(), pull.committed());
+  } finally { pull.close(); }
+});
+
+// RAC-1213 BL-801: a caller cancelled while judging a committed pull gets the cancellation, and the commit is all that remains.
+test("a cancellation during the judgment of a committed pull reports the cancellation and writes nothing further", { timeout: 15_000 }, async () => {
+  const pull = await committedPull(() => new ActionError("actions.cancelled", "调用已取消"));
+  try {
+    await assert.rejects(
+      pull.service.sync(pull.source.source_id, { idempotencyKey: "committed-judgment-cancelled" }),
+      { code: "actions.cancelled" },
+    );
+    assert.deepEqual(pull.snapshot(), pull.committed(), "the cancellation writes no status, result or failure bookkeeping");
+  } finally { pull.close(); }
 });

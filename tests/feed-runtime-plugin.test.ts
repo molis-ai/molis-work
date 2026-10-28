@@ -982,6 +982,23 @@ test("RAC-1032 a sync judges what it brought in by the retained bodies, which on
   assert.equal(f.ledger().filter(row => row.scene_id === feedCaptureScene.scene_id).length, 2, "the judgment of a changed rule is not recorded");
 });
 
+// RAC-1215 BL-801: after the pull committed, the Inbox's judgment of the entry it opened fails with a coded error; that error reaches the
+// sync's caller instead of the guard's source_changed, and the committed item and terminal run stay. A scene callback's own S-97 refusal never
+// takes this path: the scene's failed port records it as needs_review (scenes.ts, runtime-judgments.ts:28-33). The code thrown here is the
+// test's stand-in for a platform refusal on the Inbox judgment's own call; the trigger rethrows what that call fails with (inbox-judgment.ts:33-38).
+test("RAC-1215 a judgment of the Inbox that fails after a committed sync reports that failure, not a source change", { timeout: 30_000 }, async t => {
+  const f = await judging(t);
+  await f.rule({ source_id: f.sourceId });
+  f.seen.onInbox = async () => { throw new ActionError("plugin.source_pull_call_required", "服务只在本插件自己的并行动作里给"); };
+  await assert.rejects(
+    f.client.invoke(caller(JUDGING_SYNC).context, feedSourceActions.sync, { source_id: f.sourceId, idempotency_key: "refused-judgment-key" }),
+    (error: unknown) => error instanceof ActionError && error.code === "plugin.source_pull_call_required",
+  );
+  assert.equal(f.count("SELECT count(*) AS n FROM feed_items WHERE source_id = ?", f.sourceId), 2, "the pull committed its items");
+  assert.equal(f.count("SELECT count(*) AS n FROM feed_source_runs WHERE source_id = ? AND phase = 'terminal'", f.sourceId), 1);
+  assert.equal(f.count("SELECT count(*) AS n FROM feed_source_runs WHERE source_id = ? AND phase = 'interrupted'", f.sourceId), 0);
+});
+
 // RAC-1028 (FI-6, D6-2; provisional number): what a delivered notification brings in is judged after its commit, as the delivery's own call,
 // like any other item Feed takes in. These replace the Host's own Feed hooks that tests/schedule-operations.test.ts used to bind.
 async function delivering(t: TestContext) {

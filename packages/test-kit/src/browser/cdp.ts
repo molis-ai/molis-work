@@ -1,3 +1,4 @@
+import { Session } from "node:inspector/promises";
 import { join } from "node:path";
 import { performance } from "node:perf_hooks";
 import { launchHeadlessChrome, type LaunchedChrome } from "./launch.js";
@@ -13,6 +14,11 @@ export interface ChromeConnectOptions {
   readonly commandTimeoutMs?: number;
   /** A page expression whose text is appended to the error of a timed-out `ChromePage.wait`. */
   readonly describe?: string;
+  /**
+   * Sample the main thread while commands run, so a timed-out command's error can list what kept Node busy.
+   * Defaults to off; a command that does not time out writes no diagnostics and stops no sample itself.
+   */
+  readonly profileTimeouts?: boolean;
 }
 
 export interface ChromeStartOptions extends ChromeConnectOptions {
@@ -44,6 +50,182 @@ interface CdpMessage {
   error?: unknown;
 }
 
+const CHROME_TOP_METHODS = 3;
+const PROFILE_SEGMENT_MS = 20_000;
+const PROFILE_SAMPLE_INTERVAL_US = 10_000;
+const SELF_TIME_TOP = 5;
+const SELF_TIME_NAME_LIMIT = 120;
+const SELF_TIME_URL_LIMIT = 200;
+
+/** What a timed-out command attaches as `error.diagnostics`; it is kept out of `error.cause` on purpose. */
+interface TimeoutDiagnostics {
+  /** CDP messages this process had read while the command waited; it says nothing about socket backlog. */
+  readonly chromeMessages: number;
+  /** The three most frequent CDP methods among those messages, most frequent first. */
+  readonly chromeTopMethods: readonly { readonly method: string; readonly count: number }[];
+  /** Present only when `ChromeConnectOptions.profileTimeouts` was on and the sample could be read. */
+  readonly nodeSelfTime?: readonly SelfTimeEntry[];
+  /** Whether the sampled segment covered the command's whole window; a boundary can be missed on a busy thread. */
+  readonly nodeSelfTimeComplete?: boolean;
+}
+
+interface SelfTimeEntry {
+  readonly functionName: string;
+  /** The script URL with its query string and fragment removed; `(anonymous)` scripts have no name. */
+  readonly url: string;
+  /** An estimate in milliseconds: each sample stands for at most one 10 ms sampling interval. */
+  readonly selfMs: number;
+}
+
+interface CdpTimeoutFailure extends Error {
+  diagnostics?: TimeoutDiagnostics;
+}
+
+interface InspectorProfile {
+  readonly nodes: readonly { readonly id: number; readonly callFrame?: { readonly functionName?: string; readonly url?: string } }[];
+  readonly samples?: readonly number[];
+  readonly timeDeltas?: readonly number[];
+}
+
+function truncated(text: string, limit: number): string {
+  return text.length > limit ? `${text.slice(0, limit)}…` : text;
+}
+
+/** Strips a script URL's query string and fragment so a `sourceURL` token cannot leak into an error. */
+function scriptUrlText(url: string | undefined): string {
+  if (!url) return "";
+  const query = url.indexOf("?"), fragment = url.indexOf("#");
+  const cut = query === -1 ? fragment : fragment === -1 ? query : Math.min(query, fragment);
+  return cut === -1 ? url : url.slice(0, cut);
+}
+
+/**
+ * Aggregates a profile's samples into estimated self time per function, keeping only samples at or after
+ * `windowStarted`. The first `timeDeltas` entry is the gap from `Profiler.start` to the first sample, so sample n
+ * happened at `segmentStarted + Σ timeDeltas[0..n]` microseconds; compare that with the command's `performance.now()`.
+ */
+function selfTimeEntries(profile: InspectorProfile, segmentStarted: number, windowStarted: number): readonly SelfTimeEntry[] {
+  const frames = new Map<number, { functionName: string; url: string }>();
+  for (const node of profile.nodes) {
+    const name = node.callFrame?.functionName?.trim();
+    frames.set(node.id, {
+      functionName: truncated(name && name.length > 0 ? name : "(anonymous)", SELF_TIME_NAME_LIMIT),
+      url: truncated(scriptUrlText(node.callFrame?.url), SELF_TIME_URL_LIMIT),
+    });
+  }
+  const self = new Map<string, { functionName: string; url: string; selfUs: number }>();
+  const samples = profile.samples ?? [], deltas = profile.timeDeltas ?? [];
+  let sampledUs = 0;
+  for (let index = 0; index < samples.length; index += 1) {
+    const deltaUs = deltas[index] ?? 0;
+    sampledUs += deltaUs;
+    if (segmentStarted + sampledUs / 1000 < windowStarted) continue;
+    const frame = frames.get(samples[index]);
+    if (!frame) continue;
+    const key = `${frame.functionName}\u0000${frame.url}`;
+    const entry = self.get(key) ?? { ...frame, selfUs: 0 };
+    entry.selfUs += deltaUs;
+    self.set(key, entry);
+  }
+  return [...self.values()]
+    .sort((left, right) => right.selfUs - left.selfUs)
+    .slice(0, SELF_TIME_TOP)
+    .map(({ functionName, url, selfUs }) => ({ functionName, url, selfMs: Math.round(selfUs / 1000) }));
+}
+
+function chromeTopMethods(methods: ReadonlyMap<string, number>, startedAt: ReadonlyMap<string, number>, limit: number): readonly { readonly method: string; readonly count: number }[] {
+  const deltas: { method: string; count: number }[] = [];
+  for (const [method, count] of methods) {
+    const delta = count - (startedAt.get(method) ?? 0);
+    if (delta > 0) deltas.push({ method, count: delta });
+  }
+  deltas.sort((left, right) => right.count - left.count || left.method.localeCompare(right.method));
+  return deltas.slice(0, limit);
+}
+
+/**
+ * Keeps a `node:inspector` CPU profile while `profileTimeouts` is on, restarted every `PROFILE_SEGMENT_MS` so samples
+ * do not accumulate without bound. The rotation callback is subject to the same main-thread blocking as everything
+ * else, so a segment boundary can be late; a window that predates the current segment is reported as incomplete rather
+ * than guessed. The profile's `startTime` is not used: the segment start is the midpoint between two
+ * `performance.now()` readings around `Profiler.start`, putting the alignment error at half that round trip, while
+ * samples themselves are `PROFILE_SAMPLE_INTERVAL_US` apart (so each function's share is an estimate).
+ */
+class TimeoutProfiler {
+  private rotation: ReturnType<typeof setInterval> | undefined;
+  private segmentStarted = 0;
+  private closed = false;
+  private queue: Promise<unknown> = Promise.resolve();
+
+  private constructor(private readonly session: Session) {}
+
+  /** Starts sampling; diagnostics are best effort, so an unavailable inspector turns profiling off instead. */
+  static async start(): Promise<TimeoutProfiler | undefined> {
+    const session = new Session();
+    session.connect();
+    const profiler = new TimeoutProfiler(session);
+    if (!(await profiler.beginSegment())) { session.disconnect(); return undefined; }
+    profiler.rotation = setInterval(() => { void profiler.rotate(); }, PROFILE_SEGMENT_MS);
+    profiler.rotation.unref();
+    return profiler;
+  }
+
+  /** Reads the self time at or after `windowStarted` and starts a fresh segment. `undefined` when it cannot be read. */
+  recent(windowStarted: number): Promise<{ readonly nodeSelfTime: readonly SelfTimeEntry[]; readonly nodeSelfTimeComplete: boolean } | undefined> {
+    const segmentStarted = this.segmentStarted;
+    return this.finishSegment().then((profile) => {
+      if (!profile) return undefined;
+      return { nodeSelfTime: selfTimeEntries(profile, segmentStarted, windowStarted), nodeSelfTimeComplete: windowStarted >= segmentStarted };
+    });
+  }
+
+  async close(): Promise<void> {
+    if (this.closed) return;
+    this.closed = true;
+    if (this.rotation) clearInterval(this.rotation);
+    this.rotation = undefined;
+    await this.finishSegment();
+    this.session.disconnect();
+  }
+
+  private beginSegment(): Promise<boolean> {
+    return Promise.resolve().then(async () => {
+      try {
+        await this.session.post("Profiler.enable");
+        await this.session.post("Profiler.setSamplingInterval", { interval: PROFILE_SAMPLE_INTERVAL_US });
+        const before = performance.now();
+        await this.session.post("Profiler.start");
+        this.segmentStarted = (before + performance.now()) / 2;
+        return true;
+      } catch {
+        // Profiling is a diagnostic; a missing inspector keeps the harness working without a profile.
+        return false;
+      }
+    });
+  }
+
+  private finishSegment(): Promise<InspectorProfile | undefined> {
+    const run = this.queue.then(async () => {
+      try {
+        const stopped = (await this.session.post("Profiler.stop")) as { readonly profile: InspectorProfile };
+        const profile = stopped.profile;
+        if (!this.closed) await this.beginSegment();
+        return profile;
+      } catch {
+        // A failed read must not replace the timeout error; the caller falls back to the message and `cause`.
+        return undefined;
+      }
+    });
+    this.queue = run.then(() => undefined, () => undefined);
+    return run;
+  }
+
+  private async rotate(): Promise<void> {
+    if (this.closed) return;
+    await this.finishSegment();
+  }
+}
+
 /** A Chrome DevTools Protocol connection to one browser, plus the Chrome process when `start` launched it. */
 export class ChromeHarness {
   private nextId = 0;
@@ -52,12 +234,15 @@ export class ChromeHarness {
   private readonly pending = new Map<number, PendingCommand>();
   private readonly waiters = new Set<EventWaiter>();
   private readonly listeners = new Map<string, Set<CdpListener>>();
+  private messagesSeen = 0;
+  private readonly messageCounts = new Map<string, number>();
 
   private constructor(
     private readonly socket: WebSocket,
     readonly commandTimeoutMs: number,
     readonly describe: string | undefined,
     private readonly browser: LaunchedChrome | undefined,
+    private readonly profile: TimeoutProfiler | undefined,
   ) {
     socket.addEventListener("message", (event) => this.receive(String(event.data)));
     socket.addEventListener("close", () => this.connectionClosed());
@@ -70,7 +255,8 @@ export class ChromeHarness {
       socket.addEventListener("open", () => resolve(), { once: true });
       socket.addEventListener("error", () => reject(new Error(`CDP connection failed: ${debuggerUrl}`)), { once: true });
     });
-    return new ChromeHarness(socket, options.commandTimeoutMs ?? 20_000, options.describe, browser);
+    const profile = options.profileTimeouts ? await TimeoutProfiler.start() : undefined;
+    return new ChromeHarness(socket, options.commandTimeoutMs ?? 20_000, options.describe, browser, profile);
   }
 
   /** Launches headless Chrome with a profile under `directory`. Resolves to `null` when the machine has no Chrome. */
@@ -99,14 +285,32 @@ export class ChromeHarness {
       if (this.closed) { reject(new Error(`CDP connection closed before ${method}`)); return; }
       const expression = typeof params.expression === "string" ? ` · ${params.expression.slice(0, 320)}` : "";
       // Keep the command's caller, not only the timer callback, when a renderer stops answering.
-      const started = performance.now(), failure = new Error(`CDP timeout: ${method}${expression}`);
+      const started = performance.now(), failure = new Error(`CDP timeout: ${method}${expression}`) as CdpTimeoutFailure;
       const cpuStarted = process.cpuUsage(), loopStarted = performance.eventLoopUtilization();
+      const messagesStarted = this.messagesSeen, methodsStarted = new Map(this.messageCounts);
       const timer = setTimeout(() => {
-        this.pending.delete(id);
-        const cpu = process.cpuUsage(cpuStarted), loop = performance.eventLoopUtilization(loopStarted);
-        failure.cause = { nodeCpuMs: Math.round((cpu.user + cpu.system) / 1000), eventLoopActiveMs: Math.round(loop.active), eventLoopIdleMs: Math.round(loop.idle) };
-        failure.message += ` (elapsed ${Math.round(performance.now() - started)}ms; limit ${timeoutMs}ms)`;
-        reject(failure);
+        // The reply may already be in the socket while this timer is due: let one check-phase turn run first so
+        // `receive()` can settle the command, and only decide the timeout when the entry is still waiting.
+        setImmediate(() => {
+          const entry = this.pending.get(id);
+          if (!entry || entry.timer !== timer) return;
+          this.pending.delete(id);
+          const cpu = process.cpuUsage(cpuStarted), loop = performance.eventLoopUtilization(loopStarted);
+          failure.cause = { nodeCpuMs: Math.round((cpu.user + cpu.system) / 1000), eventLoopActiveMs: Math.round(loop.active), eventLoopIdleMs: Math.round(loop.idle) };
+          failure.message += ` (elapsed ${Math.round(performance.now() - started)}ms; limit ${timeoutMs}ms)`;
+          const diagnostics: TimeoutDiagnostics = {
+            chromeMessages: this.messagesSeen - messagesStarted,
+            chromeTopMethods: chromeTopMethods(this.messageCounts, methodsStarted, CHROME_TOP_METHODS),
+          };
+          const settle = (profile: { readonly nodeSelfTime: readonly SelfTimeEntry[]; readonly nodeSelfTimeComplete: boolean } | undefined) => {
+            failure.diagnostics = profile ? { ...diagnostics, ...profile } : diagnostics;
+            reject(failure);
+          };
+          // Reading the sample is asynchronous; a failed read keeps the message and `cause` and settles in the same way.
+          const profiler = this.profile;
+          if (profiler) void profiler.recent(started).then((summary) => { settle(summary); }, () => { settle(undefined); });
+          else settle(undefined);
+        });
       }, timeoutMs);
       this.pending.set(id, { resolve: (value) => resolve(value as T), reject, timer });
       this.socket.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }));
@@ -156,12 +360,15 @@ export class ChromeHarness {
     this.waiters.clear();
     this.listeners.clear();
     this.socket.close();
+    await this.profile?.close();
     await this.browser?.close();
   }
 
   private receive(raw: string): void {
     const message = JSON.parse(raw) as CdpMessage;
+    this.messagesSeen += 1;
     if (typeof message.method === "string") {
+      this.messageCounts.set(message.method, (this.messageCounts.get(message.method) ?? 0) + 1);
       for (const listener of [...(this.listeners.get(message.method) ?? [])]) listener(message.params ?? {}, message.sessionId);
       return;
     }

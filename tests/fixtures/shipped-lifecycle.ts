@@ -31,10 +31,11 @@ export interface Shipped {
    * installation carries the Host's own 常开 agreement, which the walk takes back before uninstalling (S-34). */
   readonly always_on?: true;
   /**
-   * A dual-instance plugin: the Home half holds what the person writes and is the one the walk follows (its `home`-scope actions);
-   * each project's own half is a second installation that the Home half's uninstall does not touch.
+   * A dual-instance plugin: by default the Home half holds what the person writes and is the one the walk follows (its
+   * `home`-scope actions); each project's own half is a second installation that the Home half's uninstall does not touch.
+   * `"project"` is the other way round: the data lives in the project half (Goals), and the Home half is the second installation.
    */
-  readonly dual?: true;
+  readonly dual?: true | "project";
   /**
    * A project plugin that is not personal: taking it out of the project stops the project's installation (`disabled`) and adding it
    * back runs it again, where a personal plugin's installation keeps running whoever may reach it (apps/local-host/src/project-plugin-enablement.ts).
@@ -90,7 +91,7 @@ export function viewOf(served: Served, project: TestProject, plugin: Pick<Shippe
     routes,
     platform: async () => { const running = await platform(); assert.ok(running, `${plugin.key}: the ${plugin.scope} platform runs`); return running; },
     /** The plugin's actions the person may call in the project now: those of the half the walk follows, or of the scope asked for. */
-    async callable(scope: "home" | "project" | undefined = plugin.dual ? "home" : undefined) {
+    async callable(scope: "home" | "project" | undefined = plugin.dual === "project" ? "project" : plugin.dual ? "home" : undefined) {
       const views = await served.host.actionClient(project.reference).discover(await served.host.localPersonContext(project.reference));
       return views.filter(view => view.provider.plugin_id === plugin.plugin_id && view.availability.available && (scope === undefined || view.action.scope === scope))
         .map(view => `${view.capability_id}@${view.version}`).sort();
@@ -184,22 +185,30 @@ export async function walk(plugin: Shipped, host: Partial<HostOptions> = {}) {
     await upgraded.runtime.stop(first.install_id);
     await upgraded.runtime.uninstall(first.install_id, { retain_private_data: false });
     assert.equal((await at.installation())?.state, "uninstalled");
-    assert.equal(await answer(plugin.titles(served.web, at.routes)), "404 actions.missing", `${plugin.key}: uninstalled, its route says so`);
+    // A 常开 plugin the project runs itself stays in the project's expected list; the project refused it, so its route says
+    // disabled rather than missing. A 常开 Home plugin (Shelf) is expected only by the Home: its project route is missing.
+    const uninstalledRoute = plugin.always_on && plugin.scope === "project" ? "403 actions.plugin_disabled" : "404 actions.missing";
+    assert.equal(await answer(plugin.titles(served.web, at.routes)), uninstalledRoute, `${plugin.key}: uninstalled, its route says so`);
     assert.deepEqual(await at.callable(), []);
 
     // Neither supervisor installs it again on the next start (W3-06-F-06 for the Home's, BL-755 for a project's).
     await served.shut();
     served = await serve(home, host);
     at = viewOf(served, project, plugin);
-    assert.equal(await answer(plugin.titles(served.web, at.routes)), "404 actions.missing", `${plugin.key}: not there after a restart`);
-    assert.equal((await at.installation())?.state, "uninstalled", `${plugin.key}: still uninstalled after a restart`);
+    assert.equal(await answer(plugin.titles(served.web, at.routes)), uninstalledRoute, `${plugin.key}: not there after a restart`);
+    // The directory asks the project's platform for the plugin it expects; that also starts the platform a fresh start has not opened yet.
     assert.deepEqual(await at.callable(), []);
+    assert.equal((await at.installation())?.state, "uninstalled", `${plugin.key}: still uninstalled after a restart`);
     if (plugin.always_on) {
       const listed = await served.web.post<{ consents: Array<{ kind: string; revoked_at: string | null }> }>("/api/settings/plugin-consents/list", { plugin_id: plugin.plugin_id });
       const rows = listed.consents.filter(row => row.kind === "always_on");
       assert.ok(rows.length > 0 && rows.every(row => row.revoked_at !== null), `${plugin.key}: the agreement stays revoked, the Host does not agree again`);
     }
-    if (plugin.dual) assert.ok((await at.callable("project")).length > 0, `${plugin.key}: the project's own half is another installation, still there`);
+    if (plugin.dual === "project") {
+      const homeHalf = await served.host.homePlugins!.ready();
+      const other = homeHalf.runtime.list().find(item => item.plugin_id === plugin.plugin_id);
+      assert.ok(other && other.state === "running", `${plugin.key}: the Home half is another installation, still there`);
+    } else if (plugin.dual) assert.ok((await at.callable("project")).length > 0, `${plugin.key}: the project's own half is another installation, still there`);
   } finally {
     await served.shut();
     await rm(home, { recursive: true, force: true });

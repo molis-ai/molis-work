@@ -156,5 +156,15 @@ test("RAC-483 a project whose Feed went after Inbox judged one of its items stil
     assert.deepEqual(await recommendations(caller), []);
     assert.equal(await listed(), false);
     for (const path of ["/", "/api/board"]) assert.equal((await get(`${base}/projects/${projectId}${path}`)).status, 200, path);
+    // BL-800 as a person takes it: Feed comes back and its entry and advice with it; then Inbox goes and takes Feed (Feed's companion) with
+    // it, and only Inbox comes back. Feed's entry stays out of Inbox, its advice with it, and the project's page opens.
+    catalog.addProjectPlugin({ project_id: projectId, plugin_id: "feed", actor_id: "test" });
+    assert.equal(await listed(), true);
+    assert.deepEqual(await recommendations(caller), judged);
+    assert.equal(catalog.removeProjectPlugin({ project_id: projectId, plugin_id: "inbox", actor_id: "test" }).plugins.includes("feed"), false);
+    assert.equal(catalog.addProjectPlugin({ project_id: projectId, plugin_id: "inbox", actor_id: "test" }).includes("feed"), false);
+    assert.deepEqual(await recommendations(caller), []);
+    assert.equal(await listed(), false);
+    for (const path of ["/", "/api/board"]) assert.equal((await get(`${base}/projects/${projectId}${path}`)).status, 200, path);
   }, { functions });
 });

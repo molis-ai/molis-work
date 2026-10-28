@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { openMolisWorkProjectCatalog, withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { LocalMcpServer, MolisWorkLocalHost, molisWorkHostProjectReference, readMcpToolPreference } from "@molis-ai/molis-work-app-local-host";
-import type { ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
+import { ActionError, type ActionDefinition } from "@molis-ai/molis-work-contracts/platform/actions";
 import { createMolisWorkWebServer } from "../apps/desktop/launchers/web/server.js";
 import { molisWorkActionToolName } from "@molis-ai/molis-work-app-mcp";
 
@@ -261,6 +261,69 @@ test("RAC-1332 an oversized body answers 413 and a POST naming a missing project
     assert.equal(missing.status, 404, await missing.clone().text());
     assert.equal((await missing.json() as { code?: string }).code, "catalog.project_not_found");
   } finally {
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+    await host.close();
+    catalog.close();
+    await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("RAC-1333 the whole-read failures of the MCP settings answer by kind over HTTP, and an unknown failure keeps its text out", { timeout: 30_000 }, async () => {
+  const home = await mkdtemp(join(tmpdir(), "mcp-action-get-")), token = "mcp-action-get-test-control-token";
+  const catalog = await openMolisWorkProjectCatalog({ homeDirectory: home });
+  const created = await catalog.createProject({ display_name: "整次读取", actor_id: "test" });
+  const project = catalog.getProject(created.project_id);
+  const ref = molisWorkHostProjectReference({ projectId: project.project_id, databasePath: project.database_path });
+  const host = new MolisWorkLocalHost({ homeDirectory: home });
+  const id = `whole-read.${randomUUID()}`;
+  const definition: ActionDefinition = { capability_id: id, version: 1, operation: "command", action: {
+    title: "Whole read", description: "An action that is discoverable but currently unavailable", kind: "operation", scope: "project", audiences: ["mcp"],
+    permissions: [], subject_kinds: [], input_schema: { type: "object", properties: {}, additionalProperties: false }, output_schema: { type: "integer" },
+  } };
+  const stop = host.actionRegistry(ref).registerProvider({ provider: { provider_id: id, title: "整次读取的插件", kind: "plugin" }, definitions: [definition],
+    handlers: [{ capability_id: id, version: 1, handle: () => 1, availability: () => ({ available: false as const, code: "fixture.offline", reason: "服务未连接" }) }] });
+  const server = createMolisWorkWebServer({ homeDirectory: home, localHost: host, controlToken: token });
+  const originalInspect = host.inspectActions;
+  const replaceInspect = (next: typeof host.inspectActions) => Object.defineProperty(host, "inspectActions", { configurable: true, value: next });
+  try {
+    await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+    const address = server.address(); assert.ok(address && typeof address === "object"); const origin = `http://127.0.0.1:${address.port}`;
+    const read = () => fetch(`${origin}/api/settings/mcp/actions?client_id=runtime:external&project_id=${project.project_id}`);
+    const post = (body: Record<string, unknown>) => fetch(`${origin}/api/settings/mcp/actions`, { method: "POST", body: JSON.stringify(body), headers: {
+      origin, "content-type": "application/json", "x-molis-work-idempotency-key": randomUUID(), "x-molis-work-control-token": token,
+    } });
+    // The normal GET and the two business outcomes (single unavailable action, a project that is not there) are still 200.
+    const initial = await read();
+    assert.equal(initial.status, 200);
+    const initialEntry = ((await initial.json()) as { entries: Array<{ capability_id: string; status: string }> }).entries.find(entry => entry.capability_id === id);
+    assert.ok(initialEntry, "the single unavailable action is still listed as a business read");
+    assert.equal(initialEntry.status, "ungranted");
+    assert.equal((await fetch(`${origin}/api/settings/mcp/actions?client_id=runtime:external&project_id=no-such-project`)).status, 200);
+    // A whole read that says the service is unavailable answers 503 with its code and reason.
+    replaceInspect(async () => { throw new ActionError("actions.unavailable", "插件停用了"); });
+    const unavailable = await read();
+    assert.equal(unavailable.status, 503, await unavailable.clone().text());
+    const unavailableBody = await unavailable.json() as { code?: string; error?: string };
+    assert.equal(unavailableBody.code, "actions.unavailable");
+    assert.equal(unavailableBody.error, "插件停用了");
+    // Any other failure is the Host's unhandled answer: 500 with a diagnostic id on both methods, never the internal text.
+    replaceInspect(async () => { throw new Error("内部秘密"); });
+    for (const response of [await read(), await post({ client_id: "runtime:external", project_id: project.project_id, capability_id: id, version: 1, provider_id: id, enabled: true })]) {
+      assert.equal(response.status, 500, await response.clone().text());
+      const body = await response.json() as { code?: string; error?: string; diagnostic_id?: string };
+      assert.equal(body.code, "actions.execution_failed");
+      assert.equal(typeof body.diagnostic_id, "string");
+      assert.ok(body.diagnostic_id);
+      assert.doesNotMatch(body.error ?? "", /内部秘密/);
+    }
+    // Restored: the normal read is 200 again and no grant was written.
+    replaceInspect(originalInspect);
+    const restored = await read();
+    assert.equal(restored.status, 200);
+    assert.deepEqual(((await restored.json()) as { grants: unknown[] }).grants, []);
+  } finally {
+    stop();
+    replaceInspect(originalInspect);
     await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
     await host.close();
     catalog.close();

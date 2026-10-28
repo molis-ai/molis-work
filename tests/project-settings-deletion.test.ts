@@ -115,6 +115,7 @@ test("RAC-1330 project settings deletion requires authorization and confirmation
   assert.deepEqual(await replay.json(), { ...result, replayed: true });
   const conflict = await post(`/api/settings/projects/${other.project_id}/delete`, body);
   assert.equal(conflict.status, 400);
+  assert.equal(((await conflict.json()) as { code?: string }).code, "catalog.deletion_idempotency_conflict");
   assert.equal(existsSync(other.database_path), true);
   const reopened = await openMolisWorkProjectCatalog({ homeDirectory });
   try {
@@ -178,7 +179,9 @@ test("RAC-1330 project deletion refuses a live terminal and succeeds after the u
     const body = { delete_confirmed: true, idempotency_key: "live-terminal-delete" };
     const blocked = await post(deletePath, body);
     assert.equal(blocked.status, 409);
-    assert.match((await blocked.json() as { error: string }).error, /关闭.*终端/);
+    const blockedBody = await blocked.json() as { error: string; code?: string };
+    assert.match(blockedBody.error, /关闭.*终端/);
+    assert.equal(blockedBody.code, "catalog.project_terminal_live");
     assert.equal(existsSync(project.database_path), true);
     socket.send(JSON.stringify({ type: "kill", panelId: panel.panel_id }));
     const detached = await message({ type: "spawn", panelId: panel.panel_id, attachOnly: true }, "spawned");

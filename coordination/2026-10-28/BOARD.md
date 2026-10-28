@@ -36,6 +36,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-022 | 安装器里 Runtime 的显示名改读统一的那张表（BL-392 的一半） | 乙 | A | 6 | — | `apps/local-host/src/installer/runtime-config-adapters.ts`、`tests/runtime-integration.test.ts` |
 | T-023 | 插件开发 Skill 补上动作之间的引用规则，改正结果对象的推断规则（BL-130） | 丙 | 池 | 5 | — | `skills/molis-plugin-dev/continuity.md`、`skills/molis-plugin-dev/host.md` |
 | T-026 | 摘要真的超时时 Coding 换用备用摘要：补生产截止时间的用例（BL-311） | 乙 | B | 6 | — | `tests/coding-history-requirements.test.ts` |
+| T-028 | Feed 条目的来源归属标记不再露给人，也不进搜索摘要（BL-096 标签一半） | 乙 | A | 7 | — | `plugins/native/feed/src/application-projection.ts`、`tests/feed-item-tags.test.ts`（新） |
 
 ## 在途，不走任务书
 

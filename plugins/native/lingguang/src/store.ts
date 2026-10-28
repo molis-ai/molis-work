@@ -339,21 +339,21 @@ function normalizeProjectId(value: string): string {
 
 function normalizeTitle(value: string, body: string): string {
   const title = value.trim();
-  if (title.length > 80) throw lingguangErrors.invalid("标题须为 1 到 80 个字");
+  if ([...title].length > 80) throw lingguangErrors.invalid("标题须为 1 到 80 个字");
   if (title) return title;
   const fallback = body.trim().split(/\r?\n/u)[0]?.trim() ?? "";
-  return fallback.slice(0, 80);
+  return [...fallback].slice(0, 80).join("");
 }
 
 function normalizeBody(value: string): string {
-  if (value.length > LINGGUANG_BODY_LIMIT) throw lingguangErrors.invalid(`正文须为 0 到 ${LINGGUANG_BODY_LIMIT} 个字`);
+  if ([...value].length > LINGGUANG_BODY_LIMIT) throw lingguangErrors.invalid(`正文须为 0 到 ${LINGGUANG_BODY_LIMIT} 个字`);
   return value;
 }
 
 function normalizeChat(value: string): string {
   const text = value.trim();
   if (!text) throw lingguangErrors.invalid("先写下要接着说的话");
-  if (text.length > 2000) throw lingguangErrors.invalid("这句话须为 1 到 2000 个字");
+  if ([...text].length > 2000) throw lingguangErrors.invalid("这句话须为 1 到 2000 个字");
   return text;
 }
 

@@ -321,3 +321,40 @@ test("LG-REVERT-01 lingguang.revert refuses a spark changed since it was noted a
     assert.equal((await bound.invoke(actions.get, { id: spark.id })).spark.status, "discarded", "the record is kept");
   });
 });
+test("RAC-1620: 灵光 counts a spark's title and body in Unicode characters, as its action schemas do", async () => {
+  // create/update in src/actions.ts allow an 80-character title and a 200000-character body (LINGGUANG_BODY_LIMIT in src/contract.ts);
+  // one 🟢 is one character but two UTF-16 units.
+  await fixture(async ({ bound }) => {
+    const wide = (count: number) => "🟢".repeat(count);
+    const { spark } = await bound.invoke(actions.create, { title: wide(80), body: "想法" });
+    assert.equal(spark.title, wide(80), "create keeps an 80-character title");
+    const written = (await bound.invoke(actions.update, { id: spark.id, body: wide(200_000) })).spark;
+    assert.equal(written.body, wide(200_000), "update keeps a 200000-character body");
+    await assert.rejects(bound.invoke(actions.update, { id: spark.id, title: wide(81) }), { code: "actions.input_invalid" }, "81 characters is still past the schema");
+  });
+});
+
+test("RAC-1621: a spark without a title takes the first 80 whole characters of its body's first line, never half of one", async () => {
+  // normalizeTitle in src/store.ts falls back to the body's first line; a cut by UTF-16 units would end inside a 🟢.
+  await fixture(async ({ bound }) => {
+    const wide = (count: number) => "🟢".repeat(count);
+    const { spark } = await bound.invoke(actions.create, { body: "灵" + wide(80) + "\n第二行" });
+    assert.equal(spark.title, "灵" + wide(79), "create titles it with 80 whole characters");
+    const retitled = (await bound.invoke(actions.update, { id: spark.id, title: "", body: "感" + wide(80) })).spark;
+    assert.equal(retitled.title, "感" + wide(79), "an update that empties the title does the same");
+  });
+});
+
+test("RAC-1622: a brainstorm message of 2000 Unicode characters is kept with the reply the model wrote for it", async () => {
+  // conversation.message in src/actions.ts allows a 2000-character body; the store checks it again only after the model has answered.
+  const prompts: string[] = [];
+  await fixture(async ({ bound }) => {
+    const wide = (count: number) => "🟢".repeat(count);
+    const { spark } = await bound.invoke(actions.create, { title: "长句", body: "想法" });
+    const { conversation } = await bound.invoke(actions.openConversation, { spark_ids: [spark.id] });
+    const state = await bound.invoke(actions.message, { id: conversation.id, body: wide(2000) });
+    assert.deepEqual(state.messages.map(row => row.body), [wide(2000), "回应"], "the 2000-character message and its reply are both kept");
+    await assert.rejects(bound.invoke(actions.message, { id: conversation.id, body: wide(2001) }), { code: "actions.input_invalid" }, "2001 characters is still past the schema");
+    assert.equal(prompts.length, 1, "the model was asked once, for the message that was kept");
+  }, async prompt => { prompts.push(prompt); return "回应"; });
+});

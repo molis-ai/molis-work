@@ -549,23 +549,35 @@ W5-13 第二片（2026-10-16，`apps/local-host/src` 顶层吞错，PR 待开；
 - 测试：`tests/host-log-catches.test.ts`：`W5-13-04`（项目查找只把 not_found 当没有，目录读不了与别的目录错误照抛）、`W5-13-05`（预览失败按类型记，forbidden、not_found 不记，消息与路径不进日志）、`W5-13-06`（Coding 后台清单，经宿主的真实接线：没有 Coding 的项目不记，读不了的库开始失败时记一条、读通后再失败再记；没有 Coding 的库用不带 Coding 表的空库——演示看板会建 Coding 的表，用它就量不到这一条；去掉接线里的询问即红）、`W5-13-08`（重复失败只在开始时记）、`W5-13-11`（项目简介与侧栏浏览器：没有这个项目仍是 404，目录读不了是 500 并记一条，服务照常答下一个）；`tests/im-local-project.test.ts` 的 `W5-13-11`（群聊连接：目录读不了 500，没有这个项目仍 403，之后照常连上）；`tests/connector-mcp.test.ts` 的 `W5-13-07`（重启后一个连接登记失败按 id 记，另一个照常登记）。变异检查：项目查找改回全捕获（04 失败）、预览不分种类（05 失败）、重复失败不去重（06、08 失败）、连接登记改回静默（07 失败）、Coding 去掉表检查（06 失败）。
 - 门禁：`--base origin/main` 通过；新加的几行没有留在巨大单元里（移到模块级小函数或同行注释），巨大单元的行数不变。
 
-W5-13 第三片（2026-10-28，`apps/local-host/src` 里失败后什么都不留的几类 catch，PR 待开；分支 `claude/w513-slice3`，统筹 10-28 裁定合成一片）：门禁能数的空 catch 与 `console` 在范围内已是 0，余下的是 catch 里只有注释、或吞掉任意错误的写法。逐行看过 local-host 的约 230 处，大多是合理兜底（解析失败当找不到、探测文件或进程、回给调用方的拒绝、回滚时保住原错误），不改；本片只收「失败了没人知道」的四类，行为都不变，只是失败写进 `hostLog`（只记错误名或码、区域、事件和调用处自己定的 id 与计数，不记消息、输入文字和路径，同 W5-13-03、09）。
+W5-13 第三片（2026-10-28，`apps/local-host/src` 里失败后什么都不留的几类 catch，已合入（#1330，main `8a72df336`）；统筹 10-28 裁定合成一片）：门禁能数的空 catch 与 `console` 在范围内已是 0，余下的是 catch 里只有注释、或吞掉任意错误的写法。逐行看过 local-host 的约 230 处，大多是合理兜底（解析失败当找不到、探测文件或进程、回给调用方的拒绝、回滚时保住原错误），不改；本片只收「失败了没人知道」的四类，行为都不变，只是失败写进 `hostLog`（只记错误名或码、区域、事件和调用处自己定的 id 与计数，不记消息、输入文字和路径，同 W5-13-03、09）。
 - 监听者与观察者：`host-log.ts` 加一个共用的 `eachListener(区域, 听的是什么, 监听者, 告诉)`，一个监听者抛错不挡其他监听者和告诉它们的代码，开始失败时记一条 `<区域>.listener_failed`（字段 `of`），好过之后再失败才再记。用在助理库的变化（`assistant-store.ts`）、电脑桌面的状态与画面（`computer-desk.ts`）、辅助程序的事件（`helper-connection.ts`）。宿主对动作提供方的观察者（`local-host.ts:106`）不在本片：改它命中 affected 的 assembly、要跑全量，留给 W6-01（装配冻结名单清零），那一片本来就动宿主装配、跑全量，到时顺手补（统筹 10-28）。
 - 主操作不等的次要记录：提示词使用记录（`agent-definitions.ts`，`agents` / `prompt_use_unrecorded`，字段 `owner` 与 `prompt`）、命令成功后的关系与 Send 时的材料关系（`assistant-authority.ts`、`assistant-relations.ts`，`assistant` / `relation_unrecorded`，`step` 为 `command` 或 `send`）。任务卡片收尾（`assistant-jobs.ts` 的 `#settleCards`）按错误码分：`assistant.conflict`（卡片已被改）是预期，不记；别的记 `job_card_unsettled`。
-- 后台循环：续接的监视（`assistant-continuations.ts`，每 5 秒重试，按范围记 `continuation_watch_failed`）、新材料的来源（`assistant-material-scan.ts`，`material_source_failed`）、到期提醒的来源（`assistant-followups.ts`，`reminder_source_failed`，这段时间下次照旧再问）用 `repeatingFailure`，按来源的 `capability_id` 或范围记，开始失败时一条。
+- 后台循环：续接的监视（`assistant-continuations.ts`，每 5 秒重试，按范围记 `continuation_watch_failed`）、新材料的来源（`assistant-material-scan.ts`，按项目和 `capability_id` 记 `material_source_failed`）、到期提醒的来源（`assistant-followups.ts`，`reminder_source_failed`，这段时间下次照旧再问）用 `repeatingFailure`，按来源的 `capability_id` 或范围记，开始失败时一条；发布者账本的记法（RAC-1113）每个 `publisherStanding` 各一份。
 - 发布者账本读不了（`installed-publisher-standing.ts`）：仍是谁都不信任，拒绝不变（S-87 的「账本读不出来时谁都不信任」，安全不变量的表和测试都没改，不新增 S 行）；开始读不了时记一条 `plugins` / `publisher_ledger_unreadable`，读通后再读不了才再记。
 - 验收：`tests/host-log-listeners.test.ts`：
   - `RAC-1110` / `W5-13-12`：一个监听者抛错，其他监听者照常收到、写入照常成功，日志里一条 `<区域>.listener_failed`，只带错误名或码；依次是共用的 `eachListener`（辅助程序的事件经它）、助理库、电脑桌面。
   - `RAC-1111` / `W5-13-13`：次要记录写不进（命令后的关系、Send 时的材料关系、模型调用的提示词使用记录）：主操作照常返回或继续，日志里一条 warn，不带人写的字；提示词按主人与 id 分两个字段记（合起来的键带 `/`，不像键）。
-  - `RAC-1112` / `W5-13-14`：任务卡片收尾，版本冲突不记，别的失败记一条，卡片保持原样。
-  - `RAC-1113` / `W5-13-15`：发布者账本读不了，固定的安装照旧被拒、宿主自己的照旧可跑，只记一条；读通后照常信任，再读不了再记。
+  - `RAC-1112` / `W5-13-14`：任务卡片收尾，版本冲突不记，别的失败记一条，库里的卡片保持原样。
+  - `RAC-1113` / `W5-13-15`：发布者账本读不了，固定的安装照旧被拒、宿主自己的照旧可跑，只记一条；读通后照常信任；人此后改了同意（如撤销另一个发布者），同一个 standing 再读不了，再记一条；另一个 standing 各记各的。
   - `RAC-1114` / `W5-13-16`：新材料来源、提醒来源、续接监视一直失败，开始时按键记一条，查看照常继续；提醒来源没答的那段不记为已看过。
 - 不在本片、各记一处：
-  - 「`store.get` 失败就当已删」一类（助理里约 15 处）改成只认 `assistant.not_found`：BL-810，排在本片之后。
+  - 「`store.get` 失败就当已删」一类（助理里约 15 处）改成只认 `assistant.not_found`：BL-810，见下一节。
   - 平台包（`horizontal/*`、`modules/*`、`packages/*`）不能 import `hostLog`，要记日志得先定注入的日志端口：BL-812（随 BL-169；`horizontal/agent-host` 的 32 处归 AI 手册线）。
   - Promise 上的 `.catch(() => 默认值)` 约 243 处门禁不数，大多是进程清理与收尾关闭，不整体清，只在碰到的片里顺手收。
   - `alchemist-service-host.ts`、`plugin-builder/*` 不改：用户 10-21 定了炼金台与插件创作台以后删掉重做。
   - 浏览器脚本模板字符串里的 9 处空 catch（读写 localStorage、匹配媒体查询的兜底）：页面里没有 `hostLog`，页面错误要不要报给宿主是另一件事，要用户定。
+
+BL-810（2026-10-28，T-009，分支 `task/T009-m`，#1335）：助理读一项可能已被删的工作时，只有 `assistant.not_found` 算「不在了」；库读不了不再冒充删除。
+- 写法：`assistant-errors.ts` 加 `whenThere(read)`：读到就返回，`assistant.not_found` 返回 null，别的错误照抛，不新写 Error 子类。用在 14 处：续接的变化监听与「是不是还是当前」（`assistant-continuations.ts`；读不了时，监听器的失败由 `eachListener` 记，监视的失败由 `continuation_watch_failed` 记）、用量结算（`assistant-budget.ts`）、执行器会话的占用（`assistant-executor-session.ts`：读不了不当作会话空着）、跟进后台任务（`assistant-jobs.ts` 的 `follow` 与 `#follower`）、记忆工具读这一轮说过的话（`assistant-memory-bridge.ts`）、已处理通知的结算（`assistant-notices.ts`：一项工作读不了，按 work_id 记一条 `assistant.notice_work_unreadable` 再跳过它，别的工作照常结算）、定时跟进（`assistant-followups.ts`：宿主启动排队时读不了，按 follow-up 记一条 `assistant.followup_work_unreadable` 再跳过；到点时读不了，同样按 follow-up 记一条 `assistant.followup_work_unreadable`（与启动时同一个键，已记过的不重复），再抛出、不写这条跟进，不再写「这项工作已不存在」；队列把这一次记为失败，它的错误没有别的读者，所以以日志那条为准。下次启动按同一条宽限规则重判：还在宽限内就照常开始，晚了就记 `missed`，一次性的照样停用，通知里的原因写的是「当时 Molis Work 没有在运行」，不是实情（库读不了），通知文字这次不改）、工作记录、相关工作与诊断（`assistant-work-reads.ts`）、子任务交回后接着做（`assistant-delegation.ts`，读不了时交回的通知写明原因）。读不了时，同步的调用带着库自己的错误失败，监听器与监视由已有的日志记下，通知结算与定时跟进的两处如上另记一条。列表类读取（相关工作、诊断）一行读不了整次读取失败，用量结算读不了就拦住发送：这几处给不出完整答案就不答，是有意的。照实写明：`follow` 的两个调用处（`assistant-outcomes.ts` 的 `.catch(() => undefined)`、`assistant-offers.ts` 在 `started` 里的调用）、子任务交回写通知那一处（`assistant-delegation.ts` 的 `.catch(() => undefined)`），以及二审（#1335 第二轮）请作者核出的两处——后台任务结束的监听（`assistant-jobs.ts` 的 `onJobEnded(… .catch(() => undefined))`，经 `#follower` 读工作；每次启动会再听一遍）、读一项工作时附带的用量（`assistant-service.ts` 的 `workUsage(…).catch(() => null)`，经用量结算读工作；这次读不到用量，下次再读）——仍会把这类错误吞掉、不留日志，按下一条的 Promise 一条处理。
+- 不在本片：`assistant-http.ts` 的两处已经只认这个码，不动；Promise 上的 `.catch(() => 默认值)`（如 `assistant-outcomes.ts` 跟进后台任务那一处）照 W5-13 第三片「不在本片」的 Promise 一条处理。
+- 二审（#1335）顺手改的：`assistant-followups.ts` 的 `reminder_source_failed` 记法从模块级改为每个实例一份（与账本那份同一类）；`assistant-jobs.ts` 两行同源导入合成一行。
+- 并入 #1330 评审（`b70faf1ed`）的四条：新材料来源按「项目:capability_id」去重、字段带 `project_id`；每个 `publisherStanding` 各一份账本失败的记法；RAC-1112 断言库里的卡片；`docs/system/SECURITY-INVARIANTS.md` S-87 行「只在本机跑」一列引用 RAC-1113（只加引用，不改条文）。
+- 验收：`tests/assistant-not-found.test.ts`：
+  - `RAC-1140`：工作记录，不在了是 null，库读不了抛出库自己的错误。
+  - `RAC-1141`：相关工作，指向已删工作的关系不列出，库读不了时读取失败。
+  - `RAC-1142`：已处理通知的结算，已删工作的通知原样留着、不记失败；一项工作读不了，记一条 `assistant.notice_work_unreadable`（两轮只记一次），每一轮都接着读它后面那项读得通的工作，它的通知仍开着。
+  - `RAC-1143`：续接听到变化时库读不了，记一条 `assistant.listener_failed`（`of` 为 `work_changes`），写入照常成功。
+  - `RAC-1144`：定时跟进，宿主启动时读不了工作记一条 `assistant.followup_work_unreadable`（启动两次只记一次，到点时不再记第二条）；启动时读得通、到点时读不了，到点时记这一条；两种情形到点都抛出库自己的错误，这条跟进原样不动。
 
 W5-01-PAGES 正式 Runtime 迁移（2026-10-20，#847，叠在平台片 PG-050（#846）上）：
 - 范围：Pages 从构建期宿主适配器迁到每个项目一个 Plugin Runtime 实例；库仍是 `{home}/pages/pages.db` 的 `PAGES_DATABASE`（version 2，原 schema 不变），17 个动作的处理器、17 条 HTTP 路由（走 Manifest 的 `routes` 与 `bindPluginActionRoute`）、成果发布（`services.artifacts`）、写作模型（`services.model.complete` 的完整结果）和上传文件读取（`services.materials.readDocuments`）都由 Runtime 服务供给；删除宿主 `pages-actions.ts`、`pages-native-plugin-http.ts`、`pages-artifact.ts`、`pages-import.ts` 及 `project-host.ts`/`web-request.ts`/`web-catalog.ts`/`index.ts` 里的接线，目录条目只留 UI/client/styles 与 `project_data`。新增 `plugin.ts`（`createPagesPlugin`、`PAGES_DATABASE` 经 `index.ts` 导出）。

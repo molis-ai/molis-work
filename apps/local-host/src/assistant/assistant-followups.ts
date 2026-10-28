@@ -5,7 +5,7 @@ import type { AgentHost } from "@molis-ai/molis-work-service-agent-host";
 import type { AgentScheduleCapability, AgentScheduledTask } from "@molis-ai/molis-work-contracts/services/agent-host";
 import { DUE_REMINDERS_INPUT_TYPE, DUE_REMINDERS_OUTPUT_TYPE, type ActionView, type DueReminderCollection, type ExactActionReference } from "@molis-ai/molis-work-contracts/platform/actions";
 import type { AssistantFollowUp, AssistantNotice, AssistantNoticeKind, AssistantRule, AssistantRuleInput, AssistantWorkState } from "@molis-ai/molis-work-contracts/services/assistant";
-import { assistantErrors } from "./assistant-errors.js";
+import { assistantErrors, whenThere } from "./assistant-errors.js";
 import { repeatingFailure } from "../host-log.js";
 
 /**
@@ -19,8 +19,6 @@ import { repeatingFailure } from "../host-log.js";
 export const FOLLOW_UP_KIND = "assistant.follow-up";
 const FOLLOW_UP_GRACE_MS = 10 * 60 * 1000;
 const MAX_FOLLOW_UPS_PER_WORK = 5;
-/** A reminder source that cannot be asked, by its capability: written when it starts failing (the stretch is asked again next time). */
-const reminderSourceFailures = repeatingFailure("assistant", "reminder_source_failed");
 /** Reminders are asked for from where the last look stopped, but never further back than this (Molis Work was off). */
 const REMINDER_LOOKBACK_MS = 12 * 60 * 60 * 1000;
 /** A reminder told later than this after its time is said to be missed. */
@@ -102,6 +100,10 @@ function followUpTask(followUp: AssistantFollowUp, sessionId: string) {
 export class AssistantFollowUps<W extends FollowUpWork> {
   #detachSchedule: (() => void) | null = null;
   #sweeping = false;
+  /** A reminder source that cannot be asked, by its capability: written when it starts failing (the stretch is asked again next time). */
+  #reminderSourceFailures = repeatingFailure("assistant", "reminder_source_failed");
+  /** A timed round whose work cannot be read when the Host starts, by the follow-up: written when it starts failing. */
+  #unreadableWorks = repeatingFailure("assistant", "followup_work_unreadable");
 
   constructor(private readonly ports: AssistantFollowUpPorts<W>) {}
 
@@ -158,9 +160,11 @@ export class AssistantFollowUps<W extends FollowUpWork> {
   async attach(schedule: AgentScheduleCapability): Promise<void> {
     this.#runnerFor(schedule);
     for (const followUp of this.list().filter(item => item.enabled && item.next_at)) {
-      let work: W;
-      try { work = this.ports.work(followUp.work_id); } catch { continue; }
-      if (!work.session_id) continue;
+      // A work that is gone has nothing to queue; one that cannot be read is written and left for the next start (its task, if any, stays queued).
+      let work: W | null;
+      try { work = whenThere(() => this.ports.work(followUp.work_id)); this.#unreadableWorks.worked(followUp.followup_id); }
+      catch (error) { this.#unreadableWorks.failed(followUp.followup_id, error, { followup_id: followUp.followup_id }); continue; }
+      if (!work?.session_id) continue;
       const task = followUpTask(followUp, work.session_id), held = schedule.find(task.key);
       // Its time came with no runner attached (the Host was still starting): decided now by the same rule — on time
       // enough it runs, too late it is reported as missed — never left silently undone.
@@ -206,9 +210,13 @@ export class AssistantFollowUps<W extends FollowUpWork> {
     if (!current()) return;
     const now = ports.now(), due = followUp.next_at!;
     let outcome: NonNullable<AssistantFollowUp["last"]>["outcome"] = "started", detail: string | undefined;
+    // Gone is said so. A store that cannot be read writes nothing to the follow-up: it is written to the Host log (once, the same key as at
+    // start) and thrown, so the queue keeps this time failed and the next start decides it again by the same grace rule.
     let work: W | undefined;
-    try { work = ports.work(followUp.work_id); } catch { outcome = "failed"; detail = "这项工作已不存在"; }
-    if (work?.archived) { outcome = "skipped"; detail = "这项工作已归档，这一次没有开始"; }
+    try { work = whenThere(() => ports.work(followUp.work_id)) ?? undefined; this.#unreadableWorks.worked(followUp.followup_id); }
+    catch (error) { this.#unreadableWorks.failed(followUp.followup_id, error, { followup_id: followUp.followup_id }); throw error; }
+    if (!work) { outcome = "failed"; detail = "这项工作已不存在"; }
+    else if (work.archived) { outcome = "skipped"; detail = "这项工作已归档，这一次没有开始"; }
     else if (work && now.getTime() - Date.parse(due) > FOLLOW_UP_GRACE_MS) {
       outcome = "missed"; detail = "当时 Molis Work 没有在运行，没有补做";
       ports.notify({ kind: "failed", work_id: work.work_id, work_title: work.title,
@@ -254,8 +262,8 @@ export class AssistantFollowUps<W extends FollowUpWork> {
       for (const provider of providers) {
         let collection: DueReminderCollection;
         try { collection = await actions.invoke({ capability_id: provider.capability_id, version: provider.version, provider_id: provider.provider.provider_id }, window) as DueReminderCollection; }
-        catch (error) { missed = true; reminderSourceFailures.failed(provider.capability_id, error, { capability_id: provider.capability_id }); continue; }
-        reminderSourceFailures.worked(provider.capability_id);
+        catch (error) { missed = true; this.#reminderSourceFailures.failed(provider.capability_id, error, { capability_id: provider.capability_id }); continue; }
+        this.#reminderSourceFailures.worked(provider.capability_id);
         for (const reminder of collection.reminders) {
           const due = Date.parse(reminder.due_at);
           if (!(due >= from.getTime() && due <= now.getTime())) continue;

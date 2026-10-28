@@ -1,7 +1,7 @@
 import type { AgentMemoryTools } from "@molis-ai/molis-work-contracts/services/agent-host";
 import type { AssistantMemory, AssistantMemoryCandidate, AssistantMemoryPrefs, AssistantContextSnapshot, AssistantRound } from "@molis-ai/molis-work-contracts/services/assistant";
 import type { AssistantStore, StoredRound, StoredWork } from "./assistant-store.js";
-import { assistantErrors } from "./assistant-errors.js";
+import { assistantErrors, whenThere } from "./assistant-errors.js";
 import { assistantCandidate, assistantMemoryTools } from "./assistant-memory-tools.js";
 import type { MemoryChange, MemoryItem } from "@molis-ai/molis-work-contracts/services/memory";
 import type { MemoryCaller, MemoryService } from "@molis-ai/molis-work-service-memory";
@@ -86,7 +86,11 @@ export class AssistantMemoryBridge {
     const projectId = work.project_ref?.project_id ?? null;
     return assistantMemoryTools({ memory, controlled: (control, bindChangeTarget) => this.ports.memory?.(control, bindChangeTarget), sources: this.ports.memorySources, currentWork: () => this.store.get(this.actorId, work.work_id), currentInput: this.link.continuations.currentInput(work.work_id), actorId: this.actorId, work, projectId, caller: this.memoryCaller(work, projectId),
       onSourceWithdrawal: listener => { this.memorySourceWithdrawals.add(listener); return () => { this.memorySourceWithdrawals.delete(listener); }; },
-      spoken: async () => memoryInputSnapshots(this.actorId, (await Promise.resolve().then(() => this.link.assistantPart(this.store.get(this.actorId, work.work_id))).catch(() => null))?.sourceViews ?? []) });
+      spoken: async () => {
+        // A work deleted meanwhile has spoken nothing more; a store that cannot be read is thrown, not taken for that.
+        const current = whenThere(() => this.store.get(this.actorId, work.work_id));
+        return memoryInputSnapshots(this.actorId, (current ? await Promise.resolve().then(() => this.link.assistantPart(current)).catch(() => null) : null)?.sourceViews ?? []);
+      } });
   }
 
   /**

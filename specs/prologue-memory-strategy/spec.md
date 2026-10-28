@@ -4045,13 +4045,13 @@ Retention前后两次discover仅按provider筛选，以保留“可见system缺r
 
 最终tracked树 health（对origin/main merge-base）、包边界和页面资源门通过；未改通用阈值、资源上限、CI步骤或重试。后续主干集成与最终提交CI结果另记，不能用本机1197项覆盖它们。
 
-#### 待决定：已停止 SQLite 版本的一次分段诊断（不恢复实现）
+#### 已批准：已停止 SQLite 版本的一次分段诊断（不恢复实现）
 
 **已确认的新事实。** 只读核查发现旧实验采用“一个页面连接/事务 + 一次id查询 + 1000次完整BLOB点查”，不是一次批量BLOB查询。首读新项另走单项连接重读。原有效1000档122.151/23.617/28.780ms仍全部失败；原报告没有Host/SQL/授权/账本分段耗时，不能认定失败全在Host或JS，也不能声称批量读取已经试过。原停止决定不变；连续复制的约2ms线索没有填平21ms差距的证据，暂不为它追加交付。
 
 **仅申请诊断。** 在一个新建合成Home/冻结实验副本上，使用原App34c9311d与原SQLite实验包、Node24.14、原完整recall/授权/回执链，最多一个1000条副本、12次召回，0模型调用。只在临时诊断驱动器中观测SQL方法次数/调用墙钟、完整字节返回量、JS CPU采样以及可观测的Memory调用与recordUses耗时；连接次数仅在不改包可准确观察时报告，无法分开的打开/事务/native成本保留未归属，不把方法墙钟叫纯I/O或CPU采样叫精确分段。无探针/有探针各一次Runtime重开首读加五次暖读，共12次；区分嵌套span，不将其相加成总耗时。setup单列，前后差异与单副本顺序效应原样保留，不能精确扣除探针成本。沿用原空容器预置和冻结独立包核验，原产品preflight的SDK mismatch保留，不称产品预检通过。SDK/App生产源码、候选SQL、布局和策略不变，不改门槛、不作新正式性能验收、不迁移、不接产品、不操作真实Home。使用独占测试时段，不能与App构建/浏览器/性能测量竞争。
 
-**产出与停止。** 只回答成本主要落在哪条实际链上、证据不能回答什么；即使发现可优化处，也先提出最小方案，不自动重开候选实施。不能用分段更快覆盖旧冻结失败，不能以旧实验诊断作为当前包或产品完成证据。跑完这一批即停止，不追加采样、调参、改后端或实施。原报告明确“本候选停止，不采用”“本次不再调参、换后端、迁移或接入产品”；用户此前也限定未达标停止，所以新的执行保持待授权，不能将本轮只读核查当作重启许可。App当前PR收束及CI不依赖该答复。
+**产出与停止。** 只回答成本主要落在哪条实际链上、证据不能回答什么；即使发现可优化处，也先提出最小方案，不自动重开候选实施。不能用分段更快覆盖旧冻结失败，不能以旧实验诊断作为当前包或产品完成证据。跑完这一批即停止，不追加采样、调参、改后端或实施。原报告明确“本候选停止，不采用”“本次不再调参、换后端、迁移或接入产品”；用户此前也限定未达标停止，用户已于2026-10-28明确批准上述一次分段诊断；只执行这一批，结束即停，不将批准扩大为重启候选实施。App当前PR收束及CI继续独立推进。
 
 主干47190691已无冲突合入001a17b；最终生产树重新整体构建通过，新主干用例、来源筛选/采用及原连接失败路径9文件67项零重试通过（/private/tmp/memory-source-directory-main-targeted-20261028.log）。随后health与包边界通过，资源对当前main merge-base通过且仍48项/7,463,060 B。这些不是远端最终CI或产品验收；后续仅spec更新不改变本次生产构建。
 
@@ -4075,4 +4075,33 @@ Retention前后两次discover仅按provider筛选，以保留“可见system缺r
 
 505条原单case的一次CPU观测仍在同一等待失败，CDP32秒限额实际46.675秒，NodeCPU47.957秒；profile总79.426秒。`KnowledgeCards.list`累计栈样本8.888秒，其中`visible.assertCurrent`8.782秒；两者嵌套，不相加。现代码每个visible(card)重新循环全部候选，每页过滤后才分页；侧栏先等states、states按200逐页重做，确认重复整批核验有实际成本。HostAvailability.discover累计28.498秒，ActionService目录构造闭包34.962秒也互相重叠，仍有其他成本，不能将删除一处重复核验等同解决全部延迟。原profile保存在 `/private/tmp/memory-side-files-profile-20261028/`，仅原用例/隔离Home/原断言和时限，不是正式性能门或SQLite实验。下一步先评审已有最终整批核验能否消除逐卡嵌套循环，不删来源、授权或完整原卡检查，不新增缓存。
 
-SQLite待批诊断驱动已在 `/private/tmp/memory-sqlite-segments-review-20261028/` 准备并独立只读深审，固定原App与原包，最多12次召回、未配置模型；无法分离的constructor/open/native仍未归属。仅语法和文本核对，尚未导入或运行驱动、未建Home。执行仍待用户批准，不自动恢复旧候选。
+**本刀合同：消除资料列表的重复整批核验。** 505份资料侧栏在读取状态时长时间占用Node，现有逐卡调用又重读整批原卡。仅修改 `horizontal/knowledge/src/index.ts` 的已准备资格谓词、`apps/local-host/src/knowledge-actions.ts` 的消费尾检、Knowledge README及直接行为回归；不改SDK、布局、owner retention、动作目录授权、模型、页面资源或原时限。沿用原shown/candidates/sourceCurrent与assertCurrent，不增加缓存或状态。predicate只回答本次准备得到的资格；search/list/catalog/tally、管理列表和修改等消费阶段在返回、跨等待或写入前必须执行整批来源与完整原卡尾检。补齐grep的cut候选选择后、管理修改首次选择后且beforeEffect之前两处；保留等待后的fresh资格、manageable对本人未绑定卡的逐卡完整比较，以及原DispatchGuard。
+
+- MEM-KNOWLEDGE-BATCH-01：选择和整批核验的Store读取随资料数线性增长；原505条用例作为前后CPU对照，保留失败与探针成本，不作新的SDK性能验收。
+- MEM-KNOWLEDGE-BATCH-02：最终返回/写入前，任一原shown卡（包括当前页以外）内容或排除状态变化仍拒绝；后续retention等待期间被替换的前卡仍省略，不借替换卡重新入选。撤权、归档、安装代、完整字节、beforeEffect等待中的零写入与模型最终派发反例必须保留。已有最终权限用例若只触发资格准备阶段，不充当消费尾检的证明。原列表12项仍按原断言和时限验证，不通过则继续记录未闭环。
+
+独立Ultra只读评审确认以上为内部消费职责澄清，不减少最终权限或原卡覆盖；原多次查询本来也不是跨库原子快照，本刀不作该承诺。先实现最小变化并核对实际差异，不顺手扩大到Kernel目录优化。
+
+本刀实现后：旧实现反例8项中5项失败、3项原保护通过；失败分别为16张卡产生288次单卡读取，以及cut/Host首次选择后的两类原卡变化未拒绝。日志 `/private/tmp/memory-knowledge-batch-red-20261028.log`。最小实现整体构建通过，两份完整回归加Knowledge包必跑项共4文件69项零重试通过（`/private/tmp/memory-knowledge-batch-direct-20261028.log`），独立Ultra复核实际diff与红测，未发现新增边界阻塞。新用例是受控阶段交错及真实Store/Host，不冒称跨进程原子快照。
+
+新main aa88三项改动已合入74ee3a2dd；两份生成数字冲突按原脚本重算，资源48项/7,463,008 B，Workbench与main同减52 B，实际本PR增量仍32,828 B，未增加额度。登记上限缩至实测。为不混入main影响，先固定74ee做原505条用例对照：同CPU仪器下，基线profile75.909秒、cards.list累计8.856秒、visible.assertCurrent累计8.775秒；候选分别67.241/0.025/0.018秒，都是栈样本，重叠项不相加。HostAvailability.discover为27.234→27.413秒，未改善。两轮仍在相同files-more等待失败，CDP44.362→35.676秒（原32秒限额），因此只确认去除了重复核验，不关闭该用例或页面性能门。文件在 `/private/tmp/memory-knowledge-batch-base-profile-20261028/` 与 `/private/tmp/memory-knowledge-batch-candidate-profile-20261028/`。其余包必跑及相关主干/页面回归81文件单并发零重试结束：80文件通过，唯一失败文件late-list-responses的三项仍失败，非观测运行的侧栏CDP为32.275秒（原32秒限额），两项资料筛选/分页也未在原截止内显示期望结果。原问卷6项与加载反馈2项本轮通过；完整原日志为 `/private/tmp/memory-knowledge-batch-required-20261028.log`，不将有失败的批次写成全绿。
+
+#### 已批准：按声明的来源筛选执行目录检查
+
+**问题与提案。** 去除资料卡重复核验后，原505条侧栏用例仍超时，同条件HostAvailability.discover累计栈样本约27秒。当前即使只查Artifacts等一个提供方，Kernel也先计算整个目录的可见性和availability；Host还未把filter传给Kernel。建议在已有纯metadata筛选处先精确求交，再对匹配的根动作做原可见性和availability检查。Host传递原filter；根有依赖或required_scene时沿现有惰性pass.actions取得完整授权目录，原依赖、场景、绑定与Host异步策略仍全做。没有filter及inspect保持原行为。
+
+**需要明确改变的承诺。** Kernel README第11行要求“先完成原完整目录的可见性和授权计算”，`tests/action-directory-pass.test.ts`还断言未选中行的availability被执行。提案会停止执行无关行的这些回调，因此无关回调的次数、异常或副作用不再影响本次有filter的查询；这是可观察范围变化，不能默称纯等价或直接删旧断言。已独立只读检查，尚未发现生产授权刷新依赖遍历无关provider；插件准备仍在withPreparedActions完成，plugin availability是只读。用户已于2026-10-28批准上述回调范围变化；下一刀按此合同实施，原拒绝与性能验收不放宽。
+
+**范围与不变项。** 仅Kernel现有action-metadata/action-service、HostAvailability的filter接线、原合同与相应回归，不加模块、权限缓存、策略快照或新协议；不延长inDirectoryPass到await之后。所选动作仍与allowed_actions、permissions、audience、项目范围求交，provider回调后的live matcher及getter回退不变；过滤外的真实依赖、版本/provider不匹配、循环、场景和绑定继续检查。owner返回后的重新discover、captureSources及最终来源/原卡guard不变；unavailable行、同kind多owner歧义与system缺retention的拒绝不能被过滤掉。无存储格式或数据迁移，回滚只撤销本刀代码及合同。
+
+**验收。** 保留精确筛选、回调后撤权/停用/重装、真实Host的无依赖/过滤外依赖/场景路径，以及实际invoke和副作用拒绝；新测试明确证明有filter时无关availability零调用，不能以空目录或跳过所选授权达标。原505条、列表12项、相关Kernel/Host必跑及最终Full均沿原时限/断言/重试；没有下一刀的收益或通过证据。已通过的线性核验修正先独立提交到同一PR，下一刀并行准备；不借本提案扩大SQLite诊断。
+
+#### 一次 SQLite 分段诊断已结束，候选仍停止
+
+驱动经独立只读深审，在用户批准后取得build/browser独占时段，沿冻结App34c9311d与原SQLite独立包执行一次。固定输出 `/private/tmp/memory-sqlite-segments-run-20261028/report.json`：12/12召回完成，每次完整752候选、选入8/遗漏744并保留回执；seed及12次召回的source calls/paidCalls/requestBytes均0，模型调用0。新合成Home已清理、cleanupErrors为空，两槽已释放；无重跑、调参或生产修改，产品preflight的SDK mismatch保留。
+
+无探针首读134.969ms，5次暖读中位25.223ms（24.559–25.854）；有探针首读136.670ms，暖读中位26.815ms（25.894–30.194）。有探针暖读的各段中位分别为MemoryBackend.listScopes20.526ms、recordUses4.377ms、两公开段以外残差1.785ms；各自中位不可相加代表某一次调用。每暖读有1000次SDK完整BLOB get、返回1,660,960字节，get方法墙钟中位4.823ms；IDs查询1次，envelope/IDs各prepare1次、close1次。首读完整BLOB get2504次、prepare1505次、close1505次。other-sql暖读get1510次/run752次，全部COMMIT2次、中位2.002ms；不把所有other-sql归为账本。
+
+结论仅为读取完整链路仍占主要成本，SQL点查方法时间不足以解释全部时间，不能将差距全归为磁盘。CPU暖读栈可见get、memoryAccessTarget、checkMany、freezeMemoryValue等；profile与hrtime时钟原点不同，首采样包含控制阶段，不能裁成精确recall CPU毫秒。业务段、SQL和CPU栈嵌套，不能相加；构造/open次数、物理读盘量及JS/native边界仍未归属。单副本顺序含缓存/GC/探针效应，不是正式重验或可精确扣除的探针成本。已按授权结束，不追加采样、不重启实现、不采用候选；原冻结1000条失败门与当前App合并阻塞保持不变。
+
+本批资料线性核验的最终门禁：health对main merge-base通过并将原KnowledgeService442行快查降至441；包边界与页面资源门通过。后续main b333cc179只有busy-feedback动画采样测试变化，已合入2028bc9db并单项复验通过，未改变生产构建；此证明CSS动画进度，不证明原生响应时延。提交秘密扫描和新头CI另记。

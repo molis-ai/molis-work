@@ -200,6 +200,7 @@ export function createKnowledgeHost(ports: KnowledgeHostPorts): KnowledgeHost {
     const asked = await access(caller, action), visible = action.capability_id === knowledgeManageActions.organize.capability_id ? await service.visible(asked) : await manageable(caller, action);
     const original = subjects.map(subject => store.get(caller.project_id!, subject)).filter((card): card is KnowledgeCardRecord => !!card && visible(card));
     if (!partial && original.length !== subjects.length) throw new ActionError("actions.subject_unavailable", "这份资料已归档或当前不可读取");
+    visible.assertCurrent?.();
     await caller.beforeEffect();
     const current = action.capability_id === knowledgeManageActions.organize.capability_id ? await service.visible(asked) : await manageable(caller, action);
     if (original.some(card => !current(card))) throw new ActionError("actions.subject_unavailable", "资料或原授权已变化，这次修改没有执行");

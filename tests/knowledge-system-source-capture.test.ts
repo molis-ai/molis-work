@@ -9,7 +9,7 @@ import { withMolisWorkProjectCatalog } from "@molis-ai/molis-work-app-desktop";
 import { MolisWorkLocalHost, molisWorkHostProjectReference } from "@molis-ai/molis-work-app-local-host";
 import { artifactsActions, ARTIFACTS_PROVIDER_ID, type ArtifactImportResult } from "@molis-ai/molis-work-module-artifacts";
 import { artifactSubjectId, type ArtifactsApplicationApi } from "@molis-ai/molis-work-contracts/modules/artifacts";
-import { actionSourceIdentity, isSearchEntriesSource, type ActionClient, type ActionSubjectContext } from "@molis-ai/molis-work-contracts/platform/actions";
+import { actionSourceIdentity, isSearchEntriesSource, type ActionClient, type ActionSubjectContext, type ActionExecutionContext } from "@molis-ai/molis-work-contracts/platform/actions";
 import { searchSourceKey } from "@molis-ai/molis-work-contracts/services/search";
 import { KnowledgeService, cardFor } from "@molis-ai/molis-work-service-knowledge";
 import { readSubjectRetention } from "@molis-ai/molis-work-service-search";
@@ -93,6 +93,48 @@ for (const method of ["query", "list", "catalog", "tally", "read", "grep"] as co
     assert.equal(f.changed(), true, "the real owner archive ran inside an actual Kernel authority callback");
     assert.ok(f.cards.get(f.caller.project_id!, f.subject), "temporary archive preserves the original card");
     assert.equal(f.cards.receipts(f.caller.project_id!, { limit: 20, offset: 0 }).total, 0);
+  });
+}
+
+for (const mutation of ["edit", "exclude"] as const) {
+  test(`MEM-KNOWLEDGE-BATCH-02 Host selection rejects another shown card's ${mutation} before beforeEffect or the requested write`, async t => {
+    const f = await fixture(t), main = f.loaded[0]!, project = main.project.project_id;
+    const extra = await main.client.invoke(f.caller, { ...artifactsActions.importFile, provider_id: ARTIFACTS_PROVIDER_ID },
+      { source: "file", filename: "Other.txt", content: "Another real source", title: "Outside the selection" }) as ArtifactImportResult;
+    const otherSubject = { kind: "artifact", id: artifactSubjectId(extra) };
+    const context = await main.client.invoke(f.caller, { ...artifactsActions.subject, provider_id: ARTIFACTS_PROVIDER_ID },
+      { subject_id: otherSubject.id }) as ActionSubjectContext;
+    const original = f.cards.get(project, f.subject)!;
+    f.cards.put({ ...original, subject: otherSubject, revision: context.revision, title: context.title });
+    const outside = f.cards.get(project, otherSubject)!;
+    const receipts = f.cards.receipts(project, { limit: 20, offset: 0 });
+    const prepare = KnowledgeService.prototype.visible;
+    let intercepted = false, changed = false, beforeEffects = 0;
+    t.mock.method(KnowledgeService.prototype, "visible", async function (this: KnowledgeService, ...args: Parameters<KnowledgeService["visible"]>) {
+      const visible = await prepare.apply(this, args);
+      const caller = args[0].caller as ActionExecutionContext;
+      // Observe the real Host's edit phase after its actual eligibility preparation, never a private handler or a check ordinal.
+      if (intercepted || caller.project_id !== project || caller.current_action?.capability_id !== knowledgeManageActions.edit.capability_id) return visible;
+      intercepted = true;
+      const effect = caller.beforeEffect.bind(caller);
+      t.mock.method(caller, "beforeEffect", async () => { beforeEffects++; await effect(); });
+      return Object.assign((card: Parameters<typeof visible>[0]) => {
+        const allowed = visible(card);
+        if (allowed && card.subject.id === f.subject.id && !changed) {
+          f.cards.put(mutation === "edit" ? { ...outside, brief: "Concurrent human edit", edited: ["brief"] } : { ...outside, excluded: true });
+          changed = true;
+        }
+        return allowed;
+      }, { assertCurrent: visible.assertCurrent });
+    });
+    await assert.rejects(main.client.invoke(f.caller, { ...knowledgeManageActions.edit, provider_id: KNOWLEDGE_PROVIDER_ID },
+      { subject: f.subject, title: "This requested edit must not commit" }), { code: "knowledge.unreadable" });
+    assert.equal(intercepted, true); assert.equal(changed, true);
+    assert.equal(beforeEffects, 0, "first selection is fenced before the real dispatcher's beforeEffect");
+    assert.deepEqual(f.cards.get(project, f.subject), original, "the refused operation writes none of the selected card");
+    assert.deepEqual(f.cards.get(project, otherSubject), mutation === "edit"
+      ? { ...outside, brief: "Concurrent human edit", edited: ["brief"] } : { ...outside, excluded: true }, "only the competing owner's actual write remains");
+    assert.deepEqual(f.cards.receipts(project, { limit: 20, offset: 0 }), receipts);
   });
 }
 

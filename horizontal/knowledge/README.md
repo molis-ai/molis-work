@@ -75,3 +75,5 @@ Knowledge 私库升 4，原 SQLite 表不变。限期 tests/fixtures/coding-know
 原卡同事务保存目标与 adoption={operation_id,actor_id,source_revision,source_identity}，无新回执表或阶段。actor 取调用上下文，source_identity 取可信现目录；输入只是预期值。同 operation/actor/完整目标（含 source_identity）重放只读，换目标拒绝。有 retention 协议须同代；普通来源用 adoption.source_identity 守来源实例，不把 unavailable 降成 unsupported。关联后 listed，旧机器摘要原样供管理但不当当前摘要交给检索/Agent，人工字段保留，只能本人显式 organize，对账不能自动排队。
 
 恢复 revision=null 同样零自动模型并保留旧卡/人工字段，以 listed 待手动整理，不借用 restoration_operation_id 表示采用。cards/edit/exclude@4、本人 bind@2；沿原 beforeEffect/同步尾检/Store 事务，取消、撤权、来源或原卡变化不写。UI 留主任务。验收涵盖真实 SQLite 重启重放、换代、拒绝、模型零调用及邻居保留。
+
+资料批量资格消费（MEM-KNOWLEDGE-BATCH-01/02）：`visible` 先按原来源、权限和完整原卡准备资格，返回的谓词仅判断本次 membership，不逐卡重读整批。每个消费阶段必须在选择/生成结果后、返回或跨等待/副作用之前调用 `assertCurrent`；该尾检先运行原来源 guard，再比较全部原 shown 卡的完整 JSON，包含当前页与候选选择之外的卡。search/list/catalog/tally、管理列表沿原尾检；grep 的 cut 候选选择和管理修改首次选择后补尾检。修改仍在 beforeEffect 后重新取得 fresh 资格，未绑定卡的本人管理完整比较与 DispatchGuard 均不变。没有跨请求缓存，没有删减授权、归档、安装代或原卡检查。直接回归：`tests/knowledge-retention-policy.test.ts`、`tests/knowledge-system-source-capture.test.ts`。

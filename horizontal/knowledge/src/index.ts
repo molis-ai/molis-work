@@ -425,6 +425,7 @@ export class KnowledgeService {
         if (subjects.length === KNOWLEDGE_GREP_MAX_SUBJECTS) { more = true; break; }
         subjects.push(card.subject);
       }
+      visible.assertCurrent?.();
     }
     return { subjects, more };
   }
@@ -451,7 +452,9 @@ export class KnowledgeService {
     return card && (pluginId === undefined || card.plugin_id === pluginId) ? card : null;
   }
 
-  /** The rule a caller may be shown a card by, from the directory of the authority it reads with. */
+  /** Prepare membership from the caller's current sources and original cards. The predicate is pure;
+   * consumers must call assertCurrent after selecting/materializing each batch, before return or another effect/wait.
+   * That tail rechecks sources and every original shown card, including cards outside the selected page. */
   async visible(access: KnowledgeAccess, original?: readonly ActionView[]): Promise<KnowledgeVisibility> {
     const reader = knowledgeReader(access), views = await access.client.discover(reader);
     const allowed = visibility(views, reader.project_id ?? null);
@@ -479,11 +482,7 @@ export class KnowledgeService {
       for (const card of candidates) if (shown.has(JSON.stringify(card)) && JSON.stringify(this.options.cards.get(card.project_id, card.subject)) !== JSON.stringify(card))
         throw knowledgeErrors.unreadable("本轮读取的资料卡片已经变化");
     };
-    return Object.assign((card: KnowledgeCardRecord) => {
-      if (!shown.has(JSON.stringify(card))) return false;
-      assertCurrent();
-      return true;
-    }, { assertCurrent });
+    return Object.assign((card: KnowledgeCardRecord) => shown.has(JSON.stringify(card)), { assertCurrent });
   }
 
   private async retention(access: KnowledgeAccess, card: KnowledgeRetentionIdentity & { revision?: string }, views?: readonly ActionView[]): Promise<SearchRetentionResult> {

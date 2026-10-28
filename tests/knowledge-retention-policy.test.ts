@@ -87,6 +87,104 @@ async function fixture(t: import("node:test").TestContext) {
 
 const subject = (id: string) => ({ kind: "note", id });
 
+test("MEM-KNOWLEDGE-BATCH-01 paged selection and its complete tail use linearly many real Store reads", async t => {
+  const f = await fixture(t);
+  let reads = 0;
+  const counted = { ...f.cards, get: (...args: Parameters<typeof f.cards.get>) => { reads++; return f.cards.get(...args); } };
+  const knowledge = f.knowledge({ cards: counted });
+  const measured: number[] = [];
+  for (const size of [16, 32]) {
+    for (let index = size / 2; index < size; index++) f.add(`batch-${index}`);
+    // The first half starts empty; both samples have the stated total number of real notes.
+    if (size === 16) for (let index = 0; index < 8; index++) f.add(`batch-${index}`);
+    await f.search.rebuild(f.access, { scope: "project" });
+    await f.organizer().reconcile("a");
+    assert.equal(f.cards.list("a").length, size);
+    reads = 0;
+    const result = await knowledge.list(f.access, { limit: 1 });
+    assert.equal(result.total, size); assert.equal(result.pieces.length, 1);
+    assert.ok(reads >= size, "a page must still check the original cards outside that page");
+    assert.ok(reads <= size * 4, `whole-batch verification must not multiply Store reads by the page population: ${reads}/${size}`);
+    measured.push(reads);
+  }
+  assert.ok(measured[1]! <= measured[0]! * 2 + 4, "doubling the real catalog must not square the verification reads");
+});
+
+test("MEM-KNOWLEDGE-BATCH-02 a first card replaced while a later retention read finishes is omitted, not borrowed", async t => {
+  const f = await fixture(t); f.add("first"); f.add("later");
+  await f.search.rebuild(f.access, { scope: "project" }); await f.organizer().reconcile("a");
+  const ordered = f.cards.list("a"), first = ordered[0]!, later = ordered[1]!;
+  let readFirst = false, changed = false;
+  const replacement = { ...first, title: "Replacement card after the first owner read", edited: ["title" as const] };
+  const knowledge = f.knowledge({ retention: async (access, identity, views) => {
+    const state = await readSubjectRetention(access, identity, views);
+    if (identity.subject.id === first.subject.id) readFirst = true;
+    if (identity.subject.id === later.subject.id) {
+      assert.equal(readFirst, true);
+      f.cards.put(replacement); changed = true;
+    }
+    return state;
+  } });
+  const result = await knowledge.list(f.access, {});
+  assert.equal(changed, true);
+  assert.deepEqual(result.pieces.map(card => card.subject), [later.subject]);
+  assert.deepEqual(f.cards.get("a", first.subject), replacement, "omitting the old observation does not remove the newer card");
+});
+
+for (const mutation of ["edit", "exclude"] as const) {
+  test(`MEM-KNOWLEDGE-BATCH-02 list rejects an off-page ${mutation} after preparing and selecting its batch`, async t => {
+    const f = await fixture(t); f.add("first"); f.add("outside");
+    await f.search.rebuild(f.access, { scope: "project" }); await f.organizer().reconcile("a");
+    const first = (await f.knowledge().list(f.access, { limit: 1 })).pieces[0]!;
+    const outside = f.cards.list("a").find(card => card.subject.id !== first.subject.id)!;
+    const before = f.cards.list("a");
+    let changed = false;
+    const knowledge = f.knowledge({ related: () => {
+      // This public ranking port runs after eligibility and list materialization, before the returned page's tail.
+      f.cards.put(mutation === "edit" ? { ...outside, brief: "Human edit outside the page", edited: ["brief"] } : { ...outside, excluded: true });
+      changed = true;
+      return [];
+    } });
+    await assert.rejects(knowledge.list(f.access, { limit: 1, related_to: "Body" }), { code: "knowledge.unreadable" });
+    assert.equal(changed, true);
+    assert.deepEqual(f.cards.get("a", first.subject), before.find(card => card.subject.id === first.subject.id));
+    assert.equal(f.cards.receipts("a", { limit: 10, offset: 0 }).total, 0);
+  });
+
+  test(`MEM-KNOWLEDGE-BATCH-02 grep cut selection rejects a different shown card's ${mutation} before reading bodies`, async t => {
+    const f = await fixture(t); f.add("first"); f.add("outside");
+    await f.search.rebuild(f.access, { scope: "project" }); await f.organizer().reconcile("a");
+    const outside = f.cards.get("a", subject("outside"))!;
+    const knowledge = f.knowledge({ cut: () => [subject("first")] });
+    const prepare = knowledge.visible.bind(knowledge);
+    let changed = false, bodyReads = 0;
+    t.mock.method(knowledge, "visible", async (...args: Parameters<KnowledgeService["visible"]>) => {
+      const visible = await prepare(...args);
+      // Keep the actual prepared result and guard. The competing SQLite write occurs only when selection consumes it.
+      return Object.assign((card: Parameters<typeof visible>[0]) => {
+        const allowed = visible(card);
+        if (allowed && card.subject.id === outside.subject.id && !changed) {
+          f.cards.put(mutation === "edit" ? { ...outside, brief: "Changed during cut selection", edited: ["brief"] } : { ...outside, excluded: true });
+          changed = true;
+        }
+        return allowed;
+      }, { assertCurrent: visible.assertCurrent });
+    });
+    const invoke = f.actions.invoke.bind(f.actions);
+    const access = { ...f.access, client: {
+      discover: (...args: Parameters<typeof f.actions.discover>) => f.actions.discover(...args),
+      captureSources: (...args: Parameters<typeof f.actions.captureSources>) => f.actions.captureSources(...args),
+      invoke: (...args: Parameters<typeof f.actions.invoke>) => {
+        if (args[1].capability_id === "notes.read") bodyReads++;
+        return invoke(...args);
+      },
+    } };
+    await assert.rejects(knowledge.grep(access, { pattern: "word-absent-from-every-note" }), { code: "knowledge.unreadable" });
+    assert.equal(changed, true); assert.equal(bodyReads, 0, "cut selection fails before any selected body is consumed");
+    assert.equal(f.cards.receipts("a", { limit: 10, offset: 0 }).total, 0);
+  });
+}
+
 test("MEM-40 S-71 retention hides every current Knowledge read and preserves cards through owner faults, permission loss and installation changes", async t => {
   const f = await fixture(t); f.add("one");
   const hit = (await f.search.query(f.access, { query: "Body", scope: "project" })).hits[0]!;

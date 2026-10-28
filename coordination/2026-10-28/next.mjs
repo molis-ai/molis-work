@@ -18,7 +18,6 @@ import { existsSync, readFileSync, writeFileSync } from "node:fs";
 const COORD = "coordination/handoff-2026-10-14";
 const BOARD = "coordination/2026-10-28/BOARD.md";
 const ISSUE = 1332;
-const CODEX_QUEUE_CAP = 2;
 const STALE_HOURS = 2;
 const DEPTH = 3;
 const PUSH_MINUTES = 60;
@@ -315,8 +314,6 @@ function plan(snap) {
       const minutes = (Date.now() - Date.parse(b.time)) / 60_000;
       if (minutes > PUSH_MINUTES) out.push(item(`push:${b.branch}:${b.time}`, `推一次进度：${b.branch} 已 ${Math.round(minutes)} 分钟没推（推一个写明做到哪里的提交；卡住了在 #${ISSUE} 贴【阻塞】）`, null, 5));
     }
-    // 丙 PRs get only Codex's light 验证, so they do not count against the queue.
-    const queued = mine.filter((s) => s.phase === "待一审" && tierOf(s) !== "丙").length;
     const fixing = mine.some((s) => s.phase === "要改" || s.verify === "failure");
     if (role === "codex") {
       const rank = (x) => (urgent(x.pr.id) ? 0 : x.lastDev.kind === "修复" ? 1 : 2);
@@ -331,7 +328,7 @@ function plan(snap) {
         if (r?.conclusion === "failure" && !reported.some((s) => s.time > r.createdAt)) out.push(item(`mainred:${r.databaseId}`, `main 红：${wf}（${r.event}）`, r.url, 4));
       }
     }
-    if (!fixing && developing === 0 && queued < CODEX_QUEUE_CAP && !(role === "codex" && out.some((o) => o.order <= 4))) {
+    if (!fixing && developing === 0 && !(role === "codex" && out.some((o) => o.order <= 4))) {
       const next = claimable(device)[0];
       if (next) out.push(item(`claim:${next.id}`, `领：${next.id} ${next.title}（档 ${next.tier}）`, null, 6));
       else if (role !== "codex" && out.length === 0) {

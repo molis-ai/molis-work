@@ -75,7 +75,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-074 | 写进「1.0.0 之前都是开发版本」、BL-812 改为后续做、spec 一处过时句 | 丙 | B | 28 | — | `docs/system/CONTRACT-CHANGES.md`、`specs/repository-anti-corruption/c-end-readiness.md`、`specs/repository-anti-corruption/spec.md`、`docs/releases/CHECKLIST.md`（`specs/BACKLOG.md` 只 BL-812 行，不锁） |
 | T-078 | 删项目两个路由的路径写坏答 400（decodeLocalWebPathPart），RAC-1333 改用删除端口抛普通 Error 造（T-013 二审观察 5） | 乙 | A | 29 | T-013 | `apps/local-host/src/web-project-deletion.ts`、`tests/project-settings-deletion.test.ts` |
 | T-077 | Dataset 的列名、标题、说明和快照备注按 Unicode 字数数上限，与动作 schema 一致 | 乙 | A | 30 | — | `plugins/native/dataset/src/store.ts`、`plugins/native/dataset/src/actions.ts`、`tests/dataset-actions.test.ts` |
-| T-079 | PPT 的标题、说明按 Unicode 字数数上限，页标题、要点、备注与大纲按整字截取，与动作 schema 一致 | 乙 | A | 31 | — | `plugins/native/ppt/src/store.ts`、`plugins/native/ppt/src/content-actions.ts`、`tests/ppt-actions.test.ts` |
+| T-079 | PPT 的标题、说明按 Unicode 字数数上限，页标题、要点、备注与大纲按整字截取，与动作 schema 一致 | 乙 | B | 31 | — | `plugins/native/ppt/src/store.ts`、`plugins/native/ppt/src/content-actions.ts`、`tests/ppt-actions.test.ts` |
 | T-083 | 页面的文档标题、文件夹名按 Unicode 字数数上限，流程交来的标题按整字截取，与动作 schema 一致 | 乙 | B | 32 | — | `plugins/native/pages/src/store.ts`、`plugins/native/pages/src/content-actions.ts`、`tests/pages-actions.test.ts` |
 | T-080 | 灵光的标题、正文与对话消息按 Unicode 字数数上限，没写标题时取正文首行按整字截取，与动作 schema 一致 | 乙 | 池 | 33 | — | `plugins/native/lingguang/src/store.ts`、`tests/lingguang-actions.test.ts` |
 | T-082 | 两处二审登记：个人方法包用例的校验函数返回 boolean、两句注释改对，MCP 健康探测补一句「不带 authorization」 | 丙 | 池 | 34 | — | `tests/goals-personal-methods-stored-json.test.ts`、`tests/mcp-tools-list-refusal.test.ts` |
@@ -86,7 +86,7 @@ node "${TMPDIR:-/tmp}/next.mjs" --role status
 | T-086 | 问卷的标题、说明、题目标题、出题提示与回答按 Unicode 字数数上限，与动作 schema 一致 | 乙 | B | 39 | — | `plugins/native/form/src/store.ts`、`tests/creative-tools-plugins.test.ts` |
 | T-087 | 受管理安装的所有权记录读不出来（不是合法 JSON、是目录）时，移除报 `connector.install.invalid`，不再抛原生错误 | 乙 | B | 40 | — | `apps/local-host/src/connector-tool-install.ts`（只改 `removeManagedConnectorTool`）、`tests/connector-local-actions.test.ts` |
 | T-088 | 终端进程自己退出时也删掉它的重放缓冲 | 乙 | 池 | 41 | — | `horizontal/runtime-host/src/adapters/terminal-pty.ts`、`tests/runtime-host.test.ts` |
-| T-089 | Runtime 解除目录关联成功那条路补用例，绑定错误码用例进 CI 产品子集 | 丙 | A | 42 | — | `tests/runtime-binding-error-codes.test.ts`、`tests/ci-product-subset.txt` |
+| T-089 | Runtime 解除目录关联成功那条路补用例，绑定错误码用例进 CI 产品子集 | 丙 | B | 42 | — | `tests/runtime-binding-error-codes.test.ts`、`tests/ci-product-subset.txt` |
 
 ## 在途，不走任务书
 

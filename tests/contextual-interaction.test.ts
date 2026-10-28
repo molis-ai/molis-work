@@ -734,3 +734,13 @@ test("material is screened with Prologue's own rules before it leaves the machin
   assert.ok(out.notes.some(note => note.includes("密钥")));
   assert.ok(out.notes.some(note => note.includes("像指令的文字")));
 });
+test("RAC-1669 灵光 cuts the first line of a selection in whole Unicode characters: 40 are kept, 41 become 39 and an ellipsis", () => {
+  // lingguang.create's schema (plugins/native/lingguang/src/actions.ts) counts characters; one 🟢 is one character but two UTF-16 units.
+  const wide = (count: number) => "🟢".repeat(count);
+  const offered = (text: string) => prepareLingguangFragmentOffers({ request_id: "wide", fragment: { object: { kind: "pages_document", id: "d1" }, granularity: "range",
+    targets: [{ kind: "text_range", text }] } })[0]!.input as { title: string; body: string; request_id: string };
+  assert.equal(offered(wide(40)).title, wide(40), "a 40-character first line is the whole title");
+  const cut = offered(`${wide(41)}\n第二行`);
+  assert.equal(cut.title, `${wide(39)}…`, "a 41-character first line is cut to 39 characters and an ellipsis");
+  assert.equal(cut.body, `${wide(41)}\n第二行`, "the body keeps the whole selection");
+});

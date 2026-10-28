@@ -76,7 +76,7 @@ export function prepareLingguangFragmentOffers(input: FragmentOffersInput): Frag
   const text = input.fragment.targets.map(target => target.text.trim()).filter(Boolean).join("\n\n");
   if (!text) return [];
   const first = text.split("\n")[0]!.trim();
-  const title = first.length > 40 ? first.slice(0, 39) + "…" : first;
+  const title = [...first].length > 40 ? [...first].slice(0, 39).join("") + "…" : first;
   const from = input.fragment.object.title ? `\n\n出自：${input.fragment.object.title}` : "";
   const body = (text + from).slice(0, LINGGUANG_BODY_LIMIT);
   return [{ offer_id: "capture", title: "记下灵光", action: { capability_id: "lingguang.create", version: 1 },

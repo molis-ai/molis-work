@@ -52,6 +52,7 @@ function fixture(options: { english?: boolean } = {}) {
     failOpen() { unavailable = true; }, failWrite() { failedWrite = true; },
     async open() { bridge.open(); await flush(); assert.ok(mounted); },
     spawned() { assert.ok(mounted); mounted.onEvent?.({ type: "spawned", panelId, attached: true, started: false, replay: "" }); },
+    notAttached() { assert.ok(mounted); mounted.onEvent?.({ type: "spawned", panelId, attached: false, started: false, replay: "" }); },
   };
 }
 
@@ -90,6 +91,7 @@ test("SYS-15 Shelf exit releases the view and another open never repeats deliver
 test("RAC-1322 SYS-15 Shelf exit before attach returns pending input for explicit retry", async () => {
   const f = fixture(); await f.open(); f.bridge.send("启动期间退出"); f.event({ type: "exit", panelId, exitCode: 1, signal: 0 });
   assert.deepEqual(f.recovered[0]!.texts, ["启动期间退出"]); assert.match(f.recovered[0]!.message, /会话已结束/);
+  assert.equal(f.recovered[0]!.message, "终端会话已结束，未发送的输入已恢复。");
   await f.open(); f.spawned(); assert.deepEqual(f.writes, []); f.bridge.send(f.recovered[0]!.texts[0]!); await flush(); assert.equal(f.writes.length, 1);
 });
 
@@ -107,4 +109,17 @@ test("RAC-1321 the terminal well's recovery sentences are English on an English 
   dropped.event({ type: "disconnected" });
   assert.equal(dropped.recovered[0]!.message, "The terminal connection dropped. Your unsent input was restored.");
   assert.doesNotMatch(dropped.recovered[0]!.message, /[一-鿿]/u);
+  // The third branch: a spawned panel that neither started nor attached ends the session too.
+  const notAttached = fixture({ english: true }); await notAttached.open(); notAttached.bridge.send("unsent");
+  notAttached.notAttached();
+  assert.equal(notAttached.recovered[0]!.message, "The terminal session ended. Your unsent input was restored.");
+  assert.doesNotMatch(notAttached.recovered[0]!.message, /[一-鿿]/u);
+});
+
+test("RAC-1322 SYS-15 a spawned panel that neither started nor attached restores the queued input with the ended sentence", async () => {
+  const f = fixture(); await f.open(); f.bridge.send("未附着的输入"); f.notAttached();
+  assert.deepEqual(f.recovered[0]!.texts, ["未附着的输入"]);
+  assert.equal(f.recovered[0]!.message, "终端会话已结束，未发送的输入已恢复。");
+  assert.equal(f.bridge.isLive(), false);
+  assert.equal(f.disposed, 1);
 });

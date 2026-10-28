@@ -57,7 +57,7 @@ test("RAC-1320 the Shelf package no longer declares the xterm packages it does n
     dependencies?: Record<string, string>;
     "molis-work"?: { extraDependencies?: Record<string, string> };
   };
-  const xterm = (names: readonly string[] | undefined) => Object.keys(names ?? {}).filter(name => name.startsWith("@xterm/"));
+  const xterm = (names: readonly string[]) => names.filter(name => name.startsWith("@xterm/"));
   assert.deepEqual(xterm(Object.keys(manifest.dependencies ?? {})), []);
   assert.deepEqual(xterm(Object.keys(manifest["molis-work"]?.extraDependencies ?? {})), []);
   assert.throws(() => statSync(join(SRC, "xterm-css.d.ts")), /ENOENT/);

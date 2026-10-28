@@ -95,7 +95,7 @@ export function createDatasetActionHandlers(ports: DatasetActionPorts): ActionHa
       if (!ports.completeText) throw new ActionError("actions.connection_required", "请先配置可用的文字模型");
       const name = (await ports.completeText(instructed(DATASET_NAME_COLUMN, JSON.stringify({ request: input.prompt })), { signal: caller.signal, beforeDispatch: caller.beforeEffect })).trim();
       caller.signal?.throwIfAborted();
-      if (!name || name.length > 80 || /[\r\n]/.test(name)) throw datasetErrors.invalid("模型没有返回有效列名，请调整提示后重试");
+      if (!name || [...name].length > 80 || /[\r\n]/.test(name)) throw datasetErrors.invalid("模型没有返回有效列名，请调整提示后重试");
       await caller.beforeEffect();
       return write(caller, store => ({ dataset: store.generateColumn(input.id, name, project(caller), current.version) }));
     }, () => ports.modelAvailability()),

@@ -144,7 +144,7 @@ export class DatasetStore {
     return this.once(normalizeProjectId(projectId), "receive:" + requestId, () => {
       const parsed = parseCsv(csv);
       if (parsed.columns.length === 0) throw datasetErrors.invalid("收到的内容不是带表头的 CSV");
-      const created = this.create({ title: title.slice(0, 80) || "未命名数据表", project_id: projectId });
+      const created = this.create({ title: [...title].slice(0, 80).join("") || "未命名数据表", project_id: projectId });
       return this.update(created.id, { columns: parsed.columns, rows: parsed.rows, expected_version: created.version }, projectId);
     });
   }
@@ -171,7 +171,7 @@ export class DatasetStore {
   generateColumn(id: string, prompt: string, projectId?: string, expectedVersion?: number): DatasetRecord {
     const current = this.get(id, projectId);
     const name = prompt.trim() || `列 ${current.columns.length + 1}`;
-    if (name.length > 80) throw datasetErrors.invalid("列名须为 1 到 80 个字");
+    if ([...name].length > 80) throw datasetErrors.invalid("列名须为 1 到 80 个字");
     const column: DatasetColumn = {
       id: crypto.randomUUID(),
       name,
@@ -194,7 +194,7 @@ export class DatasetStore {
     const record: DatasetVersionRecord = {
       id: crypto.randomUUID(),
       dataset_id: id,
-      note: (note ?? "").trim().slice(0, 80),
+      note: [...(note ?? "").trim()].slice(0, 80).join(""),
       snapshot,
       created_at: new Date().toISOString(),
     };
@@ -383,12 +383,12 @@ function normalizeProjectId(value: string): string {
 
 function normalizeTitle(value: string): string {
   const title = value.trim() || "未命名数据表";
-  if (title.length > 80) throw datasetErrors.invalid("标题须为 1 到 80 个字");
+  if ([...title].length > 80) throw datasetErrors.invalid("标题须为 1 到 80 个字");
   return title;
 }
 
 function normalizeDescription(value: string): string {
-  if (value.length > 2000) throw datasetErrors.invalid("说明须为 0 到 2000 个字");
+  if ([...value].length > 2000) throw datasetErrors.invalid("说明须为 0 到 2000 个字");
   return value;
 }
 

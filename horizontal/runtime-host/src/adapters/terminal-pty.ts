@@ -393,6 +393,7 @@ export class MolisWorkPtyHost {
     proc.onExit(({ exitCode, signal }) => {
       if (this.sessions.get(request.panelId) !== proc) return;
       this.sessions.delete(request.panelId);
+      this.replay.delete(request.panelId);
       this.handlers.onExit(request.panelId, { exitCode: exitCode ?? -1, signal: signal ?? 0 });
     });
     this.sessions.set(request.panelId, proc);

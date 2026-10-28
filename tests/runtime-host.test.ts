@@ -126,3 +126,57 @@ async function waitUntil(
     ]);
   }
 }
+test("RAC-1645: a terminal process that exits by itself leaves no replay behind, and attaching afterwards still gets nothing", async () => {
+  // docs/horizontal/runtime-host.md「有限 replay 与退出清理」: the exit handler in src/adapters/terminal-pty.ts drops the replay with the handle.
+  let output = "";
+  const exited: string[] = [];
+  const host = new MolisWorkPtyHost({
+    onData(_panelId, data) { output += data; },
+    onExit(panelId) { exited.push(panelId); },
+  });
+  const tick = () => new Promise<void>(resolve => setTimeout(resolve, 25));
+  try {
+    host.spawn({ panelId: "self", command: "/bin/sh", cwd: os.tmpdir(), args: ["-c", "printf done"] });
+    assert.equal(host["replay"].has("self"), true, "a started terminal has a replay");
+    await waitUntil(() => exited.includes("self"), tick);
+    assert.match(output, /done/);
+    assert.equal(host.alive("self"), false);
+    assert.equal(host["replay"].has("self"), false, "the replay leaves with the process that exited by itself");
+    assert.deepEqual(host.spawn({ panelId: "self", attachOnly: true }), { attached: false, started: false, replay: "" }, "attaching after the exit still gets nothing");
+  } finally { host.killAll(); }
+});
+
+test("RAC-1646: when the old process of a restarted terminal exits late, the new process keeps its replay and stays alive", async () => {
+  // kill() then spawn() on one panel is a restart; the guard at the top of the exit handler ignores the old process's exit.
+  let output = "";
+  const exited: string[] = [];
+  const host = new MolisWorkPtyHost({
+    onData(_panelId, data) { output += data; },
+    onExit(panelId) { exited.push(panelId); },
+  });
+  const tick = () => new Promise<void>(resolve => setTimeout(resolve, 25));
+  // The old shell ignores the SIGHUP and SIGTERM that kill() sends, so it outlives the restart until the test ends it.
+  host.spawn({ panelId: "restart", command: "/bin/sh", cwd: os.tmpdir(), args: ["-c", 'trap "" HUP TERM; printf "old:%s\\n" "$$"; exec cat'] });
+  const old = host["sessions"].get("restart");
+  let next = old;
+  let oldExited = false;
+  old.onExit(() => { oldExited = true; });
+  try {
+    await waitUntil(() => /old:\d+\r?\n/.test(output), tick);
+    host.kill("restart");
+    host.spawn({ panelId: "restart", command: "/bin/sh", cwd: os.tmpdir(), args: ["-c", 'printf "new:%s\\n" "$$"; exec cat'] });
+    next = host["sessions"].get("restart");
+    await waitUntil(() => /new:\d+\r?\n/.test(output), tick);
+    assert.equal(oldExited, false, "the old process is still running after the restart");
+    assert.match(host["replay"].get("restart") ?? "", /new:\d+/, "the restarted terminal has its own replay");
+    old.kill("SIGKILL");
+    await waitUntil(() => oldExited, tick);
+    assert.match(host["replay"].get("restart") ?? "", /new:\d+/, "the old process's exit leaves the new process's replay in place");
+    assert.equal(host.alive("restart"), true, "the old process's exit leaves the new process running");
+    assert.deepEqual(exited, [], "the old process's exit is not reported for the panel");
+  } finally {
+    host.killAll();
+    old.kill("SIGKILL");
+    next.kill();
+  }
+});
